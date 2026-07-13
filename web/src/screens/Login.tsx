@@ -1,8 +1,26 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { color, font } from "../theme";
+import { login } from "../api/auth";
+import { useAuth } from "../api/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { ayarla } = useAuth();
+  const [editorMu, setEditorMu] = useState(true);
+  const [kullanici, setKullanici] = useState("");
+  const [sifre, setSifre] = useState("");
+  const [hata, setHata] = useState<string | null>(null);
+
+  async function girisYap(editorMu: boolean) {
+    try {
+      const rol = await login(editorMu ? kullanici : null, sifre);
+      ayarla(rol);
+      navigate(rol === "viewer" ? "/panel" : "/");
+    } catch {
+      setHata("Kullanıcı adı veya şifre hatalı.");
+    }
+  }
 
   return (
     <div
@@ -89,6 +107,7 @@ export default function Login() {
           }}
         >
           <button
+            onClick={() => setEditorMu(true)}
             style={{
               flex: 1,
               border: "none",
@@ -96,14 +115,15 @@ export default function Login() {
               borderRadius: 8,
               padding: "8px 0",
               font: `600 12.5px ${font.sans}`,
-              background: color.card,
-              color: color.ink,
-              boxShadow: "0 1px 3px rgba(32,38,31,0.12)",
+              background: editorMu ? color.card : "transparent",
+              color: editorMu ? color.ink : color.sub,
+              boxShadow: editorMu ? "0 1px 3px rgba(32,38,31,0.12)" : "none",
             }}
           >
             Editör
           </button>
           <button
+            onClick={() => setEditorMu(false)}
             style={{
               flex: 1,
               border: "none",
@@ -111,8 +131,9 @@ export default function Login() {
               borderRadius: 8,
               padding: "8px 0",
               font: `600 12.5px ${font.sans}`,
-              background: "transparent",
-              color: color.sub,
+              background: editorMu ? "transparent" : color.card,
+              color: editorMu ? color.sub : color.ink,
+              boxShadow: editorMu ? "none" : "0 1px 3px rgba(32,38,31,0.12)",
             }}
           >
             İzleyici
@@ -120,31 +141,35 @@ export default function Login() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: color.sub }}>
-              Kullanıcı adı
-            </label>
-            <input
-              defaultValue="selim"
-              style={{
-                height: 40,
-                border: `1px solid ${color.borderInput}`,
-                borderRadius: 9,
-                background: color.inputBg,
-                padding: "0 12px",
-                fontSize: 13.5,
-                color: color.ink,
-                outline: "none",
-                minWidth: 0,
-              }}
-            />
-          </div>
+          {editorMu && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: color.sub }}>
+                Kullanıcı adı
+              </label>
+              <input
+                value={kullanici}
+                onChange={(e) => setKullanici(e.target.value)}
+                style={{
+                  height: 40,
+                  border: `1px solid ${color.borderInput}`,
+                  borderRadius: 9,
+                  background: color.inputBg,
+                  padding: "0 12px",
+                  fontSize: 13.5,
+                  color: color.ink,
+                  outline: "none",
+                  minWidth: 0,
+                }}
+              />
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             <label style={{ fontSize: 11, fontWeight: 600, color: color.sub }}>
               Şifre
             </label>
             <input
-              defaultValue="••••••••••"
+              value={sifre}
+              onChange={(e) => setSifre(e.target.value)}
               type="password"
               style={{
                 height: 40,
@@ -160,7 +185,7 @@ export default function Login() {
             />
           </div>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => girisYap(editorMu)}
             style={{
               height: 42,
               border: "none",
@@ -180,6 +205,11 @@ export default function Login() {
           >
             Giriş yap
           </button>
+          {hata && (
+            <span style={{ fontSize: 12, color: color.neg, textAlign: "center" }}>
+              {hata}
+            </span>
+          )}
         </div>
 
         <div
