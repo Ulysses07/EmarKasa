@@ -1,7 +1,7 @@
 import { fmt, sfmt } from '../format'
 import { kanalRenk, color, type KanalAd } from '../theme'
-import type { IslemDto, GiderTipi, HaftalikOzetDto, KanalHaftalikDto } from '../api/tipler'
-import type { Islem, HaftaBlok, KanalSatir } from './types'
+import type { IslemDto, GiderTipi, HaftalikOzetDto, KanalHaftalikDto, AylikRaporDto } from '../api/tipler'
+import type { Islem, HaftaBlok, KanalSatir, AyGrup } from './types'
 import { donemEtiket } from './donem'
 
 // "2026-07-12" → "12.07"
@@ -65,5 +65,52 @@ export function haftalikAdapt(dto: HaftalikOzetDto): HaftaBlok {
     tSonuc: sfmt(dto.kasaSonucu),
     tSonucC: dto.kasaSonucu < 0 ? color.neg : color.pos,
     tDevir: fmt(dto.kasaDevir),
+  }
+}
+
+// ---- Panel trend grafiği (mock.ts px/kasaY/kanalY formülleriyle birebir) ----
+export interface PanelKaynak { kasaDevir: number; mezat: number; perakende: number; toptan: number }
+
+const px = (i: number) => 14 + i * 44
+const kasaY = (v: number) => 132 - ((v - 600000) / 750000) * 126
+const kanalY = (v: number) => 132 - (v / 1050000) * 126
+const yol = (vals: number[], yf: (v: number) => number) =>
+  vals.map((v, i) => (i ? 'L' : 'M') + px(i) + ',' + yf(v).toFixed(1)).join(' ')
+
+export function panelSeri(bloklar: PanelKaynak[]) {
+  const kasaSeri = bloklar.map((b) => b.kasaDevir)
+  const mSeri = bloklar.map((b) => b.mezat)
+  const pSeri = bloklar.map((b) => b.perakende)
+  const tSeri = bloklar.map((b) => b.toptan)
+  return {
+    kasaSeri,
+    kasaPath: yol(kasaSeri, kasaY),
+    kasaArea: yol(kasaSeri, kasaY) + ' L322,132 L14,132 Z',
+    kasaDotY: kasaY(kasaSeri[kasaSeri.length - 1] ?? 0).toFixed(1),
+    mzPath: yol(mSeri, kanalY),
+    prPath: yol(pSeri, kanalY),
+    tpPath: yol(tSeri, kanalY),
+    mzDotY: kanalY(mSeri[mSeri.length - 1] ?? 0).toFixed(1),
+    prDotY: kanalY(pSeri[pSeri.length - 1] ?? 0).toFixed(1),
+    tpDotY: kanalY(tSeri[tSeri.length - 1] ?? 0).toFixed(1),
+  }
+}
+
+// ---- Aylık rapor kanal çubukları (mock.ts ayGruplar formülüyle birebir) ----
+export function ayGrupAdapt(rapor: AylikRaporDto, ad: string): AyGrup {
+  const cols = [kanalRenk.MEZAT.dot, kanalRenk.PERAKENDE.dot, kanalRenk.TOPTAN.dot]
+  const adlar = ['MEZAT', 'PERAKENDE', 'TOPTAN']
+  return {
+    ad,
+    bars: adlar.map((kn, i) => {
+      const v = rapor.kanallar.find((k) => k.kanal === kn)?.aySonucu ?? 0
+      const h = Math.max(3, (Math.abs(v) / 400000) * 110)
+      return {
+        h: h.toFixed(1),
+        top: (v >= 0 ? 130 - h : 131).toFixed(1),
+        c: cols[i],
+        t: `${kn} ${ad}: ${sfmt(v)} ₺`,
+      }
+    }),
   }
 }

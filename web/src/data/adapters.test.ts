@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { islemAdapt, haftalikAdapt } from './adapters'
-import type { IslemDto, HaftalikOzetDto } from '../api/tipler'
+import { islemAdapt, haftalikAdapt, panelSeri, ayGrupAdapt } from './adapters'
+import type { IslemDto, HaftalikOzetDto, AylikRaporDto } from '../api/tipler'
 
 describe('islemAdapt', () => {
   it('ham işlemi view-modele çevirir (tarih gg.aa, tutar TL, kanal rengi, tip etiketi)', () => {
@@ -55,5 +55,35 @@ describe('haftalikAdapt', () => {
     const b = haftalikAdapt(dto)
     // 3345495 - (1308800+1221374+360000) = 455321
     expect(b.ortak).toBe('455.321,00')
+  })
+})
+
+describe('panelSeri', () => {
+  it('haftalık kasaDevir dizisinden kasa serisi ve SVG yolu üretir', () => {
+    const bloklar = [
+      { kasaDevir: 648700, mezat: 412500, perakende: 168400, toptan: 96200 },
+      { kasaDevir: 700000, mezat: 500000, perakende: 180000, toptan: 100000 },
+    ]
+    const s = panelSeri(bloklar)
+    expect(s.kasaSeri).toEqual([648700, 700000])
+    expect(s.kasaPath.startsWith('M')).toBe(true)
+    expect(s.kasaPath.split(' ')).toHaveLength(2)
+  })
+})
+
+describe('ayGrupAdapt', () => {
+  it('aylık raporu kanal çubuklarına çevirir', () => {
+    const rapor: AylikRaporDto = {
+      yil: 2026, ay: 6,
+      kanallar: [
+        { kanal: 'MEZAT', gelen: 0, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 392200 },
+        { kanal: 'PERAKENDE', gelen: 0, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 96000 },
+        { kanal: 'TOPTAN', gelen: 0, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: -47100 },
+      ],
+    }
+    const g = ayGrupAdapt(rapor, 'Haziran')
+    expect(g.ad).toBe('Haziran')
+    expect(g.bars).toHaveLength(3)
+    expect(g.bars[0].t).toContain('MEZAT Haziran')
   })
 })

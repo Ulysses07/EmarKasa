@@ -1,15 +1,5 @@
 import { useState } from "react";
-import {
-  kasaPath,
-  kasaArea,
-  kasaDotY,
-  mzPath,
-  prPath,
-  tpPath,
-  mzDotY,
-  prDotY,
-  tpDotY,
-} from "../data/mock";
+import { usePanelSeri } from "../data/hooks";
 import { color } from "../theme";
 
 const segOn = {
@@ -26,6 +16,11 @@ const segOff = {
 export default function Panel() {
   const [trend, setTrend] = useState<"kasa" | "kanallar">("kasa");
   const trendKasa = trend === "kasa";
+  const { veri, yukleniyor, hata } = usePanelSeri();
+
+  if (yukleniyor) return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>;
+  if (hata || !veri) return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>;
+  const { kasaPath, kasaArea, kasaDotY, mzPath, prPath, tpPath, mzDotY, prDotY, tpDotY } = veri;
 
   return (
     <div

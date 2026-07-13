@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { apiGet } from '../api/client'
-import type { HaftalikOzetDto, IslemDto } from '../api/tipler'
-import { haftalikAdapt, islemAdapt } from './adapters'
-import type { HaftaBlok, Islem } from './types'
+import type { HaftalikOzetDto, IslemDto, AylikRaporDto } from '../api/tipler'
+import { haftalikAdapt, islemAdapt, panelSeri, ayGrupAdapt, kanalAd, type PanelKaynak } from './adapters'
+import type { HaftaBlok, Islem, AyGrup } from './types'
 
 interface Durum<T> { veri: T | null; yukleniyor: boolean; hata: string | null; yenile: () => void }
 
@@ -40,5 +40,34 @@ export function useIslemler(): Durum<Islem[]> {
     const ham = await apiGet<IslemDto[]>('/islemler')
     // En yeni önce:
     return ham.map(islemAdapt).reverse()
+  })
+}
+
+export function usePanelSeri() {
+  return useVeri(async () => {
+    const ham = await apiGet<HaftalikOzetDto[]>('/rapor/haftalik')
+    const kaynak: PanelKaynak[] = ham.map((h) => ({
+      kasaDevir: h.kasaDevir,
+      mezat: h.kanallar.find((k) => kanalAd(k.kanal) === 'MEZAT')?.devir ?? 0,
+      perakende: h.kanallar.find((k) => kanalAd(k.kanal) === 'PERAKENDE')?.devir ?? 0,
+      toptan: h.kanallar.find((k) => kanalAd(k.kanal) === 'TOPTAN')?.devir ?? 0,
+    }))
+    return panelSeri(kaynak)
+  })
+}
+
+const AY_ADI = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
+
+export function useAylik(): Durum<AyGrup[]> {
+  return useVeri(async () => {
+    const bugun = new Date()
+    const hedefler = [2, 1, 0].map((geri) => {
+      const d = new Date(bugun.getFullYear(), bugun.getMonth() - geri, 1)
+      return { yil: d.getFullYear(), ay: d.getMonth() + 1 }
+    })
+    const raporlar = await Promise.all(
+      hedefler.map((h) => apiGet<AylikRaporDto>(`/rapor/aylik?yil=${h.yil}&ay=${h.ay}`)),
+    )
+    return raporlar.map((r) => ayGrupAdapt(r, AY_ADI[r.ay - 1]))
   })
 }

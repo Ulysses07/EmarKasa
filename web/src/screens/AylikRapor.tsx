@@ -1,10 +1,36 @@
 import { useState } from "react";
-import { ayGruplar, mzAyPath, prAyPath, tpAyPath } from "../data/mock";
+import { useAylik } from "../data/hooks";
+import { color } from "../theme";
+import type { AyGrup } from "../data/types";
+
+// Çizgi grafik yolları — sütun bar'larından türetilir (mock ax/ayY: 120+i*200, 130-(v/400000)*110).
+// Bar yüksekliği h = |v|/400000*110; pozitifte üst = 130-h = ayY(v); negatifte v = -(h/110*400000).
+function cizgiYol(gruplar: AyGrup[], kanalIdx: number): string {
+  const ax = (i: number) => 120 + i * 200;
+  return gruplar
+    .map((g, i) => {
+      const bar = g.bars[kanalIdx];
+      const h = parseFloat(bar.h);
+      const negatif = parseFloat(bar.top) === 131;
+      const v = negatif ? -(h / 110) * 400000 : (h / 110) * 400000;
+      const y = 130 - (v / 400000) * 110;
+      return (i ? "L" : "M") + ax(i) + "," + y.toFixed(1);
+    })
+    .join(" ");
+}
 
 export default function AylikRapor() {
   const [tur, setTur] = useState<"sütun" | "çizgi">("sütun");
   const aySutun = tur !== "çizgi";
   const ayCizgi = tur === "çizgi";
+  const { veri, yukleniyor, hata } = useAylik();
+
+  if (yukleniyor) return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>;
+  if (hata) return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>;
+  const ayGruplar = veri ?? [];
+  const mzAyPath = cizgiYol(ayGruplar, 0);
+  const prAyPath = cizgiYol(ayGruplar, 1);
+  const tpAyPath = cizgiYol(ayGruplar, 2);
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
