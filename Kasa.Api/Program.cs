@@ -45,6 +45,9 @@ builder.Services.AddAuthorization(o =>
 
 var app = builder.Build();
 
+// Üretimde (Caddy TLS arkasında) çerez yalnızca HTTPS'te gitmeli.
+var cerezSecure = !app.Environment.IsDevelopment();
+
 // --- DB başlat + seed ---
 using (var scope = app.Services.CreateScope())
 {
@@ -68,6 +71,9 @@ using (var scope = app.Services.CreateScope())
     }
     db.SaveChanges();
 }
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -101,7 +107,7 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
     {
         HttpOnly = true,
         SameSite = SameSiteMode.Lax,
-        Secure = false,
+        Secure = cerezSecure,
         MaxAge = TimeSpan.FromDays(30),
     });
     return Results.Ok(new { rol });
@@ -260,6 +266,11 @@ api.MapGet("/donemler", (HesapServisi svc) => svc.Donemler());
 api.MapGet("/rapor/haftalik", (HesapServisi svc) => svc.Haftalik());
 api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) => svc.Aylik(yil, ay));
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
+
+// React istemci-tarafı rotaları (/haftalik, /aylik, ...) index.html'e düşer.
+// /api ve /health zaten eşleştiği için buraya gelmez; eşleşmeyen /api/* için
+// aşağıdaki guard 404 üretir (HTML fallback yerine).
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

@@ -480,3 +480,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Deploy sırları ve yerel DB
+deploy/.env
+deploy/kasa-data/

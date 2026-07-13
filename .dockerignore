@@ -1,0 +1,12 @@
+**/bin
+**/obj
+**/node_modules
+web/dist
+**/.vs
+*.db
+*.db-shm
+*.db-wal
+.git
+.gitignore
+docs
+**/TestResults

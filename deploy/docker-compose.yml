@@ -1,0 +1,30 @@
+services:
+  kasa:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: kasa:latest
+    container_name: kasa-app
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Kasa: "Data Source=/data/kasa.db"
+      Kasa__JwtKey: "${KASA_JWT_KEY}"
+      Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
+      Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
+    volumes:
+      - ./kasa-data:/data
+    networks:
+      - web
+    expose:
+      - "8080"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.5
+
+networks:
+  web:
+    # OrderDeck compose'unun oluşturduğu ağ (proje adı 'orderdeck' → 'orderdeck_web').
+    external: true
+    name: orderdeck_web
