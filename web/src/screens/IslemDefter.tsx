@@ -1,12 +1,74 @@
 // 1b İşlem + Defter — masaüstü ekranı; "Kasa Defteri.dc.html" (satır 183–371) birebir port.
 // Sidebar burada YOK; onu paylaşımlı shell sağlıyor. Sadece flex:1 içerik paneli.
 
-import { useState } from "react";
-import { islemler } from "../data/mock";
+import { useState, useEffect, useCallback } from "react";
+import { apiGet, apiPost, apiDelete } from '../api/client'
+import { islemAdapt } from '../data/adapters'
+import type { IslemDto } from '../api/tipler'
+import { color } from "../theme";
+
+const KANALLAR = ['MEZAT', 'PERAKENDE', 'TOPTAN', 'Ortak'] as const
+const TIPLER = ['Cari', 'SabitGider', 'KrediKarti'] as const
+
+function bugunIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
 
 export default function IslemDefter() {
   const [tab, setTab] = useState<"defter" | "gelen">("defter");
 
+  // --- veri ---
+  const [hamListe, setHamListe] = useState<IslemDto[] | null>(null)
+  const [hata, setHata] = useState<string | null>(null)
+
+  const yukle = useCallback(() => {
+    apiGet<IslemDto[]>('/islemler')
+      .then((d) => setHamListe([...d].reverse()))
+      .catch((e) => setHata(String(e)))
+  }, [])
+
+  useEffect(() => { yukle() }, [yukle])
+
+  // --- form state ---
+  const [fTarih, setFTarih] = useState(bugunIso())
+  const [fCari, setFCari] = useState('')
+  const [fTutar, setFTutar] = useState('')
+  const [fKanal, setFKanal] = useState<string>('MEZAT')
+  const [fTip, setFTip] = useState<string>('Cari')
+  const [fNot, setFNot] = useState('')
+
+  // --- aksiyonlar ---
+  async function islemEkle() {
+    const tutarTl = parseFloat(fTutar.replace(',', '.'))
+    if (!fCari.trim() || isNaN(tutarTl) || tutarTl <= 0) return
+    try {
+      await apiPost('/islemler', {
+        tarih: fTarih,
+        cari: fCari.trim(),
+        tutarTl,
+        kanal: fKanal,
+        tip: fTip,
+        not: fNot.trim() || null,
+      })
+      setFCari('')
+      setFTutar('')
+      setFNot('')
+      yukle()
+    } catch (e) {
+      setHata(String(e))
+    }
+  }
+
+  async function islemSil(id: number) {
+    try {
+      await apiDelete(`/islemler/${id}`)
+      yukle()
+    } catch (e) {
+      setHata(String(e))
+    }
+  }
+
+  // --- stil yardımcıları ---
   const segOn = {
     background: "#FFFFFF",
     color: "#20261F",
@@ -19,6 +81,16 @@ export default function IslemDefter() {
   } as const;
 
   const gridCols = "92px 1.5fr 150px 140px 118px 1.5fr 76px";
+
+  // --- yükleniyor / hata ---
+  if (hamListe === null && !hata) {
+    return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>
+  }
+  if (hata) {
+    return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>
+  }
+
+  const islemler = (hamListe ?? []).map(islemAdapt)
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
@@ -154,8 +226,9 @@ export default function IslemDefter() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#6F7566" }}>Tarih</label>
                   <input
-                    value="13.07.2026"
-                    readOnly
+                    type="date"
+                    value={fTarih}
+                    onChange={(e) => setFTarih(e.target.value)}
                     style={{
                       height: 38,
                       border: "1px solid #DAD6C9",
@@ -169,14 +242,16 @@ export default function IslemDefter() {
                     }}
                   />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5, position: "relative" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#6F7566" }}>Cari</label>
                   <input
-                    value="Yıl"
-                    readOnly
+                    value={fCari}
+                    onChange={(e) => setFCari(e.target.value)}
+                    placeholder="Cari adı"
+                    onKeyDown={(e) => { if (e.key === 'Enter') islemEkle() }}
                     style={{
                       height: 38,
-                      border: "1.5px solid #1E5F46",
+                      border: "1px solid #DAD6C9",
                       borderRadius: 8,
                       background: "#FFFFFF",
                       padding: "0 11px",
@@ -184,95 +259,16 @@ export default function IslemDefter() {
                       color: "#20261F",
                       outline: "none",
                       minWidth: 0,
-                      boxShadow: "0 0 0 3px rgba(30,95,70,0.1)",
                     }}
                   />
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      width: "max-content",
-                      minWidth: "100%",
-                      marginTop: 5,
-                      background: "#FFFFFF",
-                      border: "1px solid #E3E0D6",
-                      borderRadius: 10,
-                      boxShadow: "0 10px 26px rgba(32,38,31,0.14)",
-                      zIndex: 6,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "9px 12px",
-                        background: "#F1EFE8",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <span style={{ fontSize: "12.5px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <span style={{ background: "#EFE8C8" }}>Yıl</span>dız Tarım Ürünleri
-                      </span>
-                      <span style={{ fontSize: "10.5px", color: "#9AA08F", whiteSpace: "nowrap" }}>
-                        38 işlem · MEZAT
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        padding: "9px 12px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <span style={{ fontSize: "12.5px", whiteSpace: "nowrap" }}>
-                        <span style={{ background: "#EFE8C8" }}>Yıl</span>maz Balıkçılık
-                      </span>
-                      <span style={{ fontSize: "10.5px", color: "#9AA08F", whiteSpace: "nowrap" }}>
-                        9 işlem · MEZAT
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        padding: "9px 12px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <span style={{ fontSize: "12.5px", whiteSpace: "nowrap" }}>
-                        <span style={{ background: "#EFE8C8" }}>Yıl</span>dırım Nakliyat
-                      </span>
-                      <span style={{ fontSize: "10.5px", color: "#9AA08F", whiteSpace: "nowrap" }}>
-                        4 işlem · Ortak
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        borderTop: "1px dashed #E3E0D6",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "#1E5F46",
-                        cursor: "pointer",
-                      }}
-                    >
-                      + Yeni cari oluştur: “Yıl”
-                    </div>
-                  </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#6F7566" }}>Tutar (₺)</label>
                   <input
                     placeholder="0,00"
+                    value={fTutar}
+                    onChange={(e) => setFTutar(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') islemEkle() }}
                     style={{
                       height: 38,
                       border: "1px solid #DAD6C9",
@@ -289,56 +285,54 @@ export default function IslemDefter() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#6F7566" }}>Kanal</label>
-                  <div
+                  <select
+                    value={fKanal}
+                    onChange={(e) => setFKanal(e.target.value)}
                     style={{
                       height: 38,
                       border: "1px solid #DAD6C9",
                       borderRadius: 8,
                       background: "#FDFCFA",
                       padding: "0 11px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
                       fontSize: "12.5px",
                       fontWeight: 600,
-                      color: "#A16A0B",
+                      color: "#20261F",
                       cursor: "pointer",
+                      outline: "none",
+                      minWidth: 0,
                     }}
                   >
-                    <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span
-                        style={{ width: 7, height: 7, borderRadius: 99, background: "#C98A12" }}
-                      />
-                      MEZAT
-                    </span>
-                    <span style={{ color: "#9AA08F", fontSize: 10 }}>▾</span>
-                  </div>
+                    {KANALLAR.map((k) => <option key={k} value={k}>{k}</option>)}
+                  </select>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#6F7566" }}>Tip</label>
-                  <div
+                  <select
+                    value={fTip}
+                    onChange={(e) => setFTip(e.target.value)}
                     style={{
                       height: 38,
                       border: "1px solid #DAD6C9",
                       borderRadius: 8,
                       background: "#FDFCFA",
                       padding: "0 11px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
                       fontSize: "12.5px",
                       color: "#20261F",
                       cursor: "pointer",
+                      outline: "none",
+                      minWidth: 0,
                     }}
                   >
-                    <span>Cari</span>
-                    <span style={{ color: "#9AA08F", fontSize: 10 }}>▾</span>
-                  </div>
+                    {TIPLER.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#6F7566" }}>Not</label>
                   <input
                     placeholder="opsiyonel"
+                    value={fNot}
+                    onChange={(e) => setFNot(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') islemEkle() }}
                     style={{
                       height: 38,
                       border: "1px solid #DAD6C9",
@@ -353,6 +347,7 @@ export default function IslemDefter() {
                   />
                 </div>
                 <button
+                  onClick={islemEkle}
                   style={{
                     height: 38,
                     border: "none",
@@ -477,7 +472,7 @@ export default function IslemDefter() {
                   Temizle
                 </a>
                 <div style={{ flex: 1 }} />
-                <span style={{ fontSize: 12, color: "#9AA08F" }}>24 işlem · 634.600,00 ₺ giden</span>
+                <span style={{ fontSize: 12, color: "#9AA08F" }}>{islemler.length} işlem</span>
               </div>
 
               {/* başlık satırı */}
@@ -503,105 +498,109 @@ export default function IslemDefter() {
               </div>
 
               {/* veri satırları */}
-              {islemler.map((i, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: gridCols,
-                    padding: "10px 16px",
-                    borderBottom: "1px solid #F1EFE8",
-                    alignItems: "center",
-                  }}
-                >
-                  <span
-                    style={{ font: "500 12px 'IBM Plex Mono',monospace", color: "#6F7566" }}
-                  >
-                    {i.tarih}
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{i.cari}</span>
-                  <span
-                    style={{ font: "600 13px 'IBM Plex Mono',monospace", textAlign: "right" }}
-                  >
-                    {i.tutar}
-                  </span>
-                  <span style={{ paddingLeft: 16 }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        borderRadius: 999,
-                        padding: "3px 9px",
-                        fontSize: "10.5px",
-                        fontWeight: 700,
-                        background: i.kbg,
-                        color: i.kc,
-                      }}
-                    >
-                      <span
-                        style={{ width: 6, height: 6, borderRadius: 99, background: i.kdot }}
-                      />
-                      {i.kanal}
-                    </span>
-                  </span>
-                  <span style={{ fontSize: 12, color: "#6F7566" }}>{i.tip}</span>
-                  <span
+              {(hamListe ?? []).map((dto) => {
+                const i = islemAdapt(dto)
+                return (
+                  <div
+                    key={dto.id}
                     style={{
-                      fontSize: 12,
-                      color: "#9AA08F",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      display: "grid",
+                      gridTemplateColumns: gridCols,
+                      padding: "10px 16px",
+                      borderBottom: "1px solid #F1EFE8",
+                      alignItems: "center",
                     }}
                   >
-                    {i.not}
-                  </span>
-                  <span style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                    <button
-                      title="Düzenle"
+                    <span
+                      style={{ font: "500 12px 'IBM Plex Mono',monospace", color: "#6F7566" }}
+                    >
+                      {i.tarih}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{i.cari}</span>
+                    <span
+                      style={{ font: "600 13px 'IBM Plex Mono',monospace", textAlign: "right" }}
+                    >
+                      {i.tutar}
+                    </span>
+                    <span style={{ paddingLeft: 16 }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          borderRadius: 999,
+                          padding: "3px 9px",
+                          fontSize: "10.5px",
+                          fontWeight: 700,
+                          background: i.kbg,
+                          color: i.kc,
+                        }}
+                      >
+                        <span
+                          style={{ width: 6, height: 6, borderRadius: 99, background: i.kdot }}
+                        />
+                        {i.kanal}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: 12, color: "#6F7566" }}>{i.tip}</span>
+                    <span
                       style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        padding: 5,
-                        borderRadius: 6,
+                        fontSize: 12,
                         color: "#9AA08F",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                        <path
-                          d="m9.8 3.2 3 3L6 13H3v-3l6.8-6.8ZM8.6 4.4l3 3"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      title="Sil"
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        padding: 5,
-                        borderRadius: 6,
-                        color: "#9AA08F",
-                      }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                        <path
-                          d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5 5 13.5h6l.5-9"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                </div>
-              ))}
+                      {i.not}
+                    </span>
+                    <span style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                      <button
+                        title="Düzenle"
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          padding: 5,
+                          borderRadius: 6,
+                          color: "#9AA08F",
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                          <path
+                            d="m9.8 3.2 3 3L6 13H3v-3l6.8-6.8ZM8.6 4.4l3 3"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        title="Sil"
+                        onClick={() => islemSil(dto.id)}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          padding: 5,
+                          borderRadius: 6,
+                          color: "#9AA08F",
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                          <path
+                            d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5 5 13.5h6l.5-9"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </span>
+                  </div>
+                )
+              })}
 
               <div
                 style={{
@@ -612,7 +611,7 @@ export default function IslemDefter() {
                 }}
               >
                 <span style={{ fontSize: 12, color: "#9AA08F" }}>
-                  24 işlemden 11’i gösteriliyor
+                  {islemler.length} işlem gösteriliyor
                 </span>
                 <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
                   <button
@@ -635,7 +634,7 @@ export default function IslemDefter() {
                       padding: "0 5px",
                     }}
                   >
-                    1 / 3
+                    1 / 1
                   </span>
                   <button
                     style={{

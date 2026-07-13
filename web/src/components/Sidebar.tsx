@@ -1,8 +1,10 @@
 // Masaüstü sol menü — 1b–1f ekranlarında ortak. Aktif sekme route'a göre.
 
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { color } from "../theme";
+import { useAuth } from "../api/AuthContext";
+import { logout } from "../api/auth";
 
 type NavItem = { to: string; label: string; icon: ReactNode };
 
@@ -61,6 +63,19 @@ const items: NavItem[] = [
 ];
 
 export default function Sidebar() {
+  const navigate = useNavigate();
+  const { ayarla } = useAuth();
+
+  async function handleCikis() {
+    try {
+      await logout();
+    } catch {
+      // Ağ hatası olsa bile yerel oturumu temizle, kullanıcı takılıp kalmasın.
+    }
+    ayarla(null);
+    navigate("/login");
+  }
+
   return (
     <div
       style={{
@@ -151,8 +166,20 @@ export default function Sidebar() {
           <span style={{ fontSize: 12.5, fontWeight: 600, color: "#E8EFE4" }}>Selim Arslan</span>
           <span style={{ fontSize: 10.5, color: color.sidebarTextSoft }}>Editör</span>
         </div>
-        <NavLink to="/login" style={{ display: "flex" }}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ cursor: "pointer" }}>
+        <button
+          type="button"
+          onClick={handleCikis}
+          title="Çıkış"
+          aria-label="Çıkış"
+          style={{
+            display: "flex",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
             <path
               d="M6.5 3H3.5v10h3M12 8H7M9.5 5.5 12 8l-2.5 2.5"
               stroke={color.sidebarTextSoft}
@@ -161,7 +188,7 @@ export default function Sidebar() {
               strokeLinejoin="round"
             />
           </svg>
-        </NavLink>
+        </button>
       </div>
     </div>
   );

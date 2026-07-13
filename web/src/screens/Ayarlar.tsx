@@ -1,4 +1,74 @@
+import { useState, useEffect, useCallback } from "react";
+import { apiGet, apiPut } from "../api/client";
+import type { AyarlarDto, KanalDto } from "../api/tipler";
+import { fmt } from "../format";
+import { color } from "../theme";
+
 export default function Ayarlar() {
+  const [ayarlar, setAyarlar] = useState<AyarlarDto | null>(null);
+  const [kanallar, setKanallar] = useState<KanalDto[]>([]);
+  const [hata, setHata] = useState<string | null>(null);
+  const [mesaj, setMesaj] = useState<string | null>(null);
+
+  const [takip, setTakip] = useState("");
+  const [kasaDevri, setKasaDevri] = useState("");
+  const [yeniSifre, setYeniSifre] = useState("");
+
+  const yukle = useCallback(() => {
+    Promise.all([apiGet<AyarlarDto>("/ayarlar"), apiGet<KanalDto[]>("/kanallar")])
+      .then(([a, k]) => {
+        setAyarlar(a);
+        setKanallar(k);
+        setTakip(a.takipBaslangic);
+        setKasaDevri(String(a.kasaAcilisDevri));
+      })
+      .catch((e) => setHata(String(e)));
+  }, []);
+  useEffect(() => {
+    yukle();
+  }, [yukle]);
+
+  async function ayarlarKaydet() {
+    const devir = parseFloat(kasaDevri.replace(/\./g, "").replace(",", "."));
+    if (!takip || isNaN(devir)) return;
+    try {
+      await apiPut("/ayarlar", { takipBaslangic: takip, kasaAcilisDevri: devir });
+      setMesaj("Ayarlar kaydedildi.");
+      yukle();
+    } catch (e) {
+      setHata(String(e));
+    }
+  }
+  async function sifreKaydet() {
+    if (!yeniSifre.trim()) return;
+    try {
+      await apiPut("/ayarlar/izleyici-sifre", { yeniSifre });
+      setYeniSifre("");
+      setMesaj("İzleyici şifresi güncellendi.");
+    } catch (e) {
+      setHata(String(e));
+    }
+  }
+  async function kanalDevirKaydet(k: KanalDto, deger: string) {
+    const acilisDevri = parseFloat(deger.replace(/\./g, "").replace(",", "."));
+    if (isNaN(acilisDevri)) return;
+    try {
+      await apiPut(`/kanallar/${k.id}`, { ...k, acilisDevri });
+      yukle();
+    } catch (e) {
+      setHata(String(e));
+    }
+  }
+
+  if (ayarlar === null && !hata) {
+    return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>;
+  }
+  if (hata) {
+    return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>;
+  }
+
+  const kanalByAd = (ad: string) => kanallar.find((k) => k.ad === ad);
+
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
       <div
@@ -14,20 +84,26 @@ export default function Ayarlar() {
         <span style={{ fontSize: "16.5px", fontWeight: 700, letterSpacing: "-0.01em" }}>
           Ayarlar
         </span>
-        <button
-          style={{
-            height: "34px",
-            border: "none",
-            borderRadius: "8px",
-            background: "#1E5F46",
-            color: "#FFFFFF",
-            font: "600 12.5px 'IBM Plex Sans',sans-serif",
-            padding: "0 18px",
-            cursor: "pointer",
-          }}
-        >
-          Kaydet
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {mesaj && (
+            <span style={{ fontSize: "12px", fontWeight: 600, color: color.pos }}>{mesaj}</span>
+          )}
+          <button
+            onClick={ayarlarKaydet}
+            style={{
+              height: "34px",
+              border: "none",
+              borderRadius: "8px",
+              background: "#1E5F46",
+              color: "#FFFFFF",
+              font: "600 12.5px 'IBM Plex Sans',sans-serif",
+              padding: "0 18px",
+              cursor: "pointer",
+            }}
+          >
+            Kaydet
+          </button>
+        </div>
       </div>
       <div
         style={{
@@ -124,7 +200,15 @@ export default function Ayarlar() {
                 MEZAT
               </span>
               <input
-                defaultValue="350.000,00"
+                key={kanalByAd("MEZAT")?.acilisDevri}
+                defaultValue={fmt(kanalByAd("MEZAT")?.acilisDevri ?? 0)}
+                onBlur={(e) => {
+                  const k = kanalByAd("MEZAT");
+                  if (k) kanalDevirKaydet(k, e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
                 style={{
                   height: "34px",
                   border: "1px solid #DAD6C9",
@@ -203,7 +287,15 @@ export default function Ayarlar() {
                 PERAKENDE
               </span>
               <input
-                defaultValue="120.000,00"
+                key={kanalByAd("PERAKENDE")?.acilisDevri}
+                defaultValue={fmt(kanalByAd("PERAKENDE")?.acilisDevri ?? 0)}
+                onBlur={(e) => {
+                  const k = kanalByAd("PERAKENDE");
+                  if (k) kanalDevirKaydet(k, e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
                 style={{
                   height: "34px",
                   border: "1px solid #DAD6C9",
@@ -281,7 +373,15 @@ export default function Ayarlar() {
                 TOPTAN
               </span>
               <input
-                defaultValue="80.000,00"
+                key={kanalByAd("TOPTAN")?.acilisDevri}
+                defaultValue={fmt(kanalByAd("TOPTAN")?.acilisDevri ?? 0)}
+                onBlur={(e) => {
+                  const k = kanalByAd("TOPTAN");
+                  if (k) kanalDevirKaydet(k, e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
                 style={{
                   height: "34px",
                   border: "1px solid #DAD6C9",
@@ -357,7 +457,8 @@ export default function Ayarlar() {
                   Kasa açılış devri (₺)
                 </label>
                 <input
-                  defaultValue="550.000,00"
+                  value={kasaDevri}
+                  onChange={(e) => setKasaDevri(e.target.value)}
                   style={{
                     height: "38px",
                     border: "1px solid #DAD6C9",
@@ -377,7 +478,9 @@ export default function Ayarlar() {
                   Takip başlangıcı
                 </label>
                 <input
-                  defaultValue="01.04.2026"
+                  type="date"
+                  value={takip}
+                  onChange={(e) => setTakip(e.target.value)}
                   style={{
                     height: "38px",
                     border: "1px solid #DAD6C9",
@@ -463,8 +566,13 @@ export default function Ayarlar() {
                   Ortak şifresi
                 </label>
                 <input
-                  defaultValue="••••••••"
+                  value={yeniSifre}
+                  onChange={(e) => setYeniSifre(e.target.value)}
+                  placeholder="Yeni şifre"
                   type="password"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") sifreKaydet();
+                  }}
                   style={{
                     height: "38px",
                     border: "1px solid #DAD6C9",
@@ -479,6 +587,7 @@ export default function Ayarlar() {
                 />
               </div>
               <button
+                onClick={sifreKaydet}
                 style={{
                   height: "38px",
                   border: "1px solid #DAD6C9",

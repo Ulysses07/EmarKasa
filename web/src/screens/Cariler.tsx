@@ -1,11 +1,61 @@
 // 1e Cari Yönetimi — "Kasa Defteri.dc.html" (satır 662–707) içerik panosundan birebir portlandı.
 // Not: soldaki 220px sidebar shell tarafından sağlanır, buraya dahil değildir.
 
-import { cariler } from "../data/mock";
+import { useState, useEffect, useCallback } from "react";
+import { apiGet, apiPost, apiPut } from "../api/client";
+import { carilerAdapt } from "../data/adapters";
+import type { CariDto, IslemDto } from "../api/tipler";
+import { color } from "../theme";
 
 const GRID = "1.7fr 110px 130px 170px 110px 210px";
 
 export default function Cariler() {
+  const [hamCariler, setHamCariler] = useState<CariDto[] | null>(null);
+  const [islemler, setIslemler] = useState<IslemDto[]>([]);
+  const [hata, setHata] = useState<string | null>(null);
+  const [yeniAd, setYeniAd] = useState("");
+
+  const yukle = useCallback(() => {
+    Promise.all([apiGet<CariDto[]>("/cariler"), apiGet<IslemDto[]>("/islemler")])
+      .then(([c, i]) => {
+        setHamCariler(c);
+        setIslemler(i);
+      })
+      .catch((e) => setHata(String(e)));
+  }, []);
+  useEffect(() => {
+    yukle();
+  }, [yukle]);
+
+  async function cariEkle(ad: string) {
+    if (!ad.trim()) return;
+    try {
+      await apiPost("/cariler", { ad: ad.trim(), aktif: true });
+      setYeniAd("");
+      yukle();
+    } catch (e) {
+      setHata(String(e));
+    }
+  }
+  async function cariToggle(dto: CariDto) {
+    try {
+      await apiPut(`/cariler/${dto.id}`, { ad: dto.ad, aktif: !dto.aktif });
+      yukle();
+    } catch (e) {
+      setHata(String(e));
+    }
+  }
+
+  if (hamCariler === null && !hata) {
+    return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>;
+  }
+  if (hata) {
+    return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>;
+  }
+
+  const raw = hamCariler ?? [];
+  const satirlar = carilerAdapt(raw, islemler);
+
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
       {/* topbar */}
@@ -41,7 +91,12 @@ export default function Cariler() {
               <path d="m10.5 10.5 3 3" stroke="#9AA08F" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
             <input
-              placeholder="Cari ara…"
+              placeholder="Yeni cari adı…"
+              value={yeniAd}
+              onChange={(e) => setYeniAd(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") cariEkle(yeniAd);
+              }}
               style={{
                 border: "none",
                 background: "transparent",
@@ -53,6 +108,7 @@ export default function Cariler() {
             />
           </div>
           <button
+            onClick={() => cariEkle(yeniAd)}
             style={{
               height: "34px",
               border: "none",
@@ -148,9 +204,9 @@ export default function Cariler() {
             <span style={{ textAlign: "right" }}>İŞLEMLER</span>
           </div>
 
-          {cariler.map((c, i) => (
+          {satirlar.map((c, i) => (
             <div
-              key={i}
+              key={raw[i].id}
               style={{
                 display: "grid",
                 gridTemplateColumns: GRID,
@@ -236,14 +292,23 @@ export default function Cariler() {
                 <a href="#1e" style={{ textDecoration: "none" }}>
                   Düzenle
                 </a>
-                <a href="#1e" style={{ textDecoration: "none", color: "#9AA08F" }}>
+                <a
+                  href="#1e"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    cariToggle(raw[i]);
+                  }}
+                  style={{ textDecoration: "none", color: "#9AA08F" }}
+                >
                   {c.eylem}
                 </a>
               </span>
             </div>
           ))}
 
-          <div style={{ padding: "11px 18px", fontSize: "12px", color: "#9AA08F" }}>8 cari · 1 pasif</div>
+          <div style={{ padding: "11px 18px", fontSize: "12px", color: "#9AA08F" }}>
+            {raw.length} cari · {raw.filter((c) => !c.aktif).length} pasif
+          </div>
         </div>
       </div>
     </div>

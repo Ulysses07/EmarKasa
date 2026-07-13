@@ -1,10 +1,20 @@
 import { useState } from "react";
-import { ayGruplar, mzAyPath, prAyPath, tpAyPath } from "../data/mock";
+import { useAylik } from "../data/hooks";
+import { color } from "../theme";
+import { cizgiYol } from "../data/adapters";
 
 export default function AylikRapor() {
   const [tur, setTur] = useState<"sütun" | "çizgi">("sütun");
   const aySutun = tur !== "çizgi";
   const ayCizgi = tur === "çizgi";
+  const { veri, yukleniyor, hata } = useAylik();
+
+  if (yukleniyor) return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>;
+  if (hata) return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>;
+  const ayGruplar = veri ?? [];
+  const mzAyPath = cizgiYol(ayGruplar, 0);
+  const prAyPath = cizgiYol(ayGruplar, 1);
+  const tpAyPath = cizgiYol(ayGruplar, 2);
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>

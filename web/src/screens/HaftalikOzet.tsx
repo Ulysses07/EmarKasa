@@ -1,12 +1,16 @@
-import { haftalar, type HaftaBlok, type KanalSatir } from "../data/mock";
+import { useHaftalik } from '../data/hooks'
 import { color } from "../theme";
+import type { KanalSatir } from "../data/types";
 
 const HAFTA_SAYISI = 3;
 
 const gridCols = "170px 1fr 1fr 1fr 1.15fr";
 
 export default function HaftalikOzet() {
-  const bloklar: HaftaBlok[] = haftalar(HAFTA_SAYISI);
+  const { veri, yukleniyor, hata } = useHaftalik()
+  if (yukleniyor) return <div style={{ padding: 24, color: color.sub }}>Yükleniyor…</div>
+  if (hata) return <div style={{ padding: 24, color: color.neg }}>Veri alınamadı.</div>
+  const bloklar = (veri ?? []).slice(0, HAFTA_SAYISI)
   const haftaSayisiEtiket = String(HAFTA_SAYISI);
 
   return (
