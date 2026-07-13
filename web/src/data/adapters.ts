@@ -1,7 +1,8 @@
-import { fmt } from '../format'
-import { kanalRenk, type KanalAd } from '../theme'
-import type { IslemDto, GiderTipi } from '../api/tipler'
-import type { Islem } from './types'
+import { fmt, sfmt } from '../format'
+import { kanalRenk, color, type KanalAd } from '../theme'
+import type { IslemDto, GiderTipi, HaftalikOzetDto, KanalHaftalikDto } from '../api/tipler'
+import type { Islem, HaftaBlok, KanalSatir } from './types'
+import { donemEtiket } from './donem'
 
 // "2026-07-12" → "12.07"
 export function tarihKisa(iso: string): string {
@@ -33,5 +34,36 @@ export function islemAdapt(dto: IslemDto): Islem {
     kdot: renk.dot,
     tip: tipEtiket[dto.tip],
     not: dto.not && dto.not.trim() ? dto.not : '—',
+  }
+}
+
+function kanalSatir(k: KanalHaftalikDto): KanalSatir {
+  const ad = kanalAd(k.kanal)
+  const renk = kanalRenk[ad]
+  return {
+    k: ad, kbg: renk.bg, kc: renk.c, kdot: renk.dot,
+    gelen: fmt(k.gelen),
+    giden: fmt(k.giden),
+    sonuc: sfmt(k.sonuc),
+    sonucC: k.sonuc < 0 ? color.neg : color.pos,
+    devir: fmt(k.devir),
+    devirC: k.devir < 0 ? color.neg : color.ink,
+  }
+}
+
+export function haftalikAdapt(dto: HaftalikOzetDto): HaftaBlok {
+  const cariToplam = dto.kanallar.reduce((s, k) => s + k.giden, 0)
+  const ortak = dto.toplamGiden - cariToplam
+  const split = dto.donem.start.slice(0, 7) !== dto.donem.end.slice(0, 7)
+  return {
+    donem: donemEtiket(dto.donem.start, dto.donem.end),
+    split,
+    rows: dto.kanallar.map(kanalSatir),
+    ortak: fmt(ortak),
+    tGelen: fmt(dto.toplamGelen),
+    tGiden: fmt(dto.toplamGiden),
+    tSonuc: sfmt(dto.kasaSonucu),
+    tSonucC: dto.kasaSonucu < 0 ? color.neg : color.pos,
+    tDevir: fmt(dto.kasaDevir),
   }
 }

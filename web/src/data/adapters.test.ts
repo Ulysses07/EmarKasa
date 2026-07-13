@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { islemAdapt } from './adapters'
-import type { IslemDto } from '../api/tipler'
+import { islemAdapt, haftalikAdapt } from './adapters'
+import type { IslemDto, HaftalikOzetDto } from '../api/tipler'
 
 describe('islemAdapt', () => {
   it('ham işlemi view-modele çevirir (tarih gg.aa, tutar TL, kanal rengi, tip etiketi)', () => {
@@ -24,5 +24,36 @@ describe('islemAdapt', () => {
     expect(v.tip).toBe('Kredi Kartı')
     expect(v.not).toBe('—')
     expect(v.kanal).toBe('Ortak')
+  })
+})
+
+describe('haftalikAdapt', () => {
+  const dto: HaftalikOzetDto = {
+    donem: { start: '2026-06-29', end: '2026-06-30', yil: 2026, ay: 6 },
+    kanallar: [
+      { kanal: 'MEZAT', gelen: 289425, giden: 1308800, sonuc: -1019375, devir: 3971677 },
+      { kanal: 'PERAKENDE', gelen: 271006, giden: 1221374, sonuc: -950368, devir: 1063148 },
+      { kanal: 'TOPTAN', gelen: 207000, giden: 360000, sonuc: -153000, devir: 466647 },
+    ],
+    toplamGelen: 767431, toplamGiden: 3345495, kasaSonucu: -2578064, kasaDevir: 328989.21,
+  }
+
+  it('dönemi tarih aralığına, kanalları satırlara, işaretli sonuçlara çevirir', () => {
+    const b = haftalikAdapt(dto)
+    expect(b.rows).toHaveLength(3)
+    const mezat = b.rows[0]
+    expect(mezat.k).toBe('MEZAT')
+    expect(mezat.gelen).toBe('289.425,00')
+    expect(mezat.sonuc).toBe('-1.019.375,00')
+    expect(mezat.sonucC).toBe('#C13A2E') // negatif → color.neg
+    expect(mezat.devir).toBe('3.971.677,00')
+    expect(b.tGelen).toBe('767.431,00')
+    expect(b.tDevir).toBe('328.989,21')
+  })
+
+  it('ortak = toplamGiden - kanal cari gidenleri toplamı', () => {
+    const b = haftalikAdapt(dto)
+    // 3345495 - (1308800+1221374+360000) = 455321
+    expect(b.ortak).toBe('455.321,00')
   })
 })
