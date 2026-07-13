@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { islemAdapt, haftalikAdapt, panelSeri, ayGrupAdapt } from './adapters'
+import { islemAdapt, haftalikAdapt, panelSeri, ayGrupAdapt, cizgiYol } from './adapters'
 import type { IslemDto, HaftalikOzetDto, AylikRaporDto } from '../api/tipler'
 
 describe('islemAdapt', () => {
@@ -86,5 +86,28 @@ describe('ayGrupAdapt', () => {
     expect(g.bars).toHaveLength(3)
     expect(g.bars[0].t).toContain('MEZAT Haziran')
     expect(g.bars[0].v).toBe(392200)
+  })
+})
+
+describe('cizgiYol', () => {
+  // ax(i) = 120 + i*200  |  ayY(v) = 130 - (v/400000)*110
+  // i=0 v=392200: ayY = 130 - (392200/400000)*110 = 130 - 107.855 = 22.145 → "22.1"
+  // i=1 v=200000: ayY = 130 - (200000/400000)*110 = 130 - 55      = 75.0   → "75.0"
+  it('iki grup için doğru SVG yolu üretir', () => {
+    const dummy = { h: '0', top: '0', c: '', t: '' }
+    const gruplar = [
+      { ad: 'A', bars: [{ ...dummy, v: 392200 }, { ...dummy, v: 0 }, { ...dummy, v: 0 }] },
+      { ad: 'B', bars: [{ ...dummy, v: 200000 }, { ...dummy, v: 0 }, { ...dummy, v: 0 }] },
+    ]
+    expect(cizgiYol(gruplar, 0)).toBe('M120,22.1 L320,75.0')
+  })
+
+  it('tek grup için M ile başlayan tek nokta üretir', () => {
+    const dummy = { h: '0', top: '0', c: '', t: '' }
+    const gruplar = [
+      { ad: 'A', bars: [{ ...dummy, v: 400000 }, { ...dummy, v: 0 }, { ...dummy, v: 0 }] },
+    ]
+    // ayY(400000) = 130 - (400000/400000)*110 = 130 - 110 = 20.0
+    expect(cizgiYol(gruplar, 0)).toBe('M120,20.0')
   })
 })

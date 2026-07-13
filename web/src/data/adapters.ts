@@ -96,6 +96,15 @@ export function panelSeri(bloklar: PanelKaynak[]) {
   }
 }
 
+// ---- Aylık rapor çizgi overlay SVG yolu (AylikRapor.tsx ax/ayY mock formülüyle birebir) ----
+export function cizgiYol(gruplar: AyGrup[], kanalIdx: number): string {
+  const ax = (i: number) => 120 + i * 200
+  const ayY = (v: number) => 130 - (v / 400000) * 110
+  return gruplar
+    .map((g, i) => (i ? 'L' : 'M') + ax(i) + ',' + ayY(g.bars[kanalIdx].v).toFixed(1))
+    .join(' ')
+}
+
 // ---- Aylık rapor kanal çubukları (mock.ts ayGruplar formülüyle birebir) ----
 export function ayGrupAdapt(rapor: AylikRaporDto, ad: string): AyGrup {
   const cols = [kanalRenk.MEZAT.dot, kanalRenk.PERAKENDE.dot, kanalRenk.TOPTAN.dot]

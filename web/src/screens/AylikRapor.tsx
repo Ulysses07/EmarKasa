@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { useAylik } from "../data/hooks";
 import { color } from "../theme";
-import type { AyGrup } from "../data/types";
-
-// Çizgi grafik yolları — ham değerden (bar.v) doğrudan çizilir (mock ax/ayY: 120+i*200, 130-(v/400000)*110).
-function cizgiYol(gruplar: AyGrup[], kanalIdx: number): string {
-  const ax = (i: number) => 120 + i * 200;
-  const ayY = (v: number) => 130 - (v / 400000) * 110;
-  return gruplar
-    .map((g, i) => (i ? "L" : "M") + ax(i) + "," + ayY(g.bars[kanalIdx].v).toFixed(1))
-    .join(" ");
-}
+import { cizgiYol } from "../data/adapters";
 
 export default function AylikRapor() {
   const [tur, setTur] = useState<"sütun" | "çizgi">("sütun");
