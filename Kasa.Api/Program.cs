@@ -82,7 +82,10 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
     var key = cfg["Kasa:JwtKey"] ?? "gelistirme-icin-varsayilan-anahtar-degistir!!";
 
     string? rol = null;
-    if (dto.Kullanici is not null && dto.Kullanici == editorKullanici && dto.Sifre == editorSifre)
+    // Editör bilgileri config'te tanımlı DEĞİLSE editör girişi kapalıdır
+    // (aksi halde eksik config null==null ile şifresiz editör erişimine yol açar).
+    if (!string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre)
+        && dto.Kullanici == editorKullanici && dto.Sifre == editorSifre)
         rol = "editor";
     else
     {
@@ -244,6 +247,8 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
 }).RequireAuthorization("Editor");
 api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =>
 {
+    if (string.IsNullOrWhiteSpace(dto.YeniSifre))
+        return Results.BadRequest(new { hata = "Şifre boş olamaz." });
     var a = db.Ayarlar.First();
     a.IzleyiciSifreHash = SifreHasher.Hashle(dto.YeniSifre);
     db.SaveChanges();
