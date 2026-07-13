@@ -85,5 +85,6 @@ describe('ayGrupAdapt', () => {
     expect(g.ad).toBe('Haziran')
     expect(g.bars).toHaveLength(3)
     expect(g.bars[0].t).toContain('MEZAT Haziran')
+    expect(g.bars[0].v).toBe(392200)
   })
 })

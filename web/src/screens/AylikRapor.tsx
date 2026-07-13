@@ -3,19 +3,12 @@ import { useAylik } from "../data/hooks";
 import { color } from "../theme";
 import type { AyGrup } from "../data/types";
 
-// Çizgi grafik yolları — sütun bar'larından türetilir (mock ax/ayY: 120+i*200, 130-(v/400000)*110).
-// Bar yüksekliği h = |v|/400000*110; pozitifte üst = 130-h = ayY(v); negatifte v = -(h/110*400000).
+// Çizgi grafik yolları — ham değerden (bar.v) doğrudan çizilir (mock ax/ayY: 120+i*200, 130-(v/400000)*110).
 function cizgiYol(gruplar: AyGrup[], kanalIdx: number): string {
   const ax = (i: number) => 120 + i * 200;
+  const ayY = (v: number) => 130 - (v / 400000) * 110;
   return gruplar
-    .map((g, i) => {
-      const bar = g.bars[kanalIdx];
-      const h = parseFloat(bar.h);
-      const negatif = parseFloat(bar.top) === 131;
-      const v = negatif ? -(h / 110) * 400000 : (h / 110) * 400000;
-      const y = 130 - (v / 400000) * 110;
-      return (i ? "L" : "M") + ax(i) + "," + y.toFixed(1);
-    })
+    .map((g, i) => (i ? "L" : "M") + ax(i) + "," + ayY(g.bars[kanalIdx].v).toFixed(1))
     .join(" ");
 }
 

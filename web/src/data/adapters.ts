@@ -110,6 +110,7 @@ export function ayGrupAdapt(rapor: AylikRaporDto, ad: string): AyGrup {
         top: (v >= 0 ? 130 - h : 131).toFixed(1),
         c: cols[i],
         t: `${kn} ${ad}: ${sfmt(v)} ₺`,
+        v,
       }
     }),
   }

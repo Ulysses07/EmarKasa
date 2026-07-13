@@ -125,6 +125,7 @@ export const ayGruplar: AyGrup[] = aylar.map((m) => ({
       top: (v >= 0 ? 130 - h : 131).toFixed(1),
       c: cols[i],
       t: adlar[i] + " " + m.ad + ": " + sfmt(v) + " ₺",
+      v,
     };
   }),
 }));

@@ -20,5 +20,5 @@ export type Cari = {
   uyari: boolean; dbg: string; dc: string; op: string; eylem: string
 }
 
-export type AyBar = { h: string; top: string; c: string; t: string }
+export type AyBar = { h: string; top: string; c: string; t: string; v: number }
 export type AyGrup = { ad: string; bars: AyBar[] }
