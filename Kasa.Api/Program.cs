@@ -45,6 +45,9 @@ builder.Services.AddAuthorization(o =>
 
 var app = builder.Build();
 
+// Üretimde (Caddy TLS arkasında) çerez yalnızca HTTPS'te gitmeli.
+var cerezSecure = !app.Environment.IsDevelopment();
+
 // --- DB başlat + seed ---
 using (var scope = app.Services.CreateScope())
 {
@@ -104,7 +107,7 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
     {
         HttpOnly = true,
         SameSite = SameSiteMode.Lax,
-        Secure = false,
+        Secure = cerezSecure,
         MaxAge = TimeSpan.FromDays(30),
     });
     return Results.Ok(new { rol });
