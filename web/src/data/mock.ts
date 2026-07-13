@@ -3,6 +3,8 @@
 
 import { fmt, sfmt } from "../format";
 import { color, kanalRenk, type KanalAd } from "../theme";
+import type { KanalSatir, HaftaBlok, Islem, Cari, AyGrup } from './types'
+export type { KanalSatir, HaftaBlok, Islem, Cari, AyBar, AyGrup } from './types'
 
 // ---- haftalık ham veri (gelen, giden) ----
 type Hafta = {
@@ -26,31 +28,6 @@ const raw: Hafta[] = [
 
 // açılış devirleri
 const OPEN = { cm: 412500, cp: 168400, ct: 96200, kasa: 648700 };
-
-export type KanalSatir = {
-  k: KanalAd;
-  kbg: string;
-  kc: string;
-  kdot: string;
-  gelen: string;
-  giden: string;
-  sonuc: string;
-  sonucC: string;
-  devir: string;
-  devirC: string;
-};
-
-export type HaftaBlok = {
-  donem: string;
-  split: boolean;
-  rows: KanalSatir[];
-  ortak: string;
-  tGelen: string;
-  tGiden: string;
-  tSonuc: string;
-  tSonucC: string;
-  tDevir: string;
-};
 
 const POS = color.pos;
 const NEG = color.neg;
@@ -139,9 +116,6 @@ export const aylar: Ay[] = [
 const cols = [kanalRenk.MEZAT.dot, kanalRenk.PERAKENDE.dot, kanalRenk.TOPTAN.dot];
 const adlar: KanalAd[] = ["MEZAT", "PERAKENDE", "TOPTAN"];
 
-export type AyBar = { h: string; top: string; c: string; t: string };
-export type AyGrup = { ad: string; bars: AyBar[] };
-
 export const ayGruplar: AyGrup[] = aylar.map((m) => ({
   ad: m.ad,
   bars: m.v.map((v, i) => {
@@ -179,18 +153,6 @@ const tx: TxRow[] = [
   ["06.07", "Hüseyin Demirtaş", 12500, "TOPTAN", "Cari", "İade"],
 ];
 
-export type Islem = {
-  tarih: string;
-  cari: string;
-  tutar: string;
-  kanal: KanalAd;
-  kbg: string;
-  kc: string;
-  kdot: string;
-  tip: string;
-  not: string;
-};
-
 export const islemler: Islem[] = tx.map((r) => ({
   tarih: r[0],
   cari: r[1],
@@ -215,20 +177,6 @@ const cr: CariRow[] = [
   ["Öz Ege Ambalaj", "ÖE", 12, "09 Tem 2026", 184900, "Aktif", false],
   ["Yılmaz Balıkçılık", "YB", 9, "28 Haz 2026", 152600, "Pasif", false],
 ];
-
-export type Cari = {
-  ad: string;
-  bas: string;
-  islem: string;
-  son: string;
-  hacim: string;
-  durum: string;
-  uyari: boolean;
-  dbg: string;
-  dc: string;
-  op: string;
-  eylem: string;
-};
 
 export const cariler: Cari[] = cr.map((r) => ({
   ad: r[0],
