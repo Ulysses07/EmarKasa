@@ -55,4 +55,51 @@ public static class HesapMotoru
         }
         return sonuc;
     }
+
+    /// <summary>
+    /// Bir takvim ayı için kanal başına AY SONUCU üretir.
+    /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (Kanallar.Ortak)
+    /// aktif kanal sayısına bölünüp her kanaldan düşülür.
+    /// </summary>
+    public static AylikRapor AylikHesapla(
+        int yil,
+        int ay,
+        IReadOnlyList<Kanal> kanallar,
+        IReadOnlyList<Islem> islemler,
+        IReadOnlyList<Gelen> gelenler,
+        IReadOnlyList<Donem> donemler)
+    {
+        var ayinDonemleri = donemler.Where(d => d.Yil == yil && d.Ay == ay).ToList();
+        var ayinDonemStartlari = ayinDonemleri.Select(d => d.Start).ToHashSet();
+        var ayinIslemleri = islemler.Where(i => i.Tarih.Year == yil && i.Tarih.Month == ay).ToList();
+
+        decimal ortakToplam = ayinIslemleri.Where(i => i.Kanal == Kanallar.Ortak).Sum(i => i.TutarTl);
+        int aktifKanalSayisi = kanallar.Count(k => k.Aktif);
+        decimal ortakPay = aktifKanalSayisi > 0 ? ortakToplam / aktifKanalSayisi : 0m;
+
+        var satirlar = new List<KanalAylik>();
+        foreach (var kanal in kanallar)
+        {
+            decimal gelen = gelenler
+                .Where(g => g.Kanal == kanal.Ad && ayinDonemStartlari.Contains(g.DonemStart))
+                .Sum(g => g.TutarTl);
+            decimal cari = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.Cari).Sum(i => i.TutarTl);
+            decimal sabit = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.SabitGider).Sum(i => i.TutarTl);
+            decimal kk = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.KrediKarti).Sum(i => i.TutarTl);
+            decimal aySonucu = gelen - cari - sabit - kk - ortakPay;
+            satirlar.Add(new KanalAylik(kanal.Ad, gelen, cari, sabit, kk, ortakPay, aySonucu));
+        }
+        return new AylikRapor(yil, ay, satirlar);
+    }
 }
+
+public record KanalAylik(
+    string Kanal,
+    decimal Gelen,
+    decimal CariGiden,
+    decimal SabitGider,
+    decimal KrediKarti,
+    decimal OrtakPay,
+    decimal AySonucu);
+
+public record AylikRapor(int Yil, int Ay, IReadOnlyList<KanalAylik> Kanallar);
