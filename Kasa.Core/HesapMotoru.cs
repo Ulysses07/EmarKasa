@@ -59,7 +59,7 @@ public static class HesapMotoru
     /// <summary>
     /// Bir takvim ayı için kanal başına AY SONUCU üretir.
     /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (Kanallar.Ortak)
-    /// aktif kanal sayısına bölünüp her kanaldan düşülür.
+    /// aktif kanallara kuruş bazında (artık kuruşlar ilk aktif kanallara) dağıtılıp düşülür.
     /// </summary>
     public static AylikRapor AylikHesapla(
         int yil,
@@ -75,7 +75,23 @@ public static class HesapMotoru
 
         decimal ortakToplam = ayinIslemleri.Where(i => i.Kanal == Kanallar.Ortak).Sum(i => i.TutarTl);
         int aktifKanalSayisi = kanallar.Count(k => k.Aktif);
-        decimal ortakPay = aktifKanalSayisi > 0 ? ortakToplam / aktifKanalSayisi : 0m;
+
+        // Ortak gideri aktif kanallara kuruş bazında dağıt. Tam bölünmediğinde
+        // artık kuruş(ları) ilk aktif kanallara (+0,01) verip toplam tam mutabık kalsın.
+        var ortakPaylari = new Dictionary<string, decimal>();
+        if (aktifKanalSayisi > 0)
+        {
+            long toplamKurus = (long)decimal.Round(ortakToplam * 100m, 0, MidpointRounding.AwayFromZero);
+            long tabanKurus = toplamKurus / aktifKanalSayisi;
+            long artanKurus = toplamKurus - tabanKurus * aktifKanalSayisi;
+            int aktifIndex = 0;
+            foreach (var kanal in kanallar.Where(k => k.Aktif))
+            {
+                long payKurus = tabanKurus + (aktifIndex < artanKurus ? 1 : 0);
+                ortakPaylari[kanal.Ad] = payKurus / 100m;
+                aktifIndex++;
+            }
+        }
 
         var satirlar = new List<KanalAylik>();
         foreach (var kanal in kanallar)
@@ -86,6 +102,7 @@ public static class HesapMotoru
             decimal cari = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.Cari).Sum(i => i.TutarTl);
             decimal sabit = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.SabitGider).Sum(i => i.TutarTl);
             decimal kk = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.KrediKarti).Sum(i => i.TutarTl);
+            decimal ortakPay = ortakPaylari.GetValueOrDefault(kanal.Ad, 0m);
             decimal aySonucu = gelen - cari - sabit - kk - ortakPay;
             satirlar.Add(new KanalAylik(kanal.Ad, gelen, cari, sabit, kk, ortakPay, aySonucu));
         }

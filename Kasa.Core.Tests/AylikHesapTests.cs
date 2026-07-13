@@ -53,4 +53,60 @@ public class AylikHesapTests
         var rapor = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, Array.Empty<Gelen>(), donemler);
         Assert.Equal(150m, rapor.Kanallar.Single(k => k.Kanal == "MEZAT").OrtakPay); // 300/2
     }
+
+    [Fact]
+    public void Tam_bolunmeyen_ortak_kurus_artigi_ilk_aktif_kanallara_dagilir()
+    {
+        // 455.321 / 3 = 151.773,666... → kuruş bazında 45.532.100 / 3 = 15.177.366 taban, 2 artık.
+        // İlk 2 aktif kanal 151.773,67; üçüncü 151.773,66; toplam tam 455.321,00.
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
+        var islemler = new[]
+        {
+            new Islem(new DateOnly(2026, 6, 6), "SGK/Vergi", 455_321m, Kanallar.Ortak, GiderTipi.SabitGider),
+        };
+
+        var rapor = HesapMotoru.AylikHesapla(2026, 6, UcKanal, islemler, Array.Empty<Gelen>(), donemler);
+
+        Assert.Equal(151_773.67m, rapor.Kanallar.Single(k => k.Kanal == "MEZAT").OrtakPay);
+        Assert.Equal(151_773.67m, rapor.Kanallar.Single(k => k.Kanal == "PERAKENDE").OrtakPay);
+        Assert.Equal(151_773.66m, rapor.Kanallar.Single(k => k.Kanal == "TOPTAN").OrtakPay);
+        // Dağıtılan pay toplamı ortak toplamı tam mutabık.
+        Assert.Equal(455_321m, rapor.Kanallar.Sum(k => k.OrtakPay));
+    }
+
+    [Fact]
+    public void Haftalik_kasa_sonucu_toplami_aylik_ay_sonucu_toplamina_esittir()
+    {
+        // Tam bölünmeyen ortak gider olsa bile Σ haftalık KasaSonucu == Σ aylık AySonucu.
+        // Bu ancak ortak payı kuruş bazında tam dağıtıldığında (kuruş sızıntısı olmadan) sağlanır.
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
+        var ilkDonemStart = donemler[0].Start;
+        var ikinciDonemStart = donemler[1].Start;
+
+        var gelenler = new[]
+        {
+            new Gelen(ilkDonemStart, "MEZAT", 289_425m),
+            new Gelen(ilkDonemStart, "PERAKENDE", 271_006m),
+            new Gelen(ilkDonemStart, "TOPTAN", 207_000m),
+            new Gelen(ikinciDonemStart, "MEZAT", 130_000m),
+            new Gelen(ikinciDonemStart, "PERAKENDE", 95_500m),
+        };
+        var islemler = new[]
+        {
+            new Islem(new DateOnly(2026, 6, 3), "MEZAT-cari", 1_308_800m, "MEZAT", GiderTipi.Cari),
+            new Islem(new DateOnly(2026, 6, 4), "PER-cari", 1_221_374m, "PERAKENDE", GiderTipi.Cari),
+            new Islem(new DateOnly(2026, 6, 5), "TOP-cari", 360_000m, "TOPTAN", GiderTipi.Cari),
+            new Islem(new DateOnly(2026, 6, 9), "MEZAT-maaş", 200_000m, "MEZAT", GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 10), "PER-kk", 45_500m, "PERAKENDE", GiderTipi.KrediKarti),
+            new Islem(new DateOnly(2026, 6, 6), "Ortak SGK", 455_321m, Kanallar.Ortak, GiderTipi.SabitGider),
+        };
+
+        var haftalik = HesapMotoru.HaftalikHesapla(0m, UcKanal, islemler, gelenler, donemler);
+        decimal haftalikToplam = haftalik.Sum(o => o.KasaSonucu);
+
+        var aylik = HesapMotoru.AylikHesapla(2026, 6, UcKanal, islemler, gelenler, donemler);
+        decimal aylikToplam = aylik.Kanallar.Sum(k => k.AySonucu);
+
+        Assert.Equal(haftalikToplam, aylikToplam);
+    }
 }
