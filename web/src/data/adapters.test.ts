@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { islemAdapt, haftalikAdapt, panelSeri, ayGrupAdapt, cizgiYol } from './adapters'
-import type { IslemDto, HaftalikOzetDto, AylikRaporDto } from '../api/tipler'
+import { islemAdapt, haftalikAdapt, panelSeri, ayGrupAdapt, cizgiYol, carilerAdapt } from './adapters'
+import type { IslemDto, HaftalikOzetDto, AylikRaporDto, CariDto } from '../api/tipler'
 
 describe('islemAdapt', () => {
   it('ham işlemi view-modele çevirir (tarih gg.aa, tutar TL, kanal rengi, tip etiketi)', () => {
@@ -109,5 +109,28 @@ describe('cizgiYol', () => {
     ]
     // ayY(400000) = 130 - (400000/400000)*110 = 130 - 110 = 20.0
     expect(cizgiYol(gruplar, 0)).toBe('M120,20.0')
+  })
+})
+
+describe('carilerAdapt', () => {
+  it('cari başına işlem sayısı, son tarih, hacim ve mükerrer uyarısı üretir', () => {
+    const cariler: CariDto[] = [
+      { id: 1, ad: 'Yıldız Tarım', aktif: true },
+      { id: 2, ad: 'Yıldız Tarım', aktif: true },
+      { id: 3, ad: 'Pasif Cari', aktif: false },
+    ]
+    const islemler: IslemDto[] = [
+      { id: 1, tarih: '2026-07-12', cari: 'Yıldız Tarım', tutarTl: 100, kanal: 'MEZAT', tip: 'Cari', not: null },
+      { id: 2, tarih: '2026-07-10', cari: 'Yıldız Tarım', tutarTl: 50, kanal: 'MEZAT', tip: 'Cari', not: null },
+    ]
+    const v = carilerAdapt(cariler, islemler)
+    const yildiz = v.find((c) => c.ad === 'Yıldız Tarım')!
+    expect(yildiz.islem).toBe('2')
+    expect(yildiz.hacim).toBe('150,00')
+    expect(yildiz.son).toBe('12 Tem 2026')
+    expect(yildiz.uyari).toBe(true)
+    const pasif = v.find((c) => c.ad === 'Pasif Cari')!
+    expect(pasif.durum).toBe('Pasif')
+    expect(pasif.eylem).toBe('Aktifleştir')
   })
 })

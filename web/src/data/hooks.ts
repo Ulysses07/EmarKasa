@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { apiGet } from '../api/client'
 import type { HaftalikOzetDto, IslemDto, AylikRaporDto } from '../api/tipler'
-import { haftalikAdapt, islemAdapt, panelSeri, ayGrupAdapt, kanalAd, type PanelKaynak } from './adapters'
-import type { HaftaBlok, Islem, AyGrup } from './types'
+import type { CariDto, AyarlarDto } from '../api/tipler'
+import { haftalikAdapt, islemAdapt, panelSeri, ayGrupAdapt, kanalAd, carilerAdapt, type PanelKaynak } from './adapters'
+import type { HaftaBlok, Islem, AyGrup, Cari } from './types'
 
 interface Durum<T> { veri: T | null; yukleniyor: boolean; hata: string | null; yenile: () => void }
 
@@ -70,4 +71,18 @@ export function useAylik(): Durum<AyGrup[]> {
     )
     return raporlar.map((r) => ayGrupAdapt(r, AY_ADI[r.ay - 1]))
   })
+}
+
+export function useCariler(): Durum<Cari[]> {
+  return useVeri(async () => {
+    const [cariler, islemler] = await Promise.all([
+      apiGet<CariDto[]>('/cariler'),
+      apiGet<IslemDto[]>('/islemler'),
+    ])
+    return carilerAdapt(cariler, islemler)
+  })
+}
+
+export function useAyarlar(): Durum<AyarlarDto> {
+  return useVeri(() => apiGet<AyarlarDto>('/ayarlar'))
 }

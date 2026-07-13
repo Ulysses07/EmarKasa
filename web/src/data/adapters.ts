@@ -1,7 +1,7 @@
 import { fmt, sfmt } from '../format'
 import { kanalRenk, color, type KanalAd } from '../theme'
-import type { IslemDto, GiderTipi, HaftalikOzetDto, KanalHaftalikDto, AylikRaporDto } from '../api/tipler'
-import type { Islem, HaftaBlok, KanalSatir, AyGrup } from './types'
+import type { IslemDto, GiderTipi, HaftalikOzetDto, KanalHaftalikDto, AylikRaporDto, CariDto } from '../api/tipler'
+import type { Islem, HaftaBlok, KanalSatir, AyGrup, Cari } from './types'
 import { donemEtiket } from './donem'
 
 // "2026-07-12" → "12.07"
@@ -103,6 +103,42 @@ export function cizgiYol(gruplar: AyGrup[], kanalIdx: number): string {
   return gruplar
     .map((g, i) => (i ? 'L' : 'M') + ax(i) + ',' + ayY(g.bars[kanalIdx].v).toFixed(1))
     .join(' ')
+}
+
+// ---- Cari yönetimi (mock.ts cariler türetmesiyle birebir) ----
+const AYLAR_UZUN = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+function tarihUzun(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${d} ${AYLAR_UZUN[m - 1]} ${y}`
+}
+function bas(ad: string): string {
+  const p = ad.trim().split(/\s+/)
+  return (p.length >= 2 ? p[0][0] + p[1][0] : ad.slice(0, 2)).toLocaleUpperCase('tr-TR')
+}
+
+export function carilerAdapt(cariler: CariDto[], islemler: IslemDto[]): Cari[] {
+  const adSayisi = new Map<string, number>()
+  for (const c of cariler) adSayisi.set(c.ad, (adSayisi.get(c.ad) ?? 0) + 1)
+
+  return cariler.map((c) => {
+    const ait = islemler.filter((i) => i.cari === c.ad)
+    const hacim = ait.reduce((s, i) => s + i.tutarTl, 0)
+    const son = ait.map((i) => i.tarih).sort().at(-1)
+    const aktif = c.aktif
+    return {
+      ad: c.ad,
+      bas: bas(c.ad),
+      islem: String(ait.length),
+      son: son ? tarihUzun(son) : '—',
+      hacim: fmt(hacim),
+      durum: aktif ? 'Aktif' : 'Pasif',
+      uyari: (adSayisi.get(c.ad) ?? 0) > 1,
+      dbg: aktif ? '#E3F1E8' : '#EDEAE0',
+      dc: aktif ? '#1B7A4E' : '#8A8F80',
+      op: aktif ? '1' : '0.55',
+      eylem: aktif ? 'Pasifleştir' : 'Aktifleştir',
+    }
+  })
 }
 
 // ---- Aylık rapor kanal çubukları (mock.ts ayGruplar formülüyle birebir) ----
