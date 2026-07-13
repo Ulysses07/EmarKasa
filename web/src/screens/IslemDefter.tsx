@@ -41,23 +41,31 @@ export default function IslemDefter() {
   async function islemEkle() {
     const tutarTl = parseFloat(fTutar.replace(',', '.'))
     if (!fCari.trim() || isNaN(tutarTl) || tutarTl <= 0) return
-    await apiPost('/islemler', {
-      tarih: fTarih,
-      cari: fCari.trim(),
-      tutarTl,
-      kanal: fKanal,
-      tip: fTip,
-      not: fNot.trim() || null,
-    })
-    setFCari('')
-    setFTutar('')
-    setFNot('')
-    yukle()
+    try {
+      await apiPost('/islemler', {
+        tarih: fTarih,
+        cari: fCari.trim(),
+        tutarTl,
+        kanal: fKanal,
+        tip: fTip,
+        not: fNot.trim() || null,
+      })
+      setFCari('')
+      setFTutar('')
+      setFNot('')
+      yukle()
+    } catch (e) {
+      setHata(String(e))
+    }
   }
 
   async function islemSil(id: number) {
-    await apiDelete(`/islemler/${id}`)
-    yukle()
+    try {
+      await apiDelete(`/islemler/${id}`)
+      yukle()
+    } catch (e) {
+      setHata(String(e))
+    }
   }
 
   // --- stil yardımcıları ---
