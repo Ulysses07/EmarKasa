@@ -29,7 +29,7 @@ export default function Ayarlar() {
   }, [yukle]);
 
   async function ayarlarKaydet() {
-    const devir = parseFloat(kasaDevri.replace(",", "."));
+    const devir = parseFloat(kasaDevri.replace(/\./g, "").replace(",", "."));
     if (!takip || isNaN(devir)) return;
     try {
       await apiPut("/ayarlar", { takipBaslangic: takip, kasaAcilisDevri: devir });
