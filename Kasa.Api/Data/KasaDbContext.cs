@@ -11,4 +11,5 @@ public class KasaDbContext : DbContext
     public DbSet<IslemEntity> Islemler => Set<IslemEntity>();
     public DbSet<GelenEntity> Gelenler => Set<GelenEntity>();
     public DbSet<AyarEntity> Ayarlar => Set<AyarEntity>();
+    public DbSet<KrediKartiEntity> KrediKartlari => Set<KrediKartiEntity>();
 }

@@ -45,3 +45,13 @@ public class AyarEntity
     public decimal KasaAcilisDevri { get; set; }
     public string? IzleyiciSifreHash { get; set; }
 }
+
+public class KrediKartiEntity
+{
+    public int Id { get; set; }
+    public string Ad { get; set; } = "";
+    public DateOnly KesimTarihi { get; set; }
+    public DateOnly SonOdemeTarihi { get; set; }
+    public decimal Limit { get; set; }
+    public decimal Borc { get; set; }
+}
