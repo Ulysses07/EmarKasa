@@ -8,7 +8,7 @@
                 <Grid Padding="8" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                     <Label Text="{Binding Tarih}" />
                     <Label Grid.Column="1" Text="{Binding Cari}" />
-                    <Label Grid.Column="2" Style="{StaticResource Para}" Text="{Binding TutarTl}" />
+                    <Label Grid.Column="2" Style="{StaticResource Para}" Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}" />
                     <Label Grid.Column="3" Text="{Binding Kanal}" TextColor="{StaticResource Sub}" />
                 </Grid>
             </DataTemplate>

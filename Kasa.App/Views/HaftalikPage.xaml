@@ -9,7 +9,7 @@
                     <Label Text="{Binding Donem.Yil}" />
                     <Label Grid.Column="1" Text="{Binding Donem.Ay}" Margin="8,0,0,0" />
                     <Label Grid.Column="2" Style="{StaticResource Para}" HorizontalOptions="End"
-                           Text="{Binding KasaSonucu}" />
+                           Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}" />
                 </Grid>
             </DataTemplate>
         </CollectionView.ItemTemplate>

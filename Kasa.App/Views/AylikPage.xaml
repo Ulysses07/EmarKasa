@@ -12,7 +12,7 @@
                 <DataTemplate>
                     <Grid Padding="8" ColumnDefinitions="*,Auto">
                         <Label Text="{Binding Kanal}" />
-                        <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding AySonucu}" />
+                        <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding AySonucu, Converter={StaticResource ParaBicim}}" />
                     </Grid>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

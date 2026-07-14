@@ -7,7 +7,7 @@
             <Border Style="{StaticResource Kart}">
                 <VerticalStackLayout>
                     <Label Text="Güncel Kasa" TextColor="{StaticResource Sub}" />
-                    <Label Style="{StaticResource Para}" FontSize="28" Text="{Binding GuncelKasa}" />
+                    <Label Style="{StaticResource Para}" FontSize="28" Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}" />
                 </VerticalStackLayout>
             </Border>
             <CollectionView ItemsSource="{Binding Kanallar}">
@@ -15,7 +15,7 @@
                     <DataTemplate>
                         <Grid Padding="8" ColumnDefinitions="*,Auto">
                             <Label Text="{Binding Kanal}" />
-                            <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Bakiye}" />
+                            <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Bakiye, Converter={StaticResource ParaBicim}}" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

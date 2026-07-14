@@ -9,11 +9,11 @@
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
                         <Label Text="{Binding Ad}" FontSize="16" />
                         <Label Grid.Row="1" Text="Limit" TextColor="{StaticResource Sub}" />
-                        <Label Grid.Row="1" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Limit}" />
+                        <Label Grid.Row="1" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Limit, Converter={StaticResource ParaBicim}}" />
                         <Label Grid.Row="2" Text="Borç" TextColor="{StaticResource Sub}" />
-                        <Label Grid.Row="2" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Borc}" />
+                        <Label Grid.Row="2" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Borc, Converter={StaticResource ParaBicim}}" />
                         <Label Grid.Column="1" Style="{StaticResource Para}" HorizontalOptions="End"
-                               Text="{Binding KalanLimit}" />
+                               Text="{Binding KalanLimit, Converter={StaticResource ParaBicim}}" />
                     </Grid>
                 </Border>
             </DataTemplate>
