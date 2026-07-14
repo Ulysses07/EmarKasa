@@ -110,7 +110,7 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
         Secure = cerezSecure,
         MaxAge = TimeSpan.FromDays(30),
     });
-    return Results.Ok(new { rol });
+    return Results.Ok(new { rol, token });
 });
 
 app.MapPost("/api/auth/logout", (HttpContext http) =>
