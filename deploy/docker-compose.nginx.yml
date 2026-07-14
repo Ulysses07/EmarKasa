@@ -1,0 +1,27 @@
+# Bağımsız VPS dağıtımı — mevcut sistem nginx'i reverse proxy olarak kullanılır.
+# Konteyner yalnızca 127.0.0.1:8080 dinler (dışarı kapalı); nginx 80/443'ten
+# kasa.<domain> için proxy_pass eder ve certbot TLS'i sağlar.
+# Çalıştır: cd deploy && docker compose -f docker-compose.nginx.yml up -d --build
+services:
+  kasa:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: kasa:latest
+    container_name: kasa-app
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Kasa: "Data Source=/data/kasa.db"
+      Kasa__JwtKey: "${KASA_JWT_KEY}"
+      Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
+      Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
+    volumes:
+      - ./kasa-data:/data
+    ports:
+      # Yalnızca localhost'a bağla — public erişim nginx üzerinden.
+      - "127.0.0.1:8080:8080"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.5
