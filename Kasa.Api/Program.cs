@@ -177,6 +177,30 @@ api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) =>
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
+// Kredi kartları
+api.MapGet("/kredikartlari", (KasaDbContext db) => db.KrediKartlari.OrderBy(k => k.Ad).ToList());
+api.MapPost("/kredikartlari", (KrediKartiEntity e, KasaDbContext db) =>
+{
+    db.KrediKartlari.Add(e); db.SaveChanges();
+    return Results.Created($"/api/kredikartlari/{e.Id}", e);
+}).RequireAuthorization("Editor");
+api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiEntity gelen, KasaDbContext db) =>
+{
+    var e = db.KrediKartlari.Find(id);
+    if (e is null) return Results.NotFound();
+    e.Ad = gelen.Ad; e.KesimTarihi = gelen.KesimTarihi; e.SonOdemeTarihi = gelen.SonOdemeTarihi;
+    e.Limit = gelen.Limit; e.Borc = gelen.Borc;
+    db.SaveChanges();
+    return Results.Ok(e);
+}).RequireAuthorization("Editor");
+api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) =>
+{
+    var e = db.KrediKartlari.Find(id);
+    if (e is null) return Results.NotFound();
+    db.KrediKartlari.Remove(e); db.SaveChanges();
+    return Results.NoContent();
+}).RequireAuthorization("Editor");
+
 // Islemler
 api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
 {
