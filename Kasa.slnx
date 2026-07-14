@@ -1,6 +1,8 @@
 <Solution>
   <Project Path="Kasa.Api.Tests/Kasa.Api.Tests.csproj" />
   <Project Path="Kasa.Api/Kasa.Api.csproj" />
+  <Project Path="Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj" />
+  <Project Path="Kasa.ApiClient/Kasa.ApiClient.csproj" />
   <Project Path="Kasa.Core.Tests/Kasa.Core.Tests.csproj" />
   <Project Path="Kasa.Core/Kasa.Core.csproj" />
 </Solution>
