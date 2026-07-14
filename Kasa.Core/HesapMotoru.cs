@@ -14,7 +14,8 @@ public static class HesapMotoru
 {
     /// <summary>
     /// Dönem dönem haftalık özet üretir. Kanal devri yalnız o kanalın Cari tipli
-    /// gidenini sayar; kasa devri TÜM gidenleri (her kanal + Ortak, her tip) sayar.
+    /// gidenini sayar. Kasa devri Cari + SabitGider + Ortak gidenleri kendi döneminde
+    /// sayar; KrediKarti ise ertelenir — bir sonraki ayın son döneminde kasadan çıkar.
     /// Devirler tarih sırasına göre zincirlenir; ilk dönemin girişi açılış bakiyeleridir.
     /// </summary>
     public static IReadOnlyList<HaftalikOzet> HaftalikHesapla(
@@ -28,6 +29,17 @@ public static class HesapMotoru
         var kanalDevir = kanallar.ToDictionary(k => k.Ad, k => k.AcilisDevri);
         var kasaDevir = kasaAcilisDevri;
         var sonuc = new List<HaftalikOzet>();
+
+        // Kredi kartı ertelemesi (kasa): bir ayın K.K'sı o ay kasadan çıkmaz;
+        // ödemesi bir SONRAKİ ayın SON döneminde toplu olarak kasadan çıkar.
+        var aylikKkToplam = islemler
+            .Where(i => i.Tip == GiderTipi.KrediKarti)
+            .GroupBy(i => (i.Tarih.Year, i.Tarih.Month))
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.TutarTl));
+
+        var ayinSonDonemi = sirali
+            .GroupBy(d => (d.Yil, d.Ay))
+            .ToDictionary(g => g.Key, g => g.OrderBy(d => d.Start).Last());
 
         foreach (var donem in sirali)
         {
@@ -47,7 +59,16 @@ public static class HesapMotoru
             }
 
             decimal toplamGelen = donemGelen.Sum(g => g.TutarTl);
-            decimal toplamGiden = donemIslem.Sum(i => i.TutarTl);
+            // KK kendi döneminde kasadan çıkmaz (ertelenir).
+            decimal toplamGiden = donemIslem.Where(i => i.Tip != GiderTipi.KrediKarti).Sum(i => i.TutarTl);
+            // Bu dönem ayının SON dönemiyse: bir önceki ayın KK'sı şimdi kasadan çıkar.
+            if (ayinSonDonemi.TryGetValue((donem.Yil, donem.Ay), out var sonDonem) && sonDonem == donem)
+            {
+                int oncekiYil = donem.Ay == 1 ? donem.Yil - 1 : donem.Yil;
+                int oncekiAy = donem.Ay == 1 ? 12 : donem.Ay - 1;
+                if (aylikKkToplam.TryGetValue((oncekiYil, oncekiAy), out var ertelenenKk))
+                    toplamGiden += ertelenenKk;
+            }
             decimal kasaSonucu = toplamGelen - toplamGiden;
             kasaDevir += kasaSonucu;
 
@@ -93,6 +114,15 @@ public static class HesapMotoru
             }
         }
 
+        // Kredi kartı ertelemesi: bu ayın K.K'sı bu ay DÜŞÜLMEZ; ödemesi gelecek ay
+        // yapıldığı için bir ÖNCEKİ ayın K.K'sı bu ayın sonucundan düşülür.
+        int oncekiYil = ay == 1 ? yil - 1 : yil;
+        int oncekiAy = ay == 1 ? 12 : ay - 1;
+        var oncekiAyKk = islemler
+            .Where(i => i.Tarih.Year == oncekiYil && i.Tarih.Month == oncekiAy
+                        && i.Tip == GiderTipi.KrediKarti)
+            .ToList();
+
         var satirlar = new List<KanalAylik>();
         foreach (var kanal in kanallar)
         {
@@ -101,7 +131,7 @@ public static class HesapMotoru
                 .Sum(g => g.TutarTl);
             decimal cari = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.Cari).Sum(i => i.TutarTl);
             decimal sabit = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.SabitGider).Sum(i => i.TutarTl);
-            decimal kk = ayinIslemleri.Where(i => i.Kanal == kanal.Ad && i.Tip == GiderTipi.KrediKarti).Sum(i => i.TutarTl);
+            decimal kk = oncekiAyKk.Where(i => i.Kanal == kanal.Ad).Sum(i => i.TutarTl);
             decimal ortakPay = ortakPaylari.GetValueOrDefault(kanal.Ad, 0m);
             decimal aySonucu = gelen - cari - sabit - kk - ortakPay;
             satirlar.Add(new KanalAylik(kanal.Ad, gelen, cari, sabit, kk, ortakPay, aySonucu));

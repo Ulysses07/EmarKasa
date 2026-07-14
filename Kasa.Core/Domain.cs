@@ -5,7 +5,7 @@ public enum GiderTipi
 {
     Cari,        // tedarikçi/kişi ödemesi — haftalık kanal devrine girer
     SabitGider,  // SGK, maaş, vergi vb. — yalnız aylık kârlılığa girer
-    KrediKarti   // K.K — yalnız aylık kârlılığa girer
+    KrediKarti   // K.K — bir sonraki ay sonunda kasadan/kanaldan düşülür (ertelemeli)
 }
 
 public static class Kanallar

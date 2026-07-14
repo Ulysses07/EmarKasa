@@ -20,7 +20,7 @@ public class AylikHesapTests
         {
             new Islem(new DateOnly(2026, 6, 3), "Tedarik", 100m, "MEZAT", GiderTipi.Cari),
             new Islem(new DateOnly(2026, 6, 4), "Maaş",    200m, "MEZAT", GiderTipi.SabitGider),
-            new Islem(new DateOnly(2026, 6, 5), "K.K",     50m,  "MEZAT", GiderTipi.KrediKarti),
+            new Islem(new DateOnly(2026, 5, 5), "K.K",     50m,  "MEZAT", GiderTipi.KrediKarti), // önceki ay → Haziran'a ertelenir
             new Islem(new DateOnly(2026, 6, 6), "Kira",    300m, Kanallar.Ortak, GiderTipi.SabitGider),
         };
 
