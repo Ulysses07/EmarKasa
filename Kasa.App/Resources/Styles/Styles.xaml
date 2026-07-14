@@ -22,4 +22,13 @@
         <Setter Property="TextColor" Value="#FFFFFF" />
         <Setter Property="CornerRadius" Value="10" />
     </Style>
+    <Style TargetType="Entry">
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Sub}" />
+        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
+    </Style>
+    <Style TargetType="DatePicker">
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
+    </Style>
 </ResourceDictionary>
