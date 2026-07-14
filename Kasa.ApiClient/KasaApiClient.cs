@@ -77,6 +77,35 @@ public sealed partial class KasaApiClient
         return GetAsync<IReadOnlyList<IslemDto>>(yol);
     }
 
+    // ---- mutasyon metotları ----
+
+    // Kanal
+    public Task<KanalDto> KanalOlusturAsync(KanalYaz g) => GonderJsonAsync<KanalDto>(HttpMethod.Post, "api/kanallar", g);
+    public Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g) => GonderJsonAsync<KanalDto>(HttpMethod.Put, $"api/kanallar/{id}", g);
+    public Task KanalSilAsync(int id) => SilAsync($"api/kanallar/{id}");
+
+    // Cari
+    public Task<CariDto> CariOlusturAsync(CariYaz g) => GonderJsonAsync<CariDto>(HttpMethod.Post, "api/cariler", g);
+    public Task<CariDto> CariGuncelleAsync(int id, CariYaz g) => GonderJsonAsync<CariDto>(HttpMethod.Put, $"api/cariler/{id}", g);
+    public Task CariSilAsync(int id) => SilAsync($"api/cariler/{id}");
+
+    // İşlem
+    public Task<IslemDto> IslemOlusturAsync(IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, "api/islemler", g);
+    public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Put, $"api/islemler/{id}", g);
+    public Task IslemSilAsync(int id) => SilAsync($"api/islemler/{id}");
+
+    // Kredi kartı
+    public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) => GonderJsonAsync<KrediKartiDto>(HttpMethod.Post, "api/kredikartlari", g);
+    public Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g) => GonderJsonAsync<KrediKartiDto>(HttpMethod.Put, $"api/kredikartlari/{id}", g);
+    public Task KrediKartiSilAsync(int id) => SilAsync($"api/kredikartlari/{id}");
+
+    // Gelen upsert
+    public Task<GelenDto> GelenKaydetAsync(GelenYaz g) => GonderJsonAsync<GelenDto>(HttpMethod.Put, "api/gelenler", g);
+
+    // Ayarlar
+    public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
+    public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
+
     // ---- altyapı ----
 
     private async Task<HttpResponseMessage> GonderAsync(HttpRequestMessage istek, bool tokenEkle = true)
