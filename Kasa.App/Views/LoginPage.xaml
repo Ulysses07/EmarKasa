@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Kasa.App.Views.LoginPage"
+             Shell.FlyoutBehavior="Disabled" Title="Giriş">
+    <VerticalStackLayout Spacing="12" VerticalOptions="Center" MaximumWidthRequest="380">
+        <Label Text="Emar Kasa" FontSize="26" TextColor="{StaticResource Green}" HorizontalOptions="Center" />
+        <Entry x:Name="KullaniciGiris" Placeholder="Kullanıcı (editör)" Text="{Binding Kullanici}" />
+        <Entry Placeholder="Şifre" IsPassword="True" Text="{Binding Sifre}" />
+        <Label Text="{Binding Hata}" TextColor="{StaticResource Neg}" />
+        <Button Text="Giriş" Command="{Binding GirisCommand}" />
+        <ActivityIndicator IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}" />
+    </VerticalStackLayout>
+</ContentPage>

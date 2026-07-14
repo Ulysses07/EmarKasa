@@ -5,6 +5,7 @@
   <Project Path="Kasa.ApiClient/Kasa.ApiClient.csproj" />
   <Project Path="Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj" />
   <Project Path="Kasa.App.Core/Kasa.App.Core.csproj" />
+  <Project Path="Kasa.App/Kasa.App.csproj" />
   <Project Path="Kasa.Core.Tests/Kasa.Core.Tests.csproj" />
   <Project Path="Kasa.Core/Kasa.Core.csproj" />
 </Solution>

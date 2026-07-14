@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:v="clr-namespace:Kasa.App.Views"
+       x:Class="Kasa.App.AppShell"
+       FlyoutBackgroundColor="{StaticResource Sidebar}">
+    <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />
+    <FlyoutItem x:Name="AnaMenu" Title="Emar Kasa" IsVisible="False">
+        <ShellContent Title="Panel" Route="panel" ContentTemplate="{DataTemplate v:PanelPage}" />
+        <ShellContent Title="Haftalık" Route="haftalik" ContentTemplate="{DataTemplate v:HaftalikPage}" />
+        <ShellContent Title="Aylık" Route="aylik" ContentTemplate="{DataTemplate v:AylikPage}" />
+        <ShellContent Title="Cariler" Route="cariler" ContentTemplate="{DataTemplate v:CarilerPage}" />
+        <ShellContent Title="İşlemler" Route="islemler" ContentTemplate="{DataTemplate v:IslemlerPage}" />
+        <ShellContent Title="Kredi Kartları" Route="kartlar" ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
+    </FlyoutItem>
+</Shell>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Kasa.App.Views.KrediKartlariPage" Title="Kredi Kartları">
+    <CollectionView ItemsSource="{Binding Kartlar}">
+        <CollectionView.ItemTemplate>
+            <DataTemplate>
+                <Border Style="{StaticResource Kart}" Margin="0,4">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                        <Label Text="{Binding Ad}" FontSize="16" />
+                        <Label Grid.Row="1" Text="Limit" TextColor="{StaticResource Sub}" />
+                        <Label Grid.Row="1" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Limit}" />
+                        <Label Grid.Row="2" Text="Borç" TextColor="{StaticResource Sub}" />
+                        <Label Grid.Row="2" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Borc}" />
+                        <Label Grid.Column="1" Style="{StaticResource Para}" HorizontalOptions="End"
+                               Text="{Binding KalanLimit}" />
+                    </Grid>
+                </Border>
+            </DataTemplate>
+        </CollectionView.ItemTemplate>
+    </CollectionView>
+</ContentPage>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Kasa.App.Views.HaftalikPage" Title="Haftalık">
+    <CollectionView ItemsSource="{Binding Donemler}">
+        <CollectionView.ItemTemplate>
+            <DataTemplate>
+                <Grid Padding="8" ColumnDefinitions="Auto,Auto,*">
+                    <Label Text="{Binding Donem.Yil}" />
+                    <Label Grid.Column="1" Text="{Binding Donem.Ay}" Margin="8,0,0,0" />
+                    <Label Grid.Column="2" Style="{StaticResource Para}" HorizontalOptions="End"
+                           Text="{Binding KasaSonucu}" />
+                </Grid>
+            </DataTemplate>
+        </CollectionView.ItemTemplate>
+    </CollectionView>
+</ContentPage>
