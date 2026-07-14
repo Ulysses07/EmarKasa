@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Kasa.ApiClient;
 
 /// <summary>Kasa REST API'sinin tiplı istemcisi. Her isteğe Bearer token ekler; başarısız durumda KasaApiException.</summary>
-public sealed partial class KasaApiClient
+public sealed partial class KasaApiClient : IKasaApi
 {
     private readonly HttpClient _http;
     private readonly ITokenStore _store;

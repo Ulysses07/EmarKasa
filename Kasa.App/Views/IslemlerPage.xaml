@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Kasa.App.Views.IslemlerPage" Title="İşlemler">
+    <CollectionView ItemsSource="{Binding Islemler}">
+        <CollectionView.ItemTemplate>
+            <DataTemplate>
+                <Grid Padding="8" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                    <Label Text="{Binding Tarih}" />
+                    <Label Grid.Column="1" Text="{Binding Cari}" />
+                    <Label Grid.Column="2" Style="{StaticResource Para}" Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}" />
+                    <Label Grid.Column="3" Text="{Binding Kanal}" TextColor="{StaticResource Sub}" />
+                </Grid>
+            </DataTemplate>
+        </CollectionView.ItemTemplate>
+    </CollectionView>
+</ContentPage>
