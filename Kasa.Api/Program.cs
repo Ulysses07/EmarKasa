@@ -72,9 +72,6 @@ using (var scope = app.Services.CreateScope())
     db.SaveChanges();
 }
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -290,11 +287,6 @@ api.MapGet("/donemler", (HesapServisi svc) => svc.Donemler());
 api.MapGet("/rapor/haftalik", (HesapServisi svc) => svc.Haftalik());
 api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) => svc.Aylik(yil, ay));
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
-
-// React istemci-tarafı rotaları (/haftalik, /aylik, ...) index.html'e düşer.
-// /api ve /health zaten eşleştiği için buraya gelmez; eşleşmeyen /api/* için
-// aşağıdaki guard 404 üretir (HTML fallback yerine).
-app.MapFallbackToFile("index.html");
 
 app.Run();
 
