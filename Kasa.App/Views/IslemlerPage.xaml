@@ -1,17 +1,46 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Name="Sayfa"
              x:Class="Kasa.App.Views.IslemlerPage" Title="İşlemler">
-    <CollectionView ItemsSource="{Binding Islemler}">
-        <CollectionView.ItemTemplate>
-            <DataTemplate>
-                <Grid Padding="8" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                    <Label Text="{Binding Tarih}" />
-                    <Label Grid.Column="1" Text="{Binding Cari}" />
-                    <Label Grid.Column="2" Style="{StaticResource Para}" Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}" />
-                    <Label Grid.Column="3" Text="{Binding Kanal}" TextColor="{StaticResource Sub}" />
-                </Grid>
-            </DataTemplate>
-        </CollectionView.ItemTemplate>
-    </CollectionView>
+    <Grid RowDefinitions="Auto,Auto,*" Padding="12" RowSpacing="8">
+        <VerticalStackLayout Grid.Row="0" Spacing="6" IsVisible="{Binding EditorMu}">
+            <Label Text="İşlem" FontAttributes="Bold" />
+            <DatePicker Date="{Binding DuzenTarih}" />
+            <Entry Placeholder="Cari / açıklama" Text="{Binding DuzenCari}" />
+            <Entry Placeholder="Tutar" Keyboard="Numeric" Text="{Binding DuzenTutar}" />
+            <Entry Placeholder="Kanal" Text="{Binding DuzenKanal}" />
+            <Entry Placeholder="Not" Text="{Binding DuzenNot}" />
+            <HorizontalStackLayout Spacing="8">
+                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
+                <Button Text="Yeni" Command="{Binding YeniCommand}" />
+            </HorizontalStackLayout>
+            <Label Text="Gelen (kanal geliri)" FontAttributes="Bold" Margin="0,8,0,0" />
+            <DatePicker Date="{Binding GelenTarih}" />
+            <Entry Placeholder="Kanal" Text="{Binding GelenKanal}" />
+            <Entry Placeholder="Tutar" Keyboard="Numeric" Text="{Binding GelenTutar}" />
+            <Button Text="Gelen kaydet" Command="{Binding GelenKaydetCommand}" />
+        </VerticalStackLayout>
+        <Label Grid.Row="1" Text="{Binding Hata}" TextColor="{StaticResource Neg}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Islemler}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="8" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
+                        <Label Text="{Binding Cari}" />
+                        <Label Grid.Row="1" Text="{Binding Kanal}" TextColor="{StaticResource Sub}" FontSize="12" />
+                        <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}" />
+                        <HorizontalStackLayout Grid.Column="2" Grid.RowSpan="2" Spacing="6"
+                                               IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                            <Button Text="Düzenle"
+                                    Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                    CommandParameter="{Binding .}" />
+                            <Button Text="Sil"
+                                    Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                    CommandParameter="{Binding .}" />
+                        </HorizontalStackLayout>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
 </ContentPage>

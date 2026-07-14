@@ -1,14 +1,32 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Name="Sayfa"
              x:Class="Kasa.App.Views.CarilerPage" Title="Cariler">
-    <CollectionView ItemsSource="{Binding Cariler}">
-        <CollectionView.ItemTemplate>
-            <DataTemplate>
-                <Grid Padding="8">
-                    <Label Text="{Binding Ad}" />
-                </Grid>
-            </DataTemplate>
-        </CollectionView.ItemTemplate>
-    </CollectionView>
+    <Grid RowDefinitions="Auto,Auto,*" Padding="12" RowSpacing="8">
+        <VerticalStackLayout Grid.Row="0" Spacing="6" IsVisible="{Binding EditorMu}">
+            <Entry Placeholder="Cari adı" Text="{Binding DuzenAd}" />
+            <HorizontalStackLayout Spacing="8">
+                <Switch IsToggled="{Binding DuzenAktif}" />
+                <Label Text="Aktif" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Spacing="8">
+                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
+                <Button Text="Yeni" Command="{Binding YeniCommand}" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+        <Label Grid.Row="1" Text="{Binding Hata}" TextColor="{StaticResource Neg}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Cariler}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="8" ColumnDefinitions="*,Auto">
+                        <Label Text="{Binding Ad}" VerticalOptions="Center" />
+                        <Button Grid.Column="1" Text="Düzenle"
+                                Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                CommandParameter="{Binding .}" />
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
 </ContentPage>

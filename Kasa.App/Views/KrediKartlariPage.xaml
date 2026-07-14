@@ -1,22 +1,48 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Name="Sayfa"
              x:Class="Kasa.App.Views.KrediKartlariPage" Title="Kredi Kartları">
-    <CollectionView ItemsSource="{Binding Kartlar}">
-        <CollectionView.ItemTemplate>
-            <DataTemplate>
-                <Border Style="{StaticResource Kart}" Margin="0,4">
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
-                        <Label Text="{Binding Ad}" FontSize="16" />
-                        <Label Grid.Row="1" Text="Limit" TextColor="{StaticResource Sub}" />
-                        <Label Grid.Row="1" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Limit, Converter={StaticResource ParaBicim}}" />
-                        <Label Grid.Row="2" Text="Borç" TextColor="{StaticResource Sub}" />
-                        <Label Grid.Row="2" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Borc, Converter={StaticResource ParaBicim}}" />
-                        <Label Grid.Column="1" Style="{StaticResource Para}" HorizontalOptions="End"
-                               Text="{Binding KalanLimit, Converter={StaticResource ParaBicim}}" />
-                    </Grid>
-                </Border>
-            </DataTemplate>
-        </CollectionView.ItemTemplate>
-    </CollectionView>
+    <Grid RowDefinitions="Auto,Auto,*" Padding="12" RowSpacing="8">
+        <VerticalStackLayout Grid.Row="0" Spacing="6" IsVisible="{Binding EditorMu}">
+            <Entry Placeholder="Kart adı" Text="{Binding DuzenAd}" />
+            <Label Text="Kesim tarihi" TextColor="{StaticResource Sub}" />
+            <DatePicker Date="{Binding DuzenKesim}" />
+            <Label Text="Son ödeme tarihi" TextColor="{StaticResource Sub}" />
+            <DatePicker Date="{Binding DuzenSonOdeme}" />
+            <Entry Placeholder="Limit" Keyboard="Numeric" Text="{Binding DuzenLimit}" />
+            <Entry Placeholder="Borç" Keyboard="Numeric" Text="{Binding DuzenBorc}" />
+            <HorizontalStackLayout Spacing="8">
+                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
+                <Button Text="Yeni" Command="{Binding YeniCommand}" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+        <Label Grid.Row="1" Text="{Binding Hata}" TextColor="{StaticResource Neg}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Kartlar}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Kart}" Margin="0,4">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                            <Label Text="{Binding Ad}" FontSize="16" />
+                            <Label Grid.Row="1" Text="Limit" TextColor="{StaticResource Sub}" />
+                            <Label Grid.Row="1" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Limit, Converter={StaticResource ParaBicim}}" />
+                            <Label Grid.Row="2" Text="Borç" TextColor="{StaticResource Sub}" />
+                            <Label Grid.Row="2" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Borc, Converter={StaticResource ParaBicim}}" />
+                            <Label Grid.Row="3" Text="Kalan" TextColor="{StaticResource Sub}" />
+                            <Label Grid.Row="3" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding KalanLimit, Converter={StaticResource ParaBicim}}" />
+                            <HorizontalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="6"
+                                                   IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                <Button Text="Düzenle"
+                                        Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                        CommandParameter="{Binding .}" />
+                                <Button Text="Sil"
+                                        Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                        CommandParameter="{Binding .}" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
 </ContentPage>

@@ -17,4 +17,21 @@ public interface IKasaApi
     Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync();
     Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null);
     Task<AyarlarDto> AyarlarAsync();
+
+    // Editör mutasyonları (KasaApiClient bunları zaten uyguluyor)
+    Task<KanalDto> KanalOlusturAsync(KanalYaz g);
+    Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g);
+    Task KanalSilAsync(int id);
+    Task<CariDto> CariOlusturAsync(CariYaz g);
+    Task<CariDto> CariGuncelleAsync(int id, CariYaz g);
+    Task CariSilAsync(int id);
+    Task<IslemDto> IslemOlusturAsync(IslemYaz g);
+    Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g);
+    Task IslemSilAsync(int id);
+    Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g);
+    Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g);
+    Task KrediKartiSilAsync(int id);
+    Task<GelenDto> GelenKaydetAsync(GelenYaz g);
+    Task AyarGuncelleAsync(AyarYaz g);
+    Task IzleyiciSifreAsync(string yeniSifre);
 }
