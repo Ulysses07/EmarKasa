@@ -3,7 +3,7 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-public partial class AylikViewModel : ObservableObject
+public partial class AylikViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
     public AylikViewModel(IKasaApi api)
@@ -16,13 +16,7 @@ public partial class AylikViewModel : ObservableObject
 
     [ObservableProperty] private int _yil;
     [ObservableProperty] private int _ay;
-    [ObservableProperty] private bool _mesgul;
     [ObservableProperty] private AylikRaporDto? _rapor;
 
-    public async Task YukleAsync()
-    {
-        Mesgul = true;
-        try { Rapor = await _api.AylikAsync(Yil, Ay); }
-        finally { Mesgul = false; }
-    }
+    public Task YukleAsync() => CalistirAsync(async () => Rapor = await _api.AylikAsync(Yil, Ay));
 }

@@ -11,6 +11,9 @@ public sealed class SahteApi : IKasaApi
     public Exception? MeHatasi;
     public bool CikisCagrildi;
 
+    /// <summary>Ayarlanırsa tüm okuma metotları bu istisnayı fırlatır (hata yüzeyi testi).</summary>
+    public Exception? YuklemeHatasi;
+
     public PanelDto? Panel;
     public IReadOnlyList<KrediKartiDto> KrediKartlariListe = new List<KrediKartiDto>();
     public IReadOnlyList<CariDto> CarilerListe = new List<CariDto>();
@@ -26,15 +29,15 @@ public sealed class SahteApi : IKasaApi
         => MeHatasi is not null ? Task.FromException<string?>(MeHatasi) : Task.FromResult(MeRol);
     public Task CikisAsync() { CikisCagrildi = true; return Task.CompletedTask; }
 
-    public Task<PanelDto> PanelAsync() => Task.FromResult(Panel!);
-    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => Task.FromResult(HaftalikListe);
-    public Task<AylikRaporDto> AylikAsync(int yil, int ay) { SonAylikYil = yil; SonAylikAy = ay; return Task.FromResult(AylikRapor!); }
-    public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => Task.FromResult<IReadOnlyList<DonemDto>>(new List<DonemDto>());
-    public Task<IReadOnlyList<KanalDto>> KanallarAsync() => Task.FromResult<IReadOnlyList<KanalDto>>(new List<KanalDto>());
-    public Task<IReadOnlyList<CariDto>> CarilerAsync(string? ara = null) => Task.FromResult(CarilerListe);
-    public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null) => Task.FromResult(IslemlerListe);
-    public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => Task.FromResult(KrediKartlariListe);
-    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null) => Task.FromResult<IReadOnlyList<GelenDto>>(new List<GelenDto>());
+    public Task<PanelDto> PanelAsync() => YuklemeHatasi is not null ? Task.FromException<PanelDto>(YuklemeHatasi) : Task.FromResult(Panel!);
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<HaftalikOzetDto>>(YuklemeHatasi) : Task.FromResult(HaftalikListe);
+    public Task<AylikRaporDto> AylikAsync(int yil, int ay) { SonAylikYil = yil; SonAylikAy = ay; return YuklemeHatasi is not null ? Task.FromException<AylikRaporDto>(YuklemeHatasi) : Task.FromResult(AylikRapor!); }
+    public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<DonemDto>>(YuklemeHatasi) : Task.FromResult<IReadOnlyList<DonemDto>>(new List<DonemDto>());
+    public Task<IReadOnlyList<KanalDto>> KanallarAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KanalDto>>(YuklemeHatasi) : Task.FromResult<IReadOnlyList<KanalDto>>(new List<KanalDto>());
+    public Task<IReadOnlyList<CariDto>> CarilerAsync(string? ara = null) => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<CariDto>>(YuklemeHatasi) : Task.FromResult(CarilerListe);
+    public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null) => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
+    public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediKartiDto>>(YuklemeHatasi) : Task.FromResult(KrediKartlariListe);
+    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null) => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<GelenDto>>(YuklemeHatasi) : Task.FromResult<IReadOnlyList<GelenDto>>(new List<GelenDto>());
     // Mutasyon çağrı kayıtları (son çağrıyı tutar)
     public KanalYaz? SonKanalOlustur;
     public (int Id, KanalYaz G)? SonKanalGuncelle;

@@ -4,24 +4,20 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-public partial class CarilerViewModel : ObservableObject
+public partial class CarilerViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
     public CarilerViewModel(IKasaApi api) => _api = api;
 
-    [ObservableProperty] private bool _mesgul;
     [ObservableProperty] private string? _ara;
     public ObservableCollection<CariDto> Cariler { get; } = new();
 
-    public async Task YukleAsync()
+    private async Task DoldurAsync()
     {
-        Mesgul = true;
-        try
-        {
-            var liste = await _api.CarilerAsync(string.IsNullOrWhiteSpace(Ara) ? null : Ara);
-            Cariler.Clear();
-            foreach (var c in liste) Cariler.Add(c);
-        }
-        finally { Mesgul = false; }
+        var liste = await _api.CarilerAsync(string.IsNullOrWhiteSpace(Ara) ? null : Ara);
+        Cariler.Clear();
+        foreach (var c in liste) Cariler.Add(c);
     }
+
+    public Task YukleAsync() => CalistirAsync(DoldurAsync);
 }
