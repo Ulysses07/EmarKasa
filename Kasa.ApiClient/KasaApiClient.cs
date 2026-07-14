@@ -47,10 +47,35 @@ public sealed partial class KasaApiClient
         await _store.TemizleAsync();
     }
 
-    // GEÇİCİ: Task 4'te reads bloğuna taşınacak. Task 3 testlerinin yeşil olması için burada.
-    public Task<PanelDto> PanelAsync() => GetAsync<PanelDto>("api/rapor/panel");
-
     private record RolYanit(string Rol);
+
+    // ---- okuma metotları ----
+
+    public Task<PanelDto> PanelAsync() => GetAsync<PanelDto>("api/rapor/panel");
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => GetAsync<IReadOnlyList<HaftalikOzetDto>>("api/rapor/haftalik");
+    public Task<AylikRaporDto> AylikAsync(int yil, int ay) => GetAsync<AylikRaporDto>($"api/rapor/aylik?yil={yil}&ay={ay}");
+    public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => GetAsync<IReadOnlyList<DonemDto>>("api/donemler");
+    public Task<IReadOnlyList<KanalDto>> KanallarAsync() => GetAsync<IReadOnlyList<KanalDto>>("api/kanallar");
+    public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => GetAsync<IReadOnlyList<KrediKartiDto>>("api/kredikartlari");
+    public Task<AyarlarDto> AyarlarAsync() => GetAsync<AyarlarDto>("api/ayarlar");
+
+    public Task<IReadOnlyList<CariDto>> CarilerAsync(string? ara = null)
+        => GetAsync<IReadOnlyList<CariDto>>(ara is null ? "api/cariler" : $"api/cariler?ara={Uri.EscapeDataString(ara)}");
+
+    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null)
+        => GetAsync<IReadOnlyList<GelenDto>>(donemStart is { } d ? $"api/gelenler?donemStart={d:yyyy-MM-dd}" : "api/gelenler");
+
+    public Task<IReadOnlyList<IslemDto>> IslemlerAsync(
+        DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
+    {
+        var q = new List<string>();
+        if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
+        if (bitis is { } s) q.Add($"bitis={s:yyyy-MM-dd}");
+        if (!string.IsNullOrWhiteSpace(kanal)) q.Add($"kanal={Uri.EscapeDataString(kanal)}");
+        if (!string.IsNullOrWhiteSpace(cari)) q.Add($"cari={Uri.EscapeDataString(cari)}");
+        var yol = q.Count > 0 ? $"api/islemler?{string.Join("&", q)}" : "api/islemler";
+        return GetAsync<IReadOnlyList<IslemDto>>(yol);
+    }
 
     // ---- altyapı ----
 
