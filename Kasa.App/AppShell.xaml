@@ -12,5 +12,7 @@
         <ShellContent Title="Cariler" Route="cariler" ContentTemplate="{DataTemplate v:CarilerPage}" />
         <ShellContent Title="İşlemler" Route="islemler" ContentTemplate="{DataTemplate v:IslemlerPage}" />
         <ShellContent Title="Kredi Kartları" Route="kartlar" ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
+        <ShellContent x:Name="AyarlarSekme" Title="Ayarlar" Route="ayarlar" ContentTemplate="{DataTemplate v:AyarlarPage}" />
     </FlyoutItem>
+    <MenuItem x:Name="CikisMenu" Text="Çıkış" Clicked="CikisTiklandi" />
 </Shell>

@@ -23,6 +23,15 @@ public partial class AppShell : Shell
     public void MenuyuAc()
     {
         AnaMenu.IsVisible = true;
+        var bolumler = SekmeModeli.Bolumler(_auth.AktifRol);
+        AyarlarSekme.IsVisible = bolumler.Contains(Bolum.Ayarlar);
         _ = GoToAsync("//panel");
+    }
+
+    private async void CikisTiklandi(object? sender, EventArgs e)
+    {
+        await _auth.CikisAsync();
+        AnaMenu.IsVisible = false;
+        await GoToAsync("//login");
     }
 }
