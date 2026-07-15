@@ -16,7 +16,13 @@ public partial class KrediKartlariViewModel : TemelViewModel
     {
         var liste = await _api.KrediKartlariAsync();
         Kartlar.Clear();
-        foreach (var k in liste) Kartlar.Add(new KrediKartiGorunum(k));
+        foreach (var k in liste)
+        {
+            var g = new KrediKartiGorunum(k);
+            var odemeler = await _api.KartOdemelerAsync(k.Id);
+            foreach (var o in odemeler) g.Odemeler.Add(o);
+            Kartlar.Add(g);
+        }
     }
 
     public Task YukleAsync() => CalistirAsync(DoldurAsync);
@@ -27,7 +33,12 @@ public partial class KrediKartlariViewModel : TemelViewModel
     [ObservableProperty] private DateTime _duzenKesim = DateTime.Today;
     [ObservableProperty] private DateTime _duzenSonOdeme = DateTime.Today;
     [ObservableProperty] private decimal _duzenLimit;
-    [ObservableProperty] private decimal _duzenBorc;
+    [ObservableProperty] private decimal _duzenBorc;   // açılış borcu (baz/elle ayar)
+
+    // Ödeme ekleme formu (kart param ile OdemeEkle'ye gider)
+    [ObservableProperty] private DateTime _duzenOdemeTarih = DateTime.Today;
+    [ObservableProperty] private decimal _duzenOdemeTutar;
+    [ObservableProperty] private string? _duzenOdemeNot;
 
     [RelayCommand]
     private void Yeni()
@@ -42,7 +53,7 @@ public partial class KrediKartlariViewModel : TemelViewModel
         DuzenId = k.Id; DuzenAd = k.Ad;
         DuzenKesim = k.KesimTarihi.ToDateTime(TimeOnly.MinValue);
         DuzenSonOdeme = k.SonOdemeTarihi.ToDateTime(TimeOnly.MinValue);
-        DuzenLimit = k.Limit; DuzenBorc = k.Borc;
+        DuzenLimit = k.Limit; DuzenBorc = k.AcilisBorc;   // form açılış borcunu düzenler
     }
 
     [RelayCommand]
@@ -59,6 +70,21 @@ public partial class KrediKartlariViewModel : TemelViewModel
     private Task SilAsync(KrediKartiGorunum k) => CalistirAsync(async () =>
     {
         await _api.KrediKartiSilAsync(k.Id);
+        await DoldurAsync();
+    });
+
+    [RelayCommand]
+    private Task OdemeEkleAsync(KrediKartiGorunum k) => CalistirAsync(async () =>
+    {
+        await _api.KartOdemeKaydetAsync(new KartOdemeYaz(k.Id, DateOnly.FromDateTime(DuzenOdemeTarih), DuzenOdemeTutar, DuzenOdemeNot));
+        DuzenOdemeTutar = 0; DuzenOdemeNot = null;
+        await DoldurAsync();
+    });
+
+    [RelayCommand]
+    private Task OdemeSilAsync(KartOdemeDto o) => CalistirAsync(async () =>
+    {
+        await _api.KartOdemeSilAsync(o.Id);
         await DoldurAsync();
     });
 }

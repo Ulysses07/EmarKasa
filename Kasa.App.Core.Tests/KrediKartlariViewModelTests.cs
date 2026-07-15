@@ -11,7 +11,7 @@ public class KrediKartlariViewModelTests
         {
             KrediKartlariListe = new List<KrediKartiDto>
             {
-                new(1, "Bonus", new DateOnly(2026,7,5), new DateOnly(2026,7,25), 100000m, 30000m),
+                new(1, "Bonus", new DateOnly(2026,7,5), new DateOnly(2026,7,25), 100000m, 30000m, GuncelBorc: 30000m, AcilisBorc: 30000m),
             },
         };
         var vm = new KrediKartlariViewModel(api);
@@ -19,7 +19,7 @@ public class KrediKartlariViewModelTests
         await vm.YukleAsync();
 
         Assert.Single(vm.Kartlar);
-        Assert.Equal(70000m, vm.Kartlar[0].KalanLimit);   // limit - borç
+        Assert.Equal(70000m, vm.Kartlar[0].KalanLimit);   // limit - güncel borç
         Assert.Equal("Bonus", vm.Kartlar[0].Ad);
     }
 
