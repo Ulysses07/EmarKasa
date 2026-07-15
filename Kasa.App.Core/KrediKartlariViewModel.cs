@@ -35,11 +35,6 @@ public partial class KrediKartlariViewModel : TemelViewModel
     [ObservableProperty] private decimal _duzenLimit;
     [ObservableProperty] private decimal _duzenBorc;   // açılış borcu (baz/elle ayar)
 
-    // Ödeme ekleme formu (kart param ile OdemeEkle'ye gider)
-    [ObservableProperty] private DateTime _duzenOdemeTarih = DateTime.Today;
-    [ObservableProperty] private decimal _duzenOdemeTutar;
-    [ObservableProperty] private string? _duzenOdemeNot;
-
     [RelayCommand]
     private void Yeni()
     {
@@ -76,8 +71,8 @@ public partial class KrediKartlariViewModel : TemelViewModel
     [RelayCommand]
     private Task OdemeEkleAsync(KrediKartiGorunum k) => CalistirAsync(async () =>
     {
-        await _api.KartOdemeKaydetAsync(new KartOdemeYaz(k.Id, DateOnly.FromDateTime(DuzenOdemeTarih), DuzenOdemeTutar, DuzenOdemeNot));
-        DuzenOdemeTutar = 0; DuzenOdemeNot = null;
+        await _api.KartOdemeKaydetAsync(new KartOdemeYaz(k.Id, DateOnly.FromDateTime(k.OdemeTarihGiris), k.OdemeTutarGiris, null));
+        k.OdemeTutarGiris = 0;
         await DoldurAsync();
     });
 

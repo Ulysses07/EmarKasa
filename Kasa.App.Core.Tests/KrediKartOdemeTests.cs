@@ -49,7 +49,7 @@ public class KrediKartOdemeTests
     }
 
     [Fact]
-    public async Task Odeme_ekle_dogru_argumanla_kaydeder()
+    public async Task Odeme_ekle_karta_ozel_giris_alanindan_kaydeder()
     {
         var api = new SahteApi
         {
@@ -60,15 +60,35 @@ public class KrediKartOdemeTests
         };
         var vm = new KrediKartlariViewModel(api);
         await vm.YukleAsync();
-        vm.DuzenOdemeTarih = new DateTime(2026, 7, 20);
-        vm.DuzenOdemeTutar = 750m;
+        var kart = vm.Kartlar.Single();
+        kart.OdemeTarihGiris = new DateTime(2026, 7, 20);
+        kart.OdemeTutarGiris = 750m;
 
-        await vm.OdemeEkleCommand.ExecuteAsync(vm.Kartlar.Single());
+        await vm.OdemeEkleCommand.ExecuteAsync(kart);
 
         Assert.NotNull(api.SonKartOdemeKaydet);
         Assert.Equal(5, api.SonKartOdemeKaydet!.KrediKartiId);
         Assert.Equal(750m, api.SonKartOdemeKaydet!.Tutar);
         Assert.Equal(new DateOnly(2026, 7, 20), api.SonKartOdemeKaydet!.Tarih);
+    }
+
+    [Fact]
+    public async Task Her_kartin_odeme_giris_alani_bagimsizdir()
+    {
+        var api = new SahteApi
+        {
+            KrediKartlariListe = new List<KrediKartiDto>
+            {
+                new(1, "Bonus", new DateOnly(2026,7,5), new DateOnly(2026,7,25), 100000m, 0m),
+                new(2, "World", new DateOnly(2026,7,1), new DateOnly(2026,7,20), 50000m, 0m),
+            },
+        };
+        var vm = new KrediKartlariViewModel(api);
+        await vm.YukleAsync();
+
+        vm.Kartlar[0].OdemeTutarGiris = 250m;
+
+        Assert.Equal(0m, vm.Kartlar[1].OdemeTutarGiris);
     }
 
     [Fact]

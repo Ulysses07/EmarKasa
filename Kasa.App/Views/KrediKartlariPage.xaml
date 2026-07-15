@@ -155,10 +155,10 @@
                                     <Label Text="Ödeme ekle" Style="{StaticResource LblField}" Margin="0,14,0,4" />
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                                         <Border Style="{StaticResource FieldBorder}">
-                                            <DatePicker Date="{Binding BindingContext.DuzenOdemeTarih, Source={x:Reference Sayfa}}" />
+                                            <DatePicker Date="{Binding OdemeTarihGiris}" />
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource FieldBorder}">
-                                            <Entry Text="{Binding BindingContext.DuzenOdemeTutar, Source={x:Reference Sayfa}, Converter={StaticResource ParaGiris}}"
+                                            <Entry Text="{Binding OdemeTutarGiris, Converter={StaticResource ParaGiris}}"
                                                    Placeholder="0,00 ₺" Style="{StaticResource EntryMoney}" />
                                         </Border>
                                         <Button Grid.Column="2" Text="Ekle" Style="{StaticResource BtnRowEdit}"

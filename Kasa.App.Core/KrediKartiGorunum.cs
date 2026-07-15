@@ -1,11 +1,17 @@
 using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
 /// <summary>Kart + türetilmiş güncel borç, kalan limit ve ödeme geçmişi (görünüm modeli).</summary>
-public sealed class KrediKartiGorunum
+public sealed partial class KrediKartiGorunum : ObservableObject
 {
+    /// <summary>Karta özel ödeme ekleme formu tarihi (her kart bağımsız).</summary>
+    [ObservableProperty] private DateTime _odemeTarihGiris = DateTime.Today;
+    /// <summary>Karta özel ödeme ekleme formu tutarı (her kart bağımsız).</summary>
+    [ObservableProperty] private decimal _odemeTutarGiris;
+
     public int Id { get; }
     public string Ad { get; }
     public DateOnly KesimTarihi { get; }
