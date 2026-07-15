@@ -16,6 +16,11 @@ public static class MauiProgram
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+                // Tasarım PlexSans* alias'ları — gerçek IBM Plex ttf yoksa OpenSans'a maplenir.
+                fonts.AddFont("OpenSans-Regular.ttf", "PlexSans");
+                fonts.AddFont("OpenSans-Regular.ttf", "PlexSansMedium");
+                fonts.AddFont("OpenSans-Semibold.ttf", "PlexSansSemiBold");
+                fonts.AddFont("OpenSans-Semibold.ttf", "PlexSansBold");
             });
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();

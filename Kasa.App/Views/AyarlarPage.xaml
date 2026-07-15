@@ -1,50 +1,162 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Name="Sayfa"
-             x:Class="Kasa.App.Views.AyarlarPage" Title="Ayarlar">
+<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar. -->
+<ContentPage
+    x:Class="Kasa.App.Views.AyarlarPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Ayarlar"
+    BackgroundColor="{StaticResource AppBg}">
+
     <ScrollView>
-        <VerticalStackLayout Padding="12" Spacing="10">
-            <Label Text="Genel ayar" FontAttributes="Bold" />
-            <Label Text="Takip başlangıç" TextColor="{StaticResource Sub}" />
-            <DatePicker Date="{Binding TakipBaslangic}" />
-            <Entry Placeholder="Kasa açılış devri" Keyboard="Numeric" Text="{Binding KasaAcilisDevri}" />
-            <Button Text="Ayarı kaydet" Command="{Binding AyarKaydetCommand}" />
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
 
-            <Label Text="İzleyici şifresi" FontAttributes="Bold" Margin="0,8,0,0" />
-            <Entry Placeholder="Yeni izleyici şifresi" IsPassword="True" Text="{Binding YeniIzleyiciSifre}" />
-            <Button Text="Şifreyi kaydet" Command="{Binding IzleyiciSifreKaydetCommand}" />
+            <Grid ColumnDefinitions="{OnIdiom Desktop='*,*', Default='*'}"
+                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                  ColumnSpacing="20" RowSpacing="20">
 
-            <Label Text="Kanallar" FontAttributes="Bold" Margin="0,8,0,0" />
-            <Entry Placeholder="Kanal adı" Text="{Binding DuzenKanalAd}" />
-            <Entry Placeholder="Sıra" Keyboard="Numeric" Text="{Binding DuzenKanalSira}" />
-            <Entry Placeholder="Açılış devri" Keyboard="Numeric" Text="{Binding DuzenKanalAcilisDevri}" />
-            <HorizontalStackLayout Spacing="8">
-                <Switch IsToggled="{Binding DuzenKanalAktif}" />
-                <Label Text="Aktif" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <HorizontalStackLayout Spacing="8">
-                <Button Text="Kanal kaydet" Command="{Binding KanalKaydetCommand}" />
-                <Button Text="Yeni kanal" Command="{Binding YeniKanalCommand}" />
-            </HorizontalStackLayout>
+                <!-- Genel ayar -->
+                <Border Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="Genel Ayar" Style="{StaticResource LblSection}" />
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Takip başlangıcı" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <DatePicker Date="{Binding TakipBaslangic}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Kasa açılış devri" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding KasaAcilisDevri}" Placeholder="0,00 ₺"
+                                       Style="{StaticResource EntryMoney}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <Button Text="Ayarı kaydet" Command="{Binding AyarKaydetCommand}"
+                                HorizontalOptions="Start" />
+                    </VerticalStackLayout>
+                </Border>
 
-            <Label Text="{Binding Hata}" TextColor="{StaticResource Neg}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
+                <!-- İzleyici şifresi -->
+                <Border Style="{StaticResource CardForm}"
+                        Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                        Grid.Row="{OnIdiom Desktop=0, Default=1}">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="İzleyici Şifresi" Style="{StaticResource LblSection}" />
+                        <Label Text="İzleyici bu şifreyle salt-okunur girer; formlar ve Ayarlar gizlenir."
+                               Style="{StaticResource LblPageSub}" />
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Yeni şifre" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding YeniIzleyiciSifre}" IsPassword="True" Placeholder="••••••••" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <Button Text="Şifreyi kaydet" Command="{Binding IzleyiciSifreKaydetCommand}"
+                                HorizontalOptions="Start" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
 
-            <CollectionView ItemsSource="{Binding Kanallar}">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Padding="6" ColumnDefinitions="*,Auto,Auto">
-                            <Label Text="{Binding Ad}" VerticalOptions="Center" />
-                            <Button Grid.Column="1" Text="Düzenle"
-                                    Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
-                                    CommandParameter="{Binding .}" />
-                            <Button Grid.Column="2" Text="Sil"
-                                    Command="{Binding BindingContext.KanalSilCommand, Source={x:Reference Sayfa}}"
-                                    CommandParameter="{Binding .}" />
+            <!-- Kanallar -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,18,18,0" Spacing="12">
+                        <Label Text="Kanallar" Style="{StaticResource LblSection}" />
+                        <Grid ColumnDefinitions="{OnIdiom Desktop='1.4*,90,*,Auto,Auto,Auto', Default='*'}"
+                              RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto,Auto'}"
+                              ColumnSpacing="10" RowSpacing="12">
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Kanal adı" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenKanalAd}" Placeholder="Örn. Nakit" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                                <Label Text="Sıra" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenKanalSira}" Placeholder="1" Keyboard="Numeric"
+                                           HorizontalTextAlignment="End" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
+                                <Label Text="Açılış devri" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenKanalAcilisDevri}" Placeholder="0,00 ₺"
+                                           Style="{StaticResource EntryMoney}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                                   Grid.Row="{OnIdiom Desktop=0, Default=3}"
+                                                   Spacing="9" VerticalOptions="End" HeightRequest="44">
+                                <Switch IsToggled="{Binding DuzenKanalAktif}" VerticalOptions="Center" />
+                                <Label Text="Aktif" Style="{StaticResource LblRowPrimary}" FontSize="13"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Button Text="Kanal kaydet" Command="{Binding KanalKaydetCommand}"
+                                    Grid.Column="{OnIdiom Desktop=4, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=4}"
+                                    Padding="18,0" VerticalOptions="End" />
+                            <Button Text="Yeni kanal" Command="{Binding YeniKanalCommand}"
+                                    Style="{StaticResource BtnSecondary}"
+                                    Grid.Column="{OnIdiom Desktop=5, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=5}"
+                                    VerticalOptions="End" />
                         </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                        <Border Style="{StaticResource ErrorBox}" Margin="0,0,0,16"
+                                IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                            <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <!-- Kanal listesi -->
+                    <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None" Margin="0,4,0,0">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="52"
+                                          ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+                                        <Border WidthRequest="24" HeightRequest="24" StrokeThickness="1"
+                                                Stroke="{StaticResource BrushDateChipBorder}"
+                                                StrokeShape="RoundRectangle 7" VerticalOptions="Center">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="{StaticResource DateChipBg}" />
+                                            </Border.Background>
+                                            <Label Text="{Binding Sira}" FontFamily="PlexSansSemiBold" FontSize="12"
+                                                   TextColor="{StaticResource Sub}"
+                                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <Label Grid.Column="1" Text="{Binding Ad}"
+                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center">
+                                            <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.KanalSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,30,20,34" Spacing="6">
+                                <Label Text="Kanal yok" Style="{StaticResource LblEmptyTitle}" />
+                                <Label Text="Yukarıdaki formdan ilk kanalı ekleyin."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

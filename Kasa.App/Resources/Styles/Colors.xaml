@@ -59,4 +59,29 @@
     <Color x:Key="SidebarActive">#33453A</Color>
     <Color x:Key="SidebarText">#C9D2C6</Color>
     <Color x:Key="SidebarTitle">#F2F5EE</Color>
+
+    <!-- Emar Kasa tasarım eklentileri (handoff) -->
+    <Color x:Key="ChipBg">#F1EFE8</Color>
+    <Color x:Key="DateChipBg">#F5F4EF</Color>
+    <Color x:Key="DateChipBorder">#EFEDE4</Color>
+    <Color x:Key="GreenSoftHover">#E2EBE4</Color>
+    <Color x:Key="NegSoft">#FAEDEB</Color>
+    <Color x:Key="NegBorder">#F0D2CC</Color>
+    <Color x:Key="HeroLabel">#A9C8B7</Color>
+    <Color x:Key="HeroSub">#8FB4A2</Color>
+    <Color x:Key="SidebarHover">#2A3830</Color>
+    <Color x:Key="SidebarMuted">#7E8A7C</Color>
+    <Color x:Key="SidebarAccent">#9CC4AC</Color>
+    <Color x:Key="SidebarLine">#14FFFFFF</Color>
+    <Color x:Key="FocusRing">#2E1E5F46</Color>
+
+    <!-- Sık kullanılan fırçalar -->
+    <SolidColorBrush x:Key="BrushCard" Color="{StaticResource Card}" />
+    <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource Border}" />
+    <SolidColorBrush x:Key="BrushRowLine" Color="{StaticResource RowLine}" />
+    <SolidColorBrush x:Key="BrushGreen" Color="{StaticResource Green}" />
+    <SolidColorBrush x:Key="BrushGreenSoft" Color="{StaticResource GreenSoft}" />
+    <SolidColorBrush x:Key="BrushNegBorder" Color="{StaticResource NegBorder}" />
+    <SolidColorBrush x:Key="BrushSidebar" Color="{StaticResource Sidebar}" />
+    <SolidColorBrush x:Key="BrushDateChipBorder" Color="{StaticResource DateChipBorder}" />
 </ResourceDictionary>

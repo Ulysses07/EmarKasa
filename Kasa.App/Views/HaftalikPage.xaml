@@ -1,17 +1,61 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Kasa.App.Views.HaftalikPage" Title="Haftalık">
-    <CollectionView ItemsSource="{Binding Donemler}">
-        <CollectionView.ItemTemplate>
-            <DataTemplate>
-                <Grid Padding="8" ColumnDefinitions="Auto,Auto,*">
-                    <Label Text="{Binding Donem.Yil}" />
-                    <Label Grid.Column="1" Text="{Binding Donem.Ay}" Margin="8,0,0,0" />
-                    <Label Grid.Column="2" Style="{StaticResource Para}" HorizontalOptions="End"
-                           Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}" />
-                </Grid>
-            </DataTemplate>
-        </CollectionView.ItemTemplate>
-    </CollectionView>
+<!-- Emar Kasa · HaftalikPage — dönem listesi, sağa hizalı kasa sonucu. -->
+<ContentPage
+    x:Class="Kasa.App.Views.HaftalikPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Haftalık"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Haftalık" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Dönem bazlı kasa sonuçları" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
+                        <Label Text="Dönem" Style="{StaticResource LblSection}" />
+                        <Label Grid.Column="1" Text="Kasa Sonucu" Style="{StaticResource LblSection}" />
+                    </Grid>
+                    <CollectionView ItemsSource="{Binding Donemler}" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="54"
+                                          ColumnDefinitions="44,*,Auto" ColumnSpacing="12">
+                                        <Label Text="{Binding Donem.Yil}" Style="{StaticResource LblRowSecondary}"
+                                               FontSize="12" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="{Binding Donem.Ay}"
+                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="2"
+                                               Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}"
+                                               TextColor="{Binding KasaSonucu, Converter={StaticResource ParaRenk}}"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                                </Border>
+                                <Label Text="Kayıtlı dönem yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="İşlem girdikçe haftalık sonuçlar burada birikir."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

@@ -1,14 +1,78 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Kasa.App.Views.LoginPage"
-             Shell.FlyoutBehavior="Disabled" Title="Giriş">
-    <VerticalStackLayout Spacing="12" VerticalOptions="Center" MaximumWidthRequest="380">
-        <Label Text="Emar Kasa" FontSize="26" TextColor="{StaticResource Green}" HorizontalOptions="Center" />
-        <Entry x:Name="KullaniciGiris" Placeholder="Kullanıcı (editör)" Text="{Binding Kullanici}" />
-        <Entry Placeholder="Şifre" IsPassword="True" Text="{Binding Sifre}" />
-        <Label Text="{Binding Hata}" TextColor="{StaticResource Neg}" />
-        <Button Text="Giriş" Command="{Binding GirisCommand}" />
-        <ActivityIndicator IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}" />
-    </VerticalStackLayout>
+<!-- Emar Kasa · LoginPage — flyout gizli, marka kimliği merkezde. -->
+<ContentPage
+    x:Class="Kasa.App.Views.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Giriş"
+    Shell.FlyoutBehavior="Disabled"
+    Shell.NavBarIsVisible="False"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center"
+                             WidthRequest="380" Padding="0,40" Spacing="0">
+
+            <!-- Logo + başlık -->
+            <Border WidthRequest="46" HeightRequest="46" StrokeThickness="0"
+                    StrokeShape="RoundRectangle 13" Background="{StaticResource BrushGreen}"
+                    HorizontalOptions="Center">
+                <Border.Shadow>
+                    <Shadow Brush="#1E5F46" Opacity="0.25" Radius="14" Offset="0,6" />
+                </Border.Shadow>
+                <Label Text="₺" TextColor="White" FontFamily="PlexSansBold" FontSize="22"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Label Text="Emar Kasa" FontFamily="PlexSansBold" FontSize="24"
+                   TextColor="{StaticResource Ink}" HorizontalTextAlignment="Center" Margin="0,14,0,0" />
+            <Label Text="Kasa defteri · nakit akışı takibi" Style="{StaticResource LblPageSub}"
+                   FontSize="13" HorizontalTextAlignment="Center" Margin="0,4,0,0" />
+
+            <!-- Giriş kartı -->
+            <Border Style="{StaticResource Card}" Padding="26,26,26,24" Margin="0,26,0,0">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="Kullanıcı" Style="{StaticResource LblField}" />
+                    <Border Style="{StaticResource FieldBorder}">
+                        <Entry Text="{Binding Kullanici}" Placeholder="editör" />
+                    </Border>
+
+                    <Label Text="Şifre" Style="{StaticResource LblField}" Margin="0,14,0,6" />
+                    <Border Style="{StaticResource FieldBorder}">
+                        <Entry Text="{Binding Sifre}" IsPassword="True" Placeholder="••••••••" />
+                    </Border>
+
+                    <!-- Hata -->
+                    <Border Style="{StaticResource ErrorBox}" Margin="0,16,0,0"
+                            IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                            <Border WidthRequest="16" HeightRequest="16" StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5" VerticalOptions="Center">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{StaticResource Neg}" />
+                                </Border.Background>
+                                <Label Text="!" TextColor="White" FontFamily="PlexSansBold" FontSize="11"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <Label Grid.Column="1" Text="{Binding Hata}" Style="{StaticResource LblError}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Giriş + yükleniyor -->
+                    <Button Text="Giriş" Command="{Binding GirisCommand}" Margin="0,16,0,0"
+                            IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center" Margin="0,12,0,0"
+                                           IsVisible="{Binding Mesgul}">
+                        <ActivityIndicator IsRunning="{Binding Mesgul}" WidthRequest="16" HeightRequest="16" />
+                        <Label Text="Giriş yapılıyor…" Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Label Text="İzleyici girişi için izleyici şifresini kullanın"
+                   Style="{StaticResource LblRowSecondary}" FontSize="12"
+                   HorizontalTextAlignment="Center" Margin="0,16,0,0" />
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

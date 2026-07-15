@@ -1,34 +1,316 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
-    <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
-        <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
-        <Setter Property="Padding" Value="16" />
-    </Style>
+<!-- Emar Kasa · Styles.xaml (tasarım handoff entegrasyonu)
+     Tipografi: Sayfa başlığı 21 / Bölüm etiketi 11 (büyük harf) / Gövde 14 /
+     İkincil 12.5 / Tutar 14.5 yarı-kalın / Hero tutar 36. 8'lik boşluk gridi.
+     Fontlar PlexSans* alias'ları MauiProgram.cs'te OpenSans'a maplenir. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- ===== ETİKETLER ===== -->
     <Style TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="TextColor" Value="{StaticResource Ink}" />
     </Style>
-    <Style x:Key="Para" TargetType="Label">
+
+    <Style x:Key="LblPageTitle" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="21" />
         <Setter Property="TextColor" Value="{StaticResource Ink}" />
     </Style>
-    <Style x:Key="Kart" TargetType="Border">
-        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
-        <Setter Property="Stroke" Value="{StaticResource Border}" />
-        <Setter Property="StrokeShape" Value="RoundRectangle 12" />
-        <Setter Property="Padding" Value="16" />
+    <Style x:Key="LblPageSub" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
-    <Style TargetType="Button">
-        <Setter Property="BackgroundColor" Value="{StaticResource Green}" />
-        <Setter Property="TextColor" Value="#FFFFFF" />
-        <Setter Property="CornerRadius" Value="10" />
+    <Style x:Key="LblSection" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="CharacterSpacing" Value="1.1" />
+        <Setter Property="TextTransform" Value="Uppercase" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
+    <Style x:Key="LblField" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansMedium" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style x:Key="LblRowPrimary" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansMedium" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+    </Style>
+    <Style x:Key="LblRowSecondary" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{StaticResource Muted}" />
+    </Style>
+    <Style x:Key="LblMoney" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="14.5" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="HorizontalTextAlignment" Value="End" />
+    </Style>
+    <Style x:Key="LblMoneyPos" TargetType="Label" BasedOn="{StaticResource LblMoney}">
+        <Setter Property="TextColor" Value="{StaticResource Pos}" />
+    </Style>
+    <Style x:Key="LblMoneyNeg" TargetType="Label" BasedOn="{StaticResource LblMoney}">
+        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+    </Style>
+    <Style x:Key="LblHeroLabel" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="CharacterSpacing" Value="1.6" />
+        <Setter Property="TextTransform" Value="Uppercase" />
+        <Setter Property="TextColor" Value="{StaticResource HeroLabel}" />
+    </Style>
+    <Style x:Key="LblHeroAmount" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansBold" />
+        <Setter Property="FontSize" Value="36" />
+        <Setter Property="TextColor" Value="White" />
+    </Style>
+    <Style x:Key="LblHeroSub" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{StaticResource HeroSub}" />
+    </Style>
+    <Style x:Key="LblError" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansMedium" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+    </Style>
+    <Style x:Key="LblEmptyTitle" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="LblEmptySub" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <!-- ===== GİRİŞ ALANLARI ===== -->
     <Style TargetType="Entry">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="TextColor" Value="{StaticResource Ink}" />
-        <Setter Property="PlaceholderColor" Value="{StaticResource Sub}" />
-        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Muted}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="MinimumHeightRequest" Value="40" />
+        <Setter Property="VerticalOptions" Value="Center" />
     </Style>
     <Style TargetType="DatePicker">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="TextColor" Value="{StaticResource Ink}" />
-        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="MinimumHeightRequest" Value="40" />
+        <Setter Property="VerticalOptions" Value="Center" />
     </Style>
+    <Style x:Key="FieldBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushCard}" />
+        <Setter Property="Stroke" Value="{StaticResource BrushBorder}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="MinimumHeightRequest" Value="44" />
+    </Style>
+    <Style x:Key="EntryMoney" TargetType="Entry">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Muted}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="MinimumHeightRequest" Value="40" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Setter Property="HorizontalTextAlignment" Value="End" />
+        <Setter Property="Keyboard" Value="Numeric" />
+    </Style>
+    <Style TargetType="Switch">
+        <Setter Property="OnColor" Value="{StaticResource Green}" />
+        <Setter Property="ThumbColor" Value="White" />
+    </Style>
+    <Style TargetType="ActivityIndicator">
+        <Setter Property="Color" Value="{StaticResource Green}" />
+    </Style>
+
+    <!-- ===== BUTONLAR ===== -->
+    <Style TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource Green}" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="HeightRequest" Value="44" />
+        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource GreenDark}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource GreenDark}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource Muted}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <Style x:Key="BtnSecondary" TargetType="Button">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="HeightRequest" Value="44" />
+        <Setter Property="BackgroundColor" Value="{StaticResource Card}" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="BorderColor" Value="{StaticResource Border}" />
+        <Setter Property="BorderWidth" Value="1" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppBg}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <Style x:Key="BtnRowEdit" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
+        <Setter Property="TextColor" Value="{StaticResource Green}" />
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="HeightRequest" Value="32" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource GreenSoftHover}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <Style x:Key="BtnRowDelete" TargetType="Button" BasedOn="{StaticResource BtnRowEdit}">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="{StaticResource NegSoft}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- ===== KARTLAR & KUTULAR ===== -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushCard}" />
+        <Setter Property="Stroke" Value="{StaticResource BrushBorder}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 14" />
+        <Setter Property="Shadow">
+            <Shadow Brush="#20261F" Opacity="0.05" Radius="6" Offset="0,2" />
+        </Setter>
+    </Style>
+    <Style x:Key="CardForm" TargetType="Border" BasedOn="{StaticResource Card}">
+        <Setter Property="Padding" Value="18" />
+    </Style>
+    <Style x:Key="CardHero" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushGreen}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+        <Setter Property="Padding" Value="28,26" />
+        <Setter Property="Shadow">
+            <Shadow Brush="#1E5F46" Opacity="0.22" Radius="16" Offset="0,8" />
+        </Setter>
+    </Style>
+    <Style x:Key="ErrorBox" TargetType="Border">
+        <Setter Property="Background">
+            <SolidColorBrush Color="{StaticResource NegSoft}" />
+        </Setter>
+        <Setter Property="Stroke" Value="{StaticResource BrushNegBorder}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+        <Setter Property="Padding" Value="12,10" />
+    </Style>
+    <Style x:Key="DateChip" TargetType="Border">
+        <Setter Property="Background">
+            <SolidColorBrush Color="{StaticResource DateChipBg}" />
+        </Setter>
+        <Setter Property="Stroke" Value="{StaticResource BrushDateChipBorder}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 8" />
+        <Setter Property="Padding" Value="0,5" />
+        <Setter Property="WidthRequest" Value="52" />
+    </Style>
+    <Style x:Key="LblDateChip" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansMedium" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="TextColor" Value="{StaticResource Sub}" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="AvatarChip" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 9" />
+        <Setter Property="WidthRequest" Value="28" />
+        <Setter Property="HeightRequest" Value="28" />
+    </Style>
+    <Style x:Key="LblAvatar" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource Green}" />
+        <Setter Property="HorizontalOptions" Value="Center" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+    <Style x:Key="RowSeparator" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="1" />
+        <Setter Property="Color" Value="{StaticResource RowLine}" />
+    </Style>
+    <Style x:Key="StatusChip" TargetType="Border">
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 999" />
+        <Setter Property="Padding" Value="10,3" />
+    </Style>
+    <Style x:Key="LblStatusChip" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+        <Setter Property="FontSize" Value="11.5" />
+    </Style>
+
 </ResourceDictionary>

@@ -1,46 +1,162 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Name="Sayfa"
-             x:Class="Kasa.App.Views.IslemlerPage" Title="İşlemler">
-    <Grid RowDefinitions="Auto,Auto,*" Padding="12" RowSpacing="8">
-        <VerticalStackLayout Grid.Row="0" Spacing="6" IsVisible="{Binding EditorMu}">
-            <Label Text="İşlem" FontAttributes="Bold" />
-            <DatePicker Date="{Binding DuzenTarih}" />
-            <Entry Placeholder="Cari / açıklama" Text="{Binding DuzenCari}" />
-            <Entry Placeholder="Tutar" Keyboard="Numeric" Text="{Binding DuzenTutar}" />
-            <Entry Placeholder="Kanal" Text="{Binding DuzenKanal}" />
-            <Entry Placeholder="Not" Text="{Binding DuzenNot}" />
-            <HorizontalStackLayout Spacing="8">
-                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
-                <Button Text="Yeni" Command="{Binding YeniCommand}" />
-            </HorizontalStackLayout>
-            <Label Text="Gelen (kanal geliri)" FontAttributes="Bold" Margin="0,8,0,0" />
-            <DatePicker Date="{Binding GelenTarih}" />
-            <Entry Placeholder="Kanal" Text="{Binding GelenKanal}" />
-            <Entry Placeholder="Tutar" Keyboard="Numeric" Text="{Binding GelenTutar}" />
-            <Button Text="Gelen kaydet" Command="{Binding GelenKaydetCommand}" />
+<!-- Emar Kasa · IslemlerPage — solda editör form sütunu, sağda işlem listesi. -->
+<ContentPage
+    x:Class="Kasa.App.Views.IslemlerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="İşlemler"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <Grid RowDefinitions="Auto,*" Padding="{OnIdiom Desktop='28,22', Default='16,14'}"
+          RowSpacing="20" MaximumWidthRequest="1160">
+
+        <VerticalStackLayout Spacing="3">
+            <Label Text="İşlemler" Style="{StaticResource LblPageTitle}" />
+            <Label Text="Ödeme ve kanal geliri kayıtları" Style="{StaticResource LblPageSub}" />
         </VerticalStackLayout>
-        <Label Grid.Row="1" Text="{Binding Hata}" TextColor="{StaticResource Neg}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
-        <CollectionView Grid.Row="2" ItemsSource="{Binding Islemler}">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Grid Padding="8" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
-                        <Label Text="{Binding Cari}" />
-                        <Label Grid.Row="1" Text="{Binding Kanal}" TextColor="{StaticResource Sub}" FontSize="12" />
-                        <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}" />
-                        <HorizontalStackLayout Grid.Column="2" Grid.RowSpan="2" Spacing="6"
-                                               IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
-                            <Button Text="Düzenle"
-                                    Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
-                                    CommandParameter="{Binding .}" />
-                            <Button Text="Sil"
-                                    Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
-                                    CommandParameter="{Binding .}" />
-                        </HorizontalStackLayout>
-                    </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="20">
+
+            <!-- SOL: editör form sütunu -->
+            <ScrollView IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
+                <VerticalStackLayout WidthRequest="360" Spacing="16">
+
+                    <!-- Bölüm 1 · İşlem -->
+                    <Border Style="{StaticResource CardForm}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="İşlem" Style="{StaticResource LblSection}" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Tarih" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <DatePicker Date="{Binding DuzenTarih}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Cari / açıklama" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding DuzenTutar}" Placeholder="0,00 ₺"
+                                               Style="{StaticResource EntryMoney}" />
+                                    </Border>
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                    <Label Text="Kanal" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding DuzenKanal}" Placeholder="Örn. Nakit" />
+                                    </Border>
+                                </VerticalStackLayout>
+                            </Grid>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Not" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,2,0,0">
+                                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
+                                <Button Grid.Column="1" Text="Yeni" Command="{Binding YeniCommand}"
+                                        Style="{StaticResource BtnSecondary}" />
+                            </Grid>
+                            <Border Style="{StaticResource ErrorBox}"
+                                    IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- Bölüm 2 · Gelen (kanal geliri) -->
+                    <Border Style="{StaticResource Card}" Padding="0">
+                        <VerticalStackLayout Spacing="0">
+                            <BoxView HeightRequest="3" Color="{StaticResource Green}" />
+                            <VerticalStackLayout Padding="18" Spacing="12">
+                                <Label Text="Gelen · Kanal Geliri" Style="{StaticResource LblSection}"
+                                       TextColor="{StaticResource Green}" />
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Tarih" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <DatePicker Date="{Binding GelenTarih}" />
+                                    </Border>
+                                </VerticalStackLayout>
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                    <VerticalStackLayout Spacing="0">
+                                        <Label Text="Kanal" Style="{StaticResource LblField}" />
+                                        <Border Style="{StaticResource FieldBorder}">
+                                            <Entry Text="{Binding GelenKanal}" Placeholder="Örn. POS — Garanti" />
+                                        </Border>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                        <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                        <Border Style="{StaticResource FieldBorder}">
+                                            <Entry Text="{Binding GelenTutar}" Placeholder="0,00 ₺"
+                                                   Style="{StaticResource EntryMoney}" />
+                                        </Border>
+                                    </VerticalStackLayout>
+                                </Grid>
+                                <Button Text="Gelen kaydet" Command="{Binding GelenKaydetCommand}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <!-- SAĞ: işlem listesi -->
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+                <Grid RowDefinitions="Auto,*">
+                    <Label Text="Son İşlemler" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,6" MinimumHeightRequest="58"
+                                          ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                        <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
+                                            <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
+                                                   Style="{StaticResource LblDateChip}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding Kanal}" Style="{StaticResource LblRowSecondary}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2"
+                                               Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}"
+                                               TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}}"
+                                               VerticalOptions="Center" />
+                                        <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center"
+                                                               IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                            <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                                </Border>
+                                <Label Text="Henüz işlem yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="İlk kayıtla liste burada oluşur."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </ContentPage>

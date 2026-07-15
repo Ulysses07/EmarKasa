@@ -12,6 +12,9 @@
             </ResourceDictionary.MergedDictionaries>
             <conv:ParaBicimConverter x:Key="ParaBicim" />
             <conv:DoluIseConverter x:Key="DoluIse" />
+            <conv:ParaRenkConverter x:Key="ParaRenk" />
+            <conv:BasHarfConverter x:Key="BasHarf" />
+            <conv:TersIseConverter x:Key="TersIse" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

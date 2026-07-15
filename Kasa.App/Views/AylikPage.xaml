@@ -1,21 +1,70 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Kasa.App.Views.AylikPage" Title="Aylık">
-    <VerticalStackLayout Spacing="12">
-        <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
-            <Label Text="{Binding Yil}" FontSize="20" />
-            <Label Grid.Column="1" Text="{Binding Ay}" FontSize="20" />
-        </Grid>
-        <CollectionView ItemsSource="{Binding Rapor.Kanallar}">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Grid Padding="8" ColumnDefinitions="*,Auto">
-                        <Label Text="{Binding Kanal}" />
-                        <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding AySonucu, Converter={StaticResource ParaBicim}}" />
+<!-- Emar Kasa · AylikPage — yıl+ay başlığı, kanal bazlı ay sonucu. -->
+<ContentPage
+    x:Class="Kasa.App.Views.AylikPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Aylık"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Aylık" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Kanal bazlı ay sonucu" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+
+            <HorizontalStackLayout Spacing="8">
+                <Label Text="{Binding Ay}" FontFamily="PlexSansSemiBold" FontSize="20"
+                       TextColor="{StaticResource Ink}" />
+                <Label Text="{Binding Yil}" FontFamily="PlexSansSemiBold" FontSize="20"
+                       TextColor="{StaticResource Muted}" />
+            </HorizontalStackLayout>
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
+                        <Label Text="Kanal" Style="{StaticResource LblSection}" />
+                        <Label Grid.Column="1" Text="Ay Sonucu" Style="{StaticResource LblSection}" />
                     </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-    </VerticalStackLayout>
+                    <CollectionView ItemsSource="{Binding Rapor.Kanallar}" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="54"
+                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <Border Style="{StaticResource AvatarChip}" VerticalOptions="Center">
+                                            <Label Text="{Binding Kanal, Converter={StaticResource BasHarf}}"
+                                                   Style="{StaticResource LblAvatar}" />
+                                        </Border>
+                                        <Label Grid.Column="1" Text="{Binding Kanal}"
+                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="2"
+                                               Text="{Binding AySonucu, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}"
+                                               TextColor="{Binding AySonucu, Converter={StaticResource ParaRenk}}"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                                </Border>
+                                <Label Text="Bu ay için kayıt yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="İşlem girdikçe ay sonucu burada oluşur."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

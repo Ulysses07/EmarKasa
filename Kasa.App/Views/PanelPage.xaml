@@ -1,25 +1,72 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Kasa.App.Views.PanelPage" Title="Panel">
+<!-- Emar Kasa · PanelPage — Güncel Kasa hero kartı + kanal bakiyeleri. -->
+<ContentPage
+    x:Class="Kasa.App.Views.PanelPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Panel"
+    BackgroundColor="{StaticResource AppBg}">
+
     <ScrollView>
-        <VerticalStackLayout Spacing="12">
-            <Border Style="{StaticResource Kart}">
-                <VerticalStackLayout>
-                    <Label Text="Güncel Kasa" TextColor="{StaticResource Sub}" />
-                    <Label Style="{StaticResource Para}" FontSize="28" Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}" />
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Panel" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Kasa özeti ve kanal bakiyeleri" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+
+            <Border Style="{StaticResource CardHero}">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="Güncel Kasa" Style="{StaticResource LblHeroLabel}" />
+                    <Label Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}"
+                           Style="{StaticResource LblHeroAmount}" Margin="0,8,0,0" />
+                    <Label Text="Takip başlangıcı ve açılış devri dahil"
+                           Style="{StaticResource LblHeroSub}" Margin="0,10,0,0" />
                 </VerticalStackLayout>
             </Border>
-            <CollectionView ItemsSource="{Binding Kanallar}">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Padding="8" ColumnDefinitions="*,Auto">
-                            <Label Text="{Binding Kanal}" />
-                            <Label Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Bakiye, Converter={StaticResource ParaBicim}}" />
-                        </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="Kanal Bakiyeleri" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="54"
+                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <Border Style="{StaticResource AvatarChip}" VerticalOptions="Center">
+                                            <Label Text="{Binding Kanal, Converter={StaticResource BasHarf}}"
+                                                   Style="{StaticResource LblAvatar}" />
+                                        </Border>
+                                        <Label Grid.Column="1" Text="{Binding Kanal}"
+                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="2"
+                                               Text="{Binding Bakiye, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}"
+                                               TextColor="{Binding Bakiye, Converter={StaticResource ParaRenk}}"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                                </Border>
+                                <Label Text="Henüz kanal yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="Ayarlar → Kanallar bölümünden ilk kanalınızı ekleyin."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

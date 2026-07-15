@@ -1,48 +1,171 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Name="Sayfa"
-             x:Class="Kasa.App.Views.KrediKartlariPage" Title="Kredi Kartları">
-    <Grid RowDefinitions="Auto,Auto,*" Padding="12" RowSpacing="8">
-        <VerticalStackLayout Grid.Row="0" Spacing="6" IsVisible="{Binding EditorMu}">
-            <Entry Placeholder="Kart adı" Text="{Binding DuzenAd}" />
-            <Label Text="Kesim tarihi" TextColor="{StaticResource Sub}" />
-            <DatePicker Date="{Binding DuzenKesim}" />
-            <Label Text="Son ödeme tarihi" TextColor="{StaticResource Sub}" />
-            <DatePicker Date="{Binding DuzenSonOdeme}" />
-            <Entry Placeholder="Limit" Keyboard="Numeric" Text="{Binding DuzenLimit}" />
-            <Entry Placeholder="Borç" Keyboard="Numeric" Text="{Binding DuzenBorc}" />
-            <HorizontalStackLayout Spacing="8">
-                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
-                <Button Text="Yeni" Command="{Binding YeniCommand}" />
-            </HorizontalStackLayout>
-        </VerticalStackLayout>
-        <Label Grid.Row="1" Text="{Binding Hata}" TextColor="{StaticResource Neg}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
-        <CollectionView Grid.Row="2" ItemsSource="{Binding Kartlar}">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Border Style="{StaticResource Kart}" Margin="0,4">
-                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                            <Label Text="{Binding Ad}" FontSize="16" />
-                            <Label Grid.Row="1" Text="Limit" TextColor="{StaticResource Sub}" />
-                            <Label Grid.Row="1" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Limit, Converter={StaticResource ParaBicim}}" />
-                            <Label Grid.Row="2" Text="Borç" TextColor="{StaticResource Sub}" />
-                            <Label Grid.Row="2" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding Borc, Converter={StaticResource ParaBicim}}" />
-                            <Label Grid.Row="3" Text="Kalan" TextColor="{StaticResource Sub}" />
-                            <Label Grid.Row="3" Grid.Column="1" Style="{StaticResource Para}" Text="{Binding KalanLimit, Converter={StaticResource ParaBicim}}" />
-                            <HorizontalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="6"
-                                                   IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
-                                <Button Text="Düzenle"
-                                        Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
-                                        CommandParameter="{Binding .}" />
-                                <Button Text="Sil"
-                                        Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
-                                        CommandParameter="{Binding .}" />
-                            </HorizontalStackLayout>
-                        </Grid>
+<!-- Emar Kasa · KrediKartlariPage — üstte editör formu, altta kart ızgarası. -->
+<ContentPage
+    x:Class="Kasa.App.Views.KrediKartlariPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Kredi Kartları"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Kredi Kartları" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Limit, borç ve kalan limit takibi" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+
+            <!-- Editör formu -->
+            <Border Style="{StaticResource CardForm}" IsVisible="{Binding EditorMu}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Yeni / Düzenlenen Kart" Style="{StaticResource LblSection}" />
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='1.4*,*,*,*,*', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto'}"
+                          ColumnSpacing="10" RowSpacing="12">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Kart adı" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenAd}" Placeholder="Örn. İş Bankası Maximum" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                            <Label Text="Kesim tarihi" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <DatePicker Date="{Binding DuzenKesim}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
+                            <Label Text="Son ödeme tarihi" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <DatePicker Date="{Binding DuzenSonOdeme}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=3}" Spacing="0">
+                            <Label Text="Limit" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenLimit}" Placeholder="0,00 ₺"
+                                       Style="{StaticResource EntryMoney}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=4, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=4}" Spacing="0">
+                            <Label Text="Borç" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenBorc}" Placeholder="0,00 ₺"
+                                       Style="{StaticResource EntryMoney}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+                    <HorizontalStackLayout Spacing="8">
+                        <Button Text="Kaydet" Command="{Binding KaydetCommand}" Padding="22,0" />
+                        <Button Text="Yeni" Command="{Binding YeniCommand}"
+                                Style="{StaticResource BtnSecondary}" />
+                    </HorizontalStackLayout>
+                    <Border Style="{StaticResource ErrorBox}"
+                            IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                        <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
                     </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Kart ızgarası -->
+            <CollectionView ItemsSource="{Binding Kartlar}" SelectionMode="None">
+                <CollectionView.ItemsLayout>
+                    <GridItemsLayout Orientation="Vertical" Span="{OnIdiom Phone=1, Default=3}"
+                                     VerticalItemSpacing="16" HorizontalItemSpacing="16" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Padding="18">
+                            <VerticalStackLayout Spacing="0">
+                                <!-- Kart adı + mini kart grafiği -->
+                                <HorizontalStackLayout Spacing="9">
+                                    <Border WidthRequest="30" HeightRequest="21" StrokeThickness="0"
+                                            StrokeShape="RoundRectangle 5" Background="{StaticResource BrushGreen}"
+                                            VerticalOptions="Center">
+                                        <Border WidthRequest="8" HeightRequest="6" StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 2" HorizontalOptions="Start"
+                                                VerticalOptions="Center" Margin="5,0,0,0">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="{StaticResource SidebarAccent}" />
+                                            </Border.Background>
+                                        </Border>
+                                    </Border>
+                                    <Label Text="{Binding Ad}" FontFamily="PlexSansSemiBold" FontSize="15"
+                                           TextColor="{StaticResource Ink}" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <!-- Kesim / son ödeme -->
+                                <Label Style="{StaticResource LblRowSecondary}" FontSize="12" Margin="0,4,0,14">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="Kesim " />
+                                            <Span Text="{Binding KesimTarihi, StringFormat='{0:dd MMM}'}" />
+                                            <Span Text=" · Son ödeme " />
+                                            <Span Text="{Binding SonOdemeTarihi, StringFormat='{0:dd MMM}'}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+                                <!-- Limit -->
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid ColumnDefinitions="*,Auto" Padding="0,7">
+                                    <Label Text="Limit" Style="{StaticResource LblPageSub}" FontSize="13" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding Limit, Converter={StaticResource ParaBicim}}"
+                                           Style="{StaticResource LblMoney}" FontSize="13.5" />
+                                </Grid>
+                                <!-- Borç -->
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid ColumnDefinitions="*,Auto" Padding="0,7">
+                                    <Label Text="Borç" Style="{StaticResource LblPageSub}" FontSize="13" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding Borc, Converter={StaticResource ParaBicim}}"
+                                           Style="{StaticResource LblMoneyNeg}" FontSize="13.5" />
+                                </Grid>
+                                <!-- Kalan limit barı -->
+                                <ProgressBar Progress="{Binding KalanOran}"
+                                             ProgressColor="{StaticResource Pos}" Margin="0,12,0,8" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Text="Kalan limit" Style="{StaticResource LblField}" Margin="0"
+                                           VerticalOptions="End" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding KalanLimit, Converter={StaticResource ParaBicim}}"
+                                           FontFamily="PlexSansBold" FontSize="17"
+                                           TextColor="{StaticResource Pos}" />
+                                </Grid>
+                                <!-- Aksiyonlar (yalnız editör) -->
+                                <VerticalStackLayout Spacing="0" Margin="0,14,0,0"
+                                                     IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <HorizontalStackLayout Spacing="6" Margin="0,12,0,0">
+                                        <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                            <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                    StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                            </Border>
+                            <Label Text="Kayıtlı kart yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                            <Label Text="İlk kartla liste burada oluşur." Style="{StaticResource LblEmptySub}" />
+                        </VerticalStackLayout>
+                    </Border>
+                </CollectionView.EmptyView>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

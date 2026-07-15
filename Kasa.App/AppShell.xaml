@@ -1,11 +1,75 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · AppShell — koyu yeşil flyout (tasarım handoff).
+     Görünürlük/route mantığı code-behind'da: AnaMenu, AyarlarSekme, CikisTiklandi. -->
 <Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:v="clr-namespace:Kasa.App.Views"
        x:Class="Kasa.App.AppShell"
-       FlyoutBackgroundColor="{StaticResource Sidebar}">
+       Title="Emar Kasa"
+       FlyoutBackgroundColor="{StaticResource Sidebar}"
+       FlyoutWidth="248"
+       Shell.BackgroundColor="{StaticResource Card}"
+       Shell.ForegroundColor="{StaticResource Ink}"
+       Shell.TitleColor="{StaticResource Ink}">
+
+    <!-- Marka başlığı -->
+    <Shell.FlyoutHeader>
+        <Grid Padding="18,22,18,14" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowDefinitions="Auto,Auto">
+            <Border Grid.RowSpan="2" WidthRequest="30" HeightRequest="30" StrokeThickness="0"
+                    StrokeShape="RoundRectangle 9" Background="{StaticResource BrushGreen}"
+                    VerticalOptions="Center">
+                <Label Text="₺" TextColor="White" FontFamily="PlexSansBold" FontSize="15"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Label Grid.Column="1" Text="Emar Kasa" FontFamily="PlexSansBold" FontSize="15.5"
+                   TextColor="{StaticResource SidebarTitle}" />
+            <Label Grid.Column="1" Grid.Row="1" Text="KASA DEFTERİ" FontFamily="PlexSans" FontSize="10.5"
+                   CharacterSpacing="1" TextColor="{StaticResource SidebarMuted}" />
+        </Grid>
+    </Shell.FlyoutHeader>
+
+    <!-- Menü öğesi şablonu: aktif sekme #33453A zemin + açık nokta -->
+    <Shell.ItemTemplate>
+        <DataTemplate>
+            <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal">
+                            <VisualState.Setters>
+                                <Setter Property="Background" Value="Transparent" />
+                            </VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="Selected">
+                            <VisualState.Setters>
+                                <Setter Property="Background" Value="{StaticResource SidebarActive}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="Background" Value="{StaticResource SidebarHover}" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <Ellipse WidthRequest="6" HeightRequest="6" Fill="{StaticResource SidebarAccent}"
+                         VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding Title}" FontFamily="PlexSansMedium" FontSize="13.5"
+                       TextColor="{StaticResource SidebarText}" VerticalOptions="Center" />
+            </Grid>
+        </DataTemplate>
+    </Shell.ItemTemplate>
+    <Shell.MenuItemTemplate>
+        <DataTemplate>
+            <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Ellipse WidthRequest="6" HeightRequest="6" Fill="Transparent" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding Text}" FontFamily="PlexSansMedium" FontSize="13.5"
+                       TextColor="{StaticResource SidebarText}" VerticalOptions="Center" />
+            </Grid>
+        </DataTemplate>
+    </Shell.MenuItemTemplate>
+
     <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />
-    <FlyoutItem x:Name="AnaMenu" Title="Emar Kasa" IsVisible="False">
+    <FlyoutItem x:Name="AnaMenu" Title="Emar Kasa" IsVisible="False" FlyoutDisplayOptions="AsMultipleItems">
         <ShellContent Title="Panel" Route="panel" ContentTemplate="{DataTemplate v:PanelPage}" />
         <ShellContent Title="Haftalık" Route="haftalik" ContentTemplate="{DataTemplate v:HaftalikPage}" />
         <ShellContent Title="Aylık" Route="aylik" ContentTemplate="{DataTemplate v:AylikPage}" />

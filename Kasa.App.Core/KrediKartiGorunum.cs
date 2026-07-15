@@ -12,6 +12,8 @@ public sealed class KrediKartiGorunum
     public decimal Limit { get; }
     public decimal Borc { get; }
     public decimal KalanLimit => Limit - Borc;
+    /// <summary>ProgressBar için kalan limit oranı (0–1).</summary>
+    public double KalanOran => Limit <= 0 ? 0 : Math.Clamp((double)(KalanLimit / Limit), 0, 1);
 
     public KrediKartiGorunum(KrediKartiDto d)
     {
