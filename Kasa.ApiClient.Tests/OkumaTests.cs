@@ -145,4 +145,13 @@ public class OkumaTests
         Assert.True(a.IzleyiciSifreVarMi);
         Assert.EndsWith("/api/ayarlar", h.SonIstek!.RequestUri!.AbsolutePath);
     }
+
+    [Fact]
+    public async Task KrediKartlari_ekstreBorc_alanini_cozer()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """[{"id":1,"ad":"A","kesimTarihi":"2026-07-15","sonOdemeTarihi":"2026-07-22","limit":100000.0,"borc":1000.0,"guncelBorc":1800.0,"acilisBorc":1000.0,"harcamaToplam":800.0,"odemeToplam":0.0,"ekstreBorc":1500.0}]""");
+        var liste = await c.KrediKartlariAsync();
+        Assert.Equal(1500m, liste.Single().EkstreBorc);
+    }
 }
