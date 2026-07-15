@@ -53,7 +53,7 @@
                         </VerticalStackLayout>
                         <VerticalStackLayout Grid.Column="{OnIdiom Desktop=4, Default=0}"
                                              Grid.Row="{OnIdiom Desktop=0, Default=4}" Spacing="0">
-                            <Label Text="Borç" Style="{StaticResource LblField}" />
+                            <Label Text="Açılış borcu" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
                                 <Entry Text="{Binding DuzenBorc, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
                                        Style="{StaticResource EntryMoney}" />
@@ -117,14 +117,16 @@
                                            Text="{Binding Limit, Converter={StaticResource ParaBicim}}"
                                            Style="{StaticResource LblMoney}" FontSize="13.5" />
                                 </Grid>
-                                <!-- Borç -->
+                                <!-- Güncel borç (türetilmiş) + kırılım -->
                                 <BoxView Style="{StaticResource RowSeparator}" />
-                                <Grid ColumnDefinitions="*,Auto" Padding="0,7">
-                                    <Label Text="Borç" Style="{StaticResource LblPageSub}" FontSize="13" />
+                                <Grid ColumnDefinitions="*,Auto" Padding="0,7,0,2">
+                                    <Label Text="Güncel borç" Style="{StaticResource LblPageSub}" FontSize="13" />
                                     <Label Grid.Column="1"
-                                           Text="{Binding Borc, Converter={StaticResource ParaBicim}}"
+                                           Text="{Binding GuncelBorc, Converter={StaticResource ParaBicim}}"
                                            Style="{StaticResource LblMoneyNeg}" FontSize="13.5" />
                                 </Grid>
+                                <Label Text="{Binding BorcKirilim}" Style="{StaticResource LblRowSecondary}"
+                                       FontSize="11" Margin="0,0,0,5" />
                                 <!-- Kalan limit barı -->
                                 <ProgressBar Progress="{Binding KalanOran}"
                                              ProgressColor="{StaticResource Pos}" Margin="0,12,0,8" />
@@ -148,6 +150,42 @@
                                                 Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
                                                 CommandParameter="{Binding .}" />
                                     </HorizontalStackLayout>
+
+                                    <!-- Ödeme ekle -->
+                                    <Label Text="Ödeme ekle" Style="{StaticResource LblField}" Margin="0,14,0,4" />
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                        <Border Style="{StaticResource FieldBorder}">
+                                            <DatePicker Date="{Binding BindingContext.DuzenOdemeTarih, Source={x:Reference Sayfa}}" />
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource FieldBorder}">
+                                            <Entry Text="{Binding BindingContext.DuzenOdemeTutar, Source={x:Reference Sayfa}, Converter={StaticResource ParaGiris}}"
+                                                   Placeholder="0,00 ₺" Style="{StaticResource EntryMoney}" />
+                                        </Border>
+                                        <Button Grid.Column="2" Text="Ekle" Style="{StaticResource BtnRowEdit}"
+                                                Command="{Binding BindingContext.OdemeEkleCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+
+                                    <!-- Ödeme geçmişi -->
+                                    <VerticalStackLayout Spacing="0" Margin="0,8,0,0"
+                                                         BindableLayout.ItemsSource="{Binding Odemeler}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="0,4">
+                                                    <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
+                                                           Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                           VerticalOptions="Center" />
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding Tutar, Converter={StaticResource ParaBicim}}"
+                                                           Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                           VerticalOptions="Center" />
+                                                    <Button Grid.Column="2" Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                            Command="{Binding BindingContext.OdemeSilCommand, Source={x:Reference Sayfa}}"
+                                                            CommandParameter="{Binding .}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
                                 </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>
