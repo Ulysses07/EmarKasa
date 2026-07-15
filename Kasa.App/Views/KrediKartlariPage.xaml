@@ -151,6 +151,16 @@
                                                 CommandParameter="{Binding .}" />
                                     </HorizontalStackLayout>
 
+                                    <!-- Ödeme hatırlatma şeridi -->
+                                    <Border IsVisible="{Binding OdemeBekliyor}"
+                                            Background="{StaticResource BrushGreen}"
+                                            StrokeThickness="0" StrokeShape="RoundRectangle 8"
+                                            Padding="10,7" Margin="0,12,0,0">
+                                        <Label Text="Son ödeme yaklaştı — ödemeni girerek işaretle"
+                                               TextColor="White" FontSize="12"
+                                               FontFamily="PlexSansSemiBold" />
+                                    </Border>
+
                                     <!-- Ödeme ekle -->
                                     <Label Text="Ödeme ekle" Style="{StaticResource LblField}" Margin="0,14,0,4" />
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
