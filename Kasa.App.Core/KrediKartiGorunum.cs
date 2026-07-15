@@ -11,6 +11,8 @@ public sealed partial class KrediKartiGorunum : ObservableObject
     [ObservableProperty] private DateTime _odemeTarihGiris = DateTime.Today;
     /// <summary>Karta özel ödeme ekleme formu tutarı (her kart bağımsız).</summary>
     [ObservableProperty] private decimal _odemeTutarGiris;
+    /// <summary>Uygulama-içi "Ödedin mi?" şeridi görünürlüğü (VM doldurur).</summary>
+    [ObservableProperty] private bool _odemeBekliyor;
 
     public int Id { get; }
     public string Ad { get; }
@@ -21,6 +23,7 @@ public sealed partial class KrediKartiGorunum : ObservableObject
     public decimal HarcamaToplam { get; }
     public decimal OdemeToplam { get; }
     public decimal GuncelBorc { get; }
+    public decimal EkstreBorc { get; }
     public decimal KalanLimit => Limit - GuncelBorc;
     /// <summary>ProgressBar için kalan limit oranı (0–1).</summary>
     public double KalanOran => Limit <= 0 ? 0 : Math.Clamp((double)(KalanLimit / Limit), 0, 1);
@@ -35,5 +38,6 @@ public sealed partial class KrediKartiGorunum : ObservableObject
         SonOdemeTarihi = d.SonOdemeTarihi; Limit = d.Limit;
         AcilisBorc = d.AcilisBorc; HarcamaToplam = d.HarcamaToplam;
         OdemeToplam = d.OdemeToplam; GuncelBorc = d.GuncelBorc;
+        EkstreBorc = d.EkstreBorc;
     }
 }

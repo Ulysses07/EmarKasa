@@ -113,4 +113,13 @@ public class KrediKartOdemeTests
 
         Assert.Equal(1000m, vm.DuzenBorc);
     }
+
+    [Fact]
+    public void Gorunum_ekstre_borcunu_dtodan_alir()
+    {
+        var g = new KrediKartiGorunum(new KrediKartiDto(1, "A", new DateOnly(2026,7,15),
+            new DateOnly(2026,7,22), 100000m, 1000m, GuncelBorc: 1800m, AcilisBorc: 1000m,
+            HarcamaToplam: 800m, OdemeToplam: 0m, EkstreBorc: 1500m));
+        Assert.Equal(1500m, g.EkstreBorc);
+    }
 }
