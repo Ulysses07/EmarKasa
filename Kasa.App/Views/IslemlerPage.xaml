@@ -64,6 +64,42 @@
                                 </FlexLayout>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
+                                <Label Text="Tip" Style="{StaticResource LblField}" />
+                                <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                            BindableLayout.ItemsSource="{Binding TipCipleri}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding BindingContext.SecTipCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0" IsVisible="{Binding KartSeciciGorunur}">
+                                <Label Text="Kart" Style="{StaticResource LblField}" />
+                                <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                            BindableLayout.ItemsSource="{Binding KartCipleri}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding BindingContext.SecKartCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
                                 <Label Text="Not" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
                                     <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
