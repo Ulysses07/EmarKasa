@@ -16,11 +16,13 @@ public partial class KrediKartlariViewModel : TemelViewModel
     {
         var liste = await _api.KrediKartlariAsync();
         Kartlar.Clear();
+        var bugun = DateOnly.FromDateTime(DateTime.Today);
         foreach (var k in liste)
         {
             var g = new KrediKartiGorunum(k);
             var odemeler = await _api.KartOdemelerAsync(k.Id);
             foreach (var o in odemeler) g.Odemeler.Add(o);
+            g.OdemeBekliyor = KartHatirlatici.OdemeBekliyor(g, bugun);
             Kartlar.Add(g);
         }
     }

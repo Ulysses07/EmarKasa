@@ -30,4 +30,22 @@ public class KrediKartlariViewModelTests
         await vm.YukleAsync();
         Assert.Empty(vm.Kartlar);
     }
+
+    [Fact]
+    public async Task Yukle_son_odeme_yaklasan_karti_odeme_bekliyor_isaretler()
+    {
+        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var api = new SahteApi
+        {
+            KrediKartlariListe = new List<KrediKartiDto>
+            {
+                // kesim dün, son ödeme bugün, ekstre borcu var, ödeme yok
+                new(1, "A", bugun.AddDays(-1), bugun, 100000m, 1000m,
+                    GuncelBorc: 1000m, AcilisBorc: 1000m, EkstreBorc: 1000m),
+            },
+        };
+        var vm = new KrediKartlariViewModel(api);
+        await vm.YukleAsync();
+        Assert.True(vm.Kartlar.Single().OdemeBekliyor);
+    }
 }
