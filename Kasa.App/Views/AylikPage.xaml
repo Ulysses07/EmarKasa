@@ -16,12 +16,18 @@
                 <Label Text="Kanal bazlı ay sonucu" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
 
-            <HorizontalStackLayout Spacing="8">
-                <Label Text="{Binding Ay}" FontFamily="PlexSansSemiBold" FontSize="20"
-                       TextColor="{StaticResource Ink}" />
-                <Label Text="{Binding Yil}" FontFamily="PlexSansSemiBold" FontSize="20"
-                       TextColor="{StaticResource Muted}" />
-            </HorizontalStackLayout>
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Button Text="‹" Command="{Binding OncekiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                <HorizontalStackLayout Grid.Column="1" Spacing="8" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Label Text="{Binding Ay, Converter={StaticResource AyAdi}}" FontFamily="PlexSansSemiBold" FontSize="20"
+                           TextColor="{StaticResource Ink}" />
+                    <Label Text="{Binding Yil}" FontFamily="PlexSansSemiBold" FontSize="20"
+                           TextColor="{StaticResource Muted}" />
+                </HorizontalStackLayout>
+                <Button Grid.Column="2" Text="›" Command="{Binding SonrakiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+            </Grid>
 
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="0">

@@ -69,4 +69,69 @@ public class IslemEditorTests
         Assert.Equal(5000m, api.SonGelen!.TutarTl);
         Assert.Equal(new DateOnly(2026, 3, 2), api.SonGelen!.DonemStart);
     }
+
+    [Fact]
+    public async Task Kanal_filtresi_secilince_o_kanalla_listeler()
+    {
+        var api = new SahteApi
+        {
+            KanallarListe = new[] { new KanalDto(1, "MEZAT", true, 0, 0m), new KanalDto(2, "TOPTAN", true, 1, 0m) },
+        };
+        var vm = new IslemlerViewModel(api);
+        await vm.YukleAsync();
+
+        var mezatCipi = vm.FiltreKanallari.First(c => c.Ad == "MEZAT");
+        await vm.SecFiltreKanalCommand.ExecuteAsync(mezatCipi);
+
+        Assert.Equal("MEZAT", api.SonFiltreKanal);
+        Assert.True(mezatCipi.Secili);
+        Assert.True(vm.FiltreKanallari.First(c => c.Ad == "Tümü").Secili == false);
+    }
+
+    [Fact]
+    public async Task Tum_kanal_cipi_filtreyi_temizler()
+    {
+        var api = new SahteApi();
+        var vm = new IslemlerViewModel(api);
+        await vm.YukleAsync();
+
+        await vm.SecFiltreKanalCommand.ExecuteAsync(vm.FiltreKanallari.First(c => c.Ad == "Ortak"));
+        await vm.SecFiltreKanalCommand.ExecuteAsync(vm.FiltreKanallari.First(c => c.Ad == "Tümü"));
+
+        Assert.Null(api.SonFiltreKanal);
+        Assert.Null(vm.FiltreKanal);
+    }
+
+    [Fact]
+    public async Task Donem_secilince_o_haftanin_tarih_araligiyla_listeler()
+    {
+        var donem = new DonemDto(new DateOnly(2026, 6, 15), new DateOnly(2026, 6, 21), 2026, 6);
+        var api = new SahteApi();
+        var vm = new IslemlerViewModel(api);
+        await vm.YukleAsync();
+
+        vm.SeciliDonem = donem;
+
+        Assert.Equal(new DateOnly(2026, 6, 15), vm.FiltreBaslangic);
+        Assert.Equal(new DateOnly(2026, 6, 21), vm.FiltreBitis);
+    }
+
+    [Fact]
+    public async Task Ozet_islem_sayisi_ve_toplami_gosterir()
+    {
+        var api = new SahteApi
+        {
+            IslemlerListe = new[]
+            {
+                new IslemDto(1, new DateOnly(2026, 6, 15), "a", 100m, "MEZAT", GiderTipi.Cari, null),
+                new IslemDto(2, new DateOnly(2026, 6, 16), "b", 250m, "MEZAT", GiderTipi.Cari, null),
+            },
+        };
+        var vm = new IslemlerViewModel(api);
+        await vm.YukleAsync();
+
+        Assert.Equal(2, vm.FiltreSayi);
+        Assert.Equal(350m, vm.FiltreToplam);
+        Assert.Contains("2 işlem", vm.FiltreOzet);
+    }
 }

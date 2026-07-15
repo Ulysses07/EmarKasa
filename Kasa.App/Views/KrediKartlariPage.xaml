@@ -47,7 +47,7 @@
                                              Grid.Row="{OnIdiom Desktop=0, Default=3}" Spacing="0">
                             <Label Text="Limit" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
-                                <Entry Text="{Binding DuzenLimit}" Placeholder="0,00 ₺"
+                                <Entry Text="{Binding DuzenLimit, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
                                        Style="{StaticResource EntryMoney}" />
                             </Border>
                         </VerticalStackLayout>
@@ -55,7 +55,7 @@
                                              Grid.Row="{OnIdiom Desktop=0, Default=4}" Spacing="0">
                             <Label Text="Borç" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
-                                <Entry Text="{Binding DuzenBorc}" Placeholder="0,00 ₺"
+                                <Entry Text="{Binding DuzenBorc, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
                                        Style="{StaticResource EntryMoney}" />
                             </Border>
                         </VerticalStackLayout>

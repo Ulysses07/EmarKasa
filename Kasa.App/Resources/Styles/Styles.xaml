@@ -113,6 +113,42 @@
         <Setter Property="MinimumHeightRequest" Value="40" />
         <Setter Property="VerticalOptions" Value="Center" />
     </Style>
+    <Style TargetType="Picker">
+        <Setter Property="FontFamily" Value="PlexSans" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="TitleColor" Value="{StaticResource Muted}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="MinimumHeightRequest" Value="38" />
+        <Setter Property="VerticalOptions" Value="Center" />
+    </Style>
+
+    <!-- Kanal seçim çipleri -->
+    <Style x:Key="Chip" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushCard}" />
+        <Setter Property="Stroke" Value="{StaticResource BrushBorder}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 999" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="MinimumHeightRequest" Value="38" />
+        <Style.Triggers>
+            <DataTrigger TargetType="Border" Binding="{Binding Secili}" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushGreen}" />
+                <Setter Property="Stroke" Value="{StaticResource Green}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="ChipText" TargetType="Label">
+        <Setter Property="FontFamily" Value="PlexSansMedium" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="VerticalOptions" Value="Center" />
+        <Style.Triggers>
+            <DataTrigger TargetType="Label" Binding="{Binding Secili}" Value="True">
+                <Setter Property="TextColor" Value="White" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
     <Style x:Key="FieldBorder" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource BrushCard}" />
         <Setter Property="Stroke" Value="{StaticResource BrushBorder}" />

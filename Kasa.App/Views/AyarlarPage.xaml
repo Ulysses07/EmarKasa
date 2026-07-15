@@ -33,7 +33,7 @@
                         <VerticalStackLayout Spacing="0">
                             <Label Text="Kasa açılış devri" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
-                                <Entry Text="{Binding KasaAcilisDevri}" Placeholder="0,00 ₺"
+                                <Entry Text="{Binding KasaAcilisDevri, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
                                        Style="{StaticResource EntryMoney}" />
                             </Border>
                         </VerticalStackLayout>
@@ -88,7 +88,7 @@
                                                  Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
                                 <Label Text="Açılış devri" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenKanalAcilisDevri}" Placeholder="0,00 ₺"
+                                    <Entry Text="{Binding DuzenKanalAcilisDevri, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
                                            Style="{StaticResource EntryMoney}" />
                                 </Border>
                             </VerticalStackLayout>

@@ -38,21 +38,31 @@
                                     <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
                                 </Border>
                             </VerticalStackLayout>
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                                <VerticalStackLayout Spacing="0">
-                                    <Label Text="Tutar" Style="{StaticResource LblField}" />
-                                    <Border Style="{StaticResource FieldBorder}">
-                                        <Entry Text="{Binding DuzenTutar}" Placeholder="0,00 ₺"
-                                               Style="{StaticResource EntryMoney}" />
-                                    </Border>
-                                </VerticalStackLayout>
-                                <VerticalStackLayout Grid.Column="1" Spacing="0">
-                                    <Label Text="Kanal" Style="{StaticResource LblField}" />
-                                    <Border Style="{StaticResource FieldBorder}">
-                                        <Entry Text="{Binding DuzenKanal}" Placeholder="Örn. Nakit" />
-                                    </Border>
-                                </VerticalStackLayout>
-                            </Grid>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                           Style="{StaticResource EntryMoney}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Kanal" Style="{StaticResource LblField}" />
+                                <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                            BindableLayout.ItemsSource="{Binding GiderKanallari}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding BindingContext.SecGiderKanalCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Not" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
@@ -84,21 +94,31 @@
                                         <DatePicker Date="{Binding GelenTarih}" />
                                     </Border>
                                 </VerticalStackLayout>
-                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                                    <VerticalStackLayout Spacing="0">
-                                        <Label Text="Kanal" Style="{StaticResource LblField}" />
-                                        <Border Style="{StaticResource FieldBorder}">
-                                            <Entry Text="{Binding GelenKanal}" Placeholder="Örn. POS — Garanti" />
-                                        </Border>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1" Spacing="0">
-                                        <Label Text="Tutar" Style="{StaticResource LblField}" />
-                                        <Border Style="{StaticResource FieldBorder}">
-                                            <Entry Text="{Binding GelenTutar}" Placeholder="0,00 ₺"
-                                                   Style="{StaticResource EntryMoney}" />
-                                        </Border>
-                                    </VerticalStackLayout>
-                                </Grid>
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Kanal" Style="{StaticResource LblField}" />
+                                    <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                                BindableLayout.ItemsSource="{Binding GelenKanallari}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                    <Border.GestureRecognizers>
+                                                        <TapGestureRecognizer
+                                                            Command="{Binding BindingContext.SecGelenKanalCommand, Source={x:Reference Sayfa}}"
+                                                            CommandParameter="{Binding .}" />
+                                                    </Border.GestureRecognizers>
+                                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </FlexLayout>
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding GelenTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                               Style="{StaticResource EntryMoney}" />
+                                    </Border>
+                                </VerticalStackLayout>
                                 <Button Text="Gelen kaydet" Command="{Binding GelenKaydetCommand}" />
                             </VerticalStackLayout>
                         </VerticalStackLayout>
@@ -109,7 +129,55 @@
             <!-- SAĞ: işlem listesi -->
             <Border Grid.Column="1" Style="{StaticResource Card}">
                 <Grid RowDefinitions="Auto,*">
-                    <Label Text="Son İşlemler" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
+                        <Label Text="Son İşlemler" Style="{StaticResource LblSection}" />
+
+                        <!-- Filtre: kanal çipleri -->
+                        <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                    BindableLayout.ItemsSource="{Binding FiltreKanallari}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecFiltreKanalCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <!-- Filtre: zaman çipleri + dönem seçici -->
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding FiltreZamanlar}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecFiltreZamanCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                            <Border Grid.Column="1" Style="{StaticResource FieldBorder}"
+                                    MinimumWidthRequest="150" MinimumHeightRequest="38">
+                                <Picker ItemsSource="{Binding FiltreDonemler}"
+                                        SelectedItem="{Binding SeciliDonem}"
+                                        ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}}"
+                                        Title="Hafta seç" />
+                            </Border>
+                        </Grid>
+
+                        <!-- Özet -->
+                        <Label Text="{Binding FiltreOzet}" Style="{StaticResource LblRowSecondary}" />
+                    </VerticalStackLayout>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
                             <DataTemplate>

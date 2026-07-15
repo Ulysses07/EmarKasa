@@ -6,6 +6,7 @@
        xmlns:v="clr-namespace:Kasa.App.Views"
        x:Class="Kasa.App.AppShell"
        Title="Emar Kasa"
+       FlyoutBehavior="Locked"
        FlyoutBackgroundColor="{StaticResource Sidebar}"
        FlyoutWidth="248"
        Shell.BackgroundColor="{StaticResource Card}"
@@ -69,14 +70,26 @@
     </Shell.MenuItemTemplate>
 
     <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />
-    <FlyoutItem x:Name="AnaMenu" Title="Emar Kasa" IsVisible="False" FlyoutDisplayOptions="AsMultipleItems">
-        <ShellContent Title="Panel" Route="panel" ContentTemplate="{DataTemplate v:PanelPage}" />
-        <ShellContent Title="Haftalık" Route="haftalik" ContentTemplate="{DataTemplate v:HaftalikPage}" />
-        <ShellContent Title="Aylık" Route="aylik" ContentTemplate="{DataTemplate v:AylikPage}" />
-        <ShellContent Title="Cariler" Route="cariler" ContentTemplate="{DataTemplate v:CarilerPage}" />
-        <ShellContent Title="İşlemler" Route="islemler" ContentTemplate="{DataTemplate v:IslemlerPage}" />
-        <ShellContent Title="Kredi Kartları" Route="kartlar" ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
-        <ShellContent x:Name="AyarlarSekme" Title="Ayarlar" Route="ayarlar" ContentTemplate="{DataTemplate v:AyarlarPage}" />
+    <FlyoutItem x:Name="PanelItem" Title="Panel" Route="panel" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:PanelPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="HaftalikItem" Title="Haftalık" Route="haftalik" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:HaftalikPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="AylikItem" Title="Aylık" Route="aylik" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:AylikPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="CarilerItem" Title="Cariler" Route="cariler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:CarilerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="IslemlerItem" Title="İşlemler" Route="islemler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:IslemlerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="KartlarItem" Title="Kredi Kartları" Route="kartlar" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="AyarlarItem" Title="Ayarlar" Route="ayarlar" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:AyarlarPage}" />
     </FlyoutItem>
     <MenuItem x:Name="CikisMenu" Text="Çıkış" Clicked="CikisTiklandi" />
 </Shell>

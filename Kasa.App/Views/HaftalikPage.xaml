@@ -28,11 +28,31 @@
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,0" HeightRequest="54"
-                                          ColumnDefinitions="44,*,Auto" ColumnSpacing="12">
-                                        <Label Text="{Binding Donem.Yil}" Style="{StaticResource LblRowSecondary}"
-                                               FontSize="12" VerticalOptions="Center" />
-                                        <Label Grid.Column="1" Text="{Binding Donem.Ay}"
-                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
+                                            <Label Text="{Binding Donem.Start, StringFormat='{0:dd MMM}'}"
+                                                   Style="{StaticResource LblDateChip}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Style="{StaticResource LblRowPrimary}">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="{Binding Donem.Ay, Converter={StaticResource AyAdi}}" />
+                                                        <Span Text=" " />
+                                                        <Span Text="{Binding Donem.Yil}" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                            <Label Style="{StaticResource LblRowSecondary}" FontSize="12">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="{Binding Donem.Start, StringFormat='{0:dd MMM}'}" />
+                                                        <Span Text=" – " />
+                                                        <Span Text="{Binding Donem.End, StringFormat='{0:dd MMM}'}" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                        </VerticalStackLayout>
                                         <Label Grid.Column="2"
                                                Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}"
                                                Style="{StaticResource LblMoney}"

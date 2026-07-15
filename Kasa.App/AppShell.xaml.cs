@@ -22,16 +22,27 @@ public partial class AppShell : Shell
 
     public void MenuyuAc()
     {
-        AnaMenu.IsVisible = true;
         var bolumler = SekmeModeli.Bolumler(_auth.AktifRol);
-        AyarlarSekme.IsVisible = bolumler.Contains(Bolum.Ayarlar);
+        PanelItem.IsVisible = true;
+        HaftalikItem.IsVisible = true;
+        AylikItem.IsVisible = true;
+        CarilerItem.IsVisible = true;
+        IslemlerItem.IsVisible = true;
+        KartlarItem.IsVisible = true;
+        AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
         _ = GoToAsync("//panel");
     }
 
     private async void CikisTiklandi(object? sender, EventArgs e)
     {
         await _auth.CikisAsync();
-        AnaMenu.IsVisible = false;
+        PanelItem.IsVisible = false;
+        HaftalikItem.IsVisible = false;
+        AylikItem.IsVisible = false;
+        CarilerItem.IsVisible = false;
+        IslemlerItem.IsVisible = false;
+        KartlarItem.IsVisible = false;
+        AyarlarItem.IsVisible = false;
         await GoToAsync("//login");
     }
 }
