@@ -12,7 +12,12 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var shell = Current!.Handler!.MauiContext!.Services.GetRequiredService<AppShell>();
+		var svc = Current!.Handler!.MauiContext!.Services;
+#if WINDOWS
+		svc.GetService<Kasa.App.Core.IBildirimServisi>()?.KayitOl();
+		Platforms.Windows.HatirlatmaKontrol.GoreviGarantile();
+#endif
+		var shell = svc.GetRequiredService<AppShell>();
 		return new Window(shell);
 	}
 }

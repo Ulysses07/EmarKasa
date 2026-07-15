@@ -24,6 +24,9 @@ public static class MauiProgram
             });
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
+#if WINDOWS
+        builder.Services.AddSingleton<IBildirimServisi, Platforms.Windows.WindowsBildirimServisi>();
+#endif
         builder.Services.AddSingleton(sp =>
         {
             var http = new HttpClient { BaseAddress = new Uri("https://kasa.royalmezat.com/") };
