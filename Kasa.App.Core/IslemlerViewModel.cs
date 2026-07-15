@@ -22,6 +22,12 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Gider formu kanal çipleri: aktif kanallar + "Ortak".</summary>
     public ObservableCollection<SecimCipi> GiderKanallari { get; } = new();
 
+    /// <summary>Gider tipi çipleri: Cari · Sabit gider · Kredi kartı.</summary>
+    public ObservableCollection<SecimCipi> TipCipleri { get; } = new();
+
+    /// <summary>Kart harcaması için kart çipleri (yalnız "Kredi kartı" tipi seçiliyken görünür).</summary>
+    public ObservableCollection<KartCipi> KartCipleri { get; } = new();
+
     /// <summary>Gelen (kanal geliri) formu kanal çipleri: aktif kanallar.</summary>
     public ObservableCollection<SecimCipi> GelenKanallari { get; } = new();
 
@@ -50,6 +56,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         var kanallar = await _api.KanallarAsync();
         var donemler = await _api.DonemlerAsync();
+        var kartlar = await _api.KrediKartlariAsync();
 
         var adlar = kanallar.Where(k => k.Aktif).OrderBy(k => k.Sira).Select(k => k.Ad).ToList();
         GelenKanallari.Clear();
@@ -57,6 +64,15 @@ public partial class IslemlerViewModel : TemelViewModel
         foreach (var ad in adlar) { GelenKanallari.Add(new SecimCipi(ad)); GiderKanallari.Add(new SecimCipi(ad)); }
         GiderKanallari.Add(new SecimCipi(OrtakKanal));
         SenkronSecim();
+
+        if (TipCipleri.Count == 0)
+            foreach (var t in new[] { GiderTipi.Cari, GiderTipi.SabitGider, GiderTipi.KrediKarti })
+                TipCipleri.Add(new SecimCipi(TipAdi(t)));
+
+        KartCipleri.Clear();
+        foreach (var k in kartlar) KartCipleri.Add(new KartCipi(k.Id, k.Ad));
+        TipVurgu();
+        KartVurgu();
 
         FiltreKanallari.Clear();
         FiltreKanallari.Add(new SecimCipi(TumKanal));
@@ -167,6 +183,26 @@ public partial class IslemlerViewModel : TemelViewModel
     [ObservableProperty] private string _duzenKanal = "";
     [ObservableProperty] private GiderTipi _duzenTip = GiderTipi.Cari;
     [ObservableProperty] private string? _duzenNot;
+    [ObservableProperty] private int? _duzenKrediKartiId;   // dolu = kart harcaması
+
+    /// <summary>Kart seçici yalnız "Kredi kartı" tipi seçiliyken görünür.</summary>
+    public bool KartSeciciGorunur => DuzenTip == GiderTipi.KrediKarti;
+
+    /// <summary>Gider tipi → çip etiketi.</summary>
+    private static string TipAdi(GiderTipi t) => t switch
+    {
+        GiderTipi.SabitGider => "Sabit gider",
+        GiderTipi.KrediKarti => "Kredi kartı",
+        _ => "Cari",
+    };
+
+    /// <summary>Çip etiketi → gider tipi.</summary>
+    private static GiderTipi TipDegeri(string ad) => ad switch
+    {
+        "Sabit gider" => GiderTipi.SabitGider,
+        "Kredi kartı" => GiderTipi.KrediKarti,
+        _ => GiderTipi.Cari,
+    };
 
     // Gelen girişi
     [ObservableProperty] private DateTime _gelenTarih = DateTime.Today;
@@ -176,10 +212,32 @@ public partial class IslemlerViewModel : TemelViewModel
     // Çip seçimleri kanal değerini ayarlar; işaretleme OnXChanged içinde eşitlenir.
     [RelayCommand] private void SecGiderKanal(SecimCipi s) => DuzenKanal = s.Ad;
     [RelayCommand] private void SecGelenKanal(SecimCipi s) => GelenKanal = s.Ad;
+    [RelayCommand] private void SecTip(SecimCipi s) => DuzenTip = TipDegeri(s.Ad);
+    [RelayCommand] private void SecKart(KartCipi s) => DuzenKrediKartiId = s.Id;
 
     partial void OnDuzenKanalChanged(string value)
     {
         foreach (var k in GiderKanallari) k.Secili = k.Ad == value;
+    }
+
+    partial void OnDuzenTipChanged(GiderTipi value)
+    {
+        TipVurgu();
+        OnPropertyChanged(nameof(KartSeciciGorunur));
+        if (value != GiderTipi.KrediKarti) DuzenKrediKartiId = null;
+    }
+
+    partial void OnDuzenKrediKartiIdChanged(int? value) => KartVurgu();
+
+    private void TipVurgu()
+    {
+        var ad = TipAdi(DuzenTip);
+        foreach (var t in TipCipleri) t.Secili = t.Ad == ad;
+    }
+
+    private void KartVurgu()
+    {
+        foreach (var k in KartCipleri) k.Secili = k.Id == DuzenKrediKartiId;
     }
 
     partial void OnGelenKanalChanged(string value)
@@ -192,6 +250,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         DuzenId = 0; DuzenTarih = DateTime.Today; DuzenCari = "";
         DuzenTutar = 0; DuzenKanal = ""; DuzenTip = GiderTipi.Cari; DuzenNot = null;
+        DuzenKrediKartiId = null;
     }
 
     [RelayCommand]
@@ -199,13 +258,13 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         DuzenId = i.Id; DuzenTarih = i.Tarih.ToDateTime(TimeOnly.MinValue);
         DuzenCari = i.Cari; DuzenTutar = i.TutarTl; DuzenKanal = i.Kanal;
-        DuzenTip = i.Tip; DuzenNot = i.Not;
+        DuzenTip = i.Tip; DuzenNot = i.Not; DuzenKrediKartiId = i.KrediKartiId;
     }
 
     [RelayCommand]
     private Task KaydetAsync() => CalistirAsync(async () =>
     {
-        var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot);
+        var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
         if (DuzenId == 0) await _api.IslemOlusturAsync(g);
         else await _api.IslemGuncelleAsync(DuzenId, g);
         Yeni();

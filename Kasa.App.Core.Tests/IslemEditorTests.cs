@@ -26,6 +26,53 @@ public class IslemEditorTests
     }
 
     [Fact]
+    public async Task Kart_harcamasi_krediKartiId_ve_tip_ile_kaydeder()
+    {
+        var api = new SahteApi();
+        var vm = new IslemlerViewModel(api)
+        {
+            DuzenTarih = new DateTime(2026, 7, 10),
+            DuzenCari = "Market",
+            DuzenTutar = 500m,
+            DuzenKanal = "MEZAT",
+            DuzenTip = GiderTipi.KrediKarti,
+            DuzenKrediKartiId = 7,
+        };
+
+        await vm.KaydetCommand.ExecuteAsync(null);
+
+        Assert.NotNull(api.SonIslemOlustur);
+        Assert.Equal(7, api.SonIslemOlustur!.KrediKartiId);
+        Assert.Equal(GiderTipi.KrediKarti, api.SonIslemOlustur!.Tip);
+    }
+
+    [Fact]
+    public void SecTip_kredi_karti_secince_kart_secicisi_gorunur()
+    {
+        var api = new SahteApi();
+        var vm = new IslemlerViewModel(api);
+
+        Assert.False(vm.KartSeciciGorunur);
+        vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
+
+        Assert.Equal(GiderTipi.KrediKarti, vm.DuzenTip);
+        Assert.True(vm.KartSeciciGorunur);
+    }
+
+    [Fact]
+    public void SecKart_secilen_kart_idsini_atar_tip_disina_donunce_temizler()
+    {
+        var api = new SahteApi();
+        var vm = new IslemlerViewModel(api) { DuzenTip = GiderTipi.KrediKarti };
+
+        vm.SecKartCommand.Execute(new KartCipi(9, "Bonus"));
+        Assert.Equal(9, vm.DuzenKrediKartiId);
+
+        vm.SecTipCommand.Execute(new SecimCipi("Cari"));
+        Assert.Null(vm.DuzenKrediKartiId);
+    }
+
+    [Fact]
     public async Task Mevcut_islem_guncelle_cagirir()
     {
         var api = new SahteApi();
