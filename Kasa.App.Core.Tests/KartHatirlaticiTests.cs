@@ -59,4 +59,26 @@ public class KartHatirlaticiTests
             new[] { Kart(1500m, (new DateOnly(2026,7,14), 1500m)) }, new DateOnly(2026,7,22));
         Assert.Equal(HatirlatmaTuru.SonOdemeGunu, h.Single().Tur);
     }
+
+    // Belirli kesim/son ödeme günleriyle kart (yalnız gün numaraları önemli).
+    private static KrediKartiGorunum KartGun(DateOnly kesim, DateOnly sonOdeme, decimal ekstre)
+        => new(new KrediKartiDto(1, "A", kesim, sonOdeme, 100000m, 1000m, EkstreBorc: ekstre));
+
+    [Fact]
+    public void Son_odeme_gunu_kesimden_kucukse_sonraki_aya_sarar()
+    {
+        // kesim 25, son ödeme 10 → son ödeme kesimden SONRAKİ aya düşer
+        var kart = KartGun(new DateOnly(2026,7,25), new DateOnly(2026,8,10), 1500m);
+        var h = KartHatirlatici.VadesiGelenler(new[] { kart }, new DateOnly(2026,8,10));
+        Assert.Equal(HatirlatmaTuru.SonOdemeGunu, h.Single().Tur);
+    }
+
+    [Fact]
+    public void Yil_sarmasi_aralik_kesim_ocak_son_odeme()
+    {
+        // kesim 20 (Aralık), son ödeme 5 (Ocak) → yıl sınırını doğru geçer
+        var kart = KartGun(new DateOnly(2025,12,20), new DateOnly(2026,1,5), 1500m);
+        var h = KartHatirlatici.VadesiGelenler(new[] { kart }, new DateOnly(2026,1,5));
+        Assert.Equal(HatirlatmaTuru.SonOdemeGunu, h.Single().Tur);
+    }
 }
