@@ -31,6 +31,9 @@ public interface IKasaApi
     Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g);
     Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g);
     Task KrediKartiSilAsync(int id);
+    Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId);
+    Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g);
+    Task KartOdemeSilAsync(int id);
     Task<GelenDto> GelenKaydetAsync(GelenYaz g);
     Task AyarGuncelleAsync(AyarYaz g);
     Task IzleyiciSifreAsync(string yeniSifre);

@@ -99,4 +99,60 @@ public class MutasyonTests
         using var doc = JsonDocument.Parse(h.SonGovde!);
         Assert.Equal("gizli123", doc.RootElement.GetProperty("yeniSifre").GetString());
     }
+
+    [Fact]
+    public async Task Kart_odeme_kaydet_post_dogru_govde_gonderir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.Created, """{"id":3,"krediKartiId":7,"tarih":"2026-07-20","tutar":500.0,"not":null}""");
+
+        var eklenen = await c.KartOdemeKaydetAsync(new KartOdemeYaz(7, new DateOnly(2026, 7, 20), 500m, null));
+
+        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method);
+        Assert.EndsWith("/api/kartodemeler", h.SonIstek.RequestUri!.AbsolutePath);
+        using var doc = JsonDocument.Parse(h.SonGovde!);
+        Assert.Equal(7, doc.RootElement.GetProperty("krediKartiId").GetInt32());
+        Assert.Equal(500m, doc.RootElement.GetProperty("tutar").GetDecimal());
+        Assert.Equal("2026-07-20", doc.RootElement.GetProperty("tarih").GetString());
+        Assert.Equal(3, eklenen.Id);
+    }
+
+    [Fact]
+    public async Task Kart_odemeler_listele_get_dogru_yol()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """[{"id":1,"krediKartiId":7,"tarih":"2026-07-20","tutar":500.0,"not":null}]""");
+
+        var liste = await c.KartOdemelerAsync(7);
+
+        Assert.Equal(HttpMethod.Get, h.SonIstek!.Method);
+        Assert.EndsWith("/api/kartodemeler", h.SonIstek.RequestUri!.AbsolutePath);
+        Assert.Contains("krediKartiId=7", h.SonIstek.RequestUri!.Query);
+        Assert.Single(liste);
+        Assert.Equal(500m, liste[0].Tutar);
+    }
+
+    [Fact]
+    public async Task Kart_odeme_sil_delete_gonderir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.NoContent);
+
+        await c.KartOdemeSilAsync(5);
+
+        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method);
+        Assert.EndsWith("/api/kartodemeler/5", h.SonIstek.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task Islem_olustur_krediKartiId_govdede_gider()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.Created, """{"id":1,"tarih":"2026-07-11","cari":"X","tutarTl":90.0,"kanal":"MEZAT","tip":"KrediKarti","not":null,"krediKartiId":7}""");
+
+        await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 7, 11), "X", 90m, "MEZAT", GiderTipi.KrediKarti, null, 7));
+
+        using var doc = JsonDocument.Parse(h.SonGovde!);
+        Assert.Equal(7, doc.RootElement.GetProperty("krediKartiId").GetInt32());
+    }
 }
