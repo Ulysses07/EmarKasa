@@ -27,6 +27,7 @@ public class IslemEntity
     public string Kanal { get; set; } = "";
     public GiderTipi Tip { get; set; }
     public string? Not { get; set; }
+    public int? KrediKartiId { get; set; }
 }
 
 public class GelenEntity
@@ -54,4 +55,13 @@ public class KrediKartiEntity
     public DateOnly SonOdemeTarihi { get; set; }
     public decimal Limit { get; set; }
     public decimal Borc { get; set; }
+}
+
+public class KartOdemeEntity
+{
+    public int Id { get; set; }
+    public int KrediKartiId { get; set; }
+    public DateOnly Tarih { get; set; }
+    public decimal Tutar { get; set; }
+    public string? Not { get; set; }
 }
