@@ -19,6 +19,7 @@ public sealed class SahteApi : IKasaApi
 
     public PanelDto? Panel;
     public IReadOnlyList<KrediKartiDto> KrediKartlariListe = new List<KrediKartiDto>();
+    public IReadOnlyList<KartOdemeDto> KartOdemelerListe = new List<KartOdemeDto>();
     public IReadOnlyList<CariDto> CarilerListe = new List<CariDto>();
     public IReadOnlyList<IslemDto> IslemlerListe = new List<IslemDto>();
     public IReadOnlyList<HaftalikOzetDto> HaftalikListe = new List<HaftalikOzetDto>();
@@ -66,6 +67,9 @@ public sealed class SahteApi : IKasaApi
     public GelenYaz? SonGelen;
     public AyarYaz? SonAyar;
     public string? SonIzleyiciSifre;
+    public int? SonKartOdemelerId;
+    public KartOdemeYaz? SonKartOdemeKaydet;
+    public int? SonKartOdemeSil;
 
     public Task<KanalDto> KanalOlusturAsync(KanalYaz g) { SonKanalOlustur = g; return Task.FromResult(new KanalDto(0, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
     public Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g) { SonKanalGuncelle = (id, g); return Task.FromResult(new KanalDto(id, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
@@ -82,6 +86,10 @@ public sealed class SahteApi : IKasaApi
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; return Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return Task.CompletedTask; }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return Task.CompletedTask; }
+
+    public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) { SonKartOdemelerId = krediKartiId; return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KartOdemeDto>>(YuklemeHatasi) : Task.FromResult(KartOdemelerListe); }
+    public Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g) { SonKartOdemeKaydet = g; return Task.FromResult(new KartOdemeDto(0, g.KrediKartiId, g.Tarih, g.Tutar, g.Not)); }
+    public Task KartOdemeSilAsync(int id) { SonKartOdemeSil = id; return Task.CompletedTask; }
 
     public Task<AyarlarDto> AyarlarAsync() => YuklemeHatasi is not null ? Task.FromException<AyarlarDto>(YuklemeHatasi) : Task.FromResult(AyarlarSonuc!);
 }
