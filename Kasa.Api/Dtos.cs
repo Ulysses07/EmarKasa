@@ -10,3 +10,7 @@ public record PanelDto(
     IReadOnlyList<KanalBakiye> Kanallar,
     decimal BuHaftaSonucu,
     decimal BuAySonucu);
+
+public record KrediKartiTuretilmisDto(
+    int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit,
+    decimal Borc, decimal GuncelBorc, decimal AcilisBorc, decimal HarcamaToplam, decimal OdemeToplam);

@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Kasa.Api;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Core;
 using Kasa.Api.Servisler;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -174,8 +175,26 @@ api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) =>
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
-// Kredi kartları
-api.MapGet("/kredikartlari", (KasaDbContext db) => db.KrediKartlari.OrderBy(k => k.Ad).ToList());
+// Kredi kartları (güncel borç türetilir: açılış + harcama − ödeme)
+api.MapGet("/kredikartlari", (KasaDbContext db) =>
+{
+    var kartlar = db.KrediKartlari.OrderBy(k => k.Ad).ToList();
+    var harcama = db.Islemler.Where(i => i.KrediKartiId != null)
+        .GroupBy(i => i.KrediKartiId!.Value)
+        .ToDictionary(g => g.Key, g => g.Sum(i => i.TutarTl));
+    var odeme = db.KartOdemeler
+        .GroupBy(o => o.KrediKartiId)
+        .ToDictionary(g => g.Key, g => g.Sum(o => o.Tutar));
+    return kartlar.Select(k =>
+    {
+        var h = harcama.GetValueOrDefault(k.Id, 0m);
+        var o = odeme.GetValueOrDefault(k.Id, 0m);
+        return new KrediKartiTuretilmisDto(
+            k.Id, k.Ad, k.KesimTarihi, k.SonOdemeTarihi, k.Limit,
+            Borc: k.Borc, GuncelBorc: k.Borc + h - o, AcilisBorc: k.Borc,
+            HarcamaToplam: h, OdemeToplam: o);
+    }).ToList();
+});
 api.MapPost("/kredikartlari", (KrediKartiEntity e, KasaDbContext db) =>
 {
     db.KrediKartlari.Add(e); db.SaveChanges();
@@ -194,6 +213,9 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) =>
 {
     var e = db.KrediKartlari.Find(id);
     if (e is null) return Results.NotFound();
+    // Harcama işlemlerinin bağını kopar (işlem kalır), ödemeleri sil.
+    foreach (var i in db.Islemler.Where(i => i.KrediKartiId == id)) i.KrediKartiId = null;
+    db.KartOdemeler.RemoveRange(db.KartOdemeler.Where(o => o.KrediKartiId == id));
     db.KrediKartlari.Remove(e); db.SaveChanges();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -210,6 +232,7 @@ api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, st
 });
 api.MapPost("/islemler", (IslemEntity e, KasaDbContext db) =>
 {
+    if (e.KrediKartiId is not null) e.Tip = GiderTipi.KrediKarti; // kart harcaması tutarlılığı
     db.Islemler.Add(e); db.SaveChanges();
     return Results.Created($"/api/islemler/{e.Id}", e);
 }).RequireAuthorization("Editor");
@@ -219,6 +242,8 @@ api.MapPut("/islemler/{id:int}", (int id, IslemEntity gelen, KasaDbContext db) =
     if (e is null) return Results.NotFound();
     e.Tarih = gelen.Tarih; e.Cari = gelen.Cari; e.TutarTl = gelen.TutarTl;
     e.Kanal = gelen.Kanal; e.Tip = gelen.Tip; e.Not = gelen.Not;
+    e.KrediKartiId = gelen.KrediKartiId;
+    if (e.KrediKartiId is not null) e.Tip = GiderTipi.KrediKarti;
     db.SaveChanges();
     return Results.Ok(e);
 }).RequireAuthorization("Editor");
@@ -227,6 +252,26 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
     var e = db.Islemler.Find(id);
     if (e is null) return Results.NotFound();
     db.Islemler.Remove(e); db.SaveChanges();
+    return Results.NoContent();
+}).RequireAuthorization("Editor");
+
+// Kart ödemeleri (borç-only; kasa motoruna girmez)
+api.MapGet("/kartodemeler", (int? krediKartiId, KasaDbContext db) =>
+{
+    var q = db.KartOdemeler.AsQueryable();
+    if (krediKartiId is { } id) q = q.Where(o => o.KrediKartiId == id);
+    return q.OrderByDescending(o => o.Tarih).ThenByDescending(o => o.Id).ToList();
+});
+api.MapPost("/kartodemeler", (KartOdemeEntity e, KasaDbContext db) =>
+{
+    db.KartOdemeler.Add(e); db.SaveChanges();
+    return Results.Created($"/api/kartodemeler/{e.Id}", e);
+}).RequireAuthorization("Editor");
+api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
+{
+    var e = db.KartOdemeler.Find(id);
+    if (e is null) return Results.NotFound();
+    db.KartOdemeler.Remove(e); db.SaveChanges();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
