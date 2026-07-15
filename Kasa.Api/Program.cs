@@ -178,21 +178,28 @@ api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) =>
 // Kredi kartları (güncel borç türetilir: açılış + harcama − ödeme)
 api.MapGet("/kredikartlari", (KasaDbContext db) =>
 {
+    var bugun = DateOnly.FromDateTime(DateTime.Today);
     var kartlar = db.KrediKartlari.OrderBy(k => k.Ad).ToList();
-    var harcama = db.Islemler.Where(i => i.KrediKartiId != null)
-        .GroupBy(i => i.KrediKartiId!.Value)
-        .ToDictionary(g => g.Key, g => g.Sum(i => i.TutarTl));
+    var harcamaKayit = db.Islemler.Where(i => i.KrediKartiId != null)
+        .Select(i => new { Id = i.KrediKartiId!.Value, i.Tarih, i.TutarTl })
+        .ToList()
+        .GroupBy(x => x.Id)
+        .ToDictionary(g => g.Key, g => g.ToList());
     var odeme = db.KartOdemeler
         .GroupBy(o => o.KrediKartiId)
         .ToDictionary(g => g.Key, g => g.Sum(o => o.Tutar));
     return kartlar.Select(k =>
     {
-        var h = harcama.GetValueOrDefault(k.Id, 0m);
+        var kh = harcamaKayit.GetValueOrDefault(k.Id);
+        var h = kh?.Sum(x => x.TutarTl) ?? 0m;
         var o = odeme.GetValueOrDefault(k.Id, 0m);
+        var sonKesim = KartDonem.SonKesim(k.KesimTarihi.Day, bugun);
+        var kesimSonrasi = kh?.Where(x => x.Tarih > sonKesim).Sum(x => x.TutarTl) ?? 0m;
+        var guncel = k.Borc + h - o;
         return new KrediKartiTuretilmisDto(
             k.Id, k.Ad, k.KesimTarihi, k.SonOdemeTarihi, k.Limit,
-            Borc: k.Borc, GuncelBorc: k.Borc + h - o, AcilisBorc: k.Borc,
-            HarcamaToplam: h, OdemeToplam: o);
+            Borc: k.Borc, GuncelBorc: guncel, AcilisBorc: k.Borc,
+            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi);
     }).ToList();
 });
 api.MapPost("/kredikartlari", (KrediKartiEntity e, KasaDbContext db) =>
