@@ -65,3 +65,15 @@ public class KartOdemeEntity
     public decimal Tutar { get; set; }
     public string? Not { get; set; }
 }
+
+public class KrediEntity
+{
+    public int Id { get; set; }
+    public string Ad { get; set; } = "";
+    public decimal CekilenTutar { get; set; }
+    public DateOnly CekimTarihi { get; set; }
+    public int TaksitSayisi { get; set; }
+    public decimal AylikOdeme { get; set; }
+    public int OdemeGunu { get; set; }
+    public string Kanal { get; set; } = "";
+}

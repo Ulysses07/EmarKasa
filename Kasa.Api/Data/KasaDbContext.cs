@@ -13,6 +13,7 @@ public class KasaDbContext : DbContext
     public DbSet<AyarEntity> Ayarlar => Set<AyarEntity>();
     public DbSet<KrediKartiEntity> KrediKartlari => Set<KrediKartiEntity>();
     public DbSet<KartOdemeEntity> KartOdemeler => Set<KartOdemeEntity>();
+    public DbSet<KrediEntity> Krediler => Set<KrediEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
