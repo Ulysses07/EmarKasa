@@ -41,6 +41,7 @@ public static class MauiProgram
         builder.Services.AddTransient<CarilerViewModel>();
         builder.Services.AddTransient<IslemlerViewModel>();
         builder.Services.AddTransient<KrediKartlariViewModel>();
+        builder.Services.AddTransient<KredilerViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
 
         builder.Services.AddSingleton<App>();
@@ -52,6 +53,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.CarilerPage>();
         builder.Services.AddTransient<Views.IslemlerPage>();
         builder.Services.AddTransient<Views.KrediKartlariPage>();
+        builder.Services.AddTransient<Views.KredilerPage>();
         builder.Services.AddTransient<Views.AyarlarPage>();
 
 #if DEBUG
