@@ -20,6 +20,7 @@ public sealed class SahteApi : IKasaApi
     public PanelDto? Panel;
     public IReadOnlyList<KrediKartiDto> KrediKartlariListe = new List<KrediKartiDto>();
     public IReadOnlyList<KartOdemeDto> KartOdemelerListe = new List<KartOdemeDto>();
+    public IReadOnlyList<KrediDto> KredilerListe = new List<KrediDto>();
     public IReadOnlyList<CariDto> CarilerListe = new List<CariDto>();
     public IReadOnlyList<IslemDto> IslemlerListe = new List<IslemDto>();
     public IReadOnlyList<HaftalikOzetDto> HaftalikListe = new List<HaftalikOzetDto>();
@@ -70,6 +71,9 @@ public sealed class SahteApi : IKasaApi
     public int? SonKartOdemelerId;
     public KartOdemeYaz? SonKartOdemeKaydet;
     public int? SonKartOdemeSil;
+    public KrediDto? SonKrediEkle;
+    public (int Id, KrediDto K)? SonKrediGuncelle;
+    public int? SonKrediSil;
 
     public Task<KanalDto> KanalOlusturAsync(KanalYaz g) { SonKanalOlustur = g; return Task.FromResult(new KanalDto(0, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
     public Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g) { SonKanalGuncelle = (id, g); return Task.FromResult(new KanalDto(id, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
@@ -83,6 +87,10 @@ public sealed class SahteApi : IKasaApi
     public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) { SonKartOlustur = g; return Task.FromResult(new KrediKartiDto(0, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }
     public Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g) { SonKartGuncelle = (id, g); return Task.FromResult(new KrediKartiDto(id, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }
     public Task KrediKartiSilAsync(int id) { SonKartSil = id; return Task.CompletedTask; }
+    public Task<IReadOnlyList<KrediDto>> KredilerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediDto>>(YuklemeHatasi) : Task.FromResult(KredilerListe);
+    public Task KrediEkleAsync(KrediDto kredi) { SonKrediEkle = kredi; return Task.CompletedTask; }
+    public Task KrediGuncelleAsync(int id, KrediDto kredi) { SonKrediGuncelle = (id, kredi); return Task.CompletedTask; }
+    public Task KrediSilAsync(int id) { SonKrediSil = id; return Task.CompletedTask; }
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; return Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return Task.CompletedTask; }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return Task.CompletedTask; }
