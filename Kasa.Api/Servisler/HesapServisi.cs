@@ -20,16 +20,31 @@ public class HesapServisi
     private Yuk Yukle()
     {
         var kanallar = _db.Kanallar.OrderBy(k => k.Sira).ToList().Select(e => e.ToCore()).ToList();
-        var islemler = _db.Islemler.ToList().Select(e => e.ToCore()).ToList();
-        var gelenler = _db.Gelenler.ToList().Select(e => e.ToCore()).ToList();
+        var dbIslemler = _db.Islemler.ToList().Select(e => e.ToCore()).ToList();
+        var dbGelenler = _db.Gelenler.ToList().Select(e => e.ToCore()).ToList();
+        var krediler = _db.Krediler.ToList().Select(e => e.ToCore()).ToList();
         var ayar = _db.Ayarlar.First();
 
         var baslangic = ayar.TakipBaslangic;
         var bugun = DateOnly.FromDateTime(DateTime.Today);
-        var enGecIslem = islemler.Select(i => i.Tarih).DefaultIfEmpty(bugun).Max();
+        // Dönem ufku yalnız GERÇEKLEŞEN veriye göre (DB işlemleri + bugün). Gelecek kredi
+        // taksitleri ufku ileri ÇEKMEZ — aksi halde henüz ödenmemiş taksitler güncel kasadan
+        // erken düşerdi (spec: gelecek taksit güncel kasayı etkilemez; ileri aylar o ayın
+        // raporu sorulunca yansır).
+        var enGecIslem = dbIslemler.Select(i => i.Tarih).DefaultIfEmpty(bugun).Max();
         var bitis = new[] { bugun, enGecIslem, baslangic }.Max();
-
         var donemler = DonemUretici.Uret(baslangic, bitis);
+
+        // Krediyi sentetik kayıtlara türet (DB'ye yazılmaz, yalnız motora beslenir):
+        // çekim → genel kasa geliri, taksitler → seçilen kanal/Ortak gideri.
+        var taksitler = krediler.SelectMany(KrediTuretici.TaksitGiderleri);
+        var islemler = dbIslemler.Concat(taksitler).ToList();
+        var cekimGelenleri = krediler
+            .Select(k => KrediTuretici.CekimGeleni(k, donemler))
+            .Where(g => g is not null)
+            .Select(g => g!);
+        var gelenler = dbGelenler.Concat(cekimGelenleri).ToList();
+
         return new Yuk(kanallar, islemler, gelenler, donemler, ayar.KasaAcilisDevri);
     }
 
