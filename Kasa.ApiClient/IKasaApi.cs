@@ -15,6 +15,7 @@ public interface IKasaApi
     Task<IReadOnlyList<CariDto>> CarilerAsync(string? ara = null);
     Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null);
     Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync();
+    Task<IReadOnlyList<KrediDto>> KredilerAsync();
     Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null);
     Task<AyarlarDto> AyarlarAsync();
 
@@ -31,6 +32,9 @@ public interface IKasaApi
     Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g);
     Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g);
     Task KrediKartiSilAsync(int id);
+    Task KrediEkleAsync(KrediDto kredi);
+    Task KrediGuncelleAsync(int id, KrediDto kredi);
+    Task KrediSilAsync(int id);
     Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId);
     Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g);
     Task KartOdemeSilAsync(int id);

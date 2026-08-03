@@ -57,6 +57,7 @@ public sealed partial class KasaApiClient : IKasaApi
     public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => GetAsync<IReadOnlyList<DonemDto>>("api/donemler");
     public Task<IReadOnlyList<KanalDto>> KanallarAsync() => GetAsync<IReadOnlyList<KanalDto>>("api/kanallar");
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => GetAsync<IReadOnlyList<KrediKartiDto>>("api/kredikartlari");
+    public Task<IReadOnlyList<KrediDto>> KredilerAsync() => GetAsync<IReadOnlyList<KrediDto>>("api/krediler");
     public Task<AyarlarDto> AyarlarAsync() => GetAsync<AyarlarDto>("api/ayarlar");
 
     public Task<IReadOnlyList<CariDto>> CarilerAsync(string? ara = null)
@@ -98,6 +99,11 @@ public sealed partial class KasaApiClient : IKasaApi
     public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) => GonderJsonAsync<KrediKartiDto>(HttpMethod.Post, "api/kredikartlari", g);
     public Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g) => GonderJsonAsync<KrediKartiDto>(HttpMethod.Put, $"api/kredikartlari/{id}", g);
     public Task KrediKartiSilAsync(int id) => SilAsync($"api/kredikartlari/{id}");
+
+    // Kredi
+    public Task KrediEkleAsync(KrediDto kredi) => GonderJsonAsync(HttpMethod.Post, "api/krediler", kredi);
+    public Task KrediGuncelleAsync(int id, KrediDto kredi) => GonderJsonAsync(HttpMethod.Put, $"api/krediler/{id}", kredi);
+    public Task KrediSilAsync(int id) => SilAsync($"api/krediler/{id}");
 
     // Kart ödeme
     public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) => GetAsync<IReadOnlyList<KartOdemeDto>>($"api/kartodemeler?krediKartiId={krediKartiId}");

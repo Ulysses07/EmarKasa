@@ -9,6 +9,7 @@ public record CariDto(int Id, string Ad, bool Aktif);
 public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
 public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m);
+public record KrediDto(int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi, int TaksitSayisi, decimal AylikOdeme, int OdemeGunu, string Kanal);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi);
 

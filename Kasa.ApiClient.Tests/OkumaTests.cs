@@ -154,4 +154,24 @@ public class OkumaTests
         var liste = await c.KrediKartlariAsync();
         Assert.Equal(1500m, liste.Single().EkstreBorc);
     }
+
+    [Fact]
+    public async Task Krediler_alanlari_cozer()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """
+            [{"id":3,"ad":"Taşıt Kredisi","cekilenTutar":120000.0,"cekimTarihi":"2026-08-03","taksitSayisi":12,"aylikOdeme":11000.0,"odemeGunu":15,"kanal":"MEZAT"}]
+        """);
+        var liste = await c.KredilerAsync();
+        var k = liste.Single();
+        Assert.Equal(3, k.Id);
+        Assert.Equal("Taşıt Kredisi", k.Ad);
+        Assert.Equal(120000.0m, k.CekilenTutar);
+        Assert.Equal(new DateOnly(2026, 8, 3), k.CekimTarihi);
+        Assert.Equal(12, k.TaksitSayisi);
+        Assert.Equal(11000.0m, k.AylikOdeme);
+        Assert.Equal(15, k.OdemeGunu);
+        Assert.Equal("MEZAT", k.Kanal);
+        Assert.EndsWith("/api/krediler", h.SonIstek!.RequestUri!.AbsolutePath);
+    }
 }

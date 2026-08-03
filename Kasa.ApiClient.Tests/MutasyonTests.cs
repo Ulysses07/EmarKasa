@@ -155,4 +155,50 @@ public class MutasyonTests
         using var doc = JsonDocument.Parse(h.SonGovde!);
         Assert.Equal(7, doc.RootElement.GetProperty("krediKartiId").GetInt32());
     }
+
+    [Fact]
+    public async Task Kredi_ekle_post_dogru_govde_gonderir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.Created, """{"id":5,"ad":"Taşıt Kredisi","cekilenTutar":120000.0,"cekimTarihi":"2026-08-03","taksitSayisi":12,"aylikOdeme":11000.0,"odemeGunu":15,"kanal":"MEZAT"}""");
+
+        await c.KrediEkleAsync(new KrediDto(0, "Taşıt Kredisi", 120000m, new DateOnly(2026, 8, 3), 12, 11000m, 15, "MEZAT"));
+
+        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method);
+        Assert.EndsWith("/api/krediler", h.SonIstek.RequestUri!.AbsolutePath);
+        using var doc = JsonDocument.Parse(h.SonGovde!);
+        Assert.Equal("Taşıt Kredisi", doc.RootElement.GetProperty("ad").GetString());
+        Assert.Equal(120000m, doc.RootElement.GetProperty("cekilenTutar").GetDecimal());
+        Assert.Equal("2026-08-03", doc.RootElement.GetProperty("cekimTarihi").GetString());
+        Assert.Equal(12, doc.RootElement.GetProperty("taksitSayisi").GetInt32());
+        Assert.Equal(15, doc.RootElement.GetProperty("odemeGunu").GetInt32());
+        Assert.Equal("MEZAT", doc.RootElement.GetProperty("kanal").GetString());
+    }
+
+    [Fact]
+    public async Task Kredi_guncelle_put_dogru_yol_gonderir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """{"id":5,"ad":"Güncel","cekilenTutar":100000.0,"cekimTarihi":"2026-08-03","taksitSayisi":6,"aylikOdeme":18000.0,"odemeGunu":10,"kanal":"MEZAT"}""");
+
+        await c.KrediGuncelleAsync(5, new KrediDto(5, "Güncel", 100000m, new DateOnly(2026, 8, 3), 6, 18000m, 10, "MEZAT"));
+
+        Assert.Equal(HttpMethod.Put, h.SonIstek!.Method);
+        Assert.EndsWith("/api/krediler/5", h.SonIstek.RequestUri!.AbsolutePath);
+        using var doc = JsonDocument.Parse(h.SonGovde!);
+        Assert.Equal("Güncel", doc.RootElement.GetProperty("ad").GetString());
+        Assert.Equal(6, doc.RootElement.GetProperty("taksitSayisi").GetInt32());
+    }
+
+    [Fact]
+    public async Task Kredi_sil_delete_gonderir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.NoContent);
+
+        await c.KrediSilAsync(8);
+
+        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method);
+        Assert.EndsWith("/api/krediler/8", h.SonIstek.RequestUri!.AbsolutePath);
+    }
 }
