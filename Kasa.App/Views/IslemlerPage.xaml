@@ -7,6 +7,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:Name="Sayfa"
     Title="İşlemler"
     BackgroundColor="{StaticResource AppBg}">
@@ -444,7 +445,7 @@
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,6" MinimumHeightRequest="58"
-                                          ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                          ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="14">
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
                                             <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
                                                    Style="{StaticResource LblDateChip}" />
@@ -479,6 +480,9 @@
                                                 </Button.Text>
                                             </Button>
                                         </HorizontalStackLayout>
+                                        <!-- Kayda soru (her iki rol; paket E) -->
+                                        <Button Grid.Column="4" Text="Soru sor" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                Command="{x:Static core:SoruYonlendirme.SorKomutu}" CommandParameter="{Binding .}" />
                                     </Grid>
                                 </VerticalStackLayout>
                             </DataTemplate>

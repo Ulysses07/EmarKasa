@@ -5,6 +5,7 @@
     x:Class="Kasa.App.Views.CeklerPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:Name="Sayfa"
     Title="Çekler"
     BackgroundColor="{StaticResource AppBg}">
@@ -394,7 +395,7 @@
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,8" MinimumHeightRequest="62"
-                                          ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="14">
+                                          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="14">
                                         <!-- Vade -->
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
                                             <Label Text="{Binding VadeTarihi, StringFormat='{0:dd MMM}'}"
@@ -484,6 +485,9 @@
                                                 </Button.Text>
                                             </Button>
                                         </HorizontalStackLayout>
+                                        <!-- Kayda soru (her iki rol; paket E) -->
+                                        <Button Grid.Column="5" Text="Soru sor" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                Command="{x:Static core:SoruYonlendirme.SorKomutu}" CommandParameter="{Binding .}" />
                                     </Grid>
 
                                     <!-- ==================== Paket D: seçim, evrak bilgisi, tek dokunuş ==================== -->

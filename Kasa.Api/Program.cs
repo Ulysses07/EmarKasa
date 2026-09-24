@@ -31,6 +31,7 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<HesapServisi>();
 builder.Services.AddSingleton<OturumOnbellegi>();
+builder.Services.AddKimlikVeGuvenlik();
 builder.Services.AddSingleton(sp => new YedekDurumu
 {
     Etkin = !string.IsNullOrWhiteSpace(sp.GetRequiredService<IConfiguration>()["Kasa:YedekKlasoru"]),
@@ -64,21 +65,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     ctx.Token = t;
                 return Task.CompletedTask;
             },
-            // Oturum sürümü eşleşmeyen (şifre değişmiş / oturumlar kapatılmış) ya da çıkışta
-            // iptal edilmiş token'ı reddet. Sürümler ve iptaller bellekte önbellekli: istek
-            // başına DB sorgusu yok.
+            // Oturum sürümü eşleşmeyen (şifre değişmiş / oturumlar kapatılmış), çıkışta iptal
+            // edilmiş ya da hesabı pasif/değişmiş token'ı reddet. Hepsi bellekte önbellekli:
+            // istek başına DB sorgusu yok (bkz. OturumDogrulama).
             OnTokenValidated = ctx =>
             {
-                var sp = ctx.HttpContext.RequestServices;
-                var oturum = sp.GetRequiredService<OturumOnbellegi>();
-                var db = sp.GetRequiredService<KasaDbContext>();
-                var rol = ctx.Principal?.FindFirstValue(ClaimTypes.Role);
-                var surum = ctx.Principal?.FindFirstValue(JwtYardimci.SurumClaim);
-                var gecerli = oturum.GecerliSurum(db, rol);
-                if (gecerli is null || surum != gecerli.Value.ToString())
-                    ctx.Fail("Oturum geçersiz kılındı.");
-                else if (oturum.IptalMi(db, ctx.SecurityToken?.Id))
-                    ctx.Fail("Oturum kapatıldı.");
+                OturumDogrulama.Dogrula(ctx);
                 return Task.CompletedTask;
             },
         };
@@ -127,9 +119,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 });
 
 var app = builder.Build();
-
-// Üretimde (Caddy TLS arkasında) çerez yalnızca HTTPS'te gitmeli.
-var cerezSecure = !app.Environment.IsDevelopment();
 
 // --- DB başlat (WAL + şema güncelle + seed) ---
 using (var scope = app.Services.CreateScope())
@@ -192,57 +181,12 @@ app.MapGet("/health", (KasaDbContext db, YedekDurumu yedek, IConfiguration cfg, 
     });
 }).AllowAnonymous();
 
-// --- Auth ---
-app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration cfg, HttpContext http, OturumOnbellegi oturum) =>
-{
-    var editorKullanici = cfg["Kasa:EditorKullanici"];
-    var editorSifre = cfg["Kasa:EditorSifre"];
-    var ayar = db.Ayarlar.AsNoTracking().OrderBy(x => x.Id).First();
-
-    string? rol = null;
-    // Editör bilgileri config'te tanımlı DEĞİLSE editör girişi kapalıdır
-    // (aksi halde eksik config null==null ile şifresiz editör erişimine yol açar).
-    if (!string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre)
-        && dto.Kullanici == editorKullanici && SabitZamanEsit(dto.Sifre, editorSifre))
-        rol = "editor";
-    else if (ayar.IzleyiciSifreHash is string h && SifreHasher.Dogrula(dto.Sifre ?? "", h))
-        rol = "viewer";
-
-    if (rol is null) return Results.Unauthorized();
-
-    oturum.SurumleriAyarla(ayar);
-    var token = JwtYardimci.Uret(rol, jwtKey, GecerliSurum(ayar, rol));
-    http.Response.Cookies.Append("kasa_auth", token, new CookieOptions
-    {
-        HttpOnly = true,
-        SameSite = SameSiteMode.Strict,
-        Secure = cerezSecure,
-        MaxAge = JwtYardimci.Omur,
-    });
-    return Results.Ok(new { rol, token });
-}).RequireRateLimiting("giris");
-
-// Çıkış: sunulan token'ı (çerez ya da Bearer) iptal eder; token süresi dolana kadar reddedilir.
-app.MapPost("/api/auth/logout", (HttpContext http, KasaDbContext db, OturumOnbellegi oturum) =>
-{
-    var u = http.User;
-    var jti = u.FindFirstValue(JwtRegisteredClaimNames.Jti);
-    if (u.Identity?.IsAuthenticated == true && !string.IsNullOrEmpty(jti))
-    {
-        var bitis = long.TryParse(u.FindFirstValue(JwtRegisteredClaimNames.Exp), out var exp)
-            ? DateTimeOffset.FromUnixTimeSeconds(exp).UtcDateTime
-            : DateTime.UtcNow.Add(JwtYardimci.Omur);
-        oturum.IptalEt(db, jti, bitis);
-    }
-    http.Response.Cookies.Delete("kasa_auth");
-    return Results.Ok();
-});
-
-app.MapGet("/api/auth/me", (ClaimsPrincipal u) =>
-    Results.Ok(new { rol = u.FindFirstValue(ClaimTypes.Role) })).RequireAuthorization();
+// --- Auth, kullanıcılar, oturumlar, giriş günlüğü (bkz. Endpoints/KimlikEndpoints.cs) ---
+app.MapKimlikUclari();
 
 // --- Korumalı grup: oturum açmış herkes okuyabilir ---
 var api = app.MapGroup("/api").RequireAuthorization();
+api.MapSoruUclari().MapSistemRiskUclari();
 
 // Kanallar
 api.MapGet("/kanallar", (KasaDbContext db) =>
@@ -882,7 +826,7 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
         d.EskiJson, d.YeniJson, d.GeriAlindi,
         d.GeriAlmaZamaniUtc is { } g ? DateTime.SpecifyKind(g, DateTimeKind.Utc) : null,
         GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null && GuncellemeGeriAlma.DbEngeli(db, d) is null,
-        GecmiseDonuk: GecmiseDonukKurali.Mi(d))).ToList());
+        GecmiseDonuk: GecmiseDonukKurali.Mi(d), Kullanici: d.Kullanici, Cihaz: d.Cihaz)).ToList());
 });
 // Geçmişte kaydı olan türler (filtre seçenekleri).
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
@@ -925,12 +869,6 @@ api.MapCekEvrak(Yaz, CekHatasi).MapTekrarlayanEkleri(Yaz, TekrarlayanAyHatasi, K
 api.MapHizliGirisEndpoints(IslemHatasi, CariHatasi); // paket C: uyarılar, toplu yükleme, gelen tablosu, son silme
 
 app.Run();
-
-static int GecerliSurum(AyarEntity a, string? rol) => rol == "editor" ? a.EditorOturumSurumu : a.IzleyiciOturumSurumu;
-
-static bool SabitZamanEsit(string? a, string b)
-    => CryptographicOperations.FixedTimeEquals(
-        SHA256.HashData(Encoding.UTF8.GetBytes(a ?? "")), SHA256.HashData(Encoding.UTF8.GetBytes(b)));
 
 static IResult Hata(string mesaj) => Results.BadRequest(new { hata = mesaj });
 

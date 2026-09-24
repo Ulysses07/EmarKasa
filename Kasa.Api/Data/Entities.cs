@@ -180,7 +180,7 @@ public class IptalEdilenTokenEntity
 /// uçta açıkça eklenir. Gizli alanlar (şifre hash'i, oturum sürümleri) hiçbir sütuna yazılmaz.
 /// </summary>
 [GecmisDisi]
-public class DegisiklikEntity
+public partial class DegisiklikEntity
 {
     public int Id { get; set; }
     public DateTime ZamanUtc { get; set; }

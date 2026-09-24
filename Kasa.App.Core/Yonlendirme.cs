@@ -17,6 +17,7 @@ public sealed class Yonlendirme
         "kasasayimi" => "//kasasayimi",
         "gecmis" => "//gecmis",
         "haftalik" => "//haftalik",
+        "sorular" => "//sorular",
         _ => null,
     };
 

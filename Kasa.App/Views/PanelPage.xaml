@@ -6,6 +6,7 @@
     x:Class="Kasa.App.Views.PanelPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
     x:Name="Sayfa"
     Title="Panel"
     BackgroundColor="{StaticResource AppBg}">
@@ -204,6 +205,9 @@
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </Border>
+            <!-- Sistem ve risk (yalnız editör) + açık sorular (açık soru yoksa gizli) -->
+            <v:RiskKarti x:Name="RiskKartiAlani" />
+            <v:AcikSorularKarti x:Name="SorularKartiAlani" />
 
             <!-- Girilmesi bekleyen tekrarlayan giderler (yalnız editör; liste boşsa gizli) -->
             <Border x:Name="BekleyenKart" Style="{StaticResource Card}" IsVisible="{Binding BekleyenVar}">

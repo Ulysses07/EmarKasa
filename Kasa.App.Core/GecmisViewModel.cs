@@ -192,8 +192,8 @@ public partial class GecmisSatiri : ObservableObject
     public string Zaman { get; }
     /// <summary>"Editör" / "İzleyici".</summary>
     public string RolAdi { get; }
-    /// <summary>Alt satır: zaman · rol · tür.</summary>
-    public string Ayrinti => $"{Zaman} · {RolAdi} · {Tur}";
+    /// <summary>Alt satır: zaman · rol (· kişi · cihaz) · tür.</summary>
+    public string Ayrinti => $"{Zaman} · {Kim} · {Tur}";
     /// <summary>Silme geri alındıysa "Geri alındı · zaman", değilse null.</summary>
     public string? GeriAlmaNotu { get; }
 

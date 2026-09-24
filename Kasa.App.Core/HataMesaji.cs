@@ -40,6 +40,8 @@ public static class HataMesaji
     /// <summary>Giriş ekranı: 401 yanlış bilgi demektir; diğer durumlar (429, 500, ağ) kendi mesajıyla.</summary>
     public static string GirisIcin(Exception ex) => ex switch
     {
+        // Sunucu açıklama verdiyse (ör. "Bu hesap pasif") o gösterilir.
+        KasaApiException { DurumKodu: HttpStatusCode.Unauthorized, SunucuMesaji: { } m } when !string.IsNullOrWhiteSpace(m) => m,
         KasaApiException { DurumKodu: HttpStatusCode.Unauthorized } => GirisBasarisiz,
         _ => Coz(ex),
     };

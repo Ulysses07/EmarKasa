@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.HaftalikPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:Name="Sayfa"
     Title="Haftalık"
     BackgroundColor="{StaticResource AppBg}">
@@ -70,6 +71,10 @@
                                                 </Label.FormattedText>
                                             </Label>
                                         </VerticalStackLayout>
+                                        <!-- Haftaya soru (her iki rol; paket E) -->
+                                        <Button Grid.Column="1" Text="Soru sor" Style="{StaticResource BtnRowEdit}"
+                                                HorizontalOptions="End" VerticalOptions="Center"
+                                                Command="{x:Static core:SoruYonlendirme.SorKomutu}" CommandParameter="{Binding .}" />
                                         <VerticalStackLayout Grid.Column="2" Spacing="1" VerticalOptions="Center">
                                             <Label HorizontalOptions="End"
                                                    Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}"

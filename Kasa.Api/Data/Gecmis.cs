@@ -10,6 +10,8 @@ public sealed class GecmisAttribute(string tur, params string[] ozetAlanlari) : 
 {
     public string Tur { get; } = tur;
     public string[] OzetAlanlari { get; } = ozetAlanlari;
+    /// <summary>Yalnız gizli alan değiştiğinde de özette kaydın kimliği görünsün ("Kullanıcı Ali · ali: Şifre değiştirildi").</summary>
+    public bool GizlideKimlikYaz { get; init; }
 }
 
 /// <summary>Bu varlığın değişiklikleri geçmişe yazılmaz (geçmişin kendisi, çıkışta iptal edilen token'lar).</summary>
@@ -43,6 +45,9 @@ public static class GecmisTurleri
     public const string TekrarlayanKarar = "Tekrarlayan gider kararı";
     public const string Ayar = "Ayar";
     public const string KartMutabakati = "Kart mutabakatı";
+    public const string Kullanici = "Kullanıcı";
+    public const string Soru = "Soru";
+    public const string GuvenlikAyari = "Güvenlik ayarı";
 }
 
 /// <summary>Geçmiş satırının eylemi.</summary>

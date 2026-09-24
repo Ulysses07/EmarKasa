@@ -26,6 +26,11 @@ services:
       Kasa__GuvenilirAglar: "${KASA_GUVENILIR_AGLAR}"
       # Tüm IP'ler toplamı için dakikalık giriş denemesi sınırı (varsayılan 60).
       # Kasa__GirisGlobalLimiti: "60"
+      # Editör şifresini unutunca kurtarma: deploy/.env'de KASA_EDITOR_SIFRESINI_SIFIRLA=true + yeniden başlat
+      # (.env şifresi yeniden geçerli olur, iki adımlı giriş kapanır). İş bitince false. deploy/README.md → "Kullanıcılar ve güvenlik".
+      Kasa__EditorSifresiniSifirla: "${KASA_EDITOR_SIFRESINI_SIFIRLA:-false}"
+      # Giriş günlüğünün saklama süresi (gün, varsayılan 180).
+      # Kasa__GirisGunluguGun: "180"
     volumes:
       - ./kasa-data:/data
     networks:

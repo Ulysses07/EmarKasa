@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar, sabit gider kalemleri, tekrarlayan giderler. -->
+<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar, sabit gider kalemleri, tekrarlayan giderler, güvenlik. -->
 <ContentPage
     x:Class="Kasa.App.Views.AyarlarPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -459,6 +459,8 @@
 
             <!-- ═══ BÖLÜM · Paket A · Bildirimler (bu bilgisayar; sunucu ayarı değildir) ═══ -->
             <v:BildirimAyarlariView />
+            <!-- Güvenlik: hesabım, kullanıcılar, oturumlar ve giriş günlüğü (paket E) -->
+            <v:GuvenlikBolumu x:Name="GuvenlikAlani" />
         </VerticalStackLayout>
     </ScrollView>
     <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" />

@@ -1,6 +1,6 @@
 namespace Kasa.Api;
 
-public record LoginDto(string? Kullanici, string Sifre);
+public record LoginDto(string? Kullanici, string? Sifre, string? Kod = null);
 /// <param name="BeklenenTutar">İsteğe bağlı: istemcinin gördüğü kayıtlı tutar (kayıt yoksa 0). Verilirse ve kayıtlı
 /// tutar farklıysa 409 döner (mevcutTutar ile); verilmezse eski davranış (koşulsuz upsert).</param>
 public record GelenUpsertDto(DateOnly DonemStart, string Kanal, decimal TutarTl, decimal? BeklenenTutar = null);
@@ -73,4 +73,4 @@ public record KrediKartiTuretilmisDto(
 public record DegisiklikDto(
     int Id, DateTime ZamanUtc, string Rol, string Tur, int? KayitId, string Eylem, string Ozet,
     string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir,
-    bool GecmiseDonuk = false);
+    bool GecmiseDonuk = false, string? Kullanici = null, string? Cihaz = null);

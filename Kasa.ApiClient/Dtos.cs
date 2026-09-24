@@ -43,7 +43,7 @@ public record CekOzetDto(decimal PortfoydekiAlinanToplam, int PortfoydekiAlinanA
 public record DegisiklikDto(
     int Id, DateTime ZamanUtc, string Rol, string Tur, int? KayitId, string Eylem, string Ozet,
     string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir,
-    bool GecmiseDonuk = false);
+    bool GecmiseDonuk = false, string? Kullanici = null, string? Cihaz = null);
 /// <summary>Geçmişin bir sayfası (en yeni önce) + filtreye uyan toplam satır sayısı.</summary>
 public record DegisiklikSayfasi(IReadOnlyList<DegisiklikDto> Kayitlar, int Toplam);
 

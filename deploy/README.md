@@ -142,6 +142,79 @@ Ek sınır: `Kasa__GirisGlobalLimiti` tüm IP'lerin toplamı için dakikalık gi
 sayısıdır. Varsayılan 60'tır. Değiştirmek için compose'daki yorum satırını açın.
 Çıkış (logout) yapılan oturumun token'ı sunucuda geçersiz kılınır.
 
+## Kullanıcılar ve güvenlik
+
+Bu sürümden itibaren her ortak kendi kullanıcı adı ve şifresiyle girebilir. Kim girdi, hangi
+cihazdan girdi ve kim neyi değiştirdi uygulamada görünür (Ayarlar › Güvenlik, Geçmiş).
+Mevcut girişler aynen çalışır: `.env`'deki editör ve ortak izleyici şifresi değişmez.
+
+**İlk açılışta kendiliğinden olanlar (elle bir şey yapmaya gerek yok):**
+
+- Yeni tablolar (`Kullanicilar`, `GirisKayitlari`, `OturumKayitlari`, `GuvenlikAyarlari`,
+  `YedekDogrulamalari`, `Sorular`) ve `Degisiklikler` tablosunun `Kullanici`/`Cihaz` sütunları
+  eklenir (`Şema güncellendi: ...` log satırları).
+- `.env`'deki editör (`KASA_EDITOR_KULLANICI`) için "yerleşik" bir hesap açılır. Adı kullanıcı
+  adının büyük harflisidir (Ayarlar › Kullanıcılar'dan değiştirilebilir). Şifresi `.env`'deki
+  `KASA_EDITOR_SIFRE`'dir; editör Ayarlar › Hesabım'dan yeni şifre verene kadar böyle kalır.
+- Açık oturumlar kapanmaz. Güncellemeden önce açılmış oturumlar listede "güncellemeden önce
+  açılmış" diye görünür ve ilk istekte listeye eklenir.
+
+**Önemli:** Editör uygulamadan yeni şifre verdikten sonra `.env`'deki `KASA_EDITOR_SIFRE` girişte
+**kullanılmaz**; geçerli şifre veritabanındadır. `.env`'yi değiştirmek şifreyi değiştirmez.
+
+**Uygulamadan yapılanlar (editör, Ayarlar › Güvenlik):**
+
+- *Hesabım:* şifre değiştirme; iki adımlı giriş (Google Authenticator ve benzerleri). Açılınca
+  10 kurtarma kodu bir kez gösterilir; her biri bir kez geçer. 5 hatalı koddan sonra kod girişi
+  15 dakika kilitlenir.
+- *Kullanıcılar:* ortak ekleme (izleyici ya da editör), ad/rol/aktiflik, şifre sıfırlama,
+  oturumlarını kapatma, iki adımlı girişini kapatma (telefon kaybolduysa), silme. Ortak izleyici
+  şifresi buradan kaldırılabilir.
+- *Oturumlar:* açık oturumlar (kişi, cihaz adı, IP, son görülme) ve tek bir oturumu kapatma.
+  Editör oturumu isteğe bağlı 7 gün (varsayılan 30); izleyici oturumu 30 gün.
+- *Giriş günlüğü:* her deneme (zaman, kişi, rol, başarılı/başarısız, neden, IP, cihaz).
+  Varsayılan 180 gün saklanır; `Kasa__GirisGunluguGun` ile değişir (compose'daki yorum satırı).
+
+**Editör şifresini unuttuysanız ya da iki adımlı girişin telefonu kaybolduysa** (kurtarma
+kodları da yoksa):
+
+```bash
+cd /opt/kasa/deploy
+nano .env                        # KASA_EDITOR_SIFRESINI_SIFIRLA=true
+KASA_SURUM=$(cat SURUM) docker compose up -d
+docker compose logs --tail 20 kasa   # "Kasa:EditorSifresiniSifirla açık: ..." uyarısı görünmeli
+```
+
+Sonra `.env`'deki `KASA_EDITOR_SIFRE` ile girin, Ayarlar › Hesabım'dan yeni şifre verin ve
+isterseniz iki adımlı girişi yeniden açın. **Ardından** `.env`'de
+`KASA_EDITOR_SIFRESINI_SIFIRLA=false` yapıp `docker compose up -d` ile yeniden başlatın; açık
+kalırsa her yeniden başlatmada şifre yeniden sıfırlanır. Sıfırlama yalnız yerleşik editöre
+uygulanır; diğer kullanıcıların şifresini editör uygulamadan sıfırlar.
+
+**Gece bakımı ve yedek doğrulaması:** Uygulama açıldıktan bir dakika sonra, sonra saatte bir:
+
+- süresi dolmuş giriş günlüğü satırlarını ve bir haftadan eski bitmiş oturum kayıtlarını siler;
+- en yeni günlük yedeği (`kasa-data/yedek/kasa-YYYY-AA-GG.db`) **salt okunur** açar,
+  bütünlük denetimi (`quick_check`) yapar ve 11 tablonun satır sayısını canlı DB ile karşılaştırır
+  (yedekten sonra yapılan değişiklikler kadar fark hoş görülür). Sonuç saklanır, son 90 sonuç
+  tutulur. Her yedek bir kez doğrulanır. Başarısız doğrulama Panel'deki risk kartında kırmızı görünür.
+  Log satırı: `Yedek doğrulandı: ...` ya da hata olarak `Yedek doğrulaması başarısız: ...`.
+
+**Sistem ve risk kartı** (Panel, yalnız editör, salt okunur): sunucu dışı yedeğin yaşı ve durumu
+(`/health` → `uzakYedek` ile aynı), yerel günlük yedeğin yaşı, son yedek doğrulaması, boş disk,
+dün (Türkiye saatiyle) başarısız giriş sayısı ve takip notu olmayan karşılıksız alınan çekler.
+Eşikler (varsayılan) gerekirse compose'a `Kasa__...` satırı eklenerek değiştirilir:
+
+| Ayar | Varsayılan | Anlamı |
+|------|-----------|--------|
+| `Kasa__RiskUzakYedekKirmiziSaat` | 48 | Sunucu dışı yedek bu kadar saattir başarısızsa kırmızı (daha azsa sarı) |
+| `Kasa__RiskYedekSariSaat` / `Kasa__RiskYedekKirmiziSaat` | 26 / 48 | Yerel günlük yedeğin yaşı |
+| `Kasa__RiskDogrulamaSariSaat` | 48 | Bu kadar saattir doğrulama yoksa sarı |
+| `Kasa__RiskDiskSariMb` / `Kasa__RiskDiskKirmiziMb` | 1024 / 300 | Boş disk (MB) |
+| `Kasa__RiskGirisSari` / `Kasa__RiskGirisKirmizi` | 5 / 20 | Dünkü başarısız giriş sayısı |
+
+`Kasa__GuvenlikBakimi=false` gece bakımını tamamen kapatır (yalnız testlerde kullanılır; üretimde açık kalmalı).
+
 ## Sağlık kontrolü
 
 - `GET /health` kimlik istemez. Veritabanına yoklama (ping) yapar. Yanıtta sürüm (`surum`)

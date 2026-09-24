@@ -29,6 +29,16 @@
         </Grid>
     </Shell.FlyoutHeader>
 
+    <!-- Oturumdaki kişi (paket E): "EMAR · Editör". BindingContext code-behind'da AuthViewModel. -->
+    <Shell.FlyoutFooter>
+        <VerticalStackLayout x:Name="KimlikAlani" Padding="22,10,18,18" Spacing="2" IsVisible="{Binding GirisYapildi}">
+            <Label Text="OTURUM" FontFamily="PlexSans" FontSize="10.5" CharacterSpacing="1"
+                   TextColor="{StaticResource SidebarMuted}" />
+            <Label Text="{Binding AktifKimlik}" FontFamily="PlexSansMedium" FontSize="13"
+                   TextColor="{StaticResource SidebarText}" LineBreakMode="TailTruncation" />
+        </VerticalStackLayout>
+    </Shell.FlyoutFooter>
+
     <!-- Menü öğesi şablonu: aktif sekme #33453A zemin + açık nokta -->
     <Shell.ItemTemplate>
         <DataTemplate>
@@ -100,6 +110,9 @@
     </FlyoutItem>
     <FlyoutItem x:Name="CeklerItem" Title="Çekler" Route="cekler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:CeklerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="SorularItem" Title="Sorular" Route="sorular" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:SorularPage}" />
     </FlyoutItem>
     <FlyoutItem x:Name="GecmisItem" Title="Geçmiş" Route="gecmis" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:GecmisPage}" />

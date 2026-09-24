@@ -27,7 +27,9 @@ public static class MauiProgram
             });
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
+        builder.Services.AddSingleton<IPano, MauiPano>();
         builder.Services.AddSingleton<Yonlendirme>();
+        builder.Services.AddSingleton<SoruYonlendirme>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.PaketAServisleriniEkle();   // Paket A: yerel depo, bildirimler, bildirim ayarları (PaketAKayit.cs)
 #if WINDOWS
@@ -40,6 +42,8 @@ public static class MauiProgram
         {
             // Çerez kapalı (yalnız Bearer) + 30 sn zaman aşımı.
             var http = KasaApiClient.HttpOlustur(new Uri("https://kasa.emarglobal.com/"));
+            // Giriş günlüğü ve oturum listesinde "hangi cihaz": bilgisayar adı (ör. EMAR-LAPTOP).
+            KasaApiClient.CihazAdiEkle(http, Environment.MachineName);
             return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>());
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());
@@ -59,6 +63,13 @@ public static class MauiProgram
         builder.Services.AddTransient<GecmisViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
         builder.Services.AddTransient<KartMutabakatViewModel>();          // Paket D
+        builder.Services.AddTransient<SorularViewModel>();
+        builder.Services.AddTransient<AcikSorularViewModel>();
+        builder.Services.AddTransient<RiskKartiViewModel>();
+        builder.Services.AddTransient<HesapGuvenligiViewModel>();
+        builder.Services.AddTransient<KullanicilarViewModel>();
+        builder.Services.AddTransient<OturumlarViewModel>();
+        builder.Services.AddTransient<GuvenlikViewModel>();
 
         builder.Services.AddSingleton<App>();
         builder.Services.AddSingleton<AppShell>();
@@ -76,10 +87,14 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.GecmisPage>();
         builder.Services.AddTransient<Views.AyarlarPage>();
         builder.Services.AddTransient<Views.KartMutabakatPage>();         // Paket D
+        builder.Services.AddTransient<Views.SorularPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
-        return builder.Build();
+        var app = builder.Build();
+        // Satırlardaki "Soru sor" düğmeleri (x:Static komut) bu örneğe gider.
+        SoruYonlendirme.Varsayilan = app.Services.GetRequiredService<SoruYonlendirme>();
+        return app;
     }
 }
