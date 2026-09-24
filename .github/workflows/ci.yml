@@ -74,3 +74,27 @@ jobs:
           echo "sağlık durumu: $durum"
           docker exec kasa-ci id
           [ "$durum" = healthy ]
+
+  # Windows uygulaması (MAUI) yalnız Windows'ta derlenir. XAML hataları (derlenmiş
+  # bağlamalar, eksik kaynak anahtarları) burada yakalanır; çıktı indirilebilir.
+  windows-uygulama:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_CLI_UI_LANGUAGE: en
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: MAUI workload
+        run: dotnet workload install maui-windows
+      - name: Windows uygulaması derlenir
+        run: dotnet publish Kasa.App/Kasa.App.csproj -c Release -f net10.0-windows10.0.19041.0 -p:WindowsPackageType=None -o yayin
+      - name: Derlenen uygulama
+        uses: actions/upload-artifact@v4
+        with:
+          name: emar-kasa-windows
+          path: yayin
+          retention-days: 7
