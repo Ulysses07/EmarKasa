@@ -14,6 +14,10 @@ public partial class TemelViewModel : ObservableObject
         Hata = null;
         Mesgul = true;
         try { await islem(); }
+        catch (Kasa.ApiClient.KasaApiException ex) when (ex.DurumKodu is System.Net.HttpStatusCode.BadRequest
+            or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.TooManyRequests
+            && ex.SunucuMesaji is not null)
+        { Hata = ex.SunucuMesaji; }   // doğrulama hatası: sunucunun açıklamasını göster
         catch (Exception) { Hata = "İşlem başarısız. Bağlantıyı kontrol edin."; }
         finally { Mesgul = false; }
     }

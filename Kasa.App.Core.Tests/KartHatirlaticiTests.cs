@@ -43,11 +43,45 @@ public class KartHatirlaticiTests
     }
 
     [Fact]
-    public void Bu_donem_odenmisse_son_odeme_bildirimi_yok()
+    public void Ekstre_tam_odenince_hatirlatma_susar()
     {
-        // kesim 15'ten sonra ödeme var → susar (ama borç>0)
+        // API, kesim sonrası ödemeyi ekstre borcundan düşer: tam ödeme → ekstre 0
         var h = KartHatirlatici.VadesiGelenler(
-            new[] { Kart(1500m, (new DateOnly(2026,7,16), 1500m)) }, new DateOnly(2026,7,22));
+            new[] { Kart(0m, (new DateOnly(2026,7,16), 1500m)) }, new DateOnly(2026,7,22));
+        Assert.Empty(h);
+    }
+
+    [Fact]
+    public void Kismi_odemede_kalan_tutarla_hatirlatma_surer()
+    {
+        // 1500 ekstreden 500 ödendi → kalan 1000 ile son ödeme günü hatırlatılır
+        var h = KartHatirlatici.VadesiGelenler(
+            new[] { Kart(1000m, (new DateOnly(2026,7,16), 500m)) }, new DateOnly(2026,7,22));
+        var t = h.Single();
+        Assert.Equal(HatirlatmaTuru.SonOdemeGunu, t.Tur);
+        Assert.Equal(1000m, t.EkstreBorc);
+    }
+
+    [Fact]
+    public void Bilgisayar_kapaliyken_kacirilan_hatirlatma_sonraki_acilista_gelir()
+    {
+        // 3-gün hatırlatması 19'unda; son kontrol 17'si, bugün 20'si → kaçan 19 gösterilir
+        var h = KartHatirlatici.VadesiGelenler(new[] { Kart(1500m) }, new DateOnly(2026,7,20), new DateOnly(2026,7,17));
+        Assert.Equal(HatirlatmaTuru.SonOdeme3Gun, h.Single().Tur);
+    }
+
+    [Fact]
+    public void Kacirilan_gunlerden_yalniz_en_guncel_hatirlatma_gelir()
+    {
+        // 15 kesim, 19 üç gün, 22 son gün kaçırıldı; 23'ünde yalnız "son ödeme günü"
+        var h = KartHatirlatici.VadesiGelenler(new[] { Kart(1500m) }, new DateOnly(2026,7,23), new DateOnly(2026,7,14));
+        Assert.Equal(HatirlatmaTuru.SonOdemeGunu, h.Single().Tur);
+    }
+
+    [Fact]
+    public void Ayni_gun_ikinci_kontrol_tekrar_bildirim_uretmez()
+    {
+        var h = KartHatirlatici.VadesiGelenler(new[] { Kart(1500m) }, new DateOnly(2026,7,22), new DateOnly(2026,7,22));
         Assert.Empty(h);
     }
 
@@ -80,5 +114,22 @@ public class KartHatirlaticiTests
         var kart = KartGun(new DateOnly(2025,12,20), new DateOnly(2026,1,5), 1500m);
         var h = KartHatirlatici.VadesiGelenler(new[] { kart }, new DateOnly(2026,1,5));
         Assert.Equal(HatirlatmaTuru.SonOdemeGunu, h.Single().Tur);
+    }
+}
+
+public class HatirlatmaDurumuTests
+{
+    [Fact]
+    public void Son_kontrol_gunu_dosyada_saklanir()
+    {
+        var klasor = Path.Combine(Path.GetTempPath(), "kasa-hd-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var d = new HatirlatmaDurumu(klasor);
+            Assert.Null(d.SonKontrol);
+            d.SonKontrol = new DateOnly(2026, 7, 20);
+            Assert.Equal(new DateOnly(2026, 7, 20), new HatirlatmaDurumu(klasor).SonKontrol);
+        }
+        finally { if (Directory.Exists(klasor)) Directory.Delete(klasor, true); }
     }
 }

@@ -79,4 +79,21 @@ public partial class AyarlarViewModel : TemelViewModel
         await _api.IzleyiciSifreAsync(YeniIzleyiciSifre);
         YeniIzleyiciSifre = "";
     });
+
+    /// <summary>İlk basış onay ister; ikinci basış tüm cihazlardaki oturumları kapatır.</summary>
+    [ObservableProperty] private bool _oturumKapatOnayBekliyor;
+
+    public string OturumKapatMetni => OturumKapatOnayBekliyor
+        ? "Emin misiniz? Herkes çıkış yapacak, tekrar basın"
+        : "Tüm oturumları kapat";
+
+    partial void OnOturumKapatOnayBekliyorChanged(bool value) => OnPropertyChanged(nameof(OturumKapatMetni));
+
+    [RelayCommand]
+    private Task OturumlariKapatAsync()
+    {
+        if (!OturumKapatOnayBekliyor) { OturumKapatOnayBekliyor = true; return Task.CompletedTask; }
+        OturumKapatOnayBekliyor = false;
+        return CalistirAsync(() => _api.OturumlariKapatAsync());
+    }
 }

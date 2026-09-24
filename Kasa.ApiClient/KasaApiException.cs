@@ -6,6 +6,12 @@ namespace Kasa.ApiClient;
 public sealed class KasaApiException : Exception
 {
     public HttpStatusCode DurumKodu { get; }
+    /// <summary>Sunucunun kullanıcıya gösterilebilir açıklaması (doğrulama hatası vb.); yoksa null.</summary>
+    public string? SunucuMesaji { get; }
     public KasaApiException(HttpStatusCode kod, string? mesaj = null)
-        : base(mesaj ?? $"API hatası: {(int)kod} {kod}") => DurumKodu = kod;
+        : base(mesaj ?? $"API hatası: {(int)kod} {kod}")
+    {
+        DurumKodu = kod;
+        SunucuMesaji = mesaj;
+    }
 }

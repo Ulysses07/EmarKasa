@@ -24,13 +24,15 @@ public sealed class WindowsBildirimServisi : IBildirimServisi
 
     public Task GosterAsync(IReadOnlyList<Hatirlatma> hatirlatmalar)
     {
+        var bugun = DateOnly.FromDateTime(DateTime.Today);
         foreach (var h in hatirlatmalar)
         {
             var metin = h.Tur switch
             {
                 HatirlatmaTuru.Kesim        => $"Ekstre kesildi — güncel borç {Bicim.Tl(h.EkstreBorc)}",
                 HatirlatmaTuru.SonOdeme3Gun => $"Son ödemeye 3 gün — {Bicim.Tl(h.EkstreBorc)}",
-                _                           => "Son ödeme bugün — ödedin mi?",
+                _ when h.Tarih == bugun     => $"Son ödeme bugün — {Bicim.Tl(h.EkstreBorc)}. Ödedin mi?",
+                _                           => $"Son ödeme günü {h.Tarih:dd.MM} idi — kalan {Bicim.Tl(h.EkstreBorc)}",
             };
             var toast = new AppNotificationBuilder()
                 .AddText(h.KartAd)
@@ -42,6 +44,13 @@ public sealed class WindowsBildirimServisi : IBildirimServisi
             AppNotificationManager.Default.Show(toast);
         }
         return Task.CompletedTask;
+    }
+
+    /// <summary>Düğmesiz bilgi bildirimi (örn. oturum süresi doldu).</summary>
+    public void MetinGoster(string baslik, string metin)
+    {
+        var toast = new AppNotificationBuilder().AddText(baslik).AddText(metin).BuildNotification();
+        AppNotificationManager.Default.Show(toast);
     }
 
     private static void Yonlendir()

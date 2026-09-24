@@ -110,6 +110,12 @@ public sealed partial class KasaApiClient : IKasaApi
     // Ayarlar
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
+    public async Task OturumlariKapatAsync()
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Post, "api/ayarlar/oturumlari-kapat");
+        using var _ = await GonderAsync(istek);
+        await _store.TemizleAsync();
+    }
 
     // ---- altyapı ----
 
@@ -125,10 +131,24 @@ public sealed partial class KasaApiClient : IKasaApi
         if (!yanit.IsSuccessStatusCode)
         {
             var kod = yanit.StatusCode;
+            var mesaj = await SunucuHatasiAsync(yanit);
             yanit.Dispose();
-            throw new KasaApiException(kod);
+            throw new KasaApiException(kod, mesaj);
         }
         return yanit;
+    }
+
+    /// <summary>Sunucunun doğrulama yanıtındaki <c>{ "hata": "..." }</c> metnini okur (yoksa null).</summary>
+    private static async Task<string?> SunucuHatasiAsync(HttpResponseMessage yanit)
+    {
+        if (yanit.StatusCode == HttpStatusCode.TooManyRequests)
+            return "Çok fazla deneme yapıldı. Bir dakika sonra tekrar deneyin.";
+        try
+        {
+            var el = await yanit.Content.ReadFromJsonAsync<JsonElement>(Json);
+            return el.ValueKind == JsonValueKind.Object && el.TryGetProperty("hata", out var h) ? h.GetString() : null;
+        }
+        catch (Exception) { return null; }
     }
 
     private async Task<T> GetAsync<T>(string yol)

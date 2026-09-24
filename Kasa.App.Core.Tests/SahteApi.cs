@@ -86,6 +86,8 @@ public sealed class SahteApi : IKasaApi
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; return Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return Task.CompletedTask; }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return Task.CompletedTask; }
+    public int OturumKapatSayisi;
+    public Task OturumlariKapatAsync() { OturumKapatSayisi++; return Task.CompletedTask; }
 
     public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) { SonKartOdemelerId = krediKartiId; return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KartOdemeDto>>(YuklemeHatasi) : Task.FromResult(KartOdemelerListe); }
     public Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g) { SonKartOdemeKaydet = g; return Task.FromResult(new KartOdemeDto(0, g.KrediKartiId, g.Tarih, g.Tutar, g.Not)); }

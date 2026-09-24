@@ -37,4 +37,6 @@ public interface IKasaApi
     Task<GelenDto> GelenKaydetAsync(GelenYaz g);
     Task AyarGuncelleAsync(AyarYaz g);
     Task IzleyiciSifreAsync(string yeniSifre);
+    /// <summary>Tüm cihazlardaki oturumları (bu cihaz dahil) kapatır.</summary>
+    Task OturumlariKapatAsync();
 }

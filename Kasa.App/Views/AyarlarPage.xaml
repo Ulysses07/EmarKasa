@@ -58,6 +58,10 @@
                         </VerticalStackLayout>
                         <Button Text="Şifreyi kaydet" Command="{Binding IzleyiciSifreKaydetCommand}"
                                 HorizontalOptions="Start" />
+                        <Label Text="Şifre değişince eski izleyici oturumları kapanır. Bir cihaz kaybolduysa tüm oturumları kapatın."
+                               Style="{StaticResource LblPageSub}" />
+                        <Button Text="{Binding OturumKapatMetni}" Command="{Binding OturumlariKapatCommand}"
+                                Style="{StaticResource BtnRowDelete}" HorizontalOptions="Start" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
