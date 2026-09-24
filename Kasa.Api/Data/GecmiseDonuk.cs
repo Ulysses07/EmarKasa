@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Kasa.Core;
 
 namespace Kasa.Api.Data;
 
@@ -9,23 +10,33 @@ namespace Kasa.Api.Data;
 /// çıkarılır. Kural geçmiş satırının kendisinden (tür, eski/yeni JSON, zaman) okunur; ayrı bir sütun
 /// tutulmaz, bu yüzden eski satırlar için de geçerlidir.
 /// <list type="bullet">
-/// <item>Tarihli para kayıtları (işlem, gelen, kart ödemesi, çek): kaydın tarihi — eski ya da yeni hali —
-/// değişikliğin ayından (Türkiye saati) önceki bir aydaysa. Çekte tarih, kasayı etkilediği işlem tarihidir
-/// ve yalnız tahsil edildi / ödendi durumunda sayılır (portföy, ciro, iade kasaya dokunmaz).</item>
+/// <item>Tarihli para kayıtları (işlem, gelen, kart ödemesi, çek): kaydın rakamları etkilediği ay — eski ya da
+/// yeni hali — değişikliğin ayından (Türkiye saati) önceki bir aydaysa. Bu ay çoğunlukla kaydın tarihinin
+/// ayıdır; K.K harcamasında (karta bağlı ya da eski usul; <see cref="HesapMotoru.EtkinTip"/>) bir sonraki
+/// aydır: aylık kârda ertesi ayın K.K'sı olarak, kasada ertesi ayın son döneminde ya da kartın ödendiği gün
+/// düşer, kendi ayının rakamı değişmez. Böylece geçen ayın ekstresi bu ay girilince uyarı çıkmaz; iki ay
+/// önceki bir K.K ise kapanmış (geçen) ayı değiştirdiği için geçmişe dönüktür. Çekte tarih, kasayı
+/// etkilediği işlem tarihidir ve yalnız tahsil edildi / ödendi durumunda sayılır (portföy, ciro, iade kasaya
+/// dokunmaz).</item>
 /// <item>Güncellemede ayrıca paraya dokunan bir alanın değişmesi gerekir (yalnız not ya da cari adı
 /// düzeltmesi rakam değiştirmez).</item>
 /// <item>Açılış devirleri (kasa açılış devri, takip başlangıcı, kanal açılış devri) değişince geçmiş tüm
 /// ayların devri değişir: bu güncellemeler her zaman geçmişe dönüktür.</item>
 /// <item>Kasa sayımı, kart tanımı, cari/kalem adları ve toplu ad değişimi özetleri geçmişe dönük sayılmaz.</item>
 /// </list>
+/// Bilinen sınır: K.K harcaması kendi ayında kanalı "hareketli" yapar (<see cref="HesapMotoru.AylikHesapla"/>);
+/// o ay başka hiç hareketi olmayan bir kanala geçen ay tarihli K.K girilirse geçen ayın Ortak pay dağılımı
+/// değişebilir. Bu, satırdan (veritabanına bakmadan) anlaşılamaz ve işaretlenmez.
 /// </summary>
 public static class GecmiseDonukKurali
 {
-    private sealed record Kural(string TarihAlani, string[] ParaAlanlari, Func<JsonElement, bool>? KasayaEtkili = null);
+    /// <param name="AyKaymasi">Kaydın rakamları tarihinden kaç ay sonra etkilediği (K.K için 1).</param>
+    private sealed record Kural(string TarihAlani, string[] ParaAlanlari, Func<JsonElement, bool>? KasayaEtkili = null,
+        Func<JsonElement, int>? AyKaymasi = null);
 
     private static readonly Dictionary<string, Kural> TarihliTurler = new()
     {
-        [GecmisTurleri.Islem] = new("tarih", ["tarih", "tutarTl", "kanal", "tip", "krediKartiId"]),
+        [GecmisTurleri.Islem] = new("tarih", ["tarih", "tutarTl", "kanal", "tip", "krediKartiId"], AyKaymasi: KkErtelemesi),
         [GecmisTurleri.Gelen] = new("donemStart", ["donemStart", "kanal", "tutarTl"]),
         [GecmisTurleri.KartOdemesi] = new("tarih", ["tarih", "tutar"]),
         [GecmisTurleri.Cek] = new("islemTarihi", ["yon", "tutar", "kanal", "durum", "islemTarihi"], CekKasayaEtkili),
@@ -62,7 +73,20 @@ public static class GecmiseDonukKurali
             => kayit is { } k
                && (kural.KasayaEtkili?.Invoke(k) ?? true)
                && Tarih(k, kural.TarihAlani) is { } t
-               && t.Year * 12 + t.Month < degisimAyi;
+               && t.Year * 12 + t.Month + (kural.AyKaymasi?.Invoke(k) ?? 0) < degisimAyi;
+    }
+
+    // K.K harcaması (karta bağlı ya da tipi KrediKarti; HesapMotoru.EtkinTip) rakamları ertesi ay etkiler.
+    private static int KkErtelemesi(JsonElement islem)
+    {
+        if (islem.TryGetProperty("krediKartiId", out var kart) && kart.ValueKind == JsonValueKind.Number) return 1;
+        if (!islem.TryGetProperty("tip", out var tip)) return 0;
+        return tip.ValueKind switch
+        {
+            JsonValueKind.String => tip.GetString() == nameof(GiderTipi.KrediKarti) ? 1 : 0,
+            JsonValueKind.Number => tip.TryGetInt32(out var n) && n == (int)GiderTipi.KrediKarti ? 1 : 0,
+            _ => 0,
+        };
     }
 
     // Tahsil edilen / ödenen çek kasayı işlem tarihinde etkiler (Kasa.Core.CekKurali).

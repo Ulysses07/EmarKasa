@@ -423,6 +423,47 @@ public class PanelPaketATests
         Assert.True(liste.Single(x => x.Tur == "İşlem" && x.KayitId == agustos && x.Eylem == "Eklendi").GecmiseDonuk);
         Assert.False(liste.Single(x => x.Tur == "İşlem" && x.KayitId == eylul && x.Eylem == "Eklendi").GecmiseDonuk);
     }
+
+    [Fact]
+    public async Task Gecen_ayin_kk_harcamasi_gecen_ayi_degistirmez_gecmise_donuk_sayilmaz()
+    {
+        using var f = new Fabrika();
+        var c = await EditorAsync(f);
+        await GelenYaz(c, "2026-08-10", "MEZAT", 20_000m);
+        await IslemEkle(c, "2026-08-12", 1_000m);
+        var kart = await Post(c, "/api/kredikartlari", new { ad = "Bonus", kesimTarihi = "2026-08-20", sonOdemeTarihi = "2026-08-30", limit = 50_000m, borc = 0m });
+
+        async Task<(string Aylik, string Haftalik)> Agustos()
+        {
+            var haftalik = JsonDocument.Parse(await c.GetStringAsync("/api/rapor/haftalik")).RootElement.EnumerateArray()
+                .Where(h => h.GetProperty("donem").GetProperty("start").GetString()!.StartsWith("2026-08"))
+                .Select(h => h.GetRawText());
+            return (await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=8"), string.Join("\n", haftalik));
+        }
+        var once = await Agustos();
+        Assert.NotEqual("", once.Haftalik);
+        var eylulOnce = await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=9");
+        var bas = (await c.GetFromJsonAsync<OzetYanit>("/api/gecmis/ozet", Json))!;
+
+        var bagli = await IslemEkle(c, "2026-08-20", 700m, kart: kart);
+        var eskiUsul = await IslemEkle(c, "2026-08-21", 300m, tip: "KrediKarti");
+
+        // Ağustos'un aylık ve haftalık rakamları aynı kalır; K.K Eylül'ün sonucundan düşer.
+        Assert.Equal(once, await Agustos());
+        Assert.NotEqual(eylulOnce, await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=9"));
+        var o = (await c.GetFromJsonAsync<OzetYanit>($"/api/gecmis/ozet?sonId={bas.SonId}", Json))!;
+        Assert.Equal((2, 0), (o.Toplam, o.GecmiseDonuk));
+        var liste = (await c.GetFromJsonAsync<List<GecmisSatiri>>("/api/gecmis?limit=1000", Json))!;
+        Assert.False(liste.Single(x => x.Tur == "İşlem" && x.KayitId == bagli).GecmiseDonuk);
+        Assert.False(liste.Single(x => x.Tur == "İşlem" && x.KayitId == eskiUsul).GecmiseDonuk);
+
+        // Temmuz'un K.K'sı ise Ağustos'un (kapanmış ayın) sonucunu değiştirir → geçmişe dönük.
+        var temmuz = await IslemEkle(c, "2026-07-25", 400m, tip: "KrediKarti");
+        Assert.NotEqual(once.Aylik, (await Agustos()).Aylik);
+        liste = (await c.GetFromJsonAsync<List<GecmisSatiri>>("/api/gecmis?limit=1000", Json))!;
+        Assert.True(liste.Single(x => x.Tur == "İşlem" && x.KayitId == temmuz).GecmiseDonuk);
+        Assert.Equal(1, (await c.GetFromJsonAsync<OzetYanit>($"/api/gecmis/ozet?sonId={bas.SonId}", Json))!.GecmiseDonuk);
+    }
 }
 
 /// <summary>Geçmişe dönük kuralı (saf): tür, eski/yeni JSON ve değişiklik zamanı.</summary>
@@ -430,8 +471,48 @@ public class GecmiseDonukKuraliTests
 {
     private static readonly DateTime Eylul24 = new(2026, 9, 24, 9, 0, 0, DateTimeKind.Utc);
 
-    private static string Islem(string tarih, decimal tutar = 100m, string? not = null, string tip = "Cari")
-        => $$"""{"id":1,"tarih":"{{tarih}}","cari":"Market","tutarTl":{{tutar.ToString(System.Globalization.CultureInfo.InvariantCulture)}},"kanal":"MEZAT","tip":"{{tip}}","not":{{(not is null ? "null" : $"\"{not}\"")}},"krediKartiId":null}""";
+    private static string Islem(string tarih, decimal tutar = 100m, string? not = null, string tip = "Cari", int? kart = null)
+        => $$"""{"id":1,"tarih":"{{tarih}}","cari":"Market","tutarTl":{{tutar.ToString(System.Globalization.CultureInfo.InvariantCulture)}},"kanal":"MEZAT","tip":"{{tip}}","not":{{(not is null ? "null" : $"\"{not}\"")}},"krediKartiId":{{(kart is null ? "null" : kart.ToString())}}}""";
+
+    [Theory]
+    // Geçen ayın K.K'sı bu ay girildi: rakamı bu ay etkiler (ertesi ay) → geçmişe dönük değil.
+    [InlineData("2026-08-20", "KrediKarti", null, false)]
+    [InlineData("2026-08-31", "KrediKarti", null, false)]
+    [InlineData("2026-08-20", "Cari", 3, false)]            // karta bağlı: kayıtlı tipi ne olursa olsun K.K
+    [InlineData("2026-08-20", "SabitGider", 3, false)]
+    // İki ay önceki K.K geçen ayın (kapanmış) rakamını değiştirir.
+    [InlineData("2026-07-31", "KrediKarti", null, true)]
+    [InlineData("2026-07-05", "Cari", 3, true)]
+    [InlineData("2025-12-15", "KrediKarti", null, true)]
+    // Geçen ayın Cari / Sabit gideri kendi ayında düşer.
+    [InlineData("2026-08-20", "Cari", null, true)]
+    [InlineData("2026-08-20", "SabitGider", null, true)]
+    [InlineData("2026-09-10", "KrediKarti", null, false)]   // bu ayın K.K'sı
+    public void Kk_harcamasi_rakamlari_ertesi_ay_etkiler(string tarih, string tip, int? kart, bool beklenen)
+    {
+        Assert.Equal(beklenen, GecmiseDonukKurali.Mi(GecmisTurleri.Islem, null, Islem(tarih, tip: tip, kart: kart), Eylul24));
+        Assert.Equal(beklenen, GecmiseDonukKurali.Mi(GecmisTurleri.Islem, Islem(tarih, tip: tip, kart: kart), null, Eylul24));
+    }
+
+    [Fact]
+    public void Kk_guncellemesinde_her_hal_kendi_etkiledigi_aya_gore()
+    {
+        // Geçen ayın Cari gideri K.K yapıldı: Ağustos'un Cari'si azaldı → geçmişe dönük.
+        Assert.True(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, Islem("2026-08-20"), Islem("2026-08-20", tip: "KrediKarti"), Eylul24));
+        Assert.True(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, Islem("2026-08-20", tip: "KrediKarti"), Islem("2026-08-20"), Eylul24));
+        // Geçen ayın K.K'sı karta bağlandı / tutarı düzeltildi: ikisi de Eylül'ü etkiler.
+        Assert.False(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, Islem("2026-08-20", tip: "KrediKarti"), Islem("2026-08-20", tip: "KrediKarti", kart: 3), Eylul24));
+        Assert.False(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, Islem("2026-08-20", 100m, tip: "KrediKarti"), Islem("2026-08-20", 150m, tip: "KrediKarti"), Eylul24));
+        // Geçen ayın K.K'sı Temmuz'a taşındı: yeni hali Ağustos'u etkiler.
+        Assert.True(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, Islem("2026-08-20", tip: "KrediKarti"), Islem("2026-07-20", tip: "KrediKarti"), Eylul24));
+        // Ay sınırı Türkiye saatine göre: 1 Ekim 01:00 İstanbul'da 31 Ağustos K.K'sı (Eylül'ü etkiler) geçmiştedir.
+        var ekimBasi = new DateTime(2026, 9, 30, 22, 0, 0, DateTimeKind.Utc);
+        Assert.True(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, null, Islem("2026-08-31", tip: "KrediKarti"), ekimBasi));
+        Assert.False(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, null, Islem("2026-08-31", tip: "KrediKarti"), ekimBasi.AddHours(-2)));
+        // Sayısal tip (eski biçim) de tanınır.
+        Assert.False(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, null,
+            Islem("2026-08-20").Replace("\"tip\":\"Cari\"", $"\"tip\":{(int)GiderTipi.KrediKarti}"), Eylul24));
+    }
 
     [Theory]
     [InlineData("2026-08-31", true)]
