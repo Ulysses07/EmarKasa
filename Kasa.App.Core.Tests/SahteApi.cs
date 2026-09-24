@@ -3,7 +3,7 @@ using Kasa.ApiClient;
 namespace Kasa.App.Core.Tests;
 
 /// <summary>Elle IKasaApi sahtesi — VM testleri için canned yanıt + çağrı kaydı.</summary>
-public sealed class SahteApi : IKasaApi
+public sealed partial class SahteApi : IKasaApi
 {
     public LoginYanit? LoginYaniti;
     public Exception? LoginHatasi;
