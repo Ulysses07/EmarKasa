@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,15 +12,26 @@ using Kasa.Core;
 using Kasa.Api.Servisler;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Sunucu yazılımını ifşa etme (Server: Kestrel başlığı).
+builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
+
 builder.Services.AddDbContext<KasaDbContext>(o =>
     o.UseSqlite(builder.Configuration.GetConnectionString("Kasa") ?? "Data Source=kasa.db"));
 
+builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddScoped<HesapServisi>();
+builder.Services.AddSingleton<OturumOnbellegi>();
+builder.Services.AddSingleton(sp => new YedekDurumu
+{
+    Etkin = !string.IsNullOrWhiteSpace(sp.GetRequiredService<IConfiguration>()["Kasa:YedekKlasoru"]),
+});
 builder.Services.AddHostedService<YedekServisi>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
@@ -48,15 +61,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     ctx.Token = t;
                 return Task.CompletedTask;
             },
-            // Oturum sürümü eşleşmeyen (şifre değişmiş / oturumlar kapatılmış) token'ı reddet.
+            // Oturum sürümü eşleşmeyen (şifre değişmiş / oturumlar kapatılmış) ya da çıkışta
+            // iptal edilmiş token'ı reddet. Sürümler ve iptaller bellekte önbellekli: istek
+            // başına DB sorgusu yok.
             OnTokenValidated = ctx =>
             {
-                var db = ctx.HttpContext.RequestServices.GetRequiredService<KasaDbContext>();
-                var ayar = db.Ayarlar.AsNoTracking().FirstOrDefault();
+                var sp = ctx.HttpContext.RequestServices;
+                var oturum = sp.GetRequiredService<OturumOnbellegi>();
+                var db = sp.GetRequiredService<KasaDbContext>();
                 var rol = ctx.Principal?.FindFirstValue(ClaimTypes.Role);
                 var surum = ctx.Principal?.FindFirstValue(JwtYardimci.SurumClaim);
-                if (ayar is null || surum != GecerliSurum(ayar, rol).ToString())
+                var gecerli = oturum.GecerliSurum(db, rol);
+                if (gecerli is null || surum != gecerli.Value.ToString())
                     ctx.Fail("Oturum geçersiz kılındı.");
+                else if (oturum.IptalMi(db, ctx.SecurityToken?.Id))
+                    ctx.Fail("Oturum kapatıldı.");
                 return Task.CompletedTask;
             },
         };
@@ -64,10 +83,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(o =>
     o.AddPolicy("Editor", p => p.RequireRole("editor")));
 
-// Giriş denemesi sınırı: IP başına dakikada Kasa:GirisLimiti (varsayılan 10) deneme.
+// Giriş denemesi sınırı:
+//  - IP başına dakikada Kasa:GirisLimiti (varsayılan 10) deneme,
+//  - ayrıca TÜM istemciler için toplam dakikada Kasa:GirisGlobalLimiti (varsayılan 60) deneme.
+// Genel sınır, IP tespiti yanıltılsa bile (X-Forwarded-For sahteciliği) tahmin hızını sabitler.
+// Bedeli: saldırı sırasında meşru girişler de bir dakikalığına 429 alabilir.
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+        ctx.Request.Path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase)
+            ? RateLimitPartition.GetFixedWindowLimiter("giris-genel", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = ctx.RequestServices.GetRequiredService<IConfiguration>().GetValue("Kasa:GirisGlobalLimiti", 60),
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            })
+            : RateLimitPartition.GetNoLimiter("serbest"));
     o.AddPolicy("giris", ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "bilinmiyor",
         _ => new FixedWindowRateLimiterOptions
@@ -78,13 +110,17 @@ builder.Services.AddRateLimiter(o =>
         }));
 });
 
-// Caddy/nginx arkasında gerçek istemci IP'si X-Forwarded-For'dan gelir. Konteyner yalnız
-// iç ağdan/localhost'tan erişilebilir olduğu için başlık güvenilir kabul edilir.
+// Caddy/nginx arkasında gerçek istemci IP'si X-Forwarded-For'dan gelir. Başlık YALNIZ
+// Kasa:GuvenilirAglar'daki (CIDR; tek değer, virgüllü liste ya da config dizisi) adreslerden
+// gelen bağlantılarda dikkate alınır ve yalnız en sağdaki (proxy'nin eklediği) girdi kullanılır.
+var guvenilirAglar = GuvenilirAglar(builder.Configuration);
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    o.KnownIPNetworks.Clear();
+    o.ForwardLimit = 1;
     o.KnownProxies.Clear();
+    o.KnownIPNetworks.Clear();
+    foreach (var ag in guvenilirAglar) o.KnownIPNetworks.Add(ag);
 });
 
 var app = builder.Build();
@@ -92,46 +128,70 @@ var app = builder.Build();
 // Üretimde (Caddy TLS arkasında) çerez yalnızca HTTPS'te gitmeli.
 var cerezSecure = !app.Environment.IsDevelopment();
 
-// --- DB başlat + şemayı güncelle + seed ---
+// --- DB başlat (WAL + şema güncelle + seed) ---
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-    db.Database.EnsureCreated();
-    foreach (var degisiklik in SemaGuncelleyici.Guncelle(db))
-        app.Logger.LogInformation("Şema güncellendi: {Degisiklik}", degisiklik);
-    if (!db.Kanallar.Any())
-    {
-        db.Kanallar.AddRange(
-            new KanalEntity { Ad = "MEZAT", Sira = 0 },
-            new KanalEntity { Ad = "PERAKENDE", Sira = 1 },
-            new KanalEntity { Ad = "TOPTAN", Sira = 2 });
-    }
-    if (!db.Ayarlar.Any())
-    {
-        db.Ayarlar.Add(new AyarEntity
-        {
-            TakipBaslangic = Saat.Bugun(),
-            KasaAcilisDevri = 0m,
-            IzleyiciSifreHash = null,
-        });
-    }
-    db.SaveChanges();
+    VeritabaniBaslatici.Baslat(db, app.Logger, app.Configuration["Kasa:YedekKlasoru"]);
+    scope.ServiceProvider.GetRequiredService<OturumOnbellegi>().Yukle(db);
 }
 
+// Güvenlik başlıkları uygulama katmanında da garanti: API yalnız JSON döner, hiçbir
+// şeyin çerçevelenmesine, script/stil yüklemesine ya da MIME tahminine gerek yok.
+app.Use((ctx, next) =>
+{
+    var h = ctx.Response.Headers;
+    h["X-Content-Type-Options"] = "nosniff";
+    h["X-Frame-Options"] = "DENY";
+    h["Referrer-Policy"] = "no-referrer";
+    h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+    return next();
+});
 app.UseForwardedHeaders();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
 var surumEtiketi = app.Configuration["KASA_SURUM"] ?? "yerel";
-app.MapGet("/health", () => Results.Ok(new { durum = "ok", surum = surumEtiketi }));
+
+// Sağlık: DB'ye ucuz bir sorgu atar; DB erişilemezse ya da disk dolmak üzereyse 503.
+// Kimlik doğrulaması istemez (Docker HEALTHCHECK kullanır).
+app.MapGet("/health", (KasaDbContext db, YedekDurumu yedek, IConfiguration cfg, ILogger<Program> log) =>
+{
+    double? yedekYasSaat = yedek.SonBasariliUtc is { } t ? Math.Round((DateTime.UtcNow - t).TotalHours, 1) : null;
+    long? diskBosMb = null;
+    try
+    {
+        _ = db.Ayarlar.AsNoTracking().Any();
+        diskBosMb = DiskBosMb(db);
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "Sağlık kontrolü: veritabanına erişilemedi");
+        return Results.Json(new { durum = "hata", surum = surumEtiketi, hata = "Veritabanına erişilemiyor.", sonYedekYasSaat = yedekYasSaat },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+    var minDisk = cfg.GetValue("Kasa:SaglikMinDiskMb", 16L);
+    if (diskBosMb is { } bos && bos < minDisk)
+        return Results.Json(new { durum = "hata", surum = surumEtiketi, hata = $"Disk dolmak üzere ({bos} MB boş).", sonYedekYasSaat = yedekYasSaat, diskBosMb },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    return Results.Ok(new
+    {
+        durum = "ok",
+        surum = surumEtiketi,
+        yedek = yedek.Etkin ? "acik" : "kapali",
+        sonYedekYasSaat = yedekYasSaat,
+        yedekHatasi = yedek.SonHata,
+        diskBosMb,
+    });
+}).AllowAnonymous();
 
 // --- Auth ---
-app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
+app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration cfg, HttpContext http, OturumOnbellegi oturum) =>
 {
     var editorKullanici = cfg["Kasa:EditorKullanici"];
     var editorSifre = cfg["Kasa:EditorSifre"];
-    var ayar = db.Ayarlar.First();
+    var ayar = db.Ayarlar.AsNoTracking().OrderBy(x => x.Id).First();
 
     string? rol = null;
     // Editör bilgileri config'te tanımlı DEĞİLSE editör girişi kapalıdır
@@ -144,19 +204,30 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
 
     if (rol is null) return Results.Unauthorized();
 
+    oturum.SurumleriAyarla(ayar);
     var token = JwtYardimci.Uret(rol, jwtKey, GecerliSurum(ayar, rol));
     http.Response.Cookies.Append("kasa_auth", token, new CookieOptions
     {
         HttpOnly = true,
-        SameSite = SameSiteMode.Lax,
+        SameSite = SameSiteMode.Strict,
         Secure = cerezSecure,
-        MaxAge = TimeSpan.FromDays(30),
+        MaxAge = JwtYardimci.Omur,
     });
     return Results.Ok(new { rol, token });
 }).RequireRateLimiting("giris");
 
-app.MapPost("/api/auth/logout", (HttpContext http) =>
+// Çıkış: sunulan token'ı (çerez ya da Bearer) iptal eder; token süresi dolana kadar reddedilir.
+app.MapPost("/api/auth/logout", (HttpContext http, KasaDbContext db, OturumOnbellegi oturum) =>
 {
+    var u = http.User;
+    var jti = u.FindFirstValue(JwtRegisteredClaimNames.Jti);
+    if (u.Identity?.IsAuthenticated == true && !string.IsNullOrEmpty(jti))
+    {
+        var bitis = long.TryParse(u.FindFirstValue(JwtRegisteredClaimNames.Exp), out var exp)
+            ? DateTimeOffset.FromUnixTimeSeconds(exp).UtcDateTime
+            : DateTime.UtcNow.Add(JwtYardimci.Omur);
+        oturum.IptalEt(db, jti, bitis);
+    }
     http.Response.Cookies.Delete("kasa_auth");
     return Results.Ok();
 });
@@ -168,36 +239,34 @@ app.MapGet("/api/auth/me", (ClaimsPrincipal u) =>
 var api = app.MapGroup("/api").RequireAuthorization();
 
 // Kanallar
-api.MapGet("/kanallar", (KasaDbContext db) => db.Kanallar.OrderBy(k => k.Sira).ToList());
-api.MapPost("/kanallar", (KanalEntity e, KasaDbContext db) =>
+api.MapGet("/kanallar", (KasaDbContext db) =>
+    db.Kanallar.AsNoTracking().ToList().OrderBy(k => k.Sira).ThenBy(k => k.Ad, Metin.Sirala).ToList());
+api.MapPost("/kanallar", (KanalEntity e, KasaDbContext db) => Yaz(db, "Bu adla bir kanal zaten var.", () =>
 {
     e.Id = 0;
     e.Ad = e.Ad?.Trim() ?? "";
-    if (KanalAdHatasi(db, e.Ad, null) is string hata) return Hata(hata);
+    if (KanalHatasi(db, e, null) is string hata) return Hata(hata);
     db.Kanallar.Add(e); db.SaveChanges();
     return Results.Created($"/api/kanallar/{e.Id}", e);
-}).RequireAuthorization("Editor");
-api.MapPut("/kanallar/{id:int}", (int id, KanalEntity gelen, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapPut("/kanallar/{id:int}", (int id, KanalEntity gelen, KasaDbContext db) => Yaz(db, "Bu adla bir kanal zaten var.", () =>
 {
     var e = db.Kanallar.Find(id);
     if (e is null) return Results.NotFound();
-    var yeniAd = gelen.Ad?.Trim() ?? "";
-    if (KanalAdHatasi(db, yeniAd, id) is string hata) return Hata(hata);
-
-    using var tx = db.Database.BeginTransaction();
-    if (yeniAd != e.Ad)
+    gelen.Ad = gelen.Ad?.Trim() ?? "";
+    if (KanalHatasi(db, gelen, id) is string hata) return Hata(hata);
+    if (gelen.Ad != e.Ad)
     {
         // İşlem ve gelenler kanalı adıyla tutar: yeniden adlandırmada geçmişi de taşı.
-        var eskiAd = e.Ad;
+        var eskiAd = e.Ad; var yeniAd = gelen.Ad;
         db.Islemler.Where(i => i.Kanal == eskiAd).ExecuteUpdate(s => s.SetProperty(i => i.Kanal, yeniAd));
         db.Gelenler.Where(g => g.Kanal == eskiAd).ExecuteUpdate(s => s.SetProperty(g => g.Kanal, yeniAd));
     }
-    e.Ad = yeniAd; e.Aktif = gelen.Aktif; e.Sira = gelen.Sira; e.AcilisDevri = gelen.AcilisDevri;
+    e.Ad = gelen.Ad; e.Aktif = gelen.Aktif; e.Sira = gelen.Sira; e.AcilisDevri = gelen.AcilisDevri;
     db.SaveChanges();
-    tx.Commit();
     return Results.Ok(e);
-}).RequireAuthorization("Editor");
-api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Kanal silinemedi; tekrar deneyin.", () =>
 {
     var e = db.Kanallar.Find(id);
     if (e is null) return Results.NotFound();
@@ -205,78 +274,89 @@ api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) =>
         return Results.Conflict(new { hata = "Bu kanalın geçmiş kayıtları var. Silmek yerine pasif yapın." });
     db.Kanallar.Remove(e); db.SaveChanges();
     return Results.NoContent();
-}).RequireAuthorization("Editor");
+})).RequireAuthorization("Editor");
 
-// Cariler
+// Cariler (işlemler cariye adla bağlı: ad değişimi işlemlere taşınır, işlemi olan cari silinmez)
 api.MapGet("/cariler", (string? ara, KasaDbContext db) =>
 {
-    var q = db.Cariler.AsQueryable();
+    IEnumerable<CariEntity> l = db.Cariler.AsNoTracking().ToList();
     if (!string.IsNullOrWhiteSpace(ara))
-        q = q.Where(c => c.Ad.Contains(ara));
-    return q.OrderBy(c => c.Ad).ToList();
+    {
+        var a = ara.Trim();
+        l = l.Where(c => Metin.Icerir(c.Ad, a));
+    }
+    return l.OrderBy(c => c.Ad, Metin.Sirala).ToList();
 });
-api.MapPost("/cariler", (CariEntity e, KasaDbContext db) =>
+api.MapPost("/cariler", (CariEntity e, KasaDbContext db) => Yaz(db, "Bu adla bir cari zaten var.", () =>
 {
     e.Id = 0;
     e.Ad = e.Ad?.Trim() ?? "";
-    if (e.Ad.Length == 0) return Hata("Cari adı boş olamaz.");
+    if (CariHatasi(db, e.Ad, null) is string hata) return Hata(hata);
     db.Cariler.Add(e); db.SaveChanges();
     return Results.Created($"/api/cariler/{e.Id}", e);
-}).RequireAuthorization("Editor");
-api.MapPut("/cariler/{id:int}", (int id, CariEntity gelen, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapPut("/cariler/{id:int}", (int id, CariEntity gelen, KasaDbContext db) => Yaz(db, "Bu adla bir cari zaten var.", () =>
 {
     var e = db.Cariler.Find(id);
     if (e is null) return Results.NotFound();
     var ad = gelen.Ad?.Trim() ?? "";
-    if (ad.Length == 0) return Hata("Cari adı boş olamaz.");
+    if (CariHatasi(db, ad, id) is string hata) return Hata(hata);
+    if (ad != e.Ad)
+    {
+        var eskiAd = e.Ad;
+        db.Islemler.Where(i => i.Cari == eskiAd).ExecuteUpdate(s => s.SetProperty(i => i.Cari, ad));
+    }
     e.Ad = ad; e.Aktif = gelen.Aktif;
     db.SaveChanges();
     return Results.Ok(e);
-}).RequireAuthorization("Editor");
-api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Cari silinemedi; tekrar deneyin.", () =>
 {
     var e = db.Cariler.Find(id);
     if (e is null) return Results.NotFound();
+    if (db.Islemler.Any(i => i.Cari == e.Ad))
+        return Results.Conflict(new { hata = "Bu carinin işlem kayıtları var. Silmek yerine pasif yapın." });
     db.Cariler.Remove(e); db.SaveChanges();
     return Results.NoContent();
-}).RequireAuthorization("Editor");
+})).RequireAuthorization("Editor");
 
 // Kredi kartları (güncel borç türetilir: açılış + harcama − ödeme)
-api.MapGet("/kredikartlari", (KasaDbContext db) =>
+api.MapGet("/kredikartlari", (KasaDbContext db, TimeProvider saat) =>
 {
-    var bugun = Saat.Bugun();
-    var kartlar = db.KrediKartlari.OrderBy(k => k.Ad).ToList();
-    var harcamaKayit = db.Islemler.Where(i => i.KrediKartiId != null)
+    var bugun = Saat.Bugun(saat);
+    var kartlar = db.KrediKartlari.AsNoTracking().ToList().OrderBy(k => k.Ad, Metin.Sirala).ToList();
+    var harcamalar = db.Islemler.AsNoTracking().Where(i => i.KrediKartiId != null)
         .Select(i => new { Id = i.KrediKartiId!.Value, i.Tarih, i.TutarTl })
         .ToList()
         .GroupBy(x => x.Id)
-        .ToDictionary(g => g.Key, g => g.ToList());
-    var odeme = db.KartOdemeler
+        .ToDictionary(g => g.Key, g => g.Select(x => new KartHarcama(x.Tarih, x.TutarTl)).ToList());
+    var odemeler = db.KartOdemeler.AsNoTracking()
+        .Select(o => new { o.KrediKartiId, o.Tarih, o.Tutar })
+        .ToList()
         .GroupBy(o => o.KrediKartiId)
-        .ToDictionary(g => g.Key, g => g.Sum(o => o.Tutar));
+        .ToDictionary(g => g.Key, g => g.Select(o => new KartOdeme(o.Tarih, o.Tutar)).ToList());
     return kartlar.Select(k =>
     {
-        var kh = harcamaKayit.GetValueOrDefault(k.Id);
-        var h = kh?.Sum(x => x.TutarTl) ?? 0m;
-        var o = odeme.GetValueOrDefault(k.Id, 0m);
-        var sonKesim = KartDonem.SonKesim(k.KesimTarihi.Day, bugun);
-        var kesimSonrasi = kh?.Where(x => x.Tarih > sonKesim).Sum(x => x.TutarTl) ?? 0m;
-        var guncel = k.Borc + h - o;
+        // İleri tarihli harcama/ödeme bugünkü borca girmez; ekstre borcu eksiye düşmez (KartHesap.Durum).
+        var d = KartHesap.Durum(k.Borc,
+            harcamalar.GetValueOrDefault(k.Id) ?? [],
+            odemeler.GetValueOrDefault(k.Id) ?? [],
+            k.KesimTarihi.Day, bugun);
         return new KrediKartiTuretilmisDto(
             k.Id, k.Ad, k.KesimTarihi, k.SonOdemeTarihi, k.Limit,
-            Borc: k.Borc, GuncelBorc: guncel, AcilisBorc: k.Borc,
-            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi);
+            Borc: k.Borc, GuncelBorc: d.GuncelBorc, AcilisBorc: k.Borc,
+            HarcamaToplam: d.HarcamaToplam, OdemeToplam: d.OdemeToplam, EkstreBorc: d.EkstreBorc);
     }).ToList();
 });
-api.MapPost("/kredikartlari", (KrediKartiEntity e, KasaDbContext db) =>
+api.MapPost("/kredikartlari", (KrediKartiEntity e, KasaDbContext db) => Yaz(db, "Kart kaydedilemedi; tekrar deneyin.", () =>
 {
     e.Id = 0;
     e.Ad = e.Ad?.Trim() ?? "";
     if (KartHatasi(e) is string hata) return Hata(hata);
     db.KrediKartlari.Add(e); db.SaveChanges();
     return Results.Created($"/api/kredikartlari/{e.Id}", e);
-}).RequireAuthorization("Editor");
-api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiEntity gelen, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiEntity gelen, KasaDbContext db) => Yaz(db, "Kart kaydedilemedi; tekrar deneyin.", () =>
 {
     var e = db.KrediKartlari.Find(id);
     if (e is null) return Results.NotFound();
@@ -286,8 +366,8 @@ api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiEntity gelen, KasaDbCon
     e.Limit = gelen.Limit; e.Borc = gelen.Borc;
     db.SaveChanges();
     return Results.Ok(e);
-}).RequireAuthorization("Editor");
-api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Kart silinemedi; tekrar deneyin.", () =>
 {
     var e = db.KrediKartlari.Find(id);
     if (e is null) return Results.NotFound();
@@ -296,27 +376,53 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) =>
         return Results.Conflict(new { hata = "Bu kartın harcama veya ödeme kayıtları var; kasa geçmişi bozulmasın diye silinemez." });
     db.KrediKartlari.Remove(e); db.SaveChanges();
     return Results.NoContent();
-}).RequireAuthorization("Editor");
+})).RequireAuthorization("Editor");
 
-// Islemler
-api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
+// Islemler. limit/offset verilmezse tüm eşleşenler döner (eski davranış); verilirse sayfa
+// döner ve toplam kayıt sayısı X-Toplam-Kayit başlığında gelir.
+api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset,
+    KasaDbContext db, HttpContext http) =>
 {
-    var q = db.Islemler.AsQueryable();
+    if (limit is < 1 or > 10_000) return Hata("limit 1 ile 10000 arasında olmalı.");
+    if (offset is < 0) return Hata("offset negatif olamaz.");
+    var q = db.Islemler.AsNoTracking();
     if (baslangic is { } b) q = q.Where(i => i.Tarih >= b);
     if (bitis is { } s) q = q.Where(i => i.Tarih <= s);
     if (!string.IsNullOrWhiteSpace(kanal)) q = q.Where(i => i.Kanal == kanal);
-    if (!string.IsNullOrWhiteSpace(cari)) q = q.Where(i => i.Cari.Contains(cari));
-    return q.OrderBy(i => i.Tarih).ThenBy(i => i.Id).ToList();
+    q = q.OrderBy(i => i.Tarih).ThenBy(i => i.Id);
+
+    List<IslemEntity> sonuc;
+    int toplam;
+    if (!string.IsNullOrWhiteSpace(cari))
+    {
+        // Türkçe büyük/küçük harf duyarsız arama bellekte yapılır (SQLite instr duyarlı ve I/ı bilmez).
+        var aranan = cari.Trim();
+        var hepsi = q.AsEnumerable().Where(i => Metin.Icerir(i.Cari, aranan)).ToList();
+        toplam = hepsi.Count;
+        IEnumerable<IslemEntity> sayfa = hepsi;
+        if (offset is { } o1) sayfa = sayfa.Skip(o1);
+        if (limit is { } l1) sayfa = sayfa.Take(l1);
+        sonuc = sayfa.ToList();
+    }
+    else
+    {
+        toplam = limit is null ? -1 : q.Count();
+        if (offset is { } o2) q = q.Skip(o2);
+        if (limit is { } l2) q = q.Take(l2);
+        sonuc = q.ToList();
+    }
+    if (limit is not null) http.Response.Headers["X-Toplam-Kayit"] = toplam.ToString();
+    return Results.Ok(sonuc);
 });
-api.MapPost("/islemler", (IslemEntity e, KasaDbContext db) =>
+api.MapPost("/islemler", (IslemEntity e, KasaDbContext db) => Yaz(db, "İşlem kaydedilemedi; ilgili kayıt değişmiş olabilir.", () =>
 {
     e.Id = 0;
     if (e.KrediKartiId is not null) e.Tip = GiderTipi.KrediKarti; // kart harcaması tutarlılığı
     if (IslemHatasi(db, e) is string hata) return Hata(hata);
     db.Islemler.Add(e); db.SaveChanges();
     return Results.Created($"/api/islemler/{e.Id}", e);
-}).RequireAuthorization("Editor");
-api.MapPut("/islemler/{id:int}", (int id, IslemEntity gelen, KasaDbContext db) =>
+})).RequireAuthorization("Editor");
+api.MapPut("/islemler/{id:int}", (int id, IslemEntity gelen, KasaDbContext db) => Yaz(db, "İşlem kaydedilemedi; ilgili kayıt değişmiş olabilir.", () =>
 {
     var e = db.Islemler.Find(id);
     if (e is null) return Results.NotFound();
@@ -327,7 +433,7 @@ api.MapPut("/islemler/{id:int}", (int id, IslemEntity gelen, KasaDbContext db) =
     e.KrediKartiId = gelen.KrediKartiId;
     db.SaveChanges();
     return Results.Ok(e);
-}).RequireAuthorization("Editor");
+})).RequireAuthorization("Editor");
 api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
 {
     var e = db.Islemler.Find(id);
@@ -339,18 +445,21 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
 // Kart ödemeleri: kart borcunu düşer ve ödeme tarihinde kasadan çıkar
 api.MapGet("/kartodemeler", (int? krediKartiId, KasaDbContext db) =>
 {
-    var q = db.KartOdemeler.AsQueryable();
+    var q = db.KartOdemeler.AsNoTracking();
     if (krediKartiId is { } id) q = q.Where(o => o.KrediKartiId == id);
     return q.OrderByDescending(o => o.Tarih).ThenByDescending(o => o.Id).ToList();
 });
-api.MapPost("/kartodemeler", (KartOdemeEntity e, KasaDbContext db) =>
+api.MapPost("/kartodemeler", (KartOdemeEntity e, KasaDbContext db) => Yaz(db, "Ödeme kaydedilemedi; kart silinmiş olabilir.", () =>
 {
     e.Id = 0;
     if (e.Tutar <= 0) return Hata("Ödeme tutarı sıfırdan büyük olmalı.");
+    if (TutarHatasi(e.Tutar, "Ödeme tutarı") is string th) return Hata(th);
+    if (TarihHatasi(e.Tarih) is string tar) return Hata(tar);
+    if (e.Not is { Length: > 1000 }) return Hata("Not en fazla 1000 karakter olabilir.");
     if (!db.KrediKartlari.Any(k => k.Id == e.KrediKartiId)) return Hata("Kredi kartı bulunamadı.");
     db.KartOdemeler.Add(e); db.SaveChanges();
     return Results.Created($"/api/kartodemeler/{e.Id}", e);
-}).RequireAuthorization("Editor");
+})).RequireAuthorization("Editor");
 api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
 {
     var e = db.KartOdemeler.Find(id);
@@ -359,21 +468,29 @@ api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
-// Gelenler (dönem+kanal başına tek satır — upsert)
+// Gelenler (dönem+kanal başına tek satır — upsert). DonemStart, içinde bulunduğu dönemin
+// başına çekilir; takvim dışındaki tarih reddedilir.
 api.MapGet("/gelenler", (DateOnly? donemStart, KasaDbContext db) =>
 {
-    var q = db.Gelenler.AsQueryable();
+    var q = db.Gelenler.AsNoTracking();
     if (donemStart is { } d) q = q.Where(g => g.DonemStart == d);
     return q.ToList();
 });
-api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
+api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db, TimeProvider saat) => Yaz(db, "Gelen aynı anda başka bir yerden kaydedildi; tekrar deneyin.", () =>
 {
     if (dto.TutarTl < 0) return Hata("Gelen tutarı negatif olamaz.");
-    if (!db.Kanallar.Any(k => k.Ad == dto.Kanal)) return Hata($"'{dto.Kanal}' adında bir kanal yok.");
-    var e = db.Gelenler.FirstOrDefault(g => g.DonemStart == dto.DonemStart && g.Kanal == dto.Kanal);
+    if (TutarHatasi(dto.TutarTl, "Gelen tutarı") is string th) return Hata(th);
+    var kanal = dto.Kanal ?? "";
+    if (!db.Kanallar.Any(k => k.Ad == kanal)) return Hata($"'{Metin.Kisalt(kanal)}' adında bir kanal yok.");
+    var takip = db.Ayarlar.AsNoTracking().OrderBy(a => a.Id).Select(a => a.TakipBaslangic).First();
+    var bitis = Takvim.Bitis(takip, Saat.Bugun(saat));
+    if (dto.DonemStart > bitis || Takvim.DonemBaslangici(dto.DonemStart, takip) is not { } donemStart)
+        return Hata($"Tarih takip dönemlerinin dışında ({takip:dd.MM.yyyy} – {bitis:dd.MM.yyyy}).");
+
+    var e = db.Gelenler.FirstOrDefault(g => g.DonemStart == donemStart && g.Kanal == kanal);
     if (e is null)
     {
-        e = new GelenEntity { DonemStart = dto.DonemStart, Kanal = dto.Kanal, TutarTl = dto.TutarTl };
+        e = new GelenEntity { DonemStart = donemStart, Kanal = kanal, TutarTl = dto.TutarTl };
         db.Gelenler.Add(e);
     }
     else
@@ -382,12 +499,12 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
     }
     db.SaveChanges();
     return Results.Ok(e);
-}).RequireAuthorization("Editor");
+})).RequireAuthorization("Editor");
 
 // Ayarlar
 api.MapGet("/ayarlar", (KasaDbContext db) =>
 {
-    var a = db.Ayarlar.First();
+    var a = db.Ayarlar.AsNoTracking().OrderBy(x => x.Id).First();
     return Results.Ok(new
     {
         a.TakipBaslangic,
@@ -395,42 +512,56 @@ api.MapGet("/ayarlar", (KasaDbContext db) =>
         IzleyiciSifreVarMi = a.IzleyiciSifreHash != null,
     });
 });
-api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
+api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db, TimeProvider saat) =>
 {
-    var a = db.Ayarlar.First();
-    using var tx = db.Database.BeginTransaction();
-    if (dto.TakipBaslangic != a.TakipBaslangic)
-        GelenleriDonemlereHizala(db, dto.TakipBaslangic);
-    a.TakipBaslangic = dto.TakipBaslangic;
-    a.KasaAcilisDevri = dto.KasaAcilisDevri;
-    db.SaveChanges();
-    tx.Commit();
-    return Results.Ok();
+    var enGec = Saat.Bugun(saat).AddYears(1);
+    if (dto.TakipBaslangic < new DateOnly(2000, 1, 1) || dto.TakipBaslangic > enGec)
+        return Hata($"Takip başlangıcı 01.01.2000 ile {enGec:dd.MM.yyyy} arasında olmalı.");
+    if (TutarHatasi(dto.KasaAcilisDevri, "Kasa açılış devri", negatifOlabilir: true) is string th) return Hata(th);
+    return Yaz(db, "Ayarlar kaydedilemedi; tekrar deneyin.", () =>
+    {
+        var a = db.Ayarlar.OrderBy(x => x.Id).First();
+        if (dto.TakipBaslangic != a.TakipBaslangic)
+            GelenleriDonemlereHizala(db, dto.TakipBaslangic);
+        a.TakipBaslangic = dto.TakipBaslangic;
+        a.KasaAcilisDevri = dto.KasaAcilisDevri;
+        db.SaveChanges();
+        return Results.Ok();
+    });
 }).RequireAuthorization("Editor");
-api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =>
+api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db, OturumOnbellegi oturum) =>
 {
     if (string.IsNullOrWhiteSpace(dto.YeniSifre))
         return Results.BadRequest(new { hata = "Şifre boş olamaz." });
-    var a = db.Ayarlar.First();
+    if (dto.YeniSifre.Length > 200)
+        return Results.BadRequest(new { hata = "Şifre en fazla 200 karakter olabilir." });
+    var a = db.Ayarlar.OrderBy(x => x.Id).First();
     a.IzleyiciSifreHash = SifreHasher.Hashle(dto.YeniSifre);
     a.IzleyiciOturumSurumu++;   // eski izleyici oturumları kapanır
     db.SaveChanges();
+    oturum.SurumleriAyarla(a);
     return Results.Ok();
 }).RequireAuthorization("Editor");
-api.MapPost("/ayarlar/oturumlari-kapat", (KasaDbContext db) =>
+api.MapPost("/ayarlar/oturumlari-kapat", (KasaDbContext db, OturumOnbellegi oturum) =>
 {
     // Tüm cihazlardaki oturumları (editör dahil) kapatır; herkes yeniden giriş yapar.
-    var a = db.Ayarlar.First();
+    var a = db.Ayarlar.OrderBy(x => x.Id).First();
     a.IzleyiciOturumSurumu++;
     a.EditorOturumSurumu++;
     db.SaveChanges();
+    oturum.SurumleriAyarla(a);
     return Results.Ok();
 }).RequireAuthorization("Editor");
 
 // Raporlar (okuma — her iki rol)
 api.MapGet("/donemler", (HesapServisi svc) => svc.Donemler());
 api.MapGet("/rapor/haftalik", (HesapServisi svc) => svc.Haftalik());
-api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) => svc.Aylik(yil, ay));
+api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) =>
+{
+    if (ay is < 1 or > 12) return Hata("Ay 1 ile 12 arasında olmalı.");
+    if (yil is < 2000 or > 2100) return Hata("Yıl 2000 ile 2100 arasında olmalı.");
+    return Results.Ok(svc.Aylik(yil, ay));
+});
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
 
 app.Run();
@@ -443,32 +574,133 @@ static bool SabitZamanEsit(string? a, string b)
 
 static IResult Hata(string mesaj) => Results.BadRequest(new { hata = mesaj });
 
-static string? KanalAdHatasi(KasaDbContext db, string ad, int? haricId)
+// Yazma işlemini tek (SQLite'ta BEGIN IMMEDIATE) transaction'da çalıştırır: doğrulama
+// kontrolleri ile yazma aynı kilit altında olur. Yine de bir kısıt ihlali (tekil index,
+// FK) olursa 500 yerine anlaşılır bir 409 döner.
+static IResult Yaz(KasaDbContext db, string cakismaMesaji, Func<IResult> islem)
 {
+    try
+    {
+        using var tx = db.Database.BeginTransaction();
+        var sonuc = islem();
+        tx.Commit();
+        return sonuc;
+    }
+    catch (Exception ex) when (KisitIhlali(ex))
+    {
+        return Results.Conflict(new { hata = cakismaMesaji });
+    }
+}
+
+static bool KisitIhlali(Exception? ex)
+{
+    for (; ex is not null; ex = ex.InnerException)
+        if (ex is SqliteException { SqliteErrorCode: 19 }) return true; // SQLITE_CONSTRAINT
+    return false;
+}
+
+// Tutar: en fazla 2 ondalık, mutlak değeri 100 milyarı geçmez.
+static string? TutarHatasi(decimal tutar, string alan, bool negatifOlabilir = false)
+{
+    if (!negatifOlabilir && tutar < 0) return $"{alan} negatif olamaz.";
+    if (Math.Abs(tutar) > 100_000_000_000m) return $"{alan} çok büyük (en fazla 100.000.000.000).";
+    if (decimal.Round(tutar, 2) != tutar) return $"{alan} en fazla 2 ondalık basamak içerebilir.";
+    return null;
+}
+
+static string? TarihHatasi(DateOnly t)
+    => t < new DateOnly(2000, 1, 1) || t > new DateOnly(2100, 12, 31) ? "Tarih 2000 ile 2100 arasında olmalı." : null;
+
+static string? KanalHatasi(KasaDbContext db, KanalEntity e, int? haricId)
+{
+    var ad = e.Ad;
     if (ad.Length == 0) return "Kanal adı boş olamaz.";
-    if (ad == Kanallar.Ortak) return $"'{Kanallar.Ortak}' ayrılmış bir addır.";
-    if (db.Kanallar.Any(k => k.Ad == ad && k.Id != haricId)) return $"'{ad}' adında bir kanal zaten var.";
+    if (ad.Length > 100) return "Kanal adı en fazla 100 karakter olabilir.";
+    if (Metin.EsitBuyukKucukDuyarsiz.Equals(ad, Kanallar.Ortak)) return $"'{Kanallar.Ortak}' ayrılmış bir addır.";
+    if (TutarHatasi(e.AcilisDevri, "Açılış devri", negatifOlabilir: true) is string th) return th;
+    var digerleri = db.Kanallar.AsNoTracking().Where(k => k.Id != haricId).Select(k => k.Ad).ToList();
+    if (digerleri.Any(a => Metin.EsitBuyukKucukDuyarsiz.Equals(a, ad))) return $"'{Metin.Kisalt(ad)}' adında bir kanal zaten var.";
+    return null;
+}
+
+static string? CariHatasi(KasaDbContext db, string ad, int? haricId)
+{
+    if (ad.Length == 0) return "Cari adı boş olamaz.";
+    if (ad.Length > 200) return "Cari adı en fazla 200 karakter olabilir.";
+    var digerleri = db.Cariler.AsNoTracking().Where(c => c.Id != haricId).Select(c => c.Ad).ToList();
+    if (digerleri.Any(a => Metin.EsitBuyukKucukDuyarsiz.Equals(a, ad))) return $"'{Metin.Kisalt(ad)}' adında bir cari zaten var.";
     return null;
 }
 
 static string? KartHatasi(KrediKartiEntity e)
 {
     if (e.Ad.Length == 0) return "Kart adı boş olamaz.";
+    if (e.Ad.Length > 100) return "Kart adı en fazla 100 karakter olabilir.";
     if (e.Limit < 0) return "Limit negatif olamaz.";
     if (e.Borc < 0) return "Açılış borcu negatif olamaz.";
+    if (TutarHatasi(e.Limit, "Limit") is string l) return l;
+    if (TutarHatasi(e.Borc, "Açılış borcu") is string b) return b;
     return null;
 }
 
 static string? IslemHatasi(KasaDbContext db, IslemEntity e)
 {
     if (e.TutarTl <= 0) return "Tutar sıfırdan büyük olmalı.";
-    if (string.IsNullOrWhiteSpace(e.Cari)) return "Cari boş olamaz.";
+    if (TutarHatasi(e.TutarTl, "Tutar") is string th) return th;
+    if (TarihHatasi(e.Tarih) is string tar) return tar;
+    e.Cari = e.Cari?.Trim() ?? "";
+    if (e.Cari.Length == 0) return "Cari boş olamaz.";
+    if (e.Not is { Length: > 1000 }) return "Not en fazla 1000 karakter olabilir.";
     if (!Enum.IsDefined(e.Tip)) return "Geçersiz gider tipi.";
     if (e.Kanal != Kanallar.Ortak && !db.Kanallar.Any(k => k.Ad == e.Kanal))
-        return $"'{e.Kanal}' adında bir kanal yok.";
+        return $"'{Metin.Kisalt(e.Kanal)}' adında bir kanal yok.";
     if (e.KrediKartiId is int kid && !db.KrediKartlari.Any(k => k.Id == kid))
         return "Kredi kartı bulunamadı.";
+    // Cari listeden seçilmeli: ad/silme işlemleri işlemlere tutarlı yansısın. Büyük/küçük
+    // harf farkı (Türkçe) tolere edilir ve kayıtlı yazım kullanılır.
+    var cari = e.Cari;
+    if (!db.Cariler.Any(c => c.Ad == cari))
+    {
+        var kayitli = db.Cariler.AsNoTracking().Select(c => c.Ad).AsEnumerable()
+            .FirstOrDefault(a => Metin.EsitBuyukKucukDuyarsiz.Equals(a, cari));
+        if (kayitli is null) return $"'{Metin.Kisalt(cari)}' adında bir cari yok. Önce Cariler sayfasından ekleyin.";
+        e.Cari = kayitli;
+    }
     return null;
+}
+
+static IReadOnlyList<System.Net.IPNetwork> GuvenilirAglar(IConfiguration cfg)
+{
+    // Kasa:GuvenilirAglar tanımlı değilse loopback + özel (RFC1918) ağlar güvenilir sayılır:
+    // Docker köprü ağındaki reverse proxy (Caddy/nginx) bu aralıktadır. RİSK: aynı Docker
+    // ağındaki BAŞKA bir konteyner (ya da host'taki yerel bir süreç) da bu aralıktan bağlanır
+    // ve X-Forwarded-For ile IP'sini seçebilir. Üretimde yalnız proxy'nin adresini/ağını
+    // KASA_GUVENILIR_AGLAR ile verin. Genel giriş sınırı bu durumda da tahmin hızını sınırlar.
+    var bolum = cfg.GetSection("Kasa:GuvenilirAglar");
+    var degerler = new List<string>();
+    if (!string.IsNullOrWhiteSpace(bolum.Value))
+        degerler.AddRange(bolum.Value.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    degerler.AddRange(bolum.GetChildren().Select(c => c.Value).OfType<string>()
+        .SelectMany(v => v.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
+    if (degerler.Count == 0)
+        degerler.AddRange(["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]);
+
+    return degerler.Select(d =>
+    {
+        var cidr = d.Contains('/') ? d : d + (d.Contains(':') ? "/128" : "/32");
+        return System.Net.IPNetwork.TryParse(cidr, out var ag)
+            ? ag
+            : throw new InvalidOperationException($"Kasa:GuvenilirAglar içinde geçersiz CIDR: '{d}'.");
+    }).ToList();
+}
+
+static long? DiskBosMb(KasaDbContext db)
+{
+    var kaynak = db.Database.GetDbConnection().DataSource;
+    if (string.IsNullOrEmpty(kaynak) || kaynak.Contains(":memory:", StringComparison.OrdinalIgnoreCase)) return null;
+    var klasor = Path.GetDirectoryName(Path.GetFullPath(kaynak));
+    if (string.IsNullOrEmpty(klasor) || !Directory.Exists(klasor)) return null;
+    return new DriveInfo(klasor).AvailableFreeSpace / (1024 * 1024);
 }
 
 // Takip başlangıcı değişince gelen kayıtlarını yeni dönem başlangıçlarına taşır; aynı
@@ -477,14 +709,16 @@ static void GelenleriDonemlereHizala(KasaDbContext db, DateOnly yeniBaslangic)
 {
     var gelenler = db.Gelenler.Where(g => g.DonemStart >= yeniBaslangic).ToList();
     if (gelenler.Count == 0) return;
-    var donemler = DonemUretici.Uret(yeniBaslangic, gelenler.Max(g => g.DonemStart));
-    foreach (var grup in gelenler.GroupBy(g => (Start: donemler.First(d => d.Icerir(g.DonemStart)).Start, g.Kanal)))
+    foreach (var grup in gelenler.GroupBy(g => (Start: Takvim.DonemBaslangici(g.DonemStart, yeniBaslangic)!.Value, g.Kanal)))
     {
         var kalan = grup.OrderBy(g => g.Id).First();
-        kalan.DonemStart = grup.Key.Start;
+        var silinecek = grup.Where(g => g != kalan).ToList();
         kalan.TutarTl = grup.Sum(g => g.TutarTl);
-        db.Gelenler.RemoveRange(grup.Where(g => g != kalan));
+        // Tekil (DonemStart, Kanal) index'i ara durumda çakışmasın: önce fazlaları sil.
+        if (silinecek.Count > 0) { db.Gelenler.RemoveRange(silinecek); db.SaveChanges(); }
+        kalan.DonemStart = grup.Key.Start;
     }
+    db.SaveChanges();
 }
 
 public record AyarGuncelleDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri);

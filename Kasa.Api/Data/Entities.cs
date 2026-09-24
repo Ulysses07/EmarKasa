@@ -69,3 +69,10 @@ public class KartOdemeEntity
     public decimal Tutar { get; set; }
     public string? Not { get; set; }
 }
+
+/// <summary>Çıkışta iptal edilen token'ın kimliği (jti); süresi dolunca temizlenir.</summary>
+public class IptalEdilenTokenEntity
+{
+    public string Jti { get; set; } = "";
+    public DateTime BitisUtc { get; set; }
+}

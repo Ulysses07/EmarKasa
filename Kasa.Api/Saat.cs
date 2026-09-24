@@ -17,4 +17,7 @@ public static class Saat
         : utc.AddHours(3); // Türkiye 2016'dan beri yaz saati uygulamıyor: sabit UTC+3
 
     public static DateOnly Bugun() => DateOnly.FromDateTime(Simdi(DateTime.UtcNow));
+
+    /// <summary>DI'daki saatle (testte sabitlenebilir) Türkiye'nin bugünü.</summary>
+    public static DateOnly Bugun(TimeProvider saat) => DateOnly.FromDateTime(Simdi(saat.GetUtcNow().UtcDateTime));
 }

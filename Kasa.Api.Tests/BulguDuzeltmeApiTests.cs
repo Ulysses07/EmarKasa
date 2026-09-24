@@ -29,6 +29,7 @@ public class BulguDuzeltmeApiTests : IClassFixture<KasaWebFactory>
     public async Task Kanal_yeniden_adlandirilinca_islem_ve_gelenler_tasinir()
     {
         var c = await _factory.EditorClientAsync();
+        await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 6, 1));
         var k = await KanalEkle(c, "ESKI-AD");
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-10", cari = "X", tutarTl = 50m, kanal = "ESKI-AD", tip = "Cari" })).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-08", kanal = "ESKI-AD", tutarTl = 100m })).EnsureSuccessStatusCode();
@@ -108,7 +109,14 @@ public class BulguDuzeltmeApiTests : IClassFixture<KasaWebFactory>
         await KanalEkle(c, "HIZA");
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2025-03-05", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2025-03-05", kanal = "HIZA", tutarTl = 700m })).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2025-03-03", kanal = "HIZA", tutarTl = 300m })).EnsureSuccessStatusCode();
+        // Takip başlangıcından önceki (eski sürümden kalma) bir gelen satırı: API artık takvim
+        // dışına yazdırmaz, bu yüzden doğrudan DB'ye eklenir.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Gelenler.Add(new GelenEntity { DonemStart = new DateOnly(2025, 3, 3), Kanal = "HIZA", TutarTl = 300m });
+            db.SaveChanges();
+        }
 
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2025-03-03", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
 

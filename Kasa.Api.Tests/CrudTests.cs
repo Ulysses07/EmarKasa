@@ -77,6 +77,7 @@ public class CrudTests : IClassFixture<KasaWebFactory>
     public async Task Gelen_upsert_ayni_donem_kanal_icin_gunceller()
     {
         var client = await _factory.EditorClientAsync();
+        await KasaWebFactory.TakipBaslangiciAyarla(client, new DateOnly(2026, 6, 1));
 
         await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 100m });
         await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 289_425m });
