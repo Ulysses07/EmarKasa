@@ -62,10 +62,14 @@ public static class GecmisKurallari
     /// <summary>Silme en fazla bu kadar süre sonra geri alınabilir.</summary>
     public static readonly TimeSpan GeriAlmaSuresi = TimeSpan.FromDays(30);
 
-    /// <summary>Silindiğinde geri alınabilen türler.</summary>
+    /// <summary>
+    /// Silindiğinde geri alınabilen türler. Gelen yok: gelen satırı yalnız takip başlangıcı
+    /// değişince birleştirilirken silinir ve tutarı kalan satıra eklenir; geri getirmek aynı
+    /// parayı iki kez saydırırdı.
+    /// </summary>
     public static readonly IReadOnlySet<string> GeriAlinabilirTurler = new HashSet<string>
     {
-        GecmisTurleri.Islem, GecmisTurleri.Gelen, GecmisTurleri.KartOdemesi, GecmisTurleri.Cari, GecmisTurleri.GiderKalemi,
+        GecmisTurleri.Islem, GecmisTurleri.KartOdemesi, GecmisTurleri.Cari, GecmisTurleri.GiderKalemi,
         GecmisTurleri.Cek, GecmisTurleri.KasaSayimi,
     };
 

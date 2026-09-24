@@ -218,6 +218,77 @@ public class GecmisTests : IClassFixture<GecmisTests.SabitSaatFactory>
             s => s.KayitId == id && s.Eylem == "Eklendi" && s.Ozet == "Tekrarlayan gider eklendi: Geçmiş SGK · Ortak · 4.200,00 ₺");
         Assert.Contains((await GecmisAsync(c, "Tekrarlayan gider kararı")).Satirlar,
             s => s.Ozet == "Tekrarlayan gider kararı eklendi: Geçmiş SGK · 01.09.2026 · Atlandı");
+
+        // Şablon silinince kararları da silinir ve bu da geçmişe yazılır (DB cascade'ine bırakılmaz).
+        (await c.DeleteAsync($"/api/tekrarlayangiderler/{id}")).EnsureSuccessStatusCode();
+        Assert.Contains((await GecmisAsync(c, "Tekrarlayan gider kararı")).Satirlar,
+            s => s.Eylem == "Silindi" && s.Ozet == "Tekrarlayan gider kararı silindi: Geçmiş SGK · 01.09.2026 · Atlandı");
+    }
+
+    [Fact]
+    public async Task Onaylanan_ayin_islemi_silinince_kararin_bagi_kopar_ve_gecmise_yazilir()
+    {
+        var c = await _factory.EditorClientAsync();
+        (await c.PostAsJsonAsync("/api/giderkalemleri", new { ad = "Geçmiş Maaş", aktif = true })).EnsureSuccessStatusCode();
+        var r = await c.PostAsJsonAsync("/api/tekrarlayangiderler", new { kalem = "Geçmiş Maaş", kanal = "Ortak", tutar = 30_000m, ayinGunu = 1, aktif = true });
+        var id = (await r.Content.ReadFromJsonAsync<IdYanit>())!.Id;
+        var onay = await c.PostAsJsonAsync($"/api/tekrarlayangiderler/{id}/onayla", new { ay = "2026-09-01", tarih = "2026-09-01", tutar = 30_000m });
+        Assert.Equal(HttpStatusCode.Created, onay.StatusCode);
+        var islemId = (await onay.Content.ReadFromJsonAsync<IdYanit>())!.Id;
+
+        (await c.DeleteAsync($"/api/islemler/{islemId}")).EnsureSuccessStatusCode();
+        Assert.Contains((await GecmisAsync(c, "Tekrarlayan gider kararı")).Satirlar,
+            s => s.Eylem == "Güncellendi" && s.Ozet == "Tekrarlayan gider kararı güncellendi: Geçmiş Maaş · 01.09.2026 · Girildi (İşlem: Geçmiş Maaş → —)");
+    }
+
+    [Fact]
+    public async Task Takip_baslangici_degisince_birlesen_gelen_geri_alinamaz_ozet_satiri_yazilir()
+    {
+        var c = await _factory.EditorClientAsync();
+        try
+        {
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 6, 10));
+            (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-10", kanal = "PERAKENDE", tutarTl = 100m })).EnsureSuccessStatusCode();
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 6, 11));
+            (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-11", kanal = "PERAKENDE", tutarTl = 200m })).EnsureSuccessStatusCode();
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 6, 9));   // iki dönem birleşir: 300
+
+            var satirlar = (await GecmisAsync(c, "Gelen")).Satirlar;
+            Assert.Contains(satirlar, s => s.Ozet == "Takip başlangıcı değişti: PERAKENDE kanalının 2 geleni 09.06.2026 dönemine birleştirildi (toplam 300,00 ₺)");
+            var silinen = satirlar.Single(s => s.Eylem == "Silindi" && s.EskiJson!.Contains("\"tutarTl\":200"));
+            Assert.False(silinen.GeriAlinabilir);
+            var g = await GeriAlAsync(c, silinen.Id);
+            Assert.Equal(HttpStatusCode.BadRequest, g.StatusCode);
+            Assert.Contains("Gelen kayıtları geri alınamaz", await HataAsync(g));
+        }
+        finally
+        {
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 1, 5));
+        }
+    }
+
+    [Fact]
+    public async Task Takip_baslangicindan_onceye_dusen_silinmis_sayim_geri_alinamaz()
+    {
+        var c = await _factory.EditorClientAsync();
+        try
+        {
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 6, 1));
+            var r = await c.PostAsJsonAsync("/api/kasasayimlari", new { tarih = "2026-06-15", sayilanTutar = 10m });
+            r.EnsureSuccessStatusCode();
+            var id = (await r.Content.ReadFromJsonAsync<IdYanit>())!.Id;
+            (await c.DeleteAsync($"/api/kasasayimlari/{id}")).EnsureSuccessStatusCode();
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 7, 1));
+
+            var silindi = (await GecmisAsync(c, "Kasa sayımı")).Satirlar.Single(s => s.KayitId == id && s.Eylem == "Silindi");
+            var g = await GeriAlAsync(c, silindi.Id);
+            Assert.Equal(HttpStatusCode.BadRequest, g.StatusCode);
+            Assert.Contains("Geri alınamadı: Sayım tarihi takip başlangıcından (01.07.2026) önce olamaz.", await HataAsync(g));
+        }
+        finally
+        {
+            await KasaWebFactory.TakipBaslangiciAyarla(c, new DateOnly(2026, 1, 5));
+        }
     }
 
     private static object CekGovde(string kanal = "MEZAT", string durum = "Portfoyde", string? islemTarihi = null, decimal tutar = 1_500m)

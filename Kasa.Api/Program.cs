@@ -424,6 +424,8 @@ api.MapDelete("/tekrarlayangiderler/{id:int}", (int id, KasaDbContext db) => Yaz
     // Kararları (girildi/atlandı) da silinir; onaylanıp oluşan işlemler kalır.
     var e = db.TekrarlayanGiderler.Find(id);
     if (e is null) return Results.NotFound();
+    // Kararlar izleyiciye alınır: silinmeleri DB'nin cascade'ine kalmasın, geçmişe de yazılsın.
+    db.TekrarlayanGirisler.Where(g => g.TekrarlayanGiderId == id).Load();
     db.TekrarlayanGiderler.Remove(e); db.SaveChanges();
     return Results.NoContent();
 })).RequireAuthorization("Editor");
@@ -584,6 +586,8 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
 {
     var e = db.Islemler.Find(id);
     if (e is null) return Results.NotFound();
+    // Bu işlemi oluşturan tekrarlayan gider kararı izleyiciye alınır: bağın kopması geçmişe de yazılsın.
+    db.TekrarlayanGirisler.Where(g => g.IslemId == id).Load();
     db.Islemler.Remove(e); db.SaveChanges();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -843,7 +847,7 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
     db.Degisiklikler.AsNoTracking().Select(d => d.Tur).Distinct().ToList().OrderBy(t => t, Metin.Sirala).ToList());
 // Silinen kaydı geri getirir: eski haliyle, yeni Id'yle ve normal eklemedeki doğrulamalardan geçerek.
-api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, TimeProvider saat) =>
+api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi svc, TimeProvider saat) =>
     Yaz(db, "Geri alınamadı: aynı anda başka bir kayıt değişti; tekrar deneyin.", () =>
 {
     var d = db.Degisiklikler.Find(id);
@@ -852,7 +856,7 @@ api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, TimeProvider 
     if (d.GeriAlindi) return Results.Conflict(new { hata = "Bu silme zaten geri alındı." });
     if (GecmisKurallari.GeriAlmaEngeli(d, simdi) is string engel) return Hata(engel);
 
-    var (yeni, sonuc) = SilineniGeriGetir(db, d, saat);
+    var (yeni, sonuc) = SilineniGeriGetir(db, svc, d, saat);
     if (sonuc is not null) return sonuc;
     d.GeriAlindi = true;
     d.GeriAlmaZamaniUtc = simdi;
@@ -1111,7 +1115,7 @@ static T? EnumCoz<T>(string metin) where T : struct, Enum
 // Geçmişteki silme satırının eski halinden kaydı yeni Id'yle yeniden oluşturur. Normal eklemedeki
 // doğrulamalar aynen uygulanır (ör. işlemin carisi artık yoksa ya da aynı adla kayıt varsa geri
 // alınamaz). Başarıda kayıt context'e eklenir (SaveChanges'i çağıran yapar) ve Sonuc null döner.
-static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, DegisiklikEntity d, TimeProvider saat)
+static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapServisi svc, DegisiklikEntity d, TimeProvider saat)
 {
     static IResult Engel(string hata) => Results.BadRequest(new { hata = "Geri alınamadı: " + hata });
     try
@@ -1153,20 +1157,6 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, Degisi
                 db.GiderKalemleri.Add(e);
                 return (e, null);
             }
-            case GecmisTurleri.Gelen:
-            {
-                var e = GecmisJson.Coz<GelenEntity>(d.EskiJson!);
-                e.Id = 0;
-                e.Kanal ??= "";
-                if (GelenHatasi(db, saat, e.TutarTl, e.Kanal, e.DonemStart, out var donemStart) is string hata)
-                    return (null, Engel(hata));
-                e.DonemStart = donemStart;
-                // Gelen dönem+kanal başına tek satırdır: yerine yenisi girildiyse üzerine yazılmaz.
-                if (db.Gelenler.Any(g => g.DonemStart == donemStart && g.Kanal == e.Kanal))
-                    return (null, Results.Conflict(new { hata = "Geri alınamadı: bu dönem ve kanal için zaten bir gelen kaydı var; tutarı İşlemler sayfasından düzenleyin." }));
-                db.Gelenler.Add(e);
-                return (e, null);
-            }
             case GecmisTurleri.Cek:
             {
                 var e = GecmisJson.Coz<CekEntity>(d.EskiJson!);
@@ -1181,7 +1171,10 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, Degisi
                 var e = GecmisJson.Coz<KasaSayimEntity>(d.EskiJson!);
                 e.Id = 0;
                 e.KayitZamaniUtc = DateTime.SpecifyKind(e.KayitZamaniUtc, DateTimeKind.Utc);
+                // Yeni sayımla aynı kurallar: takip başlangıcı sonradan ileri alındıysa o gün artık defterde yok.
+                if (SayimTarihiHatasi(svc, e.Tarih) is string th) return (null, Engel(th));
                 if (TutarHatasi(e.SayilanTutar, "Sayılan tutar") is string hata) return (null, Engel(hata));
+                if (e.Not is { Length: > 1000 }) return (null, Engel("Not en fazla 1000 karakter olabilir."));
                 db.KasaSayimlari.Add(e);
                 return (e, null);
             }
@@ -1294,6 +1287,11 @@ static void GelenleriDonemlereHizala(KasaDbContext db, DateOnly yeniBaslangic)
         var kalan = grup.OrderBy(g => g.Id).First();
         var silinecek = grup.Where(g => g != kalan).ToList();
         kalan.TutarTl = grup.Sum(g => g.TutarTl);
+        if (silinecek.Count > 0)
+            db.TopluDegisiklikEkle(GecmisTurleri.Gelen, kalan.Id,
+                $"Takip başlangıcı değişti: {grup.Key.Kanal} kanalının {grup.Count()} geleni {grup.Key.Start:dd.MM.yyyy} dönemine birleştirildi (toplam {kalan.TutarTl.ToString("#,##0.00", Metin.Tr)} ₺)",
+                eski: grup.Select(g => new { g.Id, g.DonemStart, g.TutarTl }).ToList(),
+                yeni: new { kalan.Id, DonemStart = grup.Key.Start, kalan.TutarTl });
         // Tekil (DonemStart, Kanal) index'i ara durumda çakışmasın: önce fazlaları sil.
         if (silinecek.Count > 0) { db.Gelenler.RemoveRange(silinecek); db.SaveChanges(); }
         kalan.DonemStart = grup.Key.Start;
