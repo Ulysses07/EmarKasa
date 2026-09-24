@@ -597,6 +597,44 @@ api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) =>
 });
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
 
+// Kasa sayımı: sayılan nakit ile tarih gününün sonundaki defter kasasının karşılaştırması.
+// Hiçbir kasa hesabını değiştirmez; yalnız kayıt tutar. Okuma her iki rol, yazma editör.
+api.MapGet("/kasasayimlari", (KasaDbContext db, HesapServisi svc) =>
+{
+    var liste = db.KasaSayimlari.AsNoTracking().OrderByDescending(s => s.Tarih).ThenByDescending(s => s.Id).ToList();
+    var guncel = svc.KasaTarihlerde(liste.Select(s => s.Tarih));
+    return liste.Select(s => KasaSayimDto.Olustur(s, guncel.TryGetValue(s.Tarih, out var g) ? g : null)).ToList();
+});
+api.MapGet("/kasasayimlari/hesapla", (DateOnly tarih, HesapServisi svc) =>
+{
+    if (SayimTarihiHatasi(svc, tarih) is string h) return Hata(h);
+    return Results.Ok(new KasaHesapDto(tarih, svc.KasaTarihte(tarih)));
+});
+api.MapPost("/kasasayimlari", (KasaSayimYazDto dto, KasaDbContext db, HesapServisi svc, TimeProvider saat) =>
+    Yaz(db, "Sayım kaydedilemedi; tekrar deneyin.", () =>
+{
+    if (SayimTarihiHatasi(svc, dto.Tarih) is string h) return Hata(h);
+    if (TutarHatasi(dto.SayilanTutar, "Sayılan tutar") is string th) return Hata(th);
+    var not = string.IsNullOrWhiteSpace(dto.Not) ? null : dto.Not.Trim();
+    if (not is { Length: > 1000 }) return Hata("Not en fazla 1000 karakter olabilir.");
+    // Defter değeri aynı transaction içinde hesaplanır: anlık görüntü kayıt anındaki defterdir.
+    var hesaplanan = svc.KasaTarihte(dto.Tarih);
+    var e = new KasaSayimEntity
+    {
+        Tarih = dto.Tarih, SayilanTutar = dto.SayilanTutar, HesaplananTutar = hesaplanan,
+        Not = not, KayitZamaniUtc = saat.GetUtcNow().UtcDateTime,
+    };
+    db.KasaSayimlari.Add(e); db.SaveChanges();
+    return Results.Created($"/api/kasasayimlari/{e.Id}", KasaSayimDto.Olustur(e, hesaplanan));
+})).RequireAuthorization("Editor");
+api.MapDelete("/kasasayimlari/{id:int}", (int id, KasaDbContext db) =>
+{
+    var e = db.KasaSayimlari.Find(id);
+    if (e is null) return Results.NotFound();
+    db.KasaSayimlari.Remove(e); db.SaveChanges();
+    return Results.NoContent();
+}).RequireAuthorization("Editor");
+
 // Excel'e aktar (CSV — her iki rol indirebilir). Rakamlar JSON uç noktalarıyla aynıdır.
 api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
 {
@@ -660,6 +698,15 @@ static string? TutarHatasi(decimal tutar, string alan, bool negatifOlabilir = fa
 
 static string? TarihHatasi(DateOnly t)
     => t < new DateOnly(2000, 1, 1) || t > new DateOnly(2100, 12, 31) ? "Tarih 2000 ile 2100 arasında olmalı." : null;
+
+// Sayım tarihi: ileri bir gün ya da takip başlangıcından önce olamaz (defter o gün için yok).
+static string? SayimTarihiHatasi(HesapServisi svc, DateOnly tarih)
+{
+    var (ilk, son) = svc.SayimAraligi();
+    if (tarih > son) return "Sayım tarihi ileri bir gün olamaz.";
+    if (tarih < ilk) return $"Sayım tarihi takip başlangıcından ({ilk:dd.MM.yyyy}) önce olamaz.";
+    return null;
+}
 
 static string? AyHatasi(int yil, int ay)
 {

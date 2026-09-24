@@ -46,6 +46,7 @@ public partial class AppShell : Shell
         _menuAcik = true;
         var bolumler = SekmeModeli.Bolumler(_auth.AktifRol);
         PanelItem.IsVisible = true;
+        KasaSayimiItem.IsVisible = bolumler.Contains(Bolum.KasaSayimi);   // her iki rol; izleyici yalnız görür
         HaftalikItem.IsVisible = true;
         AylikItem.IsVisible = true;
         CarilerItem.IsVisible = true;
@@ -59,6 +60,7 @@ public partial class AppShell : Shell
     {
         _menuAcik = false;
         PanelItem.IsVisible = false;
+        KasaSayimiItem.IsVisible = false;
         HaftalikItem.IsVisible = false;
         AylikItem.IsVisible = false;
         CarilerItem.IsVisible = false;

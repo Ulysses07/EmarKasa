@@ -180,6 +180,13 @@ public sealed partial class KasaApiClient : IKasaApi
     // Gelen upsert
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) => GonderJsonAsync<GelenDto>(HttpMethod.Put, "api/gelenler", g);
 
+    // Kasa sayımı
+    public Task<IReadOnlyList<KasaSayimDto>> KasaSayimlariAsync() => GetAsync<IReadOnlyList<KasaSayimDto>>("api/kasasayimlari");
+    public Task<KasaHesapDto> KasaHesaplaAsync(DateOnly tarih)
+        => GetAsync<KasaHesapDto>($"api/kasasayimlari/hesapla?tarih={tarih.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}");
+    public Task<KasaSayimDto> KasaSayimKaydetAsync(KasaSayimYaz g) => GonderJsonAsync<KasaSayimDto>(HttpMethod.Post, "api/kasasayimlari", g);
+    public Task KasaSayimSilAsync(int id) => SilAsync($"api/kasasayimlari/{id}");
+
     // Ayarlar
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });

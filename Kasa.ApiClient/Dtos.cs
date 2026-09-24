@@ -32,6 +32,15 @@ public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanalla
 /// <summary>Sunucudan indirilen dosya (Excel'e aktar): sunucunun önerdiği ad + içerik.</summary>
 public record IndirilenDosya(string DosyaAdi, byte[] Icerik);
 
+/// <summary>
+/// Kasa sayımı. HesaplananTutar kayıt anındaki defter kasasıdır (değişmez), Fark = Sayılan − Hesaplanan.
+/// GuncelHesaplanan aynı günün bugünkü defter değeridir (geçmiş düzeltildiyse farklıdır; takvim dışıysa null).
+/// </summary>
+public record KasaSayimDto(int Id, DateOnly Tarih, decimal SayilanTutar, decimal HesaplananTutar, decimal Fark,
+    decimal? GuncelHesaplanan, string? Not, DateTime KayitZamaniUtc);
+/// <summary>Bir günün sonundaki defter kasası (sayım formu önizlemesi).</summary>
+public record KasaHesapDto(DateOnly Tarih, decimal HesaplananTutar);
+
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariYaz(string Ad, bool Aktif);
@@ -41,3 +50,4 @@ public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarYaz(DateOnly TakipBaslangic, decimal KasaAcilisDevri);
+public record KasaSayimYaz(DateOnly Tarih, decimal SayilanTutar, string? Not);

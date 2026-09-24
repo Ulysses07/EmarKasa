@@ -42,17 +42,19 @@ public class HesapServisi
     /// Tüm hesap verisini izlemesiz (AsNoTracking projeksiyon) yükler. Takvim sonundan
     /// sonraki kayıtlar hiçbir döneme düşmeyeceği için hiç yüklenmez.
     /// </summary>
-    private Yuk Yukle()
+    /// <param name="sonGun">Takvimin son günü; verilmezse bugün (<see cref="Takvim.Bitis"/>).
+    /// Verilirse takvim o günde biter ve son dönem o güne kırpılır (kasa sayımı).</param>
+    private Yuk Yukle(DateOnly? sonGun = null)
     {
         var (baslangic, kasaAcilis) = AyarOku();
-        var bitis = Takvim.Bitis(baslangic, Bugun);
+        var bitis = sonGun ?? Takvim.Bitis(baslangic, Bugun);
         var islemler = _db.Islemler.AsNoTracking().Where(i => i.Tarih <= bitis)
             .Select(e => new Islem(e.Tarih, e.Cari, e.TutarTl, e.Kanal, e.Tip, e.Not, e.KrediKartiId)).ToList();
         var gelenler = _db.Gelenler.AsNoTracking().Where(g => g.DonemStart <= bitis)
             .Select(e => new Gelen(e.DonemStart, e.Kanal, e.TutarTl)).ToList();
         var kartOdemeleri = _db.KartOdemeler.AsNoTracking().Where(o => o.Tarih <= bitis)
             .Select(e => new KartOdeme(e.Tarih, e.Tutar)).ToList();
-        return new Yuk(KanallariYukle(), islemler, gelenler, TakvimUret(baslangic), kasaAcilis, kartOdemeleri, baslangic);
+        return new Yuk(KanallariYukle(), islemler, gelenler, DonemUretici.Uret(baslangic, bitis), kasaAcilis, kartOdemeleri, baslangic);
     }
 
     public IReadOnlyList<HaftalikOzet> Haftalik()
@@ -123,6 +125,76 @@ public class HesapServisi
 
     /// <summary>Takvim yalnız ayarlardan türetilir; işlem tablolarına dokunmaz.</summary>
     public IReadOnlyList<Donem> Donemler() => TakvimUret(AyarOku().Baslangic);
+
+    /// <summary>Kasa sayımının girilebileceği aralık: takip başlangıcı – bugün (başlangıç ilerideyse boş).</summary>
+    public (DateOnly Ilk, DateOnly Son) SayimAraligi() => (AyarOku().Baslangic, Bugun);
+
+    /// <summary>
+    /// <paramref name="tarih"/> gününün SONUNDA defterdeki kasa. Panelin güncel kasasıyla aynı
+    /// yoldan hesaplanır, yalnız takvim bu günde biter: tarih bugünse sonuç panelin GuncelKasa'sına
+    /// eşittir. Tarih bir dönemin ortasındaysa o dönem bu güne kırpılır; kurallar paneldekiyle
+    /// aynıdır: işlem ve kart ödemesi tarihine göre gün gün sayılır (karta bağlı K.K kasadan ödeme
+    /// gününde çıkar), gelen dönem başına tek rakam olduğundan dönemin geleni tümüyle sayılır,
+    /// kartsız eski K.K bir sonraki ayın son döneminde (o dönemin içindeki her gün için) düşülür.
+    /// Takvim aralığı dışındaki tarih (takipten önce) için açılış devri döner; çağıran doğrular.
+    /// </summary>
+    public decimal KasaTarihte(DateOnly tarih)
+    {
+        var y = Yukle(tarih);
+        var haftalik = HaftalikAylaraBolerek(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, y.KartOdemeleri);
+        return haftalik.Count > 0 ? haftalik[^1].KasaDevir : y.KasaAcilis;
+    }
+
+    /// <summary>
+    /// Birden çok tarih için <see cref="KasaTarihte"/> (sayım geçmişinin bugünkü defter değeri).
+    /// Veri bir kez yüklenir, tam takvim bir kez hesaplanır; her tarih için yalnız o tarihin ayı,
+    /// önceki ayın kapanış devirlerinden başlayıp takvim o güne kırpılarak yeniden hesaplanır.
+    /// Bu, <see cref="HaftalikAylaraBolerek"/>'in takvimi o günde biten hesapta son ay için
+    /// yaptığının aynısıdır (motor nedenseldir: önceki aylar sonraki kayıtlardan etkilenmez).
+    /// Takvim aralığı (takip başlangıcı – bugün) dışındaki tarihler sonuçta yer almaz.
+    /// </summary>
+    public IReadOnlyDictionary<DateOnly, decimal> KasaTarihlerde(IEnumerable<DateOnly> tarihler)
+    {
+        var sonuc = new Dictionary<DateOnly, decimal>();
+        var istenen = tarihler.Distinct().ToList();
+        if (istenen.Count == 0) return sonuc;
+
+        var y = Yukle();
+        if (y.Donemler.Count == 0) return sonuc;
+        var takvimSonu = y.Donemler[^1].End;
+        var tam = HaftalikAylaraBolerek(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, y.KartOdemeleri);
+
+        static int AyAnahtari(DateOnly d) => d.Year * 12 + d.Month - 1;
+        // Her ayın kapanışı (o ayın son döneminin kasa ve kanal devirleri).
+        var kapanis = tam.GroupBy(h => AyAnahtari(h.Donem.Start)).ToDictionary(g => g.Key, g => g.Last());
+        var islemAy = y.Islemler.ToLookup(i => AyAnahtari(i.Tarih));
+        var gelenAy = y.Gelenler.ToLookup(g => AyAnahtari(g.DonemStart));
+        var odemeAy = y.KartOdemeleri.ToLookup(o => AyAnahtari(o.Tarih));
+
+        foreach (var d in istenen)
+        {
+            if (d < y.TakipBaslangic || d > takvimSonu) continue;
+            var ay = AyAnahtari(d);
+            var ayBasi = new DateOnly(d.Year, d.Month, 1);
+
+            var kasa = y.KasaAcilis;
+            var kanallar = y.Kanallar;
+            if (kapanis.TryGetValue(ay - 1, out var onceki))
+            {
+                kasa = onceki.KasaDevir;
+                var devir = onceki.Kanallar.ToDictionary(k => k.Kanal, k => k.Devir);
+                kanallar = y.Kanallar.Select(k => k with { AcilisDevri = devir[k.Ad] }).ToList();
+            }
+
+            var donemler = DonemUretici.Uret(y.TakipBaslangic > ayBasi ? y.TakipBaslangic : ayBasi, d);
+            var islemler = islemAy[ay - 1].Concat(islemAy[ay].Where(i => i.Tarih <= d)).ToList();
+            var gelenler = gelenAy[ay].Where(g => g.DonemStart <= d).ToList();
+            var odemeler = odemeAy[ay].Where(o => o.Tarih <= d).ToList();
+            var parca = HaftalikAylaraBolerek(kasa, kanallar, islemler, gelenler, donemler, odemeler);
+            sonuc[d] = parca.Count > 0 ? parca[^1].KasaDevir : kasa;
+        }
+        return sonuc;
+    }
 
     public PanelDto Panel()
     {

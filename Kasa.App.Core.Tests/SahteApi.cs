@@ -180,4 +180,41 @@ public sealed class SahteApi : IKasaApi
     }
     public Task<IndirilenDosya> HaftalikCsvAsync() { HaftalikCsvCagri++; return CsvYanit(); }
     public Task<IndirilenDosya> AylikCsvAsync(int yil, int ay) { SonAylikCsv = (yil, ay); return CsvYanit(); }
+
+    // ---- Kasa sayımı ----
+    public IReadOnlyList<KasaSayimDto> KasaSayimlariListe = new List<KasaSayimDto>();
+    public int KasaSayimlariCagri;
+    /// <summary>Defter değeri yanıtı (tarih → tutar); ayarlanmadıysa <see cref="KasaHesapSonuc"/>.</summary>
+    public Func<DateOnly, Task<KasaHesapDto>>? KasaHesaplaUret;
+    public decimal KasaHesapSonuc;
+    public List<DateOnly> KasaHesaplaCagrilari = new();
+    public KasaSayimYaz? SonKasaSayimKaydet;
+    public Exception? KasaSayimYazHatasi;
+    public int? SonKasaSayimSil;
+    public Task<IReadOnlyList<KasaSayimDto>> KasaSayimlariAsync()
+    {
+        KasaSayimlariCagri++;
+        return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KasaSayimDto>>(YuklemeHatasi) : Task.FromResult(KasaSayimlariListe);
+    }
+    public Task<KasaHesapDto> KasaHesaplaAsync(DateOnly tarih)
+    {
+        KasaHesaplaCagrilari.Add(tarih);
+        if (KasaHesaplaUret is not null) return KasaHesaplaUret(tarih);
+        return YuklemeHatasi is not null ? Task.FromException<KasaHesapDto>(YuklemeHatasi) : Task.FromResult(new KasaHesapDto(tarih, KasaHesapSonuc));
+    }
+    public Task<KasaSayimDto> KasaSayimKaydetAsync(KasaSayimYaz g)
+    {
+        if (KasaSayimYazHatasi is not null) return Task.FromException<KasaSayimDto>(KasaSayimYazHatasi);
+        SonKasaSayimKaydet = g;
+        var d = new KasaSayimDto(100 + KasaSayimlariListe.Count, g.Tarih, g.SayilanTutar, KasaHesapSonuc,
+            g.SayilanTutar - KasaHesapSonuc, KasaHesapSonuc, g.Not, new DateTime(2026, 9, 24, 9, 0, 0, DateTimeKind.Utc));
+        KasaSayimlariListe = KasaSayimlariListe.Prepend(d).ToList();
+        return Task.FromResult(d);
+    }
+    public Task KasaSayimSilAsync(int id)
+    {
+        SonKasaSayimSil = id;
+        KasaSayimlariListe = KasaSayimlariListe.Where(s => s.Id != id).ToList();
+        return Task.CompletedTask;
+    }
 }

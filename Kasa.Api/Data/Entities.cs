@@ -78,6 +78,20 @@ public class KartOdemeEntity
     public string? Not { get; set; }
 }
 
+/// <summary>
+/// Kasa sayımı: editörün saydığı nakit ve kayıt anında defterdeki kasa (Tarih gününün sonunda).
+/// HesaplananTutar bir anlık görüntüdür; geçmiş kayıtlar sonradan düzeltilse de değişmez.
+/// </summary>
+public class KasaSayimEntity
+{
+    public int Id { get; set; }
+    public DateOnly Tarih { get; set; }
+    public decimal SayilanTutar { get; set; }
+    public decimal HesaplananTutar { get; set; }
+    public string? Not { get; set; }
+    public DateTime KayitZamaniUtc { get; set; }
+}
+
 /// <summary>Çıkışta iptal edilen token'ın kimliği (jti); süresi dolunca temizlenir.</summary>
 public class IptalEdilenTokenEntity
 {
