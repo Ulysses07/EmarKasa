@@ -76,14 +76,14 @@
                                     IsVisible="{Binding YayinlaGorunur}" />
                         </HorizontalStackLayout>
                     </Grid>
-                    <Label Text="Kilitli aya ait işlem, gelen, kart ödemesi, çek ve sayım eklenemez, değiştirilemez ya da silinemez."
+                    <Label Text="Kilitli aya ait işlem, gelen, kart ödemesi, çek ve sayım eklenemez, değiştirilemez ya da silinemez. Kasa aydan aya devrettiği için önceki aylar da kilitlidir."
                            Style="{StaticResource LblPageSub}" IsVisible="{Binding Kilitli}" />
                     <Label Text="{Binding Bilgi}" Style="{StaticResource LblRowSecondary}" TextColor="{StaticResource Pos}"
                            IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}" />
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Kırmızı şerit: yayından sonra değişen rakamlar ve bu aya dokunan kayıtlar -->
+            <!-- Kırmızı şerit: yayından sonra değişen rakamlar ve onları açıklayan düzeltmeler -->
             <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding DegisiklikUyarisi}">
                 <VerticalStackLayout Spacing="6">
                     <Label Text="Bu ay yayınlandıktan sonra değişti" Style="{StaticResource LblError}" FontFamily="PlexSansSemiBold" />
@@ -94,12 +94,37 @@
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
-                    <Label Text="Yayından sonra bu aya dokunan kayıtlar:" Style="{StaticResource LblError}" FontSize="12.5"
-                           Margin="0,4,0,0" />
+                    <Label Text="Yayından sonraki düzeltmeler:" Style="{StaticResource LblError}" FontSize="12.5"
+                           Margin="0,4,0,0" IsVisible="{Binding DokunanVar}" />
                     <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding AyaDokunanlar}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate>
                                 <Label Style="{StaticResource LblError}" FontSize="12.5">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding Eylem}" FontFamily="PlexSansSemiBold" />
+                                            <Span Text=" · " />
+                                            <Span Text="{Binding Ozet}" />
+                                            <Span Text=" · " />
+                                            <Span Text="{Binding Ayrinti}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Nötr not: rakam değişmedi ama yayından sonra bu aya ait kayıtlara dokunuldu (not, sayım…) -->
+            <Border Style="{StaticResource CardForm}" IsVisible="{Binding DokunmaNotu}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Yayından sonra bu aya ait kayıtlara dokunuldu; rakamlar değişmedi" Style="{StaticResource LblRowSecondary}"
+                           FontFamily="PlexSansSemiBold" />
+                    <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding AyaDokunanlar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Label Style="{StaticResource LblRowSecondary}" FontSize="12.5">
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="{Binding Eylem}" FontFamily="PlexSansSemiBold" />

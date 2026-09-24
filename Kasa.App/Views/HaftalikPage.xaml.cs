@@ -10,6 +10,7 @@ public partial class HaftalikPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+        _vm.PropertyChanged += DetayDegisti;   // Paket B: ayrıntı açılınca ona kay (HaftalikPage.B.cs)
     }
 
     protected override async void OnAppearing()

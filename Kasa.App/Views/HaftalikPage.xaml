@@ -8,7 +8,7 @@
     Title="Haftalık"
     BackgroundColor="{StaticResource AppBg}">
 
-    <ScrollView>
+    <ScrollView x:Name="Kaydirma">
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
@@ -117,7 +117,7 @@
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,0" HeightRequest="54"
                                           ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                                        <!-- Döneme dokununca üstte ayrıntısı açılır (yeniden dokununca kapanır) -->
+                                        <!-- Döneme dokununca üstte ayrıntısı açılır ve sayfa ona kayar (yeniden dokununca kapanır, liste konumuna dönülür) -->
                                         <Grid.GestureRecognizers>
                                             <TapGestureRecognizer
                                                 Command="{Binding BindingContext.DonemSecCommand, Source={x:Reference Sayfa}}"
