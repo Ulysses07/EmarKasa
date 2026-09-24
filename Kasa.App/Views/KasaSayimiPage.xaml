@@ -49,9 +49,66 @@
                                 <Label Text="Sayılan tutar" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
                                     <Entry Text="{Binding SayilanTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
-                                           Style="{StaticResource EntryMoney}" />
+                                           Style="{StaticResource EntryMoney}" IsReadOnly="{Binding SatirlarKullaniliyor}" />
                                 </Border>
                             </VerticalStackLayout>
+
+                            <!-- ==================== Paket D: satırlı sayım (nakit + küpür, bankalar, POS) ==================== -->
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Sayım satırları (doldurulursa sayılan tutar satırların toplamıdır)"
+                                       Style="{StaticResource LblField}" Margin="0" />
+                                <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding SayimSatirlari}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <VerticalStackLayout Spacing="4">
+                                                <Grid ColumnDefinitions="*,120,Auto" ColumnSpacing="6">
+                                                    <Border Style="{StaticResource FieldBorder}">
+                                                        <Entry Text="{Binding Ad}" Placeholder="{Binding TurAdi}" />
+                                                    </Border>
+                                                    <Border Grid.Column="1" Style="{StaticResource FieldBorder}">
+                                                        <Entry Text="{Binding Tutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                                               Style="{StaticResource EntryMoney}" IsReadOnly="{Binding KupurKullaniliyor}" />
+                                                    </Border>
+                                                    <Button Grid.Column="2" Text="Çıkar" Style="{StaticResource BtnRowDelete}"
+                                                            Command="{Binding BindingContext.SatirSilCommand, Source={x:Reference Sayfa}}"
+                                                            CommandParameter="{Binding .}" />
+                                                </Grid>
+                                                <!-- Nakit: isteğe bağlı küpür sayacı -->
+                                                <Button Text="{Binding KupurOzeti}" Style="{StaticResource BtnRowEdit}" HorizontalOptions="Start"
+                                                        IsVisible="{Binding NakitMi}"
+                                                        Command="{Binding BindingContext.KupurAcKapatCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <FlexLayout Wrap="Wrap" AlignItems="Center" IsVisible="{Binding KupurAcik}"
+                                                            BindableLayout.ItemsSource="{Binding Kupurler}">
+                                                    <BindableLayout.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <VerticalStackLayout Spacing="0" WidthRequest="76" Margin="0,0,6,6">
+                                                                <Label Text="{Binding Ad}" Style="{StaticResource LblField}" Margin="0,0,0,2" />
+                                                                <Border Style="{StaticResource FieldBorder}">
+                                                                    <Entry Text="{Binding Adet}" Keyboard="Numeric" Placeholder="0" />
+                                                                </Border>
+                                                            </VerticalStackLayout>
+                                                        </DataTemplate>
+                                                    </BindableLayout.ItemTemplate>
+                                                </FlexLayout>
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                                <FlexLayout Wrap="Wrap" AlignItems="Center">
+                                    <Button Text="+ Banka" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                            Command="{Binding SatirEkleCommand}" CommandParameter="Banka" />
+                                    <Button Text="+ POS" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                            Command="{Binding SatirEkleCommand}" CommandParameter="Pos" />
+                                    <Button Text="+ Nakit" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                            Command="{Binding SatirEkleCommand}" CommandParameter="Nakit" />
+                                    <Button Text="+ Diğer" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                            Command="{Binding SatirEkleCommand}" CommandParameter="Diger" />
+                                </FlexLayout>
+                                <Label Text="{Binding SatirToplamiYazi, StringFormat='Satırların toplamı: {0} ₺'}"
+                                       Style="{StaticResource LblRowSecondary}" IsVisible="{Binding SatirlarKullaniliyor}" />
+                            </VerticalStackLayout>
+                            <!-- ==================== /Paket D ==================== -->
                             <!-- Fark (sayılan − defter): 0 ise yeşil, fazla ya da eksikse kırmızı -->
                             <VerticalStackLayout Spacing="2" IsVisible="{Binding FarkGorunur}">
                                 <Label Text="Fark (sayılan − defter)" Style="{StaticResource LblField}" />
@@ -80,6 +137,38 @@
                 <Grid RowDefinitions="Auto,*">
                     <Label Text="Sayım Geçmişi" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Sayimlar}" SelectionMode="None">
+                        <!-- ==================== Paket D: son sayım hatırlatması ve ay ay açıklanmamış fark ==================== -->
+                        <CollectionView.Header>
+                            <VerticalStackLayout Padding="18,0,18,12" Spacing="8">
+                                <Label Text="{Binding SonSayimMetni}" Style="{StaticResource LblRowSecondary}">
+                                    <Label.Triggers>
+                                        <DataTrigger TargetType="Label" Binding="{Binding SayimGecikti}" Value="True">
+                                            <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                            <Setter Property="FontFamily" Value="PlexSansSemiBold" />
+                                        </DataTrigger>
+                                    </Label.Triggers>
+                                </Label>
+                                <VerticalStackLayout Spacing="6" IsVisible="{Binding AylikFarkVar}">
+                                    <Label Text="Ay ay açıklanmamış fark" Style="{StaticResource LblField}" Margin="0" />
+                                    <VerticalStackLayout Spacing="6" BindableLayout.ItemsSource="{Binding AylikFarklar}">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="110,*,Auto" ColumnSpacing="10">
+                                                    <Label Text="{Binding AyAdi}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                           VerticalOptions="Center" />
+                                                    <ProgressBar Grid.Column="1" Progress="{Binding Oran}" ProgressColor="{StaticResource Neg}"
+                                                                 VerticalOptions="Center" />
+                                                    <Label Grid.Column="2" Text="{Binding Metin}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                           TextColor="{Binding RenkDegeri, Converter={StaticResource ParaRenk}}"
+                                                           VerticalOptions="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </CollectionView.Header>
+                        <!-- ==================== /Paket D ==================== -->
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
                                 <VerticalStackLayout>
@@ -123,6 +212,62 @@
                                                 Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
                                                 CommandParameter="{Binding .}" />
                                     </Grid>
+
+                                    <!-- ==================== Paket D: satırlar, fark durumu, "Neden değişti?" ==================== -->
+                                    <VerticalStackLayout Padding="18,0,18,10" Spacing="6">
+                                        <Label Text="{Binding SatirlarMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                               LineBreakMode="WordWrap" IsVisible="{Binding SatirlarVar}" />
+                                        <FlexLayout Wrap="Wrap" AlignItems="Center">
+                                            <Label Text="{Binding FarkDurumMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                   FontFamily="PlexSansSemiBold" VerticalOptions="Center" Margin="0,0,10,4"
+                                                   IsVisible="{Binding FarkVar}">
+                                                <Label.Triggers>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding FarkAcik}" Value="True">
+                                                        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                            <Button Text="Açıkla / kabul et" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,4"
+                                                    IsVisible="{Binding FarkVar}" IsEnabled="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                    Command="{Binding BindingContext.FarkFormuAcKapatCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Neden değişti?" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,4"
+                                                    Command="{Binding BindingContext.NedenDegistiCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </FlexLayout>
+                                        <!-- Fark açıklama formu (yalnız editör) -->
+                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" IsVisible="{Binding FarkFormuAcik}">
+                                            <Border Style="{StaticResource FieldBorder}">
+                                                <Entry Text="{Binding AciklamaGiris}" Placeholder="Farkın nedeni" />
+                                            </Border>
+                                            <Button Grid.Column="1" Text="Açıklandı" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.FarkAciklaCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Grid.Column="2" Text="Kabul et" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.FarkKabulEtCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Grid.Column="3" Text="Açığa al" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.FarkAcikYapCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </Grid>
+                                        <!-- Sayımdan sonra o günü etkileyen değişiklikler -->
+                                        <VerticalStackLayout Spacing="4" IsVisible="{Binding NedenAcik}">
+                                            <Label Text="{Binding NedenOzeti}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                   LineBreakMode="WordWrap" />
+                                            <VerticalStackLayout Spacing="4" BindableLayout.ItemsSource="{Binding Nedenler}">
+                                                <BindableLayout.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <VerticalStackLayout Spacing="1">
+                                                            <Label Text="{Binding Ozet}" Style="{StaticResource LblRowPrimary}" FontSize="12.5"
+                                                                   LineBreakMode="WordWrap" />
+                                                            <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" FontSize="11.5" />
+                                                        </VerticalStackLayout>
+                                                    </DataTemplate>
+                                                </BindableLayout.ItemTemplate>
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </VerticalStackLayout>
+                                    <!-- ==================== /Paket D ==================== -->
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>

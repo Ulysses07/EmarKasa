@@ -245,12 +245,70 @@
                                                     CommandParameter="{Binding .}" />
                                         </HorizontalStackLayout>
                                     </Grid>
+                                    <!-- ==================== Paket D: onayda tarih, kanal ve not ==================== -->
+                                    <VerticalStackLayout Padding="18,0,18,10" Spacing="6">
+                                        <Label Text="{Binding EkBilgi}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                               IsVisible="{Binding EkBilgiVar}" />
+                                        <FlexLayout Wrap="Wrap" AlignItems="End">
+                                            <VerticalStackLayout Spacing="0" WidthRequest="160" Margin="0,0,10,0">
+                                                <Label Text="Tarih" Style="{StaticResource LblField}" Margin="0,0,0,2" />
+                                                <Border Style="{StaticResource FieldBorder}">
+                                                    <DatePicker Date="{Binding TarihGiris}"
+                                                                MaximumDate="{Binding BindingContext.BugunTarihi, Source={x:Reference Sayfa}}" />
+                                                </Border>
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Spacing="0" WidthRequest="160" Margin="0,0,10,0">
+                                                <Label Text="Kanal" Style="{StaticResource LblField}" Margin="0,0,0,2" />
+                                                <Border Style="{StaticResource FieldBorder}">
+                                                    <Picker ItemsSource="{Binding BindingContext.BekleyenKanallar, Source={x:Reference Sayfa}}"
+                                                            SelectedItem="{Binding KanalGiris}" />
+                                                </Border>
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Spacing="0" WidthRequest="240">
+                                                <Label Text="Not" Style="{StaticResource LblField}" Margin="0,0,0,2" />
+                                                <Border Style="{StaticResource FieldBorder}">
+                                                    <Entry Text="{Binding NotGiris}" Placeholder="Tekrarlayan gider" />
+                                                </Border>
+                                            </VerticalStackLayout>
+                                        </FlexLayout>
+                                    </VerticalStackLayout>
+                                    <!-- ==================== /Paket D ==================== -->
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </BindableLayout.ItemTemplate>
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </Border>
+
+            <!-- ==================== Paket D: atlanan giderler ("Bu ay atla" geri alınır; yalnız editör) ==================== -->
+            <Border Style="{StaticResource Card}" IsVisible="{Binding AtlananVar}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="4">
+                        <Label Text="Atlanan giderler" Style="{StaticResource LblSection}" />
+                        <Label Text="Yanlışlıkla atlanan ayı geri alın; yeniden girilmesi bekleyenlere döner."
+                               Style="{StaticResource LblPageSub}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding AtlananGiderler}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,10" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Kalem}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding Aciklama}" Style="{StaticResource LblRowSecondary}" />
+                                        </VerticalStackLayout>
+                                        <Button Grid.Column="1" Text="Geri al" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                Command="{Binding BindingContext.AtlamayiGeriAlCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+            <!-- ==================== /Paket D ==================== -->
 
             <!-- ═══ BÖLÜM · Paket A · Nakit tahmini (30/60/90 gün; yalnız gösterir, deftere yazmaz) ═══ -->
             <Border Style="{StaticResource Card}" IsVisible="{Binding TahminVar}">

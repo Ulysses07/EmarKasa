@@ -17,6 +17,7 @@ public partial class AppShell : Shell
     public AppShell(AuthViewModel auth, Yonlendirme yonlendirme)
     {
         InitializeComponent();
+        Routing.RegisterRoute(Views.KartMutabakatPage.Rota, typeof(Views.KartMutabakatPage));   // Paket D
         _auth = auth;
         _yonlendirme = yonlendirme;
         _auth.PropertyChanged += AuthDegisti;

@@ -184,6 +184,18 @@
 
                                     <!-- Ödeme ekle -->
                                     <Label Text="Ödeme ekle" Style="{StaticResource LblField}" Margin="0,14,0,4" />
+                                    <!-- ==================== Paket D: formu borçla doldur (kayıt yine "Ekle" ile) ==================== -->
+                                    <FlexLayout Wrap="Wrap" AlignItems="Center" Margin="0,0,0,6">
+                                        <Button Text="{Binding EkstreOdeMetni}" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                                IsVisible="{Binding EkstreOdenebilir}"
+                                                Command="{Binding BindingContext.EkstreyiOdeCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        <Button Text="{Binding TamaminiOdeMetni}" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                                IsVisible="{Binding TamamiOdenebilir}"
+                                                Command="{Binding BindingContext.TamaminiOdeCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </FlexLayout>
+                                    <!-- ==================== /Paket D ==================== -->
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                                         <Border Style="{StaticResource FieldBorder}">
                                             <DatePicker Date="{Binding OdemeTarihGiris}" />
@@ -197,6 +209,11 @@
                                                 CommandParameter="{Binding .}" />
                                     </Grid>
                                 </VerticalStackLayout>
+
+                                <!-- ==================== Paket D: ekstre mutabakatı (tüm roller) ==================== -->
+                                <Button Text="Ekstre mutabakatı" Style="{StaticResource BtnSecondary}" Margin="0,12,0,0"
+                                        HorizontalOptions="Start" Clicked="MutabakatTiklandi" />
+                                <!-- ==================== /Paket D ==================== -->
 
                                 <!-- Ödeme geçmişi (tüm roller; silme yalnız editör) -->
                                 <Label Text="Ödemeler" Style="{StaticResource LblField}" Margin="0,12,0,0" />

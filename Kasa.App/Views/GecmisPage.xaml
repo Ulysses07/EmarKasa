@@ -37,6 +37,12 @@
             <Grid RowDefinitions="Auto,*">
                 <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
                     <Label Text="Değişiklikler" Style="{StaticResource LblSection}" />
+                    <!-- Paket D: düzenlemeyi de geri alma -->
+                    <Label Text="Silinen kayıt &quot;Geri al&quot;, düzenlenen işlem, çek, gelen ve açılış devri &quot;Önceki haline döndür&quot; ile 30 gün içinde geri alınır. Kayıt o arada yeniden değiştiyse önce daha yeni değişikliği geri alın."
+                           Style="{StaticResource LblRowSecondary}"
+                           FontSize="12" LineBreakMode="WordWrap"
+                           IsVisible="{Binding EditorMu}" />
+                    <!-- /Paket D -->
 
                     <!-- Filtre: tür çipleri -->
                     <FlexLayout Wrap="Wrap" AlignItems="Center"
@@ -128,8 +134,9 @@
                                                IsVisible="{Binding GeriAlmaNotu, Converter={StaticResource DoluIse}}" />
                                     </VerticalStackLayout>
 
-                                    <!-- Satır aksiyonu: yalnız editörde ve geri alınabilir silmede -->
-                                    <Button Grid.Column="2" Text="Geri al" Style="{StaticResource BtnRowEdit}"
+                                    <!-- Satır aksiyonu: yalnız editörde ve geri alınabilir silme/güncellemede
+                                         (Paket D: güncellemede "Önceki haline döndür") -->
+                                    <Button Grid.Column="2" Text="{Binding GeriAlMetni}" Style="{StaticResource BtnRowEdit}"
                                             VerticalOptions="Center" IsVisible="{Binding GeriAlGorunur}"
                                             Command="{Binding BindingContext.GeriAlCommand, Source={x:Reference Sayfa}}"
                                             CommandParameter="{Binding .}" />

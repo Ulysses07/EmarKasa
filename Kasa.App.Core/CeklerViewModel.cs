@@ -75,7 +75,8 @@ public partial class CeklerViewModel : TemelViewModel
         var kanalGorevi = _api.KanallarAsync();
         var ozetGorevi = _api.CekOzetAsync();
         var listeGorevi = ListeyiYukleAsync();
-        await Task.WhenAll(kanalGorevi, ozetGorevi, listeGorevi);
+        var riskGorevi = RiskYukleAsync();                       // Paket D: risk dağılımı
+        await Task.WhenAll(kanalGorevi, ozetGorevi, listeGorevi, riskGorevi);
         _kanallar.Clear();
         _kanallar.AddRange(kanalGorevi.Result.OrderBy(k => k.Sira));
         KanalCipleriniKur();
@@ -86,13 +87,14 @@ public partial class CeklerViewModel : TemelViewModel
     {
         var surum = ++_listeSurumu;
         IReadOnlyList<CekDto> liste;
-        try { liste = await _api.CeklerAsync(FiltreYon, FiltreDurum); }
+        try { liste = EvrakSuz(await _api.CeklerAsync(FiltreYon, FiltreDurum)); }   // Paket D: tür/konum
         catch when (surum != _listeSurumu) { return; }   // bu arada yeni filtre istendi
         if (surum != _listeSurumu) return;
 
         var bugun = BugunTarih;
         Cekler.Clear();
         foreach (var c in liste) Cekler.Add(new CekGorunum(c, bugun));
+        SecimiBagla();                                           // Paket D: çoklu seçim
         var alinan = liste.Where(c => c.Yon == CekYonu.Alinan).Sum(c => c.Tutar);
         var verilen = liste.Where(c => c.Yon == CekYonu.Verilen).Sum(c => c.Tutar);
         ListeOzeti = liste.Count == 0
@@ -290,6 +292,7 @@ public partial class CeklerViewModel : TemelViewModel
         DuzenKanal = "";
         KanalCipleriniKur();
         DuzenDuzenlemeTarihi = Bugun; DuzenVadeTarihi = Bugun; DuzenIslemTarihi = Bugun;
+        EvrakYeni();                                             // Paket D: Çek, Elde, cirosuz
     }
 
     [RelayCommand]
@@ -305,6 +308,7 @@ public partial class CeklerViewModel : TemelViewModel
         DuzenDuzenlemeTarihi = c.DuzenlemeTarihi.ToDateTime(TimeOnly.MinValue);
         DuzenVadeTarihi = c.VadeTarihi.ToDateTime(TimeOnly.MinValue);
         DuzenIslemTarihi = (c.IslemTarihi ?? BugunTarih).ToDateTime(TimeOnly.MinValue);
+        EvrakDuzenle(c);                                         // Paket D: tür, konum, ciro carisi
     }
 
     [RelayCommand]
@@ -323,7 +327,8 @@ public partial class CeklerViewModel : TemelViewModel
             DateOnly.FromDateTime(DuzenDuzenlemeTarihi), DateOnly.FromDateTime(DuzenVadeTarihi),
             DuzenKanal, DuzenDurum,
             IslemTarihiGorunur ? DateOnly.FromDateTime(DuzenIslemTarihi) : null,
-            string.IsNullOrWhiteSpace(DuzenNot) ? null : DuzenNot.Trim());
+            string.IsNullOrWhiteSpace(DuzenNot) ? null : DuzenNot.Trim(),
+            DuzenTur, FormKonum, FormCiroCari);                  // Paket D
         if (DuzenId == 0) await _api.CekOlusturAsync(g);
         else await _api.CekGuncelleAsync(DuzenId, g);
         Yeni();
@@ -342,7 +347,9 @@ public partial class CeklerViewModel : TemelViewModel
     private async Task YenileAsync()
     {
         var ozetGorevi = _api.CekOzetAsync();
+        var riskGorevi = RiskYukleAsync();                       // Paket D
         await ListeyiYukleAsync();
         OzetiKur(await ozetGorevi);
+        await riskGorevi;
     }
 }

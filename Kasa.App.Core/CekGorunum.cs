@@ -57,7 +57,7 @@ public static class CekMetin
 }
 
 /// <summary>Çek satırı: DTO + liste görünümü için hazır metinler.</summary>
-public sealed class CekGorunum
+public sealed partial class CekGorunum
 {
     public CekDto Dto { get; }
     public int Id => Dto.Id;

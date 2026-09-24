@@ -153,7 +153,7 @@ public partial class GecmisViewModel : TemelViewModel
         Dogrula(EditorMu, HataMesaji.Yetkisiz);
         Dogrula(s.Dto.GeriAlinabilir, GeriAlinamazMesaji);
         await _api.GeriAlAsync(s.Id);
-        Bilgi = GeriAlindiMesaji(s.Tur);
+        Bilgi = GeriAlmaMesaji(s);                               // Paket D: güncellemede "önceki haline döndürüldü"
         await ListeyiYukleAsync();
     });
 

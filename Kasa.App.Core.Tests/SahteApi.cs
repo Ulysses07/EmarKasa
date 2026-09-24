@@ -81,7 +81,7 @@ public sealed partial class SahteApi : IKasaApi
         if (TekrarlayanYazHatasi is not null) return Task.FromException<TekrarlayanGiderDto>(TekrarlayanYazHatasi);
         SonTekrarOlustur = g;
         var yeni = new TekrarlayanGiderDto(600 + TekrarlayanListe.Count, g.Kalem, g.Kanal, g.Tutar, g.AyinGunu, g.Aktif,
-            g.BaslangicAyi ?? new DateOnly(2026, 9, 1));
+            g.BaslangicAyi ?? new DateOnly(2026, 9, 1), g.Siklik, g.KrediKartiId, g.TutarDegisken);
         TekrarlayanListe = TekrarlayanListe.Append(yeni).ToList();
         return Task.FromResult(yeni);
     }
@@ -91,7 +91,7 @@ public sealed partial class SahteApi : IKasaApi
         SonTekrarGuncelle = (id, g);
         var eski = TekrarlayanListe.FirstOrDefault(t => t.Id == id);
         var yeni = new TekrarlayanGiderDto(id, g.Kalem, g.Kanal, g.Tutar, g.AyinGunu, g.Aktif,
-            g.BaslangicAyi ?? eski?.BaslangicAyi ?? new DateOnly(2026, 9, 1));
+            g.BaslangicAyi ?? eski?.BaslangicAyi ?? new DateOnly(2026, 9, 1), g.Siklik, g.KrediKartiId, g.TutarDegisken);
         TekrarlayanListe = TekrarlayanListe.Select(t => t.Id == id ? yeni : t).ToList();
         return Task.FromResult(yeni);
     }
@@ -269,13 +269,13 @@ public sealed partial class SahteApi : IKasaApi
     {
         if (CekYazHatasi is not null) return Task.FromException<CekDto>(CekYazHatasi);
         SonCekOlustur = g;
-        return Task.FromResult(new CekDto(0, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not));
+        return Task.FromResult(new CekDto(0, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not, g.Tur, g.Konum, g.CiroEdilenCari));
     }
     public Task<CekDto> CekGuncelleAsync(int id, CekYaz g)
     {
         if (CekYazHatasi is not null) return Task.FromException<CekDto>(CekYazHatasi);
         SonCekGuncelle = (id, g);
-        return Task.FromResult(new CekDto(id, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not));
+        return Task.FromResult(new CekDto(id, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not, g.Tur, g.Konum, g.CiroEdilenCari));
     }
     public Task CekSilAsync(int id) { SonCekSil = id; return Task.CompletedTask; }
 
@@ -322,7 +322,7 @@ public sealed partial class SahteApi : IKasaApi
         if (KasaSayimYazHatasi is not null) return Task.FromException<KasaSayimDto>(KasaSayimYazHatasi);
         SonKasaSayimKaydet = g;
         var d = new KasaSayimDto(100 + KasaSayimlariListe.Count, g.Tarih, g.SayilanTutar, KasaHesapSonuc,
-            g.SayilanTutar - KasaHesapSonuc, KasaHesapSonuc, g.Not, new DateTime(2026, 9, 24, 9, 0, 0, DateTimeKind.Utc));
+            g.SayilanTutar - KasaHesapSonuc, KasaHesapSonuc, g.Not, new DateTime(2026, 9, 24, 9, 0, 0, DateTimeKind.Utc), g.Satirlar);
         KasaSayimlariListe = KasaSayimlariListe.Prepend(d).ToList();
         return Task.FromResult(d);
     }
