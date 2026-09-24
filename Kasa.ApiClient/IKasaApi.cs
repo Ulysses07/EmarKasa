@@ -1,7 +1,7 @@
 namespace Kasa.ApiClient;
 
 /// <summary>KasaApiClient'in test edilebilir yüzeyi (VM'ler buna bağlanır).</summary>
-public interface IKasaApi
+public partial interface IKasaApi
 {
     /// <summary>
     /// Sunucu oturumu geçersiz saydığında (token'lı istek 401 aldı) ya da tüm oturumlar
