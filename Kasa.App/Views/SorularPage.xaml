@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · SorularPage — kayda soru (her iki rol). İzleyici işleme, haftaya, çeke ya da genel soru yazar;
+     editör cevaplar, kapatır, yeniden açar, siler. Cevaplar herkese görünür. Rakamlara dokunmaz. -->
+<ContentPage
+    x:Class="Kasa.App.Views.SorularPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Sorular"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="{Binding Baslik}" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Bir işlem, hafta ya da çek hakkında soru yazın; cevaplar herkese görünür. Kayda soru sormak için o satırdaki &quot;Soru sor&quot; düğmesini kullanın."
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+                <Button Grid.Column="2" Text="Genel soru sor" Command="{Binding GenelSoruCommand}"
+                        VerticalOptions="Center" Padding="18,0" />
+            </Grid>
+
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+            <Border Background="{StaticResource BrushGreenSoft}" StrokeThickness="0" StrokeShape="RoundRectangle 10"
+                    Padding="12,10" IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Bilgi}" TextColor="{StaticResource Green}" FontFamily="PlexSansMedium" FontSize="12.5" />
+            </Border>
+
+            <!-- Yeni soru formu -->
+            <Border Style="{StaticResource CardForm}" IsVisible="{Binding FormAcik}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Yeni soru" Style="{StaticResource LblSection}" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                            <Label Text="Neyle ilgili" Style="{StaticResource LblField}" />
+                            <Label Text="{Binding HedefMetni}" Style="{StaticResource LblRowPrimary}" LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" Text="Genel soru yap" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                Command="{Binding HedefiKaldirCommand}" IsVisible="{Binding HedefKaldirilabilir}" />
+                    </Grid>
+                    <VerticalStackLayout Spacing="0">
+                        <Label Text="Sorunuz" Style="{StaticResource LblField}" />
+                        <Border Style="{StaticResource FieldBorder}" Padding="10,4">
+                            <Editor Text="{Binding YeniMetin}" Placeholder="Örn. Bu ödeme hangi faturaya ait?"
+                                    AutoSize="TextChanges" MinimumHeightRequest="90" MaxLength="2000"
+                                    FontFamily="PlexSans" FontSize="14" TextColor="{StaticResource Ink}"
+                                    PlaceholderColor="{StaticResource Muted}" BackgroundColor="Transparent" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <HorizontalStackLayout Spacing="10">
+                        <Button Text="Gönder" Command="{Binding SorCommand}" Padding="18,0" />
+                        <Button Text="Vazgeç" Command="{Binding FormuKapatCommand}" Style="{StaticResource BtnSecondary}" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Durum süzgeci -->
+            <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding Filtreler}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding BindingContext.FiltreSecCommand, Source={x:Reference Sayfa}}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+
+            <!-- Soru listesi -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="20,30,20,34" Spacing="6" IsVisible="{Binding BosMu}">
+                        <Label Text="Soru yok" Style="{StaticResource LblEmptyTitle}" />
+                        <Label Text="Bu süzgece uyan soru bulunmuyor." Style="{StaticResource LblEmptySub}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Sorular}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <VerticalStackLayout Padding="18,14" Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <Label Text="{Binding HedefBaslik}" Style="{StaticResource LblRowSecondary}"
+                                                   LineBreakMode="WordWrap" VerticalOptions="Center" />
+                                            <!-- Durum rozeti -->
+                                            <Border Grid.Column="1" Style="{StaticResource StatusChip}" VerticalOptions="Center">
+                                                <Border.Triggers>
+                                                    <DataTrigger TargetType="Border" Binding="{Binding DurumAdi}" Value="Açık">
+                                                        <Setter Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="#FBF3DC" />
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="Border" Binding="{Binding DurumAdi}" Value="Cevaplandı">
+                                                        <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="Border" Binding="{Binding DurumAdi}" Value="Kapalı">
+                                                        <Setter Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="{StaticResource DateChipBg}" />
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Border.Triggers>
+                                                <Label Text="{Binding DurumAdi}" Style="{StaticResource LblStatusChip}">
+                                                    <Label.Triggers>
+                                                        <DataTrigger TargetType="Label" Binding="{Binding DurumAdi}" Value="Açık">
+                                                            <Setter Property="TextColor" Value="#9A6700" />
+                                                        </DataTrigger>
+                                                        <DataTrigger TargetType="Label" Binding="{Binding DurumAdi}" Value="Cevaplandı">
+                                                            <Setter Property="TextColor" Value="{StaticResource Pos}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger TargetType="Label" Binding="{Binding DurumAdi}" Value="Kapalı">
+                                                            <Setter Property="TextColor" Value="{StaticResource Sub}" />
+                                                        </DataTrigger>
+                                                    </Label.Triggers>
+                                                </Label>
+                                            </Border>
+                                        </Grid>
+                                        <Label Text="{Binding Metin}" Style="{StaticResource LblRowPrimary}" LineBreakMode="WordWrap" />
+                                        <Label Text="{Binding SoranMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+
+                                        <!-- Cevap (herkese görünür) -->
+                                        <Border Background="{StaticResource BrushGreenSoft}" StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 10" Padding="12,10" Margin="0,4,0,0"
+                                                IsVisible="{Binding CevapVar}">
+                                            <VerticalStackLayout Spacing="3">
+                                                <Label Text="{Binding CevapMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                                <Label Text="{Binding Cevap}" Style="{StaticResource LblRowPrimary}" LineBreakMode="WordWrap" />
+                                            </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Editör: cevapla, kapat, yeniden aç, sil -->
+                                        <VerticalStackLayout Spacing="8" Margin="0,4,0,0" IsVisible="{Binding CevapFormuGorunur}">
+                                            <Border Style="{StaticResource FieldBorder}" Padding="10,4">
+                                                <Editor Text="{Binding CevapTaslak}" Placeholder="Cevabınız"
+                                                        AutoSize="TextChanges" MinimumHeightRequest="60" MaxLength="4000"
+                                                        FontFamily="PlexSans" FontSize="14" TextColor="{StaticResource Ink}"
+                                                        PlaceholderColor="{StaticResource Muted}" BackgroundColor="Transparent" />
+                                            </Border>
+                                            <FlexLayout Wrap="Wrap" AlignItems="Center">
+                                                <Button Text="Cevapla ve kapat" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                                        Command="{Binding BindingContext.CevaplaCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Cevapla, açık kalsın" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                                        Command="{Binding BindingContext.CevaplaAcikKalsinCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Kapat" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                                        IsVisible="{Binding KapatGorunur}"
+                                                        Command="{Binding BindingContext.KapatCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Yeniden aç" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,6"
+                                                        IsVisible="{Binding AcGorunur}"
+                                                        Command="{Binding BindingContext.AcCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="{Binding SilMetni}" Style="{StaticResource BtnRowDelete}" Margin="0,0,6,6"
+                                                        Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                            </FlexLayout>
+                                        </VerticalStackLayout>
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

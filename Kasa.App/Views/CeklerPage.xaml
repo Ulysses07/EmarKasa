@@ -5,21 +5,29 @@
     x:Class="Kasa.App.Views.CeklerPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:Name="Sayfa"
     Title="Çekler"
     BackgroundColor="{StaticResource AppBg}">
 
+    <Grid><!-- paket C · 32: "Silindi · Geri al" şeridi içeriğin üstünde, altta yüzer -->
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
                 <VerticalStackLayout Spacing="3">
                     <Label Text="Çekler" Style="{StaticResource LblPageTitle}" />
                     <Label Text="Alınan ve verilen çekler · kasaya yalnız tahsil / ödeme gününde yansır"
                            Style="{StaticResource LblPageSub}" />
+                    <Label Text="{Binding AktarilanDosya, StringFormat='Kaydedildi: {0}'}" Style="{StaticResource LblRowSecondary}"
+                           TextColor="{StaticResource Pos}" LineBreakMode="CharacterWrap"
+                           IsVisible="{Binding AktarilanDosya, Converter={StaticResource DoluIse}}" />
                 </VerticalStackLayout>
                 <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
                                    WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+                <!-- Paket B · seçili yön/durum süzgecine uyan tüm çekler (yön toplamlarıyla); Belgeler\Emar Kasa'ya kaydedilir ve açılır -->
+                <Button Grid.Column="2" Text="Excel'e aktar" Command="{Binding ExceleAktarCommand}"
+                        Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
             </Grid>
 
             <!-- Hata (tüm roller; editör formunun dışında) -->
@@ -393,7 +401,7 @@
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,8" MinimumHeightRequest="62"
-                                          ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="14">
+                                          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="14">
                                         <!-- Vade -->
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
                                             <Label Text="{Binding VadeTarihi, StringFormat='{0:dd MMM}'}"
@@ -471,10 +479,21 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
+                                        <!-- Kayda soru (her iki rol; paket E) -->
+                                        <Button Grid.Column="5" Text="Soru sor" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                Command="{x:Static core:SoruYonlendirme.SorKomutu}" CommandParameter="{Binding .}" />
                                     </Grid>
 
                                     <!-- ==================== Paket D: seçim, evrak bilgisi, tek dokunuş ==================== -->
@@ -605,4 +624,6 @@
             <!-- ==================== /Paket D ==================== -->
         </VerticalStackLayout>
     </ScrollView>
+    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" />
+    </Grid>
 </ContentPage>

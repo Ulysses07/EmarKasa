@@ -11,13 +11,19 @@
     <Grid RowDefinitions="Auto,Auto,*" Padding="{OnIdiom Desktop='28,22', Default='16,14'}"
           RowSpacing="16" MaximumWidthRequest="1160">
 
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
             <VerticalStackLayout Spacing="3">
                 <Label Text="Kasa Sayımı" Style="{StaticResource LblPageTitle}" />
                 <Label Text="Sayılan nakit ile defterdeki kasanın karşılaştırması" Style="{StaticResource LblPageSub}" />
+                <Label Text="{Binding AktarilanDosya, StringFormat='Kaydedildi: {0}'}" Style="{StaticResource LblRowSecondary}"
+                       TextColor="{StaticResource Pos}" LineBreakMode="CharacterWrap"
+                       IsVisible="{Binding AktarilanDosya, Converter={StaticResource DoluIse}}" />
             </VerticalStackLayout>
             <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
                                WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            <!-- Paket B · tüm sayımlar; Belgeler\Emar Kasa'ya kaydedilir ve açılır -->
+            <Button Grid.Column="2" Text="Excel'e aktar" Command="{Binding ExceleAktarCommand}"
+                    Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
         </Grid>
 
         <!-- Hata (tüm roller) -->
@@ -129,6 +135,7 @@
                                    Style="{StaticResource LblRowSecondary}" FontSize="12" />
                         </VerticalStackLayout>
                     </Border>
+                    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" HorizontalOptions="Fill" Margin="0" /><!-- paket C · 32: Silindi · Geri al (form sütununda, liste kaymaz) -->
                 </VerticalStackLayout>
             </ScrollView>
 
@@ -206,11 +213,19 @@
                                             <Label Text="{Binding FarkYazi}" Style="{StaticResource LblMoney}"
                                                    TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}" />
                                         </VerticalStackLayout>
-                                        <Button Grid.Column="5" Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                        <Button Grid.Column="5" Style="{StaticResource BtnRowDelete}"
                                                 VerticalOptions="Center"
                                                 IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
-                                                Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
-                                                CommandParameter="{Binding .}" />
+                                                Command="{Binding BindingContext.OnayliSilCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}">
+                                            <Button.Text>
+                                                <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                    <Binding Path="." />
+                                                    <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                    <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                </MultiBinding>
+                                            </Button.Text>
+                                        </Button>
                                     </Grid>
 
                                     <!-- ==================== Paket D: satırlar, fark durumu, "Neden değişti?" ==================== -->

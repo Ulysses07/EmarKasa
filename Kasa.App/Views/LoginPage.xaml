@@ -52,7 +52,7 @@
                 <VerticalStackLayout Spacing="0">
                     <Label Text="Kullanıcı" Style="{StaticResource LblField}" />
                     <Border Style="{StaticResource FieldBorder}">
-                        <Entry Text="{Binding Kullanici}" Placeholder="editör" />
+                        <Entry Text="{Binding Kullanici}" Placeholder="kullanıcı adı" />
                     </Border>
 
                     <Label Text="Şifre" Style="{StaticResource LblField}" Margin="0,14,0,6" />
@@ -60,6 +60,20 @@
                         <Entry Text="{Binding Sifre}" IsPassword="True" Placeholder="••••••••"
                                ReturnCommand="{Binding GirisCommand}" />
                     </Border>
+
+                    <!-- İki adımlı giriş: şifre doğru, hesapta kod açık (paket E) -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding KodGerekli}">
+                        <Label Text="Doğrulama kodu" Style="{StaticResource LblField}" Margin="0,14,0,6" />
+                        <Label Text="{Binding KodBilgisi}" Style="{StaticResource LblRowSecondary}" FontSize="12" Margin="0,0,0,6" />
+                        <Border Style="{StaticResource FieldBorder}">
+                            <Entry Text="{Binding Kod}" Placeholder="123456 ya da kurtarma kodu"
+                                   ReturnCommand="{Binding GirisCommand}" />
+                        </Border>
+                        <Label Text="Telefon yanınızda değilse kurtarma kodlarınızdan birini yazın."
+                               Style="{StaticResource LblRowSecondary}" FontSize="12" Margin="0,6,0,0" />
+                        <Button Text="Başka hesapla gir" Command="{Binding KodIptalCommand}"
+                                Style="{StaticResource BtnSecondary}" Margin="0,10,0,0" />
+                    </VerticalStackLayout>
 
                     <!-- Hata -->
                     <Border Style="{StaticResource ErrorBox}" Margin="0,16,0,0"
@@ -89,7 +103,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Label Text="İzleyici girişi için izleyici şifresini kullanın"
+            <Label Text="Kendi kullanıcı adınız ve şifrenizle girin. Ortak izleyici şifresi de geçerlidir."
                    Style="{StaticResource LblRowSecondary}" FontSize="12"
                    HorizontalTextAlignment="Center" Margin="0,16,0,0" />
         </VerticalStackLayout>

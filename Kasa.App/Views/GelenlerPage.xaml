@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · GelenlerPage (paket C · 29) — seçili haftanın bütün kanallarının geleni tek ekranda.
+     Yalnız değişen satırlar gönderilir; her satır görülen tutarla korumalı yazılır (başka biri bu arada
+     değiştirdiyse satır "Üzerine yaz / Üstüne ekle" sorar). Altta girilmemiş gelenler. Kaydedilmemiş
+     giriş varken hafta değişimi sorulur; "O haftaya git" sayfayı yukarı kaydırır. -->
+<ContentPage
+    x:Class="Kasa.App.Views.GelenlerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Gelenler"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView x:Name="Kaydirma">
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Gelenler" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Haftanın bütün kanalları tek ekranda · yalnız değiştirdiğiniz satırlar kaydedilir"
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <!-- Hafta seçimi -->
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                <Button Text="‹ Önceki" Command="{Binding OncekiCommand}" IsEnabled="{Binding OncekiVar}"
+                        Style="{StaticResource BtnSecondary}" />
+                <Label Grid.Column="1" Text="{Binding DonemMetni}" Style="{StaticResource LblSection}"
+                       HorizontalTextAlignment="Center" VerticalOptions="Center" />
+                <Button Grid.Column="2" Text="Sonraki ›" Command="{Binding SonrakiCommand}" IsEnabled="{Binding SonrakiVar}"
+                        Style="{StaticResource BtnSecondary}" />
+                <Button Grid.Column="3" Text="Bu hafta" Command="{Binding BuHaftaCommand}"
+                        Style="{StaticResource BtnRowEdit}" />
+            </Grid>
+
+            <!-- Kaydedilmemiş giriş varken hafta değişimi sorusu -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding GecisSorusuVar}">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="{Binding GecisSorusu}" Style="{StaticResource LblError}" />
+                    <HorizontalStackLayout Spacing="8">
+                        <Button Text="Kaydetmeden geç" Command="{Binding KaydetmedenGecCommand}"
+                                Style="{StaticResource BtnRowDelete}" />
+                        <Button Text="Vazgeç" Command="{Binding GecisVazgecCommand}"
+                                Style="{StaticResource BtnSecondary}" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Kanal × gelen tablosu -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout>
+                    <Grid Padding="18,14,18,10" ColumnDefinitions="*,130,150,*" ColumnSpacing="14">
+                        <Label Text="KANAL" Style="{StaticResource LblField}" />
+                        <Label Grid.Column="1" Text="KAYITLI" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="YENİ TUTAR" Style="{StaticResource LblField}"
+                               IsVisible="{Binding EditorMu}" />
+                        <Label Grid.Column="3" Text="" Style="{StaticResource LblField}" />
+                    </Grid>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Satirlar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,8" MinimumHeightRequest="54" ColumnDefinitions="*,130,150,*"
+                                          ColumnSpacing="14">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Kanal}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="Pasif kanal" Style="{StaticResource LblRowSecondary}" FontSize="11"
+                                                   IsVisible="{Binding Aktif, Converter={StaticResource TersIse}}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding KayitliMetni}" Style="{StaticResource LblMoney}"
+                                               VerticalOptions="Center" />
+                                        <Border Grid.Column="2" Style="{StaticResource FieldBorder}" VerticalOptions="Center"
+                                                IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                            <Entry Text="{Binding GirisMetni}" Placeholder="—" Keyboard="Numeric"
+                                                   Style="{StaticResource EntryMoney}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="3" Spacing="4" VerticalOptions="Center">
+                                            <!-- Kayıtlı gelen varken: yazılan nasıl işlensin? -->
+                                            <HorizontalStackLayout Spacing="6" IsVisible="{Binding ModGerekli}">
+                                                <Button Text="Üzerine yaz" Style="{StaticResource BtnRowEdit}"
+                                                        Command="{Binding BindingContext.SecUzerineYazCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}">
+                                                    <Button.Triggers>
+                                                        <DataTrigger TargetType="Button" Binding="{Binding UzerineYazSecili}" Value="True">
+                                                            <Setter Property="BackgroundColor" Value="{StaticResource Green}" />
+                                                            <Setter Property="TextColor" Value="White" />
+                                                        </DataTrigger>
+                                                    </Button.Triggers>
+                                                </Button>
+                                                <Button Text="Üstüne ekle" Style="{StaticResource BtnRowEdit}"
+                                                        Command="{Binding BindingContext.SecUstuneEkleCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}">
+                                                    <Button.Triggers>
+                                                        <DataTrigger TargetType="Button" Binding="{Binding UstuneEkleSecili}" Value="True">
+                                                            <Setter Property="BackgroundColor" Value="{StaticResource Green}" />
+                                                            <Setter Property="TextColor" Value="White" />
+                                                        </DataTrigger>
+                                                    </Button.Triggers>
+                                                </Button>
+                                            </HorizontalStackLayout>
+                                            <Label Text="{Binding Onizleme}" Style="{StaticResource LblRowSecondary}"
+                                                   TextColor="{StaticResource GreenDark}"
+                                                   IsVisible="{Binding Onizleme, Converter={StaticResource DoluIse}}" />
+                                            <Label Text="{Binding GirisHatasi}" Style="{StaticResource LblError}" FontSize="12"
+                                                   IsVisible="{Binding GirisHatasi, Converter={StaticResource DoluIse}}" />
+                                            <Label Text="{Binding Durum}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                   TextColor="{StaticResource Pos}"
+                                                   IsVisible="{Binding Durum, Converter={StaticResource DoluIse}}">
+                                                <Label.Triggers>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Cakisma}" Value="True">
+                                                        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <BoxView Style="{StaticResource RowSeparator}" />
+                    <Grid Padding="18,12" ColumnDefinitions="*,130,*" ColumnSpacing="14">
+                        <Label Text="Toplam (kayıtlı)" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="{Binding Toplam, Converter={StaticResource ParaBicim}}"
+                               Style="{StaticResource LblMoneyPos}" VerticalOptions="Center" />
+                        <HorizontalStackLayout Grid.Column="2" Spacing="10" HorizontalOptions="End"
+                                               IsVisible="{Binding EditorMu}">
+                            <Label Text="{Binding Sonuc}" Style="{StaticResource LblRowSecondary}"
+                                   TextColor="{StaticResource GreenDark}" VerticalOptions="Center"
+                                   IsVisible="{Binding Sonuc, Converter={StaticResource DoluIse}}" />
+                            <Button Text="Değişenleri kaydet" Command="{Binding KaydetCommand}" />
+                        </HorizontalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Geçmiş haftalarda girilmemiş gelenler -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout>
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="4">
+                        <Label Text="Girilmemiş gelenler" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding EksikOzeti}" Style="{StaticResource LblRowSecondary}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Eksikler}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,6" MinimumHeightRequest="44" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                        <Label Text="{Binding Metin}" Style="{StaticResource LblRowPrimary}"
+                                               VerticalOptions="Center" />
+                                        <Button Grid.Column="1" Text="O haftaya git" Style="{StaticResource BtnRowEdit}"
+                                                Command="{Binding BindingContext.EksigeGitCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

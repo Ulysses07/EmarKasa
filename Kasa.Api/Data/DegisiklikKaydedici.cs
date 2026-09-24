@@ -60,6 +60,18 @@ internal static class DegisiklikKaydedici
         ["Siklik"] = "Sıklık", ["TutarDegisken"] = "Tutar her seferinde girilir",
         ["DonemBaslangic"] = "Dönem başı", ["DonemBitis"] = "Kesim", ["EkstreTutari"] = "Ekstre tutarı",
         ["HesaplananBorc"] = "Uygulamadaki borç", ["TikliIslemIdleri"] = "İşaretli işlemler",
+        // Kullanıcılar, güvenlik ayarı ve sorular
+        ["AdSoyad"] = "Ad soyad", ["KullaniciAdi"] = "Kullanıcı adı", ["Rol"] = "Rol", ["Yerlesik"] = "Yerleşik",
+        ["OlusturmaUtc"] = "Oluşturma", ["EditorOturumGun"] = "Editör oturum süresi (gün)",
+        ["HedefTur"] = "Hedef", ["HedefId"] = "Hedef no", ["Hafta"] = "Hafta", ["HedefOzet"] = "Kayıt", ["Metin"] = "Soru",
+        ["SoranId"] = "Soran no", ["SoranAd"] = "Soran", ["SoranRol"] = "Soranın rolü", ["SorulmaUtc"] = "Soru zamanı",
+        ["Cevap"] = "Cevap", ["CevaplayanAd"] = "Cevaplayan", ["CevaplanmaUtc"] = "Cevap zamanı", ["KapanmaUtc"] = "Kapanma",
+        ["Etiket"] = "Ay", ["KilitZamaniUtc"] = "Kilit zamanı", ["YayinZamaniUtc"] = "Yayın zamanı", ["SonDegisiklikId"] = "Son geçmiş satırı", ["KanalId"] = "Kanal", ["GiderKalemiId"] = "Gider kalemi", ["TufeEndeksi"] = "TÜFE endeksi", ["UsdTry"] = "USD/TRY", ["EurTry"] = "EUR/TRY", ["AltinGramTry"] = "Gram altın (TL)",
+        // Paket F: belge, ek ve POS alanları.
+        ["BelgeTuru"] = "Belge türü", ["BelgeNo"] = "Belge no", ["FaturaBekleniyor"] = "Fatura bekleniyor",
+        ["OrijinalAd"] = "Dosya", ["DepoAdi"] = "Depo adı", ["IcerikTipi"] = "Dosya türü", ["Boyut"] = "Boyut (bayt)",
+        ["YuklemeZamaniUtc"] = "Yükleme zamanı", ["Saglayici"] = "Sağlayıcı", ["KanalId"] = "Kanal",
+        ["KomisyonOrani"] = "Komisyon oranı (%)", ["BlokajGunu"] = "Blokaj günü", ["PosId"] = "POS", ["BrutTutar"] = "Brüt tutar",
     };
 
     private static readonly Dictionary<string, string> EnumAdlari = new()
@@ -75,12 +87,16 @@ internal static class DegisiklikKaydedici
         ["Aylik"] = "Aylık", ["UcAylik"] = "3 ayda bir", ["AltiAylik"] = "6 ayda bir", ["Yillik"] = "Yıllık",
         ["Acik"] = "Açık", ["Aciklandi"] = "Açıklandı", ["KabulEdildi"] = "Kabul edildi",
         ["Mutabik"] = "Mutabık", ["FarkKabul"] = "Fark kabul edildi",
+        ["Acik"] = "Açık", ["Kapali"] = "Kapalı", ["Genel"] = "Genel", ["Islem"] = "İşlem", ["Hafta"] = "Hafta", ["Cek"] = "Çek",
+        // Paket F: belge türü ve POS sağlayıcısı.
+        ["EFatura"] = "e-Fatura", ["EArsiv"] = "e-Arşiv", ["Fis"] = "Fiş", ["Makbuz"] = "Makbuz", ["Belgesiz"] = "Belgesiz",
+        ["BankaPosu"] = "Banka POS'u", ["Iyzico"] = "iyzico", ["PayTr"] = "PayTR", ["Diger"] = "Diğer",
     };
 
     internal sealed record Alan(IProperty Ozellik, string Etiket, bool Gizli, string? GizliMesaj);
 
     internal sealed record Tanim(string Tur, bool Disarida, IReadOnlyList<Alan> Alanlar,
-        IReadOnlyList<IProperty> OzetAlanlari, IProperty? TekAnahtar);
+        IReadOnlyList<IProperty> OzetAlanlari, IProperty? TekAnahtar, bool GizlideKimlik = false);
 
     /// <summary>Kayıttan önce yakalanan tek değişiklik; satırı kayıttan sonra <see cref="Satir"/> üretir.</summary>
     internal sealed class Bekleyen
@@ -145,7 +161,9 @@ internal static class DegisiklikKaydedici
 
                     string ozet;
                     if (degisenler.Count == 0)
-                        ozet = mesajlar.Count > 0 ? string.Join(" · ", mesajlar) : Cumle(t.Tur, "güncellendi", "");
+                        ozet = mesajlar.Count == 0 ? Cumle(t.Tur, "güncellendi", "")
+                            : t.GizlideKimlik ? $"{t.Tur} {Kimlik(db, e, t, orijinal: false)}: {string.Join(" · ", mesajlar)}"
+                            : string.Join(" · ", mesajlar);
                     else
                     {
                         ozet = $"{Cumle(t.Tur, "güncellendi", Kimlik(db, e, t, orijinal: false))} ({string.Join("; ", degisenler)})";
@@ -220,7 +238,7 @@ internal static class DegisiklikKaydedici
                 .Where(p => !alanlar.Single(a => a.Ozellik == p).Gizli).ToList()
             : alanlar.Where(a => !a.Gizli && !a.Ozellik.IsPrimaryKey()).Take(3).Select(a => a.Ozellik).ToList();
         return new Tanim(gecmis?.Tur ?? Adlandir(clr.Name.EndsWith("Entity") ? clr.Name[..^"Entity".Length] : clr.Name),
-            clr.IsDefined(typeof(GecmisDisiAttribute), inherit: true), alanlar, ozet, anahtar);
+            clr.IsDefined(typeof(GecmisDisiAttribute), inherit: true), alanlar, ozet, anahtar, gecmis?.GizlideKimlikYaz ?? false);
     }
 
     // ------------------------------------------------------------------ değerler

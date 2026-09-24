@@ -30,6 +30,14 @@ services:
       Kasa__GuvenilirAglar: "${KASA_GUVENILIR_AGLAR}"
       # Tüm IP'ler toplamı için dakikalık giriş denemesi sınırı (varsayılan 60).
       # Kasa__GirisGlobalLimiti: "60"
+      # Editör şifresini unutunca kurtarma: deploy/.env'de KASA_EDITOR_SIFRESINI_SIFIRLA=true + yeniden başlat
+      # (.env şifresi yeniden geçerli olur, iki adımlı giriş kapanır). İş bitince false. deploy/README.md → "Kullanıcılar ve güvenlik".
+      Kasa__EditorSifresiniSifirla: "${KASA_EDITOR_SIFRESINI_SIFIRLA:-false}"
+      # Giriş günlüğünün saklama süresi (gün, varsayılan 180).
+      # Kasa__GirisGunluguGun: "180"
+      # Fiş/fatura ekleri: varsayılan /data/belgeler (host'ta kasa-data/belgeler). Değiştirilirse
+      # /data altında kalmalı ve kasa-yedek'e KASA_BELGE_KLASORU olarak da verilmeli.
+      # Kasa__BelgeKlasoru: "/data/belgeler"
     volumes:
       - ./kasa-data:/data
     ports:
@@ -63,8 +71,8 @@ services:
       KASA_YEDEK_SIFRE: "${KASA_YEDEK_SIFRE:-}"
       KASA_UZAK_SAAT: "${KASA_UZAK_SAAT:-03:30}"
       KASA_DOGRULAMA_GUNU: "${KASA_DOGRULAMA_GUNU:-7}"
-    # Yedekleri okur; durum dosyasını, rclone ayarını ve geri alınan kopyaları
-    # kasa-data/uzak-yedek/ altına yazar.
+    # Yedekleri ve fiş/fatura eklerini (belgeler/) okur; durum dosyasını, rclone ayarını ve geri alınan kopyaları
+    # kasa-data/uzak-yedek/ altına yazar ("ekleri-geri-al" komutu eksik ekleri belgeler/ içine indirir).
     volumes:
       - ./kasa-data:/data
     # Uygulamanın ağından (deploy_default = KASA_GUVENILIR_AGLAR) ayrı; yalnız dışarı çıkar.

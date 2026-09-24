@@ -11,6 +11,7 @@ using Kasa.Api.Data;
 using Kasa.Api.Endpoints;
 using Kasa.Core;
 using Kasa.Api.Servisler;
+using Kasa.Api.Endpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.Sqlite;
@@ -30,12 +31,15 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 // KasaDbContext değişiklik geçmişine yapanın rolünü (JWT) yazar.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<HesapServisi>();
+builder.Services.AddRaporVeAyKapanisi();   // Paket B: raporlar ve ay kapanışı
 builder.Services.AddSingleton<OturumOnbellegi>();
+builder.Services.AddKimlikVeGuvenlik();
 builder.Services.AddSingleton(sp => new YedekDurumu
 {
     Etkin = !string.IsNullOrWhiteSpace(sp.GetRequiredService<IConfiguration>()["Kasa:YedekKlasoru"]),
 });
 builder.Services.AddHostedService<YedekServisi>();
+builder.Services.AddBelgeEkleri();   // Paket F: işlem ekleri deposu + gece temizliği
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -64,21 +68,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     ctx.Token = t;
                 return Task.CompletedTask;
             },
-            // Oturum sürümü eşleşmeyen (şifre değişmiş / oturumlar kapatılmış) ya da çıkışta
-            // iptal edilmiş token'ı reddet. Sürümler ve iptaller bellekte önbellekli: istek
-            // başına DB sorgusu yok.
+            // Oturum sürümü eşleşmeyen (şifre değişmiş / oturumlar kapatılmış), çıkışta iptal
+            // edilmiş ya da hesabı pasif/değişmiş token'ı reddet. Hepsi bellekte önbellekli:
+            // istek başına DB sorgusu yok (bkz. OturumDogrulama).
             OnTokenValidated = ctx =>
             {
-                var sp = ctx.HttpContext.RequestServices;
-                var oturum = sp.GetRequiredService<OturumOnbellegi>();
-                var db = sp.GetRequiredService<KasaDbContext>();
-                var rol = ctx.Principal?.FindFirstValue(ClaimTypes.Role);
-                var surum = ctx.Principal?.FindFirstValue(JwtYardimci.SurumClaim);
-                var gecerli = oturum.GecerliSurum(db, rol);
-                if (gecerli is null || surum != gecerli.Value.ToString())
-                    ctx.Fail("Oturum geçersiz kılındı.");
-                else if (oturum.IptalMi(db, ctx.SecurityToken?.Id))
-                    ctx.Fail("Oturum kapatıldı.");
+                OturumDogrulama.Dogrula(ctx);
                 return Task.CompletedTask;
             },
         };
@@ -128,9 +123,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 var app = builder.Build();
 
-// Üretimde (Caddy TLS arkasında) çerez yalnızca HTTPS'te gitmeli.
-var cerezSecure = !app.Environment.IsDevelopment();
-
 // --- DB başlat (WAL + şema güncelle + seed) ---
 using (var scope = app.Services.CreateScope())
 {
@@ -150,6 +142,7 @@ app.Use((ctx, next) =>
     h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
     return next();
 });
+app.UseMobilWeb();   // Paket F: /m telefon uygulaması (kendi CSP'si) + /api yazmalarında aynı kaynak koşulu
 app.UseForwardedHeaders();
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -192,57 +185,13 @@ app.MapGet("/health", (KasaDbContext db, YedekDurumu yedek, IConfiguration cfg, 
     });
 }).AllowAnonymous();
 
-// --- Auth ---
-app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration cfg, HttpContext http, OturumOnbellegi oturum) =>
-{
-    var editorKullanici = cfg["Kasa:EditorKullanici"];
-    var editorSifre = cfg["Kasa:EditorSifre"];
-    var ayar = db.Ayarlar.AsNoTracking().OrderBy(x => x.Id).First();
-
-    string? rol = null;
-    // Editör bilgileri config'te tanımlı DEĞİLSE editör girişi kapalıdır
-    // (aksi halde eksik config null==null ile şifresiz editör erişimine yol açar).
-    if (!string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre)
-        && dto.Kullanici == editorKullanici && SabitZamanEsit(dto.Sifre, editorSifre))
-        rol = "editor";
-    else if (ayar.IzleyiciSifreHash is string h && SifreHasher.Dogrula(dto.Sifre ?? "", h))
-        rol = "viewer";
-
-    if (rol is null) return Results.Unauthorized();
-
-    oturum.SurumleriAyarla(ayar);
-    var token = JwtYardimci.Uret(rol, jwtKey, GecerliSurum(ayar, rol));
-    http.Response.Cookies.Append("kasa_auth", token, new CookieOptions
-    {
-        HttpOnly = true,
-        SameSite = SameSiteMode.Strict,
-        Secure = cerezSecure,
-        MaxAge = JwtYardimci.Omur,
-    });
-    return Results.Ok(new { rol, token });
-}).RequireRateLimiting("giris");
-
-// Çıkış: sunulan token'ı (çerez ya da Bearer) iptal eder; token süresi dolana kadar reddedilir.
-app.MapPost("/api/auth/logout", (HttpContext http, KasaDbContext db, OturumOnbellegi oturum) =>
-{
-    var u = http.User;
-    var jti = u.FindFirstValue(JwtRegisteredClaimNames.Jti);
-    if (u.Identity?.IsAuthenticated == true && !string.IsNullOrEmpty(jti))
-    {
-        var bitis = long.TryParse(u.FindFirstValue(JwtRegisteredClaimNames.Exp), out var exp)
-            ? DateTimeOffset.FromUnixTimeSeconds(exp).UtcDateTime
-            : DateTime.UtcNow.Add(JwtYardimci.Omur);
-        oturum.IptalEt(db, jti, bitis);
-    }
-    http.Response.Cookies.Delete("kasa_auth");
-    return Results.Ok();
-});
-
-app.MapGet("/api/auth/me", (ClaimsPrincipal u) =>
-    Results.Ok(new { rol = u.FindFirstValue(ClaimTypes.Role) })).RequireAuthorization();
+// --- Auth, kullanıcılar, oturumlar, giriş günlüğü (bkz. Endpoints/KimlikEndpoints.cs) ---
+app.MapKimlikUclari();
 
 // --- Korumalı grup: oturum açmış herkes okuyabilir ---
 var api = app.MapGroup("/api").RequireAuthorization();
+api.MapSoruUclari().MapSistemRiskUclari();
+api.MapRaporVeAyKapanisi();   // Paket B: raporlar ve ay kapanışı (Endpoints/)
 
 // Kanallar
 api.MapGet("/kanallar", (KasaDbContext db) =>
@@ -551,17 +500,18 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) => Yaz(db, "
 // Islemler. limit/offset verilmezse tüm eşleşenler döner (eski davranış); verilirse sayfa
 // döner ve toplam kayıt sayısı X-Toplam-Kayit başlığında gelir.
 api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset,
-    KasaDbContext db, HttpContext http) =>
+    [AsParameters] IslemAramaFiltresi ara, KasaDbContext db, HttpContext http) =>
 {
     if (limit is < 1 or > 10_000) return Hata("limit 1 ile 10000 arasında olmalı.");
     if (offset is < 0) return Hata("offset negatif olamaz.");
-    var q = IslemSorgusu(db, baslangic, bitis, kanal);
+    if (ara.Hata() is string aramaHatasi) return Hata(aramaHatasi);
+    var q = ara.SorguyaUygula(IslemSorgusu(db, baslangic, bitis, kanal));
 
     List<IslemEntity> sonuc;
     int toplam;
-    if (!string.IsNullOrWhiteSpace(cari))
+    if (!string.IsNullOrWhiteSpace(cari) || ara.BellekteVarMi())
     {
-        var hepsi = CariyeGoreSuz(q, cari).ToList();
+        var hepsi = ara.BellekteUygula(string.IsNullOrWhiteSpace(cari) ? q.AsEnumerable() : CariyeGoreSuz(q, cari)).ToList();
         toplam = hepsi.Count;
         IEnumerable<IslemEntity> sayfa = hepsi;
         if (offset is { } o1) sayfa = sayfa.Skip(o1);
@@ -575,6 +525,7 @@ api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, st
         if (limit is { } l2) q = q.Take(l2);
         sonuc = q.ToList();
     }
+    BelgeKurallari.EkSayilariniYaz(db, sonuc);   // Paket F: listede ek sayısı
     if (limit is not null) http.Response.Headers["X-Toplam-Kayit"] = toplam.ToString();
     return Results.Ok(sonuc);
 });
@@ -595,6 +546,7 @@ api.MapPut("/islemler/{id:int}", (int id, IslemEntity gelen, KasaDbContext db) =
     e.Tarih = gelen.Tarih; e.Cari = gelen.Cari; e.TutarTl = gelen.TutarTl;
     e.Kanal = gelen.Kanal; e.Tip = gelen.Tip; e.Not = gelen.Not;
     e.KrediKartiId = gelen.KrediKartiId;
+    BelgeKurallari.Kopyala(gelen, e);   // yalnız gövdede gelen belge alanları (eski istemci silmesin)
     db.SaveChanges();
     return Results.Ok(e);
 })).RequireAuthorization("Editor");
@@ -604,7 +556,10 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
     if (e is null) return Results.NotFound();
     // Bu işlemi oluşturan tekrarlayan gider kararı izleyiciye alınır: bağın kopması geçmişe de yazılsın.
     db.TekrarlayanGirisler.Where(g => g.IslemId == id).Load();
+    using var tx = db.Database.BeginTransaction();
+    BelgeKurallari.IslemSiliniyor(db, id);   // Paket F: ekler işlemden ayrılır, 30 gün geri alınmayı bekler
     db.Islemler.Remove(e); db.SaveChanges();
+    tx.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
@@ -727,6 +682,9 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db, TimeProvider saat
     if (GelenHatasi(db, saat, dto.TutarTl, kanal, dto.DonemStart, out var donemStart) is string hata) return Hata(hata);
 
     var e = db.Gelenler.FirstOrDefault(g => g.DonemStart == donemStart && g.Kanal == kanal);
+    // İsteğe bağlı iyimser koruma: istemci gördüğü tutarı gönderdiyse ve kayıt o arada değiştiyse üzerine yazılmaz.
+    if (dto.BeklenenTutar is { } beklenen && (e?.TutarTl ?? 0m) != beklenen)
+        return Results.Conflict(new { hata = $"Bu kanalın geleni siz açtıktan sonra değişmiş (kayıtlı: {(e?.TutarTl ?? 0m).ToString("#,##0.00", Metin.Tr)} ₺).", mevcutTutar = e?.TutarTl ?? 0m });
     if (e is null)
     {
         e = new GelenEntity { DonemStart = donemStart, Kanal = kanal, TutarTl = dto.TutarTl };
@@ -843,11 +801,13 @@ api.MapDelete("/kasasayimlari/{id:int}", (int id, KasaDbContext db) =>
 }).RequireAuthorization("Editor");
 
 // Excel'e aktar (CSV — her iki rol indirebilir). Rakamlar JSON uç noktalarıyla aynıdır.
-api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
+api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari,
+    [AsParameters] IslemAramaFiltresi ara, KasaDbContext db) =>
 {
     // GET /api/islemler ile aynı filtre ve sıra (sayfalama yok: filtreye uyanların tamamı).
-    var q = IslemSorgusu(db, baslangic, bitis, kanal);
-    var liste = string.IsNullOrWhiteSpace(cari) ? q.ToList() : CariyeGoreSuz(q, cari).ToList();
+    if (ara.Hata() is string aramaHatasi) return Hata(aramaHatasi);
+    var q = ara.SorguyaUygula(IslemSorgusu(db, baslangic, bitis, kanal));
+    var liste = ara.BellekteUygula(string.IsNullOrWhiteSpace(cari) ? q.AsEnumerable() : CariyeGoreSuz(q, cari)).ToList();
     var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
     return CsvDosyasi(CsvRaporlari.Islemler(liste, kartAdlari), CsvRaporlari.IslemDosyaAdi(baslangic, bitis, kanal, cari));
 });
@@ -876,7 +836,7 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
         d.EskiJson, d.YeniJson, d.GeriAlindi,
         d.GeriAlmaZamaniUtc is { } g ? DateTime.SpecifyKind(g, DateTimeKind.Utc) : null,
         GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null && GuncellemeGeriAlma.DbEngeli(db, d) is null,
-        GecmiseDonuk: GecmiseDonukKurali.Mi(d))).ToList());
+        GecmiseDonuk: GecmiseDonukKurali.Mi(d), Kullanici: d.Kullanici, Cihaz: d.Cihaz)).ToList());
 });
 // Geçmişte kaydı olan türler (filtre seçenekleri).
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
@@ -911,19 +871,18 @@ api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi 
     db.GeriAlmaKaydi = true;   // eklenen kayıt geçmişe "Eklendi (geri alındı)" olarak yazılır
     db.SaveChanges();
     db.GeriAlmaKaydi = false;
+    BelgeKurallari.GeriAlinanIslemeBagla(db, d, yeni);   // silinen işlemin ekleri yeni işleme
     return Results.Ok(yeni);
 })).RequireAuthorization("Editor");
 
 // Paket D: çek/senet, tekrarlayan gider, kart ekstresi mutabakatı, kasa sayımı ekleri.
 api.MapCekEvrak(Yaz, CekHatasi).MapTekrarlayanEkleri(Yaz, TekrarlayanAyHatasi, KayitliKalem).MapKartMutabakat(Yaz).MapKasaSayimEkleri(Yaz);
+api.MapHizliGirisEndpoints(IslemHatasi, CariHatasi); // paket C: uyarılar, toplu yükleme, gelen tablosu, son silme
+api.MapBelgeEndpoints();          // Paket F: işlem ekleri, belge alanları
+api.MapFaturaTakibiEndpoints();   // Paket F: fatura takibi, muhasebeci listesi
+api.MapPosEndpoints();            // Paket F: POS tanımları, satışları, özet
 
 app.Run();
-
-static int GecerliSurum(AyarEntity a, string? rol) => rol == "editor" ? a.EditorOturumSurumu : a.IzleyiciOturumSurumu;
-
-static bool SabitZamanEsit(string? a, string b)
-    => CryptographicOperations.FixedTimeEquals(
-        SHA256.HashData(Encoding.UTF8.GetBytes(a ?? "")), SHA256.HashData(Encoding.UTF8.GetBytes(b)));
 
 static IResult Hata(string mesaj) => Results.BadRequest(new { hata = mesaj });
 
@@ -1074,6 +1033,7 @@ static string? IslemHatasi(KasaDbContext db, IslemEntity e)
     e.Cari = e.Cari?.Trim() ?? "";
     if (e.Cari.Length == 0) return "Cari boş olamaz.";
     if (e.Not is { Length: > 1000 }) return "Not en fazla 1000 karakter olabilir.";
+    if (BelgeKurallari.Hata(e) is string belgeHatasi) return belgeHatasi;
     if (!Enum.IsDefined(e.Tip)) return "Geçersiz gider tipi.";
     if (e.Kanal != Kanallar.Ortak && !db.Kanallar.Any(k => k.Ad == e.Kanal))
         return $"'{Metin.Kisalt(e.Kanal)}' adında bir kanal yok.";

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · KasaDokumuPage — "Kasa neden değişti?": seçilen hafta/ay için açılıştan kapanışa adım adım kasa.
+     Gider satırına dokununca İşlemler o kanal ve tiple süzülür. -->
+<ContentPage
+    x:Class="Kasa.App.Views.KasaDokumuPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Kasa neden değişti?"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Kasa neden değişti?" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Açılış kasası + kanal gelirleri + tahsil edilen çekler − giderler − kart ödemeleri − ödenen çekler = kapanış"
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+                <Button Grid.Column="2" Text="Excel'e aktar" Command="{Binding ExceleAktarCommand}"
+                        Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <!-- Son aktarılan dosya -->
+            <Label Text="{Binding AktarilanDosya, StringFormat='Kaydedildi: {0}'}" Style="{StaticResource LblRowSecondary}"
+                   TextColor="{StaticResource Pos}" LineBreakMode="CharacterWrap"
+                   IsVisible="{Binding AktarilanDosya, Converter={StaticResource DoluIse}}" />
+
+            <!-- Hafta / Ay -->
+            <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding KipCipleri}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding BindingContext.SecKipCommand, Source={x:Reference Sayfa}}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Button Text="‹" Command="{Binding OncekiCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                <!-- Ay kipi: ay adı; hafta kipi: dönem seçici -->
+                <Label Grid.Column="1" Text="{Binding AyEtiketi}" FontFamily="PlexSansSemiBold" FontSize="20"
+                       TextColor="{StaticResource Ink}" HorizontalOptions="Center" VerticalOptions="Center"
+                       IsVisible="{Binding AyKipinde}" />
+                <Border Grid.Column="1" Style="{StaticResource FieldBorder}" HorizontalOptions="Center"
+                        MinimumWidthRequest="220" IsVisible="{Binding HaftaKipinde}">
+                    <Picker ItemsSource="{Binding Donemler}"
+                            SelectedItem="{Binding SeciliDonem}"
+                            ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}}"
+                            Title="Hafta seç" />
+                </Border>
+                <Button Grid.Column="2" Text="›" Command="{Binding SonrakiCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+            </Grid>
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="4">
+                        <Label Text="{Binding AralikMetni}" Style="{StaticResource LblSection}"
+                               IsVisible="{Binding AralikMetni, Converter={StaticResource DoluIse}}" />
+                        <Label Text="{Binding Ozet}" Style="{StaticResource LblRowSecondary}"
+                               IsVisible="{Binding Ozet, Converter={StaticResource DoluIse}}" />
+                        <Label Text="{Binding BosMesaji}" Style="{StaticResource LblEmptySub}"
+                               IsVisible="{Binding BosMesaji, Converter={StaticResource DoluIse}}" />
+                    </VerticalStackLayout>
+                    <Grid Padding="18,0,18,8" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16" IsVisible="{Binding DokumVar}">
+                        <Label Text="Adım" Style="{StaticResource LblField}" />
+                        <Label Grid.Column="1" Text="Tutar" Style="{StaticResource LblField}" WidthRequest="140"
+                               HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="Kasa" Style="{StaticResource LblField}" WidthRequest="140"
+                               HorizontalTextAlignment="End" />
+                    </Grid>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Satirlar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="46" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.IslemlereGitCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                            <Label Text="{Binding Etiket}" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                            <!-- İşlemler'e inilebilen satır -->
+                                            <Label Text="›" TextColor="{StaticResource Green}" FontSize="16" VerticalOptions="Center"
+                                                   IsVisible="{Binding Inilebilir}" />
+                                        </HorizontalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding TutarMetni}" Style="{StaticResource LblMoney}" WidthRequest="140"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center"
+                                               TextColor="{Binding RenkDegeri, Converter={StaticResource ParaRenk}}" />
+                                        <Label Grid.Column="2" Text="{Binding BakiyeMetni}" Style="{StaticResource LblRowSecondary}" WidthRequest="140"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

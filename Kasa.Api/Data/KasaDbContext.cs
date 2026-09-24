@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Data;
 
-public class KasaDbContext : DbContext
+public partial class KasaDbContext : DbContext
 {
     private readonly IHttpContextAccessor? _http;
     private readonly TimeProvider _saat;
@@ -83,6 +83,7 @@ public class KasaDbContext : DbContext
             .HasForeignKey(g => g.IslemId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        BelgeVePosModeli(b);
         PaketDModeli(b);
     }
 
@@ -212,6 +213,7 @@ public class KasaDbContext : DbContext
             ZamanUtc = zaman, Rol = rol, Tur = t.Tur, KayitId = t.KayitId, Eylem = Eylemler.Guncellendi,
             Ozet = t.Ozet, EskiJson = t.EskiJson, YeniJson = t.YeniJson,
         }));
+        KisiVeCihazYaz(satirlar);
         return satirlar;
     }
 }

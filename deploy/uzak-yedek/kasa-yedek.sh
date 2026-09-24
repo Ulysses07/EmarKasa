@@ -8,11 +8,17 @@
 # ile doğrulanır. Sonuç /data/uzak-yedek/durum.json'a yazılır; API /health bunu
 # "uzakYedek" alanında gösterir.
 #
+# Fiş/fatura ekleri (/data/belgeler) de aynı şifreli hedefin belgeler/ klasörüne kopyalanır.
+# Ekler değişmez (her dosya rastgele yeni bir adla yazılır), bu yüzden her gece yalnız yeni
+# ekler gider. Uzakta ek silinmez: eski bir veritabanı yedeği geri yüklendiğinde, sonradan
+# silinen işlemlerin ekleri de bulunabilsin.
+#
 # Kullanım (sunucuda /opt/kasa/deploy içinde):
 #   docker compose run --rm kasa-yedek yedekle            # şimdi yedekle
 #   docker compose run --rm kasa-yedek dogrula            # şimdi doğrula
 #   docker compose run --rm kasa-yedek listele            # uzaktaki kopyalar
 #   docker compose run --rm kasa-yedek geri-al [dosya]    # uzak kopyayı indir, aç, doğrula
+#   docker compose run --rm kasa-yedek ekleri-geri-al     # uzaktaki ekleri /data/belgeler'e indir
 #   docker compose run --rm kasa-yedek durum              # son durum
 #   docker compose run --rm kasa-yedek rclone config      # uzak hedef tanımla
 # Ayrıntı: deploy/README.md → "Sunucu dışı yedek".
@@ -38,6 +44,12 @@ SIFRELI=kasasifreli
 YEREL_DESEN='^kasa-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db$'
 GUNLUK_DESEN='^kasa-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db\.gz$'
 AYLIK_DESEN='^kasa-[0-9]{4}-[0-9]{2}\.db\.gz$'
+
+# Fiş/fatura ekleri: uygulamanın yazdığı adlar (32 hex + uzantı). Yarım kalan yüklemeler
+# (.<ad>.tmp) ve başka dosyalar gönderilmez.
+BELGELER=${KASA_BELGE_KLASORU:-$VERI/belgeler}
+BELGE_DESEN='^[0-9a-f]{32}\.(jpg|png|webp|heic|pdf)$'
+BELGE_FILTRE='/*.{jpg,png,webp,heic,pdf}'
 
 HATA=""          # kısa, güvenli açıklama (/health'te görünür)
 HATA_AYRINTI=""  # rclone/sqlite çıktısının son satırı (yalnız durum dosyasında)
@@ -183,6 +195,56 @@ butunluk() {
     return 0
 }
 
+# ---------------------------------------------------------------- ekler (belgeler)
+
+EK_SAYISI=""
+
+# Yerel ek klasöründeki yeni dosyaları uzaktaki belgeler/ klasörüne kopyalar. Yalnız ekler:
+# uzakta hiçbir dosyayı silmez ya da değiştirmez. Başarısızsa 1 döner (çağıran uyarıya çevirir;
+# veritabanı yedeği yine gönderilmiş sayılır).
+ekleri_gonder() {
+    local cikti kod
+    EK_SAYISI=0
+    if [ ! -d "$BELGELER" ]; then
+        log "Ek klasörü yok ($BELGELER); gönderilecek ek yok."
+        return 0
+    fi
+    EK_SAYISI=$(ls -1 "$BELGELER" 2>/dev/null | grep -cE "$BELGE_DESEN" || true)
+    if [ "$EK_SAYISI" = "0" ]; then
+        log "Ek klasörü boş; gönderilecek ek yok."
+        return 0
+    fi
+    log "Ekler eşitleniyor: $EK_SAYISI dosya (yalnız yeniler gönderilir)."
+    # --ignore-existing: uzaktaki bir ekin üzerine asla yazılmaz (yereldeki dosya bozulsa bile
+    # uzaktaki sağlam kopya korunur).
+    cikti=$(rclone copy "$BELGELER/" "$SIFRELI:belgeler/" --max-depth 1 --ignore-existing \
+        --include "$BELGE_FILTRE" 2>&1)
+    kod=$?
+    [ -n "$cikti" ] && printf '%s\n' "$cikti"
+    if [ "$kod" -ne 0 ]; then
+        log "UYARI: ekler gönderilemedi — $(son_satir "$cikti")"
+        return 1
+    fi
+    log "Ekler tamam: belgeler/ ($EK_SAYISI dosya)."
+    return 0
+}
+
+# Uzaktaki tüm ekleri yerel ek klasörüne indirir. Yereldeki hiçbir dosyanın üzerine yazmaz,
+# hiçbir dosyayı silmez. Veritabanında kaydı olmayan (eski) ekleri uygulamanın gece
+# temizliği 30 gün sonra kendisi kaldırır.
+ekleri_geri_al() {
+    yapilandirma_denetle || return 1
+    if ! mkdir -p "$BELGELER" 2>/dev/null || [ ! -w "$BELGELER" ]; then
+        hata_koy "$BELGELER yazılamıyor. Sunucuda: sudo chown -R 1654:1654 /opt/kasa/deploy/kasa-data"
+        return 1
+    fi
+    log "Ekler indiriliyor: belgeler/ → $BELGELER (var olanlar atlanır)."
+    adim "Ekler indirilemedi ya da şifresi çözülemedi (belgeler/)." \
+        rclone copy "$SIFRELI:belgeler/" "$BELGELER/" --max-depth 1 --ignore-existing --include "$BELGE_FILTRE" || return 1
+    log "Hazır: $(ls -1 "$BELGELER" 2>/dev/null | grep -cE "$BELGE_DESEN" || true) ek $BELGELER içinde."
+    return 0
+}
+
 # ---------------------------------------------------------------- yedekle
 
 YEREL_AD=""; UZAK_AD=""; BOYUT=""
@@ -218,6 +280,7 @@ yedekle_ic() {
     # Saklama: başarısızsa yedek yine de gönderilmiştir → uyarı.
     temizle gunluk "$GUNLUK_DESEN" "$GUNLUK_SAKLA" || uyari_ekle "Eski günlük kopyalar silinemedi."
     temizle aylik "$AYLIK_DESEN" "$AYLIK_SAKLA" || uyari_ekle "Eski aylık kopyalar silinemedi."
+    ekleri_gonder || uyari_ekle "Fiş/fatura ekleri gönderilemedi; veritabanı yedeği gönderildi."
     if [ "${YEREL_AD:5:10}" != "$(date '+%Y-%m-%d')" ]; then
         uyari_ekle "Bugünün yerel yedeği yok; en yeni yerel yedek ($YEREL_AD) gönderildi."
     fi
@@ -228,13 +291,14 @@ yedekle_ic() {
 yedekle() {
     local baslangic
     baslangic=$(simdi_utc)
-    HATA=""; HATA_AYRINTI=""; UYARI=""
+    HATA=""; HATA_AYRINTI=""; UYARI=""; EK_SAYISI=""
     if yedekle_ic; then
         durum_yaz '. + {sonDeneme: $d, sonBasari: $b, dosya: $f, boyutBayt: ($s | tonumber),
                         yerelYedek: $y, hata: null, hataAyrinti: null,
+                        ekSayisi: ($e | tonumber? // null),
                         uyari: (if $u == "" then null else $u end)}' \
             --arg d "$baslangic" --arg b "$(simdi_utc)" --arg f "$UZAK_AD" --arg s "$BOYUT" \
-            --arg y "$YEREL_AD" --arg u "$UYARI"
+            --arg y "$YEREL_AD" --arg u "$UYARI" --arg e "$EK_SAYISI"
         log "Sunucu dışı yedek tamam: gunluk/$UZAK_AD ($BOYUT bayt)."
         return 0
     fi
@@ -328,6 +392,8 @@ listele() {
         echo "== $k/"
         rclone lsl "$SIFRELI:$k/" 2>&1 | grep -v 'directory not found' || true
     done
+    echo "== belgeler/ (fiş/fatura ekleri)"
+    rclone size "$SIFRELI:belgeler/" 2>&1 | grep -v 'directory not found' || true
     return 0
 }
 
@@ -414,12 +480,15 @@ sayi_denetle() {
 yardim() {
     cat <<'METIN'
 Kullanım: docker compose run --rm kasa-yedek <komut>
-  yedekle            En yeni günlük yedeği şimdi şifreleyip uzağa gönder.
+  yedekle            En yeni günlük yedeği ve yeni fiş/fatura eklerini şimdi şifreleyip
+                     uzağa gönder.
   dogrula            En yeni uzak kopyayı indir, çöz, aç ve bütünlüğünü denetle.
   listele            Uzaktaki günlük ve aylık kopyaları listele.
   geri-al [dosya]    Uzak kopyayı kasa-data/uzak-yedek/geri-al/ içine indir ve doğrula
                      (dosya verilmezse en yeni günlük kopya; örn. kasa-2026-09-20.db.gz
                      ya da aylik/kasa-2026-08.db.gz).
+  ekleri-geri-al     Uzaktaki fiş/fatura eklerini kasa-data/belgeler/ içine indir
+                     (var olan dosyalar atlanır, hiçbir şey silinmez).
   durum              Son yedek/doğrulama durumunu göster.
   rclone …           rclone'u doğrudan çalıştır (örn. "rclone config").
   zamanla            (Varsayılan) Her gece yedekle, haftada bir doğrula.
@@ -434,6 +503,7 @@ case "$komut" in
     yedekle) is yedekle ;;
     dogrula) is dogrula ;;
     geri-al) is geri_al "$@" ;;
+    ekleri-geri-al) is ekleri_geri_al ;;
     listele) is listele ;;
     durum) durum_goster ;;
     rclone)

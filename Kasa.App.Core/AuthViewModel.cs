@@ -36,7 +36,8 @@ public partial class AuthViewModel : ObservableObject
         Mesgul = true;
         try
         {
-            var yanit = await _api.LoginAsync(string.IsNullOrWhiteSpace(Kullanici) ? null : Kullanici, Sifre);
+            var yanit = await GirisIsteAsync();
+            if (yanit is null) return;   // iki adımlı giriş: kod bekleniyor
             AktifRol = SekmeModeli.RolCoz(yanit.Rol);
             Cevrimdisi = false;
             Sifre = "";
@@ -60,7 +61,7 @@ public partial class AuthViewModel : ObservableObject
     {
         try
         {
-            var rol = await _api.BenKimAsync();
+            var rol = await BenOkuAsync();
             AktifRol = SekmeModeli.RolCoz(rol);
             Cevrimdisi = false;
             Hata = null;

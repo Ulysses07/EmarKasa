@@ -29,10 +29,12 @@ public partial class AylikViewModel : TemelViewModel
     {
         var surum = ++_surum;
         int yil = Yil, ay = Ay;
+        var ekler = EkleriYukleAsync(yil, ay, surum);   // kasa dökümü, ay kapanışı, hedef-bütçe (AylikViewModel.B)
         AylikRaporDto r;
         try { r = await _api.AylikAsync(yil, ay); }
         catch when (surum != _surum) { return; }
         if (surum == _surum) Rapor = r;
+        await ekler;
     });
 
     [RelayCommand(AllowConcurrentExecutions = true)]

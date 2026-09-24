@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · Panel "Sistem ve risk" kartı (yalnız editör, salt okunur). BindingContext: RiskKartiViewModel (PanelPage atar). -->
+<ContentView
+    x:Class="Kasa.App.Views.RiskKarti"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Kart"
+    IsVisible="{Binding Gorunur}">
+
+    <Border Style="{StaticResource Card}">
+        <VerticalStackLayout Spacing="0">
+            <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Sistem ve risk" Style="{StaticResource LblSection}" />
+                    <Label Text="{Binding DurumMetni}" Style="{StaticResource LblRowPrimary}" />
+                </VerticalStackLayout>
+                <!-- Durum rozeti: yeşil yolunda, sarı uyarı, kırmızı dikkat -->
+                <Border Grid.Column="1" Style="{StaticResource StatusChip}" VerticalOptions="Center">
+                    <Border.Triggers>
+                        <DataTrigger TargetType="Border" Binding="{Binding Durum}" Value="ok">
+                            <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
+                        </DataTrigger>
+                        <DataTrigger TargetType="Border" Binding="{Binding Durum}" Value="sari">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="#FBF3DC" />
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                        <DataTrigger TargetType="Border" Binding="{Binding Durum}" Value="kirmizi">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="{StaticResource NegSoft}" />
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                    </Border.Triggers>
+                    <Label Text="{Binding DurumAdi}" Style="{StaticResource LblStatusChip}">
+                        <Label.Triggers>
+                            <DataTrigger TargetType="Label" Binding="{Binding Durum}" Value="ok">
+                                <Setter Property="TextColor" Value="{StaticResource Pos}" />
+                            </DataTrigger>
+                            <DataTrigger TargetType="Label" Binding="{Binding Durum}" Value="sari">
+                                <Setter Property="TextColor" Value="#9A6700" />
+                            </DataTrigger>
+                            <DataTrigger TargetType="Label" Binding="{Binding Durum}" Value="kirmizi">
+                                <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                            </DataTrigger>
+                        </Label.Triggers>
+                    </Label>
+                </Border>
+                <Button Grid.Column="2" Text="Yenile" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                        Command="{Binding YenileCommand}" />
+            </Grid>
+
+            <!-- Kartın kendi hatası -->
+            <Border Style="{StaticResource ErrorBox}" Margin="18,0,18,12"
+                    IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <!-- Uyarılar: kırmızılar önce -->
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Maddeler}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <VerticalStackLayout>
+                            <BoxView Style="{StaticResource RowSeparator}" />
+                            <Grid Padding="18,10" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                <Border Style="{StaticResource StatusChip}" VerticalOptions="Start">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="sari">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <SolidColorBrush Color="#FBF3DC" />
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="kirmizi">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <SolidColorBrush Color="{StaticResource NegSoft}" />
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Label Text="{Binding SeviyeAdi}" Style="{StaticResource LblStatusChip}">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="sari">
+                                                <Setter Property="TextColor" Value="#9A6700" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="kirmizi">
+                                                <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                    <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
+                                    <Label Text="{Binding Aciklama}" Style="{StaticResource LblRowSecondary}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+
+            <!-- Özet satırı: yedek doğrulaması, disk, dünkü başarısız girişler -->
+            <BoxView Style="{StaticResource RowSeparator}" />
+            <VerticalStackLayout Padding="18,10,18,14" Spacing="3">
+                <Label Text="{Binding DogrulamaMetni}" Style="{StaticResource LblRowSecondary}" />
+                <Label Text="{Binding DiskMetni}" Style="{StaticResource LblRowSecondary}" />
+                <Label Text="{Binding GirisMetni}" Style="{StaticResource LblRowSecondary}" />
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

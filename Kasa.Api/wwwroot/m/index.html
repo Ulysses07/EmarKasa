@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1E5F46">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Emar Kasa">
+  <title>Emar Kasa</title>
+  <link rel="manifest" href="/m/manifest.webmanifest">
+  <link rel="icon" href="/m/icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/m/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/m/app.css">
+  <script src="/m/app.js" defer></script>
+</head>
+<body>
+  <header class="ust">
+    <div class="marka">
+      <span class="logo" aria-hidden="true">₺</span>
+      <div class="marka-metin">
+        <span class="marka-ad">Emar Kasa</span>
+        <span id="baslik" class="marka-alt">Salt okunur</span>
+      </div>
+    </div>
+    <div class="ust-sag">
+      <button id="yenile" class="dugme-ikincil kucuk" type="button" hidden>Yenile</button>
+      <button id="cikis" class="dugme-ikincil kucuk" type="button" hidden>Çıkış</button>
+    </div>
+  </header>
+
+  <div id="baglanti" class="bant bant-uyari" role="status" hidden>Bağlantı yok. Gösterilen bilgiler güncel olmayabilir.</div>
+
+  <main id="icerik" class="icerik" tabindex="-1">
+    <p class="bilgi">Yükleniyor…</p>
+    <noscript><p class="hata-kutu">Bu sayfa için JavaScript gerekli.</p></noscript>
+  </main>
+
+  <nav id="sekmeler" class="sekmeler" aria-label="Bölümler" hidden>
+    <a href="#/panel" data-sekme="panel">Panel</a>
+    <a href="#/haftalik" data-sekme="haftalik">Haftalık</a>
+    <a href="#/aylik" data-sekme="aylik">Aylık</a>
+    <a href="#/cekler" data-sekme="cekler">Çekler</a>
+    <a href="#/kartlar" data-sekme="kartlar">Kartlar</a>
+  </nav>
+
+  <template id="giris-sablonu">
+    <section class="giris">
+      <span class="logo buyuk" aria-hidden="true">₺</span>
+      <h1>Emar Kasa</h1>
+      <p class="bilgi">Telefon görünümü · yalnız okuma</p>
+      <form id="giris-formu" class="kart form" method="post" autocomplete="on">
+        <label for="kullanici">Kullanıcı adı <span class="ince">(izleyici için boş bırakın)</span></label>
+        <input id="kullanici" name="kullanici" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="100">
+        <label for="sifre">Şifre</label>
+        <input id="sifre" name="sifre" type="password" autocomplete="current-password" required maxlength="200">
+        <p id="giris-hata" class="hata-metin" role="alert" hidden></p>
+        <button id="giris-dugme" class="dugme" type="submit">Giriş yap</button>
+      </form>
+    </section>
+  </template>
+</body>
+</html>

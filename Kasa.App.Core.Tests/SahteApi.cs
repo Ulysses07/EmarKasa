@@ -187,7 +187,9 @@ public sealed partial class SahteApi : IKasaApi
         return new IslemSayfasi(sirali.Skip(offset).Take(limit).ToList(), sirali.Count);
     }
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() { KrediKartlariCagri++; return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediKartiDto>>(YuklemeHatasi) : Task.FromResult(KrediKartlariListe); }
-    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null) => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<GelenDto>>(YuklemeHatasi) : Task.FromResult<IReadOnlyList<GelenDto>>(new List<GelenDto>());
+    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null) => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<GelenDto>>(YuklemeHatasi)
+        : Task.FromResult<IReadOnlyList<GelenDto>>(GelenDeposu.Where(g => donemStart is null || g.Key.Item1 == donemStart)
+            .Select(g => new GelenDto(0, g.Key.Item1, g.Key.Item2, g.Value)).ToList());   // GelenDeposu: SahteApi.C.cs
     // Mutasyon çağrı kayıtları (son çağrıyı tutar)
     public KanalYaz? SonKanalOlustur;
     public (int Id, KanalYaz G)? SonKanalGuncelle;

@@ -20,6 +20,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute(Views.KartMutabakatPage.Rota, typeof(Views.KartMutabakatPage));   // Paket D
         _auth = auth;
         _yonlendirme = yonlendirme;
+        KimlikAlani.BindingContext = _auth;   // menü altında oturumdaki kişi
         _auth.PropertyChanged += AuthDegisti;
         _yonlendirme.Istendi += (_, _) => AnaIsParcaciginda(BekleyenYonlendirmeyiUygula);
         Loaded += async (_, _) => await _auth.AcilistaDogrulaAsync();   // menü GirisYapildi değişimiyle açılır
@@ -50,12 +51,17 @@ public partial class AppShell : Shell
         KasaSayimiItem.IsVisible = bolumler.Contains(Bolum.KasaSayimi);   // her iki rol; izleyici yalnız görür
         HaftalikItem.IsVisible = true;
         AylikItem.IsVisible = true;
+        GrafiklerItem.IsVisible = CariOzetiItem.IsVisible = true;   // paket B raporları: her iki rol (salt okunur)
         CarilerItem.IsVisible = true;
         IslemlerItem.IsVisible = true;
+        GelenlerItem.IsVisible = true;                                     // paket C: izleyici yalnız görür
+        TopluGirisItem.IsVisible = _auth.AktifRol == Rol.Editor;           // paket C: yalnız editör yazar
         KartlarItem.IsVisible = true;
         CeklerItem.IsVisible = bolumler.Contains(Bolum.Cekler);
+        SorularItem.IsVisible = bolumler.Contains(Bolum.Sorular);
         GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
         AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
+        PaketFMenusu(true);   // AppShell.F.cs
         _ = GitAsync(_yonlendirme.Al() ?? "//panel");   // bildirimle açıldıysa o sayfaya
         _ = PaketABildirimleriAsync();   // Paket A: haftalık özet vb. (AppShell.A.cs)
     }
@@ -67,12 +73,17 @@ public partial class AppShell : Shell
         KasaSayimiItem.IsVisible = false;
         HaftalikItem.IsVisible = false;
         AylikItem.IsVisible = false;
+        GrafiklerItem.IsVisible = CariOzetiItem.IsVisible = false;
         CarilerItem.IsVisible = false;
         IslemlerItem.IsVisible = false;
+        GelenlerItem.IsVisible = false;
+        TopluGirisItem.IsVisible = false;
         KartlarItem.IsVisible = false;
         CeklerItem.IsVisible = false;
+        SorularItem.IsVisible = false;
         GecmisItem.IsVisible = false;
         AyarlarItem.IsVisible = false;
+        PaketFMenusu(false);   // AppShell.F.cs
         _ = GitAsync("//login");
     }
 

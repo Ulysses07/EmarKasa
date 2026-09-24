@@ -42,6 +42,9 @@ public class KasaWebFactory : WebApplicationFactory<Program>
         sifre = Environment.GetEnvironmentVariable("Kasa__EditorSifre"),
     };
 
+    /// <summary>Testlerin DB'si: açık tutulan in-memory bağlantı (eşzamanlı istek testleri dosya DB'si kullanır).</summary>
+    protected virtual void VeritabaniAyarla(DbContextOptionsBuilder o) => o.UseSqlite(_conn);
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _conn.Open(); // bağlantı açık kaldıkça in-memory DB yaşar
@@ -64,6 +67,8 @@ public class KasaWebFactory : WebApplicationFactory<Program>
                 ["Kasa:JwtKey"] = "test-jwt-anahtari-en-az-32-bayt-olmali!!",
                 ["Kasa:GirisLimiti"] = GirisLimiti.ToString(),
                 ["Kasa:GirisGlobalLimiti"] = GirisGlobalLimiti.ToString(),
+                // Saatlik güvenlik bakımı testlerin paylaşılan in-memory bağlantısına arka planda dokunmasın.
+                ["Kasa:GuvenlikBakimi"] = "false",
             });
         });
 
@@ -71,7 +76,7 @@ public class KasaWebFactory : WebApplicationFactory<Program>
         {
             var d = services.SingleOrDefault(s => s.ServiceType == typeof(DbContextOptions<KasaDbContext>));
             if (d is not null) services.Remove(d);
-            services.AddDbContext<KasaDbContext>(o => o.UseSqlite(_conn));
+            services.AddDbContext<KasaDbContext>(VeritabaniAyarla);
             services.AddTransient<IStartupFilter, TestIpFiltresi>();
         });
     }

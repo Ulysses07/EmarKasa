@@ -15,6 +15,7 @@
             <conv:ParaRenkConverter x:Key="ParaRenk" />
             <conv:BasHarfConverter x:Key="BasHarf" />
             <conv:TersIseConverter x:Key="TersIse" />
+            <conv:SilDugmeMetniConverter x:Key="SilDugmeMetni" />
             <conv:AyAdiConverter x:Key="AyAdi" />
             <conv:ParaGirisConverter x:Key="ParaGiris" />
             <conv:DonemBicimConverter x:Key="DonemBicim" />

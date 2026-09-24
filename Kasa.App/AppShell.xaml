@@ -29,6 +29,16 @@
         </Grid>
     </Shell.FlyoutHeader>
 
+    <!-- Oturumdaki kişi (paket E): "EMAR · Editör". BindingContext code-behind'da AuthViewModel. -->
+    <Shell.FlyoutFooter>
+        <VerticalStackLayout x:Name="KimlikAlani" Padding="22,10,18,18" Spacing="2" IsVisible="{Binding GirisYapildi}">
+            <Label Text="OTURUM" FontFamily="PlexSans" FontSize="10.5" CharacterSpacing="1"
+                   TextColor="{StaticResource SidebarMuted}" />
+            <Label Text="{Binding AktifKimlik}" FontFamily="PlexSansMedium" FontSize="13"
+                   TextColor="{StaticResource SidebarText}" LineBreakMode="TailTruncation" />
+        </VerticalStackLayout>
+    </Shell.FlyoutFooter>
+
     <!-- Menü öğesi şablonu: aktif sekme #33453A zemin + açık nokta -->
     <Shell.ItemTemplate>
         <DataTemplate>
@@ -82,17 +92,43 @@
     <FlyoutItem x:Name="AylikItem" Title="Aylık" Route="aylik" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:AylikPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="GrafiklerItem" Title="Grafikler" Route="grafikler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:GrafiklerPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="CarilerItem" Title="Cariler" Route="cariler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:CarilerPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="CariOzetiItem" Title="Cari Özeti" Route="cariozeti" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:CariOzetiPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="IslemlerItem" Title="İşlemler" Route="islemler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:IslemlerPage}" />
+    </FlyoutItem>
+    <!-- Paket C: gelen tablosu (her iki rol) ve Excel'den toplu yükleme (yalnız editör) -->
+    <FlyoutItem x:Name="GelenlerItem" Title="Gelenler" Route="gelenler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:GelenlerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="TopluGirisItem" Title="Toplu Yükleme" Route="toplu" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:TopluGirisPage}" />
     </FlyoutItem>
     <FlyoutItem x:Name="KartlarItem" Title="Kredi Kartları" Route="kartlar" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
     </FlyoutItem>
     <FlyoutItem x:Name="CeklerItem" Title="Çekler" Route="cekler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:CeklerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="SorularItem" Title="Sorular" Route="sorular" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:SorularPage}" />
+    </FlyoutItem>
+    <!-- Paket F: görünürlük AppShell.F.cs'te (her iki rol) -->
+    <FlyoutItem x:Name="FaturaTakibiItem" Title="Fatura Takibi" Route="faturatakibi" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:FaturaTakibiPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="PosItem" Title="POS" Route="pos" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:PosPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="Erp12Item" Title="ERP12 Karşılaştırma" Route="erp12" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:Erp12Page}" />
     </FlyoutItem>
     <FlyoutItem x:Name="GecmisItem" Title="Geçmiş" Route="gecmis" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:GecmisPage}" />

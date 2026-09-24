@@ -8,6 +8,7 @@
     Title="Cariler"
     BackgroundColor="{StaticResource AppBg}">
 
+    <Grid><!-- paket C · 32: "Silindi · Geri al" şeridi içeriğin üstünde, altta yüzer -->
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
@@ -108,6 +109,18 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
+                                            <!-- Paket C · 32: işlemi olan cari sunucuda reddedilir (pasif yapılması önerilir) -->
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -129,4 +142,6 @@
             </Border>
         </VerticalStackLayout>
     </ScrollView>
+    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" />
+    </Grid>
 </ContentPage>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar, sabit gider kalemleri, tekrarlayan giderler. -->
+<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar, sabit gider kalemleri, tekrarlayan giderler, güvenlik. -->
 <ContentPage
     x:Class="Kasa.App.Views.AyarlarPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -9,6 +9,7 @@
     Title="Ayarlar"
     BackgroundColor="{StaticResource AppBg}">
 
+    <Grid><!-- paket C · 32: "Silindi · Geri al" şeridi içeriğin üstünde, altta yüzer -->
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
@@ -149,9 +150,17 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.KanalSilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliKanalSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -219,9 +228,17 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.KalemDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.KalemSilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliKalemSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -413,9 +430,17 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.TekrarDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.TekrarSilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliTekrarSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -434,6 +459,96 @@
 
             <!-- ═══ BÖLÜM · Paket A · Bildirimler (bu bilgisayar; sunucu ayarı değildir) ═══ -->
             <v:BildirimAyarlariView />
+            <!-- Güvenlik: hesabım, kullanıcılar, oturumlar ve giriş günlüğü (paket E) -->
+            <v:GuvenlikBolumu x:Name="GuvenlikAlani" />
+            <!-- Paket B · Aylık kur ve endeks tablosu (Grafikler'in reel TL / USD / EUR / altın birimleri) -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,18,18,14" Spacing="12">
+                        <Label Text="Kur ve Endeks Tablosu" Style="{StaticResource LblSection}" />
+                        <Label Text="Grafiklerde reel TL, USD, EUR ve gram altın için ayın değerleri. &quot;TCMB'den doldur&quot; yalnız USD ve EUR'yu ayın iş günlerindeki döviz satış kurlarının ortalamasıyla doldurur; TÜFE endeksi ve gram altın elle girilir. Boş bırakılan ay grafikte &quot;kur yok&quot; olarak görünür. Ondalık için virgül kullanın."
+                               Style="{StaticResource LblPageSub}" />
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                            <Button Text="‹" Command="{Binding KurOncekiAyCommand}" Style="{StaticResource BtnSecondary}"
+                                    WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="{Binding KurAyEtiketi}" FontFamily="PlexSansSemiBold" FontSize="17"
+                                   TextColor="{StaticResource Ink}" HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Button Grid.Column="2" Text="›" Command="{Binding KurSonrakiAyCommand}" Style="{StaticResource BtnSecondary}"
+                                    WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                        </Grid>
+                        <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,*,*', Default='*'}"
+                              RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto'}"
+                              ColumnSpacing="10" RowSpacing="12">
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="TÜFE endeksi" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding KurTufe}" Placeholder="kur yok" Keyboard="Numeric" HorizontalTextAlignment="End" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                                <Label Text="USD/TRY" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding KurUsd}" Placeholder="kur yok" Keyboard="Numeric" HorizontalTextAlignment="End" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
+                                <Label Text="EUR/TRY" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding KurEur}" Placeholder="kur yok" Keyboard="Numeric" HorizontalTextAlignment="End" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=3}" Spacing="0">
+                                <Label Text="Gram altın (TL)" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding KurAltin}" Placeholder="kur yok" Keyboard="Numeric" HorizontalTextAlignment="End" />
+                                </Border>
+                            </VerticalStackLayout>
+                        </Grid>
+                        <HorizontalStackLayout Spacing="10">
+                            <Button Text="Kurları kaydet" Command="{Binding KurKaydetCommand}" />
+                            <Button Text="TCMB'den doldur" Command="{Binding KurTcmbDoldurCommand}" Style="{StaticResource BtnSecondary}" />
+                        </HorizontalStackLayout>
+                        <Label Text="{Binding KurBilgi}" Style="{StaticResource LblRowSecondary}" TextColor="{StaticResource Pos}"
+                               IsVisible="{Binding KurBilgi, Converter={StaticResource DoluIse}}" />
+                    </VerticalStackLayout>
+
+                    <Grid Padding="18,0,18,8" ColumnDefinitions="*,100,100,100,110,Auto" ColumnSpacing="10">
+                        <Label Text="Ay" Style="{StaticResource LblField}" />
+                        <Label Grid.Column="1" Text="TÜFE" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="USD" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="3" Text="EUR" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="4" Text="Gram altın" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                    </Grid>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Kurlar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="46" ColumnDefinitions="*,100,100,100,110,Auto" ColumnSpacing="10">
+                                        <Label Text="{Binding AyEtiketi}" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="{Binding TufeMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="2" Text="{Binding UsdMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding EurMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="4" Text="{Binding AltinMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Button Grid.Column="5" Text="Düzenle" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                Command="{Binding BindingContext.KurDuzenleCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
         </VerticalStackLayout>
     </ScrollView>
+    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" />
+    </Grid>
 </ContentPage>

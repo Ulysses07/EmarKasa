@@ -1,0 +1,495 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · Ayarlar › Güvenlik (yalnız editör): Hesabım (şifre, iki adımlı giriş), Kullanıcılar,
+     Oturumlar ve giriş günlüğü. BindingContext: GuvenlikViewModel (AyarlarPage atar); her kart kendi
+     alt modeline bağlanır. -->
+<ContentView
+    x:Class="Kasa.App.Views.GuvenlikBolumu"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
+    x:Name="Bolum">
+
+    <VerticalStackLayout Spacing="20">
+
+        <!-- ═══ Hesabım ═══ -->
+        <Border Style="{StaticResource CardForm}" BindingContext="{Binding Hesap}">
+            <VerticalStackLayout Spacing="14">
+                <Grid ColumnDefinitions="*,Auto">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Hesabım" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding HesapMetni}" Style="{StaticResource LblRowPrimary}" />
+                    </VerticalStackLayout>
+                    <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                       WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
+                </Grid>
+                <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                    <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+                </Border>
+                <Border Background="{StaticResource BrushGreenSoft}" StrokeThickness="0" StrokeShape="RoundRectangle 10"
+                        Padding="12,10" IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}">
+                    <Label Text="{Binding Bilgi}" TextColor="{StaticResource Green}" FontFamily="PlexSansMedium" FontSize="12.5" />
+                </Border>
+
+                <!-- Şifre değiştir -->
+                <Label Text="Şifre" Style="{StaticResource LblField}" FontFamily="PlexSansSemiBold" />
+                <Label Text="{Binding SifreBilgisi}" Style="{StaticResource LblPageSub}" />
+                <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,*,Auto', Default='*'}"
+                      RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto'}"
+                      ColumnSpacing="10" RowSpacing="12">
+                    <VerticalStackLayout Spacing="0">
+                        <Label Text="Mevcut şifre" Style="{StaticResource LblField}" />
+                        <Border Style="{StaticResource FieldBorder}">
+                            <Entry Text="{Binding MevcutSifre}" IsPassword="True" Placeholder="••••••••" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                         Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                        <Label Text="Yeni şifre (en az 8 karakter)" Style="{StaticResource LblField}" />
+                        <Border Style="{StaticResource FieldBorder}">
+                            <Entry Text="{Binding YeniSifre}" IsPassword="True" Placeholder="••••••••" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                         Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
+                        <Label Text="Yeni şifre (tekrar)" Style="{StaticResource LblField}" />
+                        <Border Style="{StaticResource FieldBorder}">
+                            <Entry Text="{Binding YeniSifreTekrar}" IsPassword="True" Placeholder="••••••••"
+                                   ReturnCommand="{Binding SifreDegistirCommand}" />
+                        </Border>
+                    </VerticalStackLayout>
+                    <Button Text="Şifreyi değiştir" Command="{Binding SifreDegistirCommand}"
+                            Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                            Grid.Row="{OnIdiom Desktop=0, Default=3}"
+                            Padding="18,0" VerticalOptions="End" />
+                </Grid>
+
+                <BoxView Style="{StaticResource RowSeparator}" />
+
+                <!-- İki adımlı giriş -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="İki adımlı giriş" Style="{StaticResource LblField}" FontFamily="PlexSansSemiBold" />
+                        <Label Text="{Binding IkiAdimDurumu}" Style="{StaticResource LblRowPrimary}" />
+                        <Label Text="Açıksa girişte şifreden sonra Google Authenticator (ya da benzeri) uygulamadaki 6 haneli kod istenir. Telefon yanınızda değilse kurtarma kodlarından biri kullanılır."
+                               Style="{StaticResource LblPageSub}" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1" Text="İki adımlı girişi aç" Command="{Binding IkiAdimBaslatCommand}"
+                            IsVisible="{Binding KurulumBaslatGorunur}" VerticalOptions="Start" Padding="18,0" />
+                </Grid>
+
+                <!-- Kurulum: QR kodunu okut (ya da anahtarı yaz/yapıştır), ilk kodu ve şifreyi gir -->
+                <Border Style="{StaticResource FieldBorder}" Padding="14,12" IsVisible="{Binding KurulumSurerken}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="1. Telefonda kimlik doğrulayıcı uygulamayı açın ve bu QR kodunu okutun. Okutamıyorsanız &quot;Kurulum anahtarı gir&quot; ile aşağıdaki anahtarı ekleyin (hesap adı: Emar Kasa):"
+                               Style="{StaticResource LblPageSub}" />
+                        <v:QrGorunumu Matris="{Binding KurulumQr}" IsVisible="{Binding KurulumQrVar}"
+                                      WidthRequest="232" HeightRequest="232" HorizontalOptions="Start" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <Label Text="{Binding KurulumSirMetni}" FontFamily="PlexSansSemiBold" FontSize="18" CharacterSpacing="1.5"
+                                   TextColor="{StaticResource Ink}" VerticalOptions="Center" />
+                            <Button Grid.Column="1" Text="Anahtarı kopyala" Command="{Binding SirKopyalaCommand}"
+                                    Style="{StaticResource BtnRowEdit}" VerticalOptions="Center" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <Label Text="{Binding Kurulum.Adres}" Style="{StaticResource LblRowSecondary}" FontSize="11"
+                                   LineBreakMode="CharacterWrap" VerticalOptions="Center" />
+                            <Button Grid.Column="1" Text="Adresi kopyala" Command="{Binding AdresKopyalaCommand}"
+                                    Style="{StaticResource BtnRowEdit}" VerticalOptions="Center" />
+                        </Grid>
+                        <Label Text="2. Uygulamanın gösterdiği 6 haneli kodu ve hesap şifrenizi yazıp onaylayın. Anahtar 10 dakika geçerlidir."
+                               Style="{StaticResource LblPageSub}" />
+                        <Grid ColumnDefinitions="{OnIdiom Desktop='160,220,Auto,Auto', Default='*'}"
+                              RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto'}"
+                              ColumnSpacing="10" RowSpacing="10">
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Uygulamadaki kod" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding KurulumKodu}" Placeholder="123456" Keyboard="Numeric" MaxLength="7" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                                <Label Text="Hesap şifreniz" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding KurulumSifre}" IsPassword="True" Placeholder="••••••••"
+                                           ReturnCommand="{Binding IkiAdimOnaylaCommand}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <Button Text="Onayla" Command="{Binding IkiAdimOnaylaCommand}" Padding="18,0"
+                                    Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=2}" VerticalOptions="End" />
+                            <Button Text="Vazgeç" Command="{Binding KurulumIptalCommand}" Style="{StaticResource BtnSecondary}"
+                                    Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=3}" VerticalOptions="End" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Yeni kurtarma kodları (bir kez gösterilir) -->
+                <Border Style="{StaticResource FieldBorder}" Padding="14,12" IsVisible="{Binding KodlarGorunur}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Kurtarma kodları — şimdi bir yere yazın; bir daha gösterilmez. Her kod bir kez kullanılır."
+                               Style="{StaticResource LblError}" />
+                        <Label Text="{Binding KurtarmaKodlariMetni}" FontFamily="PlexSansSemiBold" FontSize="15"
+                               TextColor="{StaticResource Ink}" CharacterSpacing="1" />
+                        <HorizontalStackLayout Spacing="10">
+                            <Button Text="Kodları kopyala" Command="{Binding KodlariKopyalaCommand}"
+                                    Style="{StaticResource BtnSecondary}" />
+                            <Button Text="Kodları kaydettim" Command="{Binding KodlariGizleCommand}"
+                                    Style="{StaticResource BtnSecondary}" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Açıkken: kodları yenile / kapat -->
+                <VerticalStackLayout Spacing="12" IsVisible="{Binding IkiAdimAcik}">
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='220,220,Auto', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto'}"
+                          ColumnSpacing="10" RowSpacing="10">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Şifre" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding YenileSifre}" IsPassword="True" Placeholder="••••••••" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                            <Label Text="Uygulamadaki kod" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding YenileKod}" Placeholder="123456" Keyboard="Numeric" MaxLength="7" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <Button Text="Yeni kurtarma kodları üret" Command="{Binding KurtarmaKodlariYenileCommand}"
+                                Style="{StaticResource BtnSecondary}"
+                                Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                Grid.Row="{OnIdiom Desktop=0, Default=2}" VerticalOptions="End" />
+                    </Grid>
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='220,220,Auto', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto'}"
+                          ColumnSpacing="10" RowSpacing="10">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Şifre" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding KapatSifre}" IsPassword="True" Placeholder="••••••••" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                            <Label Text="Kod ya da kurtarma kodu" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding KapatKod}" Placeholder="123456" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <Button Text="İki adımlı girişi kapat" Command="{Binding IkiAdimKapatCommand}"
+                                Style="{StaticResource BtnRowDelete}"
+                                Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                Grid.Row="{OnIdiom Desktop=0, Default=2}" VerticalOptions="End" />
+                    </Grid>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ═══ Kullanıcılar ═══ -->
+        <Border Style="{StaticResource Card}" x:Name="KullaniciKarti" BindingContext="{Binding Kullanicilar}">
+            <VerticalStackLayout Spacing="0">
+                <VerticalStackLayout Padding="18,18,18,14" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="Kullanıcılar" Style="{StaticResource LblSection}" />
+                            <Label Text="Her ortağa ayrı giriş: kim girdi, kim ne değiştirdi Geçmiş'te ve giriş günlüğünde adıyla görünür. İzleyici yalnız görür ve soru sorar."
+                                   Style="{StaticResource LblPageSub}" />
+                        </VerticalStackLayout>
+                        <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                           WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
+                    </Grid>
+                    <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                        <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+                    </Border>
+                    <Border Background="{StaticResource BrushGreenSoft}" StrokeThickness="0" StrokeShape="RoundRectangle 10"
+                            Padding="12,10" IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}">
+                        <Label Text="{Binding Bilgi}" TextColor="{StaticResource Green}" FontFamily="PlexSansMedium" FontSize="12.5" />
+                    </Border>
+
+                    <!-- Yeni kullanıcı -->
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,*,Auto', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto'}"
+                          ColumnSpacing="10" RowSpacing="12">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Ad soyad" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding YeniAdSoyad}" Placeholder="Örn. AHMET" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                            <Label Text="Kullanıcı adı" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding YeniKullaniciAdi}" Placeholder="ahmet" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
+                            <Label Text="İlk şifre (en az 8 karakter)" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding YeniSifre}" IsPassword="True" Placeholder="••••••••" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <Button Text="Kullanıcı ekle" Command="{Binding EkleCommand}"
+                                Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                Grid.Row="{OnIdiom Desktop=0, Default=3}"
+                                Padding="18,0" VerticalOptions="End" />
+                    </Grid>
+                    <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding YeniRoller}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding BindingContext.YeniRolSecCommand, Source={x:Reference KullaniciKarti}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+
+                    <!-- Düzenleme -->
+                    <Border Style="{StaticResource FieldBorder}" Padding="14,12" IsVisible="{Binding DuzenAcik}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="{Binding DuzenBaslik}" Style="{StaticResource LblRowPrimary}" />
+                            <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,Auto', Default='*'}"
+                                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto'}"
+                                  ColumnSpacing="10" RowSpacing="12">
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Ad soyad" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding DuzenAdSoyad}" />
+                                    </Border>
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                     Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0"
+                                                     IsVisible="{Binding DuzenSifreDegisebilir}">
+                                    <Label Text="Yeni şifre (boş bırakılırsa değişmez)" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding DuzenSifre}" IsPassword="True" Placeholder="••••••••" />
+                                    </Border>
+                                </VerticalStackLayout>
+                                <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                                       Grid.Row="{OnIdiom Desktop=0, Default=2}"
+                                                       Spacing="9" VerticalOptions="End" HeightRequest="44"
+                                                       IsVisible="{Binding DuzenRolDegisebilir}">
+                                    <Switch IsToggled="{Binding DuzenAktif}" VerticalOptions="Center" />
+                                    <Label Text="Aktif" Style="{StaticResource LblRowPrimary}" FontSize="13" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Grid>
+                            <FlexLayout Wrap="Wrap" AlignItems="Center" IsVisible="{Binding DuzenRolDegisebilir}"
+                                        BindableLayout.ItemsSource="{Binding DuzenRoller}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.DuzenRolSecCommand, Source={x:Reference KullaniciKarti}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                            <HorizontalStackLayout Spacing="10">
+                                <Button Text="Kaydet" Command="{Binding KaydetCommand}" Padding="18,0" />
+                                <Button Text="Vazgeç" Command="{Binding DuzenIptalCommand}" Style="{StaticResource BtnSecondary}" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- Kullanıcı listesi -->
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Kullanicilar}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout>
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid Padding="18,10" ColumnDefinitions="{OnIdiom Desktop='*,Auto', Default='*'}"
+                                      RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                                      ColumnSpacing="12" RowSpacing="8">
+                                    <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                        <HorizontalStackLayout Spacing="8">
+                                            <Label Text="{Binding AdSoyad}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="Pasif" TextColor="{StaticResource Neg}" FontSize="12" VerticalOptions="Center"
+                                                   IsVisible="{Binding Aktif, Converter={StaticResource TersIse}}" />
+                                        </HorizontalStackLayout>
+                                        <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" />
+                                        <Label Text="{Binding SonGiris}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                    </VerticalStackLayout>
+                                    <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                           Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                                           Spacing="6" VerticalOptions="Center">
+                                        <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference KullaniciKarti}}"
+                                                CommandParameter="{Binding .}" />
+                                        <Button Text="Oturumlarını kapat" Style="{StaticResource BtnRowEdit}"
+                                                IsVisible="{Binding OturumlariKapatilabilir}"
+                                                Command="{Binding BindingContext.OturumlariniKapatCommand, Source={x:Reference KullaniciKarti}}"
+                                                CommandParameter="{Binding .}" />
+                                        <Button Text="İki adımı kapat" Style="{StaticResource BtnRowEdit}"
+                                                IsVisible="{Binding IkiAdimKapatilabilir}"
+                                                Command="{Binding BindingContext.IkiAdimKapatCommand, Source={x:Reference KullaniciKarti}}"
+                                                CommandParameter="{Binding .}" />
+                                        <Button Text="{Binding SilMetni}" Style="{StaticResource BtnRowDelete}"
+                                                IsVisible="{Binding Silinebilir}"
+                                                Command="{Binding BindingContext.SilCommand, Source={x:Reference KullaniciKarti}}"
+                                                CommandParameter="{Binding .}" />
+                                    </HorizontalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!-- Ortak izleyici şifresi: kişisel hesaplara geçildiyse kaldırılabilir -->
+                <BoxView Style="{StaticResource RowSeparator}" />
+                <VerticalStackLayout Padding="18,12,18,16" Spacing="8">
+                    <Label Text="Ortaklar kendi hesaplarıyla giriyorsa ortak izleyici şifresini kaldırın; o şifreyle açılmış oturumlar kapanır. Yeniden gerekirse yukarıdaki İzleyici Şifresi kartından yeni şifre verin."
+                           Style="{StaticResource LblPageSub}" />
+                    <Button Text="{Binding IzleyiciKaldirMetni}" Command="{Binding IzleyiciSifresiniKaldirCommand}"
+                            Style="{StaticResource BtnRowDelete}" HorizontalOptions="Start" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ═══ Oturumlar ve giriş günlüğü ═══ -->
+        <Border Style="{StaticResource Card}" x:Name="OturumKarti" BindingContext="{Binding Oturumlar}">
+            <VerticalStackLayout Spacing="0">
+                <VerticalStackLayout Padding="18,18,18,14" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="{Binding OturumBaslik}" Style="{StaticResource LblSection}" />
+                            <Label Text="Kim, hangi cihazdan girdi. Kaybolan ya da tanımadığınız bir cihazın oturumunu tek başına kapatabilirsiniz."
+                                   Style="{StaticResource LblPageSub}" />
+                        </VerticalStackLayout>
+                        <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                           WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
+                        <Button Grid.Column="2" Text="Yenile" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                Command="{Binding YenileCommand}" />
+                    </Grid>
+                    <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                        <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+                    </Border>
+                    <Border Background="{StaticResource BrushGreenSoft}" StrokeThickness="0" StrokeShape="RoundRectangle 10"
+                            Padding="12,10" IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}">
+                        <Label Text="{Binding Bilgi}" TextColor="{StaticResource Green}" FontFamily="PlexSansMedium" FontSize="12.5" />
+                    </Border>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Oturumlar}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout>
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid Padding="18,10" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                        <HorizontalStackLayout Spacing="8">
+                                            <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="Bu cihaz" TextColor="{StaticResource Pos}" FontFamily="PlexSansSemiBold" FontSize="12"
+                                                   VerticalOptions="Center" IsVisible="{Binding BuOturum}" />
+                                        </HorizontalStackLayout>
+                                        <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1" Text="Oturumu kapat" Style="{StaticResource BtnRowDelete}" VerticalOptions="Center"
+                                            IsVisible="{Binding Kapatilabilir}"
+                                            Command="{Binding BindingContext.OturumKapatCommand, Source={x:Reference OturumKarti}}"
+                                            CommandParameter="{Binding .}" />
+                                </Grid>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!-- Oturum süresi -->
+                <BoxView Style="{StaticResource RowSeparator}" />
+                <VerticalStackLayout Padding="18,14" Spacing="10">
+                    <Label Text="Oturum süresi" Style="{StaticResource LblSection}" />
+                    <Label Text="{Binding OturumSuresiMetni}" Style="{StaticResource LblPageSub}" />
+                    <HorizontalStackLayout Spacing="9">
+                        <Switch IsToggled="{Binding EditorOturumuKisa}" VerticalOptions="Center" />
+                        <Label Text="Editör oturumu 7 gün sonra kapansın (izleyici 30 gün)" Style="{StaticResource LblRowPrimary}"
+                               FontSize="13" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Button Text="Süreyi kaydet" Command="{Binding OturumSuresiKaydetCommand}"
+                            Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
+                </VerticalStackLayout>
+
+                <!-- Giriş günlüğü -->
+                <BoxView Style="{StaticResource RowSeparator}" />
+                <Grid Padding="18,14,18,10" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="9">
+                    <Label Text="Giriş günlüğü" Style="{StaticResource LblSection}" VerticalOptions="Center" />
+                    <Switch Grid.Column="1" IsToggled="{Binding YalnizBasarisiz}" VerticalOptions="Center" />
+                    <Label Grid.Column="2" Text="Yalnız başarısızlar" Style="{StaticResource LblRowPrimary}" FontSize="13"
+                           VerticalOptions="Center" />
+                </Grid>
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Girisler}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout>
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid Padding="18,8" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                    <Border Style="{StaticResource StatusChip}" VerticalOptions="Center">
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="basarili">
+                                                <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="basarisiz">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <SolidColorBrush Color="{StaticResource NegSoft}" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                            <!-- Kod bekleniyor: şifre doğru, ara adım (başarısızlık değil) -->
+                                            <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="ara">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <SolidColorBrush Color="{StaticResource ChipBg}" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                        <Label Text="{Binding SonucAdi}" Style="{StaticResource LblStatusChip}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="basarili">
+                                                    <Setter Property="TextColor" Value="{StaticResource Pos}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="basarisiz">
+                                                    <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="ara">
+                                                    <Setter Property="TextColor" Value="{StaticResource Sub}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </Border>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                        <Label Text="{Binding Kim}" Style="{StaticResource LblRowPrimary}" />
+                                        <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+                <BoxView Style="{StaticResource RowSeparator}" />
+                <Grid Padding="18,10,18,14" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Button Text="‹ Daha yeni" Command="{Binding OncekiCommand}" Style="{StaticResource BtnSecondary}"
+                            IsEnabled="{Binding OncekiVar}" />
+                    <Label Grid.Column="1" Text="{Binding SayfaMetni}" Style="{StaticResource LblRowSecondary}"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Button Grid.Column="2" Text="Daha eski ›" Command="{Binding SonrakiCommand}" Style="{StaticResource BtnSecondary}"
+                            IsEnabled="{Binding SonrakiVar}" />
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+    </VerticalStackLayout>
+</ContentView>

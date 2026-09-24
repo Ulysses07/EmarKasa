@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · Panel "Açık sorular (N)" kartı. Açık soru yoksa gizli. BindingContext: AcikSorularViewModel (PanelPage atar). -->
+<ContentView
+    x:Class="Kasa.App.Views.AcikSorularKarti"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Kart"
+    IsVisible="{Binding Gorunur}">
+
+    <Border Style="{StaticResource Card}">
+        <VerticalStackLayout Spacing="0">
+            <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding Baslik}" Style="{StaticResource LblSection}" />
+                    <Label Text="{Binding AltMetin}" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <Button Grid.Column="1" Text="Sorulara git" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                        Command="{Binding SorularaGitCommand}" />
+            </Grid>
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding SonSorular}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <VerticalStackLayout>
+                            <BoxView Style="{StaticResource RowSeparator}" />
+                            <VerticalStackLayout Padding="18,10" Spacing="2">
+                                <VerticalStackLayout.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding BindingContext.SorularaGitCommand, Source={x:Reference Kart}}" />
+                                </VerticalStackLayout.GestureRecognizers>
+                                <Label Text="{Binding Metin}" Style="{StaticResource LblRowPrimary}" />
+                                <Label Text="{Binding HedefBaslik}" Style="{StaticResource LblRowSecondary}" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding SoranMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>
