@@ -81,9 +81,9 @@ public static partial class HizliGirisEndpoints
 /// <list type="bullet">
 /// <item>Başlangıç = kanalın "Eklendi" satırı ile ilk hareketinin (ilk geleni ya da işlemi) erkeni. İkisi
 ///       de yoksa başlangıç bilinmez ve kanal listelenmez (eklenmeden önceki haftalar asla eksik sayılmaz).</item>
-/// <item>Aktif/pasif geçişleri "Güncellendi" satırlarının eski/yeni JSON'undaki <c>aktif</c> alanından
-///       okunur; bir dönem boyunca baştan sona pasifse o dönem sayılmaz. Geçmişi silinmiş geçişler
-///       bilinemez: o dönemler aktif sayılır.</item>
+/// <item>Aktif/pasif geçişleri "Güncellendi" ve "Güncellendi (geri alındı)" (Paket D: önceki haline döndürme)
+///       satırlarının eski/yeni JSON'undaki <c>aktif</c> alanından okunur; bir dönem boyunca baştan sona pasifse
+///       o dönem sayılmaz. Geçmişi silinmiş geçişler bilinemez: o dönemler aktif sayılır.</item>
 /// </list>
 /// </summary>
 internal sealed class KanalDonemleri
@@ -117,7 +117,8 @@ internal sealed class KanalDonemleri
         var adlar = kanallar.Select(k => k.Ad).ToList();
         var satirlar = db.Degisiklikler.AsNoTracking()
             .Where(d => d.Tur == GecmisTurleri.Kanal && idler.Contains(d.KayitId)
-                        && (d.Eylem == Eylemler.Eklendi || d.Eylem == Eylemler.GeriAlindi || d.Eylem == Eylemler.Guncellendi))
+                        && (d.Eylem == Eylemler.Eklendi || d.Eylem == Eylemler.GeriAlindi
+                            || d.Eylem == Eylemler.Guncellendi || d.Eylem == Eylemler.GuncellemeGeriAlindi))
             .OrderBy(d => d.ZamanUtc).ThenBy(d => d.Id)
             .Select(d => new { KayitId = d.KayitId!.Value, d.ZamanUtc, d.Eylem, d.EskiJson, d.YeniJson })
             .ToList();
@@ -133,18 +134,21 @@ internal sealed class KanalDonemleri
         {
             var kendi = satirlar.Where(d => d.KayitId == id).ToList();
             DateOnly? En(DateOnly? a, DateOnly? b) => a is null ? b : b is null ? a : (a < b ? a : b);
-            DateOnly? baslangic = kendi.Where(d => d.Eylem != Eylemler.Guncellendi)
+            DateOnly? baslangic = kendi.Where(d => !Guncelleme(d.Eylem))
                 .Select(d => (DateOnly?)DateOnly.FromDateTime(Saat.Simdi(d.ZamanUtc))).Min();
             baslangic = En(baslangic, ilkGelen.TryGetValue(ad, out var g) ? g : null);
             baslangic = En(baslangic, ilkIslem.TryGetValue(ad, out var i) ? i : null);
             var gecisler = new List<(DateOnly, bool)>();
-            foreach (var d in kendi.Where(d => d.Eylem == Eylemler.Guncellendi))
+            foreach (var d in kendi.Where(d => Guncelleme(d.Eylem)))
                 if (Aktif(d.EskiJson) is { } eski && Aktif(d.YeniJson) is { } yeni && eski != yeni)
                     gecisler.Add((DateOnly.FromDateTime(Saat.Simdi(d.ZamanUtc)), yeni));
             sonuc[id] = new KanalDonemleri(baslangic, gecisler);
         }
         return sonuc;
     }
+
+    // Güncelleme ya da güncellemenin geri alınması (ikisi de aynı eski/yeni JSON biçiminde yazılır).
+    private static bool Guncelleme(string eylem) => eylem is Eylemler.Guncellendi or Eylemler.GuncellemeGeriAlindi;
 
     private static bool? Aktif(string? json)
     {

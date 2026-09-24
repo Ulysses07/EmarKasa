@@ -72,7 +72,7 @@ Dönüş: `[{kod, mesaj}]`. Sunucu kaydı hiçbir zaman engellemez.
 |---|---|
 | `AyniTutar` | Aynı cariye aynı tutar ±3 gün içinde girilmiş. |
 | `OlaganDisiTutar` | Tutar, carinin son 20 işleminin ortancasının 10 katı ya da fazlası (en az 3 işlem varsa). |
-| `EskiTarih` | Tarih ya da düzenlenen kaydın eski tarihi 45 günden eski: ortakların gördüğü raporlar değişir. |
+| `EskiTarih` | Kayıt (düzenlemede eski ya da yeni hali) kapanmış bir ayın rakamlarını değiştiriyor: ortakların gördüğü raporlar değişir. Kural Paket A'nın "Geçmişe dönük" kuralıdır (`GecmiseDonukKurali`; K.K harcaması ertesi ayı etkiler, düzenlemede paraya dokunan bir alan değişmeli): kayıttan sonra Geçmiş'te işaretlenecek her değişiklik önceden uyarılır, işaretlenmeyecek olan uyarılmaz. (Önceki "45 günden eski" kuralı kapanmış ayı 45 günden yeni kayıtlarda uyarmıyordu.) |
 | `CekCiftDusme` | Aynı kişiye aynı tutarda verilmiş bir çek var. Çek ödendiyse ödeme tarihi, ödenmediyse vadesi ±7 gün içindedir. |
 
 - Uygulama önce ileri tarih onayını sorar (mevcut davranış), sonra uyarıları gösterir.
@@ -95,9 +95,12 @@ Dönüş: `[{kod, mesaj}]`. Sunucu kaydı hiçbir zaman engellemez.
     Geçmiş tek başına yetmez: eski kurulumlarda yoktur ve 2 yıldan eskisi açılışta silinir. Başlangıcı
     hiç bilinmeyen (geçmişi ve hareketi olmayan) kanal listelenmez.
   - Kanalın baştan sona pasif olduğu dönemler sayılmaz. Aktif/pasif geçişleri kanalın "Güncellendi"
-    geçmiş satırlarının eski/yeni JSON'undaki `aktif` alanından okunur. Dönem içinde yeniden aktif
+    ve "Güncellendi (geri alındı)" (Paket D'nin önceki haline döndürmesi) geçmiş satırlarının eski/yeni
+    JSON'undaki `aktif` alanından okunur. Dönem içinde yeniden aktif
     olduysa o dönem sayılır. Geçmişi silinmiş geçişler bilinemez; o dönemler aktif sayılır.
   - 0 girilmiş gelen, girilmiş sayılır.
+  - Panel'in "Bugün yapılacaklar" satırı ve Pazartesi bildirimi (Paket A, `GET /api/gelenler/eksik`, son iki
+    hafta) kanal için aynı kuralı (`KanalDonemleri`) kullanır: iki uç aynı defter için çelişen eksik vermez.
 - **`PUT /api/gelenler`** (mevcut uç) isteğe bağlı `beklenenTutar` alanını kabul eder. Bu alan
   verilmişse ve kayıtlı tutar ondan farklıysa uç 409 `{hata, mevcutTutar}` döner. Alan yoksa
   davranış eskisiyle aynıdır.
@@ -125,13 +128,17 @@ Dönüş: `[{kod, mesaj}]`. Sunucu kaydı hiçbir zaman engellemez.
   o satırda değişir. 5 saniye içinde ikinci basış siler. İlk basış sayfada başka hiçbir şeyi
   değiştirmez (ipucu satırı yok), bu yüzden liste kaymaz ve ikinci basış aynı düğmeye gelir.
 - Başka bir satıra basmak, süre dolması ya da Esc onayı düşürür.
-- Geri alınamayan silmelerde (kanal, kredi kartı, tekrarlayan gider) düğme
-  **"Geri alınamaz · Emin misiniz?"** der.
+- Geri alınamayan silmelerde (kanal, kredi kartı, tekrarlayan gider, Paket D'nin kart ekstresi mutabakatı)
+  düğme **"Geri alınamaz · Emin misiniz?"** der. Ekstre Mutabakatı sayfasındaki "Kaydı sil" de aynı
+  `SilmeOnayi`'yı kullanır (`KartMutabakatViewModel.OnayliSilCommand`); şerit çıkmaz.
 - Geri alınabilen silmeden sonra (işlem, kart ödemesi, cari, gider kalemi, çek, kasa sayımı)
   **"Silindi: … · Geri al"** şeridi çıkar.
   - Şerit, yeni **`GET /api/gecmis/son-silme?tur=&kayitId=`** ucuyla kaydın son "Silindi"
     geçmiş satırını bulur. Uç kayıt yoksa 404, eksik parametrede 400 döner.
-  - "Geri al", mevcut geçmiş geri alma ucunu çağırır. 30 gün kuralı aynen geçerlidir.
+  - "Geri al", mevcut geçmiş geri alma ucunu çağırır. 30 gün kuralı aynen geçerlidir. Kayıt **eski Id'siyle**
+    döner (Id boşsa; SQLite silinen Id'yi yeniden vermez). Böylece başka paketlerin Id ile tuttuğu bağlar
+    kopmaz: kart ekstresi mutabakatındaki tikli işlemler (D), onaylanmış tekrarlayan gider kararının işlemi (D)
+    ve kayda sorulan sorular (E).
   - Arama başarısız olursa şerit görünmez. Silme yine de gerçekleşmiştir.
   - Silme başarılı olup ardından liste tazelemesi hata verirse de şerit çıkar (hata ayrıca görünür).
     Onaylı silme, silme ucu ile tazelemeyi `TemelViewModel.SilVeTazeleAsync` ile ayrı değerlendirir.
@@ -140,7 +147,9 @@ Dönüş: `[{kod, mesaj}]`. Sunucu kaydı hiçbir zaman engellemez.
   - İşlemler'de liste kartının içinde, listenin üstüne biner.
   - Çekler, Kredi Kartları, Ayarlar ve Cariler'de sayfa kökü `Grid` içine alındı: `ScrollView` ve onun
     üstünde tek satırlık `<v:SilmeSeridi/>`.
-  - Kasa Sayımı'nda şerit form sütununda kalır.
+  - Kasa Sayımı'nda şerit sayfa kökü `Grid`'inin içerik satırında, iki sütunun üstünde yüzer. Form
+    sütununun sonunda kalsaydı Paket D'nin satırlı sayımıyla uzayan formun altında, görünmeyen yerde kalırdı
+    (Sil düğmeleri sağdaki listededir).
 - Cariler sayfasına Sil düğmesi eklendi (mevcut `DELETE /api/cariler/{id}`). İşlemi olan cari
   sunucuda 409 ile reddedilir ve pasif yapılması önerilir.
 

@@ -321,6 +321,9 @@ public class PanelPaketATests
     {
         using var f = new Fabrika();
         var c = await EditorAsync(f);
+        // Kurulumla gelen kanalların geçmişte "Eklendi" satırı yok: başlangıçları ilk hareketleridir (KanalDonemleri,
+        // Gelenler sayfasının eksik listesiyle aynı kural). Ağustos gelenleri üçünün de bu haftalardan önce var olduğunu gösterir.
+        foreach (var k in new[] { "MEZAT", "PERAKENDE", "TOPTAN" }) await GelenYaz(c, "2026-08-03", k, 1m);
         await Post(c, "/api/kanallar", new { ad = "PASİF", aktif = false, sira = 9, acilisDevri = 0m });
         await GelenYaz(c, "2026-09-16", "MEZAT", 0m);        // sıfır da "girildi" sayılır; tarih dönem başına çekilir
         await GelenYaz(c, "2026-09-14", "PERAKENDE", 1_000m);

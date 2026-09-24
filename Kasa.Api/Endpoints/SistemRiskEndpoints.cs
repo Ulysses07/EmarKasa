@@ -8,7 +8,7 @@ namespace Kasa.Api;
 /// <summary>
 /// Sistem ve risk kartı (GET /api/sistem/risk, yalnız editör, salt okunur): sunucu dışı ve günlük
 /// yedeğin yaşı (/health'in hesapladığı değerler), son yedek doğrulaması, boş disk, dünkü başarısız
-/// girişler ve takipsiz karşılıksız çekler için kırmızı/sarı uyarılar.
+/// girişler ve takipsiz (notu yok, icrada değil) karşılıksız çekler için kırmızı/sarı uyarılar.
 /// </summary>
 public static class SistemRiskEndpoints
 {
@@ -28,11 +28,13 @@ public static class SistemRiskEndpoints
             var dunBasarisiz = db.GirisKayitlari.AsNoTracking().Where(g => !g.Basarili && g.Neden != GirisNedenleri.KodBekleniyor
                 && g.ZamanUtc >= dunBas && g.ZamanUtc < dunSon).Sum(g => g.Tekrar);
 
+            // Takipte sayılır: takip notu yazılmış ya da Paket D'nin konumuyla icraya (takibe) verilmiş.
             var karsiliksiz = db.Cekler.AsNoTracking()
                 .Where(c => c.Yon == CekYonu.Alinan && c.Durum == CekDurumu.Karsiliksiz)
-                .Select(c => new { c.Id, c.Kisi, c.Tutar, c.VadeTarihi, c.Not })
+                .Select(c => new { c.Id, c.Kisi, c.Tutar, c.VadeTarihi, c.Not, c.Konum })
                 .ToList()
-                .Select(c => new KarsiliksizCek(c.Id, c.Kisi, c.Tutar, c.VadeTarihi, !string.IsNullOrWhiteSpace(c.Not)))
+                .Select(c => new KarsiliksizCek(c.Id, c.Kisi, c.Tutar, c.VadeTarihi,
+                    !string.IsNullOrWhiteSpace(c.Not) || c.Konum == CekKonumu.Icrada))
                 .ToList();
 
             var son = db.YedekDogrulamalari.AsNoTracking().OrderByDescending(d => d.Id).FirstOrDefault();

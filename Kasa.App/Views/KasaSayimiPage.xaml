@@ -135,7 +135,6 @@
                                    Style="{StaticResource LblRowSecondary}" FontSize="12" />
                         </VerticalStackLayout>
                     </Border>
-                    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" HorizontalOptions="Fill" Margin="0" /><!-- paket C · 32: Silindi · Geri al (form sütununda, liste kaymaz) -->
                 </VerticalStackLayout>
             </ScrollView>
 
@@ -301,5 +300,9 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- Paket C · 32: "Silindi · Geri al" şeridi. İçerik satırının üstünde, altta yüzer ve iki sütunu da kaplar:
+             Sil düğmeleri sağdaki listede; Paket D'nin satırlı sayımıyla uzayan formun kaydırmasına bağlı kalmaz. -->
+        <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" Grid.Row="2" />
     </Grid>
 </ContentPage>

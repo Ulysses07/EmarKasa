@@ -228,7 +228,7 @@ dışındadır ve `Soru` politikasını kullanır (editör ve izleyici).
 | Yedek doğrulaması | Hiç yapılmamış ya da 48 saattir yapılmamış | Son doğrulama başarısız |
 | Boş disk | 1024 MB'tan az | 300 MB'tan az |
 | Dünkü başarısız giriş (Türkiye günü, `Kod bekleniyor` hariç; toplanan satır `Tekrar` kadar sayılır) | 5 ve üstü | 20 ve üstü |
-| Karşılıksız alınan çek | Hepsinin takip notu var | Takip notu olmayan var |
+| Karşılıksız alınan çek | Hepsi takipte (takip notu var ya da Paket D konumu İcrada) | Takipte olmayan var |
 
 - Eşikler `Kasa:Risk*` ayarlarıyla değiştirilebilir (bkz. `deploy/README.md`).
 - Kırmızı uyarılar önce listelenir.
@@ -243,7 +243,12 @@ dışındadır ve `Soru` politikasını kullanır (editör ve izleyici).
 - En yeni günlük yedeği doğrular. Aynı dosya ve aynı değişiklik zamanıyla bir kez doğrulanır.
   Doğrulama adımları:
   1. Yedek salt okunur ve havuzsuz açılır; `quick_check` çalıştırılır.
-  2. 11 tablonun satır sayısı canlı DB ile karşılaştırılır.
+  2. Tabloların satır sayısı canlı DB ile karşılaştırılır. Liste veritabanı modelinden okunur
+     (`YedekDogrulayici.Tablolar`): Paket D'nin `KartMutabakatlari`, bu paketin `Kullanicilar`, `Sorular`,
+     `GuvenlikAyarlari` tabloları da sayılır; geçmiş ve günlükler (`Degisiklikler`, `IptalEdilenTokenlar`,
+     `GirisKayitlari`, `OturumKayitlari`, `YedekDogrulamalari`) sayılmaz. Her sürümde bulunan 11 temel tablodan
+     biri yedekte yoksa doğrulama başarısızdır; sonradan eklenmiş bir tablo yedekte yoksa yedek, sürüm
+     yükseltmeden önce alınmıştır: o tablo sayılmaz ve mesajda belirtilir.
   3. Yedek dosyasının zamanından (10 dakika pay ile) sonra `Degisiklikler` tablosuna yazılan satır
      sayısı kadar fark hoş görülür.
   4. Hata mesajı "Cariler: yedekte 0, canlıda 3" biçimindedir.

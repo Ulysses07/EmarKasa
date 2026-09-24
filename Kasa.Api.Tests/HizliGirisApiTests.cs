@@ -138,13 +138,15 @@ public class HizliGirisApiTests : IClassFixture<HizliGirisApiTests.SabitSaatFact
     }
 
     [Fact]
-    public async Task Eski_tarih_45_gunden_eskiyse_uyarir()
+    public async Task Eski_tarih_kapanmis_ayi_degistiriyorsa_uyarir()
     {
         var c = await _factory.EditorClientAsync();
-        // Bugün 24.09.2026; 45 gün önce 10.08.2026.
+        // Bugün 24.09.2026. Kural Geçmiş'teki "Geçmişe dönük" işaretininkidir (Paket A): kapanmış ayın (Ağustos)
+        // kaydı kaç gün eski olursa olsun uyarılır; eski "45 gün" sınırı 10–31 Ağustos'u uyarmıyordu.
         var u = Assert.Single(await Uyarilar(c, "2026-08-09", null, 10m), x => x.Kod == "EskiTarih");
         Assert.Contains("09.08.2026", u.Mesaj);
-        Assert.DoesNotContain(await Uyarilar(c, "2026-08-10", null, 10m), x => x.Kod == "EskiTarih");
+        Assert.Contains(await Uyarilar(c, "2026-08-31", null, 10m), x => x.Kod == "EskiTarih");
+        Assert.DoesNotContain(await Uyarilar(c, "2026-09-01", null, 10m), x => x.Kod == "EskiTarih");
 
         // Eski tarihli bir kaydı bugüne taşımak da o eski raporu değiştirir.
         await CariEkle(c, "Eski Kayıt Cari");

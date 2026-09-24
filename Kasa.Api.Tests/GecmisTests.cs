@@ -386,7 +386,8 @@ public class GecmisTests : IClassFixture<GecmisTests.SabitSaatFactory>
         var r = await GeriAlAsync(c, silindi.Id);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var yeniId = (await r.Content.ReadFromJsonAsync<IdYanit>())!.Id;
-        Assert.NotEqual(id, yeniId);
+        // Eski Id'siyle döner: Id ile tutulan bağlar (kart mutabakatı tikleri, sorular) kopmaz (entegrasyon bulgusu).
+        Assert.Equal(id, yeniId);
 
         var geri = (await c.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", KasaApiJson))!.Single(i => i.Id == yeniId);
         Assert.Equal(asil with { Id = yeniId }, geri);
@@ -397,7 +398,8 @@ public class GecmisTests : IClassFixture<GecmisTests.SabitSaatFactory>
         Assert.True(eskiSatir.GeriAlindi);
         Assert.False(eskiSatir.GeriAlinabilir);
         Assert.Equal(SabitSaatFactory.SimdiUtc, eskiSatir.GeriAlmaZamaniUtc!.Value.ToUniversalTime());
-        var geriSatir = satirlar.Single(s => s.KayitId == yeniId);
+        // Aynı kayıt numarasında artık eklenme, silinme ve geri alınma satırları birlikte durur.
+        var geriSatir = satirlar.Single(s => s.KayitId == yeniId && s.Id > silindi.Id);
         Assert.Equal("Eklendi (geri alındı)", geriSatir.Eylem);
         Assert.Equal("İşlem eklendi (geri alındı): 10.06.2026 · Market · 1.234,56 ₺ · MEZAT", geriSatir.Ozet);
 

@@ -148,7 +148,7 @@ public class BelgeAlanlariTests : IClassFixture<PaketFFactory>
         var geri = await c.PostAsync($"/api/gecmis/{silme.Id}/geri-al", null);
         geri.EnsureSuccessStatusCode();
         var yeni = (await geri.Content.ReadFromJsonAsync<IslemYanit>())!;
-        Assert.NotEqual(i.Id, yeni.Id);
+        Assert.Equal(i.Id, yeni.Id);   // geri alınan kayıt eski Id'siyle döner (Id ile tutulan bağlar kopmasın)
         Assert.Equal(("Makbuz", "M-1"), (yeni.BelgeTuru, yeni.BelgeNo));
     }
 }

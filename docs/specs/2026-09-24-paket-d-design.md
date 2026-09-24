@@ -57,7 +57,7 @@ Hepsi `/api` altında ve kimlik doğrulamalı; yazanlar `Editor` politikasında.
 | GET | `/kartmutabakat/donemler?krediKartiId=&adet=` | her iki | Kapanmış ekstre dönemleri (varsayılan 12, en çok 36); kesim günü değişmeden önceki kayıtlar da |
 | GET | `/kartmutabakat?krediKartiId=&kesim=` | her iki | Dönem ayrıntısı |
 | PUT | `/kartmutabakat` | editör | Mutabakatı yazar (dönem başına tek kayıt) |
-| DELETE | `/kartmutabakat/{id}` | editör | Mutabakat kaydını siler |
+| DELETE | `/kartmutabakat/{id}` | editör | Mutabakat kaydını siler (geri alınamaz; uygulamada Paket C'nin iki basışlı silmesiyle: "Geri alınamaz · Emin misiniz?") |
 | GET | `/kasasayimlari/son` | her iki | Son sayımın tarihi ve geçen gün (Panel hatırlatması için) |
 | PUT | `/kasasayimlari/{id}/fark` | editör | `{durum, aciklama}` |
 | GET | `/kasasayimlari/{id}/nedendegisti` | her iki | Sayımdan sonra o günü etkileyen geçmiş satırları |
@@ -97,6 +97,9 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
   şablonda kullanılan cari silinemez. Şablonun bağlı olduğu kart da silinemez (409; önce şablon silinir
   ya da başka karta bağlanır): kart bağı kopsaydı kalemi cari adı olan şablon sabit gidere dönerdi.
 - `TutarDegisken`: tutar 0 olabilir; onayda tutar yazılmadan kaydedilemez.
+- Panel'in nakit tahmini (Paket A) bu alanları okur: sıklığına uymayan ay düşülmez; değişken tutarlı şablon kayıtlı
+  tutarıyla ("tahmini tutar") girer, tutarı yoksa girmez; karta bağlı şablon kasadan vadede değil, kartın
+  ekstresine eklenip son ödeme gününde düşer.
 - "Bu ay atla" geri alınır: yalnız bu ay ve önceki 2 ay; girilmiş ay geri alınamaz (409). Pasif şablonun
   kararı geri alınamaz (400; ay bekleyene dönmezdi) ve atlananlar listesinde görünmez; sıklığı sonradan
   değişen şablonun artık tekrar ayı olmayan atlanan ayı da listelenmez.
@@ -144,7 +147,11 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
 - Kayıt bu değişiklikten sonra yeniden değiştiyse (bugünkü hal geçmiş satırının yeni değerlerini
   içermiyorsa) 409: "önce daha yeni değişikliği geri alın". Gelen birleştirmesiyle oluşmuş satırlar
   geri alınmaz (çift sayım olmasın). Silinmiş kayıt 409.
-- Dönüş geçmişe "Güncellendi (geri alındı)" olarak yazılır; asıl satır "Geri alındı" işaretlenir.
+- Dönüş geçmişe "Güncellendi (geri alındı)" olarak yazılır; asıl satır "Geri alındı" işaretlenir. Bu satırı
+  okuyanlar onu da güncelleme sayar: Gelenler sayfasının eksik listesi (Paket C) kanalın aktif/pasif geçişini
+  "Güncellendi (geri alındı)" satırından da okur.
+- Yanıt kaydın istemciye açık halidir: Ayar dönüşü `GET /api/ayarlar` ile aynı biçimi döner (`takipBaslangic`,
+  `kasaAcilisDevri`, `izleyiciSifreVarMi`); izleyici şifre özeti ve oturum sürümleri yanıta girmez.
 
 ## 5. İstemci
 

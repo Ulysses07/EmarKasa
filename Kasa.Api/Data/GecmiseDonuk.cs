@@ -56,6 +56,18 @@ public static class GecmiseDonukKurali
     /// <param name="zamanUtc">Değişikliğin zamanı (UTC; türü belirtilmemişse UTC kabul edilir).</param>
     public static bool Mi(string tur, string? eskiJson, string? yeniJson, DateTime zamanUtc)
     {
+        var utc = zamanUtc.Kind == DateTimeKind.Local ? zamanUtc.ToUniversalTime() : DateTime.SpecifyKind(zamanUtc, DateTimeKind.Utc);
+        return Mi(tur, eskiJson, yeniJson, DateOnly.FromDateTime(Saat.Simdi(utc)));
+    }
+
+    /// <summary>
+    /// Aynı kural, değişikliğin gününe (Türkiye) göre. Kayıttan önce de sorulabilir: işlem uyarıları
+    /// (<c>POST /api/islemler/uyarilar</c>, <c>EskiTarih</c>) kaydedilecek hali bununla değerlendirir, böylece
+    /// kaydetmeden önceki uyarı ile Geçmiş'teki "Geçmişe dönük" işareti aynı kuraldan gelir.
+    /// </summary>
+    /// <param name="degisimGunu">Değişikliğin günü (Türkiye saatiyle).</param>
+    public static bool Mi(string tur, string? eskiJson, string? yeniJson, DateOnly degisimGunu)
+    {
         if (!Oku(eskiJson, out var eski) || !Oku(yeniJson, out var yeni)) return false;   // toplu özet (dizi) vb.
 
         if (AcilisAlanlari.TryGetValue(tur, out var acilis))
@@ -64,9 +76,7 @@ public static class GecmiseDonukKurali
         if (!TarihliTurler.TryGetValue(tur, out var kural) || (eski is null && yeni is null)) return false;
         if (eski is { } e && yeni is { } y && kural.ParaAlanlari.All(a => Esit(e, y, a))) return false;
 
-        var utc = zamanUtc.Kind == DateTimeKind.Local ? zamanUtc.ToUniversalTime() : DateTime.SpecifyKind(zamanUtc, DateTimeKind.Utc);
-        var degisim = DateOnly.FromDateTime(Saat.Simdi(utc));
-        var degisimAyi = degisim.Year * 12 + degisim.Month;
+        var degisimAyi = degisimGunu.Year * 12 + degisimGunu.Month;
         return OncekiAyda(eski) || OncekiAyda(yeni);
 
         bool OncekiAyda(JsonElement? kayit)

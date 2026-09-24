@@ -12,8 +12,10 @@ namespace Kasa.Api.Servisler;
 /// <item>Aynı cariye aynı tutar ±<see cref="AyniTutarGun"/> gün içinde girilmiş.</item>
 /// <item>Tutar, carinin son <see cref="OlaganOrnek"/> işleminin ortancasının <see cref="OlaganKat"/> katı
 ///       ya da fazlası (en az <see cref="OlaganEnAz"/> işlem varsa).</item>
-/// <item>Tarih <see cref="EskiGun"/> günden eski (düzenlenen kayıt eski bir tarihteyse de): ortakların
-///       gördüğü raporlar değişir.</item>
+/// <item>Kayıt kapanmış (geçmiş) bir ayın rakamlarını değiştiriyor (düzenlemede eski ya da yeni hali): ortakların
+///       gördüğü raporlar değişir. Kural Geçmiş'teki "Geçmişe dönük" işaretinin kuralıdır
+///       (<see cref="GecmiseDonukKurali"/>; K.K harcaması ertesi ayı etkiler): kayıttan sonra işaretlenecek her
+///       değişiklik önceden uyarılır, işaretlenmeyecek olan uyarılmaz.</item>
 /// <item>Bu kişiye (çekteki kişi/firma = cari, harf duyarsız) aynı tutarda verilmiş çek var: ödenmişse ödeme
 ///       tarihi, ödenecekse vadesi işlem tarihinin ±<see cref="CekGun"/> günü içinde (çift düşme).</item>
 /// </list>
@@ -24,7 +26,6 @@ public static class IslemUyarilari
     public const int OlaganKat = 10;
     public const int OlaganOrnek = 20;
     public const int OlaganEnAz = 3;
-    public const int EskiGun = 45;
     public const int CekGun = 7;
 
     public static IReadOnlyList<IslemUyariDto> Denetle(KasaDbContext db, IslemUyariIstegi t, DateOnly bugun)
@@ -67,14 +68,16 @@ public static class IslemUyarilari
                     $"(son {son.Count} işlemin ortancası {Para(ortanca)}). Fazladan sıfır girilmiş olabilir."));
         }
 
-        var sinir = bugun.AddDays(-EskiGun);
-        if (t.Tarih < sinir)
-            sonuc.Add(new(IslemUyariKodlari.EskiTarih,
-                $"Tarih {EskiGun} günden eski ({t.Tarih:dd.MM.yyyy}). Bu kayıt, ortakların daha önce gördüğü haftalık ve aylık raporları değiştirecek."));
-        else if (haric != 0 && db.Islemler.AsNoTracking().Where(i => i.Id == haric).Select(i => (DateOnly?)i.Tarih).FirstOrDefault() is { } eski
-                 && eski < sinir)
-            sonuc.Add(new(IslemUyariKodlari.EskiTarih,
-                $"Düzenlenen işlem {EskiGun} günden eski bir tarihte ({eski:dd.MM.yyyy}). Değişiklik, ortakların daha önce gördüğü haftalık ve aylık raporları değiştirecek."));
+        // Geçmişe dönük mü? Kaydedilecek hal (düzenlemede kaydın bugünkü haliyle birlikte) Geçmiş'in kuralıyla sorulur.
+        var eski = haric == 0 ? null : db.Islemler.AsNoTracking().FirstOrDefault(i => i.Id == haric);
+        var yeniJson = ParaAlanlari(t.Tarih, t.TutarTl, t.Kanal?.Trim() ?? eski?.Kanal, t.Tip, t.KrediKartiId);
+        var eskiJson = eski is null ? null : ParaAlanlari(eski.Tarih, eski.TutarTl, eski.Kanal, eski.Tip, eski.KrediKartiId);
+        if (GecmiseDonukKurali.Mi(GecmisTurleri.Islem, eskiJson, yeniJson, bugun))
+            sonuc.Add(GecmiseDonukKurali.Mi(GecmisTurleri.Islem, null, yeniJson, bugun)
+                ? new(IslemUyariKodlari.EskiTarih,
+                    $"Tarih kapanmış bir ayda ({t.Tarih:dd.MM.yyyy}). Bu kayıt geçmiş bir ayın rakamlarını, ortakların daha önce gördüğü haftalık ve aylık raporları değiştirecek; Geçmiş'te \"Geçmişe dönük\" işaretlenir.")
+                : new(IslemUyariKodlari.EskiTarih,
+                    $"Düzenlenen işlem kapanmış bir ayda ({eski!.Tarih:dd.MM.yyyy}). Değişiklik geçmiş bir ayın rakamlarını, ortakların daha önce gördüğü haftalık ve aylık raporları değiştirecek; Geçmiş'te \"Geçmişe dönük\" işaretlenir."));
 
         if (yazilan.Length > 0 && t.TutarTl > 0)
         {
@@ -103,6 +106,10 @@ public static class IslemUyarilari
         }
         return sonuc;
     }
+
+    // İşlemin geçmiş satırındaki para alanları (GecmiseDonukKurali'nın okuduğu biçimde: camelCase, tip metin).
+    private static string ParaAlanlari(DateOnly tarih, decimal tutarTl, string? kanal, GiderTipi tip, int? krediKartiId)
+        => GecmisJson.Yaz(new { Tarih = tarih, TutarTl = tutarTl, Kanal = kanal, Tip = tip, KrediKartiId = krediKartiId });
 
     /// <summary>Ortanca (çift sayıda değerde ortadaki ikisinin ortalaması).</summary>
     public static decimal Ortanca(IReadOnlyList<decimal> degerler)

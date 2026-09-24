@@ -699,16 +699,7 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db, TimeProvider saat
 })).RequireAuthorization("Editor");
 
 // Ayarlar
-api.MapGet("/ayarlar", (KasaDbContext db) =>
-{
-    var a = db.Ayarlar.AsNoTracking().OrderBy(x => x.Id).First();
-    return Results.Ok(new
-    {
-        a.TakipBaslangic,
-        a.KasaAcilisDevri,
-        IzleyiciSifreVarMi = a.IzleyiciSifreHash != null,
-    });
-});
+api.MapGet("/ayarlar", (KasaDbContext db) => Results.Ok(AyarYaniti(db.Ayarlar.AsNoTracking().OrderBy(x => x.Id).First())));
 api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db, TimeProvider saat) =>
 {
     var enGec = Saat.Bugun(saat).AddYears(1);
@@ -841,7 +832,7 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
 // Geçmişte kaydı olan türler (filtre seçenekleri).
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
     db.Degisiklikler.AsNoTracking().Select(d => d.Tur).Distinct().ToList().OrderBy(t => t, Metin.Sirala).ToList());
-// Silinen kaydı geri getirir: eski haliyle, yeni Id'yle ve normal eklemedeki doğrulamalardan geçerek.
+// Silinen kaydı geri getirir: eski haliyle, eski Id'siyle ve normal eklemedeki doğrulamalardan geçerek.
 api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi svc, TimeProvider saat) =>
     Yaz(db, "Geri alınamadı: aynı anda başka bir kayıt değişti; tekrar deneyin.", () =>
 {
@@ -1124,9 +1115,11 @@ static T? EnumCoz<T>(string metin) where T : struct, Enum
     return ad is null ? null : Enum.Parse<T>(ad);
 }
 
-// Geçmişteki silme satırının eski halinden kaydı yeni Id'yle yeniden oluşturur. Normal eklemedeki
-// doğrulamalar aynen uygulanır (ör. işlemin carisi artık yoksa ya da aynı adla kayıt varsa geri
-// alınamaz). Başarıda kayıt context'e eklenir (SaveChanges'i çağıran yapar) ve Sonuc null döner.
+// Geçmişteki silme satırının eski halinden kaydı yeniden oluşturur. Normal eklemedeki doğrulamalar
+// aynen uygulanır (ör. işlemin carisi artık yoksa ya da aynı adla kayıt varsa geri alınamaz). Kayıt
+// eski Id'siyle döner (EskiIdYaDaYeni): Id ile tutulan bağlar (kart mutabakatındaki tikler, kayda
+// sorulan sorular, tekrarlayan gider kararı) yerine oturur. Başarıda kayıt context'e eklenir
+// (SaveChanges'i çağıran yapar) ve Sonuc null döner.
 static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapServisi svc, DegisiklikEntity d, TimeProvider saat)
 {
     static IResult Engel(string hata) => Results.BadRequest(new { hata = "Geri alınamadı: " + hata });
@@ -1137,16 +1130,17 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
             case GecmisTurleri.Islem:
             {
                 var e = GecmisJson.Coz<IslemEntity>(d.EskiJson!);
-                e.Id = 0;
+                e.Id = EskiIdYaDaYeni<IslemEntity>(db, d.KayitId);
                 if (e.KrediKartiId is not null) e.Tip = GiderTipi.KrediKarti;
                 if (IslemHatasi(db, e) is string hata) return (null, Engel(hata));
                 db.Islemler.Add(e);
+                if (e.Id != 0) KararBaginiGeriBagla(db, e.Id);
                 return (e, null);
             }
             case GecmisTurleri.KartOdemesi:
             {
                 var e = GecmisJson.Coz<KartOdemeEntity>(d.EskiJson!);
-                e.Id = 0;
+                e.Id = EskiIdYaDaYeni<KartOdemeEntity>(db, d.KayitId);
                 if (KartOdemeHatasi(db, e) is string hata) return (null, Engel(hata));
                 db.KartOdemeler.Add(e);
                 return (e, null);
@@ -1154,7 +1148,7 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
             case GecmisTurleri.Cari:
             {
                 var e = GecmisJson.Coz<CariEntity>(d.EskiJson!);
-                e.Id = 0;
+                e.Id = EskiIdYaDaYeni<CariEntity>(db, d.KayitId);
                 e.Ad = e.Ad?.Trim() ?? "";
                 if (CariHatasi(db, e.Ad, null) is string hata) return (null, Engel(hata));
                 db.Cariler.Add(e);
@@ -1163,7 +1157,7 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
             case GecmisTurleri.GiderKalemi:
             {
                 var e = GecmisJson.Coz<GiderKalemiEntity>(d.EskiJson!);
-                e.Id = 0;
+                e.Id = EskiIdYaDaYeni<GiderKalemiEntity>(db, d.KayitId);
                 e.Ad = e.Ad?.Trim() ?? "";
                 if (KalemHatasi(db, e.Ad, null) is string hata) return (null, Engel(hata));
                 db.GiderKalemleri.Add(e);
@@ -1172,7 +1166,7 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
             case GecmisTurleri.Cek:
             {
                 var e = GecmisJson.Coz<CekEntity>(d.EskiJson!);
-                e.Id = 0;
+                e.Id = EskiIdYaDaYeni<CekEntity>(db, d.KayitId);
                 if (CekHatasi(db, e) is string hata) return (null, Engel(hata));
                 db.Cekler.Add(e);
                 return (e, null);
@@ -1181,7 +1175,7 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
             {
                 // Sayım eski haliyle döner: defter değeri o günkü anlık görüntüsüyle kalır.
                 var e = GecmisJson.Coz<KasaSayimEntity>(d.EskiJson!);
-                e.Id = 0;
+                e.Id = EskiIdYaDaYeni<KasaSayimEntity>(db, d.KayitId);
                 e.KayitZamaniUtc = DateTime.SpecifyKind(e.KayitZamaniUtc, DateTimeKind.Utc);
                 // Yeni sayımla aynı kurallar: takip başlangıcı sonradan ileri alındıysa o gün artık defterde yok.
                 if (SayimTarihiHatasi(svc, e.Tarih) is string th) return (null, Engel(th));
@@ -1197,6 +1191,40 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
     catch (System.Text.Json.JsonException)
     {
         return (null, Hata("Kaydın eski hali okunamadı; geri alınamaz."));
+    }
+}
+
+// Ayarların istemciye dönen hali (GET /api/ayarlar ve ayar geri alma): gizli alanlar (izleyici şifre özeti,
+// oturum sürümleri) yanıta girmez.
+static object AyarYaniti(AyarEntity a) => new
+{
+    a.TakipBaslangic,
+    a.KasaAcilisDevri,
+    IzleyiciSifreVarMi = a.IzleyiciSifreHash != null,
+};
+
+// Geri alınan kaydın Id'si: silinen kaydın eski Id'si boştaysa o (SQLite AUTOINCREMENT silinen Id'yi bir daha
+// vermez), değilse 0 (yeni Id). Böylece başka kayıtların Id ile tuttuğu bağlar (kart mutabakatındaki tikli
+// işlemler, kayda sorulan sorular) geri alınan kayda yeniden bağlanır.
+static int EskiIdYaDaYeni<T>(KasaDbContext db, int? kayitId) where T : class
+    => kayitId is int id && id > 0 && db.Find<T>(id) is null ? id : 0;
+
+// Tekrarlayan gider onayıyla oluşan işlem silinince kararın işlem bağı kopar (SET NULL; geçmişe
+// "Tekrarlayan gider kararı · Güncellendi" olarak yazılır). İşlem aynı Id'yle geri alınınca bağ da döner.
+static void KararBaginiGeriBagla(KasaDbContext db, int islemId)
+{
+    var adaylar = db.TekrarlayanGirisler.Where(g => g.IslemId == null && g.Durum == TekrarlayanDurum.Girildi).ToList();
+    foreach (var g in adaylar)
+    {
+        var son = db.Degisiklikler.AsNoTracking()
+            .Where(x => x.Tur == GecmisTurleri.TekrarlayanKarar && x.KayitId == g.Id && x.Eylem == Eylemler.Guncellendi)
+            .OrderByDescending(x => x.Id).Select(x => x.EskiJson).FirstOrDefault();
+        if (son is null) continue;
+        try
+        {
+            if (GecmisJson.Coz<TekrarlayanGirisEntity>(son).IslemId == islemId) g.IslemId = islemId;
+        }
+        catch (System.Text.Json.JsonException) { }
     }
 }
 
@@ -1258,7 +1286,8 @@ static (object? Kayit, IResult? Sonuc) GuncellemeyiGeriAl(KasaDbContext db, Degi
                 if (eski.TakipBaslangic != a.TakipBaslangic) return (null, Engel("Takip başlangıcı değişmiş."));
                 if (TutarHatasi(eski.KasaAcilisDevri, "Kasa açılış devri", negatifOlabilir: true) is string hata) return (null, Engel(hata));
                 a.KasaAcilisDevri = eski.KasaAcilisDevri;
-                return (a, null);
+                // Yanıt GET /api/ayarlar'ınkiyle aynı: izleyici şifre özeti ve oturum sürümleri dönmez.
+                return (AyarYaniti(a), null);
             }
             default:
                 return (null, Hata($"{d.Tur} güncellemeleri geri alınamaz."));

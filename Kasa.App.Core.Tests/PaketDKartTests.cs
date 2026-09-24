@@ -201,6 +201,37 @@ public class PaketDKartMutabakatTests
     }
 
     [Fact]
+    public async Task Kayit_sil_dugmesi_C_ikinci_onayini_ister_geri_alinamaz_der()
+    {
+        // Paket C · 32 ile ortak: mutabakat silmesi geri alınamaz; tek basış silmez, ikinci basış siler.
+        var (api, _) = Kur();
+        var saat = new SabitSaat(Bugun.AddHours(10));
+        var vm = new KartMutabakatViewModel(api, saat) { EditorMu = true };
+        api.KartMutabakatUret = null;
+        api.KartMutabakatDetay = Detay(Kesim, 2_500m, KartMutabakatDurumu.Mutabik, 900, 2_500m, 11, 12);
+        await vm.YukleAsync(7);
+        string Dugme() => SilmeOnayi.DugmeMetni(vm.Detay!.MutabakatId, vm.Silme.Bekleyen, vm.Silme.OnayDugmesi, "Kaydı sil");
+        Assert.Equal("Kaydı sil", Dugme());
+
+        await vm.OnayliSilCommand.ExecuteAsync(null);
+        Assert.Null(api.SonKartMutabakatSil);
+        Assert.True(vm.KayitVar);
+        Assert.Equal(SilmeOnayi.OnayDugmesiGeriAlinmaz, Dugme());
+
+        // Süre geçince onay düşer: sonraki basış yeniden sorar.
+        saat.Ilerle(SilmeOnayi.OnaySuresi + TimeSpan.FromSeconds(1));
+        await vm.OnayliSilCommand.ExecuteAsync(null);
+        Assert.Null(api.SonKartMutabakatSil);
+
+        await vm.OnayliSilCommand.ExecuteAsync(null);
+        Assert.Equal(900, api.SonKartMutabakatSil);
+        Assert.False(vm.KayitVar);
+        Assert.False(vm.Silme.SeritGorunur);            // geri alınamaz: "Geri al" şeridi yok
+        Assert.Empty(api.SonSilmeCagrilari);
+        Assert.Equal("Kaydı sil", Dugme());
+    }
+
+    [Fact]
     public async Task Donem_secilince_o_donem_yuklenir_izleyici_kaydedemez()
     {
         var (api, vm) = Kur(editor: false);

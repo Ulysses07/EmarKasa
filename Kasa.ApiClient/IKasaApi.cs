@@ -105,7 +105,7 @@ public partial interface IKasaApi
     Task<DegisiklikSayfasi> GecmisAsync(string? tur, int limit, int offset);
     /// <summary>Geçmişte satırı olan türler (filtre çipleri), Türkçe alfabetik.</summary>
     Task<IReadOnlyList<string>> GecmisTurleriAsync();
-    /// <summary>Silinen kaydı geçmiş satırından geri getirir (yeni Id'yle); kurallara uymuyorsa 400/409.</summary>
+    /// <summary>Silinen kaydı geçmiş satırından eski Id'siyle geri getirir; kurallara uymuyorsa 400/409.</summary>
     Task GeriAlAsync(int degisiklikId);
 }
 
