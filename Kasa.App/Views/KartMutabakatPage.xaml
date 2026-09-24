@@ -172,8 +172,17 @@
                                 <Button Text="Mutabakatı kaydet" Command="{Binding KaydetCommand}" Padding="22,0" Margin="0,0,8,8" />
                                 <Button Text="Farkı kabul et" Style="{StaticResource BtnSecondary}" Margin="0,0,8,8"
                                         Command="{Binding FarkiKabulEtCommand}" IsVisible="{Binding FarkVar}" />
-                                <Button Text="Kaydı sil" Style="{StaticResource BtnRowDelete}" Margin="0,0,8,8"
-                                        Command="{Binding SilCommand}" IsVisible="{Binding KayitVar}" />
+                                <!-- Paket C · 32 ile ortak: ikinci basışta siler; mutabakat silmesi geri alınamaz -->
+                                <Button Style="{StaticResource BtnRowDelete}" Margin="0,0,8,8"
+                                        Command="{Binding OnayliSilCommand}" IsVisible="{Binding KayitVar}">
+                                    <Button.Text>
+                                        <MultiBinding Converter="{StaticResource SilDugmeMetni}" ConverterParameter="Kaydı sil">
+                                            <Binding Path="Detay.MutabakatId" />
+                                            <Binding Path="Silme.Bekleyen" />
+                                            <Binding Path="Silme.OnayDugmesi" />
+                                        </MultiBinding>
+                                    </Button.Text>
+                                </Button>
                             </FlexLayout>
                         </VerticalStackLayout>
                     </VerticalStackLayout>

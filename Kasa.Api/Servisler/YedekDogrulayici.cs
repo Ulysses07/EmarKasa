@@ -7,7 +7,8 @@ namespace Kasa.Api.Servisler;
 
 /// <summary>
 /// Gece yedek doğrulaması: en yeni günlük yedek (<c>kasa-yyyy-MM-dd.db</c>) SALT OKUNUR açılır,
-/// <c>PRAGMA quick_check</c> çalıştırılır ve ana tabloların kayıt sayıları canlı DB ile karşılaştırılır.
+/// <c>PRAGMA quick_check</c> çalıştırılır ve tabloların (geçmiş ve günlükler hariç; bkz. <see cref="Tablolar"/>)
+/// kayıt sayıları canlı DB ile karşılaştırılır.
 /// Yedekten sonra yapılan değişiklikler sayıyı meşru olarak oynatır: fark, yedek zamanından
 /// (10 dk pay ile) bu yana geçmişe yazılan değişiklik sayısını aşarsa doğrulama başarısızdır.
 /// Canlı DB'ye yalnız sonuç satırı yazılır; yedek dosyasına hiç yazılmaz.
@@ -17,12 +18,39 @@ public static partial class YedekDogrulayici
     [GeneratedRegex(@"^kasa-\d{4}-\d{2}-\d{2}\.db$")]
     private static partial Regex GunlukYedekAdi();
 
-    /// <summary>Sayısı karşılaştırılan tablolar (para ve tanım tabloları).</summary>
-    public static readonly IReadOnlyList<string> Tablolar =
+    /// <summary>
+    /// Her sürümün yedeğinde bulunan tablolar (para ve tanım tabloları): yedekte yoksa yedek eksiktir.
+    /// Sonradan eklenen tablolar (kart mutabakatı, kullanıcılar, sorular …) eski sürümden alınmış yedekte
+    /// bulunmaz; onlar yedekte yoksa sayılmaz (sürüm yükseltildiği gün, yükseltmeden önce alınmış yedek).
+    /// </summary>
+    public static readonly IReadOnlyList<string> TemelTablolar =
     [
         "Kanallar", "Cariler", "GiderKalemleri", "Islemler", "Gelenler", "KrediKartlari", "KartOdemeler",
         "Cekler", "KasaSayimlari", "TekrarlayanGiderler", "TekrarlayanGirisler",
     ];
+
+    /// <summary>
+    /// Sayısı karşılaştırılmayan tablolar: geçmişin kendisi ve günlükler. Yedekten sonra geçmişe yazılmadan
+    /// büyür ya da saklama süresiyle silinir; sayıları yedekle tutmaz.
+    /// </summary>
+    public static readonly IReadOnlySet<string> HaricTablolar = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Degisiklikler", "IptalEdilenTokenlar", "GirisKayitlari", "OturumKayitlari", "YedekDogrulamalari",
+    };
+
+    /// <summary>
+    /// Sayısı karşılaştırılan tablolar: veritabanı modelindeki bütün tablolar, <see cref="HaricTablolar"/> hariç.
+    /// Modelden okunur: yeni bir tablo (ör. Paket D'nin kart mutabakatı, Paket E'nin kullanıcıları ve soruları)
+    /// listeye kendiliğinden girer.
+    /// </summary>
+    public static IReadOnlyList<string> Tablolar(KasaDbContext db)
+        => db.Model.GetEntityTypes()
+            .Select(t => t.GetTableName())
+            .OfType<string>()
+            .Where(t => !HaricTablolar.Contains(t))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.Ordinal)
+            .ToList();
 
     public static readonly TimeSpan SaatPayi = TimeSpan.FromMinutes(10);
 
@@ -68,14 +96,18 @@ public static partial class YedekDogrulayici
             if (canliBag.State != System.Data.ConnectionState.Open) canliBag.Open();
 
             var farklar = new List<string>();
+            var eskiSurum = new List<string>();
+            var sayilan = 0;
             var toplam = 0L;
-            foreach (var tablo in Tablolar)
+            foreach (var tablo in Tablolar(db))
             {
                 if (!mevcut.Contains(tablo))
                 {
-                    farklar.Add($"{tablo} tablosu yedekte yok");
+                    if (TemelTablolar.Contains(tablo, StringComparer.OrdinalIgnoreCase)) farklar.Add($"{tablo} tablosu yedekte yok");
+                    else eskiSurum.Add(tablo);   // yedek, tablo eklenmeden önceki sürümden
                     continue;
                 }
+                sayilan++;
                 var y = Convert.ToInt64(Tek(yedek, $"SELECT COUNT(*) FROM \"{tablo}\""));
                 var c = Convert.ToInt64(Tek(canliBag, $"SELECT COUNT(*) FROM \"{tablo}\""));
                 toplam += y;
@@ -83,7 +115,9 @@ public static partial class YedekDogrulayici
             }
             if (farklar.Count > 0)
                 return Bitir(sonuc, false, "Kayıt sayıları tutmuyor: " + string.Join("; ", farklar) + $" (yedekten beri {pay} değişiklik).");
-            return Bitir(sonuc, true, $"Yedek açıldı, {Tablolar.Count} tablodaki {toplam} kayıt canlı veriyle uyumlu.");
+            var not = eskiSurum.Count == 0 ? ""
+                : $" Yedek önceki sürümden; şu tablolar o sürümde yoktu: {string.Join(", ", eskiSurum)}.";
+            return Bitir(sonuc, true, $"Yedek açıldı, {sayilan} tablodaki {toplam} kayıt canlı veriyle uyumlu.{not}");
         }
         catch (Exception ex)
         {

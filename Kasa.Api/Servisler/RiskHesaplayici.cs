@@ -31,6 +31,7 @@ public sealed record RiskEsikleri(
 }
 
 /// <summary>Karşılıksız çıkmış alınan çek (risk kartı için).</summary>
+/// <param name="TakipNotuVar">Takipte: takip notu yazılmış ya da konumu İcrada (Paket D, takibe verildi).</param>
 public sealed record KarsiliksizCek(int Id, string Kisi, decimal Tutar, DateOnly Vade, bool TakipNotuVar);
 
 /// <summary>Risk kartının girdileri: hepsi /health'in zaten hesapladığı ya da DB'den okunan değerler.</summary>
@@ -118,11 +119,11 @@ public static class RiskHesaplayici
         else if (g.DunBasarisizGiris >= e.GirisSari)
             Ekle(RiskSeviyesi.Sari, "Giris", $"Dün {g.DunBasarisizGiris} başarısız giriş", "Giriş günlüğüne bakın.");
 
-        // Karşılıksız çekler: takip notu yoksa kırmızı, hepsi takipteyse sarı.
+        // Karşılıksız çekler: takipte değilse (not yok, icrada değil) kırmızı, hepsi takipteyse sarı.
         var takipsiz = g.Karsiliksizlar.Where(c => !c.TakipNotuVar).ToList();
         if (takipsiz.Count > 0)
             Ekle(RiskSeviyesi.Kirmizi, "Cek", $"{takipsiz.Count} karşılıksız çekin takibi yok",
-                $"Toplam {Tutar(takipsiz.Sum(c => c.Tutar))} ₺ ({string.Join(", ", takipsiz.Take(3).Select(c => Metin.Kisalt(c.Kisi, 30)))}{(takipsiz.Count > 3 ? ", …" : "")}). Çeke takip notu yazın.");
+                $"Toplam {Tutar(takipsiz.Sum(c => c.Tutar))} ₺ ({string.Join(", ", takipsiz.Take(3).Select(c => Metin.Kisalt(c.Kisi, 30)))}{(takipsiz.Count > 3 ? ", …" : "")}). Çeke takip notu yazın ya da konumunu İcrada yapın.");
         else if (g.Karsiliksizlar.Count > 0)
             Ekle(RiskSeviyesi.Sari, "Cek", $"{g.Karsiliksizlar.Count} karşılıksız çek takipte",
                 $"Toplam {Tutar(g.Karsiliksizlar.Sum(c => c.Tutar))} ₺.");

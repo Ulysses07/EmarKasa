@@ -16,7 +16,10 @@ namespace Kasa.Api.Servisler;
 /// <item>Tahsil edildi / ödendi olarak ileri tarihle girilmiş çek, işlem tarihinde.</item>
 /// <item>Kart ekstreleri son ödeme gününde − (<see cref="NakitTahmini.KartOdemeleri"/>); ileri tarihli
 /// girilmiş kart ödemesi kendi tarihinde −.</item>
-/// <item>Onay bekleyen tekrarlayan giderler yarın −, ufuk içinde vadesi gelecek aylar vadede −.</item>
+/// <item>Onay bekleyen tekrarlayan giderler yarın −, ufuk içinde vadesi gelecek aylar vadede −. Yalnız şablonun
+/// sıklığına uyan aylar (<see cref="TekrarlayanTakvim.AyDahil"/>; Panel'deki bekleyen listesiyle aynı). Tutarı her
+/// seferinde girilen şablonda kayıtlı tutar tahmindir; tutar yoksa (0) tahmine girmez. Karta bağlı şablon kasadan
+/// vadede düşmez: karta vadesinde girilmiş harcama gibi o kartın ekstresine eklenir ve kartın son ödeme gününde −.</item>
 /// <item>İleri tarihli girilmiş gider işlemleri (Cari / sabit gider) tarihinde −.</item>
 /// <item>Karta bağlı olmayan eski K.K: sonraki ayın son döneminin ilk günü −.</item>
 /// </list>
@@ -50,8 +53,13 @@ public class TahminServisi
 
         foreach (var (kalem, cekId) in CekKalemleri(sinir, bitis))
             (haric.Contains(cekId) ? haricKalemler : kalemler).Add(kalem);
-        kalemler.AddRange(KartKalemleri(bugun, bitis));
-        kalemler.AddRange(TekrarlayanKalemleri(bugun, bitis));
+        var kartlar = _db.KrediKartlari.AsNoTracking().ToList();
+        var tekrarlayan = TekrarlayanAylar(bugun, bitis);
+        // Karta bağlı tekrarlayan gider kasadan kartın ödeme gününde çıkar (kart kuralı); kartı bulunamazsa vadede.
+        bool KartaBagli(TekrarlayanAy t) => t.Sablon.KrediKartiId is int id && kartlar.Any(k => k.Id == id);
+        kalemler.AddRange(KartKalemleri(kartlar, bugun, bitis, tekrarlayan.Where(KartaBagli)
+            .ToLookup(t => t.Sablon.KrediKartiId!.Value, t => new KartHarcama(t.Vade, t.Sablon.Tutar))));
+        kalemler.AddRange(tekrarlayan.Where(t => !KartaBagli(t)).Select(TekrarlayanKalemi));
         kalemler.AddRange(IleriTarihliIslemler(sinir, bitis));
         kalemler.AddRange(KartsizKrediKarti(bugun, bitis));
 
@@ -75,10 +83,11 @@ public class TahminServisi
         }
     }
 
-    private IEnumerable<TahminKalemi> KartKalemleri(DateOnly bugun, DateOnly bitis)
+    /// <param name="planli">Karta bağlı tekrarlayan giderlerin tahmine giren ayları (kart Id → vadesinde harcama).</param>
+    private IEnumerable<TahminKalemi> KartKalemleri(List<KrediKartiEntity> kartlar, DateOnly bugun, DateOnly bitis,
+        ILookup<int, KartHarcama> planli)
     {
         // Kart durumu GET /api/kredikartlari ile aynı yoldan (KartHesap.Durum) türetilir.
-        var kartlar = _db.KrediKartlari.AsNoTracking().ToList();
         if (kartlar.Count == 0) return [];
         var harcamalar = _db.Islemler.AsNoTracking().Where(i => i.KrediKartiId != null)
             .Select(i => new { Id = i.KrediKartiId!.Value, i.Tarih, i.TutarTl }).ToList()
@@ -90,7 +99,9 @@ public class TahminServisi
         var sonuc = new List<TahminKalemi>();
         foreach (var k in kartlar.OrderBy(k => k.Ad, Metin.Sirala).ThenBy(k => k.Id))
         {
-            var h = harcamalar[k.Id].ToList();
+            // Onay bekleyen / vadesi gelecek karta bağlı tekrarlayan gider, onaylanınca karta vadesiyle girilen
+            // K.K işlemidir: tahminde o harcama girilmiş sayılır ve kartın ekstresiyle ödenir.
+            var h = harcamalar[k.Id].Concat(planli[k.Id]).ToList();
             var o = odemeler[k.Id].ToList();
             var d = KartHesap.Durum(k.Borc, h, o, k.KesimTarihi.Day, bugun);
             sonuc.AddRange(NakitTahmini.KartOdemeleri(k.Ad, k.KesimTarihi.Day, k.SonOdemeTarihi.Day,
@@ -99,9 +110,16 @@ public class TahminServisi
         return sonuc;
     }
 
-    private IEnumerable<TahminKalemi> TekrarlayanKalemleri(DateOnly bugun, DateOnly bitis)
+    /// <summary>Tekrarlayan giderin tahmine giren bir ayı: onay bekleyen (vadesi geçmiş/bugün) ya da vadesi gelecek.</summary>
+    private sealed record TekrarlayanAy(TekrarlayanSablon Sablon, DateOnly Vade, bool Bekliyor);
+
+    private List<TekrarlayanAy> TekrarlayanAylar(DateOnly bugun, DateOnly bitis)
     {
-        var sablonlar = _db.TekrarlayanGiderler.AsNoTracking().Where(t => t.Aktif).ToList();
+        // Şablonun bütün alanları (Paket D: sıklık, değişken tutar, kart) GET /api/tekrarlayangiderler/bekleyen'deki gibi.
+        var sablonlar = _db.TekrarlayanGiderler.AsNoTracking().Where(t => t.Aktif).ToList()
+            .Select(t => new TekrarlayanSablon(t.Id, t.Kalem, t.Kanal, t.Tutar, t.AyinGunu, t.Aktif, t.BaslangicAyi,
+                t.Siklik, t.TutarDegisken, t.KrediKartiId))
+            .ToList();
         if (sablonlar.Count == 0) return [];
         var buAy = TekrarlayanTakvim.AyBasi(bugun);
         var enErken = buAy.AddMonths(-TekrarlayanTakvim.GeriyeAy);
@@ -109,27 +127,34 @@ public class TahminServisi
             .Select(g => new { g.TekrarlayanGiderId, g.Ay }).AsEnumerable()
             .Select(g => (g.TekrarlayanGiderId, g.Ay)).ToHashSet();
 
-        var sonuc = new List<TahminKalemi>();
+        var sonuc = new List<TekrarlayanAy>();
         // Vadesi gelmiş, kararı verilmemiş aylar (Panel'deki "bekleyen" listesiyle aynı).
-        var sablonKayitlari = sablonlar.Select(t => new TekrarlayanSablon(t.Id, t.Kalem, t.Kanal, t.Tutar, t.AyinGunu, t.Aktif, t.BaslangicAyi));
-        foreach (var b in TekrarlayanTakvim.Bekleyenler(sablonKayitlari, kararlar, bugun))
-            sonuc.Add(new TahminKalemi(b.Vade, TahminKalemTuru.TekrarlayanGider,
-                $"{Metin.Kisalt(b.Kalem, 40)} · tekrarlayan gider (onay bekliyor)", -b.Tutar));
-        // Ufuk içinde vadesi gelecek aylar.
+        var sozluk = sablonlar.ToDictionary(s => s.Id);
+        foreach (var b in TekrarlayanTakvim.Bekleyenler(sablonlar, kararlar, bugun))
+            sonuc.Add(new(sozluk[b.TekrarlayanGiderId], b.Vade, Bekliyor: true));
+        // Ufuk içinde vadesi gelecek, sıklığına uyan aylar.
         var sonAy = TekrarlayanTakvim.AyBasi(bitis);
         foreach (var s in sablonlar)
         {
             var bas = TekrarlayanTakvim.AyBasi(s.BaslangicAyi);
             for (var ay = bas > buAy ? bas : buAy; ay <= sonAy; ay = ay.AddMonths(1))
             {
+                if (!TekrarlayanTakvim.AyDahil(s.Siklik, bas, ay)) continue;
                 var vade = TekrarlayanTakvim.Vade(ay, s.AyinGunu);
                 if (vade <= bugun || vade > bitis || kararlar.Contains((s.Id, ay))) continue;
-                sonuc.Add(new TahminKalemi(vade, TahminKalemTuru.TekrarlayanGider,
-                    $"{Metin.Kisalt(s.Kalem, 40)} · tekrarlayan gider", -s.Tutar));
+                sonuc.Add(new(s, vade, Bekliyor: false));
             }
         }
-        return sonuc;
+        // Tutarı her seferinde girilen şablonda (hazır vergi şablonları) tutar yazılmamışsa (0) ne çıkacağı
+        // bilinmez: tahmine girmez. Tutar yazılmışsa o tutar tahmin olarak kullanılır.
+        return sonuc.Where(t => t.Sablon.Tutar > 0m).ToList();
     }
+
+    private static TahminKalemi TekrarlayanKalemi(TekrarlayanAy t)
+        => new(t.Vade, TahminKalemTuru.TekrarlayanGider,
+            $"{Metin.Kisalt(t.Sablon.Kalem, 40)} · tekrarlayan gider{(t.Bekliyor ? " (onay bekliyor)" : "")}"
+            + (t.Sablon.TutarDegisken ? " · tahmini tutar" : ""),
+            -t.Sablon.Tutar);
 
     private IEnumerable<TahminKalemi> IleriTarihliIslemler(DateOnly sinir, DateOnly bitis)
         => _db.Islemler.AsNoTracking()

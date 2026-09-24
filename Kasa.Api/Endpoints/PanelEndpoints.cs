@@ -34,7 +34,9 @@ public static class PanelEndpoints
             return Results.Ok(new TahminServisi(db, saat, svc).Hesapla(g, haricIdler));
         });
 
-        // Geleni girilmemiş, son iki haftada biten dönemler (Bugün yapılacaklar).
+        // Geleni girilmemiş, son iki haftada biten dönemler (Bugün yapılacaklar, Pazartesi bildirimi). Kanal kuralı
+        // Gelenler sayfasının eksik listesiyle (GET /gelenler/eksik-liste) aynıdır: kanal, var olmadığı ya da baştan
+        // sona pasif olduğu dönem için eksik sayılmaz (KanalDonemleri).
         api.MapGet("/gelenler/eksik", (KasaDbContext db, TimeProvider saat, HesapServisi svc) =>
         {
             var bugun = Saat.Bugun(saat);
@@ -42,30 +44,35 @@ public static class PanelEndpoints
             var donemler = svc.Donemler().Where(d => d.End < bugun && d.End >= enErken).ToList();
             if (donemler.Count == 0) return Results.Ok(Array.Empty<EksikGelenDto>());
             var kanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif)
-                .OrderBy(k => k.Sira).ThenBy(k => k.Id).Select(k => k.Ad).ToList();
+                .OrderBy(k => k.Sira).ThenBy(k => k.Id).Select(k => new { k.Id, k.Ad }).ToList();
+            var takvim = KanalDonemleri.Oku(db, kanallar.Select(k => (k.Id, k.Ad)).ToList());
             var ilk = donemler.Min(d => d.Start);
             var son = donemler.Max(d => d.Start);
             var girilen = db.Gelenler.AsNoTracking().Where(x => x.DonemStart >= ilk && x.DonemStart <= son)
                 .Select(x => new { x.DonemStart, x.Kanal }).AsEnumerable()
                 .Select(x => (x.DonemStart, x.Kanal)).ToHashSet();
             var sonuc = donemler.OrderBy(d => d.Start)
-                .Select(d => new EksikGelenDto(d.Start, d.End, kanallar.Where(k => !girilen.Contains((d.Start, k))).ToList()))
+                .Select(d => new EksikGelenDto(d.Start, d.End, kanallar
+                    .Where(k => takvim[k.Id].Etkin(d.Start, d.End) && !girilen.Contains((d.Start, k.Ad)))
+                    .Select(k => k.Ad).ToList()))
                 .Where(e => e.Kanallar.Count > 0)
                 .ToList();
             return Results.Ok(sonuc);
         });
 
-        // Geçmiş özeti: en yeni satır (defterin son güncellenmesi) ve sonId'den sonraki değişiklikler.
+        // Geçmiş özeti: en yeni defter satırı (defterin son güncellenmesi) ve sonId'den sonraki defter değişiklikleri.
+        // Defter dışı satırlar (kullanıcı, güvenlik ayarı, soru; yalnız gizli alanı değişen güncelleme) sayılmaz.
         api.MapGet("/gecmis/ozet", (int? sonId, KasaDbContext db) =>
         {
             if (sonId is < 0) return Hata("sonId negatif olamaz.");
-            var enYeni = db.Degisiklikler.AsNoTracking().OrderByDescending(d => d.Id)
+            var defter = DefterSatirlari(db);
+            var enYeni = defter.OrderByDescending(d => d.Id)
                 .Select(d => new { d.Id, d.ZamanUtc }).FirstOrDefault();
             if (enYeni is null) return Results.Ok(new GecmisOzetDto(0, null, 0, 0, []));
             var sonZaman = DateTime.SpecifyKind(enYeni.ZamanUtc, DateTimeKind.Utc);
             if (sonId is not { } s) return Results.Ok(new GecmisOzetDto(enYeni.Id, sonZaman, 0, 0, []));
 
-            var toplam = db.Degisiklikler.Count(d => d.Id > s);
+            var toplam = defter.Count(d => d.Id > s);
             var turler = GecmiseDonukKurali.IlgiliTurler.ToList();
             var donukler = db.Degisiklikler.AsNoTracking()
                 .Where(d => d.Id > s && turler.Contains(d.Tur))
@@ -81,6 +88,22 @@ public static class PanelEndpoints
 
         return api;
     }
+
+    /// <summary>
+    /// Defterin kayıtlarına dokunmayan geçmiş türleri (Paket E): kullanıcılar, güvenlik ayarı ve sorular. Geçmiş
+    /// özetinde ("Defter en son … güncellendi", son bakıştan beri değişiklik) sayılmazlar.
+    /// </summary>
+    public static readonly string[] DefterDisiTurler =
+        [GecmisTurleri.Kullanici, GecmisTurleri.GuvenlikAyari, GecmisTurleri.Soru];
+
+    /// <summary>
+    /// Özetin saydığı geçmiş satırları: defter dışı türler ve yalnız gizli alanı değişen güncellemeler
+    /// (izleyici şifresi, oturumları kapatma: eski ve yeni görünür hal aynıdır) hariç.
+    /// </summary>
+    private static IQueryable<DegisiklikEntity> DefterSatirlari(KasaDbContext db)
+        => db.Degisiklikler.AsNoTracking()
+            .Where(d => !DefterDisiTurler.Contains(d.Tur)
+                        && !(d.Eylem == Eylemler.Guncellendi && d.EskiJson != null && d.EskiJson == d.YeniJson));
 
     private static IResult Hata(string mesaj) => Results.BadRequest(new { hata = mesaj });
 

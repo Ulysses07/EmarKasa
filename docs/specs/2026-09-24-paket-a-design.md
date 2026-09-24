@@ -49,11 +49,18 @@ hareketleri gün gün ekler. Saf motor `Kasa.Core/NakitTahmini.cs`, veri yüklem
 | Kart ekstresi (`KartHesap.Durum`, açık ekstreler) | son ödeme | − |
 | İleri tarihli girilmiş kart ödemesi | tarihi | − |
 | Onay bekleyen tekrarlayan gider | yarın | − |
-| Ufuk içinde vadesi gelecek tekrarlayan gider | vade | − |
+| Ufuk içinde vadesi gelecek tekrarlayan gider (yalnız sıklığına uyan aylar) | vade | − |
+| Karta bağlı tekrarlayan gider (Paket D), bekleyen ya da gelecek | kartın ekstresinde, son ödeme | − |
 | İleri tarihli gider işlemi (Cari / sabit gider) | tarihi | − |
 | Karta bağlı olmayan eski K.K | sonraki ayın son döneminin ilk günü | − |
 
 - Vadesi/son ödemesi geçmiş ama hâlâ bekleyen kalem **yarına** yazılır ve "gecikmiş" işaretlenir.
+- **Tekrarlayan giderler (Paket D alanlarıyla):** şablon `GET /api/tekrarlayangiderler/bekleyen`'deki gibi bütün
+  alanlarıyla okunur. Sıklık (3 ayda / 6 ayda / yılda bir) `TekrarlayanTakvim.AyDahil` ile uygulanır: yıllık
+  bir gider her ay düşülmez. Tutarı her seferinde girilen şablonda kayıtlı tutar tahmindir ("tahmini tutar");
+  tutar yazılmamışsa (hazır vergi şablonları, 0) tahmine girmez. Karta bağlı şablon kasadan vadede **düşmez**
+  (kart kuralı: kart harcaması kasayı ödeme gününde etkiler): o ay karta vadesiyle girilmiş harcama sayılır, kartın
+  ekstresine eklenir ve ekstrenin son ödeme gününde çıkar. Onaylanınca (vadesiyle) tahmin değişmez.
 - Gelecek gelenler (satış) bilinmediği için tahmine **girmez**.
 - **En düşük gün** ve kasası öne çıkarılır ("En düşük: 14 Kasım, −12.500,00 ₺"). Eksi ise kırmızı.
 - **Riskli çek:** tahmindeki her çek "Hesaptan çıkar / Hesaba kat" ile tahmin dışında bırakılabilir.
@@ -75,9 +82,13 @@ düğme kendiliğinden kaydetmez:
 | Bugün vadesi gelen N çek | vade = bugün | **Çeki aç / İlk çeki aç** (aynı) |
 | 3 gün içinde vadesi gelecek N çek | bugün < vade ≤ bugün+3 | **Çeki aç / İlk çeki aç** (en yakın vadeli) |
 | Kart · son ödeme bugün/yarın/… | ödenmemiş ekstre (`KartHatirlatici.OdemeBekliyor`) | **Ödeme gir**: `//kartlar?id=…` kart vurgulanır, "Ödeme ekle" tutarı ekstre borcuyla (tarih bugün) doldurulur |
-| Gelen girilmedi: 14–20 Eylül | son 14 günde biten dönemde aktif kanalın geleni yok | **Gelen gir**: `//islemler?donem=2026-09-14&kanal=…` gelen formu o dönem ve ilk eksik kanalla açılır, forma kaydırılır |
+| Gelen girilmedi: 14–20 Eylül | son 14 günde biten dönemde aktif kanalın geleni yok (kanal o dönemde var ve aktifti) | **Gelen gir**: `//islemler?donem=2026-09-14&kanal=…` gelen formu o dönem ve ilk eksik kanalla açılır, forma kaydırılır |
 | Kasa sayımı N gündür yapılmadı | son sayım 7 günden eski ya da hiç yok | **Sayım yap**: Kasa Sayımı |
 
+- Eksik gelen kuralı Gelenler sayfasının eksik listesiyle (Paket C, `GET /api/gelenler/eksik-liste`) aynıdır
+  (`KanalDonemleri`): kanal, eklenmeden (başlangıcı: geçmişteki "Eklendi" satırı ya da ilk hareketi) önce biten ve
+  baştan sona pasif olduğu dönemler için eksik sayılmaz; başlangıcı hiç bilinmeyen (geçmişi ve hareketi olmayan)
+  kanal listelenmez. Bugün eklenen kanal geçen haftalar için "Gelen girilmedi" çıkarmaz.
 - Birden çok çekli satırda düğme açıklamadaki ilk çeki açar ("İlk çeki aç"). O çek işlenip Panel'e
   dönülünce liste tazelenir ve sıradaki çek ilk olur.
 - Kanal adı sorguda kodlanır (Türkçe harf, boşluk, `&`); Shell değeri kod çözmeden verdiği için
@@ -129,6 +140,10 @@ işaretlenmez, sonraki çalıştırma yeniden dener.
   - Geçmiş filtresiz açılınca ya da Panel'de "Tamam"a basılınca görüldü sayılır.
   - Sunucu geçmişi sıfırlanırsa sayaç yeniden başlar.
   - Sayıma kişinin kendi değişiklikleri de girer (satırlarda kişi bilgisi yok).
+  - Yalnız **defter** değişiklikleri sayılır: sayı, `sonId` ve "Defter en son … güncellendi" zamanı Paket E'nin defter
+    dışı satırlarını (Kullanıcı, Güvenlik ayarı, Soru) ve yalnız gizli alanı değişen güncellemeleri (izleyici şifresi,
+    oturumları kapatma) atlar. İzleyicinin soru sorması ya da editörün iki adımlı girişi açması defteri
+    "güncellenmiş" göstermez. Bu satırlar Geçmiş sayfasında yine görünür.
 
 ### 09 · Bildirimler
 
@@ -169,8 +184,8 @@ Tüm uçlar `Kasa.Api/Endpoints/PanelEndpoints.cs` dosyasındadır ve `Program.c
 | Uç | Yanıt | Hata |
 |---|---|---|
 | `GET /api/rapor/tahmin?gun=30&haric=3,7` | `NakitTahminSonucu`: `bugun`, `gun`, `baslangicKasa`, `gunler[]` (`tarih`, `giris`, `cikis`, `kasa`, `kalemler[]`), `enDusukTarih`, `enDusukKasa`, `sonKasa`, `toplamGiris`, `toplamCikis`, `haricKalemler[]` | 400: `gun` 1–366 dışında; `haric` virgülle ayrılmış negatif olmayan sayılar değil ya da 1000'den fazla |
-| `GET /api/gelenler/eksik` | `[{ donemStart, donemEnd, kanallar[] }]`: son 14 günde biten dönemler, geleni girilmemiş aktif kanallar (0 girilmiş sayılır) | – |
-| `GET /api/gecmis/ozet?sonId=123` | `{ sonId, sonZamanUtc, toplam, gecmiseDonuk, gecmiseDonukSatirlar[≤5] }`. `sonId` verilmezse sayılar 0 olur (başlangıç noktası) | 400: `sonId` negatif |
+| `GET /api/gelenler/eksik` | `[{ donemStart, donemEnd, kanallar[] }]`: son 14 günde biten dönemler, geleni girilmemiş aktif kanallar (0 girilmiş sayılır; kanal kuralı `eksik-liste` ile aynı) | – |
+| `GET /api/gecmis/ozet?sonId=123` | `{ sonId, sonZamanUtc, toplam, gecmiseDonuk, gecmiseDonukSatirlar[≤5] }`: yalnız defter satırları. `sonId` verilmezse sayılar 0 olur (başlangıç noktası) | 400: `sonId` negatif |
 
 `gun` verilmezse 30 kabul edilir. İstemci tarafında: `IKasaApi.A.cs`, `KasaApiClient.A.cs`, `Dtos.A.cs`.
 
