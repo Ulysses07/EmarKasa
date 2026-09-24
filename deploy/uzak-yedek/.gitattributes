@@ -1,0 +1,2 @@
+# Kabuk betiği Windows'ta da LF satır sonuyla kalsın (Linux konteynerinde çalışır).
+*.sh text eol=lf

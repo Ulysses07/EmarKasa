@@ -155,8 +155,9 @@ app.UseAuthorization();
 var surumEtiketi = app.Configuration["KASA_SURUM"] ?? "yerel";
 
 // Sağlık: DB'ye ucuz bir sorgu atar; DB erişilemezse ya da disk dolmak üzereyse 503.
-// Kimlik doğrulaması istemez (Docker HEALTHCHECK kullanır).
-app.MapGet("/health", (KasaDbContext db, YedekDurumu yedek, IConfiguration cfg, ILogger<Program> log) =>
+// Kimlik doğrulaması istemez (Docker HEALTHCHECK kullanır). "uzakYedek" yalnız bilgi amaçlıdır:
+// sunucu dışı yedeğin durumu yanıt kodunu etkilemez.
+app.MapGet("/health", (KasaDbContext db, YedekDurumu yedek, IConfiguration cfg, ILogger<Program> log, TimeProvider saat) =>
 {
     double? yedekYasSaat = yedek.SonBasariliUtc is { } t ? Math.Round((DateTime.UtcNow - t).TotalHours, 1) : null;
     long? diskBosMb = null;
@@ -183,6 +184,8 @@ app.MapGet("/health", (KasaDbContext db, YedekDurumu yedek, IConfiguration cfg, 
         sonYedekYasSaat = yedekYasSaat,
         yedekHatasi = yedek.SonHata,
         diskBosMb,
+        uzakYedek = UzakYedekDurumu.Oku(cfg["Kasa:UzakYedekDurumDosyasi"], saat.GetUtcNow(),
+            cfg.GetValue("Kasa:UzakYedekEskiSaat", UzakYedekDurumu.VarsayilanEskiSaat)),
     });
 }).AllowAnonymous();
 
