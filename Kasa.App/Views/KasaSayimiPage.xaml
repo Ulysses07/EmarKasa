@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · KasaSayimiPage — solda editör sayım formu (defter değeri + canlı fark), sağda sayım geçmişi. -->
+<ContentPage
+    x:Class="Kasa.App.Views.KasaSayimiPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Kasa Sayımı"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <Grid RowDefinitions="Auto,Auto,*" Padding="{OnIdiom Desktop='28,22', Default='16,14'}"
+          RowSpacing="16" MaximumWidthRequest="1160">
+
+        <Grid ColumnDefinitions="*,Auto">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Kasa Sayımı" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Sayılan nakit ile defterdeki kasanın karşılaştırması" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+            <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                               WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+        </Grid>
+
+        <!-- Hata (tüm roller) -->
+        <Border Grid.Row="1" Style="{StaticResource ErrorBox}"
+                IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+            <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="20">
+
+            <!-- SOL: sayım formu (yalnız editör) -->
+            <ScrollView IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
+                <VerticalStackLayout WidthRequest="360" Spacing="16">
+                    <Border Style="{StaticResource CardForm}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="Yeni Sayım" Style="{StaticResource LblSection}" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Tarih" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <DatePicker Date="{Binding FormTarih}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Defterdeki kasa (gün sonu)" Style="{StaticResource LblField}" />
+                                <Label Text="{Binding DefterYazi}" Style="{StaticResource LblMoney}"
+                                       HorizontalTextAlignment="Start" FontSize="18" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Sayılan tutar" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding SayilanTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                           Style="{StaticResource EntryMoney}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <!-- Fark (sayılan − defter): 0 ise yeşil, fazla ya da eksikse kırmızı -->
+                            <VerticalStackLayout Spacing="2" IsVisible="{Binding FarkGorunur}">
+                                <Label Text="Fark (sayılan − defter)" Style="{StaticResource LblField}" />
+                                <Label Text="{Binding FarkYazi}" Style="{StaticResource LblMoney}"
+                                       HorizontalTextAlignment="Start" FontSize="18"
+                                       TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}" />
+                                <Label Text="{Binding FarkMetni}" Style="{StaticResource LblRowSecondary}"
+                                       TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Not" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding Not}" Placeholder="İsteğe bağlı" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <Button Text="Sayımı kaydet" Command="{Binding KaydetCommand}" Margin="0,2,0,0" />
+                            <Label Text="Sayım hiçbir kasa rakamını değiştirmez; yalnız karşılaştırma kaydı tutar."
+                                   Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <!-- SAĞ: sayım geçmişi (her iki rol) -->
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+                <Grid RowDefinitions="Auto,*">
+                    <Label Text="Sayım Geçmişi" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <CollectionView Grid.Row="1" ItemsSource="{Binding Sayimlar}" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,8" MinimumHeightRequest="58"
+                                          ColumnDefinitions="Auto,*,120,120,110,Auto" ColumnSpacing="12">
+                                        <Border Style="{StaticResource DateChip}" WidthRequest="84" VerticalOptions="Center">
+                                            <Label Text="{Binding Tarih, StringFormat='{0:dd.MM.yyyy}'}"
+                                                   Style="{StaticResource LblDateChip}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Not}" Style="{StaticResource LblRowPrimary}"
+                                                   IsVisible="{Binding NotVar}" />
+                                            <Label Text="{Binding FarkMetni}" Style="{StaticResource LblRowSecondary}" />
+                                            <!-- Sayımdan sonra o güne kadarki kayıtlar değiştiyse -->
+                                            <Label Text="{Binding DefterDegistiMetni}" Style="{StaticResource LblRowSecondary}"
+                                                   TextColor="{StaticResource Neg}"
+                                                   IsVisible="{Binding DefterDegistiMetni, Converter={StaticResource DoluIse}}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="2" Spacing="1" VerticalOptions="Center">
+                                            <Label Text="Sayılan" Style="{StaticResource LblRowSecondary}" FontSize="11"
+                                                   HorizontalTextAlignment="End" />
+                                            <Label Text="{Binding SayilanTutar, Converter={StaticResource ParaBicim}}"
+                                                   Style="{StaticResource LblMoney}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="3" Spacing="1" VerticalOptions="Center">
+                                            <Label Text="Defter" Style="{StaticResource LblRowSecondary}" FontSize="11"
+                                                   HorizontalTextAlignment="End" />
+                                            <Label Text="{Binding HesaplananTutar, Converter={StaticResource ParaBicim}}"
+                                                   Style="{StaticResource LblMoney}" TextColor="{StaticResource Sub}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="4" Spacing="1" VerticalOptions="Center">
+                                            <Label Text="Fark" Style="{StaticResource LblRowSecondary}" FontSize="11"
+                                                   HorizontalTextAlignment="End" />
+                                            <Label Text="{Binding FarkYazi}" Style="{StaticResource LblMoney}"
+                                                   TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}" />
+                                        </VerticalStackLayout>
+                                        <Button Grid.Column="5" Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                VerticalOptions="Center"
+                                                IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                                </Border>
+                                <Label Text="Henüz sayım yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="Kasadaki nakdi sayıp girdikçe defterle karşılaştırmalar burada birikir."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</ContentPage>

@@ -97,16 +97,19 @@ public sealed partial class KasaApiClient : IKasaApi
         using var istek = new HttpRequestMessage(HttpMethod.Get, IslemYolu(baslangic, bitis, kanal, cari, limit, offset));
         using var yanit = await GonderAsync(istek);
         var kayitlar = (await yanit.Content.ReadFromJsonAsync<IReadOnlyList<IslemDto>>(Json))!;
-        // Başlık yoksa (eski sunucu) toplam, gelen kayıtlardan çıkarılır.
-        var toplam = yanit.Headers.TryGetValues("X-Toplam-Kayit", out var d)
-            && int.TryParse(d.FirstOrDefault(), System.Globalization.NumberStyles.Integer,
-                System.Globalization.CultureInfo.InvariantCulture, out var t) && t >= 0
-            ? t
-            : offset + kayitlar.Count;
-        return new IslemSayfasi(kayitlar, toplam);
+        return new IslemSayfasi(kayitlar, ToplamKayit(yanit, offset + kayitlar.Count));
     }
 
-    private static string IslemYolu(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset)
+    /// <summary><c>X-Toplam-Kayit</c> başlığı; yoksa (eski sunucu) toplam, gelen kayıtlardan çıkarılır (<paramref name="yedek"/>).</summary>
+    private static int ToplamKayit(HttpResponseMessage yanit, int yedek)
+        => yanit.Headers.TryGetValues("X-Toplam-Kayit", out var d)
+           && int.TryParse(d.FirstOrDefault(), System.Globalization.NumberStyles.Integer,
+               System.Globalization.CultureInfo.InvariantCulture, out var t) && t >= 0
+            ? t
+            : yedek;
+
+    private static string IslemYolu(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset,
+        string taban = "api/islemler")
     {
         var q = new List<string>();
         if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
@@ -115,7 +118,31 @@ public sealed partial class KasaApiClient : IKasaApi
         if (!string.IsNullOrWhiteSpace(cari)) q.Add($"cari={Uri.EscapeDataString(cari)}");
         if (limit is { } l) q.Add(FormattableString.Invariant($"limit={l}"));
         if (offset is { } o) q.Add(FormattableString.Invariant($"offset={o}"));
-        return q.Count > 0 ? $"api/islemler?{string.Join("&", q)}" : "api/islemler";
+        return q.Count > 0 ? $"{taban}?{string.Join("&", q)}" : taban;
+    }
+
+    // ---- Excel'e aktar (CSV) ----
+
+    public Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
+        => IndirAsync(IslemYolu(baslangic, bitis, kanal, cari, null, null, "api/disaaktar/islemler.csv"), "kasa-islemler.csv");
+    public Task<IndirilenDosya> HaftalikCsvAsync() => IndirAsync("api/disaaktar/haftalik.csv", "kasa-haftalik.csv");
+    public Task<IndirilenDosya> AylikCsvAsync(int yil, int ay)
+        => IndirAsync(FormattableString.Invariant($"api/disaaktar/aylik.csv?yil={yil}&ay={ay}"),
+            FormattableString.Invariant($"kasa-aylik-{yil:D4}-{ay:D2}.csv"));
+
+    /// <summary>
+    /// Dosyayı indirir. Ad, sunucunun Content-Disposition başlığından (filename*, yoksa filename)
+    /// alınır; başlık yoksa <paramref name="varsayilanAd"/>. Ad burada yalnız okunur; diske yazan
+    /// taraf yine de güvenli hale getirmelidir.
+    /// </summary>
+    private async Task<IndirilenDosya> IndirAsync(string yol, string varsayilanAd)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Get, yol);
+        using var yanit = await GonderAsync(istek);
+        var cd = yanit.Content.Headers.ContentDisposition;
+        var ad = (cd?.FileNameStar ?? cd?.FileName)?.Trim().Trim('"');
+        var icerik = await yanit.Content.ReadAsByteArrayAsync();
+        return new IndirilenDosya(string.IsNullOrWhiteSpace(ad) ? varsayilanAd : ad, icerik);
     }
 
     // ---- mutasyon metotları ----
@@ -136,6 +163,15 @@ public sealed partial class KasaApiClient : IKasaApi
     public Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g) => GonderJsonAsync<GiderKalemiDto>(HttpMethod.Put, $"api/giderkalemleri/{id}", g);
     public Task GiderKalemiSilAsync(int id) => SilAsync($"api/giderkalemleri/{id}");
 
+    // Tekrarlayan gider
+    public Task<IReadOnlyList<TekrarlayanGiderDto>> TekrarlayanGiderlerAsync() => GetAsync<IReadOnlyList<TekrarlayanGiderDto>>("api/tekrarlayangiderler");
+    public Task<IReadOnlyList<BekleyenGiderDto>> BekleyenGiderlerAsync() => GetAsync<IReadOnlyList<BekleyenGiderDto>>("api/tekrarlayangiderler/bekleyen");
+    public Task<TekrarlayanGiderDto> TekrarlayanGiderOlusturAsync(TekrarlayanGiderYaz g) => GonderJsonAsync<TekrarlayanGiderDto>(HttpMethod.Post, "api/tekrarlayangiderler", g);
+    public Task<TekrarlayanGiderDto> TekrarlayanGiderGuncelleAsync(int id, TekrarlayanGiderYaz g) => GonderJsonAsync<TekrarlayanGiderDto>(HttpMethod.Put, $"api/tekrarlayangiderler/{id}", g);
+    public Task TekrarlayanGiderSilAsync(int id) => SilAsync($"api/tekrarlayangiderler/{id}");
+    public Task<IslemDto> TekrarlayanOnaylaAsync(int id, TekrarlayanOnayYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, $"api/tekrarlayangiderler/{id}/onayla", g);
+    public Task TekrarlayanAtlaAsync(int id, DateOnly ay) => GonderJsonAsync(HttpMethod.Post, $"api/tekrarlayangiderler/{id}/atla", new { ay });
+
     // İşlem
     public Task<IslemDto> IslemOlusturAsync(IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, "api/islemler", g);
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Put, $"api/islemler/{id}", g);
@@ -155,6 +191,28 @@ public sealed partial class KasaApiClient : IKasaApi
     // Gelen upsert
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) => GonderJsonAsync<GelenDto>(HttpMethod.Put, "api/gelenler", g);
 
+    // Çek
+    public Task<IReadOnlyList<CekDto>> CeklerAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null)
+    {
+        var q = new List<string>();
+        if (yon is { } y) q.Add($"yon={y}");
+        if (durum is { } d) q.Add($"durum={d}");
+        if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
+        if (bitis is { } s) q.Add($"bitis={s:yyyy-MM-dd}");
+        return GetAsync<IReadOnlyList<CekDto>>(q.Count > 0 ? $"api/cekler?{string.Join("&", q)}" : "api/cekler");
+    }
+    public Task<CekOzetDto> CekOzetAsync() => GetAsync<CekOzetDto>("api/cekler/ozet");
+    public Task<CekDto> CekOlusturAsync(CekYaz g) => GonderJsonAsync<CekDto>(HttpMethod.Post, "api/cekler", g);
+    public Task<CekDto> CekGuncelleAsync(int id, CekYaz g) => GonderJsonAsync<CekDto>(HttpMethod.Put, $"api/cekler/{id}", g);
+    public Task CekSilAsync(int id) => SilAsync($"api/cekler/{id}");
+
+    // Kasa sayımı
+    public Task<IReadOnlyList<KasaSayimDto>> KasaSayimlariAsync() => GetAsync<IReadOnlyList<KasaSayimDto>>("api/kasasayimlari");
+    public Task<KasaHesapDto> KasaHesaplaAsync(DateOnly tarih)
+        => GetAsync<KasaHesapDto>($"api/kasasayimlari/hesapla?tarih={tarih.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}");
+    public Task<KasaSayimDto> KasaSayimKaydetAsync(KasaSayimYaz g) => GonderJsonAsync<KasaSayimDto>(HttpMethod.Post, "api/kasasayimlari", g);
+    public Task KasaSayimSilAsync(int id) => SilAsync($"api/kasasayimlari/{id}");
+
     // Ayarlar
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
@@ -164,6 +222,25 @@ public sealed partial class KasaApiClient : IKasaApi
         using var _ = await GonderAsync(istek);
         await _store.TemizleAsync();
         OturumSonaErdi?.Invoke(this, OturumBitisNedeni.OturumlarKapatildi);
+    }
+
+    // Değişiklik geçmişi
+    public async Task<DegisiklikSayfasi> GecmisAsync(string? tur, int limit, int offset)
+    {
+        var yol = FormattableString.Invariant($"api/gecmis?limit={limit}&offset={offset}");
+        if (!string.IsNullOrWhiteSpace(tur)) yol += $"&tur={Uri.EscapeDataString(tur)}";
+        using var istek = new HttpRequestMessage(HttpMethod.Get, yol);
+        using var yanit = await GonderAsync(istek);
+        var kayitlar = (await yanit.Content.ReadFromJsonAsync<IReadOnlyList<DegisiklikDto>>(Json))!;
+        return new DegisiklikSayfasi(kayitlar, ToplamKayit(yanit, offset + kayitlar.Count));
+    }
+
+    public Task<IReadOnlyList<string>> GecmisTurleriAsync() => GetAsync<IReadOnlyList<string>>("api/gecmis/turler");
+
+    public async Task GeriAlAsync(int degisiklikId)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Post, $"api/gecmis/{degisiklikId}/geri-al");
+        using var _ = await GonderAsync(istek);
     }
 
     // ---- altyapı ----

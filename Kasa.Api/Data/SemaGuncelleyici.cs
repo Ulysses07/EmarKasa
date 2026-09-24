@@ -353,25 +353,50 @@ public static class SemaGuncelleyici
 
     /// <summary>
     /// Gider kalemi tablosu ilk kurulurken, eski sabit gider işlemlerinde (karta bağlı olmayan)
-    /// geçen adları kalem olarak ekler; böylece eski kayıtlar düzenlenebilir kalır.
+    /// geçen adları kalem olarak ekler; böylece eski kayıtlar düzenlenebilir kalır. Yalnız
+    /// büyük/küçük harfle ayrışan yazımlar ("Kira"/"kira") tek kalem olur: en çok kullanılan
+    /// yazım kalır (eşitlikte en son girilen) ve öbür yazımlı işlemler ona çevrilir. Aksi halde
+    /// iki kalem oluşur ve API'nin harf duyarsız ad kontrolü ikisini de düzenlenemez kılar.
     /// </summary>
     private static void SabitGiderKalemleriniEkle(DbConnection conn, DbTransaction tx, List<string> yapilan, ILogger log)
     {
         var mevcut = TablolariOku(conn, tx);
         if (!mevcut.Contains("Islemler", StringComparer.OrdinalIgnoreCase)) return;
-        var adlar = OkuSatir(conn, tx, $"SELECT DISTINCT \"Cari\" FROM \"Islemler\" WHERE \"Cari\" <> '' " +
-                                       $"AND \"Tip\" = {(int)Kasa.Core.GiderTipi.SabitGider} AND \"KrediKartiId\" IS NULL " +
-                                       "AND \"Cari\" NOT IN (SELECT \"Ad\" FROM \"GiderKalemleri\")");
-        foreach (var s in adlar)
+        var sabit = $"\"Tip\" = {(int)Kasa.Core.GiderTipi.SabitGider} AND \"KrediKartiId\" IS NULL";
+        var kayitli = OkuSatir(conn, tx, "SELECT \"Ad\" FROM \"GiderKalemleri\"").Select(r => r[0]!).ToList();
+        var yazimlar = OkuSatir(conn, tx, $"SELECT \"Cari\", COUNT(*), MAX(\"Id\") FROM \"Islemler\" " +
+                                          $"WHERE \"Cari\" <> '' AND {sabit} GROUP BY \"Cari\"")
+            .Select(r => (Ad: r[0]!, Adet: long.Parse(r[1]!, CultureInfo.InvariantCulture), SonId: long.Parse(r[2]!, CultureInfo.InvariantCulture)))
+            .ToList();
+        var eklenen = 0;
+        foreach (var grup in yazimlar.GroupBy(y => y.Ad, Metin.EsitBuyukKucukDuyarsiz))
         {
-            using var cmd = conn.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = "INSERT INTO \"GiderKalemleri\" (\"Ad\", \"Aktif\") VALUES ($ad, 1)";
-            var p = cmd.CreateParameter(); p.ParameterName = "$ad"; p.Value = s[0]; cmd.Parameters.Add(p);
-            cmd.ExecuteNonQuery();
-            log.LogInformation("Sabit gider işlemlerinde geçen ad kalem olarak eklendi: {Kalem}", s[0]);
+            var ad = kayitli.FirstOrDefault(k => Metin.EsitBuyukKucukDuyarsiz.Equals(k, grup.Key))
+                     ?? grup.OrderByDescending(y => y.Adet).ThenByDescending(y => y.SonId).First().Ad;
+            if (!kayitli.Contains(ad))
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = "INSERT INTO \"GiderKalemleri\" (\"Ad\", \"Aktif\") VALUES ($ad, 1)";
+                var p = cmd.CreateParameter(); p.ParameterName = "$ad"; p.Value = ad; cmd.Parameters.Add(p);
+                cmd.ExecuteNonQuery();
+                kayitli.Add(ad);
+                eklenen++;
+                log.LogInformation("Sabit gider işlemlerinde geçen ad kalem olarak eklendi: {Kalem}", ad);
+            }
+            foreach (var y in grup.Where(y => y.Ad != ad))
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = $"UPDATE \"Islemler\" SET \"Cari\" = $yeni WHERE \"Cari\" = $eski AND {sabit}";
+                var p1 = cmd.CreateParameter(); p1.ParameterName = "$yeni"; p1.Value = ad; cmd.Parameters.Add(p1);
+                var p2 = cmd.CreateParameter(); p2.ParameterName = "$eski"; p2.Value = y.Ad; cmd.Parameters.Add(p2);
+                var n = cmd.ExecuteNonQuery();
+                yapilan.Add($"gider kalemi yazımı birleştirildi: {y.Ad} → {ad} ({n} işlem)");
+                log.LogWarning("Sabit gider adı tek yazıma çevrildi: {Eski} → {Yeni} ({Adet} işlem)", y.Ad, ad, n);
+            }
         }
-        if (adlar.Count > 0) yapilan.Add($"gider kalemi+ işlemlerden ({adlar.Count})");
+        if (eklenen > 0) yapilan.Add($"gider kalemi+ işlemlerden ({eklenen})");
     }
 
     // ------------------------------------------------------------------ SQL üretimi

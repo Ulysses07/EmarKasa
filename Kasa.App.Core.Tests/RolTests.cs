@@ -30,4 +30,11 @@ public class RolTests
     [Fact]
     public void Bolum_sirasi_panelle_baslar()
         => Assert.Equal(Bolum.Panel, SekmeModeli.Bolumler(Rol.Izleyici)[0]);
+
+    [Fact]
+    public void Gecmis_iki_rolde_de_gorunur_ayarlardan_hemen_once()
+    {
+        Assert.Equal(Bolum.Gecmis, SekmeModeli.Bolumler(Rol.Izleyici)[^1]);
+        Assert.Equal([Bolum.Gecmis, Bolum.Ayarlar], SekmeModeli.Bolumler(Rol.Editor).TakeLast(2));
+    }
 }

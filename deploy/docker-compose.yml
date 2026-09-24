@@ -19,6 +19,8 @@ services:
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
       # Günlük otomatik yedek (son 30 gün): host'ta deploy/kasa-data/yedek/
       Kasa__YedekKlasoru: "/data/yedek"
+      # Sunucu dışı yedeğin (kasa-yedek servisi) durum dosyası; /health → "uzakYedek".
+      Kasa__UzakYedekDurumDosyasi: "/data/uzak-yedek/durum.json"
       # X-Forwarded-For'una güvenilecek proxy ağı (CIDR): orderdeck_web ağının subnet'i (Caddy bu ağdan bağlanır).
       # Değeri bul: deploy/README.md → "Güvenilir proxy ağı". deploy/.env'de KASA_GUVENILIR_AGLAR.
       Kasa__GuvenilirAglar: "${KASA_GUVENILIR_AGLAR}"
@@ -38,6 +40,37 @@ services:
         max-file: "3"
     mem_limit: 512m
     memswap_limit: 512m
+    cpus: 0.5
+
+  # Sunucu dışı yedek: her gece en yeni günlük yedeği sıkıştırıp şifreler (rclone crypt) ve
+  # uzak hedefe (Google Drive / başka sunucu / S3) gönderir; haftada bir indirip doğrular.
+  # KASA_UZAK_HEDEF boşsa hiçbir şey göndermez. Kurulum: deploy/README.md → "Sunucu dışı yedek".
+  kasa-yedek:
+    build:
+      context: ./uzak-yedek
+    image: kasa-yedek:latest
+    container_name: kasa-yedek
+    restart: unless-stopped
+    init: true
+    # Uygulamayla aynı kullanıcı: kasa-data'ya yazdığı dosyalar (durum, rclone ayarı) 1654'e ait olur.
+    user: "1654:1654"
+    environment:
+      TZ: Europe/Istanbul
+      KASA_UZAK_HEDEF: "${KASA_UZAK_HEDEF:-}"
+      KASA_YEDEK_SIFRE: "${KASA_YEDEK_SIFRE:-}"
+      KASA_UZAK_SAAT: "${KASA_UZAK_SAAT:-03:30}"
+      KASA_DOGRULAMA_GUNU: "${KASA_DOGRULAMA_GUNU:-7}"
+    # Yedekleri okur; durum dosyasını, rclone ayarını ve geri alınan kopyaları
+    # kasa-data/uzak-yedek/ altına yazar.
+    volumes:
+      - ./kasa-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 256m
+    memswap_limit: 256m
     cpus: 0.5
 
 networks:

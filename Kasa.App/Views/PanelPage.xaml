@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Emar Kasa · PanelPage — Güncel Kasa hero kartı + kanal bakiyeleri. -->
+<!-- Emar Kasa · PanelPage — Güncel Kasa hero kartı + bekleyen tekrarlayan giderler (editör) + kanal bakiyeleri. -->
 <ContentPage
     x:Class="Kasa.App.Views.PanelPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -33,6 +33,53 @@
                            Style="{StaticResource LblHeroAmount}" Margin="0,8,0,0" />
                     <Label Text="Takip başlangıcı ve açılış devri dahil"
                            Style="{StaticResource LblHeroSub}" Margin="0,10,0,0" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Girilmesi bekleyen tekrarlayan giderler (yalnız editör; liste boşsa gizli) -->
+            <Border Style="{StaticResource Card}" IsVisible="{Binding BekleyenVar}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="4">
+                        <Label Text="Girilmesi bekleyen giderler" Style="{StaticResource LblSection}" />
+                        <Label Text="Vadesi gelen tekrarlayan giderler. Tutarı kontrol edip Kaydet'e basın; bu ay ödenmeyecekse ya da elle girdiyseniz atlayın."
+                               Style="{StaticResource LblPageSub}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding BekleyenGiderler}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,10"
+                                          ColumnDefinitions="{OnIdiom Desktop='*,160,Auto', Default='*,Auto'}"
+                                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                                          ColumnSpacing="12" RowSpacing="8">
+                                        <VerticalStackLayout Grid.ColumnSpan="{OnIdiom Desktop=1, Default=2}"
+                                                             Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Kalem}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding Aciklama}" Style="{StaticResource LblRowSecondary}" />
+                                        </VerticalStackLayout>
+                                        <Border Style="{StaticResource FieldBorder}"
+                                                Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                                VerticalOptions="Center">
+                                            <Entry Text="{Binding Tutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                                   Style="{StaticResource EntryMoney}" />
+                                        </Border>
+                                        <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=1}"
+                                                               Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                                               Spacing="6" VerticalOptions="Center">
+                                            <Button Text="Kaydet" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.BekleyenKaydetCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Bu ay atla" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.BekleyenAtlaCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
             </Border>
 

@@ -60,6 +60,28 @@ public class SemaGocTests
     }
 
     [Fact]
+    public void Sabit_gider_adlarinin_harf_farkli_yazimlari_tek_kalem_olur_islemler_ona_cevrilir()
+    {
+        using var conn = new SqliteConnection("Data Source=:memory:");
+        conn.Open();
+        Calistir(conn, CanliSema);
+        Calistir(conn, CanliVeri);
+        // "Kira" 2 işlemde, "kira" ve "KİRA" (Türkçe büyük İ) birer işlemde; karta bağlı "kira" dokunulmaz.
+        Calistir(conn, ["INSERT INTO Islemler (Id, Tarih, Cari, TutarTl, Kanal, Tip, KrediKartiId) VALUES " +
+                        "(6,'2026-06-15','kira','5.0','Ortak',1,NULL),(7,'2026-06-16','KİRA','6.0','Ortak',1,NULL),(8,'2026-06-17','kira','7.0','MEZAT',2,1)"]);
+        using var db = Ac(conn);
+        var yapilan = SemaGuncelleyici.Guncelle(db, NullLogger.Instance, null);
+
+        Assert.Equal(["Kira"], db.GiderKalemleri.Select(k => k.Ad).ToList());
+        Assert.Equal(["Kira", "Kira", "Kira", "Kira"],
+            db.Islemler.Where(i => i.Tip == Kasa.Core.GiderTipi.SabitGider).OrderBy(i => i.Id).Select(i => i.Cari).ToList());
+        Assert.Equal("kira", db.Islemler.Single(i => i.Id == 8).Cari);
+        Assert.Contains("gider kalemi yazımı birleştirildi: kira → Kira (1 işlem)", yapilan);
+        Assert.Contains("gider kalemi yazımı birleştirildi: KİRA → Kira (1 işlem)", yapilan);
+        Assert.Empty(SemaGuncelleyici.Guncelle(db, NullLogger.Instance, null));   // idempotent
+    }
+
+    [Fact]
     public void Canli_benzeri_db_tekillestirilir_indexler_ve_FK_eklenir_veri_korunur()
     {
         var klasor = Path.Combine(Path.GetTempPath(), "kasa-goc-" + Guid.NewGuid().ToString("N"));

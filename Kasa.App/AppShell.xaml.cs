@@ -46,11 +46,14 @@ public partial class AppShell : Shell
         _menuAcik = true;
         var bolumler = SekmeModeli.Bolumler(_auth.AktifRol);
         PanelItem.IsVisible = true;
+        KasaSayimiItem.IsVisible = bolumler.Contains(Bolum.KasaSayimi);   // her iki rol; izleyici yalnız görür
         HaftalikItem.IsVisible = true;
         AylikItem.IsVisible = true;
         CarilerItem.IsVisible = true;
         IslemlerItem.IsVisible = true;
         KartlarItem.IsVisible = true;
+        CeklerItem.IsVisible = bolumler.Contains(Bolum.Cekler);
+        GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
         AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
         _ = GitAsync(_yonlendirme.Al() ?? "//panel");   // bildirimle açıldıysa o sayfaya
     }
@@ -59,11 +62,14 @@ public partial class AppShell : Shell
     {
         _menuAcik = false;
         PanelItem.IsVisible = false;
+        KasaSayimiItem.IsVisible = false;
         HaftalikItem.IsVisible = false;
         AylikItem.IsVisible = false;
         CarilerItem.IsVisible = false;
         IslemlerItem.IsVisible = false;
         KartlarItem.IsVisible = false;
+        CeklerItem.IsVisible = false;
+        GecmisItem.IsVisible = false;
         AyarlarItem.IsVisible = false;
         _ = GitAsync("//login");
     }

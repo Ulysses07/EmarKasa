@@ -32,6 +32,8 @@ public static class MauiProgram
 #if WINDOWS
         builder.Services.AddSingleton<IBildirimServisi>(sp =>
             new Platforms.Windows.WindowsBildirimServisi(sp.GetRequiredService<Yonlendirme>()));
+        // "Excel'e aktar": Belgeler\Emar Kasa'ya kaydeder ve açar (yoksa VM'ler anlaşılır hata gösterir).
+        builder.Services.AddSingleton<IDosyaKaydedici, Platforms.Windows.WindowsDosyaKaydedici>();
 #endif
         builder.Services.AddSingleton(sp =>
         {
@@ -43,22 +45,28 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<AuthViewModel>();
         builder.Services.AddTransient<PanelViewModel>();
+        builder.Services.AddTransient<KasaSayimiViewModel>();
         builder.Services.AddTransient<HaftalikViewModel>();
         builder.Services.AddTransient<AylikViewModel>();
         builder.Services.AddTransient<CarilerViewModel>();
         builder.Services.AddTransient<IslemlerViewModel>();
         builder.Services.AddTransient<KrediKartlariViewModel>();
+        builder.Services.AddTransient<CeklerViewModel>();
+        builder.Services.AddTransient<GecmisViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
 
         builder.Services.AddSingleton<App>();
         builder.Services.AddSingleton<AppShell>();
         builder.Services.AddTransient<Views.LoginPage>();
         builder.Services.AddTransient<Views.PanelPage>();
+        builder.Services.AddTransient<Views.KasaSayimiPage>();
         builder.Services.AddTransient<Views.HaftalikPage>();
         builder.Services.AddTransient<Views.AylikPage>();
         builder.Services.AddTransient<Views.CarilerPage>();
         builder.Services.AddTransient<Views.IslemlerPage>();
         builder.Services.AddTransient<Views.KrediKartlariPage>();
+        builder.Services.AddTransient<Views.CeklerPage>();
+        builder.Services.AddTransient<Views.GecmisPage>();
         builder.Services.AddTransient<Views.AyarlarPage>();
 
 #if DEBUG

@@ -34,6 +34,28 @@ public interface IKasaApi
     Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync();
     Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null);
     Task<AyarlarDto> AyarlarAsync();
+    /// <summary>
+    /// Çekler (sunucu sırası: vade, id azalan). Filtreler isteğe bağlı; tarih aralığı vadeye uygulanır.
+    /// </summary>
+    Task<IReadOnlyList<CekDto>> CeklerAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null);
+    /// <summary>Portföy toplamları, vadesi yaklaşan ve vadesi geçmiş (portföydeki) çekler.</summary>
+    Task<CekOzetDto> CekOzetAsync();
+
+    // Excel'e aktar (CSV; her iki rol). Dosya adı sunucunun Content-Disposition'ından gelir.
+    /// <summary>İşlem listesi, <see cref="IslemlerAsync"/> ile aynı filtreyle (sayfalama yok) + toplam satırı.</summary>
+    Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null);
+    /// <summary>Haftalık rapor: dönem × kanal satırları + dönem başına kasa satırı.</summary>
+    Task<IndirilenDosya> HaftalikCsvAsync();
+    /// <summary>Aylık rapor: kanal başına tüm sütunlar + toplam satırı.</summary>
+    Task<IndirilenDosya> AylikCsvAsync(int yil, int ay);
+
+    // Kasa sayımı (okuma her iki rol; kaydet/sil editör)
+    /// <summary>Sayım geçmişi, en yeni tarih önce.</summary>
+    Task<IReadOnlyList<KasaSayimDto>> KasaSayimlariAsync();
+    /// <summary>Tarih gününün sonundaki defter kasası (ileri tarih / takip öncesi → 400).</summary>
+    Task<KasaHesapDto> KasaHesaplaAsync(DateOnly tarih);
+    Task<KasaSayimDto> KasaSayimKaydetAsync(KasaSayimYaz g);
+    Task KasaSayimSilAsync(int id);
 
     // Editör mutasyonları (KasaApiClient bunları zaten uyguluyor)
     Task<KanalDto> KanalOlusturAsync(KanalYaz g);
@@ -45,6 +67,18 @@ public interface IKasaApi
     Task<GiderKalemiDto> GiderKalemiOlusturAsync(GiderKalemiYaz g);
     Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g);
     Task GiderKalemiSilAsync(int id);
+
+    /// <summary>Tekrarlayan gider kayıtları (her iki rol okur), kaleme göre sıralı.</summary>
+    Task<IReadOnlyList<TekrarlayanGiderDto>> TekrarlayanGiderlerAsync();
+    /// <summary>Girilmesi bekleyen tekrarlayan giderler (bu ay ve önceki 2 ay, vadesi gelmiş), vadeye göre sıralı.</summary>
+    Task<IReadOnlyList<BekleyenGiderDto>> BekleyenGiderlerAsync();
+    Task<TekrarlayanGiderDto> TekrarlayanGiderOlusturAsync(TekrarlayanGiderYaz g);
+    Task<TekrarlayanGiderDto> TekrarlayanGiderGuncelleAsync(int id, TekrarlayanGiderYaz g);
+    Task TekrarlayanGiderSilAsync(int id);
+    /// <summary>Bekleyen ayı sabit gider işlemi olarak girer; oluşan işlemi döner. Aynı ay için ikinci karar 409.</summary>
+    Task<IslemDto> TekrarlayanOnaylaAsync(int id, TekrarlayanOnayYaz g);
+    /// <summary>Bekleyen ayı işlem girmeden kapatır. Aynı ay için ikinci karar 409.</summary>
+    Task TekrarlayanAtlaAsync(int id, DateOnly ay);
     Task<IslemDto> IslemOlusturAsync(IslemYaz g);
     Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g);
     Task IslemSilAsync(int id);
@@ -57,10 +91,22 @@ public interface IKasaApi
     Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g);
     Task KartOdemeSilAsync(int id);
     Task<GelenDto> GelenKaydetAsync(GelenYaz g);
+    Task<CekDto> CekOlusturAsync(CekYaz g);
+    Task<CekDto> CekGuncelleAsync(int id, CekYaz g);
+    Task CekSilAsync(int id);
     Task AyarGuncelleAsync(AyarYaz g);
     Task IzleyiciSifreAsync(string yeniSifre);
     /// <summary>Tüm cihazlardaki oturumları (bu cihaz dahil) kapatır; başarıda yerel token silinir ve <see cref="OturumSonaErdi"/> tetiklenir.</summary>
     Task OturumlariKapatAsync();
+
+    // Değişiklik geçmişi (okuma her iki rol; geri alma yalnız editör)
+    /// <summary>Geçmişin bir sayfası (en yeni önce) ve toplam satır sayısı (<c>X-Toplam-Kayit</c>).</summary>
+    /// <param name="tur">null = tüm türler; ör. "İşlem".</param>
+    Task<DegisiklikSayfasi> GecmisAsync(string? tur, int limit, int offset);
+    /// <summary>Geçmişte satırı olan türler (filtre çipleri), Türkçe alfabetik.</summary>
+    Task<IReadOnlyList<string>> GecmisTurleriAsync();
+    /// <summary>Silinen kaydı geçmiş satırından geri getirir (yeni Id'yle); kurallara uymuyorsa 400/409.</summary>
+    Task GeriAlAsync(int degisiklikId);
 }
 
 /// <summary>Oturumun neden sona erdiği.</summary>
