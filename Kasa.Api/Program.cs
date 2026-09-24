@@ -769,6 +769,7 @@ api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) =>
     return Results.Ok(svc.Aylik(yil, ay));
 });
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
+api.MapPanelUclari();   // Paket A: nakit tahmini, eksik gelen, geçmiş özeti (Endpoints/PanelEndpoints.cs)
 
 // Kasa sayımı: sayılan nakit ile tarih gününün sonundaki defter kasasının karşılaştırması.
 // Hiçbir kasa hesabını değiştirmez; yalnız kayıt tutar. Okuma her iki rol, yazma editör.
@@ -841,7 +842,8 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
         d.Id, DateTime.SpecifyKind(d.ZamanUtc, DateTimeKind.Utc), d.Rol, d.Tur, d.KayitId, d.Eylem, d.Ozet,
         d.EskiJson, d.YeniJson, d.GeriAlindi,
         d.GeriAlmaZamaniUtc is { } g ? DateTime.SpecifyKind(g, DateTimeKind.Utc) : null,
-        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null)).ToList());
+        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null,
+        GecmiseDonuk: GecmiseDonukKurali.Mi(d))).ToList());
 });
 // Geçmişte kaydı olan türler (filtre seçenekleri).
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
