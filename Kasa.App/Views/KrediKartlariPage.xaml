@@ -156,6 +156,11 @@
                                            TextColor="White" FontSize="12"
                                            FontFamily="PlexSansSemiBold" />
                                 </Border>
+                                <!-- Paket A · limit uyarısı (%80 ve üstü; tüm roller) -->
+                                <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding LimitUyarisi}"
+                                        Padding="10,7" Margin="0,8,0,0">
+                                    <Label Text="{Binding LimitUyariMetni}" Style="{StaticResource LblError}" FontSize="12" />
+                                </Border>
 
                                 <!-- Aksiyonlar (yalnız editör) -->
                                 <VerticalStackLayout Spacing="0" Margin="0,14,0,0"

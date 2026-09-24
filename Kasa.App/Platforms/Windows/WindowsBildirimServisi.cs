@@ -6,7 +6,7 @@ using Microsoft.Windows.AppNotifications.Builder;
 namespace Kasa.App.Platforms.Windows;
 
 /// <summary>Windows App SDK toast bildirimleri (paketsiz .exe).</summary>
-public sealed class WindowsBildirimServisi : IBildirimServisi
+public sealed partial class WindowsBildirimServisi : IBildirimServisi, IKisaBildirim
 {
     private readonly Yonlendirme? _yonlendirme;
     private bool _kayitli;

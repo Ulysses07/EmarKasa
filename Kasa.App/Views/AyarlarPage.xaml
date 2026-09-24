@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.AyarlarPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
     x:Name="Sayfa"
     Title="Ayarlar"
     BackgroundColor="{StaticResource AppBg}">
@@ -356,6 +357,9 @@
                     </CollectionView>
                 </VerticalStackLayout>
             </Border>
+
+            <!-- ═══ BÖLÜM · Paket A · Bildirimler (bu bilgisayar; sunucu ayarı değildir) ═══ -->
+            <v:BildirimAyarlariView />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>
