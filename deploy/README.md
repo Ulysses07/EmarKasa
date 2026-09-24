@@ -535,6 +535,25 @@ gider. Aynı günün kopyası uzakta yenisiyle değiştirilir. Elle doğrulama:
 Geçici olarak kapatmak için: `docker compose stop kasa-yedek`. Kalıcı kapatmak için `.env`'de
 `KASA_UZAK_HEDEF=` satırını boşaltıp `docker compose up -d` çalıştırın.
 
+## Dışarı giden bağlantı: TCMB kurları
+
+Ayarlar → "Kur ve Endeks Tablosu" → **"TCMB'den doldur"** düğmesi, ayın USD/TRY ve EUR/TRY
+ortalamasını TCMB'nin günlük kur dosyalarından alır
+(`https://www.tcmb.gov.tr/kurlar/YYYYMM/GGAAYYYY.xml`). Bunun için konteynerin
+**`www.tcmb.gov.tr`'ye 443 portundan (HTTPS) dışarı bağlanabilmesi** gerekir.
+
+- `web` ağı `internal` değildir. Sunucu güvenlik duvarı dışarı giden HTTPS'i kapatmıyorsa ek
+  ayar gerekmez. Kapatıyorsa yalnız `www.tcmb.gov.tr:443`'e izin verin.
+- Denemek için VPS'te: `curl -sI https://www.tcmb.gov.tr/kurlar/today.xml` (200 dönmeli).
+  İmajda `curl` yoktur; uygulamadan denemek için Ayarlar'da düğmeye basın. Ulaşılamazsa
+  "TCMB'ye ulaşılamadı (bağlantı hatası)." der ve hiçbir değer yazmaz.
+- Bağlantı olmasa da uygulama çalışır: kurlar elle girilebilir. TÜFE ve gram altın her zaman
+  elle girilir. Hiçbir değer tahmin edilmez; kuru olmayan ay grafikte "kur yok" görünür.
+
+Başka sunucu ayarı gerekmez. Paket B'nin yeni tabloları (`AyKilitleri`, `AyYayinlari`,
+`KanalHedefleri`, `GiderButceleri`, `Kurlar`) ilk açılışta `SemaGuncelleyici` ile otomatik
+eklenir (öncesinde `kasa-once-<zaman>.db` yedeği alınır).
+
 ## Saat dilimi
 Konteyner `TZ=Europe/Istanbul` ile çalışır. Uygulama "bugün"ü ayrıca Türkiye saatine göre hesaplar.
 

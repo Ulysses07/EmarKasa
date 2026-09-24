@@ -66,6 +66,7 @@ internal static class DegisiklikKaydedici
         ["HedefTur"] = "Hedef", ["HedefId"] = "Hedef no", ["Hafta"] = "Hafta", ["HedefOzet"] = "Kayıt", ["Metin"] = "Soru",
         ["SoranId"] = "Soran no", ["SoranAd"] = "Soran", ["SoranRol"] = "Soranın rolü", ["SorulmaUtc"] = "Soru zamanı",
         ["Cevap"] = "Cevap", ["CevaplayanAd"] = "Cevaplayan", ["CevaplanmaUtc"] = "Cevap zamanı", ["KapanmaUtc"] = "Kapanma",
+        ["Etiket"] = "Ay", ["KilitZamaniUtc"] = "Kilit zamanı", ["YayinZamaniUtc"] = "Yayın zamanı", ["SonDegisiklikId"] = "Son geçmiş satırı", ["KanalId"] = "Kanal", ["GiderKalemiId"] = "Gider kalemi", ["TufeEndeksi"] = "TÜFE endeksi", ["UsdTry"] = "USD/TRY", ["EurTry"] = "EUR/TRY", ["AltinGramTry"] = "Gram altın (TL)",
     };
 
     private static readonly Dictionary<string, string> EnumAdlari = new()

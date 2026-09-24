@@ -91,17 +91,24 @@ public partial class IslemlerViewModel
         _uygulanan = new IslemAramasi(NotAra: not.Length == 0 ? null : not, Tip: AramaTip, KartId: AramaKartId,
             MinTutar: min, MaxTutar: max);
         AramaOzeti = AramaOzetiOlustur(_uygulanan);
+        SuzgecTip = null;   // gelişmiş arama rapordan gelen tip süzgecinin yerini alır (ikisi birlikte olmaz)
         await IslemleriYukleAsync();
     });
 
     [RelayCommand]
     private Task AramayiTemizleAsync()
     {
+        AramayiSifirla();
+        return YenidenListele();
+    }
+
+    /// <summary>Gelişmiş süzgeci ve formu boşaltır (listeyi yenilemez).</summary>
+    private void AramayiSifirla()
+    {
         AramaNot = ""; AramaMin = ""; AramaMax = ""; AramaTip = null; AramaKartId = null;
         AramaVurgu();
         _uygulanan = new IslemAramasi();
         AramaOzeti = null;
-        return YenidenListele();
     }
 
     private string? AramaOzetiOlustur(IslemAramasi a)
@@ -121,11 +128,11 @@ public partial class IslemlerViewModel
     private Task<IslemSayfasi> SayfaGetirAsync(DateOnly? bas, DateOnly? bit, string? kanal, int limit, int offset)
         => _uygulanan.GelismisVar
             ? _api.IslemAraAsync(_uygulanan with { Baslangic = bas, Bitis = bit, Kanal = kanal }, limit, offset)
-            : _api.IslemSayfasiAsync(bas, bit, kanal, null, limit, offset);
+            : IslemSayfasiAsync(bas, bit, kanal, null, limit, offset);   // rapordan gelen tip süzgeci (B)
 
     /// <summary>Excel'e aktar: listedeki süzgeçle aynı.</summary>
     private Task<IndirilenDosya> CsvGetirAsync(DateOnly? bas, DateOnly? bit, string? kanal)
         => _uygulanan.GelismisVar
             ? _api.IslemAramaCsvAsync(_uygulanan with { Baslangic = bas, Bitis = bit, Kanal = kanal })
-            : _api.IslemlerCsvAsync(bas, bit, kanal);
+            : IslemlerCsvAsync(bas, bit, kanal);
 }

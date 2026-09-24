@@ -13,7 +13,10 @@ public sealed class IslemAramaFiltresi
 {
     /// <summary>Notta geçen metin (Türkçe büyük/küçük harf duyarsız).</summary>
     public string? NotAra { get; set; }
-    /// <summary>Gider tipi adı: Cari, SabitGider, KrediKarti (büyük/küçük harf duyarsız).</summary>
+    /// <summary>
+    /// Gider tipi adı: Cari, SabitGider, KrediKarti ya da Nakit (K.K olmayan; rapordan inişte Ortak gider).
+    /// Büyük/küçük harf duyarsız. Etkin tiple süzer: bkz. <see cref="Servisler.IslemTipSuzgeci"/>.
+    /// </summary>
     public string? Tip { get; set; }
     /// <summary>Yalnız bu karta bağlı harcamalar.</summary>
     public int? KartId { get; set; }
@@ -22,15 +25,15 @@ public sealed class IslemAramaFiltresi
     /// <summary>En çok tutar (dahil).</summary>
     public decimal? MaxTutar { get; set; }
 
-    private GiderTipi? TipDegeri
+    // Bilinen tip adının kanonik yazımı ("cari" → "Cari"); bilinmiyorsa null.
+    private string? TipDegeri
         => string.IsNullOrWhiteSpace(Tip) ? null
-            : Enum.GetNames<GiderTipi>().FirstOrDefault(n => string.Equals(n, Tip.Trim(), StringComparison.OrdinalIgnoreCase)) is { } ad
-                ? Enum.Parse<GiderTipi>(ad) : null;
+            : Servisler.IslemTipSuzgeci.Degerler.FirstOrDefault(n => string.Equals(n, Tip.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Süzgeç geçersizse Türkçe açıklama, değilse null.</summary>
     public string? Hata()
     {
-        if (!string.IsNullOrWhiteSpace(Tip) && TipDegeri is null) return "Geçersiz gider tipi (Cari, SabitGider ya da KrediKarti).";
+        if (!string.IsNullOrWhiteSpace(Tip) && TipDegeri is null) return "Geçersiz gider tipi (Cari, SabitGider, KrediKarti ya da Nakit).";
         if (MinTutar is < 0 || MaxTutar is < 0) return "Tutar aralığı negatif olamaz.";
         if (MinTutar is { } en && MaxTutar is { } ec && en > ec) return "En az tutar en çok tutardan büyük olamaz.";
         if (NotAra is { Length: > 200 }) return "Not araması en fazla 200 karakter olabilir.";
@@ -40,10 +43,7 @@ public sealed class IslemAramaFiltresi
     /// <summary>Tip ve kart süzgecini sorguya ekler. Karta bağlı harcama hesapta K.K sayıldığı için "KrediKarti" onları da kapsar.</summary>
     public IQueryable<IslemEntity> SorguyaUygula(IQueryable<IslemEntity> q)
     {
-        if (TipDegeri is { } t)
-            q = t == GiderTipi.KrediKarti
-                ? q.Where(i => i.Tip == GiderTipi.KrediKarti || i.KrediKartiId != null)
-                : q.Where(i => i.Tip == t && i.KrediKartiId == null);
+        q = Servisler.IslemTipSuzgeci.TipeGoreSuz(q, TipDegeri);
         if (KartId is { } k) q = q.Where(i => i.KrediKartiId == k);
         return q;
     }

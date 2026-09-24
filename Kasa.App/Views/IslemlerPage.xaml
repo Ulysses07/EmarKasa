@@ -438,6 +438,13 @@
                             <Button Grid.Column="1" Text="Süzgeci kaldır" Command="{Binding AramayiTemizleCommand}"
                                     Style="{StaticResource BtnRowEdit}" VerticalOptions="Center" />
                         </Grid>
+                        <!-- Rapordan gelinen tip süzgeci (liste yalnız bu tipi gösterir) -->
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" IsVisible="{Binding TipSuzgeciVar}">
+                            <Label Text="{Binding TipSuzgeciMetni}" Style="{StaticResource LblRowSecondary}"
+                                   TextColor="{StaticResource Green}" VerticalOptions="Center" />
+                            <Button Grid.Column="1" Text="Tüm tipler" Command="{Binding TipSuzgeciniKaldirCommand}"
+                                    Style="{StaticResource BtnRowEdit}" VerticalOptions="Center" />
+                        </Grid>
                     </VerticalStackLayout>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>

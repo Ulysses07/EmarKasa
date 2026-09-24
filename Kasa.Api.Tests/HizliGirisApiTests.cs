@@ -430,7 +430,7 @@ public class HizliGirisApiTests : IClassFixture<HizliGirisApiTests.SabitSaatFact
     }
 
     [Theory]
-    [InlineData("tip=Nakit", "Geçersiz gider tipi")]
+    [InlineData("tip=Havale", "Geçersiz gider tipi")]
     [InlineData("minTutar=-1", "negatif")]
     [InlineData("minTutar=10&maxTutar=5", "En az tutar")]
     public async Task Gelismis_arama_gecersiz_suzgeci_reddeder(string sorgu, string beklenen)

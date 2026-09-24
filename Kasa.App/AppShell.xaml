@@ -92,8 +92,14 @@
     <FlyoutItem x:Name="AylikItem" Title="Aylık" Route="aylik" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:AylikPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="GrafiklerItem" Title="Grafikler" Route="grafikler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:GrafiklerPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="CarilerItem" Title="Cariler" Route="cariler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:CarilerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="CariOzetiItem" Title="Cari Özeti" Route="cariozeti" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:CariOzetiPage}" />
     </FlyoutItem>
     <FlyoutItem x:Name="IslemlerItem" Title="İşlemler" Route="islemler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:IslemlerPage}" />

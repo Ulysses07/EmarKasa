@@ -33,6 +33,7 @@ public class GiderKalemiEntity
 public class IslemEntity
 {
     public int Id { get; set; }
+    [AyKilidi]
     public DateOnly Tarih { get; set; }
     public string Cari { get; set; } = "";
     public decimal TutarTl { get; set; }
@@ -46,6 +47,7 @@ public class IslemEntity
 public class GelenEntity
 {
     public int Id { get; set; }
+    [AyKilidi]
     public DateOnly DonemStart { get; set; }
     public string Kanal { get; set; } = "";
     public decimal TutarTl { get; set; }
@@ -85,6 +87,7 @@ public class KartOdemeEntity
 {
     public int Id { get; set; }
     public int KrediKartiId { get; set; }
+    [AyKilidi]
     public DateOnly Tarih { get; set; }
     public decimal Tutar { get; set; }
     public string? Not { get; set; }
@@ -110,6 +113,7 @@ public partial class CekEntity
     public string Kanal { get; set; } = "";
     public CekDurumu Durum { get; set; }
     /// <summary>Gerçek tahsil / ödeme / ciro günü (TahsilEdildi, Odendi, CiroEdildi'de zorunlu).</summary>
+    [AyKilidi]
     public DateOnly? IslemTarihi { get; set; }
     public string? Not { get; set; }
 }
@@ -122,6 +126,7 @@ public partial class CekEntity
 public partial class KasaSayimEntity
 {
     public int Id { get; set; }
+    [AyKilidi]
     public DateOnly Tarih { get; set; }
     public decimal SayilanTutar { get; set; }
     public decimal HesaplananTutar { get; set; }

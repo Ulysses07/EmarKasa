@@ -30,6 +30,7 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 // KasaDbContext değişiklik geçmişine yapanın rolünü (JWT) yazar.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<HesapServisi>();
+builder.Services.AddRaporVeAyKapanisi();   // Paket B: raporlar ve ay kapanışı
 builder.Services.AddSingleton<OturumOnbellegi>();
 builder.Services.AddKimlikVeGuvenlik();
 builder.Services.AddSingleton(sp => new YedekDurumu
@@ -187,6 +188,7 @@ app.MapKimlikUclari();
 // --- Korumalı grup: oturum açmış herkes okuyabilir ---
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapSoruUclari().MapSistemRiskUclari();
+api.MapRaporVeAyKapanisi();   // Paket B: raporlar ve ay kapanışı (Endpoints/)
 
 // Kanallar
 api.MapGet("/kanallar", (KasaDbContext db) =>

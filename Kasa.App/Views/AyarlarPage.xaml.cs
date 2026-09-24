@@ -18,5 +18,6 @@ public partial class AyarlarPage : ContentPage
     {
         base.OnAppearing();
         await Task.WhenAll(_vm.YukleAsync(), _guvenlik.YukleAsync());
+        await _vm.KurlariYukleAsync();   // kur/endeks tablosu (AyarlarViewModel.B)
     }
 }

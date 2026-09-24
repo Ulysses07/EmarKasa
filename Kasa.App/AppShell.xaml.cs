@@ -51,6 +51,7 @@ public partial class AppShell : Shell
         KasaSayimiItem.IsVisible = bolumler.Contains(Bolum.KasaSayimi);   // her iki rol; izleyici yalnız görür
         HaftalikItem.IsVisible = true;
         AylikItem.IsVisible = true;
+        GrafiklerItem.IsVisible = CariOzetiItem.IsVisible = true;   // paket B raporları: her iki rol (salt okunur)
         CarilerItem.IsVisible = true;
         IslemlerItem.IsVisible = true;
         GelenlerItem.IsVisible = true;                                     // paket C: izleyici yalnız görür
@@ -71,6 +72,7 @@ public partial class AppShell : Shell
         KasaSayimiItem.IsVisible = false;
         HaftalikItem.IsVisible = false;
         AylikItem.IsVisible = false;
+        GrafiklerItem.IsVisible = CariOzetiItem.IsVisible = false;
         CarilerItem.IsVisible = false;
         IslemlerItem.IsVisible = false;
         GelenlerItem.IsVisible = false;
