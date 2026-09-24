@@ -210,7 +210,7 @@ public partial class IslemlerViewModel : TemelViewModel
         if (surum != _listeSurumu) return;
 
         Islemler.Clear();
-        foreach (var i in sayfa.Kayitlar.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id)) Islemler.Add(i);
+        foreach (var i in TipSuz(sayfa.Kayitlar).OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id)) Islemler.Add(i);
         _yukluOfset = ofset;
         _yukluFiltre = (bas, bit, kanal);
         FiltreToplamKayit = Math.Max(sayfa.Toplam, Islemler.Count);
@@ -232,7 +232,7 @@ public partial class IslemlerViewModel : TemelViewModel
             if (surum != _listeSurumu) return;   // bu arada liste yeniden yüklendi
 
             var mevcut = Islemler.Select(i => i.Id).ToHashSet();
-            foreach (var i in sayfa.Kayitlar.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id))
+            foreach (var i in TipSuz(sayfa.Kayitlar).OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id))
                 if (mevcut.Add(i.Id)) Islemler.Add(i);
             _yukluOfset = yeniOfset;
             FiltreToplamKayit = Math.Max(sayfa.Toplam, Islemler.Count);
