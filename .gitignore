@@ -487,3 +487,8 @@ deploy/kasa-data/
 
 # Dağıtım sürüm işareti (deploy/README.md)
 deploy/SURUM
+
+# SQLite DB + WAL/SHM dosyaları (her dizinde) — canlı/yerel veri repoya girmez.
+*.db
+*.db-shm
+*.db-wal

@@ -1,5 +1,7 @@
 # Kart Borcu Hareketleri (harcama + ödeme) Implementation Plan
 
+> **Tarihsel plan:** Bu belge yazıldığı günün planıdır; içindeki `EnsureCreated`/elle SQL/DB yeniden oluşturma adımları artık geçersizdir — şema açılışta `SemaGuncelleyici` ile güncellenir, dağıtım/yedek için `deploy/README.md`'ye bakın.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Kredi kartı harcamasını İşlemler'e, kart ödemesini yeni bir tabloya bağlayıp güncel borcu bunlardan türet; kullanıcı yalnızca açılış borcunu elle ayarlasın.

@@ -19,12 +19,23 @@ services:
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
       # Günlük otomatik yedek (son 30 gün): host'ta deploy/kasa-data/yedek/
       Kasa__YedekKlasoru: "/data/yedek"
+      # X-Forwarded-For'una güvenilecek proxy ağı (CIDR): orderdeck_web ağının subnet'i (Caddy bu ağdan bağlanır).
+      # Değeri bul: deploy/README.md → "Güvenilir proxy ağı". deploy/.env'de KASA_GUVENILIR_AGLAR.
+      Kasa__GuvenilirAglar: "${KASA_GUVENILIR_AGLAR}"
+      # Tüm IP'ler toplamı için dakikalık giriş denemesi sınırı (varsayılan 60).
+      # Kasa__GirisGlobalLimiti: "60"
     volumes:
       - ./kasa-data:/data
     networks:
       - web
     expose:
       - "8080"
+    # Konteyner logları döndürülür (en fazla 3 × 10 MB).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     mem_limit: 512m
     memswap_limit: 512m
     cpus: 0.5
