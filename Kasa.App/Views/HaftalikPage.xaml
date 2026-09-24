@@ -33,6 +33,77 @@
                    TextColor="{StaticResource Pos}" LineBreakMode="CharacterWrap"
                    IsVisible="{Binding AktarilanDosya, Converter={StaticResource DoluIse}}" />
 
+            <!-- Paket B · Seçili dönem: kanal rakamları (İşlemler'e iner) ve "Kasa neden değişti?" -->
+            <Border Style="{StaticResource Card}" IsVisible="{Binding DetayVar}">
+                <VerticalStackLayout Spacing="0">
+                    <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="{Binding DetayBaslik}" Style="{StaticResource LblSection}" />
+                            <Label Text="{Binding DetayOzeti}" Style="{StaticResource LblRowSecondary}"
+                                   IsVisible="{Binding DetayOzeti, Converter={StaticResource DoluIse}}" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" Text="Ayrıntı" Command="{Binding KasaDokumunuAcCommand}"
+                                Style="{StaticResource BtnRowEdit}" VerticalOptions="Start" />
+                        <Button Grid.Column="2" Text="Kapat" Command="{Binding DonemSecCommand}"
+                                Style="{StaticResource BtnSecondary}" HeightRequest="32" VerticalOptions="Start" />
+                    </Grid>
+                    <!-- Kanal satırları: dokununca o kanalın bu dönemdeki işlemleri -->
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding DetayKanallari}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="44" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="16">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.IslemlereGitCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                            <Label Text="{Binding Kanal}" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                            <Label Text="İşlemler ›" TextColor="{StaticResource Green}" FontSize="12" VerticalOptions="Center" />
+                                        </HorizontalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding GelenMetni, StringFormat='Gelen {0}'}" Style="{StaticResource LblRowSecondary}"
+                                               VerticalOptions="Center" />
+                                        <Label Grid.Column="2" Text="{Binding GidenMetni, StringFormat='Giden {0}'}" Style="{StaticResource LblRowSecondary}"
+                                               VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding Sonuc, Converter={StaticResource ParaBicim}}" Style="{StaticResource LblMoney}"
+                                               TextColor="{Binding Sonuc, Converter={StaticResource ParaRenk}}" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <!-- Kasa dökümü: açılış → adımlar → kapanış (gider satırı İşlemler'e iner) -->
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding DetayAdimlari}" Margin="0,8,0,0">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="40" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.IslemlereGitCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                            <Label Text="{Binding Etiket}" Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                                            <Label Text="›" TextColor="{StaticResource Green}" FontSize="15" VerticalOptions="Center"
+                                                   IsVisible="{Binding Inilebilir}" />
+                                        </HorizontalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding TutarMetni}" Style="{StaticResource LblMoney}" FontSize="13"
+                                               WidthRequest="130" HorizontalTextAlignment="End" VerticalOptions="Center"
+                                               TextColor="{Binding RenkDegeri, Converter={StaticResource ParaRenk}}" />
+                                        <Label Grid.Column="2" Text="{Binding BakiyeMetni}" Style="{StaticResource LblRowSecondary}"
+                                               WidthRequest="130" HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="0">
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
@@ -46,6 +117,12 @@
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,0" HeightRequest="54"
                                           ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <!-- Döneme dokununca üstte ayrıntısı açılır (yeniden dokununca kapanır) -->
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.DonemSecCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
                                             <Label Text="{Binding Donem.Start, StringFormat='{0:dd MMM}'}"
                                                    Style="{StaticResource LblDateChip}" />

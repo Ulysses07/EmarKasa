@@ -6,8 +6,9 @@ using Microsoft.Maui.Storage;
 namespace Kasa.App.Platforms.Windows;
 
 /// <summary>
-/// "Excel'e aktar" dosyalarını Belgeler\Emar Kasa klasörüne kaydeder ve varsayılan uygulamayla
-/// (Excel) açar. Ad güvenliği ve aynı ad çakışması platformdan bağımsız <see cref="DosyaKayit"/>'ta.
+/// "Excel'e aktar", "Yazdır" ve "Ay paketini indir" dosyalarını Belgeler\Emar Kasa klasörüne kaydeder
+/// ve varsayılan uygulamayla (CSV → Excel, HTML → tarayıcı, ZIP → Gezgin) açar. Ad güvenliği ve aynı ad
+/// çakışması platformdan bağımsız <see cref="DosyaAktarma"/> / <see cref="DosyaKayit"/>'ta.
 /// </summary>
 public sealed class WindowsDosyaKaydedici : IDosyaKaydedici
 {
@@ -15,7 +16,7 @@ public sealed class WindowsDosyaKaydedici : IDosyaKaydedici
     {
         var klasor = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), DosyaKayit.KlasorAdi);
         Directory.CreateDirectory(klasor);
-        var yol = DosyaKayit.BenzersizYol(klasor, DosyaKayit.GuvenliAd(dosyaAdi), File.Exists);
+        var yol = DosyaKayit.BenzersizYol(klasor, DosyaAktarma.GuvenliAd(dosyaAdi), File.Exists);
         await using (var akis = new FileStream(yol, FileMode.CreateNew, FileAccess.Write))
             await akis.WriteAsync(icerik);
         await AcAsync(yol);
@@ -28,15 +29,15 @@ public sealed class WindowsDosyaKaydedici : IDosyaKaydedici
         try
         {
             var acildi = await MainThread.InvokeOnMainThreadAsync(
-                () => Launcher.Default.OpenAsync(new OpenFileRequest("Excel'de aç", new ReadOnlyFile(yol))));
+                () => Launcher.Default.OpenAsync(new OpenFileRequest("Aç", new ReadOnlyFile(yol))));
             if (acildi) return;
         }
         catch (Exception) { /* paketsiz uygulamada Launcher başarısız olabilir: kabukla dene */ }
         try
         {
-            // Uzantı her zaman .csv (DosyaKayit.GuvenliAd): kabuk yalnız CSV'nin varsayılan uygulamasını açar.
+            // Uzantı yalnız .csv, .html ya da .zip olabilir (DosyaAktarma.GuvenliAd): çalıştırılabilir dosya açılmaz.
             Process.Start(new ProcessStartInfo(yol) { UseShellExecute = true })?.Dispose();
         }
-        catch (Exception) { /* Excel / CSV ilişkilendirmesi yok: kullanıcı dosyayı yoldan açar */ }
+        catch (Exception) { /* dosya ilişkilendirmesi yok: kullanıcı dosyayı yoldan açar */ }
     }
 }

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · HedefButcePage — aylık kanal gelir hedefleri ve sabit gider kalemi bütçeleri.
+     Boş kutu = hedef/bütçe yok. Yalnız editör kaydeder; izleyici görür. -->
+<ContentPage
+    x:Class="Kasa.App.Views.HedefButcePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Hedef ve bütçe"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Hedef ve bütçe" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Kanal gelir hedefi (gelen + çek tahsilatı) ve sabit gider kalemi bütçesi; gerçekleşen Aylık raporla aynıdır"
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+            <Label Text="{Binding Bilgi}" Style="{StaticResource LblRowSecondary}" TextColor="{StaticResource Pos}"
+                   IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}" />
+
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Button Text="‹" Command="{Binding OncekiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding AyEtiketi}" FontFamily="PlexSansSemiBold" FontSize="20"
+                       TextColor="{StaticResource Ink}" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Button Grid.Column="2" Text="›" Command="{Binding SonrakiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Editör eylemleri -->
+            <HorizontalStackLayout Spacing="10" IsVisible="{Binding EditorMu}">
+                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
+                <Button Text="Geçen aydan kopyala" Command="{Binding GecenAydanKopyalaCommand}"
+                        Style="{StaticResource BtnSecondary}" />
+            </HorizontalStackLayout>
+
+            <!-- Kanal gelir hedefleri -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="Kanal gelir hedefleri" Style="{StaticResource LblSection}" Padding="18,16,18,12" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Kanallar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,8" ColumnDefinitions="*,Auto" ColumnSpacing="16" RowDefinitions="Auto,Auto">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Ad}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Style="{StaticResource LblRowSecondary}" FontSize="12">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="{Binding GerceklesenMetni}" />
+                                                        <Span Text="  " />
+                                                        <Span Text="{Binding YuzdeMetni}" FontFamily="PlexSansSemiBold" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                        </VerticalStackLayout>
+                                        <Border Grid.Column="1" Style="{StaticResource FieldBorder}" WidthRequest="180" VerticalOptions="Center">
+                                            <Entry Text="{Binding Metin}" Placeholder="Hedef yok" Style="{StaticResource EntryMoney}"
+                                                   IsReadOnly="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}, Converter={StaticResource TersIse}}" />
+                                        </Border>
+                                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Progress="{Binding Oran}" ProgressColor="{StaticResource Green}"
+                                                     Margin="0,6,0,0" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Sabit gider bütçeleri -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="3">
+                        <Label Text="Sabit gider bütçeleri" Style="{StaticResource LblSection}" />
+                        <Label Text="Gerçekleşen: o ay bu kalemle girilen (karta bağlı olmayan) sabit giderler. Şablon: tekrarlayan giderin aylık tutarı."
+                               Style="{StaticResource LblPageSub}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Kalemler}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,8" ColumnDefinitions="*,Auto" ColumnSpacing="16" RowDefinitions="Auto,Auto">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Ad}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Style="{StaticResource LblRowSecondary}" FontSize="12">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="{Binding GerceklesenMetni}" />
+                                                        <Span Text="  " />
+                                                        <Span Text="{Binding YuzdeMetni}" FontFamily="PlexSansSemiBold" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                            <Label Text="{Binding SablonMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                   IsVisible="{Binding SablonVar}" />
+                                        </VerticalStackLayout>
+                                        <Border Grid.Column="1" Style="{StaticResource FieldBorder}" WidthRequest="180" VerticalOptions="Center">
+                                            <Entry Text="{Binding Metin}" Placeholder="Bütçe yok" Style="{StaticResource EntryMoney}"
+                                                   IsReadOnly="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}, Converter={StaticResource TersIse}}" />
+                                        </Border>
+                                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Progress="{Binding Oran}" ProgressColor="{StaticResource Green}"
+                                                     Margin="0,6,0,0" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

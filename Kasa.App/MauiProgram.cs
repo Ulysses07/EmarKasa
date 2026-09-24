@@ -68,6 +68,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.CeklerPage>();
         builder.Services.AddTransient<Views.GecmisPage>();
         builder.Services.AddTransient<Views.AyarlarPage>();
+        builder.Services.AddPaketB();   // raporlar ve ay kapanışı: yeni sayfalar, VM'ler, gezinme (PaketBKayitlari.cs)
 
 #if DEBUG
         builder.Logging.AddDebug();

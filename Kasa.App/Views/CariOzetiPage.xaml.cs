@@ -2,11 +2,11 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Views;
 
-public partial class AyarlarPage : ContentPage
+public partial class CariOzetiPage : ContentPage
 {
-    private readonly AyarlarViewModel _vm;
+    private readonly CariOzetiViewModel _vm;
 
-    public AyarlarPage(AyarlarViewModel vm)
+    public CariOzetiPage(CariOzetiViewModel vm)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
@@ -16,6 +16,5 @@ public partial class AyarlarPage : ContentPage
     {
         base.OnAppearing();
         await _vm.YukleAsync();
-        await _vm.KurlariYukleAsync();   // kur/endeks tablosu (AyarlarViewModel.B)
     }
 }

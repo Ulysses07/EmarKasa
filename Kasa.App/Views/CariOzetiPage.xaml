@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · CariOzetiPage — bir cari (ya da sabit gider kalemi) için yılın ay ay toplamları.
+     Cari: nakit / kredi kartı / ödenmiş verilen çek; kalem: girilen tutar yanında tekrarlayan şablon. -->
+<ContentPage
+    x:Class="Kasa.App.Views.CariOzetiPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Cari Özeti"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Cari Özeti" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Seçilen cari ya da sabit gider kalemi için ay ay toplamlar" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <Border Style="{StaticResource CardForm}">
+                <VerticalStackLayout Spacing="12">
+                    <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding TurCipleri}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding BindingContext.SecTurCommand, Source={x:Reference Sayfa}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='*,Auto', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                          ColumnSpacing="16" RowSpacing="12">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="{Binding AdEtiketi}" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Picker ItemsSource="{Binding Adlar}" SelectedItem="{Binding SeciliAd}" Title="Seçin" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                               Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                               Spacing="10" VerticalOptions="End">
+                            <Button Text="‹" Command="{Binding OncekiYilCommand}" Style="{StaticResource BtnSecondary}"
+                                    WidthRequest="44" Padding="0" FontSize="20" />
+                            <Label Text="{Binding Yil}" FontFamily="PlexSansSemiBold" FontSize="20" TextColor="{StaticResource Ink}"
+                                   VerticalOptions="Center" />
+                            <Button Text="›" Command="{Binding SonrakiYilCommand}" Style="{StaticResource BtnSecondary}"
+                                    WidthRequest="44" Padding="0" FontSize="20" />
+                        </HorizontalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Seçim yok -->
+            <VerticalStackLayout Padding="20,20" Spacing="6" IsVisible="{Binding OzetVar, Converter={StaticResource TersIse}}">
+                <Label Text="Bir ad seçin" Style="{StaticResource LblEmptyTitle}" />
+                <Label Text="Cari özetinde nakit, kredi kartı ve bu kişiye verilip ödenmiş çekler ayrı gösterilir."
+                       Style="{StaticResource LblEmptySub}" />
+            </VerticalStackLayout>
+
+            <!-- Cari tablosu -->
+            <Border Style="{StaticResource Card}" IsVisible="{Binding OzetVar}">
+                <VerticalStackLayout Spacing="0">
+                    <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label Text="{Binding Ozet.Ad}" Style="{StaticResource LblSection}" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="1">
+                            <Label Text="{Binding ToplamMetni, StringFormat='Toplam {0}'}" Style="{StaticResource LblMoney}"
+                                   HorizontalOptions="End" />
+                            <Label Text="{Binding SablonToplamMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                   HorizontalOptions="End" IsVisible="{Binding SablonToplamMetni, Converter={StaticResource DoluIse}}" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- Başlık: cari (nakit, K.K, çek) ya da kalem (girilen, şablon, karar) -->
+                    <Grid Padding="18,0,18,8" ColumnDefinitions="*,110,110,110,110,90" ColumnSpacing="10"
+                          IsVisible="{Binding KalemMi, Converter={StaticResource TersIse}}">
+                        <Label Text="Ay" Style="{StaticResource LblField}" />
+                        <Label Grid.Column="1" Text="Nakit" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="Kredi kartı" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="3" Text="Çek" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="4" Text="Toplam" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="5" Text="Kayıt" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                    </Grid>
+                    <Grid Padding="18,0,18,8" ColumnDefinitions="*,120,120,110,90" ColumnSpacing="10"
+                          IsVisible="{Binding KalemMi}">
+                        <Label Text="Ay" Style="{StaticResource LblField}" />
+                        <Label Grid.Column="1" Text="Girilen" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="Şablon" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="3" Text="Karar" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="4" Text="Kayıt" Style="{StaticResource LblField}" HorizontalTextAlignment="End" />
+                    </Grid>
+
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Aylar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <!-- Cari satırı -->
+                                    <Grid Padding="18,0" HeightRequest="42" ColumnDefinitions="*,110,110,110,110,90" ColumnSpacing="10"
+                                          IsVisible="{Binding KalemMi, Converter={StaticResource TersIse}}">
+                                        <Label Text="{Binding AyAdi}" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="{Binding NakitMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="2" Text="{Binding KrediKartiMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding CekMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="4" Text="{Binding ToplamMetni}" Style="{StaticResource LblMoney}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="5" Text="{Binding AdetMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                    </Grid>
+                                    <!-- Kalem satırı: şablondan farklı girilen tutar kırmızı -->
+                                    <Grid Padding="18,0" HeightRequest="42" ColumnDefinitions="*,120,120,110,90" ColumnSpacing="10"
+                                          IsVisible="{Binding KalemMi}">
+                                        <Label Text="{Binding AyAdi}" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="{Binding ToplamMetni}" Style="{StaticResource LblMoney}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding SablondanFarkli}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <Label Grid.Column="2" Text="{Binding SablonMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding KararMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="4" Text="{Binding AdetMetni}" Style="{StaticResource LblRowSecondary}"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

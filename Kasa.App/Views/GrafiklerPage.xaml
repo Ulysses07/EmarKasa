@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · GrafiklerPage — son 12 ay, geçen yılın aynı ayıyla; birim: TL, reel TL, USD, EUR, gram altın.
+     Çizim GrafikCizimi (IDrawable); veri GrafiklerViewModel'de (birim testli). Kur yoksa "kur yok". -->
+<ContentPage
+    x:Class="Kasa.App.Views.GrafiklerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Grafikler"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Grafikler" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Son 12 ay ve geçen yılın aynı ayı · kanal geliri ya da ay sonucu" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <!-- Seçilen ay (grafiğin son ayı) -->
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Button Text="‹" Command="{Binding OncekiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding AyEtiketi}" FontFamily="PlexSansSemiBold" FontSize="20"
+                       TextColor="{StaticResource Ink}" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Button Grid.Column="2" Text="›" Command="{Binding SonrakiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+            </Grid>
+
+            <Border Style="{StaticResource CardForm}">
+                <VerticalStackLayout Spacing="10">
+                    <!-- Kanal -->
+                    <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding KanalCipleri}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding BindingContext.SecKanalCommand, Source={x:Reference Sayfa}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+                    <!-- Ölçü -->
+                    <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding OlcuCipleri}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding BindingContext.SecOlcuCommand, Source={x:Reference Sayfa}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+                    <!-- Birim -->
+                    <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding BirimCipleri}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding BindingContext.SecBirimCommand, Source={x:Reference Sayfa}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+                    <Label Text="{Binding BirimNotu}" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Çizim -->
+            <Border Style="{StaticResource CardForm}">
+                <VerticalStackLayout Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label Text="{Binding Baslik}" Style="{StaticResource LblSection}" VerticalOptions="Center" />
+                        <HorizontalStackLayout Grid.Column="1" Spacing="14" VerticalOptions="Center">
+                            <HorizontalStackLayout Spacing="6">
+                                <BoxView WidthRequest="12" HeightRequest="12" CornerRadius="3" Color="{StaticResource Green}"
+                                         VerticalOptions="Center" />
+                                <Label Text="Bu yıl" Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <HorizontalStackLayout Spacing="6">
+                                <BoxView WidthRequest="12" HeightRequest="12" CornerRadius="3" Color="#B9C7BD"
+                                         VerticalOptions="Center" />
+                                <Label Text="Geçen yıl" Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </HorizontalStackLayout>
+                    </Grid>
+                    <GraphicsView x:Name="Cizim" HeightRequest="300" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Tablo (en yeni önce) -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="16">
+                        <Label Text="Ay" Style="{StaticResource LblSection}" />
+                        <Label Grid.Column="1" Text="Bu yıl" Style="{StaticResource LblSection}" WidthRequest="150"
+                               HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="Geçen yıl" Style="{StaticResource LblSection}" WidthRequest="150"
+                               HorizontalTextAlignment="End" />
+                        <Label Grid.Column="3" Text="Değişim" Style="{StaticResource LblSection}" WidthRequest="80"
+                               HorizontalTextAlignment="End" />
+                    </Grid>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Satirlar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="44" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="16">
+                                        <Label Text="{Binding Etiket}" Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="{Binding Deger}" Style="{StaticResource LblMoney}" WidthRequest="150"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center"
+                                               TextColor="{Binding RenkDegeri, Converter={StaticResource ParaRenk}}" />
+                                        <Label Grid.Column="2" Text="{Binding GecenYil}" Style="{StaticResource LblRowSecondary}" WidthRequest="150"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding Degisim}" Style="{StaticResource LblRowSecondary}" WidthRequest="80"
+                                               HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
