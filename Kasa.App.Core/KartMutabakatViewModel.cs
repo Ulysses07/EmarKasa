@@ -59,6 +59,8 @@ public partial class KartMutabakatViewModel : TemelViewModel
         > 0m => $"Ekstre {Bicim.Tl(f)} ₺ fazla: girilmemiş harcama, faiz ya da ücret olabilir.",
         _ => $"Ekstre {Bicim.Tl(-f)} ₺ eksik: uygulamada fazladan ya da yanlış tarihli harcama olabilir.",
     };
+    /// <summary>"+120,00" / "0,00"; ekstre yazılmadıysa "—".</summary>
+    public string FarkYazi => Fark is { } f ? KasaSayimiViewModel.FarkBicimi(f) : "—";
     /// <summary>ParaRenk için: fark 0 → yeşil, aksi kırmızı.</summary>
     public decimal FarkRenkDegeri => -Math.Abs(Fark ?? 0m);
 
@@ -98,6 +100,7 @@ public partial class KartMutabakatViewModel : TemelViewModel
         OnPropertyChanged(nameof(FarkVar));
         OnPropertyChanged(nameof(Uyusuyor));
         OnPropertyChanged(nameof(FarkMetni));
+        OnPropertyChanged(nameof(FarkYazi));
         OnPropertyChanged(nameof(FarkRenkDegeri));
         OnPropertyChanged(nameof(TiksizToplam));
         OnPropertyChanged(nameof(TikliAdet));

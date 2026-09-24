@@ -8,8 +8,6 @@ namespace Kasa.App.Core;
 public partial class GecmisViewModel
 {
     public const string GuncellemeEylemi = "Güncellendi";
-    public const string GeriAlmaAciklamasi =
-        "Silinen kayıt \"Geri al\", düzenlenen işlem, çek, gelen ve açılış devri \"Önceki haline döndür\" ile 30 gün içinde geri alınır. Kayıt o arada yeniden değiştiyse önce daha yeni değişikliği geri alın.";
 
     public static string OncekiHaleDonduMesaji(string tur) =>
         $"{tur} önceki haline döndürüldü; geçmişe \"Güncellendi (geri alındı)\" olarak yazıldı.";

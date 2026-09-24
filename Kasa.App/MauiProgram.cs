@@ -54,6 +54,7 @@ public static class MauiProgram
         builder.Services.AddTransient<CeklerViewModel>();
         builder.Services.AddTransient<GecmisViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
+        builder.Services.AddTransient<KartMutabakatViewModel>();          // Paket D
 
         builder.Services.AddSingleton<App>();
         builder.Services.AddSingleton<AppShell>();
@@ -68,6 +69,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.CeklerPage>();
         builder.Services.AddTransient<Views.GecmisPage>();
         builder.Services.AddTransient<Views.AyarlarPage>();
+        builder.Services.AddTransient<Views.KartMutabakatPage>();         // Paket D
 
 #if DEBUG
         builder.Logging.AddDebug();
