@@ -106,7 +106,8 @@ public sealed partial class KasaApiClient : IKasaApi
         return new IslemSayfasi(kayitlar, toplam);
     }
 
-    private static string IslemYolu(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset)
+    private static string IslemYolu(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset,
+        string taban = "api/islemler")
     {
         var q = new List<string>();
         if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
@@ -115,7 +116,31 @@ public sealed partial class KasaApiClient : IKasaApi
         if (!string.IsNullOrWhiteSpace(cari)) q.Add($"cari={Uri.EscapeDataString(cari)}");
         if (limit is { } l) q.Add(FormattableString.Invariant($"limit={l}"));
         if (offset is { } o) q.Add(FormattableString.Invariant($"offset={o}"));
-        return q.Count > 0 ? $"api/islemler?{string.Join("&", q)}" : "api/islemler";
+        return q.Count > 0 ? $"{taban}?{string.Join("&", q)}" : taban;
+    }
+
+    // ---- Excel'e aktar (CSV) ----
+
+    public Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
+        => IndirAsync(IslemYolu(baslangic, bitis, kanal, cari, null, null, "api/disaaktar/islemler.csv"), "kasa-islemler.csv");
+    public Task<IndirilenDosya> HaftalikCsvAsync() => IndirAsync("api/disaaktar/haftalik.csv", "kasa-haftalik.csv");
+    public Task<IndirilenDosya> AylikCsvAsync(int yil, int ay)
+        => IndirAsync(FormattableString.Invariant($"api/disaaktar/aylik.csv?yil={yil}&ay={ay}"),
+            FormattableString.Invariant($"kasa-aylik-{yil:D4}-{ay:D2}.csv"));
+
+    /// <summary>
+    /// Dosyayı indirir. Ad, sunucunun Content-Disposition başlığından (filename*, yoksa filename)
+    /// alınır; başlık yoksa <paramref name="varsayilanAd"/>. Ad burada yalnız okunur; diske yazan
+    /// taraf yine de güvenli hale getirmelidir.
+    /// </summary>
+    private async Task<IndirilenDosya> IndirAsync(string yol, string varsayilanAd)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Get, yol);
+        using var yanit = await GonderAsync(istek);
+        var cd = yanit.Content.Headers.ContentDisposition;
+        var ad = (cd?.FileNameStar ?? cd?.FileName)?.Trim().Trim('"');
+        var icerik = await yanit.Content.ReadAsByteArrayAsync();
+        return new IndirilenDosya(string.IsNullOrWhiteSpace(ad) ? varsayilanAd : ad, icerik);
     }
 
     // ---- mutasyon metotları ----

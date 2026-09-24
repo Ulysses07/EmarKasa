@@ -7,9 +7,12 @@ namespace Kasa.App.Core;
 public partial class AylikViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public AylikViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
+    private readonly IDosyaKaydedici? _kaydedici;
+
+    public AylikViewModel(IKasaApi api, TimeProvider? zaman = null, IDosyaKaydedici? kaydedici = null) : base(zaman)
     {
         _api = api;
+        _kaydedici = kaydedici;
         var bugun = Bugun;
         _yil = bugun.Year;
         _ay = bugun.Month;
@@ -47,4 +50,16 @@ public partial class AylikViewModel : TemelViewModel
         else Ay++;
         return YukleAsync();
     }
+
+    /// <summary>Son "Excel'e aktar"ın kaydettiği dosyanın tam yolu (sayfada gösterilir).</summary>
+    [ObservableProperty] private string? _aktarilanDosya;
+
+    /// <summary>Ekranda seçili ayın raporunu CSV olarak kaydeder.</summary>
+    [RelayCommand]
+    private Task ExceleAktarAsync() => CalistirAsync(async () =>
+    {
+        int yil = Yil, ay = Ay;
+        AktarilanDosya = null;
+        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => _api.AylikCsvAsync(yil, ay));
+    });
 }

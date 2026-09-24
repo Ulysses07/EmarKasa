@@ -29,6 +29,9 @@ public record AylikRaporDto(int Yil, int Ay, IReadOnlyList<KanalAylikDto> Kanall
 public record KanalBakiyeDto(string Kanal, decimal Bakiye);
 public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanallar, decimal BuHaftaSonucu, decimal BuAySonucu);
 
+/// <summary>Sunucudan indirilen dosya (Excel'e aktar): sunucunun önerdiği ad + içerik.</summary>
+public record IndirilenDosya(string DosyaAdi, byte[] Icerik);
+
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariYaz(string Ad, bool Aktif);

@@ -35,6 +35,14 @@ public interface IKasaApi
     Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null);
     Task<AyarlarDto> AyarlarAsync();
 
+    // Excel'e aktar (CSV; her iki rol). Dosya adı sunucunun Content-Disposition'ından gelir.
+    /// <summary>İşlem listesi, <see cref="IslemlerAsync"/> ile aynı filtreyle (sayfalama yok) + toplam satırı.</summary>
+    Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null);
+    /// <summary>Haftalık rapor: dönem × kanal satırları + dönem başına kasa satırı.</summary>
+    Task<IndirilenDosya> HaftalikCsvAsync();
+    /// <summary>Aylık rapor: kanal başına tüm sütunlar + toplam satırı.</summary>
+    Task<IndirilenDosya> AylikCsvAsync(int yil, int ay);
+
     // Editör mutasyonları (KasaApiClient bunları zaten uyguluyor)
     Task<KanalDto> KanalOlusturAsync(KanalYaz g);
     Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g);

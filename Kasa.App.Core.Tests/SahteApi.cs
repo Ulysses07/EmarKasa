@@ -163,4 +163,21 @@ public sealed class SahteApi : IKasaApi
     public Task KartOdemeSilAsync(int id) { SonKartOdemeSil = id; return Task.CompletedTask; }
 
     public Task<AyarlarDto> AyarlarAsync() => YuklemeHatasi is not null ? Task.FromException<AyarlarDto>(YuklemeHatasi) : Task.FromResult(AyarlarSonuc!);
+
+    // ---- Excel'e aktar ----
+    /// <summary>İndirme çağrılarının döndüğü dosya.</summary>
+    public IndirilenDosya CsvDosyasi = new("kasa-rapor.csv", [0xEF, 0xBB, 0xBF, (byte)'a']);
+    /// <summary>Ayarlanırsa CSV indirmeleri bu istisnayı fırlatır.</summary>
+    public Exception? CsvHatasi;
+    public (DateOnly? Baslangic, DateOnly? Bitis, string? Kanal, string? Cari)? SonIslemCsv;
+    public int HaftalikCsvCagri;
+    public (int Yil, int Ay)? SonAylikCsv;
+    private Task<IndirilenDosya> CsvYanit() => CsvHatasi is not null ? Task.FromException<IndirilenDosya>(CsvHatasi) : Task.FromResult(CsvDosyasi);
+    public Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
+    {
+        SonIslemCsv = (baslangic, bitis, kanal, cari);
+        return CsvYanit();
+    }
+    public Task<IndirilenDosya> HaftalikCsvAsync() { HaftalikCsvCagri++; return CsvYanit(); }
+    public Task<IndirilenDosya> AylikCsvAsync(int yil, int ay) { SonAylikCsv = (yil, ay); return CsvYanit(); }
 }

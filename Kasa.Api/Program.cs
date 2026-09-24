@@ -425,19 +425,13 @@ api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, st
 {
     if (limit is < 1 or > 10_000) return Hata("limit 1 ile 10000 arasında olmalı.");
     if (offset is < 0) return Hata("offset negatif olamaz.");
-    var q = db.Islemler.AsNoTracking();
-    if (baslangic is { } b) q = q.Where(i => i.Tarih >= b);
-    if (bitis is { } s) q = q.Where(i => i.Tarih <= s);
-    if (!string.IsNullOrWhiteSpace(kanal)) q = q.Where(i => i.Kanal == kanal);
-    q = q.OrderBy(i => i.Tarih).ThenBy(i => i.Id);
+    var q = IslemSorgusu(db, baslangic, bitis, kanal);
 
     List<IslemEntity> sonuc;
     int toplam;
     if (!string.IsNullOrWhiteSpace(cari))
     {
-        // Türkçe büyük/küçük harf duyarsız arama bellekte yapılır (SQLite instr duyarlı ve I/ı bilmez).
-        var aranan = cari.Trim();
-        var hepsi = q.AsEnumerable().Where(i => Metin.Icerir(i.Cari, aranan)).ToList();
+        var hepsi = CariyeGoreSuz(q, cari).ToList();
         toplam = hepsi.Count;
         IEnumerable<IslemEntity> sayfa = hepsi;
         if (offset is { } o1) sayfa = sayfa.Skip(o1);
@@ -598,11 +592,27 @@ api.MapGet("/donemler", (HesapServisi svc) => svc.Donemler());
 api.MapGet("/rapor/haftalik", (HesapServisi svc) => svc.Haftalik());
 api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) =>
 {
-    if (ay is < 1 or > 12) return Hata("Ay 1 ile 12 arasında olmalı.");
-    if (yil is < 2000 or > 2100) return Hata("Yıl 2000 ile 2100 arasında olmalı.");
+    if (AyHatasi(yil, ay) is string h) return Hata(h);
     return Results.Ok(svc.Aylik(yil, ay));
 });
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
+
+// Excel'e aktar (CSV — her iki rol indirebilir). Rakamlar JSON uç noktalarıyla aynıdır.
+api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
+{
+    // GET /api/islemler ile aynı filtre ve sıra (sayfalama yok: filtreye uyanların tamamı).
+    var q = IslemSorgusu(db, baslangic, bitis, kanal);
+    var liste = string.IsNullOrWhiteSpace(cari) ? q.ToList() : CariyeGoreSuz(q, cari).ToList();
+    var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
+    return CsvDosyasi(CsvRaporlari.Islemler(liste, kartAdlari), CsvRaporlari.IslemDosyaAdi(baslangic, bitis, kanal, cari));
+});
+api.MapGet("/disaaktar/haftalik.csv", (HesapServisi svc, TimeProvider saat) =>
+    CsvDosyasi(CsvRaporlari.Haftalik(svc.Haftalik()), $"kasa-haftalik-{CsvYazici.DosyaTarihi(Saat.Bugun(saat))}.csv"));
+api.MapGet("/disaaktar/aylik.csv", (int yil, int ay, HesapServisi svc) =>
+{
+    if (AyHatasi(yil, ay) is string h) return Hata(h);
+    return CsvDosyasi(CsvRaporlari.Aylik(svc.Aylik(yil, ay)), $"kasa-aylik-{yil:D4}-{ay:D2}.csv");
+});
 
 app.Run();
 
@@ -650,6 +660,33 @@ static string? TutarHatasi(decimal tutar, string alan, bool negatifOlabilir = fa
 
 static string? TarihHatasi(DateOnly t)
     => t < new DateOnly(2000, 1, 1) || t > new DateOnly(2100, 12, 31) ? "Tarih 2000 ile 2100 arasında olmalı." : null;
+
+static string? AyHatasi(int yil, int ay)
+{
+    if (ay is < 1 or > 12) return "Ay 1 ile 12 arasında olmalı.";
+    if (yil is < 2000 or > 2100) return "Yıl 2000 ile 2100 arasında olmalı.";
+    return null;
+}
+
+// İşlem listesi filtresi (liste ve Excel'e aktar ortak): tarih aralığı + kanal; sıra tarih, id artan.
+static IQueryable<IslemEntity> IslemSorgusu(KasaDbContext db, DateOnly? baslangic, DateOnly? bitis, string? kanal)
+{
+    var q = db.Islemler.AsNoTracking();
+    if (baslangic is { } b) q = q.Where(i => i.Tarih >= b);
+    if (bitis is { } s) q = q.Where(i => i.Tarih <= s);
+    if (!string.IsNullOrWhiteSpace(kanal)) q = q.Where(i => i.Kanal == kanal);
+    return q.OrderBy(i => i.Tarih).ThenBy(i => i.Id);
+}
+
+// Türkçe büyük/küçük harf duyarsız cari araması bellekte yapılır (SQLite instr duyarlı ve I/ı bilmez).
+static IEnumerable<IslemEntity> CariyeGoreSuz(IQueryable<IslemEntity> q, string cari)
+{
+    var aranan = cari.Trim();
+    return q.AsEnumerable().Where(i => Metin.Icerir(i.Cari, aranan));
+}
+
+// Dosya indirme: Content-Disposition: attachment; filename=... (ad ASCII).
+static IResult CsvDosyasi(byte[] icerik, string dosyaAdi) => Results.File(icerik, CsvYazici.IcerikTipi, dosyaAdi);
 
 static string? KanalHatasi(KasaDbContext db, KanalEntity e, int? haricId)
 {
