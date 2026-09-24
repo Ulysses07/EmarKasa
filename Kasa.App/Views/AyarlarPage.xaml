@@ -335,7 +335,7 @@
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </FlexLayout>
-                            <Label Text="Önce yukarıdaki Sabit Gider Kalemleri bölümünden bir kalem ekleyin."
+                            <Label Text="{Binding TekrarKalemYokMetni}"
                                    Style="{StaticResource LblPageSub}"
                                    IsVisible="{Binding TekrarKalemYok}" />
                         </VerticalStackLayout>

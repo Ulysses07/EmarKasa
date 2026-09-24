@@ -102,6 +102,21 @@ public static class ParaGiris
         return ParaGirisSonucu.Tamam(d);
     }
 
+    /// <summary>
+    /// Eksi tutara izin veren ayrıştırma; yalnız alacak bakiyesi olabilen alanlar içindir (kart ekstresi:
+    /// fazla ödenen kart "-250,00" gösterir). Baştaki "-" ya da "−" atılır, kalanı <see cref="Ayristir"/>
+    /// kurallarıyla okunur. Tek başına "-" ya da iki işaret geçersizdir.
+    /// </summary>
+    public static ParaGirisSonucu AyristirIsaretli(string? metin)
+    {
+        var s = Temizle(metin);
+        if (!(s.StartsWith('-') || s.StartsWith('−'))) return Ayristir(s);
+        var kalan = s[1..];
+        if (kalan.Length == 0 || kalan[0] is '-' or '−' or '+' or '(') return ParaGirisSonucu.Gecersiz(HataGecersiz);
+        var r = Ayristir(kalan);
+        return r.Gecerli && r.Tutar != 0m ? ParaGirisSonucu.Tamam(-r.Tutar) : r;   // "-0" eksi sıfır olmasın
+    }
+
     /// <summary>Tutarı giriş kutusunda gösterilecek metne çevirir (0 = boş).</summary>
     public static string Bicimle(decimal tutar) => tutar == 0m ? string.Empty : tutar.ToString("0.##", Tr);
 

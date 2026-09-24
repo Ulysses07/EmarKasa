@@ -26,7 +26,16 @@ public static class KartMutabakatEndpoints
                 .ToDictionary(m => m.DonemBitis);
             var kh = harcamalar.Select(h => new KartHarcama(h.Tarih, h.TutarTl)).ToList();
             var ko = odemeler.Select(o => new KartOdeme(o.Tarih, o.Tutar)).ToList();
-            var sonuc = KartMutabakat.KapanmisDonemler(k.KesimTarihi.Day, Saat.Bugun(saat), adet ?? VarsayilanDonem)
+            var donemler = KartMutabakat.KapanmisDonemler(k.KesimTarihi.Day, Saat.Bugun(saat), adet ?? VarsayilanDonem).ToList();
+            // Kartın kesim günü sonradan değiştiyse eski kesimlerdeki kayıtlar bugünkü dönemlere denk gelmez;
+            // kayıttaki dönemleriyle listeye katılır (listenin kapsadığı aralıktakiler; daha eskiler, denk gelen
+            // eski kayıtlar gibi daha uzun listede görünür).
+            var kesimler = donemler.Select(d => d.Kesim).ToHashSet();
+            var enEski = donemler.Count > 0 ? donemler[^1].Baslangic : DateOnly.MaxValue;
+            donemler.AddRange(kayitlar.Values
+                .Where(m => !kesimler.Contains(m.DonemBitis) && m.DonemBitis >= enEski)
+                .Select(m => new KartEkstreDonemi(m.DonemBaslangic, m.DonemBitis)));
+            var sonuc = donemler.OrderByDescending(d => d.Kesim).ThenByDescending(d => d.Baslangic)
                 .Select(d =>
                 {
                     var borc = KartHesap.Durum(k.Borc, kh, ko, k.KesimTarihi.Day, d.Kesim).GuncelBorc;
@@ -43,8 +52,8 @@ public static class KartMutabakatEndpoints
         {
             var k = db.KrediKartlari.AsNoTracking().FirstOrDefault(x => x.Id == krediKartiId);
             if (k is null) return Results.NotFound();
-            if (DonemHatasi(k, kesim, Saat.Bugun(saat), out var donem) is string h) return Yanit.Hata(h);
             var m = db.KartMutabakatlari.AsNoTracking().FirstOrDefault(x => x.KrediKartiId == k.Id && x.DonemBitis == kesim);
+            if (DonemHatasi(k, kesim, Saat.Bugun(saat), m, out var donem) is string h) return Yanit.Hata(h);
             return Results.Ok(Detay(db, k, donem, m));
         });
 
@@ -54,7 +63,8 @@ public static class KartMutabakatEndpoints
         {
             var k = db.KrediKartlari.AsNoTracking().FirstOrDefault(x => x.Id == dto.KrediKartiId);
             if (k is null) return Yanit.Hata("Kredi kartı bulunamadı.");
-            if (DonemHatasi(k, dto.Kesim, Saat.Bugun(saat), out var donem) is string h) return Yanit.Hata(h);
+            var m = db.KartMutabakatlari.FirstOrDefault(x => x.KrediKartiId == k.Id && x.DonemBitis == dto.Kesim);
+            if (DonemHatasi(k, dto.Kesim, Saat.Bugun(saat), m, out var donem) is string h) return Yanit.Hata(h);
             if (Math.Abs(dto.EkstreTutari) > 100_000_000_000m) return Yanit.Hata("Ekstre tutarı çok büyük (en fazla 100.000.000.000).");
             if (decimal.Round(dto.EkstreTutari, 2) != dto.EkstreTutari) return Yanit.Hata("Ekstre tutarı en fazla 2 ondalık basamak içerebilir.");
             var not = string.IsNullOrWhiteSpace(dto.Not) ? null : dto.Not.Trim();
@@ -69,7 +79,6 @@ public static class KartMutabakatEndpoints
                 odemeler.Select(o => new KartOdeme(o.Tarih, o.Tutar)).ToList(), k.KesimTarihi.Day, donem.Kesim).GuncelBorc;
             var fark = dto.EkstreTutari - borc;
 
-            var m = db.KartMutabakatlari.FirstOrDefault(x => x.KrediKartiId == k.Id && x.DonemBitis == dto.Kesim);
             if (m is null)
             {
                 m = new KartMutabakatEntity { KrediKartiId = k.Id, DonemBitis = donem.Kesim };
@@ -103,15 +112,20 @@ public static class KartMutabakatEndpoints
                 .Select(i => new Harcama(i.Id, i.Tarih, i.TutarTl, i.Cari, i.Not)).ToList(),
             db.KartOdemeler.AsNoTracking().Where(o => o.KrediKartiId == kartId).ToList());
 
-    /// <summary>Kesim kartın kesim gününe denk gelmeli ve dönem kapanmış (kesim ≤ bugün) olmalı.</summary>
-    private static string? DonemHatasi(KrediKartiEntity k, DateOnly kesim, DateOnly bugun, out KartEkstreDonemi donem)
+    /// <summary>
+    /// Kesim kartın kesim gününe denk gelmeli ve dönem kapanmış (kesim ≤ bugün) olmalı. Denk gelmiyor ama
+    /// o kesim için kayıtlı bir mutabakat (<paramref name="kayit"/>) varsa kayıttaki dönem kullanılır: kartın
+    /// kesim günü sonradan değişince eski mutabakatlar açılabilir, düzeltilebilir ve silinebilir kalır.
+    /// </summary>
+    private static string? DonemHatasi(KrediKartiEntity k, DateOnly kesim, DateOnly bugun, KartMutabakatEntity? kayit,
+        out KartEkstreDonemi donem)
     {
         donem = null!;
         if (kesim > bugun) return "Bu ekstre dönemi henüz kapanmadı.";
         if (kesim < new DateOnly(2000, 1, 1)) return "Kesim tarihi 2000'den önce olamaz.";
-        if (KartMutabakat.Donem(k.KesimTarihi.Day, kesim) is not { } d)
-            return $"Kesim tarihi kartın kesim gününe ({k.KesimTarihi.Day}) denk gelmiyor.";
-        donem = d;
+        if (KartMutabakat.Donem(k.KesimTarihi.Day, kesim) is { } d) donem = d;
+        else if (kayit is not null) donem = new KartEkstreDonemi(kayit.DonemBaslangic, kayit.DonemBitis);
+        else return $"Kesim tarihi kartın kesim gününe ({k.KesimTarihi.Day}) denk gelmiyor.";
         return null;
     }
 

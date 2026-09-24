@@ -414,11 +414,12 @@ api.MapPost("/tekrarlayangiderler", (TekrarlayanGiderEntity e, KasaDbContext db,
     db.TekrarlayanGiderler.Add(e); db.SaveChanges();
     return Results.Created($"/api/tekrarlayangiderler/{e.Id}", e);
 })).RequireAuthorization("Editor");
-api.MapPut("/tekrarlayangiderler/{id:int}", (int id, TekrarlayanGiderEntity gelen, KasaDbContext db, TimeProvider saat) => Yaz(db, "Tekrarlayan gider kaydedilemedi; tekrar deneyin.", () =>
+api.MapPut("/tekrarlayangiderler/{id:int}", (int id, TekrarlayanGuncelleDto gelen, KasaDbContext db, TimeProvider saat) => Yaz(db, "Tekrarlayan gider kaydedilemedi; tekrar deneyin.", () =>
 {
     var e = db.TekrarlayanGiderler.Find(id);
     if (e is null) return Results.NotFound();
     if (gelen.BaslangicAyi == default) gelen.BaslangicAyi = e.BaslangicAyi;
+    gelen.EksikleriTamamla(e);   // eski istemci sıklık/kart/değişken göndermez: kayıttaki kalır
     if (TekrarlayanHatasi(db, gelen, Saat.Bugun(saat)) is string hata) return Hata(hata);
     e.Kalem = gelen.Kalem; e.Kanal = gelen.Kanal; e.Tutar = gelen.Tutar;
     e.AyinGunu = gelen.AyinGunu; e.Aktif = gelen.Aktif; e.BaslangicAyi = gelen.BaslangicAyi;
@@ -538,6 +539,11 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) => Yaz(db, "
     // Kart ödemeleri kasadan çıkan nakittir; kart silinirse geçmiş kasa değişir. Hareketi olan kart silinemez.
     if (db.KartOdemeler.Any(o => o.KrediKartiId == id) || db.Islemler.Any(i => i.KrediKartiId == id))
         return Results.Conflict(new { hata = "Bu kartın harcama veya ödeme kayıtları var; kasa geçmişi bozulmasın diye silinemez." });
+    // Karta bağlı tekrarlayan giderin kalemi bir cari adıdır; kart bağı koparsa şablon sessizce bozulur.
+    if (db.TekrarlayanGiderler.Any(t => t.KrediKartiId == id))
+        return Results.Conflict(new { hata = "Bu kart bir tekrarlayan giderde kullanılıyor. Önce Ayarlar → Tekrarlayan giderler'den o kaydı silin ya da başka bir karta bağlayın." });
+    // Mutabakatlar kartla silinir (cascade); izleyiciye alınır ki silinmeleri geçmişe yazılsın.
+    db.KartMutabakatlari.Where(m => m.KrediKartiId == id).Load();
     db.KrediKartlari.Remove(e); db.SaveChanges();
     return Results.NoContent();
 })).RequireAuthorization("Editor");
@@ -686,10 +692,11 @@ api.MapPost("/cekler", (CekEntity e, KasaDbContext db) => Yaz(db, "Çek kaydedil
     db.Cekler.Add(e); db.SaveChanges();
     return Results.Created($"/api/cekler/{e.Id}", e);
 })).RequireAuthorization("Editor");
-api.MapPut("/cekler/{id:int}", (int id, CekEntity gelen, KasaDbContext db) => Yaz(db, "Çek kaydedilemedi; tekrar deneyin.", () =>
+api.MapPut("/cekler/{id:int}", (int id, CekGuncelleDto gelen, KasaDbContext db) => Yaz(db, "Çek kaydedilemedi; tekrar deneyin.", () =>
 {
     var e = db.Cekler.Find(id);
     if (e is null) return Results.NotFound();
+    gelen.EksikleriTamamla(e);   // eski istemci tür/konum/ciro göndermez: kayıttaki kalır
     if (CekHatasi(db, gelen) is string hata) return Hata(hata);
     e.Yon = gelen.Yon; e.CekNo = gelen.CekNo; e.Banka = gelen.Banka; e.Kisi = gelen.Kisi;
     e.Tutar = gelen.Tutar; e.DuzenlemeTarihi = gelen.DuzenlemeTarihi; e.VadeTarihi = gelen.VadeTarihi;

@@ -79,3 +79,50 @@ public record KartMutabakatDetayDto(
 /// <summary>Mutabakat kaydı (kart + kesim başına tek; varsa güncellenir).</summary>
 public record KartMutabakatYazDto(int KrediKartiId, DateOnly Kesim, decimal EkstreTutari,
     IReadOnlyList<int>? TikliIslemIdleri, string? Not, bool FarkKabul);
+
+// ------------------------------------------------------------------ Eski istemci uyumu (PUT gövdeleri)
+
+/// <summary>
+/// PUT /api/cekler/{id} gövdesi: <see cref="CekEntity"/> ile aynı JSON. Paket D alanları (tur, konum,
+/// ciroEdilenCari) gövdede YOKSA kayıttaki değer korunur (<see cref="EksikleriTamamla"/>): sunucudan
+/// sonra güncellenen eski Windows uygulaması bu alanları göndermez; senet sessizce çeke, bankadaki
+/// evrak "Elde"ye dönmesin. Alan gönderilirse (null dahil) eskisi gibi gönderilen değer yazılır.
+/// </summary>
+public sealed class CekGuncelleDto : CekEntity
+{
+    private bool _tur, _konum, _ciro;
+
+    public new CekTuru Tur { get => base.Tur; set { base.Tur = value; _tur = true; } }
+    public new CekKonumu Konum { get => base.Konum; set { base.Konum = value; _konum = true; } }
+    public new string? CiroEdilenCari { get => base.CiroEdilenCari; set { base.CiroEdilenCari = value; _ciro = true; } }
+
+    /// <summary>Gövdede olmayan Paket D alanlarını kayıttaki değerle doldurur (doğrulamadan önce).</summary>
+    public void EksikleriTamamla(CekEntity kayitli)
+    {
+        if (!_tur) base.Tur = kayitli.Tur;
+        if (!_konum) base.Konum = kayitli.Konum;
+        if (!_ciro) base.CiroEdilenCari = kayitli.CiroEdilenCari;
+    }
+}
+
+/// <summary>
+/// PUT /api/tekrarlayangiderler/{id} gövdesi: <see cref="TekrarlayanGiderEntity"/> ile aynı JSON. Paket D
+/// alanları (siklik, krediKartiId, tutarDegisken) gövdede YOKSA kayıttaki değer korunur: eski uygulama
+/// yıllık şablonu aylığa, karta bağlı şablonu kartsıza çevirmesin (başlangıç ayındaki kuralın aynısı).
+/// </summary>
+public sealed class TekrarlayanGuncelleDto : TekrarlayanGiderEntity
+{
+    private bool _siklik, _kart, _degisken;
+
+    public new TekrarSikligi Siklik { get => base.Siklik; set { base.Siklik = value; _siklik = true; } }
+    public new int? KrediKartiId { get => base.KrediKartiId; set { base.KrediKartiId = value; _kart = true; } }
+    public new bool TutarDegisken { get => base.TutarDegisken; set { base.TutarDegisken = value; _degisken = true; } }
+
+    /// <summary>Gövdede olmayan Paket D alanlarını kayıttaki değerle doldurur (doğrulamadan önce).</summary>
+    public void EksikleriTamamla(TekrarlayanGiderEntity kayitli)
+    {
+        if (!_siklik) base.Siklik = kayitli.Siklik;
+        if (!_kart) base.KrediKartiId = kayitli.KrediKartiId;
+        if (!_degisken) base.TutarDegisken = kayitli.TutarDegisken;
+    }
+}

@@ -50,6 +50,7 @@ public static class SayimSatirlari
             if (s.Kupurler is { Count: > 0 })
             {
                 if (s.Tur != SayimSatirTuru.Nakit) return "Küpür sayımı yalnız nakit satırında yapılabilir.";
+                if (s.Kupurler.Any(k => k is null)) return "Boş küpür satırı olamaz.";
                 if (s.Kupurler.Select(k => k.Kurus).Distinct().Count() != s.Kupurler.Count) return "Aynı küpür iki kez yazılamaz.";
                 foreach (var k in s.Kupurler)
                 {

@@ -36,6 +36,10 @@ public partial class AyarlarViewModel
     public bool BaslangicGorunur => DuzenTekrarSiklik != TekrarSikligi.Aylik;
     public bool KartliMi => DuzenTekrarKartId is not null;
     public string TekrarKalemEtiketi => KartliMi ? "Cari (kartın harcama yaptığı yer)" : "Gider kalemi";
+    /// <summary>Kalem çipi yokken ipucu: karta bağlı şablonun çipleri cariler, kartsızınki gider kalemleridir.</summary>
+    public string TekrarKalemYokMetni => KartliMi
+        ? "Önce Cariler sayfasından bir cari ekleyin."
+        : "Önce yukarıdaki Sabit Gider Kalemleri bölümünden bir kalem ekleyin.";
     public string TekrarTutarEtiketi => DuzenTekrarTutarDegisken ? "Önerilen tutar (isteğe bağlı)" : "Tutar";
 
     private List<string> _cariler = new();
@@ -65,6 +69,7 @@ public partial class AyarlarViewModel
         foreach (var c in TekrarKartCipleri) c.Secili = c.Id == (value ?? 0);
         OnPropertyChanged(nameof(KartliMi));
         OnPropertyChanged(nameof(TekrarKalemEtiketi));
+        OnPropertyChanged(nameof(TekrarKalemYokMetni));
     }
 
     partial void OnDuzenTekrarTutarDegiskenChanged(bool value) => OnPropertyChanged(nameof(TekrarTutarEtiketi));

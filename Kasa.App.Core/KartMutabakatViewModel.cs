@@ -38,13 +38,22 @@ public partial class KartMutabakatViewModel : TemelViewModel
     public ObservableCollection<MutabakatIslemSatiri> Islemler { get; } = new();
     public ObservableCollection<KartMutabakatOdemeDto> Odemeler { get; } = new();
 
-    /// <summary>Ekstredeki dönem borcu (kullanıcı yazar).</summary>
+    /// <summary>Ekstredeki dönem borcu (kullanıcı yazar; alacaklı kartta eksi).</summary>
     [ObservableProperty] private decimal _ekstreTutari;
     /// <summary>Ekstre tutarı yazıldı mı (ya da kayıtlı mı)? Yazılmadan fark gösterilmez.</summary>
     [ObservableProperty] private bool _ekstreGirildi;
+    /// <summary>
+    /// Ekstre kutusunun metni (sayfa buna bağlanır). Boş kutu "yazılmadı", "0" ise "ekstre borcu sıfır"
+    /// demektir; ikisi aynı tutar olduğu için yazıldı bilgisi tutardan değil metinden gelir. Fazla ödenmiş
+    /// kartın ekstresi eksi yazılabilir ("-250,00"; <see cref="ParaGiris.AyristirIsaretli"/>).
+    /// </summary>
+    [ObservableProperty] private string _ekstreGiris = "";
+    /// <summary>Kutudaki metin geçersizse nedeni (kaydetmeyi durdurur; son geçerli tutar kalır).</summary>
+    [ObservableProperty] private string? _ekstreGirisHatasi;
     [ObservableProperty] private string? _not;
 
     private bool _yukleniyor;
+    private bool _girisYaziliyor;
     private int _detaySurumu;
 
     // ---------------------------------------------------------------- hesaplanan metinler
@@ -56,6 +65,9 @@ public partial class KartMutabakatViewModel : TemelViewModel
     public string FarkMetni => Fark is not { } f ? "" : f switch
     {
         0m => "Ekstre uygulamanın hesabıyla uyuşuyor.",
+        // Uygulamaya göre kart alacaklıyken ekstre sıfır/borç: çoğu kez alacak bakiye eksisiz yazılmıştır.
+        > 0m when Detay!.HesaplananBorc < 0m && EkstreTutari >= 0m =>
+            $"Ekstre {Bicim.Tl(f)} ₺ fazla. Uygulamaya göre kart {Bicim.Tl(-Detay.HesaplananBorc)} ₺ alacaklı; ekstrede alacak bakiye varsa eksiyle yazın (ör. -{Bicim.Tl(-Detay.HesaplananBorc)}). Yoksa girilmemiş harcama, faiz ya da ücret olabilir.",
         > 0m => $"Ekstre {Bicim.Tl(f)} ₺ fazla: girilmemiş harcama, faiz ya da ücret olabilir.",
         _ => $"Ekstre {Bicim.Tl(-f)} ₺ eksik: uygulamada fazladan ya da yanlış tarihli harcama olabilir.",
     };
@@ -109,8 +121,41 @@ public partial class KartMutabakatViewModel : TemelViewModel
 
     partial void OnEkstreTutariChanged(decimal value)
     {
-        if (!_yukleniyor) EkstreGirildi = true;
+        // Kod tutarı doğrudan yazdıysa (kutudan değil) kutu da ona uyar.
+        if (!_yukleniyor && !_girisYaziliyor)
+        {
+            EkstreGirildi = true;
+            KutuyuYaz(value);
+        }
         Bildir();
+    }
+
+    partial void OnEkstreGirisChanged(string value)
+    {
+        if (_yukleniyor || _girisYaziliyor) return;
+        var s = ParaGiris.AyristirIsaretli(value);
+        EkstreGirisHatasi = s.Gecerli ? null : s.Hata;
+        if (!s.Gecerli) return;
+        _girisYaziliyor = true;
+        try
+        {
+            EkstreTutari = s.Tutar;
+            EkstreGirildi = !string.IsNullOrWhiteSpace(value);
+        }
+        finally { _girisYaziliyor = false; }
+        Bildir();
+    }
+
+    /// <summary>Kutuya tutarın metnini yazar; sıfır da "0" görünür (boş kutu "yazılmadı" demektir).</summary>
+    private void KutuyuYaz(decimal? tutar)
+    {
+        _girisYaziliyor = true;
+        try
+        {
+            EkstreGiris = tutar is not { } t ? "" : t == 0m ? "0" : ParaGiris.Bicimle(t);
+            EkstreGirisHatasi = null;
+        }
+        finally { _girisYaziliyor = false; }
     }
 
     partial void OnEkstreGirildiChanged(bool value) => Bildir();
@@ -184,6 +229,7 @@ public partial class KartMutabakatViewModel : TemelViewModel
             foreach (var o in d.Odemeler) Odemeler.Add(o);
             EkstreTutari = d.EkstreTutari ?? 0m;
             EkstreGirildi = d.EkstreTutari is not null;
+            KutuyuYaz(d.EkstreTutari);
             Not = d.Not;
             Detay = d;
             foreach (var s in Donemler) s.Secili = s.Kesim == d.Kesim;
@@ -218,6 +264,7 @@ public partial class KartMutabakatViewModel : TemelViewModel
         Bilgi = null;
         Dogrula(EditorMu, HataMesaji.Yetkisiz);
         Dogrula(Detay is not null, DonemSecinMesaji);
+        Dogrula(EkstreGirisHatasi is null, EkstreGirisHatasi ?? "");
         Dogrula(EkstreGirildi, EkstreTutariMesaji);
         var d = Detay!;
         var tikli = Islemler.Where(i => i.Tikli).Select(i => i.Id).ToList();

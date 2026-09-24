@@ -35,7 +35,7 @@ ve eski istemciler aynı sonucu üretir.
 | | `FarkDurumu` | int, NOT NULL DEFAULT 0 (`Acik`) |
 | | `FarkAciklamasi` | TEXT NULL |
 | `TekrarlayanGiderler` | `Siklik` | int, NOT NULL DEFAULT 0 (`Aylik`) |
-| | `KrediKartiId` | int NULL, FK → `KrediKartlari` **ON DELETE SET NULL** (tablo yeniden kurulur, veri korunur) |
+| | `KrediKartiId` | int NULL, FK → `KrediKartlari` **ON DELETE SET NULL** (tablo yeniden kurulur, veri korunur; API şablonu olan kartın silinmesine zaten izin vermez) |
 | | `TutarDegisken` | int (bool), NOT NULL DEFAULT 0 |
 | `KartMutabakatlari` (yeni) | `Id, KrediKartiId, DonemBaslangic, DonemBitis, EkstreTutari, HesaplananBorc, TikliIslemIdleri, Not, Durum, KayitZamaniUtc` | benzersiz (`KrediKartiId`, `DonemBitis`); FK kart silinince **CASCADE** |
 
@@ -51,10 +51,10 @@ Hepsi `/api` altında ve kimlik doğrulamalı; yazanlar `Editor` politikasında.
 | POST | `/cekler/{id}/durum` | editör | Tek dokunuş: `{durum, tarih?, ciroEdilenCari?}` |
 | GET | `/cekler/risk?tur=` | her iki | Portföydeki alınan evrak: keşideci ve banka dağılımı |
 | GET | `/cekler?tur=&konum=` | her iki | Mevcut listeye iki filtre eklendi |
-| GET | `/tekrarlayangiderler/atlananlar` | her iki | Bu ay + önceki 2 ayın atlanan ayları |
+| GET | `/tekrarlayangiderler/atlananlar` | her iki | Bu ay + önceki 2 ayın geri alınabilen atlanan ayları (aktif şablon, bugünkü sıklığına uyan ay) |
 | POST | `/tekrarlayangiderler/{id}/atlamayi-geri-al` | editör | `{ay}`: karar silinir, ay bekleyene döner (geçmişe yazılır) |
 | GET/POST | `/tekrarlayangiderler/hazir` | her iki / editör | Hazır şablonlar ve `{kod}` ile ekleme |
-| GET | `/kartmutabakat/donemler?krediKartiId=&adet=` | her iki | Kapanmış ekstre dönemleri (varsayılan 12, en çok 36) |
+| GET | `/kartmutabakat/donemler?krediKartiId=&adet=` | her iki | Kapanmış ekstre dönemleri (varsayılan 12, en çok 36); kesim günü değişmeden önceki kayıtlar da |
 | GET | `/kartmutabakat?krediKartiId=&kesim=` | her iki | Dönem ayrıntısı |
 | PUT | `/kartmutabakat` | editör | Mutabakatı yazar (dönem başına tek kayıt) |
 | DELETE | `/kartmutabakat/{id}` | editör | Mutabakat kaydını siler |
@@ -94,9 +94,12 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
   ve `TekrarlayanTakvim` davranışı değişmez.
 - `KrediKartiId`: onaylanan ay o kartın K.K işlemi olur (mevcut kart kuralı işler). Bu şablonda kalem
   kayıtlı bir **cari**dir (K.K işlemi kayıtlı cari ister); cari yeniden adlandırılınca şablon da izler,
-  şablonda kullanılan cari silinemez. Kart silinirse şablon kartsız kalır.
+  şablonda kullanılan cari silinemez. Şablonun bağlı olduğu kart da silinemez (409; önce şablon silinir
+  ya da başka karta bağlanır): kart bağı kopsaydı kalemi cari adı olan şablon sabit gidere dönerdi.
 - `TutarDegisken`: tutar 0 olabilir; onayda tutar yazılmadan kaydedilemez.
-- "Bu ay atla" geri alınır: yalnız bu ay ve önceki 2 ay; girilmiş ay geri alınamaz (409).
+- "Bu ay atla" geri alınır: yalnız bu ay ve önceki 2 ay; girilmiş ay geri alınamaz (409). Pasif şablonun
+  kararı geri alınamaz (400; ay bekleyene dönmezdi) ve atlananlar listesinde görünmez; sıklığı sonradan
+  değişen şablonun artık tekrar ayı olmayan atlanan ayı da listelenmez.
 - Hazır şablonlar (kanal Ortak, tutar boş, değişken): KDV her ay 28'i; Muhtasar ve prim hizmet her ay
   26'sı; SGK primi ay sonu; Geçici vergi 17 Mayıs/Ağustos/Kasım (üç yıllık şablon); MTV 31 Ocak ve
   31 Temmuz; Emlak vergisi 31 Mayıs ve 30 Kasım. Başlangıç ayı, vadesi bugünden önce olmayan ilk
@@ -111,10 +114,18 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
 - Kayıt: ekstre tutarı, tiklenen işlem id'leri (dönemin kartlı işlemlerinden olmalı), not ve durum.
   Fark 0 → Mutabık; fark kabul edildiyse → Fark kabul; aksi Açık. Liste durumu bugünkü kayıtlarla
   yeniden hesaplanır; kayıttan sonra dönem değiştiyse ekranda uyarı çıkar.
+- Kartın kesim günü sonradan değişirse eski kayıtlar kaybolmaz: bugünkü dönemlere denk gelmeyen kayıt,
+  kayıttaki dönemiyle (`DonemBaslangic … DonemBitis`) listeye katılır (listenin kapsadığı aralıkta olanlar)
+  ve o kesimle açılır, güncellenir, silinir. Kaydı olmayan eski kesim yine 400.
+- Ekstre kutusu metne bağlıdır: boş kutu "yazılmadı", "0" ise "ekstre borcu sıfır"dır (hareketsiz dönem
+  0 ile mutabık kaydedilir). Fazla ödenmiş kartın ekstresi eksiyle yazılır ("-250,00"; yalnız bu alan
+  eksi kabul eder). Kart uygulamaya göre alacaklıyken ekstre sıfır/borç yazılırsa fark metni eksi işaretini
+  hatırlatır.
 
 ### 35 · Kasa sayımı
 - Satırlar (en çok 20): Nakit / Banka / POS / Diğer, ad ve tutar (≥ 0). Nakitte isteğe bağlı küpür
   sayacı (200, 100, 50, 20, 10, 5 TL; 1 TL, 50/25/10/5 kr); küpür toplamı satır tutarına eşit olmalı.
+  Boş (null) satır ya da küpür 400 döner.
   `SayilanTutar` satırların toplamıdır, böylece mevcut fark ve geçmiş aynen çalışır. Satırsız
   (eski tek tutarlı) sayım aynen kaydedilir ve görünür. Varsayılan satırlar: son satırlı sayımın
   satırları, yoksa Nakit, İş Bankası, Ziraat, POS'ta bekleyen.
@@ -149,12 +160,15 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
 - Tek dokunuşta tarih istemciden gönderilmez; sunucu Türkiye gününü koyar.
 - Konum filtresi seçiliyken verilen evrak listelenmez (konum yalnız alınan evrakta anlamlı).
 - Tür/konum filtresi istemcide uygulanır (sunucu da destekler).
-- Ekstre tutarı uygulamada negatif girilemez (ParaGiris); sunucu negatif (alacaklı ekstre) kabul eder.
-- Eski istemcinin PUT'u yeni alanları göndermez; bu durumda tür/konum/sıklık varsayılana döner
-  (yeni istemci hep gönderir).
-- Kart silinince mutabakat kayıtları da silinir (geçmişe ayrıca yazılmaz).
+- Ekstre tutarı uygulamada eksi yazılabilir (alacaklı kart); diğer para kutuları eskisi gibi eksiyi reddeder.
+- Eski istemcinin PUT'u yeni alanları göndermez: `PUT /cekler/{id}` gövdede olmayan `tur`, `konum`,
+  `ciroEdilenCari`; `PUT /tekrarlayangiderler/{id}` gövdede olmayan `siklik`, `krediKartiId`,
+  `tutarDegisken` için kayıttaki değeri korur (başlangıç ayındaki kuralın aynısı). Alan gönderilirse
+  (null dahil) gönderilen yazılır. Böylece sunucu uygulamadan önce güncellense de veri bozulmaz.
+- Kart silinince mutabakat kayıtları da silinir; silmeler geçmişe "Kart mutabakatı · Silindi" olarak yazılır.
 
 ## 7. Sunucu kurulumu
 
 Yeni yapılandırma yok. Yeni sürüm yayınlanınca şema açılışta kendiliğinden yükselir (her zamanki gibi
-önce veritabanı yedeği alınır).
+önce veritabanı yedeği alınır). Sunucu Windows uygulamasından önce yayınlanabilir: eski uygulamanın çek
+ve tekrarlayan gider güncellemeleri yeni alanları (tür, konum, ciro, sıklık, kart, değişken tutar) korur.

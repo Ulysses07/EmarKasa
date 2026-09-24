@@ -89,7 +89,8 @@ public class KasaDbContext : DbContext
     /// <summary>Paket D: karta bağlı tekrarlayan gider ve kart ekstresi mutabakatı ilişkileri.</summary>
     private static void PaketDModeli(ModelBuilder b)
     {
-        // Kart silinince tekrarlayan gider kalır, kart bağı kopar (SET NULL).
+        // API, karta bağlı tekrarlayan gideri olan kartın silinmesine izin vermez (409). DB düzeyinde
+        // yine de bağ koparılır (SET NULL): şema dışı bir silme şablonu da silmesin.
         b.Entity<TekrarlayanGiderEntity>()
             .HasOne<KrediKartiEntity>()
             .WithMany()

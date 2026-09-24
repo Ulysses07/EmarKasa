@@ -12,15 +12,17 @@ public static class TekrarlayanEndpoints
     public static RouteGroupBuilder MapTekrarlayanEkleri(this RouteGroupBuilder api, YazIslemi yaz,
         TekrarlayanAyDogrulama ayHatasi, KalemBulucu kayitliKalem)
     {
-        // Bekleyen listesinin penceresindeki (bu ay + önceki 2 ay) atlanan aylar, en yeni önce.
+        // Bekleyen listesinin penceresindeki (bu ay + önceki 2 ay) atlanan aylar, en yeni önce. Yalnız
+        // geri alınabilenler: aktif şablon ve bugünkü sıklığına uyan ay (geri alınınca bekleyene döner).
         api.MapGet("/tekrarlayangiderler/atlananlar", (KasaDbContext db, TimeProvider saat) =>
         {
             var enErken = TekrarlayanTakvim.AyBasi(Saat.Bugun(saat)).AddMonths(-TekrarlayanTakvim.GeriyeAy);
-            var sablonlar = db.TekrarlayanGiderler.AsNoTracking().ToDictionary(t => t.Id);
+            var sablonlar = db.TekrarlayanGiderler.AsNoTracking().Where(t => t.Aktif).ToDictionary(t => t.Id);
             return db.TekrarlayanGirisler.AsNoTracking()
                 .Where(g => g.Durum == TekrarlayanDurum.Atlandi && g.Ay >= enErken)
                 .ToList()
-                .Where(g => sablonlar.ContainsKey(g.TekrarlayanGiderId))
+                .Where(g => sablonlar.TryGetValue(g.TekrarlayanGiderId, out var t)
+                    && TekrarlayanTakvim.AyDahil(t.Siklik, TekrarlayanTakvim.AyBasi(t.BaslangicAyi), g.Ay))
                 .Select(g =>
                 {
                     var t = sablonlar[g.TekrarlayanGiderId];
@@ -36,6 +38,8 @@ public static class TekrarlayanEndpoints
         {
             var t = db.TekrarlayanGiderler.AsNoTracking().FirstOrDefault(x => x.Id == id);
             if (t is null) return Results.NotFound();
+            // Pasif şablonun ayı bekleyene dönmez; karar silinse de ay hiçbir listede görünmezdi.
+            if (!t.Aktif) return Yanit.Hata("Bu tekrarlayan gider pasif; önce Ayarlar → Tekrarlayan giderler'den aktif yapın.");
             var bugun = Saat.Bugun(saat);
             if (ayHatasi(t, dto.Ay, bugun) is string ah) return Yanit.Hata(ah);
             var ay = TekrarlayanTakvim.AyBasi(dto.Ay);
