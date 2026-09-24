@@ -53,7 +53,7 @@ public partial class PanelViewModel
     [ObservableProperty] private string _cekTahsilMetni = "";   // "3 alınan çek"
     [ObservableProperty] private decimal _cekOdemeToplam;
     [ObservableProperty] private string _cekOdemeMetni = "";    // "2 verilen çek"
-    /// <summary>"2 çekin vadesi geçti · 5.000,00 ₺"; yoksa null.</summary>
+    /// <summary>"2 çekin vadesi geçti · tahsil edilecek +5.000,00 ₺ · ödenecek −3.000,00 ₺"; yoksa null.</summary>
     [ObservableProperty] private string? _cekGecikmeMetni;
 
     [ObservableProperty] private bool _sayimDurumuVar;
@@ -184,7 +184,7 @@ public partial class PanelViewModel
         CekOdemeToplam = o.OdenecekVerilenToplam;
         CekOdemeMetni = $"Ödenecek {PanelMetin.Tutar(o.OdenecekVerilenToplam)} · {o.OdenecekVerilenAdet} çek";
         CekGecikmeMetni = o.VadesiGecenler.Count > 0
-            ? $"{o.VadesiGecenler.Count} çekin vadesi geçti · {PanelMetin.Tutar(o.VadesiGecenler.Sum(c => c.Tutar))}"
+            ? $"{o.VadesiGecenler.Count} çekin vadesi geçti · {PanelMetin.CekYonToplamlari(o.VadesiGecenler)}"
             : null;
     }
 

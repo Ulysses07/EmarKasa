@@ -19,7 +19,7 @@ public static partial class HatirlatmaKontrol
             var rol = SekmeModeli.RolCoz(await api.BenKimAsync());   // oturum yoksa 401 → sessizce çık
             var zaman = sp.GetService(typeof(TimeProvider)) as TimeProvider;
             await new BildirimPlanlayici(api, DosyaYerelDepo.Varsayilan(), new TembelBildirim(), zaman)
-                .CalistirAsync(rol, arkaPlan: true);
+                .CalistirAsync(rol);
         }
         catch { /* oturum yok / ağ hatası: sonraki çalıştırmada yeniden denenir */ }
     }

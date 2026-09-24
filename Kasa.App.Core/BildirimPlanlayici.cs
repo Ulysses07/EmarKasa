@@ -20,8 +20,9 @@ public interface IKisaBildirim
 /// +X, güncel kasa Y". Aynı anda (ayrı bildirim) vadesi geçmiş portföy çekleri.</item>
 /// <item>Geçmişe dönük düzeltme: son bildirimden sonra geçmiş ayları etkileyen değişiklik olduysa; günde
 /// en fazla bir kez. İlk çalıştırma yalnız başlangıç noktasını kaydeder (birikmiş eski satırlar bildirilmez).</item>
-/// <item>Bugün yapılacaklar (yalnız editör, yalnız arka plan hatırlatıcısında = sabah): liste boş değilse,
-/// günde en fazla bir kez.</item>
+/// <item>Bugün yapılacaklar (yalnız editör): günün ilk çalıştırmasında — sabah uygulama açılınca ya da
+/// 09:00 hatırlatıcısında, hangisi önce gelirse —, liste boş değilse; günde en fazla bir kez (ikisi aynı
+/// depoyu paylaştığından biri gönderdiyse öbürü göndermez).</item>
 /// </list>
 /// Her tür Ayarlar'dan ayrı ayrı kapatılabilir (<see cref="BildirimAyarlariViewModel"/>). Okuma hatasında
 /// o bildirim atlanır ve "gönderildi" işaretlenmez (sonraki çalıştırmada yeniden denenir).
@@ -42,15 +43,14 @@ public sealed class BildirimPlanlayici
     }
 
     /// <param name="rol">Oturumdaki rol (bugün yapılacaklar yalnız editöre).</param>
-    /// <param name="arkaPlan">Günlük arka plan hatırlatıcısı mı (sabah bildirimi yalnız orada)?</param>
     /// <returns>Gönderilen bildirimler.</returns>
-    public async Task<IReadOnlyList<KisaBildirim>> CalistirAsync(Rol rol, bool arkaPlan)
+    public async Task<IReadOnlyList<KisaBildirim>> CalistirAsync(Rol rol)
     {
         var gonderilen = new List<KisaBildirim>();
         var simdi = _zaman.GetLocalNow().DateTime;
         await Dene(() => HaftalikAsync(simdi, gonderilen));
         await Dene(() => GecmiseDonukAsync(DateOnly.FromDateTime(simdi), gonderilen));
-        if (rol == Rol.Editor && arkaPlan)
+        if (rol == Rol.Editor)
             await Dene(() => YapilacaklarAsync(DateOnly.FromDateTime(simdi), gonderilen));
         return gonderilen;
     }
@@ -108,7 +108,7 @@ public sealed class BildirimPlanlayici
                 var ilk = gecen[0];
                 bildirimler.Add(new KisaBildirim(
                     $"Vadesi geçen {gecen.Count} çek",
-                    $"Toplam {PanelMetin.Tutar(gecen.Sum(c => c.Tutar))} · en eskisi {ilk.Kisi}, vade {PanelMetin.Gun(ilk.VadeTarihi, bugun)}",
+                    $"{BuyukHarfle(PanelMetin.CekYonToplamlari(gecen))} · en eskisi {ilk.Kisi}, vade {PanelMetin.Gun(ilk.VadeTarihi, bugun)}",
                     "cekler"));
             }
         }
@@ -116,6 +116,9 @@ public sealed class BildirimPlanlayici
         foreach (var b in bildirimler) Gonder(b, gonderilen);
         _depo.YazTarih(YerelAnahtarlar.SonHaftalikOzet, hafta);
     }
+
+    private static string BuyukHarfle(string metin)
+        => metin.Length == 0 ? metin : char.ToUpper(metin[0], Kultur.Turkce) + metin[1..];
 
     private async Task GecmiseDonukAsync(DateOnly bugun, List<KisaBildirim> gonderilen)
     {

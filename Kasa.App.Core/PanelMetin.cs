@@ -1,3 +1,5 @@
+using Kasa.ApiClient;
+
 namespace Kasa.App.Core;
 
 /// <summary>Panel kartlarının kısa metinleri (tutar işaretli, "₺" ile; tarih "14 Kasım").</summary>
@@ -27,6 +29,22 @@ public static class PanelMetin
         => bas.Month == son.Month && bas.Year == son.Year
             ? $"{bas.Day}–{son.ToString("d MMMM", Kultur.Turkce)}"
             : $"{bas.ToString("d MMMM", Kultur.Turkce)} – {son.ToString("d MMMM", Kultur.Turkce)}";
+
+    /// <summary>
+    /// Çeklerin yöne göre ayrı toplamı: "tahsil edilecek +5.000,00 ₺ · ödenecek −3.000,00 ₺" (yalnız olan yön
+    /// yazılır; çek yoksa boş). Alınan çek bize gelecek, verilen çek bizden çıkacak paradır: ikisi tek bir
+    /// toplamda birleştirilmez (Bugün yapılacaklar'daki +/− işaretleriyle aynı).
+    /// </summary>
+    public static string CekYonToplamlari(IEnumerable<CekDto> cekler)
+    {
+        var l = cekler.ToList();
+        var parcalar = new List<string>(2);
+        if (l.Any(c => c.Yon == CekYonu.Alinan))
+            parcalar.Add($"tahsil edilecek {IsaretliTutar(l.Where(c => c.Yon == CekYonu.Alinan).Sum(c => c.Tutar))}");
+        if (l.Any(c => c.Yon == CekYonu.Verilen))
+            parcalar.Add($"ödenecek {IsaretliTutar(-l.Where(c => c.Yon == CekYonu.Verilen).Sum(c => c.Tutar))}");
+        return string.Join(" · ", parcalar);
+    }
 
     /// <summary>
     /// Sayıdan sonra gelen iyelik eki (okunuşun son sesine göre): 1'i, 2'si, 3'ü, 6'sı, 9'u, 10'u,

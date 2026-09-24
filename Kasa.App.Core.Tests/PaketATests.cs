@@ -307,7 +307,7 @@ public class PanelPaketATests
         Assert.True(vm.CekDurumuVar);
         Assert.Equal((12_000m, "Tahsil edilecek 12.000,00 ₺ · 3 çek"), (vm.CekTahsilToplam, vm.CekTahsilMetni));
         Assert.Equal((4_000m, "Ödenecek 4.000,00 ₺ · 2 çek"), (vm.CekOdemeToplam, vm.CekOdemeMetni));
-        Assert.Equal("1 çekin vadesi geçti · 700,00 ₺", vm.CekGecikmeMetni);
+        Assert.Equal("1 çekin vadesi geçti · tahsil edilecek +700,00 ₺", vm.CekGecikmeMetni);
 
         Assert.True(vm.SayimDurumuVar);
         Assert.Equal("20 Eylül (4 gün önce)", vm.SayimMetni);
@@ -319,6 +319,32 @@ public class PanelPaketATests
         Assert.False(vm.YapilacakVar);
         Assert.Equal(0, api.BekleyenCagri);
         Assert.Equal(0, api.EksikGelenCagri);
+    }
+
+    [Fact]
+    public async Task Vadesi_gecen_alinan_ve_verilen_cek_ayri_toplanir()
+    {
+        var (api, vm, _) = Kur(editor: false);
+        api.CekOzeti = PaketAOrnek.CekOzeti(gecen: [PaketAOrnek.Cek(1, CekYonu.Alinan, 5_000m, PaketAOrnek.Bugun.AddDays(-3)),
+                                                    PaketAOrnek.Cek(2, CekYonu.Verilen, 3_000m, PaketAOrnek.Bugun.AddDays(-1))]);
+        await vm.YukleAsync();
+        Assert.Equal("2 çekin vadesi geçti · tahsil edilecek +5.000,00 ₺ · ödenecek −3.000,00 ₺", vm.CekGecikmeMetni);
+
+        api.CekOzeti = PaketAOrnek.CekOzeti(gecen: [PaketAOrnek.Cek(2, CekYonu.Verilen, 3_000m, PaketAOrnek.Bugun.AddDays(-1)),
+                                                    PaketAOrnek.Cek(3, CekYonu.Verilen, 1_250.5m, PaketAOrnek.Bugun.AddDays(-9))]);
+        await vm.YukleAsync();
+        Assert.Equal("2 çekin vadesi geçti · ödenecek −4.250,50 ₺", vm.CekGecikmeMetni);
+    }
+
+    [Fact]
+    public void Cek_yon_toplamlari_metni()
+    {
+        var b = PaketAOrnek.Bugun;
+        Assert.Equal("", PanelMetin.CekYonToplamlari([]));
+        Assert.Equal("tahsil edilecek +1.500,00 ₺",
+            PanelMetin.CekYonToplamlari([PaketAOrnek.Cek(1, CekYonu.Alinan, 1_000m, b), PaketAOrnek.Cek(2, CekYonu.Alinan, 500m, b)]));
+        Assert.Equal("tahsil edilecek +1.000,00 ₺ · ödenecek −1.000,00 ₺",   // net 0 değil, iki yön ayrı
+            PanelMetin.CekYonToplamlari([PaketAOrnek.Cek(2, CekYonu.Verilen, 1_000m, b), PaketAOrnek.Cek(1, CekYonu.Alinan, 1_000m, b)]));
     }
 
     [Fact]
@@ -679,7 +705,7 @@ public class BildirimPlanlayiciTests
     public async Task Pazartesi_ozeti_bolunmus_haftayi_toplar_ve_haftada_bir_kez_gider()
     {
         var (api, depo, b, saat, p) = Kur(new DateTime(2026, 10, 5, 8, 30, 0));   // Pazartesi
-        var g = await p.CalistirAsync(Rol.Izleyici, arkaPlan: false);
+        var g = await p.CalistirAsync(Rol.Izleyici);
 
         var ozet = Assert.Single(g);
         Assert.Equal("Haftalık özet · 28 Eylül – 4 Ekim", ozet.Baslik);
@@ -688,9 +714,9 @@ public class BildirimPlanlayiciTests
         Assert.Equal(new DateOnly(2026, 10, 5), depo.OkuTarih(YerelAnahtarlar.SonHaftalikOzet));
 
         saat.Ilerle(TimeSpan.FromDays(2));
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: true));
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));
         saat.Ilerle(TimeSpan.FromDays(5));   // sonraki Pazartesi 08:30
-        Assert.Single(await p.CalistirAsync(Rol.Izleyici, arkaPlan: false), x => x.Hedef == "haftalik");
+        Assert.Single(await p.CalistirAsync(Rol.Izleyici), x => x.Hedef == "haftalik");
         Assert.Equal(2, b.Gosterilen.Count(x => x.Hedef == "haftalik"));
     }
 
@@ -701,10 +727,11 @@ public class BildirimPlanlayiciTests
         api.CekOzeti = PaketAOrnek.CekOzeti(gecen: [PaketAOrnek.Cek(1, CekYonu.Alinan, 700m, new DateOnly(2026, 9, 30), "Veli"),
                                                     PaketAOrnek.Cek(2, CekYonu.Verilen, 300m, new DateOnly(2026, 9, 12), "Nakliye")]);
         depo.YazBool(YerelAnahtarlar.BildirimHaftalikOzet, false);
-        var g = await p.CalistirAsync(Rol.Editor, arkaPlan: false);
+        var g = await p.CalistirAsync(Rol.Izleyici);
         var c = Assert.Single(g);
         Assert.Equal("Vadesi geçen 2 çek", c.Baslik);
-        Assert.Equal("Toplam 1.000,00 ₺ · en eskisi Nakliye, vade 12 Eylül", c.Metin);
+        // Alınan (bize gelecek) ve verilen (bizden çıkacak) çek tek toplamda birleşmez.
+        Assert.Equal("Tahsil edilecek +700,00 ₺ · ödenecek −300,00 ₺ · en eskisi Nakliye, vade 12 Eylül", c.Metin);
         Assert.Equal("cekler", c.Hedef);
     }
 
@@ -714,10 +741,10 @@ public class BildirimPlanlayiciTests
         var (api, depo, b, _, p) = Kur(new DateTime(2026, 10, 5, 9, 0, 0));
         api.CekOzeti = PaketAOrnek.CekOzeti(gecen: [PaketAOrnek.Cek(1, CekYonu.Alinan, 700m, new DateOnly(2026, 9, 30))]);
         api.YuklemeHatasi = new HttpRequestException("ağ yok");
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: false));
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));
         Assert.Null(depo.OkuTarih(YerelAnahtarlar.SonHaftalikOzet));
         api.YuklemeHatasi = null;
-        Assert.Equal(2, (await p.CalistirAsync(Rol.Izleyici, arkaPlan: false)).Count);
+        Assert.Equal(2, (await p.CalistirAsync(Rol.Izleyici)).Count);
     }
 
     [Fact]
@@ -727,7 +754,7 @@ public class BildirimPlanlayiciTests
         depo.YazBool(YerelAnahtarlar.BildirimHaftalikOzet, false);
         depo.YazBool(YerelAnahtarlar.BildirimVadesiGecenCek, false);
         depo.YazBool(YerelAnahtarlar.BildirimGecmiseDonuk, false);
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: true));
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));
         Assert.Equal(0, api.CekOzetCagri);
         Assert.Empty(api.GecmisOzetCagrilari);
         Assert.Equal(new DateOnly(2026, 10, 5), depo.OkuTarih(YerelAnahtarlar.SonHaftalikOzet));
@@ -740,20 +767,20 @@ public class BildirimPlanlayiciTests
         depo.YazTarih(YerelAnahtarlar.SonHaftalikOzet, new DateOnly(2026, 10, 5));
         api.GecmisListe = [PaketAOrnek.Degisiklik(20, gecmiseDonuk: true)];
 
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: false));   // eski satır bildirilmez
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));   // eski satır bildirilmez
         Assert.Equal(20, depo.OkuInt(YerelAnahtarlar.SonGecmiseDonukId));
 
         api.GecmisListe = [PaketAOrnek.Degisiklik(23), PaketAOrnek.Degisiklik(22, gecmiseDonuk: true), PaketAOrnek.Degisiklik(21, gecmiseDonuk: true), .. api.GecmisListe];
-        var g = Assert.Single(await p.CalistirAsync(Rol.Izleyici, arkaPlan: false));
+        var g = Assert.Single(await p.CalistirAsync(Rol.Izleyici));
         Assert.Equal("Geçmişe dönük düzeltme", g.Baslik);
         Assert.Equal("2 değişiklik geçmiş ayların rakamlarını değiştirdi · son: İşlem eklendi #22", g.Metin);
         Assert.Equal("gecmis", g.Hedef);
         Assert.Equal(23, depo.OkuInt(YerelAnahtarlar.SonGecmiseDonukId));
 
         api.GecmisListe = [PaketAOrnek.Degisiklik(24, gecmiseDonuk: true), .. api.GecmisListe];
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: false));   // bugün zaten bildirildi
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));   // bugün zaten bildirildi
         saat.Ilerle(TimeSpan.FromDays(1));
-        Assert.Equal("İşlem eklendi #24", Assert.Single(await p.CalistirAsync(Rol.Izleyici, arkaPlan: true)).Metin);
+        Assert.Equal("İşlem eklendi #24", Assert.Single(await p.CalistirAsync(Rol.Izleyici)).Metin);
     }
 
     [Fact]
@@ -763,38 +790,58 @@ public class BildirimPlanlayiciTests
         depo.YazTarih(YerelAnahtarlar.SonHaftalikOzet, new DateOnly(2026, 10, 5));
         depo.YazInt(YerelAnahtarlar.SonGecmiseDonukId, 900);
         api.GecmisListe = [PaketAOrnek.Degisiklik(2, gecmiseDonuk: true)];
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: false));
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));
         Assert.Equal(2, depo.OkuInt(YerelAnahtarlar.SonGecmiseDonukId));
     }
 
     [Fact]
-    public async Task Bugun_yapilacaklar_yalniz_editor_arka_planda_gunde_bir_kez()
+    public async Task Bugun_yapilacaklar_yalniz_editor_gunun_ilk_calistirmasinda_bir_kez()
     {
-        var (api, depo, b, saat, p) = Kur(new DateTime(2026, 10, 7, 9, 0, 0));
+        var (api, depo, b, saat, p) = Kur(new DateTime(2026, 10, 7, 8, 30, 0));   // sabah, 09:00'dan önce
         depo.YazTarih(YerelAnahtarlar.SonHaftalikOzet, new DateOnly(2026, 10, 5));
         depo.YazBool(YerelAnahtarlar.BildirimGecmiseDonuk, false);
         api.BekleyenListe = [new(1, "Kira", "Ortak", 15_000m, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 5))];
         api.KasaSayimlariListe = [PaketAOrnek.Sayim(1, new DateOnly(2026, 10, 6), 0m)];
 
-        Assert.Empty(await p.CalistirAsync(Rol.Izleyici, arkaPlan: true));
-        Assert.Empty(await p.CalistirAsync(Rol.Editor, arkaPlan: false));   // uygulama açılışı: panel zaten gösterir
+        Assert.Empty(await p.CalistirAsync(Rol.Izleyici));   // izleyiciye yapılacaklar gitmez
         Assert.Equal(0, api.BekleyenCagri);
 
-        var g = Assert.Single(await p.CalistirAsync(Rol.Editor, arkaPlan: true));
+        // Uygulama sabah açıldı (günün ilk çalıştırması): bildirim gelir.
+        var g = Assert.Single(await p.CalistirAsync(Rol.Editor));
         Assert.Equal("Bugün yapılacaklar (1)", g.Baslik);
         Assert.Equal("1 tekrarlayan gider onay bekliyor", g.Metin);
         Assert.Equal("panel", g.Hedef);
-        Assert.Empty(await p.CalistirAsync(Rol.Editor, arkaPlan: true));
+        Assert.Equal(new DateOnly(2026, 10, 7), depo.OkuTarih(YerelAnahtarlar.SonYapilacaklar));
+        // 09:00 hatırlatıcısı ya da uygulamanın yeniden açılışı aynı gün tekrar göndermez.
+        saat.Ilerle(TimeSpan.FromMinutes(30));
+        Assert.Empty(await p.CalistirAsync(Rol.Editor));
+        Assert.Single(b.Gosterilen, x => x.Hedef == "panel");
 
+        // Ertesi gün uygulama açılmadan 09:00 hatırlatıcısı çalışırsa o gönderir; liste boşsa bildirim yok.
         saat.Ilerle(TimeSpan.FromDays(1));
         api.BekleyenListe = [];
-        Assert.Empty(await p.CalistirAsync(Rol.Editor, arkaPlan: true));   // liste boş: bildirim yok
+        Assert.Empty(await p.CalistirAsync(Rol.Editor));
         Assert.Equal(new DateOnly(2026, 10, 8), depo.OkuTarih(YerelAnahtarlar.SonYapilacaklar));
 
         saat.Ilerle(TimeSpan.FromDays(1));
         api.BekleyenListe = [new(1, "Kira", "Ortak", 15_000m, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 5))];
         depo.YazBool(YerelAnahtarlar.BildirimBugunYapilacaklar, false);
-        Assert.Empty(await p.CalistirAsync(Rol.Editor, arkaPlan: true));
+        Assert.Empty(await p.CalistirAsync(Rol.Editor));
+    }
+
+    [Fact]
+    public async Task Bugun_yapilacaklar_okuma_hatasinda_isaretlenmez_sonraki_calistirmada_gelir()
+    {
+        var (api, depo, b, saat, p) = Kur(new DateTime(2026, 10, 7, 8, 30, 0));
+        depo.YazTarih(YerelAnahtarlar.SonHaftalikOzet, new DateOnly(2026, 10, 5));
+        depo.YazBool(YerelAnahtarlar.BildirimGecmiseDonuk, false);
+        api.BekleyenListe = [new(1, "Kira", "Ortak", 15_000m, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 5))];
+        api.YuklemeHatasi = new HttpRequestException("ağ yok");
+        Assert.Empty(await p.CalistirAsync(Rol.Editor));   // açılışta ağ yoktu
+        Assert.Null(depo.OkuTarih(YerelAnahtarlar.SonYapilacaklar));
+        api.YuklemeHatasi = null;
+        saat.Ilerle(TimeSpan.FromMinutes(30));              // 09:00 hatırlatıcısı telafi eder
+        Assert.Single(await p.CalistirAsync(Rol.Editor), x => x.Hedef == "panel");
     }
 
     [Fact]
@@ -804,7 +851,7 @@ public class BildirimPlanlayiciTests
         depo.YazTarih(YerelAnahtarlar.SonHaftalikOzet, new DateOnly(2026, 10, 5));
         depo.YazBool(YerelAnahtarlar.BildirimGecmiseDonuk, false);
         api.EksikGelenHatasi = new KasaApiException(HttpStatusCode.NotFound);
-        var g = Assert.Single(await p.CalistirAsync(Rol.Editor, arkaPlan: true));
+        var g = Assert.Single(await p.CalistirAsync(Rol.Editor));
         Assert.Equal("Henüz kasa sayımı yapılmadı", g.Metin);
     }
 
