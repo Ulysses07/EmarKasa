@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Paket C · 32: "Silindi · Geri al" şeridi. Sayfanın VM'inden bağlanır: Silme (SilmeOnayi),
+     SilmeGeriAlCommand, SilmeSeridiKapatCommand. Sayfalar bunu içeriğin ÜSTÜNE, altta yüzen bir çubuk
+     olarak koyar (Grid içinde son çocuk): akışta yer kaplamaz, uzun sayfada da hep görünür.
+     İlk "Sil" basışı yalnız düğme metnini değiştirir ("Emin misiniz?"); sayfada hiçbir şey kaymaz. -->
+<ContentView
+    x:Class="Kasa.App.Views.SilmeSeridi"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    IsVisible="{Binding Silme.SeritGorunur}"
+    VerticalOptions="End" HorizontalOptions="Center" MaximumWidthRequest="720" Margin="16">
+
+    <Border Background="{StaticResource BrushGreenSoft}" Stroke="{StaticResource BrushGreen}"
+            StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="14,8">
+        <Border.Shadow>
+            <Shadow Brush="#20261F" Opacity="0.18" Radius="14" Offset="0,4" />
+        </Border.Shadow>
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <Label Text="{Binding Silme.SeritMetni}" Style="{StaticResource LblRowPrimary}"
+                   VerticalOptions="Center" LineBreakMode="TailTruncation" />
+            <Button Grid.Column="1" Text="Geri al" Command="{Binding SilmeGeriAlCommand}"
+                    Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
+            <Button Grid.Column="2" Text="Kapat" Command="{Binding SilmeSeridiKapatCommand}"
+                    Style="{StaticResource BtnRowEdit}" VerticalOptions="Center" />
+        </Grid>
+    </Border>
+</ContentView>

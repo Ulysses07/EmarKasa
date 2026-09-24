@@ -88,6 +88,13 @@
     <FlyoutItem x:Name="IslemlerItem" Title="İşlemler" Route="islemler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:IslemlerPage}" />
     </FlyoutItem>
+    <!-- Paket C: gelen tablosu (her iki rol) ve Excel'den toplu yükleme (yalnız editör) -->
+    <FlyoutItem x:Name="GelenlerItem" Title="Gelenler" Route="gelenler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:GelenlerPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="TopluGirisItem" Title="Toplu Yükleme" Route="toplu" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:TopluGirisPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="KartlarItem" Title="Kredi Kartları" Route="kartlar" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
     </FlyoutItem>

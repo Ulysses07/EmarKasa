@@ -9,6 +9,7 @@
     Title="Ayarlar"
     BackgroundColor="{StaticResource AppBg}">
 
+    <Grid><!-- paket C · 32: "Silindi · Geri al" şeridi içeriğin üstünde, altta yüzer -->
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
@@ -149,9 +150,17 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.KanalSilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliKanalSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -219,9 +228,17 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.KalemDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.KalemSilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliKalemSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -413,9 +430,17 @@
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.TekrarDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.TekrarSilCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
+                                            <Button Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.OnayliTekrarSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}">
+                                                <Button.Text>
+                                                    <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                        <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </Button.Text>
+                                            </Button>
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -436,4 +461,6 @@
             <v:BildirimAyarlariView />
         </VerticalStackLayout>
     </ScrollView>
+    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" />
+    </Grid>
 </ContentPage>

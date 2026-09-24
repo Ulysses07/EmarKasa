@@ -52,6 +52,8 @@ public partial class AppShell : Shell
         AylikItem.IsVisible = true;
         CarilerItem.IsVisible = true;
         IslemlerItem.IsVisible = true;
+        GelenlerItem.IsVisible = true;                                     // paket C: izleyici yalnız görür
+        TopluGirisItem.IsVisible = _auth.AktifRol == Rol.Editor;           // paket C: yalnız editör yazar
         KartlarItem.IsVisible = true;
         CeklerItem.IsVisible = bolumler.Contains(Bolum.Cekler);
         GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
@@ -69,6 +71,8 @@ public partial class AppShell : Shell
         AylikItem.IsVisible = false;
         CarilerItem.IsVisible = false;
         IslemlerItem.IsVisible = false;
+        GelenlerItem.IsVisible = false;
+        TopluGirisItem.IsVisible = false;
         KartlarItem.IsVisible = false;
         CeklerItem.IsVisible = false;
         GecmisItem.IsVisible = false;

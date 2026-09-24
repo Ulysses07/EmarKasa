@@ -1,7 +1,9 @@
 namespace Kasa.Api;
 
 public record LoginDto(string? Kullanici, string Sifre);
-public record GelenUpsertDto(DateOnly DonemStart, string Kanal, decimal TutarTl);
+/// <param name="BeklenenTutar">İsteğe bağlı: istemcinin gördüğü kayıtlı tutar (kayıt yoksa 0). Verilirse ve kayıtlı
+/// tutar farklıysa 409 döner (mevcutTutar ile); verilmezse eski davranış (koşulsuz upsert).</param>
+public record GelenUpsertDto(DateOnly DonemStart, string Kanal, decimal TutarTl, decimal? BeklenenTutar = null);
 public record IzleyiciSifreDto(string YeniSifre);
 
 public record KanalBakiye(string Kanal, decimal Bakiye);

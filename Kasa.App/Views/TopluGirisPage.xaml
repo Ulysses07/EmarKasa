@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · TopluGirisPage (paket C · 16) — Excel'den yapıştırılan satırlar ya da seçilen xlsx / CSV
+     önizleme tablosuna dökülür; her hücre yazarken doğrulanır; "Hepsini kaydet" tek seferde (ya hep ya hiç).
+     Banka dökümünde yalnız gider tarafı (borç) kaydedilir. -->
+<ContentPage
+    x:Class="Kasa.App.Views.TopluGirisPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Toplu Yükleme"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="{OnIdiom Desktop='28,22', Default='16,14'}"
+          RowSpacing="16" MaximumWidthRequest="1160">
+
+        <Grid ColumnDefinitions="*,Auto">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Toplu Yükleme" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Excel'den yapıştırın ya da Excel / CSV dosyası seçin · hepsi tek seferde kaydedilir, bir satır hatalıysa hiçbiri"
+                       Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+            <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                               WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+        </Grid>
+
+        <VerticalStackLayout Grid.Row="1" Spacing="10">
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+            <Border IsVisible="{Binding Sonuc, Converter={StaticResource DoluIse}}" Padding="14,10"
+                    Background="{StaticResource BrushGreenSoft}" Stroke="{StaticResource BrushGreen}"
+                    StrokeThickness="1" StrokeShape="RoundRectangle 10">
+                <Label Text="{Binding Sonuc}" Style="{StaticResource LblRowPrimary}" TextColor="{StaticResource GreenDark}" />
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- Kaynak ve seçenekler -->
+        <Border Grid.Row="2" Style="{StaticResource CardForm}">
+            <Grid ColumnDefinitions="{OnIdiom Desktop='*,*', Default='*'}"
+                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                  ColumnSpacing="20" RowSpacing="16">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Kaynak" Style="{StaticResource LblSection}" />
+                    <Border Style="{StaticResource FieldBorder}">
+                        <Editor Text="{Binding Yapistirilan}" HeightRequest="120" AutoSize="Disabled"
+                                Placeholder="Excel'de satırları seçip kopyalayın, buraya yapıştırın" />
+                    </Border>
+                    <Label Style="{StaticResource LblRowSecondary}" FontSize="12"
+                           Text="Sütunlar: Tarih · Cari · Tutar · Kanal · Tip · Not · Kart (başlık satırı varsa ona göre; banka dökümünde Açıklama, İşlem Tutarı, Borç / Alacak da tanınır). Tarih gg.aa.yyyy, tutar 1.500,50. Tip boşsa: kayıtlı kalemse sabit gider, değilse cari." />
+                    <HorizontalStackLayout Spacing="8">
+                        <Button Text="Dosya seç (Excel, CSV)" Command="{Binding DosyaSecCommand}" Style="{StaticResource BtnSecondary}" />
+                        <Button Text="Temizle" Command="{Binding TemizleCommand}" Style="{StaticResource BtnRowEdit}" />
+                        <Label Text="{Binding DosyaAdi}" Style="{StaticResource LblRowSecondary}" VerticalOptions="Center"
+                               IsVisible="{Binding DosyaAdi, Converter={StaticResource DoluIse}}" />
+                    </HorizontalStackLayout>
+                    <!-- Atlanan başlık öncesi satırlar, banka dökümü, açıklamadan cari -->
+                    <Label Text="{Binding KaynakNotu}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                           TextColor="{StaticResource GreenDark}"
+                           IsVisible="{Binding KaynakNotu, Converter={StaticResource DoluIse}}" />
+                </VerticalStackLayout>
+
+                <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}" Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                     Spacing="10">
+                    <Label Text="Seçenekler" Style="{StaticResource LblSection}" />
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <Switch IsToggled="{Binding YeniCarileriEkle}" OnColor="{StaticResource Green}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Kayıtlı olmayan carileri kayıtla birlikte ekle"
+                               Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                    </Grid>
+                    <!-- Tabloda hem eksi hem artı tutar var (banka dökümü): yalnız gider tarafı kaydedilir -->
+                    <VerticalStackLayout Spacing="6" IsVisible="{Binding IsaretAnlamli}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Switch IsToggled="{Binding EksilerGider}" OnColor="{StaticResource Green}" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="{Binding IsaretAciklamasi}"
+                                   Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                        </Grid>
+                        <Button Text="{Binding GiderOlmayanDugmesi}" Command="{Binding GiderOlmayanlariKaldirCommand}"
+                                Style="{StaticResource BtnRowDelete}" HorizontalOptions="Start"
+                                IsVisible="{Binding GiderOlmayanVar}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="0">
+                        <Label Text="Kanalı boş satırlar için" Style="{StaticResource LblField}" />
+                        <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding KanalCipleri}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecVarsayilanKanalCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="0">
+                        <Label Text="Böl: satırdaki tutarı seçili kanallara eşit böl (kuruş artığı ilk kanala)"
+                               Style="{StaticResource LblField}" />
+                        <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding BolmeKanallari}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecBolmeKanalCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <!-- Önizleme: hücreler düzenlenebilir, her değişiklikte satır yeniden doğrulanır -->
+        <Border Grid.Row="3" Style="{StaticResource Card}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <Grid Padding="18,14,18,8" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Önizleme" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding Ozet}" Style="{StaticResource LblRowSecondary}" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1" Text="Hepsini kaydet" Command="{Binding HepsiniKaydetCommand}"
+                            VerticalOptions="Center" />
+                </Grid>
+                <Grid Grid.Row="1" Padding="18,4" ColumnDefinitions="36,100,*,110,110,90,*,90,Auto" ColumnSpacing="8">
+                    <Label Text="#" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="1" Text="TARİH" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="2" Text="CARİ / KALEM" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="3" Text="TUTAR" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="4" Text="KANAL" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="5" Text="TİP" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="6" Text="NOT" Style="{StaticResource LblField}" />
+                    <Label Grid.Column="7" Text="KART" Style="{StaticResource LblField}" />
+                </Grid>
+                <CollectionView Grid.Row="2" ItemsSource="{Binding Satirlar}" SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout>
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid Padding="18,6" ColumnDefinitions="36,100,*,110,110,90,*,90,Auto" ColumnSpacing="8"
+                                      RowDefinitions="Auto,Auto">
+                                    <Label Text="{Binding Sira}" Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                                    <Border Grid.Column="1" Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding TarihMetni}" Placeholder="gg.aa.yyyy" />
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding Cari}" />
+                                    </Border>
+                                    <Border Grid.Column="3" Style="{StaticResource FieldBorder}">
+                                        <!-- EntryMoney değil: eksi/parantezli tutar burada geçerlidir, satır kendi hatasını gösterir -->
+                                        <Entry Text="{Binding TutarMetni}" HorizontalTextAlignment="End" />
+                                    </Border>
+                                    <Border Grid.Column="4" Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding Kanal}" />
+                                    </Border>
+                                    <Border Grid.Column="5" Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding TipMetni}" Placeholder="otomatik" />
+                                    </Border>
+                                    <Border Grid.Column="6" Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding Not}" />
+                                    </Border>
+                                    <Border Grid.Column="7" Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding KartMetni}" />
+                                    </Border>
+                                    <HorizontalStackLayout Grid.Column="8" Spacing="4" VerticalOptions="Center">
+                                        <Button Text="Böl" Style="{StaticResource BtnRowEdit}"
+                                                Command="{Binding BindingContext.BolCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        <Button Text="Kaldır" Style="{StaticResource BtnRowDelete}"
+                                                Command="{Binding BindingContext.SatirKaldirCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                    </HorizontalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="8" Spacing="2">
+                                        <Label Text="{Binding Hata}" Style="{StaticResource LblError}" FontSize="12"
+                                               IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
+                                        <Label Text="{Binding Bilgi}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                               IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                            <Label Text="Henüz satır yok" Style="{StaticResource LblEmptyTitle}" />
+                            <Label Text="Yapıştırdığınız ya da seçtiğiniz dosyadaki satırlar burada doğrulanır."
+                                   Style="{StaticResource LblEmptySub}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                </CollectionView>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

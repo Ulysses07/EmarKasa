@@ -551,17 +551,18 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) => Yaz(db, "
 // Islemler. limit/offset verilmezse tüm eşleşenler döner (eski davranış); verilirse sayfa
 // döner ve toplam kayıt sayısı X-Toplam-Kayit başlığında gelir.
 api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset,
-    KasaDbContext db, HttpContext http) =>
+    [AsParameters] IslemAramaFiltresi ara, KasaDbContext db, HttpContext http) =>
 {
     if (limit is < 1 or > 10_000) return Hata("limit 1 ile 10000 arasında olmalı.");
     if (offset is < 0) return Hata("offset negatif olamaz.");
-    var q = IslemSorgusu(db, baslangic, bitis, kanal);
+    if (ara.Hata() is string aramaHatasi) return Hata(aramaHatasi);
+    var q = ara.SorguyaUygula(IslemSorgusu(db, baslangic, bitis, kanal));
 
     List<IslemEntity> sonuc;
     int toplam;
-    if (!string.IsNullOrWhiteSpace(cari))
+    if (!string.IsNullOrWhiteSpace(cari) || ara.BellekteVarMi())
     {
-        var hepsi = CariyeGoreSuz(q, cari).ToList();
+        var hepsi = ara.BellekteUygula(string.IsNullOrWhiteSpace(cari) ? q.AsEnumerable() : CariyeGoreSuz(q, cari)).ToList();
         toplam = hepsi.Count;
         IEnumerable<IslemEntity> sayfa = hepsi;
         if (offset is { } o1) sayfa = sayfa.Skip(o1);
@@ -727,6 +728,9 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db, TimeProvider saat
     if (GelenHatasi(db, saat, dto.TutarTl, kanal, dto.DonemStart, out var donemStart) is string hata) return Hata(hata);
 
     var e = db.Gelenler.FirstOrDefault(g => g.DonemStart == donemStart && g.Kanal == kanal);
+    // İsteğe bağlı iyimser koruma: istemci gördüğü tutarı gönderdiyse ve kayıt o arada değiştiyse üzerine yazılmaz.
+    if (dto.BeklenenTutar is { } beklenen && (e?.TutarTl ?? 0m) != beklenen)
+        return Results.Conflict(new { hata = $"Bu kanalın geleni siz açtıktan sonra değişmiş (kayıtlı: {(e?.TutarTl ?? 0m).ToString("#,##0.00", Metin.Tr)} ₺).", mevcutTutar = e?.TutarTl ?? 0m });
     if (e is null)
     {
         e = new GelenEntity { DonemStart = donemStart, Kanal = kanal, TutarTl = dto.TutarTl };
@@ -843,11 +847,13 @@ api.MapDelete("/kasasayimlari/{id:int}", (int id, KasaDbContext db) =>
 }).RequireAuthorization("Editor");
 
 // Excel'e aktar (CSV — her iki rol indirebilir). Rakamlar JSON uç noktalarıyla aynıdır.
-api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
+api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari,
+    [AsParameters] IslemAramaFiltresi ara, KasaDbContext db) =>
 {
     // GET /api/islemler ile aynı filtre ve sıra (sayfalama yok: filtreye uyanların tamamı).
-    var q = IslemSorgusu(db, baslangic, bitis, kanal);
-    var liste = string.IsNullOrWhiteSpace(cari) ? q.ToList() : CariyeGoreSuz(q, cari).ToList();
+    if (ara.Hata() is string aramaHatasi) return Hata(aramaHatasi);
+    var q = ara.SorguyaUygula(IslemSorgusu(db, baslangic, bitis, kanal));
+    var liste = ara.BellekteUygula(string.IsNullOrWhiteSpace(cari) ? q.AsEnumerable() : CariyeGoreSuz(q, cari)).ToList();
     var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
     return CsvDosyasi(CsvRaporlari.Islemler(liste, kartAdlari), CsvRaporlari.IslemDosyaAdi(baslangic, bitis, kanal, cari));
 });
@@ -916,6 +922,7 @@ api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi 
 
 // Paket D: çek/senet, tekrarlayan gider, kart ekstresi mutabakatı, kasa sayımı ekleri.
 api.MapCekEvrak(Yaz, CekHatasi).MapTekrarlayanEkleri(Yaz, TekrarlayanAyHatasi, KayitliKalem).MapKartMutabakat(Yaz).MapKasaSayimEkleri(Yaz);
+api.MapHizliGirisEndpoints(IslemHatasi, CariHatasi); // paket C: uyarılar, toplu yükleme, gelen tablosu, son silme
 
 app.Run();
 

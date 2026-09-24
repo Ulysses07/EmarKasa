@@ -196,11 +196,11 @@ public partial class IslemlerViewModel : TemelViewModel
         try
         {
             // Sunucu eskiden yeniye sıralar: ilk sayfa toplamı verir; fazlaysa en yeni sayfa istenir.
-            sayfa = await _api.IslemSayfasiAsync(bas, bit, kanal, null, SayfaBoyutu, 0);
+            sayfa = await SayfaGetirAsync(bas, bit, kanal, SayfaBoyutu, 0);
             if (sayfa.Toplam > sayfa.Kayitlar.Count && surum == _listeSurumu)
             {
                 ofset = Math.Max(0, sayfa.Toplam - SayfaBoyutu);
-                sayfa = await _api.IslemSayfasiAsync(bas, bit, kanal, null, SayfaBoyutu, ofset);
+                sayfa = await SayfaGetirAsync(bas, bit, kanal, SayfaBoyutu, ofset);
             }
         }
         catch when (surum != _listeSurumu)
@@ -228,7 +228,7 @@ public partial class IslemlerViewModel : TemelViewModel
             var surum = _listeSurumu;
             var (bas, bit, kanal) = _yukluFiltre;
             var yeniOfset = Math.Max(0, _yukluOfset - SayfaBoyutu);
-            var sayfa = await _api.IslemSayfasiAsync(bas, bit, kanal, null, _yukluOfset - yeniOfset, yeniOfset);
+            var sayfa = await SayfaGetirAsync(bas, bit, kanal, _yukluOfset - yeniOfset, yeniOfset);
             if (surum != _listeSurumu) return;   // bu arada liste yeniden yüklendi
 
             var mevcut = Islemler.Select(i => i.Id).ToHashSet();
@@ -291,7 +291,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
         AktarilanDosya = null;
-        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => _api.IslemlerCsvAsync(bas, bit, kanal));
+        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => CsvGetirAsync(bas, bit, kanal));
     });
 
     // ---- Filtre komutları ----
@@ -593,6 +593,7 @@ public partial class IslemlerViewModel : TemelViewModel
         _duzenEskiKartsizKK = false;
         _varsayilanGun = Bugun;
         IleriTarihUyarisi = null;
+        FormSifirlandi();
     }
 
     [RelayCommand]
@@ -603,6 +604,7 @@ public partial class IslemlerViewModel : TemelViewModel
         DuzenTip = i.Tip; DuzenNot = i.Not; DuzenKrediKartiId = i.KrediKartiId;
         _duzenEskiKartsizKK = i.Tip == GiderTipi.KrediKarti && i.KrediKartiId is null;
         IleriTarihUyarisi = null;
+        FormSifirlandi();
     }
 
     [RelayCommand]
@@ -615,7 +617,7 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     private void IleriTarihVazgec() => IleriTarihUyarisi = null;
 
-    private Task KaydetIcAsync(bool ileriTarihOnayli) => CalistirAsync(async () =>
+    private Task KaydetIcAsync(bool ileriTarihOnayli, bool uyariOnayli = false) => CalistirAsync(async () =>
     {
         // Kart seçilmeden "Kredi kartı" kaydı, kartsız K.K olarak farklı muhasebeleşir (ay sonuna
         // ertelenir). Yalnız zaten kartsız olan eski kayıtların düzenlenmesine izin verilir.
@@ -634,9 +636,10 @@ public partial class IslemlerViewModel : TemelViewModel
         IleriTarihUyarisi = null;
 
         var g = new IslemYaz(tarih, DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
-        if (DuzenId == 0) await _api.IslemOlusturAsync(g);
-        else await _api.IslemGuncelleAsync(DuzenId, g);
-        Yeni();
+        if (!uyariOnayli && await UyarilariGosterAsync(g)) return;   // "Yine de kaydet" / "Vazgeç"
+        UyarilariTemizle();
+        var kaydedilen = DuzenId == 0 ? await _api.IslemOlusturAsync(g) : await _api.IslemGuncelleAsync(DuzenId, g);
+        KayitSonrasi(kaydedilen);                                    // seri girişte tarih/kanal/tip kalır
         // Kanal/kart listeleri değişmedi: yalnız liste (ve gerekirse dönemler) yenilenir.
         await DonemleriGerekirseYenileAsync(tarih);
         await IslemleriYukleAsync();
@@ -666,8 +669,7 @@ public partial class IslemlerViewModel : TemelViewModel
                 : tarih < ilk ? $"Seçilen tarih takip başlangıcından ({ilk.Value.ToString("d MMMM yyyy", Kultur.Turkce)}) önce; gelen bu tarihe girilemez."
                 : "Seçilen tarih için henüz dönem yok; ileri tarihli gelen girilemez.");
         }
-        await _api.GelenKaydetAsync(new GelenYaz(donem!.Start, GelenKanal, GelenTutar));
-        GelenKanal = ""; GelenTutar = 0;
+        await GelenKorumaliYazAsync(new GelenYaz(donem!.Start, GelenKanal, GelenTutar));
     });
 }
 

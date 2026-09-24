@@ -51,6 +51,9 @@ public static class MauiProgram
         builder.Services.AddTransient<AylikViewModel>();
         builder.Services.AddTransient<CarilerViewModel>();
         builder.Services.AddTransient<IslemlerViewModel>();
+        builder.Services.AddTransient<GelenlerViewModel>();      // paket C · 29
+        builder.Services.AddTransient<TopluGirisViewModel>();    // paket C · 16
+        builder.Services.AddSingleton<IDosyaSecici, MauiDosyaSecici>();   // toplu yüklemede CSV seçimi
         builder.Services.AddTransient<KrediKartlariViewModel>();
         builder.Services.AddTransient<CeklerViewModel>();
         builder.Services.AddTransient<GecmisViewModel>();
@@ -66,6 +69,8 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.AylikPage>();
         builder.Services.AddTransient<Views.CarilerPage>();
         builder.Services.AddTransient<Views.IslemlerPage>();
+        builder.Services.AddTransient<Views.GelenlerPage>();
+        builder.Services.AddTransient<Views.TopluGirisPage>();
         builder.Services.AddTransient<Views.KrediKartlariPage>();
         builder.Services.AddTransient<Views.CeklerPage>();
         builder.Services.AddTransient<Views.GecmisPage>();

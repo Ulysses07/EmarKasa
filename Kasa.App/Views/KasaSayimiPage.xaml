@@ -129,6 +129,7 @@
                                    Style="{StaticResource LblRowSecondary}" FontSize="12" />
                         </VerticalStackLayout>
                     </Border>
+                    <v:SilmeSeridi xmlns:v="clr-namespace:Kasa.App.Views" HorizontalOptions="Fill" Margin="0" /><!-- paket C · 32: Silindi · Geri al (form sütununda, liste kaymaz) -->
                 </VerticalStackLayout>
             </ScrollView>
 
@@ -206,11 +207,19 @@
                                             <Label Text="{Binding FarkYazi}" Style="{StaticResource LblMoney}"
                                                    TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}" />
                                         </VerticalStackLayout>
-                                        <Button Grid.Column="5" Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                        <Button Grid.Column="5" Style="{StaticResource BtnRowDelete}"
                                                 VerticalOptions="Center"
                                                 IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
-                                                Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
-                                                CommandParameter="{Binding .}" />
+                                                Command="{Binding BindingContext.OnayliSilCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}">
+                                            <Button.Text>
+                                                <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                    <Binding Path="." />
+                                                    <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                    <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                </MultiBinding>
+                                            </Button.Text>
+                                        </Button>
                                     </Grid>
 
                                     <!-- ==================== Paket D: satırlar, fark durumu, "Neden değişti?" ==================== -->
