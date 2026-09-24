@@ -95,7 +95,7 @@ public class KartOdemeEntity
 /// (<see cref="IslemTarihi"/>) etkiler; kural <see cref="CekKurali"/>'ndadır.
 /// </summary>
 [Gecmis(GecmisTurleri.Cek, nameof(CekEntity.Yon), nameof(CekEntity.Kisi), nameof(CekEntity.Tutar), nameof(CekEntity.VadeTarihi))]
-public class CekEntity
+public partial class CekEntity
 {
     public int Id { get; set; }
     public CekYonu Yon { get; set; }
@@ -119,7 +119,7 @@ public class CekEntity
 /// HesaplananTutar bir anlık görüntüdür; geçmiş kayıtlar sonradan düzeltilse de değişmez.
 /// </summary>
 [Gecmis(GecmisTurleri.KasaSayimi, nameof(KasaSayimEntity.Tarih), nameof(KasaSayimEntity.SayilanTutar))]
-public class KasaSayimEntity
+public partial class KasaSayimEntity
 {
     public int Id { get; set; }
     public DateOnly Tarih { get; set; }
@@ -134,7 +134,7 @@ public class KasaSayimEntity
 /// günü gelince "bekleyen" olarak listelenir, editör onaylayınca sabit gider işlemi olur.
 /// </summary>
 [Gecmis(GecmisTurleri.TekrarlayanGider, nameof(TekrarlayanGiderEntity.Kalem), nameof(TekrarlayanGiderEntity.Kanal), nameof(TekrarlayanGiderEntity.Tutar))]
-public class TekrarlayanGiderEntity
+public partial class TekrarlayanGiderEntity
 {
     public int Id { get; set; }
     /// <summary>Gider kalemi adı (GiderKalemleri'ndeki kayıtlı yazım; kalem adı değişince güncellenir).</summary>

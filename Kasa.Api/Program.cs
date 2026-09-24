@@ -8,6 +8,7 @@ using System.Threading.RateLimiting;
 using Kasa.Api;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Api.Endpoints;
 using Kasa.Core;
 using Kasa.Api.Servisler;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -324,6 +325,8 @@ api.MapPut("/cariler/{id:int}", (int id, CariEntity gelen, KasaDbContext db) => 
         if (islemSayisi > 0)
             db.TopluDegisiklikEkle(GecmisTurleri.Cari, id, $"Cari adı değişti: {eskiAd} → {ad} ({islemSayisi} işlem güncellendi)",
                 eski: new { ad = eskiAd }, yeni: new { ad, islemSayisi });
+        // Paket D: karta bağlı tekrarlayan giderin kalemi bir cari adıdır.
+        KartliTekrarlayanCarisiniTasi(db, id, eskiAd, ad);
     }
     e.Ad = ad; e.Aktif = gelen.Aktif;
     db.SaveChanges();
@@ -335,6 +338,8 @@ api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Cari s
     if (e is null) return Results.NotFound();
     if (db.Islemler.Any(i => i.Cari == e.Ad && !(i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null)))
         return Results.Conflict(new { hata = "Bu carinin işlem kayıtları var. Silmek yerine pasif yapın." });
+    if (db.TekrarlayanGiderler.Any(t => t.KrediKartiId != null && t.Kalem == e.Ad))
+        return Results.Conflict(new { hata = "Bu cari karta bağlı bir tekrarlayan giderde kullanılıyor. Önce Ayarlar → Tekrarlayan giderler'den o kaydı silin." });
     db.Cariler.Remove(e); db.SaveChanges();
     return Results.NoContent();
 })).RequireAuthorization("Editor");
@@ -362,7 +367,7 @@ api.MapPut("/giderkalemleri/{id:int}", (int id, GiderKalemiEntity gelen, KasaDbC
         var eskiAd = e.Ad;
         var islemSayisi = db.Islemler.Where(i => i.Cari == eskiAd && i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null)
             .ExecuteUpdate(s => s.SetProperty(i => i.Cari, ad));
-        var tekrarlayanSayisi = db.TekrarlayanGiderler.Where(t => t.Kalem == eskiAd).ExecuteUpdate(s => s.SetProperty(t => t.Kalem, ad));
+        var tekrarlayanSayisi = db.TekrarlayanGiderler.Where(t => t.Kalem == eskiAd && t.KrediKartiId == null).ExecuteUpdate(s => s.SetProperty(t => t.Kalem, ad));
         if (islemSayisi + tekrarlayanSayisi > 0)
             db.TopluDegisiklikEkle(GecmisTurleri.GiderKalemi, id,
                 $"Gider kalemi adı değişti: {eskiAd} → {ad} ({Sayilar((islemSayisi, "işlem"), (tekrarlayanSayisi, "tekrarlayan gider"))} güncellendi)",
@@ -378,7 +383,7 @@ api.MapDelete("/giderkalemleri/{id:int}", (int id, KasaDbContext db) => Yaz(db, 
     if (e is null) return Results.NotFound();
     if (db.Islemler.Any(i => i.Cari == e.Ad && i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null))
         return Results.Conflict(new { hata = "Bu kalemle girilmiş işlemler var. Silmek yerine pasif yapın." });
-    if (db.TekrarlayanGiderler.Any(t => t.Kalem == e.Ad))
+    if (db.TekrarlayanGiderler.Any(t => t.Kalem == e.Ad && t.KrediKartiId == null))
         return Results.Conflict(new { hata = "Bu kalem bir tekrarlayan giderde kullanılıyor. Önce Ayarlar → Tekrarlayan giderler'den o kaydı silin." });
     db.GiderKalemleri.Remove(e); db.SaveChanges();
     return Results.NoContent();
@@ -395,7 +400,8 @@ api.MapGet("/tekrarlayangiderler/bekleyen", (KasaDbContext db, TimeProvider saat
     var bugun = Saat.Bugun(saat);
     var enErken = TekrarlayanTakvim.AyBasi(bugun).AddMonths(-TekrarlayanTakvim.GeriyeAy);
     var sablonlar = db.TekrarlayanGiderler.AsNoTracking().Where(t => t.Aktif).ToList()
-        .Select(t => new TekrarlayanSablon(t.Id, t.Kalem, t.Kanal, t.Tutar, t.AyinGunu, t.Aktif, t.BaslangicAyi));
+        .Select(t => new TekrarlayanSablon(t.Id, t.Kalem, t.Kanal, t.Tutar, t.AyinGunu, t.Aktif, t.BaslangicAyi,
+            t.Siklik, t.TutarDegisken, t.KrediKartiId));
     var kararlar = db.TekrarlayanGirisler.AsNoTracking().Where(g => g.Ay >= enErken)
         .Select(g => new { g.TekrarlayanGiderId, g.Ay }).AsEnumerable()
         .Select(g => (g.TekrarlayanGiderId, g.Ay)).ToHashSet();
@@ -416,6 +422,7 @@ api.MapPut("/tekrarlayangiderler/{id:int}", (int id, TekrarlayanGiderEntity gele
     if (TekrarlayanHatasi(db, gelen, Saat.Bugun(saat)) is string hata) return Hata(hata);
     e.Kalem = gelen.Kalem; e.Kanal = gelen.Kanal; e.Tutar = gelen.Tutar;
     e.AyinGunu = gelen.AyinGunu; e.Aktif = gelen.Aktif; e.BaslangicAyi = gelen.BaslangicAyi;
+    e.Siklik = gelen.Siklik; e.KrediKartiId = gelen.KrediKartiId; e.TutarDegisken = gelen.TutarDegisken;
     db.SaveChanges();
     return Results.Ok(e);
 })).RequireAuthorization("Editor");
@@ -439,14 +446,17 @@ api.MapPost("/tekrarlayangiderler/{id:int}/onayla", (int id, TekrarlayanOnayDto 
     if (TekrarlayanAyHatasi(t, dto.Ay, Saat.Bugun(saat)) is string ah) return Hata(ah);
     var ay = TekrarlayanTakvim.AyBasi(dto.Ay);
     if (TekrarlayanKarari(db, id, ay) is string karar) return Results.Conflict(new { hata = karar });
+    if (t.TutarDegisken && dto.Tutar is null) return Hata("Bu giderin tutarı her seferinde girilir; tutarı yazın.");
     var islem = new IslemEntity
     {
         Tarih = dto.Tarih ?? TekrarlayanTakvim.Vade(ay, t.AyinGunu),
         Cari = t.Kalem,
         TutarTl = dto.Tutar ?? t.Tutar,
-        Kanal = t.Kanal,
-        Tip = GiderTipi.SabitGider,
-        Not = "Tekrarlayan gider",
+        Kanal = string.IsNullOrWhiteSpace(dto.Kanal) ? t.Kanal : dto.Kanal.Trim(),
+        // Karta bağlı şablon: POST /api/islemler'deki gibi karta bağlı işlem K.K'dır.
+        Tip = t.KrediKartiId is null ? GiderTipi.SabitGider : GiderTipi.KrediKarti,
+        KrediKartiId = t.KrediKartiId,
+        Not = dto.Not is null ? "Tekrarlayan gider" : string.IsNullOrWhiteSpace(dto.Not) ? null : dto.Not.Trim(),
     };
     if (IslemHatasi(db, islem) is string hata) return Hata(hata);
     db.Islemler.Add(islem); db.SaveChanges();
@@ -616,10 +626,22 @@ api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
 
 // Çekler (alınan / verilen). Kasayı yalnız tahsil edildiği / ödendiği gün etkiler (CekKurali):
 // raporlar HesapServisi'nde hesaplanır. Liste vadeye göre en yeni önce döner; tarih aralığı vadeye uygulanır.
-api.MapGet("/cekler", (string? yon, string? durum, DateOnly? baslangic, DateOnly? bitis, KasaDbContext db) =>
+api.MapGet("/cekler", (string? yon, string? durum, DateOnly? baslangic, DateOnly? bitis, string? tur, string? konum, KasaDbContext db) =>
 {
     CekYonu? y = null;
     CekDurumu? d = null;
+    CekTuru? tr = null;
+    CekKonumu? kn = null;
+    if (!string.IsNullOrWhiteSpace(tur))
+    {
+        if (EnumCoz<CekTuru>(tur) is not { } tv) return Hata("Geçersiz evrak türü (Cek ya da Senet).");
+        tr = tv;
+    }
+    if (!string.IsNullOrWhiteSpace(konum))
+    {
+        if (EnumCoz<CekKonumu>(konum) is not { } kv) return Hata("Geçersiz evrak konumu.");
+        kn = kv;
+    }
     if (!string.IsNullOrWhiteSpace(yon))
     {
         if (EnumCoz<CekYonu>(yon) is not { } yv) return Hata("Geçersiz yön (Alinan ya da Verilen).");
@@ -633,6 +655,8 @@ api.MapGet("/cekler", (string? yon, string? durum, DateOnly? baslangic, DateOnly
     var q = db.Cekler.AsNoTracking();
     if (y is { } yf) q = q.Where(c => c.Yon == yf);
     if (d is { } df) q = q.Where(c => c.Durum == df);
+    if (tr is { } tf) q = q.Where(c => c.Tur == tf);
+    if (kn is { } kf) q = q.Where(c => c.Konum == kf);
     if (baslangic is { } b) q = q.Where(c => c.VadeTarihi >= b);
     if (bitis is { } s) q = q.Where(c => c.VadeTarihi <= s);
     return Results.Ok(q.OrderByDescending(c => c.VadeTarihi).ThenByDescending(c => c.Id).ToList());
@@ -670,6 +694,7 @@ api.MapPut("/cekler/{id:int}", (int id, CekEntity gelen, KasaDbContext db) => Ya
     e.Yon = gelen.Yon; e.CekNo = gelen.CekNo; e.Banka = gelen.Banka; e.Kisi = gelen.Kisi;
     e.Tutar = gelen.Tutar; e.DuzenlemeTarihi = gelen.DuzenlemeTarihi; e.VadeTarihi = gelen.VadeTarihi;
     e.Kanal = gelen.Kanal; e.Durum = gelen.Durum; e.IslemTarihi = gelen.IslemTarihi; e.Not = gelen.Not;
+    e.Tur = gelen.Tur; e.Konum = gelen.Konum; e.CiroEdilenCari = gelen.CiroEdilenCari;
     db.SaveChanges();
     return Results.Ok(e);
 })).RequireAuthorization("Editor");
@@ -788,6 +813,7 @@ api.MapPost("/kasasayimlari", (KasaSayimYazDto dto, KasaDbContext db, HesapServi
 {
     if (SayimTarihiHatasi(svc, dto.Tarih) is string h) return Hata(h);
     if (TutarHatasi(dto.SayilanTutar, "Sayılan tutar") is string th) return Hata(th);
+    if (SayimSatirlari.Hata(dto.Satirlar, dto.SayilanTutar, out var satirlar) is string sh) return Hata(sh);
     var not = string.IsNullOrWhiteSpace(dto.Not) ? null : dto.Not.Trim();
     if (not is { Length: > 1000 }) return Hata("Not en fazla 1000 karakter olabilir.");
     // Defter değeri aynı transaction içinde hesaplanır: anlık görüntü kayıt anındaki defterdir.
@@ -795,7 +821,7 @@ api.MapPost("/kasasayimlari", (KasaSayimYazDto dto, KasaDbContext db, HesapServi
     var e = new KasaSayimEntity
     {
         Tarih = dto.Tarih, SayilanTutar = dto.SayilanTutar, HesaplananTutar = hesaplanan,
-        Not = not, KayitZamaniUtc = saat.GetUtcNow().UtcDateTime,
+        Not = not, KayitZamaniUtc = saat.GetUtcNow().UtcDateTime, SatirlarJson = SayimSatirlari.Yaz(satirlar),
     };
     db.KasaSayimlari.Add(e); db.SaveChanges();
     return Results.Created($"/api/kasasayimlari/{e.Id}", KasaSayimDto.Olustur(e, hesaplanan));
@@ -841,7 +867,7 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
         d.Id, DateTime.SpecifyKind(d.ZamanUtc, DateTimeKind.Utc), d.Rol, d.Tur, d.KayitId, d.Eylem, d.Ozet,
         d.EskiJson, d.YeniJson, d.GeriAlindi,
         d.GeriAlmaZamaniUtc is { } g ? DateTime.SpecifyKind(g, DateTimeKind.Utc) : null,
-        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null)).ToList());
+        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null && GuncellemeGeriAlma.DbEngeli(db, d) is null)).ToList());
 });
 // Geçmişte kaydı olan türler (filtre seçenekleri).
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
@@ -853,8 +879,21 @@ api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi 
     var d = db.Degisiklikler.Find(id);
     if (d is null) return Results.NotFound();
     var simdi = saat.GetUtcNow().UtcDateTime;
-    if (d.GeriAlindi) return Results.Conflict(new { hata = "Bu silme zaten geri alındı." });
+    if (d.GeriAlindi)
+        return Results.Conflict(new { hata = d.Eylem == Eylemler.Guncellendi ? "Bu değişiklik zaten geri alındı." : "Bu silme zaten geri alındı." });
     if (GecmisKurallari.GeriAlmaEngeli(d, simdi) is string engel) return Hata(engel);
+    if (d.Eylem == Eylemler.Guncellendi)
+    {
+        // Önceki haline döndür: aynı kayıt (yeni kayıt yok), normal düzenlemedeki doğrulamalarla.
+        var (guncel, gSonuc) = GuncellemeyiGeriAl(db, d, saat);
+        if (gSonuc is not null) return gSonuc;
+        d.GeriAlindi = true;
+        d.GeriAlmaZamaniUtc = simdi;
+        db.GeriAlmaKaydi = true;   // güncelleme geçmişe "Güncellendi (geri alındı)" olarak yazılır
+        db.SaveChanges();
+        db.GeriAlmaKaydi = false;
+        return Results.Ok(guncel);
+    }
 
     var (yeni, sonuc) = SilineniGeriGetir(db, svc, d, saat);
     if (sonuc is not null) return sonuc;
@@ -865,6 +904,9 @@ api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi 
     db.GeriAlmaKaydi = false;
     return Results.Ok(yeni);
 })).RequireAuthorization("Editor");
+
+// Paket D: çek/senet, tekrarlayan gider, kart ekstresi mutabakatı, kasa sayımı ekleri.
+api.MapCekEvrak(Yaz, CekHatasi).MapTekrarlayanEkleri(Yaz, TekrarlayanAyHatasi, KayitliKalem).MapKartMutabakat(Yaz).MapKasaSayimEkleri(Yaz);
 
 app.Run();
 
@@ -1091,7 +1133,8 @@ static string? CekHatasi(KasaDbContext db, CekEntity e)
         if (TarihHatasi(it) is not null) return "İşlem tarihi 2000 ile 2100 arasında olmalı.";
         if (it < e.DuzenlemeTarihi) return "İşlem tarihi düzenleme tarihinden önce olamaz.";
     }
-    return null;
+    // Paket D: tür (çek/senet), konum, ciro edilen cari.
+    return CekEvrakKurali.Hata(db, e);
 }
 
 static string CekDurumAdi(CekYonu yon, CekDurumu d) => d switch
@@ -1188,6 +1231,87 @@ static (object? Yeni, IResult? Sonuc) SilineniGeriGetir(KasaDbContext db, HesapS
     }
 }
 
+// Güncellemeyi geri alır ("Önceki haline döndür"): kaydı geçmiş satırının eski değerlerine döndürür.
+// Kayıt satırın yeni haliyle aynı olmalı (değilse 409); eski değerler normal düzenlemedeki (PUT)
+// doğrulamalardan aynen geçer. Başarıda değişiklik izlenen kayıtta kalır (SaveChanges'i çağıran yapar).
+static (object? Kayit, IResult? Sonuc) GuncellemeyiGeriAl(KasaDbContext db, DegisiklikEntity d, TimeProvider saat)
+{
+    static IResult Engel(string hata) => Results.BadRequest(new { hata = "Önceki haline döndürülemedi: " + hata });
+    if (GuncellemeGeriAlma.DbEngeli(db, d) is string cakisma) return (null, Results.Conflict(new { hata = cakisma }));
+    var id = d.KayitId!.Value;
+    try
+    {
+        switch (d.Tur)
+        {
+            case GecmisTurleri.Islem:
+            {
+                var e = db.Islemler.Find(id)!;
+                var eski = GuncellemeGeriAlma.EskiHal(e, d.EskiJson!);
+                if (eski.KrediKartiId is not null) eski.Tip = GiderTipi.KrediKarti;
+                if (IslemHatasi(db, eski) is string hata) return (null, Engel(hata));
+                e.Tarih = eski.Tarih; e.Cari = eski.Cari; e.TutarTl = eski.TutarTl;
+                e.Kanal = eski.Kanal; e.Tip = eski.Tip; e.Not = eski.Not;
+                e.KrediKartiId = eski.KrediKartiId;
+                return (e, null);
+            }
+            case GecmisTurleri.Cek:
+            {
+                var e = db.Cekler.Find(id)!;
+                var eski = GuncellemeGeriAlma.EskiHal(e, d.EskiJson!);
+                if (CekHatasi(db, eski) is string hata) return (null, Engel(hata));
+                CekEvrakKurali.Aktar(eski, e);
+                return (e, null);
+            }
+            case GecmisTurleri.Gelen:
+            {
+                // Yalnız tutar döner (dönem ve kanal değişmemiş satırlar: GuncellemeGeriAlma.Engel).
+                var e = db.Gelenler.Find(id)!;
+                var eski = GuncellemeGeriAlma.EskiHal(e, d.EskiJson!);
+                if (GelenHatasi(db, saat, eski.TutarTl, eski.Kanal, eski.DonemStart, out var donemStart) is string hata) return (null, Engel(hata));
+                if (donemStart != e.DonemStart || eski.Kanal != e.Kanal) return (null, Engel("Gelenin dönemi değişmiş."));
+                e.TutarTl = eski.TutarTl;
+                return (e, null);
+            }
+            case GecmisTurleri.Kanal:
+            {
+                var e = db.Kanallar.Find(id)!;
+                var eski = GuncellemeGeriAlma.EskiHal(e, d.EskiJson!);
+                eski.Ad = eski.Ad?.Trim() ?? "";
+                if (eski.Ad != e.Ad) return (null, Engel("Kanal adı değişmiş."));
+                if (KanalHatasi(db, eski, id) is string hata) return (null, Engel(hata));
+                e.Aktif = eski.Aktif; e.Sira = eski.Sira; e.AcilisDevri = eski.AcilisDevri;
+                return (e, null);
+            }
+            case GecmisTurleri.Ayar:
+            {
+                var a = db.Ayarlar.Find(id)!;
+                var eski = GuncellemeGeriAlma.EskiHal(a, d.EskiJson!);
+                if (eski.TakipBaslangic != a.TakipBaslangic) return (null, Engel("Takip başlangıcı değişmiş."));
+                if (TutarHatasi(eski.KasaAcilisDevri, "Kasa açılış devri", negatifOlabilir: true) is string hata) return (null, Engel(hata));
+                a.KasaAcilisDevri = eski.KasaAcilisDevri;
+                return (a, null);
+            }
+            default:
+                return (null, Hata($"{d.Tur} güncellemeleri geri alınamaz."));
+        }
+    }
+    catch (System.Text.Json.JsonException)
+    {
+        return (null, Hata("Kaydın eski hali okunamadı; geri alınamaz."));
+    }
+}
+
+// Cari adı değişince karta bağlı tekrarlayan giderlerin kalemi (cari adı) de taşınır.
+static void KartliTekrarlayanCarisiniTasi(KasaDbContext db, int cariId, string eskiAd, string yeniAd)
+{
+    if (eskiAd == yeniAd) return;
+    var n = db.TekrarlayanGiderler.Where(t => t.KrediKartiId != null && t.Kalem == eskiAd)
+        .ExecuteUpdate(u => u.SetProperty(t => t.Kalem, yeniAd));
+    if (n > 0)
+        db.TopluDegisiklikEkle(GecmisTurleri.Cari, cariId, $"Cari adı değişti: {eskiAd} → {yeniAd} ({n} karta bağlı tekrarlayan gider güncellendi)",
+            eski: new { ad = eskiAd }, yeni: new { ad = yeniAd, tekrarlayanSayisi = n });
+}
+
 // Toplu ad değişimi özeti: "3 işlem, 1 çek" (sıfır olanlar yazılmaz).
 static string Sayilar(params (int Adet, string Ad)[] parcalar)
     => string.Join(", ", parcalar.Where(p => p.Adet > 0).Select(p => $"{p.Adet} {p.Ad}"));
@@ -1209,12 +1333,24 @@ static string? TekrarlayanHatasi(KasaDbContext db, TekrarlayanGiderEntity e, Dat
     e.Kalem = e.Kalem?.Trim() ?? "";
     e.Kanal = e.Kanal?.Trim() ?? "";
     if (e.Kalem.Length == 0) return "Gider kalemi boş olamaz.";
-    if (KayitliKalem(db, e.Kalem) is not { } kalem) return KalemYokMesaji(e.Kalem);
-    e.Kalem = kalem;
+    if (!Enum.IsDefined(e.Siklik)) return "Geçersiz sıklık.";
+    if (e.KrediKartiId is int kartId)
+    {
+        // Karta bağlı: onaylanan kayıt K.K işlemidir, kalem bir cari adıdır (işlemdeki cari kuralı).
+        if (!db.KrediKartlari.Any(k => k.Id == kartId)) return "Kredi kartı bulunamadı.";
+        var kalemCari = e.Kalem;
+        var cari = db.Cariler.AsNoTracking().Select(c => c.Ad).AsEnumerable()
+            .FirstOrDefault(a => Metin.EsitBuyukKucukDuyarsiz.Equals(a, kalemCari));
+        if (cari is null) return $"Karta bağlı tekrarlayan giderde kalem kayıtlı bir cari olmalı: '{Metin.Kisalt(kalemCari)}' adında bir cari yok. Önce Cariler sayfasından ekleyin.";
+        e.Kalem = cari;
+    }
+    else if (KayitliKalem(db, e.Kalem) is not { } kalem) return KalemYokMesaji(e.Kalem);
+    else e.Kalem = kalem;
     if (e.Kanal.Length == 0) return "Kanal boş olamaz.";
     if (e.Kanal != Kanallar.Ortak && !db.Kanallar.Any(k => k.Ad == e.Kanal))
         return $"'{Metin.Kisalt(e.Kanal)}' adında bir kanal yok.";
-    if (e.Tutar <= 0) return "Tutar sıfırdan büyük olmalı.";
+    // Değişken tutarlı şablonda (vergi gibi) tutar onaylarken girilir: 0 olabilir.
+    if (e.TutarDegisken ? e.Tutar < 0 : e.Tutar <= 0) return e.TutarDegisken ? "Tutar negatif olamaz." : "Tutar sıfırdan büyük olmalı.";
     if (TutarHatasi(e.Tutar, "Tutar") is string th) return th;
     if (e.AyinGunu is < 1 or > 31) return "Ayın günü 1 ile 31 arasında olmalı.";
     if (e.BaslangicAyi == default) e.BaslangicAyi = bugun;
@@ -1230,6 +1366,7 @@ static string? TekrarlayanAyHatasi(TekrarlayanGiderEntity t, DateOnly ay, DateOn
     var a = TekrarlayanTakvim.AyBasi(ay);
     if (a > TekrarlayanTakvim.AyBasi(bugun)) return "İleri bir ay için karar verilemez.";
     if (a < TekrarlayanTakvim.AyBasi(t.BaslangicAyi)) return "Bu ay, tekrarlayan giderin başlangıç ayından önce.";
+    if (!TekrarlayanTakvim.AyDahil(t.Siklik, TekrarlayanTakvim.AyBasi(t.BaslangicAyi), a)) return "Bu gider bu ay tekrarlanmıyor (sıklığına uymuyor).";
     return null;
 }
 

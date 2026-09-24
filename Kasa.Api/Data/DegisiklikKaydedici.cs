@@ -54,6 +54,12 @@ internal static class DegisiklikKaydedici
         ["KayitZamaniUtc"] = "Kayıt zamanı",
         ["Kalem"] = "Kalem", ["AyinGunu"] = "Ayın günü", ["BaslangicAyi"] = "Başlangıç ayı",
         ["TekrarlayanGiderId"] = "Tekrarlayan gider", ["Ay"] = "Ay", ["IslemId"] = "İşlem", ["Zaman"] = "Zaman",
+        // Paket D
+        ["Tur"] = "Tür", ["Konum"] = "Konum", ["CiroEdilenCari"] = "Ciro edilen cari",
+        ["SatirlarJson"] = "Sayım satırları", ["FarkDurumu"] = "Fark durumu", ["FarkAciklamasi"] = "Fark açıklaması",
+        ["Siklik"] = "Sıklık", ["TutarDegisken"] = "Tutar her seferinde girilir",
+        ["DonemBaslangic"] = "Dönem başı", ["DonemBitis"] = "Kesim", ["EkstreTutari"] = "Ekstre tutarı",
+        ["HesaplananBorc"] = "Uygulamadaki borç", ["TikliIslemIdleri"] = "İşaretli işlemler",
     };
 
     private static readonly Dictionary<string, string> EnumAdlari = new()
@@ -63,6 +69,12 @@ internal static class DegisiklikKaydedici
         ["TahsilEdildi"] = "Tahsil edildi", ["Odendi"] = "Ödendi", ["CiroEdildi"] = "Ciro edildi",
         ["Karsiliksiz"] = "Karşılıksız", ["IadeEdildi"] = "İade edildi",
         ["Girildi"] = "Girildi", ["Atlandi"] = "Atlandı",
+        // Paket D
+        ["Cek"] = "Çek", ["Senet"] = "Senet",
+        ["Elde"] = "Elde", ["BankadaTahsilde"] = "Bankada tahsilde", ["Teminatta"] = "Teminatta", ["Icrada"] = "İcrada",
+        ["Aylik"] = "Aylık", ["UcAylik"] = "3 ayda bir", ["AltiAylik"] = "6 ayda bir", ["Yillik"] = "Yıllık",
+        ["Acik"] = "Açık", ["Aciklandi"] = "Açıklandı", ["KabulEdildi"] = "Kabul edildi",
+        ["Mutabik"] = "Mutabık", ["FarkKabul"] = "Fark kabul edildi",
     };
 
     internal sealed record Alan(IProperty Ozellik, string Etiket, bool Gizli, string? GizliMesaj);
@@ -166,9 +178,12 @@ internal static class DegisiklikKaydedici
                 satir.YeniJson = GecmisJson.Yaz(Degerler(b.Kayit, t, orijinal: false));
                 break;
             case EntityState.Modified:
-                satir.Eylem = Eylemler.Guncellendi;
+                // Geri almada güncellenen kayıt "önceki haline döndürüldü" olarak yazılır.
+                satir.Eylem = geriAlma ? Eylemler.GuncellemeGeriAlindi : Eylemler.Guncellendi;
                 satir.KayitId = b.KayitId;
-                satir.Ozet = b.Ozet!;
+                satir.Ozet = geriAlma && b.Ozet!.StartsWith($"{t.Tur} güncellendi", StringComparison.Ordinal)
+                    ? $"{t.Tur} önceki haline döndürüldü" + b.Ozet[$"{t.Tur} güncellendi".Length..]
+                    : b.Ozet!;
                 satir.EskiJson = b.EskiJson;
                 satir.YeniJson = GecmisJson.Yaz(Degerler(b.Kayit, t, orijinal: false));
                 break;

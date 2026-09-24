@@ -42,6 +42,7 @@ public static class GecmisTurleri
     public const string TekrarlayanGider = "Tekrarlayan gider";
     public const string TekrarlayanKarar = "Tekrarlayan gider kararı";
     public const string Ayar = "Ayar";
+    public const string KartMutabakati = "Kart mutabakatı";
 }
 
 /// <summary>Geçmiş satırının eylemi.</summary>
@@ -52,6 +53,8 @@ public static class Eylemler
     public const string Silindi = "Silindi";
     /// <summary>Silinen bir kaydın geçmişten geri getirilmesi.</summary>
     public const string GeriAlindi = "Eklendi (geri alındı)";
+    /// <summary>Güncellenen bir kaydın geçmişten önceki haline döndürülmesi.</summary>
+    public const string GuncellemeGeriAlindi = "Güncellendi (geri alındı)";
 }
 
 public static class GecmisKurallari
@@ -76,8 +79,12 @@ public static class GecmisKurallari
     /// <summary>Satır geri alınamıyorsa nedeni (Türkçe), alınabiliyorsa null.</summary>
     public static string? GeriAlmaEngeli(DegisiklikEntity d, DateTime simdiUtc)
     {
-        if (d.GeriAlindi) return "Bu silme zaten geri alındı.";
-        if (d.Eylem != Eylemler.Silindi) return "Yalnız silinen kayıtlar geri alınabilir.";
+        if (d.GeriAlindi)
+            return d.Eylem == Eylemler.Guncellendi ? "Bu değişiklik zaten geri alındı." : "Bu silme zaten geri alındı.";
+        // Güncellemeyi geri alma ("Önceki haline döndür") kendi kurallarıyla: bkz. GuncellemeGeriAlma.
+        if (d.Eylem == Eylemler.Guncellendi) return GuncellemeGeriAlma.Engel(d, simdiUtc);
+        if (d.Eylem != Eylemler.Silindi)
+            return "Yalnız silinen kayıtlar geri alınabilir. Güncellemeler \"Önceki haline döndür\" ile geri alınır.";
         if (!GeriAlinabilirTurler.Contains(d.Tur)) return $"{d.Tur} kayıtları geri alınamaz.";
         if (string.IsNullOrEmpty(d.EskiJson)) return "Kaydın eski hali yok; geri alınamaz.";
         if (simdiUtc - d.ZamanUtc > GeriAlmaSuresi) return $"{GeriAlmaSuresi.TotalDays:0} günden eski silmeler geri alınamaz.";
