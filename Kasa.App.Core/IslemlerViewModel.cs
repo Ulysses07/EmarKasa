@@ -81,12 +81,14 @@ public partial class IslemlerViewModel : TemelViewModel
         var donemGorevi = _api.DonemlerAsync();
         var kartGorevi = _api.KrediKartlariAsync();
         var cariGorevi = _api.CarilerAsync();
+        var kalemGorevi = _api.GiderKalemleriAsync();
         var listeGorevi = IslemleriYukleAsync();
-        await Task.WhenAll(kanalGorevi, donemGorevi, kartGorevi, cariGorevi, listeGorevi);
+        await Task.WhenAll(kanalGorevi, donemGorevi, kartGorevi, cariGorevi, kalemGorevi, listeGorevi);
         var kanallar = kanalGorevi.Result;
         var donemler = donemGorevi.Result;
         var kartlar = kartGorevi.Result;
         CarileriKur(cariGorevi.Result);
+        KalemleriKur(kalemGorevi.Result);
 
         var adlar = kanallar.Where(k => k.Aktif).OrderBy(k => k.Sira).Select(k => k.Ad).ToList();
         GelenKanallari.Clear();
@@ -374,6 +376,50 @@ public partial class IslemlerViewModel : TemelViewModel
     public const string CariBosMesaji = "Bir cari seçin.";
     public static string CariYokMesaji(string ad) => $"'{ad}' adında bir cari yok. Önce Cariler sayfasından ekleyin.";
 
+    // ---- Sabit gider kalemi (tip "Sabit gider" iken ad bu listeden seçilir) ----
+
+    private readonly List<string> _kalemAdlari = new();
+    private readonly List<string> _aktifKalemler = new();
+
+    public const string KalemBosMesaji = "Bir sabit gider kalemi seçin.";
+    public static string KalemYokMesaji(string ad) => $"'{ad}' adında bir sabit gider kalemi yok. \"Kalem olarak ekle\" ile ekleyin.";
+
+    /// <summary>Tip "Sabit gider" mi (ad cari yerine gider kalemidir).</summary>
+    public bool SabitGiderMi => DuzenTip == GiderTipi.SabitGider;
+
+    /// <summary>Ad alanının etiketi: tipe göre "Cari" ya da "Gider kalemi".</summary>
+    public string AdEtiketi => SabitGiderMi ? "Gider kalemi" : "Cari";
+
+    /// <summary>Yazılan ad henüz kalem değil: formda "Kalem olarak ekle" düğmesi görünür.</summary>
+    public bool KalemEklenebilir => SabitGiderMi && (DuzenCari?.Trim() ?? "").Length > 0 && KayitliKalem(DuzenCari!.Trim()) is null;
+
+    private void KalemleriKur(IReadOnlyList<GiderKalemiDto> kalemler)
+    {
+        _kalemAdlari.Clear();
+        _kalemAdlari.AddRange(kalemler.Select(k => k.Ad));
+        _aktifKalemler.Clear();
+        _aktifKalemler.AddRange(kalemler.Where(k => k.Aktif).Select(k => k.Ad)
+            .OrderBy(a => a, StringComparer.Create(Kultur.Turkce, true)));
+        OnerileriGuncelle();
+    }
+
+    private string? KayitliKalem(string ad)
+        => _kalemAdlari.FirstOrDefault(a => string.Compare(a, ad, Kultur.Turkce, System.Globalization.CompareOptions.IgnoreCase) == 0);
+
+    /// <summary>Formdaki adı yeni sabit gider kalemi olarak ekler ve seçer.</summary>
+    [RelayCommand]
+    private Task KalemEkleAsync() => CalistirAsync(async () =>
+    {
+        var ad = DuzenCari?.Trim() ?? "";
+        Dogrula(ad.Length > 0, KalemBosMesaji);
+        if (KayitliKalem(ad) is null)
+        {
+            await _api.GiderKalemiOlusturAsync(new GiderKalemiYaz(ad, true));
+            KalemleriKur(await _api.GiderKalemleriAsync());
+        }
+        DuzenCari = KayitliKalem(ad) ?? ad;
+    });
+
     private void CarileriKur(IReadOnlyList<CariDto> cariler)
     {
         _cariAdlari.Clear();
@@ -391,15 +437,18 @@ public partial class IslemlerViewModel : TemelViewModel
     private void OnerileriGuncelle()
     {
         CariOnerileri.Clear();
+        OnPropertyChanged(nameof(KalemEklenebilir));
         var metin = DuzenCari?.Trim() ?? "";
+        var adlar = SabitGiderMi ? _kalemAdlari : _cariAdlari;
+        var aktifler = SabitGiderMi ? _aktifKalemler : _aktifCariler;
         // Tam eşleşen kayıtlı ad seçilmiş demektir: öneri listesi kapanır.
-        if (metin.Length > 0 && _cariAdlari.Contains(metin))
+        if (metin.Length > 0 && adlar.Contains(metin))
         {
             CariOnerileriGorunur = false;
             return;
         }
         var ci = Kultur.Turkce.CompareInfo;
-        foreach (var a in _aktifCariler
+        foreach (var a in aktifler
                      .Where(a => metin.Length == 0 || ci.IndexOf(a, metin, System.Globalization.CompareOptions.IgnoreCase) >= 0)
                      .Take(EnFazlaOneri))
             CariOnerileri.Add(a);
@@ -418,6 +467,17 @@ public partial class IslemlerViewModel : TemelViewModel
     private async Task CariyiDogrulaAsync()
     {
         var ad = DuzenCari?.Trim() ?? "";
+        if (SabitGiderMi)
+        {
+            Dogrula(ad.Length > 0, KalemBosMesaji);
+            if (KayitliKalem(ad) is null)
+            {
+                KalemleriKur(await _api.GiderKalemleriAsync());
+                Dogrula(KayitliKalem(ad) is not null, KalemYokMesaji(ad));
+            }
+            DuzenCari = KayitliKalem(ad)!;
+            return;
+        }
         Dogrula(ad.Length > 0, CariBosMesaji);
         if (KayitliCari(ad) is null)
         {
@@ -481,6 +541,9 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         TipVurgu();
         OnPropertyChanged(nameof(KartSeciciGorunur));
+        OnPropertyChanged(nameof(SabitGiderMi));
+        OnPropertyChanged(nameof(AdEtiketi));
+        OnerileriGuncelle();
         if (value != GiderTipi.KrediKarti) DuzenKrediKartiId = null;
     }
 

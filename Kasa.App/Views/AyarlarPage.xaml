@@ -14,7 +14,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <VerticalStackLayout Spacing="3">
                     <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
-                    <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
+                    <Label Text="Genel ayar, izleyici şifresi, kanallar ve sabit gider kalemleri" Style="{StaticResource LblPageSub}" />
                 </VerticalStackLayout>
                 <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
                                    WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
@@ -160,6 +160,76 @@
                             <VerticalStackLayout Padding="20,30,20,34" Spacing="6">
                                 <Label Text="Kanal yok" Style="{StaticResource LblEmptyTitle}" />
                                 <Label Text="Yukarıdaki formdan ilk kanalı ekleyin."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Sabit gider kalemleri -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,18,18,14" Spacing="12">
+                        <Label Text="Sabit Gider Kalemleri" Style="{StaticResource LblSection}" />
+                        <Label Text="Kira, SGK, maaş gibi kalemler. Ad değişince bu kalemle girilmiş eski işlemler de yeni adı alır."
+                               Style="{StaticResource LblPageSub}" />
+                        <Grid ColumnDefinitions="{OnIdiom Desktop='*,Auto,Auto,Auto', Default='*'}"
+                              RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto'}"
+                              ColumnSpacing="10" RowSpacing="12">
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Kalem adı" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenKalemAd}" Placeholder="Örn. Kira" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                   Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                                   Spacing="9" VerticalOptions="End" HeightRequest="44">
+                                <Switch IsToggled="{Binding DuzenKalemAktif}" VerticalOptions="Center" />
+                                <Label Text="Aktif" Style="{StaticResource LblRowPrimary}" FontSize="13"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Button Text="Kalem kaydet" Command="{Binding KalemKaydetCommand}"
+                                    Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=2}"
+                                    Padding="18,0" VerticalOptions="End" />
+                            <Button Text="Yeni kalem" Command="{Binding YeniKalemCommand}"
+                                    Style="{StaticResource BtnSecondary}"
+                                    Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=3}"
+                                    VerticalOptions="End" />
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <CollectionView ItemsSource="{Binding GiderKalemleri}" SelectionMode="None" Margin="0,4,0,0">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="52"
+                                          ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                                        <Label Text="{Binding Ad}"
+                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="Pasif" TextColor="{StaticResource Sub}" FontSize="12"
+                                               VerticalOptions="Center"
+                                               IsVisible="{Binding Aktif, Converter={StaticResource TersIse}}" />
+                                        <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                                            <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.KalemDuzenleCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.KalemSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,30,20,34" Spacing="6">
+                                <Label Text="Sabit gider kalemi yok" Style="{StaticResource LblEmptyTitle}" />
+                                <Label Text="Yukarıdaki formdan ya da İşlemler'de &quot;Kalem olarak ekle&quot; ile ekleyin."
                                        Style="{StaticResource LblEmptySub}" />
                             </VerticalStackLayout>
                         </CollectionView.EmptyView>

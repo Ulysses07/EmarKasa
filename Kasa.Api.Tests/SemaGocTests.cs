@@ -33,7 +33,7 @@ public class SemaGocTests
         // 10 Haziran → dönem 8 Haziran'a çekilir ve 8 Haziran satırıyla çakışır: en son yazılan (büyük Id) kalır.
         "INSERT INTO Gelenler (Id, DonemStart, Kanal, TutarTl) VALUES (1,'2026-06-08','MEZAT','100.0'),(2,'2026-06-10','MEZAT','200.0'),(3,'2026-06-15','MEZAT','1.0'),(4,'2026-06-15','MEZAT','2.0'),(5,'2026-05-20','MEZAT','9.0'),(6,'2026-06-08','TOPTAN','3.0')",
         "INSERT INTO KrediKartlari (Id, Ad, KesimTarihi, SonOdemeTarihi, \"Limit\", Borc) VALUES (1,'Bonus','2026-07-05','2026-07-25','1000.0','0.0')",
-        "INSERT INTO Islemler (Id, Tarih, Cari, TutarTl, Kanal, Tip, KrediKartiId) VALUES (1,'2026-06-10','Market','10.0','MEZAT',2,1),(2,'2026-06-11','Market','20.0','MEZAT',2,9999),(3,'2026-06-12','Serbest Yazı','30.0','MEZAT',0,NULL)",
+        "INSERT INTO Islemler (Id, Tarih, Cari, TutarTl, Kanal, Tip, KrediKartiId) VALUES (1,'2026-06-10','Market','10.0','MEZAT',2,1),(2,'2026-06-11','Market','20.0','MEZAT',2,9999),(3,'2026-06-12','Serbest Yazı','30.0','MEZAT',0,NULL),(4,'2026-06-13','Kira','40.0','Ortak',1,NULL),(5,'2026-06-14','Kira','41.0','Ortak',1,NULL)",
     ];
 
     private static KasaDbContext Ac(SqliteConnection conn)
@@ -78,6 +78,9 @@ public class SemaGocTests
             Assert.Contains("index+ IX_Kanallar_Ad", yapilan);
             Assert.Contains("index+ IX_Gelenler_DonemStart_Kanal", yapilan);
             Assert.Contains("index+ IX_Cariler_Ad", yapilan);
+            Assert.Contains("tablo+ GiderKalemleri", yapilan);
+            // Sabit gider işlemlerindeki ad gider kalemi olarak eklenir (cari listesine değil).
+            Assert.Equal(["Kira"], db.GiderKalemleri.Select(k => k.Ad).ToList());
 
             // Göç öncesi yedek alındı.
             Assert.Single(Directory.GetFiles(klasor, "kasa-once-*.db"));
@@ -95,7 +98,7 @@ public class SemaGocTests
             Assert.Contains(gelen, g => g.Id == 6 && g.Kanal == "TOPTAN");
 
             // İşlemler korunur; yetim kart bağı NULL'lanır; FK artık tanımlı ve çalışır.
-            Assert.Equal(3, db.Islemler.Count());
+            Assert.Equal(5, db.Islemler.Count());
             Assert.Equal(1, db.Islemler.Single(i => i.Id == 1).KrediKartiId);
             Assert.Null(db.Islemler.Single(i => i.Id == 2).KrediKartiId);
             Assert.Contains("KrediKartlari", Oku(conn, "SELECT \"table\" FROM pragma_foreign_key_list('Islemler')"));

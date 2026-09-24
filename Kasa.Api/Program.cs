@@ -304,7 +304,9 @@ api.MapPut("/cariler/{id:int}", (int id, CariEntity gelen, KasaDbContext db) => 
     if (ad != e.Ad)
     {
         var eskiAd = e.Ad;
-        db.Islemler.Where(i => i.Cari == eskiAd).ExecuteUpdate(s => s.SetProperty(i => i.Cari, ad));
+        // Sabit gider işlemlerinin adı gider kalemine aittir; cari adı değişince onlara dokunulmaz.
+        db.Islemler.Where(i => i.Cari == eskiAd && !(i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null))
+            .ExecuteUpdate(s => s.SetProperty(i => i.Cari, ad));
     }
     e.Ad = ad; e.Aktif = gelen.Aktif;
     db.SaveChanges();
@@ -314,9 +316,47 @@ api.MapDelete("/cariler/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Cari s
 {
     var e = db.Cariler.Find(id);
     if (e is null) return Results.NotFound();
-    if (db.Islemler.Any(i => i.Cari == e.Ad))
+    if (db.Islemler.Any(i => i.Cari == e.Ad && !(i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null)))
         return Results.Conflict(new { hata = "Bu carinin işlem kayıtları var. Silmek yerine pasif yapın." });
     db.Cariler.Remove(e); db.SaveChanges();
+    return Results.NoContent();
+})).RequireAuthorization("Editor");
+
+// Sabit gider kalemleri (Kira, SGK, Maaş…): sabit gider işleminin adı bu listeden gelir.
+api.MapGet("/giderkalemleri", (KasaDbContext db) =>
+    db.GiderKalemleri.AsNoTracking().ToList().OrderBy(k => k.Ad, Metin.Sirala).ToList());
+api.MapPost("/giderkalemleri", (GiderKalemiEntity e, KasaDbContext db) => Yaz(db, "Bu adla bir gider kalemi zaten var.", () =>
+{
+    e.Id = 0;
+    e.Ad = e.Ad?.Trim() ?? "";
+    if (KalemHatasi(db, e.Ad, null) is string hata) return Hata(hata);
+    db.GiderKalemleri.Add(e); db.SaveChanges();
+    return Results.Created($"/api/giderkalemleri/{e.Id}", e);
+})).RequireAuthorization("Editor");
+api.MapPut("/giderkalemleri/{id:int}", (int id, GiderKalemiEntity gelen, KasaDbContext db) => Yaz(db, "Bu adla bir gider kalemi zaten var.", () =>
+{
+    var e = db.GiderKalemleri.Find(id);
+    if (e is null) return Results.NotFound();
+    var ad = gelen.Ad?.Trim() ?? "";
+    if (KalemHatasi(db, ad, id) is string hata) return Hata(hata);
+    if (ad != e.Ad)
+    {
+        // Ad değişince bu kalemle girilmiş eski sabit gider işlemleri de yeni adı alır.
+        var eskiAd = e.Ad;
+        db.Islemler.Where(i => i.Cari == eskiAd && i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null)
+            .ExecuteUpdate(s => s.SetProperty(i => i.Cari, ad));
+    }
+    e.Ad = ad; e.Aktif = gelen.Aktif;
+    db.SaveChanges();
+    return Results.Ok(e);
+})).RequireAuthorization("Editor");
+api.MapDelete("/giderkalemleri/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Gider kalemi silinemedi; tekrar deneyin.", () =>
+{
+    var e = db.GiderKalemleri.Find(id);
+    if (e is null) return Results.NotFound();
+    if (db.Islemler.Any(i => i.Cari == e.Ad && i.Tip == GiderTipi.SabitGider && i.KrediKartiId == null))
+        return Results.Conflict(new { hata = "Bu kalemle girilmiş işlemler var. Silmek yerine pasif yapın." });
+    db.GiderKalemleri.Remove(e); db.SaveChanges();
     return Results.NoContent();
 })).RequireAuthorization("Editor");
 
@@ -632,6 +672,15 @@ static string? CariHatasi(KasaDbContext db, string ad, int? haricId)
     return null;
 }
 
+static string? KalemHatasi(KasaDbContext db, string ad, int? haricId)
+{
+    if (ad.Length == 0) return "Gider kalemi adı boş olamaz.";
+    if (ad.Length > 200) return "Gider kalemi adı en fazla 200 karakter olabilir.";
+    var digerleri = db.GiderKalemleri.AsNoTracking().Where(k => k.Id != haricId).Select(k => k.Ad).ToList();
+    if (digerleri.Any(a => Metin.EsitBuyukKucukDuyarsiz.Equals(a, ad))) return $"'{Metin.Kisalt(ad)}' adında bir gider kalemi zaten var.";
+    return null;
+}
+
 static string? KartHatasi(KrediKartiEntity e)
 {
     if (e.Ad.Length == 0) return "Kart adı boş olamaz.";
@@ -656,9 +705,19 @@ static string? IslemHatasi(KasaDbContext db, IslemEntity e)
         return $"'{Metin.Kisalt(e.Kanal)}' adında bir kanal yok.";
     if (e.KrediKartiId is int kid && !db.KrediKartlari.Any(k => k.Id == kid))
         return "Kredi kartı bulunamadı.";
+    var cari = e.Cari;
+    // Sabit gider (karta bağlı değilse) adı gider kalemleri listesinden seçilir.
+    if (e.Tip == GiderTipi.SabitGider && e.KrediKartiId is null)
+    {
+        if (db.GiderKalemleri.Any(k => k.Ad == cari)) return null;
+        var kalem = db.GiderKalemleri.AsNoTracking().Select(k => k.Ad).AsEnumerable()
+            .FirstOrDefault(a => Metin.EsitBuyukKucukDuyarsiz.Equals(a, cari));
+        if (kalem is null) return $"'{Metin.Kisalt(cari)}' adında bir sabit gider kalemi yok. Önce kalemi ekleyin.";
+        e.Cari = kalem;
+        return null;
+    }
     // Cari listeden seçilmeli: ad/silme işlemleri işlemlere tutarlı yansısın. Büyük/küçük
     // harf farkı (Türkçe) tolere edilir ve kayıtlı yazım kullanılır.
-    var cari = e.Cari;
     if (!db.Cariler.Any(c => c.Ad == cari))
     {
         var kayitli = db.Cariler.AsNoTracking().Select(c => c.Ad).AsEnumerable()

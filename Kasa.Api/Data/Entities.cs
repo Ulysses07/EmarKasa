@@ -18,6 +18,14 @@ public class CariEntity
     public bool Aktif { get; set; } = true;
 }
 
+/// <summary>Sabit gider kalemi (Kira, SGK, Maaş…). Sabit gider işleminin "Cari" alanı bu adı taşır.</summary>
+public class GiderKalemiEntity
+{
+    public int Id { get; set; }
+    public string Ad { get; set; } = "";
+    public bool Aktif { get; set; } = true;
+}
+
 public class IslemEntity
 {
     public int Id { get; set; }

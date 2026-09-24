@@ -8,6 +8,7 @@ public class KasaDbContext : DbContext
 
     public DbSet<KanalEntity> Kanallar => Set<KanalEntity>();
     public DbSet<CariEntity> Cariler => Set<CariEntity>();
+    public DbSet<GiderKalemiEntity> GiderKalemleri => Set<GiderKalemiEntity>();
     public DbSet<IslemEntity> Islemler => Set<IslemEntity>();
     public DbSet<GelenEntity> Gelenler => Set<GelenEntity>();
     public DbSet<AyarEntity> Ayarlar => Set<AyarEntity>();
@@ -21,6 +22,7 @@ public class KasaDbContext : DbContext
         // Var olan DB'lerde bu index'leri SemaGuncelleyici, çiftleri temizledikten sonra kurar.
         b.Entity<KanalEntity>().HasIndex(k => k.Ad).IsUnique();
         b.Entity<CariEntity>().HasIndex(c => c.Ad).IsUnique();
+        b.Entity<GiderKalemiEntity>().HasIndex(k => k.Ad).IsUnique();
         // Dönem + kanal başına tek gelen satırı (eşzamanlı upsert çift satır üretemesin).
         b.Entity<GelenEntity>().HasIndex(g => new { g.DonemStart, g.Kanal }).IsUnique();
 

@@ -130,6 +130,12 @@ public sealed partial class KasaApiClient : IKasaApi
     public Task<CariDto> CariGuncelleAsync(int id, CariYaz g) => GonderJsonAsync<CariDto>(HttpMethod.Put, $"api/cariler/{id}", g);
     public Task CariSilAsync(int id) => SilAsync($"api/cariler/{id}");
 
+    // Sabit gider kalemi
+    public Task<IReadOnlyList<GiderKalemiDto>> GiderKalemleriAsync() => GetAsync<IReadOnlyList<GiderKalemiDto>>("api/giderkalemleri");
+    public Task<GiderKalemiDto> GiderKalemiOlusturAsync(GiderKalemiYaz g) => GonderJsonAsync<GiderKalemiDto>(HttpMethod.Post, "api/giderkalemleri", g);
+    public Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g) => GonderJsonAsync<GiderKalemiDto>(HttpMethod.Put, $"api/giderkalemleri/{id}", g);
+    public Task GiderKalemiSilAsync(int id) => SilAsync($"api/giderkalemleri/{id}");
+
     // İşlem
     public Task<IslemDto> IslemOlusturAsync(IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, "api/islemler", g);
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Put, $"api/islemler/{id}", g);
