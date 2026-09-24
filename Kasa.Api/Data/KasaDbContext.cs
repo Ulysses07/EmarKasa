@@ -33,6 +33,8 @@ public class KasaDbContext : DbContext
     public DbSet<DegisiklikEntity> Degisiklikler => Set<DegisiklikEntity>();
     public DbSet<TekrarlayanGiderEntity> TekrarlayanGiderler => Set<TekrarlayanGiderEntity>();
     public DbSet<TekrarlayanGirisEntity> TekrarlayanGirisler => Set<TekrarlayanGirisEntity>();
+    /// <summary>Kart ekstresi mutabakatları (Paket D). Var olan DB'lerde tabloyu SemaGuncelleyici ekler.</summary>
+    public DbSet<KartMutabakatEntity> KartMutabakatlari => Set<KartMutabakatEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -80,6 +82,27 @@ public class KasaDbContext : DbContext
             .WithMany()
             .HasForeignKey(g => g.IslemId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        PaketDModeli(b);
+    }
+
+    /// <summary>Paket D: karta bağlı tekrarlayan gider ve kart ekstresi mutabakatı ilişkileri.</summary>
+    private static void PaketDModeli(ModelBuilder b)
+    {
+        // API, karta bağlı tekrarlayan gideri olan kartın silinmesine izin vermez (409). DB düzeyinde
+        // yine de bağ koparılır (SET NULL): şema dışı bir silme şablonu da silmesin.
+        b.Entity<TekrarlayanGiderEntity>()
+            .HasOne<KrediKartiEntity>()
+            .WithMany()
+            .HasForeignKey(t => t.KrediKartiId)
+            .OnDelete(DeleteBehavior.SetNull);
+        // Kart + kesim başına tek mutabakat; kart silinince mutabakatları da silinir.
+        b.Entity<KartMutabakatEntity>().HasIndex(m => new { m.KrediKartiId, m.DonemBitis }).IsUnique();
+        b.Entity<KartMutabakatEntity>()
+            .HasOne<KrediKartiEntity>()
+            .WithMany()
+            .HasForeignKey(m => m.KrediKartiId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     // ------------------------------------------------------------------ değişiklik geçmişi

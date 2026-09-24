@@ -27,6 +27,14 @@
                 <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
             </Border>
 
+            <!-- ==================== Paket D: tek dokunuş bilgisi ==================== -->
+            <Border Style="{StaticResource CardForm}" Padding="12,10"
+                    IsVisible="{Binding EvrakBilgi, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding EvrakBilgi}" Style="{StaticResource LblRowPrimary}" TextColor="{StaticResource Pos}"
+                       LineBreakMode="WordWrap" />
+            </Border>
+            <!-- ==================== /Paket D ==================== -->
+
             <!-- Özet: dört rakam -->
             <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,*,*', Default='*,*'}"
                   RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
@@ -143,6 +151,51 @@
                         </VerticalStackLayout>
                     </Grid>
 
+                    <!-- ==================== Paket D: evrak türü ve konumu ==================== -->
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='Auto,*', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                          ColumnSpacing="24" RowSpacing="12">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Tür" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding TurCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecTurCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0"
+                                             IsVisible="{Binding KonumGorunur}">
+                            <Label Text="Konum (portföydeki alınan evrak)" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding KonumCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecKonumCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                    </Grid>
+                    <!-- ==================== /Paket D ==================== -->
+
                     <!-- Alanlar: dar ekranda alt alta sarılır -->
                     <FlexLayout Wrap="Wrap" AlignItems="Start">
                         <VerticalStackLayout Spacing="0" WidthRequest="260" Margin="0,0,12,12">
@@ -188,6 +241,14 @@
                             <Label Text="{Binding IslemTarihiEtiketi}" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
                                 <DatePicker Date="{Binding DuzenIslemTarihi}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <!-- Paket D: ciro edilen cari (yalnız "Ciro edildi") -->
+                        <VerticalStackLayout Spacing="0" WidthRequest="260" Margin="0,0,12,12"
+                                             IsVisible="{Binding CiroCariGorunur}">
+                            <Label Text="Ciro edilen cari" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenCiroEdilenCari}" Placeholder="Örn. Yılmaz Gıda" />
                             </Border>
                         </VerticalStackLayout>
                         <VerticalStackLayout Spacing="0" WidthRequest="260" Margin="0,0,12,12">
@@ -268,7 +329,62 @@
                             </BindableLayout.ItemTemplate>
                         </FlexLayout>
 
+                        <!-- ==================== Paket D: tür / konum filtresi ve seçim ==================== -->
+                        <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                    BindableLayout.ItemsSource="{Binding FiltreTurleri}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecFiltreTurCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Konum (alınan evrak)" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding FiltreKonumlari}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecFiltreKonumCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <!-- ==================== /Paket D ==================== -->
+
                         <Label Text="{Binding ListeOzeti}" Style="{StaticResource LblRowSecondary}" />
+
+                        <!-- ==================== Paket D: seçilenlerin toplamı ve ortalama vadesi ==================== -->
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                <Label Text="{Binding SecimOzeti}" Style="{StaticResource LblRowPrimary}"
+                                       IsVisible="{Binding SecimVar}" />
+                                <Label Text="{Binding SecimVadeMetni}" Style="{StaticResource LblRowSecondary}"
+                                       IsVisible="{Binding SecimVar}" />
+                                <Label Text="Toplam ve ortalama vade için satırlardaki kutuları işaretleyin."
+                                       Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                       IsVisible="{Binding SecimVar, Converter={StaticResource TersIse}}" />
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Center">
+                                <Button Text="Tümünü seç" Style="{StaticResource BtnRowEdit}" Command="{Binding TumunuSecCommand}" />
+                                <Button Text="Seçimi temizle" Style="{StaticResource BtnRowDelete}" Command="{Binding SecimiTemizleCommand}"
+                                        IsVisible="{Binding SecimVar}" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                        <!-- ==================== /Paket D ==================== -->
                     </VerticalStackLayout>
 
                     <CollectionView ItemsSource="{Binding Cekler}" SelectionMode="None">
@@ -360,6 +476,68 @@
                                                     CommandParameter="{Binding .}" />
                                         </HorizontalStackLayout>
                                     </Grid>
+
+                                    <!-- ==================== Paket D: seçim, evrak bilgisi, tek dokunuş ==================== -->
+                                    <FlexLayout Wrap="Wrap" AlignItems="Center" Padding="18,0,18,8">
+                                        <HorizontalStackLayout Spacing="2" Margin="0,0,12,0">
+                                            <CheckBox IsChecked="{Binding Secili}" VerticalOptions="Center" />
+                                            <Label Text="Seç" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                   VerticalOptions="Center" />
+                                        </HorizontalStackLayout>
+                                        <Label Text="{Binding EvrakEtiketi}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                               FontFamily="PlexSansSemiBold" VerticalOptions="Center" Margin="0,0,12,0"
+                                               IsVisible="{Binding EvrakEtiketiVar}" />
+                                        <HorizontalStackLayout Spacing="6"
+                                                               IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                            <HorizontalStackLayout Spacing="6" IsVisible="{Binding AlinanTekDokunus}">
+                                                <Button Text="Tahsil edildi" Style="{StaticResource BtnRowEdit}"
+                                                        Command="{Binding BindingContext.TahsilEtCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Ciro et" Style="{StaticResource BtnRowEdit}"
+                                                        Command="{Binding BindingContext.CiroAcCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Karşılıksız" Style="{StaticResource BtnRowDelete}"
+                                                        Command="{Binding BindingContext.KarsiliksizCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                            </HorizontalStackLayout>
+                                            <Button Text="Ödendi" Style="{StaticResource BtnRowEdit}"
+                                                    IsVisible="{Binding VerilenTekDokunus}"
+                                                    Command="{Binding BindingContext.OdeCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </FlexLayout>
+                                    <!-- Ciro et: satır içinde cari sorulur -->
+                                    <VerticalStackLayout Padding="18,0,18,12" Spacing="6" IsVisible="{Binding CiroAcik}">
+                                        <Label Text="Ciro edilen cari" Style="{StaticResource LblField}" Margin="0" />
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                            <Border Style="{StaticResource FieldBorder}">
+                                                <Entry Text="{Binding BindingContext.CiroCari, Source={x:Reference Sayfa}}"
+                                                       Placeholder="Cari adı" />
+                                            </Border>
+                                            <Button Grid.Column="1" Text="Ciro et" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.CiroOnaylaCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Grid.Column="2" Text="Vazgeç" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.CiroVazgecCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </Grid>
+                                        <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                                    BindableLayout.ItemsSource="{Binding BindingContext.CiroOnerileri, Source={x:Reference Sayfa}}">
+                                            <BindableLayout.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                        <Border.GestureRecognizers>
+                                                            <TapGestureRecognizer
+                                                                Command="{Binding BindingContext.SecCiroCariCommand, Source={x:Reference Sayfa}}"
+                                                                CommandParameter="{Binding .}" />
+                                                        </Border.GestureRecognizers>
+                                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </BindableLayout.ItemTemplate>
+                                        </FlexLayout>
+                                    </VerticalStackLayout>
+                                    <!-- ==================== /Paket D ==================== -->
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
@@ -377,6 +555,54 @@
                     </CollectionView>
                 </VerticalStackLayout>
             </Border>
+
+            <!-- ==================== Paket D: risk dağılımı (portföydeki alınan evrak) ==================== -->
+            <Border Style="{StaticResource CardForm}" IsVisible="{Binding RiskVar}">
+                <VerticalStackLayout Spacing="12">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Risk dağılımı" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding RiskOzeti}" Style="{StaticResource LblRowSecondary}" />
+                    </VerticalStackLayout>
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='*,*', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                          ColumnSpacing="24" RowSpacing="16">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Keşideciye göre" Style="{StaticResource LblField}" />
+                            <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding RiskKesideciler}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <VerticalStackLayout Spacing="3">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                <Label Text="{Binding Ad}" Style="{StaticResource LblRowPrimary}" FontSize="13" />
+                                                <Label Grid.Column="1" Text="{Binding Metin}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                            </Grid>
+                                            <ProgressBar Progress="{Binding Oran}" ProgressColor="{StaticResource Neg}" />
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="8">
+                            <Label Text="Bankaya göre" Style="{StaticResource LblField}" />
+                            <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding RiskBankalar}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <VerticalStackLayout Spacing="3">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                <Label Text="{Binding Ad}" Style="{StaticResource LblRowPrimary}" FontSize="13" />
+                                                <Label Grid.Column="1" Text="{Binding Metin}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                            </Grid>
+                                            <ProgressBar Progress="{Binding Oran}" ProgressColor="{StaticResource Green}" />
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+            <!-- ==================== /Paket D ==================== -->
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

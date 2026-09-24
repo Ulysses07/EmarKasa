@@ -52,6 +52,7 @@ public partial class KrediKartlariViewModel : TemelViewModel
 
         Kartlar.Clear();
         foreach (var g in yeniler) Kartlar.Add(g);
+        KartIsteginiUygula();   // Paket A: "Ödeme gir" derin bağlantısı
     }
 
     public Task YukleAsync() => CalistirAsync(() => DoldurAsync());

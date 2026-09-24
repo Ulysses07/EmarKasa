@@ -23,8 +23,10 @@ public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarT
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi);
+/// <remarks>Paket D: Tur (çek/senet), Konum ve CiroEdilenCari; eski sunucuda varsayılanlar gelir.</remarks>
 public record CekDto(int Id, CekYonu Yon, string? CekNo, string? Banka, string Kisi, decimal Tutar,
-    DateOnly DuzenlemeTarihi, DateOnly VadeTarihi, string Kanal, CekDurumu Durum, DateOnly? IslemTarihi, string? Not);
+    DateOnly DuzenlemeTarihi, DateOnly VadeTarihi, string Kanal, CekDurumu Durum, DateOnly? IslemTarihi, string? Not,
+    CekTuru Tur = CekTuru.Cek, CekKonumu Konum = CekKonumu.Elde, string? CiroEdilenCari = null);
 /// <summary>
 /// Çek özeti: portföydeki alınan / ödenecek verilen toplam ve adet; vadesi <see cref="YaklasanGun"/> gün
 /// içinde gelen ve vadesi geçtiği hâlde portföyde bekleyen çekler (iki yön, vadeye göre artan).
@@ -36,17 +38,22 @@ public record CekOzetDto(decimal PortfoydekiAlinanToplam, int PortfoydekiAlinanA
 /// <summary>
 /// Değişiklik geçmişi satırı. <see cref="Eylem"/>: Eklendi / Güncellendi / Silindi / Eklendi (geri alındı).
 /// <see cref="GeriAlinabilir"/> sunucu kurallarıyla hesaplanır (silinmiş, desteklenen tür, 30 gün içinde, geri alınmamış).
+/// <see cref="GecmiseDonuk"/>: değişiklik önceki bir ayın rakamını değiştiriyor (sunucu kuralı; eski sunucuda false).
 /// </summary>
 public record DegisiklikDto(
     int Id, DateTime ZamanUtc, string Rol, string Tur, int? KayitId, string Eylem, string Ozet,
-    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir);
+    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir,
+    bool GecmiseDonuk = false);
 /// <summary>Geçmişin bir sayfası (en yeni önce) + filtreye uyan toplam satır sayısı.</summary>
 public record DegisiklikSayfasi(IReadOnlyList<DegisiklikDto> Kayitlar, int Toplam);
 
 /// <summary>Her ay tekrarlayan sabit gider (kira, SGK, maaş…). Ayın günü ay daha kısaysa ayın son gününe düşer.</summary>
-public record TekrarlayanGiderDto(int Id, string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif, DateOnly BaslangicAyi);
+/// <remarks>Paket D: sıklık, karta bağlılık (kalem bu durumda cari adıdır) ve değişken tutar.</remarks>
+public record TekrarlayanGiderDto(int Id, string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif, DateOnly BaslangicAyi,
+    TekrarSikligi Siklik = TekrarSikligi.Aylik, int? KrediKartiId = null, bool TutarDegisken = false);
 /// <summary>Vadesi gelmiş, henüz girilmemiş/atlanmamış tekrarlayan gider ayı (<see cref="Ay"/> ayın 1'i).</summary>
-public record BekleyenGiderDto(int TekrarlayanGiderId, string Kalem, string Kanal, decimal Tutar, DateOnly Ay, DateOnly Vade);
+public record BekleyenGiderDto(int TekrarlayanGiderId, string Kalem, string Kanal, decimal Tutar, DateOnly Ay, DateOnly Vade,
+    bool TutarDegisken = false, int? KrediKartiId = null, TekrarSikligi Siklik = TekrarSikligi.Aylik);
 
 public record DonemDto(DateOnly Start, DateOnly End, int Yil, int Ay);
 /// <summary>Gelen/Giden çek hariçtir; çek tahsilatı/ödemesi CekGelen/CekGiden'dedir (Sonuc ve Devir çek dahil).</summary>
@@ -88,8 +95,10 @@ public record IndirilenDosya(string DosyaAdi, byte[] Icerik);
 /// Kasa sayımı. HesaplananTutar kayıt anındaki defter kasasıdır (değişmez), Fark = Sayılan − Hesaplanan.
 /// GuncelHesaplanan aynı günün bugünkü defter değeridir (geçmiş düzeltildiyse farklıdır; takvim dışıysa null).
 /// </summary>
+/// <remarks>Paket D: Satirlar (null = eski tek tutarlı sayım), fark durumu ve açıklaması.</remarks>
 public record KasaSayimDto(int Id, DateOnly Tarih, decimal SayilanTutar, decimal HesaplananTutar, decimal Fark,
-    decimal? GuncelHesaplanan, string? Not, DateTime KayitZamaniUtc);
+    decimal? GuncelHesaplanan, string? Not, DateTime KayitZamaniUtc,
+    IReadOnlyList<SayimSatiriDto>? Satirlar = null, SayimFarkDurumu FarkDurumu = SayimFarkDurumu.Acik, string? FarkAciklamasi = null);
 /// <summary>Bir günün sonundaki defter kasası (sayım formu önizlemesi).</summary>
 public record KasaHesapDto(DateOnly Tarih, decimal HesaplananTutar);
 
@@ -103,15 +112,26 @@ public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTa
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarYaz(DateOnly TakipBaslangic, decimal KasaAcilisDevri);
 public record CekYaz(CekYonu Yon, string? CekNo, string? Banka, string Kisi, decimal Tutar,
-    DateOnly DuzenlemeTarihi, DateOnly VadeTarihi, string Kanal, CekDurumu Durum, DateOnly? IslemTarihi, string? Not);
+    DateOnly DuzenlemeTarihi, DateOnly VadeTarihi, string Kanal, CekDurumu Durum, DateOnly? IslemTarihi, string? Not,
+    CekTuru Tur = CekTuru.Cek, CekKonumu Konum = CekKonumu.Elde, string? CiroEdilenCari = null);
 
-public record KasaSayimYaz(DateOnly Tarih, decimal SayilanTutar, string? Not);
+/// <param name="Satirlar">Paket D: verilirse SayilanTutar satırların toplamı olmalı; null = tek tutarlı sayım.</param>
+public record KasaSayimYaz(DateOnly Tarih, decimal SayilanTutar, string? Not,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<SayimSatiriDto>? Satirlar = null);
 
 /// <param name="BaslangicAyi">
 /// Gönderilmezse (null) sunucu karar verir: yeni kayıtta bu ay (Türkiye saati), güncellemede eski değer kalır.
 /// </param>
 public record TekrarlayanGiderYaz(string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    DateOnly? BaslangicAyi = null);
+    DateOnly? BaslangicAyi = null,
+    TekrarSikligi Siklik = TekrarSikligi.Aylik, int? KrediKartiId = null, bool TutarDegisken = false);
 /// <summary>Bekleyen bir ayı sabit gider işlemi olarak girer (<paramref name="Ay"/> o ayın herhangi bir günü olabilir).</summary>
-public record TekrarlayanOnayYaz(DateOnly Ay, DateOnly Tarih, decimal Tutar);
+/// <param name="Kanal">Paket D: null ise şablonun kanalı.</param>
+/// <param name="Not">Paket D: null ise "Tekrarlayan gider"; boş metin notu boşaltır.</param>
+public record TekrarlayanOnayYaz(DateOnly Ay, DateOnly Tarih, decimal Tutar,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? Kanal = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? Not = null);

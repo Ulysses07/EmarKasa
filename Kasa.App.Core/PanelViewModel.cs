@@ -9,10 +9,13 @@ namespace Kasa.App.Core;
 public partial class PanelViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public PanelViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
+    /// <param name="depo">Cihaza özel ayarlar (tahmin ufku, son bakış); verilmezse bellekte tutulur.</param>
+    public PanelViewModel(IKasaApi api, TimeProvider? zaman = null, IYerelDepo? depo = null) : base(zaman)
     {
         _api = api;
+        _depo = depo ?? new BellekYerelDepo();
         BekleyenGiderler.CollectionChanged += (_, _) => OnPropertyChanged(nameof(BekleyenVar));
+        PaketAKur();
     }
 
     [ObservableProperty] private decimal _guncelKasa;
@@ -46,7 +49,11 @@ public partial class PanelViewModel : TemelViewModel
         BuAySonucu = p.BuAySonucu;
         Kanallar.Clear();
         foreach (var k in p.Kanallar) Kanallar.Add(k);
+        await AtlananlariYukleAsync(bekleyenGorevi.Result);      // Paket D: onay kanalları (satırlardan önce) + atlananlar
         BekleyenleriKur(bekleyenGorevi.Result);
+        // Paket A: durum kartları, nakit tahmini, bugün yapılacaklar (her biri kendi hatasını yutar;
+        // ana panel yüklemesini hiçbiri bozmaz). Bkz. PanelViewModel.A.cs.
+        await EkBolumleriYukleAsync(bekleyenGorevi.Result);
     }
 
     private void BekleyenleriKur(IReadOnlyList<BekleyenGiderDto> liste)
@@ -69,8 +76,9 @@ public partial class PanelViewModel : TemelViewModel
     private Task BekleyenKaydetAsync(BekleyenGiderGorunum b) => CalistirAsync(async () =>
     {
         Dogrula(b.Tutar > 0, "Tutar sıfırdan büyük olmalı.");
-        var tarih = b.Vade > BugunTarih ? BugunTarih : b.Vade;
-        await KararVerAsync(() => _api.TekrarlayanOnaylaAsync(b.TekrarlayanGiderId, new TekrarlayanOnayYaz(b.Ay, tarih, b.Tutar)));
+        var tarih = OnayTarihi(b);                               // Paket D: satırda seçilen gün (ileri tarih bugüne)
+        await KararVerAsync(() => _api.TekrarlayanOnaylaAsync(b.TekrarlayanGiderId,
+            new TekrarlayanOnayYaz(b.Ay, tarih, b.Tutar, b.GonderilecekKanal, b.GonderilecekNot)));
         BekleyenGiderler.Remove(b);
         await DoldurAsync();
     });

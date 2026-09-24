@@ -17,6 +17,7 @@ public partial class AppShell : Shell
     public AppShell(AuthViewModel auth, Yonlendirme yonlendirme)
     {
         InitializeComponent();
+        Routing.RegisterRoute(Views.KartMutabakatPage.Rota, typeof(Views.KartMutabakatPage));   // Paket D
         _auth = auth;
         _yonlendirme = yonlendirme;
         _auth.PropertyChanged += AuthDegisti;
@@ -56,6 +57,7 @@ public partial class AppShell : Shell
         GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
         AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
         _ = GitAsync(_yonlendirme.Al() ?? "//panel");   // bildirimle açıldıysa o sayfaya
+        _ = PaketABildirimleriAsync();   // Paket A: haftalık özet vb. (AppShell.A.cs)
     }
 
     private void MenuyuKapat()

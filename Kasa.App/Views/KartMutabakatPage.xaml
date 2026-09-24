@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · KartMutabakatPage (Paket D, özellik 34) — solda kapanmış ekstre dönemleri, sağda seçili dönemin
+     mutabakatı: uygulamanın hesapladığı dönem borcu, dönemdeki kartlı işlemler (tik kutuları), ekstre tutarı ve
+     kırmızı fark. Ayrı bir kayıttır; kart borcu hesabı değişmez. -->
+<ContentPage
+    x:Class="Kasa.App.Views.KartMutabakatPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:conv="clr-namespace:Kasa.App.Converters"
+    x:Name="Sayfa"
+    Title="Ekstre Mutabakatı"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="16"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Ekstre Mutabakatı" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="{Binding KartAdi, StringFormat='{0} · banka ekstresi ile uygulamanın hesabını karşılaştırın'}"
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+            <Border Style="{StaticResource CardForm}" Padding="12,10"
+                    IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Bilgi}" Style="{StaticResource LblRowPrimary}" TextColor="{StaticResource Pos}"
+                       LineBreakMode="WordWrap" />
+            </Border>
+
+            <Grid ColumnDefinitions="{OnIdiom Desktop='260,*', Default='*'}"
+                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                  ColumnSpacing="20" RowSpacing="16">
+
+                <!-- SOL: dönemler -->
+                <Border Style="{StaticResource CardForm}" VerticalOptions="Start">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Ekstre dönemleri" Style="{StaticResource LblSection}" />
+                        <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding Donemler}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" StrokeShape="RoundRectangle 10" Padding="12,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecDonemCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <VerticalStackLayout Spacing="2">
+                                            <Label Text="{Binding DonemMetni}" Style="{StaticResource ChipText}" />
+                                            <Label Text="{Binding HesaplananMetni}" Style="{StaticResource ChipText}" FontSize="11.5" />
+                                            <Label Text="{Binding DurumMetni}" Style="{StaticResource ChipText}" FontSize="11.5"
+                                                   FontFamily="PlexSansSemiBold" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                            <BindableLayout.EmptyView>
+                                <Label Text="Henüz kapanmış ekstre dönemi yok." Style="{StaticResource LblRowSecondary}" />
+                            </BindableLayout.EmptyView>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- SAĞ: seçili dönemin mutabakatı -->
+                <Border Grid.Column="{OnIdiom Desktop=1, Default=0}" Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                        Style="{StaticResource CardForm}" IsVisible="{Binding DetayVar}">
+                    <VerticalStackLayout Spacing="14">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="{Binding DonemBasligi}" Style="{StaticResource LblSection}" />
+                            <Label Text="{Binding DurumMetni}" Style="{StaticResource LblRowSecondary}" FontFamily="PlexSansSemiBold" />
+                            <Label Text="{Binding Detay.Not, StringFormat='Kayıtlı not: {0}'}" Style="{StaticResource LblRowSecondary}"
+                                   LineBreakMode="WordWrap" IsVisible="{Binding Detay.Not, Converter={StaticResource DoluIse}}" />
+                        </VerticalStackLayout>
+
+                        <!-- Hesaplanan / ekstre / fark -->
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Uygulamanın hesabı" Style="{StaticResource LblField}" Margin="0" />
+                                <Label Text="{Binding Detay.HesaplananBorc, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                                       FontFamily="PlexSansBold" FontSize="18" TextColor="{StaticResource Ink}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                <Label Text="Ekstredeki dönem borcu" Style="{StaticResource LblField}" Margin="0" />
+                                <!-- Metne bağlı (ParaGiris dönüştürücüsü değil): "0" yazmak da "ekstre girildi" sayılır ve
+                                     alacaklı kartın ekstresi eksiyle yazılabilir. Doğrulamayı görünüm modeli yapar. -->
+                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding EditorMu}">
+                                    <Entry Text="{Binding EkstreGiris}" Placeholder="0,00 ₺"
+                                           Style="{StaticResource EntryMoney}" conv:ParaGirisDogrulama.Etkin="False" />
+                                </Border>
+                                <Label Text="{Binding EkstreGirisHatasi}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                       TextColor="{StaticResource Neg}" LineBreakMode="WordWrap"
+                                       IsVisible="{Binding EkstreGirisHatasi, Converter={StaticResource DoluIse}}" />
+                                <Label Text="{Binding Detay.EkstreTutari, Converter={StaticResource ParaBicim}}"
+                                       FontFamily="PlexSansBold" FontSize="18" TextColor="{StaticResource Ink}"
+                                       IsVisible="{Binding EditorMu, Converter={StaticResource TersIse}}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="2" Spacing="2">
+                                <Label Text="Fark (ekstre − hesap)" Style="{StaticResource LblField}" Margin="0" />
+                                <Label Text="{Binding FarkYazi}" FontFamily="PlexSansBold" FontSize="18"
+                                       TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                        <Label Text="{Binding FarkMetni}" Style="{StaticResource LblRowSecondary}" LineBreakMode="WordWrap"
+                               TextColor="{Binding FarkRenkDegeri, Converter={StaticResource ParaRenk}}"
+                               IsVisible="{Binding FarkMetni, Converter={StaticResource DoluIse}}" />
+                        <Label Text="{Binding HesapKirilimi}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                        <Label Text="{Binding DegisimUyarisi}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                               TextColor="{StaticResource Neg}" LineBreakMode="WordWrap" IsVisible="{Binding DegisimVar}" />
+
+                        <!-- Dönemdeki kartlı işlemler: ekstrede görüleni işaretleyin -->
+                        <BoxView Style="{StaticResource RowSeparator}" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Dönemdeki kart harcamaları" Style="{StaticResource LblSection}" />
+                                <Label Text="{Binding TikOzeti}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                            </VerticalStackLayout>
+                            <Button Grid.Column="1" Text="Tümünü işaretle" Style="{StaticResource BtnRowEdit}"
+                                    VerticalOptions="Center" Command="{Binding TumunuTikleCommand}" />
+                        </Grid>
+                        <VerticalStackLayout Spacing="0" BindableLayout.ItemsSource="{Binding Islemler}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="0,4">
+                                        <CheckBox IsChecked="{Binding Tikli}" VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                            <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" FontSize="13" />
+                                            <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="{Binding Tutar, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoneyNeg}" VerticalOptions="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                            <BindableLayout.EmptyView>
+                                <Label Text="Bu dönemde karta bağlı harcama yok." Style="{StaticResource LblRowSecondary}" />
+                            </BindableLayout.EmptyView>
+                        </VerticalStackLayout>
+
+                        <!-- Dönemdeki ödemeler (bilgi) -->
+                        <Label Text="Dönemdeki ödemeler" Style="{StaticResource LblField}" Margin="0,4,0,0" />
+                        <VerticalStackLayout Spacing="0" BindableLayout.ItemsSource="{Binding Odemeler}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*,Auto" Padding="0,3">
+                                        <Label Text="{Binding Tarih, StringFormat='{0:dd MMM yyyy}'}"
+                                               Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                        <Label Grid.Column="1" Text="{Binding Tutar, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                            <BindableLayout.EmptyView>
+                                <Label Text="Bu dönemde ödeme yok." Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                            </BindableLayout.EmptyView>
+                        </VerticalStackLayout>
+
+                        <!-- Not + aksiyonlar (yalnız editör) -->
+                        <VerticalStackLayout Spacing="10" IsVisible="{Binding EditorMu}">
+                            <BoxView Style="{StaticResource RowSeparator}" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Not (faiz, ücret, girilmemiş harcama…)" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding Not}" Placeholder="İsteğe bağlı" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <FlexLayout Wrap="Wrap" AlignItems="Center">
+                                <Button Text="Mutabakatı kaydet" Command="{Binding KaydetCommand}" Padding="22,0" Margin="0,0,8,8" />
+                                <Button Text="Farkı kabul et" Style="{StaticResource BtnSecondary}" Margin="0,0,8,8"
+                                        Command="{Binding FarkiKabulEtCommand}" IsVisible="{Binding FarkVar}" />
+                                <Button Text="Kaydı sil" Style="{StaticResource BtnRowDelete}" Margin="0,0,8,8"
+                                        Command="{Binding SilCommand}" IsVisible="{Binding KayitVar}" />
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

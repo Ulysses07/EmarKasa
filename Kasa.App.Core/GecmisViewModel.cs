@@ -20,7 +20,12 @@ public partial class GecmisViewModel : TemelViewModel
     public const string TumTurler = "Tümü";
 
     private readonly IKasaApi _api;
-    public GecmisViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman) => _api = api;
+    /// <param name="depo">Cihaza özel "son görülen" satır (yeni satır vurgusu); verilmezse bellekte.</param>
+    public GecmisViewModel(IKasaApi api, TimeProvider? zaman = null, IYerelDepo? depo = null) : base(zaman)
+    {
+        _api = api;
+        _depo = depo ?? new BellekYerelDepo();
+    }
 
     /// <summary>Yüklü satırlar, en yeni önce.</summary>
     public ObservableCollection<GecmisSatiri> Kayitlar { get; } = new();
@@ -49,6 +54,7 @@ public partial class GecmisViewModel : TemelViewModel
     public Task YukleAsync()
     {
         Bilgi = null;
+        YeniSiniriniAl();   // Paket A: son bakıştan sonraki satırlar "Yeni" (GecmisViewModel.A.cs)
         return CalistirAsync(DoldurAsync);
     }
 
@@ -94,6 +100,7 @@ public partial class GecmisViewModel : TemelViewModel
         _sonrakiOfset = sayfa.Kayitlar.Count;
         ToplamKayit = Math.Max(sayfa.Toplam, Kayitlar.Count);
         OzetiGuncelle(sayfaBos: sayfa.Kayitlar.Count == 0);
+        GorulduIsaretle();
     }
 
     /// <summary>Bir sayfa daha eski satırı listenin sonuna ekler.</summary>
@@ -146,7 +153,7 @@ public partial class GecmisViewModel : TemelViewModel
         Dogrula(EditorMu, HataMesaji.Yetkisiz);
         Dogrula(s.Dto.GeriAlinabilir, GeriAlinamazMesaji);
         await _api.GeriAlAsync(s.Id);
-        Bilgi = GeriAlindiMesaji(s.Tur);
+        Bilgi = GeriAlmaMesaji(s);                               // Paket D: güncellemede "önceki haline döndürüldü"
         await ListeyiYukleAsync();
     });
 
@@ -159,7 +166,7 @@ public partial class GecmisViewModel : TemelViewModel
     }
 
     private GecmisSatiri SatirOlustur(DegisiklikDto d)
-        => new(d, Zaman.LocalTimeZone) { GeriAlGorunur = EditorMu && d.GeriAlinabilir };
+        => new(d, Zaman.LocalTimeZone) { GeriAlGorunur = EditorMu && d.GeriAlinabilir, Yeni = YeniMi(d) };
 }
 
 /// <summary>Geçmiş listesinin bir satırı: sunucu satırı + görünüm için biçimlenmiş metinler.</summary>

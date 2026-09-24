@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.AyarlarPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
     x:Name="Sayfa"
     Title="Ayarlar"
     BackgroundColor="{StaticResource AppBg}">
@@ -244,8 +245,82 @@
                         <Label Text="Tekrarlayan Giderler" Style="{StaticResource LblSection}" />
                         <Label Text="Her ay tekrarlanan kira, SGK, maaş gibi giderler. Kendiliğinden işlem girilmez: vadesi gelince Panel'de onayınıza sunulur. Yeni kayıt bu aydan başlar; ayın günü kısa aylarda ayın son gününe düşer."
                                Style="{StaticResource LblPageSub}" />
+                        <!-- ==================== Paket D: hazır şablonlar, kart, sıklık, değişken tutar ==================== -->
+                        <Border Style="{StaticResource CardForm}" Padding="12,10" IsVisible="{Binding TekrarBilgi, Converter={StaticResource DoluIse}}">
+                            <Label Text="{Binding TekrarBilgi}" Style="{StaticResource LblRowPrimary}" TextColor="{StaticResource Pos}"
+                                   LineBreakMode="WordWrap" />
+                        </Border>
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding HazirVar}">
+                            <Label Text="Hazır şablonlar (tutar her seferinde girilir)" Style="{StaticResource LblField}" Margin="0" />
+                            <Label Text="Tarihleri muhasebecinizle doğrulayın." Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                   TextColor="{StaticResource Neg}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding HazirSablonlar}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <VerticalStackLayout Spacing="0" Margin="0,0,10,8">
+                                            <Button Text="{Binding Ad, StringFormat='+ {0}'}" Style="{StaticResource BtnRowEdit}"
+                                                    IsEnabled="{Binding Eklendi, Converter={StaticResource TersIse}}"
+                                                    Command="{Binding BindingContext.HazirEkleCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Label Text="{Binding Aciklama}" Style="{StaticResource LblRowSecondary}" FontSize="11" />
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
                         <VerticalStackLayout Spacing="0">
-                            <Label Text="Gider kalemi" Style="{StaticResource LblField}" />
+                            <Label Text="Kart (karta bağlı abonelik vb. onaylanınca o kartın harcaması olur)" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding TekrarKartCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecTekrarKartCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Sıklık" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding SiklikCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecTekrarSiklikCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <FlexLayout Wrap="Wrap" AlignItems="End">
+                            <VerticalStackLayout Spacing="0" WidthRequest="200" Margin="0,0,16,0" IsVisible="{Binding BaslangicGorunur}">
+                                <Label Text="Başlangıç ayı (ilk vadenin ayı)" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <DatePicker Date="{Binding DuzenTekrarBaslangic}" Format="MMMM yyyy" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Spacing="9" HeightRequest="44">
+                                <Switch IsToggled="{Binding DuzenTekrarTutarDegisken}" VerticalOptions="Center" />
+                                <Label Text="Tutar her seferinde girilir (vergi, fatura)" Style="{StaticResource LblRowPrimary}" FontSize="13"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </FlexLayout>
+                        <!-- ==================== /Paket D ==================== -->
+
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="{Binding TekrarKalemEtiketi}" Style="{StaticResource LblField}" />
                             <FlexLayout Wrap="Wrap" AlignItems="Center"
                                         BindableLayout.ItemsSource="{Binding TekrarKalemCipleri}">
                                 <BindableLayout.ItemTemplate>
@@ -261,7 +336,7 @@
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </FlexLayout>
-                            <Label Text="Önce yukarıdaki Sabit Gider Kalemleri bölümünden bir kalem ekleyin."
+                            <Label Text="{Binding TekrarKalemYokMetni}"
                                    Style="{StaticResource LblPageSub}"
                                    IsVisible="{Binding TekrarKalemYok}" />
                         </VerticalStackLayout>
@@ -287,7 +362,7 @@
                               RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto'}"
                               ColumnSpacing="10" RowSpacing="12">
                             <VerticalStackLayout Spacing="0">
-                                <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                <Label Text="{Binding TekrarTutarEtiketi}" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
                                     <Entry Text="{Binding DuzenTekrarTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
                                            Style="{StaticResource EntryMoney}" />
@@ -356,6 +431,9 @@
                     </CollectionView>
                 </VerticalStackLayout>
             </Border>
+
+            <!-- ═══ BÖLÜM · Paket A · Bildirimler (bu bilgisayar; sunucu ayarı değildir) ═══ -->
+            <v:BildirimAyarlariView />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

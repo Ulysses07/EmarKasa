@@ -6,7 +6,7 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Platforms.Windows;
 
-public static class HatirlatmaKontrol
+public static partial class HatirlatmaKontrol
 {
     public const string Arg = "--hatirlatma-kontrol";
     private const string GorevAdi = "EmarKasaHatirlatici";
@@ -26,7 +26,8 @@ public static class HatirlatmaKontrol
             // Son kontrolden bu yana kaçan günler de taranır (bilgisayar kapalı olabilir). İleri
             // tarihli son kontrol (saat ileri alınmıştı) hatırlatıcıda geçersiz sayılır.
             var hatirlatmalar = KartHatirlatici.VadesiGelenler(gorunumler, bugun, durum.SonKontrol);
-            if (hatirlatmalar.Count > 0)
+            // Paket A: Bildirimler → "Kredi kartı hatırlatmaları" kapalıysa gösterilmez (günler yine işlenir).
+            if (hatirlatmalar.Count > 0 && KartHatirlatmaAcik())
             {
                 var bildirim = new WindowsBildirimServisi();
                 bildirim.KayitOl();
@@ -46,6 +47,7 @@ public static class HatirlatmaKontrol
             }
         }
         catch { /* ağ hatası — bir sonraki çalıştırmada kaçan günler telafi edilir */ }
+        await PaketABildirimleriAsync(sp);   // Paket A: HatirlatmaKontrol.A.cs
     }
 
     /// <summary>

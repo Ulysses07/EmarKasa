@@ -20,4 +20,12 @@ public partial class KrediKartlariPage : ContentPage
         _vm.EditorMu = _auth.AktifRol == Rol.Editor;
         await _vm.YukleAsync();
     }
+
+    /// <summary>Paket D: kartın ekstre mutabakatı sayfasına gider.</summary>
+    private async void MutabakatTiklandi(object? sender, EventArgs e)
+    {
+        if (sender is not BindableObject { BindingContext: KrediKartiGorunum k }) return;
+        try { await Shell.Current.GoToAsync($"{KartMutabakatPage.Rota}?kartId={k.Id}"); }
+        catch (Exception) { /* gezinme sürerken ikinci basış */ }
+    }
 }

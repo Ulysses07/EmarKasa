@@ -12,6 +12,11 @@ public sealed class Yonlendirme
         "kredikartlari" or "kartlar" => "//kartlar",
         "panel" => "//panel",
         "islemler" => "//islemler",
+        // Paket A bildirimleri (haftalık özet, vadesi geçen çek, geçmişe dönük düzeltme).
+        "cekler" => "//cekler",
+        "kasasayimi" => "//kasasayimi",
+        "gecmis" => "//gecmis",
+        "haftalik" => "//haftalik",
         _ => null,
     };
 

@@ -29,6 +29,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
         builder.Services.AddSingleton<Yonlendirme>();
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.PaketAServisleriniEkle();   // Paket A: yerel depo, bildirimler, bildirim ayarları (PaketAKayit.cs)
 #if WINDOWS
         builder.Services.AddSingleton<IBildirimServisi>(sp =>
             new Platforms.Windows.WindowsBildirimServisi(sp.GetRequiredService<Yonlendirme>()));
@@ -54,6 +55,7 @@ public static class MauiProgram
         builder.Services.AddTransient<CeklerViewModel>();
         builder.Services.AddTransient<GecmisViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
+        builder.Services.AddTransient<KartMutabakatViewModel>();          // Paket D
 
         builder.Services.AddSingleton<App>();
         builder.Services.AddSingleton<AppShell>();
@@ -68,6 +70,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.CeklerPage>();
         builder.Services.AddTransient<Views.GecmisPage>();
         builder.Services.AddTransient<Views.AyarlarPage>();
+        builder.Services.AddTransient<Views.KartMutabakatPage>();         // Paket D
 
 #if DEBUG
         builder.Logging.AddDebug();

@@ -37,6 +37,12 @@
             <Grid RowDefinitions="Auto,*">
                 <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
                     <Label Text="Değişiklikler" Style="{StaticResource LblSection}" />
+                    <!-- Paket D: düzenlemeyi de geri alma -->
+                    <Label Text="Silinen kayıt &quot;Geri al&quot;, düzenlenen işlem, çek, gelen ve açılış devri &quot;Önceki haline döndür&quot; ile 30 gün içinde geri alınır. Kayıt o arada yeniden değiştiyse önce daha yeni değişikliği geri alın."
+                           Style="{StaticResource LblRowSecondary}"
+                           FontSize="12" LineBreakMode="WordWrap"
+                           IsVisible="{Binding EditorMu}" />
+                    <!-- /Paket D -->
 
                     <!-- Filtre: tür çipleri -->
                     <FlexLayout Wrap="Wrap" AlignItems="Center"
@@ -57,6 +63,9 @@
 
                     <!-- Özet -->
                     <Label Text="{Binding Ozet}" Style="{StaticResource LblRowSecondary}" />
+                    <!-- Paket A · son bakıştan beri yeni satırlar (bu cihaz) -->
+                    <Label Text="{Binding YeniMetni}" Style="{StaticResource LblRowSecondary}" TextColor="{StaticResource Pos}"
+                           IsVisible="{Binding YeniMetni, Converter={StaticResource DoluIse}}" />
                 </VerticalStackLayout>
 
                 <CollectionView Grid.Row="1" ItemsSource="{Binding Kayitlar}" SelectionMode="None">
@@ -106,13 +115,28 @@
                                         <Label Text="{Binding Ozet}" Style="{StaticResource LblRowPrimary}"
                                                LineBreakMode="WordWrap" />
                                         <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" />
+                                        <!-- Paket A · "Yeni" (son bakıştan sonra) ve "Geçmişe dönük" (önceki ayı değiştirir) -->
+                                        <HorizontalStackLayout Spacing="6" Margin="0,3,0,0" IsVisible="{Binding EtiketVar}">
+                                            <Border Style="{StaticResource StatusChip}" Background="{StaticResource BrushGreen}"
+                                                    IsVisible="{Binding Yeni}">
+                                                <Label Text="Yeni" Style="{StaticResource LblStatusChip}" TextColor="White" />
+                                            </Border>
+                                            <Border Style="{StaticResource StatusChip}" IsVisible="{Binding GecmiseDonuk}">
+                                                <Border.Background>
+                                                    <SolidColorBrush Color="{StaticResource NegSoft}" />
+                                                </Border.Background>
+                                                <Label Text="Geçmişe dönük" Style="{StaticResource LblStatusChip}"
+                                                       TextColor="{StaticResource Neg}" />
+                                            </Border>
+                                        </HorizontalStackLayout>
                                         <Label Text="{Binding GeriAlmaNotu}" Style="{StaticResource LblRowSecondary}"
                                                TextColor="{StaticResource Pos}"
                                                IsVisible="{Binding GeriAlmaNotu, Converter={StaticResource DoluIse}}" />
                                     </VerticalStackLayout>
 
-                                    <!-- Satır aksiyonu: yalnız editörde ve geri alınabilir silmede -->
-                                    <Button Grid.Column="2" Text="Geri al" Style="{StaticResource BtnRowEdit}"
+                                    <!-- Satır aksiyonu: yalnız editörde ve geri alınabilir silme/güncellemede
+                                         (Paket D: güncellemede "Önceki haline döndür") -->
+                                    <Button Grid.Column="2" Text="{Binding GeriAlMetni}" Style="{StaticResource BtnRowEdit}"
                                             VerticalOptions="Center" IsVisible="{Binding GeriAlGorunur}"
                                             Command="{Binding BindingContext.GeriAlCommand, Source={x:Reference Sayfa}}"
                                             CommandParameter="{Binding .}" />

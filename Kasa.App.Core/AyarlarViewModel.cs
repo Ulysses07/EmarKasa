@@ -58,6 +58,7 @@ public partial class AyarlarViewModel : TemelViewModel
         TekrarlayanGiderler.Clear();
         foreach (var t in tekrarlar) TekrarlayanGiderler.Add(new TekrarlayanGiderSatiri(t));
         TekrarCipleriniKur();
+        await TekrarEkleriniYukleAsync();                        // Paket D: kartlar, cariler, hazır şablonlar
     }
 
     public Task YukleAsync()
@@ -177,6 +178,7 @@ public partial class AyarlarViewModel : TemelViewModel
         kanallar.Add(OrtakKanal);
         TekrarKanalCipleri.Clear();
         foreach (var ad in kanallar) TekrarKanalCipleri.Add(new SecimCipi(ad) { Secili = ad == DuzenTekrarKanal });
+        KartliKalemCipleriniKur();                               // Paket D: karta bağlıda kalem = cari
     }
 
     [RelayCommand]
@@ -184,6 +186,7 @@ public partial class AyarlarViewModel : TemelViewModel
     {
         DuzenTekrarId = 0; DuzenTekrarKalem = ""; DuzenTekrarKanal = "";
         DuzenTekrarTutar = 0; DuzenTekrarGun = 1; DuzenTekrarAktif = true;
+        TekrarEkYeni();                                          // Paket D
         TekrarCipleriniKur();   // düzenlemede eklenen pasif kalem/kanal çipi kalksın
     }
 
@@ -193,6 +196,7 @@ public partial class AyarlarViewModel : TemelViewModel
         var g = s.Gider;
         DuzenTekrarId = g.Id; DuzenTekrarKalem = g.Kalem; DuzenTekrarKanal = g.Kanal;
         DuzenTekrarTutar = g.Tutar; DuzenTekrarGun = g.AyinGunu; DuzenTekrarAktif = g.Aktif;
+        TekrarEkDuzenle(g);                                      // Paket D
         TekrarCipleriniKur();   // pasif kalem/kanal da seçili görünsün
     }
 
@@ -205,9 +209,10 @@ public partial class AyarlarViewModel : TemelViewModel
     {
         Dogrula(DuzenTekrarKalem.Trim().Length > 0, KalemSecinMesaji);
         Dogrula(DuzenTekrarKanal.Trim().Length > 0, KanalSecinMesaji);
-        Dogrula(DuzenTekrarTutar > 0, TutarMesaji);
+        Dogrula(DuzenTekrarTutar > 0 || DuzenTekrarTutarDegisken, TutarMesaji);   // Paket D: değişken tutarda 0 olabilir
         Dogrula(DuzenTekrarGun is >= 1 and <= 31, GunMesaji);
-        var g = new TekrarlayanGiderYaz(DuzenTekrarKalem.Trim(), DuzenTekrarKanal.Trim(), DuzenTekrarTutar, DuzenTekrarGun, DuzenTekrarAktif);
+        var g = new TekrarlayanGiderYaz(DuzenTekrarKalem.Trim(), DuzenTekrarKanal.Trim(), DuzenTekrarTutar, DuzenTekrarGun, DuzenTekrarAktif,
+            TekrarBaslangicAyi(), DuzenTekrarSiklik, DuzenTekrarKartId, DuzenTekrarTutarDegisken);   // Paket D
         if (DuzenTekrarId == 0) await _api.TekrarlayanGiderOlusturAsync(g);
         else await _api.TekrarlayanGiderGuncelleAsync(DuzenTekrarId, g);
         YeniTekrar();
