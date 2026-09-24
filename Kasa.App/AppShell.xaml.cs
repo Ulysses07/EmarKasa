@@ -56,6 +56,7 @@ public partial class AppShell : Shell
         GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
         AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
         _ = GitAsync(_yonlendirme.Al() ?? "//panel");   // bildirimle açıldıysa o sayfaya
+        _ = PaketABildirimleriAsync();   // Paket A: haftalık özet vb. (AppShell.A.cs)
     }
 
     private void MenuyuKapat()

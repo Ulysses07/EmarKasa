@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · BildirimAyarlariView — Paket A: bildirim türleri ayrı ayrı açılıp kapatılır.
+     Seçimler yalnız bu bilgisayarda saklanır (sunucuya gitmez). Ayarlar'da (editör) ve Panel → Bildirimler
+     sayfasında (her iki rol) aynı görünüm kullanılır; BindingContext kendi VM'idir. -->
+<ContentView
+    x:Class="Kasa.App.Views.BildirimAyarlariView"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <Border Style="{StaticResource CardForm}">
+        <VerticalStackLayout Spacing="0">
+            <Label Text="Bildirimler" Style="{StaticResource LblSection}" />
+            <Label Text="Windows bildirimleri. Seçimler yalnız bu bilgisayarda saklanır; diğer bilgisayarları ve kullanıcıları etkilemez."
+                   Style="{StaticResource LblPageSub}" Margin="0,4,0,6" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Padding="0,10">
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="Haftalık özet" Style="{StaticResource LblRowPrimary}" />
+                    <Label Text="Pazartesi 08:00'den sonra: geçen haftanın kasa sonucu ve güncel kasa."
+                           Style="{StaticResource LblRowSecondary}" />
+                </VerticalStackLayout>
+                <Switch Grid.Column="1" IsToggled="{Binding HaftalikOzet, Mode=TwoWay}" VerticalOptions="Center" />
+            </Grid>
+            <BoxView Style="{StaticResource RowSeparator}" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Padding="0,10">
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="Vadesi geçen çekler" Style="{StaticResource LblRowPrimary}" />
+                    <Label Text="Haftalık özetle birlikte ayrı bildirim: vadesi geçip hâlâ portföyde bekleyen çekler."
+                           Style="{StaticResource LblRowSecondary}" />
+                </VerticalStackLayout>
+                <Switch Grid.Column="1" IsToggled="{Binding VadesiGecenCek, Mode=TwoWay}" VerticalOptions="Center" />
+            </Grid>
+            <BoxView Style="{StaticResource RowSeparator}" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Padding="0,10">
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="Geçmişe dönük düzeltmeler" Style="{StaticResource LblRowPrimary}" />
+                    <Label Text="Kapanmış bir ayın rakamını değiştiren kayıt olunca; günde en fazla bir kez."
+                           Style="{StaticResource LblRowSecondary}" />
+                </VerticalStackLayout>
+                <Switch Grid.Column="1" IsToggled="{Binding GecmiseDonuk, Mode=TwoWay}" VerticalOptions="Center" />
+            </Grid>
+            <BoxView Style="{StaticResource RowSeparator}" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Padding="0,10">
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="Bugün yapılacaklar" Style="{StaticResource LblRowPrimary}" />
+                    <Label Text="Sabah hatırlatıcısıyla (09:00) günün işleri; yalnız editör oturumunda, günde bir kez."
+                           Style="{StaticResource LblRowSecondary}" />
+                </VerticalStackLayout>
+                <Switch Grid.Column="1" IsToggled="{Binding BugunYapilacaklar, Mode=TwoWay}" VerticalOptions="Center" />
+            </Grid>
+            <BoxView Style="{StaticResource RowSeparator}" />
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Padding="0,10,0,0">
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="Kredi kartı hatırlatmaları" Style="{StaticResource LblRowPrimary}" />
+                    <Label Text="Ekstre kesimi ve son ödeme günü bildirimleri (Kredi Kartları sayfasındaki şerit her zaman görünür)."
+                           Style="{StaticResource LblRowSecondary}" />
+                </VerticalStackLayout>
+                <Switch Grid.Column="1" IsToggled="{Binding KartHatirlatma, Mode=TwoWay}" VerticalOptions="Center" />
+            </Grid>
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

@@ -29,7 +29,7 @@
         <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="20">
 
             <!-- SOL: editör form sütunu -->
-            <ScrollView IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
+            <ScrollView x:Name="FormKaydirici" IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
                 <VerticalStackLayout WidthRequest="360" Spacing="16">
 
                     <!-- Bölüm 1 · İşlem -->
@@ -160,7 +160,7 @@
                     </Border>
 
                     <!-- Bölüm 2 · Gelen (kanal geliri) -->
-                    <Border Style="{StaticResource Card}" Padding="0">
+                    <Border x:Name="GelenKarti" Style="{StaticResource Card}" Padding="0">
                         <VerticalStackLayout Spacing="0">
                             <BoxView HeightRequest="3" Color="{StaticResource Green}" />
                             <VerticalStackLayout Padding="18" Spacing="12">

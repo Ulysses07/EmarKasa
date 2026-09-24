@@ -56,7 +56,9 @@ public record KrediKartiTuretilmisDto(
     decimal Borc, decimal GuncelBorc, decimal AcilisBorc, decimal HarcamaToplam, decimal OdemeToplam,
     decimal EkstreBorc);
 
-/// <summary>Değişiklik geçmişi satırı; <see cref="GeriAlinabilir"/> sunucu kurallarıyla hesaplanır (silindi + desteklenen tür + 30 gün + geri alınmamış).</summary>
+/// <summary>Değişiklik geçmişi satırı; <see cref="GeriAlinabilir"/> sunucu kurallarıyla hesaplanır (silindi + desteklenen tür + 30 gün + geri alınmamış).
+/// <see cref="GecmiseDonuk"/>: önceki bir ayın rakamını değiştiriyor (<see cref="Kasa.Api.Data.GecmiseDonukKurali"/>).</summary>
 public record DegisiklikDto(
     int Id, DateTime ZamanUtc, string Rol, string Tur, int? KayitId, string Eylem, string Ozet,
-    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir);
+    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir,
+    bool GecmiseDonuk = false);

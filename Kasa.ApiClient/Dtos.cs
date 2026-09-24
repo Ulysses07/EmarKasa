@@ -36,10 +36,12 @@ public record CekOzetDto(decimal PortfoydekiAlinanToplam, int PortfoydekiAlinanA
 /// <summary>
 /// Değişiklik geçmişi satırı. <see cref="Eylem"/>: Eklendi / Güncellendi / Silindi / Eklendi (geri alındı).
 /// <see cref="GeriAlinabilir"/> sunucu kurallarıyla hesaplanır (silinmiş, desteklenen tür, 30 gün içinde, geri alınmamış).
+/// <see cref="GecmiseDonuk"/>: değişiklik önceki bir ayın rakamını değiştiriyor (sunucu kuralı; eski sunucuda false).
 /// </summary>
 public record DegisiklikDto(
     int Id, DateTime ZamanUtc, string Rol, string Tur, int? KayitId, string Eylem, string Ozet,
-    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir);
+    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir,
+    bool GecmiseDonuk = false);
 /// <summary>Geçmişin bir sayfası (en yeni önce) + filtreye uyan toplam satır sayısı.</summary>
 public record DegisiklikSayfasi(IReadOnlyList<DegisiklikDto> Kayitlar, int Toplam);
 

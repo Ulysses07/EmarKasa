@@ -9,10 +9,13 @@ namespace Kasa.App.Core;
 public partial class PanelViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public PanelViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
+    /// <param name="depo">Cihaza özel ayarlar (tahmin ufku, son bakış); verilmezse bellekte tutulur.</param>
+    public PanelViewModel(IKasaApi api, TimeProvider? zaman = null, IYerelDepo? depo = null) : base(zaman)
     {
         _api = api;
+        _depo = depo ?? new BellekYerelDepo();
         BekleyenGiderler.CollectionChanged += (_, _) => OnPropertyChanged(nameof(BekleyenVar));
+        PaketAKur();
     }
 
     [ObservableProperty] private decimal _guncelKasa;
@@ -47,6 +50,9 @@ public partial class PanelViewModel : TemelViewModel
         Kanallar.Clear();
         foreach (var k in p.Kanallar) Kanallar.Add(k);
         BekleyenleriKur(bekleyenGorevi.Result);
+        // Paket A: durum kartları, nakit tahmini, bugün yapılacaklar (her biri kendi hatasını yutar;
+        // ana panel yüklemesini hiçbiri bozmaz). Bkz. PanelViewModel.A.cs.
+        await EkBolumleriYukleAsync(bekleyenGorevi.Result);
     }
 
     private void BekleyenleriKur(IReadOnlyList<BekleyenGiderDto> liste)

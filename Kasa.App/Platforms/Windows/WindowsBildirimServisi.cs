@@ -6,10 +6,14 @@ using Microsoft.Windows.AppNotifications.Builder;
 namespace Kasa.App.Platforms.Windows;
 
 /// <summary>Windows App SDK toast bildirimleri (paketsiz .exe).</summary>
-public sealed class WindowsBildirimServisi : IBildirimServisi
+public sealed partial class WindowsBildirimServisi : IBildirimServisi, IKisaBildirim
 {
     private readonly Yonlendirme? _yonlendirme;
     private bool _kayitli;
+
+    // Register() süreç başına bir kez (ikincisi "Already Registered" atar): arka plan hatırlatıcısında birden
+    // fazla servis nesnesi kaydolabilir.
+    private static readonly TekSeferlik SurecKaydi = new();
 
     /// <param name="yonlendirme">Toast'a tıklanınca istenen sayfa buraya yazılır; Shell oturum açıkken uygular.
     /// Headless hatırlatıcıda null (orada yönlendirme yok).</param>
@@ -21,7 +25,7 @@ public sealed class WindowsBildirimServisi : IBildirimServisi
         var mgr = AppNotificationManager.Default;
         // Uygulama açıkken tıklama: bu olay gelir (arka plan iş parçacığında).
         mgr.NotificationInvoked += (_, args) => HedefiIste(args.Arguments);
-        mgr.Register();
+        SurecKaydi.Calistir(() => mgr.Register());
         _kayitli = true;
 
         // Uygulama kapalıyken tıklama: exe bildirim argümanlarıyla başlatılır; olay GELMEZ,

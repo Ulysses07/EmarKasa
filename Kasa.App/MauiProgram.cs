@@ -29,6 +29,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
         builder.Services.AddSingleton<Yonlendirme>();
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.PaketAServisleriniEkle();   // Paket A: yerel depo, bildirimler, bildirim ayarları (PaketAKayit.cs)
 #if WINDOWS
         builder.Services.AddSingleton<IBildirimServisi>(sp =>
             new Platforms.Windows.WindowsBildirimServisi(sp.GetRequiredService<Yonlendirme>()));
