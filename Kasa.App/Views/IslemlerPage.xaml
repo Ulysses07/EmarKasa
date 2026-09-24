@@ -253,8 +253,16 @@
                             </Border>
                         </Grid>
 
-                        <!-- Özet -->
-                        <Label Text="{Binding FiltreOzet}" Style="{StaticResource LblRowSecondary}" />
+                        <!-- Özet + Excel'e aktar (seçili filtreye uyan tüm işlemler, yüklenmemiş eskiler dahil) -->
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <Label Text="{Binding FiltreOzet}" Style="{StaticResource LblRowSecondary}"
+                                   VerticalOptions="Center" />
+                            <Button Grid.Column="1" Text="Excel'e aktar" Command="{Binding ExceleAktarCommand}"
+                                    Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
+                        </Grid>
+                        <Label Text="{Binding AktarilanDosya, StringFormat='Kaydedildi: {0}'}" Style="{StaticResource LblRowSecondary}"
+                               TextColor="{StaticResource Pos}" LineBreakMode="CharacterWrap"
+                               IsVisible="{Binding AktarilanDosya, Converter={StaticResource DoluIse}}" />
                     </VerticalStackLayout>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>

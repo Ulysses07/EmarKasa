@@ -208,4 +208,58 @@ public sealed class SahteApi : IKasaApi
         return Task.FromResult(new CekDto(id, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not));
     }
     public Task CekSilAsync(int id) { SonCekSil = id; return Task.CompletedTask; }
+
+    // ---- Excel'e aktar ----
+    /// <summary>İndirme çağrılarının döndüğü dosya.</summary>
+    public IndirilenDosya CsvDosyasi = new("kasa-rapor.csv", [0xEF, 0xBB, 0xBF, (byte)'a']);
+    /// <summary>Ayarlanırsa CSV indirmeleri bu istisnayı fırlatır.</summary>
+    public Exception? CsvHatasi;
+    public (DateOnly? Baslangic, DateOnly? Bitis, string? Kanal, string? Cari)? SonIslemCsv;
+    public int HaftalikCsvCagri;
+    public (int Yil, int Ay)? SonAylikCsv;
+    private Task<IndirilenDosya> CsvYanit() => CsvHatasi is not null ? Task.FromException<IndirilenDosya>(CsvHatasi) : Task.FromResult(CsvDosyasi);
+    public Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
+    {
+        SonIslemCsv = (baslangic, bitis, kanal, cari);
+        return CsvYanit();
+    }
+    public Task<IndirilenDosya> HaftalikCsvAsync() { HaftalikCsvCagri++; return CsvYanit(); }
+    public Task<IndirilenDosya> AylikCsvAsync(int yil, int ay) { SonAylikCsv = (yil, ay); return CsvYanit(); }
+
+    // ---- Kasa sayımı ----
+    public IReadOnlyList<KasaSayimDto> KasaSayimlariListe = new List<KasaSayimDto>();
+    public int KasaSayimlariCagri;
+    /// <summary>Defter değeri yanıtı (tarih → tutar); ayarlanmadıysa <see cref="KasaHesapSonuc"/>.</summary>
+    public Func<DateOnly, Task<KasaHesapDto>>? KasaHesaplaUret;
+    public decimal KasaHesapSonuc;
+    public List<DateOnly> KasaHesaplaCagrilari = new();
+    public KasaSayimYaz? SonKasaSayimKaydet;
+    public Exception? KasaSayimYazHatasi;
+    public int? SonKasaSayimSil;
+    public Task<IReadOnlyList<KasaSayimDto>> KasaSayimlariAsync()
+    {
+        KasaSayimlariCagri++;
+        return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KasaSayimDto>>(YuklemeHatasi) : Task.FromResult(KasaSayimlariListe);
+    }
+    public Task<KasaHesapDto> KasaHesaplaAsync(DateOnly tarih)
+    {
+        KasaHesaplaCagrilari.Add(tarih);
+        if (KasaHesaplaUret is not null) return KasaHesaplaUret(tarih);
+        return YuklemeHatasi is not null ? Task.FromException<KasaHesapDto>(YuklemeHatasi) : Task.FromResult(new KasaHesapDto(tarih, KasaHesapSonuc));
+    }
+    public Task<KasaSayimDto> KasaSayimKaydetAsync(KasaSayimYaz g)
+    {
+        if (KasaSayimYazHatasi is not null) return Task.FromException<KasaSayimDto>(KasaSayimYazHatasi);
+        SonKasaSayimKaydet = g;
+        var d = new KasaSayimDto(100 + KasaSayimlariListe.Count, g.Tarih, g.SayilanTutar, KasaHesapSonuc,
+            g.SayilanTutar - KasaHesapSonuc, KasaHesapSonuc, g.Not, new DateTime(2026, 9, 24, 9, 0, 0, DateTimeKind.Utc));
+        KasaSayimlariListe = KasaSayimlariListe.Prepend(d).ToList();
+        return Task.FromResult(d);
+    }
+    public Task KasaSayimSilAsync(int id)
+    {
+        SonKasaSayimSil = id;
+        KasaSayimlariListe = KasaSayimlariListe.Where(s => s.Id != id).ToList();
+        return Task.CompletedTask;
+    }
 }

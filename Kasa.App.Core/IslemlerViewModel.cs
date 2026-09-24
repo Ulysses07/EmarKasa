@@ -9,10 +9,12 @@ namespace Kasa.App.Core;
 public partial class IslemlerViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
+    private readonly IDosyaKaydedici? _kaydedici;
 
-    public IslemlerViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
+    public IslemlerViewModel(IKasaApi api, TimeProvider? zaman = null, IDosyaKaydedici? kaydedici = null) : base(zaman)
     {
         _api = api;
+        _kaydedici = kaydedici;
         _varsayilanGun = Bugun;
         _duzenTarih = _varsayilanGun;
         _gelenTarih = _varsayilanGun;
@@ -276,6 +278,21 @@ public partial class IslemlerViewModel : TemelViewModel
     }
 
     private Task YenidenListele() => CalistirAsync(IslemleriYukleAsync);
+
+    /// <summary>Son "Excel'e aktar"ın kaydettiği dosyanın tam yolu (sayfada gösterilir).</summary>
+    [ObservableProperty] private string? _aktarilanDosya;
+
+    /// <summary>
+    /// Seçili filtreyle (tarih aralığı + kanal) eşleşen TÜM işlemleri CSV olarak kaydeder —
+    /// listede henüz yüklenmemiş eski sayfalar da dahil.
+    /// </summary>
+    [RelayCommand]
+    private Task ExceleAktarAsync() => CalistirAsync(async () =>
+    {
+        var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
+        AktarilanDosya = null;
+        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => _api.IslemlerCsvAsync(bas, bit, kanal));
+    });
 
     // ---- Filtre komutları ----
     [RelayCommand(AllowConcurrentExecutions = true)]

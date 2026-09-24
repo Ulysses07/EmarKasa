@@ -73,6 +73,9 @@
     <FlyoutItem x:Name="PanelItem" Title="Panel" Route="panel" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:PanelPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="KasaSayimiItem" Title="Kasa Sayımı" Route="kasasayimi" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:KasaSayimiPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="HaftalikItem" Title="Haftalık" Route="haftalik" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:HaftalikPage}" />
     </FlyoutItem>

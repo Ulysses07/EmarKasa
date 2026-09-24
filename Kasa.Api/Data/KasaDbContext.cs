@@ -16,6 +16,8 @@ public class KasaDbContext : DbContext
     public DbSet<KartOdemeEntity> KartOdemeler => Set<KartOdemeEntity>();
     public DbSet<CekEntity> Cekler => Set<CekEntity>();
     public DbSet<IptalEdilenTokenEntity> IptalEdilenTokenlar => Set<IptalEdilenTokenEntity>();
+    /// <summary>Kasa sayımları. Var olan DB'lerde tabloyu SemaGuncelleyici ekler.</summary>
+    public DbSet<KasaSayimEntity> KasaSayimlari => Set<KasaSayimEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

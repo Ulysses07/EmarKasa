@@ -25,6 +25,26 @@ public record CekOzetDto(
     IReadOnlyList<Kasa.Api.Data.CekEntity> Yaklasanlar,
     IReadOnlyList<Kasa.Api.Data.CekEntity> VadesiGecenler);
 
+/// <summary>Kasa sayımı girişi (editör). Defter değeri sunucuda hesaplanır.</summary>
+public record KasaSayimYazDto(DateOnly Tarih, decimal SayilanTutar, string? Not);
+
+/// <summary>
+/// Kasa sayımı. HesaplananTutar kayıt anındaki defter değeridir (değişmez); Fark = Sayılan − Hesaplanan.
+/// GuncelHesaplanan aynı tarih için bugünkü defter değeridir: geçmiş kayıtlar sonradan düzeltildiyse
+/// HesaplananTutar'dan farklı olur. Tarih artık takvim dışındaysa (takip başlangıcı ileri alındı) null.
+/// </summary>
+public record KasaSayimDto(
+    int Id, DateOnly Tarih, decimal SayilanTutar, decimal HesaplananTutar, decimal Fark,
+    decimal? GuncelHesaplanan, string? Not, DateTime KayitZamaniUtc)
+{
+    public static KasaSayimDto Olustur(Kasa.Api.Data.KasaSayimEntity e, decimal? guncelHesaplanan) => new(
+        e.Id, e.Tarih, e.SayilanTutar, e.HesaplananTutar, e.SayilanTutar - e.HesaplananTutar,
+        guncelHesaplanan, e.Not, DateTime.SpecifyKind(e.KayitZamaniUtc, DateTimeKind.Utc));
+}
+
+/// <summary>Bir tarihin gün sonundaki defter kasası (sayım formu önizlemesi).</summary>
+public record KasaHesapDto(DateOnly Tarih, decimal HesaplananTutar);
+
 public record KrediKartiTuretilmisDto(
     int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit,
     decimal Borc, decimal GuncelBorc, decimal AcilisBorc, decimal HarcamaToplam, decimal OdemeToplam,

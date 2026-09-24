@@ -41,6 +41,22 @@ public interface IKasaApi
     /// <summary>Portföy toplamları, vadesi yaklaşan ve vadesi geçmiş (portföydeki) çekler.</summary>
     Task<CekOzetDto> CekOzetAsync();
 
+    // Excel'e aktar (CSV; her iki rol). Dosya adı sunucunun Content-Disposition'ından gelir.
+    /// <summary>İşlem listesi, <see cref="IslemlerAsync"/> ile aynı filtreyle (sayfalama yok) + toplam satırı.</summary>
+    Task<IndirilenDosya> IslemlerCsvAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null);
+    /// <summary>Haftalık rapor: dönem × kanal satırları + dönem başına kasa satırı.</summary>
+    Task<IndirilenDosya> HaftalikCsvAsync();
+    /// <summary>Aylık rapor: kanal başına tüm sütunlar + toplam satırı.</summary>
+    Task<IndirilenDosya> AylikCsvAsync(int yil, int ay);
+
+    // Kasa sayımı (okuma her iki rol; kaydet/sil editör)
+    /// <summary>Sayım geçmişi, en yeni tarih önce.</summary>
+    Task<IReadOnlyList<KasaSayimDto>> KasaSayimlariAsync();
+    /// <summary>Tarih gününün sonundaki defter kasası (ileri tarih / takip öncesi → 400).</summary>
+    Task<KasaHesapDto> KasaHesaplaAsync(DateOnly tarih);
+    Task<KasaSayimDto> KasaSayimKaydetAsync(KasaSayimYaz g);
+    Task KasaSayimSilAsync(int id);
+
     // Editör mutasyonları (KasaApiClient bunları zaten uyguluyor)
     Task<KanalDto> KanalOlusturAsync(KanalYaz g);
     Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g);
