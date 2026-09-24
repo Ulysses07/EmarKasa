@@ -77,6 +77,7 @@ public partial class KasaSayimiViewModel : TemelViewModel
         var liste = await _api.KasaSayimlariAsync();
         Sayimlar.Clear();
         foreach (var s in liste) Sayimlar.Add(new KasaSayimSatiri(s));
+        SayimEkleriniKur(liste);                                 // Paket D: aylık fark, son sayım, satırlar
     }
 
     /// <summary>Seçili tarihin defter kasasını yeniden çeker (tarih değişince kendiliğinden çağrılır).</summary>
@@ -112,7 +113,9 @@ public partial class KasaSayimiViewModel : TemelViewModel
         var tarih = DateOnly.FromDateTime(FormTarih);
         Dogrula(tarih <= BugunTarih, IleriTarihMesaji);
         var not = string.IsNullOrWhiteSpace(Not) ? null : Not.Trim();
-        await _api.KasaSayimKaydetAsync(new KasaSayimYaz(tarih, SayilanTutar, not));
+        var satirlar = GonderilecekSatirlar();                   // Paket D: satırlı sayım (yoksa null)
+        await _api.KasaSayimKaydetAsync(new KasaSayimYaz(tarih, SayilanTutar, not, satirlar));
+        SatirlariTemizle();                                      // Paket D: satır adları kalır, tutarlar sıfırlanır
         SayilanTutar = 0m;
         Not = null;
         _varsayilanGun = Bugun;
@@ -129,7 +132,7 @@ public partial class KasaSayimiViewModel : TemelViewModel
 }
 
 /// <summary>Sayım geçmişi satırı (görünüm için hazır metinler).</summary>
-public sealed class KasaSayimSatiri
+public sealed partial class KasaSayimSatiri
 {
     public KasaSayimSatiri(KasaSayimDto d)
     {
@@ -140,6 +143,7 @@ public sealed class KasaSayimSatiri
         Fark = d.Fark;
         GuncelHesaplanan = d.GuncelHesaplanan;
         Not = d.Not;
+        EkBilgileriKur(d);                                       // Paket D
     }
 
     public int Id { get; }

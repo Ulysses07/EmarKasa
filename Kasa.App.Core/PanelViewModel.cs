@@ -47,6 +47,7 @@ public partial class PanelViewModel : TemelViewModel
         Kanallar.Clear();
         foreach (var k in p.Kanallar) Kanallar.Add(k);
         BekleyenleriKur(bekleyenGorevi.Result);
+        await AtlananlariYukleAsync();                           // Paket D: atlananlar + onay kanalları
     }
 
     private void BekleyenleriKur(IReadOnlyList<BekleyenGiderDto> liste)
@@ -69,8 +70,9 @@ public partial class PanelViewModel : TemelViewModel
     private Task BekleyenKaydetAsync(BekleyenGiderGorunum b) => CalistirAsync(async () =>
     {
         Dogrula(b.Tutar > 0, "Tutar sıfırdan büyük olmalı.");
-        var tarih = b.Vade > BugunTarih ? BugunTarih : b.Vade;
-        await KararVerAsync(() => _api.TekrarlayanOnaylaAsync(b.TekrarlayanGiderId, new TekrarlayanOnayYaz(b.Ay, tarih, b.Tutar)));
+        var tarih = OnayTarihi(b);                               // Paket D: satırda seçilen gün (ileri tarih bugüne)
+        await KararVerAsync(() => _api.TekrarlayanOnaylaAsync(b.TekrarlayanGiderId,
+            new TekrarlayanOnayYaz(b.Ay, tarih, b.Tutar, b.GonderilecekKanal, b.GonderilecekNot)));
         BekleyenGiderler.Remove(b);
         await DoldurAsync();
     });

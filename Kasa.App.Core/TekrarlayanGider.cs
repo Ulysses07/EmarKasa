@@ -30,6 +30,7 @@ public sealed partial class BekleyenGiderGorunum : ObservableObject
         TekrarlayanGiderId = d.TekrarlayanGiderId; Kalem = d.Kalem; Kanal = d.Kanal;
         KayitliTutar = d.Tutar; Ay = d.Ay; Vade = d.Vade;
         _tutar = d.Tutar;
+        EkAlanlariKur(d);                                        // Paket D
     }
 
     /// <summary>Aynı gider ve ay mı (yeniden yüklemede düzenlenmiş tutarı taşımak için).</summary>
@@ -42,6 +43,7 @@ public sealed partial class BekleyenGiderGorunum : ObservableObject
     public void GirisiDevral(BekleyenGiderGorunum eski)
     {
         if (eski.Tutar != eski.KayitliTutar) Tutar = eski.Tutar;
+        EkGirisiDevral(eski);                                    // Paket D: tarih, kanal, not
     }
 }
 
@@ -59,7 +61,7 @@ public sealed class TekrarlayanGiderSatiri
     public TekrarlayanGiderSatiri(TekrarlayanGiderDto g)
     {
         Gider = g;
-        Aciklama = $"{g.Kanal} · {GunMetni(g.AyinGunu)} · {Bicim.Tl(g.Tutar)}";
+        Aciklama = TekrarlayanMetin.SatirAciklamasi(g);         // Paket D: aylık sabit tutarlıda eskisiyle aynı
     }
 
     /// <summary>"ayın 5. günü"; 29–31 kısa aylarda ayın son gününe düşer.</summary>
