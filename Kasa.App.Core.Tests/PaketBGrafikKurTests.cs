@@ -216,6 +216,31 @@ public class PaketBGrafikKurTests
     }
 
     [Fact]
+    public async Task Kur_yuklemesi_ayarlar_hatasini_silmez()
+    {
+        // Sayfa açılışı: önce ayarlar (sunucu hatası), sonra kurlar (başarılı). Hata görünür kalmalı.
+        var api = new SahteApi { YuklemeHatasi = new HttpRequestException("ağ"), AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 6, 1), 0m, true) };
+        var vm = new AyarlarViewModel(api, new SabitSaat(Bugun));
+        await vm.YukleAsync();
+        Assert.Equal(HataMesaji.Ulasilamadi, vm.Hata);
+        api.YuklemeHatasi = null;
+        await vm.KurlariYukleAsync();
+        Assert.Equal(HataMesaji.Ulasilamadi, vm.Hata);
+        Assert.Equal(1, api.KurlarCagri);
+
+        // Ayarlar yüklendiyse kur hatası gösterilir; ikisi de başarılıysa hata yok.
+        await vm.YukleAsync();
+        Assert.Null(vm.Hata);
+        api.YuklemeHatasi = new KasaApiException(HttpStatusCode.InternalServerError, null);
+        await vm.KurlariYukleAsync();
+        Assert.Equal(HataMesaji.SunucuHatasi, vm.Hata);
+        api.YuklemeHatasi = null;
+        await vm.YukleAsync();
+        await vm.KurlariYukleAsync();
+        Assert.Null(vm.Hata);
+    }
+
+    [Fact]
     public async Task Kur_gecersiz_giris_gondermez_bos_satir_siler()
     {
         var api = new SahteApi { KurlarListe = new List<KurDto> { new(new DateOnly(2026, 8, 1), 3600m, null, null, null) } };

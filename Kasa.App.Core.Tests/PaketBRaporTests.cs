@@ -41,9 +41,10 @@ public class PaketBRaporTests
         Assert.Equal("Kredi kartı ödemesi", s[6].Etiket);
 
         Assert.Null(s[1].Suzgec);                                                     // gelen işlem değildir
-        Assert.Equal(new IslemSuzgeci(d.Baslangic, d.Bitis, "MEZAT", GiderTipi.Cari), s[3].Suzgec);
-        Assert.Equal(new IslemSuzgeci(d.Baslangic, d.Bitis, "MEZAT", GiderTipi.SabitGider), s[4].Suzgec);
-        Assert.Equal(new IslemSuzgeci(d.Baslangic, d.Bitis, "Ortak"), s[5].Suzgec);
+        Assert.Equal(new IslemSuzgeci(d.Baslangic, d.Bitis, "MEZAT", IslemTipSuzgeci.Cari), s[3].Suzgec);
+        Assert.Equal(new IslemSuzgeci(d.Baslangic, d.Bitis, "MEZAT", IslemTipSuzgeci.SabitGider), s[4].Suzgec);
+        // Ortak gider adımı yalnız kart dışı Ortak işlemleridir (K.K kasadan kendi tarihinde çıkmaz).
+        Assert.Equal(new IslemSuzgeci(d.Baslangic, d.Bitis, "Ortak", IslemTipSuzgeci.Nakit), s[5].Suzgec);
         Assert.Null(s[6].Suzgec);
         Assert.Equal("Kasa 1.000,00 ₺ ile açıldı, 40.000,00 ₺ girdi, 62.000,00 ₺ çıktı; -21.000,00 ₺ ile kapandı.", KasaDokumuGorunum.Ozet(d));
     }
@@ -108,7 +109,7 @@ public class PaketBRaporTests
             "//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=MEZAT",
             "//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=MEZAT&tip=SabitGider",
             "//islemler?baslangic=2026-07-01&bitis=2026-07-31&kanal=MEZAT&tip=KrediKarti",
-            "//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=Ortak",
+            "//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=Ortak&tip=Nakit",
             "//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=MEZAT&tip=Cari",
         }, gez.Rotalar);
 
@@ -215,7 +216,7 @@ public class PaketBRaporTests
 
         await vm.AyKilidiniAcCommand.ExecuteAsync(null);
         Assert.False(vm.Kilitli);
-        Assert.Equal("Ağustos 2026 kilidi açıldı.", vm.Bilgi);
+        Assert.StartsWith("Ağustos 2026 kilidi açıldı.", vm.Bilgi);
     }
 
     [Fact]
@@ -226,7 +227,7 @@ public class PaketBRaporTests
         await vm.YukleAsync();
         Assert.Equal("Açık · ay henüz bitmedi", vm.KapanisMetni);
         Assert.False(vm.KilitleGorunur);
-        Assert.True(vm.YayinlaGorunur);
+        Assert.False(vm.YayinlaGorunur);                        // yalnız bitmiş ay yayınlanır
 
         api.AyEylemHatasi = new KasaApiException(HttpStatusCode.BadRequest, "Eylül 2026 henüz bitmedi; yalnız bitmiş bir ay kilitlenebilir.");
         await vm.AyiKilitleCommand.ExecuteAsync(null);
@@ -248,6 +249,8 @@ public class PaketBRaporTests
         await vm.YukleAsync();
         Assert.True(vm.DegisiklikUyarisi);
         Assert.Equal(new[] { "MEZAT · Gelen: 30.000,00 → 32.000,00", "Kasa kapanışı: 5,00 → —" }, vm.AyFarklari.Select(f => f.Metin));
+        Assert.False(vm.DokunmaNotu);
+        Assert.True(vm.DokunanVar);
         var g = Assert.Single(vm.AyaDokunanlar);
         Assert.Equal("10.09.2026 09:30 · Editör · İşlem", g.Ayrinti);
 
@@ -257,6 +260,44 @@ public class PaketBRaporTests
         Assert.False(vm.DegisiklikUyarisi);
         Assert.Empty(vm.AyFarklari);
         Assert.Empty(vm.AyaDokunanlar);
+        Assert.False(vm.DokunanVar);
+    }
+
+    [Fact]
+    public async Task Rakam_degismeden_dokunulan_kayit_kirmizi_serit_degil_notr_not()
+    {
+        // Yayından sonra yalnız notu değişen işlem ya da eklenen kasa sayımı: fark yok, şerit yok.
+        var api = new SahteApi { AylikRapor = Rapor() };
+        api.YayinlananAylar.Add((2026, 8));
+        api.AyDegisiklikleri = new List<DegisiklikDto>
+        {
+            new(80, new DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc), "editor", "Kasa sayımı", 2, "Eklendi", "31.08.2026 sayım", null, null, false, null, false),
+        };
+        var vm = new AylikViewModel(api, new SabitSaat(Bugun)) { Yil = 2026, Ay = 8 };
+        await vm.YukleAsync();
+        Assert.False(vm.DegisiklikUyarisi);
+        Assert.True(vm.DokunmaNotu);
+        Assert.Empty(vm.AyFarklari);
+        Assert.Single(vm.AyaDokunanlar);
+
+        // Yayınlanmamış ayda ikisi de yok.
+        api.YayinlananAylar.Clear();
+        await vm.YukleAsync();
+        Assert.False(vm.DegisiklikUyarisi);
+        Assert.False(vm.DokunmaNotu);
+    }
+
+    [Fact]
+    public async Task Kilit_bilgisi_onceki_ve_sonraki_aylari_soyler()
+    {
+        var api = new SahteApi { AylikRapor = Rapor() };
+        var vm = new AylikViewModel(api, new SabitSaat(Bugun)) { Yil = 2026, Ay = 8, EditorMu = true };
+        await vm.YukleAsync();
+        Assert.True(vm.YayinlaGorunur);                         // bitmiş ay
+        await vm.AyiKilitleCommand.ExecuteAsync(null);
+        Assert.Contains("önceki aylar da kilitlidir", vm.Bilgi);
+        await vm.AyKilidiniAcCommand.ExecuteAsync(null);
+        Assert.Contains("Sonraki aylar kilitliyse onların da kilidi açıldı", vm.Bilgi);
     }
 
     // ---------------------------------------------------------------- Haftalık
@@ -287,7 +328,7 @@ public class PaketBRaporTests
         await vm.KasaDokumunuAcCommand.ExecuteAsync(null);
         Assert.Equal(new[]
         {
-            "//islemler?baslangic=2026-08-10&bitis=2026-08-16&kanal=MEZAT",
+            "//islemler?baslangic=2026-08-10&bitis=2026-08-16&kanal=MEZAT&tip=Cari",      // kanal sonucundaki giden yalnız Cari
             "//islemler?baslangic=2026-08-10&bitis=2026-08-16&kanal=MEZAT&tip=SabitGider",
             "kasadokumu?baslangic=2026-08-10&bitis=2026-08-16",
         }, gez.Rotalar);

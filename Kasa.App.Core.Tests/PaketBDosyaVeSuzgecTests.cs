@@ -118,7 +118,7 @@ public class PaketBDosyaVeSuzgecTests
     [Fact]
     public void Suzgec_rotasi_gidip_gelir_ozel_karakterli_kanalla()
     {
-        var s = new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT & Co / %20 +", GiderTipi.SabitGider);
+        var s = new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT & Co / %20 +", IslemTipSuzgeci.SabitGider);
         var rota = s.Rota();
         Assert.StartsWith("//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=", rota);
         Assert.EndsWith("&tip=SabitGider", rota);
@@ -145,7 +145,7 @@ public class PaketBDosyaVeSuzgecTests
     }
 
     [Fact]
-    public async Task Islemler_suzgeci_uygular_tipi_istemcide_suzer_ve_kaldirir()
+    public async Task Islemler_suzgeci_uygular_tipi_sunucuda_suzer_ve_kaldirir()
     {
         var api = new SahteApi
         {
@@ -155,17 +155,22 @@ public class PaketBDosyaVeSuzgecTests
                 new(1, new DateOnly(2026, 8, 5), "Kira", 45_000m, "MEZAT", GiderTipi.SabitGider, null),
                 new(2, new DateOnly(2026, 8, 6), "Market", 1_000m, "MEZAT", GiderTipi.Cari, null),
                 new(3, new DateOnly(2026, 8, 7), "SGK", 5_000m, "MEZAT", GiderTipi.SabitGider, null),
+                // Karta bağlı eski kayıt: kayıtlı tipi sabit gider ama hesapta K.K'dır (sabit gider rakamında yok).
+                new(4, new DateOnly(2026, 8, 8), "Sigorta", 700m, "MEZAT", GiderTipi.SabitGider, null, KrediKartiId: 9),
             },
         };
-        var vm = new IslemlerViewModel(api, new SabitSaat(Bugun));
+        var k = new SahteKaydedici();
+        var vm = new IslemlerViewModel(api, new SabitSaat(Bugun), k);
         await vm.YukleAsync();
         Assert.Equal(new DateOnly(2026, 9, 1), api.SonFiltreBaslangic);   // varsayılan: bu ay
+        Assert.Empty(api.TipliSayfaCagrilari);
 
-        await vm.SuzgecUygulaAsync(new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT", GiderTipi.SabitGider));
+        await vm.SuzgecUygulaAsync(new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT", IslemTipSuzgeci.SabitGider));
         Assert.Null(vm.Hata);
         Assert.Equal(new DateOnly(2026, 8, 1), api.SonFiltreBaslangic);
         Assert.Equal(new DateOnly(2026, 8, 31), api.SonFiltreBitis);
         Assert.Equal("MEZAT", api.SonFiltreKanal);
+        Assert.Equal(IslemTipSuzgeci.SabitGider, api.TipliSayfaCagrilari[^1].Tip);
         Assert.Equal(new[] { 3, 1 }, vm.Islemler.Select(i => i.Id));
         Assert.True(vm.TipSuzgeciVar);
         Assert.Equal("Yalnız sabit gider işlemleri", vm.TipSuzgeciMetni);
@@ -174,14 +179,67 @@ public class PaketBDosyaVeSuzgecTests
         Assert.Equal("MEZAT", vm.FiltreKanallari.Single(c => c.Secili).Ad);
         Assert.All(vm.FiltreZamanlar, z => Assert.False(z.Secili));
 
+        // Excel'e aktar listeyle aynı süzgeci (tip dahil) kullanır.
+        await vm.ExceleAktarCommand.ExecuteAsync(null);
+        Assert.Equal(((DateOnly?)new DateOnly(2026, 8, 1), (DateOnly?)new DateOnly(2026, 8, 31), (string?)"MEZAT", IslemTipSuzgeci.SabitGider),
+            api.SonTipliIslemCsv!.Value);
+        Assert.Null(api.SonIslemCsv);
+
         // Sayfa yeniden açılınca (OnAppearing → YukleAsync) süzgeç "bu ay"a dönmez.
         await vm.YukleAsync();
         Assert.Equal(new DateOnly(2026, 8, 1), api.SonFiltreBaslangic);
         Assert.Equal(2, vm.Islemler.Count);
 
+        // K.K süzgeci karta bağlı kaydı da getirir (etkin tip).
+        await vm.SuzgecUygulaAsync(new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT", IslemTipSuzgeci.KrediKarti));
+        Assert.Equal(new[] { 4 }, vm.Islemler.Select(i => i.Id));
+        Assert.Equal("Yalnız kredi kartı işlemleri", vm.TipSuzgeciMetni);
+        await vm.SuzgecUygulaAsync(new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT", IslemTipSuzgeci.Nakit));
+        Assert.Equal(new[] { 3, 2, 1 }, vm.Islemler.Select(i => i.Id));
+        Assert.Equal("Yalnız kart dışı işlemleri", vm.TipSuzgeciMetni);
+
         await vm.TipSuzgeciniKaldirCommand.ExecuteAsync(null);
         Assert.False(vm.TipSuzgeciVar);
-        Assert.Equal(3, vm.Islemler.Count);
+        Assert.Equal(4, vm.Islemler.Count);
         Assert.Equal("MEZAT", api.SonFiltreKanal);
+        await vm.ExceleAktarCommand.ExecuteAsync(null);
+        Assert.Equal(((DateOnly?)new DateOnly(2026, 8, 1), (DateOnly?)new DateOnly(2026, 8, 31), (string?)"MEZAT", (string?)null),
+            api.SonIslemCsv!.Value);
+    }
+
+    [Fact]
+    public async Task Tip_suzgecinde_500_ustu_sayfalama_ve_toplam_suzulmus_listeye_gore()
+    {
+        // 600 sabit gider + 400 Cari: tip süzgeciyle toplam 600 (sunucunun süzülmüş sayısı), en yeni 500 yüklenir.
+        var liste = new List<IslemDto>();
+        for (int i = 1; i <= 1000; i++)
+            liste.Add(new IslemDto(i, new DateOnly(2026, 8, 1).AddDays(i % 31), "C", 1m, "MEZAT", i % 5 < 3 ? GiderTipi.SabitGider : GiderTipi.Cari, null));
+        var api = new SahteApi { KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 1, 0m) }, IslemlerListe = liste };
+        var vm = new IslemlerViewModel(api, new SabitSaat(Bugun));
+        await vm.YukleAsync();
+        await vm.SuzgecUygulaAsync(new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "MEZAT", IslemTipSuzgeci.SabitGider));
+        Assert.Equal(600, vm.FiltreToplamKayit);
+        Assert.Equal(IslemlerViewModel.SayfaBoyutu, vm.Islemler.Count);
+        Assert.All(vm.Islemler, i => Assert.Equal(GiderTipi.SabitGider, i.Tip));
+        Assert.True(vm.DahaEskiVar);
+        Assert.Contains("600 işlem (en yeni 500 gösteriliyor)", vm.FiltreOzet);
+        Assert.Equal((IslemTipSuzgeci.SabitGider, 500, 100), api.TipliSayfaCagrilari[^1]);
+
+        await vm.DahaEskiYukleCommand.ExecuteAsync(null);
+        Assert.Equal(600, vm.Islemler.Count);
+        Assert.False(vm.DahaEskiVar);
+        Assert.Equal((IslemTipSuzgeci.SabitGider, 100, 0), api.TipliSayfaCagrilari[^1]);
+        Assert.Contains("600 işlem · toplam", vm.FiltreOzet);
+    }
+
+    [Fact]
+    public void Suzgec_nakit_tipini_cozer()
+    {
+        var s = IslemSuzgeci.Coz(new Dictionary<string, object> { ["baslangic"] = "2026-08-01", ["bitis"] = "2026-08-31", ["kanal"] = "Ortak", ["tip"] = "Nakit" });
+        Assert.Equal(new IslemSuzgeci(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "Ortak", IslemTipSuzgeci.Nakit), s);
+        Assert.Equal("//islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=Ortak&tip=Nakit", s!.Rota());
+        Assert.Equal("Kart dışı", IslemSuzgeci.TipAdi(IslemTipSuzgeci.Nakit));
+        // Küçük harf ya da eski adlar yok sayılır (tip süzgeci uygulanmaz).
+        Assert.Null(IslemSuzgeci.Coz(new Dictionary<string, object> { ["baslangic"] = "2026-08-01", ["bitis"] = "2026-08-31", ["tip"] = "nakit" })!.Tip);
     }
 }

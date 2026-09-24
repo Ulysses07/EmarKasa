@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Json;
 
 namespace Kasa.ApiClient;
 
@@ -8,6 +9,19 @@ public sealed partial class KasaApiClient
     private static string T(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private static string AySorgusu(int yil, int ay) => FormattableString.Invariant($"yil={yil}&ay={ay}");
     private static string AyEki(int yil, int ay) => FormattableString.Invariant($"{yil:D4}-{ay:D2}");
+
+    /// <summary>İşlem yoluna tip süzgecini ekler (sunucu etkin tiple süzer).</summary>
+    private static string TipliYol(string yol, IslemTipSuzgeci tip) => $"{yol}{(yol.Contains('?') ? '&' : '?')}tip={tip}";
+
+    public async Task<IslemSayfasi> IslemSayfasiTipeGoreAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, IslemTipSuzgeci tip, int limit, int offset)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Get, TipliYol(IslemYolu(baslangic, bitis, kanal, null, limit, offset), tip));
+        using var yanit = await GonderAsync(istek);
+        var kayitlar = (await yanit.Content.ReadFromJsonAsync<IReadOnlyList<IslemDto>>(Json))!;
+        return new IslemSayfasi(kayitlar, ToplamKayit(yanit, offset + kayitlar.Count));
+    }
+    public Task<IndirilenDosya> IslemlerCsvTipeGoreAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, IslemTipSuzgeci tip)
+        => IndirAsync(TipliYol(IslemYolu(baslangic, bitis, kanal, null, null, null, "api/disaaktar/islemler.csv"), tip), "kasa-islemler.csv");
 
     public Task<KasaDokumuDto> KasaDokumuAsync(DateOnly baslangic, DateOnly bitis)
         => GetAsync<KasaDokumuDto>($"api/rapor/kasa-dokumu?baslangic={T(baslangic)}&bitis={T(bitis)}");

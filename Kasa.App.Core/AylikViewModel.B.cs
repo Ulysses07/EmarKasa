@@ -49,13 +49,14 @@ public partial class AylikViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(KilitleGorunur), nameof(KilidiAcGorunur), nameof(YayinlaGorunur), nameof(KapanisMetni),
-        nameof(YayinMetni), nameof(DegisiklikUyarisi), nameof(Kilitli), nameof(YayinDugmesiMetni))]
+        nameof(YayinMetni), nameof(DegisiklikUyarisi), nameof(DokunmaNotu), nameof(Kilitli), nameof(YayinDugmesiMetni))]
     private AyKapanisDto? _kapanis;
 
     public bool Kilitli => Kapanis?.Kilitli == true;
     public bool KilitleGorunur => EditorMu && Kapanis is { Kilitli: false, Kilitlenebilir: true };
     public bool KilidiAcGorunur => EditorMu && Kapanis is { Kilitli: true };
-    public bool YayinlaGorunur => EditorMu && Kapanis is not null;
+    /// <summary>Yalnız bitmiş ay yayınlanır (içinde bulunulan ayın rakamları kayıt değişmeden de değişir).</summary>
+    public bool YayinlaGorunur => EditorMu && Kapanis is { Kilitlenebilir: true };
     public string YayinDugmesiMetni => Kapanis?.Yayinlandi == true ? "Yeniden yayınla" : "Ayı yayınla";
 
     /// <summary>"Kilitli · 1 Eyl 2026 12:00" / "Açık" / "Açık · ay bitmedi".</summary>
@@ -70,10 +71,14 @@ public partial class AylikViewModel
 
     public string YayinMetni => Kapanis is { Yayinlandi: true, YayinZamaniUtc: { } z } ? $"Yayınlandı · {Yerel(z)}" : "Yayınlanmadı";
 
-    /// <summary>Kırmızı şerit: yayından sonra rakam değişti ya da o aya dokunan kayıt var.</summary>
+    /// <summary>Kırmızı şerit: yayından sonra bir rakam değişti (farklar ve onları açıklayan kayıtlar).</summary>
     public bool DegisiklikUyarisi => Kapanis?.YayindanSonraDegisti == true;
+    /// <summary>Nötr not: rakam değişmedi ama yayından sonra bu aya ait kayıtlara dokunuldu (not, sayım…).</summary>
+    public bool DokunmaNotu => Kapanis?.YayindanSonraDokunuldu == true;
     public ObservableCollection<AyFarkiSatiri> AyFarklari { get; } = new();
+    /// <summary>Yayından sonra bu aya dokunan (şeritte: farkları açıklayan) geçmiş satırları.</summary>
     public ObservableCollection<GecmisSatiri> AyaDokunanlar { get; } = new();
+    public bool DokunanVar => AyaDokunanlar.Count > 0;
 
     private string Yerel(DateTime utc)
         => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Zaman.LocalTimeZone)
@@ -134,9 +139,12 @@ public partial class AylikViewModel
         Kapanis = k;
         AyFarklari.Clear();
         AyaDokunanlar.Clear();
-        if (k is null || !k.Yayinlandi) return;
-        foreach (var f in k.Farklar) AyFarklari.Add(new AyFarkiSatiri(f));
-        foreach (var d in k.Degisiklikler) AyaDokunanlar.Add(new GecmisSatiri(d, Zaman.LocalTimeZone));
+        if (k is not null && k.Yayinlandi)
+        {
+            foreach (var f in k.Farklar) AyFarklari.Add(new AyFarkiSatiri(f));
+            foreach (var d in k.Degisiklikler) AyaDokunanlar.Add(new GecmisSatiri(d, Zaman.LocalTimeZone));
+        }
+        OnPropertyChanged(nameof(DokunanVar));
     }
 
     partial void OnRaporChanged(AylikRaporDto? value) => SatirlariKur();
@@ -210,10 +218,12 @@ public partial class AylikViewModel
     // ---------------------------------------------------------------- 11 · Kilitle / kilidi aç / yayınla
 
     [RelayCommand]
-    private Task AyiKilitleAsync() => AyEylemiAsync(_api.AyiKilitleAsync, e => $"{e} kilitlendi. Bu aya ait kayıt artık eklenemez, değiştirilemez ya da silinemez.");
+    private Task AyiKilitleAsync() => AyEylemiAsync(_api.AyiKilitleAsync, e =>
+        $"{e} kilitlendi. Kasa aydan aya devrettiği için önceki aylar da kilitlidir: bu aylara ait kayıt eklenemez, değiştirilemez ya da silinemez.");
 
     [RelayCommand]
-    private Task AyKilidiniAcAsync() => AyEylemiAsync(_api.AyKilidiniAcAsync, e => $"{e} kilidi açıldı.");
+    private Task AyKilidiniAcAsync() => AyEylemiAsync(_api.AyKilidiniAcAsync, e =>
+        $"{e} kilidi açıldı. Sonraki aylar kilitliyse onların da kilidi açıldı (kasaları bu aydan devreder).");
 
     [RelayCommand]
     private Task AyiYayinlaAsync() => AyEylemiAsync(_api.AyiYayinlaAsync, e => $"{e} yayınlandı: bugünkü rakamlar saklandı. Sonradan değişen rakamlar burada kırmızı şeritte görünür.");

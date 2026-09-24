@@ -36,12 +36,15 @@ public static class KasaDokumuGorunum
     public static string Etiket(KasaDokumAdimiDto a)
         => string.IsNullOrEmpty(a.Kanal) ? a.TurAdi : $"{a.Kanal} · {a.TurAdi}";
 
-    /// <summary>Adımdan İşlemler süzgeci: Cari / sabit gider kanal + tip, Ortak gider Ortak kanalı; diğerleri iniş yok.</summary>
+    /// <summary>
+    /// Adımdan İşlemler süzgeci: Cari / sabit gider kanal + tip, Ortak gider Ortak kanalının kart dışı
+    /// işlemleri (K.K kasadan kendi tarihinde çıkmaz); diğerleri iniş yok.
+    /// </summary>
     public static IslemSuzgeci? Suzgec(KasaDokumAdimiDto a, DateOnly bas, DateOnly bit) => a.Tur switch
     {
-        "CariGider" when a.Kanal is { } k => new IslemSuzgeci(bas, bit, k, GiderTipi.Cari),
-        "SabitGider" when a.Kanal is { } k => new IslemSuzgeci(bas, bit, k, GiderTipi.SabitGider),
-        "OrtakGider" => new IslemSuzgeci(bas, bit, IslemlerViewModel.OrtakKanal),
+        "CariGider" when a.Kanal is { } k => new IslemSuzgeci(bas, bit, k, IslemTipSuzgeci.Cari),
+        "SabitGider" when a.Kanal is { } k => new IslemSuzgeci(bas, bit, k, IslemTipSuzgeci.SabitGider),
+        "OrtakGider" => new IslemSuzgeci(bas, bit, IslemlerViewModel.OrtakKanal, IslemTipSuzgeci.Nakit),
         _ => null,
     };
 

@@ -6,7 +6,10 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-/// <summary>Haftalık dönemin kanal satırı: gelen, giden, sonuç; dokununca kanalın o haftaki işlemleri.</summary>
+/// <summary>
+/// Haftalık dönemin kanal satırı: gelen, giden, sonuç; dokununca kanalın o haftaki Cari işlemleri (kanal
+/// sonucundaki giden yalnız Cari işlemlerdir; sabit gider ve K.K kanal devrine girmez).
+/// </summary>
 public sealed record HaftaKanalSatiri(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, IslemSuzgeci Suzgec)
 {
     public string GelenMetni => Bicim.Tl(Gelen);
@@ -54,7 +57,7 @@ public partial class HaftalikViewModel
         DetayKanallari.Clear();
         foreach (var k in d.Kanallar)
             DetayKanallari.Add(new HaftaKanalSatiri(k.Kanal, k.Gelen + k.CekGelen, k.Giden + k.CekGiden, k.Sonuc,
-                new IslemSuzgeci(d.Donem.Start, d.Donem.End, k.Kanal)));
+                new IslemSuzgeci(d.Donem.Start, d.Donem.End, k.Kanal, IslemTipSuzgeci.Cari)));
         DetayAdimlari.Clear();
         DetayOzeti = null;
 

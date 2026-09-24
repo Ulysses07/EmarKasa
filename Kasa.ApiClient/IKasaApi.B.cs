@@ -7,13 +7,25 @@ public partial interface IKasaApi
     Task<KasaDokumuDto> KasaDokumuAsync(DateOnly baslangic, DateOnly bitis);
     Task<IndirilenDosya> KasaDokumuCsvAsync(DateOnly baslangic, DateOnly bitis);
 
+    /// <summary>
+    /// <see cref="IslemSayfasiAsync"/> gibi, ama gider tipine göre süzülmüş (rapordan iniş): toplam kayıt
+    /// sayısı ve sayfalar süzülmüş listeye göredir.
+    /// </summary>
+    Task<IslemSayfasi> IslemSayfasiTipeGoreAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, IslemTipSuzgeci tip, int limit, int offset);
+    /// <summary><see cref="IslemlerCsvAsync"/> gibi, gider tipine göre süzülmüş.</summary>
+    Task<IndirilenDosya> IslemlerCsvTipeGoreAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, IslemTipSuzgeci tip);
+
     /// <summary>Ayın kilit/yayın durumu, yayından sonraki farklar ve o aya dokunan geçmiş satırları.</summary>
     Task<AyKapanisDto> AyKapanisiAsync(int yil, int ay);
     Task<IReadOnlyList<AyKilidiDto>> AyKilitleriAsync();
-    /// <summary>Editör: bitmiş ayı kilitler (kilitli aya kayıt eklenemez/değiştirilemez/silinemez).</summary>
+    /// <summary>
+    /// Editör: bitmiş ayı kilitler (kilitli aya kayıt eklenemez/değiştirilemez/silinemez). Kasa aydan aya
+    /// devrettiği için takip başlangıcından bu yana önceki kilitsiz aylar da kilitlenir.
+    /// </summary>
     Task<AyKapanisDto> AyiKilitleAsync(int yil, int ay);
+    /// <summary>Editör: ayın ve sonraki kilitli ayların kilidini açar.</summary>
     Task<AyKapanisDto> AyKilidiniAcAsync(int yil, int ay);
-    /// <summary>Editör: ayın bugünkü rakamlarını anlık görüntü olarak saklar (yeniden yayın görüntüyü yeniler).</summary>
+    /// <summary>Editör: bitmiş ayın bugünkü rakamlarını anlık görüntü olarak saklar (yeniden yayın görüntüyü yeniler).</summary>
     Task<AyKapanisDto> AyiYayinlaAsync(int yil, int ay);
 
     /// <summary>Tek sayfalık yazdırılabilir aylık rapor (HTML).</summary>

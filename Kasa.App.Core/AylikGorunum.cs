@@ -47,8 +47,10 @@ public sealed record AyFarkiSatiri(AyFarkiDto Dto)
 public static class AylikGorunum
 {
     /// <summary>
-    /// Kanal satırları: Cari, sabit gider ve Ortak pay o ayın işlemlerine iner; kredi kartı sütunu
-    /// (kart kuralı gereği) bir önceki ayın kart harcamalarıdır, o yüzden geçen aya iner.
+    /// Kanal satırları: Cari ve sabit gider o ayın o tipteki işlemlerine iner; kredi kartı sütunu
+    /// (kart kuralı gereği) bir önceki ayın kart harcamalarıdır, o yüzden geçen aya iner. Ortak pay o
+    /// ayın kart dışı Ortak işlemlerine iner: pay, bu havuzun (ve geçen ayın Ortak K.K'sının) kanallara
+    /// bölünmüş kısmıdır, bu ayın Ortak K.K'sı içinde değildir.
     /// </summary>
     public static IReadOnlyList<AylikKanalSatiri> KanalSatirlari(AylikRaporDto rapor, HedefButceDto? hedef)
     {
@@ -64,10 +66,10 @@ public static class AylikGorunum
                 if (tutar != 0m) rakamlar.Add(new DrillRakam(etiket, tutar, s));
             }
             Ekle("Gelen", k.Gelen, null);
-            Ekle("Cari", k.CariGiden, new IslemSuzgeci(bas, bit, k.Kanal, GiderTipi.Cari));
-            Ekle("Sabit gider", k.SabitGider, new IslemSuzgeci(bas, bit, k.Kanal, GiderTipi.SabitGider));
-            Ekle("Kredi kartı (geçen ay)", k.KrediKarti, new IslemSuzgeci(obas, obit, k.Kanal, GiderTipi.KrediKarti));
-            Ekle("Ortak pay", k.OrtakPay, new IslemSuzgeci(bas, bit, IslemlerViewModel.OrtakKanal));
+            Ekle("Cari", k.CariGiden, new IslemSuzgeci(bas, bit, k.Kanal, IslemTipSuzgeci.Cari));
+            Ekle("Sabit gider", k.SabitGider, new IslemSuzgeci(bas, bit, k.Kanal, IslemTipSuzgeci.SabitGider));
+            Ekle("Kredi kartı (geçen ay)", k.KrediKarti, new IslemSuzgeci(obas, obit, k.Kanal, IslemTipSuzgeci.KrediKarti));
+            Ekle("Ortak pay", k.OrtakPay, new IslemSuzgeci(bas, bit, IslemlerViewModel.OrtakKanal, IslemTipSuzgeci.Nakit));
             var h = hedef?.Kanallar.FirstOrDefault(x => x.Kanal == k.Kanal);
             liste.Add(new AylikKanalSatiri(k, h, rakamlar, new IslemSuzgeci(bas, bit, k.Kanal)));
         }

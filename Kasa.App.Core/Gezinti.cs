@@ -55,10 +55,11 @@ public static class Rotalar
 }
 
 /// <summary>
-/// Rapordan İşlemler'e iniş (drill-down) süzgeci: dönem + kanal (+ isteğe bağlı gider tipi).
+/// Rapordan İşlemler'e iniş (drill-down) süzgeci: dönem + kanal (+ isteğe bağlı gider tipi; sunucu
+/// motorun etkin tipiyle süzer, böylece liste rapordaki rakamı oluşturan işlemlerle aynıdır).
 /// Rota: <c>//islemler?baslangic=2026-08-01&amp;bitis=2026-08-31&amp;kanal=MEZAT&amp;tip=SabitGider</c>.
 /// </summary>
-public sealed record IslemSuzgeci(DateOnly Baslangic, DateOnly Bitis, string? Kanal = null, GiderTipi? Tip = null)
+public sealed record IslemSuzgeci(DateOnly Baslangic, DateOnly Bitis, string? Kanal = null, IslemTipSuzgeci? Tip = null)
 {
     /// <summary>Kanal adı üst sınırı (sorgudan gelen değer için).</summary>
     public const int EnUzunKanal = 100;
@@ -77,17 +78,18 @@ public sealed record IslemSuzgeci(DateOnly Baslangic, DateOnly Bitis, string? Ka
         if (Rotalar.Aralik(sorgu) is not { } a) return null;
         var kanal = Rotalar.Deger(sorgu, "kanal");
         if (kanal is { Length: > EnUzunKanal }) kanal = null;
-        GiderTipi? tip = Rotalar.Deger(sorgu, "tip") is { } t
-                         && Enum.TryParse<GiderTipi>(t, ignoreCase: false, out var g) && Enum.IsDefined(g) && !int.TryParse(t, out _)
+        IslemTipSuzgeci? tip = Rotalar.Deger(sorgu, "tip") is { } t
+                               && Enum.TryParse<IslemTipSuzgeci>(t, ignoreCase: false, out var g) && Enum.IsDefined(g) && !int.TryParse(t, out _)
             ? g : null;
         return new IslemSuzgeci(a.Baslangic, a.Bitis, kanal, tip);
     }
 
-    /// <summary>Gider tipinin Türkçe adı (İşlemler çipleriyle aynı).</summary>
-    public static string TipAdi(GiderTipi t) => t switch
+    /// <summary>Tip süzgecinin Türkçe adı (İşlemler çipleriyle aynı; Nakit = kart dışı).</summary>
+    public static string TipAdi(IslemTipSuzgeci t) => t switch
     {
-        GiderTipi.SabitGider => "Sabit gider",
-        GiderTipi.KrediKarti => "Kredi kartı",
+        IslemTipSuzgeci.SabitGider => "Sabit gider",
+        IslemTipSuzgeci.KrediKarti => "Kredi kartı",
+        IslemTipSuzgeci.Nakit => "Kart dışı",
         _ => "Cari",
     };
 }

@@ -9,6 +9,14 @@ public record KasaDokumAdimiDto(string Tur, string TurAdi, string? Kanal, decima
 public record KasaDokumuDto(DateOnly Baslangic, DateOnly Bitis, decimal Acilis, decimal Kapanis,
     decimal ToplamGiren, decimal ToplamCikan, IReadOnlyList<KasaDokumAdimiDto> Adimlar);
 
+// ---------------------------------------------------------------- 22 · Rapordan İşlemler'e iniş
+
+/// <summary>
+/// İşlem listesinin gider tipi süzgeci (sunucu, motorun etkin tipiyle süzer: karta bağlı işlem K.K
+/// sayılır). <see cref="Nakit"/> = K.K olmayan işlemler (kasadan kendi tarihinde çıkanlar).
+/// </summary>
+public enum IslemTipSuzgeci { Cari, SabitGider, KrediKarti, Nakit }
+
 // ---------------------------------------------------------------- 11 · Ay kilidi ve yayın
 
 /// <summary>Yayından sonra değişen rakam (yayındaki / bugünkü; satır yoksa null).</summary>
@@ -16,8 +24,10 @@ public record AyFarkiDto(string Kalem, decimal? Eski, decimal? Yeni);
 public record AyKapanisDto(int Yil, int Ay, string Etiket, bool Kilitli, DateTime? KilitZamaniUtc, bool Kilitlenebilir,
     bool Yayinlandi, DateTime? YayinZamaniUtc, IReadOnlyList<AyFarkiDto> Farklar, IReadOnlyList<DegisiklikDto> Degisiklikler)
 {
-    /// <summary>Yayından sonra rakam değişti ya da o aya dokunan kayıt var: kırmızı şerit.</summary>
-    public bool YayindanSonraDegisti => Yayinlandi && (Farklar.Count > 0 || Degisiklikler.Count > 0);
+    /// <summary>Yayından sonra bir rakam değişti: kırmızı şerit (farklar ve onları açıklayan kayıtlar).</summary>
+    public bool YayindanSonraDegisti => Yayinlandi && Farklar.Count > 0;
+    /// <summary>Rakam değişmedi ama yayından sonra bu aya ait kayıtlara dokunuldu (not, sayım…): nötr not.</summary>
+    public bool YayindanSonraDokunuldu => Yayinlandi && Farklar.Count == 0 && Degisiklikler.Count > 0;
 }
 public record AyKilidiDto(int Yil, int Ay, string Etiket, DateTime KilitZamaniUtc);
 

@@ -43,12 +43,17 @@ public partial class AyarlarViewModel
         return new DateOnly(b.Year, b.Month, 1);
     }
 
-    /// <summary>Kur tablosunu yükler (sayfa açılışında ana yüklemeden sonra çağrılır).</summary>
-    public Task KurlariYukleAsync()
+    /// <summary>
+    /// Kur tablosunu yükler (sayfa açılışında ana yüklemeden sonra çağrılır). Ana yüklemenin hatası
+    /// silinmez: kurlar yüklense de ayarlar yüklenemediyse sayfa sessizce boş kalmasın.
+    /// </summary>
+    public async Task KurlariYukleAsync()
     {
         KurBilgi = null;
         if (KurAy == default) KurAy = VarsayilanKurAyi();
-        return CalistirAsync(KurlariDoldurAsync);
+        var oncekiHata = Hata;
+        await CalistirAsync(KurlariDoldurAsync);
+        if (oncekiHata is not null) Hata = oncekiHata;
     }
 
     private async Task KurlariDoldurAsync()

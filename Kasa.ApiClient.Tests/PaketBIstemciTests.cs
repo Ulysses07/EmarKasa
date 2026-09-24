@@ -98,6 +98,44 @@ public class PaketBIstemciTests
     }
 
     [Fact]
+    public void Kirmizi_serit_yalniz_rakam_degisince_notr_not_yalniz_dokunulunca()
+    {
+        var satir = new DegisiklikDto(5, new DateTime(2026, 9, 3, 10, 0, 0, DateTimeKind.Utc), "editor", "İşlem", 3, "Güncellendi", "x",
+            null, "{}", false, null, false);
+        AyKapanisDto Durum(bool yayin, int fark, int satirSayisi) => new(2026, 8, "Ağustos 2026", true, null, true, yayin, null,
+            Enumerable.Repeat(new AyFarkiDto("MEZAT · Gelen", 10, 20), fark).ToList(), Enumerable.Repeat(satir, satirSayisi).ToList());
+
+        Assert.True(Durum(true, 1, 1).YayindanSonraDegisti);
+        Assert.False(Durum(true, 1, 1).YayindanSonraDokunuldu);
+        Assert.False(Durum(true, 0, 1).YayindanSonraDegisti);                  // yalnız not/sayım: kırmızı değil
+        Assert.True(Durum(true, 0, 1).YayindanSonraDokunuldu);
+        Assert.False(Durum(true, 0, 0).YayindanSonraDegisti || Durum(true, 0, 0).YayindanSonraDokunuldu);
+        Assert.False(Durum(false, 1, 1).YayindanSonraDegisti || Durum(false, 0, 1).YayindanSonraDokunuldu);
+    }
+
+    [Fact]
+    public async Task Tipli_islem_sayfasi_ve_csv_tip_sorgusunu_ekler()
+    {
+        var (c, h) = await KurAsync();
+        h.Kuyrukla(HttpStatusCode.OK, "[]", ("X-Toplam-Kayit", "7"));
+        var s = await c.IslemSayfasiTipeGoreAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), "Ortak", IslemTipSuzgeci.Nakit, 500, 500);
+        Assert.Equal("/api/islemler?baslangic=2026-08-01&bitis=2026-08-31&kanal=Ortak&limit=500&offset=500&tip=Nakit",
+            h.SonIstek!.RequestUri!.PathAndQuery);
+        Assert.Equal(7, s.Toplam);
+
+        h.Kuyrukla(HttpStatusCode.OK, "[]");
+        await c.IslemSayfasiTipeGoreAsync(null, null, null, IslemTipSuzgeci.KrediKarti, 500, 0);
+        Assert.Equal("/api/islemler?limit=500&offset=0&tip=KrediKarti", h.SonIstek!.RequestUri!.PathAndQuery);
+
+        var (c2, h2) = await DosyaKurAsync([0x41], "text/csv", null);
+        var d = await c2.IslemlerCsvTipeGoreAsync(new DateOnly(2026, 8, 1), null, "MEZAT", IslemTipSuzgeci.SabitGider);
+        Assert.Equal("/api/disaaktar/islemler.csv?baslangic=2026-08-01&kanal=MEZAT&tip=SabitGider", h2.SonIstek!.RequestUri!.PathAndQuery);
+        Assert.Equal("kasa-islemler.csv", d.DosyaAdi);
+        await c2.IslemlerCsvTipeGoreAsync(null, null, null, IslemTipSuzgeci.Cari);
+        Assert.Equal("/api/disaaktar/islemler.csv?tip=Cari", h2.SonIstek!.RequestUri!.PathAndQuery);
+    }
+
+    [Fact]
     public async Task Kur_hedef_butce_ve_cari_ozeti_govde_ve_sorgu()
     {
         var (c, h) = await KurAsync();

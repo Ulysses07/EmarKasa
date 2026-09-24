@@ -28,6 +28,32 @@ public sealed partial class SahteApi
         return CsvYanit();
     }
 
+    // ---- İşlemler: tip süzgeci (sunucu gibi etkin tiple süzer: karta bağlı işlem K.K sayılır) ----
+    /// <summary>Tipli sayfa çağrıları (tip, limit, offset) sırasıyla.</summary>
+    public List<(IslemTipSuzgeci Tip, int Limit, int Offset)> TipliSayfaCagrilari = new();
+    public (DateOnly? Bas, DateOnly? Bit, string? Kanal, IslemTipSuzgeci Tip)? SonTipliIslemCsv;
+
+    public static bool TipeUyar(IslemDto i, IslemTipSuzgeci t) => t switch
+    {
+        IslemTipSuzgeci.Cari => i.Tip == GiderTipi.Cari && i.KrediKartiId is null,
+        IslemTipSuzgeci.SabitGider => i.Tip == GiderTipi.SabitGider && i.KrediKartiId is null,
+        IslemTipSuzgeci.KrediKarti => i.Tip == GiderTipi.KrediKarti || i.KrediKartiId is not null,
+        _ => i.Tip != GiderTipi.KrediKarti && i.KrediKartiId is null,
+    };
+
+    public async Task<IslemSayfasi> IslemSayfasiTipeGoreAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, IslemTipSuzgeci tip, int limit, int offset)
+    {
+        TipliSayfaCagrilari.Add((tip, limit, offset));
+        var hepsi = await IslemlerAsync(baslangic, bitis, kanal, null, limit, offset);
+        var sirali = hepsi.Where(i => TipeUyar(i, tip)).OrderBy(i => i.Tarih).ThenBy(i => i.Id).ToList();
+        return new IslemSayfasi(sirali.Skip(offset).Take(limit).ToList(), sirali.Count);
+    }
+    public Task<IndirilenDosya> IslemlerCsvTipeGoreAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, IslemTipSuzgeci tip)
+    {
+        SonTipliIslemCsv = (baslangic, bitis, kanal, tip);
+        return CsvYanit();
+    }
+
     // ---- Ay kapanışı ----
     /// <summary>Sunucu gibi: kilitli ve yayınlanmış aylar; AyKapanisiAsync bunlardan yanıt kurar.</summary>
     public HashSet<(int Yil, int Ay)> KilitliAylar = new();

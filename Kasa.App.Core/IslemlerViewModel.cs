@@ -196,11 +196,11 @@ public partial class IslemlerViewModel : TemelViewModel
         try
         {
             // Sunucu eskiden yeniye sıralar: ilk sayfa toplamı verir; fazlaysa en yeni sayfa istenir.
-            sayfa = await _api.IslemSayfasiAsync(bas, bit, kanal, null, SayfaBoyutu, 0);
+            sayfa = await IslemSayfasiAsync(bas, bit, kanal, null, SayfaBoyutu, 0);
             if (sayfa.Toplam > sayfa.Kayitlar.Count && surum == _listeSurumu)
             {
                 ofset = Math.Max(0, sayfa.Toplam - SayfaBoyutu);
-                sayfa = await _api.IslemSayfasiAsync(bas, bit, kanal, null, SayfaBoyutu, ofset);
+                sayfa = await IslemSayfasiAsync(bas, bit, kanal, null, SayfaBoyutu, ofset);
             }
         }
         catch when (surum != _listeSurumu)
@@ -210,7 +210,7 @@ public partial class IslemlerViewModel : TemelViewModel
         if (surum != _listeSurumu) return;
 
         Islemler.Clear();
-        foreach (var i in TipSuz(sayfa.Kayitlar).OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id)) Islemler.Add(i);
+        foreach (var i in sayfa.Kayitlar.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id)) Islemler.Add(i);
         _yukluOfset = ofset;
         _yukluFiltre = (bas, bit, kanal);
         FiltreToplamKayit = Math.Max(sayfa.Toplam, Islemler.Count);
@@ -228,11 +228,11 @@ public partial class IslemlerViewModel : TemelViewModel
             var surum = _listeSurumu;
             var (bas, bit, kanal) = _yukluFiltre;
             var yeniOfset = Math.Max(0, _yukluOfset - SayfaBoyutu);
-            var sayfa = await _api.IslemSayfasiAsync(bas, bit, kanal, null, _yukluOfset - yeniOfset, yeniOfset);
+            var sayfa = await IslemSayfasiAsync(bas, bit, kanal, null, _yukluOfset - yeniOfset, yeniOfset);
             if (surum != _listeSurumu) return;   // bu arada liste yeniden yüklendi
 
             var mevcut = Islemler.Select(i => i.Id).ToHashSet();
-            foreach (var i in TipSuz(sayfa.Kayitlar).OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id))
+            foreach (var i in sayfa.Kayitlar.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id))
                 if (mevcut.Add(i.Id)) Islemler.Add(i);
             _yukluOfset = yeniOfset;
             FiltreToplamKayit = Math.Max(sayfa.Toplam, Islemler.Count);
@@ -291,7 +291,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
         AktarilanDosya = null;
-        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => _api.IslemlerCsvAsync(bas, bit, kanal));
+        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => IslemlerCsvAsync(bas, bit, kanal));
     });
 
     // ---- Filtre komutları ----
