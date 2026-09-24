@@ -27,8 +27,8 @@ ayda kasadan düşer) ve çek kuralı (vadede kasaya: `IslemTarihi`) birebir ayn
 hepsi motorun çıktısından okunur. Motor çıktısı `MotorAltinCiktiTests` altın testiyle sabitlenmiştir
 (rastgele ama tohumlu veriyle üretilen tüm haftalık/aylık rakamların özeti değişirse test kırılır).
 
-**Kapsam dışı:** Cari özetinden İşlemler'e iniş, sunucu tarafında tip süzgeci, TÜFE/altın
-değerlerinin otomatik çekilmesi (hiçbir değer tahmin edilmez).
+**Kapsam dışı:** Cari özetinden İşlemler'e iniş, TÜFE/altın değerlerinin otomatik çekilmesi
+(hiçbir değer tahmin edilmez).
 
 ## 2. Roller
 
@@ -69,24 +69,40 @@ eklendi. `[JsonIgnore]` olduğundan haftalık raporun JSON biçimi aynı kalır.
 - Uygulama: Haftalık'ta satıra dokununca ayrıntı kartı açılır (kanal satırları ve döküm), Aylık'ta
   "Kasa neden değişti?" kartı var. "Ayrıntı" ayrı sayfayı açar (Hafta/Ay kipi, önceki/sonraki,
   "Excel'e aktar").
+- Haftalık liste eskiden yeniye sıralıdır ve ayrıntı kartı listenin üstündedir. Son haftalardan birine
+  dokunan kullanıcı kartı görsün diye sayfa ayrıntı açılınca başa kayar; kart kapanınca listedeki
+  eski konuma döner (`HaftalikPage.B.cs`).
 
 ### 22 · Rapordan İşlemler'e iniş
 
-- Rota: `//islemler?baslangic=YYYY-MM-DD&bitis=YYYY-MM-DD&kanal=…(&tip=Cari|SabitGider|KrediKarti)`.
+- Rota: `//islemler?baslangic=YYYY-MM-DD&bitis=YYYY-MM-DD&kanal=…(&tip=Cari|SabitGider|KrediKarti|Nakit)`.
   `IslemSuzgeci.Coz` bozuk ya da tanımsız değeri yok sayar; kanal en çok 100 karakter.
+- **Tip süzgeci sunucudadır**: `GET /api/islemler` ve `GET /api/disaaktar/islemler.csv` isteğe bağlı
+  `tip` alır (bilinmeyen değer 400). Tip motorun **etkin tipidir** (`HesapMotoru.EtkinTip`): karta
+  bağlı işlem, kayıtlı tipi ne olursa olsun K.K sayılır. Böylece süzülen listenin toplamı rapordaki
+  rakama eşittir (testle karşılaştırılır).
+  - `Cari` = tipi Cari ve karta bağlı değil; `SabitGider` = tipi sabit gider ve karta bağlı değil;
+  - `KrediKarti` = tipi K.K ya da karta bağlı; `Nakit` = K.K olmayan (kasadan kendi tarihinde çıkan).
+- Sayfalama, "N işlem" toplamı (`X-Toplam-Kayit`) ve İşlemler'in "Excel'e aktar"ı da süzülmüş listeye
+  göredir. İstemcide yeni `IslemSayfasiTipeGoreAsync` / `IslemlerCsvTipeGoreAsync` (eski imzalar aynı).
 - `IslemlerViewModel.SuzgecUygulaAsync` (yeni `IslemlerViewModel.B.cs`): hızlı zaman çipi ve hafta
   seçimi temizlenir, tarih + kanal (+ tip) kurulur, liste yeniden yüklenir. Tip süzgeci varken
-  listenin üstünde "Yalnız … işlemleri · Tüm tipler" şeridi görünür.
+  listenin üstünde "Yalnız … işlemleri · Tüm tipler" şeridi görünür. `IslemlerViewModel.cs`'de yalnız
+  dört çağrının `_api.` öneki kalktı (tipe göre yönlendiren yardımcılar B dosyasında).
 - Aylık kanal satırındaki rakamlar:
   - Cari → o ay, kanal, tip Cari.
   - Sabit gider → o ay, kanal, tip Sabit gider.
   - **Kredi kartı (geçen ay)** → **bir önceki ay**, kanal, tip Kredi kartı. Kart kuralı gereği bu
     aya düşen K.K geçen ayın harcamasıdır.
-  - Ortak pay → o ay, kanal `Ortak`.
+  - Ortak pay → o ay, kanal `Ortak`, tip **Nakit** (kart dışı). Pay bir havuzun kanallara bölünmüş
+    kısmıdır: havuz = bu ayın kart dışı Ortak giderleri + geçen ayın Ortak K.K'sı. İniş havuzun bu
+    ayki kısmını açar; bu ayın Ortak K.K'sı havuzda olmadığı için listede de yoktur. Geçen ayın Ortak
+    K.K'sı geçen ayın Ortak + Kredi kartı listesinde görünür.
   - Gelen → iniş yok (gelenler işlem değildir).
-- Kasa dökümü adımları: cari/sabit gider → kanal + tip; ortak gider → kanal `Ortak`. Gelen,
-  çek, kart ödemesi ve ertelenen K.K adımlarında iniş yok.
-- Haftalık ayrıntı: kanal satırı → o hafta ve kanal.
+- Kasa dökümü adımları: cari/sabit gider → kanal + tip; ortak gider → kanal `Ortak`, tip Nakit
+  (adımın toplamıyla birebir aynı). Gelen, çek, kart ödemesi ve ertelenen K.K adımlarında iniş yok.
+- Haftalık ayrıntı: kanal satırı → o hafta, kanal, tip **Cari** (kanal sonucundaki giden yalnız Cari
+  işlemlerdir; sabit gider ve K.K kanal devrine girmez). "Tüm tipler" ile hepsi görülür.
 
 ### 24 · Yazdır
 
@@ -182,7 +198,17 @@ eklendi. `[JsonIgnore]` olduğundan haftalık raporun JSON biçimi aynı kalır.
   yazma hangi uç noktadan gelirse gelsin (işlem, gelen, çek, kart ödemesi, sayım, geri alma,
   tekrarlayan gider onayı) aynı kural uygulanır.
 - K.K işlemi (kartsız ya da karta bağlı) **bir sonraki ayı da** değiştirir, o ay da denetlenir.
-- Yalnız bitmiş ay kilitlenebilir. Kilit açmak satırı silmektir. İkisi de yalnız editör.
+- **Kilit geriye doğru kapsar.** Kasa aydan aya devreder: önceki bir aydaki düzeltme kilitli ayın
+  açılış ve kapanış kasasını değiştirirdi. Bu yüzden:
+  - "Ayı kilitle" takip başlangıcından o aya kadar kilitsiz ayları da kilitler (her biri ayrı satır,
+    geçmişe ayrı "Ay kilidi eklendi" satırı).
+  - "Kilidi aç" o ayın ve **sonraki** kilitli ayların kilidini açar (onların kasası bu aydan devreder);
+    önceki aylar kilitli kalır.
+  - Denetim de satırlara güvenmez: takip başlangıcından en son kilitli aya kadar her ay kilitli sayılır
+    (`AyKilidiKurali.EtkinKilitliAylar`). Durum (`kilitli`), yazdırma ve kilit açma bunu kullanır.
+  - Takip başlangıcından önceki aylar kilitlenmez (rakamları yoktur); oradaki K.K takibin ilk ayına
+    düştüğü için o ay kilitliyse eklenemez.
+- Yalnız bitmiş ay kilitlenebilir. Kilit açmak satırları silmektir. İkisi de yalnız editör.
 
 **Tüm ayları etkileyen ayarlar** (karar):
 
@@ -191,17 +217,45 @@ eklendi. `[JsonIgnore]` olduğundan haftalık raporun JSON biçimi aynı kalır.
 | Takip başlangıcı | Değişim noktasından (eski ile yeninin küçüğü) sonra biten kilitli ay varsa **engellenir** |
 | Kasa açılış devri | **Engellenir** (tüm ayların kasasını değiştirir) |
 | Kanal açılış devri; açılış devri olan kanalı ekleme/silme | **Engellenir** |
-| Kanal / cari / kalem adı değişimi, kanalın Aktif bayrağı | Serbest (yalnız etiket) |
+| Kanal sırası, Aktif bayrağı, kanal ekleme/silme | **Kilitli bir ayın rakamını değiştirirse engellenir** (aşağıda) |
+| Kanal / cari / kalem adı değişimi | Serbest (yalnız etiket; kayıtlar yeni ada taşınır) |
 | Hedef, bütçe, kur | Serbest (para kuralı değil) |
 
-**Yayın.** "Ayı yayınla" ayın o anki rakamlarının anlık görüntüsünü (kanal satırları, kasa açılışı
-ve kapanışı) ve o ana kadarki son geçmiş satırının Id'sini saklar. Yeniden yayınlamak görüntüyü
-yeniler. Başlamış her ay yayınlanabilir; kilit şart değildir.
+Ortak gider kanallara bölünür: artık kuruşlar kanal **sırasına** göre ilk kanallara gider, o ay hiçbir
+kanal hareketli değilse pay **aktif** kanallara bölünür. Bu yüzden sıra, aktiflik, kanal ekleme ya da
+silme kilitli bir ayın Ortak payını ve ay sonucunu değiştirebilir. Kanal değişikliği kaydedilirken
+kilitli ayların aylık raporu değişiklikten önceki ve sonraki kanal listesiyle hesaplanır
+(`HesapServisi.Aylik(yil, ay, kanallar)`; motor aynı). Bir kanal satırı değişirse 409: "Bu kanal
+değişikliği kilitli ayların (…) Ortak gider paylarını değiştirir …". Değişmiyorsa (örneğin o ay pay
+almayan kanalın sırası, pasif kanal ekleme) serbesttir; bu yüzden yeni kanal açmak genelde kilidi
+gerektirmez.
 
-**Kırmızı şerit.** `GET /api/ay-kapanisi?yil=&ay=` bugünkü rakamları görüntüyle karşılaştırır.
-Kanal ve alan başına farklar ("MEZAT · Cari gider: eski → yeni") ve yayından sonra o aya
-dokunan geçmiş satırları döner. Aylık bunları kırmızı şeritte gösterir. Kilit/yayın satırları ve
-yalnız ad değişimleri sayılmaz.
+**Yayın.** "Ayı yayınla" ayın o anki rakamlarının anlık görüntüsünü (kanal satırları, kasa açılışı
+ve kapanışı, kanal adı → Id eşlemi) ve o ana kadarki son geçmiş satırının Id'sini saklar. Yeniden
+yayınlamak görüntüyü yeniler. **Yalnız bitmiş ay yayınlanır** (kilit şart değildir): içinde
+bulunulan ayın rakamları kayıt değişmeden de değişir (ileri tarihli kayıt tarihi gelince sayılır,
+geçen ayın kartsız K.K'sı ayın son döneminde düşülür) ve şerit sebepsiz kırmızı olurdu.
+
+**Karşılaştırma.** `GET /api/ay-kapanisi?yil=&ay=` bugünkü rakamları görüntüyle karşılaştırır:
+kanal ve alan başına farklar ("MEZAT · Cari gider: eski → yeni"). Kanal satırları **Id ile** eşlenir:
+yayından sonra kanal yeniden adlandırılırsa fark yoktur, fark olursa bugünkü adla gösterilir. Sonradan
+eklenen boş kanal satırı (— → 0) fark sayılmaz. Id eşlemi olmayan eski görüntüler adla eşlenir.
+
+**Değişikliğin nedeni.** Yanıttaki `degisiklikler`, yayından sonraki geçmiş satırlarından:
+- kaydın eski ya da yeni hali o aya düşen satırlar (K.K işlemi bir sonraki aya da), o ayı etkileyen
+  takip başlangıcı / kasa açılış devri değişimi, kanal açılış devri değişimi;
+- **kasa açılışı değiştiyse** önceki aylara ait işlem, gelen, kart ödemesi ve çek satırları (kasa
+  devreder; kasa sayımı kasayı değiştirmez). Açılış değişmediyse önceki ayların notu vb. listelenmez;
+- **bir kanalın Ortak payı değiştiyse** kanal ekleme/silme, sıra ya da aktiflik değişimi satırları.
+
+Kilit/yayın satırları ve yalnız ad değişimleri sayılmaz.
+
+**Aylık'ta gösterim.** Kırmızı şerit ("Bu ay yayınlandıktan sonra değişti") **yalnız bir rakam
+değiştiyse** (`farklar` boş değilse) görünür: farklar ve altında "Yayından sonraki düzeltmeler".
+Rakam değişmeden bu aya ait kayda dokunulduysa (yalnız not, yeni kasa sayımı) kırmızı yerine nötr bir
+not görünür: "Yayından sonra bu aya ait kayıtlara dokunuldu; rakamlar değişmedi" ve satırlar. İstemci
+DTO'sunda `YayindanSonraDegisti` (şerit) ve `YayindanSonraDokunuldu` (not). "Ayı yayınla" düğmesi
+yalnız bitmiş ayda görünür.
 
 ## 5. Uç noktalar
 
@@ -212,9 +266,9 @@ Hepsi `/api` altında ve oturum ister. ✎ = `Editor` politikası.
 | GET | `/rapor/kasa-dokumu?baslangic&bitis` | 21 · kasa dökümü |
 | GET | `/ay-kapanisi?yil&ay` | 11 · kilit/yayın durumu, farklar, değişiklikler |
 | GET | `/ay-kapanisi/kilitler` | Kilitli aylar |
-| POST ✎ | `/ay-kapanisi/kilitle` | `{yil, ay}`; bitmemiş ay 400, zaten kilitli 409 |
-| POST ✎ | `/ay-kapanisi/kilit-ac` | `{yil, ay}`; kilitli değilse 409 |
-| POST ✎ | `/ay-kapanisi/yayinla` | `{yil, ay}`; anlık görüntü |
+| POST ✎ | `/ay-kapanisi/kilitle` | `{yil, ay}`; önceki kilitsiz aylar da kilitlenir; bitmemiş ay 400, zaten kilitli 409 |
+| POST ✎ | `/ay-kapanisi/kilit-ac` | `{yil, ay}`; bu ay ve sonraki kilitler açılır; kilitli değilse 409 |
+| POST ✎ | `/ay-kapanisi/yayinla` | `{yil, ay}`; anlık görüntü; bitmemiş ay 400 |
 | GET | `/rapor/aylik-yazdir?yil&ay` | 24 · A4 HTML (kendi CSP'si) |
 | GET | `/kurlar` | Kur tablosu (en yeni önce) |
 | PUT ✎ | `/kurlar` | Ayın satırı; hepsi boşsa silinir |
@@ -229,6 +283,7 @@ Hepsi `/api` altında ve oturum ister. ✎ = `Editor` politikası.
 | GET | `/disaaktar/kasasayimlari.csv` | 40 |
 | GET | `/disaaktar/gecmis.csv?tur` | 40 |
 | GET | `/disaaktar/kasa-dokumu.csv?baslangic&bitis` | 21/40 |
+| GET | `/islemler?…&tip=` ve `/disaaktar/islemler.csv?…&tip=` | 22 · mevcut uçlara isteğe bağlı etkin tip süzgeci (Cari, SabitGider, KrediKarti, Nakit) |
 
 Kilitli aya dokunan **her** yazma (mevcut uç noktalar dahil): `409 {"hata": "Ağustos 2026 kilitli: …"}`.
 
@@ -250,18 +305,18 @@ Kilitli aya dokunan **her** yazma (mevcut uç noktalar dahil): `409 {"hata": "A�
 2. Aylık'taki K.K rakamından iniş **geçen aya** gider (kart kuralı).
 3. Kur formu varsayılan olarak **geçen ayı** açar (bu ayın ortalaması henüz tamam değildir).
 4. TCMB ortalaması: ayın bugüne kadarki iş günlerinin döviz satış kuru. Eksik gün varsa yazılmaz.
-5. İşlemler'deki **tip süzgeci istemcide** uygulanır. Sunucunun liste ucu ve mevcut istemci
-   değiştirilmedi.
-6. Yalnız bitmiş ay kilitlenir. Yayın için kilit gerekmez.
+5. İşlemler'deki tip süzgeci **sunucuda**, motorun etkin tipiyle uygulanır (karta bağlı işlem K.K).
+   Ortak inişleri "Nakit" (kart dışı), Haftalık kanal satırı "Cari" tipini açar.
+6. Yalnız bitmiş ay kilitlenir ve yayınlanır. Yayın için kilit gerekmez. Kilit geriye doğru kapsar
+   (önceki aylar da kilitlenir), kilit açma sonraki ayları da açar.
 7. Hedef/bütçe kopyalama var olan değerin üzerine yazmaz.
 8. Grafik, Hedef ve bütçe, Kasa dökümü (Ay kipi) bu ayla açılır; Cari özeti bu yılla açılır.
 
 ## 8. Bilinen sınırlar
 
-- İşlemler'de 500'den çok kayıt olan aralıkta tip süzgeci yalnız yüklenen sayfaya uygulanır.
-  "N işlem" sayısı sunucunun toplamını gösterir. İşlemler'in "Excel'e aktar"ı tip süzgecini
-  dikkate almaz.
 - Cari özetinden İşlemler'e iniş yoktur.
+- Aylık'taki Ortak pay inişi havuzun bu ayki kısmını açar; geçen ayın Ortak K.K'sı (havuzda) o
+  listede değildir, pay da havuzun bölünmüş kısmı olduğundan liste toplamı paya eşit değildir.
 - MAUI projesi Linux'ta derlenemediği için XAML ve C# ayrı bir net10.0 projesinde kaynak üretici
   (`MauiXamlInflator=SourceGen`) ile derlenerek, bağlama yolları yansımayla denetlendi. Windows'ta
   bir kez elle açılıp bakılmalıdır.
