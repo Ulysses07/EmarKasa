@@ -1,5 +1,7 @@
 # Emar Kasa — Plan 4 (Yayın / Dağıtım) Implementation Plan
 
+> **Tarihsel plan:** Bu belge yazıldığı günün planıdır; içindeki `EnsureCreated`/elle SQL/DB yeniden oluşturma adımları artık geçersizdir — şema açılışta `SemaGuncelleyici` ile güncellenir, dağıtım/yedek için `deploy/README.md`'ye bakın.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Native Emar Kasa uygulamalarını (Windows `.exe` + Android AAB + iOS `.ipa`) yayına hazırla; web SPA'yı emekliye ayır ve backend'i native-only olarak yeniden dağıt; KrediKartlari tablosunu içeren DB şemasını üretime taşı.

@@ -1,5 +1,7 @@
 # Kasa Defteri — Dağıtım (Docker + Caddy) Implementation Plan
 
+> **Tarihsel plan:** Bu belge yazıldığı günün planıdır; içindeki `EnsureCreated`/elle SQL/DB yeniden oluşturma adımları artık geçersizdir — şema açılışta `SemaGuncelleyici` ile güncellenir, dağıtım/yedek için `deploy/README.md`'ye bakın.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Kasa Defteri'yi (Kasa.Api + derlenmiş React SPA) tek bir Docker konteynerinde paketleyip, mevcut OrderDeck VPS'inde çalışan `orderdeck-caddy` arkasında `kasa.emarglobal.com` alt alan adında yayına almak.

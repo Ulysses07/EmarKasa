@@ -1,11 +1,21 @@
+# İmaj yalnızca Kasa.Core + Kasa.Api'yi derler (Dockerfile). Geri kalan her şey
+# build context'ine hiç gönderilmez — özellikle canlı DB, yedekler ve sırlar.
 **/bin
 **/obj
 **/node_modules
 **/.vs
-*.db
-*.db-shm
-*.db-wal
+**/TestResults
+**/*.db
+**/*.db-*
+deploy/kasa-data
+deploy/.env
+deploy/SURUM
 .git
+.github
 .gitignore
 docs
-**/TestResults
+web
+Kasa.App
+Kasa.App.Core
+Kasa.ApiClient
+*.Tests
