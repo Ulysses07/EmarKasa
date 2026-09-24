@@ -41,7 +41,8 @@ public static partial class HizliGirisEndpoints
 
         // Bitmiş dönemlerde aktif kanalın gelen satırı hiç yoksa ("MEZAT geleni girilmedi"). 0 girilmiş
         // gelen girilmiş sayılır. Kanalın başlangıcından önceki ve pasif olduğu dönemler sayılmaz
-        // (bkz. KanalDonemleri); başlangıcı hiç bilinmeyen kanal listelenmez.
+        // (bkz. KanalDonemleri); başlangıcı hiç bilinmeyen kanal listelenmez. Kilitli aydaki (paket B)
+        // dönemler de listelenmez: ay kapatılmıştır, oraya gelen yazılamaz.
         api.MapGet("/gelenler/eksik-liste", (KasaDbContext db, TimeProvider saat, HttpContext http) =>
         {
             var takip = TakipBaslangici(db);
@@ -49,8 +50,9 @@ public static partial class HizliGirisEndpoints
             var sonuc = new List<EksikGelenSatiriDto>();
             if (takip < bugun)
             {
+                var kilitli = AyKilidiKurali.EtkinKilitliAylar(db);
                 var donemler = DonemUretici.Uret(takip, bugun)
-                    .Where(d => DonemUretici.DogalBitis(d.Start) < bugun)
+                    .Where(d => DonemUretici.DogalBitis(d.Start) < bugun && !kilitli.Contains(AyBicimi.AyBasi(d.Start)))
                     .OrderByDescending(d => d.Start)
                     .ToList();
                 var kanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif)

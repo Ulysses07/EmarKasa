@@ -80,6 +80,11 @@ public static class RiskHesaplayici
                 Ekle(uyas >= e.UzakKirmiziSaat ? RiskSeviyesi.Kirmizi : RiskSeviyesi.Sari, "UzakYedek",
                     $"Sunucu dışı yedek {Yas(uyas)} önce", "Son başarılı gönderim eski; yedek konteynerini kontrol edin.");
                 break;
+            // Veritabanı gönderildi ama bir adım tamamlanmadı (ör. paket F'nin fiş/fatura ekleri gönderilemedi):
+            // /health'teki uyarı kartta da görünsün.
+            case UzakYedekDurumu.Tamam when !string.IsNullOrWhiteSpace(u.Uyari):
+                Ekle(RiskSeviyesi.Sari, "UzakYedek", "Sunucu dışı yedekte uyarı var", u.Uyari!);
+                break;
         }
 
         // Sunucudaki günlük yedek.

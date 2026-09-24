@@ -302,6 +302,19 @@ public partial class PosViewModel : TemelViewModel
         await YenileIcAsync();
     });
 
+    // Paket C · 32 silme kuralı: satırdaki "Sil" iki basışla siler (ilk basış "Geri alınamaz · Emin
+    // misiniz?" der). POS satışı geçmişten geri getirilemez: "Silindi · Geri al" şeridi yoktur.
+    private SilmeOnayi? _silme;
+    public SilmeOnayi Silme => _silme ??= new SilmeOnayi(_api, Zaman);
+
+    /// <summary>İlk basış onay ister; süresi içinde aynı satıra ikinci basış siler.</summary>
+    [RelayCommand]
+    private Task OnayliSatisSilAsync(PosSatisDto s)
+    {
+        if (!Silme.OnayIste(s, geriAlinabilir: false)) return Task.CompletedTask;
+        return SatisSilAsync(s);
+    }
+
     // ---------------------------------------------------------------- yardımcılar
     public static string SaglayiciAdi(PosSaglayici s) => s switch
     {

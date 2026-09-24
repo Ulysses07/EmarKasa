@@ -20,11 +20,18 @@ public partial class GecmisViewModel : TemelViewModel
     public const string TumTurler = "Tümü";
 
     private readonly IKasaApi _api;
+    /// <summary>
+    /// Tek kurucu: DI (MAUI) hem <see cref="IYerelDepo"/> (paket A) hem <see cref="IDosyaKaydedici"/> (paket B)
+    /// kayıtlıyken aynı uzunlukta iki kurucu "ambiguous constructors" hatası verir ve Geçmiş sayfası açılmaz.
+    /// </summary>
     /// <param name="depo">Cihaza özel "son görülen" satır (yeni satır vurgusu); verilmezse bellekte.</param>
-    public GecmisViewModel(IKasaApi api, TimeProvider? zaman = null, IYerelDepo? depo = null) : base(zaman)
+    /// <param name="kaydedici">"Excel'e aktar" dosyasını kaydeden servis; verilmezse aktarma hata gösterir.</param>
+    public GecmisViewModel(IKasaApi api, TimeProvider? zaman = null, IYerelDepo? depo = null, IDosyaKaydedici? kaydedici = null)
+        : base(zaman)
     {
         _api = api;
         _depo = depo ?? new BellekYerelDepo();
+        _kaydedici = kaydedici;
     }
 
     /// <summary>Yüklü satırlar, en yeni önce.</summary>

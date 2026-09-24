@@ -25,10 +25,12 @@ public static class RaporVeAyKapanisiKurulumu
     public static RouteGroupBuilder MapRaporVeAyKapanisi(this RouteGroupBuilder api)
     {
         // Kilitli aya yazma (işlem, gelen, çek, …) hangi uç noktadan gelirse gelsin anlaşılır bir 409 olur.
+        // "kilitli: true" bu 409'u öteki çakışmalardan ayırır: istemci (ör. korumalı gelen yazımı) bunu
+        // "siz açtıktan sonra değişmiş" sorusuna çevirmez, mesajı olduğu gibi gösterir.
         api.AddEndpointFilter(async (ctx, next) =>
         {
             try { return await next(ctx); }
-            catch (AyKilitliHatasi ex) { return Results.Conflict(new { hata = ex.Message }); }
+            catch (AyKilitliHatasi ex) { return Results.Conflict(new { hata = ex.Message, kilitli = true }); }
         });
         api.MapKasaDokumu();
         api.MapAyKapanisi();

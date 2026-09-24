@@ -21,6 +21,7 @@ public partial class IslemlerViewModel
         {
             await _api.IslemSilAsync(i.Id);
             if (DuzenId == i.Id) Yeni();                 // silinen kayıt formda kalmasın
+            if (ListeEkIslemi?.Id == i.Id) ListeEkleriKapat();   // Paket F: silinenin ek paneli de kapanır
         }, IslemleriYukleAsync);
         if (!silindi) return;
         if (SonKaydedilen is { } s && s.Id == i.Id) SonKaydedilen = null;

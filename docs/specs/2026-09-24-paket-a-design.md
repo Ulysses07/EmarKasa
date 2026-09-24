@@ -184,7 +184,7 @@ Tüm uçlar `Kasa.Api/Endpoints/PanelEndpoints.cs` dosyasındadır ve `Program.c
 | Uç | Yanıt | Hata |
 |---|---|---|
 | `GET /api/rapor/tahmin?gun=30&haric=3,7` | `NakitTahminSonucu`: `bugun`, `gun`, `baslangicKasa`, `gunler[]` (`tarih`, `giris`, `cikis`, `kasa`, `kalemler[]`), `enDusukTarih`, `enDusukKasa`, `sonKasa`, `toplamGiris`, `toplamCikis`, `haricKalemler[]` | 400: `gun` 1–366 dışında; `haric` virgülle ayrılmış negatif olmayan sayılar değil ya da 1000'den fazla |
-| `GET /api/gelenler/eksik` | `[{ donemStart, donemEnd, kanallar[] }]`: son 14 günde biten dönemler, geleni girilmemiş aktif kanallar (0 girilmiş sayılır; kanal kuralı `eksik-liste` ile aynı) | – |
+| `GET /api/gelenler/eksik` | `[{ donemStart, donemEnd, kanallar[] }]`: son 14 günde biten dönemler, geleni girilmemiş aktif kanallar (0 girilmiş sayılır; kanal kuralı `eksik-liste` ile aynı); kilitli aydaki (paket B) dönem listelenmez | – |
 | `GET /api/gecmis/ozet?sonId=123` | `{ sonId, sonZamanUtc, toplam, gecmiseDonuk, gecmiseDonukSatirlar[≤5] }`: yalnız defter satırları. `sonId` verilmezse sayılar 0 olur (başlangıç noktası) | 400: `sonId` negatif |
 
 `gun` verilmezse 30 kabul edilir. İstemci tarafında: `IKasaApi.A.cs`, `KasaApiClient.A.cs`, `Dtos.A.cs`.

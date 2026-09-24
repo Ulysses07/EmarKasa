@@ -111,6 +111,8 @@ public sealed partial class SahteApi
     public Exception? DosyaHatasi;
     public (int Yil, int Ay)? SonYazdir, SonAyPaketi;
     public (CekYonu? Yon, CekDurumu? Durum, DateOnly? Bas, DateOnly? Bit)? SonCekCsv;
+    /// <summary>Son çek CSV'sinin paket D süzgeçleri (tür, konum).</summary>
+    public (CekTuru? Tur, CekKonumu? Konum)? SonCekCsvEvrak;
     public int KasaSayimCsvCagri, GecmisCsvCagri;
     public string? SonGecmisCsvTur;
 
@@ -124,9 +126,11 @@ public sealed partial class SahteApi
         SonAyPaketi = (yil, ay);
         return DosyaHatasi is not null ? Task.FromException<IndirilenDosya>(DosyaHatasi) : Task.FromResult(ZipDosyasi);
     }
-    public Task<IndirilenDosya> CeklerCsvAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null)
+    public Task<IndirilenDosya> CeklerCsvAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null,
+        CekTuru? tur = null, CekKonumu? konum = null)
     {
         SonCekCsv = (yon, durum, baslangic, bitis);
+        SonCekCsvEvrak = (tur, konum);
         return CsvYanit();
     }
     public Task<IndirilenDosya> KasaSayimlariCsvAsync() { KasaSayimCsvCagri++; return CsvYanit(); }

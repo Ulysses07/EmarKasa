@@ -9,9 +9,17 @@ public partial class CekEntity
 {
     /// <summary>Çek (varsayılan) ya da senet. Kasa kuralı ikisinde de aynıdır.</summary>
     public CekTuru Tur { get; set; }
-    /// <summary>Portföydeki alınan evrakın konumu; verilen evrakta her zaman Elde.</summary>
+    /// <summary>
+    /// Portföydeki alınan evrakın konumu; verilen evrakta her zaman Elde. Yalnız bilgi (kasaya etkisi
+    /// yok): kilitli ayda da değiştirilebilir (<see cref="AyKilidiDisiAttribute"/>).
+    /// </summary>
+    [AyKilidiDisi]
     public CekKonumu Konum { get; set; }
-    /// <summary>Ciro edilen cari (yalnız CiroEdildi durumunda dolu; kayıtlı cari ise onun yazımı).</summary>
+    /// <summary>
+    /// Ciro edilen cari (yalnız CiroEdildi durumunda dolu; kayıtlı cari ise onun yazımı). Yalnız bilgi:
+    /// kilitli ayda ciro edilen evrakta yanlış yazılan cari düzeltilebilir; durum ve tarih yine kilitli.
+    /// </summary>
+    [AyKilidiDisi]
     public string? CiroEdilenCari { get; set; }
 }
 
@@ -22,8 +30,13 @@ public partial class KasaSayimEntity
     /// null: eski tip tek tutarlı sayım. <see cref="SayilanTutar"/> her zaman satırların toplamıdır.
     /// </summary>
     public string? SatirlarJson { get; set; }
-    /// <summary>Farkın durumu (fark sıfırsa anlamsızdır).</summary>
+    /// <summary>
+    /// Farkın durumu (fark sıfırsa anlamsızdır). Durum ve açıklama kasayı değiştirmez: kapanmış ayın
+    /// sayımındaki fark da açıklanabilir (<see cref="AyKilidiDisiAttribute"/>); tarih ve tutar kilitli kalır.
+    /// </summary>
+    [AyKilidiDisi]
     public SayimFarkDurumu FarkDurumu { get; set; }
+    [AyKilidiDisi]
     public string? FarkAciklamasi { get; set; }
 }
 

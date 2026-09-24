@@ -5,7 +5,8 @@ using Kasa.ApiClient;
 namespace Kasa.App.Core;
 
 // Paket B · 40: Çekler, Kasa Sayımı ve Geçmiş sayfalarına "Excel'e aktar". Diğer sayfalardaki gibi
-// dosya Belgeler\Emar Kasa'ya kaydedilir ve açılır; kaydedici DI ile ikinci kurucudan gelir.
+// dosya Belgeler\Emar Kasa'ya kaydedilir ve açılır; kaydedici DI ile ikinci kurucudan gelir (Geçmiş'te
+// ana kurucudan: orada paket A'nın cihaz deposu da vardır).
 
 public partial class CeklerViewModel
 {
@@ -17,13 +18,13 @@ public partial class CeklerViewModel
     /// <summary>Son "Excel'e aktar"ın kaydettiği dosyanın tam yolu (sayfada gösterilir).</summary>
     [ObservableProperty] private string? _aktarilanDosya;
 
-    /// <summary>Seçili yön/durum süzgecine uyan tüm çekler (yön başına toplam satırıyla).</summary>
+    /// <summary>Seçili yön/durum/tür/konum süzgecine uyan tüm çekler ve senetler (yön başına toplam satırıyla).</summary>
     [RelayCommand]
     private Task ExceleAktarAsync() => CalistirAsync(async () =>
     {
-        var (yon, durum) = (FiltreYon, FiltreDurum);
+        var (yon, durum, tur, konum) = (FiltreYon, FiltreDurum, FiltreTur, FiltreKonum);
         AktarilanDosya = null;
-        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => _api.CeklerCsvAsync(yon, durum));
+        AktarilanDosya = await ExcelAktarma.AktarAsync(_kaydedici, () => _api.CeklerCsvAsync(yon, durum, tur: tur, konum: konum));
     });
 }
 
@@ -47,10 +48,8 @@ public partial class KasaSayimiViewModel
 
 public partial class GecmisViewModel
 {
+    // Kaydedici ana kurucudan gelir (GecmisViewModel.cs): burada ikinci kurucu DI'da paket A'nınkiyle çakışırdı.
     private readonly IDosyaKaydedici? _kaydedici;
-
-    public GecmisViewModel(IKasaApi api, TimeProvider? zaman, IDosyaKaydedici? kaydedici) : this(api, zaman)
-        => _kaydedici = kaydedici;
 
     [ObservableProperty] private string? _aktarilanDosya;
 

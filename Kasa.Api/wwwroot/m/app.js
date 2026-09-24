@@ -120,18 +120,34 @@
       hata.hidden = true;
       try {
         const kullanici = $('kullanici').value.trim();
+        const kodAlani = $('kod-alani');
+        const kod = kodAlani.hidden ? '' : $('kod').value.trim();
         const yanit = await fetch('/api/auth/login', {
           method: 'POST',
           credentials: 'same-origin',
           cache: 'no-store',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ kullanici: kullanici || null, sifre: $('sifre').value }),
+          body: JSON.stringify({ kullanici: kullanici || null, sifre: $('sifre').value, kod: kod || null }),
         });
-        if (yanit.status === 401) throw new Error('Kullanıcı adı ya da şifre hatalı.');
-        if (yanit.status === 429) throw new Error('Çok fazla deneme. Bir dakika sonra tekrar deneyin.');
+        if (yanit.status === 401 || yanit.status === 429) {
+          // Sunucunun açıklaması gösterilir ("Bu hesap pasif…", "Kod hatalı…"); iki adımlı hesapta
+          // şifre doğruysa 401 + kodGerekli gelir: kod alanı açılır, aynı bilgilerle kodla yeniden gönderilir.
+          let govde = null;
+          try { govde = await yanit.json(); } catch { /* gövde yok */ }
+          if (govde && govde.kodGerekli === true) {
+            kodAlani.hidden = false;
+            $('kod').value = '';
+            $('kod').focus();
+          }
+          const varsayilan = yanit.status === 429
+            ? 'Çok fazla deneme. Bir dakika sonra tekrar deneyin.'
+            : 'Kullanıcı adı ya da şifre hatalı.';
+          throw new Error((govde && typeof govde.hata === 'string' && govde.hata) || varsayilan);
+        }
         if (!yanit.ok) throw new Error(`Giriş yapılamadı (${yanit.status}).`);
         // Yanıttaki token kullanılmaz ve saklanmaz: oturum HttpOnly çerezdedir.
         $('sifre').value = '';
+        $('kod').value = '';
         await oturumuAc();
       } catch (hataNesnesi) {
         hata.textContent = hataNesnesi instanceof TypeError

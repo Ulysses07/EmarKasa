@@ -147,7 +147,10 @@ eklendi. `[JsonIgnore]` olduğundan haftalık raporun JSON biçimi aynı kalır.
 - `GET /api/hedef-butce?yil=&ay=`, `PUT /api/hedef-butce`, `POST /api/hedef-butce/kopyala`.
 - Kanal hedefi gerçekleşeni = gelen + çek tahsilatı (Aylık'taki "Gelen" ile aynı).
 - Kalem bütçesi gerçekleşeni = o ay o kalemle girilmiş **kartsız** sabit gider işlemleri. Karta
-  bağlı sabit gider K.K sayılır. Yanında şablon (aktif tekrarlayan giderlerin aylık tutarı) gösterilir.
+  bağlı sabit gider K.K sayılır. Yanında şablon gösterilir: o aya **düşen** (sıklığına göre; paket D'nin
+  3/6/12 ayda bir şablonu yalnız kendi ayında) aktif, **kartsız** tekrarlayan giderlerin tutarı. Karta
+  bağlı şablonun kalemi bir cari adıdır, kalem şablonuna girmez. Tutarı her seferinde girilen
+  (değişken) şablon o aya düşüyorsa ayın şablonu bilinmez: boş gösterilir, karşılaştırılmaz.
 - Yüzde = gerçekleşen / hedef; hedef yoksa ya da 0 ise yüzde yok.
 - PUT yalnız gönderilen satırları yazar; `Tutar: null` satırı siler. Uygulama yalnız değişen
   kutuları gönderir; boş kutu "hedef yok" demektir. Tutarlar `ParaGiris` ile okunur.
@@ -164,17 +167,23 @@ eklendi. `[JsonIgnore]` olduğundan haftalık raporun JSON biçimi aynı kalır.
   işlemler), çek (bu kişiye verilmiş ve **ödenmiş** çekler, ödeme ayına göre), toplam, kayıt sayısı.
   Kartsız sabit gider işlemleri kaleme aittir, cariye sayılmaz.
 - Kalem: ay başına girilen (kartsız sabit gider), şablon ve tekrarlayan gider kararı
-  (Girildi / Atlandı). Şablondan farklı girilen tutar kırmızı.
+  (Girildi / Atlandı). Şablondan farklı girilen tutar kırmızı. Şablon 05'teki gibidir (o aya düşen
+  kartsız şablonlar; değişken tutarlı şablonun ayında boş); şablon toplamı yalnız bilinen ayları toplar.
 - Ad eşleşmesi büyük/küçük harf duyarsız ve Türkçe (`Metin.EsitBuyukKucukDuyarsiz`).
 
 ### 40 · Dışa aktarma
 
 - `GET /api/disaaktar/ay-paketi.zip?yil=&ay=`: islemler, haftalik, aylik, kasa-dokumu, gelenler,
-  cekler, kart-odemeleri, kasa-sayimlari, gecmis (hepsi `-YYYY-MM.csv`) ve yazdırılabilir aylık
-  HTML. Her dosya mevcut "Excel'e aktar" yazıcılarıyla üretilir; rakamlar ekrandakilerle aynıdır.
-- `GET /api/disaaktar/cekler.csv?yon=&durum=` (Çekler sayfasındaki süzgeçle),
-  `/api/disaaktar/kasasayimlari.csv`, `/api/disaaktar/gecmis.csv?tur=`,
-  `/api/disaaktar/kasa-dokumu.csv?baslangic=&bitis=`.
+  cekler, kart-odemeleri, kasa-sayimlari, gecmis, muhasebeci (hepsi `-YYYY-MM.csv`) ve yazdırılabilir
+  aylık HTML. Her dosya mevcut "Excel'e aktar" yazıcılarıyla üretilir; rakamlar ekrandakilerle aynıdır.
+  `muhasebeci` paket F'nin ay sonu listesidir (belge türü/no, fatura bekleniyor, ek sayısı;
+  `/api/disaaktar/muhasebeci.csv` ile birebir): muhasebeciye giden paket belge bilgisini de taşır.
+- `GET /api/disaaktar/cekler.csv?yon=&durum=&tur=&konum=` (Çekler sayfasındaki süzgeçle; konum,
+  sayfadaki gibi yalnız alınan evrakta aranır), `/api/disaaktar/kasasayimlari.csv`,
+  `/api/disaaktar/gecmis.csv?tur=`, `/api/disaaktar/kasa-dokumu.csv?baslangic=&bitis=`.
+- Sonradan eklenen sütunlar sonda durur, eski sütunların yeri değişmez: çek CSV'sinde paket D'nin
+  Tür, Konum (yalnız alınan evrakta) ve Ciro edilen cari sütunları; toplam satırı senet varsa
+  "2 çek, 1 senet" der. Geçmiş CSV'sinde paket E'nin Kişi ve Cihaz sütunları (eski satırlarda boş).
 - CSV'ler mevcut biçimdedir: UTF-8 BOM, `;` ayraç, Türkçe sayı. Formül enjeksiyonuna karşı `= + - @`
   ile başlayan hücreler kaçırılır.
 - Çekler, Kasa Sayımı ve Geçmiş sayfalarına yalnız başlık satırına bir "Excel'e aktar" düğmesi ve
@@ -196,7 +205,17 @@ eklendi. `[JsonIgnore]` olduğundan haftalık raporun JSON biçimi aynı kalır.
   tarar. Eklenen, değişen ya da silinen kaydın eski **veya** yeni ayı kilitliyse `AyKilitliHatasi`
   fırlatır ve hiçbir şey yazılmaz. Grup filtresi bunu Türkçe mesajlı **409**'a çevirir. Böylece
   yazma hangi uç noktadan gelirse gelsin (işlem, gelen, çek, kart ödemesi, sayım, geri alma,
-  tekrarlayan gider onayı) aynı kural uygulanır.
+  tekrarlayan gider onayı) aynı kural uygulanır. Yanıt `kilitli: true` taşır: istemci bunu öteki
+  çakışmalardan (ör. korumalı gelen yazımının `mevcutTutar`'lı 409'u, paket C) ayırır ve "üzerine
+  yaz" gibi bir soru açmadan mesajı gösterir.
+- **Kilit dışı bilgi alanları** (`[AyKilidiDisi]`): kasaya etkisi olmayan alanlar kilitli ayda da
+  değişebilir, kayıtta **yalnız** bunlar değiştiyse: işlemin belge türü, belge no ve "fatura
+  bekleniyor"u (paket F; fatura çoğu zaman ay kapandıktan sonra gelir), evrakın konumu ve ciro
+  edilen cari (paket D), kasa sayımı farkının durumu ve açıklaması (paket D; kapanmış ayın farkı da
+  açıklanır). Tutar, tarih, durum, evrak türü ve silme kilitli kalır. "Önceki haline döndür" aynı
+  kuralla çalışır: yalnız belge alanlarını değiştiren güncelleme kilitli ayda da geri alınır.
+- Eksik gelen listeleri (`/api/gelenler/eksik`, paket A; `/api/gelenler/eksik-liste`, paket C)
+  kilitli ayların dönemlerini göstermez: oraya gelen yazılamaz, "Gelen gir" boşa açılırdı.
 - K.K işlemi (kartsız ya da karta bağlı) **bir sonraki ayı da** değiştirir, o ay da denetlenir.
 - **Kilit geriye doğru kapsar.** Kasa aydan aya devreder: önceki bir aydaki düzeltme kilitli ayın
   açılış ve kapanış kasasını değiştirirdi. Bu yüzden:
@@ -248,7 +267,9 @@ eklenen boş kanal satırı (— → 0) fark sayılmaz. Id eşlemi olmayan eski 
   devreder; kasa sayımı kasayı değiştirmez). Açılış değişmediyse önceki ayların notu vb. listelenmez;
 - **bir kanalın Ortak payı değiştiyse** kanal ekleme/silme, sıra ya da aktiflik değişimi satırları.
 
-Kilit/yayın satırları ve yalnız ad değişimleri sayılmaz.
+Kilit/yayın satırları ve yalnız ad değişimleri sayılmaz. Satırlar `GET /api/gecmis` ile aynı DTO'dur
+(`RaporServisi.DegisiklikDtosu`): kişi ve cihaz (paket E), geçmişe dönük işareti ve kaydın bugünkü
+haline göre geri alınabilirlik (sonradan yeniden değişen kayıt "geri alınabilir" görünmez).
 
 **Aylık'ta gösterim.** Kırmızı şerit ("Bu ay yayınlandıktan sonra değişti") **yalnız bir rakam
 değiştiyse** (`farklar` boş değilse) görünür: farklar ve altında "Yayından sonraki düzeltmeler".
@@ -279,13 +300,13 @@ Hepsi `/api` altında ve oturum ister. ✎ = `Editor` politikası.
 | POST ✎ | `/hedef-butce/kopyala` | `{ay}`; geçen aydan, var olanı korur |
 | GET | `/rapor/cari-ozeti?ad&yil&tur` | 07 |
 | GET | `/disaaktar/ay-paketi.zip?yil&ay` | 40 |
-| GET | `/disaaktar/cekler.csv?yon&durum` | 40 |
+| GET | `/disaaktar/cekler.csv?yon&durum&tur&konum` | 40 |
 | GET | `/disaaktar/kasasayimlari.csv` | 40 |
 | GET | `/disaaktar/gecmis.csv?tur` | 40 |
 | GET | `/disaaktar/kasa-dokumu.csv?baslangic&bitis` | 21/40 |
 | GET | `/islemler?…&tip=` ve `/disaaktar/islemler.csv?…&tip=` | 22 · mevcut uçlara isteğe bağlı etkin tip süzgeci (Cari, SabitGider, KrediKarti, Nakit) |
 
-Kilitli aya dokunan **her** yazma (mevcut uç noktalar dahil): `409 {"hata": "Ağustos 2026 kilitli: …"}`.
+Kilitli aya dokunan **her** yazma (mevcut uç noktalar dahil): `409 {"hata": "Ağustos 2026 kilitli: …", "kilitli": true}`.
 
 ## 6. Uygulama (MAUI)
 

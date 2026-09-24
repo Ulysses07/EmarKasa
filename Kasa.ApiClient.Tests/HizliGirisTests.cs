@@ -145,6 +145,31 @@ public class HizliGirisTests
         Assert.Equal("?donemStart=2026-09-21", h.SonIstek!.RequestUri!.Query);
     }
 
+    /// <summary>
+    /// Entegrasyon (paket B × C): kilitli aya gelen yazımı 409 {hata, kilitli: true} alır. Bu bir çakışma
+    /// değildir: eskiden "siz açtıktan sonra değişmiş (kayıtlı 0,00 ₺)" sorusuna dönüyor, "Üzerine yaz" aynı
+    /// 409'u alıp döngüye giriyor, "kilitli" hiç görünmüyordu. Artık sunucunun mesajıyla istisna fırlar.
+    /// </summary>
+    [Fact]
+    public async Task Korumali_gelen_kilit_409unu_cakisma_saymaz_sunucu_mesajiyla_firlatir()
+    {
+        var (c, h, _) = Kur();
+        var g = new GelenYaz(new DateOnly(2026, 8, 24), "MEZAT", 150m);
+        const string kilit = "Ağustos 2026 kilitli: bu aya ait kayıt eklenemez, değiştirilemez ya da silinemez.";
+        h.Kuyrukla(HttpStatusCode.Conflict, $$"""{"hata":"{{kilit}}","kilitli":true}""");
+        var ex = await Assert.ThrowsAsync<KasaApiException>(() => c.GelenKorumaliKaydetAsync(g, 0m));
+        Assert.Equal(HttpStatusCode.Conflict, ex.DurumKodu);
+        Assert.Equal(kilit, ex.SunucuMesaji);
+        Assert.Equal(HttpMethod.Put, h.SonIstek!.Method);   // güncel değer yeniden okunmadı
+
+        // İşaretsiz 409 ama kayıtlı tutar hâlâ görülen tutar: sorulacak çakışma yok, mesaj hata olarak döner.
+        h.Kuyrukla(HttpStatusCode.Conflict, """{"hata":"Gelen aynı anda başka bir yerden kaydedildi; tekrar deneyin."}""")
+         .Kuyrukla(HttpStatusCode.OK, "[]");
+        var ex2 = await Assert.ThrowsAsync<KasaApiException>(() => c.GelenKorumaliKaydetAsync(g, 0m));
+        Assert.Equal("Gelen aynı anda başka bir yerden kaydedildi; tekrar deneyin.", ex2.SunucuMesaji);
+        Assert.Equal(HttpMethod.Get, h.SonIstek!.Method);
+    }
+
     [Fact]
     public async Task Gelen_tablosu_ve_eksikler_okunur()
     {

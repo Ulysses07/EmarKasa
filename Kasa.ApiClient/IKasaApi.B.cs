@@ -30,9 +30,11 @@ public partial interface IKasaApi
 
     /// <summary>Tek sayfalık yazdırılabilir aylık rapor (HTML).</summary>
     Task<IndirilenDosya> AylikYazdirAsync(int yil, int ay);
-    /// <summary>Ay sonu paketi (ZIP): işlemler, raporlar, gelenler, çekler, kart ödemeleri, sayımlar, geçmiş.</summary>
+    /// <summary>Ay sonu paketi (ZIP): işlemler, raporlar, gelenler, çekler, kart ödemeleri, sayımlar, geçmiş, muhasebeci listesi.</summary>
     Task<IndirilenDosya> AyPaketiAsync(int yil, int ay);
-    Task<IndirilenDosya> CeklerCsvAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null);
+    /// <summary>Çek/senet listesi; <paramref name="konum"/> yalnız alınan evrakta aranır (Çekler sayfasındaki gibi).</summary>
+    Task<IndirilenDosya> CeklerCsvAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null,
+        CekTuru? tur = null, CekKonumu? konum = null);
     Task<IndirilenDosya> KasaSayimlariCsvAsync();
     Task<IndirilenDosya> GecmisCsvAsync(string? tur = null);
 

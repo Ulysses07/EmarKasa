@@ -74,6 +74,9 @@ Yeni sütunların hepsi boş olabilir (nullable).
 - `Cihaz`: değişikliğin yapıldığı cihaz.
 - Eski satırlarda ve ortak izleyici şifresiyle yapılan değişikliklerde ikisi de boştur. Geçmiş
   satırı "Editör · EMAR · EMAR-LAPTOP" gibi görünür.
+- Geçmiş CSV'sinin (paket B) sonunda Kişi ve Cihaz sütunları vardır. Ay kapanışındaki "yayından sonraki
+  düzeltmeler" `GET /api/gecmis` ile aynı DTO'yu kullanır: kişi, cihaz ve geçmişe dönük işareti orada da
+  görünür.
 
 **Yerleşik editör:**
 
@@ -223,7 +226,7 @@ dışındadır ve `Soru` politikasını kullanır (editör ve izleyici).
 
 | Konu | Sarı | Kırmızı |
 |---|---|---|
-| Sunucu dışı yedek | Yapılandırılmamış, durum okunamadı ya da 48 saatten az eskimiş | Hata; hiç başarılı olmamış; 48 saatten fazla eskimiş |
+| Sunucu dışı yedek | Yapılandırılmamış, durum okunamadı, 48 saatten az eskimiş ya da gönderim tamam ama uyarılı (`uyari`: ör. fiş/fatura ekleri gönderilemedi) | Hata; hiç başarılı olmamış; 48 saatten fazla eskimiş |
 | Yerel günlük yedek | Kapalı, henüz alınmamış ya da 26 saatten eski | Hata ya da 48 saatten eski |
 | Yedek doğrulaması | Hiç yapılmamış ya da 48 saattir yapılmamış | Son doğrulama başarısız |
 | Boş disk | 1024 MB'tan az | 300 MB'tan az |
@@ -245,12 +248,16 @@ dışındadır ve `Soru` politikasını kullanır (editör ve izleyici).
   1. Yedek salt okunur ve havuzsuz açılır; `quick_check` çalıştırılır.
   2. Tabloların satır sayısı canlı DB ile karşılaştırılır. Liste veritabanı modelinden okunur
      (`YedekDogrulayici.Tablolar`): Paket D'nin `KartMutabakatlari`, bu paketin `Kullanicilar`, `Sorular`,
-     `GuvenlikAyarlari` tabloları da sayılır; geçmiş ve günlükler (`Degisiklikler`, `IptalEdilenTokenlar`,
-     `GirisKayitlari`, `OturumKayitlari`, `YedekDogrulamalari`) sayılmaz. Her sürümde bulunan 11 temel tablodan
-     biri yedekte yoksa doğrulama başarısızdır; sonradan eklenmiş bir tablo yedekte yoksa yedek, sürüm
-     yükseltmeden önce alınmıştır: o tablo sayılmaz ve mesajda belirtilir.
+     `GuvenlikAyarlari` tabloları, paket B'nin ay kilidi, ay yayını, kanal hedefi, gider bütçesi ve kur tabloları,
+     paket F'nin işlem ekleri, POS tanımı ve POS satışı tabloları da sayılır; geçmiş ve günlükler (`Degisiklikler`,
+     `IptalEdilenTokenlar`, `GirisKayitlari`, `OturumKayitlari`, `YedekDogrulamalari`) sayılmaz. Her sürümde
+     bulunan 11 temel tablodan biri yedekte yoksa doğrulama başarısızdır; sonradan eklenmiş bir tablo yedekte
+     yoksa yedek sürüm yükseltmeden önce alınmıştır: o tablo sayılmaz ve mesajda belirtilir (açılışta geçmişe
+     yazılmadan eklenen güvenlik ayarı ve yerleşik editör yükseltme günü yanlış alarm vermesin). Pay, yedekten beri yazılan geçmiş satırı sayısıdır;
+     toplu satırlar (gece ek temizliği, takip birleştirmesi) içlerindeki kayıt sayısı kadar sayılır.
   3. Yedek dosyasının zamanından (10 dakika pay ile) sonra `Degisiklikler` tablosuna yazılan satır
-     sayısı kadar fark hoş görülür.
+     sayısı kadar fark hoş görülür. Toplu satır (eski hali dizi: takip birleştirmesi, gece ek
+     temizliği) dizideki kayıt sayısı kadar sayılır.
   4. Hata mesajı "Cariler: yedekte 0, canlıda 3" biçimindedir.
 
 ## 6. Uygulama (Windows)
@@ -261,6 +268,7 @@ dışındadır ve `Soru` politikasını kullanır (editör ve izleyici).
 - Hatalı kodda sunucunun mesajı gösterilir.
 - "Başka hesapla gir" düğmesi şifre adımına döner.
 - Pasif hesap mesajı olduğu gibi gösterilir.
+- Telefon görünümü (`/m`, paket F) aynı akışı izler: `kodGerekli` gelince kod alanı açılır.
 
 **Menü:**
 
@@ -297,7 +305,9 @@ dışındadır ve `Soru` politikasını kullanır (editör ve izleyici).
 - Satırlar sayfa görünüm modellerine dokunmaz; düğmeler statik bir komuta
   (`SoruYonlendirme.SorKomutu`) bağlanır.
 
-**Geçmiş:** alt satır "zaman · rol · kişi · cihaz · tür" olur.
+**Geçmiş:** alt satır "zaman · rol · kişi · cihaz · tür" olur. `GecmisViewModel`'in tek kurucusu
+vardır (`IKasaApi`; saat, yerel depo ve dosya kaydedici isteğe bağlı): eşit uzunlukta iki kurucu
+DI'de "belirsiz kurucu" hatası verir, sayfa açılmazdı.
 
 ## 7. Testler
 

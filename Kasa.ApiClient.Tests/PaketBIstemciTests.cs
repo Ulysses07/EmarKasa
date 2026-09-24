@@ -195,6 +195,9 @@ public class PaketBIstemciTests
         Assert.Equal("/api/disaaktar/cekler.csv?yon=Verilen&durum=Portfoyde&baslangic=2026-08-01", h2.SonIstek!.RequestUri!.PathAndQuery);
         await c2.CeklerCsvAsync();
         Assert.Equal("/api/disaaktar/cekler.csv", h2.SonIstek!.RequestUri!.PathAndQuery);
+        // Paket D süzgeçleri (Çekler sayfasının tür/konum çipleri) dosyaya da gider.
+        await c2.CeklerCsvAsync(CekYonu.Alinan, tur: CekTuru.Senet, konum: CekKonumu.BankadaTahsilde);
+        Assert.Equal("/api/disaaktar/cekler.csv?yon=Alinan&tur=Senet&konum=BankadaTahsilde", h2.SonIstek!.RequestUri!.PathAndQuery);
         Assert.Equal("kasa-sayimlari.csv", (await c2.KasaSayimlariCsvAsync()).DosyaAdi);
         Assert.Equal("/api/disaaktar/kasasayimlari.csv", h2.SonIstek!.RequestUri!.PathAndQuery);
         await c2.GecmisCsvAsync("Kart ödemesi");

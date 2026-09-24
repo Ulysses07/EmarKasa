@@ -54,10 +54,17 @@
       <h1>Emar Kasa</h1>
       <p class="bilgi">Telefon görünümü · yalnız okuma</p>
       <form id="giris-formu" class="kart form" method="post" autocomplete="on">
-        <label for="kullanici">Kullanıcı adı <span class="ince">(izleyici için boş bırakın)</span></label>
+        <label for="kullanici">Kullanıcı adı <span class="ince">(ortak izleyici şifresiyle girerken boş bırakın)</span></label>
         <input id="kullanici" name="kullanici" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="100">
         <label for="sifre">Şifre</label>
         <input id="sifre" name="sifre" type="password" autocomplete="current-password" required maxlength="200">
+        <!-- İki adımlı giriş (paket E): sunucu kodGerekli derse görünür. Kurtarma kodu harf içerir: sayısal klavye zorlanmaz. -->
+        <div id="kod-alani" class="form-grup" hidden>
+          <label for="kod">Doğrulama kodu</label>
+          <input id="kod" name="kod" type="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="20"
+                 placeholder="123456 ya da kurtarma kodu">
+          <p class="ince kucuk-metin">Doğrulama uygulamasındaki 6 haneli kod. Telefon yanınızda değilse kurtarma kodlarınızdan birini yazın.</p>
+        </div>
         <p id="giris-hata" class="hata-metin" role="alert" hidden></p>
         <button id="giris-dugme" class="dugme" type="submit">Giriş yap</button>
       </form>

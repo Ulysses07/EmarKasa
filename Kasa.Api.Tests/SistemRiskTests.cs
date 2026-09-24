@@ -45,6 +45,20 @@ public class RiskHesaplayiciTests
         Assert.Equal(RiskSeviyesi.Sari, Assert.Single(H(Iyi() with { UzakYedek = new(UzakYedekDurumu.Okunamadi) })).Seviye);
     }
 
+    /// <summary>
+    /// Bulgu: veritabanı gönderilip bir adım (ör. paket F'nin fiş/fatura ekleri) tamamlanmayınca durum
+    /// "tamam" + uyarı oluyor, /health uyarıyı gösterdiği hâlde risk kartı "her şey yolunda" diyordu.
+    /// </summary>
+    [Fact]
+    public void Sunucu_disi_yedek_tamam_ama_uyarili_ise_sari()
+    {
+        var m = Assert.Single(H(Iyi() with { UzakYedek = new(UzakYedekDurumu.Tamam, SonBasariYasSaat: 3, Uyari: "Fiş/fatura ekleri gönderilemedi.") }));
+        Assert.Equal(RiskSeviyesi.Sari, m.Seviye);
+        Assert.Equal("UzakYedek", m.Konu);
+        Assert.Equal("Fiş/fatura ekleri gönderilemedi.", m.Aciklama);
+        Assert.Empty(H(Iyi() with { UzakYedek = new(UzakYedekDurumu.Tamam, SonBasariYasSaat: 3, Uyari: "  ") }));
+    }
+
     [Fact]
     public void Yerel_yedek_ve_dogrulama_kurallari()
     {
@@ -219,6 +233,92 @@ public class YedekDogrulamaTests : IDisposable
         db.Degisiklikler.Add(new DegisiklikEntity { ZamanUtc = DateTime.UtcNow, Rol = "editor", Tur = "Cari", Eylem = "Eklendi", Ozet = "Cari eklendi: Sonradan" });
         db.SaveChanges();
         Assert.True(YedekDogrulayici.Dogrula(db, dosya, DateTime.UtcNow).Basarili);
+    }
+
+    /// <summary>
+    /// Bulgu: sonradan eklenen tablolar (paket B ay kilidi/yayını, hedef, bütçe, kur; D kart mutabakatı;
+    /// F ekler ve POS) sayılmıyordu: bu satırları eksik yedek "sağlam" doğrulanıyordu.
+    /// </summary>
+    [Fact]
+    public void Sonradan_eklenen_tablolardaki_eksik_satir_yakalanir()
+    {
+        using var db = CanliDb();
+        var pos = new PosTanimEntity { Ad = "Banka POS", KomisyonOrani = 2.5m, BlokajGunu = 1 };
+        db.PosTanimlari.Add(pos);
+        db.AyKilitleri.Add(new AyKilidiEntity { Ay = new DateOnly(2026, 8, 1), Etiket = "Ağustos 2026", KilitZamaniUtc = DateTime.UtcNow });
+        db.SaveChanges();
+        db.PosSatislari.Add(new PosSatisEntity { Tarih = new DateOnly(2026, 9, 20), PosId = pos.Id, BrutTutar = 1_000m, KomisyonOrani = 2.5m, BlokajGunu = 1 });
+        db.SaveChanges();
+        var dosya = YedekServisi.YedekAl(db, Path.Combine(_klasor, "yedek"), new DateOnly(2026, 9, 24), 30);
+        Assert.True(YedekDogrulayici.Dogrula(db, dosya, DateTime.UtcNow).Basarili);
+
+        YedekteCalistir(dosya, "DELETE FROM \"PosSatislari\"; DELETE FROM \"PosTanimlari\"; DELETE FROM \"AyKilitleri\";");
+        var sonuc = YedekDogrulayici.Dogrula(db, dosya, DateTime.UtcNow);
+        Assert.False(sonuc.Basarili);
+        Assert.Contains("PosSatislari: yedekte 0, canlıda 1", sonuc.Mesaj);
+        Assert.Contains("PosTanimlari: yedekte 0, canlıda 1", sonuc.Mesaj);
+        Assert.Contains("AyKilitleri: yedekte 0, canlıda 1", sonuc.Mesaj);
+    }
+
+    [Fact]
+    public void Guncellemeden_onceki_yedekte_olmayan_yeni_tablo_sayilmaz_mesajda_belirtilir()
+    {
+        using var db = CanliDb();
+        db.Kanallar.Add(new KanalEntity { Ad = "MEZAT" });
+        db.SaveChanges();
+        var dosya = YedekServisi.YedekAl(db, Path.Combine(_klasor, "yedek"), new DateOnly(2026, 9, 24), 30);
+        YedekteCalistir(dosya, "DROP TABLE \"PosSatislari\"; DROP TABLE \"KartMutabakatlari\";");
+        var sonuc = YedekDogrulayici.Dogrula(db, dosya, DateTime.UtcNow);
+        Assert.True(sonuc.Basarili, sonuc.Mesaj);
+        Assert.Contains("PosSatislari", sonuc.Mesaj);
+        Assert.Contains("KartMutabakatlari", sonuc.Mesaj);
+
+        // Yedekte bulunan yeni tablonun eksik satırı yine yakalanır.
+        db.PosTanimlari.Add(new PosTanimEntity { Ad = "Banka POS" });
+        db.SaveChanges();
+        var eksik = YedekDogrulayici.Dogrula(db, dosya, DateTime.UtcNow);
+        Assert.False(eksik.Basarili);
+        Assert.Contains("PosTanimlari: yedekte 0, canlıda 1", eksik.Mesaj);
+    }
+
+    /// <summary>
+    /// Toplu geçmiş satırı (takip birleştirmesi, gece ek temizliği) tek satırda birden çok kaydı
+    /// değiştirir: pay, dizideki kayıt sayısı kadardır; yoksa meşru değişiklik "tutmuyor" sayılırdı.
+    /// </summary>
+    [Fact]
+    public void Toplu_gecmis_satiri_dizideki_kayit_sayisi_kadar_pay_sayilir()
+    {
+        using var db = CanliDb();
+        for (var i = 0; i < 3; i++)
+            db.Gelenler.Add(new GelenEntity { DonemStart = new DateOnly(2026, 8, 3).AddDays(7 * i), Kanal = "MEZAT", TutarTl = 100m });
+        db.SaveChanges();
+        var dosya = YedekServisi.YedekAl(db, Path.Combine(_klasor, "yedek"), new DateOnly(2026, 9, 24), 30);
+
+        // Üç gelen tek dönemde birleşti: canlıda 2 eksik, geçmişte tek (toplu) satır.
+        var eskiler = db.Gelenler.OrderBy(g => g.Id).ToList();
+        db.Gelenler.RemoveRange(eskiler.Skip(1));
+        eskiler[0].TutarTl = 300m;
+        db.Degisiklikler.Add(new DegisiklikEntity
+        {
+            ZamanUtc = DateTime.UtcNow, Rol = "editor", Tur = GecmisTurleri.Gelen, KayitId = eskiler[0].Id, Eylem = Eylemler.Guncellendi,
+            Ozet = "Takip başlangıcı değişti: 3 gelen birleştirildi",
+            EskiJson = "[" + string.Join(",", eskiler.Select(g => $"{{\"id\":{g.Id}}}")) + "]",
+        });
+        db.SaveChanges();
+        var sonuc = YedekDogrulayici.Dogrula(db, dosya, DateTime.UtcNow);
+        Assert.True(sonuc.Basarili, sonuc.Mesaj);
+    }
+
+    private static void YedekteCalistir(string dosya, string sql)
+    {
+        using (var bag = new SqliteConnection($"Data Source={dosya};Pooling=False"))
+        {
+            bag.Open();
+            using var k = bag.CreateCommand();
+            k.CommandText = sql;
+            k.ExecuteNonQuery();
+        }
+        SqliteConnection.ClearAllPools();
     }
 
     [Fact]

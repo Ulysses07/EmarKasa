@@ -55,7 +55,10 @@ public record GrafikDto(int Yil, int Ay, IReadOnlyList<string> Kanallar, IReadOn
 
 /// <summary>Kanal hedefi: gerçekleşen = gelen + çek tahsilatı (aylık raporla aynı). Yüzde hedef yoksa null.</summary>
 public record KanalHedefDto(int KanalId, string Kanal, bool Aktif, decimal? Hedef, decimal Gerceklesen, decimal? Yuzde);
-/// <summary>Kalem bütçesi: gerçekleşen = ayın kartsız sabit gider işlemleri; şablon = aktif tekrarlayan giderler.</summary>
+/// <summary>
+/// Kalem bütçesi: gerçekleşen = ayın kartsız sabit gider işlemleri; şablon = o aya düşen (sıklığına göre)
+/// aktif, kartsız tekrarlayan giderler. Tutarı değişken şablon o aya düşüyorsa şablon null.
+/// </summary>
 public record GiderButceDto(int GiderKalemiId, string Kalem, bool Aktif, decimal? Butce, decimal Gerceklesen, decimal? Yuzde, decimal? Sablon);
 public record HedefButceDto(int Yil, int Ay, IReadOnlyList<KanalHedefDto> Kanallar, IReadOnlyList<GiderButceDto> Kalemler);
 public record HedefYazDto(int KanalId, decimal? Tutar);
@@ -70,7 +73,8 @@ public record KopyalaSonucDto(int Kopyalanan, int Atlanan);
 /// <summary>
 /// Cari/kalem özetinin bir ayı. Cari için: Nakit = Cari tipli işlemler, KrediKarti = karta bağlı/K.K
 /// işlemler, Cek = ödenen verilen çekler (kişi adı eşleşen). Kalem için: Nakit = kartsız sabit gider
-/// işlemleri, Sablon = o ay aktif tekrarlayan giderlerin tutarı, Karar = tekrarlayan gider kararı.
+/// işlemleri, Sablon = o aya düşen (sıklığına göre) aktif, kartsız tekrarlayan giderlerin tutarı (tutarı
+/// değişken şablon o aya düşüyorsa null: karşılaştırılmaz), Karar = tekrarlayan gider kararı.
 /// </summary>
 public record CariOzetiAyDto(int Ay, decimal Nakit, decimal KrediKarti, decimal Cek, decimal Toplam, int Adet,
     decimal? Sablon, string? Karar);

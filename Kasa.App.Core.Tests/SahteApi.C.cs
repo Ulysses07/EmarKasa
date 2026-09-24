@@ -75,10 +75,13 @@ public sealed partial class SahteApi
     /// <summary>Sunucudaki gelen tutarları (dönem, kanal); korumalı kayıt beklenen tutarı buna göre denetler.</summary>
     public Dictionary<(DateOnly, string), decimal> GelenDeposu = new();
     public List<(GelenYaz G, decimal Beklenen)> KorumaliGelenCagrilari = new();
+    /// <summary>Ayarlanırsa korumalı gelen yazımı bunu fırlatır (ör. kilitli ay 409'u: istemci çakışma saymaz).</summary>
+    public Exception? GelenKorumaliHatasi;
 
     public Task<GelenKayitSonucu> GelenKorumaliKaydetAsync(GelenYaz g, decimal beklenenTutar)
     {
         KorumaliGelenCagrilari.Add((g, beklenenTutar));
+        if (GelenKorumaliHatasi is not null) return Task.FromException<GelenKayitSonucu>(GelenKorumaliHatasi);
         var mevcut = GelenDeposu.TryGetValue((g.DonemStart, g.Kanal), out var m) ? m : 0m;
         if (mevcut != beklenenTutar)
             return Task.FromResult(new GelenKayitSonucu(false, null, mevcut, "Bu kanalın geleni siz açtıktan sonra değişmiş."));

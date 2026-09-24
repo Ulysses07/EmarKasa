@@ -97,8 +97,16 @@ public sealed partial class KasaApiClient
             var mesaj = govde is { } el && el.TryGetProperty("hata", out var h) ? h.GetString() : null;
             if (govde is { } el2 && el2.TryGetProperty("mevcutTutar", out var m) && m.TryGetDecimal(out var mevcut))
                 return new GelenKayitSonucu(false, null, mevcut, mesaj);
+            // Ay kilidi (paket B) çakışma değildir: "Üzerine yaz" da aynı 409'u alırdı. Sunucunun mesajı
+            // ("Ağustos 2026 kilitli: …") hata olarak gösterilsin.
+            if (govde is { } el3 && el3.TryGetProperty("kilitli", out var k) && k.ValueKind == JsonValueKind.True)
+                throw new KasaApiException(HttpStatusCode.Conflict, mesaj);
             // Kısıt çakışması (aynı anda iki ekleme): güncel değeri yeniden oku.
             var guncel = (await GelenlerAsync(g.DonemStart)).FirstOrDefault(x => x.Kanal == g.Kanal);
+            // Kayıtlı tutar hâlâ görülenle aynıysa sorulacak bir çakışma yok (ör. kilit işaretini bilmeyen
+            // sunucu): yeniden sormak aynı 409'a döner; mesaj hata olarak gösterilir.
+            if ((guncel?.TutarTl ?? 0m) == beklenenTutar)
+                throw new KasaApiException(HttpStatusCode.Conflict, mesaj);
             return new GelenKayitSonucu(false, guncel, guncel?.TutarTl ?? 0m, mesaj);
         }
         await BasarisizsaFirlatAsync(yanit);

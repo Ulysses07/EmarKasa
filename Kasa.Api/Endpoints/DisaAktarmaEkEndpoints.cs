@@ -19,10 +19,22 @@ public static class DisaAktarmaEkEndpoints
 
     public static RouteGroupBuilder MapDisaAktarmaEk(this RouteGroupBuilder api)
     {
-        // GET /api/cekler ile aynı filtre (yön, durum, vade aralığı) ve sıra.
-        api.MapGet("/disaaktar/cekler.csv", (string? yon, string? durum, DateOnly? baslangic, DateOnly? bitis, KasaDbContext db, TimeProvider saat) =>
+        // GET /api/cekler ile aynı filtre (yön, durum, tür, vade aralığı) ve sıra. Konum, Çekler sayfasındaki
+        // gibi yalnız alınan evrakta aranır (verilen evrak hep "Elde" sayılır, listede konum süzgecine girmez).
+        api.MapGet("/disaaktar/cekler.csv", (string? yon, string? durum, string? tur, string? konum, DateOnly? baslangic, DateOnly? bitis,
+            KasaDbContext db, TimeProvider saat) =>
         {
             var q = db.Cekler.AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(tur))
+            {
+                if (EnumCoz<CekTuru>(tur) is not { } t) return UcNokta.Hata("Geçersiz evrak türü (Cek ya da Senet).");
+                q = q.Where(c => c.Tur == t);
+            }
+            if (!string.IsNullOrWhiteSpace(konum))
+            {
+                if (EnumCoz<CekKonumu>(konum) is not { } k) return UcNokta.Hata("Geçersiz evrak konumu.");
+                q = q.Where(c => c.Yon == CekYonu.Alinan && c.Konum == k);
+            }
             if (!string.IsNullOrWhiteSpace(yon))
             {
                 if (EnumCoz<CekYonu>(yon) is not { } y) return UcNokta.Hata("Geçersiz yön (Alinan ya da Verilen).");

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Kasa.Api.Data;
+using Kasa.Api.Endpoints;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
@@ -8,7 +9,9 @@ namespace Kasa.Api.Servisler;
 /// <summary>
 /// "Ay paketini indir": ayın tüm dökümlerini tek ZIP'te toplar. Her dosya mevcut "Excel'e aktar"
 /// yazıcılarıyla (<see cref="CsvRaporlari"/>, <see cref="CsvRaporlariEk"/>) ve yazdırılabilir aylık
-/// raporla (<see cref="AylikYazdirma"/>) üretilir; rakamlar ekrandakilerle aynıdır.
+/// raporla (<see cref="AylikYazdirma"/>) üretilir; rakamlar ekrandakilerle aynıdır. Muhasebeciye giden
+/// belge bilgisi (paket F: belge türü, belge no, fatura bekleniyor, ek sayısı) ayın muhasebeci listesindedir
+/// (<see cref="FaturaTakibi.MuhasebeciCsv"/>, /api/disaaktar/muhasebeci.csv ile aynı).
 /// </summary>
 public static class AyPaketi
 {
@@ -20,6 +23,7 @@ public static class AyPaketi
     public static readonly string[] DosyaKokleri =
     [
         "islemler", "haftalik", "aylik", "kasa-dokumu", "gelenler", "cekler", "kart-odemeleri", "kasa-sayimlari", "gecmis",
+        "muhasebeci",
     ];
 
     public static byte[] Olustur(KasaDbContext db, RaporServisi rapor, HesapServisi hesap, TimeProvider saat, int yil, int ay)
@@ -65,6 +69,7 @@ public static class AyPaketi
             ("kart-odemeleri" + ek + ".csv", CsvRaporlariEk.KartOdemeleri(odemeler, kartAdlari)),
             ("kasa-sayimlari" + ek + ".csv", CsvRaporlariEk.KasaSayimlari(sayimDtolari)),
             ("gecmis" + ek + ".csv", CsvRaporlariEk.Gecmis(gecmis)),
+            ("muhasebeci" + ek + ".csv", FaturaTakibi.MuhasebeciCsv(islemler, FaturaTakibi.EkSayilari(db, islemler.Select(i => i.Id)), kartAdlari)),
             (AylikYazdirma.DosyaAdi(yil, ay), Encoding.UTF8.GetBytes(AylikYazdirma.Olustur(AylikYazdirma.Topla(db, rapor, hesap, saat, yil, ay)))),
         };
         return Zip(dosyalar, Saat.Simdi(saat.GetUtcNow().UtcDateTime));
