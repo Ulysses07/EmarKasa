@@ -25,7 +25,7 @@ public class HesapServisi
         var ayar = _db.Ayarlar.First();
 
         var baslangic = ayar.TakipBaslangic;
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = Saat.Bugun();
         var enGecIslem = islemler.Select(i => i.Tarih).DefaultIfEmpty(bugun).Max();
         var bitis = new[] { bugun, enGecIslem, baslangic }.Max();
 
@@ -59,7 +59,7 @@ public class HesapServisi
             ? son.Kanallar.Select(k => new KanalBakiye(k.Kanal, k.Devir)).ToList()
             : y.Kanallar.Select(k => new KanalBakiye(k.Ad, k.AcilisDevri)).ToList();
 
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = Saat.Bugun();
         var buAyRapor = HesapMotoru.AylikHesapla(bugun.Year, bugun.Month, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
         var buAy = buAyRapor.Kanallar.Sum(k => k.AySonucu);
 

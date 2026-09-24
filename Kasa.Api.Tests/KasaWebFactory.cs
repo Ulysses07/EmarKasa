@@ -18,6 +18,9 @@ public class KasaWebFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _conn = new("Data Source=:memory:");
 
+    /// <summary>Testler çok sayıda giriş yapar; sınır testi bunu düşürür.</summary>
+    protected virtual int GirisLimiti => 1000;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _conn.Open(); // bağlantı açık kaldıkça in-memory DB yaşar
@@ -38,6 +41,7 @@ public class KasaWebFactory : WebApplicationFactory<Program>
                 ["Kasa:EditorKullanici"] = "editor",
                 ["Kasa:EditorSifre"] = "kasa123",
                 ["Kasa:JwtKey"] = "test-jwt-anahtari-en-az-32-bayt-olmali!!",
+                ["Kasa:GirisLimiti"] = GirisLimiti.ToString(),
             });
         });
 

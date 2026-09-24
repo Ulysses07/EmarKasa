@@ -45,6 +45,10 @@ public class AyarEntity
     public DateOnly TakipBaslangic { get; set; }
     public decimal KasaAcilisDevri { get; set; }
     public string? IzleyiciSifreHash { get; set; }
+    /// <summary>Artınca eski izleyici token'ları geçersiz olur (şifre değişimi, oturum kapatma).</summary>
+    public int IzleyiciOturumSurumu { get; set; }
+    /// <summary>Artınca eski editör token'ları geçersiz olur.</summary>
+    public int EditorOturumSurumu { get; set; }
 }
 
 public class KrediKartiEntity
