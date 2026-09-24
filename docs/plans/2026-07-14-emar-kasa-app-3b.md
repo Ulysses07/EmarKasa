@@ -69,7 +69,7 @@
 
 - [ ] **Step 2: Derlemenin bozulduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet build Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -20`
+Run: `cd <repo> && dotnet build Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -20`
 Expected: FAIL — `'SahteApi' does not implement interface member 'IKasaApi.KanalOlusturAsync(...)'` (ve diğerleri).
 
 - [ ] **Step 3: SahteApi'ye mutation üyelerini + çağrı kayıtlarını ekle**
@@ -113,13 +113,13 @@ Expected: FAIL — `'SahteApi' does not implement interface member 'IKasaApi.Kan
 
 - [ ] **Step 4: Derleme + mevcut testlerin yeşil olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — mevcut 24 test yeşil, derleme temiz.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.ApiClient/IKasaApi.cs Kasa.App.Core.Tests/SahteApi.cs && git commit -m "feat(app): IKasaApi seam'ine editör mutasyonları + SahteApi çağrı kaydı"
+cd <repo> && git add Kasa.ApiClient/IKasaApi.cs Kasa.App.Core.Tests/SahteApi.cs && git commit -m "feat(app): IKasaApi seam'ine editör mutasyonları + SahteApi çağrı kaydı"
 ```
 
 ---
@@ -171,7 +171,7 @@ public class HataYuzeyiTests
 
 - [ ] **Step 2: Testin başarısız (derlenmez) olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter HataYuzeyiTests 2>&1 | tail -12`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter HataYuzeyiTests 2>&1 | tail -12`
 Expected: FAIL — `'PanelViewModel' does not contain a definition for 'Hata'` ve `SahteApi` `YuklemeHatasi` yok.
 
 - [ ] **Step 3: TemelViewModel oluştur**
@@ -390,13 +390,13 @@ public partial class KrediKartlariViewModel : TemelViewModel
 
 - [ ] **Step 6: Testlerin yeşil olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — yeni 2 test + mevcut 24 test yeşil (26 toplam).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.App.Core/ Kasa.App.Core.Tests/ && git commit -m "feat(app): TemelViewModel + okuma VM'lerinde hata yüzeyi (nit c)"
+cd <repo> && git add Kasa.App.Core/ Kasa.App.Core.Tests/ && git commit -m "feat(app): TemelViewModel + okuma VM'lerinde hata yüzeyi (nit c)"
 ```
 
 ---
@@ -454,7 +454,7 @@ public class CariEditorTests
 
 - [ ] **Step 2: Testin başarısız olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter CariEditorTests 2>&1 | tail -12`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter CariEditorTests 2>&1 | tail -12`
 Expected: FAIL — `KaydetCommand`, `DuzenAd`, `Duzenle` yok.
 
 - [ ] **Step 3: CarilerViewModel'e editör üyelerini ekle**
@@ -488,13 +488,13 @@ Dosyanın başındaki using listesine ekle (yoksa): `using CommunityToolkit.Mvvm
 
 - [ ] **Step 4: Testlerin yeşil olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — CariEditorTests 2 + önceki testler yeşil.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.App.Core/CarilerViewModel.cs Kasa.App.Core.Tests/CariEditorTests.cs && git commit -m "feat(app): Cari editör komutları (ekle/düzenle)"
+cd <repo> && git add Kasa.App.Core/CarilerViewModel.cs Kasa.App.Core.Tests/CariEditorTests.cs && git commit -m "feat(app): Cari editör komutları (ekle/düzenle)"
 ```
 
 ---
@@ -568,7 +568,7 @@ public class KrediKartiEditorTests
 
 - [ ] **Step 2: Testin başarısız olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter KrediKartiEditorTests 2>&1 | tail -12`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter KrediKartiEditorTests 2>&1 | tail -12`
 Expected: FAIL — `KaydetCommand`, `SilCommand`, `DuzenAd` vb. yok.
 
 - [ ] **Step 3: KrediKartlariViewModel'e editör üyelerini ekle**
@@ -620,13 +620,13 @@ Expected: FAIL — `KaydetCommand`, `SilCommand`, `DuzenAd` vb. yok.
 
 - [ ] **Step 4: Testlerin yeşil olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — KrediKartiEditorTests 3 + önceki testler yeşil.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.App.Core/KrediKartlariViewModel.cs Kasa.App.Core.Tests/KrediKartiEditorTests.cs && git commit -m "feat(app): Kredi kartı editör komutları (ekle/düzenle/sil)"
+cd <repo> && git add Kasa.App.Core/KrediKartlariViewModel.cs Kasa.App.Core.Tests/KrediKartiEditorTests.cs && git commit -m "feat(app): Kredi kartı editör komutları (ekle/düzenle/sil)"
 ```
 
 ---
@@ -718,7 +718,7 @@ public class IslemEditorTests
 
 - [ ] **Step 2: Testin başarısız olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter IslemEditorTests 2>&1 | tail -12`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter IslemEditorTests 2>&1 | tail -12`
 Expected: FAIL — `KaydetCommand`, `SilCommand`, `GelenKaydetCommand`, `Duzenle` vb. yok.
 
 - [ ] **Step 3: IslemlerViewModel'e editör + Gelen üyelerini ekle**
@@ -784,13 +784,13 @@ Expected: FAIL — `KaydetCommand`, `SilCommand`, `GelenKaydetCommand`, `Duzenle
 
 - [ ] **Step 4: Testlerin yeşil olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — IslemEditorTests 4 + önceki testler yeşil.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.App.Core/IslemlerViewModel.cs Kasa.App.Core.Tests/IslemEditorTests.cs && git commit -m "feat(app): İşlem editör komutları (ekle/düzenle/sil) + Gelen girişi"
+cd <repo> && git add Kasa.App.Core/IslemlerViewModel.cs Kasa.App.Core.Tests/IslemEditorTests.cs && git commit -m "feat(app): İşlem editör komutları (ekle/düzenle/sil) + Gelen girişi"
 ```
 
 ---
@@ -886,7 +886,7 @@ public class AyarlarViewModelTests
 
 - [ ] **Step 2: Testin başarısız olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter AyarlarViewModelTests 2>&1 | tail -12`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --filter AyarlarViewModelTests 2>&1 | tail -12`
 Expected: FAIL — `AyarlarViewModel` yok, `SahteApi.AyarlarSonuc`/`KanallarListe` yok.
 
 - [ ] **Step 3: SahteApi'de AyarlarAsync + KanallarAsync'i canned yap**
@@ -1001,13 +1001,13 @@ public partial class AyarlarViewModel : TemelViewModel
 
 - [ ] **Step 5: Testlerin yeşil olduğunu doğrula**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — AyarlarViewModelTests 5 + önceki testler yeşil.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.App.Core/AyarlarViewModel.cs Kasa.App.Core.Tests/ && git commit -m "feat(app): AyarlarViewModel — kanal CRUD + izleyici şifre + ayar"
+cd <repo> && git add Kasa.App.Core/AyarlarViewModel.cs Kasa.App.Core.Tests/ && git commit -m "feat(app): AyarlarViewModel — kanal CRUD + izleyici şifre + ayar"
 ```
 
 ---
@@ -1457,13 +1457,13 @@ public partial class AyarlarPage : ContentPage
 
 - [ ] **Step 10: MAUI workload'u kontrol et, derle**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet build Kasa.App/Kasa.App.csproj 2>&1 | tail -20`
+Run: `cd <repo> && dotnet build Kasa.App/Kasa.App.csproj 2>&1 | tail -20`
 Expected: PASS — 0 hata. Eğer "workload maui not installed" gibi bir hata olursa: `dotnet workload install maui` çalıştır, sonra derlemeyi tekrarla. Workload kurulamıyorsa DURDUR ve durumu rapor et.
 
 - [ ] **Step 11: Commit**
 
 ```bash
-cd /c/Users/burak/source/repos/Kasa && git add Kasa.App/ && git commit -m "feat(app): editör formları + rol-nav (a) + çıkış (b) + Ayarlar sayfası"
+cd <repo> && git add Kasa.App/ && git commit -m "feat(app): editör formları + rol-nav (a) + çıkış (b) + Ayarlar sayfası"
 ```
 
 ---
@@ -1474,17 +1474,17 @@ cd /c/Users/burak/source/repos/Kasa && git add Kasa.App/ && git commit -m "feat(
 
 - [ ] **Step 1: Tüm App.Core testleri**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -6`
+Run: `cd <repo> && dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj 2>&1 | tail -6`
 Expected: PASS — tüm testler yeşil (24 mevcut + ~16 yeni ≈ 40).
 
 - [ ] **Step 2: ApiClient + Core + Api testleri bozulmamış**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet test Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj 2>&1 | tail -4`
+Run: `cd <repo> && dotnet test Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj 2>&1 | tail -4`
 Expected: PASS — ApiClient 22 test yeşil (seam genişlemesi bozmadı).
 
 - [ ] **Step 3: MAUI head derleme (workload varsa)**
 
-Run: `cd /c/Users/burak/source/repos/Kasa && dotnet build Kasa.App/Kasa.App.csproj 2>&1 | tail -6`
+Run: `cd <repo> && dotnet build Kasa.App/Kasa.App.csproj 2>&1 | tail -6`
 Expected: PASS — 0 hata. (Workload yoksa Task 7'de raporlanmıştır.)
 
 ---

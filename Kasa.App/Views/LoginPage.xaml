@@ -29,8 +29,26 @@
             <Label Text="Kasa defteri · nakit akışı takibi" Style="{StaticResource LblPageSub}"
                    FontSize="13" HorizontalTextAlignment="Center" Margin="0,4,0,0" />
 
+            <!-- Çevrimdışı açılış: kayıtlı oturum doğrulanamadı (ağ yok / sunucu kapalı) -->
+            <Border Style="{StaticResource Card}" Padding="26,26,26,24" Margin="0,26,0,0"
+                    IsVisible="{Binding Cevrimdisi}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Sunucuya ulaşılamadı" FontFamily="PlexSansSemiBold" FontSize="16"
+                           TextColor="{StaticResource Ink}" HorizontalTextAlignment="Center" />
+                    <Label Text="İnternet bağlantınızı kontrol edip tekrar deneyin. Oturumunuz bu cihazda kayıtlı; bağlantı gelince giriş yapmanız gerekmez."
+                           Style="{StaticResource LblRowSecondary}" HorizontalTextAlignment="Center" />
+                    <Button Text="Tekrar dene" Command="{Binding TekrarDeneCommand}"
+                            IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+                    <ActivityIndicator IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                       WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" />
+                    <Button Text="Farklı kullanıcıyla giriş yap" Command="{Binding GirisFormunaGecCommand}"
+                            Style="{StaticResource BtnSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Giriş kartı -->
-            <Border Style="{StaticResource Card}" Padding="26,26,26,24" Margin="0,26,0,0">
+            <Border Style="{StaticResource Card}" Padding="26,26,26,24" Margin="0,26,0,0"
+                    IsVisible="{Binding Cevrimdisi, Converter={StaticResource TersIse}}">
                 <VerticalStackLayout Spacing="0">
                     <Label Text="Kullanıcı" Style="{StaticResource LblField}" />
                     <Border Style="{StaticResource FieldBorder}">
@@ -39,7 +57,8 @@
 
                     <Label Text="Şifre" Style="{StaticResource LblField}" Margin="0,14,0,6" />
                     <Border Style="{StaticResource FieldBorder}">
-                        <Entry Text="{Binding Sifre}" IsPassword="True" Placeholder="••••••••" />
+                        <Entry Text="{Binding Sifre}" IsPassword="True" Placeholder="••••••••"
+                               ReturnCommand="{Binding GirisCommand}" />
                     </Border>
 
                     <!-- Hata -->

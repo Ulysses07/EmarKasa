@@ -101,7 +101,7 @@ coverlet PackageReference'larını AYNI sürümlerle kopyala, tek ProjectReferen
 
 - [ ] **Step 2: Çözüme ekle**
 ```bash
-cd "C:\Users\burak\source\repos\Kasa"
+cd "<repo>"
 dotnet sln add Kasa.ApiClient/Kasa.ApiClient.csproj
 dotnet sln add Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj
 ```
@@ -696,7 +696,7 @@ git commit -m "feat(apiclient): editör mutasyon metotları + serileştirme test
 
 - [ ] **Step 1: Tüm çözümü derle + tüm testleri çalıştır**
 ```bash
-cd "C:\Users\burak\source\repos\Kasa"
+cd "<repo>"
 dotnet build
 dotnet test Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj
 dotnet test Kasa.Core.Tests/Kasa.Core.Tests.csproj

@@ -16,11 +16,26 @@ public sealed partial class KasaApiClient : IKasaApi
         Converters = { new JsonStringEnumConverter() },
     };
 
+    /// <summary>İstemci tarafı istek zaman aşımı (HttpClient varsayılanı 100 sn'dir).</summary>
+    public static readonly TimeSpan ZamanAsimi = TimeSpan.FromSeconds(30);
+
+    public event EventHandler<OturumBitisNedeni>? OturumSonaErdi;
+
     public KasaApiClient(HttpClient http, ITokenStore store)
     {
         _http = http;
         _store = store;
     }
+
+    /// <summary>
+    /// Uygulamanın kullanacağı HttpClient: çerez saklamaz (kimlik yalnız Bearer token'la gider;
+    /// sunucunun <c>kasa_auth</c> çerezi Bearer'ın önüne geçmesin) ve 30 sn zaman aşımı vardır.
+    /// </summary>
+    public static HttpClient HttpOlustur(Uri adres, HttpMessageHandler? isleyici = null)
+        => new(isleyici ?? IsleyiciOlustur()) { BaseAddress = adres, Timeout = ZamanAsimi };
+
+    /// <summary>Çerez kapalı HTTP işleyicisi.</summary>
+    public static HttpClientHandler IsleyiciOlustur() => new() { UseCookies = false };
 
     public async Task<LoginYanit> LoginAsync(string? kullanici, string sifre)
     {
@@ -42,9 +57,16 @@ public sealed partial class KasaApiClient : IKasaApi
 
     public async Task CikisAsync()
     {
-        using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/logout");
-        using var _ = await GonderAsync(istek);
-        await _store.TemizleAsync();
+        try
+        {
+            using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/logout");
+            using var _ = await GonderAsync(istek, oturumOlayi: false);
+        }
+        finally
+        {
+            // Çevrimdışıyken ya da sunucu 401 dönse bile yerel oturum kapanmalı.
+            await _store.TemizleAsync();
+        }
     }
 
     private record RolYanit(string Rol);
@@ -66,15 +88,34 @@ public sealed partial class KasaApiClient : IKasaApi
         => GetAsync<IReadOnlyList<GelenDto>>(donemStart is { } d ? $"api/gelenler?donemStart={d:yyyy-MM-dd}" : "api/gelenler");
 
     public Task<IReadOnlyList<IslemDto>> IslemlerAsync(
-        DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
+        DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null,
+        int? limit = null, int? offset = null)
+        => GetAsync<IReadOnlyList<IslemDto>>(IslemYolu(baslangic, bitis, kanal, cari, limit, offset));
+
+    public async Task<IslemSayfasi> IslemSayfasiAsync(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int limit, int offset)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Get, IslemYolu(baslangic, bitis, kanal, cari, limit, offset));
+        using var yanit = await GonderAsync(istek);
+        var kayitlar = (await yanit.Content.ReadFromJsonAsync<IReadOnlyList<IslemDto>>(Json))!;
+        // Başlık yoksa (eski sunucu) toplam, gelen kayıtlardan çıkarılır.
+        var toplam = yanit.Headers.TryGetValues("X-Toplam-Kayit", out var d)
+            && int.TryParse(d.FirstOrDefault(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var t) && t >= 0
+            ? t
+            : offset + kayitlar.Count;
+        return new IslemSayfasi(kayitlar, toplam);
+    }
+
+    private static string IslemYolu(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset)
     {
         var q = new List<string>();
         if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
         if (bitis is { } s) q.Add($"bitis={s:yyyy-MM-dd}");
         if (!string.IsNullOrWhiteSpace(kanal)) q.Add($"kanal={Uri.EscapeDataString(kanal)}");
         if (!string.IsNullOrWhiteSpace(cari)) q.Add($"cari={Uri.EscapeDataString(cari)}");
-        var yol = q.Count > 0 ? $"api/islemler?{string.Join("&", q)}" : "api/islemler";
-        return GetAsync<IReadOnlyList<IslemDto>>(yol);
+        if (limit is { } l) q.Add(FormattableString.Invariant($"limit={l}"));
+        if (offset is { } o) q.Add(FormattableString.Invariant($"offset={o}"));
+        return q.Count > 0 ? $"api/islemler?{string.Join("&", q)}" : "api/islemler";
     }
 
     // ---- mutasyon metotları ----
@@ -101,6 +142,7 @@ public sealed partial class KasaApiClient : IKasaApi
 
     // Kart ödeme
     public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) => GetAsync<IReadOnlyList<KartOdemeDto>>($"api/kartodemeler?krediKartiId={krediKartiId}");
+    public Task<IReadOnlyList<KartOdemeDto>> TumKartOdemeleriAsync() => GetAsync<IReadOnlyList<KartOdemeDto>>("api/kartodemeler");
     public Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g) => GonderJsonAsync<KartOdemeDto>(HttpMethod.Post, "api/kartodemeler", g);
     public Task KartOdemeSilAsync(int id) => SilAsync($"api/kartodemeler/{id}");
 
@@ -110,25 +152,62 @@ public sealed partial class KasaApiClient : IKasaApi
     // Ayarlar
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
+    public async Task OturumlariKapatAsync()
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Post, "api/ayarlar/oturumlari-kapat");
+        using var _ = await GonderAsync(istek);
+        await _store.TemizleAsync();
+        OturumSonaErdi?.Invoke(this, OturumBitisNedeni.OturumlarKapatildi);
+    }
 
     // ---- altyapı ----
 
-    private async Task<HttpResponseMessage> GonderAsync(HttpRequestMessage istek, bool tokenEkle = true)
+    /// <param name="oturumOlayi">false ise 401'de <see cref="OturumSonaErdi"/> tetiklenmez (örn. çıkış isteği).</param>
+    private async Task<HttpResponseMessage> GonderAsync(HttpRequestMessage istek, bool tokenEkle = true, bool oturumOlayi = true)
     {
+        string? gonderilenToken = null;
         if (tokenEkle)
         {
-            var token = await _store.OkuAsync();
-            if (!string.IsNullOrEmpty(token))
-                istek.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            gonderilenToken = await _store.OkuAsync();
+            if (!string.IsNullOrEmpty(gonderilenToken))
+                istek.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", gonderilenToken);
         }
         var yanit = await _http.SendAsync(istek);
         if (!yanit.IsSuccessStatusCode)
         {
             var kod = yanit.StatusCode;
+            var mesaj = await SunucuHatasiAsync(yanit);
             yanit.Dispose();
-            throw new KasaApiException(kod);
+            if (kod == HttpStatusCode.Unauthorized && !string.IsNullOrEmpty(gonderilenToken))
+                await OturumuDusurAsync(gonderilenToken, oturumOlayi);
+            throw new KasaApiException(kod, mesaj);
         }
         return yanit;
+    }
+
+    /// <summary>
+    /// Reddedilen token'ı siler ve oturum olayını tetikler. Bu arada yeniden giriş yapılmışsa
+    /// (depoda başka token varsa) eski isteğin 401'i yeni oturumu bozmaz.
+    /// </summary>
+    private async Task OturumuDusurAsync(string reddedilenToken, bool olayTetikle)
+    {
+        var simdiki = await _store.OkuAsync();
+        if (simdiki != reddedilenToken) return;
+        await _store.TemizleAsync();
+        if (olayTetikle) OturumSonaErdi?.Invoke(this, OturumBitisNedeni.Yetkisiz);
+    }
+
+    /// <summary>Sunucunun doğrulama yanıtındaki <c>{ "hata": "..." }</c> metnini okur (yoksa null).</summary>
+    private static async Task<string?> SunucuHatasiAsync(HttpResponseMessage yanit)
+    {
+        if (yanit.StatusCode == HttpStatusCode.TooManyRequests)
+            return "Çok fazla deneme yapıldı. Bir dakika sonra tekrar deneyin.";
+        try
+        {
+            var el = await yanit.Content.ReadFromJsonAsync<JsonElement>(Json);
+            return el.ValueKind == JsonValueKind.Object && el.TryGetProperty("hata", out var h) ? h.GetString() : null;
+        }
+        catch (Exception) { return null; }
     }
 
     private async Task<T> GetAsync<T>(string yol)

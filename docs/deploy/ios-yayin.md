@@ -240,6 +240,6 @@ Emar Kasa finansal takip uygulaması; şiddet, alkol, kumar vb. yok → **4+** b
 | ApplicationDisplayVersion | `1.0` |
 | ApplicationVersion | `1` |
 | Min iOS | `15.0` |
-| API sunucusu | `https://kasa.royalmezat.com/` |
+| API sunucusu | `https://kasa.emarglobal.com/` |
 | App Store Connect | [appstoreconnect.apple.com](https://appstoreconnect.apple.com) |
 | Developer Portal | [developer.apple.com](https://developer.apple.com) |

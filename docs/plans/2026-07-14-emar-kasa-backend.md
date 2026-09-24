@@ -1,5 +1,7 @@
 # Emar Kasa — Backend (Plan 1/4) Uygulama Planı
 
+> **Tarihsel plan:** Bu belge yazıldığı günün planıdır; içindeki `EnsureCreated`/elle SQL/DB yeniden oluşturma adımları artık geçersizdir — şema açılışta `SemaGuncelleyici` ile güncellenir, dağıtım/yedek için `deploy/README.md`'ye bakın.
+
 > **Ajan işçiler için:** GEREKLİ ALT-SKILL: Bu planı görev görev uygulamak için
 > superpowers:subagent-driven-development (önerilir) veya superpowers:executing-plans kullan.
 > Adımlar takip için checkbox (`- [ ]`) sözdizimi kullanır.

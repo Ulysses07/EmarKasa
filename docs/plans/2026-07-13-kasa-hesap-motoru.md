@@ -34,7 +34,7 @@ Bu, 4 planlık setin **1. planıdır** (sonraki planlar: kalıcılık+API, React
 
 - [ ] **Step 1: Projeleri oluştur**
 
-Run (repo kökünde `C:\Users\burak\source\repos\Kasa`):
+Run (repo kökünde `<repo>`):
 ```bash
 dotnet new sln -n Kasa
 dotnet new classlib -n Kasa.Core -f net10.0

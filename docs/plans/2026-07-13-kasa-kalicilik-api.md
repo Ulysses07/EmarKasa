@@ -1,5 +1,7 @@
 # Kasa Kalıcılık + API + Auth Implementation Plan
 
+> **Tarihsel plan:** Bu belge yazıldığı günün planıdır; içindeki `EnsureCreated`/elle SQL/DB yeniden oluşturma adımları artık geçersizdir — şema açılışta `SemaGuncelleyici` ile güncellenir, dağıtım/yedek için `deploy/README.md`'ye bakın.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Kasa defterine SQLite kalıcılık, REST API ve basit rol tabanlı kimlik doğrulama (editör/izleyici) ekle; mevcut `Kasa.Core` hesap motorunu API üzerinden servis et.
@@ -40,7 +42,7 @@ Bu, 4 planlık setin **2. planıdır** (1: hesap motoru ✅; 3: React arayüz �
 - Para `decimal`, tarih `DateOnly` (Core ile birebir).
 - Her task sonunda commit. Commit mesajları Türkçe, imperative; sonuna
   `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` ekle.
-- Komutlar repo kökünde çalışır: `C:\Users\burak\source\repos\Kasa`.
+- Komutlar repo kökünde çalışır: `<repo>`.
 
 ---
 

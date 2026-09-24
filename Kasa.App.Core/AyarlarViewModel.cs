@@ -8,12 +8,19 @@ namespace Kasa.App.Core;
 /// <summary>Editör ayarları: kanal CRUD + izleyici şifre + takip başlangıç/açılış devri (spec §6).</summary>
 public partial class AyarlarViewModel : TemelViewModel
 {
+    /// <summary>"Tüm oturumları kapat" onayının geçerli kaldığı süre.</summary>
+    public static readonly TimeSpan OnayZamanAsimi = TimeSpan.FromSeconds(5);
+
     private readonly IKasaApi _api;
-    public AyarlarViewModel(IKasaApi api) => _api = api;
+    public AyarlarViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
+    {
+        _api = api;
+        _takipBaslangic = Bugun;
+    }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
 
-    [ObservableProperty] private DateTime _takipBaslangic = DateTime.Today;
+    [ObservableProperty] private DateTime _takipBaslangic;
     [ObservableProperty] private decimal _kasaAcilisDevri;
 
     // Kanal düzenleme
@@ -28,15 +35,21 @@ public partial class AyarlarViewModel : TemelViewModel
 
     private async Task DoldurAsync()
     {
-        var ayar = await _api.AyarlarAsync();
+        var ayarGorevi = _api.AyarlarAsync();
+        var kanalGorevi = _api.KanallarAsync();
+        var ayar = await ayarGorevi;
+        var kanallar = await kanalGorevi;
         TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
         KasaAcilisDevri = ayar.KasaAcilisDevri;
-        var kanallar = await _api.KanallarAsync();
         Kanallar.Clear();
         foreach (var k in kanallar) Kanallar.Add(k);
     }
 
-    public Task YukleAsync() => CalistirAsync(DoldurAsync);
+    public Task YukleAsync()
+    {
+        OturumKapatOnayBekliyor = false;   // sayfa önbellekte kalır; eski onay yeniden açılışta geçersiz
+        return CalistirAsync(DoldurAsync);
+    }
 
     [RelayCommand]
     private void YeniKanal()
@@ -66,6 +79,7 @@ public partial class AyarlarViewModel : TemelViewModel
     private Task KanalSilAsync(KanalDto k) => CalistirAsync(async () =>
     {
         await _api.KanalSilAsync(k.Id);
+        if (DuzenKanalId == k.Id) YeniKanal();
         await DoldurAsync();
     });
 
@@ -79,4 +93,40 @@ public partial class AyarlarViewModel : TemelViewModel
         await _api.IzleyiciSifreAsync(YeniIzleyiciSifre);
         YeniIzleyiciSifre = "";
     });
+
+    /// <summary>İlk basış onay ister; ~5 sn içindeki ikinci basış tüm cihazlardaki oturumları kapatır.</summary>
+    [ObservableProperty] private bool _oturumKapatOnayBekliyor;
+
+    private DateTimeOffset _onayZamani;
+    private int _onaySayaci;
+
+    public string OturumKapatMetni => OturumKapatOnayBekliyor
+        ? "Emin misiniz? Herkes çıkış yapacak, 5 sn içinde tekrar basın"
+        : "Tüm oturumları kapat";
+
+    partial void OnOturumKapatOnayBekliyorChanged(bool value) => OnPropertyChanged(nameof(OturumKapatMetni));
+
+    [RelayCommand]
+    private Task OturumlariKapatAsync()
+    {
+        var simdi = Zaman.GetUtcNow();
+        if (!OturumKapatOnayBekliyor || simdi - _onayZamani > OnayZamanAsimi)
+        {
+            _onayZamani = simdi;
+            OturumKapatOnayBekliyor = true;
+            _ = OnayiSonraSifirlaAsync(++_onaySayaci);
+            return Task.CompletedTask;
+        }
+        OturumKapatOnayBekliyor = false;
+        // Başarıda istemci token'ı siler ve oturum olayını tetikler → uygulama Login'e döner.
+        return CalistirAsync(() => _api.OturumlariKapatAsync());
+    }
+
+    /// <summary>Onay süresi dolunca düğme metnini eski haline döndürür.</summary>
+    private async Task OnayiSonraSifirlaAsync(int sayac)
+    {
+        try { await Task.Delay(OnayZamanAsimi, Zaman); }
+        catch (Exception) { return; }
+        if (sayac == _onaySayaci) OturumKapatOnayBekliyor = false;
+    }
 }

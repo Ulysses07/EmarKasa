@@ -11,10 +11,19 @@
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Cariler" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Cari hesap kartoteği" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Cariler" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Cari hesap kartoteği" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
 
             <!-- Editör formu -->
             <Border Style="{StaticResource CardForm}" IsVisible="{Binding EditorMu}">
@@ -38,17 +47,20 @@
                         <Button Grid.Column="3" Text="Yeni" Command="{Binding YeniCommand}"
                                 Style="{StaticResource BtnSecondary}" VerticalOptions="End" />
                     </Grid>
-                    <Border Style="{StaticResource ErrorBox}"
-                            IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
-                        <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
-                    </Border>
                 </VerticalStackLayout>
             </Border>
 
             <!-- Cari listesi -->
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="0">
-                    <Label Text="Cari Listesi" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <Grid ColumnDefinitions="*,260" ColumnSpacing="12" Padding="18,12,18,12">
+                        <Label Text="Cari Listesi" Style="{StaticResource LblSection}" VerticalOptions="Center" />
+                        <!-- Arama: yazarken kısa beklemeyle, Enter'da hemen -->
+                        <Border Grid.Column="1" Style="{StaticResource FieldBorder}">
+                            <Entry Text="{Binding Ara}" Placeholder="Cari ara…"
+                                   ReturnCommand="{Binding AraCommand}" ClearButtonVisibility="WhileEditing" />
+                        </Border>
+                    </Grid>
                     <CollectionView ItemsSource="{Binding Cariler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
                             <DataTemplate>

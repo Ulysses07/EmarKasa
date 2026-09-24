@@ -1,8 +1,10 @@
 # Kasa Defteri — Dağıtım (Docker + Caddy) Implementation Plan
 
+> **Tarihsel plan:** Bu belge yazıldığı günün planıdır; içindeki `EnsureCreated`/elle SQL/DB yeniden oluşturma adımları artık geçersizdir — şema açılışta `SemaGuncelleyici` ile güncellenir, dağıtım/yedek için `deploy/README.md`'ye bakın.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Kasa Defteri'yi (Kasa.Api + derlenmiş React SPA) tek bir Docker konteynerinde paketleyip, mevcut OrderDeck VPS'inde çalışan `orderdeck-caddy` arkasında `kasa.orderdeckapp.com` alt alan adında yayına almak.
+**Goal:** Kasa Defteri'yi (Kasa.Api + derlenmiş React SPA) tek bir Docker konteynerinde paketleyip, mevcut OrderDeck VPS'inde çalışan `orderdeck-caddy` arkasında `kasa.emarglobal.com` alt alan adında yayına almak.
 
 **Architecture:** Tek konteyner deseni. `Kasa.Api` hem `/api/*` uçlarını sunar HEM de `wwwroot/` altına kopyalanmış React derleme çıktısını statik dosya olarak servis eder ve istemci-tarafı rotalar için `index.html`'e fallback yapar. Böylece React↔API planındaki "aynı-origin, CORS yok, `credentials: include`" varsayımı üretimde de kendiliğinden doğru olur. Çok aşamalı bir Dockerfile önce React'i (node) derler, sonra .NET'i publish eder, üçüncü aşamada React çıktısını `wwwroot`'a koyup runtime imajını üretir. Konteyner, OrderDeck compose'unun `web` ağına harici (external) olarak bağlanır; Caddy'ye tek bir subdomain bloğu eklenir. SQLite DB dosyası bir bind-mount volume'de yaşar. Üretimde JwtKey + editör kullanıcı/şifre env'den gelir, çerez `Secure=true` olur.
 
@@ -16,7 +18,7 @@
 
 ## File Structure
 
-**Kasa repo (`C:\Users\burak\source\repos\Kasa`) — oluşturulacak/değişecek:**
+**Kasa repo (`<repo>`) — oluşturulacak/değişecek:**
 - `Kasa.Api/Kasa.Api.csproj` — SQLitePCLRaw yamalı sürüm pin (NU1903 temizle)
 - `Kasa.Api/Program.cs` — statik dosya servis + SPA fallback + çevreye göre çerez `Secure`
 - `Kasa.Api/wwwroot/index.html` — placeholder (Docker build gerçek React çıktısıyla ezer; test için gerekli)
@@ -27,8 +29,8 @@
 - `deploy/.env.example` — üretim env şablonu (gizli değerler DEĞİL, sadece anahtar isimleri)
 - `deploy/README.md` — VPS deploy runbook
 
-**LiveDeck repo (`C:\Users\burak\source\repos\LiveDeck`) — değişecek:**
-- `deploy/Caddyfile` — `kasa.orderdeckapp.com` reverse_proxy bloğu
+**LiveDeck repo (`<LiveDeck-repo>`) — değişecek:**
+- `deploy/Caddyfile` — `kasa.emarglobal.com` reverse_proxy bloğu
 
 ---
 
@@ -41,7 +43,7 @@
 
 Run:
 ```bash
-cd "C:/Users/burak/source/repos/Kasa"
+cd <repo>
 dotnet list Kasa.Api/Kasa.Api.csproj package --vulnerable --include-transitive
 ```
 Expected: `SQLitePCLRaw.lib.e_sqlite3` 2.1.11 için `GHSA-2m69-gcr7-jv3q` (High) transitive olarak listelenir.
@@ -365,7 +367,7 @@ ENTRYPOINT ["dotnet", "Kasa.Api.dll"]
 
 Run:
 ```bash
-cd "C:/Users/burak/source/repos/Kasa"
+cd <repo>
 docker build -t kasa:local .
 ```
 Expected: 3 aşama da başarılı; sonda `kasa:local` imajı oluşur.
@@ -488,10 +490,10 @@ deploy/kasa-data/
 ```markdown
 # Kasa Defteri — VPS Dağıtım
 
-Aynı OrderDeck VPS'inde, `orderdeck-caddy` arkasında `kasa.orderdeckapp.com`.
+Aynı OrderDeck VPS'inde, `orderdeck-caddy` arkasında `kasa.emarglobal.com`.
 
 ## İlk kurulum
-1. DNS: `kasa.orderdeckapp.com` A kaydı → OrderDeck VPS IP'si.
+1. DNS: `kasa.emarglobal.com` A kaydı → OrderDeck VPS IP'si.
 2. Kasa reposunu VPS'e kopyala (repo remote'u yok → rsync/scp):
    `rsync -az --exclude bin --exclude obj --exclude node_modules \
      ./ user@VPS:/opt/kasa/`
@@ -506,7 +508,7 @@ Aynı OrderDeck VPS'inde, `orderdeck-caddy` arkasında `kasa.orderdeckapp.com`.
 6. Caddy'yi güncelle (LiveDeck reposundaki Caddyfile'a kasa bloğu eklendikten
    sonra `/opt/orderdeck/Caddyfile`'a yansıt) ve reload:
    `docker exec orderdeck-caddy caddy reload --config /etc/caddy/Caddyfile`
-7. Doğrula: `curl -sI https://kasa.orderdeckapp.com/health`
+7. Doğrula: `curl -sI https://kasa.emarglobal.com/health`
 
 ## Güncelleme (yeni sürüm)
 1. `rsync ... /opt/kasa/`
@@ -521,7 +523,7 @@ DB tek dosya: `/opt/kasa/deploy/kasa-data/kasa.db`. Yedek = dosyayı kopyala.
 
 Run:
 ```bash
-cd "C:/Users/burak/source/repos/Kasa/deploy"
+cd <repo>deploy"
 docker compose config
 ```
 Expected: YAML hatasız parse edilir ve birleşik config basılır. (Harici `orderdeck_web` ağı yerel makinede yoksa `up` başarısız olur — bu beklenen; burada yalnızca `config` ile sözdizimini doğruluyoruz.)
@@ -538,14 +540,14 @@ git commit -m "build: Kasa deploy compose + env şablonu + runbook"
 ## Task 6: Caddy subdomain bloğu (LiveDeck reposu)
 
 **Files:**
-- Modify: `C:\Users\burak\source\repos\LiveDeck\deploy\Caddyfile`
+- Modify: `<LiveDeck-repo>\deploy\Caddyfile`
 
 - [ ] **Step 1: Caddyfile'a kasa bloğu ekle**
 
 `license.orderdeckapp.com { ... }` bloğunun HEMEN ARDINA, marketing bloğundan önce ekle:
 
 ```
-kasa.orderdeckapp.com {
+kasa.emarglobal.com {
     import security_headers
     encode gzip zstd
     reverse_proxy kasa:8080
@@ -555,7 +557,7 @@ kasa.orderdeckapp.com {
 > `kasa` = Kasa compose'undaki `container_name: kasa-app` DEĞİL, servis DNS adı. Compose harici `orderdeck_web` ağına bağlandığı için Caddy container'ı servis adıyla çözer. **Önemli:** Docker DNS servis adını (`kasa`) VEYA container_name'i (`kasa-app`) çözer; aynı ağdaki container'lar için `container_name` de geçerli bir hostname'dir. Netlik için `reverse_proxy kasa-app:8080` de yazılabilir — `container_name: kasa-app` sabit olduğundan bunu tercih et:
 
 ```
-kasa.orderdeckapp.com {
+kasa.emarglobal.com {
     import security_headers
     encode gzip zstd
     reverse_proxy kasa-app:8080
@@ -566,7 +568,7 @@ kasa.orderdeckapp.com {
 
 Run:
 ```bash
-cd "C:/Users/burak/source/repos/LiveDeck"
+cd <LiveDeck-repo>
 docker run --rm -v "$(pwd)/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 ```
 Expected: `Valid configuration`.
@@ -574,9 +576,9 @@ Expected: `Valid configuration`.
 - [ ] **Step 3: Commit (LiveDeck reposu)**
 
 ```bash
-cd "C:/Users/burak/source/repos/LiveDeck"
+cd <LiveDeck-repo>
 git add deploy/Caddyfile
-git commit -m "feat(deploy): kasa.orderdeckapp.com reverse_proxy bloğu"
+git commit -m "feat(deploy): kasa.emarglobal.com reverse_proxy bloğu"
 ```
 
 > Not: Bu commit LiveDeck reposunda `feat/web-data-deletion` ya da yeni bir `feat/kasa-caddy` dalında olabilir. Kullanıcıyla dal/merge stratejisini teyit et — LiveDeck reposunun REMOTE'u VAR (Kasa'nınki yok), yani buradaki değişiklik `master`'a merge edilip push edilince CI/deploy tetiklenebilir. Push ETME, kullanıcı onayı bekle.
@@ -591,9 +593,9 @@ git commit -m "feat(deploy): kasa.orderdeckapp.com reverse_proxy bloğu"
 
 - [ ] **Step 1: DNS kaydını doğrula**
 
-`kasa.orderdeckapp.com` A kaydı OrderDeck VPS IP'sine işaret ediyor mu? (Cloudflare/registrar paneli.) Yoksa ekle, yayılmayı bekle:
+`kasa.emarglobal.com` A kaydı OrderDeck VPS IP'sine işaret ediyor mu? (Cloudflare/registrar paneli.) Yoksa ekle, yayılmayı bekle:
 ```bash
-nslookup kasa.orderdeckapp.com
+nslookup kasa.emarglobal.com
 ```
 Expected: VPS IP'si döner.
 
@@ -601,7 +603,7 @@ Expected: VPS IP'si döner.
 
 ```bash
 rsync -az --exclude bin --exclude obj --exclude node_modules --exclude deploy/kasa-data \
-  "C:/Users/burak/source/repos/Kasa/" user@VPS:/opt/kasa/
+  <repo> user@VPS:/opt/kasa/
 ```
 
 - [ ] **Step 3: VPS'te env doldur**
@@ -635,17 +637,17 @@ LiveDeck reposundaki güncel Caddyfile'ı VPS'teki `/opt/orderdeck/Caddyfile`'a 
 ```bash
 docker exec orderdeck-caddy caddy reload --config /etc/caddy/Caddyfile
 ```
-Expected: Reload başarılı; Caddy `kasa.orderdeckapp.com` için Let's Encrypt sertifikası alır (ilk istekte).
+Expected: Reload başarılı; Caddy `kasa.emarglobal.com` için Let's Encrypt sertifikası alır (ilk istekte).
 
 - [ ] **Step 7: Uçtan uca doğrula**
 
 ```bash
-curl -sI https://kasa.orderdeckapp.com/health
-curl -s https://kasa.orderdeckapp.com/health
+curl -sI https://kasa.emarglobal.com/health
+curl -s https://kasa.emarglobal.com/health
 ```
 Expected: `200 OK`, geçerli TLS, `{"durum":"ok"}`.
 
-Tarayıcıda `https://kasa.orderdeckapp.com` aç → React uygulaması yüklenir, editör olarak login ol → haftalık rapor Haziran rakamlarını gösterir. Mobilden aç → izleyici şifresiyle salt-görüntüleme.
+Tarayıcıda `https://kasa.emarglobal.com` aç → React uygulaması yüklenir, editör olarak login ol → haftalık rapor Haziran rakamlarını gösterir. Mobilden aç → izleyici şifresiyle salt-görüntüleme.
 
 - [ ] **Step 8: DB kalıcılığını doğrula**
 

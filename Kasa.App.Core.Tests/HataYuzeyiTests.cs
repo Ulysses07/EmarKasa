@@ -29,3 +29,15 @@ public class HataYuzeyiTests
         Assert.Single(vm.Cariler);
     }
 }
+
+public class DogrulamaMesajiTests
+{
+    [Fact]
+    public async Task Sunucu_dogrulama_mesaji_kullaniciya_gosterilir()
+    {
+        var api = new SahteApi { YuklemeHatasi = new KasaApiException(HttpStatusCode.BadRequest, "'X' adında bir kanal yok.") };
+        var vm = new PanelViewModel(api);
+        await vm.YukleAsync();
+        Assert.Equal("'X' adında bir kanal yok.", vm.Hata);
+    }
+}

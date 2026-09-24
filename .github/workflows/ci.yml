@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# En az yetki: workflow yalnız okur (checkout/test/docker build), hiçbir şey push etmez.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_CLI_UI_LANGUAGE: en
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # packages.lock.json olmadığı için anahtar csproj dosyalarının özetidir.
+      - name: NuGet önbelleği
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      # MAUI uygulaması (Kasa.App) Linux'ta derlenmez; test projeleri ondan bağımsızdır.
+      - name: Test
+        run: |
+          for p in Kasa.Core.Tests Kasa.Api.Tests Kasa.ApiClient.Tests Kasa.App.Core.Tests; do
+            dotnet test "$p" --nologo --logger "console;verbosity=normal" || exit 1
+          done
+      # Sunucuya giden projelerde (ve istemci kütüphanesinde) bilinen zafiyetli paket
+      # (doğrudan ya da dolaylı) varsa derleme kırılır. Test adımı restore'u zaten yaptı.
+      - name: Zafiyetli paket denetimi
+        run: |
+          fail=0
+          for p in Kasa.Core Kasa.Api Kasa.ApiClient Kasa.App.Core; do
+            out=$(dotnet list "$p" package --vulnerable --include-transitive 2>&1)
+            echo "$out"
+            # Kapalı-güvenli: "zafiyet yok" satırı görülmezse (zafiyet ya da hata) kır.
+            if ! echo "$out" | grep -q 'has no vulnerable packages'; then
+              echo "::error::$p projesinde zafiyetli paket var"
+              fail=1
+            fi
+          done
+          exit $fail
+      - name: Docker imajı derlenir
+        run: docker build --build-arg KASA_SURUM=${GITHUB_SHA::7} -t kasa:ci .
+      # İmaj gerçekten açılıyor mu? Root olmayan kullanıcı /data'ya DB + yedek yazabilmeli
+      # ve Dockerfile HEALTHCHECK'i (bash /dev/tcp → /health) "healthy" dönmeli.
+      - name: İmaj duman testi (healthcheck)
+        run: |
+          docker run -d --name kasa-ci \
+            -e Kasa__JwtKey="$(openssl rand -base64 48)" \
+            -e Kasa__EditorKullanici=ci \
+            -e Kasa__EditorSifre="$(openssl rand -hex 16)" \
+            -e ConnectionStrings__Kasa="Data Source=/data/kasa.db" \
+            -e Kasa__YedekKlasoru=/data/yedek \
+            --health-interval=3s --health-start-period=60s \
+            kasa:ci
+          durum=
+          for i in $(seq 1 40); do
+            durum=$(docker inspect -f '{{.State.Health.Status}}' kasa-ci)
+            [ "$durum" = healthy ] && break
+            [ "$(docker inspect -f '{{.State.Running}}' kasa-ci)" = true ] || break
+            sleep 3
+          done
+          docker logs kasa-ci
+          echo "sağlık durumu: $durum"
+          docker exec kasa-ci id
+          [ "$durum" = healthy ]

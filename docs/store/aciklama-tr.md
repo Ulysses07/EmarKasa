@@ -31,7 +31,7 @@ Emar Kasa, küçük işletmeler için tasarlanmış haftalık nakit akışı ve 
 
 **Nasıl Çalışır?**
 
-Uygulama, `kasa.royalmezat.com` adresindeki sunucuya bağlanır. Hesabınıza kullanıcı adı ve şifreyle giriş yaparsınız; verileriniz güvenli bulut sunucusunda saklanır.
+Uygulama, `kasa.emarglobal.com` adresindeki sunucuya bağlanır. Hesabınıza kullanıcı adı ve şifreyle giriş yaparsınız; verileriniz güvenli bulut sunucusunda saklanır.
 
 **Kimler İçin?**
 

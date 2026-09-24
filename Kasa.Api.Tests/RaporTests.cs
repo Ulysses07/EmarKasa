@@ -75,4 +75,21 @@ public class RaporTests : IClassFixture<KasaWebFactory>
         Assert.Equal(328_989.21m, panel!.GuncelKasa);
         Assert.Equal(3_971_677m, panel.Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye);
     }
+    [Fact]
+    public async Task Aylik_rapor_onceki_ayin_kartsiz_KKsini_dusurur()
+    {
+        // Aylık rapor yalnız o ayın dönemleriyle hesaplanır; önceki ayın (takip içindeki)
+        // kartsız K.K'sı yine de bu aya yazılmalı.
+        Tohumla();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Islemler.Add(new IslemEntity { Tarih = new DateOnly(2026, 6, 30), Cari = "K.K", TutarTl = 1_000m, Kanal = "MEZAT", Tip = GiderTipi.KrediKarti });
+            db.SaveChanges();
+        }
+        var client = await _factory.EditorClientAsync();
+
+        var rapor = await client.GetFromJsonAsync<AylikRapor>("/api/rapor/aylik?yil=2026&ay=7");
+        Assert.Equal(1_000m, rapor!.Kanallar.Single(k => k.Kanal == "MEZAT").KrediKarti);
+    }
 }

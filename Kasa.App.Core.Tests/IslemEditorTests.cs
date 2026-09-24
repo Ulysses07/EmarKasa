@@ -101,7 +101,10 @@ public class IslemEditorTests
     [Fact]
     public async Task Gelen_kaydet_gelen_cagirir()
     {
-        var api = new SahteApi();
+        var api = new SahteApi
+        {
+            DonemlerListe = new[] { new DonemDto(new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 8), 2026, 3) },
+        };
         var vm = new IslemlerViewModel(api)
         {
             GelenTarih = new DateTime(2026, 3, 2),

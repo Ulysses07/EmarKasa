@@ -156,3 +156,28 @@ public class MutasyonTests
         Assert.Equal(7, doc.RootElement.GetProperty("krediKartiId").GetInt32());
     }
 }
+
+public class SunucuHatasiTests
+{
+    [Fact]
+    public async Task Dogrulama_hatasi_sunucu_mesajini_tasir()
+    {
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.BadRequest, """{"hata":"Tutar sıfırdan büyük olmalı."}""");
+        var c = new KasaApiClient(new HttpClient(h) { BaseAddress = new Uri("https://ornek.test/") }, new BellekTokenStore());
+
+        var ex = await Assert.ThrowsAsync<KasaApiException>(() =>
+            c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "X", -1m, "MEZAT", GiderTipi.Cari, null)));
+
+        Assert.Equal(HttpStatusCode.BadRequest, ex.DurumKodu);
+        Assert.Equal("Tutar sıfırdan büyük olmalı.", ex.SunucuMesaji);
+    }
+
+    [Fact]
+    public async Task Govdesiz_hata_mesajsiz_kalir()
+    {
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.InternalServerError);
+        var c = new KasaApiClient(new HttpClient(h) { BaseAddress = new Uri("https://ornek.test/") }, new BellekTokenStore());
+        var ex = await Assert.ThrowsAsync<KasaApiException>(() => c.PanelAsync());
+        Assert.Null(ex.SunucuMesaji);
+    }
+}

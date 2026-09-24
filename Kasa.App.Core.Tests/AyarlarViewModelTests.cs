@@ -73,3 +73,21 @@ public class AyarlarViewModelTests
         Assert.Equal(20000m, api.SonAyar!.KasaAcilisDevri);
     }
 }
+
+public class OturumKapatTests
+{
+    [Fact]
+    public async Task Oturumlari_kapat_ikinci_basista_calisir()
+    {
+        var api = new SahteApi();
+        var vm = new AyarlarViewModel(api);
+
+        await vm.OturumlariKapatCommand.ExecuteAsync(null);
+        Assert.Equal(0, api.OturumKapatSayisi);
+        Assert.True(vm.OturumKapatOnayBekliyor);
+
+        await vm.OturumlariKapatCommand.ExecuteAsync(null);
+        Assert.Equal(1, api.OturumKapatSayisi);
+        Assert.False(vm.OturumKapatOnayBekliyor);
+    }
+}
