@@ -78,6 +78,41 @@ public class KartOdemeEntity
     public string? Not { get; set; }
 }
 
+/// <summary>
+/// Her ay tekrarlayan sabit gider (kira, SGK, maaş …). Kendiliğinden işlem girmez; ayın
+/// günü gelince "bekleyen" olarak listelenir, editör onaylayınca sabit gider işlemi olur.
+/// </summary>
+public class TekrarlayanGiderEntity
+{
+    public int Id { get; set; }
+    /// <summary>Gider kalemi adı (GiderKalemleri'ndeki kayıtlı yazım; kalem adı değişince güncellenir).</summary>
+    public string Kalem { get; set; } = "";
+    /// <summary>Kanal adı ya da "Ortak".</summary>
+    public string Kanal { get; set; } = "";
+    /// <summary>Varsayılan tutar (onaylarken değiştirilebilir).</summary>
+    public decimal Tutar { get; set; }
+    /// <summary>Ayın günü (1–31); kısa aylarda ayın son günü.</summary>
+    public int AyinGunu { get; set; }
+    public bool Aktif { get; set; } = true;
+    /// <summary>İlk geçerli ay (ayın 1'i).</summary>
+    public DateOnly BaslangicAyi { get; set; }
+}
+
+public enum TekrarlayanDurum { Girildi, Atlandi }
+
+/// <summary>Tekrarlayan giderin bir ayı için verilen karar: girildi (işlem oluştu) ya da atlandı.</summary>
+public class TekrarlayanGirisEntity
+{
+    public int Id { get; set; }
+    public int TekrarlayanGiderId { get; set; }
+    /// <summary>Ay (ayın 1'i).</summary>
+    public DateOnly Ay { get; set; }
+    public TekrarlayanDurum Durum { get; set; }
+    /// <summary>Girildi ise oluşan işlem (işlem silinirse NULL olur).</summary>
+    public int? IslemId { get; set; }
+    public DateTime Zaman { get; set; }
+}
+
 /// <summary>Çıkışta iptal edilen token'ın kimliği (jti); süresi dolunca temizlenir.</summary>
 public class IptalEdilenTokenEntity
 {

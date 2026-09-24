@@ -14,6 +14,10 @@ public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarT
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi);
+/// <summary>Her ay tekrarlayan sabit gider (kira, SGK, maaş…). Ayın günü ay daha kısaysa ayın son gününe düşer.</summary>
+public record TekrarlayanGiderDto(int Id, string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif, DateOnly BaslangicAyi);
+/// <summary>Vadesi gelmiş, henüz girilmemiş/atlanmamış tekrarlayan gider ayı (<see cref="Ay"/> ayın 1'i).</summary>
+public record BekleyenGiderDto(int TekrarlayanGiderId, string Kalem, string Kanal, decimal Tutar, DateOnly Ay, DateOnly Vade);
 
 public record DonemDto(DateOnly Start, DateOnly End, int Yil, int Ay);
 public record KanalHaftalikDto(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, decimal Devir);
@@ -38,3 +42,11 @@ public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarYaz(DateOnly TakipBaslangic, decimal KasaAcilisDevri);
+/// <param name="BaslangicAyi">
+/// Gönderilmezse (null) sunucu karar verir: yeni kayıtta bu ay (Türkiye saati), güncellemede eski değer kalır.
+/// </param>
+public record TekrarlayanGiderYaz(string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DateOnly? BaslangicAyi = null);
+/// <summary>Bekleyen bir ayı sabit gider işlemi olarak girer (<paramref name="Ay"/> o ayın herhangi bir günü olabilir).</summary>
+public record TekrarlayanOnayYaz(DateOnly Ay, DateOnly Tarih, decimal Tutar);

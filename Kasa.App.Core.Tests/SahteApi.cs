@@ -48,6 +48,76 @@ public sealed class SahteApi : IKasaApi
     }
     public Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g) { SonKalemGuncelle = (id, g); return Task.FromResult(new GiderKalemiDto(id, g.Ad, g.Aktif)); }
     public Task GiderKalemiSilAsync(int id) { SonKalemSil = id; return Task.CompletedTask; }
+
+    // Tekrarlayan giderler: sunucu gibi davranır (onay/atla bekleyenden düşer, silme kayıtla bekleyenini kaldırır).
+    public IReadOnlyList<TekrarlayanGiderDto> TekrarlayanListe = new List<TekrarlayanGiderDto>();
+    public IReadOnlyList<BekleyenGiderDto> BekleyenListe = new List<BekleyenGiderDto>();
+    public int TekrarlayanCagri, BekleyenCagri;
+    public TekrarlayanGiderYaz? SonTekrarOlustur;
+    public (int Id, TekrarlayanGiderYaz G)? SonTekrarGuncelle;
+    public int? SonTekrarSil;
+    public (int Id, TekrarlayanOnayYaz G)? SonOnay;
+    public (int Id, DateOnly Ay)? SonAtla;
+    /// <summary>Ayarlanırsa tekrarlayan yazma çağrıları (kaydet/sil/onayla/atla) bu istisnayı fırlatır.</summary>
+    public Exception? TekrarlayanYazHatasi;
+    /// <summary>Ayarlanırsa yalnız bekleyen okuması bu istisnayı fırlatır.</summary>
+    public Exception? BekleyenHatasi;
+    /// <summary>Ayarlanırsa yalnız tekrarlayan gider listesi okuması bu istisnayı fırlatır.</summary>
+    public Exception? TekrarlayanOkumaHatasi;
+    public Task<IReadOnlyList<TekrarlayanGiderDto>> TekrarlayanGiderlerAsync()
+    {
+        TekrarlayanCagri++;
+        var hata = TekrarlayanOkumaHatasi ?? YuklemeHatasi;
+        return hata is not null ? Task.FromException<IReadOnlyList<TekrarlayanGiderDto>>(hata) : Task.FromResult(TekrarlayanListe);
+    }
+    public Task<IReadOnlyList<BekleyenGiderDto>> BekleyenGiderlerAsync()
+    {
+        BekleyenCagri++;
+        var hata = BekleyenHatasi ?? YuklemeHatasi;
+        return hata is not null ? Task.FromException<IReadOnlyList<BekleyenGiderDto>>(hata) : Task.FromResult(BekleyenListe);
+    }
+    public Task<TekrarlayanGiderDto> TekrarlayanGiderOlusturAsync(TekrarlayanGiderYaz g)
+    {
+        if (TekrarlayanYazHatasi is not null) return Task.FromException<TekrarlayanGiderDto>(TekrarlayanYazHatasi);
+        SonTekrarOlustur = g;
+        var yeni = new TekrarlayanGiderDto(600 + TekrarlayanListe.Count, g.Kalem, g.Kanal, g.Tutar, g.AyinGunu, g.Aktif,
+            g.BaslangicAyi ?? new DateOnly(2026, 9, 1));
+        TekrarlayanListe = TekrarlayanListe.Append(yeni).ToList();
+        return Task.FromResult(yeni);
+    }
+    public Task<TekrarlayanGiderDto> TekrarlayanGiderGuncelleAsync(int id, TekrarlayanGiderYaz g)
+    {
+        if (TekrarlayanYazHatasi is not null) return Task.FromException<TekrarlayanGiderDto>(TekrarlayanYazHatasi);
+        SonTekrarGuncelle = (id, g);
+        var eski = TekrarlayanListe.FirstOrDefault(t => t.Id == id);
+        var yeni = new TekrarlayanGiderDto(id, g.Kalem, g.Kanal, g.Tutar, g.AyinGunu, g.Aktif,
+            g.BaslangicAyi ?? eski?.BaslangicAyi ?? new DateOnly(2026, 9, 1));
+        TekrarlayanListe = TekrarlayanListe.Select(t => t.Id == id ? yeni : t).ToList();
+        return Task.FromResult(yeni);
+    }
+    public Task TekrarlayanGiderSilAsync(int id)
+    {
+        if (TekrarlayanYazHatasi is not null) return Task.FromException(TekrarlayanYazHatasi);
+        SonTekrarSil = id;
+        TekrarlayanListe = TekrarlayanListe.Where(t => t.Id != id).ToList();
+        BekleyenListe = BekleyenListe.Where(b => b.TekrarlayanGiderId != id).ToList();
+        return Task.CompletedTask;
+    }
+    public Task<IslemDto> TekrarlayanOnaylaAsync(int id, TekrarlayanOnayYaz g)
+    {
+        if (TekrarlayanYazHatasi is not null) return Task.FromException<IslemDto>(TekrarlayanYazHatasi);
+        SonOnay = (id, g);
+        var b = BekleyenListe.FirstOrDefault(x => x.TekrarlayanGiderId == id && x.Ay == g.Ay);
+        BekleyenListe = BekleyenListe.Where(x => x != b).ToList();
+        return Task.FromResult(new IslemDto(500, g.Tarih, b?.Kalem ?? "", g.Tutar, b?.Kanal ?? "", GiderTipi.SabitGider, "Tekrarlayan gider"));
+    }
+    public Task TekrarlayanAtlaAsync(int id, DateOnly ay)
+    {
+        if (TekrarlayanYazHatasi is not null) return Task.FromException(TekrarlayanYazHatasi);
+        SonAtla = (id, ay);
+        BekleyenListe = BekleyenListe.Where(x => !(x.TekrarlayanGiderId == id && x.Ay == ay)).ToList();
+        return Task.CompletedTask;
+    }
     public IReadOnlyList<IslemDto> IslemlerListe = new List<IslemDto>();
     public IReadOnlyList<HaftalikOzetDto> HaftalikListe = new List<HaftalikOzetDto>();
     public AylikRaporDto? AylikRapor;

@@ -136,6 +136,15 @@ public sealed partial class KasaApiClient : IKasaApi
     public Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g) => GonderJsonAsync<GiderKalemiDto>(HttpMethod.Put, $"api/giderkalemleri/{id}", g);
     public Task GiderKalemiSilAsync(int id) => SilAsync($"api/giderkalemleri/{id}");
 
+    // Tekrarlayan gider
+    public Task<IReadOnlyList<TekrarlayanGiderDto>> TekrarlayanGiderlerAsync() => GetAsync<IReadOnlyList<TekrarlayanGiderDto>>("api/tekrarlayangiderler");
+    public Task<IReadOnlyList<BekleyenGiderDto>> BekleyenGiderlerAsync() => GetAsync<IReadOnlyList<BekleyenGiderDto>>("api/tekrarlayangiderler/bekleyen");
+    public Task<TekrarlayanGiderDto> TekrarlayanGiderOlusturAsync(TekrarlayanGiderYaz g) => GonderJsonAsync<TekrarlayanGiderDto>(HttpMethod.Post, "api/tekrarlayangiderler", g);
+    public Task<TekrarlayanGiderDto> TekrarlayanGiderGuncelleAsync(int id, TekrarlayanGiderYaz g) => GonderJsonAsync<TekrarlayanGiderDto>(HttpMethod.Put, $"api/tekrarlayangiderler/{id}", g);
+    public Task TekrarlayanGiderSilAsync(int id) => SilAsync($"api/tekrarlayangiderler/{id}");
+    public Task<IslemDto> TekrarlayanOnaylaAsync(int id, TekrarlayanOnayYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, $"api/tekrarlayangiderler/{id}/onayla", g);
+    public Task TekrarlayanAtlaAsync(int id, DateOnly ay) => GonderJsonAsync(HttpMethod.Post, $"api/tekrarlayangiderler/{id}/atla", new { ay });
+
     // İşlem
     public Task<IslemDto> IslemOlusturAsync(IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, "api/islemler", g);
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Put, $"api/islemler/{id}", g);
