@@ -97,14 +97,16 @@ public sealed partial class KasaApiClient : IKasaApi
         using var istek = new HttpRequestMessage(HttpMethod.Get, IslemYolu(baslangic, bitis, kanal, cari, limit, offset));
         using var yanit = await GonderAsync(istek);
         var kayitlar = (await yanit.Content.ReadFromJsonAsync<IReadOnlyList<IslemDto>>(Json))!;
-        // Başlık yoksa (eski sunucu) toplam, gelen kayıtlardan çıkarılır.
-        var toplam = yanit.Headers.TryGetValues("X-Toplam-Kayit", out var d)
-            && int.TryParse(d.FirstOrDefault(), System.Globalization.NumberStyles.Integer,
-                System.Globalization.CultureInfo.InvariantCulture, out var t) && t >= 0
-            ? t
-            : offset + kayitlar.Count;
-        return new IslemSayfasi(kayitlar, toplam);
+        return new IslemSayfasi(kayitlar, ToplamKayit(yanit, offset + kayitlar.Count));
     }
+
+    /// <summary><c>X-Toplam-Kayit</c> başlığı; yoksa (eski sunucu) toplam, gelen kayıtlardan çıkarılır (<paramref name="yedek"/>).</summary>
+    private static int ToplamKayit(HttpResponseMessage yanit, int yedek)
+        => yanit.Headers.TryGetValues("X-Toplam-Kayit", out var d)
+           && int.TryParse(d.FirstOrDefault(), System.Globalization.NumberStyles.Integer,
+               System.Globalization.CultureInfo.InvariantCulture, out var t) && t >= 0
+            ? t
+            : yedek;
 
     private static string IslemYolu(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset)
     {
@@ -164,6 +166,25 @@ public sealed partial class KasaApiClient : IKasaApi
         using var _ = await GonderAsync(istek);
         await _store.TemizleAsync();
         OturumSonaErdi?.Invoke(this, OturumBitisNedeni.OturumlarKapatildi);
+    }
+
+    // Değişiklik geçmişi
+    public async Task<DegisiklikSayfasi> GecmisAsync(string? tur, int limit, int offset)
+    {
+        var yol = FormattableString.Invariant($"api/gecmis?limit={limit}&offset={offset}");
+        if (!string.IsNullOrWhiteSpace(tur)) yol += $"&tur={Uri.EscapeDataString(tur)}";
+        using var istek = new HttpRequestMessage(HttpMethod.Get, yol);
+        using var yanit = await GonderAsync(istek);
+        var kayitlar = (await yanit.Content.ReadFromJsonAsync<IReadOnlyList<DegisiklikDto>>(Json))!;
+        return new DegisiklikSayfasi(kayitlar, ToplamKayit(yanit, offset + kayitlar.Count));
+    }
+
+    public Task<IReadOnlyList<string>> GecmisTurleriAsync() => GetAsync<IReadOnlyList<string>>("api/gecmis/turler");
+
+    public async Task GeriAlAsync(int degisiklikId)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Post, $"api/gecmis/{degisiklikId}/geri-al");
+        using var _ = await GonderAsync(istek);
     }
 
     // ---- altyapı ----

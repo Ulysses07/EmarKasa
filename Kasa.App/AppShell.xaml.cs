@@ -51,6 +51,7 @@ public partial class AppShell : Shell
         CarilerItem.IsVisible = true;
         IslemlerItem.IsVisible = true;
         KartlarItem.IsVisible = true;
+        GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
         AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
         _ = GitAsync(_yonlendirme.Al() ?? "//panel");   // bildirimle açıldıysa o sayfaya
     }
@@ -64,6 +65,7 @@ public partial class AppShell : Shell
         CarilerItem.IsVisible = false;
         IslemlerItem.IsVisible = false;
         KartlarItem.IsVisible = false;
+        GecmisItem.IsVisible = false;
         AyarlarItem.IsVisible = false;
         _ = GitAsync("//login");
     }

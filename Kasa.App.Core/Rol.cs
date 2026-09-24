@@ -2,9 +2,9 @@ namespace Kasa.App.Core;
 
 public enum Rol { Izleyici, Editor }
 
-public enum Bolum { Panel, Haftalik, Aylik, Cariler, Islemler, KrediKartlari, Ayarlar }
+public enum Bolum { Panel, Haftalik, Aylik, Cariler, Islemler, KrediKartlari, Gecmis, Ayarlar }
 
-/// <summary>Rol → görünür bölümler (spec §6). Ayarlar yalnız editörde.</summary>
+/// <summary>Rol → görünür bölümler (spec §6). Geçmiş her iki rolde (geri alma yalnız editörde); Ayarlar yalnız editörde.</summary>
 public static class SekmeModeli
 {
     public static Rol RolCoz(string? rol)
@@ -16,6 +16,7 @@ public static class SekmeModeli
         {
             Bolum.Panel, Bolum.Haftalik, Bolum.Aylik,
             Bolum.Cariler, Bolum.Islemler, Bolum.KrediKartlari,
+            Bolum.Gecmis,
         };
         if (rol == Rol.Editor) liste.Add(Bolum.Ayarlar);
         return liste;

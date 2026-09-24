@@ -61,6 +61,15 @@ public interface IKasaApi
     Task IzleyiciSifreAsync(string yeniSifre);
     /// <summary>Tüm cihazlardaki oturumları (bu cihaz dahil) kapatır; başarıda yerel token silinir ve <see cref="OturumSonaErdi"/> tetiklenir.</summary>
     Task OturumlariKapatAsync();
+
+    // Değişiklik geçmişi (okuma her iki rol; geri alma yalnız editör)
+    /// <summary>Geçmişin bir sayfası (en yeni önce) ve toplam satır sayısı (<c>X-Toplam-Kayit</c>).</summary>
+    /// <param name="tur">null = tüm türler; ör. "İşlem".</param>
+    Task<DegisiklikSayfasi> GecmisAsync(string? tur, int limit, int offset);
+    /// <summary>Geçmişte satırı olan türler (filtre çipleri), Türkçe alfabetik.</summary>
+    Task<IReadOnlyList<string>> GecmisTurleriAsync();
+    /// <summary>Silinen kaydı geçmiş satırından geri getirir (yeni Id'yle); kurallara uymuyorsa 400/409.</summary>
+    Task GeriAlAsync(int degisiklikId);
 }
 
 /// <summary>Oturumun neden sona erdiği.</summary>
