@@ -10,4 +10,5 @@ public static class CoreMapping
     public static Islem ToCore(this IslemEntity e) => new(e.Tarih, e.Cari, e.TutarTl, e.Kanal, e.Tip, e.Not, e.KrediKartiId);
     public static KartOdeme ToCore(this KartOdemeEntity e) => new(e.Tarih, e.Tutar);
     public static Gelen ToCore(this GelenEntity e) => new(e.DonemStart, e.Kanal, e.TutarTl);
+    public static Cek ToCore(this CekEntity e) => new(e.Yon, e.Tutar, e.Kanal, e.Durum, e.IslemTarihi);
 }

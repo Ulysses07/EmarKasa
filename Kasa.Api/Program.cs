@@ -257,10 +257,11 @@ api.MapPut("/kanallar/{id:int}", (int id, KanalEntity gelen, KasaDbContext db) =
     if (KanalHatasi(db, gelen, id) is string hata) return Hata(hata);
     if (gelen.Ad != e.Ad)
     {
-        // İşlem ve gelenler kanalı adıyla tutar: yeniden adlandırmada geçmişi de taşı.
+        // İşlem, gelen ve çekler kanalı adıyla tutar: yeniden adlandırmada geçmişi de taşı.
         var eskiAd = e.Ad; var yeniAd = gelen.Ad;
         db.Islemler.Where(i => i.Kanal == eskiAd).ExecuteUpdate(s => s.SetProperty(i => i.Kanal, yeniAd));
         db.Gelenler.Where(g => g.Kanal == eskiAd).ExecuteUpdate(s => s.SetProperty(g => g.Kanal, yeniAd));
+        db.Cekler.Where(c => c.Kanal == eskiAd).ExecuteUpdate(s => s.SetProperty(c => c.Kanal, yeniAd));
     }
     e.Ad = gelen.Ad; e.Aktif = gelen.Aktif; e.Sira = gelen.Sira; e.AcilisDevri = gelen.AcilisDevri;
     db.SaveChanges();
@@ -270,7 +271,7 @@ api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) => Yaz(db, "Kanal
 {
     var e = db.Kanallar.Find(id);
     if (e is null) return Results.NotFound();
-    if (db.Islemler.Any(i => i.Kanal == e.Ad) || db.Gelenler.Any(g => g.Kanal == e.Ad))
+    if (db.Islemler.Any(i => i.Kanal == e.Ad) || db.Gelenler.Any(g => g.Kanal == e.Ad) || db.Cekler.Any(c => c.Kanal == e.Ad))
         return Results.Conflict(new { hata = "Bu kanalın geçmiş kayıtları var. Silmek yerine pasif yapın." });
     db.Kanallar.Remove(e); db.SaveChanges();
     return Results.NoContent();
@@ -508,6 +509,73 @@ api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
+// Çekler (alınan / verilen). Kasayı yalnız tahsil edildiği / ödendiği gün etkiler (CekKurali):
+// raporlar HesapServisi'nde hesaplanır. Liste vadeye göre en yeni önce döner; tarih aralığı vadeye uygulanır.
+api.MapGet("/cekler", (string? yon, string? durum, DateOnly? baslangic, DateOnly? bitis, KasaDbContext db) =>
+{
+    CekYonu? y = null;
+    CekDurumu? d = null;
+    if (!string.IsNullOrWhiteSpace(yon))
+    {
+        if (EnumCoz<CekYonu>(yon) is not { } yv) return Hata("Geçersiz yön (Alinan ya da Verilen).");
+        y = yv;
+    }
+    if (!string.IsNullOrWhiteSpace(durum))
+    {
+        if (EnumCoz<CekDurumu>(durum) is not { } dv) return Hata("Geçersiz çek durumu.");
+        d = dv;
+    }
+    var q = db.Cekler.AsNoTracking();
+    if (y is { } yf) q = q.Where(c => c.Yon == yf);
+    if (d is { } df) q = q.Where(c => c.Durum == df);
+    if (baslangic is { } b) q = q.Where(c => c.VadeTarihi >= b);
+    if (bitis is { } s) q = q.Where(c => c.VadeTarihi <= s);
+    return Results.Ok(q.OrderByDescending(c => c.VadeTarihi).ThenByDescending(c => c.Id).ToList());
+});
+api.MapGet("/cekler/ozet", (KasaDbContext db, TimeProvider saat) =>
+{
+    const int yaklasanGun = 30;
+    var bugun = Saat.Bugun(saat);
+    var ufuk = bugun.AddDays(yaklasanGun);
+    // Tutar SQLite'ta metin: toplamlar bellekte alınır (portföy küçük bir kümedir).
+    var portfoy = db.Cekler.AsNoTracking().Where(c => c.Durum == CekDurumu.Portfoyde).ToList();
+    var alinan = portfoy.Where(c => c.Yon == CekYonu.Alinan).ToList();
+    var verilen = portfoy.Where(c => c.Yon == CekYonu.Verilen).ToList();
+    return new CekOzetDto(
+        alinan.Sum(c => c.Tutar), alinan.Count,
+        verilen.Sum(c => c.Tutar), verilen.Count,
+        yaklasanGun,
+        portfoy.Where(c => c.VadeTarihi >= bugun && c.VadeTarihi <= ufuk)
+            .OrderBy(c => c.VadeTarihi).ThenBy(c => c.Id).ToList(),
+        portfoy.Where(c => c.VadeTarihi < bugun)
+            .OrderBy(c => c.VadeTarihi).ThenBy(c => c.Id).ToList());
+});
+api.MapPost("/cekler", (CekEntity e, KasaDbContext db) => Yaz(db, "Çek kaydedilemedi; tekrar deneyin.", () =>
+{
+    e.Id = 0;
+    if (CekHatasi(db, e) is string hata) return Hata(hata);
+    db.Cekler.Add(e); db.SaveChanges();
+    return Results.Created($"/api/cekler/{e.Id}", e);
+})).RequireAuthorization("Editor");
+api.MapPut("/cekler/{id:int}", (int id, CekEntity gelen, KasaDbContext db) => Yaz(db, "Çek kaydedilemedi; tekrar deneyin.", () =>
+{
+    var e = db.Cekler.Find(id);
+    if (e is null) return Results.NotFound();
+    if (CekHatasi(db, gelen) is string hata) return Hata(hata);
+    e.Yon = gelen.Yon; e.CekNo = gelen.CekNo; e.Banka = gelen.Banka; e.Kisi = gelen.Kisi;
+    e.Tutar = gelen.Tutar; e.DuzenlemeTarihi = gelen.DuzenlemeTarihi; e.VadeTarihi = gelen.VadeTarihi;
+    e.Kanal = gelen.Kanal; e.Durum = gelen.Durum; e.IslemTarihi = gelen.IslemTarihi; e.Not = gelen.Not;
+    db.SaveChanges();
+    return Results.Ok(e);
+})).RequireAuthorization("Editor");
+api.MapDelete("/cekler/{id:int}", (int id, KasaDbContext db) =>
+{
+    var e = db.Cekler.Find(id);
+    if (e is null) return Results.NotFound();
+    db.Cekler.Remove(e); db.SaveChanges();
+    return Results.NoContent();
+}).RequireAuthorization("Editor");
+
 // Gelenler (dönem+kanal başına tek satır — upsert). DonemStart, içinde bulunduğu dönemin
 // başına çekilir; takvim dışındaki tarih reddedilir.
 api.MapGet("/gelenler", (DateOnly? donemStart, KasaDbContext db) =>
@@ -726,6 +794,70 @@ static string? IslemHatasi(KasaDbContext db, IslemEntity e)
         e.Cari = kayitli;
     }
     return null;
+}
+
+// Çek doğrulaması: metinleri kırpar, portföydeki çekin işlem tarihini temizler.
+static string? CekHatasi(KasaDbContext db, CekEntity e)
+{
+    if (!Enum.IsDefined(e.Yon)) return "Geçersiz çek yönü.";
+    if (!Enum.IsDefined(e.Durum)) return "Geçersiz çek durumu.";
+    if (e.Tutar <= 0) return "Tutar sıfırdan büyük olmalı.";
+    if (TutarHatasi(e.Tutar, "Tutar") is string th) return th;
+    e.Kisi = e.Kisi?.Trim() ?? "";
+    if (e.Kisi.Length == 0) return e.Yon == CekYonu.Alinan ? "Çeki veren kişi/firma boş olamaz." : "Çekin verildiği kişi/firma boş olamaz.";
+    if (e.Kisi.Length > 200) return "Kişi/firma en fazla 200 karakter olabilir.";
+    e.CekNo = string.IsNullOrWhiteSpace(e.CekNo) ? null : e.CekNo.Trim();
+    if (e.CekNo is { Length: > 50 }) return "Çek no en fazla 50 karakter olabilir.";
+    e.Banka = string.IsNullOrWhiteSpace(e.Banka) ? null : e.Banka.Trim();
+    if (e.Banka is { Length: > 100 }) return "Banka en fazla 100 karakter olabilir.";
+    if (e.Not is { Length: > 1000 }) return "Not en fazla 1000 karakter olabilir.";
+    if (TarihHatasi(e.DuzenlemeTarihi) is not null) return "Düzenleme tarihi 2000 ile 2100 arasında olmalı.";
+    if (TarihHatasi(e.VadeTarihi) is not null) return "Vade tarihi 2000 ile 2100 arasında olmalı.";
+    if (e.VadeTarihi < e.DuzenlemeTarihi) return "Vade tarihi düzenleme tarihinden önce olamaz.";
+
+    e.Kanal = e.Kanal?.Trim() ?? "";
+    if (e.Kanal == Kanallar.Ortak)
+    {
+        if (e.Yon == CekYonu.Alinan) return $"'{Kanallar.Ortak}' yalnız verilen çekte seçilebilir; alınan çek için bir kanal seçin.";
+    }
+    else if (e.Kanal.Length == 0) return "Bir kanal seçin.";
+    else if (!db.Kanallar.Any(k => k.Ad == e.Kanal)) return $"'{Metin.Kisalt(e.Kanal)}' adında bir kanal yok.";
+
+    if (!CekKurali.DurumGecerliMi(e.Yon, e.Durum))
+        return $"{(e.Yon == CekYonu.Alinan ? "Alınan" : "Verilen")} çek '{CekDurumAdi(e.Yon, e.Durum)}' durumunda olamaz.";
+    // Portföydeki çek henüz işlem görmedi: tarih taşımaz (yanlışlıkla kalan tarih kasaya dokunmasın diye de).
+    if (e.Durum == CekDurumu.Portfoyde) e.IslemTarihi = null;
+    if (CekKurali.IslemTarihiGerekli(e.Durum) && e.IslemTarihi is null)
+        return e.Durum switch
+        {
+            CekDurumu.TahsilEdildi => "Tahsil edilen çek için tahsil tarihi girilmeli.",
+            CekDurumu.Odendi => "Ödenen çek için ödeme tarihi girilmeli.",
+            _ => "Ciro edilen çek için ciro tarihi girilmeli.",
+        };
+    if (e.IslemTarihi is { } it)
+    {
+        if (TarihHatasi(it) is not null) return "İşlem tarihi 2000 ile 2100 arasında olmalı.";
+        if (it < e.DuzenlemeTarihi) return "İşlem tarihi düzenleme tarihinden önce olamaz.";
+    }
+    return null;
+}
+
+static string CekDurumAdi(CekYonu yon, CekDurumu d) => d switch
+{
+    CekDurumu.Portfoyde => yon == CekYonu.Verilen ? "Ödenecek" : "Portföyde",
+    CekDurumu.TahsilEdildi => "Tahsil edildi",
+    CekDurumu.Odendi => "Ödendi",
+    CekDurumu.CiroEdildi => "Ciro edildi",
+    CekDurumu.Karsiliksiz => "Karşılıksız",
+    CekDurumu.IadeEdildi => "İade edildi",
+    _ => d.ToString(),
+};
+
+// Sorgu metnini enum adına çevirir (büyük/küçük harf duyarsız); sayısal ya da tanımsız değer null.
+static T? EnumCoz<T>(string metin) where T : struct, Enum
+{
+    var ad = Enum.GetNames<T>().FirstOrDefault(n => string.Equals(n, metin.Trim(), StringComparison.OrdinalIgnoreCase));
+    return ad is null ? null : Enum.Parse<T>(ad);
 }
 
 static IReadOnlyList<System.Net.IPNetwork> GuvenilirAglar(IConfiguration cfg)

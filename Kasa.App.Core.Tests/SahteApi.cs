@@ -163,4 +163,49 @@ public sealed class SahteApi : IKasaApi
     public Task KartOdemeSilAsync(int id) { SonKartOdemeSil = id; return Task.CompletedTask; }
 
     public Task<AyarlarDto> AyarlarAsync() => YuklemeHatasi is not null ? Task.FromException<AyarlarDto>(YuklemeHatasi) : Task.FromResult(AyarlarSonuc!);
+
+    // ---- Çekler ----
+    public IReadOnlyList<CekDto> CeklerListe = new List<CekDto>();
+    public CekOzetDto CekOzeti = new(0m, 0, 0m, 0, 30, new List<CekDto>(), new List<CekDto>());
+    public int CeklerCagri, CekOzetCagri;
+    /// <summary>Son çek listesi çağrısının filtresi.</summary>
+    public (CekYonu? Yon, CekDurumu? Durum)? SonCekFiltre;
+    /// <summary>Ayarlanırsa çek listesi yanıtını bu üretir (yarış testleri).</summary>
+    public Func<CekYonu?, CekDurumu?, Task<IReadOnlyList<CekDto>>>? CeklerUret;
+    public Exception? CekYazHatasi;
+    public CekYaz? SonCekOlustur;
+    public (int Id, CekYaz G)? SonCekGuncelle;
+    public int? SonCekSil;
+
+    /// <summary>Sunucu gibi: yön/durum/vade filtresi uygular.</summary>
+    public Task<IReadOnlyList<CekDto>> CeklerAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null)
+    {
+        CeklerCagri++;
+        SonCekFiltre = (yon, durum);
+        if (CeklerUret is not null) return CeklerUret(yon, durum);
+        if (YuklemeHatasi is not null) return Task.FromException<IReadOnlyList<CekDto>>(YuklemeHatasi);
+        IReadOnlyList<CekDto> l = CeklerListe
+            .Where(c => (yon is null || c.Yon == yon) && (durum is null || c.Durum == durum)
+                        && (baslangic is null || c.VadeTarihi >= baslangic) && (bitis is null || c.VadeTarihi <= bitis))
+            .ToList();
+        return Task.FromResult(l);
+    }
+    public Task<CekOzetDto> CekOzetAsync()
+    {
+        CekOzetCagri++;
+        return YuklemeHatasi is not null ? Task.FromException<CekOzetDto>(YuklemeHatasi) : Task.FromResult(CekOzeti);
+    }
+    public Task<CekDto> CekOlusturAsync(CekYaz g)
+    {
+        if (CekYazHatasi is not null) return Task.FromException<CekDto>(CekYazHatasi);
+        SonCekOlustur = g;
+        return Task.FromResult(new CekDto(0, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not));
+    }
+    public Task<CekDto> CekGuncelleAsync(int id, CekYaz g)
+    {
+        if (CekYazHatasi is not null) return Task.FromException<CekDto>(CekYazHatasi);
+        SonCekGuncelle = (id, g);
+        return Task.FromResult(new CekDto(id, g.Yon, g.CekNo, g.Banka, g.Kisi, g.Tutar, g.DuzenlemeTarihi, g.VadeTarihi, g.Kanal, g.Durum, g.IslemTarihi, g.Not));
+    }
+    public Task CekSilAsync(int id) { SonCekSil = id; return Task.CompletedTask; }
 }

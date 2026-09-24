@@ -78,6 +78,29 @@ public class KartOdemeEntity
     public string? Not { get; set; }
 }
 
+/// <summary>
+/// Alınan ya da verilen (kesilen) çek. Kasayı yalnız gerçekten tahsil edildiği/ödendiği gün
+/// (<see cref="IslemTarihi"/>) etkiler; kural <see cref="CekKurali"/>'ndadır.
+/// </summary>
+public class CekEntity
+{
+    public int Id { get; set; }
+    public CekYonu Yon { get; set; }
+    public string? CekNo { get; set; }
+    public string? Banka { get; set; }
+    /// <summary>Alınan çekte keşideci/veren, verilen çekte lehtar (serbest metin, zorunlu).</summary>
+    public string Kisi { get; set; } = "";
+    public decimal Tutar { get; set; }
+    public DateOnly DuzenlemeTarihi { get; set; }
+    public DateOnly VadeTarihi { get; set; }
+    /// <summary>Kanal adı; <see cref="Kanallar.Ortak"/> yalnız verilen çekte.</summary>
+    public string Kanal { get; set; } = "";
+    public CekDurumu Durum { get; set; }
+    /// <summary>Gerçek tahsil / ödeme / ciro günü (TahsilEdildi, Odendi, CiroEdildi'de zorunlu).</summary>
+    public DateOnly? IslemTarihi { get; set; }
+    public string? Not { get; set; }
+}
+
 /// <summary>Çıkışta iptal edilen token'ın kimliği (jti); süresi dolunca temizlenir.</summary>
 public class IptalEdilenTokenEntity
 {

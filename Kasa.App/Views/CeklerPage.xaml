@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · CeklerPage — üstte özet (dört rakam), vadesi geçenler, editör formu, altta filtreli çek listesi.
+     Çek kasayı yalnız tahsil edildiği / ödendiği gün etkiler (Haftalık/Aylık'ta ayrı "çek" satırı). -->
+<ContentPage
+    x:Class="Kasa.App.Views.CeklerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Çekler"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Çekler" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Alınan ve verilen çekler · kasaya yalnız tahsil / ödeme gününde yansır"
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller; editör formunun dışında) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <!-- Özet: dört rakam -->
+            <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,*,*', Default='*,*'}"
+                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                  ColumnSpacing="12" RowSpacing="12">
+                <Border Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Portföydeki alınan" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding PortfoydekiAlinanToplam, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Pos}" />
+                        <Label Text="{Binding PortfoydekiAlinanAdet, StringFormat='{0} çek · tahsil bekliyor'}"
+                               Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Ödenecek verilen" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding OdenecekVerilenToplam, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Neg}" />
+                        <Label Text="{Binding OdenecekVerilenAdet, StringFormat='{0} çek · ödeme bekliyor'}"
+                               Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="{OnIdiom Desktop=2, Default=0}" Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                        Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="{Binding YaklasanBaslik}" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding YaklasanAdet, StringFormat='{0} çek'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Ink}" />
+                        <Label Text="{Binding YaklasanAyrinti}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="{OnIdiom Desktop=3, Default=1}" Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                        Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Vadesi geçmiş" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding VadesiGecenAdet, StringFormat='{0} çek'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Neg}" />
+                        <Label Text="{Binding VadesiGecenAyrinti}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <!-- Vadesi geçtiği hâlde portföyde bekleyenler (tüm roller) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding VadesiGecenVar}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Vadesi geçtiği hâlde tahsil edilmemiş / ödenmemiş çekler"
+                           Style="{StaticResource LblError}" FontFamily="PlexSansSemiBold" />
+                    <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding VadesiGecenler}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Style="{StaticResource LblError}" FontSize="12.5">
+                                        <Label.FormattedText>
+                                            <FormattedString>
+                                                <Span Text="{Binding Kisi}" />
+                                                <Span Text=" · " />
+                                                <Span Text="{Binding TarihMetni}" />
+                                            </FormattedString>
+                                        </Label.FormattedText>
+                                    </Label>
+                                    <Label Grid.Column="1" Text="{Binding ImzaliTutar}" Style="{StaticResource LblError}"
+                                           FontSize="12.5" FontFamily="PlexSansSemiBold" />
+                                </Grid>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Editör formu -->
+            <Border Style="{StaticResource CardForm}" IsVisible="{Binding EditorMu}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="{Binding FormBasligi}" Style="{StaticResource LblSection}" />
+
+                    <Grid ColumnDefinitions="{OnIdiom Desktop='Auto,*', Default='*'}"
+                          RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
+                          ColumnSpacing="24" RowSpacing="12">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Yön" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding YonCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecYonCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                             Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                            <Label Text="Durum" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding DurumCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecDurumCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- Alanlar: dar ekranda alt alta sarılır -->
+                    <FlexLayout Wrap="Wrap" AlignItems="Start">
+                        <VerticalStackLayout Spacing="0" WidthRequest="260" Margin="0,0,12,12">
+                            <Label Text="{Binding KisiEtiketi}" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenKisi}" Placeholder="Örn. Yılmaz Gıda" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0" WidthRequest="170" Margin="0,0,12,12">
+                            <Label Text="Tutar" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                       Style="{StaticResource EntryMoney}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0" WidthRequest="150" Margin="0,0,12,12">
+                            <Label Text="Çek no" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenCekNo}" Placeholder="İsteğe bağlı" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0" WidthRequest="190" Margin="0,0,12,12">
+                            <Label Text="Banka" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenBanka}" Placeholder="İsteğe bağlı" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0" WidthRequest="170" Margin="0,0,12,12">
+                            <Label Text="Düzenleme tarihi" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <DatePicker Date="{Binding DuzenDuzenlemeTarihi}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0" WidthRequest="170" Margin="0,0,12,12">
+                            <Label Text="Vade tarihi" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <DatePicker Date="{Binding DuzenVadeTarihi}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <!-- Tahsil / ödeme / ciro tarihi: yalnız bu durumlarda -->
+                        <VerticalStackLayout Spacing="0" WidthRequest="170" Margin="0,0,12,12"
+                                             IsVisible="{Binding IslemTarihiGorunur}">
+                            <Label Text="{Binding IslemTarihiEtiketi}" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <DatePicker Date="{Binding DuzenIslemTarihi}" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0" WidthRequest="260" Margin="0,0,12,12">
+                            <Label Text="Not" Style="{StaticResource LblField}" />
+                            <Border Style="{StaticResource FieldBorder}">
+                                <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </FlexLayout>
+
+                    <VerticalStackLayout Spacing="0">
+                        <Label Text="Kanal" Style="{StaticResource LblField}" />
+                        <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                    BindableLayout.ItemsSource="{Binding KanalCipleri}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecKanalCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+                    </VerticalStackLayout>
+
+                    <!-- Kasa etkisi: bu çek kasaya ne zaman / nasıl yansır -->
+                    <Label Text="{Binding KasaEtkisiMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+
+                    <HorizontalStackLayout Spacing="8">
+                        <Button Text="Kaydet" Command="{Binding KaydetCommand}" Padding="22,0" />
+                        <Button Text="Yeni" Command="{Binding YeniCommand}"
+                                Style="{StaticResource BtnSecondary}" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Çek listesi -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
+                        <Label Text="Çek Listesi" Style="{StaticResource LblSection}" />
+
+                        <!-- Filtre: yön çipleri -->
+                        <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                    BindableLayout.ItemsSource="{Binding FiltreYonleri}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecFiltreYonCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <!-- Filtre: durum çipleri (seçili yöne göre) -->
+                        <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                    BindableLayout.ItemsSource="{Binding FiltreDurumlari}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding BindingContext.SecFiltreDurumCommand, Source={x:Reference Sayfa}}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </FlexLayout>
+
+                        <Label Text="{Binding ListeOzeti}" Style="{StaticResource LblRowSecondary}" />
+                    </VerticalStackLayout>
+
+                    <CollectionView ItemsSource="{Binding Cekler}" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,8" MinimumHeightRequest="62"
+                                          ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="14">
+                                        <!-- Vade -->
+                                        <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
+                                            <Label Text="{Binding VadeTarihi, StringFormat='{0:dd MMM}'}"
+                                                   Style="{StaticResource LblDateChip}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Kisi}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                            <HorizontalStackLayout Spacing="8">
+                                                <Label Text="{Binding TarihMetni}" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                                <Label Text="Vadesi geçti" FontFamily="PlexSansSemiBold" FontSize="12"
+                                                       TextColor="{StaticResource Neg}" IsVisible="{Binding VadesiGecti}" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
+                                        <!-- Durum rozeti -->
+                                        <Border Grid.Column="2" Style="{StaticResource StatusChip}" VerticalOptions="Center">
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="olumlu">
+                                                    <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="bekliyor">
+                                                    <Setter Property="Background">
+                                                        <Setter.Value>
+                                                            <SolidColorBrush Color="{StaticResource ChipBg}" />
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="olumsuz">
+                                                    <Setter Property="Background">
+                                                        <Setter.Value>
+                                                            <SolidColorBrush Color="{StaticResource NegSoft}" />
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Border" Binding="{Binding Ton}" Value="notr">
+                                                    <Setter Property="Background">
+                                                        <Setter.Value>
+                                                            <SolidColorBrush Color="{StaticResource DateChipBg}" />
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Label Text="{Binding DurumAdi}" Style="{StaticResource LblStatusChip}">
+                                                <Label.Triggers>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="olumlu">
+                                                        <Setter Property="TextColor" Value="{StaticResource Pos}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="bekliyor">
+                                                        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="olumsuz">
+                                                        <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Ton}" Value="notr">
+                                                        <Setter Property="TextColor" Value="{StaticResource Sub}" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </Border>
+                                        <!-- Tutar: alınan yeşil (+), verilen kırmızı (−) -->
+                                        <Label Grid.Column="3" Text="{Binding ImzaliTutar}" Style="{StaticResource LblMoney}"
+                                               VerticalOptions="Center">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding AlinanMi}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource Pos}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Label" Binding="{Binding AlinanMi}" Value="False">
+                                                    <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <!-- Satır aksiyonları (yalnız editör) -->
+                                        <HorizontalStackLayout Grid.Column="4" Spacing="6" VerticalOptions="Center"
+                                                               IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                            <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                                </Border>
+                                <Label Text="Çek yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="Filtreye uyan çek bulunamadı ya da henüz çek girilmedi."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
