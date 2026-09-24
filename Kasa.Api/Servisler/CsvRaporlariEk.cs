@@ -31,10 +31,34 @@ public static class CsvRaporlariEk
         _ => rol ?? "",
     };
 
-    /// <summary>Çek listesi (GET /api/cekler ile aynı sıra) + yön başına toplam satırları.</summary>
+    public static string EvrakTurAdi(CekTuru t) => t == CekTuru.Senet ? "Senet" : "Çek";
+
+    public static string KonumAdi(CekKonumu k) => k switch
+    {
+        CekKonumu.Elde => "Elde",
+        CekKonumu.BankadaTahsilde => "Bankada tahsilde",
+        CekKonumu.Teminatta => "Teminatta",
+        CekKonumu.Icrada => "İcrada",
+        _ => k.ToString(),
+    };
+
+    /// <summary>Toplam satırındaki adet: yalnız çek varsa "3 çek" (eski biçim), senet de varsa "2 çek, 1 senet".</summary>
+    public static string EvrakAdedi(IReadOnlyCollection<CekEntity> l)
+    {
+        var senet = l.Count(c => c.Tur == CekTuru.Senet);
+        var cek = l.Count - senet;
+        if (senet == 0) return $"{cek} çek";
+        return cek == 0 ? $"{senet} senet" : $"{cek} çek, {senet} senet";
+    }
+
+    /// <summary>
+    /// Çek/senet listesi (GET /api/cekler ile aynı sıra) + yön başına toplam satırları. Paket D'nin
+    /// tür, konum (yalnız alınan evrakta) ve ciro edilen cari sütunları sonda: eski sütunların yeri değişmez.
+    /// </summary>
     public static byte[] Cekler(IReadOnlyList<CekEntity> cekler)
     {
-        var csv = new CsvYazici().Baslik("Yön", "Çek no", "Banka", "Kişi/firma", "Tutar", "Düzenleme", "Vade", "Kanal", "Durum", "İşlem tarihi", "Not");
+        var csv = new CsvYazici().Baslik("Yön", "Çek no", "Banka", "Kişi/firma", "Tutar", "Düzenleme", "Vade", "Kanal", "Durum", "İşlem tarihi", "Not",
+            "Tür", "Konum", "Ciro edilen cari");
         foreach (var c in cekler)
             csv.Satir(
                 CsvYazici.Metin(YonAdi(c.Yon)),
@@ -47,12 +71,15 @@ public static class CsvRaporlariEk
                 CsvYazici.Metin(c.Kanal),
                 CsvYazici.Metin(CekDurumAdi(c.Yon, c.Durum)),
                 c.IslemTarihi is { } t ? CsvYazici.Tarih(t) : "",
-                CsvYazici.Metin(c.Not));
+                CsvYazici.Metin(c.Not),
+                CsvYazici.Metin(EvrakTurAdi(c.Tur)),
+                c.Yon == CekYonu.Alinan ? CsvYazici.Metin(KonumAdi(c.Konum)) : "",
+                CsvYazici.Metin(c.CiroEdilenCari));
         foreach (var yon in new[] { CekYonu.Alinan, CekYonu.Verilen })
         {
             var l = cekler.Where(c => c.Yon == yon).ToList();
-            csv.Satir(CsvYazici.Metin($"Toplam {YonAdi(yon).ToLower(Metin.Tr)} ({l.Count} çek)"), "", "", "",
-                CsvYazici.Sayi(l.Sum(c => c.Tutar)), "", "", "", "", "", "");
+            csv.Satir(CsvYazici.Metin($"Toplam {YonAdi(yon).ToLower(Metin.Tr)} ({EvrakAdedi(l)})"), "", "", "",
+                CsvYazici.Sayi(l.Sum(c => c.Tutar)), "", "", "", "", "", "", "", "", "");
         }
         return csv.Baytlar();
     }
@@ -73,10 +100,13 @@ public static class CsvRaporlariEk
         return csv.Baytlar();
     }
 
-    /// <summary>Değişiklik geçmişi (en yeni önce); zaman Türkiye saatiyle.</summary>
+    /// <summary>
+    /// Değişiklik geçmişi (en yeni önce); zaman Türkiye saatiyle. Kişi ve cihaz (paket E: kim, hangi
+    /// cihazdan) sonda: eski sütunların yeri değişmez; eski satırlarda boştur.
+    /// </summary>
     public static byte[] Gecmis(IReadOnlyList<DegisiklikEntity> satirlar)
     {
-        var csv = new CsvYazici().Baslik("Zaman", "Rol", "Tür", "Eylem", "Özet", "Geri alındı");
+        var csv = new CsvYazici().Baslik("Zaman", "Rol", "Tür", "Eylem", "Özet", "Geri alındı", "Kişi", "Cihaz");
         foreach (var d in satirlar)
             csv.Satir(
                 CsvYazici.Metin(Saat.Simdi(d.ZamanUtc).ToString("dd.MM.yyyy HH:mm:ss", Metin.Tr)),
@@ -84,7 +114,9 @@ public static class CsvRaporlariEk
                 CsvYazici.Metin(d.Tur),
                 CsvYazici.Metin(d.Eylem),
                 CsvYazici.Metin(d.Ozet),
-                CsvYazici.Metin(d.GeriAlindi ? "Evet" : ""));
+                CsvYazici.Metin(d.GeriAlindi ? "Evet" : ""),
+                CsvYazici.Metin(d.Kullanici),
+                CsvYazici.Metin(d.Cihaz));
         return csv.Baytlar();
     }
 

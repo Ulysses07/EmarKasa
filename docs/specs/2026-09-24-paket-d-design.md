@@ -83,6 +83,10 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
   Verilen evrak her zaman Elde kaydedilir.
 - `CiroEdilenCari` yalnız "Ciro edildi" durumunda tutulur; kayıtlı bir cariyle eşleşirse onun yazımı
   kullanılır (serbest metin de kabul).
+- Konum ve ciro edilen cari kasaya etkisizdir: işlem tarihi kilitli ayda (paket B) olan evrakta da
+  düzeltilebilir (`[AyKilidiDisi]`). Tür, tutar, durum ve tarihler kilitli kalır.
+- "Excel'e aktar" (paket B) sayfanın tür ve konum süzgecini de gönderir (`tur=`, `konum=`; konum
+  yalnız alınan evrakta). CSV'nin sonunda Tür, Konum (alınan evrakta) ve Ciro edilen cari sütunları.
 - Sayfa: tür ve konum filtresi (konum yalnız alınan evrakta), satırlarda seçim kutusu; seçilenlerin
   adedi, toplamı ve **tutar ağırlıklı ortalama vadesi** (Σ tutar × gün / Σ tutar, yarım gün yukarı).
   Risk: portföydeki alınan evrak keşideciye (`Kisi`) ve bankaya göre (banka boşsa "Banka belirtilmemiş").
@@ -100,6 +104,9 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
 - Panel'in nakit tahmini (Paket A) bu alanları okur: sıklığına uymayan ay düşülmez; değişken tutarlı şablon kayıtlı
   tutarıyla ("tahmini tutar") girer, tutarı yoksa girmez; karta bağlı şablon kasadan vadede değil, kartın
   ekstresine eklenip son ödeme gününde düşer.
+- Hedef-bütçe ve kalem özeti (paket B) şablonu bu kurallarla okur: sıklığı o aya düşen şablon o ayın
+  şablonudur (yıllık sigorta her ay beklenmez); karta bağlı şablonun kalemi bir cari adıdır, kalem
+  şablonuna girmez; tutarı değişken şablonun düştüğü ayda şablon bilinmez (boş, karşılaştırılmaz).
 - "Bu ay atla" geri alınır: yalnız bu ay ve önceki 2 ay; girilmiş ay geri alınamaz (409). Pasif şablonun
   kararı geri alınamaz (400; ay bekleyene dönmezdi) ve atlananlar listesinde görünmez; sıklığı sonradan
   değişen şablonun artık tekrar ayı olmayan atlanan ayı da listelenmez.
@@ -133,6 +140,8 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
   (eski tek tutarlı) sayım aynen kaydedilir ve görünür. Varsayılan satırlar: son satırlı sayımın
   satırları, yoksa Nakit, İş Bankası, Ziraat, POS'ta bekleyen.
 - Fark durumu: Açık (varsayılan) / Açıklandı (açıklama zorunlu) / Kabul edildi. Fark yoksa 400.
+  Durum ve açıklama kasayı değiştirmez: kilitli ayın (paket B) sayımında da yazılır; sayımın tarihi,
+  tutarı ve silinmesi kilitli kalır.
 - "Neden değişti?": sayım kaydından sonra yazılmış, kayıt tarihi sayım gününe kadar olan ve kasayı
   etkileyebilen geçmiş satırları (işlem, gelen, çek, kart ödemesi, kanal açılış devri, kasa açılış
   devri / takip başlangıcı).
@@ -152,6 +161,9 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
   "Güncellendi (geri alındı)" satırından da okur.
 - Yanıt kaydın istemciye açık halidir: Ayar dönüşü `GET /api/ayarlar` ile aynı biçimi döner (`takipBaslangic`,
   `kasaAcilisDevri`, `izleyiciSifreVarMi`); izleyici şifre özeti ve oturum sürümleri yanıta girmez.
+- İşlemde paket F'nin belge alanları (belge türü, belge no, fatura bekleniyor) da eski haline döner
+  ("Fatura geldi" yanlışlıkla işaretlendiyse fatura yine beklenir). Yalnız bunlar değiştiyse kilitli
+  ayda (paket B) da geri alınır; para ya da tarih alanı da değiştiyse kilitli ayda 409 `kilitli: true`.
 
 ## 5. İstemci
 
@@ -166,7 +178,7 @@ Değişen mevcut uçlar (geri uyumlu): `POST/PUT /cekler` (`tur`, `konum`, `ciro
 
 - Tek dokunuşta tarih istemciden gönderilmez; sunucu Türkiye gününü koyar.
 - Konum filtresi seçiliyken verilen evrak listelenmez (konum yalnız alınan evrakta anlamlı).
-- Tür/konum filtresi istemcide uygulanır (sunucu da destekler).
+- Tür/konum filtresi istemcide uygulanır (sunucu da destekler); "Excel'e aktar" aynı süzgeci sunucuya gönderir.
 - Ekstre tutarı uygulamada eksi yazılabilir (alacaklı kart); diğer para kutuları eskisi gibi eksiyi reddeder.
 - Eski istemcinin PUT'u yeni alanları göndermez: `PUT /cekler/{id}` gövdede olmayan `tur`, `konum`,
   `ciroEdilenCari`; `PUT /tekrarlayangiderler/{id}` gövdede olmayan `siklik`, `krediKartiId`,

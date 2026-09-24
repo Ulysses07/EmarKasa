@@ -253,6 +253,28 @@ public class MobilWebTests : IClassFixture<KasaWebFactory>
     }
 
     /// <summary>
+    /// Bulgu: iki adımlı giriş (paket E) açık kişisel hesap telefondan giremiyordu: sunucu şifre doğruyken
+    /// 401 + kodGerekli döndürüyor, sayfa kod sormadan "şifre hatalı" diyordu. Kod alanı sunucu isteyince
+    /// açılır; sunucunun açıklaması (pasif hesap, hatalı kod) gösterilir; kurtarma kodu harf içerebilir.
+    /// </summary>
+    [Fact]
+    public void Giris_formu_iki_adimli_hesapta_kod_sorar_sunucu_mesajini_gosterir()
+    {
+        var html = File.ReadAllText(Path.Combine(Klasor(), "index.html"));
+        var alan = Regex.Match(html, @"<div id=""kod-alani""[^>]*>").Value;
+        Assert.Contains(" hidden", alan);
+        var kod = Regex.Match(html, @"<input id=""kod""[^>]*>").Value;
+        Assert.Contains(@"autocomplete=""one-time-code""", kod);
+        Assert.DoesNotContain("inputmode=\"numeric\"", kod);   // kurtarma kodu harf içerir
+        Assert.Contains("[hidden] { display: none !important; }", File.ReadAllText(Path.Combine(Klasor(), "app.css")));
+
+        var js = File.ReadAllText(Path.Combine(Klasor(), "app.js"));
+        Assert.Contains("govde.kodGerekli === true", js);
+        Assert.Contains("kod: kod || null", js);
+        Assert.Contains("govde.hata", js);   // sunucu sözleşmesi (401 + kodGerekli): IkiAdimTests
+    }
+
+    /// <summary>
     /// Bulgu: "bugün" cihaz saatinden alınıyordu; saati Türkiye'nin gerisinde olan telefonda başlamış dönem
     /// gizleniyor, aylık ekran önceki ayda açılıyordu. Bugün Türkiye saatiyle alınır; haftalık liste
     /// sunucunun (Türkiye saatiyle bugünde kesilen) takvimini olduğu gibi gösterir.

@@ -86,7 +86,7 @@ public class PaketBDosyaVeSuzgecTests
         Assert.Equal(1, api.KasaSayimCsvCagri);
         Assert.NotNull(sayim.AktarilanDosya);
 
-        var gecmis = new GecmisViewModel(api, saat, k) { FiltreTur = "Çek" };
+        var gecmis = new GecmisViewModel(api, saat, kaydedici: k) { FiltreTur = "Çek" };
         await gecmis.ExceleAktarCommand.ExecuteAsync(null);
         Assert.Equal("Çek", api.SonGecmisCsvTur);
         Assert.NotNull(gecmis.AktarilanDosya);
@@ -102,7 +102,7 @@ public class PaketBDosyaVeSuzgecTests
     public async Task Excel_hatasi_sunucu_mesajiyla()
     {
         var api = new SahteApi { CsvHatasi = new KasaApiException(HttpStatusCode.InternalServerError, null) };
-        var vm = new GecmisViewModel(api, new SabitSaat(Bugun), new SahteKaydedici());
+        var vm = new GecmisViewModel(api, new SabitSaat(Bugun), kaydedici: new SahteKaydedici());
         await vm.ExceleAktarCommand.ExecuteAsync(null);
         Assert.Equal(HataMesaji.SunucuHatasi, vm.Hata);
     }

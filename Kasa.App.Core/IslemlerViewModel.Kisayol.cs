@@ -77,6 +77,7 @@ public partial class IslemlerViewModel
         if (BenzerCariSoruluyor) { BenzerCariKapat(); return true; }
         if (GelenCakismaVar) { GelenCakismaKapat(); return true; }
         if (Silme.OnayBekliyor) { Silme.Vazgec(); return true; }
+        if (EkSilmeOnayiBekliyor) { EkSilVazgec(); return true; }   // Paket F: "Eki sil?" (düzenleme kaybolmasın)
         if (DuzenId != 0) { Yeni(); return true; }
         return false;
     }

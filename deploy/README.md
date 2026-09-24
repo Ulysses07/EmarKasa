@@ -215,13 +215,16 @@ uygulanır; diğer kullanıcıların şifresini editör uygulamadan sıfırlar.
 
 - süresi dolmuş giriş günlüğü satırlarını ve bir haftadan eski bitmiş oturum kayıtlarını siler;
 - en yeni günlük yedeği (`kasa-data/yedek/kasa-YYYY-AA-GG.db`) **salt okunur** açar,
-  bütünlük denetimi (`quick_check`) yapar ve 11 tablonun satır sayısını canlı DB ile karşılaştırır
-  (yedekten sonra yapılan değişiklikler kadar fark hoş görülür). Sonuç saklanır, son 90 sonuç
+  bütünlük denetimi (`quick_check`) yapar ve 20 tablonun (para ve tanım tabloları; ay kilidi/yayını,
+  hedef, bütçe, kur, kart mutabakatı, fiş/fatura ekleri ve POS dahil) satır sayısını canlı DB ile
+  karşılaştırır (yedekten sonra yapılan değişiklikler kadar fark hoş görülür; güncellemeden önce
+  alınmış yedekte olmayan yeni tablo 0 kayıt sayılır). Sonuç saklanır, son 90 sonuç
   tutulur. Her yedek bir kez doğrulanır. Başarısız doğrulama Panel'deki risk kartında kırmızı görünür.
   Log satırı: `Yedek doğrulandı: ...` ya da hata olarak `Yedek doğrulaması başarısız: ...`.
 
 **Sistem ve risk kartı** (Panel, yalnız editör, salt okunur): sunucu dışı yedeğin yaşı ve durumu
-(`/health` → `uzakYedek` ile aynı), yerel günlük yedeğin yaşı, son yedek doğrulaması, boş disk,
+(`/health` → `uzakYedek` ile aynı; gönderim tamam ama `uyari` doluysa, ör. ekler gönderilemediyse,
+sarı), yerel günlük yedeğin yaşı, son yedek doğrulaması, boş disk,
 dün (Türkiye saatiyle) başarısız giriş sayısı ve takip notu olmayan karşılıksız alınan çekler.
 Eşikler (varsayılan) gerekirse compose'a `Kasa__...` satırı eklenerek değiştirilir:
 

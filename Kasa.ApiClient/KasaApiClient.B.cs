@@ -39,11 +39,14 @@ public sealed partial class KasaApiClient
     public Task<IndirilenDosya> AyPaketiAsync(int yil, int ay)
         => IndirAsync($"api/disaaktar/ay-paketi.zip?{AySorgusu(yil, ay)}", $"kasa-ay-paketi-{AyEki(yil, ay)}.zip");
 
-    public Task<IndirilenDosya> CeklerCsvAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null)
+    public Task<IndirilenDosya> CeklerCsvAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null,
+        CekTuru? tur = null, CekKonumu? konum = null)
     {
         var q = new List<string>();
         if (yon is { } y) q.Add($"yon={y}");
         if (durum is { } d) q.Add($"durum={d}");
+        if (tur is { } tr) q.Add($"tur={tr}");
+        if (konum is { } k) q.Add($"konum={k}");
         if (baslangic is { } b) q.Add($"baslangic={T(b)}");
         if (bitis is { } s) q.Add($"bitis={T(s)}");
         return IndirAsync(q.Count > 0 ? $"api/disaaktar/cekler.csv?{string.Join("&", q)}" : "api/disaaktar/cekler.csv", "kasa-cekler.csv");

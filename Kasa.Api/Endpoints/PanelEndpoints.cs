@@ -36,12 +36,16 @@ public static class PanelEndpoints
 
         // Geleni girilmemiş, son iki haftada biten dönemler (Bugün yapılacaklar, Pazartesi bildirimi). Kanal kuralı
         // Gelenler sayfasının eksik listesiyle (GET /gelenler/eksik-liste) aynıdır: kanal, var olmadığı ya da baştan
-        // sona pasif olduğu dönem için eksik sayılmaz (KanalDonemleri).
+        // sona pasif olduğu dönem için eksik sayılmaz (KanalDonemleri). Kilitli aydaki dönem listelenmez (paket B):
+        // oraya gelen yazılamaz, "Gelen gir" boşa açılırdı.
         api.MapGet("/gelenler/eksik", (KasaDbContext db, TimeProvider saat, HesapServisi svc) =>
         {
             var bugun = Saat.Bugun(saat);
             var enErken = bugun.AddDays(-EksikGelenGeriyeGun);
-            var donemler = svc.Donemler().Where(d => d.End < bugun && d.End >= enErken).ToList();
+            var kilitli = AyKilidiKurali.EtkinKilitliAylar(db);
+            var donemler = svc.Donemler()
+                .Where(d => d.End < bugun && d.End >= enErken && !kilitli.Contains(AyBicimi.AyBasi(d.Start)))
+                .ToList();
             if (donemler.Count == 0) return Results.Ok(Array.Empty<EksikGelenDto>());
             var kanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif)
                 .OrderBy(k => k.Sira).ThenBy(k => k.Id).Select(k => new { k.Id, k.Ad }).ToList();

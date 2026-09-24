@@ -207,7 +207,7 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
             degisiklikler = AyaDokunanlar(ayBasi, yayin.SonDegisiklikId,
                     oncekiAylar: farklar.Any(f => f.Kalem == KasaAcilisiKalemi),
                     kanalDagilimi: farklar.Any(f => f.Kalem.EndsWith(" · " + OrtakPayAlani, StringComparison.Ordinal)))
-                .Select(d => DegisiklikDtosu(d, simdi)).ToList();
+                .Select(d => DegisiklikDtosu(d, simdi, db)).ToList();
         }
         return new AyKapanisDto(yil, ay, AyBicimi.Etiket(ayBasi), kilitli, kilitli ? Utc(kilitZamani) : null,
             Kilitlenebilir(ayBasi), yayin is not null, Utc(yayin?.YayinZamaniUtc), farklar, degisiklikler);
@@ -216,11 +216,17 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
     /// <summary>Yalnız bitmiş ay kilitlenebilir (içinde bulunulan ay hâlâ yazılıyor).</summary>
     public bool Kilitlenebilir(DateOnly ayBasi) => AyBicimi.AySonu(ayBasi) < Bugun;
 
-    public static DegisiklikDto DegisiklikDtosu(DegisiklikEntity d, DateTime simdiUtc) => new(
+    /// <summary>
+    /// Geçmiş satırının DTO'su; GET /api/gecmis ile birebir aynı (kişi, cihaz, geçmişe dönük işareti ve
+    /// kaydın bugünkü haline göre geri alınabilirlik dahil). Ay kapanışındaki "yayından sonraki
+    /// düzeltmeler" de kimin, hangi cihazdan değiştirdiğini böyle gösterir.
+    /// </summary>
+    public static DegisiklikDto DegisiklikDtosu(DegisiklikEntity d, DateTime simdiUtc, KasaDbContext db) => new(
         d.Id, DateTime.SpecifyKind(d.ZamanUtc, DateTimeKind.Utc), d.Rol, d.Tur, d.KayitId, d.Eylem, d.Ozet,
         d.EskiJson, d.YeniJson, d.GeriAlindi,
         d.GeriAlmaZamaniUtc is { } g ? DateTime.SpecifyKind(g, DateTimeKind.Utc) : null,
-        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdiUtc) is null);
+        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdiUtc) is null && GuncellemeGeriAlma.DbEngeli(db, d) is null,
+        GecmiseDonuk: GecmiseDonukKurali.Mi(d), Kullanici: d.Kullanici, Cihaz: d.Cihaz);
 
     private static DateTime? Utc(DateTime? d) => d is { } x ? DateTime.SpecifyKind(x, DateTimeKind.Utc) : null;
 
@@ -239,12 +245,29 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
             .ToDictionary(g => g.Key, g => g.Sum(i => Para.Yuvarla(i.TutarTl)), Metin.EsitBuyukKucukDuyarsiz);
     }
 
-    /// <summary>Ay için aktif tekrarlayan giderlerin (başlangıç ayı ≤ ay) kalem başına şablon tutarı.</summary>
+    /// <summary>Ay için kalem başına şablon tutarı (bkz. <see cref="AyinSablonu"/>); şablonu olmayan kalem yok.</summary>
     private Dictionary<string, decimal> Sablonlar(DateOnly ayBasi)
-        => db.TekrarlayanGiderler.AsNoTracking().Where(t => t.Aktif && t.BaslangicAyi <= ayBasi)
-            .Select(t => new { t.Kalem, t.Tutar }).ToList()
+        => db.TekrarlayanGiderler.AsNoTracking().Where(t => t.Aktif && t.KrediKartiId == null).ToList()
             .GroupBy(t => t.Kalem, Metin.EsitBuyukKucukDuyarsiz)
-            .ToDictionary(g => g.Key, g => g.Sum(t => t.Tutar), Metin.EsitBuyukKucukDuyarsiz);
+            .Select(g => (g.Key, Tutar: AyinSablonu(g, ayBasi)))
+            .Where(x => x.Tutar is not null)
+            .ToDictionary(x => x.Key, x => x.Tutar!.Value, Metin.EsitBuyukKucukDuyarsiz);
+
+    /// <summary>
+    /// Kalemin o ayki şablon tutarı: aktif, kartsız, sıklığı o aya düşen tekrarlayan giderlerin tutarı
+    /// (paket D: 3/6/12 ayda bir olan şablon yalnız kendi aylarında; bkz. <see cref="TekrarlayanTakvim.AyDahil"/>).
+    /// Karta bağlı şablonun kalemi bir cari adıdır, kalem şablonuna girmez. Tutarı her seferinde girilen
+    /// (vergi gibi) şablon o aya düşüyorsa ayın şablon tutarı bilinmez: null (ne toplanır ne karşılaştırılır).
+    /// O aya düşen şablon yoksa da null.
+    /// </summary>
+    private static decimal? AyinSablonu(IEnumerable<TekrarlayanGiderEntity> sablonlar, DateOnly ayBasi)
+    {
+        var buAy = sablonlar.Where(t => t.Aktif && t.KrediKartiId is null
+                                        && TekrarlayanTakvim.AyDahil(t.Siklik, TekrarlayanTakvim.AyBasi(t.BaslangicAyi), ayBasi))
+            .ToList();
+        if (buAy.Count == 0 || buAy.Any(t => t.TutarDegisken)) return null;
+        return buAy.Sum(t => t.Tutar);
+    }
 
     public static decimal? Yuzde(decimal gerceklesen, decimal? hedef)
         => hedef is > 0m ? decimal.Round(gerceklesen / hedef.Value * 100m, 1, MidpointRounding.AwayFromZero) : null;
@@ -324,7 +347,8 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
         var aylar = new List<CariOzetiAyDto>(12);
         if (tur == KalemTuru)
         {
-            var sablonlar = db.TekrarlayanGiderler.AsNoTracking().ToList()
+            // Karta bağlı şablonun "kalemi" bir cari adıdır: kalem özetine girmez (bkz. AyinSablonu).
+            var sablonlar = db.TekrarlayanGiderler.AsNoTracking().Where(t => t.KrediKartiId == null).ToList()
                 .Where(t => Metin.EsitBuyukKucukDuyarsiz.Equals(t.Kalem, ad)).ToList();
             var ids = sablonlar.Select(t => t.Id).ToList();
             var kararlar = db.TekrarlayanGirisler.AsNoTracking()
@@ -335,8 +359,7 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
                 var ayBasi = new DateOnly(yil, m, 1);
                 var bu = kalemIslemleri.Where(i => i.Tarih.Month == m).ToList();
                 var nakit = bu.Sum(i => Para.Yuvarla(i.TutarTl));
-                var aktif = sablonlar.Where(t => t.Aktif && t.BaslangicAyi <= ayBasi).ToList();
-                decimal? sablon = aktif.Count > 0 ? aktif.Sum(t => t.Tutar) : null;
+                var sablon = AyinSablonu(sablonlar, ayBasi);
                 var ayKararlari = kararlar.Where(g => g.Ay == ayBasi).Select(g => g.Durum).Distinct().ToList();
                 string? karar = ayKararlari.Count == 0 ? null
                     : string.Join(", ", ayKararlari.Order().Select(d => d == TekrarlayanDurum.Girildi ? "Girildi" : "Atlandı"));

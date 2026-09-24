@@ -29,7 +29,8 @@ public partial interface IKasaApi
 
     /// <summary>
     /// Geleni, kullanıcının gördüğü tutar (<paramref name="beklenenTutar"/>; kayıt yoksa 0) hâlâ kayıtlıysa yazar.
-    /// Kayıt o arada değiştiyse yazmaz ve güncel tutarı döner (409).
+    /// Kayıt o arada değiştiyse yazmaz ve güncel tutarı döner (409). Çakışma olmayan 409 (ay kilitli)
+    /// <see cref="KasaApiException"/> olarak fırlar; mesajı sunucununkidir.
     /// </summary>
     Task<GelenKayitSonucu> GelenKorumaliKaydetAsync(GelenYaz g, decimal beklenenTutar);
 

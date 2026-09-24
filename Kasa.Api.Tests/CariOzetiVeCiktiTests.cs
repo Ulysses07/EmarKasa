@@ -206,7 +206,8 @@ public class CariOzetiVeCiktiTests : IClassFixture<PaketBFactory>
         var sayim = Csv(dosyalar["kasa-sayimlari-2026-08.csv"]);
         Assert.Equal("'+ekstra", sayim[1][5]);
         var gecmis = Csv(dosyalar["gecmis-2026-08.csv"]);
-        Assert.Equal(new[] { "Zaman", "Rol", "Tür", "Eylem", "Özet", "Geri alındı" }, gecmis[0]);
+        // Kişi ve cihaz (paket E) sonda: eski sütunların yeri değişmedi.
+        Assert.Equal(new[] { "Zaman", "Rol", "Tür", "Eylem", "Özet", "Geri alındı", "Kişi", "Cihaz" }, gecmis[0]);
         Assert.Empty(gecmis.Skip(1));   // test saati Eylül: Ağustos'ta yazılmış geçmiş yok
 
         var dokum = Csv(dosyalar["kasa-dokumu-2026-08.csv"]);

@@ -160,6 +160,8 @@ meter.limit { display: block; width: 100%; height: 10px; margin: 8px 0 4px; }
 }
 .form input:focus { outline: 2px solid var(--yesil); outline-offset: 1px; }
 .form .dugme { margin-top: 14px; }
+.form-grup { display: flex; flex-direction: column; gap: 6px; }
+.kucuk-metin { font-size: 12px; margin: 0; }
 
 /* Alt sekmeler */
 .sekmeler {

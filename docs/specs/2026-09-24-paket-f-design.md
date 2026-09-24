@@ -65,7 +65,10 @@ kaldırır. Bu bir para kuralı değildir; tutarlar ve toplamlar aynı kalır.
 - **Muhasebeci CSV:** Var olan `CsvYazici` biçimi (UTF-8 BOM, `;`, formül enjeksiyonu koruması).
   Sütunlar: Tarih, Cari/Kalem, Kanal, Tip, Kart, Tutar, Belge türü, Belge no, Fatura bekleniyor,
   Ek sayısı, Not. Sonda belge türü toplamları, "Fatura bekleniyor" toplamı ve genel toplam yer alır.
-  Tutarlar işlemdeki haliyle yazılır; hesap yapılmaz.
+  Tutarlar işlemdeki haliyle yazılır; hesap yapılmaz. Ay paketinde (paket B) de
+  `muhasebeci-YYYY-MM.csv` olarak birebir bulunur.
+- Belge alanları ay kilidinin (paket B) dışındadır: kilitli aydaki işlemde yalnız belge değişiyorsa
+  yazılır; "Önceki haline döndür" belge alanlarını da geri alır (paket D · 36).
 
 ### 2.3 Arayüz
 
@@ -149,7 +152,8 @@ okunmaz (setter `internal`); tek işlem yanıtlarında (POST/PUT) yer almaz.
   ve eki varsa "Ekler (n)" düğmesi görünür. Düğme listenin üstünde salt okunur bir ek paneli açar
   (yalnız "Aç"); düzenleme formuna dokunmaz. Böylece ortaklar da her işlemin fişini/faturasını
   açabilir, editör de eki olan işlemi açmadan görür. Formdan ek silinince satırdaki sayı ve açık
-  panel hemen güncellenir; işlem silinince onun paneli kapanır.
+  panel hemen güncellenir; işlem silinince onun paneli kapanır. Formdaki ek silme onayını Esc
+  kapatır; düzenleme açık kalır (ikinci Esc düzenlemeden çıkar).
 - **İşlem formu:** "Fotoğraf/PDF ekle" çoklu seçimle çalışır. "Fotoğraf çek" yalnız kamera
   varsa görünür. Seçilen dosyalar "bekleyen ek" olur ve işlem kaydedildikten **sonra** yüklenir,
   çünkü yeni işlemin Id'si ancak o zaman bellidir. Biri yüklenemezse işlem yine kayıtlıdır:
@@ -160,6 +164,9 @@ okunmaz (setter `internal`); tek işlem yanıtlarında (POST/PUT) yer almaz.
 - **Yedek:** Günlük DB yedeği dosyaları içermez. `kasa-yedek` servisi her gece yeni ekleri
   şifreli olarak uzaktaki `belgeler/` klasörüne kopyalar. Uzakta hiçbir dosya silinmez ya da
   üzerine yazılmaz. `ekleri-geri-al` komutu eksik ekleri geri indirir (`deploy/README.md`).
+  Ekler gönderilemezse uzak yedek durumu "tamam + uyarı" olur; risk kartı (paket E) bunu sarı
+  gösterir. Gece yedek doğrulaması `IslemEkleri`, `PosTanimlari` ve `PosSatislari` satır sayılarını da
+  karşılaştırır.
 
 ## 4. Madde 42 — ERP12 tediye karşılaştırması (salt okunur)
 
@@ -280,7 +287,8 @@ satışta değiştirilebilir. Kaydetmeden önce komisyon, net ve valör önizlem
 bir satış düzenlenirken POS değiştirilirse, elle değiştirilmemiş oran ve blokaj boşaltılır; önizleme
 ve kayıt yeni POS'un değerlerini kullanır (sunucu kuralı: boş = POS değiştiyse POS tanımındaki
 değer). Satışın kendi POS'una geri dönülürse kayıtlı değerler geri gelir; elle yazılan değer
-korunur. Bloke kartında bloke net kanal kanal listelenir. POS tanımları aynı sayfada yönetilir;
+korunur. Bloke kartında bloke net kanal kanal listelenir. Satırdaki "Sil" iki basışlıdır (paket C ·
+32): POS satışı geri alınamaz, ilk basış "Geri alınamaz · Emin misiniz?" der. POS tanımları aynı sayfada yönetilir;
 kayıtlı bir POS'un kanalı değiştirilince "Eski satışlara da uygula" kutusu görünür (varsayılan
 kapalı). Brüt tutar `ParaGiris` dönüştürücüsüyle okunur. Oran için
 `OranGiris` kullanılır: 0–100, en çok 4 ondalık, virgül ya da nokta kabul edilir.
@@ -321,6 +329,11 @@ sorusunu yanıtlar.
 - Token JavaScript'te tutulmaz, depolamaya yazılmaz.
 - `GET /api/auth/me` rolü, `POST /api/auth/logout` sunucuda iptali verir.
 - 401 gelirse giriş ekranı açılır.
+- İki adımlı giriş (paket E): şifre doğru ama kod yoksa sunucu `401 {hata, kodGerekli: true}` döner;
+  "Doğrulama kodu" alanı açılır ve aynı bilgiler kodla yeniden gönderilir. Alan 6 haneli kodu ya da
+  kurtarma kodunu alır (`autocomplete="one-time-code"`; kurtarma kodu harf içerdiği için sayısal
+  klavye zorlanmaz). Sunucunun mesajı (hatalı kod, pasif hesap, çok deneme) olduğu gibi gösterilir.
+  Kullanıcı adı yalnız ortak izleyici şifresiyle girerken boş bırakılır.
 
 ### 6.3 Güvenlik
 

@@ -822,12 +822,8 @@ api.MapGet("/gecmis", (int? limit, int? offset, string? tur, KasaDbContext db, H
     var liste = q.OrderByDescending(d => d.Id).Skip(offset ?? 0).Take(sayfa).ToList();
     http.Response.Headers["X-Toplam-Kayit"] = toplam.ToString();
     var simdi = saat.GetUtcNow().UtcDateTime;
-    return Results.Ok(liste.Select(d => new DegisiklikDto(
-        d.Id, DateTime.SpecifyKind(d.ZamanUtc, DateTimeKind.Utc), d.Rol, d.Tur, d.KayitId, d.Eylem, d.Ozet,
-        d.EskiJson, d.YeniJson, d.GeriAlindi,
-        d.GeriAlmaZamaniUtc is { } g ? DateTime.SpecifyKind(g, DateTimeKind.Utc) : null,
-        GeriAlinabilir: GecmisKurallari.GeriAlmaEngeli(d, simdi) is null && GuncellemeGeriAlma.DbEngeli(db, d) is null,
-        GecmiseDonuk: GecmiseDonukKurali.Mi(d), Kullanici: d.Kullanici, Cihaz: d.Cihaz)).ToList());
+    // Ay kapanışındaki değişiklik listesiyle aynı DTO (tek yerde kurulur).
+    return Results.Ok(liste.Select(d => RaporServisi.DegisiklikDtosu(d, simdi, db)).ToList());
 });
 // Geçmişte kaydı olan türler (filtre seçenekleri).
 api.MapGet("/gecmis/turler", (KasaDbContext db) =>
@@ -1249,6 +1245,9 @@ static (object? Kayit, IResult? Sonuc) GuncellemeyiGeriAl(KasaDbContext db, Degi
                 e.Tarih = eski.Tarih; e.Cari = eski.Cari; e.TutarTl = eski.TutarTl;
                 e.Kanal = eski.Kanal; e.Tip = eski.Tip; e.Not = eski.Not;
                 e.KrediKartiId = eski.KrediKartiId;
+                // Paket F belge alanları da döner ("Fatura geldi" geri alınırsa fatura yine beklenir). Ay
+                // kilidi dışıdırlar: kilitli ayda yalnız bunlar değiştiyse geri alma serbesttir.
+                e.BelgeTuru = eski.BelgeTuru; e.BelgeNo = eski.BelgeNo; e.FaturaBekleniyor = eski.FaturaBekleniyor;
                 return (e, null);
             }
             case GecmisTurleri.Cek:

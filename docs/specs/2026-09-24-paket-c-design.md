@@ -30,7 +30,7 @@ geri alma, gelişmiş işlem arama, işlem kopyalama / seri giriş ve Excel'den 
 | Enter | Cari kutusunda: yazılan kayıtlı değilse ilk öneriyi seçer. Tutar henüz girilmediyse (0) kaydetmez, tutara geçer (kayıtlı ad kayıtlı yazımına çevrilir); tutar varsa kaydeder. Tutar ve Not kutularında kaydeder. Gelen tutarında gelen kaydeder. |
 | Ctrl+S | Kaydeder. |
 | Ctrl+N | Yeni satır açar: form temizlenir, odak cariye geçer. |
-| Esc | Önce açık olanı kapatır: uyarı, ileri tarih onayı, benzer cari sorusu, gelen çakışması, silme onayı. Hiçbiri açık değilse düzenlemeden çıkar. Yeni kayıtta formu silmez. |
+| Esc | Önce açık olanı kapatır: uyarı, ileri tarih onayı, benzer cari sorusu, gelen çakışması, silme onayı, formdaki ek silme onayı (paket F; düzenleme açık kalır). Hiçbiri açık değilse düzenlemeden çıkar. Yeni kayıtta formu silmez. |
 | Alt+1…4 | Gider kanalı çiplerinden 1.–4.'yü seçer (Ortak da bir çiptir). |
 | Tarih kutusunda B / D | B bugünü, D dünü seçer (işlem ve gelen tarihinde). |
 
@@ -101,9 +101,14 @@ Dönüş: `[{kod, mesaj}]`. Sunucu kaydı hiçbir zaman engellemez.
   - 0 girilmiş gelen, girilmiş sayılır.
   - Panel'in "Bugün yapılacaklar" satırı ve Pazartesi bildirimi (Paket A, `GET /api/gelenler/eksik`, son iki
     hafta) kanal için aynı kuralı (`KanalDonemleri`) kullanır: iki uç aynı defter için çelişen eksik vermez.
+  - Kilitli aydaki (paket B) dönemler listelenmez: ay kapatılmıştır, oraya gelen yazılamaz.
 - **`PUT /api/gelenler`** (mevcut uç) isteğe bağlı `beklenenTutar` alanını kabul eder. Bu alan
   verilmişse ve kayıtlı tutar ondan farklıysa uç 409 `{hata, mevcutTutar}` döner. Alan yoksa
   davranış eskisiyle aynıdır.
+  - Ay kilidi çakışma değildir: kilitli aya yazma `409 {hata, kilitli: true}` döner (`mevcutTutar`
+    yok). İstemci bunu "Üzerine yaz" sorusuna çevirmez (o da aynı 409'a dönerdi), sunucunun
+    mesajını ("Ağustos 2026 kilitli: …") hata olarak gösterir. İşareti bilmeyen eski sunucuda da
+    yeniden okunan tutar görülenle aynıysa soru açılmaz, mesaj gösterilir.
 - **Gelenler sayfası:** hafta gezinmesi, kanal başına kayıtlı tutar ve yeni tutar kutusu.
   - Yalnız değişen satırlar gönderilir. Her satır, kullanıcının gördüğü tutarla korumalı yazılır.
   - Kayıtlı geleni olan satırda "Üzerine yaz" ya da "Üstüne ekle" seçilmeden kaydedilmez.
@@ -128,9 +133,10 @@ Dönüş: `[{kod, mesaj}]`. Sunucu kaydı hiçbir zaman engellemez.
   o satırda değişir. 5 saniye içinde ikinci basış siler. İlk basış sayfada başka hiçbir şeyi
   değiştirmez (ipucu satırı yok), bu yüzden liste kaymaz ve ikinci basış aynı düğmeye gelir.
 - Başka bir satıra basmak, süre dolması ya da Esc onayı düşürür.
-- Geri alınamayan silmelerde (kanal, kredi kartı, tekrarlayan gider, Paket D'nin kart ekstresi mutabakatı)
-  düğme **"Geri alınamaz · Emin misiniz?"** der. Ekstre Mutabakatı sayfasındaki "Kaydı sil" de aynı
-  `SilmeOnayi`'yı kullanır (`KartMutabakatViewModel.OnayliSilCommand`); şerit çıkmaz.
+- Geri alınamayan silmelerde (kanal, kredi kartı, tekrarlayan gider, Paket D'nin kart ekstresi mutabakatı,
+  POS satışı · paket F) düğme **"Geri alınamaz · Emin misiniz?"** der. Ekstre Mutabakatı sayfasındaki "Kaydı sil"
+  de aynı `SilmeOnayi`'yı kullanır (`KartMutabakatViewModel.OnayliSilCommand`); şerit çıkmaz.
+- İşlem silinince, açıksa o işlemin ek paneli (paket F) de kapanır.
 - Geri alınabilen silmeden sonra (işlem, kart ödemesi, cari, gider kalemi, çek, kasa sayımı)
   **"Silindi: … · Geri al"** şeridi çıkar.
   - Şerit, yeni **`GET /api/gecmis/son-silme?tur=&kayitId=`** ucuyla kaydın son "Silindi"

@@ -349,10 +349,19 @@
                                                         IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
                                                         Command="{Binding BindingContext.SatisDuzenleCommand, Source={x:Reference Sayfa}}"
                                                         CommandParameter="{Binding .}" />
-                                                <Button Grid.Column="4" Text="Sil" Style="{StaticResource BtnRowDelete}" VerticalOptions="Center"
+                                                <!-- Paket C · 32: iki basışla silme (POS satışı geri alınamaz; ilk basış bunu söyler) -->
+                                                <Button Grid.Column="4" Style="{StaticResource BtnRowDelete}" VerticalOptions="Center"
                                                         IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
-                                                        Command="{Binding BindingContext.SatisSilCommand, Source={x:Reference Sayfa}}"
-                                                        CommandParameter="{Binding .}" />
+                                                        Command="{Binding BindingContext.OnayliSatisSilCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}">
+                                                    <Button.Text>
+                                                        <MultiBinding Converter="{StaticResource SilDugmeMetni}">
+                                                            <Binding Path="." />
+                                                            <Binding Path="BindingContext.Silme.Bekleyen" Source="{x:Reference Sayfa}" />
+                                                            <Binding Path="BindingContext.Silme.OnayDugmesi" Source="{x:Reference Sayfa}" />
+                                                        </MultiBinding>
+                                                    </Button.Text>
+                                                </Button>
                                             </Grid>
                                         </VerticalStackLayout>
                                     </DataTemplate>
