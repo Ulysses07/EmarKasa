@@ -47,6 +47,7 @@ public partial class IslemlerViewModel
         _duzenEskiKartsizKK = false;
         IleriTarihUyarisi = null;
         UyarilariTemizle();
+        BelgeFormunuSifirla();                // belge no ve ekler her kayda ayrıdır (paket F)
         _kanalElle = DuzenKanal.Length > 0;   // kalan kanal/tip bu seride kullanıcının seçimi sayılır
         _tipElle = true;
         OdakIste(OdakCari);

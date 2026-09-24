@@ -30,7 +30,7 @@ public class GiderKalemiEntity
 }
 
 [Gecmis(GecmisTurleri.Islem, nameof(IslemEntity.Tarih), nameof(IslemEntity.Cari), nameof(IslemEntity.TutarTl), nameof(IslemEntity.Kanal))]
-public class IslemEntity
+public partial class IslemEntity
 {
     public int Id { get; set; }
     [AyKilidi]

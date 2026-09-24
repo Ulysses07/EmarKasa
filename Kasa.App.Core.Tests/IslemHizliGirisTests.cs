@@ -432,7 +432,9 @@ public class IslemHizliGirisTests
 
         vm.DuzenTarih = new DateTime(2026, 9, 20);
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(new IslemYaz(new DateOnly(2026, 9, 20), "Market", 250m, "TOPTAN", GiderTipi.KrediKarti, "fiş", 7), api.SonIslemOlustur);
+        // Kopya belge bilgisini almaz: form boş belgeyle gönderir (paket F).
+        Assert.Equal(new IslemYaz(new DateOnly(2026, 9, 20), "Market", 250m, "TOPTAN", GiderTipi.KrediKarti, "fiş", 7)
+            { Belge = new BelgeBilgisi(null, null, false) }, api.SonIslemOlustur);
     }
 
     [Fact]

@@ -15,9 +15,9 @@ namespace Kasa.App.Core;
 public partial class TopluGirisViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    private readonly IDosyaSecici? _secici;
+    private readonly ITabloSecici? _secici;
 
-    public TopluGirisViewModel(IKasaApi api, TimeProvider? zaman = null, IDosyaSecici? secici = null) : base(zaman)
+    public TopluGirisViewModel(IKasaApi api, TimeProvider? zaman = null, ITabloSecici? secici = null) : base(zaman)
     {
         _api = api;
         _secici = secici;

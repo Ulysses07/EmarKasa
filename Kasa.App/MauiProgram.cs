@@ -54,10 +54,10 @@ public static class MauiProgram
         builder.Services.AddTransient<HaftalikViewModel>();
         builder.Services.AddTransient<AylikViewModel>();
         builder.Services.AddTransient<CarilerViewModel>();
-        builder.Services.AddTransient<IslemlerViewModel>();
-        builder.Services.AddTransient<GelenlerViewModel>();      // paket C · 29
+        builder.Services.AddTransient<IslemlerViewModel>(PaketFServisleri.IslemlerModeli);   // Paket F: dosya seçici + ek açıcı
+                builder.Services.AddTransient<GelenlerViewModel>();      // paket C · 29
         builder.Services.AddTransient<TopluGirisViewModel>();    // paket C · 16
-        builder.Services.AddSingleton<IDosyaSecici, MauiDosyaSecici>();   // toplu yüklemede CSV seçimi
+        builder.Services.AddSingleton<ITabloSecici, MauiTabloSecici>();   // toplu yüklemede xlsx/CSV seçimi
         builder.Services.AddTransient<KrediKartlariViewModel>();
         builder.Services.AddTransient<CeklerViewModel>();
         builder.Services.AddTransient<GecmisViewModel>();
@@ -89,6 +89,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.KartMutabakatPage>();         // Paket D
         builder.Services.AddTransient<Views.SorularPage>();
         builder.Services.AddPaketB();   // raporlar ve ay kapanışı: yeni sayfalar, VM'ler, gezinme (PaketBKayitlari.cs)
+        builder.Services.AddPaketF();   // Paket F: fatura takibi, POS, ERP12 (MauiProgram.F.cs)
 
 #if DEBUG
         builder.Logging.AddDebug();

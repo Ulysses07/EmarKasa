@@ -281,7 +281,7 @@ public class TopluGirisTests
 
     // ---------- TopluGirisViewModel ----------
 
-    private sealed class SahteSecici : IDosyaSecici
+    private sealed class SahteSecici : ITabloSecici
     {
         public SecilenDosya? Dosya;
         public int Cagri;

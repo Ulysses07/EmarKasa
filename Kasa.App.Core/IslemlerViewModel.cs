@@ -594,6 +594,7 @@ public partial class IslemlerViewModel : TemelViewModel
         _varsayilanGun = Bugun;
         IleriTarihUyarisi = null;
         FormSifirlandi();
+        BelgeFormunuSifirla();   // Paket F: belge bölümü (IslemlerViewModel.Belge.cs)
     }
 
     [RelayCommand]
@@ -605,6 +606,7 @@ public partial class IslemlerViewModel : TemelViewModel
         _duzenEskiKartsizKK = i.Tip == GiderTipi.KrediKarti && i.KrediKartiId is null;
         IleriTarihUyarisi = null;
         FormSifirlandi();
+        BelgeFormunuDoldur(i);   // Paket F: belge bölümü (IslemlerViewModel.Belge.cs)
     }
 
     [RelayCommand]
@@ -635,10 +637,11 @@ public partial class IslemlerViewModel : TemelViewModel
         }
         IleriTarihUyarisi = null;
 
-        var g = new IslemYaz(tarih, DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
+        var g = new IslemYaz(tarih, DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId) { Belge = FormBelgesi };
         if (!uyariOnayli && await UyarilariGosterAsync(g)) return;   // "Yine de kaydet" / "Vazgeç"
         UyarilariTemizle();
         var kaydedilen = DuzenId == 0 ? await _api.IslemOlusturAsync(g) : await _api.IslemGuncelleAsync(DuzenId, g);
+        await BekleyenEkleriYukleAsync(kaydedilen, tarih);   // Paket F: seçilen fotoğraf/PDF'ler
         KayitSonrasi(kaydedilen);                                    // seri girişte tarih/kanal/tip kalır
         // Kanal/kart listeleri değişmedi: yalnız liste (ve gerekirse dönemler) yenilenir.
         await DonemleriGerekirseYenileAsync(tarih);
@@ -650,6 +653,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         await _api.IslemSilAsync(i.Id);
         if (DuzenId == i.Id) Yeni();                     // silinen kayıt formda kalmasın (sonraki kaydet 404)
+        if (ListeEkIslemi?.Id == i.Id) ListeEkleriKapat();   // Paket F: silinenin ek paneli de kapanır
         await IslemleriYukleAsync();
     });
 

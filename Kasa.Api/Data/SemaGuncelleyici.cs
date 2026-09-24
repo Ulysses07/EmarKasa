@@ -275,8 +275,10 @@ public static class SemaGuncelleyici
             Calistir(conn, tx, sql);
         var sutunlar = string.Join(", ", model.Tables.Single(t => t.Name == tablo).Columns.Select(c => $"\"{c.Name}\""));
         Calistir(conn, tx, $"INSERT INTO \"{gecici}\" ({sutunlar}) SELECT {sutunlar} FROM \"{tablo}\"");
+        var sayac = SayacOku(conn, tx, tablo);
         Calistir(conn, tx, $"DROP TABLE \"{tablo}\"");
         Calistir(conn, tx, $"ALTER TABLE \"{gecici}\" RENAME TO \"{tablo}\"");
+        SayaciKoru(conn, tx, tablo, sayac);
         foreach (var ix in model.Tables.Single(t => t.Name == tablo).Indexes)
         {
             var op = new CreateIndexOperation
@@ -286,6 +288,30 @@ public static class SemaGuncelleyici
             };
             foreach (var sql in Uret(db, op)) Calistir(conn, tx, sql);
         }
+    }
+
+    /// <summary>
+    /// Tablonun AUTOINCREMENT sayacı (<c>sqlite_sequence</c>); sayaç yoksa null. DROP TABLE sayacı siler ve
+    /// yeniden kurulan tablo kopyalanan en büyük Id'den devam ederdi: en son silinen kayıtların Id'leri yeni
+    /// kayıtlara yeniden verilirdi (Id'ye bağlı kayıtlar — işlem ekleri, geçmiş satırları — yanlış kayda bağlanırdı).
+    /// </summary>
+    private static long? SayacOku(DbConnection conn, DbTransaction tx, string tablo)
+    {
+        if (Oku(conn, tx, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'").Count == 0) return null;
+        var deger = OkuSatir(conn, tx, $"SELECT seq FROM sqlite_sequence WHERE name = '{tablo.Replace("'", "''")}'").FirstOrDefault()?[0];
+        return long.TryParse(deger, NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) ? s : null;
+    }
+
+    /// <summary>Yeniden kurulan tablonun sayacını eski değerinin altına düşürmez (yalnız AUTOINCREMENT tablolarda).</summary>
+    private static void SayaciKoru(DbConnection conn, DbTransaction tx, string tablo, long? eski)
+    {
+        if (eski is not long s) return;
+        var ad = tablo.Replace("'", "''");
+        var tanim = OkuSatir(conn, tx, $"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '{ad}'").FirstOrDefault()?[0];
+        if (tanim is null || !tanim.Contains("AUTOINCREMENT", StringComparison.OrdinalIgnoreCase)) return;
+        Calistir(conn, tx, SayacOku(conn, tx, tablo) is null
+            ? $"INSERT INTO sqlite_sequence (name, seq) VALUES ('{ad}', {s.ToString(CultureInfo.InvariantCulture)})"
+            : $"UPDATE sqlite_sequence SET seq = MAX(seq, {s.ToString(CultureInfo.InvariantCulture)}) WHERE name = '{ad}'");
     }
 
     /// <summary>

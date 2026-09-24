@@ -17,6 +17,13 @@ namespace Kasa.Api.Data;
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class AyKilidiAttribute : Attribute;
 
+/// <summary>
+/// Para hesabına etkisi olmayan alan (ör. işlemin belge bilgisi): kilitli aydaki kayıtta yalnız bu
+/// alanlar değişiyorsa yazma serbesttir. Fatura çoğu zaman ay kapandıktan sonra gelir.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class AyKilidiDisiAttribute : Attribute;
+
 /// <summary>Kilitli aya dokunan yazma. API bunu anlaşılır bir 409'a çevirir.</summary>
 public sealed class AyKilitliHatasi(string mesaj) : InvalidOperationException(mesaj);
 
@@ -114,6 +121,12 @@ public static class AyKilidiKurali
     /// <summary>Ay (ayın herhangi bir günü) yazmaya kapalı mı (bkz. <see cref="EtkinKilitliAylar"/>).</summary>
     public static bool KilitliMi(KasaDbContext db, DateOnly ay) => EtkinKilitliAylar(db).Contains(AyBicimi.AyBasi(ay));
 
+    // Güncellenen kayıtta yalnız [AyKilidiDisi] alanlar mı değişti (fatura geldi, belge no)?
+    private static bool YalnizKilitDisiDegisti(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry e)
+        => e.State == EntityState.Modified
+           && e.Properties.Where(p => p.IsModified).ToList() is { Count: > 0 } degisen
+           && degisen.All(p => p.Metadata.PropertyInfo?.IsDefined(typeof(AyKilidiDisiAttribute)) == true);
+
     /// <summary>
     /// Değişiklik izleyicideki yazmaları kilitlere karşı denetler; kilitli aya dokunan varsa
     /// <see cref="AyKilitliHatasi"/> fırlatır (hiçbir şey yazılmaz).
@@ -128,7 +141,7 @@ public static class AyKilidiKurali
         {
             if (e.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
             var tip = e.Metadata.ClrType;
-            if (KilitAlanlari(tip).Count > 0)
+            if (KilitAlanlari(tip).Count > 0 && !YalnizKilitDisiDegisti(e))
             {
                 if (e.State != EntityState.Deleted)
                     aylar.UnionWith(EtkiledigiAylar(tip, a => e.Property(a).CurrentValue));

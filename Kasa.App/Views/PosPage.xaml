@@ -1,0 +1,422 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · PosPage (Paket F) — POS / sanal POS: bugün bankada bloke duran net, valör takvimi, ayın komisyonu;
+     editörde satış ve POS tanımı formları. YALNIZ BİLGİ: kasa, devir ve kârlılık rakamlarına girmez. -->
+<ContentPage
+    x:Class="Kasa.App.Views.PosPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:conv="clr-namespace:Kasa.App.Converters"
+    x:Name="Sayfa"
+    Title="POS"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <ContentPage.Resources>
+        <conv:PosSaglayiciConverter x:Key="SaglayiciAdi" />
+    </ContentPage.Resources>
+
+    <ScrollView>
+        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="18"
+                             MaximumWidthRequest="1160">
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="POS" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Bloke, valör ve komisyon · yalnız bilgi, kasaya ve kârlılığa girmez"
+                           Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+
+            <!-- Özet -->
+            <Grid ColumnDefinitions="{OnIdiom Desktop='*,*,*', Default='*'}"
+                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto'}"
+                  ColumnSpacing="12" RowSpacing="12">
+                <Border Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Bugün bankada bloke (net)" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding Ozet.BlokeNet, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Ink}" />
+                        <Label Text="{Binding Ozet.BlokeAdet, StringFormat='{0} satış valör bekliyor'}"
+                               Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                        <!-- Kanal kanal bloke (bugüne göre; geçen ayın hâlâ bloke satışı dahil) -->
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding BlokeKanallari}" Spacing="2" Margin="0,6,0,0"
+                                             IsVisible="{Binding BlokeKanalVar}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <Label Style="{StaticResource LblRowSecondary}" FontSize="12">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding Kanal}" />
+                                                    <Span Text="{Binding Adet, StringFormat=' · {0} satış'}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                        </Label>
+                                        <Label Grid.Column="1" Text="{Binding Net, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                                               Style="{StaticResource LblRowSecondary}" FontSize="12" HorizontalTextAlignment="End" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="{OnIdiom Desktop=1, Default=0}" Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                        Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="{Binding AyBasligi, StringFormat='{0} · komisyon'}" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding Ozet.ToplamKomisyon, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Neg}" />
+                        <Label Text="{Binding Ozet.ToplamBrut, Converter={StaticResource ParaBicim}, StringFormat='Brüt {0} ₺'}"
+                               Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="{OnIdiom Desktop=2, Default=0}" Grid.Row="{OnIdiom Desktop=0, Default=2}"
+                        Style="{StaticResource CardForm}">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="{Binding AyBasligi, StringFormat='{0} · net'}" Style="{StaticResource LblSection}" />
+                        <Label Text="{Binding Ozet.ToplamNet, Converter={StaticResource ParaBicim}, StringFormat='{0} ₺'}"
+                               FontFamily="PlexSansBold" FontSize="19" TextColor="{StaticResource Pos}" />
+                        <Label Text="Brüt − komisyon" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <!-- Valör takvimi: bugün bloke duranların hesaba geçeceği günler -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="Valör takvimi" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Ozet.Valorler}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="44" ColumnDefinitions="Auto,*,140" ColumnSpacing="12">
+                                        <Border Style="{StaticResource DateChip}" WidthRequest="84" VerticalOptions="Center">
+                                            <Label Text="{Binding Valor, StringFormat='{0:dd.MM.yyyy}'}" Style="{StaticResource LblDateChip}" />
+                                        </Border>
+                                        <Label Grid.Column="1" Text="{Binding Adet, StringFormat='{0} satış'}"
+                                               Style="{StaticResource LblRowSecondary}" VerticalOptions="Center" />
+                                        <Label Grid.Column="2" Text="{Binding Net, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <Label Text="Blokajı süren satış yok." Style="{StaticResource LblRowSecondary}" Margin="18,0,18,14"
+                           IsVisible="{Binding ValorYok}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Ay seçimi -->
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Button Text="‹" Command="{Binding OncekiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding AyBasligi}" FontFamily="PlexSansSemiBold" FontSize="20"
+                       TextColor="{StaticResource Ink}" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Button Grid.Column="2" Text="›" Command="{Binding SonrakiAyCommand}" Style="{StaticResource BtnSecondary}"
+                        WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Kanal başına ayın POS toplamları -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <Grid Padding="18,16,18,12" ColumnDefinitions="*,110,110,110" ColumnSpacing="12">
+                        <Label Text="Kanal" Style="{StaticResource LblSection}" />
+                        <Label Grid.Column="1" Text="Brüt" Style="{StaticResource LblSection}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="2" Text="Komisyon" Style="{StaticResource LblSection}" HorizontalTextAlignment="End" />
+                        <Label Grid.Column="3" Text="Net" Style="{StaticResource LblSection}" HorizontalTextAlignment="End" />
+                    </Grid>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Ozet.Kanallar}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,0" HeightRequest="46" ColumnDefinitions="*,110,110,110" ColumnSpacing="12">
+                                        <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                                            <Label Text="{Binding Kanal}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding Adet, StringFormat='{0} satış'}" Style="{StaticResource LblRowSecondary}" FontSize="11.5" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding Brut, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}" VerticalOptions="Center" />
+                                        <Label Grid.Column="2" Text="{Binding Komisyon, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}" TextColor="{StaticResource Neg}" VerticalOptions="Center" />
+                                        <Label Grid.Column="3" Text="{Binding Net, Converter={StaticResource ParaBicim}}"
+                                               Style="{StaticResource LblMoney}" VerticalOptions="Center" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Grid ColumnDefinitions="{OnIdiom Desktop='380,*', Default='*'}"
+                  RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}" ColumnSpacing="20" RowSpacing="18">
+
+                <!-- SOL: formlar (yalnız editör) -->
+                <VerticalStackLayout Spacing="16" IsVisible="{Binding EditorMu}">
+                    <Border Style="{StaticResource CardForm}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="{Binding SatisFormBasligi}" Style="{StaticResource LblSection}" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Tarih" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <DatePicker Date="{Binding SatisTarih}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="POS" Style="{StaticResource LblField}" />
+                                <Label Text="Henüz POS yok. Aşağıdan POS tanımı ekleyin." Style="{StaticResource LblRowSecondary}"
+                                       FontSize="12" IsVisible="{Binding TanimYok}" />
+                                <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding PosCipleri}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding BindingContext.SecPosCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Brüt tutar" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding SatisBrut, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                           Style="{StaticResource EntryMoney}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Komisyon %" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding SatisOran}" Placeholder="POS'unki" Keyboard="Numeric" />
+                                    </Border>
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                    <Label Text="Blokaj (gün)" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding SatisBlokaj}" Placeholder="POS'unki" Keyboard="Numeric" />
+                                    </Border>
+                                </VerticalStackLayout>
+                            </Grid>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Not" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding SatisNot}" Placeholder="İsteğe bağlı (ör. Z raporu no)" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <Label Text="{Binding SatisOnizleme}" Style="{StaticResource LblRowSecondary}"
+                                   IsVisible="{Binding SatisOnizleme, Converter={StaticResource DoluIse}}" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Button Text="Satışı kaydet" Command="{Binding SatisKaydetCommand}" />
+                                <Button Grid.Column="1" Text="Yeni" Command="{Binding SatisYeniCommand}"
+                                        Style="{StaticResource BtnSecondary}" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource CardForm}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="{Binding TanimFormBasligi}" Style="{StaticResource LblSection}" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Ad" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding TanimAd}" Placeholder="ör. Garanti POS, iyzico" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Sağlayıcı" Style="{StaticResource LblField}" />
+                                <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding SaglayiciCipleri}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding BindingContext.SecSaglayiciCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Kanal" Style="{StaticResource LblField}" />
+                                <FlexLayout Wrap="Wrap" AlignItems="Center" BindableLayout.ItemsSource="{Binding KanalCipleri}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding BindingContext.SecTanimKanalCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                                <!-- Kanal değişince: geçmiş satışlar eski kanalda kalır; yanlış girilmiş kanal için hepsi taşınabilir -->
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding TanimKanalDegisti}">
+                                    <CheckBox IsChecked="{Binding TanimEskiSatislaraUygula}" VerticalOptions="Center" />
+                                    <Label Grid.Column="1" Text="Önceki satışları da yeni kanala taşı (işaretsizse geçmiş aylar eski kanalda kalır)"
+                                           Style="{StaticResource LblRowSecondary}" FontSize="12.5" VerticalOptions="Center"
+                                           LineBreakMode="WordWrap" />
+                                </Grid>
+                            </VerticalStackLayout>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="Komisyon %" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding TanimOran}" Placeholder="ör. 1,79" Keyboard="Numeric" />
+                                    </Border>
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                    <Label Text="Blokaj (gün)" Style="{StaticResource LblField}" />
+                                    <Border Style="{StaticResource FieldBorder}">
+                                        <Entry Text="{Binding TanimBlokaj}" Placeholder="0" Keyboard="Numeric" />
+                                    </Border>
+                                </VerticalStackLayout>
+                            </Grid>
+                            <HorizontalStackLayout Spacing="9">
+                                <Switch IsToggled="{Binding TanimAktif}" VerticalOptions="Center" />
+                                <Label Text="Aktif (pasif POS yeni satışta seçilemez)" Style="{StaticResource LblRowPrimary}"
+                                       FontSize="13" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Button Text="POS kaydet" Command="{Binding TanimKaydetCommand}" />
+                                <Button Grid.Column="1" Text="Yeni" Command="{Binding TanimYeniCommand}"
+                                        Style="{StaticResource BtnSecondary}" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- SAĞ: satışlar ve POS tanımları (her iki rol) -->
+                <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}" Grid.Row="{OnIdiom Desktop=0, Default=1}"
+                                     Spacing="16">
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="{Binding AyBasligi, StringFormat='{0} · POS satışları'}" Style="{StaticResource LblSection}"
+                                   Margin="18,16,18,12" />
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Satislar}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <VerticalStackLayout>
+                                            <BoxView Style="{StaticResource RowSeparator}" />
+                                            <Grid Padding="18,8" ColumnDefinitions="Auto,*,120,Auto,Auto" ColumnSpacing="10">
+                                                <Border Style="{StaticResource DateChip}" WidthRequest="84" VerticalOptions="Center">
+                                                    <Label Text="{Binding Tarih, StringFormat='{0:dd.MM.yyyy}'}" Style="{StaticResource LblDateChip}" />
+                                                </Border>
+                                                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                                    <HorizontalStackLayout Spacing="8">
+                                                        <Label Text="{Binding PosAd}" Style="{StaticResource LblRowPrimary}" />
+                                                        <Border Style="{StaticResource StatusChip}" Background="{StaticResource BrushGreenSoft}"
+                                                                IsVisible="{Binding Bloke}">
+                                                            <Label Text="Bloke" Style="{StaticResource LblStatusChip}" TextColor="{StaticResource Green}" />
+                                                        </Border>
+                                                    </HorizontalStackLayout>
+                                                    <Label Style="{StaticResource LblRowSecondary}" FontSize="12">
+                                                        <Label.FormattedText>
+                                                            <FormattedString>
+                                                                <Span Text="{Binding Kanal}" />
+                                                                <Span Text="{Binding KomisyonOrani, StringFormat=' · %{0:0.####}'}" />
+                                                                <Span Text="{Binding Komisyon, Converter={StaticResource ParaBicim}, StringFormat=' komisyon {0} ₺'}" />
+                                                                <Span Text="{Binding Valor, StringFormat=' · valör {0:dd.MM.yyyy}'}" />
+                                                            </FormattedString>
+                                                        </Label.FormattedText>
+                                                    </Label>
+                                                    <Label Text="{Binding Not}" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                           IsVisible="{Binding Not, Converter={StaticResource DoluIse}}" />
+                                                </VerticalStackLayout>
+                                                <VerticalStackLayout Grid.Column="2" Spacing="1" VerticalOptions="Center">
+                                                    <Label Text="{Binding Net, Converter={StaticResource ParaBicim}}" Style="{StaticResource LblMoney}" />
+                                                    <Label Text="{Binding BrutTutar, Converter={StaticResource ParaBicim}, StringFormat='brüt {0}'}"
+                                                           Style="{StaticResource LblRowSecondary}" FontSize="11.5" HorizontalTextAlignment="End" />
+                                                </VerticalStackLayout>
+                                                <Button Grid.Column="3" Text="Düzenle" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                        IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                        Command="{Binding BindingContext.SatisDuzenleCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Grid.Column="4" Text="Sil" Style="{StaticResource BtnRowDelete}" VerticalOptions="Center"
+                                                        IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                        Command="{Binding BindingContext.SatisSilCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                            </Grid>
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                            <Label Text="Bu ay POS satışı girilmedi." Style="{StaticResource LblRowSecondary}" Margin="18,0,18,14"
+                                   IsVisible="{Binding SatisYok}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="POS tanımları" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                            <!-- POS silme onayı (satışı olan POS silinemez: sunucu 409 ile "pasif yapın" der) -->
+                            <Border Style="{StaticResource ErrorBox}" Margin="18,0,18,12" IsVisible="{Binding TanimSilmeOnayiBekliyor}">
+                                <VerticalStackLayout Spacing="10">
+                                    <Label Text="{Binding SilinecekTanim.Ad, StringFormat='{0} silinsin mi?'}" Style="{StaticResource LblError}" />
+                                    <HorizontalStackLayout Spacing="8">
+                                        <Button Text="Evet, sil" Command="{Binding TanimSilOnaylaCommand}" Style="{StaticResource BtnRowDelete}" />
+                                        <Button Text="Vazgeç" Command="{Binding TanimSilVazgecCommand}" Style="{StaticResource BtnSecondary}" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Tanimlar}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <VerticalStackLayout>
+                                            <BoxView Style="{StaticResource RowSeparator}" />
+                                            <Grid Padding="18,8" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                                                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                                    <Label Text="{Binding Ad}" Style="{StaticResource LblRowPrimary}" />
+                                                    <Label Style="{StaticResource LblRowSecondary}" FontSize="12">
+                                                        <Label.FormattedText>
+                                                            <FormattedString>
+                                                                <Span Text="{Binding Saglayici, Converter={StaticResource SaglayiciAdi}}" />
+                                                                <Span Text="{Binding KanalAd, StringFormat=' · {0}'}" />
+                                                                <Span Text="{Binding KomisyonOrani, StringFormat=' · %{0:0.####}'}" />
+                                                                <Span Text="{Binding BlokajGunu, StringFormat=' · {0} gün blokaj'}" />
+                                                            </FormattedString>
+                                                        </Label.FormattedText>
+                                                    </Label>
+                                                    <Label Text="Pasif" Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                           TextColor="{StaticResource Neg}"
+                                                           IsVisible="{Binding Aktif, Converter={StaticResource TersIse}}" />
+                                                </VerticalStackLayout>
+                                                <Button Grid.Column="1" Text="Düzenle" Style="{StaticResource BtnRowEdit}" VerticalOptions="Center"
+                                                        IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                        Command="{Binding BindingContext.TanimDuzenleCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Grid.Column="2" Text="Sil" Style="{StaticResource BtnRowDelete}" VerticalOptions="Center"
+                                                        IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                        Command="{Binding BindingContext.TanimSilIsteCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                            </Grid>
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                            <Label Text="Henüz POS tanımı yok." Style="{StaticResource LblRowSecondary}" Margin="18,0,18,14"
+                                   IsVisible="{Binding TanimYok}" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </Grid>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

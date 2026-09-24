@@ -120,6 +120,16 @@
     <FlyoutItem x:Name="SorularItem" Title="Sorular" Route="sorular" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:SorularPage}" />
     </FlyoutItem>
+    <!-- Paket F: görünürlük AppShell.F.cs'te (her iki rol) -->
+    <FlyoutItem x:Name="FaturaTakibiItem" Title="Fatura Takibi" Route="faturatakibi" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:FaturaTakibiPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="PosItem" Title="POS" Route="pos" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:PosPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="Erp12Item" Title="ERP12 Karşılaştırma" Route="erp12" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:Erp12Page}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="GecmisItem" Title="Geçmiş" Route="gecmis" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:GecmisPage}" />
     </FlyoutItem>

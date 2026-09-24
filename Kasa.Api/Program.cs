@@ -11,6 +11,7 @@ using Kasa.Api.Data;
 using Kasa.Api.Endpoints;
 using Kasa.Core;
 using Kasa.Api.Servisler;
+using Kasa.Api.Endpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.Sqlite;
@@ -38,6 +39,7 @@ builder.Services.AddSingleton(sp => new YedekDurumu
     Etkin = !string.IsNullOrWhiteSpace(sp.GetRequiredService<IConfiguration>()["Kasa:YedekKlasoru"]),
 });
 builder.Services.AddHostedService<YedekServisi>();
+builder.Services.AddBelgeEkleri();   // Paket F: işlem ekleri deposu + gece temizliği
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -140,6 +142,7 @@ app.Use((ctx, next) =>
     h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
     return next();
 });
+app.UseMobilWeb();   // Paket F: /m telefon uygulaması (kendi CSP'si) + /api yazmalarında aynı kaynak koşulu
 app.UseForwardedHeaders();
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -522,6 +525,7 @@ api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, st
         if (limit is { } l2) q = q.Take(l2);
         sonuc = q.ToList();
     }
+    BelgeKurallari.EkSayilariniYaz(db, sonuc);   // Paket F: listede ek sayısı
     if (limit is not null) http.Response.Headers["X-Toplam-Kayit"] = toplam.ToString();
     return Results.Ok(sonuc);
 });
@@ -542,6 +546,7 @@ api.MapPut("/islemler/{id:int}", (int id, IslemEntity gelen, KasaDbContext db) =
     e.Tarih = gelen.Tarih; e.Cari = gelen.Cari; e.TutarTl = gelen.TutarTl;
     e.Kanal = gelen.Kanal; e.Tip = gelen.Tip; e.Not = gelen.Not;
     e.KrediKartiId = gelen.KrediKartiId;
+    BelgeKurallari.Kopyala(gelen, e);   // yalnız gövdede gelen belge alanları (eski istemci silmesin)
     db.SaveChanges();
     return Results.Ok(e);
 })).RequireAuthorization("Editor");
@@ -551,7 +556,10 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
     if (e is null) return Results.NotFound();
     // Bu işlemi oluşturan tekrarlayan gider kararı izleyiciye alınır: bağın kopması geçmişe de yazılsın.
     db.TekrarlayanGirisler.Where(g => g.IslemId == id).Load();
+    using var tx = db.Database.BeginTransaction();
+    BelgeKurallari.IslemSiliniyor(db, id);   // Paket F: ekler işlemden ayrılır, 30 gün geri alınmayı bekler
     db.Islemler.Remove(e); db.SaveChanges();
+    tx.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
@@ -863,12 +871,16 @@ api.MapPost("/gecmis/{id:int}/geri-al", (int id, KasaDbContext db, HesapServisi 
     db.GeriAlmaKaydi = true;   // eklenen kayıt geçmişe "Eklendi (geri alındı)" olarak yazılır
     db.SaveChanges();
     db.GeriAlmaKaydi = false;
+    BelgeKurallari.GeriAlinanIslemeBagla(db, d, yeni);   // silinen işlemin ekleri yeni işleme
     return Results.Ok(yeni);
 })).RequireAuthorization("Editor");
 
 // Paket D: çek/senet, tekrarlayan gider, kart ekstresi mutabakatı, kasa sayımı ekleri.
 api.MapCekEvrak(Yaz, CekHatasi).MapTekrarlayanEkleri(Yaz, TekrarlayanAyHatasi, KayitliKalem).MapKartMutabakat(Yaz).MapKasaSayimEkleri(Yaz);
 api.MapHizliGirisEndpoints(IslemHatasi, CariHatasi); // paket C: uyarılar, toplu yükleme, gelen tablosu, son silme
+api.MapBelgeEndpoints();          // Paket F: işlem ekleri, belge alanları
+api.MapFaturaTakibiEndpoints();   // Paket F: fatura takibi, muhasebeci listesi
+api.MapPosEndpoints();            // Paket F: POS tanımları, satışları, özet
 
 app.Run();
 
@@ -1021,6 +1033,7 @@ static string? IslemHatasi(KasaDbContext db, IslemEntity e)
     e.Cari = e.Cari?.Trim() ?? "";
     if (e.Cari.Length == 0) return "Cari boş olamaz.";
     if (e.Not is { Length: > 1000 }) return "Not en fazla 1000 karakter olabilir.";
+    if (BelgeKurallari.Hata(e) is string belgeHatasi) return belgeHatasi;
     if (!Enum.IsDefined(e.Tip)) return "Geçersiz gider tipi.";
     if (e.Kanal != Kanallar.Ortak && !db.Kanallar.Any(k => k.Ad == e.Kanal))
         return $"'{Metin.Kisalt(e.Kanal)}' adında bir kanal yok.";

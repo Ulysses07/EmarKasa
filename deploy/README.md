@@ -9,7 +9,8 @@ Windows uygulaması bu adrese bağlanır (`Kasa.App/MauiProgram.cs`).
 - Compose dizini: `/opt/kasa/deploy` · Servis: `kasa` · Konteyner: `kasa-app`
 - Veri: host'ta `/opt/kasa/deploy/kasa-data/`, konteynerde `/data/`
   (`kasa.db` ile birlikte `kasa.db-wal` ve `kasa.db-shm`, yedekler `yedek/` altında,
-  sunucu dışı yedeğin ayarı ve durumu `uzak-yedek/` altında).
+  fiş/fatura ekleri `belgeler/` altında, sunucu dışı yedeğin ayarı ve durumu `uzak-yedek/` altında).
+- Telefon uygulaması (salt okunur): `https://kasa.emarglobal.com/m`. Aşağıdaki "Telefon uygulaması (/m)" bölümüne bakın.
 - Sunucu dışı yedek servisi: `kasa-yedek` (konteyner `kasa-yedek`). Aşağıdaki "Sunucu dışı yedek" bölümüne bakın.
 
 ## Kodu VPS'e gönderme (rsync)
@@ -106,6 +107,25 @@ tekil index'leri ve tek seferlik çift kayıt temizliğini de uygular. Adımlar 
    Uygulama açılamaz ya da yedek alamaz.
 4. `docker compose up -d`, sonra log'u izleyin. Çift kayıt temizliği ve index oluşturma
    ilk açılışta bir kez çalışır. Log'da hata olmamalı. `/health` 200 dönmeli.
+
+### Belge, POS, ERP12 ve telefon sürümüne (Paket F) geçiş
+
+Bu sürüm fiş/fatura eklerini, fatura takibini, POS kayıtlarını ve `/m` telefon uygulamasını
+getirir. Normal "Güncelleme" adımları yeterlidir; ek olarak:
+
+1. `docker compose build` bu kez `kasa-yedek` imajını da yeniden derler (eklerin sunucu dışı
+   yedeği eklendi). `docker compose up -d` iki servisi de yeniler.
+2. Yeni tablolar (`IslemEkleri`, `PosTanimlari`, `PosSatislari`) ve `Islemler`'deki yeni belge
+   sütunları açılışta otomatik eklenir. Log'da `Şema güncellendi: ...` satırları görünür.
+   Var olan işlemlerin belge alanları boş başlar. Para hesapları değişmez.
+3. Ek klasörü (`kasa-data/belgeler/`) ilk ek yüklendiğinde uygulama tarafından oluşturulur.
+   `kasa-data/` 1654'e aitse bir şey yapmaya gerek yoktur. Emin değilseniz:
+   `sudo mkdir -p kasa-data/belgeler && sudo chown -R 1654:1654 kasa-data`
+4. **nginx kurulumunda** (`docker-compose.nginx.yml`) nginx ayarını "Telefon uygulaması (/m) →
+   nginx" bölümüne göre güncelleyin (`Host` başlığı ve `client_max_body_size`). Caddy
+   kurulumunda bir şey gerekmez.
+5. Doğrulayın: `curl -sI https://kasa.emarglobal.com/m/ | head -1` → `HTTP/2 200` (ya da
+   `HTTP/1.1 200`).
 
 ## Root olmayan kullanıcı (UID 1654)
 
@@ -232,6 +252,93 @@ Eşikler (varsayılan) gerekirse compose'a `Kasa__...` satırı eklenerek deği�
   İzleyici `https://kasa.emarglobal.com/health` 200 dönmezse ve son yedek 1 günden
   eskiyse uyarı göndermeli.
 
+## Fiş/fatura ekleri (`belgeler/`)
+
+İşlemlere eklenen fiş/fatura fotoğrafları ve PDF'ler veritabanında değil, diskte durur:
+host'ta `/opt/kasa/deploy/kasa-data/belgeler/`, konteynerde `/data/belgeler/`.
+Veritabanında yalnız her ekin adı, türü, boyutu ve hangi işleme ait olduğu tutulur.
+
+- **Klasör:** Varsayılan, veritabanı dosyasının yanındaki `belgeler/`. Başka bir yere almak
+  için compose'daki `kasa` servisine `Kasa__BelgeKlasoru: "/data/baska-klasor"` ekleyin. Klasör
+  `/data` altında kalmalı (host'ta `kasa-data/` içinde), yoksa ekler konteynerle birlikte kaybolur
+  ve sunucu dışı yedeğe girmez. Değiştirirseniz `kasa-yedek` servisine de aynı yolu
+  `KASA_BELGE_KLASORU` olarak verin.
+- **Kurallar:** Ek başına en fazla 10 MB, işlem başına en fazla 10 ek. Yalnız JPEG, PNG, WEBP,
+  HEIC ve PDF kabul edilir. Tür, dosya adına değil içeriğin ilk baytlarına göre belirlenir.
+  Diskteki ad rastgeledir (`3f…a1.pdf`); kullanıcının verdiği ad yalnız indirmede kullanılır.
+  Yükleme ve silme yalnız editör rolüyle yapılır; izleyici ekleri görebilir ve indirebilir.
+- **Temizlik:** Uygulama her gece 04:00'ten sonra şunları siler:
+  - işlemi 31 günden önce silinmiş eklerin dosyasını ve kaydını (30 günlük geri alma süresi +
+    1 gün; işlem geçmişten geri alınırsa ekleri yeni işleme bağlanır),
+  - klasörde kaydı olmayan, 30 günden eski ek dosyalarını,
+  - 6 saatten eski yarım kalmış yüklemeleri (`.*.tmp`).
+
+  Log satırı: `Ek temizliği: ...`. Başka dosyalara dokunmaz.
+- **Disk:** Telefon fotoğrafı ortalama 1–3 MB'tır. Günde 10 ek yaklaşık ayda 0,5–1 GB eder.
+  Kontrol: `du -sh /opt/kasa/deploy/kasa-data/belgeler; df -h /opt`
+- **Yedek:** Uygulamanın günlük veritabanı yedeği (`yedek/kasa-*.db`) ek **dosyalarını içermez**.
+  Eklerin kopyası `kasa-yedek` servisiyle alınır: her gece yeni ekler şifreli olarak uzaktaki
+  `belgeler/` klasörüne gönderilir ("Sunucu dışı yedek"). Elle kopya için (kendi bilgisayarınızda):
+  `rsync -az user@VPS:/opt/kasa/deploy/kasa-data/belgeler/ ~/kasa-belgeler/` (`--delete` **kullanmayın**).
+- **Taşıma/geri yükleme:** Klasörü kopyaladıktan sonra `sudo chown -R 1654:1654 kasa-data`.
+  Veritabanı eski bir yedekten dönülse de ekler klasörde kalır. Eski veritabanının bildiği bir ek
+  sunucuda artık yoksa (temizlikte silinmişse) `docker compose run --rm kasa-yedek ekleri-geri-al`
+  onu uzak kopyadan getirir. Kaydı olmayan dosyaları gece temizliği 30 gün sonra kaldırır.
+
+## Telefon uygulaması (`/m`)
+
+`https://kasa.emarglobal.com/m` telefondan tarayıcıyla açılan **salt okunur** bir uygulamadır:
+Panel, Haftalık, Aylık, Çekler ve Kredi kartları ekranları. Hiçbir kaydı değiştirmez; ayrı bir
+kurulum ya da mağaza gerektirmez. Kod `Kasa.Api/wwwroot/m/` altındadır ve API ile aynı imajda
+yayınlanır.
+
+- **Giriş:** İzleyici şifresi (kullanıcı adı boş) ya da editör kullanıcı adı ve şifresi. Oturum
+  30 gün süren, JavaScript'in okuyamadığı bir çerezde (`kasa_auth`, HttpOnly, SameSite=Strict,
+  Secure) tutulur; şifre ya da token telefonda saklanmaz. "Çıkış" oturumu sunucuda da kapatır.
+  Masaüstünde Ayarlar → "Tüm oturumları kapat" telefon oturumlarını da kapatır.
+- **Ana ekrana ekleme:** iPhone'da Safari → Paylaş → "Ana Ekrana Ekle". Android'de Chrome → ⋮
+  menü → "Uygulamayı yükle" (ya da "Ana ekrana ekle"). Uygulama tam ekran açılır.
+- **Çevrimdışı:** Yalnız uygulamanın kendi dosyaları (HTML/CSS/JS/simgeler) önbelleğe alınır.
+  Kasa verileri (`/api`) **hiçbir zaman** önbelleğe alınmaz. Bağlantı kesilirse ekranın üstünde
+  "Bağlantı yok" uyarısı çıkar; o an açık olan ekran kalır ama önbellekten eski veri getirilmez.
+- **Güvenlik:** `/m` kendi sıkı `Content-Security-Policy` başlığını gönderir (yalnız kendi
+  script/stil dosyaları, satır içi script yok, veri yalnız aynı adresten). API, tarayıcıdan gelen
+  ve başka bir siteden kaynaklanan yazma isteklerini (POST/PUT/DELETE) **403** ile reddeder
+  (`Sec-Fetch-Site`, yoksa `Origin` ile `Host` karşılaştırılır). Masaüstü uygulaması bu
+  başlıkları göndermez ve etkilenmez.
+- **Güncelleme:** Yeni sürüm yayınlandığında telefon bir sonraki açılışta yeni dosyaları alır
+  (dosyalar her açılışta sunucuya sorulur).
+
+**Caddy:** Ek ayar gerekmez; Caddy `Host` başlığını olduğu gibi iletir. `import security_headers`
+kendi `Content-Security-Policy` başlığını ekliyorsa tarayıcı iki politikayı birlikte uygular.
+Kontrol: `curl -sI https://kasa.emarglobal.com/m/ | grep -i content-security-policy` tek satır
+dönmeli ve `script-src 'self'` içermeli. İki satır dönüyor ve telefon ekranı boş kalıyorsa
+`kasa.emarglobal.com` bloğunda o snippet yerine CSP içermeyen başlıkları kullanın; uygulama
+tüm yanıtlar için CSP'yi zaten kendisi gönderir.
+
+**nginx (`docker-compose.nginx.yml`):** Kasa'nın `server` bloğunda şunlar olmalı. `Host` başlığı
+iletilmezse `Sec-Fetch-Site` göndermeyen eski tarayıcılarda giriş/çıkış 403 alır;
+`client_max_body_size` olmazsa nginx 1 MB'tan büyük ekleri reddeder (413).
+
+```nginx
+client_max_body_size 12m;
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Sonra `sudo nginx -t && sudo systemctl reload nginx`.
+
+| Belirti | Ne yapmalı |
+|---|---|
+| `/m` 404 dönüyor | İmaj eski ya da `wwwroot/m` yayına girmemiş: `docker compose build` + `up -d`; log'da `wwwroot/m bulunamadı` uyarısına bakın |
+| Giriş "Başka bir siteden gelen istek reddedildi" (403) | Proxy `Host` başlığını değiştiriyor (nginx: `proxy_set_header Host $host;`) ya da sayfa farklı bir adresten açılmış |
+| Giriş sonrası hemen yeniden giriş ekranı | Tarayıcı çerezi kaydetmiyor: sayfa `https://` ile açılmalı (çerez `Secure`), gizli sekme/çerez engeli kapalı olmalı |
+| Ekran boş, konsolda CSP hatası | Yukarıdaki "Caddy" notu: ikinci bir CSP başlığı ekleniyor |
+
 ## Yedek
 
 - **Otomatik günlük yedek:** Uygulama her gün `kasa-data/yedek/kasa-YYYY-AA-GG.db` yedeğini
@@ -249,6 +356,8 @@ Eşikler (varsayılan) gerekirse compose'a `Kasa__...` satırı eklenerek deği�
   Ek olarak yedek klasörünü elle de çekebilirsiniz (kendi bilgisayarınızda günlük cron ile):
   `rsync -az user@VPS:/opt/kasa/deploy/kasa-data/yedek/ ~/kasa-yedek/`
   (Burada `--delete` **kullanmayın**; sunucuda silinen eski yedekler kopyada kalsın.)
+- **Fiş/fatura ekleri** veritabanı yedeğine girmez; ayrı kopyalanır. Yukarıdaki "Fiş/fatura
+  ekleri" bölümüne bakın.
 
 ## Geri yükleme
 
@@ -276,6 +385,7 @@ docker compose logs --tail 30 kasa
 - Elle yedekten dönülüyorsa (`~/kasa-elle-yedek/...`) ve orada `kasa.db-wal` varsa, üç
   dosyayı birlikte geri koyun. `-wal`'ı silmeyin; o set tutarlıdır.
 - Uzak (sunucu dışı) kopyadan dönmek için: aşağıdaki "Uzak kopyadan geri yükleme".
+- Fiş/fatura ekleri (`kasa-data/belgeler/`) bu adımlardan etkilenmez; taşımayın, silmeyin.
 
 ## Sunucu dışı yedek
 
@@ -294,6 +404,11 @@ Ne yapar:
 - **Her Pazar** en yeni uzak kopyayı geri indirir, şifresini çözer, açar ve SQLite bütünlük
   denetimi (`PRAGMA integrity_check`) yapar. Yani yedeğin gerçekten geri yüklenebildiği
   haftada bir denenir.
+- Aynı gece `kasa-data/belgeler/` içindeki **yeni fiş/fatura eklerini** de aynı parolayla
+  şifreleyip uzaktaki `belgeler/` klasörüne gönderir. Ekler değişmediği için yalnız yeniler
+  gider. Uzakta **hiçbir ek silinmez**: eski bir veritabanı yedeğine dönülürse, sonradan silinen
+  işlemlerin ekleri de bulunur. Ekler gönderilemezse veritabanı yedeği yine gönderilir,
+  `uyari` alanında "Fiş/fatura ekleri gönderilemedi" yazar.
 - Sonucu `kasa-data/uzak-yedek/durum.json` dosyasına yazar. `/health` yanıtındaki
   `uzakYedek` alanı bunu gösterir.
 
@@ -455,7 +570,8 @@ sonra olmalı; gece yarısından sonraki ilk saat içinde alınır, 01:30'dan ö
    - `sonBasari`: son başarılı gönderim. Saat UTC yazılır; Türkiye saati 3 saat ileridir.
    - `hata`: `null` olmalı. Doluysa kısa sebep burada, ayrıntısı `hataAyrinti`'dadır.
    - `dogrulamaSonucu`: `"ok"` olmalı (ilk Pazar'dan ya da elle `dogrula`'dan sonra görünür).
-   - `uyari`: ör. o günün yerel yedeği yoksa ya da eski kopyalar silinemediyse dolar.
+   - `uyari`: ör. o günün yerel yedeği yoksa, eski kopyalar ya da ekler gönderilemediyse dolar.
+   - `ekSayisi`: son gönderimde yerel ek klasöründeki ek sayısı.
 2. **Sağlık adresi:** `curl -s https://kasa.emarglobal.com/health`. `uzakYedek.durum`:
    - `ok`: son 36 saatte başarılı gönderim var; son gönderim ve son doğrulama hatasız.
    - `hata`: son gönderim ya da son doğrulama başarısız. Sebep `hata` ya da
@@ -468,7 +584,8 @@ sonra olmalı; gece yarısından sonraki ilk saat içinde alınır, 01:30'dan ö
    Rclone'un ham hata metni (sunucu adresi içerebilir) herkese açık bu adreste gösterilmez.
 3. **Uzaktaki kopyalar:** `docker compose run --rm kasa-yedek listele`. Google Drive'da
    `kasa-yedek/gunluk/` içinde `kasa-2026-09-24.db.gz.bin` gibi dosyalar görünür. İçerik
-   şifrelidir; Drive'dan indirilen dosya doğrudan açılmaz, bu normaldir.
+   şifrelidir; Drive'dan indirilen dosya doğrudan açılmaz, bu normaldir. Eklerin sayısı ve
+   toplam boyutu `belgeler/` başlığı altında yazar.
 4. **Log:** `docker compose logs --tail 50 kasa-yedek`
 5. **Otomatik izleme (önerilir):** UptimeRobot gibi bir izleyicide `/health` için "Keyword"
    türü izleme kurun. Aranacak metin: `"uzakYedek":{"durum":"ok"`. Metin bulunamazsa uyarı
@@ -501,6 +618,9 @@ gider. Aynı günün kopyası uzakta yenisiyle değiştirilir. Elle doğrulama:
    Son satır: `Hazır: kasa-data/uzak-yedek/geri-al/kasa-2026-09-20.db (integrity_check ok, … işlem).`
 3. Yukarıdaki "Geri yükleme" adımlarını uygulayın. Tek fark, kopyalanacak dosyadır:
    `sudo cp kasa-data/uzak-yedek/geri-al/kasa-2026-09-20.db kasa-data/kasa.db`
+4. Ek dosyaları sunucuda duruyorsa bir şey yapmaya gerek yoktur. Eksik ek varsa (ör. klasör
+   silindi): `docker compose run --rm kasa-yedek ekleri-geri-al`. Var olan dosyaların üzerine
+   yazmaz, hiçbir şey silmez.
 
 **Sunucu tamamen kayboldu (yeni sunucuya kurulum):**
 
@@ -514,6 +634,7 @@ gider. Aynı günün kopyası uzakta yenisiyle değiştirilir. Elle doğrulama:
    ```bash
    docker compose run --rm kasa-yedek geri-al
    sudo cp kasa-data/uzak-yedek/geri-al/kasa-2026-09-23.db kasa-data/kasa.db   # "Hazır:" satırındaki ad
+   docker compose run --rm kasa-yedek ekleri-geri-al                           # fiş/fatura ekleri
    sudo chown -R 1654:1654 kasa-data
    ```
 
@@ -530,6 +651,7 @@ gider. Aynı günün kopyası uzakta yenisiyle değiştirilir. Elle doğrulama:
 | `Yerel günlük yedek bulunamadı` | Uygulama yedek alamıyor: `docker compose logs kasa \| grep -i yedek` |
 | `Uzak kopya indirilemedi ya da şifresi çözülemedi` ve ayrıntıda `bad password` | `.env`'deki parola, kopyaları şifreleyen parola değil. Doğru parolayı yazın. |
 | Google Drive: ayrıntıda `invalid_grant` ya da `token expired` | İzni yenileyin: `docker compose run --rm kasa-yedek rclone config reconnect uzak:` ve A) 3–4. adımlar |
+| `uyari`: `Fiş/fatura ekleri gönderilemedi` | Ayrıntı log'da: `docker compose logs kasa-yedek \| grep -i ekler`. Ertesi gece kalanlar kendiliğinden gönderilir |
 | `docker compose build` sırasında `rclone/rclone:1.71.0 ... not found` | `deploy/uzak-yedek/Dockerfile`'daki sürümü https://hub.docker.com/r/rclone/rclone/tags adresindeki güncel bir sürümle değiştirin |
 
 Geçici olarak kapatmak için: `docker compose stop kasa-yedek`. Kalıcı kapatmak için `.env`'de

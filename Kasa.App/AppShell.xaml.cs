@@ -61,6 +61,7 @@ public partial class AppShell : Shell
         SorularItem.IsVisible = bolumler.Contains(Bolum.Sorular);
         GecmisItem.IsVisible = bolumler.Contains(Bolum.Gecmis);
         AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
+        PaketFMenusu(true);   // AppShell.F.cs
         _ = GitAsync(_yonlendirme.Al() ?? "//panel");   // bildirimle açıldıysa o sayfaya
         _ = PaketABildirimleriAsync();   // Paket A: haftalık özet vb. (AppShell.A.cs)
     }
@@ -82,6 +83,7 @@ public partial class AppShell : Shell
         SorularItem.IsVisible = false;
         GecmisItem.IsVisible = false;
         AyarlarItem.IsVisible = false;
+        PaketFMenusu(false);   // AppShell.F.cs
         _ = GitAsync("//login");
     }
 

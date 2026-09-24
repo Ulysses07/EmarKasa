@@ -16,7 +16,7 @@ public record LoginYanit(string Rol, string Token);
 public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariDto(int Id, string Ad, bool Aktif);
 public record GiderKalemiDto(int Id, string Ad, bool Aktif);
-public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
+public partial record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
 /// <summary>İşlem listesinin bir sayfası: kayıtlar (tarih, id artan) + filtreye uyan toplam kayıt sayısı.</summary>
 public record IslemSayfasi(IReadOnlyList<IslemDto> Kayitlar, int Toplam);
 public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl);
@@ -106,7 +106,7 @@ public record KasaHesapDto(DateOnly Tarih, decimal HesaplananTutar);
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariYaz(string Ad, bool Aktif);
 public record GiderKalemiYaz(string Ad, bool Aktif);
-public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
+public partial record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
 public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);

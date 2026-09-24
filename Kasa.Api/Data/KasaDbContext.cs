@@ -83,6 +83,7 @@ public partial class KasaDbContext : DbContext
             .HasForeignKey(g => g.IslemId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        BelgeVePosModeli(b);
         PaketDModeli(b);
     }
 

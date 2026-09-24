@@ -67,6 +67,11 @@ internal static class DegisiklikKaydedici
         ["SoranId"] = "Soran no", ["SoranAd"] = "Soran", ["SoranRol"] = "Soranın rolü", ["SorulmaUtc"] = "Soru zamanı",
         ["Cevap"] = "Cevap", ["CevaplayanAd"] = "Cevaplayan", ["CevaplanmaUtc"] = "Cevap zamanı", ["KapanmaUtc"] = "Kapanma",
         ["Etiket"] = "Ay", ["KilitZamaniUtc"] = "Kilit zamanı", ["YayinZamaniUtc"] = "Yayın zamanı", ["SonDegisiklikId"] = "Son geçmiş satırı", ["KanalId"] = "Kanal", ["GiderKalemiId"] = "Gider kalemi", ["TufeEndeksi"] = "TÜFE endeksi", ["UsdTry"] = "USD/TRY", ["EurTry"] = "EUR/TRY", ["AltinGramTry"] = "Gram altın (TL)",
+        // Paket F: belge, ek ve POS alanları.
+        ["BelgeTuru"] = "Belge türü", ["BelgeNo"] = "Belge no", ["FaturaBekleniyor"] = "Fatura bekleniyor",
+        ["OrijinalAd"] = "Dosya", ["DepoAdi"] = "Depo adı", ["IcerikTipi"] = "Dosya türü", ["Boyut"] = "Boyut (bayt)",
+        ["YuklemeZamaniUtc"] = "Yükleme zamanı", ["Saglayici"] = "Sağlayıcı", ["KanalId"] = "Kanal",
+        ["KomisyonOrani"] = "Komisyon oranı (%)", ["BlokajGunu"] = "Blokaj günü", ["PosId"] = "POS", ["BrutTutar"] = "Brüt tutar",
     };
 
     private static readonly Dictionary<string, string> EnumAdlari = new()
@@ -83,6 +88,9 @@ internal static class DegisiklikKaydedici
         ["Acik"] = "Açık", ["Aciklandi"] = "Açıklandı", ["KabulEdildi"] = "Kabul edildi",
         ["Mutabik"] = "Mutabık", ["FarkKabul"] = "Fark kabul edildi",
         ["Acik"] = "Açık", ["Kapali"] = "Kapalı", ["Genel"] = "Genel", ["Islem"] = "İşlem", ["Hafta"] = "Hafta", ["Cek"] = "Çek",
+        // Paket F: belge türü ve POS sağlayıcısı.
+        ["EFatura"] = "e-Fatura", ["EArsiv"] = "e-Arşiv", ["Fis"] = "Fiş", ["Makbuz"] = "Makbuz", ["Belgesiz"] = "Belgesiz",
+        ["BankaPosu"] = "Banka POS'u", ["Iyzico"] = "iyzico", ["PayTr"] = "PayTR", ["Diger"] = "Diğer",
     };
 
     internal sealed record Alan(IProperty Ozellik, string Etiket, bool Gizli, string? GizliMesaj);

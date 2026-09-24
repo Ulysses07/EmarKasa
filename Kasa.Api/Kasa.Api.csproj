@@ -15,9 +15,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- SPA emekli oldu; wwwroot yok. Statik web varlıklarını kapat ki
-         eksik wwwroot dizini çalışma anında DirectoryNotFoundException üretmesin. -->
+    <!-- SPA emekli oldu. Statik web varlıkları (bundling/fingerprint) kapalı; wwwroot'ta yalnız
+         telefon uygulaması (/m) var ve MobilWeb.cs onu doğrudan sunar. -->
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Paket F: telefon uygulaması (wwwroot/m) derleme ve publish çıktısına kopyalanır
+         (MobilWeb.KlasorBul içerik kökünde bulamazsa uygulama klasörüne bakar). -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

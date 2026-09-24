@@ -14,7 +14,7 @@ public class TopluGirisDokumTests
     private static readonly KanalDto Toptan = new(2, "TOPTAN", true, 2, 0m);
     private static readonly KrediKartiDto Bonus = new(7, "Bonus", new DateOnly(2026, 9, 10), new DateOnly(2026, 9, 20), 50_000m, 0m);
 
-    private sealed class SahteSecici : IDosyaSecici
+    private sealed class SahteSecici : ITabloSecici
     {
         public SecilenDosya? Dosya;
         public Task<SecilenDosya?> SecAsync() => Task.FromResult(Dosya);
