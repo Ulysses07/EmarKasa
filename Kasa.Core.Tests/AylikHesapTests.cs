@@ -15,7 +15,13 @@ public class AylikHesapTests
         var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
         var ilkDonemStart = donemler[0].Start; // 1 Haziran (Pazartesi)
 
-        var gelenler = new[] { new Gelen(ilkDonemStart, "MEZAT", 1000m) };
+        // Ortak gider o ay hareketi olan kanallara bölünür; üç kanalın da geleni var.
+        var gelenler = new[]
+        {
+            new Gelen(ilkDonemStart, "MEZAT", 1000m),
+            new Gelen(ilkDonemStart, "PERAKENDE", 10m),
+            new Gelen(ilkDonemStart, "TOPTAN", 10m),
+        };
         var islemler = new[]
         {
             new Islem(new DateOnly(2026, 6, 3), "Tedarik", 100m, "MEZAT", GiderTipi.Cari),
@@ -31,7 +37,7 @@ public class AylikHesapTests
         Assert.Equal(100m, mezat.CariGiden);
         Assert.Equal(200m, mezat.SabitGider);
         Assert.Equal(50m, mezat.KrediKarti);
-        Assert.Equal(100m, mezat.OrtakPay);            // 300 / 3 aktif kanal
+        Assert.Equal(100m, mezat.OrtakPay);            // 300 / 3 hareketli kanal
         // 1000 - 100 - 200 - 50 - 100 = 550
         Assert.Equal(550m, mezat.AySonucu);
     }
