@@ -220,7 +220,10 @@ public class YapilacakListesiTests
             ]);
         var l = YapilacakListesi.Olustur(null, ozet, null, null, null, B);
         Assert.Equal([YapilacakTuru.VadesiGecenCek, YapilacakTuru.BugunVadeliCek, YapilacakTuru.YaklasanCek], l.Select(x => x.Tur));
-        Assert.All(l, x => Assert.Equal("//cekler", x.Hedef));
+        // Düğme açıklamadaki ilk (en eski vadeli) çeki düzenleme formunda açar.
+        Assert.Equal(["//cekler?id=5", "//cekler?id=1", "//cekler?id=2"], l.Select(x => x.Hedef));
+        Assert.Equal(["İlk çeki aç", "Çeki aç", "Çeki aç"], l.Select(x => x.DugmeMetni));
+        Assert.Equal([3, 1, 1], l.Select(x => x.Adet));
         Assert.Equal("Vadesi geçen 3 çek", l[0].Baslik);
         Assert.Equal("B · +800,00 ₺ (15 Eylül), A · +700,00 ₺ (22 Eylül) ve 1 çek daha", l[0].Aciklama);
         Assert.Equal("Bugün vadesi gelen 1 çek", l[1].Baslik);
@@ -243,7 +246,8 @@ public class YapilacakListesiTests
         var l = YapilacakListesi.Olustur(null, null, kartlar, null, null, B);
         Assert.Equal(["Bonus · son ödeme 26 Eylül", "World · son ödeme bugün"], l.Select(x => x.Baslik));
         Assert.Equal("Ekstre borcu 1.000,00 ₺", l[0].Aciklama);
-        Assert.All(l, x => Assert.Equal("//kartlar", x.Hedef));
+        Assert.Equal(["//kartlar?id=1", "//kartlar?id=3"], l.Select(x => x.Hedef));
+        Assert.All(l, x => Assert.Equal("Ödeme gir", x.DugmeMetni));
         Assert.Equal([false, true], l.Select(x => x.Acil));
     }
 
@@ -257,8 +261,10 @@ public class YapilacakListesiTests
         };
         var l = YapilacakListesi.Olustur(null, null, null, eksik, [PaketAOrnek.Sayim(1, B.AddDays(-9), 0m), PaketAOrnek.Sayim(2, B.AddDays(-20), 0m)], B);
         Assert.Equal(2, l.Count);
-        Assert.Equal(("Gelen girilmedi: 14–20 Eylül", "MEZAT, TOPTAN", "//islemler"), (l[0].Baslik, l[0].Aciklama, l[0].Hedef));
+        // Gelen formu eksik dönem ve ilk eksik kanalla açılır.
+        Assert.Equal(("Gelen girilmedi: 14–20 Eylül", "MEZAT, TOPTAN", "//islemler?donem=2026-09-14&kanal=MEZAT"), (l[0].Baslik, l[0].Aciklama, l[0].Hedef));
         Assert.Equal("Gelen gir", l[0].DugmeMetni);
+        Assert.Equal("Sayım yap", l[1].DugmeMetni);
         Assert.Equal(("Kasa sayımı 9 gündür yapılmadı", "Son sayım 15 Eylül", "//kasasayimi"), (l[1].Baslik, l[1].Aciklama, l[1].Hedef));
         Assert.Equal("Henüz kasa sayımı yapılmadı", Assert.Single(YapilacakListesi.Olustur(null, null, null, null, [], B)).Baslik);
     }
@@ -269,6 +275,162 @@ public class YapilacakListesiTests
         var s = Enumerable.Range(1, 5).Select(i => new YapilacakSatiri(YapilacakTuru.EksikGelen, $"İş {i}", "", "//islemler", false)).ToList();
         Assert.Equal("İş 1 · İş 2 · İş 3 · +2 iş daha", YapilacakListesi.BildirimMetni(s));
         Assert.Equal("İş 1", YapilacakListesi.BildirimMetni(s.Take(1).ToList()));
+    }
+}
+
+public class DerinBaglantiTests
+{
+    [Fact]
+    public void Baglantilar_ve_rota()
+    {
+        Assert.Equal("//islemler?donem=2026-09-14&kanal=MEZAT", DerinBaglanti.GelenGir(new DateOnly(2026, 9, 14), "MEZAT"));
+        Assert.Equal("//islemler?donem=2026-09-14", DerinBaglanti.GelenGir(new DateOnly(2026, 9, 14), " "));
+        Assert.Equal("//cekler?id=12", DerinBaglanti.Cek(12));
+        Assert.Equal("//kartlar?id=3", DerinBaglanti.Kart(3));
+        Assert.Equal("//cekler", DerinBaglanti.Rota("//cekler?id=12"));
+        Assert.Equal("//kasasayimi", DerinBaglanti.Rota("//kasasayimi"));
+    }
+
+    [Theory]
+    [InlineData("MEZAT")]
+    [InlineData("ÇİÇEK SEPETİ")]
+    [InlineData("A&B=C %20 +")]
+    public void Kanal_adi_kodlanip_shell_sorgusundan_aynen_cozulur(string kanal)
+    {
+        var link = DerinBaglanti.GelenGir(new DateOnly(2026, 9, 7), kanal);
+        Assert.DoesNotContain(' ', link);
+        var sorgu = DerinBaglanti.Sorgu(link);   // Shell gibi: '&' ve '=' ile böler, kod çözmez
+        Assert.Equal(new DateOnly(2026, 9, 7), DerinBaglanti.Donem(sorgu));
+        Assert.Equal(kanal, DerinBaglanti.Oku(sorgu, DerinBaglanti.KanalAnahtari));
+    }
+
+    [Fact]
+    public void Gecersiz_ya_da_eksik_deger_null()
+    {
+        Assert.Null(DerinBaglanti.Id(null));
+        Assert.Null(DerinBaglanti.Id(new Dictionary<string, object>()));
+        Assert.Null(DerinBaglanti.Id(new Dictionary<string, object> { ["id"] = "abc" }));
+        Assert.Null(DerinBaglanti.Id(new Dictionary<string, object> { ["id"] = "0" }));
+        Assert.Null(DerinBaglanti.Id(new Dictionary<string, object> { ["id"] = "-4" }));
+        Assert.Equal(7, DerinBaglanti.Id(new Dictionary<string, object> { ["id"] = 7 }));   // nesne olarak verilen sayı
+        Assert.Null(DerinBaglanti.Donem(new Dictionary<string, object> { ["donem"] = "14.09.2026" }));
+        Assert.Null(DerinBaglanti.Oku(new Dictionary<string, object> { ["kanal"] = "  " }, "kanal"));
+        Assert.Empty(DerinBaglanti.Sorgu("//islemler"));
+    }
+}
+
+public class DerinBaglantiHedefTests
+{
+    private static readonly DateOnly B = PaketAOrnek.Bugun;
+
+    [Fact]
+    public async Task Gelen_gir_formu_eksik_donem_ve_kanalla_hazirlar_kaydetmez()
+    {
+        var api = new SahteApi
+        {
+            KanallarListe = [new(1, "MEZAT", true, 0, 0m), new(2, "ÇİÇEK SEPETİ", true, 1, 0m)],
+            DonemlerListe = [new(new DateOnly(2026, 9, 14), new DateOnly(2026, 9, 20), 2026, 9)],
+        };
+        var vm = new IslemlerViewModel(api, PaketAOrnek.Saat());
+        vm.GelenTutar = 250m;   // yarım kalmış giriş: bağlantı formu temizler
+
+        var sorgu = DerinBaglanti.Sorgu(DerinBaglanti.GelenGir(new DateOnly(2026, 9, 14), "ÇİÇEK SEPETİ"));
+        Assert.True(vm.GelenIstegiUygula(sorgu));
+        await vm.YukleAsync();   // sayfa açılışı: kanal çipleri yeniden kurulur, seçim korunur
+
+        Assert.Equal(new DateTime(2026, 9, 14), vm.GelenTarih);
+        Assert.Equal("ÇİÇEK SEPETİ", vm.GelenKanal);
+        Assert.Equal(0m, vm.GelenTutar);
+        Assert.Equal(["ÇİÇEK SEPETİ"], vm.GelenKanallari.Where(k => k.Secili).Select(k => k.Ad));
+        Assert.Null(api.SonGelen);
+
+        // Menüden boş sorguyla gelindi: form olduğu gibi kalır.
+        vm.GelenTutar = 100m;
+        Assert.False(vm.GelenIstegiUygula(new Dictionary<string, object>()));
+        Assert.Equal((new DateTime(2026, 9, 14), "ÇİÇEK SEPETİ", 100m), (vm.GelenTarih, vm.GelenKanal, vm.GelenTutar));
+    }
+
+    [Fact]
+    public async Task Cek_ac_cek_duzenleme_formunda_acilir_bulunamazsa_hata()
+    {
+        var api = new SahteApi
+        {
+            KanallarListe = [new(1, "MEZAT", true, 0, 0m)],
+            CeklerListe = [PaketAOrnek.Cek(4, CekYonu.Alinan, 700m, B.AddDays(-2), "Veli"), PaketAOrnek.Cek(6, CekYonu.Verilen, 900m, B, "Nakliye")],
+            CekOzeti = PaketAOrnek.CekOzeti(),
+        };
+        var vm = new CeklerViewModel(api, PaketAOrnek.Saat()) { EditorMu = true };
+
+        await Task.WhenAll(vm.CekIstegiUygulaAsync(DerinBaglanti.Sorgu(DerinBaglanti.Cek(6))), vm.YukleAsync());
+        Assert.Null(vm.Hata);
+        Assert.Equal((6, CekYonu.Verilen, "Nakliye", 900m, CekDurumu.Portfoyde), (vm.DuzenId, vm.DuzenYon, vm.DuzenKisi, vm.DuzenTutar, vm.DuzenDurum));
+        Assert.Equal("Çeki düzenle", vm.FormBasligi);
+        Assert.Equal(["MEZAT"], vm.KanalCipleri.Where(k => k.Secili).Select(k => k.Ad));
+
+        var cagri = api.CeklerCagri;
+        await vm.CekIstegiUygulaAsync(new Dictionary<string, object>());   // boş sorgu: istek yok
+        Assert.Equal(cagri, api.CeklerCagri);
+        Assert.Equal(6, vm.DuzenId);
+
+        await vm.CekIstegiUygulaAsync(DerinBaglanti.Sorgu(DerinBaglanti.Cek(99)));   // silinmiş çek
+        Assert.Equal(CeklerViewModel.CekBulunamadiMesaji, vm.Hata);
+        Assert.Equal(6, vm.DuzenId);   // form değişmedi
+    }
+
+    [Fact]
+    public async Task Odeme_gir_karti_vurgular_tutari_ekstre_borcuyla_doldurur_bir_kez()
+    {
+        var api = new SahteApi
+        {
+            KrediKartlariListe = [PaketAOrnek.Kart(1, "Bonus", 20, 26, 50_000m, 3_000m, 1_250.5m), PaketAOrnek.Kart(2, "Axess", 1, 24, 50_000m, 800m, 800m)],
+        };
+        var vm = new KrediKartlariViewModel(api, PaketAOrnek.Saat()) { EditorMu = true };
+        await vm.YukleAsync();   // sayfa daha önce açılmıştı
+        vm.Kartlar.Single(k => k.Id == 2).OdemeTutarGiris = 500m;   // Axess'e yazılmış (kaydedilmemiş) tutar
+
+        Assert.True(vm.KartIstegiUygula(DerinBaglanti.Sorgu(DerinBaglanti.Kart(1))));
+        Assert.All(vm.Kartlar, k => Assert.False(k.Vurgulu));   // yükleme gelmeden uygulanmaz
+        await vm.YukleAsync();   // sayfa açılışı
+        var bonus = vm.Kartlar.Single(k => k.Id == 1);
+        Assert.True(bonus.Vurgulu);
+        Assert.Equal(1_250.5m, bonus.OdemeTutarGiris);
+        Assert.Equal(new DateTime(2026, 9, 24), bonus.OdemeTarihGiris);
+        Assert.False(vm.Kartlar.Single(k => k.Id == 2).Vurgulu);
+        Assert.Null(api.SonKartOdemeKaydet);   // kaydetmez
+
+        // Sonraki yüklemede istek tekrar uygulanmaz (vurgu kalkar, tutar yazılan haliyle devralınır).
+        bonus.OdemeTutarGiris = 1_000m;
+        await vm.YukleAsync();
+        Assert.All(vm.Kartlar, k => Assert.False(k.Vurgulu));
+        Assert.Equal(1_000m, vm.Kartlar.Single(k => k.Id == 1).OdemeTutarGiris);
+
+        // Yazılmış tutar ezilmez; silinmiş kart istek düşer; boş sorgu kaydedilmez.
+        Assert.True(vm.KartIstegiUygula(DerinBaglanti.Sorgu(DerinBaglanti.Kart(2))));
+        await vm.YukleAsync();
+        Assert.True(vm.Kartlar.Single(k => k.Id == 2).Vurgulu);
+        Assert.Equal(500m, vm.Kartlar.Single(k => k.Id == 2).OdemeTutarGiris);
+        Assert.True(vm.KartIstegiUygula(DerinBaglanti.Sorgu(DerinBaglanti.Kart(9))));
+        await vm.YukleAsync();
+        Assert.All(vm.Kartlar, k => Assert.False(k.Vurgulu));
+        Assert.False(vm.KartIstegiUygula(new Dictionary<string, object> { ["id"] = "x" }));
+    }
+
+    [Fact]
+    public async Task Panel_yapilacak_dugmesi_derin_baglantiyla_gider()
+    {
+        var api = new SahteApi
+        {
+            Panel = PaketAOrnek.Panel(),
+            CekOzeti = PaketAOrnek.CekOzeti(gecen: [PaketAOrnek.Cek(4, CekYonu.Alinan, 700m, B.AddDays(-2))]),
+            KasaSayimlariListe = [PaketAOrnek.Sayim(1, B, 0m)],
+        };
+        var vm = new PanelViewModel(api, PaketAOrnek.Saat(), new BellekYerelDepo()) { EditorMu = true };
+        await vm.YukleAsync();
+        var hedefler = new List<string>();
+        vm.GitIstendi += (_, h) => hedefler.Add(h);
+        var satir = Assert.Single(vm.Yapilacaklar);
+        vm.YapilacakAcCommand.Execute(satir);
+        Assert.Equal(["//cekler?id=4"], hedefler);
     }
 }
 
@@ -418,7 +580,7 @@ public class PanelPaketATests
         vm.YapilacakAcCommand.Execute(s);
         vm.GitCommand.Execute("//cekler");
         vm.GitCommand.Execute("");
-        Assert.Equal(["//islemler", "//cekler"], gidilen);
+        Assert.Equal(["//islemler?donem=2026-09-14&kanal=MEZAT", "//cekler"], gidilen);
 
         vm.EditorMu = false;
         Assert.False(vm.YapilacakVar);

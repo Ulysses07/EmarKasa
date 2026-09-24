@@ -12,7 +12,9 @@ tek ekranda yanıtlamasını sağlar. Hepsi **yalnız okur ve gösterir**:
   testlerle doğrulanır (`Kasa.Api.Tests/PanelPaketATests`: `Tahmin_raporlari_ve_gecmisi_degistirmez`, `Tahmin_edilen_kasa_zaman_gelince_gercek_kasaya_esit`).
 - Şema değişikliği yok (yeni tablo/sütun yok). Sunucu yapılandırması değişmedi.
 - "Bugün" sunucuda `Saat.Bugun(TimeProvider)` ile alınır (Türkiye saati).
-- Satırlardaki düğmeler **yalnız ilgili sayfaya götürür**. Tek dokunuşla tahsil/ödeme bu pakette yok (Paket D).
+- Satırlardaki düğmeler **işin yapılacağı yere götürür ve formu o kayıtla hazırlar** (derin bağlantı), ama
+  hiçbir şey kaydetmez: son adım (Kaydet / Ekle) kullanıcınındır. Tek dokunuşla tahsil/ödeme (onaysız yazma)
+  bu pakette yok (Paket D).
 
 ## Özellikler
 
@@ -23,12 +25,16 @@ Hero kartının altında dört kutu. Masaüstünde 4 sütun, dar ekranda 2×2. K
 | Kutu | İçerik | Kaynak |
 |---|---|---|
 | Kart ekstreleri | Ödenmemiş ekstre toplamı; en yakın son ödeme ("… · 30 Eylül", geçtiyse kırmızı); limit uyarısı | `GET /api/kredikartlari` |
-| Çekler | "Tahsil edilecek X ₺ · N çek", "Ödenecek Y ₺ · M çek", vadesi geçen | `GET /api/cekler/ozet` |
+| Çekler | "Tahsil edilecek X ₺ · N çek", "Ödenecek Y ₺ · M çek", vadesi geçen (yöne göre ayrı: "2 çekin vadesi geçti · tahsil edilecek +5.000,00 ₺ · ödenecek −3.000,00 ₺") | `GET /api/cekler/ozet` |
 | Son kasa sayımı | Tarih ("20 Eylül (4 gün önce)") ve fark (renkli) | `GET /api/kasasayimlari` |
 | Defter | "Defter en son 2 saat önce güncellendi" + son bakıştan beri değişiklik (özellik 23) | `GET /api/gecmis/ozet` |
 
 Bir kaynak okunamazsa o kutu "… bilgisi alınamadı" der. Ana panel (kasa, kanallar, bekleyen giderler)
 bu okumalardan etkilenmez.
+
+Vadesi geçen çeklerde alınan (bize gelecek, +) ve verilen (bizden çıkacak, −) çek **tek toplamda
+birleştirilmez**; iki yön ayrı yazılır (`PanelMetin.CekYonToplamlari`). Pazartesi bildirimi ve Bugün
+yapılacaklar aynı işaretleri kullanır.
 
 ### 03 · Nakit tahmini (30/60/90 gün)
 
@@ -58,20 +64,31 @@ hareketleri gün gün ekler. Saf motor `Kasa.Core/NakitTahmini.cs`, veri yüklem
 
 ### 31 · Bugün yapılacaklar (yalnız editör)
 
-Panel'de bir kart. Her satırın bir düğmesi vardır ve bu düğme yalnız ilgili sayfayı açar:
+Panel'de bir kart. Her satırın bir düğmesi vardır. Düğme işin yapılacağı sayfayı **o kayıtla** açar
+(`DerinBaglanti`: Shell rotası + sorgu; hedef sayfa `IQueryAttributable` ile sorguyu VM'e iletir). Hiçbir
+düğme kendiliğinden kaydetmez:
 
-| Satır | Koşul | Hedef |
+| Satır | Koşul | Düğme → hedef |
 |---|---|---|
-| N tekrarlayan gider onay bekliyor (tek satır, toplam) | bekleyen liste boş değil | Panel'deki bekleyen kartına kaydırır |
-| Vadesi geçen N çek | portföyde, vade < bugün | Çekler |
-| Bugün vadesi gelen N çek | vade = bugün | Çekler |
-| 3 gün içinde vadesi gelecek N çek | bugün < vade ≤ bugün+3 | Çekler |
-| Kart · son ödeme bugün/yarın/… | ödenmemiş ekstre (`KartHatirlatici.OdemeBekliyor`) | Kredi Kartları |
-| Gelen girilmedi: 14–20 Eylül | son 14 günde biten dönemde aktif kanalın geleni yok | İşlemler |
-| Kasa sayımı N gündür yapılmadı | son sayım 7 günden eski ya da hiç yok | Kasa Sayımı |
+| N tekrarlayan gider onay bekliyor (tek satır, toplam) | bekleyen liste boş değil | **Göster**: Panel'deki bekleyen kartına kaydırır (kartın kendi Kaydet'i var) |
+| Vadesi geçen N çek | portföyde, vade < bugün | **Çeki aç / İlk çeki aç**: `//cekler?id=…` en eski vadeli çek düzenleme formunda açılır |
+| Bugün vadesi gelen N çek | vade = bugün | **Çeki aç / İlk çeki aç** (aynı) |
+| 3 gün içinde vadesi gelecek N çek | bugün < vade ≤ bugün+3 | **Çeki aç / İlk çeki aç** (en yakın vadeli) |
+| Kart · son ödeme bugün/yarın/… | ödenmemiş ekstre (`KartHatirlatici.OdemeBekliyor`) | **Ödeme gir**: `//kartlar?id=…` kart vurgulanır, "Ödeme ekle" tutarı ekstre borcuyla (tarih bugün) doldurulur |
+| Gelen girilmedi: 14–20 Eylül | son 14 günde biten dönemde aktif kanalın geleni yok | **Gelen gir**: `//islemler?donem=2026-09-14&kanal=…` gelen formu o dönem ve ilk eksik kanalla açılır, forma kaydırılır |
+| Kasa sayımı N gündür yapılmadı | son sayım 7 günden eski ya da hiç yok | **Sayım yap**: Kasa Sayımı |
 
-Sabah bildirimi: günde en fazla bir kez, yalnız 09:00 arka plan hatırlatıcısında ve editör oturumunda
-gönderilir (özellik 09).
+- Birden çok çekli satırda düğme açıklamadaki ilk çeki açar ("İlk çeki aç"). O çek işlenip Panel'e
+  dönülünce liste tazelenir ve sıradaki çek ilk olur.
+- Kanal adı sorguda kodlanır (Türkçe harf, boşluk, `&`); Shell değeri kod çözmeden verdiği için
+  `DerinBaglanti.Oku` çözer.
+- Kart isteği sayfa açılışındaki yüklemede **bir kez** uygulanır: yazılmış (kaydedilmemiş) tutar ezilmez,
+  sonraki yüklemede vurgu kalkar. Silinmiş kart ya da çek isteği sessizce düşer (çekte "Çek bulunamadı").
+- Menüden boş sorguyla gelinince formlar olduğu gibi kalır.
+
+Sabah bildirimi: editöre günde en fazla bir kez, **günün ilk çalıştırmasında** gider — sabah uygulama
+açılınca ya da 09:00 arka plan hatırlatıcısında, hangisi önce gelirse (özellik 09). Okuma hatasında o gün
+işaretlenmez, sonraki çalıştırma yeniden dener.
 
 ### 08 · Kart limit uyarısı (%80)
 
@@ -85,12 +102,21 @@ gönderilir (özellik 09).
 
 - **Geçmişe dönük kuralı** (`Kasa.Api/Data/GecmiseDonuk.cs`) geçmiş satırının kendisinden okunur, ayrı sütun
   tutulmaz. Bu yüzden eski satırlar için de geçerlidir.
-  - Tarihli para kayıtları (işlem, gelen, kart ödemesi, çek) için: kaydın eski ya da yeni hâlinin tarihi,
-    değişikliğin ayından (Türkiye saati) önceki bir aydaysa satır geçmişe dönüktür.
+  - Tarihli para kayıtları (işlem, gelen, kart ödemesi, çek) için: kaydın eski ya da yeni hâlinin
+    **rakamları etkilediği ay**, değişikliğin ayından (Türkiye saati) önceki bir aydaysa satır geçmişe dönüktür.
+  - Bu ay çoğunlukla kaydın tarihinin ayıdır. **K.K harcamasında** (karta bağlı ya da eski usul
+    `tip=KrediKarti`; `HesapMotoru.EtkinTip`) bir sonraki aydır: aylık kârda ertesi ayın K.K'sı olarak, kasada
+    ertesi ayın son döneminde ya da kartın ödendiği gün düşer; kendi ayının rakamı değişmez. Böylece geçen
+    ayın ekstresini bu ay girmek (her ay yapılan iş) uyarı çıkarmaz. İki ay önceki K.K ise geçen (kapanmış)
+    ayın sonucunu değiştirdiği için geçmişe dönüktür. Geçen ayın Cari/Sabit gideri K.K'ya çevrilirse eski hâli
+    geçen ayı etkilediğinden yine geçmişe dönüktür.
   - Güncellemede ayrıca paraya dokunan bir alan değişmiş olmalı.
   - Çek yalnız tahsil edildi/ödendi durumundayken sayılır ve tarihi işlem tarihidir.
   - Açılış devri değişiklikleri her zaman geçmişe dönüktür: kasa açılış devri, takip başlangıcı, kanal açılış devri.
   - Kasa sayımı, kart tanımı ve ad değişiklikleri geçmişe dönük sayılmaz.
+  - Bilinen sınır: K.K harcaması kendi ayında kanalı "hareketli" yapar (`AylikHesapla`). O ay başka hiç
+    hareketi olmayan bir kanala geçen ay tarihli K.K girilirse geçen ayın Ortak pay dağılımı değişebilir.
+    Bu, satırdan (veritabanına bakmadan) anlaşılamaz ve işaretlenmez.
 - `GET /api/gecmis` satırlarına `gecmiseDonuk` alanı eklendi. Alan sonda ve varsayılanı false; eski
   istemciler etkilenmez.
 - Panel'de şu satır gösterilir: "Son bakışınızdan beri 12 değişiklik, 2'si geçmiş aylara dokunuyor". Yanında
@@ -115,18 +141,25 @@ bildirim iki kez gitmez:
 | Bildirim | Ne zaman | Tıklanınca |
 |---|---|---|
 | Haftalık özet: "Geçen hafta kasa sonucu +X, güncel kasa Y" | Pazartesi 08:00'den sonraki ilk çalıştırma, haftada bir | Haftalık |
-| Vadesi geçen N çek (ayrı bildirim) | haftalık özetle birlikte | Çekler |
+| Vadesi geçen N çek (ayrı bildirim): "Tahsil edilecek +700,00 ₺ · ödenecek −300,00 ₺ · en eskisi …" | haftalık özetle birlikte | Çekler |
 | Geçmişe dönük düzeltme | son bildirimden sonra yeni geçmişe dönük satır varsa; günde en fazla bir kez | Geçmiş |
-| Bugün yapılacaklar (N) | yalnız 09:00 hatırlatıcısı, yalnız editör, günde bir kez, liste boş değilse | Panel |
+| Bugün yapılacaklar (N) | yalnız editör; günün ilk çalıştırması (sabah uygulama açılışı ya da 09:00 hatırlatıcısı, hangisi önce), günde bir kez, liste boş değilse | Panel |
 | Kredi kartı hatırlatmaları (mevcut) | değişmedi; yalnız anahtara bağlandı | Kredi Kartları |
 
 - Ay sonunda ikiye bölünen haftanın iki dönemi toplanır.
 - Hafta, okumaların hepsi başarılı olunca "gönderildi" işaretlenir. Hata olursa sonraki çalıştırmada yeniden denenir.
 - Geçmişe dönük bildiriminin ilk çalıştırması yalnız başlangıç noktasını kaydeder.
+- Windows bildirim kaydı (`AppNotificationManager.Register()`) **süreç başına bir kez** yapılır
+  (`TekSeferlik`). 09:00 hatırlatıcısında kart hatırlatması ve Paket A bildirimleri ayrı servis nesneleriyle
+  kaydolur; ikinci `Register()` "Already Registered" hatası atıp o günün özetini düşürüyordu. Kayıt hata
+  atarsa yapılmış sayılmaz, sonraki bildirim yeniden dener.
 - **Ayarlar → Bildirimler** ayrı bir bölümdür. Her tür ayrı ayrı kapatılabilir.
   - Seçimler yalnız o bilgisayarda saklanır ve varsayılan açıktır.
   - Ayarlar yalnız editörde göründüğü için aynı görünüm Panel'deki **Bildirimler** düğmesiyle de açılır
     (izleyici de kullanabilir).
+  - İki yer aynı VM'i (tekil) gösterir ve görünüm her yüklenişte anahtarları depodan tazeler
+    (`BildirimAyarlariViewModel.Yenile`; okunan değer geri yazılmaz). Shell'in sakladığı Ayarlar sayfası,
+    Panel → Bildirimler'de yapılan değişikliği eski hâliyle göstermez.
 
 ## Sunucu uçları (yeni, hepsi kimlik doğrulamalı, yalnız okur)
 
@@ -160,7 +193,10 @@ hatırlatıcısı aynı depoyu kullanır; okuma/yazma hataları yutulur ve varsa
 - Yapılacaklar: çek penceresi 3 gün, sayım eşiği 7 gün, eksik gelen için son 14 gün. Tekrarlayan giderler tek satırda toplanır.
 - Limit uyarısı eşiği %80'dir (limit girilmemişse uyarı yok).
 - Son bakış: ilk açılışta birikmiş satırlar yeni sayılmaz. Filtresiz Geçmiş ya da Panel'deki "Tamam" görüldü sayar.
-- Bildirimler: haftalık özet Pazartesi 08:00'den sonra gider. Bugün yapılacaklar yalnız sabah ve yalnız editöre gider. Tüm anahtarlar varsayılan açıktır.
+- Bildirimler: haftalık özet Pazartesi 08:00'den sonra gider. Bugün yapılacaklar yalnız editöre, günün ilk
+  çalıştırmasında (sabah uygulama açılışı ya da 09:00) gider. Tüm anahtarlar varsayılan açıktır.
+- Derin bağlantılar formu hazırlar, kaydetmez. Çok çekli satır ilk çeki açar; kart ödemesi ekstre borcuyla
+  önerilir; gelen formu ilk eksik kanalı seçer.
 
 ## Panel düzeni (sahibi Paket A)
 
@@ -205,7 +241,10 @@ kapanış `</VerticalStackLayout>` satırından önce eklenir. Paket A o bölgey
   - `KrediKartiGorunum.A.cs`
   - `PanelMetin.cs`
   - `GoreceZaman.cs`
-  - Küçük bağlantı satırları: `PanelViewModel.cs`, `GecmisViewModel.cs`, `Yonlendirme.cs`
+  - `DerinBaglanti.cs`, `IslemlerViewModel.A.cs`, `CeklerViewModel.A.cs`, `KrediKartlariViewModel.A.cs`
+  - `TekSeferlik.cs`
+  - Küçük bağlantı satırları: `PanelViewModel.cs`, `GecmisViewModel.cs`, `Yonlendirme.cs`,
+    `KrediKartlariViewModel.cs` (yükleme sonunda derin bağlantı isteği)
 - **Kasa.App:**
   - `Views/PanelPage.xaml(.cs)`
   - `Views/BildirimAyarlariView.xaml(.cs)`
@@ -213,7 +252,8 @@ kapanış `</VerticalStackLayout>` satırından önce eklenir. Paket A o bölgey
   - `AppShell.A.cs`
   - `PaketAKayit.cs`
   - `Platforms/Windows/*.A.cs`
-  - Tek satırlık bağlantılar: `MauiProgram.cs`, `AppShell.xaml.cs`, `HatirlatmaKontrol.cs`, `WindowsBildirimServisi.cs`, `AyarlarPage.xaml`, `GecmisPage.xaml`, `KrediKartlariPage.xaml`
+  - `Views/IslemlerPage.A.cs`, `Views/CeklerPage.A.cs`, `Views/KrediKartlariPage.A.cs` (IQueryAttributable)
+  - Tek satırlık bağlantılar: `MauiProgram.cs`, `AppShell.xaml.cs`, `HatirlatmaKontrol.cs`, `WindowsBildirimServisi.cs`, `AyarlarPage.xaml`, `GecmisPage.xaml`, `KrediKartlariPage.xaml` (limit şeridi, vurgu), `IslemlerPage.xaml` (iki `x:Name`)
 - **Testler:**
   - `Kasa.Core.Tests/NakitTahminiTests.cs`
   - `Kasa.Api.Tests/PanelPaketATests.cs`

@@ -90,6 +90,13 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Border Style="{StaticResource Card}" Padding="18">
+                            <!-- Paket A · "Bugün yapılacaklar" → "Ödeme gir" ile açılan kart vurgulanır -->
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border" Binding="{Binding Vurgulu}" Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource BrushGreen}" />
+                                    <Setter Property="StrokeThickness" Value="2" />
+                                </DataTrigger>
+                            </Border.Triggers>
                             <VerticalStackLayout Spacing="0">
                                 <!-- Kart adı + mini kart grafiği -->
                                 <HorizontalStackLayout Spacing="9">

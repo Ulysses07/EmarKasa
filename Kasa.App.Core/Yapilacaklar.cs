@@ -5,19 +5,23 @@ namespace Kasa.App.Core;
 public enum YapilacakTuru { TekrarlayanGider, VadesiGecenCek, BugunVadeliCek, YaklasanCek, KartOdemesi, EksikGelen, KasaSayimi }
 
 /// <summary>
-/// "Bugün yapılacaklar" satırı. Satır bir şey KAYDETMEZ; yalnız ilgili sayfaya götürür
-/// (<see cref="Hedef"/>: Shell rotası ya da Panel'deki bekleyen kartı için <see cref="YapilacakListesi.BekleyenKarti"/>).
+/// "Bugün yapılacaklar" satırı. Satır bir şey KAYDETMEZ; düğmesi işi yapılacak yere götürür ve formu hazırlar
+/// (<see cref="Hedef"/>: <see cref="DerinBaglanti"/> bağlantısı — gelen formu eksik dönem ve kanalla, çek
+/// düzenleme formunda, kartın ödeme girişi ekstre borcuyla — ya da Panel'deki bekleyen kartı için
+/// <see cref="YapilacakListesi.BekleyenKarti"/>). Son adım (Kaydet / Ekle) kullanıcınındır.
 /// </summary>
-public sealed record YapilacakSatiri(YapilacakTuru Tur, string Baslik, string Aciklama, string Hedef, bool Acil)
+/// <param name="Adet">Satırın kapsadığı kayıt sayısı (çek satırında düğme ilk çeki açar).</param>
+public sealed record YapilacakSatiri(YapilacakTuru Tur, string Baslik, string Aciklama, string Hedef, bool Acil, int Adet = 1)
 {
-    /// <summary>Satır düğmesinin metni ("Çeklere git" vb.).</summary>
-    public string DugmeMetni => Hedef switch
+    /// <summary>Satır düğmesinin metni ("Gelen gir", "Çeki aç" vb.).</summary>
+    public string DugmeMetni => Tur switch
     {
-        YapilacakListesi.BekleyenKarti => "Göster",
-        YapilacakListesi.RotaCekler => "Çeklere git",
-        YapilacakListesi.RotaKartlar => "Kartlara git",
-        YapilacakListesi.RotaIslemler => "Gelen gir",
-        YapilacakListesi.RotaKasaSayimi => "Sayım yap",
+        YapilacakTuru.TekrarlayanGider => "Göster",
+        YapilacakTuru.VadesiGecenCek or YapilacakTuru.BugunVadeliCek or YapilacakTuru.YaklasanCek
+            => Hedef.Contains('?') ? (Adet > 1 ? "İlk çeki aç" : "Çeki aç") : "Çeklere git",
+        YapilacakTuru.KartOdemesi => Hedef.Contains('?') ? "Ödeme gir" : "Kartlara git",
+        YapilacakTuru.EksikGelen => "Gelen gir",
+        YapilacakTuru.KasaSayimi => "Sayım yap",
         _ => "Git",
     };
 }
@@ -66,11 +70,11 @@ public static class YapilacakListesi
             var bugunku = cekOzet.Yaklasanlar.Where(c => c.VadeTarihi == bugun).ToList();
             var yakin = cekOzet.Yaklasanlar.Where(c => c.VadeTarihi > bugun && c.VadeTarihi <= bugun.AddDays(CekGunu)).ToList();
             if (gecen.Count > 0)
-                l.Add(new(YapilacakTuru.VadesiGecenCek, $"Vadesi geçen {gecen.Count} çek", CekAciklama(gecen, bugun), RotaCekler, Acil: true));
+                l.Add(new(YapilacakTuru.VadesiGecenCek, $"Vadesi geçen {gecen.Count} çek", CekAciklama(gecen, bugun), IlkCek(gecen), Acil: true, gecen.Count));
             if (bugunku.Count > 0)
-                l.Add(new(YapilacakTuru.BugunVadeliCek, $"Bugün vadesi gelen {bugunku.Count} çek", CekAciklama(bugunku, bugun), RotaCekler, Acil: true));
+                l.Add(new(YapilacakTuru.BugunVadeliCek, $"Bugün vadesi gelen {bugunku.Count} çek", CekAciklama(bugunku, bugun), IlkCek(bugunku), Acil: true, bugunku.Count));
             if (yakin.Count > 0)
-                l.Add(new(YapilacakTuru.YaklasanCek, $"{CekGunu} gün içinde vadesi gelecek {yakin.Count} çek", CekAciklama(yakin, bugun), RotaCekler, Acil: false));
+                l.Add(new(YapilacakTuru.YaklasanCek, $"{CekGunu} gün içinde vadesi gelecek {yakin.Count} çek", CekAciklama(yakin, bugun), IlkCek(yakin), Acil: false, yakin.Count));
         }
 
         if (kartlar is not null)
@@ -84,14 +88,14 @@ public static class YapilacakListesi
                     : vade < bugun ? $"son ödeme {PanelMetin.Gun(vade, bugun)} idi"
                     : $"son ödeme {PanelMetin.GoreliGun(vade, bugun)}";
                 l.Add(new(YapilacakTuru.KartOdemesi, $"{d.Ad} · {ne}", $"Ekstre borcu {PanelMetin.Tutar(k.EkstreBorc)}",
-                    RotaKartlar, Acil: vade <= bugun));
+                    DerinBaglanti.Kart(d.Id), Acil: vade <= bugun));
             }
         }
 
         if (eksikGelenler is not null)
             foreach (var e in eksikGelenler.Where(e => e.Kanallar.Count > 0))
                 l.Add(new(YapilacakTuru.EksikGelen, $"Gelen girilmedi: {PanelMetin.Aralik(e.DonemStart, e.DonemEnd)}",
-                    string.Join(", ", e.Kanallar), RotaIslemler, Acil: false));
+                    string.Join(", ", e.Kanallar), DerinBaglanti.GelenGir(e.DonemStart, e.Kanallar[0]), Acil: false, e.Kanallar.Count));
 
         if (sayimlar is not null)
         {
@@ -105,6 +109,10 @@ public static class YapilacakListesi
 
         return l;
     }
+
+    // Açıklamadaki sırayla ilk çek (en eski vade): satırın düğmesi onu açar.
+    private static string IlkCek(IReadOnlyList<CekDto> cekler)
+        => DerinBaglanti.Cek(cekler.OrderBy(c => c.VadeTarihi).ThenBy(c => c.Id).First().Id);
 
     // "Ahmet · +5.000,00 ₺ (12 Eylül), Veli · −2.500,00 ₺ ve 2 çek daha"
     private static string CekAciklama(IReadOnlyList<CekDto> cekler, DateOnly bugun)
