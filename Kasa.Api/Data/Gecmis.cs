@@ -28,7 +28,7 @@ public sealed class GizliAttribute(string? mesaj = null) : Attribute
 }
 
 /// <summary>Geçmişteki tür adları (geri almada türe göre dallanmak için sabit).</summary>
-public static class GecmisTurleri
+public static partial class GecmisTurleri
 {
     public const string Islem = "İşlem";
     public const string Gelen = "Gelen";

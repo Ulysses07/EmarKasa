@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Data;
 
-public class KasaDbContext : DbContext
+public partial class KasaDbContext : DbContext
 {
     private readonly IHttpContextAccessor? _http;
     private readonly TimeProvider _saat;

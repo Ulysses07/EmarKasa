@@ -8,6 +8,7 @@ using System.Threading.RateLimiting;
 using Kasa.Api;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Api.Endpoints;
 using Kasa.Core;
 using Kasa.Api.Servisler;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,6 +30,7 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 // KasaDbContext değişiklik geçmişine yapanın rolünü (JWT) yazar.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<HesapServisi>();
+builder.Services.AddRaporVeAyKapanisi();   // Paket B: raporlar ve ay kapanışı
 builder.Services.AddSingleton<OturumOnbellegi>();
 builder.Services.AddSingleton(sp => new YedekDurumu
 {
@@ -242,6 +244,7 @@ app.MapGet("/api/auth/me", (ClaimsPrincipal u) =>
 
 // --- Korumalı grup: oturum açmış herkes okuyabilir ---
 var api = app.MapGroup("/api").RequireAuthorization();
+api.MapRaporVeAyKapanisi();   // Paket B: raporlar ve ay kapanışı (Endpoints/)
 
 // Kanallar
 api.MapGet("/kanallar", (KasaDbContext db) =>

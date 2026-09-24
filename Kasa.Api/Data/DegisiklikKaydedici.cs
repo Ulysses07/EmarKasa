@@ -54,6 +54,7 @@ internal static class DegisiklikKaydedici
         ["KayitZamaniUtc"] = "Kayıt zamanı",
         ["Kalem"] = "Kalem", ["AyinGunu"] = "Ayın günü", ["BaslangicAyi"] = "Başlangıç ayı",
         ["TekrarlayanGiderId"] = "Tekrarlayan gider", ["Ay"] = "Ay", ["IslemId"] = "İşlem", ["Zaman"] = "Zaman",
+        ["Etiket"] = "Ay", ["KilitZamaniUtc"] = "Kilit zamanı", ["YayinZamaniUtc"] = "Yayın zamanı", ["SonDegisiklikId"] = "Son geçmiş satırı", ["KanalId"] = "Kanal", ["GiderKalemiId"] = "Gider kalemi", ["TufeEndeksi"] = "TÜFE endeksi", ["UsdTry"] = "USD/TRY", ["EurTry"] = "EUR/TRY", ["AltinGramTry"] = "Gram altın (TL)",
     };
 
     private static readonly Dictionary<string, string> EnumAdlari = new()
