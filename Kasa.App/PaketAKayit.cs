@@ -19,7 +19,8 @@ public static class PaketAKayit
         s.AddSingleton<IKisaBildirim>(sp =>
             (Platforms.Windows.WindowsBildirimServisi)sp.GetRequiredService<IBildirimServisi>());
 #endif
-        s.AddTransient<BildirimAyarlariViewModel>();
+        // Tek VM: Ayarlar (Shell'de saklanan sayfa) ve Panel → Bildirimler aynı anahtarları gösterir.
+        s.AddSingleton<BildirimAyarlariViewModel>();
         s.AddTransient<Views.BildirimAyarlariPage>();
         Routing.RegisterRoute(BildirimAyarlariRotasi, typeof(Views.BildirimAyarlariPage));
         return s;

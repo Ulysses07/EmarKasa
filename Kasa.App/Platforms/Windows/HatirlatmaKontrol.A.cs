@@ -24,7 +24,11 @@ public static partial class HatirlatmaKontrol
         catch { /* oturum yok / ağ hatası: sonraki çalıştırmada yeniden denenir */ }
     }
 
-    /// <summary>Toast kaydı yalnız gösterilecek bildirim olduğunda yapılır (kart hatırlatmalarındaki gibi).</summary>
+    /// <summary>
+    /// Toast kaydı yalnız gösterilecek bildirim olduğunda yapılır (kart hatırlatmalarındaki gibi). Aynı süreçte
+    /// kart hatırlatması zaten kaydolduysa Register() tekrarlanmaz (<see cref="WindowsBildirimServisi.KayitOl"/>).
+    /// Kayıt hata atarsa servis tutulmaz; sonraki bildirim yeniden dener.
+    /// </summary>
     private sealed class TembelBildirim : IKisaBildirim
     {
         private WindowsBildirimServisi? _servis;
@@ -33,8 +37,9 @@ public static partial class HatirlatmaKontrol
         {
             if (_servis is null)
             {
-                _servis = new WindowsBildirimServisi();
-                _servis.KayitOl();
+                var servis = new WindowsBildirimServisi();
+                servis.KayitOl();
+                _servis = servis;
             }
             _servis.Goster(bildirim);
         }

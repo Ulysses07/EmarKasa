@@ -175,19 +175,38 @@ public sealed class BildirimPlanlayici
 
 /// <summary>
 /// Ayarlar → Bildirimler: her bildirim türü ayrı açılıp kapatılır (bu cihazda saklanır; varsayılan açık).
+/// Aynı anahtarlar Ayarlar'da ve Panel → Bildirimler'de gösterilir; görünüm her gösterilişte
+/// <see cref="Yenile"/> ile depodan tazelenir (öbür yerde yapılan değişiklik eski haliyle kalmasın).
 /// </summary>
 public partial class BildirimAyarlariViewModel : ObservableObject
 {
     private readonly IYerelDepo _depo;
+    private bool _yukleniyor;
 
     public BildirimAyarlariViewModel(IYerelDepo? depo = null)
     {
         _depo = depo ?? new BellekYerelDepo();
-        _haftalikOzet = _depo.OkuBool(YerelAnahtarlar.BildirimHaftalikOzet, true);
-        _vadesiGecenCek = _depo.OkuBool(YerelAnahtarlar.BildirimVadesiGecenCek, true);
-        _gecmiseDonuk = _depo.OkuBool(YerelAnahtarlar.BildirimGecmiseDonuk, true);
-        _bugunYapilacaklar = _depo.OkuBool(YerelAnahtarlar.BildirimBugunYapilacaklar, true);
-        _kartHatirlatma = _depo.OkuBool(YerelAnahtarlar.BildirimKartHatirlatma, true);
+        Yenile();
+    }
+
+    /// <summary>Anahtarları depodan yeniden okur; okunan değerler depoya geri yazılmaz.</summary>
+    public void Yenile()
+    {
+        _yukleniyor = true;
+        try
+        {
+            HaftalikOzet = _depo.OkuBool(YerelAnahtarlar.BildirimHaftalikOzet, true);
+            VadesiGecenCek = _depo.OkuBool(YerelAnahtarlar.BildirimVadesiGecenCek, true);
+            GecmiseDonuk = _depo.OkuBool(YerelAnahtarlar.BildirimGecmiseDonuk, true);
+            BugunYapilacaklar = _depo.OkuBool(YerelAnahtarlar.BildirimBugunYapilacaklar, true);
+            KartHatirlatma = _depo.OkuBool(YerelAnahtarlar.BildirimKartHatirlatma, true);
+        }
+        finally { _yukleniyor = false; }
+    }
+
+    private void Yaz(string anahtar, bool deger)
+    {
+        if (!_yukleniyor) _depo.YazBool(anahtar, deger);
     }
 
     /// <summary>Pazartesi sabahı geçen haftanın kasa sonucu ve güncel kasa.</summary>
@@ -201,9 +220,9 @@ public partial class BildirimAyarlariViewModel : ObservableObject
     /// <summary>Kredi kartı kesim / son ödeme hatırlatmaları.</summary>
     [ObservableProperty] private bool _kartHatirlatma;
 
-    partial void OnHaftalikOzetChanged(bool value) => _depo.YazBool(YerelAnahtarlar.BildirimHaftalikOzet, value);
-    partial void OnVadesiGecenCekChanged(bool value) => _depo.YazBool(YerelAnahtarlar.BildirimVadesiGecenCek, value);
-    partial void OnGecmiseDonukChanged(bool value) => _depo.YazBool(YerelAnahtarlar.BildirimGecmiseDonuk, value);
-    partial void OnBugunYapilacaklarChanged(bool value) => _depo.YazBool(YerelAnahtarlar.BildirimBugunYapilacaklar, value);
-    partial void OnKartHatirlatmaChanged(bool value) => _depo.YazBool(YerelAnahtarlar.BildirimKartHatirlatma, value);
+    partial void OnHaftalikOzetChanged(bool value) => Yaz(YerelAnahtarlar.BildirimHaftalikOzet, value);
+    partial void OnVadesiGecenCekChanged(bool value) => Yaz(YerelAnahtarlar.BildirimVadesiGecenCek, value);
+    partial void OnGecmiseDonukChanged(bool value) => Yaz(YerelAnahtarlar.BildirimGecmiseDonuk, value);
+    partial void OnBugunYapilacaklarChanged(bool value) => Yaz(YerelAnahtarlar.BildirimBugunYapilacaklar, value);
+    partial void OnKartHatirlatmaChanged(bool value) => Yaz(YerelAnahtarlar.BildirimKartHatirlatma, value);
 }

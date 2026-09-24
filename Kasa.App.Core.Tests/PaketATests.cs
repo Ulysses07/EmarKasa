@@ -870,4 +870,85 @@ public class BildirimPlanlayiciTests
         Assert.False(vm2.KartHatirlatma);
         Assert.True(vm2.HaftalikOzet);
     }
+
+    [Fact]
+    public void Ayarlar_yenilenince_baska_yerde_yapilan_degisikligi_gosterir_depoya_yazmaz()
+    {
+        // Ayarlar sayfası (Shell'de saklı) ve Panel → Bildirimler aynı depoyu kullanır.
+        var depo = new SayanYerelDepo();
+        var ayarlar = new BildirimAyarlariViewModel(depo);
+        var panel = new BildirimAyarlariViewModel(depo);
+        Assert.Equal(0, depo.Yazma);
+        panel.HaftalikOzet = false;
+        panel.BugunYapilacaklar = false;
+        Assert.Equal(2, depo.Yazma);
+        Assert.True(ayarlar.HaftalikOzet);   // henüz tazelenmedi
+
+        var degisen = new List<string?>();
+        ayarlar.PropertyChanged += (_, e) => degisen.Add(e.PropertyName);
+        ayarlar.Yenile();
+        Assert.False(ayarlar.HaftalikOzet);
+        Assert.False(ayarlar.BugunYapilacaklar);
+        Assert.True(ayarlar.VadesiGecenCek && ayarlar.GecmiseDonuk && ayarlar.KartHatirlatma);
+        Assert.Equal([nameof(BildirimAyarlariViewModel.HaftalikOzet), nameof(BildirimAyarlariViewModel.BugunYapilacaklar)], degisen);
+        Assert.Equal(2, depo.Yazma);   // okunan değer geri yazılmadı
+
+        // Yenilemeden sonra anahtar yine depoya yazar.
+        ayarlar.HaftalikOzet = true;
+        Assert.Equal(3, depo.Yazma);
+        panel.Yenile();
+        Assert.True(panel.HaftalikOzet);
+    }
+
+    private sealed class SayanYerelDepo : IYerelDepo
+    {
+        private readonly BellekYerelDepo _ic = new();
+        public int Yazma;
+        public string? Oku(string anahtar) => _ic.Oku(anahtar);
+        public void Yaz(string anahtar, string? deger) { Yazma++; _ic.Yaz(anahtar, deger); }
+    }
+}
+
+public class TekSeferlikTests
+{
+    [Fact]
+    public void Bir_kez_calisir_sonraki_cagrilar_atlanir()
+    {
+        var t = new TekSeferlik();
+        var sayac = 0;
+        Assert.False(t.Yapildi);
+        Assert.True(t.Calistir(() => sayac++));
+        Assert.False(t.Calistir(() => sayac++));
+        Assert.False(t.Calistir(() => throw new InvalidOperationException("çağrılmamalı")));
+        Assert.Equal(1, sayac);
+        Assert.True(t.Yapildi);
+    }
+
+    [Fact]
+    public void Hata_atan_eylem_yapilmis_sayilmaz_sonra_yeniden_denenir()
+    {
+        var t = new TekSeferlik();
+        Assert.Throws<InvalidOperationException>(() => t.Calistir(() => throw new InvalidOperationException("kayıt başarısız")));
+        Assert.False(t.Yapildi);
+        var sayac = 0;
+        Assert.True(t.Calistir(() => sayac++));
+        Assert.Equal(1, sayac);
+    }
+
+    [Fact]
+    public async Task Ayni_anda_gelen_cagrilardan_yalniz_biri_calistirir()
+    {
+        var t = new TekSeferlik();
+        var sayac = 0;
+        using var basla = new ManualResetEventSlim();
+        var gorevler = Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
+        {
+            basla.Wait();
+            return t.Calistir(() => { Interlocked.Increment(ref sayac); Thread.Sleep(20); });
+        })).ToList();
+        basla.Set();
+        var sonuc = await Task.WhenAll(gorevler);
+        Assert.Equal(1, sayac);
+        Assert.Single(sonuc, x => x);
+    }
 }
