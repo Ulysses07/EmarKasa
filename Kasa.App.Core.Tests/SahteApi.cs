@@ -262,4 +262,32 @@ public sealed class SahteApi : IKasaApi
         KasaSayimlariListe = KasaSayimlariListe.Where(s => s.Id != id).ToList();
         return Task.CompletedTask;
     }
+
+    // ---- Değişiklik geçmişi ----
+    /// <summary>Sunucu sırasıyla (en yeni önce) geçmiş satırları; GecmisAsync tür filtreler ve dilimler.</summary>
+    public IReadOnlyList<DegisiklikDto> GecmisListe = new List<DegisiklikDto>();
+    public IReadOnlyList<string> GecmisTurleriListe = new List<string>();
+    /// <summary>Ayarlanırsa geçmiş yanıtını bu üretir (yarış testleri; argümanlar: tur, limit, offset).</summary>
+    public Func<string?, int, int, Task<DegisiklikSayfasi>>? GecmisUret;
+    /// <summary>Geçmiş sayfa çağrıları (tur, limit, offset) sırasıyla.</summary>
+    public List<(string? Tur, int Limit, int Offset)> GecmisCagrilari = new();
+    public int? SonGeriAl;
+    public Exception? GeriAlHatasi;
+
+    public Task<DegisiklikSayfasi> GecmisAsync(string? tur, int limit, int offset)
+    {
+        GecmisCagrilari.Add((tur, limit, offset));
+        if (GecmisUret is not null) return GecmisUret(tur, limit, offset);
+        if (YuklemeHatasi is not null) return Task.FromException<DegisiklikSayfasi>(YuklemeHatasi);
+        var eslesen = GecmisListe.Where(d => tur is null || d.Tur == tur).ToList();
+        return Task.FromResult(new DegisiklikSayfasi(eslesen.Skip(offset).Take(limit).ToList(), eslesen.Count));
+    }
+    public Task<IReadOnlyList<string>> GecmisTurleriAsync()
+        => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<string>>(YuklemeHatasi) : Task.FromResult(GecmisTurleriListe);
+    public Task GeriAlAsync(int degisiklikId)
+    {
+        if (GeriAlHatasi is not null) return Task.FromException(GeriAlHatasi);
+        SonGeriAl = degisiklikId;
+        return Task.CompletedTask;
+    }
 }

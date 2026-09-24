@@ -2,7 +2,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Data;
 
-/// <summary>Açılışta DB'yi hazırlar: oluştur, WAL, şema güncelle, seed, eski iptal kayıtlarını temizle.</summary>
+/// <summary>
+/// Açılışta DB'yi hazırlar: oluştur, WAL, şema güncelle, seed, eski iptal kayıtlarını ve
+/// saklama süresini aşan geçmiş satırlarını temizle. Buradaki yazmalar HTTP isteği dışında
+/// olduğundan değişiklik geçmişine yazılmaz (bkz. <see cref="KasaDbContext.DegistirenRol"/>).
+/// </summary>
 public static class VeritabaniBaslatici
 {
     public static void Baslat(KasaDbContext db, ILogger log, string? yedekKlasoru)
@@ -45,5 +49,11 @@ public static class VeritabaniBaslatici
 
         var simdi = DateTime.UtcNow;
         db.IptalEdilenTokenlar.Where(t => t.BitisUtc <= simdi).ExecuteDelete();
+
+        // Değişiklik geçmişi en fazla SaklamaYili saklanır.
+        var gecmisSiniri = simdi.AddYears(-GecmisKurallari.SaklamaYili);
+        var silinen = db.Degisiklikler.Where(d => d.ZamanUtc < gecmisSiniri).ExecuteDelete();
+        if (silinen > 0)
+            log.LogInformation("{Sayi} eski geçmiş satırı silindi ({Sinir:yyyy-MM-dd} öncesi).", silinen, gecmisSiniri);
     }
 }

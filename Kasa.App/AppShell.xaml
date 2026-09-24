@@ -94,6 +94,9 @@
     <FlyoutItem x:Name="CeklerItem" Title="Çekler" Route="cekler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:CeklerPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="GecmisItem" Title="Geçmiş" Route="gecmis" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:GecmisPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="AyarlarItem" Title="Ayarlar" Route="ayarlar" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:AyarlarPage}" />
     </FlyoutItem>

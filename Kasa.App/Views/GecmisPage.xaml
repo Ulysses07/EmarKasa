@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Emar Kasa · GecmisPage — değişiklik geçmişi (her iki rol). Editör silinen kaydı "Geri al" ile getirir. -->
+<ContentPage
+    x:Class="Kasa.App.Views.GecmisPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Name="Sayfa"
+    Title="Geçmiş"
+    BackgroundColor="{StaticResource AppBg}">
+
+    <Grid RowDefinitions="Auto,Auto,*" Padding="{OnIdiom Desktop='28,22', Default='16,14'}"
+          RowSpacing="16" MaximumWidthRequest="1160">
+
+        <Grid ColumnDefinitions="*,Auto">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Geçmiş" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Eklenen, düzenlenen ve silinen kayıtlar" Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+            <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                               WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+        </Grid>
+
+        <!-- Hata ve geri alma bildirimi -->
+        <VerticalStackLayout Grid.Row="1" Spacing="8">
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+            <Border Style="{StaticResource CardForm}" Padding="12,10"
+                    IsVisible="{Binding Bilgi, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Bilgi}" Style="{StaticResource LblRowPrimary}" TextColor="{StaticResource Pos}"
+                       LineBreakMode="WordWrap" />
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- Geçmiş listesi -->
+        <Border Grid.Row="2" Style="{StaticResource Card}">
+            <Grid RowDefinitions="Auto,*">
+                <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
+                    <Label Text="Değişiklikler" Style="{StaticResource LblSection}" />
+
+                    <!-- Filtre: tür çipleri -->
+                    <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                BindableLayout.ItemsSource="{Binding TurCipleri}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding BindingContext.SecTurCommand, Source={x:Reference Sayfa}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+
+                    <!-- Özet -->
+                    <Label Text="{Binding Ozet}" Style="{StaticResource LblRowSecondary}" />
+                </VerticalStackLayout>
+
+                <CollectionView Grid.Row="1" ItemsSource="{Binding Kayitlar}" SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout>
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Grid Padding="18,8" MinimumHeightRequest="58"
+                                      ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <!-- Eylem rozeti: eklendi yeşil, silindi kırmızı, güncellendi gri -->
+                                    <Border Style="{StaticResource StatusChip}" VerticalOptions="Center">
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Binding="{Binding EklemeMi}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource BrushGreenSoft}" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Border" Binding="{Binding SilmeMi}" Value="True">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <SolidColorBrush Color="{StaticResource NegSoft}" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Border" Binding="{Binding GuncellemeMi}" Value="True">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <SolidColorBrush Color="{StaticResource ChipBg}" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Border.Triggers>
+                                        <Label Text="{Binding Eylem}" Style="{StaticResource LblStatusChip}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding EklemeMi}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource Pos}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Label" Binding="{Binding SilmeMi}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource Neg}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Label" Binding="{Binding GuncellemeMi}" Value="True">
+                                                    <Setter Property="TextColor" Value="{StaticResource Sub}" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </Border>
+
+                                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                        <Label Text="{Binding Ozet}" Style="{StaticResource LblRowPrimary}"
+                                               LineBreakMode="WordWrap" />
+                                        <Label Text="{Binding Ayrinti}" Style="{StaticResource LblRowSecondary}" />
+                                        <Label Text="{Binding GeriAlmaNotu}" Style="{StaticResource LblRowSecondary}"
+                                               TextColor="{StaticResource Pos}"
+                                               IsVisible="{Binding GeriAlmaNotu, Converter={StaticResource DoluIse}}" />
+                                    </VerticalStackLayout>
+
+                                    <!-- Satır aksiyonu: yalnız editörde ve geri alınabilir silmede -->
+                                    <Button Grid.Column="2" Text="Geri al" Style="{StaticResource BtnRowEdit}"
+                                            VerticalOptions="Center" IsVisible="{Binding GeriAlGorunur}"
+                                            Command="{Binding BindingContext.GeriAlCommand, Source={x:Reference Sayfa}}"
+                                            CommandParameter="{Binding .}" />
+                                </Grid>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                            <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
+                                    StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
+                                <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
+                            </Border>
+                            <Label Text="Henüz değişiklik yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                            <Label Text="Eklenen, düzenlenen ve silinen kayıtlar burada listelenir."
+                                   Style="{StaticResource LblEmptySub}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                    <!-- Liste sayfalı: en yeni değişiklikler önce, eskiler istenince eklenir -->
+                    <CollectionView.Footer>
+                        <VerticalStackLayout Padding="18,12"
+                                             IsVisible="{Binding BindingContext.DahaFazlaVar, Source={x:Reference Sayfa}}">
+                            <Button Text="Daha fazla göster"
+                                    Style="{StaticResource BtnSecondary}" HorizontalOptions="Center"
+                                    Command="{Binding BindingContext.DahaFazlaYukleCommand, Source={x:Reference Sayfa}}" />
+                        </VerticalStackLayout>
+                    </CollectionView.Footer>
+                </CollectionView>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

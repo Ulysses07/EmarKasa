@@ -33,6 +33,16 @@ public record CekOzetDto(decimal PortfoydekiAlinanToplam, int PortfoydekiAlinanA
     decimal OdenecekVerilenToplam, int OdenecekVerilenAdet, int YaklasanGun,
     IReadOnlyList<CekDto> Yaklasanlar, IReadOnlyList<CekDto> VadesiGecenler);
 
+/// <summary>
+/// Değişiklik geçmişi satırı. <see cref="Eylem"/>: Eklendi / Güncellendi / Silindi / Eklendi (geri alındı).
+/// <see cref="GeriAlinabilir"/> sunucu kurallarıyla hesaplanır (silinmiş, desteklenen tür, 30 gün içinde, geri alınmamış).
+/// </summary>
+public record DegisiklikDto(
+    int Id, DateTime ZamanUtc, string Rol, string Tur, int? KayitId, string Eylem, string Ozet,
+    string? EskiJson, string? YeniJson, bool GeriAlindi, DateTime? GeriAlmaZamaniUtc, bool GeriAlinabilir);
+/// <summary>Geçmişin bir sayfası (en yeni önce) + filtreye uyan toplam satır sayısı.</summary>
+public record DegisiklikSayfasi(IReadOnlyList<DegisiklikDto> Kayitlar, int Toplam);
+
 public record DonemDto(DateOnly Start, DateOnly End, int Yil, int Ay);
 /// <summary>Gelen/Giden çek hariçtir; çek tahsilatı/ödemesi CekGelen/CekGiden'dedir (Sonuc ve Devir çek dahil).</summary>
 public record KanalHaftalikDto(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, decimal Devir,
