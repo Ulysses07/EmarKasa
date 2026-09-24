@@ -13,15 +13,27 @@ public static class DonemUretici
         var imlec = baslangic;
         while (imlec <= bitis)
         {
-            var haftaSonu = HaftaninPazari(imlec);
-            var aySonu = AyinSonGunu(imlec);
-            var donemSonu = haftaSonu <= aySonu ? haftaSonu : aySonu;
+            var donemSonu = DogalBitis(imlec);
             if (donemSonu > bitis) donemSonu = bitis;
             sonuc.Add(new Donem(imlec, donemSonu));
             imlec = donemSonu.AddDays(1);
         }
         return sonuc;
     }
+
+    /// <summary>
+    /// <paramref name="start"/> ile başlayan dönemin, bitiş tarihiyle kırpılmamış
+    /// doğal sonu: hafta sonu (Pazar) veya ay sonundan hangisi önce gelirse.
+    /// </summary>
+    public static DateOnly DogalBitis(DateOnly start)
+    {
+        var haftaSonu = HaftaninPazari(start);
+        var aySonu = AyinSonGunu(start);
+        return haftaSonu <= aySonu ? haftaSonu : aySonu;
+    }
+
+    /// <summary>Dönem, ayın son gününü içeren (ayın gerçek son) dönemi mi?</summary>
+    public static bool AyinSonDonemiMi(Donem d) => DogalBitis(d.Start) == AyinSonGunu(d.Start);
 
     // Verilen tarihin içinde bulunduğu Mon–Sun haftasının Pazar günü.
     private static DateOnly HaftaninPazari(DateOnly d)
