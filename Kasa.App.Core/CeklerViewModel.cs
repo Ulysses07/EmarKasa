@@ -76,8 +76,8 @@ public partial class CeklerViewModel : TemelViewModel
         var ozetGorevi = _api.CekOzetAsync();
         var listeGorevi = ListeyiYukleAsync();
         await Task.WhenAll(kanalGorevi, ozetGorevi, listeGorevi);
-        _aktifKanallar.Clear();
-        _aktifKanallar.AddRange(kanalGorevi.Result.Where(k => k.Aktif).OrderBy(k => k.Sira).Select(k => k.Ad));
+        _kanallar.Clear();
+        _kanallar.AddRange(kanalGorevi.Result.OrderBy(k => k.Sira));
         KanalCipleriniKur();
         OzetiKur(ozetGorevi.Result);
     }
@@ -183,12 +183,13 @@ public partial class CeklerViewModel : TemelViewModel
 
     /// <summary>Form yön çipleri: Alınan · Verilen.</summary>
     public ObservableCollection<YonCipi> YonCipleri { get; } = new();
-    /// <summary>Form kanal çipleri: aktif kanallar (+ "Ortak" yalnız verilen çekte).</summary>
+    /// <summary>Form kanal çipleri: aktif kanallar (+ düzenlenen çekin pasif kanalı, + "Ortak" yalnız verilen çekte).</summary>
     public ObservableCollection<SecimCipi> KanalCipleri { get; } = new();
     /// <summary>Form durum çipleri: seçili yöne uyan durumlar.</summary>
     public ObservableCollection<DurumCipi> DurumCipleri { get; } = new();
 
-    private readonly List<string> _aktifKanallar = new();
+    /// <summary>Tüm kanallar (sıraya göre); formda aktifler + düzenlenen çekin pasif kanalı gösterilir.</summary>
+    private readonly List<KanalDto> _kanallar = new();
 
     /// <summary>Tahsil / ödeme / ciro tarihi alanı yalnız gereken durumlarda görünür.</summary>
     public bool IslemTarihiGorunur => CekMetin.IslemTarihiGerekli(DuzenDurum);
@@ -236,7 +237,10 @@ public partial class CeklerViewModel : TemelViewModel
     private void KanalCipleriniKur()
     {
         KanalCipleri.Clear();
-        foreach (var ad in _aktifKanallar) KanalCipleri.Add(new SecimCipi(ad) { Secili = ad == DuzenKanal });
+        // Kanalı sonradan pasif yapılmış çek düzenlenirken kanalı görünür (seçili) kalır; yoksa görünmeyen
+        // eski değer fark edilmeden kaydedilirdi.
+        foreach (var k in _kanallar.Where(k => k.Aktif || k.Ad == DuzenKanal))
+            KanalCipleri.Add(new SecimCipi(k.Ad) { Secili = k.Ad == DuzenKanal });
         if (DuzenYon == CekYonu.Verilen) KanalCipleri.Add(new SecimCipi(OrtakKanal) { Secili = DuzenKanal == OrtakKanal });
     }
 
@@ -284,6 +288,7 @@ public partial class CeklerViewModel : TemelViewModel
         DuzenDurum = CekDurumu.Portfoyde;
         DuzenCekNo = null; DuzenBanka = null; DuzenKisi = ""; DuzenTutar = 0; DuzenNot = null;
         DuzenKanal = "";
+        KanalCipleriniKur();
         DuzenDuzenlemeTarihi = Bugun; DuzenVadeTarihi = Bugun; DuzenIslemTarihi = Bugun;
     }
 
@@ -296,6 +301,7 @@ public partial class CeklerViewModel : TemelViewModel
         DuzenDurum = c.Durum;                   // tarih aşağıda kaydınkiyle ezilir
         DuzenCekNo = c.CekNo; DuzenBanka = c.Banka; DuzenKisi = c.Kisi; DuzenTutar = c.Tutar; DuzenNot = c.Not;
         DuzenKanal = c.Kanal;
+        KanalCipleriniKur();
         DuzenDuzenlemeTarihi = c.DuzenlemeTarihi.ToDateTime(TimeOnly.MinValue);
         DuzenVadeTarihi = c.VadeTarihi.ToDateTime(TimeOnly.MinValue);
         DuzenIslemTarihi = (c.IslemTarihi ?? BugunTarih).ToDateTime(TimeOnly.MinValue);

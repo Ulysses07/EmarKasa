@@ -168,6 +168,27 @@ public class CeklerViewModelTests
     }
 
     [Fact]
+    public async Task Pasif_kanalli_cek_duzenlenirken_kanali_secili_gorunur_yeni_formda_kaybolur()
+    {
+        var api = Api();
+        api.CeklerListe = [.. api.CeklerListe, Cek(4, CekYonu.Alinan, CekDurumu.Portfoyde, 90m, G(10, 1), kanal: "ESKI")];
+        var vm = Vm(api);
+        await vm.YukleAsync();
+        Assert.DoesNotContain(vm.KanalCipleri, k => k.Ad == "ESKI");
+
+        vm.Duzenle(vm.Cekler.Single(c => c.Id == 4));
+        Assert.Equal(["MEZAT", "PERAKENDE", "ESKI"], vm.KanalCipleri.Select(k => k.Ad));
+        Assert.True(vm.KanalCipleri.Single(k => k.Ad == "ESKI").Secili);
+
+        vm.SecKanalCommand.Execute(vm.KanalCipleri.Single(k => k.Ad == "MEZAT"));
+        Assert.Equal("MEZAT", vm.DuzenKanal);
+        Assert.False(vm.KanalCipleri.Single(k => k.Ad == "ESKI").Secili);
+
+        vm.YeniCommand.Execute(null);
+        Assert.Equal(["MEZAT", "PERAKENDE"], vm.KanalCipleri.Select(k => k.Ad));
+    }
+
+    [Fact]
     public async Task Duzenle_kaydin_islem_tarihini_korur_ve_guncelleme_gonderir()
     {
         var api = Api();
