@@ -291,9 +291,9 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) =>
 {
     var e = db.KrediKartlari.Find(id);
     if (e is null) return Results.NotFound();
-    // Harcama işlemlerinin bağını kopar (işlem kalır), ödemeleri sil.
-    foreach (var i in db.Islemler.Where(i => i.KrediKartiId == id)) i.KrediKartiId = null;
-    db.KartOdemeler.RemoveRange(db.KartOdemeler.Where(o => o.KrediKartiId == id));
+    // Kart ödemeleri kasadan çıkan nakittir; kart silinirse geçmiş kasa değişir. Hareketi olan kart silinemez.
+    if (db.KartOdemeler.Any(o => o.KrediKartiId == id) || db.Islemler.Any(i => i.KrediKartiId == id))
+        return Results.Conflict(new { hata = "Bu kartın harcama veya ödeme kayıtları var; kasa geçmişi bozulmasın diye silinemez." });
     db.KrediKartlari.Remove(e); db.SaveChanges();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -336,7 +336,7 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 
-// Kart ödemeleri (borç-only; kasa motoruna girmez)
+// Kart ödemeleri: kart borcunu düşer ve ödeme tarihinde kasadan çıkar
 api.MapGet("/kartodemeler", (int? krediKartiId, KasaDbContext db) =>
 {
     var q = db.KartOdemeler.AsQueryable();

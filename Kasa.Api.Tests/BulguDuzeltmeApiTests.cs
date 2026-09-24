@@ -198,3 +198,29 @@ public class SemaVeYedekTests
         }
     }
 }
+
+public class KasaKartOdemeTests : IClassFixture<KasaWebFactory>
+{
+    private readonly KasaWebFactory _factory;
+    public KasaKartOdemeTests(KasaWebFactory factory) => _factory = factory;
+
+    private record PanelYanit(decimal GuncelKasa);
+    private record KartYanit(int Id);
+
+    [Fact]
+    public async Task Panel_kasasi_karta_bagli_harcamayi_degil_kart_odemesini_duser()
+    {
+        var c = await _factory.EditorClientAsync();
+        var bugun = Saat.Bugun();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = bugun.AddDays(-40).ToString("yyyy-MM-dd"), kasaAcilisDevri = 10_000m })).EnsureSuccessStatusCode();
+        var kart = (await (await c.PostAsJsonAsync("/api/kredikartlari", new
+            { ad = "Bonus", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25", limit = 50_000m, borc = 0m }))
+            .Content.ReadFromJsonAsync<KartYanit>())!;
+
+        (await c.PostAsJsonAsync("/api/islemler", new { tarih = bugun.AddDays(-35).ToString("yyyy-MM-dd"), cari = "Market", tutarTl = 3_000m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = kart.Id })).EnsureSuccessStatusCode();
+        Assert.Equal(10_000m, (await c.GetFromJsonAsync<PanelYanit>("/api/rapor/panel"))!.GuncelKasa);
+
+        (await c.PostAsJsonAsync("/api/kartodemeler", new { krediKartiId = kart.Id, tarih = bugun.AddDays(-1).ToString("yyyy-MM-dd"), tutar = 1_200m })).EnsureSuccessStatusCode();
+        Assert.Equal(8_800m, (await c.GetFromJsonAsync<PanelYanit>("/api/rapor/panel"))!.GuncelKasa);
+    }
+}

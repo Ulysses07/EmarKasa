@@ -15,13 +15,15 @@ public class HesapServisi
         IReadOnlyList<Islem> Islemler,
         IReadOnlyList<Gelen> Gelenler,
         IReadOnlyList<Donem> Donemler,
-        decimal KasaAcilis);
+        decimal KasaAcilis,
+        IReadOnlyList<KartOdeme> KartOdemeleri);
 
     private Yuk Yukle()
     {
         var kanallar = _db.Kanallar.OrderBy(k => k.Sira).ToList().Select(e => e.ToCore()).ToList();
         var islemler = _db.Islemler.ToList().Select(e => e.ToCore()).ToList();
         var gelenler = _db.Gelenler.ToList().Select(e => e.ToCore()).ToList();
+        var kartOdemeleri = _db.KartOdemeler.ToList().Select(e => e.ToCore()).ToList();
         var ayar = _db.Ayarlar.First();
 
         var baslangic = ayar.TakipBaslangic;
@@ -30,13 +32,13 @@ public class HesapServisi
         var bitis = new[] { bugun, enGecIslem, baslangic }.Max();
 
         var donemler = DonemUretici.Uret(baslangic, bitis);
-        return new Yuk(kanallar, islemler, gelenler, donemler, ayar.KasaAcilisDevri);
+        return new Yuk(kanallar, islemler, gelenler, donemler, ayar.KasaAcilisDevri, kartOdemeleri);
     }
 
     public IReadOnlyList<HaftalikOzet> Haftalik()
     {
         var y = Yukle();
-        return HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
+        return HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, y.KartOdemeleri);
     }
 
     public AylikRapor Aylik(int yil, int ay)
@@ -50,7 +52,7 @@ public class HesapServisi
     public PanelDto Panel()
     {
         var y = Yukle();
-        var haftalik = HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
+        var haftalik = HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, y.KartOdemeleri);
         var son = haftalik.Count > 0 ? haftalik[^1] : null;
 
         var guncelKasa = son?.KasaDevir ?? y.KasaAcilis;

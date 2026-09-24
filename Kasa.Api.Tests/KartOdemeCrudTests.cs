@@ -92,7 +92,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
     }
 
     [Fact]
-    public async Task Kart_silinince_odemeler_silinir_ve_islem_krediKartiId_null_olur()
+    public async Task Hareketi_olan_kart_silinemez_hareketler_kalkinca_silinir()
     {
         var client = await _factory.EditorClientAsync();
 
@@ -123,23 +123,13 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var islem = await islemEkle.Content.ReadFromJsonAsync<JsonElement>();
         var islemId = islem.GetProperty("id").GetInt32();
 
-        // Kartı sil
+        // Hareketi varken silinemez (kasa geçmişi korunur)
         var sil = await client.DeleteAsync($"/api/kredikartlari/{kart.Id}");
-        Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, sil.StatusCode);
 
-        // Ödemeler silindi → liste boş
-        var odemeler = await client.GetFromJsonAsync<List<OdemeYanit>>(
-            $"/api/kartodemeler?krediKartiId={kart.Id}");
-        Assert.NotNull(odemeler);
-        Assert.Empty(odemeler);
-
-        // İşlem hâlâ var ama krediKartiId null
-        var islemler = await client.GetFromJsonAsync<List<JsonElement>>("/api/islemler");
-        Assert.NotNull(islemler);
-        var bulunan = islemler!.FirstOrDefault(i => i.GetProperty("id").GetInt32() == islemId);
-        Assert.NotEqual(default, bulunan);
-        Assert.True(
-            bulunan.GetProperty("krediKartiId").ValueKind == JsonValueKind.Null,
-            "İşlemin krediKartiId alanı null olmalı");
+        // Ödeme ve harcama kaldırılınca silinir
+        (await client.DeleteAsync($"/api/kartodemeler/{odeme!.Id}")).EnsureSuccessStatusCode();
+        (await client.DeleteAsync($"/api/islemler/{islemId}")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/kredikartlari/{kart.Id}")).StatusCode);
     }
 }

@@ -15,7 +15,9 @@ public static class HesapMotoru
     /// <summary>
     /// Dönem dönem haftalık özet üretir. Kanal devri yalnız o kanalın Cari tipli
     /// gidenini sayar. Kasa devri Cari + SabitGider + Ortak gidenleri kendi döneminde
-    /// sayar; KrediKarti ise ertelenir — bir sonraki ayın son döneminde kasadan çıkar.
+    /// sayar. Kredi kartı: bir karta bağlı harcama kasadan harcamayla değil, o kartın
+    /// gerçek ödemesiyle (<paramref name="kartOdemeleri"/>, ödeme tarihinin döneminde) çıkar.
+    /// Karta bağlı olmayan K.K harcaması ertelenir — bir sonraki ayın son döneminde çıkar.
     /// "Son dönem" ayın son gününü içeren dönemdir; içinde bulunulan ay henüz o haftaya
     /// gelmediyse ertelenen K.K bekler (haftadan haftaya kaymaz).
     /// Gelen, DonemStart'ı hangi dönemin içine düşüyorsa o döneme sayılır.
@@ -26,17 +28,20 @@ public static class HesapMotoru
         IReadOnlyList<Kanal> kanallar,
         IReadOnlyList<Islem> islemler,
         IReadOnlyList<Gelen> gelenler,
-        IReadOnlyList<Donem> donemler)
+        IReadOnlyList<Donem> donemler,
+        IReadOnlyList<KartOdeme>? kartOdemeleri = null)
     {
         var sirali = donemler.OrderBy(d => d.Start).ToList();
+        var odemeler = kartOdemeleri ?? Array.Empty<KartOdeme>();
         var kanalDevir = kanallar.ToDictionary(k => k.Ad, k => k.AcilisDevri);
         var kasaDevir = kasaAcilisDevri;
         var sonuc = new List<HaftalikOzet>();
 
         // Kredi kartı ertelemesi (kasa): bir ayın K.K'sı o ay kasadan çıkmaz;
         // ödemesi bir SONRAKİ ayın SON döneminde toplu olarak kasadan çıkar.
+        // Karta bağlı harcamalar burada yok: onlar kart ödemesiyle kasadan çıkar.
         var aylikKkToplam = islemler
-            .Where(i => i.Tip == GiderTipi.KrediKarti)
+            .Where(i => i.Tip == GiderTipi.KrediKarti && i.KrediKartiId is null)
             .GroupBy(i => (i.Tarih.Year, i.Tarih.Month))
             .ToDictionary(g => g.Key, g => g.Sum(i => i.TutarTl));
 
@@ -75,6 +80,8 @@ public static class HesapMotoru
                 if (aylikKkToplam.TryGetValue((oncekiYil, oncekiAy), out var ertelenenKk))
                     toplamGiden += ertelenenKk;
             }
+            // Kart borç ödemeleri, ödendikleri dönemde kasadan çıkar.
+            toplamGiden += odemeler.Where(o => donem.Icerir(o.Tarih)).Sum(o => o.Tutar);
             decimal kasaSonucu = toplamGelen - toplamGiden;
             kasaDevir += kasaSonucu;
 

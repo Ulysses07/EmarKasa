@@ -27,7 +27,11 @@ public record Islem(
     decimal TutarTl,
     string Kanal,          // "MEZAT" | "PERAKENDE" | "TOPTAN" | Kanallar.Ortak
     GiderTipi Tip,
-    string? Not = null);
+    string? Not = null,
+    int? KrediKartiId = null);   // kart harcaması ise hangi kart (kasadan ödemeyle çıkar)
+
+/// <summary>Kredi kartı borç ödemesi: kasadan ödeme tarihinde çıkan nakit.</summary>
+public record KartOdeme(DateOnly Tarih, decimal Tutar);
 
 /// <summary>Haftalık gelen — dönem başına, kanal başına tek rakam.</summary>
 public record Gelen(DateOnly DonemStart, string Kanal, decimal TutarTl);
