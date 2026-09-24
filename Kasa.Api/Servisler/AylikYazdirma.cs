@@ -80,7 +80,7 @@ public static class AylikYazdirma
             .OrderBy(c => c.VadeTarihi).ThenBy(c => c.Id).ToList();
         var sayim = db.KasaSayimlari.AsNoTracking().Where(s => s.Tarih <= aySonu)
             .OrderByDescending(s => s.Tarih).ThenByDescending(s => s.Id).FirstOrDefault();
-        var kilitli = db.AyKilitleri.AsNoTracking().Any(k => k.Ay == ayBasi);
+        var kilitli = AyKilidiKurali.KilitliMi(db, ayBasi);
         var yayin = db.AyYayinlari.AsNoTracking().Where(y => y.Ay == ayBasi).Select(y => (DateTime?)y.YayinZamaniUtc).FirstOrDefault();
 
         return new AylikYazdirVerisi(yil, ay, hesap.Aylik(yil, ay), rapor.AyinKasaDokumu(yil, ay), tarih, kartlar,

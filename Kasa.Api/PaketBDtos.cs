@@ -19,16 +19,22 @@ public record AyIstekDto(int Yil, int Ay);
 public record AyFarkiDto(string Kalem, decimal? Eski, decimal? Yeni);
 
 /// <summary>
-/// Ayın kapanış durumu. <see cref="Farklar"/> yayındaki anlık görüntüyle bugünkü rakamlar arasındaki
-/// farklar; <see cref="Degisiklikler"/> yayından sonra o aya dokunan geçmiş satırları (en yeni önce).
+/// Ayın kapanış durumu. <see cref="Kilitli"/> geriye doğru kapsayan kilittir (en son kilitli aydan
+/// önceki takip ayları da kilitlidir). <see cref="Farklar"/> yayındaki anlık görüntüyle bugünkü rakamlar
+/// arasındaki farklar; <see cref="Degisiklikler"/> yayından sonra o aya dokunan (kasa açılışı değiştiyse
+/// önceki aylara ait, Ortak payı değiştiyse kanal dağılımını değiştiren) geçmiş satırları (en yeni önce).
 /// </summary>
 public record AyKapanisDto(int Yil, int Ay, string Etiket, bool Kilitli, DateTime? KilitZamaniUtc, bool Kilitlenebilir,
     bool Yayinlandi, DateTime? YayinZamaniUtc, IReadOnlyList<AyFarkiDto> Farklar, IReadOnlyList<DegisiklikDto> Degisiklikler);
 
 public record AyKilidiDto(int Yil, int Ay, string Etiket, DateTime KilitZamaniUtc);
 
-/// <summary>Yayınlanan ayın anlık görüntüsü (AyYayinEntity.AnlikJson).</summary>
-public record AyAnlikGoruntusu(IReadOnlyList<KanalAylik> Kanallar, decimal? KasaAcilis, decimal? KasaKapanis);
+/// <summary>
+/// Yayınlanan ayın anlık görüntüsü (AyYayinEntity.AnlikJson). <see cref="KanalIdleri"/> kanal adı → Id
+/// (yayın anındaki adlar); eski görüntülerde yoktur, o zaman satırlar adla eşlenir.
+/// </summary>
+public record AyAnlikGoruntusu(IReadOnlyList<KanalAylik> Kanallar, decimal? KasaAcilis, decimal? KasaKapanis,
+    IReadOnlyDictionary<string, int>? KanalIdleri = null);
 
 // ---------------------------------------------------------------- 04 · Grafikler ve kurlar
 

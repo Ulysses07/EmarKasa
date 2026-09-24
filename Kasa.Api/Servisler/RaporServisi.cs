@@ -59,33 +59,53 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
 
     // ------------------------------------------------------------ 11 · ay kapanışı
 
+    /// <summary>
+    /// Ayın rakamları: kanal satırları (aylık rapor), kasa açılışı/kapanışı ve kanal adı → Id eşlemi
+    /// (kanal yeniden adlandırılsa da satırlar Id ile eşleşsin diye).
+    /// </summary>
     public AyAnlikGoruntusu Anlik(int yil, int ay)
     {
         var d = AyinKasaDokumu(yil, ay);
-        return new AyAnlikGoruntusu(hesap.Aylik(yil, ay).Kanallar, d?.Acilis, d?.Kapanis);
+        var idler = db.Kanallar.AsNoTracking().Select(k => new { k.Ad, k.Id }).ToList().ToDictionary(k => k.Ad, k => k.Id);
+        return new AyAnlikGoruntusu(hesap.Aylik(yil, ay).Kanallar, d?.Acilis, d?.Kapanis, idler);
     }
 
-    /// <summary>Anlık görüntüdeki rakamlarla bugünküler arasındaki farklar (kanal ve alan başına).</summary>
+    public const string KasaAcilisiKalemi = "Kasa açılışı";
+    public const string KasaKapanisiKalemi = "Kasa kapanışı";
+    public const string OrtakPayAlani = "Ortak pay";
+
+    /// <summary>
+    /// Anlık görüntüdeki rakamlarla bugünküler arasındaki farklar (kanal ve alan başına). Kanal satırları
+    /// iki görüntüde de Id varsa Id ile eşlenir (ad değişimi fark sayılmaz; bugünkü ad gösterilir), yoksa
+    /// adla. Satırı olmayan kanalın alanı "—"dir; yalnız bir yanda satır olup rakam 0 ise fark sayılmaz.
+    /// </summary>
     public static IReadOnlyList<AyFarkiDto> Karsilastir(AyAnlikGoruntusu eski, AyAnlikGoruntusu yeni)
     {
         var farklar = new List<AyFarkiDto>();
         void Ekle(string kalem, decimal? e, decimal? y)
         {
-            if (e != y) farklar.Add(new AyFarkiDto(kalem, e, y));
+            if (e == y || (e ?? 0m) == (y ?? 0m) && (e is null || y is null)) return;
+            farklar.Add(new AyFarkiDto(kalem, e, y));
         }
-        Ekle("Kasa açılışı", eski.KasaAcilis, yeni.KasaAcilis);
-        Ekle("Kasa kapanışı", eski.KasaKapanis, yeni.KasaKapanis);
-        var adlar = eski.Kanallar.Select(k => k.Kanal).Concat(yeni.Kanallar.Select(k => k.Kanal)).Distinct().ToList();
-        foreach (var ad in adlar)
+        Ekle(KasaAcilisiKalemi, eski.KasaAcilis, yeni.KasaAcilis);
+        Ekle(KasaKapanisiKalemi, eski.KasaKapanis, yeni.KasaKapanis);
+
+        bool idIle = eski.KanalIdleri is not null && yeni.KanalIdleri is not null;
+        string Anahtar(AyAnlikGoruntusu g, string ad)
+            => idIle && g.KanalIdleri!.TryGetValue(ad, out var id) ? "#" + id : "ad:" + ad;
+        var eskiler = eski.Kanallar.GroupBy(k => Anahtar(eski, k.Kanal)).ToDictionary(g => g.Key, g => g.First());
+        var yeniler = yeni.Kanallar.GroupBy(k => Anahtar(yeni, k.Kanal)).ToDictionary(g => g.Key, g => g.First());
+        foreach (var anahtar in eskiler.Keys.Concat(yeniler.Keys).Distinct())
         {
-            var e = eski.Kanallar.FirstOrDefault(k => k.Kanal == ad);
-            var y = yeni.Kanallar.FirstOrDefault(k => k.Kanal == ad);
+            var e = eskiler.GetValueOrDefault(anahtar);
+            var y = yeniler.GetValueOrDefault(anahtar);
+            var ad = (y ?? e)!.Kanal;
             Ekle($"{ad} · Gelen", e?.Gelen, y?.Gelen);
             Ekle($"{ad} · Çek tahsilatı", e?.CekGelen, y?.CekGelen);
             Ekle($"{ad} · Cari gider", e?.CariGiden, y?.CariGiden);
             Ekle($"{ad} · Sabit gider", e?.SabitGider, y?.SabitGider);
             Ekle($"{ad} · Kredi kartı", e?.KrediKarti, y?.KrediKarti);
-            Ekle($"{ad} · Ortak pay", e?.OrtakPay, y?.OrtakPay);
+            Ekle($"{ad} · {OrtakPayAlani}", e?.OrtakPay, y?.OrtakPay);
             Ekle($"{ad} · Çek ödemesi", e?.CekGiden, y?.CekGiden);
             Ekle($"{ad} · Ay sonucu", e?.AySonucu, y?.AySonucu);
         }
@@ -95,12 +115,20 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
     private static readonly HashSet<string> KapanisTurleri = [GecmisTurleri.AyKilidi, GecmisTurleri.AyYayini];
 
     /// <summary>
-    /// <paramref name="sonId"/>'den sonraki geçmiş satırlarından <paramref name="ay"/>'a dokunanlar
-    /// (en yeni önce): kaydın eski ya da yeni halinin kilit tarihi o aya düşen satırlar (K.K işlemi bir
-    /// sonraki aya da dokunur), o ayı etkileyen takip başlangıcı / kasa açılış devri değişimi ve kanal
-    /// açılış devri değişimi. Kilit/yayın satırları ve yalnız ad değişimleri sayılmaz.
+    /// <paramref name="sonId"/>'den sonraki geçmiş satırlarından <paramref name="ay"/>'ın rakamlarını
+    /// açıklayanlar (en yeni önce):
+    /// <list type="bullet">
+    /// <item>Kaydın eski ya da yeni halinin kilit tarihi o aya düşen satırlar (K.K işlemi bir sonraki
+    /// aya da dokunur), o ayı etkileyen takip başlangıcı / kasa açılış devri değişimi ve kanal açılış
+    /// devri değişimi.</item>
+    /// <item><paramref name="oncekiAylar"/> (kasa açılışı değişti): kasa aydan aya devrettiği için
+    /// önceki aylara ait işlem, gelen, kart ödemesi ve çek satırları da (kasa sayımı kasayı değiştirmez).</item>
+    /// <item><paramref name="kanalDagilimi"/> (bir kanalın Ortak payı değişti): kanal ekleme/silme ve
+    /// sıra ya da aktiflik değişimi (Ortak gider bunlara göre bölünür).</item>
+    /// </list>
+    /// Kilit/yayın satırları ve yalnız ad değişimleri sayılmaz.
     /// </summary>
-    public List<DegisiklikEntity> AyaDokunanlar(DateOnly ay, int sonId)
+    public List<DegisiklikEntity> AyaDokunanlar(DateOnly ay, int sonId, bool oncekiAylar = false, bool kanalDagilimi = false)
     {
         var turTipleri = db.Model.GetEntityTypes().Select(t => t.ClrType)
             .Where(t => AyKilidiKurali.KilitAlanlari(t).Count > 0)
@@ -116,8 +144,11 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
             bool dokunur = false;
             if (turTipleri.TryGetValue(d.Tur, out var tip))
             {
-                dokunur = (eski is { } e && AyKilidiKurali.EtkiledigiAylar(tip, AyKilidiKurali.JsonOkuyucu(e)).Contains(ay))
-                          || (yeni is { } y && AyKilidiKurali.EtkiledigiAylar(tip, AyKilidiKurali.JsonOkuyucu(y)).Contains(ay));
+                var aylar = new HashSet<DateOnly>();
+                if (eski is { } e) aylar.UnionWith(AyKilidiKurali.EtkiledigiAylar(tip, AyKilidiKurali.JsonOkuyucu(e)));
+                if (yeni is { } y) aylar.UnionWith(AyKilidiKurali.EtkiledigiAylar(tip, AyKilidiKurali.JsonOkuyucu(y)));
+                dokunur = aylar.Contains(ay)
+                          || (oncekiAylar && tip != typeof(KasaSayimEntity) && aylar.Any(a => a < ay));
             }
             else if (d.Tur == GecmisTurleri.Ayar && eski is { } ea && yeni is { } ya)
             {
@@ -129,12 +160,20 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
             }
             else if (d.Tur == GecmisTurleri.Kanal)
             {
-                decimal? Devir(JsonElement? j) => j is { } x ? AyKilidiKurali.JsonOkuyucu(x)(nameof(KanalEntity.AcilisDevri)) as decimal? : null;
-                var ed = Devir(eski);
-                var yd = Devir(yeni);
-                dokunur = d.Eylem == Eylemler.Guncellendi
-                    ? ed is not null && yd is not null && ed != yd
-                    : (ed ?? 0m) != 0m || (yd ?? 0m) != 0m;
+                object? Alan(JsonElement? j, string alan) => j is { } x ? AyKilidiKurali.JsonOkuyucu(x)(alan) : null;
+                var ed = Alan(eski, nameof(KanalEntity.AcilisDevri)) as decimal?;
+                var yd = Alan(yeni, nameof(KanalEntity.AcilisDevri)) as decimal?;
+                if (d.Eylem == Eylemler.Guncellendi)
+                {
+                    dokunur = ed is not null && yd is not null && ed != yd;
+                    // Toplu ad değişimi satırında sıra/aktiflik yoktur (ikisi de null): sayılmaz.
+                    if (kanalDagilimi
+                        && (!Equals(Alan(eski, nameof(KanalEntity.Sira)), Alan(yeni, nameof(KanalEntity.Sira)))
+                            || !Equals(Alan(eski, nameof(KanalEntity.Aktif)), Alan(yeni, nameof(KanalEntity.Aktif)))))
+                        dokunur = true;
+                }
+                else
+                    dokunur = kanalDagilimi || (ed ?? 0m) != 0m || (yd ?? 0m) != 0m;
             }
             if (dokunur) sonuc.Add(d);
         }
@@ -151,7 +190,10 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
     public AyKapanisDto AyKapanisi(int yil, int ay)
     {
         var ayBasi = new DateOnly(yil, ay, 1);
-        var kilit = db.AyKilitleri.AsNoTracking().FirstOrDefault(k => k.Ay == ayBasi);
+        // Kilit geriye doğru kapsar: satırı olmasa da en son kilitli aydan önceki (takipteki) ay kilitlidir.
+        var kilitSatirlari = db.AyKilitleri.AsNoTracking().ToList();
+        var kilitli = AyKilidiKurali.EtkinKilitliAylar(db, kilitSatirlari.Select(k => k.Ay).ToList()).Contains(ayBasi);
+        var kilitZamani = kilitSatirlari.Where(k => k.Ay >= ayBasi).OrderBy(k => k.Ay).FirstOrDefault()?.KilitZamaniUtc;
         var yayin = db.AyYayinlari.AsNoTracking().FirstOrDefault(y => y.Ay == ayBasi);
         IReadOnlyList<AyFarkiDto> farklar = [];
         IReadOnlyList<DegisiklikDto> degisiklikler = [];
@@ -162,9 +204,12 @@ public sealed class RaporServisi(KasaDbContext db, HesapServisi hesap, TimeProvi
             catch (JsonException) { }
             if (eski is not null) farklar = Karsilastir(eski, Anlik(yil, ay));
             var simdi = saat.GetUtcNow().UtcDateTime;
-            degisiklikler = AyaDokunanlar(ayBasi, yayin.SonDegisiklikId).Select(d => DegisiklikDtosu(d, simdi)).ToList();
+            degisiklikler = AyaDokunanlar(ayBasi, yayin.SonDegisiklikId,
+                    oncekiAylar: farklar.Any(f => f.Kalem == KasaAcilisiKalemi),
+                    kanalDagilimi: farklar.Any(f => f.Kalem.EndsWith(" · " + OrtakPayAlani, StringComparison.Ordinal)))
+                .Select(d => DegisiklikDtosu(d, simdi)).ToList();
         }
-        return new AyKapanisDto(yil, ay, AyBicimi.Etiket(ayBasi), kilit is not null, Utc(kilit?.KilitZamaniUtc),
+        return new AyKapanisDto(yil, ay, AyBicimi.Etiket(ayBasi), kilitli, kilitli ? Utc(kilitZamani) : null,
             Kilitlenebilir(ayBasi), yayin is not null, Utc(yayin?.YayinZamaniUtc), farklar, degisiklikler);
     }
 

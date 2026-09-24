@@ -124,7 +124,10 @@ public class HesapServisi
     /// Aylık rapor yalnız o ayın ve (ertelenen K.K için) bir önceki ayın işlemlerine, o ayın
     /// gelenlerine ve işlem tarihi o aya düşen çeklere bakar; bu yüzden yalnız bu aralık yüklenir.
     /// </summary>
-    public AylikRapor Aylik(int yil, int ay)
+    public AylikRapor Aylik(int yil, int ay) => Aylik(yil, ay, KanallariYukle());
+
+    /// <summary>Verilen kanal listesiyle (sıra, aktiflik) aylık rapor; ay kilidi, kanal değişikliğini böyle sınar.</summary>
+    public AylikRapor Aylik(int yil, int ay, IReadOnlyList<Kanal> kanallar)
     {
         var (baslangic, _) = AyarOku();
         var ayBasi = new DateOnly(yil, ay, 1);
@@ -141,7 +144,7 @@ public class HesapServisi
         var donemler = TakvimUret(baslangic).Where(d => d.Yil == yil && d.Ay == ay).ToList();
         // Dönem listesi yalnız bu ayı kapsar; takip başlangıcı açıkça verilmezse motor önceki ayın
         // K.K'sını "takipten önce" sayıp düşürür.
-        return HesapMotoru.AylikHesapla(yil, ay, KanallariYukle(), islemler, gelenler, donemler, baslangic, cekler);
+        return HesapMotoru.AylikHesapla(yil, ay, kanallar, islemler, gelenler, donemler, baslangic, cekler);
     }
 
     /// <summary>Takvim yalnız ayarlardan türetilir; işlem tablolarına dokunmaz.</summary>

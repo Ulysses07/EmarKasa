@@ -106,6 +106,9 @@ public partial class KasaDbContext
     public DbSet<GiderButceEntity> GiderButceleri => Set<GiderButceEntity>();
     public DbSet<KurEntity> Kurlar => Set<KurEntity>();
 
+    /// <summary>Context'in saati (DI'daki TimeProvider); ay kilidi denetimi raporu bununla hesaplar.</summary>
+    internal TimeProvider SaatSaglayici => _saat;
+
     /// <summary>Ay kilidi denetimi her SaveChanges'te merkezî olarak çalışır (bkz. <see cref="AyKilidiDenetcisi"/>).</summary>
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         => optionsBuilder.AddInterceptors(AyKilidiDenetcisi.Ornek);

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
+using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -33,10 +34,16 @@ public static class AyBicimi
 /// Ay kilidi kuralı. Kilit alanları <see cref="AyKilidiAttribute"/>'ten okunur (işlem, gelen, kart
 /// ödemesi, çek, kasa sayımı). Ek kural: karta bağlı ya da kartsız K.K işlemi bir SONRAKİ ayın
 /// sonucunu da değiştirir (aylık raporda önceki ayın K.K'sı, kasada kartsız K.K bir sonraki ayda
-/// düşülür); bu yüzden o ay da denetlenir. Tüm ayları etkileyen ayarlar ayrı denetlenir:
-/// takip başlangıcı (değişim noktasından sonra biten kilitli ay varsa), kasa açılış devri ve kanal
-/// açılış devri (herhangi bir kilitli ay varsa) değiştirilemez. Kanal/cari/kalem adı değişimi
-/// (yalnız etiket) ve kanalın aktif bayrağı serbesttir.
+/// düşülür); bu yüzden o ay da denetlenir.
+/// <para>Kilit geriye doğru kapsar: kasa aydan aya devrettiği için önceki bir aydaki düzeltme kilitli
+/// ayın açılış ve kapanış kasasını değiştirir. Bu yüzden takip başlangıcından en son kilitli aya kadar
+/// her ay kilitli sayılır (<see cref="EtkinKilitliAylar"/>); kilitleme uç noktası da aradaki ayları
+/// kilitler, kilit açma sonraki ayların kilidini de açar.</para>
+/// <para>Tüm ayları etkileyen ayarlar ayrı denetlenir: takip başlangıcı (değişim noktasından sonra
+/// biten kilitli ay varsa), kasa açılış devri ve kanal açılış devri (herhangi bir kilitli ay varsa)
+/// değiştirilemez. Kanal sırası, aktifliği, kanal ekleme/silme Ortak giderin kanallara bölünüşünü
+/// değiştirebilir: kilitli ayların aylık raporu değişiklikten önce ve sonra hesaplanır, bir rakam
+/// değişirse engellenir. Kanal/cari/kalem adı değişimi (yalnız etiket) serbesttir.</para>
 /// </summary>
 public static class AyKilidiKurali
 {
@@ -79,12 +86,33 @@ public static class AyKilidiKurali
         return v.ToString();
     };
 
-    /// <summary>Kilitli aylar (ay başı). Tablo yoksa (şema henüz güncellenmemiş) boş.</summary>
+    /// <summary>Kilit satırı olan aylar (ay başı). Tablo yoksa (şema henüz güncellenmemiş) boş.</summary>
     public static List<DateOnly> KilitliAylar(KasaDbContext db)
     {
         try { return db.AyKilitleri.AsNoTracking().Select(k => k.Ay).ToList(); }
         catch (SqliteException ex) when (ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase)) { return []; }
     }
+
+    /// <summary>Takip başlangıcının ayı (ay başı).</summary>
+    public static DateOnly TakipAyi(KasaDbContext db)
+        => AyBicimi.AyBasi(db.Ayarlar.AsNoTracking().OrderBy(a => a.Id).Select(a => a.TakipBaslangic).First());
+
+    /// <summary>
+    /// Yazılamayan aylar: kilit satırı olan aylar ve takip başlangıcından en son kilitli aya kadar
+    /// aradaki her ay (kasa devri önceki aydan gelir). Kilit uç noktası aradaki ayları zaten
+    /// kilitler; bu, kural her durumda geçerli olsun diye yeniden hesaplanır.
+    /// </summary>
+    public static SortedSet<DateOnly> EtkinKilitliAylar(KasaDbContext db, IReadOnlyCollection<DateOnly>? kilitli = null)
+    {
+        kilitli ??= KilitliAylar(db);
+        var sonuc = new SortedSet<DateOnly>(kilitli);
+        if (sonuc.Count == 0) return sonuc;
+        for (var a = TakipAyi(db); a < sonuc.Max; a = a.AddMonths(1)) sonuc.Add(a);
+        return sonuc;
+    }
+
+    /// <summary>Ay (ayın herhangi bir günü) yazmaya kapalı mı (bkz. <see cref="EtkinKilitliAylar"/>).</summary>
+    public static bool KilitliMi(KasaDbContext db, DateOnly ay) => EtkinKilitliAylar(db).Contains(AyBicimi.AyBasi(ay));
 
     /// <summary>
     /// Değişiklik izleyicideki yazmaları kilitlere karşı denetler; kilitli aya dokunan varsa
@@ -95,6 +123,7 @@ public static class AyKilidiKurali
         var aylar = new HashSet<DateOnly>();
         DateOnly? takipDegisimi = null;
         string? tumAylariEtkileyen = null;
+        bool kanalDagilimi = false;
         foreach (var e in db.ChangeTracker.Entries())
         {
             if (e.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
@@ -126,22 +155,74 @@ public static class AyKilidiKurali
                 };
                 if (degisti)
                     tumAylariEtkileyen = "kanal açılış devri değiştirilemez; açılış devri olan kanal eklenemez ya da silinemez (tüm ayların kanal devirlerini değiştirir)";
+                // Ortak gider kanal sırasına (artık kuruşlar) ve aktif kanallara (o ay hareketli kanal yoksa) göre bölünür.
+                if (e.State != EntityState.Modified
+                    || !Equals(e.Property(nameof(KanalEntity.Sira)).OriginalValue, k.Sira)
+                    || !Equals(e.Property(nameof(KanalEntity.Aktif)).OriginalValue, k.Aktif))
+                    kanalDagilimi = true;
             }
         }
-        if (aylar.Count == 0 && takipDegisimi is null && tumAylariEtkileyen is null) return;
+        if (aylar.Count == 0 && takipDegisimi is null && tumAylariEtkileyen is null && !kanalDagilimi) return;
 
         var kilitli = KilitliAylar(db);
         if (kilitli.Count == 0) return;
-        if (takipDegisimi is { } t && kilitli.Where(a => AyBicimi.AySonu(a) >= t).ToList() is { Count: > 0 } etkilenen)
+        var etkin = EtkinKilitliAylar(db, kilitli);
+        if (takipDegisimi is { } t && etkin.Where(a => AyBicimi.AySonu(a) >= t).ToList() is { Count: > 0 } etkilenen)
             throw new AyKilitliHatasi(
                 $"Takip başlangıcı değişirse kilitli ayların ({AyBicimi.Liste(etkilenen)}) rakamları değişir. Önce bu ayların kilidini açın.");
         if (tumAylariEtkileyen is not null)
-            throw new AyKilitliHatasi($"Kilitli ay varken ({AyBicimi.Liste(kilitli)}) {tumAylariEtkileyen}. Önce kilitleri açın.");
-        var carpisan = aylar.Where(kilitli.Contains).ToList();
+            throw new AyKilitliHatasi($"Kilitli ay varken ({AyBicimi.Liste(etkin)}) {tumAylariEtkileyen}. Önce kilitleri açın.");
+        var carpisan = aylar.Where(etkin.Contains).ToList();
         if (carpisan.Count > 0)
             throw new AyKilitliHatasi(
                 $"{AyBicimi.Liste(carpisan)} kilitli: bu aya ait kayıt eklenemez, değiştirilemez ya da silinemez. " +
                 "Editör Aylık rapordan ayın kilidini açabilir.");
+        if (kanalDagilimi && OrtakDagilimiDegisenAylar(db, etkin) is { Count: > 0 } dagilim)
+            throw new AyKilitliHatasi(
+                $"Bu kanal değişikliği kilitli ayların ({AyBicimi.Liste(dagilim)}) Ortak gider paylarını değiştirir " +
+                "(Ortak gider kanal sırasına ve aktif kanallara göre bölünür). Önce bu ayların kilidini açın.");
+    }
+
+    /// <summary>
+    /// Kanal değişikliğinden (sıra, aktiflik, ekleme, silme) önceki ve sonraki kanal listesiyle kilitli
+    /// ayların aylık raporunu hesaplar; kanal satırlarından biri değişen aylar döner. Ad değişimi
+    /// kayıtlara da taşındığından (işlem, gelen, çek adları zaten yeni) iki listede de yeni ad kullanılır.
+    /// </summary>
+    private static List<DateOnly> OrtakDagilimiDegisenAylar(KasaDbContext db, IEnumerable<DateOnly> kilitliAylar)
+    {
+        var izlenen = db.ChangeTracker.Entries<KanalEntity>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
+        var degisen = izlenen.Where(x => x.State != EntityState.Added).ToDictionary(x => x.Entity.Id);
+        var eklenen = izlenen.Where(x => x.State == EntityState.Added).Select(x => x.Entity).ToList();
+        var dbdeki = db.Kanallar.AsNoTracking().ToList();
+
+        // HesapServisi'nin sırası: Sira, sonra Id (yeni kanal en büyük Id'yi alır).
+        static IReadOnlyList<Kanal> Liste(IEnumerable<(int Id, string Ad, decimal Devir, bool Aktif, int Sira)> l)
+            => l.OrderBy(x => x.Sira).ThenBy(x => x.Id).Select(x => new Kanal(x.Ad, x.Devir, x.Aktif, x.Sira)).ToList();
+        var once = Liste(dbdeki.Select(k => (k.Id, degisen.TryGetValue(k.Id, out var x) ? x.Entity.Ad : k.Ad, k.AcilisDevri, k.Aktif, k.Sira)));
+        var sonra = Liste(dbdeki
+            .Where(k => !(degisen.TryGetValue(k.Id, out var x) && x.State == EntityState.Deleted))
+            .Select(k => degisen.TryGetValue(k.Id, out var x) ? (k.Id, x.Entity.Ad, x.Entity.AcilisDevri, x.Entity.Aktif, x.Entity.Sira) : (k.Id, k.Ad, k.AcilisDevri, k.Aktif, k.Sira))
+            .Concat(eklenen.Select(k => (int.MaxValue, k.Ad, k.AcilisDevri, k.Aktif, k.Sira))));
+
+        var hesap = new HesapServisi(db, db.SaatSaglayici);
+        var takipAyi = TakipAyi(db);
+        var sonuc = new List<DateOnly>();
+        foreach (var ay in kilitliAylar.Where(a => a >= takipAyi))
+        {
+            if (!AyniKanalSatirlari(hesap.Aylik(ay.Year, ay.Month, once).Kanallar, hesap.Aylik(ay.Year, ay.Month, sonra).Kanallar))
+                sonuc.Add(ay);
+        }
+        return sonuc;
+    }
+
+    /// <summary>Kanal satırları ada göre aynı mı (satırı olmayan kanal sıfır sayılır).</summary>
+    private static bool AyniKanalSatirlari(IReadOnlyList<KanalAylik> a, IReadOnlyList<KanalAylik> b)
+    {
+        static (decimal, decimal, decimal, decimal, decimal, decimal, decimal, decimal) Deger(KanalAylik? k)
+            => k is null ? default : (k.Gelen, k.CariGiden, k.SabitGider, k.KrediKarti, k.OrtakPay, k.AySonucu, k.CekGelen, k.CekGiden);
+        return a.Select(k => k.Kanal).Concat(b.Select(k => k.Kanal)).Distinct()
+            .All(ad => Deger(a.FirstOrDefault(k => k.Kanal == ad)) == Deger(b.FirstOrDefault(k => k.Kanal == ad)));
     }
 }
 

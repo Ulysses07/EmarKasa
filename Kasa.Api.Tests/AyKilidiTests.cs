@@ -62,8 +62,8 @@ public class AyKilidiTests : IClassFixture<PaketBFactory>
         await Kilitli409(await c.DeleteAsync($"/api/islemler/{agustosId}"));
         Assert.Equal(2, _f.Db(db => db.Islemler.Count()));
 
-        // Kilitsiz aylar serbest.
-        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/islemler/{temmuzId}", new { tarih = "2026-07-11", cari = "X", tutarTl = 150m, kanal = "MEZAT", tip = "Cari" })).StatusCode);
+        // Kilit geriye doğru kapsar: Temmuz da kilitli (Ağustos'un açılış kasası Temmuz'dan devreder). Eylül serbest.
+        await Kilitli409(await c.PutAsJsonAsync($"/api/islemler/{temmuzId}", new { tarih = "2026-07-11", cari = "X", tutarTl = 150m, kanal = "MEZAT", tip = "Cari" }), "Temmuz 2026");
         await IslemEkle(c, new DateOnly(2026, 9, 1), 10m);
 
         Assert.Equal(HttpStatusCode.OK, (await KilitAc(c, 2026, 8)).StatusCode);
@@ -109,11 +109,144 @@ public class AyKilidiTests : IClassFixture<PaketBFactory>
     public async Task KK_islemi_sonraki_kilitli_ayi_da_korur()
     {
         var c = await HazirlaAsync();
+        Assert.Equal(HttpStatusCode.OK, (await Kilitle(c, 2026, 6)).StatusCode);
+        // Takip öncesi Mayıs kilitli değil; ama Mayıs'ın kartsız K.K'sı takibin ilk ayı Haziran'da kasadan
+        // ve aylık sonuçtan düşer → Haziran kilitliyken eklenemez.
+        await Kilitli409(await IslemYaz(c, new DateOnly(2026, 5, 20), 75m, "MEZAT", "KrediKarti", "Market"), "Haziran 2026");
+        // Mayıs'ın Cari işlemi Haziran'a dokunmaz (takipten önce: hiçbir rakama girmez).
+        await IslemEkle(c, new DateOnly(2026, 5, 20), 75m);
+    }
+
+    [Fact]
+    public async Task Kilit_geriye_dogru_kapsar_onceki_ay_duzeltmesi_kilitli_ayin_kasasini_degistiremez()
+    {
+        var c = await HazirlaAsync();
+        var temmuzId = await IslemEkle(c, new DateOnly(2026, 7, 10), 100m);
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "MEZAT", 1_000m);
+        var once = await Oku(c, "/api/rapor/kasa-dokumu?baslangic=2026-08-01&bitis=2026-08-31");
+        Assert.Equal((-100m, 900m), (D(once, "acilis"), D(once, "kapanis")));
+
         Assert.Equal(HttpStatusCode.OK, (await Kilitle(c, 2026, 8)).StatusCode);
-        // Temmuz'un kartsız K.K'sı Ağustos'ta kasadan/aylık sonuçtan düşer → Ağustos kilitliyken eklenemez.
-        await Kilitli409(await IslemYaz(c, new DateOnly(2026, 7, 20), 75m, "MEZAT", "KrediKarti", "Market"));
-        // Temmuz'un Cari işlemi Ağustos'a dokunmaz.
-        await IslemEkle(c, new DateOnly(2026, 7, 20), 75m);
+        // Takip başlangıcından Ağustos'a kadar kilitsiz aylar da kilitlendi (ve geçmişe yazıldı).
+        var kilitler = (await Oku(c, "/api/ay-kapanisi/kilitler")).EnumerateArray().Select(k => k.GetProperty("etiket").GetString()).ToList();
+        Assert.Equal(new[] { "Ağustos 2026", "Temmuz 2026", "Haziran 2026" }, kilitler);
+        Assert.True((await Oku(c, "/api/ay-kapanisi?yil=2026&ay=7")).GetProperty("kilitli").GetBoolean());
+        Assert.False((await Oku(c, "/api/ay-kapanisi?yil=2026&ay=9")).GetProperty("kilitli").GetBoolean());
+        var gecmis = (await Oku(c, "/api/gecmis?tur=Ay%20kilidi")).EnumerateArray().Select(g => g.GetProperty("ozet").GetString()).ToList();
+        Assert.Contains("Ay kilidi eklendi: Haziran 2026", gecmis);
+
+        // Temmuz'daki düzeltme Ağustos'un açılış ve kapanış kasasını değiştirirdi: 409, rakamlar aynı.
+        var r = await c.PutAsJsonAsync($"/api/islemler/{temmuzId}", new { tarih = "2026-07-10", cari = "X", tutarTl = 20_000m, kanal = "MEZAT", tip = "Cari" });
+        await Kilitli409(r, "Temmuz 2026");
+        var sonra = await Oku(c, "/api/rapor/kasa-dokumu?baslangic=2026-08-01&bitis=2026-08-31");
+        Assert.Equal((-100m, 900m), (D(sonra, "acilis"), D(sonra, "kapanis")));
+
+        // Temmuz'un kilidini açmak Ağustos'unkini de açar (kasası Temmuz'dan devreder); Haziran kilitli kalır.
+        var ac = await KilitAc(c, 2026, 7);
+        Assert.Equal(HttpStatusCode.OK, ac.StatusCode);
+        Assert.False((await ac.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kilitli").GetBoolean());
+        Assert.False((await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8")).GetProperty("kilitli").GetBoolean());
+        kilitler = (await Oku(c, "/api/ay-kapanisi/kilitler")).EnumerateArray().Select(k => k.GetProperty("etiket").GetString()).ToList();
+        Assert.Equal(new[] { "Haziran 2026" }, kilitler);
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/islemler/{temmuzId}", new { tarih = "2026-07-10", cari = "X", tutarTl = 150m, kanal = "MEZAT", tip = "Cari" })).StatusCode);
+        await Kilitli409(await IslemYaz(c, new DateOnly(2026, 6, 15), 1m), "Haziran 2026");
+    }
+
+    [Fact]
+    public async Task Arada_kilitsiz_ay_kalmis_olsa_da_onceki_aylar_yazilamaz()
+    {
+        // Eski/elle oluşmuş durum: yalnız Ağustos satırı var. Kural yine geriye doğru kapsar.
+        var c = await HazirlaAsync();
+        var temmuzId = await IslemEkle(c, new DateOnly(2026, 7, 10), 100m);
+        _f.Db(db => { db.AyKilitleri.Add(new AyKilidiEntity { Ay = new DateOnly(2026, 8, 1), Etiket = "Ağustos 2026" }); db.SaveChanges(); });
+        await Kilitli409(await c.DeleteAsync($"/api/islemler/{temmuzId}"), "Temmuz 2026");
+        var temmuz = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=7");
+        Assert.True(temmuz.GetProperty("kilitli").GetBoolean());
+        // Aylık rapordaki "Kilidi aç" Temmuz'dan da çalışır: Temmuz ve sonrası açılır.
+        Assert.Equal(HttpStatusCode.OK, (await KilitAc(c, 2026, 7)).StatusCode);
+        Assert.Empty((await Oku(c, "/api/ay-kapanisi/kilitler")).EnumerateArray());
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{temmuzId}")).StatusCode);
+    }
+
+    private async Task<int> KanalId(HttpClient c, string ad)
+        => (await Oku(c, "/api/kanallar")).EnumerateArray().First(k => k.GetProperty("ad").GetString() == ad).GetProperty("id").GetInt32();
+
+    private static Task<HttpResponseMessage> KanalYaz(HttpClient c, int id, string ad, bool aktif, int sira)
+        => c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad, aktif, sira, acilisDevri = 0m });
+
+    [Fact]
+    public async Task Kanal_sirasi_Ortak_kurusunu_degistirirse_kilitliyken_engellenir()
+    {
+        var c = await HazirlaAsync();
+        var kanallar = (await Oku(c, "/api/kanallar")).EnumerateArray()
+            .Select(k => (Id: k.GetProperty("id").GetInt32(), Ad: k.GetProperty("ad").GetString()!, Aktif: k.GetProperty("aktif").GetBoolean(), Sira: k.GetProperty("sira").GetInt32())).ToList();
+        var mezat = kanallar.First(k => k.Ad == "MEZAT");
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "MEZAT", 1_000m);
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "PERAKENDE", 1_000m);
+        await IslemEkle(c, new DateOnly(2026, 8, 5), 100.01m, "Ortak");
+        var once = await Oku(c, "/api/rapor/aylik?yil=2026&ay=8");
+        Assert.Equal(HttpStatusCode.OK, (await Kilitle(c, 2026, 8)).StatusCode);
+
+        try
+        {
+            // Artık kuruş kanal sırasındaki ilk kanala gider: sırayı değiştirmek kilitli Ağustos'un rakamını değiştirirdi.
+            var r = await KanalYaz(c, mezat.Id, "MEZAT", true, 99);
+            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+            var hata = await HataMetni(r);
+            Assert.Contains("Ağustos 2026", hata);
+            Assert.Contains("Ortak gider", hata);
+            Assert.Equal(once.GetRawText(), (await Oku(c, "/api/rapor/aylik?yil=2026&ay=8")).GetRawText());
+
+            // Sıra değişse de dağılım aynı kalıyorsa (TOPTAN o ay pay almıyor) serbest; ad değişimi de serbest.
+            var toptan = kanallar.First(k => k.Ad == "TOPTAN");
+            Assert.Equal(HttpStatusCode.OK, (await KanalYaz(c, toptan.Id, "TOPTAN", true, 99)).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await KanalYaz(c, toptan.Id, "TOPTAN", false, 99)).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await KanalYaz(c, mezat.Id, "MEZAT YENİ", true, mezat.Sira)).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await KanalYaz(c, mezat.Id, "MEZAT", true, mezat.Sira)).StatusCode);
+            Assert.Equal(once.GetRawText(), (await Oku(c, "/api/rapor/aylik?yil=2026&ay=8")).GetRawText());
+        }
+        finally
+        {
+            Assert.Equal(HttpStatusCode.OK, (await KilitAc(c, 2026, 6)).StatusCode);
+            foreach (var k in kanallar) (await KanalYaz(c, k.Id, k.Ad, k.Aktif, k.Sira)).EnsureSuccessStatusCode();
+        }
+    }
+
+    [Fact]
+    public async Task Hareketsiz_ayda_aktiflik_ve_kanal_ekleme_silme_Ortak_bolusunu_degistirirse_engellenir()
+    {
+        var c = await HazirlaAsync();
+        var kanallar = (await Oku(c, "/api/kanallar")).EnumerateArray()
+            .Select(k => (Id: k.GetProperty("id").GetInt32(), Ad: k.GetProperty("ad").GetString()!, Aktif: k.GetProperty("aktif").GetBoolean(), Sira: k.GetProperty("sira").GetInt32())).ToList();
+        var ekstra = (await (await c.PostAsJsonAsync("/api/kanallar", new { ad = "EKSTRA", aktif = true, sira = 50, acilisDevri = 0m }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+        // Ağustos'ta hiçbir kanal hareketli değil: Ortak gider aktif kanallara bölünür.
+        await IslemEkle(c, new DateOnly(2026, 8, 5), 300m, "Ortak");
+        var once = await Oku(c, "/api/rapor/aylik?yil=2026&ay=8");
+        Assert.Equal(HttpStatusCode.OK, (await Kilitle(c, 2026, 8)).StatusCode);
+        try
+        {
+            var toptan = kanallar.First(k => k.Ad == "TOPTAN");
+            var r1 = await KanalYaz(c, toptan.Id, "TOPTAN", false, toptan.Sira);
+            Assert.Equal(HttpStatusCode.Conflict, r1.StatusCode);
+            Assert.Contains("Ortak gider", await HataMetni(r1));
+            var r2 = await c.PostAsJsonAsync("/api/kanallar", new { ad = "YENİ", aktif = true, sira = 60, acilisDevri = 0m });
+            Assert.Equal(HttpStatusCode.Conflict, r2.StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kanallar/{ekstra}")).StatusCode);
+            Assert.Equal(once.GetRawText(), (await Oku(c, "/api/rapor/aylik?yil=2026&ay=8")).GetRawText());
+
+            // Pasif kanal eklemek bölüşü değiştirmez: serbest (silmek de).
+            var pasif = await c.PostAsJsonAsync("/api/kanallar", new { ad = "PASİF", aktif = false, sira = 70, acilisDevri = 0m });
+            Assert.Equal(HttpStatusCode.Created, pasif.StatusCode);
+            var pasifId = (await pasif.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+            Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/kanallar/{pasifId}")).StatusCode);
+        }
+        finally
+        {
+            Assert.Equal(HttpStatusCode.OK, (await KilitAc(c, 2026, 6)).StatusCode);
+            (await c.DeleteAsync($"/api/kanallar/{ekstra}")).EnsureSuccessStatusCode();
+            foreach (var k in kanallar) (await KanalYaz(c, k.Id, k.Ad, k.Aktif, k.Sira)).EnsureSuccessStatusCode();
+        }
     }
 
     [Fact]
@@ -177,7 +310,8 @@ public class AyKilidiTests : IClassFixture<PaketBFactory>
         Assert.Equal(HttpStatusCode.Forbidden, (await KilitAc(izleyici, 2026, 8)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.PostAsJsonAsync("/api/ay-kapanisi/yayinla", new { yil = 2026, ay = 8 })).StatusCode);
         var liste = await Oku(izleyici, "/api/ay-kapanisi/kilitler");
-        Assert.Equal("Ağustos 2026", liste.EnumerateArray().Single().GetProperty("etiket").GetString());
+        Assert.Equal(new[] { "Ağustos 2026", "Temmuz 2026", "Haziran 2026" },
+            liste.EnumerateArray().Select(k => k.GetProperty("etiket").GetString()));
         Assert.True((await Oku(izleyici, "/api/ay-kapanisi?yil=2026&ay=8")).GetProperty("kilitli").GetBoolean());
         Assert.Equal(HttpStatusCode.Unauthorized, (await _f.CreateClient().GetAsync("/api/ay-kapanisi?yil=2026&ay=8")).StatusCode);
 

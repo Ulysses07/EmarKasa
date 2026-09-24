@@ -538,11 +538,12 @@ api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) => Yaz(db, "
 // Islemler. limit/offset verilmezse tüm eşleşenler döner (eski davranış); verilirse sayfa
 // döner ve toplam kayıt sayısı X-Toplam-Kayit başlığında gelir.
 api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, int? limit, int? offset,
-    KasaDbContext db, HttpContext http) =>
+    string? tip, KasaDbContext db, HttpContext http) =>
 {
     if (limit is < 1 or > 10_000) return Hata("limit 1 ile 10000 arasında olmalı.");
     if (offset is < 0) return Hata("offset negatif olamaz.");
-    var q = IslemSorgusu(db, baslangic, bitis, kanal);
+    if (IslemTipSuzgeci.Hata(tip) is string th) return Hata(th);   // Paket B: rapordan iniş (etkin tip)
+    var q = IslemSorgusu(db, baslangic, bitis, kanal).TipeGoreSuz(tip);
 
     List<IslemEntity> sonuc;
     int toplam;
@@ -812,10 +813,11 @@ api.MapDelete("/kasasayimlari/{id:int}", (int id, KasaDbContext db) =>
 }).RequireAuthorization("Editor");
 
 // Excel'e aktar (CSV — her iki rol indirebilir). Rakamlar JSON uç noktalarıyla aynıdır.
-api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, KasaDbContext db) =>
+api.MapGet("/disaaktar/islemler.csv", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, string? tip, KasaDbContext db) =>
 {
     // GET /api/islemler ile aynı filtre ve sıra (sayfalama yok: filtreye uyanların tamamı).
-    var q = IslemSorgusu(db, baslangic, bitis, kanal);
+    if (IslemTipSuzgeci.Hata(tip) is string th) return Hata(th);
+    var q = IslemSorgusu(db, baslangic, bitis, kanal).TipeGoreSuz(tip);
     var liste = string.IsNullOrWhiteSpace(cari) ? q.ToList() : CariyeGoreSuz(q, cari).ToList();
     var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
     return CsvDosyasi(CsvRaporlari.Islemler(liste, kartAdlari), CsvRaporlari.IslemDosyaAdi(baslangic, bitis, kanal, cari));

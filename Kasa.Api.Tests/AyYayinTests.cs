@@ -97,18 +97,160 @@ public class AyYayinTests : IClassFixture<PaketBFactory>
     }
 
     [Fact]
-    public async Task Gelecek_ay_yayinlanamaz_yayinsiz_ay_durumu()
+    public async Task Yalniz_bitmis_ay_yayinlanir_yayinsiz_ay_durumu()
     {
         var c = await HazirlaAsync();
         var r = await Yayinla(c, 2026, 10);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-        Assert.Equal("Henüz başlamamış bir ay yayınlanamaz.", await HataMetni(r));
+        Assert.Equal("Ekim 2026 henüz bitmedi; yalnız bitmiş bir ay yayınlanabilir.", await HataMetni(r));
         var d = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=9");
         Assert.False(d.GetProperty("yayinlandi").GetBoolean());
         Assert.False(d.GetProperty("kilitlenebilir").GetBoolean());
         Assert.True((await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8")).GetProperty("kilitlenebilir").GetBoolean());
-        // İçinde bulunulan ay yayınlanabilir (ara rapor).
-        Assert.Equal(HttpStatusCode.OK, (await Yayinla(c, 2026, 9)).StatusCode);
+        // İçinde bulunulan ay yayınlanamaz: rakamları kayıt değişmeden de değişir.
+        var buAy = await Yayinla(c, 2026, 9);
+        Assert.Equal(HttpStatusCode.BadRequest, buAy.StatusCode);
+        Assert.Equal("Eylül 2026 henüz bitmedi; yalnız bitmiş bir ay yayınlanabilir.", await HataMetni(buAy));
+        Assert.False((await Oku(c, "/api/ay-kapanisi?yil=2026&ay=9")).GetProperty("yayinlandi").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Bitmis_ayin_yayini_zaman_gecince_degismez()
+    {
+        // Kartsız K.K (geçen ay) ve ileri tarihli kayıt: bitmiş ayda ikisi de yayın anında sayılmıştır.
+        var c = await HazirlaAsync();
+        await IslemEkle(c, new DateOnly(2026, 7, 20), 500m, "MEZAT", "KrediKarti", "Market");
+        await IslemEkle(c, new DateOnly(2026, 8, 29), 700m);
+        Assert.Equal(HttpStatusCode.OK, (await Yayinla(c, 2026, 8)).StatusCode);
+        try
+        {
+            _f.Saat.Ayarla(new DateOnly(2026, 10, 2));
+            var d = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8");
+            Assert.Empty(d.GetProperty("farklar").EnumerateArray());
+            Assert.Empty(d.GetProperty("degisiklikler").EnumerateArray());
+        }
+        finally { _f.Saat.Ayarla(new DateOnly(2026, 9, 24)); }
+    }
+
+    private static Dictionary<string, (decimal? Eski, decimal? Yeni)> Farklar(JsonElement d)
+        => d.GetProperty("farklar").EnumerateArray().ToDictionary(f => f.GetProperty("kalem").GetString()!,
+            f => (f.GetProperty("eski").ValueKind == JsonValueKind.Null ? (decimal?)null : f.GetProperty("eski").GetDecimal(),
+                  f.GetProperty("yeni").ValueKind == JsonValueKind.Null ? (decimal?)null : f.GetProperty("yeni").GetDecimal()));
+
+    [Fact]
+    public async Task Kanal_adi_degisimi_ve_yeni_kanal_yayinda_fark_sayilmaz()
+    {
+        var c = await HazirlaAsync();
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "MEZAT", 1_000m);
+        Assert.Equal(HttpStatusCode.OK, (await Yayinla(c, 2026, 8)).StatusCode);
+        var mezat = (await Oku(c, "/api/kanallar")).EnumerateArray().First(k => k.GetProperty("ad").GetString() == "MEZAT");
+        var id = mezat.GetProperty("id").GetInt32();
+        var sira = mezat.GetProperty("sira").GetInt32();
+        int? yeniKanal = null;
+        try
+        {
+            Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "MEZAT2", aktif = true, sira, acilisDevri = 0m })).StatusCode);
+            // Yayından sonra eklenen (o ay hareketsiz, pay almayan) kanalın boş satırı da fark değildir.
+            var r = await c.PostAsJsonAsync("/api/kanallar", new { ad = "SONRADAN", aktif = true, sira = 90, acilisDevri = 0m });
+            yeniKanal = (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+
+            var d = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8");
+            Assert.Empty(d.GetProperty("farklar").EnumerateArray());
+            Assert.Empty(d.GetProperty("degisiklikler").EnumerateArray());
+
+            // Gerçek bir değişiklik bugünkü adla gösterilir.
+            await GelenYaz(c, new DateOnly(2026, 8, 3), "MEZAT2", 1_500m);
+            var f = Farklar(await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8"));
+            Assert.Equal((1_000m, 1_500m), f["MEZAT2 · Gelen"]);
+            Assert.DoesNotContain(f.Keys, k => k.StartsWith("MEZAT ·", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (yeniKanal is { } y) (await c.DeleteAsync($"/api/kanallar/{y}")).EnsureSuccessStatusCode();
+            _f.Temizle();
+            (await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "MEZAT", aktif = true, sira, acilisDevri = 0m })).EnsureSuccessStatusCode();
+        }
+    }
+
+    [Fact]
+    public async Task Onceki_ay_duzeltmesi_yayindaki_ayin_kasasini_degistirir_ve_nedeni_listelenir()
+    {
+        var c = await HazirlaAsync();
+        var temmuzId = await IslemEkle(c, new DateOnly(2026, 7, 10), 100m);
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "MEZAT", 1_000m);
+        Assert.Equal(HttpStatusCode.OK, (await Yayinla(c, 2026, 8)).StatusCode);
+
+        // Yalnız notu değişen Temmuz işlemi Ağustos'un rakamını değiştirmez: listelenmez.
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/islemler/{temmuzId}", new { tarih = "2026-07-10", cari = "X", tutarTl = 100m, kanal = "MEZAT", tip = "Cari", not = "düzeltme notu" })).StatusCode);
+        var d0 = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8");
+        Assert.Empty(d0.GetProperty("farklar").EnumerateArray());
+        Assert.Empty(d0.GetProperty("degisiklikler").EnumerateArray());
+
+        // Tutar düzeltmesi: Ağustos'un açılış ve kapanış kasası değişir, neden olan Temmuz satırı listelenir.
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/islemler/{temmuzId}", new { tarih = "2026-07-10", cari = "X", tutarTl = 20_000m, kanal = "MEZAT", tip = "Cari" })).StatusCode);
+        var d = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8");
+        var f = Farklar(d);
+        Assert.Equal((-100m, -20_000m), f["Kasa açılışı"]);
+        Assert.Equal((900m, -19_000m), f["Kasa kapanışı"]);
+        var g = d.GetProperty("degisiklikler").EnumerateArray().ToList();
+        Assert.Equal(2, g.Count);                                   // not ve tutar düzeltmesi (en yeni önce)
+        Assert.All(g, x => Assert.Equal(temmuzId, x.GetProperty("kayitId").GetInt32()));
+        Assert.Contains("20.000,00", g[0].GetProperty("ozet").GetString());
+    }
+
+    [Fact]
+    public async Task Rakam_degismeden_dokunulan_kayit_fark_uretmez_ama_listelenir()
+    {
+        var c = await HazirlaAsync();
+        var id = await IslemEkle(c, new DateOnly(2026, 8, 4), 100m);
+        Assert.Equal(HttpStatusCode.OK, (await Yayinla(c, 2026, 8)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/islemler/{id}", new { tarih = "2026-08-04", cari = "X", tutarTl = 100m, kanal = "MEZAT", tip = "Cari", not = "not" })).StatusCode);
+        var d = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8");
+        Assert.Empty(d.GetProperty("farklar").EnumerateArray());   // uygulamada kırmızı şerit değil, nötr not
+        Assert.Single(d.GetProperty("degisiklikler").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Ortak_payi_degisince_kanal_sirasi_degisikligi_neden_olarak_listelenir()
+    {
+        var c = await HazirlaAsync();
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "MEZAT", 1_000m);
+        await GelenYaz(c, new DateOnly(2026, 8, 3), "PERAKENDE", 1_000m);
+        await IslemEkle(c, new DateOnly(2026, 8, 5), 100.01m, "Ortak");
+        Assert.Equal(HttpStatusCode.OK, (await Yayinla(c, 2026, 8)).StatusCode);
+        var mezat = (await Oku(c, "/api/kanallar")).EnumerateArray().First(k => k.GetProperty("ad").GetString() == "MEZAT");
+        var id = mezat.GetProperty("id").GetInt32();
+        var sira = mezat.GetProperty("sira").GetInt32();
+        try
+        {
+            // Yayınlanmış ama kilitsiz ay: sıra değişimi serbest, farkı ve nedeni şeritte.
+            Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "MEZAT", aktif = true, sira = 99, acilisDevri = 0m })).StatusCode);
+            var d = await Oku(c, "/api/ay-kapanisi?yil=2026&ay=8");
+            var f = Farklar(d);
+            Assert.Equal((50.01m, 50m), f["MEZAT · Ortak pay"]);
+            Assert.Equal((50m, 50.01m), f["PERAKENDE · Ortak pay"]);
+            Assert.False(f.ContainsKey("Kasa kapanışı"));
+            var g = Assert.Single(d.GetProperty("degisiklikler").EnumerateArray());
+            Assert.Equal("Kanal", g.GetProperty("tur").GetString());
+        }
+        finally
+        {
+            (await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "MEZAT", aktif = true, sira, acilisDevri = 0m })).EnsureSuccessStatusCode();
+        }
+    }
+
+    [Fact]
+    public void Karsilastirma_id_ile_eslesir_eski_goruntude_id_yoksa_adla()
+    {
+        var eski = new AyAnlikGoruntusu([new KanalAylik("A", 10m, 0m, 0m, 0m, 0m, 10m)], 0m, 10m, new Dictionary<string, int> { ["A"] = 1 });
+        var yeni = new AyAnlikGoruntusu([new KanalAylik("B", 10m, 0m, 0m, 0m, 0m, 10m), new KanalAylik("C", 0m, 0m, 0m, 0m, 0m, 0m)], 0m, 10m,
+            new Dictionary<string, int> { ["B"] = 1, ["C"] = 2 });
+        Assert.Empty(RaporServisi.Karsilastir(eski, yeni));          // A → B yeniden adlandırma; C boş yeni kanal
+        var degisen = yeni with { Kanallar = [new KanalAylik("B", 12m, 0m, 0m, 0m, 0m, 12m)] };
+        Assert.Equal(new[] { new AyFarkiDto("B · Gelen", 10m, 12m), new AyFarkiDto("B · Ay sonucu", 10m, 12m) }, RaporServisi.Karsilastir(eski, degisen));
+        // Eski (Id'siz) görüntü: adla eşlenir.
+        var eskiIdsiz = eski with { KanalIdleri = null };
+        Assert.Contains(new AyFarkiDto("A · Gelen", 10m, null), RaporServisi.Karsilastir(eskiIdsiz, yeni));
     }
 
     [Fact]
