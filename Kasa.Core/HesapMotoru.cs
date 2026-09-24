@@ -21,7 +21,16 @@ public record HaftalikOzet(
     decimal KasaSonucu,
     decimal KasaDevir,
     decimal ToplamCekGelen = 0m,
-    decimal ToplamCekGiden = 0m);
+    decimal ToplamCekGiden = 0m)
+{
+    /// <summary>
+    /// Kasa sonucunu oluşturan kalemler (<see cref="KasaKalemi"/>, işaretli): Σ Tutar = KasaSonucu.
+    /// Mevcut hiçbir rakamı değiştirmez; yalnız "kasa neden değişti?" dökümü için yanında hesaplanır.
+    /// Rapor JSON'una girmez (haftalık raporun biçimi aynı kalır).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<KasaKalemi> Kalemler { get; init; } = Array.Empty<KasaKalemi>();
+}
 
 public static class HesapMotoru
 {
@@ -87,6 +96,12 @@ public static class HesapMotoru
             .Where(i => i.Tip == GiderTipi.KrediKarti && i.KrediKartiId is null)
             .GroupBy(i => (i.Tarih.Year, i.Tarih.Month))
             .ToDictionary(g => g.Key, g => g.Sum(i => Para.Yuvarla(i.TutarTl)));
+        // Aynı ertelemenin kanal kırılımı (yalnız kasa dökümü için; toplamı aylikKkToplam'dır).
+        var aylikKkKanal = islemler
+            .Where(i => i.Tip == GiderTipi.KrediKarti && i.KrediKartiId is null)
+            .GroupBy(i => (i.Tarih.Year, i.Tarih.Month))
+            .ToDictionary(g => g.Key, g => g.GroupBy(i => i.Kanal)
+                .Select(k => (Kanal: k.Key, Tutar: k.Sum(i => Para.Yuvarla(i.TutarTl)))).ToList());
 
         // Yalnız ayın son gününü içeren dönem sayılır; içinde bulunulan ayın bugüne kadar
         // üretilmiş son (kısmi) dönemi değil. Böylece ertelenen K.K her hafta kaymaz.
@@ -99,12 +114,17 @@ public static class HesapMotoru
         var kanalCari = new Dictionary<string, decimal>();
         var kanalCekGelen = new Dictionary<string, decimal>();
         var kanalCekGiden = new Dictionary<string, decimal>();
+        // Kasa dökümü (yalnız bilgi): (tür, kanal) başına işaretli toplam.
+        var kalemler = new Dictionary<(KasaKalemTuru Tur, string? Kanal), decimal>();
+        void KalemEkle(KasaKalemTuru tur, string? kanal, decimal tutar)
+            => kalemler[(tur, kanal)] = kalemler.GetValueOrDefault((tur, kanal)) + tutar;
         foreach (var donem in sirali)
         {
             kanalGelen.Clear();
             kanalCari.Clear();
             kanalCekGelen.Clear();
             kanalCekGiden.Clear();
+            kalemler.Clear();
 
             decimal toplamGelen = 0m;
             var (gBas, gSon) = Aralik(gelenTarih, donem);
@@ -113,6 +133,7 @@ public static class HesapMotoru
                 var g = gelenSirali[j];
                 toplamGelen += g.Tutar;
                 kanalGelen[g.Kanal] = kanalGelen.GetValueOrDefault(g.Kanal) + g.Tutar;
+                KalemEkle(KasaKalemTuru.Gelen, g.Kanal, g.Tutar);
             }
 
             // KK kendi döneminde kasadan çıkmaz (ertelenir / kart ödemesiyle çıkar).
@@ -125,6 +146,8 @@ public static class HesapMotoru
                 toplamGiden += i.Tutar;
                 if (i.Tip == GiderTipi.Cari)
                     kanalCari[i.Kanal] = kanalCari.GetValueOrDefault(i.Kanal) + i.Tutar;
+                KalemEkle(i.Kanal == Kanallar.Ortak ? KasaKalemTuru.OrtakGider
+                    : i.Tip == GiderTipi.Cari ? KasaKalemTuru.CariGider : KasaKalemTuru.SabitGider, i.Kanal, -i.Tutar);
             }
 
             // Çek: tahsilat kanalın ek geleni, ödeme kanalın Cari gideri gibi (Ortak ödeme yalnız kasadan
@@ -138,11 +161,13 @@ public static class HesapMotoru
                 {
                     toplamCekGelen += h.Tutar;
                     kanalCekGelen[h.Kanal] = kanalCekGelen.GetValueOrDefault(h.Kanal) + h.Tutar;
+                    KalemEkle(KasaKalemTuru.CekTahsilat, h.Kanal, h.Tutar);
                 }
                 else
                 {
                     toplamCekGiden += h.Tutar;
                     kanalCekGiden[h.Kanal] = kanalCekGiden.GetValueOrDefault(h.Kanal) + h.Tutar;
+                    KalemEkle(KasaKalemTuru.CekOdemesi, h.Kanal, -h.Tutar);
                 }
             }
 
@@ -164,17 +189,29 @@ public static class HesapMotoru
                 int oncekiYil = donem.Ay == 1 ? donem.Yil - 1 : donem.Yil;
                 int oncekiAy = donem.Ay == 1 ? 12 : donem.Ay - 1;
                 if (aylikKkToplam.TryGetValue((oncekiYil, oncekiAy), out var ertelenenKk))
+                {
                     toplamGiden += ertelenenKk;
+                    foreach (var (kkKanal, kkTutar) in aylikKkKanal[(oncekiYil, oncekiAy)])
+                        KalemEkle(KasaKalemTuru.ErtelenenKk, kkKanal, -kkTutar);
+                }
             }
             // Kart borç ödemeleri, ödendikleri dönemde kasadan çıkar.
             var (oBas, oSon) = Aralik(odemeTarih, donem);
-            for (int j = oBas; j < oSon; j++) toplamGiden += odemeSirali[j].Tutar;
+            for (int j = oBas; j < oSon; j++)
+            {
+                toplamGiden += odemeSirali[j].Tutar;
+                KalemEkle(KasaKalemTuru.KartOdemesi, null, -odemeSirali[j].Tutar);
+            }
 
             decimal kasaSonucu = toplamGelen - toplamGiden + toplamCekGelen - toplamCekGiden;
             kasaDevir += kasaSonucu;
 
             sonuc.Add(new HaftalikOzet(donem, kanalSatirlari, toplamGelen, toplamGiden, kasaSonucu, kasaDevir,
-                toplamCekGelen, toplamCekGiden));
+                toplamCekGelen, toplamCekGiden)
+            {
+                Kalemler = KasaDokumuHesap.Sirala(
+                    kalemler.Where(x => x.Value != 0m).Select(x => new KasaKalemi(x.Key.Tur, x.Key.Kanal, x.Value)), kanallar),
+            });
         }
         return sonuc;
     }
