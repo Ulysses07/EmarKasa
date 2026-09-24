@@ -52,6 +52,8 @@ internal static class DegisiklikKaydedici
         ["DuzenlemeTarihi"] = "Düzenleme tarihi", ["VadeTarihi"] = "Vade", ["Durum"] = "Durum",
         ["IslemTarihi"] = "İşlem tarihi", ["SayilanTutar"] = "Sayılan", ["HesaplananTutar"] = "Defterdeki",
         ["KayitZamaniUtc"] = "Kayıt zamanı",
+        ["Kalem"] = "Kalem", ["AyinGunu"] = "Ayın günü", ["BaslangicAyi"] = "Başlangıç ayı",
+        ["TekrarlayanGiderId"] = "Tekrarlayan gider", ["Ay"] = "Ay", ["IslemId"] = "İşlem", ["Zaman"] = "Zaman",
     };
 
     private static readonly Dictionary<string, string> EnumAdlari = new()
@@ -60,6 +62,7 @@ internal static class DegisiklikKaydedici
         ["Alinan"] = "Alınan", ["Verilen"] = "Verilen", ["Portfoyde"] = "Portföyde",
         ["TahsilEdildi"] = "Tahsil edildi", ["Odendi"] = "Ödendi", ["CiroEdildi"] = "Ciro edildi",
         ["Karsiliksiz"] = "Karşılıksız", ["IadeEdildi"] = "İade edildi",
+        ["Girildi"] = "Girildi", ["Atlandi"] = "Atlandı",
     };
 
     internal sealed record Alan(IProperty Ozellik, string Etiket, bool Gizli, string? GizliMesaj);
@@ -242,7 +245,10 @@ internal static class DegisiklikKaydedici
         if (p.GetContainingForeignKeys().FirstOrDefault(f => f.Properties.Count == 1) is { } fk)
         {
             var asil = db.Find(fk.PrincipalEntityType.ClrType, v);
-            if (asil is not null && fk.PrincipalEntityType.FindProperty("Ad") is { } ad
+            // Bağlı kaydın adı: "Ad" alanı, yoksa geçmiş özetindeki ilk metin alanı (ör. tekrarlayan giderin kalemi).
+            var adOzelligi = fk.PrincipalEntityType.FindProperty("Ad")
+                             ?? TanimOku(fk.PrincipalEntityType).OzetAlanlari.FirstOrDefault(o => o.ClrType == typeof(string));
+            if (asil is not null && adOzelligi is { } ad
                 && db.Entry(asil).Property(ad.Name).CurrentValue is string s && s.Length > 0)
                 return Metin.Kisalt(s);
             return $"#{v}";

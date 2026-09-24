@@ -39,6 +39,8 @@ public static class GecmisTurleri
     public const string GiderKalemi = "Gider kalemi";
     public const string Cek = "Çek";
     public const string KasaSayimi = "Kasa sayımı";
+    public const string TekrarlayanGider = "Tekrarlayan gider";
+    public const string TekrarlayanKarar = "Tekrarlayan gider kararı";
     public const string Ayar = "Ayar";
 }
 

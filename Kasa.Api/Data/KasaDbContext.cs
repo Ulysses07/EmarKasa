@@ -31,6 +31,8 @@ public class KasaDbContext : DbContext
     /// <summary>Kasa sayımları. Var olan DB'lerde tabloyu SemaGuncelleyici ekler.</summary>
     public DbSet<KasaSayimEntity> KasaSayimlari => Set<KasaSayimEntity>();
     public DbSet<DegisiklikEntity> Degisiklikler => Set<DegisiklikEntity>();
+    public DbSet<TekrarlayanGiderEntity> TekrarlayanGiderler => Set<TekrarlayanGiderEntity>();
+    public DbSet<TekrarlayanGirisEntity> TekrarlayanGirisler => Set<TekrarlayanGirisEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -64,6 +66,20 @@ public class KasaDbContext : DbContext
             .WithMany()
             .HasForeignKey(o => o.KrediKartiId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Tekrarlayan gider: ay başına tek karar (aynı ay iki kez onaylanamaz/atlanamaz).
+        // Şablon silinince kararları da silinir; oluşan işlemler kalır. İşlem silinirse bağ kopar.
+        b.Entity<TekrarlayanGirisEntity>().HasIndex(g => new { g.TekrarlayanGiderId, g.Ay }).IsUnique();
+        b.Entity<TekrarlayanGirisEntity>()
+            .HasOne<TekrarlayanGiderEntity>()
+            .WithMany()
+            .HasForeignKey(g => g.TekrarlayanGiderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<TekrarlayanGirisEntity>()
+            .HasOne<IslemEntity>()
+            .WithMany()
+            .HasForeignKey(g => g.IslemId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 
     // ------------------------------------------------------------------ değişiklik geçmişi

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar. -->
+<!-- Emar Kasa · AyarlarPage — yalnız editör. Genel ayar, izleyici şifresi, kanallar, sabit gider kalemleri, tekrarlayan giderler. -->
 <ContentPage
     x:Class="Kasa.App.Views.AyarlarPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -14,7 +14,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <VerticalStackLayout Spacing="3">
                     <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
-                    <Label Text="Genel ayar, izleyici şifresi, kanallar ve sabit gider kalemleri" Style="{StaticResource LblPageSub}" />
+                    <Label Text="Genel ayar, izleyici şifresi, kanallar, sabit gider kalemleri ve tekrarlayan giderler" Style="{StaticResource LblPageSub}" />
                 </VerticalStackLayout>
                 <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
                                    WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
@@ -230,6 +230,126 @@
                             <VerticalStackLayout Padding="20,30,20,34" Spacing="6">
                                 <Label Text="Sabit gider kalemi yok" Style="{StaticResource LblEmptyTitle}" />
                                 <Label Text="Yukarıdaki formdan ya da İşlemler'de &quot;Kalem olarak ekle&quot; ile ekleyin."
+                                       Style="{StaticResource LblEmptySub}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Tekrarlayan giderler -->
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="0">
+                    <VerticalStackLayout Padding="18,18,18,14" Spacing="12">
+                        <Label Text="Tekrarlayan Giderler" Style="{StaticResource LblSection}" />
+                        <Label Text="Her ay tekrarlanan kira, SGK, maaş gibi giderler. Kendiliğinden işlem girilmez: vadesi gelince Panel'de onayınıza sunulur. Yeni kayıt bu aydan başlar; ayın günü kısa aylarda ayın son gününe düşer."
+                               Style="{StaticResource LblPageSub}" />
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Gider kalemi" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding TekrarKalemCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecTekrarKalemCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                            <Label Text="Önce yukarıdaki Sabit Gider Kalemleri bölümünden bir kalem ekleyin."
+                                   Style="{StaticResource LblPageSub}"
+                                   IsVisible="{Binding TekrarKalemYok}" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Kanal" Style="{StaticResource LblField}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center"
+                                        BindableLayout.ItemsSource="{Binding TekrarKanalCipleri}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding BindingContext.SecTekrarKanalCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                        </VerticalStackLayout>
+                        <Grid ColumnDefinitions="{OnIdiom Desktop='*,110,Auto,Auto,Auto', Default='*'}"
+                              RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto'}"
+                              ColumnSpacing="10" RowSpacing="12">
+                            <VerticalStackLayout Spacing="0">
+                                <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenTekrarTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
+                                           Style="{StaticResource EntryMoney}" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="{OnIdiom Desktop=1, Default=0}"
+                                                 Grid.Row="{OnIdiom Desktop=0, Default=1}" Spacing="0">
+                                <Label Text="Ayın günü" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}">
+                                    <Entry Text="{Binding DuzenTekrarGun}" Placeholder="1–31" Keyboard="Numeric"
+                                           HorizontalTextAlignment="End" />
+                                </Border>
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=2, Default=0}"
+                                                   Grid.Row="{OnIdiom Desktop=0, Default=2}"
+                                                   Spacing="9" VerticalOptions="End" HeightRequest="44">
+                                <Switch IsToggled="{Binding DuzenTekrarAktif}" VerticalOptions="Center" />
+                                <Label Text="Aktif" Style="{StaticResource LblRowPrimary}" FontSize="13"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Button Text="Gideri kaydet" Command="{Binding TekrarKaydetCommand}"
+                                    Grid.Column="{OnIdiom Desktop=3, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=3}"
+                                    Padding="18,0" VerticalOptions="End" />
+                            <Button Text="Yeni gider" Command="{Binding YeniTekrarCommand}"
+                                    Style="{StaticResource BtnSecondary}"
+                                    Grid.Column="{OnIdiom Desktop=4, Default=0}"
+                                    Grid.Row="{OnIdiom Desktop=0, Default=4}"
+                                    VerticalOptions="End" />
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <CollectionView ItemsSource="{Binding TekrarlayanGiderler}" SelectionMode="None" Margin="0,4,0,0">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <VerticalStackLayout>
+                                    <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Grid Padding="18,8" MinimumHeightRequest="52"
+                                          ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Kalem}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding Aciklama}" Style="{StaticResource LblRowSecondary}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="Pasif" TextColor="{StaticResource Sub}" FontSize="12"
+                                               VerticalOptions="Center"
+                                               IsVisible="{Binding Aktif, Converter={StaticResource TersIse}}" />
+                                        <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                                            <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                    Command="{Binding BindingContext.TekrarDuzenleCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                    Command="{Binding BindingContext.TekrarSilCommand, Source={x:Reference Sayfa}}"
+                                                    CommandParameter="{Binding .}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="20,30,20,34" Spacing="6">
+                                <Label Text="Tekrarlayan gider yok" Style="{StaticResource LblEmptyTitle}" />
+                                <Label Text="Kalem, kanal, tutar ve ayın gününü seçip Gideri kaydet'e basın."
                                        Style="{StaticResource LblEmptySub}" />
                             </VerticalStackLayout>
                         </CollectionView.EmptyView>

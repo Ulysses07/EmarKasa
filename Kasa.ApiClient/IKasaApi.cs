@@ -67,6 +67,18 @@ public interface IKasaApi
     Task<GiderKalemiDto> GiderKalemiOlusturAsync(GiderKalemiYaz g);
     Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g);
     Task GiderKalemiSilAsync(int id);
+
+    /// <summary>Tekrarlayan gider kayıtları (her iki rol okur), kaleme göre sıralı.</summary>
+    Task<IReadOnlyList<TekrarlayanGiderDto>> TekrarlayanGiderlerAsync();
+    /// <summary>Girilmesi bekleyen tekrarlayan giderler (bu ay ve önceki 2 ay, vadesi gelmiş), vadeye göre sıralı.</summary>
+    Task<IReadOnlyList<BekleyenGiderDto>> BekleyenGiderlerAsync();
+    Task<TekrarlayanGiderDto> TekrarlayanGiderOlusturAsync(TekrarlayanGiderYaz g);
+    Task<TekrarlayanGiderDto> TekrarlayanGiderGuncelleAsync(int id, TekrarlayanGiderYaz g);
+    Task TekrarlayanGiderSilAsync(int id);
+    /// <summary>Bekleyen ayı sabit gider işlemi olarak girer; oluşan işlemi döner. Aynı ay için ikinci karar 409.</summary>
+    Task<IslemDto> TekrarlayanOnaylaAsync(int id, TekrarlayanOnayYaz g);
+    /// <summary>Bekleyen ayı işlem girmeden kapatır. Aynı ay için ikinci karar 409.</summary>
+    Task TekrarlayanAtlaAsync(int id, DateOnly ay);
     Task<IslemDto> IslemOlusturAsync(IslemYaz g);
     Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g);
     Task IslemSilAsync(int id);

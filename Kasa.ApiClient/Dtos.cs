@@ -43,6 +43,11 @@ public record DegisiklikDto(
 /// <summary>Geçmişin bir sayfası (en yeni önce) + filtreye uyan toplam satır sayısı.</summary>
 public record DegisiklikSayfasi(IReadOnlyList<DegisiklikDto> Kayitlar, int Toplam);
 
+/// <summary>Her ay tekrarlayan sabit gider (kira, SGK, maaş…). Ayın günü ay daha kısaysa ayın son gününe düşer.</summary>
+public record TekrarlayanGiderDto(int Id, string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif, DateOnly BaslangicAyi);
+/// <summary>Vadesi gelmiş, henüz girilmemiş/atlanmamış tekrarlayan gider ayı (<see cref="Ay"/> ayın 1'i).</summary>
+public record BekleyenGiderDto(int TekrarlayanGiderId, string Kalem, string Kanal, decimal Tutar, DateOnly Ay, DateOnly Vade);
+
 public record DonemDto(DateOnly Start, DateOnly End, int Yil, int Ay);
 /// <summary>Gelen/Giden çek hariçtir; çek tahsilatı/ödemesi CekGelen/CekGiden'dedir (Sonuc ve Devir çek dahil).</summary>
 public record KanalHaftalikDto(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, decimal Devir,
@@ -101,3 +106,12 @@ public record CekYaz(CekYonu Yon, string? CekNo, string? Banka, string Kisi, dec
     DateOnly DuzenlemeTarihi, DateOnly VadeTarihi, string Kanal, CekDurumu Durum, DateOnly? IslemTarihi, string? Not);
 
 public record KasaSayimYaz(DateOnly Tarih, decimal SayilanTutar, string? Not);
+
+/// <param name="BaslangicAyi">
+/// Gönderilmezse (null) sunucu karar verir: yeni kayıtta bu ay (Türkiye saati), güncellemede eski değer kalır.
+/// </param>
+public record TekrarlayanGiderYaz(string Kalem, string Kanal, decimal Tutar, int AyinGunu, bool Aktif,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DateOnly? BaslangicAyi = null);
+/// <summary>Bekleyen bir ayı sabit gider işlemi olarak girer (<paramref name="Ay"/> o ayın herhangi bir günü olabilir).</summary>
+public record TekrarlayanOnayYaz(DateOnly Ay, DateOnly Tarih, decimal Tutar);

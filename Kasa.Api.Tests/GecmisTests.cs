@@ -188,9 +188,11 @@ public class GecmisTests : IClassFixture<GecmisTests.SabitSaatFactory>
         var kalemId = (await kalem.Content.ReadFromJsonAsync<IdYanit>())!.Id;
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-03-01", cari = "Geçmiş Kira", tutarTl = 9m, kanal = "Ortak", tip = "SabitGider" }))
             .EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/tekrarlayangiderler", new { kalem = "Geçmiş Kira", kanal = "Ortak", tutar = 9m, ayinGunu = 5, aktif = true }))
+            .EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync($"/api/giderkalemleri/{kalemId}", new { ad = "Geçmiş Kira 2", aktif = true })).EnsureSuccessStatusCode();
         Assert.Contains((await GecmisAsync(c, "Gider kalemi")).Satirlar,
-            s => s.Ozet == "Gider kalemi adı değişti: Geçmiş Kira → Geçmiş Kira 2 (1 işlem güncellendi)");
+            s => s.Ozet == "Gider kalemi adı değişti: Geçmiş Kira → Geçmiş Kira 2 (1 işlem, 1 tekrarlayan gider güncellendi)");
 
         var kanal = await c.PostAsJsonAsync("/api/kanallar", new { ad = "GKANAL", aktif = true, sira = 9, acilisDevri = 0m });
         var kanalId = (await kanal.Content.ReadFromJsonAsync<IdYanit>())!.Id;
@@ -199,7 +201,23 @@ public class GecmisTests : IClassFixture<GecmisTests.SabitSaatFactory>
         (await c.PostAsJsonAsync("/api/cekler", CekGovde(kanal: "GKANAL"))).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync($"/api/kanallar/{kanalId}", new { ad = "GKANAL2", aktif = true, sira = 9, acilisDevri = 0m })).EnsureSuccessStatusCode();
         Assert.Contains((await GecmisAsync(c, "Kanal")).Satirlar,
-            s => s.KayitId == kanalId && s.Ozet == "Kanal adı değişti: GKANAL → GKANAL2 (1 işlem, 0 gelen, 1 çek güncellendi)");
+            s => s.KayitId == kanalId && s.Ozet == "Kanal adı değişti: GKANAL → GKANAL2 (1 işlem, 1 çek güncellendi)");
+    }
+
+    [Fact]
+    public async Task Tekrarlayan_gider_ve_ay_karari_turkce_ozetlenir()
+    {
+        var c = await _factory.EditorClientAsync();
+        (await c.PostAsJsonAsync("/api/giderkalemleri", new { ad = "Geçmiş SGK", aktif = true })).EnsureSuccessStatusCode();
+        var r = await c.PostAsJsonAsync("/api/tekrarlayangiderler", new { kalem = "Geçmiş SGK", kanal = "Ortak", tutar = 4_200m, ayinGunu = 15, aktif = true });
+        r.EnsureSuccessStatusCode();
+        var id = (await r.Content.ReadFromJsonAsync<IdYanit>())!.Id;
+        (await c.PostAsJsonAsync($"/api/tekrarlayangiderler/{id}/atla", new { ay = "2026-09-01" })).EnsureSuccessStatusCode();
+
+        Assert.Contains((await GecmisAsync(c, "Tekrarlayan gider")).Satirlar,
+            s => s.KayitId == id && s.Eylem == "Eklendi" && s.Ozet == "Tekrarlayan gider eklendi: Geçmiş SGK · Ortak · 4.200,00 ₺");
+        Assert.Contains((await GecmisAsync(c, "Tekrarlayan gider kararı")).Satirlar,
+            s => s.Ozet == "Tekrarlayan gider kararı eklendi: Geçmiş SGK · 01.09.2026 · Atlandı");
     }
 
     private static object CekGovde(string kanal = "MEZAT", string durum = "Portfoyde", string? islemTarihi = null, decimal tutar = 1_500m)
