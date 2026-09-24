@@ -28,10 +28,13 @@ public partial class PanelViewModel
         return t > BugunTarih ? BugunTarih : t;
     }
 
-    /// <summary>Atlananları ve kanal seçeneklerini yükler (<see cref="DoldurAsync"/> sonunda).</summary>
-    private async Task AtlananlariYukleAsync()
+    /// <summary>
+    /// Kanal seçeneklerini kurar ve atlananları yükler (<see cref="DoldurAsync"/> içinde, bekleyen satırlar
+    /// kurulmadan önce: satırdaki kanal seçicisi açıldığında seçenekler hazır olsun).
+    /// </summary>
+    private async Task AtlananlariYukleAsync(IReadOnlyList<BekleyenGiderDto> bekleyenler)
     {
-        BekleyenKanallariKur();
+        BekleyenKanallariKur(bekleyenler);
         var liste = EditorMu
             ? await TekrarlayanYukleme.Oku(_api.AtlananGiderlerAsync)
             : Array.Empty<TekrarlayanAtlananDto>();
@@ -40,10 +43,10 @@ public partial class PanelViewModel
         OnPropertyChanged(nameof(AtlananVar));
     }
 
-    private void BekleyenKanallariKur()
+    private void BekleyenKanallariKur(IReadOnlyList<BekleyenGiderDto> bekleyenler)
     {
         var adlar = Kanallar.Select(k => k.Kanal).ToList();
-        foreach (var b in BekleyenGiderler)
+        foreach (var b in bekleyenler)
             if (!adlar.Contains(b.Kanal) && b.Kanal != AyarlarViewModel.OrtakKanal) adlar.Add(b.Kanal);
         adlar.Add(AyarlarViewModel.OrtakKanal);
         if (adlar.SequenceEqual(BekleyenKanallar)) return;

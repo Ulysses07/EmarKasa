@@ -46,8 +46,8 @@ public partial class PanelViewModel : TemelViewModel
         BuAySonucu = p.BuAySonucu;
         Kanallar.Clear();
         foreach (var k in p.Kanallar) Kanallar.Add(k);
+        await AtlananlariYukleAsync(bekleyenGorevi.Result);      // Paket D: onay kanalları (satırlardan önce) + atlananlar
         BekleyenleriKur(bekleyenGorevi.Result);
-        await AtlananlariYukleAsync();                           // Paket D: atlananlar + onay kanalları
     }
 
     private void BekleyenleriKur(IReadOnlyList<BekleyenGiderDto> liste)
