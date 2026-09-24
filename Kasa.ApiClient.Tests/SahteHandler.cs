@@ -18,6 +18,15 @@ public sealed class SahteHandler : HttpMessageHandler
         return this;
     }
 
+    /// <summary>Başlıklı yanıt kuyruklar (örn. X-Toplam-Kayit).</summary>
+    public SahteHandler Kuyrukla(HttpStatusCode kod, string json, params (string Ad, string Deger)[] basliklar)
+    {
+        var resp = new HttpResponseMessage(kod) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+        foreach (var (ad, deger) in basliklar) resp.Headers.TryAddWithoutValidation(ad, deger);
+        _yanitlar.Enqueue(resp);
+        return this;
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         SonIstek = request;

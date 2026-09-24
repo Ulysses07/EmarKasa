@@ -21,14 +21,10 @@ public static class HatirlatmaKontrol
             var api = sp.GetService(typeof(IKasaApi)) as IKasaApi;
             if (api is null) return;
             var kartlarDto = await api.KrediKartlariAsync();     // token yoksa/dolmuşsa 401
-            var gorunumler = new List<KrediKartiGorunum>();
-            foreach (var k in kartlarDto)
-            {
-                var g = new KrediKartiGorunum(k);
-                foreach (var o in await api.KartOdemelerAsync(k.Id)) g.Odemeler.Add(o);
-                gorunumler.Add(g);
-            }
-            // Son kontrolden bu yana kaçan günler de taranır (bilgisayar kapalı olabilir).
+            // Kapı sunucunun EkstreBorc'u: ödeme geçmişi gerekmez (kart başına istek yok).
+            var gorunumler = kartlarDto.Select(k => new KrediKartiGorunum(k)).ToList();
+            // Son kontrolden bu yana kaçan günler de taranır (bilgisayar kapalı olabilir). İleri
+            // tarihli son kontrol (saat ileri alınmıştı) hatırlatıcıda geçersiz sayılır.
             var hatirlatmalar = KartHatirlatici.VadesiGelenler(gorunumler, bugun, durum.SonKontrol);
             if (hatirlatmalar.Count > 0)
             {

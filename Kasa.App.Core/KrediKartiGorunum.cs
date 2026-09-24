@@ -8,7 +8,7 @@ namespace Kasa.App.Core;
 public sealed partial class KrediKartiGorunum : ObservableObject
 {
     /// <summary>Karta özel ödeme ekleme formu tarihi (her kart bağımsız).</summary>
-    [ObservableProperty] private DateTime _odemeTarihGiris = DateTime.Today;
+    [ObservableProperty] private DateTime _odemeTarihGiris;
     /// <summary>Karta özel ödeme ekleme formu tutarı (her kart bağımsız).</summary>
     [ObservableProperty] private decimal _odemeTutarGiris;
     /// <summary>Uygulama-içi "Ödedin mi?" şeridi görünürlüğü (VM doldurur).</summary>
@@ -29,15 +29,29 @@ public sealed partial class KrediKartiGorunum : ObservableObject
     public double KalanOran => Limit <= 0 ? 0 : Math.Clamp((double)(KalanLimit / Limit), 0, 1);
     /// <summary>Güncel borcun kırılımı: açılış + harcama − ödeme.</summary>
     public string BorcKirilim => $"Açılış {Bicim.Tl(AcilisBorc)} · Harcama +{Bicim.Tl(HarcamaToplam)} · Ödeme −{Bicim.Tl(OdemeToplam)}";
-    /// <summary>Kartın ödeme geçmişi (son ödemeler; VM doldurur).</summary>
+    /// <summary>Kartın ödeme geçmişi (en yeni önce; VM doldurur).</summary>
     public ObservableCollection<KartOdemeDto> Odemeler { get; } = new();
 
-    public KrediKartiGorunum(KrediKartiDto d)
+    public KrediKartiGorunum(KrediKartiDto d) : this(d, DateTime.Today) { }
+
+    public KrediKartiGorunum(KrediKartiDto d, DateTime bugun)
     {
         Id = d.Id; Ad = d.Ad; KesimTarihi = d.KesimTarihi;
         SonOdemeTarihi = d.SonOdemeTarihi; Limit = d.Limit;
         AcilisBorc = d.AcilisBorc; HarcamaToplam = d.HarcamaToplam;
         OdemeToplam = d.OdemeToplam; GuncelBorc = d.GuncelBorc;
         EkstreBorc = d.EkstreBorc;
+        _odemeTarihGiris = bugun;
+    }
+
+    /// <summary>
+    /// Yeniden yüklemede kaydedilmemiş ödeme girişini eski görünümden taşır. Tutar yazılmamışsa
+    /// tarih bugüne döner (gece yarısını geçen oturumda dünde kalmasın).
+    /// </summary>
+    public void GirisiDevral(KrediKartiGorunum eski)
+    {
+        if (eski.OdemeTutarGiris == 0m) return;
+        OdemeTutarGiris = eski.OdemeTutarGiris;
+        OdemeTarihGiris = eski.OdemeTarihGiris;
     }
 }

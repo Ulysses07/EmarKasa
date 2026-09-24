@@ -8,40 +8,67 @@ namespace Kasa.App.Core;
 public partial class KrediKartlariViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public KrediKartlariViewModel(IKasaApi api) => _api = api;
+    public KrediKartlariViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
+    {
+        _api = api;
+        _duzenKesim = Bugun;
+        _duzenSonOdeme = Bugun;
+    }
 
     public ObservableCollection<KrediKartiGorunum> Kartlar { get; } = new();
 
-    private async Task DoldurAsync()
+    /// <summary>Açılış borcu alanının altındaki uyarı (çift düşüm riski).</summary>
+    public const string AcilisBorcuIpucu =
+        "Açılış borcuna, İşlemler'de kartsız \"Kredi kartı\" olarak zaten girilmiş harcamaları dahil etmeyin; aksi halde aynı borç kasadan iki kez düşer.";
+
+    /// <summary>
+    /// Kartları ve tüm ödemeleri iki istekte çeker (kart başına istek yok). Liste ancak her şey
+    /// geldikten sonra değiştirilir; kaydedilmemiş ödeme girişleri korunur.
+    /// </summary>
+    private async Task DoldurAsync(int? girisiSifirlanacakKartId = null)
     {
-        var liste = await _api.KrediKartlariAsync();
-        Kartlar.Clear();
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var kartlarGorevi = _api.KrediKartlariAsync();
+        var odemelerGorevi = _api.TumKartOdemeleriAsync();
+        var liste = await kartlarGorevi;
+        var odemeler = await odemelerGorevi;
+
+        var karta = odemeler
+            .GroupBy(o => o.KrediKartiId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(o => o.Tarih).ThenByDescending(o => o.Id).ToList());
+        var eskiler = Kartlar.ToDictionary(k => k.Id);
+        var bugun = BugunTarih;
+
+        var yeniler = new List<KrediKartiGorunum>();
         foreach (var k in liste)
         {
-            var g = new KrediKartiGorunum(k);
-            var odemeler = await _api.KartOdemelerAsync(k.Id);
-            foreach (var o in odemeler) g.Odemeler.Add(o);
+            var g = new KrediKartiGorunum(k, Bugun);
+            if (karta.TryGetValue(k.Id, out var ods))
+                foreach (var o in ods) g.Odemeler.Add(o);
             g.OdemeBekliyor = KartHatirlatici.OdemeBekliyor(g, bugun);
-            Kartlar.Add(g);
+            if (k.Id != girisiSifirlanacakKartId && eskiler.TryGetValue(k.Id, out var eski))
+                g.GirisiDevral(eski);
+            yeniler.Add(g);
         }
+
+        Kartlar.Clear();
+        foreach (var g in yeniler) Kartlar.Add(g);
     }
 
-    public Task YukleAsync() => CalistirAsync(DoldurAsync);
+    public Task YukleAsync() => CalistirAsync(() => DoldurAsync());
 
     [ObservableProperty] private bool _editorMu;
     [ObservableProperty] private int _duzenId;          // 0 = yeni
     [ObservableProperty] private string _duzenAd = "";
-    [ObservableProperty] private DateTime _duzenKesim = DateTime.Today;
-    [ObservableProperty] private DateTime _duzenSonOdeme = DateTime.Today;
+    [ObservableProperty] private DateTime _duzenKesim;
+    [ObservableProperty] private DateTime _duzenSonOdeme;
     [ObservableProperty] private decimal _duzenLimit;
     [ObservableProperty] private decimal _duzenBorc;   // açılış borcu (baz/elle ayar)
 
     [RelayCommand]
     private void Yeni()
     {
-        DuzenId = 0; DuzenAd = ""; DuzenKesim = DateTime.Today;
-        DuzenSonOdeme = DateTime.Today; DuzenLimit = 0; DuzenBorc = 0;
+        DuzenId = 0; DuzenAd = ""; DuzenKesim = Bugun;
+        DuzenSonOdeme = Bugun; DuzenLimit = 0; DuzenBorc = 0;
     }
 
     [RelayCommand]
@@ -67,15 +94,17 @@ public partial class KrediKartlariViewModel : TemelViewModel
     private Task SilAsync(KrediKartiGorunum k) => CalistirAsync(async () =>
     {
         await _api.KrediKartiSilAsync(k.Id);
+        if (DuzenId == k.Id) Yeni();
         await DoldurAsync();
     });
 
     [RelayCommand]
     private Task OdemeEkleAsync(KrediKartiGorunum k) => CalistirAsync(async () =>
     {
+        Dogrula(k.OdemeTutarGiris > 0, "Ödeme tutarı sıfırdan büyük olmalı.");
         await _api.KartOdemeKaydetAsync(new KartOdemeYaz(k.Id, DateOnly.FromDateTime(k.OdemeTarihGiris), k.OdemeTutarGiris, null));
         k.OdemeTutarGiris = 0;
-        await DoldurAsync();
+        await DoldurAsync(girisiSifirlanacakKartId: k.Id);
     });
 
     [RelayCommand]

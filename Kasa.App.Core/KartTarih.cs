@@ -13,12 +13,16 @@ public static class KartTarih
         return Clamp(y, m, gun);
     }
 
-    /// <summary><paramref name="gun"/> günlü, <paramref name="referans"/>'a büyük/eşit ilk tarih.</summary>
+    /// <summary>
+    /// <paramref name="gun"/> günlü, <paramref name="referans"/>'tan KESİNLİKLE büyük ilk tarih
+    /// (ay uzunluğuna kırpılır). Son ödeme = kesimden sonraki ilk son ödeme günü: kesim 15 / son
+    /// ödeme 15 → sonraki ayın 15'i; Şubat'ta 28'e kırpılan kesim 30 / son ödeme 29 → 29 Mart.
+    /// </summary>
     public static DateOnly SonrakiGun(int gun, DateOnly referans)
     {
         int y = referans.Year, m = referans.Month;
         var t = Clamp(y, m, gun);
-        if (t >= referans) return t;
+        if (t > referans) return t;
         m++; if (m > 12) { m = 1; y++; }
         return Clamp(y, m, gun);
     }

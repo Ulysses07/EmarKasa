@@ -2,7 +2,10 @@ using System.Net;
 
 namespace Kasa.ApiClient;
 
-/// <summary>API başarısız durum kodu döndürdüğünde fırlatılır. 401 → app katmanı token silip Login'e döner.</summary>
+/// <summary>
+/// API başarısız durum kodu döndürdüğünde fırlatılır. Token'lı bir istek 401 alırsa istemci
+/// token'ı siler ve <see cref="IKasaApi.OturumSonaErdi"/> olayını tetikler; uygulama Login'e döner.
+/// </summary>
 public sealed class KasaApiException : Exception
 {
     public HttpStatusCode DurumKodu { get; }

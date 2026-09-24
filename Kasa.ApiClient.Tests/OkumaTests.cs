@@ -110,6 +110,70 @@ public class OkumaTests
         Assert.Contains("bitis=2026-03-31", q);
         Assert.Contains("kanal=MEZAT", q);
         Assert.Contains("cari=K.K", q);
+        Assert.DoesNotContain("limit", q);
+        Assert.DoesNotContain("offset", q);
+    }
+
+    [Fact]
+    public async Task Islemler_limit_ve_offset_verilirse_query_stringe_yazar()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, "[]");
+        await c.IslemlerAsync(limit: 200, offset: 400);
+        var q = h.SonIstek!.RequestUri!.Query;
+        Assert.Contains("limit=200", q);
+        Assert.Contains("offset=400", q);
+    }
+
+    [Fact]
+    public async Task Islem_sayfasi_toplami_basliktan_okur()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK,
+            """[{"id":7,"tarih":"2026-03-05","cari":"A","tutarTl":10.0,"kanal":"MEZAT","tip":"Cari","not":null}]""",
+            ("X-Toplam-Kayit", "1234"));
+        var s = await c.IslemSayfasiAsync(new DateOnly(2026, 3, 1), null, "MEZAT", null, 500, 734);
+        Assert.Equal(1234, s.Toplam);
+        Assert.Single(s.Kayitlar);
+        var q = h.SonIstek!.RequestUri!.Query;
+        Assert.Contains("baslangic=2026-03-01", q);
+        Assert.Contains("kanal=MEZAT", q);
+        Assert.Contains("limit=500", q);
+        Assert.Contains("offset=734", q);
+        Assert.DoesNotContain("bitis", q);
+    }
+
+    [Fact]
+    public async Task Islem_sayfasi_baslik_yoksa_toplami_kayitlardan_cikarir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK,
+            """[{"id":1,"tarih":"2026-03-05","cari":"A","tutarTl":10.0,"kanal":"MEZAT","tip":"Cari","not":null},{"id":2,"tarih":"2026-03-06","cari":"A","tutarTl":10.0,"kanal":"MEZAT","tip":"Cari","not":null}]""");
+        var s = await c.IslemSayfasiAsync(null, null, null, null, 500, 0);
+        Assert.Equal(2, s.Toplam);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Conflict, "'Nakit' adında bir kanal zaten var.")]
+    [InlineData(HttpStatusCode.BadRequest, "'X' adında bir cari yok. Önce Cariler sayfasından ekleyin.")]
+    public async Task Sunucu_hata_metni_istisnaya_tasinir(HttpStatusCode kod, string metin)
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(kod, System.Text.Json.JsonSerializer.Serialize(new { hata = metin }));
+        var ex = await Assert.ThrowsAsync<KasaApiException>(() => c.IslemlerAsync());
+        Assert.Equal(kod, ex.DurumKodu);
+        Assert.Equal(metin, ex.SunucuMesaji);
+    }
+
+    [Fact]
+    public async Task Tum_kart_odemeleri_tek_istekte_filtresiz_gelir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """[{"id":3,"krediKartiId":2,"tarih":"2026-07-20","tutar":500.0,"not":null},{"id":1,"krediKartiId":1,"tarih":"2026-07-10","tutar":100.0,"not":null}]""");
+        var liste = await c.TumKartOdemeleriAsync();
+        Assert.Equal(2, liste.Count);
+        Assert.EndsWith("/api/kartodemeler", h.SonIstek!.RequestUri!.AbsolutePath);
+        Assert.Equal("", h.SonIstek.RequestUri!.Query);
     }
 
     [Fact]

@@ -9,6 +9,9 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
+        // Tarih/sayı biçimleri (XAML StringFormat dahil) Windows dilinden bağımsız Türkçe olsun.
+        Kultur.Uygula();
+
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
@@ -24,12 +27,16 @@ public static class MauiProgram
             });
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
+        builder.Services.AddSingleton<Yonlendirme>();
+        builder.Services.AddSingleton(TimeProvider.System);
 #if WINDOWS
-        builder.Services.AddSingleton<IBildirimServisi, Platforms.Windows.WindowsBildirimServisi>();
+        builder.Services.AddSingleton<IBildirimServisi>(sp =>
+            new Platforms.Windows.WindowsBildirimServisi(sp.GetRequiredService<Yonlendirme>()));
 #endif
         builder.Services.AddSingleton(sp =>
         {
-            var http = new HttpClient { BaseAddress = new Uri("https://kasa.emarglobal.com/") };
+            // Çerez kapalı (yalnız Bearer) + 30 sn zaman aşımı.
+            var http = KasaApiClient.HttpOlustur(new Uri("https://kasa.emarglobal.com/"));
             return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>());
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());

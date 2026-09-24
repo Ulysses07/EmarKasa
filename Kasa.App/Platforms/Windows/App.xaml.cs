@@ -17,6 +17,10 @@ public partial class App : MauiWinUIApplication
 	/// </summary>
 	public App()
 	{
+		// WinUI denetimleri (DatePicker takvimi vb.) de Türkçe olsun. Paketsiz uygulamada
+		// desteklenmezse sessizce geç; .NET biçimleri MauiProgram'da Kultur.Uygula ile Türkçe.
+		try { global::Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "tr-TR"; }
+		catch (Exception) { }
 		this.InitializeComponent();
 	}
 
