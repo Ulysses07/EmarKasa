@@ -3,28 +3,41 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Converters;
 
-/// <summary>Entry.Text ↔ decimal iki-yönlü. Görünümde tr-TR ondalık (virgül); girişte
-/// virgül/nokta/binlik ayırıcı toleranslı ayrıştırma. Boş = 0.</summary>
+/// <summary>
+/// Entry.Text ↔ decimal iki yönlü. Ayrıştırma Türkçe kurallarla <see cref="ParaGiris"/>'te yapılır
+/// ("1.500" = 1500, "1.500,50" = 1500,5, "12.5" = 12,5). Geçersiz ya da negatif giriş bağlı değeri
+/// DEĞİŞTİRMEZ (Binding.DoNothing); kutu kırmızıya döner (bkz. <see cref="ParaGirisDogrulama"/>).
+/// Boş = 0.
+/// </summary>
 public sealed class ParaGirisConverter : IValueConverter
 {
-    private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
+    // İki yönlü bağlamada kaynak değişince MAUI hedefi hemen yeniden yazar. Kullanıcının yazdığı
+    // metin aynı tutarı temsil ediyorsa onu geri ver; yoksa "1.5" yazarken kutu "1,5"e dönüşür ve
+    // "1.500" hiç yazılamaz.
+    [ThreadStatic] private static string? _sonMetin;
+    [ThreadStatic] private static decimal _sonTutar;
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var d = value is decimal m ? m : 0m;
-        return d == 0m ? string.Empty : d.ToString("0.##", Tr);
+        if (_sonMetin is { } metin && d == _sonTutar)
+        {
+            _sonMetin = null;
+            return metin;
+        }
+        return ParaGiris.Bicimle(d);
     }
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        var s = (value as string ?? string.Empty).Trim().Replace(" ", "").Replace("₺", "");
-        if (s.Length == 0) return 0m;
-
-        var hasComma = s.Contains(',');
-        var hasDot = s.Contains('.');
-        if (hasComma && hasDot) s = s.Replace(".", "").Replace(',', '.'); // nokta=binlik, virgül=ondalık
-        else if (hasComma) s = s.Replace(',', '.');
-
-        return decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : 0m;
+        var sonuc = ParaGiris.Ayristir(value as string);
+        if (!sonuc.Gecerli)
+        {
+            _sonMetin = null;
+            return Binding.DoNothing;   // kaynak değişmez; eski/geçerli değer korunur
+        }
+        _sonMetin = value as string ?? string.Empty;
+        _sonTutar = sonuc.Tutar;
+        return sonuc.Tutar;
     }
 }

@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.KrediKartlariPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:Name="Sayfa"
     Title="Kredi Kartları"
     BackgroundColor="{StaticResource AppBg}">
@@ -11,10 +12,19 @@
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Kredi Kartları" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Limit, borç ve kalan limit takibi" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Kredi Kartları" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Limit, borç ve kalan limit takibi" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (tüm roller; editör formunun dışında) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
 
             <!-- Editör formu -->
             <Border Style="{StaticResource CardForm}" IsVisible="{Binding EditorMu}">
@@ -60,15 +70,14 @@
                             </Border>
                         </VerticalStackLayout>
                     </Grid>
+                    <!-- Açılış borcu uyarısı: kartsız K.K ile çift düşüm riski -->
+                    <Label Text="{x:Static core:KrediKartlariViewModel.AcilisBorcuIpucu}"
+                           Style="{StaticResource LblRowSecondary}" FontSize="12" />
                     <HorizontalStackLayout Spacing="8">
                         <Button Text="Kaydet" Command="{Binding KaydetCommand}" Padding="22,0" />
                         <Button Text="Yeni" Command="{Binding YeniCommand}"
                                 Style="{StaticResource BtnSecondary}" />
                     </HorizontalStackLayout>
-                    <Border Style="{StaticResource ErrorBox}"
-                            IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
-                        <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
-                    </Border>
                 </VerticalStackLayout>
             </Border>
 
@@ -138,6 +147,16 @@
                                            FontFamily="PlexSansBold" FontSize="17"
                                            TextColor="{StaticResource Pos}" />
                                 </Grid>
+                                <!-- Ödeme hatırlatma şeridi (tüm roller) -->
+                                <Border IsVisible="{Binding OdemeBekliyor}"
+                                        Background="{StaticResource BrushGreen}"
+                                        StrokeThickness="0" StrokeShape="RoundRectangle 8"
+                                        Padding="10,7" Margin="0,12,0,0">
+                                    <Label Text="Son ödeme yaklaştı ya da geçti — ekstre borcu ödenmedi"
+                                           TextColor="White" FontSize="12"
+                                           FontFamily="PlexSansSemiBold" />
+                                </Border>
+
                                 <!-- Aksiyonlar (yalnız editör) -->
                                 <VerticalStackLayout Spacing="0" Margin="0,14,0,0"
                                                      IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
@@ -150,16 +169,6 @@
                                                 Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
                                                 CommandParameter="{Binding .}" />
                                     </HorizontalStackLayout>
-
-                                    <!-- Ödeme hatırlatma şeridi -->
-                                    <Border IsVisible="{Binding OdemeBekliyor}"
-                                            Background="{StaticResource BrushGreen}"
-                                            StrokeThickness="0" StrokeShape="RoundRectangle 8"
-                                            Padding="10,7" Margin="0,12,0,0">
-                                        <Label Text="Son ödeme yaklaştı — ödemeni girerek işaretle"
-                                               TextColor="White" FontSize="12"
-                                               FontFamily="PlexSansSemiBold" />
-                                    </Border>
 
                                     <!-- Ödeme ekle -->
                                     <Label Text="Ödeme ekle" Style="{StaticResource LblField}" Margin="0,14,0,4" />
@@ -175,27 +184,32 @@
                                                 Command="{Binding BindingContext.OdemeEkleCommand, Source={x:Reference Sayfa}}"
                                                 CommandParameter="{Binding .}" />
                                     </Grid>
+                                </VerticalStackLayout>
 
-                                    <!-- Ödeme geçmişi -->
-                                    <VerticalStackLayout Spacing="0" Margin="0,8,0,0"
-                                                         BindableLayout.ItemsSource="{Binding Odemeler}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="0,4">
-                                                    <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
-                                                           Style="{StaticResource LblRowSecondary}" FontSize="12"
-                                                           VerticalOptions="Center" />
-                                                    <Label Grid.Column="1"
-                                                           Text="{Binding Tutar, Converter={StaticResource ParaBicim}}"
-                                                           Style="{StaticResource LblRowSecondary}" FontSize="12"
-                                                           VerticalOptions="Center" />
-                                                    <Button Grid.Column="2" Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                            Command="{Binding BindingContext.OdemeSilCommand, Source={x:Reference Sayfa}}"
-                                                            CommandParameter="{Binding .}" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </VerticalStackLayout>
+                                <!-- Ödeme geçmişi (tüm roller; silme yalnız editör) -->
+                                <Label Text="Ödemeler" Style="{StaticResource LblField}" Margin="0,12,0,0" />
+                                <VerticalStackLayout Spacing="0" Margin="0,4,0,0"
+                                                     BindableLayout.ItemsSource="{Binding Odemeler}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="0,4">
+                                                <Label Text="{Binding Tarih, StringFormat='{0:dd MMM yyyy}'}"
+                                                       Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                       VerticalOptions="Center" />
+                                                <Label Grid.Column="1"
+                                                       Text="{Binding Tutar, Converter={StaticResource ParaBicim}}"
+                                                       Style="{StaticResource LblRowSecondary}" FontSize="12"
+                                                       VerticalOptions="Center" />
+                                                <Button Grid.Column="2" Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                        IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"
+                                                        Command="{Binding BindingContext.OdemeSilCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                    <BindableLayout.EmptyView>
+                                        <Label Text="Ödeme kaydı yok" Style="{StaticResource LblRowSecondary}" FontSize="12" />
+                                    </BindableLayout.EmptyView>
                                 </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>

@@ -7,10 +7,10 @@ namespace Kasa.App.Core;
 public partial class AylikViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public AylikViewModel(IKasaApi api)
+    public AylikViewModel(IKasaApi api, TimeProvider? zaman = null) : base(zaman)
     {
         _api = api;
-        var bugun = DateTime.Today;
+        var bugun = Bugun;
         _yil = bugun.Year;
         _ay = bugun.Month;
     }
@@ -19,9 +19,20 @@ public partial class AylikViewModel : TemelViewModel
     [ObservableProperty] private int _ay;
     [ObservableProperty] private AylikRaporDto? _rapor;
 
-    public Task YukleAsync() => CalistirAsync(async () => Rapor = await _api.AylikAsync(Yil, Ay));
+    /// <summary>İstek sürümü: hızlı ay değişiminde geç gelen eski ayın raporu yenisini ezmesin.</summary>
+    private int _surum;
 
-    [RelayCommand]
+    public Task YukleAsync() => CalistirAsync(async () =>
+    {
+        var surum = ++_surum;
+        int yil = Yil, ay = Ay;
+        AylikRaporDto r;
+        try { r = await _api.AylikAsync(yil, ay); }
+        catch when (surum != _surum) { return; }
+        if (surum == _surum) Rapor = r;
+    });
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private Task OncekiAy()
     {
         if (Ay == 1) { Ay = 12; Yil--; }
@@ -29,7 +40,7 @@ public partial class AylikViewModel : TemelViewModel
         return YukleAsync();
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private Task SonrakiAy()
     {
         if (Ay == 12) { Ay = 1; Yil++; }

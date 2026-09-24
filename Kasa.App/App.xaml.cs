@@ -14,8 +14,11 @@ public partial class App : Application
 	{
 		var svc = Current!.Handler!.MauiContext!.Services;
 #if WINDOWS
-		svc.GetService<Kasa.App.Core.IBildirimServisi>()?.KayitOl();
-		Platforms.Windows.HatirlatmaKontrol.GoreviGarantile();
+		// Bildirim kaydı başarısız olsa bile uygulama açılmalı (kart şeridi uygulama içinde çalışır).
+		try { svc.GetService<Kasa.App.Core.IBildirimServisi>()?.KayitOl(); }
+		catch (Exception) { }
+		// schtasks süreçleri pencereyi dondurmasın: arka planda.
+		_ = Task.Run(() => Platforms.Windows.HatirlatmaKontrol.GoreviGarantile());
 #endif
 		var shell = svc.GetRequiredService<AppShell>();
 		return new Window(shell);

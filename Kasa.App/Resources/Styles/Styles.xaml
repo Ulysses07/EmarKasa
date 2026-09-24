@@ -5,7 +5,8 @@
      Fontlar PlexSans* alias'ları MauiProgram.cs'te OpenSans'a maplenir. -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:conv="clr-namespace:Kasa.App.Converters">
 
     <!-- ===== ETİKETLER ===== -->
     <Style TargetType="Label">
@@ -167,6 +168,8 @@
         <Setter Property="VerticalOptions" Value="Center" />
         <Setter Property="HorizontalTextAlignment" Value="End" />
         <Setter Property="Keyboard" Value="Numeric" />
+        <!-- Geçersiz tutar: kırmızı yazı + ipucu; odak çıkınca son geçerli değere döner. -->
+        <Setter Property="conv:ParaGirisDogrulama.Etkin" Value="True" />
     </Style>
     <Style TargetType="Switch">
         <Setter Property="OnColor" Value="{StaticResource Green}" />

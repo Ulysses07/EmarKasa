@@ -11,10 +11,19 @@
     <ScrollView>
         <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
-            <VerticalStackLayout Spacing="3">
-                <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
-                <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
-            </VerticalStackLayout>
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
+                    <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
+                </VerticalStackLayout>
+                <ActivityIndicator Grid.Column="1" IsRunning="{Binding Mesgul}" IsVisible="{Binding Mesgul}"
+                                   WidthRequest="22" HeightRequest="22" VerticalOptions="Center" />
+            </Grid>
+
+            <!-- Hata (sayfanın tüm bölümleri için) -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
 
             <Grid ColumnDefinitions="{OnIdiom Desktop='*,*', Default='*'}"
                   RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
@@ -69,7 +78,7 @@
             <!-- Kanallar -->
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="0">
-                    <VerticalStackLayout Padding="18,18,18,0" Spacing="12">
+                    <VerticalStackLayout Padding="18,18,18,14" Spacing="12">
                         <Label Text="Kanallar" Style="{StaticResource LblSection}" />
                         <Grid ColumnDefinitions="{OnIdiom Desktop='1.4*,90,*,Auto,Auto,Auto', Default='*'}"
                               RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto,Auto'}"
@@ -113,10 +122,6 @@
                                     Grid.Row="{OnIdiom Desktop=0, Default=5}"
                                     VerticalOptions="End" />
                         </Grid>
-                        <Border Style="{StaticResource ErrorBox}" Margin="0,0,0,16"
-                                IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
-                            <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
-                        </Border>
                     </VerticalStackLayout>
 
                     <!-- Kanal listesi -->

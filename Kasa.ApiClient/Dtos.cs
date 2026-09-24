@@ -7,6 +7,8 @@ public record LoginYanit(string Rol, string Token);
 public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariDto(int Id, string Ad, bool Aktif);
 public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
+/// <summary>İşlem listesinin bir sayfası: kayıtlar (tarih, id artan) + filtreye uyan toplam kayıt sayısı.</summary>
+public record IslemSayfasi(IReadOnlyList<IslemDto> Kayitlar, int Toplam);
 public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
