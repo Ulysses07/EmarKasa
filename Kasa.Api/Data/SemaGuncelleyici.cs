@@ -23,8 +23,8 @@ namespace Kasa.Api.Data;
 /// <item>eksik tablolar (EF'nin tablo başına ürettiği CREATE TABLE/INDEX komutlarıyla),</item>
 /// <item>eksik sütunlar (ALTER TABLE ADD COLUMN),</item>
 /// <item>tekil index'ten önce tek seferlik veri düzeltmeleri (çift kanal/cari, gelen dönem
-///       başı normalizasyonu + çift gelen temizliği, işlemlerdeki carilerin cari listesine
-///       eklenmesi) — silinen her satır loglanır,</item>
+///       başı normalizasyonu + çift gelen temizliği, işlemlerdeki carilerin cari listesine,
+///       sabit gider adlarının gider kalemi listesine eklenmesi) — silinen her satır loglanır,</item>
 /// <item>eksik/yanlış FK'si olan tablonun yeniden kurulması (SQLite ALTER ile FK eklenemez),
 ///       nullable FK'deki yetim değerlerin NULL'lanması,</item>
 /// <item>eksik index'ler (var olan tablolarda da).</item>
@@ -210,6 +210,9 @@ public static class SemaGuncelleyici
             Calistir(conn, tx, $"ALTER TABLE \"{tablo}\" ADD COLUMN {tanim}");
             yapilan.Add($"sütun+ {tablo}.{c.Name}");
         }
+        // Sütunlardan sonra: çok eski DB'lerde Islemler.KrediKartiId bir üst adımda eklenir.
+        if (plan.EksikTablolar.Contains("GiderKalemleri", StringComparer.OrdinalIgnoreCase))
+            SabitGiderKalemleriniEkle(conn, tx, yapilan, log);
 
         // Tekil index kurulmadan önce tek seferlik veri düzeltmeleri.
         var kurulacak = plan.EksikIndexler.Where(x => x.Index.IsUnique).Select(x => x.Index.Name)
@@ -332,7 +335,9 @@ public static class SemaGuncelleyici
     {
         var mevcut = TablolariOku(conn, tx);
         if (!mevcut.Contains("Islemler", StringComparer.OrdinalIgnoreCase)) return;
+        // Karta bağlı olmayan sabit gider işlemlerinin adı cari değil gider kalemidir (ayrı eklenir).
         var eksik = OkuSatir(conn, tx, "SELECT DISTINCT \"Cari\" FROM \"Islemler\" WHERE \"Cari\" <> '' " +
+                                       $"AND NOT (\"Tip\" = {(int)Kasa.Core.GiderTipi.SabitGider} AND \"KrediKartiId\" IS NULL) " +
                                        "AND \"Cari\" NOT IN (SELECT \"Ad\" FROM \"Cariler\")");
         foreach (var s in eksik)
         {
@@ -344,6 +349,29 @@ public static class SemaGuncelleyici
             log.LogInformation("İşlemlerde geçen cari listeye eklendi: {Cari}", s[0]);
         }
         if (eksik.Count > 0) yapilan.Add($"cari+ işlemlerden ({eksik.Count})");
+    }
+
+    /// <summary>
+    /// Gider kalemi tablosu ilk kurulurken, eski sabit gider işlemlerinde (karta bağlı olmayan)
+    /// geçen adları kalem olarak ekler; böylece eski kayıtlar düzenlenebilir kalır.
+    /// </summary>
+    private static void SabitGiderKalemleriniEkle(DbConnection conn, DbTransaction tx, List<string> yapilan, ILogger log)
+    {
+        var mevcut = TablolariOku(conn, tx);
+        if (!mevcut.Contains("Islemler", StringComparer.OrdinalIgnoreCase)) return;
+        var adlar = OkuSatir(conn, tx, $"SELECT DISTINCT \"Cari\" FROM \"Islemler\" WHERE \"Cari\" <> '' " +
+                                       $"AND \"Tip\" = {(int)Kasa.Core.GiderTipi.SabitGider} AND \"KrediKartiId\" IS NULL " +
+                                       "AND \"Cari\" NOT IN (SELECT \"Ad\" FROM \"GiderKalemleri\")");
+        foreach (var s in adlar)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO \"GiderKalemleri\" (\"Ad\", \"Aktif\") VALUES ($ad, 1)";
+            var p = cmd.CreateParameter(); p.ParameterName = "$ad"; p.Value = s[0]; cmd.Parameters.Add(p);
+            cmd.ExecuteNonQuery();
+            log.LogInformation("Sabit gider işlemlerinde geçen ad kalem olarak eklendi: {Kalem}", s[0]);
+        }
+        if (adlar.Count > 0) yapilan.Add($"gider kalemi+ işlemlerden ({adlar.Count})");
     }
 
     // ------------------------------------------------------------------ SQL üretimi

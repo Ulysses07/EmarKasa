@@ -5,7 +5,7 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-/// <summary>Editör ayarları: kanal CRUD + izleyici şifre + takip başlangıç/açılış devri (spec §6).</summary>
+/// <summary>Editör ayarları: kanal ve sabit gider kalemi CRUD + izleyici şifre + takip başlangıç/açılış devri (spec §6).</summary>
 public partial class AyarlarViewModel : TemelViewModel
 {
     /// <summary>"Tüm oturumları kapat" onayının geçerli kaldığı süre.</summary>
@@ -19,6 +19,12 @@ public partial class AyarlarViewModel : TemelViewModel
     }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
+    public ObservableCollection<GiderKalemiDto> GiderKalemleri { get; } = new();
+
+    // Sabit gider kalemi düzenleme
+    [ObservableProperty] private int _duzenKalemId;      // 0 = yeni
+    [ObservableProperty] private string _duzenKalemAd = "";
+    [ObservableProperty] private bool _duzenKalemAktif = true;
 
     [ObservableProperty] private DateTime _takipBaslangic;
     [ObservableProperty] private decimal _kasaAcilisDevri;
@@ -37,8 +43,12 @@ public partial class AyarlarViewModel : TemelViewModel
     {
         var ayarGorevi = _api.AyarlarAsync();
         var kanalGorevi = _api.KanallarAsync();
+        var kalemGorevi = _api.GiderKalemleriAsync();
         var ayar = await ayarGorevi;
         var kanallar = await kanalGorevi;
+        var kalemler = await kalemGorevi;
+        GiderKalemleri.Clear();
+        foreach (var k in kalemler) GiderKalemleri.Add(k);
         TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
         KasaAcilisDevri = ayar.KasaAcilisDevri;
         Kanallar.Clear();
@@ -80,6 +90,31 @@ public partial class AyarlarViewModel : TemelViewModel
     {
         await _api.KanalSilAsync(k.Id);
         if (DuzenKanalId == k.Id) YeniKanal();
+        await DoldurAsync();
+    });
+
+    [RelayCommand]
+    private void YeniKalem() { DuzenKalemId = 0; DuzenKalemAd = ""; DuzenKalemAktif = true; }
+
+    [RelayCommand]
+    public void KalemDuzenle(GiderKalemiDto k) { DuzenKalemId = k.Id; DuzenKalemAd = k.Ad; DuzenKalemAktif = k.Aktif; }
+
+    /// <summary>Kalem adı değişince o kalemle girilmiş eski sabit gider işlemleri de yeni adı alır (sunucu).</summary>
+    [RelayCommand]
+    private Task KalemKaydetAsync() => CalistirAsync(async () =>
+    {
+        var g = new GiderKalemiYaz(DuzenKalemAd, DuzenKalemAktif);
+        if (DuzenKalemId == 0) await _api.GiderKalemiOlusturAsync(g);
+        else await _api.GiderKalemiGuncelleAsync(DuzenKalemId, g);
+        YeniKalem();
+        await DoldurAsync();
+    });
+
+    [RelayCommand]
+    private Task KalemSilAsync(GiderKalemiDto k) => CalistirAsync(async () =>
+    {
+        await _api.GiderKalemiSilAsync(k.Id);
+        if (DuzenKalemId == k.Id) YeniKalem();
         await DoldurAsync();
     });
 

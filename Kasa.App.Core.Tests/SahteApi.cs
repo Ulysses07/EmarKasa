@@ -25,6 +25,29 @@ public sealed class SahteApi : IKasaApi
     {
         new(901, "MEZAT alış", true), new(902, "Market", true), new(903, "K.K", true), new(904, "a", true),
     };
+    // Sabit gider işleminin adı kayıtlı bir kalem olmalı: testlerin kullandığı adlar varsayılan olarak kayıtlı.
+    public IReadOnlyList<GiderKalemiDto> GiderKalemleriListe = new List<GiderKalemiDto>
+    {
+        new(801, "SGK", true), new(802, "Kira", true), new(803, "Market", true), new(804, "a", true),
+    };
+    public int GiderKalemleriCagri;
+    public GiderKalemiYaz? SonKalemOlustur;
+    public (int Id, GiderKalemiYaz G)? SonKalemGuncelle;
+    public int? SonKalemSil;
+    public Task<IReadOnlyList<GiderKalemiDto>> GiderKalemleriAsync()
+    {
+        GiderKalemleriCagri++;
+        return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<GiderKalemiDto>>(YuklemeHatasi) : Task.FromResult(GiderKalemleriListe);
+    }
+    public Task<GiderKalemiDto> GiderKalemiOlusturAsync(GiderKalemiYaz g)
+    {
+        SonKalemOlustur = g;
+        var yeni = new GiderKalemiDto(700 + GiderKalemleriListe.Count, g.Ad, g.Aktif);
+        GiderKalemleriListe = GiderKalemleriListe.Append(yeni).ToList();
+        return Task.FromResult(yeni);
+    }
+    public Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g) { SonKalemGuncelle = (id, g); return Task.FromResult(new GiderKalemiDto(id, g.Ad, g.Aktif)); }
+    public Task GiderKalemiSilAsync(int id) { SonKalemSil = id; return Task.CompletedTask; }
     public IReadOnlyList<IslemDto> IslemlerListe = new List<IslemDto>();
     public IReadOnlyList<HaftalikOzetDto> HaftalikListe = new List<HaftalikOzetDto>();
     public AylikRaporDto? AylikRapor;

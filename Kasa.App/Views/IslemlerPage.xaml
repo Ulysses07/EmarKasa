@@ -43,10 +43,14 @@
                                 </Border>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
-                                <Label Text="Cari (Cariler listesinden)" Style="{StaticResource LblField}" />
+                                <!-- Tip "Sabit gider" iken ad, Cariler yerine sabit gider kalemleri listesinden seçilir -->
+                                <Label Text="{Binding AdEtiketi}" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenCari}" Placeholder="Cari adı yazın, listeden seçin" />
+                                    <Entry Text="{Binding DuzenCari}" Placeholder="Adı yazın, listeden seçin" />
                                 </Border>
+                                <Button Text="Kalem olarak ekle" Command="{Binding KalemEkleCommand}"
+                                        Style="{StaticResource BtnSecondary}" HorizontalOptions="Start"
+                                        Margin="0,8,0,0" IsVisible="{Binding KalemEklenebilir}" />
                                 <!-- Yazılana uyan kayıtlı cariler: dokununca seçilir (kayıtsız cariyle işlem girilemez) -->
                                 <FlexLayout Wrap="Wrap" AlignItems="Center" Margin="0,8,0,0"
                                             IsVisible="{Binding CariOnerileriGorunur}"

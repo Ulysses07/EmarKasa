@@ -20,6 +20,8 @@ public interface IKasaApi
     Task<IReadOnlyList<DonemDto>> DonemlerAsync();
     Task<IReadOnlyList<KanalDto>> KanallarAsync();
     Task<IReadOnlyList<CariDto>> CarilerAsync(string? ara = null);
+    /// <summary>Sabit gider kalemleri (Kira, SGK, Maaş…), ada göre sıralı.</summary>
+    Task<IReadOnlyList<GiderKalemiDto>> GiderKalemleriAsync();
     /// <param name="limit">İsteğe bağlı sayfa boyu (sunucu destekliyorsa).</param>
     /// <param name="offset">İsteğe bağlı atlanacak kayıt sayısı (sunucu destekliyorsa).</param>
     Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null,
@@ -40,6 +42,9 @@ public interface IKasaApi
     Task<CariDto> CariOlusturAsync(CariYaz g);
     Task<CariDto> CariGuncelleAsync(int id, CariYaz g);
     Task CariSilAsync(int id);
+    Task<GiderKalemiDto> GiderKalemiOlusturAsync(GiderKalemiYaz g);
+    Task<GiderKalemiDto> GiderKalemiGuncelleAsync(int id, GiderKalemiYaz g);
+    Task GiderKalemiSilAsync(int id);
     Task<IslemDto> IslemOlusturAsync(IslemYaz g);
     Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g);
     Task IslemSilAsync(int id);

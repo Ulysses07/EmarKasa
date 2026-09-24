@@ -6,6 +6,7 @@ public record LoginYanit(string Rol, string Token);
 
 public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariDto(int Id, string Ad, bool Aktif);
+public record GiderKalemiDto(int Id, string Ad, bool Aktif);
 public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
 /// <summary>İşlem listesinin bir sayfası: kayıtlar (tarih, id artan) + filtreye uyan toplam kayıt sayısı.</summary>
 public record IslemSayfasi(IReadOnlyList<IslemDto> Kayitlar, int Toplam);
@@ -31,6 +32,7 @@ public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanalla
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record CariYaz(string Ad, bool Aktif);
+public record GiderKalemiYaz(string Ad, bool Aktif);
 public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
 public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
