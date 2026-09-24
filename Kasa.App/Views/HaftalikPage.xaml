@@ -62,11 +62,24 @@
                                                 </Label.FormattedText>
                                             </Label>
                                         </VerticalStackLayout>
-                                        <Label Grid.Column="2"
-                                               Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}"
-                                               Style="{StaticResource LblMoney}"
-                                               TextColor="{Binding KasaSonucu, Converter={StaticResource ParaRenk}}"
-                                               VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="2" Spacing="1" VerticalOptions="Center">
+                                            <Label HorizontalOptions="End"
+                                                   Text="{Binding KasaSonucu, Converter={StaticResource ParaBicim}}"
+                                                   Style="{StaticResource LblMoney}"
+                                                   TextColor="{Binding KasaSonucu, Converter={StaticResource ParaRenk}}" />
+                                            <!-- Çek hareketi varsa (tahsil edilen / ödenen): sonuca dahil, ayrıca gösterilir -->
+                                            <Label HorizontalOptions="End" FontSize="11" TextColor="{StaticResource Sub}"
+                                                   IsVisible="{Binding CekVar}">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="Çek +" />
+                                                        <Span Text="{Binding ToplamCekGelen, Converter={StaticResource ParaBicim}}" />
+                                                        <Span Text=" / −" />
+                                                        <Span Text="{Binding ToplamCekGiden, Converter={StaticResource ParaBicim}}" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                        </VerticalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
                             </DataTemplate>

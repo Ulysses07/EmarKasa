@@ -34,6 +34,12 @@ public interface IKasaApi
     Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync();
     Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null);
     Task<AyarlarDto> AyarlarAsync();
+    /// <summary>
+    /// Çekler (sunucu sırası: vade, id azalan). Filtreler isteğe bağlı; tarih aralığı vadeye uygulanır.
+    /// </summary>
+    Task<IReadOnlyList<CekDto>> CeklerAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null);
+    /// <summary>Portföy toplamları, vadesi yaklaşan ve vadesi geçmiş (portföydeki) çekler.</summary>
+    Task<CekOzetDto> CekOzetAsync();
 
     // Editör mutasyonları (KasaApiClient bunları zaten uyguluyor)
     Task<KanalDto> KanalOlusturAsync(KanalYaz g);
@@ -57,6 +63,9 @@ public interface IKasaApi
     Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g);
     Task KartOdemeSilAsync(int id);
     Task<GelenDto> GelenKaydetAsync(GelenYaz g);
+    Task<CekDto> CekOlusturAsync(CekYaz g);
+    Task<CekDto> CekGuncelleAsync(int id, CekYaz g);
+    Task CekSilAsync(int id);
     Task AyarGuncelleAsync(AyarYaz g);
     Task IzleyiciSifreAsync(string yeniSifre);
     /// <summary>Tüm cihazlardaki oturumları (bu cihaz dahil) kapatır; başarıda yerel token silinir ve <see cref="OturumSonaErdi"/> tetiklenir.</summary>

@@ -14,6 +14,7 @@ public class KasaDbContext : DbContext
     public DbSet<AyarEntity> Ayarlar => Set<AyarEntity>();
     public DbSet<KrediKartiEntity> KrediKartlari => Set<KrediKartiEntity>();
     public DbSet<KartOdemeEntity> KartOdemeler => Set<KartOdemeEntity>();
+    public DbSet<CekEntity> Cekler => Set<CekEntity>();
     public DbSet<IptalEdilenTokenEntity> IptalEdilenTokenlar => Set<IptalEdilenTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -27,6 +28,10 @@ public class KasaDbContext : DbContext
         b.Entity<GelenEntity>().HasIndex(g => new { g.DonemStart, g.Kanal }).IsUnique();
 
         b.Entity<IptalEdilenTokenEntity>().HasKey(t => t.Jti);
+
+        // Çekler: raporlar işlem tarihine, liste ve özet vadeye göre okur.
+        b.Entity<CekEntity>().HasIndex(c => c.IslemTarihi);
+        b.Entity<CekEntity>().HasIndex(c => c.VadeTarihi);
 
         // Kart silinince harcama işlemi kalır, bağ kopar (SET NULL).
         b.Entity<IslemEntity>()

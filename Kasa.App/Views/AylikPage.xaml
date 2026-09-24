@@ -57,11 +57,24 @@
                                         </Border>
                                         <Label Grid.Column="1" Text="{Binding Kanal}"
                                                Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
-                                        <Label Grid.Column="2"
-                                               Text="{Binding AySonucu, Converter={StaticResource ParaBicim}}"
-                                               Style="{StaticResource LblMoney}"
-                                               TextColor="{Binding AySonucu, Converter={StaticResource ParaRenk}}"
-                                               VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="2" Spacing="1" VerticalOptions="Center">
+                                            <Label HorizontalOptions="End"
+                                                   Text="{Binding AySonucu, Converter={StaticResource ParaBicim}}"
+                                                   Style="{StaticResource LblMoney}"
+                                                   TextColor="{Binding AySonucu, Converter={StaticResource ParaRenk}}" />
+                                            <!-- Çek hareketi varsa (tahsil edilen / ödenen): sonuca dahil, ayrıca gösterilir -->
+                                            <Label HorizontalOptions="End" FontSize="11" TextColor="{StaticResource Sub}"
+                                                   IsVisible="{Binding CekVar}">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="Çek +" />
+                                                        <Span Text="{Binding CekGelen, Converter={StaticResource ParaBicim}}" />
+                                                        <Span Text=" / −" />
+                                                        <Span Text="{Binding CekGiden, Converter={StaticResource ParaBicim}}" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                        </VerticalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>
                             </DataTemplate>

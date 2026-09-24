@@ -88,6 +88,9 @@
     <FlyoutItem x:Name="KartlarItem" Title="Kredi Kartları" Route="kartlar" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="CeklerItem" Title="Çekler" Route="cekler" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:CeklerPage}" />
+    </FlyoutItem>
     <FlyoutItem x:Name="AyarlarItem" Title="Ayarlar" Route="ayarlar" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:AyarlarPage}" />
     </FlyoutItem>

@@ -155,6 +155,21 @@ public sealed partial class KasaApiClient : IKasaApi
     // Gelen upsert
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) => GonderJsonAsync<GelenDto>(HttpMethod.Put, "api/gelenler", g);
 
+    // Çek
+    public Task<IReadOnlyList<CekDto>> CeklerAsync(CekYonu? yon = null, CekDurumu? durum = null, DateOnly? baslangic = null, DateOnly? bitis = null)
+    {
+        var q = new List<string>();
+        if (yon is { } y) q.Add($"yon={y}");
+        if (durum is { } d) q.Add($"durum={d}");
+        if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
+        if (bitis is { } s) q.Add($"bitis={s:yyyy-MM-dd}");
+        return GetAsync<IReadOnlyList<CekDto>>(q.Count > 0 ? $"api/cekler?{string.Join("&", q)}" : "api/cekler");
+    }
+    public Task<CekOzetDto> CekOzetAsync() => GetAsync<CekOzetDto>("api/cekler/ozet");
+    public Task<CekDto> CekOlusturAsync(CekYaz g) => GonderJsonAsync<CekDto>(HttpMethod.Post, "api/cekler", g);
+    public Task<CekDto> CekGuncelleAsync(int id, CekYaz g) => GonderJsonAsync<CekDto>(HttpMethod.Put, $"api/cekler/{id}", g);
+    public Task CekSilAsync(int id) => SilAsync($"api/cekler/{id}");
+
     // Ayarlar
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
