@@ -6,14 +6,14 @@
 
 **Architecture:** İki ayrık iş kolu. (A) **Backend emeklilik**: `Kasa.Api` artık React SPA sunmaz (sadece `/api/*` + `/health`); Dockerfile'dan node web-build aşaması çıkar; login token gövdede (Plan 1'de yapıldı). (B) **İstemci paketleme**: Windows paketsiz `.exe` bu makinede üretilir; Android AAB + iOS `.ipa` için imza/keystore + build config hazırlanır ama gerçek build mobil TFM + (iOS için) Mac gerektirir. DB şeması: mevcut prod SQLite'ta `KrediKartlari` tablosu YOK (`EnsureCreated()` var olan DB'ye tablo eklemez) → migration yerine **kontrollü DB yeniden oluşturma** (veri az/iç kullanım) veya elle `CREATE TABLE`.
 
-**Tech Stack:** .NET 10 MAUI (`net10.0-windows`/`-android`/`-ios`), ASP.NET Core minimal API, EF Core 10 Sqlite, Docker (VPS 72.61.187.202), Android keystore (`keytool`), App Store Connect / Google Play Console (kullanıcı-operasyonel).
+**Tech Stack:** .NET 10 MAUI (`net10.0-windows`/`-android`/`-ios`), ASP.NET Core minimal API, EF Core 10 Sqlite, Docker (VPS <VPS_IP>), Android keystore (`keytool`), App Store Connect / Google Play Console (kullanıcı-operasyonel).
 
 ---
 
 ## ⚠️ Ortam ve sıralama kısıtları (planı uygulamadan ÖNCE oku)
 
 1. **Bu makine Windows.** `Kasa.App/Kasa.App.csproj` TFM'i yalnız `net10.0-windows10.0.19041.0` (mobil TFM'ler yorumda). **Android AAB / iOS IPA bu makinede üretilemez.** Task 4-5 build adımları Mac'te (iOS) veya mobil TFM geri eklenip Android workload kurulu bir makinede koşulur; bu planda **hazırlık** (keystore, build config, mağaza metni) yapılır, gerçek store build'i kullanıcı ortamına bırakılır.
-2. **kasa.royalmezat.com CANLI ve kullanımda.** SPA emekliliği + DB yeniden oluşturma **native uygulamalar gerçekten yayınlanmadan/ortaklara dağıtılmadan ÖNCE** yapılırsa herkes çalışan uygulamasız + **veri silinmiş** kalır. **Bu yüzden Task 1 (SPA kaldırma) KOD olarak güvenle yapılır ama Task 6 (prod deploy + DB recreate) native istemciler hazır olana KADAR uygulanmaz.**
+2. **kasa.emarglobal.com CANLI ve kullanımda.** SPA emekliliği + DB yeniden oluşturma **native uygulamalar gerçekten yayınlanmadan/ortaklara dağıtılmadan ÖNCE** yapılırsa herkes çalışan uygulamasız + **veri silinmiş** kalır. **Bu yüzden Task 1 (SPA kaldırma) KOD olarak güvenle yapılır ama Task 6 (prod deploy + DB recreate) native istemciler hazır olana KADAR uygulanmaz.**
 3. **DB yeniden oluşturma yıkıcı.** Task 6 üretim SQLite'ını siler/yeniden yaratır → CLAUDE.md "destructive DB writes / prod deploys — ask first". Kullanıcı açık "evet" demeden ÇALIŞTIRILMAZ. Önce prod DB yedeği (`kasa.db` kopyası).
 
 **Güvenli-yerel (şimdi yapılabilir):** Task 1, 2, 3. **Kapılı (kullanıcı onayı + sıralama):** Task 6. **Mac/mobil-ortam:** Task 4, 5 build adımları.
@@ -22,7 +22,7 @@
 
 ## File Structure
 
-**Kasa repo (`C:\Users\burak\source\repos\Kasa`):**
+**Kasa repo (`<repo>`):**
 - `Kasa.Api/Program.cs` — SPA middleware (satır 75-76 `UseDefaultFiles`/`UseStaticFiles`, satır 297 `MapFallbackToFile`) kaldır
 - `Kasa.Api/wwwroot/` — sil (SPA placeholder)
 - `Dockerfile` — node web-build aşaması (satır 2-8) + `COPY --from=web` (satır 24-25) kaldır
@@ -93,7 +93,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
 
 - [ ] **Step 2: Testi çalıştır, kırmızıyı gör**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && dotnet test Kasa.Api.Tests/Kasa.Api.Tests.csproj --filter StatikServisTests 2>&1 | tail -12`
+Run: `cd <repo> && dotnet test Kasa.Api.Tests/Kasa.Api.Tests.csproj --filter StatikServisTests 2>&1 | tail -12`
 Expected: `Kok_istegi_404...` ve `Istemci_rotasi_404...` FAIL (şu an 200 dönüyor — SPA hâlâ sunuluyor).
 
 - [ ] **Step 3: Program.cs'ten SPA middleware'ini kaldır**
@@ -111,18 +111,18 @@ app.MapFallbackToFile("index.html");
 
 - [ ] **Step 4: wwwroot'u sil**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && git rm -r Kasa.Api/wwwroot`
+Run: `cd <repo> && git rm -r Kasa.Api/wwwroot`
 Expected: `wwwroot/index.html` staging'den kalkar.
 
 - [ ] **Step 5: Testleri çalıştır, yeşili doğrula**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && dotnet test Kasa.Api.Tests/Kasa.Api.Tests.csproj 2>&1 | tail -8`
+Run: `cd <repo> && dotnet test Kasa.Api.Tests/Kasa.Api.Tests.csproj 2>&1 | tail -8`
 Expected: PASS — StatikServisTests 4 + mevcut testler (login/CRUD/hesap) bozulmadı.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd "C:/Users/burak/source/repos/Kasa" && git add Kasa.Api/Program.cs Kasa.Api.Tests/StatikServisTests.cs && git commit -m "feat(api): SPA sunumunu kaldır (web emekli, native-only API)"
+cd <repo> && git add Kasa.Api/Program.cs Kasa.Api.Tests/StatikServisTests.cs && git commit -m "feat(api): SPA sunumunu kaldır (web emekli, native-only API)"
 ```
 
 ---
@@ -134,7 +134,7 @@ cd "C:/Users/burak/source/repos/Kasa" && git add Kasa.Api/Program.cs Kasa.Api.Te
 
 - [ ] **Step 1: Mevcut Dockerfile'ı oku**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && cat Dockerfile` (Read tool ile) — 3 aşamalı yapıyı doğrula: `web` (node), `build` (.NET publish), `runtime`.
+Run: `cd <repo> && cat Dockerfile` (Read tool ile) — 3 aşamalı yapıyı doğrula: `web` (node), `build` (.NET publish), `runtime`.
 
 - [ ] **Step 2: node aşamasını ve wwwroot kopyasını kaldır**
 
@@ -163,13 +163,13 @@ ENTRYPOINT ["dotnet", "Kasa.Api.dll"]
 
 - [ ] **Step 3: İmajı yerel derle (Docker varsa)**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && docker build -t kasa-api:local . 2>&1 | tail -15`
+Run: `cd <repo> && docker build -t kasa-api:local . 2>&1 | tail -15`
 Expected: 2 aşama başarılı; node/npm adımı YOK. (Docker yoksa bu adımı atla, sözdizimini gözle doğrula.)
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "C:/Users/burak/source/repos/Kasa" && git add Dockerfile && git commit -m "build(api): Dockerfile'dan node web-build aşamasını çıkar (native-only)"
+cd <repo> && git add Dockerfile && git commit -m "build(api): Dockerfile'dan node web-build aşamasını çıkar (native-only)"
 ```
 
 ---
@@ -181,22 +181,22 @@ cd "C:/Users/burak/source/repos/Kasa" && git add Dockerfile && git commit -m "bu
 
 - [ ] **Step 1: Windows publish'i dene**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && dotnet publish Kasa.App/Kasa.App.csproj -c Release -f net10.0-windows10.0.19041.0 -p:WindowsPackageType=None 2>&1 | tail -20`
+Run: `cd <repo> && dotnet publish Kasa.App/Kasa.App.csproj -c Release -f net10.0-windows10.0.19041.0 -p:WindowsPackageType=None 2>&1 | tail -20`
 Expected: Build başarılı; `bin/Release/net10.0-windows10.0.19041.0/win10-x64/` (veya benzeri) altında `Kasa.App.exe` üretilir. Hata olursa (RID gerekiyorsa) `-r win-x64 --self-contained false` ekleyip tekrar dene.
 
 - [ ] **Step 2: Üretilen exe'yi doğrula**
 
-Run: `cd "C:/Users/burak/source/repos/Kasa" && find Kasa.App/bin/Release -name "Kasa.App.exe" 2>/dev/null` (Glob ile)
+Run: `cd <repo> && find Kasa.App/bin/Release -name "Kasa.App.exe" 2>/dev/null` (Glob ile)
 Expected: exe yolu döner. (Elle çift-tık smoke test kullanıcıya bırakılır — MAUI headless doğrulanamaz.)
 
 - [ ] **Step 3: windows-exe.md runbook yaz**
 
-`docs/deploy/windows-exe.md` — publish komutu, çıktı yolu, opsiyonel imzalama (SmartScreen; iç kullanımda atlanabilir), ortaklara dağıtım (zip + çift tık), API adresi (`https://kasa.royalmezat.com/api`, `BaseAddress` MauiProgram'da).
+`docs/deploy/windows-exe.md` — publish komutu, çıktı yolu, opsiyonel imzalama (SmartScreen; iç kullanımda atlanabilir), ortaklara dağıtım (zip + çift tık), API adresi (`https://kasa.emarglobal.com/api`, `BaseAddress` MauiProgram'da).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/windows-exe.md && git commit -m "docs(deploy): Windows paketsiz exe publish runbook"
+cd <repo> && git add docs/deploy/windows-exe.md && git commit -m "docs(deploy): Windows paketsiz exe publish runbook"
 ```
 
 ---
@@ -220,7 +220,7 @@ cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/windows-exe.md && g
 - [ ] **Step 2: Commit**
 
 ```bash
-cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/android-yayin.md && git commit -m "docs(deploy): Android keystore + AAB + Play Console runbook"
+cd <repo> && git add docs/deploy/android-yayin.md && git commit -m "docs(deploy): Android keystore + AAB + Play Console runbook"
 ```
 
 ---
@@ -242,14 +242,14 @@ cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/android-yayin.md &&
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/ios-yayin.md docs/store/ && git commit -m "docs(deploy): iOS runbook + mağaza materyalleri (TR)"
+cd <repo> && git add docs/deploy/ios-yayin.md docs/store/ && git commit -m "docs(deploy): iOS runbook + mağaza materyalleri (TR)"
 ```
 
 ---
 
 ## Task 6: Üretim — DB yeniden oluşturma + backend redeploy (⚠️ KULLANICI ONAYI + SIRALAMA KAPISI)
 
-> **DUR:** Bu görev CANLI VPS'e (72.61.187.202) dokunur ve **üretim verisini siler**. CLAUDE.md gereği açık onay şart. Ayrıca **native istemciler ortaklara dağıtılmadan ÇALIŞTIRILMAZ** (yoksa çalışan uygulama + veri yok kalır). Kod değişikliği yok — operasyonel runbook.
+> **DUR:** Bu görev CANLI VPS'e (<VPS_IP>) dokunur ve **üretim verisini siler**. CLAUDE.md gereği açık onay şart. Ayrıca **native istemciler ortaklara dağıtılmadan ÇALIŞTIRILMAZ** (yoksa çalışan uygulama + veri yok kalır). Kod değişikliği yok — operasyonel runbook.
 
 **Files:** Create: `docs/deploy/kasa-db-recreate.md` (runbook — Task 6'nın yalnız DÖKÜMANI şimdi yazılabilir; komutları koşmak kapılı)
 
@@ -257,12 +257,12 @@ cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/ios-yayin.md docs/s
   - **Yedek önce:** `cp /opt/kasa/deploy/kasa-data/kasa.db kasa.db.$(date +%F).bak`.
   - **Neden recreate:** `EnsureCreated()` var olan DB'ye `KrediKartlari` eklemez → "no such table". Seçenek A (basit, iç kullanım, veri azsa): DB dosyasını sil, konteyner restart → `EnsureCreated()` tam şemayı + seed'i kurar. Seçenek B (veri korunacaksa): elle `CREATE TABLE KrediKartlari (...)` + kolonlar (`Id,Ad,KesimTarihi,SonOdemeTarihi,Limit,Borc`).
   - **Redeploy:** güncel imaj (SPA'sız) `docker compose up -d --build`.
-  - **Doğrula:** `curl -sI https://kasa.royalmezat.com/api/kredikartlari` (401 beklenir — uç var), login sonrası GET boş liste.
+  - **Doğrula:** `curl -sI https://kasa.emarglobal.com/api/kredikartlari` (401 beklenir — uç var), login sonrası GET boş liste.
 
 - [ ] **Step 2: Runbook commit (döküman güvenli)**
 
 ```bash
-cd "C:/Users/burak/source/repos/Kasa" && git add docs/deploy/kasa-db-recreate.md && git commit -m "docs(deploy): DB yeniden oluşturma + native-only redeploy runbook"
+cd <repo> && git add docs/deploy/kasa-db-recreate.md && git commit -m "docs(deploy): DB yeniden oluşturma + native-only redeploy runbook"
 ```
 
 - [ ] **Step 3–N: Runbook'u UYGULA — KULLANICI "evet, deploy et" dedikten ve native istemciler dağıtıldıktan SONRA.** (SSH ile yedek → DB recreate → redeploy → doğrula.)

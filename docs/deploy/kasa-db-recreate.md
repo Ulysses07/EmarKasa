@@ -50,7 +50,7 @@ cp kasa-data/kasa.db kasa-data/kasa.db.$(date +%F).bak
 
 # 1b) Yedeği geliştirme makinesine indir (isteğe bağlı ama önerilir)
 #     Geliştirme makinesinden (Git Bash / PowerShell):
-scp user@72.61.187.202:/opt/kasa/deploy/kasa-data/kasa.db.$(date +%F).bak ~/Downloads/
+scp user@<VPS_IP>:/opt/kasa/deploy/kasa-data/kasa.db.$(date +%F).bak ~/Downloads/
 
 # Alternatif: docker cp ile container içindeki dosyayı al
 docker cp kasa-app:/data/kasa.db ~/kasa.db.$(date +%F).bak
@@ -155,7 +155,7 @@ cd /opt/kasa/deploy
 # Güncel kodu VPS'e kopyala (repo remote'u yok — rsync ile):
 # Geliştirme makinesinden:
 rsync -az --exclude bin --exclude obj --exclude node_modules --exclude deploy/kasa-data \
-  "C:/Users/burak/source/repos/Kasa/" user@72.61.187.202:/opt/kasa/
+  <repo> user@<VPS_IP>:/opt/kasa/
 
 # VPS'te: yeni imajı derle ve servisi güncelle
 docker compose up -d --build
@@ -172,21 +172,21 @@ Beklenen log: `Now listening on: http://[::]:8080` — hata satırı yok.
 
 ```bash
 # 4a) Health ucu — kimlik gerekmez
-curl -s https://kasa.royalmezat.com/health
+curl -s https://kasa.emarglobal.com/health
 # Beklenen: {"durum":"ok"}
 
 # 4b) /api/kredikartlari — kimliksiz 401 dönmeli (uç var, tablo erişilebilir)
-curl -sI https://kasa.royalmezat.com/api/kredikartlari
+curl -sI https://kasa.emarglobal.com/api/kredikartlari
 # Beklenen: HTTP/2 401
 
 # 4c) Login token al (editör)
-TOKEN=$(curl -s -X POST https://kasa.royalmezat.com/api/auth/login \
+TOKEN=$(curl -s -X POST https://kasa.emarglobal.com/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"kullanici":"<EDITOR_KULLANICI>","sifre":"<EDITOR_SIFRE>"}' \
   | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
 
 # 4d) Kredi kartları listesi — boş liste (yeni DB'de kayıt yok)
-curl -s https://kasa.royalmezat.com/api/kredikartlari \
+curl -s https://kasa.emarglobal.com/api/kredikartlari \
   -H "Authorization: Bearer $TOKEN"
 # Beklenen: []
 
@@ -204,7 +204,7 @@ curl -s https://kasa.royalmezat.com/api/kredikartlari \
 Bu adım tamamlandığında `MEMORY.md`'deki Emar Kasa native girişini şu şekilde güncelle:
 
 > Plan 4 Task 6 ✅ — DB recreate yapıldı (`KrediKartlari` tablosu üretime taşındı);
-> SPA-kaldırılmış backend redeploy edildi; `kasa.royalmezat.com` artık yalnızca API.
+> SPA-kaldırılmış backend redeploy edildi; `kasa.emarglobal.com` artık yalnızca API.
 
 ---
 
@@ -212,12 +212,12 @@ Bu adım tamamlandığında `MEMORY.md`'deki Emar Kasa native girişini şu şek
 
 | Bilgi | Değer |
 |---|---|
-| VPS IP | `72.61.187.202` |
+| VPS IP | `<VPS_IP>` |
 | Compose dizini (VPS) | `/opt/kasa/deploy/` |
 | Compose servis adı | `kasa` |
 | Container adı | `kasa-app` |
 | DB (container içi) | `/data/kasa.db` |
 | DB (VPS host yolu) | `/opt/kasa/deploy/kasa-data/kasa.db` |
 | Connection string | `Data Source=/data/kasa.db` |
-| Prod URL | `https://kasa.royalmezat.com` |
+| Prod URL | `https://kasa.emarglobal.com` |
 | Redeploy komutu | `docker compose up -d --build` (deploy/ dizininden) |

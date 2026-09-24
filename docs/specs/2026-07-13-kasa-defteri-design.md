@@ -149,7 +149,7 @@ Her yerde arama/filtre (cari / kanal / tarih aralığı).
 - **DB:** SQLite (tek dosya, kalıcı volume).
 - **Frontend:** React SPA, mobil-uyumlu.
 - **Barındırma:** VPS'te Docker container, Caddy subdomain (ör.
-  `kasa.orderdeckapp.com`), otomatik HTTPS.
+  `kasa.emarglobal.com`), otomatik HTTPS.
 - **Yedek:** SQLite dosyasının günlük otomatik kopyası (opsiyonel R2'ye).
 
 ## 8. Test

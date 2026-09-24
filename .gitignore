@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 # Deploy sırları ve yerel DB
 deploy/.env
 deploy/kasa-data/
+
+# Dağıtım sürüm işareti (deploy/README.md)
+deploy/SURUM

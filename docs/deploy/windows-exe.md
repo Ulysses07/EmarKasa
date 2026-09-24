@@ -79,7 +79,7 @@ API base URL kaynak koduna sabit olarak gömülüdür:
 **`MauiProgram.cs`** içinde:
 
 ```csharp
-var http = new HttpClient { BaseAddress = new Uri("https://kasa.royalmezat.com/") };
+var http = new HttpClient { BaseAddress = new Uri("https://kasa.emarglobal.com/") };
 ```
 
 Dağıtım öncesinde bu adresin prod ortamını gösterdiğini doğrula. Adresi
@@ -97,4 +97,4 @@ yeniden derle — çevresel değişken veya harici config dosyası **yoktur**.
 | ApplicationId | `com.royalmezat.kasa` |
 | ApplicationTitle | `Emar Kasa` |
 | Paket tipi | Paketsiz (`WindowsPackageType=None`) |
-| API sunucusu | `https://kasa.royalmezat.com/` |
+| API sunucusu | `https://kasa.emarglobal.com/` |

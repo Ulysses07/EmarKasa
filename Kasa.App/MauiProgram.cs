@@ -29,7 +29,7 @@ public static class MauiProgram
 #endif
         builder.Services.AddSingleton(sp =>
         {
-            var http = new HttpClient { BaseAddress = new Uri("https://kasa.royalmezat.com/") };
+            var http = new HttpClient { BaseAddress = new Uri("https://kasa.emarglobal.com/") };
             return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>());
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());

@@ -188,7 +188,7 @@ public class DumanTests
 
 - [ ] **Step 7: Çözüme ekle + derle + test**
 ```bash
-cd "C:\Users\burak\source\repos\Kasa"
+cd "<repo>"
 dotnet sln add Kasa.App.Core/Kasa.App.Core.csproj
 dotnet sln add Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj
 dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj
@@ -965,7 +965,7 @@ Shell'i + salt-okunur View'ları kur. **TDD yok** (headless doğrulanamaz); doğ
 
 - [ ] **Step 1: MAUI projesini üret + çözüme ekle**
 ```bash
-cd "C:\Users\burak\source\repos\Kasa"
+cd "<repo>"
 dotnet new maui -n Kasa.App -o Kasa.App
 dotnet sln add Kasa.App/Kasa.App.csproj
 ```
@@ -1078,7 +1078,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
         builder.Services.AddSingleton(sp =>
         {
-            var http = new HttpClient { BaseAddress = new Uri("https://kasa.royalmezat.com/") };
+            var http = new HttpClient { BaseAddress = new Uri("https://kasa.emarglobal.com/") };
             return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>());
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());
@@ -1108,7 +1108,7 @@ public static class MauiProgram
     }
 }
 ```
-> `BaseAddress` = `https://kasa.royalmezat.com/` (Plan 4'te SPA kaldırılıp yalnız API kalacak; uçlar
+> `BaseAddress` = `https://kasa.emarglobal.com/` (Plan 4'te SPA kaldırılıp yalnız API kalacak; uçlar
 > `/api/...`). `CommunityToolkit.Maui` gerçekten kullanılmıyorsa o `using`'i ve paketi ekleme.
 
 - [ ] **Step 6: App + AppShell (rol-bazlı)** — `Kasa.App/App.xaml.cs` açılışta auth doğrular:
@@ -1280,7 +1280,7 @@ alanları `Style="{StaticResource Para}"`. (Her Page için ContentPage kökü + 
 
 - [ ] **Step 8: Windows TFM build**
 ```bash
-cd "C:\Users\burak\source\repos\Kasa"
+cd "<repo>"
 dotnet build Kasa.App/Kasa.App.csproj -f net10.0-windows10.0.19041.0
 ```
 Expected: BUILD SUCCEEDED (uyarılar kabul; hata yok). Derleme hatası varsa düzelt. iOS build
@@ -1298,7 +1298,7 @@ git commit -m "feat(app): MAUI head — tema, SecureStorage, rol-bazlı Shell, o
 
 - [ ] **Step 1: Core testleri + build**
 ```bash
-cd "C:\Users\burak\source\repos\Kasa"
+cd "<repo>"
 dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj
 dotnet test Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj
 dotnet test Kasa.Core.Tests/Kasa.Core.Tests.csproj
@@ -1311,7 +1311,7 @@ Expected: App.Core (~15) + ApiClient 22 + Core 18 + Api 22 PASS; MAUI head windo
   (yalnız `Kasa.ApiClient` + `CommunityToolkit.Mvvm`).
 
 - [ ] **Step 3: Elle smoke (kullanıcı)** — Windows head'i çalıştır (`dotnet build -t:Run` ya da VS'te
-  F5), backend'e (`https://kasa.royalmezat.com`) editör bilgisiyle giriş; Panel/Haftalık/Aylık/Cariler/
+  F5), backend'e (`https://kasa.emarglobal.com`) editör bilgisiyle giriş; Panel/Haftalık/Aylık/Cariler/
   İşlemler/Kredi Kartları yükleniyor mu bak. iOS/Android: kullanıcı gerçek cihazda smoke eder. ⚠️
   Not: backend'de `KrediKartlari` tablosu Plan 4'te oluşturulana kadar Kredi Kartları ekranı "no such
   table" verebilir (spec §7 / Plan 4 ön koşulu).

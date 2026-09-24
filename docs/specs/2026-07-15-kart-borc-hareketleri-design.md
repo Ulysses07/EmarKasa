@@ -2,7 +2,7 @@
 
 - **Tarih:** 2026-07-15
 - **Durum:** Onaylandı (brainstorm), uygulama planı bekliyor
-- **Konum:** `C:\Users\burak\source\repos\Kasa` (OrderDeck/LiveDeck'ten AYRI repo)
+- **Konum:** `<repo>` (OrderDeck/LiveDeck'ten AYRI repo)
 - **İlgili spec:** `docs/specs/2026-07-14-emar-kasa-native-design.md` (Kredi Kartı ekranı),
   `docs/specs/2026-07-13-kasa-defteri-design.md` (hesap kuralları)
 

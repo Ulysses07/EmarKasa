@@ -2,7 +2,7 @@
 
 - **Tarih:** 2026-07-14
 - **Durum:** Onaylandı (brainstorm), uygulama planı bekliyor
-- **Konum:** `C:\Users\burak\source\repos\Kasa` (OrderDeck/LiveDeck'ten AYRI repo, git REMOTE'u YOK)
+- **Konum:** `<repo>` (OrderDeck/LiveDeck'ten AYRI repo, git REMOTE'u YOK)
 - **İlgili spec:** `docs/specs/2026-07-13-kasa-defteri-design.md` (hesap kuralları, §4)
 
 ## 1. Amaç ve kapsam
@@ -15,7 +15,7 @@ Mevcut Kasa web uygulamasını **gerçek native** uygulamalara taşımak (WebVie
 Ek olarak yeni bir **Kredi Kartları** özelliği (ekran + hesap motoru değişikliği).
 
 Backend (ASP.NET Core API + SQLite) **olduğu gibi kalır**; native uygulamalar aynı REST API'ye
-(`https://kasa.royalmezat.com/api`) bağlanır. Mevcut web SPA **emekliye ayrılır** (sadece API sunulur).
+(`https://kasa.emarglobal.com/api`) bağlanır. Mevcut web SPA **emekliye ayrılır** (sadece API sunulur).
 
 **Uygulama adı:** "Emar Kasa" · **Paket kimliği:** `com.royalmezat.kasa`
 
@@ -141,7 +141,7 @@ Düzen: masaüstü koyu sidebar (flyout), telefon alt sekme.
 
 ## 10. Yayın / dağıtım — sorumluluk sınırı
 
-- **Backend:** Kasa.Api'yi token-gövde + SPA-kaldırma ile yeniden dağıt (VPS 72.61.187.202).
+- **Backend:** Kasa.Api'yi token-gövde + SPA-kaldırma ile yeniden dağıt (VPS <VPS_IP>).
 - **Android:** MAUI → AAB. **Kullanıcı:** Google Play Console ($25 tek sefer) açar + yükler.
   **Claude:** imza keystore + build config + mağaza metni/görselleri.
 - **iOS:** Mac + Apple Developer ($99/yıl) — **kullanıcı** kaydolur + öder. **Claude:** proje +

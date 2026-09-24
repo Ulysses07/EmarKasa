@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # MAUI uygulaması (Kasa.App) Linux'ta derlenmez; test projeleri ondan bağımsızdır.
+      - name: Test
+        run: |
+          for p in Kasa.Core.Tests Kasa.Api.Tests Kasa.ApiClient.Tests Kasa.App.Core.Tests; do
+            dotnet test "$p" --nologo --logger "console;verbosity=normal" || exit 1
+          done
+      - name: Docker imajı derlenir
+        run: docker build -t kasa:ci .

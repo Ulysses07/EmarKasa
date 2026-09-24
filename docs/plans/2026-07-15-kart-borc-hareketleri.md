@@ -15,7 +15,7 @@
 git -c user.name="Musa Sevinç" -c user.email="musa@royalmezat.com" commit -m "..."
 ```
 
-**Test/build komutları (repo kökü `C:\Users\burak\source\repos\Kasa`):**
+**Test/build komutları (repo kökü `<repo>`):**
 - `dotnet test Kasa.Core.Tests/Kasa.Core.Tests.csproj`
 - `dotnet test Kasa.Api.Tests/Kasa.Api.Tests.csproj`
 - `dotnet test Kasa.ApiClient.Tests/Kasa.ApiClient.Tests.csproj`
@@ -1273,7 +1273,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Prod şema el-SQL'ini hazırla (deploy sırasında uygulanır)**
 
-`EnsureCreated()` mevcut prod DB'sine kolon/tablo EKLEMEZ. Aşağıdaki SQL, prod SQLite dosyasına (VPS 72.61.187.202, docker compose `docker-compose.nginx.yml`) **yedek alındıktan sonra** elle uygulanır:
+`EnsureCreated()` mevcut prod DB'sine kolon/tablo EKLEMEZ. Aşağıdaki SQL, prod SQLite dosyasına (VPS <VPS_IP>, docker compose `docker-compose.nginx.yml`) **yedek alındıktan sonra** elle uygulanır:
 
 ```sql
 ALTER TABLE Islemler ADD COLUMN KrediKartiId INTEGER NULL;

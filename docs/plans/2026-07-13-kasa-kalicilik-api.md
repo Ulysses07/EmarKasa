@@ -40,7 +40,7 @@ Bu, 4 planlık setin **2. planıdır** (1: hesap motoru ✅; 3: React arayüz �
 - Para `decimal`, tarih `DateOnly` (Core ile birebir).
 - Her task sonunda commit. Commit mesajları Türkçe, imperative; sonuna
   `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` ekle.
-- Komutlar repo kökünde çalışır: `C:\Users\burak\source\repos\Kasa`.
+- Komutlar repo kökünde çalışır: `<repo>`.
 
 ---
 

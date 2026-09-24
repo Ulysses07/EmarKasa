@@ -30,7 +30,7 @@ Bu, Kasa'nın 4 planlık setinin **React↔API bağlama** adımıdır (Plan 1 he
 - Silinecek (son task): `web/src/data/mock.ts`
 
 **Genel konvansiyonlar:**
-- Komutlar `web/` altında çalışır: `cd C:\Users\burak\source\repos\Kasa\web`.
+- Komutlar `web/` altında çalışır: `cd <repo>\web`.
 - Para/tarih biçimi mevcut `format.ts` (`fmt`/`sfmt`) ile birebir korunur.
 - Her task sonunda commit; mesaj Türkçe, imperative, sonuna
   `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`.

@@ -73,12 +73,12 @@ Apple, her cihaz sınıfı için ayrı ekran görüntüsü ister.
 
 | Alan | Değer | Durum |
 |---|---|---|
-| Destek URL | `<https://kasa.royalmezat.com>` veya ayrı destek sayfası | [ ] hazırlanacak |
-| Pazarlama URL | `<https://kasa.royalmezat.com>` | [ ] hazırlanacak |
+| Destek URL | `<https://kasa.emarglobal.com>` veya ayrı destek sayfası | [ ] hazırlanacak |
+| Pazarlama URL | `<https://kasa.emarglobal.com>` | [ ] hazırlanacak |
 | Gizlilik Politikası URL | `<hazırlanacak>` — mevcut web sitesinde gizlilik/veri-silme sayfası **tespit edilmedi**; mağaza yayınından önce oluşturulup yayınlanması **zorunludur** | [ ] |
 | Destek e-postası | `<destek@royalmezat.com veya benzer>` | [ ] hazırlanacak |
 
-> **Not — Gizlilik Politikası:** App Store ve Google Play, canlı erişilebilir bir gizlilik politikası URL'i olmadan uygulamayı yayınlamaz. Kasa web sitesinde (`kasa.royalmezat.com`) şu an bir gizlilik sayfası bulunmamaktadır. Yayından önce bir sayfa hazırlanmalı ve bu alanda URL belirtilmelidir.
+> **Not — Gizlilik Politikası:** App Store ve Google Play, canlı erişilebilir bir gizlilik politikası URL'i olmadan uygulamayı yayınlamaz. Kasa web sitesinde (`kasa.emarglobal.com`) şu an bir gizlilik sayfası bulunmamaktadır. Yayından önce bir sayfa hazırlanmalı ve bu alanda URL belirtilmelidir.
 
 ---
 
