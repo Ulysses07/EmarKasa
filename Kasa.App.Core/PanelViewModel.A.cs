@@ -98,6 +98,8 @@ public partial class PanelViewModel
     /// <summary>Tahmindeki çekler: kullanıcı riskli olanı hesaptan çıkarabilir (cihazda saklanır).</summary>
     public ObservableCollection<TahminCekSecenegi> TahminCekleri { get; } = new();
     [ObservableProperty] private bool _tahminCekVar;
+    /// <summary>Ufuk içinde bilinen hiçbir hareket yok (kasa düz gider).</summary>
+    [ObservableProperty] private bool _tahminHareketYok;
     /// <summary>Son yüklenen tahmin (testler ve bildirimler için).</summary>
     public NakitTahminDto? SonTahmin { get; private set; }
 
@@ -135,7 +137,14 @@ public partial class PanelViewModel
     private void KartDurumunuKur(IReadOnlyList<KrediKartiDto>? kartlar, DateOnly bugun)
     {
         KartDurumuVar = kartlar is { Count: > 0 };
-        if (kartlar is not { Count: > 0 }) { LimitUyariMetni = null; return; }
+        if (kartlar is not { Count: > 0 })
+        {
+            KartEkstreToplam = 0m;
+            KartVadeMetni = kartlar is null ? "Kart bilgisi alınamadı" : "Kayıtlı kart yok";
+            KartVadeAcil = false;
+            LimitUyariMetni = null;
+            return;
+        }
         var gorunumler = kartlar.Select(d => new KrediKartiGorunum(d, bugun.ToDateTime(TimeOnly.MinValue))).ToList();
         KartEkstreToplam = gorunumler.Sum(k => Math.Max(0m, k.EkstreBorc));
         var enYakin = gorunumler.Where(k => k.EkstreBorc > 0)
@@ -162,11 +171,18 @@ public partial class PanelViewModel
     private void CekDurumunuKur(CekOzetDto? o)
     {
         CekDurumuVar = o is not null;
-        if (o is null) return;
+        if (o is null)
+        {
+            CekTahsilToplam = CekOdemeToplam = 0m;
+            CekTahsilMetni = "Çek bilgisi alınamadı";
+            CekOdemeMetni = "";
+            CekGecikmeMetni = null;
+            return;
+        }
         CekTahsilToplam = o.PortfoydekiAlinanToplam;
-        CekTahsilMetni = $"{o.PortfoydekiAlinanAdet} alınan çek";
+        CekTahsilMetni = $"Tahsil edilecek {PanelMetin.Tutar(o.PortfoydekiAlinanToplam)} · {o.PortfoydekiAlinanAdet} çek";
         CekOdemeToplam = o.OdenecekVerilenToplam;
-        CekOdemeMetni = $"{o.OdenecekVerilenAdet} verilen çek";
+        CekOdemeMetni = $"Ödenecek {PanelMetin.Tutar(o.OdenecekVerilenToplam)} · {o.OdenecekVerilenAdet} çek";
         CekGecikmeMetni = o.VadesiGecenler.Count > 0
             ? $"{o.VadesiGecenler.Count} çekin vadesi geçti · {PanelMetin.Tutar(o.VadesiGecenler.Sum(c => c.Tutar))}"
             : null;
@@ -175,7 +191,13 @@ public partial class PanelViewModel
     private void SayimDurumunuKur(IReadOnlyList<KasaSayimDto>? sayimlar, DateOnly bugun)
     {
         SayimDurumuVar = sayimlar is not null;
-        if (sayimlar is null) return;
+        if (sayimlar is null)
+        {
+            SayimMetni = "Sayım bilgisi alınamadı";
+            SayimFarki = null;
+            SayimFarkMetni = null;
+            return;
+        }
         var son = sayimlar.OrderByDescending(s => s.Tarih).ThenByDescending(s => s.Id).FirstOrDefault();
         if (son is null)
         {
@@ -314,8 +336,10 @@ public partial class PanelViewModel
         TahminOzetMetni = $"{t.Gun} gün sonra {PanelMetin.Tutar(t.SonKasa)} · giriş {PanelMetin.IsaretliTutar(t.ToplamGiris)} · çıkış {PanelMetin.IsaretliTutar(-t.ToplamCikis)}";
 
         TahminGunleri.Clear();
-        foreach (var g in t.Gunler.Where(g => g.Kalemler.Count > 0 || g.Tarih == t.EnDusukTarih))
+        // Hareket olan günler; en düşük gün hareketsizse de (bugün değilse) gösterilir.
+        foreach (var g in t.Gunler.Where(g => g.Kalemler.Count > 0 || (g.Tarih == t.EnDusukTarih && g.Tarih != bugun)))
             TahminGunleri.Add(new TahminGunuGorunum(g, bugun, g.Tarih == t.EnDusukTarih));
+        TahminHareketYok = TahminGunleri.Count == 0;
 
         TahminCekleri.Clear();
         var cekler = t.Gunler.SelectMany(g => g.Kalemler).Where(k => k.CekId is not null)

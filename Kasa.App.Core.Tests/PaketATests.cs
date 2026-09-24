@@ -305,7 +305,8 @@ public class PanelPaketATests
         Assert.Equal("Limit uyarısı: Bonus %85 · Axess limit aşıldı", vm.LimitUyariMetni);
 
         Assert.True(vm.CekDurumuVar);
-        Assert.Equal((12_000m, "3 alınan çek", 4_000m, "2 verilen çek"), (vm.CekTahsilToplam, vm.CekTahsilMetni, vm.CekOdemeToplam, vm.CekOdemeMetni));
+        Assert.Equal((12_000m, "Tahsil edilecek 12.000,00 ₺ · 3 çek"), (vm.CekTahsilToplam, vm.CekTahsilMetni));
+        Assert.Equal((4_000m, "Ödenecek 4.000,00 ₺ · 2 çek"), (vm.CekOdemeToplam, vm.CekOdemeMetni));
         Assert.Equal("1 çekin vadesi geçti · 700,00 ₺", vm.CekGecikmeMetni);
 
         Assert.True(vm.SayimDurumuVar);
@@ -326,7 +327,12 @@ public class PanelPaketATests
         var (_, vm, _) = Kur();
         await vm.YukleAsync();
         Assert.False(vm.KartDurumuVar);   // kart yok
+        Assert.Equal("Kayıtlı kart yok", vm.KartVadeMetni);
         Assert.Null(vm.LimitUyariMetni);
+        Assert.True(vm.TahminVar);
+        Assert.True(vm.TahminHareketYok);   // düz tahmin: gösterilecek gün yok
+        Assert.Empty(vm.TahminGunleri);
+        Assert.Equal("En düşük: bugün, 58.900,00 ₺", vm.EnDusukMetni);
         Assert.Null(vm.CekGecikmeMetni);
         Assert.Equal("Henüz sayım yok", vm.SayimMetni);
         Assert.Null(vm.SayimFarki);
@@ -351,6 +357,9 @@ public class PanelPaketATests
         Assert.Equal(1, api.BekleyenCagri);   // yapılacaklar aynı listeyi kullanır
         Assert.False(vm.TahminVar);           // eski sunucu: bölüm gizli
         Assert.Null(vm.TahminHata);
+        Assert.False(vm.KartDurumuVar);
+        Assert.True(vm.CekDurumuVar);
+        Assert.True(vm.SayimDurumuVar);
         Assert.Null(vm.DefterGuncellemeMetni);
         Assert.Contains(vm.Yapilacaklar, y => y.Tur == YapilacakTuru.TekrarlayanGider);
         Assert.DoesNotContain(vm.Yapilacaklar, y => y.Tur == YapilacakTuru.EksikGelen);
@@ -574,11 +583,14 @@ public class GecmisPaketATests
         Assert.Equal([true, true, false, false], vm.Kayitlar.Select(k => k.Yeni));
         Assert.Equal([true, false, false, true], vm.Kayitlar.Select(k => k.GecmiseDonuk));
         Assert.Equal(2, vm.YeniSayisi);
+        Assert.Equal("Son bakışınızdan beri 2 yeni değişiklik", vm.YeniMetni);
+        Assert.Equal([true, true, false, true], vm.Kayitlar.Select(k => k.EtiketVar));
         Assert.Equal(12, depo.OkuInt(YerelAnahtarlar.GecmisSonGorulenId));
 
         // Sonraki açılışta aynı satırlar artık yeni değil.
         await vm.YukleAsync();
         Assert.All(vm.Kayitlar, k => Assert.False(k.Yeni));
+        Assert.Null(vm.YeniMetni);
     }
 
     [Fact]
