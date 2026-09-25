@@ -1,0 +1,50 @@
+{
+  "packageId": "com.royalmezat.kasa",
+  "host": "kasa.emarglobal.com",
+  "name": "Emar Kasa",
+  "launcherName": "Emar Kasa",
+  "display": "standalone",
+  "themeColor": "#194D3C",
+  "themeColorDark": "#194D3C",
+  "navigationColor": "#194D3C",
+  "navigationColorDark": "#194D3C",
+  "navigationDividerColor": "#194D3C",
+  "navigationDividerColorDark": "#194D3C",
+  "backgroundColor": "#F6F3E9",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://kasa.emarglobal.com/icon-512.png",
+  "maskableIconUrl": "https://kasa.emarglobal.com/icon-maskable-512.png",
+  "monochromeIconUrl": "https://kasa.emarglobal.com/icon-mono-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./keystore/emar-kasa.keystore",
+    "alias": "emar-kasa"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://kasa.emarglobal.com/manifest.webmanifest",
+  "fallbackType": "webview",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://kasa.emarglobal.com/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [
+    {
+      "name": "emar-kasa",
+      "value": "07:B8:1C:63:34:37:F6:2A:C9:78:D4:A6:0C:A9:05:E2:A7:36:D9:FA:BA:D0:0B:FA:D7:29:6D:B4:B7:BD:91:DF"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.0.0"
+}

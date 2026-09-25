@@ -1,0 +1,49 @@
+name: Android
+
+# Telefon uygulaması (mobil/android): canlı web ekranını (kasa.emarglobal.com)
+# Trusted Web Activity olarak paketler. İmza anahtarı depoda DEĞİL; bu iş
+# imzasız release APK üretir, imzalama anahtarın saklandığı yerde yapılır
+# (mobil/android/README.md).
+on:
+  push:
+    paths:
+      - 'mobil/android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions:
+      # Yalnız imzasız APK'yı taslak (herkese kapalı) bir sürüme eklemek için.
+      contents: write
+    defaults:
+      run:
+        working-directory: mobil/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: İmzasız release APK
+        run: ./gradlew --no-daemon assembleRelease
+      - name: APK'yı sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: emar-kasa-android-imzasiz
+          path: mobil/android/app/build/outputs/apk/release/*.apk
+          retention-days: 14
+      - name: Taslak sürüme ekle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "android-ci-${{ github.run_number }}"
+          app/build/outputs/apk/release/app-release-unsigned.apk
+          --draft --target "${{ github.sha }}"
+          --title "Android imzasız APK ${{ github.run_number }}"
+          --notes "CI çıktısı, imzasız. Telefona kurulmadan önce imzalanmalı (mobil/android/README.md)."

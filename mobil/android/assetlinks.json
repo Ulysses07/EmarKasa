@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.royalmezat.kasa",
+      "sha256_cert_fingerprints": [
+        "07:B8:1C:63:34:37:F6:2A:C9:78:D4:A6:0C:A9:05:E2:A7:36:D9:FA:BA:D0:0B:FA:D7:29:6D:B4:B7:BD:91:DF"
+      ]
+    }
+  }
+]
