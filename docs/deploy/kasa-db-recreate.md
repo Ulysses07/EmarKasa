@@ -1,5 +1,10 @@
 # Emar Kasa — Üretim DB Yeniden Oluşturma Kılavuzu
 
+> **Tarihsel belge — güncel dağıtımda bu sayfadaki silme/yeniden oluşturma adımlarını uygulamayın.**
+> 19 Eylül 2026 sağlamlaştırmasıyla `KasaDatabaseInitializer` ve EF migrations eklendi.
+> Güncel, veri koruyan süreç: [Veritabanı yükseltme](database-upgrade.md).
+> Aşağıdaki içerik yalnız eski `EnsureCreated` sorununun kaydı olarak korunuyor.
+
 ## Amaç & Neden Gerekli
 
 Plan 1 (Emar Kasa native backend), EF Core modeline `KrediKartlari` tablosunu ekledi.

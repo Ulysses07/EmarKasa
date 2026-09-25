@@ -9,7 +9,16 @@ namespace Kasa.App.Core;
 public partial class IslemlerViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public IslemlerViewModel(IKasaApi api) => _api = api;
+    private readonly AuthViewModel? _auth;
+    public BenzerKayitKontrolu GiderBenzerlik { get; }
+    public IslemlerViewModel(IKasaApi api, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null)
+    {
+        _api = api; _auth = auth; GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
+        if (auth is not null) auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(auth.OturumSurumu)) { GiderBenzerlik.Temizle(); Yeni(); }
+        };
+    }
 
     /// <summary>Belirli bir kanala ait olmayan ortak gider etiketi (motorla birebir eşleşmeli).</summary>
     public const string OrtakKanal = "Ortak";
@@ -22,7 +31,7 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Gider formu kanal çipleri: aktif kanallar + "Ortak".</summary>
     public ObservableCollection<SecimCipi> GiderKanallari { get; } = new();
 
-    /// <summary>Gider tipi çipleri: Cari · Sabit gider · Kredi kartı.</summary>
+    /// <summary>Gider tipi çipleri: Diğer gider · Sabit gider · Kredi kartı.</summary>
     public ObservableCollection<SecimCipi> TipCipleri { get; } = new();
 
     /// <summary>Kart harcaması için kart çipleri (yalnız "Kredi kartı" tipi seçiliyken görünür).</summary>
@@ -193,7 +202,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         GiderTipi.SabitGider => "Sabit gider",
         GiderTipi.KrediKarti => "Kredi kartı",
-        _ => "Cari",
+        _ => "Diğer gider",
     };
 
     /// <summary>Çip etiketi → gider tipi.</summary>
@@ -248,6 +257,7 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     private void Yeni()
     {
+        GiderBenzerlik.Temizle();
         DuzenId = 0; DuzenTarih = DateTime.Today; DuzenCari = "";
         DuzenTutar = 0; DuzenKanal = ""; DuzenTip = GiderTipi.Cari; DuzenNot = null;
         DuzenKrediKartiId = null;
@@ -256,24 +266,39 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     public void Duzenle(IslemDto i)
     {
+        if (i.EkstreKayitId is not null) { Hata = "Bu kayıt PDF ekstresinden aktarıldı. Ekstre İçe Aktar bölümünden iptal edip doğru bilgilerle yeniden kaydedin."; return; }
+        if (i.AylikGiderOdemeId is not null) { Hata = "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin."; return; }
+        if (i.AlisId is not null) { Hata = "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin."; return; }
+        GiderBenzerlik.Temizle();
         DuzenId = i.Id; DuzenTarih = i.Tarih.ToDateTime(TimeOnly.MinValue);
         DuzenCari = i.Cari; DuzenTutar = i.TutarTl; DuzenKanal = i.Kanal;
         DuzenTip = i.Tip; DuzenNot = i.Not; DuzenKrediKartiId = i.KrediKartiId;
     }
 
     [RelayCommand]
-    private Task KaydetAsync() => CalistirAsync(async () =>
+    private Task KaydetAsync() => Mesgul ? Task.CompletedTask : CalistirAsync(async () =>
     {
+        if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
+        var oturum = _auth?.OturumSurumu;
         var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
+        var id = DuzenId;
+        if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new("Gider", g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
+            () => _auth?.OturumSurumu == oturum && DuzenId == id && TakipMetni.Ayni(g, new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId)))) return;
         if (DuzenId == 0) await _api.IslemOlusturAsync(g);
         else await _api.IslemGuncelleAsync(DuzenId, g);
+        if (_auth?.OturumSurumu != oturum) return;
         Yeni();
         await DoldurAsync();
     });
 
+    [RelayCommand] private async Task GideriAyriKaydetAsync() { if (GiderBenzerlik.Onayla()) await KaydetAsync(); }
+
     [RelayCommand]
     private Task SilAsync(IslemDto i) => CalistirAsync(async () =>
     {
+        if (i.EkstreKayitId is not null) { Hata = "Ekstre kaydı buradan silinemez. Ekstre İçe Aktar bölümünden gerekçeyle iptal edin."; return; }
+        if (i.AylikGiderOdemeId is not null) { Hata = "Aylık gider ödemesi buradan silinemez. Aylık Giderler bölümünden gerekçeyle iptal edin."; return; }
+        if (i.AlisId is not null) { Hata = "Bu gider bir alış ödemesine bağlı; bu ekrandan silinemez. Alışlar ekranından kaydı inceleyin."; return; }
         await _api.IslemSilAsync(i.Id);
         await DoldurAsync();
     });

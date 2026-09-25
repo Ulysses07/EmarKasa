@@ -1,29 +1,28 @@
-# Kasa Defteri — VPS Dağıtım
+# Kasa Defteri — VPS dağıtımı
 
-Aynı OrderDeck VPS'inde, `orderdeck-caddy` arkasında `kasa.orderdeckapp.com`.
+Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerindedir. Canlı kurulum sistem Nginx'i ve `docker-compose.nginx.yml` dosyasını kullanır; `kasa-app` konteyneri yalnız `127.0.0.1:8080` üzerinden erişilir. Güncel yayın2.3.0: [PDF ekstre ve hesap hareketleri](../docs/deploy/kasa-2.3.md). Yayın manifesti `/opt/kasa/releases/20260923-imports/imports-published.json` içindedir.
 
 ## İlk kurulum
-1. DNS: `kasa.orderdeckapp.com` A kaydı → OrderDeck VPS IP'si.
-2. Kasa reposunu VPS'e kopyala (repo remote'u yok → rsync/scp):
-   `rsync -az --exclude bin --exclude obj --exclude node_modules \
-     ./ user@VPS:/opt/kasa/`
-3. VPS'te env doldur:
-   `cd /opt/kasa/deploy && cp .env.example .env && nano .env`
-   (KASA_JWT_KEY = `openssl rand -base64 48`, editör kullanıcı/şifre)
-4. OrderDeck ağının ayakta olduğunu doğrula:
-   `docker network ls | grep orderdeck_web`
-   (yoksa önce OrderDeck compose `up` edilmeli — Caddy zaten çalışıyor olmalı)
-5. Kasa'yı derle + başlat:
-   `cd /opt/kasa/deploy && docker compose up -d --build`
-6. Caddy'yi güncelle (LiveDeck reposundaki Caddyfile'a kasa bloğu eklendikten
-   sonra `/opt/orderdeck/Caddyfile`'a yansıt) ve reload:
-   `docker exec orderdeck-caddy caddy reload --config /etc/caddy/Caddyfile`
-7. Doğrula: `curl -sI https://kasa.orderdeckapp.com/health`
+
+1. Hostinger'da `emarglobal.com` bölgesine `A / kasa / 72.61.187.202` kaydını ekleyin.
+2. Kasa kaynaklarını VPS'te `/opt/kasa/` dizinine aktarın. Mevcut `.env` ve `kasa-data/` içeriğini koruyun.
+3. Yalnız yeni kurulumda `deploy/.env.example` dosyasından `.env` oluşturup JWT anahtarı ve editör bilgilerini doldurun. Gerçek giriş bilgilerini depoya koymayın.
+4. `/opt/kasa/deploy` içinde `docker compose -f docker-compose.nginx.yml up -d --build` çalıştırın.
+5. [Alan adı ve HTTPS geçiş kılavuzunu](../docs/deploy/emarglobal-domain.md) izleyerek Nginx ve sertifikayı kurun. Son HTTPS site dosyası `nginx/kasa.emarglobal.com.conf` içindedir; sertifika yokken etkinleştirmeyin.
+6. `curl --fail https://kasa.emarglobal.com/health` ile normal DNS ve TLS üzerinden200 yanıtını doğrulayın.
+
+`docker-compose.yml`, eski OrderDeck/Caddy ağına bağlanan alternatif dağıtım şablonudur; mevcut Nginx kurulumunda yukarıdaki `-f docker-compose.nginx.yml` seçeneğini kullanın.
 
 ## Güncelleme (yeni sürüm)
-1. `rsync ... /opt/kasa/`
-2. `cd /opt/kasa/deploy && docker compose up -d --build`
-   (DB `kasa-data/` volume'de kalıcı — kaybolmaz)
+1. Önce [veritabanı yükseltme kılavuzundaki](../docs/deploy/database-upgrade.md) yedek ve kopya üzerinde geçiş kontrolünü tamamla.
+2. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın; `.env` ve veri dizinini koruyun.
+3. `cd /opt/kasa/deploy && docker compose -f docker-compose.nginx.yml up -d --build`
+   (DB `kasa-data/` volume'de kalıcıdır; uygulama desteklenen eski şemayı migration'a taşır.)
+4. `/health`, giriş ve raporları kontrol et. Bu sürüm oturum doğrulamasını yenilediği için mevcut kullanıcılar bir kez yeniden giriş yapar.
+
+Üretimde JWT anahtarı ve editör bilgileri açıkça yapılandırılmalıdır. Boş veya geliştirme için tanımlı değerlerle API başlamaz. Geçiş sırasında yinelenen kayıt ya da tanınmayan şema bulunursa mevcut veriler korunarak başlangıç durdurulur; veritabanını silmeyin.
+
+Alan adı geçişi yalnız Nginx/DNS/TLS ve istemci adresini değiştirir; yeni uygulama kodunun canlıya dağıtıldığını göstermez.
 
 ## Yedek
-DB tek dosya: `/opt/kasa/deploy/kasa-data/kasa.db`. Yedek = dosyayı kopyala.
+Aktif veri dizinini `kasa-app` konteynerinin `/data` mount kaynağından veya son yayın manifestinin `dataDirectory` alanından bulun. Sürüm geçişleri ayrı dizin kullandığı için eski `kasa-data/` yolunu varsaymayın. Tutarlı yedek için SQLite yedekleme yöntemini kullanın veya uygulamayı durdurup veri dizininin tamamını (`kasa.db`, varsa WAL/SHM ve `.kasa-push-keys.json` dahil) birlikte kopyalayın. Çalışan veritabanının yalnız `.db` dosyasını kopyalamak yeterli değildir. Yedeği ayrı bir ortamda açarak geri yüklemeyi doğrulayın.

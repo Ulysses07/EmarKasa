@@ -59,15 +59,6 @@ public class MutasyonTests
         Assert.Equal(4, guncel.Id);
     }
 
-    [Fact]
-    public async Task Cari_sil_delete_gonderir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.NoContent);
-        await c.CariSilAsync(3);
-        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method);
-        Assert.EndsWith("/api/cariler/3", h.SonIstek.RequestUri!.AbsolutePath);
-    }
 
     [Fact]
     public async Task Gelen_upsert_put_dogru_govde_gonderir()

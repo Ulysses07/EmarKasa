@@ -482,5 +482,12 @@ $RECYCLE.BIN/
 *.swp
 
 # Deploy sırları ve yerel DB
+.kasa-push-keys.json
+.kasa-push-keys.json.*.tmp
 deploy/.env
 deploy/kasa-data/
+deploy/kasa-backups/
+Kasa.Api/yedekler/
+Kasa.Api/*.db
+Kasa.Api/*.db-shm
+Kasa.Api/*.db-wal

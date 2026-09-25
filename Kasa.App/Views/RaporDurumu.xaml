@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Kasa.App.Views.RaporDurumu">
+    <VerticalStackLayout Spacing="8">
+        <HorizontalStackLayout Spacing="8" IsVisible="{Binding Mesgul}">
+            <ActivityIndicator IsRunning="{Binding Mesgul}" WidthRequest="20" HeightRequest="20" />
+            <Label Text="Veriler yükleniyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
+        </HorizontalStackLayout>
+        <Label Text="{Binding Hata}" Style="{StaticResource LblError}"
+               IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
+            <Button Grid.Column="1" Text="Yenile / tekrar dene" Style="{StaticResource BtnSecondary}"
+                    Command="{Binding YenileCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+        </Grid>
+    </VerticalStackLayout>
+</ContentView>

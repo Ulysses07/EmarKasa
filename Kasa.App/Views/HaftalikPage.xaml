@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.HaftalikPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
     x:Name="Sayfa"
     Title="Haftalık"
     BackgroundColor="{StaticResource AppBg}">
@@ -16,7 +17,9 @@
                 <Label Text="Dönem bazlı kasa sonuçları" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
 
-            <Border Style="{StaticResource Card}">
+            <v:RaporDurumu />
+
+            <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
                         <Label Text="Dönem" Style="{StaticResource LblSection}" />
@@ -27,6 +30,7 @@
                             <DataTemplate>
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
+                                    <Label Text="{Binding DagilimBekleyenTutar, StringFormat='Dağılım bekleyen: {0:N2} ₺'}" TextColor="#765100" FontSize="12" Margin="18,5,18,0" />
                                     <Grid Padding="18,0" HeightRequest="54"
                                           ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">

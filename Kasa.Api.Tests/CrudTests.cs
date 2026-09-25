@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Kasa.Core;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
@@ -10,6 +11,16 @@ public class CrudTests : IClassFixture<KasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
     public CrudTests(KasaWebFactory factory) => _factory = factory;
+
+    [Fact]
+    public async Task Cari_yonetimi_kapsam_disidir_ve_tum_uclari_404_doner()
+    {
+        var client = await _factory.EditorClientAsync();
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/cariler")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/cariler", new { ad = "Firma" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync("/api/cariler/1", new { ad = "Firma" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync("/api/cariler/1")).StatusCode);
+    }
 
     // Sunucu enum'ları string serileştiriyor (JsonStringEnumConverter); istemci de aynısını çözmeli.
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -77,6 +88,13 @@ public class CrudTests : IClassFixture<KasaWebFactory>
     public async Task Gelen_upsert_ayni_donem_kanal_icin_gunceller()
     {
         var client = await _factory.EditorClientAsync();
+        // Test fixture başka testlerle ortak; bu senaryonun dönem başlangıcı açıkça ayarlanır.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Kasa.Api.Data.KasaDbContext>();
+            db.Ayarlar.First().TakipBaslangic = new DateOnly(2026, 6, 29);
+            db.SaveChanges();
+        }
 
         await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 100m });
         await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 289_425m });

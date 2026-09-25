@@ -4,12 +4,13 @@
     x:Class="Kasa.App.Views.AylikPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
     x:Name="Sayfa"
     Title="Aylık"
     BackgroundColor="{StaticResource AppBg}">
 
     <ScrollView>
-        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+        <VerticalStackLayout x:Name="AylikAlani" Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
             <VerticalStackLayout Spacing="3">
                 <Label Text="Aylık" Style="{StaticResource LblPageTitle}" />
@@ -29,8 +30,16 @@
                         WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
             </Grid>
 
-            <Border Style="{StaticResource Card}">
+            <v:RaporDurumu />
+
+            <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
+                    <Border BackgroundColor="#FFF2D9" StrokeThickness="0" Padding="18,12" IsVisible="{Binding DagilimBekliyor}">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Dağılım bekliyor — kanal sonuçlarına henüz eklenmedi" TextColor="#765100" FontAttributes="Bold" />
+                            <Label Text="{Binding Rapor.DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="#765100" />
+                        </VerticalStackLayout>
+                    </Border>
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
                         <Label Text="Kanal" Style="{StaticResource LblSection}" />
                         <Label Grid.Column="1" Text="Ay Sonucu" Style="{StaticResource LblSection}" />
@@ -69,6 +78,18 @@
                             </VerticalStackLayout>
                         </CollectionView.EmptyView>
                     </CollectionView>
+                    <Grid Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding GenelGiderVar}">
+                        <Label Text="Yalnız genel kasa gideri (kanallara dağıtılmaz)" />
+                        <Label Grid.Column="1" Text="{Binding Rapor.GenelGider, Converter={StaticResource ParaBicim}}" />
+                    </Grid>
+                    <Grid Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding GenelGelirVar}">
+                        <Label Text="Yalnız genel kasa geliri (kanallara dağıtılmaz)" />
+                        <Label Grid.Column="1" Text="{Binding Rapor.GenelGelir, Converter={StaticResource ParaBicim}}" />
+                    </Grid>
+                    <Grid Padding="18,16" ColumnDefinitions="*,Auto">
+                        <Label Text="Genel ay sonucu" FontAttributes="Bold" />
+                        <Label Grid.Column="1" Text="{Binding GenelAySonucu, Converter={StaticResource ParaBicim}}" FontAttributes="Bold" />
+                    </Grid>
                 </VerticalStackLayout>
             </Border>
         </VerticalStackLayout>

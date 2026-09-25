@@ -1,32 +1,7 @@
-# React + TypeScript + Vite
+# Emar Kasa web istemcisi — emekli
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Bu dizin önceki React/TypeScript/Vite istemcisini içerir. Aktif ürün `Kasa.App` Windows MAUI istemcisi, `Kasa.Api` servisi ve `Kasa.Api/wwwroot` altındaki yeni mobil web arayüzüdür. Bu eski React dizini dağıtımın parçası değildir; yeni web arayüzünün testleri `Kasa.Api.Ui.Tests` altındadır.
 
-Currently, two official plugins are available:
+Kod, eski arayüzü ve ürün kararlarını incelemek için korunur. Mevcut API ile tam uyumluluğu veya üretim kullanımı garanti edilmez. Yeni ürün davranışları için [kök README](../README.md) ve aktif istemciyi izleyin.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Eski istemci üzerinde ayrıca çalışılması gerekirse bağımlılıklar `package-lock.json`, komutlar `package.json` içinde tanımlıdır. `npm ci`, `npm test`, `npm run lint` ve `npm run build` bu dizinde çalıştırılabilir; bunların başarılı olması MAUI uygulamasını veya API'yi doğrulamaz.

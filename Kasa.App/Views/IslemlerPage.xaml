@@ -33,7 +33,7 @@
                                 </Border>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
-                                <Label Text="Cari / açıklama" Style="{StaticResource LblField}" />
+                                <Label Text="Açıklama / ödeme yapılan yer" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
                                     <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
                                 </Border>
@@ -110,6 +110,12 @@
                                 <Button Grid.Column="1" Text="Yeni" Command="{Binding YeniCommand}"
                                         Style="{StaticResource BtnSecondary}" />
                             </Grid>
+                            <Border Style="{StaticResource CardForm}" IsVisible="{Binding GiderBenzerlik.UyariVar}">
+                                <VerticalStackLayout Spacing="8">
+                                    <Label Text="{Binding GiderBenzerlik.Uyari}" />
+                                    <Button Text="Ayrı bir işlem, devam et" Command="{Binding GideriAyriKaydetCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+                                </VerticalStackLayout>
+                            </Border>
                             <Border Style="{StaticResource ErrorBox}"
                                     IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
                                 <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
@@ -240,8 +246,11 @@
                                                     Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
                                             <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.SilCommand, Source={x:Reference Sayfa}}"
+                                                    Clicked="SilTiklandi"
                                                     CommandParameter="{Binding .}" />
+                                            <Button Text="Kaynak PDF" Style="{StaticResource BtnRowEdit}"
+                                                    BindingContextChanged="KaynakBaglamiDegisti" Clicked="KaynakTiklandi"
+                                                    CommandParameter="{Binding .}" IsVisible="False" />
                                         </HorizontalStackLayout>
                                     </Grid>
                                 </VerticalStackLayout>

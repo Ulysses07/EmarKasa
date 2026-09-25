@@ -9,7 +9,7 @@
 ## Kısa Açıklama (~80 karakter)
 
 ```
-Haftalık kasa & nakit akışı defteri — cari, kredi kartı, çok kullanıcılı
+Kanal kasaları ve genel kasa — alış dağılımı, haftalık ve aylık özetler
 ```
 
 ---
@@ -23,15 +23,15 @@ Emar Kasa, küçük işletmeler için tasarlanmış haftalık nakit akışı ve 
 - **Haftalık Kasa Defteri** — her haftanın gelir ve gider kalemlerini kanala göre (MEZAT, PERAKENDE, TOPTAN, Ortak vb.) ayrı ayrı izle; hafta sonu bakiyesini görüntüle.
 - **Panel** — anlık kasa bakiyesini, bu haftanın ve bu ayın net sonucunu tek ekranda gör.
 - **Aylık Rapor** — geçmiş aylara ait kanal bazlı kasa özetini incele.
-- **Cari Takibi** — müşteri ve tedarikçi carilerini kayıt altına al, liste üzerinde ara.
+- **Alış Dağılımı** — alıcı taslak girer, editör malları doğru kanallara dağıtarak onaylar. Tek alış birden fazla kanala bölünebilir.
 - **İşlem Defteri** — nakit giriş/çıkış işlemlerini gir, filtrele ve düzenle; Gelen girişi (kredi/alacak) için özel akış.
-- **Kredi Kartı Takibi** — kartlarını limit ve borç bilgisiyle kaydet; kalan limiti anlık gör. Kredi kartı harcamaları bir sonraki takvim ayının kasasına yansıtılır (gerçek ödeme zamanlaması).
-- **Çok Kullanıcılı Roller** — **Editör** tüm veriyi düzenleyebilir; **İzleyici** verileri salt-okunur olarak takip eder. Aynı kasa birden fazla kişiyle güvenle paylaşılır.
+- **Ödeme Kontrolü** — alış ödemesini düzelt, iptal et veya doğru alışa taşı; aynı gider kasaya ikinci kez yazılmaz.
+- **Çok Kullanıcılı Roller** — **Editör** kayıtları kesinleştirir; **Alıcı** kendi taslaklarını girer; **İzleyici** kasa raporlarını salt-okunur olarak takip eder.
 - **Kanal Bazlı Analiz** — farklı satış kanallarının katkısını ayrıştır, hangisinin ne kadar getirdiğini gör.
 
 **Nasıl Çalışır?**
 
-Uygulama, `kasa.royalmezat.com` adresindeki sunucuya bağlanır. Hesabınıza kullanıcı adı ve şifreyle giriş yaparsınız; verileriniz güvenli bulut sunucusunda saklanır.
+Uygulama, `kasa.emarglobal.com` adresindeki sunucuya bağlanır. Hesabınıza kullanıcı adı ve şifreyle giriş yaparsınız; verileriniz güvenli bulut sunucusunda saklanır.
 
 **Kimler İçin?**
 
@@ -43,4 +43,4 @@ Nakit akışını haftalık veya aylık takip etmek isteyen küçük ve orta öl
 
 - Açıklamayı App Store 4.000 karakter, Google Play 4.000 karakter sınırına göre kes/düzenle.
 - "Gelen girişi" ifadesini gerekirse "tahsilat girişi" olarak değiştir (sektör tercihine göre).
-- Versiyon 1.0 kapsamını yansıtır; yeni özellik eklenince güncelle.
+- Sadeleştirilmiş 2.0 kapsamını yansıtır; mağazada yayımlandığı anlamına gelmez. Cari ve stok takibi ERP12'de kalır.

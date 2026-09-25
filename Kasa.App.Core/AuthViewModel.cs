@@ -9,7 +9,22 @@ public partial class AuthViewModel : ObservableObject
 {
     private readonly IKasaApi _api;
 
-    public AuthViewModel(IKasaApi api) => _api = api;
+    public AuthViewModel(IKasaApi api)
+    {
+        _api = api;
+        if (api is IOturumBildirimleri bildirimler)
+            bildirimler.OturumSonlandi += (_, _) =>
+            {
+                OturumSurumu++;
+                GirisYapildi = false;
+                Sifre = "";
+                KurtarmaAlanlariniTemizle();
+                Hata = "Oturumunuz sona erdi. Yeniden giriş yapın.";
+                OturumSonlandi?.Invoke(this, EventArgs.Empty);
+            };
+    }
+
+    public event EventHandler? OturumSonlandi;
 
     [ObservableProperty] private string? _kullanici;
     [ObservableProperty] private string _sifre = "";
@@ -17,6 +32,33 @@ public partial class AuthViewModel : ObservableObject
     [ObservableProperty] private bool _mesgul;
     [ObservableProperty] private bool _girisYapildi;
     [ObservableProperty] private Rol _aktifRol;
+    [ObservableProperty] private int _oturumSurumu;
+    [ObservableProperty] private bool _kurtarmaAcik;
+    [ObservableProperty] private string _kurtarmaKodu = "";
+    [ObservableProperty] private string _kurtarmaYeniSifre = "";
+    [ObservableProperty] private string? _kurtarmaMesaji;
+
+    [RelayCommand] private void KurtarmayiAcKapat() { KurtarmaAcik = !KurtarmaAcik; KurtarmaKodu = ""; KurtarmaYeniSifre = ""; }
+    [RelayCommand] private async Task SifreKurtarAsync()
+    {
+        if (Mesgul || _api is not IYonetimApi yonetim) return;
+        Hata = null; KurtarmaMesaji = null; Mesgul = true;
+        var nesil = OturumSurumu;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Kullanici) || string.IsNullOrWhiteSpace(KurtarmaKodu) || KurtarmaYeniSifre.Length < 12 || KurtarmaYeniSifre.Length > 1024)
+            { Hata = "Kullanıcı adını, kurtarma kodunu ve 12–1024 karakterli yeni şifreyi yazın."; return; }
+            await yonetim.SifreKurtarAsync(new(Kullanici.Trim(), KurtarmaKodu.Trim(), KurtarmaYeniSifre));
+            if (nesil != OturumSurumu) return;
+            KurtarmaKodu = ""; KurtarmaYeniSifre = ""; Sifre = ""; KurtarmaAcik = false;
+            KurtarmaMesaji = "Şifreniz yenilendi. Yeni şifreyle giriş yapın.";
+        }
+        catch (KasaApiException ex) { if (nesil == OturumSurumu) Hata = ex.Message; }
+        catch (HttpRequestException) { if (nesil == OturumSurumu) Hata = "Sunucuya ulaşılamadı. Bağlantınızı kontrol edin."; }
+        catch (Exception) { if (nesil == OturumSurumu) Hata = "Şifre yenilenemedi. Yeniden deneyin."; }
+        finally { if (nesil == OturumSurumu) Mesgul = false; }
+    }
+    private void KurtarmaAlanlariniTemizle() { KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaAcik = false; KurtarmaMesaji = null; }
 
     [RelayCommand]
     private async Task GirisAsync()
@@ -27,8 +69,10 @@ public partial class AuthViewModel : ObservableObject
         {
             var yanit = await _api.LoginAsync(string.IsNullOrWhiteSpace(Kullanici) ? null : Kullanici, Sifre);
             AktifRol = SekmeModeli.RolCoz(yanit.Rol);
+            OturumSurumu++;
             GirisYapildi = true;
             Sifre = "";
+            KurtarmaAlanlariniTemizle();
         }
         catch (KasaApiException)
         {
@@ -51,7 +95,9 @@ public partial class AuthViewModel : ObservableObject
         {
             var rol = await _api.BenKimAsync();
             AktifRol = SekmeModeli.RolCoz(rol);
+            OturumSurumu++;
             GirisYapildi = true;
+            KurtarmaAlanlariniTemizle();
             return true;
         }
         catch (Exception)
@@ -63,6 +109,9 @@ public partial class AuthViewModel : ObservableObject
 
     public async Task CikisAsync()
     {
+        OturumSurumu++;
+        KurtarmaAlanlariniTemizle();
+        Mesgul = false;
         try { await _api.CikisAsync(); }
         catch (Exception) { /* çıkışta hata önemsiz */ }
         GirisYapildi = false;

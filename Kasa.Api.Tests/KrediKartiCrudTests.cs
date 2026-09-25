@@ -11,7 +11,7 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
     private record KartYanit(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 
     [Fact]
-    public async Task Editor_kart_ekleyip_listeleyip_guncelleyip_silebilir()
+    public async Task Eski_yoldan_yeni_kart_reddedilir_mevcut_kart_yonetilebilir()
     {
         var client = await _factory.EditorClientAsync();
 
@@ -20,8 +20,9 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
             ad = "Bonus", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
             limit = 100_000m, borc = 30_000m,
         });
-        Assert.Equal(HttpStatusCode.Created, olustur.StatusCode);
-        var eklenen = await olustur.Content.ReadFromJsonAsync<KartYanit>();
+        Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
+        var eklenen = LegacyFinanceSeed.Kart(_factory, new("Bonus", new DateOnly(2026, 7, 5),
+            new DateOnly(2026, 7, 25), 100_000m, 30_000m));
         Assert.NotNull(eklenen);
         Assert.Equal("Bonus", eklenen!.Ad);
         Assert.Equal(100_000m, eklenen.Limit);

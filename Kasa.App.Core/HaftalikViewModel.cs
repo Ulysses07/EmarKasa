@@ -3,16 +3,15 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-public partial class HaftalikViewModel : TemelViewModel
+public partial class HaftalikViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
     public HaftalikViewModel(IKasaApi api) => _api = api;
 
     public ObservableCollection<HaftalikOzetDto> Donemler { get; } = new();
 
-    public Task YukleAsync() => CalistirAsync(async () =>
+    public override Task YukleAsync() => RaporYukleAsync(_api.HaftalikAsync, liste =>
     {
-        var liste = await _api.HaftalikAsync();
         Donemler.Clear();
         foreach (var d in liste) Donemler.Add(d);
     });

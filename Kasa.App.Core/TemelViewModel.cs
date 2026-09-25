@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Net;
+using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
@@ -14,7 +16,17 @@ public partial class TemelViewModel : ObservableObject
         Hata = null;
         Mesgul = true;
         try { await islem(); }
-        catch (Exception) { Hata = "İşlem başarısız. Bağlantıyı kontrol edin."; }
+        catch (Exception hata) { Hata = HataMesaji(hata); }
         finally { Mesgul = false; }
     }
+
+    protected static string HataMesaji(Exception hata) => hata switch
+    {
+        KasaApiException { DurumKodu: HttpStatusCode.Unauthorized } => "Oturumunuz sona erdi. Yeniden giriş yapın.",
+        KasaApiException { DurumKodu: HttpStatusCode.Forbidden } => "Bu işlem için yetkiniz yok.",
+        KasaApiException api when api.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.ServiceUnavailable => api.Message,
+        KasaApiException => "Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.",
+        HttpRequestException or TaskCanceledException => "Sunucuya ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.",
+        _ => "İşlem tamamlanamadı. Lütfen yeniden deneyin.",
+    };
 }

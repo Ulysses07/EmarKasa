@@ -32,15 +32,6 @@ public class OkumaVmTests
         Assert.NotNull(vm.Rapor);
     }
 
-    [Fact]
-    public async Task Cariler_listeyi_yukler()
-    {
-        var api = new SahteApi { CarilerListe = new List<CariDto> { new(1, "Ahmet", true) } };
-        var vm = new CarilerViewModel(api);
-        await vm.YukleAsync();
-        Assert.Single(vm.Cariler);
-        Assert.Equal("Ahmet", vm.Cariler[0].Ad);
-    }
 
     [Fact]
     public async Task Islemler_listeyi_yukler()

@@ -68,7 +68,7 @@ public class IslemEditorTests
         vm.SecKartCommand.Execute(new KartCipi(9, "Bonus"));
         Assert.Equal(9, vm.DuzenKrediKartiId);
 
-        vm.SecTipCommand.Execute(new SecimCipi("Cari"));
+        vm.SecTipCommand.Execute(new SecimCipi("Diğer gider"));
         Assert.Null(vm.DuzenKrediKartiId);
     }
 
@@ -96,6 +96,22 @@ public class IslemEditorTests
         await vm.SilCommand.ExecuteAsync(new IslemDto(5, new DateOnly(2026,3,5), "x", 1m, "MEZAT", GiderTipi.Cari, null));
 
         Assert.Equal(5, api.SonIslemSil);
+    }
+
+    [Fact]
+    public async Task Eski_yinelenen_gelir_salt_okunur_mesaji_gosterilir_form_korunur()
+    {
+        const string mesaj = "Bu dönemde birden fazla eski gelir kaydı var; kayıtlar salt okunur olarak korunuyor.";
+        var api = new SahteApi { GelenKaydetHatasi = new KasaApiException(System.Net.HttpStatusCode.Conflict, mesaj) };
+        var vm = new IslemlerViewModel(api) { GelenTarih = new(2026, 3, 2), GelenKanal = "MEZAT", GelenTutar = 123.45m };
+
+        await vm.GelenKaydetCommand.ExecuteAsync(null);
+
+        Assert.Equal(mesaj, vm.Hata);
+        Assert.Equal("MEZAT", vm.GelenKanal);
+        Assert.Equal(123.45m, vm.GelenTutar);
+        Assert.Equal(new DateTime(2026, 3, 2), vm.GelenTarih);
+        Assert.False(vm.Mesgul);
     }
 
     [Fact]

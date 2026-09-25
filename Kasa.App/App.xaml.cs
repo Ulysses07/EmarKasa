@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.App;
 
@@ -13,10 +13,6 @@ public partial class App : Application
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
 		var svc = Current!.Handler!.MauiContext!.Services;
-#if WINDOWS
-		svc.GetService<Kasa.App.Core.IBildirimServisi>()?.KayitOl();
-		Platforms.Windows.HatirlatmaKontrol.GoreviGarantile();
-#endif
 		var shell = svc.GetRequiredService<AppShell>();
 		return new Window(shell);
 	}

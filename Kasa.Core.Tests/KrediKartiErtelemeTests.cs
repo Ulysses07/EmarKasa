@@ -131,4 +131,54 @@ public class KrediKartiErtelemeTests
 
         Assert.Equal(haftalikToplam, aylikToplam);
     }
+
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(10, 0)]
+    [InlineData(29, 0)]
+    [InlineData(30, 10_000)]
+    public void Kismi_ayin_son_donemi_kart_borcunu_erken_dusurmez(int bitisGunu, int beklenenGiden)
+    {
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 4, 1), new DateOnly(2026, 4, bitisGunu));
+        var islemler = new[]
+        {
+            new Islem(new DateOnly(2026, 3, 5), "K.K", 10_000m, "MEZAT", GiderTipi.KrediKarti),
+        };
+
+        var haftalik = HesapMotoru.HaftalikHesapla(100_000m, UcKanal, islemler, [], donemler);
+
+        Assert.Equal((decimal)beklenenGiden, haftalik.Sum(o => o.ToplamGiden));
+        Assert.Equal(100_000m - beklenenGiden, haftalik[^1].KasaDevir);
+        Assert.All(haftalik.Where(o => o.Donem.End.Day < 30), o => Assert.Equal(0m, o.ToplamGiden));
+    }
+
+    [Theory]
+    [InlineData(2026, 6, 2026, 7)]
+    [InlineData(2025, 12, 2026, 1)]
+    [InlineData(2028, 1, 2028, 2)]
+    public void Ortak_kart_gideri_izleyen_ayda_dagilir_ve_haftalik_raporla_mutabiktir(
+        int yil, int ay, int sonrakiYil, int sonrakiAy)
+    {
+        var aySonu = new DateOnly(sonrakiYil, sonrakiAy, DateTime.DaysInMonth(sonrakiYil, sonrakiAy));
+        var donemler = DonemUretici.Uret(new DateOnly(yil, ay, 1), aySonu);
+        var islemler = new[]
+        {
+            new Islem(new DateOnly(yil, ay, 3), "Ortak kart", 300.01m, Kanallar.Ortak, GiderTipi.KrediKarti),
+            new Islem(new DateOnly(yil, ay, 5), "Kanal kart", 90m, "MEZAT", GiderTipi.KrediKarti),
+            new Islem(new DateOnly(sonrakiYil, sonrakiAy, 1), "Kira", 60m, Kanallar.Ortak, GiderTipi.SabitGider),
+        };
+        var haftalik = HesapMotoru.HaftalikHesapla(0m, UcKanal, islemler, [], donemler);
+        var ilkAy = HesapMotoru.AylikHesapla(yil, ay, UcKanal, islemler, [], donemler);
+        var sonraki = HesapMotoru.AylikHesapla(sonrakiYil, sonrakiAy, UcKanal, islemler, [], donemler);
+
+        Assert.Equal(0m, ilkAy.Kanallar.Sum(k => k.AySonucu));
+        Assert.Equal(360.01m, sonraki.Kanallar.Sum(k => k.OrtakPay));
+        Assert.Equal(90m, sonraki.Kanallar.Sum(k => k.KrediKarti));
+        Assert.Equal(-450.01m, sonraki.Kanallar.Sum(k => k.AySonucu));
+        Assert.Equal(ilkAy.Kanallar.Sum(k => k.AySonucu),
+            haftalik.Where(o => o.Donem.Yil == yil && o.Donem.Ay == ay).Sum(o => o.KasaSonucu));
+        Assert.Equal(sonraki.Kanallar.Sum(k => k.AySonucu),
+            haftalik.Where(o => o.Donem.Yil == sonrakiYil && o.Donem.Ay == sonrakiAy).Sum(o => o.KasaSonucu));
+        Assert.Equal(390.01m, haftalik.Single(o => o.Donem.Icerir(aySonu)).ToplamGiden);
+    }
 }

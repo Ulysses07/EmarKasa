@@ -17,15 +17,4 @@ public class HataYuzeyiTests
         Assert.NotNull(vm.Hata);
     }
 
-    [Fact]
-    public async Task Cariler_basarili_yuklemede_hata_null()
-    {
-        var api = new SahteApi { CarilerListe = new List<CariDto> { new(1, "Ahmet", true) } };
-        var vm = new CarilerViewModel(api);
-
-        await vm.YukleAsync();
-
-        Assert.Null(vm.Hata);
-        Assert.Single(vm.Cariler);
-    }
 }

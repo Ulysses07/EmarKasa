@@ -1,5 +1,4 @@
-﻿using Microsoft.UI.Xaml;
-using Kasa.App.Platforms.Windows;
+using Microsoft.UI.Xaml;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -22,13 +21,12 @@ public partial class App : MauiWinUIApplication
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
 
-	protected override async void OnLaunched(LaunchActivatedEventArgs args)
+	protected override void OnLaunched(LaunchActivatedEventArgs args)
 	{
 		var cmd = Environment.GetCommandLineArgs();
-		if (cmd.Contains(HatirlatmaKontrol.Arg))
+		if (cmd.Contains("--hatirlatma-kontrol"))
 		{
-			var app = CreateMauiApp();                 // DI konteyneri (pencere açmadan)
-			await HatirlatmaKontrol.CalistirAsync(app.Services);
+			// Eski zamanlanmış görev bu sürümde pencere veya bildirim açmaz.
 			Exit();
 			return;
 		}

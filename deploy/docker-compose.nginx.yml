@@ -13,12 +13,16 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"
+      TZ: Europe/Istanbul
       ConnectionStrings__Kasa: "Data Source=/data/kasa.db"
       Kasa__JwtKey: "${KASA_JWT_KEY}"
       Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
+      Yedek__Etkin: "true"
+      Yedek__Dizin: "/yedekler"
     volumes:
       - ./kasa-data:/data
+      - ./kasa-backups:/yedekler
     ports:
       # Yalnızca localhost'a bağla — public erişim nginx üzerinden.
       - "127.0.0.1:8080:8080"

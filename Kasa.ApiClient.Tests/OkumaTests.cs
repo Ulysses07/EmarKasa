@@ -12,6 +12,26 @@ public class OkumaTests
     }
 
     [Fact]
+    public async Task Eski_yinelenen_gelir_bayragi_satirlari_ve_buyuk_kucuk_harfi_korur()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """
+            [{"id":10,"donemStart":"2026-03-02","kanal":"MEZAT","tutarTl":100.01,"kanalId":2,"eskiYinelenenGrup":true},
+             {"id":11,"donemStart":"2026-03-02","kanal":"mezat","tutarTl":20.02,"kanalId":2,"eskiYinelenenGrup":true},
+             {"id":12,"donemStart":"2026-03-02","kanal":"TOPTAN","tutarTl":5.03}]
+            """);
+
+        var satirlar = await c.GelenlerAsync(new(2026, 3, 2));
+
+        Assert.Equal(3, satirlar.Count);
+        Assert.Equal(new[] { 10, 11, 12 }, satirlar.Select(g => g.Id));
+        Assert.Equal("MEZAT", satirlar[0].Kanal); Assert.Equal("mezat", satirlar[1].Kanal);
+        Assert.True(satirlar[0].EskiYinelenenGrup); Assert.True(satirlar[1].EskiYinelenenGrup);
+        Assert.Equal(2, satirlar[0].KanalId); Assert.Equal(100.01m, satirlar[0].TutarTl); Assert.Equal(20.02m, satirlar[1].TutarTl);
+        Assert.False(satirlar[2].EskiYinelenenGrup); Assert.Null(satirlar[2].KanalId);
+    }
+
+    [Fact]
     public async Task Panel_eslenir()
     {
         var (c, h) = Kur();
@@ -112,25 +132,7 @@ public class OkumaTests
         Assert.Contains("cari=K.K", q);
     }
 
-    [Fact]
-    public async Task Cariler_ara_query_iletir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.OK, """[{"id":1,"ad":"Ahmet","aktif":true}]""");
-        var liste = await c.CarilerAsync("Ahmet");
-        Assert.Equal("Ahmet", liste[0].Ad);
-        Assert.Contains("ara=Ahmet", h.SonIstek!.RequestUri!.Query);
-    }
 
-    [Fact]
-    public async Task Cariler_ara_yoksa_query_yok()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.OK, "[]");
-        await c.CarilerAsync();
-        Assert.Equal("", h.SonIstek!.RequestUri!.Query);
-        Assert.EndsWith("/api/cariler", h.SonIstek.RequestUri!.AbsolutePath);
-    }
 
     [Fact]
     public async Task Ayarlar_eslenir()

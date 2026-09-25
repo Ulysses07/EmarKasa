@@ -13,17 +13,22 @@ public class KrediApiTests : IClassFixture<KasaWebFactory>
         int TaksitSayisi, decimal AylikOdeme, int OdemeGunu, string Kanal);
 
     [Fact]
-    public async Task Editor_kredi_ekleyip_listeleyip_guncelleyip_silebilir()
+    public async Task Eski_yoldan_yeni_kredi_reddedilir_mevcut_kredi_yonetilebilir()
     {
         var client = await _factory.EditorClientAsync();
+
+        // Krediler yalnız kayıtlı kanallara bağlanabilir.
+        var kanal = await client.PostAsJsonAsync("/api/kanallar", new { ad = "Instagram" });
+        kanal.EnsureSuccessStatusCode();
 
         var olustur = await client.PostAsJsonAsync("/api/krediler", new
         {
             ad = "İhtiyaç Kredisi", cekilenTutar = 50_000.50m, cekimTarihi = "2026-08-03",
             taksitSayisi = 12, aylikOdeme = 4_800.25m, odemeGunu = 15, kanal = "Instagram",
         });
-        Assert.Equal(HttpStatusCode.Created, olustur.StatusCode);
-        var eklenen = await olustur.Content.ReadFromJsonAsync<KrediYanit>();
+        Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
+        var eklenen = LegacyFinanceSeed.Kredi(_factory, new("İhtiyaç Kredisi", 50_000.50m,
+            new DateOnly(2026, 8, 3), 12, 4_800.25m, 15, "Instagram"));
         Assert.NotNull(eklenen);
         Assert.Equal("İhtiyaç Kredisi", eklenen!.Ad);
         Assert.Equal(50_000.50m, eklenen.CekilenTutar);

@@ -12,7 +12,7 @@ public sealed class ParaGirisConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var d = value is decimal m ? m : 0m;
-        return d == 0m ? string.Empty : d.ToString("0.##", Tr);
+        return d == 0m ? string.Empty : d.ToString(parameter as string ?? "0.##", Tr);
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

@@ -70,7 +70,7 @@
     </Shell.MenuItemTemplate>
 
     <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />
-    <FlyoutItem x:Name="PanelItem" Title="Panel" Route="panel" IsVisible="False">
+    <FlyoutItem x:Name="PanelItem" Title="Kasalar" Route="panel" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:PanelPage}" />
     </FlyoutItem>
     <FlyoutItem x:Name="HaftalikItem" Title="Haftalık" Route="haftalik" IsVisible="False">
@@ -79,20 +79,20 @@
     <FlyoutItem x:Name="AylikItem" Title="Aylık" Route="aylik" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:AylikPage}" />
     </FlyoutItem>
-    <FlyoutItem x:Name="CarilerItem" Title="Cariler" Route="cariler" IsVisible="False">
-        <ShellContent ContentTemplate="{DataTemplate v:CarilerPage}" />
-    </FlyoutItem>
     <FlyoutItem x:Name="IslemlerItem" Title="İşlemler" Route="islemler" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:IslemlerPage}" />
     </FlyoutItem>
-    <FlyoutItem x:Name="KartlarItem" Title="Kredi Kartları" Route="kartlar" IsVisible="False">
-        <ShellContent ContentTemplate="{DataTemplate v:KrediKartlariPage}" />
-    </FlyoutItem>
-    <FlyoutItem x:Name="KredilerItem" Title="Krediler" Route="krediler" IsVisible="False">
-        <ShellContent ContentTemplate="{DataTemplate v:KredilerPage}" />
-    </FlyoutItem>
+    <FlyoutItem x:Name="AylikGiderlerItem" Title="Aylık Giderler" Route="aylikgiderler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:AylikGiderPage}" /></FlyoutItem>
+    <FlyoutItem x:Name="EkstreAktarItem" Title="Ekstre İçe Aktar" Route="ekstreaktar" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:EkstreAktarmaPage}" /></FlyoutItem>
     <FlyoutItem x:Name="AyarlarItem" Title="Ayarlar" Route="ayarlar" IsVisible="False">
         <ShellContent ContentTemplate="{DataTemplate v:AyarlarPage}" />
     </FlyoutItem>
+    <FlyoutItem x:Name="AlislarItem" Title="Alışlar" Route="alislar" IsVisible="False">
+        <ShellContent ContentTemplate="{DataTemplate v:AlislarPage}" />
+    </FlyoutItem>
+    <FlyoutItem x:Name="DisariAktarItem" Title="Rapor Dışa Aktar" Route="disariaktar" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:DisariAktarPage}" /></FlyoutItem>
+    <FlyoutItem x:Name="KartlarItem" Title="Kartlar" Route="kartlar" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:KartTakipPage}" /></FlyoutItem>
+    <FlyoutItem x:Name="KredilerItem" Title="Krediler" Route="krediler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:KrediTakipPage}" /></FlyoutItem>
+    <FlyoutItem x:Name="BildirimlerItem" Title="Bildirimler" Route="bildirimler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:BildirimPage}" /></FlyoutItem>
     <MenuItem x:Name="CikisMenu" Text="Çıkış" Clicked="CikisTiklandi" />
 </Shell>

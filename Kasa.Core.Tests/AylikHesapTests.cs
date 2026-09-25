@@ -109,4 +109,31 @@ public class AylikHesapTests
 
         Assert.Equal(haftalikToplam, aylikToplam);
     }
+
+    [Theory]
+    [InlineData(-100, -34, -33, -33)]
+    [InlineData(-2, -1, -1, 0)]
+    [InlineData(-1, -1, 0, 0)]
+    [InlineData(0, 0, 0, 0)]
+    [InlineData(1, 1, 0, 0)]
+    public void Ortak_iade_kuruslari_isaretini_korur_ve_pasif_kanala_dagitilmaz(
+        int toplamKurus, int ilkKurus, int ikinciKurus, int ucuncuKurus)
+    {
+        var kanallar = new[] { new Kanal("A"), new Kanal("PASIF", Aktif: false), new Kanal("B"), new Kanal("C") };
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
+        var islemler = new[]
+        {
+            new Islem(new DateOnly(2026, 6, 10), "Düzeltme", toplamKurus / 100m, Kanallar.Ortak, GiderTipi.SabitGider),
+        };
+
+        var aylik = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler);
+        var haftalik = HesapMotoru.HaftalikHesapla(0m, kanallar, islemler, [], donemler);
+
+        Assert.Equal(ilkKurus / 100m, aylik.Kanallar.Single(k => k.Kanal == "A").OrtakPay);
+        Assert.Equal(ikinciKurus / 100m, aylik.Kanallar.Single(k => k.Kanal == "B").OrtakPay);
+        Assert.Equal(ucuncuKurus / 100m, aylik.Kanallar.Single(k => k.Kanal == "C").OrtakPay);
+        Assert.Equal(0m, aylik.Kanallar.Single(k => k.Kanal == "PASIF").OrtakPay);
+        Assert.Equal(toplamKurus / 100m, aylik.Kanallar.Sum(k => k.OrtakPay));
+        Assert.Equal(haftalik.Sum(o => o.KasaSonucu), aylik.Kanallar.Sum(k => k.AySonucu));
+    }
 }

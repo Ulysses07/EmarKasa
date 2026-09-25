@@ -74,17 +74,20 @@ signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
 
 ## API Adresi
 
-API base URL kaynak koduna sabit olarak gömülüdür:
+Varsayılan API adresi `https://kasa.emarglobal.com/` olup `Kasa.ApiClient/ApiAdresi.cs` içinde tanımlıdır.
 
 **`MauiProgram.cs`** içinde:
 
 ```csharp
-var http = new HttpClient { BaseAddress = new Uri("https://kasa.royalmezat.com/") };
+BaseAddress = ApiAdresi.Coz(Environment.GetEnvironmentVariable("KASA_API_URL")),
 ```
 
-Dağıtım öncesinde bu adresin prod ortamını gösterdiğini doğrula. Adresi
-değiştirmek gerekirse `MauiProgram.cs`'deki `Uri` değerini güncelle ve
-yeniden derle — çevresel değişken veya harici config dosyası **yoktur**.
+`KASA_API_URL` boşsa varsayılan adres kullanılır. Başka bir ortama bağlanmak için
+uygulamayı başlatmadan önce bu değişkeni ayarlayın; çalışan süreç yeniden
+başlatılmadan yeni değer okunmaz. HTTPS adresleri ve yalnız yerel döngü
+adreslerindeki HTTP kabul edilir. Örneğin yerel geliştirmede
+`$env:KASA_API_URL = 'http://localhost:5232/'` kullanılabilir. Dağıtım öncesinde
+varsayılan adresin DNS ve HTTPS erişimini doğrulayın.
 
 ---
 
@@ -97,4 +100,4 @@ yeniden derle — çevresel değişken veya harici config dosyası **yoktur**.
 | ApplicationId | `com.royalmezat.kasa` |
 | ApplicationTitle | `Emar Kasa` |
 | Paket tipi | Paketsiz (`WindowsPackageType=None`) |
-| API sunucusu | `https://kasa.royalmezat.com/` |
+| API sunucusu | `https://kasa.emarglobal.com/` |

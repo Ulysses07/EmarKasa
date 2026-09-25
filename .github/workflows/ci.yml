@@ -1,0 +1,78 @@
+name: Kasa CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kasa-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-tests:
+    name: Mobile web logic
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test Kasa.Api.Ui.Tests/ui-core.test.mjs
+      - run: node --input-type=module --check < Kasa.Api/wwwroot/app.js
+
+  tests:
+    name: Test ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - Kasa.Core.Tests
+          - Kasa.Api.Tests
+          - Kasa.ApiClient.Tests
+          - Kasa.App.Core.Tests
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        id: dotnet
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: ga
+      - name: Select the installed .NET 10 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward latestPatch
+      - name: Restore test dependencies
+        run: dotnet restore "${{ matrix.project }}/${{ matrix.project }}.csproj"
+      - name: Run tests
+        run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
+
+  windows-app:
+    name: Build Windows MAUI app
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        id: dotnet
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: ga
+      - name: Select the installed .NET 10 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward latestPatch
+      - name: Restore MAUI workloads
+        run: dotnet workload restore Kasa.App/Kasa.App.csproj
+      - name: Restore app dependencies
+        run: dotnet restore Kasa.App/Kasa.App.csproj
+      - name: Build Windows app
+        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 --no-restore

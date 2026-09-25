@@ -132,4 +132,77 @@ public class KrediTureticiTests
         Assert.Equal(new DateOnly(2026, 11, 15), taksitler[3].Tarih);
         Assert.Equal(new DateOnly(2026, 12, 15), taksitler[4].Tarih);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(32)]
+    public void Gecersiz_odeme_gunu_anlamli_hatayla_reddedilir(int gun)
+    {
+        var hata = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KrediTuretici.TaksitGiderleri(OrnekKredi(odemeGunu: gun)));
+
+        Assert.Equal(nameof(Kredi.OdemeGunu), hata.ParamName);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(601)]
+    public void Gecersiz_taksit_sayisi_reddedilir(int sayi)
+    {
+        var hata = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KrediTuretici.TaksitGiderleri(OrnekKredi(taksitSayisi: sayi)));
+
+        Assert.Equal(nameof(Kredi.TaksitSayisi), hata.ParamName);
+    }
+
+    [Fact]
+    public void Alti_yuz_taksit_izin_verilen_ust_sinirdir()
+        => Assert.Equal(600, KrediTuretici.TaksitGiderleri(OrnekKredi(taksitSayisi: 600)).Count);
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0.001)]
+    public void Gecersiz_tutarlar_hem_cekimde_hem_taksitlerde_reddedilir(double tutar)
+    {
+        decimal deger = (decimal)tutar;
+        var cekimHatasi = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KrediTuretici.CekimGeleni(OrnekKredi(cekilen: deger), []));
+        var taksitHatasi = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KrediTuretici.TaksitGiderleri(OrnekKredi(aylikOdeme: deger)));
+
+        Assert.Equal(nameof(Kredi.CekilenTutar), cekimHatasi.ParamName);
+        Assert.Equal(nameof(Kredi.AylikOdeme), taksitHatasi.ParamName);
+    }
+
+    [Fact]
+    public void Sifir_ve_kurus_hassasiyetindeki_tutarlar_gecerlidir()
+    {
+        var kredi = OrnekKredi(cekilen: 0m, aylikOdeme: 10.01m, taksitSayisi: 1);
+        var donemler = Donemler((8, 1, 7));
+
+        Assert.Equal(0m, KrediTuretici.CekimGeleni(kredi, donemler)!.TutarTl);
+        Assert.Equal(10.01m, KrediTuretici.TaksitGiderleri(kredi).Single().TutarTl);
+    }
+
+    [Fact]
+    public void Son_gecerli_tarihteki_taksit_uretilebilir()
+    {
+        var kredi = OrnekKredi(yil: 9999, ay: 12, gun: 1, odemeGunu: 31, taksitSayisi: 1);
+
+        Assert.Equal(DateOnly.MaxValue, KrediTuretici.TaksitGiderleri(kredi).Single().Tarih);
+    }
+
+    [Theory]
+    [InlineData(12, 31, 1)]
+    [InlineData(11, 1, 3)]
+    public void Takvim_sinirini_asan_kredi_anlamli_hatayla_reddedilir(int ay, int gun, int sayi)
+    {
+        var kredi = OrnekKredi(yil: 9999, ay: ay, gun: gun, odemeGunu: 31, taksitSayisi: sayi);
+
+        var hata = Assert.Throws<ArgumentOutOfRangeException>(() => KrediTuretici.TaksitGiderleri(kredi));
+
+        Assert.Equal(nameof(Kredi.CekimTarihi), hata.ParamName);
+        Assert.Contains("Son taksit", hata.Message);
+    }
 }

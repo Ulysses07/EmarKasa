@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Kasa.Api.Tests;
 
@@ -21,6 +22,8 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _conn.Open(); // bağlantı açık kaldıkça in-memory DB yaşar
+        // Testlerin Windows Event Log yazma iznine bağımlı olmasını engelle.
+        builder.ConfigureLogging(logging => logging.ClearProviders());
 
         // JwtBearer imzalama anahtarı Program.cs'de builder.Configuration'dan
         // (build anında) okunuyor; ConfigureAppConfiguration bu okumadan SONRA

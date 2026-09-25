@@ -129,9 +129,7 @@ public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
             Ad = "Ziraat", CekilenTutar = 5_000m, CekimTarihi = new DateOnly(2026, 7, 6),
             TaksitSayisi = 1, AylikOdeme = 0m, OdemeGunu = 15, Kanal = "MEZAT"
         };
-        var olustur = await client.PostAsJsonAsync("/api/krediler", yeni);
-        olustur.EnsureSuccessStatusCode();
-        var eklenen = (await olustur.Content.ReadFromJsonAsync<KrediEntity>())!;
+        var eklenen = LegacyFinanceSeed.Kaydet(_factory, yeni);
 
         var panelEkli = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
         Assert.Equal(105_000m, panelEkli.GuncelKasa);

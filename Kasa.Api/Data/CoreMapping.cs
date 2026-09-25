@@ -7,7 +7,7 @@ public static class CoreMapping
 {
     public static Kanal ToCore(this KanalEntity e) => new(e.Ad, e.AcilisDevri, e.Aktif, e.Sira);
     public static Cari ToCore(this CariEntity e) => new(e.Ad, e.Aktif);
-    public static Islem ToCore(this IslemEntity e) => new(e.Tarih, e.Cari, e.TutarTl, e.Kanal, e.Tip, e.Not);
-    public static Gelen ToCore(this GelenEntity e) => new(e.DonemStart, e.Kanal, e.TutarTl);
-    public static Kredi ToCore(this KrediEntity e) => new(e.Ad, e.CekilenTutar, e.CekimTarihi, e.TaksitSayisi, e.AylikOdeme, e.OdemeGunu, e.Kanal);
+    public static Islem ToCore(this IslemEntity e) => new(e.Tarih, e.Cari, e.TutarTl, e.KanalKaydi?.Ad ?? e.Kanal, e.Tip, e.Not);
+    public static Gelen ToCore(this GelenEntity e) => new(e.DonemStart, e.KanalKaydi?.Ad ?? e.Kanal, e.TutarTl);
+    public static Kredi ToCore(this KrediEntity e) => new(e.Ad, e.CekilenTutar, e.CekimTarihi, e.TaksitSayisi, e.AylikOdeme, e.OdemeGunu, e.KanalKaydi?.Ad ?? e.Kanal);
 }

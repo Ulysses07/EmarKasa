@@ -5,11 +5,10 @@ public enum GiderTipi { Cari, SabitGider, KrediKarti }
 public record LoginYanit(string Rol, string Token);
 
 public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri);
-public record CariDto(int Id, string Ad, bool Aktif);
-public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
-public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl);
+public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null);
+public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl, int? KanalId = null, bool EskiYinelenenGrup = false);
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m);
-public record KrediDto(int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi, int TaksitSayisi, decimal AylikOdeme, int OdemeGunu, string Kanal);
+public record KrediDto(int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi, int TaksitSayisi, decimal AylikOdeme, int OdemeGunu, string Kanal, bool GerceklesmeTakibi = false);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi);
 
@@ -21,15 +20,15 @@ public record HaftalikOzetDto(
     decimal ToplamGelen,
     decimal ToplamGiden,
     decimal KasaSonucu,
-    decimal KasaDevir);
+    decimal KasaDevir,
+    decimal DagilimBekleyenTutar = 0m);
 public record KanalAylikDto(string Kanal, decimal Gelen, decimal CariGiden, decimal SabitGider, decimal KrediKarti, decimal OrtakPay, decimal AySonucu);
-public record AylikRaporDto(int Yil, int Ay, IReadOnlyList<KanalAylikDto> Kanallar);
-public record KanalBakiyeDto(string Kanal, decimal Bakiye);
-public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanallar, decimal BuHaftaSonucu, decimal BuAySonucu);
+public record AylikRaporDto(int Yil, int Ay, IReadOnlyList<KanalAylikDto> Kanallar, decimal DagilimBekleyenTutar = 0m, decimal GenelGider = 0m, decimal GenelGelir = 0m);
+public record KanalBakiyeDto(string Kanal, decimal Bakiye, int? KanalId = null);
+public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanallar, decimal BuHaftaSonucu, decimal BuAySonucu, decimal DagilimBekleyenTutar = 0m);
 
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
-public record CariYaz(string Ad, bool Aktif);
 public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
 public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);

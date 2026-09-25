@@ -14,10 +14,8 @@ public class EkstreBorcTests
         var c = await f.EditorClientAsync();
         var bugun = DateOnly.FromDateTime(DateTime.Today);
         var kesim = bugun.AddDays(-5);      // en son kesim 5 gün önce
-        var kart = await (await c.PostAsJsonAsync("/api/kredikartlari",
-            new { ad = "Test", kesimTarihi = kesim, sonOdemeTarihi = bugun.AddDays(5),
-                  limit = 100000m, borc = 1000m })).Content.ReadFromJsonAsync<JsonElement>(Json);
-        int id = kart.GetProperty("id").GetInt32();
+        var kart = LegacyFinanceSeed.Kart(f, new("Test", kesim, bugun.AddDays(5), 100000m, 1000m));
+        int id = kart.Id;
 
         // kesimden ÖNCE harcama (ekstreye girer)
         await c.PostAsJsonAsync("/api/islemler", new { tarih = kesim.AddDays(-1), cari = "A",

@@ -15,11 +15,8 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
     {
         var client = await _factory.EditorClientAsync();
 
-        var kart = await (await client.PostAsJsonAsync("/api/kredikartlari", new
-        {
-            ad = "Türetme", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 100_000m, borc = 1000m,
-        })).Content.ReadFromJsonAsync<KartYanit>();
+        var kart = LegacyFinanceSeed.Kart(_factory, new("Türetme", new DateOnly(2026, 7, 5),
+            new DateOnly(2026, 7, 25), 100_000m, 1000m));
 
         await client.PostAsJsonAsync("/api/islemler", new
         {
@@ -44,11 +41,8 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
     public async Task Islem_krediKartiId_dolu_gelirse_tip_KrediKarti_olur()
     {
         var client = await _factory.EditorClientAsync();
-        var kart = await (await client.PostAsJsonAsync("/api/kredikartlari", new
-        {
-            ad = "TipZorla", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 10_000m, borc = 0m,
-        })).Content.ReadFromJsonAsync<KartYanit>();
+        var kart = LegacyFinanceSeed.Kart(_factory, new("TipZorla", new DateOnly(2026, 7, 5),
+            new DateOnly(2026, 7, 25), 10_000m, 0m));
 
         var olustur = await client.PostAsJsonAsync("/api/islemler", new
         {

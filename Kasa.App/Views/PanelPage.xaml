@@ -1,33 +1,41 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!-- Emar Kasa · PanelPage — Güncel Kasa hero kartı + kanal bakiyeleri. -->
+<!-- Emar Kasa · PanelPage — genel kasa + kanal bakiyeleri. -->
 <ContentPage
     x:Class="Kasa.App.Views.PanelPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:v="clr-namespace:Kasa.App.Views"
     x:Name="Sayfa"
-    Title="Panel"
+    Title="Kasalar"
     BackgroundColor="{StaticResource AppBg}">
 
     <ScrollView>
-        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+        <VerticalStackLayout x:Name="PanelAlani" Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
 
             <VerticalStackLayout Spacing="3">
-                <Label Text="Panel" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Kasalar" Style="{StaticResource LblPageTitle}" />
                 <Label Text="Kasa özeti ve kanal bakiyeleri" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
 
-            <Border Style="{StaticResource CardHero}">
+            <v:RaporDurumu />
+
+            <Border Style="{StaticResource CardHero}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
-                    <Label Text="Güncel Kasa" Style="{StaticResource LblHeroLabel}" />
+                    <Label Text="Genel kasa" Style="{StaticResource LblHeroLabel}" />
                     <Label Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}"
                            Style="{StaticResource LblHeroAmount}" Margin="0,8,0,0" />
                     <Label Text="Takip başlangıcı ve açılış devri dahil"
                            Style="{StaticResource LblHeroSub}" Margin="0,10,0,0" />
+                    <VerticalStackLayout IsVisible="{Binding DagilimBekliyor}" Spacing="4" Margin="0,14,0,0">
+                        <Label Text="Dağılım bekleyen alış ödemesi" TextColor="#FFDA91" FontAttributes="Bold" />
+                        <Label Text="{Binding DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="#FFDA91" FontSize="20" />
+                        <Label Text="Kasa hareketi kayıtlı; bu tutar alış onaylanana kadar kanal bakiyelerine dağıtılmaz." TextColor="#FFDA91" FontSize="12" />
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
             </Border>
 
-            <Border Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
                     <Label Text="Kanal Bakiyeleri" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
                     <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None">
@@ -35,14 +43,16 @@
                             <DataTemplate>
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
-                                    <Grid Padding="18,0" HeightRequest="54"
+                                    <Grid Padding="18,8" MinimumHeightRequest="66"
                                           ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                                         <Border Style="{StaticResource AvatarChip}" VerticalOptions="Center">
                                             <Label Text="{Binding Kanal, Converter={StaticResource BasHarf}}"
                                                    Style="{StaticResource LblAvatar}" />
                                         </Border>
-                                        <Label Grid.Column="1" Text="{Binding Kanal}"
-                                               Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                                            <Label Text="{Binding Kanal}" Style="{StaticResource LblRowPrimary}" />
+                                            <Label Text="{Binding KartBorcuMetni}" Style="{StaticResource LblPageSub}" />
+                                        </VerticalStackLayout>
                                         <Label Grid.Column="2"
                                                Text="{Binding Bakiye, Converter={StaticResource ParaBicim}}"
                                                Style="{StaticResource LblMoney}"

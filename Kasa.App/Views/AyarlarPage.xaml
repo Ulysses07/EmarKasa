@@ -9,7 +9,7 @@
     BackgroundColor="{StaticResource AppBg}">
 
     <ScrollView>
-        <VerticalStackLayout Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
+        <VerticalStackLayout x:Name="AyarlarAlani" Padding="{OnIdiom Desktop='28,22', Default='16,14'}" Spacing="20"
                              MaximumWidthRequest="1160">
             <VerticalStackLayout Spacing="3">
                 <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
@@ -140,7 +140,7 @@
                                                     Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
                                             <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Command="{Binding BindingContext.KanalSilCommand, Source={x:Reference Sayfa}}"
+                                                    Clicked="KanalSilTiklandi"
                                                     CommandParameter="{Binding .}" />
                                         </HorizontalStackLayout>
                                     </Grid>

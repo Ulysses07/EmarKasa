@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#194d3c">
+  <title>Kasa · Kanal kasaları</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="/styles.css?v=2.3.0">
+  <script type="module" src="/app.js?v=2.3.0"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">İçeriğe geç</a>
+  <div id="notifications" class="notifications" role="status" aria-live="polite" aria-atomic="true"></div>
+  <section id="login-screen" class="login-screen" hidden>
+    <aside class="login-story" aria-label="Kasa">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">K</span><span>Kasa</span></a>
+      <div class="login-intro"><p class="intro-label">İşin hesabı, yerli yerinde.</p><h1>Her kanalın<br>hesabı net.</h1><p>Kanal kasalarını ve genel kasayı görün.<br>Alışları doğru kanala kaydedin.</p></div>
+      <div class="ledger-art" aria-hidden="true"><div><span>Alış</span><span>Dağılım</span><span>Ödeme</span></div><i></i><i></i><i></i><i></i><div class="ledger-total">Bir kayıt. Net bir hesap.</div></div>
+      <p class="login-foot">Kanal kasaları ve alış defteri</p>
+    </aside>
+    <main class="login-main" id="login-main">
+      <div class="login-card">
+        <p class="mobile-brand">Kasa</p>
+        <h2 id="login-title">Defterinizi açın</h2>
+        <p id="login-description" class="muted">Hesabınızla güvenle giriş yapın.</p>
+        <form id="login-form">
+          <label>Kullanıcı adı<input name="kullanici" autocomplete="username" maxlength="64" autofocus aria-describedby="login-help"></label>
+          <label>Şifre<input name="sifre" type="password" autocomplete="current-password" maxlength="1024" required></label>
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+          <button class="button primary full" type="submit">Giriş yap <span aria-hidden="true">→</span></button>
+        </form>
+        <button id="recover-open" class="link-button" type="button">Editör hesabımı kurtar</button>
+        <p class="login-help" id="login-help">İzleyici girişi için kullanıcı adını boş bırakıp size verilen şifreyi kullanın. Alıcı hesabınızın şifresini unuttuysanız editörünüzden yeni şifre isteyin.</p>
+      </div>
+    </main>
+  </section>
+  <div id="application" class="application" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">K</span><span>Kasa</span></a>
+      <nav id="navigation" aria-label="Ana menü"></nav>
+      <div class="sidebar-foot"><span id="role-label" class="role-label"></span><button id="logout" class="logout" type="button">Çıkış yap <span aria-hidden="true">↗</span></button></div>
+    </aside>
+    <main id="main" class="main" tabindex="-1">
+      <header class="page-header"><div><p id="page-context" class="context">Alış defteri</p><h1 id="page-title">Alışlar</h1></div><div id="page-actions" class="header-actions"></div></header>
+      <div id="view" aria-busy="false"><div class="empty"><span class="loader" aria-hidden="true"></span><p>Defteriniz açılıyor…</p></div></div>
+      <footer class="page-footer"><span>Kasa · Birlikte, hesabı net.</span><span id="version"></span></footer>
+    </main>
+  </div>
+  <dialog id="modal" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title"></h2><button id="modal-close" class="icon-button" type="button" aria-label="Pencereyi kapat">×</button></div><div id="modal-content"></div></dialog>
+  <noscript>Bu uygulamayı kullanmak için tarayıcınızda JavaScript'i etkinleştirin.</noscript>
+</body>
+</html>

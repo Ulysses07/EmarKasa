@@ -1,4 +1,5 @@
 using Kasa.Core;
+using System.Text.Json.Serialization;
 
 namespace Kasa.Api.Data;
 
@@ -25,9 +26,14 @@ public class IslemEntity
     public string Cari { get; set; } = "";
     public decimal TutarTl { get; set; }
     public string Kanal { get; set; } = "";
+    public int? KanalId { get; set; }
+    [JsonIgnore]
+    public KanalEntity? KanalKaydi { get; set; }
     public GiderTipi Tip { get; set; }
     public string? Not { get; set; }
     public int? KrediKartiId { get; set; }
+    [JsonIgnore]
+    public HesapHareketEntity? HesapHareketi { get; set; }
 }
 
 public class GelenEntity
@@ -35,7 +41,12 @@ public class GelenEntity
     public int Id { get; set; }
     public DateOnly DonemStart { get; set; }
     public string Kanal { get; set; } = "";
+    public int? KanalId { get; set; }
+    [JsonIgnore]
+    public KanalEntity? KanalKaydi { get; set; }
     public decimal TutarTl { get; set; }
+    /// <summary>Eski aynı dönem/kanal grubunun bütün satırları korunur ve tutarları değiştirilemez.</summary>
+    public bool EskiYinelenenGrup { get; set; }
 }
 
 /// <summary>Tek satırlık uygulama ayarları.</summary>
@@ -68,6 +79,7 @@ public class KartOdemeEntity
 
 public class KrediEntity
 {
+    public bool GerceklesmeTakibi { get; set; }
     public int Id { get; set; }
     public string Ad { get; set; } = "";
     public decimal CekilenTutar { get; set; }
@@ -76,4 +88,7 @@ public class KrediEntity
     public decimal AylikOdeme { get; set; }
     public int OdemeGunu { get; set; }
     public string Kanal { get; set; } = "";
+    public int? KanalId { get; set; }
+    [JsonIgnore]
+    public KanalEntity? KanalKaydi { get; set; }
 }

@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Kasa.App.Views.AlislarPage" x:Name="Sayfa"
+             Title="Alışlar" BackgroundColor="{StaticResource AppBg}">
+    <Grid Padding="24,18" RowDefinitions="Auto,Auto,*" RowSpacing="14">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Alışlar" Style="{StaticResource LblPageTitle}" />
+                <Label Text="Kalemleri kaydedin, kanallara dağıtın, inceleme ve ödemeleri takip edin." Style="{StaticResource LblPageSub}" />
+            </VerticalStackLayout>
+            <Button Grid.Column="1" Text="Yenile" Command="{Binding YenileCommand}" Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
+            <Button Grid.Column="2" Text="+ Yeni alış" Command="{Binding YeniCommand}" VerticalOptions="Center" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
+        </Grid>
+
+        <VerticalStackLayout Grid.Row="1" Spacing="8">
+            <HorizontalStackLayout Spacing="8" IsVisible="{Binding Mesgul}">
+                <ActivityIndicator IsRunning="{Binding Mesgul}" WidthRequest="20" HeightRequest="20" />
+                <Label Text="İşlem tamamlanıyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
+            </Border>
+            <Label Text="{Binding Mesaj}" TextColor="{StaticResource Green}" IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
+            <Border BackgroundColor="#FFF2D9" Stroke="#E9C880" StrokeShape="RoundRectangle 10" Padding="14,10" IsVisible="{Binding DagilimBekliyor}">
+                <Label TextColor="#765100">
+                    <Label.FormattedText><FormattedString>
+                        <Span Text="DAĞILIM BEKLİYOR  ·  " FontAttributes="Bold" />
+                        <Span Text="{Binding DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" FontAttributes="Bold" />
+                        <Span Text="  Ödemeler kaydedildi; onay tamamlanana kadar kanal raporları bu tutarı içermez." />
+                    </FormattedString></Label.FormattedText>
+                </Label>
+            </Border>
+        </VerticalStackLayout>
+
+        <Grid Grid.Row="2" ColumnDefinitions="300,*" ColumnSpacing="18" IsVisible="{Binding VeriHazir}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}">
+            <Border Style="{StaticResource Card}">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Padding="14">
+                    <Label Text="Alış kayıtları" Style="{StaticResource LblSection}" />
+                    <CollectionView Grid.Row="1" ItemsSource="{Binding Alislar}" SelectionMode="None">
+                        <CollectionView.ItemTemplate><DataTemplate>
+                            <VerticalStackLayout Spacing="6" Padding="0,12">
+                                <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
+                                <Label Text="{Binding Alt}" Style="{StaticResource LblRowSecondary}" />
+                                <Label Text="{Binding Tutar}" FontSize="12" FontAttributes="Bold" />
+                                <Button Text="Kaydı aç" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start"
+                                        Command="{Binding BindingContext.SecCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                <BoxView Style="{StaticResource RowSeparator}" Margin="0,6,0,0" />
+                            </VerticalStackLayout>
+                        </DataTemplate></CollectionView.ItemTemplate>
+                        <CollectionView.EmptyView><Label Text="Henüz alış yok. Sağdaki formdan ilk kaydı oluşturun." Style="{StaticResource LblPageSub}" Margin="0,20" /></CollectionView.EmptyView>
+                    </CollectionView>
+                    <Button Grid.Row="2" Text="Alıcı hesaplarını yönet" Clicked="HesaplarTiklandi" IsVisible="{Binding EditorMu}" Style="{StaticResource BtnSecondary}" />
+                </Grid>
+            </Border>
+
+            <ScrollView Grid.Column="1" x:Name="DetayKaydirici">
+                <VerticalStackLayout Spacing="16" Padding="0,0,4,24">
+                    <Border Style="{StaticResource CardHero}" Padding="22,18">
+                        <VerticalStackLayout Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Text="{Binding Baslik}" FontSize="20" FontAttributes="Bold" TextColor="White" />
+                                <Label Grid.Column="1" Text="{Binding Durum}" TextColor="#CBE6D5" FontAttributes="Bold" VerticalOptions="Center" />
+                            </Grid>
+                            <Label Text="{Binding KaydiAcan}" Style="{StaticResource LblHeroSub}" />
+                            <Label Text="{Binding Toplam, Converter={StaticResource ParaBicim}}" FontSize="29" FontAttributes="Bold" TextColor="White" />
+                            <Label Text="{Binding OdemeOzeti}" TextColor="#CBE6D5" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <Border BackgroundColor="#FFF2D9" Stroke="#E9C880" StrokeShape="RoundRectangle 10" Padding="14"
+                            IsVisible="{Binding EditorNotu, Converter={StaticResource DoluIse}}">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Editörün iade açıklaması" FontAttributes="Bold" TextColor="#765100" />
+                            <Label Text="{Binding EditorNotu}" TextColor="#765100" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource CardForm}">
+                        <VerticalStackLayout Spacing="14">
+                            <Label Text="1 · Alış bilgileri ve kalemler" Style="{StaticResource LblSection}" />
+                            <VerticalStackLayout Spacing="12" IsEnabled="{Binding Duzenlenebilir}">
+                                <Grid ColumnDefinitions="160,*" ColumnSpacing="12">
+                                    <VerticalStackLayout><Label Text="Tarih" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><DatePicker Date="{Binding Tarih}" /></Border></VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1"><Label Text="Tedarikçi / açıklama" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding Tedarikci}" Placeholder="Firma veya kişi adı" /></Border></VerticalStackLayout>
+                                </Grid>
+                                <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding AlisNotu}" Placeholder="Alış notu (isteğe bağlı)" /></Border>
+                                <VerticalStackLayout Spacing="12" BindableLayout.ItemsSource="{Binding Kalemler}">
+                                    <BindableLayout.ItemTemplate><DataTemplate>
+                                        <Border BackgroundColor="#F8F8F3" Stroke="#E3E0D6" StrokeShape="RoundRectangle 10" Padding="14">
+                                            <VerticalStackLayout Spacing="10">
+                                                <Grid ColumnDefinitions="*,150,Auto" ColumnSpacing="8">
+                                                    <VerticalStackLayout><Label Text="Kalem açıklaması" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding Aciklama}" Placeholder="Örn. ürün / hizmet" /></Border></VerticalStackLayout>
+                                                    <VerticalStackLayout Grid.Column="1"><Label Text="Kalem tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding Tutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺" Keyboard="Numeric" /></Border></VerticalStackLayout>
+                                                    <Button Grid.Column="2" Text="Kaldır" Style="{StaticResource BtnRowDelete}" VerticalOptions="End" Command="{Binding BindingContext.KalemSilCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                                </Grid>
+                                                <Label Text="Kanal dağılımı · aynı kalemi birden fazla kanala ayırabilirsiniz" FontSize="12" TextColor="{StaticResource Sub}" />
+                                                <VerticalStackLayout Spacing="7" BindableLayout.ItemsSource="{Binding Dagilimlar}">
+                                                    <BindableLayout.ItemTemplate><DataTemplate>
+                                                        <Grid ColumnDefinitions="*,150,Auto" ColumnSpacing="8">
+                                                            <Border Style="{StaticResource FieldBorder}"><Picker Title="Kanal seçin" ItemsSource="{Binding Kanallar}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding Kanal}" /></Border>
+                                                            <Border Grid.Column="1" Style="{StaticResource FieldBorder}"><Entry Text="{Binding Tutar, Converter={StaticResource ParaGiris}}" Placeholder="Pay (₺)" Keyboard="Numeric" /></Border>
+                                                            <Button Grid.Column="2" Text="Kaldır" Style="{StaticResource BtnRowDelete}" Command="{Binding BindingContext.DagilimSilCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                                        </Grid>
+                                                    </DataTemplate></BindableLayout.ItemTemplate>
+                                                </VerticalStackLayout>
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                                    <Button Text="+ Kanal payı" Style="{StaticResource BtnSecondary}" Command="{Binding BindingContext.DagilimEkleCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                                    <Label Grid.Column="1" Text="{Binding DagilimOzeti}" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate></BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                                <Button Text="+ Alış kalemi ekle" Command="{Binding KalemEkleCommand}" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
+                            </VerticalStackLayout>
+                            <Label Text="{Binding DagilimOzeti}" FontAttributes="Bold" />
+                            <Label Text="Kaydedilmemiş değişiklikler var." TextColor="#765100" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
+                            <FlexLayout Wrap="Wrap" AlignItems="Center">
+                                <Button Text="Değişiklikleri kaydet" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
+                                <Button Text="İncelemeye gönder" Command="{Binding GonderCommand}" IsVisible="{Binding Gonderilebilir}" Style="{StaticResource BtnSecondary}" Margin="0,0,10,6" />
+                                <Button Text="Kaydet ve onayla" Command="{Binding OnaylaCommand}" IsVisible="{Binding Onaylanabilir}" Margin="0,0,10,6" />
+                                <Button Text="Değişiklikleri bırak" Clicked="DegisiklikleriBirakTiklandi" IsVisible="{Binding KaydedilmemisDegisiklikVar}" Style="{StaticResource BtnSecondary}" Margin="0,0,10,6" />
+                            </FlexLayout>
+                            <Label Text="Onay için her kalemin dağılımı kendi tutarına eşit olmalıdır. Onaylanmış bir alış, düzenlenmeden önce iade edilir." Style="{StaticResource LblPageSub}" />
+                            <VerticalStackLayout Spacing="8" IsVisible="{Binding IadeEdilebilir}">
+                                <BoxView Style="{StaticResource RowSeparator}" />
+                                <Label Text="Düzeltme için alıcıya iade et" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding IadeNedeni}" Placeholder="İade nedeni (zorunlu)" /></Border>
+                                <Button Text="Açıklamayla iade et" Command="{Binding IadeCommand}" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
+                                <Label Text="Mevcut ödemeler korunur. Yeniden onaya kadar kanal dağılımı bekler." Style="{StaticResource LblPageSub}" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource CardForm}" IsVisible="{Binding OdemeAlaniGorunur}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="2 · Ödeme / mevcut gider bağlantısı" Style="{StaticResource LblSection}" />
+                            <Label Text="{Binding OdemeOzeti}" FontAttributes="Bold" />
+                            <HorizontalStackLayout Spacing="10"><Switch IsToggled="{Binding MevcutGiderKullan}" /><Label Text="Önceden kaydedilmiş gideri bağla" VerticalOptions="Center" /></HorizontalStackLayout>
+                            <VerticalStackLayout Spacing="6" IsVisible="{Binding MevcutGiderKullan}">
+                                <Border Style="{StaticResource FieldBorder}"><Picker Title="Mevcut gideri seçin" ItemsSource="{Binding BaglanabilirGiderler}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding SeciliGider}" /></Border>
+                                <Label Text="Bu seçenek yeni gider oluşturmaz; seçilen kaydın tarihi ve tutarı kullanılır." Style="{StaticResource LblPageSub}" />
+                            </VerticalStackLayout>
+                            <Grid ColumnDefinitions="160,*" ColumnSpacing="12" IsEnabled="{Binding YeniOdemeGirisi}">
+                                <VerticalStackLayout><Label Text="Ödeme tarihi" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><DatePicker Date="{Binding OdemeTarihi}" /></Border></VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1"><Label Text="Ödeme tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding OdemeTutari, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺" Keyboard="Numeric" /></Border></VerticalStackLayout>
+                            </Grid>
+                            <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding YeniOdemeGirisi}"><Picker Title="Ödeme yöntemi" ItemsSource="{Binding OdemeKartlari}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding OdemeKarti}" /></Border>
+                            <Label Text="Yeni takipte kart borcu ayrı izlenir; kasa, Kartlar ekranında ödeme kaydedilince azalır. Geçiş yapılmamış eski kartlar eski erteleme kuralını korur." Style="{StaticResource LblPageSub}" />
+                            <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding OdemeNotu}" Placeholder="Ödeme notu (isteğe bağlı)" /></Border>
+                            <Border BackgroundColor="#F1F5EE" StrokeThickness="0" StrokeShape="RoundRectangle 10" Padding="14">
+                                <VerticalStackLayout Spacing="8">
+                                    <Label Text="Bu ödemenin kanal payları" FontAttributes="Bold" />
+                                    <Label Text="{Binding OnizlemeAciklamasi}" Style="{StaticResource LblPageSub}" />
+                                    <VerticalStackLayout Spacing="5" BindableLayout.ItemsSource="{Binding OdemeOnizleme}">
+                                        <BindableLayout.ItemTemplate><DataTemplate><Grid ColumnDefinitions="*,Auto"><Label Text="{Binding Kanal}" /><Label Grid.Column="1" Text="{Binding Tutar, Converter={StaticResource ParaBicim}}" FontAttributes="Bold" /></Grid></DataTemplate></BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
+                            <Label Text="Ödeme eklemek için önce alıştaki değişiklikleri kaydedin." TextColor="#765100" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
+                            <Button Text="Ödemeyi kaydet / gideri bağla" Command="{Binding OdemeKaydetCommand}" HorizontalOptions="Start" IsEnabled="{Binding KaydedilmemisDegisiklikVar, Converter={StaticResource TersIse}}" />
+                            <Border Style="{StaticResource CardForm}" IsVisible="{Binding OdemeBenzerlik.UyariVar}">
+                                <VerticalStackLayout Spacing="8"><Label Text="{Binding OdemeBenzerlik.Uyari}" /><Button Text="Ayrı bir işlem, devam et" Command="{Binding OdemeyiAyriKaydetCommand}" /></VerticalStackLayout>
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource CardForm}" IsVisible="{Binding KayitVar}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="Ödeme geçmişi" Style="{StaticResource LblSection}" />
+                            <VerticalStackLayout Spacing="10" BindableLayout.ItemsSource="{Binding Odemeler}">
+                                <BindableLayout.EmptyView><Label Text="Bu alışa henüz ödeme bağlanmadı." Style="{StaticResource LblPageSub}" /></BindableLayout.EmptyView>
+                                <BindableLayout.ItemTemplate><DataTemplate><VerticalStackLayout Spacing="4"><Label Text="{Binding Baslik}" FontAttributes="Bold" /><Label Text="{Binding Dagilim}" Style="{StaticResource LblPageSub}" /><VerticalStackLayout IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}"><Button Text="Kartı aç" Style="{StaticResource BtnSecondary}" IsVisible="{Binding KartVar}" Clicked="KartAcTiklandi" CommandParameter="{Binding .}" /></VerticalStackLayout><Button Text="Düzelt / taşı / iptal" Style="{StaticResource BtnSecondary}" IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}" Command="{Binding BindingContext.OdemeDuzeltCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" /><BoxView Style="{StaticResource RowSeparator}" Margin="0,5,0,0" /></VerticalStackLayout></DataTemplate></BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource CardForm}" IsVisible="{Binding DuzeltmeAcik}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="Ödeme düzeltmesi" Style="{StaticResource LblSection}" />
+                            <Label Text="{Binding DuzeltilecekOdeme.Baslik}" FontAttributes="Bold" />
+                            <DatePicker Date="{Binding DuzeltmeTarihi}" />
+                            <Entry Text="{Binding DuzeltmeTutari, Converter={StaticResource ParaGiris}}" Placeholder="Ödeme tutarı" Keyboard="Numeric" />
+                            <Picker Title="Ödeme yöntemi" ItemsSource="{Binding DuzeltmeKartlari}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding DuzeltmeKarti}" />
+                            <Label Text="Bu eski kayıtta kart silinmiş. Kart harcaması niteliği korunur; yeni bir kart seçebilirsiniz." IsVisible="{Binding EskiKartHarcamasi}" Style="{StaticResource LblPageSub}" />
+                            <Label Text="Yanlış alışa bağlandıysa hedef alış seçin. Boşsa aynı alışta kalır." Style="{StaticResource LblPageSub}" />
+                            <Picker Title="Başka alışa taşı (isteğe bağlı)" ItemsSource="{Binding DuzeltmeHedefleri}" ItemDisplayBinding="{Binding Baslik}" SelectedItem="{Binding HedefAlis}" />
+                            <Button Text="Aynı alışta bırak" Command="{Binding HedefiTemizleCommand}" Style="{StaticResource BtnSecondary}" />
+                            <Entry Text="{Binding DuzeltmeAciklamasi}" Placeholder="Düzeltme / iptal açıklaması (zorunlu)" />
+                            <Button Text="Düzeltmeyi kaydet" Command="{Binding OdemeDuzeltKaydetCommand}" />
+                            <Button Text="Gerçek ödemeyi iptal et" Clicked="OdemeIptalTiklandi" Style="{StaticResource BtnRowDelete}" />
+                            <Label Text="İptal bağlı gideri de kaldırır. Yalnız yanlış alış bağlantısı için üstteki taşıma seçeneğini kullanın." Style="{StaticResource LblPageSub}" />
+                            <Button Text="Düzeltmeden vazgeç" Command="{Binding DuzeltmedenVazgecCommand}" Style="{StaticResource BtnSecondary}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Style="{StaticResource CardForm}" IsVisible="{Binding KayitVar}">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="Belgeler" Style="{StaticResource LblSection}" />
+                            <Label Text="PDF, PNG veya JPEG · en fazla 10 MB. Fatura alışa, dekont belirli ödemeye bağlanabilir." Style="{StaticResource LblPageSub}" />
+                            <Button Text="Belgeleri göster / yenile" Command="{Binding BelgeleriYukleCommand}" Style="{StaticResource BtnSecondary}" />
+                            <Picker x:Name="BelgeOdemesi" Title="Belgeyi ödemeye bağla (isteğe bağlı)" ItemsSource="{Binding Odemeler}" ItemDisplayBinding="{Binding Baslik}" IsVisible="{Binding EditorMu}" />
+                            <Button Text="Belge ekle" Clicked="BelgeEkleTiklandi" />
+                            <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding Belgeler}">
+                                <BindableLayout.EmptyView><Label Text="Belgeleri görüntülemek için yenile düğmesini kullanın." Style="{StaticResource LblPageSub}" /></BindableLayout.EmptyView>
+                                <BindableLayout.ItemTemplate><DataTemplate><VerticalStackLayout Spacing="6">
+                                    <Label Text="{Binding DosyaAdi}" FontAttributes="Bold" />
+                                    <Label Text="{Binding Yuklendi, StringFormat='Yükleme: {0:dd.MM.yyyy HH:mm}'}" Style="{StaticResource LblPageSub}" />
+                                    <HorizontalStackLayout Spacing="8"><Button Text="Bilgisayara kaydet" Clicked="BelgeIndirTiklandi" CommandParameter="{Binding .}" Style="{StaticResource BtnSecondary}" /><Button Text="Sil" Clicked="BelgeSilTiklandi" CommandParameter="{Binding .}" Style="{StaticResource BtnRowDelete}" /></HorizontalStackLayout>
+                                </VerticalStackLayout></DataTemplate></BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <VerticalStackLayout IsVisible="{Binding EditorMu}" x:Name="AliciHesapAlani">
+                        <Border Style="{StaticResource CardForm}" IsVisible="{Binding HesaplarAcik}">
+                            <VerticalStackLayout Spacing="12">
+                                <Label Text="Alıcı hesapları" Style="{StaticResource LblSection}" />
+                                <Label Text="Her alıcı yalnız kendi alışlarını görür. Şifreyi boş bırakırsanız mevcut şifre korunur." Style="{StaticResource LblPageSub}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                    <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding AliciAd}" Placeholder="Ad soyad" /></Border>
+                                    <Border Grid.Column="1" Style="{StaticResource FieldBorder}"><Entry Text="{Binding AliciKullanici}" Placeholder="Kullanıcı adı" /></Border>
+                                </Grid>
+                                <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding AliciSifre}" Placeholder="Yeni şifre (en az 8 karakter)" IsPassword="True" /></Border>
+                                <HorizontalStackLayout Spacing="10"><Switch IsToggled="{Binding AliciAktif}" /><Label Text="Hesap aktif" VerticalOptions="Center" /></HorizontalStackLayout>
+                                <HorizontalStackLayout Spacing="10"><Button Text="Hesabı kaydet" Command="{Binding AliciKaydetCommand}" /><Button Text="Yeni hesap" Command="{Binding YeniAliciCommand}" Style="{StaticResource BtnSecondary}" /></HorizontalStackLayout>
+                                <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding Alicilar}">
+                                    <BindableLayout.ItemTemplate><DataTemplate>
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Padding="0,7">
+                                            <VerticalStackLayout Spacing="3"><Label Text="{Binding Ad}" FontAttributes="Bold" /><Label Text="{Binding Kullanici}" Style="{StaticResource LblPageSub}" /><Label Text="Pasif hesap" TextColor="{StaticResource Neg}" FontSize="12" IsVisible="{Binding Aktif, Converter={StaticResource TersIse}}" /></VerticalStackLayout>
+                                            <Button Grid.Column="1" Text="Düzenle" Style="{StaticResource BtnSecondary}" Command="{Binding BindingContext.AliciDuzenleCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                        </Grid>
+                                    </DataTemplate></BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </Grid>
+    </Grid>
+</ContentPage>

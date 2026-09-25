@@ -9,11 +9,12 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public StatikServisTests(KasaWebFactory factory) => _factory = factory;
 
     [Fact]
-    public async Task Kok_istegi_404_doner_spa_yok()
+    public async Task Kok_istegi_mobil_giris_sayfasini_sunar()
     {
         var client = _factory.CreateClient();
         var yanit = await client.GetAsync("/");
-        Assert.Equal(HttpStatusCode.NotFound, yanit.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
+        Assert.Equal("text/html", yanit.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]

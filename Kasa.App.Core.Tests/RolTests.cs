@@ -20,12 +20,14 @@ public class RolTests
         var bolumler = SekmeModeli.Bolumler(Rol.Izleyici);
         Assert.DoesNotContain(Bolum.Ayarlar, bolumler);
         Assert.Contains(Bolum.Panel, bolumler);
-        Assert.Contains(Bolum.KrediKartlari, bolumler);
+        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.DisariAktar }, bolumler);
     }
 
     [Fact]
     public void Editor_ayarlari_gorur()
-        => Assert.Contains(Bolum.Ayarlar, SekmeModeli.Bolumler(Rol.Editor));
+    {
+        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.DisariAktar, Bolum.Alislar, Bolum.Bildirimler, Bolum.EkstreAktar, Bolum.Ayarlar }, SekmeModeli.Bolumler(Rol.Editor));
+    }
 
     [Fact]
     public void Bolum_sirasi_panelle_baslar()

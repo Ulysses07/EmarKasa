@@ -12,6 +12,8 @@ public static class Kanallar
 {
     /// <summary>Belirli bir kanala ait olmayan ortak gider için kanal etiketi.</summary>
     public const string Ortak = "Ortak";
+    /// <summary>Gerçek giderin kanalı henüz kesinleşmedi; ortak paya dağıtılmaz.</summary>
+    public const string DagilimBekliyor = "Dağılım bekliyor";
 }
 
 /// <summary>Gelir kanalı ve kümülatif devir başlangıcı.</summary>
@@ -27,10 +29,14 @@ public record Islem(
     decimal TutarTl,
     string Kanal,          // "MEZAT" | "PERAKENDE" | "TOPTAN" | Kanallar.Ortak
     GiderTipi Tip,
-    string? Not = null);
+    string? Not = null,
+    bool DagilimBekliyor = false,
+    bool NakitKartOdemesi = false,
+    bool AylikGider = false,
+    bool YalnizGenelKasa = false);
 
 /// <summary>Haftalık gelen — dönem başına, kanal başına tek rakam.</summary>
-public record Gelen(DateOnly DonemStart, string Kanal, decimal TutarTl);
+public record Gelen(DateOnly DonemStart, string Kanal, decimal TutarTl, bool KrediGirisi = false, bool GenelGelir = false);
 
 /// <summary>Devir segmenti. End dahildir (inclusive).</summary>
 public record Donem(DateOnly Start, DateOnly End)

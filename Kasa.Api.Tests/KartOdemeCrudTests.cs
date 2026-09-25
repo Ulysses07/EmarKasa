@@ -20,11 +20,8 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var client = await _factory.EditorClientAsync();
 
         // Kart oluştur
-        var kart = await (await client.PostAsJsonAsync("/api/kredikartlari", new
-        {
-            ad = "OdemeTest", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 50_000m, borc = 5_000m,
-        })).Content.ReadFromJsonAsync<KartYanit>();
+        var kart = LegacyFinanceSeed.Kart(_factory, new("OdemeTest", new DateOnly(2026, 7, 5),
+            new DateOnly(2026, 7, 25), 50_000m, 5_000m));
         Assert.NotNull(kart);
 
         // Ödeme ekle → 201
@@ -61,11 +58,8 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var editor = await _factory.EditorClientAsync();
         await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izle123" });
 
-        var kart = await (await editor.PostAsJsonAsync("/api/kredikartlari", new
-        {
-            ad = "IzleyiciTest", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 20_000m, borc = 1_000m,
-        })).Content.ReadFromJsonAsync<KartYanit>();
+        var kart = LegacyFinanceSeed.Kart(_factory, new("IzleyiciTest", new DateOnly(2026, 7, 5),
+            new DateOnly(2026, 7, 25), 20_000m, 1_000m));
         Assert.NotNull(kart);
 
         await editor.PostAsJsonAsync("/api/kartodemeler", new
@@ -97,11 +91,8 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var client = await _factory.EditorClientAsync();
 
         // Kart oluştur
-        var kart = await (await client.PostAsJsonAsync("/api/kredikartlari", new
-        {
-            ad = "SilmeTest", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 30_000m, borc = 2_000m,
-        })).Content.ReadFromJsonAsync<KartYanit>();
+        var kart = LegacyFinanceSeed.Kart(_factory, new("SilmeTest", new DateOnly(2026, 7, 5),
+            new DateOnly(2026, 7, 25), 30_000m, 2_000m));
         Assert.NotNull(kart);
 
         // Kart ödemesi ekle
