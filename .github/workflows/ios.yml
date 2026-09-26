@@ -335,7 +335,15 @@ jobs:
 
           xcrun simctl install "$SIM_UDID" "$APP"
           # Türkçe dil ve bölge: tarih/sayı biçimleri gerçek kullanıcıdaki gibi olsun.
-          baslat=$(xcrun simctl launch "$SIM_UDID" "$KIMLIK" -AppleLanguages '(tr)' -AppleLocale tr_TR)
+          # Önce varsayılan ayarlarla açılır: Face ID kilit ekranı görünmeli.
+          xcrun simctl launch "$SIM_UDID" "$KIMLIK" -AppleLanguages '(tr)' -AppleLocale tr_TR
+          sleep 10
+          xcrun simctl io "$SIM_UDID" screenshot --type=png "$CIKTI/ekran-kilit.png"
+          xcrun simctl terminate "$SIM_UDID" "$KIMLIK" || true
+          # CI simülatöründe Face ID penceresi açılamıyor ("UI activation timed
+          # out"), kilit hep kapalı kalır. Siteyi görmek için kilit bu açılışta
+          # kapatılır (komut satırı ayarı, telefona kaydedilmez).
+          baslat=$(xcrun simctl launch "$SIM_UDID" "$KIMLIK" -AppleLanguages '(tr)' -AppleLocale tr_TR -uygulamaKilidi NO)
           echo "$baslat"
           pid=${baslat##*: }
 

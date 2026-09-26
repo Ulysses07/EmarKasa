@@ -79,8 +79,9 @@ open EmarKasa.xcodeproj
 `.github/workflows/ios.yml` iki iş çalıştırır:
 
 1. **Derle ve simülatörde aç** (her değişiklikte): imzasız simülatör
-   derlemesi ve birim testleri. Uygulama simülatörde açılır, canlı site
-   yüklendikten sonra ekran görüntüsü alınır. Görüntüler, derleme ve test
+   derlemesi ve birim testleri. Uygulama simülatörde açılır, önce Face ID
+   kilit ekranının, sonra kilit kapatılarak canlı site yüklendikten sonra
+   ekran görüntüsü alınır (CI simülatöründe Face ID penceresi açılamıyor). Görüntüler, derleme ve test
    günlükleri taslak bir sürüme (`ios-ci-<numara>`) eklenir. Taslak
    sürümler yalnız depo yetkililerine görünür.
 2. **TestFlight'a yükle**: Apple sırları tanımlıysa master'daki her
