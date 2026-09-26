@@ -17,6 +17,14 @@ name: iOS
 #   ASC_KEY_P8_BASE64           AuthKey_XXXX.p8 dosyasının base64 hali
 #   APPLE_TEAM_ID               Apple geliştirici takım kimliği (10 karakter)
 # Depo herkese açık: bu değerler hiçbir dosyaya yazılmaz, günlüğe basılmaz.
+#
+# Değişken (aynı sayfa > Variables, sır değil):
+#   IOS_IMZASIZ_ARSIV=true      Apple hesabında kayıtlı iPhone (UDID) yoksa.
+#                               İmzalı arşiv geliştirme profili ister, o da en
+#                               az bir kayıtlı cihaz ister ("Your team has no
+#                               devices"). Bu değişkenle master'a gönderim ve
+#                               aylık çalıştırma da (deneysel) imzasız arşiv
+#                               yolunu kullanır.
 on:
   push:
     # branches verilmezse etiket (tag) gönderimleri de iş başlatır; yol
@@ -36,7 +44,7 @@ on:
         type: string
         default: ''
       imzasiz_arsiv:
-        description: 'Deneysel: arşiv imzasız alınır, yalnız dışa aktarırken imzalanır'
+        description: 'Deneysel: arşiv imzasız alınır, yalnız dışa aktarırken imzalanır (kayıtlı iPhone yoksa)'
         type: boolean
         default: false
   schedule:
@@ -236,8 +244,16 @@ jobs:
           set -euo pipefail
           # Cihaz adı sabit yazılmaz: imajda ne varsa, en yeni iOS'taki en yeni
           # iPhone seçilir. Hiç yoksa bir tane oluşturulur.
+          # simctl makinedeki bütün simülatör ortamlarını listeler, seçili
+          # Xcode'unkileri değil. İmajda daha yeni bir Xcode da (ör. 27 betası)
+          # kuruluysa onun iOS 27 ortamı da görünür; 'xcodebuild test' o
+          # cihazı "Ineligible destinations" diye reddeder. Bu yüzden seçili
+          # Xcode'un simülatör SDK'sından yeni olmayan ortamlar tercih edilir.
+          SDK_SURUM=$(xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null || true)
+          export SDK_SURUM
+          echo "simülatör SDK'sı: ${SDK_SURUM:-bilinmiyor}"
           python3 - > "$RUNNER_TEMP/simulator.env" <<'PY'
-          import json, re, subprocess
+          import json, os, re, subprocess, sys
 
           def liste(*tur):
               return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *tur, "-j"]))
@@ -252,6 +268,21 @@ jobs:
               olagan = 1 if re.fullmatch(r"iPhone \d+( Pro)?", ad) else 0
               return (olagan, int(m.group(1)) if m else 0, ad.endswith(" Pro"))
 
+          m = re.match(r"(\d+)(?:\.(\d+))?", os.environ.get("SDK_SURUM", ""))
+          ust = (int(m.group(1)), int(m.group(2) or 0)) if m else None
+
+          def sdk_uygun(liste_, surum_):
+              # SDK'yı aşmayanlar; yoksa SDK ile aynı ana sürümdekiler; o da
+              # yoksa (ya da SDK okunamadıysa) hepsi. Test adımı hedefi yine
+              # reddederse günlükte görünür.
+              if ust is None or not liste_:
+                  return liste_
+              uygun = [x for x in liste_ if surum_(x) <= ust]
+              if uygun:
+                  return uygun
+              print(f"uyarı: iOS {ust[0]}.{ust[1]} SDK'sını aşmayan simülatör yok.", file=sys.stderr)
+              return [x for x in liste_ if surum_(x)[0] == ust[0]] or liste_
+
           adaylar = []
           for rt, cihazlar in liste("devices", "available")["devices"].items():
               v = surum(rt)
@@ -261,11 +292,13 @@ jobs:
                   if c.get("isAvailable", True) and c["name"].startswith("iPhone"):
                       adaylar.append((v, oncelik(c["name"]), c["name"], c["udid"]))
 
+          adaylar = sdk_uygun(adaylar, lambda a: a[0])
           if adaylar:
               v, _, ad, udid = max(adaylar)
           else:
               rts = [r for r in liste("runtimes", "available")["runtimes"]
                      if surum(r["identifier"]) is not None]
+              rts = sdk_uygun(rts, lambda r: surum(r["identifier"]))
               if not rts:
                   raise SystemExit("Kurulu iOS simülatör ortamı yok.")
               rt = max(rts, key=lambda r: surum(r["identifier"]))
@@ -282,6 +315,7 @@ jobs:
           print(f"SIM_UDID={udid}")
           print(f"SIM_ADI={ad}")
           print(f"SIM_IOS={v[0]}.{v[1]}")
+          print(f"SIM_SDK={os.environ.get('SDK_SURUM') or '?'}")
           PY
           cat "$RUNNER_TEMP/simulator.env"
           cat "$RUNNER_TEMP/simulator.env" >> "$GITHUB_ENV"
@@ -294,7 +328,7 @@ jobs:
         timeout-minutes: 10
         run: |
           set -euo pipefail
-          echo "simülatör: $SIM_ADI (iOS $SIM_IOS)" >> "$CIKTI/durum.txt"
+          echo "simülatör: $SIM_ADI (iOS $SIM_IOS, Xcode'un simülatör SDK'sı $SIM_SDK)" >> "$CIKTI/durum.txt"
           # Sitenin runner'dan erişilebilir olup olmadığı: boş ekranı yorumlamak için.
           kod=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://kasa.emarglobal.com/ || true)
           echo "site HTTP durumu (runner'dan): ${kod:-yok}" >> "$CIKTI/durum.txt"
@@ -569,7 +603,8 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          IMZASIZ_ARSIV: ${{ inputs.imzasiz_arsiv }}
+          # Elle çalıştırmada kutu işaretliyse ya da depo değişkeni true ise.
+          IMZASIZ_ARSIV: ${{ inputs.imzasiz_arsiv || vars.IOS_IMZASIZ_ARSIV }}
         run: |
           set -euo pipefail
           bicimle() {
@@ -584,10 +619,13 @@ jobs:
             CODE_SIGN_STYLE=Automatic
             CURRENT_PROJECT_VERSION="$DERLEME_NO"
           )
-          if [ "${IMZASIZ_ARSIV:-false}" = true ]; then
-            echo "::notice::Arşiv imzasız alınıyor; imza dışa aktarırken atılacak."
-            ayarlar+=(CODE_SIGNING_ALLOWED=NO)
-          fi
+          imzasiz=$(printf '%s' "${IMZASIZ_ARSIV:-}" | tr '[:upper:]' '[:lower:]')
+          case "$imzasiz" in
+            true|1|evet)
+              echo "::notice::Arşiv imzasız alınıyor; imza dışa aktarırken atılacak."
+              ayarlar+=(CODE_SIGNING_ALLOWED=NO)
+              ;;
+          esac
           # -allowProvisioningUpdates + API anahtarı: Xcode gerekli sertifika ve
           # profilleri kendisi oluşturur/indirir (bulut imzalama).
           xcodebuild archive \
@@ -669,6 +707,7 @@ jobs:
       # Dosyaya yazılan günlükler maskelenmez (xcodebuild komut satırını da
       # yazar); sırların geçtiği her yer *** yapılır.
       - name: Günlükleri temizle ve özetle
+        id: temizle
         if: always()
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -680,7 +719,8 @@ jobs:
           mkdir -p "$KAYIT"
           for log in "$KAYIT"/*.log; do
             [ -f "$log" ] || continue
-            python3 - "$log" <<'PY'
+            # Maskelenemeyen günlük hiç saklanmaz.
+            python3 - "$log" <<'PY' || { rm -f "$log"; echo "::warning::$(basename "$log") temizlenemedi, silindi."; continue; }
           import os, sys
           yol = sys.argv[1]
           metin = open(yol, encoding="utf-8", errors="replace").read()
@@ -707,8 +747,10 @@ jobs:
             echo "commit: $GITHUB_SHA"
           } > "$KAYIT/durum.txt"
 
+      # İş çıktısını herkese açık depoda oturum açmış herkes indirebilir:
+      # temizlik adımı tamamlanmadıysa (ham günlük kalmış olabilir) yüklenmez.
       - name: Günlükleri iş çıktısı olarak sakla
-        if: always()
+        if: always() && steps.temizle.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: emar-kasa-ios-testflight-kayit

@@ -61,6 +61,18 @@ final class GezintiKuraliTests: XCTestCase {
                                                       gosterilebilir: true, anaEkran: false))
     }
 
+    func testIndirmeHatasi() {
+        XCTAssertNil(GezintiKurali.indirmeHatasi(durumKodu: 200))
+        XCTAssertNil(GezintiKurali.indirmeHatasi(durumKodu: 206))
+        XCTAssertEqual(GezintiKurali.indirmeHatasi(durumKodu: 401),
+                       "Oturumunuz sona ermiş. Sayfayı yenileyip yeniden giriş yapın.")
+        XCTAssertEqual(GezintiKurali.indirmeHatasi(durumKodu: 404),
+                       "Dosya bulunamadı, silinmiş olabilir. Sayfayı yenileyip tekrar deneyin.")
+        XCTAssertNotNil(GezintiKurali.indirmeHatasi(durumKodu: 403))
+        XCTAssertNotNil(GezintiKurali.indirmeHatasi(durumKodu: 500))
+        XCTAssertNotNil(GezintiKurali.indirmeHatasi(durumKodu: 302))
+    }
+
     func testGuvenliAd() {
         XCTAssertEqual(GezintiKurali.guvenliAd("kasa-yedek-2026-09-25.zip"), "kasa-yedek-2026-09-25.zip")
         XCTAssertEqual(GezintiKurali.guvenliAd("Şubat faturası.pdf"), "Şubat faturası.pdf")

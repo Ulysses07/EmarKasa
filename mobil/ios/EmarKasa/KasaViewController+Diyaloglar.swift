@@ -45,7 +45,8 @@ extension KasaViewController: WKUIDelegate {
 
     // WebKit, tamamlayıcı hiç çağrılmazsa ya da iki kez çağrılırsa uygulamayı
     // durdurur. TekSeferlik ikinci çağrıyı yutar; gösterilemeyen uyarıda
-    // varsayılan yanıt hemen verilir.
+    // varsayılan yanıt hemen verilir, düğmesine basılmadan kapanan uyarıda
+    // (rapor sayfasıyla birlikte) raporuKapat verir.
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo,
@@ -81,7 +82,8 @@ extension KasaViewController: WKUIDelegate {
 
     /// Uyarıyı en üstteki ekranda gösterir. Uygulama arka plandaysa, ekranda
     /// zaten bir uyarı varsa ya da sunum tutmazsa `olmazsa` hemen çağrılır.
-    private func goster(_ uyari: UIAlertController, olmazsa: () -> Void) {
+    /// Gösterildiyse `olmazsa` varsayılan yanıt olarak saklanır.
+    private func goster(_ uyari: UIAlertController, olmazsa: @escaping @MainActor () -> Void) {
         let ust = enUstteki
         guard let sahne = view.window?.windowScene, sahne.activationState != .background,
               !(ust is UIAlertController) else {
@@ -89,7 +91,11 @@ extension KasaViewController: WKUIDelegate {
             return
         }
         ust.present(uyari, animated: true)
-        if uyari.presentingViewController == nil { olmazsa() }
+        if uyari.presentingViewController == nil {
+            olmazsa()
+        } else {
+            jsVarsayilanYaniti = olmazsa
+        }
     }
 }
 

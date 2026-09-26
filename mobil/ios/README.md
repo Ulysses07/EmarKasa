@@ -24,13 +24,23 @@ yalnız yerel kabuk (bu klasör) değiştiğinde çıkar.
 - İndirmeler: yedek (zip), Excel/CSV gider raporu, alış belgeleri ve ekstre
   PDF'i telefona iner. PDF, görsel ve tablolar önizlenir, yedek paylaşım
   menüsüyle (Dosyalar'a Kaydet) verilir. Geçici dosya ekran kapanınca silinir.
+  Sunucu hata verirse (silinmiş belge, süresi dolmuş oturum) boş bir dosya
+  inmez, uyarı çıkar.
 - "Yazdır / PDF olarak kaydet" raporu ayrı bir sayfada açılır. "Yazdır"
   düğmesi sistem yazdırma ekranını açar; oradan PDF olarak da kaydedilir.
 - Alışa belge eklerken kamera, fotoğraflar ve Dosyalar kullanılabilir.
 - İnternet yoksa ya da sunucuya ulaşılamıyorsa "Tekrar dene" düğmeli bir
-  hata ekranı çıkar. Sayfa aşağı çekilerek yenilenir.
+  hata ekranı çıkar. Sayfa aşağı çekilerek yenilenir; açık bir form
+  penceresi ya da ekstre incelemesinde seçili satırlar varsa, yazılanlar
+  silinmesin diye yenilenmez.
 - Uygulamanın dili Türkçe olarak tanımlı: dosya seçici, tarih seçici gibi
   sistem ekranları telefon İngilizce olsa da Türkçe açılır.
+- Face ID kilidi (`UygulamaKilidi.swift`): uygulama açılırken ve bir
+  dakikadan uzun arka planda kaldıktan sonra Face ID ya da Touch ID ister,
+  ikisi de yoksa telefon şifresini sorar. Telefonda şifre yoksa kilit
+  çalışmaz. Uygulama etkinliğini kaybedince (uygulama değiştirici, Denetim
+  Merkezi) içerik bir örtüyle gizlenir. Ayarlar > Emar Kasa > "Face ID
+  kilidi" ile kapatılır (`Settings.bundle`, varsayılan açık).
 
 **Bildirimler bu sürümde yok.** Sitenin web bildirimleri (Web Push) iPhone
 uygulamalarının içinde çalışmaz. Site bunu kendisi algılar ve bildirim ayarında
@@ -122,6 +132,20 @@ secret:
 | `ASC_KEY_P8_BASE64` | `.p8` dosyasının base64 hali: `base64 -i AuthKey_XXXXXXXXXX.p8` (Linux'ta `base64 -w0`). Dosyanın düz metni de kabul edilir. |
 | `APPLE_TEAM_ID` | Takım kimliği |
 
+**Kayıtlı iPhone yoksa:** imzalı arşiv bir geliştirme profili ister, Apple
+da bu profili ancak hesapta en az bir kayıtlı cihaz (UDID) varsa oluşturur;
+yoksa arşivleme "Your team has no devices" hatasıyla düşer. İki yol var:
+
+- Certificates, Identifiers & Profiles → Devices'a bir iPhone'un UDID'si
+  eklenir, ya da
+- aynı Actions ayarları sayfasında **Variables** sekmesine
+  `IOS_IMZASIZ_ARSIV` = `true` değişkeni eklenir (sır değildir). O zaman
+  arşiv imzasız alınır, uygulama yalnız App Store Connect'e giderken
+  dağıtım sertifikasıyla imzalanır. Master'a gönderim ve aylık çalıştırma
+  da bu yolu kullanır. Elle çalıştırmada aynı şey `imzasiz_arsiv`
+  kutusuyla seçilir. Bu yol henüz denenmedi (deneysel); dışa aktarma
+  adımı hata verirse kesin çözüm cihaz eklemektir.
+
 Sırlar girildikten sonra Actions → iOS → "Run workflow" ile ilk yükleme
 başlatılır.
 
@@ -133,9 +157,8 @@ başlatılır.
   yüklenir. İç test için Apple incelemesi gerekmez.
 - Dış test kullanıcıları için Apple'ın beta incelemesi gerekir; inceleme
   ekibine bir deneme hesabı (kullanıcı adı ve şifre) verilmelidir.
-- İlk yüklemede imzalama "Your team has no devices" hatası verirse Certificates,
-  Identifiers & Profiles → Devices'a bir iPhone (UDID) eklenir ya da iş
-  `imzasiz_arsiv` seçeneğiyle yeniden çalıştırılır.
+- İmzalama "Your team has no devices" hatası verirse yukarıdaki "Kayıtlı
+  iPhone yoksa" bölümüne bakın.
 - Her CI makinesi yeni bir "Created via API" geliştirme sertifikası
   oluşturabilir. Sertifika sınırına gelinirse eskileri iptal edilir.
 

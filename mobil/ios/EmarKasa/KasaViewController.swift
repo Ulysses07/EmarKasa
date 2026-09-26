@@ -8,6 +8,10 @@ final class KasaViewController: UIViewController {
     let indirme = IndirmeYoneticisi()
     /// Açık rapor penceresi (target=_blank ile açılan yazdırılabilir rapor).
     weak var rapor: RaporPenceresi?
+    /// Ekrandaki JavaScript penceresinin (alert/confirm/prompt) varsayılan
+    /// yanıtı. Pencere düğmesine basılmadan kapanırsa (rapor sayfasıyla
+    /// birlikte) WebKit'e yanıt yine verilmeli; yoksa uygulamayı durdurur.
+    var jsVarsayilanYaniti: (@MainActor () -> Void)?
 
     private let durumCubugu = UIView()
     private let ilerleme = UIProgressView(progressViewStyle: .bar)
@@ -122,8 +126,10 @@ final class KasaViewController: UIViewController {
     // MARK: Aşağı çekip yenileme
 
     @objc private func yenilemeIstendi() {
-        // Açık bir form penceresi (<dialog>) varsa yenileme yazılanları siler.
-        webView.evaluateJavaScript("!!document.querySelector('dialog[open]')") { [weak self] sonuc, _ in
+        // Yenileme kaydedilmemiş girdiyi siler: açık bir form penceresi
+        // (<dialog>) ya da ekstre incelemesinde elle seçilmiş satırlar
+        // (düzenleme alanları yalnız seçili satırda açılır) varsa yenilenmez.
+        webView.evaluateJavaScript("!!document.querySelector('dialog[open], .import-row.selected')") { [weak self] sonuc, _ in
             self?.yenile(formAcik: (sonuc as? Bool) == true)
         }
     }
@@ -162,6 +168,23 @@ final class KasaViewController: UIViewController {
 
     func raporuKapat(uyari: String?) {
         guard let kap = rapor?.navigationController, kap.presentingViewController != nil else { return }
+        // Açılış animasyonu sürerken (çevrimdışıyken yükleme milisaniyeler
+        // içinde düşer) ya da üstünde bir ekran açılıp kapanırken UIKit
+        // kapatmayı yok sayar ve uyarı hiç çıkmaz. Geçiş bitince yeniden denenir.
+        if kap.transitionCoordinator != nil {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                self?.raporuKapat(uyari: uyari)
+            }
+            return
+        }
+        // Rapor sayfasının üstünde bekleyen bir JavaScript penceresi sayfayla
+        // birlikte kapanır, düğmesine basılmaz; yanıtı burada verilir.
+        // (Yanıtlanmış pencerede ikinci çağrı etkisizdir.)
+        if kap.presentedViewController != nil, let yanit = jsVarsayilanYaniti {
+            jsVarsayilanYaniti = nil
+            yanit()
+        }
         kap.dismiss(animated: true) { [weak self] in
             if let uyari { self?.uyar("Rapor açılamadı", uyari) }
         }

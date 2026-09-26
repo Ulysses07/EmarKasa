@@ -55,6 +55,7 @@ targets:
         UIUserInterfaceStyle: Light          # site yalnız açık renk temalı
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        NSFaceIDUsageDescription: "Kasa defterinizi Face ID ile açmak için kullanılır."
         NSCameraUsageDescription: "Fiş, fatura veya dekontun fotoğrafını çekip alışa eklemek için kamera kullanılır."
         NSPhotoLibraryUsageDescription: "Fiş, fatura veya dekont görselini fotoğraflarınızdan seçip alışa eklemek için kullanılır."
         NSPhotoLibraryAddUsageDescription: "İndirdiğiniz belge görselini Fotoğraflar'a kaydetmek için kullanılır."

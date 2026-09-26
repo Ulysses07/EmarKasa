@@ -61,6 +61,24 @@ enum GezintiKurali {
         return tur != "text/html" && tur != "application/xhtml+xml"
     }
 
+    /// İndirmede sunucu hata döndürdüyse kullanıcıya gösterilecek açıklama;
+    /// başarılı (2xx) yanıtta nil. Belge ve ekstre bağlantıları sayfanın
+    /// yanıt denetiminden geçmeden doğrudan sunucuya gider.
+    static func indirmeHatasi(durumKodu: Int) -> String? {
+        switch durumKodu {
+        case 200...299:
+            return nil
+        case 401:
+            return "Oturumunuz sona ermiş. Sayfayı yenileyip yeniden giriş yapın."
+        case 403:
+            return "Bu dosyayı indirme yetkiniz yok."
+        case 404, 410:
+            return "Dosya bulunamadı, silinmiş olabilir. Sayfayı yenileyip tekrar deneyin."
+        default:
+            return "Dosya şu anda indirilemiyor. Biraz sonra tekrar deneyin."
+        }
+    }
+
     /// Önerilen dosya adından güvenli bir ad: klasör kısmı atılır, boşsa
     /// "kasa-dosyasi" olur. Türkçe harfler korunur.
     static func guvenliAd(_ onerilen: String) -> String {
