@@ -1,0 +1,808 @@
+name: iOS
+
+# iPhone uygulaması (mobil/ios): canlı web ekranını (kasa.emarglobal.com) yerel
+# bir WKWebView kabuğunda açar. Xcode projesi depoda değil, project.yml'den
+# XcodeGen ile üretilir.
+#
+# - derle: her değişiklikte imzasız simülatör derlemesi. Uygulama simülatörde
+#   açılır, canlı site yüklendikten sonra ekran görüntüsü alınır, ardından
+#   birim testleri çalışır. Görüntüler, derleme ve test günlükleri taslak
+#   (herkese kapalı) bir sürüme eklenir.
+# - testflight: Apple sırları tanımlıysa master'daki her değişiklikte, ayda bir
+#   (TestFlight derlemeleri 90 günde düşer) ve elle çalıştırıldığında arşivler,
+#   imzalar ve App Store Connect'e (TestFlight) yükler. Sırlar yoksa atlanır.
+#
+# Sırlar (depo ayarları > Secrets and variables > Actions):
+#   ASC_KEY_ID, ASC_ISSUER_ID   App Store Connect API anahtarının kimlikleri
+#   ASC_KEY_P8_BASE64           AuthKey_XXXX.p8 dosyasının base64 hali
+#   APPLE_TEAM_ID               Apple geliştirici takım kimliği (10 karakter)
+# Depo herkese açık: bu değerler hiçbir dosyaya yazılmaz, günlüğe basılmaz.
+#
+# Değişken (aynı sayfa > Variables, sır değil):
+#   IOS_IMZASIZ_ARSIV=true      Apple hesabında kayıtlı iPhone (UDID) yoksa.
+#                               İmzalı arşiv geliştirme profili ister, o da en
+#                               az bir kayıtlı cihaz ister ("Your team has no
+#                               devices"). Bu değişkenle master'a gönderim ve
+#                               aylık çalıştırma da (deneysel) imzasız arşiv
+#                               yolunu kullanır.
+on:
+  push:
+    # branches verilmezse etiket (tag) gönderimleri de iş başlatır; yol
+    # süzgeci etiketlerde uygulanmaz.
+    branches: ['**']
+    paths:
+      - 'mobil/ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: "TestFlight'a da yüklensin mi? (Apple sırları tanımlıysa)"
+        type: boolean
+        default: true
+      xcode:
+        description: 'Xcode sürümü, örn. 26.5 (boş: imajın varsayılanı)'
+        type: string
+        default: ''
+      imzasiz_arsiv:
+        description: 'Deneysel: arşiv imzasız alınır, yalnız dışa aktarırken imzalanır (kayıtlı iPhone yoksa)'
+        type: boolean
+        default: false
+  schedule:
+    # Her ayın 1'i, 04:23 UTC (07:23 TSİ): TestFlight'ta hep süresi dolmamış
+    # bir derleme bulunsun. Sırlar yoksa yalnız simülatör denemesi çalışır.
+    - cron: '23 4 1 * *'
+
+# En az yetki: varsayılan yalnız okuma. Yazma yetkisi yalnız taslak sürüm
+# oluşturan işlerde, o işe özel verilir.
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BEKLENEN_KIMLIK: com.royalmezat.kasa
+  SEMA_ISTENEN: EmarKasa
+  # App Store Connect her nisan en düşük SDK'yı yükseltir; 2026 için Xcode 26
+  # (iOS 26 SDK). Nisan 2027'de 27 olursa bu sayı ve runs-on birlikte değişir.
+  ASGARI_XCODE: '26'
+  # Derleme numarası: çalıştırma numarası. Aynı çalıştırma yeniden denenirse
+  # App Store Connect aynı numarayı reddeder; o zaman "57.2" gibi bir ek alır.
+  DERLEME_NO: ${{ github.run_attempt == '1' && github.run_number || format('{0}.{1}', github.run_number, github.run_attempt) }}
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+  HOMEBREW_NO_ENV_HINTS: '1'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  derle:
+    name: Derle ve simülatörde aç
+    # macos-latest şu an macOS 26, ileride 27'ye geçecek; sürpriz olmasın diye
+    # açıkça macos-26 (arm64, Xcode 26.x, iOS 26 simülatörleri).
+    runs-on: macos-26
+    timeout-minutes: 45
+    permissions:
+      # Yalnız ekran görüntüsü ve günlüğü taslak (herkese kapalı) bir sürüme
+      # eklemek için. Bu işte Apple sırrı yok.
+      contents: write
+    env:
+      CIKTI: ${{ github.workspace }}/ios-ci-cikti
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Çıktı klasörü
+        run: mkdir -p "$CIKTI"
+
+      - name: Xcode seç
+        env:
+          XCODE_ISTENEN: ${{ inputs.xcode }}
+        run: |
+          set -euo pipefail
+          if [ -n "${XCODE_ISTENEN:-}" ]; then
+            desen='^[0-9]+(\.[0-9]+){0,2}$'
+            if ! [[ $XCODE_ISTENEN =~ $desen ]]; then
+              echo "::error::Geçersiz Xcode sürümü: $XCODE_ISTENEN"
+              exit 1
+            fi
+            yol="/Applications/Xcode_${XCODE_ISTENEN}.app"
+            if [ ! -d "$yol" ]; then
+              echo "::error::$yol kurulu değil. Kurulu olanlar:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+            sudo xcode-select -s "$yol/Contents/Developer"
+          fi
+          # Boşsa imajın varsayılanı kalır (/Applications/Xcode.app). GitHub onu
+          # imajdaki en yeni kararlı Xcode 26.x'e ayarlar.
+          xcode-select -p
+          xcodebuild -version
+          surum=$(xcodebuild -version | awk 'NR==1 {print $2}')
+          if [ "${surum%%.*}" -lt "$ASGARI_XCODE" ]; then
+            echo "::error::Xcode $surum eski, en az Xcode $ASGARI_XCODE gerekli."
+            exit 1
+          fi
+          echo "XCODE_SURUMU=$surum" >> "$GITHUB_ENV"
+          xcrun simctl list runtimes available
+
+      - name: XcodeGen kur
+        run: |
+          set -euo pipefail
+          brew install xcodegen || { sleep 15; brew install xcodegen; }
+          xcodegen --version
+
+      - name: Xcode projesini üret
+        working-directory: mobil/ios
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          proje=""
+          for p in *.xcodeproj; do
+            if [ -d "$p" ]; then proje="$p"; break; fi
+          done
+          if [ -z "$proje" ]; then
+            echo "::error::XcodeGen .xcodeproj üretmedi."
+            exit 1
+          fi
+          xcodebuild -list -project "$proje"
+          # Şema adı project.yml'de EmarKasa beklenir; yoksa ilk paylaşılan şema.
+          sema=$(xcodebuild -list -json -project "$proje" | python3 -c '
+          import json, os, sys
+          s = json.load(sys.stdin)["project"].get("schemes") or []
+          istenen = os.environ.get("SEMA_ISTENEN", "")
+          print(istenen if istenen in s else (s[0] if s else ""))')
+          if [ -z "$sema" ]; then
+            echo "::error::Paylaşılan şema yok. project.yml'de hedefe 'scheme: {}' ya da 'schemes:' eklenmeli."
+            exit 1
+          fi
+          if [ "$sema" != "$SEMA_ISTENEN" ]; then
+            echo "::warning::'$SEMA_ISTENEN' şeması yok, '$sema' kullanılıyor."
+          fi
+          echo "PROJE=$proje" >> "$GITHUB_ENV"
+          echo "SEMA=$sema" >> "$GITHUB_ENV"
+
+      - name: Simülatör için derle (imzasız)
+        working-directory: mobil/ios
+        run: |
+          set -euo pipefail
+          bicimle() {
+            if command -v xcbeautify >/dev/null 2>&1; then
+              xcbeautify --renderer github-actions
+            else
+              cat
+            fi
+          }
+          xcodebuild build \
+            -project "$PROJE" \
+            -scheme "$SEMA" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="$DERLEME_NO" \
+            2>&1 | tee "$CIKTI/xcodebuild-simulator.log" | bicimle
+          # İmzası protokoldekiyle tutmayan isteğe bağlı bir delegate yöntemi
+          # (WKNavigationDelegate, WKUIDelegate...) derlenir ama WebKit onu hiç
+          # çağırmaz; Swift yalnız "nearly matches" uyarısı verir. Hata sayılır.
+          if grep -n 'nearly matches' "$CIKTI/xcodebuild-simulator.log"; then
+            echo "::error::Bir delegate yönteminin imzası protokoldekiyle tutmuyor (nearly matches); WebKit o yöntemi çağırmaz."
+            exit 1
+          fi
+
+      - name: Info.plist denetimi
+        run: |
+          set -euo pipefail
+          APP=$(find "$RUNNER_TEMP/dd/Build/Products/Release-iphonesimulator" -maxdepth 1 -type d -name '*.app' 2>/dev/null | head -n 1 || true)
+          if [ -z "$APP" ]; then
+            echo "::error::Derlenmiş .app bulunamadı."
+            exit 1
+          fi
+          plist="$APP/Info.plist"
+          oku() { /usr/libexec/PlistBuddy -c "Print :$1" "$plist" 2>/dev/null || true; }
+          kimlik=$(oku CFBundleIdentifier)
+          {
+            echo "Xcode: $XCODE_SURUMU"
+            echo "uygulama: $(basename "$APP")"
+            echo "paket kimliği: $kimlik"
+            echo "görünen ad: $(oku CFBundleDisplayName)"
+            echo "sürüm: $(oku CFBundleShortVersionString) ($(oku CFBundleVersion))"
+            echo "en düşük iOS: $(oku MinimumOSVersion)"
+          } >> "$CIKTI/durum.txt"
+          if [ "$kimlik" != "$BEKLENEN_KIMLIK" ]; then
+            echo "::error::Paket kimliği $kimlik, beklenen $BEKLENEN_KIMLIK."
+            exit 1
+          fi
+          # App Store / TestFlight'ın isteyip derleme sırasında hata vermeyen
+          # eksikler: burada uyarı olarak görünsün.
+          if [ "$(oku CFBundleVersion)" != "$DERLEME_NO" ]; then
+            echo "::warning::CFBundleVersion CI numarasını almıyor; Info.plist'te \$(CURRENT_PROJECT_VERSION) olmalı."
+          fi
+          if [ "$(oku ITSAppUsesNonExemptEncryption)" != "false" ]; then
+            echo "::warning::ITSAppUsesNonExemptEncryption=NO yok; TestFlight her derlemede şifreleme sorusu sorar."
+          fi
+          if [ -z "$(oku UILaunchScreen)" ] && [ -z "$(oku UILaunchStoryboardName)" ]; then
+            echo "::warning::Açılış ekranı (UILaunchScreen) tanımlı değil; App Store yüklemeyi reddeder."
+          fi
+          if [ -z "$(oku CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName)" ] || [ ! -f "$APP/Assets.car" ]; then
+            echo "::warning::Uygulama simgesi (AppIcon) derlenmemiş; App Store yüklemeyi reddeder."
+          fi
+          {
+            echo "APP=$APP"
+            echo "KIMLIK=$kimlik"
+            echo "YURUTULEBILIR=$(oku CFBundleExecutable)"
+          } >> "$GITHUB_ENV"
+
+      - name: Simülatör seç ve başlat
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          # Cihaz adı sabit yazılmaz: imajda ne varsa, en yeni iOS'taki en yeni
+          # iPhone seçilir. Hiç yoksa bir tane oluşturulur.
+          # simctl makinedeki bütün simülatör ortamlarını listeler, seçili
+          # Xcode'unkileri değil. İmajda daha yeni bir Xcode da (ör. 27 betası)
+          # kuruluysa onun iOS 27 ortamı da görünür; 'xcodebuild test' o
+          # cihazı "Ineligible destinations" diye reddeder. Bu yüzden seçili
+          # Xcode'un simülatör SDK'sından yeni olmayan ortamlar tercih edilir.
+          SDK_SURUM=$(xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null || true)
+          export SDK_SURUM
+          echo "simülatör SDK'sı: ${SDK_SURUM:-bilinmiyor}"
+          python3 - > "$RUNNER_TEMP/simulator.env" <<'PY'
+          import json, os, re, subprocess, sys
+
+          def liste(*tur):
+              return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *tur, "-j"]))
+
+          def surum(metin):
+              m = re.search(r"iOS[- ](\d+)[-.](\d+)", metin)
+              return (int(m.group(1)), int(m.group(2))) if m else None
+
+          def oncelik(ad):
+              # Önce "iPhone 17 Pro" / "iPhone 17" gibi olağan boylar, sonra numara.
+              m = re.match(r"iPhone (\d+)", ad)
+              olagan = 1 if re.fullmatch(r"iPhone \d+( Pro)?", ad) else 0
+              return (olagan, int(m.group(1)) if m else 0, ad.endswith(" Pro"))
+
+          m = re.match(r"(\d+)(?:\.(\d+))?", os.environ.get("SDK_SURUM", ""))
+          ust = (int(m.group(1)), int(m.group(2) or 0)) if m else None
+
+          def sdk_uygun(liste_, surum_):
+              # SDK'yı aşmayanlar; yoksa SDK ile aynı ana sürümdekiler; o da
+              # yoksa (ya da SDK okunamadıysa) hepsi. Test adımı hedefi yine
+              # reddederse günlükte görünür.
+              if ust is None or not liste_:
+                  return liste_
+              uygun = [x for x in liste_ if surum_(x) <= ust]
+              if uygun:
+                  return uygun
+              print(f"uyarı: iOS {ust[0]}.{ust[1]} SDK'sını aşmayan simülatör yok.", file=sys.stderr)
+              return [x for x in liste_ if surum_(x)[0] == ust[0]] or liste_
+
+          adaylar = []
+          for rt, cihazlar in liste("devices", "available")["devices"].items():
+              v = surum(rt)
+              if v is None:
+                  continue
+              for c in cihazlar:
+                  if c.get("isAvailable", True) and c["name"].startswith("iPhone"):
+                      adaylar.append((v, oncelik(c["name"]), c["name"], c["udid"]))
+
+          adaylar = sdk_uygun(adaylar, lambda a: a[0])
+          if adaylar:
+              v, _, ad, udid = max(adaylar)
+          else:
+              rts = [r for r in liste("runtimes", "available")["runtimes"]
+                     if surum(r["identifier"]) is not None]
+              rts = sdk_uygun(rts, lambda r: surum(r["identifier"]))
+              if not rts:
+                  raise SystemExit("Kurulu iOS simülatör ortamı yok.")
+              rt = max(rts, key=lambda r: surum(r["identifier"]))
+              turler = rt.get("supportedDeviceTypes") or liste("devicetypes")["devicetypes"]
+              turler = [t for t in turler if t["name"].startswith("iPhone")]
+              if not turler:
+                  raise SystemExit("iPhone cihaz türü yok.")
+              tur = max(turler, key=lambda t: oncelik(t["name"]))
+              ad, v = tur["name"], surum(rt["identifier"])
+              udid = subprocess.check_output(
+                  ["xcrun", "simctl", "create", "Kasa CI", tur["identifier"], rt["identifier"]],
+                  text=True).strip()
+
+          print(f"SIM_UDID={udid}")
+          print(f"SIM_ADI={ad}")
+          print(f"SIM_IOS={v[0]}.{v[1]}")
+          print(f"SIM_SDK={os.environ.get('SDK_SURUM') or '?'}")
+          PY
+          cat "$RUNNER_TEMP/simulator.env"
+          cat "$RUNNER_TEMP/simulator.env" >> "$GITHUB_ENV"
+          SIM_UDID=$(sed -n 's/^SIM_UDID=//p' "$RUNNER_TEMP/simulator.env")
+          xcrun simctl bootstatus "$SIM_UDID" -b
+          xcrun simctl status_bar "$SIM_UDID" override --time 9:41 \
+            --batteryState charged --batteryLevel 100 || true
+
+      - name: Uygulamayı kur, aç ve ekran görüntüsü al
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          echo "simülatör: $SIM_ADI (iOS $SIM_IOS, Xcode'un simülatör SDK'sı $SIM_SDK)" >> "$CIKTI/durum.txt"
+          # Sitenin runner'dan erişilebilir olup olmadığı: boş ekranı yorumlamak için.
+          kod=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://kasa.emarglobal.com/ || true)
+          echo "site HTTP durumu (runner'dan): ${kod:-yok}" >> "$CIKTI/durum.txt"
+
+          xcrun simctl install "$SIM_UDID" "$APP"
+          # Türkçe dil ve bölge: tarih/sayı biçimleri gerçek kullanıcıdaki gibi olsun.
+          # Önce varsayılan ayarlarla açılır: Face ID kilit ekranı görünmeli.
+          xcrun simctl launch "$SIM_UDID" "$KIMLIK" -AppleLanguages '(tr)' -AppleLocale tr_TR
+          sleep 10
+          xcrun simctl io "$SIM_UDID" screenshot --type=png "$CIKTI/ekran-kilit.png"
+          xcrun simctl terminate "$SIM_UDID" "$KIMLIK" || true
+          # CI simülatöründe Face ID penceresi açılamıyor ("UI activation timed
+          # out"), kilit hep kapalı kalır. Siteyi görmek için kilit bu açılışta
+          # kapatılır (komut satırı ayarı, telefona kaydedilmez).
+          baslat=$(xcrun simctl launch "$SIM_UDID" "$KIMLIK" -AppleLanguages '(tr)' -AppleLocale tr_TR -uygulamaKilidi NO)
+          echo "$baslat"
+          pid=${baslat##*: }
+
+          sleep 20
+          xcrun simctl io "$SIM_UDID" screenshot --type=png "$CIKTI/ekran-20sn.png"
+          sleep 20
+          xcrun simctl io "$SIM_UDID" screenshot --type=png "$CIKTI/ekran-40sn.png"
+
+          # Simülatördeki uygulama Mac'te sıradan bir süreçtir; PID ile bakılır.
+          acik=hayır
+          case "$pid" in
+            ''|*[!0-9]*)
+              # Beklenmeyen çıktı: simülatörün launchctl listesine bak ("-" = çalışmıyor).
+              if xcrun simctl spawn "$SIM_UDID" launchctl list 2>/dev/null \
+                  | grep -F "UIKitApplication:$KIMLIK" | grep -qvE '^-'; then
+                acik=evet
+              fi
+              ;;
+            *) if kill -0 "$pid" 2>/dev/null; then acik=evet; fi ;;
+          esac
+          echo "40. saniyede uygulama açık: $acik" >> "$CIKTI/durum.txt"
+
+          xcrun simctl spawn "$SIM_UDID" log show --last 3m --style compact \
+            --predicate "process == \"$YURUTULEBILIR\" OR process BEGINSWITH \"com.apple.WebKit\"" \
+            2>&1 | tail -n 3000 > "$CIKTI/simulator-gunlugu.txt" || true
+          # Çöktüyse çökme raporu da gelsin.
+          cp "$HOME/Library/Logs/DiagnosticReports/$YURUTULEBILIR"*.ips "$CIKTI"/ 2>/dev/null || true
+
+          if [ "$acik" != evet ]; then
+            echo "::error::Uygulama 40 saniye içinde kapandı (çöktü olabilir). simulator-gunlugu.txt'ye bakın."
+            exit 1
+          fi
+
+      # Gezinti kuralları (yalnız kasa.emarglobal.com uygulamada açılır,
+      # indirmeler, dosya adları). Debug derlemesi aynı simülatörde çalışır.
+      - name: Birim testleri
+        timeout-minutes: 20
+        working-directory: mobil/ios
+        run: |
+          set -euo pipefail
+          bicimle() {
+            if command -v xcbeautify >/dev/null 2>&1; then
+              xcbeautify --renderer github-actions
+            else
+              cat
+            fi
+          }
+          xcodebuild test \
+            -project "$PROJE" \
+            -scheme "$SEMA" \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$CIKTI/xcodebuild-test.log" | bicimle
+
+      - name: Günlük özeti
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$CIKTI"
+          bulundu=hayir
+          for log in "$CIKTI"/xcodebuild-*.log; do
+            [ -f "$log" ] || continue
+            bulundu=evet
+            {
+              echo "== Hatalar, uyarılar ve test sonuçları (ilk 200) =="
+              grep -nE 'error:|warning:|\*\* [A-Z ]+ (SUCCEEDED|FAILED) \*\*|The following build commands failed|Executed [0-9]+ test' "$log" | head -n 200 || true
+              echo
+              echo "== Son 150 satır =="
+              tail -n 150 "$log"
+            } > "${log%.log}-ozet.txt"
+            gzip -9 -c "$log" > "$log.gz"
+          done
+          if [ "$bulundu" = hayir ]; then
+            echo "xcodebuild günlüğü yok: derleme adımına gelinmedi." > "$CIKTI/xcodebuild-ozet.txt"
+          fi
+
+      - name: İş çıktısı olarak sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emar-kasa-ios-ci
+          path: ${{ env.CIKTI }}
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Taslak sürüme ekle
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_DURUMU: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$CIKTI"
+          {
+            echo "iş durumu: $IS_DURUMU"
+            echo "commit: $GITHUB_SHA"
+            echo "çalıştırma: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } >> "$CIKTI/durum.txt"
+          {
+            echo "### iOS simülatör denemesi"
+            echo '```'
+            cat "$CIKTI/durum.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          dosyalar=()
+          for f in "$CIKTI"/*.png "$CIKTI"/*.txt "$CIKTI"/*.log.gz "$CIKTI"/*.ips; do
+            if [ -f "$f" ]; then dosyalar+=("$f"); fi
+          done
+          etiket="ios-ci-$GITHUB_RUN_NUMBER"
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then etiket="$etiket-$GITHUB_RUN_ATTEMPT"; fi
+          # durum.txt her zaman var, dizi boş kalmaz.
+          if gh release create "$etiket" "${dosyalar[@]}" \
+              --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+              --title "iOS simülatör $GITHUB_RUN_NUMBER ($IS_DURUMU)" \
+              --notes "CI çıktısı: simülatör ekran görüntüleri, derleme ve test günlükleri. Uygulama dosyası değil."; then
+            echo "Taslak sürüm: $etiket"
+          else
+            echo "::warning::Taslak sürüm oluşturulamadı; dosyalar iş çıktısında (emar-kasa-ios-ci)."
+          fi
+
+  # Sırlar job düzeyindeki if'te kullanılamaz. Bu küçük iş onları ortam
+  # değişkenine alıp yalnız "var/yok" bilgisini çıktı olarak verir; yoksa
+  # TestFlight işi macOS makinesi hiç açılmadan atlanır.
+  testflight-kontrol:
+    name: TestFlight sırları var mı
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_dispatch' && inputs.testflight)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      hazir: ${{ steps.kontrol.outputs.hazir }}
+    steps:
+      - name: Apple sırları tanımlı mı?
+        id: kontrol
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          eksik=""
+          [ -n "$ASC_KEY_ID" ] || eksik="$eksik ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || eksik="$eksik ASC_ISSUER_ID"
+          [ -n "$ASC_KEY_P8_BASE64" ] || eksik="$eksik ASC_KEY_P8_BASE64"
+          [ -n "$APPLE_TEAM_ID" ] || eksik="$eksik APPLE_TEAM_ID"
+          if [ -z "$eksik" ]; then
+            echo "hazir=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hazir=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=TestFlight atlandı::Eksik depo sırları:$eksik"
+          fi
+
+  testflight:
+    name: TestFlight'a yükle
+    needs: [derle, testflight-kontrol]
+    if: needs.testflight-kontrol.outputs.hazir == 'true'
+    runs-on: macos-26
+    timeout-minutes: 60
+    # Apple sırlarını taşıyan iş depoya yazamaz; günlükleri taslak sürüme
+    # sırsız "testflight-rapor" işi ekler.
+    permissions:
+      contents: read
+    env:
+      KAYIT: ${{ github.workspace }}/ios-testflight-kayit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Kayıt klasörü
+        run: |
+          set -euo pipefail
+          mkdir -p "$KAYIT"
+          echo "ARSIV=$RUNNER_TEMP/EmarKasa.xcarchive" >> "$GITHUB_ENV"
+
+      - name: Xcode seç
+        env:
+          XCODE_ISTENEN: ${{ inputs.xcode }}
+        run: |
+          set -euo pipefail
+          if [ -n "${XCODE_ISTENEN:-}" ]; then
+            desen='^[0-9]+(\.[0-9]+){0,2}$'
+            if ! [[ $XCODE_ISTENEN =~ $desen ]]; then
+              echo "::error::Geçersiz Xcode sürümü: $XCODE_ISTENEN"
+              exit 1
+            fi
+            yol="/Applications/Xcode_${XCODE_ISTENEN}.app"
+            if [ ! -d "$yol" ]; then
+              echo "::error::$yol kurulu değil. Kurulu olanlar:"
+              ls -d /Applications/Xcode*.app
+              exit 1
+            fi
+            sudo xcode-select -s "$yol/Contents/Developer"
+          fi
+          xcode-select -p
+          xcodebuild -version
+          surum=$(xcodebuild -version | awk 'NR==1 {print $2}')
+          if [ "${surum%%.*}" -lt "$ASGARI_XCODE" ]; then
+            echo "::error::Xcode $surum eski; App Store Connect en az Xcode $ASGARI_XCODE ile derlenmiş yükleme kabul ediyor."
+            exit 1
+          fi
+          echo "XCODE_SURUMU=$surum" >> "$GITHUB_ENV"
+
+      # Sırlar henüz diskte değil: Homebrew/XcodeGen kodu onları göremez.
+      - name: XcodeGen kur
+        run: |
+          set -euo pipefail
+          brew install xcodegen || { sleep 15; brew install xcodegen; }
+          xcodegen --version
+
+      - name: Xcode projesini üret
+        working-directory: mobil/ios
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          proje=""
+          for p in *.xcodeproj; do
+            if [ -d "$p" ]; then proje="$p"; break; fi
+          done
+          if [ -z "$proje" ]; then
+            echo "::error::XcodeGen .xcodeproj üretmedi."
+            exit 1
+          fi
+          sema=$(xcodebuild -list -json -project "$proje" | python3 -c '
+          import json, os, sys
+          s = json.load(sys.stdin)["project"].get("schemes") or []
+          istenen = os.environ.get("SEMA_ISTENEN", "")
+          print(istenen if istenen in s else (s[0] if s else ""))')
+          if [ -z "$sema" ]; then
+            echo "::error::Paylaşılan şema yok. project.yml'de hedefe 'scheme: {}' ya da 'schemes:' eklenmeli."
+            exit 1
+          fi
+          echo "PROJE=$proje" >> "$GITHUB_ENV"
+          echo "SEMA=$sema" >> "$GITHUB_ENV"
+
+      - name: API anahtarını geçici dosyaya yaz
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/asc"
+          anahtar="$RUNNER_TEMP/asc/AuthKey.p8"
+          # Sır base64 ya da doğrudan .p8 metni olabilir; ikisi de kabul.
+          if printf '%s' "$ASC_KEY_P8_BASE64" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY_P8_BASE64" > "$anahtar"
+          elif ! printf '%s' "$ASC_KEY_P8_BASE64" | tr -d ' \r\n\t' | base64 --decode > "$anahtar" 2>/dev/null; then
+            echo "::error::ASC_KEY_P8_BASE64 base64 olarak çözülemedi."
+            exit 1
+          fi
+          if ! openssl pkey -in "$anahtar" -noout 2>/dev/null; then
+            echo "::error::ASC_KEY_P8_BASE64 geçerli bir .p8 anahtarı değil."
+            exit 1
+          fi
+          echo "ASC_ANAHTAR=$anahtar" >> "$GITHUB_ENV"
+
+      - name: Arşivle (imzalı, Release)
+        working-directory: mobil/ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Elle çalıştırmada kutu işaretliyse ya da depo değişkeni true ise.
+          IMZASIZ_ARSIV: ${{ inputs.imzasiz_arsiv || vars.IOS_IMZASIZ_ARSIV }}
+        run: |
+          set -euo pipefail
+          bicimle() {
+            if command -v xcbeautify >/dev/null 2>&1; then
+              xcbeautify --renderer github-actions
+            else
+              cat
+            fi
+          }
+          ayarlar=(
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+            CODE_SIGN_STYLE=Automatic
+            CURRENT_PROJECT_VERSION="$DERLEME_NO"
+          )
+          imzasiz=$(printf '%s' "${IMZASIZ_ARSIV:-}" | tr '[:upper:]' '[:lower:]')
+          case "$imzasiz" in
+            true|1|evet)
+              echo "::notice::Arşiv imzasız alınıyor; imza dışa aktarırken atılacak."
+              ayarlar+=(CODE_SIGNING_ALLOWED=NO)
+              ;;
+          esac
+          # -allowProvisioningUpdates + API anahtarı: Xcode gerekli sertifika ve
+          # profilleri kendisi oluşturur/indirir (bulut imzalama).
+          xcodebuild archive \
+            -project "$PROJE" \
+            -scheme "$SEMA" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARSIV" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_ANAHTAR" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            "${ayarlar[@]}" \
+            2>&1 | tee "$KAYIT/xcodebuild-arsiv.log" | bicimle
+
+      - name: Arşivi denetle
+        run: |
+          set -euo pipefail
+          oku() { /usr/libexec/PlistBuddy -c "Print :ApplicationProperties:$1" "$ARSIV/Info.plist"; }
+          kimlik=$(oku CFBundleIdentifier)
+          surum=$(oku CFBundleShortVersionString)
+          derleme=$(oku CFBundleVersion)
+          echo "Arşiv: $kimlik $surum ($derleme), Xcode $XCODE_SURUMU"
+          if [ "$kimlik" != "$BEKLENEN_KIMLIK" ]; then
+            echo "::error::Paket kimliği $kimlik, beklenen $BEKLENEN_KIMLIK."
+            exit 1
+          fi
+          if [ "$derleme" != "$DERLEME_NO" ]; then
+            echo "::error::Derleme numarası $derleme, beklenen $DERLEME_NO. Info.plist'te CFBundleVersion = \$(CURRENT_PROJECT_VERSION) olmalı."
+            exit 1
+          fi
+          echo "YUKLENEN_SURUM=$surum ($derleme)" >> "$GITHUB_ENV"
+
+      - name: İmzala ve TestFlight'a yükle
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bicimle() {
+            if command -v xcbeautify >/dev/null 2>&1; then
+              xcbeautify --renderer github-actions
+            else
+              cat
+            fi
+          }
+          secenekler="$RUNNER_TEMP/asc/ExportOptions.plist"
+          rm -f "$secenekler"
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$secenekler" >/dev/null; }
+          pb "Add :method string app-store-connect"
+          pb "Add :destination string upload"
+          pb "Add :teamID string $APPLE_TEAM_ID"
+          pb "Add :signingStyle string automatic"
+          pb "Add :manageAppVersionAndBuildNumber bool false"
+          pb "Add :uploadSymbols bool true"
+          plutil -lint "$secenekler" >/dev/null
+          # destination=upload: dışa aktarılan .ipa doğrudan App Store Connect'e gider.
+          xcodebuild -exportArchive \
+            -archivePath "$ARSIV" \
+            -exportOptionsPlist "$secenekler" \
+            -exportPath "$RUNNER_TEMP/disari" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_ANAHTAR" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "$KAYIT/xcodebuild-yukle.log" | bicimle
+          {
+            echo "### TestFlight"
+            echo "Emar Kasa $YUKLENEN_SURUM App Store Connect'e yüklendi."
+            echo "Apple işledikten sonra (genelde 5-30 dk) TestFlight'ta görünür."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: API anahtarını sil
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
+
+      # Dosyaya yazılan günlükler maskelenmez (xcodebuild komut satırını da
+      # yazar); sırların geçtiği her yer *** yapılır.
+      - name: Günlükleri temizle ve özetle
+        id: temizle
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IS_DURUMU: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$KAYIT"
+          for log in "$KAYIT"/*.log; do
+            [ -f "$log" ] || continue
+            # Maskelenemeyen günlük hiç saklanmaz.
+            python3 - "$log" <<'PY' || { rm -f "$log"; echo "::warning::$(basename "$log") temizlenemedi, silindi."; continue; }
+          import os, sys
+          yol = sys.argv[1]
+          metin = open(yol, encoding="utf-8", errors="replace").read()
+          for ad in ("ASC_KEY_ID", "ASC_ISSUER_ID", "APPLE_TEAM_ID"):
+              deger = os.environ.get(ad, "")
+              if len(deger) >= 4:
+                  metin = metin.replace(deger, "***")
+          open(yol, "w", encoding="utf-8").write(metin)
+          PY
+            ozet="${log%.log}-ozet.txt"
+            {
+              echo "== Hatalar ve uyarılar (ilk 200) =="
+              grep -nE 'error:|warning:|\*\* [A-Z ]+ (SUCCEEDED|FAILED) \*\*|The following build commands failed|[Uu]pload' "$log" | head -n 200 || true
+              echo
+              echo "== Son 150 satır =="
+              tail -n 150 "$log"
+            } > "$ozet"
+            gzip -9 "$log"
+          done
+          {
+            echo "iş durumu: $IS_DURUMU"
+            echo "Xcode: ${XCODE_SURUMU:-?}"
+            echo "yüklenen: ${YUKLENEN_SURUM:-yok}"
+            echo "commit: $GITHUB_SHA"
+          } > "$KAYIT/durum.txt"
+
+      # İş çıktısını herkese açık depoda oturum açmış herkes indirebilir:
+      # temizlik adımı tamamlanmadıysa (ham günlük kalmış olabilir) yüklenmez.
+      - name: Günlükleri iş çıktısı olarak sakla
+        if: always() && steps.temizle.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: emar-kasa-ios-testflight-kayit
+          path: ${{ env.KAYIT }}
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # TestFlight günlüklerini taslak sürüme ekler. Apple sırlarını görmez,
+  # yalnız temizlenmiş günlükleri indirir.
+  testflight-rapor:
+    name: TestFlight günlüğünü taslak sürüme ekle
+    needs: testflight
+    if: always() && needs.testflight.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Günlükleri indir
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: emar-kasa-ios-testflight-kayit
+          path: kayit
+
+      - name: Taslak sürüme ekle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SONUC: ${{ needs.testflight.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p kayit
+          echo "TestFlight işi sonucu: $SONUC" >> kayit/durum.txt
+          dosyalar=()
+          for f in kayit/*.txt kayit/*.log.gz; do
+            if [ -f "$f" ]; then dosyalar+=("$f"); fi
+          done
+          etiket="ios-testflight-$GITHUB_RUN_NUMBER"
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then etiket="$etiket-$GITHUB_RUN_ATTEMPT"; fi
+          if gh release create "$etiket" "${dosyalar[@]}" \
+              --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+              --title "iOS TestFlight $GITHUB_RUN_NUMBER ($SONUC)" \
+              --notes "CI çıktısı: arşiv ve yükleme günlükleri (sırlar *** yapıldı). Uygulama dosyası değil."; then
+            echo "Taslak sürüm: $etiket"
+          else
+            echo "::warning::Taslak sürüm oluşturulamadı; günlükler iş çıktısında."
+          fi

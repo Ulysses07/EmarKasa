@@ -1,0 +1,15 @@
+# XcodeGen'in project.yml'den ürettikleri
+*.xcodeproj/
+EmarKasa/Info.plist
+
+# Derleme çıktıları
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+xcuserdata/
+
+# App Store Connect API anahtarı ve dışa aktarma ayarı asla depoya girmez
+*.p8
+ExportOptions.plist
