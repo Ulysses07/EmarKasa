@@ -486,7 +486,20 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   const report = await api(`/api/rapor/aylik?yil=${year}&ay=${period}`); if (generation !== renderId || request !== monthlyRequest) return;
   const total = monthlyTotals(report); const monthInput = input('ay', month, { type: 'month', required: true, 'aria-label': 'Rapor ayı' });
   const lock = h('div');
-  $('#view').replaceChildren(...childValues([h('div', { class: 'toolbar' }, monthInput, button('Ayı göster', event => run(event.currentTarget, () => { if (monthInput.reportValidity()) return renderMonthly(generation, monthInput.value); }))), !runtime.saltOkunur && lock, h('div', { class: 'summary-strip' }, summary('Aylık gelen', money(total.incoming)), summary('Aylık gider', money(total.expenses)), summary('Ay sonucu', money(total.result))), pendingNotice(report.dagilimBekleyenTutar), table(['Kanal', 'Gelen', 'Diğer gider', 'Sabit gider', 'Kredi kartı', 'Ortak pay', 'Ay sonucu'], report.kanallar.map(k => [k.kanal, moneyNode(k.gelen), moneyNode(k.cariGiden), moneyNode(k.sabitGider), moneyNode(k.krediKarti), moneyNode(k.ortakPay), moneyNode(k.aySonucu)])), report.genelGelir > 0 && h('p', { class: 'plan-note' }, `Yalnız genel kasa geliri: ${money(report.genelGelir)}. Yukarıdaki aylık gelen toplamına dahildir; kanal kasalarına dağıtılmaz.`), report.genelGider > 0 && h('p', { class: 'plan-note' }, `Yalnız genel kasa gideri: ${money(report.genelGider)}. Yukarıdaki aylık gider toplamına dahildir; kanal kasalarına dağıtılmaz.`), h('p', { class: 'plan-note' }, 'Yeni kart takibinde ödeme kaydı; eski kartlarda geçiş öncesi erteleme kuralı geçerlidir. Kredi taksitleri tarihinde otomatik işlenir. Ortak giderler ve dağılım bekleyen tutarlar ayrı izlenir.')]));
+  // Kural 2 (K2): kredi girişi Gelen ve Ay sonucu dışında, ayrı sütunda. Kural 1 ile dondurulmuş kapalı ayda (ya da eski sunucuda)
+  // takipli kredi çekimi Gelen'in ve Ay sonucunun içindedir; sütun bilgi amaçlıdır.
+  const creditSeparate = (report.kuralSurumu || 1) >= 2;
+  const credit = report.krediGirisi || 0;
+  const unassignedCredit = (cents(credit) - report.kanallar.reduce((sum, k) => sum + cents(k.krediGirisi || 0), 0)) / 100;
+  const resultLabel = creditSeparate ? 'Ay sonucu (kredi hariç)' : 'Ay sonucu';
+  $('#view').replaceChildren(...childValues([h('div', { class: 'toolbar' }, monthInput, button('Ayı göster', event => run(event.currentTarget, () => { if (monthInput.reportValidity()) return renderMonthly(generation, monthInput.value); }))), !runtime.saltOkunur && lock,
+    report.dondurulmus && h('div', { class: 'notice', role: 'status' }, h('strong', {}, 'Kapatılmış ay. '), `Rapor, ay kapatıldığı andaki haliyle gösterilir; sonraki kural değişiklikleri bu ayı etkilemez${creditSeparate ? '' : ' (eski kural: takipli kredi çekimi Gelen ve Ay sonucu içindedir)'}. Değişiklik için ayı gerekçeyle açın.`),
+    report.veriSagligiUyarisi && h('div', { class: 'notice', role: 'status' }, report.veriSagligiUyarisi),
+    h('div', { class: 'summary-strip' }, summary('Aylık gelen', money(total.incoming)), summary('Aylık gider', money(total.expenses)), summary(resultLabel, money(total.result), creditSeparate && credit !== 0 ? `Kredi girişi ${money(credit)} sonuca dahil değildir.` : null)),
+    pendingNotice(report.dagilimBekleyenTutar), table(['Kanal', 'Gelen', 'Kredi girişi', 'Diğer gider', 'Sabit gider', 'Kredi kartı', 'Ortak pay', resultLabel], report.kanallar.map(k => [k.kanal, moneyNode(k.gelen), moneyNode(k.krediGirisi || 0), moneyNode(k.cariGiden), moneyNode(k.sabitGider), moneyNode(k.krediKarti), moneyNode(k.ortakPay), moneyNode(k.aySonucu)])),
+    creditSeparate && credit !== 0 && h('p', { class: 'plan-note' }, `Kredi girişi: ${money(credit)}. Genel kasaya (takipli kredide kanal kasasına da) girer; aylık gelen ve ay sonucu (faaliyet sonucu) içinde değildir.${unassignedCredit !== 0 ? ` Kanala dağıtılmayan eski kredi çekimi: ${money(unassignedCredit)}.` : ''}`),
+    !creditSeparate && report.kanallar.some(k => k.krediGirisi) && h('p', { class: 'plan-note' }, 'Bu ayın raporu eski kuralla dondurulmuştur: "Kredi girişi" sütunundaki takipli kredi çekimi "Gelen" ve "Ay sonucu" içindedir.'),
+    report.genelGelir > 0 && h('p', { class: 'plan-note' }, `Yalnız genel kasa geliri: ${money(report.genelGelir)}. Yukarıdaki aylık gelen toplamına dahildir; kanal kasalarına dağıtılmaz.`), report.genelGider > 0 && h('p', { class: 'plan-note' }, `Yalnız genel kasa gideri: ${money(report.genelGider)}. Yukarıdaki aylık gider toplamına dahildir; kanal kasalarına dağıtılmaz.`), h('p', { class: 'plan-note' }, 'Yeni kart takibinde ödeme kaydı; eski kartlarda geçiş öncesi erteleme kuralı geçerlidir. Kredi taksitleri tarihinde otomatik işlenir. Ortak giderler ve dağılım bekleyen tutarlar ayrı izlenir.')]));
   if (!runtime.saltOkunur) {
     try { const panel = await monthlyUi.lockPanel(month, () => generation === renderId ? renderMonthly(generation, month) : Promise.resolve()); if (generation === renderId && request === monthlyRequest) lock.replaceChildren(panel); }
     catch (error) { if (generation === renderId && request === monthlyRequest) lock.replaceChildren(help(`Ay kilidi yüklenemedi: ${error.message}`)); }
@@ -559,12 +572,22 @@ async function incomeDialog(periodStart = null) {
 async function expenseDialog(expense = null) {
   const [channels, cards] = await Promise.all([api('/api/kanallar'), api('/api/kredikartlari')]);
   const type = select('tip', [{ value: 'Cari', label: 'Diğer gider' }, { value: 'SabitGider', label: 'Sabit gider' }, { value: 'KrediKarti', label: 'Kredi kartı gideri' }], expense?.tip || 'Cari');
-  const card = select('krediKartiId', [{ value: '', label: 'Kart seçilmedi' }, ...cards.map(k => ({ value: k.id, label: k.ad }))], expense?.krediKartiId);
-  const cardField = field('Kredi kartı', card); const cardVisibility = () => { cardField.hidden = type.value !== 'KrediKarti'; }; type.addEventListener('change', cardVisibility); cardVisibility();
+  // K3: yeni kredi kartı gideri yalnız yeni takipteki, yeni kullanıma açık bir karta bağlanır. Düzenlenen eski kredi kartı kaydı
+  // kendi (eski) kartıyla ya da kartsız kalabilir: tutar/not düzeltilir; yalnız o seçenek ayrıca listelenir.
+  const tracked = cards.filter(k => k.yeniTakip && k.aktif);
+  const oldCardExpense = expense?.tip === 'KrediKarti' ? expense : null;
+  const cardlessOld = Boolean(oldCardExpense) && oldCardExpense.krediKartiId == null;
+  const oldCard = oldCardExpense && oldCardExpense.krediKartiId != null && !tracked.some(k => k.id === oldCardExpense.krediKartiId)
+    ? { value: oldCardExpense.krediKartiId, label: `${cards.find(k => k.id === oldCardExpense.krediKartiId)?.ad || 'Kart'} (eski kayıt)` } : null;
+  const cardRequired = 'Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.';
+  const card = select('krediKartiId', [{ value: '', label: cardlessOld ? '— Kartsız eski kayıt —' : 'Kart seçin' }, ...tracked.map(k => ({ value: k.id, label: k.ad })), ...(oldCard ? [oldCard] : [])], expense?.krediKartiId);
+  const cardField = field('Kredi kartı', card, !tracked.length && !oldCardExpense ? help('Takipte kart yok. Kredi Kartları bölümünden kart ekleyin ya da eski kartı yeni takibe geçirin.') : null);
+  const cardVisibility = () => { cardField.hidden = type.value !== 'KrediKarti'; card.required = type.value === 'KrediKarti' && !cardlessOld; }; type.addEventListener('change', cardVisibility); cardVisibility();
   const channel = select('kanal', [{ value: '', label: 'Kanal seçin' }, ...channels.filter(c => c.aktif || c.ad === expense?.kanal).map(c => ({ value: c.ad, label: c.ad })), { value: 'Ortak', label: 'Ortak' }], expense?.kanal || '', { required: true });
   const total = signedAmountField('tutarTl', expense?.tutarTl ?? '', 'Tutar (₺)');
   formDialog(expense ? 'Gideri düzenle' : 'Gider kaydet', h('div', { class: 'stack' }, field('Açıklama / ödeme yapılan yer', input('cari', expense?.cari || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Tarih', input('tarih', expense?.tarih || today(), { type: 'date', required: true })), total.node, field('Kanal', channel), field('Gider türü', type)), cardField, field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')), help('Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.')), 'Gideri kaydet', async form => {
     const data = values(form);
+    if (data.tip === 'KrediKarti' && !card.value && !cardlessOld) throw Object.assign(new Error(cardRequired), { fields: { krediKartiId: cardRequired } });
     const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null };
     if (!expense && !await confirmSimilar(form, { tur: 'Gider', tarih: body.tarih, tutar: body.tutarTl, krediKartiId: body.krediKartiId, kanal: body.kanal, alisId: null }, body)) return;
     await api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body }); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);

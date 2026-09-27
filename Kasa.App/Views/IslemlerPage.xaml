@@ -82,7 +82,8 @@
                                 </FlexLayout>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0" IsVisible="{Binding KartSeciciGorunur}">
-                                <Label Text="Kart" Style="{StaticResource LblField}" />
+                                <Label Text="Kart (yeni takipteki kartlar)" Style="{StaticResource LblField}" />
+                                <Label Text="{Binding KartUyarisi}" TextColor="#765100" IsVisible="{Binding KartUyarisi, Converter={StaticResource DoluIse}}" />
                                 <FlexLayout Wrap="Wrap" AlignItems="Center"
                                             BindableLayout.ItemsSource="{Binding KartCipleri}">
                                     <BindableLayout.ItemTemplate>
