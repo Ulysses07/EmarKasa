@@ -8,18 +8,9 @@ public static class KasaKontrolEndpoints
 {
     public static WebApplication MapKasaKontrolEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/kasa-esikleri", (KasaDbContext db, HesapServisi hesap) => AlisEndpoints.Mutate(db, () =>
-        {
-            var balances = hesap.Panel().Kanallar.ToDictionary(k => k.KanalId ?? 0, k => k.Bakiye);
-            var limits = db.KasaEsikleri.AsNoTracking().ToDictionary(x => x.KanalId);
-            return Results.Ok(db.Kanallar.AsNoTracking().OrderBy(k => k.Sira).ToList().Select(k =>
-            {
-                limits.TryGetValue(k.Id, out var limit);
-                var balance = balances.GetValueOrDefault(k.Id);
-                return new KasaEsikDto(k.Id, k.Ad, limit?.Surum ?? 0, limit?.Tutar ?? 0, limit?.Etkin ?? false, balance,
-                    limit is { Etkin: true } && balance < limit.Tutar);
-            }).ToList());
-        })).RequireAuthorization("Finans");
+        // Okuma: bakiye ve eşikler aynı salt okunur anlık görüntüden; yazma kilidi alınmaz.
+        app.MapGet("/api/kasa-esikleri", (KasaDbContext db, HesapServisi hesap, CancellationToken ct) =>
+            AlisEndpoints.Oku(db, () => Results.Ok(Esikler(db, hesap.Panel(ct))))).RequireAuthorization("Finans");
 
         app.MapPut("/api/kasa-esikleri/{kanalId:int}", (int kanalId, KasaEsikYaz dto, KasaDbContext db, HesapServisi hesap) => AlisEndpoints.Mutate(db, () =>
         {
@@ -40,10 +31,10 @@ public static class KasaKontrolEndpoints
 
         app.MapGet("/api/kasa-kontrol", (KasaDbContext db) => db.KasaKontrolleri.AsNoTracking().OrderByDescending(x => x.Id).Take(50).ToList().Select(ToDto))
             .RequireAuthorization("Finans");
-        app.MapPost("/api/kasa-kontrol/onizleme", (KasaKontrolOnizle dto, KasaDbContext db, HesapServisi hesap) => AlisEndpoints.Mutate(db, () =>
+        app.MapPost("/api/kasa-kontrol/onizleme", (KasaKontrolOnizle dto, KasaDbContext db, HesapServisi hesap, CancellationToken ct) => AlisEndpoints.Oku(db, () =>
         {
             if (Validate(dto.GercekBakiye, dto.Not) is { } error) return error;
-            return Results.Ok(Preview(hesap.Panel().GuncelKasa, dto.GercekBakiye, dto.Not));
+            return Results.Ok(Preview(hesap.Panel(ct).GuncelKasa, dto.GercekBakiye, dto.Not));
         })).RequireAuthorization("Editor");
         app.MapPost("/api/kasa-kontrol", (KasaKontrolYaz dto, KasaDbContext db, HesapServisi hesap, TimeProvider saat) => AlisEndpoints.Mutate(db, () =>
         {
@@ -59,6 +50,20 @@ public static class KasaKontrolEndpoints
             return Results.Ok(ToDto(row));
         })).RequireAuthorization("Editor");
         return app;
+    }
+
+    /// <summary>Kanal eşikleri ve verilen paneldeki bakiyeler (aynı anlık görüntüde okunmuş olmalı).</summary>
+    internal static List<KasaEsikDto> Esikler(KasaDbContext db, PanelDto panel)
+    {
+        var balances = panel.Kanallar.ToDictionary(k => k.KanalId ?? 0, k => k.Bakiye);
+        var limits = db.KasaEsikleri.AsNoTracking().ToDictionary(x => x.KanalId);
+        return db.Kanallar.AsNoTracking().OrderBy(k => k.Sira).ToList().Select(k =>
+        {
+            limits.TryGetValue(k.Id, out var limit);
+            var balance = balances.GetValueOrDefault(k.Id);
+            return new KasaEsikDto(k.Id, k.Ad, limit?.Surum ?? 0, limit?.Tutar ?? 0, limit?.Etkin ?? false, balance,
+                limit is { Etkin: true } && balance < limit.Tutar);
+        }).ToList();
     }
 
     private static IResult? Validate(decimal actual, string? note)

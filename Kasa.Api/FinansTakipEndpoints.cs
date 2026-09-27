@@ -13,24 +13,12 @@ public static partial class FinansTakipEndpoints
     {
         var api = app.MapGroup("/api/takip").RequireAuthorization("Finans");
         MapKartMasrafEndpoints(api);
-        api.MapGet("/kartlar", (KasaDbContext db) => View(db, () => db.KrediKartlari.Select(k => k.Id).ToList().Select(id => Kart(db, id)).ToList()));
-        api.MapGet("/kartlar/{id:int}", (int id, KasaDbContext db) => View(db, () => { Require(db.KrediKartlari.Any(k => k.Id == id), "Kart bulunamadı.", 404); return Kart(db, id); }));
-        api.MapGet("/krediler", (KasaDbContext db) => View(db, () => db.Krediler.Select(k => k.Id).ToList().Select(id => Kredi(db, id)).ToList()));
-        api.MapGet("/krediler/{id:int}", (int id, KasaDbContext db) => View(db, () => { Require(db.Krediler.Any(k => k.Id == id), "Kredi bulunamadı.", 404); return Kredi(db, id); }));
-        api.MapGet("/ozet", (int? gun, KasaDbContext db) => View(db, () =>
-        {
-            var days = gun ?? 30; Require(days is >= 1 and <= 366, "Gün 1–366 olmalı.");
-            var today = Bugun;
-            var cards = db.KrediKartlari.Select(k => k.Id).ToList().Select(id => Kart(db, id)).ToList();
-            var debts = cards.SelectMany(c => c.KanalKartBorclari ?? []).GroupBy(p => p.KanalId)
-                .OrderBy(g => g.Key is null).ThenBy(g => g.Key)
-                .Select(g => new TakipKanalPayi(g.Key, g.First().Kanal, g.Sum(p => p.Tutar))).ToList();
-            return new TakipOzetDto(today, cards.Sum(c => Math.Max(0, c.Borc)),
-                db.Krediler.Select(k => k.Id).ToList().Sum(id => Kredi(db, id).KalanPlanliOdeme),
-                GetNotificationEvents(db, today).Where(e => (e.Tarih >= today && e.Tarih <= today.AddDays(days))
-                    || (e.Kaynak == "Kart" && e.Tur == "SonOdeme" && e.Tutar > 0 && e.Tarih < today)).OrderBy(e => e.Tarih).ToList(),
-                debts, cards.Sum(c => Math.Max(0, -c.Borc)));
-        }));
+        // Okumalar salt okunur anlık görüntüde, istek başına tek hesap bağlamıyla (kart verisi bir kez okunur); Sync yapmaz.
+        api.MapGet("/kartlar", (KasaDbContext db, CancellationToken ct) => View(db, b => db.KrediKartlari.Select(k => k.Id).ToList().Select(id => Kart(b, id)).ToList(), ct));
+        api.MapGet("/kartlar/{id:int}", (int id, KasaDbContext db, CancellationToken ct) => View(db, b => { Require(db.KrediKartlari.Any(k => k.Id == id), "Kart bulunamadı.", 404); return Kart(b, id); }, ct));
+        api.MapGet("/krediler", (KasaDbContext db, CancellationToken ct) => View(db, b => db.Krediler.Select(k => k.Id).ToList().Select(id => Kredi(b, id)).ToList(), ct));
+        api.MapGet("/krediler/{id:int}", (int id, KasaDbContext db, CancellationToken ct) => View(db, b => { Require(db.Krediler.Any(k => k.Id == id), "Kredi bulunamadı.", 404); return Kredi(b, id); }, ct));
+        api.MapGet("/ozet", (int? gun, KasaDbContext db, CancellationToken ct) => View(db, b => Ozet(b, gun ?? 30), ct));
 
         api.MapPost("/kartlar", (KartTakipYaz dto, KasaDbContext db) => Change(db, true, 0, null, dto.IstekId, "KartYeni", dto, () =>
         {
@@ -301,7 +289,28 @@ public static partial class FinansTakipEndpoints
     }
     internal static TakipKartEntity ManagedCard(KasaDbContext db, int id) { var t = db.TakipKartlar.SingleOrDefault(t => t.KrediKartiId == id); Require(t is not null, "Bu eski kart için önce geçiş önizlemesini onaylayın.", 409); return t!; }
     private static TakipKrediEntity ManagedLoan(KasaDbContext db, int id) { var t = db.TakipKrediler.SingleOrDefault(t => t.KrediId == id); Require(t is not null, "Bu eski kredi için önce geçiş önizlemesini onaylayın.", 409); return t!; }
-    internal static IResult View(KasaDbContext db, Func<object> read) => Safe(() => AlisEndpoints.Mutate(db, () => { Sync(db); return Results.Ok(read()); }));
+    /// <summary>Takip özeti: kartlar ve krediler bir kez hesaplanır, olaylar aynı DTO'lardan türetilir (ikinci hesap yok).
+    /// Olay süzgeci: önümüzdeki <paramref name="days"/> gün ve ödenmemiş geciken kart son ödemeleri.</summary>
+    internal static TakipOzetDto Ozet(TakipHesapBaglami b, int days)
+    {
+        Require(days is >= 1 and <= 366, "Gün 1–366 olmalı.");
+        var db = b.Db; var today = b.Bugun;
+        var cards = db.KrediKartlari.Select(k => k.Id).ToList().Select(id => Kart(b, id)).ToList();
+        var debts = cards.SelectMany(c => c.KanalKartBorclari ?? []).GroupBy(p => p.KanalId)
+            .OrderBy(g => g.Key is null).ThenBy(g => g.Key)
+            .Select(g => new TakipKanalPayi(g.Key, g.First().Kanal, g.Sum(p => p.Tutar))).ToList();
+        var loans = db.Krediler.Select(k => k.Id).ToList().Select(id => Kredi(b, id)).ToList();
+        var events = TakipOlaylari(b, cards.ToDictionary(c => c.Id), loans.ToDictionary(l => l.Id));
+        return new TakipOzetDto(today, cards.Sum(c => Math.Max(0, c.Borc)), loans.Sum(l => l.KalanPlanliOdeme),
+            events.Where(e => (e.Tarih >= today && e.Tarih <= today.AddDays(days))
+                || (e.Kaynak == "Kart" && e.Tur == "SonOdeme" && e.Tutar > 0 && e.Tarih < today)).OrderBy(e => e.Tarih).ToList(),
+            debts, cards.Sum(c => Math.Max(0, -c.Borc)));
+    }
+    /// <summary>Salt okunur uç (GET ve önizlemeler): tutarlı okuma anlık görüntüsü, yazma kilidi ve Sync yok. Takip
+    /// kayıtları yazma yollarının sonunda, tarihe bağlı ekstreler bakım adımında yazılır (okumada türetilir).</summary>
+    internal static IResult View(KasaDbContext db, Func<object> read) => Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(read())));
+    internal static IResult View(KasaDbContext db, Func<TakipHesapBaglami, object> read, CancellationToken ct) =>
+        Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(read(new TakipHesapBaglami(db, ct)))));
     private static IResult Change(KasaDbContext db, bool card, int id, int? version, Guid requestId, string kind, object payload, Func<int> edit) => Safe(() => AlisEndpoints.Mutate(db, () =>
     {
         var node = JsonSerializer.SerializeToNode(payload)!;

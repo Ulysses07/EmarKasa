@@ -179,7 +179,13 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             {
                 using var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = temporary, Pooling = false }.ToString());
                 target.Open();
+                // Yedekleme API'si WAL'daki işlenmiş sayfaları da tutarlı anlık görüntüyle kopyalar; ancak kaynağın WAL
+                // başlığını da kopyalar. Yedek tek dosya olmalı (ZIP'teki kasa.db, salt okunur doğrulama ve restore aracı
+                // -wal/-shm olmadan açar): kopya geri alma günlüğü kipine çevrilir.
                 source.BackupDatabase(target);
+                using var mode = target.CreateCommand();
+                mode.CommandText = "PRAGMA journal_mode = DELETE;";
+                mode.ExecuteNonQuery();
             }
             finally { if (close) source.Close(); }
             // Yedek, özgün bağlantıdan bağımsız açılıp bütünlük ve ilişkiler sınanır.
@@ -218,7 +224,9 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         }
         finally
         {
-            if (temporary is not null && File.Exists(temporary)) File.Delete(temporary);
+            if (temporary is not null)
+                foreach (var file in new[] { temporary, temporary + "-wal", temporary + "-shm", temporary + "-journal" })
+                    if (File.Exists(file)) File.Delete(file);
             if (zipTemporary is not null && File.Exists(zipTemporary)) File.Delete(zipTemporary);
             kilit.Release();
         }

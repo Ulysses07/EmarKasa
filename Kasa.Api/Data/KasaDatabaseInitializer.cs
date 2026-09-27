@@ -3,6 +3,7 @@ using Kasa.Api.Migrations;
 using Kasa.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Kasa.Api.Data;
 
@@ -22,11 +23,29 @@ public static class KasaDatabaseInitializer
                 BridgeLegacyDatabase(connection);
 
             db.Database.Migrate();
+            WalKipineAl(db, connection);
         }
         finally
         {
             if (openedHere) connection.Close();
         }
+    }
+
+    /// <summary>
+    /// Kalıcı WAL günlük kipi: okuyucular yazanı, yazan okuyucuları bekletmez (okuma uçları DEFERRED anlık görüntüde
+    /// çalışır, bkz. <see cref="OkumaAnlikGoruntusu"/>). Kip dosya başlığında kalıcıdır; her açılışta yeniden istemek
+    /// etkisizdir. WAL'da <c>kasa.db-wal</c> ve <c>kasa.db-shm</c> veritabanının parçasıdır: uygulama çalışırken yalnız
+    /// <c>kasa.db</c> kopyalanmaz (yedek SQLite yedekleme API'siyle alınır), geri yüklemede eski -wal/-shm kaldırılır.
+    /// synchronous varsayılan (FULL) kalır: her commit diske işlenir. Bellek içi veritabanı "memory" kipinde kalır.
+    /// WAL açılamazsa (ör. paylaşılan bellek desteklemeyen dosya sistemi) uygulama eski kiple çalışır ve uyarı yazılır:
+    /// okumalar yine tutarlıdır, yalnız yazanı bekletebilir.
+    /// </summary>
+    private static void WalKipineAl(KasaDbContext db, SqliteConnection connection)
+    {
+        var mode = Convert.ToString(Scalar(connection, "PRAGMA journal_mode = WAL;"), System.Globalization.CultureInfo.InvariantCulture);
+        if (mode is "wal" or "memory") return;
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
+            .LogWarning("Veritabanı WAL kipine alınamadı (günlük kipi: {Kip}); okumalar yazma işlemlerini bekletebilir.", mode);
     }
 
     private static void BridgeLegacyDatabase(SqliteConnection connection)

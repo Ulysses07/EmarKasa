@@ -13,6 +13,13 @@ her durumda en yeni 7'sini tutar. Elle yedeklerden en yeni 10'u tutulur ve elle 
 Bu kalıba uymayan dosyalara (ör. kasa-oncesi-gecis.zip) rotasyon dokunmaz.
 Kalıcı geçmiş için yedekleri sunucu dışına da kopyalayın.
 
+WAL: Uygulama veritabanını WAL günlük kipinde çalıştırır; kasa.db-wal ve kasa.db-shm veritabanının
+parçasıdır. Uygulama çalışırken yalnız kasa.db kopyalanmaz (yedek SQLite yedekleme API'siyle alınır).
+Araç geri açtığı dosyayı -wal/-shm gerektirmeyen tek dosya (geri alma günlüğü kipi) olarak yazar;
+çıktının yanında eski -wal/-shm/-journal dosyası varsa reddeder, çünkü SQLite onları yeni dosyaya
+uygulardı. Canlı dosyayı değiştirirken uygulamayı durdurun, eski kasa.db-wal ve kasa.db-shm dosyalarını
+kasa.db ile birlikte kenara alın; uygulama ilk açılışta dosyayı yeniden WAL kipine alır.
+
 Doğrulama: python3 -m doctest restore_backup.py
 """
 import argparse
@@ -49,10 +56,59 @@ def yedek_turu(name: str):
     return "elle" if match.group(1) == "elle" else "otomatik"
 
 
+_KALINTI_EKLERI = ("-wal", "-shm", "-journal")
+
+
+def kalinti_dosyalari(path: Path):
+    """Veritabanı yolunun yanında duran SQLite günlük dosyaları (-wal, -shm, -journal).
+
+    >>> import tempfile
+    >>> d = Path(tempfile.mkdtemp())
+    >>> kalinti_dosyalari(d / "kasa.db")
+    []
+    >>> (d / "kasa.db-wal").write_bytes(b"eski")
+    4
+    >>> [p.name for p in kalinti_dosyalari(d / "kasa.db")]
+    ['kasa.db-wal']
+    """
+    return [path.with_name(path.name + ek) for ek in _KALINTI_EKLERI if path.with_name(path.name + ek).exists()]
+
+
+def wal_kipinde_mi(path: Path) -> bool:
+    """SQLite başlığının 18-19. baytları 2 ise dosya WAL kipindedir ve -wal/-shm ile açılır.
+
+    >>> import tempfile, sqlite3
+    >>> d = Path(tempfile.mkdtemp())
+    >>> with closing(sqlite3.connect(d / "wal.db")) as db:
+    ...     _ = db.execute("PRAGMA journal_mode=WAL").fetchone(); _ = db.execute("CREATE TABLE t(x)"); db.commit()
+    >>> wal_kipinde_mi(d / "wal.db")
+    True
+    >>> rollback_kipine_al(d / "wal.db"); wal_kipinde_mi(d / "wal.db"), kalinti_dosyalari(d / "wal.db")
+    (False, [])
+    >>> with closing(sqlite3.connect(d / "duz.db")) as db:
+    ...     _ = db.execute("CREATE TABLE t(x)"); db.commit()
+    >>> wal_kipinde_mi(d / "duz.db")
+    False
+    """
+    with open(path, "rb") as f:
+        header = f.read(100)
+    return len(header) == 100 and header[:16] == b"SQLite format 3\x00" and 2 in (header[18], header[19])
+
+
+def rollback_kipine_al(path: Path) -> None:
+    """WAL başlıklı kopyayı tek dosyalık geri alma günlüğü kipine çevirir (içerik değişmez). Kopyanın yanında
+    -wal olmadığından SQLite yalnız başlığı günceller; geçici -wal/-shm kapanışta silinir."""
+    with closing(sqlite3.connect(path)) as db:
+        if db.execute("PRAGMA journal_mode=DELETE").fetchone() != ("delete",):
+            raise ValueError("Yedek kopyası tek dosya kipine çevrilemedi.")
+
+
 def restore(archive_path: Path, output: Path) -> None:
     output = output.resolve()
     if output.exists():
         raise ValueError("Çıktı zaten var; mevcut veritabanının üzerine yazılmaz.")
+    if kalinti_dosyalari(output):
+        raise ValueError("Çıktının yanında eski -wal/-shm/-journal dosyası var; SQLite bunları geri açılan dosyaya uygular. Boş bir çıktı yolu seçin.")
     if not output.parent.is_dir():
         raise ValueError("Çıktı klasörü mevcut olmalıdır.")
     with zipfile.ZipFile(archive_path) as archive:
@@ -99,6 +155,9 @@ def restore(archive_path: Path, output: Path) -> None:
                     target.write(chunk)
             if digest.hexdigest().upper() != manifest.get("sha256"):
                 raise ValueError("Yedek sağlama toplamı eşleşmiyor.")
+            # Uygulamanın yedekleri tek dosyadır; WAL başlıklı bir kopya (ör. elle alınmış) doğrulamadan önce çevrilir.
+            if wal_kipinde_mi(Path(temporary)):
+                rollback_kipine_al(Path(temporary))
             # closing: 'with connect()' bağlantıyı kapatmaz; Windows'ta açık dosya geçici kopyanın silinmesini engeller.
             with closing(sqlite3.connect(Path(temporary).as_uri() + "?mode=ro", uri=True)) as db:
                 if db.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
@@ -123,8 +182,11 @@ def restore(archive_path: Path, output: Path) -> None:
                 raise
             print("Yedek doğrulandı ve yeni dosyaya geri açıldı:", output)
             print("Yedek türü:", tur or yedek_turu(Path(archive_path).name) or "belirtilmemiş")
+            print("Canlıya alırken uygulamayı durdurun; eski kasa.db-wal ve kasa.db-shm dosyalarını kasa.db ile birlikte kenara alın.")
         finally:
             Path(temporary).unlink(missing_ok=True)
+            for kalinti in kalinti_dosyalari(Path(temporary)):
+                kalinti.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
