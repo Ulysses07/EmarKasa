@@ -95,6 +95,8 @@ dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.
 
 Eksik/geçersiz kimlik ayarlarında API başlamaz. Gerçek anahtar ve parolaları depoya yazmayın. Docker Compose dosyası `KASA_JWT_KEY`, `KASA_EDITOR_KULLANICI` ve `KASA_EDITOR_SIFRE` değerlerini ilgili ASP.NET Core ayarlarına eşler. API dış erişimini HTTPS üzerinden sunun; ters vekil arkasındaki dahili HTTP bağlantısı istemci adresinden ayrıdır.
 
+Compose şablonları `/data` ve `/yedekler` için host dizinini yalnız `deploy/.env` içindeki zorunlu `KASA_DATA_DIR` ve `KASA_BACKUP_DIR` değişkenlerinden alır; değişken tanımsız veya boşsa `docker compose` durur. `deploy/kasa-data` 2.0 öncesinden korunmuş eski veritabanıdır ve bağlanmamalıdır. Etkin dizin son yayın manifestinin `dataDirectory` alanında ve çalışan konteynerin `/data` bağlama kaynağındadır. Güncellemeden önce değeri `.env`'e yazın, `docker compose -f docker-compose.nginx.yml config` ile doğrulayın, ardından `up` çalıştırın. Adımlar [deploy/README.md](deploy/README.md) "Güncelleme" bölümündedir.
+
 Bu sürümde oturum damgası doğrulaması eklendiği için önceki sürümün açık oturumları bir kez yeniden giriş gerektirir. Bundan sonra ilgili giriş bilgileri değiştirildiğinde eski oturumlar da geçersizleşir.
 
 ## Veritabanı başlangıcı ve geçiş

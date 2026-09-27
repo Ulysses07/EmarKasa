@@ -1,7 +1,15 @@
 # Bağımsız VPS dağıtımı — mevcut sistem nginx'i reverse proxy olarak kullanılır.
 # Konteyner yalnızca 127.0.0.1:8080 dinler (dışarı kapalı); nginx 80/443'ten
 # kasa.<domain> için proxy_pass eder ve certbot TLS'i sağlar.
-# Çalıştır: cd deploy && docker compose -f docker-compose.nginx.yml up -d --build
+#
+# Veri (/data) ve yedek (/yedekler) dizini ZORUNLU olarak deploy/.env içindeki
+# KASA_DATA_DIR ve KASA_BACKUP_DIR değişkenlerinden gelir; tanımsız veya boşsa
+# `docker compose` hata verip durur. Varsayılan dizin bilerek yoktur: deploy/ altındaki
+# ./kasa-data 2.0 öncesinden korunmuş ESKİ veritabanıdır; /data'ya asla bağlamayın.
+# Etkin dizin: son yayın manifestinin dataDirectory alanı veya çalışan konteynerin
+# /data bağlama kaynağı (docker inspect kasa-app). Ayrıntı: deploy/README.md.
+# Önce doğrula: cd deploy && docker compose -f docker-compose.nginx.yml config
+# Çalıştır:     cd deploy && docker compose -f docker-compose.nginx.yml up -d --build
 services:
   kasa:
     build:
@@ -21,8 +29,8 @@ services:
       Yedek__Etkin: "true"
       Yedek__Dizin: "/yedekler"
     volumes:
-      - ./kasa-data:/data
-      - ./kasa-backups:/yedekler
+      - "${KASA_DATA_DIR:?KASA_DATA_DIR deploy/.env içinde etkin veri dizinine (yayın manifesti dataDirectory) ayarlanmalı; bkz. deploy/README.md}:/data"
+      - "${KASA_BACKUP_DIR:?KASA_BACKUP_DIR deploy/.env içinde etkin yedek dizinine ayarlanmalı; bkz. deploy/README.md}:/yedekler"
     ports:
       # Yalnızca localhost'a bağla — public erişim nginx üzerinden.
       - "127.0.0.1:8080:8080"

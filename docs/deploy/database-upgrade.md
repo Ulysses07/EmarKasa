@@ -21,6 +21,10 @@ API `KasaDatabaseInitializer.Initialize(db)` çağırır:
 4. Geçiş sonrası kayıt sayılarını, bilinen dönem gelir/gider toplamlarını ve kanal bağlantılarını karşılaştırın. Ay ortasında kart giderlerinin artık erken düşmediğini hesaba katın: bu düzeltme bazı önceki yanlış kasa sonuçlarını değiştirir.
 5. Kopya üzerinde geçiş ve geri yükleme doğrulandıktan sonra yeni sürümü yayınlayın. API sağlık, giriş, panel ve aylık/haftalık rapor uçlarını kontrol edin.
 
+Kopya denemesini canlı Compose projesiyle yapmayın: şablondaki sabit `kasa-app` konteyner adı ve `127.0.0.1:8080` portu canlı konteynerle çakışır. Deneme konteynerini ayrı adla, ayrı localhost portunda ve kopya dizinini `/data`'ya bağlayarak `docker run` ile başlatın.
+
+Yayında `/data` bağlaması yalnız `deploy/.env` içindeki `KASA_DATA_DIR` değerinden gelir; değer tanımsız veya boşsa Compose durur. Yayından önce bu değerin çalışan konteynerin `/data` kaynağı ve yayın manifestinin `dataDirectory` alanıyla aynı olduğunu `docker compose ... config` ile doğrulayın ([deploy/README.md](../../deploy/README.md) "Güncelleme"). `/opt/kasa/deploy/kasa-data` 2.0 öncesinden korunmuş eski veritabanıdır. Migration geçmişi olmadığından yanlışlıkla bağlanırsa başlatıcı onu hata vermeden eski şema olarak yerinde yükseltir ve korunmuş kopya kalıcı olarak değişir.
+
 Geçiş hatası varsa hata mesajındaki verileri yedek üzerinde inceleyin. Canlı DB'yi silerek sorunu aşmayın. Geri dönüş gerekirse eski uygulama sürümüyle birlikte eşleşen yedeği geri yükleyin; eski kodu yeni şema üzerinde çalıştırmayı varsayılan geri dönüş yöntemi olarak kullanmayın.
 
 ## Kullanıcılara yansıyan değişiklikler
