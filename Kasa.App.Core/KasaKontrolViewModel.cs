@@ -15,6 +15,12 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     [ObservableProperty] private string _not = "";
     [ObservableProperty] private string? _karsilastirma;
     [ObservableProperty] private string? _esikUyarilari;
+    [ObservableProperty] private string? _kayitUyarisi;
+    // Boşaltılan alan 0 olur: 0 bakiyeyle kayıt ikinci basışta gider; bakiye ya da açıklama değişince onay sıfırlanır.
+    private bool _sifirOnayi;
+    partial void OnGercekBakiyeChanged(decimal value) => SifirOnayiniKaldir();
+    partial void OnNotChanged(string value) => SifirOnayiniKaldir();
+    private void SifirOnayiniKaldir() { _sifirOnayi = false; KayitUyarisi = null; }
     public Task YukleAsync() => YurutAsync(async n =>
     {
         VeriHazir = false;
@@ -41,17 +47,23 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         if (!EditorMu) return;
         if (!ParaAyristirici.GecerliMi(GercekBakiye)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (_onizleme is null || _girdi != Girdi()) { Hata = "Önce güncel bakiye karşılaştırmasını alın."; return; }
+        if (_girdi!.GercekBakiye == 0 && !_sifirOnayi)
+        {
+            _sifirOnayi = true;
+            KayitUyarisi = "Gerçek toplam bakiye 0,00 ₺ olarak kaydedilecek. Alan boş bırakılmış olabilir. Onaylamak için yeniden kaydedin.";
+            return;
+        }
         var g = new KasaKontrolYaz(Guid.Empty, _girdi!.GercekBakiye, _onizleme.KontrolOzeti, _girdi.Not);
         g = g with { IstekId = _anahtar.Al(g) };
         try
         {
             var sonuc = await api.KasaKontrolKaydetAsync(g); if (!Gecerli(n)) return;
-            Gecmis.Insert(0, new(sonuc)); _anahtar.Temizle(); _girdi = null; _onizleme = null; Karsilastirma = null;
-            Mesaj = "Karşılaştırma kaydedildi. Genel kasa ve kanal bakiyeleri değiştirilmedi."; Tamamlandi();
+            Gecmis.Insert(0, new(sonuc)); _anahtar.Temizle(); _girdi = null; _onizleme = null; Karsilastirma = null; SifirOnayiniKaldir();
+            Mesaj ="Karşılaştırma kaydedildi. Genel kasa ve kanal bakiyeleri değiştirilmedi."; Tamamlandi();
         }
         catch (KasaApiException e) when ((int)e.DurumKodu == 409) { if (Gecerli(n)) { _girdi = null; _onizleme = null; Karsilastirma = null; } throw; }
     });
-    protected override void OturumTemizle() { Gecmis.Clear(); GercekBakiye = 0; Not = ""; Karsilastirma = EsikUyarilari = null; _girdi = null; _onizleme = null; _anahtar.Temizle(); }
+    protected override void OturumTemizle() { Gecmis.Clear(); GercekBakiye = 0; Not = ""; Karsilastirma = EsikUyarilari = null; _girdi = null; _onizleme = null; _anahtar.Temizle(); SifirOnayiniKaldir(); }
 }
 public record KasaKontrolSatiri(KasaKontrolDto Veri)
 {

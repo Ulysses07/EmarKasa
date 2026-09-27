@@ -95,6 +95,38 @@ public partial class ParaGirisiTests
     }
 
     [Fact]
+    public void Bagli_tutar_gecersizse_yeniden_uretilen_alan_hata_durumunda_acilir_vm_ezilmez()
+    {
+        // BindableLayout satırı yeniden üretildiğinde VM'de ParaAyristirici.Gecersiz durur; yazılan metin kaybolmuştur.
+        var vm = new Vm { Tutar = ParaAyristirici.Gecersiz };
+        var g = new ParaGirisi { Placeholder = "0,00 ₺" };
+        var (yazi, yerTutucu) = (g.TextColor, g.PlaceholderColor);
+        g.BindingContext = vm; g.SetBinding(ParaGirisi.TutarProperty, nameof(Vm.Tutar)); vm.Degisim = 0;
+
+        Assert.NotEqual(yazi, g.TextColor); Assert.NotEqual(yerTutucu, g.PlaceholderColor);
+        Assert.Equal(ParaAyristirici.GecersizGosterim, g.Placeholder);
+        Assert.Equal(ParaGirisi.YenidenYazin, ToolTipProperties.GetText(g));
+        Assert.Equal(ParaGirisi.YenidenYazin, SemanticProperties.GetHint(g));
+        g.OdakKaybedildi();                                   // boş alandan çıkmak geçersiz tutarı 0'a çevirmez
+        Assert.Equal(ParaAyristirici.Gecersiz, vm.Tutar); Assert.Equal(0, vm.Degisim);
+        Assert.Equal(ParaAyristirici.GecersizGosterim, g.Placeholder);
+
+        TusTusYaz(g, "250");
+        Assert.Equal(250m, vm.Tutar);
+        Assert.Equal(yazi, g.TextColor); Assert.Equal(yerTutucu, g.PlaceholderColor);
+        Assert.Equal("0,00 ₺", g.Placeholder); Assert.Null(ToolTipProperties.GetText(g));
+    }
+
+    [Fact]
+    public void Vm_gecersiz_tutari_temizleyince_alan_normale_doner()
+    {
+        var (g, vm) = Kur(ParaAyristirici.Gecersiz);
+        Assert.Equal(ParaAyristirici.GecersizGosterim, g.Placeholder);
+        vm.Tutar = 0m;
+        Assert.Null(g.Placeholder); Assert.Null(ToolTipProperties.GetText(g)); Assert.Equal(new ParaGirisi().TextColor, g.TextColor);
+    }
+
+    [Fact]
     public void Kontrolun_kendi_yazimi_geri_gonderimle_donguye_girmez()
     {
         var (g, vm) = Kur();

@@ -39,6 +39,9 @@
                         </VerticalStackLayout>
                         <Button Text="Ayarı kaydet" Command="{Binding AyarKaydetCommand}"
                                 HorizontalOptions="Start" />
+                        <!-- Kayıtlı açılış devrini 0'a indirme onayı (ikinci basışta kaydedilir). -->
+                        <Label Text="{Binding AyarUyarisi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding AyarUyarisi, Converter={StaticResource DoluIse}}" />
                     </VerticalStackLayout>
                 </Border>
 
@@ -108,6 +111,8 @@
                                     Grid.Row="{OnIdiom Desktop=0, Default=5}"
                                     VerticalOptions="End" />
                         </Grid>
+                        <Label Text="{Binding KanalUyarisi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding KanalUyarisi, Converter={StaticResource DoluIse}}" />
                         <Border Style="{StaticResource ErrorBox}" Margin="0,0,0,16"
                                 IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
                             <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />

@@ -19,20 +19,41 @@ public class ParaGirisi : Entry
         set => SetValue(TutarProperty, value);
     }
 
+    /// <summary>VM'de geçersiz tutar durup yazım görünmediğinde (ör. BindableLayout satırı yeniden üretildi) ipucu.</summary>
+    public const string YenidenYazin = "Bu alandaki tutar geçersiz; binlik ayırıcı kullanmadan, en çok iki ondalıkla yeniden yazın (ör. 25000 veya 25000,50).";
+
     // Kontrolün kendi yazdığı Tutar (ve TwoWay bağlamanın aynı değeri geri göndermesi) metne dokunmaz.
     private bool _icerden;
     private bool _gecersizGorunum;
+    // Bağlı geçersiz tutar hatası: boş alanda kırmızı metin görünmediğinden yer tutucu geçici olarak hatayı söyler.
+    private bool _yerTutucuHatasi;
+    private string? _eskiYerTutucu;
 
     public ParaGirisi()
     {
         TextChanged += (_, e) => MetniOku(e.NewTextValue);
-        Unfocused += (_, _) => { if (ParaAyristirici.Coz(Text, out var d, out _)) MetniYaz(ParaAyristirici.Bicimle(d)); };
+        Unfocused += (_, _) => OdakKaybedildi();
+    }
+
+    /// <summary>Odak kaybında geçerli metni biçimler. Bağlı geçersiz tutar hatasında boş metin 0'a çevrilmez:
+    /// VM'deki geçersiz değer kullanıcı yeniden yazana kadar kalır.</summary>
+    internal void OdakKaybedildi()
+    {
+        if (!_yerTutucuHatasi && ParaAyristirici.Coz(Text, out var d, out _)) MetniYaz(ParaAyristirici.Bicimle(d));
     }
 
     private static void TutarDegisti(BindableObject nesne, object eski, object yeni)
     {
         var giris = (ParaGirisi)nesne;
-        if (giris._icerden || yeni is not decimal d || !ParaAyristirici.GecerliMi(d)) return;
+        if (giris._icerden || yeni is not decimal d) return;
+        if (!ParaAyristirici.GecerliMi(d))
+        {
+            // Metin geçersiz yazımı zaten gösteriyorsa görünüm hazırdır; göstermiyorsa (yeni üretilen satır) alan
+            // hata durumunda açılır. Metin değiştirilmez: '0' yazmak VM'deki geçersiz tutarı sessizce ezerdi.
+            if (ParaAyristirici.Coz(giris.Text, out _, out _)) giris.HataGoster(YenidenYazin, yerTutucu: true);
+            return;
+        }
+        if (giris._yerTutucuHatasi) giris.HataGoster(null);   // VM geçerli bir tutar yazdı
         // Metin zaten bu tutarı gösteriyorsa (ör. '1500.50' ↔ 1500,5) dokunma.
         if (ParaAyristirici.Coz(giris.Text, out var mevcut, out _) && mevcut == d) return;
         giris.MetniYaz(ParaAyristirici.Bicimle(d));
@@ -52,8 +73,9 @@ public class ParaGirisi : Entry
         HataGoster(gecerli ? null : hata);
     }
 
-    private void HataGoster(string? hata)
+    private void HataGoster(string? hata, bool yerTutucu = false)
     {
+        if (!yerTutucu) YerTutucuyuGeriAl();   // yazılan metin hatası kendini gösterir
         if (hata is null)
         {
             if (!_gecersizGorunum) return;
@@ -64,8 +86,26 @@ public class ParaGirisi : Entry
             return;
         }
         _gecersizGorunum = true;
-        TextColor = Application.Current?.Resources.TryGetValue("Neg", out var renk) == true && renk is Color c ? c : Colors.DarkRed;
+        var renk = Application.Current?.Resources.TryGetValue("Neg", out var neg) == true && neg is Color c ? c : Colors.DarkRed;
+        TextColor = renk;
         ToolTipProperties.SetText(this, hata);
         SemanticProperties.SetHint(this, hata);
+        if (yerTutucu && !_yerTutucuHatasi)
+        {
+            _yerTutucuHatasi = true; _eskiYerTutucu = Placeholder;
+            Placeholder = ParaAyristirici.GecersizGosterim; PlaceholderColor = renk;
+        }
+    }
+
+    private void YerTutucuyuGeriAl()
+    {
+        if (!_yerTutucuHatasi) return;
+        _yerTutucuHatasi = false;
+        if (Placeholder == ParaAyristirici.GecersizGosterim)
+        {
+            if (_eskiYerTutucu is null) ClearValue(PlaceholderProperty); else Placeholder = _eskiYerTutucu;
+        }
+        ClearValue(PlaceholderColorProperty);
+        _eskiYerTutucu = null;
     }
 }

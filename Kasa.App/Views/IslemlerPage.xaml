@@ -136,7 +136,7 @@
                                     <Border Style="{StaticResource FieldBorder}">
                                         <Picker ItemsSource="{Binding GelenDonemler}"
                                                 SelectedItem="{Binding GelenDonem}"
-                                                ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}}"
+                                                ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, ConverterParameter=yil}"
                                                 Title="Dönem seçin" />
                                     </Border>
                                 </VerticalStackLayout>
