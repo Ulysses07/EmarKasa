@@ -78,6 +78,117 @@ public class StatementParserTests
         Assert.Throws<PdfOkumaException>(()=>EkstreMetinOkuyucu.Oku(new string('x',1_000_001),"Banka","QNB"));
         Assert.Throws<PdfOkumaException>(()=>EkstreMetinOkuyucu.Oku(string.Join('\n',Enumerable.Repeat("01.09.2026 Komisyon -1,00 TL",1501)),"Banka","QNB"));
     }
+    // statement-1: kart ekstresinde işaretin anlamı bankaya göre değişir; alacak ve belirsiz ödeme satırları borç artışı önerilmez.
+    [Fact]
+    public void Kart_eksi_isaretli_alacak_harcama_onerilmez()
+    {
+        var row=Assert.Single(EkstreMetinOkuyucu.Oku("05.09.2026 ANINDA İNDİRİM -15,00 TL","Kart","Garanti").Satirlar);
+        Assert.Equal(15m,row.Tutar);Assert.Equal("Atla",row.OnerilenIslem);Assert.NotEqual("Cikis",row.Yon);
+        Assert.Contains(row.Uyarilar,w=>w.Contains("Kart alacağı"));
+    }
+    [Fact]
+    public void Kart_otomatik_odeme_satiri_kart_borcu_odemesi_onerilmez()
+    {
+        var row=Assert.Single(EkstreMetinOkuyucu.Oku("12.09.2026 OTOMATİK ÖDEME TURKCELL 350,00 TL","Kart","Akbank").Satirlar);
+        Assert.Equal("Atla",row.OnerilenIslem);Assert.Equal("Belirsiz",row.Yon);
+        Assert.Contains(row.Uyarilar,w=>w.Contains("ödeme geçiyor"));
+        var talimat=Assert.Single(EkstreMetinOkuyucu.Oku("12.09.2026 OTOMATİK ÖDEME TALİMATI TURKCELL 350,00 TL","Kart","Akbank").Satirlar);
+        Assert.Equal("KartHarcama",talimat.OnerilenIslem);Assert.Equal("Cikis",talimat.Yon);
+        Assert.Contains(talimat.Uyarilar,w=>w.Contains("ödeme kuruluşu"));
+    }
+    [Fact]
+    public void Kart_odeme_kurulusu_harcamasi_uyariyla_harcama_onerilir()
+    {
+        var row=Assert.Single(EkstreMetinOkuyucu.Oku("10.09.2026 IYZICO ODEME HIZMETLERI 120,00 TL","Kart","QNB").Satirlar);
+        Assert.Equal("KartHarcama",row.OnerilenIslem);Assert.Equal("Cikis",row.Yon);
+        Assert.Contains(row.Uyarilar,w=>w.Contains("ödeme kuruluşu"));
+        // "Ödeme" geçen faiz/ücret satırı borçtur; kart borcu ödemesi önerilmez.
+        var fee=Assert.Single(EkstreMetinOkuyucu.Oku("11.09.2026 GECİKMİŞ ÖDEME FAİZİ 25,00 TL","Kart","QNB").Satirlar);
+        Assert.Equal("KartHarcama",fee.OnerilenIslem);Assert.Equal("Faiz",fee.Sinif);
+    }
+    [Fact]
+    public void Kart_isaret_anlami_yonu_bilinen_satirlardan_cikarilir()
+    {
+        // Ödemeyi eksi basan banka: eksi alacak, işaretsiz harcama.
+        var rows=EkstreMetinOkuyucu.Oku("01.09.2026 ÖDEME-TEŞEKKÜR EDERİZ -5.000,00 TL\n03.09.2026 MIGROS 75,00 TL\n04.09.2026 BIM -20,00 TL","Kart","Isbank").Satirlar;
+        Assert.Equal(new[]{"KartOdemesi","KartHarcama","Atla"},rows.Select(r=>r.OnerilenIslem));
+        Assert.Equal("Giris",rows[2].Yon);Assert.Contains(rows[2].Uyarilar,w=>w.Contains("Kart alacağı"));
+        Assert.Empty(rows[1].Uyarilar);
+        // Ödemeyi artı basan banka: eksi harcama, artı alacak.
+        rows=EkstreMetinOkuyucu.Oku("01.09.2026 Kart ödemesi +1.000,00 TL\n02.09.2026 MIGROS -75,00 TL\n03.09.2026 BIM +20,00 TL","Kart","Akbank").Satirlar;
+        Assert.Equal(new[]{"KartOdemesi","KartHarcama","Atla"},rows.Select(r=>r.OnerilenIslem));
+        Assert.Equal(new[]{"Giris","Cikis","Giris"},rows.Select(r=>r.Yon));
+        // Faiz/ücret borçtur: işaretli faiz satırı da anlamı belirler.
+        rows=EkstreMetinOkuyucu.Oku("01.09.2026 Akdi faiz -50,00 TL\n02.09.2026 MIGROS -75,00 TL\n03.09.2026 BIM +20,00 TL","Kart","Denizbank").Satirlar;
+        Assert.Equal(new[]{"KartHarcama","KartHarcama","Atla"},rows.Select(r=>r.OnerilenIslem));
+    }
+    [Fact]
+    public void Kart_isaret_anlami_bilinmiyorsa_yon_belirsiz_kalir()
+    {
+        var read=EkstreMetinOkuyucu.Oku("04.09.2026 BIM -20,00 TL","Kart","Vakifbank");
+        var row=Assert.Single(read.Satirlar);
+        Assert.Equal("Belirsiz",row.Yon);Assert.Equal("Atla",row.OnerilenIslem);
+        Assert.Contains(row.Uyarilar,w=>w.Contains("işaret"));
+        Assert.Contains(read.Uyarilar,w=>w.Contains("yönü belirsiz"));
+        // Çelişen kanıt (eksi ödeme ve eksi faiz) tahmin üretmez; anlamı açıklamadan belli satırlar yine doğru önerilir.
+        var rows=EkstreMetinOkuyucu.Oku("01.09.2026 Kart ödemesi -100,00 TL\n02.09.2026 Akdi faiz -5,00 TL\n03.09.2026 MIGROS -75,00 TL","Kart","Garanti").Satirlar;
+        Assert.Equal(new[]{"KartOdemesi","KartHarcama","Atla"},rows.Select(r=>r.OnerilenIslem));
+        Assert.Equal("Belirsiz",rows[2].Yon);
+    }
+    [Fact]
+    public void Banka_isaretli_hareketin_yonu_degismez()
+    {
+        var rows=EkstreMetinOkuyucu.Oku("Para Birimi: TL\n01.09.2026 POS harcaması -20,00\n02.09.2026 İade +5,00","Banka","Akbank").Satirlar;
+        Assert.Equal(new[]{"Cikis","Giris"},rows.Select(r=>r.Yon));Assert.Equal(new[]{"Gider","Gelir"},rows.Select(r=>r.OnerilenIslem));
+    }
+
+    // statement-3: para birimi yalnız tutara bitişik koddan okunur; adres kısaltması (Cad.) döviz sayılmaz.
+    [Fact]
+    public void Adresteki_cadde_kisaltmasi_doviz_sayilmaz()
+    {
+        var rows=EkstreMetinOkuyucu.Oku("03.09.2026 MIGROS BAGDAT CAD ISTANBUL 412,35 TL\n04.09.2026 MIGROS BAGDAT CAD 50,00 TL","Kart","Akbank").Satirlar;
+        Assert.All(rows,r=>{Assert.Equal("TRY",r.ParaBirimi);Assert.DoesNotContain(r.Uyarilar,w=>w.Contains("para birim",StringComparison.OrdinalIgnoreCase));});
+        Assert.Equal(412.35m,rows[0].Tutar);
+    }
+    [Fact]
+    public void Altbilgideki_adres_belge_para_birimini_bozmaz()
+    {
+        var rows=EkstreMetinOkuyucu.Oku("01.09.2026 Market 250,00 TL\n02.09.2026 Kira -1.000,00\nBüyükdere Cad. No:1 Şişli İstanbul","Banka","Garanti").Satirlar;
+        Assert.Equal(2,rows.Count);Assert.All(rows,r=>Assert.Equal("TRY",r.ParaBirimi));
+        var header=Assert.Single(EkstreMetinOkuyucu.Oku("Adres: Büyükdere Cad. No:1   Para Birimi: TL\n01.09.2026 Hizmet -10,00","Banka","Garanti").Satirlar);
+        Assert.Equal("TRY",header.ParaBirimi);
+        // Para birimi yalnız tablo başlığında yazan belge önceki gibi TL okunur.
+        foreach (var title in new[]{"Tarih       Açıklama       Tutar (TL)","Tarih       Açıklama       Tutar TL"})
+            Assert.Equal("TRY",Assert.Single(EkstreMetinOkuyucu.Oku(title+"\n01.09.2026  Hizmet BAGDAT CAD  -10,00","Banka","Garanti").Satirlar).ParaBirimi);
+    }
+    [Fact]
+    public void Tutara_bitisik_para_birimi_ve_lira_isareti_okunur()
+    {
+        var lira=Assert.Single(EkstreMetinOkuyucu.Oku("05.09.2026 Market 12,50 ₺","Banka","QNB").Satirlar);
+        Assert.Equal("TRY",lira.ParaBirimi);Assert.Equal(12.50m,lira.Tutar);
+        var usd=Assert.Single(EkstreMetinOkuyucu.Oku("06.09.2026 Hizmet USD 10,00","Banka","QNB").Satirlar);
+        Assert.Equal("USD",usd.ParaBirimi);Assert.Contains(usd.Uyarilar,w=>w.Contains("farklı para"));
+        var mixed=Assert.Single(EkstreMetinOkuyucu.Oku("07.09.2026 AMAZON 12,00 USD 450,00 TL","Kart","QNB").Satirlar);
+        Assert.Equal("Karisik",mixed.ParaBirimi);
+    }
+
+    // statement-9: taksit satırı tek taksitli yeni harcama olarak önerilmez; taksit bilgisi uyarıda korunur.
+    [Fact]
+    public void Kart_taksit_satiri_yeni_harcama_onerilmez()
+    {
+        var row=Assert.Single(EkstreMetinOkuyucu.Oku("15.07.2026 MEDIAMARKT 2/6 TAKSİT 150,00 TL","Kart","Garanti").Satirlar);
+        Assert.Equal("Atla",row.OnerilenIslem);Assert.Equal(150m,row.Tutar);Assert.Equal(new DateOnly(2026,7,15),row.Tarih);
+        Assert.Contains(row.Uyarilar,w=>w.Contains("2/6. taksidi")&&w.Contains("6 taksitle"));
+        Assert.Contains("2/6",row.Aciklama);
+        var other=Assert.Single(EkstreMetinOkuyucu.Oku("16.07.2026 TEKNOSA TAKSİT 03/12 250,00 TL","Kart","Garanti").Satirlar);
+        Assert.Equal("Atla",other.OnerilenIslem);Assert.Contains(other.Uyarilar,w=>w.Contains("3/12. taksidi"));
+        var dotted=Assert.Single(EkstreMetinOkuyucu.Oku("17.07.2026 BOYNER 4/6. TAKSİT 99,90 TL","Kart","Garanti").Satirlar);
+        Assert.Equal("Atla",dotted.OnerilenIslem);Assert.Contains(dotted.Uyarilar,w=>w.Contains("4/6. taksidi"));
+        // Taksit oranı olmayan, tarihi eğik çizgili satır taksit sayılmaz.
+        var plain=Assert.Single(EkstreMetinOkuyucu.Oku("15/07/2026 MEDIAMARKT TAKSİTLİ SATIŞ 150,00 TL","Kart","Garanti").Satirlar);
+        Assert.Equal("KartHarcama",plain.OnerilenIslem);Assert.DoesNotContain(plain.Uyarilar,w=>w.Contains("taksid"));
+    }
+
     [Fact]
     public async Task Pdf_imzasi_gecersizse_harici_islem_baslatilmaz()
     {
