@@ -89,6 +89,13 @@ public static class HizSinirlari
     /// ağlar): compose ağı hangi varsayılan havuzdan adres alırsa alsın gerçek istemci IP'si görülür. Konteyner
     /// yalnız 127.0.0.1:8080'e yayınlandığından bu adreslerden yalnız yerel vekil ve aynı ağdaki konteynerler
     /// bağlanabilir. Vekilsiz, doğrudan yerel ağa açılan bir kurulumda liste daraltılmalıdır.
+    /// <para>Daraltma (önerilen sertleştirme): varsayılan liste, aynı Docker ağındaki ya da bu havuzlardan adres alan
+    /// herhangi bir konteynerin X-Forwarded-For ile istediği istemci IP'sini bildirmesine izin verir. Böyle bir
+    /// konteyner IP başına pencereleri ve ağ bütçesini her istekte başka IP bildirerek aşabilir; IP'den bağımsız
+    /// hedef bütçesi ve tanıdık cihaz bütçesi yine uygulanır. Kalıcı çözüm Kasa:GuvenilirVekiller'i yalnız vekilin
+    /// gerçek bağlantı adresine indirmektir (ör. "127.0.0.1/32;172.18.0.1/32": docker-proxy'nin bağlandığı köprü ağ
+    /// geçidi); bunun için compose ağının alt ağı sabitlenmelidir, aksi halde ağ yeniden oluşunca geçit değişir ve
+    /// bütün istemciler tek IP'ye düşer (VekilDurumu uyarısı bunu Ayarlar'da gösterir).</para>
     /// </summary>
     public const string VarsayilanGuvenilirVekiller = "127.0.0.0/8;::1/128;172.16.0.0/12;192.168.0.0/16";
 
@@ -272,8 +279,22 @@ public sealed class VekilDurumu
 /// <item>Eşzamanlı şifre doğrulaması (PBKDF2) sınırlı ve kısa kuyruklu: giriş selinin CPU tüketimi uygulamanın geri
 /// kalanını yavaşlatamaz. Ağ bütçesi doğrulama kapasitesinden küçük olduğundan tek ağ kuyruğu tek başına dolduramaz.</item>
 /// </list>
-/// Kalıntı risk: sayaçlar süreç belleğindedir; yeniden başlatma pencereleri sıfırlar (saldırgan yeniden başlatmayı
-/// tetikleyemez; en kötü durumda bir pencere kadar ek deneme kazanır). Tek örnekli dağıtım varsayılır.
+/// Kalıntı riskler (bilerek kabul edilen):
+/// <list type="bullet">
+/// <item>Sayaçlar süreç belleğindedir: yeniden başlatma pencereleri sıfırlar (saldırgan yeniden başlatmayı
+/// tetikleyemez; en kötü durumda bir pencere kadar ek deneme kazanır). Tek örnekli dağıtım varsayılır; birden çok
+/// örnek her biri kendi bütçesini tutar.</item>
+/// <item>Hedef kilidi bir erişilebilirlik bedelidir: çok ağlı saldırgan, tanıdık cihazı olmayan (yeni cihaz,
+/// silinmiş çerez, ilk kez giren) meşru kullanıcıyı pencere boyunca (15 dk) dışarıda bırakabilir. Açık oturumlar
+/// (30 günlük çerez/JWT) ve tanıdık cihazlar etkilenmez; kilit bir kez uyarı olarak loglanır.</item>
+/// <item>Ağ bütçesi tanıdık cihaza da uygulanır: operatör NAT'ı (CGNAT) ya da ortak ofis IP'si paylaşan biri o
+/// ağın bütçesini tüketirse aynı IP'deki meşru kullanıcılar da pencere boyunca 429 alır.</item>
+/// <item>İstemci IP'si güvenilen vekilin X-Forwarded-For bildirimine dayanır; varsayılan güvenilen ağlar geniştir
+/// (<see cref="HizSinirlari.VarsayilanGuvenilirVekiller"/>, daraltma orada anlatılır). IP'den bağımsız hedef ve
+/// cihaz bütçeleri IP bildirimi sahte olsa da geçerlidir.</item>
+/// <item>Zamanlama: izleyici şifresi tanımlı değilse alıcı olmayan adlarda PBKDF2 çalışmaz; yanıt süresi farkı
+/// adın varlığını sızdırabilir (401/429 farkı sızdırmaz).</item>
+/// </list>
 /// </summary>
 public sealed class GirisSiniri : IDisposable
 {
