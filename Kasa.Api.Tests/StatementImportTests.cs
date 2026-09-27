@@ -271,8 +271,8 @@ public class StatementImportTests
         var file = await c.GetAsync($"/api/ekstre-aktar/{document.Id}/dosya"); Assert.Equal("attachment", file.Content.Headers.ContentDisposition!.DispositionType); Assert.Equal("application/pdf", file.Content.Headers.ContentType!.MediaType);
         Assert.Equal("nosniff", file.Headers.GetValues("X-Content-Type-Options").Single()); Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
         using var anonymous = f.CreateClient(); Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/ekstre-aktar/{document.Id}/dosya")).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici123" })).EnsureSuccessStatusCode();
-        using var viewer = f.CreateClient(); (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        using var viewer = f.CreateClient(); (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/ekstre-aktar")).StatusCode);
     }
 

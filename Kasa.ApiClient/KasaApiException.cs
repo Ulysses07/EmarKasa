@@ -13,6 +13,7 @@ public sealed class KasaApiException : Exception
             HttpStatusCode.Conflict => "Bu kayıt başka bir kayıtla çakışıyor veya kullanımda olduğu için değiştirilemiyor.",
             HttpStatusCode.UnprocessableEntity => "PDF okunamadı. Metin içeren, şifresiz belgeyi kontrol edip yeniden deneyin.",
             HttpStatusCode.RequestEntityTooLarge => "PDF en fazla 10 MB ve 50 sayfa olabilir.",
+            HttpStatusCode.TooManyRequests => "Çok fazla deneme yapıldı. Birkaç dakika sonra yeniden deneyin.",
             HttpStatusCode.ServiceUnavailable => "Sunucu şu anda işlemi tamamlayamıyor. Bir süre sonra yeniden deneyin.",
             _ => $"API hatası: {(int)kod} {kod}",
         })) => DurumKodu = kod;

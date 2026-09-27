@@ -28,7 +28,7 @@ public static class EditorGuvenligi
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
-            if (!Dogrula(dto.MevcutSifre, cfg, kayit)) return Results.Unauthorized();
+            if (!Dogrula(dto.MevcutSifre, cfg, kayit)) return MevcutSifreHatali();
             kayit = KayitOlustur(db, kayit);
             kayit.SifreHash = SifreHasher.Hashle(dto.YeniSifre);
             kayit.KurtarmaHash = null;
@@ -36,36 +36,36 @@ public static class EditorGuvenligi
             db.SaveChanges(); tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
             return Results.NoContent();
-        }).RequireAuthorization("Editor").RequireRateLimiting("guvenlik");
+        }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
         app.MapPost("/api/auth/kurtarma-kodu", (KurtarmaOlustur dto, KasaDbContext db, IConfiguration cfg) =>
         {
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
-            if (!Dogrula(dto.MevcutSifre, cfg, kayit)) return Results.Unauthorized();
+            if (!Dogrula(dto.MevcutSifre, cfg, kayit)) return MevcutSifreHatali();
             kayit = KayitOlustur(db, kayit);
             var kod = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
             kayit.KurtarmaHash = KodHash(kod);
             db.SaveChanges(); tx.Commit();
             return Results.Ok(new { kod });
-        }).RequireAuthorization("Editor").RequireRateLimiting("guvenlik");
+        }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
         app.MapPost("/api/auth/kurtar", (SifreKurtar dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
         {
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
-            if (dto.Kod is null || dto.Kod.Length > 200) return Results.Unauthorized();
+            if (dto.Kod is null || dto.Kod.Length > 200) return KurtarmaHatali();
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
             var beklenen = kayit?.KurtarmaHash;
             if (dto.Kullanici != cfg["Kasa:EditorKullanici"] || beklenen is null
-                || !OturumDamgasi.Esit(KodHash(dto.Kod), beklenen)) return Results.Unauthorized();
+                || !OturumDamgasi.Esit(KodHash(dto.Kod), beklenen)) return KurtarmaHatali();
             kayit!.SifreHash = SifreHasher.Hashle(dto.YeniSifre);
             kayit.KurtarmaHash = null;
             kayit.Surum++;
             db.SaveChanges(); tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
             return Results.NoContent();
-        }).RequireRateLimiting("guvenlik");
+        }).GirisSiniriUygula<SifreKurtar>(d => d.Kullanici);
         return app;
     }
 
@@ -75,8 +75,13 @@ public static class EditorGuvenligi
         kayit = new EditorGuvenlikEntity(); db.EditorGuvenlik.Add(kayit); return kayit;
     }
     private static string KodHash(string kod) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(kod.Trim().ToUpperInvariant())));
-    private static IResult? YeniSifreHatasi(string? sifre) => string.IsNullOrWhiteSpace(sifre) || sifre.Length is < 12 or > 1024
-        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["yeniSifre"] = ["Yeni şifre 12–1024 karakter olmalıdır."] }) : null;
+    private static IResult? YeniSifreHatasi(string? sifre) => SifreKurallari.YeniSifreHatasi(sifre, "yeniSifre", "Yeni şifre");
+    // Oturum geçerliyken yanlış mevcut şifre bir alan hatasıdır; 401 yalnız gerçek oturum sonu içindir
+    // (istemciler 401'de oturumu kapatır).
+    private static IResult MevcutSifreHatali() =>
+        Results.ValidationProblem(new Dictionary<string, string[]> { ["mevcutSifre"] = ["Mevcut şifre hatalı."] });
+    private static IResult KurtarmaHatali() =>
+        Results.Json(new { hata = "Kullanıcı adı veya kurtarma kodu hatalı." }, statusCode: StatusCodes.Status401Unauthorized);
 }
 
 public record SifreDegistir(string MevcutSifre, string YeniSifre);

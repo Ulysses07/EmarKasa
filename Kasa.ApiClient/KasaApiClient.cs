@@ -146,7 +146,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         return yanit;
     }
 
-    private async Task OturumuGecersizKilAsync(string? istekTokeni)
+    private async Task OturumuGecersizKilAsync(string? istekTokeni, OturumSonuNedeni neden = OturumSonuNedeni.OturumGecersiz)
     {
         var temizlendi = false;
         await _oturumKilidi.WaitAsync();
@@ -160,12 +160,12 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             }
         }
         finally { _oturumKilidi.Release(); }
-        if (temizlendi) OturumSonlandi?.Invoke(this, EventArgs.Empty);
+        if (temizlendi) OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     }
 
     private static async Task<string?> HataMesajiAsync(HttpResponseMessage yanit)
     {
-        if (yanit.StatusCode is not (HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.ServiceUnavailable)) return null;
+        if (yanit.StatusCode is not (HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)) return null;
         try
         {
             using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync());

@@ -8,7 +8,7 @@ public sealed partial class KasaApiClient : IYonetimApi
     {
         using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/sifre") { Content = System.Net.Http.Json.JsonContent.Create(g, options: Json) };
         using var _ = await GonderAsync(istek);
-        await OturumuGecersizKilAsync(istek.Headers.Authorization?.Parameter);
+        await OturumuGecersizKilAsync(istek.Headers.Authorization?.Parameter, OturumSonuNedeni.SifreDegisti);
     }
     public Task<KurtarmaKoduDto> KurtarmaKoduOlusturAsync(string mevcutSifre)
         => GonderJsonAsync<KurtarmaKoduDto>(HttpMethod.Post, "api/auth/kurtarma-kodu", new { mevcutSifre });

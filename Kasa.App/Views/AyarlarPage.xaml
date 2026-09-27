@@ -16,6 +16,9 @@
                 <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
                 <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
+            <!-- Sunucunun yanlış vekil ayarı uyarısı (hız sınırları tüm istemcileri tek IP sayabilir). -->
+            <Label Text="{Binding VekilUyarisi}" Style="{StaticResource LblError}"
+                   IsVisible="{Binding VekilUyarisi, Converter={StaticResource DoluIse}}" />
 
             <Grid ColumnDefinitions="{OnIdiom Desktop='*,*', Default='*'}"
                   RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
@@ -53,14 +56,23 @@
                         <Label Text="İzleyici Şifresi" Style="{StaticResource LblSection}" />
                         <Label Text="İzleyici bu şifreyle salt-okunur girer; formlar ve Ayarlar gizlenir."
                                Style="{StaticResource LblPageSub}" />
+                        <!-- Kayıtlı şifrenin kurala uymadığı bir izleyici girişinde görüldüyse sunucu bildirir. -->
+                        <Label Text="{Binding IzleyiciSifreUyarisi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding IzleyiciSifreUyarisi, Converter={StaticResource DoluIse}}" />
                         <VerticalStackLayout Spacing="0">
                             <Label Text="Yeni şifre" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
-                                <Entry Text="{Binding YeniIzleyiciSifre}" IsPassword="True" Placeholder="••••••••" />
+                                <Entry Text="{Binding YeniIzleyiciSifre}" IsPassword="True" Placeholder="En az 12 karakter" />
                             </Border>
+                            <Label Text="En az 12 karakter kullanın."
+                                   Style="{StaticResource LblPageSub}" Margin="0,6,0,0" />
                         </VerticalStackLayout>
                         <Button Text="Şifreyi kaydet" Command="{Binding IzleyiciSifreKaydetCommand}"
                                 HorizontalOptions="Start" />
+                        <Label Text="{Binding IzleyiciSifreMesaji}" TextColor="{StaticResource Green}"
+                               IsVisible="{Binding IzleyiciSifreMesaji, Converter={StaticResource DoluIse}}" />
+                        <Label Text="{Binding IzleyiciSifreHatasi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding IzleyiciSifreHatasi, Converter={StaticResource DoluIse}}" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>

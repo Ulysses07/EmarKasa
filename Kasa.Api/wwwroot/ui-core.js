@@ -77,6 +77,29 @@ export function errorMessage(body, status) {
   if (body?.errors) return Object.values(body.errors).flat().join('\n');
   return body?.hata || body?.detail || (status === 401 ? 'Oturumunuz sona erdi. Yeniden giriş yapın.' : status === 403 ? 'Bu işlem için yetkiniz yok.' : status === 409 ? 'Kayıt değişti. Güncel bilgileri yükleyip tekrar deneyin.' : status === 429 ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.' : 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
 }
+// ValidationProblem alanları (sunucu adlarıyla) → alan iletisi; form denetimi aynı adı taşır.
+export function fieldErrors(body) {
+  const result = {};
+  if (!body?.errors || typeof body.errors !== 'object') return result;
+  for (const [name, messages] of Object.entries(body.errors)) {
+    const text = [].concat(messages).filter(message => typeof message === 'string' && message).join('\n');
+    if (text) result[name] = text;
+  }
+  return result;
+}
+// Yalnız kimlik istemeyen giriş/kurtarma uçlarının 401'i oturum sonu değildir; yol tam eşleşir
+// ('/api/auth/kurtarma-kodu' oturum ister). Yanlış mevcut şifre 400 alan hatasıdır, oturumu kapatmaz.
+export function sessionExpired(status, path) {
+  return status === 401 && !['/api/auth/login', '/api/auth/kurtar'].includes(String(path).split('?')[0]);
+}
+// Sunucu ve masaüstü ile aynı kural ve ileti; yalnız belirlerken/değiştirirken uygulanır.
+export const VIEWER_PASSWORD_MESSAGE = 'İzleyici şifresi 12–1024 karakter olmalıdır.';
+// Sunucu, kayıtlı izleyici şifresinin kurala uymadığını ancak bir izleyici girişinde görür (hash uzunluk saklamaz).
+export const VIEWER_PASSWORD_SHORT_MESSAGE = 'Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.';
+export function viewerPasswordError(value) {
+  const text = String(value ?? '');
+  return !text.trim() || text.length < 12 || text.length > 1024 ? VIEWER_PASSWORD_MESSAGE : null;
+}
 export function permissions(role, purchase) {
   const editor = role === 'editor';
   const buyer = role === 'alici';

@@ -94,9 +94,9 @@ public class BenzerKayitTests
         using var anonymous = f.CreateClient();
         var valid = new BenzerKayitSorgu("Gider", Date, 100, Kanal: "MEZAT");
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
         var buyer = await Post<AliciDto>(c, "/api/alicilar", new AliciYaz("benzer-alici", "Alıcı", "alici12345"));
         using var buyerClient = f.CreateClient();
