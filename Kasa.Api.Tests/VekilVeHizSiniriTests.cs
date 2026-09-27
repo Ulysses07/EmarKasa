@@ -2,14 +2,18 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Kasa.Api.Auth;
+using Kasa.Api.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -26,9 +30,11 @@ public class VekilVeHizSiniriTests
 
     /// <summary>
     /// Sınırları küçültülmüş, bağlantı adresini başlıktan alan fabrika. Geliştirme ortamı (varsayılan test
-    /// fabrikası) sınırları gevşettiği için bu senaryonun bütün sınırları burada açıkça verilir.
+    /// fabrikası) sınırları gevşettiği için bu senaryonun bütün sınırları burada açıkça verilir. Eşzamanlı istek
+    /// sınayan testler dosya veritabanı verir: ortak in-memory bağlantı aynı anda birden çok istekte kullanılamaz.
     /// </summary>
-    internal sealed class VekilFabrikasi(Dictionary<string, string?>? ek = null, UyariToplayici? loglar = null, TimeProvider? saat = null) : KasaWebFactory
+    internal sealed class VekilFabrikasi(Dictionary<string, string?>? ek = null, UyariToplayici? loglar = null, TimeProvider? saat = null,
+        string? dosyaVeritabani = null) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -42,16 +48,23 @@ public class VekilVeHizSiniriTests
                 ["Kasa:HizSiniri:GirisAgIzni"] = "100",
                 ["Kasa:HizSiniri:PencereDakika"] = "5",
                 ["Kasa:HizSiniri:HedefBasarisizIzni"] = "100",
-                ["Kasa:HizSiniri:AgBasarisizIzni"] = "100",
+                ["Kasa:HizSiniri:AgBasarisizIzni"] = "50",
                 ["Kasa:HizSiniri:HedefPencereDakika"] = "15",
                 ["Kasa:HizSiniri:TanidikAgGun"] = "30",
                 ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "2",
-                ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "20",
+                ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
             };
             foreach (var (k, v) in ek ?? new()) ayarlar[k] = v;
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(ayarlar));
             builder.ConfigureServices(s => s.AddSingleton<IStartupFilter, BaglantiAdresi>());
             if (saat is not null) builder.ConfigureTestServices(s => s.AddSingleton(saat));
+            if (dosyaVeritabani is not null)
+                builder.ConfigureServices(s =>
+                {
+                    s.RemoveAll<DbContextOptions<KasaDbContext>>();
+                    s.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+                    s.AddDbContext<KasaDbContext>(o => o.UseSqlite($"Data Source={dosyaVeritabani};Pooling=False"));
+                });
         }
 
         private sealed class BaglantiAdresi : IStartupFilter
@@ -69,7 +82,7 @@ public class VekilVeHizSiniriTests
         }
     }
 
-    private static HttpClient Istemci(KasaWebFactory f, string? xff, string? baglanti = null)
+    internal static HttpClient Istemci(KasaWebFactory f, string? xff, string? baglanti = null)
     {
         var c = f.CreateClient();
         if (xff is not null) c.DefaultRequestHeaders.Add("X-Forwarded-For", xff);
@@ -77,15 +90,32 @@ public class VekilVeHizSiniriTests
         return c;
     }
 
-    private static Task<HttpResponseMessage> Giris(HttpClient c, string? kullanici, string sifre)
+    internal static Task<HttpResponseMessage> Giris(HttpClient c, string? kullanici, string sifre)
         => c.PostAsJsonAsync("/api/auth/login", new { kullanici, sifre });
 
-    private static async Task Reddedildi(HttpResponseMessage yanit)
+    /// <summary>Şifre denenmeden verilen 429: Retry-After ve Türkçe ileti; iletiyi döner.</summary>
+    internal static async Task<string> Reddedildi(HttpResponseMessage yanit)
     {
         Assert.Equal(HttpStatusCode.TooManyRequests, yanit.StatusCode);
         Assert.True(yanit.Headers.RetryAfter?.Delta > TimeSpan.Zero, "Retry-After başlığı saniye olarak gelmeli.");
-        var govde = await yanit.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.StartsWith("Çok fazla deneme yapıldı.", govde.GetProperty("hata").GetString());
+        var hata = (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
+        Assert.StartsWith("Çok fazla deneme yapıldı.", hata);
+        return hata;
+    }
+
+    /// <summary>Geçici dosya veritabanıyla fabrika kurup senaryoyu koşar; dosyalar sonunda silinir.</summary>
+    internal static async Task DosyaVeritabaniyla(Dictionary<string, string?> ayarlar, Func<VekilFabrikasi, Task> senaryo)
+    {
+        var yol = Path.Combine(Path.GetTempPath(), $"kasa-giris-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using var f = new VekilFabrikasi(ayarlar, dosyaVeritabani: yol);
+            await senaryo(f);
+        }
+        finally
+        {
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(yol + ek);
+        }
     }
 
     [Fact]
@@ -309,6 +339,9 @@ public class VekilVeHizSiniriTests
         var kok = f.Services.GetRequiredService<IWebHostEnvironment>().ContentRootPath;
         var uretim = new ConfigurationBuilder().AddJsonFile(Path.Combine(kok, "appsettings.json")).Build();
         Assert.Equivalent(new HizSiniriAyarlari(), uretim.GetSection("Kasa:HizSiniri").Get<HizSiniriAyarlari>(), strict: true);
+        // Varsayılanlar ve gevşek geliştirme değerleri de başlangıç tutarlılık kurallarını karşılar.
+        Assert.Empty(new HizSiniriAyarlari().Hatalar());
+        Assert.Empty(gelistirme.Hatalar());
         Assert.Equal(HizSinirlari.VarsayilanGuvenilirVekiller, uretim["Kasa:GuvenilirVekiller"]);
     }
 
@@ -331,7 +364,7 @@ public class VekilVeHizSiniriTests
     [Fact]
     public async Task Dagitik_kaba_kuvvet_hedef_basina_ipden_bagimsiz_basarisiz_siniri_asamaz()
     {
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4" });
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3" });
         using (var editor = await f.EditorClientAsync())
             (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
         // Her IP kendi sınırının çok altında kalır; toplam başarısızlık hedefin bütçesini doldurur.
@@ -350,7 +383,7 @@ public class VekilVeHizSiniriTests
     [Fact]
     public async Task Izleyici_sifresi_kullanici_adi_ve_ip_dondurulerek_kuresel_sinirdan_kacirilamaz()
     {
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4" });
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3" });
         using (var editor = await f.EditorClientAsync())
             (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
         for (var i = 0; i < 4; i++)
@@ -367,10 +400,10 @@ public class VekilVeHizSiniriTests
     [Fact]
     public async Task Hedefe_basariyla_girilmis_ag_kilitten_muaftir_ama_kendi_ag_kovasiyla_sinirlidir()
     {
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "3", [AgIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
         using var ofis = Istemci(f, "198.51.100.110");
         Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "editor", "kasa123")).StatusCode);
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < 4; i++)
         {
             using var c = Istemci(f, $"198.51.100.{120 + i}");
             Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "editor", "yanlis")).StatusCode);
@@ -416,7 +449,7 @@ public class VekilVeHizSiniriTests
     [Fact]
     public async Task Izleyici_kilidi_alici_adlarini_ele_vermez_taninan_alici_agi_girer()
     {
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "3" });
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "3", [AgIzni] = "2" });
         using (var editor = await f.EditorClientAsync())
         {
             (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
@@ -442,7 +475,7 @@ public class VekilVeHizSiniriTests
     public async Task Tanidik_ag_suresi_dolunca_kilitten_muaf_degildir()
     {
         var saat = new ElleSaat(new DateTimeOffset(2026, 3, 1, 9, 0, 0, TimeSpan.Zero));
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "2", ["Kasa:HizSiniri:TanidikAgGun"] = "30" }, saat: saat);
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "2", [AgIzni] = "1", ["Kasa:HizSiniri:TanidikAgGun"] = "30" }, saat: saat);
         using var ev = Istemci(f, "198.51.100.140");
         Assert.Equal(HttpStatusCode.OK, (await Giris(ev, "editor", "kasa123")).StatusCode);
         saat.Simdi = saat.Simdi.AddDays(31);
@@ -458,7 +491,7 @@ public class VekilVeHizSiniriTests
     public async Task Hedef_butcesi_dolunca_bir_kez_uyari_loglanir()
     {
         var loglar = new UyariToplayici();
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "2" }, loglar: loglar);
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "2", [AgIzni] = "1" }, loglar: loglar);
         for (var i = 0; i < 5; i++)
         {
             using var c = Istemci(f, $"198.51.100.{160 + i}");
@@ -487,26 +520,9 @@ public class VekilVeHizSiniriTests
     }
 
     [Fact]
-    public async Task Sifre_dogrulamasi_eszamanli_sinirlidir_kuyruk_doluysa_429_doner()
-    {
-        await using var f = new VekilFabrikasi(new() { ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "0" });
-        using var c = Istemci(f, "198.51.100.170");
-        var sinir = f.Services.GetRequiredService<GirisSiniri>();
-        using (var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None))
-        {
-            Assert.True(tutulan.IsAcquired);
-            var yanit = await Giris(c, "editor", "kasa123");
-            Assert.Equal(HttpStatusCode.TooManyRequests, yanit.StatusCode);
-            Assert.True(yanit.Headers.RetryAfter?.Delta > TimeSpan.Zero);
-            Assert.Contains("yoğun", (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
-        }
-        Assert.Equal(HttpStatusCode.OK, (await Giris(c, "editor", "kasa123")).StatusCode);
-    }
-
-    [Fact]
     public async Task Sifre_dogrulamasi_kuyrukta_bekler_izin_bosalinca_tamamlanir()
     {
-        await using var f = new VekilFabrikasi(new() { ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "1" });
+        await using var f = new VekilFabrikasi(new() { [AgIzni] = "1", [HedefIzni] = "2", ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "1" });
         using var c = Istemci(f, "198.51.100.171");
         var sinir = f.Services.GetRequiredService<GirisSiniri>();
         var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None);
@@ -518,8 +534,133 @@ public class VekilVeHizSiniriTests
         Assert.Equal(HttpStatusCode.OK, (await giris).StatusCode);
     }
 
+    // --- Atomik sayım: bütçe, şifre doğrulamasından önce ayrılır; denetim ile harcama arasında yarış yoktur ---
+
+    /// <summary>Tek doğrulama izni testte tutulur: istekler bütçe denetimini geçip doğrulama kuyruğunda birikir.
+    /// Bütün istekler ya yanıtlanmış ya da kuyruğa girmiş olunca izin bırakılır; 401 alan her istek PBKDF2'ye ulaşmıştır.</summary>
+    private static async Task<HttpResponseMessage[]> EszamanliGirisler(VekilFabrikasi f, IReadOnlyList<(HttpClient Istemci, string Kullanici, string Sifre)> denemeler)
+    {
+        var sinir = f.Services.GetRequiredService<GirisSiniri>();
+        var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None);
+        Assert.True(tutulan.IsAcquired);
+        var istekler = denemeler.Select(d => Giris(d.Istemci, d.Kullanici, d.Sifre)).ToList();
+        using (var zaman = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
+            while (istekler.Count(t => t.IsCompleted) + sinir.KuyruktakiDogrulama < istekler.Count) await Task.Delay(10, zaman.Token);
+        tutulan.Dispose();
+        return await Task.WhenAll(istekler);
+    }
+
+    private static Dictionary<string, string?> PatlamaAyari(string agIzni, string hedefIzni) => new()
+    {
+        [AgIzni] = agIzni, [HedefIzni] = hedefIzni,
+        ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
+        ["Kasa:HizSiniri:GirisKullaniciIzni"] = "1000", ["Kasa:HizSiniri:GirisIpIzni"] = "1000",
+    };
+
+    [Fact]
+    public Task Tek_agdan_eszamanli_40_basarisiz_istekte_ag_butcesinden_fazlasi_sifre_dogrulamasina_ulasmaz()
+        => DosyaVeritabaniyla(PatlamaAyari(agIzni: "5", hedefIzni: "100"), async f =>
+    {
+        using var c = Istemci(f, "198.51.100.200");
+        var yanitlar = await EszamanliGirisler(f, Enumerable.Range(0, 40).Select(_ => (c, "editor", "yanlis")).ToList());
+
+        Assert.Equal(5, yanitlar.Count(y => y.StatusCode == HttpStatusCode.Unauthorized));
+        Assert.Equal(35, yanitlar.Count(y => y.StatusCode == HttpStatusCode.TooManyRequests));
+        foreach (var y in yanitlar.Where(y => y.StatusCode == HttpStatusCode.TooManyRequests)) await Reddedildi(y);
+        // Doğru şifre de ağın bütçesi dolduğu için denenmez; başka ağ etkilenmez.
+        await Reddedildi(await Giris(c, "editor", "kasa123"));
+        using var baska = Istemci(f, "198.51.100.201");
+        Assert.Equal(HttpStatusCode.OK, (await Giris(baska, "editor", "kasa123")).StatusCode);
+    });
+
+    [Fact]
+    public Task Dagitik_eszamanli_patlamada_hedef_butcesinden_fazlasi_sifre_dogrulamasina_ulasmaz()
+        => DosyaVeritabaniyla(PatlamaAyari(agIzni: "3", hedefIzni: "5"), async f =>
+    {
+        var istemciler = Enumerable.Range(1, 40).Select(i => Istemci(f, $"203.0.113.{i}")).ToList();
+        try
+        {
+            var yanitlar = await EszamanliGirisler(f, istemciler.Select(c => (c, "editor", "yanlis")).ToList());
+            Assert.Equal(5, yanitlar.Count(y => y.StatusCode == HttpStatusCode.Unauthorized));
+            Assert.Equal(35, yanitlar.Count(y => y.StatusCode == HttpStatusCode.TooManyRequests));
+        }
+        finally { istemciler.ForEach(c => c.Dispose()); }
+        // Hedef kilitli: yeni ağdan doğru şifre de denenmez.
+        using var yeni = Istemci(f, "203.0.113.99");
+        await Reddedildi(await Giris(yeni, "editor", "kasa123"));
+    });
+
+    [Fact]
+    public async Task Basarili_giris_ayrilan_butceyi_iade_eder_ag_butcesini_harcamaz()
+    {
+        await using var f = new VekilFabrikasi(new() { [AgIzni] = "2", [HedefIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
+        using var ofis = Istemci(f, "198.51.100.210");
+        for (var i = 0; i < 6; i++) Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "editor", "kasa123")).StatusCode);
+        for (var i = 0; i < 2; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, "editor", "yanlis")).StatusCode);
+        await Reddedildi(await Giris(ofis, "editor", "kasa123"));
+    }
+
+    [Fact]
+    public async Task Dogrulama_kuyrugu_doluyken_reddedilen_giris_butce_harcamaz()
+    {
+        await using var f = new VekilFabrikasi(new() { [AgIzni] = "1", [HedefIzni] = "2", ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "1" });
+        using var c = Istemci(f, "198.51.100.211");
+        var sinir = f.Services.GetRequiredService<GirisSiniri>();
+        using (var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None))
+        {
+            var bekleyen = sinir.DogrulamaIzniAsync(CancellationToken.None);
+            Assert.False(bekleyen.IsCompleted);
+            var yanit = await Giris(c, "editor", "yanlis");
+            Assert.Equal(HttpStatusCode.TooManyRequests, yanit.StatusCode);
+            Assert.True(yanit.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+            Assert.Contains("yoğun", (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+            tutulan.Dispose();
+            (await bekleyen).Dispose();
+        }
+        // Şifre denenmediği için ağın tek izni duruyor: bir yanlış deneme 401, sonrası 429.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "editor", "yanlis")).StatusCode);
+        await Reddedildi(await Giris(c, "editor", "kasa123"));
+    }
+
+    // --- Ad sayımı: editör dışındaki adlar (alıcılar ve izleyici şifresi) tek ortak başarısız deneme bütçesi ---
+
+    [Theory]
+    [InlineData("alici-1,alici-1,alici-1,alici-1")]
+    [InlineData("yok-1,yok-2,yok-3,yok-4")]
+    [InlineData("alici-1,yok-1,alici-1,")]
+    public async Task Alici_adinin_var_olup_olmadigi_401_429_farkindan_anlasilamaz(string basarisizAdlar)
+    {
+        var saat = new ElleSaat(new DateTimeOffset(2026, 3, 1, 9, 0, 0, TimeSpan.Zero));
+        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" }, saat: saat);
+        using (var editor = await f.EditorClientAsync())
+        {
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        }
+        var adlar = basarisizAdlar.Split(',');
+        for (var i = 0; i < adlar.Length; i++)
+        {
+            using var c = Istemci(f, $"198.51.100.{220 + i}");
+            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, adlar[i].Length == 0 ? null : adlar[i], "yanlis")).StatusCode);
+        }
+
+        // Başarısız denemeler hangi adda yapılmış olursa olsun, alıcı adı da olmayan ad da aynı yanıtı alır.
+        using var yabanci = Istemci(f, "198.51.100.230");
+        var metinler = new List<string>();
+        foreach (var (ad, sifre) in new[] { ("alici-1", "alici-sifre-1"), ("alici-1", "yanlis"), ("yok-9", "yanlis"), ((string?)null, "izleyici-sifresi") })
+            metinler.Add(await Reddedildi(await Giris(yabanci, ad, sifre)));
+        Assert.Single(metinler.Distinct());
+        Assert.Equal(HttpStatusCode.OK, (await Giris(yabanci, "editor", "kasa123")).StatusCode);
+
+        // Pencere bitince bütün adlar birlikte açılır: pencere farkı da adı ele vermez.
+        saat.Simdi = saat.Simdi.AddMinutes(16);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(yabanci, "alici-1", "yanlis")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(yabanci, "yok-9", "yanlis")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Giris(yabanci, "alici-1", "alici-sifre-1")).StatusCode);
+    }
+
     /// <summary>Tanınan ağ süresini takvimden bağımsız sınamak için elle ilerletilen saat.</summary>
-    private sealed class ElleSaat(DateTimeOffset baslangic) : TimeProvider
+    internal sealed class ElleSaat(DateTimeOffset baslangic) : TimeProvider
     {
         public DateTimeOffset Simdi { get; set; } = baslangic;
         public override DateTimeOffset GetUtcNow() => Simdi;
@@ -541,6 +682,20 @@ public class VekilVeHizSiniriTests
         foreach (var (desen, metot) in new[] { ("/api/yedek", "POST"), ("/api/ekstre-aktar/yukle", "POST"),
             ("/api/bildirimler/push/abonelik", "POST"), ("/api/bildirimler/test", "POST") })
             Assert.NotNull(Politika(desen, metot));
+    }
+
+    [Theory]
+    [InlineData("30", "30", "2", "40")]   // ağ bütçesi hedef bütçesine eşit: tek ağ hedefi herkese kilitleyebilir
+    [InlineData("50", "22", "2", "20")]   // ağ bütçesi doğrulama kapasitesine eşit: tek ağ kuyruğu tek başına doldurabilir
+    public async Task Ag_butcesi_hedef_butcesinden_ve_dogrulama_kapasitesinden_kucuk_olmalidir(string hedef, string ag, string eszamanli, string kuyruk)
+    {
+        await using var f = new VekilFabrikasi(new()
+        {
+            [HedefIzni] = hedef, [AgIzni] = ag,
+            ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = eszamanli, ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = kuyruk,
+        });
+        var hata = Assert.ThrowsAny<Exception>(() => f.CreateClient());
+        Assert.Contains("Kasa:HizSiniri:AgBasarisizIzni", hata.ToString());
     }
 
     [Fact]

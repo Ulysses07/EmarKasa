@@ -163,14 +163,14 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
     var kullanici = dto.Kullanici?.Trim().ToLowerInvariant();
     var alici = !editorAdi && kullanici is { Length: > 0 and <= 64 }
         ? db.Alicilar.AsNoTracking().FirstOrDefault(a => a.Kullanici == kullanici) : null;
-    // Denenen şifrenin hedefi; başarısız deneme bütçesi hedef başınadır ve IP'den bağımsızdır. İzleyici şifresi
-    // kullanıcı adı istemez: alıcıya karşılık gelmeyen her ad aynı hedefi dener, ad döndürmek bütçeyi çoğaltmaz.
+    // Denenen şifrenin hedefi; başarısız deneme bütçesi IP'den bağımsızdır (editör ayrı, diğer bütün adlar ortak).
+    // İzleyici şifresi kullanıcı adı istemez: alıcıya karşılık gelmeyen her ad aynı hedefi dener.
     var hedef = editorAdi ? GirisSiniri.EditorHedefi : alici is not null ? GirisSiniri.AliciHedefi(alici.Kullanici) : GirisSiniri.IzleyiciHedefi;
     var ip = http.Connection.RemoteIpAddress;
-    if (sinir.HedefKilidi(hedef, ip) is { } kilit)
-    {
-        using (kilit) return HizSinirlari.Red(http, kilit);
-    }
+    // Bütçeler şifre doğrulanmadan önce ayrılır: eşzamanlı istekler denetimi birlikte geçip bütçeyi aşamaz.
+    // Başarı ayrılanı iade eder; sonuçsuz kapanan deneme (doğrulama kuyruğu dolu, iptal) şifre denenmediği için iade edilir.
+    using var deneme = sinir.Baslat(hedef, ip);
+    if (deneme.RedSuresi is { } bekleme) return HizSinirlari.Red(http, bekleme);
     // PBKDF2 doğrulaması eşzamanlılık sınırında: giriş seli CPU'yu tüketip uygulamanın geri kalanını yavaşlatamaz.
     using var izin = await sinir.DogrulamaIzniAsync(http.RequestAborted);
     if (!izin.IsAcquired) return HizSinirlari.Yogun(http);
@@ -197,7 +197,7 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
             izleyiciSifresi.GirisYapildi(h, dto.Sifre);
         }
     }
-    sinir.Sonuc(hedef, ip, rol is not null);
+    deneme.Sonuc(rol is not null);
 
     if (rol is null) return hatali;
 
