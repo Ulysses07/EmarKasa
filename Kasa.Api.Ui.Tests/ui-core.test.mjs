@@ -1341,3 +1341,16 @@ test('gerçek bakiye karşılaştırması ± seçiciyle eksi bakiyeyi önizler',
   formField(nodes, 'gercekBakiyeIsaret').value = '-'; formField(nodes, 'gercekBakiye').value = '20'; await submitDialog(nodes);
   assert.equal(calls.find(call => call.path === '/api/kasa-kontrol/onizleme').body.gercekBakiye, -20);
 });
+
+// Yedek rotasyon uyarısı: yedeğin kendisi başarılıdır, silinemeyen eski yedek ayrıca görünür.
+test('Ayarlar yedek bölümü sunucunun rotasyon uyarısını gösterir, uyarı kalkınca gizler', async () => {
+  const warning = 'Otomatik yedek rotasyonu tamamlanamadı: saklama süresi dolan 1 yedek silinemedi (kasa-oto-20260801T030000Z.zip). Sunucu kayıtlarını ve yedek dizininin izinlerini kontrol edin.';
+  const status = { otomatikEtkin: true, sonYedek: '2026-09-23T03:00:00Z', sonDogrulama: '2026-09-23T03:00:05Z', hata: null, rotasyonUyarisi: warning };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': status, '/api/alicilar': [], '/api/kanallar': [] });
+  await app.navigate('tools');
+  const notice = nodes.get('#view').find(node => node.textContent === warning);
+  assert.ok(notice, 'Rotasyon uyarısı görünür.'); assert.equal(notice.attributes.role, 'alert');
+  assert.equal(nodes.get('#view').find(node => node.className === 'form-error'), null, 'Yedek başarılıdır; hata gösterilmez.');
+  status.rotasyonUyarisi = null; await app.navigate('tools');
+  assert.doesNotMatch(nodes.get('#view').textContent, /rotasyonu tamamlanamadı/);
+});
