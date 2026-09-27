@@ -12,9 +12,10 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     private readonly TekrarAnahtari _kayit = new(), _harcama = new(), _odeme = new(), _ekstre = new(), _iptal = new(), _durum = new(), _gecis = new();
     private KartTakipOdemeYaz? _onizlenenOdeme;
     private KartGecisYaz? _onizlenenGecis;
-    private bool _gecisUygun;
-    // Web cardTransition gibi: kullanıcı K'ya dokunmadıkça alan öneriyi izler (kalan borç ile kart borcunun küçüğü,
-    // önizlemede sunucunun önerdiği tutar); elle girilen tutar ezilmez.
+    private bool _gecisUygun, _gecisPaylariIzleniyor;
+    // Web cardTransition gibi: kullanıcı K'ya dokunmadıkça alan kalan borç ile kart borcunun küçüğünü izler; elle
+    // girilen tutar ezilmez. Sunucunun önizlemede önerdiği farklı tutar alana kendiliğinden yazılmaz, açık eylemle
+    // (OnerilenleGecisOnizle, web'de "Önerilen tutarla yeniden önizle") uygulanır.
     private bool _oncedenSayilanElle, _oncedenSayilanOneriliyor;
     public ObservableCollection<KartTakipSatiri> Kartlar { get; } = new();
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
@@ -56,6 +57,11 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     [ObservableProperty] private string? _gecisOnizleme;
     [ObservableProperty] private string? _gecisEngeli;
     [ObservableProperty] private bool _gecisOnay;
+    /// <summary>Son önizlemede sunucunun önerdiği, girilenden farklı kasada önceden sayılan tutar; yoksa null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GecisOneriMetni), nameof(GecisOneriVar))]
+    [NotifyCanExecuteChangedFor(nameof(OnerilenleGecisOnizleCommand))]
+    private decimal? _gecisOnerilenTutar;
     public bool KartSecili => Secili is not null;
     public bool YeniKart => Secili is null;
     public bool YeniTakip => Secili?.YeniTakip == true;
@@ -73,20 +79,32 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     public bool GecisUyarisiTehlikeli => Secili?.Gecis is { TahminiKasaFarki: not 0 };
     /// <summary>Güncel önizleme sunucuca kabul edilebilir; değilse onay düğmesi kapalı ve GecisEngeli nedenini söyler.</summary>
     public bool GecisOnaylanabilir => _gecisUygun && _onizlenenGecis is not null;
+    public bool GecisOneriVar => GecisOnerilenTutar is not null;
+    public string? GecisOneriMetni => GecisOnerilenTutar is { } oneri ? $"Önerilen tutarla ({Bicim.Tl(oneri)} ₺) yeniden önizle" : null;
     partial void OnSeciliChanged(KartTakipDto? value) { foreach (var p in new[] { nameof(KartSecili), nameof(YeniKart), nameof(YeniTakip), nameof(EskiTakip), nameof(KartOzeti), nameof(KanalBorcOzeti), nameof(GecisKaydi), nameof(GecisUyarisi), nameof(GecisUyarisiTehlikeli) }) OnPropertyChanged(p); }
-    partial void OnOncedenSayilanChanged(decimal value) { if (!_oncedenSayilanOneriliyor) _oncedenSayilanElle = true; }
+    partial void OnOncedenSayilanChanged(decimal value) { if (!_oncedenSayilanOneriliyor) _oncedenSayilanElle = true; GecisGecersizKil(); }
     partial void OnGecisKalanBorcChanged(decimal value)
     {
+        GecisGecersizKil();
         if (!_oncedenSayilanElle && Secili is { } kart && ParaAyristirici.GecerliMi(value)) OncedenSayilanOner(Math.Max(0, Math.Min(value, kart.Borc)));
+    }
+    partial void OnGecisTarihiChanged(DateTime value) => GecisGecersizKil();
+    partial void OnGecisAciklamaChanged(string value) => GecisGecersizKil();
+    /// <summary>Önizlemeden sonra geçiş girdisi (tarih, kalan borç, K, paylar, açıklama) değişince gösterilen önizleme,
+    /// engel metni, öneri ve onay eski girdiye aittir: hepsi kalkar, onay düğmesi yeni önizlemeye kadar kapanır.</summary>
+    private void GecisGecersizKil()
+    {
+        if (_onizlenenGecis is not null || GecisOnizleme is not null || GecisEngeli is not null || GecisOnerilenTutar is not null || GecisOnay)
+            GecisDurumu(null, false, null, null);
     }
     private void OncedenSayilanOner(decimal tutar)
     {
         _oncedenSayilanOneriliyor = true;
         try { OncedenSayilan = tutar; } finally { _oncedenSayilanOneriliyor = false; }
     }
-    private void GecisDurumu(KartGecisYaz? onizlenen, bool uygun, string? onizleme, string? engel)
+    private void GecisDurumu(KartGecisYaz? onizlenen, bool uygun, string? onizleme, string? engel, decimal? oneri = null)
     {
-        _onizlenenGecis = onizlenen; _gecisUygun = uygun; GecisOnizleme = onizleme; GecisEngeli = engel; GecisOnay = false;
+        _onizlenenGecis = onizlenen; _gecisUygun = uygun; GecisOnizleme = onizleme; GecisEngeli = engel; GecisOnerilenTutar = oneri; GecisOnay = false;
         OnPropertyChanged(nameof(GecisOnaylanabilir)); GecisiOnaylaCommand.NotifyCanExecuteChanged();
     }
 
@@ -137,7 +155,18 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         var eski = Kartlar.FirstOrDefault(k => k.Veri.Id == sonuc.Id); if (eski is not null) Kartlar[Kartlar.IndexOf(eski)] = new(sonuc); else Kartlar.Add(new(sonuc));
         Secili = sonuc; DetaylariYansit(); Tamamlandi(); return true;
     }
-    public void PayEkle(ObservableCollection<TakipPayEditor> liste) => liste.Add(new(Kanallar.ToList()));
+    public void PayEkle(ObservableCollection<TakipPayEditor> liste)
+    {
+        var pay = new TakipPayEditor(Kanallar.ToList());
+        if (ReferenceEquals(liste, GecisPaylari))
+        {
+            // Geçiş payı değişince (satır ekleme/kaldırma dahil) önizleme geçersizdir. Satırlar yalnız burada eklendiği
+            // için liste izlemesi ilk eklemede kurulur.
+            if (!_gecisPaylariIzleniyor) { _gecisPaylariIzleniyor = true; GecisPaylari.CollectionChanged += (_, _) => GecisGecersizKil(); }
+            pay.PropertyChanged += (_, _) => GecisGecersizKil();
+        }
+        liste.Add(pay);
+    }
     [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu) return;
@@ -231,17 +260,17 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         GecisDurumu(null, false, null, null);
         var g = GecisGovde(); var sonuc = await api.TakipKartGecisOnizlemeAsync(kart.Id, g);
         if (!Gecerli(n) || Secili?.Id != kart.Id || !TakipMetni.Ayni(g, GecisGovde())) return;
-        string? doldurma = null;
-        // Elle değiştirilmemiş tutar sunucunun önerisiyle dolar ve yeniden önizlenir: gösterilen ve onaylanacak
-        // önizleme, alandaki tutarındır (web'de "önerilen tutarla yeniden önizle").
-        if (!_oncedenSayilanElle && sonuc.OnerilenKasadaSayilanTutar is { } oneri && oneri != g.KasadaOncedenSayilanTutar)
-        {
-            OncedenSayilanOner(oneri); doldurma = $"Kasada önceden sayılan tutar önerilen tutarla ({Bicim.Tl(oneri)} ₺) dolduruldu.\n";
-            g = GecisGovde(); sonuc = await api.TakipKartGecisOnizlemeAsync(kart.Id, g);
-            if (!Gecerli(n) || Secili?.Id != kart.Id || !TakipMetni.Ayni(g, GecisGovde())) return;
-        }
-        GecisDurumu(g, sonuc.KabulEdilebilir, doldurma + TakipMetni.Gecis(sonuc), sonuc.KabulEdilebilir ? null : TakipMetni.GecisEngeli(sonuc));
+        // Gösterilen ve onaylanacak önizleme alandaki tutarındır; sunucu farklı tutar önerirse yalnız teklif edilir.
+        var oneri = sonuc.OnerilenKasadaSayilanTutar is { } o && o != g.KasadaOncedenSayilanTutar ? o : (decimal?)null;
+        GecisDurumu(g, sonuc.KabulEdilebilir, TakipMetni.Gecis(sonuc), sonuc.KabulEdilebilir ? null : TakipMetni.GecisEngeli(sonuc), oneri);
     });
+    /// <summary>Önerilen tutarı alana yazar ve yeniden önizler; alan artık elle girilmiş sayılır (web countedEdited).</summary>
+    [RelayCommand(CanExecute = nameof(GecisOneriVar))] private Task OnerilenleGecisOnizleAsync()
+    {
+        if (GecisOnerilenTutar is not { } oneri) return Task.CompletedTask;
+        OncedenSayilan = oneri;
+        return GecisOnizleAsync();
+    }
     [RelayCommand(CanExecute = nameof(GecisOnaylanabilir))] private Task GecisiOnaylaAsync() => YurutAsync(async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: false } kart) return;
