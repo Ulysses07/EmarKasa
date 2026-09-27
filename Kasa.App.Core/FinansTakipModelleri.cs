@@ -20,7 +20,70 @@ public partial class TakipKanalSecimi(KanalDto veri) : ObservableObject
 public static class TakipMetni
 {
     public static string Paylar(IEnumerable<TakipKanalPayi> paylar) => string.Join(" · ", paylar.Select(p => $"{(p.KanalId is null ? "Dağılım bekliyor" : p.Kanal)}: {Bicim.Tl(p.Tutar)} ₺"));
-    public static string Gecis(TakipGecisDto g) => $"Geçiş: {g.Baslangic:dd.MM.yyyy}\nGenel kasa farkı: {Bicim.Tl(g.GenelKasaAnlikFarki)} ₺ · kanal farkı: {Bicim.Tl(g.KanalAnlikFarki)} ₺\nKasada önceden sayılan: {Bicim.Tl(g.EskiKasadaSayilanTutar)} ₺\n" + string.Join("\n", g.Aciklamalar);
+    public static string Gecis(TakipGecisDto g)
+    {
+        var satirlar = new List<string> { $"Geçiş: {g.Baslangic:dd.MM.yyyy}", $"Genel kasa farkı: {Bicim.Tl(g.GenelKasaAnlikFarki)} ₺ · kanal farkı: {Bicim.Tl(g.KanalAnlikFarki)} ₺" };
+        // Kart geçişinde sunucu eski kuralla işlenen/bekleyen düşümleri ve önerilen tutarı hesaplar (web finance-ui.js
+        // transitionPreview aynası). Kredi geçişinde ve eski sunucuda bu alanlar null'dır.
+        if (g.SistemKartBorcu is { } sistem)
+        {
+            satirlar.Add(g.GenelKasaAnlikFarki switch
+            {
+                > 0 => "Artı fark: bu tutar kasadan hiçbir zaman düşmez; kasa bu kadar fazla görünür.",
+                < 0 => "Eksi fark: bu tutar ödendiğinde kasadan düşer; açılış borcu kasadan ayrıca ödenmeyecekse ikinci kez düşer.",
+                _ => "Fark yok: kasada önceden sayılan tutar önerilenle aynı; toplam kasa etkisi tutarlı.",
+            });
+            satirlar.Add($"Kasada önceden sayılan: {Bicim.Tl(g.EskiKasadaSayilanTutar)} ₺");
+            satirlar.Add($"Sistem kart borcu: {Bicim.Tl(sistem)} ₺ (açılış borcu + eski kart giderleri − eski kart ödemeleri)");
+            satirlar.Add($"Başlangıçtan önce eski kuralla kasadan düşen/düşecek: {Bicim.Tl(g.EskiKuraldaIslenenTutar ?? 0)} ₺");
+            satirlar.Add(g.SonBekleyenDusumTarihi is { } son ? $"Bekleyen eski düşüm: {Bicim.Tl(g.BekleyenEskiDusumTutari ?? 0)} ₺ · son düşüm {son:dd.MM.yyyy}" : "Bekleyen eski düşüm yok.");
+            if (g.OnerilenKasadaSayilanTutar is { } oneri)
+                satirlar.Add($"Önerilen kasada önceden sayılan: {Bicim.Tl(oneri)} ₺" + (g.EnAzKasadaSayilanTutar is { } enAz && enAz < oneri ? $" · en az {Bicim.Tl(enAz)} ₺ (yalnız açılış borcu kasadan ayrıca ödenecekse)" : ""));
+        }
+        else satirlar.Add($"Kasada önceden sayılan: {Bicim.Tl(g.EskiKasadaSayilanTutar)} ₺");
+        return string.Join("\n", satirlar.Concat(g.Aciklamalar));
+    }
+    /// <summary>KabulEdilebilir=false önizlemenin nedeni (sunucu /gecis bu girdiyi 409 ile reddeder).</summary>
+    public static string GecisEngeli(TakipGecisDto g) => "Geçiş bu tutarlarla onaylanamaz: " +
+        (g.OnerilenKasadaSayilanTutar is { } oneri && g.EskiKasadaSayilanTutar > oneri
+            ? $"kasada önceden sayılan tutar önerilen {Bicim.Tl(oneri)} ₺ tutarını aşamaz; aşan kısım kasadan hiçbir zaman düşmez."
+            : g.EnAzKasadaSayilanTutar is { } enAz && g.EskiKasadaSayilanTutar < enAz
+                ? $"kasada önceden sayılan tutar en az {Bicim.Tl(enAz)} ₺ olmalı; altındaki kısım eski kuralla düşmüş/düşecek borçtur ve ödendiğinde kasadan ikinci kez düşer."
+                : "önizleme kabul edilebilir değil; açıklamaları inceleyin.")
+        + " Tutarı ve girdileri düzeltip yeniden önizleyin.";
+    /// <summary>Onaylanmış kart geçişinin denetim izi (web transitionRecord aynası) ve uygulanan kural.</summary>
+    public static string GecisKaydi(KartGecisDto g)
+    {
+        var satirlar = new List<string>
+        {
+            "Geçiş kuralı: " + g.Kural switch
+            {
+                "IslemTarihi" => "başlangıçtan önceki her eski kart gideri eski ay sonu kuralıyla bir kez düşer; sonraki harcamalar yalnız kaydedilen ödemeyle düşer.",
+                "EtkiTarihi" => "ilk sürüm (etki tarihi): ay sonu düşümü başlangıçta veya sonrasında olan eski giderler raporlara girmez.",
+                var kural => kural,
+            },
+        };
+        if (g.Onizleme is { } k)
+        {
+            satirlar.Add($"Girilen kalan borç {Bicim.Tl(k.KalanBorc)} ₺ · sistem kart borcu {Bicim.Tl(k.SistemKartBorcu)} ₺");
+            satirlar.Add($"Kasada önceden sayılan {Bicim.Tl(k.KasadaOncedenSayilanTutar)} ₺ · önerilen {Bicim.Tl(k.OnerilenKasadaSayilanTutar)} ₺");
+            satirlar.Add(k.SonBekleyenDusumTarihi is { } son ? $"Bekleyen eski düşüm {Bicim.Tl(k.BekleyenEskiDusumTutari)} ₺ · son düşüm {son:dd.MM.yyyy}" : "Bekleyen eski düşüm yok.");
+            satirlar.Add($"{k.OnayTarihi:dd.MM.yyyy} tarihinde onaylandı. Başlangıçtan önce eski kuralla düşen/düşecek kart gideri {Bicim.Tl(k.EskiKuraldaIslenenTutar)} ₺.");
+        }
+        else satirlar.Add("Bu geçiş ilk sürümde yapıldı; önizleme özeti saklanmadı.");
+        if (!string.IsNullOrWhiteSpace(g.Aciklama)) satirlar.Add($"Geçiş açıklaması: {g.Aciklama}");
+        return string.Join("\n", satirlar);
+    }
+    /// <summary>İlk sürüm geçiş kalıntısı uyarısı; sunucu metni yoksa (eski sunucu) tutarlardan kurulur, kalıntı yoksa null.</summary>
+    public static string? GecisUyarisi(KartGecisDto? g) => g switch
+    {
+        null => null,
+        { Uyari: { Length: > 0 } uyari } => uyari,
+        { RaporDisiEskiDusumTutari: 0, TahminiKasaFarki: 0 } => null,
+        _ => $"İlk sürüm geçiş kalıntısı: başlangıçtan önceki kart giderlerinin {Bicim.Tl(g.RaporDisiEskiDusumTutari)} ₺ tutarındaki eski ay sonu düşümü"
+            + (g.RaporDisiIlkDusumTarihi is { } ilk && g.RaporDisiSonDusumTarihi is { } son ? $" ({ilk:dd.MM.yyyy}–{son:dd.MM.yyyy})" : "")
+            + $" raporlara girmiyor; tahmini kasa farkı {Bicim.Tl(g.TahminiKasaFarki)} ₺. Tutarları banka/kasa kayıtlarıyla doğrulayın.",
+    };
     public static bool Ayni<T>(T a, T b) => System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(b);
     public static void Doldur<T>(ObservableCollection<T> liste, IEnumerable<T> veri) { liste.Clear(); foreach (var item in veri) liste.Add(item); }
     public static IReadOnlyList<KanalPayYaz> Paylar(IEnumerable<TakipPayEditor> paylar)
@@ -34,7 +97,8 @@ public static class TakipMetni
 }
 public record KartTakipSatiri(KartTakipDto Veri)
 {
-    public string Baslik => Veri.Ad + (!Veri.Aktif ? " · pasif" : "") + (!Veri.YeniTakip ? " · eski takip" : "");
+    // Web kart listesindeki "Geçiş farkını doğrulayın" rozetinin karşılığı.
+    public string Baslik => Veri.Ad + (!Veri.Aktif ? " · pasif" : "") + (!Veri.YeniTakip ? " · eski takip" : "") + (Veri.Gecis is { TahminiKasaFarki: not 0 } ? " · geçiş farkını doğrulayın" : "");
     public string Ozet => $"Kart borcu {Bicim.Tl(Veri.Borc)} ₺ · açık ekstre {Bicim.Tl(Veri.EkstreBorc)} ₺ · limit {Bicim.Tl(Veri.Limit)} ₺" +
         (Veri.Ekstreler.Where(e => e.Kalan > 0).OrderBy(e => e.SonOdemeTarihi).FirstOrDefault() is { } e ? $"\nİlk açık ekstrenin son ödemesi: {e.SonOdemeTarihi:dd.MM.yyyy}" : "");
 }

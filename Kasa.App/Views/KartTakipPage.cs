@@ -24,15 +24,22 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         var ozet = Kart("Kart ayrıntısı", Bagli(nameof(vm.KartOzeti), 18));
         Govde.Add(Kart("Kartlar", Liste<KartTakipSatiri>(nameof(vm.Kartlar), async s => { vm.SecCommand.Execute(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }), Editor(Dugme("Yeni kart", nameof(vm.YeniCommand)))));
         Govde.Add(ozet);
+        // İlk sürüm geçiş kalıntısı (web'deki notice): tahmini kasa farkı varsa koyu kırmızı, yalnız düşüş tarihi farklıysa bilgi.
+        var gecisUyarisi = Bagli(nameof(vm.GecisUyarisi)); gecisUyarisi.FontAttributes = FontAttributes.Bold;
+        gecisUyarisi.Triggers.Add(new DataTrigger(typeof(Label)) { Binding = new Binding(nameof(vm.GecisUyarisiTehlikeli)), Value = true, Setters = { new Setter { Property = Label.TextColorProperty, Value = Colors.DarkRed } } });
+        Govde.Add(Goster(Kart("Geçiş uyarısı", gecisUyarisi), nameof(vm.GecisUyarisi), true));
         Govde.Add(Goster(Kart("Kanalların kalan kart borcu", Bagli(nameof(vm.KanalBorcOzeti)), Metin("Bu tutarlar mevcut kasadan düşülmüş değildir. Kasa, kaydedilen kart ödemesiyle değişir.")), nameof(vm.KartSecili)));
         Govde.Add(Editor(Kart("Kart bilgileri", Alan("Kart / banka adı", Girdi(nameof(vm.Ad))), Alan("Limit", Girdi(nameof(vm.Limit), true)),
             Alan("Hesap kesim günü (1–31)", Girdi(nameof(vm.KesimGunu), sayi: true)), Alan("Son ödeme günü (1–31)", Girdi(nameof(vm.SonOdemeGunu), sayi: true)),
             Goster(new VerticalStackLayout { Spacing = 12, Children = { Alan("Açılış tarihi", Tarih(nameof(vm.AcilisTarihi))), Alan("Açılış borcu", Girdi(nameof(vm.AcilisBorc), true)), Metin("Açılış borcunun bilinen kanal paylarını girin. Bilinmeyen dağılım tahmin edilmez."), Paylar(vm.AcilisPaylari, () => vm.PayEkle(vm.AcilisPaylari)) } }, nameof(vm.YeniKart)),
             Dugme("Kartı kaydet", nameof(vm.KaydetCommand)))));
-        var gecis = Kart("Eski kartı yeni takibe al", Metin("Geçmiş ay sonu çıkışları yeniden kasadan düşmemelidir. Kalan borcu ve kasada daha önce sayılmış kısmı kontrol ederek önizlemeyi alın."),
-            Alan("Geçiş tarihi", Tarih(nameof(vm.GecisTarihi))), Alan("Kalan kart borcu", Girdi(nameof(vm.GecisKalanBorc), true)), Alan("Kasada önceden sayılan tutar", Girdi(nameof(vm.OncedenSayilan), true)),
+        // Kabul edilemez önizlemede (KabulEdilebilir=false) onay kutusu ve düğme kapalıdır; neden kırmızı yazılır.
+        var gecisEngeli = Bagli(nameof(vm.GecisEngeli)); gecisEngeli.TextColor = Colors.DarkRed;
+        var gecisOnayi = Onay("Gösterilen kasa ve kanal etkisini inceledim; geçişi onaylıyorum.", nameof(vm.GecisOnay)); gecisOnayi.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.GecisOnaylanabilir));
+        var gecis = Kart("Eski kartı yeni takibe al", Metin("Bankanızdaki kalan borcu girin. Kasada önceden sayılan kısım, sistemin eski kuralla kasadan düştüğü/düşeceği borçtur; önerilen tutar kalan borç ile sistem kart borcunun küçüğüdür ve siz değiştirmedikçe önizlemede alana dolar. Önerilenin altı yalnız açılış borcu kasadan ayrıca ödenecekse girilebilir. Bu işlem yeni harcama oluşturmaz."),
+            Alan("Geçiş tarihi", Tarih(nameof(vm.GecisTarihi))), Alan("Kalan kart borcu", Girdi(nameof(vm.GecisKalanBorc), true)), Alan("Bu borcun kasada önceden sayılmış kısmı", Girdi(nameof(vm.OncedenSayilan), true)),
             Paylar(vm.GecisPaylari, () => vm.PayEkle(vm.GecisPaylari)), Alan("Geçiş açıklaması", Girdi(nameof(vm.GecisAciklama))), Dugme("Geçiş farkını göster", nameof(vm.GecisOnizleCommand)), Bagli(nameof(vm.GecisOnizleme)),
-            Onay("Gösterilen kasa ve kanal etkisini inceledim; geçişi onaylıyorum.", nameof(vm.GecisOnay)), Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)));
+            Goster(gecisEngeli, nameof(vm.GecisEngeli), true), gecisOnayi, Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)));
         Govde.Add(Editor(Goster(gecis, nameof(vm.EskiTakip))));
         Govde.Add(Goster(Kart("Ekstreler", Liste<EkstreSatiri>(nameof(vm.Ekstreler), s => { vm.EkstreSecCommand.Execute(s); return Task.CompletedTask; }, "Tarih / asgari ödeme", _ => vm.EditorMu && vm.YeniTakip)), nameof(vm.KartSecili)));
         Govde.Add(Editor(Goster(Kart("Ekstre bilgisi", Metin("Asgari ödeme ve tarihler bankanın ekstresinden girilir; uygulama oran veya tatil günü tahmini yapmaz."), Alan("Son ödeme tarihi", Tarih(nameof(vm.EkstreSonOdeme))),
@@ -52,6 +59,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         Govde.Add(Editor(Goster(harcama, nameof(vm.YeniTakip))));
         Govde.Add(Goster(Kart("Harcamalar ve iadeler", Liste<HarcamaSatiri>(nameof(vm.Harcamalar), async s => { if (!vm.EditorMu) return; if (s.Veri.EkstreKayitId is { } id) { await Shell.Current.GoToAsync($"//ekstreaktar?KayitId={id}"); return; } var reason = await GerekceAsync("Kart hareketini iptal et"); if (!string.IsNullOrWhiteSpace(reason)) { vm.Gerekce = reason; await vm.HarcamaIptalAsync(s); } }, "Hareketi iptal et", s => vm.EditorMu && vm.YeniTakip && (!s.Veri.Iptal || s.Veri.EkstreKayitId is not null), s => s.Veri.EkstreKayitId is not null ? "Kaynak PDF / iptal" : "Hareketi iptal et")), nameof(vm.KartSecili)));
         Govde.Add(Goster(Kart("Kaydedilen ödemeler", Liste<KartOdemeSatiri>(nameof(vm.Odemeler), async s => { if (!vm.EditorMu) return; if (s.Veri.EkstreKayitId is { } id) { await Shell.Current.GoToAsync($"//ekstreaktar?KayitId={id}"); return; } var reason = await GerekceAsync("Kart ödemesini iptal et"); if (!string.IsNullOrWhiteSpace(reason)) { vm.Gerekce = reason; await vm.OdemeIptalAsync(s); } }, "Ödemeyi iptal et", s => vm.EditorMu && vm.YeniTakip && (!s.Veri.Iptal || s.Veri.EkstreKayitId is not null), s => s.Veri.EkstreKayitId is not null ? "Kaynak PDF / iptal" : "Ödemeyi iptal et")), nameof(vm.KartSecili)));
+        Govde.Add(Goster(Kart("Eski karttan geçiş", Bagli(nameof(vm.GecisKaydi))), nameof(vm.GecisKaydi), true));
         Govde.Add(Editor(Goster(Kart("Kullanım durumu", Metin("Kartı pasife almak geçmiş hareketleri silmez."), Tikla("Aktif / pasif durumunu değiştir", async () => { var reason = await GerekceAsync("Kartın kullanım durumunu değiştir"); if (!string.IsNullOrWhiteSpace(reason)) { vm.Gerekce = reason; await vm.DurumDegistirAsync(); } })), nameof(vm.KartSecili))));
     }
 }

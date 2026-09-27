@@ -25,4 +25,13 @@ public class BicimTests
     [Fact]
     public void KanalRengi_bilinmeyene_ortak_rengi()
         => Assert.Equal("#7A828E", Bicim.KanalRengi("BILINMEYEN"));
+
+    [Fact]
+    public void Donem_etiketi_filtrede_yilsiz_gelir_formunda_yillidir()
+    {
+        // Yıl sınırını aşan dönem: gelir formu yanlış yılın dönem toplamını ezmesin diye yılı gösterir.
+        var donem = new Kasa.ApiClient.DonemDto(new DateOnly(2025, 12, 29), new DateOnly(2026, 1, 4), 2025, 12);
+        Assert.Equal("29 Ara – 04 Oca", Bicim.Donem(donem));
+        Assert.Equal("29 Ara 2025 – 04 Oca 2026", Bicim.Donem(donem, yilli: true));
+    }
 }

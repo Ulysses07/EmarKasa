@@ -11,6 +11,14 @@ public static class Bicim
 
     public static string ImzaliTl(decimal n) => (n < 0 ? "-" : "+") + Tl(Math.Abs(n));
 
+    /// <summary>Dönem seçici etiketi: "13 Tem – 19 Tem"; yıllı "13 Tem 2026 – 19 Tem 2026" (gelir formu dönem
+    /// toplamını yerine koyduğundan farklı yılların aynı haftaları karışmasın).</summary>
+    public static string Donem(Kasa.ApiClient.DonemDto d, bool yilli = false)
+    {
+        var bicim = yilli ? "dd MMM yyyy" : "dd MMM";
+        return $"{d.Start.ToString(bicim, Tr)} – {d.End.ToString(bicim, Tr)}";
+    }
+
     public static string KanalRengi(string kanal) => kanal switch
     {
         "MEZAT" => "#C98A12",

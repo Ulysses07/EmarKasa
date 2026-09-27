@@ -59,9 +59,24 @@ public class KasaKontrolVeAylikGiderTests
     }
     [Fact] public async Task Bakiye_409_onizlemeyi_gecersizlestirir_ag_hatasi_anahtari_korur()
     {
-        var f = new Fake { KontrolHata = new HttpRequestException() }; var v = new KasaKontrolViewModel(f, Auth()); await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null);
+        // Sıfırdan farklı bakiye: 0 ile kayıt ayrıca ikinci basışta onaylanır (aşağıdaki test).
+        var f = new Fake { KontrolHata = new HttpRequestException() }; var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = 50 }; await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null);
         f.KontrolHata = new KasaApiException(HttpStatusCode.Conflict, "Bakiye değişti"); await v.KaydetCommand.ExecuteAsync(null); Assert.Equal(f.Kontroller[0], f.Kontroller[1]);
         f.KontrolHata = null; await v.KaydetCommand.ExecuteAsync(null); Assert.Equal(2, f.Kontroller.Count); Assert.Null(v.Karsilastirma);
+    }
+    [Fact] public async Task Gercek_bakiye_sifirla_kayit_ikinci_basista_onaylanir_deger_degisince_sifirlanir()
+    {
+        var f = new Fake(); var v = new KasaKontrolViewModel(f, Auth());   // alan boş: 0
+        await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null);
+        Assert.Empty(f.Kontroller); Assert.Contains("0,00 ₺", v.KayitUyarisi); Assert.Contains("Onaylamak için yeniden kaydedin", v.KayitUyarisi);
+
+        v.GercekBakiye = 5; v.GercekBakiye = 0; Assert.Null(v.KayitUyarisi);          // değer değişti: onay sıfırlanır
+        await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null); Assert.Empty(f.Kontroller);
+        v.Not = "Kasa sayıldı"; Assert.Null(v.KayitUyarisi);                         // diğer alan değişti: onay sıfırlanır
+        await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null); Assert.Empty(f.Kontroller);
+
+        await v.KaydetCommand.ExecuteAsync(null);
+        var kayit = Assert.Single(f.Kontroller); Assert.Equal(0, kayit.GercekBakiye); Assert.Equal("Kasa sayıldı", kayit.Not); Assert.Null(v.KayitUyarisi);
     }
     [Fact] public async Task Esik_sifir_degeri_ve_kapali_durum_acikca_kaydedilir()
     {
