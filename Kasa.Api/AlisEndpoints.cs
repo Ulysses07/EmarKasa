@@ -22,12 +22,12 @@ public static class AlisEndpoints
         api.MapGet("", (ClaimsPrincipal user, KasaDbContext db) =>
         {
             if (!Editor(user) && AliciId(user) is null) return Results.Forbid();
-            using var transaction = db.Database.BeginTransaction();
+            // Bölünmüş sorgunun parçaları aynı anlık görüntüyü görür; yazma kilidi alınmaz.
+            using var snapshot = db.OkumaBaslat();
             var query = Query(db).AsNoTracking();
             if (!Editor(user)) query = query.Where(a => a.AliciId == AliciId(user));
             var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
             var result = query.OrderByDescending(a => a.Tarih).ThenByDescending(a => a.Id).ToList().Select(a => AlisHesaplari.ToDto(a, kartAdlari)).ToList();
-            transaction.Commit();
             return Results.Ok(result);
         });
         api.MapPost("", (AlisYaz dto, ClaimsPrincipal user, KasaDbContext db) => Mutate(db, () =>
@@ -227,6 +227,19 @@ public static class AlisEndpoints
         db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad));
     internal static IResult Conflict(string message) => Results.Conflict(new { hata = message });
     private static IResult VersionConflict() => Conflict("Alış başka bir işlemle değişti. Listeyi yenileyip tekrar deneyin.");
+
+    /// <summary>Salt okunur uç: işlem tutarlı okuma anlık görüntüsünde (DEFERRED, yazmaya kapalı) çalışır; yazma kilidi
+    /// almaz. Anlık görüntü sırasında meşgul/kilitli veritabanı (5/6) yazmadaki gibi 409 döner.</summary>
+    internal static IResult Oku(KasaDbContext db, Func<IResult> action)
+    {
+        try
+        {
+            using var snapshot = db.OkumaBaslat();
+            return action();
+        }
+        catch (SqliteException e) when (e.SqliteErrorCode is 5 or 6)
+        { return Conflict("Başka bir kayıt işlemiyle çakışma oldu. Listeyi yenileyip tekrar deneyin."); }
+    }
 
     internal static IResult Mutate(KasaDbContext db, Func<IResult> action)
     {

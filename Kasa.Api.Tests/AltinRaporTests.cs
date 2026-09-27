@@ -34,13 +34,14 @@ public class AltinRaporTests
         }
         var beklenen = JsonNode.Parse(File.ReadAllText(yol))!.AsObject();
         Assert.Equal(beklenen.Select(p => p.Key).Order(StringComparer.Ordinal), gercek.Select(p => p.Key).Order(StringComparer.Ordinal));
+        // Birebir: sayı belirteçleri de metin olarak karşılaştırılır (ör. 1190.5 ile 1190.50 farklı sayılır).
         foreach (var (uc, deger) in beklenen)
-            Assert.True(JsonNode.DeepEquals(deger, gercek[uc]), $"{uc} altın çıktıdan farklı:\nBEKLENEN {deger!.ToJsonString()}\nGERÇEK   {gercek[uc]!.ToJsonString()}");
+            Assert.True(deger!.ToJsonString() == gercek[uc]!.ToJsonString(), $"{uc} altın çıktıdan farklı:\nBEKLENEN {deger.ToJsonString()}\nGERÇEK   {gercek[uc]!.ToJsonString()}");
 
         // Okumalar veri değiştirmez: aynı uçlar ikinci kez aynı yanıtı verir.
         var ikinci = await AltinTohum.Yanitlar(c, tohum);
         foreach (var (uc, deger) in gercek)
-            Assert.True(JsonNode.DeepEquals(deger, ikinci[uc]), $"{uc} ikinci okumada değişti.");
+            Assert.True(deger!.ToJsonString() == ikinci[uc]!.ToJsonString(), $"{uc} ikinci okumada değişti.");
     }
 
     private static string AltinDosyasi([CallerFilePath] string kaynak = "") =>

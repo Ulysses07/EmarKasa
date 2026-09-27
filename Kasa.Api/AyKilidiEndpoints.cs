@@ -14,7 +14,8 @@ public static class AyKilidiEndpoints
     public static WebApplication MapAyKilidiEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api/ay-kilidi").RequireAuthorization("Finans");
-        api.MapGet("", (KasaDbContext db) => Run(db, () => Results.Ok(Read(db))));
+        // Okuma: kilit durumu ve geçmişi aynı salt okunur anlık görüntüden; yazma kilidi alınmaz.
+        api.MapGet("", (KasaDbContext db) => AlisEndpoints.Oku(db, () => Results.Ok(Read(db))));
         api.MapPost("/kapat", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat) => Change(db, saat, d, false)).RequireAuthorization("Editor");
         api.MapPost("/ac", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat) => Change(db, saat, d, true)).RequireAuthorization("Editor");
         return app;

@@ -25,6 +25,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<VeritabaniHataIsleyici>();
 builder.Services.AddSingleton<YedekServisi>();
 builder.Services.AddHostedService<OtomatikYedek>();
+// Okumalar Sync yapmaz: tarihe bağlı takip türetmesi (kesim ekstreleri) gün dönümünde bakım adımıyla yazılır.
+builder.Services.AddHostedService<FinansBakimi>();
 // Ters vekil (nginx → docker köprüsü) arkasında gerçek istemci IP'si ve 'guvenlik'/'giris' hız sınırları.
 builder.Services.AddKasaVekilVeHizSinirlari();
 builder.Services.AddSingleton<IzleyiciSifreDurumu>();
@@ -558,14 +560,19 @@ api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =
     return Results.Ok();
 }).RequireAuthorization("Editor");
 
-// Raporlar (okuma — her iki rol)
-api.MapGet("/donemler", (HesapServisi svc) => svc.Donemler());
-api.MapGet("/rapor/haftalik", (HesapServisi svc) => svc.Haftalik());
-api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) =>
+// Raporlar (okuma — her iki rol). Salt okunur anlık görüntüde çalışır (yazma kilidi ve Sync yok); istemci isteği
+// bırakırsa (RequestAborted) hesap sorgular ve döngüler arasında kesilir, anlık görüntü hemen bırakılır.
+api.MapGet("/donemler", (HesapServisi svc, CancellationToken ct) => svc.Donemler(ct));
+api.MapGet("/rapor/haftalik", (HesapServisi svc, CancellationToken ct) => svc.Haftalik(ct));
+api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc, CancellationToken ct) =>
     yil is >= 1 and < 9999 && ay is >= 1 and <= 12
-        ? Results.Ok(svc.Aylik(yil, ay))
+        ? Results.Ok(svc.Aylik(yil, ay, ct))
         : Results.BadRequest(new { hata = "Geçerli bir yıl ve ay seçin." }));
-api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
+api.MapGet("/rapor/panel", (HesapServisi svc, CancellationToken ct) => svc.Panel(ct));
+// Ana sayfanın panel + kasa eşikleri + takip özeti üçlüsü tek istekte, tek anlık görüntüde ve tek hesap bağlamıyla
+// (kart verisi ve ödeme etkileri bir kez). Ayrı uçlar geriye uyum için aynen durur.
+api.MapGet("/rapor/ana-sayfa", (int? gun, KasaDbContext db, HesapServisi svc, CancellationToken ct) =>
+    AnaSayfaOzeti.Oku(db, svc, gun ?? 30, ct));
 
 app.Run();
 
