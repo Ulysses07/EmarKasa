@@ -11,12 +11,12 @@ public partial class IslemlerViewModel : TemelViewModel
     private readonly IKasaApi _api;
     private readonly AuthViewModel? _auth;
     public BenzerKayitKontrolu GiderBenzerlik { get; }
-    public IslemlerViewModel(IKasaApi api, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null)
+    public IslemlerViewModel(IKasaApi api, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null, TimeProvider? zaman = null)
     {
-        _api = api; _auth = auth; GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
+        _api = api; _auth = auth; _zaman = zaman ?? TimeProvider.System; GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
         if (auth is not null) auth.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(auth.OturumSurumu)) { GiderBenzerlik.Temizle(); Yeni(); }
+            if (e.PropertyName == nameof(auth.OturumSurumu)) { GiderBenzerlik.Temizle(); Yeni(); GelenTemizle(); }
         };
     }
 
@@ -66,6 +66,7 @@ public partial class IslemlerViewModel : TemelViewModel
         var kanallar = await _api.KanallarAsync();
         var donemler = await _api.DonemlerAsync();
         var kartlar = await _api.KrediKartlariAsync();
+        _kanallar = kanallar;
 
         var adlar = kanallar.Where(k => k.Aktif).OrderBy(k => k.Sira).Select(k => k.Ad).ToList();
         GelenKanallari.Clear();
@@ -180,7 +181,11 @@ public partial class IslemlerViewModel : TemelViewModel
         return (null, null); // Tümü
     }
 
-    public Task YukleAsync() => CalistirAsync(DoldurAsync);
+    public Task YukleAsync() => CalistirAsync(async () =>
+    {
+        await DoldurAsync();
+        if (_auth is null || _auth.AktifRol == Rol.Editor) await GelenFormunuHazirlaAsync();
+    });
 
     [ObservableProperty] private bool _editorMu;
 
@@ -213,11 +218,6 @@ public partial class IslemlerViewModel : TemelViewModel
         _ => GiderTipi.Cari,
     };
 
-    // Gelen girişi
-    [ObservableProperty] private DateTime _gelenTarih = DateTime.Today;
-    [ObservableProperty] private string _gelenKanal = "";
-    [ObservableProperty] private decimal _gelenTutar;
-
     // Çip seçimleri kanal değerini ayarlar; işaretleme OnXChanged içinde eşitlenir.
     [RelayCommand] private void SecGiderKanal(SecimCipi s) => DuzenKanal = s.Ad;
     [RelayCommand] private void SecGelenKanal(SecimCipi s) => GelenKanal = s.Ad;
@@ -249,11 +249,6 @@ public partial class IslemlerViewModel : TemelViewModel
         foreach (var k in KartCipleri) k.Secili = k.Id == DuzenKrediKartiId;
     }
 
-    partial void OnGelenKanalChanged(string value)
-    {
-        foreach (var k in GelenKanallari) k.Secili = k.Ad == value;
-    }
-
     [RelayCommand]
     private void Yeni()
     {
@@ -279,6 +274,7 @@ public partial class IslemlerViewModel : TemelViewModel
     private Task KaydetAsync() => Mesgul ? Task.CompletedTask : CalistirAsync(async () =>
     {
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
+        if (!ParaAyristirici.GecerliMi(DuzenTutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         var oturum = _auth?.OturumSurumu;
         var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
         var id = DuzenId;
@@ -301,17 +297,6 @@ public partial class IslemlerViewModel : TemelViewModel
         if (i.AlisId is not null) { Hata = "Bu gider bir alış ödemesine bağlı; bu ekrandan silinemez. Alışlar ekranından kaydı inceleyin."; return; }
         await _api.IslemSilAsync(i.Id);
         await DoldurAsync();
-    });
-
-    [RelayCommand]
-    private Task GelenKaydetAsync() => CalistirAsync(async () =>
-    {
-        // Gelen, dönem başına tutulur; seçilen tarihi içeren dönemin başlangıcına hizala,
-        // yoksa raporlar bu geliri hiçbir döneme denk getiremez.
-        var tarih = DateOnly.FromDateTime(GelenTarih);
-        var donemStart = _donemler.FirstOrDefault(d => tarih >= d.Start && tarih <= d.End)?.Start ?? tarih;
-        await _api.GelenKaydetAsync(new GelenYaz(donemStart, GelenKanal, GelenTutar));
-        GelenKanal = ""; GelenTutar = 0;
     });
 }
 

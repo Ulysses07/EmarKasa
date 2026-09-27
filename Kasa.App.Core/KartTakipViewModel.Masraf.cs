@@ -18,6 +18,7 @@ public partial class KartTakipViewModel
     [ObservableProperty] private string? _masrafOnizleme;
     private KartMasrafYaz MasrafGovde()
     {
+        ParaAyristirici.Dogrula(MasrafTutari);
         var g = new KartMasrafYaz(Guid.Empty, Secili!.Surum, MasrafEkstresi?.Veri.Id ?? 0, DateOnly.FromDateTime(MasrafTarihi), MasrafTutari, MasrafAciklama.Trim());
         return g with { IstekId = _masrafKey.Al(new { Secili.Id, g }) };
     }
@@ -26,6 +27,7 @@ public partial class KartTakipViewModel
         if (!EditorMu || Secili is not { YeniTakip: true } kart) return;
         _onizlenenMasraf = null; _masrafOzetAnahtari = null; MasrafOnizleme = null;
         if (kontrolApi is null) { Hata = "Kart masrafı bağlantısı kullanılamıyor."; return; }
+        if (!ParaAyristirici.GecerliMi(MasrafTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (MasrafEkstresi is null || MasrafTutari <= 0 || string.IsNullOrWhiteSpace(MasrafAciklama)) { Hata = "Kesilmiş açık ekstreyi seçin, bankanın bildirdiği pozitif faiz / masraf tutarını ve açıklamayı girin."; return; }
         var g = MasrafGovde(); var s = await kontrolApi.KartMasrafOnizleAsync(kart.Id, g);
         if (!Gecerli(n) || Secili?.Id != kart.Id || !TakipMetni.Ayni(g, MasrafGovde())) return;

@@ -30,6 +30,7 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     {
         if (!EditorMu) return;
         _girdi = null; _onizleme = null; Karsilastirma = null;
+        if (!ParaAyristirici.GecerliMi(GercekBakiye)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         var g = Girdi(); var s = await api.KasaKontrolOnizleAsync(g);
         if (!Gecerli(n) || g != Girdi()) return;
         _girdi = g; _onizleme = s;
@@ -38,6 +39,7 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu) return;
+        if (!ParaAyristirici.GecerliMi(GercekBakiye)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (_onizleme is null || _girdi != Girdi()) { Hata = "Önce güncel bakiye karşılaştırmasını alın."; return; }
         var g = new KasaKontrolYaz(Guid.Empty, _girdi!.GercekBakiye, _onizleme.KontrolOzeti, _girdi.Not);
         g = g with { IstekId = _anahtar.Al(g) };
@@ -68,6 +70,7 @@ public partial class KasaEsikViewModel(IKasaKontrolApi api, AuthViewModel auth) 
     [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu || Secili is null) return;
+        if (!ParaAyristirici.GecerliMi(Tutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (Tutar < 0 || decimal.Round(Tutar, 2) != Tutar) { Hata = "Alt limiti sıfır veya pozitif, en fazla iki ondalıkla girin."; return; }
         var g = new KasaEsikYaz(Secili.Veri.Surum, Tutar, Etkin); var s = await api.KasaEsigiKaydetAsync(Secili.Veri.KanalId, g); if (!Gecerli(n)) return;
         var eski = Kanallar.First(k => k.Veri.KanalId == s.KanalId); Kanallar[Kanallar.IndexOf(eski)] = new(s); Secili = Kanallar.First(k => k.Veri.KanalId == s.KanalId); Mesaj = "Kanal alt limit uyarısı kaydedildi. Bakiye değiştirilmedi."; Tamamlandi();

@@ -89,8 +89,11 @@ public partial class AlislarViewModel : TemelViewModel
     public decimal Kalan => Toplam - Odenen;
     public decimal DagilimBekleyenTutar => Alislar.SelectMany(a => a.Veri.Odemeler).Where(o => o.DagilimBekliyor).Sum(o => o.Tutar);
     public bool DagilimBekliyor => DagilimBekleyenTutar > 0;
-    public string DagilimOzeti => $"Kalem toplamı {Bicim.Tl(Toplam)} ₺ · kanallara ayrılan {Bicim.Tl(Dagitilan)} ₺";
-    public string OdemeOzeti => $"Ödenen {Bicim.Tl(Odenen)} ₺ · kalan {Bicim.Tl(Kalan)} ₺";
+    /// <summary>Geçersiz para metni taşıyan kalem/pay varken toplamlar sayı olarak gösterilmez.</summary>
+    public bool TutarlarGecerli => Kalemler.All(k => k.TutarlarGecerli);
+    public string DagilimOzeti => TutarlarGecerli ? $"Kalem toplamı {Bicim.Tl(Toplam)} ₺ · kanallara ayrılan {Bicim.Tl(Dagitilan)} ₺" : ParaAyristirici.GecersizGosterim;
+    public string OdemeOzeti => TutarlarGecerli ? $"Ödenen {Bicim.Tl(Odenen)} ₺ · kalan {Bicim.Tl(Kalan)} ₺" : ParaAyristirici.GecersizGosterim;
+    public string ToplamMetni => TutarlarGecerli ? Bicim.Tl(Toplam) : ParaAyristirici.GecersizGosterim;
 
     public void OturumuAyarla(int surum, bool editorMu)
     {
@@ -223,7 +226,7 @@ public partial class AlislarViewModel : TemelViewModel
     {
         if (!Duzenlenebilir || Mesgul) return;
         var kanal = Kanallar.FirstOrDefault(k => k.Aktif && kalem.Dagilimlar.All(d => d.Kanal?.Id != k.Id));
-        kalem.Dagilimlar.Add(new AlisDagilimEditor(Kanallar.ToList()) { Kanal = kanal, Tutar = Math.Max(0, kalem.DagilimFarki) });
+        kalem.Dagilimlar.Add(new AlisDagilimEditor(Kanallar.ToList()) { Kanal = kanal, Tutar = kalem.TutarlarGecerli ? Math.Max(0, kalem.DagilimFarki) : 0 });
     }
     [RelayCommand]
     private void DagilimSil(AlisDagilimEditor pay)
@@ -279,6 +282,7 @@ public partial class AlislarViewModel : TemelViewModel
 
     private bool KaydiDogrula(bool tamDagilim = false)
     {
+        if (!TutarlarGecerli) return HataYaz(ParaAyristirici.GecersizMesaji);
         if (string.IsNullOrWhiteSpace(Tedarikci)) return HataYaz("Tedarikçi adını yazın.");
         if (Kalemler.Count == 0) return HataYaz("En az bir alış kalemi ekleyin.");
         foreach (var k in Kalemler)
@@ -302,6 +306,7 @@ public partial class AlislarViewModel : TemelViewModel
         if (!EditorMu || _secili is null) return;
         if (KaydedilmemisDegisiklikVar) { Hata = "Ödeme eklemeden önce alıştaki değişiklikleri kaydedin."; return; }
         if (MevcutGiderKullan && SeciliGider is null) { Hata = "Bağlanacak mevcut gideri seçin."; return; }
+        if (!ParaAyristirici.GecerliMi(OdemeTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (OdemeTutari <= 0 || decimal.Round(OdemeTutari, 2) != OdemeTutari || OdemeTutari > _secili.Kalan)
         { Hata = "Ödeme sıfırdan büyük, kuruş hassasiyetinde ve kalan tutarı aşmayacak şekilde olmalıdır."; return; }
         var g = new AlisOdemeYaz(_secili.Surum, Guid.NewGuid(), DateOnly.FromDateTime(OdemeTarihi), OdemeTutari,
@@ -352,6 +357,7 @@ public partial class AlislarViewModel : TemelViewModel
         if (_yansitiliyor) return;
         OdemeOnizleme.Clear();
         OnizlemeAciklamasi = "Ödeme payları alışın kanal toplamlarına orantılı hesaplanır; kuruş farkları ve önceki ödemeler korunur.";
+        if (!ParaAyristirici.GecerliMi(OdemeTutari)) { OnizlemeAciklamasi = ParaAyristirici.GecersizMesaji; return; }
         if (_secili is null || OdemeTutari <= 0) return;
         if (KaydedilmemisDegisiklikVar) { OnizlemeAciklamasi = "Ödeme için önce alıştaki değişiklikleri kaydedin."; return; }
         // Kaydedilmiş dağılım esastır; henüz kaydedilmemiş form değişiklikleri ödemeyi etkilemez.
@@ -431,7 +437,7 @@ public partial class AlislarViewModel : TemelViewModel
     private void KalemDegisti(object? sender, PropertyChangedEventArgs e) { ToplamlariYenile(); KirliYap(); }
     private void ToplamlariYenile()
     {
-        foreach (var ad in new[] { nameof(Toplam), nameof(Dagitilan), nameof(Kalan), nameof(DagilimOzeti), nameof(OdemeOzeti) }) OnPropertyChanged(ad);
+        foreach (var ad in new[] { nameof(Toplam), nameof(Dagitilan), nameof(Kalan), nameof(TutarlarGecerli), nameof(DagilimOzeti), nameof(OdemeOzeti), nameof(ToplamMetni) }) OnPropertyChanged(ad);
     }
     private void DurumuYenile()
     {

@@ -84,6 +84,21 @@ public class EkstreAktarmaTests
         var (vm, api, _) = await Hazir(); var s = vm.Satirlar[0]; s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel"); s.Secili = true; s.TarihMetni = tarih; s.TutarMetni = tutar;
         await vm.OnizleCommand.ExecuteAsync(null); Assert.Equal(0, api.OnizlemeSayisi); Assert.Contains("Satır 1", vm.Hata);
     }
+    [Theory] [InlineData("1.500")] [InlineData("25.000")] [InlineData("1.234,56")] [InlineData("1,234.56")]
+    public void Gruplanmis_satir_tutari_ondalik_sanilmaz_hata_verir(string tutar)
+    {
+        var b = Belge(); var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [], () => { }); Sec(row);
+        row.TutarMetni = tutar;
+        var hata = Assert.Throws<KasaApiException>(() => row.Yaz());
+        Assert.StartsWith("Satır 1: ", hata.Message); Assert.Contains("binlik", hata.Message);
+    }
+    [Theory] [InlineData("1500,00", "1500")] [InlineData("1500.5", "1500.5")] [InlineData("100,00", "100")]
+    public void Gruplanmamis_satir_tutari_okunur(string metin, string beklenen)
+    {
+        var b = Belge(); var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [], () => { }); Sec(row);
+        row.TutarMetni = metin;
+        Assert.Equal(decimal.Parse(beklenen, System.Globalization.CultureInfo.InvariantCulture), row.Yaz().Tutar);
+    }
     [Fact] public async Task Aktif_kayitli_satir_secilemez_iptal_edilmis_satir_secilir()
     {
         var k = new EkstreKayitDto(7, 1, Tarih, "Eski", 100, "Gider", "Genel", [], null, 5, null, null, false);

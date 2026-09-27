@@ -22,6 +22,13 @@ public class YeniAkisTests
         Assert.Equal(8, api.SonDuzelt!.HedefAlisId); Assert.Equal(3, api.SonDuzelt.HedefSurum);
         Assert.Equal(7, vm.Secili!.Id); Assert.Contains("taşındı", vm.Mesaj);
     }
+    [Fact] public async Task Odeme_duzeltme_tutari_gecersizken_gonderilmez()
+    {
+        var api = new Fake(); var vm = await AlisVm(api);
+        vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]); vm.DuzeltmeAciklamasi = "Tutar düzeltildi"; vm.DuzeltmeTutari = ParaAyristirici.Gecersiz;
+        await vm.OdemeDuzeltKaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonDuzelt); Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+    }
     [Fact] public async Task Odeme_duzeltme_ag_hatasinda_ayni_anahtarla_tekrarlanir()
     {
         var api = new Fake { DuzeltHata = true }; var vm = await AlisVm(api);

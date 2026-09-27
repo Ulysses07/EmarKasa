@@ -55,6 +55,7 @@ public partial class AyarlarViewModel : TemelViewModel
     [RelayCommand]
     private Task KanalKaydetAsync() => CalistirAsync(async () =>
     {
+        if (!ParaAyristirici.GecerliMi(DuzenKanalAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         var g = new KanalYaz(DuzenKanalAd, DuzenKanalAktif, DuzenKanalSira, DuzenKanalAcilisDevri);
         if (DuzenKanalId == 0) await _api.KanalOlusturAsync(g);
         else await _api.KanalGuncelleAsync(DuzenKanalId, g);
@@ -71,7 +72,10 @@ public partial class AyarlarViewModel : TemelViewModel
 
     [RelayCommand]
     private Task AyarKaydetAsync() => CalistirAsync(async () =>
-        await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), KasaAcilisDevri)));
+    {
+        if (!ParaAyristirici.GecerliMi(KasaAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
+        await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), KasaAcilisDevri));
+    });
 
     [RelayCommand]
     private Task IzleyiciSifreKaydetAsync() => CalistirAsync(async () =>

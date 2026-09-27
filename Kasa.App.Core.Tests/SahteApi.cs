@@ -20,6 +20,13 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
 
     public AyarlarDto? AyarlarSonuc;
     public IReadOnlyList<KanalDto> KanallarListe = new List<KanalDto>();
+    public IReadOnlyList<DonemDto> DonemlerListe = new List<DonemDto>();
+    // Gelir formu: dönem gelirleri listesi / gecikmeli yanıt kancası / hata ve istenen dönemler.
+    public IReadOnlyList<GelenDto> GelenlerListe = new List<GelenDto>();
+    public Func<DateOnly?, Task<IReadOnlyList<GelenDto>>>? GelenlerGetir;
+    public Exception? GelenlerHatasi;
+    public List<DateOnly?> GelenlerIstekleri = new();
+    public DateOnly? SonGelenlerDonem => GelenlerIstekleri.LastOrDefault();
 
     public PanelDto? Panel;
     public IReadOnlyList<KrediKartiDto> KrediKartlariListe = new List<KrediKartiDto>();
@@ -40,7 +47,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task<PanelDto> PanelAsync() => PanelGetir?.Invoke() ?? (YuklemeHatasi is not null ? Task.FromException<PanelDto>(YuklemeHatasi) : Task.FromResult(Panel!));
     public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<HaftalikOzetDto>>(YuklemeHatasi) : Task.FromResult(HaftalikListe);
     public Task<AylikRaporDto> AylikAsync(int yil, int ay) { SonAylikYil = yil; SonAylikAy = ay; return AylikGetir?.Invoke(yil, ay) ?? (YuklemeHatasi is not null ? Task.FromException<AylikRaporDto>(YuklemeHatasi) : Task.FromResult(AylikRapor!)); }
-    public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<DonemDto>>(YuklemeHatasi) : Task.FromResult<IReadOnlyList<DonemDto>>(new List<DonemDto>());
+    public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<DonemDto>>(YuklemeHatasi) : Task.FromResult(DonemlerListe);
     public Task<IReadOnlyList<KanalDto>> KanallarAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KanalDto>>(YuklemeHatasi) : Task.FromResult(KanallarListe);
     // İşlem listesi filtre çağrısının son argümanları (filtre testleri için).
     public DateOnly? SonFiltreBaslangic;
@@ -53,7 +60,12 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
         return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
     }
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediKartiDto>>(YuklemeHatasi) : Task.FromResult(KrediKartlariListe);
-    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null) => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<GelenDto>>(YuklemeHatasi) : Task.FromResult<IReadOnlyList<GelenDto>>(new List<GelenDto>());
+    public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null)
+    {
+        GelenlerIstekleri.Add(donemStart);
+        if ((YuklemeHatasi ?? GelenlerHatasi) is { } hata) return Task.FromException<IReadOnlyList<GelenDto>>(hata);
+        return GelenlerGetir?.Invoke(donemStart) ?? Task.FromResult(GelenlerListe);
+    }
     // Mutasyon çağrı kayıtları (son çağrıyı tutar)
     public KanalYaz? SonKanalOlustur;
     public (int Id, KanalYaz G)? SonKanalGuncelle;
@@ -67,6 +79,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public (int Id, KrediKartiYaz G)? SonKartGuncelle;
     public int? SonKartSil;
     public GelenYaz? SonGelen;
+    public int GelenKaydetCagri;
     public Exception? GelenKaydetHatasi;
     public AyarYaz? SonAyar;
     public string? SonIzleyiciSifre;
@@ -90,7 +103,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task KrediEkleAsync(KrediDto kredi) { SonKrediEkle = kredi; return Task.CompletedTask; }
     public Task KrediGuncelleAsync(int id, KrediDto kredi) { SonKrediGuncelle = (id, kredi); return Task.CompletedTask; }
     public Task KrediSilAsync(int id) { SonKrediSil = id; return Task.CompletedTask; }
-    public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; return GelenKaydetHatasi is { } hata ? Task.FromException<GelenDto>(hata) : Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
+    public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; GelenKaydetCagri++; return GelenKaydetHatasi is { } hata ? Task.FromException<GelenDto>(hata) : Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return Task.CompletedTask; }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return Task.CompletedTask; }
 

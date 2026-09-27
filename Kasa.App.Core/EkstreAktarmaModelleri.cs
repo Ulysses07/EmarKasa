@@ -70,8 +70,8 @@ public partial class EkstreSatirEditor : ObservableObject
         void Hata(string s) => throw new KasaApiException(HttpStatusCode.BadRequest, $"Satır {Kaynak.No}: {s}");
         if (!Secilebilir) Hata(Kayitli ? "Bu satır zaten kayıtlı." : "Yalnız TL hareketleri kaydedilebilir.");
         if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih)) Hata("Tarihi yıl-ay-gün biçiminde girin (2026-09-27).");
-        var metin = TutarMetni.Trim();
-        if (!decimal.TryParse(metin, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.GetCultureInfo("tr-TR"), out var tutar) && !decimal.TryParse(metin, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out tutar)) Hata("Geçerli bir tutar girin; binlik ayırıcı kullanmayın.");
+        // Diğer para girişleriyle aynı kural: '1.500' 1,50 TL sayılmaz, hata verir.
+        if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi)) Hata(paraHatasi!);
         if (tutar <= 0 || decimal.Round(tutar, 2) != tutar) Hata("Tutar pozitif ve kuruş hassasiyetinde olmalı.");
         if (string.IsNullOrWhiteSpace(Aciklama)) Hata("Açıklamayı doldurun.");
         if (IslemTuru is null || !IslemTurleri.Contains(IslemTuru)) Hata("İşlem türünü seçin.");

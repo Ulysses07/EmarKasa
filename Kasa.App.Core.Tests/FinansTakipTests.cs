@@ -158,18 +158,19 @@ public class FinansTakipTests
         public Task<IReadOnlyList<KartTakipDto>>? KartlarYaniti; public Task<KartTakipDto>? OdemeYaniti;
         public bool OdemeHata; public KartTakipOdemeYaz? OnizlenenOdeme; public List<KartTakipOdemeYaz> OdemeIstekleri = new();
         public KartGecisYaz? KartGecis; public KrediGecisYaz? KrediGecis; public KrediTakipYaz? KrediKayit; public KrediTaksitYaz? Taksit; public KrediKapatYaz? Kapatma; public KartHarcamaYaz? Harcama;
+        public int KartKayitSayisi, EkstreKayitSayisi, KartGecisOnizlemeSayisi;
         public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => KartlarYaniti ?? Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Kart });
         public Task<KartTakipDto> TakipKartAsync(int id) => Task.FromResult(Kart);
-        public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) => Task.FromResult(Kart);
+        public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) { KartKayitSayisi++; return Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipKartDurumAsync(int id, TakipDurumYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g) { Harcama = g; return Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => Task.FromResult(Kart);
-        public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) => Task.FromResult(Kart);
+        public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) { EkstreKayitSayisi++; return Task.FromResult(Kart); }
         public Task<KartOdemeOnizlemeDto> TakipOdemeOnizlemeAsync(int id, KartTakipOdemeYaz g) { OnizlenenOdeme = g; return Task.FromResult(new KartOdemeOnizlemeDto(g.Tutar, g.Tutar, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, new[] { new KartEkstreOdemePayi(7, g.Tutar) })); }
         public Task<KartTakipDto> TakipOdemeKaydetAsync(int id, KartTakipOdemeYaz g) { OdemeIstekleri.Add(g); return OdemeHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : OdemeYaniti ?? Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipOdemeIptalAsync(int id, int oid, TakipIptalYaz g) => Task.FromResult(Kart);
         private static TakipGecisDto Preview(string kaynak, int id) => new(kaynak, id, Tarih, 0, 0, 30, new[] { "Geçmiş korunur" }, true);
-        public Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g) => Task.FromResult(Preview("Kart", id));
+        public Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g) { KartGecisOnizlemeSayisi++; return Task.FromResult(Preview("Kart", id)); }
         public Task<KartTakipDto> TakipKartGecisAsync(int id, KartGecisYaz g) { KartGecis = g; return Task.FromResult(Kart with { YeniTakip = true }); }
         public Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync() => Task.FromResult<IReadOnlyList<KrediTakipDto>>(new[] { Kredi });
         public Task<KrediTakipDto> TakipKrediAsync(int id) => Task.FromResult(Kredi);

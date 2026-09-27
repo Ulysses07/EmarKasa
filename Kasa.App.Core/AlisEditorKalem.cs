@@ -20,7 +20,10 @@ public partial class AlisKalemEditor : ObservableObject
     public ObservableCollection<AlisDagilimEditor> Dagilimlar { get; } = new();
     public decimal Dagilan => Dagilimlar.Sum(d => d.Tutar);
     public decimal DagilimFarki => Tutar - Dagilan;
-    public string DagilimOzeti => DagilimFarki == 0 && Tutar > 0
+    /// <summary>Kalem ve pay girişlerinin hiçbiri geçersiz metin taşımıyor; değilse toplamlar sayı olarak gösterilmez.</summary>
+    public bool TutarlarGecerli => ParaAyristirici.GecerliMi(Tutar) && Dagilimlar.All(d => ParaAyristirici.GecerliMi(d.Tutar));
+    public string DagilimOzeti => !TutarlarGecerli ? ParaAyristirici.GecersizGosterim
+        : DagilimFarki == 0 && Tutar > 0
         ? "Dağılım tamamlandı"
         : $"Dağıtılacak fark: {Bicim.Tl(DagilimFarki)} ₺";
 
