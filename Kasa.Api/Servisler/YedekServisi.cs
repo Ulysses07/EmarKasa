@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -9,9 +10,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
 
-/// <summary>İlk dört alan eski istemcilerin okuduğu biçimdir; tür bazlı alanlar sonradan eklendi.</summary>
+/// <summary>İlk dört alan eski istemcilerin okuduğu biçimdir; tür bazlı alanlar sonradan eklendi.
+/// <see cref="RotasyonUyarisi"/>: son rotasyonda silinemeyen eski yedek (yedeğin kendisi başarılıdır, <see cref="Hata"/> boş kalır).</summary>
 public record YedekDurumu(bool OtomatikEtkin, DateTimeOffset? SonYedek, DateTimeOffset? SonDogrulama, string? Hata,
-    DateTimeOffset? SonOtomatikYedek, int OtomatikYedekSayisi, DateTimeOffset? SonElleYedek, int ElleYedekSayisi);
+    DateTimeOffset? SonOtomatikYedek, int OtomatikYedekSayisi, DateTimeOffset? SonElleYedek, int ElleYedekSayisi, string? RotasyonUyarisi = null);
+
+/// <summary>Saklama süresi dolan yedeği siler. Kayıt yoksa <see cref="File.Delete"/>; testler hata yolunu işletim
+/// sisteminin dosya kilidine bağlı kalmadan sınamak için kendi işlevini kaydeder.</summary>
+public delegate void YedekDosyaSilici(string yol);
 
 public enum YedekTuru { Otomatik, Elle }
 
@@ -73,9 +79,13 @@ public static partial class YedekSaklama
     }
 }
 
-public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, PushKimligi push, ILogger<YedekServisi> logger)
+public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, PushKimligi push, ILogger<YedekServisi> logger,
+    TimeProvider saat, YedekDosyaSilici? silici = null)
 {
     private readonly SemaphoreSlim kilit = new(1, 1);
+    private readonly YedekDosyaSilici sil = silici ?? File.Delete;
+    // Tür başına son rotasyonun uyarısı: bir türün başarılı rotasyonu diğer türün sorununu gizlemez.
+    private readonly ConcurrentDictionary<YedekTuru, string> rotasyonUyarilari = new();
     private DateTimeOffset? sonYedek;
     private DateTimeOffset? sonOtomatikYedek;
     private DateTimeOffset? sonDogrulama;
@@ -88,8 +98,10 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         var yedekler = Yedekler();
         var otomatik = yedekler.Where(y => y.Tur == YedekTuru.Otomatik).ToList();
         var elle = yedekler.Where(y => y.Tur == YedekTuru.Elle).ToList();
+        var uyarilar = rotasyonUyarilari.OrderBy(u => u.Key).Select(u => u.Value).ToList();
         return new(Etkin, sonYedek ?? EnYeni(yedekler), sonDogrulama, hata,
-            sonOtomatikYedek ?? EnYeni(otomatik), otomatik.Count, EnYeni(elle), elle.Count);
+            sonOtomatikYedek ?? EnYeni(otomatik), otomatik.Count, EnYeni(elle), elle.Count,
+            uyarilar.Count == 0 ? null : string.Join(" ", uyarilar));
     }
 
     /// <summary>Günlük zamanlama yalnız otomatik (ve eski adlı) yedeklere bakar; elle yedek onu ertelemez.</summary>
@@ -113,26 +125,37 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     /// <summary>
     /// Yalnız verilen türün yedeklerini saklama kuralına göre siler. Hata yedeği başarısız saymaz:
-    /// loglanır ve silinemeyen dosya sonraki yedekte yeniden denenir.
+    /// loglanır, o türün rotasyon uyarısı olarak durumda görünür ve silinemeyen dosya sonraki yedekte
+    /// yeniden denenir. Türün rotasyonu hatasız biterse uyarısı kalkar.
     /// </summary>
     public void Dondur(YedekTuru tur, DateTimeOffset simdi, string? koru = null)
     {
+        var turAdi = tur == YedekTuru.Otomatik ? "Otomatik yedeklerin" : "Elle alınan yedeklerin";
         IReadOnlyList<string> silinecekler;
         try { silinecekler = YedekSaklama.Silinecekler(Directory.EnumerateFiles(Dizin, "kasa-*.zip").Select(y => Path.GetFileName(y)), tur, simdi, koru); }
         catch (Exception ex)
         {
             logger.LogError(ex, "{Tur} yedek rotasyonu için yedek dizini okunamadı.", tur);
+            rotasyonUyarilari[tur] = $"{turAdi} rotasyonu için yedek dizini okunamadı; eski yedekler silinmiyor. Sunucu kayıtlarını ve yedek dizininin izinlerini kontrol edin.";
             return;
         }
+        var silinemeyen = new List<string>();
         foreach (var ad in silinecekler)
         {
             try
             {
-                File.Delete(Path.Combine(Dizin, ad));
+                sil(Path.Combine(Dizin, ad));
                 logger.LogInformation("Saklama süresi dolan {Tur} yedek silindi: {Dosya}", tur, ad);
             }
-            catch (Exception ex) { logger.LogError(ex, "Saklama süresi dolan {Tur} yedek silinemedi: {Dosya}", tur, ad); }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Saklama süresi dolan {Tur} yedek silinemedi: {Dosya}", tur, ad);
+                silinemeyen.Add(ad);
+            }
         }
+        if (silinemeyen.Count == 0) rotasyonUyarilari.TryRemove(tur, out _);
+        else rotasyonUyarilari[tur] = $"{turAdi} rotasyonu tamamlanamadı: saklama süresi dolan {silinemeyen.Count} yedek silinemedi ({string.Join(", ", silinemeyen.Take(3))}{(silinemeyen.Count > 3 ? ", …" : "")}). "
+            + "Yedekler alınmaya devam eder; disk dolmadan sunucu kayıtlarını ve yedek dizininin izinlerini kontrol edin.";
     }
 
     public async Task<string> Olustur(KasaDbContext db, YedekTuru tur, CancellationToken ct)
@@ -144,7 +167,7 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         {
             Directory.CreateDirectory(Dizin);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            var now = DateTimeOffset.UtcNow;
+            var now = saat.GetUtcNow();
             var suffix = Guid.NewGuid().ToString("N");
             temporary = Path.Combine(Dizin, $".{suffix}.db");
             var path = Path.Combine(Dizin, YedekSaklama.DosyaAdi(tur, now, suffix[..8]));
@@ -215,7 +238,7 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     }
 }
 
-public sealed class OtomatikYedek(IServiceScopeFactory scopes, YedekServisi yedek, ILogger<OtomatikYedek> logger) : BackgroundService
+public sealed class OtomatikYedek(IServiceScopeFactory scopes, YedekServisi yedek, TimeProvider saat, ILogger<OtomatikYedek> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -226,7 +249,7 @@ public sealed class OtomatikYedek(IServiceScopeFactory scopes, YedekServisi yede
         {
             try
             {
-                if (yedek.SonOtomatikYedek() is not { } son || DateTimeOffset.UtcNow - son >= TimeSpan.FromDays(1))
+                if (yedek.SonOtomatikYedek() is not { } son || saat.GetUtcNow() - son >= TimeSpan.FromDays(1))
                 {
                     using var scope = scopes.CreateScope();
                     await yedek.Olustur(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), YedekTuru.Otomatik, stoppingToken);
