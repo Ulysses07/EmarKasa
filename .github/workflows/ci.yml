@@ -76,4 +76,5 @@ jobs:
       - name: Restore app dependencies
         run: dotnet restore Kasa.App/Kasa.App.csproj
       - name: Build Windows app
-        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 --no-restore
+        # Derleme kendi geri yüklemesini aynı -f ile yapar; ayrı restore win-x64 çalışma paketini indirmiyordu (NETSDK1112).
+        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0
