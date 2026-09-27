@@ -9,6 +9,8 @@ namespace Kasa.Api.Tests;
 
 public class SaglamlikTests
 {
+    private static KasaWebFactory Factory() => KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
+
     [Theory]
     [InlineData(0, 1, 100, 10)]
     [InlineData(32, 1, 100, 10)]
@@ -18,7 +20,7 @@ public class SaglamlikTests
     [InlineData(1, 1, 100, -1)]
     public async Task Gecersiz_eski_kredi_guncellemesi_kaydedilmez_raporlar_calismaya_devam_eder(int gun, int taksit, decimal tutar, decimal odeme)
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         var seed = LegacyFinanceSeed.Kredi(f, Kredi(15));
         var r = await c.PutAsJsonAsync($"/api/krediler/{seed.Id}", new
@@ -40,7 +42,7 @@ public class SaglamlikTests
     [Fact]
     public async Task Gecersiz_guncelleme_gecerli_krediyi_bozmaz()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         var id = LegacyFinanceSeed.Kredi(f, Kredi(15)).Id;
         var r = await c.PutAsJsonAsync($"/api/krediler/{id}", Kredi(0));
@@ -52,7 +54,7 @@ public class SaglamlikTests
     [Fact]
     public async Task Kanal_adi_degisince_gelir_gider_ve_kredi_ayni_kanala_bagli_kalir()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 1000m })).EnsureSuccessStatusCode();
@@ -84,7 +86,7 @@ public class SaglamlikTests
     [InlineData(" ", HttpStatusCode.BadRequest)]
     public async Task Gecersiz_ve_tekrar_kanal_adlari_reddedilir(string ad, HttpStatusCode durum)
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         Assert.Equal(durum, (await c.PostAsJsonAsync("/api/kanallar", new { ad })).StatusCode);
     }
@@ -92,7 +94,7 @@ public class SaglamlikTests
     [Fact]
     public async Task Gelen_upsert_ayni_kimligi_korur_ve_yalniz_son_tutari_sayar()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
         var ilk = await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 100m });
@@ -111,7 +113,7 @@ public class SaglamlikTests
     [InlineData("MEZAT", 1.001)]
     public async Task Bilinmeyen_kanal_ve_kurus_alti_tutar_reddedilir(string kanal, decimal tutar)
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         var r = await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-01", cari = "Test", kanal, tutarTl = tutar, tip = "Cari" });
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
@@ -120,7 +122,7 @@ public class SaglamlikTests
     [Fact]
     public async Task Olmayan_karta_odeme_kontrollu_400_doner()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         var r = await c.PostAsJsonAsync("/api/kartodemeler", new { krediKartiId = 999, tarih = "2026-06-01", tutar = 100m });
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
@@ -129,9 +131,9 @@ public class SaglamlikTests
     [Fact]
     public async Task Gelecek_islem_panelin_guncel_kasasini_ve_taksit_ufkunu_ilerletmez()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = f.Bugun;
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = bugun, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = bugun.AddMonths(2), cari = "Gelecek", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" })).EnsureSuccessStatusCode();
         LegacyFinanceSeed.Kredi(f, new("Plan", 0m, bugun, 1, 200m, bugun.Day, "MEZAT"));
@@ -141,7 +143,7 @@ public class SaglamlikTests
     [Fact]
     public async Task Donem_baslangici_olmayan_gelir_kaydedilip_raporda_kaybolamaz()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
         var r = await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-02", kanal = "MEZAT", tutarTl = 1000m });
@@ -152,7 +154,7 @@ public class SaglamlikTests
     [Fact]
     public async Task Takip_baslangici_degistirilerek_gelirler_rapordan_cikarilamaz()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = Factory();
         using var c = await f.EditorClientAsync();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-02", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-02", kanal = "MEZAT", tutarTl = 1000m })).EnsureSuccessStatusCode();

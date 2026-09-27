@@ -16,12 +16,14 @@ namespace Kasa.Api.Tests;
 
 public class OperationsTests
 {
+    private static readonly DateOnly Bugun = KasaWebFactory.VarsayilanBugun;
+
     [Fact]
     public async Task Hesap_gelirine_bagli_kanal_silinemez()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var date = DateOnly.FromDateTime(DateTime.Today);
+        var date = f.Bugun;
         var channelId = SeedLegacyAccountIncome(f, date);
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kanallar/{channelId}")).StatusCode);
         Assert.Contains((await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar"))!, k => k.Id == channelId);
@@ -30,9 +32,9 @@ public class OperationsTests
     [Fact]
     public async Task Hesap_geliri_kaydedilince_takip_baslangici_ileriye_alinamaz()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var date = DateOnly.FromDateTime(DateTime.Today);
+        var date = f.Bugun;
         SeedLegacyAccountIncome(f, date);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = date.AddDays(1), kasaAcilisDevri = 0m })).StatusCode);
     }
@@ -104,12 +106,12 @@ public class OperationsTests
     [Fact]
     public async Task Belge_yalniz_sahibe_acilir_yanlis_dosya_reddedilir()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var editor = await f.EditorClientAsync();
         (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("buyer", "Alıcı", "buyer12345"))).EnsureSuccessStatusCode();
         using var buyer = f.CreateClient();
         (await buyer.PostAsJsonAsync("/api/auth/login", new { kullanici = "buyer", sifre = "buyer12345" })).EnsureSuccessStatusCode();
-        var draft = await editor.PostAsJsonAsync("/api/alis", new AlisYaz(0, DateOnly.FromDateTime(DateTime.Today), "Firma", null, []));
+        var draft = await editor.PostAsJsonAsync("/api/alis", new AlisYaz(0, f.Bugun, "Firma", null, []));
         draft.EnsureSuccessStatusCode();
         var alis = (await draft.Content.ReadFromJsonAsync<AlisDto>())!;
         using var form = new MultipartFormDataContent();
@@ -130,9 +132,9 @@ public class OperationsTests
     [Fact]
     public async Task Excel_ve_CSV_formul_calistirmaz_html_metni_kacar()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var date = DateOnly.FromDateTime(DateTime.Today);
+        var date = f.Bugun;
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = date, cari = "=2+2", tutarTl = 12.34m, kanal = "MEZAT", tip = "Cari", not = "<script>bad</script>" })).EnsureSuccessStatusCode();
         string url = $"/api/disari-aktar?baslangic={date:yyyy-MM-dd}&bitis={date:yyyy-MM-dd}&bicim=";
         var csv = await c.GetStringAsync(url + "csv");
@@ -150,12 +152,12 @@ public class OperationsTests
     [Fact]
     public async Task Yedek_ayri_veritabanina_geri_acilir_belgeler_ve_kayitlar_korunur()
     {
-        await using var f = new BackupFactory();
+        await using var f = new BackupFactory { Saat = new SabitSaat(Bugun) };
         using var c = await f.EditorClientAsync();
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            var a = new AlisEntity { Tarih = DateOnly.FromDateTime(DateTime.Today), Tedarikci = "Yedek firma", Durum = "Taslak" };
+            var a = new AlisEntity { Tarih = f.Bugun, Tedarikci = "Yedek firma", Durum = "Taslak" };
             db.Alislar.Add(a); db.SaveChanges();
             db.Belgeler.Add(new BelgeEntity { AlisId = a.Id, DosyaAdi = "test.pdf", IcerikTuru = "application/pdf", Boyut = 5, Icerik = "%PDF-"u8.ToArray(), Yuklendi = DateTimeOffset.UtcNow });
             db.SaveChanges();

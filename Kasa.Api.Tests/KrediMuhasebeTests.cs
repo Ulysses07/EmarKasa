@@ -12,10 +12,10 @@ namespace Kasa.Api.Tests;
 /// güncel kasayı etkilemez, silinince etki kalkar. Kontrollü baseline: KasaAcilisDevri
 /// 100000, iki aktif kanal (açılış 0), başka işlem/gelen yok.
 /// </summary>
-public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
+public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KrediMuhasebeTests(KasaWebFactory factory) => _factory = factory;
+    public KrediMuhasebeTests(SabitSaatliKasaWebFactory factory) => _factory = factory;
 
     private record KanalAylikYanit(
         string Kanal, decimal Gelen, decimal CariGiden, decimal SabitGider,
@@ -106,7 +106,7 @@ public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
     public async Task Gelecek_taksit_guncel_kasayi_etkilemez()
     {
         // Çekim bugün (tutar 0), ödeme günü = bugünün günü → ilk taksit GELECEK ay (kesin sonra).
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = _factory.Bugun;
         Tohumla(new KrediEntity
         {
             Ad = "Ziraat", CekilenTutar = 0m, CekimTarihi = bugun,

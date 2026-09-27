@@ -8,12 +8,12 @@ namespace Kasa.Api.Tests;
 
 public class BenzerKayitTests
 {
-    private static DateOnly Date => DateOnly.FromDateTime(DateTime.Today);
+    private static DateOnly Date => KasaWebFactory.VarsayilanBugun;
 
     [Fact]
     public async Task Kart_harcamasi_alis_gideri_ile_tek_gosterilir_baska_kart_ve_odeme_karismaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db =>
         {
             db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges();
@@ -41,7 +41,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Kart_odeme_uyarisi_ayni_karttaki_aktif_odemelere_bakar()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db =>
         {
             db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges();
@@ -62,7 +62,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Nakit_benzerligi_kanala_bakar_ve_kullanici_ayri_kayit_olusturabilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         var write = new IslemYazDto(Date, "Malzeme", 100, "MEZAT", GiderTipi.Cari);
         (await c.PostAsJsonAsync("/api/islemler", write)).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/islemler", write with { Kanal = "TOPTAN" })).EnsureSuccessStatusCode();
@@ -75,7 +75,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Alisin_onayli_paylari_nakit_benzerliginde_kullanilir_taslakta_tahmin_yapilmaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         var draft = await Purchase(c);
         var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100));
         Assert.Single(await Find(c, new("AlisOdeme", Date, 100, AlisId: draft.Id)));
@@ -90,7 +90,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Benzerlik_sadece_editore_acik_ve_gecersiz_sorgular_reddedilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         using var anonymous = f.CreateClient();
         var valid = new BenzerKayitSorgu("Gider", Date, 100, Kanal: "MEZAT");
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
@@ -110,7 +110,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Alis_satirinda_yalniz_kullanilan_kartin_adi_ve_panelde_kanal_kimligi_doner()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db => { db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges(); });
         var draft = await Purchase(c);
         var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100, 1));
@@ -126,7 +126,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Uyari_en_fazla_on_eslesen_kaydi_gosterir()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db => { db.KrediKartlari.Add(Card(1)); db.SaveChanges(); for (var i = 1; i <= 12; i++) db.Islemler.Add(Expense(i, 1)); db.SaveChanges(); });
         Assert.Equal(10, (await Find(c, new("KartHarcama", Date, 100, 1))).Count);
     }
