@@ -87,10 +87,14 @@ public static class FinansTakipServisi
     }
     /// <summary>Eski kartı yeni takibe alır; doğrulama (KartGecisHesabi ile önizleme) çağırandadır. Yeni
     /// geçişler işlem tarihi kuralıyla yazılır: başlangıçtan önceki eski giderler eski ay sonu kuralıyla
-    /// bir kez düşer, devir borcunun kasada önceden sayılan kısmı ödemede ikinci kez düşmez.</summary>
-    public static void KartGecisiYaz(KasaDbContext db, int kartId, DateOnly baslangic, decimal kalanBorc, decimal kasadaOncedenSayilan, IReadOnlyList<KanalPayYaz> dagilimlar)
+    /// bir kez düşer, devir borcunun kasada önceden sayılan kısmı ödemede ikinci kez düşmez. Mali sonucu
+    /// belirleyen karar denetim izi olarak saklanır: açıklama ve onay anındaki önizleme özeti.</summary>
+    public static void KartGecisiYaz(KasaDbContext db, int kartId, DateOnly baslangic, decimal kalanBorc, decimal kasadaOncedenSayilan, IReadOnlyList<KanalPayYaz> dagilimlar, string aciklama)
     {
-        db.TakipKartlar.Add(new() { KrediKartiId = kartId, Baslangic = baslangic, EskiKayit = true, EskiDusumKurali = EskiDusumKurali.IslemTarihi }); db.SaveChanges();
+        var s = KartGecisHesabi.Hesapla(db, kartId, baslangic, kalanBorc);
+        var kayit = new KartGecisKaydi(Bugun, kalanBorc, kasadaOncedenSayilan, s.SistemKartBorcu, s.EskiKuraldaIslenenTutar, s.BekleyenEskiDusumTutari, s.SonBekleyenDusumTarihi, s.OnerilenKasadaSayilanTutar);
+        db.TakipKartlar.Add(new() { KrediKartiId = kartId, Baslangic = baslangic, EskiKayit = true, EskiDusumKurali = EskiDusumKurali.IslemTarihi,
+            GecisAciklamasi = aciklama.Trim(), GecisOzetiJson = JsonSerializer.Serialize(kayit) }); db.SaveChanges();
         if (kalanBorc != 0) HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == kartId), new() { KrediKartiId = kartId, Tarih = baslangic, Aciklama = "Onaylanan eski borç devri",
             Tutar = kalanBorc, KasadaOncedenSayilanTutar = kasadaOncedenSayilan, DagilimJson = Json(dagilimlar) });
     }
@@ -261,7 +265,7 @@ public static class FinansTakipServisi
                 var effect = OdemeEtkisi(db, id, Read<KartTaksitPayi>(p.PaylarJson), p.Id);
                 return new KartTakipOdemeDto(p.Id, p.Tarih, p.Tutar, effect.KasaEtkisi, p.Not, false, effect.Dagilimlar, importId);
             }).ToList(),
-            KalanKartBorcPaylari(db, charges, taxes, remaining));
+            KalanKartBorcPaylari(db, charges, taxes, remaining), KartGecisHesabi.Gecis(db, track));
     }
 
     private static List<TakipKanalPayi> KalanKartBorcPaylari(KasaDbContext db, IReadOnlyList<TakipHarcamaEntity> charges,

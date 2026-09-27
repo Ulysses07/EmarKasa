@@ -8,6 +8,10 @@ public class TakipKartEntity
     public bool Aktif { get; set; } = true;
     public bool EskiKayit { get; set; }
     public EskiDusumKurali EskiDusumKurali { get; set; }
+    /// <summary>Onaylanan eski kart geçişinin açıklaması (denetim izi). İlk sürüm geçişlerinde saklanmadı: null.</summary>
+    public string? GecisAciklamasi { get; set; }
+    /// <summary>Onay anındaki önizleme özeti ve girilen tutarlar (<see cref="Kasa.Api.KartGecisKaydi"/> JSON). İlk sürüm geçişlerinde null.</summary>
+    public string? GecisOzetiJson { get; set; }
 }
 /// <summary>Eski karttan geçişte, başlangıçtan önceki eski kart giderlerinin kasaya düşüş kuralı.</summary>
 public enum EskiDusumKurali

@@ -40,7 +40,7 @@ public class FinansTakipApiTests
         Assert.Equal(30.03m, result.EskiKasadaSayilanTutar); Assert.True(result.KabulEdilebilir); Assert.Single(result.Aciklamalar);
         Assert.False(JsonSerializer.Deserialize<KartGecisYaz>(h.SonGovde!, Json)!.Onay);
         // Eski sunucu yanıtında kart geçişi hesap alanları yoktur; istemci kırılmadan null okur.
-        Assert.Null(result.SistemKartBorcu); Assert.Null(result.OnerilenKasadaSayilanTutar); Assert.Null(result.SonBekleyenDusumTarihi);
+        Assert.Null(result.SistemKartBorcu); Assert.Null(result.OnerilenKasadaSayilanTutar); Assert.Null(result.SonBekleyenDusumTarihi); Assert.Null(result.EnAzKasadaSayilanTutar);
     }
     [Fact] public async Task Kart_gecis_onizlemesi_sistem_borcu_bekleyen_dusum_ve_onerilen_tutari_okur()
     {
@@ -50,6 +50,28 @@ public class FinansTakipApiTests
         Assert.Equal((-250.5m, -250.5m, true), (result.GenelKasaAnlikFarki, result.KanalAnlikFarki, result.KabulEdilebilir));
         Assert.Equal(1000m, result.SistemKartBorcu); Assert.Equal(300.01m, result.EskiKuraldaIslenenTutar); Assert.Equal(699.99m, result.BekleyenEskiDusumTutari);
         Assert.Equal(new DateOnly(2026, 10, 31), result.SonBekleyenDusumTarihi); Assert.Equal(1000m, result.OnerilenKasadaSayilanTutar);
+    }
+    [Fact] public async Task Kart_gecis_denetim_izi_ve_ilk_surum_uyarisi_okunur_eski_yanitta_null_kalir()
+    {
+        var h = new SahteHandler()
+            .Kuyrukla(HttpStatusCode.OK, """{"id":7,"surum":3,"ad":"Eski","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-20","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"EtkiTarihi","aciklama":null,"onizleme":null,"raporDisiEskiDusumTutari":1400.01,"raporDisiIlkDusumTarihi":"2026-09-30","raporDisiSonDusumTarihi":"2026-10-31","uyari":"İlk sürüm kuralıyla geçiş"}}""")
+            .Kuyrukla(HttpStatusCode.OK, """{"id":8,"surum":2,"ad":"Yeni kural","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":1000,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"IslemTarihi","aciklama":"Banka","onizleme":{"onayTarihi":"2026-09-25","kalanBorc":1000,"kasadaOncedenSayilanTutar":900.5,"sistemKartBorcu":1000,"eskiKuraldaIslenenTutar":0,"bekleyenEskiDusumTutari":1000,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1000},"raporDisiEskiDusumTutari":0,"raporDisiIlkDusumTarihi":null,"raporDisiSonDusumTarihi":null,"uyari":null}}""")
+            .Kuyrukla(HttpStatusCode.OK, """{"id":9,"surum":1,"ad":"2.3.0","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[]}""");
+        var client = Client(h);
+        var ilk = (await client.TakipKartAsync(7)).Gecis!;
+        Assert.Equal(("EtkiTarihi", (string?)null, (KartGecisKaydi?)null, 1400.01m), (ilk.Kural, ilk.Aciklama, ilk.Onizleme, ilk.RaporDisiEskiDusumTutari));
+        Assert.Equal((new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 31), "İlk sürüm kuralıyla geçiş"), (ilk.RaporDisiIlkDusumTarihi!.Value, ilk.RaporDisiSonDusumTarihi!.Value, ilk.Uyari));
+        var yeni = (await client.TakipKartAsync(8)).Gecis!;
+        Assert.Equal(new KartGecisKaydi(new(2026, 9, 25), 1000m, 900.5m, 1000m, 0m, 1000m, new(2026, 10, 31), 1000m), yeni.Onizleme);
+        Assert.Equal(("IslemTarihi", "Banka", (string?)null), (yeni.Kural, yeni.Aciklama, yeni.Uyari));
+        // Eski sunucu yanıtında geçiş alanı yoktur; istemci kırılmadan null okur.
+        Assert.Null((await client.TakipKartAsync(9)).Gecis);
+    }
+    [Fact] public async Task Kart_gecis_onizlemesi_en_az_kasada_sayilan_tutari_okur()
+    {
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"kaynak":"Kart","kaynakId":7,"baslangic":"2026-09-25","genelKasaAnlikFarki":-1100,"kanalAnlikFarki":-1100,"eskiKasadaSayilanTutar":0,"aciklamalar":["en az"],"kabulEdilebilir":false,"sistemKartBorcu":1100,"eskiKuraldaIslenenTutar":0,"bekleyenEskiDusumTutari":1000,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1100,"enAzKasadaSayilanTutar":1000.01}""");
+        var result = await Client(h).TakipKartGecisOnizlemeAsync(7, new KartGecisYaz(Guid.NewGuid(), 0, new(2026, 9, 25), 1100, 0, new[] { new KanalPayYaz(1, 1100) }, "Varsayılan", false));
+        Assert.Equal((1000.01m, false), (result.EnAzKasadaSayilanTutar, result.KabulEdilebilir));
     }
     [Fact] public async Task Bildirimler_tarih_ve_okundu_uclarini_kullanir()
     {

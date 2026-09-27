@@ -64,13 +64,9 @@ public class HesapServisi
                 if (!tracking.EskiKayit || kayit.Tarih >= tracking.Baslangic) continue;
                 // İşlem tarihi kuralı: başlangıçtan önceki her eski gider eski ay sonu kuralıyla bir
                 // kez düşer. Etki tarihi kuralı (ilk sürüm geçişleri) raporları korumak için aynen
-                // sürer: eski etkisi başlangıçta/sonrasında olan gider atlanır.
-                if (tracking.EskiDusumKurali == EskiDusumKurali.EtkiTarihi)
-                {
-                    var oldEffectMonth = kayit.Tarih.AddMonths(1);
-                    var oldEffect = new DateOnly(oldEffectMonth.Year, oldEffectMonth.Month, DateTime.DaysInMonth(oldEffectMonth.Year, oldEffectMonth.Month));
-                    if (oldEffect >= tracking.Baslangic) continue;
-                }
+                // sürer: eski etkisi başlangıçta/sonrasında olan gider atlanır. Atlanan tutar kart
+                // ekranında ve açılış logunda görünür (KartGecisHesabi.IlkSurumKalintisi, aynı koşul).
+                if (KartGecisHesabi.IlkSurumdeAtlanir(tracking, kayit.Tarih)) continue;
             }
             var islem = kayit.ToCore();
             if (!eslemeler.TryGetValue(kayit.Id, out var alis))
