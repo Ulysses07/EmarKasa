@@ -12,6 +12,8 @@ API `KasaDatabaseInitializer.Initialize(db)` çağırır:
 - Aynı dönem+kanalda birden fazla gelir, yinelenen kanal adı, kopuk ilişki veya tanınmayan özel şema varsa işlem geri alınır ve uygulama açıklayıcı hatayla durur. Kayıtlar otomatik birleştirilmez veya silinmez.
 - Sonraki açılışlarda uygulanmış migration tekrarlanmaz. Yeni şema değişiklikleri yeni migration olarak eklenmelidir; ilk migration dosyaları sonradan değiştirilmemelidir.
 - `20260919000200_PurchaseWorkflow`, ilk şemadan sonra alıcı, alış, kalem, kanal dağılımı ve ödeme bağlantı tablolarını ekler. Mevcut giderler otomatik olarak alışa dönüştürülmez; editör gerektiğinde eşleştirir. Geçmiş gider kimlikleri ve tutarları korunur.
+- Göç öncesi yedek: dosya veritabanında bekleyen iş (eski şema köprüsü, migration ya da veri adımı) varsa başlatıcı hiçbir şeyi değiştirmeden önce yedek dizinine (`Yedek:Dizin`, canlıda `/yedekler`) `kasa-goc-oncesi-YYYYMMDD-HHMMSS-xxxxxxxx.zip` yazar; biçim olağan yedekle aynıdır ve `restore_backup.py` ile açılır. Yedek alınamaz ya da doğrulanamazsa (`integrity_check`) migration çalışmaz, uygulama açıklayıcı hatayla durur. Aynı veritabanı için ikinci kez yazılmaz; rotasyon bu dosyaları silmez, gereksiz olanları operatör kaldırır.
+- `20260929000300_AyRaporAnlikGoruntuleri` kilitli ayların rapor görüntüsü tablosunu ekler; aynı açılıştaki veri adımı o anda kilitli ayların raporunu eski kuralla (kural 1) dondurur. Kapatılmış ayların rakamları değişmez; açık aylarda takipli kredi çekimi "Gelen" ve "Ay sonucu" yerine ayrı "Kredi girişi" alanında gösterilir.
 
 ## Canlıya geçiş sırası
 
