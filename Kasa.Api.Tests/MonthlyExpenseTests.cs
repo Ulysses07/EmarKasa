@@ -133,6 +133,53 @@ public class MonthlyExpenseTests
         finally { foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix); }
     }
 
+    [Fact]
+    public async Task Bankadan_islenen_genel_gider_aylik_odeme_benzerliginde_gorunur_odenen_aylik_gider_de_manuel_gider_sorgusunda()
+    {
+        // gap-coklu-giris-cift-sayim-mutabakat-8: kira bankadan "Yalnız genel kasa" gideri olarak işlendikten iki gün sonra
+        // aynı tutar Aylık Giderler'den ödenmek istenir. İstemci ödeme öncesi aynı benzerlik ucunu 'AylikGider' türüyle sorar.
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var t = await Create(c, "Esit", [new(1, 0), new(3, 0)]);
+        var (_, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today.AddDays(-2), 100m, "Genel", []);
+        var benzer = Assert.Single(await BenzerKayitCaprazTests.Bul(c, new("AylikGider", Today, 100m)));
+        Assert.Equal(("Islem", satir.IslemId, (int?)satir.Id, "Genel kasa"), (benzer.Kaynak, (int?)benzer.Id, benzer.EkstreKayitId, benzer.KanalEtiketi));
+        Assert.Empty(await BenzerKayitCaprazTests.Bul(c, new("AylikGider", Today, 100.01m)));
+        // Uyarı onaylanıp ayrı ödeme kaydedilebilir (benzerlik bir uyarıdır, yasak değildir).
+        var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", Payment(t));
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        // Ters yön: MEZAT için elle girilecek aynı tutar, çok kanallı aylık ödemeyi ve genel kasa banka giderini birlikte gösterir.
+        var rows = await BenzerKayitCaprazTests.Bul(c, new("Gider", Today.AddDays(1), 100m, Kanal: "MEZAT"));
+        Assert.Equal(2, rows.Count);
+        var monthly = Assert.Single(rows, r => r.AylikGiderOdemeId == paid.OdemeId);
+        Assert.Equal((paid.IslemId, "MEZAT / TOPTAN"), ((int?)monthly.Id, monthly.KanalEtiketi));
+        Assert.Single(rows, r => r.EkstreKayitId == satir.Id);
+        // Kanalı kesişmeyen sorgu çok kanallı ödemeyi göstermez; genel kasa gideri her kanal sorgusunda görünür.
+        Assert.Equal(satir.Id, Assert.Single(await BenzerKayitCaprazTests.Bul(c, new("Gider", Today, 100m, Kanal: "PERAKENDE"))).EkstreKayitId);
+    }
+
+    [Theory]
+    [InlineData("/api/aylik-giderler?yil=2026&ay=9")]
+    [InlineData("/api/aylik-giderler/sablonlar")]
+    public async Task Aylik_gider_okumalari_yazma_kilidi_almaz_ve_paralel_yazma_beklemez(string uc)
+    {
+        var kapi = new OkumaYoluTests.OkumaKapisi();
+        await using var f = new DosyaFabrikasi { Kesiciler = [kapi] };
+        using var c = await Editor(f);
+        await Create(c, "Genel", []);
+        kapi.Kur("AylikGiderRevizyonlar");
+        var okuma = c.GetAsync(uc);
+        Assert.True(await kapi.Girildi(), "Okuma aylık gider tablosuna ulaşmadı.");
+        HttpResponseMessage yazma; var sure = System.Diagnostics.Stopwatch.StartNew();
+        try { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari)); }
+        finally { sure.Stop(); kapi.Birak(); }
+        var yanit = await okuma;
+        Assert.Equal(HttpStatusCode.Created, yazma.StatusCode);
+        Assert.True(sure.Elapsed < TimeSpan.FromSeconds(3), $"Yazma okumayı {sure.ElapsedMilliseconds} ms bekledi.");
+        Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
+        // Okuma yolunda da doğrulama hatası aynı biçimde döner.
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/aylik-giderler?yil=2026&ay=13")).StatusCode);
+    }
+
     internal sealed class MonthlyFileFactory(string path) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)

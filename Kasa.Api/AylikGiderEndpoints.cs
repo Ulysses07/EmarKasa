@@ -16,11 +16,12 @@ public static class AylikGiderEndpoints
     public static WebApplication MapAylikGiderEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api/aylik-giderler").RequireAuthorization("Finans");
-        api.MapGet("/sablonlar", (KasaDbContext db) => Run(db, () => Results.Ok(db.AylikGiderRevizyonlar.AsNoTracking().ToList()
+        // Okumalar salt okunur anlık görüntüde çalışır: yazma kilidi almaz, yazanı bekletmez (bkz. Oku).
+        api.MapGet("/sablonlar", (KasaDbContext db) => Oku(db, () => Results.Ok(db.AylikGiderRevizyonlar.AsNoTracking().ToList()
             .GroupBy(r => r.SablonId).Select(g => Template(db, g.MaxBy(r => r.Surum)!)).OrderBy(r => r.Ad).ToList())));
         api.MapPost("/sablonlar", (AylikGiderSablonYaz dto, KasaDbContext db) => SaveTemplate(db, 0, dto)).RequireAuthorization("Editor");
         api.MapPut("/sablonlar/{id:int}", (int id, AylikGiderSablonYaz dto, KasaDbContext db) => SaveTemplate(db, id, dto)).RequireAuthorization("Editor");
-        api.MapGet("", (int yil, int ay, KasaDbContext db) => Run(db, () =>
+        api.MapGet("", (int yil, int ay, KasaDbContext db) => Oku(db, () =>
         {
             if (GirdiDogrulama.RaporAyi(yil, ay) is { } hata) return hata;
             var month = Month(yil, ay);
@@ -122,6 +123,13 @@ public static class AylikGiderEndpoints
         Need(message is null, $"{label}: {message}");
     }
     internal static void Need([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool test, string message, int status = 400) { if (!test) throw new AylikGiderHatasi(message, status); }
+    /// <summary>Okuma ucu: tutarlı, yazmaya kapalı anlık görüntüde (<see cref="OkumaAnlikGoruntusu"/>) çalışır; yazma kilidi
+    /// almaz. Doğrulama hataları yazma yolundakiyle aynı biçimde döner.</summary>
+    internal static IResult Oku(KasaDbContext db, Func<IResult> action) => AlisEndpoints.Oku(db, () =>
+    {
+        try { return action(); }
+        catch (AylikGiderHatasi e) { return Results.Json(new { hata = e.Message }, statusCode: e.Status); }
+    });
     internal static IResult Run(KasaDbContext db, Func<IResult> action)
     {
         try { return AlisEndpoints.Mutate(db, action); }
