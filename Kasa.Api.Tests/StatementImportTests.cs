@@ -300,15 +300,92 @@ public class StatementImportTests
         using var anonymous = f.CreateClient(); Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/ekstre-aktar/kayitlar/{source.Id}")).StatusCode);
     }
 
+    // Ayrıştırıcıdan geçen belge: önizleme satırları yüklemede saklanan okuma sonucundan alır.
+    private static async Task<EkstreBelgeDto> Upload(HttpClient c, string source, int? card = null)
+    {
+        using var form = new MultipartFormDataContent(); form.Add(new StringContent(source), "kaynak"); form.Add(new StringContent("Garanti"), "banka");
+        if (source == "Banka") form.Add(new StringContent("Ana banka"), "hesapAdi"); else form.Add(new StringContent(card!.Value.ToString()), "kartId");
+        form.Add(new ByteArrayContent(Encoding.ASCII.GetBytes("%PDF-1.7 " + Guid.NewGuid())), "dosya", "ekstre.pdf");
+        var response = await c.PostAsync("/api/ekstre-aktar/yukle", form); Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<EkstreBelgeDto>())!;
+    }
+
+    [Fact]
+    public async Task Adresinde_cadde_gecen_tl_satiri_onizlenir_ve_kaydedilir()
+    {
+        // statement-3: "CAD" (Cadde) Kanada doları sayılıp satır "Yalnız TL" hatasıyla kilitlenmez.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MIGROS BAGDAT CAD ISTANBUL -412,35 TL\nBüyükdere Cad. No:1 Şişli\n" };
+        using var c = await Editor(f); var doc = await Upload(c, "Banka");
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("TRY", row.ParaBirimi); Assert.Equal("Gider", row.OnerilenIslem);
+        var (request, preview) = await Preview(c, doc, Row(1, "Gider", 412.35m, "Genel"));
+        Assert.False(preview.TekrarOnayGerekli); Assert.Equal(-412.35m, preview.KasaEtkisi);
+        await Save(c, doc, request); Assert.Equal(587.65m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Para_birimi_etiketinde_sube_adresi_olan_tl_belgesi_kaydedilir()
+    {
+        // statement-3: "Para Birimi: Türk Lirası … Bağdat Cad." başlıklı belge CAD sayılıp kalıcı olarak kilitlenmez.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"Para Birimi: Türk Lirası        Şube Adresi: Bağdat Cad. No:5\n{Today:dd.MM.yyyy} MIGROS -412,35\n" };
+        using var c = await Editor(f); var doc = await Upload(c, "Banka");
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("TRY", row.ParaBirimi); Assert.Equal("Gider", row.OnerilenIslem);
+        var (request, preview) = await Preview(c, doc, Row(1, "Gider", 412.35m, "Genel"));
+        Assert.False(preview.TekrarOnayGerekli); Assert.Equal(-412.35m, preview.KasaEtkisi);
+        await Save(c, doc, request); Assert.Equal(587.65m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Tutara_bitisik_olmayan_doviz_kodlu_satir_ek_onayla_kaydedilir()
+    {
+        // Ayrı döviz kolonundaki "USD" satırı sessizce TL sayılmaz: Belirsiz para birimi ek onay ister, kilitlemez.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"Para Birimi: TL\n{Today:dd.MM.yyyy}  AMAZON EU        USD         -12,00\n" };
+        using var c = await Editor(f); var doc = await Upload(c, "Banka");
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("Belirsiz", row.ParaBirimi);
+        var (request, preview) = await Preview(c, doc, Row(1, "Gider", 12m, "Genel"));
+        Assert.True(preview.TekrarOnayGerekli); Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("USD"));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
+        await Save(c, doc, request); Assert.Equal(988m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Kart_alacak_satiri_harcama_onerilmez_harcama_secilirse_ek_onay_ister()
+    {
+        // statement-1: eksi işaretli kart alacağı uyarısız "Kart harcaması" olarak önerilmez.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} ANINDA İNDİRİM -15,00 TL\n" };
+        using var c = await Editor(f); var card = await Card(c); var doc = await Upload(c, "Kart", card.Id);
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("Atla", row.OnerilenIslem); Assert.NotEqual("Cikis", row.Yon);
+        var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama", 15m));
+        Assert.True(preview.TekrarOnayGerekli); Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("Kart alacağı"));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
+        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+    }
+
+    [Fact]
+    public async Task Kart_taksit_satiri_onizlemede_taksit_uyarisi_ve_ek_onay_ister()
+    {
+        // statement-9: kartta 6 taksitle girilmiş alışın ekstredeki aylık taksidi uyarısız yeni harcama olmaz.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MEDIAMARKT 2/6 TAKSİT 150,00 TL\n" };
+        using var c = await Editor(f); var card = await Card(c);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "MEDIAMARKT", 900m, 6, null, [new(1, 900m)]));
+        var debt = card.Borc; var doc = await Upload(c, "Kart", card.Id);
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("Atla", row.OnerilenIslem); Assert.Contains(row.Uyarilar, w => w.Contains("2/6. taksidi"));
+        var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama", 150m));
+        Assert.True(preview.TekrarOnayGerekli); Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("2/6. taksidi"));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
+        Assert.Equal(debt, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+    }
+
     private sealed class PdfFactory : KasaWebFactory
     {
+        /// <summary>Sahte okuyucunun döndüreceği PDF metni; boşsa tek komisyon satırlı banka hareketi.</summary>
+        public string? Metin { get; init; }
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            base.ConfigureWebHost(builder); builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu>(new FakePdf(Bugun)); });
+            base.ConfigureWebHost(builder); builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu>(new FakePdf(Bugun, Metin)); });
         }
     }
-    private sealed class FakePdf(DateOnly bugun) : IPdfMetinOkuyucu
+    private sealed class FakePdf(DateOnly bugun, string? metin) : IPdfMetinOkuyucu
     {
-        public Task<string> OkuAsync(byte[] pdf, CancellationToken ct) => Task.FromResult($"İşlem Tarihi    Açıklama                Tutar        Bakiye\n{bugun:dd.MM.yyyy}    KOMİSYON                  -10,00 TL    990,00 TL\n");
+        public Task<string> OkuAsync(byte[] pdf, CancellationToken ct) => Task.FromResult(metin ?? $"İşlem Tarihi    Açıklama                Tutar        Bakiye\n{bugun:dd.MM.yyyy}    KOMİSYON                  -10,00 TL    990,00 TL\n");
     }
 }
