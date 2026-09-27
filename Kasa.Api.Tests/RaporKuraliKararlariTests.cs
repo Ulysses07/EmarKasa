@@ -11,6 +11,7 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Kullanıcının rapor kuralı kararları (2026-09-27), API üzerinden. Takip başlangıcı 1 Haziran 2026, bugün 25 Eylül 2026
 /// (sabit saat); Eylül açık aydır.
+/// K1: takip başlangıcından önce tarihli mevcut giderler olduğu gibi kalır (rakamlar değişmez), raporda uyarıyla işaretlenir.
 /// K2: takipli kredi çekimi aylık raporda kanal 'Gelen' ve 'Ay sonucu'ndan çıkar, ayrı 'Kredi girişi' alanında görünür;
 /// kasa bakiyesi ve haftalık rapor değişmez; eski (takipsiz) kredi çekimi de aynı alanda görünür.
 /// </summary>
@@ -18,6 +19,39 @@ public class RaporKuraliKararlariTests
 {
     private static JsonObject Kanal(JsonNode rapor, string ad) => rapor["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == ad)!.AsObject();
     private static decimal Sayi(JsonNode? d) => d!.GetValue<decimal>();
+
+    [Fact]
+    public async Task K1_baslangic_oncesi_mevcut_giderler_aynen_kalir_aylik_ve_haftalik_raporda_uyariyla_isaretlenir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
+        // Başlangıç öncesi tarihli yeni gider kabul edilmez; canlıdaki eski kayıtlar doğrudan veritabanında.
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 5, 20), "Geç girilen", 10m, "MEZAT", GiderTipi.Cari))).StatusCode);
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Islemler.AddRange(
+                new IslemEntity { Tarih = new(2026, 5, 20), Cari = "Eski cari", TutarTl = 5_000m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari },
+                new IslemEntity { Tarih = new(2026, 5, 28), Cari = "Eski maaş", TutarTl = 300m, Kanal = Kanallar.Ortak, Tip = GiderTipi.SabitGider },
+                // Mayıs K.K'sı Haziran sonunda haftalık kasadan da düşer: tutarlıdır, işaretlenmez.
+                new IslemEntity { Tarih = new(2026, 5, 25), Cari = "Eski kart", TutarTl = 700m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti });
+            db.SaveChanges();
+        }
+
+        var mayis = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=5"))!;
+        var mezat = Kanal(mayis, "MEZAT");
+        Assert.Equal((5_000m, 100m, -5_100m), (Sayi(mezat["cariGiden"]), Sayi(mezat["ortakPay"]), Sayi(mezat["aySonucu"])));
+        Assert.Equal("Takip başlangıcından önce tarihli 2 kayıt, toplam 5.300,00 ₺ — raporlarda farklı işlenir: bu ayın sonucunda sayılır, "
+            + "haftalık kasaya ve kanal devrine girmez. Kayıtlar ve tutarlar olduğu gibi korunur.", (string)mayis["veriSagligiUyarisi"]!);
+        var haziran = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=6"))!;
+        Assert.Equal(700m, Sayi(Kanal(haziran, "MEZAT")["krediKarti"]));
+        Assert.Null(haziran["veriSagligiUyarisi"]);
+
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        Assert.StartsWith("Takip başlangıcından önce tarihli 2 kayıt, toplam 5.300,00 ₺ — raporlarda farklı işlenir: haftalık kasaya", (string)haftalik[^1]!["veriSagligiUyarisi"]!);
+        Assert.All(haftalik.Take(haftalik.Count - 1), h => Assert.Null(h!["veriSagligiUyarisi"]));
+        // Kasa: başlangıç öncesi gider hiç düşmez, Mayıs K.K'sı Haziran sonunda düşer (davranış aynen korunur).
+        Assert.Equal(1_000m - 700m, (await Panel(c)).GuncelKasa);
+    }
 
     [Fact]
     public async Task K2_takipli_ve_eski_kredi_girisi_aylik_raporda_ayri_alanda_kasa_ve_haftalik_degismez()

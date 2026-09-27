@@ -172,15 +172,18 @@ public class HesapServisi
             kanalAdlari.ToDictionary(k => k.Value, k => (int?)k.Key), ufukUyarisi);
     }
 
-    /// <summary>Haftalık rapor. Ufkun ötesinde kayıt varsa son dönem <see cref="HaftalikOzet.VeriSagligiUyarisi"/> taşır.</summary>
+    /// <summary>Haftalık rapor. Ufkun ötesinde kayıt ya da takip başlangıcından önce tarihli gider (K1) varsa son dönem
+    /// <see cref="HaftalikOzet.VeriSagligiUyarisi"/> taşır; tutarlar değişmez.</summary>
     public IReadOnlyList<HaftalikOzet> Haftalik(CancellationToken ct = default)
     {
         var y = Yukle(new TakipHesapBaglami(_db, ct));
         ct.ThrowIfCancellationRequested();
         var sonuc = HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
-        if (y.UfukUyarisi is not { } uyari || sonuc.Count == 0) return sonuc;
+        var uyarilar = new[] { y.UfukUyarisi, HesapMotoru.BaslangicOncesiUyarisi(HesapMotoru.BaslangicOncesi(y.Islemler, y.Donemler), aylik: false) }
+            .OfType<string>().ToList();
+        if (uyarilar.Count == 0 || sonuc.Count == 0) return sonuc;
         var liste = sonuc.ToList();
-        liste[^1] = liste[^1] with { VeriSagligiUyarisi = uyari };
+        liste[^1] = liste[^1] with { VeriSagligiUyarisi = string.Join(" ", uyarilar) };
         return liste;
     }
 
@@ -191,11 +194,14 @@ public class HesapServisi
     public const int AcikAyKurali = AylikKural.Guncel;
 
     /// <summary>Ayın canlı hesaplanan raporu (kilitli olsa da görüntüye bakmaz). <paramref name="kuralSurumu"/> verilmezse
-    /// <see cref="AcikAyKurali"/>.</summary>
+    /// <see cref="AcikAyKurali"/>. Ayın sonucuna takip başlangıcından önce tarihli gider giriyorsa (K1) rapor, tutarları
+    /// değiştirmeyen bir veri sağlığı uyarısı taşır (her iki kuralda; kilitlenirken görüntüye de yazılır).</summary>
     public AylikRapor Aylik(int yil, int ay, CancellationToken ct = default, int? kuralSurumu = null)
     {
         var y = Yukle(new TakipHesapBaglami(_db, ct), new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)));
-        return HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, kuralSurumu ?? AcikAyKurali);
+        var rapor = HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, kuralSurumu ?? AcikAyKurali);
+        return HesapMotoru.BaslangicOncesiUyarisi(HesapMotoru.BaslangicOncesi(y.Islemler, y.Donemler, (yil, ay)), aylik: true) is { } uyari
+            ? rapor with { VeriSagligiUyarisi = uyari } : rapor;
     }
 
     /// <summary>API'nin aylık raporu: kilitli ay dondurulmuş görüntüsünden (<c>"dondurulmus": true</c>), açık ay canlı

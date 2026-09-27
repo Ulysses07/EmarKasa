@@ -190,6 +190,40 @@ public static class HesapMotoru
         };
     }
 
+    /// <summary>
+    /// K1 (kullanıcı kararı): takip başlangıcından (ilk dönemden) önce tarihli mevcut giderler olduğu gibi kalır, tutarlar
+    /// değişmez; ancak raporlarda farklı işlenir: haftalık kasaya ve kanal devrine hiç girmez, aylık raporda gider ayında
+    /// sayılır. Ertelemeli eski K.K için bakılan tarih etki ayının son günüdür: etki ayı başlangıç ayı ya da sonrasıysa
+    /// haftalık kasada da o ay sonunda düşer (tutarlı, sayılmaz). <paramref name="ay"/> verilirse yalnız o ayın aylık
+    /// sonucuna giren satırlar sayılır. Hiç dönem yoksa (ör. takip başlangıcından önceki ayın raporu) bütün satırlar
+    /// başlangıç öncesidir. Adet motor satırıdır (birden çok kanala bölünen kayıt her payıyla sayılır).
+    /// </summary>
+    public static (int Adet, decimal Toplam) BaslangicOncesi(IReadOnlyList<Islem> islemler, IReadOnlyList<Donem> donemler, (int Yil, int Ay)? ay = null)
+    {
+        DateOnly? ilk = donemler.Count == 0 ? null : donemler.Min(d => d.Start);
+        var satirlar = islemler.Where(i => (ay is not { } a || EtkiAyi(i) == a) && (ilk is not { } bas || KasaEtkiTarihi(i) < bas)).ToList();
+        return (satirlar.Count, satirlar.Sum(i => i.TutarTl));
+    }
+
+    /// <summary>K1 uyarı metni (veri sağlığı alanı için); başlangıç öncesi satır yoksa null. Tutar Türkçe biçimdedir.</summary>
+    public static string? BaslangicOncesiUyarisi((int Adet, decimal Toplam) oncesi, bool aylik) => oncesi.Adet == 0 ? null
+        : $"Takip başlangıcından önce tarihli {oncesi.Adet} kayıt, toplam {TlMetni(oncesi.Toplam)} ₺ — raporlarda farklı işlenir: "
+          + (aylik ? "bu ayın sonucunda sayılır, haftalık kasaya ve kanal devrine girmez."
+                   : "haftalık kasaya ve kanal devrine girmez, aylık raporda gider ayının sonucunda sayılır.")
+          + " Kayıtlar ve tutarlar olduğu gibi korunur.";
+
+    // Kültürden bağımsız Türkçe tutar: binlik nokta, kuruş virgül (1.234,50).
+    private static readonly System.Globalization.NumberFormatInfo TlBicimi = new() { NumberGroupSeparator = ".", NumberDecimalSeparator = ",", NegativeSign = "-" };
+    private static string TlMetni(decimal tutar) => tutar.ToString("#,0.00", TlBicimi);
+
+    // İşlemin haftalık kasadan düştüğü gün: ertelemeli K.K etki ayının son günü, diğerleri kendi tarihi.
+    private static DateOnly KasaEtkiTarihi(Islem islem)
+    {
+        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi) return islem.Tarih;
+        var (yil, ay) = EtkiAyi(islem);
+        return new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay));
+    }
+
     // İşlemin haftalık kasa ve aylık sonuç üzerindeki ayı tek kuraldan türetilir.
     private static (int Yil, int Ay) EtkiAyi(Islem islem)
     {
