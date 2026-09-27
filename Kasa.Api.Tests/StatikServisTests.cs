@@ -18,6 +18,17 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     }
 
     [Fact]
+    public async Task Telefon_arayuzu_m_altinda_ayni_guvenlik_basliklariyla_sunulur()
+    {
+        var client = _factory.CreateClient();
+        var yanit = await client.GetAsync("/m/");
+        Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
+        Assert.Equal("text/html", yanit.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("script-src 'self'", yanit.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.Contains("/m/app.js", await yanit.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Istemci_rotasi_404_doner_fallback_yok()
     {
         var client = _factory.CreateClient();
