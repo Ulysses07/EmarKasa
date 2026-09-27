@@ -100,6 +100,10 @@ export function viewerPasswordError(value) {
   const text = String(value ?? '');
   return !text.trim() || text.length < 12 || text.length > 1024 ? VIEWER_PASSWORD_MESSAGE : null;
 }
+// Şifre değişimi ve kurtarma eski oturumları ve kurtarma kodunu hemen geçersiz kılar: yazım hatalı yeni şifre tek editör
+// hesabını kilitler. Tekrar uyuşmazsa istek gönderilmez (masaüstüyle aynı ileti).
+export const NEW_PASSWORD_MISMATCH_MESSAGE = 'Yeni şifreler aynı olmalı.';
+export function newPasswordRepeatError(password, repeat) { return String(password ?? '') === String(repeat ?? '') ? null : NEW_PASSWORD_MISMATCH_MESSAGE; }
 export function permissions(role, purchase) {
   const editor = role === 'editor';
   const buyer = role === 'alici';

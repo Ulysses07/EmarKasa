@@ -41,9 +41,11 @@ public partial class AuthViewModel : ObservableObject
     [ObservableProperty] private bool _kurtarmaAcik;
     [ObservableProperty] private string _kurtarmaKodu = "";
     [ObservableProperty] private string _kurtarmaYeniSifre = "";
+    /// <summary>Kurtarma kodu tek kullanımlıktır: yeni şifrenin tekrarı uyuşmazsa istek gönderilmez, kod harcanmaz.</summary>
+    [ObservableProperty] private string _kurtarmaYeniSifreTekrar = "";
     [ObservableProperty] private string? _kurtarmaMesaji;
 
-    [RelayCommand] private void KurtarmayiAcKapat() { KurtarmaAcik = !KurtarmaAcik; KurtarmaKodu = ""; KurtarmaYeniSifre = ""; }
+    [RelayCommand] private void KurtarmayiAcKapat() { KurtarmaAcik = !KurtarmaAcik; KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaYeniSifreTekrar = ""; }
     [RelayCommand] private async Task SifreKurtarAsync()
     {
         if (Mesgul || _api is not IYonetimApi yonetim) return;
@@ -53,9 +55,10 @@ public partial class AuthViewModel : ObservableObject
         {
             if (string.IsNullOrWhiteSpace(Kullanici) || string.IsNullOrWhiteSpace(KurtarmaKodu) || KurtarmaYeniSifre.Length < 12 || KurtarmaYeniSifre.Length > 1024)
             { Hata = "Kullanıcı adını, kurtarma kodunu ve 12–1024 karakterli yeni şifreyi yazın."; return; }
+            if (KurtarmaYeniSifre != KurtarmaYeniSifreTekrar) { Hata = GuvenlikViewModel.YeniSifreUyusmazMesaji; return; }
             await yonetim.SifreKurtarAsync(new(Kullanici.Trim(), KurtarmaKodu.Trim(), KurtarmaYeniSifre));
             if (nesil != OturumSurumu) return;
-            KurtarmaKodu = ""; KurtarmaYeniSifre = ""; Sifre = ""; KurtarmaAcik = false;
+            KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaYeniSifreTekrar = ""; Sifre = ""; KurtarmaAcik = false;
             KurtarmaMesaji = "Şifreniz yenilendi. Yeni şifreyle giriş yapın.";
         }
         catch (KasaApiException ex) { if (nesil == OturumSurumu) Hata = ex.DurumKodu == HttpStatusCode.Unauthorized ? "Kullanıcı adı veya kurtarma kodu hatalı." : ex.Message; }
@@ -63,7 +66,7 @@ public partial class AuthViewModel : ObservableObject
         catch (Exception) { if (nesil == OturumSurumu) Hata = "Şifre yenilenemedi. Yeniden deneyin."; }
         finally { if (nesil == OturumSurumu) Mesgul = false; }
     }
-    private void KurtarmaAlanlariniTemizle() { KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaAcik = false; KurtarmaMesaji = null; }
+    private void KurtarmaAlanlariniTemizle() { KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaYeniSifreTekrar = ""; KurtarmaAcik = false; KurtarmaMesaji = null; }
 
     [RelayCommand]
     private async Task GirisAsync()

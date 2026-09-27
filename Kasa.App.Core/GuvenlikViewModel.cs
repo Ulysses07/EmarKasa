@@ -9,6 +9,9 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     public const string IstemciSurumu = "2.3.0";
     [ObservableProperty] private string _mevcutSifre = "";
     [ObservableProperty] private string _yeniSifre = "";
+    /// <summary>Yeni şifrenin tekrarı: değişim token'ı ve kurtarma kodunu hemen geçersiz kıldığı için yazım hatası hesabı
+    /// kilitler; uyuşmazsa istek gönderilmez.</summary>
+    [ObservableProperty] private string _yeniSifreTekrar = "";
     [ObservableProperty] private string? _kurtarmaKodu;
     [ObservableProperty] private string _surumBilgisi = $"Uygulama {IstemciSurumu}";
     [ObservableProperty] private string _yedekBilgisi = "Yedek durumu henüz alınmadı.";
@@ -38,6 +41,7 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     {
         Mesaj = null;
         if (string.IsNullOrWhiteSpace(MevcutSifre) || YeniSifre.Length < 12 || YeniSifre.Length > 1024) { Hata = "Mevcut şifreyi ve 12–1024 karakterli yeni şifreyi yazın."; return; }
+        if (YeniSifre != YeniSifreTekrar) { Hata = YeniSifreUyusmazMesaji; return; }
         await api.SifreDegistirAsync(new(MevcutSifre, YeniSifre));
         if (!Gecerli(n)) return;
         Temizle(); Mesaj = "Şifre değiştirildi. Yeni şifrenizle giriş yapın.";
@@ -52,7 +56,9 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         MevcutSifre = "";
         Mesaj = "Bu kod yalnız şimdi gösterilir. Güvenli bir yerde saklayın. Yeni kod önceki kodu geçersiz kılar.";
     });
-    public void Temizle() { MevcutSifre = ""; YeniSifre = ""; KurtarmaKodu = null; }
+    public void Temizle() { MevcutSifre = ""; YeniSifre = ""; YeniSifreTekrar = ""; KurtarmaKodu = null; }
+    /// <summary>Web (app.js) ile aynı ileti.</summary>
+    public const string YeniSifreUyusmazMesaji = "Yeni şifreler aynı olmalı.";
     /// <summary>Ekrandan ayrılınca süren yedek indirmesi de iptal edilir; sonucu zaten kullanılmayacaktı.</summary>
     public void EkrandanAyril() { _yedekIptal?.Cancel(); BekleyenleriIptalEt(); Temizle(); }
     protected override void OturumTemizle() { _yedekIptal?.Cancel(); Temizle(); IndirmeAdresi = null; YedekBilgisi = "Yedek durumu henüz alınmadı."; YedekUyarisi = null; SurumBilgisi = $"Uygulama {IstemciSurumu}"; }

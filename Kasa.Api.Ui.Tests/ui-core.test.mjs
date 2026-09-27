@@ -649,6 +649,36 @@ test('wrong current password shows a field error and keeps the session; a real 4
   assert.equal(nodes.get('#application').hidden, true);
   assert.equal(nodes.get('#login-screen').hidden, false);
 });
+// maui-4 (web tarafı): kurtarma kodu tek kullanımlıktır ve şifre değişimi kurtarma kodunu siler; yazım hatalı yeni şifre
+// tek editör hesabını kilitler. Tekrar uyuşmazsa istek gönderilmez, uyuşunca sunucuya tekrar alanı gitmez.
+test('yeni şifre tekrarı kuralı boşluk dahil birebir eşleşme ister', () => {
+  assert.equal(ui.NEW_PASSWORD_MISMATCH_MESSAGE, 'Yeni şifreler aynı olmalı.');
+  assert.equal(ui.newPasswordRepeatError('Kasa2026!Guvenli', 'Kasa2026!Guvenli'), null);
+  for (const repeat of ['Kasa2026!Guvenlı', 'Kasa2026!Guvenli ', '', null]) assert.equal(ui.newPasswordRepeatError('Kasa2026!Guvenli', repeat), ui.NEW_PASSWORD_MISMATCH_MESSAGE);
+});
+test('hesap kurtarmada yeni şifre tekrarı uyuşmazsa kod harcanmaz; eşleşince yalnız kullanıcı, kod ve yeni şifre gider', async () => {
+  const { nodes, calls } = await openApp(false, { '/api/auth/kurtar': null });
+  nodes.get('#recover-open').listeners.click({});
+  formField(nodes, 'kullanici').value = 'editor'; formField(nodes, 'kod').value = 'ABCD-EFGH';
+  formField(nodes, 'yeniSifre').value = 'Kasa2026!Guvenli'; formField(nodes, 'tekrar').value = 'Kasa2026!Guvenlı';
+  assert.equal(formField(nodes, 'tekrar').attributes.type, 'password');
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/auth/kurtar').length, 0);
+  assert.equal(formField(nodes, 'tekrar').attributes['aria-invalid'], 'true');
+  assert.equal(nodes.get('#modal-content').find(node => node.attributes.role === 'alert').textContent, 'Yeni şifreler aynı olmalı.');
+  formField(nodes, 'tekrar').value = 'Kasa2026!Guvenli'; await submitDialog(nodes);
+  assert.deepEqual(calls.filter(call => call.path === '/api/auth/kurtar').map(call => call.body), [{ kullanici: 'editor', kod: 'ABCD-EFGH', yeniSifre: 'Kasa2026!Guvenli' }]);
+  assert.match(nodes.get('#notifications').textContent, /Şifreniz yenilendi/);
+});
+test('şifre değişiminde tekrar uyuşmazsa istek gönderilmez ve tekrar alanı işaretlenir', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/auth/sifre': null });
+  app.passwordDialog();
+  formField(nodes, 'mevcutSifre').value = 'kasa-sifresi'; formField(nodes, 'yeniSifre').value = 'Kasa2026!Guvenli'; formField(nodes, 'tekrar').value = 'Kasa2026!Guvenlı';
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/auth/sifre').length, 0);
+  assert.equal(formField(nodes, 'tekrar').attributes['aria-invalid'], 'true');
+  assert.equal(nodes.get('#application').hidden, false);
+});
 test('viewer password is checked with the shared rule before any request and uses the 12 character hint', async () => {
   const { app, nodes, calls } = await openApp(false, { '/api/ayarlar/izleyici-sifre': null });
   app.viewerPasswordDialog();
