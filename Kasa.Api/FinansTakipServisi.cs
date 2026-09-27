@@ -10,7 +10,9 @@ namespace Kasa.Api;
 
 public static class FinansTakipServisi
 {
-    public static DateOnly Bugun => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul")));
+    /// <summary>İstanbul'a göre bugün (<see cref="KasaSaati.Bugun"/>). Bağlamı olan kod <c>db.Bugunu()</c>
+    /// kullanır; o, istek dışında da uygulamanın saatini verir.</summary>
+    public static DateOnly Bugun => KasaSaati.Bugun;
     internal static string Json<T>(T value) => JsonSerializer.Serialize(value);
     internal static List<T> Read<T>(string value) => JsonSerializer.Deserialize<List<T>>(value) ?? [];
     internal static DateOnly Gun(DateOnly month, int day) => new(month.Year, month.Month, Math.Min(day, DateTime.DaysInMonth(month.Year, month.Month)));
@@ -94,7 +96,7 @@ public static class FinansTakipServisi
     public static void KartGecisiYaz(KasaDbContext db, int kartId, DateOnly baslangic, decimal kalanBorc, decimal kasadaOncedenSayilan, IReadOnlyList<KanalPayYaz> dagilimlar, string aciklama)
     {
         var s = KartGecisHesabi.Hesapla(db, kartId, baslangic, kalanBorc);
-        var kayit = new KartGecisKaydi(Bugun, kalanBorc, kasadaOncedenSayilan, s.SistemKartBorcu, s.EskiKuraldaIslenenTutar, s.BekleyenEskiDusumTutari, s.SonBekleyenDusumTarihi, s.OnerilenKasadaSayilanTutar);
+        var kayit = new KartGecisKaydi(db.Bugunu(), kalanBorc, kasadaOncedenSayilan, s.SistemKartBorcu, s.EskiKuraldaIslenenTutar, s.BekleyenEskiDusumTutari, s.SonBekleyenDusumTarihi, s.OnerilenKasadaSayilanTutar);
         db.TakipKartlar.Add(new() { KrediKartiId = kartId, Baslangic = baslangic, EskiKayit = true, EskiDusumKurali = EskiDusumKurali.IslemTarihi,
             GecisAciklamasi = aciklama.Trim(), GecisOzetiJson = JsonSerializer.Serialize(kayit) }); db.SaveChanges();
         if (kalanBorc != 0) HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == kartId), new() { KrediKartiId = kartId, Tarih = baslangic, Aciklama = "Onaylanan eski borç devri",
@@ -103,6 +105,7 @@ public static class FinansTakipServisi
     // Çağıran transaction açar. Kalıcı kaynak bağı aynı alışın iki kez borç olmasını engeller.
     internal static void Sync(KasaDbContext db)
     {
+        var today = db.Bugunu();
         foreach (var tracking in db.TakipKartlar.ToList())
         {
             var card = db.KrediKartlari.Single(k => k.Id == tracking.KrediKartiId);
@@ -119,7 +122,7 @@ public static class FinansTakipServisi
             if (tracking.Aktif)
             {
                 // Sıfır borçlu aktif kart için de aylık kesim olayı vardır.
-                var cut = Kesim(Bugun, card.KesimTarihi.Day);
+                var cut = Kesim(today, card.KesimTarihi.Day);
                 if (cut >= tracking.Baslangic) Ekstre(db, card, cut);
                 var last = Gun(cut.AddMonths(-1), card.KesimTarihi.Day);
                 if (last >= tracking.Baslangic) Ekstre(db, card, last);
@@ -252,6 +255,7 @@ public static class FinansTakipServisi
             return new(id, 0, card.Ad, false, true, null, card.KesimTarihi.Day, card.SonOdemeTarihi.Day, card.Limit, debt, debt, [], [], [],
                 debt > 0 ? [new(null, Kanallar.DagilimBekliyor, debt)] : []);
         }
+        var today = db.Bugunu();
         var charges = db.TakipHarcamalar.AsNoTracking().Where(h => h.KrediKartiId == id).ToList();
         var taxes = db.TakipKartTaksitler.AsNoTracking().Where(t => charges.Select(h => h.Id).Contains(t.HarcamaId)).ToList();
         var payments = db.TakipKartOdemeler.AsNoTracking().Where(p => p.KrediKartiId == id).OrderBy(p => p.Id).ToList();
@@ -271,7 +275,7 @@ public static class FinansTakipServisi
         }).ToList();
         var imported = db.EkstreKayitlar.AsNoTracking().Where(k => k.KrediKartiId == id).ToList();
         return new(id, track.Surum, card.Ad, true, track.Aktif, track.Baslangic, card.KesimTarihi.Day, card.SonOdemeTarihi.Day, card.Limit,
-            charges.Where(h => !h.Iptal).Sum(h => h.Tutar) - payments.Where(p => !p.Iptal).Sum(p => p.Tutar), statements.Where(s => s.KesimTarihi <= Bugun).Sum(s => s.Kalan), statements,
+            charges.Where(h => !h.Iptal).Sum(h => h.Tutar) - payments.Where(p => !p.Iptal).Sum(p => p.Tutar), statements.Where(s => s.KesimTarihi <= today).Sum(s => s.Kalan), statements,
             charges.Select(h => new KartHarcamaDto(h.Id, h.IslemId, h.Tarih, h.Aciklama, h.Tutar, h.TaksitSayisi, h.Iptal, KaynakPaylari(db, h).Count > 0 ? Adlandir(db, KaynakPaylari(db, h)) : [new(null, Kanallar.DagilimBekliyor, Math.Abs(h.Tutar))], imported.SingleOrDefault(k => k.KartHarcamaId == h.Id)?.Id)).ToList(),
             // İptal edilmiş ödemenin kasa/kanal etkisi yoktur. Payları sonradan girilen iadeyle
             // kaynak ağırlığını aşabileceğinden etkisi hiç hesaplanmaz.
@@ -309,17 +313,18 @@ public static class FinansTakipServisi
     }
     public static KrediTakipDto Kredi(KasaDbContext db, int id)
     {
+        var today = db.Bugunu();
         var loan = db.Krediler.AsNoTracking().Single(k => k.Id == id);
         var tracking = db.TakipKrediler.AsNoTracking().SingleOrDefault(k => k.KrediId == id);
         if (tracking is null)
         {
-            var old = KrediTuretici.TaksitGiderleri(loan.ToCore()).Select((t, i) => new KrediPlanTaksitDto(0, i + 1, t.Tarih, t.TutarTl, t.Tarih <= Bugun ? "KasayaIslendi" : "Bekliyor", null, [])).ToList();
-            return new(id, 0, loan.Ad, false, true, null, loan.CekilenTutar, loan.CekimTarihi, old.Where(t => t.Tarih > Bugun).Sum(t => t.Tutar), [], old);
+            var old = KrediTuretici.TaksitGiderleri(loan.ToCore()).Select((t, i) => new KrediPlanTaksitDto(0, i + 1, t.Tarih, t.TutarTl, t.Tarih <= today ? "KasayaIslendi" : "Bekliyor", null, [])).ToList();
+            return new(id, 0, loan.Ad, false, true, null, loan.CekilenTutar, loan.CekimTarihi, old.Where(t => t.Tarih > today).Sum(t => t.Tutar), [], old);
         }
         var installments = db.TakipKrediTaksitler.AsNoTracking().Where(t => t.KrediId == id).OrderBy(t => t.No).ToList();
         return new(id, tracking.Surum, loan.Ad, true, tracking.Aktif, tracking.Baslangic, loan.CekilenTutar, loan.CekimTarihi,
-            installments.Where(t => !t.Iptal && t.Tarih > Bugun).Sum(t => t.Tutar), Adlandir(db, Read<KanalPayYaz>(tracking.CekimPaylariJson)),
-            installments.Select(t => new KrediPlanTaksitDto(t.Id, t.No, t.Tarih, t.Tutar, t.Iptal ? "Iptal" : t.Tarih <= Bugun ? "KasayaIslendi" : "Bekliyor", t.Not, Adlandir(db, Read<KanalPayYaz>(t.DagilimJson)))).ToList());
+            installments.Where(t => !t.Iptal && t.Tarih > today).Sum(t => t.Tutar), Adlandir(db, Read<KanalPayYaz>(tracking.CekimPaylariJson)),
+            installments.Select(t => new KrediPlanTaksitDto(t.Id, t.No, t.Tarih, t.Tutar, t.Iptal ? "Iptal" : t.Tarih <= today ? "KasayaIslendi" : "Bekliyor", t.Not, Adlandir(db, Read<KanalPayYaz>(t.DagilimJson)))).ToList());
     }
     public static IReadOnlyList<TakipOlayDto> GetNotificationEvents(KasaDbContext db, DateOnly today)
     {
