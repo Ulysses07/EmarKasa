@@ -24,7 +24,9 @@ public class BenzerKayitCaprazTests
     private const int Mezat = 1, Perakende = 2, Toptan = 3;
 
     public enum Kaynak { ManuelKanal, ManuelOrtak, EkstreGenel, EkstreCokKanalli, TaslakAlisOdemesi, OnayliAlisOdemesi, AylikGenel, AylikCokKanalli, KartOdemesi, KrediTaksidi, EskiKrediTaksidi }
-    private sealed record Beklenen(string Kaynak, int Id, string? KanalEtiketi, int? AlisId = null, int? EkstreKayitId = null, int? AylikGiderOdemeId = null);
+    /// <summary><paramref name="Aciklama"/>: açıklamanın başı. Kredi taksitlerinin açıklaması kaynağını kendisi adlandırır; yeni
+    /// kaynak türlerini tanımayan istemci ("Gider #id"/"Kayıt #id" gösterir) de kaydın kredi taksidi olduğunu gösterir.</summary>
+    private sealed record Beklenen(string Kaynak, int Id, string? KanalEtiketi, int? AlisId = null, int? EkstreKayitId = null, int? AylikGiderOdemeId = null, string? Aciklama = null);
 
     [Theory]
     [InlineData(Kaynak.ManuelKanal, false, true)]
@@ -54,6 +56,7 @@ public class BenzerKayitCaprazTests
             Assert.Equal((beklenen.Kaynak, beklenen.Id, beklenen.KanalEtiketi), (kayit.Kaynak, kayit.Id, kayit.KanalEtiketi));
             Assert.Equal((beklenen.AlisId, beklenen.EkstreKayitId, beklenen.AylikGiderOdemeId), (kayit.AlisId, kayit.EkstreKayitId, kayit.AylikGiderOdemeId));
             Assert.Equal(KaynakTarihi, kayit.Tarih); Assert.Equal(Tutar, kayit.Tutar);
+            if (beklenen.Aciklama is { } aciklama) Assert.StartsWith(aciklama, kayit.Aciklama, StringComparison.Ordinal);
         }
         await Gorunur(new("Gider", Bugun, Tutar, Kanal: "MEZAT"), true);
         await Gorunur(new("Gider", Bugun, Tutar, Kanal: "Ortak"), true);
@@ -93,6 +96,42 @@ public class BenzerKayitCaprazTests
         var uzak = await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{belge.Id}/onizleme",
             new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [new(1, KaynakTarihi.AddDays(-1), "Banka hareketi", 77m, "Gider", "Genel", [])]));
         Assert.False(uzak.TekrarOnayGerekli);
+    }
+
+    [Fact]
+    public async Task Ayni_belgenin_satirlari_yalniz_ayni_gunde_benzer_sayilir_cok_eslesme_satirda_tek_uyarida_birlesir()
+    {
+        // Önizleme uyarı gürültüsü: günlük sabit masraf gibi ardışık günlerde tekrarlanan aynı tutar, aynı ekstrenin ayrı banka
+        // hareketleridir. ±3 gün penceresi başka yoldan girilmiş aynı para (valör farkı) içindir; aynı belgenin satırları
+        // (bu önizlemede seçilen ya da önceden kaydedilen) yalnız aynı günde benzer sayılır.
+        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        const decimal masraf = 7.5m;
+        var belge = await EkstreBelgesi(f, c, [(Bugun.AddDays(-4), masraf), (Bugun.AddDays(-3), masraf), (Bugun.AddDays(-2), masraf), (Bugun.AddDays(-2), masraf)]);
+        EkstreSatirYaz Satir(int no) => new(no, belge.Satirlar[no - 1].Tarih!.Value, "Banka hareketi", masraf, "Gider", "Genel", []);
+        Task<EkstreOnizlemeDto> Onizle(params EkstreSatirYaz[] satirlar) =>
+            Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{belge.Id}/onizleme", new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, satirlar));
+
+        var ardisik = await Onizle(Satir(1), Satir(2), Satir(3));
+        Assert.False(ardisik.TekrarOnayGerekli);
+        Assert.All(ardisik.Satirlar, s => Assert.Empty(s.Uyarilar));
+        // Aynı gündeki iki satır (ör. PDF'te tekrarlanan satır) önceki gibi uyarılır ve satır numarasıyla adlandırılır.
+        var ayniGun = await Onizle(Satir(3), Satir(4));
+        Assert.True(ayniGun.TekrarOnayGerekli);
+        Assert.StartsWith("Benzer kayıt: bu önizlemede seçilen 3. satır · ", Assert.Single(ayniGun.Satirlar[1].Uyarilar), StringComparison.Ordinal);
+
+        // Önceden kaydedilen aynı belge satırları (1 ve 2) da yalnız aynı günde benzer sayılır.
+        var istek = new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [Satir(1), Satir(2)]);
+        belge = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{belge.Id}/kaydet", istek with { OnizlemeOzeti = (await Onizle(Satir(1), Satir(2))).OnizlemeOzeti });
+        Assert.Empty(Assert.Single((await Onizle(Satir(3))).Satirlar).Uyarilar);
+        // Başka yoldan girilmiş beş gider: satır başına tek uyarı; en yakın üç kayıt adlandırılır, kalanı sayılır.
+        for (var i = 0; i < 5; i++) await PostCreated(c, new IslemYazDto(Bugun.AddDays(-1), $"Elle masraf {i}", masraf, "MEZAT", GiderTipi.Cari));
+        var kalan = await Onizle(Satir(3));
+        Assert.True(kalan.TekrarOnayGerekli);
+        var uyari = Assert.Single(Assert.Single(kalan.Satirlar).Uyarilar);
+        Assert.StartsWith("Benzer kayıt: Gider #", uyari, StringComparison.Ordinal);
+        Assert.Equal(3, uyari.Split("Gider #").Length - 1);
+        Assert.Contains("ve 2 kayıt daha. Ayrı hareket olduğundan emin olun.", uyari);
+        Assert.DoesNotContain("Banka gideri", uyari);
     }
 
     [Fact]
@@ -216,7 +255,7 @@ public class BenzerKayitCaprazTests
                     var taksit = new TakipKrediTaksitEntity { KrediId = kredi.Id, No = 2, Tarih = KaynakTarihi, Tutar = Tutar, DagilimJson = Pay(Mezat, Tutar) };
                     db.TakipKrediTaksitler.Add(taksit); db.SaveChanges(); id = taksit.Id;
                 });
-                return new("KrediTaksidi", id, "MEZAT");
+                return new("KrediTaksidi", id, "MEZAT", Aciklama: "Kredi taksidi · Takipli kredi · 2. taksit");
             }
             case Kaynak.EskiKrediTaksidi:
             {
@@ -226,7 +265,7 @@ public class BenzerKayitCaprazTests
                     var kredi = new KrediEntity { Ad = "Eski kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = "MEZAT", KanalId = Mezat };
                     db.Krediler.Add(kredi); db.SaveChanges(); id = kredi.Id;
                 });
-                return new("EskiKrediTaksidi", id, "MEZAT");
+                return new("EskiKrediTaksidi", id, "MEZAT", Aciklama: $"Otomatik kredi taksidi (kredi #{id}) · Eski kredi · ");
             }
             default: throw new ArgumentOutOfRangeException(nameof(kaynak));
         }
@@ -239,14 +278,16 @@ public class BenzerKayitCaprazTests
         return c;
     }
     /// <summary>Tek satırlık banka ekstresi belgesi (PDF okuma adımı atlanır; satırlar belgeye hazır yazılır).</summary>
-    internal static async Task<EkstreBelgeDto> EkstreBelgesi(KasaWebFactory f, HttpClient c, DateOnly tarih, decimal tutar)
+    internal static Task<EkstreBelgeDto> EkstreBelgesi(KasaWebFactory f, HttpClient c, DateOnly tarih, decimal tutar) => EkstreBelgesi(f, c, [(tarih, tutar)]);
+    /// <summary>Banka ekstresi belgesi; satır numaraları sırayla 1'den başlar.</summary>
+    internal static async Task<EkstreBelgeDto> EkstreBelgesi(KasaWebFactory f, HttpClient c, IReadOnlyList<(DateOnly Tarih, decimal Tutar)> satirlar)
     {
         int id = 0;
         Seed(f, db =>
         {
             var d = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "test.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
                 Dosya = "%PDF-test"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
-                SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "Kaynak 1", tarih, "Banka hareketi", tutar, "Cikis", "Gider", "Hareket", "TRY", []) }) };
+                SatirlarJson = JsonSerializer.Serialize(satirlar.Select((s, i) => new EkstreOkunanSatir(i + 1, 1, $"Kaynak {i + 1}", s.Tarih, "Banka hareketi", s.Tutar, "Cikis", "Gider", "Hareket", "TRY", [])).ToArray()) };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); id = d.Id;
         });
         return (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{id}"))!;

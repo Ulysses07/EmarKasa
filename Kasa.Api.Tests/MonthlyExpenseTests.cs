@@ -145,7 +145,7 @@ public class MonthlyExpenseTests
         Assert.Equal(("Islem", satir.IslemId, (int?)satir.Id, "Genel kasa"), (benzer.Kaynak, (int?)benzer.Id, benzer.EkstreKayitId, benzer.KanalEtiketi));
         Assert.Empty(await BenzerKayitCaprazTests.Bul(c, new("AylikGider", Today, 100.01m)));
         // Uyarı onaylanıp ayrı ödeme kaydedilebilir (benzerlik bir uyarıdır, yasak değildir).
-        var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", Payment(t));
+        var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", Payment(t) with { BenzerOnay = true });
         Assert.Equal(800m, (await Panel(c)).GuncelKasa);
         // Ters yön: MEZAT için elle girilecek aynı tutar, çok kanallı aylık ödemeyi ve genel kasa banka giderini birlikte gösterir.
         var rows = await BenzerKayitCaprazTests.Bul(c, new("Gider", Today.AddDays(1), 100m, Kanal: "MEZAT"));
@@ -156,6 +156,73 @@ public class MonthlyExpenseTests
         // Kanalı kesişmeyen sorgu çok kanallı ödemeyi göstermez; genel kasa gideri her kanal sorgusunda görünür.
         Assert.Equal(satir.Id, Assert.Single(await BenzerKayitCaprazTests.Bul(c, new("Gider", Today, 100m, Kanal: "PERAKENDE"))).EkstreKayitId);
     }
+
+    /// <summary>Ödeme ucunun benzer kayıt yanıtı (409): okunur ileti ve istemcinin onay panelinde göstereceği kayıtlar.</summary>
+    private sealed record BenzerCakismasi(string Hata, List<BenzerKayitDto> Benzerler);
+
+    [Fact]
+    public async Task Benzer_onayi_isteyen_odeme_bankadan_islenmis_kirada_409_ve_liste_doner_onayla_bir_kez_kaydedilir()
+    {
+        // gap-coklu-giris-cift-sayim-mutabakat-8 senaryosu: kira bankadan "Yalnız genel kasa" gideri olarak işlendi; iki gün
+        // sonra Aylık Giderler'den "Ödendi" denir. BenzerOnay=false gönderen istemcide ödeme ucu benzerliği yazma
+        // transaction'ında denetler: benzer kayıt varsa hiçbir şey yazmaz, 409 ile kayıtları döner.
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var t = await Create(c, "Genel", []);
+        var (_, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today.AddDays(-2), 100m, "Genel", []);
+        var istek = Payment(t) with { BenzerOnay = false };
+        var cakisma = await Cakisma(c, t, istek);
+        var benzer = Assert.Single(cakisma.Benzerler);
+        Assert.Equal(("Islem", satir.IslemId, (int?)satir.Id, "Genel kasa"), (benzer.Kaynak, (int?)benzer.Id, benzer.EkstreKayitId, benzer.KanalEtiketi));
+        Assert.Contains($"Banka gideri #{satir.IslemId} · {Today.AddDays(-2):dd.MM.yyyy} · 100,00 TL · Genel kasa", cakisma.Hata);
+        Assert.Equal(900m, (await Panel(c)).GuncelKasa);
+        Assert.Equal("Planlandi", Assert.Single((await Ay(c)).Kayitlar).Durum);
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            Assert.Empty(db.AylikGiderOdemeler); Assert.Single(db.Islemler); Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
+        }
+        // Kullanıcı benzer kaydı gördü ve ayrı ödeme olduğunu onayladı: reddedilen istek kimliği tüketmediğinden aynı kimlikle kaydedilir.
+        var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek with { BenzerOnay = true });
+        Assert.Equal("Odendi", paid.Durum); Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        // Onay alanı özete girmez: onaylı isteğin ve onaysız biçiminin tekrarı aynı ödemeyi döner, ödemenin kendi gideri 409'a yol açmaz.
+        Assert.Equal(paid.OdemeId, (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek with { BenzerOnay = true })).OdemeId);
+        Assert.Equal(paid.OdemeId, (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek)).OdemeId);
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Benzer_denetimi_sablonun_kanal_kumesiyle_yapilir_dogrulama_once_gelir_eski_istemci_degismeden_oder()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        // Kanalı kesin olarak başka olan (PERAKENDE) elle gider, MEZAT / TOPTAN şablonunun ödemesine benzemez.
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today.AddDays(-1), "Perakende gideri", 100m, "PERAKENDE", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        var cok = await Create(c, "Esit", [new(1, 0), new(3, 0)]);
+        var cokOdeme = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{cok.Id}/ode", Payment(cok) with { BenzerOnay = false });
+        Assert.Equal("Odendi", cokOdeme.Durum);
+        // Genel şablon kanal ayırmaz: PERAKENDE gideri ve MEZAT / TOPTAN aylık ödemesi birlikte listelenir.
+        var genel = await Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Elektrik", "Fatura", 100m, 31, "Genel", [], Month));
+        var cakisma = await Cakisma(c, genel, Payment(genel) with { BenzerOnay = false });
+        Assert.Equal(new[] { cokOdeme.OdemeId }, cakisma.Benzerler.Where(b => b.AylikGiderOdemeId is not null).Select(b => b.AylikGiderOdemeId));
+        Assert.Equal(2, cakisma.Benzerler.Count);
+        Assert.Contains("Aylık gider ödemesi #", cakisma.Hata); Assert.Contains("Gider #", cakisma.Hata);
+        // Doğrulama benzerlikten önce gelir: geçersiz tarih 400, eski şablon sürümü benzer listesi olmadan 409 döner.
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", Payment(genel) with { BenzerOnay = false, Tarih = Today.AddDays(1) })).StatusCode);
+        var eskiSurum = await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", Payment(genel) with { BenzerOnay = false, Surum = genel.Surum + 1 });
+        Assert.Equal(HttpStatusCode.Conflict, eskiSurum.StatusCode);
+        Assert.False((await eskiSurum.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("benzerler", out _));
+        // Onay alanını bilmeyen eski istemci (web ve MAUI'nin bugünkü gövdesi) önceki gibi uyarısız öder.
+        var eski = await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", new { istekId = Guid.NewGuid(), surum = genel.Surum, yil = Month.Year, ay = Month.Month, tarih = Today });
+        Assert.Equal(HttpStatusCode.OK, eski.StatusCode);
+        Assert.Equal(700m, (await Panel(c)).GuncelKasa);
+    }
+
+    private static async Task<BenzerCakismasi> Cakisma(HttpClient c, AylikGiderSablonDto t, AylikGiderOdemeYaz istek)
+    {
+        var r = await c.PostAsJsonAsync($"/api/aylik-giderler/{t.Id}/ode", istek);
+        Assert.True(r.StatusCode == HttpStatusCode.Conflict, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        return (await r.Content.ReadFromJsonAsync<BenzerCakismasi>())!;
+    }
+    private static async Task<AylikGiderAyDto> Ay(HttpClient c) => (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!;
 
     [Theory]
     [InlineData("/api/aylik-giderler?yil=2026&ay=9")]

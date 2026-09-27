@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
@@ -172,6 +171,8 @@ public static class EkstreImportEndpoints
             cardVersions = db.TakipKartlar.OrderBy(c => c.KrediKartiId).Select(c => new KartSurumu(c.KrediKartiId, c.Surum)).ToList();
             locked = db.AyKilidi.AsNoTracking().Single().KilitliSonTarih;
             var similar = new BenzerKayitServisi(db);
+            // Bu belgenin önceden kaydedilmiş ve bu önizlemede uygulanan satırları (EkstreKayit kimlikleri): benzerlikte yalnız aynı günde sayılır.
+            var sameDocument = db.EkstreKayitlar.AsNoTracking().Where(k => k.BelgeId == id).Select(k => k.Id).ToHashSet();
             db.EkstreDegisikligi = true;
             foreach (var row in dto.Satirlar)
             {
@@ -182,9 +183,9 @@ public static class EkstreImportEndpoints
                 if (original.Yon == "Belirsiz") notices.Add("Giriş/çıkış yönü okunamadı; seçtiğiniz işlem türünü doğrulayın.");
                 if (original.OnerilenIslem != row.IslemTuru) notices.Add("İşlem türü PDF önerisinden farklı; yönünü ve kasaya etkisini kontrol edin.");
                 if (document.Kaynak == "Banka" && original.Sinif == "Transfer") notices.Add("Kendi hesaplarınız arasındaki transfer genel kasayı değiştirmez; böyle bir satırı seçmeden bırakın. Gelir/gider olarak işlerseniz genel kasa değişir.");
-                notices.AddRange(Duplicates(db, similar, document, row, batch));
+                notices.AddRange(Duplicates(db, similar, document, row, batch, sameDocument));
                 var applied = Apply(db, document, row);
-                batch[applied.Id] = row.SatirNo;
+                batch[applied.Id] = row.SatirNo; sameDocument.Add(applied.Id);
                 selected.Add((row, applied, notices));
             }
             // A later selected charge may allocate an earlier payment's advance.
@@ -315,8 +316,10 @@ public static class EkstreImportEndpoints
 
     /// <summary>Benzer kayıt uyarıları. Kart harcaması/iadesi, kart ödemesi ve banka gideri benzerlik ucuyla aynı servisi
     /// (<see cref="BenzerKayitServisi"/>: aynı tutar, ±3 gün, simetrik kaynaklar) kullanır; banka gideri kanal ayırmaz.
-    /// Aynı önizlemede önceden uygulanan satırlar da bulunur ve satır numarasıyla adlandırılır.</summary>
-    private static IEnumerable<string> Duplicates(KasaDbContext db, BenzerKayitServisi similar, EkstreBelgeEntity doc, EkstreSatirYaz row, IReadOnlyDictionary<int, int> batch)
+    /// Eşleşmeler satır başına tek uyarıda toplanır. ±3 gün penceresi başka yoldan girilmiş aynı paranın (valör farkı) içindir;
+    /// aynı belgenin satırları ayrı banka hareketleri olduğundan (günlük sabit masraf gibi) yalnız aynı günde benzer sayılır.
+    /// Bu önizlemede önceden uygulanan satırlar satır numarasıyla adlandırılır.</summary>
+    private static IEnumerable<string> Duplicates(KasaDbContext db, BenzerKayitServisi similar, EkstreBelgeEntity doc, EkstreSatirYaz row, IReadOnlyDictionary<int, int> batch, IReadOnlySet<int> sameDocument)
     {
         if (row.IslemTuru == "Gelir")
         {
@@ -335,13 +338,10 @@ public static class EkstreImportEndpoints
         };
         if (row.IslemTuru == "Gider" && (row.Aciklama.Contains("KREDİ", StringComparison.OrdinalIgnoreCase) || row.Aciklama.Contains("KREDI", StringComparison.OrdinalIgnoreCase)))
             yield return "Kredi/kart ödemesi olabilir. Otomatik taksit veya mevcut kart ödemesini ikinci kez gider yazmayın.";
-        var tr = CultureInfo.GetCultureInfo("tr-TR");
-        foreach (var record in similar.Bul(search))
-        {
-            var source = record.EkstreKayitId is { } kayit && batch.TryGetValue(kayit, out var satirNo) ? $"bu önizlemede seçilen {satirNo}. satır" : BenzerKayitServisi.KaynakEtiketi(record);
-            var channel = record.KanalEtiketi is { } kanal ? $" · {kanal}" : "";
-            yield return $"Benzer kayıt: {source} · {record.Tarih.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} · {record.Tutar.ToString("N2", tr)} TL{channel}. Ayrı hareket olduğundan emin olun.";
-        }
+        var records = similar.Bul(search, k => k.EkstreKayitId is not { } kayit || !sameDocument.Contains(kayit) || k.Tarih == row.Tarih);
+        if (records.Count == 0) yield break;
+        var names = records.Select(k => BenzerKayitServisi.Satir(k, k.EkstreKayitId is { } kayit && batch.TryGetValue(kayit, out var satirNo) ? $"bu önizlemede seçilen {satirNo}. satır" : null)).ToList();
+        yield return $"Benzer kayıt: {BenzerKayitServisi.Liste(names)}. Ayrı hareket olduğundan emin olun.";
     }
 
     // Satır açıklaması PDF'ten okunur (düzenlenmiş olabilir): kullanıcı girdisi olarak reddedilmez, okuyucuyla

@@ -1,4 +1,5 @@
 using Kasa.Api.Data;
+using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,11 @@ public record AylikGiderSablonYaz(Guid IstekId, int Surum, string Ad, string Tur
 public record AylikGiderSablonDto(int Id, int Surum, string Ad, string Tur, decimal Tutar, int OdemeGunu, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, DateOnly GecerliAy, bool Aktif);
 public record AylikGiderAyDto(int Yil, int Ay, decimal PlanlananToplam, decimal OdenenToplam, IReadOnlyList<AylikGiderSatirDto> Kayitlar);
 public record AylikGiderSatirDto(int SablonId, int SablonSurum, string Ad, string Tur, decimal Tutar, DateOnly PlanlananTarih, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Durum, int? OdemeId = null, DateOnly? OdemeTarihi = null, int? IslemId = null);
-public record AylikGiderOdemeYaz(Guid IstekId, int Surum, int Yil, int Ay, DateOnly Tarih, string? Not = null);
+/// <summary>Aylık gider ödemesi. <paramref name="BenzerOnay"/> benzer kayıt protokolüdür (isteğe bağlı; bugünkü istemciler
+/// göndermez): null ise denetim yapılmaz (önceki davranış); false ise aynı tutarda ±3 günlük benzer kayıt varsa hiçbir şey
+/// yazılmaz ve 409 <c>{ hata, benzerler }</c> döner; true ise kullanıcı benzer kayıtları görüp ayrı ödeme olduğunu onaylamıştır.
+/// Alan istek özetine girmez: reddedilen isteğin kimliği onaylı istekte, başarılı isteğin kimliği tekrarında kullanılabilir.</summary>
+public record AylikGiderOdemeYaz(Guid IstekId, int Surum, int Yil, int Ay, DateOnly Tarih, string? Not = null, bool? BenzerOnay = null);
 public record AylikGiderIptalYaz(Guid IstekId, string Aciklama);
 
 public static class AylikGiderEndpoints
@@ -45,6 +50,7 @@ public static class AylikGiderEndpoints
             Need((dto.Not?.Length ?? 0) <= 2000, "Not en fazla 2000 karakter olabilir."); KontrolKarakteri(dto.Not, "Not");
             AyKilidiKurallari.TarihAcik(db, month); AyKilidiKurallari.TarihAcik(db, dto.Tarih);
             var shares = FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
+            if (dto.BenzerOnay == false && Benzerler(db, dto, revision, shares) is { } similar) return similar;
             var expense = new IslemEntity { Tarih = dto.Tarih, Cari = revision.Ad, TutarTl = revision.Tutar, Tip = GiderTipi.SabitGider,
                 KanalId = shares.Count == 1 ? shares[0].KanalId : null,
                 Kanal = shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)), Not = dto.Not?.Trim() };
@@ -106,6 +112,19 @@ public static class AylikGiderEndpoints
         db.AylikGiderRevizyonlar.Add(revision); FinansHesaplari.IstekKaydet(db, d.IstekId, "AylikGiderSablon", digest, template.Id); db.SaveChanges();
         return Results.Ok(Template(db, revision));
     });
+    /// <summary>Benzer kayıt protokolü (gap-coklu-giris-cift-sayim-mutabakat-8): bankadan işlenmiş kira, elle gider, alış ödemesi,
+    /// kart ödemesi ya da kredi taksidi olarak girilmiş aynı para. Kural benzerlik ucunun 'AylikGider' sorgusudur (aynı tutar,
+    /// ±3 gün); kanal kümesi şablonun dağılımıdır, genel kasa şablonu kanal ayırmaz. İstemcinin kanalsız 'AylikGider' ön
+    /// sorgusu bu denetimin üst kümesidir. Denetim yazmayla aynı transaction'da çalışır: ön sorgu ile kayıt arasında girilen
+    /// kayıt da yakalanır. Benzer kayıt yoksa null.</summary>
+    private static IResult? Benzerler(KasaDbContext db, AylikGiderOdemeYaz dto, AylikGiderRevizyonEntity revision, IReadOnlyList<TakipKanalPayi> shares)
+    {
+        var channels = shares.Where(s => s.KanalId is not null).Select(s => s.KanalId!.Value).ToHashSet();
+        var records = new BenzerKayitServisi(db).Bul(new BenzerAramasi("AylikGider", dto.Tarih, revision.Tutar, Kanallar: channels.Count == 0 ? null : channels));
+        if (records.Count == 0) return null;
+        var names = BenzerKayitServisi.Liste(records.Select(k => BenzerKayitServisi.Satir(k)).ToList());
+        return Results.Json(new { hata = $"Aynı tutarda yakın tarihli kayıt var: {names}. Aynı parayı ikinci kez girmediğinizi kontrol edin; ayrı bir ödemeyse onaylayarak kaydedin.", benzerler = records }, statusCode: 409);
+    }
     private static List<AylikGiderRevizyonEntity> Revisions(KasaDbContext db, DateOnly month) => db.AylikGiderRevizyonlar.AsNoTracking().Where(r => r.GecerliAy <= month).ToList()
         .GroupBy(r => r.SablonId).Select(g => g.OrderByDescending(r => r.GecerliAy).ThenByDescending(r => r.Surum).First()).ToList();
     private static AylikGiderSablonDto Template(KasaDbContext db, AylikGiderRevizyonEntity r) => new(r.SablonId, r.Surum, r.Ad, r.Tur, r.Tutar, r.OdemeGunu, r.DagilimTuru,

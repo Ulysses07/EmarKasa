@@ -1,3 +1,4 @@
+using System.Globalization;
 using Kasa.Api.Data;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
@@ -26,18 +27,24 @@ public sealed record BenzerAramasi(string Tur, DateOnly Tarih, decimal Tutar, in
 /// onaylı alış payı, gider kanalı); genel kasa, Ortak, dağılım bekleyen ve kanalı belirsiz gider her kanal sorgusunda görünür.
 /// Benzerlik bir uyarıdır: servis kayıt oluşturmaz ve yazmaz; çağıranın okuma bağlamını (anlık görüntü ya da yazma
 /// transaction'ı) kullanır. Bir istek boyunca değişmeyen okumalar (kanal adları, eski kredi taksitleri) bir kez yapılır.
+/// Kullanıcılar: benzerlik ucu, ekstre önizlemesi ve aylık gider ödemesinin benzer kayıt protokolü (<c>BenzerOnay</c>).
 /// </summary>
 public sealed class BenzerKayitServisi(KasaDbContext db)
 {
     public const int GunPenceresi = 3;
     public const int EnFazla = 10;
+    /// <summary>Uyarı metninde adlandırılan kayıt sayısı; kalanlar sayılır (satır başına tek uyarı).</summary>
+    public const int UyaridaEnFazla = 3;
     public const string GenelKasa = "Genel kasa";
     private const string Belirsiz = "Kanal belirsiz";
+    private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
     private Dictionary<int, (string Ad, int Sira)>? _kanallar;
     private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal)>? _eskiTaksitler;
 
-    public IReadOnlyList<BenzerKayitDto> Bul(BenzerAramasi a)
+    /// <summary>En yakın tarihli en çok <see cref="EnFazla"/> benzer kayıt. <paramref name="dahil"/> verilirse süzgeç sınırdan
+    /// önce uygulanır (elenen kayıt yakındaki başka kaydın yerini tutmaz).</summary>
+    public IReadOnlyList<BenzerKayitDto> Bul(BenzerAramasi a, Func<BenzerKayitDto, bool>? dahil = null)
     {
         var bas = a.Tarih.AddDays(-GunPenceresi); var son = a.Tarih.AddDays(GunPenceresi);
         var adaylar = new List<(BenzerKayitDto Kayit, int Sira)>();
@@ -54,8 +61,24 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
             adaylar.AddRange(KartOdemeleri(a, bas, son, kartOdemesi ? a.KrediKartiId : null));
             if (!kartOdemesi) adaylar.AddRange(KrediTaksitleri(a, bas, son));
         }
-        return adaylar.OrderBy(x => Math.Abs(x.Kayit.Tarih.DayNumber - a.Tarih.DayNumber)).ThenBy(x => x.Sira).ThenByDescending(x => x.Kayit.Id)
+        return adaylar.Where(x => dahil is null || dahil(x.Kayit))
+            .OrderBy(x => Math.Abs(x.Kayit.Tarih.DayNumber - a.Tarih.DayNumber)).ThenBy(x => x.Sira).ThenByDescending(x => x.Kayit.Id)
             .Take(EnFazla).Select(x => x.Kayit).ToList();
+    }
+
+    /// <summary>Uyarı metninde tek kayıt: kaynak (<paramref name="kaynak"/> verilmezse <see cref="KaynakEtiketi"/>), tarih, tutar
+    /// ve varsa kasadan düştüğü kanal ("Banka gideri #12 · 01.11.2026 · 40.000,00 TL · Genel kasa").</summary>
+    public static string Satir(BenzerKayitDto k, string? kaynak = null) =>
+        $"{kaynak ?? KaynakEtiketi(k)} · {k.Tarih.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} · {k.Tutar.ToString("N2", Tr)} TL"
+        + (k.KanalEtiketi is { } kanal ? $" · {kanal}" : "");
+
+    /// <summary>Kayıtların tek uyarıdaki metni: ilk <see cref="UyaridaEnFazla"/> kayıt adlandırılır, kalanı sayılır. Liste
+    /// <see cref="EnFazla"/> sınırına ulaşmışsa kalan sayısı alt sınırdır.</summary>
+    public static string Liste(IReadOnlyList<string> kayitlar)
+    {
+        var metin = string.Join("; ", kayitlar.Take(UyaridaEnFazla));
+        var kalan = kayitlar.Count - UyaridaEnFazla;
+        return kalan <= 0 ? metin : $"{metin} ve {(kayitlar.Count >= EnFazla ? "en az " : "")}{kalan} kayıt daha";
     }
 
     /// <summary>Uyarı metninde kaynağın adı ve numarası ("Gider #12", "Kredi #3 taksidi").</summary>
@@ -159,10 +182,12 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
             .Where(t => !t.Iptal && t.Tutar == a.Tutar && t.Tarih >= bas && t.Tarih <= son && db.TakipKrediler.Any(k => k.KrediId == t.KrediId)).ToList();
         var krediIds = takipli.Select(t => t.KrediId).Distinct().ToArray();
         var krediAdlari = db.Krediler.AsNoTracking().Where(k => krediIds.Contains(k.Id)).ToDictionary(k => k.Id, k => k.Ad);
-        var sonuc = takipli.Select(t => (new BenzerKayitDto("KrediTaksidi", t.Id, t.Tarih, t.Tutar, $"{krediAdlari.GetValueOrDefault(t.KrediId, "Kredi")} · {t.No}. taksit", null,
+        // Açıklama kaynağı kendisi adlandırır: bu kaynak türlerini tanımayan istemci kaydı "Gider #id" ya da "Kayıt #id" diye
+        // gösterir; eski taksidin kimliği kredinindir ve açıklamada öyle yazılır.
+        var sonuc = takipli.Select(t => (new BenzerKayitDto("KrediTaksidi", t.Id, t.Tarih, t.Tutar, $"Kredi taksidi · {krediAdlari.GetValueOrDefault(t.KrediId, "Kredi")} · {t.No}. taksit", null,
             KanalEtiketi: Kume(Read<KanalPayYaz>(t.DagilimJson).Select(p => p.KanalId)).Etiket), 4)).ToList();
         sonuc.AddRange(EskiTaksitler().Where(t => t.Tutar == a.Tutar && t.Tarih >= bas && t.Tarih <= son)
-            .Select(t => (new BenzerKayitDto("EskiKrediTaksidi", t.KrediId, t.Tarih, t.Tutar, $"{t.Ad} · {t.No}. taksit", null, KanalEtiketi: t.Kanal), 5)));
+            .Select(t => (new BenzerKayitDto("EskiKrediTaksidi", t.KrediId, t.Tarih, t.Tutar, $"Otomatik kredi taksidi (kredi #{t.KrediId}) · {t.Ad} · {t.No}. taksit", null, KanalEtiketi: t.Kanal), 5)));
         return sonuc;
     }
 
