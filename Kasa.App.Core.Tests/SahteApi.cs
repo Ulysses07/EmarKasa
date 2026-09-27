@@ -7,6 +7,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
 {
     public event EventHandler? OturumSonlandi;
     public void OturumuSonlandir() => OturumSonlandi?.Invoke(this, EventArgs.Empty);
+    public void OturumuSonlandir(OturumSonuNedeni neden) => OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     public Func<int, int, Task<AylikRaporDto>>? AylikGetir;
     public Func<Task<PanelDto>>? PanelGetir;
     public LoginYanit? LoginYaniti;

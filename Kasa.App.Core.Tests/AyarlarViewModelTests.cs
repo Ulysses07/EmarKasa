@@ -48,11 +48,11 @@ public class AyarlarViewModelTests
     public async Task Izleyici_sifre_kaydet_cagirir()
     {
         var api = new SahteApi();
-        var vm = new AyarlarViewModel(api) { YeniIzleyiciSifre = "gizli123" };
+        var vm = new AyarlarViewModel(api) { YeniIzleyiciSifre = "gizli-izleyici-123" };
 
         await vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
 
-        Assert.Equal("gizli123", api.SonIzleyiciSifre);
+        Assert.Equal("gizli-izleyici-123", api.SonIzleyiciSifre);
         Assert.Equal("", vm.YeniIzleyiciSifre);
     }
 

@@ -25,8 +25,13 @@ public partial class AyarlarViewModel : TemelViewModel
     [ObservableProperty] private decimal _duzenKanalAcilisDevri;
     [ObservableProperty] private string? _kanalUyarisi;
 
-    // İzleyici şifre
+    // İzleyici şifre: sunucu ve web ile aynı kural ve ileti (yalnız belirlerken/değiştirirken).
+    public const string IzleyiciSifreKuralMesaji = "İzleyici şifresi 12–1024 karakter olmalıdır.";
     [ObservableProperty] private string _yeniIzleyiciSifre = "";
+    [ObservableProperty] private string? _izleyiciSifreHatasi;
+    [ObservableProperty] private string? _izleyiciSifreMesaji;
+
+    public static bool IzleyiciSifresiGecerli(string? sifre) => !string.IsNullOrWhiteSpace(sifre) && sifre.Length is >= 12 and <= 1024;
 
     // Boşaltılan para alanı 0 olur: kayıtlı sıfır olmayan açılış devrini 0'a indirmek, gelir formundaki gibi
     // ikinci basışta kaydedilir. Değer ya da düzenlenen alan/kanal değişince onay sıfırlanır.
@@ -109,10 +114,20 @@ public partial class AyarlarViewModel : TemelViewModel
         AyarOnayiniSifirla();
     });
 
+    // Hata ve onay izleyici kartında gösterilir (kanal kartındaki genel Hata kutusuna düşmez).
     [RelayCommand]
-    private Task IzleyiciSifreKaydetAsync() => CalistirAsync(async () =>
+    private async Task IzleyiciSifreKaydetAsync()
     {
-        await _api.IzleyiciSifreAsync(YeniIzleyiciSifre);
-        YeniIzleyiciSifre = "";
-    });
+        IzleyiciSifreHatasi = null; IzleyiciSifreMesaji = null;
+        if (!IzleyiciSifresiGecerli(YeniIzleyiciSifre)) { IzleyiciSifreHatasi = IzleyiciSifreKuralMesaji; return; }
+        Mesgul = true;
+        try
+        {
+            await _api.IzleyiciSifreAsync(YeniIzleyiciSifre);
+            YeniIzleyiciSifre = "";
+            IzleyiciSifreMesaji = "İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.";
+        }
+        catch (Exception hata) { IzleyiciSifreHatasi = HataMesaji(hata); }
+        finally { Mesgul = false; }
+    }
 }
