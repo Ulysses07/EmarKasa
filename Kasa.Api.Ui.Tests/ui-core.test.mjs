@@ -14,7 +14,7 @@ const monthly = await loadBrowserModule('monthly-ui.js');
 const cashControls = await loadBrowserModule('cash-controls-ui.js');
 const statementImport = await loadBrowserModule('statement-import-ui.js');
 const pushModule = await loadBrowserModule('push-client.js');
-const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
+const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_MESSAGE, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
 
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
 async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
@@ -24,11 +24,13 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
     get value() { return this.currentValue || ''; }
     setAttribute(name, value) { this.attributes[name] = value; if (['disabled', 'hidden', 'readonly'].includes(name)) this[name === 'readonly' ? 'readOnly' : name] = true; }
     addEventListener(name, handler) { this.listeners[name] = handler; }
-    append(...children) { this.children.push(...children); }
-    replaceChildren(...children) { this.children = children; }
+    append(...children) { for (const child of children) if (child instanceof Element) child.parentNode = this; this.children.push(...children); }
+    replaceChildren(...children) { for (const child of children) if (child instanceof Element) child.parentNode = this; this.children = children; }
+    remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
+    removeAttribute(name) { delete this.attributes[name]; }
     set textContent(value) { this.children = [String(value)]; }
     get textContent() { return this.children.map(child => typeof child === 'string' ? child : child.textContent).join(''); }
-    querySelector(selector) { return this.find(node => selector === 'button[type="submit"]' ? node.tag === 'button' && node.attributes.type === 'submit' : selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector); }
+    querySelector(selector) { const named = /^\[name="([^"]+)"\]$/.exec(selector); return this.find(node => named ? node.attributes.name === named[1] : selector === 'button[type="submit"]' ? node.tag === 'button' && node.attributes.type === 'submit' : selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector); }
     find(predicate) { for (const node of this.children) { if (typeof node === 'string') continue; if (predicate(node)) return node; const child = node.find(predicate); if (child) return child; } return null; }
     focus() {}
     close() { this.open = false; }
@@ -57,7 +59,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, new Element()); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession };', context);
+  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
   return { nodes, requests, calls, responses, app: context.appTest };
 }
@@ -590,6 +592,64 @@ test('validation errors and authentication/rate-limit failures have useful messa
   assert.equal(errorMessage({ errors: { tutar: ['Tutar geçersiz'], tarih: ['Tarih gerekli'] } }, 400), 'Tutar geçersiz\nTarih gerekli');
   assert.equal(errorMessage({ hata: 'Sürüm değişti' }, 409), 'Sürüm değişti');
   assert.match(errorMessage(null, 401), /giriş/); assert.match(errorMessage(null, 403), /yetki/); assert.match(errorMessage(null, 429), /bekleyip/);
+  assert.equal(errorMessage({ hata: 'Çok fazla deneme yapıldı. 5 dakika sonra yeniden deneyin.' }, 429), 'Çok fazla deneme yapıldı. 5 dakika sonra yeniden deneyin.');
+});
+test('only a real 401 ends the session; login/recovery failures and field errors keep it', () => {
+  assert.equal(sessionExpired(401, '/api/auth/me'), true);
+  assert.equal(sessionExpired(401, '/api/auth/kurtarma-kodu'), true);
+  assert.equal(sessionExpired(401, '/api/auth/sifre'), true);
+  assert.equal(sessionExpired(401, '/api/auth/login'), false);
+  assert.equal(sessionExpired(401, '/api/auth/kurtar'), false);
+  assert.equal(sessionExpired(401, '/api/auth/login?yeniden=1'), false);
+  assert.equal(sessionExpired(400, '/api/auth/sifre'), false);
+  assert.equal(sessionExpired(429, '/api/auth/sifre'), false);
+  assert.deepEqual(fieldErrors({ errors: { mevcutSifre: ['Mevcut şifre hatalı.'], tutar: ['A', 'B'] } }), { mevcutSifre: 'Mevcut şifre hatalı.', tutar: 'A\nB' });
+  assert.deepEqual(fieldErrors({ hata: 'Sürüm değişti' }), {});
+  assert.deepEqual(fieldErrors(null), {});
+});
+test('viewer password rule matches the server and desktop: 12–1024 characters, not blank', () => {
+  assert.equal(VIEWER_PASSWORD_MESSAGE, 'İzleyici şifresi 12–1024 karakter olmalıdır.');
+  for (const value of ['', null, 'kisa', 'on-bir-harf', ' '.repeat(12), 'x'.repeat(1025)]) assert.equal(viewerPasswordError(value), VIEWER_PASSWORD_MESSAGE);
+  for (const value of ['on-iki-harf!', 'x'.repeat(1024)]) assert.equal(viewerPasswordError(value), null);
+});
+test('wrong current password shows a field error and keeps the session; a real 401 on recovery code still ends it', async () => {
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/auth/sifre': { $status: 400, errors: { mevcutSifre: ['Mevcut şifre hatalı.'] } }, '/api/auth/kurtarma-kodu': { $status: 401 } });
+  app.passwordDialog();
+  formField(nodes, 'mevcutSifre').value = 'yanlis'; formField(nodes, 'yeniSifre').value = 'yepyeni-sifre-123'; formField(nodes, 'tekrar').value = 'yepyeni-sifre-123';
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#application').hidden, false);
+  assert.equal(nodes.get('#login-screen').hidden, true);
+  const current = formField(nodes, 'mevcutSifre');
+  assert.equal(current.attributes['aria-invalid'], 'true');
+  assert.match(current.parentNode.textContent, /Mevcut şifre.*Mevcut şifre hatalı\./);
+  assert.equal(nodes.get('#modal-content').find(node => node.attributes.role === 'alert').textContent, 'Mevcut şifre hatalı.');
+
+  // Yeni denemede önceki alan hatası silinir; yalnız yeni hatalı alan işaretlenir.
+  responses['/api/auth/sifre'] = { $status: 400, errors: { yeniSifre: ['Yeni şifre 12–1024 karakter olmalıdır.'] } };
+  await submitDialog(nodes);
+  assert.equal(current.attributes['aria-invalid'], undefined);
+  assert.doesNotMatch(current.parentNode.textContent, /hatalı/);
+  assert.equal(formField(nodes, 'yeniSifre').attributes['aria-invalid'], 'true');
+  assert.equal(nodes.get('#application').hidden, false);
+  assert.equal(calls.filter(call => call.path === '/api/auth/sifre').length, 2);
+
+  app.recoveryCodeDialog(); formField(nodes, 'mevcutSifre').value = 'kasa-sifre'; await submitDialog(nodes);
+  assert.equal(nodes.get('#application').hidden, true);
+  assert.equal(nodes.get('#login-screen').hidden, false);
+});
+test('viewer password is checked with the shared rule before any request and uses the 12 character hint', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/ayarlar/izleyici-sifre': null });
+  app.viewerPasswordDialog();
+  const password = formField(nodes, 'yeniSifre');
+  assert.equal(password.attributes.minlength, '12');
+  assert.match(nodes.get('#modal-content').textContent, /En az 12 karakter kullanın\./);
+  password.value = 'on-bir-harf'; await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/ayarlar/izleyici-sifre').length, 0);
+  assert.equal(password.attributes['aria-invalid'], 'true');
+  assert.match(nodes.get('#modal-content').textContent, /İzleyici şifresi 12–1024 karakter olmalıdır\./);
+  password.value = 'on-iki-harf!'; await submitDialog(nodes);
+  assert.deepEqual(calls.filter(call => call.path === '/api/ayarlar/izleyici-sifre').map(call => [call.method, call.body]), [['PUT', { yeniSifre: 'on-iki-harf!' }]]);
+  assert.match(nodes.get('#notifications').textContent, /İzleyici şifresi güncellendi/);
 });
 test('display formatting keeps Turkish money and date meaning', () => {
   assert.match(money(1234.56), /1\.234,56/);

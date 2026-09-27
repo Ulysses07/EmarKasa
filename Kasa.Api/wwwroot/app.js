@@ -1,4 +1,4 @@
-import { money, dateText, today, cents, amount, errorMessage, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } from './ui-core.js?v=2.3.0';
+import { money, dateText, today, cents, amount, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } from './ui-core.js?v=2.3.0';
 import { createFinanceUi } from './finance-ui.js?v=2.3.0';
 import { createNotificationUi } from './notification-ui.js?v=2.3.0';
 import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
@@ -76,8 +76,8 @@ async function api(path, options = {}) {
   if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
   if (!response.ok) {
     let result; try { result = await response.json(); } catch { result = null; }
-    const error = new Error(errorMessage(result, response.status)); error.status = response.status;
-    if (response.status === 401 && !path.startsWith('/api/auth/login') && !path.startsWith('/api/auth/kurtar')) clearSession();
+    const error = new Error(errorMessage(result, response.status)); error.status = response.status; error.fields = fieldErrors(result);
+    if (sessionExpired(response.status, path)) clearSession();
     throw error;
   }
   if (options.binary) { const result = await response.blob(); if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.'); return result; }
@@ -106,7 +106,19 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
   const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
-  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, () => save(form), errors); });
+  // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
+  let marked = [];
+  const clearFields = () => { for (const [control, note] of marked) { control.removeAttribute('aria-invalid'); note.remove(); } marked = []; };
+  const markFields = fields => {
+    for (const [name, message] of Object.entries(fields || {})) {
+      let control = null;
+      try { control = form.querySelector(`[name="${name}"]`); } catch { control = null; }
+      if (!control?.parentNode) continue;
+      const note = h('p', { class: 'form-error field-error' }, message);
+      control.setAttribute('aria-invalid', 'true'); control.parentNode.append(note); marked.push([control, note]);
+    }
+  };
+  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } }, errors); });
   openModal(title, form, wide);
   return form;
 }
@@ -526,7 +538,12 @@ function openingDialog(settings) {
   formDialog('Kasa başlangıcını düzenle', h('div', { class: 'stack' }, field('Takip başlangıcı', input('takipBaslangic', settings.takipBaslangic, { type: 'date', required: true })), field('Genel kasa açılış devri (₺)', input('kasaAcilisDevri', settings.kasaAcilisDevri, { required: true, inputmode: 'decimal' })), help('Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez. Açılış devri, tüm sonraki genel kasa bakiyelerini etkiler.')), 'Başlangıcı kaydet', async form => { const data = values(form); await api('/api/ayarlar', { method: 'PUT', body: { takipBaslangic: data.takipBaslangic, kasaAcilisDevri: signedAmount(data.kasaAcilisDevri) } }); closeModal(); toast('Kasa başlangıcı kaydedildi.'); await navigate('tools'); });
 }
 function viewerPasswordDialog() {
-  formDialog('İzleyici şifresi', h('div', { class: 'stack' }, field('Yeni izleyici şifresi', input('yeniSifre', '', { type: 'password', required: true, minlength: 8, maxlength: 1024, autocomplete: 'new-password' })), help('İzleyici kasaları ve raporları okuyabilir; kayıtları değiştiremez. Şifre değişince eski izleyici oturumları kapanır.')), 'Şifreyi kaydet', async form => { await api('/api/ayarlar/izleyici-sifre', { method: 'PUT', body: values(form) }); closeModal(); toast('İzleyici şifresi güncellendi.'); });
+  formDialog('İzleyici şifresi', h('div', { class: 'stack' }, field('Yeni izleyici şifresi', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.')), help('İzleyici kasaları ve raporları okuyabilir; kayıtları değiştiremez. Şifre değişince eski izleyici oturumları kapanır.')), 'Şifreyi kaydet', async form => {
+    const data = values(form);
+    const rule = viewerPasswordError(data.yeniSifre);
+    if (rule) throw Object.assign(new Error(rule), { fields: { yeniSifre: rule } });
+    await api('/api/ayarlar/izleyici-sifre', { method: 'PUT', body: { yeniSifre: data.yeniSifre } }); closeModal(); toast('İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.');
+  });
 }
 function download(blob, name) {
   const url = URL.createObjectURL(blob); const link = h('a', { href: url, download: name }); document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
