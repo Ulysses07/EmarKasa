@@ -125,4 +125,36 @@ public class SifreAkisiTests
         Assert.Equal("İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.", vm.IzleyiciSifreMesaji);
         Assert.False(vm.Mesgul);
     }
+
+    [Fact]
+    public async Task Kurala_uymayan_mevcut_izleyici_sifresi_uyarisi_gosterilir_ve_yenilenince_kalkar()
+    {
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, true, IzleyiciSifreKisa: true) };
+        var vm = new AyarlarViewModel(api);
+
+        await vm.YukleAsync();
+        Assert.Equal("Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.", vm.IzleyiciSifreUyarisi);
+
+        vm.YeniIzleyiciSifre = "kisa";                        // geçersiz deneme uyarıyı kaldırmaz
+        await vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
+        Assert.NotNull(vm.IzleyiciSifreUyarisi);
+
+        vm.YeniIzleyiciSifre = "on-iki-harf!";
+        await vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.IzleyiciSifreUyarisi);
+    }
+
+    [Fact]
+    public async Task Uyari_yoksa_izleyici_ve_vekil_uyarisi_bos_kalir_varsa_vekil_uyarisi_aynen_gosterilir()
+    {
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, true) };
+        var vm = new AyarlarViewModel(api);
+        await vm.YukleAsync();
+        Assert.Null(vm.IzleyiciSifreUyarisi);
+        Assert.Null(vm.VekilUyarisi);
+
+        api.AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, true, VekilUyarisi: "Vekil ayarı hatalı.");
+        await vm.YukleAsync();
+        Assert.Equal("Vekil ayarı hatalı.", vm.VekilUyarisi);
+    }
 }

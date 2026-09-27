@@ -10,7 +10,10 @@ public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarT
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m);
 public record KrediDto(int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi, int TaksitSayisi, decimal AylikOdeme, int OdemeGunu, string Kanal, bool GerceklesmeTakibi = false);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
-public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi);
+/// <summary>IzleyiciSifreKisa: kayıtlı izleyici şifresinin 12 karakter kuralına uymadığı bir girişte görüldü.
+/// VekilUyarisi: sunucu güvenilmeyen kaynaktan vekil başlığı aldı (yanlış vekil ayarı). Eski sunucu ikisini de göndermez.</summary>
+public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi,
+    bool IzleyiciSifreKisa = false, string? VekilUyarisi = null);
 
 public record DonemDto(DateOnly Start, DateOnly End, int Yil, int Ay);
 public record KanalHaftalikDto(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, decimal Devir);

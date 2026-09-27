@@ -27,9 +27,14 @@ public partial class AyarlarViewModel : TemelViewModel
 
     // İzleyici şifre: sunucu ve web ile aynı kural ve ileti (yalnız belirlerken/değiştirirken).
     public const string IzleyiciSifreKuralMesaji = "İzleyici şifresi 12–1024 karakter olmalıdır.";
+    // Sunucu, kayıtlı şifrenin kurala uymadığını ancak bir izleyici girişinde görür (hash uzunluk saklamaz).
+    public const string IzleyiciSifreKisaMesaji = "Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.";
     [ObservableProperty] private string _yeniIzleyiciSifre = "";
     [ObservableProperty] private string? _izleyiciSifreHatasi;
     [ObservableProperty] private string? _izleyiciSifreMesaji;
+    [ObservableProperty] private string? _izleyiciSifreUyarisi;
+    // Sunucunun yanlış vekil ayarı uyarısı (hız sınırları tüm istemcileri tek IP sayabilir); yoksa null.
+    [ObservableProperty] private string? _vekilUyarisi;
 
     public static bool IzleyiciSifresiGecerli(string? sifre) => !string.IsNullOrWhiteSpace(sifre) && sifre.Length is >= 12 and <= 1024;
 
@@ -56,6 +61,8 @@ public partial class AyarlarViewModel : TemelViewModel
         var ayar = await _api.AyarlarAsync();
         TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
         KasaAcilisDevri = _kayitliKasaAcilisDevri = ayar.KasaAcilisDevri;
+        IzleyiciSifreUyarisi = ayar.IzleyiciSifreKisa ? IzleyiciSifreKisaMesaji : null;
+        VekilUyarisi = ayar.VekilUyarisi;
         var kanallar = await _api.KanallarAsync();
         Kanallar.Clear();
         foreach (var k in kanallar) Kanallar.Add(k);
@@ -125,6 +132,7 @@ public partial class AyarlarViewModel : TemelViewModel
         {
             await _api.IzleyiciSifreAsync(YeniIzleyiciSifre);
             YeniIzleyiciSifre = "";
+            IzleyiciSifreUyarisi = null;
             IzleyiciSifreMesaji = "İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.";
         }
         catch (Exception hata) { IzleyiciSifreHatasi = HataMesaji(hata); }
