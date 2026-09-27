@@ -184,9 +184,11 @@ public class HesapServisi
         return liste;
     }
 
-    /// <summary>Açık (kilitli olmayan) aylara ve panelin "bu ay"ına uygulanan aylık rapor kuralı. Ay kapatılırken rapor bu
-    /// kuralla dondurulur (<see cref="AyRaporAnlikGoruntusu"/>): kural sonradan değişse de kapatılmış ay değişmez.</summary>
-    public const int AcikAyKurali = AylikKural.V1;
+    /// <summary>Açık (kilitli olmayan) aylara ve panelin "bu ay"ına uygulanan aylık rapor kuralı: güncel kural (K2, kredi
+    /// girişi Gelen/Ay sonucu dışında). Ay kapatılırken rapor bu kuralla dondurulur (<see cref="AyRaporAnlikGoruntusu"/>):
+    /// kural sonradan değişse de kapatılmış ay değişmez. Panelin "Bu ayın sonucu" da aylık sonuçtur, kredi girişini
+    /// içermez; kasa bakiyeleri (haftalık) krediyi nakit olarak içermeye devam eder.</summary>
+    public const int AcikAyKurali = AylikKural.Guncel;
 
     /// <summary>Ayın canlı hesaplanan raporu (kilitli olsa da görüntüye bakmaz). <paramref name="kuralSurumu"/> verilmezse
     /// <see cref="AcikAyKurali"/>.</summary>

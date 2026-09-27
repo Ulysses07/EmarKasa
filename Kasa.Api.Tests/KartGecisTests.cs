@@ -269,7 +269,7 @@ public class KartGecisTests
         await using var f = new HazirFactory(connection, logs) { Saat = new SabitSaat(Today) }; using var c = await f.EditorClientAsync();
         // Tespit veri dönüştürmez: raporlar 2.3.0 çıktısıyla birebir aynı kalır.
         Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
-        for (var ay = 7; ay <= 11; ay++) Assert.Equal(OncekiAylik[ay - 7], await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
+        for (var ay = 7; ay <= 11; ay++) Assert.Equal(KuralIkiAlanlari(OncekiAylik[ay - 7]), await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
 
         var gecis = (await c.GetFromJsonAsync<KartTakipDto>("/api/takip/kartlar/1"))!.Gecis!;
         Assert.Equal(("EtkiTarihi", (string?)null, (KartGecisKaydi?)null), (gecis.Kural, gecis.Aciklama, gecis.Onizleme));
@@ -353,8 +353,11 @@ public class KartGecisTests
         }
         // Beklenen JSON'lar bu paketten önceki kodun (2.3.0, fce8578) aynı eski şemalı veride ürettiği çıktıdır.
         Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
-        for (var ay = 7; ay <= 11; ay++) Assert.Equal(OncekiAylik[ay - 7], await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
+        for (var ay = 7; ay <= 11; ay++) Assert.Equal(KuralIkiAlanlari(OncekiAylik[ay - 7]), await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
     }
+
+    // K2 (aylık rapor kural 2): açık ay yanıtı tutarları değiştirmeden ayın kredi girişi toplamını ve kural sürümünü ekler.
+    private static string KuralIkiAlanlari(string oncekiAylik) => oncekiAylik[..^1] + ",\"krediGirisi\":0,\"kuralSurumu\":2}";
 
     private const string OncekiPanel = """{"guncelKasa":14000.0,"kanallar":[{"kanal":"MEZAT","bakiye":4500.0,"kanalId":1},{"kanal":"PERAKENDE","bakiye":0.0,"kanalId":2},{"kanal":"TOPTAN","bakiye":-200.0,"kanalId":3}],"buHaftaSonucu":0,"buAySonucu":0,"dagilimBekleyenTutar":0}""";
     private static readonly string[] OncekiAylik =

@@ -179,6 +179,49 @@ public class AyRaporuAnlikGoruntusuTests
     }
 
     [Fact]
+    public async Task Kural_degisince_kilitli_ay_ayni_kalir_acik_ay_yeni_kuralla_hesaplanir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        // Temmuz ve Eylül'de aynı yapı: satış 80.000, takipli kredi çekimi 120.000, cari gider 100.000 (MEZAT).
+        foreach (var ay in new[] { Temmuz, Month })
+        {
+            // Taksitler Kasım'da başlar: Ağustos ve Eylül'de yalnız çekim etkisi görünür.
+            await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), $"Kredi {ay:MM}", 120_000m, ay.AddDays(9), new DateOnly(2026, 11, 10), 12, 11_000m, [1]));
+            (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(ay, "MEZAT", 80_000m))).EnsureSuccessStatusCode();
+            await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(ay.AddDays(14), "Tedarik", 100_000m, "MEZAT", GiderTipi.Cari));
+        }
+        string kural1Temmuz;
+        using (var scope = f.Services.CreateScope())
+            kural1Temmuz = JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Temmuz.Year, Temmuz.Month, kuralSurumu: AylikKural.V1), Web);
+        // Temmuz bu sürümden (K2'den) önce kapatılmıştı: açılıştaki geçiş tohumu onu kural 1 ile dondurur.
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1); db.SaveChanges();
+            AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat!.GetUtcNow());
+        }
+
+        // Kilitli Temmuz: kural 1 rakamlarıyla birebir (kredi Gelen'de ve Ay sonucunda).
+        var temmuz = await c.GetStringAsync(Url(Temmuz));
+        Assert.Equal(Dondurulmus(kural1Temmuz, AylikKural.V1), temmuz);
+        var temmuzMezat = JsonNode.Parse(temmuz)!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!;
+        Assert.Equal((200_000m, 100_000m), (temmuzMezat["gelen"]!.GetValue<decimal>(), temmuzMezat["aySonucu"]!.GetValue<decimal>()));
+        Assert.Null(JsonNode.Parse(temmuz)!["krediGirisi"]);
+
+        // Açık Eylül: güncel kural (K2) — kredi Gelen ve Ay sonucu dışında, ayrı alanda.
+        var eylul = JsonNode.Parse(await c.GetStringAsync(Url(Month)))!;
+        var eylulMezat = eylul["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!;
+        Assert.Equal((80_000m, -20_000m, 120_000m), (eylulMezat["gelen"]!.GetValue<decimal>(), eylulMezat["aySonucu"]!.GetValue<decimal>(), eylul["krediGirisi"]!.GetValue<decimal>()));
+        Assert.Equal(AylikKural.Guncel, eylul["kuralSurumu"]!.GetValue<int>());
+
+        // Kural değiştikten sonra kapatılan ay, kapatıldığı andaki (güncel kural) raporla donar.
+        var agustosOnce = await c.GetStringAsync(Url(Agustos));
+        await Kilit(c, Agustos);
+        Assert.Equal(Dondurulmus(agustosOnce, AylikKural.Guncel), await c.GetStringAsync(Url(Agustos)));
+        Assert.Equal(new[] { AylikKural.V1, AylikKural.Guncel }, Goruntuler(f).Where(g => g.Ay >= 7).Select(g => g.KuralSurumu));
+    }
+
+    [Fact]
     public void Goc_oncesi_kilitli_ay_raporu_goc_sonrasinda_birebir_ayni_kalir()
     {
         // Bir önceki sürümün şeması (20260928000200_KartGecisIzi), Temmuz sonuna kadar kilitli; takipli kredi Temmuz'da çekilmiş.

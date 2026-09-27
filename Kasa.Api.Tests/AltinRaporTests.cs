@@ -63,6 +63,15 @@ public class AltinRaporTests
             yield return new(Aylik(ay), "kuralSurumu", null, "1", "K4: kilitli ay geçişte kural 1 ile donduruldu");
             yield return new(Aylik(ay), "dondurulmus", null, "true", "K4: kilitli ayın raporu anlık görüntüden döner");
         }
+        // K2: açık aylar (Temmuz 2026 – Mart 2027) kural 2 ile hesaplanır ve ayın kredi girişi toplamını ayrı alanda verir.
+        // Tohumda bu aylarda kredi çekimi yoktur (takipli kredi Şubat'ta, eski kredi Şubat'ta, geçiş kredisinin eski çekimi
+        // Mart'ta — hepsi kilitli; mevcut banka kredisinin çekimi kasaya girmez): Gelen ve Ay sonucu değerleri değişmez,
+        // toplam 0'dır. Panelin Eylül "bu ay" sonucu da değişmez (Eylül'de kredi girişi yok).
+        foreach (var ay in Aylar(new(2026, 7, 1), new(2027, 3, 1)))
+        {
+            yield return new(Aylik(ay), "krediGirisi", null, "0", "K2: kredi girişi Gelen/Ay sonucu dışında ayrı alan (bu ay kredi çekimi yok)");
+            yield return new(Aylik(ay), "kuralSurumu", null, "2", "K2: açık ay güncel kuralla hesaplanır");
+        }
     }
 
     private static string Aylik(DateOnly ay) => $"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}";
