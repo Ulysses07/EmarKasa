@@ -16,12 +16,18 @@ internal static class LegacyFinanceSeed
             TaksitSayisi = dto.TaksitSayisi, AylikOdeme = dto.AylikOdeme, OdemeGunu = dto.OdemeGunu,
             Kanal = dto.Kanal, GerceklesmeTakibi = false });
 
+    // K3: new card expenses must use a tracked card; legacy-card expenses exist only as pre-existing records.
+    internal static IslemEntity KartGideri(KasaWebFactory factory, DateOnly tarih, string cari, decimal tutar, string kanal, int kartId) => Kaydet(factory,
+        new IslemEntity { Tarih = tarih, Cari = cari, TutarTl = tutar, Kanal = kanal, Tip = Kasa.Core.GiderTipi.KrediKarti, KrediKartiId = kartId });
+
     internal static T Kaydet<T>(KasaWebFactory factory, T entity) where T : class
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         if (entity is KrediEntity loan && loan.Kanal != Kasa.Core.Kanallar.Ortak)
             loan.KanalId = db.Kanallar.Single(k => k.Ad == loan.Kanal).Id;
+        if (entity is IslemEntity expense && expense.KanalId is null)
+            expense.KanalId = db.Kanallar.SingleOrDefault(k => k.Ad == expense.Kanal)?.Id;
         db.Add(entity); db.SaveChanges();
         return entity;
     }

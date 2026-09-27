@@ -132,6 +132,8 @@ public static class AlisEndpoints
         v.Kart(db, dto.KrediKartiId);
         if (dto.KrediKartiId is { } cardId)
             v.Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == cardId && dto.Tarih < k.Baslangic), "tarih", "Kart harcaması kart takip başlangıcından önce olamaz.");
+        // K3: kartlı yeni ödeme takipteki karta bağlanır (mevcut gider bağlamada kayıt zaten vardır).
+        if (dto.MevcutIslemId is null) KayitGirdileri.TakipliKartKurali(v, db, dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti, dto.KrediKartiId, null);
         if (v.Sonuc() is { } alanHatasi) return alanHatasi;
         if (alis.Odemeler.Sum(o => o.Islem.TutarTl) + dto.Tutar > alis.Kalemler.Sum(k => k.Tutar))
             return Conflict("Ödemeler alış toplamını aşamaz.");

@@ -111,9 +111,10 @@ public class BenzerKayitTests
     public async Task Alis_satirinda_yalniz_kullanilan_kartin_adi_ve_panelde_kanal_kimligi_doner()
     {
         await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
-        Seed(f, db => { db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges(); });
+        // Eski kartla ödenmiş mevcut gider alışa bağlanır (K3: yeni kartlı ödeme takipteki karta bağlanır).
+        Seed(f, db => { db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges(); db.Islemler.Add(Expense(1, 1)); db.SaveChanges(); });
         var draft = await Purchase(c);
-        var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100, 1));
+        var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100, 1, 1));
         Assert.Equal("Kart 1", Assert.Single(paid.Odemeler).KrediKartiAdi);
         Seed(f, db => { db.KrediKartlari.Find(1)!.Ad = "Yeni kart adı"; db.SaveChanges(); });
         var list = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!;

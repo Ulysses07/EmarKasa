@@ -34,8 +34,16 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Gider tipi çipleri: Diğer gider · Sabit gider · Kredi kartı.</summary>
     public ObservableCollection<SecimCipi> TipCipleri { get; } = new();
 
-    /// <summary>Kart harcaması için kart çipleri (yalnız "Kredi kartı" tipi seçiliyken görünür).</summary>
+    /// <summary>Kart harcaması için kart çipleri (yalnız "Kredi kartı" tipi seçiliyken görünür). K3: yalnız yeni takipteki ve
+    /// yeni kullanıma açık kartlar; düzenlenen eski kaydın eski kartı ayrıca "(eski kart)" olarak eklenir.</summary>
     public ObservableCollection<KartCipi> KartCipleri { get; } = new();
+
+    /// <summary>K3 iletisi: sunucunun reddiyle aynı.</summary>
+    public const string TakipliKartIletisi = "Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.";
+
+    private IReadOnlyList<KrediKartiDto> _kartlar = [];
+    /// <summary>Düzenlenen mevcut kayıt (yeni kayıtta null): eski kartsız/eski kartlı K.K kaydı kendi kartıyla kalabilir.</summary>
+    private IslemDto? _duzenlenen;
 
     /// <summary>Gelen (kanal geliri) formu kanal çipleri: aktif kanallar.</summary>
     public ObservableCollection<SecimCipi> GelenKanallari { get; } = new();
@@ -107,10 +115,9 @@ public partial class IslemlerViewModel : TemelViewModel
             foreach (var t in new[] { GiderTipi.Cari, GiderTipi.SabitGider, GiderTipi.KrediKarti })
                 TipCipleri.Add(new SecimCipi(TipAdi(t)));
 
-        KartCipleri.Clear();
-        foreach (var k in kartlar) KartCipleri.Add(new KartCipi(k.Id, k.Ad));
+        _kartlar = kartlar;
+        KartCipleriniKur();
         TipVurgu();
-        KartVurgu();
 
         FiltreKanallari.Clear();
         FiltreKanallari.Add(new SecimCipi(TumKanal));
@@ -336,6 +343,25 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Kart seçici yalnız "Kredi kartı" tipi seçiliyken görünür.</summary>
     public bool KartSeciciGorunur => DuzenTip == GiderTipi.KrediKarti;
 
+    /// <summary>K3: kredi kartı seçiliyken seçilebilecek takipli kart yoksa yol gösterir.</summary>
+    public string? KartUyarisi => KartSeciciGorunur && KartCipleri.Count == 0
+        ? "Takipte kart yok. Kredi Kartları bölümünden kart ekleyin ya da eski kartı yeni takibe geçirin." : null;
+
+    /// <summary>Çipler: yeni takipteki açık kartlar; düzenlenen eski K.K kaydının eski kartı (listede yoksa) sonda.</summary>
+    private void KartCipleriniKur()
+    {
+        KartCipleri.Clear();
+        foreach (var k in _kartlar.Where(k => k.YeniTakip && k.Aktif)) KartCipleri.Add(new KartCipi(k.Id, k.Ad));
+        if (_duzenlenen is { Tip: GiderTipi.KrediKarti, KrediKartiId: { } eski } && KartCipleri.All(k => k.Id != eski))
+            KartCipleri.Add(new KartCipi(eski, (_kartlar.FirstOrDefault(k => k.Id == eski)?.Ad ?? "Kart") + " (eski kart)"));
+        KartVurgu();
+        OnPropertyChanged(nameof(KartUyarisi));
+    }
+
+    /// <summary>K3: yeni kredi kartı gideri kartsız kaydedilmez (seçenekler yalnız takipteki kartlardır; sunucu da doğrular).
+    /// Mevcut kartsız eski K.K kaydının tutar/not/tarih düzeltmesi serbesttir.</summary>
+    private bool KartsizEskiKayit => DuzenId != 0 && _duzenlenen is { Tip: GiderTipi.KrediKarti, KrediKartiId: null } d && d.Id == DuzenId;
+
     /// <summary>Gider tipi → çip etiketi.</summary>
     private static string TipAdi(GiderTipi t) => t switch
     {
@@ -367,6 +393,7 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         TipVurgu();
         OnPropertyChanged(nameof(KartSeciciGorunur));
+        OnPropertyChanged(nameof(KartUyarisi));
         if (value != GiderTipi.KrediKarti) DuzenKrediKartiId = null;
     }
 
@@ -390,6 +417,7 @@ public partial class IslemlerViewModel : TemelViewModel
         DuzenId = 0; DuzenTarih = DateTime.Today; DuzenCari = "";
         DuzenTutar = 0; DuzenKanal = ""; DuzenTip = GiderTipi.Cari; DuzenNot = null;
         DuzenKrediKartiId = null;
+        _duzenlenen = null; KartCipleriniKur();
     }
 
     [RelayCommand]
@@ -399,9 +427,11 @@ public partial class IslemlerViewModel : TemelViewModel
         if (i.AylikGiderOdemeId is not null) { Hata = "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin."; return; }
         if (i.AlisId is not null) { Hata = "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin."; return; }
         GiderBenzerlik.Temizle();
+        _duzenlenen = i;
         DuzenId = i.Id; DuzenTarih = i.Tarih.ToDateTime(TimeOnly.MinValue);
         DuzenCari = i.Cari; DuzenTutar = i.TutarTl; DuzenKanal = i.Kanal;
         DuzenTip = i.Tip; DuzenNot = i.Not; DuzenKrediKartiId = i.KrediKartiId;
+        KartCipleriniKur();
     }
 
     [RelayCommand]
@@ -410,6 +440,7 @@ public partial class IslemlerViewModel : TemelViewModel
         Mesaj = null;
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
         if (!ParaAyristirici.GecerliMi(DuzenTutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
+        if (DuzenTip == GiderTipi.KrediKarti && DuzenKrediKartiId is null && !KartsizEskiKayit) { Hata = TakipliKartIletisi; return; }
         var oturum = _auth?.OturumSurumu;
         var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
         var id = DuzenId;

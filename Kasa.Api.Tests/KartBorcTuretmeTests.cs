@@ -22,11 +22,8 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
         var kart = LegacyFinanceSeed.Kart(_factory, new("Türetme", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 100_000m, 1000m));
 
-        await client.PostAsJsonAsync("/api/islemler", new
-        {
-            tarih = "2026-07-10", cari = "Market", tutarTl = 500m,
-            kanal = "MEZAT", tip = "Cari", not = (string?)null, krediKartiId = kart!.Id,
-        });
+        // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır).
+        LegacyFinanceSeed.KartGideri(_factory, new DateOnly(2026, 7, 10), "Market", 500m, "MEZAT", kart!.Id);
 
         await client.PostAsJsonAsync("/api/kartodemeler", new
         {
@@ -45,8 +42,11 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
     public async Task Islem_krediKartiId_dolu_gelirse_tip_KrediKarti_olur()
     {
         var client = await _factory.EditorClientAsync();
-        var kart = LegacyFinanceSeed.Kart(_factory, new("TipZorla", new DateOnly(2026, 7, 5),
-            new DateOnly(2026, 7, 25), 10_000m, 0m));
+        // K3: yeni kart gideri yalnız yeni takipteki karta bağlanabilir.
+        var kartYanit = await client.PostAsJsonAsync("/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "TipZorla", 10_000m, 5, 25,
+            new DateOnly(2026, 7, 1), 0m, []));
+        kartYanit.EnsureSuccessStatusCode();
+        var kart = await kartYanit.Content.ReadFromJsonAsync<KartTakipDto>();
 
         var olustur = await client.PostAsJsonAsync("/api/islemler", new
         {

@@ -31,6 +31,15 @@ public static class AyKilidiKurallari
                 throw new KilitliDonemException("Aylık gider ödemesi başka bir alışa bağlanamaz.");
         }
         var until = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single();
+        // Kilitli ay rapor görüntüsü (K4) değiştirilemez: hiç güncellenmez, yalnız kilitli ay için eklenir ve kilitli ayınki
+        // silinmez (önce kilit açılır). Ay kapatılırken/açılırken görüntü, kilit sınırı kaydedildikten sonra yazılır/silinir.
+        foreach (var e in entries)
+            if (e.Entity is AyRaporAnlikGoruntuEntity g)
+            {
+                var kilitli = until is { } son && AyRaporAnlikGoruntusu.AySonu(g.Yil, g.Ay) <= son;
+                if (e.State == EntityState.Modified || e.State == EntityState.Added && !kilitli || e.State == EntityState.Deleted && kilitli)
+                    throw new KilitliDonemException("Kilitli ayın dondurulmuş raporu değiştirilemez; yalnız ay kapatılırken yazılır ve ay açılınca silinir.");
+            }
         if (until is not { } end) return;
 
         bool DateLocked(EntityEntry e, string property) => e.CurrentValues[property] is DateOnly date && date <= end

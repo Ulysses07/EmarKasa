@@ -1581,3 +1581,57 @@ test('işaretli tutar etiketi işaret seçicisine değil tutar alanına bağlıd
   app.channelDialog();
   assert.notEqual(signedLabel().attributes.for, first.attributes.for, 'Yeni pencerede yeni kimlik.');
 });
+
+// Rapor kuralı kararları (2026-09-27). K2: aylık raporda kredi girişi ayrı sütun, ay sonucu kredi hariç; K4: kapatılmış ay
+// dondurulmuş raporla ve işaretle; K1: takip başlangıcı öncesi uyarısı; K3: gider formunda yalnız takipteki kartlar.
+test('aylık rapor kredi girişini ayrı gösterir, kapatılmış ayı ve veri sağlığı uyarısını işaretler', async () => {
+  const path = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const warning = 'Takip başlangıcından önce tarihli 2 kayıt, toplam 5.300,00 ₺ — raporlarda farklı işlenir.';
+  const report = { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, krediGirisi: 170000, veriSagligiUyarisi: warning, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0,
+    kanallar: [{ kanal: 'MEZAT', gelen: 80000, krediGirisi: 120000, cariGiden: 100000, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: -20000 }] };
+  const { app, nodes, responses } = await openApp(false, { [path]: report });
+  await app.navigate('monthly');
+  const text = nodes.get('#view').textContent;
+  assert.match(text, /Ay sonucu \(kredi hariç\)/); assert.match(text, /Kredi girişi/);
+  assert.ok(text.includes(`Kredi girişi: ${money(170000)}`), 'Kredi girişi toplamı notta.');
+  assert.ok(text.includes(`Kanala dağıtılmayan eski kredi çekimi: ${money(50000)}`), 'Eski kredi çekimi ayrıca söylenir.');
+  assert.match(text, /Takip başlangıcından önce tarihli 2 kayıt/);
+  assert.doesNotMatch(text, /Kapatılmış ay/);
+  // Kural 1 ile dondurulmuş kapalı ay: kredi Gelen'in içinde; sütun bilgi amaçlıdır ve bu açıkça söylenir.
+  responses[path] = { ...report, kuralSurumu: 1, krediGirisi: undefined, veriSagligiUyarisi: undefined, dondurulmus: true,
+    kanallar: [{ ...report.kanallar[0], gelen: 200000, aySonucu: 100000 }] };
+  await app.navigate('monthly');
+  const frozen = nodes.get('#view').textContent;
+  assert.match(frozen, /Kapatılmış ay/); assert.match(frozen, /eski kuralla dondurulmuştur/);
+  assert.doesNotMatch(frozen, /kredi hariç/); assert.doesNotMatch(frozen, /Takip başlangıcından önce/);
+});
+
+test('gider formu kredi kartında yalnız takipteki açık kartları listeler ve kart seçmeden kaydetmez', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': cards, '/api/islemler': { id: 9 }, '/api/islemler/benzerlik': [] });
+  await app.expenseDialog();
+  const card = formField(nodes, 'krediKartiId');
+  assert.deepEqual(card.children.map(option => option.textContent), ['Kart seçin', 'Takipli']);
+  for (const [name, value] of Object.entries({ cari: 'Market', tutarTl: '75', kanal: 'A', tarih: '2026-09-23', tip: 'KrediKarti' })) formField(nodes, name).value = value;
+  formField(nodes, 'tip').listeners.change();
+  await submitDialog(nodes);
+  assert.equal(calls.some(call => call.path === '/api/islemler' && call.method === 'POST'), false);
+  assert.match(nodes.get('#modal-content').textContent, /yeni takipteki bir kart seçin/);
+  card.value = '2'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.krediKartiId, 2);
+});
+
+test('eski kredi kartı gideri düzenlenirken kendi kartıyla ya da kartsız kalır ve kaydedilir', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const eski = { id: 20, tarih: '2026-08-05', tutarTl: 75, cari: 'Eski', tip: 'KrediKarti', kanal: 'A', not: '', krediKartiId: 1 };
+  const kartsiz = { ...eski, id: 21, krediKartiId: null };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': cards, '/api/islemler/20': eski, '/api/islemler/21': kartsiz });
+  await app.expenseDialog(eski);
+  assert.deepEqual(formField(nodes, 'krediKartiId').children.map(option => option.textContent), ['Kart seçin', 'Takipli', 'Eski kart (eski kayıt)']);
+  formField(nodes, 'tutarTl').value = '80'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20').body.krediKartiId, 1);
+  await app.expenseDialog(kartsiz);
+  assert.equal(formField(nodes, 'krediKartiId').children[0].textContent, '— Kartsız eski kayıt —');
+  formField(nodes, 'tutarTl').value = '90'; await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/islemler/21'); assert.equal(save.body.krediKartiId, null); assert.equal(save.body.tutarTl, 90);
+});

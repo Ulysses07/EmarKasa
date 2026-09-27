@@ -23,6 +23,9 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     public static readonly DateOnly VarsayilanBugun = new(2026, 9, 25);
 
     private readonly SqliteConnection _conn = new("Data Source=:memory:");
+    // Yedekler (ör. dosya veritabanında açılıştaki göç öncesi yedek) kaynak ağacına değil geçici dizine yazılır; testler kendi
+    // dizinini verebilir.
+    private readonly string _yedekDizini = Path.Combine(Path.GetTempPath(), "kasa-test-yedek-" + Guid.NewGuid().ToString("N"));
 
     /// <summary>Sunucunun saati; null ise sistem saati (üretimdeki gibi). Uygulama kurulmadan, nesne
     /// başlatıcısında verilir. Her fabrikanın kendi saati vardır; paralel fabrikalar birbirini etkilemez.</summary>
@@ -57,6 +60,7 @@ public class KasaWebFactory : WebApplicationFactory<Program>
                 ["Kasa:EditorKullanici"] = "editor",
                 ["Kasa:EditorSifre"] = "kasa123",
                 ["Kasa:JwtKey"] = "test-jwt-anahtari-en-az-32-bayt-olmali!!",
+                ["Yedek:Dizin"] = _yedekDizini,
             });
         });
 
@@ -97,7 +101,9 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing) _conn.Dispose();
+        if (!disposing) return;
+        _conn.Dispose();
+        try { if (Directory.Exists(_yedekDizini)) Directory.Delete(_yedekDizini, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }
 

@@ -19,7 +19,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(42.75m, Assert.Single(db.Gelenler).TutarTl);
         Assert.Equal(125.50m, Assert.Single(db.Kanallar).AcilisDevri);
         Assert.Empty(db.Alislar);
@@ -37,7 +37,7 @@ public class DatabaseMigrationTests
         KasaDatabaseInitializer.Initialize(db);
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Empty(db.Islemler);
@@ -70,13 +70,13 @@ public class DatabaseMigrationTests
         Assert.Empty(db.KrediKartlari);
         Assert.Empty(db.Krediler);
         Assert.Empty(db.KartOdemeler);
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
 
         // Tekrar başlatma ne veri ne yeni migration kaydı üretir.
         KasaDatabaseInitializer.Initialize(db);
         Assert.Single(db.Islemler);
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal.Id, Assert.Single(db.Islemler).KanalId);
         Assert.Equal(50.02m, Assert.Single(db.KartOdemeler).Tutar);
         Assert.Equal(250.03m, Assert.Single(db.Gelenler).TutarTl);
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
 
         // Geçişten sonra da FK'nin SET NULL ve CASCADE davranışları korunur.
         Execute(connection, "DELETE FROM KrediKartlari;");
@@ -200,7 +200,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal, Scalar(connection, "SELECT Kanal FROM Gelenler WHERE Id = 14;"));
         Assert.Equal("2026-09-01", Scalar(connection, "SELECT DonemStart FROM Gelenler WHERE Id = 14;"));
         Assert.All(db.Gelenler, g => { Assert.True(g.EskiYinelenenGrup); Assert.Equal(7, g.KanalId); });
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
     }
 
@@ -299,6 +299,9 @@ public class DatabaseMigrationTests
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-migration-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
+        // Dosya veritabanında bekleyen köprü/migration göç öncesi yedeksiz çalışmaz.
+        var backupDirectory = path + "-yedek";
+        var backup = GocOncesiYedekTests.TestYedegi(backupDirectory);
         try
         {
             using (var seed = new SqliteConnection(connectionString))
@@ -313,22 +316,24 @@ public class DatabaseMigrationTests
                 start.Wait();
                 using var connection = new SqliteConnection(connectionString);
                 using var db = Context(connection);
-                KasaDatabaseInitializer.Initialize(db);
+                KasaDatabaseInitializer.Initialize(db, backup);
             })).ToArray();
             start.Set();
             await Task.WhenAll(initializers);
 
             using var verified = new SqliteConnection(connectionString);
             using var verify = Context(verified);
-            Assert.Equal(12, verify.Database.GetAppliedMigrations().Count());
+            Assert.Equal(13, verify.Database.GetAppliedMigrations().Count());
             Assert.Single(verify.Kanallar);
             Assert.Single(verify.Islemler);
             Assert.Single(verify.Gelenler);
             Assert.Equal(345.67m, verify.Islemler.Single().TutarTl);
+            Assert.NotEmpty(Directory.GetFiles(backupDirectory, "kasa-goc-oncesi-*.zip"));
         }
         finally
         {
             foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
+            if (Directory.Exists(backupDirectory)) Directory.Delete(backupDirectory, true);
         }
     }
 

@@ -83,7 +83,8 @@ var cerezSecure = !app.Environment.IsDevelopment();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-    KasaDatabaseInitializer.Initialize(db);
+    // Bekleyen migration/veri adımı varsa önce göç öncesi yedek alınır; alınamazsa açılış durur.
+    KasaDatabaseInitializer.Initialize(db, scope.ServiceProvider.GetRequiredService<YedekServisi>());
     if (!db.Kanallar.Any())
     {
         db.Kanallar.AddRange(
@@ -320,6 +321,8 @@ api.MapGet("/kredikartlari", (KasaDbContext db) =>
     var odeme = db.KartOdemeler
         .GroupBy(o => o.KrediKartiId)
         .ToDictionary(g => g.Key, g => g.Sum(o => o.Tutar));
+    // K3: gider formu yeni kredi kartı gideri için yalnız yeni takipteki ve yeni kullanıma açık kartları listeler.
+    var takip = db.TakipKartlar.AsNoTracking().ToDictionary(t => t.KrediKartiId, t => t.Aktif);
     return kartlar.Select(k =>
     {
         var kh = harcamaKayit.GetValueOrDefault(k.Id);
@@ -331,7 +334,8 @@ api.MapGet("/kredikartlari", (KasaDbContext db) =>
         return new KrediKartiTuretilmisDto(
             k.Id, k.Ad, k.KesimTarihi, k.SonOdemeTarihi, k.Limit,
             Borc: k.Borc, GuncelBorc: guncel, AcilisBorc: k.Borc,
-            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi);
+            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi,
+            YeniTakip: takip.ContainsKey(k.Id), Aktif: takip.GetValueOrDefault(k.Id, true));
     }).ToList();
 });
 api.MapPost("/kredikartlari", (KrediKartiYazDto dto, KasaDbContext db) =>
@@ -564,8 +568,9 @@ api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =
 // bırakırsa (RequestAborted) hesap sorgular ve döngüler arasında kesilir, anlık görüntü hemen bırakılır.
 api.MapGet("/donemler", (HesapServisi svc, CancellationToken ct) => svc.Donemler(ct));
 api.MapGet("/rapor/haftalik", (HesapServisi svc, CancellationToken ct) => svc.Haftalik(ct));
+// Kilitli ayın raporu kilitlendiği andaki görüntüden döner ("dondurulmus": true); açık ay canlı hesaplanır.
 api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc, CancellationToken ct) =>
-    GirdiDogrulama.RaporAyi(yil, ay) ?? Results.Ok(svc.Aylik(yil, ay, ct)));
+    GirdiDogrulama.RaporAyi(yil, ay) ?? Results.Ok(svc.AylikYanit(yil, ay, ct)));
 api.MapGet("/rapor/panel", (HesapServisi svc, CancellationToken ct) => svc.Panel(ct));
 // Ana sayfanın panel + kasa eşikleri + takip özeti üçlüsü tek istekte, tek anlık görüntüde ve tek hesap bağlamıyla
 // (kart verisi ve ödeme etkileri bir kez). Ayrı uçlar geriye uyum için aynen durur.

@@ -108,15 +108,8 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var odeme = await odemeEkle.Content.ReadFromJsonAsync<OdemeYanit>();
         Assert.NotNull(odeme);
 
-        // İşlem ekle (krediKartiId set edilince tip KrediKarti'ye zorlanır)
-        var islemEkle = await client.PostAsJsonAsync("/api/islemler", new
-        {
-            tarih = "2026-07-11", cari = "Market", tutarTl = 400m,
-            kanal = "MEZAT", tip = "Cari", not = (string?)null, krediKartiId = kart.Id,
-        });
-        islemEkle.EnsureSuccessStatusCode();
-        var islem = await islemEkle.Content.ReadFromJsonAsync<JsonElement>();
-        var islemId = islem.GetProperty("id").GetInt32();
+        // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır)
+        var islemId = LegacyFinanceSeed.KartGideri(_factory, new DateOnly(2026, 7, 11), "Market", 400m, "MEZAT", kart.Id).Id;
 
         // Kartı sil
         var sil = await client.DeleteAsync($"/api/kredikartlari/{kart.Id}");

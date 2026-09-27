@@ -34,6 +34,14 @@
 
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
+                    <!-- K4: kapatılmış ay, kapatıldığı andaki raporla gösterilir. -->
+                    <Border BackgroundColor="#E3EDDF" StrokeThickness="0" Padding="18,12" IsVisible="{Binding Dondurulmus}">
+                        <Label Text="{Binding DondurulmusMetni}" TextColor="#366341" />
+                    </Border>
+                    <!-- K1: tutarları değiştirmeyen veri sağlığı uyarısı (takip başlangıcından önce tarihli giderler). -->
+                    <Border BackgroundColor="#FFF2D9" StrokeThickness="0" Padding="18,12" IsVisible="{Binding VeriSagligiUyarisiVar}">
+                        <Label Text="{Binding VeriSagligiUyarisi}" TextColor="#765100" />
+                    </Border>
                     <Border BackgroundColor="#FFF2D9" StrokeThickness="0" Padding="18,12" IsVisible="{Binding DagilimBekliyor}">
                         <VerticalStackLayout Spacing="4">
                             <Label Text="Dağılım bekliyor — kanal sonuçlarına henüz eklenmedi" TextColor="#765100" FontAttributes="Bold" />
@@ -42,7 +50,7 @@
                     </Border>
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
                         <Label Text="Kanal" Style="{StaticResource LblSection}" />
-                        <Label Grid.Column="1" Text="Ay Sonucu" Style="{StaticResource LblSection}" />
+                        <Label Grid.Column="1" Text="{Binding AySonucuBasligi}" Style="{StaticResource LblSection}" />
                     </Grid>
                     <CollectionView ItemsSource="{Binding Rapor.Kanallar}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
@@ -85,6 +93,11 @@
                     <Grid Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding GenelGelirVar}">
                         <Label Text="Yalnız genel kasa geliri (kanallara dağıtılmaz)" />
                         <Label Grid.Column="1" Text="{Binding Rapor.GenelGelir, Converter={StaticResource ParaBicim}}" />
+                    </Grid>
+                    <!-- K2: kredi girişi kasaya (takipli kredide kanal kasasına da) girer; ay sonucuna dahil değildir. -->
+                    <Grid Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding KrediGirisiVar}">
+                        <Label Text="Kredi girişi (kasaya girer, ay sonucuna dahil değil)" />
+                        <Label Grid.Column="1" Text="{Binding KrediGirisiToplam, Converter={StaticResource ParaBicim}}" />
                     </Grid>
                     <Grid Padding="18,16" ColumnDefinitions="*,Auto">
                         <Label Text="Genel ay sonucu" FontAttributes="Bold" />

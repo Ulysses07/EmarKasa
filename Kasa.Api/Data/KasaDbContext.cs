@@ -107,6 +107,7 @@ public partial class KasaDbContext : DbContext
         ConfigureMonthlyExpensesAndLocks(b);
         ConfigureCashControls(b);
         ConfigureStatementImports(b);
+        ConfigureMonthlyReportSnapshots(b);
     }
 
     partial void ConfigureOperations(ModelBuilder b);
@@ -114,4 +115,5 @@ public partial class KasaDbContext : DbContext
     partial void ConfigureMonthlyExpensesAndLocks(ModelBuilder b);
     partial void ConfigureCashControls(ModelBuilder b);
     partial void ConfigureStatementImports(ModelBuilder b);
+    partial void ConfigureMonthlyReportSnapshots(ModelBuilder b);
 }

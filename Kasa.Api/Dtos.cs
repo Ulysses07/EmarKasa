@@ -25,7 +25,10 @@ public record PanelDto(
     decimal BuAySonucu,
     decimal DagilimBekleyenTutar = 0m);
 
+/// <param name="YeniTakip">Kart yeni takipte (TakipKartlar); eski (takipsiz) kartta false.</param>
+/// <param name="Aktif">Takipli kart yeni kullanıma açık; eski kartta true (kendi başına seçilebilirlik göstermez).
+/// Yeni kredi kartı gideri yalnız YeniTakip ve Aktif karta bağlanabilir (K3).</param>
 public record KrediKartiTuretilmisDto(
     int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit,
     decimal Borc, decimal GuncelBorc, decimal AcilisBorc, decimal HarcamaToplam, decimal OdemeToplam,
-    decimal EkstreBorc);
+    decimal EkstreBorc, bool YeniTakip = false, bool Aktif = true);
