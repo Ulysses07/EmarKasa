@@ -83,11 +83,11 @@ public sealed class GirdiDogrulama
         var temiz = ad?.Trim();
         if (ortakOlabilir && temiz == Kanallar.Ortak) return null;
         // Seçim önce kayıtlı kanallarla eşleşir: metin kuralından önce kaydedilmiş (kontrol karakterli) bir kanal adı
-        // gider/gelir girişini düşürmez. Metin kuralı yeni ad oluşturmada ve yeniden adlandırmada uygulanır.
+        // gider/gelir girişini düşürmez. Metin kuralı yeni ad oluşturmada ve yeniden adlandırmada uygulanır; eşleşmeyen
+        // seçimde tek ileti "Kayıtlı bir kanal seçin." olur (metin kuralının iletisi bunun yerine geçmez).
         var kanal = temiz is null ? null
             : db.Kanallar.FirstOrDefault(k => k.Ad == temiz) ?? (ad != temiz ? db.Kanallar.FirstOrDefault(k => k.Ad == ad) : null);
         if (kanal is not null) return kanal;
-        Metin(ad, "kanal");
         Kontrol(false, "kanal", "Kayıtlı bir kanal seçin.");
         return null;
     }
