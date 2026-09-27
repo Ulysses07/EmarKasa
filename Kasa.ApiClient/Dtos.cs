@@ -2,7 +2,8 @@ namespace Kasa.ApiClient;
 
 public enum GiderTipi { Cari, SabitGider, KrediKarti }
 
-public record LoginYanit(string Rol, string Token);
+/// <summary>Cihaz: tanıdık cihaz belirteci (masaüstüne gövdede verilir; tarayıcıya HttpOnly çerezle gider, orada null).</summary>
+public record LoginYanit(string Rol, string Token, string? Cihaz = null);
 
 public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null);

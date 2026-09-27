@@ -24,16 +24,27 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         _store = store;
     }
 
+    /// <summary>Tanıdık cihaz belirtecinin gönderildiği başlık (sunucuda TanidikCihaz.BaslikAdi).</summary>
+    public const string TanidikCihazBasligi = "X-Kasa-Cihaz";
+
     public async Task<LoginYanit> LoginAsync(string? kullanici, string sifre)
     {
         using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/login")
         {
             Content = JsonContent.Create(new { kullanici, sifre }, options: Json),
         };
+        // Tanıdık cihaz belirteci yalnız girişte gider: dağıtık saldırı hedefi kilitlese de bu cihazdan girilir.
+        if (await _store.CihazOkuAsync() is { Length: > 0 } cihaz)
+            istek.Headers.TryAddWithoutValidation(TanidikCihazBasligi, cihaz);
         using var yanit = await GonderAsync(istek, tokenEkle: false);
         var login = (await yanit.Content.ReadFromJsonAsync<LoginYanit>(Json))!;
         await _oturumKilidi.WaitAsync();
-        try { await _store.YazAsync(login.Token); }
+        try
+        {
+            await _store.YazAsync(login.Token);
+            // Her başarılı giriş belirteci yeniler; belirteçsiz yanıt (eski sunucu) saklananı silmez.
+            if (!string.IsNullOrEmpty(login.Cihaz)) await _store.CihazYazAsync(login.Cihaz);
+        }
         finally { _oturumKilidi.Release(); }
         return login;
     }
