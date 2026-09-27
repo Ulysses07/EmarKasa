@@ -23,9 +23,9 @@
   </ItemGroup>
 
   <!-- ParaGirisi kontrolünün TwoWay bağlama davranışı gerçek MAUI bağlama motoruyla sınanır (net10.0 kütüphanesi,
-       iş yükü gerektirmez). Sürüm Kasa.App'in $(MauiVersion) değeriyle aynı tutulmalı. -->
+       iş yükü gerektirmez). Sürüm Kasa.App ile aynı kaynaktan gelir: depo kökündeki Directory.Build.props $(MauiVersion). -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls.Core" Version="10.0.20" />
+    <PackageReference Include="Microsoft.Maui.Controls.Core" Version="$(MauiVersion)" />
     <Compile Include="..\Kasa.App\Controls\ParaGirisi.cs" Link="Kontroller\ParaGirisi.cs" />
   </ItemGroup>
 
