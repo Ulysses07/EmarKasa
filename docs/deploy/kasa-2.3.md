@@ -38,6 +38,10 @@ Minimum istemci 2.3.0. Migration10 yalnız ekstre belge/kayıt tablolarını ekl
 
 [API sözleşmesi](../specs/2026-09-27-ekstre-ice-aktarma-api.md). Dağıtım kontrolleri `/opt/kasa/releases/20260923-imports/` altında tutulur. Üretim karşılaştırmaları ve yedekler yalnız VPS üzerinde yapılır; üretim verileri yerel bilgisayara indirilmez.
 
+## Sonraki dağıtım: veri dizini
+
+Bu sürümün etkin veri dizini `imports-published.json` içindeki `dataDirectory` alanıdır (`/opt/kasa/deploy/kasa-data-imports-<damga>`). Depodaki Compose şablonu artık `/data` ve `/yedekler` kaynağını zorunlu `KASA_DATA_DIR` ve `KASA_BACKUP_DIR` değişkenlerinden alır; `./kasa-data` (2.0 öncesinden korunmuş eski veritabanı) bağlanmaz. 2.3.0'dan sonraki ilk dağıtımda bu değerler `docker inspect kasa-app` çıktısı ve manifestle karşılaştırılıp sunucudaki `deploy/.env` dosyasına yazılır ve `docker compose ... config` ile doğrulanır; adımlar [deploy/README.md](../../deploy/README.md) "Güncelleme" bölümündedir. Yayın betikleri şablondaki `./kasa-data:/data` satırını artık bulamaz; compose'u yeniden yazmak yerine `.env` içindeki `KASA_DATA_DIR` değerini güncelleyecek şekilde değiştirilmelidir.
+
 ## 23 Eylül 2026 yayın sonucu
 
 `kasa:2.3.0-imports-20260923` canlıda. `imports-published.json` yayın manifesti, `post-publication-health.json` son sağlık kaydıdır. HTTPS, editör oturumu, sürüm/minimum istemci2.3.0 ve yayımlanan web dosyalarının kaynakla eşitliği doğrulandı. Hata ve yeniden başlama sayısı sıfır. Bildirim VAPID anahtarı önceki sürümle birebir aynı; dosya izni600.

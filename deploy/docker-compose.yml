@@ -1,7 +1,7 @@
 # Eski OrderDeck/Caddy ağına bağlanan alternatif şablon; canlı kurulum docker-compose.nginx.yml kullanır.
 # Veri dizini (/data) ZORUNLU olarak deploy/.env içindeki KASA_DATA_DIR değişkeninden gelir;
 # tanımsız veya boşsa `docker compose` hata verip durur. deploy/ altındaki ./kasa-data 2.0
-# öncesinden korunmuş ESKİ veritabanıdır, /data'ya asla bağlanmaz. Ayrıntı: deploy/README.md.
+# öncesinden korunmuş ESKİ veritabanıdır; /data'ya asla bağlamayın. Ayrıntı: deploy/README.md.
 services:
   kasa:
     build:
