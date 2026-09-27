@@ -62,13 +62,23 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const root = node => Object.assign(node, { root: true });
   const modalNode = root(new Element('dialog')); const modalContent = new Element(); modalNode.append(modalContent);
   nodes.set('#modal', modalNode); nodes.set('#modal-content', modalContent);
-  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], ...extraResponses };
+  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], '/api/rapor/ana-sayfa?gun=30': call => homeSummary(call), ...extraResponses };
+  // Sunucu sözleşmesi: ana sayfa özeti ayrı uçların yanıtıyla birebir aynıdır. Varsayılan yanıt, testin o anki panel, eşik ve
+  // takip özeti yanıtlarından kurulur; parçalardan biri hata verirse tek istek de o hatayı verir.
+  const homeSummary = async call => {
+    const part = async key => { const value = responses[key]; if (value instanceof Error) throw value; return typeof value === 'function' ? await value(call) : value; };
+    const panel = await part('/api/rapor/panel'), kasaEsikleri = await part('/api/kasa-esikleri'), takipOzeti = await part('/api/takip/ozet?gun=30');
+    return [panel, kasaEsikleri, takipOzeti].find(value => value?.$status) || { panel, kasaEsikleri, takipOzeti };
+  };
+  // Tarayıcı fetch'i gibi: iptal edilen sinyal bekleyen yanıtı AbortError ile reddeder.
+  const aborted = () => new DOMException('The operation was aborted.', 'AbortError');
+  const abortable = (value, signal) => !signal ? value : Promise.race([Promise.resolve(value), new Promise((_, reject) => { if (signal.aborted) reject(aborted()); signal.addEventListener('abort', () => reject(aborted()), { once: true }); })]);
   const calls = [];
   // Tarayıcı depolarına yazılan her değer kaydedilir: oturum ve tanıdık cihaz belirteci yalnız HttpOnly çerezlerdedir.
   const stored = [];
   const storage = { getItem: () => null, setItem: (key, value) => { stored.push([key, String(value)]); }, removeItem() {} };
   let nextId = 0;
-  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
+  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, AbortController, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; Object.defineProperty(call, 'signal', { value: options.signal }); calls.push(call); if (options.signal?.aborted) throw aborted(); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await abortable(response(call), options.signal) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
   runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
@@ -1451,4 +1461,123 @@ test('Ayarlar yedek bölümü sunucunun rotasyon uyarısını gösterir, uyarı 
   assert.equal(nodes.get('#view').find(node => node.className === 'form-error'), null, 'Yedek başarılıdır; hata gösterilmez.');
   status.rotasyonUyarisi = null; await app.navigate('tools');
   assert.doesNotMatch(nodes.get('#view').textContent, /rotasyonu tamamlanamadı/);
+});
+
+// ---- İstemci notları: birleşik ana sayfa, veri sağlığı uyarısı, iptal, diyalog kimliği, işaretli tutar etiketi ----
+const homeSummaryPath = '/api/rapor/ana-sayfa?gun=30';
+const sampleHome = () => ({
+  panel: { guncelKasa: 900, buHaftaSonucu: 0, buAySonucu: 0, kanallar: [{ kanalId: 1, kanal: 'MEZAT', bakiye: 600 }, { kanalId: 2, kanal: 'PERAKENDE', bakiye: 300 }] },
+  kasaEsikleri: [{ kanalId: 1, kanal: 'MEZAT', surum: 1, tutar: 1000, etkin: true, bakiye: 600, esikAltinda: true }],
+  takipOzeti: { tarih: '2026-09-28', kartBorcu: 70, kalanKrediPlani: 0, olaylar: [], kanalKartBorclari: [{ kanalId: 1, kanal: 'MEZAT', tutar: 70 }] }
+});
+test('ana sayfa panel, kanal eşiği ve takip özetini tek istekte okur; ayrı uçlara gitmez', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: sampleHome() });
+  assert.equal(requests.filter(path => path === homeSummaryPath).length, 1);
+  for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(!requests.includes(old), `${old} istenmez`);
+  const view = nodes.get('#view');
+  assert.match(view.textContent, /900,00/);
+  const mezat = view.find(node => (node.className || '').split(' ')[0] === 'channel-balance' && node.textContent.includes('MEZAT'));
+  assert.match(mezat.className, /below-threshold/); assert.match(mezat.textContent, /Alt sınırın altında/); assert.match(mezat.textContent, /Kalan kart borcu: .*70,00/);
+  assert.doesNotMatch(view.textContent, /yükleniyor…/);
+});
+test('eski sunucuda ana sayfa ucu yoksa (404) ayrı uçlara geri düşer, sonraki açılışta ucu yeniden denemez', async () => {
+  const { app, nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 404 } });
+  for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(requests.includes(old), `${old} istenir`);
+  assert.match(nodes.get('#view').textContent, /123,00/);
+  await app.navigate('home');
+  assert.equal(requests.filter(path => path === homeSummaryPath).length, 1);
+  assert.equal(requests.filter(path => path === '/api/rapor/panel').length, 2);
+});
+test('ana sayfa ucunun sunucu hatası ayrı uçlara düşürmez; yeniden deneme gösterilir', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 500 } });
+  assert.ok(!requests.includes('/api/rapor/panel'));
+  assert.match(nodes.get('#view').textContent, /Kayıtlar yüklenemedi/);
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Yeniden dene'));
+});
+test('özet yüklenemediğinde kart borcu iletisi eşikler sonradan çizilince "yükleniyor"a dönmez', async () => {
+  const { nodes } = await openApp(false, { [homeSummaryPath]: { $status: 404 }, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': () => new Promise(resolve => setImmediate(() => setImmediate(() => resolve([])))) });
+  await settle();
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /Kart borcu yüklenemedi\./); assert.doesNotMatch(view, /Kart borcu yükleniyor/);
+});
+test('ekran değişince ana sayfa isteği iptal edilir; geç yanıt yeni ekrana yansımaz, hata bildirimi çıkmaz', async () => {
+  let release;
+  const { app, nodes, calls } = await openApp(false, { [homeSummaryPath]: () => new Promise(resolve => { release = resolve; }), '/api/rapor/haftalik': [] });
+  const home = calls.find(call => call.path === homeSummaryPath);
+  assert.equal(home.signal.aborted, false);
+  await app.navigate('weekly');
+  assert.equal(home.signal.aborted, true, 'Önceki ekranın isteği iptal edildi.');
+  assert.match(nodes.get('#view').textContent, /Henüz kasa dönemi yok/);
+  release(sampleHome()); await settle();
+  assert.match(nodes.get('#view').textContent, /Henüz kasa dönemi yok/);
+  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  assert.equal(calls.find(call => call.path === '/api/rapor/haftalik').signal.aborted, false);
+  // Rapor dışı okumalar (ve yazmalar) ekran sinyaline bağlanmaz.
+  assert.equal(calls.find(call => call.path === '/api/alis').signal, undefined);
+});
+test('oturum kapanınca süren rapor isteği de iptal edilir', async () => {
+  const { app, calls } = await openApp(false, { '/api/rapor/haftalik': () => new Promise(() => {}) });
+  const weekly = app.navigate('weekly'); await settle();
+  const call = calls.find(item => item.path === '/api/rapor/haftalik');
+  assert.equal(call.signal.aborted, false);
+  app.clearSession(); await weekly;
+  assert.equal(call.signal.aborted, true);
+});
+test('ekrana bağlı okumalar yalnız rapor ve takip özeti GET istekleridir; iptal hatası ayırt edilir', () => {
+  for (const path of ['/api/rapor/ana-sayfa?gun=30', '/api/rapor/panel', '/api/rapor/haftalik', '/api/rapor/aylik?yil=2026&ay=9', '/api/takip/ozet?gun=7']) assert.equal(ui.screenBoundRead(path, 'GET'), true, path);
+  for (const [path, method] of [['/api/rapor/haftalik', 'POST'], ['/api/alis', 'GET'], ['/api/takip/kartlar', 'GET'], ['/api/kasa-esikleri', 'GET'], ['/api/raporlar', 'GET']]) assert.equal(ui.screenBoundRead(path, method), false, `${method} ${path}`);
+  assert.equal(ui.isAbortError(ui.abortedRequestError()), true);
+  assert.equal(ui.isAbortError(new DOMException('x', 'AbortError')), true);
+  assert.equal(ui.isAbortError(new Error('Sunucuya ulaşılamadı.')), false);
+});
+test('haftalık raporun veri sağlığı uyarısı seçili dönemden bağımsız, listenin üstünde görünür', async () => {
+  const week = (start, end, extra = {}) => ({ donem: { start, end, yil: 2026, ay: 1 }, kanallar: [], toplamGelen: 0, toplamGiden: 0, kasaSonucu: 0, kasaDevir: 900, dagilimBekleyenTutar: 0, ...extra });
+  const warning = 'Rapor ufkunun (30.09.2027) ötesinde 1 kayıt var; en geç 22.06.2206.';
+  const weeks = [week('2026-01-05', '2026-01-11'), week('2026-01-12', '2027-09-30', { veriSagligiUyarisi: warning })];
+  const { app, nodes, responses } = await openApp(false, { '/api/rapor/haftalik': weeks });
+  await app.navigate('weekly');
+  const view = nodes.get('#view');
+  assert.equal(view.children[0].attributes.role, 'alert'); assert.equal(view.children[0].textContent, warning);
+  const period = view.find(node => node.attributes.name === 'donem'); period.value = '2026-01-05'; period.listeners.change();
+  assert.equal(view.children[0].textContent, warning, 'Başka dönem seçilince de uyarı kalır.');
+  responses['/api/rapor/haftalik'] = [week('2026-01-05', '2026-01-11')];
+  await app.navigate('weekly');
+  assert.equal(nodes.get('#view').find(node => node.attributes.role === 'alert'), null);
+  assert.equal(ui.dataHealthWarning([{ veriSagligiUyarisi: '  ' }, {}]), null);
+  assert.equal(ui.dataHealthWarning(null), null);
+});
+test('kayıt sürerken kapatılıp yerine açılan pencere önceki kaydın geç gelen başarısıyla kapanmaz', async () => {
+  const { app, nodes, finish } = await pendingExpense();
+  const vazgec = cancelButton(nodes); vazgec.listeners.click({ currentTarget: vazgec });
+  assert.equal(nodes.get('#modal').open, false);
+  app.channelDialog();
+  assert.equal(nodes.get('#modal-title').textContent, 'Kanal ekle');
+  await finish({ id: 5, tarih: '2026-09-23', cari: 'Kargo', tutarTl: 75, kanal: 'A', tip: 'Cari', not: null });
+  assert.equal(nodes.get('#modal').open, true, 'Yeni pencere açık kalır.');
+  assert.equal(nodes.get('#modal-title').textContent, 'Kanal ekle');
+  assert.ok(formField(nodes, 'ad'), 'Yeni pencerenin formu korunur.');
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydedildi\./);
+  // Yeni pencerenin kendi kaydı pencereyi yine kapatır.
+  formField(nodes, 'ad').value = 'B'; formField(nodes, 'acilisDevri').value = '0';
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#modal').open, false);
+});
+test('kayıt sürerken engellenen ESC bildirimi gerçek davranışı anlatır', async () => {
+  const { nodes, cancel } = await pendingExpense();
+  assert.equal(cancel(true), true);
+  const text = nodes.get('#notifications').textContent;
+  assert.match(text, /yanıt gelene kadar pencere açık kalır/); assert.match(text, /hata olursa burada görünür/);
+  assert.match(text, /Vazgeç’e basın: kayıt durmaz/); assert.match(text, /hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır/);
+  assert.doesNotMatch(text, /sonucu bildirim olarak görürsünüz/);
+});
+test('işaretli tutar etiketi işaret seçicisine değil tutar alanına bağlıdır; kimlikler tekildir', async () => {
+  const { app, nodes } = await openApp(false);
+  const signedLabel = () => nodes.get('#modal-content').find(node => node.tag === 'label' && (node.className || '').split(' ').includes('signed-field'));
+  app.channelDialog();
+  const first = signedLabel(); const amountInput = formField(nodes, 'acilisDevri');
+  assert.ok(first.attributes.for, 'Etiket bir alana bağlı.');
+  assert.equal(first.attributes.for, amountInput.attributes.id);
+  assert.notEqual(formField(nodes, 'acilisDevriIsaret').attributes.id, first.attributes.for);
+  app.channelDialog();
+  assert.notEqual(signedLabel().attributes.for, first.attributes.for, 'Yeni pencerede yeni kimlik.');
 });

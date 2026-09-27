@@ -16,6 +16,18 @@ export function runtimeRequestAllowed(runtime, path, method = 'GET') {
   return ['GET', 'HEAD'].includes(verb) && ['/api/auth/me', '/api/rapor/panel', '/api/rapor/haftalik', '/api/rapor/aylik', '/api/islemler', '/api/kanallar'].includes(route);
 }
 export function cashEditingAllowed(role, runtime) { return role === 'editor' && runtime?.saltOkunur === false; }
+// Ekrana ait rapor okumaları (ana sayfa, panel, haftalık/aylık rapor, takip özeti): ekran değişince AbortController ile iptal
+// edilir, sunucu da hesabı keser. Yazma istekleri ve diyalog verisi dışındaki okumalar iptal edilmez.
+export function screenBoundRead(path, method = 'GET') {
+  const route = String(path).split('?')[0];
+  return String(method).toUpperCase() === 'GET' && (route.startsWith('/api/rapor/') || route === '/api/takip/ozet');
+}
+export function abortedRequestError() { return Object.assign(new Error('İstek iptal edildi.'), { name: 'AbortError' }); }
+export function isAbortError(error) { return error?.name === 'AbortError'; }
+// Haftalık raporun veri sağlığı uyarısı yalnız son dönemde gelir; raporun tamamı için geçerlidir. Yoksa null.
+export function dataHealthWarning(weeks) {
+  return [...(weeks || [])].reverse().map(week => week?.veriSagligiUyarisi).find(text => typeof text === 'string' && text.trim()) || null;
+}
 export function incomeSelection(rows, channel) {
   const channelId = Number(channel?.id);
   const channelName = typeof channel === 'string' ? channel : channel?.ad || '';
