@@ -16,7 +16,8 @@ public static class YonetimEndpoints
         app.MapGet("/api/yedek/durum", (YedekServisi yedek) => Results.Ok(yedek.Durum())).RequireAuthorization("Editor");
         app.MapPost("/api/yedek", async (KasaDbContext db, YedekServisi yedek, HttpContext http) =>
         {
-            var path = await yedek.Olustur(db, http.RequestAborted);
+            // Elle yedek ayrı adla yazılır ve yalnız elle yedeklerle döner; otomatik geçmişi silemez.
+            var path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted);
             return Results.File(path, "application/zip", Path.GetFileName(path));
         }).RequireAuthorization("Editor").RequireRateLimiting("guvenlik");
         app.MapGet("/api/disari-aktar", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? bicim, IslemListeServisi servis) =>
