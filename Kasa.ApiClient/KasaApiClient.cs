@@ -24,24 +24,63 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         _store = store;
     }
 
+    /// <summary>Tanıdık cihaz belirtecinin gönderildiği başlık (sunucuda TanidikCihaz.BaslikAdi).</summary>
+    public const string TanidikCihazBasligi = "X-Kasa-Cihaz";
+
+    /// <summary>Tanıdık cihaz belirteçlerinin rol başına saklandığı roller (sunucunun giriş ve /me yanıtındaki 'rol').</summary>
+    public static readonly IReadOnlyList<string> CihazRolleri = ["editor", "viewer", "alici"];
+
     public async Task<LoginYanit> LoginAsync(string? kullanici, string sifre)
     {
         using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/login")
         {
             Content = JsonContent.Create(new { kullanici, sifre }, options: Json),
         };
+        // Tanıdık cihaz belirteçleri yalnız girişte gider: dağıtık saldırı hedefi kilitlese de bu cihazdan girilir.
+        // İstemci adın hangi role düştüğünü bilmez; saklıların hepsi gider, sunucu denenen hedefe ait olanı kabul eder.
+        if (await SakliCihazlarAsync() is { Count: > 0 } cihazlar)
+            istek.Headers.TryAddWithoutValidation(TanidikCihazBasligi, string.Join(",", cihazlar));
         using var yanit = await GonderAsync(istek, tokenEkle: false);
         var login = (await yanit.Content.ReadFromJsonAsync<LoginYanit>(Json))!;
         await _oturumKilidi.WaitAsync();
         try { await _store.YazAsync(login.Token); }
         finally { _oturumKilidi.Release(); }
+        // Her başarılı giriş kendi rolünün belirtecini yeniler; belirteçsiz yanıt (eski sunucu) saklananı silmez.
+        await CihazSaklaAsync(login.Rol, login.Cihaz);
         return login;
     }
 
     public async Task<string?> BenKimAsync()
     {
         var el = await GetAsync<RolYanit>("api/auth/me");
+        // Oturum doğrulaması (açılış) belirteci yeniler: kullanılan cihaz, oturum dolduğunda da tanıdık kalır.
+        await CihazSaklaAsync(el.Rol, el.Cihaz);
         return el.Rol;
+    }
+
+    /// <summary>Saklı tanıdık cihaz belirteçleri. Belirteç isteğe bağlıdır: güvenli depo bir kaydı okuyamazsa
+    /// (ör. Windows profili ya da DPAPI anahtarı değişti) o kayıt atlanır, giriş başlıksız da sürer.</summary>
+    private async Task<List<string>> SakliCihazlarAsync()
+    {
+        var cihazlar = new List<string>();
+        foreach (var rol in CihazRolleri)
+        {
+            try
+            {
+                if (await _store.CihazOkuAsync(rol) is { Length: > 0 } belirtec && !belirtec.Contains(',')) cihazlar.Add(belirtec);
+            }
+            catch (Exception) { /* Okunamayan kayıt yok sayılır; sunucu başarılı girişte yenisini verir. */ }
+        }
+        return cihazlar;
+    }
+
+    /// <summary>Sunucunun verdiği belirteci rolüne yazar. Yazma hatası (güvenli depo) işlemi bozmaz: oturum zaten
+    /// açıldı ya da değişti; cihaz yalnız bir sonraki belirtece kadar tanınmaz.</summary>
+    private async Task CihazSaklaAsync(string? rol, string? belirtec)
+    {
+        if (string.IsNullOrEmpty(belirtec) || rol is null || !CihazRolleri.Contains(rol)) return;
+        try { await _store.CihazYazAsync(rol, belirtec); }
+        catch (Exception) { /* Belirteç isteğe bağlıdır. */ }
     }
 
     public async Task CikisAsync()
@@ -54,7 +93,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         finally { await _store.TemizleAsync(); }
     }
 
-    private record RolYanit(string Rol);
+    private record RolYanit(string Rol, string? Cihaz = null);
 
     // ---- okuma metotları ----
 

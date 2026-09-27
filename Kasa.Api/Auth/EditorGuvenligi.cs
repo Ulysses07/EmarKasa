@@ -23,7 +23,7 @@ public static class EditorGuvenligi
 
     public static WebApplication MapGuvenlikEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/auth/sifre", (SifreDegistir dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
+        app.MapPost("/api/auth/sifre", (SifreDegistir dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz) =>
         {
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
             using var tx = db.Database.BeginTransaction();
@@ -35,6 +35,9 @@ public static class EditorGuvenligi
             kayit.Surum++;
             db.SaveChanges(); tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
+            // Eski tanıdık cihaz belirteçleri damgayla düşer; işlemi yapan cihaz yenisini alır (saldırı sürerken
+            // şifresini değiştiren editör kendi cihazından yeniden girebilir).
+            tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg));
             return Results.NoContent();
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
@@ -50,7 +53,7 @@ public static class EditorGuvenligi
             return Results.Ok(new { kod });
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
-        app.MapPost("/api/auth/kurtar", (SifreKurtar dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
+        app.MapPost("/api/auth/kurtar", (SifreKurtar dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz) =>
         {
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
             if (dto.Kod is null || dto.Kod.Length > 200) return KurtarmaHatali();
@@ -64,6 +67,8 @@ public static class EditorGuvenligi
             kayit.Surum++;
             db.SaveChanges(); tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
+            // Kurtarma kodu editör şifresi kadar güçlü bir kanıttır: kurtaran cihaz tanıdık cihaz olur.
+            tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg));
             return Results.NoContent();
         }).GirisSiniriUygula<SifreKurtar>(d => d.Kullanici);
         return app;

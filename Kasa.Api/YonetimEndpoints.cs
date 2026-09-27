@@ -1,3 +1,4 @@
+using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 
@@ -14,12 +15,13 @@ public static class YonetimEndpoints
             notlar = "Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü."
         }));
         app.MapGet("/api/yedek/durum", (YedekServisi yedek) => Results.Ok(yedek.Durum())).RequireAuthorization("Editor");
+        // Ayrı ve sıkı hız politikası: kullanıcı + IP başına saatte 5 (üretim); 'guvenlik' kovasını tüketmez.
         app.MapPost("/api/yedek", async (KasaDbContext db, YedekServisi yedek, HttpContext http) =>
         {
             // Elle yedek ayrı adla yazılır ve yalnız elle yedeklerle döner; otomatik geçmişi silemez.
             var path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted);
             return Results.File(path, "application/zip", Path.GetFileName(path));
-        }).RequireAuthorization("Editor").RequireRateLimiting("guvenlik");
+        }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Yedek);
         app.MapGet("/api/disari-aktar", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? bicim, IslemListeServisi servis) =>
         {
             if (baslangic is null || bitis is null || bitis < baslangic || bitis.Value.DayNumber - baslangic.Value.DayNumber > 3660)

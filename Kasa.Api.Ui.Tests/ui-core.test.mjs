@@ -37,6 +37,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
     showModal() { this.open = true; }
     reportValidity() { return true; }
     requestSubmit() { this.listeners.submit?.({ preventDefault() {} }); }
+    reset() { this.children.forEach(child => { if (child instanceof Element) { child.currentValue = ''; child.reset(); } }); }
     scrollIntoView() {}
   }
   class TestFormData {
@@ -55,13 +56,16 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const nodes = new Map(); const requests = [];
   const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], ...extraResponses };
   const calls = [];
+  // Tarayıcı depolarına yazılan her değer kaydedilir: oturum ve tanıdık cihaz belirteci yalnız HttpOnly çerezlerdedir.
+  const stored = [];
+  const storage = { getItem: () => null, setItem: (key, value) => { stored.push([key, String(value)]); }, removeItem() {} };
   let nextId = 0;
-  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, new Element()); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
+  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, new Element()); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
   runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
-  return { nodes, requests, calls, responses, app: context.appTest };
+  return { nodes, requests, calls, responses, stored, app: context.appTest };
 }
 
 test('full editor startup renders transaction actions and settings navigation', async () => {
@@ -1126,4 +1130,54 @@ test('transitioned card page shows the stored transition record and the first-ve
   await second.app.navigate('cards', 6);
   const info = second.nodes.get('#view').find(node => (node.className || '').startsWith('notice') && node.textContent.includes('tutarlı'));
   assert.equal(info.className, 'notice');
+});
+
+test('web login leaves the known-device token to the HttpOnly cookie: same-origin credentials, no device header, nothing stored', async () => {
+  // Sunucu tarayıcıya belirteci gövdede vermez; verse bile web onu hiçbir isteğe eklemez ve depoya yazmaz.
+  const { nodes, calls, stored } = await openApp(false, { '/api/auth/me': { $status: 401 }, '/api/auth/login': { rol: 'editor', token: 'jwt-gizli', cihaz: 'c1.gizli-cihaz' } });
+  assert.equal(nodes.get('#login-screen').hidden, false);
+  const form = nodes.get('#login-form'); const Element = form.constructor;
+  const user = new Element('input'); user.setAttribute('name', 'kullanici'); user.value = 'editor';
+  const password = new Element('input'); password.setAttribute('name', 'sifre'); password.setAttribute('type', 'password'); password.value = 'editor-sifresi';
+  form.append(user, password);
+  form.listeners.submit({ preventDefault() {}, currentTarget: form }); await settle();
+
+  assert.equal(nodes.get('#login-error').textContent, '');
+  assert.equal(nodes.get('#application').hidden, false);
+  const login = calls.find(call => call.path === '/api/auth/login');
+  assert.deepEqual([login.method, login.body], ['POST', { kullanici: 'editor', sifre: 'editor-sifresi' }]);
+  // Tarayıcı aynı kökenli isteğe __Host-kasa_cihaz_<rol> çerezini kendisi ekler; betik başlık koymaz.
+  assert.equal(login.credentials, 'same-origin');
+  assert.equal(login.headers['x-kasa-request'], '1');
+  assert.equal(login.headers['x-kasa-cihaz'], undefined);
+  const later = calls.slice(calls.indexOf(login) + 1);
+  assert.ok(later.length > 0, 'Girişten sonra ana sayfa yüklenir.');
+  for (const call of later) assert.doesNotMatch(JSON.stringify(call), /jwt-gizli|gizli-cihaz/);
+  assert.ok(calls.every(call => call.credentials === 'same-origin'));
+  assert.deepEqual(stored, []);
+  assert.deepEqual([user.value, password.value], ['', '']);
+});
+
+test('startup session check leaves a device token in the /me body unused: nothing stored or sent', async () => {
+  // Sunucu tarayıcıya /api/auth/me yanıtında belirteci gövdede vermez (yalnız çerezi yeniler); verse bile web onu kullanmaz.
+  const { nodes, calls, stored } = await openApp(false, { '/api/auth/me': { rol: 'editor', cihaz: 'c1.gizli-me' } });
+  assert.equal(nodes.get('#application').hidden, false);
+  const me = calls.find(call => call.path === '/api/auth/me');
+  assert.equal(me.credentials, 'same-origin');
+  assert.equal(me.headers['x-kasa-cihaz'], undefined);
+  const later = calls.slice(calls.indexOf(me) + 1);
+  assert.ok(later.length > 0, 'Doğrulamadan sonra ana sayfa yüklenir.');
+  for (const call of later) assert.doesNotMatch(JSON.stringify(call), /gizli-me/);
+  assert.deepEqual(stored, []);
+});
+
+test('manual backup rate limit shows the server Turkish 429 message and keeps the session', async () => {
+  const message = 'Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek alınabilir. 42 dakika sonra yeniden deneyin. Otomatik yedekleme bundan etkilenmez.';
+  const { app, nodes, calls } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [], '/api/kanallar': [], '/api/yedek': { $status: 429, hata: message } });
+  await app.navigate('tools');
+  await clickView(nodes, 'Şimdi yedek indir');
+  assert.deepEqual(calls.filter(call => call.path === '/api/yedek').map(call => call.method), ['POST']);
+  assert.match(nodes.get('#notifications').textContent, /Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek/);
+  assert.equal(nodes.get('#application').hidden, false);
+  assert.equal(nodes.get('#login-screen').hidden, true);
 });

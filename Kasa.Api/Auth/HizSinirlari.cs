@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
@@ -12,11 +11,15 @@ namespace Kasa.Api.Auth;
 /// <summary>
 /// 'Kasa:HizSiniri' bölümü. Pencere sınırları istek anında okunur (test fabrikası küçültebilir), doğrulama
 /// eşzamanlılığı başlangıçta. Üretim değerleri bu varsayılanlardır (appsettings.json); geliştirme ortamı
-/// (appsettings.Development.json, test fabrikası dahil) pencereleri gevşetir.
+/// (appsettings.Development.json, test fabrikası dahil) pencereleri gevşetir. Değerler başlangıçta
+/// <see cref="Hatalar"/> ile doğrulanır; tutarsız yapılandırma uygulamayı başlatmaz.
 /// </summary>
 public sealed class HizSiniriAyarlari
 {
-    /// <summary>'guvenlik' politikası: istemci IP'si başına pencere izni (yedek, PDF, push, şifre, kurtarma kodu).</summary>
+    /// <summary>'guvenlik' politikası: istemci IP'si başına pencere izni (PDF, push, şifre, kurtarma kodu). Kova gerçek
+    /// istemci IP'sine göre bölünür ve hız sınırı yetkilendirmeden sonra çalışır: kimliksiz istek tüketmez, bir ağ
+    /// başka ağlardaki kullanıcıların PDF yüklemesini ya da şifre işlemlerini kilitleyemez. Elle yedek ayrı ve daha
+    /// sıkı 'yedek' politikasındadır (ağır işlem); PDF yükleme bu kovada kalır.</summary>
     public int GuvenlikIzni { get; set; } = 60;
     /// <summary>'giris' politikası: giriş ve kurtarma ile giriş için istemci IP'si başına genel pencere izni.</summary>
     public int GirisIpIzni { get; set; } = 30;
@@ -26,17 +29,56 @@ public sealed class HizSiniriAyarlari
     /// Tek kişinin /48 ya da /56 bloğu /64 bölümlerine yayılarak IP pencerelerini çoğaltamaz.</summary>
     public int GirisAgIzni { get; set; } = 60;
     public int PencereDakika { get; set; } = 5;
-    /// <summary>Giriş: hedef (editör, her alıcı, izleyici şifresi) başına IP'den bağımsız başarısız deneme izni.</summary>
+    /// <summary>Giriş: hedef bütçesi başına IP'den bağımsız başarısız deneme izni. Editörün kendi bütçesi, editör
+    /// dışındaki bütün adların (alıcılar ve izleyici şifresi) tek ortak bütçesi vardır.</summary>
     public int HedefBasarisizIzni { get; set; } = 30;
     /// <summary>Giriş: ağ başına, bütün hedefler için ortak başarısız deneme izni (ağ: IPv4 adresi ya da IPv6 /48 bloğu).
-    /// Hedef izninden küçük tutulur: tek bir ağ bir hedefin bütçesini tek başına tüketip hedefi herkese kilitleyemez.</summary>
+    /// Hedef izninden küçük olmalıdır: tek bir ağ bir hedefin bütçesini tek başına tüketip hedefi herkese kilitleyemez.
+    /// Doğrulama kapasitesinden (eşzamanlı + kuyruk) de küçük olmalıdır: tek ağ PBKDF2 kuyruğunu tek başına dolduramaz.</summary>
     public int AgBasarisizIzni { get; set; } = 15;
     public int HedefPencereDakika { get; set; } = 15;
-    /// <summary>Hedefe son bu kadar günde başarıyla girilmiş ağ, hedef bütçesi dolduğunda da girebilir (0: kapalı).</summary>
-    public int TanidikAgGun { get; set; } = 30;
+    /// <summary>Tanıdık cihaz belirtecinin ömrü (gün; 0: kapalı). Oturum ömründen (<see cref="JwtYardimci.OturumGun"/>)
+    /// uzun ve en çok 365 olmalıdır: yeniden girişin en sık nedeni oturumun dolmasıdır, o anda belirteç hâlâ geçerli
+    /// olmalı. Belirteç bu süre boyunca cihazı hedef kilidinden muaf tutar (<see cref="TanidikCihaz"/>); her başarılı
+    /// girişte, her oturum doğrulamasında (/api/auth/me) ve editörün şifre değişikliği/kurtarmasında yenilenir.</summary>
+    public int TanidikCihazGun { get; set; } = 180;
     /// <summary>Aynı anda yürüyen şifre doğrulaması (PBKDF2) ve bekleyebilecek giriş sayısı; kuyruk doluysa 429.</summary>
     public int SifreDogrulamaEszamanli { get; set; } = 2;
     public int SifreDogrulamaKuyrugu { get; set; } = 20;
+    /// <summary>'yedek' politikası: elle yedek için (kimliği doğrulanmış kullanıcı, istemci IP'si) başına pencere izni.</summary>
+    public int YedekIzni { get; set; } = 5;
+    public int YedekPencereDakika { get; set; } = 60;
+
+    /// <summary>Yapılandırma hataları (boşsa geçerli). Sınırlar pozitif olmalı; ağ bütçesi hedef bütçesinden ve
+    /// şifre doğrulama kapasitesinden küçük olmalıdır (aksi halde tek ağ bir hedefi herkese kilitleyebilir ya da
+    /// doğrulama kuyruğunu tek başına doldurup başka ağlardaki girişlere "sunucu yoğun" yanıtı aldırabilir). Tanıdık
+    /// cihaz belirteci kapalı (0) değilse oturumdan uzun, en çok bir yıl yaşar.</summary>
+    public IEnumerable<string> Hatalar()
+    {
+        if (this is not
+            {
+                GuvenlikIzni: > 0, GirisIpIzni: > 0, GirisKullaniciIzni: > 0, GirisAgIzni: > 0, PencereDakika: > 0,
+                HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0,
+                SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0, YedekIzni: > 0, YedekPencereDakika: > 0,
+            })
+        {
+            yield return "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (SifreDogrulamaKuyrugu sıfır olabilir).";
+            yield break;
+        }
+        if (TanidikCihazGun != 0 && TanidikCihazGun is <= JwtYardimci.OturumGun or > 365)
+            yield return $"Kasa:HizSiniri:TanidikCihazGun ({TanidikCihazGun}) 0 (kapalı) ya da oturum ömründen ({JwtYardimci.OturumGun} gün) uzun ve en çok 365 olmalıdır: oturumu dolan kullanıcı yeniden girerken belirteç hâlâ geçerli olmalı, yoksa dağıtık bir saldırı onu kendi cihazından kilitleyebilir.";
+        if (AgBasarisizIzni >= HedefBasarisizIzni)
+            yield return $"Kasa:HizSiniri:AgBasarisizIzni ({AgBasarisizIzni}) HedefBasarisizIzni'nden ({HedefBasarisizIzni}) küçük olmalıdır: tek ağ bir hedefin bütçesini tek başına tüketip hedefi herkese kilitleyememeli.";
+        if (AgBasarisizIzni >= (long)SifreDogrulamaEszamanli + SifreDogrulamaKuyrugu)
+            yield return $"Kasa:HizSiniri:AgBasarisizIzni ({AgBasarisizIzni}) SifreDogrulamaEszamanli + SifreDogrulamaKuyrugu toplamından ({(long)SifreDogrulamaEszamanli + SifreDogrulamaKuyrugu}) küçük olmalıdır: tek ağ şifre doğrulama kuyruğunu tek başına dolduramamalı.";
+    }
+}
+
+/// <summary>Başlangıç doğrulaması: <see cref="HizSiniriAyarlari.Hatalar"/> boş değilse uygulama başlamaz.</summary>
+internal sealed class HizSiniriDogrulayici : IValidateOptions<HizSiniriAyarlari>
+{
+    public ValidateOptionsResult Validate(string? name, HizSiniriAyarlari ayarlar)
+        => ayarlar.Hatalar().ToList() is { Count: > 0 } hatalar ? ValidateOptionsResult.Fail(hatalar) : ValidateOptionsResult.Success;
 }
 
 /// <summary>
@@ -48,11 +90,20 @@ public static class HizSinirlari
 {
     public const string Guvenlik = "guvenlik";
     public const string Giris = "giris";
+    /// <summary>Elle yedek politikası (<see cref="ElleYedekPolitikasi"/>).</summary>
+    public const string Yedek = "yedek";
     /// <summary>
     /// Loopback + Docker'ın varsayılan adres havuzları (172.17–172.31/16, ardından 192.168.0.0/16 içinden /20'lik
     /// ağlar): compose ağı hangi varsayılan havuzdan adres alırsa alsın gerçek istemci IP'si görülür. Konteyner
     /// yalnız 127.0.0.1:8080'e yayınlandığından bu adreslerden yalnız yerel vekil ve aynı ağdaki konteynerler
     /// bağlanabilir. Vekilsiz, doğrudan yerel ağa açılan bir kurulumda liste daraltılmalıdır.
+    /// <para>Daraltma (önerilen sertleştirme): varsayılan liste, aynı Docker ağındaki ya da bu havuzlardan adres alan
+    /// herhangi bir konteynerin X-Forwarded-For ile istediği istemci IP'sini bildirmesine izin verir. Böyle bir
+    /// konteyner IP başına pencereleri ve ağ bütçesini her istekte başka IP bildirerek aşabilir; IP'den bağımsız
+    /// hedef bütçesi ve tanıdık cihaz bütçesi yine uygulanır. Kalıcı çözüm Kasa:GuvenilirVekiller'i yalnız vekilin
+    /// gerçek bağlantı adresine indirmektir (ör. "127.0.0.1/32;172.18.0.1/32": docker-proxy'nin bağlandığı köprü ağ
+    /// geçidi); bunun için compose ağının alt ağı sabitlenmelidir, aksi halde ağ yeniden oluşunca geçit değişir ve
+    /// bütün istemciler tek IP'ye düşer (VekilDurumu uyarısı bunu Ayarlar'da gösterir).</para>
     /// </summary>
     public const string VarsayilanGuvenilirVekiller = "127.0.0.0/8;::1/128;172.16.0.0/12;192.168.0.0/16";
 
@@ -67,18 +118,12 @@ public static class HizSinirlari
             o.KnownIPNetworks.Clear();
             foreach (var ag in GuvenilirAglar(cfg["Kasa:GuvenilirVekiller"])) o.KnownIPNetworks.Add(ag);
         });
-        services.AddOptions<HizSiniriAyarlari>().BindConfiguration("Kasa:HizSiniri")
-            .Validate(a => a is
-                {
-                    GuvenlikIzni: > 0, GirisIpIzni: > 0, GirisKullaniciIzni: > 0, GirisAgIzni: > 0, PencereDakika: > 0,
-                    HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0, TanidikAgGun: >= 0,
-                    SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0,
-                },
-                "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (TanidikAgGun ve SifreDogrulamaKuyrugu sıfır olabilir).")
-            .ValidateOnStart();
+        services.AddOptions<HizSiniriAyarlari>().BindConfiguration("Kasa:HizSiniri").ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<HizSiniriAyarlari>, HizSiniriDogrulayici>());
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<VekilDurumu>();
         services.AddSingleton<GirisSiniri>();
+        services.AddSingleton<TanidikCihaz>();
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -86,6 +131,7 @@ public static class HizSinirlari
             // Bölümleme ForwardedHeaders sonrası RemoteIpAddress'e göredir; politika adları ayrı kova tutar.
             o.AddPolicy(Guvenlik, http => IpBolumu(http, a => a.GuvenlikIzni));
             o.AddPolicy(Giris, http => IpBolumu(http, a => a.GirisIpIzni));
+            o.AddPolicy(Yedek, new ElleYedekPolitikasi());
         });
         return services;
     }
@@ -154,9 +200,13 @@ public static class HizSinirlari
 
     /// <summary>429 yanıtı: Türkçe 'hata' gövdesi ve (biliniyorsa) saniye cinsinden Retry-After.</summary>
     public static IResult Red(HttpContext http, RateLimitLease lease)
+        => Red(http, lease.TryGetMetadata(MetadataName.RetryAfter, out var sure) ? sure : null);
+
+    /// <summary>429 yanıtı: Türkçe 'hata' gövdesi ve (biliniyorsa) saniye cinsinden Retry-After.</summary>
+    public static IResult Red(HttpContext http, TimeSpan? bekleme)
     {
         var mesaj = "Çok fazla deneme yapıldı. Birkaç dakika sonra yeniden deneyin.";
-        if (lease.TryGetMetadata(MetadataName.RetryAfter, out var sure) && sure > TimeSpan.Zero)
+        if (bekleme is { } sure && sure > TimeSpan.Zero)
         {
             http.Response.Headers.RetryAfter = Math.Ceiling(sure.TotalSeconds).ToString(CultureInfo.InvariantCulture);
             mesaj = $"Çok fazla deneme yapıldı. {Math.Max(1, (int)Math.Ceiling(sure.TotalMinutes))} dakika sonra yeniden deneyin.";
@@ -213,16 +263,55 @@ public sealed class VekilDurumu
 /// <list type="number">
 /// <item>(istemci IP'si, normalize kullanıcı adı) ve IPv6 /48 bloğu başına istek penceresi (uç filtresi). Kimliksiz
 /// bir saldırgan yalnız kendi IP'sinin kovasını tüketir; başka IP'lerdeki kullanıcıların girişi kilitlenmez.</item>
-/// <item>Hedef (editör, her alıcı, izleyici şifresi) başına IP'den bağımsız başarısız deneme bütçesi. Dağıtık kaba
-/// kuvvet IP sayısıyla, izleyici şifresine kaba kuvvet kullanıcı adı döndürerek çoğalamaz. Bütçe dolunca hedefe
-/// tanınmayan ağlardan gelen denemeler şifre doğrulanmadan reddedilir. Hedefe son TanidikAgGun günde başarıyla
-/// girilmiş ağ girmeye devam eder: dağıtık saldırgan meşru kullanıcıyı alışık olduğu ağdan kilitleyemez. İzleyici
-/// kilidi editör dışındaki bütün adlara uygulanır; yanıt, bir adın alıcıya ait olup olmadığını ele vermez.</item>
-/// <item>Ağ başına, bütün hedefler için ortak ve hedef bütçesinden küçük başarısız deneme bütçesi (ağ: IPv4 adresi ya
-/// da IPv6 /48 bloğu). Her zaman uygulanır: tek ağ bir hedefin bütçesini tek başına tüketemez, tanınan ağ da
-/// sınırsız deneyemez; ortak olduğu için kilitlenen ağın yanıtları da adları ayırt ettirmez.</item>
+/// <item>Başarısız deneme bütçeleri şifre doğrulanmadan ÖNCE ayrılır (<see cref="Baslat"/>): ağın ve hedefin
+/// kovalarından birer izin tek kilit altında ya hep ya hiç alınır ve doğrulama bitene kadar sayılır. Denetim ile
+/// harcama arasında yarış yoktur: tek ağdan eşzamanlı patlamada ağ bütçesinden, dağıtık patlamada hedef
+/// bütçesinden fazlası PBKDF2'ye ulaşmaz. Başarılı girişte ayrılan izin iade edilir: bütçeler "başarısız deneme"
+/// bütçesidir, aynı ağdan giren meşru kullanıcılar birbirinin bütçesini tüketmez; iade yalnız doğru şifreyle
+/// alınır, kaba kuvvet denemelerinin hepsi sayılır. Sonuç bildirilmeden kapanan deneme (doğrulama kuyruğu dolu,
+/// istek iptal edildi) şifre denenmediği için iade edilir.</item>
+/// <item>Hedef bütçesi IP'den bağımsızdır: dağıtık kaba kuvvet IP sayısıyla çoğalamaz. Editörün kendi bütçesi,
+/// editör dışındaki bütün adların (her alıcı ve izleyici şifresi) tek ortak bütçesi vardır: izleyici şifresine
+/// kaba kuvvet kullanıcı adı döndürerek çoğalamaz ve 401/429 yanıtı yalnız bu ortak bütçeye ve istemcinin ağına
+/// bağlı olduğundan bir adın alıcıya ait olup olmadığını ele vermez (ayrı alıcı kovası ve kovaların farklı
+/// anlarda biten pencereleri bu farkı sızdırıyordu). Bedeli: bir alıcıya dağıtık saldırı, kilitten muaf olmayan
+/// istemcilerden bütün alıcı ve izleyici girişlerini pencere boyunca kilitler; bu zaten rastgele adlarla da
+/// yapılabiliyordu.</item>
+/// <item>Hedef kilidinden yalnız geçerli bir tanıdık cihaz belirteci (<see cref="TanidikCihaz"/>) muaf tutar: dağıtık
+/// saldırgan, daha önce giriş yapılmış ve belirteci geçerli bir cihazdan meşru kullanıcıyı kilitleyemez. Belirteç
+/// oturumdan uzun yaşar (TanidikCihazGun > oturum ömrü, başlangıçta denetlenir): yeniden girişin en sık nedeni olan
+/// oturum sonunda hâlâ geçerlidir. Her girişte, her oturum doğrulamasında (web sayfa açılışı, masaüstü açılışı) ve
+/// editörün şifre değişikliği/kurtarmasında yenilenir; kullanılan cihazda süresi dolmaz. Muafiyet ağa değil cihaza
+/// bağlıdır (aynı NAT ya da operatör ağındaki başka biri yararlanamaz) ve kalıcıdır (yeniden başlatmada kaybolmaz).
+/// Muaf deneme hedef bütçesi yerine cihaz başına bir bütçeden (ağ bütçesi kadar) ayrılır; başarısızlığı hedef
+/// bütçesine de yazılır.</item>
+/// <item>Ağ başına, bütün hedefler için ortak ve hedef bütçesinden küçük başarısız deneme bütçesi (ağ: IPv4 adresi
+/// ya da IPv6 /48 bloğu). Her zaman uygulanır, tanıdık cihaza da: tek ağ bir hedefin bütçesini tek başına
+/// tüketemez, muaf istemci de sınırsız deneyemez; ortak olduğu için kilitlenen ağın yanıtları adları ayırt ettirmez.</item>
 /// <item>Eşzamanlı şifre doğrulaması (PBKDF2) sınırlı ve kısa kuyruklu: giriş selinin CPU tüketimi uygulamanın geri
-/// kalanını yavaşlatamaz.</item>
+/// kalanını yavaşlatamaz. Ağ bütçesi doğrulama kapasitesinden küçük olduğundan tek ağ kuyruğu tek başına dolduramaz.</item>
+/// </list>
+/// Kalıntı riskler (bilerek kabul edilen):
+/// <list type="bullet">
+/// <item>Sayaçlar süreç belleğindedir: yeniden başlatma pencereleri sıfırlar (saldırgan yeniden başlatmayı
+/// tetikleyemez; en kötü durumda bir pencere kadar ek deneme kazanır). Tek örnekli dağıtım varsayılır; birden çok
+/// örnek her biri kendi bütçesini tutar.</item>
+/// <item>Hedef kilidi bir erişilebilirlik bedelidir: çok ağlı saldırgan, geçerli tanıdık cihaz belirteci olmayan
+/// meşru kullanıcıyı saldırı sürdükçe (her pencere 15 dk) dışarıda bırakabilir. Belirteci olmayanlar: ilk kez ya da
+/// yeni bir cihazdan girenler; çerezini ya da uygulama verisini silenler; cihazı son girişten ya da son oturum
+/// doğrulamasından bu yana TanidikCihazGun (180 gün) boyunca hiç kullanılmamış olanlar; şifresi ya da oturum sürümü
+/// başkası tarafından değiştirilenler (editörün alıcı ve izleyici şifresi değişikliği, alıcının pasife alınıp
+/// açılması: bütün belirteçleri düşer; editörün kendi değişikliğinde işlemi yapan cihaz yenisini alır); aynı cihazda
+/// kendi rolünün belirteci sonradan giren başka bir alıcınınkiyle ezilen alıcı (cihazda rol başına tek belirteç
+/// tutulur; editör, izleyici ve alıcı belirteçleri birbirini ezmez). Açık oturumlar (30 günlük çerez/JWT) ve
+/// tanıdık cihazlar etkilenmez; kilit bir kez uyarı olarak loglanır.</item>
+/// <item>Ağ bütçesi tanıdık cihaza da uygulanır: operatör NAT'ı (CGNAT) ya da ortak ofis IP'si paylaşan biri o
+/// ağın bütçesini tüketirse aynı IP'deki meşru kullanıcılar da pencere boyunca 429 alır.</item>
+/// <item>İstemci IP'si güvenilen vekilin X-Forwarded-For bildirimine dayanır; varsayılan güvenilen ağlar geniştir
+/// (<see cref="HizSinirlari.VarsayilanGuvenilirVekiller"/>, daraltma orada anlatılır). IP'den bağımsız hedef ve
+/// cihaz bütçeleri IP bildirimi sahte olsa da geçerlidir.</item>
+/// <item>Zamanlama: izleyici şifresi tanımlı değilse alıcı olmayan adlarda PBKDF2 çalışmaz; yanıt süresi farkı
+/// adın varlığını sızdırabilir (401/429 farkı sızdırmaz).</item>
 /// </list>
 /// </summary>
 public sealed class GirisSiniri : IDisposable
@@ -230,34 +319,33 @@ public sealed class GirisSiniri : IDisposable
     public const string EditorHedefi = "editor";
     public const string IzleyiciHedefi = "izleyici";
     public static string AliciHedefi(string kullanici) => "alici:" + kullanici;
+    /// <summary>Editör dışındaki bütün adların (alıcılar ve izleyici şifresi) ortak başarısız deneme bütçesi.</summary>
+    public const string EditorDisiButcesi = "editor-disi";
 
     private const string AgOnEki = "ag\n";
-    private const int TanidikUstSinir = 4096;
+    private const string CihazOnEki = "cihaz\n";
     private readonly PartitionedRateLimiter<string> _pencere;
-    private readonly PartitionedRateLimiter<string> _basarisiz;
+    private readonly DenemeButcesi _butce;
     private readonly ConcurrencyLimiter _dogrulama;
-    private readonly ConcurrentDictionary<string, DateTimeOffset> _tanidik = new();
     private readonly IOptionsMonitor<HizSiniriAyarlari> _ayarlar;
-    private readonly TimeProvider _saat;
     private readonly ILogger<GirisSiniri> _log;
 
     public GirisSiniri(IOptionsMonitor<HizSiniriAyarlari> ayarlar, TimeProvider saat, ILogger<GirisSiniri> log)
     {
         _ayarlar = ayarlar;
-        _saat = saat;
         _log = log;
         // İstek pencereleri: "ag\n<IPv6 /48>" ya da "<IP>\n<kullanıcı adı>".
         _pencere = PartitionedRateLimiter.Create<string, string>(anahtar => RateLimitPartition.GetFixedWindowLimiter(anahtar, _ =>
         {
             var a = ayarlar.CurrentValue;
-            return Pencere(anahtar.StartsWith(AgOnEki, StringComparison.Ordinal) ? a.GirisAgIzni : a.GirisKullaniciIzni, a.PencereDakika);
+            return new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = anahtar.StartsWith(AgOnEki, StringComparison.Ordinal) ? a.GirisAgIzni : a.GirisKullaniciIzni,
+                Window = TimeSpan.FromMinutes(a.PencereDakika),
+                QueueLimit = 0,
+            };
         }));
-        // Başarısız deneme bütçeleri: "ag\n<ağ>" ya da hedef adı.
-        _basarisiz = PartitionedRateLimiter.Create<string, string>(anahtar => RateLimitPartition.GetFixedWindowLimiter(anahtar, _ =>
-        {
-            var a = ayarlar.CurrentValue;
-            return Pencere(anahtar.StartsWith(AgOnEki, StringComparison.Ordinal) ? a.AgBasarisizIzni : a.HedefBasarisizIzni, a.HedefPencereDakika);
-        }));
+        _butce = new DenemeButcesi(saat);
         var baslangic = ayarlar.CurrentValue;
         _dogrulama = new ConcurrencyLimiter(new ConcurrencyLimiterOptions
         {
@@ -266,9 +354,6 @@ public sealed class GirisSiniri : IDisposable
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
         });
     }
-
-    private static FixedWindowRateLimiterOptions Pencere(int izin, int dakika)
-        => new() { PermitLimit = izin, Window = TimeSpan.FromMinutes(dakika), QueueLimit = 0 };
 
     /// <summary>Uç filtresi: IPv6 /48 bloğu ve (IP, kullanıcı adı) pencereleri; biri doluysa reddedilen lease.</summary>
     public RateLimitLease Dene(IPAddress? ip, string? kullanici)
@@ -282,36 +367,42 @@ public sealed class GirisSiniri : IDisposable
         return _pencere.AttemptAcquire(HizSinirlari.IstemciAnahtari(ip) + "\n" + Normalize(kullanici));
     }
 
-    /// <summary>Şifre doğrulanmadan önce çağrılır: hedef bu ağ için kilitliyse reddedilen lease (Retry-After taşır), açıksa null.</summary>
-    public RateLimitLease? HedefKilidi(string hedef, IPAddress? ip)
+    /// <summary>Hedefin başarısız deneme bütçesi: editörün kendisi, diğer bütün adlar için tek ortak kova.</summary>
+    public static string HedefButcesi(string hedef) => hedef == EditorHedefi ? EditorHedefi : EditorDisiButcesi;
+
+    /// <summary>
+    /// Şifre doğrulanmadan önce çağrılır. Ağın bütçesinden, ayrıca tanıdık cihaz kimliği (geçerli belirteç) yoksa
+    /// hedefin bütçesinden, varsa cihazın bütçesinden birer izin ayırır; biri doluysa hiçbirine dokunmadan
+    /// reddedilmiş deneme döner (Retry-After ile).
+    /// </summary>
+    public GirisDenemesi Baslat(string hedef, IPAddress? ip, string? tanidikCihaz)
     {
-        var ag = _basarisiz.AttemptAcquire(AgOnEki + Ag(ip), 0);
-        if (!ag.IsAcquired) return ag;
-        ag.Dispose();
-        if (Tanidik(hedef, ip)) return null;
-        // Alıcı adları izleyici kilidine de bağlıdır: izleyici bütçesi dolduğunda editör dışındaki her ad aynı yanıtı alır.
-        string[] kovalar = hedef is EditorHedefi or IzleyiciHedefi ? [hedef] : [hedef, IzleyiciHedefi];
-        foreach (var kova in kovalar)
-        {
-            var genel = _basarisiz.AttemptAcquire(kova, 0);
-            if (!genel.IsAcquired) return genel;
-            genel.Dispose();
-        }
-        return null;
+        var a = _ayarlar.CurrentValue;
+        var pencere = TimeSpan.FromMinutes(a.HedefPencereDakika);
+        var hedefKovasi = new DenemeButcesi.Kova(HedefButcesi(hedef), a.HedefBasarisizIzni, pencere);
+        DenemeButcesi.Kova[] kovalar =
+        [
+            new(AgOnEki + Ag(ip), a.AgBasarisizIzni, pencere),
+            tanidikCihaz is null ? hedefKovasi : new(CihazOnEki + tanidikCihaz, a.AgBasarisizIzni, pencere),
+        ];
+        var muaf = tanidikCihaz is not null;
+        return _butce.Ayir(kovalar, out var ayrilanlar, out var bekleme)
+            ? new GirisDenemesi(basarili => Sonuc(hedefKovasi, muaf, ayrilanlar, basarili), () => _butce.Iade(ayrilanlar))
+            : new GirisDenemesi(bekleme);
     }
 
-    /// <summary>Doğrulama sonucu: başarı ağı hedef için tanınır kılar; başarısızlık ağın ve hedefin bütçesini tüketir.</summary>
-    public void Sonuc(string hedef, IPAddress? ip, bool basarili)
+    private void Sonuc(DenemeButcesi.Kova hedefKovasi, bool muaf, DenemeButcesi.Ayrilan[] ayrilanlar, bool basarili)
     {
-        if (basarili) { TanidikYap(hedef, ip); return; }
-        _basarisiz.AttemptAcquire(AgOnEki + Ag(ip)).Dispose();
-        using var harcanan = _basarisiz.AttemptAcquire(hedef);
-        if (!harcanan.IsAcquired) return;
-        using var kalan = _basarisiz.AttemptAcquire(hedef, 0);
-        if (kalan.IsAcquired) return;
-        var a = _ayarlar.CurrentValue;
-        _log.LogWarning("Giriş hedefi '{Hedef}' için başarısız deneme sınırı doldu ({Izin} deneme / {Dakika} dk). Pencere bitene kadar tanınmayan ağlardan bu hedefe giriş reddedilir; dağıtık bir kaba kuvvet denemesi olabilir.",
-            hedef, a.HedefBasarisizIzni, a.HedefPencereDakika);
+        if (basarili)
+        {
+            _butce.Iade(ayrilanlar);
+            return;
+        }
+        // Tanıdık cihazın başarısızlığı da hedefin bütçesine yazılır: bütçe hedefe yapılan bütün denemeleri gösterir.
+        if (muaf) _butce.Say(hedefKovasi);
+        if (!_butce.IlkKezDoldu(hedefKovasi)) return;
+        _log.LogWarning("Giriş bütçesi '{Butce}' için başarısız deneme sınırı doldu ({Izin} deneme / {Dakika} dk). Pencere bitene kadar kilitten muaf olmayan istemcilerin bu bütçeye bağlı adlarla girişi şifre denenmeden reddedilir; dağıtık bir kaba kuvvet denemesi olabilir.",
+            hedefKovasi.Anahtar, hedefKovasi.Izin, hedefKovasi.Pencere.TotalMinutes);
     }
 
     /// <summary>Eşzamanlı PBKDF2 doğrulaması için izin; kuyruk doluysa hemen reddedilen lease döner.</summary>
@@ -319,28 +410,6 @@ public sealed class GirisSiniri : IDisposable
 
     /// <summary>İzin bekleyen doğrulama sayısı.</summary>
     public long KuyruktakiDogrulama => _dogrulama.GetStatistics()?.CurrentQueuedCount ?? 0;
-
-    private bool Tanidik(string hedef, IPAddress? ip)
-    {
-        var gun = _ayarlar.CurrentValue.TanidikAgGun;
-        return gun > 0 && _tanidik.TryGetValue(hedef + "\n" + Ag(ip), out var son) && _saat.GetUtcNow() - son < TimeSpan.FromDays(gun);
-    }
-
-    private void TanidikYap(string hedef, IPAddress? ip)
-    {
-        var gun = _ayarlar.CurrentValue.TanidikAgGun;
-        if (gun <= 0) return;
-        var anahtar = hedef + "\n" + Ag(ip);
-        var simdi = _saat.GetUtcNow();
-        // Yalnız doğru şifreyle büyür; yine de üst sınıra gelinirse önce süresi dolanlar atılır.
-        if (!_tanidik.ContainsKey(anahtar) && _tanidik.Count >= TanidikUstSinir)
-        {
-            foreach (var (k, son) in _tanidik)
-                if (simdi - son >= TimeSpan.FromDays(gun)) _tanidik.TryRemove(k, out _);
-            if (_tanidik.Count >= TanidikUstSinir) return;
-        }
-        _tanidik[anahtar] = simdi;
-    }
 
     /// <summary>Ağ: IPv4 adresi ya da IPv6 /48 bloğu (tek kişinin bloğu tek ağ sayılır).</summary>
     private static string Ag(IPAddress? ip) => HizSinirlari.AgAnahtari(ip) ?? HizSinirlari.IstemciAnahtari(ip);
@@ -355,7 +424,146 @@ public sealed class GirisSiniri : IDisposable
     public void Dispose()
     {
         _pencere.Dispose();
-        _basarisiz.Dispose();
         _dogrulama.Dispose();
+    }
+}
+
+/// <summary>
+/// Şifre doğrulamasından önce bütçesi ayrılmış giriş denemesi. <see cref="Sonuc"/> doğrulamanın hemen ardından
+/// (arada await olmadan) çağrılır: başarı ayrılan izni iade eder, başarısızlık harcanmış bırakır. Sonuç
+/// bildirilmeden kapanan deneme (doğrulama kuyruğu dolu, istek iptal edildi) şifre denenmediği için iade edilir.
+/// </summary>
+public sealed class GirisDenemesi : IDisposable
+{
+    private readonly Action<bool>? _sonuc;
+    private readonly Action? _iade;
+    private int _kapandi;
+
+    internal GirisDenemesi(Action<bool> sonuc, Action iade)
+    {
+        _sonuc = sonuc;
+        _iade = iade;
+    }
+
+    internal GirisDenemesi(TimeSpan bekleme)
+    {
+        RedSuresi = bekleme;
+        _kapandi = 1;
+    }
+
+    /// <summary>Bütçe doluysa bekleme süresi (şifre denenmeden 429 verilir); null ise deneme ayrıldı.</summary>
+    public TimeSpan? RedSuresi { get; }
+
+    public void Sonuc(bool basarili)
+    {
+        if (Interlocked.Exchange(ref _kapandi, 1) == 0) _sonuc!(basarili);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _kapandi, 1) == 0) _iade!();
+    }
+}
+
+/// <summary>
+/// Başarısız deneme bütçeleri: anahtar başına sabit pencereli sayaç (pencere ilk denemeyle başlar, saat DI'daki
+/// <see cref="TimeProvider"/>'dan okunur). Birden çok kova tek kilit altında ya hep ya hiç ayrılır; ayrılan izin
+/// yalnız ayrıldığı pencere sürerken iade edilir (yeni pencerenin sayacına dokunmaz).
+/// </summary>
+internal sealed class DenemeButcesi(TimeProvider saat)
+{
+    internal readonly record struct Kova(string Anahtar, int Izin, TimeSpan Pencere);
+    internal readonly record struct Ayrilan(string Anahtar, DateTimeOffset Bitis);
+
+    private sealed class Sayac
+    {
+        public DateTimeOffset Bitis;
+        public int Deger;
+        public bool Uyarildi;
+    }
+
+    private const int TemizlikEsigi = 1024;
+    private readonly Lock _kilit = new();
+    private readonly Dictionary<string, Sayac> _sayaclar = new(StringComparer.Ordinal);
+    private DateTimeOffset _sonTemizlik;
+
+    /// <summary>Kovaların hepsinde yer varsa her birinden bir izin ayırır; biri doluysa hiçbirine dokunmaz ve en uzun bekleme süresini döner.</summary>
+    public bool Ayir(IReadOnlyList<Kova> kovalar, out Ayrilan[] ayrilanlar, out TimeSpan bekleme)
+    {
+        lock (_kilit)
+        {
+            var simdi = saat.GetUtcNow();
+            Temizle(simdi);
+            bekleme = TimeSpan.Zero;
+            var sayaclar = new Sayac[kovalar.Count];
+            for (var i = 0; i < kovalar.Count; i++)
+            {
+                sayaclar[i] = Guncel(kovalar[i], simdi);
+                if (sayaclar[i].Deger >= kovalar[i].Izin && sayaclar[i].Bitis - simdi > bekleme) bekleme = sayaclar[i].Bitis - simdi;
+            }
+            if (bekleme > TimeSpan.Zero)
+            {
+                ayrilanlar = [];
+                return false;
+            }
+            ayrilanlar = new Ayrilan[kovalar.Count];
+            for (var i = 0; i < kovalar.Count; i++)
+            {
+                sayaclar[i].Deger++;
+                ayrilanlar[i] = new(kovalar[i].Anahtar, sayaclar[i].Bitis);
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Ayrılan izinleri, ayrıldıkları pencere sürüyorsa geri verir.</summary>
+    public void Iade(IEnumerable<Ayrilan> ayrilanlar)
+    {
+        lock (_kilit)
+            foreach (var a in ayrilanlar)
+                if (_sayaclar.TryGetValue(a.Anahtar, out var s) && s.Bitis == a.Bitis && s.Deger > 0) s.Deger--;
+    }
+
+    /// <summary>Sınır denetlemeden bir deneme sayar (kilitten muaf istemcinin başarısızlığı için).</summary>
+    public void Say(Kova kova)
+    {
+        lock (_kilit)
+        {
+            var s = Guncel(kova, saat.GetUtcNow());
+            if (s.Deger < int.MaxValue) s.Deger++;
+        }
+    }
+
+    /// <summary>Kova sınıra ulaştıysa ve bu pencerede henüz bildirilmediyse true (pencere başına bir kez).</summary>
+    public bool IlkKezDoldu(Kova kova)
+    {
+        lock (_kilit)
+        {
+            if (!_sayaclar.TryGetValue(kova.Anahtar, out var s) || s.Bitis <= saat.GetUtcNow() || s.Deger < kova.Izin || s.Uyarildi) return false;
+            s.Uyarildi = true;
+            return true;
+        }
+    }
+
+    private Sayac Guncel(Kova kova, DateTimeOffset simdi)
+    {
+        if (!_sayaclar.TryGetValue(kova.Anahtar, out var s))
+            _sayaclar[kova.Anahtar] = s = new Sayac { Bitis = simdi + kova.Pencere };
+        else if (s.Bitis <= simdi)
+        {
+            s.Bitis = simdi + kova.Pencere;
+            s.Deger = 0;
+            s.Uyarildi = false;
+        }
+        return s;
+    }
+
+    // Süresi dolan kovalar (ör. saldırganın tek seferlik ağları) aralıkla atılır: sözlük bir pencerede görülen ağ sayısıyla sınırlı kalır.
+    private void Temizle(DateTimeOffset simdi)
+    {
+        if (_sayaclar.Count < TemizlikEsigi || simdi - _sonTemizlik < TimeSpan.FromMinutes(1)) return;
+        _sonTemizlik = simdi;
+        foreach (var (anahtar, s) in _sayaclar)
+            if (s.Bitis <= simdi) _sayaclar.Remove(anahtar);
     }
 }
