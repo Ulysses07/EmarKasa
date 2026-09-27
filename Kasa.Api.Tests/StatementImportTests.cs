@@ -14,9 +14,18 @@ namespace Kasa.Api.Tests;
 
 public class StatementImportTests
 {
-    private static DateOnly Today => FinansTakipServisi.Bugun;
-    private static DateOnly Start => new(Today.Year, 1, 1);
-    private static async Task<HttpClient> Editor(KasaWebFactory f)
+    // Takvim sınırları (tests-1): aynı testler yıl başında, artık yılın Şubat sonunda ve kırpılan ay sonunda da koşar.
+    public sealed class YilBasi() : StatementImportTests(new(2027, 1, 1));
+    public sealed class ArtikYilSubatSonu() : StatementImportTests(new(2028, 2, 29));
+    public sealed class KirpilanAySonu() : StatementImportTests(new(2027, 3, 31));
+
+    public StatementImportTests() : this(KasaWebFactory.VarsayilanBugun) { }
+    private StatementImportTests(DateOnly bugun) => Today = bugun;
+    private DateOnly Today { get; }
+    // Takip başlangıcı bugünün ayından 8 ay önce: varsayılan günde 1 Ocak 2026; önceki ay her günde takip içinde kalır.
+    private DateOnly Start => new DateOnly(Today.Year, Today.Month, 1).AddMonths(-8);
+    private KasaWebFactory Factory() => KasaWebFactory.Sabit(Today);
+    private async Task<HttpClient> Editor(KasaWebFactory f)
     {
         var c = await f.EditorClientAsync();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Start, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode(); return c;
@@ -27,9 +36,9 @@ public class StatementImportTests
         return (await r.Content.ReadFromJsonAsync<T>())!;
     }
     private static Task<PanelDto?> Panel(HttpClient c) => c.GetFromJsonAsync<PanelDto>("/api/rapor/panel");
-    private static EkstreSatirYaz Row(int no, string type, decimal amount = 100m, string distribution = "Ozel", params KanalPayYaz[] shares) =>
+    private EkstreSatirYaz Row(int no, string type, decimal amount = 100m, string distribution = "Ozel", params KanalPayYaz[] shares) =>
         new(no, Today, "Banka hareketi " + no, amount, type, distribution, shares.Length == 0 && distribution == "Ozel" ? [new(1, amount)] : shares);
-    private static async Task<EkstreBelgeDto> Document(KasaWebFactory f, HttpClient c, string source = "Banka", int? card = null, int count = 3, string currency = "TRY", string direction = "Cikis")
+    private async Task<EkstreBelgeDto> Document(KasaWebFactory f, HttpClient c, string source = "Banka", int? card = null, int count = 3, string currency = "TRY", string direction = "Cikis")
     {
         int id;
         using (var scope = f.Services.CreateScope())
@@ -50,12 +59,12 @@ public class StatementImportTests
         return (request with { OnizlemeOzeti = preview.OnizlemeOzeti, TekrarOnay = true }, preview);
     }
     private static Task<EkstreBelgeDto> Save(HttpClient c, EkstreBelgeDto d, EkstreKaydetYaz request) => Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{d.Id}/kaydet", request);
-    private static Task<KartTakipDto> Card(HttpClient c) => Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Ekstre kart", 10000m, 5, 25, Start, 0, []));
+    private Task<KartTakipDto> Card(HttpClient c) => Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Ekstre kart", 10000m, 5, 25, Start, 0, []));
 
     [Fact]
     public async Task Onizleme_kaydi_kasa_ve_kart_borcu_uretmez_tum_secili_banka_satirlari_bir_kez_islenir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var doc = await Document(f, c);
+        await using var f = Factory(); using var c = await Editor(f); var doc = await Document(f, c);
         var (request, preview) = await Preview(c, doc, Row(1, "Gelir", 200m, "Ozel", new(1, 120m), new(2, 80m)), Row(2, "Gider", 50m, "Esit", new(1, 0), new(2, 0)));
         Assert.Equal(150m, preview.KasaEtkisi); Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
         using (var scope = f.Services.CreateScope())
@@ -73,7 +82,7 @@ public class StatementImportTests
     [Fact]
     public async Task Yalniz_genel_gelir_gider_kanallara_dagilmaz_rapor_ve_iptal_gecmisi_dogru_kalir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var doc = await Document(f, c);
+        await using var f = Factory(); using var c = await Editor(f); var doc = await Document(f, c);
         var (request, _) = await Preview(c, doc, Row(1, "Gelir", 100m, "Genel"), Row(2, "Gider", 30m, "Genel"));
         doc = await Save(c, doc, request); var panel = (await Panel(c))!;
         Assert.Equal(1070m, panel.GuncelKasa); Assert.Equal(70m, panel.BuAySonucu); Assert.All(panel.Kanallar, k => Assert.Equal(0m, k.Bakiye));
@@ -93,7 +102,7 @@ public class StatementImportTests
     [Fact]
     public async Task Kart_harcama_ve_kismi_odeme_ayni_pakette_kaynak_kanallara_dogru_yansir_iptal_kaynak_bagindan_yapilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
         var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama", 100m, "Ozel", new(1, 60m), new(2, 40m)), Row(2, "KartOdemesi", 20m, "Otomatik"));
         Assert.Equal(-20m, preview.KasaEtkisi); Assert.Equal(new[] { 12m, 8m }, preview.Satirlar[1].Dagilimlar.Select(p => p.Tutar));
         Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
@@ -111,7 +120,7 @@ public class StatementImportTests
     [Fact]
     public async Task Banka_kart_odemesi_gider_olarak_ikinci_kez_yazilmaz_ve_iade_yalniz_kaynak_borctan_duser()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Mal", 100m, 1, null, [new(1, 60m), new(2, 40m)]));
         var bank = await Document(f, c); var (pay, _) = await Preview(c, bank, Row(1, "KartOdemesi", 20m, "Otomatik") with { KrediKartiId = card.Id });
         await Save(c, bank, pay); Assert.Equal(980m, (await Panel(c))!.GuncelKasa);
@@ -123,7 +132,7 @@ public class StatementImportTests
     [Fact]
     public async Task Iptal_edilen_odeme_sonrasi_ekstreden_iade_raporlari_ve_kart_ekranini_dusurmez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Mal", 100m, 1, null, [new(1, 100m)]));
         var source = card.Harcamalar.Single();
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 100m));
@@ -145,7 +154,7 @@ public class StatementImportTests
     [Fact]
     public async Task Iptal_edilen_odeme_satiri_belge_gecmisinde_kayitli_kanal_dagilimini_korur()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
         var (request, _) = await Preview(c, doc, Row(1, "KartHarcama", 100m, "Ozel", new(1, 60m), new(2, 40m)), Row(2, "KartOdemesi", 20m, "Otomatik"), Row(3, "KartOdemesi", 30m, "Otomatik"));
         doc = await Save(c, doc, request);
         var cancelled = doc.Kayitlar.Single(k => k.SatirNo == 2);
@@ -165,7 +174,7 @@ public class StatementImportTests
     [Fact]
     public async Task Odeme_harcamadan_once_secildiginde_onizleme_son_kanal_dagilimini_gosterir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
         var (request, preview) = await Preview(c, doc, Row(1, "KartOdemesi", 100m, "Otomatik"), Row(2, "KartHarcama", 100m, "Ozel", new(1, 60m), new(2, 40m)));
         Assert.Equal(-100m, preview.KasaEtkisi); Assert.Equal(new[] { 60m, 40m }, preview.Satirlar[0].Dagilimlar.Select(p => p.Tutar));
         Assert.DoesNotContain(preview.Satirlar[0].Dagilimlar, p => p.KanalId is null);
@@ -176,7 +185,7 @@ public class StatementImportTests
     [Fact]
     public async Task Eski_avansi_kanala_baglayan_harcama_onizlemede_acik_uyari_ve_onay_ister()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 100m));
         var doc = await Document(f, c, "Kart", card.Id); var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama"));
         Assert.Equal(0m, preview.KasaEtkisi); Assert.True(preview.TekrarOnayGerekli); Assert.Contains(preview.Uyarilar, w => w.Contains("Önceden kaydedilen kart avansının"));
@@ -187,7 +196,7 @@ public class StatementImportTests
     [Fact]
     public async Task Son_satirdaki_hata_ilk_satiri_yarim_kaydetmez_ve_oynanmis_kaynak_satiri_reddedilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var doc = await Document(f, c);
+        await using var f = Factory(); using var c = await Editor(f); var doc = await Document(f, c);
         var request = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [Row(1, "Gider"), Row(99, "Gelir")]);
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request)).StatusCode);
         Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
@@ -197,7 +206,7 @@ public class StatementImportTests
     [Fact]
     public async Task Manuel_benzer_kayit_uyarisi_onay_gerektirir_ve_sonradan_eklenirse_eski_onizleme_reddedilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var doc = await Document(f, c);
+        await using var f = Factory(); using var c = await Editor(f); var doc = await Document(f, c);
         var (request, preview) = await Preview(c, doc, Row(1, "Gider")); Assert.False(preview.TekrarOnayGerekli);
         (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Manuel banka gideri", 100m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request)).StatusCode);
@@ -210,7 +219,7 @@ public class StatementImportTests
     [InlineData("USD", "Cikis", false)] [InlineData("Belirsiz", "Belirsiz", true)]
     public async Task Doviz_reddedilir_belirsiz_yon_ve_para_birimi_acik_onay_ister(string currency, string direction, bool allowed)
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var doc = await Document(f, c, currency: currency, direction: direction);
+        await using var f = Factory(); using var c = await Editor(f); var doc = await Document(f, c, currency: currency, direction: direction);
         var request = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [Row(1, "Gider")]);
         var response = await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request);
         if (!allowed) { Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); return; }
@@ -223,7 +232,7 @@ public class StatementImportTests
     [Fact]
     public async Task Kilitli_aya_gelir_gider_ve_kart_kaydi_yazilamaz_iptali_de_yapilamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var doc = await Document(f, c);
+        await using var f = Factory(); using var c = await Editor(f); var doc = await Document(f, c);
         var previous = new DateOnly(Today.Year, Today.Month, 1).AddDays(-1);
         var (request, _) = await Preview(c, doc, Row(1, "Gelir", 100m, "Genel") with { Tarih = previous }); doc = await Save(c, doc, request);
         var state = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
@@ -237,7 +246,7 @@ public class StatementImportTests
     [Fact]
     public async Task Kart_surumu_degisince_onizleme_yenilenir_ve_diger_belgenin_satirina_aktarim_yapilmaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
         var (request, _) = await Preview(c, doc, Row(1, "KartHarcama"));
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Başka harcama", 20m, 1, null, [new(1, 20m)]));
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request)).StatusCode);
@@ -249,7 +258,7 @@ public class StatementImportTests
     [Fact]
     public async Task Yukleme_hash_ile_tekrarlanmaz_dosya_ozeldir_ve_sadece_editor_erisebilir()
     {
-        await using var f = new PdfFactory(); using var c = await Editor(f);
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today) }; using var c = await Editor(f);
         async Task<HttpResponseMessage> Upload(string account = "Ana banka", byte[]? bytes = null)
         {
             using var form = new MultipartFormDataContent(); form.Add(new StringContent("Banka"), "kaynak"); form.Add(new StringContent("Akbank"), "banka"); form.Add(new StringContent(account), "hesapAdi");
@@ -270,7 +279,7 @@ public class StatementImportTests
     [Fact]
     public async Task Elli_belgeden_eski_gecmise_sayfalama_ve_kaynak_kimligi_ile_ulas_ilabilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); var original = await Document(f, c);
+        await using var f = Factory(); using var c = await Editor(f); var original = await Document(f, c);
         var (request, _) = await Preview(c, original, Row(1, "Gider")); original = await Save(c, original, request);
         var source = original.Kayitlar[0];
         using (var scope = f.Services.CreateScope())
@@ -295,11 +304,11 @@ public class StatementImportTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            base.ConfigureWebHost(builder); builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu, FakePdf>(); });
+            base.ConfigureWebHost(builder); builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu>(new FakePdf(Bugun)); });
         }
     }
-    private sealed class FakePdf : IPdfMetinOkuyucu
+    private sealed class FakePdf(DateOnly bugun) : IPdfMetinOkuyucu
     {
-        public Task<string> OkuAsync(byte[] pdf, CancellationToken ct) => Task.FromResult($"İşlem Tarihi    Açıklama                Tutar        Bakiye\n{Today:dd.MM.yyyy}    KOMİSYON                  -10,00 TL    990,00 TL\n");
+        public Task<string> OkuAsync(byte[] pdf, CancellationToken ct) => Task.FromResult($"İşlem Tarihi    Açıklama                Tutar        Bakiye\n{bugun:dd.MM.yyyy}    KOMİSYON                  -10,00 TL    990,00 TL\n");
     }
 }

@@ -12,6 +12,9 @@ public class EkstreBorcTests
     {
         await using var f = new KasaWebFactory();
         var c = await f.EditorClientAsync();
+        // Bilinçli istisna: eski /api/kredikartlari ucu (Program.cs) son kesimi kasa saatinden değil,
+        // sunucu makinesinin DateTime.Today'inden hesaplar; sabit saat bu uca ulaşmaz. Test aynı kaynağa
+        // hizalanır; uç KasaSaati'ne geçtiğinde KasaWebFactory.Sabit ile sabit güne alınmalı.
         var bugun = DateOnly.FromDateTime(DateTime.Today);
         var kesim = bugun.AddDays(-5);      // en son kesim 5 gün önce
         var kart = LegacyFinanceSeed.Kart(f, new("Test", kesim, bugun.AddDays(5), 100000m, 1000m));

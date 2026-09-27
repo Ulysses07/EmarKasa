@@ -16,18 +16,25 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Eski karttan yeni takibe geçiş (finance-1). Muhasebe senaryoları sabit ve geçmiş
 /// tarihlidir: bütün etki tarihleri geride kaldığından sonuç takvimden bağımsızdır.
-/// Uç (önizleme/onay) senaryoları ayın her gününde aynı sonucu verecek biçimde
-/// bugüne göre kurulur; geçiş tarihi kuralı gereği bugün veya sonrası olmalıdır.
+/// Uç (önizleme/onay) senaryoları sunucunun sabit "bugün"üne göre kurulur (geçiş tarihi
+/// kuralı gereği bugün veya sonrası olmalıdır) ve takvim sınırı günlerinde de koşar.
 /// </summary>
 public class KartGecisTests
 {
-    private static DateOnly Today => FinansTakipServisi.Bugun;
+    private static DateOnly Today => KasaWebFactory.VarsayilanBugun;
+    private static KasaWebFactory Factory() => KasaWebFactory.Sabit(Today);
+    // Bugüne göre kurulan uç senaryoları varsayılan günde ve takvim sınırlarında (yıl başı, artık yılın
+    // Şubat sonu, önceki ayı kısa olan ay sonu) koşar.
+    public static TheoryData<int, int, int> TakvimSinirlari => new()
+    {
+        { Today.Year, Today.Month, Today.Day }, { 2027, 1, 1 }, { 2028, 2, 29 }, { 2027, 3, 31 },
+    };
     private static DateOnly AySonu(DateOnly d) => new(d.Year, d.Month, DateTime.DaysInMonth(d.Year, d.Month));
 
     [Fact]
     public async Task Bankaya_onceden_odenmis_bekleyen_eski_gider_geciste_kaybolmaz_bir_kez_duser()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f, new(2025, 1, 1));
+        await using var f = Factory(); using var c = await Editor(f, new(2025, 1, 1));
         // Kesim 5, son ödeme 15: 3 Ağustos gideri 15 Ağustos'ta bankaya ödendi, eski kural 30 Eylül'de düşer.
         var id = EskiKart(f, 0m, (new(2025, 8, 3), 1000m, 1));
         using (var scope = f.Services.CreateScope())
@@ -58,7 +65,7 @@ public class KartGecisTests
     [Fact]
     public async Task Bulgu_senaryosu_onerilen_tutarla_gecis_ay_sonu_dusumunu_bir_kez_yapar_odeme_ikinci_kez_dusurmez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f, new(2025, 1, 1));
+        await using var f = Factory(); using var c = await Editor(f, new(2025, 1, 1));
         var id = EskiKart(f, 0m, (new(2025, 9, 10), 1000m, 1));
         var before = await Raporlar(c, 2025, 9, 10, 11);
         Assert.Equal(0m, await Cash(c));
@@ -82,7 +89,7 @@ public class KartGecisTests
     [Fact]
     public async Task Eski_kuralla_dusulmus_borcun_odemesi_onerilen_tutarla_ikinci_kez_dusmez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f, new(2025, 1, 1));
+        await using var f = Factory(); using var c = await Editor(f, new(2025, 1, 1));
         var id = EskiKart(f, 0m, (new(2025, 8, 25), 1000m, 1));
         var before = await Raporlar(c, 2025, 9, 10);
         using (var scope = f.Services.CreateScope())
@@ -127,19 +134,21 @@ public class KartGecisTests
         Assert.False(db.ChangeTracker.HasChanges());
     }
 
-    [Fact]
-    public async Task Onizleme_bekleyen_eski_dusumu_ve_onerilen_tutari_gosterir_onayli_geciste_rapor_degismez()
+    [Theory]
+    [MemberData(nameof(TakvimSinirlari))]
+    public async Task Onizleme_bekleyen_eski_dusumu_ve_onerilen_tutari_gosterir_onayli_geciste_rapor_degismez(int yil, int ay, int gun)
     {
-        var gider = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-1);
-        await using var f = new KasaWebFactory(); using var c = await Editor(f, gider);
+        var bugun = new DateOnly(yil, ay, gun);
+        var gider = new DateOnly(bugun.Year, bugun.Month, 1).AddMonths(-1);
+        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, gider);
         var id = EskiKart(f, 0m, (gider, 1000m, 1));
-        var before = await Raporlar(c, Today.Year, Today.Month);
-        var request = new KartGecisYaz(Guid.NewGuid(), 0, Today, 1000m, 1000m, [new(1, 1000m)], "Bekleyen düşüm doğrulandı", false);
+        var before = await Raporlar(c, bugun.Year, bugun.Month);
+        var request = new KartGecisYaz(Guid.NewGuid(), 0, bugun, 1000m, 1000m, [new(1, 1000m)], "Bekleyen düşüm doğrulandı", false);
         var preview = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request);
-        Assert.Equal(new KartGecisOzeti(1000m, 0m, 1000m, AySonu(Today), 1000m), new KartGecisOzeti(preview.SistemKartBorcu!.Value, preview.EskiKuraldaIslenenTutar!.Value,
+        Assert.Equal(new KartGecisOzeti(1000m, 0m, 1000m, AySonu(bugun), 1000m), new KartGecisOzeti(preview.SistemKartBorcu!.Value, preview.EskiKuraldaIslenenTutar!.Value,
             preview.BekleyenEskiDusumTutari!.Value, preview.SonBekleyenDusumTarihi, preview.OnerilenKasadaSayilanTutar!.Value));
         Assert.Equal((0m, 0m, true), (preview.GenelKasaAnlikFarki, preview.KanalAnlikFarki, preview.KabulEdilebilir));
-        Assert.Contains(preview.Aciklamalar, a => a.Contains("1.000,00 TL eski kart gideri") && a.Contains(AySonu(Today).ToString("dd.MM.yyyy")));
+        Assert.Contains(preview.Aciklamalar, a => a.Contains("1.000,00 TL eski kart gideri") && a.Contains(AySonu(bugun).ToString("dd.MM.yyyy")));
         Assert.Contains(preview.Aciklamalar, a => a.Contains("düşen/düşecek kart gideri: 0,00 TL"));
 
         var card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis", request with { Onay = true });
@@ -147,22 +156,52 @@ public class KartGecisTests
         // Denetim izi: açıklama, girilen tutarlar ve onay anındaki önizleme özeti saklanır.
         var gecis = card.Gecis!;
         Assert.Equal(("IslemTarihi", "Bekleyen düşüm doğrulandı", 0m, (string?)null), (gecis.Kural, gecis.Aciklama, gecis.RaporDisiEskiDusumTutari, gecis.Uyari));
-        Assert.Equal(new KartGecisKaydi(Today, 1000m, 1000m, 1000m, 0m, 1000m, AySonu(Today), 1000m), gecis.Onizleme);
+        Assert.Equal(new KartGecisKaydi(bugun, 1000m, 1000m, 1000m, 0m, 1000m, AySonu(bugun), 1000m), gecis.Onizleme);
         Assert.Equal(gecis, (await c.GetFromJsonAsync<List<KartTakipDto>>("/api/takip/kartlar"))!.Single(k => k.Id == id).Gecis);
-        Assert.Equal(before, await Raporlar(c, Today.Year, Today.Month));
-        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 1000m));
+        Assert.Equal(before, await Raporlar(c, bugun.Year, bugun.Month));
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, bugun, 1000m));
         Assert.Equal(0m, Assert.Single(card.Odemeler).KasaEtkisi);
-        Assert.Equal(before, await Raporlar(c, Today.Year, Today.Month));
-        var buAy = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={Today.Year}&ay={Today.Month}"))!;
+        Assert.Equal(before, await Raporlar(c, bugun.Year, bugun.Month));
+        var buAy = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={bugun.Year}&ay={bugun.Month}"))!;
         Assert.Equal(1000m, buAy.Kanallar.Single(k => k.Kanal == "MEZAT").KrediKarti);
     }
 
-    [Fact]
-    public async Task Onerilenden_buyuk_tutar_reddedilir_kucuk_tutar_ikinci_kez_dusum_uyarisiyla_kabul_edilir()
+    [Theory]
+    [MemberData(nameof(TakvimSinirlari))]
+    public async Task Eski_kart_gideri_etki_ayi_icinde_bekler_etki_gunu_bir_kez_duser_gecis_ve_odeme_ikinci_kez_dusurmez(int yil, int ay, int gun)
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f, new(Today.Year, 1, 1));
+        var bugun = new DateOnly(yil, ay, gun);
+        // tests-2: önceki ayın gideri eski kuralla bu ayın son günü düşer. Saat etki gününden bir gün önce
+        // başlar ve test ilerletir; takvim sınırı satırlarında etki günü 31 Ocak, 29 Şubat (artık yıl) ve 31 Mart olur.
+        var etki = AySonu(bugun); var gider = new DateOnly(bugun.Year, bugun.Month, 1).AddMonths(-1);
+        var saat = new SabitSaat(etki.AddDays(-1));
+        await using var f = new KasaWebFactory { Saat = saat }; using var c = await Editor(f, gider);
+        var id = EskiKart(f, 0m, (gider, 1000m, 1));
+        Assert.Equal(1000m, await Cash(c));
+        var request = new KartGecisYaz(Guid.NewGuid(), 0, f.Bugun, 1000m, 1000m, [new(1, 1000m)], "Etki gününden önce geçiş", false);
+        var preview = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request);
+        Assert.Equal((0m, 1000m, (DateOnly?)etki, 1000m, true), (preview.EskiKuraldaIslenenTutar!.Value, preview.BekleyenEskiDusumTutari!.Value,
+            preview.SonBekleyenDusumTarihi, preview.OnerilenKasadaSayilanTutar!.Value, preview.KabulEdilebilir));
+        var card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis", request with { Onay = true });
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, f.Bugun, 1000m));
+        Assert.Equal(0m, Assert.Single(card.Odemeler).KasaEtkisi);
+        // Etki ayı içinde ödeme kasadan düşmez, eski düşüm henüz gelmedi.
+        Assert.Equal(1000m, await Cash(c));
+        // Etki günü eski kural düşer; ay dışına çıkınca düşüm tam bir kez kalır.
+        saat.Ayarla(etki); Assert.Equal(0m, await Cash(c));
+        saat.Ayarla(etki.AddDays(1)); Assert.Equal(0m, await Cash(c));
+        var etkiAyi = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={etki.Year}&ay={etki.Month}"))!;
+        Assert.Equal(1000m, etkiAyi.Kanallar.Single(k => k.Kanal == "MEZAT").KrediKarti);
+    }
+
+    [Theory]
+    [MemberData(nameof(TakvimSinirlari))]
+    public async Task Onerilenden_buyuk_tutar_reddedilir_kucuk_tutar_ikinci_kez_dusum_uyarisiyla_kabul_edilir(int yil, int ay, int gun)
+    {
+        var bugun = new DateOnly(yil, ay, gun);
+        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, new(bugun.Year, 1, 1));
         var id = EskiKart(f, 100m);
-        var request = new KartGecisYaz(Guid.NewGuid(), 0, Today, 300m, 200m, [new(1, 300m)], "Banka borcu", false);
+        var request = new KartGecisYaz(Guid.NewGuid(), 0, bugun, 300m, 200m, [new(1, 300m)], "Banka borcu", false);
 
         var fazla = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request);
         Assert.Equal((100m, 100m, 100m, false), (fazla.OnerilenKasadaSayilanTutar!.Value, fazla.GenelKasaAnlikFarki, fazla.KanalAnlikFarki, fazla.KabulEdilebilir));
@@ -187,16 +226,18 @@ public class KartGecisTests
         Assert.Equal(EskiDusumKurali.IslemTarihi, scope.ServiceProvider.GetRequiredService<KasaDbContext>().TakipKartlar.Single(t => t.KrediKartiId == id).EskiDusumKurali);
     }
 
-    [Fact]
-    public async Task Onerilenin_acilis_borcundan_fazla_altindaki_tutar_ikinci_kez_dusecegi_icin_reddedilir()
+    [Theory]
+    [MemberData(nameof(TakvimSinirlari))]
+    public async Task Onerilenin_acilis_borcundan_fazla_altindaki_tutar_ikinci_kez_dusecegi_icin_reddedilir(int yil, int ay, int gun)
     {
-        var gider = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-1);
-        await using var f = new KasaWebFactory(); using var c = await Editor(f, gider);
+        var bugun = new DateOnly(yil, ay, gun);
+        var gider = new DateOnly(bugun.Year, bugun.Month, 1).AddMonths(-1);
+        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, gider);
         // Sistem borcu = önerilen = 100 açılış + 1.000 eski gider. Eski gider eski kuralla bir kez düşer;
         // kasadan ayrıca ödenebilecek tek kısım eski modelde hiç düşmemiş 100 TL açılış borcudur.
         var id = EskiKart(f, 100m, (gider, 1000m, 1));
         // Eski Windows istemcisi önceden sayılan tutarı varsayılan 0 gönderir.
-        var request = new KartGecisYaz(Guid.NewGuid(), 0, Today, 1100m, 0m, [new(1, 1100m)], "Varsayılan tutar", false);
+        var request = new KartGecisYaz(Guid.NewGuid(), 0, bugun, 1100m, 0m, [new(1, 1100m)], "Varsayılan tutar", false);
 
         var sifir = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request);
         Assert.Equal((1100m, -1100m, false), (sifir.OnerilenKasadaSayilanTutar!.Value, sifir.GenelKasaAnlikFarki, sifir.KabulEdilebilir));
@@ -225,7 +266,7 @@ public class KartGecisTests
             EskiGecisVerisi(db);
         }
         var logs = new UyariToplayici();
-        await using var f = new HazirFactory(connection, logs); using var c = await f.EditorClientAsync();
+        await using var f = new HazirFactory(connection, logs) { Saat = new SabitSaat(Today) }; using var c = await f.EditorClientAsync();
         // Tespit veri dönüştürmez: raporlar 2.3.0 çıktısıyla birebir aynı kalır.
         Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
         for (var ay = 7; ay <= 11; ay++) Assert.Equal(OncekiAylik[ay - 7], await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
@@ -304,7 +345,7 @@ public class KartGecisTests
             db.GetService<IMigrator>().Migrate("20260927000100_StatementImports");
             EskiGecisVerisi(db);
         }
-        await using var f = new HazirFactory(connection); using var c = await f.EditorClientAsync();
+        await using var f = new HazirFactory(connection) { Saat = new SabitSaat(Today) }; using var c = await f.EditorClientAsync();
         using (var check = connection.CreateCommand())
         {
             check.CommandText = "SELECT EskiDusumKurali FROM TakipKartlar;";
