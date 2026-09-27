@@ -90,7 +90,9 @@ public class AlisRaporTests
         using var c = await f.EditorClientAsync();
         var kartId = LegacyFinanceSeed.Kart(f, new("Alış kartı", Bugun, Bugun, 1000m, 0m)).Id;
         var a = await Onayla(c, await Taslak(c));
-        a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, kartId));
+        // Eski kartla ödenmiş mevcut gider alışa bağlanır (K3: yeni kartlı ödeme takipteki karta bağlanır).
+        var gider = LegacyFinanceSeed.KartGideri(f, Bugun, "Tedarikçi", 100m, Kanallar.DagilimBekliyor, kartId);
+        a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, kartId, gider.Id));
         Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
         var gelecek = Bugun.AddMonths(1);
         var yol = $"/api/rapor/aylik?yil={gelecek.Year}&ay={gelecek.Month}";

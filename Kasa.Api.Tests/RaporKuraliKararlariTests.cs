@@ -14,6 +14,8 @@ namespace Kasa.Api.Tests;
 /// K1: takip başlangıcından önce tarihli mevcut giderler olduğu gibi kalır (rakamlar değişmez), raporda uyarıyla işaretlenir.
 /// K2: takipli kredi çekimi aylık raporda kanal 'Gelen' ve 'Ay sonucu'ndan çıkar, ayrı 'Kredi girişi' alanında görünür;
 /// kasa bakiyesi ve haftalık rapor değişmez; eski (takipsiz) kredi çekimi de aynı alanda görünür.
+/// K3: yeni kredi kartı gideri yeni takipteki (aktif) bir karta bağlanmak zorundadır; mevcut kayıtlar aynen kalır ve
+/// tutar/not/tarih düzeltmesi engellenmez.
 /// </summary>
 public class RaporKuraliKararlariTests
 {
@@ -89,5 +91,99 @@ public class RaporKuraliKararlariTests
         Assert.Equal(120_000m, Sayi(Kanal(hafta, "MEZAT")["krediGirisi"]));
         Assert.Equal(120_000m, Sayi(Kanal(hafta, "MEZAT")["gelen"]));
         Assert.Equal(170_000m, Sayi(hafta["toplamGelen"]));
+    }
+
+    private const string K3Iletisi = "Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.";
+
+    private static async Task<(int Takipli, int Eski, int DigerEski)> Kartlar(KasaWebFactory f, HttpClient c)
+    {
+        var takipli = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takipli kart", 10_000m, 5, 25, new(2026, 6, 1), 0m, []));
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        var eski = new KrediKartiEntity { Ad = "Eski kart", KesimTarihi = new(2026, 1, 10), SonOdemeTarihi = new(2026, 1, 20), Limit = 5_000m };
+        var diger = new KrediKartiEntity { Ad = "Diğer eski kart", KesimTarihi = new(2026, 1, 12), SonOdemeTarihi = new(2026, 1, 22), Limit = 5_000m };
+        db.KrediKartlari.AddRange(eski, diger); db.SaveChanges();
+        return (takipli.Id, eski.Id, diger.Id);
+    }
+
+    private static async Task K3Reddi(HttpResponseMessage yanit)
+    {
+        var govde = await yanit.Content.ReadAsStringAsync();
+        Assert.True(yanit.StatusCode == HttpStatusCode.BadRequest, $"{yanit.StatusCode}: {govde}");
+        Assert.Equal(K3Iletisi, (string)JsonNode.Parse(govde)!["errors"]!["krediKartiId"]![0]!);
+    }
+
+    private static async Task<T> Put<T>(HttpClient c, string yol, object govde)
+    {
+        var r = await c.PutAsJsonAsync(yol, govde);
+        Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        return (await r.Content.ReadFromJsonAsync<T>())!;
+    }
+
+    [Fact]
+    public async Task K3_yeni_kredi_karti_gideri_ve_kartli_alis_odemesi_takipteki_karta_baglanmak_zorundadir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var (takipli, eski, _) = await Kartlar(f, c);
+        var gun = new DateOnly(2026, 9, 20);
+
+        // Genel gider: kartsız K.K ve eski (takipsiz) karta bağlı gider reddedilir.
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Kartsız", 100m, "MEZAT", GiderTipi.KrediKarti)));
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Eski kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: eski)));
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Tipsiz eski kart", 100m, Kanallar.Ortak, GiderTipi.Cari, KrediKartiId: eski)));
+        // Takipteki kart ve kartsız diğer giderler kabul edilir.
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(gun, "Takipli kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: takipli));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(gun, "Nakit", 50m, "MEZAT", GiderTipi.Cari));
+
+        // Alış ödemesi: eski kartla yeni ödeme reddedilir, takipteki kartla ve nakit kabul edilir.
+        var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, gun, "Tedarikçi", null, [new("Mal", 300m, [new(1, 300m)])]));
+        await K3Reddi(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m, eski)));
+        alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m, takipli));
+        alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m));
+        Assert.Equal(200m, alis.Odenen);
+
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        Assert.DoesNotContain(db.Islemler, i => i.Tip == GiderTipi.KrediKarti && i.KrediKartiId != takipli);
+        Assert.Equal(2, db.Islemler.Count(i => i.KrediKartiId == takipli));
+    }
+
+    [Fact]
+    public async Task K3_mevcut_kartsiz_ve_eski_kartli_kayitlar_aynen_kalir_tutar_ve_not_guncellenebilir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var (_, eski, diger) = await Kartlar(f, c);
+        int kartsiz, eskiKartli, nakit;
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var a = new IslemEntity { Tarih = new(2026, 8, 5), Cari = "Kartsız eski", TutarTl = 100m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti };
+            var b = new IslemEntity { Tarih = new(2026, 8, 6), Cari = "Eski kartlı", TutarTl = 200m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti, KrediKartiId = eski };
+            var n = new IslemEntity { Tarih = new(2026, 8, 7), Cari = "Nakit", TutarTl = 300m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
+            db.Islemler.AddRange(a, b, n); db.SaveChanges();
+            (kartsiz, eskiKartli, nakit) = (a.Id, b.Id, n.Id);
+        }
+        // Tutar, not ve tarih düzeltmesi: kart ve tip aynı kaldıkça kabul edilir.
+        (await c.PutAsJsonAsync($"/api/islemler/{kartsiz}", new IslemYazDto(new(2026, 8, 8), "Kartsız eski", 110m, "MEZAT", GiderTipi.KrediKarti, "Dekont"))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync($"/api/islemler/{eskiKartli}", new IslemYazDto(new(2026, 8, 6), "Eski kartlı", 250m, "MEZAT", GiderTipi.KrediKarti, "Ekstre", eski))).EnsureSuccessStatusCode();
+        // Yeni K.K bağı kurmak (başka eski kart, nakit gideri K.K yapmak) yeni kredi kartı gideri sayılır: reddedilir.
+        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{eskiKartli}", new IslemYazDto(new(2026, 8, 6), "Eski kartlı", 250m, "MEZAT", GiderTipi.KrediKarti, null, diger)));
+        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{nakit}", new IslemYazDto(new(2026, 8, 7), "Nakit", 300m, "MEZAT", GiderTipi.KrediKarti)));
+        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{nakit}", new IslemYazDto(new(2026, 8, 7), "Nakit", 300m, "MEZAT", GiderTipi.Cari, null, eski)));
+
+        // Alışa bağlanmış eski kartlı ödeme (mevcut gider bağlanır): tutar düzeltmesi kabul, başka eski karta taşıma reddedilir.
+        var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, new(2026, 8, 6), "Tedarikçi", null, [new("Mal", 500m, [new(1, 500m)])]));
+        alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 250m, eski, eskiKartli));
+        var odeme = alis.Odemeler.Single();
+        await K3Reddi(await c.PutAsJsonAsync($"/api/alis/{alis.Id}/odemeler/{odeme.Id}", new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 250m, "Kart değişti", diger)));
+        alis = await Put<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler/{odeme.Id}", new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 240m, "Tutar düzeltildi", eski));
+        Assert.Equal(240m, alis.Odenen);
+
+        using var kontrol = f.Services.CreateScope();
+        var son = kontrol.ServiceProvider.GetRequiredService<KasaDbContext>();
+        var k = son.Islemler.Single(i => i.Id == kartsiz); var e = son.Islemler.Single(i => i.Id == eskiKartli); var n2 = son.Islemler.Single(i => i.Id == nakit);
+        Assert.Equal((GiderTipi.KrediKarti, (int?)null, 110m, "Dekont"), (k.Tip, k.KrediKartiId, k.TutarTl, k.Not));
+        Assert.Equal((GiderTipi.KrediKarti, (int?)eski, 240m), (e.Tip, e.KrediKartiId, e.TutarTl));
+        Assert.Equal((GiderTipi.Cari, (int?)null, 300m), (n2.Tip, n2.KrediKartiId, n2.TutarTl));
     }
 }

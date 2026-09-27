@@ -32,6 +32,8 @@ internal static class AlisOdemeIslemleri
         if (target.Odemeler.Where(o => o.Id != odemeId).Sum(o => o.Islem.TutarTl) + dto.Tutar > target.Kalemler.Sum(k => k.Tutar))
             return AlisEndpoints.Conflict("Düzeltilmiş ödeme hedef alış toplamını aşamaz.");
         v.Kart(db, dto.KrediKartiId);
+        // K3: ödemeyi yeni bir karta bağlamak yeni kredi kartı gideridir; aynı kartla tutar/tarih düzeltmesi serbesttir.
+        KayitGirdileri.TakipliKartKurali(v, db, dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti, dto.KrediKartiId, payment.Islem);
         v.Kontrol(dto.Tarih >= db.Ayarlar.Select(a => a.TakipBaslangic).First(), "tarih", "Ödeme takip başlangıcından önce olamaz.");
         if (v.Sonuc() is { } invalidReference) return invalidReference;
         var before = JsonSerializer.Serialize(new { aciklama = dto.Aciklama.Trim(), alis = AlisHesaplari.ToDto(source) });

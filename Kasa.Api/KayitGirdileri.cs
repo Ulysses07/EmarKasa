@@ -49,6 +49,7 @@ public static class KayitGirdileri
         v.Kart(db, dto.KrediKartiId);
         if (dto.KrediKartiId is { } cardId)
             v.Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == cardId && dto.Tarih < k.Baslangic), "tarih", "Kart harcaması kart takip başlangıcından önce olamaz.");
+        TakipliKartKurali(v, db, dto.KrediKartiId is not null ? GiderTipi.KrediKarti : dto.Tip, dto.KrediKartiId, mevcut);
         return (new IslemEntity
         {
             Tarih = dto.Tarih, Cari = dto.Cari?.Trim() ?? "", TutarTl = dto.TutarTl,
@@ -56,6 +57,26 @@ public static class KayitGirdileri
             Tip = dto.KrediKartiId is not null ? GiderTipi.KrediKarti : dto.Tip,
             Not = dto.Not, KrediKartiId = dto.KrediKartiId
         }, v.Sonuc());
+    }
+
+    /// <summary>K3 iletisi (yeni kredi kartı gideri takipsiz karta ya da kartsız kaydedilemez).</summary>
+    public const string TakipliKartZorunlu = "Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.";
+
+    /// <summary>
+    /// K3 (kullanıcı kararı, 2026-09-27): YENİ kredi kartı gideri (Tip=KrediKarti; nakit kart ödemesi değil) yeni takipteki
+    /// bir karta bağlanmak zorundadır. Kartsız ya da eski (takipsiz) karta bağlı gider eski "sonraki ay sonunda kasadan
+    /// düşme" kuralına düşerdi: hiçbir kart borcuna, ekstreye ve bildirime bağlanmaz, ödemesi takipli karttan girilirse
+    /// ikinci kez düşerdi. Kredi kartı gideri üreten bütün yazma yolları (genel gider, alış ödemesi ve düzeltmesi) bu
+    /// kuralı çağırır; aylık gider ve ekstre içe aktarma K.K gideri üretmez (kart ekstresi takipteki kartın harcamasıdır).
+    /// Mevcut kayıt (<paramref name="mevcut"/>) aynı tip ve aynı kartla kaldıkça kural uygulanmaz: geçmiş kartsız/eski kartlı
+    /// kayıtlar aynen kalır, tutar/not/tarih düzeltmesi engellenmez. Yeni kullanıma kapatılmış takipli kart için
+    /// <see cref="GirdiDogrulama.Kart"/>'ın kendi iletisi korunur.
+    /// </summary>
+    public static void TakipliKartKurali(GirdiDogrulama v, KasaDbContext db, GiderTipi tip, int? kartId, IslemEntity? mevcut)
+    {
+        if (tip != GiderTipi.KrediKarti) return;
+        if (mevcut is { Tip: GiderTipi.KrediKarti } && mevcut.KrediKartiId == kartId) return;
+        v.Kontrol(kartId is { } id && db.TakipKartlar.Any(t => t.KrediKartiId == id), "krediKartiId", TakipliKartZorunlu);
     }
 
     public static (KrediKartiEntity Kayit, IResult? Hata) Kart(KrediKartiYazDto dto)

@@ -81,7 +81,9 @@ public class SaatTests
         Assert.Equal(bugun, db.Bugunu());
         var kart = new KrediKartiEntity { Ad = "Saat kartı", KesimTarihi = bugun, SonOdemeTarihi = bugun.AddDays(10), Limit = 1000m };
         db.KrediKartlari.Add(kart); db.SaveChanges();
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(bugun, "Bugünkü kart harcaması", 40m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id))).EnsureSuccessStatusCode();
+        // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır).
+        db.Islemler.Add(new IslemEntity { Tarih = bugun, Cari = "Bugünkü kart harcaması", TutarTl = 40m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti, KrediKartiId = kart.Id });
+        db.SaveChanges();
         var kartlar = (await c.GetFromJsonAsync<List<KrediKartiTuretilmisDto>>("/api/kredikartlari"))!;
         Assert.Equal(40m, kartlar.Single(k => k.Id == kart.Id).EkstreBorc);
         Assert.Same(TimeProvider.System, KasaSaati.Gecerli);

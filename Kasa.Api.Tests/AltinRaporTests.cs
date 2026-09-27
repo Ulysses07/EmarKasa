@@ -72,6 +72,16 @@ public class AltinRaporTests
             yield return new(Aylik(ay), "krediGirisi", null, "0", "K2: kredi girişi Gelen/Ay sonucu dışında ayrı alan (bu ay kredi çekimi yok)");
             yield return new(Aylik(ay), "kuralSurumu", null, "2", "K2: açık ay güncel kuralla hesaplanır");
         }
+        // K3: gider formu yeni kredi kartı giderinde yalnız yeni takipteki, yeni kullanıma açık kartları listeler; kart
+        // listesi bunun için takip durumunu taşır. Tutarlar değişmez. Eski kart takipsiz; geçiş kartı bugün yeni takibe
+        // geçti; A ve B yeni takipte açık.
+        yield return new("/api/kredikartlari", "[0].yeniTakip", null, "false", "K3: Eski kart takipsiz");
+        yield return new("/api/kredikartlari", "[0].aktif", null, "true", "K3: eski kartın kullanım işareti (seçilebilirlik değil)");
+        foreach (var i in new[] { 1, 2, 3 })
+        {
+            yield return new("/api/kredikartlari", $"[{i}].yeniTakip", null, "true", "K3: kart yeni takipte");
+            yield return new("/api/kredikartlari", $"[{i}].aktif", null, "true", "K3: kart yeni kullanıma açık");
+        }
     }
 
     private static string Aylik(DateOnly ay) => $"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}";
@@ -154,6 +164,14 @@ internal static class AltinTohum
         Assert.True(r.IsSuccessStatusCode, $"POST /api/islemler {r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
     }
 
+    private static void EskiKartGideri(KasaWebFactory f, DateOnly tarih, string cari, decimal tutar, string kanal, int? kanalId, int kart)
+    {
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        db.Islemler.Add(new IslemEntity { Tarih = tarih, Cari = cari, TutarTl = tutar, Kanal = kanal, KanalId = kanalId, Tip = GiderTipi.KrediKarti, KrediKartiId = kart });
+        db.SaveChanges();
+    }
+
     public static async Task<Kimlikler> Kur(KasaWebFactory f, HttpClient c)
     {
         await Put(c, "/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 50_000m });
@@ -191,11 +209,13 @@ internal static class AltinTohum
         await Gider(c, new(2026, 1, 5), "Cari ödeme", 1_500m, "MEZAT", GiderTipi.Cari);
         await Gider(c, new(2026, 2, 10), "SGK", 900m, Kanallar.Ortak, GiderTipi.SabitGider);
         await Gider(c, new(2026, 3, 15), "Nakliye", 700.55m, "PERAKENDE", GiderTipi.Cari);
-        await Gider(c, new(2026, 4, 20), "Eski kart alışı", 400m, "MEZAT", GiderTipi.KrediKarti, eskiKart);
-        await Gider(c, new(2026, 5, 31), "Eski kart ortak", 333.33m, Kanallar.Ortak, GiderTipi.KrediKarti, eskiKart);
+        // K3'ten önce API'den girilmiş eski (takipsiz) kart giderleri: yeni kayıt artık reddedilir, canlıdaki geçmiş
+        // kayıtlar gibi API'nin yazdığı alanlarla doğrudan veritabanına yazılır (kimlik sırası korunur).
+        EskiKartGideri(f, new(2026, 4, 20), "Eski kart alışı", 400m, "MEZAT", 1, eskiKart);
+        EskiKartGideri(f, new(2026, 5, 31), "Eski kart ortak", 333.33m, Kanallar.Ortak, null, eskiKart);
         await Gider(c, new(2026, 7, 7), "Elektrik", 250m, "TOPTAN", GiderTipi.SabitGider);
         await Gider(c, new(2026, 8, 18), "Pasif kanal gideri", 120m, "ESKI", GiderTipi.Cari);
-        await Gider(c, new(2026, 8, 10), "Geçiş öncesi kart", 800m, "PERAKENDE", GiderTipi.KrediKarti, gecisKarti);
+        EskiKartGideri(f, new(2026, 8, 10), "Geçiş öncesi kart", 800m, "PERAKENDE", 2, gecisKarti);
         await Gider(c, new(2026, 10, 5), "İleri tarihli ödeme", 999m, "MEZAT", GiderTipi.Cari);
         await Post<KartOdemeEntity>(c, "/api/kartodemeler", new KartOdemeYazDto(eskiKart, new(2026, 6, 25), 500m, "Eski kart ödemesi"));
 

@@ -321,6 +321,8 @@ api.MapGet("/kredikartlari", (KasaDbContext db) =>
     var odeme = db.KartOdemeler
         .GroupBy(o => o.KrediKartiId)
         .ToDictionary(g => g.Key, g => g.Sum(o => o.Tutar));
+    // K3: gider formu yeni kredi kartı gideri için yalnız yeni takipteki ve yeni kullanıma açık kartları listeler.
+    var takip = db.TakipKartlar.AsNoTracking().ToDictionary(t => t.KrediKartiId, t => t.Aktif);
     return kartlar.Select(k =>
     {
         var kh = harcamaKayit.GetValueOrDefault(k.Id);
@@ -332,7 +334,8 @@ api.MapGet("/kredikartlari", (KasaDbContext db) =>
         return new KrediKartiTuretilmisDto(
             k.Id, k.Ad, k.KesimTarihi, k.SonOdemeTarihi, k.Limit,
             Borc: k.Borc, GuncelBorc: guncel, AcilisBorc: k.Borc,
-            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi);
+            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi,
+            YeniTakip: takip.ContainsKey(k.Id), Aktif: takip.GetValueOrDefault(k.Id, true));
     }).ToList();
 });
 api.MapPost("/kredikartlari", (KrediKartiYazDto dto, KasaDbContext db) =>
