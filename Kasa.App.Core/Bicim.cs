@@ -13,10 +13,13 @@ public static class Bicim
 
     /// <summary>Dönem seçici etiketi: "13 Tem – 19 Tem"; yıllı "13 Tem 2026 – 19 Tem 2026" (gelir formu dönem
     /// toplamını yerine koyduğundan farklı yılların aynı haftaları karışmasın).</summary>
-    public static string Donem(Kasa.ApiClient.DonemDto d, bool yilli = false)
+    public static string Donem(Kasa.ApiClient.DonemDto d, bool yilli = false) => Aralik(d.Start, d.End, yilli);
+
+    /// <summary>Tarih aralığı etiketi; dönem seçicisiyle aynı biçim ("06 Tem – 12 Tem").</summary>
+    public static string Aralik(DateOnly bas, DateOnly bit, bool yilli = false)
     {
         var bicim = yilli ? "dd MMM yyyy" : "dd MMM";
-        return $"{d.Start.ToString(bicim, Tr)} – {d.End.ToString(bicim, Tr)}";
+        return $"{bas.ToString(bicim, Tr)} – {bit.ToString(bicim, Tr)}";
     }
 
     /// <summary>Dosya boyutu: "512 B", "12,3 KB", "150 MB".</summary>

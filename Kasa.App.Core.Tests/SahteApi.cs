@@ -55,9 +55,12 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public DateOnly? SonFiltreBitis;
     public string? SonFiltreKanal;
     public string? SonFiltreCari;
+    /// <summary>Ayarlanırsa işlem listesi yanıtını verir (baslangic, bitis, kanal): gecikmeli/sırasız yanıt testleri için.</summary>
+    public Func<DateOnly?, DateOnly?, string?, Task<IReadOnlyList<IslemDto>>>? IslemlerGetir;
     public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
     {
         SonFiltreBaslangic = baslangic; SonFiltreBitis = bitis; SonFiltreKanal = kanal; SonFiltreCari = cari;
+        if (IslemlerGetir is not null) return IslemlerGetir(baslangic, bitis, kanal);
         return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
     }
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediKartiDto>>(YuklemeHatasi) : Task.FromResult(KrediKartlariListe);

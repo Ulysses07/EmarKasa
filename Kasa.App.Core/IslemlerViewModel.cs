@@ -16,7 +16,7 @@ public partial class IslemlerViewModel : TemelViewModel
         _api = api; _auth = auth; _zaman = zaman ?? TimeProvider.System; GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
         if (auth is not null) auth.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(auth.OturumSurumu)) { GiderBenzerlik.Temizle(); Yeni(); GelenTemizle(); }
+            if (e.PropertyName == nameof(auth.OturumSurumu)) { GiderBenzerlik.Temizle(); Yeni(); GelenTemizle(); ListeTemizle(); }
         };
     }
 
@@ -60,8 +60,32 @@ public partial class IslemlerViewModel : TemelViewModel
     [ObservableProperty] private int _filtreSayi;
     [ObservableProperty] private string _filtreOzet = "";
     private string? _filtreZamanKod = TumKanal;               // null = dönem picker aktif
+    /// <summary>Seçili haftanın başlangıcı: seçici kaynağı yenilenince aynı hafta geri seçilir.</summary>
+    private DateOnly? _seciliDonemBaslangic;
+    /// <summary>Seçici kaynağı yenilenirken Picker'ın yazdığı boş seçim ve geri seçim listeleme tetiklemez.</summary>
+    private bool _donemlerYenileniyor;
 
-    private async Task DoldurAsync()
+    // Liste durumu: yalnız en son başlatılan liste isteğinin sonucu, hatası ve bitişi ekrana yansır.
+    private int _listeIstekNo;
+    [ObservableProperty] private bool _listeYukleniyor;
+    /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="TemelViewModel.Hata"/>'da kalır.</summary>
+    [ObservableProperty] private string? _yuklemeHatasi;
+    /// <summary>Gösterilen liste güncel süzgecin başarılı yanıtıdır; yüklenirken ve hatada false (boş liste başlığı gizlenir).</summary>
+    [ObservableProperty] private bool _veriVar;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
+    private DateTimeOffset? _sonGuncelleme;
+    /// <summary>Kayıt ve silme başarısı; liste yenilenemese de kaydın alındığını söyler.</summary>
+    [ObservableProperty] private string? _mesaj;
+    [ObservableProperty] private string _bosListeBasligi = "Henüz işlem yok";
+    [ObservableProperty] private string _bosListeAciklamasi = "İlk kayıtla liste burada oluşur.";
+    public string SonGuncellemeMetni => SonGuncelleme is { } zaman ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm}" : "Liste henüz yüklenmedi.";
+
+    /// <summary>Son başlatılan liste yüklemesi (dönem seçimi gibi beklenmeden başlayan yüklemeler için).</summary>
+    public Task ListeYuklemesi { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Kanal, dönem ve kart kaynaklarını yükler, çipleri ve hafta seçicisini eşitler (liste ayrı istenir).</summary>
+    private async Task KaynaklariYukleAsync()
     {
         var kanallar = await _api.KanallarAsync();
         var donemler = await _api.DonemlerAsync();
@@ -96,26 +120,108 @@ public partial class IslemlerViewModel : TemelViewModel
             FiltreZamanlar.Add(new SecimCipi("Geçen ay"));
         }
 
-        FiltreDonemler.Clear();
-        foreach (var d in donemler.OrderByDescending(d => d.Start)) FiltreDonemler.Add(d);
+        DonemleriEsitle(donemler);
 
         _donemler.Clear();
         _donemler.AddRange(donemler);
 
         FiltreVurgu();
-        await IslemleriYukleAsync();
     }
 
-    /// <summary>Seçili filtreyle işlem listesini + özet toplamı yeniler.</summary>
-    private async Task IslemleriYukleAsync()
+    /// <summary>Hafta seçici kaynağını yalnız değiştiyse yeniler ve seçili haftayı başlangıcıyla geri seçer. MAUI Picker
+    /// kaynağı sıfırlanınca seçimi düşürüp VM'ye null yazar; bu yazım yok sayılır. Seçili hafta artık listede yoksa
+    /// süzgeç görünmez bir aralıkta kalmasın diye "Tümü"ne döner.</summary>
+    private void DonemleriEsitle(IReadOnlyList<DonemDto> donemler)
     {
-        var liste = await _api.IslemlerAsync(FiltreBaslangic, FiltreBitis, FiltreKanal, null);
-        Islemler.Clear();
-        foreach (var i in liste) Islemler.Add(i);
+        var yeni = donemler.OrderByDescending(d => d.Start).ToList();
+        if (FiltreDonemler.SequenceEqual(yeni)) return;
+        _donemlerYenileniyor = true;
+        try
+        {
+            TakipMetni.Doldur(FiltreDonemler, yeni);
+            SeciliDonem = _seciliDonemBaslangic is { } bas ? FiltreDonemler.FirstOrDefault(d => d.Start == bas) : null;
+        }
+        finally { _donemlerYenileniyor = false; }
+        if (_seciliDonemBaslangic is not null && SeciliDonem is null)
+        {
+            _seciliDonemBaslangic = null;
+            _filtreZamanKod = TumKanal;
+            FiltreBaslangic = FiltreBitis = null;
+        }
+    }
+
+    /// <summary>Liste isteğini başlatır; <paramref name="tam"/> ise önce kaynaklar (kanal, dönem, kart) yüklenir.
+    /// Her istek numara alır ve yalnız en son başlatılanın sonucu, hatası ve bitişi ekrana yansır: eski süzgecin geç
+    /// yanıtı yeni listeyi ve toplamı ezmez, önce biten eski istek yükleme göstergesini indirmez.</summary>
+    /// <returns>Kaynaklar yüklendi mi (gelir formu ancak o zaman hazırlanır).</returns>
+    private Task<bool> ListeyiYenile(bool tam = false)
+    {
+        var yukleme = ListeYukleAsync(Interlocked.Increment(ref _listeIstekNo), tam);
+        ListeYuklemesi = yukleme;
+        return yukleme;
+    }
+
+    private async Task<bool> ListeYukleAsync(int istek, bool tam)
+    {
+        bool Guncel() => istek == Volatile.Read(ref _listeIstekNo);
+        ListeYukleniyor = true; YuklemeHatasi = null; VeriVar = false;
+        var kaynaklar = !tam;
+        try
+        {
+            if (tam) { await KaynaklariYukleAsync(); kaynaklar = true; if (!Guncel()) return kaynaklar; }
+            // Süzgeç istek anında yakalanır; yanıt geldiğinde yalnız bu istek hâlâ en sonuncuysa uygulanır.
+            var (bas, bit, kanal, suzgec) = (FiltreBaslangic, FiltreBitis, FiltreKanal, SuzgecMetni());
+            var liste = await _api.IslemlerAsync(bas, bit, kanal, null);
+            if (!Guncel()) return kaynaklar;
+            ListeyiUygula(liste, suzgec, bas is not null || bit is not null || kanal is not null);
+            VeriVar = true;
+            SonGuncelleme = _zaman.GetLocalNow();
+        }
+        catch (Exception hata)
+        {
+            // Hatada eski süzgecin listesi ve toplamı gösterilmez; "Henüz işlem yok" da görünmez (VeriVar false).
+            if (Guncel()) { YuklemeHatasi = HataMesaji(hata); ListeyiBosalt(); }
+        }
+        finally { if (Guncel()) ListeYukleniyor = false; }
+        return kaynaklar;
+    }
+
+    private void ListeyiUygula(IReadOnlyList<IslemDto> liste, string suzgec, bool suzgecli)
+    {
+        TakipMetni.Doldur(Islemler, liste);
         FiltreSayi = liste.Count;
         FiltreToplam = liste.Sum(i => i.TutarTl);
-        FiltreOzet = $"{FiltreSayi} işlem · toplam {Bicim.Tl(FiltreToplam)} ₺";
+        FiltreOzet = $"{suzgec} · {FiltreSayi} işlem · toplam {Bicim.Tl(FiltreToplam)} ₺";
+        (BosListeBasligi, BosListeAciklamasi) = suzgecli
+            ? ("Bu süzgeçte işlem yok", "Süzgeci değiştirin ya da kanal ve tarihte \"Tümü\"nü seçin.")
+            : ("Henüz işlem yok", "İlk kayıtla liste burada oluşur.");
     }
+
+    private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; }
+
+    /// <summary>Oturum değişince bekleyen liste yanıtları uygulanmaz, önceki oturumun listesi ve iletileri kalkar.</summary>
+    private void ListeTemizle()
+    {
+        Interlocked.Increment(ref _listeIstekNo);
+        ListeyiBosalt();
+        ListeYukleniyor = false; VeriVar = false; YuklemeHatasi = null; SonGuncelleme = null; Mesaj = null;
+    }
+
+    /// <summary>Etkin süzgecin okunur hali; seçici bir an boş görünse de listenin hangi aralığa süzüldüğü okunur.</summary>
+    private string SuzgecMetni()
+    {
+        var aralik = _filtreZamanKod switch
+        {
+            null => FiltreBaslangic is { } bas && FiltreBitis is { } bit ? Bicim.Aralik(bas, bit) : "Tüm tarihler",
+            TumKanal => "Tüm tarihler",
+            var kod => kod,
+        };
+        return FiltreKanal is { } kanal ? $"{kanal} · {aralik}" : aralik;
+    }
+
+    /// <summary>Kaydedilen gider etkin süzgeçte (tarih aralığı ve kanal) görünür mü.</summary>
+    private bool SuzgecteGorunur(DateOnly tarih, string kanal)
+        => (FiltreBaslangic is not { } bas || tarih >= bas) && (FiltreBitis is not { } bit || tarih <= bit) && (FiltreKanal is null || FiltreKanal == kanal);
 
     /// <summary>Editör form çiplerindeki "seçili" işaretini geçerli kanal değerleriyle eşitler.</summary>
     private void SenkronSecim()
@@ -133,7 +239,7 @@ public partial class IslemlerViewModel : TemelViewModel
             z.Secili = z.Ad == _filtreZamanKod;
     }
 
-    private Task YenidenListele() => CalistirAsync(IslemleriYukleAsync);
+    private Task YenidenListele() => ListeyiYenile();
 
     // ---- Filtre komutları ----
     [RelayCommand]
@@ -147,6 +253,7 @@ public partial class IslemlerViewModel : TemelViewModel
     private Task SecFiltreZamanAsync(SecimCipi s)
     {
         _filtreZamanKod = s.Ad;
+        _seciliDonemBaslangic = null;
         SeciliDonem = null;                              // dönem picker'ı temizle (OnChanged erken döner)
         (FiltreBaslangic, FiltreBitis) = ZamanAralik(s.Ad);
         FiltreVurgu();
@@ -157,7 +264,15 @@ public partial class IslemlerViewModel : TemelViewModel
 
     partial void OnSeciliDonemChanged(DonemDto? value)
     {
+        if (_donemlerYenileniyor)
+        {
+            // Seçici kaynağı yenilenirken: Picker'ın yazdığı boş seçim yok sayılır, geri seçilen haftanın güncel aralığı
+            // alınır. Liste, yenilemeyi yapan tam yüklemenin sonunda zaten istenir.
+            if (value is not null) (FiltreBaslangic, FiltreBitis) = (value.Start, value.End);
+            return;
+        }
         if (value is null) return;                       // temizleme; zaman çipi zaten güncellendi
+        _seciliDonemBaslangic = value.Start;
         _filtreZamanKod = null;
         FiltreBaslangic = value.Start;
         FiltreBitis = value.End;
@@ -166,9 +281,9 @@ public partial class IslemlerViewModel : TemelViewModel
     }
 
     /// <summary>Hızlı zaman çipi kodunu [baslangic, bitis] aralığına çevirir.</summary>
-    private static (DateOnly?, DateOnly?) ZamanAralik(string kod)
+    private (DateOnly?, DateOnly?) ZamanAralik(string kod)
     {
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = Bugun;
         if (kod == "Bu ay")
             return (new DateOnly(bugun.Year, bugun.Month, 1),
                     new DateOnly(bugun.Year, bugun.Month, DateTime.DaysInMonth(bugun.Year, bugun.Month)));
@@ -181,11 +296,16 @@ public partial class IslemlerViewModel : TemelViewModel
         return (null, null); // Tümü
     }
 
-    public Task YukleAsync() => CalistirAsync(async () =>
+    /// <summary>Ekrana gelişte ve "Yenile / tekrar dene"de tam yükleme. Hata listenin üstündeki durum şeridinde
+    /// (<see cref="YuklemeHatasi"/>) görünür; form hatası alanı temizlenir.</summary>
+    public async Task YukleAsync()
     {
-        await DoldurAsync();
+        Hata = null; Mesaj = null;
+        if (!await ListeyiYenile(tam: true)) return;
         if (_auth is null || _auth.AktifRol == Rol.Editor) await GelenFormunuHazirlaAsync();
-    });
+    }
+
+    [RelayCommand] private Task YenileAsync() => YukleAsync();
 
     [ObservableProperty] private bool _editorMu;
 
@@ -273,6 +393,7 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     private Task KaydetAsync() => Mesgul ? Task.CompletedTask : CalistirAsync(async () =>
     {
+        Mesaj = null;
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
         if (!ParaAyristirici.GecerliMi(DuzenTutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         var oturum = _auth?.OturumSurumu;
@@ -283,8 +404,11 @@ public partial class IslemlerViewModel : TemelViewModel
         if (DuzenId == 0) await _api.IslemOlusturAsync(g);
         else await _api.IslemGuncelleAsync(DuzenId, g);
         if (_auth?.OturumSurumu != oturum) return;
+        // Liste yenilenemese de kayıt alınmıştır: başarı ayrı söylenir (liste hatası durum şeridinde), form temizlenir.
+        Mesaj = (id == 0 ? "Gider kaydedildi" : "Gider güncellendi")
+            + (SuzgecteGorunur(g.Tarih, g.Kanal) ? "." : $"; seçili süzgeç ({SuzgecMetni()}) dışında kaldığı için listede görünmüyor.");
         Yeni();
-        await DoldurAsync();
+        await ListeyiYenile(tam: true);
     });
 
     [RelayCommand] private async Task GideriAyriKaydetAsync() { if (GiderBenzerlik.Onayla()) await KaydetAsync(); }
@@ -292,11 +416,13 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     private Task SilAsync(IslemDto i) => CalistirAsync(async () =>
     {
+        Mesaj = null;
         if (i.EkstreKayitId is not null) { Hata = "Ekstre kaydı buradan silinemez. Ekstre İçe Aktar bölümünden gerekçeyle iptal edin."; return; }
         if (i.AylikGiderOdemeId is not null) { Hata = "Aylık gider ödemesi buradan silinemez. Aylık Giderler bölümünden gerekçeyle iptal edin."; return; }
         if (i.AlisId is not null) { Hata = "Bu gider bir alış ödemesine bağlı; bu ekrandan silinemez. Alışlar ekranından kaydı inceleyin."; return; }
         await _api.IslemSilAsync(i.Id);
-        await DoldurAsync();
+        Mesaj = "Kayıt silindi.";
+        await ListeyiYenile(tam: true);
     });
 }
 
