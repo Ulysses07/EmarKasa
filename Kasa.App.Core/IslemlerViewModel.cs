@@ -67,6 +67,9 @@ public partial class IslemlerViewModel : TemelViewModel
 
     // Liste durumu: yalnız en son başlatılan liste isteğinin sonucu, hatası ve bitişi ekrana yansır.
     private int _listeIstekNo;
+    // Kaynak (kanal, dönem, kart) durumu: yalnız en son başlatılan tam yüklemenin kaynakları uygulanır. Aradaki süzgeç
+    // değişimi yalnız listeyi yeniler, kaynakları eskitmez; oturum değişimi eskitir.
+    private int _kaynakIstekNo;
     [ObservableProperty] private bool _listeYukleniyor;
     /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="TemelViewModel.Hata"/>'da kalır.</summary>
     [ObservableProperty] private string? _yuklemeHatasi;
@@ -84,12 +87,13 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Son başlatılan liste yüklemesi (dönem seçimi gibi beklenmeden başlayan yüklemeler için).</summary>
     public Task ListeYuklemesi { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Kanal, dönem ve kart kaynaklarını yükler, çipleri ve hafta seçicisini eşitler (liste ayrı istenir).</summary>
-    private async Task KaynaklariYukleAsync()
+    /// <summary>Kanal, dönem ve kart kaynaklarını getirir; uygulanmaları güncellik denetiminden sonradır.</summary>
+    private async Task<(IReadOnlyList<KanalDto> Kanallar, IReadOnlyList<DonemDto> Donemler, IReadOnlyList<KrediKartiDto> Kartlar)> KaynaklariGetirAsync()
+        => (await _api.KanallarAsync(), await _api.DonemlerAsync(), await _api.KrediKartlariAsync());
+
+    /// <summary>Kaynakları uygular: çipleri ve hafta seçicisini eşitler (liste ayrı istenir).</summary>
+    private void KaynaklariUygula(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<DonemDto> donemler, IReadOnlyList<KrediKartiDto> kartlar)
     {
-        var kanallar = await _api.KanallarAsync();
-        var donemler = await _api.DonemlerAsync();
-        var kartlar = await _api.KrediKartlariAsync();
         _kanallar = kanallar;
 
         var adlar = kanallar.Where(k => k.Aktif).OrderBy(k => k.Sira).Select(k => k.Ad).ToList();
@@ -156,19 +160,28 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <returns>Kaynaklar yüklendi mi (gelir formu ancak o zaman hazırlanır).</returns>
     private Task<bool> ListeyiYenile(bool tam = false)
     {
-        var yukleme = ListeYukleAsync(Interlocked.Increment(ref _listeIstekNo), tam);
+        var yukleme = ListeYukleAsync(Interlocked.Increment(ref _listeIstekNo), tam ? Interlocked.Increment(ref _kaynakIstekNo) : null);
         ListeYuklemesi = yukleme;
         return yukleme;
     }
 
-    private async Task<bool> ListeYukleAsync(int istek, bool tam)
+    /// <param name="kaynakIstek">Tam yüklemenin kaynak isteği numarası; yalnız liste isteniyorsa null.</param>
+    private async Task<bool> ListeYukleAsync(int istek, int? kaynakIstek)
     {
         bool Guncel() => istek == Volatile.Read(ref _listeIstekNo);
         ListeYukleniyor = true; YuklemeHatasi = null; VeriVar = false;
-        var kaynaklar = !tam;
+        var kaynaklar = kaynakIstek is null;
         try
         {
-            if (tam) { await KaynaklariYukleAsync(); kaynaklar = true; if (!Guncel()) return kaynaklar; }
+            if (kaynakIstek is { } k)
+            {
+                var (kanallar, donemler, kartlar) = await KaynaklariGetirAsync();
+                // Sonra başlayan tam yükleme ya da oturum değişimi varken eski kaynaklar uygulanmaz: yeni kanal, kart ve
+                // dönem listesini (ya da yeni oturumun ekranını) geç yanıt ezmez.
+                if (k != Volatile.Read(ref _kaynakIstekNo)) return false;
+                KaynaklariUygula(kanallar, donemler, kartlar); kaynaklar = true;
+                if (!Guncel()) return kaynaklar;
+            }
             // Süzgeç istek anında yakalanır; yanıt geldiğinde yalnız bu istek hâlâ en sonuncuysa uygulanır.
             var (bas, bit, kanal, suzgec) = (FiltreBaslangic, FiltreBitis, FiltreKanal, SuzgecMetni());
             var liste = await _api.IslemlerAsync(bas, bit, kanal, null);
@@ -179,8 +192,9 @@ public partial class IslemlerViewModel : TemelViewModel
         }
         catch (Exception hata)
         {
-            // Hatada eski süzgecin listesi ve toplamı gösterilmez; "Henüz işlem yok" da görünmez (VeriVar false).
-            if (Guncel()) { YuklemeHatasi = HataMesaji(hata); ListeyiBosalt(); }
+            // Hatada eski süzgecin listesi ve toplamı gösterilmez; "Henüz işlem yok" da görünmez (VeriVar false). Liste ve
+            // kaynaklar salt okumadır: zaman aşımında "sunucuda tamamlanmış olabilir" denmez.
+            if (Guncel()) { YuklemeHatasi = OkumaHataMesaji(hata); ListeyiBosalt(); }
         }
         finally { if (Guncel()) ListeYukleniyor = false; }
         return kaynaklar;
@@ -202,7 +216,7 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Oturum değişince bekleyen liste yanıtları uygulanmaz, önceki oturumun listesi ve iletileri kalkar.</summary>
     private void ListeTemizle()
     {
-        Interlocked.Increment(ref _listeIstekNo);
+        Interlocked.Increment(ref _listeIstekNo); Interlocked.Increment(ref _kaynakIstekNo);
         ListeyiBosalt();
         ListeYukleniyor = false; VeriVar = false; YuklemeHatasi = null; SonGuncelleme = null; Mesaj = null;
     }

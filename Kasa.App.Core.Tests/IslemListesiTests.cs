@@ -237,4 +237,70 @@ public class IslemListesiTests
         Assert.Equal(1, api.SonIslemSil); Assert.Equal("Kayıt silindi.", vm.Mesaj);
         Assert.Empty(vm.Islemler); Assert.True(vm.VeriVar);
     }
+
+    // ---- eskimiş tam yükleme kaynakları ve salt okuma zaman aşımı ----
+
+    private static readonly KanalDto Toptan = new(2, "TOPTAN", true, 1, 0m);
+    private static readonly KanalDto Eski = new(3, "ESKİ KANAL", true, 2, 0m);
+    private static string[] GiderKanalAdlari(IslemlerViewModel vm) => vm.GiderKanallari.Select(c => c.Ad).ToArray();
+
+    [Fact]
+    public async Task Eski_tam_yuklemenin_gec_gelen_kaynaklari_yeni_tam_yuklemenin_kanal_ciplerini_ezmez()
+    {
+        var api = Api(); var eski = new TaskCompletionSource<IReadOnlyList<KanalDto>>(); var cagri = 0;
+        api.KanallarGetir = () => ++cagri == 1 ? eski.Task : Task.FromResult<IReadOnlyList<KanalDto>>(new[] { Mezat, Toptan });
+        var vm = Vm(api);
+
+        var ilk = vm.YukleAsync();
+        await vm.YukleAsync();
+        Assert.Equal(new[] { "MEZAT", "TOPTAN", "Ortak" }, GiderKanalAdlari(vm));
+
+        eski.SetResult(new[] { Eski }); await ilk;
+
+        Assert.Equal(new[] { "MEZAT", "TOPTAN", "Ortak" }, GiderKanalAdlari(vm));
+        Assert.DoesNotContain(vm.FiltreKanallari, c => c.Ad == "ESKİ KANAL");
+        Assert.True(vm.VeriVar); Assert.False(vm.ListeYukleniyor);
+    }
+
+    [Fact]
+    public async Task Tam_yukleme_surerken_suzgec_degisse_de_kaynaklar_uygulanir()
+    {
+        var api = Api(); var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
+        api.KanallarGetir = () => kanallar.Task;
+        var vm = Vm(api);
+
+        var tam = vm.YukleAsync();
+        await vm.SecFiltreKanalCommand.ExecuteAsync(new SecimCipi("MEZAT"));   // yalnız liste isteği: kaynakları eskitmez
+        kanallar.SetResult(new[] { Mezat, Toptan }); await tam;
+
+        Assert.Equal(new[] { "MEZAT", "TOPTAN", "Ortak" }, GiderKanalAdlari(vm));
+        Assert.Equal(2, vm.FiltreDonemler.Count);
+    }
+
+    [Fact]
+    public async Task Oturum_degisince_onceki_oturumun_gec_kaynaklari_uygulanmaz()
+    {
+        var api = Api(); var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
+        api.KanallarGetir = () => kanallar.Task;
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var vm = new IslemlerViewModel(api, auth: auth, zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 7, 15)));
+
+        var tam = vm.YukleAsync();
+        auth.OturumSurumu++;
+        kanallar.SetResult(new[] { Eski }); await tam;
+
+        Assert.Empty(vm.GiderKanallari); Assert.Empty(vm.FiltreDonemler); Assert.False(vm.ListeYukleniyor);
+    }
+
+    [Fact]
+    public async Task Liste_okumasinin_zaman_asimi_islem_tamamlanmis_olabilir_demez()
+    {
+        var api = Api(); api.YuklemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti);
+        var vm = Vm(api);
+
+        await vm.YukleAsync();
+
+        Assert.Contains("zamanında yanıt vermedi", vm.YuklemeHatasi);
+        Assert.DoesNotContain("tamamlanmış olabilir", vm.YuklemeHatasi);
+    }
 }

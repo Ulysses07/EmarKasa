@@ -151,10 +151,23 @@ public partial class TakipOzetViewModel(IFinansTakipApi api, AuthViewModel auth)
     {
         VeriHazir = false; KanalKartBorclari = null; var v = await api.TakipOzetAsync(Gun);
         if (!Gecerli(n)) return;
+        Yansit(v);
+    });
+    /// <summary>Panelin ana sayfa yanıtındaki takip özetini (bakiyelerle aynı anlık görüntü) istek atmadan yansıtır. Özet
+    /// yoksa (eski sunucu) ya da başka gün ufku için alındıysa (panel yüklenirken gün değişti) özet uçtan yüklenir.</summary>
+    public Task PaneldenYukleAsync(TakipOzetDto? ozet, int gun)
+    {
+        if (ozet is null || gun != Gun) return YukleAsync();
+        BekleyenleriIptalEt(); Hata = null; Mesaj = null;
+        Yansit(ozet);
+        return Task.CompletedTask;
+    }
+    private void Yansit(TakipOzetDto v)
+    {
         Ozet = $"Toplam kart borcu {Bicim.Tl(v.KartBorcu)} ₺ · kalan planlı kredi ödemesi {Bicim.Tl(v.KalanKrediPlani)} ₺" + (v.KartAlacakBakiyesi > 0 ? $"\nKart alacak bakiyesi: {Bicim.Tl(v.KartAlacakBakiyesi)} ₺. Diğer kartların borcundan düşülmez." : "");
         KanalKartBorclari = v.KanalKartBorclari;
         BelirsizBorcOzeti = v.KanalKartBorclari is null ? "Kanallara göre kart borcu bilgisi alınamadı." : $"Dağılım bekleyen kart borcu: {Bicim.Tl(v.KanalKartBorclari.Where(p => p.KanalId is null).Sum(p => Math.Max(0, p.Tutar)))} ₺";
         TakipMetni.Doldur(Olaylar, v.Olaylar.Select(o => new TakipOlaySatiri(o, v.Tarih))); Tamamlandi();
-    });
+    }
     protected override void OturumTemizle() { Olaylar.Clear(); Ozet = ""; KanalKartBorclari = null; BelirsizBorcOzeti = ""; }
 }

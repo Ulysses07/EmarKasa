@@ -25,11 +25,17 @@ public record HaftalikOzetDto(
     decimal ToplamGiden,
     decimal KasaSonucu,
     decimal KasaDevir,
-    decimal DagilimBekleyenTutar = 0m);
+    decimal DagilimBekleyenTutar = 0m,
+    // Sunucu yalnız son dönemde ve yalnız sorun varsa yazar (ör. rapor ufkunun ötesinde tarihli kayıt); eski sunucu göndermez.
+    string? VeriSagligiUyarisi = null);
 public record KanalAylikDto(string Kanal, decimal Gelen, decimal CariGiden, decimal SabitGider, decimal KrediKarti, decimal OrtakPay, decimal AySonucu);
 public record AylikRaporDto(int Yil, int Ay, IReadOnlyList<KanalAylikDto> Kanallar, decimal DagilimBekleyenTutar = 0m, decimal GenelGider = 0m, decimal GenelGelir = 0m);
 public record KanalBakiyeDto(string Kanal, decimal Bakiye, int? KanalId = null);
 public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanallar, decimal BuHaftaSonucu, decimal BuAySonucu, decimal DagilimBekleyenTutar = 0m);
+/// <summary>Ana sayfa özeti (GET /api/rapor/ana-sayfa): panel, kanal eşikleri ve takip özeti sunucunun tek salt okunur anlık
+/// görüntüsünden; her parça ayrı uçların yanıtıyla birebir aynıdır. Eski sunucuda uç yoksa istemci yalnız paneli doldurur:
+/// <see cref="KasaEsikleri"/> ve <see cref="TakipOzeti"/> null kalır, çağıran onları eski uçlardan ayrıca yükler.</summary>
+public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikleri, TakipOzetDto? TakipOzeti);
 
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);

@@ -18,7 +18,9 @@ public partial class PanelPage : ContentPage
         {
             if (e.PropertyName == nameof(vm.VeriVar))
             {
-                if (vm.VeriVar) { await takip.YukleAsync(); await kontrol.YukleAsync(); }
+                // Takip özeti ve kanal eşikleri panelle aynı ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı
+                // andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
+                if (vm.VeriVar) { await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu); await kontrol.YukleAsync(vm.KasaEsikleri); }
                 else { takip.VeriHazir = false; kontrol.VeriHazir = false; }
             }
         };
@@ -28,7 +30,7 @@ public partial class PanelPage : ContentPage
                 _vm.KartBorclariniYansit(takip.VeriHazir ? takip.KanalKartBorclari : null);
         };
         var secim = new HorizontalStackLayout { Spacing = 10 };
-        foreach (var gun in new[] { 7, 30 }) secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; await takip.YukleAsync(); }));
+        foreach (var gun in new[] { 7, 30 }) secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
         var yukle = new ActivityIndicator(); yukle.SetBinding(ActivityIndicator.IsRunningProperty, nameof(takip.Mesgul));
         var hata = TakipUi.Bagli(nameof(takip.Hata)); hata.TextColor = Colors.DarkRed;
         var icerik = new VerticalStackLayout { Spacing = 12 };
@@ -46,5 +48,12 @@ public partial class PanelPage : ContentPage
     {
         base.OnAppearing();
         await _vm.YukleAsync();
+    }
+
+    /// <summary>Başka ekrana geçince süren ana sayfa isteği iptal edilir (sunucu hesabı da kesilir).</summary>
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _vm.EkrandanAyril();
     }
 }

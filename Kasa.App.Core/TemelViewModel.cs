@@ -31,4 +31,10 @@ public partial class TemelViewModel : ObservableObject
         HttpRequestException or TaskCanceledException => "Sunucuya ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.",
         _ => "İşlem tamamlanamadı. Lütfen yeniden deneyin.",
     };
+
+    /// <summary>Salt okuma çağrısının (liste, rapor) hata iletisi: okuma sunucuda bir şey değiştirmez; zaman aşımında
+    /// "işlem sunucuda tamamlanmış olabilir" denmez, yalnız yeniden deneme istenir.</summary>
+    protected static string OkumaHataMesaji(Exception hata) => hata is TimeoutException
+        ? "Sunucu zamanında yanıt vermedi. Bağlantınızı kontrol edip yeniden deneyin."
+        : HataMesaji(hata);
 }

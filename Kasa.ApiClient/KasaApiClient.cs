@@ -101,7 +101,23 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     // ---- okuma metotları ----
 
     public Task<PanelDto> PanelAsync() => GetAsync<PanelDto>("api/rapor/panel");
-    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => GetAsync<IReadOnlyList<HaftalikOzetDto>>("api/rapor/haftalik");
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => HaftalikAsync(CancellationToken.None);
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct) => GetAsync<IReadOnlyList<HaftalikOzetDto>>("api/rapor/haftalik", ct);
+
+    /// <summary>Uç bir kez 404 verdiyse (eski sunucu) sonraki yüklemeler doğrudan panele gider; uygulama yeniden
+    /// başlatılınca yeniden denenir.</summary>
+    private volatile bool _anaSayfaUcuYok;
+
+    public async Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default)
+    {
+        if (!_anaSayfaUcuYok)
+        {
+            try { return await GetAsync<AnaSayfaDto>($"api/rapor/ana-sayfa?gun={gun}", ct); }
+            catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound) { _anaSayfaUcuYok = true; }
+        }
+        // Eski sunucu: panel tek başına; eşikler ve takip özeti çağıranca eski uçlardan yüklenir (eski davranış korunur).
+        return new(await GetAsync<PanelDto>("api/rapor/panel", ct), null, null);
+    }
     public Task<AylikRaporDto> AylikAsync(int yil, int ay) => GetAsync<AylikRaporDto>($"api/rapor/aylik?yil={yil}&ay={ay}");
     public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => GetAsync<IReadOnlyList<DonemDto>>("api/donemler");
     public Task<IReadOnlyList<KanalDto>> KanallarAsync() => GetAsync<IReadOnlyList<KanalDto>>("api/kanallar");
@@ -248,11 +264,11 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         return null;
     }
 
-    private async Task<T> GetAsync<T>(string yol)
+    private async Task<T> GetAsync<T>(string yol, CancellationToken ct = default)
     {
         using var istek = new HttpRequestMessage(HttpMethod.Get, yol);
-        using var yanit = await GonderAsync(istek);
-        return (await yanit.Content.ReadFromJsonAsync<T>(Json))!;
+        using var yanit = await GonderAsync(istek, cancellationToken: ct);
+        return (await yanit.Content.ReadFromJsonAsync<T>(Json, ct))!;
     }
 
     private async Task<T> GonderJsonAsync<T>(HttpMethod metot, string yol, object govde)
