@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
@@ -102,10 +101,10 @@ public static class AlisEndpoints
             db.SaveChanges();
             return Results.Ok(ReadDto(db, id));
         })).RequireAuthorization("Editor");
-        api.MapPost("/{id:int}/odemeler", (int id, AlisOdemeYaz dto, KasaDbContext db) => Mutate(db, () => Pay(db, id, dto)))
+        api.MapPost("/{id:int}/odemeler", (int id, AlisOdemeYaz dto, KasaDbContext db) => Mutate(db, () => Pay(db, id, dto), OdemeCakismasi))
             .RequireAuthorization("Editor");
-        api.MapPut("/{id:int}/odemeler/{odemeId:int}", (int id, int odemeId, AlisOdemeDuzelt dto, KasaDbContext db) => Mutate(db, () => AlisOdemeIslemleri.Duzelt(db, id, odemeId, dto))).RequireAuthorization("Editor");
-        api.MapPost("/{id:int}/odemeler/{odemeId:int}/iptal", (int id, int odemeId, AlisOdemeIptal dto, KasaDbContext db) => Mutate(db, () => AlisOdemeIslemleri.Iptal(db, id, odemeId, dto))).RequireAuthorization("Editor");
+        api.MapPut("/{id:int}/odemeler/{odemeId:int}", (int id, int odemeId, AlisOdemeDuzelt dto, KasaDbContext db) => Mutate(db, () => AlisOdemeIslemleri.Duzelt(db, id, odemeId, dto), OdemeCakismasi)).RequireAuthorization("Editor");
+        api.MapPost("/{id:int}/odemeler/{odemeId:int}/iptal", (int id, int odemeId, AlisOdemeIptal dto, KasaDbContext db) => Mutate(db, () => AlisOdemeIslemleri.Iptal(db, id, odemeId, dto), OdemeCakismasi)).RequireAuthorization("Editor");
         return app;
     }
 
@@ -227,9 +226,11 @@ public static class AlisEndpoints
         db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad));
     internal static IResult Conflict(string message) => Results.Conflict(new { hata = message });
     private static IResult VersionConflict() => Conflict("Alış başka bir işlemle değişti. Listeyi yenileyip tekrar deneyin.");
+    // Ödeme uçlarında UNIQUE çakışması: aynı istek kimliği ya da gider aynı anda başka bir ödemeyle kaydedildi.
+    private const string OdemeCakismasi = "Ödeme aynı anda başka bir işlemle kaydedilmiş. Listeyi yenileyip tekrar deneyin.";
 
     /// <summary>Salt okunur uç: işlem tutarlı okuma anlık görüntüsünde (DEFERRED, yazmaya kapalı) çalışır; yazma kilidi
-    /// almaz. Anlık görüntü sırasında meşgul/kilitli veritabanı (5/6) yazmadaki gibi 409 döner.</summary>
+    /// almaz. Veritabanı hatası (ör. meşgul veritabanı → 503) <see cref="VeritabaniHataSiniflandirici"/> ile yanıtlanır.</summary>
     internal static IResult Oku(KasaDbContext db, Func<IResult> action)
     {
         try
@@ -237,11 +238,14 @@ public static class AlisEndpoints
             using var snapshot = db.OkumaBaslat();
             return action();
         }
-        catch (SqliteException e) when (e.SqliteErrorCode is 5 or 6)
-        { return Conflict("Başka bir kayıt işlemiyle çakışma oldu. Listeyi yenileyip tekrar deneyin."); }
+        catch (Exception e) when (VeritabaniHataSiniflandirici.Siniflandir(e) is { } hata) { return new VeritabaniHataSonucu(hata, e); }
     }
 
-    internal static IResult Mutate(KasaDbContext db, Func<IResult> action)
+    /// <summary>Yazma ucu: işlem tek yazma transaction'ında çalışır; 400 ve üstü sonuç geri alınır. Veritabanı hatası genel
+    /// kuralla (<see cref="VeritabaniHataSiniflandirici"/>) yanıtlanır ve loglanır: kilit beklemesi 503 + Retry-After, UNIQUE ve
+    /// sürüm çakışması 409, kodun doğrulamadığı bütünlük hatası (FK, CHECK) 500. <paramref name="cakismaIletisi"/> UNIQUE
+    /// çakışmasında bağlama özgü iletidir (ör. aynı anda kaydedilen ödeme); verilmezse genel ileti kullanılır.</summary>
+    internal static IResult Mutate(KasaDbContext db, Func<IResult> action, string? cakismaIletisi = null)
     {
         try
         {
@@ -253,13 +257,7 @@ public static class AlisEndpoints
             transaction.Commit();
             return result;
         }
-        catch (DbUpdateConcurrencyException) { return VersionConflict(); }
-        catch (SqliteException e) when (e.SqliteErrorCode == 19 && e.Message.Contains("Kilitli ay", StringComparison.Ordinal))
-        { return Conflict("Bu tarih kilitli dönemde. Değişiklik için ilgili ayı gerekçeyle açın."); }
-        catch (DbUpdateException e) when (e.InnerException is SqliteException { SqliteErrorCode: 19 or 5 or 6 })
-        { return Conflict("Bağlı kayıt değişmiş veya başka bir ödeme kaydedilmiş. Listeyi yenileyin."); }
-        catch (SqliteException e) when (e.SqliteErrorCode is 19 or 5 or 6)
-        { return Conflict("Başka bir kayıt işlemiyle çakışma oldu. Listeyi yenileyip tekrar deneyin."); }
+        catch (Exception e) when (VeritabaniHataSiniflandirici.Siniflandir(e, cakismaIletisi) is { } hata) { return new VeritabaniHataSonucu(hata, e); }
     }
 
     private static string Digest(int alisId, AlisOdemeYaz dto)
