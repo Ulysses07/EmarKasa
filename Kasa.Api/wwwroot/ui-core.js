@@ -94,6 +94,8 @@ export function sessionExpired(status, path) {
 }
 // Sunucu ve masaüstü ile aynı kural ve ileti; yalnız belirlerken/değiştirirken uygulanır.
 export const VIEWER_PASSWORD_MESSAGE = 'İzleyici şifresi 12–1024 karakter olmalıdır.';
+// Sunucu, kayıtlı izleyici şifresinin kurala uymadığını ancak bir izleyici girişinde görür (hash uzunluk saklamaz).
+export const VIEWER_PASSWORD_SHORT_MESSAGE = 'Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.';
 export function viewerPasswordError(value) {
   const text = String(value ?? '');
   return !text.trim() || text.length < 12 || text.length > 1024 ? VIEWER_PASSWORD_MESSAGE : null;

@@ -14,7 +14,7 @@ const monthly = await loadBrowserModule('monthly-ui.js');
 const cashControls = await loadBrowserModule('cash-controls-ui.js');
 const statementImport = await loadBrowserModule('statement-import-ui.js');
 const pushModule = await loadBrowserModule('push-client.js');
-const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_MESSAGE, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
+const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_MESSAGE, VIEWER_PASSWORD_SHORT_MESSAGE, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
 
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
 async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
@@ -650,6 +650,20 @@ test('viewer password is checked with the shared rule before any request and use
   password.value = 'on-iki-harf!'; await submitDialog(nodes);
   assert.deepEqual(calls.filter(call => call.path === '/api/ayarlar/izleyici-sifre').map(call => [call.method, call.body]), [['PUT', { yeniSifre: 'on-iki-harf!' }]]);
   assert.match(nodes.get('#notifications').textContent, /İzleyici şifresi güncellendi/);
+});
+test('settings show server warnings for a short existing viewer password and an untrusted proxy until they clear', async () => {
+  const settings = { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true, izleyiciSifreKisa: true, vekilUyarisi: 'Sunucu, güvenilmeyen 10.20.0.1 bağlantısından gelen X-Forwarded-For başlığını yok saydı.' };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': settings, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [], '/api/kanallar': [], '/api/ayarlar/izleyici-sifre': null });
+  await app.navigate('tools');
+  assert.equal(VIEWER_PASSWORD_SHORT_MESSAGE, 'Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.');
+  assert.ok(nodes.get('#view').find(node => node.textContent === VIEWER_PASSWORD_SHORT_MESSAGE), 'Kısa izleyici şifresi uyarısı görünür.');
+  assert.ok(nodes.get('#view').find(node => node.textContent === settings.vekilUyarisi && node.attributes.role === 'alert'), 'Vekil uyarısı görünür.');
+
+  // Kurala uygun yeni şifre kaydedilince Ayarlar yenilenir; sunucu artık işaretlemediği için uyarılar kalkar.
+  settings.izleyiciSifreKisa = false; settings.vekilUyarisi = null;
+  app.viewerPasswordDialog(); formField(nodes, 'yeniSifre').value = 'on-iki-harf!'; await submitDialog(nodes);
+  assert.doesNotMatch(nodes.get('#view').textContent, /12 karakterden kısa|X-Forwarded-For/);
+  assert.match(nodes.get('#view').textContent, /İzleyici şifresini değiştir/);
 });
 test('display formatting keeps Turkish money and date meaning', () => {
   assert.match(money(1234.56), /1\.234,56/);
