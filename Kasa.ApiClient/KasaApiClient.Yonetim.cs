@@ -25,31 +25,58 @@ public sealed partial class KasaApiClient : IYonetimApi
         => yanit.Headers.TryGetValues(TanidikCihazBasligi, out var degerler) ? degerler.FirstOrDefault() : null;
     public Task<SurumDto> SurumAsync() => GetAsync<SurumDto>("api/surum");
     public Task<YedekDurumuDto> YedekDurumuAsync() => GetAsync<YedekDurumuDto>("api/yedek/durum");
-    public Task<IndirilenDosya> YedekIndirAsync() => DosyaIndirAsync(HttpMethod.Post, "api/yedek", "kasa-yedek.zip");
+    /// <summary>Sunucu yedeği isteğin içinde hazırlar (SQLite yedeği, doğrulama, zip); hazırlık ve indirme birlikte
+    /// <see cref="KasaZamanAsimlari.Yedek"/> süresine tabidir. Yedek belleğe alınmadan <paramref name="hedef"/>'e yazılır.</summary>
+    public Task<IndirmeBilgisi> YedekIndirAsync(Stream hedef, CancellationToken cancellationToken = default)
+        => DosyaIndirAsync(HttpMethod.Post, "api/yedek", "kasa-yedek.zip", hedef, _zaman.Yedek, cancellationToken);
     public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int alisId) => GetAsync<IReadOnlyList<BelgeDto>>($"api/alis/{alisId}/belgeler");
-    public async Task<BelgeDto> BelgeYukleAsync(int alisId, string dosyaAdi, string icerikTuru, byte[] icerik, int? odemeId = null)
+    /// <summary>Sunucunun belge sınırı (10 MB) istemcide de denetlenir: sınır dışı dosya yavaş bağlantıda boşuna gönderilmez.</summary>
+    public async Task<BelgeDto> BelgeYukleAsync(int alisId, string dosyaAdi, string icerikTuru, byte[] icerik, int? odemeId = null, CancellationToken cancellationToken = default)
     {
+        if (icerik.Length == 0) throw new ArgumentException("Belge dosyası boş.", nameof(icerik));
+        if (icerik.Length > EnBuyukBelge) throw new ArgumentException("Belge en fazla 10 MB olabilir.", nameof(icerik));
         using var govde = new MultipartFormDataContent();
         var dosya = new ByteArrayContent(icerik);
         dosya.Headers.ContentType = new MediaTypeHeaderValue(icerikTuru);
         govde.Add(dosya, "dosya", GuvenliDosyaAdi(dosyaAdi, "belge"));
         if (odemeId is { } id) govde.Add(new StringContent(id.ToString(System.Globalization.CultureInfo.InvariantCulture)), "odemeId");
         using var istek = new HttpRequestMessage(HttpMethod.Post, $"api/alis/{alisId}/belgeler") { Content = govde };
-        using var yanit = await GonderAsync(istek);
-        return (await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<BelgeDto>(yanit.Content, Json))!;
+        using var yanit = await GonderAsync(istek, zamanAsimi: _zaman.Yukleme, cancellationToken: cancellationToken);
+        return (await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<BelgeDto>(yanit.Content, Json, cancellationToken))!;
     }
-    public Task<IndirilenDosya> BelgeIndirAsync(int belgeId) => DosyaIndirAsync(HttpMethod.Get, $"api/belgeler/{belgeId}", $"belge-{belgeId}");
+    public Task<IndirmeBilgisi> BelgeIndirAsync(int belgeId, Stream hedef, CancellationToken cancellationToken = default)
+        => DosyaIndirAsync(HttpMethod.Get, $"api/belgeler/{belgeId}", $"belge-{belgeId}", hedef, _zaman.Indirme, cancellationToken);
     public Task BelgeSilAsync(int belgeId) => SilAsync($"api/belgeler/{belgeId}");
-    public Task<IndirilenDosya> DisariAktarAsync(DateOnly baslangic, DateOnly bitis, string? kanal, string bicim)
+    public Task<IndirmeBilgisi> DisariAktarAsync(DateOnly baslangic, DateOnly bitis, string? kanal, string bicim, Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, $"api/disari-aktar?baslangic={baslangic:yyyy-MM-dd}&bitis={bitis:yyyy-MM-dd}&bicim={Uri.EscapeDataString(bicim)}"
-            + (string.IsNullOrWhiteSpace(kanal) ? "" : "&kanal=" + Uri.EscapeDataString(kanal)), $"kasa-rapor.{bicim}");
+            + (string.IsNullOrWhiteSpace(kanal) ? "" : "&kanal=" + Uri.EscapeDataString(kanal)), $"kasa-rapor.{bicim}", hedef, _zaman.Indirme, cancellationToken);
 
-    private async Task<IndirilenDosya> DosyaIndirAsync(HttpMethod metot, string yol, string varsayilan)
+    /// <summary>Sunucunun belge sınırı (10 MB).</summary>
+    private const int EnBuyukBelge = 10 * 1024 * 1024;
+
+    /// <summary>Dosya yanıtını başlıklar gelir gelmez akışla <paramref name="hedef"/>'e yazar; gövde belleğe toplanmaz.
+    /// Süre sınırı gövdenin sonuna kadar geçerlidir, iptal okuma ve yazmaya yayılır.</summary>
+    private Task<IndirmeBilgisi> DosyaIndirAsync(HttpMethod metot, string yol, string varsayilan, Stream hedef, TimeSpan zamanAsimi, CancellationToken cancellationToken)
     {
-        using var istek = new HttpRequestMessage(metot, yol);
-        using var yanit = await GonderAsync(istek);
-        var ad = yanit.Content.Headers.ContentDisposition?.FileNameStar ?? yanit.Content.Headers.ContentDisposition?.FileName;
-        return new(await yanit.Content.ReadAsByteArrayAsync(), GuvenliDosyaAdi(ad, varsayilan), yanit.Content.Headers.ContentType?.MediaType ?? "application/octet-stream");
+        ArgumentNullException.ThrowIfNull(hedef);
+        return SureliAsync(zamanAsimi, cancellationToken, async ct =>
+        {
+            using var istek = new HttpRequestMessage(metot, yol);
+            using var yanit = await YanitAlAsync(istek, tokenEkle: true, HttpCompletionOption.ResponseHeadersRead, ct);
+            var basliklar = yanit.Content.Headers;
+            var ad = basliklar.ContentDisposition?.FileNameStar ?? basliklar.ContentDisposition?.FileName;
+            await using var kaynak = await yanit.Content.ReadAsStreamAsync(ct);
+            var tampon = new byte[81920];
+            long toplam = 0;
+            int okunan;
+            while ((okunan = await kaynak.ReadAsync(tampon, ct)) > 0)
+            {
+                await hedef.WriteAsync(tampon.AsMemory(0, okunan), ct);
+                toplam += okunan;
+            }
+            await hedef.FlushAsync(ct);
+            return new IndirmeBilgisi(GuvenliDosyaAdi(ad, varsayilan), basliklar.ContentType?.MediaType ?? "application/octet-stream", toplam);
+        });
     }
     private static string GuvenliDosyaAdi(string? ad, string varsayilan)
     {

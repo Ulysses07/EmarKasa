@@ -173,7 +173,7 @@ public class EkstreAktarmaTests
         public Task<EkstreBelgeDto> EkstreBelgeAsync(int id) { BelgeSayisi++; return Task.FromResult(Veri); }
         public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) { KaynakId = kayitId; return KaynakYaniti ?? Task.FromResult(Veri); }
         public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default) { YuklemeSayisi++; return Task.FromResult(Veri); }
-        public Task<IndirilenDosya> EkstreDosyaAsync(int id) => Task.FromResult(new IndirilenDosya([1], "belge.pdf", "application/pdf"));
+        public async Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("belge.pdf", "application/pdf", 1); }
         public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }
         public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) { IptalSayisi++; return Task.FromResult(Veri); }

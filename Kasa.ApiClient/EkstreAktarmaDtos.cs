@@ -16,7 +16,8 @@ public interface IEkstreAktarmaApi
     Task<EkstreBelgeDto> EkstreBelgeAsync(int id);
     Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId);
     Task<EkstreBelgeDto> EkstreYukleAsync(byte[] icerik, string dosyaAdi, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken cancellationToken = default);
-    Task<IndirilenDosya> EkstreDosyaAsync(int id);
+    /// <summary>Kaynak PDF'i akışla <paramref name="hedef"/>'e yazar.</summary>
+    Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken cancellationToken = default);
     Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g);
     Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g);
     Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g);

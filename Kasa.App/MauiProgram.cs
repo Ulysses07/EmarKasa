@@ -31,10 +31,11 @@ public static class MauiProgram
             var http = new HttpClient(new HttpClientHandler { UseCookies = false })
             {
                 BaseAddress = ApiAdresi.Coz(Environment.GetEnvironmentVariable("KASA_API_URL")),
-                // İstemci normal çağrıları 15 sn, yalnız PDF yüklemeyi 60 sn ile sınırlar.
-                Timeout = TimeSpan.FromSeconds(60),
+                // Süre sınırı istek başına KasaApiClient'ta, gövde okuması dahil uygulanır: normal 15 sn, yükleme 2 dk,
+                // indirme 5 dk, yedek 15 dk. Genel HttpClient sınırı uzun dosya işlemlerini kesmesin diye kapalıdır.
+                Timeout = System.Threading.Timeout.InfiniteTimeSpan,
             };
-            return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>());
+            return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>(), KasaZamanAsimlari.Varsayilanlar);
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IAlisApi>(sp => sp.GetRequiredService<KasaApiClient>());

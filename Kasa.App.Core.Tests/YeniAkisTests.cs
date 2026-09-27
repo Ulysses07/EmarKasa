@@ -64,7 +64,61 @@ public class YeniAkisTests
         var api = new Fake(); var vm = new GuvenlikViewModel(api, Auth()) { MevcutSifre = "eski", YeniSifre = "12345678" };
         await vm.SifreDegistirCommand.ExecuteAsync(null); Assert.False(api.SifreDegisti); Assert.Contains("12", vm.Hata);
         var rapor = new DisariAktarViewModel(api, new SahteApi(), Auth()) { Baslangic = new(2026, 10, 1), Bitis = new(2026, 9, 1) };
-        Assert.Null(await rapor.IndirAsync("xlsx")); Assert.False(api.RaporIndirildi);
+        Assert.Null(await rapor.IndirAsync("xlsx", new MemoryStream())); Assert.False(api.RaporIndirildi);
+    }
+    [Fact] public async Task Yedek_bellege_alinmadan_hedef_akisa_yazilir_ve_boyutuyla_bildirilir()
+    {
+        var vm = new GuvenlikViewModel(new Fake(), Auth()); var hedef = new MemoryStream();
+        var bilgi = await vm.YedekIndirAsync(hedef);
+        Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray()); Assert.Equal("yedek.zip", bilgi!.DosyaAdi);
+        Assert.Contains("Yedek indirildi", vm.Mesaj); Assert.Null(vm.Hata); Assert.False(vm.YedekIndiriliyor); Assert.False(vm.Mesgul);
+    }
+    [Fact] public async Task Yedek_indirmesi_kullanici_iptaliyle_durur_hata_sayilmaz()
+    {
+        var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); CancellationToken gorulen = default;
+        var api = new Fake { YedekYaniti = async (_, ct) => { gorulen = ct; basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); } };
+        var vm = new GuvenlikViewModel(api, Auth());
+        var islem = vm.YedekIndirAsync(new MemoryStream()); await basladi.Task;
+        Assert.True(vm.YedekIndiriliyor); Assert.True(vm.YedekIptalCommand.CanExecute(null));
+        vm.YedekIptalCommand.Execute(null);
+        Assert.Null(await islem); Assert.True(gorulen.IsCancellationRequested);
+        Assert.Null(vm.Hata); Assert.Equal("Yedek indirme iptal edildi.", vm.Mesaj); Assert.False(vm.YedekIndiriliyor); Assert.False(vm.Mesgul);
+    }
+    [Fact] public async Task Ekrandan_ayrilinca_suren_yedek_indirmesi_iptal_edilir()
+    {
+        var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); CancellationToken gorulen = default;
+        var api = new Fake { YedekYaniti = async (_, ct) => { gorulen = ct; basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); } };
+        var vm = new GuvenlikViewModel(api, Auth());
+        var islem = vm.YedekIndirAsync(new MemoryStream()); await basladi.Task;
+        vm.EkrandanAyril();
+        Assert.Null(await islem); Assert.True(gorulen.IsCancellationRequested); Assert.Null(vm.Hata); Assert.Null(vm.Mesaj);
+    }
+    [Fact] public async Task Yedek_zaman_asimi_baglanti_hatasindan_ayri_anlatilir()
+    {
+        var api = new Fake { YedekYaniti = (_, _) => Task.FromException<IndirmeBilgisi>(new TimeoutException(KasaZamanAsimlari.Ileti)) };
+        var vm = new GuvenlikViewModel(api, Auth());
+        Assert.Null(await vm.YedekIndirAsync(new MemoryStream()));
+        Assert.Contains("zamanında yanıt vermedi", vm.Hata); Assert.DoesNotContain("ulaşılamadı", vm.Hata); Assert.False(vm.YedekIndiriliyor);
+    }
+    [Fact] public async Task Yedek_durumu_sunucunun_rotasyon_uyarisini_gosterir()
+    {
+        const string uyari = "Otomatik rotasyonu tamamlanamadı: saklama süresi dolan 1 yedek silinemedi (kasa-otomatik-20260801-000000.zip).";
+        var api = new Fake { Durum = new(true, new(2026, 9, 23, 3, 0, 0, TimeSpan.Zero), new(2026, 9, 23, 3, 0, 0, TimeSpan.Zero), null, uyari) };
+        var vm = new GuvenlikViewModel(api, Auth());
+        await vm.YukleAsync();
+        Assert.Equal(uyari, vm.YedekUyarisi); Assert.DoesNotContain(uyari, vm.YedekBilgisi);
+        api.Durum = new(true, null, null, "Son yedekleme tamamlanamadı."); await vm.YukleAsync();
+        Assert.Equal("Son yedekleme tamamlanamadı.", vm.YedekUyarisi);
+        api.Durum = new(true, null, null, null); await vm.YukleAsync();
+        Assert.Null(vm.YedekUyarisi);
+    }
+    [Fact] public async Task Belge_yukleme_zaman_asiminda_liste_yenilenir_ki_tekrar_yuklemeden_once_gorulsun()
+    {
+        var sunucudaki = new BelgeDto(9, 7, null, "dekont.pdf", "application/pdf", 4, DateTimeOffset.UtcNow);
+        var api = new Fake { BelgeYuklemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) }; var vm = await AlisVm(api);
+        api.BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { sunucudaki });
+        await vm.BelgeYukleAsync("dekont.pdf", "application/pdf", new byte[] { 1, 2, 3, 4 }, null);
+        Assert.Contains("zamanında yanıt vermedi", vm.Hata); Assert.Equal(sunucudaki, Assert.Single(vm.Belgeler)); Assert.Equal(1, api.BelgeYuklemeSayisi);
     }
     [Fact] public async Task Gecikmis_kurtarma_kodu_ekrandan_ayrildiktan_sonra_gosterilmez()
     {
@@ -115,6 +169,10 @@ public class YeniAkisTests
         public AlisOdemeYaz? SonOdeme;
         public bool DuzeltHata, SifreDegisti, RaporIndirildi;
         public Task<IReadOnlyList<BelgeDto>>? BelgeYaniti;
+        public YedekDurumuDto Durum = new(true, null, null, null);
+        public Func<Stream, CancellationToken, Task<IndirmeBilgisi>>? YedekYaniti;
+        public Exception? BelgeYuklemeHatasi;
+        public int BelgeYuklemeSayisi;
         public Task<KurtarmaKoduDto>? KurtarmaYaniti;
         public Task<AlisDto> AlisOdemeDuzeltAsync(int a, int o, AlisOdemeDuzeltYaz g) { SonDuzelt = g; return DuzeltHata ? Task.FromException<AlisDto>(new HttpRequestException()) : Task.FromResult(Alis(a)); }
         public Task<AlisDto> AlisOdemeIptalAsync(int a, int o, AlisOdemeIptalYaz g) { SonIptal = g; return Task.FromResult(Alis(a)); }
@@ -122,13 +180,15 @@ public class YeniAkisTests
         public Task<KurtarmaKoduDto> KurtarmaKoduOlusturAsync(string s) => KurtarmaYaniti ?? Task.FromResult(new KurtarmaKoduDto("kod"));
         public Task SifreKurtarAsync(SifreKurtarYaz g) => Task.CompletedTask;
         public Task<SurumDto> SurumAsync() => Task.FromResult(new SurumDto("2.0.0", "2.0.0", null, null));
-        public Task<YedekDurumuDto> YedekDurumuAsync() => Task.FromResult(new YedekDurumuDto(true, null, null, null));
-        public Task<IndirilenDosya> YedekIndirAsync() => Task.FromResult(new IndirilenDosya(Array.Empty<byte>(), "yedek.zip", "application/zip"));
+        public Task<YedekDurumuDto> YedekDurumuAsync() => Task.FromResult(Durum);
+        public Task<IndirmeBilgisi> YedekIndirAsync(Stream hedef, CancellationToken ct = default) => YedekYaniti?.Invoke(hedef, ct) ?? Yaz(hedef, "yedek.zip");
+        private static async Task<IndirmeBilgisi> Yaz(Stream hedef, string ad) { await hedef.WriteAsync(new byte[] { 1, 2, 3 }); return new(ad, "application/octet-stream", 3); }
         public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int id) => BelgeYaniti ?? Task.FromResult<IReadOnlyList<BelgeDto>>(Array.Empty<BelgeDto>());
-        public Task<BelgeDto> BelgeYukleAsync(int id, string ad, string tur, byte[] b, int? odemeId = null) => Task.FromResult(new BelgeDto(1, id, odemeId, ad, tur, b.Length, DateTimeOffset.UtcNow));
-        public Task<IndirilenDosya> BelgeIndirAsync(int id) => YedekIndirAsync();
+        public Task<BelgeDto> BelgeYukleAsync(int id, string ad, string tur, byte[] b, int? odemeId = null, CancellationToken ct = default)
+        { BelgeYuklemeSayisi++; return BelgeYuklemeHatasi is { } hata ? Task.FromException<BelgeDto>(hata) : Task.FromResult(new BelgeDto(1, id, odemeId, ad, tur, b.Length, DateTimeOffset.UtcNow)); }
+        public Task<IndirmeBilgisi> BelgeIndirAsync(int id, Stream hedef, CancellationToken ct = default) => Yaz(hedef, "belge.pdf");
         public Task BelgeSilAsync(int id) => Task.CompletedTask;
-        public Task<IndirilenDosya> DisariAktarAsync(DateOnly b, DateOnly s, string? k, string bicim) { RaporIndirildi = true; return YedekIndirAsync(); }
+        public Task<IndirmeBilgisi> DisariAktarAsync(DateOnly b, DateOnly s, string? k, string bicim, Stream hedef, CancellationToken ct = default) { RaporIndirildi = true; return Yaz(hedef, "rapor." + bicim); }
         public Task<IReadOnlyList<AlisKanalDto>> AlisKanallariAsync() => Task.FromResult<IReadOnlyList<AlisKanalDto>>(new[] { new AlisKanalDto(1, "MEZAT", true) });
         public Task<IReadOnlyList<AlisDto>> AlislarAsync() => Task.FromResult<IReadOnlyList<AlisDto>>(new[] { IlkAlis ?? Alis(), Alis(8) });
         public Task<AlisDto> AlisOlusturAsync(AlisYaz g) { SonAlis = g; return Task.FromResult(Alis()); }

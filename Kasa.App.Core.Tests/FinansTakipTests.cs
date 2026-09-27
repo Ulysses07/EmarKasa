@@ -31,6 +31,15 @@ public class FinansTakipTests
         Assert.Equal(2, api.OdemeIstekleri.Count); Assert.Equal(api.OnizlenenOdeme!.IstekId, api.OdemeIstekleri[0].IstekId);
         Assert.Equal(api.OdemeIstekleri[0], api.OdemeIstekleri[1]); Assert.Equal(0, vm.OdemeTutari);
     }
+    [Fact] public async Task Kart_odeme_zaman_asiminda_ayni_istek_anahtariyla_yeniden_denenir_cift_kayit_olmaz()
+    {
+        var api = new Fake { OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) }; var vm = await KartVm(api); vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null); await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Contains("zamanında yanıt vermedi", vm.Hata); Assert.Equal(10, vm.OdemeTutari);
+        api.OdemeHatasi = null; await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(2, api.OdemeIstekleri.Count); Assert.Equal(api.OdemeIstekleri[0].IstekId, api.OdemeIstekleri[1].IstekId);
+        Assert.Equal(api.OdemeIstekleri[0], api.OdemeIstekleri[1]); Assert.Null(vm.Hata);
+    }
     [Fact] public async Task Kart_gecis_paylari_degistiginde_eski_onay_gonderilmez()
     {
         var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false } }; var vm = await KartVm(api);
@@ -239,7 +248,7 @@ public class FinansTakipTests
         public KartTakipDto Kart = OrnekKart(); public KrediTakipDto Kredi = OrnekKredi();
         public TakipOzetDto? Ozet;
         public Task<IReadOnlyList<KartTakipDto>>? KartlarYaniti; public Task<KartTakipDto>? OdemeYaniti;
-        public bool OdemeHata; public KartTakipOdemeYaz? OnizlenenOdeme; public List<KartTakipOdemeYaz> OdemeIstekleri = new();
+        public bool OdemeHata; public Exception? OdemeHatasi; public KartTakipOdemeYaz? OnizlenenOdeme; public List<KartTakipOdemeYaz> OdemeIstekleri = new();
         public KartGecisYaz? KartGecis; public KrediGecisYaz? KrediGecis; public KrediTakipYaz? KrediKayit; public KrediTaksitYaz? Taksit; public KrediKapatYaz? Kapatma; public KartHarcamaYaz? Harcama;
         public int KartKayitSayisi, EkstreKayitSayisi, KartGecisOnizlemeSayisi;
         public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => KartlarYaniti ?? Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Kart });
@@ -250,7 +259,7 @@ public class FinansTakipTests
         public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) { EkstreKayitSayisi++; return Task.FromResult(Kart); }
         public Task<KartOdemeOnizlemeDto> TakipOdemeOnizlemeAsync(int id, KartTakipOdemeYaz g) { OnizlenenOdeme = g; return Task.FromResult(new KartOdemeOnizlemeDto(g.Tutar, g.Tutar, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, new[] { new KartEkstreOdemePayi(7, g.Tutar) })); }
-        public Task<KartTakipDto> TakipOdemeKaydetAsync(int id, KartTakipOdemeYaz g) { OdemeIstekleri.Add(g); return OdemeHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : OdemeYaniti ?? Task.FromResult(Kart); }
+        public Task<KartTakipDto> TakipOdemeKaydetAsync(int id, KartTakipOdemeYaz g) { OdemeIstekleri.Add(g); return OdemeHatasi is { } hata ? Task.FromException<KartTakipDto>(hata) : OdemeHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : OdemeYaniti ?? Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipOdemeIptalAsync(int id, int oid, TakipIptalYaz g) => Task.FromResult(Kart);
         private static TakipGecisDto Preview(string kaynak, int id) => new(kaynak, id, Tarih, 0, 0, 30, new[] { "Geçmiş korunur" }, true);
         /// <summary>Sunucu CardPreview'ın sade aynası: önerilen = max(0, min(kalan borç, sistem borcu)), en az = önerilen − açılış borcu.</summary>

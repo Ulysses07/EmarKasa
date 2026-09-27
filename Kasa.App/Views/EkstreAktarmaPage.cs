@@ -42,7 +42,7 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
         });
         Govde.Add(Editor(Goster(Kart("2. Hareket satırları",
             Bagli(nameof(vm.BelgeOzeti)),
-            Tikla("Kaynak PDF'yi indir", async () => { if (await vm.DosyaAsync() is { } d) await DosyaIslemleri.KaydetAsync(this, d); }),
+            Tikla("Kaynak PDF'yi indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.DosyaAsync)),
             Metin("Kutuları tek tek işaretleyin. Bir satırı inceleyerek tarih, tutar, işlem türü ve kanal dağılımını düzeltebilirsiniz. İptal edilmiş satırlar yeniden seçilebilir."), liste, _satirFormu,
             Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand))), nameof(vm.BelgeVar))));
         Govde.Add(Editor(Goster(Kart("3. Kontrol ve kayıt", Bagli(nameof(vm.OnizlemeMetni)),

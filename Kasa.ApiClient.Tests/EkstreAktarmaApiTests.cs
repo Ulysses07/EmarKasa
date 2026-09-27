@@ -65,7 +65,7 @@ public class EkstreAktarmaApiTests
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
             response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileNameStar = "../../gizli/ekstre.pdf" }; return Task.FromResult(response);
         }));
-        var file = await c.EkstreDosyaAsync(8); Assert.Equal("ekstre.pdf", file.DosyaAdi); Assert.Equal(new byte[] { 1, 2, 3 }, file.Icerik);
+        var hedef = new MemoryStream(); var file = await c.EkstreDosyaAsync(8, hedef); Assert.Equal("ekstre.pdf", file.DosyaAdi); Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray());
     }
     [Fact] public void Eski_sunucu_jsonlari_yeni_opsiyonel_alanlar_olmadan_okunur()
     {

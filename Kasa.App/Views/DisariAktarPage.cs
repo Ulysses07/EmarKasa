@@ -43,7 +43,7 @@ public sealed class DisariAktarPage : ContentPage
     private Button Indir(string text, string bicim)
     {
         var b = new Button { Text = text, HorizontalOptions = LayoutOptions.Start };
-        b.Clicked += async (_, _) => { var dosya = await _vm.IndirAsync(bicim); if (dosya is not null) await DosyaIslemleri.KaydetAsync(this, dosya, bicim == "html"); };
+        b.Clicked += async (_, _) => { if (_vm.Mesgul) return; await DosyaIslemleri.IndirVeKaydetAsync(this, hedef => _vm.IndirAsync(bicim, hedef), bicim == "html"); };
         return b;
     }
     protected override async void OnAppearing() { base.OnAppearing(); await _vm.YukleAsync(); }

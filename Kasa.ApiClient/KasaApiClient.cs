@@ -10,6 +10,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
 {
     private readonly HttpClient _http;
     private readonly ITokenStore _store;
+    private readonly KasaZamanAsimlari _zaman;
     private readonly SemaphoreSlim _oturumKilidi = new(1, 1);
     public event EventHandler? OturumSonlandi;
 
@@ -18,10 +19,12 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public KasaApiClient(HttpClient http, ITokenStore store)
+    /// <param name="zamanAsimlari">İstek başına süre sınırları; verilmezse <see cref="KasaZamanAsimlari.Varsayilanlar"/>.</param>
+    public KasaApiClient(HttpClient http, ITokenStore store, KasaZamanAsimlari? zamanAsimlari = null)
     {
         _http = http;
         _store = store;
+        _zaman = zamanAsimlari ?? KasaZamanAsimlari.Varsayilanlar;
     }
 
     /// <summary>Tanıdık cihaz belirtecinin gönderildiği başlık (sunucuda TanidikCihaz.BaslikAdi).</summary>
@@ -160,7 +163,27 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
 
     // ---- altyapı ----
 
-    private async Task<HttpResponseMessage> GonderAsync(HttpRequestMessage istek, bool tokenEkle = true, TimeSpan? zamanAsimi = null, CancellationToken cancellationToken = default)
+    /// <summary>İsteği gönderir; yanıt gövdesi süre sınırı içinde belleğe alınmış olarak döner (JSON ve kısa yanıtlar).
+    /// Süre verilmezse normal çağrı sınırı (<see cref="KasaZamanAsimlari.Varsayilan"/>) uygulanır.</summary>
+    private Task<HttpResponseMessage> GonderAsync(HttpRequestMessage istek, bool tokenEkle = true, TimeSpan? zamanAsimi = null, CancellationToken cancellationToken = default)
+        => SureliAsync(zamanAsimi ?? _zaman.Varsayilan, cancellationToken, t => YanitAlAsync(istek, tokenEkle, HttpCompletionOption.ResponseContentRead, t));
+
+    /// <summary>İşlemi istek başına süre sınırıyla çalıştırır; sınır, işlemin gövde okuması dahil tamamını kapsar.
+    /// Süre (ya da HttpClient.Timeout) dolarsa <see cref="TimeoutException"/>; çağıranın iptali OperationCanceledException
+    /// olarak kalır. Kullanıcıya "sunucu yanıt vermedi" ile "vazgeçildi" farklı anlatılır.</summary>
+    private static async Task<T> SureliAsync<T>(TimeSpan sure, CancellationToken iptal, Func<CancellationToken, Task<T>> islem)
+    {
+        using var kaynak = CancellationTokenSource.CreateLinkedTokenSource(iptal);
+        kaynak.CancelAfter(sure);
+        try { return await islem(kaynak.Token); }
+        catch (OperationCanceledException e) when (!iptal.IsCancellationRequested && (kaynak.IsCancellationRequested || e.InnerException is TimeoutException))
+        {
+            throw new TimeoutException(KasaZamanAsimlari.Ileti, e);
+        }
+    }
+
+    /// <summary>Bearer ekleyip gönderir; başarısız yanıtı KasaApiException'a çevirir (401 oturumu kapatır).</summary>
+    private async Task<HttpResponseMessage> YanitAlAsync(HttpRequestMessage istek, bool tokenEkle, HttpCompletionOption tamamlama, CancellationToken ct)
     {
         string? token = null;
         if (tokenEkle)
@@ -169,16 +192,14 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             if (!string.IsNullOrEmpty(token))
                 istek.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
-        using var sure = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        sure.CancelAfter(zamanAsimi ?? TimeSpan.FromSeconds(15));
-        var yanit = await _http.SendAsync(istek, sure.Token);
+        var yanit = await _http.SendAsync(istek, tamamlama, ct);
         if (!yanit.IsSuccessStatusCode)
         {
             using (yanit)
             {
                 if (yanit.StatusCode == HttpStatusCode.Unauthorized && tokenEkle)
                     await OturumuGecersizKilAsync(token);
-                var mesaj = await HataMesajiAsync(yanit);
+                var mesaj = await HataMesajiAsync(yanit, ct);
                 throw new KasaApiException(yanit.StatusCode, mesaj);
             }
         }
@@ -202,12 +223,12 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         if (temizlendi) OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     }
 
-    private static async Task<string?> HataMesajiAsync(HttpResponseMessage yanit)
+    private static async Task<string?> HataMesajiAsync(HttpResponseMessage yanit, CancellationToken ct)
     {
         if (yanit.StatusCode is not (HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)) return null;
         try
         {
-            using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync());
+            using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync(ct));
             var kok = belge.RootElement;
             if (kok.ValueKind == JsonValueKind.String) return kok.GetString();
             if (kok.ValueKind != JsonValueKind.Object) return null;

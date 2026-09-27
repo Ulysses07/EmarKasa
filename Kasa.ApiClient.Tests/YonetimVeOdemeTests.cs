@@ -59,6 +59,16 @@ public class YonetimVeOdemeTests
         var b = await c.BelgeYukleAsync(7, "C:\\gizli\\dekont.pdf", "application/pdf", Encoding.UTF8.GetBytes("%PDF"), 3);
         Assert.Equal(8, b.Id); Assert.Contains("name=dosya", body); Assert.Contains("name=odemeId", body); Assert.DoesNotContain("gizli", body);
     }
+    [Fact] public async Task Yedek_durumu_rotasyon_uyarisini_okur_eski_sunucuda_bos_kalir()
+    {
+        var h = new SahteHandler()
+            .Kuyrukla(HttpStatusCode.OK, "{\"otomatikEtkin\":true,\"sonYedek\":null,\"sonDogrulama\":null,\"hata\":null,\"sonOtomatikYedek\":null,\"otomatikYedekSayisi\":3,\"sonElleYedek\":null,\"elleYedekSayisi\":1,\"rotasyonUyarisi\":\"Otomatik rotasyonu tamamlanamadı.\"}")
+            .Kuyrukla(HttpStatusCode.OK, "{\"otomatikEtkin\":false,\"sonYedek\":null,\"sonDogrulama\":null,\"hata\":null}");
+        var c = Client(h);
+        Assert.Equal("Otomatik rotasyonu tamamlanamadı.", (await c.YedekDurumuAsync()).RotasyonUyarisi);
+        Assert.EndsWith("/api/yedek/durum", h.SonIstek!.RequestUri!.AbsolutePath);
+        Assert.Null((await c.YedekDurumuAsync()).RotasyonUyarisi);
+    }
     [Fact] public async Task Dosya_indirme_yol_gecisini_temizler_ve_baytlari_korur()
     {
         var c = Client(new Handler(_ =>
@@ -67,7 +77,8 @@ public class YonetimVeOdemeTests
             r.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileNameStar = "../../gizli/rapor.xlsx" };
             return Task.FromResult(r);
         }));
-        var d = await c.DisariAktarAsync(new(2026, 9, 1), new(2026, 9, 23), "A & B", "xlsx");
-        Assert.Equal("rapor.xlsx", d.DosyaAdi); Assert.Equal(new byte[] { 1, 2, 3 }, d.Icerik);
+        var hedef = new MemoryStream();
+        var d = await c.DisariAktarAsync(new(2026, 9, 1), new(2026, 9, 23), "A & B", "xlsx", hedef);
+        Assert.Equal("rapor.xlsx", d.DosyaAdi); Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray()); Assert.Equal(3, d.Boyut);
     }
 }

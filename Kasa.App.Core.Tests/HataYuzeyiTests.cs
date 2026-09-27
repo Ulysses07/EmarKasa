@@ -17,4 +17,20 @@ public class HataYuzeyiTests
         Assert.NotNull(vm.Hata);
     }
 
+    [Fact]
+    public async Task Zaman_asimi_baglanti_hatasindan_ayri_anlatilir_ve_kontrol_ister()
+    {
+        var vm = new PanelViewModel(new SahteApi { YuklemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) });
+
+        await vm.YukleAsync();
+
+        Assert.Contains("zamanında yanıt vermedi", vm.Hata);
+        Assert.Contains("tamamlanmış olabilir", vm.Hata);
+        Assert.DoesNotContain("ulaşılamadı", vm.Hata);
+        Assert.Equal("Sunucuya ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.", HataMetni(new TaskCanceledException()));
+    }
+
+    private sealed class HataOkuyucu : TemelViewModel { public static string Oku(Exception e) => HataMesaji(e); }
+    private static string HataMetni(Exception e) => HataOkuyucu.Oku(e);
+
 }

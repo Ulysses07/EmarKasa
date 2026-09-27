@@ -19,6 +19,14 @@ public static class Bicim
         return $"{d.Start.ToString(bicim, Tr)} – {d.End.ToString(bicim, Tr)}";
     }
 
+    /// <summary>Dosya boyutu: "512 B", "12,3 KB", "150 MB".</summary>
+    public static string Boyut(long bayt) => bayt switch
+    {
+        < 1024 => $"{bayt} B",
+        < 1024 * 1024 => (bayt / 1024d).ToString("0.#", Tr) + " KB",
+        _ => (bayt / (1024d * 1024)).ToString("0.#", Tr) + " MB",
+    };
+
     public static string KanalRengi(string kanal) => kanal switch
     {
         "MEZAT" => "#C98A12",
