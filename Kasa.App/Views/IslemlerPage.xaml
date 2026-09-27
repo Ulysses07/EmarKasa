@@ -130,10 +130,14 @@
                             <VerticalStackLayout Padding="18" Spacing="12">
                                 <Label Text="Gelen · Kanal Geliri" Style="{StaticResource LblSection}"
                                        TextColor="{StaticResource Green}" />
+                                <!-- Gelir dönem toplamıdır: kayıt varsa yeni tutar öncekinin yerine geçer (web ile aynı). -->
                                 <VerticalStackLayout Spacing="0">
-                                    <Label Text="Tarih" Style="{StaticResource LblField}" />
+                                    <Label Text="Kasa dönemi" Style="{StaticResource LblField}" />
                                     <Border Style="{StaticResource FieldBorder}">
-                                        <DatePicker Date="{Binding GelenTarih}" />
+                                        <Picker ItemsSource="{Binding GelenDonemler}"
+                                                SelectedItem="{Binding GelenDonem}"
+                                                ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}}"
+                                                Title="Dönem seçin" />
                                     </Border>
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
@@ -155,12 +159,15 @@
                                     </FlexLayout>
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
-                                    <Label Text="Tutar" Style="{StaticResource LblField}" />
+                                    <Label Text="Bu dönem için toplam gelir (₺)" Style="{StaticResource LblField}" />
                                     <Border Style="{StaticResource FieldBorder}">
-                                        <ctl:ParaGirisi Tutar="{Binding GelenTutar}" Placeholder="0,00 ₺" />
+                                        <ctl:ParaGirisi Tutar="{Binding GelenTutar}" Placeholder="0,00 ₺"
+                                                        IsEnabled="{Binding GelenKaydedilebilir}" />
                                     </Border>
                                 </VerticalStackLayout>
-                                <Button Text="Gelen kaydet" Command="{Binding GelenKaydetCommand}" />
+                                <Label Text="{Binding GelenBilgi}" Style="{StaticResource LblPageSub}" />
+                                <Button Text="Dönem toplamını kaydet" Command="{Binding GelenKaydetCommand}"
+                                        IsEnabled="{Binding GelenKaydedilebilir}" />
                             </VerticalStackLayout>
                         </VerticalStackLayout>
                     </Border>

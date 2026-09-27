@@ -1,4 +1,6 @@
 using Kasa.App.Core;
+using Microsoft.Maui.Controls;   // Kasa.App.Core.Tests bu dosyayı MAUI örtük using'leri olmadan derler
+using Microsoft.Maui.Graphics;
 
 namespace Kasa.App.Controls;
 
