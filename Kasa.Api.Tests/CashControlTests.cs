@@ -9,13 +9,22 @@ namespace Kasa.Api.Tests;
 
 public class CashControlTests
 {
-    private static DateOnly Today => FinansTakipServisi.Bugun;
-    private static DateOnly Start => new(Today.Year, 1, 1);
+    // Takvim sınırları (tests-1): aynı testler yıl başında, artık yılın Şubat sonunda ve kırpılan ay sonunda da koşar.
+    public sealed class YilBasi() : CashControlTests(new(2027, 1, 1));
+    public sealed class ArtikYilSubatSonu() : CashControlTests(new(2028, 2, 29));
+    public sealed class KirpilanAySonu() : CashControlTests(new(2027, 3, 31));
+
+    public CashControlTests() : this(KasaWebFactory.VarsayilanBugun) { }
+    private CashControlTests(DateOnly bugun) => Today = bugun;
+    private DateOnly Today { get; }
+    // Takip başlangıcı bugünün ayından 8 ay önce: varsayılan günde 1 Ocak 2026; masraf yazılan ekstre her günde kesilmiş olur.
+    private DateOnly Start => new DateOnly(Today.Year, Today.Month, 1).AddMonths(-8);
+    private KasaWebFactory Factory() => KasaWebFactory.Sabit(Today);
 
     [Fact]
     public async Task Kart_masrafi_kalan_borca_dagilir_kasayi_odemeye_kadar_degistirmez_ve_tekrar_cogaltilmaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Factory(); using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1,60m),new(2,40m)]);
         card = await Pay(c, card, 20m);
         var before = await c.GetStringAsync("/api/rapor/panel");
@@ -36,7 +45,7 @@ public class CashControlTests
     [Fact]
     public async Task Faiz_gelecek_taksitleri_agirlik_olarak_kullanmaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Factory(); using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1,100m)]);
         card = await Charge(c, card, 200m, [new(2,200m)],2);
         var request = Fee(card, 10m);
@@ -47,7 +56,7 @@ public class CashControlTests
     [Fact]
     public async Task Bankanin_masrafi_kalan_anaparayi_asabilir_oranlar_korunur()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         var card=await Charge(c,await Card(c),.03m,[new(1,.01m),new(2,.02m)]);
         var request=Fee(card,1m);
         var preview=await Post<KartMasrafOnizlemeDto>(c,$"/api/takip/kartlar/{card.Id}/masraf-onizleme",request);
@@ -62,7 +71,7 @@ public class CashControlTests
     [Fact]
     public async Task Masraf_onizlemesinden_sonra_odeme_yapilirsa_eski_onizleme_kaydedilemez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Factory(); using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1,60m),new(2,40m)]);
         var request = Fee(card,10m);
         var preview = await Post<KartMasrafOnizlemeDto>(c,$"/api/takip/kartlar/{card.Id}/masraf-onizleme",request);
@@ -77,7 +86,7 @@ public class CashControlTests
     [Fact]
     public async Task Dagilimi_bekleyen_alis_borcuna_tahmini_faiz_payi_yazilamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Factory(); using var c = await Editor(f);
         var card=await Card(c);
         var purchase=await Post<AlisDto>(c,"/api/alis",new AlisYaz(0,Start,"Firma",null,[new("Mal",100m,[new(1,100m)])]));
         await Post<AlisDto>(c,$"/api/alis/{purchase.Id}/odemeler",new AlisOdemeYaz(purchase.Surum,Guid.NewGuid(),Start,100m,card.Id));
@@ -90,7 +99,7 @@ public class CashControlTests
     [Fact]
     public async Task Baska_kartin_ekstresi_ve_odenmis_ekstreye_masraf_reddedilir()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         var card=await Charge(c,await Card(c),100m,[new(1,100m)]);
         var other=await Charge(c,await Card(c),100m,[new(2,100m)]);
         var request=Fee(card,5m) with { EkstreId=other.Ekstreler.First(e=>e.Borc>0).Id };
@@ -103,7 +112,7 @@ public class CashControlTests
     [Fact]
     public async Task Kasa_kontrolu_farki_saklar_bakiyeyi_degistirmez_ve_tekrar_tek_kayittir()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         var before=await c.GetStringAsync("/api/rapor/panel");
         var preview=await Post<KasaKontrolOnizlemeDto>(c,"/api/kasa-kontrol/onizleme",new KasaKontrolOnizle(-100m,"Sayım"));
         Assert.Equal(1000m,preview.SistemBakiye); Assert.Equal(-1100m,preview.Fark);
@@ -118,7 +127,7 @@ public class CashControlTests
     [Fact]
     public async Task Kasa_onizlemesi_sonrasi_bakiye_degisirse_yeniden_karsilastirma_gerekir()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         var preview=await Post<KasaKontrolOnizlemeDto>(c,"/api/kasa-kontrol/onizleme",new KasaKontrolOnizle(1000m));
         (await c.PutAsJsonAsync("/api/ayarlar",new { takipBaslangic=Start,kasaAcilisDevri=900m })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Conflict,(await c.PostAsJsonAsync("/api/kasa-kontrol",new KasaKontrolYaz(Guid.NewGuid(),1000m,preview.KontrolOzeti))).StatusCode);
@@ -128,7 +137,7 @@ public class CashControlTests
     [Fact]
     public async Task Esik_surumu_ve_para_dogrulanir_izleyici_yazamaz()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         var first=(await c.GetFromJsonAsync<KasaEsikDto[]>("/api/kasa-esikleri"))!.First();
         Assert.False(first.Etkin); Assert.Equal(0,first.Surum);
         var result=await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}",new KasaEsikYaz(0,0m,true)); result.EnsureSuccessStatusCode();
@@ -146,7 +155,7 @@ public class CashControlTests
     [Fact]
     public async Task Dusuk_bakiye_olayi_gun_degisiminde_tekrarlamaz_toparlanip_yeniden_dusunce_yenidir()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         (await c.PutAsJsonAsync("/api/kasa-esikleri/1",new KasaEsikYaz(0,100m,true))).EnsureSuccessStatusCode();
         using var scope=f.Services.CreateScope(); var db=scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var first=Assert.Single(KasaEsikServisi.Oku(db,Today,true));
@@ -161,7 +170,7 @@ public class CashControlTests
     [Fact]
     public async Task Bildirimler_kapaliyken_yeni_esik_olayi_tuketilmez()
     {
-        await using var f=new KasaWebFactory(); using var c=await Editor(f);
+        await using var f=Factory(); using var c=await Editor(f);
         (await c.PutAsJsonAsync("/api/kasa-esikleri/1",new KasaEsikYaz(0,100m,true))).EnsureSuccessStatusCode();
         using var scope=f.Services.CreateScope(); var db=scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Empty(KasaEsikServisi.Oku(db,Today,false));
@@ -171,14 +180,14 @@ public class CashControlTests
 
     private static void Shares(IReadOnlyList<TakipKanalPayi> actual,params (int? Id,decimal Amount)[] expected) =>
         Assert.Equal(expected.OrderBy(p=>p.Id),actual.Select(p=>(p.KanalId,p.Tutar)).OrderBy(p=>p.KanalId));
-    private static async Task<HttpClient> Editor(KasaWebFactory f)
+    private async Task<HttpClient> Editor(KasaWebFactory f)
     { var c=await f.EditorClientAsync(); (await c.PutAsJsonAsync("/api/ayarlar",new { takipBaslangic=Start,kasaAcilisDevri=1000m })).EnsureSuccessStatusCode(); return c; }
     private static async Task<T> Post<T>(HttpClient c,string path,object body)
     { var r=await c.PostAsJsonAsync(path,body); Assert.True(r.IsSuccessStatusCode,$"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}"); return (await r.Content.ReadFromJsonAsync<T>())!; }
-    private static Task<KartTakipDto> Card(HttpClient c) => Post<KartTakipDto>(c,"/api/takip/kartlar",new KartTakipYaz(Guid.NewGuid(),0,"Kart",10000m,5,25,Start,0m,[]));
-    private static Task<KartTakipDto> Charge(HttpClient c,KartTakipDto card,decimal amount,IReadOnlyList<KanalPayYaz> shares,int installments=1) =>
+    private Task<KartTakipDto> Card(HttpClient c) => Post<KartTakipDto>(c,"/api/takip/kartlar",new KartTakipYaz(Guid.NewGuid(),0,"Kart",10000m,5,25,Start,0m,[]));
+    private Task<KartTakipDto> Charge(HttpClient c,KartTakipDto card,decimal amount,IReadOnlyList<KanalPayYaz> shares,int installments=1) =>
         Post<KartTakipDto>(c,$"/api/takip/kartlar/{card.Id}/harcamalar",new KartHarcamaYaz(Guid.NewGuid(),card.Surum,Start,"Mal",amount,installments,null,shares));
-    private static Task<KartTakipDto> Pay(HttpClient c,KartTakipDto card,decimal amount) => Post<KartTakipDto>(c,$"/api/takip/kartlar/{card.Id}/odemeler",new KartTakipOdemeYaz(Guid.NewGuid(),card.Surum,Today,amount));
-    private static KartMasrafYaz Fee(KartTakipDto card,decimal amount) => new(Guid.NewGuid(),card.Surum,card.Ekstreler.Where(e=>e.Borc>0).OrderBy(e=>e.KesimTarihi).First().Id,Today,amount,"Bankanın bildirdiği faiz");
+    private Task<KartTakipDto> Pay(HttpClient c,KartTakipDto card,decimal amount) => Post<KartTakipDto>(c,$"/api/takip/kartlar/{card.Id}/odemeler",new KartTakipOdemeYaz(Guid.NewGuid(),card.Surum,Today,amount));
+    private KartMasrafYaz Fee(KartTakipDto card,decimal amount) => new(Guid.NewGuid(),card.Surum,card.Ekstreler.Where(e=>e.Borc>0).OrderBy(e=>e.KesimTarihi).First().Id,Today,amount,"Bankanın bildirdiği faiz");
     private static async Task<decimal> Cash(HttpClient c) => (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa;
 }
