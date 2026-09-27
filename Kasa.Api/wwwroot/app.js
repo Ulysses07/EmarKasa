@@ -1,4 +1,4 @@
-import { money, dateText, today, cents, amount, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } from './ui-core.js?v=2.3.0';
+import { money, dateText, today, cents, amount, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning } from './ui-core.js?v=2.3.0';
 import { createFinanceUi } from './finance-ui.js?v=2.3.0';
 import { createNotificationUi } from './notification-ui.js?v=2.3.0';
 import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
@@ -15,6 +15,9 @@ const modal = $('#modal');
 let modalCleanup = null;
 let renderId = 0;
 let monthlyRequest = 0;
+// Ekranın rapor okumaları (screenBoundRead) bu denetleyicinin sinyaliyle gider: ekran değişince ya da oturum kapanınca istek
+// tarayıcıda iptal edilir, sunucu da hesabı keser; geç yanıt ekrana yansımaz.
+let screenAbort = null;
 const isOpen = form => modal.open && $('#modal-content').querySelector('form') === form;
 const push = createPushClient({ api, session: () => canEditCash() ? state.epoch : null });
 const financeUi = createFinanceUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, amount, signedAmount, formDialog, openModal, closeModal, page, navigate, run, toast, summary, childValues, requestIdentity, confirmSimilar, isOpen, canEdit: canEditCash, isCurrent: generation => generation === renderId, view: () => $('#view') });
@@ -59,7 +62,8 @@ function clearSession() {
   renderId++;
   state.role = null; state.purchases = []; state.channels = []; state.cards = []; state.selected = null; state.query = ''; state.status = '';
   $('#view').replaceChildren(); $('#navigation').replaceChildren(); $('#application').hidden = true; $('#login-screen').hidden = false;
-  closeModal();
+  screenAbort?.abort(); screenAbort = null;
+  closeModal(true);
 }
 async function api(path, options = {}) {
   await runtimeReady;
@@ -70,9 +74,10 @@ async function api(path, options = {}) {
   let body = options.body;
   if (body != null && !(body instanceof FormData)) { headers.set('Content-Type', 'application/json'); body = JSON.stringify(body); }
   const epoch = state.epoch;
+  const signal = options.signal ?? (screenBoundRead(path, method) ? screenAbort?.signal : undefined);
   let response;
-  try { response = await fetch(path, { ...options, method, body, headers, credentials: 'same-origin', cache: 'no-store' }); }
-  catch { throw new Error('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.'); }
+  try { response = await fetch(path, { ...options, method, body, headers, signal, credentials: 'same-origin', cache: 'no-store' }); }
+  catch { if (signal?.aborted) throw abortedRequestError(); throw new Error('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.'); }
   if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
   if (!response.ok) {
     let result; try { result = await response.json(); } catch { result = null; }
@@ -82,7 +87,8 @@ async function api(path, options = {}) {
   }
   if (options.binary) { const result = await response.blob(); if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.'); return result; }
   if (response.status === 204) return null;
-  const text = await response.text();
+  let text;
+  try { text = await response.text(); } catch (error) { if (signal?.aborted) throw abortedRequestError(); throw error; }
   if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
   return text ? JSON.parse(text) : null;
 }
@@ -93,12 +99,14 @@ function gorunur(node) {
   return !dialog || dialog.open;
 }
 // Kapanmış pencerenin hatası görünmeyen kutuya yazılmaz; hangi pencereden geldiği belirtilerek bildirim olarak gösterilir.
+// Ekran değişince iptal edilen okuma hata değildir; bildirim çıkmaz.
 async function run(control, work, errorBox = null, title = '') {
   if (control?.disabled) return;
   if (control) control.disabled = true;
   if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
   try { await work(); }
   catch (error) {
+    if (isAbortError(error)) return;
     if (errorBox && gorunur(errorBox)) { errorBox.textContent = error.message; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     else toast(title ? `${title}: ${error.message}` : error.message, true);
   } finally { if (control) control.disabled = false; }
@@ -106,19 +114,37 @@ async function run(control, work, errorBox = null, title = '') {
 // Kaydı süren form: yanıt gelene kadar pencere (iptal edilebilir) ESC/geri hareketiyle kazara kapanmaz. Vazgeç ve × açık kalır:
 // iOS'ta ESC/geri hareketi yok, isteğin de zaman aşımı yok; kapatılan pencerenin sonucu run() ile bildirim olarak görünür.
 let busyForm = null;
-function closeModal() { busyForm = null; if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
+// Yanıt bekleyen kayıt formları. Kayıt sürerken kapatılıp (Vazgeç, ×, ESC) yerine yeni pencere açıldıysa, önceki kaydın geç
+// gelen başarısındaki argümansız closeModal() çağrısı yeni pencereyi kapatmaz: açık pencere kendi kaydını beklemiyorken
+// kapatılmış bir pencerenin kaydı sürüyorsa çağrı o kayda aittir. Kullanıcı eylemleri (olay nesnesiyle) ve iç çağrılar
+// (true) her zaman kapatır. Sınır: iki kayıt aynı anda sürerken önce biten eski kayıt, yenisinin penceresini kapatabilir;
+// o zaman yeni kaydın sonucu run() ile bildirim olarak görünür.
+const savingForms = new Set();
+function strayClose() {
+  const open = modal.open ? $('#modal-content').querySelector('form') : null;
+  if (open && savingForms.has(open)) return false;
+  return [...savingForms].some(form => !isOpen(form));
+}
+function closeModal(explicit) {
+  if (explicit === undefined && strayClose()) return;
+  busyForm = null; if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren();
+}
 function openModal(title, content, wide = false) {
-  closeModal(); $('#modal-title').textContent = title; $('#modal-content').replaceChildren(content); modal.classList.toggle('wide', wide); modal.showModal();
+  closeModal(true); $('#modal-title').textContent = title; $('#modal-content').replaceChildren(content); modal.classList.toggle('wide', wide); modal.showModal();
 }
 $('#modal-close').addEventListener('click', closeModal);
 // ESC ve Android geri hareketi. Yalnız diyaloğun kendi kapatma isteği işlenir: dosya alanı da seçici kapatılınca ya da aynı
 // dosya yeniden seçilince yukarı taşınan, iptal edilemez bir cancel olayı gönderir; o olay pencereyi kapatmaz.
 // Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de temizlenir; kayıt sonradan hata
-// verirse run() onu bildirim olarak gösterir, başarı bildirimi zaten ayrıca çıkar.
+// verirse run() onu bildirim olarak gösterir; başarıda kaydın kendi bildirimi ya da sayfa yenilemesi görünür.
+// Engellenen kapatmanın bildirimi gerçek davranışı söyler: yanıt gelene kadar pencere açık kalır, hata pencerede görünür.
+// Vazgeç (ya da ×) kaydı durdurmaz; kapatılan pencerenin hatası bildirim olarak çıkar, başarılı kayıt ekrana yansır ve o sırada
+// açılmış başka pencereyi kapatmaz.
+const BUSY_CLOSE_MESSAGE = 'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden kapatmak için Vazgeç’e basın: kayıt durmaz, tamamlanabilir; hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır.';
 modal.addEventListener('cancel', event => {
   if (event.target !== modal) return;
-  if (busyForm && isOpen(busyForm) && event.cancelable) { event.preventDefault(); toast('Kayıt sürüyor; sonucu bu pencerede göreceksiniz. Beklemeden kapatmak için Vazgeç’e basın; kayıt yine tamamlanabilir, sonucu bildirim olarak görürsünüz.'); return; }
-  closeModal();
+  if (busyForm && isOpen(busyForm) && event.cancelable) { event.preventDefault(); toast(BUSY_CLOSE_MESSAGE); return; }
+  closeModal(event);
 });
 function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
@@ -139,7 +165,7 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
       control.setAttribute('aria-invalid', 'true'); (control.closest('.signed-field') || control.parentNode).append(note); marked.push([control, note]);
     }
   };
-  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { markBusy(true); clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } finally { markBusy(false); } }, errors, title); });
+  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { markBusy(true); savingForms.add(form); clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } finally { savingForms.delete(form); markBusy(false); } }, errors, title); });
   openModal(title, form, wide);
   return form;
 }
@@ -202,6 +228,7 @@ async function loadPaymentLookups() {
 async function navigate(view, id = null) {
   if (!navigationFor(state.role, runtime).some(([key]) => key === (view === 'purchase' ? 'purchases' : view))) throw new Error('Bu ekran için erişiminiz yok.');
   state.view = view; state.selected = id; nav();
+  screenAbort?.abort(); screenAbort = new AbortController();
   const generation = ++renderId;
   const content = $('#view'); content.setAttribute('aria-busy', 'true');
   content.replaceChildren(h('div', { class: 'empty' }, h('span', { class: 'loader', 'aria-hidden': 'true' }), h('p', {}, 'Kayıtlar yükleniyor…')));
@@ -246,7 +273,12 @@ $('#login-form').addEventListener('submit', event => {
 });
 $('#logout').addEventListener('click', event => run(event.currentTarget, () => logoutAndClear(async () => { if (canEditCash()) { try { await push.disable({ bestEffort: true }); } catch {} } await api('/api/auth/logout', { method: 'POST' }); }, () => { clearSession(); $('#login-form input').focus(); })));
 if (typeof window !== 'undefined') window.addEventListener('hashchange', () => { if (!state.role || runtime?.saltOkunur) return; const target = notificationRoute(location.hash, state.role); if (target) run(null, () => navigate(target.view, target.id)); });
-$('#recover-open').addEventListener('click', () => formDialog('Editör hesabını kurtar', h('div', { class: 'stack' }, help('Daha önce oluşturduğunuz tek kullanımlık kurtarma kodunu girin. Başarılı kurtarma tüm eski oturumları kapatır.'), field('Kullanıcı adı', input('kullanici', '', { required: true, autocomplete: 'username', maxlength: 64 })), field('Kurtarma kodu', input('kod', '', { required: true, autocomplete: 'off' })), field('Yeni şifre', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.'))), 'Şifreyi yenile', async form => { await api('/api/auth/kurtar', { method: 'POST', body: values(form) }); clearSession(); toast('Şifreniz yenilendi. Yeni şifrenizle giriş yapın.'); }));
+// Yeni şifre iki kez yazılır: kurtarma kodu tek kullanımlıktır, tekrar uyuşmazsa istek gönderilmez ve kod harcanmaz.
+function repeatedPassword(data) {
+  const rule = newPasswordRepeatError(data.yeniSifre, data.tekrar);
+  if (rule) throw Object.assign(new Error(rule), { fields: { tekrar: rule } });
+}
+$('#recover-open').addEventListener('click', () => formDialog('Editör hesabını kurtar', h('div', { class: 'stack' }, help('Daha önce oluşturduğunuz tek kullanımlık kurtarma kodunu girin. Başarılı kurtarma tüm eski oturumları kapatır.'), field('Kullanıcı adı', input('kullanici', '', { required: true, autocomplete: 'username', maxlength: 64 })), field('Kurtarma kodu', input('kod', '', { required: true, autocomplete: 'off' })), field('Yeni şifre', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.')), field('Yeni şifreyi tekrar girin', input('tekrar', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }))), 'Şifreyi yenile', async form => { const data = values(form); repeatedPassword(data); await api('/api/auth/kurtar', { method: 'POST', body: { kullanici: data.kullanici, kod: data.kod, yeniSifre: data.yeniSifre } }); clearSession(); toast('Şifreniz yenilendi. Yeni şifrenizle giriş yapın.'); }));
 
 function renderPurchases() {
   page(state.role === 'alici' ? 'Alışlarım' : 'Alışlar', 'Alış defteri', [button('+ Yeni alış', () => editPurchase(), 'primary')]);
@@ -403,17 +435,33 @@ function pendingNotice(value) {
 function cashActions() {
   return canEditCash() ? [button('+ Gelir gir', event => run(event.currentTarget, () => incomeDialog())), button('+ Gider kaydet', event => run(event.currentTarget, () => expenseDialog()), 'primary')] : [];
 }
+// Ana sayfa özeti tek istekte: panel, kanal eşikleri ve takip özeti sunucunun tek anlık görüntüsünden gelir; bakiye, eşik
+// rozeti ve kart borcu birbiriyle çelişmez, sunucu kart hesabını bir kez yapar. Eski sunucuda uç yoksa (404) panel tek başına
+// alınır, eşikler ve özet eski uçlardan ayrıca yüklenir (eski davranış); uç bir kez 404 verdiyse sayfa yenilenene kadar
+// yeniden denenmez. Görüntüleme sürümü yalnız paneli okur.
+let homeSummaryMissing = false;
+async function loadHomeSummary(days) {
+  if (runtime.saltOkunur) return { panel: await api('/api/rapor/panel'), kasaEsikleri: null, takipOzeti: null };
+  if (!homeSummaryMissing) {
+    try { return await api(`/api/rapor/ana-sayfa?gun=${days}`); }
+    catch (error) { if (error.status !== 404) throw error; homeSummaryMissing = true; }
+  }
+  return { panel: await api('/api/rapor/panel'), kasaEsikleri: null, takipOzeti: null };
+}
 async function renderHome(generation) {
   page('Kasalar', 'Genel kasa ve kanal bakiyeleri', cashActions());
-  const [panel, purchases] = await Promise.all([api('/api/rapor/panel'), canEditCash() ? api('/api/alis') : Promise.resolve([])]);
+  const [home, purchases] = await Promise.all([loadHomeSummary(30), canEditCash() ? api('/api/alis') : Promise.resolve([])]);
   if (generation !== renderId) return;
+  const panel = home.panel;
   const review = purchases.filter(p => p.durum === 'Incelemede');
   const paymentOverview = h('div');
   const balances = h('div', { class: 'channel-balances' });
   const unassignedDebt = h('div');
   const comparisonHistory = h('div');
   const thresholdStatus = h('div');
+  // Kart borcu durumu ayrı tutulur: eşikler sonradan çizilince "yüklenemedi" iletisi "yükleniyor…"a dönmez.
   let cardDebts = null;
+  let debtFailed = false;
   let thresholds = [];
   const drawBalances = debts => {
     cardDebts = debts;
@@ -421,33 +469,38 @@ async function renderHome(generation) {
     balances.replaceChildren(...panel.kanallar.map(k => {
       const debt = debts?.filter(row => matches(k, row)).reduce((total, row) => total + row.tutar, 0);
       const threshold = thresholds.find(row => k.kanalId != null ? row.kanalId === k.kanalId : row.kanal === k.kanal);
-      return h('div', { class: `channel-balance${threshold?.etkin && threshold.esikAltinda ? ' below-threshold' : ''}` }, h('span', { class: 'channel-name' }, k.kanal), moneyNode(k.bakiye, k.bakiye < 0 ? 'negative' : ''), threshold?.etkin && threshold.esikAltinda && h('span', { class: 'badge pending' }, `Alt sınırın altında · Sınır ${money(threshold.tutar)}`), !runtime.saltOkunur && h('div', { class: 'channel-card-debt' }, debt == null ? 'Kart borcu yükleniyor…' : h('span', {}, 'Kalan kart borcu: ', moneyNode(debt))));
+      return h('div', { class: `channel-balance${threshold?.etkin && threshold.esikAltinda ? ' below-threshold' : ''}` }, h('span', { class: 'channel-name' }, k.kanal), moneyNode(k.bakiye, k.bakiye < 0 ? 'negative' : ''), threshold?.etkin && threshold.esikAltinda && h('span', { class: 'badge pending' }, `Alt sınırın altında · Sınır ${money(threshold.tutar)}`), !runtime.saltOkunur && h('div', { class: 'channel-card-debt' }, debt == null ? (debtFailed ? 'Kart borcu yüklenemedi.' : 'Kart borcu yükleniyor…') : h('span', {}, 'Kalan kart borcu: ', moneyNode(debt))));
     }));
     const other = (debts || []).filter(row => row.tutar > 0 && !panel.kanallar.some(channel => matches(channel, row)));
     unassignedDebt.replaceChildren(...childValues([other.length && h('div', { class: 'notice' }, other.map(row => h('div', {}, `${row.kanalId == null ? 'Kanalı belirsiz kart borcu' : `${row.kanal} kart borcu`}: ${money(row.tutar)}`))), debts && help('Kart borçları kasa bakiyesine dahil edilmez; ödeme kaydedildiğinde kasadan düşer.')]));
   };
   drawBalances(null);
+  const showOverview = (data, days) => { debtFailed = false; drawBalances(data.kanalKartBorclari || []); paymentOverview.replaceChildren(financeUi.overview(data, days, selected => run(null, () => loadOverview(selected)))); };
   const loadOverview = async days => {
     try {
       const data = await api(`/api/takip/ozet?gun=${days}`);
-      if (generation === renderId) { drawBalances(data.kanalKartBorclari || []); paymentOverview.replaceChildren(financeUi.overview(data, days, selected => run(null, () => loadOverview(selected)))); }
+      if (generation === renderId) showOverview(data, days);
     } catch (error) {
-      if (generation === renderId) {
-        for (const card of balances.children) { const note = card.querySelector('.channel-card-debt'); if (note) note.textContent = 'Kart borcu yüklenemedi.'; }
+      if (generation === renderId && !isAbortError(error)) {
+        debtFailed = true; drawBalances(null);
         paymentOverview.replaceChildren(help(`Ödeme özeti yüklenemedi: ${error.message}`), button('Yeniden dene', () => run(null, () => loadOverview(days)), 'small'));
       }
     }
   };
-  if (!runtime.saltOkunur) loadOverview(30);
+  const showThresholds = rows => { thresholds = rows; drawBalances(cardDebts); thresholdStatus.replaceChildren(); };
   const loadThresholds = async () => {
-    try { const rows = await api('/api/kasa-esikleri'); if (generation === renderId) { thresholds = rows; drawBalances(cardDebts); thresholdStatus.replaceChildren(); } }
+    try { const rows = await api('/api/kasa-esikleri'); if (generation === renderId) showThresholds(rows); }
     catch (error) { if (generation === renderId) thresholdStatus.replaceChildren(help(`Kanal uyarıları yüklenemedi: ${error.message}`), button('Uyarıları yeniden yükle', () => run(null, loadThresholds), 'small')); }
   };
   const loadComparisons = async () => {
     try { const rows = await api('/api/kasa-kontrol'); if (generation === renderId) comparisonHistory.replaceChildren(cashControlsUi.history(rows)); }
     catch (error) { if (generation === renderId) comparisonHistory.replaceChildren(help(`Bakiye karşılaştırmaları yüklenemedi: ${error.message}`), button('Geçmişi yeniden yükle', () => run(null, loadComparisons), 'small')); }
   };
-  if (!runtime.saltOkunur) { loadThresholds(); loadComparisons(); }
+  if (!runtime.saltOkunur) {
+    if (home.takipOzeti) showOverview(home.takipOzeti, 30); else loadOverview(30);
+    if (home.kasaEsikleri) showThresholds(home.kasaEsikleri); else loadThresholds();
+    loadComparisons();
+  }
   const inbox = canEditCash() ? section('Alışlar', h('div', {}, review.length ? h('p', { class: 'plain-note' }, `${review.length} alış inceleme bekliyor. Malları ve kanal paylarını kontrol ederek onaylayabilirsiniz.`) : h('p', { class: 'plain-note' }, 'İnceleme bekleyen alış yok.'), review.slice(0, 4).map(purchaseRow)), button('Alışları aç', () => navigate('purchases'), 'small')) : null;
   const hero = h('div', { class: 'cash-hero' },
     h('div', {},
@@ -477,7 +530,10 @@ async function renderWeekly(generation) {
   const details = h('div');
   const period = select('donem', [...weeks].reverse().map(w => ({ value: w.donem.start, label: `${dateText(w.donem.start)} – ${dateText(w.donem.end)}` })), selected.donem.start, { 'aria-label': 'Haftalık kasa dönemi', onchange: () => { selected = weeks.find(w => w.donem.start === period.value); draw(); } });
   const draw = () => details.replaceChildren(...childValues([h('div', { class: 'summary-strip' }, summary('Genel kasa devri', money(selected.kasaDevir)), summary('Dönem gelen', money(selected.toplamGelen)), summary('Dönem giden', money(selected.toplamGiden))), pendingNotice(selected.dagilimBekleyenTutar), table(['Kanal', 'Gelen', 'Diğer gider', 'Dönem sonucu', 'Kanal devri'], selected.kanallar.map(k => [k.kanal, moneyNode(k.gelen), moneyNode(k.giden), moneyNode(k.sonuc), moneyNode(k.devir)])), h('p', { class: 'plan-note' }, `Genel kasa dönem sonucu: ${money(selected.kasaSonucu)}. Yeni kart takibinde kaydedilen ödemeler kasadan düşer; eski kartlarda geçiş öncesi erteleme kuralı sürer. Kredi taksitleri kendi tarihinde otomatik işlenir.`)]));
-  $('#view').replaceChildren(h('div', { class: 'toolbar' }, period, canEditCash() && button('Dönem geliri gir', event => run(event.currentTarget, () => incomeDialog(selected.donem.start)), 'primary')), details); draw();
+  // Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt) yalnız son dönemde gelir ama raporun tamamı için
+  // geçerlidir: seçili dönemden bağımsız, listenin üstünde gösterilir.
+  const health = dataHealthWarning(weeks);
+  $('#view').replaceChildren(...childValues([health && h('div', { class: 'notice danger', role: 'alert' }, health), h('div', { class: 'toolbar' }, period, canEditCash() && button('Dönem geliri gir', event => run(event.currentTarget, () => incomeDialog(selected.donem.start)), 'primary')), details])); draw();
 }
 async function renderMonthly(generation, month = today().slice(0, 7)) {
   const request = ++monthlyRequest;
@@ -505,9 +561,12 @@ async function renderTransactions(generation, filters = {}) {
 function signedAmount(value) { const text = String(value).trim().replace(',', '.'); return text.startsWith('-') ? -amount(text.slice(1)) : amount(text); }
 // iOS ondalık klavyesinde eksi tuşu yok: eksi olabilen tutarın işareti ayrı seçilir, tutar mutlak değer olarak yazılır.
 // Klavyesinde eksi olan kullanıcı eksi yazmaya devam edebilir; yazılan eksi "Artı" seçimiyle artıya dönmez. Kuruş kuralı signedAmount'tadır.
+// Etiket iki denetimi sarar; 'for' ile tutar alanına bağlanır: etikete dokunmak işaret seçicisini değil tutarı odaklar.
+let signedFieldCount = 0;
 function signedAmountField(name, value, label) {
+  const id = `signed-${name}-${++signedFieldCount}`;
   const sign = select(`${name}Isaret`, [{ value: '+', label: 'Artı (+)' }, { value: '-', label: 'Eksi (−)' }], '+', { 'aria-label': `${label} işareti` });
-  const control = input(name, '', { inputmode: 'decimal', required: true, 'aria-label': label });
+  const control = input(name, '', { id, inputmode: 'decimal', required: true, 'aria-label': label });
   const set = amountValue => {
     const number = amountValue === '' || amountValue == null ? NaN : Number(amountValue);
     sign.value = number < 0 ? '-' : '+';
@@ -515,7 +574,7 @@ function signedAmountField(name, value, label) {
   };
   set(value);
   return {
-    node: h('label', { class: 'signed-field' }, label, h('div', { class: 'signed-amount' }, sign, control)),
+    node: h('label', { class: 'signed-field', for: id }, label, h('div', { class: 'signed-amount' }, sign, control)),
     sign, input: control, set,
     read() { const typed = signedAmount(control.value); return sign.value === '-' ? -Math.abs(typed) : typed; },
     setReadOnly(locked) { control.readOnly = locked; sign.disabled = locked; }
@@ -597,7 +656,7 @@ function safeExternalLink(url, title) {
   try { const parsed = new URL(url, location.origin); if (parsed.protocol !== 'https:' && parsed.origin !== location.origin) return null; return h('a', { class: 'button', href: parsed.href, rel: 'noopener', target: '_blank' }, title); } catch { return null; }
 }
 function passwordDialog() {
-  formDialog('Şifremi değiştir', h('div', { class: 'stack' }, field('Mevcut şifre', input('mevcutSifre', '', { type: 'password', required: true, maxlength: 1024, autocomplete: 'current-password' })), field('Yeni şifre', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.')), field('Yeni şifreyi tekrar girin', input('tekrar', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }))), 'Şifreyi değiştir', async form => { const data = values(form); if (data.yeniSifre !== data.tekrar) throw new Error('Yeni şifreler aynı olmalı.'); await api('/api/auth/sifre', { method: 'POST', body: { mevcutSifre: data.mevcutSifre, yeniSifre: data.yeniSifre } }); clearSession(); toast('Şifreniz değişti. Yeni şifrenizle giriş yapın.'); });
+  formDialog('Şifremi değiştir', h('div', { class: 'stack' }, field('Mevcut şifre', input('mevcutSifre', '', { type: 'password', required: true, maxlength: 1024, autocomplete: 'current-password' })), field('Yeni şifre', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.')), field('Yeni şifreyi tekrar girin', input('tekrar', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }))), 'Şifreyi değiştir', async form => { const data = values(form); repeatedPassword(data); await api('/api/auth/sifre', { method: 'POST', body: { mevcutSifre: data.mevcutSifre, yeniSifre: data.yeniSifre } }); clearSession(); toast('Şifreniz değişti. Yeni şifrenizle giriş yapın.'); });
 }
 function recoveryCodeDialog() {
   formDialog('Kurtarma kodu oluştur', h('div', { class: 'stack' }, help('Yeni kod oluşturulunca önceki kod geçersiz olur. Kod yalnız bu ekranda bir kez gösterilir.'), field('Mevcut şifre', input('mevcutSifre', '', { type: 'password', required: true, maxlength: 1024, autocomplete: 'current-password' }))), 'Kodu oluştur', async form => {

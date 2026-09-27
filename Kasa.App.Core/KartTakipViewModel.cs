@@ -128,6 +128,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     {
         MasrafTemizle();
         HarcamaBenzerlik.Temizle(); OdemeBenzerlik.Temizle();
+        // Başka karta geçişte önceki kartın (ya da yeni kart formunun) yazılmış alanları taşınmaz; aynı kartın yeniden
+        // seçilmesi (liste yenilemesi) yazılmakta olan formu korur.
+        if (Secili?.Id != satir.Veri.Id) KartFormlariniTemizle();
         Secili = satir.Veri; Ad = Secili.Ad; Limit = Secili.Limit; KesimGunu = Secili.KesimGunu; SonOdemeGunu = Secili.SonOdemeGunu; AcilisBorc = 0; // açılış borcu yalnız yeni kartta girilir
         _oncedenSayilanElle = false; GecisKalanBorc = Secili.Borc; OncedenSayilanOner(Math.Max(0, Secili.Borc)); GecisDurumu(null, false, null, null);
         _onizlenenOdeme = null; OdemeOnizleme = null; OdemeEkstresi = null; DuzenlenenEkstre = null;
@@ -140,6 +143,16 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         Secili = null; Ad = ""; Limit = AcilisBorc = 0; AcilisTarihi = DateTime.Today; KesimGunu = 1; SonOdemeGunu = 10;
         AcilisPaylari.Clear(); HarcamaPaylari.Clear(); GecisPaylari.Clear(); Ekstreler.Clear(); MasrafEkstreleri.Clear(); Harcamalar.Clear(); IadeKaynaklari.Clear(); IadeKaynagi = null; Odemeler.Clear();
         OdemeOnizleme = null; _onizlenenOdeme = null; GecisDurumu(null, false, null, null);
+    }
+    /// <summary>Karta özel form alanları: açılış (yalnız yeni kartta görünür), harcama, ödeme, ekstre, iptal/durum
+    /// gerekçesi ve geçiş girdileri; tekrar anahtarları da bırakılır.</summary>
+    private void KartFormlariniTemizle()
+    {
+        AcilisPaylari.Clear(); AcilisBorc = 0; AcilisTarihi = DateTime.Today;
+        HarcamaTutari = 0; HarcamaAciklama = ""; TaksitSayisi = 1; IlkKesimVar = false; IlkKesimTarihi = DateTime.Today;
+        OdemeTutari = 0; OdemeNotu = ""; OdemeTarihi = DateTime.Today;
+        AsgariVar = false; AsgariTutar = 0; Gerekce = ""; GecisAciklama = ""; OncedenSayilan = 0;
+        foreach (var anahtar in new[] { _harcama, _odeme, _ekstre, _iptal, _durum, _gecis }) anahtar.Temizle();
     }
     private void DetaylariYansit()
     {
@@ -170,9 +183,14 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu) return;
-        if (!ParaAyristirici.HepsiGecerli(Limit, AcilisBorc)) { Hata = ParaAyristirici.GecersizMesaji; return; }
+        // Açılış borcu, tarihi ve dağılımı yalnız yeni kartta girilir ve okunur (bölüm yalnız YeniKart iken görünür); sunucu
+        // güncellemede bu alanları yok sayar. Mevcut kartta görünmeyen bir açılış satırı kaydı reddettirmez.
+        var yeni = Secili is null;
+        if (!ParaAyristirici.HepsiGecerli(Limit, yeni ? AcilisBorc : 0)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (string.IsNullOrWhiteSpace(Ad) || Limit < 0 || KesimGunu is < 1 or > 31 || SonOdemeGunu is < 1 or > 31) { Hata = "Kart adını, limiti ve 1–31 arası günleri kontrol edin."; return; }
-        var g = new KartTakipYaz(Guid.Empty, Secili?.Surum ?? 0, Ad.Trim(), Limit, KesimGunu, SonOdemeGunu, DateOnly.FromDateTime(AcilisTarihi), AcilisBorc, TakipMetni.Paylar(AcilisPaylari));
+        var g = yeni
+            ? new KartTakipYaz(Guid.Empty, 0, Ad.Trim(), Limit, KesimGunu, SonOdemeGunu, DateOnly.FromDateTime(AcilisTarihi), AcilisBorc, TakipMetni.Paylar(AcilisPaylari))
+            : new KartTakipYaz(Guid.Empty, Secili!.Surum, Ad.Trim(), Limit, KesimGunu, SonOdemeGunu, Secili.TakipBaslangic ?? DateOnly.FromDateTime(AcilisTarihi), 0, Array.Empty<KanalPayYaz>());
         g = g with { IstekId = _kayit.Al(new { Id = Secili?.Id, g }) };
         if (Uygula(await api.TakipKartKaydetAsync(Secili?.Id, g), n)) { _kayit.Temizle(); Mesaj = "Kart kaydedildi."; }
     });

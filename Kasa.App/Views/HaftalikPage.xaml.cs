@@ -17,4 +17,11 @@ public partial class HaftalikPage : ContentPage
         base.OnAppearing();
         await _vm.YukleAsync();
     }
+
+    /// <summary>Başka ekrana geçince süren rapor isteği iptal edilir (sunucu hesabı da kesilir).</summary>
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _vm.EkrandanAyril();
+    }
 }

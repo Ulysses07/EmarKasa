@@ -283,6 +283,49 @@ public class FinansTakipTests
         var auth = Auth(); var vm = await KartVm(api, auth); Assert.Contains("70,00", vm.KanalBorcOzeti); Assert.Contains("Dağılım bekliyor", vm.KanalBorcOzeti);
         Assert.True(vm.IdIleSec(1)); auth.AktifRol = Rol.Alici; Assert.False(vm.IdIleSec(1));
     }
+    // appcore-6: açılış bölümü yalnız yeni kartta görünür; yeni kart formunda kalan (görünmeyen) açılış satırı mevcut kartın
+    // güncellemesini reddettirmez, güncelleme açılış dağılımı göndermez (sunucu güncellemede açılış alanlarını yok sayar).
+    [Fact] public async Task Yeni_kart_formundaki_bos_acilis_payi_mevcut_kart_guncellemesini_engellemez()
+    {
+        var api = new Fake(); var vm = new KartTakipViewModel(api, Finans(), Auth()); await vm.YukleAsync();
+        vm.YeniCommand.Execute(null); vm.PayEkle(vm.AcilisPaylari); vm.AcilisBorc = 250;
+        vm.SecCommand.Execute(vm.Kartlar[0]);
+        Assert.Empty(vm.AcilisPaylari); Assert.Equal(0, vm.AcilisBorc);
+        vm.Limit = 1500; await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.Hata);
+        var (id, govde) = api.KartKayit!.Value;
+        Assert.Equal(1, id); Assert.Equal(1500, govde.Limit); Assert.Empty(govde.AcilisDagilimlari); Assert.Equal(0, govde.AcilisBorc);
+        Assert.Equal(Tarih, govde.AcilisTarihi);   // mevcut kartın takip başlangıcı; formdaki tarih gönderilmez
+    }
+    [Fact] public async Task Guncellemede_acilis_satiri_listeye_sonradan_eklense_de_okunmaz()
+    {
+        var api = new Fake(); var vm = await KartVm(api);
+        vm.PayEkle(vm.AcilisPaylari); vm.Limit = 1200;             // görünmeyen bölüme kod yoluyla eklenmiş geçersiz satır
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.Hata); Assert.Empty(api.KartKayit!.Value.Govde.AcilisDagilimlari);
+    }
+    [Fact] public async Task Baska_kart_secilince_karta_ozel_form_alanlari_sifirlanir()
+    {
+        var api = new Fake { KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Fake.OrnekKart(), Fake.OrnekKart() with { Id = 2, Ad = "Kart B" } }) };
+        var vm = await KartVm(api);
+        vm.HarcamaTutari = 45; vm.HarcamaAciklama = "A kartının harcaması"; vm.TaksitSayisi = 3; vm.IlkKesimVar = true;
+        vm.OdemeTutari = 30; vm.OdemeNotu = "A kartı ödemesi"; vm.AsgariVar = true; vm.AsgariTutar = 12; vm.Gerekce = "A için gerekçe"; vm.GecisAciklama = "A geçişi";
+
+        vm.SecCommand.Execute(vm.Kartlar[1]);
+
+        Assert.Equal(2, vm.Secili!.Id);
+        Assert.Equal(0, vm.HarcamaTutari); Assert.Equal("", vm.HarcamaAciklama); Assert.Equal(1, vm.TaksitSayisi); Assert.False(vm.IlkKesimVar);
+        Assert.Equal(0, vm.OdemeTutari); Assert.Equal("", vm.OdemeNotu); Assert.False(vm.AsgariVar); Assert.Equal(0, vm.AsgariTutar);
+        Assert.Equal("", vm.Gerekce); Assert.Equal("", vm.GecisAciklama);
+    }
+    [Fact] public async Task Ayni_kartin_yenilenmesi_yazilmis_harcama_formunu_korur()
+    {
+        var api = new Fake(); var vm = await KartVm(api);
+        vm.HarcamaTutari = 45; vm.HarcamaAciklama = "Yazılmakta olan harcama"; vm.OdemeTutari = 30; vm.OdemeNotu = "Not";
+        await vm.YukleAsync();                                     // liste yenilemesi aynı kartı yeniden seçer
+        Assert.Equal(1, vm.Secili!.Id);
+        Assert.Equal(45, vm.HarcamaTutari); Assert.Equal("Yazılmakta olan harcama", vm.HarcamaAciklama); Assert.Equal(30, vm.OdemeTutari); Assert.Equal("Not", vm.OdemeNotu);
+    }
     [Fact] public async Task Ozet_farkli_kart_alacagini_borctan_dusmez_belirsiz_payi_ayirir()
     {
         var api = new Fake { Ozet = new(Tarih, 100, 20, Array.Empty<TakipOlayDto>(), new[] { new TakipKanalPayi(1, "MEZAT", 70), new TakipKanalPayi(null, "", 30) }, 40) };
@@ -300,9 +343,10 @@ public class FinansTakipTests
         public bool OdemeHata; public Exception? OdemeHatasi; public KartTakipOdemeYaz? OnizlenenOdeme; public List<KartTakipOdemeYaz> OdemeIstekleri = new();
         public KartGecisYaz? KartGecis; public KrediGecisYaz? KrediGecis; public KrediTakipYaz? KrediKayit; public KrediTaksitYaz? Taksit; public KrediKapatYaz? Kapatma; public KartHarcamaYaz? Harcama;
         public int KartKayitSayisi, EkstreKayitSayisi, KartGecisOnizlemeSayisi;
+        public (int? Id, KartTakipYaz Govde)? KartKayit;
         public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => KartlarYaniti ?? Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Kart });
         public Task<KartTakipDto> TakipKartAsync(int id) => Task.FromResult(Kart);
-        public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) { KartKayitSayisi++; return Task.FromResult(Kart); }
+        public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) { KartKayitSayisi++; KartKayit = (id, g); return Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipKartDurumAsync(int id, TakipDurumYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g) { Harcama = g; return Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => Task.FromResult(Kart);
@@ -329,6 +373,7 @@ public class FinansTakipTests
         public Task<KrediTakipDto> TakipKrediKapatAsync(int id, KrediKapatYaz g) { Kapatma = g; return Task.FromResult(Kredi); }
         public Task<TakipGecisDto> TakipKrediGecisOnizlemeAsync(int id, KrediGecisYaz g) => Task.FromResult(Preview("Kredi", id));
         public Task<KrediTakipDto> TakipKrediGecisAsync(int id, KrediGecisYaz g) { KrediGecis = g; return Task.FromResult(Kredi with { YeniTakip = true }); }
-        public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) => Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>()));
+        public int OzetCagri, SonOzetGunu;
+        public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) { OzetCagri++; SonOzetGunu = gun; return Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>())); }
     }
 }

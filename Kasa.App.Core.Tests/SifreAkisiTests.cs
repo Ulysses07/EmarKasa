@@ -36,7 +36,7 @@ public class SifreAkisiTests
     {
         var (api, auth, store) = await GirisYapmis(_ => Json(HttpStatusCode.BadRequest, """{"status":400,"errors":{"mevcutSifre":["Mevcut şifre hatalı."]}}"""));
         var surum = auth.OturumSurumu;
-        var vm = new GuvenlikViewModel(api, auth) { MevcutSifre = "yanlis", YeniSifre = "yepyeni-sifre-123" };
+        var vm = new GuvenlikViewModel(api, auth) { MevcutSifre = "yanlis", YeniSifre = "yepyeni-sifre-123", YeniSifreTekrar = "yepyeni-sifre-123" };
 
         await vm.SifreDegistirCommand.ExecuteAsync(null);
 
@@ -56,13 +56,74 @@ public class SifreAkisiTests
     public async Task Basarili_sifre_degisimi_giriste_bilgi_olarak_gosterilir_hata_olarak_degil()
     {
         var (api, auth, _) = await GirisYapmis(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        var vm = new GuvenlikViewModel(api, auth) { MevcutSifre = "kasa-sifresi", YeniSifre = "yepyeni-sifre-123" };
+        var vm = new GuvenlikViewModel(api, auth) { MevcutSifre = "kasa-sifresi", YeniSifre = "yepyeni-sifre-123", YeniSifreTekrar = "yepyeni-sifre-123" };
 
         await vm.SifreDegistirCommand.ExecuteAsync(null);
 
         Assert.False(auth.GirisYapildi);
         Assert.Null(auth.Hata);
         Assert.Equal("Şifreniz değişti. Yeni şifrenizle giriş yapın.", auth.Bilgi);
+    }
+
+    // maui-4: şifre değişimi token'ı ve kurtarma kodunu hemen geçersiz kılar; yazım hatalı yeni şifre tek editör hesabını
+    // kilitler. Tekrar alanı uyuşmazsa istek hiç gönderilmez.
+    [Fact]
+    public async Task Yeni_sifre_tekrari_uyusmazsa_sifre_degisimi_gonderilmez_eslesince_gonderilir()
+    {
+        var istekler = new List<string>();
+        var (api, auth, _) = await GirisYapmis(istek => { istekler.Add(istek.RequestUri!.AbsolutePath); return new HttpResponseMessage(HttpStatusCode.NoContent); });
+        var vm = new GuvenlikViewModel(api, auth) { MevcutSifre = "kasa-sifresi", YeniSifre = "Kasa2026!Guvenli", YeniSifreTekrar = "Kasa2026!Guvenlı" };
+
+        await vm.SifreDegistirCommand.ExecuteAsync(null);
+
+        Assert.Empty(istekler);
+        Assert.Equal("Yeni şifreler aynı olmalı.", vm.Hata);
+        Assert.True(auth.GirisYapildi);
+        Assert.Equal("Kasa2026!Guvenli", vm.YeniSifre);
+
+        vm.YeniSifreTekrar = "Kasa2026!Guvenli";
+        await vm.SifreDegistirCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { "/api/auth/sifre" }, istekler);
+        Assert.False(auth.GirisYapildi);
+        Assert.Equal("", vm.YeniSifre); Assert.Equal("", vm.YeniSifreTekrar); Assert.Equal("", vm.MevcutSifre);
+    }
+
+    [Fact]
+    public async Task Kurtarmada_yeni_sifre_tekrari_uyusmazsa_kod_harcanmaz_eslesince_alanlar_temizlenir()
+    {
+        var istekler = new List<string>();
+        var api = new KasaApiClient(new HttpClient(new Sunucu(istek => { istekler.Add(istek.RequestUri!.AbsolutePath); return new HttpResponseMessage(HttpStatusCode.NoContent); }))
+            { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
+        var auth = new AuthViewModel(api) { Kullanici = "editor", KurtarmaAcik = true, KurtarmaKodu = "ABCD-EFGH", KurtarmaYeniSifre = "Kasa2026!Guvenli", KurtarmaYeniSifreTekrar = "Kasa2026!Guvenlı" };
+
+        await auth.SifreKurtarCommand.ExecuteAsync(null);
+
+        Assert.Empty(istekler);
+        Assert.Equal("Yeni şifreler aynı olmalı.", auth.Hata);
+        Assert.Equal("ABCD-EFGH", auth.KurtarmaKodu); Assert.True(auth.KurtarmaAcik); Assert.False(auth.Mesgul);
+
+        auth.KurtarmaYeniSifreTekrar = "Kasa2026!Guvenli";
+        await auth.SifreKurtarCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { "/api/auth/kurtar" }, istekler);
+        Assert.Null(auth.Hata);
+        Assert.Equal("", auth.KurtarmaKodu); Assert.Equal("", auth.KurtarmaYeniSifre); Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
+        Assert.False(auth.KurtarmaAcik);
+    }
+
+    [Fact]
+    public async Task Tekrar_alani_kurtarma_formu_kapaninca_giriste_ve_guvenlik_temizliginde_bosalir()
+    {
+        var auth = new AuthViewModel(new SahteApi { LoginYaniti = new LoginYanit("editor", "jwt") }) { KurtarmaYeniSifre = "gizli-yeni-sifre", KurtarmaYeniSifreTekrar = "gizli-yeni-sifre" };
+        auth.KurtarmayiAcKapatCommand.Execute(null);
+        Assert.Equal("", auth.KurtarmaYeniSifre); Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
+        auth.KurtarmaYeniSifreTekrar = "gizli-yeni-sifre"; auth.Sifre = "sifre";
+        await auth.GirisCommand.ExecuteAsync(null);
+        Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
+        var guvenlik = new GuvenlikViewModel(new KasaApiClient(new HttpClient(), new BellekTokenStore()), auth) { YeniSifre = "gizli-yeni-sifre", YeniSifreTekrar = "gizli-yeni-sifre" };
+        guvenlik.Temizle();
+        Assert.Equal("", guvenlik.YeniSifre); Assert.Equal("", guvenlik.YeniSifreTekrar);
     }
 
     [Fact]

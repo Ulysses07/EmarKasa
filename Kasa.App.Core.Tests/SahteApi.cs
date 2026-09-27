@@ -49,7 +49,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<HaftalikOzetDto>>(YuklemeHatasi) : Task.FromResult(HaftalikListe);
     public Task<AylikRaporDto> AylikAsync(int yil, int ay) { SonAylikYil = yil; SonAylikAy = ay; return AylikGetir?.Invoke(yil, ay) ?? (YuklemeHatasi is not null ? Task.FromException<AylikRaporDto>(YuklemeHatasi) : Task.FromResult(AylikRapor!)); }
     public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<DonemDto>>(YuklemeHatasi) : Task.FromResult(DonemlerListe);
-    public Task<IReadOnlyList<KanalDto>> KanallarAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KanalDto>>(YuklemeHatasi) : Task.FromResult(KanallarListe);
+    public Task<IReadOnlyList<KanalDto>> KanallarAsync() => KanallarGetir?.Invoke() ?? (YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KanalDto>>(YuklemeHatasi) : Task.FromResult(KanallarListe));
     // İşlem listesi filtre çağrısının son argümanları (filtre testleri için).
     public DateOnly? SonFiltreBaslangic;
     public DateOnly? SonFiltreBitis;
@@ -116,4 +116,23 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task KartOdemeSilAsync(int id) { SonKartOdemeSil = id; return Task.CompletedTask; }
 
     public Task<AyarlarDto> AyarlarAsync() => YuklemeHatasi is not null ? Task.FromException<AyarlarDto>(YuklemeHatasi) : Task.FromResult(AyarlarSonuc!);
+
+    /// <summary>Ayarlanırsa kanal listesi yanıtını verir (eski tam yüklemenin geç kaynakları testleri için).</summary>
+    public Func<Task<IReadOnlyList<KanalDto>>>? KanallarGetir;
+
+    // Ana sayfa özeti: kanca yoksa panel (Panel / PanelGetir / YuklemeHatasi) ile ayarlanan eşik ve takip özeti döner.
+    public Func<int, CancellationToken, Task<AnaSayfaDto>>? AnaSayfaGetir;
+    public List<int> AnaSayfaIstekleri = new();
+    public IReadOnlyList<KasaEsikDto>? AnaSayfaEsikleri;
+    public TakipOzetDto? AnaSayfaTakipOzeti;
+    public async Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default)
+    {
+        AnaSayfaIstekleri.Add(gun);
+        if (AnaSayfaGetir is not null) return await AnaSayfaGetir(gun, ct);
+        return new(await PanelAsync(), AnaSayfaEsikleri, AnaSayfaTakipOzeti);
+    }
+
+    /// <summary>Ayarlanırsa iptal edilebilir haftalık rapor yanıtını verir; yoksa <see cref="HaftalikListe"/>.</summary>
+    public Func<CancellationToken, Task<IReadOnlyList<HaftalikOzetDto>>>? HaftalikGetir;
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct) => HaftalikGetir?.Invoke(ct) ?? HaftalikAsync();
 }

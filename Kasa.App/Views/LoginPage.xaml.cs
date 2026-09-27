@@ -16,4 +16,11 @@ public partial class LoginPage : ContentPage
                 ((AppShell)Shell.Current).MenuyuAc();
         };
     }
+
+    /// <summary>Kurtarmada yalnız yeni şifre alanları görünür yapılır; kurtarma kodu maskeli kalır.</summary>
+    private void YeniSifreyiGoster(object? sender, CheckedChangedEventArgs e)
+    {
+        KurtarmaYeniSifreAlani.IsPassword = !e.Value;
+        KurtarmaYeniSifreTekrarAlani.IsPassword = !e.Value;
+    }
 }

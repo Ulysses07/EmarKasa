@@ -21,10 +21,13 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     partial void OnGercekBakiyeChanged(decimal value) => SifirOnayiniKaldir();
     partial void OnNotChanged(string value) => SifirOnayiniKaldir();
     private void SifirOnayiniKaldir() { _sifirOnayi = false; KayitUyarisi = null; }
-    public Task YukleAsync() => YurutAsync(async n =>
+    public Task YukleAsync() => YukleAsync(null);
+    /// <param name="panelEsikleri">Panelle aynı anlık görüntüden gelen kanal eşikleri (ana sayfa yanıtı): uyarı ile bakiye
+    /// çelişmez. Null ise (eski sunucu, yeniden deneme) ayrıca istenir.</param>
+    public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri) => YurutAsync(async n =>
     {
         VeriHazir = false;
-        var gecmis = await api.KasaKontrolleriAsync(); var esikler = await api.KasaEsikleriAsync();
+        var gecmis = await api.KasaKontrolleriAsync(); var esikler = panelEsikleri ?? await api.KasaEsikleriAsync();
         if (!Gecerli(n)) return;
         TakipMetni.Doldur(Gecmis, gecmis.Select(x => new KasaKontrolSatiri(x)));
         EsikUyarilari = string.Join("\n", esikler.Where(x => x.Etkin && x.EsikAltinda).Select(x => $"{x.Kanal}: bakiye {Bicim.Tl(x.Bakiye)} ₺ — alt limit {Bicim.Tl(x.Tutar)} ₺"));

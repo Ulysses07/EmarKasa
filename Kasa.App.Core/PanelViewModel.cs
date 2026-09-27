@@ -27,15 +27,32 @@ public partial class PanelViewModel : RaporViewModel
         }
     }
 
-    public override Task YukleAsync() => RaporYukleAsync(_api.PanelAsync, p =>
+    /// <summary>Ana sayfa isteğinin takip özeti ufku (gün); sayfa gün seçimini buraya da yazar.</summary>
+    public int TakipGunu { get; set; } = 30;
+    /// <summary>Son başarılı yüklemede panelle aynı anlık görüntüden gelen kanal eşikleri; eski sunucuda null (ayrıca yüklenir).</summary>
+    public IReadOnlyList<KasaEsikDto>? KasaEsikleri { get; private set; }
+    /// <summary>Son başarılı yüklemede panelle aynı anlık görüntüden gelen takip özeti; eski sunucuda null (ayrıca yüklenir).</summary>
+    public TakipOzetDto? TakipOzeti { get; private set; }
+    /// <summary><see cref="TakipOzeti"/>'nin istendiği gün ufku.</summary>
+    public int TakipOzetiGunu { get; private set; }
+
+    /// <summary>Panel, kanal eşikleri ve takip özeti tek istekte (GET /api/rapor/ana-sayfa): bakiye, eşik uyarısı ve kart
+    /// borcu aynı andan gelir. Değerler <see cref="RaporViewModel.VeriVar"/> true olmadan önce yazılır.</summary>
+    public override Task YukleAsync()
     {
-        GuncelKasa = p.GuncelKasa;
-        BuHaftaSonucu = p.BuHaftaSonucu;
-        BuAySonucu = p.BuAySonucu;
-        DagilimBekleyenTutar = p.DagilimBekleyenTutar;
-        Kanallar.Clear();
-        foreach (var k in p.Kanallar) Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId));
-    });
+        var gun = TakipGunu;
+        return RaporYukleAsync(ct => _api.AnaSayfaAsync(gun, ct), a =>
+        {
+            var p = a.Panel;
+            GuncelKasa = p.GuncelKasa;
+            BuHaftaSonucu = p.BuHaftaSonucu;
+            BuAySonucu = p.BuAySonucu;
+            DagilimBekleyenTutar = p.DagilimBekleyenTutar;
+            Kanallar.Clear();
+            foreach (var k in p.Kanallar) Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId));
+            KasaEsikleri = a.KasaEsikleri; TakipOzeti = a.TakipOzeti; TakipOzetiGunu = gun;
+        });
+    }
 }
 
 public record KanalKasaSatiri(string Kanal, decimal Bakiye, int? KanalId, decimal? KartBorcu = null)
