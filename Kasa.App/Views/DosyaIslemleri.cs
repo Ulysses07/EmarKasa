@@ -4,19 +4,28 @@ namespace Kasa.App.Views;
 
 internal static class DosyaIslemleri
 {
-    public static async Task KaydetAsync(Page sayfa, IndirilenDosya dosya, bool yazdir = false)
+    /// <summary>Dosyayı önce önbellekteki geçici dosyaya akışla indirir (yedek yüzlerce MB olabilir; bellekte tutulmaz),
+    /// tamamlanınca kullanıcının seçtiği yere kopyalar. İndirme başarısızsa hata ilgili ekranda gösterilir; seçilen hedefe
+    /// yalnız tamamlanmış dosya yazılır, yarım geçici dosya her durumda silinir.</summary>
+    public static async Task IndirVeKaydetAsync(Page sayfa, Func<Stream, Task<IndirmeBilgisi?>> indir, bool yazdir = false)
     {
+        var gecici = Path.Combine(FileSystem.CacheDirectory, $"indirme-{Guid.NewGuid():N}.tmp");
         try
         {
-            var ad = Path.GetFileName(dosya.DosyaAdi);
+            IndirmeBilgisi? bilgi;
+            await using (var akis = new FileStream(gecici, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+                bilgi = await indir(akis);
+            if (bilgi is null) return;
             if (yazdir)
             {
-                var yol = Path.Combine(FileSystem.CacheDirectory, $"rapor-{Guid.NewGuid():N}.html");
-                await File.WriteAllBytesAsync(yol, dosya.Icerik);
-                await Launcher.Default.OpenAsync(new OpenFileRequest("Raporu yazdır / PDF kaydet", new ReadOnlyFile(yol, "text/html")));
+                // Tarayıcı dosyayı açılıştan sonra okur; rapor önbellekte kalır.
+                var rapor = Path.Combine(FileSystem.CacheDirectory, $"rapor-{Guid.NewGuid():N}.html");
+                File.Move(gecici, rapor);
+                await Launcher.Default.OpenAsync(new OpenFileRequest("Raporu yazdır / PDF kaydet", new ReadOnlyFile(rapor, "text/html")));
                 await sayfa.DisplayAlertAsync("Yazdır / PDF", "Açılan raporda Ctrl+P tuşlarına basın. Yazıcı olarak 'Microsoft Print to PDF' seçerek PDF kaydedebilirsiniz.", "Tamam");
                 return;
             }
+            var ad = Path.GetFileName(bilgi.DosyaAdi);
 #if WINDOWS
             var secici = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = Path.GetFileNameWithoutExtension(ad) };
             var uzanti = Path.GetExtension(ad);
@@ -25,14 +34,21 @@ internal static class DosyaIslemleri
             WinRT.Interop.InitializeWithWindow.Initialize(secici, WinRT.Interop.WindowNative.GetWindowHandle(pencere));
             var hedef = await secici.PickSaveFileAsync();
             if (hedef is null) return;
-            await Windows.Storage.FileIO.WriteBytesAsync(hedef, dosya.Icerik);
+            var kaynak = await Windows.Storage.StorageFile.GetFileFromPathAsync(gecici);
+            await kaynak.CopyAndReplaceAsync(hedef);
             await sayfa.DisplayAlertAsync("Dosya kaydedildi", hedef.Path, "Tamam");
 #else
             var yol = Path.Combine(FileSystem.CacheDirectory, ad);
-            await File.WriteAllBytesAsync(yol, dosya.Icerik);
-            await Share.Default.RequestAsync(new ShareFileRequest("Dosyayı kaydet", new ShareFile(yol, dosya.IcerikTuru)));
+            File.Move(gecici, yol, overwrite: true);
+            await Share.Default.RequestAsync(new ShareFileRequest("Dosyayı kaydet", new ShareFile(yol, bilgi.IcerikTuru)));
 #endif
         }
-        catch (Exception) { await sayfa.DisplayAlertAsync("Dosya kaydedilemedi", "Hedef klasörü kontrol edip yeniden deneyin.", "Tamam"); }
+        catch (Exception) { await sayfa.DisplayAlertAsync("Dosya kaydedilemedi", "Hedef klasörü ve disk alanını kontrol edip yeniden deneyin.", "Tamam"); }
+        finally
+        {
+            try { File.Delete(gecici); }
+            catch (IOException) { /* önbellek temizliği işletim sistemine kalır */ }
+            catch (UnauthorizedAccessException) { /* önbellek temizliği işletim sistemine kalır */ }
+        }
     }
 }

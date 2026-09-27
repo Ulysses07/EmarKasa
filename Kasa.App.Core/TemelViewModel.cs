@@ -26,6 +26,8 @@ public partial class TemelViewModel : ObservableObject
         KasaApiException { DurumKodu: HttpStatusCode.Forbidden } => "Bu işlem için yetkiniz yok.",
         KasaApiException api when api.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable => api.Message,
         KasaApiException => "Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.",
+        // İstek sunucuya ulaşmış olabilir: kayıt işlemleri tamamlanmış olabileceği için önce kontrol istenir.
+        TimeoutException => "Sunucu zamanında yanıt vermedi. İşlem sunucuda tamamlanmış olabilir; yeniden denemeden önce listeyi yenileyip kontrol edin. Büyük dosyalarda bağlantınızı kontrol edin.",
         HttpRequestException or TaskCanceledException => "Sunucuya ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.",
         _ => "İşlem tamamlanamadı. Lütfen yeniden deneyin.",
     };

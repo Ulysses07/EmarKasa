@@ -28,9 +28,22 @@ public sealed class GuvenlikAlani : ContentView
         indir.Clicked += async (_, _) => { if (vm.IndirmeAdresi is { } adres) await Launcher.Default.OpenAsync(adres); };
         stack.Add(indir);
         var yedek = Yazi(""); yedek.SetBinding(Label.TextProperty, nameof(vm.YedekBilgisi)); stack.Add(yedek);
+        // Sunucunun yedek hatası ya da rotasyon uyarısı (silinemeyen eski yedek) ayrı ve kırmızı gösterilir.
+        var yedekUyarisi = new Label { FontSize = 13, TextColor = Colors.DarkRed };
+        yedekUyarisi.SetBinding(Label.TextProperty, nameof(vm.YedekUyarisi));
+        yedekUyarisi.SetBinding(IsVisibleProperty, nameof(vm.YedekUyarisi), converter: new Converters.DoluIseConverter());
+        stack.Add(yedekUyarisi);
         var yedekDugmesi = new Button { Text = "Yedeği bilgisayara kaydet" };
-        yedekDugmesi.Clicked += async (_, _) => { if (vm.Mesgul) return; var dosya = await vm.YedekIndirAsync(); if (dosya is not null) await DosyaIslemleri.KaydetAsync(sayfa, dosya); };
+        yedekDugmesi.Clicked += async (_, _) => { if (vm.Mesgul) return; await DosyaIslemleri.IndirVeKaydetAsync(sayfa, vm.YedekIndirAsync); };
+        yedekDugmesi.SetBinding(IsEnabledProperty, nameof(vm.YedekIndiriliyor), converter: new Converters.TersIseConverter());
         stack.Add(yedekDugmesi);
+        var yedekSuruyor = Yazi("Yedek sunucuda hazırlanıp indiriliyor. Büyük veritabanında birkaç dakika sürebilir.");
+        yedekSuruyor.SetBinding(IsVisibleProperty, nameof(vm.YedekIndiriliyor));
+        stack.Add(yedekSuruyor);
+        var yedekIptal = new Button { Text = "Yedek indirmeyi iptal et", HorizontalOptions = LayoutOptions.Start };
+        yedekIptal.SetBinding(Button.CommandProperty, nameof(vm.YedekIptalCommand));
+        yedekIptal.SetBinding(IsVisibleProperty, nameof(vm.YedekIndiriliyor));
+        stack.Add(yedekIptal);
         var hata = new Label { TextColor = Colors.DarkRed }; hata.SetBinding(Label.TextProperty, nameof(vm.Hata)); stack.Add(hata);
         Content = new Border { Style = (Style)Application.Current!.Resources["CardForm"], Content = stack };
     }

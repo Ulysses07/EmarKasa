@@ -130,8 +130,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var g = new EkstreIptalYaz(_iptalKey.Al(new { belgeId, satir.Veri.Id, Aciklama = aciklama.Trim() }), aciklama.Trim());
         var b = await api.EkstreKayitIptalAsync(belgeId, satir.Veri.Id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _iptalKey.Temizle(); Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
     });
-    public async Task<IndirilenDosya?> DosyaAsync()
+    /// <summary>Kaynak PDF'i <paramref name="hedef"/>'e yazar; hata, başka belge ya da eski oturumda null.</summary>
+    public async Task<IndirmeBilgisi?> DosyaAsync(Stream hedef)
     {
-        IndirilenDosya? sonuc = null; await YurutAsync(async n => { if (!EditorMu || Belge is null) return; var id = Belge.Id; var s = await api.EkstreDosyaAsync(id); if (Gecerli(n) && Belge?.Id == id) sonuc = s; }); return sonuc;
+        IndirmeBilgisi? sonuc = null; await YurutAsync(async n => { if (!EditorMu || Belge is null) return; var id = Belge.Id; var s = await api.EkstreDosyaAsync(id, hedef); if (Gecerli(n) && Belge?.Id == id) sonuc = s; }); return sonuc;
     }
 }

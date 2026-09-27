@@ -18,6 +18,14 @@ public class BicimTests
     public void ImzaliTl_negatife_eksi_koyar()
         => Assert.Equal("-48.200,00", Bicim.ImzaliTl(-48200m));
 
+    [Theory]
+    [InlineData(512L, "512 B")]
+    [InlineData(12_595L, "12,3 KB")]
+    [InlineData(3L * 1024 * 1024, "3 MB")]
+    [InlineData(157_286_400L, "150 MB")]
+    public void Boyut_dosya_buyuklugunu_okunur_yazar(long bayt, string beklenen)
+        => Assert.Equal(beklenen, Bicim.Boyut(bayt));
+
     [Fact]
     public void KanalRengi_bilinen_kanali_dondurur()
         => Assert.Equal("#C98A12", Bicim.KanalRengi("MEZAT"));

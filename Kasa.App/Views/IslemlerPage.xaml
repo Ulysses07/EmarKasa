@@ -180,6 +180,25 @@
                     <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
                         <Label Text="Son İşlemler" Style="{StaticResource LblSection}" />
 
+                        <!-- Durum şeridi (tüm roller): yükleniyor · liste hatası · kayıt/silme bilgisi · son güncelleme + yenile.
+                             Form hataları sol sütundaki kutuda kalır; liste hatası izleyicide de görünür. -->
+                        <HorizontalStackLayout Spacing="8" IsVisible="{Binding ListeYukleniyor}">
+                            <ActivityIndicator IsRunning="{Binding ListeYukleniyor}" WidthRequest="20" HeightRequest="20" />
+                            <Label Text="İşlemler yükleniyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <Border Style="{StaticResource ErrorBox}"
+                                IsVisible="{Binding YuklemeHatasi, Converter={StaticResource DoluIse}}">
+                            <Label Text="{Binding YuklemeHatasi}" Style="{StaticResource LblError}" />
+                        </Border>
+                        <Label Text="{Binding Mesaj}" Style="{StaticResource LblPageSub}" TextColor="{StaticResource Green}"
+                               IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
+                            <Button Grid.Column="1" Text="Yenile / tekrar dene" Style="{StaticResource BtnSecondary}"
+                                    Command="{Binding YenileCommand}"
+                                    IsEnabled="{Binding ListeYukleniyor, Converter={StaticResource TersIse}}" />
+                        </Grid>
+
                         <!-- Filtre: kanal çipleri -->
                         <FlexLayout Wrap="Wrap" AlignItems="Center"
                                     BindableLayout.ItemsSource="{Binding FiltreKanallari}">
@@ -223,8 +242,9 @@
                             </Border>
                         </Grid>
 
-                        <!-- Özet -->
-                        <Label Text="{Binding FiltreOzet}" Style="{StaticResource LblRowSecondary}" />
+                        <!-- Özet: etkin süzgeç + sayı + toplam; yalnız güncel süzgecin başarılı yanıtında görünür -->
+                        <Label Text="{Binding FiltreOzet}" Style="{StaticResource LblRowSecondary}"
+                               IsVisible="{Binding VeriVar}" />
                     </VerticalStackLayout>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
@@ -262,14 +282,17 @@
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
+                        <!-- Boş liste yalnız başarılı ve boş yüklemede; yüklenirken ya da hatada gösterilmez. -->
                         <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
+                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6"
+                                                 IsVisible="{Binding BindingContext.VeriVar, Source={x:Reference Sayfa}}">
                                 <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
                                         StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
                                     <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
                                 </Border>
-                                <Label Text="Henüz işlem yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
-                                <Label Text="İlk kayıtla liste burada oluşur."
+                                <Label Text="{Binding BindingContext.BosListeBasligi, Source={x:Reference Sayfa}}"
+                                       Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
+                                <Label Text="{Binding BindingContext.BosListeAciklamasi, Source={x:Reference Sayfa}}"
                                        Style="{StaticResource LblEmptySub}" />
                             </VerticalStackLayout>
                         </CollectionView.EmptyView>

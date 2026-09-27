@@ -31,6 +31,15 @@ public class FinansTakipTests
         Assert.Equal(2, api.OdemeIstekleri.Count); Assert.Equal(api.OnizlenenOdeme!.IstekId, api.OdemeIstekleri[0].IstekId);
         Assert.Equal(api.OdemeIstekleri[0], api.OdemeIstekleri[1]); Assert.Equal(0, vm.OdemeTutari);
     }
+    [Fact] public async Task Kart_odeme_zaman_asiminda_ayni_istek_anahtariyla_yeniden_denenir_cift_kayit_olmaz()
+    {
+        var api = new Fake { OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) }; var vm = await KartVm(api); vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null); await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Contains("zamanında yanıt vermedi", vm.Hata); Assert.Equal(10, vm.OdemeTutari);
+        api.OdemeHatasi = null; await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(2, api.OdemeIstekleri.Count); Assert.Equal(api.OdemeIstekleri[0].IstekId, api.OdemeIstekleri[1].IstekId);
+        Assert.Equal(api.OdemeIstekleri[0], api.OdemeIstekleri[1]); Assert.Null(vm.Hata);
+    }
     [Fact] public async Task Kart_gecis_paylari_degistiginde_eski_onay_gonderilmez()
     {
         var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false } }; var vm = await KartVm(api);
@@ -40,18 +49,67 @@ public class FinansTakipTests
         await vm.GecisOnizleCommand.ExecuteAsync(null); vm.GecisOnay = true; await vm.GecisiOnaylaCommand.ExecuteAsync(null);
         Assert.True(api.KartGecis!.Onay); Assert.NotEqual(Guid.Empty, api.KartGecis.IstekId); Assert.Equal(90, api.KartGecis.Dagilimlar.Single().Tutar);
     }
-    [Fact] public async Task Kart_gecis_onizlemesi_elle_degismemis_tutari_onerilen_tutarla_doldurup_yeniden_onizler()
+    [Fact] public async Task Kart_gecisinde_onerilen_tutar_kendiliginden_yazilmaz_acik_eylemle_yeniden_onizlenir()
     {
         var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(80) }; var vm = await KartVm(api);
         vm.GecisAciklama = "Banka ekstresiyle kontrol edildi";
         Assert.Equal(100, vm.OncedenSayilan);                        // web gibi: kalan borç ile kart borcunun küçüğü
+        Assert.Null(vm.GecisOneriMetni); Assert.False(vm.OnerilenleGecisOnizleCommand.CanExecute(null));
+
         await vm.GecisOnizleCommand.ExecuteAsync(null);
+        Assert.Equal(100, vm.OncedenSayilan);                        // sunucu önerisi alana kendiliğinden yazılmaz
+        Assert.Single(api.KartGecisOnizlemeleri);
+        Assert.Contains("aşamaz", vm.GecisEngeli); Assert.False(vm.GecisOnaylanabilir);
+        Assert.Equal(80, vm.GecisOnerilenTutar); Assert.Equal("Önerilen tutarla (80,00 ₺) yeniden önizle", vm.GecisOneriMetni);
+        Assert.True(vm.OnerilenleGecisOnizleCommand.CanExecute(null));
+
+        await vm.OnerilenleGecisOnizleCommand.ExecuteAsync(null);
         Assert.Equal(80, vm.OncedenSayilan);
         Assert.Equal(new[] { 100m, 80m }, api.KartGecisOnizlemeleri.Select(g => g.KasadaOncedenSayilanTutar));
-        Assert.Contains("önerilen tutarla (80,00 ₺) dolduruldu", vm.GecisOnizleme);
-        Assert.Null(vm.GecisEngeli); Assert.True(vm.GecisOnaylanabilir); Assert.True(vm.GecisiOnaylaCommand.CanExecute(null));
+        Assert.Null(vm.GecisEngeli); Assert.Null(vm.GecisOneriMetni); Assert.True(vm.GecisOnaylanabilir); Assert.True(vm.GecisiOnaylaCommand.CanExecute(null));
         vm.GecisOnay = true; await vm.GecisiOnaylaCommand.ExecuteAsync(null);
         Assert.True(api.KartGecis!.Onay); Assert.Equal(80, api.KartGecis.KasadaOncedenSayilanTutar); Assert.Equal(api.KartGecisOnizlemeleri[1].IstekId, api.KartGecis.IstekId);
+    }
+    [Theory]
+    [InlineData("kalan")]
+    [InlineData("k")]
+    [InlineData("tarih")]
+    [InlineData("aciklama")]
+    [InlineData("pay")]
+    [InlineData("pay-kaldir")]
+    public async Task Kart_gecis_girdisi_onizlemeden_sonra_degisince_onizleme_ve_onay_gecersizlesir(string alan)
+    {
+        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(100) }; var vm = await KartVm(api);
+        vm.GecisAciklama = "Banka ekstresiyle kontrol edildi"; vm.PayEkle(vm.GecisPaylari); vm.GecisPaylari[0].Kanal = vm.Kanallar[0]; vm.GecisPaylari[0].Tutar = 100;
+        await vm.GecisOnizleCommand.ExecuteAsync(null);
+        Assert.NotNull(vm.GecisOnizleme); Assert.True(vm.GecisOnaylanabilir);
+        vm.GecisOnay = true; var bildirim = 0; vm.GecisiOnaylaCommand.CanExecuteChanged += (_, _) => bildirim++;
+
+        switch (alan)
+        {
+            case "kalan": vm.GecisKalanBorc = 90; break;
+            case "k": vm.OncedenSayilan = 90; break;
+            case "tarih": vm.GecisTarihi = vm.GecisTarihi.AddDays(1); break;
+            case "aciklama": vm.GecisAciklama = "Başka açıklama"; break;
+            case "pay": vm.GecisPaylari[0].Tutar = 90; break;
+            case "pay-kaldir": vm.GecisPaylari.RemoveAt(0); break;
+        }
+
+        Assert.Null(vm.GecisOnizleme); Assert.Null(vm.GecisEngeli); Assert.False(vm.GecisOnay);
+        Assert.False(vm.GecisOnaylanabilir); Assert.False(vm.GecisiOnaylaCommand.CanExecute(null)); Assert.True(bildirim > 0);
+        await vm.GecisiOnaylaCommand.ExecuteAsync(null); Assert.Null(api.KartGecis);
+    }
+    [Fact] public async Task Kart_gecis_engeli_ve_onerisi_girdi_degisince_kalkar()
+    {
+        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(80) }; var vm = await KartVm(api);
+        vm.GecisAciklama = "Kontrol edildi";
+        await vm.GecisOnizleCommand.ExecuteAsync(null);
+        Assert.NotNull(vm.GecisEngeli); Assert.NotNull(vm.GecisOneriMetni);
+
+        vm.GecisAciklama = "Banka ekstresiyle yeniden kontrol edildi";
+
+        Assert.Null(vm.GecisEngeli); Assert.Null(vm.GecisOnizleme); Assert.Null(vm.GecisOneriMetni);
+        Assert.False(vm.OnerilenleGecisOnizleCommand.CanExecute(null));
     }
     [Fact] public async Task Kart_gecisinde_elle_degismemis_tutar_kalan_borcu_izler_elle_girilen_korunur()
     {
@@ -239,7 +297,7 @@ public class FinansTakipTests
         public KartTakipDto Kart = OrnekKart(); public KrediTakipDto Kredi = OrnekKredi();
         public TakipOzetDto? Ozet;
         public Task<IReadOnlyList<KartTakipDto>>? KartlarYaniti; public Task<KartTakipDto>? OdemeYaniti;
-        public bool OdemeHata; public KartTakipOdemeYaz? OnizlenenOdeme; public List<KartTakipOdemeYaz> OdemeIstekleri = new();
+        public bool OdemeHata; public Exception? OdemeHatasi; public KartTakipOdemeYaz? OnizlenenOdeme; public List<KartTakipOdemeYaz> OdemeIstekleri = new();
         public KartGecisYaz? KartGecis; public KrediGecisYaz? KrediGecis; public KrediTakipYaz? KrediKayit; public KrediTaksitYaz? Taksit; public KrediKapatYaz? Kapatma; public KartHarcamaYaz? Harcama;
         public int KartKayitSayisi, EkstreKayitSayisi, KartGecisOnizlemeSayisi;
         public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => KartlarYaniti ?? Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Kart });
@@ -250,7 +308,7 @@ public class FinansTakipTests
         public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) { EkstreKayitSayisi++; return Task.FromResult(Kart); }
         public Task<KartOdemeOnizlemeDto> TakipOdemeOnizlemeAsync(int id, KartTakipOdemeYaz g) { OnizlenenOdeme = g; return Task.FromResult(new KartOdemeOnizlemeDto(g.Tutar, g.Tutar, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, new[] { new KartEkstreOdemePayi(7, g.Tutar) })); }
-        public Task<KartTakipDto> TakipOdemeKaydetAsync(int id, KartTakipOdemeYaz g) { OdemeIstekleri.Add(g); return OdemeHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : OdemeYaniti ?? Task.FromResult(Kart); }
+        public Task<KartTakipDto> TakipOdemeKaydetAsync(int id, KartTakipOdemeYaz g) { OdemeIstekleri.Add(g); return OdemeHatasi is { } hata ? Task.FromException<KartTakipDto>(hata) : OdemeHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : OdemeYaniti ?? Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipOdemeIptalAsync(int id, int oid, TakipIptalYaz g) => Task.FromResult(Kart);
         private static TakipGecisDto Preview(string kaynak, int id) => new(kaynak, id, Tarih, 0, 0, 30, new[] { "Geçmiş korunur" }, true);
         /// <summary>Sunucu CardPreview'ın sade aynası: önerilen = max(0, min(kalan borç, sistem borcu)), en az = önerilen − açılış borcu.</summary>

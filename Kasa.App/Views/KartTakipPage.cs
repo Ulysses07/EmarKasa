@@ -36,10 +36,13 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         // Kabul edilemez önizlemede (KabulEdilebilir=false) onay kutusu ve düğme kapalıdır; neden kırmızı yazılır.
         var gecisEngeli = Bagli(nameof(vm.GecisEngeli)); gecisEngeli.TextColor = Colors.DarkRed;
         var gecisOnayi = Onay("Gösterilen kasa ve kanal etkisini inceledim; geçişi onaylıyorum.", nameof(vm.GecisOnay)); gecisOnayi.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.GecisOnaylanabilir));
-        var gecis = Kart("Eski kartı yeni takibe al", Metin("Bankanızdaki kalan borcu girin. Kasada önceden sayılan kısım, sistemin eski kuralla kasadan düştüğü/düşeceği borçtur; önerilen tutar kalan borç ile sistem kart borcunun küçüğüdür ve siz değiştirmedikçe önizlemede alana dolar. Önerilenin altı yalnız açılış borcu kasadan ayrıca ödenecekse girilebilir. Bu işlem yeni harcama oluşturmaz."),
+        // Sunucu farklı bir tutar önerirse alana kendiliğinden yazılmaz; web'deki gibi açık eylemle uygulanıp yeniden önizlenir.
+        var gecisOnerisi = new Button { HorizontalOptions = LayoutOptions.Start, Style = (Style)Application.Current!.Resources["BtnSecondary"] };
+        gecisOnerisi.SetBinding(Button.TextProperty, nameof(vm.GecisOneriMetni)); gecisOnerisi.SetBinding(Button.CommandProperty, nameof(vm.OnerilenleGecisOnizleCommand));
+        var gecis = Kart("Eski kartı yeni takibe al", Metin("Bankanızdaki kalan borcu girin. Kasada önceden sayılan kısım, sistemin eski kuralla kasadan düştüğü/düşeceği borçtur; siz değiştirmedikçe alan kalan borç ile sistem kart borcunun küçüğünü izler. Önizleme farklı bir tutar önerirse \"Önerilen tutarla yeniden önizle\" ile uygulayabilirsiniz. Önerilenin altı yalnız açılış borcu kasadan ayrıca ödenecekse girilebilir. Girdiler değişirse geçiş, yeni önizleme alınmadan onaylanamaz. Bu işlem yeni harcama oluşturmaz."),
             Alan("Geçiş tarihi", Tarih(nameof(vm.GecisTarihi))), Alan("Kalan kart borcu", Girdi(nameof(vm.GecisKalanBorc), true)), Alan("Bu borcun kasada önceden sayılmış kısmı", Girdi(nameof(vm.OncedenSayilan), true)),
             Paylar(vm.GecisPaylari, () => vm.PayEkle(vm.GecisPaylari)), Alan("Geçiş açıklaması", Girdi(nameof(vm.GecisAciklama))), Dugme("Geçiş farkını göster", nameof(vm.GecisOnizleCommand)), Bagli(nameof(vm.GecisOnizleme)),
-            Goster(gecisEngeli, nameof(vm.GecisEngeli), true), gecisOnayi, Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)));
+            Goster(gecisEngeli, nameof(vm.GecisEngeli), true), Goster(gecisOnerisi, nameof(vm.GecisOneriVar)), gecisOnayi, Dugme("Yeni takibi aç", nameof(vm.GecisiOnaylaCommand)));
         Govde.Add(Editor(Goster(gecis, nameof(vm.EskiTakip))));
         Govde.Add(Goster(Kart("Ekstreler", Liste<EkstreSatiri>(nameof(vm.Ekstreler), s => { vm.EkstreSecCommand.Execute(s); return Task.CompletedTask; }, "Tarih / asgari ödeme", _ => vm.EditorMu && vm.YeniTakip)), nameof(vm.KartSecili)));
         Govde.Add(Editor(Goster(Kart("Ekstre bilgisi", Metin("Asgari ödeme ve tarihler bankanın ekstresinden girilir; uygulama oran veya tatil günü tahmini yapmaz."), Alan("Son ödeme tarihi", Tarih(nameof(vm.EkstreSonOdeme))),

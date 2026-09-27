@@ -81,13 +81,25 @@ public partial class AlislarViewModel
         if (_yonetim is null || _secili is null) return;
         if (icerik.Length > 10 * 1024 * 1024 || icerik.Length == 0) { Hata = "Belge boş olamaz ve 10 MB sınırını aşamaz."; return; }
         var id = _secili.Id;
-        var belge = await _yonetim.BelgeYukleAsync(id, ad, tur, icerik, EditorMu ? odemeId : null);
-        if (Gecerli(n) && _secili?.Id == id) { Belgeler.Add(belge); Mesaj = "Belge eklendi."; }
+        try
+        {
+            var belge = await _yonetim.BelgeYukleAsync(id, ad, tur, icerik, EditorMu ? odemeId : null);
+            if (Gecerli(n) && _secili?.Id == id) { Belgeler.Add(belge); Mesaj = "Belge eklendi."; }
+        }
+        catch (TimeoutException)
+        {
+            // Yükleme sunucuda tamamlanmış olabilir (belge ucu tekrar anahtarı taşımaz): liste yenilenir ki kullanıcı
+            // aynı belgeyi yeniden yüklemeden önce görsün. Yenileme de başarısızsa asıl zaman aşımı iletisi gösterilir.
+            try { var belgeler = await _yonetim.BelgelerAsync(id); if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler); }
+            catch (Exception) { /* zaman aşımı iletisi yeterli */ }
+            throw;
+        }
     });
-    public async Task<IndirilenDosya?> BelgeIndirAsync(BelgeDto belge)
+    /// <summary>Belgeyi <paramref name="hedef"/>'e yazar; hata ya da eski oturumda null.</summary>
+    public async Task<IndirmeBilgisi?> BelgeIndirAsync(BelgeDto belge, Stream hedef)
     {
-        IndirilenDosya? dosya = null;
-        await YurutAsync(async n => { if (_yonetim is null) return; var d = await _yonetim.BelgeIndirAsync(belge.Id); if (Gecerli(n)) dosya = d; });
+        IndirmeBilgisi? dosya = null;
+        await YurutAsync(async n => { if (_yonetim is null) return; var d = await _yonetim.BelgeIndirAsync(belge.Id, hedef); if (Gecerli(n)) dosya = d; });
         return dosya;
     }
     public Task BelgeSilAsync(BelgeDto belge) => YurutAsync(async n =>
