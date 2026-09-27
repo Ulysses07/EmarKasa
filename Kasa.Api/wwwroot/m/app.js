@@ -123,7 +123,11 @@ function git(ekran, parametre = {}) {
   durum.icGecis = true;
   location.hash = hedef;
 }
-function sekmeyeGit(ekran) { durum.yigin = [{ ekran }]; git(ekran); }
+function sekmeyeGit(ekran) {
+  // Açık sekmeye yeniden dokunmak yalnız başa kaydırır; rapor yeniden istenmez.
+  if (durum.yigin.length === 1 && durum.yigin[0].ekran === ekran && (location.hash || '#panel') === rotaMetni(ekran)) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  durum.yigin = [{ ekran }]; git(ekran);
+}
 // Uygulama içinden açılan ekranda tarayıcı geçmişine dönülür; bildirimden ya da sistem geri hareketiyle
 // oluşmuş yığında üst ekrana geçmişe yeni kayıt eklemeden gidilir.
 function geri() {
@@ -703,7 +707,10 @@ async function hizliIslemAc() {
       kaydediliyor = true; kaydetDugme.disabled = true; ustKaydet.disabled = true;
       try {
         const imza = JSON.stringify(govde);
-        if (benzerOnay !== imza) {
+        // Onay tek kullanımlıktır: kayıt isteği yanıtsız kalırsa yeniden denemede benzer kayıt yeniden aranır.
+        const onayli = benzerOnay === imza;
+        benzerOnay = null;
+        if (!onayli) {
           let benzer;
           try { benzer = await api('/api/islemler/benzerlik', { method: 'POST', body: { tur: 'Gider', tarih: govde.tarih, tutar: govde.tutarTl, krediKartiId: govde.krediKartiId, kanal: govde.kanal, alisId: null } }); }
           catch (e) { throw new Error(`Benzer kayıt kontrolü tamamlanamadı. Kayıt yapılmadı; yeniden deneyin. ${e.message}`); }
