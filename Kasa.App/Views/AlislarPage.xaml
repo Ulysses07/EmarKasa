@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:ctl="clr-namespace:Kasa.App.Controls"
              x:Class="Kasa.App.Views.AlislarPage" x:Name="Sayfa"
              Title="Alışlar" BackgroundColor="{StaticResource AppBg}">
     <Grid Padding="24,18" RowDefinitions="Auto,Auto,*" RowSpacing="14">
@@ -63,7 +64,7 @@
                                 <Label Grid.Column="1" Text="{Binding Durum}" TextColor="#CBE6D5" FontAttributes="Bold" VerticalOptions="Center" />
                             </Grid>
                             <Label Text="{Binding KaydiAcan}" Style="{StaticResource LblHeroSub}" />
-                            <Label Text="{Binding Toplam, Converter={StaticResource ParaBicim}}" FontSize="29" FontAttributes="Bold" TextColor="White" />
+                            <Label Text="{Binding ToplamMetni}" FontSize="29" FontAttributes="Bold" TextColor="White" />
                             <Label Text="{Binding OdemeOzeti}" TextColor="#CBE6D5" />
                         </VerticalStackLayout>
                     </Border>
@@ -90,7 +91,7 @@
                                             <VerticalStackLayout Spacing="10">
                                                 <Grid ColumnDefinitions="*,150,Auto" ColumnSpacing="8">
                                                     <VerticalStackLayout><Label Text="Kalem açıklaması" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding Aciklama}" Placeholder="Örn. ürün / hizmet" /></Border></VerticalStackLayout>
-                                                    <VerticalStackLayout Grid.Column="1"><Label Text="Kalem tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding Tutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺" Keyboard="Numeric" /></Border></VerticalStackLayout>
+                                                    <VerticalStackLayout Grid.Column="1"><Label Text="Kalem tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><ctl:ParaGirisi Tutar="{Binding Tutar}" Placeholder="0,00 ₺" /></Border></VerticalStackLayout>
                                                     <Button Grid.Column="2" Text="Kaldır" Style="{StaticResource BtnRowDelete}" VerticalOptions="End" Command="{Binding BindingContext.KalemSilCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
                                                 </Grid>
                                                 <Label Text="Kanal dağılımı · aynı kalemi birden fazla kanala ayırabilirsiniz" FontSize="12" TextColor="{StaticResource Sub}" />
@@ -98,7 +99,7 @@
                                                     <BindableLayout.ItemTemplate><DataTemplate>
                                                         <Grid ColumnDefinitions="*,150,Auto" ColumnSpacing="8">
                                                             <Border Style="{StaticResource FieldBorder}"><Picker Title="Kanal seçin" ItemsSource="{Binding Kanallar}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding Kanal}" /></Border>
-                                                            <Border Grid.Column="1" Style="{StaticResource FieldBorder}"><Entry Text="{Binding Tutar, Converter={StaticResource ParaGiris}}" Placeholder="Pay (₺)" Keyboard="Numeric" /></Border>
+                                                            <Border Grid.Column="1" Style="{StaticResource FieldBorder}"><ctl:ParaGirisi Tutar="{Binding Tutar}" Placeholder="Pay (₺)" /></Border>
                                                             <Button Grid.Column="2" Text="Kaldır" Style="{StaticResource BtnRowDelete}" Command="{Binding BindingContext.DagilimSilCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
                                                         </Grid>
                                                     </DataTemplate></BindableLayout.ItemTemplate>
@@ -143,7 +144,7 @@
                             </VerticalStackLayout>
                             <Grid ColumnDefinitions="160,*" ColumnSpacing="12" IsEnabled="{Binding YeniOdemeGirisi}">
                                 <VerticalStackLayout><Label Text="Ödeme tarihi" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><DatePicker Date="{Binding OdemeTarihi}" /></Border></VerticalStackLayout>
-                                <VerticalStackLayout Grid.Column="1"><Label Text="Ödeme tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding OdemeTutari, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺" Keyboard="Numeric" /></Border></VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1"><Label Text="Ödeme tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><ctl:ParaGirisi Tutar="{Binding OdemeTutari}" Placeholder="0,00 ₺" /></Border></VerticalStackLayout>
                             </Grid>
                             <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding YeniOdemeGirisi}"><Picker Title="Ödeme yöntemi" ItemsSource="{Binding OdemeKartlari}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding OdemeKarti}" /></Border>
                             <Label Text="Yeni takipte kart borcu ayrı izlenir; kasa, Kartlar ekranında ödeme kaydedilince azalır. Geçiş yapılmamış eski kartlar eski erteleme kuralını korur." Style="{StaticResource LblPageSub}" />
@@ -180,7 +181,7 @@
                             <Label Text="Ödeme düzeltmesi" Style="{StaticResource LblSection}" />
                             <Label Text="{Binding DuzeltilecekOdeme.Baslik}" FontAttributes="Bold" />
                             <DatePicker Date="{Binding DuzeltmeTarihi}" />
-                            <Entry Text="{Binding DuzeltmeTutari, Converter={StaticResource ParaGiris}}" Placeholder="Ödeme tutarı" Keyboard="Numeric" />
+                            <ctl:ParaGirisi Tutar="{Binding DuzeltmeTutari}" Placeholder="Ödeme tutarı" />
                             <Picker Title="Ödeme yöntemi" ItemsSource="{Binding DuzeltmeKartlari}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding DuzeltmeKarti}" />
                             <Label Text="Bu eski kayıtta kart silinmiş. Kart harcaması niteliği korunur; yeni bir kart seçebilirsiniz." IsVisible="{Binding EskiKartHarcamasi}" Style="{StaticResource LblPageSub}" />
                             <Label Text="Yanlış alışa bağlandıysa hedef alış seçin. Boşsa aynı alışta kalır." Style="{StaticResource LblPageSub}" />

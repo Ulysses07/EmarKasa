@@ -10,8 +10,9 @@ internal static class TakipUi
     public static View Alan(string ad, View v) => new VerticalStackLayout { Spacing = 5, Children = { new Label { Text = ad, FontSize = 12 }, v } };
     public static Entry Girdi(string yol, bool para = false, bool sayi = false)
     {
-        var e = new Entry { Keyboard = para || sayi ? Keyboard.Numeric : Keyboard.Default };
-        e.SetBinding(Entry.TextProperty, yol, converter: para ? new Converters.ParaGirisConverter() : null); return e;
+        if (para) { var p = new Controls.ParaGirisi(); p.SetBinding(Controls.ParaGirisi.TutarProperty, yol); return p; }
+        var e = new Entry { Keyboard = sayi ? Keyboard.Numeric : Keyboard.Default };
+        e.SetBinding(Entry.TextProperty, yol); return e;
     }
     public static DatePicker Tarih(string yol) { var d = new DatePicker(); d.SetBinding(DatePicker.DateProperty, yol); return d; }
     public static Picker Secim(string kaynak, string secili, string alan = "Ad")

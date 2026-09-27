@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.IslemlerPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:ctl="clr-namespace:Kasa.App.Controls"
     x:Name="Sayfa"
     Title="İşlemler"
     BackgroundColor="{StaticResource AppBg}">
@@ -41,8 +42,7 @@
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Tutar" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
-                                           Style="{StaticResource EntryMoney}" />
+                                    <ctl:ParaGirisi Tutar="{Binding DuzenTutar}" Placeholder="0,00 ₺" />
                                 </Border>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
@@ -157,8 +157,7 @@
                                 <VerticalStackLayout Spacing="0">
                                     <Label Text="Tutar" Style="{StaticResource LblField}" />
                                     <Border Style="{StaticResource FieldBorder}">
-                                        <Entry Text="{Binding GelenTutar, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
-                                               Style="{StaticResource EntryMoney}" />
+                                        <ctl:ParaGirisi Tutar="{Binding GelenTutar}" Placeholder="0,00 ₺" />
                                     </Border>
                                 </VerticalStackLayout>
                                 <Button Text="Gelen kaydet" Command="{Binding GelenKaydetCommand}" />
