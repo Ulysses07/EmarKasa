@@ -323,6 +323,31 @@ public class StatementImportTests
     }
 
     [Fact]
+    public async Task Para_birimi_etiketinde_sube_adresi_olan_tl_belgesi_kaydedilir()
+    {
+        // statement-3: "Para Birimi: Türk Lirası … Bağdat Cad." başlıklı belge CAD sayılıp kalıcı olarak kilitlenmez.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"Para Birimi: Türk Lirası        Şube Adresi: Bağdat Cad. No:5\n{Today:dd.MM.yyyy} MIGROS -412,35\n" };
+        using var c = await Editor(f); var doc = await Upload(c, "Banka");
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("TRY", row.ParaBirimi); Assert.Equal("Gider", row.OnerilenIslem);
+        var (request, preview) = await Preview(c, doc, Row(1, "Gider", 412.35m, "Genel"));
+        Assert.False(preview.TekrarOnayGerekli); Assert.Equal(-412.35m, preview.KasaEtkisi);
+        await Save(c, doc, request); Assert.Equal(587.65m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Tutara_bitisik_olmayan_doviz_kodlu_satir_ek_onayla_kaydedilir()
+    {
+        // Ayrı döviz kolonundaki "USD" satırı sessizce TL sayılmaz: Belirsiz para birimi ek onay ister, kilitlemez.
+        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"Para Birimi: TL\n{Today:dd.MM.yyyy}  AMAZON EU        USD         -12,00\n" };
+        using var c = await Editor(f); var doc = await Upload(c, "Banka");
+        var row = Assert.Single(doc.Satirlar); Assert.Equal("Belirsiz", row.ParaBirimi);
+        var (request, preview) = await Preview(c, doc, Row(1, "Gider", 12m, "Genel"));
+        Assert.True(preview.TekrarOnayGerekli); Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("USD"));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
+        await Save(c, doc, request); Assert.Equal(988m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
     public async Task Kart_alacak_satiri_harcama_onerilmez_harcama_secilirse_ek_onay_ister()
     {
         // statement-1: eksi işaretli kart alacağı uyarısız "Kart harcaması" olarak önerilmez.

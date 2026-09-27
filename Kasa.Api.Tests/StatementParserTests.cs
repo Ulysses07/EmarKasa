@@ -161,6 +161,55 @@ public class StatementParserTests
         foreach (var title in new[]{"Tarih       Açıklama       Tutar (TL)","Tarih       Açıklama       Tutar TL"})
             Assert.Equal("TRY",Assert.Single(EkstreMetinOkuyucu.Oku(title+"\n01.09.2026  Hizmet BAGDAT CAD  -10,00","Banka","Garanti").Satirlar).ParaBirimi);
     }
+    [Theory]
+    [InlineData("Para Birimi: Türk Lirası        Şube Adresi: Bağdat Cad. No:5")]
+    [InlineData("Para Birimi: Türk Lirası Şube Adresi: Bağdat Cad. No:5")]
+    [InlineData("Hesap Cinsi: Vadesiz TL Hesabı    Şube: Bağdat Cad. Şubesi")]
+    [InlineData("Hesap Cinsi: VADESIZ    Para Birimi : TL    Şube: BAĞDAT CAD. ŞUBESİ")]
+    public void Etiket_satirindaki_cadde_kisaltmasi_belge_para_birimini_bozmaz(string baslik)
+    {
+        // Etiket değeri yalnız kendi alanından (kolon boşluğu ya da sonraki "Etiket:" öncesi) okunur; aynı satırdaki şube
+        // adresindeki "Cad." belgeyi Kanada doları yapmaz, kodsuz satırlar kaydedilebilir TL kalır.
+        var rows=EkstreMetinOkuyucu.Oku(baslik+"\n01.09.2026 Market -250,00\n02.09.2026 Kira -1.000,00","Banka","Garanti").Satirlar;
+        Assert.Equal(2,rows.Count);
+        Assert.All(rows,r=>{Assert.Equal("TRY",r.ParaBirimi);Assert.DoesNotContain(r.Uyarilar,w=>w.Contains("para birim",StringComparison.OrdinalIgnoreCase));});
+    }
+    [Fact]
+    public void Para_birimi_yazmayan_hesap_cinsi_etiketi_adresten_doviz_okumaz()
+    {
+        // "Hesap Cinsi: VADESIZ" para birimi söylemez; şube adresindeki "CAD." yerine tutarların yanındaki TL belirleyicidir.
+        var rows=EkstreMetinOkuyucu.Oku("Hesap Cinsi: VADESIZ     Şube: BAĞDAT CAD. ŞUBESİ\n01.09.2026 Market 250,00 TL\n02.09.2026 Kira -1.000,00","Banka","Garanti").Satirlar;
+        Assert.Equal(new[]{"TRY","TRY"},rows.Select(r=>r.ParaBirimi));
+        // Gerçek döviz hesabı etiketi kodla ya da yazıyla yine döviz okunur.
+        foreach (var (baslik,kod) in new[]{("Para Birimi: CAD","CAD"),("Para Birimi:\tCAD","CAD"),("Para Birimi: ABD Doları","USD"),("Hesap Cinsi: VADESİZ EURO","EUR"),("Döviz Cinsi: Kanada Doları   Şube: Bağdat Cad.","CAD")})
+        {
+            var row=Assert.Single(EkstreMetinOkuyucu.Oku(baslik+"\n01.09.2026 Hizmet -10,00","Banka","Garanti").Satirlar);
+            Assert.Equal(kod,row.ParaBirimi);Assert.Contains(row.Uyarilar,w=>w.Contains("farklı para"));
+        }
+    }
+    [Fact]
+    public void Tutara_bitisik_olmayan_doviz_kodu_satiri_sessizce_tl_saymaz()
+    {
+        // Döviz bölüm başlığı olan belgede kodsuz satır TL varsayılmaz.
+        var rows=EkstreMetinOkuyucu.Oku("01.09.2026 Market 250,00 TL\nUSD İşlemleri\n02.09.2026 AMAZON 12,00","Kart","Garanti").Satirlar;
+        Assert.Equal("TRY",rows[0].ParaBirimi);Assert.Equal("Belirsiz",rows[1].ParaBirimi);
+        Assert.Contains(rows[1].Uyarilar,w=>w.Contains("Para birimi"));
+        // Ayrı döviz kolonu: TL etiketli belgede USD yazan satır sessizce TL olmaz; uyarıyla Belirsiz gelir (ek onayla kaydedilir).
+        var usd=Assert.Single(EkstreMetinOkuyucu.Oku("Para Birimi: TL\n03.09.2026  AMAZON EU        USD         12,00","Banka","Akbank").Satirlar);
+        Assert.Equal("Belirsiz",usd.ParaBirimi);Assert.Contains(usd.Uyarilar,w=>w.Contains("USD")&&w.Contains("tutarın yanında değil"));
+        // Döviz etiketli belgede açıklamadaki "TL" satırı TL'ye çevirmez.
+        var foreign=Assert.Single(EkstreMetinOkuyucu.Oku("Para Birimi: USD\n03.09.2026  TL HESABINA VIRMAN        -12,00","Banka","Akbank").Satirlar);
+        Assert.Equal("USD",foreign.ParaBirimi);
+    }
+    [Fact]
+    public void Ayri_kolondaki_tl_kodu_gereksiz_belirsizlik_uretmez()
+    {
+        var rows=EkstreMetinOkuyucu.Oku("01.09.2026  MARKET          412,35        TL\n02.09.2026  KIRA          1.000,00        TL","Kart","QNB").Satirlar;
+        Assert.Equal(2,rows.Count);
+        Assert.All(rows,r=>{Assert.Equal("TRY",r.ParaBirimi);Assert.DoesNotContain(r.Uyarilar,w=>w.Contains("para birim",StringComparison.OrdinalIgnoreCase));});
+        var labelled=Assert.Single(EkstreMetinOkuyucu.Oku("Para Birimi: TL\n01.09.2026  MARKET          412,35        TL","Kart","QNB").Satirlar);
+        Assert.Equal("TRY",labelled.ParaBirimi);Assert.Equal("KartHarcama",labelled.OnerilenIslem);Assert.Empty(labelled.Uyarilar);
+    }
     [Fact]
     public void Tutara_bitisik_para_birimi_ve_lira_isareti_okunur()
     {
@@ -187,6 +236,45 @@ public class StatementParserTests
         // Taksit oranı olmayan, tarihi eğik çizgili satır taksit sayılmaz.
         var plain=Assert.Single(EkstreMetinOkuyucu.Oku("15/07/2026 MEDIAMARKT TAKSİTLİ SATIŞ 150,00 TL","Kart","Garanti").Satirlar);
         Assert.Equal("KartHarcama",plain.OnerilenIslem);Assert.DoesNotContain(plain.Uyarilar,w=>w.Contains("taksid"));
+    }
+    [Fact]
+    public void Kart_taksit_kolonu_ve_parantezli_oran_taksit_sayilir()
+    {
+        // Taksit oranı ayrı "Taksit" kolonundaysa satırda "TAKSİT" kelimesi geçmez; oran kolonun altından okunur.
+        var header=$"{"İşlem Tarihi",-14}{"Açıklama",-20}{"Taksit",-10}{"Tutar",12}";
+        var taksitli=$"{"15.07.2026",-14}{"MEDIAMARKT",-20}{"2/6",-10}{"150,00 TL",12}";
+        var tek=$"{"16.07.2026",-14}{"MIGROS 1/2 KG",-20}{"",-10}{"80,00 TL",12}";
+        var rows=EkstreMetinOkuyucu.Oku(header+"\n"+taksitli+"\n"+tek,"Kart","Garanti").Satirlar;
+        Assert.Equal(new[]{"Atla","KartHarcama"},rows.Select(r=>r.OnerilenIslem));
+        Assert.Equal(150m,rows[0].Tutar);Assert.Contains(rows[0].Uyarilar,w=>w.Contains("2/6. taksidi"));
+        // Açıklamadaki "1/2" Taksit kolonunun dışında kalır; taksit sayılmaz.
+        Assert.DoesNotContain(rows[1].Uyarilar,w=>w.Contains("taksid"));
+        // Parantez içindeki oran kelime olmadan da taksittir.
+        var paren=Assert.Single(EkstreMetinOkuyucu.Oku("15.07.2026 MEDIAMARKT (2/6) 150,00 TL","Kart","Garanti").Satirlar);
+        Assert.Equal("Atla",paren.OnerilenIslem);Assert.Contains(paren.Uyarilar,w=>w.Contains("2/6. taksidi"));
+        // Parantezli ama tarih olan ya da geçersiz oran taksit sayılmaz.
+        var date=Assert.Single(EkstreMetinOkuyucu.Oku("15.07.2026 MEDIAMARKT (15/07) 150,00 TL","Kart","Garanti").Satirlar);
+        Assert.Equal("KartHarcama",date.OnerilenIslem);Assert.DoesNotContain(date.Uyarilar,w=>w.Contains("taksid"));
+    }
+    [Fact]
+    public void Kart_borc_kolonundaki_indirim_adli_isyeri_harcama_onerilir()
+    {
+        // Borç/Alacak kolonu kesindir: adında "indirim/bonus" geçen işyerinin borç satırı alacak sayılıp önerisini kaybetmez.
+        var header=$"{"Tarih",-14}{"Açıklama",-26}{"Borç",12}{"Alacak",12}";
+        var borc=$"{"01.09.2026",-14}{"A101 INDIRIM MARKET",-26}{"45,00",12}{"",12}";
+        var bonus=$"{"02.09.2026",-14}{"BONUS FLAS KAMPANYA",-26}{"30,00",12}{"",12}";
+        var alacak=$"{"03.09.2026",-14}{"ANINDA INDIRIM",-26}{"",12}{"15,00",12}";
+        var rows=EkstreMetinOkuyucu.Oku(header+"\n"+borc+"\n"+bonus+"\n"+alacak,"Kart","Akbank").Satirlar;
+        Assert.Equal(new[]{"KartHarcama","KartHarcama","Atla"},rows.Select(r=>r.OnerilenIslem));
+        Assert.Equal(new[]{"Cikis","Cikis","Giris"},rows.Select(r=>r.Yon));
+        Assert.All(rows.Take(2),r=>Assert.DoesNotContain(r.Uyarilar,w=>w.Contains("Kart alacağı")));
+        Assert.Contains(rows[2].Uyarilar,w=>w.Contains("Kart alacağı"));
+        // B/A soneki de kesindir.
+        var suffix=Assert.Single(EkstreMetinOkuyucu.Oku("04.09.2026 PUAN MARKET 45,00 B","Kart","Akbank").Satirlar);
+        Assert.Equal("KartHarcama",suffix.OnerilenIslem);Assert.Equal("Cikis",suffix.Yon);
+        // Kolonsuz, işaretsiz indirim satırı önceki gibi Atla ve uyarıyla gelir.
+        var unsigned=Assert.Single(EkstreMetinOkuyucu.Oku("05.09.2026 ANINDA INDIRIM 15,00 TL","Kart","Akbank").Satirlar);
+        Assert.Equal("Atla",unsigned.OnerilenIslem);Assert.Contains(unsigned.Uyarilar,w=>w.Contains("Kart alacağı"));
     }
 
     [Fact]
