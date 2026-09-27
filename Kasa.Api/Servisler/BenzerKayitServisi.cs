@@ -22,9 +22,12 @@ public sealed record BenzerAramasi(string Tur, DateOnly Tarih, decimal Tutar, in
 /// <item>Kart ödemesi: aynı kartın ödemeleri ve kartsız bütün giderler (kart borcu bankadan ödenip gider yazılmış olabilir).</item>
 /// <item>Kart harcaması (kartlı gider ve alış ödemesi dahil): aynı kartın giderleri ve giderden türememiş kart harcamaları.</item>
 /// </list>
-/// Kanal süzgeci yalnız giderlere uygulanır ve yalnız kanalı kesin olarak başka olanı eler. Giderin kanal kümesi hesap
-/// motorunun kasayı düşürdüğü kümedir (<see cref="HesapServisi"/> ile aynı öncelik: ekstre dağılımı, aylık gider revizyonu,
-/// onaylı alış payı, gider kanalı); genel kasa, Ortak, dağılım bekleyen ve kanalı belirsiz gider her kanal sorgusunda görünür.
+/// Kanal süzgeci yalnız kanalı kesin olarak başka olan kaydı eler. Kanal kümesi hesap motorunun kasayı düşürdüğü kümedir:
+/// giderde <see cref="HesapServisi"/> ile aynı öncelik (ekstre dağılımı, aylık gider revizyonu, onaylı alış payı, gider
+/// kanalı); takipli kredi taksidinde taksidin dağılımı; türetilmiş eski taksitte kredinin kanalı (kimliği yoksa adı).
+/// Genel kasa, Ortak, dağılım bekleyen ve kanalı belirsiz kayıt her kanal sorgusunda görünür. Kart ödemesi de süzülmez:
+/// kanal payı ödeme anında kesin değildir, kart taksitlerinin harcama dağılımından önceki ödemelere ve alış onayına göre
+/// hesaplanır (onaysız alışta "Dağılım bekliyor"); eski kart ödemesinin kanalı yoktur.
 /// Benzerlik bir uyarıdır: servis kayıt oluşturmaz ve yazmaz; çağıranın okuma bağlamını (anlık görüntü ya da yazma
 /// transaction'ı) kullanır. Bir istek boyunca değişmeyen okumalar (kanal adları, eski kredi taksitleri) bir kez yapılır.
 /// Kullanıcılar: benzerlik ucu, ekstre önizlemesi ve aylık gider ödemesinin benzer kayıt protokolü (<c>BenzerOnay</c>).
@@ -40,7 +43,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
     private Dictionary<int, (string Ad, int Sira)>? _kanallar;
-    private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal)>? _eskiTaksitler;
+    private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal, int? KanalId)>? _eskiTaksitler;
 
     /// <summary>En yakın tarihli en çok <see cref="EnFazla"/> benzer kayıt. <paramref name="dahil"/> verilirse süzgeç sınırdan
     /// önce uygulanır (elenen kayıt yakındaki başka kaydın yerini tutmaz).</summary>
@@ -137,8 +140,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         {
             var (kume, etiket) = Kanal(i);
             var alis = bagliAlis.GetValueOrDefault(i.Id);
-            var gorunur = a.Kanallar is null || kume is null || kume.Overlaps(a.Kanallar) || a.AlisId is { } alisId && alis?.Id == alisId;
-            if (gorunur) sonuc.Add(new("Islem", i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId, alis?.Id, etiket, ekstre.GetValueOrDefault(i.Id)?.Id, aylik.GetValueOrDefault(i.Id)?.Id));
+            if (Gorunur(a, kume) || a.AlisId is { } alisId && alis?.Id == alisId) sonuc.Add(new("Islem", i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId, alis?.Id, etiket, ekstre.GetValueOrDefault(i.Id)?.Id, aylik.GetValueOrDefault(i.Id)?.Id));
         }
         return sonuc;
     }
@@ -184,16 +186,26 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         var krediAdlari = db.Krediler.AsNoTracking().Where(k => krediIds.Contains(k.Id)).ToDictionary(k => k.Id, k => k.Ad);
         // Açıklama kaynağı kendisi adlandırır: bu kaynak türlerini tanımayan istemci kaydı "Gider #id" ya da "Kayıt #id" diye
         // gösterir; eski taksidin kimliği kredinindir ve açıklamada öyle yazılır.
-        var sonuc = takipli.Select(t => (new BenzerKayitDto("KrediTaksidi", t.Id, t.Tarih, t.Tutar, $"Kredi taksidi · {krediAdlari.GetValueOrDefault(t.KrediId, "Kredi")} · {t.No}. taksit", null,
-            KanalEtiketi: Kume(Read<KanalPayYaz>(t.DagilimJson).Select(p => p.KanalId)).Etiket), 4)).ToList();
-        sonuc.AddRange(EskiTaksitler().Where(t => t.Tutar == a.Tutar && t.Tarih >= bas && t.Tarih <= son)
+        var sonuc = new List<(BenzerKayitDto, int)>();
+        foreach (var t in takipli)
+        {
+            var (kume, etiket) = Kume(Read<KanalPayYaz>(t.DagilimJson).Select(p => p.KanalId));
+            if (Gorunur(a, kume))
+                sonuc.Add((new BenzerKayitDto("KrediTaksidi", t.Id, t.Tarih, t.Tutar, $"Kredi taksidi · {krediAdlari.GetValueOrDefault(t.KrediId, "Kredi")} · {t.No}. taksit", null, KanalEtiketi: etiket), 4));
+        }
+        sonuc.AddRange(EskiTaksitler().Where(t => t.Tutar == a.Tutar && t.Tarih >= bas && t.Tarih <= son && Gorunur(a, t.KanalId is { } kanal ? new HashSet<int> { kanal } : null))
             .Select(t => (new BenzerKayitDto("EskiKrediTaksidi", t.KrediId, t.Tarih, t.Tutar, $"Otomatik kredi taksidi (kredi #{t.KrediId}) · {t.Ad} · {t.No}. taksit", null, KanalEtiketi: t.Kanal), 5)));
         return sonuc;
     }
 
+    /// <summary>Kanal süzgeci: süzgeçsiz sorguda, kanalı kesin olmayan (<paramref name="kume"/> null) ya da kanalı sorguyla
+    /// kesişen kayıt görünür.</summary>
+    private static bool Gorunur(BenzerAramasi a, IReadOnlySet<int>? kume) => a.Kanallar is null || kume is null || kume.Overlaps(a.Kanallar);
+
     /// <summary>Hesap motorunun takipsiz (ve takibe geçmeden önceki eski kayıt) kredilerden türettiği taksit giderleri;
-    /// gerçekleşme takipli kredinin ödemeleri gider kaydıdır ve giderlerle bulunur.</summary>
-    private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal)> EskiTaksitler()
+    /// gerçekleşme takipli kredinin ödemeleri gider kaydıdır ve giderlerle bulunur. Kanal kimliği kredinin kanalıdır; kimliği
+    /// olmayan eski kayıtta hesap motoru kanalı adıyla eşlediğinden ad kayıtlı kanala çözülür. Ortak ya da bilinmeyen ad null.</summary>
+    private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal, int? KanalId)> EskiTaksitler()
     {
         if (_eskiTaksitler is not null) return _eskiTaksitler;
         var takip = db.TakipKrediler.AsNoTracking().ToDictionary(t => t.KrediId);
@@ -202,20 +214,24 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         {
             takip.TryGetValue(kredi.Id, out var t);
             var taksitler = KrediTuretici.TaksitGiderleri(kredi.ToCore());
+            var kanalId = kredi.KanalKaydi?.Id ?? KanalAdiyla(kredi.Kanal);
             for (var n = 0; n < taksitler.Count; n++)
                 if (t is null || t.EskiKayit && taksitler[n].Tarih < t.Baslangic)
-                    _eskiTaksitler.Add((kredi.Id, n + 1, taksitler[n].Tarih, taksitler[n].TutarTl, kredi.Ad, taksitler[n].Kanal));
+                    _eskiTaksitler.Add((kredi.Id, n + 1, taksitler[n].Tarih, taksitler[n].TutarTl, kredi.Ad, taksitler[n].Kanal, kanalId));
         }
         return _eskiTaksitler;
     }
+
+    private int? KanalAdiyla(string ad) => Kanallari().Where(k => k.Value.Ad == ad).Select(k => (int?)k.Key).FirstOrDefault();
+    private Dictionary<int, (string Ad, int Sira)> Kanallari() => _kanallar ??= db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => (k.Ad, k.Sira));
 
     /// <summary>Kanal kümesi ve sıralı adları; boş küme bir kanala ait değildir (null).</summary>
     private (IReadOnlySet<int>? Kume, string? Etiket) Kume(IEnumerable<int> ids)
     {
         var kume = ids.ToHashSet();
         if (kume.Count == 0) return (null, null);
-        _kanallar ??= db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => (k.Ad, k.Sira));
-        var adlar = kume.Select(id => _kanallar.TryGetValue(id, out var k) ? k : ($"Kanal #{id}", int.MaxValue))
+        var kanallar = Kanallari();
+        var adlar = kume.Select(id => kanallar.TryGetValue(id, out var k) ? k : ($"Kanal #{id}", int.MaxValue))
             .OrderBy(k => k.Item2).ThenBy(k => k.Item1, StringComparer.Ordinal).Select(k => k.Item1);
         return (kume, string.Join(" / ", adlar));
     }

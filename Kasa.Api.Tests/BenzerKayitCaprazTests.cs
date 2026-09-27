@@ -12,8 +12,9 @@ namespace Kasa.Api.Tests;
 /// Benzer kayıt kontrolü çapraz yollarda simetriktir (gap-coklu-giris-cift-sayim-mutabakat-2, -9, statement-11): aynı
 /// para genel gider, Ortak gider, bankadan genel/çok kanallı gider, taslak/onaylı alış ödemesi, aylık gider ödemesi, kart
 /// ödemesi ya da kredi taksiti olarak girilmiş olsun; hangi yoldan sorulursa sorulsun ±3 gün içinde aynı tutarla bulunur.
-/// Kanal süzgeci yalnız kanalı kesin olarak başka olan kaydı eler: genel kasa, Ortak, dağılım bekleyen ve kanalı kesişen
-/// çok kanallı kayıtlar görünür. Ekstre önizlemesi aynı servisi kullanır.
+/// Kanal süzgeci yalnız kanalı kesin olarak başka olan kaydı (gider ya da kredi taksidi) eler: genel kasa, Ortak, dağılım
+/// bekleyen, kanalı kesişen çok kanallı kayıtlar ve kanal payı ödeme anında kesinleşmeyen kart ödemeleri görünür. Ekstre
+/// önizlemesi aynı servisi kullanır.
 /// </summary>
 public class BenzerKayitCaprazTests
 {
@@ -23,7 +24,7 @@ public class BenzerKayitCaprazTests
     private const decimal Tutar = 1_234.50m;
     private const int Mezat = 1, Perakende = 2, Toptan = 3;
 
-    public enum Kaynak { ManuelKanal, ManuelOrtak, EkstreGenel, EkstreCokKanalli, TaslakAlisOdemesi, OnayliAlisOdemesi, AylikGenel, AylikCokKanalli, KartOdemesi, KrediTaksidi, EskiKrediTaksidi }
+    public enum Kaynak { ManuelKanal, ManuelOrtak, EkstreGenel, EkstreCokKanalli, TaslakAlisOdemesi, OnayliAlisOdemesi, AylikGenel, AylikCokKanalli, KartOdemesi, KrediTaksidi, KrediTaksidiCokKanalli, EskiKrediTaksidi, EskiKrediTaksidiKanalAdiyla, EskiKrediTaksidiOrtak }
     /// <summary><paramref name="Aciklama"/>: açıklamanın başı. Kredi taksitlerinin açıklaması kaynağını kendisi adlandırır; yeni
     /// kaynak türlerini tanımayan istemci ("Gider #id"/"Kayıt #id" gösterir) de kaydın kredi taksidi olduğunu gösterir.</summary>
     private sealed record Beklenen(string Kaynak, int Id, string? KanalEtiketi, int? AlisId = null, int? EkstreKayitId = null, int? AylikGiderOdemeId = null, string? Aciklama = null);
@@ -37,9 +38,14 @@ public class BenzerKayitCaprazTests
     [InlineData(Kaynak.OnayliAlisOdemesi, false, true)]
     [InlineData(Kaynak.AylikGenel, true, true)]
     [InlineData(Kaynak.AylikCokKanalli, false, true)]
+    // Kart ödemesinin kanal payı ödeme anında kesin değildir (kart taksitlerinin harcama dağılımından, önceki ödemelere ve
+    // alış onayına göre hesaplanır): her kanal sorgusunda görünür. Kredi taksidinin kanalı kesindir ve süzülür.
     [InlineData(Kaynak.KartOdemesi, true, true)]
-    [InlineData(Kaynak.KrediTaksidi, true, false)]
-    [InlineData(Kaynak.EskiKrediTaksidi, true, false)]
+    [InlineData(Kaynak.KrediTaksidi, false, false)]
+    [InlineData(Kaynak.KrediTaksidiCokKanalli, false, false)]
+    [InlineData(Kaynak.EskiKrediTaksidi, false, false)]
+    [InlineData(Kaynak.EskiKrediTaksidiKanalAdiyla, false, false)]
+    [InlineData(Kaynak.EskiKrediTaksidiOrtak, true, false)]
     public async Task Her_kaynak_her_sorgu_yolundan_bulunur_kanal_yalniz_kesin_baska_kanali_eler(Kaynak kaynak, bool perakendedeGorunur, bool kartOdemesindeGorunur)
     {
         await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
@@ -243,29 +249,33 @@ public class BenzerKayitCaprazTests
                 kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, KaynakTarihi, Tutar));
                 return new("KartOdeme", kart.Odemeler.Single().Id, null);
             }
-            case Kaynak.KrediTaksidi:
+            case Kaynak.KrediTaksidi or Kaynak.KrediTaksidiCokKanalli:
             {
                 var id = 0;
+                var cok = kaynak == Kaynak.KrediTaksidiCokKanalli;
                 // Takipli kredinin eski türetme kuralı da aynı gün ve tutarı üretirdi; takipli kredide yalnız takip taksidi sayılır.
                 Seed(f, db =>
                 {
-                    var kredi = new KrediEntity { Ad = "Takipli kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = "MEZAT", KanalId = Mezat };
+                    var kredi = new KrediEntity { Ad = "Takipli kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = cok ? Kanallar.Ortak : "MEZAT", KanalId = cok ? null : Mezat };
                     db.Krediler.Add(kredi); db.SaveChanges();
                     db.TakipKrediler.Add(new() { KrediId = kredi.Id, Baslangic = new(2026, 1, 1) }); db.SaveChanges();
-                    var taksit = new TakipKrediTaksitEntity { KrediId = kredi.Id, No = 2, Tarih = KaynakTarihi, Tutar = Tutar, DagilimJson = Pay(Mezat, Tutar) };
+                    var dagilim = cok ? JsonSerializer.Serialize(new[] { new KanalPayYaz(Toptan, 600m), new KanalPayYaz(Mezat, 634.50m) }) : Pay(Mezat, Tutar);
+                    var taksit = new TakipKrediTaksitEntity { KrediId = kredi.Id, No = 2, Tarih = KaynakTarihi, Tutar = Tutar, DagilimJson = dagilim };
                     db.TakipKrediTaksitler.Add(taksit); db.SaveChanges(); id = taksit.Id;
                 });
-                return new("KrediTaksidi", id, "MEZAT", Aciklama: "Kredi taksidi · Takipli kredi · 2. taksit");
+                return new("KrediTaksidi", id, cok ? "MEZAT / TOPTAN" : "MEZAT", Aciklama: "Kredi taksidi · Takipli kredi · 2. taksit");
             }
-            case Kaynak.EskiKrediTaksidi:
+            case Kaynak.EskiKrediTaksidi or Kaynak.EskiKrediTaksidiKanalAdiyla or Kaynak.EskiKrediTaksidiOrtak:
             {
                 var id = 0;
+                // Kanal kimliği olmayan eski kayıtta hesap motoru kanalı adıyla eşler (Kredi.Kanal); Ortak bütün kanallara dağılır.
+                var (ad, kanalId) = kaynak switch { Kaynak.EskiKrediTaksidi => ("MEZAT", (int?)Mezat), Kaynak.EskiKrediTaksidiKanalAdiyla => ("MEZAT", null), _ => (Kanallar.Ortak, null) };
                 Seed(f, db =>
                 {
-                    var kredi = new KrediEntity { Ad = "Eski kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = "MEZAT", KanalId = Mezat };
+                    var kredi = new KrediEntity { Ad = "Eski kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = ad, KanalId = kanalId };
                     db.Krediler.Add(kredi); db.SaveChanges(); id = kredi.Id;
                 });
-                return new("EskiKrediTaksidi", id, "MEZAT", Aciklama: $"Otomatik kredi taksidi (kredi #{id}) · Eski kredi · ");
+                return new("EskiKrediTaksidi", id, ad, Aciklama: $"Otomatik kredi taksidi (kredi #{id}) · Eski kredi · ");
             }
             default: throw new ArgumentOutOfRangeException(nameof(kaynak));
         }

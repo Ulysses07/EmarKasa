@@ -181,6 +181,9 @@ public class MonthlyExpenseTests
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             Assert.Empty(db.AylikGiderOdemeler); Assert.Single(db.Islemler); Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
         }
+        // Açık protokolde onay yalnız BenzerOnay=true'dur: aynı isteğin onaysız yeniden gönderimi yine 409 alır.
+        Assert.Single((await Cakisma(c, t, istek)).Benzerler);
+        Assert.Equal(900m, (await Panel(c)).GuncelKasa);
         // Kullanıcı benzer kaydı gördü ve ayrı ödeme olduğunu onayladı: reddedilen istek kimliği tüketmediğinden aynı kimlikle kaydedilir.
         var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek with { BenzerOnay = true });
         Assert.Equal("Odendi", paid.Durum); Assert.Equal(800m, (await Panel(c)).GuncelKasa);
@@ -191,7 +194,7 @@ public class MonthlyExpenseTests
     }
 
     [Fact]
-    public async Task Benzer_denetimi_sablonun_kanal_kumesiyle_yapilir_dogrulama_once_gelir_eski_istemci_degismeden_oder()
+    public async Task Benzer_denetimi_sablonun_kanal_kumesiyle_yapilir_dogrulama_once_gelir_eski_istemci_uyarilip_yeniden_gonderince_oder()
     {
         await using var f = Fabrika(); using var c = await Editor(f);
         // Kanalı kesin olarak başka olan (PERAKENDE) elle gider, MEZAT / TOPTAN şablonunun ödemesine benzemez.
@@ -210,13 +213,97 @@ public class MonthlyExpenseTests
         var eskiSurum = await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", Payment(genel) with { BenzerOnay = false, Surum = genel.Surum + 1 });
         Assert.Equal(HttpStatusCode.Conflict, eskiSurum.StatusCode);
         Assert.False((await eskiSurum.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("benzerler", out _));
-        // Onay alanını bilmeyen eski istemci (web ve MAUI'nin bugünkü gövdesi) önceki gibi uyarısız öder.
-        var eski = await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", new { istekId = Guid.NewGuid(), surum = genel.Surum, yil = Month.Year, ay = Month.Month, tarih = Today });
+        // Onay alanını bilmeyen istemci (web ve MAUI'nin bugünkü gövdesi) de aynı denetimle uyarılır; aynı isteği yeniden
+        // gönderince öder. Doğrulama burada da önce gelir.
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", EskiGovde(genel, Guid.NewGuid(), Today.AddDays(1)))).StatusCode);
+        var eskiGovde = EskiGovde(genel, Guid.NewGuid());
+        Assert.Equal(2, (await Cakisma(c, genel, eskiGovde)).Benzerler.Count);
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        var eski = await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", eskiGovde);
         Assert.Equal(HttpStatusCode.OK, eski.StatusCode);
         Assert.Equal(700m, (await Panel(c)).GuncelKasa);
     }
 
-    private static async Task<BenzerCakismasi> Cakisma(HttpClient c, AylikGiderSablonDto t, AylikGiderOdemeYaz istek)
+    [Fact]
+    public async Task Onay_alanini_bilmeyen_istemci_bankadan_islenmis_kirada_uyarilir_ayni_istegi_yeniden_gonderince_bir_kez_kaydedilir()
+    {
+        // gap-coklu-giris-cift-sayim-mutabakat-8'in kullanıcı senaryosu bugünkü web ve MAUI gövdesiyle (BenzerOnay alanı yok):
+        // kira bankadan "Yalnız genel kasa" gideri olarak işlendi; iki gün sonra Aylık Giderler'den "Ödendi" denir. İlk istek
+        // hiçbir şey yazmadan 409 ile uyarılır; iki istemci de sunucunun 'hata' iletisini ödeme formunda gösterir ve formu açık
+        // tutar. Değişmeyen gövdeye aynı istek kimliği verilir (web requestIdentity, MAUI TekrarAnahtari): kullanıcı uyarıyı
+        // görüp aynı ödemeyi yeniden kaydederse ikinci istek onay sayılır.
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var t = await Create(c, "Genel", []);
+        var (_, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today.AddDays(-2), 100m, "Genel", []);
+        var govde = EskiGovde(t, Guid.NewGuid());
+        var cakisma = await Cakisma(c, t, govde);
+        var benzer = Assert.Single(cakisma.Benzerler);
+        Assert.Equal(("Islem", satir.IslemId, (int?)satir.Id, "Genel kasa"), (benzer.Kaynak, (int?)benzer.Id, benzer.EkstreKayitId, benzer.KanalEtiketi));
+        Assert.StartsWith($"Aynı tutarda yakın tarihli kayıt var: Banka gideri #{satir.IslemId} · {Today.AddDays(-2):dd.MM.yyyy} · 100,00 TL · Genel kasa.", cakisma.Hata, StringComparison.Ordinal);
+        Assert.Contains("Ayrı bir ödemeyse bilgileri değiştirmeden ödemeyi yeniden kaydedin.", cakisma.Hata);
+        Assert.Equal(900m, (await Panel(c)).GuncelKasa);
+        Assert.Equal("Planlandi", Assert.Single((await Ay(c)).Kayitlar).Durum);
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            Assert.Empty(db.AylikGiderOdemeler); Assert.Single(db.Islemler); Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
+        }
+        // Kullanıcı uyarıyı gördü, ayrı ödeme olduğundan emin: aynı gövdeyi yeniden gönderir.
+        var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", govde);
+        Assert.Equal("Odendi", paid.Durum); Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        // Kaydedilmiş isteğin tekrarı (ör. yanıt kaybolduktan sonra) aynı ödemeyi döner; ikinci gider oluşmaz.
+        Assert.Equal(paid.OdemeId, (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", govde)).OdemeId);
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        // Benzer kayıt yoksa onay alanını bilmeyen istemci tek istekte öder (uyarı yalnız benzer kayıt varken verilir).
+        var elektrik = await Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Elektrik", "Fatura", 55m, 31, "Genel", [], Month));
+        Assert.Equal("Odendi", (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{elektrik.Id}/ode", EskiGovde(elektrik, Guid.NewGuid()))).Durum);
+    }
+
+    [Fact]
+    public async Task Yeniden_gonderim_yalniz_ayni_icerik_ve_gorulmus_kayitlar_icin_onaydir_uyari_otuz_dakika_gecerlidir()
+    {
+        var saat = new IlerleyenSaat(Today);
+        await using var f = new KasaWebFactory { Saat = saat }; using var c = await Editor(f);
+        var t = await Create(c, "Genel", []);
+        async Task Gider(DateOnly tarih) => (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(tarih, "Elle kira", 100m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        await Gider(Today.AddDays(-1));
+        var id = Guid.NewGuid();
+        Assert.Single((await Cakisma(c, t, EskiGovde(t, id))).Benzerler);
+        // Uyarıdan sonra girilen benzer kayıt: yeniden gönderim onu da gösterir; kullanıcı görmediği kayda onay vermiş sayılmaz.
+        await Gider(Today);
+        var yeni = await Cakisma(c, t, EskiGovde(t, id));
+        Assert.Equal(2, yeni.Benzerler.Count);
+        // Aynı kimlik farklı içerikle (başka ödeme tarihi) gelirse o içerik ayrıca uyarılır; önceki içeriğin uyarısı da geçersizleşir.
+        Assert.Equal(2, (await Cakisma(c, t, EskiGovde(t, id, Today.AddDays(-1)))).Benzerler.Count);
+        Assert.Equal(2, (await Cakisma(c, t, EskiGovde(t, id))).Benzerler.Count);
+        // Uyarı 30 dakika geçerlidir: 29 dakika sonra aynı istek onaydır.
+        saat.Ilerlet(TimeSpan.FromMinutes(29));
+        Assert.Equal("Odendi", (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", EskiGovde(t, id))).Durum);
+        Assert.Equal(700m, (await Panel(c)).GuncelKasa);
+
+        // Süresi geçen uyarı onay sayılmaz: 31 dakika sonra aynı istek yeniden uyarılır, ardından yeniden gönderimle kaydedilir.
+        var fatura = await Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Fatura", "Fatura", 100m, 31, "Genel", [], Month));
+        var ikinci = Guid.NewGuid();
+        Assert.Equal(3, (await Cakisma(c, fatura, EskiGovde(fatura, ikinci))).Benzerler.Count);
+        saat.Ilerlet(TimeSpan.FromMinutes(31));
+        Assert.Equal(3, (await Cakisma(c, fatura, EskiGovde(fatura, ikinci))).Benzerler.Count);
+        Assert.Equal("Odendi", (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{fatura.Id}/ode", EskiGovde(fatura, ikinci))).Durum);
+        Assert.Equal(600m, (await Panel(c)).GuncelKasa);
+    }
+
+    /// <summary>Bugünkü web ve MAUI istemcisinin ödeme gövdesi: BenzerOnay alanı yoktur.</summary>
+    private static object EskiGovde(AylikGiderSablonDto t, Guid istekId, DateOnly? tarih = null) =>
+        new { istekId, surum = t.Surum, yil = Month.Year, ay = Month.Month, tarih = tarih ?? Today, not = (string?)null };
+
+    /// <summary>Test saati: <see cref="SabitSaat"/> gibi durmuştur, test dakika dakika ilerletebilir.</summary>
+    private sealed class IlerleyenSaat(DateOnly gun) : TimeProvider
+    {
+        private long _utcTicks = new SabitSaat(gun).GetUtcNow().UtcTicks;
+        public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref _utcTicks), TimeSpan.Zero);
+        public void Ilerlet(TimeSpan sure) => Interlocked.Add(ref _utcTicks, sure.Ticks);
+    }
+
+    private static async Task<BenzerCakismasi> Cakisma(HttpClient c, AylikGiderSablonDto t, object istek)
     {
         var r = await c.PostAsJsonAsync($"/api/aylik-giderler/{t.Id}/ode", istek);
         Assert.True(r.StatusCode == HttpStatusCode.Conflict, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
@@ -225,10 +312,12 @@ public class MonthlyExpenseTests
     private static async Task<AylikGiderAyDto> Ay(HttpClient c) => (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!;
 
     [Theory]
-    [InlineData("/api/aylik-giderler?yil=2026&ay=9")]
-    [InlineData("/api/aylik-giderler/sablonlar")]
-    public async Task Aylik_gider_okumalari_yazma_kilidi_almaz_ve_paralel_yazma_beklemez(string uc)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Aylik_gider_okumalari_yazma_kilidi_almaz_ve_paralel_yazma_beklemez(bool ayListesi)
     {
+        // Ay listesi şablonun geçerli olduğu ayı (sabit saatin ayı) okur: saat değişirse sorgu da onunla değişir.
+        var uc = ayListesi ? $"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}" : "/api/aylik-giderler/sablonlar";
         var kapi = new OkumaYoluTests.OkumaKapisi();
         await using var f = new DosyaFabrikasi { Kesiciler = [kapi] };
         using var c = await Editor(f);
@@ -244,7 +333,7 @@ public class MonthlyExpenseTests
         Assert.True(sure.Elapsed < TimeSpan.FromSeconds(3), $"Yazma okumayı {sure.ElapsedMilliseconds} ms bekledi.");
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         // Okuma yolunda da doğrulama hatası aynı biçimde döner.
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/aylik-giderler?yil=2026&ay=13")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync($"/api/aylik-giderler?yil={Month.Year}&ay=13")).StatusCode);
     }
 
     internal sealed class MonthlyFileFactory(string path) : KasaWebFactory

@@ -49,6 +49,9 @@ public static class EkstreImportEndpoints
         {
             var digest = FinansHesaplari.Ozet(new { id, dto.Satirlar, dto.OnizlemeOzeti, dto.TekrarOnay });
             if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreKaydet", digest, key => Results.Ok(Document(db, key))) is { } old) return old;
+            // Sıra korunmalı: önce kalıcı Sync, sonra önizleme. Önizleme ucu Sync'i geri alınan kayıt noktasında çalıştırır;
+            // kaydet yolunda kalıcı Sync önce çalıştığından ikisi aynı durumdan aynı özeti (kart sürümleri dahil) hesaplar
+            // (BenzerKayitCaprazTests.Ekstre_onizlemesi_Sync_dahil_kalici_yazmaz_kaydet_ayni_ozetle_yazar).
             Sync(db);
             var preview = Preview(db, id, dto);
             Require(preview.OnizlemeOzeti == dto.OnizlemeOzeti, "Bilgiler değişmiş. Yeniden önizleyip onaylayın.", 409);
