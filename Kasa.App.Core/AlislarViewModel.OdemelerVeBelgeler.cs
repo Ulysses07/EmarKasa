@@ -40,6 +40,7 @@ public partial class AlislarViewModel
     {
         if (_odemelerApi is null || !EditorMu || _secili is null || DuzeltilecekOdeme is null) return;
         if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
+        if (!ParaAyristirici.GecerliMi(DuzeltmeTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (DuzeltmeTutari <= 0 || string.IsNullOrWhiteSpace(DuzeltmeAciklamasi)) { Hata = "Pozitif ödeme tutarı ve düzeltme açıklaması girin."; return; }
         var g = new AlisOdemeDuzeltYaz(_secili.Surum, Guid.Empty, DateOnly.FromDateTime(DuzeltmeTarihi), DuzeltmeTutari, DuzeltmeKarti?.Id,
             null, DuzeltmeAciklamasi.Trim(), HedefAlis?.Veri.Id, HedefAlis?.Veri.Surum);

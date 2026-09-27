@@ -279,6 +279,7 @@ public partial class IslemlerViewModel : TemelViewModel
     private Task KaydetAsync() => Mesgul ? Task.CompletedTask : CalistirAsync(async () =>
     {
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
+        if (!ParaAyristirici.GecerliMi(DuzenTutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         var oturum = _auth?.OturumSurumu;
         var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
         var id = DuzenId;

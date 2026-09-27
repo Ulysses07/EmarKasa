@@ -73,6 +73,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     [RelayCommand] private Task SablonKaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu) return;
+        if (!ParaAyristirici.GecerliMi(Tutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (string.IsNullOrWhiteSpace(Ad) || Tur is null || DagilimTuru is null || Tutar <= 0 || OdemeGunu is < 1 or > 31) { Hata = "Ad, tür, pozitif tutar, ödeme günü ve dağılım biçimini seçin."; return; }
         IReadOnlyList<KanalPayYaz> paylar = DagilimTuru.Kod switch { "Genel" => Array.Empty<KanalPayYaz>(), "Esit" => KanalSecimleri.Where(k => k.Secili).Select(k => new KanalPayYaz(k.Veri.Id, 0)).ToList(), _ => TakipMetni.Paylar(Paylar) };
         if (DagilimTuru.Kod != "Genel" && paylar.Count == 0) { Hata = "Dağıtılacak kanalları seçin."; return; }

@@ -128,7 +128,7 @@ public class KasaKontrolVeAylikGiderTests
     {
         public AylikGiderSablonYaz? Sablon; public List<AylikGiderOdemeYaz> Odemeler = new(); public bool OdemeHata; public Task<AylikGiderAyDto>? BekleyenAy; public bool Odendi; public int IptalSayisi; public int KilitSurumu = 3;
         public Task<KasaKontrolOnizlemeDto>? BekleyenKontrol; public List<KasaKontrolYaz> Kontroller = new(); public Exception? KontrolHata; public KasaEsikYaz? Esik; public AyKilidiYaz? KilitGirdi; public bool Kapat;
-        public List<KartMasrafYaz> Masraflar = new(); public bool MasrafHata;
+        public List<KartMasrafYaz> Masraflar = new(); public bool MasrafHata; public int KontrolOnizlemeSayisi, MasrafOnizlemeSayisi;
         public AylikGiderAyDto Ay(int y, int a) => new(y, a, 100, Odendi ? 100 : 0, new[] { new AylikGiderSatirDto(1, 4, "Kira", "Kira", 100, new(y, a, 1), "Genel", Array.Empty<TakipKanalPayi>(), Odendi ? "Odendi" : "Planlandi", Odendi ? 2 : null) });
         public Task<IReadOnlyList<AylikGiderSablonDto>> AylikGiderSablonlariAsync() => Task.FromResult<IReadOnlyList<AylikGiderSablonDto>>(Array.Empty<AylikGiderSablonDto>());
         public Task<AylikGiderSablonDto> AylikGiderSablonKaydetAsync(int? id, AylikGiderSablonYaz g) { Sablon = g; return Task.FromResult(new AylikGiderSablonDto(1, 1, g.Ad, g.Tur, g.Tutar, g.OdemeGunu, g.DagilimTuru, Array.Empty<TakipKanalPayi>(), g.GecerliAy, g.Aktif)); }
@@ -140,9 +140,9 @@ public class KasaKontrolVeAylikGiderTests
         public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() => Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { new KasaEsikDto(1, "MEZAT", 2, 10, true, -20, true), new KasaEsikDto(2, "PERAKENDE", 0, 100, false, 0, true) });
         public Task<KasaEsikDto> KasaEsigiKaydetAsync(int id, KasaEsikYaz g) { Esik = g; return Task.FromResult(new KasaEsikDto(id, "MEZAT", 3, g.Tutar, g.Etkin, -20, true)); }
         public Task<IReadOnlyList<KasaKontrolDto>> KasaKontrolleriAsync() => Task.FromResult<IReadOnlyList<KasaKontrolDto>>(Array.Empty<KasaKontrolDto>());
-        public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle g) => BekleyenKontrol ?? Task.FromResult(new KasaKontrolOnizlemeDto(100, g.GercekBakiye, g.GercekBakiye - 100, "hash"));
+        public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle g) { KontrolOnizlemeSayisi++; return BekleyenKontrol ?? Task.FromResult(new KasaKontrolOnizlemeDto(100, g.GercekBakiye, g.GercekBakiye - 100, "hash")); }
         public Task<KasaKontrolDto> KasaKontrolKaydetAsync(KasaKontrolYaz g) { Kontroller.Add(g); return KontrolHata is { } e ? Task.FromException<KasaKontrolDto>(e) : Task.FromResult(new KasaKontrolDto(1, DateTimeOffset.Now, 100, g.GercekBakiye, g.GercekBakiye - 100, g.Not)); }
-        public Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int id, KartMasrafYaz g) => Task.FromResult(new KartMasrafOnizlemeDto(id, g.EkstreId, g.Tarih, g.Tutar, 100, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, "pay-hash"));
+        public Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int id, KartMasrafYaz g) { MasrafOnizlemeSayisi++; return Task.FromResult(new KartMasrafOnizlemeDto(id, g.EkstreId, g.Tarih, g.Tutar, 100, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, "pay-hash")); }
         public Task<KartTakipDto> KartMasrafKaydetAsync(int id, KartMasrafYaz g) { Masraflar.Add(g); return MasrafHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : Task.FromResult(FinansTakipTests.Fake.OrnekKart() with { Surum = 4 }); }
     }
 }

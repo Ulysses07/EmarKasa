@@ -228,7 +228,7 @@ public class AlislarViewModelTests
         Assert.Equal(10m, Assert.Single(vm.OdemeOnizleme).Tutar);
     }
 
-    private sealed class SahteAlisApi : IAlisApi
+    internal sealed class SahteAlisApi : IAlisApi
     {
         public IReadOnlyList<AlisDto> Liste = Array.Empty<AlisDto>();
         public AlisYaz? SonYaz;
