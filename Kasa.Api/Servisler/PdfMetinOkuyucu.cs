@@ -36,7 +36,7 @@ public sealed class PdfMetinOkuyucu(IConfiguration configuration, ILogger<PdfMet
             await File.WriteAllBytesAsync(input, pdf, ct);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(input, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(ZamanAsimi());
+            timeout.CancelAfter(ZamanSiniri(configuration));
             var info = await Execute("pdfinfo", ["-enc", "UTF-8", input], 32_768, timeout.Token);
             var pages = Regex.Match(info, @"(?m)^Pages:\s*(\d+)\s*$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
             if (!pages.Success || !int.TryParse(pages.Groups[1].Value, out var count) || count is < 1 or > 50)
@@ -59,8 +59,8 @@ public sealed class PdfMetinOkuyucu(IConfiguration configuration, ILogger<PdfMet
             slots.Release();
         }
     }
-    // Pdf:ZamanAsimiSaniye 1–120 sn olabilir; boş, geçersiz veya sınır dışı değer varsayılan 25 sn'ye döner.
-    private TimeSpan ZamanAsimi() =>
+    // Pdf:ZamanAsimiSaniye 1–120 sn olabilir; boş, geçersiz veya sınır dışı değer 120'ye kırpılmaz, varsayılan 25 sn'ye döner.
+    public static TimeSpan ZamanSiniri(IConfiguration configuration) =>
         TimeSpan.FromSeconds(int.TryParse(configuration["Pdf:ZamanAsimiSaniye"], NumberStyles.Integer, CultureInfo.InvariantCulture, out var saniye) && saniye is >= 1 and <= 120 ? saniye : 25);
     private ProcessStartInfo PopplerSureci(string name, IReadOnlyList<string> arguments)
     {

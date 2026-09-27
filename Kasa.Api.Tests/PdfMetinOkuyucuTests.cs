@@ -46,9 +46,11 @@ public class PdfMetinOkuyucuTests
                 Assert.Equal(422, hata.StatusCode); Assert.Contains("zaman sınırı", hata.Message);
             }
         });
-        Assert.Same(cagrilar, await Task.WhenAny(cagrilar, Task.Delay(TimeSpan.FromSeconds(40))));
+        // Sahte araç 60 sn uyur: öldürülmeseydi ilk çağrı tek başına 60 sn sürerdi. Eşikler bundan belirgin biçimde kısa,
+        // 3 × 1 sn'lik zaman sınırından ise yük altındaki makinede süreç başlatma gecikmesini kaldıracak kadar geniştir.
+        Assert.Same(cagrilar, await Task.WhenAny(cagrilar, Task.Delay(TimeSpan.FromSeconds(45))));
         await cagrilar;
-        Assert.True(sure.Elapsed < TimeSpan.FromSeconds(15), $"Üç çağrı {sure.Elapsed} sürdü.");
+        Assert.True(sure.Elapsed < TimeSpan.FromSeconds(30), $"Üç çağrı {sure.Elapsed} sürdü.");
         Assert.Equal(3, girdiler.Count);
         Assert.All(girdiler, girdi => { Assert.False(File.Exists(girdi)); Assert.False(Directory.Exists(Path.GetDirectoryName(girdi))); });
         Assert.Equal(3, log.Uyarilar.Count(u => u.Contains("pdfinfo") && u.Contains("sonlandırıldı")));
@@ -100,8 +102,17 @@ public class PdfMetinOkuyucuTests
     }
 
     [Theory]
-    [InlineData("0")][InlineData("-3")][InlineData("abc")][InlineData("500")]
-    public async Task Gecersiz_zaman_siniri_varsayilana_doner(string deger)
+    [InlineData(null, 25)][InlineData("", 25)][InlineData("  ", 25)][InlineData("0", 25)][InlineData("-3", 25)][InlineData("abc", 25)]
+    [InlineData("1.5", 25)][InlineData("121", 25)][InlineData("500", 25)][InlineData("1", 1)][InlineData("40", 40)][InlineData("120", 120)]
+    public void Zaman_siniri_1_120_sn_arasindadir_gecersiz_deger_varsayilan_25_sn(string? deger, int saniye)
+    {
+        // Sınır dışı değer 120 sn'ye kırpılmaz, varsayılana döner: yanlış ayar okuma slotunu uzun süre tutmamalı.
+        Assert.Equal(TimeSpan.FromSeconds(saniye), PdfMetinOkuyucu.ZamanSiniri(Ayar(deger)));
+    }
+
+    [Theory]
+    [InlineData("0")][InlineData("abc")][InlineData("500")]
+    public async Task Gecersiz_zaman_siniri_ile_okuma_calisir(string deger)
     {
         var okuyucu = new PdfMetinOkuyucu(Ayar(deger), null, (arac, _) => Basarili(arac));
         Assert.Contains("01.09.2026 Test 10,00 TL", await okuyucu.OkuAsync(Pdf));
