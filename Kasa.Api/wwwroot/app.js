@@ -19,7 +19,7 @@ const isOpen = form => modal.open && $('#modal-content').querySelector('form') =
 const push = createPushClient({ api, session: () => canEditCash() ? state.epoch : null });
 const financeUi = createFinanceUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, amount, signedAmount, formDialog, openModal, closeModal, page, navigate, run, toast, summary, childValues, requestIdentity, confirmSimilar, isOpen, canEdit: canEditCash, isCurrent: generation => generation === renderId, view: () => $('#view') });
 const monthlyUi = createMonthlyUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, formDialog, closeModal, page, run, toast, summary, childValues, requestIdentity, canEdit: canEditCash, isCurrent: generation => generation === renderId, view: () => $('#view') });
-const cashControlsUi = createCashControlsUi({ api, h, button, input, field, help, section, table, money, moneyNode, signedAmount, amount, formDialog, closeModal, run, toast, summary, requestIdentity, isOpen, canEdit: canEditCash, navigate });
+const cashControlsUi = createCashControlsUi({ api, h, button, input, field, help, section, table, money, moneyNode, signedAmountField, amount, formDialog, closeModal, run, toast, summary, requestIdentity, isOpen, canEdit: canEditCash, navigate });
 const statementImportUi = createStatementImportUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, cents, formDialog, closeModal, page, navigate, run, toast, summary, requestIdentity, isOpen, canEdit: canEditCash, isCurrent: generation => generation === renderId, session: () => state.epoch, view: () => $('#view'), createFormData: () => new FormData() });
 const notificationUi = createNotificationUi({ api, h, button, input, field, help, section, page, dateText, formDialog, closeModal, run, toast, navigate, view: () => $('#view'), isCurrent: generation => generation === renderId, push, notificationRoute, role: () => state.role });
 
@@ -86,26 +86,46 @@ async function api(path, options = {}) {
   if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
   return text ? JSON.parse(text) : null;
 }
-async function run(control, work, errorBox = null) {
+// Hata kutusu yalnız belgeye bağlıysa ve (diyalogdaysa) diyaloğu açıksa görünür.
+function gorunur(node) {
+  if (!node?.isConnected) return false;
+  const dialog = node.closest?.('dialog');
+  return !dialog || dialog.open;
+}
+// Kapanmış pencerenin hatası görünmeyen kutuya yazılmaz; hangi pencereden geldiği belirtilerek bildirim olarak gösterilir.
+async function run(control, work, errorBox = null, title = '') {
   if (control?.disabled) return;
   if (control) control.disabled = true;
   if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
   try { await work(); }
   catch (error) {
-    if (errorBox && errorBox.isConnected) { errorBox.textContent = error.message; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-    else toast(error.message, true);
+    if (errorBox && gorunur(errorBox)) { errorBox.textContent = error.message; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    else toast(title ? `${title}: ${error.message}` : error.message, true);
   } finally { if (control) control.disabled = false; }
 }
-function closeModal() { if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
+// Kaydı süren form: yanıt gelene kadar pencere (iptal edilebilir) ESC/geri hareketiyle kazara kapanmaz. Vazgeç ve × açık kalır:
+// iOS'ta ESC/geri hareketi yok, isteğin de zaman aşımı yok; kapatılan pencerenin sonucu run() ile bildirim olarak görünür.
+let busyForm = null;
+function closeModal() { busyForm = null; if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
 function openModal(title, content, wide = false) {
   closeModal(); $('#modal-title').textContent = title; $('#modal-content').replaceChildren(content); modal.classList.toggle('wide', wide); modal.showModal();
 }
 $('#modal-close').addEventListener('click', closeModal);
-modal.addEventListener('cancel', () => { if (modalCleanup) modalCleanup(); modalCleanup = null; });
+// ESC ve Android geri hareketi. Yalnız diyaloğun kendi kapatma isteği işlenir: dosya alanı da seçici kapatılınca ya da aynı
+// dosya yeniden seçilince yukarı taşınan, iptal edilemez bir cancel olayı gönderir; o olay pencereyi kapatmaz.
+// Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de temizlenir; kayıt sonradan hata
+// verirse run() onu bildirim olarak gösterir, başarı bildirimi zaten ayrıca çıkar.
+modal.addEventListener('cancel', event => {
+  if (event.target !== modal) return;
+  if (busyForm && isOpen(busyForm) && event.cancelable) { event.preventDefault(); toast('Kayıt sürüyor; sonucu bu pencerede göreceksiniz. Beklemeden kapatmak için Vazgeç’e basın; kayıt yine tamamlanabilir, sonucu bildirim olarak görürsünüz.'); return; }
+  closeModal();
+});
 function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
   const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
+  // Meşgul işareti yalnız bu form açıkken konur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
+  const markBusy = busy => { if (busy ? isOpen(form) : busyForm === form) busyForm = busy ? form : null; };
   // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
   let marked = [];
   const clearFields = () => { for (const [control, note] of marked) { control.removeAttribute('aria-invalid'); note.remove(); } marked = []; };
@@ -115,10 +135,11 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
       try { control = form.querySelector(`[name="${name}"]`); } catch { control = null; }
       if (!control?.parentNode) continue;
       const note = h('p', { class: 'form-error field-error' }, message);
-      control.setAttribute('aria-invalid', 'true'); control.parentNode.append(note); marked.push([control, note]);
+      // İşaretli tutarda (± seçici + tutar ızgarası) not ızgaraya değil, tutar etiketinin altına eklenir.
+      control.setAttribute('aria-invalid', 'true'); (control.closest('.signed-field') || control.parentNode).append(note); marked.push([control, note]);
     }
   };
-  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } }, errors); });
+  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { markBusy(true); clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } finally { markBusy(false); } }, errors, title); });
   openModal(title, form, wide);
   return form;
 }
@@ -365,7 +386,8 @@ async function renderTools(generation) {
   const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
   if (channels) state.channels = channels;
   const buyersContent = buyers ? h('div', {}, buyers.length ? buyers.map(buyer => h('div', { class: 'buyer-row' }, h('div', {}, h('strong', {}, buyer.ad), h('small', {}, `${buyer.kullanici} · ${buyer.aktif ? 'Aktif' : 'Pasif'}`)), button('Düzenle', () => buyerDialog(buyer), 'small'))) : h('p', { class: 'plain-note' }, 'Henüz alıcı hesabı eklenmedi.')) : h('p', { class: 'form-error' }, buyersResult.reason.message);
-  const backupContent = h('div', { class: 'stack' }, backup ? h('div', {}, h('p', { class: 'plain-note' }, `Otomatik yedek: ${backup.otomatikEtkin ? 'Açık' : 'Kapalı'}`), h('p', { class: 'plain-note' }, `Son yedek: ${backup.sonYedek ? new Date(backup.sonYedek).toLocaleString('tr-TR') : 'Henüz oluşturulmadı'}`), h('p', { class: 'plain-note' }, `Son doğrulama: ${backup.sonDogrulama ? new Date(backup.sonDogrulama).toLocaleString('tr-TR') : 'Kayıt yok'}`), backup.hata && h('p', { class: 'form-error' }, backup.hata)) : h('p', { class: 'form-error' }, backupResult.reason.message), button('Şimdi yedek indir', event => run(event.currentTarget, async () => { const blob = await api('/api/yedek', { method: 'POST', binary: true }); download(blob, `kasa-yedek-${today()}.zip`); toast('Yedek dosyası indirildi.'); await navigate('tools'); }), 'primary'), help('Yedeği güvenli bir yerde saklayın. Geri yükleme, çalışan uygulama durdurularak sunucuda yapılır.'));
+  // Rotasyon uyarısı: yedek alındı ama saklama süresi dolan eski yedek silinemedi (disk dolabilir); hatadan ayrı gösterilir.
+  const backupContent = h('div', { class: 'stack' }, backup ? h('div', {}, h('p', { class: 'plain-note' }, `Otomatik yedek: ${backup.otomatikEtkin ? 'Açık' : 'Kapalı'}`), h('p', { class: 'plain-note' }, `Son yedek: ${backup.sonYedek ? new Date(backup.sonYedek).toLocaleString('tr-TR') : 'Henüz oluşturulmadı'}`), h('p', { class: 'plain-note' }, `Son doğrulama: ${backup.sonDogrulama ? new Date(backup.sonDogrulama).toLocaleString('tr-TR') : 'Kayıt yok'}`), backup.hata && h('p', { class: 'form-error' }, backup.hata), backup.rotasyonUyarisi && h('p', { class: 'notice', role: 'alert' }, backup.rotasyonUyarisi)) : h('p', { class: 'form-error' }, backupResult.reason.message), button('Şimdi yedek indir', event => run(event.currentTarget, async () => { const blob = await api('/api/yedek', { method: 'POST', binary: true }); download(blob, `kasa-yedek-${today()}.zip`); toast('Yedek dosyası indirildi.'); await navigate('tools'); }), 'primary'), help('Yedeği güvenli bir yerde saklayın. Geri yükleme, çalışan uygulama durdurularak sunucuda yapılır.'));
   // Sunucu güvenilmeyen kaynaktan vekil başlığı aldıysa (yanlış vekil ayarı) editöre burada gösterilir.
   const security = h('div', { class: 'stack' }, settings?.vekilUyarisi ? h('p', { class: 'notice danger', role: 'alert' }, settings.vekilUyarisi) : null, h('p', { class: 'plain-note' }, 'Şifre değişikliği eski oturumları kapatır ve mevcut kurtarma kodunu geçersiz kılar.'), button('Şifremi değiştir', passwordDialog), button('Yeni kurtarma kodu oluştur', recoveryCodeDialog), help('Kurtarma kodu bir kez gösterilir. Şifrenizden ayrı ve güvenli bir yerde saklayın.'));
   const versionContent = version ? h('div', { class: 'stack' }, h('p', { class: 'plain-note' }, `Sunucu sürümü ${version.surum} · En düşük istemci sürümü ${version.minimumIstemci}`), version.notlar && h('p', { class: 'plain-note' }, Array.isArray(version.notlar) ? version.notlar.join('\n') : version.notlar), safeExternalLink(version.indirmeAdresi, 'Windows uygulamasını indir')) : h('p', { class: 'form-error' }, versionResult.reason.message);
@@ -481,21 +503,39 @@ async function renderTransactions(generation, filters = {}) {
   $('#view').replaceChildren(form, h('p', { class: 'plan-note' }, 'Kanal filtresi ilgili giderin tam tutarını gösterir; çok kanallı bir ödemenin kanal payı toplamı değildir. Alışa bağlı ödemeler alış kaydından düzeltilir.'), expenses.length ? table(['Tarih', 'Açıklama', 'Kanal', 'Tür', 'Tutar', ''], rows) : empty('Bu aralıkta gider yok', 'Tarih veya kanal filtresini değiştirerek diğer kayıtları görebilirsiniz.'));
 }
 function signedAmount(value) { const text = String(value).trim().replace(',', '.'); return text.startsWith('-') ? -amount(text.slice(1)) : amount(text); }
+// iOS ondalık klavyesinde eksi tuşu yok: eksi olabilen tutarın işareti ayrı seçilir, tutar mutlak değer olarak yazılır.
+// Klavyesinde eksi olan kullanıcı eksi yazmaya devam edebilir; yazılan eksi "Artı" seçimiyle artıya dönmez. Kuruş kuralı signedAmount'tadır.
+function signedAmountField(name, value, label) {
+  const sign = select(`${name}Isaret`, [{ value: '+', label: 'Artı (+)' }, { value: '-', label: 'Eksi (−)' }], '+', { 'aria-label': `${label} işareti` });
+  const control = input(name, '', { inputmode: 'decimal', required: true, 'aria-label': label });
+  const set = amountValue => {
+    const number = amountValue === '' || amountValue == null ? NaN : Number(amountValue);
+    sign.value = number < 0 ? '-' : '+';
+    control.value = Number.isFinite(number) ? String(Math.abs(number)) : String(amountValue ?? '');
+  };
+  set(value);
+  return {
+    node: h('label', { class: 'signed-field' }, label, h('div', { class: 'signed-amount' }, sign, control)),
+    sign, input: control, set,
+    read() { const typed = signedAmount(control.value); return sign.value === '-' ? -Math.abs(typed) : typed; },
+    setReadOnly(locked) { control.readOnly = locked; sign.disabled = locked; }
+  };
+}
 async function incomeDialog(periodStart = null) {
   const [weeks, channels] = await Promise.all([api('/api/rapor/haftalik'), api('/api/kanallar')]);
   if (!weeks.length) throw new Error('Gelir girmek için geçerli kasa dönemi gerekir.');
   const initial = periodStart || currentPeriod(weeks).donem.start;
   const period = select('donemStart', [...weeks].reverse().map(w => ({ value: w.donem.start, label: `${dateText(w.donem.start)} – ${dateText(w.donem.end)}` })), initial);
   const channel = select('kanal', [{ value: '', label: 'Kanal seçin' }, ...channels.map(c => ({ value: c.ad, label: c.ad }))], '', { required: true });
-  const total = input('tutarTl', '0', { inputmode: 'decimal', required: true });
+  const total = signedAmountField('tutarTl', 0, 'Bu dönem için toplam gelir (₺)');
   const notice = h('div', { class: 'notice', role: 'status', 'aria-live': 'polite' });
   let incomes = []; let loading = false; let loadError = false; let version = 0; let form;
   const selectedChannel = () => channels.find(item => item.ad === channel.value);
   const fill = () => {
     const selected = incomeSelection(incomes, selectedChannel());
-    total.value = selected.total;
-    total.readOnly = loading || loadError || !channel.value || selected.readOnly;
-    if (form) form.querySelector('button[type="submit"]').disabled = total.readOnly;
+    const locked = loading || loadError || !channel.value || selected.readOnly;
+    total.set(selected.total); total.setReadOnly(locked);
+    if (form) form.querySelector('button[type="submit"]').disabled = locked;
     notice.textContent = loading ? 'Dönem gelirleri yükleniyor…' : loadError ? 'Dönem gelirleri yüklenemedi. Başka dönem seçip yeniden deneyin; mevcut bilgilerle kayıt yapılamaz.' : selected.readOnly
       ? `Bu dönem ve kanal için ${selected.count} eski gelir kaydı var. Toplam ${money(selected.total)} kasaya dahildir. Geçmiş tutarları korumak için bu grup burada değiştirilemez. Başka dönem veya kanal seçerek normal gelir kaydı yapabilirsiniz.`
       : 'Buraya seçilen kanalın bu dönemdeki toplam gelirini yazın. Kayıt varsa yeni tutar öncekinin yerine geçer; üzerine eklenmez.';
@@ -509,10 +549,10 @@ async function incomeDialog(periodStart = null) {
   };
   period.addEventListener('change', () => run(null, refresh)); channel.addEventListener('change', fill);
   await refresh();
-  form = formDialog('Kanal geliri gir', h('div', { class: 'stack' }, field('Kasa dönemi', period), field('Kanal', channel), field('Bu dönem için toplam gelir (₺)', total), notice), 'Dönem toplamını kaydet', async () => {
+  form = formDialog('Kanal geliri gir', h('div', { class: 'stack' }, field('Kasa dönemi', period), field('Kanal', channel), total.node, notice), 'Dönem toplamını kaydet', async () => {
     if (loading || loadError) throw new Error('Dönem gelirleri yüklenmeden kayıt yapılamaz. Lütfen yeniden deneyin.');
     if (incomeSelection(incomes, selectedChannel()).readOnly) throw new Error('Bu eski gelir grubu geçmiş tutarları korumak için değiştirilemez.');
-    await api('/api/gelenler', { method: 'PUT', body: { donemStart: period.value, kanal: channel.value, tutarTl: signedAmount(total.value) } }); closeModal(); toast('Kanal geliri kaydedildi.'); await navigate(state.view);
+    await api('/api/gelenler', { method: 'PUT', body: { donemStart: period.value, kanal: channel.value, tutarTl: total.read() } }); closeModal(); toast('Kanal geliri kaydedildi.'); await navigate(state.view);
   });
   fill();
 }
@@ -522,9 +562,10 @@ async function expenseDialog(expense = null) {
   const card = select('krediKartiId', [{ value: '', label: 'Kart seçilmedi' }, ...cards.map(k => ({ value: k.id, label: k.ad }))], expense?.krediKartiId);
   const cardField = field('Kredi kartı', card); const cardVisibility = () => { cardField.hidden = type.value !== 'KrediKarti'; }; type.addEventListener('change', cardVisibility); cardVisibility();
   const channel = select('kanal', [{ value: '', label: 'Kanal seçin' }, ...channels.filter(c => c.aktif || c.ad === expense?.kanal).map(c => ({ value: c.ad, label: c.ad })), { value: 'Ortak', label: 'Ortak' }], expense?.kanal || '', { required: true });
-  formDialog(expense ? 'Gideri düzenle' : 'Gider kaydet', h('div', { class: 'stack' }, field('Açıklama / ödeme yapılan yer', input('cari', expense?.cari || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Tarih', input('tarih', expense?.tarih || today(), { type: 'date', required: true })), field('Tutar (₺)', input('tutarTl', expense?.tutarTl ?? '', { inputmode: 'decimal', required: true })), field('Kanal', channel), field('Gider türü', type)), cardField, field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')), help('Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.')), 'Gideri kaydet', async form => {
+  const total = signedAmountField('tutarTl', expense?.tutarTl ?? '', 'Tutar (₺)');
+  formDialog(expense ? 'Gideri düzenle' : 'Gider kaydet', h('div', { class: 'stack' }, field('Açıklama / ödeme yapılan yer', input('cari', expense?.cari || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Tarih', input('tarih', expense?.tarih || today(), { type: 'date', required: true })), total.node, field('Kanal', channel), field('Gider türü', type)), cardField, field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')), help('Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.')), 'Gideri kaydet', async form => {
     const data = values(form);
-    const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: signedAmount(data.tutarTl), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null };
+    const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null };
     if (!expense && !await confirmSimilar(form, { tur: 'Gider', tarih: body.tarih, tutar: body.tutarTl, krediKartiId: body.krediKartiId, kanal: body.kanal, alisId: null }, body)) return;
     await api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body }); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);
   });
@@ -533,10 +574,12 @@ function deleteExpense(expense) {
   formDialog('Gideri sil', h('p', { class: 'plain-note' }, `${dateText(expense.tarih)} tarihli “${expense.cari}” gideri (${money(expense.tutarTl)}) silinecek ve kasa sonuçları güncellenecek.`), 'Gideri sil', async () => { await api(`/api/islemler/${expense.id}`, { method: 'DELETE' }); closeModal(); toast('Gider silindi.'); await navigate('transactions'); }, { danger: true });
 }
 function channelDialog(channel = null) {
-  formDialog(channel ? `${channel.ad} · Kanalı düzenle` : 'Kanal ekle', h('div', { class: 'stack' }, field('Kanal adı', input('ad', channel?.ad || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Açılış devri (₺)', input('acilisDevri', channel?.acilisDevri ?? '0', { required: true, inputmode: 'decimal' })), field('Görüntüleme sırası', input('sira', channel?.sira ?? state.channels.length, { required: true, type: 'number', step: 1, min: 0 }))), h('label', {}, input('aktif', '1', { type: 'checkbox', checked: channel?.aktif ?? true }), 'Kanal aktif'), help('Geçmiş kayıtları olan kanalı silmek yerine pasife alın. Açılış devri değişikliği kanal bakiyesini etkiler.'), channel && button('Kanalı sil', () => formDialog('Kanalı sil', h('p', { class: 'plain-note' }, `${channel.ad} kanalı silinecek. Geçmiş kaydı varsa silinemez.`), 'Kanalı sil', async () => { await api(`/api/kanallar/${channel.id}`, { method: 'DELETE' }); closeModal(); toast('Kanal silindi.'); await navigate('tools'); }, { danger: true }), 'danger small')), 'Kanalı kaydet', async form => { const data = values(form); await api(channel ? `/api/kanallar/${channel.id}` : '/api/kanallar', { method: channel ? 'PUT' : 'POST', body: { ad: data.ad.trim(), aktif: Boolean(data.aktif), sira: Number(data.sira), acilisDevri: signedAmount(data.acilisDevri) } }); closeModal(); toast('Kanal kaydedildi.'); await navigate('tools'); });
+  const opening = signedAmountField('acilisDevri', channel?.acilisDevri ?? 0, 'Açılış devri (₺)');
+  formDialog(channel ? `${channel.ad} · Kanalı düzenle` : 'Kanal ekle', h('div', { class: 'stack' }, field('Kanal adı', input('ad', channel?.ad || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, opening.node, field('Görüntüleme sırası', input('sira', channel?.sira ?? state.channels.length, { required: true, type: 'number', step: 1, min: 0 }))), h('label', {}, input('aktif', '1', { type: 'checkbox', checked: channel?.aktif ?? true }), 'Kanal aktif'), help('Geçmiş kayıtları olan kanalı silmek yerine pasife alın. Açılış devri değişikliği kanal bakiyesini etkiler.'), channel && button('Kanalı sil', () => formDialog('Kanalı sil', h('p', { class: 'plain-note' }, `${channel.ad} kanalı silinecek. Geçmiş kaydı varsa silinemez.`), 'Kanalı sil', async () => { await api(`/api/kanallar/${channel.id}`, { method: 'DELETE' }); closeModal(); toast('Kanal silindi.'); await navigate('tools'); }, { danger: true }), 'danger small')), 'Kanalı kaydet', async form => { const data = values(form); await api(channel ? `/api/kanallar/${channel.id}` : '/api/kanallar', { method: channel ? 'PUT' : 'POST', body: { ad: data.ad.trim(), aktif: Boolean(data.aktif), sira: Number(data.sira), acilisDevri: opening.read() } }); closeModal(); toast('Kanal kaydedildi.'); await navigate('tools'); });
 }
 function openingDialog(settings) {
-  formDialog('Kasa başlangıcını düzenle', h('div', { class: 'stack' }, field('Takip başlangıcı', input('takipBaslangic', settings.takipBaslangic, { type: 'date', required: true })), field('Genel kasa açılış devri (₺)', input('kasaAcilisDevri', settings.kasaAcilisDevri, { required: true, inputmode: 'decimal' })), help('Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez. Açılış devri, tüm sonraki genel kasa bakiyelerini etkiler.')), 'Başlangıcı kaydet', async form => { const data = values(form); await api('/api/ayarlar', { method: 'PUT', body: { takipBaslangic: data.takipBaslangic, kasaAcilisDevri: signedAmount(data.kasaAcilisDevri) } }); closeModal(); toast('Kasa başlangıcı kaydedildi.'); await navigate('tools'); });
+  const opening = signedAmountField('kasaAcilisDevri', settings.kasaAcilisDevri, 'Genel kasa açılış devri (₺)');
+  formDialog('Kasa başlangıcını düzenle', h('div', { class: 'stack' }, field('Takip başlangıcı', input('takipBaslangic', settings.takipBaslangic, { type: 'date', required: true })), opening.node, help('Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez. Açılış devri, tüm sonraki genel kasa bakiyelerini etkiler.')), 'Başlangıcı kaydet', async form => { const data = values(form); await api('/api/ayarlar', { method: 'PUT', body: { takipBaslangic: data.takipBaslangic, kasaAcilisDevri: opening.read() } }); closeModal(); toast('Kasa başlangıcı kaydedildi.'); await navigate('tools'); });
 }
 function viewerPasswordDialog() {
   formDialog('İzleyici şifresi', h('div', { class: 'stack' }, field('Yeni izleyici şifresi', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.')), help('İzleyici kasaları ve raporları okuyabilir; kayıtları değiştiremez. Şifre değişince eski izleyici oturumları kapanır.')), 'Şifreyi kaydet', async form => {

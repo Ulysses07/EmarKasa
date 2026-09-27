@@ -1,5 +1,5 @@
 export function createCashControlsUi(c) {
-  const { api, h, button, input, field, help, section, table, money, moneyNode, signedAmount, amount, formDialog, closeModal, run, toast, summary, requestIdentity, canEdit, isOpen, navigate } = c;
+  const { api, h, button, input, field, help, section, table, money, moneyNode, signedAmountField, amount, formDialog, closeModal, run, toast, summary, requestIdentity, canEdit, isOpen, navigate } = c;
   const editor = () => { if (!canEdit()) throw new Error('Bu işlem için editör hesabı gerekir.'); };
   const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
   function thresholdSettings(rows) {
@@ -15,9 +15,9 @@ export function createCashControlsUi(c) {
     return section('Gerçek bakiye karşılaştırmaları', h('div', { class: 'stack' }, help('Kayıt anındaki genel kasa ile sizin bildirdiğiniz gerçek bakiye karşılaştırılır. Fark otomatik gelir veya gider yazılmaz.'), rows.length ? table(['Kayıt zamanı', 'Kayıtlı genel kasa', 'Gerçek bakiye', 'Gerçek − kayıtlı', 'Not'], rows.map(row => [new Date(row.kaydedildi).toLocaleString('tr-TR'), moneyNode(row.sistemBakiye), moneyNode(row.gercekBakiye), moneyNode(row.fark), row.not || '—'])) : help('Henüz bakiye karşılaştırması kaydedilmedi.')), canEdit() ? button('Gerçek bakiye ile karşılaştır', comparisonDialog, 'small') : null);
   }
   function comparisonDialog() {
-    editor(); const identity = requestIdentity(); const total = input('gercekBakiye', '', { inputmode: 'decimal', required: true }); const note = input('not', '', { maxlength: 2000 });
-    formDialog('Genel kasa bakiyesini karşılaştır', h('div', { class: 'stack' }, field('Kontrol ettiğiniz gerçek bakiye (₺)', total), field('Not', note), help('Şu an kontrol ettiğiniz tutarı girin. Önce farkı göreceksiniz; bu işlem geçmiş tarihli kayıt veya otomatik düzeltme oluşturmaz.')), 'Farkı göster', async form => {
-      editor(); const body = { gercekBakiye: signedAmount(total.value), not: note.value.trim() || null };
+    editor(); const identity = requestIdentity(); const total = signedAmountField('gercekBakiye', '', 'Kontrol ettiğiniz gerçek bakiye (₺)'); const note = input('not', '', { maxlength: 2000 });
+    formDialog('Genel kasa bakiyesini karşılaştır', h('div', { class: 'stack' }, total.node, field('Not', note), help('Şu an kontrol ettiğiniz tutarı girin. Önce farkı göreceksiniz; bu işlem geçmiş tarihli kayıt veya otomatik düzeltme oluşturmaz.')), 'Farkı göster', async form => {
+      editor(); const body = { gercekBakiye: total.read(), not: note.value.trim() || null };
       const preview = await api('/api/kasa-kontrol/onizleme', { method: 'POST', body }); if (!isOpen(form)) return;
       let needsPreview = false; let payload = identity({ ...body, kontrolOzeti: preview.kontrolOzeti });
       const result = h('div'); const draw = value => result.replaceChildren(h('div', { class: 'summary-strip' }, summary('Kayıtlı genel kasa', money(value.sistemBakiye)), summary('Gerçek bakiye', money(value.gercekBakiye)), summary('Gerçek − kayıtlı farkı', money(value.fark)))); draw(preview);
