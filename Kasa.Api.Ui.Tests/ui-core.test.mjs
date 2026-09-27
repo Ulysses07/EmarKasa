@@ -22,7 +22,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
     constructor(tag = 'div') { this.tag = tag; this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; this.open = false; this.checked = false; }
     // Gerçek DOM gibi: yalnız belge köküne (document.querySelector düğümleri) zincirle bağlı düğüm bağlıdır; içerikten çıkarılan düğüm kopar.
     get isConnected() { let node = this; while (node.parentNode) node = node.parentNode; return node.root === true; }
-    closest(tag) { for (let node = this; node; node = node.parentNode) if (node.tag === tag) return node; return null; }
+    closest(selector) { const matches = node => selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector; for (let node = this; node; node = node.parentNode) if (matches(node)) return node; return null; }
     detachChildren(kept = []) { for (const child of this.children) if (child instanceof Element && child.parentNode === this && !kept.includes(child)) child.parentNode = null; }
     set value(value) { this.currentValue = String(value); }
     get value() { return this.currentValue || ''; }
@@ -71,7 +71,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog };', context);
+  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
   return { nodes, requests, calls, responses, stored, app: context.appTest };
 }
@@ -1198,7 +1198,8 @@ const pendingExpense = async () => {
   for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(opened.nodes, name).value = value;
   await submitDialog(opened.nodes);
   assert.equal(typeof finishSave, 'function', 'Kayıt isteği yanıt bekliyor.');
-  const cancel = cancelable => { let prevented = false; opened.nodes.get('#modal').listeners.cancel({ cancelable, preventDefault() { prevented = true; } }); return prevented; };
+  // Diyaloğun kendi kapatma isteği (ESC / geri hareketi): olayın hedefi <dialog>'un kendisidir.
+  const cancel = (cancelable, target = opened.nodes.get('#modal')) => { let prevented = false; opened.nodes.get('#modal').listeners.cancel({ target, cancelable, preventDefault() { prevented = true; } }); return prevented; };
   return { ...opened, cancel, finish: async value => { finishSave(value); await settle(); } };
 };
 const cancelButton = nodes => nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Vazgeç');
@@ -1214,18 +1215,18 @@ test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatas�
   assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./);
   assert.doesNotMatch(errorBox.textContent, /kilitli/);
   assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
-  assert.equal(nodes.get('#modal-close').disabled, false, 'Sonraki pencere kilitsiz açılır.');
+  assert.ok(!nodes.get('#modal-close').disabled, 'Sonraki pencere kilitsiz açılır.');
 });
-test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × kilitlenir; yanıt gelince hata açık pencerede görünür ve kilit kalkar', async () => {
+test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × açık kalır; yanıt gelince hata açık pencerede görünür', async () => {
   const { nodes, cancel, finish } = await pendingExpense();
-  assert.equal(cancelButton(nodes).disabled, true); assert.equal(nodes.get('#modal-close').disabled, true);
+  // iOS'ta (ana ekran PWA dahil) ESC / geri hareketi yok ve isteğin zaman aşımı yok: pencereden çıkış yolu Vazgeç ve × açık kalır.
+  assert.ok(!cancelButton(nodes).disabled, 'Vazgeç kayıt sürerken de kullanılabilir.'); assert.ok(!nodes.get('#modal-close').disabled, '× kayıt sürerken de kullanılabilir.');
   assert.equal(cancel(true), true, 'İptal edilebilir cancel olayı engellenir.');
   assert.equal(nodes.get('#modal').open, true); assert.ok(formField(nodes, 'cari'), 'Form korunur.');
-  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor/);
+  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Vazgeç/);
   await finish({ $status: 409, hata: 'Bu ay kilitli.' });
   assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
   assert.doesNotMatch(nodes.get('#notifications').textContent, /Bu ay kilitli/);
-  assert.equal(cancelButton(nodes).disabled, false); assert.equal(nodes.get('#modal-close').disabled, false);
   assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
   assert.equal(nodes.get('#modal').open, false); assert.equal(nodes.get('#modal-content').children.length, 0);
 });
@@ -1234,15 +1235,49 @@ test('diyalog cancel olayı olmadan kapansa bile geç gelen kayıt hatası bildi
   nodes.get('#modal').close();
   await finish({ $status: 409, hata: 'Kayıt değişti.' });
   assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Kayıt değişti\./);
-  assert.equal(nodes.get('#modal-close').disabled, false);
+  assert.ok(!nodes.get('#modal-close').disabled);
+});
+test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hatası bildirim olarak görünür', async () => {
+  for (const [name, closer] of [['Vazgeç', nodes => cancelButton(nodes)], ['×', nodes => nodes.get('#modal-close')]]) {
+    const { nodes, calls, finish } = await pendingExpense();
+    const close = closer(nodes);
+    assert.ok(!close.disabled, `${name} kayıt sürerken kilitli değildir.`);
+    close.listeners.click({ currentTarget: close });
+    assert.equal(nodes.get('#modal').open, false, `${name} pencereyi kapatır.`);
+    assert.equal(nodes.get('#modal-content').children.length, 0);
+    await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+    assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./, `${name} sonrası hata bildirimle görünür.`);
+    assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
+  }
+});
+test('dosya seçiciden vazgeçmek (dosya alanından yukarı taşınan cancel) pencereyi kapatmaz, girilenleri silmez', async () => {
+  const fire = (nodes, target, cancelable) => { let prevented = false; nodes.get('#modal').listeners.cancel({ target, cancelable, preventDefault() { prevented = true; } }); return prevented; };
+  // Belge ekle: dosya seçici kapatıldığında, iOS Fotoğraf/Dosya menüsü kapatıldığında ya da aynı dosya yeniden seçildiğinde.
+  const purchase = await openApp(false);
+  purchase.app.documentDialog({ id: 5, durum: 'Taslak', odemeler: [{ id: 9, tarih: '2026-09-20', tutar: 100 }] });
+  const payment = formField(purchase.nodes, 'odemeId'); payment.value = '9';
+  assert.equal(fire(purchase.nodes, formField(purchase.nodes, 'dosya'), false), false);
+  assert.equal(purchase.nodes.get('#modal').open, true, 'Belge ekle penceresi açık kalır.');
+  assert.equal(formField(purchase.nodes, 'odemeId'), payment); assert.equal(payment.value, '9');
+  // Ekstre / hareket PDF'si yükle: seçilen banka, kart ve hesap adı korunur.
+  const statement = await openApp(false, importResponses());
+  await statement.app.navigate('imports'); await clickView(statement.nodes, 'Kart ekstresi / hesap hareketi seç');
+  formField(statement.nodes, 'banka').value = 'Akbank'; formField(statement.nodes, 'kartId').value = '4';
+  const modal = statement.nodes.get('#modal');
+  for (const cancelable of [false, true]) assert.equal(fire(statement.nodes, formField(statement.nodes, 'dosya'), cancelable), false, 'Dosya alanının olayı engellenmez; diyaloğa ait değildir.');
+  assert.equal(modal.open, true, 'Ekstre yükleme penceresi açık kalır.');
+  assert.equal(formField(statement.nodes, 'banka').value, 'Akbank'); assert.equal(formField(statement.nodes, 'kartId').value, '4');
+  // Diyaloğun kendi kapatma isteği (ESC / geri hareketi) pencereyi yine kapatır.
+  assert.equal(fire(statement.nodes, modal, true), false);
+  assert.equal(modal.open, false); assert.equal(statement.nodes.get('#modal-content').children.length, 0);
 });
 test('önizlemeden açılan onay penceresi kilitsiz başlar ve ESC ile kapanabilir', async () => {
   const preview = { tutar: 2000, kasaEtkisi: 2000, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 2000 }], ekstreler: [{ ekstreId: 8, tutar: 2000 }] };
   const { app, nodes } = await openApp(false, { '/api/takip/kartlar/4/odeme-onizleme': preview, '/api/takip/kartlar/4': sampleCard });
   app.financeUi.cardPaymentDialog(sampleCard); formField(nodes, 'tutar').value = '2000'; await submitDialog(nodes);
   assert.match(nodes.get('#modal-content').textContent, /Ödemeyi onayla/);
-  assert.equal(nodes.get('#modal-close').disabled, false); assert.equal(cancelButton(nodes).disabled ?? false, false);
-  let prevented = false; nodes.get('#modal').listeners.cancel({ cancelable: true, preventDefault() { prevented = true; } });
+  assert.ok(!nodes.get('#modal-close').disabled); assert.ok(!cancelButton(nodes).disabled);
+  let prevented = false; nodes.get('#modal').listeners.cancel({ target: nodes.get('#modal'), cancelable: true, preventDefault() { prevented = true; } });
   assert.equal(prevented, false); assert.equal(nodes.get('#modal').open, false);
 });
 
@@ -1282,6 +1317,23 @@ test('eksi yazılabilen klavyede tutar eksi girilince Hareket türü İade olur,
   total.value = '5'; total.listeners.input(); assert.equal(kind.value, 'Harcama');
   kind.value = 'Iade'; kind.listeners.change(); total.value = '7'; total.listeners.input();
   assert.equal(kind.value, 'Iade', 'Kullanıcının seçtiği İade tutar yazılırken değişmez.');
+});
+test('eksi tutar yazılıp tür elle Harcama yapılırsa ekrandaki türle çelişen iade gönderilmez, açık hata gösterilir', async () => {
+  const card = { ...sampleCard, harcamalar: [{ id: 12, tarih: '2026-09-22', aciklama: 'B kanalı mal', tutar: 300, taksitSayisi: 1, dagilimlar: [] }] };
+  const { nodes, calls } = await openCharge(card);
+  const kind = formField(nodes, 'hareketTuru'); const total = formField(nodes, 'tutar'); const source = formField(nodes, 'kaynakHarcamaId');
+  total.value = '-25'; total.listeners.input(); assert.equal(kind.value, 'Iade');
+  formField(nodes, 'aciklama').value = 'Mal iadesi'; source.value = '12';
+  kind.value = 'Harcama'; kind.listeners.change();
+  assert.equal(source.disabled, true, 'Harcama türünde iade alanları kapalıdır.');
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#modal').open, true, 'Pencere açık kalır.');
+  assert.match(nodes.get('#modal-content').find(node => node.attributes.role === 'alert').textContent, /Harcama türünde tutar eksi olamaz.*İade/);
+  assert.equal(calls.filter(call => call.path.endsWith('/harcamalar') || call.path === '/api/islemler/benzerlik').length, 0, 'Ne benzerlik ne kayıt isteği gider.');
+  // Tür yeniden İade seçilince aynı tutar iade olarak kaydedilir.
+  kind.value = 'Iade'; kind.listeners.change(); await submitDialog(nodes);
+  const refund = calls.find(call => call.path.endsWith('/harcamalar'));
+  assert.equal(refund.body.tutar, -25); assert.equal(refund.body.kaynakHarcamaId, 12); assert.deepEqual(refund.body.dagilimlar, []);
 });
 test('gider tutarı ± seçiciyle eksi girilir; mevcut eksi gider işaret ve mutlak değerle açılır; kuruş kuralı değişmez', async () => {
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: -12.5, cari: 'İade düzeltmesi', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null };
@@ -1340,6 +1392,22 @@ test('gerçek bakiye karşılaştırması ± seçiciyle eksi bakiyeyi önizler',
   assert.equal(formField(nodes, 'gercekBakiyeIsaret').value, '+');
   formField(nodes, 'gercekBakiyeIsaret').value = '-'; formField(nodes, 'gercekBakiye').value = '20'; await submitDialog(nodes);
   assert.equal(calls.find(call => call.path === '/api/kasa-kontrol/onizleme').body.gercekBakiye, -20);
+});
+test('işaretli tutarın sunucu alan hatası ± ızgarasına değil tutar etiketinin altına yazılır', async () => {
+  const message = 'Tutar en fazla iki ondalık basamak içerebilir.';
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': call => call.method === 'POST' ? { $status: 400, errors: { tutarTl: [message] } } : [] });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const total = formField(nodes, 'tutarTl'); const grid = total.parentNode; const label = total.closest('.signed-field');
+  assert.equal(total.attributes['aria-invalid'], 'true');
+  assert.equal(grid.className, 'signed-amount');
+  assert.deepEqual(grid.children.map(child => child.attributes?.name), ['tutarTlIsaret', 'tutarTl'], 'Izgarada yalnız işaret ve tutar kalır.');
+  const note = label.children.find(child => child.className === 'form-error field-error');
+  assert.equal(note?.textContent, message, 'Not tutar etiketinin altındadır.');
+  // Sonraki denemede not etiketten silinir.
+  total.value = '80'; await submitDialog(nodes);
+  assert.equal(label.children.filter(child => child.className === 'form-error field-error').length, 1);
 });
 
 // Yedek rotasyon uyarısı: yedeğin kendisi başarılıdır, silinemeyen eski yedek ayrıca görünür.

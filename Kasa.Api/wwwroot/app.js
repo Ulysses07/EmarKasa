@@ -103,29 +103,29 @@ async function run(control, work, errorBox = null, title = '') {
     else toast(title ? `${title}: ${error.message}` : error.message, true);
   } finally { if (control) control.disabled = false; }
 }
-// Kaydı süren form: yanıt gelene kadar pencere Vazgeç, × ya da (iptal edilebilir) ESC/geri hareketiyle kapanmaz.
+// Kaydı süren form: yanıt gelene kadar pencere (iptal edilebilir) ESC/geri hareketiyle kazara kapanmaz. Vazgeç ve × açık kalır:
+// iOS'ta ESC/geri hareketi yok, isteğin de zaman aşımı yok; kapatılan pencerenin sonucu run() ile bildirim olarak görünür.
 let busyForm = null;
-function closeModal() { busyForm = null; $('#modal-close').disabled = false; if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
+function closeModal() { busyForm = null; if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
 function openModal(title, content, wide = false) {
   closeModal(); $('#modal-title').textContent = title; $('#modal-content').replaceChildren(content); modal.classList.toggle('wide', wide); modal.showModal();
 }
 $('#modal-close').addEventListener('click', closeModal);
-// ESC ve Android geri hareketi. Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de
-// temizlenir; kayıt sonradan hata verirse run() onu bildirim olarak gösterir, başarı bildirimi zaten ayrıca çıkar.
+// ESC ve Android geri hareketi. Yalnız diyaloğun kendi kapatma isteği işlenir: dosya alanı da seçici kapatılınca ya da aynı
+// dosya yeniden seçilince yukarı taşınan, iptal edilemez bir cancel olayı gönderir; o olay pencereyi kapatmaz.
+// Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de temizlenir; kayıt sonradan hata
+// verirse run() onu bildirim olarak gösterir, başarı bildirimi zaten ayrıca çıkar.
 modal.addEventListener('cancel', event => {
-  if (busyForm && isOpen(busyForm) && event.cancelable) { event.preventDefault(); toast('Kayıt sürüyor; yanıt gelince sonucu bu pencerede göreceksiniz.'); return; }
+  if (event.target !== modal) return;
+  if (busyForm && isOpen(busyForm) && event.cancelable) { event.preventDefault(); toast('Kayıt sürüyor; sonucu bu pencerede göreceksiniz. Beklemeden kapatmak için Vazgeç’e basın; kayıt yine tamamlanabilir, sonucu bildirim olarak görürsünüz.'); return; }
   closeModal();
 });
 function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
-  const cancel = button('Vazgeç', closeModal);
-  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, cancel, submit));
-  // Kilit yalnız bu form açıkken kurulur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
-  const lockClose = locked => {
-    if (locked ? !isOpen(form) : busyForm !== form) return;
-    busyForm = locked ? form : null; cancel.disabled = locked; $('#modal-close').disabled = locked;
-  };
+  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
+  // Meşgul işareti yalnız bu form açıkken konur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
+  const markBusy = busy => { if (busy ? isOpen(form) : busyForm === form) busyForm = busy ? form : null; };
   // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
   let marked = [];
   const clearFields = () => { for (const [control, note] of marked) { control.removeAttribute('aria-invalid'); note.remove(); } marked = []; };
@@ -135,10 +135,11 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
       try { control = form.querySelector(`[name="${name}"]`); } catch { control = null; }
       if (!control?.parentNode) continue;
       const note = h('p', { class: 'form-error field-error' }, message);
-      control.setAttribute('aria-invalid', 'true'); control.parentNode.append(note); marked.push([control, note]);
+      // İşaretli tutarda (± seçici + tutar ızgarası) not ızgaraya değil, tutar etiketinin altına eklenir.
+      control.setAttribute('aria-invalid', 'true'); (control.closest('.signed-field') || control.parentNode).append(note); marked.push([control, note]);
     }
   };
-  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { lockClose(true); clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } finally { lockClose(false); } }, errors, title); });
+  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { markBusy(true); clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } finally { markBusy(false); } }, errors, title); });
   openModal(title, form, wide);
   return form;
 }

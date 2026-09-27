@@ -90,7 +90,7 @@ export function createFinanceUi(c) {
     const source = select('kaynakHarcamaId', [{ value: '', label: 'İade edilen harcamayı seçin' }, ...refundable.map(row => ({ value: row.id, label: `${dateText(row.tarih)} · ${row.aciklama} · ${money(row.tutar)}` }))]);
     const refundFields = h('div', {}, field('İadenin bağlı olduğu harcama', source), help('İade, seçtiğiniz harcamanın kanal dağılımını kullanır. Yalnız henüz ödenmemiş kısmı bu akışta iade edebilirsiniz; ödenmiş harcamanın iadesi burada desteklenmez.'));
     // iOS ondalık klavyesinde eksi tuşu yok: iade türle seçilir, tutar eksisiz yazılabilir. Eksi yazan kullanıcıda tür
-    // kendiliğinden İade olur; eksi silinince, tür elle seçilmediyse Harcama'ya döner.
+    // kendiliğinden İade olur; eksi silinince, tür elle seçilmediyse Harcama'ya döner. Kayıt türü her zaman ekrandaki türdür.
     const kind = select('hareketTuru', [{ value: 'Harcama', label: 'Harcama' }, { value: 'Iade', label: 'İade' }], 'Harcama');
     let kindFromSign = false;
     const updateRefund = () => {
@@ -109,7 +109,10 @@ export function createFinanceUi(c) {
     kind.addEventListener('change', () => { kindFromSign = false; updateRefund(); });
     updateRefund();
     formDialog('Kart harcaması / iade', h('div', { class: 'stack' }, h('div', { class: 'notice' }, 'Alış veya gider kaydında bu kartı seçtiyseniz aynı harcamayı burada yeniden girmeyin. O harcama otomatik izlenir.'), field('Hareket türü', kind), field('Açıklama', description), h('div', { class: 'form-grid' }, field('Tarih', date), field('Toplam tutar (₺)', total), field('Taksit sayısı', installments), field('İlk kesim tarihi (isteğe bağlı)', firstCut)), refundFields, allocation.node, help('Taksitler toplam borcu çoğaltmaz. İade için Hareket türünü İade seçip ilgili harcamayı seçin; tutarı eksi yazmanız gerekmez. Bankanın faiz veya masrafını “Faiz / masraf ekle” ile kaydedin. Harcama kasadan düşmez.')), 'Harcamayı kaydet', async form => {
-      const typed = signedAmount(total.value); const value = kind.value === 'Iade' || typed < 0 ? -Math.abs(typed) : typed;
+      // Eksi tutar yazılıp tür elle Harcama'ya çevrildiyse ekranda "Harcama" yazarken iade gönderilmez.
+      const typed = signedAmount(total.value);
+      if (kind.value !== 'Iade' && typed < 0) throw new Error('Harcama türünde tutar eksi olamaz. İade kaydı için Hareket türünü İade seçin.');
+      const value = kind.value === 'Iade' ? -Math.abs(typed) : typed;
       if (!value) throw new Error('Sıfırdan farklı bir tutar girin.');
       const sourceId = value < 0 ? Number(source.value) : null;
       if (value < 0 && !refundable.some(row => row.id === sourceId)) throw new Error('İadenin bağlı olduğu harcamayı seçin.');
