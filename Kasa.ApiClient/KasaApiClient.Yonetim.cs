@@ -7,7 +7,9 @@ public sealed partial class KasaApiClient : IYonetimApi
     public async Task SifreDegistirAsync(SifreDegistirYaz g)
     {
         using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/sifre") { Content = System.Net.Http.Json.JsonContent.Create(g, options: Json) };
-        using var _ = await GonderAsync(istek);
+        using var yanit = await GonderAsync(istek);
+        // Eski belirteç yeni şifreyle düştü; sunucu bu cihaza yenisini gövdesiz yanıtın başlığında verir.
+        await CihazSaklaAsync("editor", BaslikBelirteci(yanit));
         await OturumuGecersizKilAsync(istek.Headers.Authorization?.Parameter, OturumSonuNedeni.SifreDegisti);
     }
     public Task<KurtarmaKoduDto> KurtarmaKoduOlusturAsync(string mevcutSifre)
@@ -15,8 +17,12 @@ public sealed partial class KasaApiClient : IYonetimApi
     public async Task SifreKurtarAsync(SifreKurtarYaz g)
     {
         using var istek = new HttpRequestMessage(HttpMethod.Post, "api/auth/kurtar") { Content = System.Net.Http.Json.JsonContent.Create(g, options: Json) };
-        using var _ = await GonderAsync(istek, tokenEkle: false);
+        using var yanit = await GonderAsync(istek, tokenEkle: false);
+        await CihazSaklaAsync("editor", BaslikBelirteci(yanit));
     }
+    /// <summary>Gövdesiz (204) yanıttaki tanıdık cihaz belirteci: şifre değişikliği ve kurtarma bu cihaza yenisini verir.</summary>
+    private static string? BaslikBelirteci(HttpResponseMessage yanit)
+        => yanit.Headers.TryGetValues(TanidikCihazBasligi, out var degerler) ? degerler.FirstOrDefault() : null;
     public Task<SurumDto> SurumAsync() => GetAsync<SurumDto>("api/surum");
     public Task<YedekDurumuDto> YedekDurumuAsync() => GetAsync<YedekDurumuDto>("api/yedek/durum");
     public Task<IndirilenDosya> YedekIndirAsync() => DosyaIndirAsync(HttpMethod.Post, "api/yedek", "kasa-yedek.zip");

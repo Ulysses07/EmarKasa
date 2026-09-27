@@ -18,6 +18,13 @@ public sealed class SahteHandler : HttpMessageHandler
         return this;
     }
 
+    /// <summary>Başlık ya da içerik türü gibi ayrıntıları test kuran hazır yanıt.</summary>
+    public SahteHandler Kuyrukla(HttpResponseMessage yanit)
+    {
+        _yanitlar.Enqueue(yanit);
+        return this;
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         SonIstek = request;
