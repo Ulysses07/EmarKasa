@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kasa.Api.Tests;
 
@@ -281,7 +282,7 @@ public sealed class NotificationTests
     private sealed class Source : IBildirimKaynaklari
     {
         public IReadOnlyList<TakipOlayDto> Events = [];
-        public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today) => Events;
+        public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar) => Events;
     }
     private sealed class Sender : IPushGonderici
     {
@@ -309,7 +310,8 @@ public sealed class NotificationTests
                 CihazId = Guid.NewGuid().ToString(), CihazAdi = suffix, OturumDamgasi = stamp ?? OturumDamgasi.Uret("editor", Config, Db)!,
                 Olusturuldu = Clock.GetUtcNow().ToUnixTimeSeconds() }); Db.SaveChanges(); Db.ChangeTracker.Clear();
         }
-        public BildirimServisi Service() => new(Db, Sources, Sender, Config, Clock);
+        public readonly BildirimSagligi Saglik = new();
+        public BildirimServisi Service() => new(Db, Sources, Sender, Config, Clock, Saglik, NullLogger<BildirimServisi>.Instance);
         public void Dispose() { Db.Dispose(); connection.Dispose(); }
     }
 }

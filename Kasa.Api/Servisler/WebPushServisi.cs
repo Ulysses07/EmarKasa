@@ -10,7 +10,9 @@ namespace Kasa.Api.Servisler;
 
 public record PushAnahtarlar(string PublicKey, string PrivateKey);
 public record PushIleti(int Id, string Baslik, string Mesaj, string Url, string Tag);
-public enum PushSonuc { Basarili, GeciciHata, KaliciHata, AbonelikBitti }
+/// <summary><see cref="YapilandirmaHatasi"/>: sunucunun bildirim anahtarı kullanılamıyor; abonelik suçlu değildir ve
+/// düzelene kadar hiçbir cihaza gönderilemez (teslim deneme hakkı harcamadan bekler).</summary>
+public enum PushSonuc { Basarili, GeciciHata, KaliciHata, AbonelikBitti, YapilandirmaHatasi }
 public interface IPushGonderici
 {
     Task<PushSonuc> Gonder(PushAbonelikEntity abonelik, PushIleti ileti, int ttl, CancellationToken ct);
@@ -91,35 +93,64 @@ public sealed class PushKimligi(IConfiguration cfg, IWebHostEnvironment environm
     }
 }
 
-public sealed class WebPushGonderici(PushKimligi identity, IConfiguration cfg) : IPushGonderici, IDisposable
+public sealed class WebPushGonderici(PushKimligi identity, IConfiguration cfg, ILogger<WebPushGonderici> logger) : IPushGonderici, IDisposable
 {
     // No automatic HTTP logging, redirects or hidden retries for subscription capability URLs.
     private readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(15) };
+    private string? bildirilenYapilandirmaHatasi;
     public async Task<PushSonuc> Gonder(PushAbonelikEntity abonelik, PushIleti ileti, int ttl, CancellationToken ct)
     {
         if (!PushDogrulama.Endpoint(abonelik.Endpoint)) return PushSonuc.KaliciHata;
-        var keys = identity.Get();
-        if (keys is null) return PushSonuc.GeciciHata;
-        var client = new PushServiceClient(http) { AutoRetryAfter = false, MaxRetriesAfter = 1 };
-        using var authentication = new VapidAuthentication(keys.PublicKey, keys.PrivateKey)
-        { Subject = cfg["Bildirim:Subject"] ?? "https://kasa.emarglobal.com" };
-        var subscription = new PushSubscription { Endpoint = abonelik.Endpoint };
-        subscription.SetKey(PushEncryptionKeyName.P256DH, abonelik.P256dh);
-        subscription.SetKey(PushEncryptionKeyName.Auth, abonelik.Auth);
-        var message = new PushMessage(JsonSerializer.Serialize(ileti, new JsonSerializerOptions(JsonSerializerDefaults.Web)))
-        { TimeToLive = Math.Clamp(ttl, 0, 86400), Topic = ileti.Tag, Urgency = PushMessageUrgency.Normal };
+        VapidAuthentication authentication;
         try
         {
-            await client.RequestPushMessageDeliveryAsync(subscription, message, authentication, ct);
-            return PushSonuc.Basarili;
+            var keys = identity.Get();
+            if (keys is null) return PushSonuc.GeciciHata;
+            authentication = new VapidAuthentication(keys.PublicKey, keys.PrivateKey)
+            { Subject = cfg["Bildirim:Subject"] ?? "https://kasa.emarglobal.com" };
         }
-        catch (PushServiceClientException e)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
-            if (e.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone) return PushSonuc.AbonelikBitti;
-            return (int)e.StatusCode >= 500 || e.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.RequestTimeout
-                ? PushSonuc.GeciciHata : PushSonuc.KaliciHata;
+            // Anahtar değeri, anahtar dosyası (JSON, izin, IO) ya da VAPID konusu: suçlu abonelik değil sunucu yapılandırması;
+            // hiçbir cihaza gönderilemez. Her tur aynı hatayı üretir, yalnız ileti değiştiğinde bir kez loglanır.
+            if (Interlocked.Exchange(ref bildirilenYapilandirmaHatasi, e.Message) != e.Message)
+                logger.LogError(e, "Bildirim anahtarı veya yapılandırması kullanılamıyor; cihaz bildirimleri gönderilemiyor.");
+            return PushSonuc.YapilandirmaHatasi;
         }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException) { return PushSonuc.GeciciHata; }
+        using (authentication)
+        {
+            var client = new PushServiceClient(http) { AutoRetryAfter = false, MaxRetriesAfter = 1 };
+            try
+            {
+                var subscription = new PushSubscription { Endpoint = abonelik.Endpoint };
+                subscription.SetKey(PushEncryptionKeyName.P256DH, abonelik.P256dh);
+                subscription.SetKey(PushEncryptionKeyName.Auth, abonelik.Auth);
+                var message = new PushMessage(JsonSerializer.Serialize(ileti, new JsonSerializerOptions(JsonSerializerDefaults.Web)))
+                { TimeToLive = Math.Clamp(ttl, 0, 86400), Topic = ileti.Tag, Urgency = PushMessageUrgency.Normal };
+                await client.RequestPushMessageDeliveryAsync(subscription, message, authentication, ct);
+                Interlocked.Exchange(ref bildirilenYapilandirmaHatasi, null);
+                return PushSonuc.Basarili;
+            }
+            catch (PushServiceClientException e)
+            {
+                if (e.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone) return PushSonuc.AbonelikBitti;
+                return (int)e.StatusCode >= 500 || e.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.RequestTimeout
+                    ? PushSonuc.GeciciHata : PushSonuc.KaliciHata;
+            }
+            catch (Exception e) when (e is HttpRequestException or TaskCanceledException) { return PushSonuc.GeciciHata; }
+            catch (Exception e) when (e is FormatException or ArgumentException or CryptographicException)
+            {
+                // Aboneliğin şifreleme anahtarı ya da iletinin kendisi kullanılamıyor: yeniden denemek düzeltmez.
+                logger.LogError(e, "Abonelik #{AbonelikId} için bildirim hazırlanamadı; kalıcı hata sayıldı.", abonelik.Id);
+                return PushSonuc.KaliciHata;
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // Sınıflandırılamayan hata: deneme sınırı (5) içinde geçici sayılır, istisnasıyla loglanır.
+                logger.LogError(e, "Abonelik #{AbonelikId} için bildirim gönderilirken beklenmeyen hata; geçici hata sayıldı.", abonelik.Id);
+                return PushSonuc.GeciciHata;
+            }
+        }
     }
     public void Dispose() => http.Dispose();
 }
