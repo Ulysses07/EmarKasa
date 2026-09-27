@@ -50,7 +50,7 @@ public class VekilVeHizSiniriTests
                 ["Kasa:HizSiniri:HedefBasarisizIzni"] = "100",
                 ["Kasa:HizSiniri:AgBasarisizIzni"] = "50",
                 ["Kasa:HizSiniri:HedefPencereDakika"] = "15",
-                ["Kasa:HizSiniri:TanidikAgGun"] = "30",
+                ["Kasa:HizSiniri:TanidikCihazGun"] = "30",
                 ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "2",
                 ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
             };
@@ -398,27 +398,6 @@ public class VekilVeHizSiniriTests
     }
 
     [Fact]
-    public async Task Hedefe_basariyla_girilmis_ag_kilitten_muaftir_ama_kendi_ag_kovasiyla_sinirlidir()
-    {
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
-        using var ofis = Istemci(f, "198.51.100.110");
-        Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "editor", "kasa123")).StatusCode);
-        for (var i = 0; i < 4; i++)
-        {
-            using var c = Istemci(f, $"198.51.100.{120 + i}");
-            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "editor", "yanlis")).StatusCode);
-        }
-        using var yabanci = Istemci(f, "198.51.100.130");
-        await Reddedildi(await Giris(yabanci, "editor", "kasa123"));
-        // Dağıtık saldırı, editörün tanınan ağından girişini kilitleyemez.
-        Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "editor", "kasa123")).StatusCode);
-        // Tanınan ağ da sınırsız deneyemez: kendi ağ bütçesi dolunca o da reddedilir.
-        for (var i = 0; i < 3; i++)
-            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, "editor", "yanlis")).StatusCode);
-        await Reddedildi(await Giris(ofis, "editor", "kasa123"));
-    }
-
-    [Fact]
     public async Task Tek_ag_hedef_butcesini_tek_basina_tuketip_hedefi_herkese_kilitleyemez()
     {
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "5", [AgIzni] = "2", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
@@ -447,7 +426,7 @@ public class VekilVeHizSiniriTests
     }
 
     [Fact]
-    public async Task Izleyici_kilidi_alici_adlarini_ele_vermez_taninan_alici_agi_girer()
+    public async Task Ortak_butce_dolunca_alici_adlarini_ele_vermez_alicinin_tanidik_cihazi_girer()
     {
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "3", [AgIzni] = "2" });
         using (var editor = await f.EditorClientAsync())
@@ -456,35 +435,24 @@ public class VekilVeHizSiniriTests
             (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
         }
         using var aliciAgi = Istemci(f, "198.51.100.190");
-        Assert.Equal(HttpStatusCode.OK, (await Giris(aliciAgi, "alici-1", "alici-sifre-1")).StatusCode);
+        var ilk = await Giris(aliciAgi, "alici-1", "alici-sifre-1");
+        Assert.Equal(HttpStatusCode.OK, ilk.StatusCode);
+        var belirtec = (await ilk.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("cihaz").GetString();
         for (var i = 0; i < 3; i++)
         {
             using var c = Istemci(f, $"198.51.100.{191 + i}");
             Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, $"yok-{i}", "yanlis")).StatusCode);
         }
-        // İzleyici bütçesi doldu: tanınmayan ağdan alıcı adı da, olmayan ad da aynı yanıtı alır.
+        // Ortak bütçe doldu: tanıdık cihazı olmayan istemciden alıcı adı da, olmayan ad da aynı yanıtı alır.
         using var yabanci = Istemci(f, "198.51.100.199");
         await Reddedildi(await Giris(yabanci, "alici-1", "yanlis"));
         await Reddedildi(await Giris(yabanci, "yok-9", "yanlis"));
-        // Alıcının tanınan ağı ve editör etkilenmez.
-        Assert.Equal(HttpStatusCode.OK, (await Giris(aliciAgi, "alici-1", "alici-sifre-1")).StatusCode);
+        // Alıcının tanıdık cihazı ve editör etkilenmez; muafiyet ağa değil cihaza bağlıdır.
+        using var aliciCihazi = Istemci(f, "198.51.100.190");
+        aliciCihazi.DefaultRequestHeaders.Add("X-Kasa-Cihaz", belirtec);
+        Assert.Equal(HttpStatusCode.OK, (await Giris(aliciCihazi, "alici-1", "alici-sifre-1")).StatusCode);
+        await Reddedildi(await Giris(aliciAgi, "alici-1", "alici-sifre-1"));
         Assert.Equal(HttpStatusCode.OK, (await Giris(yabanci, "editor", "kasa123")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Tanidik_ag_suresi_dolunca_kilitten_muaf_degildir()
-    {
-        var saat = new ElleSaat(new DateTimeOffset(2026, 3, 1, 9, 0, 0, TimeSpan.Zero));
-        await using var f = new VekilFabrikasi(new() { [HedefIzni] = "2", [AgIzni] = "1", ["Kasa:HizSiniri:TanidikAgGun"] = "30" }, saat: saat);
-        using var ev = Istemci(f, "198.51.100.140");
-        Assert.Equal(HttpStatusCode.OK, (await Giris(ev, "editor", "kasa123")).StatusCode);
-        saat.Simdi = saat.Simdi.AddDays(31);
-        for (var i = 0; i < 2; i++)
-        {
-            using var c = Istemci(f, $"198.51.100.{150 + i}");
-            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "editor", "yanlis")).StatusCode);
-        }
-        await Reddedildi(await Giris(ev, "editor", "kasa123"));
     }
 
     [Fact]
