@@ -50,7 +50,7 @@ public class VekilVeHizSiniriTests
                 ["Kasa:HizSiniri:HedefBasarisizIzni"] = "100",
                 ["Kasa:HizSiniri:AgBasarisizIzni"] = "50",
                 ["Kasa:HizSiniri:HedefPencereDakika"] = "15",
-                ["Kasa:HizSiniri:TanidikCihazGun"] = "30",
+                ["Kasa:HizSiniri:TanidikCihazGun"] = "180",
                 ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "2",
                 ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
             };

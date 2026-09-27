@@ -7,6 +7,10 @@ namespace Kasa.Api.Auth;
 
 public static class JwtYardimci
 {
+    /// <summary>Oturumun (JWT ve kasa_auth çerezi) ömrü, gün. Tanıdık cihaz belirteci bundan uzun yaşamalıdır
+    /// (<see cref="HizSiniriAyarlari.Hatalar"/>): oturumu dolan kullanıcı yeniden girerken cihazı hâlâ tanınır.</summary>
+    public const int OturumGun = 30;
+
     public static string Uret(string rol, string jwtKey, string oturumDamgasi, int? aliciId = null)
     {
         var anahtar = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
@@ -15,7 +19,7 @@ public static class JwtYardimci
         if (aliciId is { } id) claims.Add(new Claim("alici_id", id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         var token = new JwtSecurityToken(
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(30),
+            expires: DateTime.UtcNow.AddDays(OturumGun),
             signingCredentials: kimlik);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

@@ -1146,7 +1146,7 @@ test('web login leaves the known-device token to the HttpOnly cookie: same-origi
   assert.equal(nodes.get('#application').hidden, false);
   const login = calls.find(call => call.path === '/api/auth/login');
   assert.deepEqual([login.method, login.body], ['POST', { kullanici: 'editor', sifre: 'editor-sifresi' }]);
-  // Tarayıcı aynı kökenli isteğe __Host-kasa_cihaz çerezini kendisi ekler; betik başlık koymaz.
+  // Tarayıcı aynı kökenli isteğe __Host-kasa_cihaz_<rol> çerezini kendisi ekler; betik başlık koymaz.
   assert.equal(login.credentials, 'same-origin');
   assert.equal(login.headers['x-kasa-request'], '1');
   assert.equal(login.headers['x-kasa-cihaz'], undefined);
@@ -1156,6 +1156,19 @@ test('web login leaves the known-device token to the HttpOnly cookie: same-origi
   assert.ok(calls.every(call => call.credentials === 'same-origin'));
   assert.deepEqual(stored, []);
   assert.deepEqual([user.value, password.value], ['', '']);
+});
+
+test('startup session check leaves a device token in the /me body unused: nothing stored or sent', async () => {
+  // Sunucu tarayıcıya /api/auth/me yanıtında belirteci gövdede vermez (yalnız çerezi yeniler); verse bile web onu kullanmaz.
+  const { nodes, calls, stored } = await openApp(false, { '/api/auth/me': { rol: 'editor', cihaz: 'c1.gizli-me' } });
+  assert.equal(nodes.get('#application').hidden, false);
+  const me = calls.find(call => call.path === '/api/auth/me');
+  assert.equal(me.credentials, 'same-origin');
+  assert.equal(me.headers['x-kasa-cihaz'], undefined);
+  const later = calls.slice(calls.indexOf(me) + 1);
+  assert.ok(later.length > 0, 'Doğrulamadan sonra ana sayfa yüklenir.');
+  for (const call of later) assert.doesNotMatch(JSON.stringify(call), /gizli-me/);
+  assert.deepEqual(stored, []);
 });
 
 test('manual backup rate limit shows the server Turkish 429 message and keeps the session', async () => {

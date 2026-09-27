@@ -213,7 +213,7 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
         HttpOnly = true,
         SameSite = SameSiteMode.Lax,
         Secure = cerezSecure,
-        MaxAge = TimeSpan.FromDays(30),
+        MaxAge = TimeSpan.FromDays(JwtYardimci.OturumGun),
     });
     // Tanıdık cihaz belirteci yenilenir: tarayıcıya HttpOnly çerez, masaüstüne gövdede 'cihaz' (güvenli depoda saklanır).
     return Results.Ok(new { rol, token, cihaz = tanidikCihaz.Ver(http, hedef, damga) });
@@ -225,8 +225,9 @@ app.MapPost("/api/auth/logout", (HttpContext http) =>
     return Results.NoContent();
 });
 
-app.MapGet("/api/auth/me", (ClaimsPrincipal u) =>
-    Results.Ok(new { rol = u.FindFirstValue(ClaimTypes.Role) })).RequireAuthorization();
+// Oturum doğrulaması tanıdık cihaz belirtecini de yeniler (web çerezle, masaüstü gövdedeki 'cihaz' ile).
+app.MapGet("/api/auth/me", (ClaimsPrincipal u, HttpContext http, KasaDbContext db, TanidikCihaz tanidikCihaz) =>
+    Results.Ok(new { rol = u.FindFirstValue(ClaimTypes.Role), cihaz = tanidikCihaz.OturumlaYenile(http, db) })).RequireAuthorization();
 
 app.MapAlisEndpoints();
 app.MapFinansTakipEndpoints();

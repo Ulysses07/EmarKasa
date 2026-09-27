@@ -16,7 +16,10 @@ namespace Kasa.Api.Auth;
 /// </summary>
 public sealed class HizSiniriAyarlari
 {
-    /// <summary>'guvenlik' politikası: istemci IP'si başına pencere izni (PDF, push, şifre, kurtarma kodu).</summary>
+    /// <summary>'guvenlik' politikası: istemci IP'si başına pencere izni (PDF, push, şifre, kurtarma kodu). Kova gerçek
+    /// istemci IP'sine göre bölünür ve hız sınırı yetkilendirmeden sonra çalışır: kimliksiz istek tüketmez, bir ağ
+    /// başka ağlardaki kullanıcıların PDF yüklemesini ya da şifre işlemlerini kilitleyemez. Elle yedek ayrı ve daha
+    /// sıkı 'yedek' politikasındadır (ağır işlem); PDF yükleme bu kovada kalır.</summary>
     public int GuvenlikIzni { get; set; } = 60;
     /// <summary>'giris' politikası: giriş ve kurtarma ile giriş için istemci IP'si başına genel pencere izni.</summary>
     public int GirisIpIzni { get; set; } = 30;
@@ -34,9 +37,11 @@ public sealed class HizSiniriAyarlari
     /// Doğrulama kapasitesinden (eşzamanlı + kuyruk) de küçük olmalıdır: tek ağ PBKDF2 kuyruğunu tek başına dolduramaz.</summary>
     public int AgBasarisizIzni { get; set; } = 15;
     public int HedefPencereDakika { get; set; } = 15;
-    /// <summary>Tanıdık cihaz belirtecinin ömrü (gün, 0–365; 0: kapalı). Başarılı girişte verilen belirteç bu süre
-    /// boyunca cihazı hedef kilidinden muaf tutar (<see cref="TanidikCihaz"/>); her başarılı girişte yenilenir.</summary>
-    public int TanidikCihazGun { get; set; } = 30;
+    /// <summary>Tanıdık cihaz belirtecinin ömrü (gün; 0: kapalı). Oturum ömründen (<see cref="JwtYardimci.OturumGun"/>)
+    /// uzun ve en çok 365 olmalıdır: yeniden girişin en sık nedeni oturumun dolmasıdır, o anda belirteç hâlâ geçerli
+    /// olmalı. Belirteç bu süre boyunca cihazı hedef kilidinden muaf tutar (<see cref="TanidikCihaz"/>); her başarılı
+    /// girişte, her oturum doğrulamasında (/api/auth/me) ve editörün şifre değişikliği/kurtarmasında yenilenir.</summary>
+    public int TanidikCihazGun { get; set; } = 180;
     /// <summary>Aynı anda yürüyen şifre doğrulaması (PBKDF2) ve bekleyebilecek giriş sayısı; kuyruk doluysa 429.</summary>
     public int SifreDogrulamaEszamanli { get; set; } = 2;
     public int SifreDogrulamaKuyrugu { get; set; } = 20;
@@ -46,19 +51,22 @@ public sealed class HizSiniriAyarlari
 
     /// <summary>Yapılandırma hataları (boşsa geçerli). Sınırlar pozitif olmalı; ağ bütçesi hedef bütçesinden ve
     /// şifre doğrulama kapasitesinden küçük olmalıdır (aksi halde tek ağ bir hedefi herkese kilitleyebilir ya da
-    /// doğrulama kuyruğunu tek başına doldurup başka ağlardaki girişlere "sunucu yoğun" yanıtı aldırabilir).</summary>
+    /// doğrulama kuyruğunu tek başına doldurup başka ağlardaki girişlere "sunucu yoğun" yanıtı aldırabilir). Tanıdık
+    /// cihaz belirteci kapalı (0) değilse oturumdan uzun, en çok bir yıl yaşar.</summary>
     public IEnumerable<string> Hatalar()
     {
         if (this is not
             {
                 GuvenlikIzni: > 0, GirisIpIzni: > 0, GirisKullaniciIzni: > 0, GirisAgIzni: > 0, PencereDakika: > 0,
-                HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0, TanidikCihazGun: >= 0 and <= 365,
+                HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0,
                 SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0, YedekIzni: > 0, YedekPencereDakika: > 0,
             })
         {
-            yield return "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (SifreDogrulamaKuyrugu sıfır, TanidikCihazGun 0–365 olabilir).";
+            yield return "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (SifreDogrulamaKuyrugu sıfır olabilir).";
             yield break;
         }
+        if (TanidikCihazGun != 0 && TanidikCihazGun is <= JwtYardimci.OturumGun or > 365)
+            yield return $"Kasa:HizSiniri:TanidikCihazGun ({TanidikCihazGun}) 0 (kapalı) ya da oturum ömründen ({JwtYardimci.OturumGun} gün) uzun ve en çok 365 olmalıdır: oturumu dolan kullanıcı yeniden girerken belirteç hâlâ geçerli olmalı, yoksa dağıtık bir saldırı onu kendi cihazından kilitleyebilir.";
         if (AgBasarisizIzni >= HedefBasarisizIzni)
             yield return $"Kasa:HizSiniri:AgBasarisizIzni ({AgBasarisizIzni}) HedefBasarisizIzni'nden ({HedefBasarisizIzni}) küçük olmalıdır: tek ağ bir hedefin bütçesini tek başına tüketip hedefi herkese kilitleyememeli.";
         if (AgBasarisizIzni >= (long)SifreDogrulamaEszamanli + SifreDogrulamaKuyrugu)
@@ -270,9 +278,13 @@ public sealed class VekilDurumu
 /// istemcilerden bütün alıcı ve izleyici girişlerini pencere boyunca kilitler; bu zaten rastgele adlarla da
 /// yapılabiliyordu.</item>
 /// <item>Hedef kilidinden yalnız geçerli bir tanıdık cihaz belirteci (<see cref="TanidikCihaz"/>) muaf tutar: dağıtık
-/// saldırgan meşru kullanıcıyı kendi cihazından kilitleyemez. Muafiyet ağa değil cihaza bağlıdır (aynı NAT ya da
-/// operatör ağındaki başka biri yararlanamaz) ve kalıcıdır (yeniden başlatmada kaybolmaz). Muaf deneme hedef
-/// bütçesi yerine cihaz başına bir bütçeden (ağ bütçesi kadar) ayrılır; başarısızlığı hedef bütçesine de yazılır.</item>
+/// saldırgan, daha önce giriş yapılmış ve belirteci geçerli bir cihazdan meşru kullanıcıyı kilitleyemez. Belirteç
+/// oturumdan uzun yaşar (TanidikCihazGun > oturum ömrü, başlangıçta denetlenir): yeniden girişin en sık nedeni olan
+/// oturum sonunda hâlâ geçerlidir. Her girişte, her oturum doğrulamasında (web sayfa açılışı, masaüstü açılışı) ve
+/// editörün şifre değişikliği/kurtarmasında yenilenir; kullanılan cihazda süresi dolmaz. Muafiyet ağa değil cihaza
+/// bağlıdır (aynı NAT ya da operatör ağındaki başka biri yararlanamaz) ve kalıcıdır (yeniden başlatmada kaybolmaz).
+/// Muaf deneme hedef bütçesi yerine cihaz başına bir bütçeden (ağ bütçesi kadar) ayrılır; başarısızlığı hedef
+/// bütçesine de yazılır.</item>
 /// <item>Ağ başına, bütün hedefler için ortak ve hedef bütçesinden küçük başarısız deneme bütçesi (ağ: IPv4 adresi
 /// ya da IPv6 /48 bloğu). Her zaman uygulanır, tanıdık cihaza da: tek ağ bir hedefin bütçesini tek başına
 /// tüketemez, muaf istemci de sınırsız deneyemez; ortak olduğu için kilitlenen ağın yanıtları adları ayırt ettirmez.</item>
@@ -284,9 +296,15 @@ public sealed class VekilDurumu
 /// <item>Sayaçlar süreç belleğindedir: yeniden başlatma pencereleri sıfırlar (saldırgan yeniden başlatmayı
 /// tetikleyemez; en kötü durumda bir pencere kadar ek deneme kazanır). Tek örnekli dağıtım varsayılır; birden çok
 /// örnek her biri kendi bütçesini tutar.</item>
-/// <item>Hedef kilidi bir erişilebilirlik bedelidir: çok ağlı saldırgan, tanıdık cihazı olmayan (yeni cihaz,
-/// silinmiş çerez, ilk kez giren) meşru kullanıcıyı pencere boyunca (15 dk) dışarıda bırakabilir. Açık oturumlar
-/// (30 günlük çerez/JWT) ve tanıdık cihazlar etkilenmez; kilit bir kez uyarı olarak loglanır.</item>
+/// <item>Hedef kilidi bir erişilebilirlik bedelidir: çok ağlı saldırgan, geçerli tanıdık cihaz belirteci olmayan
+/// meşru kullanıcıyı saldırı sürdükçe (her pencere 15 dk) dışarıda bırakabilir. Belirteci olmayanlar: ilk kez ya da
+/// yeni bir cihazdan girenler; çerezini ya da uygulama verisini silenler; cihazı son girişten ya da son oturum
+/// doğrulamasından bu yana TanidikCihazGun (180 gün) boyunca hiç kullanılmamış olanlar; şifresi ya da oturum sürümü
+/// başkası tarafından değiştirilenler (editörün alıcı ve izleyici şifresi değişikliği, alıcının pasife alınıp
+/// açılması: bütün belirteçleri düşer; editörün kendi değişikliğinde işlemi yapan cihaz yenisini alır); aynı cihazda
+/// kendi rolünün belirteci sonradan giren başka bir alıcınınkiyle ezilen alıcı (cihazda rol başına tek belirteç
+/// tutulur; editör, izleyici ve alıcı belirteçleri birbirini ezmez). Açık oturumlar (30 günlük çerez/JWT) ve
+/// tanıdık cihazlar etkilenmez; kilit bir kez uyarı olarak loglanır.</item>
 /// <item>Ağ bütçesi tanıdık cihaza da uygulanır: operatör NAT'ı (CGNAT) ya da ortak ofis IP'si paylaşan biri o
 /// ağın bütçesini tüketirse aynı IP'deki meşru kullanıcılar da pencere boyunca 429 alır.</item>
 /// <item>İstemci IP'si güvenilen vekilin X-Forwarded-For bildirimine dayanır; varsayılan güvenilen ağlar geniştir

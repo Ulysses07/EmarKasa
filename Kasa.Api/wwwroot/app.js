@@ -579,7 +579,7 @@ function exportDialog() {
 }
 
 // The session is carried only by the HttpOnly cookie. No credential or token is persisted here.
-// Tanıdık cihaz belirteci de yalnız HttpOnly __Host-kasa_cihaz çerezindedir: tarayıcı girişte kendisi gönderir, betik okumaz ve başlığa eklemez.
+// Tanıdık cihaz belirteci de yalnız rol başına HttpOnly __Host-kasa_cihaz_<rol> çerezindedir: sunucu girişte ve /api/auth/me doğrulamasında yeniler, tarayıcı girişte kendisi gönderir, betik okumaz ve başlığa eklemez.
 runtimeReady.then(() => {
   $('#recover-open').hidden = runtime.saltOkunur;
   if (runtime.saltOkunur) {
