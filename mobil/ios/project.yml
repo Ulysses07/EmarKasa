@@ -1,0 +1,101 @@
+# Emar Kasa iPhone uygulaması (mobil/ios). Canlı web ekranını
+# (https://kasa.emarglobal.com) WKWebView içinde açan yerel kabuk.
+# EmarKasa.xcodeproj ve EmarKasa/Info.plist depoda tutulmaz; ikisini de
+# 'xcodegen generate' bu dosyadan üretir (CI: .github/workflows/ios.yml).
+name: EmarKasa
+
+options:
+  minimumXcodeGenVersion: "2.42.0"   # .xcprivacy 2.40.1'den beri kaynak (resource) sayılıyor
+  developmentLanguage: tr
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    # Görünen sürüm elle değişir; derleme numarasını CI verir:
+    #   xcodebuild ... CURRENT_PROJECT_VERSION=<çalıştırma numarası>
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    # Ekip kimliği depoda yok; CI komut satırından DEVELOPMENT_TEAM=... verir.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+targets:
+  EmarKasa:
+    type: application
+    platform: iOS
+    sources:
+      - path: EmarKasa
+    info:
+      path: EmarKasa/Info.plist
+      properties:
+        CFBundleDisplayName: "Emar Kasa"
+        CFBundleDevelopmentRegion: tr
+        # Tek dil Türkçe: dosya seçici, tarih seçici, paylaşım menüsü gibi
+        # sistem ekranları İngilizce ayarlı telefonda da Türkçe açılır.
+        CFBundleLocalizations: [tr]
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"   # XcodeGen varsayılanı sabit "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"         # XcodeGen varsayılanı sabit "1"
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: "Default Configuration"
+                UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIViewControllerBasedStatusBarAppearance: true
+        UIUserInterfaceStyle: Light          # site yalnız açık renk temalı
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSFaceIDUsageDescription: "Kasa defterinizi Face ID ile açmak için kullanılır."
+        NSCameraUsageDescription: "Fiş, fatura veya dekontun fotoğrafını çekip alışa eklemek için kamera kullanılır."
+        NSPhotoLibraryUsageDescription: "Fiş, fatura veya dekont görselini fotoğraflarınızdan seçip alışa eklemek için kullanılır."
+        NSPhotoLibraryAddUsageDescription: "İndirdiğiniz belge görselini Fotoğraflar'a kaydetmek için kullanılır."
+    settings:
+      base:
+        PRODUCT_NAME: EmarKasa
+        PRODUCT_BUNDLE_IDENTIFIER: com.royalmezat.kasa
+        TARGETED_DEVICE_FAMILY: "1"          # yalnız iPhone (iPad'de iPhone uygulaması olarak açılır)
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_IDENTITY: "Apple Development"   # XcodeGen ön ayarı "iPhone Developer"ı ezer
+
+  EmarKasaTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EmarKasaTests
+    dependencies:
+      - target: EmarKasa          # XcodeGen TEST_HOST/BUNDLE_LOADER'ı kendisi kurar
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.royalmezat.kasa.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+
+schemes:
+  EmarKasa:                       # paylaşılan şema: xcodebuild -scheme EmarKasa
+    build:
+      targets:
+        EmarKasa: all
+        EmarKasaTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [EmarKasaTests]
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
