@@ -16,8 +16,9 @@ public interface IBildirimKaynaklari
     IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar);
 }
 
-/// <summary><see cref="FinansTakipServisi.GetNotificationEvents"/> ile aynı olayları üretir; farkı her kart ve kredinin
-/// ayrı hesaplanmasıdır: bozuk bir kayıt atlanır, ötekilerin hatırlatmaları sürer. Yeni kart hareketleri kısa ve ayrı
+/// <summary><see cref="FinansTakipServisi.GetNotificationEvents"/> ile aynı olayları aynı kuraldan
+/// (<see cref="FinansTakipServisi.KartOlaylari"/>, <see cref="FinansTakipServisi.KrediOlaylari"/>) üretir; farkı her kart ve
+/// kredinin ayrı hesaplanmasıdır: bozuk bir kayıt atlanır, ötekilerin hatırlatmaları sürer. Yeni kart hareketleri kısa ve ayrı
 /// bir yazma adımında eşitlenir; hesabın kendisi yazma kilidi almadan, salt okunur anlık görüntüde (<see cref="OkumaAnlikGoruntusu"/>)
 /// ve tur boyunca paylaşılan izlemesiz hesap bağlamıyla (<see cref="TakipHesapBaglami"/>) yapılır: eşitlemenin izlediği
 /// kayıtlar değil, anlık görüntünün verisi okunur.</summary>
@@ -39,21 +40,14 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
         foreach (var card in db.TakipKartlar.AsNoTracking().ToList())
             Dene(db, hatalar, "Kart", card.KrediKartiId, kartAdlari.GetValueOrDefault(card.KrediKartiId, $"Kart #{card.KrediKartiId}"), () =>
             {
-                var dto = FinansTakipServisi.Kart(baglam, card.KrediKartiId);
-                var olaylar = new List<TakipOlayDto>();
-                foreach (var s in dto.Ekstreler)
-                {
-                    if (card.Aktif) olaylar.Add(new("Kart", dto.Id, s.Id, dto.Ad, s.KesimTarihi, s.Borc, "Kesim", false));
-                    if (s.Kalan > 0) olaylar.Add(new("Kart", dto.Id, s.Id, dto.Ad, s.SonOdemeTarihi, s.Kalan, "SonOdeme", false));
-                }
-                result.AddRange(olaylar);
+                // Olaylar önce tamamlanır: hesap yarıda kalırsa karttan yarım olay listesi eklenmez.
+                result.AddRange(FinansTakipServisi.KartOlaylari(FinansTakipServisi.Kart(baglam, card.KrediKartiId), card.Aktif).ToList());
             });
         var krediAdlari = db.Krediler.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
         foreach (var loan in db.TakipKrediler.AsNoTracking().ToList())
             Dene(db, hatalar, "Kredi", loan.KrediId, krediAdlari.GetValueOrDefault(loan.KrediId, $"Kredi #{loan.KrediId}"), () =>
             {
-                var dto = FinansTakipServisi.Kredi(baglam, loan.KrediId);
-                result.AddRange(dto.Taksitler.Where(t => t.Durum != "Iptal").Select(t => new TakipOlayDto("Kredi", dto.Id, t.Id, dto.Ad + " / " + t.No + ". taksit", t.Tarih, t.Tutar, "Taksit", true)).ToList());
+                result.AddRange(FinansTakipServisi.KrediOlaylari(FinansTakipServisi.Kredi(baglam, loan.KrediId)).ToList());
             });
         return result;
     }
@@ -72,12 +66,15 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
 
 internal static class BildirimHatalari
 {
-    /// <summary>Kilit beklemesi (SQLITE_BUSY/LOCKED) ve iptal kayda özgü değildir: tur yarım veriyle sürmez
-    /// (bekleyen hatırlatmalar iptal edilmez), işçi hatayı loglar ve sonraki turda yeniden dener.</summary>
+    /// <summary>Kayda özgü olmayan hata: iptal, kilit beklemesi (SQLITE_BUSY/LOCKED) ve veritabanının kendi arızası (disk, dosya,
+    /// bellek, bozulma: IOERR, FULL, CANTOPEN, CORRUPT...; bkz. <see cref="VeritabaniHataSiniflandirici.Altyapi"/>). Bunlar bir
+    /// kartın ya da kredinin hesaplanamadığını göstermez: kaynak "bozuk" işaretlenmez (hatırlatmaları iptal edilmez, editöre
+    /// yanlış kayıt uyarısı gitmez), tur yarım veriyle sürmez; işçi hatayı loglar ve sonraki turda yeniden dener. Geçmeyen
+    /// arıza (dolu disk, bozuk dosya) ardışık tur hatası olarak görünür ve Critical'a yükselir.</summary>
     public static bool Gecici(Exception e) => e switch
     {
         OperationCanceledException => true,
-        SqliteException { SqliteErrorCode: 5 or 6 } => true,
+        SqliteException s => VeritabaniHataSiniflandirici.Mesgul(s) || VeritabaniHataSiniflandirici.Altyapi(s),
         { InnerException: { } ic } => Gecici(ic),
         _ => false
     };
@@ -135,6 +132,27 @@ public sealed class BildirimSagligi
 {
     private readonly object gate = new();
     private (string Mesaj, DateTimeOffset An)? tur, gonderim;
+    private readonly Dictionary<(string Kaynak, int KaynakId, string HataTuru), DateTimeOffset> kaynakHatalari = [];
+
+    /// <summary>
+    /// Bu hesabın kaynak hatalarından hangilerinin Error olarak yazılacağı (aynı sırayla). Kalıcı bozuk bir kaynak her turda
+    /// (dakikada bir) aynı hatayı üretir: aynı (kaynak, kimlik, hata türü) en çok <paramref name="aralik"/>'ta bir kez yazılır.
+    /// Bu hesapta hata vermeyen kaynakların kaydı silinir: iyileşip yeniden bozulan kaynak ya da yeni bir hata türü beklemeden yazılır.
+    /// </summary>
+    public IReadOnlyList<bool> KaynakHatalariYazilsin(IReadOnlyList<BildirimKaynakHatasi> hatalar, DateTimeOffset an, TimeSpan aralik)
+    {
+        var anahtarlar = hatalar.Select(h => (h.Kaynak, h.KaynakId, h.Hata.GetType().FullName ?? h.Hata.GetType().Name)).ToList();
+        lock (gate)
+        {
+            foreach (var eski in kaynakHatalari.Keys.Except(anahtarlar).ToList()) kaynakHatalari.Remove(eski);
+            return anahtarlar.Select(a =>
+            {
+                if (kaynakHatalari.TryGetValue(a, out var son) && an - son < aralik) return false;
+                kaynakHatalari[a] = an; return true;
+            }).ToList();
+        }
+    }
+
     public (string Mesaj, DateTimeOffset An)? Son { get { lock (gate) return tur ?? gonderim; } }
     public void TurHatasi(string mesaj, DateTimeOffset an) { lock (gate) tur = (mesaj, an); }
     public void TurBasarili() { lock (gate) tur = null; }
@@ -147,6 +165,10 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
 {
     /// <summary>Logları isteğe/tura bağlayan kimlik: istek içinde TraceId, işçide yeni tur kimliği.</summary>
     public string Iz { get; } = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N")[..12];
+
+    /// <summary>Kalıcı bozuk kaynağın aynı hatasının Error olarak yeniden yazılma aralığı; aradaki tekrarlar Debug'dadır.
+    /// Editöre giden günlük uyarı bildirimi bu sıklıktan etkilenmez.</summary>
+    public static readonly TimeSpan KaynakHatasiLogAraligi = TimeSpan.FromHours(1);
 
     // Her kaynak (kart, kredi, kasa alt sınırı) ayrı yalıtılır; hesaplanamayan kaynak loglanır ve editöre uyarı olur.
     private IReadOnlyList<BildirimTaslagi> Taslaklar(DateOnly today, bool yeniUyariEtkin)
@@ -161,9 +183,17 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
             db.ChangeTracker.Clear();
             hatalar.Add(new("KasaEsik", 0, "Kasa alt sınırı denetimi", e));
         }
-        foreach (var h in hatalar)
-            logger.LogError(h.Hata, "Bildirim kaynağı hesaplanamadı: {Kaynak} #{KaynakId} ({Ad}), iz {Iz}. Diğer hatırlatmalar sürüyor.",
-                h.Kaynak, h.KaynakId, h.Ad, Iz);
+        var yazilsin = saglik.KaynakHatalariYazilsin(hatalar, clock.GetUtcNow(), KaynakHatasiLogAraligi);
+        for (var i = 0; i < hatalar.Count; i++)
+        {
+            var h = hatalar[i];
+            if (yazilsin[i])
+                logger.LogError(h.Hata, "Bildirim kaynağı hesaplanamadı: {Kaynak} #{KaynakId} ({Ad}), iz {Iz}. Diğer hatırlatmalar sürüyor.",
+                    h.Kaynak, h.KaynakId, h.Ad, Iz);
+            else
+                logger.LogDebug("Bildirim kaynağı hâlâ hesaplanamıyor: {Kaynak} #{KaynakId} ({Ad}), {HataTuru}, iz {Iz}. Aynı hata en çok {Aralik} dakikada bir Error olarak yazılır.",
+                    h.Kaynak, h.KaynakId, h.Ad, h.Hata.GetType().Name, Iz, KaynakHatasiLogAraligi.TotalMinutes);
+        }
         return [.. BildirimTakvimi.Olustur(olaylar, today), .. esik, .. hatalar.Select(h => BildirimTakvimi.Hata(h, today))];
     }
 
