@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -156,14 +157,18 @@ public class CashControlTests
     public async Task Dusuk_bakiye_olayi_gun_degisiminde_tekrarlamaz_toparlanip_yeniden_dusunce_yenidir()
     {
         await using var f=Factory(); using var c=await Editor(f);
+        // Bakiye bugünkü giderle eşiğin altına iner (150 − 100 = 50): istek dışındaki eşik okuması paneli
+        // bağlamın saatine, yani sunucunun gününe göre kurar; sistem takvimine göre kursa gideri görmezdi.
+        (await c.PutAsJsonAsync("/api/kanallar/1",new KanalYazDto("MEZAT",AcilisDevri:150m))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler",new IslemYazDto(Today,"Bugünkü gider",100m,"MEZAT",GiderTipi.Cari))).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/kasa-esikleri/1",new KasaEsikYaz(0,100m,true))).EnsureSuccessStatusCode();
         using var scope=f.Services.CreateScope(); var db=scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-        var first=Assert.Single(KasaEsikServisi.Oku(db,Today,true));
+        var first=Assert.Single(KasaEsikServisi.Oku(db,Today,true)); Assert.Contains("kasa 50,00 TL",first.Mesaj);
         Assert.Equal(first.Anahtar,Assert.Single(KasaEsikServisi.Oku(db,Today,true)).Anahtar);
         db.ChangeTracker.Clear(); Assert.Empty(KasaEsikServisi.Oku(db,Today.AddDays(1),true));
-        var channel=db.Kanallar.Single(k=>k.Id==1); channel.AcilisDevri=100m; db.SaveChanges();
+        var channel=db.Kanallar.Single(k=>k.Id==1); channel.AcilisDevri=250m; db.SaveChanges();
         Assert.Empty(KasaEsikServisi.Oku(db,Today.AddDays(1),true));
-        channel.AcilisDevri=0m; db.SaveChanges();
+        channel.AcilisDevri=150m; db.SaveChanges();
         var next=Assert.Single(KasaEsikServisi.Oku(db,Today.AddDays(1),true)); Assert.NotEqual(first.Anahtar,next.Anahtar);
     }
 

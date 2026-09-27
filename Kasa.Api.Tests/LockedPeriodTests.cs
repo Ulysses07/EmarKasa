@@ -15,7 +15,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Acik_tarihli_alis_odemesi_duzeltilerek_daha_sonra_girilen_kapali_odemenin_kurusu_tasinamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Old, "Kuruş", null, [new("Mal", .03m, [new(1, .01m), new(2, .02m)])]));
         purchase = await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Today, .01m));
         var first = purchase.Odemeler.Single();
@@ -32,7 +32,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Once_girilmis_acik_ay_odemesi_iptal_edilerek_sonradan_girilen_kilitli_odemenin_kurusu_tasinamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Kuruş", 1000m, 5, 25, Old, .02m, [new(1, .01m), new(2, .01m)]));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, .01m));
         var earlierId = card.Odemeler.Single().Id;
@@ -47,7 +47,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Kanal_sirasi_kapali_ayin_ortak_gider_kurusunu_baska_kanala_tasiyamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, Kanallar.Ortak, GiderTipi.Cari));
         var url = $"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}";
         var before = await c.GetStringAsync(url);
@@ -59,7 +59,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Kilit_tarihli_hareket_gelir_rawsql_ve_dolayli_acilis_degisikliklerini_engeller()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var expense = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Önceki ay", 50m, "MEZAT", GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 100m))).EnsureSuccessStatusCode();
         await Close(c);
@@ -81,7 +81,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Gerekceli_acma_surum_ve_istek_kimligiyle_guvenlidir_onceki_aylar_kilitli_kalir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var state = await Close(c);
         var request = new AyKilidiYaz(Guid.NewGuid(), state.Surum, Old.Year, Old.Month, "Eksik dekont için açıldı");
         state = await Post<AyKilidiDto>(c, "/api/ay-kilidi/ac", request);
@@ -97,7 +97,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Eski_context_ile_SaveChangesAsync_yeni_kilidi_atlayamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var expense = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Kayıt", 10m, "MEZAT", GiderTipi.Cari));
         using var stale = f.Services.CreateScope(); var db = stale.ServiceProvider.GetRequiredService<KasaDbContext>();
         var loaded = await db.Islemler.SingleAsync(i => i.Id == expense.Id);
@@ -110,7 +110,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Kapali_ayin_aylik_odemesi_iptal_edilemez_okunabilir_ve_ileri_sablon_eklenebilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         int payment;
         using (var scope = f.Services.CreateScope())
         {
@@ -132,7 +132,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Eski_alis_odemelerinin_onay_ve_kanal_paylari_kilitli_ama_yeni_odeme_aciktir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var draft = await Purchase(c);
         draft = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Old, 40m));
         draft = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/gonder", new AlisDurumYaz(draft.Surum));
@@ -154,7 +154,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Kilitli_kart_avansi_yeni_harcamaya_sessiz_baglanmaz_okumalar_calismaya_devam_eder()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Avans", 1000m, 5, 25, Old, 0m, []));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Old, 50m));
         await Close(c);
@@ -168,7 +168,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Eski_kart_kaynak_iadesi_gecmis_payi_oynatamaz_fakat_cari_ay_odeme_yapilabilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Borç", 1000m, 5, 25, Old, 100m, [new(1, 100m)]));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Old, 20m));
         await Close(c);
@@ -180,7 +180,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Mevcut_kredi_ileri_plani_kilitli_cekim_tarihine_ragmen_eklenebilir_yeni_cekim_yazilamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); await Close(c);
+        await using var f = Fabrika(); using var c = await Editor(f); await Close(c);
         var input = new KrediTakipYaz(Guid.NewGuid(), "Mevcut kredi", 1000m, Old, Today.AddMonths(1), 3, 100m, [1, 2], true);
         var loan = await Post<KrediTakipDto>(c, "/api/takip/krediler", input);
         Assert.Equal(300m, loan.KalanPlanliOdeme); Assert.Equal(1000m, (await Panel(c)).GuncelKasa);

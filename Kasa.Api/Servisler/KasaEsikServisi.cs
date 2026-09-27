@@ -6,6 +6,9 @@ namespace Kasa.Api.Servisler;
 
 public static class KasaEsikServisi
 {
+    /// <summary>Kanal bakiyeleri bağlamın saatine göre bugünkü panelden okunur (HesapServisi, <c>db.Bugunu()</c>);
+    /// istek dışındaki çağrı (bildirim işi) da sunucunun gününü kullanır. <paramref name="today"/> olay tekrarını
+    /// önleyen uyarı günüdür; çağıran onu aynı DI saatinden hesaplar.</summary>
     public static IReadOnlyList<BildirimTaslagi> Oku(KasaDbContext db, DateOnly today, bool yeniUyariEtkin)
     {
         if (!db.KasaEsikleri.Any(x => x.Etkin || x.AlarmAcik)) return [];

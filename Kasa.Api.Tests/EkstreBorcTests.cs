@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -7,25 +8,27 @@ public class EkstreBorcTests
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    [Fact]
-    public async Task Kesimden_sonraki_harcama_ekstre_borcuna_girmez()
+    // Eski /api/kredikartlari ucu son kesimi kasa saatinden hesaplar: sabit gün ve takvim sınırları.
+    [Theory]
+    [InlineData("2026-09-25")] // KasaWebFactory.VarsayilanBugun
+    [InlineData("2027-01-01")] // yıl başı: son kesim önceki yılın Aralık'ında
+    [InlineData("2028-02-29")] // artık yılın Şubat sonu
+    [InlineData("2027-03-31")] // kırpılan ay sonu
+    public async Task Kesimden_sonraki_harcama_ekstre_borcuna_girmez(string gun)
     {
-        await using var f = new KasaWebFactory();
+        var bugun = DateOnly.Parse(gun, CultureInfo.InvariantCulture);
+        await using var f = KasaWebFactory.Sabit(bugun);
         var c = await f.EditorClientAsync();
-        // Bilinçli istisna: eski /api/kredikartlari ucu (Program.cs) son kesimi kasa saatinden değil,
-        // sunucu makinesinin DateTime.Today'inden hesaplar; sabit saat bu uca ulaşmaz. Test aynı kaynağa
-        // hizalanır; uç KasaSaati'ne geçtiğinde KasaWebFactory.Sabit ile sabit güne alınmalı.
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
         var kesim = bugun.AddDays(-5);      // en son kesim 5 gün önce
         var kart = LegacyFinanceSeed.Kart(f, new("Test", kesim, bugun.AddDays(5), 100000m, 1000m));
         int id = kart.Id;
 
         // kesimden ÖNCE harcama (ekstreye girer)
-        await c.PostAsJsonAsync("/api/islemler", new { tarih = kesim.AddDays(-1), cari = "A",
-            tutarTl = 500m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = id });
+        (await c.PostAsJsonAsync("/api/islemler", new { tarih = kesim.AddDays(-1), cari = "A",
+            tutarTl = 500m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = id })).EnsureSuccessStatusCode();
         // kesimden SONRA harcama (ekstreye GİRMEZ)
-        await c.PostAsJsonAsync("/api/islemler", new { tarih = bugun, cari = "B",
-            tutarTl = 300m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = id });
+        (await c.PostAsJsonAsync("/api/islemler", new { tarih = bugun, cari = "B",
+            tutarTl = 300m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = id })).EnsureSuccessStatusCode();
 
         var liste = await c.GetFromJsonAsync<List<JsonElement>>("/api/kredikartlari", Json);
         var k = liste!.Single(x => x.GetProperty("id").GetInt32() == id);

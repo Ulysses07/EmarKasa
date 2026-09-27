@@ -221,17 +221,17 @@ public sealed class NotificationTests
     [Fact]
     public async Task PaidSameDayHidesPendingReminderButKeepsDeliveredHistory()
     {
-        using var factory = new KasaWebFactory(); var client = await factory.EditorClientAsync();
+        using var factory = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun); var client = await factory.EditorClientAsync();
         int deliveredId, pendingId;
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            var today = DateOnly.FromDateTime(BildirimTakvimi.Yerel(DateTimeOffset.UtcNow));
+            var today = factory.Bugun;
             var sent = new BildirimEntity { OlayAnahtari = "paid-source-delivered", Baslik = "Ödeme günü", Mesaj = "Geçmiş uyarı", Tarih = today };
             var pending = new BildirimEntity { OlayAnahtari = "paid-source-pending", Baslik = "Ödeme günü", Mesaj = "Bekleyen uyarı", Tarih = today };
             var device = new PushAbonelikEntity { Endpoint = "https://fcm.googleapis.com/fcm/send/history-test" };
             db.AddRange(sent, pending, device); db.SaveChanges();
-            db.Add(new BildirimTeslimEntity { BildirimId = sent.Id, AbonelikId = device.Id, Gonderildi = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
+            db.Add(new BildirimTeslimEntity { BildirimId = sent.Id, AbonelikId = device.Id, Gonderildi = factory.Saat!.GetUtcNow().ToUnixTimeSeconds() });
             db.SaveChanges(); deliveredId = sent.Id; pendingId = pending.Id;
         }
         // Neither paid source is returned by the finance event source during refresh.

@@ -91,7 +91,7 @@ public static class EkstreImportEndpoints
         return app;
     }
 
-    private static async Task<IResult> Upload(HttpRequest request, KasaDbContext db, IPdfMetinOkuyucu pdf, CancellationToken ct)
+    private static async Task<IResult> Upload(HttpRequest request, KasaDbContext db, IPdfMetinOkuyucu pdf, TimeProvider saat, CancellationToken ct)
     {
         if (request.ContentLength is > FileLimit + 65536) return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
         if (!request.HasFormContentType) return Error("PDF dosyasını yükleyin.");
@@ -137,7 +137,7 @@ public static class EkstreImportEndpoints
         {
             var old = db.EkstreBelgeler.SingleOrDefault(d => d.DosyaOzeti == hash); if (old is not null) return Existing(old);
             var d = new EkstreBelgeEntity { Kaynak = source, Banka = bank, HesapAdi = account, KartId = card,
-                DosyaAdi = name, DosyaOzeti = hash, Dosya = bytes, Yuklendi = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), SatirlarJson = rows, UyarilarJson = warnings };
+                DosyaAdi = name, DosyaOzeti = hash, Dosya = bytes, Yuklendi = saat.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = rows, UyarilarJson = warnings };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); return Results.Ok(Document(db, d.Id));
         }));
     }

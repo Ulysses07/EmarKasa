@@ -24,8 +24,9 @@ public class CardPaymentConcurrencyTests
         using var rendezvous = new TransactionRendezvous();
         try
         {
-            await using var factory = new FileFactory(cs, rendezvous); using var c = await factory.EditorClientAsync();
-            var today = FinansTakipServisi.Bugun;
+            await using var factory = new FileFactory(cs, rendezvous) { Saat = new SabitSaat(KasaWebFactory.VarsayilanBugun) };
+            using var c = await factory.EditorClientAsync();
+            var today = factory.Bugun;
             (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = today, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
             var create = await c.PostAsJsonAsync("/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Yarış", 1000m, 5, 25, today, 100m, [new(1, 100m)]));
             create.EnsureSuccessStatusCode(); var card = (await create.Content.ReadFromJsonAsync<KartTakipDto>())!;

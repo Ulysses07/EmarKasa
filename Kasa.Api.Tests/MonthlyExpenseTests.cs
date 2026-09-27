@@ -16,14 +16,16 @@ namespace Kasa.Api.Tests;
 
 public class MonthlyExpenseTests
 {
-    internal static DateOnly Today => FinansTakipServisi.Bugun;
+    // Sunucu saati sabittir (LockedPeriodTests de bu günü ve Fabrika'yı kullanır); test sonucu takvime bağlı değildir.
+    internal static DateOnly Today => KasaWebFactory.VarsayilanBugun;
     internal static DateOnly Month => new(Today.Year, Today.Month, 1);
+    internal static KasaWebFactory Fabrika() => KasaWebFactory.Sabit(Today);
 
     [Theory]
     [InlineData("Genel", 0)] [InlineData("Esit", 1)] [InlineData("Ozel", 2)]
     public async Task Plan_kasayi_degistirmez_manuel_odeme_genel_kasaya_bir_kez_kanallara_secilen_payla_yansir(string mode, int variant)
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var template = await Create(c, mode, variant == 0 ? [] : variant == 1 ? [new(1, 0), new(2, 0), new(3, 0)] : [new(1, 70m), new(2, 30m)]);
         var plan = (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Today.Year}&ay={Today.Month}"))!;
         Assert.Equal(100m, plan.PlanlananToplam); Assert.Equal(0m, plan.OdenenToplam);
@@ -51,7 +53,7 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Sablon_degisse_ve_pasife_alinsa_bile_odeme_kopyasi_korunur_iptal_yeniden_odeme_tek_kaydi_yaratir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var template = await Create(c, "Ozel", [new(1, 100m)]);
         var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{template.Id}/ode", Payment(template));
         var updated = await c.PutAsJsonAsync($"/api/aylik-giderler/sablonlar/{template.Id}", new AylikGiderSablonYaz(Guid.NewGuid(), template.Surum, "Yeni kira", "Kira", 200m, 31, "Genel", [], Month));
@@ -73,9 +75,11 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Ileri_ay_revizyonu_onceki_planlari_degistirmez_ve_kisa_ay_odemesi_son_gune_uyarlanir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var template = await Create(c, "Genel", []);
+        // İlk kısa ileri ay (varsayılan günde Kasım): 31'inci gün ödemesi ayın son gününe uyarlanır.
         var nextMonth = Month.AddMonths(1);
+        while (DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month) == 31) nextMonth = nextMonth.AddMonths(1);
         var update = await c.PutAsJsonAsync($"/api/aylik-giderler/sablonlar/{template.Id}", new AylikGiderSablonYaz(Guid.NewGuid(), template.Surum, "Yeni", "Maas", 250m, 31, "Genel", [], nextMonth));
         update.EnsureSuccessStatusCode();
         Assert.Equal(100m, Assert.Single((await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!.Kayitlar).Tutar);
@@ -88,7 +92,7 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Dagilim_kimlikleri_sabittir_yeni_kanal_eklemek_ve_pasiflik_odeme_paylarini_degistirmez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var template = await Create(c, "Esit", [new(1, 0), new(2, 0)]);
         (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false))).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Yeni kanal"))).EnsureSuccessStatusCode();
@@ -101,7 +105,7 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Aylik_odeme_ayri_alisa_baglanamaz_ve_alici_erisemez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var t = await Create(c, "Genel", []); var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", Payment(t));
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Satıcı", null, [new("Mal", 100, [new(1, 100)])]));
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Today, 100, MevcutIslemId: paid.IslemId))).StatusCode);
@@ -117,7 +121,7 @@ public class MonthlyExpenseTests
         var path = Path.Combine(Path.GetTempPath(), "kasa-monthly-" + Guid.NewGuid().ToString("N") + ".db");
         try
         {
-            await using var f = new MonthlyFileFactory(path); using var c = await Editor(f);
+            await using var f = new MonthlyFileFactory(path) { Saat = new SabitSaat(Today) }; using var c = await Editor(f);
             var t = await Create(c, "Genel", []); var request = Payment(t);
             using var start = new Barrier(3);
             var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => Task.Run(async () =>
