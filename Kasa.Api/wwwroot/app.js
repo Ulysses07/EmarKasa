@@ -86,26 +86,46 @@ async function api(path, options = {}) {
   if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
   return text ? JSON.parse(text) : null;
 }
-async function run(control, work, errorBox = null) {
+// Hata kutusu yalnız belgeye bağlıysa ve (diyalogdaysa) diyaloğu açıksa görünür.
+function gorunur(node) {
+  if (!node?.isConnected) return false;
+  const dialog = node.closest?.('dialog');
+  return !dialog || dialog.open;
+}
+// Kapanmış pencerenin hatası görünmeyen kutuya yazılmaz; hangi pencereden geldiği belirtilerek bildirim olarak gösterilir.
+async function run(control, work, errorBox = null, title = '') {
   if (control?.disabled) return;
   if (control) control.disabled = true;
   if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
   try { await work(); }
   catch (error) {
-    if (errorBox && errorBox.isConnected) { errorBox.textContent = error.message; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-    else toast(error.message, true);
+    if (errorBox && gorunur(errorBox)) { errorBox.textContent = error.message; errorBox.hidden = false; errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    else toast(title ? `${title}: ${error.message}` : error.message, true);
   } finally { if (control) control.disabled = false; }
 }
-function closeModal() { if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
+// Kaydı süren form: yanıt gelene kadar pencere Vazgeç, × ya da (iptal edilebilir) ESC/geri hareketiyle kapanmaz.
+let busyForm = null;
+function closeModal() { busyForm = null; $('#modal-close').disabled = false; if (modal.open) modal.close(); if (modalCleanup) modalCleanup(); modalCleanup = null; $('#modal-content').replaceChildren(); }
 function openModal(title, content, wide = false) {
   closeModal(); $('#modal-title').textContent = title; $('#modal-content').replaceChildren(content); modal.classList.toggle('wide', wide); modal.showModal();
 }
 $('#modal-close').addEventListener('click', closeModal);
-modal.addEventListener('cancel', () => { if (modalCleanup) modalCleanup(); modalCleanup = null; });
+// ESC ve Android geri hareketi. Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de
+// temizlenir; kayıt sonradan hata verirse run() onu bildirim olarak gösterir, başarı bildirimi zaten ayrıca çıkar.
+modal.addEventListener('cancel', event => {
+  if (busyForm && isOpen(busyForm) && event.cancelable) { event.preventDefault(); toast('Kayıt sürüyor; yanıt gelince sonucu bu pencerede göreceksiniz.'); return; }
+  closeModal();
+});
 function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
-  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
+  const cancel = button('Vazgeç', closeModal);
+  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, cancel, submit));
+  // Kilit yalnız bu form açıkken kurulur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
+  const lockClose = locked => {
+    if (locked ? !isOpen(form) : busyForm !== form) return;
+    busyForm = locked ? form : null; cancel.disabled = locked; $('#modal-close').disabled = locked;
+  };
   // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
   let marked = [];
   const clearFields = () => { for (const [control, note] of marked) { control.removeAttribute('aria-invalid'); note.remove(); } marked = []; };
@@ -118,7 +138,7 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
       control.setAttribute('aria-invalid', 'true'); control.parentNode.append(note); marked.push([control, note]);
     }
   };
-  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } }, errors); });
+  form.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) run(submit, async () => { lockClose(true); clearFields(); try { await save(form); } catch (error) { markFields(error?.fields); throw error; } finally { lockClose(false); } }, errors, title); });
   openModal(title, form, wide);
   return form;
 }

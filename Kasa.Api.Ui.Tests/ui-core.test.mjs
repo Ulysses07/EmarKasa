@@ -19,16 +19,20 @@ const { cents, amount, money, dateText, permissions, filteredPurchases, purchase
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
 async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   class Element {
-    constructor(tag = 'div') { this.tag = tag; this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; this.open = false; this.checked = false; this.isConnected = true; }
+    constructor(tag = 'div') { this.tag = tag; this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; this.open = false; this.checked = false; }
+    // Gerçek DOM gibi: yalnız belge köküne (document.querySelector düğümleri) zincirle bağlı düğüm bağlıdır; içerikten çıkarılan düğüm kopar.
+    get isConnected() { let node = this; while (node.parentNode) node = node.parentNode; return node.root === true; }
+    closest(tag) { for (let node = this; node; node = node.parentNode) if (node.tag === tag) return node; return null; }
+    detachChildren(kept = []) { for (const child of this.children) if (child instanceof Element && child.parentNode === this && !kept.includes(child)) child.parentNode = null; }
     set value(value) { this.currentValue = String(value); }
     get value() { return this.currentValue || ''; }
     setAttribute(name, value) { this.attributes[name] = value; if (['disabled', 'hidden', 'readonly'].includes(name)) this[name === 'readonly' ? 'readOnly' : name] = true; }
     addEventListener(name, handler) { this.listeners[name] = handler; }
     append(...children) { for (const child of children) if (child instanceof Element) child.parentNode = this; this.children.push(...children); }
-    replaceChildren(...children) { for (const child of children) if (child instanceof Element) child.parentNode = this; this.children = children; }
+    replaceChildren(...children) { this.detachChildren(children); for (const child of children) if (child instanceof Element) child.parentNode = this; this.children = children; }
     remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
     removeAttribute(name) { delete this.attributes[name]; }
-    set textContent(value) { this.children = [String(value)]; }
+    set textContent(value) { this.detachChildren(); this.children = [String(value)]; }
     get textContent() { return this.children.map(child => typeof child === 'string' ? child : child.textContent).join(''); }
     querySelector(selector) { const named = /^\[name="([^"]+)"\]$/.exec(selector); return this.find(node => named ? node.attributes.name === named[1] : selector === 'button[type="submit"]' ? node.tag === 'button' && node.attributes.type === 'submit' : selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector); }
     find(predicate) { for (const node of this.children) { if (typeof node === 'string') continue; if (predicate(node)) return node; const child = node.find(predicate); if (child) return child; } return null; }
@@ -54,13 +58,17 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
     [Symbol.iterator]() { return this.items[Symbol.iterator](); }
   }
   const nodes = new Map(); const requests = [];
+  // index.html'deki gibi #modal-content, <dialog id="modal"> içindedir; hata görünürlüğü diyaloğun açık olmasına bakar.
+  const root = node => Object.assign(node, { root: true });
+  const modalNode = root(new Element('dialog')); const modalContent = new Element(); modalNode.append(modalContent);
+  nodes.set('#modal', modalNode); nodes.set('#modal-content', modalContent);
   const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], ...extraResponses };
   const calls = [];
   // Tarayıcı depolarına yazılan her değer kaydedilir: oturum ve tanıdık cihaz belirteci yalnız HttpOnly çerezlerdedir.
   const stored = [];
   const storage = { getItem: () => null, setItem: (key, value) => { stored.push([key, String(value)]); }, removeItem() {} };
   let nextId = 0;
-  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, new Element()); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
+  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
   runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog };', context);
@@ -1180,4 +1188,60 @@ test('manual backup rate limit shows the server Turkish 429 message and keeps th
   assert.match(nodes.get('#notifications').textContent, /Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek/);
   assert.equal(nodes.get('#application').hidden, false);
   assert.equal(nodes.get('#login-screen').hidden, true);
+});
+
+// webui-1: ESC / Android geri hareketiyle kapanan diyalogda kayıt sonucu kaybolmaz.
+const pendingExpense = async () => {
+  let finishSave;
+  const opened = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': call => call.method === 'POST' ? new Promise(resolve => { finishSave = resolve; }) : [] });
+  await opened.app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(opened.nodes, name).value = value;
+  await submitDialog(opened.nodes);
+  assert.equal(typeof finishSave, 'function', 'Kayıt isteği yanıt bekliyor.');
+  const cancel = cancelable => { let prevented = false; opened.nodes.get('#modal').listeners.cancel({ cancelable, preventDefault() { prevented = true; } }); return prevented; };
+  return { ...opened, cancel, finish: async value => { finishSave(value); await settle(); } };
+};
+const cancelButton = nodes => nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Vazgeç');
+test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatası kapalı pencerede kalmaz, bildirim olarak görünür', async () => {
+  const { nodes, calls, cancel, finish } = await pendingExpense();
+  const errorBox = nodes.get('#modal-content').find(node => node.attributes.role === 'alert');
+  // Chrome art arda ESC / Android geri hareketinde cancel olayını iptal edilemez gönderir: pencere kapanır, içerik temizlenir.
+  assert.equal(cancel(false), false);
+  assert.equal(nodes.get('#modal').open, false);
+  assert.equal(nodes.get('#modal-content').children.length, 0);
+  assert.equal(errorBox.isConnected, false);
+  await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./);
+  assert.doesNotMatch(errorBox.textContent, /kilitli/);
+  assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
+  assert.equal(nodes.get('#modal-close').disabled, false, 'Sonraki pencere kilitsiz açılır.');
+});
+test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × kilitlenir; yanıt gelince hata açık pencerede görünür ve kilit kalkar', async () => {
+  const { nodes, cancel, finish } = await pendingExpense();
+  assert.equal(cancelButton(nodes).disabled, true); assert.equal(nodes.get('#modal-close').disabled, true);
+  assert.equal(cancel(true), true, 'İptal edilebilir cancel olayı engellenir.');
+  assert.equal(nodes.get('#modal').open, true); assert.ok(formField(nodes, 'cari'), 'Form korunur.');
+  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor/);
+  await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+  assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
+  assert.doesNotMatch(nodes.get('#notifications').textContent, /Bu ay kilitli/);
+  assert.equal(cancelButton(nodes).disabled, false); assert.equal(nodes.get('#modal-close').disabled, false);
+  assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
+  assert.equal(nodes.get('#modal').open, false); assert.equal(nodes.get('#modal-content').children.length, 0);
+});
+test('diyalog cancel olayı olmadan kapansa bile geç gelen kayıt hatası bildirim olarak görünür', async () => {
+  const { nodes, finish } = await pendingExpense();
+  nodes.get('#modal').close();
+  await finish({ $status: 409, hata: 'Kayıt değişti.' });
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Kayıt değişti\./);
+  assert.equal(nodes.get('#modal-close').disabled, false);
+});
+test('önizlemeden açılan onay penceresi kilitsiz başlar ve ESC ile kapanabilir', async () => {
+  const preview = { tutar: 2000, kasaEtkisi: 2000, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 2000 }], ekstreler: [{ ekstreId: 8, tutar: 2000 }] };
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar/4/odeme-onizleme': preview, '/api/takip/kartlar/4': sampleCard });
+  app.financeUi.cardPaymentDialog(sampleCard); formField(nodes, 'tutar').value = '2000'; await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /Ödemeyi onayla/);
+  assert.equal(nodes.get('#modal-close').disabled, false); assert.equal(cancelButton(nodes).disabled ?? false, false);
+  let prevented = false; nodes.get('#modal').listeners.cancel({ cancelable: true, preventDefault() { prevented = true; } });
+  assert.equal(prevented, false); assert.equal(nodes.get('#modal').open, false);
 });
