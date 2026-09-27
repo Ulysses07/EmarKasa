@@ -18,7 +18,9 @@ public interface IBildirimKaynaklari
 
 /// <summary><see cref="FinansTakipServisi.GetNotificationEvents"/> ile aynı olayları üretir; farkı her kart ve kredinin
 /// ayrı hesaplanmasıdır: bozuk bir kayıt atlanır, ötekilerin hatırlatmaları sürer. Yeni kart hareketleri kısa ve ayrı
-/// bir yazma adımında eşitlenir; hesabın kendisi yazma kilidi almadan tutarlı bir okuma anlık görüntüsünde yapılır.</summary>
+/// bir yazma adımında eşitlenir; hesabın kendisi yazma kilidi almadan, salt okunur anlık görüntüde (<see cref="OkumaAnlikGoruntusu"/>)
+/// ve tur boyunca paylaşılan izlemesiz hesap bağlamıyla (<see cref="TakipHesapBaglami"/>) yapılır: eşitlemenin izlediği
+/// kayıtlar değil, anlık görüntünün verisi okunur.</summary>
 public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
 {
     public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar)
@@ -29,13 +31,15 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
             using var yazma = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
             FinansTakipServisi.Sync(db); yazma?.Commit();
         });
-        using var okuma = OkumaGoruntusu.Ac(db);
+        using var okuma = db.OkumaBaslat();
+        // Hesaplanamayan kart bağlamda yarım sonuç bırakmaz (paylar ve etkiler yalnız başarıyla hesaplanınca saklanır).
+        var baglam = new TakipHesapBaglami(db);
         var result = new List<TakipOlayDto>();
         var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
         foreach (var card in db.TakipKartlar.AsNoTracking().ToList())
             Dene(db, hatalar, "Kart", card.KrediKartiId, kartAdlari.GetValueOrDefault(card.KrediKartiId, $"Kart #{card.KrediKartiId}"), () =>
             {
-                var dto = FinansTakipServisi.Kart(db, card.KrediKartiId);
+                var dto = FinansTakipServisi.Kart(baglam, card.KrediKartiId);
                 var olaylar = new List<TakipOlayDto>();
                 foreach (var s in dto.Ekstreler)
                 {
@@ -48,7 +52,7 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
         foreach (var loan in db.TakipKrediler.AsNoTracking().ToList())
             Dene(db, hatalar, "Kredi", loan.KrediId, krediAdlari.GetValueOrDefault(loan.KrediId, $"Kredi #{loan.KrediId}"), () =>
             {
-                var dto = FinansTakipServisi.Kredi(db, loan.KrediId);
+                var dto = FinansTakipServisi.Kredi(baglam, loan.KrediId);
                 result.AddRange(dto.Taksitler.Where(t => t.Durum != "Iptal").Select(t => new TakipOlayDto("Kredi", dto.Id, t.Id, dto.Ad + " / " + t.No + ". taksit", t.Tarih, t.Tutar, "Taksit", true)).ToList());
             });
         return result;
@@ -77,36 +81,6 @@ internal static class BildirimHatalari
         { InnerException: { } ic } => Gecici(ic),
         _ => false
     };
-}
-
-/// <summary>Yazma kilidi almadan tutarlı okuma: BEGIN DEFERRED anlık görüntüyü ilk okumada sabitler, hiçbir şey yazılmaz.
-/// Çağıranın açık transaction'ı varsa ona katılır.</summary>
-internal sealed class OkumaGoruntusu : IDisposable
-{
-    private readonly KasaDbContext db;
-    private readonly SqliteTransaction? transaction;
-    private OkumaGoruntusu(KasaDbContext db, SqliteTransaction? transaction) { this.db = db; this.transaction = transaction; }
-
-    public static OkumaGoruntusu Ac(KasaDbContext db)
-    {
-        if (db.Database.CurrentTransaction is not null) return new(db, null);
-        db.Database.OpenConnection();
-        try
-        {
-            var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
-            db.Database.UseTransaction(transaction);
-            return new(db, transaction);
-        }
-        catch { db.Database.CloseConnection(); throw; }
-    }
-
-    public void Dispose()
-    {
-        if (transaction is null) return;
-        db.Database.UseTransaction(null);
-        transaction.Dispose();
-        db.Database.CloseConnection();
-    }
 }
 
 public record BildirimTaslagi(string Anahtar, string Baslik, string Mesaj, DateOnly Tarih, string Hedef, string Tur, int KaynakId);

@@ -263,8 +263,10 @@ public sealed class BildirimIscisiTests
         // İki kartın da kesim günü bugün: sağlam kartın "kesim günü" hatırlatması üretilir.
         var bozuk = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Bozuk kart", 10000m, bugun.Day, 5, baslangic, 0, []));
         var saglam = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Sağlam kart", 10000m, bugun.Day, 5, baslangic, 0, []));
-        await Post<KartTakipDto>(c, $"/api/takip/kartlar/{bozuk.Id}/harcamalar",
+        var bozukHarcamali = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{bozuk.Id}/harcamalar",
             new KartHarcamaYaz(Guid.NewGuid(), bozuk.Surum, baslangic, "Malzeme", 100m, 1, null, [new(1, 60m), new(2, 40m)]));
+        // Kart ödemesi kasadan harcamanın dağılımıyla kanallara bölünerek çıkar: kasa paneli bu dağılıma bağlıdır.
+        await Post<KartTakipDto>(c, $"/api/takip/kartlar/{bozuk.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), bozukHarcamali.Surum, bugun, 30m));
         // Taksidi 3 gün sonra olan kredi: "ödemeye 3 gün kaldı" hatırlatması bozuk karttan etkilenmemeli.
         var ilkTaksit = bugun.AddDays(3).AddMonths(-1);
         var kredi = await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "Kredi", 100m, ilkTaksit.AddDays(-1), ilkTaksit, 3, 10m, [1]));
@@ -275,7 +277,8 @@ public sealed class BildirimIscisiTests
         Assert.Equal(FinansTakipServisi.GetNotificationEvents(db, bugun), new FinansBildirimKaynaklari().Oku(db, bugun, saglikli));
         Assert.Empty(saglikli);
         db.Database.ExecuteSql($"UPDATE TakipHarcamalar SET DagilimJson = '{{bozuk' WHERE KrediKartiId = {bozuk.Id}");
-        // Bozuk dağılım kartın hesabını düşürür; eşik tanımlı olduğundan kasa paneli (tüm kartlar) de düşer.
+        // Bozuk dağılım kartın hesabını düşürür; kartın ödemesi bu dağılımla bölündüğünden ve eşik tanımlı olduğundan kasa
+        // paneli (tüm kartlar) de düşer. Panel yalnız ödeme paylarını hesaplar: ödemesiz kartın bozuk harcaması paneli düşürmez.
         var kanal = db.Kanallar.AsNoTracking().OrderBy(k => k.Id).First().Id;
         db.KasaEsikleri.Add(new() { KanalId = kanal, Etkin = true, Tutar = 1_000_000m }); db.SaveChanges();
 
