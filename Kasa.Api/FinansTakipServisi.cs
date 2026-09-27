@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
@@ -187,6 +189,20 @@ public static class FinansTakipServisi
         if (left > 0) result.Add(new(0, left));
         return result;
     }
+    // Aynı bozuk pay her rapor isteğinde ve dakikalık bildirim işçisinde yeniden hesaplanır; log taşmasın diye
+    // aynı (kart, ödeme, harcama, taşan) uyarısı uygulama başına bir kez yazılır. Üretimde süreçte tek uygulama
+    // (tek kök ILoggerFactory) vardır; testlerde her uygulama örneği ayrı sayılır. Önbellek sınırlıdır: dolunca
+    // boşaltılır ve uyarılar yeniden birer kez yazılır.
+    private static readonly ConditionalWeakTable<object, ConcurrentDictionary<(int Kart, int? Odeme, int Harcama, decimal Tasan), byte>> KirpmaUyarilari = new();
+    private static readonly object KirpmaVarsayilanKapsam = new();
+    private const int KirpmaUyarisiSiniri = 1024;
+    private static bool KirpmaIlkKezMi(KasaDbContext db, (int, int?, int, decimal) anahtar)
+    {
+        var kapsam = (object?)db.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider?.GetService<ILoggerFactory>() ?? KirpmaVarsayilanKapsam;
+        var gorulen = KirpmaUyarilari.GetValue(kapsam, _ => new());
+        if (gorulen.Count >= KirpmaUyarisiSiniri) gorulen.Clear();
+        return gorulen.TryAdd(anahtar, 0);
+    }
     internal static KartOdemeOnizlemeDto OdemeEtkisi(KasaDbContext db, int cardId, IReadOnlyList<KartTaksitPayi> pays, int? beforePaymentId = null)
     {
         var oldPayments = db.TakipKartOdemeler.Where(p => p.KrediKartiId == cardId && !p.Iptal).ToList()
@@ -214,9 +230,10 @@ public static class FinansTakipServisi
                     // Bozuk/eski ödeme payı bütün raporları 500'e düşürmesin: sığmayan kısım
                     // görünür "Dağılım bekliyor" payı olur ve incelenmek üzere loglanır.
                     shares.Add(new(null, Kanallar.DagilimBekliyor, tasan));
-                    db.GetService<ILoggerFactory>().CreateLogger(typeof(FinansTakipServisi)).LogWarning(
-                        "Kart {KartId} ödeme {OdemeId}: {Tasan} TL kaynak harcama {HarcamaId} kalan ağırlığını aşıyor; fazlası 'Dağılım bekliyor' yazıldı. Ödeme paylarını (PaylarJson) inceleyin.",
-                        cardId, beforePaymentId?.ToString() ?? "önizleme", tasan, charge.Id);
+                    if (KirpmaIlkKezMi(db, (cardId, beforePaymentId, charge.Id, tasan)))
+                        db.GetService<ILoggerFactory>().CreateLogger(typeof(FinansTakipServisi)).LogWarning(
+                            "Kart {KartId} ödeme {OdemeId}: {Tasan} TL kaynak harcama {HarcamaId} kalan ağırlığını aşıyor; fazlası 'Dağılım bekliyor' yazıldı. Ödeme paylarını (PaylarJson) inceleyin.",
+                            cardId, beforePaymentId?.ToString() ?? "önizleme", tasan, charge.Id);
                 }
             }
             statementShares.AddRange(group.Select(p => new KartEkstreOdemePayi(taxes[p.TaksitId].EkstreId, p.Tutar)));

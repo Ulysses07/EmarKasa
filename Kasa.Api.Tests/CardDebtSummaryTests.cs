@@ -248,6 +248,29 @@ public class CardDebtSummaryTests
     }
 
     [Fact]
+    public async Task Ayni_bozuk_odeme_payi_tekrar_tekrar_hesaplansa_da_uyari_bir_kez_loglanir()
+    {
+        var logs = new UyariToplayici();
+        await using var f = new LogluFactory(logs); using var c = await Editor(f);
+        var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
+        card = await Pay(c, card, 50m);
+        var payment = card.Odemeler.Single();
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var taxId = db.TakipKartTaksitler.Single().Id;
+            db.Database.ExecuteSqlRaw("UPDATE TakipKartOdemeler SET PaylarJson = {0} WHERE Id = {1}",
+                $"[{{\"TaksitId\":{taxId},\"Tutar\":170,\"OncedenOdenen\":0}}]", payment.Id);
+        }
+        // Rapor istekleri ve dakikalık bildirim işçisi aynı ödemeyi her seferinde yeniden hesaplar.
+        foreach (var path in new[] { $"/api/takip/kartlar/{card.Id}", $"/api/takip/kartlar/{card.Id}", "/api/takip/kartlar", "/api/rapor/panel" })
+            Assert.True((await c.GetAsync(path)).IsSuccessStatusCode, path);
+        var broken = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        AssertShares(broken.Odemeler.Single().Dagilimlar, (1, 100m), (null, 70m));
+        Assert.Single(logs.Uyarilar, m => m.Contains($"ödeme {payment.Id}:"));
+    }
+
+    [Fact]
     public void Kirpma_yalniz_tasan_durumda_devreye_girer_normal_dagilim_birebir_aynidir()
     {
         var random = new Random(20260927);
