@@ -984,3 +984,45 @@ test('late old-history response cannot overwrite a newly opened PDF', async () =
   const older = app.navigate('imports', { beforeId: 51 }); await settle(); await app.navigate('imports', 12); release([]); await older;
   assert.ok(viewField(nodes, 'sec-1')); assert.doesNotMatch(nodes.get('#view').textContent, /Daha eski belge yok/);
 });
+
+test('old card transition prefills the suggested counted amount, shows pending old deductions and re-previews with the suggestion', async () => {
+  const oldCard = { ...sampleCard, yeniTakip: false, surum: 0, borc: 1500, ekstreler: [] };
+  const preview = call => { const counted = call.body.kasadaOncedenSayilanTutar; const diff = counted - 1200; return { kaynak: 'Kart', kaynakId: 4, baslangic: call.body.baslangic, genelKasaAnlikFarki: diff, kanalAnlikFarki: 0, eskiKasadaSayilanTutar: counted, aciklamalar: ['1.200,00 TL eski kart gideri eski kuralla 31.10.2026 tarihine kadar ay sonlarında düşmeye devam eder.'], kabulEdilebilir: diff <= 0, sistemKartBorcu: 1500, eskiKuraldaIslenenTutar: 300, bekleyenEskiDusumTutari: 1200, sonBekleyenDusumTarihi: '2026-10-31', onerilenKasadaSayilanTutar: 1200 }; };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }], '/api/takip/kartlar/4/gecis-onizleme': preview, '/api/takip/kartlar/4/gecis': sampleCard, '/api/takip/kartlar/4': sampleCard });
+  await app.financeUi.cardTransition(oldCard);
+  const debt = formField(nodes, 'kalanBorc'); const counted = formField(nodes, 'kasadaOncedenSayilanTutar');
+  assert.equal(debt.value, '1500'); assert.equal(counted.value, '1500');
+  debt.value = '1200'; debt.listeners.input(); assert.equal(counted.value, '1200');
+  counted.value = '700'; counted.listeners.input(); debt.value = '1300'; debt.listeners.input(); assert.equal(counted.value, '700');
+  formField(nodes, 'aciklama').value = 'Banka ekstresiyle doğrulandı';
+  await submitDialog(nodes);
+  const first = calls.filter(call => call.path.endsWith('/gecis-onizleme'))[0];
+  assert.equal(first.body.kasadaOncedenSayilanTutar, 700); assert.equal(first.body.kalanBorc, 1300); assert.equal(first.body.onay, false);
+  const text = nodes.get('#modal-content').textContent;
+  assert.match(text, /Sistem kart borcu.*1\.500,00/); assert.match(text, /Eski kuralla işlenen.*300,00/);
+  assert.match(text, /Bekleyen eski düşüm.*1\.200,00/); assert.ok(text.includes(`Son düşüm ${dateText('2026-10-31')}`));
+  assert.match(text, /Önerilen önceden sayılan.*1\.200,00/); assert.match(text, /Genel kasa farkı.*-?.*500,00/);
+  await clickDialog(nodes, `Önerilen tutarla (${money(1200)}) yeniden önizle`);
+  const second = calls.filter(call => call.path.endsWith('/gecis-onizleme'))[1];
+  assert.equal(second.body.kasadaOncedenSayilanTutar, 1200); assert.notEqual(second.body.istekId, first.body.istekId); assert.equal(counted.value, '1200');
+  assert.equal(nodes.get('#modal-content').find(node => node.tag === 'button' && /yeniden önizle/.test(node.textContent)), null);
+  assert.equal(calls.some(call => call.path.endsWith('/gecis')), false);
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path.endsWith('/gecis'));
+  assert.equal(save.body.onay, true); assert.equal(save.body.kasadaOncedenSayilanTutar, 1200); assert.equal(save.body.istekId, second.body.istekId);
+});
+
+test('rejected card transition preview offers only the suggestion retry and never saves', async () => {
+  const oldCard = { ...sampleCard, yeniTakip: false, surum: 0, borc: 100, ekstreler: [] };
+  const preview = call => ({ kaynak: 'Kart', kaynakId: 4, baslangic: call.body.baslangic, genelKasaAnlikFarki: call.body.kasadaOncedenSayilanTutar - 100, kanalAnlikFarki: 0, eskiKasadaSayilanTutar: call.body.kasadaOncedenSayilanTutar, aciklamalar: ['Hiç düşmeyecek tutar'], kabulEdilebilir: call.body.kasadaOncedenSayilanTutar <= 100, sistemKartBorcu: 100, eskiKuraldaIslenenTutar: 0, bekleyenEskiDusumTutari: 0, sonBekleyenDusumTarihi: null, onerilenKasadaSayilanTutar: 100 });
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [], '/api/takip/kartlar/4/gecis-onizleme': preview });
+  await app.financeUi.cardTransition(oldCard);
+  formField(nodes, 'kalanBorc').value = '300'; const counted = formField(nodes, 'kasadaOncedenSayilanTutar'); counted.value = '250'; counted.listeners.input();
+  formField(nodes, 'aciklama').value = 'Fazla girildi';
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#modal-content').find(node => node.tag === 'form'), null);
+  assert.match(nodes.get('#modal-content').textContent, /Bekleyen düşüm yok/);
+  await clickDialog(nodes, `Önerilen tutarla (${money(100)}) yeniden önizle`);
+  assert.equal(calls.filter(call => call.path.endsWith('/gecis-onizleme'))[1].body.kasadaOncedenSayilanTutar, 100);
+  assert.equal(calls.some(call => call.path.endsWith('/gecis')), false);
+});

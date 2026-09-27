@@ -85,6 +85,15 @@ public static class FinansTakipServisi
         }
         db.SaveChanges();
     }
+    /// <summary>Eski kartı yeni takibe alır; doğrulama (KartGecisHesabi ile önizleme) çağırandadır. Yeni
+    /// geçişler işlem tarihi kuralıyla yazılır: başlangıçtan önceki eski giderler eski ay sonu kuralıyla
+    /// bir kez düşer, devir borcunun kasada önceden sayılan kısmı ödemede ikinci kez düşmez.</summary>
+    public static void KartGecisiYaz(KasaDbContext db, int kartId, DateOnly baslangic, decimal kalanBorc, decimal kasadaOncedenSayilan, IReadOnlyList<KanalPayYaz> dagilimlar)
+    {
+        db.TakipKartlar.Add(new() { KrediKartiId = kartId, Baslangic = baslangic, EskiKayit = true, EskiDusumKurali = EskiDusumKurali.IslemTarihi }); db.SaveChanges();
+        if (kalanBorc != 0) HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == kartId), new() { KrediKartiId = kartId, Tarih = baslangic, Aciklama = "Onaylanan eski borç devri",
+            Tutar = kalanBorc, KasadaOncedenSayilanTutar = kasadaOncedenSayilan, DagilimJson = Json(dagilimlar) });
+    }
     // Çağıran transaction açar. Kalıcı kaynak bağı aynı alışın iki kez borç olmasını engeller.
     internal static void Sync(KasaDbContext db)
     {

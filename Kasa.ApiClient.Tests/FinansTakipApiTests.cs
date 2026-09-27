@@ -39,6 +39,17 @@ public class FinansTakipApiTests
         var result = await Client(h).TakipKartGecisOnizlemeAsync(7, g);
         Assert.Equal(30.03m, result.EskiKasadaSayilanTutar); Assert.True(result.KabulEdilebilir); Assert.Single(result.Aciklamalar);
         Assert.False(JsonSerializer.Deserialize<KartGecisYaz>(h.SonGovde!, Json)!.Onay);
+        // Eski sunucu yanıtında kart geçişi hesap alanları yoktur; istemci kırılmadan null okur.
+        Assert.Null(result.SistemKartBorcu); Assert.Null(result.OnerilenKasadaSayilanTutar); Assert.Null(result.SonBekleyenDusumTarihi);
+    }
+    [Fact] public async Task Kart_gecis_onizlemesi_sistem_borcu_bekleyen_dusum_ve_onerilen_tutari_okur()
+    {
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"kaynak":"Kart","kaynakId":7,"baslangic":"2026-09-25","genelKasaAnlikFarki":-250.5,"kanalAnlikFarki":-250.5,"eskiKasadaSayilanTutar":749.5,"aciklamalar":["a","b"],"kabulEdilebilir":true,"sistemKartBorcu":1000.00,"eskiKuraldaIslenenTutar":300.01,"bekleyenEskiDusumTutari":699.99,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1000.00}""");
+        var g = new KartGecisYaz(Guid.NewGuid(), 0, new(2026, 9, 25), 1000, 749.5m, new[] { new KanalPayYaz(1, 1000) }, "Kontrol edildi", false);
+        var result = await Client(h).TakipKartGecisOnizlemeAsync(7, g);
+        Assert.Equal((-250.5m, -250.5m, true), (result.GenelKasaAnlikFarki, result.KanalAnlikFarki, result.KabulEdilebilir));
+        Assert.Equal(1000m, result.SistemKartBorcu); Assert.Equal(300.01m, result.EskiKuraldaIslenenTutar); Assert.Equal(699.99m, result.BekleyenEskiDusumTutari);
+        Assert.Equal(new DateOnly(2026, 10, 31), result.SonBekleyenDusumTarihi); Assert.Equal(1000m, result.OnerilenKasadaSayilanTutar);
     }
     [Fact] public async Task Bildirimler_tarih_ve_okundu_uclarini_kullanir()
     {

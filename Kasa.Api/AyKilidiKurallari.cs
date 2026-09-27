@@ -76,7 +76,7 @@ public static class AyKilidiKurallari
                     || h.KaynakHarcamaId is { } source && ChargePaidBefore(source)
                     || e.State != EntityState.Added && ChargePaidBefore(h.Id),
                 TakipKartTaksitEntity t => e.State != EntityState.Added && db.TakipHarcamalar.Any(h => h.Id == t.HarcamaId && h.Tarih <= end),
-                TakipKartEntity t => Changed(e, "Baslangic", "EskiKayit") && DateLocked(e, nameof(t.Baslangic)),
+                TakipKartEntity t => Changed(e, "Baslangic", "EskiKayit", "EskiDusumKurali") && DateLocked(e, nameof(t.Baslangic)),
                 TakipKrediEntity t => Changed(e, "Baslangic", "MevcutKredi", "EskiKayit", "KanalIdleriJson", "CekimPaylariJson") && DateLocked(e, nameof(t.Baslangic)),
                 TakipKrediTaksitEntity t => DateLocked(e, nameof(t.Tarih)) && Changed(e, "Tarih", "Tutar", "Iptal", "DagilimJson", "KrediId"),
                 KrediTaksitOdemeEntity p => db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end),

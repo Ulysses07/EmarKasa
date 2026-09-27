@@ -60,9 +60,17 @@ public class HesapServisi
             }
             if (kayit.KrediKartiId is { } cardId && kartTakip.TryGetValue(cardId, out var tracking))
             {
-                var oldEffectMonth = kayit.Tarih.AddMonths(1);
-                var oldEffect = new DateOnly(oldEffectMonth.Year, oldEffectMonth.Month, DateTime.DaysInMonth(oldEffectMonth.Year, oldEffectMonth.Month));
-                if (!tracking.EskiKayit || oldEffect >= tracking.Baslangic) continue;
+                // Başlangıçtan sonraki kart giderleri takip harcaması olarak izlenir (Sync).
+                if (!tracking.EskiKayit || kayit.Tarih >= tracking.Baslangic) continue;
+                // İşlem tarihi kuralı: başlangıçtan önceki her eski gider eski ay sonu kuralıyla bir
+                // kez düşer. Etki tarihi kuralı (ilk sürüm geçişleri) raporları korumak için aynen
+                // sürer: eski etkisi başlangıçta/sonrasında olan gider atlanır.
+                if (tracking.EskiDusumKurali == EskiDusumKurali.EtkiTarihi)
+                {
+                    var oldEffectMonth = kayit.Tarih.AddMonths(1);
+                    var oldEffect = new DateOnly(oldEffectMonth.Year, oldEffectMonth.Month, DateTime.DaysInMonth(oldEffectMonth.Year, oldEffectMonth.Month));
+                    if (oldEffect >= tracking.Baslangic) continue;
+                }
             }
             var islem = kayit.ToCore();
             if (!eslemeler.TryGetValue(kayit.Id, out var alis))

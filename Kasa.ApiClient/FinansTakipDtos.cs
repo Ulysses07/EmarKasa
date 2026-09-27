@@ -21,7 +21,18 @@ public record KrediKapatYaz(Guid IstekId, int Surum, DateOnly Tarih, decimal Tut
 public record KrediGecisYaz(Guid IstekId, int Surum, DateOnly Baslangic, IReadOnlyList<int> KanalIdleri, string Aciklama, bool Onay);
 public record KrediTakipDto(int Id, int Surum, string Ad, bool YeniTakip, bool Aktif, DateOnly? TakipBaslangic, decimal CekilenTutar, DateOnly CekimTarihi, decimal KalanPlanliOdeme, IReadOnlyList<TakipKanalPayi> KanalPaylari, IReadOnlyList<KrediPlanTaksitDto> Taksitler);
 public record KrediPlanTaksitDto(int Id, int No, DateOnly Tarih, decimal Tutar, string Durum, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar);
-public record TakipGecisDto(string Kaynak, int KaynakId, DateOnly Baslangic, decimal GenelKasaAnlikFarki, decimal KanalAnlikFarki, decimal EskiKasadaSayilanTutar, IReadOnlyList<string> Aciklamalar, bool KabulEdilebilir);
+/// <summary>Eski kayıttan yeni takibe geçiş önizlemesi.</summary>
+/// <param name="GenelKasaAnlikFarki">Kart geçişinde kasada önceden sayılan tutar eksi önerilen tutar: genel kasaya
+/// kalıcı etki. 0: tutarlı; pozitif: kasadan hiç düşmeyecek tutar; negatif: ödendiğinde ikinci kez düşecek tutar.</param>
+/// <param name="KanalAnlikFarki">Aynı farkın kanallara yansıyan kısmı (devir kanal payı yoksa 0).</param>
+/// <param name="KabulEdilebilir">Kartta önceden sayılan tutar önerileni aşmıyor; aşarsa onay 409 döner.</param>
+/// <param name="SistemKartBorcu">Açılış borcu + eski kart giderleri − eski kart ödemeleri. Kredi geçişinde ve
+/// eski sunucuda null; aşağıdaki kart alanları da öyle.</param>
+/// <param name="EskiKuraldaIslenenTutar">Eski ay sonu kuralıyla başlangıçtan önce kasaya işlenmiş eski gider toplamı.</param>
+/// <param name="BekleyenEskiDusumTutari">SonBekleyenDusumTarihi'ne kadar ay sonlarında düşmeye devam edecek eski gider toplamı.</param>
+/// <param name="OnerilenKasadaSayilanTutar">max(0, min(kalan borç, sistem kart borcu)).</param>
+public record TakipGecisDto(string Kaynak, int KaynakId, DateOnly Baslangic, decimal GenelKasaAnlikFarki, decimal KanalAnlikFarki, decimal EskiKasadaSayilanTutar, IReadOnlyList<string> Aciklamalar, bool KabulEdilebilir,
+    decimal? SistemKartBorcu = null, decimal? EskiKuraldaIslenenTutar = null, decimal? BekleyenEskiDusumTutari = null, DateOnly? SonBekleyenDusumTarihi = null, decimal? OnerilenKasadaSayilanTutar = null);
 public record TakipOzetDto(DateOnly Tarih, decimal KartBorcu, decimal KalanKrediPlani, IReadOnlyList<TakipOlayDto> Olaylar, IReadOnlyList<TakipKanalPayi>? KanalKartBorclari = null, decimal KartAlacakBakiyesi = 0);
 public record TakipOlayDto(string Kaynak, int KaynakId, int KalemId, string Ad, DateOnly Tarih, decimal Tutar, string Tur, bool OtomatikKasa);
 

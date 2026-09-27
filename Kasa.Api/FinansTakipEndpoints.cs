@@ -85,9 +85,9 @@ public static partial class FinansTakipEndpoints
         api.MapPost("/kartlar/{id:int}/gecis-onizleme", (int id, KartGecisYaz dto, KasaDbContext db) => View(db, () => CardPreview(db, id, dto))).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/gecis", (int id, KartGecisYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartGecis", dto, () =>
         {
-            CardPreview(db, id, dto); Require(dto.Onay, "Geçiş önizlemesi onaylanmalı.");
-            db.TakipKartlar.Add(new() { KrediKartiId = id, Baslangic = dto.Baslangic, EskiKayit = true }); db.SaveChanges();
-            if (dto.KalanBorc != 0) HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == id), new() { KrediKartiId = id, Tarih = dto.Baslangic, Aciklama = "Onaylanan eski borç devri", Tutar = dto.KalanBorc, KasadaOncedenSayilanTutar = dto.KasadaOncedenSayilanTutar, DagilimJson = Json(dto.Dagilimlar) });
+            var preview = CardPreview(db, id, dto); Require(dto.Onay, "Geçiş önizlemesi onaylanmalı.");
+            Require(preview.KabulEdilebilir, $"Kasada önceden sayılan tutar önerilen tutarı ({Tl(preview.OnerilenKasadaSayilanTutar!.Value)}) aşamaz: aşan {Tl(preview.GenelKasaAnlikFarki)} kasadan hiçbir zaman düşmez. Bankadaki kalan borcu ve eski kart kayıtlarını doğrulayıp yeniden önizleyin.", 409);
+            KartGecisiYaz(db, id, dto.Baslangic, dto.KalanBorc, dto.KasadaOncedenSayilanTutar, dto.Dagilimlar);
             return id;
         })).RequireAuthorization("Editor");
 
@@ -235,18 +235,28 @@ public static partial class FinansTakipEndpoints
         Date(d.Baslangic); Require(d.Baslangic >= Bugun, "Geçiş tarihi bugün veya sonrası olmalı."); Money(d.KalanBorc, true); Money(d.KasadaOncedenSayilanTutar);
         Require(d.KasadaOncedenSayilanTutar <= Math.Max(0, d.KalanBorc), "Önceden sayılan tutar kalan borcu aşamaz."); Text(d.Aciklama); ValidateShares(db, d.Dagilimlar, Math.Abs(d.KalanBorc));
         Require(!db.Islemler.Any(i => i.KrediKartiId == id && i.Tarih >= d.Baslangic), "Geçiş tarihinden sonraki mevcut harcamaları kapsamayacak bir başlangıç seçin; açık borcu bu tarihte doğrulayın.", 409);
-        if (d.Baslangic == Bugun)
+        // Yeni kuralda başlangıçtan önceki her eski gider, bugüne düşen dahil, eski ay sonu
+        // kuralıyla aynen düşmeye devam eder; aynı gün geçiş engeli bu yüzden gerekmez.
+        var s = KartGecisHesabi.Hesapla(db, id, d.Baslangic, d.KalanBorc);
+        var fark = d.KasadaOncedenSayilanTutar - s.OnerilenKasadaSayilanTutar;
+        var notes = new List<string>
         {
-            var sameDayEffect = db.Islemler.Where(i => i.KrediKartiId == id).AsEnumerable().Any(i =>
-            {
-                var next = i.Tarih.AddMonths(1);
-                return new DateOnly(next.Year, next.Month, DateTime.DaysInMonth(next.Year, next.Month)) == Bugun;
-            });
-            Require(!sameDayEffect, "Bugünkü eski kart düşümü kasaya işlendi; geçiş için yarın veya sonrası seçin.", 409);
-        }
-        return new("Kart", id, d.Baslangic, 0, 0, d.KasadaOncedenSayilanTutar,
-            ["Eski satırlar ve geçiş öncesi kasa sonuçları korunur.", "Geçişten sonraki otomatik ay sonu düşümü durur; yalnız kaydedilen ödemeler işler.", "Önceden kasada sayılan borç kısmı yeni ödemede tekrar düşmez. Açılış dağılımını ve bu tutarı banka/kasa kayıtlarıyla doğrulayın."], true);
+            "Eski satırlar ve geçiş öncesi kasa sonuçları korunur. Geçişten sonraki kart harcamaları ay sonunda düşmez; yalnız kaydedilen ödemeler kasadan düşer.",
+            $"Sistem kart borcu {Tl(s.SistemKartBorcu)} (açılış borcu + eski kart giderleri − eski kart ödemeleri); girilen kalan borç {Tl(d.KalanBorc)}.",
+            $"Eski kuralla kasaya işlenmiş kart gideri: {Tl(s.EskiKuraldaIslenenTutar)}.",
+        };
+        if (s.SonBekleyenDusumTarihi is { } last)
+            notes.Add($"{Tl(s.BekleyenEskiDusumTutari)} eski kart gideri eski kuralla {last.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture)} tarihine kadar ay sonlarında düşmeye devam eder.");
+        notes.Add($"Önerilen kasada önceden sayılan tutar: {Tl(s.OnerilenKasadaSayilanTutar)} (kalan borç ile sistem kart borcunun küçüğü). Bu kısım ödendiğinde kasadan tekrar düşmez.");
+        var opening = db.KrediKartlari.AsNoTracking().Where(c => c.Id == id).Select(c => c.Borc).Single();
+        if (opening != 0) notes.Add($"Kartın açılış borcu ({Tl(opening)}) eski modelde kasadan hiç düşmedi; önerilen tutar onu da sayılmış kabul eder. Bu borç kasadan ayrıca ödenecekse tutarı azaltın.");
+        if (fark < 0) notes.Add($"Girilen tutar önerilenin {Tl(-fark)} altında: bu tutar ödeme yapıldığında kasadan ikinci kez düşer.");
+        if (fark > 0) notes.Add($"Girilen tutar önerilenin {Tl(fark)} üstünde: bu kısım kasadan hiçbir zaman düşmez; geçiş bu tutarla onaylanamaz.");
+        notes.Add("Açılış dağılımını ve tutarları banka/kasa kayıtlarıyla doğrulayın.");
+        return new("Kart", id, d.Baslangic, fark, d.Dagilimlar.Count > 0 ? fark : 0, d.KasadaOncedenSayilanTutar, notes, fark <= 0,
+            s.SistemKartBorcu, s.EskiKuraldaIslenenTutar, s.BekleyenEskiDusumTutari, s.SonBekleyenDusumTarihi, s.OnerilenKasadaSayilanTutar);
     }
+    private static string Tl(decimal value) => value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("tr-TR")) + " TL";
     private static TakipGecisDto LoanPreview(KasaDbContext db, int id, KrediGecisYaz d)
     {
         Require(db.Krediler.Any(k => k.Id == id), "Kredi bulunamadı.", 404); Require(!db.TakipKrediler.Any(k => k.KrediId == id), "Kredi zaten yeni takipte.", 409);
