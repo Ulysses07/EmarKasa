@@ -24,8 +24,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --test Kasa.Api.Ui.Tests/ui-core.test.mjs
+      - run: node --test Kasa.Api.Ui.Tests/ui-core.test.mjs Kasa.Api.Ui.Tests/mobil.test.mjs
       - run: node --input-type=module --check < Kasa.Api/wwwroot/app.js
+      - run: node --input-type=module --check < Kasa.Api/wwwroot/m/app.js
 
   tests:
     name: Test ${{ matrix.project }}
