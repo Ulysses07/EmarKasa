@@ -68,8 +68,9 @@ public static class EkstreImportEndpoints
         api.MapPost("/{id:int}/kayitlar/{kayitId:int}/iptal", (int id, int kayitId, EkstreIptalYaz dto, KasaDbContext db) => Safe(() => AlisEndpoints.Mutate(db, () =>
         {
             Require(!string.IsNullOrWhiteSpace(dto.Aciklama) && dto.Aciklama.Length <= 2000, "İptal gerekçesi girin (en fazla 2000 karakter).");
-            // Gerekçe kullanıcı metnidir: GirdiDogrulama.Metin ile aynı kural, reddedilir.
-            Require(GirdiDogrulama.GecersizKarakterKonumu(dto.Aciklama) < 0, "İptal gerekçesinde görünmeyen bir kontrol karakteri ya da geçersiz bir karakter var. Metni yeniden yazın.");
+            // Gerekçe kullanıcı metnidir: GirdiDogrulama.Metin ile aynı kural (ve aynı konumlu ileti), reddedilir.
+            var gecersiz = GirdiDogrulama.GecersizKarakterIletisi(dto.Aciklama);
+            Require(gecersiz is null, $"İptal gerekçesi: {gecersiz}");
             var digest = FinansHesaplari.Ozet(new { id, kayitId, Aciklama = dto.Aciklama.Trim() });
             if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreIptal", digest, key => Results.Ok(Document(db, key))) is { } old) return old;
             var document = GetDocument(db, id);

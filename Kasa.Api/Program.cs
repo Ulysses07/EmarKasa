@@ -93,7 +93,7 @@ using (var scope = app.Services.CreateScope())
     {
         db.Ayarlar.Add(new AyarEntity
         {
-            TakipBaslangic = DateOnly.FromDateTime(DateTime.Today),
+            TakipBaslangic = db.Bugunu(),
             KasaAcilisDevri = 0m,
             IzleyiciSifreHash = null,
         });
@@ -428,7 +428,7 @@ api.MapPut("/islemler/{id:int}", (int id, IslemYazDto dto, KasaDbContext db) =>
     if (e is null) return Results.NotFound();
     if (FinansTakipServisi.IslemYonetiliyor(db, e) || (dto.KrediKartiId is { } newCard && db.TakipKartlar.Any(t => t.KrediKartiId == newCard)))
         return Results.Conflict(new { hata = "Kart takibine bağlı hareket için Kredi Kartları ekranından açıklamalı iade/düzeltme girin." });
-    var (gelen, hata) = KayitGirdileri.Islem(dto, db);
+    var (gelen, hata) = KayitGirdileri.Islem(dto, db, e);
     if (hata is not null) return hata;
     gelen.Id = id;
     db.Entry(e).CurrentValues.SetValues(gelen);
@@ -562,9 +562,7 @@ api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =
 api.MapGet("/donemler", (HesapServisi svc) => svc.Donemler());
 api.MapGet("/rapor/haftalik", (HesapServisi svc) => svc.Haftalik());
 api.MapGet("/rapor/aylik", (int yil, int ay, HesapServisi svc) =>
-    yil is >= 1 and < 9999 && ay is >= 1 and <= 12
-        ? Results.Ok(svc.Aylik(yil, ay))
-        : Results.BadRequest(new { hata = "Geçerli bir yıl ve ay seçin." }));
+    GirdiDogrulama.RaporAyi(yil, ay) ?? Results.Ok(svc.Aylik(yil, ay)));
 api.MapGet("/rapor/panel", (HesapServisi svc) => svc.Panel());
 
 app.Run();

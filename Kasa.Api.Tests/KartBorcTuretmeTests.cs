@@ -5,7 +5,11 @@ namespace Kasa.Api.Tests;
 public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KartBorcTuretmeTests(KasaWebFactory factory) => _factory = factory;
+    public KartBorcTuretmeTests(KasaWebFactory factory)
+    {
+        _factory = factory;
+        TarihSiniriTests.TakipBaslangiciAyarla(factory, new DateOnly(2026, 7, 1)); // Temmuz giderleri takip içinde
+    }
 
     private record KartYanit(int Id, string Ad, decimal Borc, decimal GuncelBorc,
         decimal AcilisBorc, decimal HarcamaToplam, decimal OdemeToplam);

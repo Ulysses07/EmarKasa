@@ -116,6 +116,79 @@ public class GirdiDogrulamaTests
     }
 
     [Fact]
+    public async Task Mevcut_kontrol_karakterli_kanal_adina_gider_ve_gelir_girilebilir_yeni_ad_reddedilir()
+    {
+        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        // Metin kuralından önce kaydedilmiş, canlı veride bulunabilecek kanal adı: seçim kayıtlı kanalla eşleşir,
+        // kontrol karakteri kuralı yalnız yeni ad oluşturmada ve yeniden adlandırmada uygulanır.
+        const string eskiAd = "ESKİ\u0001KANAL";
+        int kanalId;
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var kanal = new KanalEntity { Ad = eskiAd, Sira = 9 };
+            db.Kanallar.Add(kanal); db.SaveChanges(); kanalId = kanal.Id;
+        }
+        var gider = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, eskiAd, GiderTipi.Cari));
+        Assert.Equal(HttpStatusCode.Created, gider.StatusCode);
+        var kayit = await gider.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal((kanalId, eskiAd), (kayit.GetProperty("kanalId").GetInt32(), kayit.GetProperty("kanal").GetString()));
+        (await c.PutAsJsonAsync($"/api/islemler/{kayit.GetProperty("id").GetInt32()}", new IslemYazDto(Bugun, "Kira", 20m, eskiAd, GiderTipi.Cari))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Bugun, eskiAd, 50m))).EnsureSuccessStatusCode();
+
+        var yok = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, "YOK\u0001KANAL", GiderTipi.Cari));
+        Assert.Equal(HttpStatusCode.BadRequest, yok.StatusCode);
+        Assert.Equal("Kayıtlı bir kanal seçin.", AlanHatasi(await yok.Content.ReadFromJsonAsync<JsonElement>(), "kanal"));
+        var yeniAd = await c.PutAsJsonAsync($"/api/kanallar/{kanalId}", new KanalYazDto("YENİ\u0002KANAL", Sira: 9));
+        Assert.Equal(HttpStatusCode.BadRequest, yeniAd.StatusCode);
+        Assert.Contains("kontrol karakteri", AlanHatasi(await yeniAd.Content.ReadFromJsonAsync<JsonElement>(), "ad"));
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            Assert.Equal(eskiAd, db.Kanallar.Single(k => k.Id == kanalId).Ad);
+            Assert.Equal(20m, db.Islemler.Single(i => i.KanalId == kanalId).TutarTl);
+            Assert.Equal(50m, db.Gelenler.Single(g => g.KanalId == kanalId).TutarTl);
+        }
+    }
+
+    [Fact]
+    public async Task Aylik_gider_serbest_metinleri_ayni_kontrol_karakteri_kuralina_baglidir()
+    {
+        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        var ay = new DateOnly(Bugun.Year, Bugun.Month, 1);
+        const string ileti = "karakterde görünmeyen bir kontrol karakteri ya da geçersiz bir karakter var. Metni yeniden yazın.";
+        var ad = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira\u0007", "Kira", 100m, 1, "Genel", [], ay));
+        Assert.Equal(HttpStatusCode.BadRequest, ad.StatusCode);
+        Assert.Equal($"Gider adı: 5. {ileti}", await Hata(ad));
+        var sablon = await MonthlyExpenseTests.Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira", "Kira", 100m, 1, "Genel", [], ay));
+
+        var not = await c.PostAsJsonAsync($"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\u0001"));
+        Assert.Equal(HttpStatusCode.BadRequest, not.StatusCode);
+        Assert.Equal($"Not: 7. {ileti}", await Hata(not));
+        var odeme = await MonthlyExpenseTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\tno 5"));
+
+        var iptal = await c.PostAsJsonAsync($"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı\u001F ödeme"));
+        Assert.Equal(HttpStatusCode.BadRequest, iptal.StatusCode);
+        Assert.Equal($"İptal gerekçesi: 7. {ileti}", await Hata(iptal));
+        await MonthlyExpenseTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı ödeme"));
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        Assert.Equal(["Kira"], db.AylikGiderRevizyonlar.Select(r => r.Ad).ToList());
+        Assert.Equal("Hatalı ödeme", db.AylikGiderOdemeler.Single().IptalAciklamasi);
+    }
+
+    [Fact]
+    public void Serbest_metin_iletisi_Metin_kuraliyla_aynidir()
+    {
+        Assert.Null(GirdiDogrulama.GecersizKarakterIletisi(null));
+        Assert.Null(GirdiDogrulama.GecersizKarakterIletisi("Sekme\tve satır\r\nsonu 😀"));
+        var v = new GirdiDogrulama();
+        v.Metin("😀 a\u0001", "not", 2000, zorunlu: false);
+        var hata = Assert.IsType<HttpValidationProblemDetails>(Assert.IsAssignableFrom<IValueHttpResult>(v.Sonuc()).Value);
+        Assert.Equal(Assert.Single(hata.Errors["not"]), GirdiDogrulama.GecersizKarakterIletisi("😀 a\u0001"));
+    }
+
+    [Fact]
     public void Ekstre_okuyucu_PDF_aciklamasini_ve_kaynak_satiri_temizler()
     {
         var sonuc = EkstreMetinOkuyucu.Oku(PdfMetni("MARKET\u0001ALIŞVERİŞİ\u0007"), "Banka", "Akbank");
@@ -172,9 +245,11 @@ public class GirdiDogrulamaTests
         var kayit = Assert.Single(eskiBelge.Kayitlar);
         var iptal = await c.PostAsJsonAsync($"/api/ekstre-aktar/{eskiId}/kayitlar/{kayit.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Hatalı\u0001 satır"));
         Assert.Equal(HttpStatusCode.BadRequest, iptal.StatusCode);
+        Assert.Equal("İptal gerekçesi: 7. karakterde görünmeyen bir kontrol karakteri ya da geçersiz bir karakter var. Metni yeniden yazın.", await Hata(iptal));
     }
 
     private static string AlanHatasi(JsonElement govde, string alan) => govde.GetProperty("errors").GetProperty(alan)[0].GetString()!;
+    private static async Task<string> Hata(HttpResponseMessage r) => (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
 
     private static async Task<EkstreBelgeDto> Kaydet(HttpClient c, EkstreBelgeDto belge, EkstreSatirYaz satir)
     {
