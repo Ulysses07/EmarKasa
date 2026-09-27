@@ -1,7 +1,10 @@
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Kasa.Api.Tests;
 
@@ -190,6 +193,102 @@ public class CardDebtSummaryTests
         Assert.All(card.Ekstreler.Where(s => s.AsgariOdeme.HasValue), s => Assert.Equal(0m, s.AsgariKalan));
         Assert.Empty(card.KanalKartBorclari!);
         Assert.Equal(800m, await Cash(c));
+    }
+
+    [Fact]
+    public async Task Iptal_edilen_odeme_sonrasi_iade_kart_ve_raporlari_dusurmez()
+    {
+        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
+        var source = card.Harcamalar.Single();
+        card = await Pay(c, card, 100m);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler.Single().Id}/iptal",
+            new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Yanlış ödeme"));
+        // İptal edilen ödeme kaynağı yeniden açık gösterir; iade o açık tutardan düşer.
+        card = await Refund(c, card, source.Id, 60m);
+        AssertShares(card.KanalKartBorclari, (1, 40m));
+        Assert.Equal(40m, card.Borc);
+        var cancelled = Assert.Single(card.Odemeler);
+        Assert.True(cancelled.Iptal); Assert.Equal(0m, cancelled.KasaEtkisi); Assert.Empty(cancelled.Dagilimlar);
+        foreach (var path in new[] { "/api/rapor/panel", "/api/rapor/haftalik", "/api/takip/kartlar", $"/api/takip/kartlar/{card.Id}", "/api/takip/ozet" })
+        {
+            var response = await c.GetAsync(path);
+            Assert.True(response.IsSuccessStatusCode, $"{path}: {response.StatusCode}");
+        }
+        Assert.Equal(1000m, await Cash(c));
+    }
+
+    [Fact]
+    public async Task Bozuk_odeme_payi_kaynak_agirligini_asarsa_fazlasi_dagilim_bekliyor_olur_ve_uyari_loglanir()
+    {
+        var logs = new UyariToplayici();
+        await using var f = new LogluFactory(logs); using var c = await Editor(f);
+        var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
+        card = await Pay(c, card, 50m);
+        var payment = card.Odemeler.Single();
+        AssertShares(payment.Dagilimlar, (1, 50m));
+        Assert.Empty(logs.Uyarilar);
+        using (var scope = f.Services.CreateScope())
+        {
+            // Eski/bozuk veri: ödeme payı kaynak harcamanın 100 TL ağırlığını aşıyor.
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var taxId = db.TakipKartTaksitler.Single().Id;
+            db.Database.ExecuteSqlRaw("UPDATE TakipKartOdemeler SET PaylarJson = {0} WHERE Id = {1}",
+                $"[{{\"TaksitId\":{taxId},\"Tutar\":150,\"OncedenOdenen\":0}}]", payment.Id);
+        }
+        var response = await c.GetAsync($"/api/takip/kartlar/{card.Id}");
+        Assert.True(response.IsSuccessStatusCode, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        var broken = (await response.Content.ReadFromJsonAsync<KartTakipDto>())!;
+        var shares = broken.Odemeler.Single().Dagilimlar;
+        AssertShares(shares, (1, 100m), (null, 50m));
+        Assert.Equal(Kanallar.DagilimBekliyor, shares.Single(p => p.KanalId is null).Kanal);
+        Assert.Contains(logs.Uyarilar, m => m.Contains($"ödeme {payment.Id}") && m.Contains("50"));
+        foreach (var path in new[] { "/api/rapor/panel", "/api/takip/kartlar", "/api/takip/ozet" })
+            Assert.True((await c.GetAsync(path)).IsSuccessStatusCode, path);
+    }
+
+    [Fact]
+    public void Kirpma_yalniz_tasan_durumda_devreye_girer_normal_dagilim_birebir_aynidir()
+    {
+        var random = new Random(20260927);
+        for (var i = 0; i < 2000; i++)
+        {
+            var weights = Enumerable.Range(1, random.Next(1, 5)).Select(k => new KanalPayYaz(k, random.Next(0, 5000) / 100m)).ToList();
+            var total = weights.Sum(w => w.Tutar);
+            var onceki = random.Next(0, (int)(total * 100) + 1) / 100m;
+            var amount = random.Next(0, (int)(total * 100 - onceki * 100) + 1) / 100m;
+            var (paylar, tasan) = FinansTakipServisi.KirparakOranla(weights, amount, onceki);
+            // Kırpmasız eski yol: sığan her girdide aynı D'Hondt sonucu, taşma sıfır.
+            var positive = weights.Where(w => w.Tutar > 0).Select(w => new AlisKanalPayi(w.KanalId, w.Tutar)).ToList();
+            List<KanalPayYaz> eski = positive.Count == 0 || amount <= 0 ? [] : AlisDagitici.Dagit(positive, onceki, amount)
+                .Where(p => p.Tutar > 0).Select(p => new KanalPayYaz(p.KanalId, p.Tutar)).ToList();
+            Assert.Equal(eski, paylar); Assert.Equal(0m, tasan);
+        }
+        // Taşan girdide eski yol istisna fırlatır; kırpılmış yol sığanı dağıtıp fazlayı döndürür.
+        List<KanalPayYaz> source = [new(1, 30m), new(2, 10m)];
+        Assert.Throws<ArgumentOutOfRangeException>(() => AlisDagitici.Dagit([new(1, 30m), new(2, 10m)], 5m, 100m));
+        var (kirpik, fazla) = FinansTakipServisi.KirparakOranla(source, 100m, 5m);
+        Assert.Equal(new KanalPayYaz[] { new(1, 26.25m), new(2, 8.75m) }, kirpik); Assert.Equal(65m, fazla);
+        var (bos, tamami) = FinansTakipServisi.KirparakOranla(source, 20m, 50m);
+        Assert.Empty(bos); Assert.Equal(20m, tamami);
+    }
+
+    private sealed class UyariToplayici : ILoggerProvider, ILogger
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Uyarilar { get; } = new();
+        public ILogger CreateLogger(string categoryName) => this;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        { if (logLevel == LogLevel.Warning) Uyarilar.Enqueue(formatter(state, exception)); }
+        public void Dispose() { }
+    }
+    private sealed class LogluFactory(UyariToplayici logs) : KasaWebFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder); builder.ConfigureLogging(logging => logging.AddProvider(logs));
+        }
     }
 
     private static void AssertShares(IReadOnlyList<TakipKanalPayi>? actual, params (int? Id, decimal Amount)[] expected)
