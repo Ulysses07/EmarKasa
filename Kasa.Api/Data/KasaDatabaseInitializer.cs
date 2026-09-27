@@ -31,6 +31,7 @@ public static class KasaDatabaseInitializer
 
             db.Database.Migrate();
             WalKipineAl(db, connection);
+            GecisTohumu(db);
         }
         finally
         {
@@ -52,6 +53,7 @@ public static class KasaDatabaseInitializer
         var bekleyen = new List<string>();
         if (kopru) bekleyen.Add("Eski şema köprüsü (migration geçmişi yok)");
         bekleyen.AddRange(db.Database.GetPendingMigrations());
+        bekleyen.AddRange(AyRaporAnlikGoruntusu.BekleyenTohum(connection));
         if (bekleyen.Count == 0) return;
         if (yedek is null)
             throw new InvalidOperationException("Kasa veritabanında bekleyen güncelleme var ancak göç öncesi yedek servisi verilmedi; yedeksiz güncelleme yapılmaz. Veritabanı değiştirilmedi.");
@@ -82,6 +84,17 @@ public static class KasaDatabaseInitializer
         if (mode is "wal" or "memory") return;
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
             .LogWarning("Veritabanı WAL kipine alınamadı (günlük kipi: {Kip}); okumalar yazma işlemlerini bekletebilir.", mode);
+    }
+
+    /// <summary>Veri adımı: bu sürümden önce kilitlenmiş ayların raporu kural 1 ile dondurulur (bkz.
+    /// <see cref="AyRaporAnlikGoruntusu.GecisTohumu"/>; idempotent, göç öncesi yedekten sonra çalışır).</summary>
+    private static void GecisTohumu(KasaDbContext db)
+    {
+        var aylar = AyRaporAnlikGoruntusu.GecisTohumu(db, db.Saati().GetUtcNow());
+        if (aylar.Count == 0) return;
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
+            "Bu sürümden önce kilitlenmiş {Sayi} ayın raporu kural 1 ile donduruldu: {Aylar}.", aylar.Count,
+            string.Join(", ", aylar.Select(a => $"{a.Yil:D4}-{a.Ay:D2}")));
     }
 
     private static void BridgeLegacyDatabase(SqliteConnection connection)

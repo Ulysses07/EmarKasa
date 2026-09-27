@@ -184,10 +184,25 @@ public class HesapServisi
         return liste;
     }
 
-    public AylikRapor Aylik(int yil, int ay, CancellationToken ct = default)
+    /// <summary>Açık (kilitli olmayan) aylara ve panelin "bu ay"ına uygulanan aylık rapor kuralı. Ay kapatılırken rapor bu
+    /// kuralla dondurulur (<see cref="AyRaporAnlikGoruntusu"/>): kural sonradan değişse de kapatılmış ay değişmez.</summary>
+    public const int AcikAyKurali = AylikKural.V1;
+
+    /// <summary>Ayın canlı hesaplanan raporu (kilitli olsa da görüntüye bakmaz). <paramref name="kuralSurumu"/> verilmezse
+    /// <see cref="AcikAyKurali"/>.</summary>
+    public AylikRapor Aylik(int yil, int ay, CancellationToken ct = default, int? kuralSurumu = null)
     {
         var y = Yukle(new TakipHesapBaglami(_db, ct), new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)));
-        return HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, AylikKural.V1);
+        return HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, kuralSurumu ?? AcikAyKurali);
+    }
+
+    /// <summary>API'nin aylık raporu: kilitli ay dondurulmuş görüntüsünden (<c>"dondurulmus": true</c>), açık ay canlı
+    /// hesaplanır.</summary>
+    public object AylikYanit(int yil, int ay, CancellationToken ct = default)
+    {
+        using (_db.OkumaBaslat())
+            if (AyRaporAnlikGoruntusu.Oku(_db, yil, ay) is { } dondurulmus) return dondurulmus;
+        return Aylik(yil, ay, ct);
     }
 
     public IReadOnlyList<Donem> Donemler(CancellationToken ct = default) => Yukle(new TakipHesapBaglami(_db, ct)).Donemler;
@@ -212,7 +227,7 @@ public class HesapServisi
             ? son.Kanallar.Select(k => new KanalBakiye(k.Kanal, k.Devir, kanalIdleri.GetValueOrDefault(k.Kanal))).ToList()
             : y.Kanallar.Select(k => new KanalBakiye(k.Ad, k.AcilisDevri, kanalIdleri.GetValueOrDefault(k.Ad))).ToList();
 
-        var buAyRapor = HesapMotoru.AylikHesapla(bugun.Year, bugun.Month, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, AylikKural.V1);
+        var buAyRapor = HesapMotoru.AylikHesapla(bugun.Year, bugun.Month, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, AcikAyKurali);
         var buAy = buAyRapor.Kanallar.Sum(k => k.AySonucu) - buAyRapor.DagilimBekleyenTutar - buAyRapor.GenelGider + buAyRapor.GenelGelir;
 
         return new PanelDto(guncelKasa, kanalBakiyeleri, buHafta, buAy,

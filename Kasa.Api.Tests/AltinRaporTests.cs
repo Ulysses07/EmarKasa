@@ -14,11 +14,15 @@ namespace Kasa.Api.Tests;
 /// değişikliklerinden önce üretilmiş 'altın' JSON ile birebir karşılaştırılır. Tohum sabit saatle yalnız
 /// sabit tarihler kullanır; kimlikler taze veritabanında belirlenimcidir. Altın dosyayı yeniden üretmek
 /// yalnız bilinçli bir rapor değişikliğinde yapılır: KASA_ALTIN_YAZ=1 ile çalıştırılır ve fark incelenir.
+/// Rapor kuralı kararları (K1–K4) altın dosyayı değiştirmez: dosya kararlardan önceki kodun çıktısıdır ve
+/// bilinçli farklar <see cref="OnayliFarklar"/>'da uç, alan, eski → yeni değer ve gerekçesiyle tek tek listelenir.
+/// Test önce her onaylı farkın eski değerinin altın dosyada gerçekten bulunduğunu doğrular, onu yeni değerle
+/// değiştirir ve sonra BÜTÜN yanıtları birebir karşılaştırır: listede olmayan her fark hatadır.
 /// </summary>
 public class AltinRaporTests
 {
     [Fact]
-    public async Task Rapor_ve_okuma_uclari_altin_ciktiyla_birebir_esit()
+    public async Task Rapor_ve_okuma_uclari_altin_cikti_ve_onayli_farklarla_birebir_esit()
     {
         await using var f = KasaWebFactory.Sabit(AltinTohum.Bugun);
         using var c = await f.EditorClientAsync();
@@ -30,18 +34,70 @@ public class AltinRaporTests
         {
             Directory.CreateDirectory(Path.GetDirectoryName(yol)!);
             File.WriteAllText(yol, gercek.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
-            Assert.Fail($"Altın dosya yazıldı: {yol}. İçeriği inceleyip testi yeniden çalıştırın.");
+            Assert.Fail($"Altın dosya yazıldı: {yol}. İçeriği inceleyip onaylı fark listesini boşaltın ve testi yeniden çalıştırın.");
         }
         var beklenen = JsonNode.Parse(File.ReadAllText(yol))!.AsObject();
         Assert.Equal(beklenen.Select(p => p.Key).Order(StringComparer.Ordinal), gercek.Select(p => p.Key).Order(StringComparer.Ordinal));
+        foreach (var fark in OnayliFarklar()) fark.Uygula(beklenen);
         // Birebir: sayı belirteçleri de metin olarak karşılaştırılır (ör. 1190.5 ile 1190.50 farklı sayılır).
         foreach (var (uc, deger) in beklenen)
-            Assert.True(deger!.ToJsonString() == gercek[uc]!.ToJsonString(), $"{uc} altın çıktıdan farklı:\nBEKLENEN {deger.ToJsonString()}\nGERÇEK   {gercek[uc]!.ToJsonString()}");
+            Assert.True(deger!.ToJsonString() == gercek[uc]!.ToJsonString(), $"{uc} altın çıktı + onaylı farklardan farklı:\nBEKLENEN {deger.ToJsonString()}\nGERÇEK   {gercek[uc]!.ToJsonString()}");
 
         // Okumalar veri değiştirmez: aynı uçlar ikinci kez aynı yanıtı verir.
         var ikinci = await AltinTohum.Yanitlar(c, tohum);
         foreach (var (uc, deger) in gercek)
             Assert.True(deger!.ToJsonString() == ikinci[uc]!.ToJsonString(), $"{uc} ikinci okumada değişti.");
+    }
+
+    /// <summary>
+    /// Altın dosyaya (kural kararlarından önceki kodun çıktısı) göre onaylı farklar. Başka her fark testi düşürür.
+    /// Tohumda Haziran bu sürümden önce kapatılmıştır: kilit takip başlangıcından itibaren Ocak–Haziran 2026'yı kapsar.
+    /// </summary>
+    private static IEnumerable<OnayliFark> OnayliFarklar()
+    {
+        // K4: geçişte kilitli olan Ocak–Haziran 2026 raporları kural 1 ile dondurulur. Bütün tutarlar birebir aynı kalır
+        // (Şubat'taki takipli kredi çekimi dahil: MEZAT/PERAKENDE Gelen'i ve Ay sonucu 10.000'er içerir); yanıt yalnız
+        // dondurulduğunu ve hangi kuralla üretildiğini söyleyen iki alanı kazanır.
+        foreach (var ay in Aylar(new(2026, 1, 1), new(2026, 6, 1)))
+        {
+            yield return new(Aylik(ay), "kuralSurumu", null, "1", "K4: kilitli ay geçişte kural 1 ile donduruldu");
+            yield return new(Aylik(ay), "dondurulmus", null, "true", "K4: kilitli ayın raporu anlık görüntüden döner");
+        }
+    }
+
+    private static string Aylik(DateOnly ay) => $"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}";
+    private static IEnumerable<DateOnly> Aylar(DateOnly ilk, DateOnly son)
+    {
+        for (var ay = ilk; ay <= son; ay = ay.AddMonths(1)) yield return ay;
+    }
+
+    /// <summary>Bir uç yanıtındaki tek alanın onaylı değişimi. <paramref name="Yol"/>: nokta ile ayrılmış alan adları, dizi
+    /// öğesi için [i] (ör. "kanallar[0].gelen", "[2].yeniTakip"). <paramref name="Eski"/> null ise alan altın çıktıda yoktur
+    /// ve nesnenin sonuna eklenir; değilse altın çıktıdaki değerin birebir JSON metnidir.</summary>
+    private sealed record OnayliFark(string Uc, string Yol, string? Eski, string Yeni, string Gerekce)
+    {
+        public void Uygula(JsonObject altin)
+        {
+            var parcalar = Yol.Replace("[", ".[").Split('.', StringSplitOptions.RemoveEmptyEntries);
+            JsonNode dugum = altin[Uc] ?? throw new InvalidOperationException($"Onaylı fark için uç altın çıktıda yok: {Uc}");
+            foreach (var parca in parcalar[..^1]) dugum = Git(dugum, parca);
+            var son = parcalar[^1];
+            if (son.StartsWith('['))
+            {
+                var dizi = dugum.AsArray(); var i = int.Parse(son[1..^1], System.Globalization.CultureInfo.InvariantCulture);
+                Assert.True(Eski is not null && dizi[i]!.ToJsonString() == Eski, $"Onaylı fark ({Gerekce}) {Uc} {Yol}: altın değer {dizi[i]?.ToJsonString()}, beklenen eski {Eski}.");
+                dizi[i] = JsonNode.Parse(Yeni);
+                return;
+            }
+            var nesne = dugum.AsObject();
+            if (Eski is null) Assert.False(nesne.ContainsKey(son), $"Onaylı fark ({Gerekce}) {Uc} {Yol}: alan altın çıktıda zaten var.");
+            else Assert.True(nesne[son]?.ToJsonString() == Eski, $"Onaylı fark ({Gerekce}) {Uc} {Yol}: altın değer {nesne[son]?.ToJsonString()}, beklenen eski {Eski}.");
+            nesne[son] = JsonNode.Parse(Yeni);
+        }
+
+        private static JsonNode Git(JsonNode dugum, string parca) => parca.StartsWith('[')
+            ? dugum.AsArray()[int.Parse(parca[1..^1], System.Globalization.CultureInfo.InvariantCulture)]!
+            : dugum.AsObject()[parca]!;
     }
 
     private static string AltinDosyasi([CallerFilePath] string kaynak = "") =>
@@ -208,12 +264,28 @@ internal static class AltinTohum
         var ekstreOnizleme = await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{belge}/onizleme", istek);
         await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{belge}/kaydet", istek with { OnizlemeOzeti = ekstreOnizleme.OnizlemeOzeti, TekrarOnay = true });
 
-        // Kasa eşiği ve ay kilidi (Haziran kapatılır).
+        // Kasa eşiği ve ay kilidi (Haziran, bu sürümden önce kapatılmış olarak).
         await Put(c, "/api/kasa-esikleri/2", new KasaEsikYaz(0, 1_000_000m, true));
-        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", Json))!;
-        await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, 2026, 6, "Haziran kapandı"));
+        GecisOncesiKilit(f, new DateOnly(2026, 6, 30), "Haziran kapandı");
 
         return new(a.Id, b.Id, eskiKart, gecisKarti, kredi.Id, eskiKredi, gecisKredisi);
+    }
+
+    /// <summary>
+    /// Altın çıktı üretildiğinde Haziran API'den kapatılmıştı (kural kararlarından önce). Canlıdaki gibi bu sürümden önce
+    /// kapatılmış ayı kurmak için kilit durumu ve olayı, API'nin yazdığı biçimde doğrudan yazılır; ardından yeni sürümün ilk
+    /// açılışındaki veri adımı (geçiş tohumu) çalışır ve kilitli aylar kural 1 ile dondurulur. API'den kapatmada görüntünün
+    /// kilit anında yazılması AyRaporuAnlikGoruntusuTests'te sınanır.
+    /// </summary>
+    private static void GecisOncesiKilit(KasaWebFactory f, DateOnly son, string aciklama)
+    {
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        var kilit = db.AyKilidi.Single();
+        db.AyKilidiOlaylar.Add(new() { OncekiSonTarih = kilit.KilitliSonTarih, YeniSonTarih = son, Aciklama = aciklama, Zaman = f.Saat!.GetUtcNow() });
+        kilit.KilitliSonTarih = son; kilit.Surum++;
+        db.SaveChanges();
+        Assert.Equal(6, AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat.GetUtcNow()).Count);
     }
 
     private static Task<KartTakipDto> Harcama(HttpClient c, KartTakipDto kart, DateOnly tarih, string aciklama, decimal tutar, int taksit, IReadOnlyList<KanalPayYaz> paylar, int? kaynak = null) =>

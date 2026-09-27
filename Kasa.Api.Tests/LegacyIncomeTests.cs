@@ -58,12 +58,12 @@ public class LegacyIncomeTests
         KasaDatabaseInitializer.Initialize(db);
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         AssertOriginalRows(db);
         Assert.Throws<NotSupportedException>(() => db.GetService<IMigrator>().Migrate("20260923000400_Operations"));
-        Assert.Equal(12, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
         AssertOriginalRows(db);
     }
 

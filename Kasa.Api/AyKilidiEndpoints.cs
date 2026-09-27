@@ -44,9 +44,15 @@ public static class AyKilidiEndpoints
             // Mevcut giderlerin takip bağları kilit sınırı konmadan tamamlanır.
             FinansTakipServisi.Sync(db); next = end;
         }
-        db.AyKilidiOlaylar.Add(new() { OncekiSonTarih = state.KilitliSonTarih, YeniSonTarih = next, Aciklama = d.Aciklama.Trim(), Zaman = saat.GetUtcNow() });
+        var previous = state.KilitliSonTarih; var now = saat.GetUtcNow();
+        db.AyKilidiOlaylar.Add(new() { OncekiSonTarih = previous, YeniSonTarih = next, Aciklama = d.Aciklama.Trim(), Zaman = now });
         state.KilitliSonTarih = next; state.Surum++;
         FinansHesaplari.IstekKaydet(db, d.IstekId, kind, digest, state.Id); db.SaveChanges();
+        // Aynı transaction'da, yeni kilit sınırı kaydedildikten sonra: kapatılan ayların raporu dondurulur, açılanlarınki
+        // silinir (görüntü yalnız kilitli ay için bulunabilir; bkz. AyRaporAnlikGoruntusu).
+        if (reopen) AyRaporAnlikGoruntusu.KilidiAcildi(db, next);
+        else AyRaporAnlikGoruntusu.Kilitlendi(db, previous, next!.Value, now);
+        db.SaveChanges();
         return Results.Ok(Read(db));
     });
     private static AyKilidiDto Read(KasaDbContext db)

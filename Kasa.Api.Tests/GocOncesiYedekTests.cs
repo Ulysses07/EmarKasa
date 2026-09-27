@@ -144,6 +144,53 @@ public class GocOncesiYedekTests
     }
 
     [Fact]
+    public void Bekleyen_veri_adimi_varsa_da_once_goc_oncesi_yedek_alinir_sonra_kilitli_aylar_dondurulur()
+    {
+        var dizin = GeciciDizin();
+        var f = Fabrika(dizin);
+        try
+        {
+            // Güncel şema, veri adımı (kilitli ay rapor görüntüsü tohumu) henüz çalışmamış: Ağustos sonuna kadar kilitli, görüntü yok.
+            using (var db = Baglam(f.Yol)) db.GetService<IMigrator>().Migrate();
+            using (var baglanti = new SqliteConnection(Baglanti(f.Yol)))
+            {
+                baglanti.Open();
+                Calistir(baglanti, """
+                    INSERT INTO Kanallar (Ad, Aktif, Sira, AcilisDevri) VALUES ('MEZAT', 1, 0, '0');
+                    INSERT INTO Ayarlar (TakipBaslangic, KasaAcilisDevri, IzleyiciSifreHash) VALUES ('2026-07-01', '0', NULL);
+                    INSERT INTO Islemler (Tarih, Cari, TutarTl, Kanal, KanalId, Tip, "Not") VALUES ('2026-07-02', 'Firma', '10', 'MEZAT', 1, 0, NULL);
+                    UPDATE AyKilidi SET KilitliSonTarih = '2026-08-31', Surum = 2 WHERE Id = 1;
+                    """);
+            }
+            _ = f.Services;
+
+            var ad = Assert.Single(GocOncesiYedekleri(dizin));
+            var acilan = Path.Combine(dizin, "acilan.db");
+            using (var arsiv = ZipFile.OpenRead(Path.Combine(dizin, ad)))
+            {
+                using (var akis = arsiv.GetEntry("manifest.json")!.Open())
+                {
+                    var isler = JsonDocument.Parse(akis).RootElement.GetProperty("bekleyenIsler").EnumerateArray().Select(e => e.GetString()).ToList();
+                    Assert.Equal(new[] { "Kilitli ay rapor görüntüsü (kural 1): 2026-07", "Kilitli ay rapor görüntüsü (kural 1): 2026-08" }, isler);
+                }
+                arsiv.GetEntry("kasa.db")!.ExtractToFile(acilan);
+            }
+            using (var oku = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = acilan, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
+            {
+                oku.Open();
+                Assert.Equal(0L, Deger(oku, "SELECT COUNT(*) FROM AyRaporAnlikGoruntuleri;")); // veri adımından önceki durum
+            }
+            using (var db = f.Baglam())
+                Assert.Equal(new[] { (2026, 7, 1), (2026, 8, 1) }, db.AyRaporAnlikGoruntuleri.OrderBy(g => g.Ay).Select(g => new { g.Yil, g.Ay, g.KuralSurumu }).AsEnumerable().Select(g => (g.Yil, g.Ay, g.KuralSurumu)));
+
+            // Veri adımı bittikten sonraki açılışlarda bekleyen iş yoktur: yeni yedek alınmaz.
+            using (var db = f.Baglam()) KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
+            Assert.Single(GocOncesiYedekleri(dizin));
+        }
+        finally { f.Dispose(); Temizle(null, dizin); Temizle(null, dizin + "-anahtar"); }
+    }
+
+    [Fact]
     public void Yedek_alinamazsa_migration_calismaz_ve_acilis_aciklayici_hatayla_durur()
     {
         // Yedek dizini yerinde aynı adlı bir DOSYA var: dizin oluşturulamaz, yedek alınamaz.

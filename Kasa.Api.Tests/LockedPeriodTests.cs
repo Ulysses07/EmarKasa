@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kasa.Api.Data;
+using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +29,7 @@ public class LockedPeriodTests
         await Close(c);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{first.Id}",
             new AlisOdemeDuzelt(purchase.Surum, Guid.NewGuid(), Today, .02m, "Önceki ödeme artışı"))).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync(url));
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
@@ -41,7 +44,7 @@ public class LockedPeriodTests
         var before = await c.GetStringAsync(url);
         await Close(c);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{earlierId}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Ters tarih sırası"))).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync(url));
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
@@ -53,7 +56,7 @@ public class LockedPeriodTests
         var before = await c.GetStringAsync(url);
         await Close(c);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", Sira: 99))).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync(url));
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
@@ -188,6 +191,18 @@ public class LockedPeriodTests
         var first = loan.Taksitler.First();
         var update = await c.PutAsJsonAsync($"/api/takip/krediler/{loan.Id}/taksitler/{first.Id}", new KrediTaksitYaz(Guid.NewGuid(), loan.Surum, first.Tarih.AddDays(1), 90m, null, false, "Yeni banka planı"));
         update.EnsureSuccessStatusCode(); Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
+    }
+
+    /// <summary>Kilitli ayın raporu, kapatılmadan hemen önce gösterilen rapordur (dondurulmuş görüntü, K4); reddedilen
+    /// değişiklik canlı hesabı da değiştirmemiştir (kilit kuralları): ikisi de kapatma öncesi rapora eşittir.</summary>
+    private static async Task RaporDegismedi(KasaWebFactory f, HttpClient c, string kilitOncesi)
+    {
+        var beklenen = JsonNode.Parse(kilitOncesi)!.AsObject();
+        beklenen["kuralSurumu"] = HesapServisi.AcikAyKurali; beklenen["dondurulmus"] = true;
+        Assert.Equal(beklenen.ToJsonString(), await c.GetStringAsync($"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}"));
+        using var scope = f.Services.CreateScope();
+        var canli = scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Old.Year, Old.Month);
+        Assert.Equal(kilitOncesi, JsonSerializer.Serialize(canli, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }
 
     private static async Task<AyKilidiDto> Close(HttpClient c)
