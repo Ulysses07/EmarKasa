@@ -299,6 +299,9 @@ public class DatabaseMigrationTests
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-migration-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
+        // Dosya veritabanında bekleyen köprü/migration göç öncesi yedeksiz çalışmaz.
+        var backupDirectory = path + "-yedek";
+        var backup = GocOncesiYedekTests.TestYedegi(backupDirectory);
         try
         {
             using (var seed = new SqliteConnection(connectionString))
@@ -313,7 +316,7 @@ public class DatabaseMigrationTests
                 start.Wait();
                 using var connection = new SqliteConnection(connectionString);
                 using var db = Context(connection);
-                KasaDatabaseInitializer.Initialize(db);
+                KasaDatabaseInitializer.Initialize(db, backup);
             })).ToArray();
             start.Set();
             await Task.WhenAll(initializers);
@@ -325,10 +328,12 @@ public class DatabaseMigrationTests
             Assert.Single(verify.Islemler);
             Assert.Single(verify.Gelenler);
             Assert.Equal(345.67m, verify.Islemler.Single().TutarTl);
+            Assert.NotEmpty(Directory.GetFiles(backupDirectory, "kasa-goc-oncesi-*.zip"));
         }
         finally
         {
             foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
+            if (Directory.Exists(backupDirectory)) Directory.Delete(backupDirectory, true);
         }
     }
 

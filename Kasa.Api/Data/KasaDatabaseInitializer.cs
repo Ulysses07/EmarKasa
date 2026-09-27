@@ -1,5 +1,6 @@
 using System.Data;
 using Kasa.Api.Migrations;
+using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -9,18 +10,24 @@ namespace Kasa.Api.Data;
 
 /// <summary>Boş veritabanında migration çalıştırır. Migration geçmişi olmayan eski
 /// EnsureCreated şemasını tek transaction içinde, kayıtları ve kimlikleri koruyarak
-/// ilk migration'a eşler. Belirsiz/veri kaybettirecek bir dönüşümde geri alır.</summary>
+/// ilk migration'a eşler. Belirsiz/veri kaybettirecek bir dönüşümde geri alır.
+/// Dosya tabanlı, boş olmayan veritabanında bekleyen iş (eski şema köprüsü, migration, veri adımı) varsa önce
+/// göç öncesi yedek alınır (<see cref="YedekServisi.GocOncesiYedekAl"/>); yedek alınamazsa hiçbir iş çalışmaz ve
+/// açılış açıklayıcı hatayla durur.</summary>
 public static class KasaDatabaseInitializer
 {
-    public static void Initialize(KasaDbContext db)
+    /// <param name="yedek">Göç öncesi yedeği alan servis (Program.cs verir). Yalnız bellek içi ya da boş veritabanında,
+    /// ya da bekleyen iş yokken verilmeyebilir; aksi halde yedeksiz migration çalıştırılmaz.</param>
+    public static void Initialize(KasaDbContext db, YedekServisi? yedek = null)
     {
         var connection = (SqliteConnection)db.Database.GetDbConnection();
         var openedHere = connection.State != ConnectionState.Open;
         if (openedHere) connection.Open();
         try
         {
-            if (!HasMigrationHistory(connection) && StableSchemaDefinition.Tables.Any(t => TableExists(connection, t.Name)))
-                BridgeLegacyDatabase(connection);
+            var kopru = !HasMigrationHistory(connection) && StableSchemaDefinition.Tables.Any(t => TableExists(connection, t.Name));
+            GocOncesiYedek(db, connection, kopru, yedek);
+            if (kopru) BridgeLegacyDatabase(connection);
 
             db.Database.Migrate();
             WalKipineAl(db, connection);
@@ -29,6 +36,35 @@ public static class KasaDatabaseInitializer
         {
             if (openedHere) connection.Close();
         }
+    }
+
+    /// <summary>
+    /// Göç öncesi yedek (kullanıcı kararı: mimari/veri dönüşümleri otomatik migration'dır ve her birinden önce otomatik,
+    /// tutarlı yedek alınır). Bellek içi veritabanında ve henüz tablo içermeyen yeni dosyada korunacak veri yoktur; bekleyen
+    /// iş yoksa (olağan açılış) yedek alınmaz. Yedek SQLite yedekleme API'siyle (tutarlı anlık görüntü) alınır ve
+    /// doğrulanır; herhangi bir hata migration'dan önce açılışı durdurur: veritabanı hiç değiştirilmemiş olur.
+    /// </summary>
+    private static void GocOncesiYedek(KasaDbContext db, SqliteConnection connection, bool kopru, YedekServisi? yedek)
+    {
+        if (string.IsNullOrEmpty(Convert.ToString(Scalar(connection, "SELECT file FROM pragma_database_list WHERE name = 'main';"), System.Globalization.CultureInfo.InvariantCulture))
+            || Scalar(connection, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1;") is null)
+            return;
+        var bekleyen = new List<string>();
+        if (kopru) bekleyen.Add("Eski şema köprüsü (migration geçmişi yok)");
+        bekleyen.AddRange(db.Database.GetPendingMigrations());
+        if (bekleyen.Count == 0) return;
+        if (yedek is null)
+            throw new InvalidOperationException("Kasa veritabanında bekleyen güncelleme var ancak göç öncesi yedek servisi verilmedi; yedeksiz güncelleme yapılmaz. Veritabanı değiştirilmedi.");
+        string yol;
+        try { yol = yedek.GocOncesiYedekAl(connection, bekleyen); }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Kasa veritabanı güncellenmeden önce göç öncesi yedek alınamadı: {ex.Message} Güncelleme çalıştırılmadı; veritabanı değiştirilmedi. "
+                + $"Yedek dizinini ({yedek.Dizin}), boş disk alanını ve yazma izinlerini kontrol edip uygulamayı yeniden başlatın. Veritabanını silmeyin.", ex);
+        }
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
+            .LogInformation("Göç öncesi yedek hazır: {Yedek}. Bekleyen işler: {Isler}.", yol, string.Join(", ", bekleyen));
     }
 
     /// <summary>

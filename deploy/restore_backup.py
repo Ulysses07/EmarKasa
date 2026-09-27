@@ -8,9 +8,12 @@ Sunucudaki yedek adları türü taşır; araç her adı kabul eder (indirilen do
   kasa-oto-YYYYMMDD-HHMMSS-xxxxxxxx.zip   günlük otomatik yedek (zaman UTC)
   kasa-elle-YYYYMMDD-HHMMSS-xxxxxxxx.zip  Ayarlar'dan alınan elle yedek
   kasa-YYYYMMDD-HHMMSS-xxxxxxxx.zip       2.3 ve öncesi; otomatik sayılır
+  kasa-goc-oncesi-YYYYMMDD-HHMMSS-xxxxxxxx.zip  açılışta, bekleyen migration/veri adımından önce alınan
+                                          göç öncesi yedek (xxxxxxxx: kopyanın SHA-256 özetinin başı)
 Sunucu otomatik yedeklerde son 30 günün hepsini ve son 12 takvim ayının (İstanbul) ilk yedeğini,
 her durumda en yeni 7'sini tutar. Elle yedeklerden en yeni 10'u tutulur ve elle yedek otomatik yedek silmez.
-Bu kalıba uymayan dosyalara (ör. kasa-oncesi-gecis.zip) rotasyon dokunmaz.
+Bu kalıba uymayan dosyalara (ör. kasa-oncesi-gecis.zip) rotasyon dokunmaz; göç öncesi yedekler de
+rotasyon dışıdır (silinmez), gereksiz olanları operatör kaldırır.
 Kalıcı geçmiş için yedekleri sunucu dışına da kopyalayın.
 
 WAL: Uygulama veritabanını WAL günlük kipinde çalıştırır; kasa.db-wal ve kasa.db-shm veritabanının
@@ -33,7 +36,8 @@ import sqlite3
 import tempfile
 import zipfile
 
-_YEDEK_ADI = re.compile(r"^kasa-(?:(oto|elle)-)?[0-9]{8}-[0-9]{6}-[0-9a-f]{8}\.zip$")
+_YEDEK_ADI = re.compile(r"^kasa-(?:(oto|elle|goc-oncesi)-)?[0-9]{8}-[0-9]{6}-[0-9a-f]{8}\.zip$")
+_TURLER = {"oto": "otomatik", "elle": "elle", "goc-oncesi": "goc-oncesi"}
 
 
 def yedek_turu(name: str):
@@ -45,6 +49,8 @@ def yedek_turu(name: str):
     'elle'
     >>> yedek_turu("kasa-20260920-030000-0a1b2c3d.zip")  # eski ad
     'otomatik'
+    >>> yedek_turu("kasa-goc-oncesi-20260928-060000-0a1b2c3d.zip")
+    'goc-oncesi'
     >>> yedek_turu("kasa-yedek-2026-09-27.zip") is None
     True
     >>> yedek_turu("kasa-oncesi-gecis.zip") is None
@@ -53,7 +59,7 @@ def yedek_turu(name: str):
     match = _YEDEK_ADI.match(name)
     if not match:
         return None
-    return "elle" if match.group(1) == "elle" else "otomatik"
+    return _TURLER.get(match.group(1), "otomatik")
 
 
 _KALINTI_EKLERI = ("-wal", "-shm", "-journal")
@@ -122,7 +128,7 @@ def restore(archive_path: Path, output: Path) -> None:
             raise ValueError("Bu araç yalnız 2.0.0 ve 2.1.0 yedeklerini destekler.")
         # 'tur' sonradan eklendi; eski manifestlerde yoktur, tür o zaman dosya adından okunur.
         tur = manifest.get("tur")
-        if tur is not None and tur not in ("otomatik", "elle"):
+        if tur is not None and tur not in ("otomatik", "elle", "goc-oncesi"):
             raise ValueError("Geçersiz yedek türü.")
         key_bytes = None
         key_path = output.parent / ".kasa-push-keys.json"

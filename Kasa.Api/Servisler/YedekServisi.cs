@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Kasa.Api.Data;
 using Microsoft.Data.Sqlite;
+using SQLitePCL;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
@@ -45,6 +46,14 @@ public static partial class YedekSaklama
 
     public static string DosyaAdi(YedekTuru tur, DateTimeOffset zaman, string ek)
         => $"kasa-{(tur == YedekTuru.Otomatik ? "oto" : "elle")}-{zaman.UtcDateTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{ek}.zip";
+
+    /// <summary>Göç öncesi yedeklerin ad ön eki. Bu ad <see cref="Tani"/> kalıbına bilerek uymaz: rotasyon göç öncesi yedeğe hiç
+    /// dokunmaz (silinmez) ve günlük/elle yedek sayılarına girmez. Gereksiz olanları operatör elle kaldırır.</summary>
+    public const string GocOncesiOnEki = "kasa-goc-oncesi-";
+
+    /// <summary>'kasa-goc-oncesi-yyyyMMdd-HHmmss-xxxxxxxx.zip' (zaman UTC; ek: kopyanın SHA-256 özetinin ilk 8 hanesi).</summary>
+    public static string GocOncesiDosyaAdi(DateTimeOffset zaman, string ek)
+        => $"{GocOncesiOnEki}{zaman.UtcDateTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{ek}.zip";
 
     public static YedekDosyasi? Tani(string ad)
     {
@@ -175,40 +184,13 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             var source = (SqliteConnection)db.Database.GetDbConnection();
             bool close = source.State != System.Data.ConnectionState.Open;
             if (close) await source.OpenAsync(ct);
-            try
-            {
-                using var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = temporary, Pooling = false }.ToString());
-                target.Open();
-                // Yedekleme API'si WAL'daki işlenmiş sayfaları da tutarlı anlık görüntüyle kopyalar; ancak kaynağın WAL
-                // başlığını da kopyalar. Yedek tek dosya olmalı (ZIP'teki kasa.db, salt okunur doğrulama ve restore aracı
-                // -wal/-shm olmadan açar): kopya geri alma günlüğü kipine çevrilir.
-                source.BackupDatabase(target);
-                using var mode = target.CreateCommand();
-                mode.CommandText = "PRAGMA journal_mode = DELETE;";
-                mode.ExecuteNonQuery();
-            }
+            try { TekDosyaKopyala(source, temporary, ct); }
             finally { if (close) source.Close(); }
             // Yedek, özgün bağlantıdan bağımsız açılıp bütünlük ve ilişkiler sınanır.
             Dogrula(temporary);
             byte[] checksum;
             using (var stream = File.OpenRead(temporary)) checksum = await SHA256.HashDataAsync(stream, ct);
-            using (var zip = ZipFile.Open(zipTemporary, ZipArchiveMode.Create))
-            {
-                zip.CreateEntryFromFile(temporary, "kasa.db", CompressionLevel.Fastest);
-                var keys = push.Get();
-                string? keyHash = null;
-                if (keys is not null)
-                {
-                    var keyBytes = JsonSerializer.SerializeToUtf8Bytes(keys);
-                    keyHash = Convert.ToHexString(SHA256.HashData(keyBytes));
-                    using var keyStream = zip.CreateEntry(".kasa-push-keys.json").Open();
-                    await keyStream.WriteAsync(keyBytes, ct);
-                }
-                var manifest = zip.CreateEntry("manifest.json");
-                using var stream = manifest.Open();
-                JsonSerializer.Serialize(stream, new { surum = "2.1.0", olusturuldu = now, tur = tur == YedekTuru.Otomatik ? "otomatik" : "elle",
-                    sha256 = Convert.ToHexString(checksum), belgelerDahil = true, bildirimAnahtariDahil = keys is not null, bildirimAnahtariSha256 = keyHash });
-            }
+            Arsivle(temporary, zipTemporary, now, tur == YedekTuru.Otomatik ? "otomatik" : "elle", checksum, null);
             File.Move(zipTemporary, path);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             sonYedek = now; sonDogrulama = now; hata = null;
@@ -230,6 +212,168 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             if (zipTemporary is not null && File.Exists(zipTemporary)) File.Delete(zipTemporary);
             kilit.Release();
         }
+    }
+
+    /// <summary>
+    /// Göç öncesi yedek (kullanıcı kararı: veri dönüştüren her migration'dan önce otomatik, tutarlı yedek). Başlatıcı
+    /// (<see cref="KasaDatabaseInitializer"/>) dosya tabanlı, boş olmayan veritabanında bekleyen migration ya da veri adımı
+    /// varsa Migrate'ten ÖNCE, HTTP sunucusu açılmadan çağırır. Kopya olağan yedekle aynı yoldan alınır (adımlı yedekleme
+    /// API'si, tek dosya) ve olağan yedekle aynı ZIP biçimindedir (kasa.db + manifest.json, varsa bildirim anahtarı;
+    /// restore_backup.py açar); manifest türü "goc-oncesi"dir ve bekleyen işleri listeler. Kopya salt okunur açılıp
+    /// <c>PRAGMA integrity_check</c> = ok doğrulanır; göç öncesi veritabanı henüz migration geçmişi taşımayabileceği için
+    /// (eski EnsureCreated şeması) şema/ilişki denetimi migration'a bırakılır. Ad rotasyon kalıbına uymaz: silinmez.
+    /// Aynı kaynak için tekrar yedek alınmaz: dizinde aynı SHA-256 özetli göç öncesi yedek varsa (ör. migration hatasıyla
+    /// yeniden başlayan konteyner) yeni dosya yazılmaz, mevcut yol döner. Her hata çağırana yükselir; çağıran migration'ı
+    /// çalıştırmaz.
+    /// </summary>
+    public string GocOncesiYedekAl(SqliteConnection kaynak, IReadOnlyList<string> bekleyenIsler)
+    {
+        kilit.Wait();
+        string? temporary = null;
+        string? zipTemporary = null;
+        try
+        {
+            Directory.CreateDirectory(Dizin);
+            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var now = saat.GetUtcNow();
+            temporary = Path.Combine(Dizin, $".{Guid.NewGuid():N}.db");
+            TekDosyaKopyala(kaynak, temporary, CancellationToken.None);
+            Butunluk(temporary);
+            byte[] checksum;
+            using (var stream = File.OpenRead(temporary)) checksum = SHA256.HashData(stream);
+            var ozet = Convert.ToHexString(checksum);
+            if (MevcutGocOncesiYedegi(ozet) is { } mevcut)
+            {
+                logger.LogInformation("Aynı veritabanının göç öncesi yedeği zaten var, yeniden alınmadı: {Dosya}", Path.GetFileName(mevcut));
+                return mevcut;
+            }
+            var path = Path.Combine(Dizin, YedekSaklama.GocOncesiDosyaAdi(now, ozet[..8].ToLowerInvariant()));
+            zipTemporary = path + ".part";
+            Arsivle(temporary, zipTemporary, now, "goc-oncesi", checksum, bekleyenIsler);
+            File.Move(zipTemporary, path);
+            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            return path;
+        }
+        finally
+        {
+            if (temporary is not null)
+                foreach (var file in new[] { temporary, temporary + "-wal", temporary + "-shm", temporary + "-journal" })
+                    if (File.Exists(file)) File.Delete(file);
+            if (zipTemporary is not null && File.Exists(zipTemporary)) File.Delete(zipTemporary);
+            kilit.Release();
+        }
+    }
+
+    private string? MevcutGocOncesiYedegi(string sha256)
+    {
+        foreach (var yol in Directory.EnumerateFiles(Dizin, YedekSaklama.GocOncesiOnEki + "*.zip"))
+        {
+            try
+            {
+                using var arsiv = ZipFile.OpenRead(yol);
+                using var manifest = arsiv.GetEntry("manifest.json")?.Open();
+                if (manifest is null) continue;
+                using var belge = JsonDocument.Parse(manifest);
+                if (belge.RootElement.TryGetProperty("sha256", out var deger) && string.Equals(deger.GetString(), sha256, StringComparison.OrdinalIgnoreCase)) return yol;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(ex, "Göç öncesi yedek okunamadı, karşılaştırmaya katılmadı: {Dosya}", Path.GetFileName(yol));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Kaynağı <paramref name="hedefYol"/>'a tek dosya olarak kopyalar. Yedekleme API'si WAL'daki işlenmiş sayfaları da
+    /// tutarlı anlık görüntüyle kopyalar; ancak kaynağın WAL başlığını da kopyalar. Yedek tek dosya olmalı (ZIP'teki kasa.db,
+    /// salt okunur doğrulama ve restore aracı -wal/-shm olmadan açar): kopya geri alma günlüğü kipine çevrilir.</summary>
+    private static void TekDosyaKopyala(SqliteConnection kaynak, string hedefYol, CancellationToken ct)
+    {
+        using var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = hedefYol, Pooling = false }.ToString());
+        target.Open();
+        AdimliKopyala(kaynak, target, ct);
+        using var mode = target.CreateCommand();
+        mode.CommandText = "PRAGMA journal_mode = DELETE;";
+        mode.ExecuteNonQuery();
+    }
+
+    private void Arsivle(string dbYolu, string zipYolu, DateTimeOffset now, string tur, byte[] checksum, IReadOnlyList<string>? bekleyenIsler)
+    {
+        using var zip = ZipFile.Open(zipYolu, ZipArchiveMode.Create);
+        zip.CreateEntryFromFile(dbYolu, "kasa.db", CompressionLevel.Fastest);
+        var keys = push.Get();
+        string? keyHash = null;
+        if (keys is not null)
+        {
+            var keyBytes = JsonSerializer.SerializeToUtf8Bytes(keys);
+            keyHash = Convert.ToHexString(SHA256.HashData(keyBytes));
+            using var keyStream = zip.CreateEntry(".kasa-push-keys.json").Open();
+            keyStream.Write(keyBytes);
+        }
+        var manifest = zip.CreateEntry("manifest.json");
+        using var stream = manifest.Open();
+        // Göç öncesi yedekte bekleyen işler (migration kimlikleri, veri adımları) listelenir; restore aracının 8 KB manifest
+        // sınırını aşmasın diye sayı ve uzunluk kısaltılır.
+        if (bekleyenIsler is null)
+            JsonSerializer.Serialize(stream, new { surum = "2.1.0", olusturuldu = now, tur,
+                sha256 = Convert.ToHexString(checksum), belgelerDahil = true, bildirimAnahtariDahil = keys is not null, bildirimAnahtariSha256 = keyHash });
+        else
+            JsonSerializer.Serialize(stream, new { surum = "2.1.0", olusturuldu = now, tur,
+                sha256 = Convert.ToHexString(checksum), belgelerDahil = true, bildirimAnahtariDahil = keys is not null, bildirimAnahtariSha256 = keyHash,
+                bekleyenIsler = bekleyenIsler.Take(40).Select(i => i.Length > 120 ? i[..120] : i).ToList() });
+    }
+
+    /// <summary>Bir yedekleme adımında kopyalanan sayfa sayısı (4 KB sayfada ~1 MB).</summary>
+    public const int VarsayilanSayfaGrubu = 256;
+    /// <summary>Kaynak meşgulken (SQLITE_BUSY/LOCKED) bir adımın en çok kaç kez yeniden deneneceği; bekleme arası 50 ms (~10 sn).</summary>
+    public const int MesgulDenemeSiniri = 200;
+    private const int BastanAlmaSiniri = 3;
+
+    /// <summary>
+    /// Yedek kopyası (data-10): SQLite yedekleme API'siyle sayfa grupları halinde kopyalar. Her adım kaynağın paylaşılan
+    /// kilidini yalnız o grup boyunca tutar ve adım dönmeden bırakır; geri alma günlüğü kipinde (ör. henüz WAL'a geçmemiş
+    /// eski dosya) yazanlar bütün kopya boyunca beklemez, WAL'da okuma zaten yazanı bekletmez. Kaynak meşgulse
+    /// (SQLITE_BUSY/LOCKED: ör. yazan commit anında) adım 50 ms aralıklarla en çok <see cref="MesgulDenemeSiniri"/> kez
+    /// yeniden denenir; sınır aşılırsa hata SQLite iletisiyle yükselir. Kaynak kopya sürerken başka bir bağlantıdan
+    /// yazılırsa SQLite kopyayı baştan alır (sonuç yine tutarlı anlık görüntüdür); üç kez baştan alındıysa kalan kopya tek
+    /// adımda bitirilir, sürekli yazılan veritabanında kopya sonsuza dek uzamaz. <paramref name="adimSonrasi"/> her başarılı
+    /// adımdan sonra (kilit bırakılmışken) çağrılır.
+    /// </summary>
+    public static void AdimliKopyala(SqliteConnection kaynak, SqliteConnection hedef, CancellationToken ct = default,
+        int sayfaGrubu = VarsayilanSayfaGrubu, Action? adimSonrasi = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(sayfaGrubu, 1);
+        using var yedek = raw.sqlite3_backup_init(hedef.Handle, "main", kaynak.Handle, "main");
+        if (yedek.IsInvalid) SqliteException.ThrowExceptionForRC(raw.sqlite3_errcode(hedef.Handle), hedef.Handle);
+        int mesgul = 0, bastan = 0, oncekiKalan = int.MaxValue;
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            var rc = raw.sqlite3_backup_step(yedek, bastan >= BastanAlmaSiniri ? -1 : sayfaGrubu);
+            if (rc == raw.SQLITE_DONE) return;
+            if (rc is raw.SQLITE_BUSY or raw.SQLITE_LOCKED)
+            {
+                if (++mesgul > MesgulDenemeSiniri) SqliteException.ThrowExceptionForRC(rc, hedef.Handle);
+                if (ct.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(50))) ct.ThrowIfCancellationRequested();
+                continue;
+            }
+            SqliteException.ThrowExceptionForRC(rc, hedef.Handle);
+            mesgul = 0;
+            var kalan = raw.sqlite3_backup_remaining(yedek);
+            if (kalan > oncekiKalan) bastan++; // kaynak başka bağlantıdan yazıldı; SQLite kopyayı baştan aldı
+            oncekiKalan = kalan;
+            adimSonrasi?.Invoke();
+        }
+    }
+
+    /// <summary>Göç öncesi kopyanın salt okunur bütünlük denetimi (<c>PRAGMA integrity_check</c> = ok).</summary>
+    private static void Butunluk(string path)
+    {
+        using var restored = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        restored.Open();
+        using var check = restored.CreateCommand();
+        check.CommandText = "PRAGMA integrity_check;";
+        if (!string.Equals(check.ExecuteScalar()?.ToString(), "ok", StringComparison.Ordinal)) throw new InvalidDataException("Göç öncesi yedeğin bütünlüğü doğrulanamadı (integrity_check).");
     }
 
     public static void Dogrula(string path)

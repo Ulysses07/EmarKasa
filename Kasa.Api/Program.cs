@@ -83,7 +83,8 @@ var cerezSecure = !app.Environment.IsDevelopment();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-    KasaDatabaseInitializer.Initialize(db);
+    // Bekleyen migration/veri adımı varsa önce göç öncesi yedek alınır; alınamazsa açılış durur.
+    KasaDatabaseInitializer.Initialize(db, scope.ServiceProvider.GetRequiredService<YedekServisi>());
     if (!db.Kanallar.Any())
     {
         db.Kanallar.AddRange(
