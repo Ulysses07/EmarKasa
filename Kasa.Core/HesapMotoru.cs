@@ -1,7 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Kasa.Core;
 
 public record KanalHaftalik(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, decimal Devir, decimal KrediGirisi = 0m);
 
+/// <param name="VeriSagligiUyarisi">İsteğe bağlı veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt);
+/// yalnız raporun son döneminde ve yalnız sorun varsa dolu. Boşken JSON'a yazılmaz: eski yanıt biçimi aynen korunur.</param>
 public record HaftalikOzet(
     Donem Donem,
     IReadOnlyList<KanalHaftalik> Kanallar,
@@ -9,7 +13,8 @@ public record HaftalikOzet(
     decimal ToplamGiden,
     decimal KasaSonucu,
     decimal KasaDevir,
-    decimal DagilimBekleyenTutar = 0m);
+    decimal DagilimBekleyenTutar = 0m,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? VeriSagligiUyarisi = null);
 
 public static class HesapMotoru
 {
@@ -37,11 +42,21 @@ public static class HesapMotoru
             .Where(i => i.Tip == GiderTipi.KrediKarti && !i.NakitKartOdemesi)
             .GroupBy(EtkiAyi)
             .ToDictionary(g => g.Key, g => g.Sum(i => i.TutarTl));
+        // Ay sonunda kasadan çıkan K.K'nın dağılım bekleyen kısmı da etki ayına göre bir kez toplanır.
+        var aylikKkBekleyen = islemler
+            .Where(i => i.Tip == GiderTipi.KrediKarti && !i.NakitKartOdemesi && i.DagilimBekliyor)
+            .GroupBy(EtkiAyi)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.TutarTl));
+        // İşlemler ve gelirler dönemlerine bir kez dağıtılır: maliyet dönem × işlem değil dönem + işlem. Dönem içi
+        // sıra girdi sırasıdır; sonuç her dönemde bütün listeyi taramakla birebir aynıdır.
+        var donemIslemleri = DonemlereDagit(sirali, islemler);
+        var donemGelenleri = gelenler.ToLookup(g => g.DonemStart);
 
-        foreach (var donem in sirali)
+        for (var d = 0; d < sirali.Count; d++)
         {
-            var donemIslem = islemler.Where(i => donem.Icerir(i.Tarih)).ToList();
-            var donemGelen = gelenler.Where(g => g.DonemStart == donem.Start).ToList();
+            var donem = sirali[d];
+            var donemIslem = donemIslemleri?[d] ?? islemler.Where(i => donem.Icerir(i.Tarih)).ToList();
+            var donemGelen = donemGelenleri[donem.Start].ToList();
 
             var kanalSatirlari = new List<KanalHaftalik>();
             foreach (var kanal in kanallar)
@@ -66,8 +81,7 @@ public static class HesapMotoru
             {
                 if (aylikKkToplam.TryGetValue((donem.Yil, donem.Ay), out var ertelenenKk))
                     toplamGiden += ertelenenKk;
-                bekleyen += islemler.Where(i => i.Tip == GiderTipi.KrediKarti && !i.NakitKartOdemesi && i.DagilimBekliyor
-                    && EtkiAyi(i) == (donem.Yil, donem.Ay)).Sum(i => i.TutarTl);
+                bekleyen += aylikKkBekleyen.GetValueOrDefault((donem.Yil, donem.Ay));
             }
             decimal kasaSonucu = toplamGelen - toplamGiden;
             kasaDevir += kasaSonucu;
@@ -75,6 +89,29 @@ public static class HesapMotoru
             sonuc.Add(new HaftalikOzet(donem, kanalSatirlari, toplamGelen, toplamGiden, kasaSonucu, kasaDevir, bekleyen));
         }
         return sonuc;
+    }
+
+    /// <summary>İşlemleri başlangıca göre sıralı dönemlerin kovalarına bir kez dağıtır (ikili arama). Dönemler çakışıyor
+    /// ya da ters sınırlıysa (DonemUretici bunu üretmez) null döner; çağıran eski taramaya düşer.</summary>
+    private static List<Islem>[]? DonemlereDagit(IReadOnlyList<Donem> sirali, IReadOnlyList<Islem> islemler)
+    {
+        for (var i = 0; i < sirali.Count; i++)
+            if (sirali[i].End < sirali[i].Start || (i > 0 && sirali[i].Start <= sirali[i - 1].End)) return null;
+        var kovalar = new List<Islem>[sirali.Count];
+        for (var i = 0; i < kovalar.Length; i++) kovalar[i] = [];
+        foreach (var islem in islemler)
+        {
+            // Başlangıcı işlem tarihinden sonra olmayan son dönem; tarih onun bitişini aşıyorsa işlem hiçbir dönemde değildir.
+            int alt = 0, ust = sirali.Count - 1, bulunan = -1;
+            while (alt <= ust)
+            {
+                var orta = alt + (ust - alt) / 2;
+                if (sirali[orta].Start <= islem.Tarih) { bulunan = orta; alt = orta + 1; }
+                else ust = orta - 1;
+            }
+            if (bulunan >= 0 && islem.Tarih <= sirali[bulunan].End) kovalar[bulunan].Add(islem);
+        }
+        return kovalar;
     }
 
     /// <summary>
