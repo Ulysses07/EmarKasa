@@ -39,6 +39,8 @@ jobs:
           - Kasa.Api.Tests
           - Kasa.ApiClient.Tests
           - Kasa.App.Core.Tests
+          # Gerçek KasaApiClient ↔ gerçek Kasa.Api sözleşmesi (bellek içi SQLite; ağ ve iş yükü gerekmez).
+          - Kasa.Sozlesme.Tests
     steps:
       - uses: actions/checkout@v7
         with:
