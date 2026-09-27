@@ -30,10 +30,17 @@ public static class KayitGirdileri
         return (e, v.Sonuc());
     }
 
-    public static (IslemEntity Kayit, IResult? Hata) Islem(IslemYazDto dto, KasaDbContext db)
+    /// <param name="mevcut">Düzenlenen kayıt (PUT); yeni kayıtta null.</param>
+    public static (IslemEntity Kayit, IResult? Hata) Islem(IslemYazDto dto, KasaDbContext db, IslemEntity? mevcut = null)
     {
         var v = new GirdiDogrulama();
         v.Tarih(dto.Tarih, "tarih");
+        // Temiz başlangıç (spec §2): takip başlangıcından önceki gider hiçbir döneme girmez; haftalık kasada yok, aylık
+        // raporda var olurdu. Gelir, alış ödemesi, aylık gider ve ekstre yolları gibi yeni kayıt ve tarih değişikliği
+        // reddedilir. Kural öncesinden kalan kayıt tarihi değişmeden düzenlenebilir; raporlardaki yeri değişmez.
+        var baslangic = db.Ayarlar.Select(a => a.TakipBaslangic).First();
+        if (dto.Tarih != default)
+            v.Kontrol(dto.Tarih >= baslangic || mevcut?.Tarih == dto.Tarih, "tarih", $"Gider tarihi takip başlangıcından ({baslangic:dd.MM.yyyy}) önce olamaz.");
         v.Metin(dto.Cari, "cari");
         v.Metin(dto.Not, "not", 2000, zorunlu: false);
         v.Para(dto.TutarTl, "tutarTl", negatifOlabilir: true);

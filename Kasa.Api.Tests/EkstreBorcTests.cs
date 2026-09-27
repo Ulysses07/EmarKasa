@@ -20,6 +20,7 @@ public class EkstreBorcTests
         await using var f = KasaWebFactory.Sabit(bugun);
         var c = await f.EditorClientAsync();
         var kesim = bugun.AddDays(-5);      // en son kesim 5 gün önce
+        TarihSiniriTests.TakipBaslangiciAyarla(f, kesim.AddDays(-1)); // kesim öncesi harcama takip içinde
         var kart = LegacyFinanceSeed.Kart(f, new("Test", kesim, bugun.AddDays(5), 100000m, 1000m));
         int id = kart.Id;
 

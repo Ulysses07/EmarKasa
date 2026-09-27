@@ -34,6 +34,7 @@ public class CrudTests : IClassFixture<KasaWebFactory>
     public async Task Editor_islem_ekleyip_listeleyip_silebilir()
     {
         var client = await _factory.EditorClientAsync();
+        TarihSiniriTests.TakipBaslangiciAyarla(_factory, new DateOnly(2026, 6, 29)); // gider takip içinde, test sırasından bağımsız
 
         var olustur = await client.PostAsJsonAsync("/api/islemler", new
         {

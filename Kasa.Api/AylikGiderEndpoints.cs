@@ -22,6 +22,7 @@ public static class AylikGiderEndpoints
         api.MapPut("/sablonlar/{id:int}", (int id, AylikGiderSablonYaz dto, KasaDbContext db) => SaveTemplate(db, id, dto)).RequireAuthorization("Editor");
         api.MapGet("", (int yil, int ay, KasaDbContext db) => Run(db, () =>
         {
+            if (GirdiDogrulama.RaporAyi(yil, ay) is { } hata) return hata;
             var month = Month(yil, ay);
             var revisions = Revisions(db, month);
             var payments = db.AylikGiderOdemeler.AsNoTracking().Where(p => p.Ay == month && !p.Iptal).ToDictionary(p => p.SablonId);
@@ -40,7 +41,7 @@ public static class AylikGiderEndpoints
             Need(!db.AylikGiderOdemeler.Any(p => p.SablonId == sablonId && p.Ay == month && !p.Iptal), "Bu şablonun bu aya ait ödemesi zaten kayıtlı.", 409);
             Need(dto.Tarih >= db.Ayarlar.Select(a => a.TakipBaslangic).First() && dto.Tarih <= FinansTakipServisi.Bugun, "Ödeme tarihi takip başlangıcı ile bugün arasında olmalı.");
             Need(dto.Tarih >= month, "Ödeme plan ayından önce olamaz.");
-            Need((dto.Not?.Length ?? 0) <= 2000, "Not en fazla 2000 karakter olabilir.");
+            Need((dto.Not?.Length ?? 0) <= 2000, "Not en fazla 2000 karakter olabilir."); KontrolKarakteri(dto.Not, "Not");
             AyKilidiKurallari.TarihAcik(db, month); AyKilidiKurallari.TarihAcik(db, dto.Tarih);
             var shares = FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
             var expense = new IslemEntity { Tarih = dto.Tarih, Cari = revision.Ad, TutarTl = revision.Tutar, Tip = GiderTipi.SabitGider,
@@ -54,7 +55,7 @@ public static class AylikGiderEndpoints
         })).RequireAuthorization("Editor");
         api.MapPost("/odemeler/{odemeId:int}/iptal", (int odemeId, AylikGiderIptalYaz dto, KasaDbContext db) => Run(db, () =>
         {
-            Text(dto.Aciklama);
+            Text(dto.Aciklama); KontrolKarakteri(dto.Aciklama, "İptal gerekçesi");
             var digest = FinansHesaplari.Ozet(new { odemeId, dto.Aciklama });
             if (FinansHesaplari.Tekrar(db, dto.IstekId, "AylikGiderIptal", digest, id => Results.Ok(Paid(db, db.AylikGiderOdemeler.Single(p => p.Id == id)))) is { } replay) return replay;
             var p = db.AylikGiderOdemeler.SingleOrDefault(p => p.Id == odemeId); Need(p is not null, "Ödeme bulunamadı.", 404);
@@ -72,11 +73,13 @@ public static class AylikGiderEndpoints
     {
         var digest = FinansHesaplari.Ozet(new { id, d.Ad, d.Tur, d.Tutar, d.OdemeGunu, d.DagilimTuru, d.Dagilimlar, d.GecerliAy, d.Aktif });
         if (FinansHesaplari.Tekrar(db, d.IstekId, "AylikGiderSablon", digest, key => Results.Ok(Template(db, db.AylikGiderRevizyonlar.Where(r => r.SablonId == key).OrderByDescending(r => r.Surum).First()))) is { } replay) return replay;
-        Text(d.Ad); Need(d.Tur is "Kira" or "Maas" or "Fatura" or "Diger", "Geçerli gider türü seçin.");
+        Text(d.Ad); KontrolKarakteri(d.Ad, "Gider adı"); Need(d.Tur is "Kira" or "Maas" or "Fatura" or "Diger", "Geçerli gider türü seçin.");
         Need(d.Tutar > 0 && d.Tutar <= 999_999_999_999.99m && decimal.Round(d.Tutar, 2) == d.Tutar, "Pozitif, kuruş hassasiyetinde tutar girin.");
         Need(d.OdemeGunu is >= 1 and <= 31, "Ödeme günü 1–31 olmalı.");
-        var today = FinansTakipServisi.Bugun; var current = new DateOnly(today.Year, today.Month, 1);
-        Need(d.GecerliAy.Day == 1 && d.GecerliAy >= current && d.GecerliAy.Year <= 9990, "Geçerlilik cari veya ileri ayın ilk günü olmalı.");
+        // Geçerlilik ayı kayıt tarihi penceresiyle sınırlı (yazım hatalı uzak yıl planı sessizce görünmez kılardı);
+        // planın aylık satırları bu aydan sonra her ay için türetilir, pencereye bağlı değildir.
+        var today = FinansTakipServisi.Bugun; var current = new DateOnly(today.Year, today.Month, 1); var last = GirdiDogrulama.EnGecTarih(today);
+        Need(d.GecerliAy.Day == 1 && d.GecerliAy >= current && d.GecerliAy <= last, $"Geçerlilik cari ay ile {last:MM.yyyy} arasında bir ayın ilk günü olmalı.");
         Need(d.DagilimTuru is "Genel" or "Esit" or "Ozel", "Geçerli dağılım türü seçin.");
         Need(d.Dagilimlar is not null && d.Dagilimlar.Count <= 100 && d.Dagilimlar.All(p => p is not null), "En fazla 100 kanal seçin.");
         var parts = d.Dagilimlar!; var ids = parts.Select(p => p.KanalId).ToList();
@@ -112,6 +115,12 @@ public static class AylikGiderEndpoints
         with { Durum = p.Iptal ? "Iptal" : "Odendi", OdemeId = p.Id, OdemeTarihi = p.Tarih, IslemId = p.IslemId };
     internal static DateOnly Month(int year, int month) { Need(year is >= 1 and <= 9990 && month is >= 1 and <= 12, "Geçerli ay seçin."); return new(year, month, 1); }
     internal static void Text(string? value) => Need(!string.IsNullOrWhiteSpace(value) && value.Length <= 2000, "Ad/açıklama zorunlu ve en fazla 2000 karakter olmalı.");
+    /// <summary>GirdiDogrulama.Metin'den geçmeyen serbest metne aynı kontrol karakteri kuralı (XLSX dışa aktarımı, ekranlar).</summary>
+    internal static void KontrolKarakteri(string? value, string label)
+    {
+        var message = GirdiDogrulama.GecersizKarakterIletisi(value);
+        Need(message is null, $"{label}: {message}");
+    }
     internal static void Need([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool test, string message, int status = 400) { if (!test) throw new AylikGiderHatasi(message, status); }
     internal static IResult Run(KasaDbContext db, Func<IResult> action)
     {
