@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Kasa.Api.Servisler;
@@ -29,18 +30,38 @@ public static class RaporDosyasi
     }
 
     // Formül hücresi olabilecek kullanıcı metnini Excel/CSV açılışında etkisizleştir.
+    // Denetim önce temizlenmiş metinde yapılır; yazılan ilk karakter neyse ona bakılır.
     private static string Csv(string? value)
     {
-        value ??= "";
+        value = DisaAktarimMetni(value);
         if (value.Length > 0 && ("=+-@".Contains(value.TrimStart().FirstOrDefault()) || value[0] is '\t' or '\r' or '\n')) value = "'" + value;
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? "");
 
+    /// <summary>
+    /// XML 1.0'da yazılamayan karakterleri (\t \r \n dışındaki denetim karakterleri,
+    /// U+FFFE/U+FFFF, eşi olmayan vekil) görünür U+FFFD ile değiştirir. Doğrulamadan
+    /// önce kaydedilmiş metinler Excel'i 500'e düşürmesin; XLSX ve CSV aynı metni yazsın.
+    /// </summary>
+    public static string DisaAktarimMetni(string? value)
+    {
+        value ??= "";
+        StringBuilder? temiz = null;
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (XmlConvert.IsXmlChar(value[i])) { temiz?.Append(value[i]); continue; }
+            if (i + 1 < value.Length && XmlConvert.IsXmlSurrogatePair(value[i + 1], value[i])) { temiz?.Append(value, i, 2); i++; continue; }
+            // İlk geçersiz karakterde kopyalamaya başla; temiz metin aynı örnekle döner.
+            (temiz ??= new StringBuilder(value.Length).Append(value, 0, i)).Append('\uFFFD');
+        }
+        return temiz?.ToString() ?? value;
+    }
+
     private static byte[] Excel(IReadOnlyList<IslemOkuDto> rows, DateOnly start, DateOnly end, string? channel)
     {
         XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        XElement Text(string value) => new(ns + "c", new XAttribute("t", "inlineStr"), new XElement(ns + "is", new XElement(ns + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), value)));
+        XElement Text(string value) => new(ns + "c", new XAttribute("t", "inlineStr"), new XElement(ns + "is", new XElement(ns + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), DisaAktarimMetni(value))));
         XElement Number(decimal value) => new(ns + "c", new XAttribute("s", "1"), new XElement(ns + "v", value.ToString(CultureInfo.InvariantCulture)));
         var data = new XElement(ns + "sheetData",
             new XElement(ns + "row", Text("Emar Kasa · Gider raporu")),
