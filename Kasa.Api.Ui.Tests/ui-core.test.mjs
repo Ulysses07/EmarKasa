@@ -71,7 +71,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog };', context);
+  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
   return { nodes, requests, calls, responses, stored, app: context.appTest };
 }
@@ -1244,4 +1244,100 @@ test('önizlemeden açılan onay penceresi kilitsiz başlar ve ESC ile kapanabil
   assert.equal(nodes.get('#modal-close').disabled, false); assert.equal(cancelButton(nodes).disabled ?? false, false);
   let prevented = false; nodes.get('#modal').listeners.cancel({ cancelable: true, preventDefault() { prevented = true; } });
   assert.equal(prevented, false); assert.equal(nodes.get('#modal').open, false);
+});
+
+// webui-5: iOS ondalık klavyesinde eksi tuşu yok; eksi olabilen tutarlarda işaret ayrı seçilir, tutar kuralı (kuruş) aynıdır.
+const openCharge = async card => {
+  const opened = await openApp(false, { '/api/kanallar': [], '/api/takip/kartlar/4': card, '/api/takip/kartlar/4/harcamalar': card });
+  await opened.app.navigate('cards', 4);
+  const open = opened.nodes.get('#page-actions').find(node => node.tag === 'button' && node.textContent === '+ Harcama / iade');
+  await open.listeners.click({ currentTarget: open }); await settle();
+  return opened;
+};
+test('kart iadesi Hareket türü İade seçilerek eksi yazmadan girilir ve eksi tutarla gönderilir', async () => {
+  const card = { ...sampleCard, harcamalar: [{ id: 12, tarih: '2026-09-22', aciklama: 'B kanalı mal', tutar: 300, taksitSayisi: 1, dagilimlar: [] }] };
+  const { nodes, calls } = await openCharge(card);
+  const kind = formField(nodes, 'hareketTuru'); const total = formField(nodes, 'tutar'); const source = formField(nodes, 'kaynakHarcamaId');
+  assert.equal(kind.value, 'Harcama'); assert.equal(total.attributes.inputmode, 'decimal'); assert.equal(source.disabled, true);
+  assert.match(nodes.get('#modal-content').textContent, /Hareket türünü İade seçip/);
+  kind.value = 'Iade'; kind.listeners.change();
+  total.value = '25,50'; total.listeners.input();
+  assert.equal(kind.value, 'Iade', 'Eksisiz tutar İade seçimini geri almaz.');
+  assert.equal(source.disabled, false); assert.equal(source.required, true);
+  assert.equal(formField(nodes, 'taksitSayisi').disabled, true);
+  formField(nodes, 'aciklama').value = 'Mal iadesi'; source.value = '12';
+  await submitDialog(nodes);
+  const refund = calls.find(call => call.path.endsWith('/harcamalar'));
+  assert.ok(refund, 'İade kaydedilir.');
+  assert.equal(refund.body.tutar, -25.5); assert.equal(refund.body.kaynakHarcamaId, 12); assert.equal(refund.body.taksitSayisi, 1);
+  assert.deepEqual(refund.body.dagilimlar, []); assert.equal(refund.body.ilkKesimTarihi, null);
+  assert.equal(calls.find(call => call.path === '/api/islemler/benzerlik').body.tutar, -25.5);
+});
+test('eksi yazılabilen klavyede tutar eksi girilince Hareket türü İade olur, eksi silinince Harcama türüne döner', async () => {
+  const card = { ...sampleCard, harcamalar: [{ id: 11, tarih: '2026-09-21', aciklama: 'Mal', tutar: 200, taksitSayisi: 1, dagilimlar: [] }] };
+  const { nodes } = await openCharge(card);
+  const kind = formField(nodes, 'hareketTuru'); const total = formField(nodes, 'tutar');
+  total.value = '-'; total.listeners.input(); assert.equal(kind.value, 'Iade');
+  total.value = '-5'; total.listeners.input(); assert.equal(kind.value, 'Iade');
+  total.value = '5'; total.listeners.input(); assert.equal(kind.value, 'Harcama');
+  kind.value = 'Iade'; kind.listeners.change(); total.value = '7'; total.listeners.input();
+  assert.equal(kind.value, 'Iade', 'Kullanıcının seçtiği İade tutar yazılırken değişmez.');
+});
+test('gider tutarı ± seçiciyle eksi girilir; mevcut eksi gider işaret ve mutlak değerle açılır; kuruş kuralı değişmez', async () => {
+  const expense = { id: 20, tarih: '2026-09-23', tutarTl: -12.5, cari: 'İade düzeltmesi', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': [], '/api/islemler/20': expense });
+  await app.expenseDialog();
+  const sign = formField(nodes, 'tutarTlIsaret'); const total = formField(nodes, 'tutarTl');
+  assert.equal(sign.tag, 'select'); assert.equal(sign.value, '+'); assert.match(sign.attributes['aria-label'], /işareti/);
+  assert.equal(total.attributes.inputmode, 'decimal');
+  for (const [name, value] of Object.entries({ cari: 'Düzeltme', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  sign.value = '-'; total.value = '10,555'; await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /en çok iki ondalık/);
+  total.value = '10'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/benzerlik').body.tutar, -10);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.tutarTl, -10);
+  await app.expenseDialog(expense);
+  assert.equal(formField(nodes, 'tutarTlIsaret').value, '-'); assert.equal(formField(nodes, 'tutarTl').value, '12.5');
+  formField(nodes, 'tutarTlIsaret').value = '+'; formField(nodes, 'tutarTl').value = '-12,5'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20').body.tutarTl, -12.5, 'Klavyede yazılan eksi korunur.');
+});
+test('dönem geliri ± seçiciyle eksi girilir ve eski eksi toplam işaretle gösterilir', async () => {
+  const period = '2026-09-14';
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': [{ donem: { start: period, end: '2026-09-20' } }], '/api/kanallar': [{ id: 7, ad: 'Mağaza' }, { id: 8, ad: 'Normal' }], [`/api/gelenler?donemStart=${period}`]: [{ kanalId: 7, kanal: 'Mağaza', tutarTl: -30 }], '/api/gelenler': null });
+  await app.incomeDialog(period);
+  const channel = formField(nodes, 'kanal'); const sign = formField(nodes, 'tutarTlIsaret'); const total = formField(nodes, 'tutarTl');
+  channel.value = 'Mağaza'; channel.listeners.change();
+  assert.equal(sign.value, '-'); assert.equal(total.value, '30'); assert.equal(sign.disabled, false);
+  channel.value = 'Normal'; channel.listeners.change();
+  assert.equal(sign.value, '+'); assert.equal(total.value, '0');
+  sign.value = '-'; total.value = '15'; await submitDialog(nodes);
+  assert.deepEqual(calls.find(call => call.path === '/api/gelenler' && call.method === 'PUT').body, { donemStart: period, kanal: 'Normal', tutarTl: -15 });
+});
+test('eski gelir grubu kilitliyken işaret seçici de kilitlidir', async () => {
+  const period = '2026-09-07';
+  const { app, nodes } = await openApp(false, { '/api/rapor/haftalik': [{ donem: { start: period, end: '2026-09-13' } }], '/api/kanallar': [{ id: 7, ad: 'Mağaza' }], [`/api/gelenler?donemStart=${period}`]: [{ kanalId: 7, kanal: 'Mağaza', tutarTl: -10, eskiYinelenenGrup: true }, { kanalId: 7, kanal: 'mağaza', tutarTl: -20, eskiYinelenenGrup: true }] });
+  await app.incomeDialog(period);
+  const channel = formField(nodes, 'kanal'); channel.value = 'Mağaza'; channel.listeners.change();
+  assert.equal(formField(nodes, 'tutarTl').readOnly, true); assert.equal(formField(nodes, 'tutarTlIsaret').disabled, true);
+  assert.equal(formField(nodes, 'tutarTlIsaret').value, '-'); assert.equal(formField(nodes, 'tutarTl').value, '30');
+});
+test('kanal ve genel kasa açılış devri ± seçiciyle eksi girilir', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [], '/api/kanallar/3': null, '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: -99.99, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
+  app.channelDialog({ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: -150 });
+  assert.equal(formField(nodes, 'acilisDevriIsaret').value, '-'); assert.equal(formField(nodes, 'acilisDevri').value, '150');
+  formField(nodes, 'acilisDevri').value = '150,25'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kanallar/3').body.acilisDevri, -150.25);
+  app.channelDialog();
+  assert.equal(formField(nodes, 'acilisDevriIsaret').value, '+'); assert.equal(formField(nodes, 'acilisDevri').value, '0');
+  app.openingDialog({ takipBaslangic: '2026-01-01', kasaAcilisDevri: -99.99 });
+  assert.equal(formField(nodes, 'kasaAcilisDevriIsaret').value, '-'); assert.equal(formField(nodes, 'kasaAcilisDevri').value, '99.99');
+  formField(nodes, 'kasaAcilisDevri').value = '250'; await submitDialog(nodes);
+  assert.deepEqual(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body, { takipBaslangic: '2026-01-01', kasaAcilisDevri: -250 });
+});
+test('gerçek bakiye karşılaştırması ± seçiciyle eksi bakiyeyi önizler', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/onizleme': { sistemBakiye: 123, gercekBakiye: -20, fark: -143, kontrolOzeti: 'digest1' } });
+  app.cashControlsUi.comparisonDialog();
+  assert.equal(formField(nodes, 'gercekBakiyeIsaret').value, '+');
+  formField(nodes, 'gercekBakiyeIsaret').value = '-'; formField(nodes, 'gercekBakiye').value = '20'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kasa-kontrol/onizleme').body.gercekBakiye, -20);
 });

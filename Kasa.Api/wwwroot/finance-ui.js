@@ -89,16 +89,28 @@ export function createFinanceUi(c) {
     const refundable = card.harcamalar.filter(row => row.tutar > 0 && !row.iptal);
     const source = select('kaynakHarcamaId', [{ value: '', label: 'İade edilen harcamayı seçin' }, ...refundable.map(row => ({ value: row.id, label: `${dateText(row.tarih)} · ${row.aciklama} · ${money(row.tutar)}` }))]);
     const refundFields = h('div', {}, field('İadenin bağlı olduğu harcama', source), help('İade, seçtiğiniz harcamanın kanal dağılımını kullanır. Yalnız henüz ödenmemiş kısmı bu akışta iade edebilirsiniz; ödenmiş harcamanın iadesi burada desteklenmez.'));
+    // iOS ondalık klavyesinde eksi tuşu yok: iade türle seçilir, tutar eksisiz yazılabilir. Eksi yazan kullanıcıda tür
+    // kendiliğinden İade olur; eksi silinince, tür elle seçilmediyse Harcama'ya döner.
+    const kind = select('hareketTuru', [{ value: 'Harcama', label: 'Harcama' }, { value: 'Iade', label: 'İade' }], 'Harcama');
+    let kindFromSign = false;
     const updateRefund = () => {
-      let refund = false; try { refund = signedAmount(total.value) < 0; } catch { /* Keep normal fields while the amount is incomplete. */ }
+      const refund = kind.value === 'Iade';
       refundFields.hidden = !refund; source.required = refund; source.disabled = !refund;
       allocation.node.hidden = refund; allocation.node.disabled = refund;
       installments.disabled = refund; firstCut.disabled = refund;
       if (refund) installments.value = '1';
     };
-    total.addEventListener('input', updateRefund); updateRefund();
-    formDialog('Kart harcaması / iade', h('div', { class: 'stack' }, h('div', { class: 'notice' }, 'Alış veya gider kaydında bu kartı seçtiyseniz aynı harcamayı burada yeniden girmeyin. O harcama otomatik izlenir.'), field('Açıklama', description), h('div', { class: 'form-grid' }, field('Tarih', date), field('Toplam tutar (₺)', total), field('Taksit sayısı', installments), field('İlk kesim tarihi (isteğe bağlı)', firstCut)), refundFields, allocation.node, help('Taksitler toplam borcu çoğaltmaz. İade için eksi tutar girip ilgili harcamayı seçin. Bankanın faiz veya masrafını “Faiz / masraf ekle” ile kaydedin. Harcama kasadan düşmez.')), 'Harcamayı kaydet', async form => {
-      const value = signedAmount(total.value); if (!value) throw new Error('Sıfırdan farklı bir tutar girin.');
+    total.addEventListener('input', () => {
+      const negative = total.value.trim().startsWith('-');
+      if (negative && kind.value !== 'Iade') { kind.value = 'Iade'; kindFromSign = true; }
+      else if (!negative && kindFromSign) { kind.value = 'Harcama'; kindFromSign = false; }
+      updateRefund();
+    });
+    kind.addEventListener('change', () => { kindFromSign = false; updateRefund(); });
+    updateRefund();
+    formDialog('Kart harcaması / iade', h('div', { class: 'stack' }, h('div', { class: 'notice' }, 'Alış veya gider kaydında bu kartı seçtiyseniz aynı harcamayı burada yeniden girmeyin. O harcama otomatik izlenir.'), field('Hareket türü', kind), field('Açıklama', description), h('div', { class: 'form-grid' }, field('Tarih', date), field('Toplam tutar (₺)', total), field('Taksit sayısı', installments), field('İlk kesim tarihi (isteğe bağlı)', firstCut)), refundFields, allocation.node, help('Taksitler toplam borcu çoğaltmaz. İade için Hareket türünü İade seçip ilgili harcamayı seçin; tutarı eksi yazmanız gerekmez. Bankanın faiz veya masrafını “Faiz / masraf ekle” ile kaydedin. Harcama kasadan düşmez.')), 'Harcamayı kaydet', async form => {
+      const typed = signedAmount(total.value); const value = kind.value === 'Iade' || typed < 0 ? -Math.abs(typed) : typed;
+      if (!value) throw new Error('Sıfırdan farklı bir tutar girin.');
       const sourceId = value < 0 ? Number(source.value) : null;
       if (value < 0 && !refundable.some(row => row.id === sourceId)) throw new Error('İadenin bağlı olduğu harcamayı seçin.');
       const body = identity({ surum: card.surum, tarih: date.value, aciklama: description.value.trim(), tutar: value, taksitSayisi: value < 0 ? 1 : integer(installments.value), ilkKesimTarihi: value < 0 ? null : firstCut.value || null, dagilimlar: value < 0 ? [] : allocation.read(value), kaynakHarcamaId: sourceId });
