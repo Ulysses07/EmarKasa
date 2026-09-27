@@ -103,6 +103,12 @@ using (var scope = app.Services.CreateScope())
         });
     }
     db.SaveChanges();
+    // İlk sürüm kuralıyla (2.1–2.3) yapılmış kart geçişlerinde raporlara girmeyen eski ay sonu
+    // düşümleri ve girilen tutarlara göre tahmini kasa farkı otomatik dönüştürülmez (doğru tutar
+    // ancak banka/kasa kayıtlarıyla doğrulanabilir); her açılışta görünür kılınır. Aynı uyarı
+    // kart ekranında da gösterilir.
+    foreach (var kalinti in KartGecisHesabi.IlkSurumKalintilari(db))
+        app.Logger.LogWarning("Kart {KartId} ({Kart}) yeni takibe ilk sürüm kuralıyla geçirildi. {Uyari}", kalinti.KartId, kalinti.KartAdi, KartGecisHesabi.Uyari(kalinti));
 }
 
 app.UseExceptionHandler();

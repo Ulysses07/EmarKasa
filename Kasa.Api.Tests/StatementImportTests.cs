@@ -121,6 +121,48 @@ public class StatementImportTests
     }
 
     [Fact]
+    public async Task Iptal_edilen_odeme_sonrasi_ekstreden_iade_raporlari_ve_kart_ekranini_dusurmez()
+    {
+        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Mal", 100m, 1, null, [new(1, 100m)]));
+        var source = card.Harcamalar.Single();
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 100m));
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler.Single().Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Yanlış ödeme"));
+        // Belgede kart ödemesi satırı yok: kayıt, kart görünümü hesaplanmadan kalıcı olur.
+        var doc = await Document(f, c, "Kart", card.Id);
+        var (refund, _) = await Preview(c, doc, Row(1, "KartIade", 60m, "Otomatik") with { KaynakHarcamaId = source.Id });
+        await Save(c, doc, refund);
+        foreach (var path in new[] { "/api/rapor/panel", "/api/rapor/haftalik", "/api/takip/kartlar", $"/api/takip/kartlar/{card.Id}", "/api/takip/ozet" })
+        {
+            var response = await c.GetAsync(path);
+            Assert.True(response.IsSuccessStatusCode, $"{path}: {response.StatusCode}");
+        }
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        Assert.Equal(40m, card.Borc); Assert.Empty(Assert.Single(card.Odemeler).Dagilimlar);
+        Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Iptal_edilen_odeme_satiri_belge_gecmisinde_kayitli_kanal_dagilimini_korur()
+    {
+        await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);
+        var (request, _) = await Preview(c, doc, Row(1, "KartHarcama", 100m, "Ozel", new(1, 60m), new(2, 40m)), Row(2, "KartOdemesi", 20m, "Otomatik"), Row(3, "KartOdemesi", 30m, "Otomatik"));
+        doc = await Save(c, doc, request);
+        var cancelled = doc.Kayitlar.Single(k => k.SatirNo == 2);
+        Assert.Equal(new[] { 12m, 8m }, cancelled.Dagilimlar.Select(p => p.Tutar));
+        doc = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{doc.Id}/kayitlar/{cancelled.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Yanlış ödeme"));
+        // Belgede aktif ödeme satırı kaldığı için güncel dağılım okunur; iptal edilen ödemenin güncel
+        // etkisi yoktur, geçmiş görünümde kaydedildiği andaki payları kalır.
+        foreach (var current in new[] { doc, (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{doc.Id}"))! })
+        {
+            var row = current.Kayitlar.Single(k => k.SatirNo == 2); Assert.True(row.Iptal);
+            Assert.Equal(new[] { 12m, 8m }, row.Dagilimlar.Select(p => p.Tutar));
+            Assert.Equal(new[] { 18m, 12m }, current.Kayitlar.Single(k => k.SatirNo == 3).Dagilimlar.Select(p => p.Tutar));
+        }
+        Assert.Equal(970m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
     public async Task Odeme_harcamadan_once_secildiginde_onizleme_son_kanal_dagilimini_gosterir()
     {
         await using var f = new KasaWebFactory(); using var c = await Editor(f); var card = await Card(c); var doc = await Document(f, c, "Kart", card.Id);

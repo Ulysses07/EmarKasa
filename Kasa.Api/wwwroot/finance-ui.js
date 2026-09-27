@@ -36,7 +36,7 @@ export function createFinanceUi(c) {
     }
     page('Kredi Kartları', 'Harcama, ekstre ve kaydedilen ödemeler', canEdit() ? [act('+ Kart ekle', () => cardDialog(), 'primary')] : []);
     const cards = await api(`${base}/kartlar`); if (!isCurrent(generation)) return;
-    const list = cards.map(card => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('cards', card.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, card.ad), h('span', { class: 'badge' }, card.aktif ? 'Aktif' : 'Yeni kullanıma kapalı')), h('span', { class: 'summary-label' }, 'Uygulamadaki kart borcu'), moneyNode(card.borc), h('small', {}, `Ekstre borcu ${money(card.ekstreBorc)} · Limit ${money(card.limit)}`), !card.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor')));
+    const list = cards.map(card => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('cards', card.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, card.ad), h('span', { class: 'badge' }, card.aktif ? 'Aktif' : 'Yeni kullanıma kapalı')), h('span', { class: 'summary-label' }, 'Uygulamadaki kart borcu'), moneyNode(card.borc), h('small', {}, `Ekstre borcu ${money(card.ekstreBorc)} · Limit ${money(card.limit)}`), !card.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor'), card.gecis?.tahminiKasaFarki ? h('span', { class: 'badge pending' }, 'Geçiş farkını doğrulayın') : null));
     view().replaceChildren(h('p', { class: 'plan-note' }, 'Kartın son ödeme günü kasayı değiştirmez. Yalnız kaydettiğiniz kart ödemesi, ödeme tarihinde genel kasa ve ilgili kanallardan düşer.'), cards.length ? h('div', { class: 'finance-grid' }, list) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kart eklenmedi'), help('Kart adı, limit ve ödeme günleriyle başlayın. Kart numarası veya banka şifresi istenmez.')));
   }
   function renderCard(card) {
@@ -50,14 +50,29 @@ export function createFinanceUi(c) {
     view().replaceChildren(...childValues([
       button('← Kartlara dön', () => navigate('cards'), 'back-link'),
       !card.yeniTakip && h('div', { class: 'notice' }, 'Bu kart eski kasa kuralını kullanıyor. Yeni ödeme ve harcama takibine geçmeden önce mevcut borcu ve geçmiş kasa etkisini inceleyin. Geçmiş kayıtlar silinmez.'),
+      // İlk sürüm geçiş tespiti: tahmini kasa farkı varsa tehlike, yalnız düşüş tarihi farklıysa bilgi.
+      card.gecis?.uyari && h('div', { class: card.gecis.tahminiKasaFarki ? 'notice danger' : 'notice' }, card.gecis.uyari),
       h('div', { class: 'summary-strip' }, summary(card.borc < 0 ? 'Kart alacak bakiyesi' : 'Kart borcu', money(Math.abs(card.borc))), summary('Ekstre borcu', money(card.ekstreBorc)), summary('Limit', money(card.limit))),
       card.kanalKartBorclari && section('Kanallara göre kalan kart borcu', h('div', {}, shares(card.kanalKartBorclari), help('Bu tutarlar kasa bakiyesine eklenmez veya kasadan düşülmez. Kasa yalnız ödeme kaydında değişir.'))),
       help(`Hesap kesim günü ${card.kesimGunu} · Son ödeme günü ${card.sonOdemeGunu}. Son ödeme tarihi geçse de ödeme kaydı olmadan kasa değişmez.`),
       section('Ekstreler', statementRows.length ? table(['Kesim', 'Son ödeme', 'Borç', 'Ödenen', 'Kalan', 'Asgari', ''], statementRows) : help('Henüz ekstre yok.')),
       section('Harcamalar ve iadeler', expenseRows.length ? table(['Tarih', 'Açıklama', 'Tutar', 'Plan', 'Kanallar', ''], expenseRows) : help('Henüz harcama yok.')),
       section('Kaydedilen kart ödemeleri', payments.length ? h('div', {}, payments) : help('Henüz ödeme kaydedilmedi.')),
+      card.gecis && section('Eski karttan geçiş', transitionRecord(card.gecis)),
       editable && button(card.aktif ? 'Yeni kullanıma kapat' : 'Yeniden kullanıma aç', () => stateDialog(card, 'cards'), 'small')
     ]));
+  }
+  // Onaylanan geçişin denetim izi: girilen tutarlar ve onay anındaki önizleme özeti (ilk sürüm geçişlerinde yok).
+  function transitionRecord(record) {
+    const saved = record.onizleme;
+    return h('div', {},
+      saved ? h('div', { class: 'summary-strip' },
+        summary('Girilen kalan borç', money(saved.kalanBorc), `Sistem kart borcu ${money(saved.sistemKartBorcu)}`),
+        summary('Kasada önceden sayılan', money(saved.kasadaOncedenSayilanTutar), `Önerilen ${money(saved.onerilenKasadaSayilanTutar)}`),
+        summary('Bekleyen eski düşüm', money(saved.bekleyenEskiDusumTutari), saved.sonBekleyenDusumTarihi ? `Son düşüm ${dateText(saved.sonBekleyenDusumTarihi)}` : 'Bekleyen düşüm yok'))
+        : help('Bu geçiş ilk sürümde yapıldı; önizleme özeti saklanmadı.'),
+      saved && help(`${dateText(saved.onayTarihi)} tarihinde onaylandı. Başlangıçtan önce eski kuralla düşen/düşecek kart gideri ${money(saved.eskiKuraldaIslenenTutar)}.`),
+      record.aciklama && help(`Geçiş açıklaması: ${record.aciklama}`));
   }
   async function cardDialog(card = null) {
     const channels = await api('/api/kanallar'); const allocation = allocationEditor(channels); const identity = requestIdentity();
@@ -134,15 +149,39 @@ export function createFinanceUi(c) {
     const identity = requestIdentity(); const reason = input('aciklama', '', { required: true, maxlength: 2000 }); const route = target === 'cards' ? 'kartlar' : 'krediler';
     formDialog(record.aktif ? 'Yeni kullanıma kapat' : 'Yeniden kullanıma aç', h('div', { class: 'stack' }, help('Geçmiş kayıtlar ve mevcut borç takibi korunur.'), field('Açıklama', reason)), 'Durumu kaydet', async () => { await api(`${base}/${route}/${record.id}/durum`, { method: 'POST', body: identity({ surum: record.surum, aktif: !record.aktif, aciklama: reason.value.trim() }) }); closeModal(); await navigate(target, record.id); });
   }
-  function transitionPreview(preview, payload, path, target, id) {
-    const content = h('div', { class: 'stack' }, h('div', { class: 'summary-strip' }, summary('Genel kasa anlık farkı', money(preview.genelKasaAnlikFarki)), summary('Kanal anlık farkı', money(preview.kanalAnlikFarki)), summary('Önceden sayılmış tutar', money(preview.eskiKasadaSayilanTutar))), h('ul', {}, preview.aciklamalar.map(text => h('li', {}, text))), help('Tarih öncesindeki kayıtlar korunur. Bu özeti doğrulamadan geçişi onaylamayın.'));
+  function transitionPreview(preview, payload, path, target, id, retry = null) {
+    // Kart geçişinde sunucu eski kuralla işlenen/bekleyen düşümleri ve önerilen tutarı hesaplar.
+    const suggested = preview.onerilenKasadaSayilanTutar;
+    const cardFacts = preview.sistemKartBorcu != null && h('div', { class: 'summary-strip' },
+      summary('Sistem kart borcu', money(preview.sistemKartBorcu), 'Açılış borcu + eski kart giderleri − eski kart ödemeleri'),
+      summary('Başlangıçtan önce düşen/düşecek', money(preview.eskiKuraldaIslenenTutar), 'Eski ay sonu kuralıyla'),
+      summary('Bekleyen eski düşüm', money(preview.bekleyenEskiDusumTutari), preview.sonBekleyenDusumTarihi ? `Son düşüm ${dateText(preview.sonBekleyenDusumTarihi)}` : 'Bekleyen düşüm yok'),
+      summary('Önerilen önceden sayılan', money(suggested), preview.enAzKasadaSayilanTutar != null && preview.enAzKasadaSayilanTutar < suggested ? `En az ${money(preview.enAzKasadaSayilanTutar)} (açılış borcu kasadan ödenecekse)` : null));
+    const differs = retry && suggested != null && Math.round(suggested * 100) !== Math.round(payload.kasadaOncedenSayilanTutar * 100);
+    const content = h('div', { class: 'stack' },
+      h('div', { class: 'summary-strip' }, summary('Genel kasa farkı', money(preview.genelKasaAnlikFarki), cardFacts && 'Artı: kasadan hiç düşmeyecek · eksi: ödemede ikinci kez düşecek'), summary('Kanal farkı', money(preview.kanalAnlikFarki)), summary('Önceden sayılmış tutar', money(preview.eskiKasadaSayilanTutar))),
+      cardFacts, h('ul', {}, preview.aciklamalar.map(text => h('li', {}, text))),
+      differs && button(`Önerilen tutarla (${money(suggested)}) yeniden önizle`, event => run(event.currentTarget, () => retry(suggested)), 'small'),
+      help('Tarih öncesindeki kayıtlar korunur. Bu özeti doğrulamadan geçişi onaylamayın.'));
     if (!preview.kabulEdilebilir) { c.openModal('Geçiş tamamlanamıyor', h('div', { class: 'stack' }, content, help('Girdi ve eşleştirmeleri düzeltip yeniden önizleyin.'), button('Kapat', closeModal))); return; }
     formDialog('Geçiş özeti', content, 'Özeti doğruladım, geçişi onayla', async () => { await api(path, { method: 'POST', body: { ...payload, onay: true } }); closeModal(); toast('Yeni takip etkinleştirildi.'); await navigate(target, id); }, { wide: true });
   }
   async function cardTransition(card) {
     const channels = await api('/api/kanallar'); const allocation = allocationEditor(channels); const identity = requestIdentity();
-    const start = input('baslangic', today(), { type: 'date', min: today(), required: true }); const debt = input('kalanBorc', Math.max(0, card.borc), { inputmode: 'decimal', required: true }); const counted = input('kasadaOncedenSayilanTutar', '0', { inputmode: 'decimal', required: true }); const reason = input('aciklama', '', { required: true, maxlength: 2000 });
-    formDialog('Eski kartı yeni takibe geçir', h('div', { class: 'stack' }, help('Bankanızdaki kalan borcu ve daha önce genel kasadan düşmüş kısmını kontrol edin. Bu işlem yeni harcama oluşturmaz.'), field('Geçiş tarihi', start), field('Kalan kart borcu (₺)', debt), field('Bu borcun önceden kasada sayılmış kısmı (₺)', counted), allocation.node, field('Geçiş açıklaması', reason)), 'Geçiş farkını göster', async () => { const total = amount(debt.value); const payload = identity({ surum: card.surum, baslangic: start.value, kalanBorc: total, kasadaOncedenSayilanTutar: amount(counted.value), dagilimlar: allocation.read(total), aciklama: reason.value.trim(), onay: false }); const preview = await api(`${base}/kartlar/${card.id}/gecis-onizleme`, { method: 'POST', body: payload }); transitionPreview(preview, payload, `${base}/kartlar/${card.id}/gecis`, 'cards', card.id); }, { wide: true });
+    // Önerilen tutar = kalan borç ile sistem kart borcunun küçüğü; elle değiştirilen tutar korunur.
+    let countedEdited = false;
+    const suggestion = () => { try { return Math.max(0, Math.min(amount(debt.value), card.borc)); } catch { return null; } };
+    const start = input('baslangic', today(), { type: 'date', min: today(), required: true });
+    const debt = input('kalanBorc', Math.max(0, card.borc), { inputmode: 'decimal', required: true, oninput: () => { const value = suggestion(); if (!countedEdited && value != null) counted.value = String(value); } });
+    const counted = input('kasadaOncedenSayilanTutar', Math.max(0, card.borc), { inputmode: 'decimal', required: true, oninput: () => { countedEdited = true; } });
+    const reason = input('aciklama', '', { required: true, maxlength: 2000 });
+    const show = async value => {
+      const total = amount(debt.value);
+      const payload = identity({ surum: card.surum, baslangic: start.value, kalanBorc: total, kasadaOncedenSayilanTutar: value, dagilimlar: allocation.read(total), aciklama: reason.value.trim(), onay: false });
+      const preview = await api(`${base}/kartlar/${card.id}/gecis-onizleme`, { method: 'POST', body: payload });
+      transitionPreview(preview, payload, `${base}/kartlar/${card.id}/gecis`, 'cards', card.id, suggested => { counted.value = String(suggested); countedEdited = true; return show(suggested); });
+    };
+    formDialog('Eski kartı yeni takibe geçir', h('div', { class: 'stack' }, help('Bankanızdaki kalan borcu girin. Önceden sayılmış kısım, sistemin eski kuralla kasadan düştüğü/düşeceği borçtur; önerilen tutar kalan borç ile sistem kart borcunun küçüğüdür. Önerilenin altı yalnız açılış borcu kasadan ayrıca ödenecekse girilebilir. Bu işlem yeni harcama oluşturmaz.'), field('Geçiş tarihi', start), field('Kalan kart borcu (₺)', debt), field('Bu borcun önceden kasada sayılmış kısmı (₺)', counted), allocation.node, field('Geçiş açıklaması', reason)), 'Geçiş farkını göster', () => show(amount(counted.value)), { wide: true });
   }
 
   async function renderLoans(generation, id = null) {
@@ -195,5 +234,5 @@ export function createFinanceUi(c) {
     const rows = data.olaylar.map(event => [h('span', {}, dateText(event.tarih), event.kaynak === 'Kart' && event.tur === 'SonOdeme' && event.tutar > 0 && event.tarih < (data.tarih || today()) && h('span', { class: 'badge pending' }, 'Gecikti')), button(event.ad, () => navigate(event.kaynak === 'Kart' ? 'cards' : 'loans', event.kaynakId), 'table-link'), event.tur === 'Kesim' ? 'Hesap kesimi' : event.tur === 'SonOdeme' ? 'Son ödeme' : 'Kredi taksidi', moneyNode(event.tutar), event.otomatikKasa ? 'Taksit tarihinde otomatik düşer' : event.tur === 'Kesim' ? 'Banka ekstresi doğrulaması değildir' : 'Ödeme kaydedilince düşer']);
     return section('Yaklaşan ve geciken ödemeler', h('div', {}, h('div', { class: 'summary-strip' }, summary('Toplam kart borcu', money(data.kartBorcu)), data.kartAlacakBakiyesi > 0 && summary('Kart alacak bakiyesi', money(data.kartAlacakBakiyesi), 'Diğer kartların borcundan düşülmez.'), summary('Kalan kredi planı', money(data.kalanKrediPlani))), rows.length ? table(['Tarih', 'Kart / kredi', 'Olay', 'Tutar', 'Kasa etkisi'], rows) : help('Bu aralıkta kayıtlı ödeme yok.')), range);
   }
-  return { renderCards, renderLoans, overview, cardDialog, cardPaymentDialog, feeDialog, loanDialog, installmentDialog };
+  return { renderCards, renderLoans, overview, cardDialog, cardPaymentDialog, cardTransition, feeDialog, loanDialog, installmentDialog };
 }

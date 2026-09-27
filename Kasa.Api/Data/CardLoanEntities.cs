@@ -7,6 +7,21 @@ public class TakipKartEntity
     public DateOnly Baslangic { get; set; }
     public bool Aktif { get; set; } = true;
     public bool EskiKayit { get; set; }
+    public EskiDusumKurali EskiDusumKurali { get; set; }
+    /// <summary>Onaylanan eski kart geçişinin açıklaması (denetim izi). İlk sürüm geçişlerinde saklanmadı: null.</summary>
+    public string? GecisAciklamasi { get; set; }
+    /// <summary>Onay anındaki önizleme özeti ve girilen tutarlar (<see cref="Kasa.Api.KartGecisKaydi"/> JSON). İlk sürüm geçişlerinde null.</summary>
+    public string? GecisOzetiJson { get; set; }
+}
+/// <summary>Eski karttan geçişte, başlangıçtan önceki eski kart giderlerinin kasaya düşüş kuralı.</summary>
+public enum EskiDusumKurali
+{
+    /// <summary>İlk sürüm: eski ay sonu etkisi başlangıçtan önceyse sayılır, sonrası atlanır.
+    /// Bu kuralla yapılmış (canlıdaki) geçişlerin raporları aynen korunur.</summary>
+    EtkiTarihi = 0,
+    /// <summary>İşlem tarihi başlangıçtan önceki her eski gider, eski ay sonu kuralıyla
+    /// (gerekirse geçişten sonraki ay sonunda) bir kez düşer; bekleyen düşüm kaybolmaz.</summary>
+    IslemTarihi = 1,
 }
 public class TakipEkstreEntity
 {

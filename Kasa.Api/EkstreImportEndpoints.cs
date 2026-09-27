@@ -347,8 +347,10 @@ public static class EkstreImportEndpoints
             .SelectMany(card => Kart(db, card).Odemeler).ToDictionary(p => p.Id);
         return new(d.Id, d.Surum, d.Kaynak, d.Banka, d.HesapAdi, d.KartId, d.DosyaAdi, DateTimeOffset.FromUnixTimeMilliseconds(d.Yuklendi),
             Read<string>(d.UyarilarJson), Read<EkstreOkunanSatir>(d.SatirlarJson), rows
+                // İptal edilmiş ödemenin güncel etkisi yoktur (Kart() boş dağılım döner); geçmiş görünümde
+                // satır kaydedildiği andaki payları (DagilimJson anlık görüntüsü) gösterir.
                 .Select(k => new EkstreKayitDto(k.Id, k.SatirNo, k.Tarih, k.Aciklama, k.Tutar, k.IslemTuru, k.DagilimTuru,
-                    k.KartOdemeId is { } payment && payments.TryGetValue(payment, out var current) ? current.Dagilimlar : Read<TakipKanalPayi>(k.DagilimJson)
+                    !k.Iptal && k.KartOdemeId is { } payment && payments.TryGetValue(payment, out var current) && !current.Iptal ? current.Dagilimlar : Read<TakipKanalPayi>(k.DagilimJson)
                         .Select(p => p.KanalId is { } channel ? p with { Kanal = channelNames.GetValueOrDefault(channel, p.Kanal) } : p).ToList(),
                     k.KrediKartiId, k.IslemId, k.KartHarcamaId, k.KartOdemeId, k.Iptal)).ToList());
     }
