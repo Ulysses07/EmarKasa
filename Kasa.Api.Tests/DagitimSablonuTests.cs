@@ -4,14 +4,17 @@ namespace Kasa.Api.Tests;
 
 // Depodaki Compose şablonları canlıyı 2.0 öncesinden korunmuş ./kasa-data veritabanına
 // bağlamamalı: /data ve /yedekler kaynağı yalnız zorunlu ortam değişkeninden gelir,
-// değişken tanımsız veya boşsa `docker compose` hata verip durur. YAML bilerek düz metin
-// olarak okunur; uzun bağlama sözdizimine geçilirse test açıkça başarısız olur.
+// değişken tanımsız veya boşsa `docker compose` hata verip durur. Bağlamalar uzun sözdizimiyle
+// (type: bind, bind.create_host_path: false) yazılır: yazım hatalı bir yol Docker'a boş dizin
+// açtırmaz, 'up' hata verir. YAML bilerek düz metin olarak okunur (ek paket yok); kısa bağlama
+// sözdizimine dönülürse test açıkça başarısız olur.
 public class DagitimSablonuTests
 {
     private static readonly Regex ZorunluVeri = new(@"^\$\{KASA_DATA_DIR:\?[^}]+\}$");
     private static readonly Regex ZorunluYedek = new(@"^\$\{KASA_BACKUP_DIR:\?[^}]+\}$");
-    // Kaynak en sondaki ":/hedef" parçasından ayrılır; zorunlu değişken iletisindeki ':' kaynağa kalır.
-    private static readonly Regex KisaBaglama = new(@"^(?<kaynak>.+):(?<hedef>/[^:]*)(?::[a-z,]+)?$");
+    private static readonly Regex ZorunluVekil = new(@"^\$\{KASA_GUVENILIR_VEKILLER:\?[^}]+\}$");
+    // Uzun sözdiziminde "anahtar: değer" satırı ya da alt eşleme açan "anahtar:" satırı.
+    private static readonly Regex AnahtarDeger = new(@"^(?<anahtar>[a-z_]+):(?:\s+(?<deger>.+))?$");
 
     public static TheoryData<string> ComposeDosyalari => new() { "docker-compose.nginx.yml", "docker-compose.yml" };
 
@@ -25,7 +28,22 @@ public class DagitimSablonuTests
         Assert.DoesNotContain(satirlar, s => s.Contains("kasa-backups", StringComparison.Ordinal));
         Assert.All(Baglamalar(dosya), b => Assert.False(
             b.Kaynak.StartsWith('.') || b.Kaynak.StartsWith('~'),
-            $"{dosya}: '{b.Kaynak}:{b.Hedef}' göreli host yolu bağlıyor; deploy/ altındaki eski veri dizinine gider."));
+            $"{dosya}: '{b}' göreli host yolu bağlıyor; deploy/ altındaki eski veri dizinine gider."));
+    }
+
+    [Theory]
+    [MemberData(nameof(ComposeDosyalari))]
+    public void Baglamalar_uzun_sozdizimiyle_host_yolu_olusturmaz(string dosya)
+    {
+        // Kısa sözdizimi (ve create_host_path: true) eksik kaynak yolunu Docker'a boş dizin olarak açtırır;
+        // uygulama da o boş dizinde yeni, boş bir veritabanı kurar. false ile 'up' hata verip durur.
+        Assert.All(Baglamalar(dosya), b =>
+        {
+            Assert.Equal("bind", b.Alan("type"));
+            Assert.Equal("false", b.Alan("bind.create_host_path"));
+            Assert.NotEqual("", b.Kaynak);
+            Assert.StartsWith("/", b.Hedef);
+        });
     }
 
     [Theory]
@@ -49,11 +67,12 @@ public class DagitimSablonuTests
 
     [Theory]
     [MemberData(nameof(ComposeDosyalari))]
-    public void Veri_ve_yedek_degiskenine_varsayilan_deger_verilmez(string dosya)
+    public void Veri_yedek_ve_vekil_degiskenine_varsayilan_deger_verilmez(string dosya)
     {
-        // ${KASA_DATA_DIR:-./kasa-data} gibi bir varsayılan, değişken unutulduğunda eski veriyi sessizce bağlar.
+        // ${KASA_DATA_DIR:-./kasa-data} gibi bir varsayılan, değişken unutulduğunda eski veriyi sessizce bağlar;
+        // vekil listesinde varsayılan, ortak ağdaki bütün konteynerlere X-Forwarded-For güveni verir.
         var metin = string.Join('\n', YorumsuzSatirlar(DeployDosyasi(dosya)));
-        foreach (Match m in Regex.Matches(metin, @"\$\{?KASA_(?:DATA|BACKUP)_DIR(?<devam>.{0,2})"))
+        foreach (Match m in Regex.Matches(metin, @"\$\{?KASA_(?:DATA_DIR|BACKUP_DIR|GUVENILIR_VEKILLER)(?<devam>.{0,2})"))
             Assert.StartsWith(":?", m.Groups["devam"].Value);
     }
 
@@ -62,10 +81,7 @@ public class DagitimSablonuTests
     {
         // Örnekten kopyalanan .env doldurulmadan kalırsa 'up' durmalı; hazır bir yol
         // Docker'ın o yolda boş dizin açmasına ve uygulamanın boş veritabanı kurmasına yol açar.
-        var atamalar = YorumsuzSatirlar(DeployDosyasi(".env.example"))
-            .Select(s => s.Split('=', 2))
-            .Where(p => p.Length == 2)
-            .ToDictionary(p => p[0].Trim(), p => p[1].Trim());
+        var atamalar = EnvOrnegi();
 
         Assert.True(atamalar.TryGetValue("KASA_DATA_DIR", out var veri), ".env.example KASA_DATA_DIR satırını içermeli.");
         Assert.True(atamalar.TryGetValue("KASA_BACKUP_DIR", out var yedek), ".env.example KASA_BACKUP_DIR satırını içermeli.");
@@ -73,27 +89,71 @@ public class DagitimSablonuTests
         Assert.Equal("", yedek);
     }
 
-    private static List<(string Kaynak, string Hedef)> Baglamalar(string dosya)
+    [Fact]
+    public void Caddy_sablonu_guvenilir_vekilleri_zorunlu_degiskenden_alir()
     {
-        var sonuc = new List<(string, string)>();
+        // docker-compose.yml harici orderdeck_web ağına katılır; uygulamanın varsayılan listesi (172.16.0.0/12 vb.)
+        // o ağdaki bütün konteynerlerin X-Forwarded-For başlığına güvenir. Liste yalnız ters vekil konteynerinin
+        // adresine/alt ağına daraltılmalı: değer .env'den zorunlu gelir, örnekte boş kalır ve Compose durur.
+        var vekil = Assert.Single(YorumsuzSatirlar(DeployDosyasi("docker-compose.yml")).Select(s => s.Trim()),
+            s => s.StartsWith("Kasa__GuvenilirVekiller:", StringComparison.Ordinal));
+        Assert.Matches(ZorunluVekil, vekil["Kasa__GuvenilirVekiller:".Length..].Trim().Trim('"', '\''));
+
+        Assert.True(EnvOrnegi().TryGetValue("KASA_GUVENILIR_VEKILLER", out var ornek), ".env.example KASA_GUVENILIR_VEKILLER satırını içermeli.");
+        Assert.Equal("", ornek);
+    }
+
+    private sealed record Baglama(IReadOnlyDictionary<string, string> Alanlar)
+    {
+        public string Kaynak => Alan("source");
+        public string Hedef => Alan("target");
+        public string Alan(string yol) => Alanlar.GetValueOrDefault(yol, "");
+        public override string ToString() => $"{Kaynak} -> {Hedef}";
+    }
+
+    // volumes: bloklarındaki öğeler; iç içe anahtarlar noktayla birleşir (ör. bind.create_host_path).
+    private static List<Baglama> Baglamalar(string dosya)
+    {
+        var sonuc = new List<Baglama>();
+        Dictionary<string, string>? oge = null;
+        var ustler = new Stack<(int Girinti, string Anahtar)>();
         int? blokGirintisi = null;
         foreach (var satir in YorumsuzSatirlar(DeployDosyasi(dosya)))
         {
             var icerik = satir.TrimStart();
             var girinti = satir.Length - icerik.Length;
             if (blokGirintisi is { } g && (girinti < g || (girinti == g && !icerik.StartsWith("- ", StringComparison.Ordinal))))
-                blokGirintisi = null;
+                (blokGirintisi, oge) = (null, null);
             if (icerik == "volumes:") { blokGirintisi = girinti; continue; }
-            if (blokGirintisi is null || !icerik.StartsWith("- ", StringComparison.Ordinal)) continue;
+            if (blokGirintisi is null) continue;
 
-            var deger = icerik[2..].Trim().Trim('"', '\'');
-            var m = KisaBaglama.Match(deger);
-            Assert.True(m.Success, $"{dosya}: '{deger}' kısa bağlama sözdizimi değil; bu testi yeni sözdizimine göre güncelleyin.");
-            sonuc.Add((m.Groups["kaynak"].Value, m.Groups["hedef"].Value));
+            if (icerik.StartsWith("- ", StringComparison.Ordinal))
+            {
+                oge = new Dictionary<string, string>(StringComparer.Ordinal);
+                sonuc.Add(new Baglama(oge));
+                ustler.Clear();
+                icerik = icerik[2..].TrimStart();
+                girinti = satir.Length - icerik.Length;
+            }
+            var m = AnahtarDeger.Match(icerik);
+            Assert.True(oge is not null && m.Success,
+                $"{dosya}: '{icerik}' uzun bağlama sözdizimi değil; bağlamayı type/source/target ve bind.create_host_path: false ile yazın.");
+            while (ustler.TryPeek(out var ust) && ust.Girinti >= girinti) ustler.Pop();
+            var anahtar = m.Groups["anahtar"].Value;
+            if (m.Groups["deger"].Success)
+                oge![string.Join('.', ustler.Reverse().Select(u => u.Anahtar).Append(anahtar))] = m.Groups["deger"].Value.Trim().Trim('"', '\'');
+            else
+                ustler.Push((girinti, anahtar));
         }
         Assert.NotEmpty(sonuc);
         return sonuc;
     }
+
+    private static Dictionary<string, string> EnvOrnegi() =>
+        YorumsuzSatirlar(DeployDosyasi(".env.example"))
+            .Select(s => s.Split('=', 2))
+            .Where(p => p.Length == 2)
+            .ToDictionary(p => p[0].Trim(), p => p[1].Trim());
 
     private static List<string> YorumsuzSatirlar(string yol) =>
         File.ReadAllLines(yol)
