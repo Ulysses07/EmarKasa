@@ -18,7 +18,8 @@ public class BenzerKayitTests
         {
             db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges();
             db.TakipKartlar.AddRange(new() { KrediKartiId = 1, Baslangic = Date }, new() { KrediKartiId = 2, Baslangic = Date }); db.SaveChanges();
-            db.Islemler.AddRange(Expense(1, 1), Expense(2, 2), Expense(3, 1, 101), Expense(4, 1, 100, Date.AddDays(1)));
+            // Tarih penceresi ±3 gündür: dört gün sonraki aynı tutar eşleşmez.
+            db.Islemler.AddRange(Expense(1, 1), Expense(2, 2), Expense(3, 1, 101), Expense(4, 1, 100, Date.AddDays(4)));
             db.SaveChanges();
             db.TakipHarcamalar.AddRange(
                 new() { KrediKartiId = 1, IslemId = 1, Tarih = Date, Tutar = 100, Aciklama = "Aynı gider" },
@@ -73,13 +74,19 @@ public class BenzerKayitTests
     }
 
     [Fact]
-    public async Task Alisin_onayli_paylari_nakit_benzerliginde_kullanilir_taslakta_tahmin_yapilmaz()
+    public async Task Alisin_onayli_paylari_nakit_benzerliginde_kullanilir_taslak_odemesi_dagilim_bekliyor_olarak_her_kanalda_gorunur()
     {
         await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         var draft = await Purchase(c);
         var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100));
         Assert.Single(await Find(c, new("AlisOdeme", Date, 100, AlisId: draft.Id)));
-        Assert.Empty(await Find(c, new("Gider", Date, 100, Kanal: "MEZAT")));
+        // gap-coklu-giris-cift-sayim-mutabakat-2: taslak alışın ödemesinin kanalı henüz belli değildir; tahmin yapılmaz ama
+        // hiçbir kanal sorgusunda gizlenmez (aynı para başka yoldan elle girilebilir).
+        foreach (var channel in new[] { "MEZAT", "TOPTAN" })
+        {
+            var pending = Assert.Single(await Find(c, new("Gider", Date, 100, Kanal: channel)));
+            Assert.Equal((draft.Id, Kanallar.DagilimBekliyor), (pending.AlisId, pending.KanalEtiketi));
+        }
         var sent = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/gonder", new AlisDurumYaz(paid.Surum));
         await Post<AlisDto>(c, $"/api/alis/{draft.Id}/onayla", new AlisDurumYaz(sent.Surum));
         var rows = await Find(c, new("Gider", Date, 100, Kanal: "MEZAT"));

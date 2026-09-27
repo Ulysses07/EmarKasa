@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
@@ -41,10 +42,10 @@ public static class EkstreImportEndpoints
             response.Headers.XContentTypeOptions = "nosniff";
             return Results.File(d.Dosya, "application/pdf", d.DosyaAdi);
         });
+        // Önizleme bir benzetimdir: satırlar (ve tarihe bağlı türetme, Sync) geri alınan kayıt noktasında uygulanır, kalıcı
+        // hiçbir şey yazılmaz. Benzetim yazarak hesaplandığından yazma transaction'ı içinde çalışır.
         api.MapPost("/{id:int}/onizleme", (int id, EkstreKaydetYaz dto, KasaDbContext db) => Safe(() => AlisEndpoints.Mutate(db, () =>
-        {
-            Sync(db); return Results.Ok(Preview(db, id, dto));
-        })));
+            Results.Ok(Preview(db, id, dto)))));
         api.MapPost("/{id:int}/kaydet", (int id, EkstreKaydetYaz dto, KasaDbContext db) => Safe(() => AlisEndpoints.Mutate(db, () =>
         {
             var digest = FinansHesaplari.Ozet(new { id, dto.Satirlar, dto.OnizlemeOzeti, dto.TekrarOnay });
@@ -145,24 +146,33 @@ public static class EkstreImportEndpoints
         }));
     }
 
+    private sealed record KartSurumu(int KrediKartiId, int Surum);
     private static EkstreOnizlemeDto Preview(KasaDbContext db, int id, EkstreKaydetYaz dto)
     {
+        List<KartSurumu> cardVersions = []; DateOnly? locked = null;
         var document = GetDocument(db, id);
         Require(document.Surum == dto.Surum, "Belge değişmiş. Yenileyip yeniden önizleyin.", 409);
         Require(dto.Satirlar is { Count: > 0 and <= 1500 } && dto.Satirlar.All(r => r is not null), "İşlenecek satırları seçin.");
         Require(dto.Satirlar.Select(r => r.SatirNo).Distinct().Count() == dto.Satirlar.Count, "Bir kaynak satırı iki kez seçilemez.");
         var sourceRows = Read<EkstreOkunanSatir>(document.SatirlarJson).ToDictionary(r => r.No);
         var output = new List<EkstreSatirOnizleme>(); var warnings = new List<string>(); bool confirm = false;
-        var oldPayments = db.TakipKartOdemeler.AsNoTracking().Where(p => !p.Iptal).ToList()
-            .Where(p => Read<KartTaksitPayi>(p.PaylarJson).Any(a => a.TaksitId == 0 && a.Tutar > 0))
-            .ToDictionary(p => p.Id, p => Json(OdemeEtkisi(db, p.KrediKartiId, Read<KartTaksitPayi>(p.PaylarJson), p.Id).Dagilimlar));
         var selected = new List<(EkstreSatirYaz Row, EkstreKayitEntity Applied, List<string> Notices)>();
-        var cardVersions = db.TakipKartlar.OrderBy(c => c.KrediKartiId).Select(c => new { c.KrediKartiId, c.Surum }).ToList();
-        var locked = db.AyKilidi.AsNoTracking().Single().KilitliSonTarih;
+        // Bu önizlemede az önce uygulanan satırlar (EkstreKayit kimliği → kaynak satır no): benzer kayıt uyarısında adlandırılır.
+        var batch = new Dictionary<int, int>();
         var tx = db.Database.CurrentTransaction!;
-        tx.CreateSavepoint("ekstre_preview"); db.EkstreDegisikligi = true;
+        tx.CreateSavepoint("ekstre_preview");
         try
         {
+            // Tarihe bağlı türetme de benzetimin parçasıdır ve geri alınır; kaydet yolunda Sync kalıcı olarak önce çalıştığından
+            // burada etkisizdir. Özetin okumaları iki yolda da Sync sonrasındaki aynı duruma göredir.
+            Sync(db);
+            var oldPayments = db.TakipKartOdemeler.AsNoTracking().Where(p => !p.Iptal).ToList()
+                .Where(p => Read<KartTaksitPayi>(p.PaylarJson).Any(a => a.TaksitId == 0 && a.Tutar > 0))
+                .ToDictionary(p => p.Id, p => Json(OdemeEtkisi(db, p.KrediKartiId, Read<KartTaksitPayi>(p.PaylarJson), p.Id).Dagilimlar));
+            cardVersions = db.TakipKartlar.OrderBy(c => c.KrediKartiId).Select(c => new KartSurumu(c.KrediKartiId, c.Surum)).ToList();
+            locked = db.AyKilidi.AsNoTracking().Single().KilitliSonTarih;
+            var similar = new BenzerKayitServisi(db);
+            db.EkstreDegisikligi = true;
             foreach (var row in dto.Satirlar)
             {
                 Require(sourceRows.TryGetValue(row.SatirNo, out var original), "Kaynak satır bu PDF'de bulunamadı.");
@@ -172,8 +182,9 @@ public static class EkstreImportEndpoints
                 if (original.Yon == "Belirsiz") notices.Add("Giriş/çıkış yönü okunamadı; seçtiğiniz işlem türünü doğrulayın.");
                 if (original.OnerilenIslem != row.IslemTuru) notices.Add("İşlem türü PDF önerisinden farklı; yönünü ve kasaya etkisini kontrol edin.");
                 if (document.Kaynak == "Banka" && original.Sinif == "Transfer") notices.Add("Kendi hesaplarınız arasındaki transfer genel kasayı değiştirmez; böyle bir satırı seçmeden bırakın. Gelir/gider olarak işlerseniz genel kasa değişir.");
-                notices.AddRange(Duplicates(db, document, row));
+                notices.AddRange(Duplicates(db, similar, document, row, batch));
                 var applied = Apply(db, document, row);
+                batch[applied.Id] = row.SatirNo;
                 selected.Add((row, applied, notices));
             }
             // A later selected charge may allocate an earlier payment's advance.
@@ -302,44 +313,35 @@ public static class EkstreImportEndpoints
         db.SaveChanges();
     }
 
-    private static IEnumerable<string> Duplicates(KasaDbContext db, EkstreBelgeEntity doc, EkstreSatirYaz row)
+    /// <summary>Benzer kayıt uyarıları. Kart harcaması/iadesi, kart ödemesi ve banka gideri benzerlik ucuyla aynı servisi
+    /// (<see cref="BenzerKayitServisi"/>: aynı tutar, ±3 gün, simetrik kaynaklar) kullanır; banka gideri kanal ayırmaz.
+    /// Aynı önizlemede önceden uygulanan satırlar da bulunur ve satır numarasıyla adlandırılır.</summary>
+    private static IEnumerable<string> Duplicates(KasaDbContext db, BenzerKayitServisi similar, EkstreBelgeEntity doc, EkstreSatirYaz row, IReadOnlyDictionary<int, int> batch)
     {
-        var duplicate = false;
-        if (row.IslemTuru is "KartHarcama" or "KartIade")
+        if (row.IslemTuru == "Gelir")
         {
-            var card = CardId(doc, row); var amount = row.IslemTuru == "KartIade" ? -row.Tutar : row.Tutar;
-            duplicate = db.TakipHarcamalar.Any(h => h.KrediKartiId == card && !h.Iptal && h.Tarih == row.Tarih && h.Tutar == amount);
-        }
-        else if (row.IslemTuru == "KartOdemesi")
-        {
-            var card = CardId(doc, row);
-            duplicate = db.TakipKartOdemeler.Any(p => p.KrediKartiId == card && !p.Iptal && p.Tarih == row.Tarih && p.Tutar == row.Tutar)
-                || db.KartOdemeler.Any(p => p.KrediKartiId == card && p.Tarih == row.Tarih && p.Tutar == row.Tutar)
-                || db.Islemler.Any(i => i.KrediKartiId == null && i.Tarih == row.Tarih && i.TutarTl == row.Tutar);
-        }
-        else if (row.IslemTuru == "Gider")
-        {
-            duplicate = db.Islemler.Any(i => i.Tarih == row.Tarih && i.TutarTl == row.Tutar && i.KrediKartiId == null)
-                || db.TakipKartOdemeler.Any(p => !p.Iptal && p.Tarih == row.Tarih && p.Tutar == row.Tutar)
-                || db.KartOdemeler.Any(p => p.Tarih == row.Tarih && p.Tutar == row.Tutar)
-                || db.TakipKrediTaksitler.Any(t => !t.Iptal && t.Tarih == row.Tarih && t.Tutar == row.Tutar);
-            if (!duplicate)
-            {
-                var managed = db.TakipKrediler.AsNoTracking().Select(k => k.KrediId).ToHashSet();
-                duplicate = db.Krediler.AsNoTracking().Include(k => k.KanalKaydi).Where(k => !k.GerceklesmeTakibi).AsEnumerable().Where(k => !managed.Contains(k.Id))
-                    .Any(k => KrediTuretici.TaksitGiderleri(k.ToCore()).Any(t => t.Tarih == row.Tarih && t.TutarTl == row.Tutar));
-            }
-            if (row.Aciklama.Contains("KREDİ", StringComparison.OrdinalIgnoreCase) || row.Aciklama.Contains("KREDI", StringComparison.OrdinalIgnoreCase))
-                yield return "Kredi/kart ödemesi olabilir. Otomatik taksit veya mevcut kart ödemesini ikinci kez gider yazmayın.";
-        }
-        else
-        {
-            duplicate = db.EkstreKayitlar.Any(k => k.IslemTuru == "Gelir" && !k.Iptal && k.Tarih == row.Tarih && k.Tutar == row.Tutar)
+            var duplicate = db.EkstreKayitlar.Any(k => k.IslemTuru == "Gelir" && !k.Iptal && k.Tarih == row.Tarih && k.Tutar == row.Tutar)
                 || db.Krediler.Any(k => k.CekimTarihi == row.Tarih && k.CekilenTutar == row.Tutar)
                 || db.HesapHareketler.Any(h => h.Tarih == row.Tarih && h.Tutar == row.Tutar)
                 || db.Gelenler.AsNoTracking().AsEnumerable().Any(g => g.DonemStart <= row.Tarih && g.DonemStart.AddDays(7) > row.Tarih && g.TutarTl == row.Tutar);
+            if (duplicate) yield return "Aynı tarihte ve tutarda mevcut/az önce seçilen bir kayıt var. Ayrı hareket olduğundan emin olun.";
+            yield break;
         }
-        if (duplicate) yield return "Aynı tarihte ve tutarda mevcut/az önce seçilen bir kayıt var. Ayrı hareket olduğundan emin olun.";
+        var search = row.IslemTuru switch
+        {
+            "KartHarcama" or "KartIade" => new BenzerAramasi("KartHarcama", row.Tarih, row.IslemTuru == "KartIade" ? -row.Tutar : row.Tutar, CardId(doc, row)),
+            "KartOdemesi" => new BenzerAramasi("KartOdeme", row.Tarih, row.Tutar, CardId(doc, row)),
+            _ => new BenzerAramasi("Gider", row.Tarih, row.Tutar)
+        };
+        if (row.IslemTuru == "Gider" && (row.Aciklama.Contains("KREDİ", StringComparison.OrdinalIgnoreCase) || row.Aciklama.Contains("KREDI", StringComparison.OrdinalIgnoreCase)))
+            yield return "Kredi/kart ödemesi olabilir. Otomatik taksit veya mevcut kart ödemesini ikinci kez gider yazmayın.";
+        var tr = CultureInfo.GetCultureInfo("tr-TR");
+        foreach (var record in similar.Bul(search))
+        {
+            var source = record.EkstreKayitId is { } kayit && batch.TryGetValue(kayit, out var satirNo) ? $"bu önizlemede seçilen {satirNo}. satır" : BenzerKayitServisi.KaynakEtiketi(record);
+            var channel = record.KanalEtiketi is { } kanal ? $" · {kanal}" : "";
+            yield return $"Benzer kayıt: {source} · {record.Tarih.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} · {record.Tutar.ToString("N2", tr)} TL{channel}. Ayrı hareket olduğundan emin olun.";
+        }
     }
 
     // Satır açıklaması PDF'ten okunur (düzenlenmiş olabilir): kullanıcı girdisi olarak reddedilmez, okuyucuyla
