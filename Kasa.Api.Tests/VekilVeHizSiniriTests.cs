@@ -332,7 +332,7 @@ public class VekilVeHizSiniriTests
     {
         await using var f = new KasaWebFactory();
         var gelistirme = f.Services.GetRequiredService<IOptions<HizSiniriAyarlari>>().Value;
-        foreach (var izin in new[] { gelistirme.GuvenlikIzni, gelistirme.GirisIpIzni, gelistirme.GirisKullaniciIzni, gelistirme.GirisAgIzni, gelistirme.HedefBasarisizIzni, gelistirme.AgBasarisizIzni })
+        foreach (var izin in new[] { gelistirme.GuvenlikIzni, gelistirme.GirisIpIzni, gelistirme.GirisKullaniciIzni, gelistirme.GirisAgIzni, gelistirme.HedefBasarisizIzni, gelistirme.AgBasarisizIzni, gelistirme.YedekIzni })
             Assert.True(izin >= 10_000, "Geliştirme ortamında (test fabrikası) sınırlar gevşek olmalı.");
 
         // Üretim appsettings.json sınıf varsayılanlarını birebir taşır; gevşeme yalnız Development dosyasında.

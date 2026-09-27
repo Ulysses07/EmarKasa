@@ -16,7 +16,7 @@ namespace Kasa.Api.Auth;
 /// </summary>
 public sealed class HizSiniriAyarlari
 {
-    /// <summary>'guvenlik' politikası: istemci IP'si başına pencere izni (yedek, PDF, push, şifre, kurtarma kodu).</summary>
+    /// <summary>'guvenlik' politikası: istemci IP'si başına pencere izni (PDF, push, şifre, kurtarma kodu).</summary>
     public int GuvenlikIzni { get; set; } = 60;
     /// <summary>'giris' politikası: giriş ve kurtarma ile giriş için istemci IP'si başına genel pencere izni.</summary>
     public int GirisIpIzni { get; set; } = 30;
@@ -40,6 +40,9 @@ public sealed class HizSiniriAyarlari
     /// <summary>Aynı anda yürüyen şifre doğrulaması (PBKDF2) ve bekleyebilecek giriş sayısı; kuyruk doluysa 429.</summary>
     public int SifreDogrulamaEszamanli { get; set; } = 2;
     public int SifreDogrulamaKuyrugu { get; set; } = 20;
+    /// <summary>'yedek' politikası: elle yedek için (kimliği doğrulanmış kullanıcı, istemci IP'si) başına pencere izni.</summary>
+    public int YedekIzni { get; set; } = 5;
+    public int YedekPencereDakika { get; set; } = 60;
 
     /// <summary>Yapılandırma hataları (boşsa geçerli). Sınırlar pozitif olmalı; ağ bütçesi hedef bütçesinden ve
     /// şifre doğrulama kapasitesinden küçük olmalıdır (aksi halde tek ağ bir hedefi herkese kilitleyebilir ya da
@@ -50,7 +53,7 @@ public sealed class HizSiniriAyarlari
             {
                 GuvenlikIzni: > 0, GirisIpIzni: > 0, GirisKullaniciIzni: > 0, GirisAgIzni: > 0, PencereDakika: > 0,
                 HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0, TanidikCihazGun: >= 0 and <= 365,
-                SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0,
+                SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0, YedekIzni: > 0, YedekPencereDakika: > 0,
             })
         {
             yield return "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (SifreDogrulamaKuyrugu sıfır, TanidikCihazGun 0–365 olabilir).";
@@ -79,6 +82,8 @@ public static class HizSinirlari
 {
     public const string Guvenlik = "guvenlik";
     public const string Giris = "giris";
+    /// <summary>Elle yedek politikası (<see cref="ElleYedekPolitikasi"/>).</summary>
+    public const string Yedek = "yedek";
     /// <summary>
     /// Loopback + Docker'ın varsayılan adres havuzları (172.17–172.31/16, ardından 192.168.0.0/16 içinden /20'lik
     /// ağlar): compose ağı hangi varsayılan havuzdan adres alırsa alsın gerçek istemci IP'si görülür. Konteyner
@@ -111,6 +116,7 @@ public static class HizSinirlari
             // Bölümleme ForwardedHeaders sonrası RemoteIpAddress'e göredir; politika adları ayrı kova tutar.
             o.AddPolicy(Guvenlik, http => IpBolumu(http, a => a.GuvenlikIzni));
             o.AddPolicy(Giris, http => IpBolumu(http, a => a.GirisIpIzni));
+            o.AddPolicy(Yedek, new ElleYedekPolitikasi());
         });
         return services;
     }
