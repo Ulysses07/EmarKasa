@@ -38,8 +38,9 @@ public class SaatTests
     [Fact]
     public async Task Uretimde_saat_sistem_saatidir_istek_icinde_ve_disinda_Istanbul_gunu_doner()
     {
-        var once = TimeProvider.System.IstanbulBugun();
+        var anOnce = TimeProvider.System.GetUtcNow(); var once = TimeProvider.System.IstanbulBugun();
         Assert.Same(TimeProvider.System, KasaSaati.Gecerli);
+        Assert.InRange(KasaSaati.Simdi, anOnce, TimeProvider.System.GetUtcNow());
         var disarida = new[] { KasaSaati.Bugun, FinansTakipServisi.Bugun };
         await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
         Assert.Null(f.Saat);
