@@ -2,6 +2,7 @@
 # Veri dizini (/data) ZORUNLU olarak deploy/.env içindeki KASA_DATA_DIR değişkeninden gelir;
 # tanımsız veya boşsa `docker compose` hata verip durur. deploy/ altındaki ./kasa-data 2.0
 # öncesinden korunmuş ESKİ veritabanıdır; /data'ya asla bağlamayın. Ayrıntı: deploy/README.md.
+# Bu şablon ayrıca KASA_GUVENILIR_VEKILLER ister (aşağıdaki Kasa__GuvenilirVekiller açıklamasına bakın).
 services:
   kasa:
     build:
@@ -17,8 +18,19 @@ services:
       Kasa__JwtKey: "${KASA_JWT_KEY}"
       Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
+      # Ortak orderdeck_web ağında uygulamanın varsayılan güvenilen vekil listesi (127.0.0.0/8, ::1,
+      # 172.16.0.0/12, 192.168.0.0/16) o ağdaki BÜTÜN konteynerlerin X-Forwarded-For başlığına güvenir;
+      # herhangi biri sahte istemci IP'siyle IP başına hız sınırlarını aşabilir. Liste yalnız ters vekil
+      # (Caddy) konteynerinin adresine (tercihen sabit IP, /32) ya da yalnız ona ait alt ağa daraltılır.
+      # Değer ZORUNLU olarak deploy/.env içindeki KASA_GUVENILIR_VEKILLER'den gelir; boşsa Compose durur.
+      Kasa__GuvenilirVekiller: "${KASA_GUVENILIR_VEKILLER:?KASA_GUVENILIR_VEKILLER deploy/.env içinde yalnız Caddy konteynerinin adresine/alt ağına ayarlanmalı; bkz. deploy/README.md}"
+    # Uzun sözdizimi + create_host_path: false: kaynak yol yoksa Docker boş dizin AÇMAZ, 'up' hata verir.
     volumes:
-      - "${KASA_DATA_DIR:?KASA_DATA_DIR deploy/.env içinde etkin veri dizinine (yayın manifesti dataDirectory) ayarlanmalı; bkz. deploy/README.md}:/data"
+      - type: bind
+        source: "${KASA_DATA_DIR:?KASA_DATA_DIR deploy/.env içinde etkin veri dizinine (yayın manifesti dataDirectory) ayarlanmalı; bkz. deploy/README.md}"
+        target: /data
+        bind:
+          create_host_path: false
     networks:
       - web
     expose:

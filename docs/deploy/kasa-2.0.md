@@ -1,5 +1,7 @@
 # Kasa 2.0 dağıtımı ve geri dönüş
 
+> Tarihsel sürüm notu (2.0, 23 Eylül 2026). "Canlı durum" ve etkin veri dizini bilgileri o yayın anına aittir; güncel sürüm 2.3.0'dır. Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
+
 Bu sürüm kanal/genel kasa odaklı mobil web ekranı, alış ödeme düzeltmeleri, belge içerikleri ve editör parola kaydı ekler. Cari, stok, ayrı hesap ve vade modülleri kapsam dışıdır. Önizleme şeması veri kaybı olmadan korunur; kaldırılan modüllerin uçları sunulmaz ve otomatik cari üretilmez. Canlı veriyi yerel geliştirme ortamına taşımadan geçiş sınaması sunucuda yapılabilir.
 
 ## Canlı durum: tam editör sürümü

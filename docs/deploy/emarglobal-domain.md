@@ -10,6 +10,8 @@ Doğrulananlar: Windows bilgisayardan ve VPS'ten normal DNS ile HTTPS sağlık y
 
 ## 23 Eylül 2026: tam editör yayını
 
+> Tarihsel kayıt: bu bölümdeki imaj, etkin dizin ve `editor-published.json` 2.0 yayınına aittir. Sonraki yayınlar veriyi yeni dizinlere taşıdı. Güncel etkin dizin son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir ([deploy/README.md](../../deploy/README.md)).
+
 Canlı imaj `kasa:2.0.0-editor-20260923`; etkin Nginx dosyası normal proxy yapılandırması `deploy/nginx/kasa.emarglobal.com.conf` dosyasıdır. `/`, statik dosyalar, `/api/` ve `/health` güncel `kasa-app` konteynerinden gelir. Tam sürümde `/kasa-runtime.json` bilerek 404 döner. Editör alış/onay, ödeme düzenleme, alıcı yönetimi ve ayar ekranları canlıdır; eski JWT oturumlarında bir kez yeniden giriş beklenir.
 
 Eski veritabanı/veri dizini ayrı tutuldu ve değiştirilmedi. Son snapshot yeni veri dizinine alındı; diğer veri dosyaları da korundu. Etkin dizin ve geri dönüş bilgileri `/opt/kasa/releases/20260923-editor/editor-published.json` dosyasındadır. Beş migration, eski satırların korunması, bütün geçmiş raporların eşitliği ve yedekten geri yükleme yalnız sunucuda doğrulandı; canlıya deneme finansal kaydı eklenmedi. Yinelenen eski gelirler birleştirilmeden/silinmeden salt okunur gruplar olarak kaldı. HTTPS kök, editör girişi, ayarlar ve alış okuma uçları başarılıdır. Yayın öncesi 392 test ile Windows Release derlemesi geçti.
@@ -26,7 +28,7 @@ Hostinger'da **emarglobal.com** bölgesine `A`, ad `kasa`, değer `72.61.187.202
 
 Mevcut Kasa servisi `127.0.0.1:8080` üzerinde çalışır. Alan adı değişikliği tek başına veritabanı veya uygulama imajı dağıtımı gerektirmez; 23 Eylül'deki tam sürüm yayını ayrı bir işlem olarak tamamlanmıştır.
 
-Etkin `/data` bağlantısı sunucuda `/opt/kasa/deploy/kasa-data-editor-<stamp>` dizinine gider; kesin yol yayın manifestinden okunur. Depo Compose şablonunun `./kasa-data` yolu eski veriyi gösterir. Gelecek dağıtımlarda sunucudaki etkin bağlantıyı koruyun; şablonu olduğu gibi kopyalamayın.
+Etkin `/data` dizini son yayın manifestindeki `dataDirectory` değeridir; sunucudaki `deploy/.env` içinde aynı değer `KASA_DATA_DIR` olarak yazılır. Depodaki Compose şablonu yalnız bu `.env` ile kullanılır: değişken boşsa Compose durur, yol yoksa `up` hata verir. `/opt/kasa/deploy/kasa-data` 2.0 öncesinden korunmuş eski veritabanıdır ve `/data`'ya bağlanmaz. Dağıtım adımları: [deploy/README.md](../../deploy/README.md) "Güncelleme".
 
 Depodaki `deploy/nginx/kasa.emarglobal.com.bootstrap.conf`, DNS/TLS hazırlığı boyunca yalnız sertifika doğrulama yolunu açar. Giriş ve diğer API uçları HTTP üzerinden sunulmaz. Son yapılandırma `deploy/nginx/kasa.emarglobal.com.conf` dosyasındadır; sertifika kurulmadan etkinleştirilmez.
 

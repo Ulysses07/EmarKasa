@@ -6,8 +6,8 @@
 # KASA_DATA_DIR ve KASA_BACKUP_DIR değişkenlerinden gelir; tanımsız veya boşsa
 # `docker compose` hata verip durur. Varsayılan dizin bilerek yoktur: deploy/ altındaki
 # ./kasa-data 2.0 öncesinden korunmuş ESKİ veritabanıdır; /data'ya asla bağlamayın.
-# Etkin dizin: son yayın manifestinin dataDirectory alanı veya çalışan konteynerin
-# /data bağlama kaynağı (docker inspect kasa-app). Ayrıntı: deploy/README.md.
+# Etkin dizin = son yayın manifestinin dataDirectory alanı = KASA_DATA_DIR = çalışan
+# konteynerin /data bağlama kaynağı (docker inspect kasa-app). Ayrıntı: deploy/README.md.
 # Önce doğrula: cd deploy && docker compose -f docker-compose.nginx.yml config
 # Çalıştır:     cd deploy && docker compose -f docker-compose.nginx.yml up -d --build
 services:
@@ -28,9 +28,19 @@ services:
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
       Yedek__Etkin: "true"
       Yedek__Dizin: "/yedekler"
+    # Uzun sözdizimi + create_host_path: false: kaynak yol yoksa Docker boş dizin AÇMAZ, 'up' hata verir.
+    # Kısa "kaynak:/data" sözdizimine dönmeyin; yazım hatalı yol boş veritabanıyla açılışa yol açar.
     volumes:
-      - "${KASA_DATA_DIR:?KASA_DATA_DIR deploy/.env içinde etkin veri dizinine (yayın manifesti dataDirectory) ayarlanmalı; bkz. deploy/README.md}:/data"
-      - "${KASA_BACKUP_DIR:?KASA_BACKUP_DIR deploy/.env içinde etkin yedek dizinine ayarlanmalı; bkz. deploy/README.md}:/yedekler"
+      - type: bind
+        source: "${KASA_DATA_DIR:?KASA_DATA_DIR deploy/.env içinde etkin veri dizinine (yayın manifesti dataDirectory) ayarlanmalı; bkz. deploy/README.md}"
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${KASA_BACKUP_DIR:?KASA_BACKUP_DIR deploy/.env içinde etkin yedek dizinine ayarlanmalı; bkz. deploy/README.md}"
+        target: /yedekler
+        bind:
+          create_host_path: false
     ports:
       # Yalnızca localhost'a bağla — public erişim nginx üzerinden.
       - "127.0.0.1:8080:8080"
