@@ -61,7 +61,7 @@ public class OperationsTests
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
         using var old = await f.EditorClientAsync();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "yanlis", yeniSifre = "yeni-parola-12345" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "yanlis", yeniSifre = "yeni-parola-12345" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await c.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yeni-parola-12345" })).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await old.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" })).StatusCode);

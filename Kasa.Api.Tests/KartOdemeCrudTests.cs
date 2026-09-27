@@ -56,7 +56,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
     {
         // Önce editor ile kart ve ödeme oluştur
         var editor = await _factory.EditorClientAsync();
-        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izle123" });
+        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
 
         var kart = LegacyFinanceSeed.Kart(_factory, new("IzleyiciTest", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 20_000m, 1_000m));
@@ -70,7 +70,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         // İzleyici girişi
         var izleyici = _factory.CreateClient();
         var giris = await izleyici.PostAsJsonAsync("/api/auth/login",
-            new { kullanici = (string?)null, sifre = "izle123" });
+            new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
         giris.EnsureSuccessStatusCode();
 
         // GET → 200

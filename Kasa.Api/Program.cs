@@ -9,8 +9,6 @@ using Kasa.Api.Servisler;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,13 +23,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<VeritabaniHataIsleyici>();
 builder.Services.AddSingleton<YedekServisi>();
 builder.Services.AddHostedService<OtomatikYedek>();
-builder.Services.AddRateLimiter(o =>
-{
-    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddPolicy("guvenlik", http => RateLimitPartition.GetFixedWindowLimiter(
-        http.Connection.RemoteIpAddress?.ToString() ?? "local", _ => new FixedWindowRateLimiterOptions
-        { PermitLimit = 60, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
-});
+// Ters vekil (nginx → docker köprüsü) arkasında gerçek istemci IP'si ve 'guvenlik'/'giris' hız sınırları.
+builder.Services.AddKasaVekilVeHizSinirlari();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -111,6 +104,8 @@ using (var scope = app.Services.CreateScope())
         app.Logger.LogWarning("Kart {KartId} ({Kart}) yeni takibe ilk sürüm kuralıyla geçirildi. {Uyari}", kalinti.KartId, kalinti.KartAdi, KartGecisHesabi.Uyari(kalinti));
 }
 
+// İlk sırada: hız sınırı, kimlik doğrulama ve loglar güvenilen vekilin bildirdiği istemci IP'sini görür.
+app.UseKasaVekilBasliklari();
 app.UseExceptionHandler();
 app.Use(async (http, next) =>
 {
@@ -142,9 +137,10 @@ app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache"
 });
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// Yetkilendirmeden sonra: kimliksiz istekler editöre özel uçlarda 401 alır, 'guvenlik' kovasını tüketmez.
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { durum = "ok" }));
 
@@ -154,17 +150,21 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
     var editorKullanici = cfg["Kasa:EditorKullanici"];
     var editorSifre = cfg["Kasa:EditorSifre"];
     var editorKaydi = db.EditorGuvenlik.AsNoTracking().SingleOrDefault(e => e.Id == 1);
+    var hatali = Results.Json(new { hata = "Kullanıcı adı veya şifre hatalı." }, statusCode: StatusCodes.Status401Unauthorized);
     if (string.IsNullOrWhiteSpace(dto.Sifre) || dto.Sifre.Length > 1024)
-        return Results.Unauthorized();
+        return hatali;
 
     string? rol = null;
     int? aliciId = null;
     string? dogrulanmisDamga = null;
     // Editör bilgileri config'te tanımlı DEĞİLSE editör girişi kapalıdır
     // (aksi halde eksik config null==null ile şifresiz editör erişimine yol açar).
-    if (!string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre)
-        && dto.Kullanici == editorKullanici && EditorGuvenligi.Dogrula(dto.Sifre, cfg, editorKaydi))
-    { rol = "editor"; dogrulanmisDamga = OturumDamgasi.EditorIcin(editorKaydi, cfg); }
+    // Editör adıyla yalnız editör şifresi denenir; yanlış şifre izleyici şifresine düşmez.
+    if (!string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre) && dto.Kullanici == editorKullanici)
+    {
+        if (EditorGuvenligi.Dogrula(dto.Sifre, cfg, editorKaydi))
+        { rol = "editor"; dogrulanmisDamga = OturumDamgasi.EditorIcin(editorKaydi, cfg); }
+    }
     else
     {
         var kullanici = dto.Kullanici?.Trim().ToLowerInvariant();
@@ -183,7 +183,7 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
         }
     }
 
-    if (rol is null) return Results.Unauthorized();
+    if (rol is null) return hatali;
 
     var token = JwtYardimci.Uret(rol, cfg["Kasa:JwtKey"]!, dogrulanmisDamga ?? OturumDamgasi.Uret(rol, cfg, db, aliciId)!, aliciId);
     http.Response.Cookies.Append("kasa_auth", token, new CookieOptions
@@ -194,7 +194,7 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
         MaxAge = TimeSpan.FromDays(30),
     });
     return Results.Ok(new { rol, token });
-}).RequireRateLimiting("guvenlik");
+}).GirisSiniriUygula<LoginDto>(d => d.Kullanici);
 
 app.MapPost("/api/auth/logout", (HttpContext http) =>
 {
@@ -519,9 +519,8 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
 }).RequireAuthorization("Editor");
 api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =>
 {
-    var v = new GirdiDogrulama();
-    v.Metin(dto.YeniSifre, "yeniSifre", 1024);
-    if (v.Sonuc() is { } hata) return hata;
+    // Kural yalnız belirlerken/değiştirirken uygulanır; mevcut kısa hash ile giriş sürer.
+    if (SifreKurallari.YeniSifreHatasi(dto.YeniSifre, "yeniSifre", "İzleyici şifresi") is { } hata) return hata;
     var a = db.Ayarlar.First();
     a.IzleyiciSifreHash = SifreHasher.Hashle(dto.YeniSifre);
     db.SaveChanges();

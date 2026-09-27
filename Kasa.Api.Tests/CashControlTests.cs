@@ -135,8 +135,8 @@ public class CashControlTests
         var saved=(await result.Content.ReadFromJsonAsync<KasaEsikDto>())!; Assert.Equal(1,saved.Surum);
         Assert.Equal(HttpStatusCode.Conflict,(await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}",new KasaEsikYaz(0,5m,true))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest,(await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}",new KasaEsikYaz(1,-1m,true))).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre",new { yeniSifre="izleyici123" })).EnsureSuccessStatusCode();
-        using var viewer=f.CreateClient(); (await viewer.PostAsJsonAsync("/api/auth/login",new { kullanici="",sifre="izleyici123" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre",new { yeniSifre="izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        using var viewer=f.CreateClient(); (await viewer.PostAsJsonAsync("/api/auth/login",new { kullanici="",sifre="izleyici-sifre-123" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.OK,(await viewer.GetAsync("/api/kasa-esikleri")).StatusCode);
         Assert.Equal(HttpStatusCode.OK,(await viewer.GetAsync("/api/kasa-kontrol")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,(await viewer.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}",new KasaEsikYaz(1,10m,true))).StatusCode);

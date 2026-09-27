@@ -39,9 +39,9 @@ public class AlisWorkflowTests
         Assert.Equal(created.AliciId, edited.AliciId);
         Assert.Equal(HttpStatusCode.Conflict, (await editor.PutAsJsonAsync($"/api/alis/{created.Id}", write with { Surum = sent.Surum })).StatusCode);
 
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         using var viewer = factory.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/alis")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/alis/kanallar")).StatusCode);
     }
