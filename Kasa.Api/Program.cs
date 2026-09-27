@@ -14,6 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<KasaDbContext>(o =>
     o.UseSqlite(builder.Configuration.GetConnectionString("Kasa") ?? "Data Source=kasa.db"));
+// Kasa saati: DI TimeProvider (üretimde sistem saati); istek boyunca parametresiz "bugün" de bu saati okur.
+builder.Services.AddKasaSaati();
 
 builder.Services.AddScoped<HesapServisi>();
 builder.Services.AddScoped<IslemListeServisi>();
@@ -298,7 +300,7 @@ api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) =>
 // Kredi kartları (güncel borç türetilir: açılış + harcama − ödeme)
 api.MapGet("/kredikartlari", (KasaDbContext db) =>
 {
-    var bugun = DateOnly.FromDateTime(DateTime.Today);
+    var bugun = db.Bugunu();
     var kartlar = db.KrediKartlari.OrderBy(k => k.Ad).ToList();
     var harcamaKayit = db.Islemler.Where(i => i.KrediKartiId != null)
         .Select(i => new { Id = i.KrediKartiId!.Value, i.Tarih, i.TutarTl })

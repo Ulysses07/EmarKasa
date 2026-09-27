@@ -45,14 +45,14 @@ public static class KasaKontrolEndpoints
             if (Validate(dto.GercekBakiye, dto.Not) is { } error) return error;
             return Results.Ok(Preview(hesap.Panel().GuncelKasa, dto.GercekBakiye, dto.Not));
         })).RequireAuthorization("Editor");
-        app.MapPost("/api/kasa-kontrol", (KasaKontrolYaz dto, KasaDbContext db, HesapServisi hesap) => AlisEndpoints.Mutate(db, () =>
+        app.MapPost("/api/kasa-kontrol", (KasaKontrolYaz dto, KasaDbContext db, HesapServisi hesap, TimeProvider saat) => AlisEndpoints.Mutate(db, () =>
         {
             if (Validate(dto.GercekBakiye, dto.Not) is { } error) return error;
             var digest = FinansHesaplari.Ozet(dto with { IstekId = Guid.Empty });
             if (FinansHesaplari.Tekrar(db, dto.IstekId, "KasaKontrol", digest, id => Results.Ok(ToDto(db.KasaKontrolleri.Single(x => x.Id == id)))) is { } replay) return replay;
             var preview = Preview(hesap.Panel().GuncelKasa, dto.GercekBakiye, dto.Not);
             if (dto.KontrolOzeti != preview.KontrolOzeti) return AlisEndpoints.Conflict("Kasa bakiyesi veya karşılaştırma bilgileri değişti. Yeniden karşılaştırın.");
-            var row = new KasaKontrolEntity { Kaydedildi = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            var row = new KasaKontrolEntity { Kaydedildi = saat.GetUtcNow().ToUnixTimeMilliseconds(),
                 SistemBakiye = preview.SistemBakiye, GercekBakiye = dto.GercekBakiye, Fark = preview.Fark, Not = dto.Not?.Trim() };
             db.KasaKontrolleri.Add(row); db.SaveChanges();
             FinansHesaplari.IstekKaydet(db, dto.IstekId, "KasaKontrol", digest, row.Id); db.SaveChanges();

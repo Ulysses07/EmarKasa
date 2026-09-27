@@ -25,7 +25,7 @@ public class AliciOturumTests
         Assert.Equal(HttpStatusCode.Forbidden, (await alici.PutAsJsonAsync($"/api/alicilar/{hesap.Id}",
             new AliciYaz("alici-1", "Kendi hesabım", "baska-sifre"))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await alici.PostAsJsonAsync("/api/alis/1/odemeler", new
-        { surum = 1, istekId = Guid.NewGuid(), tarih = DateOnly.FromDateTime(DateTime.Today), tutar = 1m })).StatusCode);
+        { surum = 1, istekId = Guid.NewGuid(), tarih = KasaWebFactory.VarsayilanBugun, tutar = 1m })).StatusCode);
     }
 
     [Fact]

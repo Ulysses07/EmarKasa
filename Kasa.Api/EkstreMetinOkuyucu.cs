@@ -131,10 +131,13 @@ public static class EkstreMetinOkuyucu
         if (direction == "Belirsiz") warnings.Add("Giriş/çıkış yönü kesin okunamadı; işlem türünü seçin.");
         var description = ShortDateRx.Replace(DateRx.Replace(raw, " "), " ");
         description = MoneyRx.Replace(description, " ");
-        description = Regex.Replace(description, @"\s+", " ", RegexOptions.CultureInvariant, RegexLimit).Trim(' ', '-', '+');
+        // PDF metni kullanıcı girdisi değildir: kontrol karakteri ve geçersiz Unicode reddedilmez, kullanıcı
+        // girdisiyle aynı kuralla (GirdiDogrulama) temizlenir; kısaltma bir vekil çiftini bölerse o da temizlenir.
+        description = Regex.Replace(GirdiDogrulama.Temizle(description), @"\s+", " ", RegexOptions.CultureInvariant, RegexLimit).Trim(' ', '-', '+');
         if (description.Length == 0) description = "PDF hareketi";
         if (raw.Length > 2000) warnings.Add("Uzun kaynak satırı kısaltıldı; asıl PDF'yi kontrol edin.");
-        return new(number, page, raw[..Math.Min(raw.Length, 2000)], date, description[..Math.Min(description.Length, 500)], amount,
+        return new(number, page, GirdiDogrulama.Temizle(raw[..Math.Min(raw.Length, 2000)]), date,
+            GirdiDogrulama.Temizle(description[..Math.Min(description.Length, 500)]).TrimEnd(), amount,
             direction, proposal, classification, currency, warnings);
     }
     private static string TokenDirection(Token t) => t.Direction == "B" ? "Cikis" : t.Direction == "A" ? "Giris"

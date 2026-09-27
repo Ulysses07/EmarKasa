@@ -19,7 +19,7 @@ public static class BelgeEndpoints
             return Results.Ok(db.Belgeler.AsNoTracking().Where(b => b.AlisId == id)
                 .OrderBy(b => b.Id).Select(b => new BelgeDto(b.Id, b.AlisId, b.OdemeId, b.DosyaAdi, b.IcerikTuru, b.Boyut, b.Yuklendi)).ToList());
         });
-        api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db) =>
+        api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat) =>
         {
             if (!request.HasFormContentType) return Results.BadRequest(new { hata = "Dosyayı form olarak gönderin." });
             if (request.ContentLength is > AzamiBoyut + 64 * 1024) return Results.StatusCode(413);
@@ -50,7 +50,7 @@ public static class BelgeEndpoints
             if (odemeId is not null && !db.AlisOdemeler.Any(o => o.Id == odemeId && o.AlisId == id))
                 return Results.BadRequest(new { hata = "Ödeme bu alışa ait değil." });
             if (db.Belgeler.Count(b => b.AlisId == id) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
-            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = DateTimeOffset.UtcNow, Icerik = bytes };
+            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = saat.GetUtcNow(), Icerik = bytes };
             db.Belgeler.Add(belge); db.SaveChanges(); tx.Commit();
             return Results.Created($"/api/belgeler/{belge.Id}", new BelgeDto(belge.Id, id, odemeId, name, type, bytes.Length, belge.Yuklendi));
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024));

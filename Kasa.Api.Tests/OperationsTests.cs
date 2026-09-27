@@ -159,7 +159,7 @@ public class OperationsTests
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var a = new AlisEntity { Tarih = f.Bugun, Tedarikci = "Yedek firma", Durum = "Taslak" };
             db.Alislar.Add(a); db.SaveChanges();
-            db.Belgeler.Add(new BelgeEntity { AlisId = a.Id, DosyaAdi = "test.pdf", IcerikTuru = "application/pdf", Boyut = 5, Icerik = "%PDF-"u8.ToArray(), Yuklendi = DateTimeOffset.UtcNow });
+            db.Belgeler.Add(new BelgeEntity { AlisId = a.Id, DosyaAdi = "test.pdf", IcerikTuru = "application/pdf", Boyut = 5, Icerik = "%PDF-"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow() });
             db.SaveChanges();
         }
         var r = await c.PostAsync("/api/yedek", null); r.EnsureSuccessStatusCode();

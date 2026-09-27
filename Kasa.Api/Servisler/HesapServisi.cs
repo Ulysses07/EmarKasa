@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
 
-/// <summary>DB'den veriyi yükler, dönem takvimini üretir ve HesapMotoru'nu çağırır.</summary>
+/// <summary>DB'den veriyi yükler, dönem takvimini üretir ve HesapMotoru'nu çağırır. "Bugün" bağlamın
+/// saatinden (<c>db.Bugunu()</c>) çağrı başına bir kez okunur: istek dışında da (eşik bildirimi) aynı gün.</summary>
 public class HesapServisi
 {
     private readonly KasaDbContext _db;
@@ -19,7 +20,7 @@ public class HesapServisi
         decimal KasaAcilis,
         IReadOnlyDictionary<string, int?> KanalIdleri);
 
-    private Yuk Yukle(DateOnly? raporBitis = null)
+    private Yuk Yukle(DateOnly bugun, DateOnly? raporBitis = null)
     {
         // Alış onayı/ödeme eşleştirmesi rapor okunurken yarım görünmesin.
         using var snapshot = _db.Database.CurrentTransaction is null ? _db.Database.BeginTransaction() : null;
@@ -83,7 +84,6 @@ public class HesapServisi
         var ayar = _db.Ayarlar.AsNoTracking().First();
 
         var baslangic = ayar.TakipBaslangic;
-        var bugun = FinansTakipServisi.Bugun;
         // Dönem ufku yalnız GERÇEKLEŞEN veriye göre (DB işlemleri + bugün). Gelecek kredi
         // taksitleri ufku ileri ÇEKMEZ — aksi halde henüz ödenmemiş taksitler güncel kasadan
         // erken düşerdi (spec: gelecek taksit güncel kasayı etkilemez; ileri aylar o ayın
@@ -133,23 +133,23 @@ public class HesapServisi
 
     public IReadOnlyList<HaftalikOzet> Haftalik()
     {
-        var y = Yukle();
+        var y = Yukle(_db.Bugunu());
         return HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
     }
 
     public AylikRapor Aylik(int yil, int ay)
     {
-        var y = Yukle(new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)));
+        var y = Yukle(_db.Bugunu(), new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)));
         return HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
     }
 
-    public IReadOnlyList<Donem> Donemler() => Yukle().Donemler;
+    public IReadOnlyList<Donem> Donemler() => Yukle(_db.Bugunu()).Donemler;
 
     public PanelDto Panel()
     {
         // Gelecek tarihli manuel kayıtlar paneli gelecek bir döneme taşıyamaz.
-        var bugun = FinansTakipServisi.Bugun;
-        var y = Yukle(bugun);
+        var bugun = _db.Bugunu();
+        var y = Yukle(bugun, bugun);
         var haftalik = HesapMotoru.HaftalikHesapla(y.KasaAcilis, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler);
         var son = haftalik.Count > 0 ? haftalik[^1] : null;
 
