@@ -368,7 +368,7 @@ public sealed class BildirimIscisiTests
         public override InterceptionResult<int> NonQueryExecuting(DbCommand c, CommandEventData e, InterceptionResult<int> r) { Say(c); return r; }
         public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand c, CommandEventData e, InterceptionResult<int> r, CancellationToken ct = default) { Say(c); return ValueTask.FromResult(r); }
     }
-    internal sealed record LogKaydi(LogLevel Seviye, string Kategori, string Mesaj, Exception? Istisna);
+    internal sealed record LogKaydi(LogLevel Seviye, string Kategori, string Mesaj, Exception? Istisna, int OlayId = 0);
     internal sealed class LogToplayici : ILoggerProvider
     {
         public System.Collections.Concurrent.ConcurrentQueue<LogKaydi> Kayitlar { get; } = new();
@@ -381,7 +381,7 @@ public sealed class BildirimIscisiTests
             public bool IsEnabled(LogLevel logLevel) => true;
             public void Log<TState>(LogLevel seviye, EventId id, TState state, Exception? istisna, Func<TState, Exception?, string> bicim)
             {
-                var kayit = new LogKaydi(seviye, kategori, bicim(state, istisna), istisna);
+                var kayit = new LogKaydi(seviye, kategori, bicim(state, istisna), istisna, id.Id);
                 sahip.Kayitlar.Enqueue(kayit);
                 if (seviye >= LogLevel.Error) sahip.IlkHata.TrySetResult(kayit);
             }
