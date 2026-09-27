@@ -25,6 +25,7 @@ builder.Services.AddSingleton<YedekServisi>();
 builder.Services.AddHostedService<OtomatikYedek>();
 // Ters vekil (nginx → docker köprüsü) arkasında gerçek istemci IP'si ve 'guvenlik'/'giris' hız sınırları.
 builder.Services.AddKasaVekilVeHizSinirlari();
+builder.Services.AddSingleton<IzleyiciSifreDurumu>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -145,7 +146,8 @@ app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new { durum = "ok" }));
 
 // --- Auth ---
-app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
+app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfiguration cfg, HttpContext http,
+    GirisSiniri sinir, IzleyiciSifreDurumu izleyiciSifresi) =>
 {
     var editorKullanici = cfg["Kasa:EditorKullanici"];
     var editorSifre = cfg["Kasa:EditorSifre"];
@@ -154,34 +156,48 @@ app.MapPost("/api/auth/login", (LoginDto dto, KasaDbContext db, IConfiguration c
     if (string.IsNullOrWhiteSpace(dto.Sifre) || dto.Sifre.Length > 1024)
         return hatali;
 
-    string? rol = null;
-    int? aliciId = null;
-    string? dogrulanmisDamga = null;
     // Editör bilgileri config'te tanımlı DEĞİLSE editör girişi kapalıdır
     // (aksi halde eksik config null==null ile şifresiz editör erişimine yol açar).
     // Editör adıyla yalnız editör şifresi denenir; yanlış şifre izleyici şifresine düşmez.
-    if (!string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre) && dto.Kullanici == editorKullanici)
+    var editorAdi = !string.IsNullOrEmpty(editorKullanici) && !string.IsNullOrEmpty(editorSifre) && dto.Kullanici == editorKullanici;
+    var kullanici = dto.Kullanici?.Trim().ToLowerInvariant();
+    var alici = !editorAdi && kullanici is { Length: > 0 and <= 64 }
+        ? db.Alicilar.AsNoTracking().FirstOrDefault(a => a.Kullanici == kullanici) : null;
+    // Denenen şifrenin hedefi; başarısız deneme bütçesi hedef başınadır ve IP'den bağımsızdır. İzleyici şifresi
+    // kullanıcı adı istemez: alıcıya karşılık gelmeyen her ad aynı hedefi dener, ad döndürmek bütçeyi çoğaltmaz.
+    var hedef = editorAdi ? GirisSiniri.EditorHedefi : alici is not null ? GirisSiniri.AliciHedefi(alici.Kullanici) : GirisSiniri.IzleyiciHedefi;
+    var ip = http.Connection.RemoteIpAddress;
+    if (sinir.HedefKilidi(hedef, ip) is { } kilit)
+    {
+        using (kilit) return HizSinirlari.Red(http, kilit);
+    }
+    // PBKDF2 doğrulaması eşzamanlılık sınırında: giriş seli CPU'yu tüketip uygulamanın geri kalanını yavaşlatamaz.
+    using var izin = await sinir.DogrulamaIzniAsync(http.RequestAborted);
+    if (!izin.IsAcquired) return HizSinirlari.Yogun(http);
+
+    string? rol = null;
+    int? aliciId = null;
+    string? dogrulanmisDamga = null;
+    if (editorAdi)
     {
         if (EditorGuvenligi.Dogrula(dto.Sifre, cfg, editorKaydi))
         { rol = "editor"; dogrulanmisDamga = OturumDamgasi.EditorIcin(editorKaydi, cfg); }
     }
+    else if (alici is not null)
+    {
+        if (alici.Aktif && SifreHasher.Dogrula(dto.Sifre, alici.SifreHash))
+        { rol = "alici"; aliciId = alici.Id; dogrulanmisDamga = OturumDamgasi.AliciIcin(alici, cfg); }
+    }
     else
     {
-        var kullanici = dto.Kullanici?.Trim().ToLowerInvariant();
-        var alici = kullanici is { Length: > 0 and <= 64 }
-            ? db.Alicilar.AsNoTracking().FirstOrDefault(a => a.Kullanici == kullanici) : null;
-        if (alici is not null)
+        var ayar = db.Ayarlar.FirstOrDefault();
+        if (ayar?.IzleyiciSifreHash is string h && SifreHasher.Dogrula(dto.Sifre, h))
         {
-            if (alici.Aktif && SifreHasher.Dogrula(dto.Sifre, alici.SifreHash))
-            { rol = "alici"; aliciId = alici.Id; dogrulanmisDamga = OturumDamgasi.AliciIcin(alici, cfg); }
-        }
-        else
-        {
-            var ayar = db.Ayarlar.FirstOrDefault();
-            if (ayar?.IzleyiciSifreHash is string h && SifreHasher.Dogrula(dto.Sifre, h))
-            { rol = "viewer"; dogrulanmisDamga = OturumDamgasi.IzleyiciIcin(h, cfg); }
+            rol = "viewer"; dogrulanmisDamga = OturumDamgasi.IzleyiciIcin(h, cfg);
+            izleyiciSifresi.GirisYapildi(h, dto.Sifre);
         }
     }
+    sinir.Sonuc(hedef, ip, rol is not null);
 
     if (rol is null) return hatali;
 
@@ -489,14 +505,19 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
 }).RequireAuthorization("Editor");
 
 // Ayarlar
-api.MapGet("/ayarlar", (KasaDbContext db) =>
+api.MapGet("/ayarlar", (KasaDbContext db, ClaimsPrincipal u, IzleyiciSifreDurumu izleyiciSifresi, VekilDurumu vekil) =>
 {
     var a = db.Ayarlar.First();
+    var editor = u.IsInRole("editor");
     return Results.Ok(new
     {
         a.TakipBaslangic,
         a.KasaAcilisDevri,
         IzleyiciSifreVarMi = a.IzleyiciSifreHash != null,
+        // Yalnız editöre: kayıtlı izleyici şifresinin kurala (12+) uymadığı bir izleyici girişinde görüldüyse true
+        // (hash uzunluk saklamaz) ve güvenilmeyen kaynaktan X-Forwarded-For geldiyse yanlış vekil ayarı uyarısı.
+        IzleyiciSifreKisa = editor && izleyiciSifresi.KisaMi(a.IzleyiciSifreHash),
+        VekilUyarisi = editor ? vekil.Uyari : null,
     });
 });
 api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>

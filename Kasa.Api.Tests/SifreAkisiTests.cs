@@ -70,6 +70,52 @@ public class SifreAkisiTests
     }
 
     [Fact]
+    public async Task Kurali_karsilamayan_mevcut_izleyici_sifresi_giriste_fark_edilir_ve_ayarlarda_isaretlenir()
+    {
+        var loglar = new UyariToplayici();
+        await using var f = new VekilVeHizSiniriTests.VekilFabrikasi(loglar: loglar);
+        using var editor = await f.EditorClientAsync();
+        IzleyiciHashiniYaz(f, "eski1234");
+        // Hash uzunluğu saklamaz: izleyici girene kadar bilinmez, işaretlenmez.
+        Assert.False(await IzleyiciSifreKisa(editor));
+
+        using var izleyici = f.CreateClient();
+        for (var i = 0; i < 2; i++)
+            Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski1234" })).StatusCode);
+        Assert.True(await IzleyiciSifreKisa(editor));
+        Assert.False(await IzleyiciSifreKisa(izleyici));          // işaret yalnız editöre
+        Assert.Single(loglar.Uyarilar, u => u.Contains("İzleyici şifresi") && u.Contains("12"));
+
+        // Kurala uygun yeni şifre işareti kaldırır (hash değişir).
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifresi" })).EnsureSuccessStatusCode();
+        Assert.False(await IzleyiciSifreKisa(editor));
+        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-izleyici-sifresi" })).StatusCode);
+        Assert.False(await IzleyiciSifreKisa(editor));
+    }
+
+    [Fact]
+    public async Task Kurala_uyan_eski_izleyici_sifresi_isaretlenmez()
+    {
+        await using var f = new KasaWebFactory();
+        using var editor = await f.EditorClientAsync();
+        IzleyiciHashiniYaz(f, "eski-ama-uzun-sifre");
+        using var izleyici = f.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski-ama-uzun-sifre" })).StatusCode);
+        Assert.False(await IzleyiciSifreKisa(editor));
+    }
+
+    private static void IzleyiciHashiniYaz(KasaWebFactory f, string sifre)
+    {
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        db.Ayarlar.Single().IzleyiciSifreHash = SifreHasher.Hashle(sifre);
+        db.SaveChanges();
+    }
+
+    private static async Task<bool> IzleyiciSifreKisa(HttpClient editor)
+        => (await editor.GetFromJsonAsync<JsonElement>("/api/ayarlar")).GetProperty("izleyiciSifreKisa").GetBoolean();
+
+    [Fact]
     public async Task Editor_kullanici_adiyla_yalniz_editor_sifresi_denenir()
     {
         await using var f = new KasaWebFactory();
