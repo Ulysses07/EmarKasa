@@ -118,6 +118,11 @@ public static class HesapMotoru
     /// Bir takvim ayı için kanal başına AY SONUCU üretir.
     /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (Kanallar.Ortak)
     /// aktif kanallara kuruş bazında (artık kuruşlar ilk aktif kanallara) dağıtılıp düşülür.
+    /// <paramref name="kuralSurumu"/> (<see cref="AylikKural"/>): <see cref="AylikKural.V1"/> 2.1–2.3 davranışıdır ve birebir
+    /// korunur (kilitli ayların geçişte dondurulması için). <see cref="AylikKural.V2"/> (varsayılan) kredi girişini
+    /// (takipli kredinin kanal payları ve eski modelin '__KREDI__' çekimi) Gelen ve Ay sonucu dışında tutar,
+    /// <see cref="AylikRapor.KrediGirisi"/>'nde ayrı döndürür; kanal satırlarının kredi girişi sütunu iki sürümde aynıdır.
+    /// Haftalık kasa ve kanal devri kuraldan etkilenmez (kredi nakit olarak kasaya girer).
     /// </summary>
     public static AylikRapor AylikHesapla(
         int yil,
@@ -125,8 +130,12 @@ public static class HesapMotoru
         IReadOnlyList<Kanal> kanallar,
         IReadOnlyList<Islem> islemler,
         IReadOnlyList<Gelen> gelenler,
-        IReadOnlyList<Donem> donemler)
+        IReadOnlyList<Donem> donemler,
+        int kuralSurumu = AylikKural.Guncel)
     {
+        if (kuralSurumu is not (AylikKural.V1 or AylikKural.V2))
+            throw new ArgumentOutOfRangeException(nameof(kuralSurumu), kuralSurumu, "Bilinmeyen aylık rapor kural sürümü.");
+        var krediAyri = kuralSurumu >= AylikKural.V2;
         var ayinDonemleri = donemler.Where(d => d.Yil == yil && d.Ay == ay).ToList();
         var ayinDonemStartlari = ayinDonemleri.Select(d => d.Start).ToHashSet();
         // Etki ayını ortak pay dağıtımından önce belirle; Ortak KK da diğer
@@ -157,7 +166,7 @@ public static class HesapMotoru
         foreach (var kanal in kanallar)
         {
             decimal gelen = gelenler
-                .Where(g => !g.GenelGelir && g.Kanal == kanal.Ad && ayinDonemStartlari.Contains(g.DonemStart))
+                .Where(g => !g.GenelGelir && g.Kanal == kanal.Ad && ayinDonemStartlari.Contains(g.DonemStart) && !(krediAyri && g.KrediGirisi))
                 .Sum(g => g.TutarTl);
             decimal cari = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == kanal.Ad && i.Tip == GiderTipi.Cari).Sum(i => i.TutarTl);
             decimal sabit = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == kanal.Ad && i.Tip == GiderTipi.SabitGider).Sum(i => i.TutarTl);
@@ -166,10 +175,19 @@ public static class HesapMotoru
             decimal aySonucu = gelen - cari - sabit - kk - ortakPay;
             satirlar.Add(new KanalAylik(kanal.Ad, gelen, cari, sabit, kk, ortakPay, aySonucu, gelenler.Where(g => g.Kanal == kanal.Ad && g.KrediGirisi && ayinDonemStartlari.Contains(g.DonemStart)).Sum(g => g.TutarTl)));
         }
-        return new AylikRapor(yil, ay, satirlar,
+        var rapor = new AylikRapor(yil, ay, satirlar,
             ayinIslemleri.Where(i => i.DagilimBekliyor).Sum(i => i.TutarTl),
             ayinIslemleri.Where(i => i.YalnizGenelKasa).Sum(i => i.TutarTl),
             gelenler.Where(g => g.GenelGelir && ayinDonemStartlari.Contains(g.DonemStart)).Sum(g => g.TutarTl));
+        if (!krediAyri) return rapor;
+        // K2: ayın bütün kredi girişi tek alanda. Eski modelin çekimi hiçbir kanala ait değildir ('__KREDI__'); takipli
+        // kredinin payları kanal satırlarında da görünür. İki model aynı ay sonucunu ve aynı toplamı verir.
+        return rapor with
+        {
+            KrediGirisi = gelenler.Where(g => !g.GenelGelir && ayinDonemStartlari.Contains(g.DonemStart) && (g.KrediGirisi || g.Kanal == KrediTuretici.KrediKanal))
+                .Sum(g => g.TutarTl),
+            KuralSurumu = kuralSurumu,
+        };
     }
 
     // İşlemin haftalık kasa ve aylık sonuç üzerindeki ayı tek kuraldan türetilir.
@@ -191,4 +209,24 @@ public record KanalAylik(
     decimal AySonucu,
     decimal KrediGirisi = 0m);
 
-public record AylikRapor(int Yil, int Ay, IReadOnlyList<KanalAylik> Kanallar, decimal DagilimBekleyenTutar = 0m, decimal GenelGider = 0m, decimal GenelGelir = 0m);
+/// <param name="KrediGirisi">Ayın kredi girişi toplamı (yalnız <see cref="AylikKural.V2"/>): Gelen ve Ay sonucu dışında,
+/// genel kasaya giren kredi çekimi. Kural 1 raporunda null ve JSON'a yazılmaz (eski yanıt biçimi aynen korunur).</param>
+/// <param name="KuralSurumu">Raporu üreten kural; kural 1'de null (eski biçim).</param>
+/// <param name="VeriSagligiUyarisi">Rakamları değiştirmeyen veri sağlığı uyarısı; yoksa null ve JSON'a yazılmaz.</param>
+public record AylikRapor(int Yil, int Ay, IReadOnlyList<KanalAylik> Kanallar, decimal DagilimBekleyenTutar = 0m, decimal GenelGider = 0m, decimal GenelGelir = 0m,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] decimal? KrediGirisi = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? KuralSurumu = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? VeriSagligiUyarisi = null);
+
+/// <summary>
+/// Aylık rapor kural sürümleri. Kilitli (kapatılmış) ayın raporu kilitlendiği andaki kuralla dondurulur (Kasa.Api anlık
+/// görüntüsü): kural değişiklikleri kapatılmış ayı değiştirmez. Açık aylar her zaman <see cref="Guncel"/> ile hesaplanır.
+/// </summary>
+public static class AylikKural
+{
+    /// <summary>2.1–2.3 kuralı: takipli kredi çekimi kanal Gelen'ine ve Ay sonucuna girer (eski '__KREDI__' çekimi hiçbir alana).</summary>
+    public const int V1 = 1;
+    /// <summary>Kullanıcı kararı K2 (2026-09-27): kredi girişi Gelen ve Ay sonucu dışında, ayrı 'Kredi girişi' alanında.</summary>
+    public const int V2 = 2;
+    public const int Guncel = V2;
+}
