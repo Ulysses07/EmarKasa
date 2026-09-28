@@ -21,7 +21,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(42.75m, Assert.Single(db.Gelenler).TutarTl);
         Assert.Equal(125.50m, Assert.Single(db.Kanallar).AcilisDevri);
         Assert.Empty(db.Alislar);
@@ -39,7 +39,7 @@ public class DatabaseMigrationTests
         KasaDatabaseInitializer.Initialize(db);
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Empty(db.Islemler);
@@ -72,13 +72,13 @@ public class DatabaseMigrationTests
         Assert.Empty(db.KrediKartlari);
         Assert.Empty(db.Krediler);
         Assert.Empty(db.KartOdemeler);
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
 
         // Tekrar başlatma ne veri ne yeni migration kaydı üretir.
         KasaDatabaseInitializer.Initialize(db);
         Assert.Single(db.Islemler);
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal.Id, Assert.Single(db.Islemler).KanalId);
         Assert.Equal(50.02m, Assert.Single(db.KartOdemeler).Tutar);
         Assert.Equal(250.03m, Assert.Single(db.Gelenler).TutarTl);
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
 
         // Geçişten sonra da FK'nin SET NULL ve CASCADE davranışları korunur.
         Execute(connection, "DELETE FROM KrediKartlari;");
@@ -202,7 +202,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal, Scalar(connection, "SELECT Kanal FROM Gelenler WHERE Id = 14;"));
         Assert.Equal("2026-09-01", Scalar(connection, "SELECT DonemStart FROM Gelenler WHERE Id = 14;"));
         Assert.All(db.Gelenler, g => { Assert.True(g.EskiYinelenenGrup); Assert.Equal(7, g.KanalId); });
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
     }
 
@@ -325,7 +325,7 @@ public class DatabaseMigrationTests
 
             using var verified = new SqliteConnection(connectionString);
             using var verify = Context(verified);
-            Assert.Equal(19, verify.Database.GetAppliedMigrations().Count());
+            Assert.Equal(20, verify.Database.GetAppliedMigrations().Count());
             Assert.Single(verify.Kanallar);
             Assert.Single(verify.Islemler);
             Assert.Single(verify.Gelenler);
@@ -369,7 +369,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(once, Raporlar());
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
@@ -425,19 +425,21 @@ public class DatabaseMigrationTests
         db.SaveChanges();
         Assert.Equal(2L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
         string[] tablolar = ["AylikGiderOdemeler", "EkstreKayitlar", "EkstreBelgeler", "FinansIstekler", "Islemler", "Gelenler"];
-        // Ekstre PDF'inin içeriği (Dosya) aynı açılışta belge deposuna taşınır; kalan bütün sütunlar birebir aynı kalmalı.
-        var kaynak = Dokum(connection, tablolar, "Dosya");
+        // Ekstre PDF'inin içeriği (Dosya) aynı açılışta belge deposuna taşınır; eşleşme sütunları (EkstreEslesmesi) eklenir ve mevcut satırlarda
+        // boş kalır. Kalan bütün sütunlar birebir aynı kalmalı.
+        var kaynak = Dokum(connection, tablolar, "Dosya", "EslesmeTuru", "EslesmeId");
         var once = RaporOzeti(db, (2026, 3), (2026, 4));
         var baslangic = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         KasaDatabaseInitializer.Initialize(db);
 
         var bitis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.Contains("20260930000200_DenetimGecmisAktarimi", db.Database.GetAppliedMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(once, RaporOzeti(db, (2026, 3), (2026, 4)));
-        Assert.Equal(kaynak, Dokum(connection, tablolar, "Dosya"));
+        Assert.Equal(kaynak, Dokum(connection, tablolar, "Dosya", "EslesmeTuru", "EslesmeId"));
+        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM EkstreKayitlar WHERE EslesmeTuru IS NOT NULL OR EslesmeId IS NOT NULL;"));
 
         var aktarilan = db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == "GecmisKayit").OrderBy(o => o.Id).ToList();
         Assert.Equal([("AylikGiderOdeme", "5"), ("EkstreKayit", "7"), ("Alis", "3")], aktarilan.Select(o => (o.Varlik, o.VarlikId!)));
@@ -507,7 +509,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
         Assert.Contains(AyKanalKumesi.MigrationId, db.Database.GetAppliedMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(once, RaporOzeti(db, [.. gecmis, (2026, 9)]));

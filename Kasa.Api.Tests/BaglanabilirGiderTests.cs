@@ -13,7 +13,7 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Alış ödemesine bağlanabilecek giderler (webui-6, gap-okuma-yolu-maliyet-kilit-cekismesi-12): ödeme diyaloğu bütün gider
 /// geçmişini çekmez. GET /api/alis/baglanabilir-giderler yalnız Pay'in kabul edeceği giderleri (cari ya da kredi kartı,
-/// pozitif, alışa/krediye/aylık gidere/ekstreye/hesaba bağlı olmayan, takip ve kilit sınırı içinde) tarih/tutar/metin
+/// pozitif, alışa/krediye/aylık gidere/hesaba bağlı olmayan, takip ve kilit sınırı içinde; banka ekstresi gideri kaynağıyla) tarih/tutar/metin
 /// süzgeciyle ve imleçli sayfalarla ({ogeler, sonrakiImlec, devamVar}) döner. Sorgu sayısı kayıt sayısından bağımsızdır.
 /// </summary>
 public class BaglanabilirGiderTests
@@ -21,7 +21,7 @@ public class BaglanabilirGiderTests
     private const string Uc = "/api/alis/baglanabilir-giderler";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
-    private sealed record Oge(int Id, DateOnly Tarih, string Cari, decimal TutarTl, GiderTipi Tip, int? KrediKartiId, string? Not);
+    private sealed record Oge(int Id, DateOnly Tarih, string Cari, decimal TutarTl, GiderTipi Tip, int? KrediKartiId, string? Not, int? EkstreKayitId = null);
     private sealed record Sayfa(List<Oge> Ogeler, string? SonrakiImlec, bool DevamVar);
 
     private static async Task<Sayfa> Oku(HttpClient c, string sorgu = "")
@@ -74,17 +74,19 @@ public class BaglanabilirGiderTests
         var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
         await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, old.Year, old.Month, "Ay tamamlandı"));
 
+        // Banka ekstresi gideri kaynak satırıyla listelenir (gap-coklu-giris-cift-sayim-mutabakat-1: bağlanınca satır eşleşmeye döner).
         var sayfa = await Oku(c);
-        Assert.Equal([uygun, eskiUygun], sayfa.Ogeler.Select(o => o.Id));
+        Assert.Equal([ekstreli, uygun, eskiUygun], sayfa.Ogeler.Select(o => o.Id));
         Assert.False(sayfa.DevamVar); Assert.Null(sayfa.SonrakiImlec);
-        Assert.Equal(("Kargo A.Ş.", 50m, GiderTipi.Cari, "Eylül kargosu"), (sayfa.Ogeler[0].Cari, sayfa.Ogeler[0].TutarTl, sayfa.Ogeler[0].Tip, sayfa.Ogeler[0].Not));
-        foreach (var hic in new[] { alisa, kilitli, ekstreli, kredili, hesapli, takipOncesi }) Assert.DoesNotContain(sayfa.Ogeler, o => o.Id == hic);
+        Assert.NotNull(sayfa.Ogeler[0].EkstreKayitId); Assert.Null(sayfa.Ogeler[1].EkstreKayitId);
+        Assert.Equal(("Kargo A.Ş.", 50m, GiderTipi.Cari, "Eylül kargosu"), (sayfa.Ogeler[1].Cari, sayfa.Ogeler[1].TutarTl, sayfa.Ogeler[1].Tip, sayfa.Ogeler[1].Not));
+        foreach (var hic in new[] { alisa, kilitli, kredili, hesapli, takipOncesi }) Assert.DoesNotContain(sayfa.Ogeler, o => o.Id == hic);
 
         // Listedeki gider ödeme ucunun kurallarından geçer; bağlandıktan sonra listeden çıkar.
         var yeni = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Bağlanacak", null, [new("Mal", 100m, [new(1, 100m)])]));
-        var secilen = sayfa.Ogeler[0];
+        var secilen = sayfa.Ogeler[1];
         await Post<AlisDto>(c, $"/api/alis/{yeni.Id}/odemeler", new AlisOdemeYaz(yeni.Surum, Guid.NewGuid(), secilen.Tarih, secilen.TutarTl, secilen.KrediKartiId, secilen.Id));
-        Assert.Equal([eskiUygun], (await Oku(c)).Ogeler.Select(o => o.Id));
+        Assert.Equal([ekstreli, eskiUygun], (await Oku(c)).Ogeler.Select(o => o.Id));
     }
 
     [Fact]

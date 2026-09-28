@@ -35,6 +35,13 @@ public class EkstreKayitEntity
     public int? KartOdemeId { get; set; }
     public bool Iptal { get; set; }
     public string? IptalAciklamasi { get; set; }
+    /// <summary>Satırın mevcut bir kayıtla eşleşmesi (gap-coklu-giris-cift-sayim-mutabakat-1): 'Gider' (Islem), 'KartHarcama'
+    /// (TakipHarcama), 'KartTaksidi' (TakipKartTaksit) ya da 'KartOdeme' (TakipKartOdeme); <see cref="EslesmeId"/> o kaydın
+    /// kimliği. İşlem türü 'Eslestir' olan satır yalnız bağdır: kayıt üretmez, kasa ve kart borcu değişmez. Kendi kaydını üretmiş
+    /// Gider/KartHarcama satırı, kaydı sonradan bir alış ödemesine bağlanınca sahiplik sütununu (IslemId/KartHarcamaId) bırakır
+    /// ve eşleşmeye döner; ödeme alıştan ayrılınca sahiplik geri yazılır. Bu sürümden önceki satırlarda ikisi de null.</summary>
+    public string? EslesmeTuru { get; set; }
+    public int? EslesmeId { get; set; }
 }
 
 public partial class KasaDbContext
@@ -57,5 +64,6 @@ public partial class KasaDbContext
         b.Entity<EkstreKayitEntity>().HasIndex(d => d.IslemId).IsUnique();
         b.Entity<EkstreKayitEntity>().HasIndex(d => d.KartHarcamaId).IsUnique();
         b.Entity<EkstreKayitEntity>().HasIndex(d => d.KartOdemeId).IsUnique();
+        b.Entity<EkstreKayitEntity>().HasIndex(d => new { d.EslesmeTuru, d.EslesmeId });
     }
 }

@@ -45,9 +45,10 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     private Dictionary<int, (string Ad, int Sira)>? _kanallar;
     private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal, int? KanalId)>? _eskiTaksitler;
 
-    /// <summary>En yakın tarihli en çok <see cref="EnFazla"/> benzer kayıt. <paramref name="dahil"/> verilirse süzgeç sınırdan
-    /// önce uygulanır (elenen kayıt yakındaki başka kaydın yerini tutmaz).</summary>
-    public IReadOnlyList<BenzerKayitDto> Bul(BenzerAramasi a, Func<BenzerKayitDto, bool>? dahil = null)
+    /// <summary>En yakın tarihli en çok <paramref name="enFazla"/> (varsayılan <see cref="EnFazla"/>) benzer kayıt. <paramref name="dahil"/>
+    /// verilirse süzgeç sınırdan önce uygulanır (elenen kayıt yakındaki başka kaydın yerini tutmaz). Ekstre eşleşme adayları da
+    /// bu aramayla bulunur (<see cref="EkstreImportEndpoints"/>).</summary>
+    public IReadOnlyList<BenzerKayitDto> Bul(BenzerAramasi a, Func<BenzerKayitDto, bool>? dahil = null, int enFazla = EnFazla)
     {
         var bas = a.Tarih.AddDays(-GunPenceresi); var son = a.Tarih.AddDays(GunPenceresi);
         var adaylar = new List<(BenzerKayitDto Kayit, int Sira)>();
@@ -66,7 +67,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         }
         return adaylar.Where(x => dahil is null || dahil(x.Kayit))
             .OrderBy(x => Math.Abs(x.Kayit.Tarih.DayNumber - a.Tarih.DayNumber)).ThenBy(x => x.Sira).ThenByDescending(x => x.Kayit.Id)
-            .Take(EnFazla).Select(x => x.Kayit).ToList();
+            .Take(enFazla).Select(x => x.Kayit).ToList();
     }
 
     /// <summary>Uyarı metninde tek kayıt: kaynak (<paramref name="kaynak"/> verilmezse <see cref="KaynakEtiketi"/>), tarih, tutar

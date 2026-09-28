@@ -157,7 +157,11 @@ public static partial class FinansTakipEndpoints
     {
             ManagedCard(db, id); Text(aciklama);
             var charge = db.TakipHarcamalar.SingleOrDefault(h => h.Id == harcamaId && h.KrediKartiId == id); Require(charge is not null, "Harcama bulunamadı.", 404);
-            Require(charge!.IslemId is null, "Alış/gider kaynağı olan harcama için açıklamalı iade girin.", 409);
+            // Ekstreden gelip alış ödemesine bağlanan harcama ödemenin alıştan ayrılmasıyla ekstre kaydına döner (AlisOdemeIslemleri.Iptal).
+            if (charge!.IslemId is { } islem && AlisOdemeIslemleri.DevredilenEkstreSatiri(db, islem) is not null
+                && db.AlisOdemeler.Where(o => o.IslemId == islem).Select(o => (int?)o.AlisId).FirstOrDefault() is { } alis)
+                Require(false, $"Bu kart harcaması Alış #{alis} ödemesine bağlı; önce alış ödemesini alıştan ayırın (harcama ekstre kaydına döner).", 409);
+            Require(charge.IslemId is null, "Alış/gider kaynağı olan harcama için açıklamalı iade girin.", 409);
             // finance-2: iptal, eski kuralla kasadan düşülmüş devrin kasada önceden sayılan tutarını kaybettirirdi.
             Require(charge.KasadaOncedenSayilanTutar <= 0, "Eski borç devri iptal edilemez; kalan borcu veya kasada önceden sayılan tutarı 'Devri düzelt' ile değiştirin.", 409);
             Require(!db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal), "İadesi bulunan harcama iptal edilemez.", 409);

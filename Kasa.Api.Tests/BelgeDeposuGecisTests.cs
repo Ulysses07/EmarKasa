@@ -203,7 +203,7 @@ public class BelgeDeposuGecisTests
             Assert.Null(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('EkstreBelgeler') WHERE name = 'Dosya';"));
             using (var db = f.Baglam())
             {
-                Assert.Equal(19, db.Database.GetAppliedMigrations().Count());
+                Assert.Equal(20, db.Database.GetAppliedMigrations().Count());
                 Assert.Empty(db.Database.GetPendingMigrations());
                 Assert.False(db.Database.HasPendingModelChanges());
             }
@@ -298,7 +298,7 @@ public class BelgeDeposuGecisTests
             // Hiçbir migration uygulanmadı, BLOB'lar yerinde, bütün satırlar (içerikler dahil) aynı.
             Assert.Equal(once, Dokum(f.Yol, hepsi));
             using var db = Baglam(f.Yol);
-            Assert.Equal(new[] { BelgeDeposuHazirlik.Kimlik, BelgeDeposuGocu.Kimlik }, db.Database.GetPendingMigrations());
+            Assert.Equal(new[] { BelgeDeposuHazirlik.Kimlik, BelgeDeposuGocu.Kimlik, EkstreEslesmesi.Kimlik }, db.Database.GetPendingMigrations());
             Assert.NotNull(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('Belgeler') WHERE name = 'Icerik';"));
             Assert.Null(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('Belgeler') WHERE name = 'IcerikOzeti';"));
         }

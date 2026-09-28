@@ -172,7 +172,14 @@ public class HesapServisi
                 Karantinaya("AylikGiderOdemesi:" + p.Id, () => $"Aylık gider ödemesi #{p.Id} ({Gun(p.Tarih)}): gider #{p.IslemId} aylık gider ödemesi #{aylikOdemeler[p.IslemId!.Value].Id} ile zaten sayıldı; bu ikinci bağ rapora alınmadı",
                     p.Tarih, p.Tarih);
         var aylikRevizyonlar = _db.AylikGiderRevizyonlar.AsNoTracking().ToDictionary(r => r.Id);
-        var imported = _db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal).ToList();
+        // Rapor ekstre satırının yalnız sahiplik ve dağılım sütunlarını okur: eşleşme sütunları (EkstreEslesmesi) raporu etkilemez ve
+        // göç öncesi şemada da okunabilir kalır.
+        var imported = _db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal).Select(k => new EkstreKayitEntity
+        {
+            Id = k.Id, BelgeId = k.BelgeId, SatirNo = k.SatirNo, Tarih = k.Tarih, Aciklama = k.Aciklama, Tutar = k.Tutar, IslemTuru = k.IslemTuru,
+            DagilimTuru = k.DagilimTuru, DagilimJson = k.DagilimJson, KrediKartiId = k.KrediKartiId, IslemId = k.IslemId,
+            KartHarcamaId = k.KartHarcamaId, KartOdemeId = k.KartOdemeId, Iptal = k.Iptal, IptalAciklamasi = k.IptalAciklamasi
+        }).ToList();
         var importedExpenses = new Dictionary<int, EkstreKayitEntity>();
         foreach (var k in imported.Where(k => k.IslemId != null).OrderBy(k => k.Id))
             if (!importedExpenses.TryAdd(k.IslemId!.Value, k))

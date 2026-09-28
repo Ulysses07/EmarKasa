@@ -32,6 +32,19 @@ public static class AlisDurumEtkisi
     internal static OdemePayi Gider(IslemEntity islem) =>
         new(islem.Id, islem.Tarih, islem.TutarTl, islem.KrediKartiId, [new KanalPayi(islem.KanalId, islem.Kanal, islem.TutarTl)]);
 
+    /// <summary>Alışa bağlanmadan önceki banka ekstresi giderinin payları: hesap motoru onu ekstre satırının dağılımıyla sayar
+    /// (yalnız genel kasa satırı hiçbir kanala düşmez).</summary>
+    internal static OdemePayi EkstreGideri(IslemEntity islem, EkstreKayitEntity satir) =>
+        new(islem.Id, islem.Tarih, islem.TutarTl, islem.KrediKartiId, satir.DagilimTuru == "Genel"
+            ? [new KanalPayi(null, Servisler.BenzerKayitServisi.GenelKasa, islem.TutarTl)]
+            : FinansTakipServisi.Read<TakipKanalPayi>(satir.DagilimJson).Select(p => new KanalPayi(p.KanalId, p.Kanal, p.Tutar)).ToList());
+
+    /// <summary>Alış ödemesine bağlanan (gidersiz) kart harcamasının bağlanmadan önceki payları: kendi dağılımı. Kimlik, bağlama
+    /// için oluşturulan giderinkidir.</summary>
+    internal static OdemePayi KartHarcamasi(int islemId, TakipHarcamaEntity harcama) =>
+        new(islemId, harcama.Tarih, harcama.Tutar, harcama.KrediKartiId,
+            FinansTakipServisi.Read<KanalPayYaz>(harcama.DagilimJson).Select(p => new KanalPayi(p.KanalId, null, p.Tutar)).ToList());
+
     /// <summary>Değişiklik kaydedildikten sonra, aynı transaction'da: pay değişen ödemelerin geçmiş aylara etkisini
     /// olay olarak yazar ve yanıt başlığına ekler. Etkilenen geçmiş ay yoksa hiçbir şey yazmaz.</summary>
     internal static IReadOnlyList<string> Yaz(KasaDbContext db, HttpContext http, AlisEntity alis, string oncekiDurum, IReadOnlyDictionary<int, OdemePayi> once, string? gerekce)

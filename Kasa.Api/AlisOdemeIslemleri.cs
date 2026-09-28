@@ -25,7 +25,33 @@ internal static class AlisOdemeIslemleri
         app.MapGet("/api/alis/baglanabilir-giderler", (DateOnly? baslangic, DateOnly? bitis, string? arama, string? aramaTutari, string? tutar, string? imlec, int? limit, KasaDbContext db)
             => AlisEndpoints.Oku(db, () => BaglanabilirGiderler(db, baslangic, bitis, arama, aramaTutari, tutar, imlec, limit ?? VarsayilanSayfa)))
             .RequireAuthorization("Editor");
+        app.MapGet("/api/alis/baglanabilir-kart-harcamalari", (int? krediKartiId, string? tutar, KasaDbContext db)
+            => AlisEndpoints.Oku(db, () => BaglanabilirKartHarcamalari(db, krediKartiId, tutar)))
+            .RequireAuthorization("Editor");
         return app;
+    }
+
+    /// <summary>
+    /// GET /api/alis/baglanabilir-kart-harcamalari (gap-coklu-giris-cift-sayim-mutabakat-1, ters sıra): takipli kartla ödemede
+    /// <c>MevcutKartHarcamaId</c> ile bağlanabilecek harcamalar. Pay'in kabul ettiği kural: kartın iptal edilmemiş, gidere bağlı
+    /// olmayan, pozitif, iade ya da eski borç devri olmayan ve iadesi bulunmayan harcaması; kilitli dönemden sonra. Tarih ve kimlik
+    /// azalan en çok <see cref="VarsayilanSayfa"/> kayıt; <c>tutar</c> verilirse yalnız o tutar. Okuma anlık görüntüsünde çalışır.
+    /// </summary>
+    private static IResult BaglanabilirKartHarcamalari(KasaDbContext db, int? krediKartiId, string? tutarMetni)
+    {
+        if (krediKartiId is not > 0 || !db.TakipKartlar.Any(t => t.KrediKartiId == krediKartiId)) return Results.BadRequest(new { hata = "Takipteki bir kart seçin." });
+        if (!TutarOku(tutarMetni, out var tutar)) return Results.BadRequest(new { hata = "Tutarı sıfırdan büyük ve en çok iki ondalıkla yazın (ör. 1250,50)." });
+        var q = db.TakipHarcamalar.AsNoTracking().Where(h => h.KrediKartiId == krediKartiId && !h.Iptal && h.IslemId == null && h.KaynakHarcamaId == null
+            && h.Tutar > 0 && h.KasadaOncedenSayilanTutar <= 0 && h.Aciklama != KartGecisHesabi.DevirAciklamasi
+            && !db.TakipHarcamalar.Any(i => i.KaynakHarcamaId == h.Id && !i.Iptal));
+        if (db.AyKilidi.Select(k => k.KilitliSonTarih).Single() is { } kilitSonu) q = q.Where(h => h.Tarih > kilitSonu);
+        if (tutar is { } aranan) q = q.Where(h => h.Tutar == aranan);
+        var harcamalar = q.OrderByDescending(h => h.Tarih).ThenByDescending(h => h.Id).Take(VarsayilanSayfa).ToList();
+        var ids = harcamalar.Select(h => h.Id).ToArray();
+        var ekstre = db.EkstreKayitlar.AsNoTracking().Where(k => k.KartHarcamaId != null && ids.Contains(k.KartHarcamaId.Value) && !k.Iptal)
+            .Select(k => new { k.Id, Harcama = k.KartHarcamaId!.Value }).ToList().ToDictionary(k => k.Harcama, k => k.Id);
+        return Results.Ok(harcamalar.Select(h => new BaglanabilirKartHarcamasiDto(h.Id, h.KrediKartiId, h.Tarih, h.Aciklama, h.Tutar,
+            ekstre.TryGetValue(h.Id, out var kayit) ? kayit : null)).ToList());
     }
 
     private static IResult BaglanabilirGiderler(KasaDbContext db, DateOnly? baslangic, DateOnly? bitis, string? arama, string? aramaTutariMetni, string? tutarMetni, string? imlec, int limit)
@@ -59,7 +85,8 @@ internal static class AlisOdemeIslemleri
         else if (aramaTutari is { } yalnizTutar) q = q.Where(i => i.TutarTl == yalnizTutar);
         if (sonraki is { } s) q = q.Where(i => i.Tarih < s.Tarih || i.Tarih == s.Tarih && i.Id < s.Id);
         var ogeler = q.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id).Take(limit + 1)
-            .Select(i => new BaglanabilirGiderDto(i.Id, i.Tarih, i.Cari, i.TutarTl, i.Kanal, i.KanalId, i.Tip, i.Not, i.KrediKartiId))
+            .Select(i => new BaglanabilirGiderDto(i.Id, i.Tarih, i.Cari, i.TutarTl, i.Kanal, i.KanalId, i.Tip, i.Not, i.KrediKartiId,
+                db.EkstreKayitlar.Where(k => k.IslemId == i.Id && !k.Iptal).Select(k => (int?)k.Id).FirstOrDefault()))
             .ToList();
         var devamVar = ogeler.Count > limit;
         if (devamVar) ogeler.RemoveAt(limit);
@@ -86,15 +113,16 @@ internal static class AlisOdemeIslemleri
 
     /// <summary>
     /// Ödeme ucunun (AlisEndpoints Pay, mevcut gider bağlama) ve yazma kurallarının kabul edeceği giderler: cari ya da kredi
-    /// kartı tipi, pozitif tutar, takip başlangıcından sonra; başka alışa, krediye (taksit ödemesi), aylık gidere, ekstre
-    /// kaydına ve eski hesap hareketine bağlı değil (iptal edilmiş aylık gider ve ekstre bağı da bağlamayı engeller); kartlıysa
-    /// kart kayıtlı, takipteki kart yeni kullanıma açık ve gider kart takip başlangıcından önce değil. Kilitli dönem ve kullanıcı
+    /// kartı tipi, pozitif tutar, takip başlangıcından sonra; başka alışa, krediye (taksit ödemesi), aylık gidere ve eski hesap
+    /// hareketine bağlı değil (iptal edilmiş aylık gider bağı da bağlamayı engeller); kartlıysa kart kayıtlı, takipteki kart yeni
+    /// kullanıma açık ve gider kart takip başlangıcından önce değil. Banka ekstresinden gelen gider bağlanabilir
+    /// (gap-coklu-giris-cift-sayim-mutabakat-1): bağlanınca ekstre satırının sahipliği eşleşmeye döner. Kilitli dönem ve kullanıcı
     /// süzgeçleri çağıranda eklenir.
     /// </summary>
     internal static IQueryable<IslemEntity> BaglanabilirSorgu(KasaDbContext db, DateOnly takipBaslangic) => db.Islemler.AsNoTracking().Where(i =>
         (i.Tip == GiderTipi.Cari || i.Tip == GiderTipi.KrediKarti) && i.TutarTl > 0 && i.Tarih >= takipBaslangic
         && !db.AlisOdemeler.Any(o => o.IslemId == i.Id) && !db.KrediTaksitOdemeler.Any(o => o.IslemId == i.Id)
-        && !db.AylikGiderOdemeler.Any(p => p.IslemId == i.Id) && !db.EkstreKayitlar.Any(k => k.IslemId == i.Id)
+        && !db.AylikGiderOdemeler.Any(p => p.IslemId == i.Id) && !db.EkstreKayitlar.Any(k => k.IslemId == i.Id && (k.Iptal || k.IslemTuru != "Gider"))
         && !db.HesapHareketler.Any(h => h.IslemId == i.Id)
         && (i.KrediKartiId == null || db.KrediKartlari.Any(k => k.Id == i.KrediKartiId)
             && !db.TakipKartlar.Any(t => t.KrediKartiId == i.KrediKartiId && (!t.Aktif || i.Tarih < t.Baslangic))));
@@ -123,6 +151,16 @@ internal static class AlisOdemeIslemleri
             .Any(p => FinansTakipServisi.Read<KartTaksitPayi>(p.PaylarJson).Any(x => taksitler.Contains(x.TaksitId)));
     }
 
+    /// <summary>Ödemenin giderine sahipliğini devretmiş (eşleşmeye dönmüş) iptal edilmemiş ekstre satırı: banka gideri ('Gider',
+    /// gider kimliği) ya da gidersiz kart harcaması ('KartHarcama', ödemenin giderine bağlanan harcama). Yoksa null.</summary>
+    internal static EkstreKayitEntity? DevredilenEkstreSatiri(KasaDbContext db, int islemId)
+    {
+        var harcama = db.TakipHarcamalar.Where(h => h.IslemId == islemId).Select(h => (int?)h.Id).FirstOrDefault();
+        return db.EkstreKayitlar.FirstOrDefault(k => !k.Iptal && k.IslemTuru != EkstreImportEndpoints.Eslestir
+            && (k.IslemTuru == "Gider" && k.EslesmeTuru == "Gider" && k.EslesmeId == islemId
+                || harcama != null && k.IslemTuru == "KartHarcama" && k.EslesmeTuru == "KartHarcama" && k.EslesmeId == harcama));
+    }
+
     internal static IResult Duzelt(KasaDbContext db, int id, int odemeId, AlisOdemeDuzelt dto)
     {
         var v = new GirdiDogrulama(); v.Metin(dto.Aciklama, "aciklama", 2000); v.Tarih(dto.Tarih, "tarih"); v.Para(dto.Tutar, "tutar");
@@ -136,6 +174,15 @@ internal static class AlisOdemeIslemleri
         if (source is null) return Results.NotFound();
         if (source.Surum != dto.Surum) return AlisEndpoints.Conflict("Alış değişmiş. Listeyi yenileyin.");
         if (payment is null) return Results.NotFound();
+        // Ekstreden gelmiş kayda bağlanan ödemenin tarihi, tutarı ve kartı banka satırıdır: yalnız başka alışa taşınabilir ya da
+        // alıştan ayrılabilir (iptal satırı kendi kaydına döndürür). Kart harcamasına bağlı olan taşınamaz (gap-5 kapsamı).
+        if (DevredilenEkstreSatiri(db, payment.IslemId) is { } ekstreSatiri)
+        {
+            if (ekstreSatiri.EslesmeTuru == "KartHarcama")
+                return AlisEndpoints.Conflict("Bu ödeme ekstreden gelen kart harcamasına bağlı. Düzeltmek için ödemeyi iptal edin (harcama ekstre kaydına döner) ve doğru alışa yeniden bağlayın.");
+            if (dto.Tarih != payment.Islem.Tarih || dto.Tutar != payment.Islem.TutarTl || dto.KrediKartiId is not null)
+                return AlisEndpoints.Conflict("Ekstreden gelen ödemenin tarihi, tutarı ve ödeme yöntemi değiştirilemez; yalnız başka alışa taşınabilir ya da alıştan ayrılabilir.");
+        }
         if (FinansTakipServisi.IslemYonetiliyor(db, payment.Islem) || (dto.KrediKartiId is { } targetCard && db.TakipKartlar.Any(t => t.KrediKartiId == targetCard)))
             return AlisEndpoints.Conflict("Yeni kart takibine bağlı ödeme için Kredi Kartları ekranında açıklamalı iade girin; alışın kanal dağılımı ayrıca düzenlenebilir.");
         var target = source;
@@ -185,8 +232,32 @@ internal static class AlisOdemeIslemleri
         if (alis is null) return Results.NotFound();
         if (alis.Surum != dto.Surum) return AlisEndpoints.Conflict("Alış değişmiş. Listeyi yenileyin.");
         if (payment is null) return Results.NotFound();
-        if (FinansTakipServisi.IslemYonetiliyor(db, payment.Islem)) return AlisEndpoints.Conflict("Yeni kart takibine bağlı ödeme silinemez; Kredi Kartları ekranında açıklamalı iade girin.");
+        var ekstreSatiri = DevredilenEkstreSatiri(db, payment.IslemId);
+        if (ekstreSatiri is null && FinansTakipServisi.IslemYonetiliyor(db, payment.Islem)) return AlisEndpoints.Conflict("Yeni kart takibine bağlı ödeme silinemez; Kredi Kartları ekranında açıklamalı iade girin.");
         var before = JsonSerializer.Serialize(new { aciklama = dto.Aciklama.Trim(), alis = AlisHesaplari.ToDto(alis) });
+        if (ekstreSatiri is not null)
+        {
+            // Ekstreden gelmiş kayda bağlanan ödeme (gap-coklu-giris-cift-sayim-mutabakat-1): alıştan ayrılınca kayıt yeniden ekstre
+            // satırınındır. Kart harcamasında bağlama için oluşturulan gider silinir, harcama gidersiz kalır; banka giderinde gider
+            // korunur. Satırın sahiplik sütunu geri yazılır, eşleşme kalkar; kasa ve kart borcu bağlamadan önceki haline döner.
+            alis.Odemeler.Remove(payment); db.AlisOdemeler.Remove(payment);
+            var harcama = ekstreSatiri.EslesmeTuru == "KartHarcama" ? db.TakipHarcamalar.Single(h => h.Id == ekstreSatiri.EslesmeId) : null;
+            if (harcama is not null) { harcama.IslemId = null; db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++; }
+            alis.Surum++;
+            FinansHesaplari.IstekKaydet(db, dto.IstekId, "OdemeIptal", digest, id, before);
+            db.SaveChanges();
+            db.EkstreDegisikligi = true;
+            try
+            {
+                if (harcama is not null) { db.Islemler.Remove(payment.Islem); ekstreSatiri.KartHarcamaId = harcama.Id; }
+                else ekstreSatiri.IslemId = payment.IslemId;
+                ekstreSatiri.EslesmeTuru = null; ekstreSatiri.EslesmeId = null;
+                db.SaveChanges();
+            }
+            finally { db.EkstreDegisikligi = false; }
+            FinansTakipServisi.Sync(db);
+            return Results.Ok(AlisEndpoints.ReadDto(db, id));
+        }
         if (payment.Islem.HesapHareketi is { } account) db.HesapHareketler.Remove(account);
         db.AlisOdemeler.Remove(payment); db.Islemler.Remove(payment.Islem);
         alis.Surum++;
