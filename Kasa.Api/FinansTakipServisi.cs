@@ -92,14 +92,33 @@ public static class FinansTakipServisi
                 if (source.ContainsKey(share.KanalId)) source[share.KanalId] -= share.Tutar;
         return source.Where(p => p.Value > 0).Select(p => new KanalPayYaz(p.Key, p.Value)).ToList();
     }
+    /// <summary>İlk kesim tarihinin kartın düzenli kesiminden en çok uzaklığı (gün): banka kesimi tatil nedeniyle birkaç gün
+    /// kayabilir; daha uzak tarih (ör. formdaki varsayılan "bugün") kartın döngüsünde değildir.</summary>
+    internal const int IlkKesimToleransi = 7;
+    /// <summary><paramref name="date"/>'e en yakın düzenli kesim: kartın <paramref name="day"/> gününe (kısa ayda ay sonuna)
+    /// düşen, <paramref name="date"/>'ten önceki ya da o gün/sonraki ilk kesim. Eşit uzaklıkta önceki seçilir.</summary>
+    internal static DateOnly EnYakinDuzenliKesim(DateOnly date, int day)
+    {
+        var next = Kesim(date, day); var previous = Gun(next.AddMonths(-1), day);
+        return date.DayNumber - previous.DayNumber <= next.DayNumber - date.DayNumber ? previous : next;
+    }
+    /// <summary>Harcamayı ve taksitlerini yazar. Her taksit kartın düzenli kesimine (kısa ayda ay sonuna) bağlanır;
+    /// <paramref name="firstCut"/> (ilk kesim) yalnız ilk taksidin girdiği döngüyü seçer (finance-3). Bankanın tatil
+    /// nedeniyle kaydırdığı kesim (ör. 5 yerine 6'sı) aynı döngünün ekstresidir: o güne ayrı ekstre açılsaydı sonraki
+    /// taksitler de o güne sabitlenir, kartın döngüsüne paralel ekstreler ve aynı ay ikinci kesim bildirimi oluşurdu.
+    /// İlk kesimsiz harcamanın (gider, açılış, geçiş, masraf, içe aktarma) ataması önceki kuralla aynıdır.</summary>
     internal static void HarcamaEkle(KasaDbContext db, KrediKartiEntity card, TakipHarcamaEntity charge, DateOnly? firstCut = null)
     {
+        var day = card.KesimTarihi.Day;
+        if (firstCut is { } ilk)
+            FinansTakipEndpoints.Require(Math.Abs(ilk.DayNumber - EnYakinDuzenliKesim(ilk, day).DayNumber) <= IlkKesimToleransi,
+                $"İlk kesim tarihi kartın hesap kesim gününe ({day}) en fazla {IlkKesimToleransi} gün uzak olabilir; bankanın kaydırdığı kesimi ya da harcamanın düştüğü sonraki kesimi girin.");
         db.TakipHarcamalar.Add(charge); db.SaveChanges();
-        var cut = firstCut ?? Kesim(charge.Tarih, card.KesimTarihi.Day);
+        var cut = firstCut is { } first ? EnYakinDuzenliKesim(first, day) : Kesim(charge.Tarih, day);
         var cents = decimal.ToInt64(Math.Abs(charge.Tutar) * 100); var sign = Math.Sign(charge.Tutar);
         for (var i = 0; i < charge.TaksitSayisi; i++)
         {
-            var statement = Ekstre(db, card, Gun(cut.AddMonths(i), firstCut?.Day ?? card.KesimTarihi.Day));
+            var statement = Ekstre(db, card, Gun(cut.AddMonths(i), day));
             db.TakipKartTaksitler.Add(new() { HarcamaId = charge.Id, EkstreId = statement.Id,
                 Tutar = sign * (cents / charge.TaksitSayisi + (i < cents % charge.TaksitSayisi ? 1 : 0)) / 100m });
         }
