@@ -1,4 +1,4 @@
-# Dal ve sürüm durumu — karar bekliyor
+# Dal ve sürüm durumu — Seçenek A uygulandı
 
 > Tespit: 28 Eylül 2026 (devops-1). Değerler o günkü yerel depodan (`git` salt okunur komutları) ve `git ls-remote origin`
 > çıktısından alındı; yerelde olmayan PR #11 commit'leri (`8951c1b` ve ataları) `git fetch origin <sha>` ile yalnız nesne
@@ -136,15 +136,28 @@ git -C C:/Users/burak/source/repos/Kasa status --short | wc -l
 
 `8951c1b` yerelde yoksa içeriğini görmek için `git fetch origin canli-2.3.0-imports` (izlenen ref'i günceller) çalıştırılır.
 
-## Karar bekliyor
+## Uygulanan karar (28 Eylül 2026)
 
-Bu belge bir durum tespiti ve seçenek listesidir; uygulanmış bir karar değildir. Karar verilecek konular:
+Depo sahibi **Seçenek A**'yı seçti. Canlıda çalışan commit `fce8578`'dir: `https://kasa.emarglobal.com/m/` 404 döner ve canlı `index.html` PR #11'in `telefon-yonlendir.js` betiğini içermez; `8951c1b` (PR #11) yayında değildir.
 
-1. Seçenek: A (önerilen), B, D ya da önce D sonra A/B.
-2. Canlıda çalışan commit: `fce8578` mi, PR #11 dahil `8951c1b` mi (sunucu manifesti).
-3. `origin/master` hattındaki özelliklerin geleceği (devops-28, yol haritası).
-4. Zamanlama: denetim düzeltmelerinin gözden geçirilmesi ve yayın dalına alınmasıyla sırası.
+Uygulanan adımlar (etiket, dal ve varsayılan dal komutlarını depo sahibi çalıştırdı; `git ls-remote origin` ile doğrulandı):
 
-Karar uygulandığında tarih, seçenek, oluşturulan etiket/dal SHA'ları ve varsayılan dal bu bölüme yazılır.
+| Adım | Sonuç |
+| --- | --- |
+| A3 — canlı kod etiketi | `v2.3.0` (açıklamalı etiket `271992e`) → `fce8578` |
+| A4 — paralel hat arşivi | Dal `arsiv/paralel-hat-2026-09` → `ca0d776`; etiket `arsiv/paralel-hat-2026-09-27` (`643fc8b`) → `ca0d776` |
+| A5 — yayın dalı | `release/2.x` → `fce8578` |
+| A6 — varsayılan dal | GitHub varsayılan dalı `release/2.x` (`HEAD` → `fce8578`) |
+| A6 — dal koruması | `release/2.x`: zorla push ve silme yasak; değişiklik yalnız PR ile (gerekli onay sayısı 0); kurallar yöneticiler için de geçerli (`enforce_admins`) |
 
-**Durum: KARAR BEKLİYOR.** Bu belge devops-1 bulgusunu kapatmaz; bulgu açıktır. Yanlış hattan dağıtım riski, A ya da B uygulanıp GitHub varsayılan dalı canlı hatta çekilene kadar sürer. D yalnız etiket ve arşiv ekler, riski kaldırmaz. Adımların hepsi push ve uzak depo ayarı gerektirir; kararı depo sahibi verir ve uygular.
+`origin/master` (`ca0d776`) ve `canli-2.3.0-imports` (`8951c1b`) değiştirilmedi; hiçbir uzak dal silinmedi ya da zorla taşınmadı.
+
+Açık kalanlar (devops-1'in kapsamı dışında, sırası geldiğinde):
+
+- **Zorunlu CI kontrolü:** `release/2.x` korumasına `Kasa CI` kontrolleri, denetim düzeltmelerinin PR'ında CI yeşil görüldükten sonra zorunlu olarak eklenir.
+- **A7:** `denetim-duzeltmeleri`, önce `origin/canli-2.3.0-imports` (PR #11; `.github/workflows/ci.yml` çakışması elle çözülür) birleştirilip `release/2.x`'e PR ile alınır.
+- **A8:** ana worktree'deki commit edilmemiş içeriğin yerel yedek dala alınması ve `Kasa-deploy` worktree'sinin kaldırılması depo sahibinin onayıyla yapılır.
+- **A9:** bundan sonra yalnız etiketli commit dağıtılır.
+- **Paralel hattın özellikleri** (devops-28, yol haritası) ürün sahibinin kararıdır.
+
+**Durum: UYGULANDI.** GitHub varsayılan dalı canlı hattır; varsayılan dalı klonlayan canlı kodu alır. devops-1 kapanmıştır.
