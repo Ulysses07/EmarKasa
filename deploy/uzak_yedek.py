@@ -2,8 +2,8 @@
 
 Uygulama günlük ve elle alınan yedekleri canlı veritabanıyla aynı diske (KASA_BACKUP_DIR) yazar; VPS kaybında
 ikisi birlikte gider. Bu betik yedek dizinindeki ZIP'lerden yalnız manifest SHA-256 özeti doğrulananları uzak hedefe
-kopyalar, hedefte saklama kuralını uygular, uygulamanın yedek almayı bırakıp bırakmadığını ve disk doluluğunu
-denetler, sonucu isteğe bağlı bir izleme adresine ("ölü adam anahtarı", ör. healthchecks.io) bildirir.
+kopyalar, hedefte saklama kuralını uygular (yalnız hatasız çalışmada), uygulamanın yedek almayı bırakıp bırakmadığını
+ve disk doluluğunu denetler, sonucu isteğe bağlı bir izleme adresine ("ölü adam anahtarı", ör. healthchecks.io) bildirir.
 
 Kimlik bilgisi depoda ve bu betikte yoktur: uzak depo ve şifreleme ('crypt') rclone yapılandırmasındadır
 (/root/.config/rclone/rclone.conf, izin 600). Ayarlar ortam değişkenidir; sunucuda /etc/kasa/uzak-yedek.env
@@ -12,7 +12,7 @@ Kimlik bilgisi depoda ve bu betikte yoktur: uzak depo ve şifreleme ('crypt') rc
 Kurulum, zamanlayıcı ve geri dönüş: docs/deploy/operasyon-runbook.md "Sunucu dışı yedek".
 
 Komutlar:
-  python3 uzak_yedek.py gonder [--kuru]          yeni ve doğrulanmış yedekleri gönderir, hedefte saklamayı uygular
+  python3 uzak_yedek.py gonder [--kuru]          yeni ve doğrulanmış yedekleri gönderir, hatasızsa hedefte saklamayı uygular
   python3 uzak_yedek.py listele                  uzaktaki yedekleri listeler
   python3 uzak_yedek.py indir AD --cikti DIZIN   uzak kopyayı indirir, manifest özetini doğrular
   python3 uzak_yedek.py dogrula                  en yeni uzak kopyayı geçici dizine indirip restore_backup.py ile açar
@@ -497,7 +497,16 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
             for ad, boyut in gonderilen.items():
                 if son.get(ad) != boyut:
                     hatalar.append("{}: gönderildikten sonra hedefte doğru boyutla görünmüyor.".format(ad))
-        for ad in sorted(silinecek & set(uzak)):
+        # Hedefte silme yalnız buraya kadar hatasız bir çalışmada yapılır. Gönderim ya da doğrulama başarısızsa ya da en
+        # yeni otomatik yedek eski görünüyorsa (uygulamanın yedeği durmuş ya da sistem saati ileri kaymış) yeni kopyalar
+        # hedefe ulaşmıyor ya da yaşlar yanlış hesaplanıyor olabilir; o sırada silmek hedefte yalnız en yeni 7'yi
+        # bırakabilir. Silinecekler bir sonraki hatasız çalışmaya kalır.
+        uzakta_silinecek = sorted(silinecek & set(uzak))
+        if uzakta_silinecek and hatalar:
+            hatalar.append("Bu çalışmada hata olduğu için hedefte saklama silmesi yapılmadı ({} kopya korunuyor); hata "
+                           "giderildikten sonraki hatasız çalışma siler.".format(len(uzakta_silinecek)))
+            uzakta_silinecek = []
+        for ad in uzakta_silinecek:
             if kuru:
                 print("[kuru] hedefte silinecek: " + ad)
                 continue
@@ -609,7 +618,7 @@ def main(argv: Optional[Sequence[str]] = None, ortam: Optional[Mapping[str, str]
          calistir: Optional[Calistirici] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     komutlar = parser.add_subparsers(dest="komut", required=True)
-    g = komutlar.add_parser("gonder", help="yeni ve doğrulanmış yedekleri gönder, hedefte saklamayı uygula")
+    g = komutlar.add_parser("gonder", help="yeni ve doğrulanmış yedekleri gönder, hatasızsa hedefte saklamayı uygula")
     g.add_argument("--kuru", action="store_true", help="yalnız ne yapılacağını yaz; göndermez, silmez, bildirmez")
     komutlar.add_parser("listele", help="uzaktaki yedekleri listele")
     i = komutlar.add_parser("indir", help="uzak kopyayı indirip manifest özetini doğrula")

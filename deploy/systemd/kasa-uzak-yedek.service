@@ -1,5 +1,5 @@
 # Kasa sunucu dışı yedek (devops-9): yedek dizinindeki yeni ve manifest özeti doğrulanmış yedekleri uzak hedefe
-# kopyalar, hedefte saklamayı uygular, eski yedek ve disk doluluğunu denetler, sonucu izleme adresine bildirir.
+# kopyalar, hatasızsa hedefte saklamayı uygular, eski yedek ve disk doluluğunu denetler, sonucu izleme adresine bildirir.
 # Kurulum ve geri dönüş: docs/deploy/operasyon-runbook.md "Sunucu dışı yedek".
 # Elle çalıştırma (zamanlayıcıyla çakışmaz): sudo systemctl start kasa-uzak-yedek.service
 [Unit]

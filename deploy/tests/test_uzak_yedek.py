@@ -229,10 +229,10 @@ class GonderTests(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def calistir(self, kuru=False, **ek):
+    def calistir(self, kuru=False, simdi=SIMDI, **ek):
         ayarlar = uy.ayarlari_oku(dict(self.ortam, **ek))
         with Sessiz() as s:
-            kod = uy.gonder(ayarlar, uy.hedef_olustur(ayarlar), kuru=kuru, simdi=SIMDI,
+            kod = uy.gonder(ayarlar, uy.hedef_olustur(ayarlar), kuru=kuru, simdi=simdi,
                             disk_kullanimi=lambda _: self.doluluk, bildir=lambda url, ok: self.bildirimler.append((url, ok)))
         return kod, s.metin
 
@@ -289,6 +289,41 @@ class GonderTests(unittest.TestCase):
         kod, _ = self.calistir(KASA_UZAK_SAKLAMA="hayir")
         self.assertEqual(0, kod)
         self.assertIn(ad("elle-", SIMDI - timedelta(days=300), 77), self.uzaktakiler())
+
+    def test_gonderim_hatasinda_hedefte_saklama_silmesi_yapilmaz(self):
+        # Yeni kopya hedefe ulaşmadıysa eski kopyalar silinmez; hata giderilince sonraki hatasız çalışma siler.
+        yeni = yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 1)).name
+        eskiler = [yedek_zip(self.uzak, ad("elle-", SIMDI - timedelta(days=200 + i), i), tur="elle").name for i in range(12)]
+
+        with mock.patch.object(uy.DizinHedefi, "gonder", side_effect=uy.HedefHatasi(yeni + " gönderilemedi: bağlantı koptu")):
+            kod, metin = self.calistir()
+        self.assertEqual(1, kod)
+        self.assertEqual(sorted(eskiler), self.uzaktakiler())
+        self.assertIn("hedefte saklama silmesi yapılmadı (2 kopya korunuyor)", metin)
+        self.assertEqual(("https://izleme.example/ping/abc", False), self.bildirimler[-1])
+
+        kod, metin = self.calistir()
+        self.assertEqual(0, kod, metin)
+        self.assertEqual(sorted(eskiler[:10] + [yeni]), self.uzaktakiler())
+
+    def test_en_yeni_yerel_yedek_eskiyse_ya_da_saat_ileri_kaymissa_hedefte_silme_yapilmaz(self):
+        # Sistem saati 400 gün ileri kaymış: bütün kopyalar saklama süresinin dışında görünür. Silme yapılsaydı hedefte
+        # yalnız en yeni 7 otomatik kopya kalırdı. En yeni yerel otomatik yedeğin eski görünmesi aynı çalışmada hatadır.
+        yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 99))
+        gunluk = [yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(days=g, hours=1), g)).name for g in range(1, 20)]
+        ileri = SIMDI + timedelta(days=400)
+
+        kod, metin = self.calistir(kuru=True, simdi=ileri)
+        self.assertEqual(1, kod)
+        self.assertNotIn("[kuru] hedefte silinecek", metin)
+        self.assertIn("hedefte saklama silmesi yapılmadı (13 kopya korunuyor)", metin)
+
+        kod, metin = self.calistir(simdi=ileri)
+        self.assertEqual(1, kod)
+        self.assertIn("En yeni otomatik yedek", metin)
+        self.assertIn("hedefte saklama silmesi yapılmadı (13 kopya korunuyor)", metin)
+        self.assertIn("0 hedefte silindi", metin)
+        self.assertTrue(set(gunluk) <= set(self.uzaktakiler()))
 
     def test_saklama_disinda_kalacak_eski_yerel_yedek_gonderilmez(self):
         for g in range(7):  # en yeni 7 yedek yaşından bağımsız korunur; eski yedekler bu yedinin dışında kalsın

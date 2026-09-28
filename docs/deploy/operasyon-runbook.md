@@ -57,6 +57,7 @@ Uygulama her gün otomatik yedek alır ve `KASA_BACKUP_DIR`'e yazar; bu dizin ca
 - Yalnız servisin ad kalıbına uyan ZIP'ler (`kasa-oto-*`, `kasa-elle-*`, `kasa-goc-oncesi-*`, 2.3 öncesi `kasa-*`) ve yalnız manifest SHA-256 özeti `kasa.db` ile eşleşenler gönderilir. Özeti tutmayan (bozuk, yarım) yedek gönderilmez, hata olarak bildirilir. `.part` dosyalarına ve başka adlara dokunulmaz.
 - Hedefte aynı adla dosya varsa üzerine yazılmaz (`rclone copyto --immutable`); gönderimden sonra hedefteki boyut denetlenir.
 - Hedefte saklama: otomatik yedeklerde son 35 günün hepsi, son 13 takvim ayının (İstanbul) ilk yedeği ve her durumda en yeni 7; elle yedeklerden en yeni 10; göç öncesi yedekler hiç silinmez. Kural sunucudakiyle aynıdır, süreler daha uzundur (`KASA_UZAK_GUNLUK_GUN`, `KASA_UZAK_AYLIK_AY`). Hedefteki saklamanın dışında kalacak eski yerel yedek gönderilmez.
+- Hedefte silme yalnız hatasız çalışmada yapılır. Gönderim, doğrulama ya da boyut hatası varsa ya da en yeni yerel otomatik yedek eski görünüyorsa (uygulamanın yedeği durmuş ya da sistem saati ileri kaymış) hiçbir uzak kopya silinmez. Bu durum da hata olarak bildirilir. Silinecekler hata giderildikten sonraki ilk hatasız çalışmada silinir.
 - Uzak hedef rclone `crypt` uzağı olmalıdır; şifresiz uzak reddedilir (bilerek `KASA_UZAK_SIFRESIZ=evet` yazılmadıkça).
 - En yeni yerel otomatik yedek 48 saatten eskiyse (uygulamanın günlük yedeği durmuşsa) ve yedek ya da veri diski %80 dolduysa hata verir.
 - Sonuç izleme adresine bildirilir. Haftalık doğrulama en yeni uzak kopyayı indirip [`restore_backup.py`](../../deploy/restore_backup.py) ile geçici dizinde geri açarak sınar.
@@ -142,7 +143,8 @@ systemd yoksa cron (dosya LF satır sonuyla yazılır, sahibi root, izin 644):
 ### 6. İzleme
 
 - healthchecks.io (ya da kurum içi eşdeğeri) üzerinde iki denetim açın: "Kasa uzak yedek" (periyot 1 gün, tolerans 6 saat) ve "Kasa uzak yedek doğrulama" (periyot 7 gün, tolerans 1 gün); bildirim kanalı e-posta ya da Telegram. Adresleri `KASA_UZAK_IZLEME_URL` ve `KASA_UZAK_DOGRULA_IZLEME_URL`'ye yazın. Betik başarıda adrese, hatada adres + `/fail`'e istek atar. Hiç çalışmazsa (sunucu kapalı, zamanlayıcı bozuk) denetim süre aşımıyla uyarır.
-- Hata sayılanlar: doğrulanamayan yerel yedek; listeleme, gönderme ya da silme hatası; gönderimden sonra hedefte doğru boyutla görünmeyen ya da yereldekinden farklı boyutta duran kopya; 48 saatten eski en yeni otomatik yedek (`KASA_YEDEK_EN_FAZLA_SAAT`); %80 dolu yedek ya da veri diski (`KASA_DISK_ESIK_YUZDE`). Doğrulamada ayrıca geri açılamayan ya da 48 saatten eski en yeni uzak kopya.
+- Hata sayılanlar: doğrulanamayan yerel yedek; listeleme, gönderme ya da silme hatası; gönderimden sonra hedefte doğru boyutla görünmeyen ya da yereldekinden farklı boyutta duran kopya; 48 saatten eski en yeni otomatik yedek (`KASA_YEDEK_EN_FAZLA_SAAT`); bu hatalardan biri yüzünden atlanan hedef saklama silmesi; %80 dolu yedek ya da veri diski (`KASA_DISK_ESIK_YUZDE`). Doğrulamada ayrıca geri açılamayan ya da 48 saatten eski en yeni uzak kopya.
+- Kalıcı bir hata, giderilene kadar hedefte saklamayı durdurur ve uzak depo büyür. Örneğin özeti tutmayan yerel yedek her çalışmada yeniden hata verir. Böyle bir dosyayı inceleyin, çünkü disk hatası belirtisi olabilir. Sonra silmeden yedek dizininin dışına taşıyın.
 - Ayrıntı: `journalctl -u kasa-uzak-yedek.service -n 100 --no-pager` (doğrulama için `kasa-uzak-dogrula.service`).
 
 ### 7. Uzak kopyadan geri dönüş
