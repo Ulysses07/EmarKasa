@@ -147,4 +147,4 @@ Bu belge bir durum tespiti ve seçenek listesidir; uygulanmış bir karar değil
 
 Karar uygulandığında tarih, seçenek, oluşturulan etiket/dal SHA'ları ve varsayılan dal bu bölüme yazılır.
 
-**Durum: KARAR BEKLİYOR.**
+**Durum: KARAR BEKLİYOR.** Bu belge devops-1 bulgusunu kapatmaz; bulgu açıktır. Yanlış hattan dağıtım riski, A ya da B uygulanıp GitHub varsayılan dalı canlı hatta çekilene kadar sürer. D yalnız etiket ve arşiv ekler, riski kaldırmaz. Adımların hepsi push ve uzak depo ayarı gerektirir; kararı depo sahibi verir ve uygular.
