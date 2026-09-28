@@ -13,7 +13,7 @@ public partial class IslemlerViewModel
     private readonly TimeProvider _zaman;
     private IReadOnlyList<KanalDto> _kanallar = Array.Empty<KanalDto>();
     private IReadOnlyList<GelenDto> _gelenler = Array.Empty<GelenDto>();
-    private int _gelenNesli;             // son dönem yüklemesi kazanır
+    private readonly SonIstekHatti _gelenHatti;   // son dönem yüklemesi kazanır
     private bool _gelenDonemAtaniyor;    // VM'nin kendi dönem ataması yükleme tetiklemez
     private bool _gelenSifirOnayi;       // kayıtlı toplamı 0'a indirmek ikinci basışta gider
 
@@ -54,9 +54,9 @@ public partial class IslemlerViewModel
         return GelenleriYukle();
     }
 
-    private Task GelenleriYukle() => GelenYuklemesi = GelenleriYukleAsync(++_gelenNesli, GelenDonem);
+    private Task GelenleriYukle() => GelenYuklemesi = GelenleriYukleAsync(_gelenHatti.Baslat(), GelenDonem);
 
-    private async Task GelenleriYukleAsync(int nesil, DonemDto? donem)
+    private async Task GelenleriYukleAsync(IstekBileti istek, DonemDto? donem)
     {
         // Web gibi: yanıt gelene kadar hem "yükleniyor" hem "hata" açık; kayıt kapalı kalır.
         _gelenler = Array.Empty<GelenDto>();
@@ -66,10 +66,10 @@ public partial class IslemlerViewModel
         try
         {
             var liste = await _api.GelenlerAsync(donem.Start);
-            if (nesil == _gelenNesli) { _gelenler = liste; GelenYuklemeHatasi = false; }
+            if (_gelenHatti.Guncel(istek)) { _gelenler = liste; GelenYuklemeHatasi = false; }
         }
         catch (Exception) { /* hata bayrağı açık kalır: mevcut toplam bilinmeden kayıt yapılamaz */ }
-        finally { if (nesil == _gelenNesli) { GelenYukleniyor = false; GelenFormunuDoldur(); } }
+        finally { if (_gelenHatti.Guncel(istek)) { GelenYukleniyor = false; GelenFormunuDoldur(); } }
     }
 
     /// <summary>Seçili kanalın kayıtlı dönem toplamı forma dolar (web fill()).</summary>
@@ -114,7 +114,7 @@ public partial class IslemlerViewModel
 
     private void GelenTemizle()
     {
-        _gelenNesli++; _gelenler = Array.Empty<GelenDto>(); _gelenSifirOnayi = false;
+        _gelenHatti.Birak(); _gelenler = Array.Empty<GelenDto>(); _gelenSifirOnayi = false;
         _gelenDonemAtaniyor = true;
         try { GelenDonem = null; } finally { _gelenDonemAtaniyor = false; }
         GelenYukleniyor = GelenYuklemeHatasi = false;
@@ -123,7 +123,7 @@ public partial class IslemlerViewModel
     }
 
     [RelayCommand]
-    private Task GelenKaydetAsync() => Mesgul ? Task.CompletedTask : CalistirAsync(async () =>
+    private Task GelenKaydetAsync() => YurutAsync(async n =>
     {
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
         if (GelenDonem is not { } donem) { Hata = "Kasa dönemi seçin."; return; }
@@ -141,11 +141,13 @@ public partial class IslemlerViewModel
             GelenBilgi = $"Dönem toplamı {Bicim.Tl(secim.Toplam)} ₺ yerine 0,00 ₺ yapılacak. Onaylamak için yeniden kaydedin.";
             return;
         }
-        var kanal = GelenKanal; var oturum = _auth?.OturumSurumu;
+        var kanal = GelenKanal;
         var sonuc = await _api.GelenKaydetAsync(new GelenYaz(donem.Start, kanal, yeni));
-        if (_auth?.OturumSurumu != oturum) return;
+        if (!Gecerli(n)) return;
         _gelenSifirOnayi = false;
         await GelenleriYukle();
+        // Yeniden yükleme sürerken oturum değiştiyse kayıt iletisi yeni oturumun formuna yazılmaz.
+        if (!Gecerli(n)) return;
         GelenBilgi = $"Kanal geliri kaydedildi: {kanal} · {donem.Start:dd.MM.yyyy}–{donem.End:dd.MM.yyyy} dönem toplamı {Bicim.Tl(sonuc.TutarTl)} ₺ (önceki {Bicim.Tl(secim.Toplam)} ₺)."
             + (GelenYuklemeHatasi ? " Dönem gelirleri yeniden yüklenemedi; yeni kayıttan önce dönemi yeniden seçin." : "");
     });
