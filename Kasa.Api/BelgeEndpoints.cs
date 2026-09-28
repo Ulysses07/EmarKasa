@@ -19,16 +19,23 @@ public static class BelgeEndpoints
     {
         ["application/pdf"] = ".pdf", ["image/png"] = ".png", ["image/jpeg"] = ".jpg",
     };
-    /// <summary>Yüklemede türle tutarlı sayılan uzantılar (küçük harf).</summary>
-    private static readonly Dictionary<string, string[]> KabulEdilenUzantilar = new(StringComparer.Ordinal)
+    /// <summary>Yüklemede reddedilen ad uzantıları (addaki son noktadan sonrası, büyük/küçük harf duyarsız): Windows'ta
+    /// çalıştırılabilir, betik, kısayol, yükleyici ya da disk kalıbı; tarayıcıda çalışan web sayfası ve görsel biçimleri.</summary>
+    private static readonly HashSet<string> TehlikeliUzantilar = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["application/pdf"] = [".pdf"], ["image/png"] = [".png"], ["image/jpeg"] = [".jpg", ".jpeg", ".jpe", ".jfif"],
+        "hta", "htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xml", "xsl", "xslt",
+        "js", "jse", "mjs", "vbs", "vbe", "wsf", "wsh", "wsc", "sct", "ps1", "psm1", "psd1", "ps1xml", "psc1", "sh", "bash", "py", "pyw", "pl", "rb", "php",
+        "cmd", "bat", "com", "exe", "scr", "pif", "cpl", "dll", "ocx", "sys", "drv", "msi", "msp", "mst", "msc", "msix", "msixbundle", "appx", "appxbundle",
+        "lnk", "url", "website", "scf", "reg", "inf", "ins", "isp", "chm", "hlp", "jar", "jnlp", "application", "appref-ms", "gadget", "xbap", "xll",
+        "settingcontent-ms", "library-ms", "search-ms", "diagcab", "iso", "img", "vhd", "vhdx",
     };
-    /// <summary>Yüklemede türle tutarlı sayılan bildirilen içerik türleri (boş ve application/octet-stream her türle uyumludur).</summary>
-    private static readonly Dictionary<string, string[]> KabulEdilenBildirimler = new(StringComparer.Ordinal)
+    /// <summary>Yüklemede reddedilen bildirilen içerik türleri; ayrıca 'html' ya da 'script' içeren ve '+xml' ile biten her tür.</summary>
+    private static readonly HashSet<string> TehlikeliTurler = new(StringComparer.Ordinal)
     {
-        ["application/pdf"] = ["application/pdf", "application/x-pdf"], ["image/png"] = ["image/png"],
-        ["image/jpeg"] = ["image/jpeg", "image/jpg", "image/pjpeg"],
+        "application/hta", "application/xml", "text/xml", "application/x-msdownload", "application/x-msdos-program", "application/x-dosexec",
+        "application/vnd.microsoft.portable-executable", "application/x-ms-installer", "application/x-msi", "application/x-bat", "application/bat",
+        "application/x-sh", "application/x-ms-shortcut", "application/x-ms-application", "application/java-archive", "application/x-java-jnlp-file",
+        "application/internet-shortcut", "application/x-url", "message/rfc822", "multipart/related",
     };
     private static readonly HashSet<string> AyrilmisAdlar = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -128,16 +135,23 @@ public static class BelgeEndpoints
         return (AyrilmisAdlar.Contains(govde.Split('.')[0].TrimEnd(' ')) ? "belge-" + govde : govde) + uzanti;
     }
 
-    /// <summary>Yüklemede ad uzantısı, bildirilen içerik türü ve sihirli baytlarla tespit edilen tür uyuşmuyorsa ileti.</summary>
+    /// <summary>
+    /// Yüklemede reddedilen uyuşmazlık: tür yalnız sihirli baytlardan belirlenir ve indirme adı o türden kurulur, bu yüzden
+    /// adın uzantısı ve tarayıcının bildirdiği tür güvenlik için gerekmez. Yalnız çalıştırılabilir dosya, betik, kısayol ya da web
+    /// sayfası olarak işaretlenmiş çok biçimli dosya (ör. '%PDF-' ile başlayan .hta, text/html) hiç saklanmaz. Uzantısız ya da
+    /// noktalı ad ('Fatura No.A12'), beyaz liste dışı tür (image/x-png, application/vnd.pdf) ve başka belge uzantısı meşrudur.
+    /// </summary>
     private static string? Uyusmazlik(string? ad, string? bildirilen, string tur)
     {
-        var uzanti = UzantiBenzeri(Temizle(ad))?.ToLowerInvariant();
+        var temiz = Temizle(ad);
+        var nokta = temiz.LastIndexOf('.');
+        var uzanti = nokta < 0 ? "" : temiz[(nokta + 1)..];
         var bildirilenTur = (bildirilen ?? "").Split(';')[0].Trim().ToLowerInvariant();
-        var uzantiUyumlu = uzanti is null || KabulEdilenUzantilar[tur].Contains(uzanti);
-        var turUyumlu = bildirilenTur is "" or "application/octet-stream" || KabulEdilenBildirimler[tur].Contains(bildirilenTur);
-        if (uzantiUyumlu && turUyumlu) return null;
+        var tehlikeliTur = TehlikeliTurler.Contains(bildirilenTur) || bildirilenTur.Contains("html", StringComparison.Ordinal)
+            || bildirilenTur.Contains("script", StringComparison.Ordinal) || bildirilenTur.EndsWith("+xml", StringComparison.Ordinal);
+        if (!TehlikeliUzantilar.Contains(uzanti) && !tehlikeliTur) return null;
         var adi = tur switch { "application/pdf" => "PDF", "image/png" => "PNG", _ => "JPEG" };
-        return $"Dosyanın uzantısı veya türü içeriğiyle ({adi}) uyuşmuyor. Yalnız .pdf, .png veya .jpg uzantılı gerçek PDF, PNG ya da JPEG belgesi yükleyin; dosyayı doğru uzantıyla kaydedip yeniden seçin.";
+        return $"Dosyanın uzantısı veya türü içeriğiyle ({adi}) uyuşmuyor: dosya çalıştırılabilir, betik ya da web sayfası olarak işaretlenmiş. Yalnız gerçek PDF, PNG ya da JPEG belgesi yükleyin; dosyayı .pdf, .png veya .jpg uzantısıyla kaydedip yeniden seçin.";
     }
 
     /// <summary>Yol ve yasak karakterlerden arınmış; baştaki boşlukları, sondaki boşluk ve noktaları kırpılmış ad.</summary>

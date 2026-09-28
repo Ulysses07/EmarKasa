@@ -65,9 +65,10 @@ public partial class AlislarViewModel
         g = g with { IstekId = _iptalAnahtari.Al(new { _secili.Id, OdemeId = id, g }) };
         if (!SonucuUygula(await _odemelerApi.AlisOdemeIptalAsync(_secili.Id, id, g), n)) return;
         _iptalAnahtari.Temizle();
-        var giderler = await GiderSayfasiAsync(null);
+        var arama = GiderArama.Trim();
+        var giderler = await GiderSayfasiAsync(arama, null);
         if (!Gecerli(n)) return;
-        GiderSayfasiniUygula(giderler, ekle: false);
+        GiderSayfasiniUygula(giderler, arama, ekle: false);
         Mesaj = "Ödeme ve bağlı gider iptal edildi. İptal gerekçesi geçmişte korundu.";
     });
     [RelayCommand] public Task BelgeleriYukleAsync() => YurutAsync(async n =>

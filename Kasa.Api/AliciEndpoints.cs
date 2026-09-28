@@ -69,8 +69,12 @@ public static partial class AliciEndpoints
 /// <summary>
 /// 'Kasa:AliciKota' bölümü (host-auth-5, purchase-3): en düşük yetkili rol olan alıcının kalıcı olarak yazabileceği veri.
 /// Belgeler ana veritabanında BLOB olarak durur ve her otomatik yedekle kopyalanır; kotasız bir alıcı hesabı diski doldurup
-/// bütün yazmaları ve yedeklemeyi durdurabilirdi. Editör bu kotalara tabi değildir (genel sınır: alış başına 30 belge, dosya
-/// başına 10 MB). Değerler istek anında okunur; başlangıçta <see cref="Hatalar"/> ile doğrulanır.
+/// bütün yazmaları ve yedeklemeyi durdurabilirdi. Alıcının editör onayı olmadan tutabileceği veri kalıcı olarak sınırlıdır:
+/// onay bekleyen alış sayısı (<see cref="OnayBekleyen"/>, her alış en çok 100 kalem) ve onlardaki belge hacmi
+/// (<see cref="OnayBekleyenBelgeMb"/>). Taslağı incelemeye göndermek bu kotalarda yer açmaz; ötesi yalnız editörün alışı
+/// onaylamasıyla (belgelerini görmüştür) büyür. Varsayılanlarla bir alıcının onaysız verisi yaklaşık 200 MB belge ve birkaç
+/// MB satırla sınırlıdır; alıcı hesaplarını editör açar. Editör bu kotalara tabi değildir (genel sınır: alış başına 30 belge,
+/// dosya başına 10 MB). Değerler istek anında okunur; başlangıçta <see cref="Hatalar"/> ile doğrulanır.
 /// </summary>
 public sealed class AliciKotaAyarlari
 {
@@ -82,11 +86,23 @@ public sealed class AliciKotaAyarlari
     public int TaslakBelgeMb { get; set; } = 50;
     /// <summary>Alıcının alışlarına son 24 saatte yüklenmiş ve hâlâ duran belgelerin toplam boyutu (MB).</summary>
     public int GunlukYuklemeMb { get; set; } = 100;
+    /// <summary>Alıcının onay bekleyen (taslak ya da incelemedeki) alış sayısı. Taslağı incelemeye göndermek bu kotada yer açmaz;
+    /// yalnız editörün onayı açar.</summary>
+    public int OnayBekleyen { get; set; } = 50;
+    /// <summary>Alıcının onay bekleyen alışlarındaki bütün belgelerin toplam boyutu (MB); editörün onayı yer açar.</summary>
+    public int OnayBekleyenBelgeMb { get; set; } = 200;
 
     public IEnumerable<string> Hatalar()
     {
-        if (this is not { AcikTaslak: > 0, TaslakBelgeSayisi: > 0, TaslakBelgeMb: > 0, GunlukYuklemeMb: > 0 })
-            yield return "Kasa:AliciKota değerleri (AcikTaslak, TaslakBelgeSayisi, TaslakBelgeMb, GunlukYuklemeMb) sıfırdan büyük olmalıdır.";
+        if (this is not { AcikTaslak: > 0, TaslakBelgeSayisi: > 0, TaslakBelgeMb: > 0, GunlukYuklemeMb: > 0, OnayBekleyen: > 0, OnayBekleyenBelgeMb: > 0 })
+        {
+            yield return "Kasa:AliciKota değerleri (AcikTaslak, TaslakBelgeSayisi, TaslakBelgeMb, GunlukYuklemeMb, OnayBekleyen, OnayBekleyenBelgeMb) sıfırdan büyük olmalıdır.";
+            yield break;
+        }
+        if (OnayBekleyen < AcikTaslak)
+            yield return $"Kasa:AliciKota:OnayBekleyen ({OnayBekleyen}) AcikTaslak'tan ({AcikTaslak}) küçük olamaz: taslaklar da onay bekleyen alıştır.";
+        if (OnayBekleyenBelgeMb < TaslakBelgeMb)
+            yield return $"Kasa:AliciKota:OnayBekleyenBelgeMb ({OnayBekleyenBelgeMb}) TaslakBelgeMb'den ({TaslakBelgeMb}) küçük olamaz: tek taslağın belgeleri de onay bekleyen belgedir.";
     }
 }
 
@@ -107,21 +123,26 @@ internal static class AliciKotalari
 
     internal static int? AliciId(ClaimsPrincipal user) => int.TryParse(user.FindFirstValue("alici_id"), out var id) && id > 0 ? id : null;
 
-    /// <summary>Yeni taslak alış: alıcının açık taslak sayısı.</summary>
+    /// <summary>Yeni taslak alış: alıcının açık taslak ve onay bekleyen (taslak + incelemede) alış sayısı. Taslağı incelemeye
+    /// göndermek açık taslak kotasında yer açar, onay bekleyen kotasında açmaz: 'oluştur, doldur, gönder' döngüsü alıcının kalıcı
+    /// alış sayısını büyütemez. Yer yalnız editörün onayıyla açılır (iade alışı yeniden taslak yapar, alış yine onay bekler).
+    /// Kota alıcı başınadır; IP'den ve oturumdan bağımsızdır (hız penceresi yalnız isteklerin hızını sınırlar).</summary>
     internal static IResult? Taslak(KasaDbContext db, ClaimsPrincipal user, AliciKotaAyarlari kota)
     {
         if (user.IsInRole("editor") || AliciId(user) is not { } aliciId) return null;
-        var acik = db.Alislar.Count(a => a.AliciId == aliciId && a.Durum == AlisDurumlari.Taslak);
-        return acik >= kota.AcikTaslak
-            ? AlisEndpoints.Conflict($"En fazla {kota.AcikTaslak} açık taslak alışınız olabilir. Önce mevcut taslakları incelemeye gönderin.")
+        if (db.Alislar.Count(a => a.AliciId == aliciId && a.Durum == AlisDurumlari.Taslak) >= kota.AcikTaslak)
+            return AlisEndpoints.Conflict($"En fazla {kota.AcikTaslak} açık taslak alışınız olabilir. Önce mevcut taslakları incelemeye gönderin.");
+        return db.Alislar.Count(a => a.AliciId == aliciId && a.Durum != AlisDurumlari.Onaylandi) >= kota.OnayBekleyen
+            ? AlisEndpoints.Conflict($"Onay bekleyen (taslak ya da incelemedeki) en fazla {kota.OnayBekleyen} alışınız olabilir. Editör bekleyen alışlarınızı onayladıkça yeni alış açabilirsiniz.")
             : null;
     }
 
-    /// <summary>Alıcının belge yüklemesi: taslaktaki belge sayısı ve toplam boyutu, son 24 saatteki yükleme hacmi. Belge içeriği
-    /// okunmaz (yalnız boyut ve an); 24 saat süzmesi bellekte yapılır (SQLite DateTimeOffset karşılaştırmasını çeviremez),
-    /// alıcının kotalı belge sayısı zaten küçüktür. Editörün alıcının alışına eklediği belge de hacme sayılır: kota alıcının
-    /// alışlarındaki veriyi sınırlar. Silinen belge disk tutmadığından sayılmaz; yükle-sil döngüsünü 'alis-yukleme' hız
-    /// politikası yavaşlatır.</summary>
+    /// <summary>Alıcının belge yüklemesi: taslaktaki belge sayısı ve toplam boyutu, onay bekleyen bütün alışlarındaki belge
+    /// hacmi ve son 24 saatteki yükleme hacmi. Onay bekleyen hacim alıcının kalıcı belge verisinin üst sınırıdır: taslağı
+    /// incelemeye göndermek yer açmaz, editörün onayı açar (onaylı alışın belgesini editör görmüştür). Belge içeriği okunmaz
+    /// (yalnız boyut ve an); 24 saat süzmesi bellekte yapılır (SQLite DateTimeOffset karşılaştırmasını çeviremez). Editörün
+    /// alıcının alışına eklediği belge de hacme sayılır: kota alıcının alışlarındaki veriyi sınırlar. Silinen belge disk
+    /// tutmadığından sayılmaz; yükle-sil döngüsünü 'alis-yukleme' hız politikası yavaşlatır.</summary>
     internal static IResult? Belge(KasaDbContext db, ClaimsPrincipal user, int alisId, long boyut, AliciKotaAyarlari kota, DateTimeOffset simdi)
     {
         if (user.IsInRole("editor") || AliciId(user) is not { } aliciId) return null;
@@ -130,6 +151,10 @@ internal static class AliciKotalari
             return AlisEndpoints.Conflict($"Bir taslağa en fazla {kota.TaslakBelgeSayisi} belge ekleyebilirsiniz. Gereksiz belgeleri silin veya editöre başvurun.");
         if (taslaktakiler.Sum() + boyut > kota.TaslakBelgeMb * Mb)
             return AlisEndpoints.Conflict($"Bir taslaktaki belgelerin toplam boyutu en fazla {kota.TaslakBelgeMb} MB olabilir. Daha küçük dosya seçin veya gereksiz belgeleri silin.");
+        var bekleyen = db.Belgeler.Where(b => db.Alislar.Any(a => a.Id == b.AlisId && a.AliciId == aliciId && a.Durum != AlisDurumlari.Onaylandi))
+            .Sum(b => (long?)b.Boyut) ?? 0;
+        if (bekleyen + boyut > kota.OnayBekleyenBelgeMb * Mb)
+            return AlisEndpoints.Conflict($"Onay bekleyen alışlarınızdaki belgelerin toplam boyutu en fazla {kota.OnayBekleyenBelgeMb} MB olabilir. Gereksiz belgeleri silin veya editörün bekleyen alışlarınızı onaylamasını bekleyin.");
         var sinir = simdi.AddDays(-1);
         var gunluk = db.Belgeler.Where(b => db.Alislar.Any(a => a.Id == b.AlisId && a.AliciId == aliciId))
             .Select(b => new { b.Boyut, b.Yuklendi }).AsEnumerable().Where(b => b.Yuklendi > sinir).Sum(b => b.Boyut);

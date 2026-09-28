@@ -90,18 +90,16 @@ internal static class AlisOdemeIslemleri
 
     /// <summary>
     /// Ödeme taşıma kilidi (purchase-2): onaylı alışta ödeme payları Id sırasıyla kümülatif dağıtılır. Ödeme başka alışa
-    /// taşınınca KAYNAKTA ondan sonra girilmiş ödemelerin, HEDEFTE de taşınan ödemenin Id'sinden büyük ödemelerin payı yeniden
-    /// hesaplanır. Bunlardan biri kilitli dönemdeyse (tarihi kilit sınırında ya da kart harcaması kilitli dönemde ödenmiş)
-    /// taşıma kilitli ayın kanal sonuçlarını sessizce değiştirirdi: kilit sınırı döner. Saf taşımada (tarih, tutar, kart aynı)
-    /// genel kilit kuralı yalnız hedef alışı gördüğü için kaynak burada açıkça denetlenir.
+    /// taşınınca KAYNAKTA ondan sonra girilmiş ödemelerin payı yeniden hesaplanır. Bunlardan biri kilitli dönemdeyse (tarihi kilit
+    /// sınırında ya da kart harcamasının taksidi kilitli dönemde bir kart ödemesiyle ödenmiş) taşıma kilitli ayın kanal
+    /// sonuçlarını sessizce değiştirirdi: kilit sınırı döner. Taşınan ödemeden ÖNCE girilmiş kilitli ödemenin payı değişmez;
+    /// o durumda taşıma serbesttir. Saf taşımada (tarih, tutar, kart aynı) genel kilit kuralı (<see cref="AyKilidiKurallari"/>)
+    /// yalnız hedef alışı görür: kilitli dönem ödemesi olan hedefe taşıma orada reddedilir, burada yalnız kaynak denetlenir.
     /// </summary>
-    private static DateOnly? TasimaKilidi(KasaDbContext db, AlisEntity kaynak, AlisEntity hedef, int odemeId)
+    private static DateOnly? TasimaKilidi(KasaDbContext db, AlisEntity kaynak, int odemeId)
     {
-        if (db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single() is not { } son) return null;
-        foreach (var alis in new[] { kaynak, hedef })
-            if (alis.Durum == AlisDurumlari.Onaylandi && alis.Odemeler.Any(o => o.Id > odemeId && (o.Islem.Tarih <= son || KartOdemesiKilitli(db, o.IslemId, son))))
-                return son;
-        return null;
+        if (kaynak.Durum != AlisDurumlari.Onaylandi || db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single() is not { } son) return null;
+        return kaynak.Odemeler.Any(o => o.Id > odemeId && (o.Islem.Tarih <= son || KartOdemesiKilitli(db, o.IslemId, son))) ? son : null;
     }
 
     /// <summary>Gider takipteki bir kartın harcamasıysa, taksitlerinden biri kilitli dönemde (iptal edilmemiş) bir kart ödemesiyle ödendi mi.</summary>
@@ -143,8 +141,8 @@ internal static class AlisOdemeIslemleri
         KayitGirdileri.TakipliKartKurali(v, db, dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti, dto.KrediKartiId, payment.Islem);
         v.Kontrol(dto.Tarih >= db.Ayarlar.Select(a => a.TakipBaslangic).First(), "tarih", "Ödeme takip başlangıcından önce olamaz.");
         if (v.Sonuc() is { } invalidReference) return invalidReference;
-        if (target.Id != source.Id && TasimaKilidi(db, source, target, odemeId) is { } kilitSonu)
-            return AlisEndpoints.Conflict($"{kilitSonu:yyyy-MM-dd} tarihine kadar dönem kilitli. Bu ödemeyi taşımak, kaynak ya da hedef alışta sonradan girilmiş kilitli dönem ödemelerinin kanal paylarını değiştirir; ilgili ayı gerekçeyle açın.");
+        if (target.Id != source.Id && TasimaKilidi(db, source, odemeId) is { } kilitSonu)
+            return AlisEndpoints.Conflict($"{kilitSonu:yyyy-MM-dd} tarihine kadar dönem kilitli. Bu ödemeyi taşımak, alışta ondan sonra girilmiş kilitli dönem ödemelerinin kanal paylarını değiştirir; ilgili ayı gerekçeyle açın.");
         var before = JsonSerializer.Serialize(new { aciklama = dto.Aciklama.Trim(), alis = AlisHesaplari.ToDto(source) });
         var expense = payment.Islem;
         var eskiKartTipiniKoru = expense.Tip == GiderTipi.KrediKarti && expense.KrediKartiId is null && dto.KrediKartiId is null;

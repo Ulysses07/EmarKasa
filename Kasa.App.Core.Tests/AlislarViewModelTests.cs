@@ -259,6 +259,30 @@ public class AlislarViewModelTests
     }
 
     [Fact]
+    public async Task Daha_eski_sayfa_imleci_onu_ureten_aramaya_aittir_metin_degisince_arama_bastan_yapilir()
+    {
+        var giderler = Enumerable.Range(1, 4).Select(i => new IslemDto(90 + i, new(2026, 9, 20 - i), i % 2 == 0 ? "Kargo" : "Firma", 10m * i, "MEZAT", GiderTipi.Cari, null)).ToArray();
+        var api = new SahteAlisApi { Liste = new[] { Alis() }, Giderler = giderler, GiderSayfaBoyutu = 1 };
+        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
+        Assert.Equal(new[] { 91 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
+
+        // Kullanıcı yeni metni yazıp aramadan 'Daha eski giderler'e basar: süzgeçsiz sorgunun imleci yeni metinle birleştirilmez
+        // (Kargo'nun daha yeni eşleşmesi atlanırdı); arama bu metinle baştan yapılır.
+        vm.GiderArama = " Kargo ";
+        await vm.DahaFazlaGiderCommand.ExecuteAsync(null);
+        Assert.Equal(("Kargo", (decimal?)null, (string?)null), api.GiderSorgulari[^1]);
+        Assert.Equal(new[] { 92 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
+        Assert.True(vm.DahaFazlaGiderVar);
+
+        // Metin değişmedikçe imleç aynı aramanın sonraki sayfasıdır.
+        await vm.DahaFazlaGiderCommand.ExecuteAsync(null);
+        Assert.Equal(("Kargo", (decimal?)null, "1"), api.GiderSorgulari[^1]);
+        Assert.Equal(new[] { 92, 94 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
+        Assert.False(vm.DahaFazlaGiderVar);
+    }
+
+    [Fact]
     public async Task Yeni_alis_zaman_asiminda_ayni_istek_kimligiyle_yeniden_gonderilir_duzenleme_kimlik_tasimaz()
     {
         var api = new SahteAlisApi { OlusturmaHatasi = new TimeoutException("Sunucu 15 sn içinde yanıt vermedi.") };

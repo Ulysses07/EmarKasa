@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -267,9 +266,9 @@ public static class HizSinirlari
 /// yetkilendirmeden sonra çalışır: kimliksiz ya da yetkisiz istek kota tüketmez. Kullanıcıyla birlikte IP'ye bölünür: aynı
 /// ağdaki başka alıcı ya da editör etkilenmez; ele geçirilmiş bir oturum başka ağdan meşru kullanıcının kovasını tüketemez.
 /// </summary>
-internal sealed class AlisYuklemePolitikasi : IRateLimiterPolicy<string>
+internal sealed class AlisYuklemePolitikasi : Microsoft.AspNetCore.RateLimiting.IRateLimiterPolicy<string>
 {
-    public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; } =
+    public Func<Microsoft.AspNetCore.RateLimiting.OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; } =
         (baglam, _) => new ValueTask(Red(baglam.HttpContext, baglam.Lease).ExecuteAsync(baglam.HttpContext));
 
     public RateLimitPartition<string> GetPartition(HttpContext http)

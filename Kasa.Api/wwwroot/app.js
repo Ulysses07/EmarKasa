@@ -363,7 +363,9 @@ async function paymentDialog(p, payment = null) {
   if (!payment) {
     // webui-6: bütün gider geçmişi çekilmez. Sunucu yalnız bağlanabilir giderleri (en yeni önce) sayfa sayfa döndürür; eskisi
     // açıklama, not ya da tutarla aranır. Sunucunun süzdüğü bağlı kayıtlar istemcide de savunma olarak elenir.
-    let available = []; let cursor = null; let generation = 0;
+    // İmleç onu üreten sorguya (cursorQuery: imleçsiz yol) aittir: arama metni sonradan değiştiyse 'Daha eski giderler' eski
+    // imleci yeni süzgeçle birleştirmez (daha yeni eşleşmeler atlanır, başka süzgecin kayıtları eklenirdi); aramayı baştan yapar.
+    let available = []; let cursor = null; let cursorQuery = null; let generation = 0;
     const search = input('giderArama', '', { type: 'search', maxlength: 200, placeholder: 'Açıklama, not veya tutar', 'aria-label': 'Bağlanacak gideri ara' });
     const status = h('p', { class: 'help', role: 'status' });
     const sync = () => {
@@ -374,11 +376,13 @@ async function paymentDialog(p, payment = null) {
     const more = button('Daha eski giderler', event => run(event.currentTarget, () => load(true)), 'small', { hidden: true });
     const load = async append => {
       const mine = ++generation;
-      const page = await api(linkableExpensesPath(search.value, append ? cursor : null));
+      const text = search.value; const query = linkableExpensesPath(text);
+      if (query !== cursorQuery) append = false;
+      const page = await api(append ? linkableExpensesPath(text, cursor) : query);
       if (mine !== generation) return;
       const items = (page?.ogeler || []).filter(e => !e.alisId && !e.aylikGiderOdemeId && !e.ekstreKayitId && e.tutarTl > 0);
       available = append ? [...available, ...items.filter(e => !available.some(old => old.id === e.id))] : items;
-      cursor = page?.devamVar ? page.sonrakiImlec : null;
+      cursor = page?.devamVar ? page.sonrakiImlec : null; cursorQuery = query;
       const selectedValue = existing.value;
       existing.replaceChildren(h('option', { value: '' }, 'Yeni gider oluştur'), ...available.map(e => h('option', { value: e.id }, `#${e.id} · ${dateText(e.tarih)} · ${e.cari} · ${money(e.tutarTl)}`)));
       existing.value = available.some(e => String(e.id) === selectedValue) ? selectedValue : '';

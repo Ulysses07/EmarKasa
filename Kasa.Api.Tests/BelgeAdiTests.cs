@@ -6,8 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Kasa.Api.Tests;
 
 /// <summary>
-/// Belge adı ve türü (purchase-1, apiclient-3): yüklemede adın uzantısı, bildirilen içerik türü ve dosyanın sihirli baytları
-/// birbiriyle tutarlı olmalı (.hta/.cmd gibi uzantı ya da uyuşmayan tür 400). Saklanan ve indirilen ad yol parçalarından,
+/// Belge adı ve türü (purchase-1, apiclient-3): tür yalnız dosyanın sihirli baytlarından belirlenir. Adın uzantısı ya da
+/// bildirilen içerik türü çalıştırılabilir dosya, betik, kısayol ya da web sayfası gösteriyorsa (.hta/.cmd/.lnk/.svg,
+/// text/html...) yükleme 400 ile reddedilir; diğer uyuşmazlıklar (uzantısız ad, image/x-png gibi tür) meşru sayılır ve ad
+/// türden kurulur. Saklanan ve indirilen ad yol parçalarından,
 /// kontrol ve Unicode biçim (yön) karakterlerinden arınır; uzantısı yalnız tespit edilen türden (.pdf/.png/.jpg) gelir.
 /// Eski kayıtlar okunurken aynı kuralla adlandırılır (veri dönüşümü gerekmez). İndirme her zaman ek (attachment) olarak,
 /// RFC 6266 filename* ve nosniff ile gider.
@@ -49,21 +51,44 @@ public class BelgeAdiTests
     [Theory]
     [InlineData("fatura‮fdp.hta", null)]
     [InlineData("fatura.pdf.hta", null)]
+    [InlineData("FATURA.HTA.", null)]
     [InlineData("kurulum.cmd", null)]
+    [InlineData("kisayol.lnk", null)]
+    [InlineData("cizim.svg", null)]
+    [InlineData("ayar.application", null)]
     [InlineData("sayfa.html", "text/html")]
     [InlineData("fatura.pdf", "text/html")]
-    [InlineData("fatura.pdf", "image/png")]
-    [InlineData("foto.png", null)]
-    public async Task Uzanti_bildirilen_tur_ve_icerik_uyusmazsa_yukleme_reddedilir(string ad, string? tur)
+    [InlineData("fatura.pdf", "application/xhtml+xml")]
+    [InlineData("fatura.pdf", "image/svg+xml")]
+    [InlineData("fatura.pdf", "application/hta")]
+    [InlineData("fatura.pdf", "application/x-msdownload")]
+    [InlineData("fatura.pdf", "text/javascript")]
+    public async Task Calistirilabilir_betik_veya_web_sayfasi_uzantisi_ya_da_turu_reddedilir(string ad, string? tur)
     {
         var (f, c, alis) = await Kur();
         await using var _ = f; using var __ = c;
-        // foto.png satırı JPEG içeriktir; diğerleri '%PDF-' ile başlar.
-        var icerik = ad == "foto.png" ? Jpeg : AlisTestYardimcisi.Pdf(64);
-        using var r = await AlisTestYardimcisi.YukleYanit(c, alis.Id, icerik, ad, tur);
+        // İçerik '%PDF-' ile başlar (çok biçimli dosya): ad yine türden kurulacak olsa da böyle dosya hiç saklanmaz.
+        using var r = await AlisTestYardimcisi.YukleYanit(c, alis.Id, AlisTestYardimcisi.Pdf(64), ad, tur);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         Assert.Contains("uyuşmuyor", await AlisTestYardimcisi.Hata(r));
         Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
+    }
+
+    [Theory]
+    [InlineData("Fatura No.A12", null, "pdf", "Fatura No.pdf")]
+    [InlineData("fatura.pdf", "application/vnd.pdf", "pdf", "fatura.pdf")]
+    [InlineData("fatura.pdf", "image/png", "pdf", "fatura.pdf")]
+    [InlineData("tarama.png", "image/x-png", "png", "tarama.png")]
+    [InlineData("foto.png", null, "jpeg", "foto.jpg")]
+    [InlineData("ekstre.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "pdf", "ekstre.pdf")]
+    public async Task Tehlikesiz_uzanti_ya_da_tur_uyusmazligi_reddedilmez_icerik_turu_esastir(string ad, string? tur, string icerik, string beklenen)
+    {
+        var (f, c, alis) = await Kur();
+        await using var _ = f; using var __ = c;
+        // Tarayıcılar ve tarayıcı uygulamaları beyaz liste dışı tür bildirebilir, adlar uzantısız ya da noktalı olabilir: güvenlik
+        // için ad zaten sihirli baytlarla tespit edilen türden kurulduğundan meşru belge geri çevrilmez.
+        var baytlar = icerik switch { "png" => Png, "jpeg" => Jpeg, _ => AlisTestYardimcisi.Pdf(64) };
+        Assert.Equal(beklenen, (await Yuklendi(c, alis.Id, baytlar, ad, tur)).DosyaAdi);
     }
 
     [Fact]

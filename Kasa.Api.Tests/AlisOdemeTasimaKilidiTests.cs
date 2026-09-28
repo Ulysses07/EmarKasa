@@ -11,8 +11,9 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Ödeme taşıma ve ay kilidi (purchase-2): onaylı alışta ödemelerin kanal payları Id sırasıyla kümülatif dağıtılır. Tarih,
 /// tutar ve kart aynı kalıp yalnız hedef alış değişen "saf taşıma", KAYNAK alışta taşınan ödemeden sonra girilmiş kilitli dönem
-/// ödemelerinin paylarını yeniden hesaplatır; hedef alışa girdiği sıra da hedefteki sonraki ödemeleri etkiler. İkisi de
-/// reddedilir (409) ve kilitli ayın raporu birebir aynı kalır. Etkilenen kilitli ödeme yoksa taşıma serbesttir.
+/// ödemelerinin (tarihi kilitli ya da kart taksidi kilitli dönemde ödenmiş) paylarını yeniden hesaplatır: reddedilir (409) ve
+/// kilitli ayın raporu birebir aynı kalır. Hedef tarafını genel kilit kuralı kapsar. Kilitli ödemeden SONRA girilmiş ödeme ve
+/// etkilenen kilitli ödemesi olmayan alışlar serbestçe taşınır (kilit aşırı engellemez).
 /// </summary>
 public class AlisOdemeTasimaKilidiTests
 {
@@ -56,11 +57,74 @@ public class AlisOdemeTasimaKilidiTests
     }
 
     [Fact]
+    public async Task Onayli_kaynakta_kilitli_odemeden_sonra_girilmis_acik_odeme_tasinir_oncesindeki_tasinamaz()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        // Onaylı kaynak: A (bugün, en düşük Id), B (geçen ay, kilitlenecek), C (bugün, en yüksek Id). Kümülatif paylarla A kanal2'yi,
+        // B kanal1'i, C kanal2'yi alır. C'nin çıkması B'nin payını değiştirmez (B'den sonra gelir): kilit aşırı engellemez.
+        // A'nın çıkması B'yi ilk ödeme yapar ve payını kanal2'ye kaydırırdı: 409.
+        var kaynak = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Old, "Üç ödeme", null, [new("Mal", .03m, [new(1, .01m), new(2, .02m)])]));
+        foreach (var tarih in new[] { Today, Old, Today })
+            kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), tarih, .01m));
+        kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/gonder", new AlisDurumYaz(kaynak.Surum));
+        kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/onayla", new AlisDurumYaz(kaynak.Surum));
+        var odemeler = kaynak.Odemeler.OrderBy(o => o.Id).ToArray();
+        Assert.Equal([Today, Old, Today], odemeler.Select(o => o.Tarih));
+        var hedef = await Hedef(c);
+        var once = await c.GetStringAsync(Rapor);
+        await Kapat(c);
+
+        using (var serbest = await Tasi(c, kaynak, odemeler[2], hedef))
+            Assert.True(serbest.IsSuccessStatusCode, await serbest.Content.ReadAsStringAsync());
+        await RaporDegismedi(f, c, once);
+
+        var guncel = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!;
+        kaynak = guncel.Single(a => a.Id == kaynak.Id); hedef = guncel.Single(a => a.Id == hedef.Id);
+        Assert.Equal(odemeler[2].Id, Assert.Single(hedef.Odemeler).Id);
+        using (var kilitli = await Tasi(c, kaynak, odemeler[0], hedef))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, kilitli.StatusCode);
+            Assert.Contains("kilitli", await AlisTestYardimcisi.Hata(kilitli));
+        }
+        await RaporDegismedi(f, c, once);
+        Assert.Equal(2, (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == kaynak.Id).Odemeler.Count);
+    }
+
+    [Fact]
+    public async Task Kilitli_donemde_kart_odemesiyle_odenmis_sonraki_kart_harcamasi_kaynaktan_tasimayi_engeller()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        // Onaylı kaynak: P1 (bugün, nakit, düşük Id) ve P2 (bugün, takipteki kartla). P2'nin tarihi açık dönemdedir ama kart
+        // taksidi geçen ay tarihli bir kart ödemesiyle ödenmiştir: P2'nin kanal payı kilitli ayın kart ödemesine girmiştir.
+        // P1'in çıkması P2'nin kümülatif payını kaydırırdı; genel kilit kuralı yalnız hedefi gördüğünden bunu kaynak denetimi yakalar.
+        var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "İş kartı", 1000m, 5, 25, Old, 0m, []));
+        var kaynak = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Old, "Kartlı", null, [new("Mal", .03m, [new(1, .01m), new(2, .02m)])]));
+        kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .01m));
+        var p1 = kaynak.Odemeler.Single();
+        kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .01m, KrediKartiId: kart.Id));
+        kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/gonder", new AlisDurumYaz(kaynak.Surum));
+        kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/onayla", new AlisDurumYaz(kaynak.Surum));
+        kart = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
+        Assert.Equal(Today, Assert.Single(kart.Harcamalar).Tarih);
+        await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Old, .01m));
+        var hedef = await Hedef(c);
+        var once = await c.GetStringAsync(Rapor);
+        await Kapat(c);
+
+        using var r = await Tasi(c, kaynak, p1, hedef);
+        Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+        Assert.Contains("kilitli", await AlisTestYardimcisi.Hata(r));
+        await RaporDegismedi(f, c, once);
+        Assert.Empty((await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == hedef.Id).Odemeler);
+    }
+
+    [Fact]
     public async Task Hedef_alista_kilitli_sonraki_odemenin_payini_degistiren_tasima_reddedilir()
     {
         await using var f = Fabrika(); using var c = await Editor(f);
         // Kaynak onaysız: taşınan ödeme kaynağın kilitli ödemesini etkilemez. Hedef onaylı ve taşınan ödemeden SONRA girilmiş
-        // kilitli ödemesi var: taşınan (düşük Id) ödeme hedefte onun önüne girer ve kuruşunu kaydırırdı.
+        // kilitli ödemesi var: taşınan (düşük Id) ödeme hedefte onun önüne girer ve kuruşunu kaydırırdı. Hedef tarafını genel kilit
+        // kuralı (AyKilidiKurallari: kilitli dönem ödemesi olan alışa ödeme taşınamaz) kapsar; bu test o korumanın regresyonudur.
         var kaynak = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Kaynak", null, [new("Mal", 1m, [new(1, 1m)])]));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .01m));
         var tasinan = kaynak.Odemeler.Single();
@@ -91,14 +155,14 @@ public class AlisOdemeTasimaKilidiTests
         await RaporDegismedi(f, c, once);
         Assert.Single((await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == hedef.Id).Odemeler);
 
-        // Onaylı kaynakta da kilitli dönem ödemesinden SONRA girilmiş açık ödeme serbestçe taşınır.
+        // Kilitli dönem ödemesi hiç olmayan onaylı alışlar arasında taşıma da serbesttir.
         var kaynak = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Onaylı", null, [new("Mal", 1m, [new(1, .4m), new(2, .6m)])]));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .3m));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .3m));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/gonder", new AlisDurumYaz(kaynak.Surum));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/onayla", new AlisDurumYaz(kaynak.Surum));
         hedef = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == hedef.Id);
-        using var serbest = await Tasi(c, kaynak, kaynak.Odemeler.OrderBy(o => o.Id).Last(), hedef);
+        using var serbest = await Tasi(c, kaynak, kaynak.Odemeler.OrderBy(o => o.Id).First(), hedef);
         Assert.True(serbest.IsSuccessStatusCode, await serbest.Content.ReadAsStringAsync());
         await RaporDegismedi(f, c, once);
     }

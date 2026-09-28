@@ -10,7 +10,8 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Alıcı kotaları ve alış yükleme hız sınırı (host-auth-5, purchase-3): en düşük yetkili rol belge BLOB'larıyla veritabanını
 /// ve yedek diskini dolduramaz. Alıcı başına açık taslak sayısı, taslak başına belge sayısı ve toplam boyutu, son 24 saatteki
-/// yükleme hacmi yapılandırılabilir (Kasa:AliciKota); aşım Türkçe 409 döner. Belge yükleme ve alış oluşturma (kullanıcı, IP)
+/// yükleme hacmi ile kalıcı üst sınırlar (onay bekleyen alış sayısı ve onlardaki belge hacmi; taslağı incelemeye göndermek yer
+/// açmaz, editörün onayı açar) yapılandırılabilir (Kasa:AliciKota); aşım Türkçe 409 döner. Belge yükleme ve alış oluşturma (kullanıcı, IP)
 /// başına ayrı bir pencerede sınırlanır (Kasa:HizSiniri:AlisYuklemeIzni; editör ayrı ve yüksek sınırda); aşım Türkçe 429 döner.
 /// </summary>
 public class AlisKotaTests
@@ -30,10 +31,73 @@ public class AlisKotaTests
         Assert.Equal(HttpStatusCode.Conflict, ucuncu.StatusCode);
         Assert.Contains("En fazla 2 açık taslak", await AlisTestYardimcisi.Hata(ucuncu));
 
-        // Taslak incelemeye gönderilince yer açılır; editörün kendi taslakları hiç sayılmaz.
+        // Taslak incelemeye gönderilince açık taslak kotasında yer açılır (onay bekleyen kotası ayrıca sınırlar, aşağıda);
+        // editörün kendi taslakları hiç sayılmaz.
         (await alici.PostAsJsonAsync($"/api/alis/{ikinci.Id}/gonder", new AlisDurumYaz(ikinci.Surum))).EnsureSuccessStatusCode();
         await AlisTestYardimcisi.Taslak(alici, "Üçüncü");
         for (var i = 0; i < 3; i++) await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
+    }
+
+    [Fact]
+    public async Task Onay_bekleyen_alis_sayisi_gonder_donguyle_asilamaz_yalniz_editor_onayi_yer_acar()
+    {
+        await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:AcikTaslak"] = "2", ["Kasa:AliciKota:OnayBekleyen"] = "3" });
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-bekleyen");
+
+        // 'Oluştur, gönder' döngüsü: açık taslak kotası her gönderimde boşalır, onay bekleyen kotası boşalmaz.
+        var gonderilenler = new List<AlisDto>();
+        for (var i = 0; i < 3; i++)
+            gonderilenler.Add(await AlisTestYardimcisi.Gonder(alici, await AlisTestYardimcisi.Taslak(alici, $"Döngü {i}")));
+        using (var dorduncu = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Dördüncü")))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, dorduncu.StatusCode);
+            Assert.Contains("Onay bekleyen (taslak ya da incelemedeki) en fazla 3 alışınız", await AlisTestYardimcisi.Hata(dorduncu));
+        }
+
+        // Editörün iadesi yer açmaz (alış yeniden taslaktır ve hâlâ onay bekler); onay açar.
+        var iade = gonderilenler[0];
+        (await editor.PostAsJsonAsync($"/api/alis/{iade.Id}/iade", new AlisDurumYaz(iade.Surum, "Belgeyi ekleyin"))).EnsureSuccessStatusCode();
+        using (var iadeSonrasi = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("İade sonrası")))
+            Assert.Equal(HttpStatusCode.Conflict, iadeSonrasi.StatusCode);
+        (await editor.PostAsJsonAsync($"/api/alis/{gonderilenler[1].Id}/onayla", new AlisDurumYaz(gonderilenler[1].Surum))).EnsureSuccessStatusCode();
+        await AlisTestYardimcisi.Taslak(alici, "Onay sonrası");
+        using (var yine = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Yine")))
+            Assert.Equal(HttpStatusCode.Conflict, yine.StatusCode);
+
+        // Kota alıcı başınadır ve IP'den bağımsızdır: aynı alıcının başka bir oturumu da aşamaz; editör etkilenmez.
+        using var ikinciOturum = f.CreateClient();
+        (await ikinciOturum.PostAsJsonAsync("/api/auth/login", new { kullanici = "kota-bekleyen", sifre = "alici-sifre-1" })).EnsureSuccessStatusCode();
+        using (var baskaOturum = await ikinciOturum.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Başka oturum")))
+            Assert.Equal(HttpStatusCode.Conflict, baskaOturum.StatusCode);
+        for (var i = 0; i < 4; i++) await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
+    }
+
+    [Fact]
+    public async Task Onay_bekleyen_alislardaki_toplam_belge_boyutu_sinirlidir_editor_onayi_yer_acar()
+    {
+        await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:TaslakBelgeMb"] = "1", ["Kasa:AliciKota:OnayBekleyenBelgeMb"] = "2" });
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-bekleyen-belge");
+
+        // Her taslak kendi 1 MB sınırında kalır ve incelemeye gönderilir: belge hacmi taslak değiştirerek büyütülemez.
+        var ilk = await AlisTestYardimcisi.Taslak(alici, "Birinci");
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ilk.Id, 900 * 1024));
+        ilk = await AlisTestYardimcisi.Gonder(alici, ilk);
+        var ikinci = await AlisTestYardimcisi.Taslak(alici, "İkinci");
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ikinci.Id, 900 * 1024));
+        await AlisTestYardimcisi.Gonder(alici, ikinci);
+        var ucuncu = await AlisTestYardimcisi.Taslak(alici, "Üçüncü");
+        using (var fazla = await AlisTestYardimcisi.YukleYanit(alici, ucuncu.Id, 300 * 1024))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, fazla.StatusCode);
+            Assert.Contains("Onay bekleyen alışlarınızdaki belgelerin toplam boyutu en fazla 2 MB", await AlisTestYardimcisi.Hata(fazla));
+        }
+
+        // Editör onaylayınca onaylı alışın belgeleri bekleyen hacimden çıkar; editörün kendi yüklemesi kotaya takılmaz.
+        (await editor.PostAsJsonAsync($"/api/alis/{ilk.Id}/onayla", new AlisDurumYaz(ilk.Surum))).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ucuncu.Id, 300 * 1024));
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(editor, ucuncu.Id, 900 * 1024));
     }
 
     [Fact]
@@ -144,6 +208,10 @@ public class AlisKotaTests
         Assert.Empty(new AliciKotaAyarlari().Hatalar());
         Assert.NotEmpty(new AliciKotaAyarlari { AcikTaslak = 0 }.Hatalar());
         Assert.NotEmpty(new AliciKotaAyarlari { GunlukYuklemeMb = -1 }.Hatalar());
+        Assert.NotEmpty(new AliciKotaAyarlari { OnayBekleyen = 0 }.Hatalar());
+        // Kalıcı üst sınırlar taslak başına sınırlardan küçük olamaz (yoksa taslak sınırı hiç işlemez).
+        Assert.Contains(new AliciKotaAyarlari { AcikTaslak = 30, OnayBekleyen = 20 }.Hatalar(), h => h.Contains("OnayBekleyen"));
+        Assert.Contains(new AliciKotaAyarlari { TaslakBelgeMb = 300, OnayBekleyenBelgeMb = 200 }.Hatalar(), h => h.Contains("OnayBekleyenBelgeMb"));
         Assert.NotEmpty(new Kasa.Api.Auth.HizSiniriAyarlari { AlisYuklemeIzni = 0 }.Hatalar());
     }
 }
@@ -168,6 +236,13 @@ internal static class AlisTestYardimcisi
     {
         using var r = await c.PostAsJsonAsync("/api/alis", Govde(tedarikci));
         Assert.True(r.StatusCode == HttpStatusCode.Created, $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        return (await r.Content.ReadFromJsonAsync<AlisDto>())!;
+    }
+
+    internal static async Task<AlisDto> Gonder(HttpClient c, AlisDto alis)
+    {
+        using var r = await c.PostAsJsonAsync($"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
+        Assert.True(r.IsSuccessStatusCode, $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
         return (await r.Content.ReadFromJsonAsync<AlisDto>())!;
     }
 

@@ -62,13 +62,20 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const root = node => Object.assign(node, { root: true });
   const modalNode = root(new Element('dialog')); const modalContent = new Element(); modalNode.append(modalContent);
   nodes.set('#modal', modalNode); nodes.set('#modal-content', modalContent);
-  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], '/api/rapor/ana-sayfa?gun=30': call => homeSummary(call), ...extraResponses };
+  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], '/api/rapor/ana-sayfa?gun=30': call => homeSummary(call), '/api/alis/baglanabilir-giderler': () => linkableExpenses(), ...extraResponses };
   // Sunucu sözleşmesi: ana sayfa özeti ayrı uçların yanıtıyla birebir aynıdır. Varsayılan yanıt, testin o anki panel, eşik ve
   // takip özeti yanıtlarından kurulur; parçalardan biri hata verirse tek istek de o hatayı verir.
   const homeSummary = async call => {
     const part = async key => { const value = responses[key]; if (value instanceof Error) throw value; return typeof value === 'function' ? await value(call) : value; };
     const panel = await part('/api/rapor/panel'), kasaEsikleri = await part('/api/kasa-esikleri'), takipOzeti = await part('/api/takip/ozet?gun=30');
     return [panel, kasaEsikleri, takipOzeti].find(value => value?.$status) || { panel, kasaEsikleri, takipOzeti };
+  };
+  // Alış ödemesinin bağlanabilir gider sayfası (webui-6): açıkça verilmezse testin gider listesinden (/api/islemler) süzülmeden
+  // tek sayfa kurulur. Gider listesi veren testler yeni uçla da çalışır; istemcinin savunma amaçlı süzgeci de sınanır.
+  const linkableExpenses = () => {
+    const list = responses['/api/islemler'];
+    if (!Array.isArray(list)) throw new Error('Unexpected API: /api/alis/baglanabilir-giderler');
+    return { ogeler: list, sonrakiImlec: null, devamVar: false };
   };
   // Tarayıcı fetch'i gibi: iptal edilen sinyal bekleyen yanıtı AbortError ile reddeder.
   const aborted = () => new DOMException('The operation was aborted.', 'AbortError');
@@ -187,7 +194,7 @@ test('new cash expense duplicate can be cancelled and lookup failure never silen
 test('new purchase payment checks its purchase and card, while linking an existing expense skips duplicate checks', async () => {
   const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 4 };
-  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/alis/baglanabilir-giderler': { ogeler: [expense], sonrakiImlec: null, devamVar: false }, '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
   await app.paymentDialog(purchase); formField(nodes, 'tutar').value = '75'; formField(nodes, 'krediKartiId').value = '4';
   await submitDialog(nodes);
   const lookup = calls.find(call => call.path === '/api/islemler/benzerlik'); assert.equal(lookup.body.tur, 'AlisOdeme'); assert.equal(lookup.body.alisId, 6); assert.equal(lookup.body.krediKartiId, 4);
@@ -230,6 +237,30 @@ test('purchase payment dialog uses the server linkable-expense page instead of t
   existing.value = '29'; existing.listeners.change();
   await submitDialog(nodes);
   const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.equal(save.body.mevcutIslemId, 29); assert.equal(save.body.tutar, 75);
+});
+test('older linkable-expense page uses the cursor only with the search text that produced it; changed text restarts the search', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
+  const row = (id, cari, tutarTl) => ({ id, tarih: `2026-09-${id - 10}`, cari, tutarTl, krediKartiId: null });
+  const base = '/api/alis/baglanabilir-giderler';
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kredikartlari': [], '/api/alis/6/odemeler': purchase,
+    [base]: { ogeler: [row(31, 'Kargo', 40), row(30, 'Ambalaj', 20)], sonrakiImlec: '20260920-30', devamVar: true },
+    [`${base}?arama=Kargo`]: { ogeler: [row(31, 'Kargo', 40), row(25, 'Kargo', 15)], sonrakiImlec: '20260915-25', devamVar: true },
+    [`${base}?arama=Kargo&imlec=20260915-25`]: { ogeler: [row(20, 'Kargo', 5)], sonrakiImlec: null, devamVar: false },
+  });
+  await app.paymentDialog(purchase);
+  const existing = formField(nodes, 'mevcutIslemId');
+  const options = () => existing.children.filter(node => node.tag === 'option').map(node => node.value);
+  const more = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Daha eski giderler');
+  // Yeni metin yazılıp doğrudan 'Daha eski giderler'e basılır: önce kutunun change (blur) araması başlar, tıklama onu geçersiz
+  // kılar. Süzgeçsiz listenin imleci 'Kargo' ile birleştirilmez (daha yeni Kargo #25 atlanır, Ambalaj listede kalırdı).
+  const search = formField(nodes, 'giderArama'); search.value = 'Kargo'; search.listeners.change();
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.equal(calls.some(call => call.path === `${base}?arama=Kargo&imlec=20260920-30`), false);
+  assert.deepEqual(options(), ['', '31', '25']); assert.equal(more.hidden, false);
+  // Metin değişmedikçe imleç aynı aramanın sonraki sayfasıdır.
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.deepEqual(options(), ['', '31', '25', '20']); assert.equal(more.hidden, true);
 });
 test('new expense and new purchase reuse the request id after a lost response, while edits send none', async () => {
   let expenseAttempts = 0; let purchaseAttempts = 0;
@@ -965,7 +996,7 @@ test('monthly payment expenses open the monthly section instead of generic edit 
 });
 
 test('a monthly payment cannot be selected as an existing purchase expense', async () => {
-  const { app, nodes } = await openApp(false, { '/api/kredikartlari': [], '/api/alis/baglanabilir-giderler': { ogeler: [{ id: 21, tarih: ui.today(), cari: 'Kira', tutarTl: 100, aylikGiderOdemeId: 11 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }], sonrakiImlec: null, devamVar: false } });
+  const { app, nodes } = await openApp(false, { '/api/kredikartlari': [], '/api/islemler': [{ id: 21, tarih: ui.today(), cari: 'Kira', tutarTl: 100, aylikGiderOdemeId: 11 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }] });
   await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' });
   const existing = formField(nodes, 'mevcutIslemId');
   assert.equal(existing.find(row => row.tag === 'option' && row.value === '21'), null);
@@ -1133,7 +1164,7 @@ test('PDF history cancellation requires an explanation and retains its retry ide
 
 test('imported cash expenses have a source link and cannot be selected as purchase payments', async () => {
   const expenses = [{ id: 21, tarih: ui.today(), cari: 'PDF Kira', tutarTl: 100, ekstreKayitId: 8 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }];
-  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/alis/baglanabilir-giderler': { ogeler: expenses, sonrakiImlec: null, devamVar: false }, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses }));
+  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/islemler': expenses, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses }));
   await app.navigate('transactions'); assert.match(nodes.get('#view').textContent, /Ekstre \/ Hareket Yükle bölümünden yönetilir/);
   const row = nodes.get('#view').find(node => node.tag === 'tr' && node.textContent.includes('PDF Kira')); assert.doesNotMatch(row.textContent, /Düzenle|Sil/);
   await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' }); const existing = formField(nodes, 'mevcutIslemId'); assert.equal(existing.find(row => row.tag === 'option' && row.value === '21'), null);

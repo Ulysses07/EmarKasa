@@ -124,6 +124,59 @@ public class AlisApiTests
         Assert.Equal("", handler.SonIstek!.RequestUri!.Query);
     }
 
+    /// <summary>Yolu kaydeden ve yola göre yanıt veren işleyici (eski sunucu benzetimi).</summary>
+    private sealed class YolaGoreHandler(Func<string, HttpResponseMessage> yanit) : HttpMessageHandler
+    {
+        public List<string> Yollar { get; } = new();
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage istek, CancellationToken ct)
+        {
+            Yollar.Add(istek.RequestUri!.AbsolutePath);
+            return Task.FromResult(yanit(istek.RequestUri.AbsolutePath));
+        }
+    }
+
+    private static KasaApiClient Istemci(HttpMessageHandler h) => new(new HttpClient(h) { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
+    private static HttpResponseMessage Json(string govde) => new(HttpStatusCode.OK) { Content = new StringContent(govde, System.Text.Encoding.UTF8, "application/json") };
+
+    [Fact]
+    public async Task Eski_sunucuda_baglanabilir_gider_ucu_yoksa_gider_listesine_istemcide_suzerek_geri_duser()
+    {
+        // Yeni masaüstü eski sunucuya bağlanırsa (uç yok, 404) editörün Alışlar ekranı düşmez: eski uçtan bütün giderler okunur;
+        // ödeme ucunun kabul etmeyeceği giderler ile arama/tutar süzgeci istemcide uygulanır, hepsi tek sayfadır. Uç bir kez 404
+        // verince sonraki aramalar yeniden denemez (ana sayfa özetindeki geri düşüş gibi).
+        const string giderler = """
+            [{"id":1,"tarih":"2026-09-20","cari":"Kargo AŞ","tutarTl":40,"kanal":"MEZAT","tip":"Cari","not":null},
+             {"id":2,"tarih":"2026-09-22","cari":"Firma","tutarTl":25,"kanal":"MEZAT","tip":"KrediKarti","not":"kargo bedeli","krediKartiId":4},
+             {"id":3,"tarih":"2026-09-22","cari":"Bağlı","tutarTl":10,"kanal":"MEZAT","tip":"Cari","not":null,"alisId":7},
+             {"id":4,"tarih":"2026-09-22","cari":"Kira","tutarTl":10,"kanal":"MEZAT","tip":"Cari","not":null,"aylikGiderOdemeId":3},
+             {"id":5,"tarih":"2026-09-22","cari":"Ekstre","tutarTl":10,"kanal":"MEZAT","tip":"Cari","not":null,"ekstreKayitId":2},
+             {"id":6,"tarih":"2026-09-22","cari":"Sabit","tutarTl":10,"kanal":"MEZAT","tip":"SabitGider","not":null},
+             {"id":7,"tarih":"2026-09-22","cari":"İade","tutarTl":-5,"kanal":"MEZAT","tip":"Cari","not":null},
+             {"id":8,"tarih":"2026-09-22","cari":"Ambalaj","tutarTl":10,"kanal":"PERAKENDE","tip":"Cari","not":null}]
+            """;
+        var h = new YolaGoreHandler(yol => yol == "/api/islemler" ? Json(giderler) : new HttpResponseMessage(HttpStatusCode.NotFound));
+        var api = Istemci(h);
+
+        var sayfa = await api.BaglanabilirGiderlerAsync();
+        Assert.Equal([8, 2, 1], sayfa.Ogeler.Select(g => g.Id));
+        Assert.Equal(((string?)null, false), (sayfa.SonrakiImlec, sayfa.DevamVar));
+        Assert.Equal((GiderTipi.KrediKarti, (int?)4, "kargo bedeli"), (sayfa.Ogeler[1].Tip, sayfa.Ogeler[1].KrediKartiId, sayfa.Ogeler[1].Not));
+        Assert.Equal([2, 1], (await api.BaglanabilirGiderlerAsync("KARGO")).Ogeler.Select(g => g.Id));
+        Assert.Equal([1], (await api.BaglanabilirGiderlerAsync(tutar: 40m)).Ogeler.Select(g => g.Id));
+        Assert.Equal(["/api/alis/baglanabilir-giderler", "/api/islemler", "/api/islemler", "/api/islemler"], h.Yollar);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Baglanabilir_gider_ucunun_404_disi_hatasi_eski_uca_dusmeden_hata_olarak_kalir(HttpStatusCode kod)
+    {
+        var h = new YolaGoreHandler(_ => new HttpResponseMessage(kod));
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Istemci(h).BaglanabilirGiderlerAsync());
+        Assert.Equal(kod, hata.DurumKodu);
+        Assert.Equal(["/api/alis/baglanabilir-giderler"], h.Yollar);
+    }
+
     [Fact]
     public async Task Odeme_eski_kart_harcamasi_bayragini_okur_eski_sunucuda_false()
     {
