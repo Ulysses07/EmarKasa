@@ -95,5 +95,7 @@ public record EkstreGecmisSatiri(EkstreBelgeOzetDto Veri)
 public record EkstreKayitSatiri(EkstreKayitDto Veri)
 {
     public string Baslik => $"Satır {Veri.SatirNo} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Aciklama} · {Bicim.Tl(Veri.Tutar)} ₺";
-    public string Ozet => $"{Veri.IslemTuru} · {(Veri.Iptal ? "İptal edildi" : "Kaydedildi")} · {(Veri.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar))}";
+    public string Ozet => $"{Veri.IslemTuru} · {(Veri.Iptal ? "İptal edildi" : "Kaydedildi")} · {(Veri.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar))}"
+        + (Veri.Iptal && Veri.IptalAciklamasi is { } gerekce
+            ? $"\nİptal gerekçesi: {gerekce} · {(Veri.IptalZamani is { } z ? $"{z.LocalDateTime:dd.MM.yyyy HH:mm}" : "zamanı bilinmiyor")}" : "");
 }

@@ -38,7 +38,7 @@ public static partial class FinansTakipEndpoints
             return id;
         })).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/durum", (int id, TakipDurumYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartDurum", dto, () =>
-        { Text(dto.Aciklama); ManagedCard(db, id).Aktif = dto.Aktif; return id; })).RequireAuthorization("Editor");
+        { Text(dto.Aciklama); ManagedCard(db, id).Aktif = dto.Aktif; return id; }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/harcamalar", (int id, KartHarcamaYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartHarcama", dto, () =>
         {
             ApplyCardCharge(db, id, dto);
@@ -47,7 +47,7 @@ public static partial class FinansTakipEndpoints
         api.MapPost("/kartlar/{id:int}/harcamalar/{harcamaId:int}/iptal", (int id, int harcamaId, TakipIptalYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartHarcamaIptal", new { harcamaId, dto }, () =>
         {
             CancelCardCharge(db, id, harcamaId, dto.Aciklama); return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPut("/kartlar/{id:int}/ekstreler/{ekstreId:int}", (int id, int ekstreId, KartEkstreYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartEkstre", new { ekstreId, dto }, () =>
         {
             ManagedCard(db, id); Date(dto.SonOdemeTarihi); Text(dto.Aciklama);
@@ -55,7 +55,7 @@ public static partial class FinansTakipEndpoints
             Require(dto.SonOdemeTarihi >= s!.KesimTarihi, "Son ödeme kesimden önce olamaz.");
             if (dto.AsgariOdeme is { } min) Money(min);
             s.SonOdemeTarihi = dto.SonOdemeTarihi; s.AsgariOdeme = dto.AsgariOdeme; return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/odeme-onizleme", (int id, KartTakipOdemeYaz dto, KasaDbContext db) => View(db, () =>
         { ValidatePayment(db, id, dto); return OdemeEtkisi(db, id, OdemePaylari(db, id, dto.Tutar, dto.EkstreId)); })).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/odemeler", (int id, KartTakipOdemeYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartOdeme", dto, () =>
@@ -69,7 +69,7 @@ public static partial class FinansTakipEndpoints
             ManagedCard(db, id); Text(dto.Aciklama);
             var payment = db.TakipKartOdemeler.SingleOrDefault(p => p.Id == odemeId && p.KrediKartiId == id); Require(payment is not null, "Ödeme bulunamadı.", 404);
             payment!.Iptal = true; return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/gecis-onizleme", (int id, KartGecisYaz dto, KasaDbContext db) => View(db, () => CardPreview(db, id, dto))).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/gecis", (int id, KartGecisYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartGecis", dto, () =>
         {
@@ -78,7 +78,7 @@ public static partial class FinansTakipEndpoints
             Require(preview.KabulEdilebilir, $"Kasada önceden sayılan tutar en az {Tl(preview.EnAzKasadaSayilanTutar!.Value)} olmalı: altındaki kısım eski kuralla düşmüş/düşecek borçtur ve ödendiğinde kasadan ikinci kez düşer. Yalnız açılış borcu kasadan ayrıca ödenebilir; tutarı doğrulayıp yeniden önizleyin.", 409);
             KartGecisiYaz(db, id, dto.Baslangic, dto.KalanBorc, dto.KasadaOncedenSayilanTutar, dto.Dagilimlar, dto.Aciklama);
             return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
 
         MapLoans(api);
         return app;
@@ -173,7 +173,7 @@ public static partial class FinansTakipEndpoints
             return loan.Id;
         })).RequireAuthorization("Editor");
         api.MapPost("/krediler/{id:int}/durum", (int id, TakipDurumYaz dto, KasaDbContext db) => Change(db, false, id, dto.Surum, dto.IstekId, "KrediDurum", dto, () =>
-        { Text(dto.Aciklama); ManagedLoan(db, id).Aktif = dto.Aktif; return id; })).RequireAuthorization("Editor");
+        { Text(dto.Aciklama); ManagedLoan(db, id).Aktif = dto.Aktif; return id; }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPut("/krediler/{id:int}/taksitler/{taksitId:int}", (int id, int taksitId, KrediTaksitYaz dto, KasaDbContext db) => Change(db, false, id, dto.Surum, dto.IstekId, "KrediTaksit", new { taksitId, dto }, () =>
         {
             var track = ManagedLoan(db, id); Text(dto.Aciklama); Text(dto.Not, false); Money(dto.Tutar); Date(dto.Tarih);
@@ -192,7 +192,7 @@ public static partial class FinansTakipEndpoints
                 }
             }
             return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPost("/krediler/{id:int}/erken-kapat", (int id, KrediKapatYaz dto, KasaDbContext db) => Change(db, false, id, dto.Surum, dto.IstekId, "KrediKapat", dto, () =>
         {
             var track = ManagedLoan(db, id); Text(dto.Aciklama); Money(dto.Tutar); Date(dto.Tarih); Require(dto.Tarih >= Bugun, "Kapama geçmişe yazılamaz.");
@@ -202,7 +202,7 @@ public static partial class FinansTakipEndpoints
             foreach (var row in rows.Where(t => !t.Iptal && t.Tarih >= dto.Tarih)) row.Iptal = true;
             db.TakipKrediTaksitler.Add(new() { KrediId = id, No = rows.Max(t => t.No) + 1, Tarih = dto.Tarih, Tutar = dto.Tutar, Not = "Erken kapama: " + dto.Aciklama.Trim(), DagilimJson = Json(EsitPaylar(Read<int>(track.KanalIdleriJson), dto.Tutar)) });
             return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPost("/krediler/{id:int}/gecis-onizleme", (int id, KrediGecisYaz dto, KasaDbContext db) => View(db, () => LoanPreview(db, id, dto))).RequireAuthorization("Editor");
         api.MapPost("/krediler/{id:int}/gecis", (int id, KrediGecisYaz dto, KasaDbContext db) => Change(db, false, id, dto.Surum, dto.IstekId, "KrediGecis", dto, () =>
         {
@@ -216,7 +216,7 @@ public static partial class FinansTakipEndpoints
                     db.TakipKrediTaksitler.Add(new() { KrediId = id, No = i + 1, Tarih = t.Tarih, Tutar = t.TutarTl, DagilimJson = Json(EsitPaylar(dto.KanalIdleri, t.TutarTl, cumulative)) }); cumulative += t.TutarTl;
                 }
             return id;
-        })).RequireAuthorization("Editor");
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
     }
     private static TakipGecisDto CardPreview(KasaDbContext db, int id, KartGecisYaz d)
     {
@@ -311,8 +311,11 @@ public static partial class FinansTakipEndpoints
     internal static IResult View(KasaDbContext db, Func<object> read) => Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(read())));
     internal static IResult View(KasaDbContext db, Func<TakipHesapBaglami, object> read, CancellationToken ct) =>
         Safe(() => AlisEndpoints.Oku(db, () => Results.Ok(read(new TakipHesapBaglami(db, ct)))));
-    private static IResult Change(KasaDbContext db, bool card, int id, int? version, Guid requestId, string kind, object payload, Func<int> edit) => Safe(() => AlisEndpoints.Mutate(db, () =>
+    /// <param name="gerekce">Ucun zorunlu tuttuğu açıklama: atılmaz, bu isteğin bütün değişikliklerinin denetim olayına
+    /// (önceki/yeni değerle) istek kimliğiyle birlikte yazılır ve GET /api/denetim ile okunur.</param>
+    private static IResult Change(KasaDbContext db, bool card, int id, int? version, Guid requestId, string kind, object payload, Func<int> edit, string? gerekce = null) => Safe(() => AlisEndpoints.Mutate(db, () =>
     {
+        using var denetim = db.Denetle(gerekce, requestId);
         var node = JsonSerializer.SerializeToNode(payload)!;
         void RemoveVersion(JsonNode? n) { if (n is JsonObject o) { o.Remove("Surum"); foreach (var child in o.ToArray()) RemoveVersion(child.Value); } else if (n is JsonArray a) foreach (var child in a) RemoveVersion(child); }
         RemoveVersion(node); var digest = FinansHesaplari.Ozet(new { id, payload = node.ToJsonString() });

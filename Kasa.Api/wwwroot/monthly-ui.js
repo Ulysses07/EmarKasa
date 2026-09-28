@@ -13,6 +13,8 @@ export function createMonthlyUi(c) {
   const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
   const editor = () => { if (!canEdit()) throw new Error('Bu işlem için editör hesabı gerekir.'); };
   const shares = row => row.dagilimTuru === 'Genel' ? h('span', {}, 'Yalnız genel kasa') : h('div', { class: 'allocation-tags' }, row.dagilimlar.map(share => h('span', { class: 'allocation-tag' }, `${share.kanal}: ${money(share.tutar)}`)));
+  // İptal anı sunucuda denetim izinden okunur; sürüm öncesi iptalin anı bilinmez.
+  const cancelTime = value => value ? new Date(value).toLocaleString('tr-TR') : 'Sürüm öncesi (zamanı bilinmiyor)';
   let currentMonth = today().slice(0, 7);
   let currentGeneration = 0;
   const refresh = () => isCurrent(currentGeneration) ? render(currentGeneration, currentMonth) : Promise.resolve();
@@ -31,12 +33,18 @@ export function createMonthlyUi(c) {
       row.odemeTarihi ? dateText(row.odemeTarihi) : '—',
       canEdit() ? row.durum === 'Odendi' ? button('Ödemeyi iptal et', () => cancelDialog(row), 'small danger') : button('Ödeme kaydet', () => paymentDialog(row, data.yil, data.ay), 'small primary') : ''
     ]);
+    // İptal edilen ödemeler plan satırından ayrı, gerekçesi ve iptal anıyla listelenir; toplamlara girmez.
+    const cancelled = (data.iptaller || []).map(row => [
+      h('div', {}, h('strong', {}, row.ad), h('small', { class: 'table-sub' }, kinds[row.tur] || row.tur)),
+      row.odemeTarihi ? dateText(row.odemeTarihi) : '—', moneyNode(row.tutar), cancelTime(row.iptalZamani), row.iptalAciklamasi || '—'
+    ]);
     const templateRows = templates.map(row => [row.ad, kinds[row.tur] || row.tur, moneyNode(row.tutar), `Her ay ${row.odemeGunu}. gün`, shares(row), row.aktif ? 'Aktif' : 'Pasif', dateText(row.gecerliAy), canEdit() ? act('Düzenle', () => templateDialog(row), 'small') : '']);
     view().replaceChildren(
       h('p', { class: 'plan-note' }, 'Şablon ve plan kasa bakiyesini değiştirmez. Nakit veya havale gerçekten ödendiğinde “Ödeme kaydet” ile işleyin. Kartla ödemeyi mevcut gider veya kart ekranında kaydedin; burada ikinci kez ödeme girmeyin.'),
       h('div', { class: 'toolbar' }, monthInput, act('Ayı göster', () => monthInput.reportValidity() && render(generation, monthInput.value))),
       h('div', { class: 'summary-strip' }, summary('Planlanan', money(data.planlananToplam)), summary('Ödendi', money(data.odenenToplam)), summary('Kalan plan', money(data.planlananToplam - data.odenenToplam))),
       section('Ayın giderleri', rows.length ? table(['Gider', 'Plan tarihi', 'Tutar', 'Hangi kasa', 'Durum', 'Ödeme tarihi', ''], rows) : help('Bu ay için aylık gider planı yok.')),
+      ...(cancelled.length ? [section('İptal edilen ödemeler', h('div', {}, help('İptal edilen ödeme kasaya yansımaz ve ay toplamlarına girmez; planı yukarıda yeniden ödeme bekler.'), table(['Gider', 'Ödeme tarihi', 'Tutar', 'İptal zamanı', 'İptal gerekçesi'], cancelled)))] : []),
       section('Gider şablonları', h('div', {}, help('Değişiklik seçtiğiniz aydan itibaren uygulanır. Eski aylar ve kaydedilmiş ödemeler korunur. Pasif şablonun geçmişi silinmez.'), templateRows.length ? table(['Şablon', 'Tür', 'Tutar', 'Ödeme günü', 'Hangi kasa', 'Durum', 'Geçerli ay', ''], templateRows) : help('Kira, maaş, fatura veya diğer düzenli giderler için şablon ekleyebilirsiniz.')))
     );
   }
@@ -94,7 +102,7 @@ export function createMonthlyUi(c) {
   }
   function cancelDialog(row) {
     editor(); const identity = requestIdentity(); const reason = input('aciklama', '', { required: true, maxlength: 2000 });
-    formDialog('Aylık gider ödemesini iptal et', h('div', { class: 'stack' }, help(`${row.ad} için ${dateText(row.odemeTarihi)} tarihli ${money(row.tutar)} ödeme kasadan geri alınır. Kayıt geçmişte korunur; gerekirse doğru ödeme yeniden girilir.`), field('İptal açıklaması', reason)), 'Ödemeyi iptal et', async () => {
+    formDialog('Aylık gider ödemesini iptal et', h('div', { class: 'stack' }, help(`${row.ad} için ${dateText(row.odemeTarihi)} tarihli ${money(row.tutar)} ödeme kasadan geri alınır. İptal edilen ödeme bu ayın “İptal edilen ödemeler” listesinde gerekçesiyle kalır; gerekirse doğru ödeme yeniden girilir.`), field('İptal açıklaması', reason)), 'Ödemeyi iptal et', async () => {
       editor(); await api(`${base}/odemeler/${row.odemeId}/iptal`, { method: 'POST', body: identity({ aciklama: reason.value.trim() }) }); closeModal(); toast('Ödeme iptal edildi.'); await refresh();
     }, { danger: true });
   }

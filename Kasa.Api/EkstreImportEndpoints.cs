@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
@@ -358,6 +359,8 @@ public static class EkstreImportEndpoints
         var channelNames = db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
         var payments = rows.Where(k => k.KartOdemeId != null && !k.Iptal).Select(k => k.KrediKartiId!.Value).Distinct()
             .SelectMany(card => Kart(db, card).Odemeler).ToDictionary(p => p.Id);
+        // İptal gerekçesi satırda, iptal anı denetim izinde (sürüm öncesi iptalde bilinmez).
+        var cancelTimes = DenetimOkuma.IptalAnlari<EkstreKayitEntity>(db, rows.Where(k => k.Iptal).Select(k => k.Id).ToList());
         return new(d.Id, d.Surum, d.Kaynak, d.Banka, d.HesapAdi, d.KartId, d.DosyaAdi, DateTimeOffset.FromUnixTimeMilliseconds(d.Yuklendi),
             Read<string>(d.UyarilarJson), Read<EkstreOkunanSatir>(d.SatirlarJson), rows
                 // İptal edilmiş ödemenin güncel etkisi yoktur (Kart() boş dağılım döner); geçmiş görünümde
@@ -365,7 +368,8 @@ public static class EkstreImportEndpoints
                 .Select(k => new EkstreKayitDto(k.Id, k.SatirNo, k.Tarih, k.Aciklama, k.Tutar, k.IslemTuru, k.DagilimTuru,
                     !k.Iptal && k.KartOdemeId is { } payment && payments.TryGetValue(payment, out var current) && !current.Iptal ? current.Dagilimlar : Read<TakipKanalPayi>(k.DagilimJson)
                         .Select(p => p.KanalId is { } channel ? p with { Kanal = channelNames.GetValueOrDefault(channel, p.Kanal) } : p).ToList(),
-                    k.KrediKartiId, k.IslemId, k.KartHarcamaId, k.KartOdemeId, k.Iptal)).ToList());
+                    k.KrediKartiId, k.IslemId, k.KartHarcamaId, k.KartOdemeId, k.Iptal,
+                    k.Iptal ? k.IptalAciklamasi : null, cancelTimes.TryGetValue(k.Id, out var cancelledAt) ? cancelledAt : null)).ToList());
     }
     private static EkstreBelgeEntity GetDocument(KasaDbContext db, int id)
     {

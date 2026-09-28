@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Kasa.Api;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Kasa.Core;
 using Kasa.Api.Servisler;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,6 +30,8 @@ builder.Services.AddHostedService<OtomatikYedek>();
 builder.Services.AddHostedService<FinansBakimi>();
 // Ters vekil (nginx → docker köprüsü) arkasında gerçek istemci IP'si ve 'guvenlik'/'giris' hız sınırları.
 builder.Services.AddKasaVekilVeHizSinirlari();
+// Denetim olaylarının aktörü (rol, alıcı kimliği, gerçek istemci IP'si) istekten okunur.
+builder.Services.AddKasaDenetim();
 builder.Services.AddSingleton<IzleyiciSifreDurumu>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
@@ -243,6 +246,7 @@ app.MapFinansTakipEndpoints();
 app.MapBenzerKayitEndpoints();
 app.MapAylikGiderEndpoints();
 app.MapAyKilidiEndpoints();
+app.MapDenetimEndpoints();
 app.MapKasaKontrolEndpoints();
 app.MapEkstreImportEndpoints();
 app.MapBildirimEndpoints();
@@ -515,7 +519,10 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
     if (db.Gelenler.Any(g => g.EskiYinelenenGrup && g.DonemStart == dto.DonemStart
         && (g.KanalId == kanal!.Id || g.Kanal == kanal.Ad)))
         return Results.Conflict(new { hata = "Bu dönem ve kanalda birden fazla eski gelir kaydı var. Bütün kayıtlar tutarlarıyla korunur; bu eski grup salt okunurdur. Yeni dönemlere gelir girebilirsiniz." });
-    // Tek SQL ifadesi: eşzamanlı ilk girişler çift gelir kaydı üretemez.
+    // Tek SQL ifadesi: eşzamanlı ilk girişler çift gelir kaydı üretemez. Ham SQL SaveChanges kancasından geçmez: denetim
+    // olayı açıkça ve upsert'le aynı (ertelenmiş) transaction'da yazılır; yazma kilidini autocommit'teki gibi upsert alır.
+    var onceki = db.Gelenler.AsNoTracking().SingleOrDefault(g => g.DonemStart == dto.DonemStart && g.KanalId == kanal!.Id && !g.EskiYinelenenGrup);
+    using var transaction = KancaDisiOlaylar.ErteliTransaction(db);
     var affected = db.Database.ExecuteSqlInterpolated($"""
         INSERT INTO "Gelenler" ("DonemStart", "Kanal", "KanalId", "TutarTl")
         VALUES ({dto.DonemStart}, {kanal!.Ad}, {kanal.Id}, {dto.TutarTl})
@@ -526,6 +533,8 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
     var e = db.Gelenler.AsNoTracking().Single(g => g.DonemStart == dto.DonemStart && g.KanalId == kanal.Id);
     if (affected == 0 && e.TutarTl != dto.TutarTl)
         return Results.Conflict(new { hata = "Hesaba bağlı gelir tutarı buradan değiştirilemez." });
+    if (affected > 0) KancaDisiOlaylar.GelenUpsert(db, onceki, e);
+    transaction.Commit();
     return Results.Ok(e);
 }).RequireAuthorization("Editor");
 

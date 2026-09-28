@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
@@ -8,8 +9,13 @@ namespace Kasa.Api;
 
 public record AylikGiderSablonYaz(Guid IstekId, int Surum, string Ad, string Tur, decimal Tutar, int OdemeGunu, string DagilimTuru, IReadOnlyList<KanalPayYaz> Dagilimlar, DateOnly GecerliAy, bool Aktif = true);
 public record AylikGiderSablonDto(int Id, int Surum, string Ad, string Tur, decimal Tutar, int OdemeGunu, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, DateOnly GecerliAy, bool Aktif);
-public record AylikGiderAyDto(int Yil, int Ay, decimal PlanlananToplam, decimal OdenenToplam, IReadOnlyList<AylikGiderSatirDto> Kayitlar);
-public record AylikGiderSatirDto(int SablonId, int SablonSurum, string Ad, string Tur, decimal Tutar, DateOnly PlanlananTarih, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Durum, int? OdemeId = null, DateOnly? OdemeTarihi = null, int? IslemId = null);
+/// <summary>Ayın aylık giderleri. <paramref name="Kayitlar"/>: şablon başına plan ya da ödenmiş satır (toplamlar bunlardandır).
+/// <paramref name="Iptaller"/>: o aya ait iptal edilmiş ödemeler ('Iptal'; gerekçe ve iptal anıyla), toplamlara girmez; iptal
+/// edilen ödemenin planı <paramref name="Kayitlar"/>'da yeniden 'Planlandi' olur.</summary>
+public record AylikGiderAyDto(int Yil, int Ay, decimal PlanlananToplam, decimal OdenenToplam, IReadOnlyList<AylikGiderSatirDto> Kayitlar, IReadOnlyList<AylikGiderSatirDto> Iptaller);
+/// <summary><paramref name="IptalAciklamasi"/> ve <paramref name="IptalZamani"/> yalnız 'Iptal' satırda doludur; iptal anı denetim
+/// izinden okunur, sürüm öncesi iptalde bilinmez (null).</summary>
+public record AylikGiderSatirDto(int SablonId, int SablonSurum, string Ad, string Tur, decimal Tutar, DateOnly PlanlananTarih, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Durum, int? OdemeId = null, DateOnly? OdemeTarihi = null, int? IslemId = null, string? IptalAciklamasi = null, DateTimeOffset? IptalZamani = null);
 /// <summary>Aylık gider ödemesi. Aynı tutarda ±3 günlük benzer kayıt varsa ödeme uyarısız kaydedilmez: hiçbir şey yazılmaz ve
 /// 409 <c>{ hata, benzerler }</c> döner. <paramref name="BenzerOnay"/> onayın biçimidir: true ise kullanıcı benzer kayıtları
 /// görüp ayrı ödeme olduğunu onaylamıştır; false ise (açık protokol) benzer kayıt her istekte 409 alır. Alanı göndermeyen
@@ -37,7 +43,11 @@ public static class AylikGiderEndpoints
             var payments = db.AylikGiderOdemeler.AsNoTracking().Where(p => p.Ay == month && !p.Iptal).ToDictionary(p => p.SablonId);
             var rows = revisions.Where(r => r.Aktif || payments.ContainsKey(r.SablonId))
                 .Select(r => payments.TryGetValue(r.SablonId, out var paid) ? Paid(db, paid) : Row(db, r, month)).OrderBy(r => r.PlanlananTarih).ThenBy(r => r.Ad).ToList();
-            return Results.Ok(new AylikGiderAyDto(yil, ay, rows.Sum(r => r.Tutar), rows.Where(r => r.Durum == "Odendi").Sum(r => r.Tutar), rows));
+            // İptal edilen ödemeler plan satırından ayrı listelenir (gerekçe ve iptal anıyla); toplamlara girmez.
+            var cancelled = db.AylikGiderOdemeler.AsNoTracking().Where(p => p.Ay == month && p.Iptal).OrderBy(p => p.Tarih).ThenBy(p => p.Id).ToList();
+            var cancelTimes = DenetimOkuma.IptalAnlari<AylikGiderOdemeEntity>(db, cancelled.Select(p => p.Id).ToList());
+            return Results.Ok(new AylikGiderAyDto(yil, ay, rows.Sum(r => r.Tutar), rows.Where(r => r.Durum == "Odendi").Sum(r => r.Tutar), rows,
+                cancelled.Select(p => Paid(db, p, cancelTimes)).ToList()));
         }));
         // Uygulama başına tek defter: benzer kayıt uyarısı verilmiş, onayı beklenen istekler (BenzerOnay alanını göndermeyen istemci).
         var uyarilar = new BenzerUyarilari();
@@ -177,8 +187,13 @@ public static class AylikGiderEndpoints
         FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), r.GecerliAy, r.Aktif);
     private static AylikGiderSatirDto Row(KasaDbContext db, AylikGiderRevizyonEntity r, DateOnly month) => new(r.SablonId, r.Surum, r.Ad, r.Tur, r.Tutar,
         FinansTakipServisi.Gun(month, r.OdemeGunu), r.DagilimTuru, FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), "Planlandi");
-    private static AylikGiderSatirDto Paid(KasaDbContext db, AylikGiderOdemeEntity p) => Row(db, db.AylikGiderRevizyonlar.AsNoTracking().Single(r => r.Id == p.RevizyonId), p.Ay)
-        with { Durum = p.Iptal ? "Iptal" : "Odendi", OdemeId = p.Id, OdemeTarihi = p.Tarih, IslemId = p.IslemId };
+    private static AylikGiderSatirDto Paid(KasaDbContext db, AylikGiderOdemeEntity p, IReadOnlyDictionary<int, DateTimeOffset>? cancelTimes = null) =>
+        Row(db, db.AylikGiderRevizyonlar.AsNoTracking().Single(r => r.Id == p.RevizyonId), p.Ay) with
+        {
+            Durum = p.Iptal ? "Iptal" : "Odendi", OdemeId = p.Id, OdemeTarihi = p.Tarih, IslemId = p.IslemId,
+            IptalAciklamasi = p.Iptal ? p.IptalAciklamasi : null,
+            IptalZamani = !p.Iptal ? null : cancelTimes is null ? DenetimOkuma.IptalAni<AylikGiderOdemeEntity>(db, p.Id) : cancelTimes.TryGetValue(p.Id, out var an) ? an : null,
+        };
     internal static DateOnly Month(int year, int month) { Need(year is >= 1 and <= 9990 && month is >= 1 and <= 12, "Geçerli ay seçin."); return new(year, month, 1); }
     internal static void Text(string? value) => Need(!string.IsNullOrWhiteSpace(value) && value.Length <= 2000, "Ad/açıklama zorunlu ve en fazla 2000 karakter olmalı.");
     /// <summary>GirdiDogrulama.Metin'den geçmeyen serbest metne aynı kontrol karakteri kuralı (XLSX dışa aktarımı, ekranlar).</summary>

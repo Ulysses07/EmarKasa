@@ -108,6 +108,7 @@ public partial class KasaDbContext : DbContext
         ConfigureCashControls(b);
         ConfigureStatementImports(b);
         ConfigureMonthlyReportSnapshots(b);
+        ConfigureDenetim(b);
     }
 
     partial void ConfigureOperations(ModelBuilder b);
@@ -116,4 +117,5 @@ public partial class KasaDbContext : DbContext
     partial void ConfigureCashControls(ModelBuilder b);
     partial void ConfigureStatementImports(ModelBuilder b);
     partial void ConfigureMonthlyReportSnapshots(ModelBuilder b);
+    partial void ConfigureDenetim(ModelBuilder b);
 }

@@ -1,4 +1,5 @@
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Microsoft.EntityFrameworkCore;
 using static Kasa.Api.AylikGiderEndpoints;
 
@@ -23,6 +24,8 @@ public static class AyKilidiEndpoints
     private static IResult Change(KasaDbContext db, TimeProvider saat, AyKilidiYaz d, bool reopen) => Run(db, () =>
     {
         Text(d.Aciklama); var month = Month(d.Yil, d.Ay);
+        // Kapatmadan önceki bakım (Sync) değişiklikleri de bu isteğin gerekçesini ve kimliğini taşır.
+        using var denetim = db.Denetle(d.Aciklama, d.IstekId);
         var kind = reopen ? "AyKilidiAc" : "AyKilidiKapat";
         var digest = FinansHesaplari.Ozet(new { d.Yil, d.Ay, d.Aciklama });
         if (FinansHesaplari.Tekrar(db, d.IstekId, kind, digest, _ => Results.Ok(Read(db))) is { } replay) return replay;
@@ -45,9 +48,14 @@ public static class AyKilidiEndpoints
             FinansTakipServisi.Sync(db); next = end;
         }
         var previous = state.KilitliSonTarih; var now = saat.GetUtcNow();
-        db.AyKilidiOlaylar.Add(new() { OncekiSonTarih = previous, YeniSonTarih = next, Aciklama = d.Aciklama.Trim(), Zaman = now });
+        // Kapatma, yeniden kilitlediği aralıkla kesişen açılış pencerelerini kapatır (kilit sınırı değişmeden okunur).
+        IReadOnlyList<int> kapatilan = reopen ? [] : DenetimKilitPenceresi.Oku(db).Kesisen(DenetimKilitPenceresi.Sonraki(previous), next!.Value);
+        var olay = new AyKilidiOlayEntity { OncekiSonTarih = previous, YeniSonTarih = next, Aciklama = d.Aciklama.Trim(), Zaman = now };
+        db.AyKilidiOlaylar.Add(olay);
         state.KilitliSonTarih = next; state.Surum++;
         FinansHesaplari.IstekKaydet(db, d.IstekId, kind, digest, state.Id); db.SaveChanges();
+        // Açma/kapatma merkezi denetim olayıdır: açma, penceresine düşecek değişikliklerin bağlanacağı kimliği (olay.Id) açar.
+        KancaDisiOlaylar.AyKilidi(db, olay, reopen, kapatilan, d.IstekId);
         // Aynı transaction'da, yeni kilit sınırı kaydedildikten sonra: kapatılan ayların raporu dondurulur, açılanlarınki
         // silinir (görüntü yalnız kilitli ay için bulunabilir; bkz. AyRaporAnlikGoruntusu).
         if (reopen) AyRaporAnlikGoruntusu.KilidiAcildi(db, next);

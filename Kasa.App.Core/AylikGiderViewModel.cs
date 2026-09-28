@@ -14,6 +14,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     public IReadOnlyList<GiderSecimi> Turler { get; } = new[] { new GiderSecimi("Kira", "Kira"), new("Maas", "Maaş"), new("Fatura", "Fatura"), new("Diger", "Diğer") };
     public IReadOnlyList<GiderSecimi> DagilimTurleri { get; } = new[] { new GiderSecimi("Genel", "Yalnız genel kasa"), new("Esit", "Seçilen kanallara eşit"), new("Ozel", "Kanallara tutar girerek") };
     public ObservableCollection<AylikGiderSatiri> Kayitlar { get; } = new();
+    /// <summary>Ayın iptal edilmiş ödemeleri (salt okunur; gerekçe ve iptal anıyla). Toplamlara girmez; planı <see cref="Kayitlar"/>'da
+    /// yeniden ödeme bekler. Alanı taşımayan eski sunucuda boştur.</summary>
+    public ObservableCollection<AylikGiderIptalSatiri> Iptaller { get; } = new();
+    public bool IptalVar => Iptaller.Count > 0;
     public ObservableCollection<AylikSablonSatiri> Sablonlar { get; } = new();
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
     public ObservableCollection<TakipKanalSecimi> KanalSecimleri { get; } = new();
@@ -55,6 +59,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     private void AyiYansit(AylikGiderAyDto a)
     {
         _ayVerisi = a; TakipMetni.Doldur(Kayitlar, a.Kayitlar.Select(x => new AylikGiderSatiri(x)));
+        TakipMetni.Doldur(Iptaller, (a.Iptaller ?? []).Select(x => new AylikGiderIptalSatiri(x))); OnPropertyChanged(nameof(IptalVar));
         AyOzeti = $"{a.Ay:00}.{a.Yil} · Planlanan {Bicim.Tl(a.PlanlananToplam)} ₺ · Ödenen {Bicim.Tl(a.OdenenToplam)} ₺";
         OnPropertyChanged(nameof(AySecimiDegisti));
     }
@@ -104,16 +109,24 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         if (string.IsNullOrWhiteSpace(aciklama)) { Hata = "İptal gerekçesi yazın."; return; }
         var g = new AylikGiderIptalYaz(Guid.Empty, aciklama.Trim()); g = g with { IstekId = _iptalKey.Al(new { id, g }) };
         await api.AylikGiderIptalAsync(id, g); if (!Gecerli(n)) return;
-        _iptalKey.Temizle(); SeciliOdeme = null; Mesaj = "Ödeme iptal edildi; geçmiş izi korundu.";
+        _iptalKey.Temizle(); SeciliOdeme = null; Mesaj = "Ödeme iptal edildi; gerekçesiyle iptal edilen ödemeler listesinde görünür.";
         VeriHazir = false;
         var ay = AyTarihi; var a = await api.AylikGiderlerAsync(ay.Year, ay.Month); if (Gecerli(n) && ay == AyTarihi) { AyiYansit(a); Tamamlandi(); }
     });
-    protected override void OturumTemizle() { _ayVerisi = null; Kayitlar.Clear(); Sablonlar.Clear(); Kanallar.Clear(); KanalSecimleri.Clear(); SeciliOdeme = null; AyOzeti = OdemeNotu = ""; Yeni(); foreach (var k in new[] { _sablonKey, _odemeKey, _iptalKey }) k.Temizle(); }
+    protected override void OturumTemizle() { _ayVerisi = null; Kayitlar.Clear(); Iptaller.Clear(); OnPropertyChanged(nameof(IptalVar)); Sablonlar.Clear(); Kanallar.Clear(); KanalSecimleri.Clear(); SeciliOdeme = null; AyOzeti = OdemeNotu = ""; Yeni(); foreach (var k in new[] { _sablonKey, _odemeKey, _iptalKey }) k.Temizle(); }
 }
 public record AylikGiderSatiri(AylikGiderSatirDto Veri)
 {
     public string Baslik => $"{Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺ · " + (Veri.Durum == "Odendi" ? "Ödendi" : "Ödeme bekliyor");
     public string Ozet => $"Planlanan {Veri.PlanlananTarih:dd.MM.yyyy}" + (Veri.OdemeTarihi is { } t ? $" · ödeme {t:dd.MM.yyyy}" : "") + "\n" + (Veri.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
+}
+/// <summary>İptal edilmiş aylık gider ödemesi (salt okunur): ödeme tarihi, iptal anı (sürüm öncesi iptalde bilinmez) ve gerekçe.</summary>
+public record AylikGiderIptalSatiri(AylikGiderSatirDto Veri)
+{
+    public string Baslik => $"{Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺ · iptal edildi";
+    public string Ozet => (Veri.OdemeTarihi is { } t ? $"Ödeme {t:dd.MM.yyyy} · " : "")
+        + (Veri.IptalZamani is { } z ? $"iptal {z.LocalDateTime:dd.MM.yyyy HH:mm}" : "iptal zamanı bilinmiyor (sürüm öncesi)")
+        + $"\nGerekçe: {Veri.IptalAciklamasi ?? "—"}";
 }
 public record AylikSablonSatiri(AylikGiderSablonDto Veri)
 {

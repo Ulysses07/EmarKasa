@@ -800,6 +800,27 @@ test('monthly payment cancellation keeps its explanation and idempotency key aft
   assert.equal(calls.some(call => call.path.startsWith('/api/islemler')), false);
 });
 
+test('cancelled monthly payments stay on the month screen with reason and time, outside the plan and without actions', async () => {
+  const plain = await openApp(false, monthlyResponses());
+  await plain.app.navigate('monthly-expenses');
+  assert.doesNotMatch(plain.nodes.get('#view').textContent, /İptal edilen ödemeler/); // alanı taşımayan eski sunucu da çalışır
+  const data = monthlyResponses();
+  const cancelled = { ...monthlyRow, durum: 'Iptal', odemeId: 11, odemeTarihi: `${monthNow}-05`, iptalAciklamasi: 'Kira yanlış aya girildi', iptalZamani: '2026-09-25T09:00:00Z' };
+  const legacy = { ...cancelled, odemeId: 10, iptalAciklamasi: '<b>Eski</b> iptal', iptalZamani: null };
+  const { app, nodes, calls } = await openApp(false, { ...data, [monthlyPath]: { ...data[monthlyPath], iptaller: [cancelled, legacy] } });
+  await app.navigate('monthly-expenses');
+  const section = nodes.get('#view').find(node => node.tag === 'section' && /İptal edilen ödemeler/.test(node.textContent));
+  assert.ok(section, 'cancelled payments section exists');
+  assert.match(section.textContent, /Kira yanlış aya girildi/);
+  assert.ok(section.textContent.includes(new Date('2026-09-25T09:00:00Z').toLocaleString('tr-TR')));
+  assert.match(section.textContent, /Sürüm öncesi \(zamanı bilinmiyor\)/);
+  assert.match(section.textContent, /<b>Eski<\/b> iptal/); assert.equal(section.find(node => node.tag === 'b'), null);
+  assert.equal(section.find(node => node.tag === 'button'), null);
+  // Plan satırı yine ödeme bekler; iptal kaydı yalnız okunur.
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Ödeme kaydet'));
+  assert.equal(calls.some(call => call.method !== 'GET'), false);
+});
+
 test('monthly total includes general-only expenses once and lock control explains the inclusive boundary', async () => {
   const report = { yil: yearNow, ay: monthNumberNow, genelGider: 30, dagilimBekleyenTutar: 5, kanallar: [{ kanal: 'A', gelen: 100, cariGiden: 10, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 90 }] };
   assert.deepEqual(monthlyTotals(report), { incoming: 100, expenses: 45, result: 55 });
@@ -1060,6 +1081,20 @@ test('PDF history cancellation requires an explanation and retains its retry ide
   assert.equal(calls.some(call => call.path.endsWith('/iptal')), false);
   formField(nodes, 'aciklama').value = 'Yanlış satır seçildi'; await submitDialog(nodes); await submitDialog(nodes);
   const requests = calls.filter(call => call.path.endsWith('/iptal')); assert.equal(requests.length, 2); assert.equal(requests[0].body.istekId, requests[1].body.istekId);
+});
+
+test('PDF history shows the cancellation reason and time on cancelled records only', async () => {
+  const record = { satirNo: 1, tarih: '2026-09-23', aciklama: 'Kira', tutar: 100, islemTuru: 'Gider', dagilimTuru: 'Genel', dagilimlar: [] };
+  const document = importDocument({ kayitlar: [{ ...record, id: 9, iptal: true, iptalAciklamasi: 'Banka hareketi iki kez okundu', iptalZamani: '2026-09-25T09:00:00Z' },
+    { ...record, id: 8, iptal: true, iptalAciklamasi: 'Sürüm öncesi iptal', iptalZamani: null }, { ...record, id: 7, satirNo: 2, iptal: false }] });
+  const { app, nodes } = await openApp(false, importResponses(document));
+  await app.navigate('imports', 12);
+  const history = nodes.get('#view').find(node => node.tag === 'section' && /Bu belgeden kaydedilenler/.test(node.textContent));
+  const row = satirNo => history.find(node => node.tag === 'tr' && node.textContent.includes(`#${satirNo} ·`) && node.find(child => child.tag === 'td'));
+  assert.ok(history.textContent.includes(`Banka hareketi iki kez okundu · ${new Date('2026-09-25T09:00:00Z').toLocaleString('tr-TR')}`));
+  assert.match(history.textContent, /Sürüm öncesi iptal · zamanı bilinmiyor/);
+  assert.equal(history.find(node => node.tag === 'button' && node.textContent === 'Kaydı iptal et') !== null, true);
+  assert.match(row(2).textContent, /Kaydedildi/); assert.doesNotMatch(row(2).textContent, /zamanı bilinmiyor|iki kez okundu/);
 });
 
 test('imported cash expenses have a source link and cannot be selected as purchase payments', async () => {

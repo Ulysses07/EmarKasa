@@ -28,12 +28,21 @@ public static class EditorGuvenligi
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
-            if (!Dogrula(dto.MevcutSifre, cfg, kayit)) return MevcutSifreHatali();
+            if (!Dogrula(dto.MevcutSifre, cfg, kayit))
+            {
+                // Başarısız deneme de kalıcı güvenlik olayıdır: yalnız olay yazılmış transaction kaydedilir.
+                GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegistirmeBasarisiz, cfg["Kasa:EditorKullanici"], varlikId: "1");
+                tx.Commit(); return MevcutSifreHatali();
+            }
             kayit = KayitOlustur(db, kayit);
             kayit.SifreHash = SifreHasher.Hashle(dto.YeniSifre);
             kayit.KurtarmaHash = null;
             kayit.Surum++;
-            db.SaveChanges(); tx.Commit();
+            db.SaveChanges();
+            // Değişiklikle aynı transaction'da: olay yazılamazsa hata fırlar, commit edilmez ve şifre değişmez (zorunlu). Böylece
+            // şifre değişti ise olay da vardır. Eski oturumlar ve kurtarma kodu düşer.
+            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegisti, cfg["Kasa:EditorKullanici"], new { oturumlarKapatildi = true, kurtarmaKoduGecersiz = true }, varlikId: "1", zorunlu: true);
+            tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
             // Eski tanıdık cihaz belirteçleri damgayla düşer; işlemi yapan cihaz yenisini alır (saldırı sürerken
             // şifresini değiştiren editör kendi cihazından yeniden girebilir).
@@ -41,15 +50,22 @@ public static class EditorGuvenligi
             return Results.NoContent();
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
-        app.MapPost("/api/auth/kurtarma-kodu", (KurtarmaOlustur dto, KasaDbContext db, IConfiguration cfg) =>
+        app.MapPost("/api/auth/kurtarma-kodu", (KurtarmaOlustur dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
         {
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
-            if (!Dogrula(dto.MevcutSifre, cfg, kayit)) return MevcutSifreHatali();
+            if (!Dogrula(dto.MevcutSifre, cfg, kayit))
+            {
+                GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretimiBasarisiz, cfg["Kasa:EditorKullanici"], varlikId: "1");
+                tx.Commit(); return MevcutSifreHatali();
+            }
             kayit = KayitOlustur(db, kayit);
             var kod = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
             kayit.KurtarmaHash = KodHash(kod);
-            db.SaveChanges(); tx.Commit();
+            db.SaveChanges();
+            // Kod yalnız yanıtta bir kez döner; olaya kod da özeti de yazılmaz. Olay yazılamazsa yeni kod kaydedilmez (zorunlu).
+            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretildi, cfg["Kasa:EditorKullanici"], new { oncekiKodGecersiz = true }, varlikId: "1", zorunlu: true);
+            tx.Commit();
             return Results.Ok(new { kod });
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
@@ -65,12 +81,16 @@ public static class EditorGuvenligi
             kayit!.SifreHash = SifreHasher.Hashle(dto.YeniSifre);
             kayit.KurtarmaHash = null;
             kayit.Surum++;
-            db.SaveChanges(); tx.Commit();
+            db.SaveChanges();
+            // Başarılı kurtarma değişiklikle aynı transaction'da yazılır (yazılamazsa şifre değişmez, kod geçerli kalır: zorunlu);
+            // başarısız deneme ve 429 giriş filtresinde.
+            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKullanildi, dto.Kullanici, new { oturumlarKapatildi = true }, varlikId: "1", zorunlu: true);
+            tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
             // Kurtarma kodu editör şifresi kadar güçlü bir kanıttır: kurtaran cihaz tanıdık cihaz olur.
             tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg));
             return Results.NoContent();
-        }).GirisSiniriUygula<SifreKurtar>(d => d.Kullanici);
+        }).GirisSiniriUygula<SifreKurtar>(d => d.Kullanici, kurtarma: true);
         return app;
     }
 
