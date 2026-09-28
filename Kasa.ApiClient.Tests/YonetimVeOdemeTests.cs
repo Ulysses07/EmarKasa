@@ -81,6 +81,18 @@ public class YonetimVeOdemeTests
         var eski = await c.YedekDurumuAsync();
         Assert.Null(eski.YedekDiskiBosAlanBayt); Assert.Null(eski.DiskUyarisi); Assert.Null(eski.BelgeUyarisi);
     }
+    [Fact] public async Task Yedek_durumu_son_geri_yukleme_raporunu_okur_eski_sunucuda_bos_kalir()
+    {
+        var h = new SahteHandler()
+            .Kuyrukla(HttpStatusCode.OK, "{\"otomatikEtkin\":true,\"sonYedek\":null,\"sonDogrulama\":null,\"hata\":null,\"sonGeriYukleme\":\"2026-09-28T10:15:00+00:00\",\"geriYuklemeRaporu\":[\"Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.\",\"Kurtarma kodu iptal edildi.\"]}")
+            .Kuyrukla(HttpStatusCode.OK, "{\"otomatikEtkin\":false,\"sonYedek\":null,\"sonDogrulama\":null,\"hata\":null}");
+        var c = Client(h);
+        var d = await c.YedekDurumuAsync();
+        Assert.Equal(new DateTimeOffset(2026, 9, 28, 10, 15, 0, TimeSpan.Zero), d.SonGeriYukleme);
+        Assert.Equal(new[] { "Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.", "Kurtarma kodu iptal edildi." }, d.GeriYuklemeRaporu);
+        var eski = await c.YedekDurumuAsync();
+        Assert.Null(eski.SonGeriYukleme); Assert.Null(eski.GeriYuklemeRaporu);
+    }
     [Fact] public async Task Belge_silme_gerekceyi_govdede_gonderir_gerekcesiz_govdesizdir_silinenler_sorgusu()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.NoContent).Kuyrukla(HttpStatusCode.NoContent)

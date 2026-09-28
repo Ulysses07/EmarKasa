@@ -8,10 +8,12 @@ public record SurumDto(string Surum, string MinimumIstemci, string? IndirmeAdres
 /// Disk alanları (bayt; okunamazsa ya da eski sunucuda null): yedek dizininin ve belge deposunun (veri) diskindeki boş alan, yedeklerin
 /// ve yedek aynasının toplam boyutu, yedekten sonra kalması gereken asgari boş alan. <see cref="DiskUyarisi"/>: boş alan asgarinin
 /// altında ya da toplam boyut sınırı aşıldı; <see cref="BelgeUyarisi"/>: son yedekte bulunamayan belge içerikleri.
+/// <see cref="SonGeriYukleme"/>, <see cref="GeriYuklemeRaporu"/>: son geri yüklemenin anı ve sunucunun açılışta yaptıklarıyla
+/// yapılması gerekenlerin Türkçe maddeleri; hiç geri yükleme olmadıysa ya da eski sunucuda null.
 /// Alanlar yeni sunucularda gelir, eski sunucuda boş kalır.</summary>
 public record YedekDurumuDto(bool OtomatikEtkin, DateTimeOffset? SonYedek, DateTimeOffset? SonDogrulama, string? Hata, string? RotasyonUyarisi = null,
     long? YedekDiskiBosAlanBayt = null, long? VeriDiskiBosAlanBayt = null, long? ToplamYedekBayt = null, long? AsgariBosAlanBayt = null,
-    string? DiskUyarisi = null, string? BelgeUyarisi = null);
+    string? DiskUyarisi = null, string? BelgeUyarisi = null, DateTimeOffset? SonGeriYukleme = null, IReadOnlyList<string>? GeriYuklemeRaporu = null);
 /// <summary>Alış belgesi. Yükleyen: rol ('editor'/'alici') ve görünen ad; eski belgelerde ve eski sunucuda null. Silinen belgeler yalnız
 /// editörün silinenleri de isteyen listesinde (<see cref="IYonetimApi.BelgelerAsync"/>) silen ve gerekçesiyle gelir.</summary>
 public record BelgeDto(int Id, int AlisId, int? OdemeId, string DosyaAdi, string IcerikTuru, long Boyut, DateTimeOffset Yuklendi,
