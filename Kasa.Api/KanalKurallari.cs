@@ -19,15 +19,16 @@ namespace Kasa.Api;
 ///   değişmez. Böylece kapatılmış ay sonradan açılınca raporu kapanıştakiyle aynı kalır. Kümeyi değiştirmeyenler serbesttir: ad,
 ///   pasif yeni kanal, aktif kanalların sırasını bozmayan sıra değişikliği, geçmişsiz pasif kanalı silme. Haftalık rapor kanal
 ///   satırlarını kimlik ve açılış devrinden hesaplar, aktiflik ve sırayı kullanmaz. Açılış devri takip başlangıcından itibaren her
-///   haftanın kanal devrini değiştirir: kilitte değişmez (yeni kanal açılış devri 0 ile eklenir). Pasife almanın yalnız ileriye
-///   dönük uygulanması (ay bazında Ortak kümesi) şema ve hesap motoru değişikliği ister; bu kurallar onu sağlamaz.
+///   haftanın kanal devrini değiştirir: kilitte değişmez (yeni kanal açılış devri 0 ile eklenir). Kilit varken aktif kanal
+///   eklemek ve pasife almayı yalnız ileriye dönük uygulamak, ay kapatılırken saklanan ve geçmiş ayın hesabında kullanılan bir
+///   Ortak kümesi (şema, göç ve hesap motoru değişikliği) ister; bu kurallar onu sağlamaz (ops-2'nin açık kalan kısmı).
 /// - Kilitli dönemin gelir satırını veritabanı tetikleyicisi hiç değiştirmez: kilit varken yeniden adlandırılan kanalın o satırı
 ///   kapanıştaki etiketi taşır. Bu eski ad, satır kilitli kaldıkça başka kanala verilmez (aynı dönemde iki kanal aynı adla gelir
 ///   tutamaz); ay açılınca etiket, kanal eklenirken ya da yeniden adlandırılırken kendi kanalının adına çekilir.
 /// </summary>
 internal static class KanalKurallari
 {
-    internal const string GecmisIletisi = "Geçmişi veya açılış bakiyesi olan kanal silinemez. Kanalı pasifleştirebilirsiniz.";
+    internal const string GecmisIletisi = "Geçmişi (kaydı, aylık gider şablonu ya da ekstre dağılımı) veya açılış bakiyesi olan kanal silinemez. Kanalı pasifleştirebilirsiniz.";
 
     private static DateOnly? KilitSonu(KasaDbContext db) => db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).SingleOrDefault();
 
@@ -144,9 +145,11 @@ internal static class KanalKurallari
         foreach (var g in db.Gelenler.Where(g => g.KanalId == kanalId && (son == null || g.DonemStart > son))) g.Kanal = ad;
     }
 
-    /// <summary>Kanal silinebilir mi: geçmişi (kimliğiyle ya da kimliksiz eski etiketle bağlı hareket, takip veya alış payı) ya da
-    /// açılış devri varsa ileti; yoksa null. Aylık gider şablonu ve ekstre dağılımı kaydetme kurallarında denetlenir. İleti pasife
-    /// almayı önerir; ay kilidi varken aktif kanal pasife alınamadığı (Ortak kümesi) için bunu da söyler.</summary>
+    /// <summary>Kanal silinebilir mi: geçmişi (kimliğiyle ya da kimliksiz eski etiketle bağlı hareket, takip, alış payı, aylık gider
+    /// şablonu ya da ekstre dağılımı) veya açılış devri varsa ileti; yoksa null. İleti pasife almayı önerir; ay kilidi varken aktif
+    /// kanal pasife alınamadığı (Ortak kümesi) için bunu da söyler. Çok kanallı aylık gider ve ekstre giderinin kaydı kanal kimliği
+    /// taşımaz, payları şablon revizyonunda ve ekstre kaydının dağılımındadır: bunlar da burada denetlenir; kaydetme kurallarındaki
+    /// aynı denetim (AyKilidiKurallari, EkstreKaynakKurallari) yalnız savunmadır, iletileri kilit durumuna göre değişmez.</summary>
     internal static string? SilmeEngeli(KasaDbContext db, KanalEntity kanal)
     {
         var (id, ad) = (kanal.Id, kanal.Ad);
@@ -156,7 +159,11 @@ internal static class KanalKurallari
             || db.Krediler.Any(k => k.KanalId == id || k.KanalId == null && k.Kanal == ad)
             || db.HesapHareketler.Any(h => h.KanalId == id)
             || FinansTakipServisi.KanalKullaniliyor(db, id)
-            || db.AlisDagilimlar.Any(d => d.KanalId == id);
+            || db.AlisDagilimlar.Any(d => d.KanalId == id)
+            || db.AylikGiderRevizyonlar.AsNoTracking().Select(r => r.DagilimJson).AsEnumerable()
+                .Any(j => FinansTakipServisi.Read<KanalPayYaz>(j).Any(p => p.KanalId == id))
+            || db.EkstreKayitlar.AsNoTracking().Select(k => k.DagilimJson).AsEnumerable()
+                .Any(j => FinansTakipServisi.Read<TakipKanalPayi>(j).Any(p => p.KanalId == id));
         if (!gecmisli) return null;
         return kanal.Aktif && KilitSonu(db) is not null
             ? GecmisIletisi + " Ancak ay kilidi varken aktif kanal pasife alınamaz: kapatılmış bir ay açıldığında Ortak gider payı değişirdi."

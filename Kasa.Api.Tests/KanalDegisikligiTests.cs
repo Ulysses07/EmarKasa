@@ -254,6 +254,41 @@ public class KanalDegisikligiTests
         Assert.Equal(haftalik, await c.GetStringAsync("/api/rapor/haftalik"));
     }
 
+    /// <summary>Yalnız çok kanallı ekstre dağılımında ya da aylık gider şablonunda kullanılan kanal (gideri kanal kimliği taşımaz):
+    /// silme engeli uçta öteki geçmişle aynı iletiyle döner ve kilit varken aktif kanalın pasife alınamadığını da söyler. Önceden
+    /// kaydetme kuralının iletisi döndü: ekstrede kilitte de 'pasife alınabilir', şablonda kilit yokken de kilit notu.</summary>
+    [Theory]
+    [InlineData("ekstre", false)]
+    [InlineData("ekstre", true)]
+    [InlineData("aylik gider", false)]
+    [InlineData("aylik gider", true)]
+    public async Task Yalniz_dagilimda_kullanilan_kanal_silinmez_ileti_kilitte_pasife_almanin_engelini_soyler(string kaynak, bool kilitli)
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var online = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
+        KanalPayYaz[] paylar = [new(1, 60m), new(online.Id, 40m)];
+        if (kaynak == "ekstre")
+        {
+            var belge = await EkstreBelgesi(f, c);
+            var istek = new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [new(1, Today, "Banka hareketi 1", 100m, "Gider", "Ozel", paylar)]);
+            var onizleme = await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{belge.Id}/onizleme", istek);
+            await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{belge.Id}/kaydet", istek with { OnizlemeOzeti = onizleme.OnizlemeOzeti, TekrarOnay = true });
+        }
+        else await Create(c, "Ozel", paylar);
+        if (kilitli) await AyKilidi(c, Old, ac: false);
+
+        using (var r = await c.DeleteAsync($"/api/kanallar/{online.Id}"))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+            var ileti = await Hata(r);
+            Assert.StartsWith("Geçmişi", ileti);
+            if (kilitli) Assert.Contains("ay kilidi varken aktif kanal pasife alınamaz", ileti);
+            else Assert.DoesNotContain("kilit", ileti);
+        }
+        using var scope = f.Services.CreateScope();
+        Assert.True(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Kanallar.Any(k => k.Id == online.Id));
+    }
+
     [Fact]
     public async Task Esik_tanimli_gecmissiz_kanal_esigiyle_birlikte_silinir_gecmisli_kanalin_esigi_kalir()
     {
