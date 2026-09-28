@@ -1749,6 +1749,22 @@ test('Ayarlar yedek bölümü disk alanlarını GB olarak ve sunucunun disk/belg
   for (const warning of [status.diskUyarisi, status.belgeUyarisi]) assert.equal(nodes.get('#view').find(node => node.textContent === warning).attributes.role, 'alert');
 });
 
+// Son geri yükleme (gap-geri-yukleme-durum-geri-sarma-1): Araçlar'ın yedek bölümü sunucunun raporunu (yapılanlar ve yapılacaklar)
+// madde madde gösterir; eski sunucu ya da hiç geri yükleme olmadıysa bölüm yok.
+test('Araçlar yedek bölümü son geri yüklemenin raporunu gösterir; eski sunucuda göstermez', async () => {
+  assert.equal(ui.restoreReport({ otomatikEtkin: true }), null);
+  assert.deepEqual(ui.restoreReport({ sonGeriYukleme: '2026-09-28T10:15:00Z', geriYuklemeRaporu: ['A', '', null, 'B'] }).items, ['A', 'B']);
+  const maddeler = ['Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.', 'Kurtarma kodu iptal edildi (yedekteki kod geçersiz): Güvenlik bölümünden yeni kurtarma kodu üretin.'];
+  const status = { otomatikEtkin: true, sonYedek: null, sonDogrulama: null, hata: null, sonGeriYukleme: '2026-09-28T10:15:00Z', geriYuklemeRaporu: maddeler };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: false }, '/api/yedek/durum': status, '/api/alicilar': [], '/api/kanallar': [] });
+  await app.navigate('tools');
+  const text = nodes.get('#view').textContent;
+  assert.match(text, /Son geri yükleme: /);
+  for (const madde of maddeler) assert.ok(nodes.get('#view').find(node => node.tag === 'li' && node.textContent === madde), madde);
+  delete status.sonGeriYukleme; delete status.geriYuklemeRaporu; await app.navigate('tools');
+  assert.doesNotMatch(nodes.get('#view').textContent, /Son geri yükleme/);
+});
+
 // Alış belgeleri (gap-denetim-izi-gozlemlenebilirlik-9): yükleyen görünür; kaldırma yumuşaktır, editör gerekçe vermeden kaldıramaz ve
 // gerekçe DELETE gövdesinde gider; kaldırılanlar editörün isteğiyle kaldıran ve gerekçesiyle listelenir.
 test('purchase documents show the uploader, editor removal needs a reason sent in the DELETE body and removed ones are listed on request', async () => {

@@ -253,6 +253,13 @@ export function backupDiskLines(status) {
   if (status?.toplamYedekBayt != null) lines.push(`Yedeklerin toplam boyutu: ${gigabytes(status.toplamYedekBayt)}`);
   return lines;
 }
+// Son geri yükleme (gap-geri-yukleme-durum-geri-sarma-1): sunucunun açılışta yaptıkları ve yapılması gerekenler (Türkçe maddeler).
+// Hiç geri yükleme olmadıysa ya da eski sunucu göndermezse null. Masaüstü (GuvenlikViewModel.GeriYuklemeSatirlari) ile aynı metin.
+export function restoreReport(status) {
+  if (!status?.sonGeriYukleme) return null;
+  const items = Array.isArray(status.geriYuklemeRaporu) ? status.geriYuklemeRaporu.filter(item => typeof item === 'string' && item.trim()) : [];
+  return { title: `Son geri yükleme: ${new Date(status.sonGeriYukleme).toLocaleString('tr-TR')}`, items };
+}
 // Ödemeye bağlanabilir gider sorgusu (webui-6): arama metni açıklama/notta aranır; metin tutar gibi de okunuyorsa ('2024' bir
 // fatura numarası da olabilir) tutar okuması aramaTutari olarak eklenir ve sunucu ikisinden birine uyan gideri döndürür.
 export function linkableExpensesPath(text = '', cursor = null) {
