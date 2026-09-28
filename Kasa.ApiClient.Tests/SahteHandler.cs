@@ -3,12 +3,19 @@ using System.Text;
 
 namespace Kasa.ApiClient.Tests;
 
-/// <summary>Son isteği kaydeden ve sıradaki canned yanıtı döndüren test handler'ı.</summary>
+/// <summary>Bütün istekleri sırasıyla kaydeden ve kuyruktaki canned yanıtları sırayla döndüren test handler'ı (tests-8).
+/// Kuyruk boşken gelen istek testin kurmadığı bir istektir: 200 uydurulmaz, <see cref="InvalidOperationException"/> ile
+/// test kırılır. Beklenmeyen ek istek ya da eksik yanıt böylece görünür; istek sayısı <see cref="Istekler"/> ile doğrulanır.</summary>
 public sealed class SahteHandler : HttpMessageHandler
 {
     private readonly Queue<HttpResponseMessage> _yanitlar = new();
-    public HttpRequestMessage? SonIstek { get; private set; }
-    public string? SonGovde { get; private set; }
+    private readonly List<(HttpRequestMessage Istek, string? Govde)> _istekler = new();
+    /// <summary>Gelen bütün istekler ve gövdeleri, geliş sırasıyla.</summary>
+    public IReadOnlyList<(HttpRequestMessage Istek, string? Govde)> Istekler => _istekler;
+    public HttpRequestMessage? SonIstek => _istekler.Count > 0 ? _istekler[^1].Istek : null;
+    public string? SonGovde => _istekler.Count > 0 ? _istekler[^1].Govde : null;
+    /// <summary>Henüz kullanılmamış kurgulanmış yanıt sayısı.</summary>
+    public int KalanYanit => _yanitlar.Count;
 
     public SahteHandler Kuyrukla(HttpStatusCode kod, string? json = null)
     {
@@ -27,8 +34,7 @@ public sealed class SahteHandler : HttpMessageHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
-        SonIstek = request;
-        SonGovde = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
-        return _yanitlar.Count > 0 ? _yanitlar.Dequeue() : new HttpResponseMessage(HttpStatusCode.OK);
+        _istekler.Add((request, request.Content is null ? null : await request.Content.ReadAsStringAsync(ct)));
+        return _yanitlar.Count > 0 ? _yanitlar.Dequeue() : throw new InvalidOperationException($"Beklenmeyen istek: {request.Method} {request.RequestUri}");
     }
 }
