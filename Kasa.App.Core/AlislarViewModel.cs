@@ -24,7 +24,6 @@ public partial class AlislarViewModel : TemelViewModel
     private int _bekleyenAlisId;
     private bool _yansitiliyor;
     private int _oturumSurumu = int.MinValue;
-    private int _islemNesli;
     /// <summary>Bağlanabilir giderlerin sonraki sayfa imleci ve onu üreten sorgunun (kırpılmış) arama metni.</summary>
     private string? _giderImleci;
     private string _giderImleciAramasi = "";
@@ -111,7 +110,7 @@ public partial class AlislarViewModel : TemelViewModel
     {
         if (_oturumSurumu == surum && EditorMu == editorMu) return;
         _oturumSurumu = surum;
-        Interlocked.Increment(ref _islemNesli);
+        Yurutucu.GecersizKil();
         Mesgul = false; VeriHazir = false; Hata = null; Mesaj = null;
         Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear();
         _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>(); _kartAdlari = new Dictionary<int, string>();
@@ -475,17 +474,9 @@ public partial class AlislarViewModel : TemelViewModel
         Mesaj = "Alıcı hesabı kaydedildi. Pasifleştirme veya şifre değişimi eski oturumu kapatır.";
     });
 
-    private async Task YurutAsync(Func<int, Task> islem)
-    {
-        if (Mesgul) return;
-        var nesil = Volatile.Read(ref _islemNesli);
-        Mesaj = null; Hata = null; Mesgul = true;
-        try { await islem(nesil); }
-        catch (Exception hata) { if (Gecerli(nesil)) Hata = HataMesaji(hata); }
-        finally { if (Gecerli(nesil)) Mesgul = false; }
-    }
-    public void BekleyenIslemleriGecersizKil() => Interlocked.Increment(ref _islemNesli);
-    private bool Gecerli(int nesil) => nesil == Volatile.Read(ref _islemNesli);
+    protected override void IletiyiTemizle() => Mesaj = null;
+    /// <summary>Oturum değişince (sayfa, <see cref="OturumuAyarla"/>'dan önce) bekleyen işleri eskitir; göstergeyi OturumuAyarla indirir.</summary>
+    public void BekleyenIslemleriGecersizKil() => Yurutucu.GecersizKil();
     private bool HataYaz(string mesaj) { Hata = mesaj; return false; }
     private void KalemDegisti(object? sender, PropertyChangedEventArgs e) { ToplamlariYenile(); KirliYap(); }
     private void ToplamlariYenile()

@@ -17,11 +17,23 @@ public partial class IslemlerViewModel : TemelViewModel
     public IslemlerViewModel(IKasaApi api, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null, TimeProvider? zaman = null)
     {
         _api = api; _auth = auth; _zaman = zaman ?? TimeProvider.System; GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
+        _listeHatti = new(Yurutucu); _kaynakHatti = new(Yurutucu); _gelenHatti = new(Yurutucu);
         if (auth is not null) auth.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(auth.OturumSurumu)) { GiderBenzerlik.Temizle(); Yeni(); GelenTemizle(); ListeTemizle(); }
+            if (e.PropertyName == nameof(auth.OturumSurumu)) OturumDegisti();
         };
     }
+
+    /// <summary>Oturum değişince bekleyen kayıt, liste ve gelir yanıtları eskir (sonuçları, hataları ve bitişleri yansımaz);
+    /// eskiyen kayıt göstergeyi indirmeyeceği için burada indirilir, önceki oturumun formu, listesi ve iletileri kalkar.</summary>
+    private void OturumDegisti()
+    {
+        Yurutucu.GecersizKil();
+        Mesgul = false; Hata = null;
+        GiderBenzerlik.Temizle(); Yeni(); GelenTemizle(); ListeTemizle();
+    }
+
+    protected override void IletiyiTemizle() => Mesaj = null;
 
     /// <summary>Belirli bir kanala ait olmayan ortak gider etiketi (motorla birebir eşleşmeli).</summary>
     public const string OrtakKanal = "Ortak";
@@ -77,10 +89,10 @@ public partial class IslemlerViewModel : TemelViewModel
     private bool _donemlerYenileniyor;
 
     // Liste durumu: yalnız en son başlatılan liste isteğinin sonucu, hatası ve bitişi ekrana yansır.
-    private int _listeIstekNo;
+    private readonly SonIstekHatti _listeHatti;
     // Kaynak (kanal, dönem, kart) durumu: yalnız en son başlatılan tam yüklemenin kaynakları uygulanır. Aradaki süzgeç
     // değişimi yalnız listeyi yeniler, kaynakları eskitmez; oturum değişimi eskitir.
-    private int _kaynakIstekNo;
+    private readonly SonIstekHatti _kaynakHatti;
     [ObservableProperty] private bool _listeYukleniyor;
     /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="TemelViewModel.Hata"/>'da kalır.</summary>
     [ObservableProperty] private string? _yuklemeHatasi;
@@ -170,15 +182,15 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <returns>Kaynaklar yüklendi mi (gelir formu ancak o zaman hazırlanır).</returns>
     private Task<bool> ListeyiYenile(bool tam = false)
     {
-        var yukleme = ListeYukleAsync(Interlocked.Increment(ref _listeIstekNo), tam ? Interlocked.Increment(ref _kaynakIstekNo) : null);
+        var yukleme = ListeYukleAsync(_listeHatti.Baslat(), tam ? _kaynakHatti.Baslat() : null);
         ListeYuklemesi = yukleme;
         return yukleme;
     }
 
-    /// <param name="kaynakIstek">Tam yüklemenin kaynak isteği numarası; yalnız liste isteniyorsa null.</param>
-    private async Task<bool> ListeYukleAsync(int istek, int? kaynakIstek)
+    /// <param name="kaynakIstek">Tam yüklemenin kaynak isteği bileti; yalnız liste isteniyorsa null.</param>
+    private async Task<bool> ListeYukleAsync(IstekBileti istek, IstekBileti? kaynakIstek)
     {
-        bool Guncel() => istek == Volatile.Read(ref _listeIstekNo);
+        bool Guncel() => _listeHatti.Guncel(istek);
         ListeYukleniyor = true; YuklemeHatasi = null; VeriVar = false;
         var kaynaklar = kaynakIstek is null;
         try
@@ -188,7 +200,7 @@ public partial class IslemlerViewModel : TemelViewModel
                 var (kanallar, donemler, kartlar) = await KaynaklariGetirAsync();
                 // Sonra başlayan tam yükleme ya da oturum değişimi varken eski kaynaklar uygulanmaz: yeni kanal, kart ve
                 // dönem listesini (ya da yeni oturumun ekranını) geç yanıt ezmez.
-                if (k != Volatile.Read(ref _kaynakIstekNo)) return false;
+                if (!_kaynakHatti.Guncel(k)) return false;
                 KaynaklariUygula(kanallar, donemler, kartlar); kaynaklar = true;
                 if (!Guncel()) return kaynaklar;
             }
@@ -226,7 +238,7 @@ public partial class IslemlerViewModel : TemelViewModel
     /// <summary>Oturum değişince bekleyen liste yanıtları uygulanmaz, önceki oturumun listesi ve iletileri kalkar.</summary>
     private void ListeTemizle()
     {
-        Interlocked.Increment(ref _listeIstekNo); Interlocked.Increment(ref _kaynakIstekNo);
+        _listeHatti.Birak(); _kaynakHatti.Birak();
         ListeyiBosalt();
         ListeYukleniyor = false; VeriVar = false; YuklemeHatasi = null; SonGuncelleme = null; Mesaj = null;
     }
@@ -438,20 +450,18 @@ public partial class IslemlerViewModel : TemelViewModel
     }
 
     [RelayCommand]
-    private Task KaydetAsync() => Mesgul ? Task.CompletedTask : CalistirAsync(async () =>
+    private Task KaydetAsync() => YurutAsync(async n =>
     {
-        Mesaj = null;
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
         if (!ParaAyristirici.GecerliMi(DuzenTutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (DuzenTip == GiderTipi.KrediKarti && DuzenKrediKartiId is null && !KartsizEskiKayit) { Hata = TakipliKartIletisi; return; }
-        var oturum = _auth?.OturumSurumu;
         var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
         var id = DuzenId;
         if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new("Gider", g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
-            () => _auth?.OturumSurumu == oturum && DuzenId == id && TakipMetni.Ayni(g, new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId)))) return;
+            () => Gecerli(n) && DuzenId == id && TakipMetni.Ayni(g, new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId)))) return;
         if (DuzenId == 0) await _api.IslemOlusturAsync(g with { IstekId = _giderAnahtari.Al(g) });
         else await _api.IslemGuncelleAsync(DuzenId, g);
-        if (_auth?.OturumSurumu != oturum) return;
+        if (!Gecerli(n)) return;
         // Liste yenilenemese de kayıt alınmıştır: başarı ayrı söylenir (liste hatası durum şeridinde), form temizlenir.
         Mesaj = (id == 0 ? "Gider kaydedildi" : "Gider güncellendi")
             + (SuzgecteGorunur(g.Tarih, g.Kanal) ? "." : $"; seçili süzgeç ({SuzgecMetni()}) dışında kaldığı için listede görünmüyor.");
@@ -462,13 +472,13 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand] private async Task GideriAyriKaydetAsync() { if (GiderBenzerlik.Onayla()) await KaydetAsync(); }
 
     [RelayCommand]
-    private Task SilAsync(IslemDto i) => CalistirAsync(async () =>
+    private Task SilAsync(IslemDto i) => YurutAsync(async n =>
     {
-        Mesaj = null;
         if (i.EkstreKayitId is not null) { Hata = "Ekstre kaydı buradan silinemez. Ekstre İçe Aktar bölümünden gerekçeyle iptal edin."; return; }
         if (i.AylikGiderOdemeId is not null) { Hata = "Aylık gider ödemesi buradan silinemez. Aylık Giderler bölümünden gerekçeyle iptal edin."; return; }
         if (i.AlisId is not null) { Hata = "Bu gider bir alış ödemesine bağlı; bu ekrandan silinemez. Alışlar ekranından kaydı inceleyin."; return; }
         await _api.IslemSilAsync(i.Id);
+        if (!Gecerli(n)) return;
         Mesaj = "Kayıt silindi.";
         await ListeyiYenile(tam: true);
     });

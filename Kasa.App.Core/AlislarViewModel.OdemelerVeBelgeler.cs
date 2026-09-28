@@ -89,7 +89,7 @@ public partial class AlislarViewModel
     public async Task<DosyaUyarisi?> BelgeEkleAsync(Func<Task<SecilenDosya?>> sec, int? odemeId)
     {
         if (Mesgul || _secili is null) return null;
-        var nesil = Volatile.Read(ref _islemNesli); var alisId = _secili.Id;
+        var nesil = Yurutucu.Nesil; var alisId = _secili.Id;
         bool SecimSuruyor() => Gecerli(nesil) && _secili?.Id == alisId;
         try
         {
