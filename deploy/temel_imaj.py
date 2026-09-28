@@ -1,7 +1,7 @@
 """Dockerfile'daki sabit temel imaj özetlerinin kayıtta çözüldüğünü ve güncel olduğunu denetler (devops-12).
 
 Her dış FROM satırı etiket + @sha256 özetiyle sabittir (biçimi Kasa.Api.Tests/DepoHijyeniTests de denetler). .NET,
-OpenSSL ve Debian yamaları ancak özet güncellenince imaja girer. Bu betik yalnız kayıt meta verisini okur
+OpenSSL ve işletim sistemi (Ubuntu 24.04) yamaları ancak özet güncellenince imaja girer. Bu betik yalnız kayıt meta verisini okur
 ('docker buildx imagetools inspect'), imaj indirmez: sabit özetin kayıtta bulunduğunu doğrular ve aynı ana sürüm
 etiketinin (ör. aspnet:10.0) güncel özetiyle karşılaştırır. CI'daki 'Pinned base images' işi ve sunucudaki güncelleme
 akışı (deploy/README.md "Güncelleme" 6. adım) aynı denetimi bu betikle yapar.

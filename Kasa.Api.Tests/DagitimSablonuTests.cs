@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Kasa.Api.Tests;
@@ -134,7 +135,7 @@ public class DagitimSablonuTests
     [Fact]
     public void Sunucuda_derlemeden_once_temel_imaj_ozetlerinin_tazeligi_denetlenir()
     {
-        // Özet sabit olduğundan .NET, OpenSSL ve Debian yamaları yalnız özet güncellenince gelir. Haftalık CI denetimi
+        // Özet sabit olduğundan .NET, OpenSSL ve işletim sistemi yamaları yalnız özet güncellenince gelir. Haftalık CI denetimi
         // varsayılan dala bağlıdır; bu yüzden README'nin derleme içeren her bölümünde deploy/temel_imaj.py derlemeden
         // önce çalışır ve eski özette akış durur.
         Assert.True(File.Exists(DeployDosyasi("temel_imaj.py")), "deploy/temel_imaj.py depoda olmalı.");
@@ -148,6 +149,47 @@ public class DagitimSablonuTests
             Assert.True(denetim >= 0 && denetim < b.IndexOf("build --pull kasa", StringComparison.Ordinal),
                 $"README '{b[..b.IndexOf('\n')].Trim()}': 'python3 temel_imaj.py' derlemeden önce çalışmıyor.");
         });
+    }
+
+    // devops-12: güvenlik duyuruları imajın gerçek dağıtımından izlenir. .NET 10'un dağıtım eki taşımayan aspnet etiketi
+    // (ör. 10.0.12) Ubuntu 24.04 (noble) tabanlıdır; imajın org.opencontainers.image.version etiketi 24.04'tür. Ekli bir
+    // etikete (-azurelinux3.0, -alpine, -bookworm-slim ...) ya da yeni ana sürüme geçilirse dağıtım yeniden denetlenir ve
+    // runbook'taki duyuru kaynağı bu testle birlikte güncellenir.
+    [Fact]
+    public void Guncel_belgeler_calisma_imajinin_isletim_sistemini_dogru_adlandirir()
+    {
+        var calisma = Regex.Match(File.ReadAllText(DepoDosyasi("Dockerfile")),
+            @"^FROM\s+mcr\.microsoft\.com/dotnet/aspnet:(?<etiket>\S+)@sha256:[0-9a-f]{64}\s+AS\s+runtime\s*$", RegexOptions.Multiline);
+        Assert.True(calisma.Success, "Dockerfile: 'FROM mcr.microsoft.com/dotnet/aspnet:<etiket>@sha256:<özet> AS runtime' satırı bulunamadı.");
+        Assert.True(Regex.IsMatch(calisma.Groups["etiket"].Value, @"^10\.0\.[0-9]+$"),
+            $"aspnet:{calisma.Groups["etiket"].Value} .NET 10'un varsayılan (Ubuntu 24.04) etiketi değil; imajın dağıtımını denetleyip "
+            + "docs/deploy/operasyon-runbook.md 'İşletim sistemi paket yamaları' bölümünü ve bu testi güncelleyin.");
+
+        foreach (var dosya in new[] { "Dockerfile", "deploy/README.md", "deploy/temel_imaj.py", "docs/deploy/operasyon-runbook.md" })
+            Assert.False(File.ReadAllText(DepoDosyasi(dosya)).Contains("Debian", StringComparison.OrdinalIgnoreCase),
+                $"{dosya}: çalışma imajı Ubuntu 24.04 tabanlı; 'Debian' yazan belge güvenlik duyurularını yanlış dağıtımda izletir.");
+        var runbook = File.ReadAllText(DepoDosyasi("docs/deploy/operasyon-runbook.md"));
+        Assert.Contains("Ubuntu 24.04", runbook);
+        Assert.Contains("https://ubuntu.com/security/notices?package=poppler", runbook);
+    }
+
+    // devops-9: VPS kaybında kayıp aralığı = uygulamanın yedek aralığı (~24 saat) + gönderim aralığı. Günde bir gönderimde
+    // en yeni uzak kopya ~48 saat eski olabilirdi; gönderim en çok 6 saat arayla çalışır (yeni dosya yoksa bir şey
+    // göndermez). Runbook'taki takvim denetimi ve cron alternatifi zamanlayıcıyla aynı saatleri anlatır.
+    [Fact]
+    public void Uzak_yedek_gonderimi_en_cok_alti_saat_arayla_calisir_ve_runbook_ayni_takvimi_anlatir()
+    {
+        var takvim = Assert.Single(YorumsuzSatirlar(DeployDosyasi("systemd/kasa-uzak-yedek.timer")).Select(s => s.Trim()),
+            s => s.StartsWith("OnCalendar=", StringComparison.Ordinal))["OnCalendar=".Length..];
+        var m = Regex.Match(takvim, @"^\*-\*-\* (?<saatler>[0-9]{2}(?:,[0-9]{2})*):(?<dakika>[0-9]{2}):00 Europe/Istanbul$");
+        Assert.True(m.Success, $"kasa-uzak-yedek.timer: 'OnCalendar={takvim}' beklenen '*-*-* SS,SS,...:DD:00 Europe/Istanbul' biçiminde değil.");
+        var saatler = m.Groups["saatler"].Value.Split(',').Select(s => int.Parse(s, CultureInfo.InvariantCulture)).Order().ToList();
+        var araliklar = saatler.Zip(saatler.Skip(1).Append(saatler[0] + 24), (once, sonra) => sonra - once).ToList();
+        Assert.All(araliklar, a => Assert.InRange(a, 1, 6));
+
+        var runbook = File.ReadAllText(DepoDosyasi("docs/deploy/operasyon-runbook.md"));
+        Assert.Contains($"systemd-analyze calendar '{takvim}'", runbook);
+        Assert.Contains($"{int.Parse(m.Groups["dakika"].Value, CultureInfo.InvariantCulture)} {string.Join(",", saatler)} * * * root", runbook);
     }
 
     // devops-9: sunucu dışı yedek zamanlayıcıları kaçan çalışmayı telafi eder (Persistent=true: sunucu o saatte kapalıysa

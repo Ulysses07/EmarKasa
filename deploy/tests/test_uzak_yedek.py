@@ -11,6 +11,7 @@ import io
 import json
 import os
 import py_compile
+import re
 import sqlite3
 import subprocess
 import sys
@@ -187,8 +188,10 @@ class AyarTests(unittest.TestCase):
 
     def test_varsayilanlar_ve_gecersiz_degerler(self):
         a = uy.ayarlari_oku({"KASA_DEPLOY_ENV": self.yok, "KASA_UZAK_HEDEF": "kasa-sifreli:yedekler"})
-        self.assertEqual(("rclone", True, 35, 13, 48, 80), (a.yontem, a.saklama, a.gunluk_gun, a.aylik_ay, a.en_fazla_saat, a.disk_esik))
+        self.assertEqual(("rclone", True, 35, 13, 48, 80, 5),
+                         (a.yontem, a.saklama, a.gunluk_gun, a.aylik_ay, a.en_fazla_saat, a.disk_esik, a.silme_en_fazla))
         for anahtar, deger in [("KASA_UZAK_GUNLUK_GUN", "0"), ("KASA_UZAK_AYLIK_AY", "on"), ("KASA_DISK_ESIK_YUZDE", "101"),
+                               ("KASA_UZAK_SILME_EN_FAZLA", "0"),
                                ("KASA_UZAK_SAKLAMA", "belki"), ("KASA_UZAK_YONTEM", "ftp"), ("KASA_UZAK_IZLEME_URL", "ftp://x")]:
             with self.assertRaisesRegex(uy.YapilandirmaHatasi, anahtar):
                 uy.ayarlari_oku({"KASA_DEPLOY_ENV": self.yok, "KASA_UZAK_HEDEF": "x:y", anahtar: deger})
@@ -324,6 +327,88 @@ class GonderTests(unittest.TestCase):
         self.assertIn("hedefte saklama silmesi yapılmadı (13 kopya korunuyor)", metin)
         self.assertIn("0 hedefte silindi", metin)
         self.assertTrue(set(gunluk) <= set(self.uzaktakiler()))
+
+    def test_saat_ileri_atlayip_uygulama_ileri_tarihli_yedek_alinca_hedefte_toplu_silme_yapilmaz(self):
+        # İnceleme senaryosu: hedefte 49 kopya (39 günlük, 10 aylık). Saat 400 gün ileri atlar; uygulama bir saat içinde
+        # "taze" görünen ileri tarihli bir otomatik yedek yazar, eski yedek denetimi geçer. Saklama kuralı hedefte
+        # yalnız en yeni 7'yi bırakırdı (43 kopya ve bütün aylık geçmiş silinirdi).
+        gunluk = [ad("oto-", SIMDI - timedelta(days=g, hours=1), g) for g in range(1, 40)]
+        aylik = [ad("oto-", datetime(2025 + (7 + i) // 12, (7 + i) % 12 + 1, 1, 3, tzinfo=timezone.utc), 100 + i) for i in range(10)]
+        for dosya in gunluk + aylik:
+            yedek_zip(self.uzak, dosya)
+        ileri = SIMDI + timedelta(days=400)
+        yeni = yedek_zip(self.yerel, ad("oto-", ileri - timedelta(hours=1), 999)).name
+        self.assertEqual(43, len(uy.silinecekler(gunluk + aylik + [yeni], ileri, 35, 13)))  # sınır olmasa silinecek olan
+
+        kod, metin = self.calistir(kuru=True, simdi=ileri)
+        self.assertEqual(1, kod)
+        self.assertNotIn("[kuru] hedefte silinecek", metin)
+
+        kod, metin = self.calistir(simdi=ileri)
+        self.assertEqual(1, kod)
+        self.assertIn("43 otomatik kopya", metin)
+        self.assertIn("KASA_UZAK_SILME_EN_FAZLA=5", metin)
+        self.assertIn("sistem saati", metin)
+        self.assertIn("0 hedefte silindi", metin)
+        self.assertEqual(sorted(gunluk + aylik + [yeni]), self.uzaktakiler())  # yeni kopya yine gönderilir
+        self.assertEqual(("https://izleme.example/ping/abc", False), self.bildirimler[-1])
+
+        kod, metin = self.calistir(simdi=ileri + timedelta(days=1))  # ertesi gün de silmez: sınır kendiliğinden açılmaz
+        self.assertEqual(1, kod)
+        self.assertIn("0 hedefte silindi", metin)
+        self.assertTrue(set(gunluk + aylik) <= set(self.uzaktakiler()))
+
+    def test_birikmis_otomatik_silmeler_sinir_acikca_yukseltilince_yapilir(self):
+        # Uzun kesinti ya da kısaltılan saklama süresi: saat doğru, silinecek otomatik kopya sayısı olağandan fazla.
+        # Varsayılan sınır silmeyi durdurur; operatör saati denetleyip bir kez daha yüksek sınırla çalıştırır.
+        yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 99))
+        uzakta = [yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(days=g, hours=2), g)).name for g in range(1, 46)]
+        beklenen = uy.silinecekler(uzakta, SIMDI, 35, 13)
+        self.assertGreater(len(beklenen), 5)
+
+        kod, metin = self.calistir()
+        self.assertEqual(1, kod)
+        self.assertIn("{} otomatik kopya".format(len(beklenen)), metin)
+        self.assertTrue(set(uzakta) <= set(self.uzaktakiler()))
+
+        kod, metin = self.calistir(KASA_UZAK_SILME_EN_FAZLA=str(len(beklenen)))
+        self.assertEqual(0, kod, metin)
+        self.assertFalse(set(beklenen) & set(self.uzaktakiler()))
+        self.assertTrue(set(uzakta) - set(beklenen) <= set(self.uzaktakiler()))
+
+    def test_elle_kopyalarin_sayiya_bagli_saklamasi_toplu_silme_sinirina_girmez(self):
+        # Elle kopyalarda en yeni 10'u kalır; sistem saatinden etkilenmez. Çok sayıda elle yedek olağan silmedir.
+        yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 1))
+        elle = [yedek_zip(self.uzak, ad("elle-", SIMDI - timedelta(days=2, hours=i), i), tur="elle").name for i in range(18)]
+        kod, metin = self.calistir()
+        self.assertEqual(0, kod, metin)
+        self.assertEqual(sorted(elle[:10]), sorted(a for a in self.uzaktakiler() if a.startswith("kasa-elle-")))
+
+    def test_ileri_tarihli_yedek_hata_verir_ve_hedefte_silme_yapilmaz(self):
+        # Saat ileri atlayıp sonra düzeltilmiş: uygulamanın ileri tarihli yedeği yerelde duruyor. Uygulama en yeni
+        # otomatik yedeği ileride gördükçe yeni yedek almaz; eski yedek denetimi (yaş negatif) bunu yakalamaz.
+        yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=20), 1))
+        ileride = yedek_zip(self.yerel, ad("oto-", SIMDI + timedelta(days=400), 2)).name
+        eskiler = [yedek_zip(self.uzak, ad("elle-", SIMDI - timedelta(days=200 + i), i), tur="elle").name for i in range(12)]
+
+        kod, metin = self.calistir()
+        self.assertEqual(1, kod)
+        self.assertIn("Yedek dizininde ileri tarihli yedek var: " + ileride, metin)
+        self.assertIn("hedefte saklama silmesi yapılmadı (2 kopya korunuyor)", metin)
+        self.assertTrue(set(eskiler + [ileride]) <= set(self.uzaktakiler()))  # doğrulanmış kopya yine gönderilir
+
+        # Operatör yerel kopyayı yedek dizininin dışına taşır; hedefteki kopya da ileri tarihlidir (doğrulamada en yeni
+        # sayılır, gönderim durunca bunu gizler) ve ayrı klasöre taşınana kadar hata sürer.
+        (self.yerel / ileride).rename(self.yerel.parent / ileride)
+        kod, metin = self.calistir()
+        self.assertEqual(1, kod)
+        self.assertIn("Hedefte ileri tarihli yedek var: " + ileride, metin)
+
+        (self.uzak / ileride).rename(self.yerel.parent / ("uzak-" + ileride))
+        yedek_zip(self.yerel, ad("oto-", SIMDI + timedelta(minutes=30), 3))  # bir saatlik pay içindeki saat farkı hata değil
+        kod, metin = self.calistir()
+        self.assertEqual(0, kod, metin)
+        self.assertEqual(sorted(eskiler[:10]), sorted(a for a in self.uzaktakiler() if a.startswith("kasa-elle-")))
 
     def test_saklama_disinda_kalacak_eski_yerel_yedek_gonderilmez(self):
         for g in range(7):  # en yeni 7 yedek yaşından bağımsız korunur; eski yedekler bu yedinin dışında kalsın
@@ -481,6 +566,22 @@ class DogrulaVeIndirTests(unittest.TestCase):
         self.assertEqual(1, kod)
         self.assertIn("saat önce", metin)
 
+    def test_ileri_tarihli_uzak_kopya_hata_verir_ve_dogrulamada_en_yeni_sayilmaz(self):
+        # Saat hatası döneminden kalan ileri tarihli kopya en yeni seçilseydi gönderim durduğunda yaş denetimi (negatif
+        # yaş) bunu gizlerdi. Seçim ve yaş denetimi ileri tarihli kopyaları saymaz; varlıkları ayrıca hatadır.
+        gecerli = yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(hours=5), 1)).name
+        ileride = yedek_zip(self.uzak, ad("oto-", SIMDI + timedelta(days=400), 2)).name
+        kod, metin = self.dogrula()
+        self.assertEqual(1, kod)
+        self.assertIn("Doğrulandı: " + gecerli, metin)
+        self.assertIn("Hedefte ileri tarihli yedek var: " + ileride, metin)
+
+        (self.uzak / gecerli).unlink()
+        yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(days=4), 3))
+        kod, metin = self.dogrula()
+        self.assertEqual(1, kod)
+        self.assertIn("saat önce", metin)
+
     def test_indir_dogrulanmis_kopyayi_yazar_ve_var_olan_dosyanin_uzerine_yazmaz(self):
         dosya = yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(hours=5), 2)).name
         with Sessiz():
@@ -496,6 +597,16 @@ class KomutSatiriTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             for betik in ("uzak_yedek.py", "restore_backup.py"):
                 py_compile.compile(str(DEPLOY / betik), cfile=str(Path(d) / (betik + "c")), doraise=True)
+
+    def test_iletilerin_gosterdigi_runbook_bolumleri_var(self):
+        # Hata iletisi operatörü runbook'taki bir bölüme yönlendirir; bölüm adı değişirse ileti boşa çıkmasın.
+        basliklar = [s.lstrip("#").strip() for s in (DEPLOY.parent / "docs/deploy/operasyon-runbook.md").read_text(encoding="utf-8").splitlines()
+                     if s.startswith("#")]
+        for betik in ("uzak_yedek.py", "temel_imaj.py"):
+            atiflar = re.findall(r"operasyon-runbook\.md ['\"]([^'\"]+)['\"]", (DEPLOY / betik).read_text(encoding="utf-8"))
+            self.assertTrue(atiflar, betik)
+            for bolum in atiflar:
+                self.assertTrue(any(b.startswith(bolum) for b in basliklar), "{}: runbook'ta '{}' bölümü yok".format(betik, bolum))
 
     def test_komut_satirindan_kuru_calistirma_hedefe_dokunmaz(self):
         with tempfile.TemporaryDirectory() as d:

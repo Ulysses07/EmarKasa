@@ -79,7 +79,7 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    ```
    İlk komut `required variable KASA_DATA_DIR is missing a value` hatası vermiyorsa ya da ikinci komutta farklı bir kaynak veya `/opt/kasa/deploy/kasa-data` görünüyorsa `up` çalıştırmayın. Kabuğunuzda `KASA_DATA_DIR` dışa aktarılmışsa ilk komut hata vermez; önce `unset KASA_DATA_DIR KASA_BACKUP_DIR` çalıştırın. `config` çıktısının tamamı sırları da içerdiğinden yalnız `grep` ile süzülmüş satırları paylaşın.
 
-   `temel_imaj.py` her temel imaj için "güncel" yazıp 0 ile çıkmalıdır. Dockerfile'daki özetler sabit olduğundan .NET, OpenSSL ve Debian yamaları ancak özet güncellenince gelir:
+   `temel_imaj.py` her temel imaj için "güncel" yazıp 0 ile çıkmalıdır. Dockerfile'daki özetler sabit olduğundan .NET, OpenSSL ve işletim sistemi (çalışma imajı Ubuntu 24.04 tabanlı) yamaları ancak özet güncellenince gelir:
    - `ESKİ:` satırı ve çıkış kodu 1: yayımlanacak commit, yama almamış eski bir temel imaja sabitli. Derlemeyin. Özeti geliştirme makinesinde [operasyon runbook'u](../docs/deploy/operasyon-runbook.md) "Özet güncelleme" adımlarıyla güncelleyip commit'leyin, akışı o commit'le 5. adımdan yineleyin. Acil bir düzeltme bilerek eski özetle yayımlanırsa bunu yayın manifestine not edin; özet güncellemesini hemen ardından ayrı bir yayınla yapın.
    - `HATA:` satırı ve çıkış kodu 2: özet sabitlenmemiş, kayıtta çözülemedi ya da `docker buildx` çalışmadı (`docker buildx version`). Nedeni giderilmeden derlemeyin.
 7. İmajı derleyin, ardından başlatın:

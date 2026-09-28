@@ -1,4 +1,4 @@
-# Haftalık geri açma doğrulaması (pazar sabahı, günlük gönderimden sonra). Persistent=true: kaçan çalışma telafi edilir.
+# Haftalık geri açma doğrulaması (pazar sabahı, 04:30 gönderiminden sonra). Persistent=true: kaçan çalışma telafi edilir.
 [Unit]
 Description=Kasa sunucu dışı yedek doğrulaması (haftalık)
 

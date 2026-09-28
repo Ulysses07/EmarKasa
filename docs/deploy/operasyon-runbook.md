@@ -9,7 +9,7 @@ Komutlar aksi yazılmadıkça VPS'te root yetkisiyle çalıştırılır. Yer tut
 Dockerfile'daki iki temel imaj (`mcr.microsoft.com/dotnet/sdk`, `mcr.microsoft.com/dotnet/aspnet`) etiket + `@sha256` özetiyle sabittir:
 
 - Aynı Dockerfile her makinede aynı temel imajla derlenir; sunucuda önbellekte kalmış eski bir imaj kullanılmaz.
-- .NET çalışma zamanı, OpenSSL ve işletim sistemi paketlerinin yamaları kendiliğinden gelmez; özet aşağıdaki adımla bilinçli güncellenir.
+- .NET çalışma zamanı, OpenSSL ve işletim sistemi (Ubuntu 24.04) paketlerinin yamaları kendiliğinden gelmez; özet aşağıdaki adımla bilinçli güncellenir.
 - Sunucuda derleme her zaman `build --pull` ile, başlatma ayrı adımda yapılır ([deploy/README.md](../../deploy/README.md) "Güncelleme" 7. adım):
   ```sh
   docker compose -f docker-compose.nginx.yml build --pull kasa
@@ -42,7 +42,18 @@ Geliştirme makinesinde, depo kökünde:
 
 ### İşletim sistemi paket yamaları (poppler-utils)
 
-`poppler-utils` (güvenilmeyen PDF ekstrelerini ayrıştırır) Dockerfile'da sürümsüz kurulur; kurulum katmanı temel imaj özeti değişene kadar derleme önbelleğinden gelir. Paket yamalarını özet güncellemesini beklemeden almak için ayda bir ve imajın işletim sistemi dağıtımı poppler için güvenlik duyurusu yayımladığında sunucudaki güncelleme akışı önbelleksiz derlemeyle yürütülür: [deploy/README.md](../../deploy/README.md) "Güncelleme" 1–8, 7. adım şu biçimde:
+`poppler-utils` (güvenilmeyen PDF ekstrelerini ayrıştırır) Dockerfile'da sürümsüz kurulur; kurulum katmanı temel imaj özeti değişene kadar derleme önbelleğinden gelir.
+
+Çalışma imajı (`aspnet:10.0.<yama>`, dağıtım eki olmayan etiket) **Ubuntu 24.04 (noble)** tabanlıdır; paket güvenlik duyuruları Ubuntu Security Notices'ten izlenir: <https://ubuntu.com/security/notices?package=poppler> (sürüm olarak 24.04 LTS'e bakın). Dağıtım, özet ya da etiket değişince yeniden denetlenir. Yalnız kayıt meta verisi okunur:
+
+```sh
+docker buildx imagetools inspect mcr.microsoft.com/dotnet/aspnet:<etiket> \
+  --format '{{ json (index .Image "linux/amd64").Config.Labels }}'
+```
+
+Çıktıda `"org.opencontainers.image.version": "24.04"` görünmelidir. Farklıysa bu bölümdeki duyuru kaynağını ve `Kasa.Api.Tests/DagitimSablonuTests` içindeki dağıtım testini birlikte güncelleyin.
+
+Paket yamalarını özet güncellemesini beklemeden almak için ayda bir ve 24.04 için yeni bir poppler duyurusu çıktığında sunucudaki güncelleme akışı önbelleksiz derlemeyle yürütülür: [deploy/README.md](../../deploy/README.md) "Güncelleme" 1–8, 7. adım şu biçimde:
 
 ```sh
 docker compose -f docker-compose.nginx.yml build --pull --no-cache kasa
@@ -58,7 +69,8 @@ Uygulama her gün otomatik yedek alır ve `KASA_BACKUP_DIR`'e yazar; bu dizin ca
 - Yalnız servisin ad kalıbına uyan ZIP'ler (`kasa-oto-*`, `kasa-elle-*`, `kasa-goc-oncesi-*`, 2.3 öncesi `kasa-*`) ve yalnız manifest SHA-256 özeti `kasa.db` ile eşleşenler gönderilir. Özeti tutmayan (bozuk, yarım) yedek gönderilmez, hata olarak bildirilir. `.part` dosyalarına ve başka adlara dokunulmaz.
 - Hedefte aynı adla dosya varsa üzerine yazılmaz (`rclone copyto --immutable`); gönderimden sonra hedefteki boyut denetlenir.
 - Hedefte saklama: otomatik yedeklerde son 35 günün hepsi, son 13 takvim ayının (İstanbul) ilk yedeği ve her durumda en yeni 7; elle yedeklerden en yeni 10; göç öncesi yedekler hiç silinmez. Kural sunucudakiyle aynıdır, süreler daha uzundur (`KASA_UZAK_GUNLUK_GUN`, `KASA_UZAK_AYLIK_AY`). Hedefteki saklamanın dışında kalacak eski yerel yedek gönderilmez.
-- Hedefte silme yalnız hatasız çalışmada yapılır. Gönderim, doğrulama ya da boyut hatası varsa ya da en yeni yerel otomatik yedek eski görünüyorsa (uygulamanın yedeği durmuş ya da sistem saati ileri kaymış) hiçbir uzak kopya silinmez. Bu durum da hata olarak bildirilir. Silinecekler hata giderildikten sonraki ilk hatasız çalışmada silinir.
+- Hedefte silme yalnız hatasız çalışmada yapılır. Gönderim, doğrulama ya da boyut hatası varsa, en yeni yerel otomatik yedek eski görünüyorsa (uygulamanın yedeği durmuş ya da sistem saati az önce ileri atlamış) ya da yerelde veya hedefte ileri tarihli bir yedek varsa o çalışmada hiçbir uzak kopya silinmez. Bu durum da hata olarak bildirilir; silinecekler hata giderildikten sonraki ilk hatasız çalışmada silinir.
+- Eski yedek denetimi saat ileri atladığında yalnız uygulamanın bir sonraki saatlik yedek denetimine kadar korur: uygulama yeni saate göre "taze" bir yedek yazınca denetim geçer. Bu yüzden tek çalışmada hedefte en çok `KASA_UZAK_SILME_EN_FAZLA` (varsayılan 5) otomatik kopya silinir; fazlası gerekiyorsa hiçbiri silinmez ve hata bildirilir. Sınır kendiliğinden açılmaz. Ayrıntı ve yapılacaklar: aşağıda "Saat hatası ve toplu silme sınırı".
 - Uzak hedef rclone `crypt` uzağı olmalıdır; şifresiz uzak reddedilir (bilerek `KASA_UZAK_SIFRESIZ=evet` yazılmadıkça).
 - En yeni yerel otomatik yedek 48 saatten eskiyse (uygulamanın günlük yedeği durmuşsa) ve yedek ya da veri diski %80 dolduysa hata verir.
 - Sonuç izleme adresine bildirilir. Haftalık doğrulama en yeni uzak kopyayı indirip [`restore_backup.py`](../../deploy/restore_backup.py) ile geçici dizinde geri açarak sınar.
@@ -119,7 +131,7 @@ Beklenen: `[kuru] gönderilecek: kasa-oto-...` satırları ve `Özet (kuru): ...
 ```sh
 cd /opt/kasa/deploy/systemd
 sudo install -m 644 kasa-uzak-yedek.service kasa-uzak-yedek.timer kasa-uzak-dogrula.service kasa-uzak-dogrula.timer /etc/systemd/system/
-sudo systemd-analyze calendar '*-*-* 04:30:00 Europe/Istanbul'
+sudo systemd-analyze calendar '*-*-* 04,10,16,22:30:00 Europe/Istanbul'
 sudo systemd-analyze verify /etc/systemd/system/kasa-uzak-yedek.service /etc/systemd/system/kasa-uzak-dogrula.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now kasa-uzak-yedek.timer kasa-uzak-dogrula.timer
@@ -128,7 +140,7 @@ journalctl -u kasa-uzak-yedek.service -n 50 --no-pager
 systemctl list-timers 'kasa-uzak-*'
 ```
 
-- Günlük gönderim 04:30, haftalık doğrulama pazar 05:30 (İstanbul). `Persistent=true`: sunucu o saatte kapalıysa açılışta çalışır. Elle çalıştırma için de `systemctl start` kullanın; zamanlayıcıyla aynı anda iki kopya çalışmaz.
+- Gönderim 6 saatte bir (04:30, 10:30, 16:30, 22:30), haftalık doğrulama pazar 05:30 (İstanbul). Uygulama otomatik yedeği ~24 saatte bir alır; yeni yedek en geç ~6 saat içinde uzağa gider. Yeni dosya olmayan çalışma bir şey göndermez, yalnız denetler. `Persistent=true`: sunucu o saatte kapalıysa açılışta çalışır. Elle çalıştırma için de `systemctl start` kullanın; zamanlayıcıyla aynı anda iki kopya çalışmaz.
 - `systemd-analyze calendar` saat dilimini tanımıyorsa (eski systemd) iki `.timer` dosyasındaki `Europe/Istanbul` kaldırılır; saat sunucunun saat dilimine göre yorumlanır.
 - Birimler `/opt/kasa` altından kopyalanır. Yayınlar `uzak_yedek.py`'yi günceller; birim dosyaları değiştiğinde bu adım yinelenir.
 - Doğrulama: ertesi gün `sudo rclone ls kasa-sifreli:yedekler` yeni `kasa-oto-` dosyasını listeler.
@@ -137,16 +149,43 @@ systemd yoksa cron (dosya LF satır sonuyla yazılır, sahibi root, izin 644):
 
 ```
 # /etc/cron.d/kasa-uzak-yedek
-30 4 * * * root set -a; . /etc/kasa/uzak-yedek.env; set +a; /usr/bin/python3 /opt/kasa/deploy/uzak_yedek.py gonder 2>&1 | logger -t kasa-uzak-yedek
+30 4,10,16,22 * * * root set -a; . /etc/kasa/uzak-yedek.env; set +a; /usr/bin/python3 /opt/kasa/deploy/uzak_yedek.py gonder 2>&1 | logger -t kasa-uzak-yedek
 30 5 * * 0 root set -a; . /etc/kasa/uzak-yedek.env; set +a; /usr/bin/python3 /opt/kasa/deploy/uzak_yedek.py dogrula 2>&1 | logger -t kasa-uzak-yedek
 ```
 
 ### 6. İzleme
 
-- healthchecks.io (ya da kurum içi eşdeğeri) üzerinde iki denetim açın: "Kasa uzak yedek" (periyot 1 gün, tolerans 6 saat) ve "Kasa uzak yedek doğrulama" (periyot 7 gün, tolerans 1 gün); bildirim kanalı e-posta ya da Telegram. Adresleri `KASA_UZAK_IZLEME_URL` ve `KASA_UZAK_DOGRULA_IZLEME_URL`'ye yazın. Betik başarıda adrese, hatada adres + `/fail`'e istek atar. Hiç çalışmazsa (sunucu kapalı, zamanlayıcı bozuk) denetim süre aşımıyla uyarır.
-- Hata sayılanlar: doğrulanamayan yerel yedek; listeleme, gönderme ya da silme hatası; gönderimden sonra hedefte doğru boyutla görünmeyen ya da yereldekinden farklı boyutta duran kopya; 48 saatten eski en yeni otomatik yedek (`KASA_YEDEK_EN_FAZLA_SAAT`); bu hatalardan biri yüzünden atlanan hedef saklama silmesi; %80 dolu yedek ya da veri diski (`KASA_DISK_ESIK_YUZDE`). Doğrulamada ayrıca geri açılamayan ya da 48 saatten eski en yeni uzak kopya.
+- healthchecks.io (ya da kurum içi eşdeğeri) üzerinde iki denetim açın: "Kasa uzak yedek" (periyot 6 saat, tolerans 2 saat) ve "Kasa uzak yedek doğrulama" (periyot 7 gün, tolerans 1 gün); bildirim kanalı e-posta ya da Telegram. Adresleri `KASA_UZAK_IZLEME_URL` ve `KASA_UZAK_DOGRULA_IZLEME_URL`'ye yazın. Betik başarıda adrese, hatada adres + `/fail`'e istek atar. Hiç çalışmazsa (sunucu kapalı, zamanlayıcı bozuk) denetim süre aşımıyla uyarır.
+- Hata sayılanlar: doğrulanamayan yerel yedek; listeleme, gönderme ya da silme hatası; gönderimden sonra hedefte doğru boyutla görünmeyen ya da yereldekinden farklı boyutta duran kopya; 48 saatten eski en yeni otomatik yedek (`KASA_YEDEK_EN_FAZLA_SAAT`); yerelde ya da hedefte bir saatten fazla ileri tarihli yedek; tek çalışmada `KASA_UZAK_SILME_EN_FAZLA`'dan (varsayılan 5) fazla otomatik kopyanın silinecek olması; bu hatalardan biri yüzünden atlanan hedef saklama silmesi; %80 dolu yedek ya da veri diski (`KASA_DISK_ESIK_YUZDE`). Doğrulamada ayrıca geri açılamayan ya da 48 saatten eski en yeni uzak kopya ve hedefteki ileri tarihli kopya (en yeni sayılmaz).
 - Kalıcı bir hata, giderilene kadar hedefte saklamayı durdurur ve uzak depo büyür. Örneğin özeti tutmayan yerel yedek her çalışmada yeniden hata verir. Böyle bir dosyayı inceleyin, çünkü disk hatası belirtisi olabilir. Sonra silmeden yedek dizininin dışına taşıyın.
 - Ayrıntı: `journalctl -u kasa-uzak-yedek.service -n 100 --no-pager` (doğrulama için `kasa-uzak-dogrula.service`).
+
+#### Saat hatası ve toplu silme sınırı
+
+Otomatik yedeklerin saklaması yaşa bağlıdır ve yaş sistem saatiyle hesaplanır. Saat ileri atlarsa (yanlış NTP kaynağı, sanal makinenin anlık görüntüden geri dönmesi vb.) kural bütün eski kopyaları süresi dolmuş görür; engellenmezse hedefte yalnız en yeni 7 kopya kalır ve aylık geçmiş gider. Uygulamanın yerel saklaması da yaşa bağlıdır: saat ileride kaldıkça uygulama yerel geçmişi de siler. Bu durumda geçmişin korunduğu yer uzak hedeftir. Betiğin üç koruması vardır; üçü de hata bildirir ve o çalışmada hiçbir uzak kopya silinmez:
+
+- **Eski yerel yedek.** Saat 48 saatten fazla ileri atladıktan hemen sonra en yeni yerel otomatik yedek eşikten eski görünür. Bu koruma yalnız uygulamanın bir sonraki saatlik denetimine kadar sürer: uygulama yeni saate göre "taze" (gerçekte ileri tarihli) bir yedek yazınca denetim geçer.
+- **Toplu silme sınırı.** Tek çalışmada hedefte `KASA_UZAK_SILME_EN_FAZLA`'dan (varsayılan 5) fazla otomatik kopya silinecekse hiçbiri silinmez. Olağan çalışmada günde 1–2 otomatik kopya düşer; 400 günlük bir atlamada ise 49 kopyadan 43'ü düşerdi. Sınır kendiliğinden açılmaz: saat düzelene ya da operatör bir kez açıkça yükseltene kadar her çalışma hata verir. Elle kopyaların saklaması sayıya bağlıdır (en yeni 10), saatten etkilenmez ve sınıra girmez.
+- **İleri tarihli yedek.** Saat düzeltildikten sonra o arada yazılmış yedekler bir saatten fazla ileri tarihli görünür. Uygulama en yeni otomatik yedeği ileride gördükçe yeni otomatik yedek almaz ve bunu yaş denetimi yakalamaz; betik ileri tarihli yedeği yerelde ya da hedefte gördüğünde hata verir. Doğrulama ileri tarihli uzak kopyayı en yeni saymaz.
+
+Hata bildirildiğinde:
+
+1. Saati denetleyin: `timedatectl` (`System clock synchronized: yes` olmalı) ve `date -u`. Saat yanlışsa önce NTP eşitlemesini düzeltin. Saat yanlışken hiçbir yedeği silmeyin ve sınırı yükseltmeyin.
+2. İleri tarihli yerel yedekleri silmeden yedek dizininin dışına taşıyın ve uygulamayı yeniden başlatın. Uygulama son otomatik yedeğin zamanını bellekte de tutar; yeniden başlatılmadan yeni yedek almaz. Adları hata iletisi ve `ls <KASA_BACKUP_DIR>` verir (addaki zaman UTC):
+   ```sh
+   sudo install -d -m 700 /root/kasa-ileri-tarihli
+   sudo mv <KASA_BACKUP_DIR>/<ileri-tarihli-ad> /root/kasa-ileri-tarihli/
+   cd /opt/kasa/deploy && docker compose -f docker-compose.nginx.yml restart kasa
+   ```
+3. Hedefteki ileri tarihli kopyaları silmeden ayrı bir klasöre taşıyın. Betik yalnız `KASA_UZAK_HEDEF` klasörünü listeler, taşınan kopyalar saklamaya ve doğrulamaya girmez:
+   ```sh
+   sudo rclone moveto kasa-sifreli:yedekler/<ileri-tarihli-ad> kasa-sifreli:ileri-tarihli/<ileri-tarihli-ad>
+   ```
+4. Saat doğruysa ve silinecekler gerçekten birikmişse (birkaç günlük kesinti, ya da `KASA_UZAK_GUNLUK_GUN` / `KASA_UZAK_AYLIK_AY` kısaltıldıysa) önce kuru çalıştırmayla silinecek kopyaların listesini inceleyin, sonra bir kez yüksek sınırla çalıştırın. `<n>` hata iletisindeki sayıdır. Zamanlayıcının çalışma saatleri (04:30, 10:30, 16:30, 22:30) dışında çalıştırın. Sınırı ayar dosyasında kalıcı olarak yükseltmeyin:
+   ```sh
+   sudo sh -c 'set -a; . /etc/kasa/uzak-yedek.env; set +a; KASA_UZAK_SILME_EN_FAZLA=<n> python3 /opt/kasa/deploy/uzak_yedek.py gonder --kuru'
+   sudo sh -c 'set -a; . /etc/kasa/uzak-yedek.env; set +a; KASA_UZAK_SILME_EN_FAZLA=<n> python3 /opt/kasa/deploy/uzak_yedek.py gonder'
+   ```
 
 ### 7. Uzak kopyadan geri dönüş
 
@@ -168,7 +207,7 @@ A: sunucu çalışıyor, yerel yedekler kayıp ya da bozuk. B: VPS tamamen kayı
    sudo python3 /opt/kasa/deploy/restore_backup.py /root/kasa-geri/<ad> --output <yeni-veri-dizini>/kasa.db
    ```
 5. Uygulamayı yeni dizinle açın: `deploy/.env`'de `KASA_DATA_DIR=<yeni-veri-dizini>`; ardından A'da [deploy/README.md](../../deploy/README.md) "Güncelleme" 6–8, B'de "İlk kurulum" 5–7. A'da eski veri dizinini silmeyin, kenarda tutun. Yedek daha eski bir şemadaysa uygulama açılışta göç öncesi yedek alıp migration'ları uygular ([database-upgrade.md](database-upgrade.md)).
-6. `/health`, giriş, panel ve son dönem raporlarını kontrol edin. Yedeğin alındığı andan sonraki kayıtlar yedekte yoktur (en çok ~1 gün); kullanıcılara bildirip bu aralığı yeniden girdirin.
+6. `/health`, giriş, panel ve son dönem raporlarını kontrol edin. Yedeğin alındığı andan sonraki kayıtlar yedekte yoktur. Uzak kopyadan dönüşte kayıp aralığı en yeni uzak kopyanın yaşıdır: uygulama yedeği saatlik denetimle 24–25 saatte bir alır, gönderim 6 saatte bir (en çok 15 dakika rastgele gecikmeyle) çalışır, bu yüzden aralık olağan durumda en çok ~31 saattir. Gönderim bir süredir hata veriyorsa aralık daha uzundur; esas olan 2. adımdaki `listele` çıktısındaki zamandır (UTC). Kullanıcılara bu aralığı bildirip kayıtları yeniden girdirin. Riskli bir işlemden (sürüm güncellemesi, toplu içe aktarma) önce uygulamada elle yedek alıp `sudo systemctl start kasa-uzak-yedek.service` ile hemen gönderirseniz aralık dakikalara iner.
 7. Geri dönüşü, kullanılan yedeği ve kaybedilen aralığı 8. bölümdeki tabloya yazın.
 
 ### 8. Geri yükleme tatbikatı

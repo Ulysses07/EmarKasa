@@ -2,8 +2,9 @@
 
 Uygulama günlük ve elle alınan yedekleri canlı veritabanıyla aynı diske (KASA_BACKUP_DIR) yazar; VPS kaybında
 ikisi birlikte gider. Bu betik yedek dizinindeki ZIP'lerden yalnız manifest SHA-256 özeti doğrulananları uzak hedefe
-kopyalar, hedefte saklama kuralını uygular (yalnız hatasız çalışmada), uygulamanın yedek almayı bırakıp bırakmadığını
-ve disk doluluğunu denetler, sonucu isteğe bağlı bir izleme adresine ("ölü adam anahtarı", ör. healthchecks.io) bildirir.
+kopyalar, hedefte saklama kuralını uygular (yalnız hatasız çalışmada ve tek çalışmada en çok KASA_UZAK_SILME_EN_FAZLA
+otomatik kopya), uygulamanın yedek almayı bırakıp bırakmadığını, ileri tarihli yedekleri (sistem saati hatası) ve disk
+doluluğunu denetler, sonucu isteğe bağlı bir izleme adresine ("ölü adam anahtarı", ör. healthchecks.io) bildirir.
 
 Kimlik bilgisi depoda ve bu betikte yoktur: uzak depo ve şifreleme ('crypt') rclone yapılandırmasındadır
 (/root/.config/rclone/rclone.conf, izin 600). Ayarlar ortam değişkenidir; sunucuda /etc/kasa/uzak-yedek.env
@@ -17,8 +18,8 @@ Komutlar:
   python3 uzak_yedek.py indir AD --cikti DIZIN   uzak kopyayı indirir, manifest özetini doğrular
   python3 uzak_yedek.py dogrula                  en yeni uzak kopyayı geçici dizine indirip restore_backup.py ile açar
 
-Çıkış kodu: 0 başarılı; 1 işlem hatası (doğrulanamayan yedek, gönderme/silme hatası, eski yedek, disk eşiği);
-2 yapılandırma hatası.
+Çıkış kodu: 0 başarılı; 1 işlem hatası (doğrulanamayan yedek, gönderme/silme hatası, eski ya da ileri tarihli yedek,
+toplu silme sınırı, disk eşiği); 2 yapılandırma hatası.
 Sınama: python3 -m unittest discover -s deploy/tests
 """
 from __future__ import annotations
@@ -52,6 +53,10 @@ except Exception:  # Python 3.8 ya da tzdata yok: Türkiye 2016'dan beri sabit U
 OTOMATIK_EN_AZ = 7
 ELLE_EN_FAZLA = 10
 VARSAYILAN_DEPLOY_ENV = "/opt/kasa/deploy/.env"
+# Yedek adındaki UTC zaman uygulamanın, betiği çalıştıran makineyle aynı saatinden gelir; bundan fazla ileride adlanmış
+# yedek saat hatası belirtisidir.
+ILERI_PAY = timedelta(hours=1)
+_SAAT_BOLUMU = 'docs/deploy/operasyon-runbook.md "Saat hatası ve toplu silme sınırı"'
 
 # YedekSaklama ve restore_backup.py ile aynı ad kalıbı; zaman UTC. '.part' (yazılmakta olan), gizli geçici
 # dosyalar ve operatörün koyduğu başka adlar yedek sayılmaz, hedefte de hiç silinmez.
@@ -118,6 +123,19 @@ def silinecekler(adlar: Iterable[str], simdi: datetime, gunluk_gun: int, aylik_a
     return sorted([y.ad for y in elle[ELLE_EN_FAZLA:]] + [y.ad for y in otomatik if y.ad not in tut])
 
 
+def ileri_tarihliler(adlar: Iterable[str], simdi: datetime) -> List[Yedek]:
+    """Adındaki zaman sistem saatinden ILERI_PAY'dan fazla ileride olan yedekler, eskiden yeniye."""
+    return sorted((y for y in map(tani, set(adlar)) if y is not None and y.zaman - simdi > ILERI_PAY),
+                  key=lambda y: (y.zaman, y.ad))
+
+
+def _ileri_tarihli_iletisi(yer: str, ileride: Sequence[Yedek], simdi: datetime, oneri: str) -> str:
+    adlar = ", ".join(y.ad for y in ileride[:3]) + (" ve {} başka".format(len(ileride) - 3) if len(ileride) > 3 else "")
+    saat = (ileride[-1].zaman - simdi).total_seconds() / 3600
+    return ("{} ileri tarihli yedek var: {} (en çok {:.0f} saat ileride). Sistem saati bir süre ileride çalışıp düzeltilmiş "
+            "ya da geri alınmış olabilir; {} ({}).".format(yer, adlar, saat, oneri, _SAAT_BOLUMU))
+
+
 def arsiv_dogrula(yol: Path) -> dict:
     """ZIP içeriğini restore_backup.py'nin kurallarıyla ve kasa.db'nin SHA-256 özetini manifestle karşılaştırır.
 
@@ -175,6 +193,7 @@ class Ayarlar:
     aylik_ay: int
     en_fazla_saat: int
     disk_esik: int
+    silme_en_fazla: int
     izleme_url: Optional[str]
     dogrula_izleme_url: Optional[str]
     rclone: str
@@ -248,6 +267,7 @@ def ayarlari_oku(ortam: Mapping[str, str]) -> Ayarlar:
         aylik_ay=_tam(ortam, "KASA_UZAK_AYLIK_AY", 13, 1, 600),
         en_fazla_saat=_tam(ortam, "KASA_YEDEK_EN_FAZLA_SAAT", 48, 1, 24 * 60),
         disk_esik=_tam(ortam, "KASA_DISK_ESIK_YUZDE", 80, 1, 100),
+        silme_en_fazla=_tam(ortam, "KASA_UZAK_SILME_EN_FAZLA", 5, 1, 100000),
         izleme_url=_adres(ortam, "KASA_UZAK_IZLEME_URL"),
         dogrula_izleme_url=_adres(ortam, "KASA_UZAK_DOGRULA_IZLEME_URL"),
         rclone=(ortam.get("KASA_RCLONE") or "rclone").strip(),
@@ -449,6 +469,12 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
     elif simdi - max(otomatikler) > timedelta(hours=ayarlar.en_fazla_saat):
         hatalar.append("En yeni otomatik yedek {:.0f} saat önce alınmış (eşik {} saat); uygulamanın günlük yedeği durmuş olabilir."
                        .format((simdi - max(otomatikler)).total_seconds() / 3600, ayarlar.en_fazla_saat))
+    # Saat ileri atlayıp düzeltildiyse uygulamanın o arada yazdığı ileri tarihli yedek yerelde kalır: uygulama en yeni
+    # otomatik yedeği ileride gördükçe yeni yedek almaz ve yukarıdaki yaş denetimi (negatif yaş) bunu yakalamaz.
+    ileride = ileri_tarihliler(yerel, simdi)
+    if ileride:
+        hatalar.append(_ileri_tarihli_iletisi("Yedek dizininde", ileride, simdi,
+                                              "silmeden yedek dizininin dışına taşıyıp uygulamayı yeniden başlatın"))
 
     gonderilen: Dict[str, Optional[int]] = {}  # ad -> gönderilmeden hemen önceki yerel boyut
     silinen: List[str] = []
@@ -459,6 +485,10 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
         uzak = None
         hatalar.append(str(e))
     if uzak is not None:
+        ileride = [y for y in ileri_tarihliler(uzak, simdi) if y.ad not in yerel]
+        if ileride:
+            hatalar.append(_ileri_tarihli_iletisi("Hedefte", ileride, simdi, "saklama bu kopyaları en yeni sayar; silmeden "
+                                                  "hedefte ayrı bir klasöre taşıyın"))
         silinecek = set(silinecekler(set(yerel) | set(uzak), simdi, ayarlar.gunluk_gun, ayarlar.aylik_ay)) if ayarlar.saklama else set()
         for ad in sorted(set(yerel) & set(uzak)):
             if _boyut(yerel[ad]) not in (None, uzak[ad]):
@@ -497,11 +527,21 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
             for ad, boyut in gonderilen.items():
                 if son.get(ad) != boyut:
                     hatalar.append("{}: gönderildikten sonra hedefte doğru boyutla görünmüyor.".format(ad))
-        # Hedefte silme yalnız buraya kadar hatasız bir çalışmada yapılır. Gönderim ya da doğrulama başarısızsa ya da en
-        # yeni otomatik yedek eski görünüyorsa (uygulamanın yedeği durmuş ya da sistem saati ileri kaymış) yeni kopyalar
-        # hedefe ulaşmıyor ya da yaşlar yanlış hesaplanıyor olabilir; o sırada silmek hedefte yalnız en yeni 7'yi
-        # bırakabilir. Silinecekler bir sonraki hatasız çalışmaya kalır.
+        # Hedefte silme yalnız buraya kadar hatasız bir çalışmada yapılır. Gönderim ya da doğrulama başarısızsa, en yeni
+        # otomatik yedek eski ya da bir yedek ileri tarihli görünüyorsa yeni kopyalar hedefe ulaşmıyor ya da yaşlar yanlış
+        # hesaplanıyor olabilir; o sırada silmek hedefte yalnız en yeni 7'yi bırakabilir. Silinecekler bir sonraki
+        # hatasız çalışmaya kalır.
         uzakta_silinecek = sorted(silinecek & set(uzak))
+        # Eski yedek denetimi saat ileri atladıktan sonra ancak uygulamanın bir sonraki saatlik denetimine kadar korur:
+        # uygulama o saate göre "taze" bir yedek yazınca denetim geçer ve kural (yaşa bağlı) hedefte yalnız en yeni 7'yi
+        # bırakırdı. Olağan çalışmada günde 1-2 otomatik kopya düşer; sınırı aşan toplu silme hata sayılır ve sınır
+        # kendiliğinden açılmaz. Elle kopyaların saklaması sayıya bağlıdır (en yeni 10), saatten etkilenmez; sınıra girmez.
+        otomatik_silinecek = [a for a in uzakta_silinecek if tani(a).tur == "otomatik"]
+        if len(otomatik_silinecek) > ayarlar.silme_en_fazla:
+            hatalar.append("Hedefte bu çalışmada {} otomatik kopya silinecekti; olağan çalışmada günde 1-2 kopya düşer (sınır "
+                           "KASA_UZAK_SILME_EN_FAZLA={}). Toplu silme yapılmadı: sistem saati ileri kaymış olabilir, saati "
+                           "denetleyin (timedatectl). Saat doğruysa (uzun kesinti ya da kısaltılan saklama süresi) bir kez daha "
+                           "yüksek sınırla çalıştırın ({}).".format(len(otomatik_silinecek), ayarlar.silme_en_fazla, _SAAT_BOLUMU))
         if uzakta_silinecek and hatalar:
             hatalar.append("Bu çalışmada hata olduğu için hedefte saklama silmesi yapılmadı ({} kopya korunuyor); hata "
                            "giderildikten sonraki hatasız çalışma siler.".format(len(uzakta_silinecek)))
@@ -582,18 +622,23 @@ def indir(hedef, ad: str, cikti: Path) -> int:
 def dogrula(ayarlar: Ayarlar, hedef, simdi: Optional[datetime] = None, bildir: Callable = izleme_bildir) -> int:
     """En yeni uzak kopyayı (tercihen otomatik) geçici dizine indirir, restore_backup.py ile yeni bir dosyaya geri
     açarak sınar (özet, SQLite bütünlüğü, ilişkiler, şema) ve geçici dizini siler. Uzaktaki en yeni otomatik kopya
-    eşikten eskiyse (gönderim durmuşsa) de hata verir."""
+    eşikten eskiyse (gönderim durmuşsa) ya da hedefte ileri tarihli kopya varsa da hata verir; ileri tarihli kopya en
+    yeni sayılmaz, yoksa gönderim durduğunda yaş denetimi bunu gizlerdi."""
     simdi = simdi or datetime.now(timezone.utc)
     hatalar: List[str] = []
     try:
         yedekler = [y for y in map(tani, hedef.listele()) if y is not None]
+        ileride = ileri_tarihliler((y.ad for y in yedekler), simdi)
+        if ileride:
+            hatalar.append(_ileri_tarihli_iletisi("Hedefte", ileride, simdi, "silmeden hedefte ayrı bir klasöre taşıyın"))
+            yedekler = [y for y in yedekler if y not in ileride]
         otomatik = [y for y in yedekler if y.tur == "otomatik"]
         secilen = max(otomatik or yedekler, key=lambda y: (y.zaman, y.ad)) if yedekler else None
         if secilen is None:
             hatalar.append("Hedefte doğrulanacak yedek yok.")
         else:
             if not otomatik or simdi - secilen.zaman > timedelta(hours=ayarlar.en_fazla_saat):
-                hatalar.append("Hedefteki en yeni otomatik yedek {} saat önce ({}); günlük gönderim durmuş olabilir.".format(
+                hatalar.append("Hedefteki en yeni otomatik yedek {} saat önce ({}); gönderim durmuş olabilir.".format(
                     "?" if not otomatik else "{:.0f}".format((simdi - secilen.zaman).total_seconds() / 3600), secilen.ad))
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             import restore_backup  # aynı dizindeki geri yükleme aracı: tek doğrulama kaynağı
