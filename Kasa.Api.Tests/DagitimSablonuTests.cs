@@ -59,6 +59,17 @@ public class DagitimSablonuTests
             Assert.Matches(ZorunluYedek, yedek.Kaynak);
     }
 
+    /// <summary>data-3: belge deposu veri diziniyle (/data) birlikte taşınan ve yedeklenen /data/belgeler'dir; yedek aynası
+    /// (/yedekler/belgeler) ile aynı dizin olamaz.</summary>
+    [Theory]
+    [MemberData(nameof(ComposeDosyalari))]
+    public void Belge_deposu_veri_dizininin_altindadir(string dosya)
+    {
+        var satirlar = YorumsuzSatirlar(DeployDosyasi(dosya)).Select(s => s.Trim()).ToList();
+        Assert.Contains("Belge__Dizin: \"/data/belgeler\"", satirlar);
+        Assert.DoesNotContain(satirlar, s => s.StartsWith("Yedek__Dizin: \"/data", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Nginx_sablonu_yedek_dizinini_de_zorunlu_degiskenden_baglar()
     {

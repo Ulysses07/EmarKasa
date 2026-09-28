@@ -75,7 +75,7 @@ Uygulama her gün otomatik yedek alır ve `KASA_BACKUP_DIR`'e yazar; bu dizin ca
 - En yeni yerel otomatik yedek 48 saatten eskiyse (uygulamanın günlük yedeği durmuşsa) ve yedek ya da veri diski %80 dolduysa hata verir.
 - Sonuç izleme adresine bildirilir. Haftalık doğrulama en yeni uzak kopyayı indirip [`restore_backup.py`](../../deploy/restore_backup.py) ile geçici dizinde geri açarak sınar.
 
-Kimlik bilgisi depoda yoktur: uzak deponun anahtarları ve şifreleme parolaları sunucudaki `rclone.conf`'ta, betiğin ayarları `/etc/kasa/uzak-yedek.env`'dedir (ikisi de root:root, 600). Uygulama belgeleri (PDF ekstreleri, alış belgeleri) veritabanının içindedir ve her yedekte bulunur. JWT anahtarı, editör bilgileri ve diğer sırlar (`deploy/.env`) yedekte **yoktur**; parola yöneticisinde ayrıca saklanır.
+Kimlik bilgisi depoda yoktur: uzak deponun anahtarları ve şifreleme parolaları sunucudaki `rclone.conf`'ta, betiğin ayarları `/etc/kasa/uzak-yedek.env`'dedir (ikisi de root:root, 600). Uygulama belgeleri (PDF ekstreleri, alış belgeleri) 2.4'ten itibaren veritabanında değil belge deposundadır (`KASA_DATA_DIR/belgeler`). Sunucu yedekleri yalnız özet listesini (`belgeler.json`) taşır; içerikler yedek aynasında (`KASA_BACKUP_DIR/belgeler/<ab>/<özet>`) artımlı tutulur. Betik bir yedeği göndermeden önce onun listesindeki ve hedefte olmayan belgeleri aynadan, özetini doğrulayarak hedefin `belgeler/` klasörüne gönderir (belge gönderilemezse yedek de gönderilmez); hedefteki belgeler saklama kuralıyla silinmez. Haftalık doğrulama listedeki her belgenin hedefte olduğunu denetler ve birkaçını indirip özetini sınar. JWT anahtarı, editör bilgileri ve diğer sırlar (`deploy/.env`) yedekte **yoktur**; parola yöneticisinde ayrıca saklanır.
 
 Betiğin sınamaları: `python3 -m unittest discover -s deploy/tests` (CI'da `Deploy scripts` işi).
 
@@ -201,11 +201,13 @@ A: sunucu çalışıyor, yerel yedekler kayıp ya da bozuk. B: VPS tamamen kayı
    sudo install -d -m 700 /root/kasa-geri
    sudo sh -c 'set -a; . /etc/kasa/uzak-yedek.env; set +a; python3 /opt/kasa/deploy/uzak_yedek.py indir <ad> --cikti /root/kasa-geri'
    ```
-4. Yedeği **yeni ve boş** bir veri dizinine geri açın. Araç canlı dosyanın üzerine yazmaz; özet, SQLite bütünlüğü, ilişkiler ve şemayı denetler. Bildirim anahtarı yedekteyse `.kasa-push-keys.json` aynı dizine yazılır:
+4. Yedeği **yeni ve boş** bir veri dizinine geri açın. Araç canlı dosyanın üzerine yazmaz; özet, SQLite bütünlüğü, ilişkiler ve şemayı denetler. Bildirim anahtarı yedekteyse `.kasa-push-keys.json` aynı dizine yazılır. Belge deposu biçimli yedekte (manifest 2.2.0; `indir` bunu söyler) belgeler hedefin `belgeler/` klasöründedir: önce onu indirin, araç her belgenin özetini doğrulayıp `<yeni-veri-dizini>/belgeler/` altına açar:
    ```sh
    sudo install -d -m 700 <yeni-veri-dizini>
-   sudo python3 /opt/kasa/deploy/restore_backup.py /root/kasa-geri/<ad> --output <yeni-veri-dizini>/kasa.db
+   sudo rclone copy kasa-sifreli:<klasör>/belgeler /root/kasa-geri/belgeler   # yalnız 2.2.0 yedekte
+   sudo python3 /opt/kasa/deploy/restore_backup.py /root/kasa-geri/<ad> --output <yeni-veri-dizini>/kasa.db --belge-aynasi /root/kasa-geri/belgeler
    ```
+   Yerel yedekten dönüşte ayna `KASA_BACKUP_DIR/belgeler`'dir (`--belge-aynasi <KASA_BACKUP_DIR>/belgeler`); Ayarlar'dan indirilen elle yedek belgeleri kendi içinde taşır, `--belge-aynasi` gerekmez. Eski yedekler (2.1.0 ve öncesi) belgeleri `kasa.db` içinde taşır.
 5. Uygulamayı yeni dizinle açın: `deploy/.env`'de `KASA_DATA_DIR=<yeni-veri-dizini>`; ardından A'da [deploy/README.md](../../deploy/README.md) "Güncelleme" 6–8, B'de "İlk kurulum" 5–7. A'da eski veri dizinini silmeyin, kenarda tutun. Yedek daha eski bir şemadaysa uygulama açılışta göç öncesi yedek alıp migration'ları uygular ([database-upgrade.md](database-upgrade.md)).
 6. Aşağıdaki "Geri yüklemeden sonra" bölümündeki zorunlu adımları uygulayın (yeni izleyici şifresi dahil). `/health`, giriş, panel ve son dönem raporlarını kontrol edin. Yedeğin alındığı andan sonraki kayıtlar yedekte yoktur. Uzak kopyadan dönüşte kayıp aralığı en yeni uzak kopyanın yaşıdır: uygulama yedeği saatlik denetimle 24–25 saatte bir alır, gönderim 6 saatte bir (en çok 15 dakika rastgele gecikmeyle) çalışır, bu yüzden aralık olağan durumda en çok ~31 saattir. Gönderim bir süredir hata veriyorsa aralık daha uzundur; esas olan 2. adımdaki `listele` çıktısındaki zamandır (UTC). Kullanıcılara bu aralığı bildirip kayıtları yeniden girdirin. Riskli bir işlemden (sürüm güncellemesi, toplu içe aktarma) önce uygulamada elle yedek alıp `sudo systemctl start kasa-uzak-yedek.service` ile hemen gönderirseniz aralık dakikalara iner.
 7. Geri dönüşü, kullanılan yedeği ve kaybedilen aralığı 8. bölümdeki tabloya yazın.
@@ -261,7 +263,9 @@ ls -lhS <KASA_BACKUP_DIR> | head
 docker system df
 ```
 
-- PDF belgeleri veritabanının içinde olduğundan her yedek tam veritabanı boyutundadır. Otomatik ve elle yedekleri uygulamanın saklama kuralı yönetir; elle silmeyin.
+- Belgeler veritabanında değil belge deposundadır (`KASA_DATA_DIR/belgeler`); yedekler yalnız veritabanını ve belge listesini tutar, belge içerikleri yedek aynasına (`KASA_BACKUP_DIR/belgeler`) yalnız yeni olanlar kopyalanarak eklenir. Hiçbir tutulan yedeğin göstermediği ayna dosyalarını rotasyon siler. Otomatik ve elle yedekleri uygulamanın saklama kuralı yönetir; elle silmeyin.
+- Uygulama her yedekten önce yedek diskinde geçici kopya + arşiv + yeni belgeler + `Yedek__AsgariBosAlanMb` (varsayılan 2048 MB) arar; yetmezse yedek alınmaz, Ayarlar'da "Yedek alınmadı: yedek diskinde yeterli boş alan yok…" görünür ve "Şimdi yedek indir" 507 döner. Ayarlar > Yedekleme yedek ve veri diskinin boş alanını ve yedeklerin toplam boyutunu gösterir, boş alan asgarinin altına inince uyarır.
+- İsteğe bağlı üst sınır: `Yedek__AzamiToplamMb` verilirse toplam (yedekler + ayna) aşılınca en eski otomatik yedekler silinir; en yeni 7 otomatik, elle ve göç öncesi yedekler korunur, yine aşılıyorsa uyarı görünür.
 - Göç öncesi yedekleri (`kasa-goc-oncesi-*`) rotasyon silmez. Yer gerekirse önce `uzak_yedek.py listele` ile uzakta kopyası olduğunu doğrulayın, sonra artık gerekmeyenleri elle kaldırın.
 - Her `build --pull` yeni imaj üretir; eski imajlar etiketsiz kalır. Yeni sürüm doğrulandıktan ve geri dönüş gereği kalmadıktan sonra `docker image prune` ile temizlenir. Bu komut [deploy/README.md](../../deploy/README.md) "Güncelleme" 4. adımında saklanan geri dönüş imajını da siler.
 

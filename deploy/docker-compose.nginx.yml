@@ -25,6 +25,9 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       TZ: Europe/Istanbul
       ConnectionStrings__Kasa: "Data Source=/data/kasa.db"
+      # Alış belgeleri ve ekstre PDF'leri veritabanında değil bu içerik adresli depoda (<ab>/<SHA-256>); veri diziniyle
+      # birlikte taşınır ve yedeklenir. Değiştirmeyin: geçişte içerikler buraya taşınır (docs/deploy/database-upgrade.md).
+      Belge__Dizin: "/data/belgeler"
       Kasa__JwtKey: "${KASA_JWT_KEY}"
       Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"

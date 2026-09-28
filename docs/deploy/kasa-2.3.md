@@ -25,7 +25,7 @@ Yüklenen belgeler ve kaynak PDF korunur. Aynı dosya tekrar yüklendiğinde mev
 - Metin içeren, şifresiz PDF; en fazla 10 MB, 50 sayfa, 1500 tanınan hareket. Tarama/fotoğraf için OCR bu sürümde yoktur.
 - Yalnız TL hareketler kaydedilir. Açıkça yabancı para olan satırlar engellenir; para birimi okunamayan satır için TL doğrulaması istenir.
 - Altı bankanın gerçek örnek ekstreleri henüz sağlanmadı. Banka bazında tüm PDF düzenlerinin doğru okunacağı doğrulanmış değildir. İlk belgelerde okunan satır sayısı, tutarlar ve yönler kaynak PDF ile karşılaştırılmalıdır. Anlaşılamayan bir düzen için örnek belgeyle ayrıştırıcı uyarlaması gerekir.
-- Okuma sunucuda Poppler ile yapılır; belge üçüncü taraf yapay zekâ veya belge hizmetine gönderilmez. PDF ve okuma sonucu uygulama veritabanında, yedeklerle birlikte saklanır. Yalnız editör erişebilir; kaynak indirme eki `private, no-store` ve `nosniff` ile döner.
+- Okuma sunucuda Poppler ile yapılır; belge üçüncü taraf yapay zekâ veya belge hizmetine gönderilmez. Okuma sonucu uygulama veritabanında saklanır; PDF'in kendisi 2.3'te veritabanındaydı, 2.4'ten itibaren belge deposundadır (`belgeler/`, yedeklerle birlikte; [database-upgrade.md](database-upgrade.md) "Belge deposu geçişi"). Yalnız editör erişebilir; kaynak indirme eki `private, no-store` ve `nosniff` ile döner.
 - Okuma en fazla iki eşzamanlı işlem, 25 saniye ve sınırlı çıktı ile yürür. Geçici dizin ve dosyalar işlem sonunda temizlenir. Hata mesajlarına PDF içeriği veya araç çıktısı eklenmez.
 
 Yerel API'de `pdfinfo` ve `pdftotext` PATH üzerinde bulunmalı; Windows için gerekirse `Pdf__AracDizini` ayarlanır. Docker görüntüsü `poppler-utils` içerir. Üretimdeki Nginx yükleme sınırı 11 MB'dır; uygulama PDF'yi 10 MB ile sınırlar.

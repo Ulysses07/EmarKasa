@@ -13,7 +13,30 @@ API `KasaDatabaseInitializer.Initialize(db)` çağırır:
 - Sonraki açılışlarda uygulanmış migration tekrarlanmaz. Yeni şema değişiklikleri yeni migration olarak eklenmelidir; ilk migration dosyaları sonradan değiştirilmemelidir.
 - `20260919000200_PurchaseWorkflow`, ilk şemadan sonra alıcı, alış, kalem, kanal dağılımı ve ödeme bağlantı tablolarını ekler. Mevcut giderler otomatik olarak alışa dönüştürülmez; editör gerektiğinde eşleştirir. Geçmiş gider kimlikleri ve tutarları korunur.
 - Göç öncesi yedek: dosya veritabanında bekleyen iş (eski şema köprüsü, migration ya da veri adımı) varsa başlatıcı hiçbir şeyi değiştirmeden önce yedek dizinine (`Yedek:Dizin`, canlıda `/yedekler`) `kasa-goc-oncesi-YYYYMMDD-HHMMSS-xxxxxxxx.zip` yazar; biçim olağan yedekle aynıdır ve `restore_backup.py` ile açılır. Yedek alınamaz ya da doğrulanamazsa (`integrity_check`) migration çalışmaz, uygulama açıklayıcı hatayla durur. Aynı veritabanı için ikinci kez yazılmaz; rotasyon bu dosyaları silmez, gereksiz olanları operatör kaldırır.
+- `20261002000100_BelgeDeposuHazirlik` + veri adımı + `20261002000200_BelgeDeposu`: alış belgeleri ve ekstre PDF'leri veritabanından belge deposuna taşınır (aşağıda "Belge deposu geçişi").
 - `20260929000300_AyRaporAnlikGoruntuleri` kilitli ayların rapor görüntüsü tablosunu ekler; aynı açılıştaki veri adımı o anda kilitli ayların raporunu eski kuralla (kural 1) dondurur. Kapatılmış ayların rakamları değişmez; açık aylarda takipli kredi çekimi "Gelen" ve "Ay sonucu" yerine ayrı "Kredi girişi" alanında gösterilir.
+
+## Belge deposu geçişi (2.4)
+
+Bu sürümden önce alış belgeleri (`Belgeler.Icerik`) ve ekstre PDF'leri (`EkstreBelgeler.Dosya`) `kasa.db` içinde BLOB olarak duruyordu; her yedek bütün belgeleri yeniden kopyalıyordu. Artık içerikler **belge deposundadır**: `Belge:Dizin` (compose'da `/data/belgeler`, yani `KASA_DATA_DIR/belgeler`; ayar verilmezse veritabanı dosyasının klasörü altında `belgeler`). Dosya adı içeriğin SHA-256 özetidir (`belgeler/<ilk iki hane>/<özet>`); veritabanı yalnız özeti tutar. Aynı içerik tek dosyadır; belge silme yumuşak olduğundan depodan dosya silinmez (yalnız hiçbir kaydın göstermediği, yazılıp kaydedilemeyen ve 24 saatten eski yüklemeler yedek sırasında temizlenir).
+
+Geçiş ilk açılışta, HTTP açılmadan ve otomatik olarak şu sırayla yapılır (uygulama günlüğünde her adım yazılır):
+
+1. **Göç öncesi yedek** (`kasa-goc-oncesi-*.zip`, yedek dizininde): içerikleri BLOB olarak taşıyan eski biçim (manifest 2.1.0); geri dönüşün kaynağıdır. Bekleyen işler listesinde "Belge içeriklerinin belge deposuna aktarımı: N alış belgesi, M ekstre PDF'i (X MB)" görünür.
+2. **Disk denetimi**: belge deposunun diskinde taşınacak içeriklerin toplamı + 256 MB yoksa açılış durur; veritabanı değişmez.
+3. **Ekstre PDF'leri**: her biri depoya yazılır ve özeti kayıtlı `DosyaOzeti` ile karşılaştırılır. Tek bir uyuşmazlıkta açılış "… içeriği kayıtlı özetle eşleşmiyor … veritabanı değiştirilmedi" iletisiyle durur (hiçbir migration uygulanmaz); göç öncesi yedeği ve o belgeyi inceleyin, veritabanını silmeyin.
+4. `20261002000100_BelgeDeposuHazirlik`: özet ve yumuşak silme/yükleyen izi sütunları eklenir (mevcut satırların değerleri değişmez).
+5. **Alış belgeleri**: her içerik akışla depoya yazılır (fsync + atomik taşıma), geri okunup özeti doğrulanır ve satırın özeti tek satırlık transaction'da kaydedilir. Süreç yarıda kalırsa (kesinti, disk dolması) yeniden başlatma kaldığı yerden sürer; depoda zaten bulunan içerik yeniden yazılmaz.
+6. `20261002000200_BelgeDeposu`: özeti boş belge kalmadığı SQL içinde denetlenir (kalmışsa migration geri alınır), BLOB sütunları düşürülür, özet dizini ve "özet zorunlu" tetikleyicileri kurulur. Kimlikler, sayaçlar (`sqlite_sequence`), ilişkiler ve bütün diğer sütunlar aynen kalır; raporlar ve indirilen belgeler bayt bayt aynıdır.
+7. **VACUUM** (bir kez): dosya yeniden yazılır, silinmiş belgelerin serbest sayfalarda kalan içerikleri de gider ve `kasa.db` belgelerin toplamı kadar küçülür.
+
+Süre ve disk:
+
+- Disk G/Ç'si yaklaşık veritabanı boyutunun 10 katıdır (göç öncesi yedek, depoya yazma ve doğrulama, satır güncellemeleri, sütun düşürme, VACUUM); VPS SSD'sinde GB başına birkaç dakika sürer ve açılış bu sürede HTTP'ye kapalıdır (nginx 502 döner). Geçişten önce `du -sh <KASA_DATA_DIR>/kasa.db` ile boyutu ölçüp bakım aralığını ona göre seçin.
+- Geçici ek alan: yedek dizininde göç öncesi yedek (veritabanı boyutu kadar; yazılırken kısa süre iki katı), veri dizininde belge deposu (belge içeriklerinin toplamı) ve VACUUM için küçülmüş veritabanı boyutu kadar. Geçişten sonra `kasa.db` belgelerin toplamı kadar küçülür; göç öncesi yedek rotasyonla silinmez, uzak kopyası doğrulandıktan sonra operatör kaldırır.
+- Veri dizini taşınırken ya da elle yedeklenirken `belgeler/` klasörü `kasa.db` ile birlikte kopyalanmalıdır; yalnız `kasa.db` belgeleri içermez.
+
+Geri dönüş (yeni sürüm sorun çıkarırsa): uygulamayı durdurun; göç öncesi yedeği `restore_backup.py` ile **yeni** bir veri dizinine açın (`python3 deploy/restore_backup.py <yedek-dizini>/kasa-goc-oncesi-….zip --output <yeni-veri-dizini>/kasa.db`; bu eski biçim belgeleri `kasa.db` içinde taşır), `KASA_DATA_DIR`'i o dizine çevirin ve [deploy/README.md](../../deploy/README.md) "Geri dönüş" adımlarıyla **önceki imajı** başlatın. Yeni sürümün `belgeler/` klasörünü silmeyin; önceki sürüm onu kullanmaz, yeniden yükseltmede içerikler zaten depoda bulunur. Göç öncesi yedekten sonra girilen kayıtlar geri dönüşte yoktur.
 
 ## Canlıya geçiş sırası
 

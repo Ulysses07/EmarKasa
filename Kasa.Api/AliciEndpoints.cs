@@ -68,8 +68,8 @@ public static partial class AliciEndpoints
 
 /// <summary>
 /// 'Kasa:AliciKota' bölümü (host-auth-5, purchase-3): en düşük yetkili rol olan alıcının kalıcı olarak yazabileceği veri.
-/// Belgeler ana veritabanında BLOB olarak durur ve her otomatik yedekle kopyalanır; kotasız bir alıcı hesabı diski doldurup
-/// bütün yazmaları ve yedeklemeyi durdurabilirdi. Alıcının editör onayı olmadan tutabileceği veri kalıcı olarak sınırlıdır:
+/// Belgeler belge deposunda durur ve yedek aynasına kopyalanır (silme yumuşaktır, içerik kalır); kotasız bir alıcı hesabı diski
+/// doldurup bütün yazmaları ve yedeklemeyi durdurabilirdi. Alıcının editör onayı olmadan tutabileceği veri kalıcı olarak sınırlıdır:
 /// onay bekleyen alış sayısı (<see cref="OnayBekleyen"/>, her alış en çok 100 kalem) ve onlardaki belge hacmi
 /// (<see cref="OnayBekleyenBelgeMb"/>). Taslağı incelemeye göndermek bu kotalarda yer açmaz; ötesi yalnız editörün alışı
 /// onaylamasıyla (belgelerini görmüştür) büyür. Varsayılanlarla bir alıcının onaysız verisi yaklaşık 200 MB belge ve birkaç
