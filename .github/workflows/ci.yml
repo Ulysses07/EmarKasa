@@ -63,6 +63,20 @@ jobs:
       - name: Run tests
         run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
 
+  # Sunucu dışı yedek betiği (devops-9) ve geri yükleme aracı: sözdizimi, kuru çalıştırma ve birim sınamaları.
+  # Runner'daki python3 yeterli; ağ, rclone ve ek paket gerekmez.
+  deploy-scripts:
+    name: Deploy scripts
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s deploy/tests -v
+      - run: python3 -m doctest deploy/restore_backup.py
+
   # Temel imaj özetleri (devops-12): Dockerfile'daki her FROM etiket + @sha256 özetiyle sabittir (biçimi
   # Kasa.Api.Tests/DepoHijyeniTests de denetler). Bu iş yalnız kayıt meta verisini okur, imaj indirmez: sabit özet
   # kayıtta çözülmeli ve aynı ana sürüm etiketinin (ör. 10.0) güncel özetiyle karşılaştırılır. Push/PR'da eski özet

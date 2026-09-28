@@ -131,6 +131,39 @@ public class DagitimSablonuTests
         Assert.Contains("docker compose -f docker-compose.nginx.yml up -d", readme);
     }
 
+    // devops-9: sunucu dışı yedek zamanlayıcıları kaçan çalışmayı telafi eder (Persistent=true: sunucu o saatte kapalıysa
+    // açılışta çalışır) ve depodaki betiği çalıştırır; betik yeniden adlandırılırsa birim sessizce bozulmaz. Ayarlar depo
+    // dışındaki, root'a ait dosyadan gelir: /opt/kasa altındaki kaynaklar her yayında yeniden yazılır.
+    [Theory]
+    [InlineData("kasa-uzak-yedek", "gonder")]
+    [InlineData("kasa-uzak-dogrula", "dogrula")]
+    public void Uzak_yedek_birimleri_depodaki_betigi_calistirir_ve_kacan_calismayi_telafi_eder(string birim, string komut)
+    {
+        var servis = YorumsuzSatirlar(DeployDosyasi($"systemd/{birim}.service")).Select(s => s.Trim()).ToList();
+        var zamanlayici = YorumsuzSatirlar(DeployDosyasi($"systemd/{birim}.timer")).Select(s => s.Trim()).ToList();
+
+        var calistir = Assert.Single(servis, s => s.StartsWith("ExecStart=", StringComparison.Ordinal));
+        var m = Regex.Match(calistir, @"^ExecStart=/usr/bin/python3 /opt/kasa/deploy/(?<betik>[A-Za-z0-9_]+\.py) (?<komut>\S+)$");
+        Assert.True(m.Success, $"{birim}.service: '{calistir}' depodaki deploy/ betiğini python3 ile çalıştırmıyor.");
+        Assert.True(File.Exists(DeployDosyasi(m.Groups["betik"].Value)), $"{birim}.service depoda olmayan betiği çalıştırıyor: {m.Groups["betik"].Value}");
+        Assert.Equal(komut, m.Groups["komut"].Value);
+        Assert.Contains("Type=oneshot", servis);
+        Assert.Contains("EnvironmentFile=/etc/kasa/uzak-yedek.env", servis);
+        Assert.Contains("Persistent=true", zamanlayici);
+        Assert.Single(zamanlayici, s => s.StartsWith("OnCalendar=", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Uzak_yedek_ornek_ayarlari_depoda_bos_kalir()
+    {
+        // Hedef adı ve izleme adresi (adres gizli kimlik taşır) yalnız sunucudaki /etc/kasa/uzak-yedek.env'e yazılır;
+        // uzak deponun anahtarları ve şifreleme parolaları rclone.conf'tadır. Örnekteki her değer boş kalır.
+        var atamalar = Atamalar(DeployDosyasi("uzak-yedek.env.example"));
+
+        Assert.Contains("KASA_UZAK_HEDEF", atamalar.Keys);
+        Assert.All(atamalar, a => Assert.True(a.Value == "", $"uzak-yedek.env.example: {a.Key} boş olmalı; değer sunucuda yazılır."));
+    }
+
     private sealed record Baglama(IReadOnlyDictionary<string, string> Alanlar)
     {
         public string Kaynak => Alan("source");

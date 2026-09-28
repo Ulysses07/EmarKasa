@@ -1,0 +1,11 @@
+# Haftalık geri açma doğrulaması (pazar sabahı, günlük gönderimden sonra). Persistent=true: kaçan çalışma telafi edilir.
+[Unit]
+Description=Kasa sunucu dışı yedek doğrulaması (haftalık)
+
+[Timer]
+OnCalendar=Sun *-*-* 05:30:00 Europe/Istanbul
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

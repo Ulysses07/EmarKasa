@@ -133,3 +133,5 @@ Uygulama `X-Forwarded-For` başlığını yalnız bu listedeki adreslerden gelen
 ## Yedek
 
 Aktif veri dizinini `kasa-app` konteynerinin `/data` bağlama kaynağından veya son yayın manifestinin `dataDirectory` alanından bulun; bu değer `deploy/.env` içindeki `KASA_DATA_DIR` ile aynı olmalıdır. Sürüm geçişleri ayrı dizin kullandığı için eski `kasa-data/` yolunu varsaymayın. Tutarlı yedek için SQLite yedekleme yöntemini kullanın veya uygulamayı durdurup veri dizininin tamamını (`kasa.db`, varsa WAL/SHM ve `.kasa-push-keys.json` dahil) birlikte kopyalayın. Çalışan veritabanının yalnız `.db` dosyasını kopyalamak yeterli değildir. Yedeği ayrı bir ortamda açarak geri yüklemeyi doğrulayın.
+
+Uygulamanın otomatik yedekleri (`KASA_BACKUP_DIR`) canlı veritabanıyla aynı diskte durur; VPS kaybında birlikte gider. Sunucu dışı kopya `uzak_yedek.py` ile otomatiktir: yalnız manifest özeti doğrulanmış yedekler şifreli uzak hedefe gider, hedefte saklama uygulanır, disk doluluğu ve yedeğin güncelliği denetlenir. Kurulum, zamanlayıcı (`systemd/`), izleme ve uzak kopyadan geri dönüş [operasyon runbook'unda](../docs/deploy/operasyon-runbook.md) "Sunucu dışı yedek" bölümündedir.

@@ -46,4 +46,4 @@ python3 deploy/restore_backup.py /safe/kasa-....zip --output /safe/recovered.db
 
 Araç manifest sürümünü, SHA-256 değerini, SQLite bütünlüğünü, yabancı anahtar ilişkilerini ve beklenen şema sürümünü kontrol eder. Canlı geri yükleme sırasında servis durdurulmalı, mevcut veri ayrıca korunmalı ve sonrasında giriş/rapor denemesi yapılmalıdır.
 
-Sunucu içindeki ikinci dizin, tüm VPS kaybına karşı yedek değildir. Düzenli ZIP indirmesi veya kurumun sunucu dışı yedek alanına kopyalama da sürdürülmelidir. Üçüncü taraf bir depolama hesabı bu proje tarafından kendiliğinden oluşturulmaz.
+Sunucu içindeki ikinci dizin, tüm VPS kaybına karşı yedek değildir. Sunucu dışı kopya artık `deploy/uzak_yedek.py` ile otomatiktir (yalnız manifest özeti doğrulanmış yedekler, şifreli uzak hedef, hedefte saklama, izleme); kurulum ve uzak kopyadan geri dönüş [operasyon runbook'unda](operasyon-runbook.md) "Sunucu dışı yedek" bölümündedir. Üçüncü taraf bir depolama hesabı bu proje tarafından kendiliğinden oluşturulmaz; hesap ve anahtar kurum tarafından açılır.
