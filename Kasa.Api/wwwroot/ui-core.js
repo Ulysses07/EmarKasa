@@ -68,6 +68,9 @@ export function cents(value, { allowZero = true } = {}) {
   return result;
 }
 export function amount(value) { return cents(value) / 100; }
+// Sunucunun gönderdiği tutar (JSON sayısı) kuruşa çevrilir: eksi olabilir ve String() ile üslü yazılabilir (1e-7), kullanıcı
+// girdisi ayrıştırıcısı (cents) bunları reddeder. Sunucu tutarı en çok iki ondalıklıdır (monthlyTotals deseni).
+export function serverCents(value) { return Math.round(Number(value || 0) * 100); }
 export function navigationFor(role, runtime = { saltOkunur: false }) {
   if (runtime.saltOkunur && !['editor', 'viewer'].includes(role)) return [];
   if (role === 'alici') return [['purchases', 'Alışlarım', '≡']];

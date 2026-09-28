@@ -1,4 +1,4 @@
-import { money, dateText, today, cents, amount, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning } from './ui-core.js?v=2.3.0';
+import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning } from './ui-core.js?v=2.3.0';
 import { createFinanceUi } from './finance-ui.js?v=2.3.0';
 import { createNotificationUi } from './notification-ui.js?v=2.3.0';
 import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
@@ -546,7 +546,8 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   // takipli kredi çekimi Gelen'in ve Ay sonucunun içindedir; sütun bilgi amaçlıdır.
   const creditSeparate = (report.kuralSurumu || 1) >= 2;
   const credit = report.krediGirisi || 0;
-  const unassignedCredit = (cents(credit) - report.kanallar.reduce((sum, k) => sum + cents(k.krediGirisi || 0), 0)) / 100;
+  // Sunucu sayıları kullanıcı girdisi değildir: eksi ya da üslü kredi girişi sayfayı düşürmez (serverCents).
+  const unassignedCredit = (serverCents(credit) - report.kanallar.reduce((sum, k) => sum + serverCents(k.krediGirisi), 0)) / 100;
   const resultLabel = creditSeparate ? 'Ay sonucu (kredi hariç)' : 'Ay sonucu';
   $('#view').replaceChildren(...childValues([h('div', { class: 'toolbar' }, monthInput, button('Ayı göster', event => run(event.currentTarget, () => { if (monthInput.reportValidity()) return renderMonthly(generation, monthInput.value); }))), !runtime.saltOkunur && lock,
     report.dondurulmus && h('div', { class: 'notice', role: 'status' }, h('strong', {}, 'Kapatılmış ay. '), `Rapor, ay kapatıldığı andaki haliyle gösterilir; sonraki kural değişiklikleri bu ayı etkilemez${creditSeparate ? '' : ' (eski kural: takipli kredi çekimi Gelen ve Ay sonucu içindedir)'}. Değişiklik için ayı gerekçeyle açın.`),

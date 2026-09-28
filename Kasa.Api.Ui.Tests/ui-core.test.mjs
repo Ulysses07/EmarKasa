@@ -1635,3 +1635,19 @@ test('eski kredi kartı gideri düzenlenirken kendi kartıyla ya da kartsız kal
   formField(nodes, 'tutarTl').value = '90'; await submitDialog(nodes);
   const save = calls.find(call => call.path === '/api/islemler/21'); assert.equal(save.body.krediKartiId, null); assert.equal(save.body.tutarTl, 90);
 });
+
+// ---- IST4: aylık sayfa sunucu sayıları, ana sayfa dayanıklılığı, kilit açma uyarısı, K3 kart listesi, iz kimliği ----
+test('aylık rapor sunucu sayılarını kullanıcı girdisi gibi ayrıştırmaz: eksi ve üslü kredi girişiyle de sayfa çizilir', async () => {
+  const path = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  // 1e-7 JSON'dan sayı olarak gelir; String(1e-7) === '1e-7' kullanıcı girdisi ayrıştırıcısını düşürürdü.
+  const report = { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, krediGirisi: -1500.5, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0,
+    kanallar: [{ kanal: 'MEZAT', gelen: 100, krediGirisi: -1000.25, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 },
+      { kanal: 'PERAKENDE', gelen: 0, krediGirisi: 1e-7, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 0 }] };
+  const { app, nodes } = await openApp(false, { [path]: report });
+  await app.navigate('monthly');
+  const text = nodes.get('#view').textContent;
+  assert.doesNotMatch(text, /Kayıtlar yüklenemedi/);
+  assert.ok(text.includes(`Kredi girişi: ${money(-1500.5)}`), 'Eksi kredi girişi notta.');
+  assert.ok(text.includes(`Kanala dağıtılmayan eski kredi çekimi: ${money(-500.25)}`), 'Kuruş farkı sunucu sayılarından hesaplanır.');
+  assert.equal(ui.serverCents(-1500.5), -150050); assert.equal(ui.serverCents(1e-7), 0); assert.equal(ui.serverCents(null), 0); assert.equal(ui.serverCents(0.29), 29);
+});
