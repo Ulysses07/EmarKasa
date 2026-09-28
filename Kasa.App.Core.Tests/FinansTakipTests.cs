@@ -318,6 +318,28 @@ public class FinansTakipTests
         Assert.Equal(0, vm.OdemeTutari); Assert.Equal("", vm.OdemeNotu); Assert.False(vm.AsgariVar); Assert.Equal(0, vm.AsgariTutar);
         Assert.Equal("", vm.Gerekce); Assert.Equal("", vm.GecisAciklama);
     }
+    // IST4 (F3C notu): başka karta geçiş bekleyen tekrar anahtarlarını sıfırlamaz. Anahtar gövdeyle birlikte kartın kimliğini
+    // taşır: başka kartın isteği kendiliğinden yeni anahtar alır. Yanıtı belirsiz kalan (zaman aşımı) ödeme, kullanıcı başka
+    // karta bakıp döndükten sonra aynı bilgilerle yeniden gönderilince aynı anahtarla gider; sunucu onu ikinci kez işlemez.
+    [Fact] public async Task Belirsiz_odeme_baska_karta_gecip_donunce_ayni_tekrar_anahtariyla_gider()
+    {
+        var api = new Fake { KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Fake.OrnekKart(), Fake.OrnekKart() with { Id = 2, Ad = "Kart B" } }), OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
+        var vm = await KartVm(api); vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null); await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Contains("zamanında yanıt vermedi", vm.Hata);
+
+        vm.SecCommand.Execute(vm.Kartlar[1]);                       // başka karta bakılır: form temizlenir
+        Assert.Equal(0, vm.OdemeTutari);
+        vm.OdemeTutari = 10; await vm.OdemeOnizleCommand.ExecuteAsync(null);   // B kartında aynı tutar: B'nin kendi anahtarı
+        var bAnahtari = api.OnizlenenOdeme!.IstekId;
+        vm.SecCommand.Execute(vm.Kartlar[0]);                       // A kartına dönülür, aynı ödeme yeniden girilir
+        api.OdemeHatasi = null; vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null); await vm.OdemeKaydetCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, api.OdemeIstekleri.Count);
+        Assert.Equal(api.OdemeIstekleri[0].IstekId, api.OdemeIstekleri[1].IstekId);
+        Assert.NotEqual(api.OdemeIstekleri[0].IstekId, bAnahtari);
+    }
     [Fact] public async Task Ayni_kartin_yenilenmesi_yazilmis_harcama_formunu_korur()
     {
         var api = new Fake(); var vm = await KartVm(api);
@@ -373,7 +395,7 @@ public class FinansTakipTests
         public Task<KrediTakipDto> TakipKrediKapatAsync(int id, KrediKapatYaz g) { Kapatma = g; return Task.FromResult(Kredi); }
         public Task<TakipGecisDto> TakipKrediGecisOnizlemeAsync(int id, KrediGecisYaz g) => Task.FromResult(Preview("Kredi", id));
         public Task<KrediTakipDto> TakipKrediGecisAsync(int id, KrediGecisYaz g) { KrediGecis = g; return Task.FromResult(Kredi with { YeniTakip = true }); }
-        public int OzetCagri, SonOzetGunu;
-        public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) { OzetCagri++; SonOzetGunu = gun; return Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>())); }
+        public int OzetCagri, SonOzetGunu; public Exception? OzetHatasi;
+        public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) { OzetCagri++; SonOzetGunu = gun; return OzetHatasi is { } e ? Task.FromException<TakipOzetDto>(e) : Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>())); }
     }
 }

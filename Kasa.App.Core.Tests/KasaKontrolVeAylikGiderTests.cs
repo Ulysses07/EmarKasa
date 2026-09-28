@@ -125,6 +125,33 @@ public class KasaKontrolVeAylikGiderTests
         auth.OturumSurumu++; await v.YukleAsync(); await v.DegistirAsync(false, 2025, 12, "Eski pencere", oturum, 3); Assert.Null(f.KilitGirdi);
         f.KilitSurumu = 4; await v.YukleAsync(); await v.DegistirAsync(false, 2025, 12, "Eski sürüm", v.OturumNesli, 3); Assert.Null(f.KilitGirdi); Assert.Contains("yeniden onaylayın", v.Hata);
     }
+    // maui-8: kasa kontrolü sayfasındaki ay kilidi onay metni ve "rapor ayı/oturum değişti mi" koşulu görünüm modelindedir.
+    // IST4: kural 1 ile dondurulmuş ay açılırken güncel kuralla yeniden hesaplanacağı söylenir (web frozenRuleUnlockWarning).
+    [Fact] public void Ay_kilidi_onay_metni_ay_ve_yonu_soyler_kural_1_ile_dondurulmus_ay_acilirken_uyarir()
+    {
+        var v = new AyKilidiViewModel(new Fake(), Auth());
+        var kapat = v.OnayMetni(true, 2026, 3); Assert.Contains("03.2026", kapat); Assert.Contains("kilitlenecek", kapat);
+        var ac = v.OnayMetni(false, 2026, 3); Assert.Contains("03.2026", ac); Assert.Contains("yeniden açılacak", ac); Assert.DoesNotContain("kural 1", ac);
+
+        var eski = new AylikRaporDto(2026, 8, Array.Empty<KanalAylikDto>(), KuralSurumu: 1, Dondurulmus: true);
+        var uyari = v.OnayMetni(false, 2026, 8, eski);
+        Assert.Contains("eski kuralla (kural 1) kapatılmış", uyari); Assert.Contains("yeniden kapatınca da güncel kuralla", uyari);
+        Assert.Contains("takipli kredi çekimi Gelen ve Ay sonucundan çıkar", uyari);
+        Assert.Contains("kural 1", v.OnayMetni(false, 2026, 8, eski with { KuralSurumu = null }));
+        Assert.DoesNotContain("kural 1", v.OnayMetni(false, 2026, 8, eski with { KuralSurumu = 2 }));
+        Assert.DoesNotContain("kural 1", v.OnayMetni(false, 2026, 8, eski with { Dondurulmus = false }));
+        Assert.DoesNotContain("kural 1", v.OnayMetni(false, 2026, 7, eski));   // başka ayın raporu
+        Assert.DoesNotContain("kural 1", v.OnayMetni(true, 2026, 8, eski));    // kapatma onayı
+    }
+    [Fact] public async Task Ay_kilidi_istegi_rapor_ayi_ya_da_oturum_degisince_gecersizdir()
+    {
+        var auth = Auth(); var v = new AyKilidiViewModel(new Fake(), auth); await v.YukleAsync(); var oturum = v.OturumNesli;
+        Assert.True(v.IstekHalaGecerli(oturum, 2026, 8, 2026, 8));
+        Assert.False(v.IstekHalaGecerli(oturum, 2026, 8, 2026, 9));
+        Assert.False(v.IstekHalaGecerli(oturum, 2026, 8, 2027, 8));
+        auth.OturumSurumu++;
+        Assert.False(v.IstekHalaGecerli(oturum, 2026, 8, 2026, 8));
+    }
     [Fact] public async Task Aylik_gider_gider_editorunden_degistirilemez_ve_genel_gider_raporda_bir_kez_duser()
     {
         var finans = Finans(); var v = new IslemlerViewModel(finans); var i = new IslemDto(2, new(2026, 9, 1), "Kira", 100, "", GiderTipi.Cari, null, AylikGiderOdemeId: 8); v.Duzenle(i); await v.SilCommand.ExecuteAsync(i);

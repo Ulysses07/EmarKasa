@@ -14,6 +14,18 @@ public class BenzerKayitTests
         Assert.False(await kontrol.DevamEdilebilirAsync(arama, new { Not = "değişti" }, () => true)); Assert.Equal(2, api.Cagri);
         Assert.True(kontrol.UyariVar);
     }
+    // IST4 (BNZ notu): uyarı sunucunun kuralını doğru anlatır: aynı tutar ve ±3 gün (aynı gün değil); kanal süzgeci yalnız kesin
+    // başka kanala düşen kaydı eler, kanalsız/çok kanallı kayıtlar ve kart ödemeleri görünür. Kredi taksidi "Gider" sanılmaz.
+    [Fact] public async Task Uyari_sunucunun_uc_gun_ve_kanal_kuralini_anlatir_kaynaklari_dogru_adlandirir()
+    {
+        var api = new Fake { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(new BenzerKayitDto[] { new("KrediTaksidi", 5, Tarih.AddDays(2), 100, "Taksit 3", null, null), new("EskiKrediTaksidi", 6, Tarih.AddDays(-3), 100, "Kredi", null, null), new("KartOdeme", 8, Tarih, 100, "Ödeme", 2, null) }) };
+        var kontrol = new BenzerKayitKontrolu(api);
+        Assert.False(await kontrol.DevamEdilebilirAsync(new("Gider", Tarih, 100, Kanal: "MEZAT"), new { Tutar = 100 }, () => true));
+        Assert.Contains("±3 gün", kontrol.Uyari); Assert.DoesNotContain("Aynı tarih", kontrol.Uyari);
+        Assert.Contains("kanalı belirsiz", kontrol.Uyari); Assert.Contains("çok kanallı", kontrol.Uyari); Assert.Contains("kart ödemeleri", kontrol.Uyari);
+        Assert.Contains("Kredi taksidi #5", kontrol.Uyari); Assert.Contains("Eski kredi taksidi #6", kontrol.Uyari); Assert.Contains("Kart ödemesi #8", kontrol.Uyari);
+        Assert.Contains(BenzerKayitKontrolu.KuralMetni, kontrol.Uyari);
+    }
     [Fact] public async Task Oturum_degistiginde_bekleyen_benzerlik_yaniti_gosterilmez()
     {
         var tcs = new TaskCompletionSource<IReadOnlyList<BenzerKayitDto>>(); var api = new Fake { Bekleyen = tcs.Task }; var kontrol = new BenzerKayitKontrolu(api); var gecerli = true;

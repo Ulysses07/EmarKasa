@@ -132,6 +132,45 @@ public class AlislarViewModelTests
         Assert.Equal(gider.TutarTl, api.SonOdeme.Tutar);
     }
 
+    // IST4 / K3: alış ödemesinin kart listesi yalnız yeni takipteki, açık kartlardır (sunucu kartlı yeni ödemeyi başka karta
+    // bağlamaz). Bağlanan mevcut gider kendi (eski) kartıyla gönderilir; düzeltilen ödemenin kendi kartı listede korunur.
+    private static IReadOnlyList<KrediKartiDto> Kartlar() =>
+    [
+        new KrediKartiDto(1, "Eski kart", new(2026, 1, 10), new(2026, 1, 20), 0, 0),
+        new KrediKartiDto(2, "Takipli", new(2026, 1, 10), new(2026, 1, 20), 0, 0, YeniTakip: true, Aktif: true),
+        new KrediKartiDto(3, "Kapalı", new(2026, 1, 10), new(2026, 1, 20), 0, 0, YeniTakip: true, Aktif: false),
+    ];
+
+    [Fact]
+    public async Task Odeme_kart_listesi_yalniz_takipteki_acik_kartlardir_bagli_gider_kendi_kartiyla_gider()
+    {
+        var eskiKartliGider = new IslemDto(91, new(2026, 9, 20), "Firma", 25m, "Ortak", GiderTipi.KrediKarti, null, KrediKartiId: 1);
+        var api = new SahteAlisApi { Liste = new[] { Alis() } };
+        var vm = new AlislarViewModel(api, new SahteApi { IslemlerListe = new[] { eskiKartliGider }, KrediKartlariListe = Kartlar() }) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
+
+        Assert.Equal(new[] { "Nakit / banka", "Takipli" }, vm.OdemeKartlari.Select(k => k.Ad));
+        vm.MevcutGiderKullan = true; vm.SeciliGider = vm.BaglanabilirGiderler.Single(g => g.Veri.Id == 91);
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+
+        Assert.Null(vm.Hata);
+        Assert.Equal(91, api.SonOdeme!.MevcutIslemId); Assert.Equal(1, api.SonOdeme.KrediKartiId);
+    }
+
+    [Fact]
+    public async Task Odeme_duzeltmesinde_odemenin_kendi_eski_karti_korunur_yeni_kart_takiptekilerden_secilir()
+    {
+        var odeme = new AlisOdemeDto(5, 91, new(2026, 9, 20), 25m, 3, false, Array.Empty<AlisDagilimDto>(), KrediKartiAdi: "Kapalı");
+        var api = new SahteAlisApi { Liste = new[] { Alis(odenen: 25) with { Odemeler = new[] { odeme } } } };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
+
+        vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
+
+        Assert.Equal(new[] { "Nakit / banka", "Takipli", "Kapalı (eski kayıt)" }, vm.DuzeltmeKartlari.Select(k => k.Ad));
+        Assert.Equal(3, vm.DuzeltmeKarti!.Id);
+    }
+
     [Fact]
     public async Task Alici_hesabi_sifreyi_bos_birakinca_korur_pasife_alinabilir()
     {

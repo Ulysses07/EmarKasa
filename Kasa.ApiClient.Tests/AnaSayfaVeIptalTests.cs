@@ -55,14 +55,49 @@ public class AnaSayfaVeIptalTests
         Assert.Null(ilk.KasaEsikleri); Assert.Null(ilk.TakipOzeti);
     }
 
+    // IST4: birleşik ucun sunucu hatası (5xx) ana sayfayı düşürmez: kasa bakiyeleri panel ucundan gelir, eşikler ve takip
+    // özeti null döner ve çağıranca kendi uçlarından yüklenir (kendi hatalarıyla). 404'ten farklı olarak uç sonra yeniden denenir.
     [Theory]
     [InlineData(HttpStatusCode.InternalServerError)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
-    public async Task Ana_sayfa_sunucu_hatasi_eski_uca_dusmeden_hata_olarak_kalir(HttpStatusCode kod)
+    public async Task Ana_sayfa_sunucu_hatasinda_panele_duser_ve_sonraki_yuklemede_ucu_yeniden_dener(HttpStatusCode kod)
     {
-        var h = new Kayitci((_, _) => Durum(kod));
+        var h = new Kayitci((istek, _) => istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? Json(PanelJson) : Durum(kod));
+        var c = Client(h);
+
+        var ilk = await c.AnaSayfaAsync();
+        await c.AnaSayfaAsync();
+
+        Assert.Equal(900, ilk.Panel.GuncelKasa); Assert.Equal(2, ilk.Panel.Kanallar.Count);
+        Assert.Null(ilk.KasaEsikleri); Assert.Null(ilk.TakipOzeti);
+        Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
+    }
+
+    [Fact]
+    public async Task Ana_sayfa_ve_panel_ikisi_de_hata_verirse_panelin_hatasi_tasinir()
+    {
+        var h = new Kayitci((istek, _) => Durum(istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? HttpStatusCode.BadGateway : HttpStatusCode.InternalServerError));
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync());
-        Assert.Equal(kod, hata.DurumKodu);
+        Assert.Equal(HttpStatusCode.BadGateway, hata.DurumKodu);
+        Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
+    }
+
+    [Fact]
+    public async Task Ozetsiz_ana_sayfa_yaniti_eksik_parcalari_null_birakir()
+    {
+        // Sunucu (RDY) takip özeti hesaplanamayınca paneli özetsiz döndürür; istemci boş liste ya da sıfır uydurmaz.
+        var h = new Kayitci((_, _) => Json("""{"panel":""" + PanelJson + ""","kasaEsikleri":null,"takipOzeti":null}"""));
+        var a = await Client(h).AnaSayfaAsync();
+        Assert.Equal(900, a.Panel.GuncelKasa); Assert.Null(a.KasaEsikleri); Assert.Null(a.TakipOzeti);
+        Assert.Single(h.Istekler);
+    }
+
+    [Fact]
+    public async Task Ana_sayfa_istemci_hatasi_panele_dusmez()
+    {
+        var h = new Kayitci((_, _) => Durum(HttpStatusCode.Forbidden));
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync());
+        Assert.Equal(HttpStatusCode.Forbidden, hata.DurumKodu);
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30" }, h.Istekler);
     }
 

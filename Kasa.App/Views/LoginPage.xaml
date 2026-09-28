@@ -66,11 +66,13 @@
                     <VerticalStackLayout IsVisible="{Binding KurtarmaAcik}" Spacing="10" Margin="0,14,0,0">
                         <Label Text="Editör hesabınızın daha önce oluşturduğunuz tek kullanımlık kurtarma kodunu girin. Alıcı hesabı için editörünüzle görüşün." Style="{StaticResource LblPageSub}" />
                         <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding KurtarmaKodu}" Placeholder="Kurtarma kodu" IsPassword="True" /></Border>
-                        <Border Style="{StaticResource FieldBorder}"><Entry x:Name="KurtarmaYeniSifreAlani" Text="{Binding KurtarmaYeniSifre}" Placeholder="Yeni şifre (en az 12 karakter)" IsPassword="True" /></Border>
+                        <!-- "Yeni şifreyi göster" yalnız yeni şifre alanlarını açar (kurtarma kodu maskeli kalır); durum görünüm
+                             modelindedir, form kapanınca, başarıda ve oturum değişiminde kapanır. -->
+                        <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding KurtarmaYeniSifre}" Placeholder="Yeni şifre (en az 12 karakter)" IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}" /></Border>
                         <!-- Kurtarma kodu tek kullanımlık: tekrar uyuşmazsa istek gönderilmez, kod harcanmaz. -->
-                        <Border Style="{StaticResource FieldBorder}"><Entry x:Name="KurtarmaYeniSifreTekrarAlani" Text="{Binding KurtarmaYeniSifreTekrar}" Placeholder="Yeni şifre (tekrar)" IsPassword="True" /></Border>
+                        <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding KurtarmaYeniSifreTekrar}" Placeholder="Yeni şifre (tekrar)" IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}" /></Border>
                         <HorizontalStackLayout Spacing="6">
-                            <CheckBox CheckedChanged="YeniSifreyiGoster" />
+                            <CheckBox IsChecked="{Binding KurtarmaSifresiniGoster}" />
                             <Label Text="Yeni şifreyi göster" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                         <Button Text="Şifreyi yenile" Command="{Binding SifreKurtarCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />

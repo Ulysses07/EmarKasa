@@ -12,21 +12,25 @@ public class MutasyonTests
         return (new KasaApiClient(http, new BellekTokenStore()), h);
     }
 
+    // tests-8: POST api/kredikartlari ve POST api/krediler emekli uçlardır; sunucu her isteği koşulsuz 409 ve Türkçe iletiyle
+    // reddeder (yeni kart/kredi takip ekranlarından açılır). Başarı (201) kurgulanmaz: istemci 409'u iletisiyle taşır. Gerçek
+    // sunucuya karşı aynı davranış Kasa.Sozlesme.Tests/EskiKartKrediSozlesmeTests'te sınanır.
     [Fact]
-    public async Task KrediKarti_olustur_dogru_govde_gonderir()
+    public async Task KrediKarti_olustur_emekli_uc_409_ve_sunucu_iletisiyle_reddedilir()
     {
         var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.Created, """{"id":7,"ad":"Bonus","kesimTarihi":"2026-07-05","sonOdemeTarihi":"2026-07-25","limit":100000.0,"borc":30000.0}""");
+        h.Kuyrukla(HttpStatusCode.Conflict, """{"hata":"Yeni kartı güncel uygulamanın Kredi Kartları ekranından oluşturun."}""");
 
-        var eklenen = await c.KrediKartiOlusturAsync(new KrediKartiYaz("Bonus", new DateOnly(2026, 7, 5), new DateOnly(2026, 7, 25), 100000m, 30000m));
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.KrediKartiOlusturAsync(new KrediKartiYaz("Bonus", new DateOnly(2026, 7, 5), new DateOnly(2026, 7, 25), 100000m, 30000m)));
 
-        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method);
-        Assert.EndsWith("/api/kredikartlari", h.SonIstek.RequestUri!.AbsolutePath);
-        using var doc = JsonDocument.Parse(h.SonGovde!);
+        Assert.Equal(HttpStatusCode.Conflict, hata.DurumKodu);
+        Assert.Equal("Yeni kartı güncel uygulamanın Kredi Kartları ekranından oluşturun.", hata.Message);
+        var (istek, govde) = Assert.Single(h.Istekler);
+        Assert.Equal(HttpMethod.Post, istek.Method);
+        Assert.EndsWith("/api/kredikartlari", istek.RequestUri!.AbsolutePath);
+        using var doc = JsonDocument.Parse(govde!);
         Assert.Equal("Bonus", doc.RootElement.GetProperty("ad").GetString());
-        Assert.Equal(100000m, doc.RootElement.GetProperty("limit").GetDecimal());
         Assert.Equal("2026-07-05", doc.RootElement.GetProperty("kesimTarihi").GetString());
-        Assert.Equal(7, eklenen.Id);
     }
 
     [Fact]
@@ -148,22 +152,21 @@ public class MutasyonTests
     }
 
     [Fact]
-    public async Task Kredi_ekle_post_dogru_govde_gonderir()
+    public async Task Kredi_ekle_emekli_uc_409_ve_sunucu_iletisiyle_reddedilir()
     {
         var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.Created, """{"id":5,"ad":"Taşıt Kredisi","cekilenTutar":120000.0,"cekimTarihi":"2026-08-03","taksitSayisi":12,"aylikOdeme":11000.0,"odemeGunu":15,"kanal":"MEZAT"}""");
+        h.Kuyrukla(HttpStatusCode.Conflict, """{"hata":"Yeni krediyi güncel uygulamanın Krediler ekranından oluşturun."}""");
 
-        await c.KrediEkleAsync(new KrediDto(0, "Taşıt Kredisi", 120000m, new DateOnly(2026, 8, 3), 12, 11000m, 15, "MEZAT"));
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.KrediEkleAsync(new KrediDto(0, "Taşıt Kredisi", 120000m, new DateOnly(2026, 8, 3), 12, 11000m, 15, "MEZAT")));
 
-        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method);
-        Assert.EndsWith("/api/krediler", h.SonIstek.RequestUri!.AbsolutePath);
-        using var doc = JsonDocument.Parse(h.SonGovde!);
+        Assert.Equal(HttpStatusCode.Conflict, hata.DurumKodu);
+        Assert.Equal("Yeni krediyi güncel uygulamanın Krediler ekranından oluşturun.", hata.Message);
+        var (istek, govde) = Assert.Single(h.Istekler);
+        Assert.Equal(HttpMethod.Post, istek.Method);
+        Assert.EndsWith("/api/krediler", istek.RequestUri!.AbsolutePath);
+        using var doc = JsonDocument.Parse(govde!);
         Assert.Equal("Taşıt Kredisi", doc.RootElement.GetProperty("ad").GetString());
-        Assert.Equal(120000m, doc.RootElement.GetProperty("cekilenTutar").GetDecimal());
         Assert.Equal("2026-08-03", doc.RootElement.GetProperty("cekimTarihi").GetString());
-        Assert.Equal(12, doc.RootElement.GetProperty("taksitSayisi").GetInt32());
-        Assert.Equal(15, doc.RootElement.GetProperty("odemeGunu").GetInt32());
-        Assert.Equal("MEZAT", doc.RootElement.GetProperty("kanal").GetString());
     }
 
     [Fact]

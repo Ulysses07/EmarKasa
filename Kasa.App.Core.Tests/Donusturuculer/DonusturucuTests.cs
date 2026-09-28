@@ -8,8 +8,9 @@ namespace Kasa.App.Core.Tests;
 /// Kasa.App dönüştürücüleri (maui-8'in dönüştürücü yarısı, tests-9): XAML bağlamalarındaki biçim ve renk mantığı,
 /// uygulamanın kendi kaynak dosyalarıyla (csproj'da bağlı derleme) sınanır. Görünüm tr-TR'dir: bağlamanın verdiği kültür
 /// ve iş parçacığı kültürü ne olursa olsun ay adı, baş harf ve para metni Türkçe kurallarla üretilir. maui-8'in sayfa
-/// kod-arkası mantığı (AlislarPage belge ekleme, kasa kontrolü kilit onayı, ekstre PDF seçimi) MAUI türlerine bağlı olduğu
-/// için burada sınanamaz; App.Core'a taşınması Kasa.App sahibine bırakıldı.
+/// kod-arkası yarısı App.Core'a taşındı ve orada sınanır: belge ekleme (AlislarViewModel.BelgeEkleAsync, DosyaSecimKurallari;
+/// YeniAkisTests, DosyaSecimKurallariTests), ekstre PDF seçimi (EkstreAktarmaViewModel.PdfSecVeYukleAsync; EkstreAktarmaTests)
+/// ve ay kilidi onayı (AyKilidiViewModel.OnayMetni/IstekHalaGecerli; KasaKontrolVeAylikGiderTests).
 /// </summary>
 public class DonusturucuTests
 {

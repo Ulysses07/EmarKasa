@@ -67,24 +67,16 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
             Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."), Paylar(s.Paylar, s.PayEkle));
         form.BindingContext = s; _satirFormu.Content = form;
     }
+    // Yalnız PDF, 10 MB sınırı ve oturum koruması EkstreAktarmaViewModel.PdfSecVeYukleAsync'tedir (maui-8); sayfa yalnız dosya
+    // seçiciyi açar.
     private async Task PdfSecAsync()
     {
         var secim = Vm.YuklemeSecimi(); if (secim is null) return;
-        try
+        await Vm.PdfSecVeYukleAsync(secim, async () =>
         {
             var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Banka veya kart PDF ekstresini seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf" } }) });
-            if (dosya is null || Vm.OturumNesli != secim.Oturum) return;
-            if (!dosya.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) { Vm.Hata = "Yalnız PDF dosyası seçin."; return; }
-            await using var akis = await dosya.OpenReadAsync(); using var bellek = new MemoryStream(); var buffer = new byte[81920]; int count;
-            while ((count = await akis.ReadAsync(buffer)) > 0)
-            {
-                if (Vm.OturumNesli != secim.Oturum) return;
-                if (bellek.Length + count > 10 * 1024 * 1024) { Vm.Hata = "PDF en fazla 10 MB olabilir."; return; }
-                bellek.Write(buffer, 0, count);
-            }
-            await Vm.PdfYukleAsync(bellek.ToArray(), dosya.FileName, secim);
-        }
-        catch (Exception) { if (Vm.OturumNesli == secim.Oturum) Vm.Hata = "PDF okunamadı. Dosyayı kontrol edip yeniden seçin."; }
+            return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
+        });
     }
     private async Task KaydiIptalAsync(EkstreKayitSatiri s)
     {

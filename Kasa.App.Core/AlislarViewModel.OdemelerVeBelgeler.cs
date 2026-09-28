@@ -30,6 +30,9 @@ public partial class AlislarViewModel
         EskiKartHarcamasi = odeme.Veri.KrediKartiId is null && _giderler.Any(g => g.Id == odeme.Veri.IslemId && g.Tip == GiderTipi.KrediKarti);
         DuzeltmeKartlari.Clear(); DuzeltmeKartlari.Add(new(null, EskiKartHarcamasi ? "Eski kart harcamasını koru" : "Nakit / banka"));
         foreach (var kart in OdemeKartlari.Where(k => k.Id is not null)) DuzeltmeKartlari.Add(kart);
+        // K3: liste yalnız takipteki açık kartlardır; ödemenin kendi (eski/kapalı) kartı ayrıca eklenir, kayıt kartıyla kalabilir.
+        if (odeme.Veri.KrediKartiId is { } kendi && DuzeltmeKartlari.All(k => k.Id != kendi))
+            DuzeltmeKartlari.Add(new(kendi, $"{(string.IsNullOrWhiteSpace(odeme.Veri.KrediKartiAdi) ? _kartAdlari.GetValueOrDefault(kendi, $"Kart #{kendi}") : odeme.Veri.KrediKartiAdi)} (eski kayıt)"));
         DuzeltmeKarti = DuzeltmeKartlari.FirstOrDefault(k => k.Id == odeme.Veri.KrediKartiId);
         HedefAlis = null; DuzeltmeAciklamasi = "";
         _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
@@ -76,10 +79,35 @@ public partial class AlislarViewModel
         var belgeler = await _yonetim.BelgelerAsync(id);
         if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler);
     });
+    /// <summary>Belge ekleme (maui-8; önceden AlislarPage.BelgeEkleTiklandi'deydi). Seçici açılırken oturum ve seçili alış
+    /// yakalanır: seçim ya da okuma sürerken oturum veya alış değişirse dosya yüklenmez. İçerik türü uzantıdan, 10 MB sınırı
+    /// okurken denetlenir. Dönen uyarıyı sayfa gösterir (desteklenmeyen, büyük ya da okunamayan dosya); yükleme hatası
+    /// <see cref="TemelViewModel.Hata"/>'dadır.</summary>
+    /// <param name="sec">Dosya seçiciyi açar; vazgeçilirse null.</param>
+    public async Task<DosyaUyarisi?> BelgeEkleAsync(Func<Task<SecilenDosya?>> sec, int? odemeId)
+    {
+        if (Mesgul || _secili is null) return null;
+        var nesil = Volatile.Read(ref _islemNesli); var alisId = _secili.Id;
+        bool SecimSuruyor() => Gecerli(nesil) && _secili?.Id == alisId;
+        try
+        {
+            var dosya = await sec();
+            if (dosya is null || !SecimSuruyor()) return null;
+            var tur = DosyaSecimKurallari.BelgeIcerikTuru(dosya.Ad);
+            if (tur is null) return DosyaSecimKurallari.DesteklenmeyenBelge;
+            DosyaOkumasi okuma;
+            await using (var akis = await dosya.Ac()) okuma = await DosyaSecimKurallari.SinirliOkuAsync(akis, DosyaSecimKurallari.EnFazlaBayt, SecimSuruyor);
+            if (okuma.Durum == DosyaOkumaDurumu.SinirAsildi) return DosyaSecimKurallari.BuyukBelge;
+            if (okuma.Durum == DosyaOkumaDurumu.Vazgecildi || !SecimSuruyor()) return null;
+            await BelgeYukleAsync(dosya.Ad, tur, okuma.Icerik!, odemeId);
+            return null;
+        }
+        catch (Exception) { return DosyaSecimKurallari.OkunamayanBelge; }
+    }
     public Task BelgeYukleAsync(string ad, string tur, byte[] icerik, int? odemeId) => YurutAsync(async n =>
     {
         if (_yonetim is null || _secili is null) return;
-        if (icerik.Length > 10 * 1024 * 1024 || icerik.Length == 0) { Hata = "Belge boş olamaz ve 10 MB sınırını aşamaz."; return; }
+        if (icerik.Length > DosyaSecimKurallari.EnFazlaBayt || icerik.Length == 0) { Hata = "Belge boş olamaz ve 10 MB sınırını aşamaz."; return; }
         var id = _secili.Id;
         try
         {

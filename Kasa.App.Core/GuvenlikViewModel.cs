@@ -12,6 +12,9 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     /// <summary>Yeni şifrenin tekrarı: değişim token'ı ve kurtarma kodunu hemen geçersiz kıldığı için yazım hatası hesabı
     /// kilitler; uyuşmazsa istek gönderilmez.</summary>
     [ObservableProperty] private string _yeniSifreTekrar = "";
+    /// <summary>"Yeni şifreyi göster" kutusu (yalnız yeni şifre alanları; mevcut şifre maskeli kalır). Başarıda, ekrandan
+    /// ayrılınca ve oturum sonunda kapanır: bir sonraki giriş açıkta başlamaz.</summary>
+    [ObservableProperty] private bool _yeniSifreyiGoster;
     [ObservableProperty] private string? _kurtarmaKodu;
     [ObservableProperty] private string _surumBilgisi = $"Uygulama {IstemciSurumu}";
     [ObservableProperty] private string _yedekBilgisi = "Yedek durumu henüz alınmadı.";
@@ -56,7 +59,7 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         MevcutSifre = "";
         Mesaj = "Bu kod yalnız şimdi gösterilir. Güvenli bir yerde saklayın. Yeni kod önceki kodu geçersiz kılar.";
     });
-    public void Temizle() { MevcutSifre = ""; YeniSifre = ""; YeniSifreTekrar = ""; KurtarmaKodu = null; }
+    public void Temizle() { MevcutSifre = ""; YeniSifre = ""; YeniSifreTekrar = ""; KurtarmaKodu = null; YeniSifreyiGoster = false; }
     /// <summary>Web (app.js) ile aynı ileti.</summary>
     public const string YeniSifreUyusmazMesaji = "Yeni şifreler aynı olmalı.";
     /// <summary>Ekrandan ayrılınca süren yedek indirmesi de iptal edilir; sonucu zaten kullanılmayacaktı.</summary>

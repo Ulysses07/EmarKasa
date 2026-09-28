@@ -187,8 +187,9 @@ test('new cash expense duplicate can be cancelled and lookup failure never silen
 test('new purchase payment checks its purchase and card, while linking an existing expense skips duplicate checks', async () => {
   const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 4 };
-  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı', yeniTakip: true, aktif: true }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
   await app.paymentDialog(purchase); formField(nodes, 'tutar').value = '75'; formField(nodes, 'krediKartiId').value = '4';
+  assert.ok(formField(nodes, 'krediKartiId').children.some(option => option.textContent === 'İş kartı'), 'Takipteki kart seçilebilir.');
   await submitDialog(nodes);
   const lookup = calls.find(call => call.path === '/api/islemler/benzerlik'); assert.equal(lookup.body.tur, 'AlisOdeme'); assert.equal(lookup.body.alisId, 6); assert.equal(lookup.body.krediKartiId, 4);
   assert.equal(calls.some(call => call.path === '/api/alis/6/odemeler'), false);
@@ -1488,11 +1489,34 @@ test('eski sunucuda ana sayfa ucu yoksa (404) ayrı uçlara geri düşer, sonrak
   assert.equal(requests.filter(path => path === homeSummaryPath).length, 1);
   assert.equal(requests.filter(path => path === '/api/rapor/panel').length, 2);
 });
-test('ana sayfa ucunun sunucu hatası ayrı uçlara düşürmez; yeniden deneme gösterilir', async () => {
-  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 500 } });
-  assert.ok(!requests.includes('/api/rapor/panel'));
-  assert.match(nodes.get('#view').textContent, /Kayıtlar yüklenemedi/);
+// IST4: birleşik ucun sunucu hatası (5xx) ana sayfayı düşürmez. Kasa bakiyeleri panel ucundan gelir; eşikler ve takip
+// özeti kendi uçlarından yüklenir ve kendi hatalarını gösterir. 404'ten farklı olarak uç sonraki açılışta yeniden denenir.
+test('ana sayfa ucunun sunucu hatası (5xx) paneli ayrı uçtan dener; sonraki açılışta birleşik uç yeniden denenir', async () => {
+  for (const status of [500, 503]) {
+    const { app, nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: status } });
+    for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(requests.includes(old), `${status}: ${old} istenir`);
+    assert.match(nodes.get('#view').textContent, /123,00/);
+    assert.doesNotMatch(nodes.get('#view').textContent, /Kayıtlar yüklenemedi/);
+    await app.navigate('home');
+    assert.equal(requests.filter(path => path === homeSummaryPath).length, 2, `${status}: uç yeniden denenir`);
+  }
+});
+test('ana sayfa ucu da panel ucu da hata verirse yeniden deneme gösterilir', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 500 }, '/api/rapor/panel': { $status: 503, hata: 'Sunucu meşgul.' } });
+  assert.ok(requests.includes('/api/rapor/panel'));
+  assert.match(nodes.get('#view').textContent, /Kayıtlar yüklenemedi.*Sunucu meşgul\./);
   assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Yeniden dene'));
+});
+test('özetsiz ana sayfa yanıtında kasa bakiyeleri görünür; özet ve eşik hataları ayrı ayrı gösterilir', async () => {
+  // Sunucu (RDY) takip özeti hesaplanamayınca paneli özetsiz (null) döndürür; istemci özeti ve eşikleri kendi uçlarından dener.
+  const home = { ...sampleHome(), kasaEsikleri: null, takipOzeti: null };
+  const { nodes } = await openApp(false, { [homeSummaryPath]: home, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': { $status: 503, hata: 'Veritabanı meşgul.' } });
+  await settle();
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /900,00/); assert.match(view, /MEZAT/); assert.match(view, /600,00/);
+  assert.match(view, /Ödeme özeti yüklenemedi: /); assert.match(view, /Kanal uyarıları yüklenemedi: Veritabanı meşgul\./);
+  assert.match(view, /Kart borcu yüklenemedi\./);
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Uyarıları yeniden yükle'));
 });
 test('özet yüklenemediğinde kart borcu iletisi eşikler sonradan çizilince "yükleniyor"a dönmez', async () => {
   const { nodes } = await openApp(false, { [homeSummaryPath]: { $status: 404 }, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': () => new Promise(resolve => setImmediate(() => setImmediate(() => resolve([])))) });
@@ -1634,4 +1658,114 @@ test('eski kredi kartı gideri düzenlenirken kendi kartıyla ya da kartsız kal
   assert.equal(formField(nodes, 'krediKartiId').children[0].textContent, '— Kartsız eski kayıt —');
   formField(nodes, 'tutarTl').value = '90'; await submitDialog(nodes);
   const save = calls.find(call => call.path === '/api/islemler/21'); assert.equal(save.body.krediKartiId, null); assert.equal(save.body.tutarTl, 90);
+});
+
+// ---- IST4: aylık sayfa sunucu sayıları, ana sayfa dayanıklılığı, kilit açma uyarısı, K3 kart listesi, iz kimliği ----
+test('aylık rapor sunucu sayılarını kullanıcı girdisi gibi ayrıştırmaz: eksi ve üslü kredi girişiyle de sayfa çizilir', async () => {
+  const path = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  // 1e-7 JSON'dan sayı olarak gelir; String(1e-7) === '1e-7' kullanıcı girdisi ayrıştırıcısını düşürürdü.
+  const report = { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, krediGirisi: -1500.5, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0,
+    kanallar: [{ kanal: 'MEZAT', gelen: 100, krediGirisi: -1000.25, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 },
+      { kanal: 'PERAKENDE', gelen: 0, krediGirisi: 1e-7, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 0 }] };
+  const { app, nodes } = await openApp(false, { [path]: report });
+  await app.navigate('monthly');
+  const text = nodes.get('#view').textContent;
+  assert.doesNotMatch(text, /Kayıtlar yüklenemedi/);
+  assert.ok(text.includes(`Kredi girişi: ${money(-1500.5)}`), 'Eksi kredi girişi notta.');
+  assert.ok(text.includes(`Kanala dağıtılmayan eski kredi çekimi: ${money(-500.25)}`), 'Kuruş farkı sunucu sayılarından hesaplanır.');
+  assert.equal(ui.serverCents(-1500.5), -150050); assert.equal(ui.serverCents(1e-7), 0); assert.equal(ui.serverCents(null), 0); assert.equal(ui.serverCents(0.29), 29);
+});
+test('kural 1 ile dondurulmuş ayın kilidi açılırken rapor güncel kuralla yeniden hesaplanacağı uyarılır', async () => {
+  const current = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const august = '/api/rapor/aylik?yil=2026&ay=8';
+  const channels = [{ kanal: 'MEZAT', gelen: 200, krediGirisi: 120, cariGiden: 100, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 }];
+  const { app, nodes, responses, calls } = await openApp(false, { [current]: { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, kanallar: channels },
+    [august]: { yil: 2026, ay: 8, kuralSurumu: 1, dondurulmus: true, kanallar: channels }, '/api/ay-kilidi': { surum: 4, kilitliSonTarih: '2026-08-31', gecmis: [] }, '/api/ay-kilidi/ac': { surum: 5, kilitliSonTarih: '2026-07-31', gecmis: [] } });
+  await app.navigate('monthly');
+  const show = async month => { viewField(nodes, 'ay').value = month; await clickView(nodes, 'Ayı göster'); };
+  await show('2026-08');
+  await clickView(nodes, 'Bu ayı ve sonrasını aç');
+  const warning = nodes.get('#modal-content').textContent;
+  assert.match(warning, /eski kuralla \(kural 1\) kapatılmış/); assert.match(warning, /yeniden kapatınca da güncel kuralla/);
+  assert.match(warning, /takipli kredi çekimi Gelen ve Ay sonucundan çıkar/);
+  formField(nodes, 'aciklama').value = 'Ağustos düzeltmesi'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/ay-kilidi/ac').body.ay, 8, 'Uyarı yalnız bilgidir; açma yine gönderilir.');
+  // Kural 2 ile dondurulmuş ay ve kapatma onayı uyarı taşımaz.
+  responses[august] = { ...responses[august], kuralSurumu: 2 };
+  await show('2026-08'); await clickView(nodes, 'Bu ayı ve sonrasını aç');
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/);
+  const frozenOld = { yil: 2026, ay: 7, kuralSurumu: 1, dondurulmus: true, kanallar: channels };
+  responses['/api/ay-kilidi'] = { surum: 5, kilitliSonTarih: '2026-06-30', gecmis: [] };
+  const close = await app.monthlyUi.lockPanel('2026-07', () => {}, frozenOld);
+  close.find(node => node.tag === 'button' && node.textContent === 'Bu ay sonuna kadar kilitle').listeners.click();
+  assert.match(nodes.get('#modal-content').textContent, /son günü dahil bütün geçmiş/);
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/, 'Kapatma onayında uyarı yok.');
+});
+test('alış ödeme formu kartta yalnız takipteki açık kartları listeler; bağlanan giderin ve düzeltilen ödemenin kendi kartı korunur', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi', odemeler: [] };
+  const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 1 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/6/odemeler/8': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [] });
+  const labels = () => formField(nodes, 'krediKartiId').children.map(option => option.textContent);
+  await app.paymentDialog(purchase);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli']);
+  const existing = formField(nodes, 'mevcutIslemId'); existing.value = '20'; existing.listeners.change();
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Eski kart (eski kayıt)'], 'Bağlanan giderin eski kartı gösterilir.');
+  existing.value = ''; existing.listeners.change();
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli'], 'Seçim kalkınca eski kart yeni ödemede seçilemez.');
+  existing.value = '20'; existing.listeners.change(); await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.krediKartiId, 1);
+  const payment = { id: 8, tarih: '2026-09-23', tutar: 50, krediKartiId: 3, krediKartiAdi: 'Kapalı', dagilimBekliyor: false, dagilimlar: [] };
+  await app.paymentDialog({ ...purchase, odemeler: [payment] }, payment);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Kapalı (eski kayıt)']);
+  formField(nodes, 'aciklama').value = 'Tarih düzeltmesi'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8').body.krediKartiId, 3);
+  assert.deepEqual(ui.paymentCardChoices(cards, 9).map(option => option.label), ['Nakit / havale', 'Takipli', 'Kart #9 (eski kayıt)']);
+  assert.deepEqual(ui.paymentCardChoices(cards, 2).map(option => option.value), ['', 2]);
+});
+test('sunucu hatasının (5xx) iz kimliği hata iletisinde kısa "Hata kodu" olarak görünür', async () => {
+  const trace = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+  assert.equal(ui.traceCode(trace), '4bf92f35');
+  assert.equal(ui.traceCode('0HN7ABCDEF:00000002'), '0HN7ABCDEF:00000002');
+  assert.equal(ui.traceCode('0HN7ABCDEFGHIJKLMNOPQRSTU:00000002'), '0HN7ABCDEFGH');
+  for (const value of [null, undefined, '  ', '<script>', 42]) assert.equal(ui.traceCode(value), null, String(value));
+  assert.equal(errorMessage({ title: 'An error occurred while processing your request.', status: 500, traceId: trace }, 500), 'İşlem tamamlanamadı. Lütfen yeniden deneyin. Hata kodu: 4bf92f35');
+  assert.equal(errorMessage({ detail: 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi.', traceId: trace }, 500), 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi. Hata kodu: 4bf92f35');
+  assert.equal(errorMessage({ hata: 'Kayıt değişti.', traceId: trace }, 409), 'Kayıt değişti.', 'İstemci hatasında iz eklenmez.');
+  assert.equal(errorMessage(null, 500), 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': [], '/api/islemler': { $status: 500, title: 'Veri bütünlüğü hatası', detail: 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi.', traceId: trace } });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /kaydedilmedi\. Hata kodu: 4bf92f35/);
+});
+test('gelir penceresinin dönem okuması ekran sinyaline bağlanmaz; pencere açılırken gezinme onu bozmaz', async () => {
+  let release;
+  const week = { donem: { start: '2026-09-21', end: '2026-09-27', yil: 2026, ay: 9 }, kanallar: [], toplamGelen: 0, toplamGiden: 0, kasaSonucu: 0, kasaDevir: 0, dagilimBekleyenTutar: 0 };
+  const monthly = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': () => new Promise(resolve => { release = resolve; }), '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/gelenler?donemStart=2026-09-21': [],
+    [monthly]: { yil: yearNow, ay: monthNumberNow, kanallar: [] } });
+  const opening = app.incomeDialog(); await settle();
+  const weekly = calls.find(call => call.path === '/api/rapor/haftalik');
+  assert.equal(weekly.signal, undefined, 'Pencere verisi ekrana bağlı değildir.');
+  await app.navigate('monthly');                                  // pencere açılmadan başka ekrana geçildi
+  release([week]); await opening; await settle();
+  assert.equal(nodes.get('#modal').open, true); assert.equal(nodes.get('#modal-title').textContent, 'Kanal geliri gir');
+  assert.ok(formField(nodes, 'donemStart'), 'Dönem seçimi dolu.');
+  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  // Ekranın kendi rapor okumaları ekran sinyaline bağlı kalır.
+  assert.ok(calls.find(call => call.path === monthly).signal);
+});
+test('benzer kayıt uyarısı sunucunun ±3 gün ve kanal kuralını anlatır, kredi taksidini ve kanal etiketini gösterir', async () => {
+  const similar = [{ kaynak: 'KrediTaksidi', id: 5, tarih: '2026-09-25', tutar: 75, aciklama: 'Taksit 3', krediKartiId: null, kanalEtiketi: 'MEZAT, PERAKENDE' },
+    { kaynak: 'EskiKrediTaksidi', id: 6, tarih: '2026-09-20', tutar: 75, aciklama: 'Kredi', krediKartiId: null, kanalEtiketi: 'Genel kasa' }];
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': similar });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const text = nodes.get('#modal-content').textContent;
+  assert.ok(text.includes(ui.SIMILAR_RULE_TEXT), 'Kural metni gösterilir.');
+  assert.match(ui.SIMILAR_RULE_TEXT, /±3 gün/); assert.match(ui.SIMILAR_RULE_TEXT, /kanalı belirsiz/); assert.match(ui.SIMILAR_RULE_TEXT, /çok kanallı/); assert.match(ui.SIMILAR_RULE_TEXT, /kart ödemeleri/);
+  assert.doesNotMatch(text, /Aynı tarih, tutar/);
+  assert.match(text, /Kredi taksidi #5 · .* · MEZAT, PERAKENDE/); assert.match(text, /Eski kredi taksidi #6 · .* · Genel kasa/);
 });

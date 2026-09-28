@@ -17,6 +17,8 @@ public partial class AlislarViewModel : TemelViewModel
     private readonly IYonetimApi? _yonetim;
     private AlisDto? _secili;
     private IReadOnlyList<IslemDto> _giderler = Array.Empty<IslemDto>();
+    // Bütün kartların adları: listede olmayan (eski/kapalı) kendi kartını adıyla göstermek için.
+    private IReadOnlyDictionary<int, string> _kartAdlari = new Dictionary<int, string>();
     private AlisOdemeYaz? _bekleyenOdeme;
     private int _bekleyenAlisId;
     private bool _yansitiliyor;
@@ -102,7 +104,7 @@ public partial class AlislarViewModel : TemelViewModel
         Interlocked.Increment(ref _islemNesli);
         Mesgul = false; VeriHazir = false; Hata = null; Mesaj = null;
         Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear();
-        _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>();
+        _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>(); _kartAdlari = new Dictionary<int, string>();
         OdemeBenzerlik.Temizle();
         HesaplarAcik = false; YeniAlici();
         Belgeler.Clear(); DuzeltmeHedefleri.Clear(); _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
@@ -137,7 +139,10 @@ public partial class AlislarViewModel : TemelViewModel
             var hesapIsi = _api.AlicilarAsync();
             await Task.WhenAll(kartIsi, giderIsi, hesapIsi);
             if (!Gecerli(nesil)) return;
-            foreach (var kart in await kartIsi) OdemeKartlari.Add(new(kart.Id, kart.Ad));
+            // K3: yeni ödemede yalnız yeni takipteki, yeni kullanıma açık kartlar seçilir (web paymentCardChoices ile aynı).
+            var kartlar = await kartIsi;
+            _kartAdlari = kartlar.ToDictionary(k => k.Id, k => k.Ad);
+            foreach (var kart in kartlar.Where(k => k.YeniTakip && k.Aktif)) OdemeKartlari.Add(new(kart.Id, kart.Ad));
             _giderler = await giderIsi;
             Degistir(Alicilar, await hesapIsi);
         }
@@ -309,8 +314,9 @@ public partial class AlislarViewModel : TemelViewModel
         if (!ParaAyristirici.GecerliMi(OdemeTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (OdemeTutari <= 0 || decimal.Round(OdemeTutari, 2) != OdemeTutari || OdemeTutari > _secili.Kalan)
         { Hata = "Ödeme sıfırdan büyük, kuruş hassasiyetinde ve kalan tutarı aşmayacak şekilde olmalıdır."; return; }
+        // Bağlanan mevcut gider kendi kartıyla gider (sunucu kartın eşleşmesini ister): kart eski/kapalıysa listede yoktur.
         var g = new AlisOdemeYaz(_secili.Surum, Guid.NewGuid(), DateOnly.FromDateTime(OdemeTarihi), OdemeTutari,
-            OdemeKarti?.Id, MevcutGiderKullan ? SeciliGider!.Veri.Id : null, OdemeNotu);
+            MevcutGiderKullan ? SeciliGider!.Veri.KrediKartiId : OdemeKarti?.Id, MevcutGiderKullan ? SeciliGider!.Veri.Id : null, OdemeNotu);
         // Ağ hatasında aynı ödeme tekrar gönderilirse aynı anahtar ve gövde kullanılır.
         if (_bekleyenAlisId == _secili.Id && _bekleyenOdeme is { } eski
             && eski.Tarih == g.Tarih && eski.Tutar == g.Tutar && eski.KrediKartiId == g.KrediKartiId

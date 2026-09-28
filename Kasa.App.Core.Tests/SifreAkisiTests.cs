@@ -126,6 +126,44 @@ public class SifreAkisiTests
         Assert.Equal("", guvenlik.YeniSifre); Assert.Equal("", guvenlik.YeniSifreTekrar);
     }
 
+    // IST4 (F3C notu): "Yeni şifreyi göster" kutusu görünüm modelinde tutulur; açık bırakılan kutu bir sonraki şifre girişinde
+    // yazılanı açıkta göstermesin diye başarıda, formun/ekranın kapanmasında ve oturum sonunda kapanır.
+    [Fact]
+    public async Task Guvenlik_ekraninda_yeni_sifreyi_goster_basarida_ekrandan_ayrilinca_ve_oturum_sonunda_kapanir()
+    {
+        var (api, auth, _) = await GirisYapmis(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var vm = new GuvenlikViewModel(api, auth) { YeniSifreyiGoster = true };
+        vm.EkrandanAyril();
+        Assert.False(vm.YeniSifreyiGoster);
+
+        vm.YeniSifreyiGoster = true; vm.MevcutSifre = "kasa-sifresi"; vm.YeniSifre = vm.YeniSifreTekrar = "yepyeni-sifre-123";
+        await vm.SifreDegistirCommand.ExecuteAsync(null);
+        Assert.False(vm.YeniSifreyiGoster);
+
+        var (api2, auth2, _) = await GirisYapmis(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var ikinci = new GuvenlikViewModel(api2, auth2) { YeniSifreyiGoster = true };
+        await auth2.CikisAsync();
+        Assert.False(ikinci.YeniSifreyiGoster);
+    }
+
+    [Fact]
+    public async Task Kurtarmada_yeni_sifreyi_goster_form_kapaninca_basarida_ve_oturum_sonunda_kapanir()
+    {
+        var sahte = new SahteApi { LoginYaniti = new LoginYanit("editor", "jwt") };
+        var auth = new AuthViewModel(sahte) { KurtarmaAcik = true, KurtarmaSifresiniGoster = true };
+        auth.KurtarmayiAcKapatCommand.Execute(null);                // form kapandı
+        Assert.False(auth.KurtarmaSifresiniGoster);
+
+        auth.KurtarmayiAcKapatCommand.Execute(null); auth.KurtarmaSifresiniGoster = true;
+        sahte.OturumuSonlandir();
+        Assert.False(auth.KurtarmaSifresiniGoster);
+
+        var api = new KasaApiClient(new HttpClient(new Sunucu(_ => new HttpResponseMessage(HttpStatusCode.NoContent))) { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
+        var kurtarma = new AuthViewModel(api) { Kullanici = "editor", KurtarmaAcik = true, KurtarmaKodu = "ABCD-EFGH", KurtarmaYeniSifre = "Kasa2026!Guvenli", KurtarmaYeniSifreTekrar = "Kasa2026!Guvenli", KurtarmaSifresiniGoster = true };
+        await kurtarma.SifreKurtarCommand.ExecuteAsync(null);
+        Assert.Null(kurtarma.Hata); Assert.False(kurtarma.KurtarmaSifresiniGoster);
+    }
+
     [Fact]
     public async Task Gercek_oturum_sonu_hata_olarak_gosterilir_ve_yeni_giris_bilgiyi_temizler()
     {

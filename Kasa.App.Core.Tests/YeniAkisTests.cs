@@ -120,6 +120,41 @@ public class YeniAkisTests
         await vm.BelgeYukleAsync("dekont.pdf", "application/pdf", new byte[] { 1, 2, 3, 4 }, null);
         Assert.Contains("zamanında yanıt vermedi", vm.Hata); Assert.Equal(sunucudaki, Assert.Single(vm.Belgeler)); Assert.Equal(1, api.BelgeYuklemeSayisi);
     }
+    // maui-8: AlislarPage.BelgeEkleTiklandi mantığı (uzantıdan içerik türü, 10 MB sınırı, oturum/seçim koruması, okuma hatası)
+    // AlislarViewModel.BelgeEkleAsync'te; sayfa yalnız dosya seçiciyi açar ve dönen uyarıyı gösterir.
+    private static Func<Task<SecilenDosya?>> Secici(string ad, byte[] icerik, Action? secerken = null)
+        => () => { secerken?.Invoke(); return Task.FromResult<SecilenDosya?>(new(ad, () => Task.FromResult<Stream>(new MemoryStream(icerik)))); };
+    [Fact] public async Task Belge_ekleme_uzantidan_icerik_turuyle_yukler_desteklenmeyen_ve_buyuk_dosyayi_uyariyla_reddeder()
+    {
+        var api = new Fake(); var vm = await AlisVm(api);
+        Assert.Null(await vm.BelgeEkleAsync(Secici("Dekont.JPG", [1, 2, 3]), 4));
+        Assert.Equal(("Dekont.JPG", "image/jpeg", 3, (int?)4), (api.SonBelge!.Value.Ad, api.SonBelge.Value.Tur, api.SonBelge.Value.Icerik.Length, api.SonBelge.Value.OdemeId));
+        Assert.Equal("Belge eklendi.", vm.Mesaj);
+
+        Assert.Equal(DosyaSecimKurallari.DesteklenmeyenBelge, await vm.BelgeEkleAsync(Secici("resim.gif", [1]), null));
+        Assert.Equal(DosyaSecimKurallari.BuyukBelge, await vm.BelgeEkleAsync(Secici("buyuk.pdf", new byte[DosyaSecimKurallari.EnFazlaBayt + 1]), null));
+        Assert.Equal(1, api.BelgeYuklemeSayisi);
+        Assert.Null(await vm.BelgeEkleAsync(() => Task.FromResult<SecilenDosya?>(null), null));   // seçiciden vazgeçildi
+        Assert.Equal(DosyaSecimKurallari.OkunamayanBelge, await vm.BelgeEkleAsync(() => Task.FromException<SecilenDosya?>(new IOException()), null));
+        Assert.Equal(DosyaSecimKurallari.OkunamayanBelge, await vm.BelgeEkleAsync(() => Task.FromResult<SecilenDosya?>(new("a.pdf", () => Task.FromException<Stream>(new UnauthorizedAccessException()))), null));
+        Assert.Equal(1, api.BelgeYuklemeSayisi);
+    }
+    [Fact] public async Task Belge_secilirken_alis_ya_da_oturum_degisirse_yuklenmez()
+    {
+        var api = new Fake(); var vm = await AlisVm(api);
+        Assert.Null(await vm.BelgeEkleAsync(Secici("a.pdf", [1], () => vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 8))), null));
+        Assert.Equal(0, api.BelgeYuklemeSayisi);
+
+        vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
+        Assert.Null(await vm.BelgeEkleAsync(Secici("a.pdf", [1], vm.BekleyenIslemleriGecersizKil), null));
+        Assert.Equal(0, api.BelgeYuklemeSayisi);
+
+        var yeni = new AlislarViewModel(api, new SahteApi(), api, api) { EditorMu = true }; await yeni.YukleAsync();
+        yeni.YeniCommand.Execute(null);                                                 // seçili alış yok: seçici açılmaz
+        var acildi = false;
+        Assert.Null(await yeni.BelgeEkleAsync(() => { acildi = true; return Task.FromResult<SecilenDosya?>(null); }, null));
+        Assert.False(acildi);
+    }
     [Fact] public async Task Gecikmis_kurtarma_kodu_ekrandan_ayrildiktan_sonra_gosterilmez()
     {
         var bekleyen = new TaskCompletionSource<KurtarmaKoduDto>(); var api = new Fake { KurtarmaYaniti = bekleyen.Task };
@@ -184,8 +219,9 @@ public class YeniAkisTests
         public Task<IndirmeBilgisi> YedekIndirAsync(Stream hedef, CancellationToken ct = default) => YedekYaniti?.Invoke(hedef, ct) ?? Yaz(hedef, "yedek.zip");
         private static async Task<IndirmeBilgisi> Yaz(Stream hedef, string ad) { await hedef.WriteAsync(new byte[] { 1, 2, 3 }); return new(ad, "application/octet-stream", 3); }
         public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int id) => BelgeYaniti ?? Task.FromResult<IReadOnlyList<BelgeDto>>(Array.Empty<BelgeDto>());
+        public (string Ad, string Tur, byte[] Icerik, int? OdemeId)? SonBelge;
         public Task<BelgeDto> BelgeYukleAsync(int id, string ad, string tur, byte[] b, int? odemeId = null, CancellationToken ct = default)
-        { BelgeYuklemeSayisi++; return BelgeYuklemeHatasi is { } hata ? Task.FromException<BelgeDto>(hata) : Task.FromResult(new BelgeDto(1, id, odemeId, ad, tur, b.Length, DateTimeOffset.UtcNow)); }
+        { BelgeYuklemeSayisi++; SonBelge = (ad, tur, b, odemeId); return BelgeYuklemeHatasi is { } hata ? Task.FromException<BelgeDto>(hata) : Task.FromResult(new BelgeDto(1, id, odemeId, ad, tur, b.Length, DateTimeOffset.UtcNow)); }
         public Task<IndirmeBilgisi> BelgeIndirAsync(int id, Stream hedef, CancellationToken ct = default) => Yaz(hedef, "belge.pdf");
         public Task BelgeSilAsync(int id) => Task.CompletedTask;
         public Task<IndirmeBilgisi> DisariAktarAsync(DateOnly b, DateOnly s, string? k, string bicim, Stream hedef, CancellationToken ct = default) { RaporIndirildi = true; return Yaz(hedef, "rapor." + bicim); }

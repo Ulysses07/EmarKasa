@@ -68,6 +68,9 @@ export function cents(value, { allowZero = true } = {}) {
   return result;
 }
 export function amount(value) { return cents(value) / 100; }
+// Sunucunun gönderdiği tutar (JSON sayısı) kuruşa çevrilir: eksi olabilir ve String() ile üslü yazılabilir (1e-7), kullanıcı
+// girdisi ayrıştırıcısı (cents) bunları reddeder. Sunucu tutarı en çok iki ondalıklıdır (monthlyTotals deseni).
+export function serverCents(value) { return Math.round(Number(value || 0) * 100); }
 export function navigationFor(role, runtime = { saltOkunur: false }) {
   if (runtime.saltOkunur && !['editor', 'viewer'].includes(role)) return [];
   if (role === 'alici') return [['purchases', 'Alışlarım', '≡']];
@@ -87,7 +90,20 @@ export function monthlyTotals(report) {
 }
 export function errorMessage(body, status) {
   if (body?.errors) return Object.values(body.errors).flat().join('\n');
-  return body?.hata || body?.detail || (status === 401 ? 'Oturumunuz sona erdi. Yeniden giriş yapın.' : status === 403 ? 'Bu işlem için yetkiniz yok.' : status === 409 ? 'Kayıt değişti. Güncel bilgileri yükleyip tekrar deneyin.' : status === 429 ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.' : 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  const message = body?.hata || body?.detail || (status === 401 ? 'Oturumunuz sona erdi. Yeniden giriş yapın.' : status === 403 ? 'Bu işlem için yetkiniz yok.' : status === 409 ? 'Kayıt değişti. Güncel bilgileri yükleyip tekrar deneyin.' : status === 429 ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.' : 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  // Sunucu hatasının (5xx) ProblemDetails iz kimliği kısa "Hata kodu" olarak eklenir: kullanıcı yöneticiye bildirir, yönetici
+  // sunucu logundaki tam iz kimliğini bu parçayla bulur. Masaüstü TemelViewModel.HataKoduEkle ile aynı biçim.
+  const code = status >= 500 ? traceCode(body?.traceId) : null;
+  return code ? `${message} Hata kodu: ${code}` : message;
+}
+// İz kimliğinin kısa biçimi (masaüstü KasaApiException.KisaIz ile aynı kural): W3C biçiminde iz numarasının ilk 8 hanesi, diğer
+// kimlikte en çok 24 karakterse kendisi, daha uzunsa ilk 12 karakteri; beklenmeyen karakter ya da boş değerde null.
+export function traceCode(traceId) {
+  const text = typeof traceId === 'string' ? traceId.trim() : '';
+  if (!text || !/^[A-Za-z0-9:._-]+$/.test(text)) return null;
+  const w3c = /^[0-9a-f]{2}-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$/.exec(text);
+  if (w3c) return w3c[1].slice(0, 8);
+  return text.length <= 24 ? text : text.slice(0, 12);
 }
 // ValidationProblem alanları (sunucu adlarıyla) → alan iletisi; form denetimi aynı adı taşır.
 export function fieldErrors(body) {
@@ -104,6 +120,9 @@ export function fieldErrors(body) {
 export function sessionExpired(status, path) {
   return status === 401 && !['/api/auth/login', '/api/auth/kurtar'].includes(String(path).split('?')[0]);
 }
+// Sunucunun benzer kayıt kuralı (BenzerKayitServisi; masaüstü BenzerKayitKontrolu.KuralMetni ile aynı metin): aynı tutar ve
+// ±3 gün; kanal süzgeci yalnız kesin başka kanala düşen kaydı eler.
+export const SIMILAR_RULE_TEXT = 'Aynı tutarda ve ±3 gün içindeki kayıtlar gösterilir; kartlı kayıtta aynı kartın kayıtları aranır. Kanal yalnız kesin olarak başka kanala düşen kaydı eler: kanalı belirsiz, Ortak, yalnız genel kasa ya da dağılım bekleyen kayıtlar, seçilen kanalı da içeren çok kanallı kayıtlar ve kart ödemeleri her kanalda görünür.';
 // Sunucu ve masaüstü ile aynı kural ve ileti; yalnız belirlerken/değiştirirken uygulanır.
 export const VIEWER_PASSWORD_MESSAGE = 'İzleyici şifresi 12–1024 karakter olmalıdır.';
 // Sunucu, kayıtlı izleyici şifresinin kurala uymadığını ancak bir izleyici girişinde görür (hash uzunluk saklamaz).
@@ -122,6 +141,16 @@ export function permissions(role, purchase) {
   return { finance: editor, edit: (editor || buyer) && (purchase?.durum === 'Taslak' || editor && purchase?.durum === 'Incelemede'), send: (editor || buyer) && purchase?.durum === 'Taslak', approve: editor && purchase?.durum === 'Incelemede', return: editor && ['Incelemede', 'Onaylandi'].includes(purchase?.durum), pay: editor && Number(purchase?.kalan) > 0 };
 }
 export const statusLabels = { Taslak: 'Taslak', Incelemede: 'İncelemede', Onaylandi: 'Onaylandı' };
+// K3: alış ödemesinde kart yalnız yeni takipteki, yeni kullanıma açık kartlardan seçilir (sunucu kartlı yeni ödemeyi başka
+// karta bağlamaz). Mevcut kaydın kendi kartı (düzeltilen ödemenin ya da bağlanan giderin eski/kapalı kartı) ayrıca listelenir:
+// kayıt kendi kartıyla kalabilir. Gider formundaki (expenseDialog) kart listesiyle aynı kural ve etiket.
+export function paymentCardChoices(cards, keepId = null) {
+  const all = cards || [];
+  const tracked = all.filter(card => card.yeniTakip && card.aktif);
+  const keep = keepId == null || keepId === '' || tracked.some(card => card.id === Number(keepId)) ? null : Number(keepId);
+  return [{ value: '', label: 'Nakit / havale' }, ...tracked.map(card => ({ value: card.id, label: card.ad })),
+    ...(keep == null ? [] : [{ value: keep, label: `${all.find(card => card.id === keep)?.ad || `Kart #${keep}`} (eski kayıt)` }])];
+}
 export function filteredPurchases(purchases, query, status) {
   const term = (query || '').toLocaleLowerCase('tr-TR');
   return purchases.filter(p => (!status || p.durum === status) && `${p.id} ${p.tedarikci} ${p.alici} ${(p.kalemler || []).map(k => k.aciklama).join(' ')}`.toLocaleLowerCase('tr-TR').includes(term));

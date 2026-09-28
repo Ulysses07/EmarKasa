@@ -24,13 +24,18 @@ public partial class TemelViewModel : ObservableObject
     {
         KasaApiException { DurumKodu: HttpStatusCode.Unauthorized } => "Oturumunuz sona erdi. Yeniden giriş yapın.",
         KasaApiException { DurumKodu: HttpStatusCode.Forbidden } => "Bu işlem için yetkiniz yok.",
-        KasaApiException api when api.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable => api.Message,
-        KasaApiException => "Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.",
+        KasaApiException api when api.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable => HataKoduEkle(api.Message, api),
+        KasaApiException api => HataKoduEkle("Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.", api),
         // İstek sunucuya ulaşmış olabilir: kayıt işlemleri tamamlanmış olabileceği için önce kontrol istenir.
         TimeoutException => "Sunucu zamanında yanıt vermedi. İşlem sunucuda tamamlanmış olabilir; yeniden denemeden önce listeyi yenileyip kontrol edin. Büyük dosyalarda bağlantınızı kontrol edin.",
         HttpRequestException or TaskCanceledException => "Sunucuya ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.",
         _ => "İşlem tamamlanamadı. Lütfen yeniden deneyin.",
     };
+
+    /// <summary>Sunucu hatasının (5xx) iz kimliği varsa iletiye kısa "Hata kodu" eklenir (web errorMessage ile aynı biçim):
+    /// kullanıcı yöneticiye bildirir, yönetici sunucu logundaki tam iz kimliğini bu parçayla bulur.</summary>
+    public static string HataKoduEkle(string mesaj, KasaApiException hata)
+        => hata.HataKodu is { } kod && (int)hata.DurumKodu >= 500 ? $"{mesaj} Hata kodu: {kod}" : mesaj;
 
     /// <summary>Salt okuma çağrısının (liste, rapor) hata iletisi: okuma sunucuda bir şey değiştirmez; zaman aşımında
     /// "işlem sunucuda tamamlanmış olabilir" denmez, yalnız yeniden deneme istenir.</summary>
