@@ -17,8 +17,19 @@ public record KartGecisDto(string Kural, string? Aciklama, KartGecisKaydi? Onizl
 public record KartGecisKaydi(DateOnly OnayTarihi, decimal KalanBorc, decimal KasadaOncedenSayilanTutar, decimal SistemKartBorcu,
     decimal EskiKuraldaIslenenTutar, decimal BekleyenEskiDusumTutari, DateOnly? SonBekleyenDusumTarihi, decimal OnerilenKasadaSayilanTutar);
 public record KartEkstreDto(int Id, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Borc, decimal Odenen, decimal Kalan, decimal? AsgariOdeme, decimal? AsgariKalan = null);
-public record KartHarcamaDto(int Id, int? IslemId, DateOnly Tarih, string Aciklama, decimal Tutar, int TaksitSayisi, bool Iptal, IReadOnlyList<TakipKanalPayi> Dagilimlar, int? EkstreKayitId = null);
-public record KartTakipOdemeDto(int Id, DateOnly Tarih, decimal Tutar, decimal KasaEtkisi, string? Not, bool Iptal, IReadOnlyList<TakipKanalPayi> Dagilimlar, int? EkstreKayitId = null);
+/// <param name="KasadaSayilanDuzeltme">Eski borç devrine yapılan iadede kasada önceden sayılan tutarın iade tarihinde kasaya
+/// geri dönen kısmı; diğer satırlarda (ve eski sunucuda) 0.</param>
+public record KartHarcamaDto(int Id, int? IslemId, DateOnly Tarih, string Aciklama, decimal Tutar, int TaksitSayisi, bool Iptal, IReadOnlyList<TakipKanalPayi> Dagilimlar, int? EkstreKayitId = null, decimal KasadaSayilanDuzeltme = 0);
+/// <param name="AvansKaynakOdemeId">Kilitli döneme düşen avansın dağıtım kaydında (tutarı 0) avansı yatıran ödeme; bu kayıt
+/// ayrıca iptal edilemez. Diğer ödemelerde null.</param>
+public record KartTakipOdemeDto(int Id, DateOnly Tarih, decimal Tutar, decimal KasaEtkisi, string? Not, bool Iptal, IReadOnlyList<TakipKanalPayi> Dagilimlar, int? EkstreKayitId = null, int? AvansKaynakOdemeId = null);
+/// <summary>Geçişli kartın eski borç devrinin gerekçeli düzeltmesi: etkin devir (<paramref name="HarcamaId"/>) iptal edilir,
+/// aynı tarihle yeni kalan borç, kasada önceden sayılan tutar ve kanal paylarıyla yazılır.</summary>
+public record KartDevirDuzeltYaz(Guid IstekId, int Surum, int? HarcamaId, decimal KalanBorc, decimal KasadaOncedenSayilanTutar, IReadOnlyList<KanalPayYaz> Dagilimlar, string Aciklama);
+/// <summary>Geçişli kartın eski borç devri ve düzeltme sınırları. Önerilen = max(0, min(kalan borç, sistem borcu) − rapor
+/// dışı); en az = max(0, önerilen − max(0, açılış borcu)). Engel doluysa düzeltme yapılamaz.</summary>
+public record KartDevirDto(int? HarcamaId, DateOnly Tarih, decimal KalanBorc, decimal KasadaOncedenSayilanTutar, decimal IadeDuzeltmesi, IReadOnlyList<TakipKanalPayi> Dagilimlar,
+    string Kural, decimal SistemKartBorcu, decimal RaporDisiTutar, decimal AcilisBorcu, decimal OnerilenKasadaSayilanTutar, decimal EnAzKasadaSayilanTutar, bool Duzeltilebilir, string? Engel);
 public record KartOdemeOnizlemeDto(decimal Tutar, decimal KasaEtkisi, IReadOnlyList<TakipKanalPayi> Dagilimlar, IReadOnlyList<KartEkstreOdemePayi> Ekstreler);
 public record KartEkstreOdemePayi(int EkstreId, decimal Tutar);
 public record KrediTakipYaz(Guid IstekId, string Ad, decimal CekilenTutar, DateOnly CekimTarihi, DateOnly IlkTaksitTarihi, int TaksitSayisi, decimal AylikOdeme, IReadOnlyList<int> KanalIdleri, bool MevcutKredi = false);
@@ -58,6 +69,8 @@ public interface IFinansTakipApi
     Task<KartTakipDto> TakipOdemeIptalAsync(int id, int odemeId, TakipIptalYaz g);
     Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g);
     Task<KartTakipDto> TakipKartGecisAsync(int id, KartGecisYaz g);
+    Task<KartDevirDto> TakipKartDevirAsync(int id);
+    Task<KartTakipDto> TakipKartDevirDuzeltAsync(int id, KartDevirDuzeltYaz g);
     Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync();
     Task<KrediTakipDto> TakipKrediAsync(int id);
     Task<KrediTakipDto> TakipKrediKaydetAsync(KrediTakipYaz g);

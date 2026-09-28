@@ -84,6 +84,21 @@ public static class TakipMetni
             + (g.RaporDisiIlkDusumTarihi is { } ilk && g.RaporDisiSonDusumTarihi is { } son ? $" ({ilk:dd.MM.yyyy}–{son:dd.MM.yyyy})" : "")
             + $" raporlara girmiyor; tahmini kasa farkı {Bicim.Tl(g.TahminiKasaFarki)} ₺. Tutarları banka/kasa kayıtlarıyla doğrulayın.",
     };
+    /// <summary>Geçişli kartın eski borç devri (web transferRecord aynası): devir, kasada önceden sayılan ve iadeyle kasaya
+    /// dönen tutar, düzeltme sınırları ve varsa engel.</summary>
+    public static string Devir(KartDevirDto d)
+    {
+        var satirlar = new List<string>
+        {
+            d.HarcamaId is null ? "Etkin eski borç devri yok; düzeltmeyle yeniden yazılabilir." : $"Devir {d.Tarih:dd.MM.yyyy} · kalan borç {Bicim.Tl(d.KalanBorc)} ₺ · kasada önceden sayılan {Bicim.Tl(d.KasadaOncedenSayilanTutar)} ₺",
+            $"Devrin iadeleriyle kasaya dönen önceden sayılmış tutar: {Bicim.Tl(d.IadeDuzeltmesi)} ₺",
+            $"Sistem kart borcu {Bicim.Tl(d.SistemKartBorcu)} ₺" + (d.RaporDisiTutar != 0 ? $" · raporlara girmeyen eski düşüm {Bicim.Tl(d.RaporDisiTutar)} ₺" : "")
+                + $" · önerilen {Bicim.Tl(d.OnerilenKasadaSayilanTutar)} ₺" + (d.EnAzKasadaSayilanTutar < d.OnerilenKasadaSayilanTutar ? $" · en az {Bicim.Tl(d.EnAzKasadaSayilanTutar)} ₺ (açılış borcu kasadan ayrıca ödenecekse)" : ""),
+            "Devrin ödemesi kasada önceden sayılan kısım kadar kasadan ikinci kez düşmez. Düzeltme etkin devri iptal edip aynı tarihle yeni tutarı yazar; geçmiş kasa sonuçları değişmez.",
+        };
+        if (d.Engel is { Length: > 0 } engel) satirlar.Add("Düzeltilemez: " + engel);
+        return string.Join("\n", satirlar);
+    }
     public static bool Ayni<T>(T a, T b) => System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(b);
     public static void Doldur<T>(ObservableCollection<T> liste, IEnumerable<T> veri) { liste.Clear(); foreach (var item in veri) liste.Add(item); }
     public static IReadOnlyList<KanalPayYaz> Paylar(IEnumerable<TakipPayEditor> paylar)
@@ -112,12 +127,16 @@ public record EkstreSatiri(KartEkstreDto Veri)
 public record HarcamaSatiri(KartHarcamaDto Veri)
 {
     public string Baslik => $"{Veri.Tarih:dd.MM.yyyy} · {Veri.Aciklama} · {Bicim.Tl(Veri.Tutar)} ₺";
-    public string Ozet => (Veri.Iptal ? "İptal edildi" : $"{Veri.TaksitSayisi} taksit") + " · " + TakipMetni.Paylar(Veri.Dagilimlar) + (Veri.IslemId is { } id ? $" · gider #{id}" : "");
+    public string Ozet => (Veri.Iptal ? "İptal edildi" : $"{Veri.TaksitSayisi} taksit") + " · " + TakipMetni.Paylar(Veri.Dagilimlar) + (Veri.IslemId is { } id ? $" · gider #{id}" : "")
+        + (Veri.KasadaSayilanDuzeltme > 0 ? $"\nÖnceden sayılan {Bicim.Tl(Veri.KasadaSayilanDuzeltme)} ₺ iade tarihinde kasaya döndü." : "");
 }
 public record KartOdemeSatiri(KartTakipOdemeDto Veri)
 {
-    public string Baslik => $"{Veri.Tarih:dd.MM.yyyy} · ödeme {Bicim.Tl(Veri.Tutar)} ₺" + (Veri.Iptal ? " · iptal" : "");
-    public string Ozet => $"Kasa çıkışı {Bicim.Tl(Veri.KasaEtkisi)} ₺ · {TakipMetni.Paylar(Veri.Dagilimlar)}\n{Veri.Not}";
+    /// <summary>Kilitli döneme düşen avansın dağıtım kaydı (tutarı 0): kasa değişmez, ayrıca iptal edilemez.</summary>
+    public bool AvansDagitimi => Veri.AvansKaynakOdemeId is not null;
+    public string Baslik => $"{Veri.Tarih:dd.MM.yyyy} · " + (AvansDagitimi ? "kilitli avans dağıtımı" : $"ödeme {Bicim.Tl(Veri.Tutar)} ₺") + (Veri.Iptal ? " · iptal" : "");
+    public string Ozet => (AvansDagitimi ? "Kasa değişmez; kilitli dönemdeki avans bu tarihte harcamanın kanalına geçer" : $"Kasa çıkışı {Bicim.Tl(Veri.KasaEtkisi)} ₺")
+        + $" · {TakipMetni.Paylar(Veri.Dagilimlar)}\n{Veri.Not}";
 }
 public record KrediTakipSatiri(KrediTakipDto Veri)
 {

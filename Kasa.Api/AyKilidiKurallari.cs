@@ -50,8 +50,6 @@ public static class AyKilidiKurallari
         bool DateLocked(EntityEntry e, string property) => e.CurrentValues[property] is DateOnly date && date <= end
             || e.State != EntityState.Added && e.OriginalValues[property] is DateOnly old && old <= end;
         bool Changed(EntityEntry e, params string[] properties) => e.State != EntityState.Modified || properties.Any(p => e.Property(p).IsModified);
-        bool CardFrozenAdvance(int card) => db.TakipKartOdemeler.AsNoTracking().Where(p => p.KrediKartiId == card && !p.Iptal && p.Tarih <= end).AsEnumerable()
-            .Any(p => FinansTakipServisi.Read<KartTaksitPayi>(p.PaylarJson).Any(x => x.TaksitId == 0 && x.Tutar > 0));
         bool ChargePaidBefore(int charge)
         {
             var taxes = db.TakipKartTaksitler.Where(t => t.HarcamaId == charge).Select(t => t.Id).ToHashSet();
@@ -78,7 +76,9 @@ public static class AyKilidiKurallari
         {
             bool blocked = e.Entity switch
             {
-                IslemEntity i => DateLocked(e, nameof(i.Tarih)) || i.KrediKartiId is { } card && e.State == EntityState.Added && CardFrozenAdvance(card)
+                // Kilitli döneme düşen kart avansı yeni harcamayı engellemez: avans kilit sonrası tarihli ayrı dağıtım
+                // kaydıyla bağlanır, kilitli ödemenin payları değişmez (finance-8, FinansTakipServisi.AvanslariDagit).
+                IslemEntity i => DateLocked(e, nameof(i.Tarih))
                     || e.State != EntityState.Added && Changed(e, "TutarTl", "Tarih", "Kanal", "KanalId", "Tip", "KrediKartiId") && ExpenseChangesLaterClosedPurchasePayment(i),
                 GelenEntity g => DateLocked(e, nameof(g.DonemStart)),
                 KartOdemeEntity p => DateLocked(e, nameof(p.Tarih)),
@@ -89,9 +89,11 @@ public static class AyKilidiKurallari
                 KrediKartiEntity => e.State == EntityState.Deleted || e.State == EntityState.Modified && Changed(e, "Borc"),
                 TakipKartOdemeEntity p => DateLocked(e, nameof(p.Tarih)) || e.State != EntityState.Added
                     && db.TakipKartOdemeler.Any(later => later.KrediKartiId == p.KrediKartiId && later.Id > p.Id && !later.Iptal && later.Tarih <= end),
-                TakipHarcamaEntity h => DateLocked(e, nameof(h.Tarih)) || e.State == EntityState.Added && CardFrozenAdvance(h.KrediKartiId)
+                TakipHarcamaEntity h => DateLocked(e, nameof(h.Tarih))
                     || h.KaynakHarcamaId is { } source && ChargePaidBefore(source)
                     || e.State != EntityState.Added && ChargePaidBefore(h.Id),
+                // İade hesabı ve avans dağıtımı bağı yalnız eklenir (iade/dağıtım kaydıyla birlikte, kilit sonrası tarihte).
+                TakipIadeHesabiEntity or TakipAvansTahsisEntity => e.State != EntityState.Added,
                 TakipKartTaksitEntity t => e.State != EntityState.Added && db.TakipHarcamalar.Any(h => h.Id == t.HarcamaId && h.Tarih <= end),
                 TakipKartEntity t => Changed(e, "Baslangic", "EskiKayit", "EskiDusumKurali") && DateLocked(e, nameof(t.Baslangic)),
                 TakipKrediEntity t => Changed(e, "Baslangic", "MevcutKredi", "EskiKayit", "KanalIdleriJson", "CekimPaylariJson") && DateLocked(e, nameof(t.Baslangic)),

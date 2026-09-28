@@ -63,6 +63,33 @@ public class TakipKartOdemeEntity
     // Kaynak taksit payları sabittir; kanal adı/alış onayı mali toplamı değiştirmez.
     public string PaylarJson { get; set; } = "[]";
 }
+/// <summary>
+/// Kart iadesinin hesap kaydı (iade harcamasıyla bire bir; gap-coklu-giris-cift-sayim-mutabakat-3, finance-2). Bu kaydı
+/// olan iadenin kanal payı dondurulmaz: her okumada kaynak harcamanın güncel payından, iade anındaki ödenmiş kısım
+/// düşülerek aynı kuralla türetilir (<see cref="Kasa.Api.FinansTakipServisi.IadePayi"/>); kaynak alış yeniden
+/// dağıtılınca iade de yeni oranı izler. Kaydı olmayan iade eski kuraldır: DagilimJson'daki dondurulmuş pay kullanılır.
+/// </summary>
+public class TakipIadeHesabiEntity
+{
+    public int HarcamaId { get; set; }
+    /// <summary>İade anında kaynak harcamanın taksitlerine yapılmış (iptal edilmemiş) ödemeler toplamı.</summary>
+    public decimal IadeAnindaOdenen { get; set; }
+    /// <summary>Kaynak harcama eski borç devriyse, kasada önceden sayılan tutarın (K) bu iadeyle düşen kısmı: iade
+    /// tarihinde kasaya geri döner, devrin sonraki ödemelerinde kasada sayılmış kabul edilmez. Diğer iadelerde 0.</summary>
+    public decimal KasadaSayilanDuzeltme { get; set; }
+}
+/// <summary>
+/// Kilitli döneme düşen kart avansının dağıtımı (finance-8). Avans ödemesinin payları kilitli ayın raporunu
+/// değiştirmemek için yeniden yazılmaz; avansın yeni harcamaya bağlanan kısmı, kilit sonrası tarihli ve tutarı 0 olan
+/// ayrı bir kart ödemesiyle (<see cref="OdemeId"/>) dağıtılır: taksit payları ve aynı tutarda eksi avans payı taşır.
+/// Kasa değişmez; "Dağılım bekliyor" payı o tarihte ilgili kanala geçer.
+/// </summary>
+public class TakipAvansTahsisEntity
+{
+    public int OdemeId { get; set; }
+    /// <summary>Avansı dağıtılan (kilitli dönemdeki) kart ödemesi.</summary>
+    public int KaynakOdemeId { get; set; }
+}
 public class TakipKrediEntity
 {
     public int KrediId { get; set; }

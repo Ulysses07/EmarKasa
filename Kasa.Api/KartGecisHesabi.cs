@@ -34,6 +34,39 @@ public record IlkSurumKalintisi(int KartId, string KartAdi, DateOnly Baslangic, 
 /// </summary>
 public static class KartGecisHesabi
 {
+    /// <summary>Geçişin yazdığı eski borç devri harcamasının açıklaması; devir bununla (ve kaynaksız, gidersiz, başlangıç
+    /// tarihli olmasıyla) tanınır. Kullanıcı harcamasında bu açıklama kullanılamaz.</summary>
+    public const string DevirAciklamasi = "Onaylanan eski borç devri";
+
+    /// <summary>Kartın iptal edilmemiş eski borç devri (Id sırasıyla ilki); geçişli olmayan kartta ya da devir yoksa null.
+    /// Devir düzeltmesi eskisini iptal edip aynı tarih ve açıklamayla yenisini yazar: etkin devir her zaman tektir.</summary>
+    public static TakipHarcamaEntity? AktifDevir(IQueryable<TakipHarcamaEntity> harcamalar, TakipKartEntity takip) => !takip.EskiKayit ? null
+        : harcamalar.Where(h => h.KrediKartiId == takip.KrediKartiId && !h.Iptal && h.IslemId == null && h.KaynakHarcamaId == null
+            && h.Tarih == takip.Baslangic && h.Aciklama == DevirAciklamasi).OrderBy(h => h.Id).FirstOrDefault();
+
+    /// <summary>Geçişli kartın devir düzeltmesinde (finance-2) kasada önceden sayılan tutarın sınırları; geçiş önizlemesiyle
+    /// aynı kural, ancak yalnız başlangıçtan önceki eski kayıtlarla (geçişten sonraki kart giderleri takip harcamasıdır).
+    /// İşlem tarihi kuralında önerilen = max(0, min(R, S)); ilk sürüm (etki tarihi) kuralında raporlara hiç girmeyen eski
+    /// düşüm (P) ödemede de düşmelidir: önerilen = max(0, min(R, S) − P) (<see cref="IlkSurumKalintisi"/> ile aynı).
+    /// En az = max(0, önerilen − max(0, açılış borcu)).</summary>
+    public static (decimal SistemKartBorcu, decimal RaporDisiTutar, decimal AcilisBorcu, decimal Onerilen, decimal EnAz) DevirOnerisi(KasaDbContext db, TakipKartEntity takip, decimal kalanBorc)
+    {
+        var card = db.KrediKartlari.AsNoTracking().Single(k => k.Id == takip.KrediKartiId);
+        var old = db.Islemler.AsNoTracking().Where(i => i.KrediKartiId == card.Id && i.Tarih < takip.Baslangic).ToList();
+        var system = card.Borc + old.Sum(i => i.TutarTl) - db.KartOdemeler.AsNoTracking().Where(o => o.KrediKartiId == card.Id).ToList().Sum(o => o.Tutar);
+        decimal pending = 0;
+        if (takip.EskiDusumKurali == EskiDusumKurali.EtkiTarihi)
+        {
+            var rows = old.Where(i => IlkSurumdeAtlanir(takip, i.Tarih)).ToList();
+            var ids = rows.Select(i => i.Id).ToList();
+            var handled = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.IslemId != null && ids.Contains(k.IslemId.Value)).Select(k => k.IslemId!.Value).ToList()
+                .Concat(db.AylikGiderOdemeler.AsNoTracking().Where(p => !p.Iptal && p.IslemId != null && ids.Contains(p.IslemId.Value)).Select(p => p.IslemId!.Value).ToList()).ToHashSet();
+            pending = rows.Where(i => !handled.Contains(i.Id)).Sum(i => i.TutarTl);
+        }
+        var onerilen = Math.Max(0, Math.Min(kalanBorc, system) - pending);
+        return (system, pending, card.Borc, onerilen, Math.Max(0, onerilen - Math.Max(0, card.Borc)));
+    }
+
     // Önerilen K = max(0, min(kalan borç, sistem kart borcu)). Yeni kuralda başlangıçtan önceki her
     // eski gider eski ay sonu kuralıyla bir kez düşer; bankadaki kalan borcun bu giderlerden gelen
     // kısmı ödendiğinde ikinci kez düşmemelidir. Açılış borcu (card.Borc) eski modelde hiçbir zaman
@@ -88,8 +121,7 @@ public static class KartGecisHesabi
         }
         // Eski kart ödemeleri geçişten sonra eklenemez/silinemez; devir, ilk sürümün yazdığı harcamadır.
         var system = card.Borc + old.Sum(i => i.TutarTl) - db.KartOdemeler.AsNoTracking().Where(o => o.KrediKartiId == card.Id).ToList().Sum(o => o.Tutar);
-        var transfer = db.TakipHarcamalar.AsNoTracking().Where(h => h.KrediKartiId == card.Id && !h.Iptal && h.IslemId == null && h.KaynakHarcamaId == null
-            && h.Tarih == takip.Baslangic && h.Aciklama == "Onaylanan eski borç devri").OrderBy(h => h.Id).FirstOrDefault();
+        var transfer = AktifDevir(db.TakipHarcamalar.AsNoTracking(), takip);
         var pending = rows.Sum(i => i.TutarTl);
         var (debt, counted) = (transfer?.Tutar ?? 0, transfer?.KasadaOncedenSayilanTutar ?? 0);
         var difference = counted - (Math.Min(debt, system) - pending);

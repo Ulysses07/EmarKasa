@@ -156,17 +156,23 @@ public class LockedPeriodTests
     }
 
     [Fact]
-    public async Task Kilitli_kart_avansi_yeni_harcamaya_sessiz_baglanmaz_okumalar_calismaya_devam_eder()
+    public async Task Kilitli_kart_avansi_yeni_harcamaya_kilit_sonrasi_dagitimla_baglanir_kilitli_ay_degismez()
     {
         await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Avans", 1000m, 5, 25, Old, 0m, []));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Old, 50m));
+        var before = await c.GetStringAsync($"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}");
         await Close(c);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Avansı dağıtacak", 100m, 1, null, [new(1, 100m)]))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Aynı kaçış", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: card.Id))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler.Single().Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Eski avans"))).StatusCode);
+        // finance-8: kilitli avans kartı yeni harcamaya kapatmaz; avansın kilitli ödemedeki payı yeniden yazılmaz, bugünkü
+        // dağıtım kaydıyla bağlanır (ayrıntı: KartTakipDuzeltmeTests).
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Avansı dağıtacak", 100m, 1, null, [new(1, 100m)]));
+        Assert.True((await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kartla gider", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: card.Id))).IsSuccessStatusCode);
+        var source = card.Odemeler.Single(o => o.Tutar == 50m);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{source.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Eski avans"))).StatusCode);
+        await RaporDegismedi(f, c, before);
         var read = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
-        Assert.Empty(read.Harcamalar); Assert.Equal(-50m, read.Borc); Assert.Equal(950m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(2, read.Harcamalar.Count); Assert.Equal(150m, read.Borc); Assert.Equal(950m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(source.Dagilimlar, read.Odemeler.Single(o => o.Id == source.Id).Dagilimlar);
     }
 
     [Fact]
