@@ -6,6 +6,13 @@ JSON camelCase; tarihler YYYY-MM-DD; para en fazla 2 ondalık. Finans okuma edit
 
 `/api/rapor/panel`, `/api/rapor/haftalik`, `/api/rapor/aylik`, `/api/donemler`, `/api/kanallar`, `/api/islemler` ve `/api/gelenler` mevcut kanal/genel kasa akışını sürdürür. Eski kart ve kredi hesaplamaları korunur; ayrı hesap veya kredi ödeme takibi eklenmez.
 
+### Çekirdek kayıt sürümü (contract-6)
+
+- Gider, gelir, kanal ve ayarlar `surum` taşır: GET `/api/islemler`, `/api/gelenler`, `/api/kanallar`, `/api/ayarlar` ile gider ve kanal yazma yanıtları. Kayıt her değiştiğinde bir artar; uç dışındaki dolaylı yazımlar da artırır (alış ödemesi düzeltmesi ve alıştan ayırma, kanal adı değişikliğinin gider/gelir etiket senkronu, eski kart silinince bağın kopması). İçeriği değişmeyen kayıt sürümü artırmaz; izleyici şifresi ayarların sürümünü artırmaz. Hesap ve raporlar sürümü okumaz.
+- PUT `/api/islemler/{id}`, `/api/kanallar/{id}`, `/api/ayarlar` ve `/api/gelenler` gövdesinde isteğe bağlı `surum`: istemcinin okuduğu sürüm. Kayıttakiyle uyuşmazsa 409 (`hata` iletisiyle) ve kayıt değişmez. Gelirde dönem ve kanalın satırı yoksa `0` gönderilir; yeni satır `1` ile eklenir, satırı görmeden `0` gönderen ikinci oturum 409 alır. POST'ta `surum` yok sayılır.
+- `surum` göndermeyen eski istemci (2.3.0 masaüstü, önbellekteki eski web) denetlenmez: eski davranış (son yazan kazanır) sürer, sürüm yine artar. Yeni web ve masaüstü her düzenlemede gönderir; 409'da ileti gösterilir ve liste (gelirde dönemin güncel toplamı, ayarlarda güncel değerler) yenilenir.
+- Aynı kaydı okuyan iki isteğin yazımı da sürümle koşullanır (eşzamanlılık belirteci): araya giren yazımdan sonraki kayıt 409 alır.
+
 ## Alış ve ödeme
 
 - GET `/api/alis/kanallar` ve GET `/api/alis` alıcının kanal dağılımı ve kendi taslakları içindir.
