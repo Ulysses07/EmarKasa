@@ -24,8 +24,19 @@ public partial class AlislarViewModel
     [ObservableProperty] private AlisSatiri? _hedefAlis;
     [ObservableProperty] private string _duzeltmeAciklamasi = "";
     [ObservableProperty] private bool _eskiKartHarcamasi;
+    /// <summary>Düzeltilen ödeme kart takibinde (gap-coklu-giris-cift-sayim-mutabakat-5): tarih, tutar ve kart kart harcamasıdır, değişmez;
+    /// ödeme yalnız başka alışa taşınır ya da alıştan ayrılır.</summary>
+    [ObservableProperty] private bool _duzeltmeTakipli;
+    /// <summary>İptal seçeneği (yalnız kart takibindeki ödemede): kart harcaması gerçekse ödeme alıştan ayrılır, harcama girilen gerçek
+    /// kanal paylarıyla kart gideri olarak kalır. Seçilmezse ödenmemiş harcama, taksitleri ve gideri birlikte kalkar.</summary>
+    [ObservableProperty] private bool _harcamayiKoru;
+    public ObservableCollection<AyirmaPayi> AyirmaPaylari { get; } = new();
+    public bool DuzeltmeAlanlariAcik => !DuzeltmeTakipli;
+    public bool AyirmaPaylariGorunur => DuzeltmeTakipli && HarcamayiKoru;
     public bool DuzeltmeAcik => DuzeltilecekOdeme is not null && EditorMu;
     partial void OnDuzeltilecekOdemeChanged(AlisOdemeSatiri? value) => OnPropertyChanged(nameof(DuzeltmeAcik));
+    partial void OnDuzeltmeTakipliChanged(bool value) { OnPropertyChanged(nameof(DuzeltmeAlanlariAcik)); OnPropertyChanged(nameof(AyirmaPaylariGorunur)); }
+    partial void OnHarcamayiKoruChanged(bool value) => OnPropertyChanged(nameof(AyirmaPaylariGorunur));
     public void IdIleSec(int id) { var satir = Alislar.FirstOrDefault(a => a.Veri.Id == id); if (satir is not null) Sec(satir); }
     [RelayCommand] private void OdemeDuzelt(AlisOdemeSatiri odeme)
     {
@@ -41,6 +52,11 @@ public partial class AlislarViewModel
             DuzeltmeKartlari.Add(new(kendi, $"{(string.IsNullOrWhiteSpace(odeme.Veri.KrediKartiAdi) ? _kartAdlari.GetValueOrDefault(kendi, $"Kart #{kendi}") : odeme.Veri.KrediKartiAdi)} (eski kayıt)"));
         DuzeltmeKarti = DuzeltmeKartlari.FirstOrDefault(k => k.Id == odeme.Veri.KrediKartiId);
         HedefAlis = null; DuzeltmeAciklamasi = "";
+        DuzeltmeTakipli = odeme.Veri.KrediKartiId is { } odemeKarti && _takipliKartlar.Contains(odemeKarti);
+        // Alıştan ayırmanın kanal payları ödemenin bugünkü paylarıyla başlar: aynen bırakılırsa önceki kart ödemelerinin kanal payı değişmez.
+        HarcamayiKoru = false;
+        Degistir(AyirmaPaylari, Kanallar.Where(k => k.Aktif || odeme.Veri.Dagilimlar.Any(d => d.KanalId == k.Id))
+            .Select(k => new AyirmaPayi(k.Id, k.Ad, odeme.Veri.Dagilimlar.Where(d => d.KanalId == k.Id).Sum(d => d.Tutar))));
         _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
     }
     [RelayCommand] private void DuzeltmedenVazgec() { DuzeltilecekOdeme = null; HedefAlis = null; }
@@ -51,8 +67,14 @@ public partial class AlislarViewModel
         if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
         if (!ParaAyristirici.GecerliMi(DuzeltmeTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (DuzeltmeTutari <= 0 || string.IsNullOrWhiteSpace(DuzeltmeAciklamasi)) { Hata = "Pozitif ödeme tutarı ve düzeltme açıklaması girin."; return; }
-        var g = new AlisOdemeDuzeltYaz(_secili.Surum, Guid.Empty, DateOnly.FromDateTime(DuzeltmeTarihi), DuzeltmeTutari, DuzeltmeKarti?.Id,
-            null, DuzeltmeAciklamasi.Trim(), HedefAlis?.Veri.Id, HedefAlis?.Veri.Surum);
+        if (DuzeltmeTakipli && HedefAlis is null)
+        { Hata = "Kart takibindeki ödemenin tarihi, tutarı ve kartı değiştirilemez: ödemeyi taşımak için hedef alış seçin ya da alıştan ayırın."; return; }
+        var odeme = DuzeltilecekOdeme.Veri;
+        // Kart takibindeki ödemede tarih, tutar ve kart ödemenin kendisinden gönderilir (form alanları kilitlidir).
+        var g = DuzeltmeTakipli
+            ? new AlisOdemeDuzeltYaz(_secili.Surum, Guid.Empty, odeme.Tarih, odeme.Tutar, odeme.KrediKartiId, null, DuzeltmeAciklamasi.Trim(), HedefAlis!.Veri.Id, HedefAlis.Veri.Surum)
+            : new AlisOdemeDuzeltYaz(_secili.Surum, Guid.Empty, DateOnly.FromDateTime(DuzeltmeTarihi), DuzeltmeTutari, DuzeltmeKarti?.Id,
+                null, DuzeltmeAciklamasi.Trim(), HedefAlis?.Veri.Id, HedefAlis?.Veri.Surum);
         g = g with { IstekId = _duzeltmeAnahtari.Al(new { AlisId = _secili.Id, OdemeId = DuzeltilecekOdeme.Veri.Id, g }) };
         var sonuc = await _odemelerApi.AlisOdemeDuzeltAsync(_secili.Id, DuzeltilecekOdeme.Veri.Id, g);
         if (!SonucuUygula(sonuc, n)) return;
@@ -68,8 +90,17 @@ public partial class AlislarViewModel
         if (_odemelerApi is null || !EditorMu || _secili is null || DuzeltilecekOdeme is null) return;
         if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
         if (string.IsNullOrWhiteSpace(DuzeltmeAciklamasi)) { Hata = "İptal nedenini açıklama alanına yazın."; return; }
-        var g = new AlisOdemeIptalYaz(_secili.Surum, Guid.Empty, DuzeltmeAciklamasi.Trim());
-        var id = DuzeltilecekOdeme.Veri.Id;
+        var odeme = DuzeltilecekOdeme.Veri;
+        IReadOnlyList<AlisDagilimYaz>? paylar = null;
+        if (DuzeltmeTakipli && HarcamayiKoru)
+        {
+            if (AyirmaPaylari.Any(p => !ParaAyristirici.GecerliMi(p.Tutar))) { Hata = ParaAyristirici.GecersizMesaji; return; }
+            paylar = AyirmaPaylari.Where(p => p.Tutar != 0).Select(p => new AlisDagilimYaz(p.KanalId, p.Tutar)).ToList();
+            if (paylar.Count == 0 || paylar.Any(p => p.Tutar < 0 || decimal.Round(p.Tutar, 2) != p.Tutar) || paylar.Sum(p => p.Tutar) != odeme.Tutar)
+            { Hata = $"Kart harcamasının gerçek kanal paylarını girin; toplamı ödeme tutarına ({Bicim.Tl(odeme.Tutar)} ₺) eşit olmalı."; return; }
+        }
+        var g = new AlisOdemeIptalYaz(_secili.Surum, Guid.Empty, DuzeltmeAciklamasi.Trim(), paylar);
+        var id = odeme.Id;
         g = g with { IstekId = _iptalAnahtari.Al(new { _secili.Id, OdemeId = id, g }) };
         if (!SonucuUygula(await _odemelerApi.AlisOdemeIptalAsync(_secili.Id, id, g), n)) return;
         _iptalAnahtari.Temizle();
@@ -77,7 +108,9 @@ public partial class AlislarViewModel
         var giderler = await GiderSayfasiAsync(arama, null);
         if (!Gecerli(n)) return;
         GiderSayfasiniUygula(giderler, arama, ekle: false);
-        Mesaj = "Ödeme ve bağlı gider iptal edildi. İptal gerekçesi geçmişte korundu.";
+        Mesaj = paylar is not null ? "Ödeme alıştan ayrıldı; kart harcaması girilen kanal paylarıyla kart gideri olarak kaldı. Doğru alışa mevcut gider olarak bağlayabilirsiniz."
+            : DuzeltmeTakipli ? "Ödeme iptal edildi; ödenmemiş kart harcaması ve taksitleri de kaldırıldı. İptal gerekçesi geçmişte korundu."
+            : "Ödeme ve bağlı gider iptal edildi. İptal gerekçesi geçmişte korundu.";
     });
     [RelayCommand] public Task BelgeleriYukleAsync() => YurutAsync(async n =>
     {

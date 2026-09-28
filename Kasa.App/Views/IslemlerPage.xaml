@@ -100,6 +100,15 @@
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
                             </VerticalStackLayout>
+                            <VerticalStackLayout Spacing="6" IsVisible="{Binding TaksitGirilebilir}">
+                                <Label Text="Taksit sayısı" Style="{StaticResource LblField}" />
+                                <Border Style="{StaticResource FieldBorder}" WidthRequest="120" HorizontalOptions="Start">
+                                    <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" />
+                                </Border>
+                                <HorizontalStackLayout Spacing="10"><Switch IsToggled="{Binding DuzenIlkKesimVar}" /><Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" /></HorizontalStackLayout>
+                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}"><DatePicker Date="{Binding DuzenIlkKesimTarihi}" /></Border>
+                                <Label Text="Bankada taksitle çekildiyse her ekstreye yalnız taksit tutarı yazılır." Style="{StaticResource LblPageSub}" />
+                            </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Not" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">

@@ -351,9 +351,25 @@ public partial class IslemlerViewModel : TemelViewModel
     [ObservableProperty] private GiderTipi _duzenTip = GiderTipi.Cari;
     [ObservableProperty] private string? _duzenNot;
     [ObservableProperty] private int? _duzenKrediKartiId;   // dolu = kart harcaması
+    /// <summary>Yeni kart giderinin taksit sayısı (1–60) ve isteğe bağlı ilk kesimi (gap-coklu-giris-cift-sayim-mutabakat-6).</summary>
+    [ObservableProperty] private int _duzenTaksitSayisi = 1;
+    [ObservableProperty] private bool _duzenIlkKesimVar;
+    [ObservableProperty] private DateTime _duzenIlkKesimTarihi = DateTime.Today;
 
     /// <summary>Kart seçici yalnız "Kredi kartı" tipi seçiliyken görünür.</summary>
     public bool KartSeciciGorunur => DuzenTip == GiderTipi.KrediKarti;
+    /// <summary>Taksit yalnız yeni takipli kart giderinde girilir; düzenlemede plan değişmez (ödenmemişse gider silinip yeniden girilir).</summary>
+    public bool TaksitGirilebilir => DuzenId == 0 && DuzenTip == GiderTipi.KrediKarti && DuzenKrediKartiId is not null;
+    partial void OnDuzenIdChanged(int value) => OnPropertyChanged(nameof(TaksitGirilebilir));
+
+    /// <summary>Formun gönderilecek gövdesi; taksit alanları yalnız taksit girilebilirken ve tek taksitten farklıysa doludur.</summary>
+    private IslemYaz FormGovdesi()
+    {
+        var taksitli = TaksitGirilebilir && (DuzenTaksitSayisi != 1 || DuzenIlkKesimVar);
+        return new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId,
+            TaksitSayisi: taksitli && DuzenTaksitSayisi > 1 ? DuzenTaksitSayisi : null,
+            IlkKesimTarihi: taksitli && DuzenIlkKesimVar ? DateOnly.FromDateTime(DuzenIlkKesimTarihi) : null);
+    }
 
     /// <summary>K3: kredi kartı seçiliyken seçilebilecek takipli kart yoksa yol gösterir.</summary>
     public string? KartUyarisi => KartSeciciGorunur && KartCipleri.Count == 0
@@ -406,10 +422,11 @@ public partial class IslemlerViewModel : TemelViewModel
         TipVurgu();
         OnPropertyChanged(nameof(KartSeciciGorunur));
         OnPropertyChanged(nameof(KartUyarisi));
+        OnPropertyChanged(nameof(TaksitGirilebilir));
         if (value != GiderTipi.KrediKarti) DuzenKrediKartiId = null;
     }
 
-    partial void OnDuzenKrediKartiIdChanged(int? value) => KartVurgu();
+    partial void OnDuzenKrediKartiIdChanged(int? value) { KartVurgu(); OnPropertyChanged(nameof(TaksitGirilebilir)); }
 
     private void TipVurgu()
     {
@@ -429,6 +446,7 @@ public partial class IslemlerViewModel : TemelViewModel
         DuzenId = 0; DuzenTarih = DateTime.Today; DuzenCari = "";
         DuzenTutar = 0; DuzenKanal = ""; DuzenTip = GiderTipi.Cari; DuzenNot = null;
         DuzenKrediKartiId = null;
+        DuzenTaksitSayisi = 1; DuzenIlkKesimVar = false; DuzenIlkKesimTarihi = DateTime.Today;
         _duzenlenen = null; KartCipleriniKur();
     }
 
@@ -452,10 +470,12 @@ public partial class IslemlerViewModel : TemelViewModel
         if (_auth is not null && _auth.AktifRol != Rol.Editor) return;
         if (!ParaAyristirici.GecerliMi(DuzenTutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (DuzenTip == GiderTipi.KrediKarti && DuzenKrediKartiId is null && !KartsizEskiKayit) { Hata = TakipliKartIletisi; return; }
-        var g = new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId);
+        if (TaksitGirilebilir && DuzenTaksitSayisi is < 1 or > 60) { Hata = "Taksit sayısı 1 ile 60 arasında olmalı."; return; }
+        if (TaksitGirilebilir && DuzenIlkKesimVar && DuzenIlkKesimTarihi.Date < DuzenTarih.Date) { Hata = "İlk kesim tarihi harcamadan önce olamaz."; return; }
+        var g = FormGovdesi();
         var id = DuzenId;
         if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new("Gider", g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
-            () => Gecerli(n) && DuzenId == id && TakipMetni.Ayni(g, new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId)))) return;
+            () => Gecerli(n) && DuzenId == id && TakipMetni.Ayni(g, FormGovdesi()))) return;
         if (DuzenId == 0) await _api.IslemOlusturAsync(g with { IstekId = _giderAnahtari.Al(g) });
         else await _api.IslemGuncelleAsync(DuzenId, g);
         if (!Gecerli(n)) return;

@@ -207,6 +207,88 @@ public class AlislarViewModelTests
         Assert.Equal(3, vm.DuzeltmeKarti!.Id);
     }
 
+    // gap-coklu-giris-cift-sayim-mutabakat-5: kart takibindeki ödemenin tarihi, tutarı ve kartı kilitlidir; yalnız hedef alışa taşınır
+    // (form değerleri değil ödemenin kendi değerleri gider). Alıştan ayırma ödemenin bugünkü kanal paylarıyla başlar; pay toplamı
+    // ödemeye eşit olmadan istek gitmez. Harcama korunmazsa kanal payı gönderilmez (ödenmemiş harcama gideriyle kalkar).
+    [Fact]
+    public async Task Takipli_kart_odemesi_yalniz_baska_alisa_tasinir_alistan_ayirma_kanal_paylarini_gonderir()
+    {
+        var odeme = new AlisOdemeDto(5, 91, new(2026, 9, 20), 60m, 2, false, new[] { new AlisDagilimDto(1, "MEZAT", 36m), new AlisDagilimDto(2, "PERAKENDE", 24m) }, KrediKartiAdi: "Takipli");
+        var api = new SahteAlisApi { Liste = new[] { Alis(odenen: 60) with { Odemeler = new[] { odeme } }, Alis() with { Id = 8, Surum = 5 } } };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, api) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
+
+        vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
+        Assert.True(vm.DuzeltmeTakipli); Assert.False(vm.DuzeltmeAlanlariAcik);
+        vm.DuzeltmeTutari = 50m; vm.DuzeltmeAciklamasi = "Yanlış alış";
+        await vm.OdemeDuzeltKaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonDuzelt); Assert.Contains("hedef alış", vm.Hata);
+        vm.HedefAlis = vm.DuzeltmeHedefleri.Single(a => a.Veri.Id == 8);
+        await vm.OdemeDuzeltKaydetCommand.ExecuteAsync(null);
+        Assert.Equal((new DateOnly(2026, 9, 20), 60m, (int?)2, (int?)8, (int?)5), (api.SonDuzelt!.Tarih, api.SonDuzelt.Tutar, api.SonDuzelt.KrediKartiId, api.SonDuzelt.HedefAlisId, api.SonDuzelt.HedefSurum));
+
+        vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
+        Assert.Equal(new[] { ("MEZAT", 36m), ("PERAKENDE", 24m) }, vm.AyirmaPaylari.Select(p => (p.Kanal, p.Tutar)));
+        vm.DuzeltmeAciklamasi = "Başka alışın ödemesi"; vm.HarcamayiKoru = true; Assert.True(vm.AyirmaPaylariGorunur);
+        vm.AyirmaPaylari[0].Tutar = 30m;
+        await vm.OdemeIptalAsync();
+        Assert.Null(api.SonIptal); Assert.Contains("toplamı ödeme tutarına", vm.Hata);
+        vm.AyirmaPaylari[0].Tutar = 36m;
+        await vm.OdemeIptalAsync();
+        Assert.Equal(new[] { (1, 36m), (2, 24m) }, api.SonIptal!.KanalDagilimlari!.Select(p => (p.KanalId, p.Tutar)));
+        Assert.Contains("alıştan ayrıldı", vm.Mesaj);
+
+        vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]); vm.DuzeltmeAciklamasi = "Harcama yapılmadı";
+        await vm.OdemeIptalAsync();
+        Assert.Null(api.SonIptal!.KanalDagilimlari); Assert.Contains("taksitleri de kaldırıldı", vm.Mesaj);
+    }
+
+    // gap-coklu-giris-cift-sayim-mutabakat-6: takipli kartla yeni kart harcaması oluşturan ödeme taksit sayısını ve ilk kesimi taşır;
+    // nakit ödemede taksit gönderilmez.
+    [Fact]
+    public async Task Takipli_kartla_yeni_odeme_taksit_sayisini_ve_ilk_kesimi_gonderir()
+    {
+        var api = new SahteAlisApi { Liste = new[] { Alis() } };
+        var benzerlik = new BenzerKayitTests.Fake { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(Array.Empty<BenzerKayitDto>()) };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, benzerlikApi: benzerlik) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
+
+        vm.OdemeTutari = 30m; vm.OdemeTaksitSayisi = 3;
+        Assert.False(vm.TaksitGirilebilir);
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.Hata); Assert.Null(api.SonOdeme!.TaksitSayisi);
+
+        vm.OdemeKarti = vm.OdemeKartlari.Single(k => k.Id == 2); vm.OdemeTutari = 30m; vm.OdemeTaksitSayisi = 61;
+        Assert.True(vm.TaksitGirilebilir);
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Contains("1 ile 60", vm.Hata);
+        vm.OdemeTaksitSayisi = 3; vm.OdemeIlkKesimVar = true; vm.OdemeIlkKesimTarihi = vm.OdemeTarihi.AddDays(16);
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.Hata);
+        Assert.Equal(((int?)2, (int?)3, (DateOnly?)DateOnly.FromDateTime(DateTime.Today.AddDays(16))), (api.SonOdeme!.KrediKartiId, api.SonOdeme.TaksitSayisi, api.SonOdeme.IlkKesimTarihi));
+        Assert.Contains("3 taksitli", vm.Mesaj);
+        // Form temizlenir: sonraki ödeme tek taksitle başlar.
+        Assert.Equal(1, vm.OdemeTaksitSayisi); Assert.False(vm.OdemeIlkKesimVar);
+    }
+
+    [Fact]
+    public async Task Takipli_kart_giderinde_taksit_yalniz_yeni_kayitta_gonderilir()
+    {
+        var api = new SahteApi { KrediKartlariListe = Kartlar() };
+        var vm = new IslemlerViewModel(api) { DuzenTarih = new DateTime(2026, 9, 20), DuzenCari = "Telefon", DuzenTutar = 3000m, DuzenKanal = "MEZAT" };
+        vm.DuzenTaksitSayisi = 6; Assert.False(vm.TaksitGirilebilir);
+        vm.DuzenTip = GiderTipi.KrediKarti; vm.DuzenKrediKartiId = 2;
+        Assert.True(vm.TaksitGirilebilir);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(((int?)6, (DateOnly?)null), (api.SonIslemOlustur!.TaksitSayisi, api.SonIslemOlustur.IlkKesimTarihi));
+        Assert.Equal(1, vm.DuzenTaksitSayisi);
+
+        vm.Duzenle(new IslemDto(11, new(2026, 9, 20), "Telefon", 3000m, "MEZAT", GiderTipi.KrediKarti, null, KrediKartiId: 2));
+        vm.DuzenTaksitSayisi = 3; Assert.False(vm.TaksitGirilebilir);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonIslemGuncelle!.Value.G.TaksitSayisi);
+    }
+
     [Fact]
     public async Task Alici_hesabi_sifreyi_bos_birakinca_korur_pasife_alinabilir()
     {
@@ -377,8 +459,12 @@ public class AlislarViewModelTests
         Assert.NotEqual(api.Olusturmalar[0].IstekId, api.Olusturmalar[2].IstekId);
     }
 
-    internal sealed class SahteAlisApi : IAlisApi
+    internal sealed class SahteAlisApi : IAlisApi, IAlisOdemeApi
     {
+        public AlisOdemeDuzeltYaz? SonDuzelt;
+        public AlisOdemeIptalYaz? SonIptal;
+        public Task<AlisDto> AlisOdemeDuzeltAsync(int alisId, int odemeId, AlisOdemeDuzeltYaz g) { SonDuzelt = g; return Task.FromResult(Kayit); }
+        public Task<AlisDto> AlisOdemeIptalAsync(int alisId, int odemeId, AlisOdemeIptalYaz g) { SonIptal = g; return Task.FromResult(Kayit); }
         public IReadOnlyList<AlisDto> Liste = Array.Empty<AlisDto>();
         public AlisYaz? SonYaz;
         public AlisDurumYaz? SonDurum;

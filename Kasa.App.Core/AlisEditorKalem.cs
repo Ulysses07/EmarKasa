@@ -66,6 +66,14 @@ public record AlisOdemeSatiri(AlisOdemeDto Veri)
 }
 
 public record OdemeKartiSecenegi(int? Id, string Ad);
+/// <summary>Kart takibindeki ödeme alıştan ayrılırken kart harcamasının gerçek kanal payı (gap-coklu-giris-cift-sayim-mutabakat-5).</summary>
+public partial class AyirmaPayi : ObservableObject
+{
+    public AyirmaPayi(int kanalId, string kanal, decimal tutar) { KanalId = kanalId; Kanal = kanal; _tutar = tutar; }
+    public int KanalId { get; }
+    public string Kanal { get; }
+    [ObservableProperty] private decimal _tutar;
+}
 public record GiderSecenegi(IslemDto Veri)
 {
     public string Ad => $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Cari} · {Bicim.Tl(Veri.TutarTl)} ₺ · {(Veri.Tip == GiderTipi.KrediKarti ? "Kart harcaması" : "Nakit / banka")}"
