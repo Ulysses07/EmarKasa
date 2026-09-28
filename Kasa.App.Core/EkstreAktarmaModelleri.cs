@@ -15,10 +15,12 @@ public partial class EkstreSatirEditor : ObservableObject
     private readonly Action _degisti;
     public EkstreOkunanSatir Kaynak { get; }
     public bool Kayitli { get; }
+    /// <summary>Satırın iptal edilmemiş kaydı mevcut bir kayıtla eşleştirildiyse durumu ("Mevcut kayıtla eşleşti (#id)"); yoksa null.</summary>
+    public string? EslesmeDurumu { get; }
     public bool Secilebilir => !Kayitli && Kaynak.ParaBirimi is "TRY" or "TL" or "Belirsiz";
     public string KaynakMetni => $"Sayfa {Kaynak.Sayfa} · satır {Kaynak.No} · {Kaynak.Yon} · {Kaynak.ParaBirimi}\n{Kaynak.KaynakSatir}";
-    public string Uyarilar => string.Join("\n", Kaynak.Uyarilar.Concat(Kayitli ? ["Bu satır zaten kaydedildi. Yeniden kaydetmek için önce kaydını iptal edin."] : []).Concat(!Secilebilir && !Kayitli ? ["Yalnız TL hareketleri kaydedilebilir."] : []));
-    public string Ozet => $"#{Kaynak.No} · {TarihMetni} · {Aciklama} · {TutarMetni} {Kaynak.ParaBirimi}";
+    public string Uyarilar => string.Join("\n", Kaynak.Uyarilar.Concat(Kayitli ? [EslesmeDurumu is { } durum ? $"{durum}. Bağı kaldırmak için kaydını iptal edin." : "Bu satır zaten kaydedildi. Yeniden kaydetmek için önce kaydını iptal edin."] : []).Concat(!Secilebilir && !Kayitli ? ["Yalnız TL hareketleri kaydedilebilir."] : []));
+    public string Ozet => $"#{Kaynak.No} · {TarihMetni} · {Aciklama} · {TutarMetni} {Kaynak.ParaBirimi}" + (EslesmeDurumu is { } durum ? $" · {durum}" : "");
     public IReadOnlyList<EkstreSecenek> IslemTurleri { get; }
     public IReadOnlyList<EkstreSecenek> DagilimTurleri { get; } = [new("Genel", "Yalnız genel kasa"), new("Esit", "Seçilen kanallara eşit"), new("Ozel", "Özel kanal tutarları"), new("Otomatik", "Kartın kayıtlı dağılımı")];
     public IReadOnlyList<KartTakipDto> Kartlar { get; }
@@ -45,7 +47,9 @@ public partial class EkstreSatirEditor : ObservableObject
 
     public EkstreSatirEditor(EkstreOkunanSatir kaynak, EkstreBelgeDto belge, IReadOnlyList<KanalDto> kanallar, IReadOnlyList<KartTakipDto> kartlar, Action degisti)
     {
-        _degisti = () => { }; Kaynak = kaynak; Kayitli = belge.Kayitlar.Any(k => k.SatirNo == kaynak.No && !k.Iptal);
+        _degisti = () => { }; Kaynak = kaynak;
+        var kayit = belge.Kayitlar.FirstOrDefault(k => k.SatirNo == kaynak.No && !k.Iptal); Kayitli = kayit is not null;
+        if (kayit is { IslemTuru: Eslestir }) EslesmeDurumu = $"Mevcut kayıtla eşleşti ({EslesmeAdayiSatiri.TurAdi(kayit.EslesmeTuru)} #{kayit.EslesmeId})";
         Kanallar = kanallar; Kartlar = kartlar; KartSecimiGorunur = belge.Kaynak == "Banka";
         IslemTurleri = belge.Kaynak == "Kart"
             ? [new("KartHarcama", "Kart harcaması"), new("KartIade", "Kart iadesi"), new("KartOdemesi", "Karta ödeme"), new(Eslestir, "Mevcut kayıtla eşleştir")]

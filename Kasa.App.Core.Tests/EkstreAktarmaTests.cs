@@ -242,5 +242,10 @@ public class EkstreAktarmaTests
         Assert.Contains("silinmiş ya da iptal edilmiş", yok.Ozet);
         var devir = new EkstreKayitSatiri(new EkstreKayitDto(8, 2, Tarih, "PDF", 100, "Gider", "Genel", [], null, null, null, null, false, EslesmeTuru: "Gider", EslesmeId: 5, EslesmeDurumu: "Eslesti"));
         Assert.Contains("alış ödemesine bağlandı (Gider #5)", devir.Ozet);
+        // Okunan satır listesinde eşleşmiş satır seçilemez ve durumunu gösterir.
+        var b = Belge() with { Kayitlar = [eslesme.Veri] };
+        var satir = new EkstreSatirEditor(b.Satirlar[0], b, [], [], () => { });
+        Assert.False(satir.Secilebilir); Assert.EndsWith("· Mevcut kayıtla eşleşti (Kart harcaması #12)", satir.Ozet); Assert.Contains("Bağı kaldırmak için", satir.Uyarilar);
+        Assert.Null(new EkstreSatirEditor(b.Satirlar[1], b, [], [], () => { }).EslesmeDurumu);
     }
 }
