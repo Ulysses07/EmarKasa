@@ -11,7 +11,7 @@ public partial class AyarlarViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
     private readonly IAylikGiderApi? _kilit;
-    /// <param name="kilit">Ay kilidi durumu: yalnız yeni kanal formunun aktiflik varsayılanı ve notu için (kuralı sunucu uygular).</param>
+    /// <param name="kilit">Ay kilidi durumu: yalnız kanal formundaki kilit notu için (kuralı sunucu uygular).</param>
     public AyarlarViewModel(IKasaApi api, IAylikGiderApi? kilit = null) { _api = api; _kilit = kilit; }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
@@ -28,12 +28,12 @@ public partial class AyarlarViewModel : TemelViewModel
     [ObservableProperty] private decimal _duzenKanalAcilisDevri;
     [ObservableProperty] private string? _kanalUyarisi;
 
-    // Ay kilidi varken aktif yeni kanal, Ortak gideri bölen aktif kanal kümesini değiştirdiği için sunucuda 409 alır: yeni kanal
-    // formu kilitte pasif gelir ve kilidi söyler. Kilit durumu okunamazsa bilinmiyor sayılır (form aktif varsayılır).
+    // Tamamlanmış ayların kanal kümesi sunucuda dondurulur: kanal eklemek, pasife almak ve sırasını değiştirmek ay kilidi varken de
+    // serbesttir, yalnız açılış devri kilitte değişmez. Not bunu söyler; kilit durumu okunamazsa not gösterilmez.
     [ObservableProperty, NotifyPropertyChangedFor(nameof(KanalKilitNotu))] private DateOnly? _kilitliSonTarih;
     public string? KanalKilitNotu => KilitliSonTarih is { } son
-        ? $"{son:dd.MM.yyyy} dahil aylar kilitli: yeni kanal pasif eklenir. Kilit varken kanal aktifleştirilemez ya da pasife alınamaz ve "
-          + "aktif kanalların sırası değişmez; bunun için kilidi takip başlangıcı ayından açın."
+        ? $"{son:dd.MM.yyyy} dahil aylar kilitli: kanal açılış devri değiştirilemez (yeni kanal açılış devri 0 ile eklenir). Kanal eklemek, "
+          + "pasife almak ve sırasını değiştirmek serbesttir; tamamlanmış ayların Ortak gider dağılımı değişmez."
         : null;
 
     // İzleyici şifre: sunucu ve web ile aynı kural ve ileti (yalnız belirlerken/değiştirirken).
@@ -78,8 +78,6 @@ public partial class AyarlarViewModel : TemelViewModel
         Kanallar.Clear();
         foreach (var k in kanallar) Kanallar.Add(k);
         KilitliSonTarih = await KilitSonuAsync();
-        // Boş yeni kanal formunun aktiflik varsayılanı kilide uyar; düzenlenen ya da yazılmaya başlanmış form değişmez.
-        if (DuzenKanalId == 0 && string.IsNullOrEmpty(DuzenKanalAd)) DuzenKanalAktif = KilitliSonTarih is null;
     }
 
     private async Task<DateOnly?> KilitSonuAsync()
@@ -94,7 +92,7 @@ public partial class AyarlarViewModel : TemelViewModel
     [RelayCommand]
     private void YeniKanal()
     {
-        DuzenKanalId = 0; DuzenKanalAd = ""; DuzenKanalAktif = KilitliSonTarih is null;
+        DuzenKanalId = 0; DuzenKanalAd = ""; DuzenKanalAktif = true;
         DuzenKanalSira = 0; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0;
     }
 

@@ -82,8 +82,8 @@
                 <VerticalStackLayout Spacing="0">
                     <VerticalStackLayout Padding="18,18,18,0" Spacing="12">
                         <Label Text="Kanallar" Style="{StaticResource LblSection}" />
-                        <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): Ortak gideri bölen aktif kanal kümesi kilitte değişmez. -->
-                        <Label Text="Ortak giderler aylık raporda aktif kanallara sıralarına göre bölünür; aktiflik ya da aktif kanalların sırası değişirse açık ayların Ortak payı yeniden hesaplanır. Ay kilidi varken kanal adı değiştirilebilir ve yeni kanal pasif eklenebilir; aktif kanal eklemek ya da silmek, aktifliği ya da aktif kanalların sırasını değiştirmek engellenir, çünkü kapatılmış bir ay yeniden açıldığında Ortak payı güncel kanallarla yeniden hesaplanırdı. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan kanalı silmek yerine pasife alın."
+                        <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): tamamlanmış ayların kanal kümesi dondurulur. -->
+                        <Label Text="Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan ya da tamamlanmış bir ayın kanal kümesinde yer alan kanal silinemez; silmek yerine pasife alın."
                                Style="{StaticResource LblPageSub}" />
                         <Grid ColumnDefinitions="{OnIdiom Desktop='1.4*,90,*,Auto,Auto,Auto', Default='*'}"
                               RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto,Auto'}"
@@ -126,7 +126,7 @@
                                     Grid.Row="{OnIdiom Desktop=0, Default=5}"
                                     VerticalOptions="End" />
                         </Grid>
-                        <!-- Ay kilidi varken yeni kanal formu pasif gelir (aktif yeni kanal Ortak kümesini değiştirir, sunucu 409 verir). -->
+                        <!-- Ay kilidi varken kanal formu kilidi söyler: yalnız açılış devri kilitte değişmez. -->
                         <Label Text="{Binding KanalKilitNotu}" Style="{StaticResource LblPageSub}"
                                IsVisible="{Binding KanalKilitNotu, Converter={StaticResource DoluIse}}" />
                         <Label Text="{Binding KanalUyarisi}" Style="{StaticResource LblError}"

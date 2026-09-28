@@ -140,28 +140,28 @@ public class AyarlarViewModelTests
         Assert.Equal("TOPTAN", api.SonKanalOlustur!.Ad);
     }
 
-    // Ay kilidi varken aktif yeni kanal, Ortak gideri bölen aktif kanal kümesini değiştirdiği için sunucuda 409 alır: yeni kanal
-    // formu kilitte pasif gelir ve kilidi söyler; düzenlenen kanal kendi aktifliğiyle açılır.
+    // Tamamlanmış ayların kanal kümesi sunucuda dondurulduğundan kilit varken de aktif kanal eklenebilir: kanal formu kilidi söyler,
+    // yeni kanal kilitte de aktif gelir; düzenlenen kanal kendi aktifliğiyle açılır.
     [Fact]
-    public async Task Kilit_varken_yeni_kanal_formu_pasif_gelir_ve_kilidi_soyler()
+    public async Task Kilit_varken_kanal_formu_kilidi_soyler_yeni_kanal_aktif_gelir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 0m) } };
         var kilit = new SahteKilit { KilitliSonTarih = new DateOnly(2026, 8, 31) };
         var vm = new AyarlarViewModel(api, kilit);
 
         await vm.YukleAsync();
-        Assert.False(vm.DuzenKanalAktif);
+        Assert.True(vm.DuzenKanalAktif);
         Assert.Contains("31.08.2026", vm.KanalKilitNotu);
 
         vm.KanalDuzenle(vm.Kanallar[0]);
         Assert.True(vm.DuzenKanalAktif);
         vm.YeniKanalCommand.Execute(null);
-        Assert.False(vm.DuzenKanalAktif);
+        Assert.True(vm.DuzenKanalAktif);
 
         vm.DuzenKanalAd = "E-TİCARET";
         await vm.KanalKaydetCommand.ExecuteAsync(null);
-        Assert.False(api.SonKanalOlustur!.Aktif);
-        Assert.False(vm.DuzenKanalAktif);                          // kayıttan sonraki boş form yine pasif
+        Assert.True(api.SonKanalOlustur!.Aktif);
+        Assert.True(vm.DuzenKanalAktif);                           // kayıttan sonraki boş form yine aktif
 
         kilit.KilitliSonTarih = null;                              // kilit tamamen açıldı: yenilenince yeni kanal aktif varsayılır
         await vm.YukleAsync();
