@@ -114,8 +114,11 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         {
             try { return await GetAsync<AnaSayfaDto>($"api/rapor/ana-sayfa?gun={gun}", ct); }
             catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound) { _anaSayfaUcuYok = true; }
+            // Birleşik ucun sunucu hatası (5xx; ör. takip özeti hesaplanamadı) kasa bakiyelerini gizlemez: panel ayrı uçtan
+            // alınır, eşikler ve özet çağıranca kendi uçlarından (kendi hatalarıyla) yüklenir. Uç sonraki yüklemede yeniden denenir.
+            catch (KasaApiException e) when ((int)e.DurumKodu >= 500) { }
         }
-        // Eski sunucu: panel tek başına; eşikler ve takip özeti çağıranca eski uçlardan yüklenir (eski davranış korunur).
+        // Eski sunucu ya da birleşik uç hatası: panel tek başına; eşikler ve takip özeti çağıranca eski uçlardan yüklenir.
         return new(await GetAsync<PanelDto>("api/rapor/panel", ct), null, null);
     }
     public Task<AylikRaporDto> AylikAsync(int yil, int ay) => GetAsync<AylikRaporDto>($"api/rapor/aylik?yil={yil}&ay={ay}");

@@ -15,6 +15,8 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     [ObservableProperty] private string _not = "";
     [ObservableProperty] private string? _karsilastirma;
     [ObservableProperty] private string? _esikUyarilari;
+    /// <summary>Kanal eşikleri ayrıca istenip yüklenemediyse hatası; bakiye karşılaştırma geçmişi yine gösterilir.</summary>
+    [ObservableProperty] private string? _esikHatasi;
     [ObservableProperty] private string? _kayitUyarisi;
     // Boşaltılan alan 0 olur: 0 bakiyeyle kayıt ikinci basışta gider; bakiye ya da açıklama değişince onay sıfırlanır.
     private bool _sifirOnayi;
@@ -23,15 +25,23 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     private void SifirOnayiniKaldir() { _sifirOnayi = false; KayitUyarisi = null; }
     public Task YukleAsync() => YukleAsync(null);
     /// <param name="panelEsikleri">Panelle aynı anlık görüntüden gelen kanal eşikleri (ana sayfa yanıtı): uyarı ile bakiye
-    /// çelişmez. Null ise (eski sunucu, yeniden deneme) ayrıca istenir.</param>
+    /// çelişmez. Null ise (eski sunucu, birleşik ucun sunucu hatası ya da eşiksiz yanıtı, yeniden deneme) ayrıca istenir; o
+    /// istek de başarısızsa hata <see cref="EsikHatasi"/>'nda kalır, geçmiş yine gösterilir.</param>
     public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri) => YurutAsync(async n =>
     {
         VeriHazir = false;
-        var gecmis = await api.KasaKontrolleriAsync(); var esikler = panelEsikleri ?? await api.KasaEsikleriAsync();
+        var gecmis = await api.KasaKontrolleriAsync();
+        IReadOnlyList<KasaEsikDto>? esikler = panelEsikleri; string? esikHatasi = null;
+        if (esikler is null)
+        {
+            try { esikler = await api.KasaEsikleriAsync(); }
+            catch (Exception e) when (e is not OperationCanceledException) { esikHatasi = "Kanal uyarıları yüklenemedi: " + OkumaHataMesaji(e); }
+        }
         if (!Gecerli(n)) return;
         TakipMetni.Doldur(Gecmis, gecmis.Select(x => new KasaKontrolSatiri(x)));
-        EsikUyarilari = string.Join("\n", esikler.Where(x => x.Etkin && x.EsikAltinda).Select(x => $"{x.Kanal}: bakiye {Bicim.Tl(x.Bakiye)} ₺ — alt limit {Bicim.Tl(x.Tutar)} ₺"));
-        if (string.IsNullOrEmpty(EsikUyarilari)) EsikUyarilari = "Açık uyarılarda alt limitin altında kanal yok.";
+        EsikHatasi = esikHatasi;
+        EsikUyarilari = esikler is null ? null : string.Join("\n", esikler.Where(x => x.Etkin && x.EsikAltinda).Select(x => $"{x.Kanal}: bakiye {Bicim.Tl(x.Bakiye)} ₺ — alt limit {Bicim.Tl(x.Tutar)} ₺"));
+        if (esikler is not null && string.IsNullOrEmpty(EsikUyarilari)) EsikUyarilari = "Açık uyarılarda alt limitin altında kanal yok.";
         _girdi = null; _onizleme = null; Karsilastirma = null; Tamamlandi();
     });
     private KasaKontrolOnizle Girdi() => new(GercekBakiye, Not.Trim());
@@ -66,7 +76,7 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         }
         catch (KasaApiException e) when ((int)e.DurumKodu == 409) { if (Gecerli(n)) { _girdi = null; _onizleme = null; Karsilastirma = null; } throw; }
     });
-    protected override void OturumTemizle() { Gecmis.Clear(); GercekBakiye = 0; Not = ""; Karsilastirma = EsikUyarilari = null; _girdi = null; _onizleme = null; _anahtar.Temizle(); SifirOnayiniKaldir(); }
+    protected override void OturumTemizle() { Gecmis.Clear(); GercekBakiye = 0; Not = ""; Karsilastirma = EsikUyarilari = EsikHatasi = null; _girdi = null; _onizleme = null; _anahtar.Temizle(); SifirOnayiniKaldir(); }
 }
 public record KasaKontrolSatiri(KasaKontrolDto Veri)
 {

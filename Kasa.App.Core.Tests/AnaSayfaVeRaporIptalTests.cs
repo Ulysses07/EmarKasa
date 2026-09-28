@@ -147,11 +147,48 @@ public class AnaSayfaVeRaporIptalTests
         Assert.DoesNotContain("ulaşılamadı", vm.Hata);
     }
 
+    // IST4: eşikler ana sayfa yanıtında yoksa (eski sunucu, birleşik ucun 5xx'i ya da sunucunun eşiksiz yanıtı) ayrıca istenir;
+    // o istek de başarısızsa bakiye karşılaştırma geçmişi yine görünür, eşik hatası kendi alanında gösterilir.
+    [Fact]
+    public async Task Esikler_yuklenemezse_gecmis_gorunur_ve_esik_hatasi_ayri_gosterilir()
+    {
+        var kontrol = new KontrolSahtesi { EsikHatasi = new KasaApiException(System.Net.HttpStatusCode.ServiceUnavailable, "Veritabanı meşgul.") };
+        var vm = new KasaKontrolViewModel(kontrol, Editor());
+
+        await vm.YukleAsync();
+
+        Assert.True(vm.VeriHazir); Assert.Null(vm.Hata);
+        Assert.Equal("Kanal uyarıları yüklenemedi: Veritabanı meşgul.", vm.EsikHatasi);
+        Assert.Null(vm.EsikUyarilari);
+
+        kontrol.EsikHatasi = null;
+        await vm.YukleAsync();
+        Assert.Null(vm.EsikHatasi); Assert.Contains("Açık uyarılarda alt limitin altında kanal yok.", vm.EsikUyarilari);
+    }
+
+    [Fact]
+    public async Task Takip_ozeti_yuklenemezse_panel_bakiyeleri_gorunur_hata_takip_alaninda_kalir()
+    {
+        // Birleşik uç özetsiz döndü (ya da 5xx sonrası panel ucundan geldi): özet kendi ucundan istenir ve başarısız olur.
+        var panel = new PanelViewModel(new SahteApi { AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), null, null)) });
+        var takip = new TakipOzetViewModel(new FinansTakipTests.Fake { OzetHatasi = new KasaApiException(System.Net.HttpStatusCode.InternalServerError) }, Editor());
+
+        await panel.YukleAsync();
+        await takip.PaneldenYukleAsync(panel.TakipOzeti, panel.TakipOzetiGunu);
+        panel.KartBorclariniYansit(takip.VeriHazir ? takip.KanalKartBorclari : null);
+
+        Assert.True(panel.VeriVar); Assert.Null(panel.Hata); Assert.Equal(900, panel.GuncelKasa);
+        Assert.Equal(new[] { 600m, 300m }, panel.Kanallar.Select(k => k.Bakiye));
+        Assert.All(panel.Kanallar, k => Assert.Equal("Kart borcu bilgisi alınmadı.", k.KartBorcuMetni));
+        Assert.False(takip.VeriHazir); Assert.Equal("Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.", takip.Hata);
+    }
+
     private sealed class KontrolSahtesi : IKasaKontrolApi
     {
         public int GecmisCagri, EsikCagri;
+        public Exception? EsikHatasi;
         public Task<IReadOnlyList<KasaKontrolDto>> KasaKontrolleriAsync() { GecmisCagri++; return Task.FromResult<IReadOnlyList<KasaKontrolDto>>(Array.Empty<KasaKontrolDto>()); }
-        public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() { EsikCagri++; return Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { Esik with { EsikAltinda = false } }); }
+        public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() { EsikCagri++; return EsikHatasi is { } e ? Task.FromException<IReadOnlyList<KasaEsikDto>>(e) : Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { Esik with { EsikAltinda = false } }); }
         public Task<KasaEsikDto> KasaEsigiKaydetAsync(int kanalId, KasaEsikYaz girdi) => throw new NotSupportedException();
         public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle girdi) => throw new NotSupportedException();
         public Task<KasaKontrolDto> KasaKontrolKaydetAsync(KasaKontrolYaz girdi) => throw new NotSupportedException();

@@ -1488,11 +1488,34 @@ test('eski sunucuda ana sayfa ucu yoksa (404) ayrı uçlara geri düşer, sonrak
   assert.equal(requests.filter(path => path === homeSummaryPath).length, 1);
   assert.equal(requests.filter(path => path === '/api/rapor/panel').length, 2);
 });
-test('ana sayfa ucunun sunucu hatası ayrı uçlara düşürmez; yeniden deneme gösterilir', async () => {
-  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 500 } });
-  assert.ok(!requests.includes('/api/rapor/panel'));
-  assert.match(nodes.get('#view').textContent, /Kayıtlar yüklenemedi/);
+// IST4: birleşik ucun sunucu hatası (5xx) ana sayfayı düşürmez. Kasa bakiyeleri panel ucundan gelir; eşikler ve takip
+// özeti kendi uçlarından yüklenir ve kendi hatalarını gösterir. 404'ten farklı olarak uç sonraki açılışta yeniden denenir.
+test('ana sayfa ucunun sunucu hatası (5xx) paneli ayrı uçtan dener; sonraki açılışta birleşik uç yeniden denenir', async () => {
+  for (const status of [500, 503]) {
+    const { app, nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: status } });
+    for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(requests.includes(old), `${status}: ${old} istenir`);
+    assert.match(nodes.get('#view').textContent, /123,00/);
+    assert.doesNotMatch(nodes.get('#view').textContent, /Kayıtlar yüklenemedi/);
+    await app.navigate('home');
+    assert.equal(requests.filter(path => path === homeSummaryPath).length, 2, `${status}: uç yeniden denenir`);
+  }
+});
+test('ana sayfa ucu da panel ucu da hata verirse yeniden deneme gösterilir', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 500 }, '/api/rapor/panel': { $status: 503, hata: 'Sunucu meşgul.' } });
+  assert.ok(requests.includes('/api/rapor/panel'));
+  assert.match(nodes.get('#view').textContent, /Kayıtlar yüklenemedi.*Sunucu meşgul\./);
   assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Yeniden dene'));
+});
+test('özetsiz ana sayfa yanıtında kasa bakiyeleri görünür; özet ve eşik hataları ayrı ayrı gösterilir', async () => {
+  // Sunucu (RDY) takip özeti hesaplanamayınca paneli özetsiz (null) döndürür; istemci özeti ve eşikleri kendi uçlarından dener.
+  const home = { ...sampleHome(), kasaEsikleri: null, takipOzeti: null };
+  const { nodes } = await openApp(false, { [homeSummaryPath]: home, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': { $status: 503, hata: 'Veritabanı meşgul.' } });
+  await settle();
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /900,00/); assert.match(view, /MEZAT/); assert.match(view, /600,00/);
+  assert.match(view, /Ödeme özeti yüklenemedi: /); assert.match(view, /Kanal uyarıları yüklenemedi: Veritabanı meşgul\./);
+  assert.match(view, /Kart borcu yüklenemedi\./);
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Uyarıları yeniden yükle'));
 });
 test('özet yüklenemediğinde kart borcu iletisi eşikler sonradan çizilince "yükleniyor"a dönmez', async () => {
   const { nodes } = await openApp(false, { [homeSummaryPath]: { $status: 404 }, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': () => new Promise(resolve => setImmediate(() => setImmediate(() => resolve([])))) });

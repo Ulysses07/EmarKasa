@@ -42,8 +42,10 @@ public record AylikRaporDto(int Yil, int Ay, IReadOnlyList<KanalAylikDto> Kanall
 public record KanalBakiyeDto(string Kanal, decimal Bakiye, int? KanalId = null);
 public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanallar, decimal BuHaftaSonucu, decimal BuAySonucu, decimal DagilimBekleyenTutar = 0m);
 /// <summary>Ana sayfa özeti (GET /api/rapor/ana-sayfa): panel, kanal eşikleri ve takip özeti sunucunun tek salt okunur anlık
-/// görüntüsünden; her parça ayrı uçların yanıtıyla birebir aynıdır. Eski sunucuda uç yoksa istemci yalnız paneli doldurur:
-/// <see cref="KasaEsikleri"/> ve <see cref="TakipOzeti"/> null kalır, çağıran onları eski uçlardan ayrıca yükler.</summary>
+/// görüntüsünden; her parça ayrı uçların yanıtıyla birebir aynıdır. Eski sunucuda uç yoksa (404) ya da uç sunucu hatası (5xx)
+/// verirse istemci yalnız paneli (panel ucundan) doldurur; sunucu özeti ya da eşikleri hesaplayamayınca onları null da
+/// gönderebilir. Her durumda null kalan <see cref="KasaEsikleri"/> ve <see cref="TakipOzeti"/>'ni çağıran eski uçlardan
+/// ayrıca yükler ve hatasını ayrı gösterir.</summary>
 public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikleri, TakipOzetDto? TakipOzeti);
 
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)

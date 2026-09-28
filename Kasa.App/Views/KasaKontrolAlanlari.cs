@@ -17,8 +17,9 @@ internal static class KasaKontrolAlanlari
     public static View Kontrol(KasaKontrolViewModel vm)
     {
         var sifirOnayi = Bagli(nameof(vm.KayitUyarisi)); sifirOnayi.TextColor = Colors.DarkRed;   // 0 bakiye: ikinci basışta kaydedilir
+        var esikHatasi = Bagli(nameof(vm.EsikHatasi)); esikHatasi.TextColor = Colors.DarkRed;     // eşikler yüklenemedi; geçmiş yine görünür
         var body = new VerticalStackLayout { Spacing = 16, Children = {
-            Kart("Kanal alt limit uyarıları", Bagli(nameof(vm.EsikUyarilari)), Metin("Alt limitler Ayarlar bölümünden açılır. Uyarılar kanal bakiyesini değiştirmez.")),
+            Kart("Kanal alt limit uyarıları", Bagli(nameof(vm.EsikUyarilari)), Goster(esikHatasi, nameof(vm.EsikHatasi), true), Metin("Alt limitler Ayarlar bölümünden açılır. Uyarılar kanal bakiyesini değiştirmez.")),
             Editor(Kart("Gerçek genel bakiye ile karşılaştır", Metin("Gerçekte saydığınız toplam bakiyeyi girin. Karşılaştırma kaydı tutulur; fark kasaya veya kanallara otomatik işlenmez."),
                 Alan("Gerçek toplam bakiye", Girdi(nameof(vm.GercekBakiye), true)), Alan("Açıklama", Girdi(nameof(vm.Not))), Dugme("Farkı göster", nameof(vm.OnizleCommand)), Bagli(nameof(vm.Karsilastirma)), Dugme("Karşılaştırmayı kaydet", nameof(vm.KaydetCommand)),
                 Goster(sifirOnayi, nameof(vm.KayitUyarisi), true))),

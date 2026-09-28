@@ -438,13 +438,16 @@ function cashActions() {
 // Ana sayfa özeti tek istekte: panel, kanal eşikleri ve takip özeti sunucunun tek anlık görüntüsünden gelir; bakiye, eşik
 // rozeti ve kart borcu birbiriyle çelişmez, sunucu kart hesabını bir kez yapar. Eski sunucuda uç yoksa (404) panel tek başına
 // alınır, eşikler ve özet eski uçlardan ayrıca yüklenir (eski davranış); uç bir kez 404 verdiyse sayfa yenilenene kadar
-// yeniden denenmez. Görüntüleme sürümü yalnız paneli okur.
+// yeniden denenmez. Birleşik ucun sunucu hatası (5xx) da ana sayfayı düşürmez: kasa bakiyeleri panel ucundan gelir, eşikler ve
+// özet kendi uçlarından yüklenip kendi hatalarını gösterir; uç sonraki açılışta yeniden denenir. Sunucu özeti ya da eşikleri
+// hesaplayamayınca paneli onlarsız (null) da döndürebilir; eksik parça aynı yolla ayrıca yüklenir. Görüntüleme sürümü yalnız
+// paneli okur.
 let homeSummaryMissing = false;
 async function loadHomeSummary(days) {
   if (runtime.saltOkunur) return { panel: await api('/api/rapor/panel'), kasaEsikleri: null, takipOzeti: null };
   if (!homeSummaryMissing) {
     try { return await api(`/api/rapor/ana-sayfa?gun=${days}`); }
-    catch (error) { if (error.status !== 404) throw error; homeSummaryMissing = true; }
+    catch (error) { if (error.status === 404) homeSummaryMissing = true; else if (!(error.status >= 500)) throw error; }
   }
   return { panel: await api('/api/rapor/panel'), kasaEsikleri: null, takipOzeti: null };
 }

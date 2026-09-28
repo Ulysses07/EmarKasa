@@ -11,8 +11,8 @@ public interface IKasaApi
     Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync();
     /// <summary>Haftalık rapor; ekran değişince çağıran isteği iptal edebilir.</summary>
     Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct);
-    /// <summary>Ana sayfa özeti tek istekte; <paramref name="gun"/> takip özetinin ufku. Eski sunucuda (uç yoksa 404)
-    /// yalnız panel dolu döner (bkz. <see cref="AnaSayfaDto"/>).</summary>
+    /// <summary>Ana sayfa özeti tek istekte; <paramref name="gun"/> takip özetinin ufku. Eski sunucuda (uç yoksa 404) ve
+    /// ucun sunucu hatasında (5xx) yalnız panel dolu döner (bkz. <see cref="AnaSayfaDto"/>).</summary>
     Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default);
     Task<AylikRaporDto> AylikAsync(int yil, int ay);
     Task<IReadOnlyList<DonemDto>> DonemlerAsync();

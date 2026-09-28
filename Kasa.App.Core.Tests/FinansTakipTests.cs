@@ -373,7 +373,7 @@ public class FinansTakipTests
         public Task<KrediTakipDto> TakipKrediKapatAsync(int id, KrediKapatYaz g) { Kapatma = g; return Task.FromResult(Kredi); }
         public Task<TakipGecisDto> TakipKrediGecisOnizlemeAsync(int id, KrediGecisYaz g) => Task.FromResult(Preview("Kredi", id));
         public Task<KrediTakipDto> TakipKrediGecisAsync(int id, KrediGecisYaz g) { KrediGecis = g; return Task.FromResult(Kredi with { YeniTakip = true }); }
-        public int OzetCagri, SonOzetGunu;
-        public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) { OzetCagri++; SonOzetGunu = gun; return Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>())); }
+        public int OzetCagri, SonOzetGunu; public Exception? OzetHatasi;
+        public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) { OzetCagri++; SonOzetGunu = gun; return OzetHatasi is { } e ? Task.FromException<TakipOzetDto>(e) : Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>())); }
     }
 }
