@@ -140,6 +140,50 @@ public class YurutucuTests
         Assert.True(hat.Guncel(hat.Baslat()));
     }
 
+    // ---- Tekil işlem ile yüzeydeki okuma (SonIstekHatti.YukleAsync) aynı göstergeyi paylaşır ----
+
+    [Fact]
+    public async Task Okuma_surerken_baslayan_tekil_islem_sessizce_engellenmez_okumayi_eskitir_ve_iptal_eder()
+    {
+        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var hat = new SonIstekHatti(yurutucu);
+        var okuma = new TaskCompletionSource<int>(); CancellationToken belirtec = default; var uygulanan = new List<int>();
+        var yukleme = hat.YukleAsync(ct => { belirtec = ct; return okuma.Task; }, uygulanan.Add);
+        Assert.True(yuzey.Mesgul);
+
+        var yazma = new TaskCompletionSource(); var cagri = 0;
+        var islem = yurutucu.YurutAsync(async _ => { cagri++; await yazma.Task; });
+
+        Assert.Equal(1, cagri);
+        Assert.True(belirtec.IsCancellationRequested);              // okuma ağda da bırakılır
+        okuma.SetResult(1); await yukleme;
+        Assert.Empty(uygulanan);                                    // eskiyen okumanın sonucu uygulanmaz
+        Assert.True(yuzey.Mesgul);                                  // bitişi yazmanın göstergesini indirmez
+        yazma.SetResult(); await islem;
+        Assert.False(yuzey.Mesgul); Assert.Null(yuzey.Hata);
+    }
+
+    [Fact]
+    public async Task Tekil_islem_surerken_baslayan_okuma_yazmanin_iletisini_silmez_gosterge_ikisi_de_bitince_iner()
+    {
+        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var hat = new SonIstekHatti(yurutucu);
+        var yazma = new TaskCompletionSource(); var uygulanan = new List<int>(); var cagri = 0;
+        var islem = yurutucu.YurutAsync(async _ => { yuzey.Mesaj = "kaydedildi"; await yazma.Task; });
+
+        // Önce biten okuma: sonucu uygulanır; yazmanın iletisi ve göstergesi kalır, yazma sürdüğü için ikinci tekil işlem yapılmaz.
+        await hat.YukleAsync(_ => Task.FromResult(1), uygulanan.Add);
+        Assert.Equal(new[] { 1 }, uygulanan); Assert.Equal("kaydedildi", yuzey.Mesaj); Assert.True(yuzey.Mesgul);
+        await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; });
+        Assert.Equal(0, cagri);
+
+        // Sonra biten okuma: yazma bitince gösterge okumada kalır, okuma bitince iner.
+        var okuma = new TaskCompletionSource<int>();
+        var yukleme = hat.YukleAsync(_ => okuma.Task, uygulanan.Add);
+        yazma.SetResult(); await islem;
+        Assert.True(yuzey.Mesgul); Assert.Equal("kaydedildi", yuzey.Mesaj);
+        okuma.SetResult(2); await yukleme;
+        Assert.Equal(new[] { 1, 2 }, uygulanan); Assert.False(yuzey.Mesgul); Assert.Null(yuzey.Hata);
+    }
+
     // ---- Ekran garantileri: eskiden CalistirAsync + elle 'Mesgul ?' ile korunan İşlemler ekranı ----
 
     [Fact]

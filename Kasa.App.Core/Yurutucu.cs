@@ -22,13 +22,26 @@ public interface IYurutmeYuzeyi
 /// <item>Son istek kazanır (<see cref="SonIstekHatti"/>; okuma): yeni istek öncekini eskitir ve iptal belirteciyle ağda da
 /// bırakır; iptal hata sayılmaz, hata <see cref="OkumaHataMesaji"/> ile yazılır.</item>
 /// </list>
-/// Tekil işlem ile <see cref="SonIstekHatti.YukleAsync"/> aynı Mesgul'u paylaşır: aynı modelde ikisi birlikte kullanılmaz (süren
-/// okuma yazmayı engeller, okumanın bitişi süren yazmanın göstergesini indirir). Tekil işlem kullanan ekranın okuma hatları
-/// Mesgul'a dokunmayan <see cref="SonIstekHatti.Baslat"/>/<see cref="SonIstekHatti.Guncel"/> ile kendi göstergesini taşır
-/// (İşlemler); yalnız okuyan ekran <see cref="SonIstekHatti.YukleAsync"/> kullanır (Rapor).</summary>
+/// Tekil işlem ile yüzeydeki okuma (<see cref="SonIstekHatti.YukleAsync"/>) aynı Mesgul'u paylaşır; gösterge ikisinden biri
+/// sürdükçe açık kalır ve ikisi arasındaki öncelik açıktır:
+/// <list type="bullet">
+/// <item>Okuma sürerken başlayan tekil işlem (yazma) engellenmez: süren okuma eskitilir ve iptal edilir (sonucu, hatası ve bitişi
+/// yansımaz); yazmanın ardından ekran kendi yenilemesini yapar. Yazmanın dayandığı ekran yüklemesi (form doldurma) bu yüzden okuma
+/// hattıyla değil tekil işlemle yapılır: o sürerken yazma başlamaz (Ayarlar).</item>
+/// <item>Tekil işlem sürerken başlayan okuma çalışır (son istek kazanır) ama yazmanın hatasını ve iletisini temizlemez; biten okuma
+/// göstergeyi yazma sürüyorsa indirmez, biten yazma okuma sürüyorsa indirmez. Okuma sürse de yazma sürdükçe ikinci tekil işlem
+/// başlamaz.</item>
+/// </list>
+/// Kendi göstergesini taşıyan okuma hatları Mesgul'a dokunmayan <see cref="SonIstekHatti.Baslat"/>/<see cref="SonIstekHatti.Guncel"/>
+/// kullanır (İşlemler listesi); ekranın tek göstergesiyle okuyan ekran <see cref="SonIstekHatti.YukleAsync"/> kullanır (Rapor).</summary>
 public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
 {
     private int _nesil;
+    // Göstergenin sahipleri: süren tekil işlemin nesli ve yüzeyde yükleyen son okuma. Nesil değişince (GecersizKil) ikisi de
+    // kendiliğinden düşer (tekil işlem neslinden, okuma biletinden eskir). Yalnız UI bağlamında yazılır ve okunur.
+    private int? _tekilNesli;
+    private SonIstekHatti? _okuyanHat;
+    private IstekBileti? _okumaBileti;
 
     /// <summary>Şu anki nesil; işlem başlarken yakalanır, sonuç uygulanmadan önce <see cref="Gecerli"/> ile denetlenir.</summary>
     public int Nesil => Volatile.Read(ref _nesil);
@@ -36,21 +49,44 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
     /// <summary>Bekleyen bütün işleri (tekil ve son istek biletleri) eskitir: sonuçları, hataları ve bitişleri yansımaz.</summary>
     public void GecersizKil() => Interlocked.Increment(ref _nesil);
 
+    /// <summary>Bu nesilde tekil işlem sürüyor mu (eskiyen işlem sayılmaz).</summary>
+    internal bool TekilSuruyor => _tekilNesli == Nesil;
+    private bool OkumaSuruyor => _okuyanHat is { } hat && _okumaBileti is { } bilet && hat.Guncel(bilet);
+
     /// <summary>Başka işlem sürerken yapılmayan, kullanıcının onay diyaloğundan sonra istediği işlemin (ör. silme) iletisi.</summary>
     public const string SurenIslemIletisi = "Önceki işlem sürdüğü için bu işlem yapılmadı. İşlem bitince yeniden deneyin.";
 
     /// <summary>Tekil işlem: Mesgul iken çalışmaz. Varsayılan sessizce dönmektir (çift tıklamanın ikinci basışı iletiyle
-    /// karışmasın); <paramref name="mesgulkenBildir"/> onaydan sonra gelen işlemde (silme) yapılmadığını Hata'ya yazar.
+    /// karışmasın); <paramref name="mesgulkenBildir"/> onaydan sonra gelen işlemde (silme) yapılmadığını Hata'ya yazar. Göstergeyi
+    /// yalnız yüzeydeki okuma tutuyorsa işlem engellenmez: okuma eskitilip iptal edilir (bkz. <see cref="Yurutucu"/>).
     /// <paramref name="islem"/> başladığı nesli alır; sonucu yazmadan önce <see cref="Gecerli"/> ile denetler.</summary>
     public async Task YurutAsync(Func<int, Task> islem, bool mesgulkenBildir = false)
     {
-        if (yuzey.Mesgul) { if (mesgulkenBildir) yuzey.Hata = SurenIslemIletisi; return; }
+        if (yuzey.Mesgul)
+        {
+            if (!TekilSuruyor && OkumaSuruyor) _okuyanHat!.Birak();
+            else { if (mesgulkenBildir) yuzey.Hata = SurenIslemIletisi; return; }
+        }
         var nesil = Nesil;
+        _tekilNesli = nesil; _okuyanHat = null; _okumaBileti = null;
         // Önce Mesgul: temizlemenin tetiklediği bildirimden gelen ikinci çağrı da korumaya takılır.
         yuzey.Mesgul = true; yuzey.Hata = null; yuzey.IletiyiTemizle();
         try { await islem(nesil); }
         catch (Exception hata) { if (Gecerli(nesil)) yuzey.Hata = HataMesaji(hata); }
-        finally { if (Gecerli(nesil)) yuzey.Mesgul = false; }
+        finally
+        {
+            if (Gecerli(nesil)) { _tekilNesli = null; yuzey.Mesgul = OkumaSuruyor; }
+        }
+    }
+
+    /// <summary>Yüzeyde yükleyen okuma başladı: göstergeyi (tekil işlemle birlikte) tutar.</summary>
+    internal void OkumaBasladi(SonIstekHatti hat, IstekBileti bilet) { _okuyanHat = hat; _okumaBileti = bilet; }
+
+    /// <summary>Güncel okuma bitti; göstergenin açık kalıp kalmayacağını (tekil işlem sürüyor mu) döner.</summary>
+    internal bool OkumaBitti(IstekBileti bilet)
+    {
+        if (ReferenceEquals(_okumaBileti, bilet)) { _okuyanHat = null; _okumaBileti = null; }
+        return TekilSuruyor;
     }
 
     /// <summary>Son istek kazanır yüklemesinin yüzeyi: yükleme göstergesi Mesgul, hata Hata'dır.</summary>
@@ -119,13 +155,16 @@ public sealed class SonIstekHatti(Yurutucu yurutucu)
     public void Bitir(IstekBileti bilet) => Interlocked.CompareExchange(ref _iptal, null, bilet.Kaynak);
 
     /// <summary>Yürütücünün yüzeyinde (Mesgul, Hata) okuma: başlarken Hata ve ileti temizlenir; yalnız son isteğin sonucu
-    /// uygulanır, hatası yazılır ve bitişi Mesgul'u indirir. Bu hattın iptali hata sayılmaz. Mesgul'u tekil işlemle paylaştığı
-    /// için <see cref="Yurutucu.YurutAsync"/> kullanan modelde kullanılmaz (bkz. <see cref="Yurutucu"/>).</summary>
+    /// uygulanır, hatası yazılır ve bitişi Mesgul'u indirir. Bu hattın iptali hata sayılmaz. Tekil işlemle birlikte: sürerken
+    /// başlayan tekil işlem bu okumayı eskitir; tekil işlem sürerken başlayan okuma yazmanın hatasını ve iletisini temizlemez,
+    /// göstergeyi yazma bitene dek indirmez (bkz. <see cref="Yurutucu"/>).</summary>
     public async Task YukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula)
     {
         var yuzey = yurutucu.Yuzey;
         var bilet = Baslat();
-        yuzey.Hata = null; yuzey.IletiyiTemizle(); yuzey.Mesgul = true;
+        if (!yurutucu.TekilSuruyor) { yuzey.Hata = null; yuzey.IletiyiTemizle(); }
+        yurutucu.OkumaBasladi(this, bilet);
+        yuzey.Mesgul = true;
         try
         {
             var veri = await getir(bilet.Iptal);
@@ -136,7 +175,7 @@ public sealed class SonIstekHatti(Yurutucu yurutucu)
         catch (Exception hata) { if (Guncel(bilet)) yuzey.Hata = Yurutucu.OkumaHataMesaji(hata); }
         finally
         {
-            if (Guncel(bilet)) yuzey.Mesgul = false;
+            if (Guncel(bilet)) yuzey.Mesgul = yurutucu.OkumaBitti(bilet);
             Bitir(bilet);
         }
     }
