@@ -98,6 +98,12 @@ using (var scope = app.Services.CreateScope())
     KasaDatabaseInitializer.Initialize(db, yedekServisi, belgeDeposu, scope.ServiceProvider.GetRequiredService<IDiskAlani>());
     // Yedekten geri yüklenmiş dosya: oturumlar ve izleyici girişi kapanır, kimlikler ileri alınır (HTTP açılmadan).
     GeriYuklemeIsleyici.Isle(db);
+    // Kayıtların gösterdiği belge içeriği depoda yoksa (ör. geri yüklemede belgeler/ klasörü unutuldu) her açılışta görünür kılınır;
+    // bu belgelerin indirmesi 404 'Belge dosyası bulunamadı.' döner.
+    var eksikBelgeler = db.Belgeler.Select(b => b.IcerikOzeti).AsEnumerable().Concat(db.EkstreBelgeler.Select(d => d.DosyaOzeti).AsEnumerable())
+        .Distinct(StringComparer.OrdinalIgnoreCase).Count(ozet => !belgeDeposu.Var(ozet));
+    if (eksikBelgeler > 0)
+        app.Logger.LogError("{Sayi} belge içeriği belge deposunda ({Depo}) bulunamadı; bu belgeler indirilemez. Geri yüklemede belgeler/ klasörü unutulduysa restore_backup.py --belge-aynasi ile açın.", eksikBelgeler, belgeDeposu.Kok);
     if (!db.Kanallar.Any())
     {
         db.Kanallar.AddRange(

@@ -10,5 +10,8 @@ web/dist
 .gitignore
 docs
 **/TestResults
+# Yerel geliştirme verisi (belge deposu ve yedekler) imaja girmez.
+Kasa.Api/belgeler
+Kasa.Api/yedekler
 .kasa-push-keys.json
 **/.kasa-push-keys.json

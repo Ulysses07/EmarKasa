@@ -488,6 +488,7 @@ deploy/.env
 deploy/kasa-data/
 deploy/kasa-backups/
 Kasa.Api/yedekler/
+Kasa.Api/belgeler/
 Kasa.Api/*.db
 Kasa.Api/*.db-shm
 Kasa.Api/*.db-wal

@@ -13,7 +13,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kasa.Api.Tests;
@@ -409,6 +411,35 @@ public class BelgeDeposuGecisTests
         using var yok = await c.GetAsync($"/api/belgeler/{bir.Id}");
         Assert.Equal(HttpStatusCode.NotFound, yok.StatusCode);
         Assert.Equal(BelgeEndpoints.DosyaYok, (await yok.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+    }
+
+    [Fact]
+    public async Task Depoda_olmayan_belge_icerigi_her_acilista_hata_olarak_loglanir()
+    {
+        await using var f = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
+        using var c = await f.EditorClientAsync();
+        var alis = (await (await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, f.Bugun, "Firma", null, []))).Content.ReadFromJsonAsync<AlisDto>())!;
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Belgeler.Add(new BelgeEntity { AlisId = alis.Id, DosyaAdi = "kayip.pdf", IcerikTuru = "application/pdf", Boyut = 3, Yuklendi = f.Saat!.GetUtcNow(), IcerikOzeti = Ozet("%PDF-kayip"u8.ToArray()) });
+            db.SaveChanges();
+        }
+        var loglar = new HataToplayici();
+        await using var yeniden = f.WithWebHostBuilder(b => b.ConfigureLogging(l => l.AddProvider(loglar)));
+        _ = yeniden.Services; // aynı veritabanıyla yeniden açılış
+        Assert.Contains(loglar.Hatalar, h => h.StartsWith("1 belge içeriği belge deposunda", StringComparison.Ordinal) && h.Contains("--belge-aynasi"));
+    }
+
+    private sealed class HataToplayici : Microsoft.Extensions.Logging.ILoggerProvider, Microsoft.Extensions.Logging.ILogger
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Hatalar { get; } = new();
+        public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName) => this;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => logLevel >= Microsoft.Extensions.Logging.LogLevel.Error;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        { if (logLevel >= Microsoft.Extensions.Logging.LogLevel.Error) Hatalar.Enqueue(formatter(state, exception)); }
+        public void Dispose() { }
     }
 
     private static IEnumerable<Exception> Zincir(Exception e)
