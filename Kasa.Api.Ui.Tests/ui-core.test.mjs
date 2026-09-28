@@ -1426,6 +1426,33 @@ test('kanal ve genel kasa açılış devri ± seçiciyle eksi girilir', async ()
   formField(nodes, 'kasaAcilisDevri').value = '250'; await submitDialog(nodes);
   assert.deepEqual(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body, { takipBaslangic: '2026-01-01', kasaAcilisDevri: -250 });
 });
+// Ay kilidi varken aktif yeni kanal, Ortak gideri bölen aktif kanal kümesini değiştirdiği için sunucuda 409 alır: Ayarlar kilit
+// durumunu okur, yeni kanal formu kilitte pasif gelir ve kilidi söyler; düzenlenen kanal kendi aktifliğiyle açılır.
+test('ay kilidi varken yeni kanal formu pasif gelir ve kilidi söyler; kilit yokken ya da okunamazsa aktif gelir', async () => {
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': [{ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0 }], '/api/ay-kilidi': { surum: 2, kilitliSonTarih: '2026-08-31', gecmis: [] }, '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
+  const lockText = `${dateText('2026-08-31')} dahil aylar kilitli`;
+  await app.navigate('tools');
+  await clickView(nodes, '+ Kanal ekle');
+  assert.equal(formField(nodes, 'aktif').checked, false, 'Kilitte yeni kanal pasif gelir.');
+  assert.ok(nodes.get('#modal-content').textContent.includes(`${lockText}. Yeni kanal pasif`), 'Kilit notu görünür.');
+  formField(nodes, 'ad').value = 'E-TİCARET'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kanallar' && call.method === 'POST').body.aktif, false);
+
+  await clickView(nodes, 'Düzenle');
+  assert.equal(formField(nodes, 'aktif').checked, true, 'Düzenlenen kanal kendi aktifliğiyle açılır.');
+  assert.ok(nodes.get('#modal-content').textContent.includes(lockText), 'Düzenlemede de kilit söylenir.');
+
+  responses['/api/ay-kilidi'] = { surum: 3, kilitliSonTarih: null, gecmis: [] };
+  await app.navigate('tools'); await clickView(nodes, '+ Kanal ekle');
+  assert.equal(formField(nodes, 'aktif').checked, true);
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /dahil aylar kilitli/);
+
+  // Kilit durumu yalnız form varsayılanı içindir (kuralı sunucu uygular): okunamazsa Ayarlar yine açılır, form aktif gelir.
+  responses['/api/ay-kilidi'] = { $status: 500, hata: 'Sunucu hatası' };
+  await app.navigate('tools'); await clickView(nodes, '+ Kanal ekle');
+  assert.equal(formField(nodes, 'aktif').checked, true);
+  assert.match(nodes.get('#view').textContent, /Mezat/);
+});
 test('gerçek bakiye karşılaştırması ± seçiciyle eksi bakiyeyi önizler', async () => {
   const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/onizleme': { sistemBakiye: 123, gercekBakiye: -20, fark: -143, kontrolOzeti: 'digest1' } });
   app.cashControlsUi.comparisonDialog();
