@@ -205,6 +205,54 @@ public class RaporDayaniklilikTests
         Assert.Contains("payları okunamayan ödemenin kasada önceden sayılan kısmı ayrılamadı; kasa en çok 100,00 TL düşük görünebilir", uyari);
     }
 
+    /// <summary>Kart karantinası devir iadesinin kasaya döndürdüğü önceden sayılan kısmı (TakipIadeHesaplari.KasadaSayilanDuzeltme)
+    /// kart hesabıyla aynı kuralla sayar: düzeltme devrin önceden sayılan tutarından düşülür ve iade tarihinde kasaya geri döner.
+    /// Kart karantinaya alınınca kasa aynı kalır (eskiden düzeltme kadar düşük görünüyordu); yalnız kanalı bilinmeyen iade
+    /// "Dağılım bekliyor"dan düşer ve uyarı bunu söyler.</summary>
+    [Fact]
+    public async Task Gecis_kartinin_karantinasi_devir_iadesinin_kasaya_dondurdugu_tutari_kart_hesabiyla_ayni_sayar()
+    {
+        await using var f = new LogluFabrika(new UyariToplayici()); using var c = await Editor(f);
+        int id;
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var eski = new KrediKartiEntity { Ad = "Geçiş kartı", Borc = 100m, Limit = 1_000m, KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25) };
+            db.KrediKartlari.Add(eski); db.SaveChanges(); id = eski.Id;
+        }
+        // Devir borcu 100, tamamı kasada önceden sayılmış. 30 iade edilir: kasaya döner (düzeltme 30), devrin sayılan tutarı 70'e
+        // iner. Bankanın istediği kalan 70 ödenir: kasada sayılmış kabul edilir, kasa etkisi 0.
+        var kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis", new KartGecisYaz(Guid.NewGuid(), 0, Today, 100m, 100m, [new(1, 100m)], "Önceden kasada sayıldı", true));
+        var devir = Assert.Single(kart.Harcamalar);
+        kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kart.Surum, Today, "Satıcı iadesi", -30m, 1, null, [], devir.Id));
+        Assert.Equal(30m, kart.Harcamalar.Single(h => h.Tutar < 0).KasadaSayilanDuzeltme);
+        kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Today, 70m));
+        Assert.Equal(0m, kart.Odemeler.Single().KasaEtkisi);
+        var once = await Panel(c);
+
+        // Devir harcamasının dağılımı okunamaz: kart karantinada. Kasa aynı; iadenin kasaya döndürdüğü 30 MEZAT yerine
+        // "Dağılım bekliyor"dan düşer, ödemenin nakit etkisi yine 0.
+        using (var scope = f.Services.CreateScope())
+            Bozuk(scope.ServiceProvider.GetRequiredService<KasaDbContext>(),
+                $"UPDATE TakipHarcamalar SET DagilimJson = '{{bozuk' WHERE KrediKartiId = {id} AND Aciklama = 'Onaylanan eski borç devri';");
+        var sonra = await Panel(c);
+        Assert.Equal(once.GuncelKasa, sonra.GuncelKasa);
+        Assert.Equal(once.DagilimBekleyenTutar - 30m, sonra.DagilimBekleyenTutar);
+        Assert.Equal(Mezat(once) - 30m, Mezat(sonra));
+        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        Assert.Contains($"Kredi kartı #{id} ('Geçiş kartı'): ödemelerin kanal dağılımı hesaplanamadı", uyari);
+        Assert.Contains("1 ödemenin nakit etkisi (0,00 TL) 'Dağılım bekliyor' sayıldı", uyari);
+        Assert.Contains("1 devir iadesinin kasaya döndürdüğü önceden sayılan tutar (30,00 TL) kasaya geri eklendi, kanalı 'Dağılım bekliyor'", uyari);
+
+        // Ödemenin payları da okunamaz: ödeme tam tutarıyla (70) sayılır. Olası sapma iadeyle düşülmüş sayılan tutar (70) kadardır.
+        using (var scope = f.Services.CreateScope())
+            Bozuk(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), $"UPDATE TakipKartOdemeler SET PaylarJson = 'bozuk' WHERE KrediKartiId = {id};");
+        var son = await Panel(c);
+        Assert.Equal(once.GuncelKasa - 70m, son.GuncelKasa);
+        uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        Assert.Contains("payları okunamayan ödemenin kasada önceden sayılan kısmı ayrılamadı; kasa en çok 70,00 TL düşük görünebilir", uyari);
+    }
+
     /// <summary>Bozuk kayıtla hesaplanan rapor dondurulmaz. Kapatılacak aylardan birine dokunan karantina kaydı varsa ay kapatma 409
     /// ile reddedilir; ileti ayı ve kaydı kimliğiyle söyler, kilit, kilit olayı ve görüntü yazılmaz. Kayda dokunmayan önceki ay
     /// kapanabilir. Kayıt düzeltilince ay kapanır ve dondurulmuş rapor uyarı taşımaz.</summary>

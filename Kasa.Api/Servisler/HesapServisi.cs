@@ -76,7 +76,8 @@ public class HesapServisi
     /// - Gider (ekstre gideri, aylık gider ödemesi, alış ödemesi, takipli kredi taksiti, kart ödemesi): para kasadan çıkmıştır, yalnız
     ///   kanalı bilinmez. Çözülemeyen pay (okunamayan dağılımda kaydın tamamı) "Dağılım bekliyor" olur: tutar kasadan düşer, hiçbir
     ///   kanala yazılmaz, dağılım bekleyen tutarda görünür. Hesabı yapılamayan takipli kartın ödemelerinin yalnız nakit etkisi
-    ///   (kasada önceden sayılan tutar düşülmüş hâli) "Dağılım bekliyor" sayılır (bkz. KartOdemeleriBekliyor).
+    ///   (kasada önceden sayılan tutar düşülmüş hâli) ve devir iadesinin kasaya döndürdüğü tutar "Dağılım bekliyor" sayılır (bkz.
+    ///   KartOdemeleriBekliyor).
     /// - Gelir (ekstre geliri, eski hesap ek geliri): para kasaya girmiştir, kanalı bilinmez: tutar genel kasaya gelir yazılır
     ///   (dağılım bekleyen giderin gelir karşılığı). Takipli kredi çekiminin çözülemeyen payı eski modelin kanalsız kredi girişi
     ///   olur: kasaya girer, hiçbir kanala ve ay sonucuna yazılmaz, aylık raporun kredi girişinde görünür (K2 korunur).
@@ -402,13 +403,26 @@ public class HesapServisi
         // dağılımdan ayrı hesaplanır ve "Dağılım bekliyor" sayılır (kasadan düşer, hiçbir kanala yazılmaz). Kural kart hesabınınkiyle
         // (FinansTakipServisi.OdemeEtkisi) aynıdır: ödemeler Id sırasıyla işlenir; harcamaya düşen pay, harcamanın kasada önceden
         // sayılan tutarının (KasadaOncedenSayilanTutar, geçiş devri) önceki ödemelerce kullanılmayan kısmı kadar azalır; harcamaya
-        // bağlanamayan pay (avans) tamamen nakittir. Payları okunamayan ödemenin hangi harcamayı kapattığı bilinmez: tam tutarıyla
-        // sayılır ve uyarı kasadaki olası sapmayı (en çok kartın önceden sayılan tutarı kadar düşük kasa) açıkça söyler.
+        // bağlanamayan pay (avans) tamamen nakittir. Devir iadesinin kasaya döndürdüğü önceden sayılan kısım (TakipIadeHesaplari.
+        // KasadaSayilanDuzeltme) de aynı kuralla sayılır (FinansTakipServisi.EtkinKasadaSayilan, OncedenSayilanIadeleri): devrin
+        // önceden sayılan tutarından düşülür ve iade tarihinde kasaya geri döner (eksi kart ödemesi); iadenin kanal payı bilinmediği
+        // için satır "Dağılım bekliyor"dur. Payları okunamayan ödemenin hangi harcamayı kapattığı bilinmez: tam tutarıyla sayılır ve
+        // uyarı kasadaki olası sapmayı (en çok kartın iadelerle düşülmüş önceden sayılan tutarı kadar düşük kasa) açıkça söyler.
         void KartOdemeleriBekliyor(int cardId, Exception hata, IReadOnlyList<string> sorunlar)
         {
             var oncedenSayilan = _db.TakipHarcamalar.AsNoTracking().Where(h => h.KrediKartiId == cardId)
                 .Select(h => new { h.Id, h.KasadaOncedenSayilanTutar }).ToDictionary(h => h.Id, h => h.KasadaOncedenSayilanTutar);
             var harcamaIdleri = oncedenSayilan.Keys.ToArray();
+            var iadeler = _db.TakipHarcamalar.AsNoTracking().Where(h => h.KrediKartiId == cardId && h.KaynakHarcamaId != null && !h.Iptal)
+                .OrderBy(h => h.Id).Select(h => new { h.Id, KaynakId = h.KaynakHarcamaId!.Value, h.Tarih, h.Aciklama }).ToList();
+            var iadeIdleri = iadeler.Select(i => i.Id).ToArray();
+            var duzeltmeler = iadeIdleri.Length == 0 ? new Dictionary<int, decimal>()
+                : _db.TakipIadeHesaplari.AsNoTracking().Where(x => iadeIdleri.Contains(x.HarcamaId))
+                    .Select(x => new { x.HarcamaId, x.KasadaSayilanDuzeltme }).ToDictionary(x => x.HarcamaId, x => x.KasadaSayilanDuzeltme);
+            foreach (var kaynak in iadeler.GroupBy(i => i.KaynakId))
+                if (oncedenSayilan.TryGetValue(kaynak.Key, out var sayilan) && sayilan > 0
+                    && kaynak.Sum(i => duzeltmeler.GetValueOrDefault(i.Id)) is > 0 and var duzeltme)
+                    oncedenSayilan[kaynak.Key] = sayilan - duzeltme;
             var taksitHarcamasi = _db.TakipKartTaksitler.AsNoTracking().Where(t => harcamaIdleri.Contains(t.HarcamaId))
                 .Select(t => new { t.Id, t.HarcamaId }).ToDictionary(t => t.Id, t => t.HarcamaId);
             var aktif = _db.TakipKartOdemeler.AsNoTracking().Where(p => p.KrediKartiId == cardId && !p.Iptal).OrderBy(p => p.Id).ToList();
@@ -435,11 +449,23 @@ public class HesapServisi
                     islemler.Add(new(p.Tarih, "Kart ödemesi", etki, Kanallar.DagilimBekliyor, GiderTipi.KrediKarti, p.Not,
                         DagilimBekliyor: true, NakitKartOdemesi: true) { Kaynak = "KartOdemesi:" + cardId + ":" + p.Id });
             }
-            var sapma = okunamayan > 0 && oncedenSayilan.Values.Sum() is > 0 and var sayilan
-                ? $"; payları okunamayan ödemenin kasada önceden sayılan kısmı ayrılamadı; kasa en çok {Tl(sayilan)} düşük görünebilir" : "";
+            var tarihler = aktif.Select(p => p.Tarih).ToList();
+            var iadeSayisi = 0; decimal iadeToplami = 0;
+            foreach (var iade in iadeler)
+            {
+                var duzeltme = duzeltmeler.GetValueOrDefault(iade.Id);
+                if (duzeltme <= 0) continue;
+                iadeSayisi++; iadeToplami += duzeltme; tarihler.Add(iade.Tarih);
+                islemler.Add(new(iade.Tarih, "Kart ödemesi", -duzeltme, Kanallar.DagilimBekliyor, GiderTipi.KrediKarti, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama,
+                    DagilimBekliyor: true, NakitKartOdemesi: true) { Kaynak = "KartIadesi:" + cardId + ":" + iade.Id });
+            }
+            var iadeNotu = iadeSayisi > 0
+                ? $"; {iadeSayisi} devir iadesinin kasaya döndürdüğü önceden sayılan tutar ({Tl(iadeToplami)}) kasaya geri eklendi, kanalı 'Dağılım bekliyor'" : "";
+            var sapma = okunamayan > 0 && oncedenSayilan.Values.Sum() is > 0 and var sayilanToplami
+                ? $"; payları okunamayan ödemenin kasada önceden sayılan kısmı ayrılamadı; kasa en çok {Tl(sayilanToplami)} düşük görünebilir" : "";
             Karantinaya("KrediKarti:" + cardId, () => $"Kredi kartı #{cardId} ({KartAdi(cardId)}): ödemelerin kanal dağılımı hesaplanamadı"
-                + $" ({(sorunlar.Count > 0 ? string.Join("; ", sorunlar) : "kart kayıtları tutarsız")}); {aktif.Count} ödemenin nakit etkisi ({Tl(toplam)}) 'Dağılım bekliyor' sayıldı{sapma}",
-                aktif.Count > 0 ? aktif.Min(p => p.Tarih) : bugun, aktif.Count > 0 ? aktif.Max(p => p.Tarih) : bugun, hata);
+                + $" ({(sorunlar.Count > 0 ? string.Join("; ", sorunlar) : "kart kayıtları tutarsız")}); {aktif.Count} ödemenin nakit etkisi ({Tl(toplam)}) 'Dağılım bekliyor' sayıldı{iadeNotu}{sapma}",
+                tarihler.Count > 0 ? tarihler.Min() : bugun, tarihler.Count > 0 ? tarihler.Max() : bugun, hata);
         }
 
         foreach (var k in karantina) VeriKarantinasi.Logla(_db, k.Anahtar, k.Aciklama, k.Hata);
