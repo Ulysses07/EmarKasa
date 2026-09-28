@@ -154,10 +154,132 @@ public class YurutucuTests
         await vm.SilCommand.ExecuteAsync(Gider());
 
         Assert.Null(api.SonIslemSil);
+        // Silme onay diyaloğundan sonra gelir: sessizce yok sayılmaz, yapılmadığı söylenir; kaydın bitişi iletiyi silmez.
+        Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
         bekleyen.SetResult(Gider(1)); await kayit;
         Assert.False(vm.Mesgul);
+        Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
         await vm.SilCommand.ExecuteAsync(Gider());
         Assert.Equal(5, api.SonIslemSil);
+        Assert.Null(vm.Hata);
+    }
+
+    [Fact]
+    public async Task Mesgul_iken_bildirilen_tekil_islem_calismaz_ve_yapilmadigini_soyler()
+    {
+        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var bekleyen = new TaskCompletionSource(); var cagri = 0;
+        var ilk = yurutucu.YurutAsync(_ => bekleyen.Task);
+
+        await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; });
+        Assert.Null(yuzey.Hata);                                    // çift tıklama: sessiz
+        await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; }, mesgulkenBildir: true);
+        Assert.Equal(Yurutucu.SurenIslemIletisi, yuzey.Hata);
+
+        Assert.Equal(0, cagri);
+        bekleyen.SetResult(); await ilk;
+        Assert.False(yuzey.Mesgul);
+    }
+
+    [Fact]
+    public async Task Islemler_gelir_kaydindan_sonraki_yukleme_surerken_oturum_degisirse_kayit_iletisi_yeni_oturuma_yazilmaz()
+    {
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var hafta = new DonemDto(new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 27), 2026, 9);
+        var api = new SahteApi { KanallarListe = new[] { new KanalDto(1, "MEZAT", true, 0, 0m) }, DonemlerListe = new[] { hafta } };
+        var vm = new IslemlerViewModel(api, auth: auth, zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 23)));
+        await vm.YukleAsync();
+        vm.SecGelenKanalCommand.Execute(vm.GelenKanallari.First(c => c.Ad == "MEZAT"));
+        vm.GelenTutar = 5000m;
+        var yeniden = new TaskCompletionSource<IReadOnlyList<GelenDto>>();
+        api.GelenlerGetir = _ => yeniden.Task;
+
+        var kayit = vm.GelenKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(1, api.GelenKaydetCagri);
+        auth.OturumSurumu++;
+        var yeniOturumBilgisi = vm.GelenBilgi;
+        yeniden.SetResult(new[] { new GelenDto(3, hafta.Start, "MEZAT", 5000m, KanalId: 1) }); await kayit;
+
+        Assert.Equal(yeniOturumBilgisi, vm.GelenBilgi);
+        Assert.DoesNotContain("kaydedildi", vm.GelenBilgi ?? "");
+        Assert.Null(vm.Hata); Assert.False(vm.Mesgul);
+    }
+
+    // ---- Alışlar: oturum değişimini sayfa kod-arkası olmadan model kendisi alır ----
+
+    private static AlisDto Alis() => new(
+        7, 2, 3, "Ayşe", new(2026, 9, 21), "Tedarikçi", null, "Taslak", null, 100m, 0m, 100m,
+        new[] { new AlisKalemDto(1, "Mal alımı", 100m, new[] { new AlisDagilimDto(1, "MEZAT", 100m) }) },
+        Array.Empty<AlisOdemeDto>());
+
+    [Fact]
+    public async Task Alislar_oturum_degisimini_sayfa_olmadan_alir_onceki_editorun_verisi_ve_bekleyen_yanit_yansimaz()
+    {
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var api = new AlislarViewModelTests.SahteAlisApi { Liste = new[] { Alis() }, Giderler = new[] { Gider(9) } };
+        var vm = new AlislarViewModel(api, new SahteApi(), auth: auth);
+        Assert.True(vm.EditorMu);                                   // rol oturumdan gelir
+        await vm.YukleAsync();
+        Assert.Single(vm.Alislar); Assert.NotEmpty(vm.Kanallar); Assert.NotEmpty(vm.BaglanabilirGiderler);
+
+        var bekleyen = new TaskCompletionSource<IReadOnlyList<AlisDto>>();
+        api.ListeGetir = () => bekleyen.Task;
+        var yukleme = vm.YenileCommand.ExecuteAsync(null);
+        Assert.True(vm.Mesgul);
+
+        auth.AktifRol = Rol.Alici; auth.OturumSurumu++;
+
+        Assert.False(vm.Mesgul); Assert.False(vm.EditorMu); Assert.False(vm.VeriHazir);
+        Assert.Empty(vm.Alislar); Assert.Empty(vm.Kanallar); Assert.Empty(vm.BaglanabilirGiderler);
+        Assert.Empty(vm.OdemeKartlari); Assert.Empty(vm.Alicilar);
+        bekleyen.SetResult(new[] { Alis() }); await yukleme;
+        Assert.Empty(vm.Alislar); Assert.False(vm.VeriHazir); Assert.False(vm.Mesgul); Assert.Null(vm.Hata);
+
+        // Sayfa aynı oturumla yeniden ayarlasa da (OnAppearing) sıfırlama tekrarlanmaz; yeni oturumda yükleme çalışır.
+        vm.OturumuAyarla(auth.OturumSurumu, false);
+        api.ListeGetir = null;
+        await vm.YukleAsync();
+        Assert.Single(vm.Alislar); Assert.True(vm.VeriHazir);
+    }
+
+    [Fact]
+    public async Task Alislar_oturum_degisince_bekleyen_yazmanin_hatasi_yeni_oturuma_yazilmaz()
+    {
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var api = new AlislarViewModelTests.SahteAlisApi { Liste = new[] { Alis() } };
+        var vm = new AlislarViewModel(api, new SahteApi(), auth: auth);
+        await vm.YukleAsync();
+        var bekleyen = new TaskCompletionSource<IReadOnlyList<AlisDto>>();
+        api.ListeGetir = () => bekleyen.Task;
+        var yukleme = vm.YukleAsync();
+
+        auth.OturumSurumu++;
+        bekleyen.SetException(new KasaApiException(HttpStatusCode.Unauthorized, "Yetkisiz")); await yukleme;
+
+        Assert.Null(vm.Hata); Assert.False(vm.Mesgul);
+    }
+
+    // ---- Ayarlar: CalistirAsync artık yürütücünün tekil işlemidir ----
+
+    [Fact]
+    public async Task Ayarlar_yukleme_surerken_ayar_ve_kanal_kaydi_gonderilmez()
+    {
+        var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarGetir = () => kanallar.Task };
+        var vm = new AyarlarViewModel(api);
+
+        var yukleme = vm.YukleAsync();
+        Assert.True(vm.Mesgul);
+        vm.DuzenKanalAd = "YENİ";
+        var ayarKaydi = vm.AyarKaydetCommand.ExecuteAsync(null);
+        var kanalKaydi = vm.KanalKaydetCommand.ExecuteAsync(null);
+
+        Assert.Null(api.SonAyar); Assert.Null(api.SonKanalOlustur);
+        kanallar.SetResult(new[] { new KanalDto(1, "MEZAT", true, 0, 0m) }); await yukleme; await ayarKaydi; await kanalKaydi;
+        Assert.Null(api.SonAyar); Assert.Null(api.SonKanalOlustur);
+        Assert.False(vm.Mesgul);
+        api.KanallarGetir = null;
+        await vm.AyarKaydetCommand.ExecuteAsync(null);
+        Assert.NotNull(api.SonAyar);
     }
 
     [Fact]

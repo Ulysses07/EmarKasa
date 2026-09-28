@@ -471,6 +471,7 @@ public partial class IslemlerViewModel : TemelViewModel
 
     [RelayCommand] private async Task GideriAyriKaydetAsync() { if (GiderBenzerlik.Onayla()) await KaydetAsync(); }
 
+    /// <summary>Onay diyaloğundan sonra gelir: kayıt ya da gelir kaydı sürerken silme yapılmaz ve bu söylenir (sessizce yok sayılmaz).</summary>
     [RelayCommand]
     private Task SilAsync(IslemDto i) => YurutAsync(async n =>
     {
@@ -481,7 +482,7 @@ public partial class IslemlerViewModel : TemelViewModel
         if (!Gecerli(n)) return;
         Mesaj = "Kayıt silindi.";
         await ListeyiYenile(tam: true);
-    });
+    }, mesgulkenBildir: true);
 }
 
 /// <summary>Seçilebilir çip: ad + seçili durumu (çip görünümü buna göre değişir).</summary>

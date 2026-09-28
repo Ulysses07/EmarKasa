@@ -146,6 +146,8 @@ public partial class IslemlerViewModel
         if (!Gecerli(n)) return;
         _gelenSifirOnayi = false;
         await GelenleriYukle();
+        // Yeniden yükleme sürerken oturum değiştiyse kayıt iletisi yeni oturumun formuna yazılmaz.
+        if (!Gecerli(n)) return;
         GelenBilgi = $"Kanal geliri kaydedildi: {kanal} · {donem.Start:dd.MM.yyyy}–{donem.End:dd.MM.yyyy} dönem toplamı {Bicim.Tl(sonuc.TutarTl)} ₺ (önceki {Bicim.Tl(secim.Toplam)} ₺)."
             + (GelenYuklemeHatasi ? " Dönem gelirleri yeniden yüklenemedi; yeni kayıttan önce dönemi yeniden seçin." : "");
     });

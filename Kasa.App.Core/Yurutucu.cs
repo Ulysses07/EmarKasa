@@ -21,7 +21,11 @@ public interface IYurutmeYuzeyi
 /// iki düğme); başlarken Hata ve Mesaj temizlenir; hata <see cref="HataMesaji"/> ile yazılır.</item>
 /// <item>Son istek kazanır (<see cref="SonIstekHatti"/>; okuma): yeni istek öncekini eskitir ve iptal belirteciyle ağda da
 /// bırakır; iptal hata sayılmaz, hata <see cref="OkumaHataMesaji"/> ile yazılır.</item>
-/// </list></summary>
+/// </list>
+/// Tekil işlem ile <see cref="SonIstekHatti.YukleAsync"/> aynı Mesgul'u paylaşır: aynı modelde ikisi birlikte kullanılmaz (süren
+/// okuma yazmayı engeller, okumanın bitişi süren yazmanın göstergesini indirir). Tekil işlem kullanan ekranın okuma hatları
+/// Mesgul'a dokunmayan <see cref="SonIstekHatti.Baslat"/>/<see cref="SonIstekHatti.Guncel"/> ile kendi göstergesini taşır
+/// (İşlemler); yalnız okuyan ekran <see cref="SonIstekHatti.YukleAsync"/> kullanır (Rapor).</summary>
 public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
 {
     private int _nesil;
@@ -32,11 +36,15 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
     /// <summary>Bekleyen bütün işleri (tekil ve son istek biletleri) eskitir: sonuçları, hataları ve bitişleri yansımaz.</summary>
     public void GecersizKil() => Interlocked.Increment(ref _nesil);
 
-    /// <summary>Tekil işlem: Mesgul iken çalışmaz (sessizce döner). <paramref name="islem"/> başladığı nesli alır; sonucu
-    /// yazmadan önce <see cref="Gecerli"/> ile denetler.</summary>
-    public async Task YurutAsync(Func<int, Task> islem)
+    /// <summary>Başka işlem sürerken yapılmayan, kullanıcının onay diyaloğundan sonra istediği işlemin (ör. silme) iletisi.</summary>
+    public const string SurenIslemIletisi = "Önceki işlem sürdüğü için bu işlem yapılmadı. İşlem bitince yeniden deneyin.";
+
+    /// <summary>Tekil işlem: Mesgul iken çalışmaz. Varsayılan sessizce dönmektir (çift tıklamanın ikinci basışı iletiyle
+    /// karışmasın); <paramref name="mesgulkenBildir"/> onaydan sonra gelen işlemde (silme) yapılmadığını Hata'ya yazar.
+    /// <paramref name="islem"/> başladığı nesli alır; sonucu yazmadan önce <see cref="Gecerli"/> ile denetler.</summary>
+    public async Task YurutAsync(Func<int, Task> islem, bool mesgulkenBildir = false)
     {
-        if (yuzey.Mesgul) return;
+        if (yuzey.Mesgul) { if (mesgulkenBildir) yuzey.Hata = SurenIslemIletisi; return; }
         var nesil = Nesil;
         // Önce Mesgul: temizlemenin tetiklediği bildirimden gelen ikinci çağrı da korumaya takılır.
         yuzey.Mesgul = true; yuzey.Hata = null; yuzey.IletiyiTemizle();
@@ -111,7 +119,8 @@ public sealed class SonIstekHatti(Yurutucu yurutucu)
     public void Bitir(IstekBileti bilet) => Interlocked.CompareExchange(ref _iptal, null, bilet.Kaynak);
 
     /// <summary>Yürütücünün yüzeyinde (Mesgul, Hata) okuma: başlarken Hata ve ileti temizlenir; yalnız son isteğin sonucu
-    /// uygulanır, hatası yazılır ve bitişi Mesgul'u indirir. Bu hattın iptali hata sayılmaz.</summary>
+    /// uygulanır, hatası yazılır ve bitişi Mesgul'u indirir. Bu hattın iptali hata sayılmaz. Mesgul'u tekil işlemle paylaştığı
+    /// için <see cref="Yurutucu.YurutAsync"/> kullanan modelde kullanılmaz (bkz. <see cref="Yurutucu"/>).</summary>
     public async Task YukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula)
     {
         var yuzey = yurutucu.Yuzey;

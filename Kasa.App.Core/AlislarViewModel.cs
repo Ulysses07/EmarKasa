@@ -30,8 +30,11 @@ public partial class AlislarViewModel : TemelViewModel
     /// <summary>Yeni alış için tekrar anahtarı (appcore-5): zaman aşımından sonra aynı taslağın yeniden gönderimi aynı kimliği
     /// taşır, sunucu ikinci taslak açmaz. Başarıda, yeni formda, başka alışa geçişte ve oturum değişince sıfırlanır.</summary>
     private readonly TekrarAnahtari _olusturAnahtari = new();
+    private readonly SynchronizationContext? _ui = SynchronizationContext.Current;
 
-    public AlislarViewModel(IAlisApi api, IKasaApi finans, IAlisOdemeApi? odemelerApi = null, IYonetimApi? yonetim = null, IBenzerKayitApi? benzerlikApi = null)
+    /// <param name="auth">Verilirse model oturum değişimini kendisi alır (appcore-10): sayfa kod-arkası olmadan da bekleyen işler
+    /// eskir, önceki oturumun verisi kalkar ve rol oturumdan gelir. Verilmezse oturum <see cref="OturumuAyarla"/> ile ayarlanır.</param>
+    public AlislarViewModel(IAlisApi api, IKasaApi finans, IAlisOdemeApi? odemelerApi = null, IYonetimApi? yonetim = null, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null)
     {
         _api = api;
         _finans = finans;
@@ -44,6 +47,16 @@ public partial class AlislarViewModel : TemelViewModel
             if (e.NewItems is not null) foreach (AlisKalemEditor k in e.NewItems) k.PropertyChanged += KalemDegisti;
             ToplamlariYenile();
             KirliYap();
+        };
+        if (auth is null) return;
+        OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor);
+        // OturumluViewModel ile aynı sıra: bekleyen işler hemen eskir, ekran (koleksiyonlar) UI bağlamında sıfırlanır.
+        auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu)) return;
+            Yurutucu.GecersizKil();
+            void Ayarla() => OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor);
+            if (_ui is not null && SynchronizationContext.Current != _ui) _ui.Post(_ => Ayarla(), null); else Ayarla();
         };
     }
 
@@ -112,7 +125,7 @@ public partial class AlislarViewModel : TemelViewModel
         _oturumSurumu = surum;
         Yurutucu.GecersizKil();
         Mesgul = false; VeriHazir = false; Hata = null; Mesaj = null;
-        Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear();
+        Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear(); OdemeKartlari.Clear();
         _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>(); _kartAdlari = new Dictionary<int, string>();
         OdemeBenzerlik.Temizle();
         _giderImleci = null; _giderImleciAramasi = ""; DahaFazlaGiderVar = false; GiderArama = ""; _olusturAnahtari.Temizle();
@@ -475,7 +488,8 @@ public partial class AlislarViewModel : TemelViewModel
     });
 
     protected override void IletiyiTemizle() => Mesaj = null;
-    /// <summary>Oturum değişince (sayfa, <see cref="OturumuAyarla"/>'dan önce) bekleyen işleri eskitir; göstergeyi OturumuAyarla indirir.</summary>
+    /// <summary>Oturum değişince (sayfa, <see cref="OturumuAyarla"/>'dan önce) bekleyen işleri eskitir; göstergeyi OturumuAyarla indirir.
+    /// AuthViewModel ile kurulan model bunu kendisi yapar; sayfanın ek çağrısı zararsızdır (aynı sürümde OturumuAyarla erken döner).</summary>
     public void BekleyenIslemleriGecersizKil() => Yurutucu.GecersizKil();
     private bool HataYaz(string mesaj) { Hata = mesaj; return false; }
     private void KalemDegisti(object? sender, PropertyChangedEventArgs e) { ToplamlariYenile(); KirliYap(); }
