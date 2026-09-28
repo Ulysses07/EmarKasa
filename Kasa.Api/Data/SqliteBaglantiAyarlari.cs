@@ -30,12 +30,16 @@ public static class SqliteBaglantiAyarlari
 
     internal static readonly DbConnectionInterceptor Kesici = new BaglantiKesici();
 
-    /// <summary>Bağlantı dizesi kilit beklemesini açıkça veriyor mu (<c>Default Timeout</c> / <c>Command Timeout</c>).</summary>
+    /// <summary>Bağlantı dizesi kilit beklemesini açıkça veriyor mu (<c>Default Timeout</c> ya da sürücünün eş anlamlıları
+    /// <c>DefaultTimeout</c>, <c>Command Timeout</c>). Eş anlamlıları sürücünün kendisi çözer: normalleştirilmiş dizede yalnız
+    /// açıkça verilen anahtarlar, kanonik adlarıyla kalır; sürücünün tanıdığı her yazım açık süre sayılır.</summary>
     public static bool SureAcikVerilmis(string? baglanti) => !string.IsNullOrEmpty(baglanti) && AcikSureler.GetOrAdd(baglanti, b =>
-    {
-        var anahtarlar = new DbConnectionStringBuilder { ConnectionString = b };
-        return anahtarlar.ContainsKey("Default Timeout") || anahtarlar.ContainsKey("Command Timeout");
-    });
+        new DbConnectionStringBuilder { ConnectionString = new SqliteConnectionStringBuilder(b).ConnectionString }.ContainsKey("Default Timeout"));
+
+    /// <summary>Bağlantının etkin kilit beklemesi (saniye): bağlantı dizesinin açık süresi, yoksa <see cref="VarsayilanBeklemeSaniye"/>
+    /// (<see cref="Uygula"/> ile aynı kural). Meşgul hatası logu bekleme süresini buradan yazar.</summary>
+    public static int BeklemeSaniye(string? baglanti) =>
+        SureAcikVerilmis(baglanti) ? new SqliteConnectionStringBuilder(baglanti).DefaultTimeout : VarsayilanBeklemeSaniye;
 
     /// <summary>Açılmış bağlantıya bekleme süresini uygular: sürücünün komut süresi ve SQLite'ın <c>busy_timeout</c>'u aynı
     /// süredir. 0 (sınırsız) verilmişse SQLite bekleyicisi kurulmaz, sürücünün sınırsız beklemesi korunur.</summary>

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using Kasa.Api.Data;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,8 @@ public sealed record VeritabaniHatasi(VeritabaniHataTuru Tur, int Durum, string 
 /// <see cref="AlisEndpoints.Oku"/>) aynı kuralı kullanır: aynı kök neden her uçta aynı yanıtı verir.
 /// Kilit beklemesi (BUSY/LOCKED) iş kuralı çakışması gibi gösterilmez: 503 + Retry-After döner. Kodun doğrulamadığı bütünlük
 /// hataları (FK, CHECK, NOT NULL) "listeyi yenileyin" diye örtülmez: 500 döner ve Error olarak loglanır. 409/503'e çevrilen her
-/// hata <see cref="LogKategorisi"/> kategorisinde Warning olarak uç, rol, SQLite (genişletilmiş) kodu ve iz kimliğiyle yazılır;
+/// hata <see cref="LogKategorisi"/> kategorisinde Warning olarak uç, rol, SQLite (genişletilmiş) kodu ve iz kimliğiyle (meşgulde
+/// bağlantının etkin kilit beklemesiyle) yazılır;
 /// ASP.NET Core, <c>IExceptionHandler</c>'ın işlediği istisnayı kendisi loglamaz.
 /// </summary>
 public static partial class VeritabaniHataSiniflandirici
@@ -124,10 +126,18 @@ public static partial class VeritabaniHataSiniflandirici
         if (hata.Tur == VeritabaniHataTuru.Butunluk)
             logger.LogError(istisna, "Veritabanı hatası {Tur} → {Durum}: SQLite {Kod}/{GenisKod}, uç {Yontem} {Uc}, rol {Rol}, iz {Iz}. {Ayrinti}",
                 hata.Tur, hata.Durum, hata.Sqlite?.SqliteErrorCode, hata.Sqlite?.SqliteExtendedErrorCode, http.Request.Method, yol, rol, iz, ayrinti);
+        else if (hata.Tur == VeritabaniHataTuru.Mesgul)
+            // Kilidin ne kadar beklendiği: isteğin bağlamının etkin kilit beklemesi (SqliteBaglantiAyarlari ile aynı kural).
+            logger.LogWarning("Veritabanı hatası {Tur} → {Durum}: SQLite {Kod}/{GenisKod}, bekleme {Bekleme} sn, uç {Yontem} {Uc}, rol {Rol}, iz {Iz}. {Ayrinti}",
+                hata.Tur, hata.Durum, hata.Sqlite?.SqliteErrorCode, hata.Sqlite?.SqliteExtendedErrorCode, BeklemeSaniye(http), http.Request.Method, yol, rol, iz, ayrinti);
         else
             logger.LogWarning("Veritabanı hatası {Tur} → {Durum}: SQLite {Kod}/{GenisKod}, uç {Yontem} {Uc}, rol {Rol}, iz {Iz}. {Ayrinti}",
                 hata.Tur, hata.Durum, hata.Sqlite?.SqliteErrorCode, hata.Sqlite?.SqliteExtendedErrorCode, http.Request.Method, yol, rol, iz, ayrinti);
     }
+
+    /// <summary>İsteğin veritabanı bağlamının etkin kilit beklemesi (saniye); bağlam yoksa null.</summary>
+    private static int? BeklemeSaniye(HttpContext http) => http.RequestServices.GetService<KasaDbContext>() is { } db
+        ? SqliteBaglantiAyarlari.BeklemeSaniye(db.Database.GetConnectionString()) : null;
 }
 
 /// <summary>Uç sarmalayıcılarının döndürdüğü sınıflandırılmış hata; loglama ve yanıt, istek bağlamı (uç, rol, iz) belli
