@@ -1,0 +1,13 @@
+# Sunucu dışı yedek, 6 saatte bir. Uygulama otomatik yedeği saatlik denetimle ~24 saatte bir alır; yeni yedek en geç
+# ~6 saat içinde uzağa gider (VPS kaybında kayıp aralığı en çok ~31 saat). Yeni dosya yoksa bir şey göndermez.
+# Persistent=true: sunucu o saatte kapalıysa açılışta çalışır.
+[Unit]
+Description=Kasa sunucu dışı yedek (6 saatte bir)
+
+[Timer]
+OnCalendar=*-*-* 04,10,16,22:30:00 Europe/Istanbul
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

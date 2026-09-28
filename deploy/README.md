@@ -15,7 +15,7 @@ Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerind
 Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Güncelleme" adımlarını izleyin.
 
 1. Hostinger'da `emarglobal.com` bölgesine `A / kasa / 72.61.187.202` kaydını ekleyin.
-2. Kasa kaynaklarını VPS'te `/opt/kasa/` dizinine aktarın.
+2. Kasa kaynaklarını VPS'te `/opt/kasa/` dizinine aktarın. GitHub'ın varsayılan dalı (`master`) canlı kod hattı değildir; hangi dal ve commit'in dağıtılacağı [dal durumu belgesindedir](../docs/deploy/dal-durumu.md).
 3. `deploy/.env.example` dosyasından `deploy/.env` oluşturup JWT anahtarı ve editör bilgilerini doldurun. Gerçek giriş bilgilerini depoya koymayın.
 4. Veri ve yedek için yeni, mutlak yollu dizinleri oluşturun (`./kasa-data` kullanmayın). Şablon eksik yolu kendisi açmaz; dizinler yoksa `up` hata verir:
    ```sh
@@ -26,10 +26,12 @@ Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Gün
    KASA_DATA_DIR=<veri-dizini>
    KASA_BACKUP_DIR=<yedek-dizini>
    ```
-5. `/opt/kasa/deploy` içinde önce kuru çalıştırmayla doğrulayın, ardından başlatın. `source:` satırları 4. adımdaki iki dizini göstermelidir:
+5. `/opt/kasa/deploy` içinde önce kuru çalıştırmayla doğrulayın, ardından imajı derleyip başlatın. `source:` satırları 4. adımdaki iki dizini göstermelidir; `temel_imaj.py` 0 ile çıkmazsa derlemeyin ("Güncelleme" 6. adımdaki açıklama):
    ```sh
    docker compose -f docker-compose.nginx.yml config | grep -A1 'source:'
-   docker compose -f docker-compose.nginx.yml up -d --build
+   python3 temel_imaj.py
+   docker compose -f docker-compose.nginx.yml build --pull kasa
+   docker compose -f docker-compose.nginx.yml up -d
    ```
 6. [Alan adı ve HTTPS geçiş kılavuzunu](../docs/deploy/emarglobal-domain.md) izleyerek Nginx ve sertifikayı kurun. Son HTTPS site dosyası `nginx/kasa.emarglobal.com.conf` içindedir; sertifika yokken etkinleştirmeyin.
 7. `curl --fail https://kasa.emarglobal.com/health` ile normal DNS ve TLS üzerinden 200 yanıtını doğrulayın.
@@ -38,7 +40,7 @@ Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Gün
 
 ## Güncelleme (yeni sürüm)
 
-Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`) sunucudaki gerçek değerlerle değiştirin; yolları tahmin etmeyin.
+Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`) sunucudaki gerçek değerlerle değiştirin; yolları tahmin etmeyin. Yayımlanacak commit'i seçerken geliştirme makinesinde, depo kökünde `python3 deploy/temel_imaj.py` çalıştırın: temel imaj özeti eskiyse önce özet güncellenir (6. adım aynı denetimi sunucuda yineler).
 
 1. Önce [veritabanı yükseltme kılavuzundaki](../docs/deploy/database-upgrade.md) yedek ve kopya üzerinde geçiş kontrolünü tamamlayın.
 2. Çalışan konteynerin bağlamalarını ve son yayın manifestindeki veri dizinini okuyun:
@@ -64,17 +66,28 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    docker inspect kasa-app --format '{{.Image}}' > <geri-dönüş-dizini>/imaj-onceki.txt
    grep -n 'image:' <geri-dönüş-dizini>/compose-onceki.yml
    ```
-   7. adımdaki `--build`, şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Saklanan dosya aynı etiketi kullanıyorsa eski koda yalnız bu imaj kimliğiyle dönülebilir.
-5. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın. `deploy/.env`, veri ve yedek dizinleri ile `deploy/kasa-data` üzerine yazmayın; rsync kullanıyorsanız bunları `--exclude` ile hariç tutun. Depodaki compose şablonu sunucudakinin yerine geçebilir; bağlamalar artık yalnız `.env` değişkenlerinden gelir.
+   7. adımdaki derleme, şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Saklanan dosya aynı etiketi kullanıyorsa eski koda yalnız bu imaj kimliğiyle dönülebilir.
+5. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın. Kaynak, yayımlanacak commit'tir; GitHub'ın varsayılan dalı (`master`) canlı kod hattı değildir ([dal durumu](../docs/deploy/dal-durumu.md)). `deploy/.env`, veri ve yedek dizinleri ile `deploy/kasa-data` üzerine yazmayın; rsync kullanıyorsanız bunları `--exclude` ile hariç tutun. Depodaki compose şablonu sunucudakinin yerine geçebilir; bağlamalar artık yalnız `.env` değişkenlerinden gelir.
 6. Kuru çalıştırmayla doğrulayın:
    ```sh
    # Değişkensiz çalıştırma hata vermeli; diskteki dosyanın korumalı şablon olduğunu gösterir.
    docker compose --env-file /dev/null -f docker-compose.nginx.yml config -q
    # .env ile başarılı olmalı; source satırları 2. adımdaki /data ve /yedekler kaynaklarıyla aynı olmalı.
    docker compose -f docker-compose.nginx.yml config | grep -A1 'source:'
+   # Temel imaj özetleri güncel olmalı; yalnız kayıt meta verisi okunur, imaj indirilmez.
+   python3 temel_imaj.py
    ```
    İlk komut `required variable KASA_DATA_DIR is missing a value` hatası vermiyorsa ya da ikinci komutta farklı bir kaynak veya `/opt/kasa/deploy/kasa-data` görünüyorsa `up` çalıştırmayın. Kabuğunuzda `KASA_DATA_DIR` dışa aktarılmışsa ilk komut hata vermez; önce `unset KASA_DATA_DIR KASA_BACKUP_DIR` çalıştırın. `config` çıktısının tamamı sırları da içerdiğinden yalnız `grep` ile süzülmüş satırları paylaşın.
-7. `docker compose -f docker-compose.nginx.yml up -d --build`
+
+   `temel_imaj.py` her temel imaj için "güncel" yazıp 0 ile çıkmalıdır. Dockerfile'daki özetler sabit olduğundan .NET, OpenSSL ve işletim sistemi (çalışma imajı Ubuntu 24.04 tabanlı) yamaları ancak özet güncellenince gelir:
+   - `ESKİ:` satırı ve çıkış kodu 1: yayımlanacak commit, yama almamış eski bir temel imaja sabitli. Derlemeyin. Özeti geliştirme makinesinde [operasyon runbook'u](../docs/deploy/operasyon-runbook.md) "Özet güncelleme" adımlarıyla güncelleyip commit'leyin, akışı o commit'le 5. adımdan yineleyin. Acil bir düzeltme bilerek eski özetle yayımlanırsa bunu yayın manifestine not edin; özet güncellemesini hemen ardından ayrı bir yayınla yapın.
+   - `HATA:` satırı ve çıkış kodu 2: özet sabitlenmemiş, kayıtta çözülemedi ya da `docker buildx` çalışmadı (`docker buildx version`). Nedeni giderilmeden derlemeyin.
+7. İmajı derleyin, ardından başlatın:
+   ```sh
+   docker compose -f docker-compose.nginx.yml build --pull kasa
+   docker compose -f docker-compose.nginx.yml up -d
+   ```
+   `up -d --build` kullanmayın: `--pull` olmadan yerel önbellekte kalmış temel imajla derler. Dockerfile'daki temel imajlar etiket + `@sha256` özetiyle sabittir; `--pull` bu özeti kayıttan doğrular. Özetin ve imajdaki işletim sistemi paketlerinin (ör. `poppler-utils`) güvenlik yamalarıyla güncellenmesi [operasyon runbook'unda](../docs/deploy/operasyon-runbook.md) "Temel imajlar ve güvenlik yamaları" bölümündedir.
 8. 2. adımdaki `docker inspect` komutunu yeniden çalıştırıp `/data` kaynağının `KASA_DATA_DIR` ile aynı olduğunu doğrulayın. `/health`, giriş ve raporları kontrol edin; 2.0 sonrası kayıtlar (alışlar, kart/kredi, aylık gider, ekstre belgeleri) görünmelidir. Görünmüyorsa yanlış dizin bağlanmıştır: aşağıdaki "Geri dönüş" adımlarını uygulayın.
 
 ### Geri dönüş
@@ -127,3 +140,5 @@ Uygulama `X-Forwarded-For` başlığını yalnız bu listedeki adreslerden gelen
 ## Yedek
 
 Aktif veri dizinini `kasa-app` konteynerinin `/data` bağlama kaynağından veya son yayın manifestinin `dataDirectory` alanından bulun; bu değer `deploy/.env` içindeki `KASA_DATA_DIR` ile aynı olmalıdır. Sürüm geçişleri ayrı dizin kullandığı için eski `kasa-data/` yolunu varsaymayın. Tutarlı yedek için SQLite yedekleme yöntemini kullanın veya uygulamayı durdurup veri dizininin tamamını (`kasa.db`, varsa WAL/SHM ve `.kasa-push-keys.json` dahil) birlikte kopyalayın. Çalışan veritabanının yalnız `.db` dosyasını kopyalamak yeterli değildir. Yedeği ayrı bir ortamda açarak geri yüklemeyi doğrulayın.
+
+Uygulamanın otomatik yedekleri (`KASA_BACKUP_DIR`) canlı veritabanıyla aynı diskte durur; VPS kaybında birlikte gider. Sunucu dışı kopya `uzak_yedek.py` ile otomatiktir: yalnız manifest özeti doğrulanmış yedekler şifreli uzak hedefe gider, hedefte saklama uygulanır, disk doluluğu ve yedeğin güncelliği denetlenir. Kurulum, zamanlayıcı (`systemd/`), izleme ve uzak kopyadan geri dönüş [operasyon runbook'unda](../docs/deploy/operasyon-runbook.md) "Sunucu dışı yedek" bölümündedir.

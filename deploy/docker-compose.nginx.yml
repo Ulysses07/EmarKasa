@@ -9,7 +9,9 @@
 # Etkin dizin = son yayın manifestinin dataDirectory alanı = KASA_DATA_DIR = çalışan
 # konteynerin /data bağlama kaynağı (docker inspect kasa-app). Ayrıntı: deploy/README.md.
 # Önce doğrula: cd deploy && docker compose -f docker-compose.nginx.yml config
-# Çalıştır:     cd deploy && docker compose -f docker-compose.nginx.yml up -d --build
+# Derle:        cd deploy && docker compose -f docker-compose.nginx.yml build --pull kasa
+# Çalıştır:     cd deploy && docker compose -f docker-compose.nginx.yml up -d
+# ('up -d --build' önbellekteki temel imajla derler; güncelleme adımları: deploy/README.md "Güncelleme".)
 services:
   kasa:
     build:

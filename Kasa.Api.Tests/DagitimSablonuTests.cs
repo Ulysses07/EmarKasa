@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Kasa.Api.Tests;
@@ -103,6 +104,127 @@ public class DagitimSablonuTests
         Assert.Equal("", ornek);
     }
 
+    // devops-12: 'up -d --build' yereldeki önbellekten gelen temel imajla derler; temel imaj ve paket yamaları
+    // 'build --pull' ile gelir. Güncel dağıtım belgeleri ve şablon yorumları derlemeyi yalnız '--pull' ile anlatır.
+    // Tarihsel belgeler (docs/plans, docs/deploy/kasa-db-recreate.md) kapsam dışıdır.
+    public static TheoryData<string> GuncelDagitimBelgeleri => new()
+    {
+        "deploy/README.md", "deploy/docker-compose.nginx.yml", "deploy/docker-compose.yml", "docs/deploy/operasyon-runbook.md",
+    };
+
+    [Theory]
+    [MemberData(nameof(GuncelDagitimBelgeleri))]
+    public void Guncel_dagitim_belgeleri_imaji_pull_ile_derler(string dosya)
+    {
+        var komutlar = File.ReadAllLines(DepoDosyasi(dosya)).Where(s => s.Contains("docker compose", StringComparison.Ordinal)).ToList();
+
+        Assert.All(komutlar, s => Assert.False(Regex.IsMatch(s, @"\sup\s[^#`]*--build\b"),
+            $"{dosya}: '{s.Trim()}' önbellekteki temel imajla derler; önce 'build --pull kasa', ardından 'up -d' kullanın."));
+        Assert.All(komutlar.Where(s => Regex.IsMatch(s, @"\sbuild(\s|$)")), s => Assert.Contains("--pull", s));
+    }
+
+    [Fact]
+    public void Guncelleme_akisi_temel_imaji_pull_ile_derleyip_ayri_adimda_baslatir()
+    {
+        var readme = File.ReadAllText(DeployDosyasi("README.md"));
+
+        Assert.Contains("docker compose -f docker-compose.nginx.yml build --pull kasa", readme);
+        Assert.Contains("docker compose -f docker-compose.nginx.yml up -d", readme);
+    }
+
+    [Fact]
+    public void Sunucuda_derlemeden_once_temel_imaj_ozetlerinin_tazeligi_denetlenir()
+    {
+        // Özet sabit olduğundan .NET, OpenSSL ve işletim sistemi yamaları yalnız özet güncellenince gelir. Haftalık CI denetimi
+        // varsayılan dala bağlıdır; bu yüzden README'nin derleme içeren her bölümünde deploy/temel_imaj.py derlemeden
+        // önce çalışır ve eski özette akış durur.
+        Assert.True(File.Exists(DeployDosyasi("temel_imaj.py")), "deploy/temel_imaj.py depoda olmalı.");
+        var bolumler = Regex.Split(File.ReadAllText(DeployDosyasi("README.md")), @"^## ", RegexOptions.Multiline)
+            .Where(b => b.Contains("build --pull kasa", StringComparison.Ordinal)).ToList();
+
+        Assert.Equal(2, bolumler.Count); // İlk kurulum ve Güncelleme
+        Assert.All(bolumler, b =>
+        {
+            var denetim = b.IndexOf("python3 temel_imaj.py", StringComparison.Ordinal);
+            Assert.True(denetim >= 0 && denetim < b.IndexOf("build --pull kasa", StringComparison.Ordinal),
+                $"README '{b[..b.IndexOf('\n')].Trim()}': 'python3 temel_imaj.py' derlemeden önce çalışmıyor.");
+        });
+    }
+
+    // devops-12: güvenlik duyuruları imajın gerçek dağıtımından izlenir. .NET 10'un dağıtım eki taşımayan aspnet etiketi
+    // (ör. 10.0.12) Ubuntu 24.04 (noble) tabanlıdır; imajın org.opencontainers.image.version etiketi 24.04'tür. Ekli bir
+    // etikete (-azurelinux3.0, -alpine, -bookworm-slim ...) ya da yeni ana sürüme geçilirse dağıtım yeniden denetlenir ve
+    // runbook'taki duyuru kaynağı bu testle birlikte güncellenir.
+    [Fact]
+    public void Guncel_belgeler_calisma_imajinin_isletim_sistemini_dogru_adlandirir()
+    {
+        var calisma = Regex.Match(File.ReadAllText(DepoDosyasi("Dockerfile")),
+            @"^FROM\s+mcr\.microsoft\.com/dotnet/aspnet:(?<etiket>\S+)@sha256:[0-9a-f]{64}\s+AS\s+runtime\s*$", RegexOptions.Multiline);
+        Assert.True(calisma.Success, "Dockerfile: 'FROM mcr.microsoft.com/dotnet/aspnet:<etiket>@sha256:<özet> AS runtime' satırı bulunamadı.");
+        Assert.True(Regex.IsMatch(calisma.Groups["etiket"].Value, @"^10\.0\.[0-9]+$"),
+            $"aspnet:{calisma.Groups["etiket"].Value} .NET 10'un varsayılan (Ubuntu 24.04) etiketi değil; imajın dağıtımını denetleyip "
+            + "docs/deploy/operasyon-runbook.md 'İşletim sistemi paket yamaları' bölümünü ve bu testi güncelleyin.");
+
+        foreach (var dosya in new[] { "Dockerfile", "deploy/README.md", "deploy/temel_imaj.py", "docs/deploy/operasyon-runbook.md" })
+            Assert.False(File.ReadAllText(DepoDosyasi(dosya)).Contains("Debian", StringComparison.OrdinalIgnoreCase),
+                $"{dosya}: çalışma imajı Ubuntu 24.04 tabanlı; 'Debian' yazan belge güvenlik duyurularını yanlış dağıtımda izletir.");
+        var runbook = File.ReadAllText(DepoDosyasi("docs/deploy/operasyon-runbook.md"));
+        Assert.Contains("Ubuntu 24.04", runbook);
+        Assert.Contains("https://ubuntu.com/security/notices?package=poppler", runbook);
+    }
+
+    // devops-9: VPS kaybında kayıp aralığı = uygulamanın yedek aralığı (~24 saat) + gönderim aralığı. Günde bir gönderimde
+    // en yeni uzak kopya ~48 saat eski olabilirdi; gönderim en çok 6 saat arayla çalışır (yeni dosya yoksa bir şey
+    // göndermez). Runbook'taki takvim denetimi ve cron alternatifi zamanlayıcıyla aynı saatleri anlatır.
+    [Fact]
+    public void Uzak_yedek_gonderimi_en_cok_alti_saat_arayla_calisir_ve_runbook_ayni_takvimi_anlatir()
+    {
+        var takvim = Assert.Single(YorumsuzSatirlar(DeployDosyasi("systemd/kasa-uzak-yedek.timer")).Select(s => s.Trim()),
+            s => s.StartsWith("OnCalendar=", StringComparison.Ordinal))["OnCalendar=".Length..];
+        var m = Regex.Match(takvim, @"^\*-\*-\* (?<saatler>[0-9]{2}(?:,[0-9]{2})*):(?<dakika>[0-9]{2}):00 Europe/Istanbul$");
+        Assert.True(m.Success, $"kasa-uzak-yedek.timer: 'OnCalendar={takvim}' beklenen '*-*-* SS,SS,...:DD:00 Europe/Istanbul' biçiminde değil.");
+        var saatler = m.Groups["saatler"].Value.Split(',').Select(s => int.Parse(s, CultureInfo.InvariantCulture)).Order().ToList();
+        var araliklar = saatler.Zip(saatler.Skip(1).Append(saatler[0] + 24), (once, sonra) => sonra - once).ToList();
+        Assert.All(araliklar, a => Assert.InRange(a, 1, 6));
+
+        var runbook = File.ReadAllText(DepoDosyasi("docs/deploy/operasyon-runbook.md"));
+        Assert.Contains($"systemd-analyze calendar '{takvim}'", runbook);
+        Assert.Contains($"{int.Parse(m.Groups["dakika"].Value, CultureInfo.InvariantCulture)} {string.Join(",", saatler)} * * * root", runbook);
+    }
+
+    // devops-9: sunucu dışı yedek zamanlayıcıları kaçan çalışmayı telafi eder (Persistent=true: sunucu o saatte kapalıysa
+    // açılışta çalışır) ve depodaki betiği çalıştırır; betik yeniden adlandırılırsa birim sessizce bozulmaz. Ayarlar depo
+    // dışındaki, root'a ait dosyadan gelir: /opt/kasa altındaki kaynaklar her yayında yeniden yazılır.
+    [Theory]
+    [InlineData("kasa-uzak-yedek", "gonder")]
+    [InlineData("kasa-uzak-dogrula", "dogrula")]
+    public void Uzak_yedek_birimleri_depodaki_betigi_calistirir_ve_kacan_calismayi_telafi_eder(string birim, string komut)
+    {
+        var servis = YorumsuzSatirlar(DeployDosyasi($"systemd/{birim}.service")).Select(s => s.Trim()).ToList();
+        var zamanlayici = YorumsuzSatirlar(DeployDosyasi($"systemd/{birim}.timer")).Select(s => s.Trim()).ToList();
+
+        var calistir = Assert.Single(servis, s => s.StartsWith("ExecStart=", StringComparison.Ordinal));
+        var m = Regex.Match(calistir, @"^ExecStart=/usr/bin/python3 /opt/kasa/deploy/(?<betik>[A-Za-z0-9_]+\.py) (?<komut>\S+)$");
+        Assert.True(m.Success, $"{birim}.service: '{calistir}' depodaki deploy/ betiğini python3 ile çalıştırmıyor.");
+        Assert.True(File.Exists(DeployDosyasi(m.Groups["betik"].Value)), $"{birim}.service depoda olmayan betiği çalıştırıyor: {m.Groups["betik"].Value}");
+        Assert.Equal(komut, m.Groups["komut"].Value);
+        Assert.Contains("Type=oneshot", servis);
+        Assert.Contains("EnvironmentFile=/etc/kasa/uzak-yedek.env", servis);
+        Assert.Contains("Persistent=true", zamanlayici);
+        Assert.Single(zamanlayici, s => s.StartsWith("OnCalendar=", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Uzak_yedek_ornek_ayarlari_depoda_bos_kalir()
+    {
+        // Hedef adı ve izleme adresi (adres gizli kimlik taşır) yalnız sunucudaki /etc/kasa/uzak-yedek.env'e yazılır;
+        // uzak deponun anahtarları ve şifreleme parolaları rclone.conf'tadır. Örnekteki her değer boş kalır.
+        var atamalar = Atamalar(DeployDosyasi("uzak-yedek.env.example"));
+
+        Assert.Contains("KASA_UZAK_HEDEF", atamalar.Keys);
+        Assert.All(atamalar, a => Assert.True(a.Value == "", $"uzak-yedek.env.example: {a.Key} boş olmalı; değer sunucuda yazılır."));
+    }
+
     private sealed record Baglama(IReadOnlyDictionary<string, string> Alanlar)
     {
         public string Kaynak => Alan("source");
@@ -149,8 +271,10 @@ public class DagitimSablonuTests
         return sonuc;
     }
 
-    private static Dictionary<string, string> EnvOrnegi() =>
-        YorumsuzSatirlar(DeployDosyasi(".env.example"))
+    private static Dictionary<string, string> EnvOrnegi() => Atamalar(DeployDosyasi(".env.example"));
+
+    private static Dictionary<string, string> Atamalar(string yol) =>
+        YorumsuzSatirlar(yol)
             .Select(s => s.Split('=', 2))
             .Where(p => p.Length == 2)
             .ToDictionary(p => p[0].Trim(), p => p[1].Trim());
@@ -160,11 +284,13 @@ public class DagitimSablonuTests
             .Where(s => s.Trim().Length > 0 && !s.TrimStart().StartsWith('#'))
             .ToList();
 
-    private static string DeployDosyasi(string ad)
+    private static string DeployDosyasi(string ad) => DepoDosyasi(Path.Combine("deploy", ad));
+
+    private static string DepoDosyasi(string goreliYol)
     {
         for (var dizin = new DirectoryInfo(AppContext.BaseDirectory); dizin is not null; dizin = dizin.Parent)
             if (File.Exists(Path.Combine(dizin.FullName, "Kasa.slnx")))
-                return Path.Combine(dizin.FullName, "deploy", ad);
+                return Path.Combine(dizin.FullName, goreliYol);
         throw new InvalidOperationException("Depo kökü (Kasa.slnx) test çıktısının üst dizinlerinde bulunamadı.");
     }
 }

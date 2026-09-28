@@ -1,0 +1,19 @@
+# Kasa sunucu dışı yedek doğrulaması (devops-9): en yeni uzak kopyayı geçici dizine indirir, restore_backup.py ile
+# yeni bir dosyaya geri açarak sınar (özet, SQLite bütünlüğü, ilişkiler, şema) ve geçici dosyaları siler. Uzaktaki en
+# yeni otomatik kopya eskiyse de hata verir. Sonuç KASA_UZAK_DOGRULA_IZLEME_URL'ye bildirilir.
+[Unit]
+Description=Kasa sunucu dışı yedek (geri açma doğrulaması)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/kasa/uzak-yedek.env
+ExecStart=/usr/bin/python3 /opt/kasa/deploy/uzak_yedek.py dogrula
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full

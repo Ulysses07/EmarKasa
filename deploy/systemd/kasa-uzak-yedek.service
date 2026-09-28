@@ -1,0 +1,22 @@
+# Kasa sunucu dışı yedek (devops-9): yedek dizinindeki yeni ve manifest özeti doğrulanmış yedekleri uzak hedefe
+# kopyalar, hatasızsa hedefte saklamayı uygular, eski yedek ve disk doluluğunu denetler, sonucu izleme adresine bildirir.
+# Kurulum ve geri dönüş: docs/deploy/operasyon-runbook.md "Sunucu dışı yedek".
+# Elle çalıştırma (zamanlayıcıyla çakışmaz): sudo systemctl start kasa-uzak-yedek.service
+[Unit]
+Description=Kasa sunucu dışı yedek (gönderim)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Ayarlar depo dışındadır (root:root 600); /opt/kasa altındaki kaynaklar her yayında yeniden yazılır.
+# Uzak deponun anahtarları ve şifreleme parolaları rclone.conf'tadır (/root/.config/rclone/rclone.conf, 600).
+EnvironmentFile=/etc/kasa/uzak-yedek.env
+ExecStart=/usr/bin/python3 /opt/kasa/deploy/uzak_yedek.py gonder
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full

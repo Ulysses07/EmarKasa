@@ -4,17 +4,23 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  # Haftalık: yalnız temel imaj özetlerinin tazeliği (base-images). GitHub zamanlanmış koşuyu yalnız varsayılan dalda
+  # çalıştırır; varsayılan dal bu hat olmadıkça tetiklenmez (docs/deploy/dal-durumu.md).
+  schedule:
+    - cron: '17 5 * * 1'
 
 permissions:
   contents: read
 
+# Zamanlanmış koşu ayrı gruptadır: haftalık özet denetimi aynı daldaki push CI'ını iptal etmez, push da onu.
 concurrency:
-  group: kasa-ci-${{ github.workflow }}-${{ github.ref }}
+  group: kasa-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' && 'haftalik' || 'ci' }}
   cancel-in-progress: true
 
 jobs:
   web-tests:
     name: Mobile web logic
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -29,6 +35,7 @@ jobs:
 
   tests:
     name: Test ${{ matrix.project }}
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -57,8 +64,51 @@ jobs:
       - name: Run tests
         run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
 
+  # Dağıtım betikleri: sunucu dışı yedek (devops-9), temel imaj özeti denetimi (devops-12) ve geri yükleme aracı;
+  # sözdizimi, kuru çalıştırma ve birim sınamaları. Runner'daki python3 yeterli; ağ, docker, rclone ve ek paket gerekmez.
+  deploy-scripts:
+    name: Deploy scripts
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s deploy/tests -v
+      - run: python3 -m doctest deploy/restore_backup.py
+
+  # Temel imaj özetleri (devops-12): Dockerfile'daki her FROM etiket + @sha256 özetiyle sabittir (biçimi
+  # Kasa.Api.Tests/DepoHijyeniTests de denetler). deploy/temel_imaj.py yalnız kayıt meta verisini okur, imaj indirmez:
+  # sabit özet kayıtta çözülmeli ve aynı ana sürüm etiketinin (ör. 10.0) güncel özetiyle karşılaştırılır. Sunucudaki
+  # güncelleme akışı (deploy/README.md "Güncelleme" 6. adım) aynı betikle eski özette durur. Burada push/PR'da eski
+  # özet uyarıdır; haftalık zamanlanmış koşuda hatadır. Güncelleme: docs/deploy/operasyon-runbook.md "Temel imajlar".
+  base-images:
+    name: Pinned base images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Compare pinned digests with the registry
+        env:
+          ZAMANLANMIS: ${{ github.event_name == 'schedule' }}
+        run: |
+          kod=0
+          python3 deploy/temel_imaj.py --github || kod=$?
+          # 1 = daha yeni özet var (betik uyarı notunu yazdı); 2 = sabitlenmemiş/çözülemeyen özet ya da docker hatası.
+          if [ "$kod" = 1 ] && [ "$ZAMANLANMIS" != true ]; then
+            exit 0
+          fi
+          if [ "$kod" = 1 ]; then
+            echo "::error file=Dockerfile::Temel imaj özetleri eski; docs/deploy/operasyon-runbook.md 'Özet güncelleme' adımlarıyla güncelleyin."
+          fi
+          exit "$kod"
+
   windows-app:
     name: Build and smoke-test Windows MAUI app
+    if: github.event_name != 'schedule'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
