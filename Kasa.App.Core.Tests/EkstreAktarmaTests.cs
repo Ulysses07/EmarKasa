@@ -112,6 +112,34 @@ public class EkstreAktarmaTests
         vm.Banka = vm.Bankalar[1]; await vm.PdfYukleAsync([1], "a.pdf", secim); Assert.Equal(0, api.YuklemeSayisi);
         vm.Banka = vm.Bankalar[0]; auth.OturumSurumu++; await vm.PdfYukleAsync([1], "a.pdf", secim); Assert.Equal(0, api.YuklemeSayisi);
     }
+    // maui-8: EkstreAktarmaPage.PdfSecAsync mantığı (yalnız PDF, 10 MB sınırı, seçim/okuma sırasında oturum koruması, okuma
+    // hatası) EkstreAktarmaViewModel.PdfSecVeYukleAsync'te; sayfa yalnız dosya seçiciyi açar.
+    private static Func<Task<SecilenDosya?>> Secici(string ad, byte[] icerik, Action? secerken = null)
+        => () => { secerken?.Invoke(); return Task.FromResult<SecilenDosya?>(new(ad, () => Task.FromResult<Stream>(new MemoryStream(icerik)))); };
+    [Fact] public async Task Pdf_secimi_yalniz_pdf_ve_10_mb_sinirini_kabul_eder_okuma_hatasini_gosterir()
+    {
+        var (vm, api, _) = await Hazir(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana";
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("ekstre.png", [1]));
+        Assert.Equal("Yalnız PDF dosyası seçin.", vm.Hata); Assert.Equal(0, api.YuklemeSayisi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("buyuk.pdf", new byte[DosyaSecimKurallari.EnFazlaBayt + 1]));
+        Assert.Equal("PDF en fazla 10 MB olabilir.", vm.Hata); Assert.Equal(0, api.YuklemeSayisi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, () => Task.FromException<SecilenDosya?>(new IOException()));
+        Assert.Equal("PDF okunamadı. Dosyayı kontrol edip yeniden seçin.", vm.Hata);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, () => Task.FromResult<SecilenDosya?>(null));   // seçiciden vazgeçildi
+        Assert.Equal(0, api.YuklemeSayisi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("EKSTRE.PDF", [1, 2, 3]));
+        Assert.Equal(1, api.YuklemeSayisi); Assert.Equal((3, "EKSTRE.PDF"), (api.SonYukleme!.Value.Boyut, api.SonYukleme.Value.Ad)); Assert.Null(vm.Hata);
+    }
+    [Fact] public async Task Pdf_secilirken_oturum_degisirse_yuklenmez_ve_hata_yazilmaz()
+    {
+        var (vm, api, auth) = await Hazir(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana";
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("a.pdf", [1], () => auth.OturumSurumu++));
+        Assert.Equal(0, api.YuklemeSayisi); Assert.Null(vm.Hata);
+        await vm.YukleAsync(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana";   // yeni oturumda yeniden
+        var secim = vm.YuklemeSecimi()!;
+        await vm.PdfSecVeYukleAsync(secim, () => { auth.OturumSurumu++; return Task.FromException<SecilenDosya?>(new IOException()); });
+        Assert.Null(vm.Hata);                                                           // eski oturumun okuma hatası yeni oturuma yazılmaz
+    }
     [Fact] public async Task Iptal_onayinda_eski_oturum_ve_eski_belge_satiri_gonderilmez()
     {
         var k = new EkstreKayitDto(7, 1, Tarih, "Eski", 100, "Gider", "Genel", [], null, 5, null, null, false);
@@ -172,7 +200,8 @@ public class EkstreAktarmaTests
         public Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null) { ListeSayisi++; SonBeforeId = beforeId; return Task.FromResult(beforeId is null ? Liste : EskiListe); }
         public Task<EkstreBelgeDto> EkstreBelgeAsync(int id) { BelgeSayisi++; return Task.FromResult(Veri); }
         public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) { KaynakId = kayitId; return KaynakYaniti ?? Task.FromResult(Veri); }
-        public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default) { YuklemeSayisi++; return Task.FromResult(Veri); }
+        public (int Boyut, string Ad)? SonYukleme;
+        public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default) { YuklemeSayisi++; SonYukleme = (b.Length, ad); return Task.FromResult(Veri); }
         public async Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("belge.pdf", "application/pdf", 1); }
         public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }

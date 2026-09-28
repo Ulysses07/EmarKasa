@@ -58,29 +58,17 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
         if (_auth.AktifRol != Rol.Alici && sender is Button { CommandParameter: AlisOdemeSatiri { Veri.KrediKartiId: { } id } })
             await Shell.Current.GoToAsync($"//kartlar?KartId={id}");
     }
+    // İçerik türü, 10 MB sınırı ve oturum/seçim koruması AlislarViewModel.BelgeEkleAsync'tedir (maui-8); sayfa yalnız dosya
+    // seçiciyi açar ve dönen uyarıyı gösterir.
     private async void BelgeEkleTiklandi(object? sender, EventArgs e)
     {
-        if (_vm.Mesgul || _vm.Secili is null) return;
-        var oturum = _auth.OturumSurumu; var alisId = _vm.Secili.Id;
-        try
-        {
-            var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "PDF, PNG veya JPEG belge seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } }) });
-            if (dosya is null || _auth.OturumSurumu != oturum || _vm.Secili?.Id != alisId) return;
-            var tur = Path.GetExtension(dosya.FileName).ToLowerInvariant() switch { ".pdf" => "application/pdf", ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", _ => null };
-            if (tur is null) { await DisplayAlertAsync("Desteklenmeyen belge", "PDF, PNG veya JPEG seçin.", "Tamam"); return; }
-            await using var stream = await dosya.OpenReadAsync();
-            using var bellek = new MemoryStream();
-            var buffer = new byte[81920];
-            int okunan;
-            while ((okunan = await stream.ReadAsync(buffer)) > 0)
-            {
-                if (bellek.Length + okunan > 10 * 1024 * 1024) { await DisplayAlertAsync("Belge büyük", "En fazla 10 MB belge yükleyebilirsiniz.", "Tamam"); return; }
-                bellek.Write(buffer, 0, okunan);
-            }
-            if (_auth.OturumSurumu == oturum && _vm.Secili?.Id == alisId)
-                await _vm.BelgeYukleAsync(dosya.FileName, tur, bellek.ToArray(), (BelgeOdemesi.SelectedItem as AlisOdemeSatiri)?.Veri.Id);
-        }
-        catch (Exception) { await DisplayAlertAsync("Belge okunamadı", "Dosyayı kontrol edip yeniden seçin.", "Tamam"); }
+        var uyari = await _vm.BelgeEkleAsync(BelgeSecAsync, (BelgeOdemesi.SelectedItem as AlisOdemeSatiri)?.Veri.Id);
+        if (uyari is not null) await DisplayAlertAsync(uyari.Baslik, uyari.Mesaj, "Tamam");
+    }
+    private static async Task<SecilenDosya?> BelgeSecAsync()
+    {
+        var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "PDF, PNG veya JPEG belge seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } }) });
+        return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
     }
     private async void BelgeIndirTiklandi(object? sender, EventArgs e)
     {

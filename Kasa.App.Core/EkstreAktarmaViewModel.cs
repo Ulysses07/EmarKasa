@@ -68,10 +68,30 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (Kaynak is null || Banka is null || (BankaMi && (string.IsNullOrWhiteSpace(HesapAdi) || HesapAdi.Trim().Length > 100)) || (KartMi && Kart is null)) { Hata = "Belge türünü, bankayı ve kartı / kısa hesap adını seçin."; return null; }
         return new(OturumNesli, Kaynak.Kod, Banka.Kod, BankaMi ? HesapAdi.Trim() : "", KartMi ? Kart!.Id : null);
     }
+    /// <summary>PDF seçimi (maui-8; önceden EkstreAktarmaPage.PdfSecAsync'teydi): yalnız PDF, en çok 10 MB; seçim ya da okuma
+    /// sürerken oturum değişirse dosya yüklenmez ve eski oturumun hatası yazılmaz. Belge kaynağının değişmediğini
+    /// <see cref="PdfYukleAsync"/> denetler.</summary>
+    /// <param name="sec">Dosya seçiciyi açar; vazgeçilirse null.</param>
+    public async Task PdfSecVeYukleAsync(EkstreYuklemeSecimi secim, Func<Task<SecilenDosya?>> sec)
+    {
+        bool OturumSuruyor() => OturumNesli == secim.Oturum;
+        try
+        {
+            var dosya = await sec();
+            if (dosya is null || !OturumSuruyor()) return;
+            if (!DosyaSecimKurallari.PdfMi(dosya.Ad)) { Hata = "Yalnız PDF dosyası seçin."; return; }
+            DosyaOkumasi okuma;
+            await using (var akis = await dosya.Ac()) okuma = await DosyaSecimKurallari.SinirliOkuAsync(akis, DosyaSecimKurallari.EnFazlaBayt, OturumSuruyor);
+            if (okuma.Durum == DosyaOkumaDurumu.Vazgecildi) return;
+            if (okuma.Durum == DosyaOkumaDurumu.SinirAsildi) { Hata = "PDF en fazla 10 MB olabilir."; return; }
+            await PdfYukleAsync(okuma.Icerik!, dosya.Ad, secim);
+        }
+        catch (Exception) { if (OturumSuruyor()) Hata = "PDF okunamadı. Dosyayı kontrol edip yeniden seçin."; }
+    }
     public Task PdfYukleAsync(byte[] icerik, string ad, EkstreYuklemeSecimi secim) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || secim.Oturum != n || secim.Kaynak != Kaynak?.Kod || secim.Banka != Banka?.Kod || secim.HesapAdi != (BankaMi ? HesapAdi.Trim() : "") || secim.KartId != (KartMi ? Kart?.Id : null)) { Hata = "Dosya seçimi sırasında oturum veya belge kaynağı değişti. PDF'yi yeniden seçin."; return; }
-        if (!ad.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || icerik.Length is 0 or > 10 * 1024 * 1024) { Hata = "En fazla 10 MB büyüklüğünde bir PDF seçin."; return; }
+        if (!DosyaSecimKurallari.PdfMi(ad) || icerik.Length == 0 || icerik.Length > DosyaSecimKurallari.EnFazlaBayt) { Hata = "En fazla 10 MB büyüklüğünde bir PDF seçin."; return; }
         var b = await api.EkstreYukleAsync(icerik, ad, secim.Kaynak, secim.Banka, secim.HesapAdi, secim.KartId);
         if (!Gecerli(n)) return; BelgeyiYansit(b); Tamamlandi(); Mesaj = "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     });
