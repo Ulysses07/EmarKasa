@@ -2,8 +2,9 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-/// <summary>Seçili dönem + kanalın kayıtlı gelir satırları: toplam, satır sayısı, salt okunur mu.</summary>
-public readonly record struct GelirSecimSonucu(decimal Toplam, int Sayi, bool SaltOkunur);
+/// <summary>Seçili dönem + kanalın kayıtlı gelir satırları: toplam, satır sayısı, salt okunur mu. Surum (contract-6): tek normal satırın
+/// sürümü, satır yoksa 0; kayıtla gönderilir, satır arada başka oturumda değiştiyse (ya da eklendiyse) sunucu 409 verir.</summary>
+public readonly record struct GelirSecimSonucu(decimal Toplam, int Sayi, bool SaltOkunur, int Surum = 0);
 
 /// <summary>Web ui-core.js incomeSelection / currentPeriod aynası. PUT /api/gelenler dönem+kanal toplamını
 /// yerine koyduğu için form önce bu seçimle mevcut toplamı gösterir.</summary>
@@ -15,7 +16,8 @@ public static class GelirSecimi
         var secilen = satirlar.Where(s => s.KanalId is { } id
             ? kanal is { Id: > 0 } && id == kanal.Id
             : kanalAdi.Length > 0 && SqliteAdi(s.Kanal) == kanalAdi).ToList();
-        return new(secilen.Sum(s => s.TutarTl), secilen.Count, secilen.Count > 1 || secilen.Any(s => s.EskiYinelenenGrup));
+        var saltOkunur = secilen.Count > 1 || secilen.Any(s => s.EskiYinelenenGrup);
+        return new(secilen.Sum(s => s.TutarTl), secilen.Count, saltOkunur, secilen.Count == 1 && !saltOkunur ? secilen[0].Surum : 0);
     }
 
     /// <summary>SQLite NOCASE yalnız ASCII A-Z'yi küçültür; Türkçe İ/ı ayrı kalır.</summary>

@@ -226,19 +226,23 @@ public class IslemEditorTests
         Assert.Equal("Bu eski gelir grubu geçmiş tutarları korumak için değiştirilemez.", vm.Hata);
     }
 
+    /// <summary>409'da (sürüm çakışması ya da hesaba bağlı gelir) ileti gösterilir; dönem ve kanal korunur, dönemin güncel gelirleri
+    /// yeniden yüklenip forma dolar (web incomeDialog gibi, contract-6): kullanıcı güncel toplamı görerek yeniden kaydeder.</summary>
     [Fact]
-    public async Task Sunucu_409_mesaji_gosterilir_form_korunur()
+    public async Task Sunucu_409_mesaji_gosterilir_donem_ve_kanal_korunur_guncel_toplam_yuklenir()
     {
         const string mesaj = "Hesaba bağlı gelir tutarı buradan değiştirilemez.";
-        var (vm, _) = await GelirFormu(new SahteApi { GelenKaydetHatasi = new KasaApiException(System.Net.HttpStatusCode.Conflict, mesaj) });
+        var (vm, api) = await GelirFormu(new SahteApi { GelenKaydetHatasi = new KasaApiException(System.Net.HttpStatusCode.Conflict, mesaj) });
         KanalSec(vm, "MEZAT"); vm.GelenTutar = 123.45m;
+        var okuma = api.GelenlerIstekleri.Count;
 
         await vm.GelenKaydetCommand.ExecuteAsync(null);
 
         Assert.Equal(mesaj, vm.Hata);
         Assert.Equal("MEZAT", vm.GelenKanal);
-        Assert.Equal(123.45m, vm.GelenTutar);
         Assert.Equal(Hafta39, vm.GelenDonem);
+        Assert.Equal(okuma + 1, api.GelenlerIstekleri.Count);
+        Assert.Equal(0m, vm.GelenTutar); // dönemde kayıt yok: güncel toplam 0
         Assert.False(vm.Mesgul);
     }
 

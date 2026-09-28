@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
@@ -56,6 +57,9 @@ public partial class IslemlerViewModel : TemelViewModel
     private IReadOnlyList<KrediKartiDto> _kartlar = [];
     /// <summary>Düzenlenen mevcut kayıt (yeni kayıtta null): eski kartsız/eski kartlı K.K kaydı kendi kartıyla kalabilir.</summary>
     private IslemDto? _duzenlenen;
+    /// <summary>Düzenlenen giderin okunduğu andaki sürümü (contract-6; yeni kayıtta 0): kayıtla gönderilir, gider arada başka oturumda
+    /// değiştiyse sunucu 409 verir.</summary>
+    private int _duzenSurum;
 
     /// <summary>Gelen (kanal geliri) formu kanal çipleri: aktif kanallar.</summary>
     public ObservableCollection<SecimCipi> GelenKanallari { get; } = new();
@@ -368,7 +372,7 @@ public partial class IslemlerViewModel : TemelViewModel
         var taksitli = TaksitGirilebilir && (DuzenTaksitSayisi != 1 || DuzenIlkKesimVar);
         return new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId,
             TaksitSayisi: taksitli && DuzenTaksitSayisi > 1 ? DuzenTaksitSayisi : null,
-            IlkKesimTarihi: taksitli && DuzenIlkKesimVar ? DateOnly.FromDateTime(DuzenIlkKesimTarihi) : null);
+            IlkKesimTarihi: taksitli && DuzenIlkKesimVar ? DateOnly.FromDateTime(DuzenIlkKesimTarihi) : null, Surum: _duzenSurum);
     }
 
     /// <summary>K3: kredi kartı seçiliyken seçilebilecek takipli kart yoksa yol gösterir.</summary>
@@ -447,7 +451,7 @@ public partial class IslemlerViewModel : TemelViewModel
         DuzenTutar = 0; DuzenKanal = ""; DuzenTip = GiderTipi.Cari; DuzenNot = null;
         DuzenKrediKartiId = null;
         DuzenTaksitSayisi = 1; DuzenIlkKesimVar = false; DuzenIlkKesimTarihi = DateTime.Today;
-        _duzenlenen = null; KartCipleriniKur();
+        _duzenlenen = null; _duzenSurum = 0; KartCipleriniKur();
     }
 
     [RelayCommand]
@@ -457,7 +461,7 @@ public partial class IslemlerViewModel : TemelViewModel
         if (i.AylikGiderOdemeId is not null) { Hata = "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin."; return; }
         if (i.AlisId is not null) { Hata = "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin."; return; }
         GiderBenzerlik.Temizle(); _giderAnahtari.Temizle();
-        _duzenlenen = i;
+        _duzenlenen = i; _duzenSurum = i.Surum;
         DuzenId = i.Id; DuzenTarih = i.Tarih.ToDateTime(TimeOnly.MinValue);
         DuzenCari = i.Cari; DuzenTutar = i.TutarTl; DuzenKanal = i.Kanal;
         DuzenTip = i.Tip; DuzenNot = i.Not; DuzenKrediKartiId = i.KrediKartiId;
@@ -476,8 +480,18 @@ public partial class IslemlerViewModel : TemelViewModel
         var id = DuzenId;
         if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new("Gider", g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
             () => Gecerli(n) && DuzenId == id && TakipMetni.Ayni(g, FormGovdesi()))) return;
-        if (DuzenId == 0) await _api.IslemOlusturAsync(g with { IstekId = _giderAnahtari.Al(g) });
-        else await _api.IslemGuncelleAsync(DuzenId, g);
+        try
+        {
+            if (DuzenId == 0) await _api.IslemOlusturAsync(g with { IstekId = _giderAnahtari.Al(g) });
+            else await _api.IslemGuncelleAsync(DuzenId, g);
+        }
+        // contract-6: düzenlenen gider arada başka oturumda değiştiyse (409) ileti gösterilir ve liste güncel kayıtlarla yenilenir;
+        // form korunur, gider listeden yeniden açılınca güncel sürümüyle kaydedilir.
+        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict && id != 0)
+        {
+            if (Gecerli(n)) await ListeyiYenile(tam: true);
+            throw;
+        }
         if (!Gecerli(n)) return;
         // Liste yenilenemese de kayıt alınmıştır: başarı ayrı söylenir (liste hatası durum şeridinde), form temizlenir.
         Mesaj = (id == 0 ? "Gider kaydedildi" : "Gider güncellendi")

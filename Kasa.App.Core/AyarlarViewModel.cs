@@ -41,6 +41,9 @@ public partial class AyarlarViewModel : TemelViewModel
     [ObservableProperty] private int _duzenKanalSira;
     [ObservableProperty] private decimal _duzenKanalAcilisDevri;
     [ObservableProperty] private string? _kanalUyarisi;
+    // contract-6: düzenlenen kanalın ve ayarların okunduğu andaki sürümü; kayıtla gönderilir, kayıt arada başka oturumda değiştiyse
+    // sunucu 409 verir. 409'da liste ve ayarlar yeniden yüklenir (ileti gösterilir).
+    private int _duzenKanalSurum, _ayarSurum;
 
     // Tamamlanmış ayların kanal kümesi sunucuda dondurulur: kanal eklemek, pasife almak ve sırasını değiştirmek ay kilidi varken de
     // serbesttir, yalnız açılış devri kilitte değişmez. Not bunu söyler; kilit durumu okunamazsa not gösterilmez.
@@ -87,17 +90,23 @@ public partial class AyarlarViewModel : TemelViewModel
     {
         var ayar = await _api.AyarlarAsync();
         if (!Gecerli(n)) return;
-        TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
-        KasaAcilisDevri = _kayitliKasaAcilisDevri = ayar.KasaAcilisDevri;
-        AyarlarYuklendi = true;
-        IzleyiciSifreUyarisi = ayar.IzleyiciSifreKisa ? IzleyiciSifreKisaMesaji : null;
-        VekilUyarisi = ayar.VekilUyarisi;
+        AyarlariUygula(ayar);
         var kanallar = await _api.KanallarAsync();
         if (!Gecerli(n)) return;
         Kanallar.Clear();
         foreach (var k in kanallar) Kanallar.Add(k);
         var kilitSonu = await KilitSonuAsync();
         if (Gecerli(n)) KilitliSonTarih = kilitSonu;
+    }
+
+    private void AyarlariUygula(AyarlarDto ayar)
+    {
+        TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
+        KasaAcilisDevri = _kayitliKasaAcilisDevri = ayar.KasaAcilisDevri;
+        _ayarSurum = ayar.Surum;
+        AyarlarYuklendi = true;
+        IzleyiciSifreUyarisi = ayar.IzleyiciSifreKisa ? IzleyiciSifreKisaMesaji : null;
+        VekilUyarisi = ayar.VekilUyarisi;
     }
 
     private async Task<DateOnly?> KilitSonuAsync()
@@ -115,7 +124,7 @@ public partial class AyarlarViewModel : TemelViewModel
     {
         Mesgul = false; Hata = null;
         Kanallar.Clear();
-        TakipBaslangic = DateTime.Today; KasaAcilisDevri = _kayitliKasaAcilisDevri = 0;
+        TakipBaslangic = DateTime.Today; KasaAcilisDevri = _kayitliKasaAcilisDevri = 0; _ayarSurum = 0;
         AyarlarYuklendi = false;
         YeniKanal();
         AyarOnayiniSifirla(); KanalOnayiniSifirla();
@@ -127,14 +136,14 @@ public partial class AyarlarViewModel : TemelViewModel
     private void YeniKanal()
     {
         DuzenKanalId = 0; DuzenKanalAd = ""; DuzenKanalAktif = true;
-        DuzenKanalSira = 0; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0;
+        DuzenKanalSira = 0; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0; _duzenKanalSurum = 0;
     }
 
     [RelayCommand]
     public void KanalDuzenle(KanalDto k)
     {
         DuzenKanalId = k.Id; DuzenKanalAd = k.Ad; DuzenKanalAktif = k.Aktif;
-        DuzenKanalSira = k.Sira; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = k.AcilisDevri;
+        DuzenKanalSira = k.Sira; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = k.AcilisDevri; _duzenKanalSurum = k.Surum;
     }
 
     [RelayCommand]
@@ -145,10 +154,20 @@ public partial class AyarlarViewModel : TemelViewModel
         {
             _kanalSifirOnayi = true; KanalUyarisi = onay; return;
         }
-        var g = new KanalYaz(DuzenKanalAd, DuzenKanalAktif, DuzenKanalSira, DuzenKanalAcilisDevri);
+        var g = new KanalYaz(DuzenKanalAd, DuzenKanalAktif, DuzenKanalSira, DuzenKanalAcilisDevri, _duzenKanalSurum);
         var id = DuzenKanalId;
-        if (id == 0) await _api.KanalOlusturAsync(g);
-        else await _api.KanalGuncelleAsync(id, g);
+        try
+        {
+            if (id == 0) await _api.KanalOlusturAsync(g);
+            else await _api.KanalGuncelleAsync(id, g);
+        }
+        // Kanal arada başka oturumda değiştiyse liste güncel kayıtlarla yenilenir; form korunur, kanal listeden yeniden seçilince
+        // güncel sürümüyle kaydedilir.
+        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict && id != 0)
+        {
+            if (Gecerli(n)) await EnIyiCaba(() => DoldurAsync(n));
+            throw;
+        }
         if (!Gecerli(n)) return;
         YeniKanal();
         KanalOnayiniSifirla();
@@ -175,11 +194,37 @@ public partial class AyarlarViewModel : TemelViewModel
             _kasaSifirOnayi = true; AyarUyarisi = onay; return;
         }
         var devir = KasaAcilisDevri;
-        await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), devir));
+        try { await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), devir, _ayarSurum)); }
+        // Ayarlar arada başka oturumda değiştiyse güncel değerler forma yüklenir (ileti gösterilir); kullanıcı onları görerek yeniden kaydeder.
+        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict)
+        {
+            if (Gecerli(n)) await EnIyiCaba(async () => { if (await AyarlariOkuAsync(n)) AyarOnayiniSifirla(); });
+            throw;
+        }
         if (!Gecerli(n)) return;
         _kayitliKasaAcilisDevri = devir;
         AyarOnayiniSifirla();
+        // Kayıt sürümü artırır (yanıt gövdesizdir): sonraki kayıt için güncel sürüm ve değerler yeniden okunur. Okuma en iyi çabadır:
+        // okunamazsa kayıt yine alınmıştır (hata gösterilmez); sonraki kayıt 409 alır ve güncel değerler o zaman yüklenir.
+        await EnIyiCaba(async () => { if (await AyarlariOkuAsync(n)) AyarOnayiniSifirla(); });
     });
+
+    /// <summary>Kayıttan sonraki yeniden okuma en iyi çabadır: okuma hatası kaydın sonucunu ya da çakışma iletisini örtmez (oturum
+    /// sonu hariç: 401 yine yüzeye çıkar).</summary>
+    private static async Task EnIyiCaba(Func<Task> oku)
+    {
+        try { await oku(); }
+        catch (Exception e) when (e is not KasaApiException { DurumKodu: HttpStatusCode.Unauthorized }) { }
+    }
+
+    /// <summary>Ayarları yeniden okuyup forma uygular; oturum arada değiştiyse uygulamaz (false).</summary>
+    private async Task<bool> AyarlariOkuAsync(int n)
+    {
+        var ayar = await _api.AyarlarAsync();
+        if (!Gecerli(n)) return false;
+        AyarlariUygula(ayar);
+        return true;
+    }
 
     // Hata ve onay izleyici kartında gösterilir (kanal kartındaki genel Hata kutusuna düşmez).
     [RelayCommand]

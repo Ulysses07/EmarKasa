@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
@@ -142,7 +143,15 @@ public partial class IslemlerViewModel
             return;
         }
         var kanal = GelenKanal;
-        var sonuc = await _api.GelenKaydetAsync(new GelenYaz(donem.Start, kanal, yeni));
+        GelenDto sonuc;
+        try { sonuc = await _api.GelenKaydetAsync(new GelenYaz(donem.Start, kanal, yeni, secim.Surum)); }
+        // contract-6: dönem ve kanalın geliri arada başka oturumda değiştiyse (ya da eklendiyse) 409: ileti gösterilir, dönemin güncel
+        // toplamı yeniden yüklenip forma dolar; kullanıcı onu görerek yeniden kaydeder.
+        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict)
+        {
+            if (Gecerli(n)) { _gelenSifirOnayi = false; await GelenleriYukle(); }
+            throw;
+        }
         if (!Gecerli(n)) return;
         _gelenSifirOnayi = false;
         await GelenleriYukle();

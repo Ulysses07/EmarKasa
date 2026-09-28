@@ -97,7 +97,13 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public int? SonKrediSil;
 
     public Task<KanalDto> KanalOlusturAsync(KanalYaz g) { SonKanalOlustur = g; return Task.FromResult(new KanalDto(0, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
-    public Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g) { SonKanalGuncelle = (id, g); return Task.FromResult(new KanalDto(id, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
+    /// <summary>Ayarlanırsa kanal düzenlemesi, gider düzenlemesi ve ayar kaydı bu hatayla biter (ör. contract-6 sürüm çakışması 409).</summary>
+    public Exception? KanalGuncelleHatasi, IslemGuncelleHatasi, AyarGuncelleHatasi;
+    public Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g)
+    {
+        SonKanalGuncelle = (id, g);
+        return KanalGuncelleHatasi is { } hata ? Task.FromException<KanalDto>(hata) : Task.FromResult(new KanalDto(id, g.Ad, g.Aktif, g.Sira, g.AcilisDevri, g.Surum + 1));
+    }
     public Task KanalSilAsync(int id) { SonKanalSil = id; return Task.CompletedTask; }
     public List<IslemYaz> IslemOlusturmalari = new();
     /// <summary>Ayarlanırsa bir sonraki gider oluşturma bu hatayla biter (bir kez): zaman aşımı sonrası tekrar testleri için.</summary>
@@ -108,7 +114,11 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
         if (IslemOlusturHatasi is { } hata) { IslemOlusturHatasi = null; return Task.FromException<IslemDto>(hata); }
         return IslemKayitYaniti ?? Task.FromResult(new IslemDto(0, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not));
     }
-    public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) { SonIslemGuncelle = (id, g); return Task.FromResult(new IslemDto(id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not)); }
+    public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g)
+    {
+        SonIslemGuncelle = (id, g);
+        return IslemGuncelleHatasi is { } hata ? Task.FromException<IslemDto>(hata) : Task.FromResult(new IslemDto(id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not, Surum: g.Surum + 1));
+    }
     public Task IslemSilAsync(int id) { SonIslemSil = id; return Task.CompletedTask; }
     public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) { SonKartOlustur = g; return Task.FromResult(new KrediKartiDto(0, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }
     public Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g) { SonKartGuncelle = (id, g); return Task.FromResult(new KrediKartiDto(id, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }
@@ -120,7 +130,14 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; GelenKaydetCagri++; return GelenKaydetHatasi is { } hata ? Task.FromException<GelenDto>(hata) : Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     /// <summary>Ayarlanırsa ayar kaydı ve izleyici şifre kaydı bu görevlerle biter (bekleyen kayıt testleri için).</summary>
     public Task? AyarGuncelleYaniti, IzleyiciSifreYaniti;
-    public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return AyarGuncelleYaniti ?? Task.CompletedTask; }
+    /// <summary>Gerçek sunucu gibi kayıt, sonraki ayar okumasına yansır ve sürümü artırır (masaüstü kayıttan sonra ayarları yeniden okur).</summary>
+    public Task AyarGuncelleAsync(AyarYaz g)
+    {
+        SonAyar = g;
+        if (AyarGuncelleHatasi is { } hata) return Task.FromException(hata);
+        if (AyarlarSonuc is { } a) AyarlarSonuc = a with { TakipBaslangic = g.TakipBaslangic, KasaAcilisDevri = g.KasaAcilisDevri, Surum = a.Surum + 1 };
+        return AyarGuncelleYaniti ?? Task.CompletedTask;
+    }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return IzleyiciSifreYaniti ?? Task.CompletedTask; }
 
     public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) { SonKartOdemelerId = krediKartiId; return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KartOdemeDto>>(YuklemeHatasi) : Task.FromResult(KartOdemelerListe); }
