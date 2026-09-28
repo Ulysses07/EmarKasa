@@ -28,6 +28,11 @@ public partial class AyarlarViewModel : TemelViewModel
     [ObservableProperty] private DateTime _takipBaslangic = DateTime.Today;
     [ObservableProperty] private decimal _kasaAcilisDevri;
     [ObservableProperty] private string? _ayarUyarisi;
+    /// <summary>Ayarlar bu oturumda sunucudan başarıyla okundu mu? Okunmadan formda varsayılanlar durur (takip başlangıcı bugün,
+    /// açılış devri 0); yükleme başarısızken 'Ayarı kaydet' bunları sunucuya göndermesin diye kayıt yalnız başarılı yüklemeden
+    /// sonra çalışır (düğme devre dışı, çağrılırsa <see cref="AyarlarYuklenmediMesaji"/>). Oturum değişince yeniden okunmalıdır.</summary>
+    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(AyarKaydetCommand))] private bool _ayarlarYuklendi;
+    public const string AyarlarYuklenmediMesaji = "Ayarlar sunucudan yüklenemedi; kayıtlı değerlerin üzerine varsayılanlar yazılmasın diye kaydedilmedi. Ekranı yenileyip yeniden deneyin.";
 
     // Kanal düzenleme
     [ObservableProperty] private int _duzenKanalId;      // 0 = yeni
@@ -84,6 +89,7 @@ public partial class AyarlarViewModel : TemelViewModel
         if (!Gecerli(n)) return;
         TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
         KasaAcilisDevri = _kayitliKasaAcilisDevri = ayar.KasaAcilisDevri;
+        AyarlarYuklendi = true;
         IzleyiciSifreUyarisi = ayar.IzleyiciSifreKisa ? IzleyiciSifreKisaMesaji : null;
         VekilUyarisi = ayar.VekilUyarisi;
         var kanallar = await _api.KanallarAsync();
@@ -110,6 +116,7 @@ public partial class AyarlarViewModel : TemelViewModel
         Mesgul = false; Hata = null;
         Kanallar.Clear();
         TakipBaslangic = DateTime.Today; KasaAcilisDevri = _kayitliKasaAcilisDevri = 0;
+        AyarlarYuklendi = false;
         YeniKanal();
         AyarOnayiniSifirla(); KanalOnayiniSifirla();
         KilitliSonTarih = null; VekilUyarisi = null;
@@ -158,10 +165,11 @@ public partial class AyarlarViewModel : TemelViewModel
         await DoldurAsync(n);
     }, mesgulkenBildir: true);
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(AyarlarYuklendi))]
     private Task AyarKaydetAsync() => YurutAsync(async n =>
     {
         if (!ParaAyristirici.GecerliMi(KasaAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
+        if (!AyarlarYuklendi) { Hata = AyarlarYuklenmediMesaji; return; }
         if (SifirOnayMetni("Kasa açılış devri", _kayitliKasaAcilisDevri, KasaAcilisDevri, _kasaSifirOnayi) is { } onay)
         {
             _kasaSifirOnayi = true; AyarUyarisi = onay; return;

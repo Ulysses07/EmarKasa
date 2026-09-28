@@ -368,8 +368,10 @@ public class YurutucuTests
     {
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
         var ayar = new TaskCompletionSource(); var sifre = new TaskCompletionSource();
-        var api = new SahteApi { AyarGuncelleYaniti = ayar.Task, IzleyiciSifreYaniti = sifre.Task };
-        var vm = new AyarlarViewModel(api, auth: auth) { KasaAcilisDevri = 100m };
+        var api = new SahteApi { AyarGuncelleYaniti = ayar.Task, IzleyiciSifreYaniti = sifre.Task, AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
+        var vm = new AyarlarViewModel(api, auth: auth);
+        await vm.YukleAsync();
+        vm.KasaAcilisDevri = 100m;
         var kayit = vm.AyarKaydetCommand.ExecuteAsync(null);
         Assert.NotNull(api.SonAyar);
 

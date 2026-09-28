@@ -60,12 +60,11 @@ public class AyarlarViewModelTests
     [Fact]
     public async Task Ayar_kaydet_cagirir()
     {
-        var api = new SahteApi();
-        var vm = new AyarlarViewModel(api)
-        {
-            TakipBaslangic = new DateTime(2026, 2, 1),
-            KasaAcilisDevri = 20000m,
-        };
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
+        var vm = new AyarlarViewModel(api);
+        await vm.YukleAsync();
+        vm.TakipBaslangic = new DateTime(2026, 2, 1);
+        vm.KasaAcilisDevri = 20000m;
 
         await vm.AyarKaydetCommand.ExecuteAsync(null);
 
@@ -182,6 +181,40 @@ public class AyarlarViewModelTests
         await okunamaz.YukleAsync();
         Assert.Null(okunamaz.Hata); Assert.Single(okunamaz.Kanallar);
         Assert.True(okunamaz.DuzenKanalAktif); Assert.Null(okunamaz.KanalKilitNotu);
+    }
+
+    // Ayarlar bu oturumda sunucudan okunmadan formda varsayılanlar durur (takip başlangıcı bugün, açılış devri 0): yükleme
+    // başarısızken ya da hiç yapılmamışken 'Ayarı kaydet' bu değerleri sunucuya göndermez; düğme devre dışıdır, çağrılırsa ileti
+    // verir. Başarılı yüklemeden sonra kayıt çalışır; oturum değişince yeniden yükleme gerekir.
+    [Fact]
+    public async Task Ayarlar_basariyla_yuklenmeden_varsayilan_form_sunucuya_gonderilmez()
+    {
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var api = new SahteApi { YuklemeHatasi = new HttpRequestException("Sunucuya ulaşılamadı.") };
+        var vm = new AyarlarViewModel(api, auth: auth);
+        Assert.False(vm.AyarKaydetCommand.CanExecute(null));
+
+        await vm.YukleAsync();
+        Assert.NotNull(vm.Hata);
+        Assert.Equal(DateTime.Today, vm.TakipBaslangic); Assert.Equal(0m, vm.KasaAcilisDevri);
+        Assert.False(vm.AyarKaydetCommand.CanExecute(null));
+        await vm.AyarKaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonAyar);
+        Assert.Equal(AyarlarViewModel.AyarlarYuklenmediMesaji, vm.Hata);
+
+        api.YuklemeHatasi = null;
+        api.AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 15000m, false);
+        await vm.YukleAsync();
+        Assert.True(vm.AyarKaydetCommand.CanExecute(null));
+        await vm.AyarKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(new AyarYaz(new DateOnly(2026, 1, 1), 15000m), api.SonAyar);
+
+        // Yeni oturumun formu önceki oturumun yüklemesine dayanmaz.
+        api.SonAyar = null;
+        auth.OturumSurumu++;
+        Assert.False(vm.AyarKaydetCommand.CanExecute(null));
+        await vm.AyarKaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonAyar);
     }
 
     private sealed class SahteKilit : IAylikGiderApi
