@@ -251,10 +251,11 @@ public class AlislarViewModelTests
         Assert.Equal("2", api.GiderSorgulari[^1].Imlec);
 
         vm.GiderArama = "Kargo"; await vm.GiderAraCommand.ExecuteAsync(null);
-        Assert.Equal((("Kargo", (decimal?)null, (string?)null)), api.GiderSorgulari[^1]);
+        Assert.Equal(("Kargo", (decimal?)null, (string?)null, (decimal?)null), api.GiderSorgulari[^1]);
         Assert.Equal(92, Assert.Single(vm.BaglanabilirGiderler).Veri.Id);
+        // Tutar gibi okunan metin yalnız tutar süzgeci değildir: metin (fatura/sipariş numarası) ya da tutar olarak eşleşir.
         vm.GiderArama = "30,00"; await vm.GiderAraCommand.ExecuteAsync(null);
-        Assert.Equal(((string?)null, (decimal?)30m, (string?)null), api.GiderSorgulari[^1]);
+        Assert.Equal(("30,00", (decimal?)null, (string?)null, (decimal?)30m), api.GiderSorgulari[^1]);
         Assert.Equal(93, Assert.Single(vm.BaglanabilirGiderler).Veri.Id);
     }
 
@@ -271,13 +272,13 @@ public class AlislarViewModelTests
         // (Kargo'nun daha yeni eşleşmesi atlanırdı); arama bu metinle baştan yapılır.
         vm.GiderArama = " Kargo ";
         await vm.DahaFazlaGiderCommand.ExecuteAsync(null);
-        Assert.Equal(("Kargo", (decimal?)null, (string?)null), api.GiderSorgulari[^1]);
+        Assert.Equal(("Kargo", (decimal?)null, (string?)null, (decimal?)null), api.GiderSorgulari[^1]);
         Assert.Equal(new[] { 92 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
         Assert.True(vm.DahaFazlaGiderVar);
 
         // Metin değişmedikçe imleç aynı aramanın sonraki sayfasıdır.
         await vm.DahaFazlaGiderCommand.ExecuteAsync(null);
-        Assert.Equal(("Kargo", (decimal?)null, "1"), api.GiderSorgulari[^1]);
+        Assert.Equal(("Kargo", (decimal?)null, "1", (decimal?)null), api.GiderSorgulari[^1]);
         Assert.Equal(new[] { 92, 94 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
         Assert.False(vm.DahaFazlaGiderVar);
     }
@@ -316,8 +317,8 @@ public class AlislarViewModelTests
         public List<AlisYaz> Olusturmalar = new();
         public Exception? OlusturmaHatasi;
         public IReadOnlyList<IslemDto> Giderler = Array.Empty<IslemDto>();
-        /// <summary>Bağlanabilir gider sorguları (arama, tutar, imleç); sayfa boyutu 1 ise imleçle sayfalanır.</summary>
-        public List<(string? Arama, decimal? Tutar, string? Imlec)> GiderSorgulari = new();
+        /// <summary>Bağlanabilir gider sorguları (arama, tutar, imleç, arama metninin tutar okuması); sayfa boyutu 1 ise imleçle sayfalanır.</summary>
+        public List<(string? Arama, decimal? Tutar, string? Imlec, decimal? AramaTutari)> GiderSorgulari = new();
         public int GiderSayfaBoyutu = 50;
         public bool OdemeHatasi;
         public Func<Task<IReadOnlyList<AlisDto>>>? ListeGetir;
@@ -332,10 +333,11 @@ public class AlislarViewModelTests
             if (OlusturmaHatasi is { } hata) { OlusturmaHatasi = null; return Task.FromException<AlisDto>(hata); }
             return Task.FromResult(Kayit with { Surum = 3 });
         }
-        public Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null)
+        public Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null, decimal? aramaTutari = null)
         {
-            GiderSorgulari.Add((arama, tutar, imlec));
-            var uygun = Giderler.Where(g => (arama is null || g.Cari.Contains(arama)) && (tutar is null || g.TutarTl == tutar)).ToList();
+            GiderSorgulari.Add((arama, tutar, imlec, aramaTutari));
+            var uygun = Giderler.Where(g => (arama is null && aramaTutari is null || arama is not null && g.Cari.Contains(arama) || g.TutarTl == aramaTutari)
+                && (tutar is null || g.TutarTl == tutar)).ToList();
             var bas = imlec is null ? 0 : int.Parse(imlec);
             var sayfa = uygun.Skip(bas).Take(GiderSayfaBoyutu).ToList();
             var devam = bas + sayfa.Count < uygun.Count;

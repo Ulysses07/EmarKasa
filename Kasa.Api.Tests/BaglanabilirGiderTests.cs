@@ -123,6 +123,34 @@ public class BaglanabilirGiderTests
     }
 
     [Fact]
+    public async Task Tutar_gibi_okunan_arama_metni_tutarla_ya_da_aciklama_ve_notla_eslesir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var aciklamada = await Gider(c, Today, "Fatura 2024", 10m);
+        var tutarda = await Gider(c, Today.AddDays(-1), "Kira", 2024m);
+        var notta = await Gider(c, Today.AddDays(-2), "Kargo", 5m, not: "sipariş 2024/17");
+        await Gider(c, Today.AddDays(-3), "İlgisiz", 7m);
+
+        // Arama metni '2024' hem fatura/sipariş numarası hem tutar olabilir: istemci metnin tutar okumasını da gönderir,
+        // sunucu ikisinden birine uyan giderleri döndürür. 'tutar' ise ayrı ve kesin (VE) süzgeçtir.
+        Assert.Equal([aciklamada, tutarda, notta], (await Oku(c, "?arama=2024&aramaTutari=2024")).Ogeler.Select(o => o.Id));
+        Assert.Equal([aciklamada, notta], (await Oku(c, "?arama=2024")).Ogeler.Select(o => o.Id));
+        Assert.Equal([tutarda], (await Oku(c, "?aramaTutari=2024,00")).Ogeler.Select(o => o.Id));
+        Assert.Equal([aciklamada], (await Oku(c, "?arama=2024&aramaTutari=2024&tutar=10")).Ogeler.Select(o => o.Id));
+
+        // İmleçli sayfalar aynı birleşik süzgeçle eksiksiz ilerler.
+        var ilk = await Oku(c, "?arama=2024&aramaTutari=2024&limit=2");
+        Assert.Equal([aciklamada, tutarda], ilk.Ogeler.Select(o => o.Id));
+        Assert.Equal([notta], (await Oku(c, "?arama=2024&aramaTutari=2024&limit=2&imlec=" + Uri.EscapeDataString(ilk.SonrakiImlec!))).Ogeler.Select(o => o.Id));
+
+        foreach (var hatali in new[] { "?arama=2024&aramaTutari=abc", "?aramaTutari=0", "?aramaTutari=1.234" })
+        {
+            using var r = await c.GetAsync(Uc + hatali);
+            Assert.True(r.StatusCode == HttpStatusCode.BadRequest, hatali);
+        }
+    }
+
+    [Fact]
     public async Task Yalniz_editor_gorebilir()
     {
         await using var f = Fabrika(); using var editor = await Editor(f);
@@ -164,5 +192,77 @@ public class BaglanabilirGiderTests
         Assert.Equal(1, f.Sayac.Komutlar.Count(k => k.Contains("FROM \"Kanallar\"")));
         // Aylık gider revizyonları yalnız listedeki ödemeler için okunur (bütün tablo değil).
         Assert.All(f.Sayac.Komutlar.Where(k => k.Contains("FROM \"AylikGiderRevizyonlar\"")), k => Assert.Contains("WHERE", k));
+    }
+}
+
+/// <summary>
+/// Ana sayfanın inceleme kutusu (webui-6, ana sayfa bölümü): editörün ana sayfası yalnız inceleme bekleyen alış sayısını ve
+/// en yeni birkaç alışı göstermek için bütün alış listesini (kalem, dağılım ve ödeme join'leriyle) indirmez.
+/// GET /api/alis/inceleme-ozeti sayıyı COUNT ile, yalnız istenen sayıdaki alışı /api/alis ile aynı sıra ve biçimde döndürür;
+/// sorgu sayısı alış sayısından bağımsızdır.
+/// </summary>
+public class AlisIncelemeOzetiTests
+{
+    private const string Uc = "/api/alis/inceleme-ozeti";
+
+    private sealed record Ozet(int Sayi, List<AlisDto> Ogeler);
+
+    private static async Task<Ozet> Oku(HttpClient c, string sorgu = "")
+    {
+        using var r = await c.GetAsync(Uc + sorgu);
+        Assert.True(r.IsSuccessStatusCode, $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        return (await r.Content.ReadFromJsonAsync<Ozet>())!;
+    }
+
+    private static async Task<AlisDto> Incelemede(HttpClient c, DateOnly tarih, string tedarikci)
+        => await AlisTestYardimcisi.Gonder(c, await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, tarih, tedarikci, null, [new("Mal", 100m, [new(1, 100m)])])));
+
+    [Fact]
+    public async Task Inceleme_bekleyen_sayisini_ve_en_yeni_alislari_liste_sirasi_ve_bicimiyle_doner()
+    {
+        await using var f = Fabrika(); using var editor = await Editor(f);
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "inceleme-ozeti");
+        var gonderilen = new List<AlisDto>();
+        for (var i = 0; i < 6; i++) gonderilen.Add(await Incelemede(i % 2 == 0 ? alici : editor, Today.AddDays(-(i % 3)), $"Tedarikçi {i}"));
+        await AlisTestYardimcisi.Taslak(alici, "Taslakta kalan");
+        (await editor.PostAsJsonAsync($"/api/alis/{gonderilen[0].Id}/onayla", new AlisDurumYaz(gonderilen[0].Surum))).EnsureSuccessStatusCode();
+
+        // Beklenen: tam listenin incelemedeki alışları, aynı sırayla (tarih ve kimlik azalan) ve aynı DTO biçimiyle.
+        var bekleyen = (await editor.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!.Where(a => a.Durum == AlisDurumlari.Incelemede).ToList();
+        Assert.Equal(5, bekleyen.Count);
+        var ozet = await Oku(editor);
+        Assert.Equal(5, ozet.Sayi);
+        Assert.Equal(JsonSerializer.Serialize(bekleyen.Take(4)), JsonSerializer.Serialize(ozet.Ogeler));
+        Assert.Equal(bekleyen.Take(2).Select(a => a.Id), (await Oku(editor, "?adet=2")).Ogeler.Select(a => a.Id));
+        var yalnizSayi = await Oku(editor, "?adet=0");
+        Assert.Equal((5, 0), (yalnizSayi.Sayi, yalnizSayi.Ogeler.Count));
+
+        foreach (var hatali in new[] { "?adet=-1", "?adet=21" })
+        {
+            using var r = await editor.GetAsync(Uc + hatali);
+            Assert.True(r.StatusCode == HttpStatusCode.BadRequest, hatali);
+        }
+        // Alıcı yalnız kendi alışlarını görür: bütün alıcıların inceleme sayısı editöre özeldir.
+        Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(Uc)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await f.CreateClient().GetAsync(Uc)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Sorgu_sayisi_alis_sayisindan_bagimsizdir()
+    {
+        await using var f = new KartHesapMaliyetiTests.SayacliFabrika(); using var c = await Editor(f);
+        async Task<int> Sorgular()
+        {
+            f.Sayac.Sifirla(); f.Sayac.Etkin = true;
+            try { await Oku(c); } finally { f.Sayac.Etkin = false; }
+            return f.Sayac.Komutlar.Count;
+        }
+        for (var i = 0; i < 5; i++) await Incelemede(c, Today.AddDays(-i), $"Az {i}");
+        var az = await Sorgular();
+        for (var i = 0; i < 25; i++) await Incelemede(c, Today.AddDays(-(i % 7)), $"Çok {i}");
+        for (var i = 0; i < 5; i++) await AlisTestYardimcisi.Taslak(c, $"Taslak {i}");
+        Assert.Equal(az, await Sorgular());
+        Assert.True(az <= 10, $"Beklenenden çok sorgu: {az}");
+        Assert.Equal(30, (await Oku(c)).Sayi);
     }
 }

@@ -41,7 +41,7 @@ public static class AlisEndpoints
             db.SaveChanges();
             AlisOlusturmaKurallari.Kaydet(db, dto, user, alis.Id);
             return Results.Created($"/api/alis/{alis.Id}", ReadDto(db, alis.Id));
-        })).RequireRateLimiting(Auth.HizSinirlari.AlisYukleme);
+        })).RequireRateLimiting(Auth.HizSinirlari.AlisYukleme).AddEndpointFilter(Auth.AliciAlisYuklemeSiniri.Filtre);
         api.MapPut("/{id:int}", (int id, AlisYaz dto, ClaimsPrincipal user, KasaDbContext db) => Mutate(db, () =>
         {
             var alis = Owned(db, id, user);

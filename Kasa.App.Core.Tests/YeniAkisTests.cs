@@ -201,7 +201,7 @@ public class YeniAkisTests
         public Task<AlisDto> AlisOdemeKaydetAsync(int id, AlisOdemeYaz g) { SonOdeme = g; return Task.FromResult(Alis()); }
         public Task<IReadOnlyList<AliciDto>> AlicilarAsync() => Task.FromResult<IReadOnlyList<AliciDto>>(Array.Empty<AliciDto>());
         public IReadOnlyList<IslemDto> Giderler = Array.Empty<IslemDto>();
-        public Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null)
+        public Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null, decimal? aramaTutari = null)
             => Task.FromResult(new BaglanabilirGiderSayfasi(Giderler.Select(AlislarViewModelTests.SahteAlisApi.Baglanabilir).ToList(), null, false));
         public Task<AliciDto> AliciOlusturAsync(AliciYaz g) => Task.FromResult(new AliciDto(1, g.Kullanici, g.Ad, true));
         public Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g) => AliciOlusturAsync(g);

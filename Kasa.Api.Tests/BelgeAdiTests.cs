@@ -74,6 +74,35 @@ public class BelgeAdiTests
         Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
     }
 
+    /// <summary>Outlook'un doğrudan engellediği (Level1) ekler: yüklemede reddedilen uzantılar bu listeyi kapsar. Asıl koruma
+    /// indirme adının uzantısının yalnız tespit edilen türden kurulmasıdır; liste derinlemesine savunmadır.</summary>
+    private static readonly string[] OutlookLevel1 =
+    [
+        "ade", "adp", "app", "application", "appref-ms", "asp", "aspx", "asx", "bas", "bat", "bgi", "cab", "cer", "chm", "cmd", "cnt",
+        "com", "cpl", "crt", "csh", "der", "diagcab", "exe", "fxp", "gadget", "grp", "hlp", "hpj", "hta", "htc", "inf", "ins", "isp",
+        "its", "jar", "jnlp", "js", "jse", "ksh", "lnk", "mad", "maf", "mag", "mam", "maq", "mar", "mas", "mat", "mau", "mav", "maw",
+        "mcf", "mda", "mdb", "mde", "mdt", "mdw", "mdz", "msc", "msh", "msh1", "msh2", "mshxml", "msh1xml", "msh2xml", "msi", "msp",
+        "mst", "msu", "ops", "osd", "pcd", "pif", "pl", "plg", "prf", "prg", "printerexport", "ps1", "ps1xml", "ps2", "ps2xml", "psc1",
+        "psc2", "psd1", "psdm1", "pst", "py", "pyc", "pyo", "pyw", "pyz", "pyzw", "reg", "scf", "scr", "sct", "shb", "shs", "theme",
+        "tmp", "url", "vb", "vbe", "vbp", "vbs", "vhd", "vhdx", "vsmacros", "vsw", "webpnp", "website", "ws", "wsc", "wsf", "wsh",
+        "xbap", "xll", "xnk", "appcontent-ms", "settingcontent-ms",
+    ];
+
+    [Fact]
+    public async Task Outlookun_engelledigi_her_uzanti_yuklemede_reddedilir()
+    {
+        var (f, c, alis) = await Kur();
+        await using var _ = f; using var __ = c;
+        var kabulEdilen = new List<string>();
+        foreach (var uzanti in OutlookLevel1)
+        {
+            using var r = await AlisTestYardimcisi.YukleYanit(c, alis.Id, AlisTestYardimcisi.Pdf(64), "fatura." + uzanti.ToUpperInvariant());
+            if (r.StatusCode != HttpStatusCode.BadRequest) kabulEdilen.Add($"{uzanti}: {(int)r.StatusCode}");
+        }
+        Assert.True(kabulEdilen.Count == 0, "Reddedilmeyen uzantılar: " + string.Join(", ", kabulEdilen));
+        Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
+    }
+
     [Theory]
     [InlineData("Fatura No.A12", null, "pdf", "Fatura No.pdf")]
     [InlineData("fatura.pdf", "application/vnd.pdf", "pdf", "fatura.pdf")]

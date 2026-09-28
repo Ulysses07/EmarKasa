@@ -19,15 +19,25 @@ public static class BelgeEndpoints
     {
         ["application/pdf"] = ".pdf", ["image/png"] = ".png", ["image/jpeg"] = ".jpg",
     };
-    /// <summary>Yüklemede reddedilen ad uzantıları (addaki son noktadan sonrası, büyük/küçük harf duyarsız): Windows'ta
-    /// çalıştırılabilir, betik, kısayol, yükleyici ya da disk kalıbı; tarayıcıda çalışan web sayfası ve görsel biçimleri.</summary>
+    /// <summary>Yüklemede reddedilen ad uzantıları (addaki son noktadan sonrası, büyük/küçük harf duyarsız): Outlook'un doğrudan
+    /// engellediği (Level1) ekler; ayrıca tarayıcıda çalışan web sayfası ve görsel biçimleri, betikler, sürücü ve uygulama
+    /// paketleri, kitaplık/arama kısayolları ve disk kalıpları. Liste yalnız derinlemesine savunmadır: asıl koruma indirme adının
+    /// uzantısının addan değil, sihirli baytlardan tespit edilen türden kurulmasıdır (<see cref="GuvenliBelgeAdi"/>); listede
+    /// olmayan bir uzantı da indirmede .pdf/.png/.jpg olur.</summary>
     private static readonly HashSet<string> TehlikeliUzantilar = new(StringComparer.OrdinalIgnoreCase)
     {
-        "hta", "htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xml", "xsl", "xslt",
-        "js", "jse", "mjs", "vbs", "vbe", "wsf", "wsh", "wsc", "sct", "ps1", "psm1", "psd1", "ps1xml", "psc1", "sh", "bash", "py", "pyw", "pl", "rb", "php",
-        "cmd", "bat", "com", "exe", "scr", "pif", "cpl", "dll", "ocx", "sys", "drv", "msi", "msp", "mst", "msc", "msix", "msixbundle", "appx", "appxbundle",
-        "lnk", "url", "website", "scf", "reg", "inf", "ins", "isp", "chm", "hlp", "jar", "jnlp", "application", "appref-ms", "gadget", "xbap", "xll",
-        "settingcontent-ms", "library-ms", "search-ms", "diagcab", "iso", "img", "vhd", "vhdx",
+        // Outlook Level1.
+        "ade", "adp", "app", "application", "appref-ms", "asp", "aspx", "asx", "bas", "bat", "bgi", "cab", "cer", "chm", "cmd", "cnt",
+        "com", "cpl", "crt", "csh", "der", "diagcab", "exe", "fxp", "gadget", "grp", "hlp", "hpj", "hta", "htc", "inf", "ins", "isp",
+        "its", "jar", "jnlp", "js", "jse", "ksh", "lnk", "mad", "maf", "mag", "mam", "maq", "mar", "mas", "mat", "mau", "mav", "maw",
+        "mcf", "mda", "mdb", "mde", "mdt", "mdw", "mdz", "msc", "msh", "msh1", "msh2", "mshxml", "msh1xml", "msh2xml", "msi", "msp",
+        "mst", "msu", "ops", "osd", "pcd", "pif", "pl", "plg", "prf", "prg", "printerexport", "ps1", "ps1xml", "ps2", "ps2xml", "psc1",
+        "psc2", "psd1", "psdm1", "pst", "py", "pyc", "pyo", "pyw", "pyz", "pyzw", "reg", "scf", "scr", "sct", "shb", "shs", "theme",
+        "tmp", "url", "vb", "vbe", "vbp", "vbs", "vhd", "vhdx", "vsmacros", "vsw", "webpnp", "website", "ws", "wsc", "wsf", "wsh",
+        "xbap", "xll", "xnk", "appcontent-ms", "settingcontent-ms",
+        // Ek olarak.
+        "htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xml", "xsl", "xslt", "mjs", "psm1", "sh", "bash", "rb", "php",
+        "dll", "ocx", "sys", "drv", "msix", "msixbundle", "appx", "appxbundle", "library-ms", "search-ms", "iso", "img",
     };
     /// <summary>Yüklemede reddedilen bildirilen içerik türleri; ayrıca 'html' ya da 'script' içeren ve '+xml' ile biten her tür.</summary>
     private static readonly HashSet<string> TehlikeliTurler = new(StringComparer.Ordinal)
@@ -89,7 +99,7 @@ public static class BelgeEndpoints
             var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, Icerik = bytes };
             db.Belgeler.Add(belge); db.SaveChanges(); tx.Commit();
             return Results.Created($"/api/belgeler/{belge.Id}", new BelgeDto(belge.Id, id, odemeId, name, type, bytes.Length, belge.Yuklendi));
-        }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024)).RequireRateLimiting(HizSinirlari.AlisYukleme);
+        }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024)).RequireRateLimiting(HizSinirlari.AlisYukleme).AddEndpointFilter(AliciAlisYuklemeSiniri.Filtre);
 
         api.MapGet("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db, HttpResponse response) =>
         {

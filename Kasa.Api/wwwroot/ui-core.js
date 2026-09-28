@@ -161,14 +161,16 @@ export function documentFileName(name, type) {
   if (!base) return `belge${extension}`;
   return (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/iu.test(base.split('.')[0].replace(/ +$/u, '')) ? `belge-${base}` : base) + extension;
 }
-// Ödemeye bağlanabilir gider sorgusu (webui-6): arama kutusu tutar gibi okunuyorsa tutar süzgeci, değilse açıklama/not araması.
+// Ödemeye bağlanabilir gider sorgusu (webui-6): arama metni açıklama/notta aranır; metin tutar gibi de okunuyorsa ('2024' bir
+// fatura numarası da olabilir) tutar okuması aramaTutari olarak eklenir ve sunucu ikisinden birine uyan gideri döndürür.
 export function linkableExpensesPath(text = '', cursor = null) {
   const params = new URLSearchParams();
   const value = String(text || '').trim();
   if (value) {
     let amountCents = null;
     try { amountCents = cents(value, { allowZero: false }); } catch { amountCents = null; }
-    if (amountCents != null) params.set('tutar', (amountCents / 100).toFixed(2)); else params.set('arama', value.slice(0, 200));
+    params.set('arama', value.slice(0, 200));
+    if (amountCents != null) params.set('aramaTutari', (amountCents / 100).toFixed(2));
   }
   if (cursor) params.set('imlec', cursor);
   const query = params.toString();

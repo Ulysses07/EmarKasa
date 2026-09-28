@@ -1,8 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Kasa.Api.Data;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.VekilVeHizSiniriTests;
 
 namespace Kasa.Api.Tests;
@@ -147,6 +150,45 @@ public class AlisKotaTests
         Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ikinci.Id, 400 * 1024));
     }
 
+    /// <summary>24 saat penceresi sorguda (SQLite julianday: saat dilimli metni ana çevirir) süzülür: alıcının bütün belge
+    /// geçmişinin satırları belleğe alınmaz. Farklı saat dilimiyle yazılmış kayıtlar metinle değil anla karşılaştırılır.</summary>
+    [Fact]
+    public async Task Gunluk_yukleme_hacmi_sorguda_suzulur_saat_dilimli_kayitlar_anla_karsilastirilir()
+    {
+        var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:GunlukYuklemeMb"] = "1" });
+        await using var _ = f;
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-dilim");
+        var eski = await AlisTestYardimcisi.Taslak(alici, "Eski belgeler");
+        var yeni = await AlisTestYardimcisi.Taslak(alici, "Yeni belge");
+        var simdi = f.Saat!.GetUtcNow();
+        void Ekle(DateTimeOffset an, int boyut)
+        {
+            using var scope = f.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Belgeler.Add(new BelgeEntity { AlisId = eski.Id, DosyaAdi = "eski.pdf", IcerikTuru = "application/pdf", Boyut = boyut, Yuklendi = an, Icerik = [1] });
+            db.SaveChanges();
+        }
+
+        // 25 saat önce, +03:00 ile yazılmış: metni pencerenin içinde görünür, anı dışındadır; sayılmaz.
+        Ekle(simdi.AddHours(-25).ToOffset(TimeSpan.FromHours(3)), 600 * 1024);
+        f.Sayac.Sifirla(); f.Sayac.Etkin = true;
+        try { Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, yeni.Id, 500 * 1024)); }
+        finally { f.Sayac.Etkin = false; }
+        var okuyanlar = f.Sayac.Komutlar.Where(k => k.Contains("\"Yuklendi\"") && !k.TrimStart().StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.NotEmpty(okuyanlar);
+        Assert.All(okuyanlar, k => Assert.Contains("julianday(", k));
+
+        // 23 saat önce, -05:00 ile yazılmış: metni pencerenin dışında görünür, anı içindedir; sayılır (500 + 400 + 200 KB > 1 MB).
+        Ekle(simdi.AddHours(-23).ToOffset(TimeSpan.FromHours(-5)), 400 * 1024);
+        using (var fazla = await AlisTestYardimcisi.YukleYanit(alici, yeni.Id, 200 * 1024))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, fazla.StatusCode);
+            Assert.Contains("Son 24 saatte en fazla 1 MB", await AlisTestYardimcisi.Hata(fazla));
+        }
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, yeni.Id, 100 * 1024));
+    }
+
     [Fact]
     public async Task Idempotent_tekrar_kota_doluyken_de_ilk_sonucu_doner()
     {
@@ -202,6 +244,47 @@ public class AlisKotaTests
             Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
     }
 
+    /// <summary>Alıcı için (kullanıcı, IP) penceresinin üstünde IP'den bağımsız saatlik kova: ele geçirilmiş bir alıcı hesabı
+    /// farklı ağlardan istek göndererek pencereyi çoğaltamaz. Başka alıcı ve editör bu kovadan etkilenmez.</summary>
+    [Fact]
+    public async Task Alicinin_saatlik_ust_kovasi_ipden_bagimsizdir_farkli_aglar_cogaltamaz()
+    {
+        await using var f = new VekilFabrikasi(new() { ["Kasa:HizSiniri:AlisYuklemeIzni"] = "100", ["Kasa:HizSiniri:AliciSaatlikAlisYuklemeIzni"] = "4" });
+        using var kurulum = Istemci(f, "198.51.100.1");
+        (await Giris(kurulum, "editor", "kasa123")).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("saatlik-alici", "Saatlik alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("saatlik-komsu", "Aynı ağdaki alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        var aglar = new List<HttpClient>();
+        foreach (var ip in new[] { "203.0.113.5", "192.0.2.77", "198.51.100.200" })
+        {
+            var c = Istemci(f, ip);
+            (await Giris(c, "saatlik-alici", "alici-sifre-1")).EnsureSuccessStatusCode();
+            aglar.Add(c);
+        }
+        try
+        {
+            var taslak = await AlisTestYardimcisi.Taslak(aglar[0], "Saatlik");                                   // 1
+            Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(aglar[1], taslak.Id, 1024));    // 2
+            Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(aglar[2], taslak.Id, 1024));    // 3
+            Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(aglar[0], taslak.Id, 1024));    // 4
+            using (var red = await AlisTestYardimcisi.YukleYanit(aglar[1], taslak.Id, 1024))
+            {
+                Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
+                Assert.True(red.Headers.RetryAfter?.Delta > TimeSpan.Zero, "Retry-After başlığı saniye olarak gelmeli.");
+                Assert.StartsWith("Alıcı hesabı için belge yükleme ve alış kaydı sınırına ulaşıldı: 1 saatte en çok 4", await AlisTestYardimcisi.Hata(red));
+            }
+            using (var red = await aglar[2].PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Sınır sonrası")))
+                Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
+
+            // Aynı ağdaki başka alıcı ve editör bu kovadan etkilenmez.
+            using var komsu = Istemci(f, "203.0.113.5");
+            (await Giris(komsu, "saatlik-komsu", "alici-sifre-1")).EnsureSuccessStatusCode();
+            await AlisTestYardimcisi.Taslak(komsu, "Komşu");
+            Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(kurulum, taslak.Id, 1024));
+        }
+        finally { foreach (var c in aglar) c.Dispose(); }
+    }
+
     [Fact]
     public void Kota_ayarlari_pozitif_olmali()
     {
@@ -213,14 +296,15 @@ public class AlisKotaTests
         Assert.Contains(new AliciKotaAyarlari { AcikTaslak = 30, OnayBekleyen = 20 }.Hatalar(), h => h.Contains("OnayBekleyen"));
         Assert.Contains(new AliciKotaAyarlari { TaslakBelgeMb = 300, OnayBekleyenBelgeMb = 200 }.Hatalar(), h => h.Contains("OnayBekleyenBelgeMb"));
         Assert.NotEmpty(new Kasa.Api.Auth.HizSiniriAyarlari { AlisYuklemeIzni = 0 }.Hatalar());
+        Assert.NotEmpty(new Kasa.Api.Auth.HizSiniriAyarlari { AliciSaatlikAlisYuklemeIzni = 0 }.Hatalar());
     }
 }
 
 /// <summary>Alış testlerinin ortak kurulumları: alıcı oturumu, taslak, belge yükleme ve ek ayarlı fabrika.</summary>
 internal static class AlisTestYardimcisi
 {
-    internal static KasaWebFactory KotaFabrikasi(Dictionary<string, string?> ayarlar, SabitSaat? saat = null)
-        => new AyarliFabrika(ayarlar) { Saat = saat ?? new SabitSaat(KasaWebFactory.VarsayilanBugun) };
+    internal static AyarliFabrika KotaFabrikasi(Dictionary<string, string?> ayarlar, SabitSaat? saat = null)
+        => new(ayarlar) { Saat = saat ?? new SabitSaat(KasaWebFactory.VarsayilanBugun) };
 
     internal static async Task<HttpClient> Alici(KasaWebFactory f, HttpClient editor, string kullanici)
     {
@@ -275,12 +359,16 @@ internal static class AlisTestYardimcisi
     internal static async Task<string> Hata(HttpResponseMessage r)
         => (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
 
-    private sealed class AyarliFabrika(Dictionary<string, string?> ayarlar) : KasaWebFactory
+    /// <summary>Ek ayarlı fabrika; sorgu sayacı yalnız etkinleştirildiğinde komut kaydeder.</summary>
+    internal sealed class AyarliFabrika(Dictionary<string, string?> ayarlar) : KasaWebFactory
     {
+        public KartHesapMaliyetiTests.SorguSayaci Sayac { get; } = new();
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(ayarlar));
+            builder.ConfigureServices(s => s.ConfigureDbContext<KasaDbContext>(o => o.AddInterceptors(Sayac)));
         }
     }
 }

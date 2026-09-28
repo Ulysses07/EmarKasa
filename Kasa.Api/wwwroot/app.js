@@ -481,12 +481,24 @@ async function loadHomeSummary(days) {
   }
   return { panel: await api('/api/rapor/panel'), kasaEsikleri: null, takipOzeti: null };
 }
+// İnceleme kutusu (webui-6): ana sayfa bütün alış listesini (kalem, dağılım ve ödemeleriyle) indirmez; sunucu inceleme bekleyen
+// sayısını ve en yeni birkaç alışı döndürür. Eski sunucuda uç yoksa (404; GET'i olmayan /api/alis/{id} deseni yüzünden 405)
+// eski davranışla liste okunup süzülür ve uç sayfa yenilenene kadar yeniden denenmez. Başka hata ana sayfaya yansır.
+let reviewSummaryMissing = false;
+async function loadReviewSummary(count) {
+  if (!canEditCash()) return { sayi: 0, ogeler: [] };
+  if (!reviewSummaryMissing) {
+    try { return await api(`/api/alis/inceleme-ozeti?adet=${count}`); }
+    catch (error) { if (error.status !== 404 && error.status !== 405) throw error; reviewSummaryMissing = true; }
+  }
+  const review = (await api('/api/alis')).filter(p => p.durum === 'Incelemede');
+  return { sayi: review.length, ogeler: review.slice(0, count) };
+}
 async function renderHome(generation) {
   page('Kasalar', 'Genel kasa ve kanal bakiyeleri', cashActions());
-  const [home, purchases] = await Promise.all([loadHomeSummary(30), canEditCash() ? api('/api/alis') : Promise.resolve([])]);
+  const [home, review] = await Promise.all([loadHomeSummary(30), loadReviewSummary(4)]);
   if (generation !== renderId) return;
   const panel = home.panel;
-  const review = purchases.filter(p => p.durum === 'Incelemede');
   const paymentOverview = h('div');
   const balances = h('div', { class: 'channel-balances' });
   const unassignedDebt = h('div');
@@ -534,7 +546,7 @@ async function renderHome(generation) {
     if (home.kasaEsikleri) showThresholds(home.kasaEsikleri); else loadThresholds();
     loadComparisons();
   }
-  const inbox = canEditCash() ? section('Alışlar', h('div', {}, review.length ? h('p', { class: 'plain-note' }, `${review.length} alış inceleme bekliyor. Malları ve kanal paylarını kontrol ederek onaylayabilirsiniz.`) : h('p', { class: 'plain-note' }, 'İnceleme bekleyen alış yok.'), review.slice(0, 4).map(purchaseRow)), button('Alışları aç', () => navigate('purchases'), 'small')) : null;
+  const inbox = canEditCash() ? section('Alışlar', h('div', {}, review.sayi ? h('p', { class: 'plain-note' }, `${review.sayi} alış inceleme bekliyor. Malları ve kanal paylarını kontrol ederek onaylayabilirsiniz.`) : h('p', { class: 'plain-note' }, 'İnceleme bekleyen alış yok.'), review.ogeler.map(purchaseRow)), button('Alışları aç', () => navigate('purchases'), 'small')) : null;
   const hero = h('div', { class: 'cash-hero' },
     h('div', {},
       h('span', { class: 'summary-label' }, 'Genel kasa'),

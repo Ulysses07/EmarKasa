@@ -25,3 +25,5 @@ public record AlisOdemeIptal(int Surum, Guid IstekId, string Aciklama);
 public record BaglanabilirGiderSayfasi(IReadOnlyList<BaglanabilirGiderDto> Ogeler, string? SonrakiImlec, bool DevamVar);
 /// <summary>Ödemeye bağlanabilir gider: ödeme formunun mevcut gideri seçip tarih, tutar ve kartı doldurması için gereken alanlar.</summary>
 public record BaglanabilirGiderDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, int? KanalId, GiderTipi Tip, string? Not, int? KrediKartiId);
+/// <summary>GET /api/alis/inceleme-ozeti: inceleme bekleyen alışların sayısı ve en yenileri (GET /api/alis sırasıyla).</summary>
+public record AlisIncelemeOzetiDto(int Sayi, IReadOnlyList<AlisDto> Ogeler);

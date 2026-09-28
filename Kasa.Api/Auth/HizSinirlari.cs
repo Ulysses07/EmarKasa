@@ -56,6 +56,9 @@ public sealed class HizSiniriAyarlari
     /// <summary>Aynı politikada editörün ayrı ve yüksek izni: editör alıcı kotalarına tabi değildir, yalnız kaçak döngüye karşı sınırlanır.</summary>
     public int EditorAlisYuklemeIzni { get; set; } = 300;
     public int AlisYuklemePencereDakika { get; set; } = 10;
+    /// <summary>Alıcının aynı istekleri için IP'den bağımsız, alıcı başına saatlik üst kova (<see cref="AliciAlisYuklemeSiniri"/>):
+    /// (kullanıcı, IP) penceresi farklı ağlardan gelen isteklerle çoğaltılamaz.</summary>
+    public int AliciSaatlikAlisYuklemeIzni { get; set; } = 120;
 
     /// <summary>Yapılandırma hataları (boşsa geçerli). Sınırlar pozitif olmalı; ağ bütçesi hedef bütçesinden ve
     /// şifre doğrulama kapasitesinden küçük olmalıdır (aksi halde tek ağ bir hedefi herkese kilitleyebilir ya da
@@ -68,7 +71,7 @@ public sealed class HizSiniriAyarlari
                 GuvenlikIzni: > 0, GirisIpIzni: > 0, GirisKullaniciIzni: > 0, GirisAgIzni: > 0, PencereDakika: > 0,
                 HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0,
                 SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0, YedekIzni: > 0, YedekPencereDakika: > 0,
-                AlisYuklemeIzni: > 0, EditorAlisYuklemeIzni: > 0, AlisYuklemePencereDakika: > 0,
+                AlisYuklemeIzni: > 0, EditorAlisYuklemeIzni: > 0, AlisYuklemePencereDakika: > 0, AliciSaatlikAlisYuklemeIzni: > 0,
             })
         {
             yield return "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (SifreDogrulamaKuyrugu sıfır olabilir).";
@@ -134,6 +137,7 @@ public static class HizSinirlari
         // Alıcı kotaları hız sınırlarının kalıcı veri tarafıdır; aynı yerde bağlanır ve başlangıçta doğrulanır.
         services.AddOptions<AliciKotaAyarlari>().BindConfiguration("Kasa:AliciKota").ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AliciKotaAyarlari>, AliciKotaDogrulayici>());
+        services.AddSingleton<AliciAlisYuklemeSiniri>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<VekilDurumu>();
         services.AddSingleton<GirisSiniri>();
@@ -265,6 +269,8 @@ public static class HizSinirlari
 /// (<see cref="AliciKotaAyarlari"/>) sınırlıdır; bu pencere betikli istek selini ve yükle-sil döngüsünü yavaşlatır. Hız sınırı
 /// yetkilendirmeden sonra çalışır: kimliksiz ya da yetkisiz istek kota tüketmez. Kullanıcıyla birlikte IP'ye bölünür: aynı
 /// ağdaki başka alıcı ya da editör etkilenmez; ele geçirilmiş bir oturum başka ağdan meşru kullanıcının kovasını tüketemez.
+/// Farklı ağlardan gelen isteklerle pencerenin çoğaltılmasını alıcı başına saatlik kova (<see cref="AliciAlisYuklemeSiniri"/>,
+/// aynı uçlarda filtre) sınırlar.
 /// </summary>
 internal sealed class AlisYuklemePolitikasi : Microsoft.AspNetCore.RateLimiting.IRateLimiterPolicy<string>
 {
@@ -286,7 +292,18 @@ internal sealed class AlisYuklemePolitikasi : Microsoft.AspNetCore.RateLimiting.
     {
         var ayar = http.RequestServices.GetRequiredService<IOptionsMonitor<HizSiniriAyarlari>>().CurrentValue;
         var izin = http.User.IsInRole("editor") ? ayar.EditorAlisYuklemeIzni : ayar.AlisYuklemeIzni;
-        var mesaj = $"Belge yükleme ve alış kaydı sınırına ulaşıldı: {ayar.AlisYuklemePencereDakika} dakikada en çok {izin} istek yapılabilir.";
+        return Yanit(http, lease, $"Belge yükleme ve alış kaydı sınırına ulaşıldı: {ayar.AlisYuklemePencereDakika} dakikada en çok {izin} istek yapılabilir.");
+    }
+
+    /// <summary>Alıcının saatlik kovası doldu (<see cref="AliciAlisYuklemeSiniri"/>): aynı biçimde Türkçe 429.</summary>
+    internal static IResult SaatlikRed(HttpContext http, RateLimitLease lease)
+    {
+        var izin = http.RequestServices.GetRequiredService<IOptionsMonitor<HizSiniriAyarlari>>().CurrentValue.AliciSaatlikAlisYuklemeIzni;
+        return Yanit(http, lease, $"Alıcı hesabı için belge yükleme ve alış kaydı sınırına ulaşıldı: 1 saatte en çok {izin} istek yapılabilir.");
+    }
+
+    private static IResult Yanit(HttpContext http, RateLimitLease lease, string mesaj)
+    {
         if (lease.TryGetMetadata(MetadataName.RetryAfter, out var sure) && sure > TimeSpan.Zero)
         {
             http.Response.Headers.RetryAfter = Math.Ceiling(sure.TotalSeconds).ToString(CultureInfo.InvariantCulture);
@@ -295,6 +312,40 @@ internal sealed class AlisYuklemePolitikasi : Microsoft.AspNetCore.RateLimiting.
         else mesaj += " Birkaç dakika sonra yeniden deneyin.";
         return Results.Json(new { hata = mesaj }, statusCode: StatusCodes.Status429TooManyRequests);
     }
+}
+
+/// <summary>
+/// Alıcının belge yükleme ve alış oluşturma isteklerine IP'den bağımsız saatlik üst kova (host-auth-5): 'alis-yukleme' penceresi
+/// (kullanıcı, IP) çiftine bölünür; ele geçirilmiş bir alıcı hesabı farklı ağlardan istek göndererek pencereyi çoğaltabilirdi.
+/// Bu kova yalnız alıcı kimliğine bölünür (<see cref="HizSiniriAyarlari.AliciSaatlikAlisYuklemeIzni"/>, 1 saatlik sabit pencere);
+/// başka alıcı ve editör etkilenmez. Kalıcı veri yine alıcı kotalarıyla (<see cref="AliciKotaAyarlari"/>) sınırlıdır; bu kova
+/// yükle-sil döngüsünün ve her biri bellekte birkaç kopya tutan büyük yüklemelerin toplam hızını sınırlar. İzin kova ilk
+/// açıldığında okunur (pencere politikalarındaki gibi).
+/// </summary>
+internal sealed class AliciAlisYuklemeSiniri(IOptionsMonitor<HizSiniriAyarlari> ayarlar) : IDisposable
+{
+    private readonly PartitionedRateLimiter<string> _kovalar = PartitionedRateLimiter.Create<string, string>(alici =>
+        RateLimitPartition.GetFixedWindowLimiter(alici, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = ayarlar.CurrentValue.AliciSaatlikAlisYuklemeIzni, Window = TimeSpan.FromHours(1), QueueLimit = 0,
+        }));
+
+    public RateLimitLease Dene(string aliciId) => _kovalar.AttemptAcquire(aliciId);
+
+    /// <summary>Uç filtresi: 'alis-yukleme' politikasıyla (ara katman) birlikte belge yükleme ve alış oluşturma uçlarına
+    /// eklenir; pencerede reddedilen istek bu kovayı tüketmez. Editör yalnız kendi penceresine tabidir.</summary>
+    public static async ValueTask<object?> Filtre(EndpointFilterInvocationContext baglam, EndpointFilterDelegate sonraki)
+    {
+        var http = baglam.HttpContext;
+        if (!http.User.IsInRole("editor") && http.User.FindFirstValue("alici_id") is { Length: > 0 } alici)
+        {
+            using var lease = http.RequestServices.GetRequiredService<AliciAlisYuklemeSiniri>().Dene(alici);
+            if (!lease.IsAcquired) return AlisYuklemePolitikasi.SaatlikRed(http, lease);
+        }
+        return await sonraki(baglam);
+    }
+
+    public void Dispose() => _kovalar.Dispose();
 }
 
 /// <summary>

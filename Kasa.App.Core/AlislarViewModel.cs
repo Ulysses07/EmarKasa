@@ -71,7 +71,7 @@ public partial class AlislarViewModel : TemelViewModel
     [ObservableProperty] private decimal _odemeTutari;
     [ObservableProperty] private OdemeKartiSecenegi? _odemeKarti;
     [ObservableProperty] private string? _odemeNotu;
-    /// <summary>Bağlanabilir gider araması: tutar gibi yazılırsa tutar, değilse açıklama/not metni.</summary>
+    /// <summary>Bağlanabilir gider araması: açıklama/not metni; tutar gibi de okunursa o tutardaki giderler de gelir.</summary>
     [ObservableProperty] private string _giderArama = "";
     [ObservableProperty] private bool _dahaFazlaGiderVar;
     [ObservableProperty] private bool _hesaplarAcik;
@@ -426,11 +426,12 @@ public partial class AlislarViewModel : TemelViewModel
         if (Gecerli(nesil)) GiderSayfasiniUygula(sayfa, arama, ekle: devam);
     });
 
-    /// <summary>Arama metni tutar gibi okunuyorsa tutar süzgeci, değilse açıklama/not araması; boşsa en yeni giderler.</summary>
+    /// <summary>Arama metni açıklama/notta aranır; metin tutar gibi de okunuyorsa ('2024' bir fatura numarası da olabilir) tutar
+    /// okuması eklenir ve metne ya da tutara uyan giderler gelir. Boşsa en yeni giderler.</summary>
     private Task<BaglanabilirGiderSayfasi> GiderSayfasiAsync(string arama, string? imlec)
-        => arama.Length > 0 && ParaAyristirici.Coz(arama, out var tutar, out _) && tutar > 0
-            ? _api.BaglanabilirGiderlerAsync(tutar: tutar, imlec: imlec)
-            : _api.BaglanabilirGiderlerAsync(arama.Length > 0 ? arama : null, imlec: imlec);
+        => arama.Length == 0 ? _api.BaglanabilirGiderlerAsync(imlec: imlec)
+            : _api.BaglanabilirGiderlerAsync(arama, imlec: imlec,
+                aramaTutari: ParaAyristirici.Coz(arama, out var tutar, out _) && tutar > 0 ? tutar : null);
 
     private void GiderSayfasiniUygula(BaglanabilirGiderSayfasi sayfa, string arama, bool ekle)
     {

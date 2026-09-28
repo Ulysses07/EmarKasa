@@ -140,9 +140,11 @@ internal static class AliciKotalari
     /// <summary>Alıcının belge yüklemesi: taslaktaki belge sayısı ve toplam boyutu, onay bekleyen bütün alışlarındaki belge
     /// hacmi ve son 24 saatteki yükleme hacmi. Onay bekleyen hacim alıcının kalıcı belge verisinin üst sınırıdır: taslağı
     /// incelemeye göndermek yer açmaz, editörün onayı açar (onaylı alışın belgesini editör görmüştür). Belge içeriği okunmaz
-    /// (yalnız boyut ve an); 24 saat süzmesi bellekte yapılır (SQLite DateTimeOffset karşılaştırmasını çeviremez). Editörün
-    /// alıcının alışına eklediği belge de hacme sayılır: kota alıcının alışlarındaki veriyi sınırlar. Silinen belge disk
-    /// tutmadığından sayılmaz; yükle-sil döngüsünü 'alis-yukleme' hız politikası yavaşlatır.</summary>
+    /// (yalnız boyut); 24 saat süzmesi ve toplamı sorguda yapılır: EF, SQLite'ta DateTimeOffset karşılaştırmasını çeviremediği
+    /// için ham SQL'de julianday saat dilimli metni ana çevirir (farklı dilimle yazılmış eski kayıtlar da doğru karşılaştırılır);
+    /// alıcının belge geçmişinin satırları belleğe alınmaz. Editörün alıcının alışına eklediği belge de hacme sayılır: kota
+    /// alıcının alışlarındaki veriyi sınırlar. Silinen belge disk tutmadığından sayılmaz; yükle-sil döngüsünü 'alis-yukleme'
+    /// hız politikası ve alıcının saatlik kovası yavaşlatır.</summary>
     internal static IResult? Belge(KasaDbContext db, ClaimsPrincipal user, int alisId, long boyut, AliciKotaAyarlari kota, DateTimeOffset simdi)
     {
         if (user.IsInRole("editor") || AliciId(user) is not { } aliciId) return null;
@@ -155,9 +157,10 @@ internal static class AliciKotalari
             .Sum(b => (long?)b.Boyut) ?? 0;
         if (bekleyen + boyut > kota.OnayBekleyenBelgeMb * Mb)
             return AlisEndpoints.Conflict($"Onay bekleyen alışlarınızdaki belgelerin toplam boyutu en fazla {kota.OnayBekleyenBelgeMb} MB olabilir. Gereksiz belgeleri silin veya editörün bekleyen alışlarınızı onaylamasını bekleyin.");
-        var sinir = simdi.AddDays(-1);
-        var gunluk = db.Belgeler.Where(b => db.Alislar.Any(a => a.Id == b.AlisId && a.AliciId == aliciId))
-            .Select(b => new { b.Boyut, b.Yuklendi }).AsEnumerable().Where(b => b.Yuklendi > sinir).Sum(b => b.Boyut);
+        var gunluk = db.Database.SqlQuery<long>($"""
+            SELECT COALESCE(SUM(b."Boyut"), 0) AS "Value" FROM "Belgeler" AS b JOIN "Alislar" AS a ON a."Id" = b."AlisId"
+            WHERE a."AliciId" = {aliciId} AND julianday(b."Yuklendi") > julianday({simdi.AddDays(-1)})
+            """).Single();
         return gunluk + boyut > kota.GunlukYuklemeMb * Mb
             ? AlisEndpoints.Conflict($"Son 24 saatte en fazla {kota.GunlukYuklemeMb} MB belge yükleyebilirsiniz. Daha sonra yeniden deneyin veya editöre başvurun.")
             : null;

@@ -246,6 +246,7 @@ app.MapAliciEndpoints();
 app.MapGuvenlikEndpoints();
 app.MapBelgeEndpoints();
 app.MapBaglanabilirGiderler();
+app.MapAlisIncelemeOzeti();
 app.MapYonetimEndpoints();
 
 // Finansal bilgiler yalnız editör ve izleyiciye açıktır.
