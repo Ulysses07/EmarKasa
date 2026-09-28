@@ -39,6 +39,8 @@ jobs:
           - Kasa.Api.Tests
           - Kasa.ApiClient.Tests
           - Kasa.App.Core.Tests
+          # Gerçek KasaApiClient ↔ gerçek Kasa.Api sözleşmesi (bellek içi SQLite; ağ ve iş yükü gerekmez).
+          - Kasa.Sozlesme.Tests
     steps:
       - uses: actions/checkout@v7
         with:
@@ -56,7 +58,7 @@ jobs:
         run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
 
   windows-app:
-    name: Build Windows MAUI app
+    name: Build and smoke-test Windows MAUI app
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -72,7 +74,42 @@ jobs:
         run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward latestPatch
       - name: Restore MAUI workloads
         run: dotnet workload restore Kasa.App/Kasa.App.csproj
+      # Dağıtılan yapılandırma (docs/deploy/windows-exe.md): varsayılan ayarlar, Windows App SDK çalışma zamanına
+      # bağlı (framework-dependent) derleme. Gönderilen paketi bu adım derler.
       - name: Restore app dependencies
         run: dotnet restore Kasa.App/Kasa.App.csproj
-      - name: Build Windows app
+      - name: Build Windows app (shipped configuration)
         run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 --no-restore
+      # Yalnız duman testi için ikinci derleme: Windows App SDK çalışma zamanı uygulamanın yanına alınır
+      # (WindowsAppSDKSelfContained), böylece test runner'da kurulu bir çalışma zamanına dayanmaz. Çıktı ayrı dizine
+      # gider; dağıtılan paket bu derlemeden üretilmez.
+      - name: Restore smoke-test dependencies
+        run: dotnet restore Kasa.App/Kasa.App.csproj -p:WindowsAppSDKSelfContained=true
+      - name: Build Windows app for smoke test (self-contained Windows App SDK)
+        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 --no-restore -p:WindowsAppSDKSelfContained=true --output "${{ runner.temp }}/kasa-smoke"
+      # Duman testi (tests-9): uygulama açılır, pencere gelir ve kabuk, kaynak sözlükleri ve giriş sayfası yüklenirken
+      # çökmez. Derlemeyi geçen XAML kaynak hataları, DI eksikleri ve açılış istisnaları burada kırılır. KASA_API_URL
+      # ulaşılamayan yerel adrestir: canlı sunucuya istek gitmez, oturum doğrulaması ağ hatasıyla giriş sayfasına döner.
+      - name: Smoke-test Windows app startup
+        shell: pwsh
+        env:
+          KASA_API_URL: http://127.0.0.1:9/
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'kasa-smoke/Kasa.App.exe'
+          if (-not (Test-Path $exe)) { throw "Kasa.App.exe bulunamadı: $exe" }
+          $p = Start-Process -FilePath $exe -PassThru
+          try {
+            $pencere = $false
+            for ($i = 0; $i -lt 60 -and -not $pencere; $i++) {
+              Start-Sleep -Seconds 1
+              if ($p.HasExited) { throw "Kasa.App açılışta kapandı (çıkış kodu $($p.ExitCode))." }
+              $p.Refresh(); $pencere = $p.MainWindowHandle -ne [IntPtr]::Zero
+            }
+            if (-not $pencere) { throw 'Kasa.App 60 saniyede pencere açmadı.' }
+            Start-Sleep -Seconds 15
+            if ($p.HasExited) { throw "Kasa.App pencere açıldıktan sonra kapandı (çıkış kodu $($p.ExitCode))." }
+            $p.Refresh()
+            Write-Output "Kasa.App ayakta: pencere '$($p.MainWindowTitle)'."
+          } finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          }
