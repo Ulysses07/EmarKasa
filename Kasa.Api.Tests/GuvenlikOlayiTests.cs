@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.DenetimIziTests;
@@ -224,6 +225,77 @@ public class GuvenlikOlayiTests
         foreach (var gizli in new[] { "izleyici-sifre-123", "izleyici-sifre-456", "alici-sifre-2", "alici-sifre-3",
                      db.Alicilar.AsNoTracking().Single().SifreHash, db.Ayarlar.AsNoTracking().Single().IzleyiciSifreHash! })
             Assert.DoesNotContain(gizli, tumu, StringComparison.Ordinal);
+    }
+
+    /// <summary>İstek gerekçe başlığı (X-Kasa-Gerekce) yalnız oturumlu editör ya da alıcının kasa değişikliğine iliştirilir:
+    /// kimliksiz giriş ve kurtarma isteği değiştirilemez denetim izinin gerekçe alanına istediği metni yazamaz; oturumlu
+    /// editörün güvenlik olayı da başlıktaki metni taşımaz. Aynı başlık editörün gider silmesinde gerekçedir.</summary>
+    [Fact]
+    public async Task Gerekce_basligi_guvenlik_olaylarina_ve_kimliksiz_isteklere_yazilmaz()
+    {
+        await using var f = MonthlyExpenseTests.Fabrika();
+        const string sahte = "Editör testi, yok sayın";
+        using var anonim = f.CreateClient();
+        anonim.DefaultRequestHeaders.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString(sahte));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yanlis" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod = "YANLISKOD", yeniSifre = "kurtarilan-sifre-123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await anonim.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-sifre-123" })).StatusCode);
+
+        var olaylar = Olaylar(f, GuvenlikOlaylari.Varlik);
+        Assert.Equal([GuvenlikOlaylari.GirisBasarisiz, GuvenlikOlaylari.KurtarmaBasarisiz, GuvenlikOlaylari.GirisBasarili, GuvenlikOlaylari.SifreDegisti], olaylar.Select(o => o.Tur));
+        Assert.All(olaylar, o => Assert.Null(o.Gerekce));
+
+        using var editor = f.CreateClient();
+        (await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yepyeni-sifre-123" })).EnsureSuccessStatusCode();
+        var gider = await MonthlyExpenseTests.Post<IslemEntity>(editor, "/api/islemler", new IslemYazDto(MonthlyExpenseTests.Today, "Toptancı", 10m, "MEZAT", Kasa.Core.GiderTipi.Cari));
+        using var silme = new HttpRequestMessage(HttpMethod.Delete, $"/api/islemler/{gider.Id}");
+        silme.Headers.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString("Mükerrer giriş"));
+        Assert.Equal(HttpStatusCode.NoContent, (await editor.SendAsync(silme)).StatusCode);
+        Assert.Equal("Mükerrer giriş", Assert.Single(Olaylar(f, "Islem", gider.Id), o => o.Tur == "Sil").Gerekce);
+    }
+
+    /// <summary>Başarılı şifre değişimi, kurtarma kodu üretimi ve kurtarma olayıyla aynı transaction'dadır: olay yazılamazsa
+    /// değişiklik de kaydedilmez (istek başarısız olur; eski şifre ve eski kurtarma kodu geçerli kalır). Olay tablosunda izi
+    /// olmayan şifre değişikliği olmaz.</summary>
+    [Fact]
+    public async Task Sifre_ve_kurtarma_olayi_yazilamazsa_degisiklik_geri_alinir()
+    {
+        await using var f = new KasaWebFactory();
+        using var editor = await f.EditorClientAsync();
+        var kodYaniti = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" });
+        kodYaniti.EnsureSuccessStatusCode();
+        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kod").GetString()!;
+        (string? Sifre, string? Kurtarma, int Surum) Durum()
+        {
+            using var scope = f.Services.CreateScope();
+            var kayit = scope.ServiceProvider.GetRequiredService<KasaDbContext>().EditorGuvenlik.AsNoTracking().Single();
+            return (kayit.SifreHash, kayit.KurtarmaHash, kayit.Surum);
+        }
+        void Sql(string komut)
+        {
+            using var scope = f.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<KasaDbContext>().Database.ExecuteSqlRaw(komut);
+        }
+        var once = Durum();
+        Sql("CREATE TRIGGER TR_Test_Guvenlik_Reddi BEFORE INSERT ON DenetimOlaylari WHEN NEW.Tur IN ('SifreDegisti', 'KurtarmaKoduUretildi', 'KurtarmaKullanildi') BEGIN SELECT RAISE(ABORT, 'test: olay yazilamadi'); END;");
+
+        static async Task Reddedildi(Task<HttpResponseMessage> istek)
+        {
+            using var yanit = await istek;
+            Assert.False(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}");
+        }
+        await Reddedildi(editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-sifre-123" }));
+        await Reddedildi(editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" }));
+        using var anonim = f.CreateClient();
+        await Reddedildi(anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" }));
+        Assert.Equal(once, Durum());
+        Assert.DoesNotContain(Olaylar(f, GuvenlikOlaylari.Varlik), o => o.Tur is GuvenlikOlaylari.SifreDegisti or GuvenlikOlaylari.KurtarmaKullanildi);
+
+        Sql("DROP TRIGGER TR_Test_Guvenlik_Reddi;");
+        Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" })).StatusCode);
+        Assert.Single(Olaylar(f, GuvenlikOlaylari.Varlik), o => o.Tur == GuvenlikOlaylari.KurtarmaKullanildi);
     }
 
     private static string TumMetin(KasaDbContext db) => string.Join("\n", db.DenetimOlaylari.AsNoTracking().AsEnumerable()

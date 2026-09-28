@@ -11,10 +11,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Kasa.Api.Denetim;
 
 /// <summary>Yazılacak denetim olayı. Aktör verilmezse isteğin aktörü, istek kimliği verilmezse bağlamın
-/// (<see cref="KasaDbContext.DenetimIstekId"/>), gerekçe verilmezse isteğin gerekçe başlığındaki
-/// (<see cref="DenetimBaglami.GerekceBasligi"/>) kullanılır.</summary>
+/// (<see cref="KasaDbContext.DenetimIstekId"/>) kullanılır. Gerekçe verilmezse isteğin gerekçe başlığındaki
+/// (<see cref="DenetimBaglami.GerekceBasligi"/>) metin yazılır: yalnız oturumlu editör ya da alıcı isteğinde ve
+/// <paramref name="BaslikGerekcesi"/> açıkken (güvenlik olayları kapatır).</summary>
 public sealed record DenetimOlayi(string Tur, string Varlik, string? VarlikId, string? OncekiJson, string? YeniJson,
-    string? Gerekce = null, int? KilitAcmaOlayiId = null, DenetimAktoru? Aktor = null, Guid? IstekId = null);
+    string? Gerekce = null, int? KilitAcmaOlayiId = null, DenetimAktoru? Aktor = null, Guid? IstekId = null, bool BaslikGerekcesi = true);
 
 /// <summary>
 /// Olayları doğrudan SQL ile ekler: değişiklik izleyiciye girmez (bir sonraki SaveChanges'e karışmaz, yeniden
@@ -50,7 +51,9 @@ public static class DenetimYazici
         if (olaylar.Count == 0 || !TabloVar(db)) return;
         var istek = DenetimBaglami.Istek(db);
         var istekAktoru = DenetimBaglami.Aktor(istek);
-        var istekGerekcesi = DenetimBaglami.IstekGerekcesi(istek);
+        // Başlıktaki gerekçe yalnız kasayı değiştirebilen oturumlu isteğe aittir: kimliksiz istek (giriş, kurtarma)
+        // değiştirilemez izin gerekçe alanına kendi metnini yazamaz.
+        var istekGerekcesi = istekAktoru.Rol is "editor" or "alici" ? DenetimBaglami.IstekGerekcesi(istek) : null;
         var zaman = db.Saati().GetUtcNow().ToUnixTimeMilliseconds();
         for (var bas = 0; bas < olaylar.Count; bas += ToplamaBoyu)
         {
@@ -63,7 +66,7 @@ public static class DenetimYazici
                 object?[] degerler =
                 [
                     zaman, aktor.Rol, aktor.Id, aktor.Ip, olay.Tur, olay.Varlik, olay.VarlikId, olay.OncekiJson, olay.YeniJson,
-                    Kisalt(olay.Gerekce ?? istekGerekcesi), istekId is { } g && g != Guid.Empty ? g.ToString().ToUpperInvariant() : null, aktor.TraceId, olay.KilitAcmaOlayiId,
+                    Kisalt(olay.Gerekce ?? (olay.BaslikGerekcesi ? istekGerekcesi : null)), istekId is { } g && g != Guid.Empty ? g.ToString().ToUpperInvariant() : null, aktor.TraceId, olay.KilitAcmaOlayiId,
                 ];
                 if (sira > 0) sql.Append(", ");
                 sql.Append('(');

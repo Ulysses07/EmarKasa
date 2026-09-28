@@ -11,7 +11,9 @@ namespace Kasa.Api.Auth;
 /// 'Kasa.Guvenlik' kategorisinde loglanır (başarısız/ret Warning, başarılı Information). Olaya yalnız bilinen bir hesabın
 /// (editör ya da alıcı) normalize kullanıcı adı ve sonuç ayrıntısı girer: bilinmeyen ad <see cref="BilinmeyenAd"/> olarak
 /// yazılır (ad alanına yanlışlıkla girilen parola olaya ve loga düşmez); parola, kurtarma kodu, oturum belirteci ve tanıdık
-/// cihaz belirteci hiçbir alana yazılmaz. Yazma hatası isteği bozmaz (loglanır). Türler: GirisBasarili, GirisBasarisiz,
+/// cihaz belirteci hiçbir alana yazılmaz; isteğin gerekçe başlığı da yazılmaz. Giriş, hız sınırı ve başarısız denemede yazma
+/// hatası isteği bozmaz (loglanır); şifre değişimi, kurtarma kodu üretimi ve kurtarmada olay değişiklikle aynı transaction'dadır,
+/// yazılamazsa değişiklik geri alınır (<c>zorunlu</c>). Türler: GirisBasarili, GirisBasarisiz,
 /// HizSiniri, GirisYogun (şifre doğrulama kuyruğu dolu: sunucu yoğun, saldırı reddi değil), KurtarmaKullanildi,
 /// KurtarmaBasarisiz, SifreDegisti, SifreDegistirmeBasarisiz, KurtarmaKoduUretildi, KurtarmaKoduUretimiBasarisiz.
 /// İzleyici şifresi değişimi ve alıcı şifre/oturum iptalleri ilgili kaydın değişikliğiyle aynı tabloya yazılır
@@ -39,12 +41,16 @@ public static class GuvenlikOlaylari
 
     private static readonly HashSet<string> Olumsuz = [GirisBasarisiz, HizSiniri, GirisYogun, KurtarmaBasarisiz, SifreDegistirmeBasarisiz, KurtarmaKoduUretimiBasarisiz];
 
-    /// <summary>Olayı isteğin bağlamında yazar: açık transaction varsa onunla (çağıran commit eder), yoksa hemen.</summary>
+    /// <summary>Olayı isteğin bağlamında yazar: açık transaction varsa onunla (çağıran commit eder), yoksa hemen. İsteğin
+    /// gerekçe başlığı (<see cref="DenetimBaglami.GerekceBasligi"/>) güvenlik olayına yazılmaz.</summary>
     /// <param name="kullanici">Denenen ya da oturumdaki kullanıcı adı (<see cref="YazilacakAd"/>).</param>
     /// <param name="ayrinti">Parola/kod/belirteç içermeyen ek bilgi (ör. hız sınırı politikası ve uç).</param>
     /// <param name="aktor">Başarılı girişte oturumu açılan rol ve alıcı kimliği; verilmezse isteğin kimliği.</param>
+    /// <param name="zorunlu">Olay, çağıranın aynı transaction'daki değişikliğinin (şifre, kurtarma kodu) tek izidir: yazılamazsa
+    /// hata loglanır ve yeniden fırlatılır, çağıran commit etmez (değişiklik geri alınır). Kapalıyken (başarısız deneme,
+    /// giriş, hız sınırı) yazma hatası loglanır, isteğin sonucu değişmez.</param>
     public static void Yaz(HttpContext http, KasaDbContext db, string tur, string? kullanici = null, object? ayrinti = null,
-        (string Rol, int? Id)? aktor = null, string? varlikId = null)
+        (string Rol, int? Id)? aktor = null, string? varlikId = null, bool zorunlu = false)
     {
         var log = Log(http);
         var ip = DenetimBaglami.Ip(http);
@@ -55,12 +61,17 @@ public static class GuvenlikOlaylari
             var istek = DenetimBaglami.Aktor(http);
             DenetimYazici.Yaz(db, new DenetimOlayi(tur, Varlik, varlikId, null,
                 DenetimYazici.Json(new { kullanici = ad, uc = $"{http.Request.Method} {http.Request.Path}", ayrinti }),
-                Aktor: aktor is { } a ? istek with { Rol = a.Rol, Id = a.Id } : istek));
+                Aktor: aktor is { } a ? istek with { Rol = a.Rol, Id = a.Id } : istek, BaslikGerekcesi: false));
         }
         catch (Exception e)
         {
             // Ad çözülemediyse (veritabanı hatası) logda da düz metin yer almaz.
             if (ad is null && !string.IsNullOrWhiteSpace(kullanici)) ad = BilinmeyenAd;
+            if (zorunlu)
+            {
+                log.LogError(e, "Güvenlik olayı ({Tur}) denetim kaydına yazılamadı; değişiklik geri alınıyor.", tur);
+                throw;
+            }
             log.LogError(e, "Güvenlik olayı ({Tur}) denetim kaydına yazılamadı; istek etkilenmedi.", tur);
         }
         if (Olumsuz.Contains(tur)) log.LogWarning("Güvenlik olayı {Tur}: kullanıcı {Kullanici}, istemci {Ip}.", tur, ad ?? "-", ip ?? "-");

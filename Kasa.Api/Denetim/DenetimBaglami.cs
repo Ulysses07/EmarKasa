@@ -27,6 +27,8 @@ public static class DenetimBaglami
     /// <c>Uri.EscapeDataString</c>): gövdesinde gerekçe alanı olmayan uçlar da (gider düzenleme ve gövdesiz silme, gelir,
     /// genel kasa açılışı) değişikliğe gerekçe iliştirebilir; başlığı göndermeyen eski istemciler etkilenmez. Ucun kendi
     /// gerekçesi (<see cref="KasaDbContext.Denetle"/>, iptal açıklaması) başlıktan önce gelir. En çok 2000 karakter yazılır.
+    /// Yalnız oturumlu editör ya da alıcı isteğinde okunur ve güvenlik olaylarına hiç yazılmaz: kimliksiz giriş/kurtarma
+    /// isteği değiştirilemez izin gerekçe alanına kendi metnini yazamaz.
     /// </summary>
     public const string GerekceBasligi = "X-Kasa-Gerekce";
 

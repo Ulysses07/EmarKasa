@@ -223,6 +223,13 @@ public class DenetimIziTests
                 var olay = Assert.Single(gecmis);
                 Assert.Equal(("GecmisKayit", "sistem", "Mart kirası yanlış aya girildi"), (olay.Tur, olay.AktorRol, olay.Gerekce));
                 Assert.Equal(("2026-03-01", true), ((string?)J(olay.YeniJson)["Ay"], J(olay.YeniJson)["Iptal"]!.GetValue<bool>()));
+
+                // Aynı iptal Mart ekranında da görünür: kira yeniden planlanır, iptal edilen ödeme gerekçesiyle ayrı listededir.
+                // Sürüm öncesi iptalin anı bilinmez (aktarım anı iptal anı sayılmaz).
+                var mart = (await c.GetFromJsonAsync<AylikGiderAyDto>("/api/aylik-giderler?yil=2026&ay=3"))!;
+                Assert.Equal("Planlandi", Assert.Single(mart.Kayitlar).Durum);
+                var iptal = Assert.Single(mart.Iptaller);
+                Assert.Equal(((int?)5, "Iptal", "Mart kirası yanlış aya girildi", (DateTimeOffset?)null), (iptal.OdemeId, iptal.Durum, iptal.IptalAciklamasi, iptal.IptalZamani));
             }
         }
         finally
@@ -435,6 +442,109 @@ public class DenetimIziTests
         var kontrol = await Post<KasaKontrolDto>(c, "/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 900m, onizleme.KontrolOzeti, "Sayım"));
         var kontrolOlayi = Assert.Single(Olaylar(f, "KasaKontrol", kontrol.Id));
         Assert.Equal(900m, J(kontrolOlayi.YeniJson)["GercekBakiye"]!.GetValue<decimal>());
+    }
+
+    /// <summary>Senaryo (bulgu 5): Mart kira ödemesi iptal edilince ay listesi kirayı yeniden 'Planlandi' gösterir; iptal
+    /// edilen ödeme ise gerekçesi ve iptal anıyla (denetim olayından) aynı ekranın ayrı listesinde kalır. Ay toplamları
+    /// iptalden etkilenmez (iptal edilen ödeme ne planlanana ne ödenene girer); yeniden ödenirse iki kayıt birlikte görünür.</summary>
+    [Fact]
+    public async Task Iptal_edilen_aylik_gider_odemesi_ay_listesinde_gerekcesi_ve_iptal_aniyla_ayrica_gorunur()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var sablon = await Create(c, "Ozel", [new(1, 100m)]);
+        var odeme = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
+        Assert.Equal(((string?)null, (DateTimeOffset?)null), (odeme.IptalAciklamasi, odeme.IptalZamani));
+        var iptal = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Mart kirası yanlış aya girildi"));
+        Assert.Equal(("Iptal", "Mart kirası yanlış aya girildi", (DateTimeOffset?)DateTimeOffset.FromUnixTimeMilliseconds(SabitAn)), (iptal.Durum, iptal.IptalAciklamasi, iptal.IptalZamani));
+
+        var ay = (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!;
+        var plan = Assert.Single(ay.Kayitlar);
+        Assert.Equal(("Planlandi", (int?)null, (string?)null), (plan.Durum, plan.OdemeId, plan.IptalAciklamasi));
+        Assert.Equal((100m, 0m), (ay.PlanlananToplam, ay.OdenenToplam));
+        var iptalEdilen = Assert.Single(ay.Iptaller);
+        Assert.Equal(("Iptal", odeme.OdemeId, odeme.OdemeTarihi, 100m, (int?)null), (iptalEdilen.Durum, iptalEdilen.OdemeId, iptalEdilen.OdemeTarihi, iptalEdilen.Tutar, iptalEdilen.IslemId));
+        Assert.Equal(("Mart kirası yanlış aya girildi", (DateTimeOffset?)DateTimeOffset.FromUnixTimeMilliseconds(SabitAn)), (iptalEdilen.IptalAciklamasi, iptalEdilen.IptalZamani));
+
+        var yeniden = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
+        ay = (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!;
+        var odenen = Assert.Single(ay.Kayitlar);
+        Assert.Equal(("Odendi", yeniden.OdemeId), (odenen.Durum, odenen.OdemeId));
+        Assert.Equal(odeme.OdemeId, Assert.Single(ay.Iptaller).OdemeId);
+        Assert.Equal((100m, 100m), (ay.PlanlananToplam, ay.OdenenToplam));
+    }
+
+    /// <summary>İptal edilen ekstre satırı belgenin kayıt listesinde gerekçesi ve iptal anıyla okunur.</summary>
+    [Fact]
+    public async Task Iptal_edilen_ekstre_satiri_belgede_gerekcesi_ve_iptal_aniyla_okunur()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var (belge, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today, 250m, "Genel", []);
+        Assert.Equal(((string?)null, (DateTimeOffset?)null), (satir.IptalAciklamasi, satir.IptalZamani));
+        belge = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{belge.Id}/kayitlar/{satir.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Banka hareketi iki kez okundu"));
+        var beklenen = (true, "Banka hareketi iki kez okundu", (DateTimeOffset?)DateTimeOffset.FromUnixTimeMilliseconds(SabitAn));
+        var iptal = Assert.Single(belge.Kayitlar, k => k.Id == satir.Id);
+        Assert.Equal(beklenen, (iptal.Iptal, iptal.IptalAciklamasi, iptal.IptalZamani));
+        var okunan = Assert.Single((await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge.Id}"))!.Kayitlar, k => k.Id == satir.Id);
+        Assert.Equal(beklenen, (okunan.Iptal, okunan.IptalAciklamasi, okunan.IptalZamani));
+    }
+
+    /// <summary>Alış ödemesi iptal edilince veritabanı, o ödemeye iliştirilmiş (izleyiciye yüklenmemiş) belgenin bağını ON DELETE
+    /// SET NULL ile koparır. Kopan bağ belgenin kendi izinde 'BagKoptu' olayıyla, silmeyle aynı gerekçe, istek kimliği ve izle
+    /// görünür. Davranış aynıdır: bağı yine veritabanı koparır, belge alışta kalır.</summary>
+    [Fact]
+    public async Task Iptal_edilen_alis_odemesinin_veritabaninda_kopan_belge_bagi_belgenin_izinde_gorunur()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Belgeli", null, [new("Mal", 100m, [new(1, 100m)])]));
+        (alis, _) = await Yanit<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Today, 100m));
+        var odemeId = alis.Odemeler.Single().Id;
+        using var form = new MultipartFormDataContent();
+        form.Add(new ByteArrayContent("%PDF-1.7 dekont"u8.ToArray()), "dosya", "dekont.pdf");
+        form.Add(new StringContent(odemeId.ToString(CultureInfo.InvariantCulture)), "odemeId");
+        using var yukle = await c.PostAsync($"/api/alis/{alis.Id}/belgeler", form);
+        Assert.Equal(HttpStatusCode.Created, yukle.StatusCode);
+        var belge = (await yukle.Content.ReadFromJsonAsync<BelgeDto>())!;
+        var istek = Guid.NewGuid();
+        await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler/{odemeId}/iptal", new AlisOdemeIptal(alis.Surum, istek, "Ödeme yanlış alışa girildi"));
+
+        var bag = Assert.Single(Olaylar(f, "Belge", belge.Id), o => o.Tur == "BagKoptu");
+        Assert.Equal(($"{{\"OdemeId\":{odemeId}}}", """{"OdemeId":null}""", "Ödeme yanlış alışa girildi", (Guid?)istek), (bag.OncekiJson, bag.YeniJson, bag.Gerekce, bag.IstekId));
+        var silme = Assert.Single(Olaylar(f, "AlisOdeme", odemeId), o => o.Tur == "Sil");
+        Assert.Equal((silme.TraceId, silme.ZamanUtc, "editor"), (bag.TraceId, bag.ZamanUtc, bag.AktorRol));
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        var kalan = db.Belgeler.AsNoTracking().Single(b => b.Id == belge.Id);
+        Assert.Equal((alis.Id, (int?)null), (kalan.AlisId, kalan.OdemeId));
+    }
+
+    /// <summary>Yüklenmemiş bağımlıları veritabanı CASCADE ile silen silme (alışın kalemleri, kalemin kanal payları; zincirleme)
+    /// silinen her bağımlı için bütün alanlarıyla 'Sil' olayı yazar; izleyicide zaten silinen bağımlı iki kez yazılmaz.</summary>
+    [Fact]
+    public async Task Veritabaninin_zincirleme_sildigi_yuklenmemis_bagimlilar_silme_olayiyla_yazilir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Tedarikçi", null, [new("Un", 300m, [new(1, 100m), new(2, 200m)]), new("Şeker", 50m, [new(3, 50m)])]));
+        int[] dagilimlar;
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            dagilimlar = db.Set<AlisDagilimEntity>().AsNoTracking().OrderBy(d => d.Id).Select(d => d.Id).ToArray();
+            // Şeker kalemi izleyicide silinir (EF kaydeder); alışın öteki kalemi yüklenmeden silinir (veritabanı zincirleme siler).
+            var seker = db.AlisKalemler.Include(k => k.Dagilimlar).Single(k => k.Aciklama == "Şeker");
+            db.AlisKalemler.Remove(seker);
+            db.Alislar.Remove(db.Alislar.Single(a => a.Id == alis.Id));
+            db.SaveChanges();
+            Assert.False(db.AlisKalemler.AsNoTracking().Any(k => k.AlisId == alis.Id));
+            Assert.False(db.Set<AlisDagilimEntity>().AsNoTracking().Any(d => dagilimlar.Contains(d.Id)));
+        }
+
+        var unSilme = Assert.Single(Olaylar(f, "AlisKalem", alis.Kalemler.Single(k => k.Aciklama == "Un").Id), o => o.Tur == "Sil");
+        var un = J(unSilme.OncekiJson);
+        Assert.Equal(("Un", 300m, alis.Id), ((string?)un["Aciklama"], un["Tutar"]!.GetValue<decimal>(), un["AlisId"]!.GetValue<int>()));
+        Assert.Single(Olaylar(f, "AlisKalem", alis.Kalemler.Single(k => k.Aciklama == "Şeker").Id), o => o.Tur == "Sil");
+        var paySilmeleri = dagilimlar.Select(id => Assert.Single(Olaylar(f, "AlisDagilim", id), o => o.Tur == "Sil")).ToList();
+        Assert.Equal([100m, 200m, 50m], paySilmeleri.Select(o => J(o.OncekiJson)["Tutar"]!.GetValue<decimal>()));
+        Assert.All(paySilmeleri, o => Assert.Equal("sistem", o.AktorRol));
     }
 
     internal static List<DenetimOlayEntity> Olaylar(KasaWebFactory f, string varlik, object? varlikId = null)

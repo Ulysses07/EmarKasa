@@ -17,6 +17,9 @@ namespace Kasa.Api.Denetim;
 /// <item>Kanal yeniden adlandırılırken geçmiş gider/gelir/kredi satırlarındaki kanal metninin eşitlenmesi ayrı olay
 /// üretmez (kanal kimliği aynı; kanalın olayı eski ve yeni adı taşır).</item>
 /// <item>Ay kilidi açılışının penceresine düşen değişiklik açılış olayına bağlanır (<see cref="DenetimKilitPenceresi"/>).</item>
+/// <item>Veritabanının silmede kendiliğinden yaptığı değişiklikler (ON DELETE SET NULL / CASCADE; izleyiciye yüklenmemiş
+/// bağımlılar, ör. iptal edilen alış ödemesinin belgesi): bağı kopan kayıt 'BagKoptu', zincirleme silinen kayıt 'Sil' olayıyla
+/// üst kaydın silmesiyle aynı gerekçe ve istek kimliğiyle yazılır (<see cref="VeritabaniEtkileri"/>).</item>
 /// <item>Dışarıda: olay ve istek tabloları, bildirim altyapısı, türetilmiş kilitli ay rapor görüntüsü; ay kilidi ve editör
 /// güvenliği kendi uçlarında ayrı (daha anlamlı) olay yazar.</item>
 /// </list>
@@ -43,7 +46,9 @@ internal static class DenetimYakalayici
 
     internal sealed class Kayit
     {
-        public required EntityEntry Entry { get; init; }
+        /// <summary>İzleyicideki kayıt; veritabanının kendiliğinden değiştirdiği (izlenmeyen) bağımlıda null.</summary>
+        public EntityEntry? Entry { get; init; }
+        public required object Nesne { get; init; }
         public required EntityState Durum { get; init; }
         public required string Varlik { get; init; }
         public string Tur { get; set; } = "";
@@ -79,7 +84,7 @@ internal static class DenetimYakalayici
             if (Haric.Contains(e.Entity.GetType())) continue;
             var yoksay = Turetilmis.GetValueOrDefault(e.Entity.GetType());
             var ozellikler = e.Properties.Where(p => !Sayac.Contains(p.Metadata.Name) && yoksay?.Contains(p.Metadata.Name) != true).ToList();
-            var kayit = new Kayit { Entry = e, Durum = e.State, Varlik = VarlikAdi(e.Entity.GetType()) };
+            var kayit = new Kayit { Entry = e, Nesne = e.Entity, Durum = e.State, Varlik = VarlikAdi(e.Entity.GetType()) };
             switch (e.State)
             {
                 case EntityState.Modified:
@@ -113,8 +118,82 @@ internal static class DenetimYakalayici
             (kayit.AlisId, kayit.AlisKalemId) = AlisBagi(e.Entity);
             kayitlar.Add(kayit);
         }
+        if (entries.Any(e => e.State == EntityState.Deleted)) kayitlar.AddRange(VeritabaniEtkileri(db, entries));
         return new(kayitlar, db.DenetimGerekcesi ?? otomatikGerekce, db.DenetimIstekId ?? istekId);
     }
+
+    /// <summary>
+    /// Silmenin veritabanında kendiliğinden yaptığı değişiklikler: izleyiciye yüklenmemiş bağımlı kayıtlar EF'e görünmez,
+    /// ON DELETE SET NULL bağlarını, CASCADE kayıtları veritabanı değiştirir (ör. iptal edilen alış ödemesine iliştirilmiş belge,
+    /// yüklenmeden silinen alışın kalemleri). Silinen her kaydın bu ilişkilerdeki bağımlıları kayıttan önce okunur: bağı kopan
+    /// kayıt 'BagKoptu' (önceki/yeni yabancı anahtar), zincirleme silinen kayıt bütün alanlarıyla 'Sil' olur ve onun
+    /// bağımlılarına da bakılır. İzleyicideki kayda EF'in kendi kuralı uygulanır (olayı zaten yakalanır), iki kez yazılmaz.
+    /// Davranış değişmez: bağı yine veritabanı koparır.
+    /// </summary>
+    private static List<Kayit> VeritabaniEtkileri(KasaDbContext db, List<EntityEntry> entries)
+    {
+        var sonuc = new List<Kayit>();
+        var gorulen = db.ChangeTracker.Entries().Select(e => $"{e.Metadata.Name}|{Anahtar(e, orijinal: e.State != EntityState.Added)}").ToHashSet(StringComparer.Ordinal);
+        List<(IEntityType Tur, Func<IProperty, object?> Oku)> silinen = entries.Where(e => e.State == EntityState.Deleted)
+            .Select(e => (e.Metadata, (Func<IProperty, object?>)(p => e.Property(p.Name).OriginalValue))).ToList();
+        while (silinen.Count > 0)
+        {
+            var sonraki = new List<(IEntityType Tur, Func<IProperty, object?> Oku)>();
+            foreach (var grup in silinen.Where(s => !Haric.Contains(s.Tur.ClrType)).GroupBy(s => s.Tur))
+                foreach (var fk in grup.Key.GetReferencingForeignKeys())
+                {
+                    if (fk.DeleteBehavior is not (DeleteBehavior.SetNull or DeleteBehavior.Cascade) || fk.Properties.Count != 1
+                        || Haric.Contains(fk.DeclaringEntityType.ClrType)) continue;
+                    var bagimli = fk.DeclaringEntityType;
+                    var yabanci = fk.Properties[0];
+                    var anahtarlar = grup.Select(s => s.Oku(fk.PrincipalKey.Properties[0])).Where(v => v is not null).Distinct().ToList();
+                    foreach (var nesne in Bagimlilar(db, bagimli, yabanci, anahtarlar))
+                    {
+                        object? Oku(IProperty p) => p.GetGetter().GetClrValueUsingContainingEntity(nesne);
+                        var anahtar = string.Join("|", bagimli.FindPrimaryKey()!.Properties.Select(p => Convert.ToString(Oku(p), System.Globalization.CultureInfo.InvariantCulture)));
+                        if (!gorulen.Add($"{bagimli.Name}|{anahtar}")) continue;
+                        var ozellikler = bagimli.GetProperties().Where(p => !Sayac.Contains(p.Name) && Turetilmis.GetValueOrDefault(bagimli.ClrType)?.Contains(p.Name) != true).ToList();
+                        var kayit = new Kayit { Nesne = nesne, Varlik = VarlikAdi(bagimli.ClrType), VarlikId = anahtar,
+                            Durum = fk.DeleteBehavior == DeleteBehavior.Cascade ? EntityState.Deleted : EntityState.Modified };
+                        if (kayit.Durum == EntityState.Deleted)
+                        {
+                            kayit.Tur = "Sil";
+                            kayit.Onceki = ozellikler.ToDictionary(p => p.Name, p => Deger(p, Oku(p)));
+                            sonraki.Add((bagimli, Oku));
+                        }
+                        else
+                        {
+                            kayit.Tur = "BagKoptu";
+                            kayit.Onceki = new() { [yabanci.Name] = Oku(yabanci) };
+                            kayit.Yeni = new() { [yabanci.Name] = null };
+                        }
+                        foreach (var p in ozellikler) Tarih(kayit, Oku(p));
+                        (kayit.AlisId, kayit.AlisKalemId) = AlisBagi(nesne);
+                        sonuc.Add(kayit);
+                    }
+                }
+            silinen = sonraki;
+        }
+        return sonuc;
+    }
+
+    /// <summary>Bağımlı türün, yabancı anahtarı verilen anahtarlardan biri olan kayıtları (izlenmeden, kayıttan önceki hâliyle).</summary>
+    private static IEnumerable<object> Bagimlilar(KasaDbContext db, IEntityType bagimli, IProperty yabanci, List<object?> anahtarlar)
+    {
+        foreach (var parca in anahtarlar.Chunk(500))
+        {
+            var liste = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(yabanci.ClrType))!;
+            foreach (var anahtar in parca) liste.Add(anahtar);
+            var sonuc = (List<object>)BagimliSorgusu.MakeGenericMethod(bagimli.ClrType, yabanci.ClrType).Invoke(null, [db, yabanci.Name, liste])!;
+            foreach (var nesne in sonuc) yield return nesne;
+        }
+    }
+
+    private static readonly System.Reflection.MethodInfo BagimliSorgusu =
+        typeof(DenetimYakalayici).GetMethod(nameof(BagimliSorgula), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+
+    private static List<object> BagimliSorgula<TVarlik, TAnahtar>(KasaDbContext db, string yabanci, List<TAnahtar> anahtarlar) where TVarlik : class =>
+        db.Set<TVarlik>().AsNoTracking().Where(v => anahtarlar.Contains(EF.Property<TAnahtar>(v, yabanci))).Cast<object>().ToList();
 
     /// <summary>Kayıttan sonra, aynı transaction'da: eklenenlerin anahtarı ve değerleri okunur, olaylar yazılır.</summary>
     internal static void Yaz(KasaDbContext db, Yakalanan? yakalanan)
@@ -122,12 +201,13 @@ internal static class DenetimYakalayici
         if (yakalanan is null || yakalanan.Kayitlar.Count == 0) return;
         foreach (var k in yakalanan.Kayitlar.Where(k => k.Durum == EntityState.Added))
         {
-            var ozellikler = k.Entry.Properties.Where(p => !Sayac.Contains(p.Metadata.Name)
-                && Turetilmis.GetValueOrDefault(k.Entry.Entity.GetType())?.Contains(p.Metadata.Name) != true);
+            var entry = k.Entry!;
+            var ozellikler = entry.Properties.Where(p => !Sayac.Contains(p.Metadata.Name)
+                && Turetilmis.GetValueOrDefault(k.Nesne.GetType())?.Contains(p.Metadata.Name) != true);
             k.Yeni = ozellikler.ToDictionary(p => p.Metadata.Name, p => Deger(p.Metadata, p.CurrentValue));
-            k.VarlikId = Anahtar(k.Entry, orijinal: false);
+            k.VarlikId = Anahtar(entry, orijinal: false);
             // Yeni kaydın ve yeni üst kaydın anahtarı kayıttan sonra kesinleşir.
-            (k.AlisId, k.AlisKalemId) = AlisBagi(k.Entry.Entity);
+            (k.AlisId, k.AlisKalemId) = AlisBagi(k.Nesne);
         }
         var pencere = PencereGerekli(yakalanan.Kayitlar) ? DenetimKilitPenceresi.Oku(db) : DenetimKilitPenceresi.Bos;
         if (pencere != DenetimKilitPenceresi.Bos) AlisTarihleri(db, yakalanan.Kayitlar);
@@ -136,11 +216,11 @@ internal static class DenetimYakalayici
     }
 
     private static bool PencereGerekli(List<Kayit> kayitlar) =>
-        kayitlar.Any(k => k.Tarihler.Count > 0 || k.AlisId is not null || k.AlisKalemId is not null || GenelEtkili.Contains(k.Entry.Entity.GetType()));
+        kayitlar.Any(k => k.Tarihler.Count > 0 || k.AlisId is not null || k.AlisKalemId is not null || GenelEtkili.Contains(k.Nesne.GetType()));
 
     private static int? Pencere(DenetimKilitPenceresi pencere, Kayit k)
     {
-        if (GenelEtkili.Contains(k.Entry.Entity.GetType())) return pencere.EnSon;
+        if (GenelEtkili.Contains(k.Nesne.GetType())) return pencere.EnSon;
         foreach (var t in k.Tarihler.Distinct().OrderDescending())
             if (pencere.Bul(t) is { } olay) return olay;
         return null;
@@ -150,7 +230,7 @@ internal static class DenetimYakalayici
     private static void AlisTarihleri(KasaDbContext db, List<Kayit> kayitlar)
     {
         // Dağılımın kalemi aynı kayıtta silinmiş olabilir: önce izlenen kalemden, yoksa veritabanından okunur.
-        var kalemAlisi = kayitlar.Where(k => k.Entry.Entity is AlisKalemEntity).Select(k => (AlisKalemEntity)k.Entry.Entity)
+        var kalemAlisi = kayitlar.Where(k => k.Nesne is AlisKalemEntity).Select(k => (AlisKalemEntity)k.Nesne)
             .GroupBy(k => k.Id).ToDictionary(g => g.Key, g => g.First().AlisId);
         var kalemler = kayitlar.Where(k => k.AlisId is null && k.AlisKalemId is { } id && !kalemAlisi.ContainsKey(id)).Select(k => k.AlisKalemId!.Value).Distinct().ToList();
         if (kalemler.Count > 0)

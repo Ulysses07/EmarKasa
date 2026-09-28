@@ -19,7 +19,8 @@ public class DenetimOlayEntity
     public int? AktorId { get; set; }
     /// <summary>Güvenilen vekilin bildirdiği gerçek istemci IP'si (ForwardedHeaders sonrası); istek dışında null.</summary>
     public string? IstemciIp { get; set; }
-    /// <summary>'Ekle' | 'Degistir' | 'Sil' ya da özel olay ('KilitAc', 'GirisBasarisiz', 'GecmisAyEtkisi'...).</summary>
+    /// <summary>'Ekle' | 'Degistir' | 'Sil' ya da özel olay ('KilitAc', 'GirisBasarisiz', 'GecmisAyEtkisi', 'BagKoptu': üst kaydın
+    /// silinmesiyle veritabanının kopardığı bağ...).</summary>
     public string Tur { get; set; } = "";
     /// <summary>Varlık adı ('Entity' eki atılmış CLR adı: Islem, Gelen, TakipKartOdeme...) ya da 'Oturum'.</summary>
     public string Varlik { get; set; } = "";

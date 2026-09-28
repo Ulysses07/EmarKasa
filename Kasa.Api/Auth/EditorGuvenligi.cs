@@ -39,8 +39,9 @@ public static class EditorGuvenligi
             kayit.KurtarmaHash = null;
             kayit.Surum++;
             db.SaveChanges();
-            // Değişiklikle aynı transaction'da: şifre değişti ise olay da vardır. Eski oturumlar ve kurtarma kodu düşer.
-            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegisti, cfg["Kasa:EditorKullanici"], new { oturumlarKapatildi = true, kurtarmaKoduGecersiz = true }, varlikId: "1");
+            // Değişiklikle aynı transaction'da: olay yazılamazsa hata fırlar, commit edilmez ve şifre değişmez (zorunlu). Böylece
+            // şifre değişti ise olay da vardır. Eski oturumlar ve kurtarma kodu düşer.
+            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegisti, cfg["Kasa:EditorKullanici"], new { oturumlarKapatildi = true, kurtarmaKoduGecersiz = true }, varlikId: "1", zorunlu: true);
             tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
             // Eski tanıdık cihaz belirteçleri damgayla düşer; işlemi yapan cihaz yenisini alır (saldırı sürerken
@@ -62,8 +63,8 @@ public static class EditorGuvenligi
             var kod = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
             kayit.KurtarmaHash = KodHash(kod);
             db.SaveChanges();
-            // Kod yalnız yanıtta bir kez döner; olaya kod da özeti de yazılmaz.
-            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretildi, cfg["Kasa:EditorKullanici"], new { oncekiKodGecersiz = true }, varlikId: "1");
+            // Kod yalnız yanıtta bir kez döner; olaya kod da özeti de yazılmaz. Olay yazılamazsa yeni kod kaydedilmez (zorunlu).
+            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretildi, cfg["Kasa:EditorKullanici"], new { oncekiKodGecersiz = true }, varlikId: "1", zorunlu: true);
             tx.Commit();
             return Results.Ok(new { kod });
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
@@ -81,8 +82,9 @@ public static class EditorGuvenligi
             kayit.KurtarmaHash = null;
             kayit.Surum++;
             db.SaveChanges();
-            // Başarılı kurtarma değişiklikle aynı transaction'da yazılır; başarısız deneme ve 429 giriş filtresinde.
-            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKullanildi, dto.Kullanici, new { oturumlarKapatildi = true }, varlikId: "1");
+            // Başarılı kurtarma değişiklikle aynı transaction'da yazılır (yazılamazsa şifre değişmez, kod geçerli kalır: zorunlu);
+            // başarısız deneme ve 429 giriş filtresinde.
+            GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKullanildi, dto.Kullanici, new { oturumlarKapatildi = true }, varlikId: "1", zorunlu: true);
             tx.Commit();
             http.Response.Cookies.Delete("kasa_auth");
             // Kurtarma kodu editör şifresi kadar güçlü bir kanıttır: kurtaran cihaz tanıdık cihaz olur.
