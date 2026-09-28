@@ -85,7 +85,7 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     private async void BelgeIndirTiklandi(object? sender, EventArgs e)
     {
         if (sender is Button { CommandParameter: BelgeDto belge } && !_vm.Mesgul)
-            await DosyaIslemleri.IndirVeKaydetAsync(this, hedef => _vm.BelgeIndirAsync(belge, hedef));
+            await DosyaIslemleri.IndirVeKaydetAsync(this, hedef => _vm.BelgeIndirAsync(belge, hedef), disKaynak: true);
     }
     private async void BelgeSilTiklandi(object? sender, EventArgs e)
     {

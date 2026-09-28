@@ -10,6 +10,9 @@ public interface IAlisApi
     Task<AlisDto> AlisOnaylaAsync(int id, AlisDurumYaz g);
     Task<AlisDto> AlisIadeAsync(int id, AlisDurumYaz g);
     Task<AlisDto> AlisOdemeKaydetAsync(int id, AlisOdemeYaz g);
+    /// <summary>Ödemeye bağlanabilecek mevcut giderler (yalnız editör): tarih, tutar ve açıklama/not süzgeciyle, imleçli sayfa.
+    /// Bütün gider geçmişi çekilmez.</summary>
+    Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null);
     Task<IReadOnlyList<AliciDto>> AlicilarAsync();
     Task<AliciDto> AliciOlusturAsync(AliciYaz g);
     Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g);

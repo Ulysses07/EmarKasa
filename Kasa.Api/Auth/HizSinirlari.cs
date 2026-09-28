@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -48,6 +50,13 @@ public sealed class HizSiniriAyarlari
     /// <summary>'yedek' politikası: elle yedek için (kimliği doğrulanmış kullanıcı, istemci IP'si) başına pencere izni.</summary>
     public int YedekIzni { get; set; } = 5;
     public int YedekPencereDakika { get; set; } = 60;
+    /// <summary>'alis-yukleme' politikası (<see cref="AlisYuklemePolitikasi"/>): alıcının belge yükleme ve alış oluşturma
+    /// istekleri için (kullanıcı, istemci IP'si) başına pencere izni. Kotalar (Kasa:AliciKota) diskte kalan veriyi, bu pencere
+    /// yükle-sil döngüsünün ve betikli isteklerin hızını sınırlar.</summary>
+    public int AlisYuklemeIzni { get; set; } = 30;
+    /// <summary>Aynı politikada editörün ayrı ve yüksek izni: editör alıcı kotalarına tabi değildir, yalnız kaçak döngüye karşı sınırlanır.</summary>
+    public int EditorAlisYuklemeIzni { get; set; } = 300;
+    public int AlisYuklemePencereDakika { get; set; } = 10;
 
     /// <summary>Yapılandırma hataları (boşsa geçerli). Sınırlar pozitif olmalı; ağ bütçesi hedef bütçesinden ve
     /// şifre doğrulama kapasitesinden küçük olmalıdır (aksi halde tek ağ bir hedefi herkese kilitleyebilir ya da
@@ -60,6 +69,7 @@ public sealed class HizSiniriAyarlari
                 GuvenlikIzni: > 0, GirisIpIzni: > 0, GirisKullaniciIzni: > 0, GirisAgIzni: > 0, PencereDakika: > 0,
                 HedefBasarisizIzni: > 0, AgBasarisizIzni: > 0, HedefPencereDakika: > 0,
                 SifreDogrulamaEszamanli: > 0, SifreDogrulamaKuyrugu: >= 0, YedekIzni: > 0, YedekPencereDakika: > 0,
+                AlisYuklemeIzni: > 0, EditorAlisYuklemeIzni: > 0, AlisYuklemePencereDakika: > 0,
             })
         {
             yield return "Kasa:HizSiniri değerleri sıfırdan büyük olmalıdır (SifreDogrulamaKuyrugu sıfır olabilir).";
@@ -92,6 +102,8 @@ public static class HizSinirlari
     public const string Giris = "giris";
     /// <summary>Elle yedek politikası (<see cref="ElleYedekPolitikasi"/>).</summary>
     public const string Yedek = "yedek";
+    /// <summary>Alış belgesi yükleme ve alış oluşturma politikası (<see cref="AlisYuklemePolitikasi"/>).</summary>
+    public const string AlisYukleme = "alis-yukleme";
     /// <summary>
     /// Loopback + Docker'ın varsayılan adres havuzları (172.17–172.31/16, ardından 192.168.0.0/16 içinden /20'lik
     /// ağlar): compose ağı hangi varsayılan havuzdan adres alırsa alsın gerçek istemci IP'si görülür. Konteyner
@@ -120,6 +132,9 @@ public static class HizSinirlari
         });
         services.AddOptions<HizSiniriAyarlari>().BindConfiguration("Kasa:HizSiniri").ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<HizSiniriAyarlari>, HizSiniriDogrulayici>());
+        // Alıcı kotaları hız sınırlarının kalıcı veri tarafıdır; aynı yerde bağlanır ve başlangıçta doğrulanır.
+        services.AddOptions<AliciKotaAyarlari>().BindConfiguration("Kasa:AliciKota").ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AliciKotaAyarlari>, AliciKotaDogrulayici>());
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<VekilDurumu>();
         services.AddSingleton<GirisSiniri>();
@@ -132,6 +147,7 @@ public static class HizSinirlari
             o.AddPolicy(Guvenlik, http => IpBolumu(http, a => a.GuvenlikIzni));
             o.AddPolicy(Giris, http => IpBolumu(http, a => a.GirisIpIzni));
             o.AddPolicy(Yedek, new ElleYedekPolitikasi());
+            o.AddPolicy(AlisYukleme, new AlisYuklemePolitikasi());
         });
         return services;
     }
@@ -239,6 +255,46 @@ public static class HizSinirlari
         var ayar = http.RequestServices.GetRequiredService<IOptionsMonitor<HizSiniriAyarlari>>().CurrentValue;
         return RateLimitPartition.GetFixedWindowLimiter(IstemciAnahtari(http.Connection.RemoteIpAddress),
             _ => new FixedWindowRateLimiterOptions { PermitLimit = izin(ayar), Window = TimeSpan.FromMinutes(ayar.PencereDakika), QueueLimit = 0 });
+    }
+}
+
+/// <summary>
+/// Alış belgesi yükleme (POST /api/alis/{id}/belgeler) ve alış oluşturma (POST /api/alis) için ayrı hız politikası
+/// ('alis-yukleme', host-auth-5): kimliği doğrulanmış kullanıcı ve istemci IP'si (IPv6'da /64) başına pencere. Alıcı
+/// <see cref="HizSiniriAyarlari.AlisYuklemeIzni"/>, editör ayrı ve yüksek <see cref="HizSiniriAyarlari.EditorAlisYuklemeIzni"/>
+/// alır; pencere <see cref="HizSiniriAyarlari.AlisYuklemePencereDakika"/>. Kalıcı büyüme alıcı kotalarıyla
+/// (<see cref="AliciKotaAyarlari"/>) sınırlıdır; bu pencere betikli istek selini ve yükle-sil döngüsünü yavaşlatır. Hız sınırı
+/// yetkilendirmeden sonra çalışır: kimliksiz ya da yetkisiz istek kota tüketmez. Kullanıcıyla birlikte IP'ye bölünür: aynı
+/// ağdaki başka alıcı ya da editör etkilenmez; ele geçirilmiş bir oturum başka ağdan meşru kullanıcının kovasını tüketemez.
+/// </summary>
+internal sealed class AlisYuklemePolitikasi : IRateLimiterPolicy<string>
+{
+    public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; } =
+        (baglam, _) => new ValueTask(Red(baglam.HttpContext, baglam.Lease).ExecuteAsync(baglam.HttpContext));
+
+    public RateLimitPartition<string> GetPartition(HttpContext http)
+    {
+        var ayar = http.RequestServices.GetRequiredService<IOptionsMonitor<HizSiniriAyarlari>>().CurrentValue;
+        var rol = http.User.FindFirstValue(ClaimTypes.Role);
+        var kullanici = $"{rol}:{http.User.FindFirstValue("alici_id")}";
+        var izin = rol == "editor" ? ayar.EditorAlisYuklemeIzni : ayar.AlisYuklemeIzni;
+        return RateLimitPartition.GetFixedWindowLimiter(kullanici + "\n" + HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress),
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = izin, Window = TimeSpan.FromMinutes(ayar.AlisYuklemePencereDakika), QueueLimit = 0 });
+    }
+
+    /// <summary>429: sınırı ve bekleme süresini söyleyen Türkçe 'hata' gövdesi ve saniye cinsinden Retry-After.</summary>
+    private static IResult Red(HttpContext http, RateLimitLease lease)
+    {
+        var ayar = http.RequestServices.GetRequiredService<IOptionsMonitor<HizSiniriAyarlari>>().CurrentValue;
+        var izin = http.User.IsInRole("editor") ? ayar.EditorAlisYuklemeIzni : ayar.AlisYuklemeIzni;
+        var mesaj = $"Belge yükleme ve alış kaydı sınırına ulaşıldı: {ayar.AlisYuklemePencereDakika} dakikada en çok {izin} istek yapılabilir.";
+        if (lease.TryGetMetadata(MetadataName.RetryAfter, out var sure) && sure > TimeSpan.Zero)
+        {
+            http.Response.Headers.RetryAfter = Math.Ceiling(sure.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+            mesaj += $" {Math.Max(1, (int)Math.Ceiling(sure.TotalMinutes))} dakika sonra yeniden deneyin.";
+        }
+        else mesaj += " Birkaç dakika sonra yeniden deneyin.";
+        return Results.Json(new { hata = mesaj }, statusCode: StatusCodes.Status429TooManyRequests);
     }
 }
 

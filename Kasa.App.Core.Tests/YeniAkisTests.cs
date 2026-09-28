@@ -46,8 +46,9 @@ public class YeniAkisTests
     }
     [Fact] public async Task Karti_silinmis_eski_harcama_nakit_olarak_gosterilmez_ve_hesaba_baglanmaz()
     {
-        var api = new Fake(); var finans = new SahteApi { IslemlerListe = new[] { new IslemDto(20, Bugun, "Firma", 10, "MEZAT", GiderTipi.KrediKarti, null) } };
-        var vm = await AlisVm(api, finans); vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
+        // Bağlı gider bağlanabilir listede yoktur: eski kart harcaması bilgisi ödemenin kendisinden (sunucu) gelir.
+        var ilk = Alis(); var api = new Fake { IlkAlis = ilk with { Odemeler = new[] { ilk.Odemeler[0] with { EskiKartHarcamasi = true } } } };
+        var vm = await AlisVm(api); vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         Assert.True(vm.EskiKartHarcamasi); Assert.Contains("Eski kart", vm.DuzeltmeKarti!.Ad);
         vm.DuzeltmeAciklamasi = "Tarih düzeltildi";
         await vm.OdemeDuzeltKaydetCommand.ExecuteAsync(null); Assert.Null(api.SonDuzelt!.HesapId);
@@ -146,11 +147,12 @@ public class YeniAkisTests
     }
     [Fact] public async Task Yeni_alis_odemesi_benzer_kaydi_onayla_kaydeder_mevcut_gider_baglama_sormaz()
     {
-        var api = new Fake(); var lookup = new BenzerKayitTests.Fake(); var finans = new SahteApi { IslemlerListe = new[] { new IslemDto(30, Bugun, "Yeni gider", 10, "MEZAT", GiderTipi.Cari, null) } };
-        var vm = await AlisVm(api, finans, lookup); vm.OdemeTutari = 10;
+        var giderler = new[] { new IslemDto(30, Bugun, "Yeni gider", 10, "MEZAT", GiderTipi.Cari, null) };
+        var api = new Fake { Giderler = giderler }; var lookup = new BenzerKayitTests.Fake();
+        var vm = await AlisVm(api, benzerlik: lookup); vm.OdemeTutari = 10;
         await vm.OdemeKaydetCommand.ExecuteAsync(null); Assert.Null(api.SonOdeme); Assert.Equal("AlisOdeme", lookup.SonArama!.Tur); Assert.Equal(7, lookup.SonArama.AlisId);
         await vm.OdemeyiAyriKaydetCommand.ExecuteAsync(null); Assert.Equal(10, api.SonOdeme!.Tutar);
-        var ikinciApi = new Fake(); var ikinciLookup = new BenzerKayitTests.Fake { Hata = true }; var ikinci = await AlisVm(ikinciApi, finans, ikinciLookup);
+        var ikinciApi = new Fake { Giderler = giderler }; var ikinciLookup = new BenzerKayitTests.Fake { Hata = true }; var ikinci = await AlisVm(ikinciApi, benzerlik: ikinciLookup);
         ikinci.MevcutGiderKullan = true; ikinci.SeciliGider = ikinci.BaglanabilirGiderler.Single(); await ikinci.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Equal(30, ikinciApi.SonOdeme!.MevcutIslemId); Assert.Equal(0, ikinciLookup.Cagri);
     }
@@ -198,6 +200,9 @@ public class YeniAkisTests
         public Task<AlisDto> AlisIadeAsync(int id, AlisDurumYaz g) => Task.FromResult(Alis());
         public Task<AlisDto> AlisOdemeKaydetAsync(int id, AlisOdemeYaz g) { SonOdeme = g; return Task.FromResult(Alis()); }
         public Task<IReadOnlyList<AliciDto>> AlicilarAsync() => Task.FromResult<IReadOnlyList<AliciDto>>(Array.Empty<AliciDto>());
+        public IReadOnlyList<IslemDto> Giderler = Array.Empty<IslemDto>();
+        public Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null)
+            => Task.FromResult(new BaglanabilirGiderSayfasi(Giderler.Select(AlislarViewModelTests.SahteAlisApi.Baglanabilir).ToList(), null, false));
         public Task<AliciDto> AliciOlusturAsync(AliciYaz g) => Task.FromResult(new AliciDto(1, g.Kullanici, g.Ad, true));
         public Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g) => AliciOlusturAsync(g);
     }

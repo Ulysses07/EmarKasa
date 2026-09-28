@@ -16,7 +16,12 @@ public partial class AlislarViewModel : TemelViewModel
     private readonly IAlisOdemeApi? _odemelerApi;
     private readonly IYonetimApi? _yonetim;
     private AlisDto? _secili;
+    /// <summary>Sunucunun bağlanabilir gider sayfaları (GET /api/alis/baglanabilir-giderler); bütün gider geçmişi çekilmez.</summary>
     private IReadOnlyList<IslemDto> _giderler = Array.Empty<IslemDto>();
+    private string? _giderImleci;
+    /// <summary>Yeni alış için tekrar anahtarı (appcore-5): zaman aşımından sonra aynı taslağın yeniden gönderimi aynı kimliği
+    /// taşır, sunucu ikinci taslak açmaz. Başarıda, yeni formda, başka alışa geçişte ve oturum değişince sıfırlanır.</summary>
+    private readonly TekrarAnahtari _olusturAnahtari = new();
     private AlisOdemeYaz? _bekleyenOdeme;
     private int _bekleyenAlisId;
     private bool _yansitiliyor;
@@ -64,6 +69,9 @@ public partial class AlislarViewModel : TemelViewModel
     [ObservableProperty] private decimal _odemeTutari;
     [ObservableProperty] private OdemeKartiSecenegi? _odemeKarti;
     [ObservableProperty] private string? _odemeNotu;
+    /// <summary>Bağlanabilir gider araması: tutar gibi yazılırsa tutar, değilse açıklama/not metni.</summary>
+    [ObservableProperty] private string _giderArama = "";
+    [ObservableProperty] private bool _dahaFazlaGiderVar;
     [ObservableProperty] private bool _hesaplarAcik;
     [ObservableProperty] private int _aliciId;
     [ObservableProperty] private string _aliciKullanici = "";
@@ -102,7 +110,8 @@ public partial class AlislarViewModel : TemelViewModel
         Interlocked.Increment(ref _islemNesli);
         Mesgul = false; VeriHazir = false; Hata = null; Mesaj = null;
         Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear();
-        _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>();
+        _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>(); _giderImleci = null; DahaFazlaGiderVar = false; GiderArama = "";
+        _olusturAnahtari.Temizle();
         OdemeBenzerlik.Temizle();
         HesaplarAcik = false; YeniAlici();
         Belgeler.Clear(); DuzeltmeHedefleri.Clear(); _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
@@ -129,16 +138,16 @@ public partial class AlislarViewModel : TemelViewModel
         OdemeKartlari.Clear();
         OdemeKartlari.Add(new(null, "Nakit / banka"));
         Alicilar.Clear();
-        _giderler = Array.Empty<IslemDto>();
+        _giderler = Array.Empty<IslemDto>(); _giderImleci = null; DahaFazlaGiderVar = false;
         if (EditorMu)
         {
             var kartIsi = _finans.KrediKartlariAsync();
-            var giderIsi = _finans.IslemlerAsync();
+            var giderIsi = GiderSayfasiAsync(null);
             var hesapIsi = _api.AlicilarAsync();
             await Task.WhenAll(kartIsi, giderIsi, hesapIsi);
             if (!Gecerli(nesil)) return;
             foreach (var kart in await kartIsi) OdemeKartlari.Add(new(kart.Id, kart.Ad));
-            _giderler = await giderIsi;
+            GiderSayfasiniUygula(await giderIsi, ekle: false);
             Degistir(Alicilar, await hesapIsi);
         }
         var secili = Alislar.Select(a => a.Veri).FirstOrDefault(a => a.Id == oncekiId);
@@ -163,7 +172,7 @@ public partial class AlislarViewModel : TemelViewModel
         if (Mesgul && !_yansitiliyor && VeriHazir) return;
         if (KaydedilmemisDegisiklikVar && !_yansitiliyor) { KaydetmeUyarisi(); return; }
         _yansitiliyor = true;
-        _secili = null;
+        _secili = null; _olusturAnahtari.Temizle();
         Tarih = DateTime.Today; Tedarikci = ""; AlisNotu = null; IadeNedeni = "";
         Belgeler.Clear(); DuzeltilecekOdeme = null;
         KalemleriTemizle();
@@ -189,7 +198,7 @@ public partial class AlislarViewModel : TemelViewModel
     private void SeciliyiGoster(AlisDto alis)
     {
         _yansitiliyor = true;
-        _secili = alis;
+        _secili = alis; _olusturAnahtari.Temizle();
         Tarih = alis.Tarih.ToDateTime(TimeOnly.MinValue); Tedarikci = alis.Tedarikci; AlisNotu = alis.Not;
         Belgeler.Clear(); DuzeltilecekOdeme = null;
         Degistir(DuzeltmeHedefleri, Alislar.Where(a => a.Veri.Id != alis.Id));
@@ -248,7 +257,7 @@ public partial class AlislarViewModel : TemelViewModel
         var g = new AlisYaz(_secili?.Surum ?? 0, DateOnly.FromDateTime(Tarih), Tedarikci.Trim(), AlisNotu,
             Kalemler.Select(k => new AlisKalemYaz(k.Aciklama.Trim(), k.Tutar,
                 k.Dagilimlar.Select(d => new AlisDagilimYaz(d.Kanal!.Id, d.Tutar)).ToList())).ToList());
-        var yanit = _secili is null ? await _api.AlisOlusturAsync(g) : await _api.AlisGuncelleAsync(_secili.Id, g);
+        var yanit = _secili is null ? await _api.AlisOlusturAsync(g with { IstekId = _olusturAnahtari.Al(g) }) : await _api.AlisGuncelleAsync(_secili.Id, g);
         return SonucuUygula(yanit, nesil);
     }
 
@@ -393,6 +402,38 @@ public partial class AlislarViewModel : TemelViewModel
         GiderSecenekleriniYenile();
         OnPropertyChanged(nameof(DagilimBekleyenTutar)); OnPropertyChanged(nameof(DagilimBekliyor));
         return true;
+    }
+
+    [RelayCommand] private Task GiderAraAsync() => YurutAsync(async nesil =>
+    {
+        if (!EditorMu) return;
+        var sayfa = await GiderSayfasiAsync(null);
+        if (Gecerli(nesil)) GiderSayfasiniUygula(sayfa, ekle: false);
+    });
+
+    [RelayCommand] private Task DahaFazlaGiderAsync() => YurutAsync(async nesil =>
+    {
+        if (!EditorMu || _giderImleci is null) return;
+        var sayfa = await GiderSayfasiAsync(_giderImleci);
+        if (Gecerli(nesil)) GiderSayfasiniUygula(sayfa, ekle: true);
+    });
+
+    /// <summary>Arama kutusu tutar gibi okunuyorsa tutar süzgeci, değilse açıklama/not araması; boşsa en yeni giderler.</summary>
+    private Task<BaglanabilirGiderSayfasi> GiderSayfasiAsync(string? imlec)
+    {
+        var arama = GiderArama.Trim();
+        return arama.Length > 0 && ParaAyristirici.Coz(arama, out var tutar, out _) && tutar > 0
+            ? _api.BaglanabilirGiderlerAsync(tutar: tutar, imlec: imlec)
+            : _api.BaglanabilirGiderlerAsync(arama.Length > 0 ? arama : null, imlec: imlec);
+    }
+
+    private void GiderSayfasiniUygula(BaglanabilirGiderSayfasi sayfa, bool ekle)
+    {
+        var gelen = sayfa.Ogeler.Select(g => new IslemDto(g.Id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not, g.KrediKartiId)).ToList();
+        _giderler = ekle ? _giderler.Concat(gelen).DistinctBy(g => g.Id).ToList() : gelen;
+        _giderImleci = sayfa.SonrakiImlec;
+        DahaFazlaGiderVar = sayfa.DevamVar && sayfa.SonrakiImlec is not null;
+        GiderSecenekleriniYenile();
     }
 
     private void GiderSecenekleriniYenile()

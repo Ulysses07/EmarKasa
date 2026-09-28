@@ -95,4 +95,43 @@ public class AlisApiTests
         Assert.Equal(7, islem.AlisId);
         Assert.True(islem.DagilimBekliyor);
     }
+
+    [Fact]
+    public async Task Alis_olustur_istek_kimligini_gonderir_ve_tekrar_yanitini_okur()
+    {
+        var (api, handler) = Kur(AlisJson);
+        var istekId = Guid.NewGuid();
+        var alis = await api.AlisOlusturAsync(new AlisYaz(0, new DateOnly(2026, 9, 21), "Firma", null, [], IstekId: istekId));
+        Assert.Equal(7, alis.Id);
+        Assert.Equal(HttpMethod.Post, handler.SonIstek!.Method);
+        using var govde = JsonDocument.Parse(handler.SonGovde!);
+        Assert.Equal(istekId, govde.RootElement.GetProperty("istekId").GetGuid());
+    }
+
+    [Fact]
+    public async Task Baglanabilir_giderler_yolu_suzgecleri_ve_sayfayi_okur()
+    {
+        var (api, handler) = Kur("""{"ogeler":[{"id":90,"tarih":"2026-09-20","cari":"Kargo","tutarTl":12.5,"kanal":"MEZAT","kanalId":1,"tip":"KrediKarti","not":null,"krediKartiId":4}],"sonrakiImlec":"20260920-90","devamVar":true}""");
+        var sayfa = await api.BaglanabilirGiderlerAsync("Kargo & Co", 12.5m, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), "20260921-91", 20);
+        Assert.Equal("/api/alis/baglanabilir-giderler", handler.SonIstek!.RequestUri!.AbsolutePath);
+        Assert.Equal("?arama=Kargo%20%26%20Co&tutar=12.50&baslangic=2026-09-01&bitis=2026-09-30&imlec=20260921-91&limit=20", handler.SonIstek.RequestUri.Query);
+        var gider = Assert.Single(sayfa.Ogeler);
+        Assert.Equal((90, GiderTipi.KrediKarti, (int?)4, 12.5m), (gider.Id, gider.Tip, gider.KrediKartiId, gider.TutarTl));
+        Assert.Equal(("20260920-90", true), (sayfa.SonrakiImlec, sayfa.DevamVar));
+
+        (api, handler) = Kur("""{"ogeler":[],"sonrakiImlec":null,"devamVar":false}""");
+        Assert.Empty((await api.BaglanabilirGiderlerAsync()).Ogeler);
+        Assert.Equal("", handler.SonIstek!.RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task Odeme_eski_kart_harcamasi_bayragini_okur_eski_sunucuda_false()
+    {
+        var yeni = AlisJson.Replace("\"dagilimlar\":[]}]", "\"dagilimlar\":[],\"eskiKartHarcamasi\":true}]");
+        Assert.NotEqual(AlisJson, yeni);
+        var (api, _) = Kur("[" + yeni + "]");
+        Assert.True(Assert.Single(Assert.Single(await api.AlislarAsync()).Odemeler).EskiKartHarcamasi);
+        (api, _) = Kur("[" + AlisJson + "]");
+        Assert.False(Assert.Single(Assert.Single(await api.AlislarAsync()).Odemeler).EskiKartHarcamasi);
+    }
 }

@@ -82,6 +82,10 @@ public class AltinRaporTests
             yield return new("/api/kredikartlari", $"[{i}].yeniTakip", null, "true", "K3: kart yeni takipte");
             yield return new("/api/kredikartlari", $"[{i}].aktif", null, "true", "K3: kart yeni kullanıma açık");
         }
+        // ALS: alış ödemesi bağlı giderin kartsız eski kredi kartı harcaması olup olmadığını taşır (masaüstü düzeltme formu bağlı
+        // gideri artık bütün gider listesinden aramaz). Tutarlar değişmez; tohumdaki ödemelerin hiçbiri kartsız eski kart harcaması değil.
+        foreach (var (alis, odeme) in new[] { (0, 0), (1, 0), (2, 0), (2, 1) })
+            yield return new("/api/alis", $"[{alis}].odemeler[{odeme}].eskiKartHarcamasi", null, "false", "ALS: ödeme kartsız eski kart harcaması değil");
     }
 
     private static string Aylik(DateOnly ay) => $"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}";

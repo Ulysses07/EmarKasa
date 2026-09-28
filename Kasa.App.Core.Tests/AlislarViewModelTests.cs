@@ -120,11 +120,16 @@ public class AlislarViewModelTests
     public async Task Mevcut_gider_tam_degerleriyle_baglanir_bagli_giderler_secilemez()
     {
         var gider = new IslemDto(91, new(2026, 9, 20), "Firma", 25m, "Ortak", GiderTipi.Cari, null);
-        var bagli = gider with { Id = 92, AlisId = 100 };
-        var api = new SahteAlisApi { Liste = new[] { Alis() } };
-        var vm = new AlislarViewModel(api, new SahteApi { IslemlerListe = new[] { gider, bagli } }) { EditorMu = true };
-        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
-        Assert.Single(vm.BaglanabilirGiderler);
+        var bagli = gider with { Id = 92 };
+        // Sunucu bağlı gideri zaten listelemez; istemci yine de yüklü alışların ödemelerine bağlı gideri seçtirmez. Genel gider
+        // listesi hiç çekilmez.
+        var baska = Alis() with { Id = 8, Odemeler = new[] { new AlisOdemeDto(5, 92, new(2026, 9, 20), 25m, null, true, Array.Empty<AlisDagilimDto>()) } };
+        var api = new SahteAlisApi { Liste = new[] { Alis(), baska }, Giderler = new[] { gider, bagli } };
+        var finans = new SahteApi { IslemlerListe = new[] { gider with { Id = 93 } } };
+        var vm = new AlislarViewModel(api, finans) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
+        Assert.Equal(91, Assert.Single(vm.BaglanabilirGiderler).Veri.Id);
+        Assert.Equal(0, finans.IslemlerCagri);
         vm.MevcutGiderKullan = true; vm.SeciliGider = vm.BaglanabilirGiderler[0];
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Equal(91, api.SonOdeme!.MevcutIslemId);
@@ -228,6 +233,55 @@ public class AlislarViewModelTests
         Assert.Equal(10m, Assert.Single(vm.OdemeOnizleme).Tutar);
     }
 
+    [Fact]
+    public async Task Baglanabilir_giderler_sunucu_sayfasindan_dolar_arama_ve_daha_eski_sayfa_ister()
+    {
+        var giderler = Enumerable.Range(1, 3).Select(i => new IslemDto(90 + i, new(2026, 9, 20 - i), i == 2 ? "Kargo" : "Firma", 10m * i, "MEZAT", GiderTipi.Cari, null)).ToArray();
+        var api = new SahteAlisApi { Liste = new[] { Alis() }, Giderler = giderler, GiderSayfaBoyutu = 2 };
+        var finans = new SahteApi();
+        var vm = new AlislarViewModel(api, finans) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
+        Assert.Equal(new[] { 91, 92 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
+        Assert.True(vm.DahaFazlaGiderVar);
+        Assert.Equal(0, finans.IslemlerCagri);
+
+        await vm.DahaFazlaGiderCommand.ExecuteAsync(null);
+        Assert.Equal(new[] { 91, 92, 93 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
+        Assert.False(vm.DahaFazlaGiderVar);
+        Assert.Equal("2", api.GiderSorgulari[^1].Imlec);
+
+        vm.GiderArama = "Kargo"; await vm.GiderAraCommand.ExecuteAsync(null);
+        Assert.Equal((("Kargo", (decimal?)null, (string?)null)), api.GiderSorgulari[^1]);
+        Assert.Equal(92, Assert.Single(vm.BaglanabilirGiderler).Veri.Id);
+        vm.GiderArama = "30,00"; await vm.GiderAraCommand.ExecuteAsync(null);
+        Assert.Equal(((string?)null, (decimal?)30m, (string?)null), api.GiderSorgulari[^1]);
+        Assert.Equal(93, Assert.Single(vm.BaglanabilirGiderler).Veri.Id);
+    }
+
+    [Fact]
+    public async Task Yeni_alis_zaman_asiminda_ayni_istek_kimligiyle_yeniden_gonderilir_duzenleme_kimlik_tasimaz()
+    {
+        var api = new SahteAlisApi { OlusturmaHatasi = new TimeoutException("Sunucu 15 sn içinde yanıt vermedi.") };
+        var vm = new AlislarViewModel(api, new SahteApi());
+        await vm.YukleAsync();
+        void Doldur() { vm.Tedarikci = "Firma"; vm.Kalemler[0].Aciklama = "Mal"; vm.Kalemler[0].Tutar = 100m; }
+        Doldur();
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.NotNull(vm.Hata);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(2, api.Olusturmalar.Count);
+        Assert.NotNull(api.Olusturmalar[0].IstekId);
+        Assert.Equal(api.Olusturmalar[0].IstekId, api.Olusturmalar[1].IstekId);
+
+        // Kaydedilen alış düzenlenirken (PUT) istek kimliği gönderilmez; yeni formdaki aynı içerik yeni kimlik alır.
+        vm.Tedarikci = "Firma A.Ş."; await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonYaz!.IstekId);
+        vm.YeniCommand.Execute(null); Doldur();
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(3, api.Olusturmalar.Count);
+        Assert.NotEqual(api.Olusturmalar[0].IstekId, api.Olusturmalar[2].IstekId);
+    }
+
     internal sealed class SahteAlisApi : IAlisApi
     {
         public IReadOnlyList<AlisDto> Liste = Array.Empty<AlisDto>();
@@ -235,6 +289,12 @@ public class AlislarViewModelTests
         public AlisDurumYaz? SonDurum;
         public AlisOdemeYaz? SonOdeme;
         public AliciYaz? SonAlici;
+        public List<AlisYaz> Olusturmalar = new();
+        public Exception? OlusturmaHatasi;
+        public IReadOnlyList<IslemDto> Giderler = Array.Empty<IslemDto>();
+        /// <summary>Bağlanabilir gider sorguları (arama, tutar, imleç); sayfa boyutu 1 ise imleçle sayfalanır.</summary>
+        public List<(string? Arama, decimal? Tutar, string? Imlec)> GiderSorgulari = new();
+        public int GiderSayfaBoyutu = 50;
         public bool OdemeHatasi;
         public Func<Task<IReadOnlyList<AlisDto>>>? ListeGetir;
         public Task<AlisDto>? OdemeYaniti;
@@ -242,7 +302,21 @@ public class AlislarViewModelTests
         private AlisDto Kayit => Liste.FirstOrDefault() ?? Alis();
         public Task<IReadOnlyList<AlisKanalDto>> AlisKanallariAsync() => Task.FromResult<IReadOnlyList<AlisKanalDto>>(new[] { Kanal1, Kanal2 });
         public Task<IReadOnlyList<AlisDto>> AlislarAsync() => ListeGetir?.Invoke() ?? Task.FromResult(Liste);
-        public Task<AlisDto> AlisOlusturAsync(AlisYaz g) { SonYaz = g; return Task.FromResult(Kayit with { Surum = 3 }); }
+        public Task<AlisDto> AlisOlusturAsync(AlisYaz g)
+        {
+            SonYaz = g; Olusturmalar.Add(g);
+            if (OlusturmaHatasi is { } hata) { OlusturmaHatasi = null; return Task.FromException<AlisDto>(hata); }
+            return Task.FromResult(Kayit with { Surum = 3 });
+        }
+        public Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null)
+        {
+            GiderSorgulari.Add((arama, tutar, imlec));
+            var uygun = Giderler.Where(g => (arama is null || g.Cari.Contains(arama)) && (tutar is null || g.TutarTl == tutar)).ToList();
+            var bas = imlec is null ? 0 : int.Parse(imlec);
+            var sayfa = uygun.Skip(bas).Take(GiderSayfaBoyutu).ToList();
+            var devam = bas + sayfa.Count < uygun.Count;
+            return Task.FromResult(new BaglanabilirGiderSayfasi(sayfa.Select(Baglanabilir).ToList(), devam ? (bas + sayfa.Count).ToString() : null, devam));
+        }
         public Task<AlisDto> AlisGuncelleAsync(int id, AlisYaz g) { SonYaz = g; return Task.FromResult(Kayit with { Surum = 3 }); }
         public Task<AlisDto> AlisGonderAsync(int id, AlisDurumYaz g) { SonDurum = g; return Task.FromResult(Kayit with { Durum = "Incelemede", Surum = 4 }); }
         public Task<AlisDto> AlisOnaylaAsync(int id, AlisDurumYaz g) { SonDurum = g; return Task.FromResult(Kayit with { Durum = "Onaylandi", Surum = 4 }); }
@@ -255,6 +329,7 @@ public class AlislarViewModelTests
             return Task.FromResult(Kayit with { Surum = 3, Odenen = Kayit.Odenen + g.Tutar, Kalan = Kayit.Kalan - g.Tutar,
                 Odemeler = new[] { new AlisOdemeDto(1, g.MevcutIslemId ?? 90, g.Tarih, g.Tutar, g.KrediKartiId, true, Array.Empty<AlisDagilimDto>()) } });
         }
+        internal static BaglanabilirGiderDto Baglanabilir(IslemDto g) => new(g.Id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, null, g.Tip, g.Not, g.KrediKartiId);
         public Task<IReadOnlyList<AliciDto>> AlicilarAsync() { HesapOkuma++; return Task.FromResult<IReadOnlyList<AliciDto>>(Array.Empty<AliciDto>()); }
         public Task<AliciDto> AliciOlusturAsync(AliciYaz g) { SonAlici = g; return Task.FromResult(new AliciDto(4, g.Kullanici, g.Ad, g.Aktif)); }
         public Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g) { SonAlici = g; return Task.FromResult(new AliciDto(id, g.Kullanici, g.Ad, g.Aktif)); }

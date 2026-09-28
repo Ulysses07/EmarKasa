@@ -44,6 +44,7 @@ public sealed partial class KasaApiClient : IYonetimApi
         using var yanit = await GonderAsync(istek, zamanAsimi: _zaman.Yukleme, cancellationToken: cancellationToken);
         return (await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<BelgeDto>(yanit.Content, Json, cancellationToken))!;
     }
+    /// <summary>Belgenin adı ve uzantısı sunucunun bildirdiği türden kurulur (<see cref="DosyaTurleri.GuvenliAd"/>).</summary>
     public Task<IndirmeBilgisi> BelgeIndirAsync(int belgeId, Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, $"api/belgeler/{belgeId}", $"belge-{belgeId}", hedef, _zaman.Indirme, cancellationToken);
     public Task BelgeSilAsync(int belgeId) => SilAsync($"api/belgeler/{belgeId}");
@@ -75,13 +76,11 @@ public sealed partial class KasaApiClient : IYonetimApi
                 toplam += okunan;
             }
             await hedef.FlushAsync(ct);
-            return new IndirmeBilgisi(GuvenliDosyaAdi(ad, varsayilan), basliklar.ContentType?.MediaType ?? "application/octet-stream", toplam);
+            // Ad sunucudan gelse de uzantı yalnız bildirilen içerik türünden kurulur; yön işaretleri ve yol parçaları atılır.
+            var tur = basliklar.ContentType?.MediaType;
+            return new IndirmeBilgisi(DosyaTurleri.GuvenliAd(ad, tur, varsayilan), tur ?? "application/octet-stream", toplam);
         });
     }
-    private static string GuvenliDosyaAdi(string? ad, string varsayilan)
-    {
-        var temiz = (ad ?? "").Trim('"').Replace('\\', '/').Split('/').Last();
-        temiz = string.Concat(temiz.Where(c => !char.IsControl(c) && !"<>:\"/\\|?*".Contains(c))).Trim(' ', '.');
-        return string.IsNullOrWhiteSpace(temiz) ? varsayilan : temiz;
-    }
+    /// <summary>Yüklenen dosyanın gönderilen adı; türü ve saklanan adı sunucu sihirli baytlardan belirler.</summary>
+    private static string GuvenliDosyaAdi(string? ad, string varsayilan) => DosyaTurleri.GonderilecekAd(ad, varsayilan);
 }

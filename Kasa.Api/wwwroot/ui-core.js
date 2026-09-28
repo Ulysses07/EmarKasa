@@ -146,3 +146,31 @@ export function purchasePayload(form) {
   if (kalemler.reduce((sum, line) => sum + cents(line.tutar), 0) > MAX_CENTS) throw new Error('Alış toplamı geçerli sınırı aşıyor.');
   return { surum: form.surum || 0, tarih: form.tarih, tedarikci: form.tedarikci.trim(), not: form.not?.trim() || null, kalemler };
 }
+// Alış belgesinin tarayıcıya verilen indirme adı (purchase-1): sunucu adı zaten türden normalize eder; yine de uzantı yalnız
+// içerik türünden gelir, yol parçaları, kontrol/biçim (U+202E gibi yön işaretleri) ve Windows'ta geçersiz karakterler atılır.
+const DOCUMENT_EXTENSIONS = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };
+export function documentFileName(name, type) {
+  const extension = DOCUMENT_EXTENSIONS[type] || '.bin';
+  const trimEnd = text => text.replace(/[ .]+$/u, '');
+  let base = trimEnd(String(name ?? '').replace(/\\/g, '/').split('/').pop().replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}<>:"|?*]/gu, '').replace(/^ +/u, ''));
+  const last = /\.([\p{L}\p{N}]{1,8})$/u.exec(base);
+  if (last && /\p{L}/u.test(last[1])) base = trimEnd(base.slice(0, -last[0].length));
+  const lower = base.toLowerCase();
+  if (lower.endsWith(extension) || (extension === '.jpg' && lower.endsWith('.jpeg'))) base = trimEnd(base.slice(0, base.lastIndexOf('.')));
+  if (base.length > 120) base = trimEnd(base.slice(0, /[\uD800-\uDBFF]/u.test(base[119]) ? 119 : 120));
+  if (!base) return `belge${extension}`;
+  return (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/iu.test(base.split('.')[0].replace(/ +$/u, '')) ? `belge-${base}` : base) + extension;
+}
+// Ödemeye bağlanabilir gider sorgusu (webui-6): arama kutusu tutar gibi okunuyorsa tutar süzgeci, değilse açıklama/not araması.
+export function linkableExpensesPath(text = '', cursor = null) {
+  const params = new URLSearchParams();
+  const value = String(text || '').trim();
+  if (value) {
+    let amountCents = null;
+    try { amountCents = cents(value, { allowZero: false }); } catch { amountCents = null; }
+    if (amountCents != null) params.set('tutar', (amountCents / 100).toFixed(2)); else params.set('arama', value.slice(0, 200));
+  }
+  if (cursor) params.set('imlec', cursor);
+  const query = params.toString();
+  return `/api/alis/baglanabilir-giderler${query ? `?${query}` : ''}`;
+}

@@ -10,6 +10,9 @@ public partial class IslemlerViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
     private readonly AuthViewModel? _auth;
+    /// <summary>Yeni gider için tekrar anahtarı (appcore-5): istek zaman aşımına uğrayıp sunucuda yine de kaydedildiyse aynı
+    /// formun yeniden gönderimi aynı kimliği taşır, sunucu ikinci gider açmaz. Başarıda, yeni formda ve düzenlemeye geçişte sıfırlanır.</summary>
+    private readonly TekrarAnahtari _giderAnahtari = new();
     public BenzerKayitKontrolu GiderBenzerlik { get; }
     public IslemlerViewModel(IKasaApi api, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null, TimeProvider? zaman = null)
     {
@@ -413,7 +416,7 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     private void Yeni()
     {
-        GiderBenzerlik.Temizle();
+        GiderBenzerlik.Temizle(); _giderAnahtari.Temizle();
         DuzenId = 0; DuzenTarih = DateTime.Today; DuzenCari = "";
         DuzenTutar = 0; DuzenKanal = ""; DuzenTip = GiderTipi.Cari; DuzenNot = null;
         DuzenKrediKartiId = null;
@@ -426,7 +429,7 @@ public partial class IslemlerViewModel : TemelViewModel
         if (i.EkstreKayitId is not null) { Hata = "Bu kayıt PDF ekstresinden aktarıldı. Ekstre İçe Aktar bölümünden iptal edip doğru bilgilerle yeniden kaydedin."; return; }
         if (i.AylikGiderOdemeId is not null) { Hata = "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin."; return; }
         if (i.AlisId is not null) { Hata = "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin."; return; }
-        GiderBenzerlik.Temizle();
+        GiderBenzerlik.Temizle(); _giderAnahtari.Temizle();
         _duzenlenen = i;
         DuzenId = i.Id; DuzenTarih = i.Tarih.ToDateTime(TimeOnly.MinValue);
         DuzenCari = i.Cari; DuzenTutar = i.TutarTl; DuzenKanal = i.Kanal;
@@ -446,7 +449,7 @@ public partial class IslemlerViewModel : TemelViewModel
         var id = DuzenId;
         if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new("Gider", g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
             () => _auth?.OturumSurumu == oturum && DuzenId == id && TakipMetni.Ayni(g, new IslemYaz(DateOnly.FromDateTime(DuzenTarih), DuzenCari, DuzenTutar, DuzenKanal, DuzenTip, DuzenNot, DuzenKrediKartiId)))) return;
-        if (DuzenId == 0) await _api.IslemOlusturAsync(g);
+        if (DuzenId == 0) await _api.IslemOlusturAsync(g with { IstekId = _giderAnahtari.Al(g) });
         else await _api.IslemGuncelleAsync(DuzenId, g);
         if (_auth?.OturumSurumu != oturum) return;
         // Liste yenilenemese de kayıt alınmıştır: başarı ayrı söylenir (liste hatası durum şeridinde), form temizlenir.

@@ -5,6 +5,7 @@ import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
 import { createCashControlsUi } from './cash-controls-ui.js?v=2.3.0';
 import { createStatementImportUi } from './statement-import-ui.js?v=2.3.0';
 import { createPushClient, notificationRoute } from './push-client.js?v=2.3.0';
+import { documentFileName, linkableExpensesPath } from './ui-core.js?v=2.3.0';
 
 const $ = selector => document.querySelector(selector);
 const state = { role: null, view: 'home', purchases: [], channels: [], cards: [], query: '', status: '', selected: null, epoch: 0 };
@@ -320,6 +321,7 @@ function statusDialog(p, action) {
 }
 
 function editPurchase(p = null) {
+  const identity = requestIdentity();
   const draft = { surum: p?.surum || 0, tarih: p?.tarih || today(), tedarikci: p?.tedarikci || '', not: p?.not || '', kalemler: p?.kalemler.map(line => ({ aciklama: line.aciklama, tutar: line.tutar, dagilimlar: line.dagilimlar.map(d => ({ kanalId: d.kanalId, tutar: d.tutar })) })) || [{ aciklama: '', tutar: '', dagilimlar: [] }] };
   const lines = h('div'); const total = h('strong', { class: 'money' });
   const updateTotal = () => { try { total.textContent = money(draft.kalemler.reduce((sum, line) => sum + cents(line.tutar || '0'), 0) / 100); } catch { total.textContent = 'Tutarı kontrol edin'; } };
@@ -337,7 +339,9 @@ function editPurchase(p = null) {
   };
   renderLines();
   formDialog(p ? `Alış #${p.id} · Düzenle` : 'Yeni alış', h('div', { class: 'stack' }, h('div', { class: 'form-grid' }, field('Açıklama / ödeme yapılan yer', input('tedarikci', draft.tedarikci, { required: true, maxlength: 200, oninput: event => { draft.tedarikci = event.target.value; } })), field('Alış tarihi', input('tarih', draft.tarih, { type: 'date', required: true, onchange: event => { draft.tarih = event.target.value; } }))), h('fieldset', {}, h('legend', {}, 'Alınan mallar'), lines, button('+ Bir mal daha ekle', () => { draft.kalemler.push({ aciklama: '', tutar: '', dagilimlar: [] }); renderLines(); }, 'small')), help('Aynı malı birden fazla kanala bölebilirsiniz. Kanal net değilse pay eklemeyin; editör onaylamadan önce tamamlar. Ortak, belirsiz kanal anlamına gelmez.'), field('Alış notu', h('textarea', { name: 'not', maxlength: 2000, oninput: event => { draft.not = event.target.value; } }, draft.not)), h('div', { class: 'draft-total' }, 'Alış toplamı', total)), p ? 'Değişiklikleri kaydet' : 'Taslağı kaydet', async () => {
-    const updated = await api(p ? `/api/alis/${p.id}` : '/api/alis', { method: p ? 'PUT' : 'POST', body: purchasePayload(draft) });
+    // Yeni taslak istek kimliği taşır (appcore-5): yanıtı kaybolan kayıt aynı gövdeyle yeniden gönderilince sunucu ikinci taslak açmaz.
+    const body = purchasePayload(draft);
+    const updated = await api(p ? `/api/alis/${p.id}` : '/api/alis', { method: p ? 'PUT' : 'POST', body: p ? body : identity(body) });
     closeModal(); toast('Alış kaydedildi.'); await navigate('purchase', updated.id);
   }, { wide: true });
 }
@@ -354,16 +358,41 @@ async function paymentDialog(p, payment = null) {
   const total = input('tutar', payment?.tutar ?? p.kalan, { inputmode: 'decimal', required: true });
   const card = select('krediKartiId', [{ value: '', label: 'Nakit / havale' }, ...state.cards.map(k => ({ value: k.id, label: k.ad }))], payment?.krediKartiId);
   const existing = select('mevcutIslemId', [{ value: '', label: 'Yeni gider oluştur' }], '');
-  const existingHelp = help('Daha önce gider olarak girdiğiniz bir ödemeyi bağlarsanız kasadan ikinci kez düşülmez.');
+  const linkHelp = 'Daha önce gider olarak girdiğiniz bir ödemeyi bağlarsanız kasadan ikinci kez düşülmez.';
+  const existingHelp = h('div', { class: 'stack' }, help(linkHelp));
   if (!payment) {
-    const expenses = await api('/api/islemler');
-    const available = expenses.filter(e => !e.alisId && !e.aylikGiderOdemeId && !e.ekstreKayitId && e.tutarTl > 0);
-    existing.replaceChildren(h('option', { value: '' }, 'Yeni gider oluştur'), ...available.map(e => h('option', { value: e.id }, `#${e.id} · ${dateText(e.tarih)} · ${e.cari} · ${money(e.tutarTl)}`)));
-    existing.addEventListener('change', () => {
+    // webui-6: bütün gider geçmişi çekilmez. Sunucu yalnız bağlanabilir giderleri (en yeni önce) sayfa sayfa döndürür; eskisi
+    // açıklama, not ya da tutarla aranır. Sunucunun süzdüğü bağlı kayıtlar istemcide de savunma olarak elenir.
+    let available = []; let cursor = null; let generation = 0;
+    const search = input('giderArama', '', { type: 'search', maxlength: 200, placeholder: 'Açıklama, not veya tutar', 'aria-label': 'Bağlanacak gideri ara' });
+    const status = h('p', { class: 'help', role: 'status' });
+    const sync = () => {
       const selected = available.find(e => e.id === Number(existing.value));
       if (selected) { date.value = selected.tarih; total.value = selected.tutarTl; card.value = selected.krediKartiId || ''; }
       date.disabled = Boolean(selected); total.disabled = Boolean(selected); card.disabled = Boolean(selected);
-    });
+    };
+    const more = button('Daha eski giderler', event => run(event.currentTarget, () => load(true)), 'small', { hidden: true });
+    const load = async append => {
+      const mine = ++generation;
+      const page = await api(linkableExpensesPath(search.value, append ? cursor : null));
+      if (mine !== generation) return;
+      const items = (page?.ogeler || []).filter(e => !e.alisId && !e.aylikGiderOdemeId && !e.ekstreKayitId && e.tutarTl > 0);
+      available = append ? [...available, ...items.filter(e => !available.some(old => old.id === e.id))] : items;
+      cursor = page?.devamVar ? page.sonrakiImlec : null;
+      const selectedValue = existing.value;
+      existing.replaceChildren(h('option', { value: '' }, 'Yeni gider oluştur'), ...available.map(e => h('option', { value: e.id }, `#${e.id} · ${dateText(e.tarih)} · ${e.cari} · ${money(e.tutarTl)}`)));
+      existing.value = available.some(e => String(e.id) === selectedValue) ? selectedValue : '';
+      more.hidden = !cursor;
+      status.textContent = !available.length ? 'Eşleşen bağlanabilir gider yok.' : cursor ? `En yeni ${available.length} gider gösteriliyor; daha eskisi için arayın veya “Daha eski giderler”e basın.` : '';
+      sync();
+    };
+    const find = () => run(null, () => load(false));
+    search.addEventListener('change', find);
+    // Arama kutusunda Enter ödeme formunu göndermez; yalnız arar.
+    search.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); find(); } });
+    existing.addEventListener('change', sync);
+    await load(false);
+    existingHelp.replaceChildren(h('div', { class: 'row-actions' }, search, button('Ara', event => run(event.currentTarget, () => load(false)), 'small')), status, more, help(linkHelp));
   }
   const target = select('hedefAlisId', [{ value: '', label: 'Bu alışta kalsın' }, ...state.purchases.filter(other => other.id !== p.id && other.kalan > 0).map(other => ({ value: other.id, label: `#${other.id} · ${other.tedarikci} · ${money(other.kalan)} kalan` }))]);
   formDialog(payment ? `Ödeme #${payment.id} · Düzelt / taşı` : 'Ödeme kaydet', h('div', { class: 'stack' }, h('div', { class: 'notice' }, payment ? 'Bu işlem kayıtlı ödemeyi değiştirir. Ödeme başka alışa aitse hedef alış seçin; para çıkışını yeniden kaydetmeyin.' : `Alışın kalan tutarı ${money(p.kalan)}. ${p.durum !== 'Onaylandi' ? 'Ödeme kasaya yansır; kanal dağılımı onay bekler.' : 'Ödeme onaylı kanal paylarına dağıtılır.'}`), !payment && field('Yeni ödeme veya mevcut gider', existing, existingHelp), h('div', { class: 'form-grid' }, field('Ödeme tarihi', date), field('Tutar (₺)', total), field('Ödeme yöntemi', card)), payment && field('Ödemeyi başka alışa taşı', target), field(payment ? 'Düzeltme açıklaması' : 'Ödeme notu (isteğe bağlı)', h('textarea', { name: 'aciklama', required: Boolean(payment), maxlength: 2000 })), help('Yeni takipte kartla alış, kart borcu oluşturur; kasa yalnız Kredi Kartları ekranında ödeme kaydedildiğinde azalır. Geçiş yapılmamış eski kartlarda önceki kasa kuralı sürer.')), payment ? 'Düzeltmeyi kaydet' : 'Ödemeyi kaydet', async form => {
@@ -390,7 +419,7 @@ async function loadDocuments(p, container) {
   try {
     const docs = await api(`/api/alis/${p.id}/belgeler`);
     if (!container.isConnected) return;
-    container.replaceChildren(...(docs.length ? docs.map(doc => h('div', { class: 'document-row' }, h('span', { class: 'document-type', 'aria-hidden': 'true' }, doc.icerikTuru === 'application/pdf' ? 'PDF' : 'GÖRSEL'), h('a', { href: `/api/belgeler/${doc.id}`, target: '_blank', rel: 'noopener', download: doc.dosyaAdi }, doc.dosyaAdi, h('span', { class: 'table-sub' }, `${Math.ceil(doc.boyut / 1024)} KB${doc.odemeId ? ` · Ödeme #${doc.odemeId}` : ''}`)), (state.role === 'editor' || p.durum === 'Taslak' && !doc.odemeId) && button('Sil', () => deleteDocument(p, doc), 'small danger'))) : [h('p', { class: 'plain-note' }, p.durum === 'Taslak' || state.role === 'editor' ? 'Fiş, fatura veya dekont ekleyebilirsiniz. PDF, JPEG ve PNG; en fazla 10 MB.' : 'Bu alışa belge eklenmedi. Yeni belge için editörün alışı iade etmesi gerekir.') ]));
+    container.replaceChildren(...(docs.length ? docs.map(doc => h('div', { class: 'document-row' }, h('span', { class: 'document-type', 'aria-hidden': 'true' }, doc.icerikTuru === 'application/pdf' ? 'PDF' : 'GÖRSEL'), h('a', { href: `/api/belgeler/${doc.id}`, target: '_blank', rel: 'noopener', download: documentFileName(doc.dosyaAdi, doc.icerikTuru) }, documentFileName(doc.dosyaAdi, doc.icerikTuru), h('span', { class: 'table-sub' }, `${Math.ceil(doc.boyut / 1024)} KB${doc.odemeId ? ` · Ödeme #${doc.odemeId}` : ''}`)), (state.role === 'editor' || p.durum === 'Taslak' && !doc.odemeId) && button('Sil', () => deleteDocument(p, doc), 'small danger'))) : [h('p', { class: 'plain-note' }, p.durum === 'Taslak' || state.role === 'editor' ? 'Fiş, fatura veya dekont ekleyebilirsiniz. PDF, JPEG ve PNG; en fazla 10 MB.' : 'Bu alışa belge eklenmedi. Yeni belge için editörün alışı iade etmesi gerekir.') ]));
   } catch (error) { if (container.isConnected) container.replaceChildren(h('p', { class: 'form-error' }, error.message), button('Yeniden yükle', () => loadDocuments(p, container), 'small')); }
 }
 function documentDialog(p) {
@@ -629,6 +658,8 @@ async function incomeDialog(periodStart = null) {
   fill();
 }
 async function expenseDialog(expense = null) {
+  // Yeni gider istek kimliği taşır (appcore-5): yanıtı kaybolan kayıt aynı gövdeyle yeniden gönderilince ikinci gider oluşmaz.
+  const identity = requestIdentity();
   const [channels, cards] = await Promise.all([api('/api/kanallar'), api('/api/kredikartlari')]);
   const type = select('tip', [{ value: 'Cari', label: 'Diğer gider' }, { value: 'SabitGider', label: 'Sabit gider' }, { value: 'KrediKarti', label: 'Kredi kartı gideri' }], expense?.tip || 'Cari');
   // K3: yeni kredi kartı gideri yalnız yeni takipteki, yeni kullanıma açık bir karta bağlanır. Düzenlenen eski kredi kartı kaydı
@@ -649,7 +680,7 @@ async function expenseDialog(expense = null) {
     if (data.tip === 'KrediKarti' && !card.value && !cardlessOld) throw Object.assign(new Error(cardRequired), { fields: { krediKartiId: cardRequired } });
     const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null };
     if (!expense && !await confirmSimilar(form, { tur: 'Gider', tarih: body.tarih, tutar: body.tutarTl, krediKartiId: body.krediKartiId, kanal: body.kanal, alisId: null }, body)) return;
-    await api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body }); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);
+    await api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body: expense ? body : identity(body) }); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);
   });
 }
 function deleteExpense(expense) {

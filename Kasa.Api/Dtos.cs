@@ -9,8 +9,9 @@ public record IzleyiciSifreDto(string YeniSifre);
 // Yazma istekleri veritabanı kimliklerini ve ilişki nesnelerini değiştiremez.
 public record KanalYazDto(string Ad, bool Aktif = true, int Sira = 0, decimal AcilisDevri = 0);
 public record CariYazDto(string Ad, bool Aktif = true);
+/// <param name="IstekId">Yalnız oluşturmada (POST) tekrar anahtarı (appcore-5); eski istemci göndermez, düzenlemede yok sayılır.</param>
 public record IslemYazDto(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal,
-    GiderTipi Tip, string? Not = null, int? KrediKartiId = null);
+    GiderTipi Tip, string? Not = null, int? KrediKartiId = null, Guid? IstekId = null);
 public record KrediKartiYazDto(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi,
     decimal Limit, decimal Borc);
 public record KrediYazDto(string Ad, decimal CekilenTutar, DateOnly CekimTarihi,

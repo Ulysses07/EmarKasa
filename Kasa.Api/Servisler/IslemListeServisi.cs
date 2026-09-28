@@ -26,7 +26,9 @@ public class IslemListeServisi
         var kayitlar = query.OrderBy(i => i.Tarih).ThenBy(i => i.Id).ToList();
         var secilenIdler = query.Select(i => i.Id);
         var monthly = _db.AylikGiderOdemeler.AsNoTracking().Where(p => !p.Iptal && p.IslemId != null && secilenIdler.Contains(p.IslemId.Value)).ToDictionary(p => p.IslemId!.Value);
-        var revisions = _db.AylikGiderRevizyonlar.AsNoTracking().ToDictionary(r => r.Id);
+        // Yalnız listedeki aylık gider ödemelerinin revizyonları okunur (bütün şablon geçmişi değil).
+        var revizyonIdleri = monthly.Values.Select(p => p.RevizyonId).Distinct().ToList();
+        var revisions = _db.AylikGiderRevizyonlar.AsNoTracking().Where(r => revizyonIdleri.Contains(r.Id)).ToDictionary(r => r.Id);
         var imports = _db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.IslemId != null && secilenIdler.Contains(k.IslemId.Value)).ToDictionary(k => k.IslemId!.Value);
         // Kanal adları bir kez: aylık gider ve ekstre satırı başına Kanallar sorgusu atılmaz.
         var kanalAdlari = _db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);

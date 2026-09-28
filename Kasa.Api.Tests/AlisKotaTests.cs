@@ -1,0 +1,211 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using static Kasa.Api.Tests.VekilVeHizSiniriTests;
+
+namespace Kasa.Api.Tests;
+
+/// <summary>
+/// Alıcı kotaları ve alış yükleme hız sınırı (host-auth-5, purchase-3): en düşük yetkili rol belge BLOB'larıyla veritabanını
+/// ve yedek diskini dolduramaz. Alıcı başına açık taslak sayısı, taslak başına belge sayısı ve toplam boyutu, son 24 saatteki
+/// yükleme hacmi yapılandırılabilir (Kasa:AliciKota); aşım Türkçe 409 döner. Belge yükleme ve alış oluşturma (kullanıcı, IP)
+/// başına ayrı bir pencerede sınırlanır (Kasa:HizSiniri:AlisYuklemeIzni; editör ayrı ve yüksek sınırda); aşım Türkçe 429 döner.
+/// </summary>
+public class AlisKotaTests
+{
+    private static readonly DateOnly Bugun = KasaWebFactory.VarsayilanBugun;
+
+    [Fact]
+    public async Task Alicinin_acik_taslak_sayisi_sinirlidir_editor_etkilenmez()
+    {
+        await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:AcikTaslak"] = "2" });
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-taslak");
+        await AlisTestYardimcisi.Taslak(alici, "Birinci");
+        var ikinci = await AlisTestYardimcisi.Taslak(alici, "İkinci");
+
+        using var ucuncu = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Üçüncü"));
+        Assert.Equal(HttpStatusCode.Conflict, ucuncu.StatusCode);
+        Assert.Contains("En fazla 2 açık taslak", await AlisTestYardimcisi.Hata(ucuncu));
+
+        // Taslak incelemeye gönderilince yer açılır; editörün kendi taslakları hiç sayılmaz.
+        (await alici.PostAsJsonAsync($"/api/alis/{ikinci.Id}/gonder", new AlisDurumYaz(ikinci.Surum))).EnsureSuccessStatusCode();
+        await AlisTestYardimcisi.Taslak(alici, "Üçüncü");
+        for (var i = 0; i < 3; i++) await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
+    }
+
+    [Fact]
+    public async Task Alicinin_taslak_basina_belge_sayisi_ve_boyutu_sinirlidir_editor_etkilenmez()
+    {
+        await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:TaslakBelgeSayisi"] = "2", ["Kasa:AliciKota:TaslakBelgeMb"] = "1" });
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-belge");
+        var taslak = await AlisTestYardimcisi.Taslak(alici, "Belgeli");
+
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, taslak.Id, 600 * 1024));
+        using (var fazla = await AlisTestYardimcisi.YukleYanit(alici, taslak.Id, 500 * 1024))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, fazla.StatusCode);
+            Assert.Contains("toplam boyutu en fazla 1 MB", await AlisTestYardimcisi.Hata(fazla));
+        }
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, taslak.Id, 100 * 1024));
+        using (var sayi = await AlisTestYardimcisi.YukleYanit(alici, taslak.Id, 1024))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, sayi.StatusCode);
+            Assert.Contains("en fazla 2 belge", await AlisTestYardimcisi.Hata(sayi));
+        }
+        // Editör aynı taslağa alıcı kotasından bağımsız ekler (genel sınır: alış başına 30 belge).
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(editor, taslak.Id, 900 * 1024));
+        Assert.Equal(3, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Length);
+    }
+
+    [Fact]
+    public async Task Alicinin_son_24_saatteki_yukleme_hacmi_sinirlidir_ertesi_gun_acilir()
+    {
+        var saat = new SabitSaat(Bugun);
+        await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:GunlukYuklemeMb"] = "1" }, saat);
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-gunluk");
+        var ilk = await AlisTestYardimcisi.Taslak(alici, "Sabah");
+        var ikinci = await AlisTestYardimcisi.Taslak(alici, "Öğle");
+
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ilk.Id, 700 * 1024));
+        using (var fazla = await AlisTestYardimcisi.YukleYanit(alici, ikinci.Id, 400 * 1024))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, fazla.StatusCode);
+            Assert.Contains("Son 24 saatte en fazla 1 MB", await AlisTestYardimcisi.Hata(fazla));
+        }
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(editor, ikinci.Id, 900 * 1024));
+
+        saat.Ayarla(Bugun.AddDays(1));
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ikinci.Id, 400 * 1024));
+    }
+
+    [Fact]
+    public async Task Idempotent_tekrar_kota_doluyken_de_ilk_sonucu_doner()
+    {
+        await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:AcikTaslak"] = "1" });
+        using var editor = await f.EditorClientAsync();
+        using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-tekrar");
+        var istek = new { surum = 0, tarih = Bugun, tedarikci = "Tekrar", not = (string?)null, kalemler = Array.Empty<object>(), istekId = Guid.NewGuid() };
+        using var ilk = await alici.PostAsJsonAsync("/api/alis", istek);
+        Assert.Equal(HttpStatusCode.Created, ilk.StatusCode);
+        using var tekrar = await alici.PostAsJsonAsync("/api/alis", istek);
+        Assert.Equal(HttpStatusCode.OK, tekrar.StatusCode);
+        Assert.Equal((await ilk.Content.ReadFromJsonAsync<AlisDto>())!.Id, (await tekrar.Content.ReadFromJsonAsync<AlisDto>())!.Id);
+        using var yeni = await alici.PostAsJsonAsync("/api/alis", istek with { istekId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.Conflict, yeni.StatusCode);
+    }
+
+    [Fact]
+    public async Task Belge_yukleme_ve_alis_olusturma_kullanici_ve_ip_basina_hiz_sinirinda_turkce_429_doner()
+    {
+        await using var f = new VekilFabrikasi(new() { ["Kasa:HizSiniri:AlisYuklemeIzni"] = "3", ["Kasa:HizSiniri:EditorAlisYuklemeIzni"] = "6" });
+        using var kurulum = Istemci(f, "198.51.100.1");
+        (await Giris(kurulum, "editor", "kasa123")).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("hiz-alici", "Hız Alıcısı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("hiz-komsu", "Aynı ağdaki alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        using var alici = Istemci(f, "203.0.113.5");
+        (await Giris(alici, "hiz-alici", "alici-sifre-1")).EnsureSuccessStatusCode();
+
+        var taslak = await AlisTestYardimcisi.Taslak(alici, "Hız");                                   // 1
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, taslak.Id, 1024)); // 2
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, taslak.Id, 1024)); // 3
+        using (var red = await AlisTestYardimcisi.YukleYanit(alici, taslak.Id, 1024))
+        {
+            Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
+            Assert.True(red.Headers.RetryAfter?.Delta > TimeSpan.Zero, "Retry-After başlığı saniye olarak gelmeli.");
+            Assert.StartsWith("Belge yükleme ve alış kaydı sınırına ulaşıldı: 10 dakikada en çok 3", await AlisTestYardimcisi.Hata(red));
+        }
+        using (var red = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Sınır sonrası")))
+            Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
+        // Okuma ve düzenleme bu kovayı tüketmez.
+        (await alici.GetAsync($"/api/alis/{taslak.Id}/belgeler")).EnsureSuccessStatusCode();
+
+        // Aynı ağdaki başka alıcı ve aynı alıcının başka ağdaki oturumu ayrı kovadadır.
+        using var komsu = Istemci(f, "203.0.113.5");
+        (await Giris(komsu, "hiz-komsu", "alici-sifre-1")).EnsureSuccessStatusCode();
+        await AlisTestYardimcisi.Taslak(komsu, "Komşu");
+        using var baskaAg = Istemci(f, "192.0.2.77");
+        (await Giris(baskaAg, "hiz-alici", "alici-sifre-1")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(baskaAg, taslak.Id, 1024));
+
+        // Editör ayrı ve yüksek sınırdadır.
+        for (var i = 0; i < 6; i++) Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(kurulum, taslak.Id, 1024));
+        using (var red = await AlisTestYardimcisi.YukleYanit(kurulum, taslak.Id, 1024))
+            Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
+    }
+
+    [Fact]
+    public void Kota_ayarlari_pozitif_olmali()
+    {
+        Assert.Empty(new AliciKotaAyarlari().Hatalar());
+        Assert.NotEmpty(new AliciKotaAyarlari { AcikTaslak = 0 }.Hatalar());
+        Assert.NotEmpty(new AliciKotaAyarlari { GunlukYuklemeMb = -1 }.Hatalar());
+        Assert.NotEmpty(new Kasa.Api.Auth.HizSiniriAyarlari { AlisYuklemeIzni = 0 }.Hatalar());
+    }
+}
+
+/// <summary>Alış testlerinin ortak kurulumları: alıcı oturumu, taslak, belge yükleme ve ek ayarlı fabrika.</summary>
+internal static class AlisTestYardimcisi
+{
+    internal static KasaWebFactory KotaFabrikasi(Dictionary<string, string?> ayarlar, SabitSaat? saat = null)
+        => new AyarliFabrika(ayarlar) { Saat = saat ?? new SabitSaat(KasaWebFactory.VarsayilanBugun) };
+
+    internal static async Task<HttpClient> Alici(KasaWebFactory f, HttpClient editor, string kullanici)
+    {
+        (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz(kullanici, "Alıcı " + kullanici, "alici-sifre-1"))).EnsureSuccessStatusCode();
+        var c = f.CreateClient();
+        (await c.PostAsJsonAsync("/api/auth/login", new { kullanici, sifre = "alici-sifre-1" })).EnsureSuccessStatusCode();
+        return c;
+    }
+
+    internal static AlisYaz Govde(string tedarikci) => new(0, KasaWebFactory.VarsayilanBugun, tedarikci, null, [new("Mal", 100m, [new(1, 100m)])]);
+
+    internal static async Task<AlisDto> Taslak(HttpClient c, string tedarikci)
+    {
+        using var r = await c.PostAsJsonAsync("/api/alis", Govde(tedarikci));
+        Assert.True(r.StatusCode == HttpStatusCode.Created, $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        return (await r.Content.ReadFromJsonAsync<AlisDto>())!;
+    }
+
+    /// <summary>'%PDF-' ile başlayan, istenen boyutta belge.</summary>
+    internal static byte[] Pdf(int boyut)
+    {
+        var icerik = new byte[boyut];
+        "%PDF-1.7\n"u8.CopyTo(icerik);
+        return icerik;
+    }
+
+    internal static Task<HttpResponseMessage> YukleYanit(HttpClient c, int alisId, int boyut, string ad = "fatura.pdf")
+        => YukleYanit(c, alisId, Pdf(boyut), ad);
+
+    internal static async Task<HttpResponseMessage> YukleYanit(HttpClient c, int alisId, byte[] icerik, string ad, string? icerikTuru = null)
+    {
+        using var form = new MultipartFormDataContent();
+        var dosya = new ByteArrayContent(icerik);
+        if (icerikTuru is not null) dosya.Headers.ContentType = new(icerikTuru);
+        form.Add(dosya, "dosya", ad);
+        return await c.PostAsync($"/api/alis/{alisId}/belgeler", form);
+    }
+
+    internal static async Task<HttpStatusCode> Yukle(HttpClient c, int alisId, int boyut)
+    {
+        using var r = await YukleYanit(c, alisId, boyut);
+        return r.StatusCode;
+    }
+
+    internal static async Task<string> Hata(HttpResponseMessage r)
+        => (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
+
+    private sealed class AyarliFabrika(Dictionary<string, string?> ayarlar) : KasaWebFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(ayarlar));
+        }
+    }
+}

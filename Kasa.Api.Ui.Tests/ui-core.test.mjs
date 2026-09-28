@@ -187,7 +187,7 @@ test('new cash expense duplicate can be cancelled and lookup failure never silen
 test('new purchase payment checks its purchase and card, while linking an existing expense skips duplicate checks', async () => {
   const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 4 };
-  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/alis/baglanabilir-giderler': { ogeler: [expense], sonrakiImlec: null, devamVar: false }, '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
   await app.paymentDialog(purchase); formField(nodes, 'tutar').value = '75'; formField(nodes, 'krediKartiId').value = '4';
   await submitDialog(nodes);
   const lookup = calls.find(call => call.path === '/api/islemler/benzerlik'); assert.equal(lookup.body.tur, 'AlisOdeme'); assert.equal(lookup.body.alisId, 6); assert.equal(lookup.body.krediKartiId, 4);
@@ -198,6 +198,76 @@ test('new purchase payment checks its purchase and card, while linking an existi
   await submitDialog(nodes);
   const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.ok(save); assert.equal(save.body.mevcutIslemId, 20); assert.equal(save.body.tutar, 75);
   assert.equal(calls.filter(call => call.path === '/api/islemler/benzerlik').length, 1);
+});
+test('purchase payment dialog uses the server linkable-expense page instead of the full expense history, with search and older pages', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
+  const row = (id, cari, tutarTl) => ({ id, tarih: `2026-09-${id - 10}`, cari, tutarTl, krediKartiId: null });
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kredikartlari': [], '/api/alis/6/odemeler': purchase,
+    '/api/alis/baglanabilir-giderler': { ogeler: [row(31, 'Kargo', 40), row(30, 'Ambalaj', 20)], sonrakiImlec: '20260920-30', devamVar: true },
+    '/api/alis/baglanabilir-giderler?imlec=20260920-30': { ogeler: [row(29, 'Eski mal', 75), { ...row(28, 'Bağlı', 10), alisId: 3 }], sonrakiImlec: null, devamVar: false },
+    '/api/alis/baglanabilir-giderler?arama=Kargo+Co': { ogeler: [], sonrakiImlec: null, devamVar: false },
+    '/api/alis/baglanabilir-giderler?tutar=75.00': { ogeler: [row(29, 'Eski mal', 75)], sonrakiImlec: null, devamVar: false },
+  });
+  await app.paymentDialog(purchase);
+  assert.equal(calls.some(call => call.path.startsWith('/api/islemler')), false);
+  const existing = formField(nodes, 'mevcutIslemId');
+  const options = () => existing.children.filter(node => node.tag === 'option').map(node => node.value);
+  assert.deepEqual(options(), ['', '31', '30']);
+  const more = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Daha eski giderler');
+  assert.equal(more.hidden, false);
+  existing.value = '31'; existing.listeners.change();
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.deepEqual(options(), ['', '31', '30', '29']);
+  assert.equal(existing.value, '31'); assert.equal(more.hidden, true);
+  const search = formField(nodes, 'giderArama');
+  search.value = 'Kargo Co'; search.listeners.change(); await settle();
+  assert.deepEqual(options(), ['']); assert.match(nodes.get('#modal-content').textContent, /Eşleşen bağlanabilir gider yok/);
+  assert.equal(formField(nodes, 'tutar').disabled, false);
+  let prevented = false; search.value = '75'; search.listeners.keydown({ key: 'Enter', preventDefault() { prevented = true; } }); await settle();
+  assert.equal(prevented, true); assert.deepEqual(options(), ['', '29']);
+  assert.equal(calls.some(call => call.path === '/api/alis/6/odemeler'), false);
+  existing.value = '29'; existing.listeners.change();
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.equal(save.body.mevcutIslemId, 29); assert.equal(save.body.tutar, 75);
+});
+test('new expense and new purchase reuse the request id after a lost response, while edits send none', async () => {
+  let expenseAttempts = 0; let purchaseAttempts = 0;
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': [], '/api/islemler/20': { id: 20 },
+    '/api/islemler': call => { if (call.method === 'POST' && ++expenseAttempts === 1) throw new Error('Network response lost'); return call.method === 'POST' ? { id: 21 } : []; },
+    '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/alis/9/belgeler': [],
+    '/api/alis': call => { if (call.method === 'POST' && ++purchaseAttempts === 1) throw new Error('Network response lost'); return call.method === 'POST' ? { id: 9 } : [{ id: 9, surum: 1, tarih: '2026-09-23', tedarikci: 'Firma', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 0, odenen: 0, kalan: 0 }]; },
+  });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes); await submitDialog(nodes);
+  const expenseWrites = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(expenseWrites.length, 2); assert.ok(expenseWrites[0].body.istekId); assert.deepEqual(expenseWrites[0].body, expenseWrites[1].body);
+  await app.expenseDialog({ id: 20, tarih: '2026-09-23', cari: 'Kargo', tutarTl: 75, kanal: 'A', tip: 'Cari' });
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20' && call.method === 'PUT').body.istekId, undefined);
+
+  await app.navigate('purchases');
+  const create = nodes.get('#page-actions').find(node => node.tag === 'button' && node.textContent === '+ Yeni alış'); await create.listeners.click({ currentTarget: create }); await settle();
+  formField(nodes, 'tedarikci').listeners.input({ target: { value: 'Firma' } });
+  formField(nodes, 'aciklama-0').listeners.input({ target: { value: 'Mal' } });
+  formField(nodes, 'tutar-0').listeners.input({ target: { value: '100' } });
+  await submitDialog(nodes); await submitDialog(nodes);
+  const purchaseWrites = calls.filter(call => call.path === '/api/alis' && call.method === 'POST');
+  assert.equal(purchaseWrites.length, 2); assert.ok(purchaseWrites[0].body.istekId); assert.deepEqual(purchaseWrites[0].body, purchaseWrites[1].body);
+});
+test('purchase document download names come from the stored type, never from the uploaded extension or direction marks', () => {
+  assert.equal(ui.documentFileName('fatura.pdf.hta', 'application/pdf'), 'fatura.pdf');
+  assert.equal(ui.documentFileName('fatura‮fdp.hta', 'application/pdf'), 'faturafdp.pdf');
+  assert.equal(ui.documentFileName('..\\gizli\\CON.png', 'image/png'), 'belge-CON.png');
+  assert.equal(ui.documentFileName('foto.jpeg', 'image/jpeg'), 'foto.jpg');
+  assert.equal(ui.documentFileName('sayfa.html', 'text/html'), 'sayfa.bin');
+  assert.equal(ui.documentFileName('Fatura 12.05.2024', 'application/pdf'), 'Fatura 12.05.2024.pdf');
+  assert.equal(ui.documentFileName('', 'application/pdf'), 'belge.pdf');
+  assert.equal(ui.linkableExpensesPath('  Kargo & Co '), '/api/alis/baglanabilir-giderler?arama=Kargo+%26+Co');
+  assert.equal(ui.linkableExpensesPath('12,5', '20260920-30'), '/api/alis/baglanabilir-giderler?tutar=12.50&imlec=20260920-30');
+  assert.equal(ui.linkableExpensesPath(''), '/api/alis/baglanabilir-giderler');
 });
 test('changing a field invalidates duplicate approval and cancelling during lookup cannot create an expense', async () => {
   const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': [], '/api/islemler/benzerlik': [similarCharge] });
@@ -895,7 +965,7 @@ test('monthly payment expenses open the monthly section instead of generic edit 
 });
 
 test('a monthly payment cannot be selected as an existing purchase expense', async () => {
-  const { app, nodes } = await openApp(false, { '/api/kredikartlari': [], '/api/islemler': [{ id: 21, tarih: ui.today(), cari: 'Kira', tutarTl: 100, aylikGiderOdemeId: 11 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }] });
+  const { app, nodes } = await openApp(false, { '/api/kredikartlari': [], '/api/alis/baglanabilir-giderler': { ogeler: [{ id: 21, tarih: ui.today(), cari: 'Kira', tutarTl: 100, aylikGiderOdemeId: 11 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }], sonrakiImlec: null, devamVar: false } });
   await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' });
   const existing = formField(nodes, 'mevcutIslemId');
   assert.equal(existing.find(row => row.tag === 'option' && row.value === '21'), null);
@@ -1063,7 +1133,7 @@ test('PDF history cancellation requires an explanation and retains its retry ide
 
 test('imported cash expenses have a source link and cannot be selected as purchase payments', async () => {
   const expenses = [{ id: 21, tarih: ui.today(), cari: 'PDF Kira', tutarTl: 100, ekstreKayitId: 8 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }];
-  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/islemler': expenses, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses }));
+  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/alis/baglanabilir-giderler': { ogeler: expenses, sonrakiImlec: null, devamVar: false }, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses }));
   await app.navigate('transactions'); assert.match(nodes.get('#view').textContent, /Ekstre \/ Hareket Yükle bölümünden yönetilir/);
   const row = nodes.get('#view').find(node => node.tag === 'tr' && node.textContent.includes('PDF Kira')); assert.doesNotMatch(row.textContent, /Düzenle|Sil/);
   await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' }); const existing = formField(nodes, 'mevcutIslemId'); assert.equal(existing.find(row => row.tag === 'option' && row.value === '21'), null);
