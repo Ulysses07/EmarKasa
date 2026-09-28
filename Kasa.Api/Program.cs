@@ -355,12 +355,12 @@ api.MapGet("/kredikartlari", (KasaDbContext db) =>
         var h = kh?.Sum(x => x.TutarTl) ?? 0m;
         var o = odeme.GetValueOrDefault(k.Id, 0m);
         var sonKesim = KartDonem.SonKesim(k.KesimTarihi.Day, bugun);
-        var kesimSonrasi = kh?.Where(x => x.Tarih > sonKesim).Sum(x => x.TutarTl) ?? 0m;
         var guncel = k.Borc + h - o;
+        // Ekstre borcu takipsiz kartın hatırlatmasıyla aynı hesaptır (EskiModelOlaylari).
         return new KrediKartiTuretilmisDto(
             k.Id, k.Ad, k.KesimTarihi, k.SonOdemeTarihi, k.Limit,
             Borc: k.Borc, GuncelBorc: guncel, AcilisBorc: k.Borc,
-            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: guncel - kesimSonrasi,
+            HarcamaToplam: h, OdemeToplam: o, EkstreBorc: EskiModelOlaylari.EkstreBorc(guncel, kh?.Select(x => (x.Tarih, x.TutarTl)) ?? [], sonKesim),
             YeniTakip: takip.ContainsKey(k.Id), Aktif: takip.GetValueOrDefault(k.Id, true));
     }).ToList();
 });

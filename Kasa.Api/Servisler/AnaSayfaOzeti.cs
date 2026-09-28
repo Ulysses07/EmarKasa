@@ -8,8 +8,12 @@ namespace Kasa.Api.Servisler;
 /// <param name="TakipOzeti">Takip özeti; bozuk bir kart/kredi kaydı yüzünden hesaplanamadıysa null (panel ve eşikler yine döner).</param>
 /// <param name="VeriSagligiUyarisi">Karantinaya alınan kayıtların ve hesaplanamayan takip özetinin uyarısı; sorun yoksa null ve
 /// JSON'a yazılmaz (sağlam veride yanıt biçimi aynen korunur).</param>
+/// <param name="TakipsizKayitlar">Takipte olmayan (geçişi yapılmamış) kartlar ve kalan taksidi olan eski krediler: ana sayfanın kalıcı
+/// "hatırlatmalar sınırlı, geçiş yapın" uyarısı (gap-tarihsel-spec-ve-emekli-web-7; <see cref="EskiModelOlaylari.TakipsizKayitlar"/>).
+/// Kayıt yoksa null ve JSON'a yazılmaz.</param>
 public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto> KasaEsikleri, TakipOzetDto? TakipOzeti,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? VeriSagligiUyarisi = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? VeriSagligiUyarisi = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TakipsizKayitDto>? TakipsizKayitlar = null);
 
 /// <summary>
 /// Ana sayfa tekrarının (gap-okuma-yolu-maliyet-kilit-cekismesi-4) sunucu çözümü. Ana sayfa panel, kasa eşikleri ve takip
@@ -41,7 +45,7 @@ public static class AnaSayfaOzeti
                 ozet = null;
                 uyari = uyari is null ? ozetUyarisi : uyari + " " + ozetUyarisi;
             }
-            return Results.Ok(new AnaSayfaDto(panel, esikler, ozet, uyari));
+            return Results.Ok(new AnaSayfaDto(panel, esikler, ozet, uyari, EskiModelOlaylari.TakipsizKayitlar(takip)));
         }));
 
     /// <summary>Takip özeti hesaplanamadı: özetin okuduğu kartlar ve krediler tek tek denenir, okunamayanlar kimlikleriyle uyarıya

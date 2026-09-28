@@ -17,7 +17,8 @@ public interface IBildirimKaynaklari
 }
 
 /// <summary><see cref="FinansTakipServisi.GetNotificationEvents"/> ile aynı olayları aynı kuraldan
-/// (<see cref="FinansTakipServisi.KartOlaylari"/>, <see cref="FinansTakipServisi.KrediOlaylari"/>) üretir; farkı her kart ve
+/// (<see cref="FinansTakipServisi.KartOlaylari"/>, <see cref="FinansTakipServisi.KrediOlaylari"/>; takipsiz kayıtlar için
+/// <see cref="EskiModelOlaylari"/>) üretir; farkı her kart ve
 /// kredinin ayrı hesaplanmasıdır: bozuk bir kayıt atlanır, ötekilerin hatırlatmaları sürer. Yeni kart hareketleri kısa ve ayrı
 /// bir yazma adımında eşitlenir; hesabın kendisi yazma kilidi almadan, salt okunur anlık görüntüde (<see cref="OkumaAnlikGoruntusu"/>)
 /// ve tur boyunca paylaşılan izlemesiz hesap bağlamıyla (<see cref="TakipHesapBaglami"/>) yapılır: eşitlemenin izlediği
@@ -49,6 +50,11 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
             {
                 result.AddRange(FinansTakipServisi.KrediOlaylari(FinansTakipServisi.Kredi(baglam, loan.KrediId)).ToList());
             });
+        // Takipsiz (geçişi yapılmamış) kart ve krediler eski modelin hesabıyla, aynı yalıtımla (gap-tarihsel-spec-ve-emekli-web-7).
+        foreach (var id in EskiModelOlaylari.TakipsizKartlar(db))
+            Dene(db, hatalar, "Kart", id, kartAdlari.GetValueOrDefault(id, $"Kart #{id}"), () => result.AddRange(EskiModelOlaylari.Kart(baglam, id)));
+        foreach (var id in EskiModelOlaylari.TakipsizKrediler(db))
+            Dene(db, hatalar, "Kredi", id, krediAdlari.GetValueOrDefault(id, $"Kredi #{id}"), () => result.AddRange(EskiModelOlaylari.Kredi(baglam, id)));
         return result;
     }
 
@@ -84,6 +90,8 @@ public record BildirimTaslagi(string Anahtar, string Baslik, string Mesaj, DateO
 
 public static class BildirimTakvimi
 {
+    private const string EskiKartNotu = "Kart yeni takipte olmadığı için yeni ödeme ve harcamalar bu tutara yansımaz; bankadaki ekstreyi kontrol edip Kartlar ekranından geçişi yapın.";
+
     public static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
     public static DateTime Yerel(DateTimeOffset utc) => TimeZoneInfo.ConvertTime(utc, Istanbul).DateTime;
 
@@ -100,12 +108,20 @@ public static class BildirimTakvimi
             var key = $"{e.Kaynak}:{e.KaynakId}:{e.KalemId}:{e.Tur}:{e.Tarih:yyyy-MM-dd}:{offset}";
             var amount = e.Tutar.ToString("N2", CultureInfo.GetCultureInfo("tr-TR")) + " TL";
             var title = e.Tur == "Kesim" ? "Bugün hesap kesim günü" : offset == 3 ? "Ödemeye 3 gün kaldı" : "Bugün ödeme günü";
-            var message = e.Tur == "Kesim"
-                ? $"{e.Ad}: kayıtlı ekstre borcu {amount}. Kasadan ancak ödeme kaydettiğinde düşer."
-                : isCard ? $"{e.Ad}: kalan ödeme {amount}. Son gün {e.Tarih:dd.MM.yyyy}."
-                : $"{e.Ad}: taksit {amount}, {e.Tarih:dd.MM.yyyy}. " + (offset == 0
+            // Takipsiz eski kart (EskiModel): tutar eski kayıtlardan hesaplanır, kasa ödeme kaydıyla değişmez; geçiş istenir.
+            // Taksidi kasaya otomatik işlenmeyen kredi yalnız gerçekleşme takipli eski kredidir.
+            var message = (e.Tur, isCard, e.EskiModel) switch
+            {
+                ("Kesim", _, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. {EskiKartNotu}",
+                ("Kesim", _, false) => $"{e.Ad}: kayıtlı ekstre borcu {amount}. Kasadan ancak ödeme kaydettiğinde düşer.",
+                (_, true, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. Son gün {e.Tarih:dd.MM.yyyy}. {EskiKartNotu}",
+                (_, true, false) => $"{e.Ad}: kalan ödeme {amount}. Son gün {e.Tarih:dd.MM.yyyy}.",
+                _ => $"{e.Ad}: taksit {amount}, {e.Tarih:dd.MM.yyyy}. " + (!e.OtomatikKasa
+                    ? "Bu kredinin taksidi kasaya otomatik işlenmez; bankadaki ödemeyi kontrol et."
+                    : offset == 0
                     ? "Taksit bugün kasaya otomatik işlendi; bankadaki ödemeyi ayrıca kontrol et."
-                    : "Taksit tarihinde ilgili kanal kasalarından otomatik düşecek.");
+                    : "Taksit tarihinde ilgili kanal kasalarından otomatik düşecek.")
+            };
             result.Add(new(key, title, message, today, isCard ? $"/#cards/{e.KaynakId}" : $"/#loans/{e.KaynakId}", e.Tur, e.KaynakId));
         }
         return result;

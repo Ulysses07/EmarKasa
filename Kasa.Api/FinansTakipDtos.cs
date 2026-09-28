@@ -77,5 +77,14 @@ public record TakipGecisDto(string Kaynak, int KaynakId, DateOnly Baslangic, dec
     decimal? SistemKartBorcu = null, decimal? EskiKuraldaIslenenTutar = null, decimal? BekleyenEskiDusumTutari = null, DateOnly? SonBekleyenDusumTarihi = null, decimal? OnerilenKasadaSayilanTutar = null,
     decimal? EnAzKasadaSayilanTutar = null);
 public record TakipOzetDto(DateOnly Tarih, decimal KartBorcu, decimal KalanKrediPlani, IReadOnlyList<TakipOlayDto> Olaylar, IReadOnlyList<TakipKanalPayi>? KanalKartBorclari = null, decimal KartAlacakBakiyesi = 0);
-public record TakipOlayDto(string Kaynak, int KaynakId, int KalemId, string Ad, DateOnly Tarih, decimal Tutar, string Tur, bool OtomatikKasa);
+public record TakipOlayDto(string Kaynak, int KaynakId, int KalemId, string Ad, DateOnly Tarih, decimal Tutar, string Tur, bool OtomatikKasa)
+{
+    /// <summary>Takipsiz (geçişi yapılmamış) eski kart/kredinin olayı (<see cref="EskiModelOlaylari"/>): bildirim metni eski modelin
+    /// kasa kuralına göre yazılır. Sunucu içi işarettir, JSON'a yazılmaz: bu olaylar yalnız bildirim hattına girer, takip
+    /// özetine girmez.</summary>
+    [JsonIgnore] public bool EskiModel { get; init; }
+}
+/// <summary>Takipte olmayan (geçişi yapılmamış) kayıt: ana sayfanın kalıcı "geçiş yapın" uyarısı için (<see cref="EskiModelOlaylari.TakipsizKayitlar"/>).</summary>
+/// <param name="Kaynak">"Kart" ya da "Kredi".</param>
+public record TakipsizKayitDto(string Kaynak, int Id, string Ad);
 internal record KartTaksitPayi(int TaksitId, decimal Tutar, decimal OncedenOdenen = 0m);

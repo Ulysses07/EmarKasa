@@ -40,6 +40,31 @@ public sealed class NotificationTests
         Assert.DoesNotContain(result, x => x.Tur == "SonOdeme");
     }
 
+    /// <summary>Takipsiz (eski model) kart ve kredinin bildirim metni (gap-tarihsel-spec-ve-emekli-web-7): eski kartta tutar eski
+    /// kayıtlardan hesaplanır ve geçiş istenir (kasa ödeme kaydıyla değişmez); gerçekleşme takipli eski kredinin taksidi kasaya
+    /// otomatik işlenmez. Takipli kayıtların metni değişmez.</summary>
+    [Fact]
+    public void EskiModelKartVeKrediMetniEskiKasaKuralinaGoreYazilir()
+    {
+        var eski = new[]
+        {
+            new TakipOlayDto("Kart", 4, 0, "Bonus (eski model; geçiş yapılmadı)", Day, 1500m, "Kesim", false) { EskiModel = true },
+            new TakipOlayDto("Kart", 4, 0, "Bonus (eski model; geçiş yapılmadı)", Day.AddDays(3), 1500m, "SonOdeme", false) { EskiModel = true },
+            new TakipOlayDto("Kredi", 5, 0, "Konut / 2. taksit (eski model; geçiş yapılmadı)", Day, 1000m, "Taksit", false) { EskiModel = true },
+            new TakipOlayDto("Kredi", 6, 0, "Taşıt / 2. taksit (eski model; geçiş yapılmadı)", Day, 1000m, "Taksit", true) { EskiModel = true }
+        };
+        var result = BildirimTakvimi.Olustur(eski, Day);
+        Assert.Equal(4, result.Count);
+        Assert.Equal("Bonus (eski model; geçiş yapılmadı): eski kayıtlardan hesaplanan ekstre borcu 1.500,00 TL. Kart yeni takipte olmadığı için yeni ödeme ve harcamalar bu tutara yansımaz; bankadaki ekstreyi kontrol edip Kartlar ekranından geçişi yapın.", result[0].Mesaj);
+        Assert.Equal("Bonus (eski model; geçiş yapılmadı): eski kayıtlardan hesaplanan ekstre borcu 1.500,00 TL. Son gün 26.09.2026. Kart yeni takipte olmadığı için yeni ödeme ve harcamalar bu tutara yansımaz; bankadaki ekstreyi kontrol edip Kartlar ekranından geçişi yapın.", result[1].Mesaj);
+        Assert.Equal("Konut / 2. taksit (eski model; geçiş yapılmadı): taksit 1.000,00 TL, 23.09.2026. Bu kredinin taksidi kasaya otomatik işlenmez; bankadaki ödemeyi kontrol et.", result[2].Mesaj);
+        Assert.Contains("Taksit bugün kasaya otomatik işlendi", result[3].Mesaj);
+        Assert.Equal(["Bugün hesap kesim günü", "Ödemeye 3 gün kaldı", "Bugün ödeme günü", "Bugün ödeme günü"], result.Select(x => x.Baslik));
+        // Takipli kart metni aynen kalır.
+        Assert.Equal("Deneme: kayıtlı ekstre borcu 125,00 TL. Kasadan ancak ödeme kaydettiğinde düşer.", Assert.Single(BildirimTakvimi.Olustur([Event("Kart", "Kesim", Day)], Day)).Mesaj);
+        Assert.Equal("Deneme: kalan ödeme 125,00 TL. Son gün 23.09.2026.", Assert.Single(BildirimTakvimi.Olustur([Event("Kart", "SonOdeme", Day)], Day)).Mesaj);
+    }
+
     [Fact]
     public void IstanbulCalendarAndYearRolloverDoNotUseUtcDate()
     {

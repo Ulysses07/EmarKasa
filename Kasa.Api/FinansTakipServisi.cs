@@ -747,12 +747,15 @@ public static class FinansTakipServisi
             installments.Select(t => new KrediPlanTaksitDto(t.Id, t.No, t.Tarih, t.Tutar, t.Iptal ? "Iptal" : t.Tarih <= today ? "KasayaIslendi" : "Bekliyor", t.Not, Adlandir(b.KanalAdlari, Read<KanalPayYaz>(t.DagilimJson)))).ToList());
     }
     /// <summary>Bildirim işinin olayları: yazma yolu olarak önce Sync yapar (kendi transaction'ında), sonra olayları
-    /// <see cref="TakipOlaylari"/> ile türetir.</summary>
+    /// <see cref="TakipOlaylari"/> ile türetir; ardından takipsiz (geçişi yapılmamış) kart ve kredilerin eski model olayları
+    /// gelir (<see cref="EskiModelOlaylari"/>). Takipli olayların içeriği ve sırası değişmez.</summary>
     public static IReadOnlyList<TakipOlayDto> GetNotificationEvents(KasaDbContext db, DateOnly today)
     {
         using var transaction = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
         Sync(db);
-        var result = TakipOlaylari(new TakipHesapBaglami(db));
+        var b = new TakipHesapBaglami(db);
+        var result = TakipOlaylari(b);
+        result.AddRange(EskiModelOlaylari.Hepsi(b));
         transaction?.Commit(); return result;
     }
     /// <summary>Takipli kartların kesim/son ödeme ve takipli kredilerin taksit olayları (yazmaz). Aynı istekte hesaplanmış
