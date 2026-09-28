@@ -90,7 +90,20 @@ export function monthlyTotals(report) {
 }
 export function errorMessage(body, status) {
   if (body?.errors) return Object.values(body.errors).flat().join('\n');
-  return body?.hata || body?.detail || (status === 401 ? 'Oturumunuz sona erdi. Yeniden giriş yapın.' : status === 403 ? 'Bu işlem için yetkiniz yok.' : status === 409 ? 'Kayıt değişti. Güncel bilgileri yükleyip tekrar deneyin.' : status === 429 ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.' : 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  const message = body?.hata || body?.detail || (status === 401 ? 'Oturumunuz sona erdi. Yeniden giriş yapın.' : status === 403 ? 'Bu işlem için yetkiniz yok.' : status === 409 ? 'Kayıt değişti. Güncel bilgileri yükleyip tekrar deneyin.' : status === 429 ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.' : 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  // Sunucu hatasının (5xx) ProblemDetails iz kimliği kısa "Hata kodu" olarak eklenir: kullanıcı yöneticiye bildirir, yönetici
+  // sunucu logundaki tam iz kimliğini bu parçayla bulur. Masaüstü TemelViewModel.HataKoduEkle ile aynı biçim.
+  const code = status >= 500 ? traceCode(body?.traceId) : null;
+  return code ? `${message} Hata kodu: ${code}` : message;
+}
+// İz kimliğinin kısa biçimi (masaüstü KasaApiException.KisaIz ile aynı kural): W3C biçiminde iz numarasının ilk 8 hanesi, diğer
+// kimlikte en çok 24 karakterse kendisi, daha uzunsa ilk 12 karakteri; beklenmeyen karakter ya da boş değerde null.
+export function traceCode(traceId) {
+  const text = typeof traceId === 'string' ? traceId.trim() : '';
+  if (!text || !/^[A-Za-z0-9:._-]+$/.test(text)) return null;
+  const w3c = /^[0-9a-f]{2}-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$/.exec(text);
+  if (w3c) return w3c[1].slice(0, 8);
+  return text.length <= 24 ? text : text.slice(0, 12);
 }
 // ValidationProblem alanları (sunucu adlarıyla) → alan iletisi; form denetimi aynı adı taşır.
 export function fieldErrors(body) {

@@ -61,7 +61,13 @@ public partial class AuthViewModel : ObservableObject
             KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaYeniSifreTekrar = ""; Sifre = ""; KurtarmaAcik = false;
             KurtarmaMesaji = "Şifreniz yenilendi. Yeni şifreyle giriş yapın.";
         }
-        catch (KasaApiException ex) { if (nesil == OturumSurumu) Hata = ex.DurumKodu == HttpStatusCode.Unauthorized ? "Kullanıcı adı veya kurtarma kodu hatalı." : ex.Message; }
+        catch (KasaApiException ex)
+        {
+            if (nesil == OturumSurumu)
+                Hata = ex.DurumKodu == HttpStatusCode.Unauthorized ? "Kullanıcı adı veya kurtarma kodu hatalı."
+                    : (int)ex.DurumKodu >= 500 && ex.DurumKodu != HttpStatusCode.ServiceUnavailable ? TemelViewModel.HataKoduEkle("Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.", ex)
+                    : TemelViewModel.HataKoduEkle(ex.Message, ex);
+        }
         catch (HttpRequestException) { if (nesil == OturumSurumu) Hata = "Sunucuya ulaşılamadı. Bağlantınızı kontrol edin."; }
         catch (Exception) { if (nesil == OturumSurumu) Hata = "Şifre yenilenemedi. Yeniden deneyin."; }
         finally { if (nesil == OturumSurumu) Mesgul = false; }
@@ -86,10 +92,12 @@ public partial class AuthViewModel : ObservableObject
         catch (KasaApiException ex)
         {
             // 429: sunucunun Türkçe iletisi (bekleme süresi); yeniden denemek yanlış şifre sanılmasın.
+            // 5xx: bilgiler yanlış değildir; sunucu hatası iz kimliğinin kısa "Hata kodu" ile gösterilir.
             Hata = ex.DurumKodu switch
             {
                 HttpStatusCode.TooManyRequests => ex.Message,
                 HttpStatusCode.Unauthorized => "Kullanıcı adı veya şifre hatalı.",
+                >= HttpStatusCode.InternalServerError => TemelViewModel.HataKoduEkle("Sunucu girişi tamamlayamadı. Lütfen yeniden deneyin.", ex),
                 _ => "Giriş başarısız. Bilgileri kontrol edin.",
             };
         }

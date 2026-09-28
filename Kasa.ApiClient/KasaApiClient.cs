@@ -218,8 +218,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             {
                 if (yanit.StatusCode == HttpStatusCode.Unauthorized && tokenEkle)
                     await OturumuGecersizKilAsync(token);
-                var mesaj = await HataMesajiAsync(yanit, ct);
-                throw new KasaApiException(yanit.StatusCode, mesaj);
+                var (mesaj, iz) = await HataAyrintisiAsync(yanit, ct);
+                throw new KasaApiException(yanit.StatusCode, mesaj, iz);
             }
         }
         return yanit;
@@ -242,28 +242,40 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         if (temizlendi) OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     }
 
-    private static async Task<string?> HataMesajiAsync(HttpResponseMessage yanit, CancellationToken ct)
+    /// <summary>Hata yanıtından kullanıcıya taşınan ileti (yalnız sunucunun anlamlı Türkçe ileti verdiği durumlarda) ve sunucu
+    /// hatasının (5xx) ProblemDetails iz kimliği (traceId; kullanıcıya kısa "Hata kodu" olarak gösterilir).</summary>
+    private static async Task<(string? Mesaj, string? Iz)> HataAyrintisiAsync(HttpResponseMessage yanit, CancellationToken ct)
     {
-        if (yanit.StatusCode is not (HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)) return null;
+        var iletiVar = yanit.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
+        var sunucuHatasi = (int)yanit.StatusCode >= 500;
+        if (!iletiVar && !sunucuHatasi) return (null, null);
         try
         {
             using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync(ct));
             var kok = belge.RootElement;
-            if (kok.ValueKind == JsonValueKind.String) return kok.GetString();
-            if (kok.ValueKind != JsonValueKind.Object) return null;
-            if (kok.TryGetProperty("errors", out var hatalar) && hatalar.ValueKind == JsonValueKind.Object)
-            {
-                var mesajlar = hatalar.EnumerateObject().SelectMany(h => h.Value.ValueKind == JsonValueKind.Array
-                    ? h.Value.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString())
-                    : Array.Empty<string?>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct();
-                var mesaj = string.Join("\n", mesajlar);
-                if (mesaj.Length > 0) return mesaj;
-            }
-            foreach (var alan in new[] { "detail", "hata", "message", "title" })
-                if (kok.TryGetProperty(alan, out var deger) && deger.ValueKind == JsonValueKind.String)
-                    return deger.GetString();
+            var iz = sunucuHatasi && kok.ValueKind == JsonValueKind.Object && kok.TryGetProperty("traceId", out var izDegeri) && izDegeri.ValueKind == JsonValueKind.String
+                ? izDegeri.GetString() : null;
+            return (iletiVar ? Ileti(kok) : null, iz);
         }
         catch (JsonException) { /* JSON dışındaki hata gövdesini kullanıcıya taşıma. */ }
+        return (null, null);
+    }
+
+    private static string? Ileti(JsonElement kok)
+    {
+        if (kok.ValueKind == JsonValueKind.String) return kok.GetString();
+        if (kok.ValueKind != JsonValueKind.Object) return null;
+        if (kok.TryGetProperty("errors", out var hatalar) && hatalar.ValueKind == JsonValueKind.Object)
+        {
+            var mesajlar = hatalar.EnumerateObject().SelectMany(h => h.Value.ValueKind == JsonValueKind.Array
+                ? h.Value.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString())
+                : Array.Empty<string?>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct();
+            var mesaj = string.Join("\n", mesajlar);
+            if (mesaj.Length > 0) return mesaj;
+        }
+        foreach (var alan in new[] { "detail", "hata", "message", "title" })
+            if (kok.TryGetProperty(alan, out var deger) && deger.ValueKind == JsonValueKind.String)
+                return deger.GetString();
         return null;
     }
 

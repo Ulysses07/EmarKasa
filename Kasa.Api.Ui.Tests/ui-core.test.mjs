@@ -1723,3 +1723,19 @@ test('alış ödeme formu kartta yalnız takipteki açık kartları listeler; ba
   assert.deepEqual(ui.paymentCardChoices(cards, 9).map(option => option.label), ['Nakit / havale', 'Takipli', 'Kart #9 (eski kayıt)']);
   assert.deepEqual(ui.paymentCardChoices(cards, 2).map(option => option.value), ['', 2]);
 });
+test('sunucu hatasının (5xx) iz kimliği hata iletisinde kısa "Hata kodu" olarak görünür', async () => {
+  const trace = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+  assert.equal(ui.traceCode(trace), '4bf92f35');
+  assert.equal(ui.traceCode('0HN7ABCDEF:00000002'), '0HN7ABCDEF:00000002');
+  assert.equal(ui.traceCode('0HN7ABCDEFGHIJKLMNOPQRSTU:00000002'), '0HN7ABCDEFGH');
+  for (const value of [null, undefined, '  ', '<script>', 42]) assert.equal(ui.traceCode(value), null, String(value));
+  assert.equal(errorMessage({ title: 'An error occurred while processing your request.', status: 500, traceId: trace }, 500), 'İşlem tamamlanamadı. Lütfen yeniden deneyin. Hata kodu: 4bf92f35');
+  assert.equal(errorMessage({ detail: 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi.', traceId: trace }, 500), 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi. Hata kodu: 4bf92f35');
+  assert.equal(errorMessage({ hata: 'Kayıt değişti.', traceId: trace }, 409), 'Kayıt değişti.', 'İstemci hatasında iz eklenmez.');
+  assert.equal(errorMessage(null, 500), 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': [], '/api/islemler': { $status: 500, title: 'Veri bütünlüğü hatası', detail: 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi.', traceId: trace } });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /kaydedilmedi\. Hata kodu: 4bf92f35/);
+});
