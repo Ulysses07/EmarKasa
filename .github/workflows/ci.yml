@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
   # Haftalık: yalnız temel imaj özetlerinin tazeliği (base-images). GitHub zamanlanmış koşuyu yalnız varsayılan dalda
-  # çalıştırır; varsayılan dal bu hat olmadıkça tetiklenmez.
+  # çalıştırır; varsayılan dal bu hat olmadıkça tetiklenmez (docs/deploy/dal-durumu.md).
   schedule:
     - cron: '17 5 * * 1'
 

@@ -1,6 +1,6 @@
 # Emar Kasa operasyon runbook'u
 
-Canlı sunucunun (kasa.emarglobal.com, VPS 72.61.187.202) süreklilik işleri: temel imaj ve güvenlik yamaları, sunucu dışı yedek, disk doluluğu. Kurulum ve sürüm güncellemesi [deploy/README.md](../../deploy/README.md), veritabanı geçişleri [database-upgrade.md](database-upgrade.md) içindedir.
+Canlı sunucunun (kasa.emarglobal.com, VPS 72.61.187.202) süreklilik işleri: temel imaj ve güvenlik yamaları, sunucu dışı yedek, disk doluluğu, dal ve sürüm durumu. Kurulum ve sürüm güncellemesi [deploy/README.md](../../deploy/README.md), veritabanı geçişleri [database-upgrade.md](database-upgrade.md), dal durumu [dal-durumu.md](dal-durumu.md) içindedir.
 
 Komutlar aksi yazılmadıkça VPS'te root yetkisiyle çalıştırılır. Yer tutucuları (`<...>`) sunucudaki gerçek değerlerle değiştirin; yolları tahmin etmeyin. Sırları (rclone yapılandırması, parolalar, izleme adresleri, `deploy/.env`) sohbete, bilet sistemine ya da depoya yapıştırmayın.
 
@@ -19,7 +19,7 @@ Dockerfile'daki iki temel imaj (`mcr.microsoft.com/dotnet/sdk`, `mcr.microsoft.c
 ### Otomatik denetim
 
 - CI'daki `Pinned base images` işi her push ve PR'da sabit özetlerin kayıtta çözüldüğünü doğrular ve aynı ana sürüm etiketinin (`10.0`) güncel özetiyle karşılaştırır. Eski özet push/PR'da uyarıdır; haftalık zamanlanmış koşuda (pazartesi) hatadır ve GitHub depo sahibine bildirim gönderir. Özetin biçimini (etiket + 64 haneli özet, `net10.0` ile aynı ana sürüm) ağ olmadan `Kasa.Api.Tests/DepoHijyeniTests` denetler.
-- GitHub zamanlanmış iş akışlarını yalnız varsayılan dalda çalıştırır. Bugün varsayılan dal (`master`) bu kod hattı değildir; karar uygulanana kadar haftalık denetim çalışmaz. O zamana kadar aşağıdaki 1. adımı ayda bir elle çalıştırın. GitHub, 60 gün etkinlik olmayan depoda zamanlanmış iş akışlarını ayrıca durdurur.
+- GitHub zamanlanmış iş akışlarını yalnız varsayılan dalda çalıştırır. Bugün varsayılan dal (`master`) bu kod hattı değildir ([dal-durumu.md](dal-durumu.md)); karar uygulanana kadar haftalık denetim çalışmaz. O zamana kadar aşağıdaki 1. adımı ayda bir elle çalıştırın. GitHub, 60 gün etkinlik olmayan depoda zamanlanmış iş akışlarını ayrıca durdurur.
 - Dependabot bu depoda yapılandırılmamıştır (`.github/dependabot.yml` yok). Eklendiğinde `docker` ekosistemi de tanımlanmalıdır; Dependabot özet güncellemelerini PR olarak açar ve aşağıdaki elle adımların yerini alır.
 
 ### Özet güncelleme (ayda bir ya da CI uyarısında)
@@ -190,3 +190,7 @@ docker system df
 - PDF belgeleri veritabanının içinde olduğundan her yedek tam veritabanı boyutundadır. Otomatik ve elle yedekleri uygulamanın saklama kuralı yönetir; elle silmeyin.
 - Göç öncesi yedekleri (`kasa-goc-oncesi-*`) rotasyon silmez. Yer gerekirse önce `uzak_yedek.py listele` ile uzakta kopyası olduğunu doğrulayın, sonra artık gerekmeyenleri elle kaldırın.
 - Her `build --pull` yeni imaj üretir; eski imajlar etiketsiz kalır. Yeni sürüm doğrulandıktan ve geri dönüş gereği kalmadıktan sonra `docker image prune` ile temizlenir. Bu komut [deploy/README.md](../../deploy/README.md) "Güncelleme" 4. adımında saklanan geri dönüş imajını da siler.
+
+## Dal ve sürüm durumu
+
+Canlı kodun hangi dalda olduğu, GitHub varsayılan dalının durumu ve seçenekler [dal-durumu.md](dal-durumu.md) içindedir (**karar bekliyor**). Karar uygulanana kadar yayın kaynağı o belgede canlı hat olarak tanımlanan dallardan alınır; GitHub varsayılan dalından (`master`) dağıtım yapılmaz.

@@ -15,7 +15,7 @@ Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerind
 Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Güncelleme" adımlarını izleyin.
 
 1. Hostinger'da `emarglobal.com` bölgesine `A / kasa / 72.61.187.202` kaydını ekleyin.
-2. Kasa kaynaklarını VPS'te `/opt/kasa/` dizinine aktarın.
+2. Kasa kaynaklarını VPS'te `/opt/kasa/` dizinine aktarın. GitHub'ın varsayılan dalı (`master`) canlı kod hattı değildir; hangi dal ve commit'in dağıtılacağı [dal durumu belgesindedir](../docs/deploy/dal-durumu.md).
 3. `deploy/.env.example` dosyasından `deploy/.env` oluşturup JWT anahtarı ve editör bilgilerini doldurun. Gerçek giriş bilgilerini depoya koymayın.
 4. Veri ve yedek için yeni, mutlak yollu dizinleri oluşturun (`./kasa-data` kullanmayın). Şablon eksik yolu kendisi açmaz; dizinler yoksa `up` hata verir:
    ```sh
@@ -66,7 +66,7 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    grep -n 'image:' <geri-dönüş-dizini>/compose-onceki.yml
    ```
    7. adımdaki derleme, şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Saklanan dosya aynı etiketi kullanıyorsa eski koda yalnız bu imaj kimliğiyle dönülebilir.
-5. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın. `deploy/.env`, veri ve yedek dizinleri ile `deploy/kasa-data` üzerine yazmayın; rsync kullanıyorsanız bunları `--exclude` ile hariç tutun. Depodaki compose şablonu sunucudakinin yerine geçebilir; bağlamalar artık yalnız `.env` değişkenlerinden gelir.
+5. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın. Kaynak, yayımlanacak commit'tir; GitHub'ın varsayılan dalı (`master`) canlı kod hattı değildir ([dal durumu](../docs/deploy/dal-durumu.md)). `deploy/.env`, veri ve yedek dizinleri ile `deploy/kasa-data` üzerine yazmayın; rsync kullanıyorsanız bunları `--exclude` ile hariç tutun. Depodaki compose şablonu sunucudakinin yerine geçebilir; bağlamalar artık yalnız `.env` değişkenlerinden gelir.
 6. Kuru çalıştırmayla doğrulayın:
    ```sh
    # Değişkensiz çalıştırma hata vermeli; diskteki dosyanın korumalı şablon olduğunu gösterir.
