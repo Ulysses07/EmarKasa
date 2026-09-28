@@ -60,11 +60,23 @@ public class EskiKartKrediSozlesmeTests : SozlesmeTemeli
 
         var kredi = Assert.Single(await o.Kasa.KredilerAsync());
         Assert.Equal((krediId, "MEZAT", 12000m), (kredi.Id, kredi.Kanal, kredi.CekilenTutar));
-        await o.Kasa.KrediGuncelleAsync(krediId, kredi with { Ad = "Eski kredi 2", AylikOdeme = 1100m });
-        Assert.Equal(("Eski kredi 2", 1100m), (Assert.Single(await o.Kasa.KredilerAsync()).Ad, Assert.Single(await o.Kasa.KredilerAsync()).AylikOdeme));
-        await o.Kasa.KrediSilAsync(krediId);
+        // gT6: çekimi geçmişte olan eski kredinin yalnız adı düzeltilir; mali alan düzeltmesi ve silme okunur iletiyle 409.
+        var mali = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.KrediGuncelleAsync(krediId, kredi with { Ad = "Eski kredi 2", AylikOdeme = 1100m }));
+        Assert.Equal(HttpStatusCode.Conflict, mali.DurumKodu); Assert.Contains("yalnız ad düzeltilebilir", mali.Message);
+        await o.Kasa.KrediGuncelleAsync(krediId, kredi with { Ad = "Eski kredi 2" });
+        Assert.Equal(("Eski kredi 2", 1000m), (Assert.Single(await o.Kasa.KredilerAsync()).Ad, Assert.Single(await o.Kasa.KredilerAsync()).AylikOdeme));
+        var sil = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.KrediSilAsync(krediId));
+        Assert.Equal(HttpStatusCode.Conflict, sil.DurumKodu); Assert.Contains("eski kredi silinemez", sil.Message);
+        // Çekimi ileride olan (geçmiş etkisi olmayan) eski kredi silinir.
+        var ileri = 0;
+        F.Veri(db =>
+        {
+            var k = new KrediEntity { Ad = "İleri kredi", CekilenTutar = 5000m, CekimTarihi = Bugun.AddDays(10), TaksitSayisi = 5, AylikOdeme = 1000m, OdemeGunu = 10, Kanal = "MEZAT", KanalId = 1 };
+            db.Add(k); db.SaveChanges(); ileri = k.Id;
+        });
+        await o.Kasa.KrediSilAsync(ileri);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
-        Assert.Empty(await o.Kasa.KredilerAsync());
+        Assert.Equal(krediId, Assert.Single(await o.Kasa.KredilerAsync()).Id);
         await o.Kasa.KrediKartiSilAsync(kartId);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
         Assert.Empty(await o.Kasa.KrediKartlariAsync());

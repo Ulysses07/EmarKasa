@@ -3,10 +3,11 @@ using System.Net.Http.Json;
 
 namespace Kasa.Api.Tests;
 
-public class KrediApiTests : IClassFixture<KasaWebFactory>
+// Eski kredinin geçmiş etkisi (gT6) sunucunun "bugün"üne bağlıdır: saat sabittir (KasaWebFactory.VarsayilanBugun).
+public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KrediApiTests(KasaWebFactory factory) => _factory = factory;
+    public KrediApiTests(SabitSaatliKasaWebFactory factory) => _factory = factory;
 
     private record KrediYanit(
         int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi,
@@ -38,25 +39,35 @@ public class KrediApiTests : IClassFixture<KasaWebFactory>
         Assert.Equal(15, eklenen.OdemeGunu);
         Assert.Equal("Instagram", eklenen.Kanal);
 
+        // gT6: çekimi geçmişte olan eski kredinin tutar/gün/kanal düzeltmesi geçmiş raporları yeniden yazardı: 409.
         var guncelle = await client.PutAsJsonAsync($"/api/krediler/{eklenen.Id}", new
         {
             ad = "İhtiyaç Kredisi", cekilenTutar = 50_000.50m, cekimTarihi = "2026-08-03",
             taksitSayisi = 12, aylikOdeme = 5_000m, odemeGunu = 20, kanal = "Ortak",
         });
-        Assert.Equal(HttpStatusCode.OK, guncelle.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, guncelle.StatusCode);
+
+        // Yalnız ad düzeltmesi serbesttir.
+        var adDuzelt = await client.PutAsJsonAsync($"/api/krediler/{eklenen.Id}", new
+        {
+            ad = "Ziraat İhtiyaç Kredisi", cekilenTutar = 50_000.50m, cekimTarihi = "2026-08-03",
+            taksitSayisi = 12, aylikOdeme = 4_800.25m, odemeGunu = 15, kanal = "Instagram",
+        });
+        Assert.Equal(HttpStatusCode.OK, adDuzelt.StatusCode);
 
         var liste = await client.GetFromJsonAsync<List<KrediYanit>>("/api/krediler");
         var g = liste!.Single(k => k.Id == eklenen.Id);
-        Assert.Equal(5_000m, g.AylikOdeme);
-        Assert.Equal(20, g.OdemeGunu);
-        Assert.Equal("Ortak", g.Kanal);
+        Assert.Equal("Ziraat İhtiyaç Kredisi", g.Ad);
+        Assert.Equal(4_800.25m, g.AylikOdeme);
+        Assert.Equal(15, g.OdemeGunu);
+        Assert.Equal("Instagram", g.Kanal);
         Assert.Equal(new DateOnly(2026, 8, 3), g.CekimTarihi);
 
         var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}");
-        Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, sil.StatusCode);
 
         var sonListe = await client.GetFromJsonAsync<List<KrediYanit>>("/api/krediler");
-        Assert.DoesNotContain(sonListe!, k => k.Id == eklenen.Id);
+        Assert.Contains(sonListe!, k => k.Id == eklenen.Id);
     }
 
     [Fact]

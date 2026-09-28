@@ -92,18 +92,81 @@ public static class FinansTakipServisi
                 if (source.ContainsKey(share.KanalId)) source[share.KanalId] -= share.Tutar;
         return source.Where(p => p.Value > 0).Select(p => new KanalPayYaz(p.Key, p.Value)).ToList();
     }
+    /// <summary>İlk kesim tarihinin kartın düzenli kesiminden en çok uzaklığı (gün): banka kesimi tatil nedeniyle birkaç gün
+    /// kayabilir; daha uzak tarih (ör. formdaki varsayılan "bugün") kartın döngüsünde değildir.</summary>
+    internal const int IlkKesimToleransi = 7;
+    /// <summary><paramref name="date"/>'e en yakın düzenli kesim: kartın <paramref name="day"/> gününe (kısa ayda ay sonuna)
+    /// düşen, <paramref name="date"/>'ten önceki ya da o gün/sonraki ilk kesim. Eşit uzaklıkta önceki seçilir.</summary>
+    internal static DateOnly EnYakinDuzenliKesim(DateOnly date, int day)
+    {
+        var next = Kesim(date, day); var previous = Gun(next.AddMonths(-1), day);
+        return date.DayNumber - previous.DayNumber <= next.DayNumber - date.DayNumber ? previous : next;
+    }
+    /// <summary>Harcamayı ve taksitlerini yazar. Her taksit kartın düzenli kesimine (kısa ayda ay sonuna) bağlanır;
+    /// <paramref name="firstCut"/> (ilk kesim) yalnız ilk taksidin girdiği döngüyü seçer (finance-3). Bankanın tatil
+    /// nedeniyle kaydırdığı kesim (ör. 5 yerine 6'sı) aynı döngünün ekstresidir: o güne ayrı ekstre açılsaydı sonraki
+    /// taksitler de o güne sabitlenir, kartın döngüsüne paralel ekstreler ve aynı ay ikinci kesim bildirimi oluşurdu.
+    /// İlk kesimsiz harcamanın (gider, açılış, geçiş, masraf, içe aktarma) ataması önceki kuralla aynıdır.
+    /// Bilinçli kural: ilk taksidin ekstresi harcamadan önce kesilmiş görünebilir. Banka kesimi ileri kaydırdıysa (ör. 5
+    /// Ekim yerine 12'si) aradaki harcama o döngünün ekstresindedir; ekstre kartın düzenli günüyle tutulur, vadesi de ondan
+    /// hesaplanır (banka vadeyi de kaydırdıysa hatırlatma erken gelir, geç kalmaz). Pencere dardır: ilk kesim harcamadan
+    /// önce olamaz (çağıran denetler) ve düzenli kesimden en çok <see cref="IlkKesimToleransi"/> gün uzaktır. Yuvarlanan
+    /// kesim kartın takip başlangıcından önce olamaz: takipten önceki ekstre izlenmez, bakım adımı da açmaz.</summary>
     internal static void HarcamaEkle(KasaDbContext db, KrediKartiEntity card, TakipHarcamaEntity charge, DateOnly? firstCut = null)
     {
+        var day = card.KesimTarihi.Day;
+        var cut = Kesim(charge.Tarih, day);
+        if (firstCut is { } ilk)
+        {
+            cut = EnYakinDuzenliKesim(ilk, day);
+            FinansTakipEndpoints.Require(Math.Abs(ilk.DayNumber - cut.DayNumber) <= IlkKesimToleransi,
+                $"İlk kesim tarihi kartın hesap kesim gününe ({day}) en fazla {IlkKesimToleransi} gün uzak olabilir; bankanın kaydırdığı kesimi ya da harcamanın düştüğü sonraki kesimi girin.");
+            var baslangic = db.TakipKartlar.Where(t => t.KrediKartiId == card.Id).Select(t => t.Baslangic).Single();
+            FinansTakipEndpoints.Require(cut >= baslangic,
+                $"İlk kesim tarihi kartın takip başlangıcından ({KartGecisHesabi.Tarih(baslangic)}) önceki {KartGecisHesabi.Tarih(cut)} kesimine denk geliyor; takipten önceki ekstreler izlenmez. Harcamanın düştüğü sonraki kesimi girin ya da ilk kesimi boş bırakın.");
+        }
         db.TakipHarcamalar.Add(charge); db.SaveChanges();
-        var cut = firstCut ?? Kesim(charge.Tarih, card.KesimTarihi.Day);
         var cents = decimal.ToInt64(Math.Abs(charge.Tutar) * 100); var sign = Math.Sign(charge.Tutar);
         for (var i = 0; i < charge.TaksitSayisi; i++)
         {
-            var statement = Ekstre(db, card, Gun(cut.AddMonths(i), firstCut?.Day ?? card.KesimTarihi.Day));
+            var statement = Ekstre(db, card, Gun(cut.AddMonths(i), day));
             db.TakipKartTaksitler.Add(new() { HarcamaId = charge.Id, EkstreId = statement.Id,
                 Tutar = sign * (cents / charge.TaksitSayisi + (i < cents % charge.TaksitSayisi ? 1 : 0)) / 100m });
         }
         db.SaveChanges();
+    }
+    /// <summary>
+    /// Eski kuralla yazılmış, otomatik dönüştürülmeyen takip kayıtlarının uyarıları (bütünlük denetimi; açılışta loglanır,
+    /// bkz. <see cref="KartGecisHesabi.IlkSurumKalintilari"/>). Kayıtlar raporlara bugünkü halleriyle girer; dönüştürme geçmiş
+    /// raporları değiştirirdi ve doğru hali ancak banka ekstresiyle belirlenebilir. Salt okunur; iki desen aranır:
+    /// kartın kesim günü (kısa ayda ay sonu) dışında kesilmiş ekstre — taksitleri ilk kesim gününe sabitleyen eski kuralın
+    /// kartın döngüsüne paralel ekstresi olabilir (finance-3; aynı ay ikinci kesim bildirimi), kesim günü sonradan
+    /// değiştirildiyse eski günün ekstresidir — ve genel gider ekranından takipli karta girilmiş eksi gider (gidere bağlı,
+    /// kaynak harcamasız eksi harcama): kaynaksız alacak olarak herhangi bir kanalın taksidine mahsup edilir (finance-9).
+    /// </summary>
+    public static List<string> EskiKuralKalintilari(KasaDbContext db)
+    {
+        var kartlar = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id);
+        string Kart(int id) => $"Kart {id} ({(kartlar.TryGetValue(id, out var k) ? k.Ad : "silinmiş kart")})";
+        var uyarilar = new List<string>();
+        foreach (var ekstreler in db.TakipEkstreler.AsNoTracking().ToList().GroupBy(s => s.KrediKartiId).OrderBy(g => g.Key))
+        {
+            if (!kartlar.TryGetValue(ekstreler.Key, out var kart)) continue;
+            var day = kart.KesimTarihi.Day;
+            var disarida = ekstreler.Select(s => s.KesimTarihi).Where(t => t != Gun(t, day)).Order().ToList();
+            if (disarida.Count == 0) continue;
+            var ciftAylar = ekstreler.GroupBy(s => (s.KesimTarihi.Year, s.KesimTarihi.Month)).Where(a => a.Count() > 1).Select(a => a.Key).ToHashSet();
+            uyarilar.Add($"{Kart(kart.Id)}: kartın kesim günü ({day}) dışında kesilmiş {disarida.Count} ekstre var "
+                + $"({KartGecisHesabi.Tarih(disarida[0])}–{KartGecisHesabi.Tarih(disarida[^1])}; {disarida.Count(t => ciftAylar.Contains((t.Year, t.Month)))} tanesi aynı ay kartın başka bir ekstresiyle birlikte). "
+                + "Taksitleri ilk kesim gününe sabitleyen eski kuralın paralel ekstresi olabilir (aynı ay ikinci kesim bildirimi); kesim günü sonradan değiştirildiyse eski günün ekstreleridir. "
+                + "Kayıtlar otomatik dönüştürülmez, raporlar değişmez; banka ekstreleriyle karşılaştırın.");
+        }
+        foreach (var eksiler in db.TakipHarcamalar.AsNoTracking().Where(h => h.IslemId != null && h.KaynakHarcamaId == null && !h.Iptal && h.Tutar < 0).ToList()
+            .GroupBy(h => h.KrediKartiId).OrderBy(g => g.Key))
+            uyarilar.Add($"{Kart(eksiler.Key)}: genel gider ekranından girilmiş {eksiler.Count()} eksi kart gideri (toplam {KartGecisHesabi.Tl(-eksiler.Sum(h => h.Tutar))}; "
+                + $"{KartGecisHesabi.Tarih(eksiler.Min(h => h.Tarih))}–{KartGecisHesabi.Tarih(eksiler.Max(h => h.Tarih))}) kaynak harcamasız alacak olarak herhangi bir kanalın taksidine mahsup ediliyor; "
+                + "iade akışının kaynak ve kanal korumaları uygulanmadı. Kayıtlar otomatik dönüştürülmez, raporlar değişmez; iadenin kaynak harcamasını banka ekstresiyle doğrulayın.");
+        return uyarilar;
     }
     /// <summary>Eski kartı yeni takibe alır; doğrulama (KartGecisHesabi ile önizleme) çağırandadır. Yeni
     /// geçişler işlem tarihi kuralıyla yazılır: başlangıçtan önceki eski giderler eski ay sonu kuralıyla

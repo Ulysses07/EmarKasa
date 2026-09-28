@@ -108,6 +108,10 @@ using (var scope = app.Services.CreateScope())
     // kart ekranında da gösterilir.
     foreach (var kalinti in KartGecisHesabi.IlkSurumKalintilari(db))
         app.Logger.LogWarning("Kart {KartId} ({Kart}) yeni takibe ilk sürüm kuralıyla geçirildi. {Uyari}", kalinti.KartId, kalinti.KartAdi, KartGecisHesabi.Uyari(kalinti));
+    // Aynı yaklaşım: ilk kesim gününe sabitlenmiş paralel ekstreler (finance-3) ve gider ekranından takipli karta girilmiş
+    // eksi giderler (finance-9) eski kuralla yazılmıştır; otomatik dönüştürülmez, her açılışta görünür kılınır.
+    foreach (var uyari in FinansTakipServisi.EskiKuralKalintilari(db))
+        app.Logger.LogWarning("{Uyari}", uyari);
 }
 
 // İlk sırada: hız sınırı, kimlik doğrulama ve loglar güvenilen vekilin bildirdiği istemci IP'sini görür.
@@ -390,6 +394,8 @@ api.MapPut("/krediler/{id:int}", (int id, KrediYazDto dto, KasaDbContext db) =>
         return Results.Conflict(new { hata = "Ödemesi veya hesap bağlantısı bulunan kredi değiştirilemez." });
     var (gelen, hata) = KayitGirdileri.Kredi(dto, db);
     if (hata is not null) return hata;
+    // gT6: geçmiş kasa etkisi olan eski kredinin yalnız adı düzeltilir; etkisi olmayan kredi geçmişe taşınamaz.
+    if (FinansHesaplari.EskiKrediDuzeltmeHatasi(db, e, gelen, db.Bugunu()) is { } koruma) return Results.Conflict(new { hata = koruma });
     gelen.Id = id;
     gelen.GerceklesmeTakibi = e.GerceklesmeTakibi;
     db.Entry(e).CurrentValues.SetValues(gelen);
@@ -405,6 +411,9 @@ api.MapDelete("/krediler/{id:int}", (int id, KasaDbContext db) =>
     if (e is null) return Results.NotFound();
     if (db.KrediTaksitOdemeler.Any(o => o.KrediId == id) || db.HesapHareketler.Any(h => h.KrediId == id))
         return Results.Conflict(new { hata = "Ödemesi veya hesap bağlantısı bulunan kredi silinemez." });
+    // gT6: çekimi ve taksitleri bellekte türetildiğinden silme bütün geçmiş raporları yeniden yazardı.
+    if (FinansHesaplari.EskiKrediGecmisEtkili(e, db.Bugunu()))
+        return Results.Conflict(new { hata = "Geçmiş kasa etkisi olan eski kredi silinemez; geçmiş raporlar korunur. Krediyi Krediler ekranında yeni takibe geçirip arşivleyebilirsiniz." });
     db.Krediler.Remove(e); db.SaveChanges();
     transaction.Commit();
     return Results.NoContent();
@@ -418,6 +427,8 @@ api.MapPost("/islemler", (IslemYazDto dto, KasaDbContext db) =>
     using var transaction = db.Database.BeginTransaction();
     var (e, hata) = KayitGirdileri.Islem(dto, db);
     if (hata is not null) return hata;
+    // finance-9: takipli karta eksi/sıfır gider kaynaksız alacak olurdu; iade Kredi Kartları ekranındaki akıştan girilir.
+    if (FinansHesaplari.TakipliKartIadeHatasi(dto, db) is { } iade) return iade;
     db.Islemler.Add(e); db.SaveChanges();
     FinansTakipServisi.Sync(db);
     transaction.Commit();
@@ -544,10 +555,9 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
     v.Para(dto.KasaAcilisDevri, "kasaAcilisDevri", negatifOlabilir: true);
     if (v.Sonuc() is { } hata) return hata;
     var a = db.Ayarlar.First();
-    if (a.TakipBaslangic != dto.TakipBaslangic
-        && (db.Islemler.Any() || db.Gelenler.Any() || db.Krediler.Any() || db.HesapHareketler.Any()
-            || db.HesapTransferler.Any() || db.KartOdemeler.Any()))
-        return Results.Conflict(new { hata = "Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez; mevcut dönem bağlantıları korunmalıdır." });
+    // gV5: gider üretmeyen mali kayıtlar da (takipli kart, ekstre geliri, kasa sayımı...) başlangıcı sabitler.
+    if (a.TakipBaslangic != dto.TakipBaslangic && FinansHesaplari.IlkMaliKayitTuru(db) is { } kayit)
+        return Results.Conflict(new { hata = $"Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez; mevcut dönem bağlantıları korunmalıdır (kayıtlı: {kayit})." });
     a.TakipBaslangic = dto.TakipBaslangic;
     a.KasaAcilisDevri = dto.KasaAcilisDevri;
     db.SaveChanges();

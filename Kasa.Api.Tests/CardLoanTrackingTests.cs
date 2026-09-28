@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
@@ -164,6 +165,61 @@ public class CardLoanTrackingTests
         Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Harcamalar);
         var expenseId = card.Harcamalar.Single().IslemId;
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expenseId}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Genel_gider_ekranindan_takipli_karta_eksi_veya_sifir_tutar_girilemez_iade_kart_ekranina_yonlendirilir()
+    {
+        // finance-9: PERAKENDE'nin 30 TL iadesi gider ekranından eksi tutarla girilseydi kaynaksız alacak olur,
+        // MEZAT'ın harcamasını kapatırdı; sonraki ödeme 70 TL MEZAT'tan düşerdi.
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Start, "MEZAT harcaması", 100m, 1, null, [new(1, 100m)]));
+        foreach (var tutar in new[] { -30m, 0m })
+        {
+            var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE iadesi", tutar, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id));
+            Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
+            var hata = (await r.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("errors").GetProperty("tutarTl")[0].GetString();
+            Assert.Equal(FinansHesaplari.TakipliKartIadeYolu, hata);
+        }
+        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        Assert.Equal(100m, after.Borc); Assert.Single(after.Harcamalar);
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            Assert.Equal(1, db.TakipHarcamalar.Count()); Assert.Equal(0, db.Islemler.Count());
+        }
+        after = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), after.Surum, Today, 100m));
+        var pay = Assert.Single(Assert.Single(after.Odemeler).Dagilimlar);
+        Assert.Equal((1, 100m), (pay.KanalId, pay.Tutar));
+        Assert.Equal(0m, after.Borc); Assert.Equal(900m, await Cash(c));
+        // Kartsız eksi gider (düzeltme) davranışı değişmez.
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kasa düzeltmesi", -30m, "PERAKENDE", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        Assert.Equal(930m, await Cash(c));
+    }
+
+    [Fact]
+    public async Task Eski_kuralla_gider_ekranindan_girilmis_eksi_kart_gideri_kalinti_olarak_bulunur_iade_akisi_ve_pozitif_gider_bulunmaz()
+    {
+        // finance-9 öncesi kuralla yazılmış kayıt dönüştürülmez; bütünlük denetimi (açılış uyarısı) onu bulur.
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Start, "MEZAT harcaması", 100m, 1, null, [new(1, 100m)]));
+        var kaynak = Assert.Single(card.Harcamalar).Id;
+        // Doğru yollar: kaynak seçilen iade ve gider ekranından pozitif kart gideri.
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "MEZAT iadesi", -20m, 1, null, [], kaynak));
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE alışı", 50m, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id))).EnsureSuccessStatusCode();
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        Assert.Empty(FinansTakipServisi.EskiKuralKalintilari(db));
+
+        // Eski kural: PERAKENDE iadesi gider ekranından eksi tutarla girilmişti; bakım adımı onu kaynaksız alacak yaptı.
+        db.Islemler.Add(new IslemEntity { Tarih = Today, Cari = "PERAKENDE iadesi", TutarTl = -30m, Kanal = "PERAKENDE", KanalId = 2, Tip = GiderTipi.KrediKarti, KrediKartiId = card.Id });
+        db.SaveChanges(); FinansTakipServisi.Bakim(db);
+        var once = await Cash(c);
+        var uyari = Assert.Single(FinansTakipServisi.EskiKuralKalintilari(db));
+        Assert.StartsWith($"Kart {card.Id} (Takip kart)", uyari);
+        Assert.Contains("1 eksi kart gideri", uyari); Assert.Contains("30,00 TL", uyari);
+        Assert.Contains(Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture), uyari);
+        Assert.False(db.ChangeTracker.HasChanges()); Assert.Equal(once, await Cash(c));
     }
 
     [Fact]

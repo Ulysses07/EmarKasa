@@ -9,7 +9,7 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Kredinin hesap motoruna türetilmiş kayıtlarla yansımasını uçtan doğrular:
 /// çekim → genel kasa (kanala girmez), taksit → seçilen kanal/Ortak, gelecek taksit
-/// güncel kasayı etkilemez, silinince etki kalkar. Kontrollü baseline: KasaAcilisDevri
+/// güncel kasayı etkilemez, geçmiş etkili eski kredi silinemez (etki korunur). Kontrollü baseline: KasaAcilisDevri
 /// 100000, iki aktif kanal (açılış 0), başka işlem/gelen yok.
 /// </summary>
 public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
@@ -119,8 +119,9 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
     }
 
     [Fact]
-    public async Task Kredi_silinince_muhasebe_etkisi_kalkar()
+    public async Task Gecmis_etkili_eski_kredi_silinemez_rapor_degismez()
     {
+        // gT6: çekimi geçmişte olan eski kredinin silinmesi geçmiş raporları yeniden yazardı; 409 ile reddedilir.
         Tohumla();
         var client = await _factory.EditorClientAsync();
 
@@ -135,9 +136,9 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         Assert.Equal(105_000m, panelEkli.GuncelKasa);
 
         var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}");
-        sil.EnsureSuccessStatusCode();
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, sil.StatusCode);
 
         var panelSonra = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
-        Assert.Equal(100_000m, panelSonra.GuncelKasa); // etki tamamen kalktı
+        Assert.Equal(105_000m, panelSonra.GuncelKasa); // geçmiş etki korundu
     }
 }
