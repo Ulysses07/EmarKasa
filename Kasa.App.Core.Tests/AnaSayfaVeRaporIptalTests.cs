@@ -192,6 +192,9 @@ public class AnaSayfaVeRaporIptalTests
         public Task<KasaEsikDto> KasaEsigiKaydetAsync(int kanalId, KasaEsikYaz girdi) => throw new NotSupportedException();
         public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle girdi) => throw new NotSupportedException();
         public Task<KasaKontrolDto> KasaKontrolKaydetAsync(KasaKontrolYaz girdi) => throw new NotSupportedException();
+        public Task<KasaKontrolDto> KasaKontrolAciklaAsync(int id, KasaKontrolAciklamaYaz girdi) => throw new NotSupportedException();
+        public Task<KasaKontrolSonrasiDto> KasaKontrolSonrasiAsync(int id) => throw new NotSupportedException();
+        public Task<KasaHareketleriDto> KasaHareketleriAsync(DateOnly? baslangic = null, DateOnly? bitis = null, int? kanalId = null) => throw new NotSupportedException();
         public Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int kartId, KartMasrafYaz girdi) => throw new NotSupportedException();
         public Task<KartTakipDto> KartMasrafKaydetAsync(int kartId, KartMasrafYaz girdi) => throw new NotSupportedException();
     }

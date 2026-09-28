@@ -85,4 +85,43 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
         Assert.Equal((-49.5m, "Akşam sayımı"), (kontrol.Fark, kontrol.Not));
         Assert.Equal(kontrol.Id, Assert.Single(await o.Kontrol.KasaKontrolleriAsync()).Id);
     }
+
+    /// <summary>Kasa kontrolünün filigranı, zorunlu fark açıklaması (okunur 400), sonradan açıklama, "kontrolden beri değişenler" ve
+    /// kasa hareket dökümü (gap-denetim-izi-gozlemlenebilirlik-3, gap-coklu-giris-cift-sayim-mutabakat-17).</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IKasaKontrolApi.KasaKontrolOnizleAsync), nameof(IKasaKontrolApi.KasaKontrolKaydetAsync), nameof(IKasaKontrolApi.KasaKontrolAciklaAsync),
+        nameof(IKasaKontrolApi.KasaKontrolleriAsync), nameof(IKasaKontrolApi.KasaKontrolSonrasiAsync), nameof(IKasaKontrolApi.KasaHareketleriAsync),
+        nameof(IKasaApi.IslemOlusturAsync))]
+    public async Task Kasa_kontrolu_filigrani_aciklamasi_sonrasi_ve_hareket_dokumu_istemci_turlerine_birebir_uyar()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun.AddDays(-1), "Nakliye", 40m, "MEZAT", GiderTipi.Cari, null));
+        var onizleme = await o.Kontrol.KasaKontrolOnizleAsync(new KasaKontrolOnizle(900m));
+        Assert.Equal((960m, -60m, (DateOnly?)Bugun), (onizleme.SistemBakiye, onizleme.Fark, onizleme.HesapTarihi));
+        Assert.Equal("MEZAT", onizleme.KanalBakiyeleri!.Single(k => k.KanalId == 1).Kanal);
+
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Kontrol.KasaKontrolKaydetAsync(new KasaKontrolYaz(Yeni(), 900m, onizleme.KontrolOzeti)));
+        Assert.Equal(HttpStatusCode.BadRequest, hata.DurumKodu); Assert.Contains("Fark varsa açıklama girin.", hata.Message);
+        var kontrol = await o.Kontrol.KasaKontrolKaydetAsync(new KasaKontrolYaz(Yeni(), 900m, onizleme.KontrolOzeti, "Sayım"));
+        Assert.Equal((1, (DateOnly?)Bugun, onizleme.KanalBakiyeleri!.Count), (kontrol.Surum, kontrol.HesapTarihi, kontrol.KanalBakiyeleri!.Count));
+        kontrol = await o.Kontrol.KasaKontrolAciklaAsync(kontrol.Id, new KasaKontrolAciklamaYaz(Yeni(), kontrol.Surum, "Bankaya yatırıldı"));
+        Assert.Equal((2, "Bankaya yatırıldı"), (kontrol.Surum, kontrol.FarkAciklamasi)); Assert.NotNull(kontrol.FarkAciklamaZamani);
+        var liste = Assert.Single(await o.Kontrol.KasaKontrolleriAsync());
+        Assert.Equal(((decimal?)960m, (decimal?)-60m, false), (liste.GuncelSistemBakiye, liste.GuncelFark, liste.SonradanDegisti));
+        Assert.All(liste.KanalBakiyeleri!, k => Assert.Equal(k.Bakiye, k.GuncelBakiye));
+
+        // Kontrol gününden önceye sonradan girilen gider: liste işaretler, "sonrası" olayı ve hareketi verir.
+        await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun.AddDays(-2), "Geriye dönük", 25m, "PERAKENDE", GiderTipi.Cari, null));
+        Assert.True(Assert.Single(await o.Kontrol.KasaKontrolleriAsync()).SonradanDegisti);
+        var sonra = await o.Kontrol.KasaKontrolSonrasiAsync(kontrol.Id);
+        Assert.Equal((true, Bugun, 960m, 935m, 935m), (sonra.FiligranVar, sonra.EsasTarih, sonra.SistemBakiye, sonra.GuncelSistemBakiye, sonra.BugunkuSistemBakiye));
+        Assert.Contains(sonra.Degisiklikler, d => (d.Varlik, d.Tur) == ("Islem", "Ekle"));
+        Assert.Contains(sonra.Hareketler, h => (h.Aciklama, h.GenelKasaEtkisi, h.KanalId, h.Tur) == ("Geriye dönük", -25m, (int?)2, "Gider"));
+
+        var dokum = await o.Kontrol.KasaHareketleriAsync(Baslangic, Bugun);
+        Assert.Equal((1000m, 935m, Bugun), (dokum.AcilisBakiyesi, dokum.KapanisBakiyesi, dokum.Bitis));
+        var mezat = await o.Kontrol.KasaHareketleriAsync(Baslangic, Bugun, 1);
+        Assert.Equal(("MEZAT", -40m), (mezat.Kanal, mezat.Hareketler.Sum(h => h.KanalEtkisi)));
+    }
 }

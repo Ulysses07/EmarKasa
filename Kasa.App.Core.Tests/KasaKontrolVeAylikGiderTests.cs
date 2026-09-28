@@ -181,8 +181,21 @@ public class KasaKontrolVeAylikGiderTests
         public Task<AyKilidiDto> AyKilidiDegistirAsync(bool kapat, AyKilidiYaz g) { Kapat = kapat; KilitGirdi = g; return AyKilidiAsync(); }
         public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() => Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { new KasaEsikDto(1, "MEZAT", 2, 10, true, -20, true), new KasaEsikDto(2, "PERAKENDE", 0, 100, false, 0, true) });
         public Task<KasaEsikDto> KasaEsigiKaydetAsync(int id, KasaEsikYaz g) { Esik = g; return Task.FromResult(new KasaEsikDto(id, "MEZAT", 3, g.Tutar, g.Etkin, -20, true)); }
-        public Task<IReadOnlyList<KasaKontrolDto>> KasaKontrolleriAsync() => Task.FromResult<IReadOnlyList<KasaKontrolDto>>(Array.Empty<KasaKontrolDto>());
-        public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle g) { KontrolOnizlemeSayisi++; return BekleyenKontrol ?? Task.FromResult(new KasaKontrolOnizlemeDto(100, g.GercekBakiye, g.GercekBakiye - 100, "hash")); }
+        // Kasa kontrolü filigranı, fark açıklaması, "kontrolden beri değişenler" ve hareket dökümü (gap-denetim-izi-gozlemlenebilirlik-3).
+        public IReadOnlyList<KasaKontrolDto> Gecmis = Array.Empty<KasaKontrolDto>(); public List<(int Id, KasaKontrolAciklamaYaz Girdi)> Aciklamalar = new();
+        public KasaKontrolSonrasiDto? Sonrasi { get; set; } public List<int> SonrasiIstekleri = new(); public KasaHareketleriDto? Dokum { get; set; } public List<(DateOnly? Baslangic, DateOnly? Bitis, int? KanalId)> DokumIstekleri = new();
+        public Task<IReadOnlyList<KasaKontrolDto>> KasaKontrolleriAsync() => Task.FromResult(Gecmis);
+        public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle g) { KontrolOnizlemeSayisi++; return BekleyenKontrol ?? Task.FromResult(new KasaKontrolOnizlemeDto(100, g.GercekBakiye, g.GercekBakiye - 100, "hash",
+            new[] { new KasaKontrolKanalDto(1, "MEZAT", 60), new KasaKontrolKanalDto(2, "PERAKENDE", 40) }, new DateOnly(2026, 9, 26))); }
+        public Task<KasaKontrolDto> KasaKontrolAciklaAsync(int id, KasaKontrolAciklamaYaz g)
+        {
+            Aciklamalar.Add((id, g));
+            // Sunucu gibi: tutarlar aynen, sürüm artar, güncel karşılaştırma alanları boş döner.
+            return Task.FromResult(Gecmis.Single(k => k.Id == id) with { Surum = g.Surum + 1, FarkAciklamasi = g.Aciklama.Trim(), FarkAciklamaZamani = DateTimeOffset.Now, GuncelSistemBakiye = null, GuncelFark = null, SonradanDegisti = false });
+        }
+        public Task<KasaKontrolSonrasiDto> KasaKontrolSonrasiAsync(int id) { SonrasiIstekleri.Add(id); return Task.FromResult(Sonrasi ?? new KasaKontrolSonrasiDto(id, DateTimeOffset.Now, new DateOnly(2026, 9, 26), true, 100, 100, 100, [], [], [], false)); }
+        public Task<KasaHareketleriDto> KasaHareketleriAsync(DateOnly? baslangic = null, DateOnly? bitis = null, int? kanalId = null)
+        { DokumIstekleri.Add((baslangic, bitis, kanalId)); return Task.FromResult(Dokum ?? new KasaHareketleriDto(baslangic ?? new DateOnly(2026, 9, 1), bitis ?? new DateOnly(2026, 9, 26), kanalId, null, 0, 0, [])); }
         public Task<KasaKontrolDto> KasaKontrolKaydetAsync(KasaKontrolYaz g) { Kontroller.Add(g); return KontrolHata is { } e ? Task.FromException<KasaKontrolDto>(e) : Task.FromResult(new KasaKontrolDto(1, DateTimeOffset.Now, 100, g.GercekBakiye, g.GercekBakiye - 100, g.Not)); }
         public Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int id, KartMasrafYaz g) { MasrafOnizlemeSayisi++; return Task.FromResult(new KartMasrafOnizlemeDto(id, g.EkstreId, g.Tarih, g.Tutar, 100, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, "pay-hash")); }
         public Task<KartTakipDto> KartMasrafKaydetAsync(int id, KartMasrafYaz g) { Masraflar.Add(g); return MasrafHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : Task.FromResult(FinansTakipTests.Fake.OrnekKart() with { Surum = 4 }); }
