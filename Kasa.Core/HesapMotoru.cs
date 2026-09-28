@@ -196,13 +196,15 @@ public static class HesapMotoru
     /// sayılır. Ertelemeli eski K.K için bakılan tarih etki ayının son günüdür: etki ayı başlangıç ayı ya da sonrasıysa
     /// haftalık kasada da o ay sonunda düşer (tutarlı, sayılmaz). <paramref name="ay"/> verilirse yalnız o ayın aylık
     /// sonucuna giren satırlar sayılır. Hiç dönem yoksa (ör. takip başlangıcından önceki ayın raporu) bütün satırlar
-    /// başlangıç öncesidir. Adet motor satırıdır (birden çok kanala bölünen kayıt her payıyla sayılır).
+    /// başlangıç öncesidir. Adet kaynak kayıttır (<see cref="Islem.Kaynak"/>): birden çok kanala bölünen kayıt ve eski kredinin
+    /// türetilmiş taksitleri bir kez sayılır, anahtarsız satır tek başına bir kayıttır; toplam bütün satırlarındır.
     /// </summary>
     public static (int Adet, decimal Toplam) BaslangicOncesi(IReadOnlyList<Islem> islemler, IReadOnlyList<Donem> donemler, (int Yil, int Ay)? ay = null)
     {
         DateOnly? ilk = donemler.Count == 0 ? null : donemler.Min(d => d.Start);
         var satirlar = islemler.Where(i => (ay is not { } a || EtkiAyi(i) == a) && (ilk is not { } bas || KasaEtkiTarihi(i) < bas)).ToList();
-        return (satirlar.Count, satirlar.Sum(i => i.TutarTl));
+        var adet = satirlar.Count(i => i.Kaynak is null) + satirlar.Where(i => i.Kaynak is not null).Select(i => i.Kaynak).Distinct(StringComparer.Ordinal).Count();
+        return (adet, satirlar.Sum(i => i.TutarTl));
     }
 
     /// <summary>K1 uyarı metni (veri sağlığı alanı için); başlangıç öncesi satır yoksa null. Tutar Türkçe biçimdedir.</summary>

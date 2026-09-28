@@ -5,11 +5,13 @@ using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static Kasa.Api.Tests.MonthlyExpenseTests;
 
 namespace Kasa.Api.Tests;
@@ -110,6 +112,54 @@ public class AyRaporuAnlikGoruntusuTests
         Assert.Equal(Dondurulmus(yeniTemmuz, HesapServisi.AcikAyKurali), await c.GetStringAsync(Url(Temmuz)));
     }
 
+    /// <summary>R3 notu: görüntü yalnız ay gerçekten kilitliyken döner. Görüntüyü silmeyen bir önceki sürüme dönülüp ay orada
+    /// açılırsa satır artık kalır; açık ayın raporu yine canlı hesaplanır (bayat "dondurulmus" sunulmaz) ve artık satır ay
+    /// başına bir kez Warning olarak loglanır. Kilitli ayın görüntüsü etkilenmez.</summary>
+    [Fact]
+    public async Task Kilidi_acilmis_ayin_artik_goruntusu_sunulmaz_rapor_canli_hesaplanir_ve_bir_kez_loglanir()
+    {
+        var loglar = new UyariToplayici();
+        await using var f = new LogluFabrika(loglar); using var c = await Editor(f);
+        await Veri(c);
+        await Kilit(c, Agustos);
+        var haziran = await c.GetStringAsync(Url(Haziran));
+        using (var scope = f.Services.CreateScope())
+        {
+            // Eski sürümdeki kilit açma: kilit sonu Haziran'a çekilir, Temmuz ve Ağustos görüntüleri silinmez.
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Database.ExecuteSqlRaw("UPDATE AyKilidi SET KilitliSonTarih = '2026-06-30', Surum = Surum + 1 WHERE Id = 1;");
+        }
+        Assert.Equal(3, Goruntuler(f).Count);
+
+        // Açılan ayda değişiklik yapılabilir ve rapora canlı yansır.
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Temmuz.AddDays(20), "Nakliye", 50m, "MEZAT", GiderTipi.Cari));
+        foreach (var _ in Enumerable.Range(0, 2))
+            foreach (var ay in new[] { Temmuz, Agustos })
+            {
+                var rapor = await c.GetStringAsync(Url(ay));
+                Assert.DoesNotContain("dondurulmus", rapor);
+                using var scope = f.Services.CreateScope();
+                Assert.Equal(JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(ay.Year, ay.Month), Web), rapor);
+            }
+        Assert.Equal(350m, JsonNode.Parse(await c.GetStringAsync(Url(Temmuz)))!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!["cariGiden"]!.GetValue<decimal>());
+        Assert.Equal(haziran, await c.GetStringAsync(Url(Haziran)));
+        Assert.Contains("\"dondurulmus\":true", haziran);
+
+        Assert.Single(loglar.Uyarilar, m => m.Contains("2026-07 ayının rapor görüntüsü", StringComparison.Ordinal));
+        Assert.Single(loglar.Uyarilar, m => m.Contains("2026-08 ayının rapor görüntüsü", StringComparison.Ordinal));
+        Assert.DoesNotContain(loglar.Uyarilar, m => m.Contains("2026-06 ayının", StringComparison.Ordinal));
+    }
+
+    private sealed class LogluFabrika : KasaWebFactory
+    {
+        private readonly UyariToplayici _loglar;
+        public LogluFabrika(UyariToplayici loglar) { _loglar = loglar; Saat = new SabitSaat(Today); }
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder); builder.ConfigureLogging(l => l.AddProvider(_loglar));
+        }
+    }
+
     [Fact]
     public async Task Kilitli_ayin_goruntusu_degistirilemez_silinemez_kilitsiz_aya_goruntu_yazilamaz()
     {
@@ -176,6 +226,55 @@ public class AyRaporuAnlikGoruntusuTests
         Assert.All(goruntuler, g => { Assert.Equal(AylikKural.V1, g.KuralSurumu); Assert.Equal(f.Saat!.GetUtcNow(), g.Zaman); });
         foreach (var ay in new[] { Haziran, Temmuz })
             Assert.Equal(Dondurulmus(kural1[ay], AylikKural.V1), await c.GetStringAsync(Url(ay)));
+    }
+
+    /// <summary>Geçiş tohumu bozuk kayıtla hesaplanan raporu dondurmaz: karantina kaydının dokunduğu kilitli ay atlanır ve ayı ve
+    /// kaydı söyleyen Warning olarak loglanır; öteki aylar dondurulur, atlanan ay bekleyen tohumda kalır (sonraki açılış yeniden
+    /// dener). Görüntüsü olmayan kilitli ay yalnız bu sürümden önce kilitlenmiş olabilir: raporu kural 1 ile canlı hesaplanır ve
+    /// karantina uyarısını taşır; dondurulmuş işareti yoktur.</summary>
+    [Fact]
+    public async Task Gecis_tohumu_karantinali_ayi_dondurmaz_ay_kural_1_ile_canli_ve_uyariyla_doner()
+    {
+        var loglar = new UyariToplayici();
+        await using var f = new LogluFabrika(loglar); using var c = await Editor(f);
+        await Veri(c);
+        int hareket;
+        using (var scope = f.Services.CreateScope())
+        {
+            // Temmuz'da kanalı olmayan eski ek gelir (geri yüklenmiş veri): karantinaya alınır, genel kasaya gelir yazılır.
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var hesap = new HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = Haziran };
+            db.Hesaplar.Add(hesap); db.SaveChanges();
+            var h = new HesapHareketEntity { HesapId = hesap.Id, KanalId = null, Tarih = Temmuz.AddDays(13), Tutar = 450m, Aciklama = "Kanalsız eski ek gelir" };
+            db.HesapHareketler.Add(h); db.SaveChanges(); hareket = h.Id;
+        }
+        var kural1 = new Dictionary<DateOnly, string>();
+        using (var scope = f.Services.CreateScope())
+        {
+            var hesap = scope.ServiceProvider.GetRequiredService<HesapServisi>();
+            foreach (var ay in new[] { Haziran, Temmuz }) kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
+        }
+        Assert.Contains($"Ek gelir #{hareket} (14.07.2026): kanalı yok", (string)JsonNode.Parse(kural1[Temmuz])!["veriSagligiUyarisi"]!);
+        Assert.DoesNotContain("veriSagligiUyarisi", kural1[Haziran]);
+
+        // Bu sürümden önce Temmuz'a kadar kapatılmış veritabanı: kilit var, görüntü yok.
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1); db.SaveChanges();
+            Assert.Equal(new[] { (2026, 6) }, AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat!.GetUtcNow()));
+            Assert.Equal(new[] { (2026, 7) }, AyRaporAnlikGoruntusu.EksikAylar(db));
+        }
+        Assert.Equal(new[] { (2026, 6) }, Goruntuler(f).Select(g => (g.Yil, g.Ay)));
+        Assert.Equal(Dondurulmus(kural1[Haziran], AylikKural.V1), await c.GetStringAsync(Url(Haziran)));
+        // Kilitli ama görüntüsüz Temmuz: kural 1 ile canlı, karantina uyarısıyla (açık ay kuralına geçmez). Uyarı Türkçe harf
+        // taşıdığından metin değil JSON ağacı karşılaştırılır (API ASCII dışı harfi kaçışsız yazar).
+        var temmuz = JsonNode.Parse(await c.GetStringAsync(Url(Temmuz)))!;
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(kural1[Temmuz]), temmuz), temmuz.ToJsonString());
+        Assert.Null(temmuz["kuralSurumu"]); // kural 1 (eski biçim); açık ay kuralı kuralSurumu yazardı
+        Assert.Null(temmuz["dondurulmus"]);
+        Assert.Single(loglar.Uyarilar, m => m.Contains("2026-07 ayının raporu geçiş tohumunda dondurulmadı", StringComparison.Ordinal)
+            && m.Contains($"Ek gelir #{hareket} (14.07.2026)", StringComparison.Ordinal));
     }
 
     [Fact]

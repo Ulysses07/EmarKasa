@@ -277,8 +277,9 @@ public sealed class BildirimIscisiTests
         Assert.Equal(FinansTakipServisi.GetNotificationEvents(db, bugun), new FinansBildirimKaynaklari().Oku(db, bugun, saglikli));
         Assert.Empty(saglikli);
         db.Database.ExecuteSql($"UPDATE TakipHarcamalar SET DagilimJson = '{{bozuk' WHERE KrediKartiId = {bozuk.Id}");
-        // Bozuk dağılım kartın hesabını düşürür; kartın ödemesi bu dağılımla bölündüğünden ve eşik tanımlı olduğundan kasa
-        // paneli (tüm kartlar) de düşer. Panel yalnız ödeme paylarını hesaplar: ödemesiz kartın bozuk harcaması paneli düşürmez.
+        // Bozuk dağılım kartın hesabını düşürür (kart hatası bildirimi). Kartın ödemesi bu dağılımla bölünür; kasa paneli ise
+        // kartı karantinaya alarak hesaplanır (gap-veri-degismezleri-patlama-yaricapi-3: ödeme tam tutarıyla 'Dağılım bekliyor'):
+        // eşik denetimi durmaz, alt sınır uyarısı üretilir ve kasa hatası bildirimi oluşmaz.
         var kanal = db.Kanallar.AsNoTracking().OrderBy(k => k.Id).First().Id;
         db.KasaEsikleri.Add(new() { KanalId = kanal, Etkin = true, Tutar = 1_000_000m }); db.SaveChanges();
 
@@ -292,12 +293,13 @@ public sealed class BildirimIscisiTests
         var kartHatasi = Assert.Single(satirlar, x => x.Tur == "Hata" && x.Hedef == $"/#cards/{bozuk.Id}");
         Assert.Equal("Kayıt hesaplanamadı", kartHatasi.Baslik);
         Assert.Contains("Bozuk kart", kartHatasi.Mesaj);
-        Assert.Contains(satirlar, x => x.Tur == "Hata" && x.Hedef == "/#home");
+        Assert.DoesNotContain(satirlar, x => x.Tur == "Hata" && x.Hedef == "/#home");
+        Assert.Contains(satirlar, x => x.Tur == "KasaEsik" && x.KaynakId == kanal && x.Hedef == "/#home");
         Assert.Contains(satirlar, x => x.Tur == "Taksit" && x.KaynakId == kredi.Id);
         var kartKaydi = Assert.Single(log.Kayitlar, x => x.Seviye == LogLevel.Error && x.Mesaj.Contains($"Kart #{bozuk.Id}", StringComparison.Ordinal));
         Assert.IsType<System.Text.Json.JsonException>(kartKaydi.Istisna);
         Assert.Contains(servis.Iz, kartKaydi.Mesaj);
-        Assert.Contains(log.Kayitlar, x => x.Seviye == LogLevel.Error && x.Mesaj.Contains("KasaEsik", StringComparison.Ordinal) && x.Istisna is not null);
+        Assert.DoesNotContain(log.Kayitlar, x => x.Seviye == LogLevel.Error && x.Mesaj.Contains("KasaEsik", StringComparison.Ordinal));
     }
 
     [Fact]

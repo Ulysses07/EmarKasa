@@ -47,6 +47,9 @@ public static class SozlesmeIzinleri
             "Bildirim hattının son sunucu hatası web ayarlarında görünür; masaüstü göstermiyor (izleme notu)."),
         new(Yon.SunucuFazlasi, typeof(BildirimAyarDto), "sonHataZamani", null,
             "Bildirim hattının son sunucu hatasının anı; masaüstü göstermiyor (izleme notu)."),
+        new(Yon.SunucuFazlasi, typeof(AnaSayfaDto), "veriSagligiUyarisi", null,
+            "Ana sayfa veri sağlığı uyarısı (RDY: karantinaya alınan kayıt, hesaplanamayan takip özeti); yalnız sorun varken yazılır, "
+            + "dolu hâli KasaVeRaporSozlesmeTests'te denetlenir. İstemci ayağı IST4'tedir (izleme notu); istemci alanı tanıyınca satır bayatlar."),
         new(Yon.SunucuFazlasi, typeof(YedekDurumuDto), "sonOtomatikYedek", null,
             "Yedek türü ayrıntısı; masaüstü yalnız son yedeği, doğrulamayı, hatayı ve rotasyon uyarısını gösterir."),
         new(Yon.SunucuFazlasi, typeof(YedekDurumuDto), "otomatikYedekSayisi", null, "Yedek türü ayrıntısı; masaüstünde gösterilmez."),

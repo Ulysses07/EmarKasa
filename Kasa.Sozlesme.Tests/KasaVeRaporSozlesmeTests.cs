@@ -185,4 +185,33 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         await o.Takip.TakipOzetAsync(60);
         Assert.True(JsonNode.DeepEquals(birlesik["takipOzeti"], JsonNode.Parse(o.SonYanit.Json!)), "Ana sayfa takip özeti /api/takip/ozet yanıtından farklı.");
     }
+
+    /// <summary>Koşullu alan (RDY, gap-veri-degismezleri-patlama-yaricapi-3): ana sayfa özeti VeriSagligiUyarisi'ni yalnız bozuk kayıt
+    /// karantinaya alınınca ya da takip özeti hesaplanamayınca yazar. Canlıdaki eski/geri yüklenmiş veri gibi kanalı olmayan ek
+    /// gelir ve planı geçersiz eski kredi doğrudan veritabanına yazılır: panel yine döner (gelir genel kasada), takip özeti null
+    /// gelir. İstemci alanı henüz tanımıyor (izin satırı, istemci ayağı IST4); vekil yanıtı istemci türüne karşı denetler.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IKasaApi.AnaSayfaAsync))]
+    [KosulluAlanSenaryosu(typeof(Kasa.Api.Servisler.AnaSayfaDto), nameof(Kasa.Api.Servisler.AnaSayfaDto.VeriSagligiUyarisi))]
+    public async Task Ana_sayfa_ozeti_bozuk_kayitta_panel_ve_veri_sagligi_uyarisiyla_doner()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun, "Olağan gider", 100m, "MEZAT", GiderTipi.Cari, null));
+        F.Veri(db =>
+        {
+            var hesap = new Kasa.Api.Data.HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = Baslangic };
+            db.Hesaplar.Add(hesap); db.SaveChanges();
+            db.HesapHareketler.Add(new() { HesapId = hesap.Id, KanalId = null, Tarih = Bugun, Tutar = 250m, Aciklama = "Kanalsız eski ek gelir" });
+            db.Krediler.Add(new() { Ad = "Bozuk plan", CekilenTutar = 0m, CekimTarihi = Baslangic, TaksitSayisi = 3, AylikOdeme = 100m, OdemeGunu = 0, Kanal = "MEZAT" });
+            db.SaveChanges();
+        });
+
+        var ozet = await o.Kasa.AnaSayfaAsync(30);
+        Assert.Equal(1000m - 100m + 250m, ozet.Panel.GuncelKasa);
+        Assert.Null(ozet.TakipOzeti);
+        var uyari = JsonNode.Parse(o.SonYanit.Json!)!["veriSagligiUyarisi"]!.GetValue<string>();
+        Assert.Contains("Ek gelir #", uyari);
+        Assert.Contains("Kart ve kredi takip özeti hesaplanamadı", uyari);
+    }
 }

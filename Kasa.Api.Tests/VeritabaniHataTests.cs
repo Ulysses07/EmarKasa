@@ -48,6 +48,8 @@ public sealed class VeritabaniHataTests
         Assert.Equal(LogLevel.Warning, kayit.Seviye);
         Assert.Contains("Mesgul → 503", kayit.Mesaj);
         Assert.Contains("SQLite 5/", kayit.Mesaj);
+        // Kilidin ne kadar beklendiği (bağlantının etkin kilit beklemesi) logdan okunur.
+        Assert.Contains("bekleme 1 sn", kayit.Mesaj);
         Assert.Contains("uç PUT /api/kasa-esikleri/{kanalId:int}", kayit.Mesaj);
         Assert.Contains("rol editor", kayit.Mesaj);
         Assert.Matches(@"iz \S+", kayit.Mesaj);
@@ -70,6 +72,7 @@ public sealed class VeritabaniHataTests
         Assert.Contains("Birkaç saniye sonra tekrar deneyin", await Hata(yanit));
         var kayit = Assert.Single(f.Log.Kayitlar, x => x.Kategori == "Kasa.Veritabani");
         Assert.Equal(LogLevel.Warning, kayit.Seviye);
+        Assert.Contains("bekleme 1 sn", kayit.Mesaj);
         Assert.Contains("uç POST /api/islemler", kayit.Mesaj);
         Assert.Contains("rol editor", kayit.Mesaj);
     }
@@ -175,10 +178,79 @@ public sealed class VeritabaniHataTests
         Assert.Contains("rol editor", kayit.Mesaj);
     }
 
+    /// <summary>Veritabanının kendi iş kuralı (tetikleyicide RAISE(ABORT, ...)): SQLITE_CONSTRAINT_TRIGGER (1811). Uç sarmalayıcısı
+    /// (Mutate) ve genel işleyici aynı yanıtı verir: 409 ve kullanıcıya tetikleyicinin kendi iletisi; Warning logu kodu taşır.</summary>
+    [Fact]
+    public async Task Tetikleyici_kurali_her_iki_yolda_409_tetikleyici_iletisi_ve_uyari_logu_doner()
+    {
+        await using var f = new HataFabrikasi();
+        using var c = await f.EditorClientAsync();
+        f.Sql("""
+            CREATE TRIGGER test_esik_kural BEFORE INSERT ON KasaEsikleri BEGIN SELECT RAISE(ABORT, 'Kayıt salt okunurdur: test kuralı.'); END;
+            CREATE TRIGGER test_islem_kural BEFORE INSERT ON Islemler BEGIN SELECT RAISE(ABORT, 'Kayıt salt okunurdur: test kuralı.'); END;
+            """);
+
+        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
+        var genel = await c.PostAsJsonAsync("/api/islemler", Islem());
+
+        foreach (var yanit in new[] { mutate, genel })
+        {
+            Assert.Equal(HttpStatusCode.Conflict, yanit.StatusCode);
+            // Yalnız tetikleyicinin iletisi: sürücünün "SQLite Error 19: '...'" sarmalı kullanıcıya gösterilmez.
+            Assert.Equal("Kayıt salt okunurdur: test kuralı.", await Hata(yanit));
+        }
+        var kayitlar = f.Log.Kayitlar.Where(x => x.Kategori == "Kasa.Veritabani").ToList();
+        Assert.Equal(2, kayitlar.Count);
+        Assert.All(kayitlar, x =>
+        {
+            Assert.Equal(LogLevel.Warning, x.Seviye);
+            Assert.Contains("Tetikleyici → 409", x.Mesaj);
+            Assert.Contains("SQLite 19/1811", x.Mesaj);
+        });
+        Assert.Contains(kayitlar, x => x.Mesaj.Contains("uç PUT /api/kasa-esikleri/{kanalId:int}", StringComparison.Ordinal));
+        Assert.Contains(kayitlar, x => x.Mesaj.Contains("uç POST /api/islemler", StringComparison.Ordinal));
+        using var db = f.Baglam();
+        Assert.Equal(0, db.KasaEsikleri.Count());
+        Assert.Equal(0, db.Islemler.Count());
+    }
+
+    /// <summary>Kilitli ay tetikleyicileri ('Kilitli ay: ...' iletili RAISE, ör. TR_Gelenler_AyKilidi_*) uygulama katmanının
+    /// kilit denetimini aşan yazmada da kilitli dönem hatası olarak döner: tetikleyicinin ASCII iletisi değil, anlaşılır kilit
+    /// iletisi; log türü KilitliDonem.</summary>
+    [Fact]
+    public async Task Kilitli_ay_tetikleyicisi_her_iki_yolda_kilitli_donem_iletisiyle_409_doner()
+    {
+        await using var f = new HataFabrikasi();
+        using var c = await f.EditorClientAsync();
+        f.Sql("""
+            CREATE TRIGGER test_esik_kilit BEFORE INSERT ON KasaEsikleri BEGIN SELECT RAISE(ABORT, 'Kilitli ay: once donemi acin.'); END;
+            CREATE TRIGGER test_islem_kilit BEFORE INSERT ON Islemler BEGIN SELECT RAISE(ABORT, 'Kilitli ay: once donemi acin.'); END;
+            """);
+
+        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
+        var genel = await c.PostAsJsonAsync("/api/islemler", Islem());
+
+        foreach (var yanit in new[] { mutate, genel })
+        {
+            Assert.Equal(HttpStatusCode.Conflict, yanit.StatusCode);
+            Assert.Equal(VeritabaniHataSiniflandirici.KilitliAyIletisi, await Hata(yanit));
+        }
+        var kayitlar = f.Log.Kayitlar.Where(x => x.Kategori == "Kasa.Veritabani").ToList();
+        Assert.Equal(2, kayitlar.Count);
+        Assert.All(kayitlar, x =>
+        {
+            Assert.Equal(LogLevel.Warning, x.Seviye);
+            Assert.Contains("KilitliDonem → 409", x.Mesaj);
+            Assert.Contains("SQLite 19/1811", x.Mesaj);
+        });
+    }
+
     [Theory]
     [InlineData("", 10)]
     [InlineData(";Default Timeout=1", 1)]
     [InlineData(";Command Timeout=3", 3)]
+    // Anahtar büyük/küçük harf duyarsızdır: sürücünün kabul ettiği her yazım açık süredir.
+    [InlineData(";command timeout=5", 5)]
     public void Kilit_beklemesi_baglanti_duzeyinde_busy_timeout_olarak_uygulanir(string ek, int saniye)
     {
         var yol = Path.Combine(Path.GetTempPath(), $"kasa-bekleme-{Guid.NewGuid():N}.db");
@@ -199,6 +271,26 @@ public sealed class VeritabaniHataTests
             foreach (var ek2 in new[] { "", "-wal", "-shm", "-journal" })
                 try { File.Delete(yol + ek2); } catch (IOException) { }
         }
+    }
+
+    /// <summary>Açık süre kararı sürücünün kendi eş anlamlı tablosundan gelir (elle tutulan anahtar listesi yok): sürücünün kabul
+    /// ettiği her yazım açık süre sayılır ve olduğu gibi kullanılır. Sürücünün tanımadığı yazım (ör. boşluksuz 'DefaultTimeout')
+    /// sessizce 10 sn'ye inmez: bağlantı dizesi kurulurken reddedilir, uygulama açılmaz ve hata anahtarı adıyla söyler.</summary>
+    [Fact]
+    public void Sure_anahtari_surucunun_yazimlariyla_taninir_taninmayan_yazim_sessizce_varsayilana_inmez()
+    {
+        foreach (var (yazim, saniye) in new[] { ("Default Timeout=7", 7), ("default timeout=8", 8), ("Command Timeout=9", 9), ("COMMAND TIMEOUT=6", 6) })
+        {
+            var baglanti = "Data Source=kasa.db;" + yazim;
+            Assert.True(SqliteBaglantiAyarlari.SureAcikVerilmis(baglanti), yazim);
+            Assert.Equal(saniye, SqliteBaglantiAyarlari.BeklemeSaniye(baglanti));
+            Assert.Equal(saniye, new SqliteConnection(baglanti).DefaultTimeout);
+        }
+        Assert.False(SqliteBaglantiAyarlari.SureAcikVerilmis("Data Source=kasa.db;Pooling=False"));
+        Assert.Equal(SqliteBaglantiAyarlari.VarsayilanBeklemeSaniye, SqliteBaglantiAyarlari.BeklemeSaniye("Data Source=kasa.db"));
+
+        var hata = Assert.Throws<ArgumentException>(() => new SqliteConnection("Data Source=kasa.db;DefaultTimeout=60"));
+        Assert.Contains("defaulttimeout", hata.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

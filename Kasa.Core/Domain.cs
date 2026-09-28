@@ -33,7 +33,13 @@ public record Islem(
     bool DagilimBekliyor = false,
     bool NakitKartOdemesi = false,
     bool AylikGider = false,
-    bool YalnizGenelKasa = false);
+    bool YalnizGenelKasa = false)
+{
+    /// <summary>Satırı üreten kaynak kaydın anahtarı (ör. "Islem:12", "Kredi:3"): aynı kaydın kanal payları ve aynı kredinin
+    /// türetilmiş taksitleri aynı anahtarı taşır. Hesaba girmez; yalnız veri sağlığı uyarısının kayıt adedi
+    /// (<see cref="HesapMotoru.BaslangicOncesi"/>) kaynak kayıt düzeyinde sayılır. Anahtarsız satır tek başına bir kayıttır.</summary>
+    public string? Kaynak { get; init; }
+}
 
 /// <summary>Haftalık gelen — dönem başına, kanal başına tek rakam.</summary>
 public record Gelen(DateOnly DonemStart, string Kanal, decimal TutarTl, bool KrediGirisi = false, bool GenelGelir = false);
