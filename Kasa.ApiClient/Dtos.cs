@@ -46,7 +46,9 @@ public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanalla
 /// verirse istemci yalnız paneli (panel ucundan) doldurur; sunucu özeti ya da eşikleri hesaplayamayınca onları null da
 /// gönderebilir. Her durumda null kalan <see cref="KasaEsikleri"/> ve <see cref="TakipOzeti"/>'ni çağıran eski uçlardan
 /// ayrıca yükler ve hatasını ayrı gösterir.</summary>
-public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikleri, TakipOzetDto? TakipOzeti);
+/// <param name="TakipsizKayitlar">Takipte olmayan (geçişi yapılmamış) kartlar ve kalan taksidi olan eski krediler: ana sayfanın kalıcı
+/// "hatırlatmalar sınırlı, geçiş yapın" uyarısı. Kayıt yoksa ya da eski sunucuda null.</param>
+public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikleri, TakipOzetDto? TakipOzeti, IReadOnlyList<TakipsizKayitDto>? TakipsizKayitlar = null);
 
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);

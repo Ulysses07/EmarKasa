@@ -54,6 +54,9 @@ public record TakipGecisDto(string Kaynak, int KaynakId, DateOnly Baslangic, dec
     decimal? EnAzKasadaSayilanTutar = null);
 public record TakipOzetDto(DateOnly Tarih, decimal KartBorcu, decimal KalanKrediPlani, IReadOnlyList<TakipOlayDto> Olaylar, IReadOnlyList<TakipKanalPayi>? KanalKartBorclari = null, decimal KartAlacakBakiyesi = 0);
 public record TakipOlayDto(string Kaynak, int KaynakId, int KalemId, string Ad, DateOnly Tarih, decimal Tutar, string Tur, bool OtomatikKasa);
+/// <summary>Takipte olmayan (geçişi yapılmamış) kayıt (ana sayfa uyarısı).</summary>
+/// <param name="Kaynak">"Kart" ya da "Kredi".</param>
+public record TakipsizKayitDto(string Kaynak, int Id, string Ad);
 
 public interface IFinansTakipApi
 {

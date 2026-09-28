@@ -38,6 +38,18 @@ public class AnaSayfaVeIptalTests
         Assert.Equal(900, a.Panel.GuncelKasa); Assert.Equal(2, a.Panel.Kanallar[1].KanalId); Assert.Equal(7, a.Panel.DagilimBekleyenTutar);
         var esik = Assert.Single(a.KasaEsikleri!); Assert.True(esik.EsikAltinda); Assert.Equal(600, esik.Bakiye);
         Assert.Equal(120, a.TakipOzeti!.KartBorcu); Assert.Equal(1, a.TakipOzeti.KanalKartBorclari!.Single().KanalId);
+        // Takipte olmayan kayıt yoksa sunucu alanı yazmaz: null.
+        Assert.Null(a.TakipsizKayitlar);
+    }
+
+    /// <summary>Takipte olmayan (geçişi yapılmamış) kart ve krediler ana sayfanın kalıcı uyarısı için okunur
+    /// (gap-tarihsel-spec-ve-emekli-web-7).</summary>
+    [Fact]
+    public async Task Ana_sayfa_takipte_olmayan_kayitlari_okur()
+    {
+        var json = AnaSayfaJson.TrimEnd()[..^1] + ""","takipsizKayitlar":[{"kaynak":"Kart","id":4,"ad":"Bonus"},{"kaynak":"Kredi","id":7,"ad":"Taşıt"}]}""";
+        var a = await Client(new Kayitci((_, _) => Json(json))).AnaSayfaAsync();
+        Assert.Equal([new TakipsizKayitDto("Kart", 4, "Bonus"), new TakipsizKayitDto("Kredi", 7, "Taşıt")], a.TakipsizKayitlar!);
     }
 
     [Fact]

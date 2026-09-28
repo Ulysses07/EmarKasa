@@ -214,4 +214,30 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Contains("Ek gelir #", uyari);
         Assert.Contains("Kart ve kredi takip özeti hesaplanamadı", uyari);
     }
+
+    /// <summary>Koşullu alan (gap-tarihsel-spec-ve-emekli-web-7): ana sayfa özeti takipte olmayan (geçişi yapılmamış) kartları ve
+    /// kalan taksidi olan eski kredileri kalıcı uyarı için yalnız varken yazar. Eski kayıtlar API'den oluşturulamadığından
+    /// veritabanına doğrudan yazılır; biten eski kredi listelenmez. Takip özeti değişmez.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IKasaApi.AnaSayfaAsync))]
+    [KosulluAlanSenaryosu(typeof(Kasa.Api.Servisler.AnaSayfaDto), nameof(Kasa.Api.Servisler.AnaSayfaDto.TakipsizKayitlar))]
+    public async Task Ana_sayfa_ozeti_takipte_olmayan_kart_ve_kredileri_listeler()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        Assert.Null((await o.Kasa.AnaSayfaAsync(30)).TakipsizKayitlar);
+        Assert.Null(JsonNode.Parse(o.SonYanit.Json!)!["takipsizKayitlar"]);
+        int kartId = 0, krediId = 0;
+        F.Veri(db =>
+        {
+            var kart = new Kasa.Api.Data.KrediKartiEntity { Ad = "Eski kart", KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25), Limit = 10000m, Borc = 250m };
+            var kredi = new Kasa.Api.Data.KrediEntity { Ad = "Eski kredi", CekilenTutar = 12000m, CekimTarihi = Baslangic, TaksitSayisi = 24, AylikOdeme = 500m, OdemeGunu = 10, Kanal = "MEZAT", KanalId = 1 };
+            var biten = new Kasa.Api.Data.KrediEntity { Ad = "Biten kredi", CekilenTutar = 300m, CekimTarihi = Baslangic, TaksitSayisi = 1, AylikOdeme = 300m, OdemeGunu = 10, Kanal = "MEZAT", KanalId = 1 };
+            db.AddRange(kart, kredi, biten); db.SaveChanges(); kartId = kart.Id; krediId = kredi.Id;
+        });
+
+        var ozet = await o.Kasa.AnaSayfaAsync(30);
+        Assert.Equal([new TakipsizKayitDto("Kart", kartId, "Eski kart"), new TakipsizKayitDto("Kredi", krediId, "Eski kredi")], ozet.TakipsizKayitlar!);
+        Assert.Equal(2, JsonNode.Parse(o.SonYanit.Json!)!["takipsizKayitlar"]!.AsArray().Count);
+    }
 }
