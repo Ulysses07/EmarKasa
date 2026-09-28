@@ -91,6 +91,51 @@ public static class HesapMotoru
         return sonuc;
     }
 
+    /// <summary>
+    /// Kasa hareket dökümü (gap-denetim-izi-gozlemlenebilirlik-3): <see cref="HaftalikHesapla"/>'nın genel kasaya ve kanal
+    /// devrine yazdığı her tutar, kaynağıyla bir satır. Hesap yolu değişmez; bu yöntem aynı kuralları (dönem dağıtımı, dönem
+    /// geliri, ertelemeli K.K'nın etki ayının son döneminde düşmesi, kanal devrine yalnız Cari/nakit kart ödemesi/aylık gider
+    /// girmesi, dağılım bekleyen ve yalnız genel kasa satırının kanala yazılmaması) satır satır uygular. Değişmezler (testle
+    /// sabit): açılış + Σ <see cref="KasaHareketi.GenelKasaEtkisi"/> = son dönemin KasaDevir'i; her dönem sonunda
+    /// (çakışmayan dönemlerde) açılış + Σ(etki tarihi ≤ dönem sonu) = o dönemin KasaDevir'i; kanalın açılış devri + Σ
+    /// <see cref="KasaHareketi.KanalEtkisi"/> = kanal devri. Satırlar etki tarihine göre sıralıdır (aynı günde hesap sırası).
+    /// </summary>
+    public static IReadOnlyList<KasaHareketi> KasaHareketleri(
+        IReadOnlyList<Kanal> kanallar,
+        IReadOnlyList<Islem> islemler,
+        IReadOnlyList<Gelen> gelenler,
+        IReadOnlyList<Donem> donemler)
+    {
+        var sirali = donemler.OrderBy(d => d.Start).ToList();
+        var kanalAdlari = kanallar.Select(k => k.Ad).ToHashSet();
+        // HaftalikHesapla ile aynı: ay sonunda kasadan çıkan K.K etki ayına göre toplanır; kendi döneminde kasaya yazılmaz.
+        var ertelenenKk = islemler.Where(i => i.Tip == GiderTipi.KrediKarti && !i.NakitKartOdemesi).ToLookup(EtkiAyi);
+        var donemIslemleri = DonemlereDagit(sirali, islemler);
+        var donemGelenleri = gelenler.ToLookup(g => g.DonemStart);
+        var sonuc = new List<KasaHareketi>();
+        for (var d = 0; d < sirali.Count; d++)
+        {
+            var donem = sirali[d];
+            foreach (var g in donemGelenleri[donem.Start])
+                sonuc.Add(new(g.Tarih ?? donem.Start, g.TutarTl, !g.GenelGelir && kanalAdlari.Contains(g.Kanal) ? g.TutarTl : 0m, Gelen: g));
+            foreach (var i in donemIslemleri?[d] ?? islemler.Where(i => donem.Icerir(i.Tarih)).ToList())
+            {
+                var ertelenen = i.Tip == GiderTipi.KrediKarti && !i.NakitKartOdemesi;
+                var kanal = !i.DagilimBekliyor && !i.YalnizGenelKasa && kanalAdlari.Contains(i.Kanal)
+                    && (i.Tip == GiderTipi.Cari || i.NakitKartOdemesi || i.AylikGider) ? -i.TutarTl : 0m;
+                // Ertelemeli K.K kendi döneminde kasaya yazılmaz; kanal devrine de yazılmıyorsa satırı yalnız ay sonundadır.
+                if (ertelenen && kanal == 0m) continue;
+                sonuc.Add(new(i.Tarih, ertelenen ? 0m : -i.TutarTl, kanal, Islem: i));
+            }
+            var aySonu = new DateOnly(donem.Yil, donem.Ay, DateTime.DaysInMonth(donem.Yil, donem.Ay));
+            if (donem.Icerir(aySonu))
+                foreach (var i in ertelenenKk[(donem.Yil, donem.Ay)])
+                    sonuc.Add(new(aySonu, -i.TutarTl, 0m, Islem: i, KartAySonu: true));
+        }
+        // OrderBy kararlıdır: aynı günün satırları hesap sırasını korur.
+        return sonuc.OrderBy(h => h.EtkiTarihi).ToList();
+    }
+
     /// <summary>İşlemleri başlangıca göre sıralı dönemlerin kovalarına bir kez dağıtır (ikili arama). Dönemler çakışıyor
     /// ya da ters sınırlıysa (DonemUretici bunu üretmez) null döner; çağıran eski taramaya düşer.</summary>
     private static List<Islem>[]? DonemlereDagit(IReadOnlyList<Donem> sirali, IReadOnlyList<Islem> islemler)
@@ -250,6 +295,28 @@ public static class HesapMotoru
         if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi) return (yil, ay);
         return ay == 12 ? (yil + 1, 1) : (yil, ay + 1);
     }
+}
+
+/// <summary>
+/// Kasa hareket dökümünün satırı (<see cref="HesapMotoru.KasaHareketleri"/>): genel kasaya ya da bir kanalın devrine yazılan tek
+/// tutar ve onu üreten gider (<paramref name="Islem"/>) ya da gelir (<paramref name="Gelen"/>).
+/// </summary>
+/// <param name="EtkiTarihi">Tutarın kasayı değiştirdiği gün: giderin ve günü bilinen gelirin kendi tarihi, dönem gelirinde dönem
+/// başı, ertelemeli K.K'da (<paramref name="KartAySonu"/>) etki ayının son günü.</param>
+/// <param name="GenelKasaEtkisi">Genel kasaya etkisi, işaretli (gelir +, gider −).</param>
+/// <param name="KanalEtkisi">Satırın kanalının devrine etkisi, işaretli; sabit gider, Ortak, dağılım bekleyen, yalnız genel kasa
+/// satırında ve gerçek kanal olmayan etikette 0.</param>
+/// <param name="KartAySonu">Ertelemeli K.K'nın (eski kart kuralı) etki ayının sonundaki kasa düşümü: yazma olmadan, tarih
+/// ilerleyince işler.</param>
+public record KasaHareketi(DateOnly EtkiTarihi, decimal GenelKasaEtkisi, decimal KanalEtkisi, Islem? Islem = null, Gelen? Gelen = null, bool KartAySonu = false)
+{
+    /// <summary>Satırın kanal etiketi (gerçek kanal, <see cref="Kanallar.Ortak"/>, <see cref="Kanallar.DagilimBekliyor"/>, "Genel kasa" ya da
+    /// <see cref="KrediTuretici.KrediKanal"/>).</summary>
+    public string Kanal => Islem?.Kanal ?? Gelen?.Kanal ?? "";
+    /// <summary>Kaydın kendi tarihi: giderin tarihi, gelirin günü ya da (tarihsiz dönem gelirinde) dönem başı.</summary>
+    public DateOnly KayitTarihi => Islem?.Tarih ?? Gelen?.Tarih ?? Gelen?.DonemStart ?? EtkiTarihi;
+    /// <summary>Kaydın döküm anahtarı (<see cref="Islem.KaynakAnahtari"/>, <see cref="Gelen.KaynakAnahtari"/>).</summary>
+    public string? KaynakAnahtari => Islem?.KaynakAnahtari ?? Gelen?.KaynakAnahtari;
 }
 
 public record KanalAylik(

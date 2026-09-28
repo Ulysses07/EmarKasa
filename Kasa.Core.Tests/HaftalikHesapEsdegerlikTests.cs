@@ -43,7 +43,7 @@ public class HaftalikHesapEsdegerlikTests
         Assert.True(sure.Elapsed < TimeSpan.FromSeconds(5), $"{sure.ElapsedMilliseconds} ms sürdü.");
     }
 
-    private static (decimal, IReadOnlyList<Kanal>, IReadOnlyList<Islem>, IReadOnlyList<Gelen>, IReadOnlyList<Donem>) Senaryo(Random rnd, int no)
+    internal static (decimal, IReadOnlyList<Kanal>, IReadOnlyList<Islem>, IReadOnlyList<Gelen>, IReadOnlyList<Donem>) Senaryo(Random rnd, int no)
     {
         var baslangic = new DateOnly(2025, 1, 1).AddDays(rnd.Next(0, 800));
         var bitis = baslangic.AddDays(rnd.Next(0, 400));
