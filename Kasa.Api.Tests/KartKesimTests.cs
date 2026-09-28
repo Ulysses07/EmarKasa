@@ -116,6 +116,56 @@ public class KartKesimTests
     }
 
     [Fact]
+    public async Task Ileri_kaymis_kesim_harcamayi_iceriyorsa_harcama_kesim_gunu_harcamadan_once_olan_ekstreye_baglanir()
+    {
+        // Bilinçli kural: banka 5 Ekim kesimini 12'sine kaydırdıysa 9 Ekim harcaması Ekim döngüsünün ekstresindedir.
+        // Ekstre kartın düzenli günüyle (5 Ekim) tutulur; bu yüzden ekstre tarihi harcamadan önce olabilir. Pencere
+        // dar: ilk kesim harcamadan önce olamaz ve düzenli kesimden en çok 7 gün uzaktır. Vade düzenli kesimden
+        // hesaplanır (25 Ekim): banka vadeyi de kaydırdıysa hatırlatma erken gelir, geç kalmaz.
+        var bugun = new DateOnly(2026, 10, 15);
+        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, Baslangic);
+        var kart = await Kart(c, 5, 25, Baslangic);
+        kart = await Harcama(c, kart, new(2026, 10, 9), 90m, 3, new(2026, 10, 12));
+        var kaymis = Assert.Single(kart.Harcamalar);
+        Assert.Equal(new DateOnly[] { new(2026, 10, 5), new(2026, 11, 5), new(2026, 12, 5) }, TaksitKesimleri(f, kaymis.Id));
+        Assert.Equal(new DateOnly(2026, 10, 25), kart.Ekstreler.Single(s => s.KesimTarihi == new DateOnly(2026, 10, 5)).SonOdemeTarihi);
+
+        // Pencerenin dışı: 8 gün kaymış ilk kesim ve harcamadan önceki ilk kesim veri yazmadan reddedilir.
+        foreach (var ilk in new[] { new DateOnly(2026, 10, 13), new DateOnly(2026, 10, 8) })
+            Assert.Equal(HttpStatusCode.BadRequest, (await HarcamaIstegi(c, kart, new(2026, 10, 9), 90m, 3, ilk)).StatusCode);
+        Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!.Harcamalar);
+        // Kesimden sonraki harcamanın banka kesimi bir sonraki döngüdeyse o döngüye bağlanır.
+        kart = await Harcama(c, kart, new(2026, 10, 9), 60m, 2, new(2026, 11, 5));
+        var sonraki = kart.Harcamalar.Single(h => h.Id != kaymis.Id);
+        Assert.Equal(new DateOnly[] { new(2026, 11, 5), new(2026, 12, 5) }, TaksitKesimleri(f, sonraki.Id));
+    }
+
+    [Fact]
+    public async Task Takip_baslangicindan_onceki_duzenli_kesime_yuvarlanan_ilk_kesim_veri_yazmadan_reddedilir()
+    {
+        // Takip 3 Ekim'de başladı, kesim günü 30: 3 ve 5 Ekim'lik ilk kesim en yakın düzenli kesim olan 30 Eylül'e düşer.
+        // Takipten önceki ekstre izlenmez (bakım adımı da açmaz); harcama başlangıçtan önceki bir ekstre açmaz.
+        var bugun = new DateOnly(2026, 10, 20); var baslangic = new DateOnly(2026, 10, 3);
+        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, baslangic);
+        var kart = await Kart(c, 30, 10, baslangic);
+        foreach (var ilk in new[] { new DateOnly(2026, 10, 3), new DateOnly(2026, 10, 5) })
+        {
+            var r = await HarcamaIstegi(c, kart, baslangic, 100m, 2, ilk);
+            Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
+            var hata = (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
+            Assert.Contains("takip başlangıcından (03.10.2026)", hata); Assert.Contains("30.09.2026", hata);
+        }
+        var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
+        Assert.Empty(sonra.Harcamalar); Assert.Equal(kart.Surum, sonra.Surum);
+        using (var scope = f.Services.CreateScope())
+            Assert.DoesNotContain(scope.ServiceProvider.GetRequiredService<KasaDbContext>().TakipEkstreler.ToList(), s => s.KesimTarihi < baslangic);
+
+        // Harcamanın düştüğü sonraki kesim kabul edilir.
+        kart = await Harcama(c, sonra, baslangic, 100m, 2, new(2026, 10, 30));
+        Assert.Equal(new DateOnly[] { new(2026, 10, 30), new(2026, 11, 30) }, TaksitKesimleri(f, Assert.Single(kart.Harcamalar).Id));
+    }
+
+    [Fact]
     public async Task Ilk_kesimsiz_harcamanin_ekstre_atamasi_degismez()
     {
         // Eşitlik: ilk kesim verilmeyen (mevcut verideki bütün yollar: gider, açılış, geçiş, masraf, içe aktarma)

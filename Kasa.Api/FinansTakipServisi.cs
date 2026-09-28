@@ -106,15 +106,26 @@ public static class FinansTakipServisi
     /// <paramref name="firstCut"/> (ilk kesim) yalnız ilk taksidin girdiği döngüyü seçer (finance-3). Bankanın tatil
     /// nedeniyle kaydırdığı kesim (ör. 5 yerine 6'sı) aynı döngünün ekstresidir: o güne ayrı ekstre açılsaydı sonraki
     /// taksitler de o güne sabitlenir, kartın döngüsüne paralel ekstreler ve aynı ay ikinci kesim bildirimi oluşurdu.
-    /// İlk kesimsiz harcamanın (gider, açılış, geçiş, masraf, içe aktarma) ataması önceki kuralla aynıdır.</summary>
+    /// İlk kesimsiz harcamanın (gider, açılış, geçiş, masraf, içe aktarma) ataması önceki kuralla aynıdır.
+    /// Bilinçli kural: ilk taksidin ekstresi harcamadan önce kesilmiş görünebilir. Banka kesimi ileri kaydırdıysa (ör. 5
+    /// Ekim yerine 12'si) aradaki harcama o döngünün ekstresindedir; ekstre kartın düzenli günüyle tutulur, vadesi de ondan
+    /// hesaplanır (banka vadeyi de kaydırdıysa hatırlatma erken gelir, geç kalmaz). Pencere dardır: ilk kesim harcamadan
+    /// önce olamaz (çağıran denetler) ve düzenli kesimden en çok <see cref="IlkKesimToleransi"/> gün uzaktır. Yuvarlanan
+    /// kesim kartın takip başlangıcından önce olamaz: takipten önceki ekstre izlenmez, bakım adımı da açmaz.</summary>
     internal static void HarcamaEkle(KasaDbContext db, KrediKartiEntity card, TakipHarcamaEntity charge, DateOnly? firstCut = null)
     {
         var day = card.KesimTarihi.Day;
+        var cut = Kesim(charge.Tarih, day);
         if (firstCut is { } ilk)
-            FinansTakipEndpoints.Require(Math.Abs(ilk.DayNumber - EnYakinDuzenliKesim(ilk, day).DayNumber) <= IlkKesimToleransi,
+        {
+            cut = EnYakinDuzenliKesim(ilk, day);
+            FinansTakipEndpoints.Require(Math.Abs(ilk.DayNumber - cut.DayNumber) <= IlkKesimToleransi,
                 $"İlk kesim tarihi kartın hesap kesim gününe ({day}) en fazla {IlkKesimToleransi} gün uzak olabilir; bankanın kaydırdığı kesimi ya da harcamanın düştüğü sonraki kesimi girin.");
+            var baslangic = db.TakipKartlar.Where(t => t.KrediKartiId == card.Id).Select(t => t.Baslangic).Single();
+            FinansTakipEndpoints.Require(cut >= baslangic,
+                $"İlk kesim tarihi kartın takip başlangıcından ({KartGecisHesabi.Tarih(baslangic)}) önceki {KartGecisHesabi.Tarih(cut)} kesimine denk geliyor; takipten önceki ekstreler izlenmez. Harcamanın düştüğü sonraki kesimi girin ya da ilk kesimi boş bırakın.");
+        }
         db.TakipHarcamalar.Add(charge); db.SaveChanges();
-        var cut = firstCut is { } first ? EnYakinDuzenliKesim(first, day) : Kesim(charge.Tarih, day);
         var cents = decimal.ToInt64(Math.Abs(charge.Tutar) * 100); var sign = Math.Sign(charge.Tutar);
         for (var i = 0; i < charge.TaksitSayisi; i++)
         {
