@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
@@ -19,7 +20,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(42.75m, Assert.Single(db.Gelenler).TutarTl);
         Assert.Equal(125.50m, Assert.Single(db.Kanallar).AcilisDevri);
         Assert.Empty(db.Alislar);
@@ -37,7 +38,7 @@ public class DatabaseMigrationTests
         KasaDatabaseInitializer.Initialize(db);
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Empty(db.Islemler);
@@ -70,13 +71,13 @@ public class DatabaseMigrationTests
         Assert.Empty(db.KrediKartlari);
         Assert.Empty(db.Krediler);
         Assert.Empty(db.KartOdemeler);
-        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
 
         // Tekrar başlatma ne veri ne yeni migration kaydı üretir.
         KasaDatabaseInitializer.Initialize(db);
         Assert.Single(db.Islemler);
-        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
     }
 
     [Fact]
@@ -103,7 +104,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal.Id, Assert.Single(db.Islemler).KanalId);
         Assert.Equal(50.02m, Assert.Single(db.KartOdemeler).Tutar);
         Assert.Equal(250.03m, Assert.Single(db.Gelenler).TutarTl);
-        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
 
         // Geçişten sonra da FK'nin SET NULL ve CASCADE davranışları korunur.
         Execute(connection, "DELETE FROM KrediKartlari;");
@@ -200,7 +201,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal, Scalar(connection, "SELECT Kanal FROM Gelenler WHERE Id = 14;"));
         Assert.Equal("2026-09-01", Scalar(connection, "SELECT DonemStart FROM Gelenler WHERE Id = 14;"));
         Assert.All(db.Gelenler, g => { Assert.True(g.EskiYinelenenGrup); Assert.Equal(7, g.KanalId); });
-        Assert.Equal(13, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
     }
 
@@ -323,7 +324,7 @@ public class DatabaseMigrationTests
 
             using var verified = new SqliteConnection(connectionString);
             using var verify = Context(verified);
-            Assert.Equal(13, verify.Database.GetAppliedMigrations().Count());
+            Assert.Equal(14, verify.Database.GetAppliedMigrations().Count());
             Assert.Single(verify.Kanallar);
             Assert.Single(verify.Islemler);
             Assert.Single(verify.Gelenler);
@@ -335,6 +336,76 @@ public class DatabaseMigrationTests
             foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
             if (Directory.Exists(backupDirectory)) Directory.Delete(backupDirectory, true);
         }
+    }
+
+    /// <summary>Denetim olayları migration'ı yalnız ekler: önceki sürümün verisi ve raporları (haftalık, aylık, panel)
+    /// göç öncesi ve sonrası birebir aynıdır; tablo, indeksler ve değiştirilemezlik tetikleyicileri kurulur.</summary>
+    [Fact]
+    public void Denetim_olaylari_migrationi_yalniz_ekler_ve_gecmis_raporlari_degistirmez()
+    {
+        using var connection = Open();
+        var saat = new ServiceCollection()
+            .AddSingleton<TimeProvider>(new SabitSaat(new DateOnly(2026, 9, 25))).BuildServiceProvider();
+        using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).UseApplicationServiceProvider(saat).Options);
+        db.GetService<IMigrator>().Migrate("20260929000300_AyRaporAnlikGoruntuleri");
+        Execute(connection, """
+            INSERT INTO Kanallar (Id, Ad, Aktif, Sira, AcilisDevri) VALUES (1, 'MEZAT', 1, 0, '100.0'), (2, 'TOPTAN', 1, 1, '0');
+            INSERT INTO Ayarlar (TakipBaslangic, KasaAcilisDevri, IzleyiciSifreHash) VALUES ('2026-06-01', '1000.0', NULL);
+            INSERT INTO Gelenler (DonemStart, Kanal, KanalId, TutarTl) VALUES ('2026-07-06', 'MEZAT', 1, '48000.00'), ('2026-08-03', 'TOPTAN', 2, '2500.5');
+            INSERT INTO Islemler (Tarih, Cari, TutarTl, Kanal, KanalId, Tip, "Not") VALUES ('2026-07-15', 'Tedarik', '12500', 'MEZAT', 1, 0, NULL),
+                ('2026-08-20', 'Ortak kira', '3000', 'ortak', NULL, 1, 'Kira');
+            """);
+        // Göç öncesi bağlamda da kayıt çalışır (olay tablosu yok: olay yazılmaz).
+        db.Islemler.Add(new IslemEntity { Tarih = new(2026, 9, 1), Cari = "Göç öncesi", TutarTl = 10m, Kanal = "TOPTAN", KanalId = 2, Tip = GiderTipi.Cari });
+        db.SaveChanges();
+        var web = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        string Raporlar() => System.Text.Json.JsonSerializer.Serialize(new object[]
+        {
+            new Kasa.Api.Servisler.HesapServisi(db).Haftalik(), new Kasa.Api.Servisler.HesapServisi(db).Aylik(2026, 7),
+            new Kasa.Api.Servisler.HesapServisi(db).Aylik(2026, 8), new Kasa.Api.Servisler.HesapServisi(db).Panel(),
+        }, web);
+        var once = Raporlar();
+
+        KasaDatabaseInitializer.Initialize(db);
+
+        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Equal(once, Raporlar());
+        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
+        foreach (var nesne in new[] { "IX_DenetimOlaylari_Varlik_VarlikId", "IX_DenetimOlaylari_ZamanUtc", "IX_DenetimOlaylari_KilitAcmaOlayiId",
+                     "TR_DenetimOlaylari_Degistirilemez", "TR_DenetimOlaylari_Silinemez" })
+            Assert.Equal(1L, Scalar(connection, $"SELECT COUNT(*) FROM sqlite_master WHERE name = '{nesne}';"));
+        // Göç sonrası ilk kayıt olay üretir; aynı bağlam tabloyu artık görür.
+        db.Islemler.Add(new IslemEntity { Tarih = new(2026, 9, 2), Cari = "Göç sonrası", TutarTl = 20m, Kanal = "TOPTAN", KanalId = 2, Tip = GiderTipi.Cari });
+        db.SaveChanges();
+        Assert.Equal("Ekle|Islem|sistem", Scalar(connection, "SELECT Tur || '|' || Varlik || '|' || AktorRol FROM DenetimOlaylari;"));
+    }
+
+    [Fact]
+    public void Denetim_olayi_veritabaninda_ve_ef_yolunda_degistirilemez_ve_silinemez()
+    {
+        using var connection = Open();
+        using var db = Context(connection);
+        KasaDatabaseInitializer.Initialize(db);
+        db.Kanallar.Add(new KanalEntity { Ad = "MEZAT" });
+        db.SaveChanges();
+        Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
+
+        var guncelleme = Assert.Throws<SqliteException>(() => Execute(connection, "UPDATE DenetimOlaylari SET Gerekce = 'sahte';"));
+        Assert.Equal(19, guncelleme.SqliteErrorCode);
+        Assert.Contains("Denetim kaydi degistirilemez.", guncelleme.Message);
+        var silme = Assert.Throws<SqliteException>(() => Execute(connection, "DELETE FROM DenetimOlaylari;"));
+        Assert.Equal(19, silme.SqliteErrorCode);
+        Assert.Contains("Denetim kaydi silinemez.", silme.Message);
+
+        var olay = db.DenetimOlaylari.Single();
+        olay.Gerekce = "sahte";
+        Assert.Throws<InvalidOperationException>(() => db.SaveChanges());
+        db.ChangeTracker.Clear();
+        db.DenetimOlaylari.Remove(db.DenetimOlaylari.Single());
+        Assert.Throws<InvalidOperationException>(() => db.SaveChanges());
+        db.ChangeTracker.Clear();
+        Assert.Null(db.DenetimOlaylari.AsNoTracking().Single().Gerekce);
     }
 
     private static SqliteConnection Open()
