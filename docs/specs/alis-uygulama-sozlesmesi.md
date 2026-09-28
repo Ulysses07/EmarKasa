@@ -16,8 +16,16 @@ record AlisDagilimDto(int KanalId, string Kanal, decimal Tutar);
 record AlisKalemDto(int Id, string Aciklama, decimal Tutar, IReadOnlyList<AlisDagilimDto> Dagilimlar);
 record AlisOdemeDto(int Id, int IslemId, DateOnly Tarih, decimal Tutar, int? KrediKartiId, bool DagilimBekliyor, IReadOnlyList<AlisDagilimDto> Dagilimlar);
 record AlisDto(int Id, int Surum, int? AliciId, string Alici, DateOnly Tarih, string Tedarikci, string? Not, string Durum, string? EditorNotu, decimal Toplam, decimal Odenen, decimal Kalan, IReadOnlyList<AlisKalemDto> Kalemler, IReadOnlyList<AlisOdemeDto> Odemeler);
-record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null);
+record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null, int? MevcutKartHarcamaId = null);
+record BaglanabilirKartHarcamasiDto(int Id, int KrediKartiId, DateOnly Tarih, string Aciklama, decimal Tutar, int? EkstreKayitId = null);
 ```
+
+Ekstre önce işlenmişse (gap-coklu-giris-cift-sayim-mutabakat-1, ayrıntı `2026-09-27-ekstre-ice-aktarma-api.md`):
+
+- `MevcutKartHarcamaId`: takipli kartla ödeme, gidere bağlı olmayan mevcut kart harcamasına bağlanır; ikinci harcama oluşmaz. Harcama aynı kartın, iptal edilmemiş, iade/devir olmayan, iadesiz ve pozitif harcaması olmalı; ödemenin tarihi, tutarı ve kartı harcamayla aynı gönderilir (aksi 409). `MevcutIslemId` ile birlikte gönderilemez (400). Ödemenin gideri oluşturulup harcamaya bağlanır.
+- `GET /api/alis/baglanabilir-kart-harcamalari?krediKartiId=&tutar=`: editor; bu kuralla bağlanabilir en yeni 50 harcama (kilitli dönemden sonra).
+- Banka ekstresi gideri `MevcutIslemId` ile bağlanabilir; `GET /api/alis/baglanabilir-giderler` onu `EkstreKayitId` ile listeler.
+- Bağlanan kayıt ekstreden geldiyse satırın sahipliği eşleşmeye döner. Bu ödeme yalnız başka alışa taşınabilir (tarih/tutar/kart değişmez; kart harcamasına bağlı olan taşınamaz); ödeme iptali eşleşmeyi geri çevirir: kart harcamasında bağlama için oluşturulan gider silinir, banka giderinde gider korunur, kayıt yeniden ekstre satırınındır.
 
 - `GET /api/alis/kanallar`: editor/alici, sınırlı kanal listesi.
 - `GET /api/alis`: editor tümü, alici kendi alışları. Ayrıntılı AlisDto listesi.
