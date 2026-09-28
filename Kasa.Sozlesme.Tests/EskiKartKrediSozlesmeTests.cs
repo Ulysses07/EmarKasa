@@ -7,7 +7,7 @@ namespace Kasa.Sozlesme.Tests;
 /// <summary>
 /// Eski (takip öncesi) kart ve kredi uçları. Yeni kayıt uçları sunucuda koşulsuz 409 döner: istemcinin
 /// KrediKartiOlusturAsync ve KrediEkleAsync metotları çalışan bir özellik değildir. Kasa.ApiClient.Tests/MutasyonTests
-/// bu iki metot için 201 kurgulayıp başarı bekliyor; o kurgu gerçek sunucuyla çelişir (tests-8). Eski kayıtlar API'den
+/// de bu iki metot için artık 201 kurgulamaz, aynı 409'u ve iletisini bekler (tests-8). Eski kayıtlar API'den
 /// oluşturulamadığından veritabanına doğrudan yazılır.
 /// </summary>
 public class EskiKartKrediSozlesmeTests : SozlesmeTemeli
