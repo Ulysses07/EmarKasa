@@ -5,6 +5,7 @@ using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Kasa.Api.Data;
 
@@ -44,6 +45,8 @@ public partial class KasaDbContext
 /// - Geçiş tohumu (<see cref="GecisTohumu"/>): bu sürümden önce kapatılmış, görüntüsü olmayan her ay açılışta bir kez
 ///   <see cref="AylikKural.V1"/> ile dondurulur: geçiş anında kilitli aylar bugünkü rakamlarıyla kalır. Kilit ile görüntü
 ///   aynı transaction'da yazıldığından, görüntüsü olmayan kilitli ay yalnız bu sürümden önce kilitlenmiş olabilir.
+/// - Bozuk kayıtla hesaplanan rapor dondurulmaz (gap-veri-degismezleri-patlama-yaricapi-3): raporuna karantina kaydı giren ay
+///   kapatılamaz (409) ve geçiş tohumunda atlanır; bu yüzden görüntüler karantina uyarısı taşımaz.
 /// Takip başlangıcının ayından önceki aylar görüntülenmez: kilitlenemezler ve dönem içermedikleri için iki kuralda aynıdır.
 /// Değiştirilemezlik: kilit kuralları (<see cref="AyKilidiKurallari"/>) ve veritabanı tetikleyicileri görüntünün
 /// güncellenmesini, kilitli ayın görüntüsünün silinmesini ve kilitli olmayan ay için görüntü yazılmasını reddeder.
@@ -88,13 +91,23 @@ public static class AyRaporAnlikGoruntusu
     }
 
     /// <summary>Ay kapatılırken (kilit durumu aynı transaction'da kaydedildikten sonra): yeni kilitlenen ayların raporu
-    /// açık ay kuralıyla hesaplanıp eklenir. Çağıran SaveChanges yapar.</summary>
+    /// açık ay kuralıyla hesaplanıp eklenir. Çağıran SaveChanges yapar. Bozuk kayıtla hesaplanan rapor dondurulmaz: yeni kilitlenen
+    /// bir aya dokunan karantina kaydı varsa (bkz. <see cref="HesapServisi"/>) kapatma 409 ile reddedilir ve ileti ayı ve kaydı
+    /// kimliğiyle söyler; transaction geri alınır, kilit ve görüntü yazılmaz. Yaklaşık rakam (genel kasaya kaymış gelir, sayılmamış
+    /// kredi, "Dağılım bekliyor" gider) değişmez görüntüye girmez; kilitli aydaki kayıt ise kilit açılmadan düzeltilemezdi.</summary>
     internal static void Kilitlendi(KasaDbContext db, DateOnly? oncekiKilitSonu, DateOnly yeniKilitSonu, DateTimeOffset zaman, CancellationToken ct = default)
     {
         var baslangic = db.Ayarlar.AsNoTracking().Select(a => a.TakipBaslangic).First();
         var hesap = new HesapServisi(db);
         foreach (var (yil, ay) in KilitliAylar(baslangic, yeniKilitSonu, oncekiKilitSonu).ToList())
-            Ekle(db, hesap, yil, ay, HesapServisi.AcikAyKurali, zaman, ct);
+        {
+            var (rapor, karantina) = hesap.AylikVeKarantina(yil, ay, ct, HesapServisi.AcikAyKurali);
+            if (karantina.Count > 0)
+                AylikGiderEndpoints.Need(false, string.Create(CultureInfo.InvariantCulture,
+                    $"{yil:D4}-{ay:D2} ayı kapatılamaz: raporuna giren {karantina.Count} kayıt karantinada ({HesapServisi.KarantinaListesi(karantina)}). Bozuk kayıtla hesaplanan rapor dondurulmaz; önce kaydı düzeltin, sonra ayı kapatın."),
+                    StatusCodes.Status409Conflict);
+            Ekle(db, yil, ay, HesapServisi.AcikAyKurali, rapor, zaman);
+        }
     }
 
     /// <summary>Kilit açılırken (yeni kilit sonu kaydedildikten sonra): artık kilitli olmayan ayların görüntüsü silinir.
@@ -109,6 +122,11 @@ public static class AyRaporAnlikGoruntusu
     /// <summary>
     /// Geçiş tohumu (açılışta, migration'dan sonra; idempotent): kilitli olup görüntüsü olmayan her ay kural 1 ile
     /// dondurulur. Dondurulan ayları döner. Tek transaction: yarıda kalırsa hiçbiri yazılmaz, sonraki açılış yeniden dener.
+    /// Bozuk kayıtla hesaplanan rapor dondurulmaz (<see cref="Kilitlendi"/> ile aynı kural): raporuna karantina kaydı giren ay
+    /// atlanır ve ayı ve kayıtları söyleyen Warning olarak loglanır; açılış durmaz. Ay kilitli ve görüntüsüz kalır: raporu kural 1
+    /// ile canlı hesaplanır ve karantina uyarısını taşır (<see cref="TohumBekliyor"/>). Ay bekleyen tohumda kalır: her açılış
+    /// yeniden dener, bu yüzden göç öncesi yedek de her açılışta alınır (veritabanı değişmediyse aynı yedek yeniden kullanılır).
+    /// Kilitli aydaki kaydı düzeltmek için ay gerekçeyle açılır; yeniden kapatılınca güncel kuralla dondurulur.
     /// </summary>
     public static IReadOnlyList<(int Yil, int Ay)> GecisTohumu(KasaDbContext db, DateTimeOffset zaman)
     {
@@ -116,10 +134,36 @@ public static class AyRaporAnlikGoruntusu
         var eksik = EksikAylar(db);
         if (eksik.Count == 0) return eksik;
         var hesap = new HesapServisi(db);
-        foreach (var (yil, ay) in eksik) Ekle(db, hesap, yil, ay, AylikKural.V1, zaman, CancellationToken.None);
+        var donan = new List<(int Yil, int Ay)>();
+        foreach (var (yil, ay) in eksik)
+        {
+            var (rapor, karantina) = hesap.AylikVeKarantina(yil, ay, CancellationToken.None, AylikKural.V1);
+            if (karantina.Count > 0)
+            {
+                db.GetService<ILoggerFactory>().CreateLogger(VeriKarantinasi.LogKategorisi).LogWarning(
+                    "{Ay} ayının raporu geçiş tohumunda dondurulmadı: raporuna giren {Sayi} kayıt karantinada ({Kayitlar}). Ay kilitli kalır; raporu kural 1 ile canlı hesaplanır ve veri sağlığı uyarısı taşır. Tohum her açılışta yeniden dener; kilitli aydaki kaydı düzeltmek için ayı gerekçeyle açın.",
+                    string.Create(CultureInfo.InvariantCulture, $"{yil:D4}-{ay:D2}"), karantina.Count, HesapServisi.KarantinaListesi(karantina));
+                continue;
+            }
+            Ekle(db, yil, ay, AylikKural.V1, rapor, zaman);
+            donan.Add((yil, ay));
+        }
+        if (donan.Count == 0) return donan;
         db.SaveChanges();
         transaction.Commit();
-        return eksik;
+        return donan;
+    }
+
+    /// <summary>Ay kilitli, takip başlangıcının ayından sonra ve görüntüsü yok mu: bu sürümden önce kilitlenmiş ve geçiş tohumunun
+    /// karantina kaydı yüzünden dondurmadığı ay (yeni kilitte görüntü aynı transaction'da yazılır ya da kapatma reddedilir). Raporu
+    /// kilitlendiği sürümün kuralıyla (kural 1) canlı hesaplanır.</summary>
+    internal static bool TohumBekliyor(KasaDbContext db, int yil, int ay)
+    {
+        var kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).SingleOrDefault();
+        if (kilit is not { } son || AySonu(yil, ay) > son) return false;
+        var baslangic = db.Ayarlar.AsNoTracking().Select(a => a.TakipBaslangic).First();
+        return new DateOnly(yil, ay, 1) >= new DateOnly(baslangic.Year, baslangic.Month, 1)
+            && !db.AyRaporAnlikGoruntuleri.AsNoTracking().Any(g => g.Yil == yil && g.Ay == ay);
     }
 
     /// <summary>Kilitli olup görüntüsü olmayan aylar (bekleyen geçiş tohumu).</summary>
@@ -161,9 +205,8 @@ public static class AyRaporAnlikGoruntusu
             .Where(a => !mevcut.Contains(a)).Select(a => $"Kilitli ay rapor görüntüsü (kural 1): {a.Yil:D4}-{a.Ay:D2}").ToList();
     }
 
-    private static void Ekle(KasaDbContext db, HesapServisi hesap, int yil, int ay, int kural, DateTimeOffset zaman, CancellationToken ct)
+    private static void Ekle(KasaDbContext db, int yil, int ay, int kural, AylikRapor rapor, DateTimeOffset zaman)
     {
-        var rapor = hesap.Aylik(yil, ay, ct, kural);
         db.AyRaporAnlikGoruntuleri.Add(new AyRaporAnlikGoruntuEntity
         {
             Yil = yil, Ay = ay, KuralSurumu = kural, Json = JsonSerializer.Serialize(rapor, JsonSecenekleri), Zaman = zaman,
