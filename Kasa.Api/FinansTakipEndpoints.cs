@@ -68,7 +68,17 @@ public static partial class FinansTakipEndpoints
         {
             ManagedCard(db, id); Text(dto.Aciklama);
             var payment = db.TakipKartOdemeler.SingleOrDefault(p => p.Id == odemeId && p.KrediKartiId == id); Require(payment is not null, "Ödeme bulunamadı.", 404);
-            payment!.Iptal = true; return id;
+            Require(!db.TakipAvansTahsisleri.Any(t => t.OdemeId == odemeId), "Kilitli avans dağıtımı ayrıca iptal edilemez; gerekirse avansı yatıran ödemeyi (dönemi açıksa) iptal edin.", 409);
+            payment!.Iptal = true;
+            // Avans ödemesi iptal edilince avansının dağıtımları da iptal olur: dağıtılacak avans kalmaz (finance-8).
+            var dagitimlar = db.TakipAvansTahsisleri.Where(t => t.KaynakOdemeId == odemeId).Select(t => t.OdemeId).ToList();
+            foreach (var dagitim in db.TakipKartOdemeler.Where(p => dagitimlar.Contains(p.Id) && !p.Iptal).ToList()) dagitim.Iptal = true;
+            return id;
+        }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
+        api.MapGet("/kartlar/{id:int}/devir", (int id, KasaDbContext db) => View(db, () => Devir(db, id)));
+        api.MapPost("/kartlar/{id:int}/devir-duzelt", (int id, KartDevirDuzeltYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartDevirDuzelt", dto, () =>
+        {
+            DevirDuzelt(db, id, dto); return id;
         }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/gecis-onizleme", (int id, KartGecisYaz dto, KasaDbContext db) => View(db, () => CardPreview(db, id, dto))).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/gecis", (int id, KartGecisYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartGecis", dto, () =>
@@ -87,12 +97,14 @@ public static partial class FinansTakipEndpoints
     {
             var track = ManagedCard(db, id); Require(track.Aktif, "Kart yeni kullanıma kapalı.", 409);
             Money(dto.Tutar, true); Require(dto.Tutar != 0, "Harcama sıfır olamaz."); Text(dto.Aciklama); Date(dto.Tarih);
+            Require(dto.Aciklama.Trim() != KartGecisHesabi.DevirAciklamasi, "Bu açıklama eski borç devrine ayrılmıştır; harcamayı başka bir açıklamayla girin.");
             Require(dto.Tarih >= track.Baslangic, "Harcama takip başlangıcından önce olamaz.");
             Require(dto.TaksitSayisi is >= 1 and <= 60 && (dto.Tutar > 0 || dto.TaksitSayisi == 1), "Taksit sayısı 1–60; iade tek taksit olmalı.");
             Require(dto.Tarih.Year <= 9990, "Taksit planı tarih sınırını aşıyor.");
             if (dto.IlkKesimTarihi is { } cut) { Date(cut); Require(cut >= dto.Tarih && cut.Year <= 9990, "İlk kesim harcamadan önce olamaz."); }
             ValidateShares(db, dto.Dagilimlar, Math.Abs(dto.Tutar));
             IReadOnlyList<KanalPayYaz> shares = dto.Dagilimlar;
+            TakipIadeHesabiEntity? iadeHesabi = null;
             if (dto.Tutar < 0)
             {
                 var source = db.TakipHarcamalar.SingleOrDefault(h => h.Id == dto.KaynakHarcamaId && h.KrediKartiId == id && !h.Iptal && h.Tutar > 0);
@@ -102,13 +114,17 @@ public static partial class FinansTakipEndpoints
                 var taxIds = db.TakipKartTaksitler.Where(t => t.HarcamaId == source.Id).Select(t => t.Id).ToArray();
                 var outstanding = KalanTaksitler(db, id);
                 Require(-dto.Tutar <= taxIds.Sum(t => outstanding.GetValueOrDefault(t)), "Ödenmiş harcama iadesi bu akışta desteklenmiyor; mevcut ödeme kayıtları değişmedi.", 409);
-                var sourceShares = IadeSonrasiPaylar(db, source);
+                var refunds = db.TakipHarcamalar.Where(h => h.KaynakHarcamaId == source.Id && !h.Iptal).ToList();
+                var accounts = IadeHesaplariOku(db.TakipIadeHesaplari, refunds);
+                var sourceShares = IadeHesabi(KaynakPaylari(db, source), refunds, accounts).Kalan;
                 Require(sourceShares.Count > 0, "İade öncesi kaynak harcamanın kanal dağılımını belirleyin.", 409);
                 var paidTotal = db.TakipKartOdemeler.Where(p => p.KrediKartiId == id && !p.Iptal).AsEnumerable()
                     .SelectMany(p => Read<KartTaksitPayi>(p.PaylarJson)).Where(p => taxIds.Contains(p.TaksitId)).Sum(p => p.Tutar);
-                var paidShares = Oranla(sourceShares, paidTotal).ToDictionary(p => p.KanalId, p => p.Tutar);
-                var unpaidShares = sourceShares.Select(p => new KanalPayYaz(p.KanalId, p.Tutar - paidShares.GetValueOrDefault(p.KanalId))).Where(p => p.Tutar > 0).ToList();
-                shares = Oranla(unpaidShares, -dto.Tutar);
+                // Pay okumalarla aynı kuralla (IadePayi) hesaplanır ve iade anındaki ödenmiş tutar saklanır: kaynak alış sonradan
+                // yeniden dağıtılsa da iade payı kaynağın güncel oranını izler (gap-coklu-giris-cift-sayim-mutabakat-3).
+                shares = IadePayi(sourceShares, paidTotal, -dto.Tutar, out var overflow);
+                Require(overflow == 0, "İade kaynak harcamanın ödenmemiş kanal paylarını aşıyor; mevcut ödeme kayıtları değişmedi.", 409);
+                var counted = EtkinKasadaSayilan(source, refunds, accounts);
                 var refundShares = shares.ToDictionary(p => p.KanalId, p => p.Tutar);
                 var proposed = sourceShares.Select(p => new KanalPayYaz(p.KanalId, p.Tutar - refundShares.GetValueOrDefault(p.KanalId))).Where(p => p.Tutar > 0).ToList();
                 // D'Hondt ağırlıkları değişince eski ödemelerin tek kuruşu bile
@@ -119,21 +135,31 @@ public static partial class FinansTakipEndpoints
                 {
                     var paidAmount = Read<KartTaksitPayi>(previous.PaylarJson).Where(p => taxIds.Contains(p.TaksitId)).Sum(p => p.Tutar);
                     if (paidAmount == 0) continue;
-                    Require(SameAt(prior + paidAmount) && SameAt(Math.Max(0, prior - source.KasadaOncedenSayilanTutar))
-                        && SameAt(Math.Max(0, prior + paidAmount - source.KasadaOncedenSayilanTutar)),
+                    Require(SameAt(prior + paidAmount) && SameAt(Math.Max(0, prior - counted))
+                        && SameAt(Math.Max(0, prior + paidAmount - counted)),
                         "Bu iade önceki ödemenin kanal paylarını değiştireceği için uygulanamadı; mevcut ödeme kayıtları değişmedi.", 409);
                     prior += paidAmount;
                 }
                 Require(dto.Dagilimlar.Count == 0 || dto.Dagilimlar.OrderBy(p => p.KanalId).SequenceEqual(shares.OrderBy(p => p.KanalId)), "İade payları kaynak harcamanın oranıyla aynı olmalı; boş bırakırsanız kaynaktan hesaplanır.");
+                // finance-2: eski borç devrinin henüz ödenmemiş, kasada önceden sayılmış kısmı iade edilirse o kısım eski
+                // kuralla kasadan düşülmüş ama bankaya hiç ödenmeyecektir: iade tarihinde kasaya geri döner ve devrin sonraki
+                // ödemelerinde kasada sayılmış kabul edilmez. Önceki ödemelerin kasa etkisi değişmez (düzeltme ödenmemiş
+                // sayılmış kısmı aşmaz).
+                var correction = counted > 0 ? Math.Min(-dto.Tutar, Math.Max(0, counted - paidTotal)) : 0;
+                iadeHesabi = new() { IadeAnindaOdenen = paidTotal, KasadaSayilanDuzeltme = correction };
             }
             else Require(dto.KaynakHarcamaId is null, "Kaynak harcama yalnız iadede seçilir.");
-            HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == id), new() { KrediKartiId = id, Tarih = dto.Tarih, Aciklama = dto.Aciklama.Trim(), Tutar = dto.Tutar, TaksitSayisi = dto.TaksitSayisi, DagilimJson = Json(shares), KaynakHarcamaId = dto.KaynakHarcamaId }, dto.IlkKesimTarihi);
+            var charge = new TakipHarcamaEntity { KrediKartiId = id, Tarih = dto.Tarih, Aciklama = dto.Aciklama.Trim(), Tutar = dto.Tutar, TaksitSayisi = dto.TaksitSayisi, DagilimJson = Json(shares), KaynakHarcamaId = dto.KaynakHarcamaId };
+            HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == id), charge, dto.IlkKesimTarihi);
+            if (iadeHesabi is not null) { iadeHesabi.HarcamaId = charge.Id; db.TakipIadeHesaplari.Add(iadeHesabi); db.SaveChanges(); }
     }
     internal static void CancelCardCharge(KasaDbContext db, int id, int harcamaId, string aciklama)
     {
             ManagedCard(db, id); Text(aciklama);
             var charge = db.TakipHarcamalar.SingleOrDefault(h => h.Id == harcamaId && h.KrediKartiId == id); Require(charge is not null, "Harcama bulunamadı.", 404);
             Require(charge!.IslemId is null, "Alış/gider kaynağı olan harcama için açıklamalı iade girin.", 409);
+            // finance-2: iptal, eski kuralla kasadan düşülmüş devrin kasada önceden sayılan tutarını kaybettirirdi.
+            Require(charge.KasadaOncedenSayilanTutar <= 0, "Eski borç devri iptal edilemez; kalan borcu veya kasada önceden sayılan tutarı 'Devri düzelt' ile değiştirin.", 409);
             Require(!db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal), "İadesi bulunan harcama iptal edilemez.", 409);
             if (charge.KaynakHarcamaId is { } refundSource)
             {
@@ -144,6 +170,61 @@ public static partial class FinansTakipEndpoints
             var ids = db.TakipKartTaksitler.Where(t => t.HarcamaId == harcamaId).Select(t => t.Id).ToHashSet();
             Require(!db.TakipKartOdemeler.Where(p => p.KrediKartiId == id && !p.Iptal).AsEnumerable().Any(p => Read<KartTaksitPayi>(p.PaylarJson).Any(x => ids.Contains(x.TaksitId))), "Ödeme bağlı harcama iptal edilemez; iade girin.", 409);
             charge.Iptal = true;
+    }
+    /// <summary>Geçişli kartın eski borç devri ve düzeltme sınırları (finance-2).</summary>
+    internal static KartDevirDto Devir(KasaDbContext db, int id)
+    {
+        Require(db.KrediKartlari.Any(k => k.Id == id), "Kart bulunamadı.", 404);
+        var track = db.TakipKartlar.AsNoTracking().SingleOrDefault(t => t.KrediKartiId == id);
+        Require(track is { EskiKayit: true }, "Bu kart eski karttan geçişle takibe alınmadı; eski borç devri yok.", 404);
+        var devir = KartGecisHesabi.AktifDevir(db.TakipHarcamalar.AsNoTracking(), track);
+        var oneri = KartGecisHesabi.DevirOnerisi(db, track, devir?.Tutar ?? 0);
+        decimal geriDonen = 0;
+        if (devir is not null)
+        {
+            var iadeler = db.TakipHarcamalar.AsNoTracking().Where(h => h.KaynakHarcamaId == devir.Id && !h.Iptal).ToList();
+            geriDonen = IadeHesaplariOku(db.TakipIadeHesaplari.AsNoTracking(), iadeler).Values.Sum(h => h.KasadaSayilanDuzeltme);
+        }
+        var engel = DevirEngeli(db, track, devir);
+        return new(devir?.Id, track.Baslangic, devir?.Tutar ?? 0, devir?.KasadaOncedenSayilanTutar ?? 0, geriDonen,
+            devir is null ? [] : Adlandir(db, Read<KanalPayYaz>(devir.DagilimJson)), track.EskiDusumKurali.ToString(),
+            oneri.SistemKartBorcu, oneri.RaporDisiTutar, oneri.AcilisBorcu, oneri.Onerilen, oneri.EnAz, engel is null, engel);
+    }
+    /// <summary>Devir düzeltmesinin engeli: kilitli dönem (K4), devre yapılmış ödeme (önceki ödemelerin kasa etkisi değişirdi)
+    /// ya da etkin iade (kasaya geri dönen tutar devre bağlı). Engel yoksa null.</summary>
+    private static string? DevirEngeli(KasaDbContext db, TakipKartEntity track, TakipHarcamaEntity? devir)
+    {
+        if (db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single() is { } son && track.Baslangic <= son)
+            return $"Devir tarihi ({KartGecisHesabi.Tarih(track.Baslangic)}) kilitli dönemde; düzeltme için ilgili ayı gerekçeyle açın.";
+        if (devir is null) return null;
+        var taxes = db.TakipKartTaksitler.Where(t => t.HarcamaId == devir.Id).Select(t => t.Id).ToHashSet();
+        if (db.TakipKartOdemeler.AsNoTracking().Where(p => p.KrediKartiId == track.KrediKartiId && !p.Iptal).AsEnumerable()
+            .Any(p => Read<KartTaksitPayi>(p.PaylarJson).Any(x => taxes.Contains(x.TaksitId))))
+            return "Devre ödeme kaydedilmiş: düzeltme önceki ödemelerin kasa etkisini değiştirirdi. Banka borcu farkını iade ya da faiz / masraf olarak girin.";
+        if (db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == devir.Id && !h.Iptal))
+            return "Devrin iadesi var: önce iadeyi gerekçeyle iptal edin (iadenin kasaya geri döndürdüğü tutar da kalkar).";
+        return null;
+    }
+    /// <summary>Eski borç devrinin düzeltmesi (finance-2): etkin devir iptal edilir, aynı tarih ve açıklamayla yeni kalan
+    /// borç, kasada önceden sayılan tutar ve kanal paylarıyla yazılır. Sınırlar geçiş onayındakiyle aynıdır
+    /// (<see cref="KartGecisHesabi.DevirOnerisi"/>). Gerekçe, önceki ve yeni değerlerle Change üzerinden denetim izine
+    /// yazılır; devir tarihi kilitli dönemdeyse reddedilir (K4).</summary>
+    private static void DevirDuzelt(KasaDbContext db, int id, KartDevirDuzeltYaz dto)
+    {
+        var track = ManagedCard(db, id);
+        Require(track.EskiKayit, "Bu kart eski karttan geçişle takibe alınmadı; devir düzeltmesi yalnız geçişli kartta yapılır.", 409);
+        Money(dto.KalanBorc, true); Money(dto.KasadaOncedenSayilanTutar); Text(dto.Aciklama); ValidateShares(db, dto.Dagilimlar, Math.Abs(dto.KalanBorc));
+        Require(dto.KasadaOncedenSayilanTutar <= Math.Max(0, dto.KalanBorc), "Önceden sayılan tutar kalan borcu aşamaz.");
+        var devir = KartGecisHesabi.AktifDevir(db.TakipHarcamalar, track);
+        Require(devir?.Id == dto.HarcamaId, "Eski borç devri değişmiş. Yenileyip tekrar deneyin.", 409);
+        Require(devir is not null || dto.KalanBorc != 0, "Düzeltilecek devir yok; kalan borç girin.");
+        if (DevirEngeli(db, track, devir) is { } engel) Require(false, engel, 409);
+        var oneri = KartGecisHesabi.DevirOnerisi(db, track, dto.KalanBorc);
+        Require(dto.KasadaOncedenSayilanTutar <= oneri.Onerilen, $"Kasada önceden sayılan tutar önerilen tutarı ({Tl(oneri.Onerilen)}) aşamaz: aşan kısım kasadan hiçbir zaman düşmez.", 409);
+        Require(dto.KasadaOncedenSayilanTutar >= oneri.EnAz, $"Kasada önceden sayılan tutar en az {Tl(oneri.EnAz)} olmalı: altındaki kısım eski kuralla düşmüş/düşecek borçtur ve ödendiğinde kasadan ikinci kez düşer.", 409);
+        if (devir is not null) devir.Iptal = true;
+        if (dto.KalanBorc != 0) HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == id), new() { KrediKartiId = id, Tarih = track.Baslangic, Aciklama = KartGecisHesabi.DevirAciklamasi,
+            Tutar = dto.KalanBorc, KasadaOncedenSayilanTutar = dto.KasadaOncedenSayilanTutar, DagilimJson = Json(dto.Dagilimlar) });
     }
     private static void MapLoans(RouteGroupBuilder api)
     {

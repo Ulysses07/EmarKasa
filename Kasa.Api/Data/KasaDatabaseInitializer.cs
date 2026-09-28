@@ -27,11 +27,13 @@ public static class KasaDatabaseInitializer
         {
             var kopru = !HasMigrationHistory(connection) && StableSchemaDefinition.Tables.Any(t => TableExists(connection, t.Name));
             GocOncesiYedek(db, connection, kopru, yedek);
+            var kartIadeAdimi = db.Database.GetPendingMigrations().Contains(KartTakipDuzeltmeleri.Kimlik);
             if (kopru) BridgeLegacyDatabase(connection);
 
             db.Database.Migrate();
             WalKipineAl(db, connection);
             GecisTohumu(db);
+            if (kartIadeAdimi) KartIadeTohumu(db);
         }
         finally
         {
@@ -95,6 +97,17 @@ public static class KasaDatabaseInitializer
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
             "Bu sürümden önce kilitlenmiş {Sayi} ayın raporu kural 1 ile donduruldu: {Aylar}.", aylar.Count,
             string.Join(", ", aylar.Select(a => $"{a.Yil:D4}-{a.Ay:D2}")));
+    }
+
+    /// <summary>Veri adımı: eski kart iadelerinin hesap kaydı (bkz. <see cref="FinansTakipServisi.IadeHesabiTohumu"/>). Kart
+    /// takibi düzeltmeleri göçü bu açılışta uygulandıysa bir kez, göç öncesi yedekten sonra çalışır; raporlar değişmez.</summary>
+    private static void KartIadeTohumu(KasaDbContext db)
+    {
+        var (eslesen, eslesmeyen) = FinansTakipServisi.IadeHesabiTohumu(db);
+        if (eslesen + eslesmeyen == 0) return;
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
+            "Kart iadelerinin hesap kaydı yazıldı: {Eslesen} iade kaynak harcamanın güncel payını izleyecek, {Eslesmeyen} iade dondurulmuş payıyla kalır. Raporlar değişmedi.",
+            eslesen, eslesmeyen);
     }
 
     private static void BridgeLegacyDatabase(SqliteConnection connection)
