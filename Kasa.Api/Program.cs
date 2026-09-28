@@ -544,10 +544,9 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
     v.Para(dto.KasaAcilisDevri, "kasaAcilisDevri", negatifOlabilir: true);
     if (v.Sonuc() is { } hata) return hata;
     var a = db.Ayarlar.First();
-    if (a.TakipBaslangic != dto.TakipBaslangic
-        && (db.Islemler.Any() || db.Gelenler.Any() || db.Krediler.Any() || db.HesapHareketler.Any()
-            || db.HesapTransferler.Any() || db.KartOdemeler.Any()))
-        return Results.Conflict(new { hata = "Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez; mevcut dönem bağlantıları korunmalıdır." });
+    // gV5: gider üretmeyen mali kayıtlar da (takipli kart, ekstre geliri, kasa sayımı...) başlangıcı sabitler.
+    if (a.TakipBaslangic != dto.TakipBaslangic && FinansHesaplari.IlkMaliKayitTuru(db) is { } kayit)
+        return Results.Conflict(new { hata = $"Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez; mevcut dönem bağlantıları korunmalıdır (kayıtlı: {kayit})." });
     a.TakipBaslangic = dto.TakipBaslangic;
     a.KasaAcilisDevri = dto.KasaAcilisDevri;
     db.SaveChanges();

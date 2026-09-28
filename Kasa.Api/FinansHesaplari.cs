@@ -20,6 +20,26 @@ public static class FinansHesaplari
         return old is null ? null : old.Tur == tur && old.Ozet == ozet ? result(old.SonucId) : AlisEndpoints.Conflict("İstek kimliği başka bir işlem veya farklı içerik için kullanılmış.");
     }
 
+    /// <summary>
+    /// Takip başlangıcına bağlı ilk mali kaydın türü; hiç yoksa null (gap-veri-degismezleri-patlama-yaricapi-5). Başlangıç
+    /// dönemleri belirler: kayıt varken değişirse başlangıçtan önceye düşen kayıt raporlardan sessizce çıkar, sonrakiler
+    /// başka döneme kayar. Gider (Islem) üretmeyen yollar da sayılır: takipli kart açılışı/harcaması/ödemesi, takipli kredi,
+    /// iptal edilmemiş ekstre kaydı (banka geliri dahil), aylık gider ödemesi, kasa sayımı ve alış ödemesi.
+    /// </summary>
+    public static string? IlkMaliKayitTuru(KasaDbContext db) =>
+        db.Islemler.Any() ? "gider"
+        : db.Gelenler.Any() ? "dönem geliri"
+        : db.Krediler.Any() || db.TakipKrediler.Any() ? "kredi"
+        : db.HesapHareketler.Any() || db.HesapTransferler.Any() ? "hesap hareketi"
+        : db.KartOdemeler.Any() ? "eski kart ödemesi"
+        : db.TakipKartlar.Any() || db.TakipHarcamalar.Any() || db.TakipKartOdemeler.Any() ? "takipli kart, kart harcaması veya kart ödemesi"
+        : db.EkstreKayitlar.Any(k => !k.Iptal) ? "ekstre kaydı (banka geliri dahil)"
+        : db.AylikGiderOdemeler.Any(p => !p.Iptal) ? "aylık gider ödemesi"
+        : db.KasaKontrolleri.Any() ? "kasa sayımı"
+        : db.AlisOdemeler.Any() ? "alış ödemesi"
+        : null;
+    public static bool MaliKayitVar(KasaDbContext db) => IlkMaliKayitTuru(db) is not null;
+
     public static IReadOnlyList<Gelen> EkGelirler(KasaDbContext db, IReadOnlyList<Donem> donemler) => db.HesapHareketler.AsNoTracking().Include(h => h.Kanal)
         .Where(h => h.IslemId == null && h.GelenId == null && h.KartOdemeId == null && h.KrediId == null).ToList()
         .Select(h => (Hareket: h, Donem: donemler.FirstOrDefault(d => d.Icerir(h.Tarih))))
