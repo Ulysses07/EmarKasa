@@ -1,6 +1,6 @@
 # Emar Kasa operasyon runbook'u
 
-Canlı sunucunun (kasa.emarglobal.com, VPS 72.61.187.202) süreklilik işleri: temel imaj ve güvenlik yamaları, sunucu dışı yedek, disk doluluğu, dal ve sürüm durumu. Kurulum ve sürüm güncellemesi [deploy/README.md](../../deploy/README.md), veritabanı geçişleri [database-upgrade.md](database-upgrade.md), dal durumu [dal-durumu.md](dal-durumu.md) içindedir.
+Canlı sunucunun (kasa.emarglobal.com, VPS 72.61.187.202) süreklilik işleri: temel imaj ve güvenlik yamaları, sunucu dışı yedek, geri yüklemeden sonraki zorunlu adımlar, disk doluluğu, dal ve sürüm durumu. Kurulum ve sürüm güncellemesi [deploy/README.md](../../deploy/README.md), veritabanı geçişleri [database-upgrade.md](database-upgrade.md), dal durumu [dal-durumu.md](dal-durumu.md) içindedir.
 
 Komutlar aksi yazılmadıkça VPS'te root yetkisiyle çalıştırılır. Yer tutucuları (`<...>`) sunucudaki gerçek değerlerle değiştirin; yolları tahmin etmeyin. Sırları (rclone yapılandırması, parolalar, izleme adresleri, `deploy/.env`) sohbete, bilet sistemine ya da depoya yapıştırmayın.
 
@@ -207,7 +207,7 @@ A: sunucu çalışıyor, yerel yedekler kayıp ya da bozuk. B: VPS tamamen kayı
    sudo python3 /opt/kasa/deploy/restore_backup.py /root/kasa-geri/<ad> --output <yeni-veri-dizini>/kasa.db
    ```
 5. Uygulamayı yeni dizinle açın: `deploy/.env`'de `KASA_DATA_DIR=<yeni-veri-dizini>`; ardından A'da [deploy/README.md](../../deploy/README.md) "Güncelleme" 6–8, B'de "İlk kurulum" 5–7. A'da eski veri dizinini silmeyin, kenarda tutun. Yedek daha eski bir şemadaysa uygulama açılışta göç öncesi yedek alıp migration'ları uygular ([database-upgrade.md](database-upgrade.md)).
-6. `/health`, giriş, panel ve son dönem raporlarını kontrol edin. Yedeğin alındığı andan sonraki kayıtlar yedekte yoktur. Uzak kopyadan dönüşte kayıp aralığı en yeni uzak kopyanın yaşıdır: uygulama yedeği saatlik denetimle 24–25 saatte bir alır, gönderim 6 saatte bir (en çok 15 dakika rastgele gecikmeyle) çalışır, bu yüzden aralık olağan durumda en çok ~31 saattir. Gönderim bir süredir hata veriyorsa aralık daha uzundur; esas olan 2. adımdaki `listele` çıktısındaki zamandır (UTC). Kullanıcılara bu aralığı bildirip kayıtları yeniden girdirin. Riskli bir işlemden (sürüm güncellemesi, toplu içe aktarma) önce uygulamada elle yedek alıp `sudo systemctl start kasa-uzak-yedek.service` ile hemen gönderirseniz aralık dakikalara iner.
+6. Aşağıdaki "Geri yüklemeden sonra" bölümündeki zorunlu adımları uygulayın (yeni izleyici şifresi dahil). `/health`, giriş, panel ve son dönem raporlarını kontrol edin. Yedeğin alındığı andan sonraki kayıtlar yedekte yoktur. Uzak kopyadan dönüşte kayıp aralığı en yeni uzak kopyanın yaşıdır: uygulama yedeği saatlik denetimle 24–25 saatte bir alır, gönderim 6 saatte bir (en çok 15 dakika rastgele gecikmeyle) çalışır, bu yüzden aralık olağan durumda en çok ~31 saattir. Gönderim bir süredir hata veriyorsa aralık daha uzundur; esas olan 2. adımdaki `listele` çıktısındaki zamandır (UTC). Kullanıcılara bu aralığı bildirip kayıtları yeniden girdirin. Riskli bir işlemden (sürüm güncellemesi, toplu içe aktarma) önce uygulamada elle yedek alıp `sudo systemctl start kasa-uzak-yedek.service` ile hemen gönderirseniz aralık dakikalara iner.
 7. Geri dönüşü, kullanılan yedeği ve kaybedilen aralığı 8. bölümdeki tabloya yazın.
 
 ### 8. Geri yükleme tatbikatı
@@ -217,6 +217,38 @@ Kurulumdan hemen sonra ve üç ayda bir: `sudo systemctl start kasa-uzak-dogrula
 | Tarih | Tür (doğrulama / tam geri dönüş) | Kopya | Sonuç | Yapan |
 | --- | --- | --- | --- | --- |
 | — | Henüz yapılmadı (kurulum bekliyor) | — | — | — |
+
+## Geri yüklemeden sonra
+
+Canlıya alınan her geri yükleme (yerel yedek, uzak kopya ya da göç öncesi yedek) veritabanındaki bütün durumu yedek anına sarar. Yalnız kayıtlar değil; izleyici şifresi, editör şifresi ve kurtarma kodu, alıcı hesaplarının etkinliği ve şifreleri, oturum iptalleri, kayıt numarası sayaçları ve kayıt sürümleri de geri döner. Yedekten sonra yapılmış bir güvenlik değişikliğinin kaydı (ör. ayrılan bir çalışan yüzünden izleyici şifresinin değiştirilmesi) atılan kısımdadır; geri yüklenen dosyadan bilinemez.
+
+### Uygulamanın kendiliğinden yaptıkları
+
+Uygulamanın aldığı her yedek SQLite başlığında geri yükleme işareti taşır (`PRAGMA user_version`; canlı dosyada 0). [`restore_backup.py`](../../deploy/restore_backup.py) bu sürümden önce alınmış işaretsiz yedeği geri açarken işaretler. Uygulama işaretli dosyayla ilk açılışta, migration'lardan sonra ve HTTP sunucusu açılmadan, tek transaction'da şunları yapar:
+
+- **Bütün oturumları kapatır.** Editörün ve her alıcının oturum sürümü artar, izleyici şifresi silinir. Yedekten önce ya da sonra alınmış bütün oturum belirteçleri (30 gün), tanıdık cihaz belirteçleri ve bildirim abonelikleri geçersiz olur; herkes yeniden giriş yapar. `Kasa:JwtKey` değişmez. Açık kalmış masaüstü ya da web ekranı eski kayıt numarası ve sürümüyle yazamaz: oturum sonu alır, yeniden girişte ekran yeniden yüklenir.
+- **İzleyici girişini kapatır.** Editör yeni bir izleyici şifresi belirleyene kadar izleyici giremez. Yedekteki eski şifre de yedekten sonra belirlenen şifre de geçersizdir. Yalnız uyarmakla yetinilmez: izleyici bütün finans verisini (dışa aktarma dahil) okuyabilir, uyarı görülene kadar eski şifreyi bilen biri erişebilirdi. Editör Ayarlar'da izleyici şifresini belirlenmemiş görür.
+- **Kayıt numaralarını ileri alır.** AUTOINCREMENT'li her tablonun sayacı yedekteki en yüksek numaradan 1.000.000 ileri alınır. Yedekten sonra açılıp geri yüklemeyle atılan kayıtların numaraları yeni kayıtlara verilmez. Eski bir ekranın ya da bekleyen bir tekrarın taşıdığı numara başka bir kayda ulaşamaz (404). Yedek anında var olan kayıtların sürümü de geri döndüğü için eski sürümle gelen yazma 409 alır. Numaralar 32 bittir: her geri yükleme 1.000.000 kullanır (yaklaşık 2.000 geri yüklemeye yeter). Aynı yedeği ikinci kez geri yüklerseniz ilk geri yüklemeden sonra açılan kayıtların numaraları yeniden verilebilir; oturumlar yine kapandığından eski ekranlar yazamaz.
+- **İz bırakır ve işareti siler.** Değişiklik geçmişinin "Oturum ve güvenlik" bölümüne `GeriYuklemeIslendi` olayı (veri soyu kimliği, yeni sayaçlar, kapatılan oturumlar, yedekteki son olayın zamanı) yazılır. İzleyici şifresinin silinmesi ve alıcı oturumlarının kapatılması kendi olaylarıyla (aktör: Sistem) görünür. Sonraki açılışlarda işlem yeniden çalışmaz. Bir hata olursa hiçbir şey değişmez ve açılış durur.
+
+Doğrulama (uygulama açıldıktan sonra):
+
+```sh
+cd /opt/kasa/deploy && docker compose -f docker-compose.nginx.yml logs kasa | grep "Geri yüklenmiş veritabanı"
+```
+
+Satır yoksa dosya işaretsiz açılmıştır (ör. ZIP'ten elle çıkarıldı). Uygulamayı durdurun ve dosyayı `restore_backup.py` ile yeniden geri açın. Yedeği ZIP'ten elle çıkarmayın.
+
+### Operatörün yapacakları (zorunlu)
+
+Trafiği açtıktan hemen sonra, sırayla:
+
+1. Editör olarak girin. Editör şifresi yedek anındakidir: yedekten sonra değiştirdiyseniz eski şifreyle girip hemen Ayarlar'dan yeni şifre belirleyin.
+2. Ayarlar'dan **yeni** bir izleyici şifresi belirleyin ve yalnız erişmesi gereken kişilere iletin. Yedekteki eski şifreyi yeniden kullanmayın; ayrılan biri onu biliyor olabilir.
+3. Yeni kurtarma kodu üretin. Yedekteki kurtarma kodu yeniden geçerli olmuştur; yenisi onu geçersiz kılar.
+4. Alışlar ekranındaki alıcı hesaplarını gözden geçirin. Yedekten sonra pasife alınan ya da şifresi değiştirilen hesapları yeniden pasife alın ya da şifrelerini değiştirin.
+5. Bildirim kullanan cihazlarda bildirimleri yeniden açın.
+6. Kullanıcılara kayıp aralığını bildirin ("Uzak kopyadan geri dönüş" 6. adım; `restore_backup.py` yedek anını yazar) ve bu aralıktaki kayıtları yeniden girdirin.
 
 ## Disk doluluğu
 

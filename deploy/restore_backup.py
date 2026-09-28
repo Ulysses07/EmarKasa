@@ -23,6 +23,15 @@ Araç geri açtığı dosyayı -wal/-shm gerektirmeyen tek dosya (geri alma gün
 uygulardı. Canlı dosyayı değiştirirken uygulamayı durdurun, eski kasa.db-wal ve kasa.db-shm dosyalarını
 kasa.db ile birlikte kenara alın; uygulama ilk açılışta dosyayı yeniden WAL kipine alır.
 
+Geri yükleme işareti: Geri yükleme veritabanındaki bütün durumu yedek anına sarar (izleyici şifresi, oturum
+iptalleri, kayıt numarası sayaçları, kayıt sürümleri). Uygulamanın yedekleri SQLite başlığında geri yükleme
+işareti taşır (PRAGMA user_version = GERI_YUKLEME_ISARETI; canlı dosyada 0); araç işaretsiz (bu sürümden önce
+alınmış) yedeği geri açarken işaretler. Uygulama işaretli dosyayla ilk açılışta, HTTP açılmadan: bütün oturumları
+(editör, izleyici, alıcı, tanıdık cihaz) kapatır, izleyici girişini editör yeni izleyici şifresi belirleyene kadar
+kapatır, kayıt numarası sayaçlarını KIMLIK_ARALIGI ileri alır, işareti siler ve değişiklik geçmişine
+GeriYuklemeIslendi olayı yazar. Yedeği ZIP'ten elle çıkarmayın; her zaman bu aracı kullanın.
+ZORUNLU sonraki adımlar: operasyon-runbook.md "Geri yüklemeden sonra".
+
 Doğrulama: python3 -m doctest restore_backup.py
 """
 import argparse
@@ -35,6 +44,10 @@ import re
 import sqlite3
 import tempfile
 import zipfile
+
+# Kasa.Api/Auth/GeriYuklemeIsleyici.cs: Isaret ve KimlikAraligi ile aynı olmalıdır (iki tarafta da sınanır).
+GERI_YUKLEME_ISARETI = 0x4B534759
+KIMLIK_ARALIGI = 1_000_000
 
 _YEDEK_ADI = re.compile(r"^kasa-(?:(oto|elle|goc-oncesi)-)?[0-9]{8}-[0-9]{6}-[0-9a-f]{8}\.zip$")
 _TURLER = {"oto": "otomatik", "elle": "elle", "goc-oncesi": "goc-oncesi"}
@@ -109,6 +122,46 @@ def rollback_kipine_al(path: Path) -> None:
             raise ValueError("Yedek kopyası tek dosya kipine çevrilemedi.")
 
 
+def isaretle(path: Path) -> bool:
+    """Veritabanı başlığına geri yükleme işaretini (PRAGMA user_version) yazar; zaten işaretliyse dokunmaz.
+    Uygulamanın yedekleri işaretlidir; işaretsiz olan bu sürümden önce alınmış yedektir. İşaret yazıldıysa True.
+
+    >>> import tempfile, sqlite3
+    >>> d = Path(tempfile.mkdtemp())
+    >>> with closing(sqlite3.connect(d / "eski.db")) as db:
+    ...     _ = db.execute("CREATE TABLE t(x)"); db.commit()
+    >>> isaretle(d / "eski.db"), isaretle(d / "eski.db")
+    (True, False)
+    >>> with closing(sqlite3.connect(d / "eski.db")) as db:
+    ...     db.execute("PRAGMA user_version").fetchone()[0] == GERI_YUKLEME_ISARETI
+    True
+    """
+    with closing(sqlite3.connect(path)) as db:
+        if db.execute("PRAGMA user_version").fetchone()[0] == GERI_YUKLEME_ISARETI:
+            return False
+        db.execute("PRAGMA user_version = {:d}".format(GERI_YUKLEME_ISARETI))
+        db.commit()
+        return True
+
+
+def sonraki_adimlar() -> str:
+    """Geri açılan dosyayı canlıya alan operatörün zorunlu adımları (runbook: "Geri yüklemeden sonra").
+
+    >>> "YENİ bir izleyici şifresi" in sonraki_adimlar() and "1.000.000 ileri" in sonraki_adimlar()
+    True
+    """
+    aralik = "{:,}".format(KIMLIK_ARALIGI).replace(",", ".")
+    return "\n".join([
+        "ZORUNLU: Uygulama bu dosyayla ilk açılışta geri yüklemeyi tanır ve işler:",
+        "  - bütün oturumlar (editör, izleyici, alıcı) ve tanıdık cihazlar geçersiz olur; herkes yeniden giriş yapar,",
+        "  - izleyici girişi kapatılır: yedekteki eski izleyici şifresi de, yedekten sonra belirlenen de geçersizdir,",
+        "  - yeni kayıt numaraları yedekteki en yüksek numaradan " + aralik + " ileri başlar.",
+        "Açılıştan sonra editör olarak girip Ayarlar'dan YENİ bir izleyici şifresi belirleyin; eski şifreyi yeniden kullanmayın.",
+        "Editör şifresi, kurtarma kodu ve alıcı hesapları yedek anındaki haline döner; kalan adımlar:",
+        "  operasyon-runbook.md 'Geri yüklemeden sonra'.",
+    ])
+
+
 def restore(archive_path: Path, output: Path) -> None:
     output = output.resolve()
     if output.exists():
@@ -173,6 +226,8 @@ def restore(archive_path: Path, output: Path) -> None:
                 migrations = db.execute('SELECT "MigrationId" FROM "__EFMigrationsHistory"').fetchall()
                 if ("20260923000400_Operations",) not in migrations:
                     raise ValueError("Beklenen uygulama şeması yok.")
+            # Doğrulanmış kopyaya geri yükleme işareti: işaretsiz eski yedek de uygulamada geri yükleme olarak işlenir.
+            isaretlendi = isaretle(Path(temporary))
             # Neither the database nor the VAPID identity may overwrite existing data.
             key_created = False
             try:
@@ -188,7 +243,11 @@ def restore(archive_path: Path, output: Path) -> None:
                 raise
             print("Yedek doğrulandı ve yeni dosyaya geri açıldı:", output)
             print("Yedek türü:", tur or yedek_turu(Path(archive_path).name) or "belirtilmemiş")
+            print("Yedek anı (UTC):", manifest.get("olusturuldu") or "belirtilmemiş")
+            if isaretlendi:
+                print("Bu sürümden önce alınmış (işaretsiz) yedek: geri yükleme işareti eklendi.")
             print("Canlıya alırken uygulamayı durdurun; eski kasa.db-wal ve kasa.db-shm dosyalarını kasa.db ile birlikte kenara alın.")
+            print(sonraki_adimlar())
         finally:
             Path(temporary).unlink(missing_ok=True)
             for kalinti in kalinti_dosyalari(Path(temporary)):

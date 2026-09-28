@@ -88,6 +88,8 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
     // Bekleyen migration/veri adımı varsa önce göç öncesi yedek alınır; alınamazsa açılış durur.
     KasaDatabaseInitializer.Initialize(db, scope.ServiceProvider.GetRequiredService<YedekServisi>());
+    // Yedekten geri yüklenmiş dosya: oturumlar ve izleyici girişi kapanır, kimlikler ileri alınır (HTTP açılmadan).
+    GeriYuklemeIsleyici.Isle(db);
     if (!db.Kanallar.Any())
     {
         db.Kanallar.AddRange(

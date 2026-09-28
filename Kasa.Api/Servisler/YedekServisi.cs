@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Microsoft.Data.Sqlite;
 using SQLitePCL;
@@ -286,7 +287,10 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     /// <summary>Kaynağı <paramref name="hedefYol"/>'a tek dosya olarak kopyalar. Yedekleme API'si WAL'daki işlenmiş sayfaları da
     /// tutarlı anlık görüntüyle kopyalar; ancak kaynağın WAL başlığını da kopyalar. Yedek tek dosya olmalı (ZIP'teki kasa.db,
-    /// salt okunur doğrulama ve restore aracı -wal/-shm olmadan açar): kopya geri alma günlüğü kipine çevrilir.</summary>
+    /// salt okunur doğrulama ve restore aracı -wal/-shm olmadan açar): kopya geri alma günlüğü kipine çevrilir.
+    /// Kopya geri yükleme işaretini taşır (<c>PRAGMA user_version</c> = <see cref="GeriYuklemeIsleyici.Isaret"/>; canlı dosyada 0):
+    /// bu dosyayla açılan uygulama geri yüklemeyi tanır, oturumları ve izleyici girişini kapatıp kimlikleri ileri alır. İşaret
+    /// sabittir, aynı kaynağın kopyaları yine aynı özeti verir (göç öncesi yedeğin tekrar denetimi); özet işaretten sonra alınır.</summary>
     private static void TekDosyaKopyala(SqliteConnection kaynak, string hedefYol, CancellationToken ct)
     {
         using var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = hedefYol, Pooling = false }.ToString());
@@ -294,6 +298,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         AdimliKopyala(kaynak, target, ct);
         using var mode = target.CreateCommand();
         mode.CommandText = "PRAGMA journal_mode = DELETE;";
+        mode.ExecuteNonQuery();
+        mode.CommandText = $"PRAGMA user_version = {GeriYuklemeIsleyici.Isaret.ToString(CultureInfo.InvariantCulture)};";
         mode.ExecuteNonQuery();
     }
 
