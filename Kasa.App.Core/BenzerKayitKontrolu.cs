@@ -24,11 +24,18 @@ public partial class BenzerKayitKontrolu(IBenzerKayitApi? api) : ObservableObjec
         if (!gecerli()) return false;
         if (eslesmeler.Count == 0) return true;
         _bekleyen = anahtar;
-        Uyari = "Benzer kayıt bulundu. Aynı işlemi yeniden girmediğinizi kontrol edin:\n" +
+        Uyari = "Benzer kayıt bulundu. " + KuralMetni + " Aynı işlemi yeniden girmediğinizi kontrol edin; ayrı bir işlemse yine kaydedebilirsiniz:\n" +
             string.Join("\n", eslesmeler.Select(k => $"{KaynakAdi(k.Kaynak)} #{k.Id} · {k.Tarih:dd.MM.yyyy} · {Bicim.Tl(k.Tutar)} ₺ · {k.Aciklama}"));
         return false;
     }
-    private static string KaynakAdi(string kaynak) => kaynak switch { "KartHarcama" => "Kart harcaması", "KartOdeme" or "EskiKartOdeme" => "Kart ödemesi", _ => "Gider" };
+    /// <summary>Sunucunun benzer kayıt kuralı (BenzerKayitServisi; web SIMILAR_RULE_TEXT ile aynı metin): aynı tutar ve ±3 gün;
+    /// kanal süzgeci yalnız kesin başka kanala düşen kaydı eler.</summary>
+    public const string KuralMetni = "Aynı tutarda ve ±3 gün içindeki kayıtlar gösterilir; kartlı kayıtta aynı kartın kayıtları aranır. Kanal yalnız kesin olarak başka kanala düşen kaydı eler: kanalı belirsiz, Ortak, yalnız genel kasa ya da dağılım bekleyen kayıtlar, seçilen kanalı da içeren çok kanallı kayıtlar ve kart ödemeleri her kanalda görünür.";
+    private static string KaynakAdi(string kaynak) => kaynak switch
+    {
+        "KartHarcama" => "Kart harcaması", "KartOdeme" or "EskiKartOdeme" => "Kart ödemesi",
+        "KrediTaksidi" => "Kredi taksidi", "EskiKrediTaksidi" => "Eski kredi taksidi", _ => "Gider",
+    };
     public bool Onayla()
     {
         if (_bekleyen is null) return false;

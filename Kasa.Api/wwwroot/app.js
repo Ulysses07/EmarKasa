@@ -1,4 +1,4 @@
-import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, paymentCardChoices, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning } from './ui-core.js?v=2.3.0';
+import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, paymentCardChoices, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning, SIMILAR_RULE_TEXT } from './ui-core.js?v=2.3.0';
 import { createFinanceUi } from './finance-ui.js?v=2.3.0';
 import { createNotificationUi } from './notification-ui.js?v=2.3.0';
 import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
@@ -74,7 +74,8 @@ async function api(path, options = {}) {
   let body = options.body;
   if (body != null && !(body instanceof FormData)) { headers.set('Content-Type', 'application/json'); body = JSON.stringify(body); }
   const epoch = state.epoch;
-  const signal = options.signal ?? (screenBoundRead(path, method) ? screenAbort?.signal : undefined);
+  // options.screen === false: pencere (diyalog) verisi ekrana ait değildir; rapor ucundan okunsa da gezinmede iptal edilmez.
+  const signal = options.signal ?? (options.screen !== false && screenBoundRead(path, method) ? screenAbort?.signal : undefined);
   let response;
   try { response = await fetch(path, { ...options, method, body, headers, signal, credentials: 'same-origin', cache: 'no-store' }); }
   catch { if (signal?.aborted) throw abortedRequestError(); throw new Error('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.'); }
@@ -183,11 +184,13 @@ async function confirmSimilar(form, query, payload) {
   if (!form.isConnected || !modal.open) return false;
   if (!records.length) return true;
   const panel = oldPanel || h('div', { class: 'notice similar-warning', role: 'status', tabindex: '-1' });
-  const sourceNames = { Islem: 'Gider', KartHarcama: 'Kart harcaması', KartOdeme: 'Kart ödemesi', EskiKartOdeme: 'Eski kart ödemesi' };
+  const sourceNames = { Islem: 'Gider', KartHarcama: 'Kart harcaması', KartOdeme: 'Kart ödemesi', EskiKartOdeme: 'Eski kart ödemesi', KrediTaksidi: 'Kredi taksidi', EskiKrediTaksidi: 'Eski kredi taksidi' };
+  // Kural metni sunucunun kuralını anlatır (±3 gün; kanalsız/çok kanallı kayıtlar ve kart ödemeleri her kanalda); kanal etiketi
+  // kaydın kasadan düştüğü kanal(lar)dır.
   panel.replaceChildren(
     h('strong', {}, 'Benzer kayıt bulundu'),
-    help('Aynı tarih, tutar ve kart veya kanalla bir kayıt var. Aynı ödemeyi yeniden girmediğinizi kontrol edin. Ayrı bir işlemse yine kaydedebilirsiniz.'),
-    h('ul', { class: 'similar-records' }, records.map(record => h('li', {}, `${sourceNames[record.kaynak] || 'Kayıt'} #${record.id} · ${dateText(record.tarih)} · ${money(record.tutar)} · ${record.aciklama || 'Açıklama yok'}${record.alisId ? ` · Alış #${record.alisId}` : ''}`))),
+    help(`${SIMILAR_RULE_TEXT} Aynı ödemeyi yeniden girmediğinizi kontrol edin. Ayrı bir işlemse yine kaydedebilirsiniz.`),
+    h('ul', { class: 'similar-records' }, records.map(record => h('li', {}, `${sourceNames[record.kaynak] || 'Kayıt'} #${record.id} · ${dateText(record.tarih)} · ${money(record.tutar)} · ${record.aciklama || 'Açıklama yok'}${record.kanalEtiketi ? ` · ${record.kanalEtiketi}` : ''}${record.alisId ? ` · Alış #${record.alisId}` : ''}`))),
     h('div', { class: 'row-actions' }, button('Vazgeç', closeModal), button('Ayrı işlem olarak kaydet', () => { similarApprovals.set(form, signature); form.requestSubmit(); }, 'primary'))
   );
   panel.hidden = false;
@@ -601,7 +604,8 @@ function signedAmountField(name, value, label) {
   };
 }
 async function incomeDialog(periodStart = null) {
-  const [weeks, channels] = await Promise.all([api('/api/rapor/haftalik'), api('/api/kanallar')]);
+  // Dönem listesi pencerenin verisidir: ekran sinyaline bağlanmaz, pencere açılırken başka ekrana geçilse de pencere açılır.
+  const [weeks, channels] = await Promise.all([api('/api/rapor/haftalik', { screen: false }), api('/api/kanallar')]);
   if (!weeks.length) throw new Error('Gelir girmek için geçerli kasa dönemi gerekir.');
   const initial = periodStart || currentPeriod(weeks).donem.start;
   const period = select('donemStart', [...weeks].reverse().map(w => ({ value: w.donem.start, label: `${dateText(w.donem.start)} – ${dateText(w.donem.end)}` })), initial);

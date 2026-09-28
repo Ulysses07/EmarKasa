@@ -14,7 +14,7 @@ public sealed class GuvenlikAlani : ContentView
         stack.Add(Girdi("Mevcut şifre", nameof(vm.MevcutSifre)));
         var yeni = Girdi("Yeni şifre (en az 12 karakter)", nameof(vm.YeniSifre));
         var tekrar = Girdi("Yeni şifre (tekrar)", nameof(vm.YeniSifreTekrar));
-        stack.Add(yeni); stack.Add(tekrar); stack.Add(SifreyiGoster(yeni, tekrar));
+        stack.Add(yeni); stack.Add(tekrar); stack.Add(SifreyiGoster(nameof(vm.YeniSifreyiGoster), yeni, tekrar));
         stack.Add(Dugme("Şifremi değiştir", nameof(vm.SifreDegistirCommand)));
         stack.Add(Dugme("Tek kullanımlık kurtarma kodu oluştur", nameof(vm.KurtarmaKoduOlusturCommand)));
         var kod = new Label { FontSize = 22, FontAttributes = FontAttributes.Bold }; kod.SetBinding(Label.TextProperty, nameof(vm.KurtarmaKodu)); stack.Add(kod);
@@ -52,11 +52,13 @@ public sealed class GuvenlikAlani : ContentView
     private static Label Baslik(string text) => new() { Text = text, FontSize = 18, FontAttributes = FontAttributes.Bold };
     private static Label Yazi(string text) => new() { Text = text, FontSize = 13 };
     private static Entry Girdi(string baslik, string property) { var e = new Entry { Placeholder = baslik, IsPassword = true }; e.SetBinding(Entry.TextProperty, property); return e; }
-    /// <summary>Yazım hatasını görmek için yalnız yeni şifre alanlarını açan kutu; mevcut şifre maskeli kalır.</summary>
-    private static View SifreyiGoster(params Entry[] alanlar)
+    /// <summary>Yazım hatasını görmek için yalnız yeni şifre alanlarını açan kutu; mevcut şifre maskeli kalır. Durum görünüm
+    /// modelindedir (<see cref="GuvenlikViewModel.YeniSifreyiGoster"/>): başarıda, ekrandan ayrılınca ve oturum sonunda kapanır.</summary>
+    private static View SifreyiGoster(string ozellik, params Entry[] alanlar)
     {
         var kutu = new CheckBox();
-        kutu.CheckedChanged += (_, e) => { foreach (var alan in alanlar) alan.IsPassword = !e.Value; };
+        kutu.SetBinding(CheckBox.IsCheckedProperty, ozellik, BindingMode.TwoWay);
+        foreach (var alan in alanlar) alan.SetBinding(Entry.IsPasswordProperty, ozellik, converter: new Converters.TersIseConverter());
         return new HorizontalStackLayout { Spacing = 6, Children = { kutu, new Label { Text = "Yeni şifreyi göster", VerticalOptions = LayoutOptions.Center } } };
     }
     private static Button Dugme(string text, string command) { var b = new Button { Text = text }; b.SetBinding(Button.CommandProperty, command); return b; }

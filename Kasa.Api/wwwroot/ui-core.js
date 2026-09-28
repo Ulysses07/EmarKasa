@@ -120,6 +120,9 @@ export function fieldErrors(body) {
 export function sessionExpired(status, path) {
   return status === 401 && !['/api/auth/login', '/api/auth/kurtar'].includes(String(path).split('?')[0]);
 }
+// Sunucunun benzer kayıt kuralı (BenzerKayitServisi; masaüstü BenzerKayitKontrolu.KuralMetni ile aynı metin): aynı tutar ve
+// ±3 gün; kanal süzgeci yalnız kesin başka kanala düşen kaydı eler.
+export const SIMILAR_RULE_TEXT = 'Aynı tutarda ve ±3 gün içindeki kayıtlar gösterilir; kartlı kayıtta aynı kartın kayıtları aranır. Kanal yalnız kesin olarak başka kanala düşen kaydı eler: kanalı belirsiz, Ortak, yalnız genel kasa ya da dağılım bekleyen kayıtlar, seçilen kanalı da içeren çok kanallı kayıtlar ve kart ödemeleri her kanalda görünür.';
 // Sunucu ve masaüstü ile aynı kural ve ileti; yalnız belirlerken/değiştirirken uygulanır.
 export const VIEWER_PASSWORD_MESSAGE = 'İzleyici şifresi 12–1024 karakter olmalıdır.';
 // Sunucu, kayıtlı izleyici şifresinin kurala uymadığını ancak bir izleyici girişinde görür (hash uzunluk saklamaz).

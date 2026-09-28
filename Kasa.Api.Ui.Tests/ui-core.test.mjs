@@ -1739,3 +1739,33 @@ test('sunucu hatasının (5xx) iz kimliği hata iletisinde kısa "Hata kodu" ola
   await submitDialog(nodes);
   assert.match(nodes.get('#modal-content').textContent, /kaydedilmedi\. Hata kodu: 4bf92f35/);
 });
+test('gelir penceresinin dönem okuması ekran sinyaline bağlanmaz; pencere açılırken gezinme onu bozmaz', async () => {
+  let release;
+  const week = { donem: { start: '2026-09-21', end: '2026-09-27', yil: 2026, ay: 9 }, kanallar: [], toplamGelen: 0, toplamGiden: 0, kasaSonucu: 0, kasaDevir: 0, dagilimBekleyenTutar: 0 };
+  const monthly = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': () => new Promise(resolve => { release = resolve; }), '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/gelenler?donemStart=2026-09-21': [],
+    [monthly]: { yil: yearNow, ay: monthNumberNow, kanallar: [] } });
+  const opening = app.incomeDialog(); await settle();
+  const weekly = calls.find(call => call.path === '/api/rapor/haftalik');
+  assert.equal(weekly.signal, undefined, 'Pencere verisi ekrana bağlı değildir.');
+  await app.navigate('monthly');                                  // pencere açılmadan başka ekrana geçildi
+  release([week]); await opening; await settle();
+  assert.equal(nodes.get('#modal').open, true); assert.equal(nodes.get('#modal-title').textContent, 'Kanal geliri gir');
+  assert.ok(formField(nodes, 'donemStart'), 'Dönem seçimi dolu.');
+  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  // Ekranın kendi rapor okumaları ekran sinyaline bağlı kalır.
+  assert.ok(calls.find(call => call.path === monthly).signal);
+});
+test('benzer kayıt uyarısı sunucunun ±3 gün ve kanal kuralını anlatır, kredi taksidini ve kanal etiketini gösterir', async () => {
+  const similar = [{ kaynak: 'KrediTaksidi', id: 5, tarih: '2026-09-25', tutar: 75, aciklama: 'Taksit 3', krediKartiId: null, kanalEtiketi: 'MEZAT, PERAKENDE' },
+    { kaynak: 'EskiKrediTaksidi', id: 6, tarih: '2026-09-20', tutar: 75, aciklama: 'Kredi', krediKartiId: null, kanalEtiketi: 'Genel kasa' }];
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': similar });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const text = nodes.get('#modal-content').textContent;
+  assert.ok(text.includes(ui.SIMILAR_RULE_TEXT), 'Kural metni gösterilir.');
+  assert.match(ui.SIMILAR_RULE_TEXT, /±3 gün/); assert.match(ui.SIMILAR_RULE_TEXT, /kanalı belirsiz/); assert.match(ui.SIMILAR_RULE_TEXT, /çok kanallı/); assert.match(ui.SIMILAR_RULE_TEXT, /kart ödemeleri/);
+  assert.doesNotMatch(text, /Aynı tarih, tutar/);
+  assert.match(text, /Kredi taksidi #5 · .* · MEZAT, PERAKENDE/); assert.match(text, /Eski kredi taksidi #6 · .* · Genel kasa/);
+});
