@@ -1801,6 +1801,19 @@ test('ana sayfa panel, kanal eşiği ve takip özetini tek istekte okur; ayrı u
   assert.match(mezat.className, /below-threshold/); assert.match(mezat.textContent, /Alt sınırın altında/); assert.match(mezat.textContent, /Kalan kart borcu: .*70,00/);
   assert.doesNotMatch(view.textContent, /yükleniyor…/);
 });
+// gap-tarihsel-spec-ve-emekli-web-7: takipte olmayan (geçişi yapılmamış) kart ve krediler kaldıkça ana sayfada kalıcı uyarı; her kayıt
+// kendi ekranını açar. Alan yoksa (kayıt yok ya da eski sunucu) uyarı çizilmez.
+test('ana sayfa takipte olmayan kart ve kredileri kalıcı uyarıyla listeler, kayda gider', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { ...sampleHome(), takipsizKayitlar: [{ kaynak: 'Kart', id: 4, ad: 'Bonus' }, { kaynak: 'Kredi', id: 7, ad: 'Taşıt' }] }, '/api/takip/krediler/7': { $status: 404, hata: 'Yok' } });
+  const view = nodes.get('#view');
+  assert.match(view.textContent, /Kart ve kredi takibinde olmayan kayıtlar var: Bonus \(kart\), Taşıt \(kredi\)\. Bu kayıtların hatırlatmaları eski kayıtlardan hesaplanır ve sınırlıdır/);
+  const notice = view.find(node => node.attributes?.role === 'status' && node.textContent.includes('takibinde olmayan'));
+  const loan = notice.find(node => node.tag === 'button' && node.textContent === 'Taşıt (kredi)');
+  loan.listeners.click({ currentTarget: loan }); await settle();
+  assert.ok(requests.includes('/api/takip/krediler/7'), 'kredi ekranı açılır');
+  const { nodes: bos } = await openApp(false, { [homeSummaryPath]: sampleHome() });
+  assert.doesNotMatch(bos.get('#view').textContent, /takibinde olmayan/);
+});
 test('eski sunucuda ana sayfa ucu yoksa (404) ayrı uçlara geri düşer, sonraki açılışta ucu yeniden denemez', async () => {
   const { app, nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 404 } });
   for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(requests.includes(old), `${old} istenir`);

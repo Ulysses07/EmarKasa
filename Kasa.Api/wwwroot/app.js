@@ -644,6 +644,7 @@ async function renderHome(generation) {
     runtime.saltOkunur && help('Bu ekran canlı kasa kayıtlarını görüntüler. Bu sürümde kayıtlar değiştirilemez.'),
     summaryCards,
     pendingNotice(panel.dagilimBekleyenTutar),
+    !runtime.saltOkunur && financeUi.untrackedNotice(home.takipsizKayitlar),
     section('Kanal kasaları', h('div', {}, balances, thresholdStatus, unassignedDebt)),
     !runtime.saltOkunur && comparisonHistory,
     !runtime.saltOkunur && paymentOverview,

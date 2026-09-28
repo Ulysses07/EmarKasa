@@ -287,5 +287,12 @@ export function createFinanceUi(c) {
     const rows = data.olaylar.map(event => [h('span', {}, dateText(event.tarih), event.kaynak === 'Kart' && event.tur === 'SonOdeme' && event.tutar > 0 && event.tarih < (data.tarih || today()) && h('span', { class: 'badge pending' }, 'Gecikti')), button(event.ad, () => navigate(event.kaynak === 'Kart' ? 'cards' : 'loans', event.kaynakId), 'table-link'), event.tur === 'Kesim' ? 'Hesap kesimi' : event.tur === 'SonOdeme' ? 'Son ödeme' : 'Kredi taksidi', moneyNode(event.tutar), event.otomatikKasa ? 'Taksit tarihinde otomatik düşer' : event.tur === 'Kesim' ? 'Banka ekstresi doğrulaması değildir' : 'Ödeme kaydedilince düşer']);
     return section('Yaklaşan ve geciken ödemeler', h('div', {}, h('div', { class: 'summary-strip' }, summary('Toplam kart borcu', money(data.kartBorcu)), data.kartAlacakBakiyesi > 0 && summary('Kart alacak bakiyesi', money(data.kartAlacakBakiyesi), 'Diğer kartların borcundan düşülmez.'), summary('Kalan kredi planı', money(data.kalanKrediPlani))), rows.length ? table(['Tarih', 'Kart / kredi', 'Olay', 'Tutar', 'Kasa etkisi'], rows) : help('Bu aralıkta kayıtlı ödeme yok.')), range);
   }
-  return { renderCards, renderLoans, overview, cardDialog, cardPaymentDialog, cardTransition, transferDialog, feeDialog, loanDialog, installmentDialog };
+  // Takipte olmayan (geçişi yapılmamış) kart ve krediler (ana sayfa özetinin takipsizKayitlar alanı): hatırlatmaları eski
+  // kayıtlardan hesaplanır ve sınırlıdır. Kayıt kaldıkça ana sayfada kalıcı uyarı; her kayıt kendi ekranını açar. Yoksa null.
+  function untrackedNotice(rows) {
+    if (!rows?.length) return null;
+    const links = rows.flatMap((row, index) => [index ? ', ' : '', button(`${row.ad} (${row.kaynak === 'Kart' ? 'kart' : 'kredi'})`, () => navigate(row.kaynak === 'Kart' ? 'cards' : 'loans', row.id), 'table-link')]);
+    return h('div', { class: 'notice', role: 'status' }, h('strong', {}, 'Kart ve kredi takibinde olmayan kayıtlar var: '), ...links, '. ', 'Bu kayıtların hatırlatmaları eski kayıtlardan hesaplanır ve sınırlıdır; yeni ödeme ve güncel ekstre görünmez. Kartlar ve Krediler ekranından geçiş yapın.');
+  }
+  return { renderCards, renderLoans, overview, untrackedNotice, cardDialog, cardPaymentDialog, cardTransition, transferDialog, feeDialog, loanDialog, installmentDialog };
 }
