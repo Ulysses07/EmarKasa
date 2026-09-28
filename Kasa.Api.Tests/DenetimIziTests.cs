@@ -9,6 +9,8 @@ using Kasa.Api.Denetim;
 using Kasa.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.MonthlyExpenseTests;
 
@@ -118,6 +120,116 @@ public class DenetimIziTests
         db.Islemler.Add(new IslemEntity { Tarih = Today, Cari = "Bakım", TutarTl = 10m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari });
         db.SaveChanges();
         Assert.Equal("sistem", db.DenetimOlaylari.AsNoTracking().Single(o => o.Varlik == "Islem").AktorRol);
+    }
+
+    /// <summary>Olay yazılamayıp transaction geri alınınca izleyici de değişiklikleri kabul etmiş sayılmaz: eklenen, değişen ve
+    /// silinen kayıtlar bekler; aynı bağlamla yeniden kayıt hepsini olaylarıyla yazar (eşzamanlı ve eşzamansız yol).</summary>
+    [Fact]
+    public async Task Olay_yazilamazsa_izleyici_veritabaniyla_tutarli_kalir_yeniden_kayit_olaylariyla_yazar()
+    {
+        await using var f = Fabrika(); _ = f.Services;
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        var silinecek = new IslemEntity { Tarih = Today, Cari = "Silinecek", TutarTl = 5m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
+        db.Islemler.Add(silinecek);
+        db.SaveChanges();
+        var kanal = db.Kanallar.Single(k => k.Id == 2);
+        var acilis = kanal.AcilisDevri;
+        foreach (var eszamansiz in new[] { false, true })
+        {
+            db.Database.ExecuteSqlRaw("CREATE TRIGGER TR_Test_Olay_Reddi BEFORE INSERT ON DenetimOlaylari BEGIN SELECT RAISE(ABORT,'test: olay yazilamadi'); END;");
+            var eklenen = new IslemEntity { Tarih = Today, Cari = eszamansiz ? "Eşzamansız" : "Eşzamanlı", TutarTl = 10m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
+            db.Islemler.Add(eklenen);
+            kanal.AcilisDevri += 1m;
+            if (!eszamansiz) db.Islemler.Remove(silinecek);
+            var hata = eszamansiz ? await Assert.ThrowsAnyAsync<Exception>(() => db.SaveChangesAsync()) : Assert.ThrowsAny<Exception>(() => db.SaveChanges());
+            Assert.Contains("olay yazilamadi", hata.ToString());
+            Assert.Equal(EntityState.Added, db.Entry(eklenen).State);
+            Assert.Equal(EntityState.Modified, db.Entry(kanal).State);
+            if (!eszamansiz) Assert.Equal(EntityState.Deleted, db.Entry(silinecek).State);
+            Assert.False(db.Islemler.AsNoTracking().Any(i => i.Cari == eklenen.Cari));
+
+            db.Database.ExecuteSqlRaw("DROP TRIGGER TR_Test_Olay_Reddi;");
+            if (eszamansiz) await db.SaveChangesAsync(); else db.SaveChanges();
+            Assert.Equal(EntityState.Unchanged, db.Entry(eklenen).State);
+            Assert.Equal(EntityState.Unchanged, db.Entry(kanal).State);
+            Assert.True(db.Islemler.AsNoTracking().Any(i => i.Id == eklenen.Id && i.Cari == eklenen.Cari));
+            Assert.Equal(["Ekle"], Olaylar(f, "Islem", eklenen.Id).Select(o => o.Tur));
+        }
+        Assert.Equal(EntityState.Detached, db.Entry(silinecek).State);
+        Assert.False(db.Islemler.AsNoTracking().Any(i => i.Id == silinecek.Id));
+        Assert.Equal(["Ekle", "Sil"], Olaylar(f, "Islem", silinecek.Id).Select(o => o.Tur));
+        Assert.Equal(acilis + 2m, db.Kanallar.AsNoTracking().Single(k => k.Id == 2).AcilisDevri);
+        Assert.Equal(2, Olaylar(f, "Kanal", 2).Count(o => o.Tur == "Degistir"));
+    }
+
+    /// <summary>Çekirdek uçlarda (gider düzenleme/silme, gelir, genel kasa açılışı) gerekçe isteğe bağlıdır ve gövdeye değil
+    /// <see cref="DenetimBaglami.GerekceBasligi"/> başlığına (yüzde kodlu UTF-8) yazılır: gövdesiz silmede de verilebilir, eski
+    /// istemciler etkilenmez. Ucun kendi gerekçesi (ör. iptal açıklaması) başlıktan önce gelir.</summary>
+    [Fact]
+    public async Task Cekirdek_uclarda_istege_bagli_gerekce_basliktan_olaya_yazilir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var gider = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Toptancı", 12500m, "MEZAT", GiderTipi.Cari));
+        async Task Gerekceyle(HttpMethod metot, string yol, object? govde, string gerekce)
+        {
+            using var istek = new HttpRequestMessage(metot, yol) { Content = govde is null ? null : JsonContent.Create(govde) };
+            istek.Headers.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString(gerekce));
+            using var yanit = await c.SendAsync(istek);
+            Assert.True(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}");
+        }
+        await Gerekceyle(HttpMethod.Put, $"/api/islemler/{gider.Id}", new IslemYazDto(Today, "Toptancı", 13000m, "MEZAT", GiderTipi.Cari), "Fatura tutarı düzeltildi");
+        await Gerekceyle(HttpMethod.Delete, $"/api/islemler/{gider.Id}", null, "Mükerrer fatura girişi");
+        await Gerekceyle(HttpMethod.Put, "/api/gelenler", new GelenUpsertDto(Month, "PERAKENDE", 48000m), "Z raporuna göre");
+        await Gerekceyle(HttpMethod.Put, "/api/ayarlar", new { takipBaslangic = Month.AddMonths(-3), kasaAcilisDevri = 1500m }, "Açılış devri banka ekstresine göre");
+        var sablon = await Create(c, "Ozel", [new(1, 100m)]);
+        var odeme = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
+        await Gerekceyle(HttpMethod.Post, $"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı ödeme"), "başlıktaki gerekçe");
+
+        Assert.Equal([null, "Fatura tutarı düzeltildi", "Mükerrer fatura girişi"], Olaylar(f, "Islem", gider.Id).Select(o => o.Gerekce));
+        Assert.Equal("Z raporuna göre", Assert.Single(Olaylar(f, "Gelen")).Gerekce);
+        Assert.Equal([null, "Açılış devri banka ekstresine göre"], Olaylar(f, "Ayar").Where(o => o.Tur == "Degistir").Select(o => o.Gerekce));
+        Assert.Equal("Hatalı ödeme", Assert.Single(Olaylar(f, "AylikGiderOdeme", odeme.OdemeId), o => o.Tur == "Degistir").Gerekce);
+    }
+
+    /// <summary>Senaryo (bulgu 5): sürüm öncesinde iptal edilen Mart kira ödemesinin gerekçesi yalnız AylikGiderOdemeler
+    /// tablosundaydı. Açılıştaki göç (öncesinde otomatik yedek) onu denetim izine aktarır; editör değişiklik geçmişi
+    /// ucundan okur.</summary>
+    [Fact]
+    public async Task Surum_oncesi_iptal_gerekcesi_goc_sonrasi_degisiklik_gecmisi_ucundan_okunur()
+    {
+        var yol = Path.Combine(Path.GetTempPath(), $"kasa-denetim-{Guid.NewGuid():N}.db");
+        try
+        {
+            using (var baglanti = new SqliteConnection($"Data Source={yol};Pooling=False"))
+            {
+                baglanti.Open();
+                using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(baglanti).Options);
+                db.GetService<IMigrator>().Migrate("20260930000100_DenetimOlaylari");
+                db.Database.ExecuteSqlRaw("""
+                    INSERT INTO Kanallar (Id, Ad, Aktif, Sira, AcilisDevri) VALUES (1, 'MEZAT', 1, 0, '0');
+                    INSERT INTO Ayarlar (TakipBaslangic, KasaAcilisDevri, IzleyiciSifreHash) VALUES ('2026-01-01', '0', NULL);
+                    INSERT INTO AylikGiderSablonlar (Id, Surum) VALUES (1, 1);
+                    INSERT INTO AylikGiderRevizyonlar (Id, SablonId, Surum, GecerliAy, Ad, Tur, Tutar, OdemeGunu, DagilimTuru, DagilimJson, Aktif)
+                        VALUES (1, 1, 1, '2026-01-01', 'Kira', 'Kira', '15000', 5, 'Genel', '[]', 1);
+                    INSERT INTO AylikGiderOdemeler (Id, SablonId, RevizyonId, Ay, Tarih, Tutar, IslemId, Iptal, IptalAciklamasi)
+                        VALUES (5, 1, 1, '2026-03-01', '2026-03-05', '15000.0', NULL, 1, 'Mart kirası yanlış aya girildi');
+                    """);
+            }
+            await using (var f = new VekilVeHizSiniriTests.VekilFabrikasi(dosyaVeritabani: yol))
+            {
+                using var c = await f.EditorClientAsync();
+                var gecmis = (await c.GetFromJsonAsync<List<DenetimOlayDto>>("/api/denetim?varlik=AylikGiderOdeme&varlikId=5"))!;
+                var olay = Assert.Single(gecmis);
+                Assert.Equal(("GecmisKayit", "sistem", "Mart kirası yanlış aya girildi"), (olay.Tur, olay.AktorRol, olay.Gerekce));
+                Assert.Equal(("2026-03-01", true), ((string?)J(olay.YeniJson)["Ay"], J(olay.YeniJson)["Iptal"]!.GetValue<bool>()));
+            }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(yol + ek);
+        }
     }
 
     [Fact]

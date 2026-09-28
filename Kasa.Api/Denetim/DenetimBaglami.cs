@@ -22,12 +22,31 @@ public sealed record DenetimAktoru(string Rol, int? Id, string? Ip, string? Trac
 /// </summary>
 public static class DenetimBaglami
 {
-    /// <summary>Program.cs: denetim aktörünün istekten okunması ve güvenlik olayı yazım sınırı.</summary>
+    /// <summary>
+    /// İsteğe bağlı değişiklik gerekçesi başlığı (yüzde kodlu UTF-8, ör. JS <c>encodeURIComponent</c>, .NET
+    /// <c>Uri.EscapeDataString</c>): gövdesinde gerekçe alanı olmayan uçlar da (gider düzenleme ve gövdesiz silme, gelir,
+    /// genel kasa açılışı) değişikliğe gerekçe iliştirebilir; başlığı göndermeyen eski istemciler etkilenmez. Ucun kendi
+    /// gerekçesi (<see cref="KasaDbContext.Denetle"/>, iptal açıklaması) başlıktan önce gelir. En çok 2000 karakter yazılır.
+    /// </summary>
+    public const string GerekceBasligi = "X-Kasa-Gerekce";
+
+    /// <summary>Program.cs: denetim aktörünün istekten okunması, güvenlik olayı yazım sınırı ve kimlik doğrulama retlerinin
+    /// güvenlik logu (<see cref="GuvenlikOlaylari.AddKasaGuvenlikLoglari"/>).</summary>
     public static IServiceCollection AddKasaDenetim(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
         services.AddSingleton<GuvenlikOlayiSiniri>();
+        services.AddKasaGuvenlikLoglari();
         return services;
+    }
+
+    /// <summary>İsteğin <see cref="GerekceBasligi"/> başlığındaki gerekçe (çözülmüş, kırpılmış); yoksa ya da boşsa null.
+    /// Geçersiz yüzde kodu olduğu gibi kalır.</summary>
+    internal static string? IstekGerekcesi(HttpContext? http)
+    {
+        if (http is null || !http.Request.Headers.TryGetValue(GerekceBasligi, out var deger)) return null;
+        var metin = Uri.UnescapeDataString(deger.ToString()).Trim();
+        return metin.Length == 0 ? null : metin;
     }
 
     /// <summary>Bağlamı kullanan geçerli istek; istek dışında null.</summary>

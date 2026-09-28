@@ -88,6 +88,84 @@ public class GuvenlikOlayiTests
         Assert.Equal(6, Olaylar(f, GuvenlikOlaylari.Varlik).Count(o => o.Tur == GuvenlikOlaylari.GirisBasarisiz));
     }
 
+    /// <summary>Şifre doğrulama kuyruğu doluyken verilen 429 sunucunun yoğun olmasıdır, saldırı reddi değil: hız sınırı olarak
+    /// değil ayrı türle (istemci ağı ve uç başına dakikada bir) yazılır.</summary>
+    [Fact]
+    public async Task Dogrulama_kuyrugu_doluyken_verilen_429_hiz_siniri_degil_yogunluk_olayidir()
+    {
+        await using var f = new VekilFabrikasi(new()
+        {
+            ["Kasa:HizSiniri:AgBasarisizIzni"] = "1", ["Kasa:HizSiniri:HedefBasarisizIzni"] = "2",
+            ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "1",
+        });
+        using var c = Istemci(f, "198.51.100.231");
+        var sinir = f.Services.GetRequiredService<GirisSiniri>();
+        using (var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None))
+        {
+            var bekleyen = sinir.DogrulamaIzniAsync(CancellationToken.None);
+            for (var i = 0; i < 2; i++) Assert.Equal(HttpStatusCode.TooManyRequests, (await Giris(c, "editor", "yanlis")).StatusCode);
+            tutulan.Dispose();
+            (await bekleyen).Dispose();
+        }
+
+        var olaylar = Olaylar(f, GuvenlikOlaylari.Varlik);
+        Assert.DoesNotContain(olaylar, o => o.Tur == GuvenlikOlaylari.HizSiniri);
+        var yogun = Assert.Single(olaylar, o => o.Tur == GuvenlikOlaylari.GirisYogun);
+        Assert.Equal(("198.51.100.231", "editor"), (yogun.IstemciIp, (string?)J(yogun.YeniJson)["kullanici"]));
+    }
+
+    /// <summary>Kullanıcı adı yalnız bilinen bir hesaba (editör ya da alıcı) aitse olaya ve loga yazılır: ad alanına
+    /// yanlışlıkla girilen parola düz metin olarak hiçbir yere düşmez.</summary>
+    [Fact]
+    public async Task Bilinmeyen_kullanici_adi_olaya_ve_loga_duz_metin_yazilmaz_bilinen_hesap_adi_yazilir()
+    {
+        var loglar = new UyariToplayici();
+        await using var f = new VekilFabrikasi(loglar: loglar);
+        using (var editor = Istemci(f, "198.51.100.50"))
+        {
+            Assert.Equal(HttpStatusCode.OK, (await Giris(editor, "editor", "kasa123")).StatusCode);
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-7", "Alıcı", "alici-sifre-7"))).EnsureSuccessStatusCode();
+        }
+        using var c = Istemci(f, "198.51.100.51");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "Parolam-Gizli-42", "yanlis")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, " Alici-7 ", "yanlis")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "editor", "yanlis")).StatusCode);
+
+        var adlar = Olaylar(f, GuvenlikOlaylari.Varlik).Where(o => o.Tur == GuvenlikOlaylari.GirisBasarisiz).Select(o => (string?)J(o.YeniJson)["kullanici"]);
+        Assert.Equal([GuvenlikOlaylari.BilinmeyenAd, "alici-7", "editor"], adlar);
+        Assert.Contains(loglar.Uyarilar, u => u.Contains("Güvenlik olayı GirisBasarisiz", StringComparison.Ordinal) && u.Contains(GuvenlikOlaylari.BilinmeyenAd, StringComparison.Ordinal));
+        Assert.DoesNotContain(loglar.Uyarilar, u => u.Contains("parolam-gizli-42", StringComparison.OrdinalIgnoreCase));
+        using var scope = f.Services.CreateScope();
+        Assert.DoesNotContain("parolam-gizli-42", TumMetin(scope.ServiceProvider.GetRequiredService<KasaDbContext>()), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Geçersiz oturum belirteci ve rolün yetmediği uç (403) olay tablosuna yazılmaz ama 'Kasa.Guvenlik' logunda
+    /// (tür ve istemci ağı başına dakikada bir) görünür; varsayılan 'Microsoft.AspNetCore: Warning' ayarı çerçevenin kendi
+    /// kayıtlarını düşürür.</summary>
+    [Fact]
+    public async Task Gecersiz_belirtec_ve_yetki_reddi_guvenlik_loguna_seyrek_yazilir()
+    {
+        var loglar = new UyariToplayici();
+        await using var f = new VekilFabrikasi(loglar: loglar);
+        using var sahte = Istemci(f, "198.51.100.60");
+        sahte.DefaultRequestHeaders.Authorization = new("Bearer", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiZWRpdG9yIn0.c2FodGUtaW16YQ");
+        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await sahte.GetAsync("/api/islemler")).StatusCode);
+        using (var editor = Istemci(f, "198.51.100.61"))
+        {
+            Assert.Equal(HttpStatusCode.OK, (await Giris(editor, "editor", "kasa123")).StatusCode);
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        }
+        using var izleyici = Istemci(f, "198.51.100.62");
+        Assert.Equal(HttpStatusCode.OK, (await Giris(izleyici, "", "izleyici-sifre-123")).StatusCode);
+        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync("/api/denetim")).StatusCode);
+
+        Assert.Single(loglar.Uyarilar, u => u.Contains("Güvenlik olayı GecersizBelirtec", StringComparison.Ordinal)
+            && u.Contains("198.51.100.60", StringComparison.Ordinal) && u.Contains("GET /api/islemler", StringComparison.Ordinal));
+        Assert.Single(loglar.Uyarilar, u => u.Contains("Güvenlik olayı YetkiReddi", StringComparison.Ordinal) && u.Contains("viewer", StringComparison.Ordinal)
+            && u.Contains("198.51.100.62", StringComparison.Ordinal) && u.Contains("GET /api/denetim", StringComparison.Ordinal));
+        Assert.DoesNotContain(Olaylar(f, GuvenlikOlaylari.Varlik), o => o.Tur is "GecersizBelirtec" or "YetkiReddi");
+    }
+
     [Fact]
     public async Task Sifre_kurtarma_kodu_ve_kurtarma_olay_olur_kod_ve_sifreler_yazilmaz()
     {

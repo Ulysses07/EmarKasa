@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Kasa.Api.Denetim;
 
 /// <summary>Yazılacak denetim olayı. Aktör verilmezse isteğin aktörü, istek kimliği verilmezse bağlamın
-/// (<see cref="KasaDbContext.DenetimIstekId"/>) kullanılır.</summary>
+/// (<see cref="KasaDbContext.DenetimIstekId"/>), gerekçe verilmezse isteğin gerekçe başlığındaki
+/// (<see cref="DenetimBaglami.GerekceBasligi"/>) kullanılır.</summary>
 public sealed record DenetimOlayi(string Tur, string Varlik, string? VarlikId, string? OncekiJson, string? YeniJson,
     string? Gerekce = null, int? KilitAcmaOlayiId = null, DenetimAktoru? Aktor = null, Guid? IstekId = null);
 
@@ -47,7 +48,9 @@ public static class DenetimYazici
     public static void Yaz(KasaDbContext db, IReadOnlyList<DenetimOlayi> olaylar)
     {
         if (olaylar.Count == 0 || !TabloVar(db)) return;
-        var istekAktoru = DenetimBaglami.Aktor(DenetimBaglami.Istek(db));
+        var istek = DenetimBaglami.Istek(db);
+        var istekAktoru = DenetimBaglami.Aktor(istek);
+        var istekGerekcesi = DenetimBaglami.IstekGerekcesi(istek);
         var zaman = db.Saati().GetUtcNow().ToUnixTimeMilliseconds();
         for (var bas = 0; bas < olaylar.Count; bas += ToplamaBoyu)
         {
@@ -60,7 +63,7 @@ public static class DenetimYazici
                 object?[] degerler =
                 [
                     zaman, aktor.Rol, aktor.Id, aktor.Ip, olay.Tur, olay.Varlik, olay.VarlikId, olay.OncekiJson, olay.YeniJson,
-                    Kisalt(olay.Gerekce), istekId is { } g && g != Guid.Empty ? g.ToString().ToUpperInvariant() : null, aktor.TraceId, olay.KilitAcmaOlayiId,
+                    Kisalt(olay.Gerekce ?? istekGerekcesi), istekId is { } g && g != Guid.Empty ? g.ToString().ToUpperInvariant() : null, aktor.TraceId, olay.KilitAcmaOlayiId,
                 ];
                 if (sira > 0) sql.Append(", ");
                 sql.Append('(');
@@ -86,6 +89,7 @@ public static class DenetimYazici
         return var;
     }
 
-    // Uçlar gerekçeyi 2000 karakterle sınırlar; iç yollardan gelen daha uzun metin kırpılır, kayıt reddedilmez.
+    // Uçlar gerekçeyi 2000 karakterle sınırlar; iç yollardan ve gerekçe başlığından gelen daha uzun metin kırpılır, kayıt
+    // reddedilmez.
     private static string? Kisalt(string? gerekce) => gerekce is { Length: > 2000 } ? gerekce[..2000] : gerekce;
 }

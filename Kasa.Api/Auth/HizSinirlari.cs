@@ -222,19 +222,24 @@ public static class HizSinirlari
         return Results.Json(new { hata = mesaj }, statusCode: StatusCodes.Status429TooManyRequests);
     }
 
-    /// <summary>Şifre doğrulama kuyruğu dolu: 429, Türkçe ileti ve kısa Retry-After (istemciler 429'u zaten gösterir).</summary>
+    /// <summary>Şifre doğrulama kuyruğu dolu: 429, Türkçe ileti ve kısa Retry-After (istemciler 429'u zaten gösterir). Giriş
+    /// filtresi bu 429'u hız sınırı reddinden ayırır (<see cref="GuvenlikOlaylari.GirisYogun"/>).</summary>
     public static IResult Yogun(HttpContext http)
     {
+        http.Items[YogunIsareti] = true;
         http.Response.Headers.RetryAfter = "5";
         return Results.Json(new { hata = "Sunucu şu anda yoğun: çok sayıda giriş isteği işleniyor. Birkaç saniye sonra yeniden deneyin." },
             statusCode: StatusCodes.Status429TooManyRequests);
     }
 
+    private static readonly object YogunIsareti = new();
+
     /// <summary>Kullanıcı adı gövdede olduğundan (IP, kullanıcı adı) ve IPv6 /48 sınırları bağlama sonrası uç
     /// filtresiyle uygulanır; IP başına genel pencere ('giris' politikası) ondan önce ara katmanda işler.
     /// Sonuç güvenlik olayı olarak yazılır (<see cref="GuvenlikOlaylari"/>): girişte başarılı/başarısız giriş, kurtarmada
     /// (<paramref name="kurtarma"/>) başarısız deneme (başarılı kurtarma ucun kendi transaction'ında yazılır); ikisinde de
-    /// 429. Olaya yalnız normalize kullanıcı adı girer.</summary>
+    /// 429 (bütçe reddi hız sınırı, doğrulama kuyruğu dolu ise yoğunluk olarak). Olaya yalnız bilinen hesabın normalize
+    /// kullanıcı adı girer; izleyici girişinde ad yazılmaz (izleyici şifresi addan bağımsızdır).</summary>
     public static RouteHandlerBuilder GirisSiniriUygula<T>(this RouteHandlerBuilder uc, Func<T, string?> kullanici, bool kurtarma = false) =>
         uc.RequireRateLimiting(Giris).AddEndpointFilter(async (baglam, sonraki) =>
         {
@@ -263,6 +268,9 @@ public static class HizSinirlari
         var db = http.RequestServices.GetRequiredService<KasaDbContext>();
         switch ((sonuc as IStatusCodeHttpResult)?.StatusCode)
         {
+            case StatusCodes.Status429TooManyRequests when http.Items.ContainsKey(YogunIsareti):
+                GuvenlikOlaylari.YogunYaz(http, ad);
+                break;
             case StatusCodes.Status429TooManyRequests:
                 GuvenlikOlaylari.HizSiniriYaz(http, kurtarma ? "kurtarma-butcesi" : "giris-butcesi", ad);
                 break;
@@ -278,7 +286,8 @@ public static class HizSinirlari
                     var normal = GirisSiniri.Normalize(ad);
                     aliciId = db.Alicilar.AsNoTracking().Where(a => a.Kullanici == normal).Select(a => (int?)a.Id).FirstOrDefault();
                 }
-                GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.GirisBasarili, ad, aktor: (rol ?? "anonim", aliciId), varlikId: aliciId?.ToString(CultureInfo.InvariantCulture));
+                GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.GirisBasarili, rol == "viewer" ? null : ad, aktor: (rol ?? "anonim", aliciId),
+                    varlikId: aliciId?.ToString(CultureInfo.InvariantCulture));
                 break;
         }
     }

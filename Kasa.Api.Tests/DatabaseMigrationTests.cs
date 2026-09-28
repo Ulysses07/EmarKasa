@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Core;
 using Microsoft.Data.Sqlite;
@@ -20,7 +21,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(42.75m, Assert.Single(db.Gelenler).TutarTl);
         Assert.Equal(125.50m, Assert.Single(db.Kanallar).AcilisDevri);
         Assert.Empty(db.Alislar);
@@ -38,7 +39,7 @@ public class DatabaseMigrationTests
         KasaDatabaseInitializer.Initialize(db);
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Empty(db.Islemler);
@@ -71,13 +72,13 @@ public class DatabaseMigrationTests
         Assert.Empty(db.KrediKartlari);
         Assert.Empty(db.Krediler);
         Assert.Empty(db.KartOdemeler);
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
 
         // Tekrar başlatma ne veri ne yeni migration kaydı üretir.
         KasaDatabaseInitializer.Initialize(db);
         Assert.Single(db.Islemler);
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal.Id, Assert.Single(db.Islemler).KanalId);
         Assert.Equal(50.02m, Assert.Single(db.KartOdemeler).Tutar);
         Assert.Equal(250.03m, Assert.Single(db.Gelenler).TutarTl);
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
 
         // Geçişten sonra da FK'nin SET NULL ve CASCADE davranışları korunur.
         Execute(connection, "DELETE FROM KrediKartlari;");
@@ -201,7 +202,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal, Scalar(connection, "SELECT Kanal FROM Gelenler WHERE Id = 14;"));
         Assert.Equal("2026-09-01", Scalar(connection, "SELECT DonemStart FROM Gelenler WHERE Id = 14;"));
         Assert.All(db.Gelenler, g => { Assert.True(g.EskiYinelenenGrup); Assert.Equal(7, g.KanalId); });
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
     }
 
@@ -324,7 +325,7 @@ public class DatabaseMigrationTests
 
             using var verified = new SqliteConnection(connectionString);
             using var verify = Context(verified);
-            Assert.Equal(14, verify.Database.GetAppliedMigrations().Count());
+            Assert.Equal(15, verify.Database.GetAppliedMigrations().Count());
             Assert.Single(verify.Kanallar);
             Assert.Single(verify.Islemler);
             Assert.Single(verify.Gelenler);
@@ -368,7 +369,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(14, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(once, Raporlar());
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
@@ -379,6 +380,99 @@ public class DatabaseMigrationTests
         db.Islemler.Add(new IslemEntity { Tarih = new(2026, 9, 2), Cari = "Göç sonrası", TutarTl = 20m, Kanal = "TOPTAN", KanalId = 2, Tip = GiderTipi.Cari });
         db.SaveChanges();
         Assert.Equal("Ekle|Islem|sistem", Scalar(connection, "SELECT Tur || '|' || Varlik || '|' || AktorRol FROM DenetimOlaylari;"));
+    }
+
+    /// <summary>
+    /// Göç öncesi saklanan gerekçeler ve önceki durumlar (aylık gider ve ekstre satırı iptal açıklamaları, alış ödemesi
+    /// düzeltme/iptalinin FinansIstekler.OncekiJson'u) 'sistem' aktörlü 'GecmisKayit' olaylarına aktarılır; kaynak tablolar
+    /// ve raporlar (haftalık, aylık, panel) göç öncesi ve sonrası birebir aynıdır. Kaydı zaten denetim izinde olan iptal ya
+    /// da istek (olay tablosu kurulduktan sonra yazılan) yeniden aktarılmaz.
+    /// </summary>
+    [Fact]
+    public void Denetim_gecmis_aktarimi_eski_gerekceleri_ve_onceki_durumu_olaya_tasir_raporlari_degistirmez()
+    {
+        using var connection = Open();
+        var saat = new ServiceCollection()
+            .AddSingleton<TimeProvider>(new SabitSaat(new DateOnly(2026, 4, 20))).BuildServiceProvider();
+        using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).UseApplicationServiceProvider(saat).Options);
+        db.GetService<IMigrator>().Migrate("20260930000100_DenetimOlaylari");
+        Execute(connection, """
+            INSERT INTO Kanallar (Id, Ad, Aktif, Sira, AcilisDevri) VALUES (1, 'MEZAT', 1, 0, '100.0'), (2, 'TOPTAN', 1, 1, '0');
+            INSERT INTO Ayarlar (TakipBaslangic, KasaAcilisDevri, IzleyiciSifreHash) VALUES ('2026-01-01', '1000.0', NULL);
+            INSERT INTO Gelenler (DonemStart, Kanal, KanalId, TutarTl) VALUES ('2026-03-02', 'MEZAT', 1, '48000.00'), ('2026-04-06', 'TOPTAN', 2, '2500.5');
+            INSERT INTO Islemler (Id, Tarih, Cari, TutarTl, Kanal, KanalId, Tip, "Not") VALUES (10, '2026-04-05', 'Kira', '15000', 'MEZAT', 1, 0, 'Nisan kirası');
+            INSERT INTO AylikGiderSablonlar (Id, Surum) VALUES (1, 1);
+            INSERT INTO AylikGiderRevizyonlar (Id, SablonId, Surum, GecerliAy, Ad, Tur, Tutar, OdemeGunu, DagilimTuru, DagilimJson, Aktif)
+                VALUES (1, 1, 1, '2026-01-01', 'Kira', 'Kira', '15000', 5, 'Genel', '[]', 1);
+            INSERT INTO AylikGiderOdemeler (Id, SablonId, RevizyonId, Ay, Tarih, Tutar, IslemId, Iptal, IptalAciklamasi) VALUES
+                (5, 1, 1, '2026-03-01', '2026-03-05', '15000.0', NULL, 1, 'Mart kirası yanlış aya girildi'),
+                (6, 1, 1, '2026-04-01', '2026-04-05', '15000.0', 10, 0, NULL);
+            INSERT INTO EkstreBelgeler (Id, Surum, Kaynak, Banka, HesapAdi, KartId, DosyaAdi, DosyaOzeti, Dosya, Yuklendi, SatirlarJson, UyarilarJson)
+                VALUES (1, 2, 'Kart', 'Banka', 'İş kartı', NULL, 'ekstre.pdf', 'ozet-1', X'255044462D', 1775000000000, '[]', '[]');
+            INSERT INTO EkstreKayitlar (Id, BelgeId, SatirNo, Tarih, Aciklama, Tutar, IslemTuru, DagilimTuru, DagilimJson, KrediKartiId, IslemId, KartHarcamaId, KartOdemeId, Iptal, IptalAciklamasi) VALUES
+                (7, 1, 3, '2026-04-02', 'MARKET ALIŞVERİŞİ', '245.9', 'Gider', 'Genel', '[]', NULL, NULL, NULL, NULL, 1, 'Mükerrer satır'),
+                (8, 1, 4, '2026-04-03', 'AKARYAKIT', '1200', 'Gider', 'Genel', '[]', NULL, NULL, NULL, NULL, 0, NULL);
+            INSERT INTO FinansIstekler (IstekId, Ozet, Tur, SonucId, OncekiJson) VALUES
+                ('11111111-2222-3333-4444-555555555555', 'ozet-1', 'OdemeIptal', 3, '{"aciklama":"Yanlış tedarikçiye girildi","alis":{"Id":3,"Tedarikci":"Toptancı","Odemeler":[{"Id":9,"Tutar":2500.5}]}}'),
+                ('66666666-7777-8888-9999-AAAAAAAAAAAA', 'ozet-2', 'AlisOdeme', 3, NULL);
+            """);
+        // Olay tablosu kurulduktan sonra yazılan iptal ve istek kendi olaylarıyla zaten izdedir.
+        db.AylikGiderOdemeler.Add(new AylikGiderOdemeEntity { SablonId = 1, RevizyonId = 1, Ay = new(2026, 2, 1), Tarih = new(2026, 2, 5), Tutar = 15000m, Iptal = true, IptalAciklamasi = "Şubat mükerrer" });
+        db.SaveChanges();
+        var sonrakiIstek = Guid.NewGuid();
+        db.FinansIstekler.Add(new FinansIstekEntity { IstekId = sonrakiIstek, Ozet = "ozet-3", Tur = "OdemeIptal", SonucId = 4, OncekiJson = """{"aciklama":"Sürüm sonrası","alis":{"Id":4}}""" });
+        db.Islemler.Add(new IslemEntity { Tarih = new(2026, 4, 10), Cari = "Sürüm sonrası", TutarTl = 20m, Kanal = "TOPTAN", KanalId = 2, Tip = GiderTipi.Cari });
+        db.SaveChanges();
+        Assert.Equal(2L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
+        string[] tablolar = ["AylikGiderOdemeler", "EkstreKayitlar", "EkstreBelgeler", "FinansIstekler", "Islemler", "Gelenler"];
+        var kaynak = Dokum(connection, tablolar);
+        var once = RaporOzeti(db, (2026, 3), (2026, 4));
+        var baslangic = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        KasaDatabaseInitializer.Initialize(db);
+
+        var bitis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Contains("20260930000200_DenetimGecmisAktarimi", db.Database.GetAppliedMigrations());
+        Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Equal(once, RaporOzeti(db, (2026, 3), (2026, 4)));
+        Assert.Equal(kaynak, Dokum(connection, tablolar));
+
+        var aktarilan = db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == "GecmisKayit").OrderBy(o => o.Id).ToList();
+        Assert.Equal([("AylikGiderOdeme", "5"), ("EkstreKayit", "7"), ("Alis", "3")], aktarilan.Select(o => (o.Varlik, o.VarlikId!)));
+        Assert.All(aktarilan, o =>
+        {
+            Assert.Equal("sistem", o.AktorRol); Assert.Null(o.AktorId); Assert.Null(o.IstemciIp); Assert.Null(o.TraceId); Assert.Null(o.KilitAcmaOlayiId);
+            // Zaman aktarım anıdır: değişikliğin kendi zamanı eski sürümde tutulmuyordu.
+            Assert.InRange(o.ZamanUtc, baslangic - 1000, bitis + 1000);
+        });
+
+        var aylik = aktarilan[0];
+        Assert.Equal("Mart kirası yanlış aya girildi", aylik.Gerekce);
+        Assert.Null(aylik.OncekiJson);
+        var aylikDurum = JsonNode.Parse(aylik.YeniJson!)!;
+        Assert.Equal(("2026-03-01", "2026-03-05", 15000m, true), ((string?)aylikDurum["Ay"], (string?)aylikDurum["Tarih"], aylikDurum["Tutar"]!.GetValue<decimal>(), aylikDurum["Iptal"]!.GetValue<bool>()));
+        Assert.Equal((1, 1, "Mart kirası yanlış aya girildi"), (aylikDurum["SablonId"]!.GetValue<int>(), aylikDurum["RevizyonId"]!.GetValue<int>(), (string?)aylikDurum["IptalAciklamasi"]));
+        Assert.Null(aylikDurum["IslemId"]);
+
+        var ekstre = aktarilan[1];
+        Assert.Equal("Mükerrer satır", ekstre.Gerekce);
+        var ekstreDurum = JsonNode.Parse(ekstre.YeniJson!)!;
+        Assert.Equal(("MARKET ALIŞVERİŞİ", 245.9m, 1, 3, "2026-04-02"), ((string?)ekstreDurum["Aciklama"], ekstreDurum["Tutar"]!.GetValue<decimal>(),
+            ekstreDurum["BelgeId"]!.GetValue<int>(), ekstreDurum["SatirNo"]!.GetValue<int>(), (string?)ekstreDurum["Tarih"]));
+        Assert.True(ekstreDurum["Iptal"]!.GetValue<bool>());
+
+        var alis = aktarilan[2];
+        Assert.Equal(("Yanlış tedarikçiye girildi", Guid.Parse("11111111-2222-3333-4444-555555555555")), (alis.Gerekce, alis.IstekId));
+        var alisOnceki = JsonNode.Parse(alis.OncekiJson!)!;
+        Assert.Equal(("Toptancı", 2500.5m), ((string?)alisOnceki["Tedarikci"], alisOnceki["Odemeler"]![0]!["Tutar"]!.GetValue<decimal>()));
+        Assert.Equal("OdemeIptal", (string?)JsonNode.Parse(alis.YeniJson!)!["IstekTuru"]);
+
+        // Olay tablosundan sonra yazılanlar yeniden aktarılmadı (iki eski olay + üç aktarım); yeniden başlatma aktarmaz.
+        Assert.Equal(5L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
+        Assert.Equal(1, db.DenetimOlaylari.Count(o => o.IstekId == sonrakiIstek));
+        KasaDatabaseInitializer.Initialize(db);
+        Assert.Equal(5L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
     }
 
     [Fact]
@@ -434,6 +528,31 @@ public class DatabaseMigrationTests
         INSERT INTO Islemler VALUES (11, '2026-09-01', 'Firma', '345.67', 'MEZAT', 0, 'Özgün açıklama');
         INSERT INTO Gelenler VALUES (12, '2026-09-01', 'MEZAT', '2000.25');
         """);
+
+    /// <summary>Haftalık, panel ve verilen ayların aylık raporu (bağlamın sabit saatiyle), JSON olarak.</summary>
+    private static string RaporOzeti(KasaDbContext db, params (int Yil, int Ay)[] aylar)
+    {
+        var hesap = new Kasa.Api.Servisler.HesapServisi(db);
+        var raporlar = new List<object> { hesap.Haftalik(), hesap.Panel() };
+        raporlar.AddRange(aylar.Select(a => (object)hesap.Aylik(a.Yil, a.Ay)));
+        return System.Text.Json.JsonSerializer.Serialize(raporlar, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+    }
+
+    /// <summary>Tabloların bütün satır ve sütunları, saklama türüyle (kimliğe göre sıralı).</summary>
+    private static string Dokum(SqliteConnection connection, IEnumerable<string> tablolar)
+    {
+        var satirlar = new List<string>();
+        foreach (var tablo in tablolar)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT * FROM \"{tablo}\" ORDER BY Id;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                satirlar.Add(tablo + ": " + string.Join(" | ", Enumerable.Range(0, reader.FieldCount).Select(i => reader.IsDBNull(i) ? "NULL"
+                    : reader.GetDataTypeName(i) + ":" + (reader.GetValue(i) is byte[] b ? Convert.ToHexString(b) : Convert.ToString(reader.GetValue(i), System.Globalization.CultureInfo.InvariantCulture)))));
+        }
+        return string.Join("\n", satirlar);
+    }
 
     private static void Execute(SqliteConnection connection, string sql)
     {

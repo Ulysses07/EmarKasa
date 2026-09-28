@@ -5,7 +5,8 @@ namespace Kasa.Api.Denetim;
 
 /// <summary>Değişiklik geçmişi satırı. <paramref name="OncekiJson"/>/<paramref name="YeniJson"/>: değişiklikte yalnız değişen
 /// alanlar, eklemede/silmede bütün alanlar; gizli alanlar '***'. <paramref name="KilitAcmaOlayiId"/>: değişiklik bir ay
-/// kilidi açılışının penceresine düştüyse o açılışın kilit olayı (AyKilidiOlayDto.Id).</summary>
+/// kilidi açılışının penceresine düştüyse o açılışın kilit olayı (AyKilidiOlayDto.Id). <paramref name="Tur"/> 'GecmisKayit':
+/// denetim izinden önceki sürümün sakladığı gerekçe ve önceki durum (Migrations/DenetimGecmisAktarimi); zamanı aktarım anıdır.</summary>
 public record DenetimOlayDto(int Id, DateTimeOffset Zaman, string AktorRol, int? AktorId, string? IstemciIp, string Tur, string Varlik,
     string? VarlikId, string? OncekiJson, string? YeniJson, string? Gerekce, Guid? IstekId, string? TraceId, int? KilitAcmaOlayiId);
 
