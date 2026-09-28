@@ -1,6 +1,7 @@
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
 
@@ -14,7 +15,12 @@ public static class YonetimEndpoints
             indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
             notlar = "Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü."
         }));
-        app.MapGet("/api/yedek/durum", (YedekServisi yedek) => Results.Ok(yedek.Durum())).RequireAuthorization("Editor");
+        // Son geri yüklemenin anı ve raporu (SistemDurumu) sonda, opsiyonel: eski istemci yok sayar.
+        app.MapGet("/api/yedek/durum", (YedekServisi yedek, KasaDbContext db) =>
+        {
+            var geri = db.SistemDurumu.AsNoTracking().Where(s => s.Id == 1).Select(s => new { s.SonGeriYukleme, s.GeriYuklemeRaporu }).FirstOrDefault();
+            return Results.Ok(yedek.Durum() with { SonGeriYukleme = geri?.SonGeriYukleme, GeriYuklemeRaporu = GeriYuklemeIsleyici.RaporuOku(geri?.GeriYuklemeRaporu) });
+        }).RequireAuthorization("Editor");
         // Ayrı ve sıkı hız politikası: kullanıcı + IP başına saatte 5 (üretim); 'guvenlik' kovasını tüketmez.
         app.MapPost("/api/yedek", async (KasaDbContext db, YedekServisi yedek, HttpContext http) =>
         {

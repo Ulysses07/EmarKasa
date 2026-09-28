@@ -1,3 +1,4 @@
+using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Denetim;
 using Microsoft.EntityFrameworkCore;
@@ -17,11 +18,26 @@ public static class AyKilidiEndpoints
         var api = app.MapGroup("/api/ay-kilidi").RequireAuthorization("Finans");
         // Okuma: kilit durumu ve geçmişi aynı salt okunur anlık görüntüden; yazma kilidi alınmaz.
         api.MapGet("", (KasaDbContext db) => AlisEndpoints.Oku(db, () => Results.Ok(Read(db))));
-        api.MapPost("/kapat", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat) => Change(db, saat, d, false)).RequireAuthorization("Editor");
-        api.MapPost("/ac", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat) => Change(db, saat, d, true)).RequireAuthorization("Editor");
+        api.MapPost("/kapat", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat, GuvenlikGunlugu gunluk) => Change(db, saat, gunluk, d, false)).RequireAuthorization("Editor");
+        api.MapPost("/ac", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat, GuvenlikGunlugu gunluk) => Change(db, saat, gunluk, d, true)).RequireAuthorization("Editor");
         return app;
     }
-    private static IResult Change(KasaDbContext db, TimeProvider saat, AyKilidiYaz d, bool reopen) => Run(db, () =>
+    /// <summary>Kilit kararı commit edildikten sonra veritabanı dışındaki güvenlik günlüğüne de yazılır (önceki ve yeni kilitli son tarih,
+    /// açıklamanın başı); tekrar isteği ve reddedilen istek yazılmaz.</summary>
+    private static IResult Change(KasaDbContext db, TimeProvider saat, GuvenlikGunlugu gunluk, AyKilidiYaz d, bool reopen)
+    {
+        (DateOnly? Onceki, DateOnly? Yeni, string Aciklama)? degisim = null;
+        var sonuc = Change(db, saat, d, reopen, (o, y, a) => degisim = (o, y, a));
+        if (degisim is { } g && sonuc is not IStatusCodeHttpResult { StatusCode: >= 400 })
+            gunluk.Yaz(reopen ? GuvenlikGunlugu.AyKilidiAcildi : GuvenlikGunlugu.AyKilidiKapatildi, ayrinti: new
+            {
+                onceki = g.Onceki?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                yeni = g.Yeni?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                aciklama = g.Aciklama.Length > 200 ? g.Aciklama[..200] : g.Aciklama,
+            });
+        return sonuc;
+    }
+    private static IResult Change(KasaDbContext db, TimeProvider saat, AyKilidiYaz d, bool reopen, Action<DateOnly?, DateOnly?, string> degisti) => Run(db, () =>
     {
         Text(d.Aciklama); var month = Month(d.Yil, d.Ay);
         // Kapatmadan önceki bakım (Sync) değişiklikleri de bu isteğin gerekçesini ve kimliğini taşır.
@@ -66,6 +82,7 @@ public static class AyKilidiEndpoints
             AyRaporAnlikGoruntusu.Kilitlendi(db, previous, next.Value, now);
         }
         db.SaveChanges();
+        degisti(previous, next, olay.Aciklama);
         return Results.Ok(Read(db));
     });
     private static AyKilidiDto Read(KasaDbContext db)

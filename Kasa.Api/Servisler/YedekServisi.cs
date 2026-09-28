@@ -16,11 +16,13 @@ namespace Kasa.Api.Servisler;
 /// <see cref="RotasyonUyarisi"/>: son rotasyonda silinemeyen eski yedek (yedeğin kendisi başarılıdır, <see cref="Hata"/> boş kalır).
 /// Disk alanları (data-3; okunamazsa null): yedek dizininin ve belge deposunun (veri) diskindeki boş alan, servis yedeklerinin ve
 /// yedek aynasının toplam boyutu, yedekten sonra kalması gereken asgari boş alan. <see cref="DiskUyarisi"/>: boş alan asgarinin
-/// altında ya da toplam boyut sınırı aşıldı. <see cref="BelgeUyarisi"/>: son yedekte bulunamayan belge içerikleri.</summary>
+/// altında ya da toplam boyut sınırı aşıldı. <see cref="BelgeUyarisi"/>: son yedekte bulunamayan belge içerikleri.
+/// <see cref="SonGeriYukleme"/>, <see cref="GeriYuklemeRaporu"/> (gap-geri-yukleme-durum-geri-sarma-1): son geri yüklemenin anı ve
+/// açılışta yapılanlarla yapılması gerekenlerin Türkçe maddeleri (SistemDurumu); hiç geri yükleme olmadıysa null.</summary>
 public record YedekDurumu(bool OtomatikEtkin, DateTimeOffset? SonYedek, DateTimeOffset? SonDogrulama, string? Hata,
     DateTimeOffset? SonOtomatikYedek, int OtomatikYedekSayisi, DateTimeOffset? SonElleYedek, int ElleYedekSayisi, string? RotasyonUyarisi = null,
     long? YedekDiskiBosAlanBayt = null, long? VeriDiskiBosAlanBayt = null, long? ToplamYedekBayt = null, long? AsgariBosAlanBayt = null,
-    string? DiskUyarisi = null, string? BelgeUyarisi = null);
+    string? DiskUyarisi = null, string? BelgeUyarisi = null, DateTimeOffset? SonGeriYukleme = null, IReadOnlyList<string>? GeriYuklemeRaporu = null);
 
 /// <summary>Saklama süresi dolan yedeği siler. Kayıt yoksa <see cref="File.Delete"/>; testler hata yolunu işletim
 /// sisteminin dosya kilidine bağlı kalmadan sınamak için kendi işlevini kaydeder.</summary>
@@ -269,7 +271,10 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             try
             {
                 DiskDenetimi(source);
-                TekDosyaKopyala(source, temporary, ct);
+                // Kopya, kopyalamanın başladığı anı (manifest 'olusturuldu' ile aynı) yedek anı olarak taşır: geri yüklemede güvenlik
+                // günlüğünün bu andan sonraki olayları yeniden uygulanır. Başlangıç anı güvenli yöndedir: kopya sürerken kaydedilen bir
+                // değişiklik yedekte olsa da yeniden uygulanır (fazladan sıkılaştırma), yedekte olmayan hiçbir değişiklik atlanmaz.
+                TekDosyaKopyala(source, temporary, ct, now);
             }
             finally { if (close) source.Close(); }
             // Yedek, özgün bağlantıdan bağımsız açılıp bütünlük ve ilişkiler sınanır.
@@ -702,8 +707,10 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     /// salt okunur doğrulama ve restore aracı -wal/-shm olmadan açar): kopya geri alma günlüğü kipine çevrilir.
     /// Kopya geri yükleme işaretini taşır (<c>PRAGMA user_version</c> = <see cref="GeriYuklemeIsleyici.Isaret"/>; canlı dosyada 0):
     /// bu dosyayla açılan uygulama geri yüklemeyi tanır, oturumları ve izleyici girişini kapatıp kimlikleri ileri alır. İşaret
-    /// sabittir, aynı kaynağın kopyaları yine aynı özeti verir (göç öncesi yedeğin tekrar denetimi); özet işaretten sonra alınır.</summary>
-    private static void TekDosyaKopyala(SqliteConnection kaynak, string hedefYol, CancellationToken ct)
+    /// sabittir, aynı kaynağın kopyaları yine aynı özeti verir (göç öncesi yedeğin tekrar denetimi); özet işaretten sonra alınır.
+    /// <paramref name="yedekZamani"/> verilirse kopyanın SistemDurumu satırına yedek anı yazılır (canlı dosyaya değil); göç öncesi
+    /// yedek vermez (aynı kaynağın kopyası aynı özeti vermeli), onun anını restore_backup.py manifestten yazar.</summary>
+    private static void TekDosyaKopyala(SqliteConnection kaynak, string hedefYol, CancellationToken ct, DateTimeOffset? yedekZamani = null)
     {
         using var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = hedefYol, Pooling = false }.ToString());
         target.Open();
@@ -712,6 +719,15 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         mode.CommandText = "PRAGMA journal_mode = DELETE;";
         mode.ExecuteNonQuery();
         mode.CommandText = $"PRAGMA user_version = {GeriYuklemeIsleyici.Isaret.ToString(CultureInfo.InvariantCulture)};";
+        mode.ExecuteNonQuery();
+        if (yedekZamani is not { } an) return;
+        mode.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'SistemDurumu';";
+        if (mode.ExecuteScalar() is null) return;
+        mode.CommandText = """
+            INSERT INTO "SistemDurumu" ("Id", "OturumDonemi", "YedekZamani") VALUES (1, '', $an)
+            ON CONFLICT ("Id") DO UPDATE SET "YedekZamani" = excluded."YedekZamani";
+            """;
+        mode.Parameters.AddWithValue("$an", an);
         mode.ExecuteNonQuery();
     }
 

@@ -18,7 +18,8 @@ public static class EditorGuvenligi
 
     /// <summary>Editör oturum damgasının kaynağı. Ortam şifresiyle çalışan editörün kaydı yalnız kurtarma kodu üretiminde (sürüm 0)
     /// ya da geri yüklemede (<see cref="GeriYuklemeIsleyici"/>, sürüm artar) oluşur; sürüm 0'dan büyükse damgaya girer. Böylece
-    /// geri yükleme ortam şifresindeki editörün eski oturumlarını da kapatır; bugünkü oturumlar bu değişiklikle düşmez.</summary>
+    /// geri yükleme ortam şifresindeki editörün eski oturumlarını da kapatır; bugünkü oturumlar bu değişiklikle düşmez. Geri yükleme
+    /// güvenlik günlüğünde yedekten sonraki bir şifre değişikliği bulursa şifre özetini siler: giriş yeniden ortam şifresiyledir.</summary>
     public static string Kaynak(IConfiguration cfg, EditorGuvenlikEntity? kayit) =>
         kayit?.SifreHash is { } hash
             ? $"editor\n{cfg["Kasa:EditorKullanici"]}\n{hash}\n{kayit.Surum}"
@@ -28,7 +29,7 @@ public static class EditorGuvenligi
 
     public static WebApplication MapGuvenlikEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/auth/sifre", (SifreDegistir dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz) =>
+        app.MapPost("/api/auth/sifre", (SifreDegistir dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz, GuvenlikGunlugu gunluk) =>
         {
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
             using var tx = db.Database.BeginTransaction();
@@ -48,14 +49,16 @@ public static class EditorGuvenligi
             // şifre değişti ise olay da vardır. Eski oturumlar ve kurtarma kodu düşer.
             GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegisti, cfg["Kasa:EditorKullanici"], new { oturumlarKapatildi = true, kurtarmaKoduGecersiz = true }, varlikId: "1", zorunlu: true);
             tx.Commit();
+            // Veritabanı dışındaki iz: yedekten geri yüklenirse yedekteki eski şifre geçersiz kılınır (GeriYuklemeIsleyici).
+            gunluk.Yaz(GuvenlikGunlugu.EditorSifresiDegisti, kullanici: cfg["Kasa:EditorKullanici"]);
             http.Response.Cookies.Delete("kasa_auth");
             // Eski tanıdık cihaz belirteçleri damgayla düşer; işlemi yapan cihaz yenisini alır (saldırı sürerken
             // şifresini değiştiren editör kendi cihazından yeniden girebilir).
-            tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg));
+            tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg, db));
             return Results.NoContent();
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
-        app.MapPost("/api/auth/kurtarma-kodu", (KurtarmaOlustur dto, KasaDbContext db, IConfiguration cfg, HttpContext http) =>
+        app.MapPost("/api/auth/kurtarma-kodu", (KurtarmaOlustur dto, KasaDbContext db, IConfiguration cfg, HttpContext http, GuvenlikGunlugu gunluk) =>
         {
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
@@ -71,10 +74,11 @@ public static class EditorGuvenligi
             // Kod yalnız yanıtta bir kez döner; olaya kod da özeti de yazılmaz. Olay yazılamazsa yeni kod kaydedilmez (zorunlu).
             GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretildi, cfg["Kasa:EditorKullanici"], new { oncekiKodGecersiz = true }, varlikId: "1", zorunlu: true);
             tx.Commit();
+            gunluk.Yaz(GuvenlikGunlugu.KurtarmaKoduUretildi, kullanici: cfg["Kasa:EditorKullanici"]);
             return Results.Ok(new { kod });
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
-        app.MapPost("/api/auth/kurtar", (SifreKurtar dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz) =>
+        app.MapPost("/api/auth/kurtar", (SifreKurtar dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz, GuvenlikGunlugu gunluk) =>
         {
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
             if (dto.Kod is null || dto.Kod.Length > 200) return KurtarmaHatali();
@@ -91,9 +95,10 @@ public static class EditorGuvenligi
             // başarısız deneme ve 429 giriş filtresinde.
             GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKullanildi, dto.Kullanici, new { oturumlarKapatildi = true }, varlikId: "1", zorunlu: true);
             tx.Commit();
+            gunluk.Yaz(GuvenlikGunlugu.KurtarmaKullanildi, kullanici: dto.Kullanici);
             http.Response.Cookies.Delete("kasa_auth");
             // Kurtarma kodu editör şifresi kadar güçlü bir kanıttır: kurtaran cihaz tanıdık cihaz olur.
-            tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg));
+            tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg, db));
             return Results.NoContent();
         }).GirisSiniriUygula<SifreKurtar>(d => d.Kullanici, kurtarma: true);
         return app;

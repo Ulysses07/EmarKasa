@@ -128,6 +128,8 @@ public sealed class SabitSaat(DateTimeOffset an) : TimeProvider
 
     public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref _utcTicks), TimeSpan.Zero);
     public void Ayarla(DateOnly gun) => Interlocked.Exchange(ref _utcTicks, Oglen(gun).UtcTicks);
+    /// <summary>Saati verilen süre kadar ileri alır (aynı gün içinde sıralı olaylar için).</summary>
+    public void Ilerlet(TimeSpan sure) => Interlocked.Add(ref _utcTicks, sure.Ticks);
 
     private static DateTimeOffset Oglen(DateOnly gun) =>
         new(TimeZoneInfo.ConvertTimeToUtc(gun.ToDateTime(new TimeOnly(12, 0)), KasaSaati.Istanbul), TimeSpan.Zero);

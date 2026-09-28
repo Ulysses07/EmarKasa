@@ -1,10 +1,12 @@
-"""deploy/restore_backup.py sınamaları (gap-geri-yukleme-durum-geri-sarma-2, -6): geri yükleme işareti, zorunlu sonraki
-adımlar, sunucuyla ortak sabitler ve var olan reddetme kuralları.
+"""deploy/restore_backup.py sınamaları (gap-geri-yukleme-durum-geri-sarma-1, -2, -6): geri yükleme işareti ve yedek anı,
+zorunlu sonraki adımlar, sunucuyla ortak sabitler ve var olan reddetme kuralları.
 
 Çalıştırma (depo kökünden): python3 -m unittest discover -s deploy/tests -v
 Ağ ve sunucu gerekmez. Uygulamanın yedekleri kasa.db başlığında geri yükleme işareti (PRAGMA user_version) taşır;
 bu sürümden önceki yedekler taşımaz ve araç onları geri açarken işaretler. Uygulama işaretli dosyayla ilk açılışta
 oturumları ve izleyici girişini kapatır, kimlikleri ileri alır (Kasa.Api.Tests/GeriYuklemeTests uçtan uca sınar).
+Araç her yedekte manifestteki yedek anını işaret tablosuna (GERI_YUKLEME_TABLOSU) yazar; uygulama güvenlik günlüğünü o
+andan keser.
 """
 import contextlib
 import hashlib
@@ -36,16 +38,18 @@ def veritabani(yol, user_version=0):
         db.commit()
 
 
-def yedek_zip(dizin, user_version=0, ozet_boz=False, ad="kasa-oto-20260927-030000-0a1b2c3d.zip"):
-    """Sunucunun yazdığı biçimde yedek ZIP'i (kasa.db + manifest.json)."""
+def yedek_zip(dizin, user_version=0, ozet_boz=False, ad="kasa-oto-20260927-030000-0a1b2c3d.zip", olusturuldu="2026-09-27T03:00:00+00:00"):
+    """Sunucunun yazdığı biçimde yedek ZIP'i (kasa.db + manifest.json); olusturuldu None ise manifestte yedek anı yoktur."""
     dizin = Path(dizin)
     gecici = dizin / (".db-" + ad)
     veritabani(gecici, user_version)
     veri = gecici.read_bytes()
     gecici.unlink()
-    manifest = {"surum": "2.1.0", "olusturuldu": "2026-09-27T03:00:00+00:00", "tur": "otomatik",
+    manifest = {"surum": "2.1.0", "olusturuldu": olusturuldu, "tur": "otomatik",
                 "sha256": "0" * 64 if ozet_boz else hashlib.sha256(veri).hexdigest().upper(),
                 "belgelerDahil": True, "bildirimAnahtariDahil": False, "bildirimAnahtariSha256": None}
+    if olusturuldu is None:
+        del manifest["olusturuldu"]
     yol = dizin / ad
     with zipfile.ZipFile(yol, "w") as z:
         z.writestr("kasa.db", veri)
@@ -87,6 +91,14 @@ def user_version(yol):
         return db.execute("PRAGMA user_version").fetchone()[0]
 
 
+def isaret_tablosu(yol):
+    """Geri yükleme işaret tablosunun satırları; tablo yoksa None."""
+    with closing(sqlite3.connect(str(yol))) as db:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (rb.GERI_YUKLEME_TABLOSU,)).fetchone():
+            return None
+        return db.execute('SELECT "YedekZamani", "Arac" FROM "{}"'.format(rb.GERI_YUKLEME_TABLOSU)).fetchall()
+
+
 def geri_ac(zip_yolu, cikti):
     """Aracı çalıştırır, standart çıktısını döner."""
     tampon = io.StringIO()
@@ -121,9 +133,26 @@ class GeriYuklemeIsaretiTests(unittest.TestCase):
         self.assertEqual(rb.GERI_YUKLEME_ISARETI, user_version(cikti))
         self.assertNotIn("işaretsiz", metin)
 
+    def test_yedek_ani_eski_ve_isaretli_yedekte_isaret_tablosuna_yazilir(self):
+        for i, surum in enumerate((0, rb.GERI_YUKLEME_ISARETI)):
+            cikti = self.dizin / "kasa-{}.db".format(i)
+            geri_ac(yedek_zip(self.dizin, user_version=surum, ad="kasa-oto-2026092{}-030000-0a1b2c3d.zip".format(i)), cikti)
+            self.assertEqual([("2026-09-27T03:00:00+00:00", "restore_backup.py")], isaret_tablosu(cikti))
+            with closing(sqlite3.connect(str(cikti))) as db:
+                self.assertEqual([("ok",)], db.execute("PRAGMA integrity_check").fetchall())
+
+    def test_manifestte_yedek_ani_yoksa_tablo_yazilmaz_isaret_yazilir(self):
+        cikti = self.dizin / "kasa.db"
+        geri_ac(yedek_zip(self.dizin, olusturuldu=None), cikti)
+        self.assertIsNone(isaret_tablosu(cikti))
+        self.assertEqual(rb.GERI_YUKLEME_ISARETI, user_version(cikti))
+
     def test_zorunlu_sonraki_adimlar_ve_yedek_ani_yazilir(self):
         metin = geri_ac(yedek_zip(self.dizin), self.dizin / "kasa.db")
         self.assertIn("ZORUNLU", metin)
+        self.assertIn("KASA_EDITOR_SIFRE", metin)
+        self.assertIn("kurtarma kodu iptal edilir", metin)
+        self.assertIn("guvenlik-gunlugu.jsonl", metin)
         self.assertIn("YENİ bir izleyici şifresi", metin)
         self.assertIn("izleyici girişi kapatılır", metin)
         self.assertIn("1.000.000 ileri", metin)
@@ -169,6 +198,8 @@ class BelgeDeposuBicimiTests(unittest.TestCase):
         for b in self.BELGELER:
             self.assertEqual(b, self.belge(b).read_bytes())
         self.assertEqual(rb.GERI_YUKLEME_ISARETI, user_version(self.cikti / "kasa.db"))
+        # Belge deposu biçiminde de yedek anı işaret tablosundadır.
+        self.assertEqual([("2026-10-03T03:00:00+00:00", "restore_backup.py")], isaret_tablosu(self.cikti / "kasa.db"))
 
     def test_sunucu_yedegi_yedek_aynasiyla_acilir_aynasiz_reddedilir(self):
         yol = depolu_zip(self.dizin, self.BELGELER, ayna=self.dizin / "ayna")

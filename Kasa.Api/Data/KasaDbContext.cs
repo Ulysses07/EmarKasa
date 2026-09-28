@@ -115,6 +115,7 @@ public partial class KasaDbContext : DbContext
         ConfigureMonthlyReportSnapshots(b);
         ConfigureDenetim(b);
         ConfigureMonthlyChannelSets(b);
+        ConfigureSistemDurumu(b);
     }
 
     partial void ConfigureOperations(ModelBuilder b);
@@ -125,4 +126,5 @@ public partial class KasaDbContext : DbContext
     partial void ConfigureMonthlyReportSnapshots(ModelBuilder b);
     partial void ConfigureDenetim(ModelBuilder b);
     partial void ConfigureMonthlyChannelSets(ModelBuilder b);
+    partial void ConfigureSistemDurumu(ModelBuilder b);
 }

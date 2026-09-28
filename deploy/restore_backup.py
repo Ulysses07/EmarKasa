@@ -32,13 +32,18 @@ Araç geri açtığı dosyayı -wal/-shm gerektirmeyen tek dosya (geri alma gün
 uygulardı. Canlı dosyayı değiştirirken uygulamayı durdurun, eski kasa.db-wal ve kasa.db-shm dosyalarını
 kasa.db ile birlikte kenara alın; uygulama ilk açılışta dosyayı yeniden WAL kipine alır.
 
-Geri yükleme işareti: Geri yükleme veritabanındaki bütün durumu yedek anına sarar (izleyici şifresi, oturum
-iptalleri, kayıt numarası sayaçları, kayıt sürümleri). Uygulamanın yedekleri SQLite başlığında geri yükleme
-işareti taşır (PRAGMA user_version = GERI_YUKLEME_ISARETI; canlı dosyada 0); araç işaretsiz (bu sürümden önce
-alınmış) yedeği geri açarken işaretler. Uygulama işaretli dosyayla ilk açılışta, HTTP açılmadan: bütün oturumları
-(editör, izleyici, alıcı, tanıdık cihaz) kapatır, izleyici girişini editör yeni izleyici şifresi belirleyene kadar
-kapatır, kayıt numarası sayaçlarını KIMLIK_ARALIGI ileri alır, işareti siler ve değişiklik geçmişine
-GeriYuklemeIslendi olayı yazar. Yedeği ZIP'ten elle çıkarmayın; her zaman bu aracı kullanın.
+Geri yükleme işareti: Geri yükleme veritabanındaki bütün durumu yedek anına sarar (editör şifresi ve kurtarma kodu,
+izleyici şifresi, alıcı hesapları, oturum iptalleri, bildirim abonelikleri, kayıt numarası sayaçları, kayıt
+sürümleri). Uygulamanın yedekleri SQLite başlığında geri yükleme işareti taşır (PRAGMA user_version =
+GERI_YUKLEME_ISARETI; canlı dosyada 0); araç işaretsiz (bu sürümden önce alınmış) yedeği geri açarken işaretler.
+Araç her yedekte (eski biçimler dahil) manifestteki yedek anını ('olusturuldu') GERI_YUKLEME_TABLOSU tablosuna
+yazar: uygulama veritabanı dışındaki güvenlik günlüğünün (yedek dizininde guvenlik-gunlugu.jsonl) bu andan sonraki
+olaylarını yeniden uygular. Uygulama işaretli dosyayla ilk açılışta, HTTP açılmadan: yeni oturum dönemi açar
+(bütün oturumlar ve tanıdık cihazlar geçersiz), kurtarma kodunu, izleyici girişini ve cihaz bildirim kayıtlarını
+kapatır, yedekten sonra değiştirilen editör şifresini geçersiz kılar (giriş ortamdaki KASA_EDITOR_SIFRE ile),
+yedekten sonra pasife alınan ya da şifresi değişen alıcıları pasif bırakır, kayıt numarası sayaçlarını
+KIMLIK_ARALIGI ileri alır, işaretleri siler, raporunu Araçlar/Güvenlik ekranına ve değişiklik geçmişine
+(GeriYuklemeIslendi) yazar. Yedeği ZIP'ten elle çıkarmayın; her zaman bu aracı kullanın.
 ZORUNLU sonraki adımlar: operasyon-runbook.md "Geri yüklemeden sonra".
 
 Doğrulama: python3 -m doctest restore_backup.py
@@ -54,9 +59,10 @@ import sqlite3
 import tempfile
 import zipfile
 
-# Kasa.Api/Auth/GeriYuklemeIsleyici.cs: Isaret ve KimlikAraligi ile aynı olmalıdır (iki tarafta da sınanır).
+# Kasa.Api/Auth/GeriYuklemeIsleyici.cs: Isaret, KimlikAraligi ve IsaretTablosu ile aynı olmalıdır (iki tarafta da sınanır).
 GERI_YUKLEME_ISARETI = 0x4B534759
 KIMLIK_ARALIGI = 1_000_000
+GERI_YUKLEME_TABLOSU = "__KasaGeriYukleme"
 
 _BELGE_OZETI = re.compile(r"^[0-9A-F]{64}$")
 BELGE_LISTESI = "belgeler.json"
@@ -139,26 +145,36 @@ def rollback_kipine_al(path: Path) -> None:
             raise ValueError("Yedek kopyası tek dosya kipine çevrilemedi.")
 
 
-def isaretle(path: Path) -> bool:
-    """Veritabanı başlığına geri yükleme işaretini (PRAGMA user_version) yazar; zaten işaretliyse dokunmaz.
+def isaretle(path: Path, yedek_ani=None) -> bool:
+    """Veritabanı başlığına geri yükleme işaretini (PRAGMA user_version) yazar; zaten işaretliyse başlığa dokunmaz.
     Uygulamanın yedekleri işaretlidir; işaretsiz olan bu sürümden önce alınmış yedektir. İşaret yazıldıysa True.
+    yedek_ani (manifestteki 'olusturuldu' metni) verilirse GERI_YUKLEME_TABLOSU'na tek satır olarak yazılır (eski biçimli
+    yedekler dahil): uygulama güvenlik günlüğünün bu andan sonraki olaylarını yeniden uygular, sonra tabloyu düşürür.
+    Yazdıktan sonra SQLite hızlı bütünlük denetimi yapılır.
 
     >>> import tempfile, sqlite3
     >>> d = Path(tempfile.mkdtemp())
     >>> with closing(sqlite3.connect(d / "eski.db")) as db:
     ...     _ = db.execute("CREATE TABLE t(x)"); db.commit()
-    >>> isaretle(d / "eski.db"), isaretle(d / "eski.db")
+    >>> isaretle(d / "eski.db", "2026-09-27T03:00:00+00:00"), isaretle(d / "eski.db", "2026-09-28T03:00:00+00:00")
     (True, False)
     >>> with closing(sqlite3.connect(d / "eski.db")) as db:
-    ...     db.execute("PRAGMA user_version").fetchone()[0] == GERI_YUKLEME_ISARETI
-    True
+    ...     db.execute("PRAGMA user_version").fetchone()[0] == GERI_YUKLEME_ISARETI, db.execute(
+    ...         'SELECT "YedekZamani", "Arac" FROM "__KasaGeriYukleme"').fetchall()
+    (True, [('2026-09-28T03:00:00+00:00', 'restore_backup.py')])
     """
     with closing(sqlite3.connect(path)) as db:
-        if db.execute("PRAGMA user_version").fetchone()[0] == GERI_YUKLEME_ISARETI:
-            return False
-        db.execute("PRAGMA user_version = {:d}".format(GERI_YUKLEME_ISARETI))
+        yeni = db.execute("PRAGMA user_version").fetchone()[0] != GERI_YUKLEME_ISARETI
+        if yeni:
+            db.execute("PRAGMA user_version = {:d}".format(GERI_YUKLEME_ISARETI))
+        if isinstance(yedek_ani, str) and 0 < len(yedek_ani) <= 64:
+            db.execute('CREATE TABLE IF NOT EXISTS "{}" ("YedekZamani" TEXT NOT NULL, "Arac" TEXT NOT NULL)'.format(GERI_YUKLEME_TABLOSU))
+            db.execute('DELETE FROM "{}"'.format(GERI_YUKLEME_TABLOSU))
+            db.execute('INSERT INTO "{}" ("YedekZamani", "Arac") VALUES (?, ?)'.format(GERI_YUKLEME_TABLOSU), (yedek_ani, "restore_backup.py"))
         db.commit()
-        return True
+        if db.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
+            raise ValueError("İşaretlenen kopya SQLite bütünlük denetiminden geçmedi.")
+        return yeni
 
 
 def sonraki_adimlar() -> str:
@@ -166,16 +182,24 @@ def sonraki_adimlar() -> str:
 
     >>> "YENİ bir izleyici şifresi" in sonraki_adimlar() and "1.000.000 ileri" in sonraki_adimlar()
     True
+    >>> "KASA_EDITOR_SIFRE" in sonraki_adimlar() and "kurtarma kodu" in sonraki_adimlar()
+    True
     """
     aralik = "{:,}".format(KIMLIK_ARALIGI).replace(",", ".")
     return "\n".join([
-        "ZORUNLU: Uygulama bu dosyayla ilk açılışta geri yüklemeyi tanır ve işler:",
+        "ZORUNLU: Uygulamayı bu dosyayla açmadan ÖNCE deploy/.env'de KASA_EDITOR_SIFRE'yi yeni, en az 12 karakterlik bir",
+        "  değere çevirin: yedekten sonra editör şifresi değiştirildiyse uygulama yedekteki eski şifreyi geçersiz kılar ve",
+        "  editör girişi bu değerle olur.",
+        "Uygulama bu dosyayla ilk açılışta geri yüklemeyi tanır ve işler:",
         "  - bütün oturumlar (editör, izleyici, alıcı) ve tanıdık cihazlar geçersiz olur; herkes yeniden giriş yapar,",
+        "  - kurtarma kodu iptal edilir, cihaz bildirim kayıtları kapatılır,",
         "  - izleyici girişi kapatılır: yedekteki eski izleyici şifresi de, yedekten sonra belirlenen de geçersizdir,",
+        "  - güvenlik günlüğündeki (yedek dizininde guvenlik-gunlugu.jsonl) yedekten sonraki şifre ve alıcı kararları",
+        "    yeniden uygulanır (editör şifresi geçersiz kılınır, alıcılar pasif bırakılır),",
         "  - yeni kayıt numaraları yedekteki en yüksek numaradan " + aralik + " ileri başlar.",
-        "Açılıştan sonra editör olarak girip Ayarlar'dan YENİ bir izleyici şifresi belirleyin; eski şifreyi yeniden kullanmayın.",
-        "Editör şifresi, kurtarma kodu ve alıcı hesapları yedek anındaki haline döner; kalan adımlar:",
-        "  operasyon-runbook.md 'Geri yüklemeden sonra'.",
+        "Açılıştan sonra editör olarak girin ve Araçlar/Güvenlik'teki geri yükleme raporunu okuyun: gerekiyorsa şifreyi hemen",
+        "değiştirin, Ayarlar'dan YENİ bir izleyici şifresi belirleyin (eski şifreyi yeniden kullanmayın), yeni kurtarma kodu üretin.",
+        "Kalan adımlar: operasyon-runbook.md 'Geri yüklemeden sonra'.",
     ])
 
 
@@ -369,8 +393,9 @@ def restore(archive_path: Path, output: Path, belge_aynasi=None, belgesiz: bool 
                         with open(ayna, "rb") as kaynak:
                             belge_yaz(kaynak, ozet, boyut, belge_dizini)
                     acilan += 1
-            # Doğrulanmış kopyaya geri yükleme işareti: işaretsiz eski yedek de uygulamada geri yükleme olarak işlenir.
-            isaretlendi = isaretle(Path(temporary))
+            # Doğrulanmış kopyaya geri yükleme işareti ve yedek anı: işaretsiz eski yedek de uygulamada geri yükleme olarak
+            # işlenir, güvenlik günlüğü yedek anından kesilir.
+            isaretlendi = isaretle(Path(temporary), manifest.get("olusturuldu"))
             # Neither the database nor the VAPID identity may overwrite existing data.
             key_created = False
             try:

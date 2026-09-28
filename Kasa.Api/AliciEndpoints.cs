@@ -14,7 +14,9 @@ public static partial class AliciEndpoints
         var api = app.MapGroup("/api/alicilar").RequireAuthorization("Editor");
         api.MapGet("", (KasaDbContext db) => db.Alicilar.AsNoTracking().OrderBy(a => a.Ad)
             .Select(a => new AliciDto(a.Id, a.Kullanici, a.Ad, a.Aktif)).ToList());
-        api.MapPost("", (AliciYaz dto, KasaDbContext db, IConfiguration cfg) =>
+        // Hesap açma ve güncelleme veritabanı dışındaki güvenlik günlüğüne de yazılır: yedekten geri yüklemede yedekten sonra pasife
+        // alınan ya da şifresi/adı değişen alıcı pasif bırakılır (GeriYuklemeIsleyici). Şifre ve özeti yazılmaz.
+        api.MapPost("", (AliciYaz dto, KasaDbContext db, IConfiguration cfg, GuvenlikGunlugu gunluk) =>
         {
             if (Dogrula(dto, db, cfg, null) is { } hata) return hata;
             var e = new AliciEntity
@@ -24,14 +26,16 @@ public static partial class AliciEndpoints
             };
             db.Alicilar.Add(e);
             db.SaveChanges();
+            gunluk.Yaz(GuvenlikGunlugu.AliciOlusturuldu, e.Id, e.Kullanici, new { aktif = e.Aktif });
             return Results.Created($"/api/alicilar/{e.Id}", Oku(e));
         });
-        api.MapPut("/{id:int}", (int id, AliciYaz dto, KasaDbContext db, IConfiguration cfg) =>
+        api.MapPut("/{id:int}", (int id, AliciYaz dto, KasaDbContext db, IConfiguration cfg, GuvenlikGunlugu gunluk) =>
         {
             var e = db.Alicilar.Find(id);
             if (e is null) return Results.NotFound();
             if (Dogrula(dto, db, cfg, id) is { } hata) return hata;
             var oturumlariKapat = e.Aktif != dto.Aktif || e.Kullanici != dto.Kullanici.Trim().ToLowerInvariant();
+            var (oncekiKullanici, oncekiAktif) = (e.Kullanici, e.Aktif);
             e.Kullanici = dto.Kullanici.Trim().ToLowerInvariant();
             e.Ad = dto.Ad.Trim();
             // Pasife alıp tekrar açmak eski oturumu diriltmesin.
@@ -39,6 +43,8 @@ public static partial class AliciEndpoints
             if (oturumlariKapat) e.OturumSurumu++;
             e.Aktif = dto.Aktif;
             db.SaveChanges();
+            gunluk.Yaz(GuvenlikGunlugu.AliciGuncellendi, e.Id, e.Kullanici,
+                new { oncekiKullanici, oncekiAktif, aktif = e.Aktif, sifreDegisti = !string.IsNullOrEmpty(dto.Sifre) });
             return Results.Ok(Oku(e));
         });
     }

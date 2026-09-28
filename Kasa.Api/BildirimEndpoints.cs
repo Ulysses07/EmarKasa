@@ -84,11 +84,14 @@ public static class BildirimEndpoints
             await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
             return Results.Ok(new { row.Id, row.CihazAdi });
         }).RequireRateLimiting("guvenlik");
-        group.MapDelete("/push/abonelik", async ([Microsoft.AspNetCore.Mvc.FromBody] PushEndpointYaz input, KasaDbContext db, CancellationToken ct) =>
+        // Cihaz kaldırma veritabanı dışındaki güvenlik günlüğüne de yazılır (yalnız kayıt kimliği; uç adresi yazılmaz).
+        group.MapDelete("/push/abonelik", async ([Microsoft.AspNetCore.Mvc.FromBody] PushEndpointYaz input, KasaDbContext db, GuvenlikGunlugu gunluk, CancellationToken ct) =>
         {
             if (!PushDogrulama.Endpoint(input.Endpoint)) return Results.BadRequest(new { hata = "Geçersiz abonelik." });
+            var kayitlar = await db.Set<PushAbonelikEntity>().Where(x => x.Endpoint == input.Endpoint && x.Etkin).Select(x => x.Id).ToListAsync(ct);
             await db.Set<PushAbonelikEntity>().Where(x => x.Endpoint == input.Endpoint)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
+            foreach (var kayit in kayitlar) gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, kayit);
             return Results.NoContent();
         });
         group.MapGet("/push/abonelikler", async (KasaDbContext db, CancellationToken ct) =>
@@ -98,10 +101,11 @@ public static class BildirimEndpoints
                 Olusturuldu = DateTimeOffset.FromUnixTimeSeconds(x.Olusturuldu),
                 SonBasarili = x.SonBasarili is { } last ? (DateTimeOffset?)DateTimeOffset.FromUnixTimeSeconds(last) : null, x.Etkin }));
         });
-        group.MapDelete("/push/abonelikler/{id:int}", async (int id, KasaDbContext db, CancellationToken ct) =>
+        group.MapDelete("/push/abonelikler/{id:int}", async (int id, KasaDbContext db, GuvenlikGunlugu gunluk, CancellationToken ct) =>
         {
             var changed = await db.Set<PushAbonelikEntity>().Where(x => x.Id == id)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
+            if (changed == 1) gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, id);
             return changed == 1 ? Results.NoContent() : Results.NotFound();
         });
         group.MapPost("/test", async (PushEndpointYaz input, KasaDbContext db, IPushGonderici sender,

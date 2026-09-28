@@ -28,6 +28,8 @@ builder.Services.AddExceptionHandler<VeritabaniHataIsleyici>();
 builder.Services.AddSingleton<BelgeDeposu>();
 builder.Services.AddSingleton<IDiskAlani, DiskAlani>();
 builder.Services.AddSingleton<YedekServisi>();
+// Veritabanı dışındaki güvenlik günlüğü (yedek dizininde): geri yüklemede yedekten sonraki kararlar buradan yeniden uygulanır.
+builder.Services.AddSingleton<GuvenlikGunlugu>();
 builder.Services.AddHostedService<OtomatikYedek>();
 // Okumalar Sync yapmaz: tarihe bağlı takip türetmesi (kesim ekstreleri) gün dönümünde bakım adımıyla yazılır.
 builder.Services.AddHostedService<FinansBakimi>();
@@ -96,8 +98,11 @@ using (var scope = app.Services.CreateScope())
     if (string.Equals(Path.TrimEndingDirectorySeparator(yedekServisi.AynaDizini), Path.TrimEndingDirectorySeparator(belgeDeposu.Kok), StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException($"Yedek aynası ({yedekServisi.AynaDizini}) belge deposuyla (Belge:Dizin) aynı dizin olamaz. Yedek:Dizin'i veri dizininden ayırın.");
     KasaDatabaseInitializer.Initialize(db, yedekServisi, belgeDeposu, scope.ServiceProvider.GetRequiredService<IDiskAlani>());
-    // Yedekten geri yüklenmiş dosya: oturumlar ve izleyici girişi kapanır, kimlikler ileri alınır (HTTP açılmadan).
-    GeriYuklemeIsleyici.Isle(db);
+    // Yedekten geri yüklenmiş dosya: oturumlar, kurtarma kodu, izleyici girişi ve bildirim kayıtları kapanır, yedekten sonraki
+    // güvenlik kararları güvenlik günlüğünden yeniden uygulanır, kimlikler ileri alınır (HTTP açılmadan).
+    var guvenlikGunlugu = scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>();
+    GeriYuklemeIsleyici.Isle(db, guvenlikGunlugu);
+    guvenlikGunlugu.Hazirla();
     // Kayıtların gösterdiği belge içeriği depoda yoksa (ör. geri yüklemede belgeler/ klasörü unutuldu) her açılışta görünür kılınır;
     // bu belgelerin indirmesi 404 'Belge dosyası bulunamadı.' döner.
     var eksikBelgeler = db.Belgeler.Select(b => b.IcerikOzeti).AsEnumerable().Concat(db.EkstreBelgeler.Select(d => d.DosyaOzeti).AsEnumerable())
@@ -196,9 +201,9 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
     var hedef = editorAdi ? GirisSiniri.EditorHedefi : alici is not null ? GirisSiniri.AliciHedefi(alici.Kullanici) : GirisSiniri.IzleyiciHedefi;
     var izleyiciHash = editorAdi || alici is not null ? null : db.Ayarlar.AsNoTracking().Select(a => a.IzleyiciSifreHash).FirstOrDefault();
     // Hedefin güncel oturum damgası: tanıdık cihaz belirteci buna bağlıdır, şifre ya da oturum sürümü değişince düşer.
-    var hedefDamgasi = editorAdi ? OturumDamgasi.EditorIcin(editorKaydi, cfg)
-        : alici is not null ? OturumDamgasi.AliciIcin(alici, cfg)
-        : izleyiciHash is null ? null : OturumDamgasi.IzleyiciIcin(izleyiciHash, cfg);
+    var hedefDamgasi = editorAdi ? OturumDamgasi.EditorIcin(editorKaydi, cfg, db)
+        : alici is not null ? OturumDamgasi.AliciIcin(alici, cfg, db)
+        : izleyiciHash is null ? null : OturumDamgasi.IzleyiciIcin(izleyiciHash, cfg, db);
     var ip = http.Connection.RemoteIpAddress;
     // Bütçeler şifre doğrulanmadan önce ayrılır: eşzamanlı istekler denetimi birlikte geçip bütçeyi aşamaz.
     // Başarı ayrılanı iade eder; sonuçsuz kapanan deneme (doğrulama kuyruğu dolu, iptal) şifre denenmediği için iade edilir.
@@ -215,18 +220,18 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
     if (editorAdi)
     {
         if (EditorGuvenligi.Dogrula(dto.Sifre, cfg, editorKaydi))
-        { rol = "editor"; dogrulanmisDamga = OturumDamgasi.EditorIcin(editorKaydi, cfg); }
+        { rol = "editor"; dogrulanmisDamga = OturumDamgasi.EditorIcin(editorKaydi, cfg, db); }
     }
     else if (alici is not null)
     {
         if (alici.Aktif && SifreHasher.Dogrula(dto.Sifre, alici.SifreHash))
-        { rol = "alici"; aliciId = alici.Id; dogrulanmisDamga = OturumDamgasi.AliciIcin(alici, cfg); }
+        { rol = "alici"; aliciId = alici.Id; dogrulanmisDamga = OturumDamgasi.AliciIcin(alici, cfg, db); }
     }
     else
     {
         if (izleyiciHash is string h && SifreHasher.Dogrula(dto.Sifre, h))
         {
-            rol = "viewer"; dogrulanmisDamga = OturumDamgasi.IzleyiciIcin(h, cfg);
+            rol = "viewer"; dogrulanmisDamga = OturumDamgasi.IzleyiciIcin(h, cfg, db);
             izleyiciSifresi.GirisYapildi(h, dto.Sifre);
         }
     }
@@ -644,13 +649,14 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
     transaction.Commit();
     return Results.Ok();
 }).RequireAuthorization("Editor");
-api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db) =>
+api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db, GuvenlikGunlugu gunluk) =>
 {
     // Kural yalnız belirlerken/değiştirirken uygulanır; mevcut kısa hash ile giriş sürer.
     if (SifreKurallari.YeniSifreHatasi(dto.YeniSifre, "yeniSifre", "İzleyici şifresi") is { } hata) return hata;
     var a = db.Ayarlar.First();
     a.IzleyiciSifreHash = SifreHasher.Hashle(dto.YeniSifre);
     db.SaveChanges();
+    gunluk.Yaz(GuvenlikGunlugu.IzleyiciSifresiDegisti);
     return Results.Ok();
 }).RequireAuthorization("Editor");
 
