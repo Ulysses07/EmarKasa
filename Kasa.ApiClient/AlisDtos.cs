@@ -15,7 +15,11 @@ public record AlisOdemeDto(int Id, int IslemId, DateOnly Tarih, decimal Tutar, i
 public record AlisDto(int Id, int Surum, int? AliciId, string Alici, DateOnly Tarih, string Tedarikci, string? Not, string Durum, string? EditorNotu, decimal Toplam, decimal Odenen, decimal Kalan, IReadOnlyList<AlisKalemDto> Kalemler, IReadOnlyList<AlisOdemeDto> Odemeler, int? TedarikciId = null, DateOnly? Vade = null);
 /// <param name="MevcutKartHarcamaId">Takipli kartla ödemede önceden (ekstreden ya da elle) gidersiz girilmiş kart harcaması: yeni
 /// harcama üretilmez, ödeme ona bağlanır. Tarih, tutar ve kart harcamayla aynı gönderilir; MevcutIslemId ile birlikte gönderilmez.</param>
-public record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null, int? MevcutKartHarcamaId = null);
+/// <param name="TaksitSayisi">Yeni takipteki kartla yeni ödemede kart harcamasının taksit sayısı (1–60); boşsa tek taksit. Mevcut gider ya
+/// da kart harcaması bağlanırken gönderilmez. Eski sunucu alanı yok sayar (tek taksit).</param>
+/// <param name="IlkKesimTarihi">İsteğe bağlı ilk taksidin ekstre kesimi (kartın kesim gününe en çok 7 gün uzak, ödemeden önce değil).</param>
+public record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null, int? MevcutKartHarcamaId = null,
+    int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null);
 /// <summary>Alış ödemesine bağlanabilecek giderlerin bir sayfası (tarih ve kimlik azalan). <see cref="SonrakiImlec"/> sonraki
 /// sayfanın imlecidir; son sayfada null.</summary>
 public record BaglanabilirGiderSayfasi(IReadOnlyList<BaglanabilirGiderDto> Ogeler, string? SonrakiImlec, bool DevamVar);

@@ -52,7 +52,11 @@ public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikle
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
 /// <param name="IstekId">Yalnız oluşturmada tekrar anahtarı: zaman aşımından sonra aynı gövdeyle yeniden gönderilen gider
 /// ikinci kez kaydedilmez (sunucu ilk kaydı döndürür). Düzenlemede gönderilmez.</param>
-public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, Guid? IstekId = null);
+/// <param name="TaksitSayisi">Yalnız oluşturmada, yeni takipteki kartla girilen kart giderinin taksit sayısı (1–60); boşsa tek taksit.
+/// Düzenlemede gönderilmez.</param>
+/// <param name="IlkKesimTarihi">Yalnız oluşturmada, isteğe bağlı ilk taksidin ekstre kesimi.</param>
+public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, Guid? IstekId = null,
+    int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null);
 public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);

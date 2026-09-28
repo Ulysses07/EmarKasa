@@ -221,4 +221,27 @@ public class AlisApiTests
         (api, _) = Kur("[" + AlisJson + "]");
         Assert.False(Assert.Single(Assert.Single(await api.AlislarAsync()).Odemeler).EskiKartHarcamasi);
     }
+
+    /// <summary>gap-coklu-giris-cift-sayim-mutabakat-5/6: kartlı ödemenin taksit alanları ve alıştan ayırmanın kanal payları gövdeye
+    /// taşınır; alan verilmezse null gider (sunucu tek taksit / eski iptal kuralı uygular).</summary>
+    [Fact]
+    public async Task Taksitli_kartli_odeme_ve_kanal_dagilimli_alistan_ayirma_govdeye_tasinir()
+    {
+        var (api, handler) = Kur(AlisJson);
+        handler.Kuyrukla(HttpStatusCode.OK, AlisJson).Kuyrukla(HttpStatusCode.OK, AlisJson).Kuyrukla(HttpStatusCode.OK, AlisJson);
+        await api.AlisOdemeKaydetAsync(7, new AlisOdemeYaz(3, Guid.NewGuid(), new DateOnly(2026, 9, 20), 36000m, 4, TaksitSayisi: 3, IlkKesimTarihi: new DateOnly(2026, 10, 6)));
+        using (var govde = JsonDocument.Parse(handler.SonGovde!))
+            Assert.Equal((3, "2026-10-06"), (govde.RootElement.GetProperty("taksitSayisi").GetInt32(), govde.RootElement.GetProperty("ilkKesimTarihi").GetString()));
+        await api.AlisOdemeKaydetAsync(7, new AlisOdemeYaz(3, Guid.NewGuid(), new DateOnly(2026, 9, 20), 100m));
+        using (var govde = JsonDocument.Parse(handler.SonGovde!))
+            Assert.Equal((JsonValueKind.Null, JsonValueKind.Null), (govde.RootElement.GetProperty("taksitSayisi").ValueKind, govde.RootElement.GetProperty("ilkKesimTarihi").ValueKind));
+
+        await api.AlisOdemeIptalAsync(7, 1, new AlisOdemeIptalYaz(3, Guid.NewGuid(), "Başka alışın", [new(1, 7200m), new(2, 4800m)]));
+        Assert.Equal("/api/alis/7/odemeler/1/iptal", handler.SonIstek!.RequestUri!.AbsolutePath);
+        using (var govde = JsonDocument.Parse(handler.SonGovde!))
+            Assert.Equal([(1, 7200m), (2, 4800m)], govde.RootElement.GetProperty("kanalDagilimlari").EnumerateArray().Select(p => (p.GetProperty("kanalId").GetInt32(), p.GetProperty("tutar").GetDecimal())));
+        await api.AlisOdemeIptalAsync(7, 1, new AlisOdemeIptalYaz(3, Guid.NewGuid(), "Ödenmedi"));
+        using (var govde = JsonDocument.Parse(handler.SonGovde!))
+            Assert.Equal(JsonValueKind.Null, govde.RootElement.GetProperty("kanalDagilimlari").ValueKind);
+    }
 }

@@ -45,6 +45,12 @@ public class MutasyonTests
         h.Kuyrukla(HttpStatusCode.Created, """{"id":2,"tarih":"2026-03-05","cari":"K","tutarTl":5.0,"kanal":"MEZAT","tip":"Cari","not":null}""");
         await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "K", 5m, "MEZAT", GiderTipi.Cari, null));
         using (var doc = JsonDocument.Parse(h.SonGovde!)) Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("istekId").ValueKind);
+
+        // gap-coklu-giris-cift-sayim-mutabakat-6: kartlı giderin taksit alanları gövdeye taşınır; verilmezse null (tek taksit).
+        h.Kuyrukla(HttpStatusCode.Created, """{"id":3,"tarih":"2026-03-05","cari":"Tel","tutarTl":3000.0,"kanal":"MEZAT","tip":"KrediKarti","not":null,"krediKartiId":7}""");
+        await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "Tel", 3000m, "MEZAT", GiderTipi.KrediKarti, null, 7, TaksitSayisi: 6, IlkKesimTarihi: new DateOnly(2026, 4, 5)));
+        using (var doc = JsonDocument.Parse(h.SonGovde!))
+            Assert.Equal((6, "2026-04-05"), (doc.RootElement.GetProperty("taksitSayisi").GetInt32(), doc.RootElement.GetProperty("ilkKesimTarihi").GetString()));
     }
 
     [Fact]
