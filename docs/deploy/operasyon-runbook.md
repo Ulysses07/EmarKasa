@@ -15,11 +15,12 @@ Dockerfile'daki iki temel imaj (`mcr.microsoft.com/dotnet/sdk`, `mcr.microsoft.c
   docker compose -f docker-compose.nginx.yml build --pull kasa
   docker compose -f docker-compose.nginx.yml up -d
   ```
+- Derlemeden önce [`deploy/temel_imaj.py`](../../deploy/temel_imaj.py) sabit özetleri kayıttaki güncel özetle karşılaştırır ([deploy/README.md](../../deploy/README.md) "Güncelleme" 6. adım). Özet eskiyse akış durur, önce aşağıdaki "Özet güncelleme" yapılır. Böylece eski bir özet, haftalık denetim çalışmasa da fark edilmeden sunucuya gitmez.
 
 ### Otomatik denetim
 
-- CI'daki `Pinned base images` işi her push ve PR'da sabit özetlerin kayıtta çözüldüğünü doğrular ve aynı ana sürüm etiketinin (`10.0`) güncel özetiyle karşılaştırır. Eski özet push/PR'da uyarıdır; haftalık zamanlanmış koşuda (pazartesi) hatadır ve GitHub depo sahibine bildirim gönderir. Özetin biçimini (etiket + 64 haneli özet, `net10.0` ile aynı ana sürüm) ağ olmadan `Kasa.Api.Tests/DepoHijyeniTests` denetler.
-- GitHub zamanlanmış iş akışlarını yalnız varsayılan dalda çalıştırır. Bugün varsayılan dal (`master`) bu kod hattı değildir ([dal-durumu.md](dal-durumu.md)); karar uygulanana kadar haftalık denetim çalışmaz. O zamana kadar aşağıdaki 1. adımı ayda bir elle çalıştırın. GitHub, 60 gün etkinlik olmayan depoda zamanlanmış iş akışlarını ayrıca durdurur.
+- CI'daki `Pinned base images` işi her push ve PR'da `deploy/temel_imaj.py` ile sabit özetlerin kayıtta çözüldüğünü doğrular ve aynı ana sürüm etiketinin (`10.0`) güncel özetiyle karşılaştırır. Eski özet push/PR'da uyarıdır; haftalık zamanlanmış koşuda (pazartesi) hatadır ve GitHub depo sahibine bildirim gönderir. Zamanlanmış koşu ayrı eşzamanlılık grubundadır; aynı daldaki push CI'ını iptal etmez. Özetin biçimini (etiket + 64 haneli özet, `net10.0` ile aynı ana sürüm) ağ olmadan `Kasa.Api.Tests/DepoHijyeniTests` denetler.
+- GitHub zamanlanmış iş akışlarını yalnız varsayılan dalda çalıştırır. Bugün varsayılan dal (`master`) bu kod hattı değildir ([dal-durumu.md](dal-durumu.md)); karar uygulanana kadar haftalık denetim çalışmaz. O zamana kadar geliştirme makinesinde, depo kökünde ayda bir `python3 deploy/temel_imaj.py` çalıştırın; çıkış kodu 1 ise aşağıdaki adımlarla özeti güncelleyin. GitHub, 60 gün etkinlik olmayan depoda zamanlanmış iş akışlarını ayrıca durdurur. Yayın yapılmayan aylarda sunucudaki imaj da yama almaz; özet güncellemesi yeni bir yayınla sunucuya gider (aşağıda 4. adım).
 - Dependabot bu depoda yapılandırılmamıştır (`.github/dependabot.yml` yok). Eklendiğinde `docker` ekosistemi de tanımlanmalıdır; Dependabot özet güncellemelerini PR olarak açar ve aşağıdaki elle adımların yerini alır.
 
 ### Özet güncelleme (ayda bir ya da CI uyarısında)
@@ -36,7 +37,7 @@ Geliştirme makinesinde, depo kökünde:
    done
    ```
 2. Dockerfile'daki iki `FROM` satırını bu değerlerle yazın: `sdk:<DOTNET_SDK_VERSION>@<özet>` ve `aspnet:<ASPNET_VERSION>@<özet>`. Özet 64 hanesiyle kopyalanır; kısaltılmaz, tahmin edilmez. Ana sürüm (`10.0`) Kasa.Api'nin hedef çerçevesiyle aynı kalır; ana sürüm yükseltmesi ayrı bir iştir.
-3. Sabit özetin çözüldüğünü doğrulayın: `docker buildx imagetools inspect <FROM satırındaki imaj>` çıktısındaki `Digest:` özetle aynı olmalıdır. Depo testlerini çalıştırıp değişikliği PR olarak gönderin; `Pinned base images` işi iki imaj için "güncel" yazmalıdır.
+3. Sabit özetin çözüldüğünü ve güncel olduğunu doğrulayın: `python3 deploy/temel_imaj.py` iki imaj için "güncel" yazıp 0 ile çıkmalıdır. Depo testlerini çalıştırıp değişikliği PR olarak gönderin; `Pinned base images` işi de iki imaj için "güncel" yazmalıdır.
 4. Yeni temel imaj yeni bir yayındır: sunucuda [deploy/README.md](../../deploy/README.md) "Güncelleme" 1–8 adımlarını izleyin (4. adımdaki geri dönüş imajı kimliği dahil).
 
 ### İşletim sistemi paket yamaları (poppler-utils)

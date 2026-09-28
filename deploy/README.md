@@ -26,9 +26,10 @@ Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Gün
    KASA_DATA_DIR=<veri-dizini>
    KASA_BACKUP_DIR=<yedek-dizini>
    ```
-5. `/opt/kasa/deploy` içinde önce kuru çalıştırmayla doğrulayın, ardından imajı derleyip başlatın. `source:` satırları 4. adımdaki iki dizini göstermelidir:
+5. `/opt/kasa/deploy` içinde önce kuru çalıştırmayla doğrulayın, ardından imajı derleyip başlatın. `source:` satırları 4. adımdaki iki dizini göstermelidir; `temel_imaj.py` 0 ile çıkmazsa derlemeyin ("Güncelleme" 6. adımdaki açıklama):
    ```sh
    docker compose -f docker-compose.nginx.yml config | grep -A1 'source:'
+   python3 temel_imaj.py
    docker compose -f docker-compose.nginx.yml build --pull kasa
    docker compose -f docker-compose.nginx.yml up -d
    ```
@@ -39,7 +40,7 @@ Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Gün
 
 ## Güncelleme (yeni sürüm)
 
-Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`) sunucudaki gerçek değerlerle değiştirin; yolları tahmin etmeyin.
+Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`) sunucudaki gerçek değerlerle değiştirin; yolları tahmin etmeyin. Yayımlanacak commit'i seçerken geliştirme makinesinde, depo kökünde `python3 deploy/temel_imaj.py` çalıştırın: temel imaj özeti eskiyse önce özet güncellenir (6. adım aynı denetimi sunucuda yineler).
 
 1. Önce [veritabanı yükseltme kılavuzundaki](../docs/deploy/database-upgrade.md) yedek ve kopya üzerinde geçiş kontrolünü tamamlayın.
 2. Çalışan konteynerin bağlamalarını ve son yayın manifestindeki veri dizinini okuyun:
@@ -73,8 +74,14 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    docker compose --env-file /dev/null -f docker-compose.nginx.yml config -q
    # .env ile başarılı olmalı; source satırları 2. adımdaki /data ve /yedekler kaynaklarıyla aynı olmalı.
    docker compose -f docker-compose.nginx.yml config | grep -A1 'source:'
+   # Temel imaj özetleri güncel olmalı; yalnız kayıt meta verisi okunur, imaj indirilmez.
+   python3 temel_imaj.py
    ```
    İlk komut `required variable KASA_DATA_DIR is missing a value` hatası vermiyorsa ya da ikinci komutta farklı bir kaynak veya `/opt/kasa/deploy/kasa-data` görünüyorsa `up` çalıştırmayın. Kabuğunuzda `KASA_DATA_DIR` dışa aktarılmışsa ilk komut hata vermez; önce `unset KASA_DATA_DIR KASA_BACKUP_DIR` çalıştırın. `config` çıktısının tamamı sırları da içerdiğinden yalnız `grep` ile süzülmüş satırları paylaşın.
+
+   `temel_imaj.py` her temel imaj için "güncel" yazıp 0 ile çıkmalıdır. Dockerfile'daki özetler sabit olduğundan .NET, OpenSSL ve Debian yamaları ancak özet güncellenince gelir:
+   - `ESKİ:` satırı ve çıkış kodu 1: yayımlanacak commit, yama almamış eski bir temel imaja sabitli. Derlemeyin. Özeti geliştirme makinesinde [operasyon runbook'u](../docs/deploy/operasyon-runbook.md) "Özet güncelleme" adımlarıyla güncelleyip commit'leyin, akışı o commit'le 5. adımdan yineleyin. Acil bir düzeltme bilerek eski özetle yayımlanırsa bunu yayın manifestine not edin; özet güncellemesini hemen ardından ayrı bir yayınla yapın.
+   - `HATA:` satırı ve çıkış kodu 2: özet sabitlenmemiş, kayıtta çözülemedi ya da `docker buildx` çalışmadı (`docker buildx version`). Nedeni giderilmeden derlemeyin.
 7. İmajı derleyin, ardından başlatın:
    ```sh
    docker compose -f docker-compose.nginx.yml build --pull kasa

@@ -131,6 +131,25 @@ public class DagitimSablonuTests
         Assert.Contains("docker compose -f docker-compose.nginx.yml up -d", readme);
     }
 
+    [Fact]
+    public void Sunucuda_derlemeden_once_temel_imaj_ozetlerinin_tazeligi_denetlenir()
+    {
+        // Özet sabit olduğundan .NET, OpenSSL ve Debian yamaları yalnız özet güncellenince gelir. Haftalık CI denetimi
+        // varsayılan dala bağlıdır; bu yüzden README'nin derleme içeren her bölümünde deploy/temel_imaj.py derlemeden
+        // önce çalışır ve eski özette akış durur.
+        Assert.True(File.Exists(DeployDosyasi("temel_imaj.py")), "deploy/temel_imaj.py depoda olmalı.");
+        var bolumler = Regex.Split(File.ReadAllText(DeployDosyasi("README.md")), @"^## ", RegexOptions.Multiline)
+            .Where(b => b.Contains("build --pull kasa", StringComparison.Ordinal)).ToList();
+
+        Assert.Equal(2, bolumler.Count); // İlk kurulum ve Güncelleme
+        Assert.All(bolumler, b =>
+        {
+            var denetim = b.IndexOf("python3 temel_imaj.py", StringComparison.Ordinal);
+            Assert.True(denetim >= 0 && denetim < b.IndexOf("build --pull kasa", StringComparison.Ordinal),
+                $"README '{b[..b.IndexOf('\n')].Trim()}': 'python3 temel_imaj.py' derlemeden önce çalışmıyor.");
+        });
+    }
+
     // devops-9: sunucu dışı yedek zamanlayıcıları kaçan çalışmayı telafi eder (Persistent=true: sunucu o saatte kapalıysa
     // açılışta çalışır) ve depodaki betiği çalıştırır; betik yeniden adlandırılırsa birim sessizce bozulmaz. Ayarlar depo
     // dışındaki, root'a ait dosyadan gelir: /opt/kasa altındaki kaynaklar her yayında yeniden yazılır.

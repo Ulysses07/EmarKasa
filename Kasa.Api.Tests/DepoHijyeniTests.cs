@@ -57,6 +57,19 @@ public class DepoHijyeniTests
             $"{i.Depo}:{i.Etiket} Kasa.Api'nin hedef çerçevesiyle (net{cerceve.Groups["surum"].Value}) aynı ana sürümde değil."));
     }
 
+    [Fact]
+    public void Zamanlanmis_imaj_denetimi_push_kosusuyla_ayni_eszamanlilik_grubunu_paylasmaz()
+    {
+        // cancel-in-progress aynı gruptaki süren koşuyu iptal eder. Grup olay türünü ayırmazsa haftalık özet denetimi
+        // o daldaki push CI'ını (45 dakikalık Windows derlemesi dahil) keser; o sırada gelen push da haftalık denetimi.
+        var satirlar = File.ReadAllLines(DepoDosyasi(".github", "workflows", "ci.yml"));
+        if (!satirlar.Any(s => s.Trim() == "schedule:")) return;
+
+        var grup = satirlar.SkipWhile(s => s.TrimEnd() != "concurrency:").Skip(1).TakeWhile(s => s.StartsWith(' '))
+            .Select(s => s.Trim()).Single(s => s.StartsWith("group:", StringComparison.Ordinal));
+        Assert.Matches(@"github\.event_name\s*==\s*'schedule'", grup);
+    }
+
     private sealed record Imaj(string Depo, string Etiket, string Ozet);
 
     private static List<Imaj> DisImajlar() =>

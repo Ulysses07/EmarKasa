@@ -12,8 +12,9 @@ on:
 permissions:
   contents: read
 
+# Zamanlanmış koşu ayrı gruptadır: haftalık özet denetimi aynı daldaki push CI'ını iptal etmez, push da onu.
 concurrency:
-  group: kasa-ci-${{ github.workflow }}-${{ github.ref }}
+  group: kasa-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' && 'haftalik' || 'ci' }}
   cancel-in-progress: true
 
 jobs:
@@ -63,8 +64,8 @@ jobs:
       - name: Run tests
         run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
 
-  # Sunucu dışı yedek betiği (devops-9) ve geri yükleme aracı: sözdizimi, kuru çalıştırma ve birim sınamaları.
-  # Runner'daki python3 yeterli; ağ, rclone ve ek paket gerekmez.
+  # Dağıtım betikleri: sunucu dışı yedek (devops-9), temel imaj özeti denetimi (devops-12) ve geri yükleme aracı;
+  # sözdizimi, kuru çalıştırma ve birim sınamaları. Runner'daki python3 yeterli; ağ, docker, rclone ve ek paket gerekmez.
   deploy-scripts:
     name: Deploy scripts
     if: github.event_name != 'schedule'
@@ -78,9 +79,10 @@ jobs:
       - run: python3 -m doctest deploy/restore_backup.py
 
   # Temel imaj özetleri (devops-12): Dockerfile'daki her FROM etiket + @sha256 özetiyle sabittir (biçimi
-  # Kasa.Api.Tests/DepoHijyeniTests de denetler). Bu iş yalnız kayıt meta verisini okur, imaj indirmez: sabit özet
-  # kayıtta çözülmeli ve aynı ana sürüm etiketinin (ör. 10.0) güncel özetiyle karşılaştırılır. Push/PR'da eski özet
-  # uyarıdır; haftalık zamanlanmış koşuda hatadır. Güncelleme: docs/deploy/operasyon-runbook.md "Temel imajlar".
+  # Kasa.Api.Tests/DepoHijyeniTests de denetler). deploy/temel_imaj.py yalnız kayıt meta verisini okur, imaj indirmez:
+  # sabit özet kayıtta çözülmeli ve aynı ana sürüm etiketinin (ör. 10.0) güncel özetiyle karşılaştırılır. Sunucudaki
+  # güncelleme akışı (deploy/README.md "Güncelleme" 6. adım) aynı betikle eski özette durur. Burada push/PR'da eski
+  # özet uyarıdır; haftalık zamanlanmış koşuda hatadır. Güncelleme: docs/deploy/operasyon-runbook.md "Temel imajlar".
   base-images:
     name: Pinned base images
     runs-on: ubuntu-latest
@@ -93,30 +95,16 @@ jobs:
         env:
           ZAMANLANMIS: ${{ github.event_name == 'schedule' }}
         run: |
-          set -euo pipefail
-          eski=0
-          while read -r _ imaj _; do
-            if [[ ! "$imaj" =~ ^([^@:[:space:]]+):(([0-9]+\.[0-9]+)[^@[:space:]]*)@(sha256:[0-9a-f]{64})$ ]]; then
-              echo "::error file=Dockerfile::'$imaj' etiket ve @sha256 özetiyle sabitlenmemiş."
-              exit 1
-            fi
-            depo=${BASH_REMATCH[1]}; ana=${BASH_REMATCH[3]}; ozet=${BASH_REMATCH[4]}
-            if ! docker buildx imagetools inspect "$imaj" > /dev/null; then
-              echo "::error file=Dockerfile::'$imaj' kayıtta çözülemedi; özet yanlış ya da kaldırılmış."
-              exit 1
-            fi
-            guncel=$(docker buildx imagetools inspect "$depo:$ana" --format '{{json .Manifest.Digest}}' | tr -d '"')
-            if [ "$guncel" = "$ozet" ]; then
-              echo "$imaj güncel."
-            else
-              echo "::warning file=Dockerfile::$depo:$ana için daha yeni özet var: $guncel (sabit: $ozet)."
-              eski=1
-            fi
-          done < <(tr -d '\r' < Dockerfile | grep -E '^FROM[[:space:]]')
-          if [ "$eski" = 1 ] && [ "$ZAMANLANMIS" = true ]; then
-            echo "::error file=Dockerfile::Temel imaj özetleri eski; docs/deploy/operasyon-runbook.md 'Temel imajlar' adımlarıyla güncelleyin."
-            exit 1
+          kod=0
+          python3 deploy/temel_imaj.py --github || kod=$?
+          # 1 = daha yeni özet var (betik uyarı notunu yazdı); 2 = sabitlenmemiş/çözülemeyen özet ya da docker hatası.
+          if [ "$kod" = 1 ] && [ "$ZAMANLANMIS" != true ]; then
+            exit 0
           fi
+          if [ "$kod" = 1 ]; then
+            echo "::error file=Dockerfile::Temel imaj özetleri eski; docs/deploy/operasyon-runbook.md 'Özet güncelleme' adımlarıyla güncelleyin."
+          fi
+          exit "$kod"
 
   windows-app:
     name: Build and smoke-test Windows MAUI app
