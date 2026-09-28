@@ -4,10 +4,11 @@ using Kasa.ApiClient;
 namespace Kasa.App.Core.Tests;
 
 /// <summary>
-/// Kart ve kredi takibinin gerekçeli komutları (tests-10, ViewModel tarafı): kart ve kredi durum değişimi, ekstre
-/// asgari/son ödeme düzeltmesi, ödeme ve harcama iptali. Kaydeden sahte API her çağrının gövdesini tutar: gönderilen
-/// Aktif değerinin seçili kaydın tersi olduğu, seçili kaydın Surum'u, kırpılmış gerekçe, rota kimlikleri, boş gerekçenin
-/// ve izleyicinin reddi, ağ hatasından sonra aynı IstekId ile yeniden deneme ve başarıdan sonra yeni anahtar doğrulanır.
+/// Kart ve kredi takibinin yazma komutları (tests-10, ViewModel tarafı): kart kaydetme ve düzenleme, kart ve kredi durum
+/// değişimi, ekstre asgari/son ödeme düzeltmesi, ödeme ve harcama iptali. Kaydeden sahte API her çağrının gövdesini
+/// tutar: yeni kartta kimliksiz (null) istek ve Surum 0, düzenlemede seçili kartın kimliği ve Surum'u, kırpılmış ad ve
+/// gerekçe, gönderilen Aktif değerinin seçili kaydın tersi olduğu, rota kimlikleri, boş alanın ve izleyicinin reddi, ağ
+/// hatasından sonra aynı IstekId ve aynı gövdeyle yeniden deneme ve başarıdan sonra yeni anahtar doğrulanır.
 /// </summary>
 public class TakipKomutlariTests
 {
@@ -41,6 +42,92 @@ public class TakipKomutlariTests
         await vm.YukleAsync(); vm.SecCommand.Execute(vm.Krediler[0]);
         api.Cagrilar.Clear();
         return (vm, api);
+    }
+
+    private static string Json(object deger) => System.Text.Json.JsonSerializer.Serialize(deger);
+
+    [Fact]
+    public async Task Yeni_kart_kimliksiz_surum_sifirla_kirpilmis_ad_acilis_alanlari_ve_paylarla_kaydedilir()
+    {
+        var (vm, api) = await KartVm();
+        vm.YeniCommand.Execute(null);
+        vm.Ad = "  Yeni kart  "; vm.Limit = 5000; vm.KesimGunu = 5; vm.SonOdemeGunu = 15; vm.AcilisTarihi = new DateTime(2026, 9, 1); vm.AcilisBorc = 120;
+        vm.PayEkle(vm.AcilisPaylari); vm.AcilisPaylari[0].Kanal = vm.Kanallar[0]; vm.AcilisPaylari[0].Tutar = 120;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        var (a, g) = api.Tek<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
+        Assert.Null(a[0]);
+        Assert.Equal((0, "Yeni kart", 5000m, 5, 15, new DateOnly(2026, 9, 1), 120m), (g.Surum, g.Ad, g.Limit, g.KesimGunu, g.SonOdemeGunu, g.AcilisTarihi, g.AcilisBorc));
+        Assert.Equal(new[] { new KanalPayYaz(1, 120) }, g.AcilisDagilimlari);
+        Assert.NotEqual(Guid.Empty, g.IstekId);
+        // Sunucunun döndürdüğü yeni kart listeye eklenir ve seçilir; önceki kart yerinde kalır.
+        Assert.Equal((KaydedenTakipApi.YeniKartId, 1), (vm.Secili!.Id, vm.Secili.Surum));
+        Assert.Equal(new[] { 1, KaydedenTakipApi.YeniKartId }, vm.Kartlar.Select(k => k.Veri.Id));
+        Assert.Equal("Kart kaydedildi.", vm.Mesaj); Assert.Null(vm.Hata);
+    }
+
+    [Fact]
+    public async Task Secili_kart_duzenlenirken_kimligi_surumu_ve_kirpilmis_adiyla_gider_ikinci_kart_olusmaz()
+    {
+        var (vm, api) = await KartVm();
+        vm.Ad = "  Kart (düzenlendi)  "; vm.Limit = 2500; vm.KesimGunu = 12; vm.SonOdemeGunu = 22; vm.AcilisTarihi = new DateTime(2026, 9, 1);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        var (a, ilk) = api.Tek<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
+        Assert.Equal(1, (int)a[0]!); // null gitseydi sunucu ikinci bir kart açardı
+        Assert.Equal((3, "Kart (düzenlendi)", 2500m, 12, 22, 0m), (ilk.Surum, ilk.Ad, ilk.Limit, ilk.KesimGunu, ilk.SonOdemeGunu, ilk.AcilisBorc));
+        Assert.NotEqual(Guid.Empty, ilk.IstekId);
+        Assert.Equal((1, 4, "Kart (düzenlendi)"), (vm.Secili!.Id, vm.Secili.Surum, Assert.Single(vm.Kartlar).Veri.Ad));
+
+        // İkinci düzenleme sunucunun döndürdüğü kartın sürümüyle ve yeni istek anahtarıyla gider.
+        api.Cagrilar.Clear(); vm.Limit = 3000;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        var (a2, ikinci) = api.Tek<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
+        Assert.Equal((1, 4, 3000m), ((int)a2[0]!, ikinci.Surum, ikinci.Limit));
+        Assert.NotEqual(ilk.IstekId, ikinci.IstekId);
+        Assert.Equal(5, vm.Secili!.Surum); Assert.Single(vm.Kartlar);
+    }
+
+    [Fact]
+    public async Task Kart_kaydi_ag_hatasindan_sonra_ayni_kimlik_ayni_istek_anahtari_ve_ayni_govdeyle_yinelenir()
+    {
+        var (vm, api) = await KartVm(); vm.Ad = "Kart"; vm.Limit = 1500; vm.AcilisTarihi = new DateTime(2026, 9, 1);
+        api.SonrakiHata = new HttpRequestException();
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Contains("ulaşılamadı", vm.Hata); Assert.Equal(3, vm.Secili!.Surum);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        var duzenleme = api.Hepsi<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
+        Assert.Equal(2, duzenleme.Count); Assert.Equal(Json(duzenleme[0]), Json(duzenleme[1])); Assert.Equal(3, duzenleme[1].Surum);
+        Assert.All(api.Cagrilar, c => Assert.Equal(1, (int)c.Argumanlar[0]!));
+        Assert.Equal(4, vm.Secili!.Surum); Assert.Null(vm.Hata);
+
+        // Yeni kart: ilk istek sunucuya ulaşıp yanıtı kaybolduysa yeni anahtarla yineleme ikinci bir kart açardı.
+        // Yineleme yine kimliksiz, aynı anahtar ve aynı gövdeyle gider (sunucu tekrarı tanır).
+        api.Cagrilar.Clear(); vm.YeniCommand.Execute(null);
+        vm.Ad = "Yeni kart"; vm.Limit = 800; vm.AcilisTarihi = new DateTime(2026, 9, 1); vm.AcilisBorc = 50;
+        vm.PayEkle(vm.AcilisPaylari); vm.AcilisPaylari[0].Kanal = vm.Kanallar[0]; vm.AcilisPaylari[0].Tutar = 50;
+        api.SonrakiHata = new HttpRequestException();
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Contains("ulaşılamadı", vm.Hata); Assert.Null(vm.Secili);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        var yeni = api.Hepsi<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
+        Assert.Equal(2, yeni.Count); Assert.Equal(Json(yeni[0]), Json(yeni[1])); Assert.Equal(0, yeni[1].Surum);
+        Assert.All(api.Cagrilar, c => Assert.Null(c.Argumanlar[0]));
+        Assert.NotEqual(duzenleme[0].IstekId, yeni[0].IstekId);
+        Assert.Equal(KaydedenTakipApi.YeniKartId, vm.Secili!.Id); Assert.Null(vm.Hata);
+    }
+
+    [Fact]
+    public async Task Kart_kaydi_bos_adla_gecersiz_gunle_ve_izleyiciyle_gonderilmez()
+    {
+        var (vm, api) = await KartVm(); vm.Ad = "   ";
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Empty(api.Cagrilar); Assert.Contains("Kart adını", vm.Hata);
+        vm.Ad = "Kart"; vm.KesimGunu = 32;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Empty(api.Cagrilar); Assert.Contains("1–31", vm.Hata);
+
+        var (izleyici, izleyiciApi) = await KartVm(Rol.Izleyici); izleyici.Ad = "Kart 2";
+        await izleyici.KaydetCommand.ExecuteAsync(null);
+        Assert.Empty(izleyiciApi.Cagrilar); Assert.Equal("Kart", izleyici.Secili!.Ad);
     }
 
     [Fact]
@@ -193,6 +280,7 @@ public class TakipKomutlariTests
     /// </summary>
     public class KaydedenTakipApi : DispatchProxy
     {
+        public const int YeniKartId = 50;
         public List<(string Metot, object?[] Argumanlar)> Cagrilar { get; } = [];
         public KartTakipDto KartKaydi { get; set; } = Kart();
         public KrediTakipDto KrediKaydi { get; set; } = Kredi();
@@ -231,12 +319,24 @@ public class TakipKomutlariTests
             }
             return metot.Name switch
             {
-                nameof(IFinansTakipApi.TakipKartDurumAsync) => Task.FromResult(KartKaydi = KartKaydi with { Aktif = ((TakipDurumYaz)a[1]!).Aktif, Surum = KartKaydi.Surum + 1 }),
+                nameof(IFinansTakipApi.TakipKartKaydetAsync) => Task.FromResult(KartKaydet((int?)a[0], (KartTakipYaz)a[1]!)),
+                nameof(IFinansTakipApi.TakipKartDurumAsync) =>Task.FromResult(KartKaydi = KartKaydi with { Aktif = ((TakipDurumYaz)a[1]!).Aktif, Surum = KartKaydi.Surum + 1 }),
                 nameof(IFinansTakipApi.TakipEkstreKaydetAsync) or nameof(IFinansTakipApi.TakipOdemeIptalAsync) or nameof(IFinansTakipApi.TakipHarcamaIptalAsync)
                     => Task.FromResult(KartKaydi = KartKaydi with { Surum = KartKaydi.Surum + 1 }),
                 nameof(IFinansTakipApi.TakipKrediDurumAsync) => Task.FromResult(KrediKaydi = KrediKaydi with { Aktif = ((TakipDurumYaz)a[1]!).Aktif, Surum = KrediKaydi.Surum + 1 }),
                 _ => throw new InvalidOperationException($"Beklenmeyen çağrı: {metot.Name}"),
             };
+        }
+
+        /// <summary>Kimliksiz kayıt sunucu gibi yeni kimlikli kart açar (Surum 1; seçili kart değişmez); kimlikli kayıt
+        /// yalnız o kartın ad, limit ve günlerini günceller ve Surum'u artırır. Bilinmeyen kimlik testi düşürür.</summary>
+        private KartTakipDto KartKaydet(int? id, KartTakipYaz g)
+        {
+            if (id is not null && id != KartKaydi.Id) throw new InvalidOperationException($"Bilinmeyen kart: {id}");
+            var temel = id is null ? KartKaydi with { Id = YeniKartId, Surum = 0, Ekstreler = [], Harcamalar = [], Odemeler = [] } : KartKaydi;
+            var sonuc = temel with { Surum = temel.Surum + 1, Ad = g.Ad, Limit = g.Limit, KesimGunu = g.KesimGunu, SonOdemeGunu = g.SonOdemeGunu };
+            if (id is not null) KartKaydi = sonuc;
+            return sonuc;
         }
     }
 }
