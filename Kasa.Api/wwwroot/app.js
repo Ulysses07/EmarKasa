@@ -561,7 +561,7 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
     !creditSeparate && report.kanallar.some(k => k.krediGirisi) && h('p', { class: 'plan-note' }, 'Bu ayın raporu eski kuralla dondurulmuştur: "Kredi girişi" sütunundaki takipli kredi çekimi "Gelen" ve "Ay sonucu" içindedir.'),
     report.genelGelir > 0 && h('p', { class: 'plan-note' }, `Yalnız genel kasa geliri: ${money(report.genelGelir)}. Yukarıdaki aylık gelen toplamına dahildir; kanal kasalarına dağıtılmaz.`), report.genelGider > 0 && h('p', { class: 'plan-note' }, `Yalnız genel kasa gideri: ${money(report.genelGider)}. Yukarıdaki aylık gider toplamına dahildir; kanal kasalarına dağıtılmaz.`), h('p', { class: 'plan-note' }, 'Yeni kart takibinde ödeme kaydı; eski kartlarda geçiş öncesi erteleme kuralı geçerlidir. Kredi taksitleri tarihinde otomatik işlenir. Ortak giderler ve dağılım bekleyen tutarlar ayrı izlenir.')]));
   if (!runtime.saltOkunur) {
-    try { const panel = await monthlyUi.lockPanel(month, () => generation === renderId ? renderMonthly(generation, month) : Promise.resolve()); if (generation === renderId && request === monthlyRequest) lock.replaceChildren(panel); }
+    try { const panel = await monthlyUi.lockPanel(month, () => generation === renderId ? renderMonthly(generation, month) : Promise.resolve(), report); if (generation === renderId && request === monthlyRequest) lock.replaceChildren(panel); }
     catch (error) { if (generation === renderId && request === monthlyRequest) lock.replaceChildren(help(`Ay kilidi yüklenemedi: ${error.message}`)); }
   }
 }

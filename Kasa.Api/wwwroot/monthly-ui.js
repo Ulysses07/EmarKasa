@@ -1,3 +1,11 @@
+// K4: kapatılmış ayın raporu kapatıldığı kuralla dondurulur. Kural 1 ile dondurulmuş ay açılınca görüntü silinir, rapor güncel
+// kuralla (kural 2: takipli kredi çekimi Gelen ve Ay sonucu dışında) hesaplanır ve yeniden kapatınca öyle dondurulur. Masaüstü
+// AyKilidiViewModel.OnayMetni ile aynı uyarı. report: ekrandaki aylık rapor; başka ayın raporuysa ya da yoksa uyarı yok.
+export function frozenRuleUnlockWarning(report, month) {
+  if (!report?.dondurulmus || (report.kuralSurumu || 1) >= 2) return null;
+  if (report.yil && report.ay && `${report.yil}-${String(report.ay).padStart(2, '0')}` !== month) return null;
+  return 'Bu ay eski kuralla (kural 1) kapatılmış: raporunda takipli kredi çekimi Gelen ve Ay sonucu içindedir. Kilit açılınca rapor güncel kuralla yeniden hesaplanır, yeniden kapatınca da güncel kuralla dondurulur: takipli kredi çekimi Gelen ve Ay sonucundan çıkar, eski kuraldaki rakamlara dönülemez. Eski kuralla kapatılmış sonraki aylar için de aynısı geçerlidir.';
+}
 export function createMonthlyUi(c) {
   const { api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, formDialog, closeModal, page, run, toast, summary, requestIdentity, canEdit, isCurrent, view } = c;
   const base = '/api/aylik-giderler';
@@ -90,17 +98,19 @@ export function createMonthlyUi(c) {
       editor(); await api(`${base}/odemeler/${row.odemeId}/iptal`, { method: 'POST', body: identity({ aciklama: reason.value.trim() }) }); closeModal(); toast('Ödeme iptal edildi.'); await refresh();
     }, { danger: true });
   }
-  async function lockPanel(month, refreshReport) {
+  // report: ekranda gösterilen aylık rapor (varsa); kural 1 ile dondurulmuş ay açılırken onay penceresi uyarır.
+  async function lockPanel(month, refreshReport, report = null) {
     const data = await api('/api/ay-kilidi');
     const locked = data.kilitliSonTarih && `${month}-01` <= data.kilitliSonTarih;
     const status = data.kilitliSonTarih ? `${dateText(data.kilitliSonTarih)} dahil geçmiş kasa kayıtları kilitli.` : 'Kilitli ay yok.';
-    const action = canEdit() && (locked || month < today().slice(0, 7)) ? button(locked ? 'Bu ayı ve sonrasını aç' : 'Bu ay sonuna kadar kilitle', () => lockDialog(data, month, Boolean(locked), refreshReport), 'small') : null;
+    const action = canEdit() && (locked || month < today().slice(0, 7)) ? button(locked ? 'Bu ayı ve sonrasını aç' : 'Bu ay sonuna kadar kilitle', () => lockDialog(data, month, Boolean(locked), refreshReport, report), 'small') : null;
     const history = h('details', {}, h('summary', {}, 'Kilit geçmişi'), data.gecmis.length ? table(['Zaman', 'Önceki sınır', 'Yeni sınır', 'Açıklama'], data.gecmis.map(row => [new Date(row.zaman).toLocaleString('tr-TR'), row.oncekiSonTarih ? dateText(row.oncekiSonTarih) : 'Yok', row.yeniSonTarih ? dateText(row.yeniSonTarih) : 'Yok', row.aciklama])) : help('Henüz kilit değişikliği yok.'));
     return section('Ay kilidi', h('div', { class: 'stack' }, h('div', { class: 'notice' }, status), help(locked ? 'Bu aydaki mali kayıtları değiştirmek için önce kilidi açın.' : 'Yalnız tamamlanmış ay kilitlenebilir. Okumalar ve gelecek planlar çalışmaya devam eder.'), history), action);
   }
-  function lockDialog(data, month, unlock, refreshReport) {
+  function lockDialog(data, month, unlock, refreshReport, report = null) {
     editor(); const identity = requestIdentity(); const [year, period] = month.split('-').map(Number); const reason = input('aciklama', '', { required: true, maxlength: 2000 });
-    formDialog(unlock ? 'Ay kilidini aç' : 'Tamamlanan ayı kilitle', h('div', { class: 'stack' }, h('div', { class: 'notice' }, unlock ? `${month} ayı ve sonraki bütün aylar değişikliğe açılacak. Önceki ayların kilidi korunur.` : `${month} ayının son günü dahil bütün geçmiş mali kayıtlar değişikliğe kapatılacak. Bu işlem bakiyeleri değiştirmez.`), field('Açıklama', reason)), unlock ? 'Bu ayı ve sonrasını aç' : 'Ayı kilitle', async () => {
+    const ruleWarning = unlock ? frozenRuleUnlockWarning(report, month) : null;
+    formDialog(unlock ? 'Ay kilidini aç' : 'Tamamlanan ayı kilitle', h('div', { class: 'stack' }, h('div', { class: 'notice' }, unlock ? `${month} ayı ve sonraki bütün aylar değişikliğe açılacak. Önceki ayların kilidi korunur.` : `${month} ayının son günü dahil bütün geçmiş mali kayıtlar değişikliğe kapatılacak. Bu işlem bakiyeleri değiştirmez.`), ruleWarning && h('div', { class: 'notice danger', role: 'alert' }, ruleWarning), field('Açıklama', reason)), unlock ? 'Bu ayı ve sonrasını aç' : 'Ayı kilitle', async () => {
       editor(); await api(`/api/ay-kilidi/${unlock ? 'ac' : 'kapat'}`, { method: 'POST', body: identity({ surum: data.surum, yil: year, ay: period, aciklama: reason.value.trim() }) }); closeModal(); toast(unlock ? 'Ay kilidi açıldı.' : 'Ay kilitlendi.'); await refreshReport();
     }, { danger: unlock });
   }

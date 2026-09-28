@@ -35,16 +35,16 @@ internal static class KasaKontrolAlanlari
     }
     public static View Kilit(AyKilidiViewModel vm, AylikViewModel rapor, Page page)
     {
+        // Onay metni ve "rapor ayı/oturum değişti mi" koşulu AyKilidiViewModel'dedir (maui-8); burada yalnız diyaloglar gösterilir.
         async Task Degistir(bool kapat)
         {
             var yil = rapor.Yil; var ay = rapor.Ay;
             var oturum = vm.OturumNesli; var surum = vm.DurumSurumu;
             if (surum is null || !vm.VeriHazir) return;
-            var mesaj = kapat ? $"{ay:00}.{yil} ayının sonuna kadar bütün geçmiş mali hareketler kilitlenecek. Okumalar ve gelecek planlar devam eder." : $"{ay:00}.{yil} ayı ve sonraki aylar yeniden açılacak. Bu dönemlerin mali hareketleri değiştirilebilir olacak.";
+            var mesaj = vm.OnayMetni(kapat, yil, ay, rapor.Rapor);
             var gerekce = await page.DisplayPromptAsync(kapat ? "Ayı kapat" : "Ayı ve sonrasını aç", mesaj + "\nDeğişiklik gerekçesini yazın.", "Devam", "Vazgeç", maxLength: 1000);
-            if (string.IsNullOrWhiteSpace(gerekce)) return;
-            if (oturum != vm.OturumNesli || yil != rapor.Yil || ay != rapor.Ay) return;
-            if (await page.DisplayAlertAsync("Ay kilidi değişikliğini onayla", mesaj + "\n\n" + gerekce, "Onayla", "Vazgeç") && yil == rapor.Yil && ay == rapor.Ay)
+            if (string.IsNullOrWhiteSpace(gerekce) || !vm.IstekHalaGecerli(oturum, yil, ay, rapor.Yil, rapor.Ay)) return;
+            if (await page.DisplayAlertAsync("Ay kilidi değişikliğini onayla", mesaj + "\n\n" + gerekce, "Onayla", "Vazgeç") && vm.IstekHalaGecerli(oturum, yil, ay, rapor.Yil, rapor.Ay))
                 await vm.DegistirAsync(kapat, yil, ay, gerekce, oturum, surum.Value);
         }
         var body = Kart("Ay kilidi", Bagli(nameof(vm.DurumMetni)), Metin("Üstte seçili rapor ayı kullanılır. Ayı kapatmak o ayın sonuna kadar geçmişi korur; açmak seçilen ayı ve sonrasını açar."),

@@ -1674,3 +1674,29 @@ test('aylık rapor sunucu sayılarını kullanıcı girdisi gibi ayrıştırmaz:
   assert.ok(text.includes(`Kanala dağıtılmayan eski kredi çekimi: ${money(-500.25)}`), 'Kuruş farkı sunucu sayılarından hesaplanır.');
   assert.equal(ui.serverCents(-1500.5), -150050); assert.equal(ui.serverCents(1e-7), 0); assert.equal(ui.serverCents(null), 0); assert.equal(ui.serverCents(0.29), 29);
 });
+test('kural 1 ile dondurulmuş ayın kilidi açılırken rapor güncel kuralla yeniden hesaplanacağı uyarılır', async () => {
+  const current = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const august = '/api/rapor/aylik?yil=2026&ay=8';
+  const channels = [{ kanal: 'MEZAT', gelen: 200, krediGirisi: 120, cariGiden: 100, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 }];
+  const { app, nodes, responses, calls } = await openApp(false, { [current]: { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, kanallar: channels },
+    [august]: { yil: 2026, ay: 8, kuralSurumu: 1, dondurulmus: true, kanallar: channels }, '/api/ay-kilidi': { surum: 4, kilitliSonTarih: '2026-08-31', gecmis: [] }, '/api/ay-kilidi/ac': { surum: 5, kilitliSonTarih: '2026-07-31', gecmis: [] } });
+  await app.navigate('monthly');
+  const show = async month => { viewField(nodes, 'ay').value = month; await clickView(nodes, 'Ayı göster'); };
+  await show('2026-08');
+  await clickView(nodes, 'Bu ayı ve sonrasını aç');
+  const warning = nodes.get('#modal-content').textContent;
+  assert.match(warning, /eski kuralla \(kural 1\) kapatılmış/); assert.match(warning, /yeniden kapatınca da güncel kuralla/);
+  assert.match(warning, /takipli kredi çekimi Gelen ve Ay sonucundan çıkar/);
+  formField(nodes, 'aciklama').value = 'Ağustos düzeltmesi'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/ay-kilidi/ac').body.ay, 8, 'Uyarı yalnız bilgidir; açma yine gönderilir.');
+  // Kural 2 ile dondurulmuş ay ve kapatma onayı uyarı taşımaz.
+  responses[august] = { ...responses[august], kuralSurumu: 2 };
+  await show('2026-08'); await clickView(nodes, 'Bu ayı ve sonrasını aç');
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/);
+  const frozenOld = { yil: 2026, ay: 7, kuralSurumu: 1, dondurulmus: true, kanallar: channels };
+  responses['/api/ay-kilidi'] = { surum: 5, kilitliSonTarih: '2026-06-30', gecmis: [] };
+  const close = await app.monthlyUi.lockPanel('2026-07', () => {}, frozenOld);
+  close.find(node => node.tag === 'button' && node.textContent === 'Bu ay sonuna kadar kilitle').listeners.click();
+  assert.match(nodes.get('#modal-content').textContent, /son günü dahil bütün geçmiş/);
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/, 'Kapatma onayında uyarı yok.');
+});
