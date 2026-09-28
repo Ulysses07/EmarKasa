@@ -12,7 +12,7 @@ export const ENTITY_LABELS = {
 };
 export const TYPE_LABELS = {
   Ekle: 'Eklendi', Degistir: 'Değiştirildi', Sil: 'Silindi', KilitAc: 'Ay kilidi açıldı', KilitKapat: 'Ay kapatıldı',
-  GecmisKayit: 'Sürüm öncesi kayıt (zamanı bilinmiyor)',
+  GecmisKayit: 'Sürüm öncesi kayıt (zamanı bilinmiyor)', BagKoptu: 'Bağ koptu (bağlı kayıt silindi)',
   GecmisAyEtkisi: 'Geçmiş ayın kanal payı değişti', GirisBasarili: 'Giriş yapıldı', GirisBasarisiz: 'Başarısız giriş', HizSiniri: 'Hız sınırı reddi',
   GirisYogun: 'Sunucu yoğun: giriş ertelendi',
   SifreDegisti: 'Editör şifresi değişti', SifreDegistirmeBasarisiz: 'Şifre değiştirme reddedildi', KurtarmaKoduUretildi: 'Kurtarma kodu oluşturuldu',

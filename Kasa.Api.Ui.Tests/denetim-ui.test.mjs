@@ -33,6 +33,11 @@ test('actor and record text name the role, buyer id, client IP and lock window',
   assert.equal(ui.recordText({ varlik: 'Yeni', varlikId: null, kilitAcmaOlayiId: null }), 'Yeni');
 });
 
+test('a link broken by a deleted parent record has its own readable type', () => {
+  assert.equal(ui.TYPE_LABELS.BagKoptu, 'Bağ koptu (bağlı kayıt silindi)');
+  assert.deepEqual(ui.changeLines({ oncekiJson: '{"OdemeId":15}', yeniJson: '{"OdemeId":null}' }), ['OdemeId: 15 → —']);
+});
+
 test('history dialog loads the filtered page, renders reasons as text and pages older rows', async () => {
   const created = [];
   const h = (tag, props = {}, ...children) => {
