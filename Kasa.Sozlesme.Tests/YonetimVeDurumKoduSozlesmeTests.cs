@@ -23,7 +23,6 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
             Assert.NotNull(arsiv.GetEntry("kasa.db"));
         var sonra = await o.Yonetim.YedekDurumuAsync();
         Assert.NotNull(sonra.SonYedek); Assert.NotNull(sonra.SonDogrulama); Assert.Null(sonra.Hata);
-        Bitir();
     }
 
     [Fact]
@@ -50,7 +49,6 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         await kurtaran.Yonetim.SifreKurtarAsync(new SifreKurtarYaz("editor", kod.Kod, "kurtarilmis-sifre-1"));
         Assert.Equal(HttpStatusCode.NoContent, kurtaran.SonYanit.Durum);
         Assert.Equal("editor", (await kurtaran.Kasa.LoginAsync("editor", "kurtarilmis-sifre-1")).Rol);
-        Bitir();
     }
 
     [Fact]
@@ -73,7 +71,6 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         Assert.Equal(HttpStatusCode.NotFound, yok.DurumKodu);
         var silinemez = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.IslemSilAsync(999_999));
         Assert.Equal(HttpStatusCode.NotFound, silinemez.DurumKodu);
-        Bitir();
     }
 
     [Fact]
@@ -86,6 +83,5 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Yonetim.KurtarmaKoduOlusturAsync(SozlesmeFabrikasi.EditorSifresi));
         Assert.Equal(HttpStatusCode.TooManyRequests, hata.DurumKodu);
         Assert.Matches(@"^Çok fazla deneme yapıldı\. \d+ dakika sonra yeniden deneyin\.$", hata.Message);
-        Bitir();
     }
 }

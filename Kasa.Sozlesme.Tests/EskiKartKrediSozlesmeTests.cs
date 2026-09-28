@@ -22,7 +22,6 @@ public class EskiKartKrediSozlesmeTests : SozlesmeTemeli
         var kredi = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.KrediEkleAsync(new KrediDto(0, "Yeni", 1000m, Bugun, 10, 100m, 5, "MEZAT")));
         Assert.Equal(HttpStatusCode.Conflict, kredi.DurumKodu); Assert.Contains("Krediler ekranından", kredi.Message);
         Assert.Empty(await o.Kasa.KrediKartlariAsync());
-        Bitir();
     }
 
     [Fact]
@@ -68,6 +67,5 @@ public class EskiKartKrediSozlesmeTests : SozlesmeTemeli
         await o.Kasa.KrediKartiSilAsync(kartId);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
         Assert.Empty(await o.Kasa.KrediKartlariAsync());
-        Bitir();
     }
 }

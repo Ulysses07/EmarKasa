@@ -44,7 +44,6 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1_790_000_100), cihaz.SonBasarili);
         await o.Bildirim.BildirimCihaziKaldirAsync(cihazId);
         Assert.False(Assert.Single(await o.Bildirim.BildirimCihazlariAsync()).Etkin);
-        Bitir();
     }
 
     [Fact]
@@ -78,6 +77,5 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
 
         belge = await o.Ekstre.EkstreKayitIptalAsync(belge.Id, kayit.Id, new EkstreIptalYaz(Guid.NewGuid(), "Yanlış satır"));
         Assert.True(Assert.Single(belge.Kayitlar).Iptal);
-        Bitir();
     }
 }

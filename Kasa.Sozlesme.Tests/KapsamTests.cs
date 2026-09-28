@@ -14,9 +14,48 @@ public partial class KapsamTests
     private static IReadOnlyList<(string Arayuz, string Metot)> IstemciMetotlari() => typeof(KasaApiClient).GetInterfaces()
         .SelectMany(a => a.GetMethods().Where(m => !m.IsSpecialName).Select(m => (a.Name, m.Name))).Distinct().ToList();
 
+    /// <summary>Yalnız xUnit test metotlarındaki ([Fact]/[Theory]) işaretler kapsam sayılır: test olmayan bir metottaki
+    /// işaret hiç koşmaz, çağrının yapıldığı da denetlenmez.</summary>
     private static IReadOnlyList<(string Test, string Metot)> Isaretler() => typeof(KapsamTests).Assembly.GetTypes()
-        .SelectMany(t => t.GetMethods()).SelectMany(m => m.GetCustomAttributes<SozlesmeKapsamiAttribute>()
+        .SelectMany(t => t.GetMethods()).Where(m => m.IsDefined(typeof(FactAttribute), inherit: true))
+        .SelectMany(m => m.GetCustomAttributes<SozlesmeKapsamiAttribute>()
             .SelectMany(a => a.Metotlar.Select(x => ($"{m.DeclaringType!.Name}.{m.Name}", x)))).ToList();
+
+    private static List<Type> SozlesmeSiniflari() => typeof(KapsamTests).Assembly.GetTypes()
+        .Where(t => t.IsSubclassOf(typeof(SozlesmeTemeli)) && !t.IsAbstract).ToList();
+
+    /// <summary>Kapsam denetimi (işaretli metot o testte gerçekten çağrıldı mı) test metoduna bırakılmaz: her sözleşme
+    /// sınıfı denetimi temel sınıftan devralır ve xUnit onu her testin sonunda çalıştırır. Denetimin kaçırmaması için
+    /// bu sınıflardaki her test işaretlidir.</summary>
+    [Fact]
+    public void Sozlesme_test_siniflari_kapsam_denetimini_devralir_ve_her_testi_isaretlidir()
+    {
+        var siniflar = SozlesmeSiniflari();
+        Assert.True(siniflar.Count >= 7, $"Sözleşme test sınıfları okunamadı ({siniflar.Count}).");
+        Assert.All(siniflar, t => Assert.NotNull(t.GetCustomAttribute<SozlesmeKapsamiDenetimiAttribute>(inherit: true)));
+        var testler = siniflar.SelectMany(t => t.GetMethods().Where(m => m.IsDefined(typeof(FactAttribute), inherit: true))).ToList();
+        Assert.True(testler.Count >= 16, $"Sözleşme testleri okunamadı ({testler.Count}).");
+        var isaretsiz = testler.Where(m => !m.IsDefined(typeof(SozlesmeKapsamiAttribute))).Select(m => $"{m.DeclaringType!.Name}.{m.Name}").ToList();
+        Assert.True(isaretsiz.Count == 0, "[SozlesmeKapsami] işareti olmayan sözleşme testleri:\n" + string.Join("\n", isaretsiz));
+    }
+
+    [Fact]
+    public void Kapsam_denetimi_cagrilmayan_isaretli_metodu_ve_isaretsiz_testi_bildirir()
+    {
+        var isaretli = typeof(OrnekTestler).GetMethod(nameof(OrnekTestler.Isaretli))!;
+        Assert.Empty(SozlesmeTemeli.KapsamHatalari(isaretli, new HashSet<string> { nameof(IKasaApi.LoginAsync), nameof(IKasaApi.BenKimAsync), nameof(IKasaApi.PanelAsync) }));
+        var hata = Assert.Single(SozlesmeTemeli.KapsamHatalari(isaretli, new HashSet<string> { nameof(IKasaApi.LoginAsync) }));
+        Assert.Contains($"çağrılmayan metotlar: {nameof(IKasaApi.BenKimAsync)} ", hata);
+        Assert.Contains("işareti yok", Assert.Single(SozlesmeTemeli.KapsamHatalari(typeof(OrnekTestler).GetMethod(nameof(OrnekTestler.Isaretsiz))!, new HashSet<string>())));
+    }
+
+    /// <summary>Kapsam denetiminin birim testi için örnek metotlar; test değildir, işaretleri kapsam sayılmaz.</summary>
+    private static class OrnekTestler
+    {
+        [SozlesmeKapsami(nameof(IKasaApi.LoginAsync), nameof(IKasaApi.BenKimAsync))]
+        public static void Isaretli() { }
+        public static void Isaretsiz() { }
+    }
 
     [Fact]
     public void Istemci_arayuzlerindeki_her_metot_bir_sozlesme_testinde_cagrilir()

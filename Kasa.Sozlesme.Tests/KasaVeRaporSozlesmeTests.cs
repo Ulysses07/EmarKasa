@@ -28,7 +28,6 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(HttpStatusCode.Unauthorized, hata.DurumKodu);
         var yanlis = await Assert.ThrowsAsync<KasaApiException>(() => Istemci().Kasa.LoginAsync("editor", "yanlis-sifre"));
         Assert.Equal(HttpStatusCode.Unauthorized, yanlis.DurumKodu);
-        Bitir();
     }
 
     [Fact]
@@ -88,7 +87,6 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         await o.Kasa.KanalSilAsync(kanal.Id);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
         Assert.DoesNotContain(await o.Kasa.KanallarAsync(), k => k.Id == kanal.Id);
-        Bitir();
     }
 
     /// <summary>Koşullu alan: sunucu HaftalikOzet.VeriSagligiUyarisi'ni yalnız ufkun ötesinde kayıt varken yazar. Olağan
@@ -115,6 +113,5 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         var donemler = JsonNode.Parse(o.SonYanit.Json!)!.AsArray();
         Assert.Contains("15.01.2031", donemler[^1]!["veriSagligiUyarisi"]!.GetValue<string>());
         Assert.All(donemler.Take(donemler.Count - 1), d => Assert.Null(d!["veriSagligiUyarisi"]));
-        Bitir();
     }
 }

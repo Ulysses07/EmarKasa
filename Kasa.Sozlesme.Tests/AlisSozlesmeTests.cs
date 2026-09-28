@@ -59,6 +59,5 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         await editor.Yonetim.BelgeSilAsync(belge.Id);
         Assert.Equal(HttpStatusCode.NoContent, editor.SonYanit.Durum);
         Assert.Empty(await editor.Yonetim.BelgelerAsync(alis.Id));
-        Bitir();
     }
 }

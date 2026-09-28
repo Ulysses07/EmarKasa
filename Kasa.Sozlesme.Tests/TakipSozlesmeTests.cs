@@ -74,7 +74,6 @@ public class TakipSozlesmeTests : SozlesmeTemeli
         Assert.Equal(kart.Surum, (await o.Takip.TakipKartAsync(kart.Id)).Surum);
         var ozet = await o.Takip.TakipOzetAsync(60);
         Assert.Equal(Bugun, ozet.Tarih); Assert.NotEmpty(ozet.Olaylar); Assert.NotNull(ozet.KanalKartBorclari);
-        Bitir();
     }
 
     [Fact]
@@ -112,6 +111,5 @@ public class TakipSozlesmeTests : SozlesmeTemeli
         var gecen = await o.Takip.TakipKrediGecisAsync(eskiKredi, gecisIstegi with { Onay = true });
         Assert.True(gecen.YeniTakip); Assert.All(gecen.Taksitler, t => Assert.True(t.Tarih >= Bugun.AddDays(1)));
         Assert.Equal(2, (await o.Takip.TakipKredilerAsync()).Count);
-        Bitir();
     }
 }

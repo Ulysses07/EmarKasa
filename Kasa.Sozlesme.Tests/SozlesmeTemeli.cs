@@ -1,36 +1,56 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Kasa.ApiClient;
+using Xunit.Sdk;
 
 namespace Kasa.Sozlesme.Tests;
 
 /// <summary>Testin gerçek sunucuya karşı çağırdığı istemci metotları. Kapsam testi, istemci arayüzlerindeki her metodun
-/// bir testte işaretli olmasını; <see cref="SozlesmeTemeli.Bitir"/> de işaretli metodun o testte gerçekten çağrılmasını
-/// ister.</summary>
+/// bir testte işaretli olmasını; <see cref="SozlesmeKapsamiDenetimiAttribute"/> de işaretli metodun o testte gerçekten
+/// çağrılmasını ister.</summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 public sealed class SozlesmeKapsamiAttribute(params string[] metotlar) : Attribute
 {
     public IReadOnlyList<string> Metotlar { get; } = metotlar;
 }
 
+/// <summary>xUnit her sözleşme testinin sonunda (test metodu döndükten sonra, örnek atılmadan önce) kapsamı denetler:
+/// testin [SozlesmeKapsami] işaretlerindeki her metot o testte vekil üzerinden çağrılmış olmalı. Denetim test metoduna
+/// bırakılmadığı için unutulamaz; <see cref="SozlesmeTemeli"/>'nden türeyen her sınıf onu devralır.</summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = true)]
+public sealed class SozlesmeKapsamiDenetimiAttribute : BeforeAfterTestAttribute
+{
+    public override void After(MethodInfo methodUnderTest) => SozlesmeTemeli.KapsamiDenetle(methodUnderTest);
+}
+
 /// <summary>
 /// Her test kendi sunucusunu kurar. İstemci arayüzleri bir vekil üzerinden çağrılır: her çağrıdan sonra o çağrının
 /// yanıtı istemcinin döndürdüğü türe (<see cref="SozlesmeDenetimi.YanitHatalari"/>), gönderdiği gövde de ucun bağladığı
 /// sunucu türüne (<see cref="SozlesmeDenetimi.IstekHatalari"/>) karşı denetlenir; 400/409/429 gibi iletili hatalarda
-/// istemcinin sunucu iletisini okuyabildiği doğrulanır.
+/// istemcinin sunucu iletisini okuyabildiği doğrulanır. Test bittiğinde kapsam denetimi kendiliğinden çalışır
+/// (<see cref="SozlesmeKapsamiDenetimiAttribute"/>).
 /// </summary>
+[SozlesmeKapsamiDenetimi]
 public abstract class SozlesmeTemeli : IDisposable
 {
     protected static readonly DateOnly Bugun = SozlesmeFabrikasi.Bugun;
     /// <summary>Takip başlangıcı bugünün ayından 8 ay önce: geçmiş kesim ekstreleri ve taksitler oluşur.</summary>
     protected static readonly DateOnly Baslangic = new DateOnly(Bugun.Year, Bugun.Month, 1).AddMonths(-8);
 
+    // xUnit aynı sınıfın testlerini sırayla koşar (sınıf başına bir test koleksiyonu): sınıfın kayıtlı örneği o anda
+    // koşan testin örneğidir. Örnek kurucuda kaydolur, Dispose'ta (kapsam denetiminden sonra) çıkar.
+    private static readonly ConcurrentDictionary<Type, SozlesmeTemeli> Kosan = new();
+
     private readonly List<SozlesmeFabrikasi> _fabrikalar = [];
     private readonly HashSet<string> _cagrilan = [];
     protected SozlesmeFabrikasi F { get; }
 
-    protected SozlesmeTemeli() => F = Fabrika();
+    protected SozlesmeTemeli()
+    {
+        F = Fabrika();
+        Kosan[GetType()] = this;
+    }
 
     protected SozlesmeFabrikasi Fabrika(Dictionary<string, string?>? ayarlar = null)
     {
@@ -49,17 +69,31 @@ public abstract class SozlesmeTemeli : IDisposable
         return o;
     }
 
-    /// <summary>Testin [SozlesmeKapsami] işaretlerindeki her metot bu testte vekil üzerinden çağrılmış olmalı.</summary>
-    protected void Bitir([CallerMemberName] string test = "")
+    /// <summary>Koşan testin kapsam denetimi (<see cref="SozlesmeKapsamiDenetimiAttribute"/> çağırır). Kurucu hata
+    /// verdiyse kayıtlı örnek yoktur; kurucunun hatası zaten bildirilmiştir.</summary>
+    internal static void KapsamiDenetle(MethodInfo test)
     {
-        var isaretli = GetType().GetMethod(test)!.GetCustomAttributes<SozlesmeKapsamiAttribute>().SelectMany(a => a.Metotlar).ToHashSet();
-        Assert.True(isaretli.Count > 0, $"{test}: [SozlesmeKapsami] işareti yok.");
-        var cagrilmayan = isaretli.Where(m => !_cagrilan.Contains(m)).ToList();
-        Assert.True(cagrilmayan.Count == 0, $"{test}: işaretli ama çağrılmayan metotlar: {string.Join(", ", cagrilmayan)}");
+        if (!Kosan.TryGetValue(test.ReflectedType ?? test.DeclaringType!, out var ornek)) return;
+        HashSet<string> cagrilan;
+        lock (ornek._cagrilan) cagrilan = [.. ornek._cagrilan];
+        var hatalar = KapsamHatalari(test, cagrilan);
+        Assert.True(hatalar.Count == 0, string.Join("\n", hatalar));
+    }
+
+    /// <summary>Testin [SozlesmeKapsami] işaretlerindeki her metot bu testte vekil üzerinden çağrılmış olmalı; işaretsiz
+    /// sözleşme testi de hatadır.</summary>
+    internal static List<string> KapsamHatalari(MethodInfo test, IReadOnlySet<string> cagrilan)
+    {
+        var isaretli = test.GetCustomAttributes<SozlesmeKapsamiAttribute>().SelectMany(a => a.Metotlar).ToHashSet();
+        if (isaretli.Count == 0) return [$"{test.Name}: [SozlesmeKapsami] işareti yok."];
+        var cagrilmayan = isaretli.Where(m => !cagrilan.Contains(m)).Order(StringComparer.Ordinal).ToList();
+        return cagrilmayan.Count == 0 ? []
+            : [$"{test.Name}: işaretli ama çağrılmayan metotlar: {string.Join(", ", cagrilmayan)} (test bu çağrılardan önce başka bir hatayla bittiyse önce o hatayı düzeltin)."];
     }
 
     public void Dispose()
     {
+        Kosan.TryRemove(KeyValuePair.Create(GetType(), this));
         foreach (var f in _fabrikalar) f.Dispose();
         GC.SuppressFinalize(this);
     }

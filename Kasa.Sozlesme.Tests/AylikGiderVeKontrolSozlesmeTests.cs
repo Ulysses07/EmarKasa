@@ -36,7 +36,6 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
         var olay = Assert.Single(kilit.Gecmis); Assert.Equal(("Ocak tamamlandı", (DateOnly?)null), (olay.Aciklama, olay.OncekiSonTarih));
         kilit = await o.AylikGider.AyKilidiDegistirAsync(false, new AyKilidiYaz(Yeni(), kilit.Surum, Baslangic.Year, Baslangic.Month, "Düzeltme için açıldı"));
         Assert.Null(kilit.KilitliSonTarih); Assert.Equal(2, kilit.Gecmis.Count);
-        Bitir();
     }
 
     [Fact]
@@ -57,6 +56,5 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
         var kontrol = await o.Kontrol.KasaKontrolKaydetAsync(new KasaKontrolYaz(Yeni(), 950.5m, onizleme.KontrolOzeti, "Akşam sayımı"));
         Assert.Equal((-49.5m, "Akşam sayımı"), (kontrol.Fark, kontrol.Not));
         Assert.Equal(kontrol.Id, Assert.Single(await o.Kontrol.KasaKontrolleriAsync()).Id);
-        Bitir();
     }
 }
