@@ -165,6 +165,17 @@ public class YeniAkisTests
         api.Durum = new(true, null, null, null); await vm.YukleAsync();
         Assert.DoesNotContain("GB", vm.YedekBilgisi); Assert.Null(vm.YedekUyarisi);
     }
+    [Fact] public async Task Yedek_durumu_son_geri_yuklemeyi_ve_rapor_maddelerini_gosterir_eski_sunucuda_gostermez()
+    {
+        var son = new DateTimeOffset(2026, 9, 28, 10, 15, 0, TimeSpan.Zero);
+        var api = new Fake { Durum = new YedekDurumuDto(true, null, null, null) with { SonGeriYukleme = son,
+            GeriYuklemeRaporu = ["Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.", "Kurtarma kodu iptal edildi."] } };
+        var vm = new GuvenlikViewModel(api, Auth());
+        await vm.YukleAsync();
+        Assert.EndsWith($"\nSon geri yükleme: {son.ToLocalTime():dd.MM.yyyy HH:mm}\n• Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.\n• Kurtarma kodu iptal edildi.", vm.YedekBilgisi);
+        api.Durum = new(true, null, null, null); await vm.YukleAsync();
+        Assert.DoesNotContain("geri yükleme", vm.YedekBilgisi);
+    }
     [Fact] public async Task Belge_yukleme_zaman_asiminda_liste_yenilenir_ki_tekrar_yuklemeden_once_gorulsun()
     {
         var sunucudaki = new BelgeDto(9, 7, null, "dekont.pdf", "application/pdf", 4, DateTimeOffset.UtcNow);

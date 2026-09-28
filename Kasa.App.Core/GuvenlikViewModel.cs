@@ -36,7 +36,7 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         var y = await api.YedekDurumuAsync();
         if (!Gecerli(n)) return;
         YedekBilgisi = $"Otomatik yedek: {(y.OtomatikEtkin ? "açık" : "kapalı")}\nSon yedek: {Zaman(y.SonYedek)}\nSon doğrulama: {Zaman(y.SonDogrulama)}"
-            + DiskSatirlari(y);
+            + DiskSatirlari(y) + GeriYuklemeSatirlari(y);
         // Sunucu disk uyarısını (asgari boş alanın altı, toplam boyut sınırı) ve bulunamayan belge uyarısını da verir.
         var uyarilar = new[] { y.Hata, y.RotasyonUyarisi, y.DiskUyarisi, y.BelgeUyarisi }.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
         YedekUyarisi = uyarilar.Count == 0 ? null : string.Join("\n", uyarilar);
@@ -52,6 +52,15 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         if (y.VeriDiskiBosAlanBayt is { } veri) satirlar.Add($"Veri diski boş alan: {Bicim.Gb(veri)}");
         if (y.ToplamYedekBayt is { } toplam) satirlar.Add($"Yedeklerin toplam boyutu: {Bicim.Gb(toplam)}");
         return satirlar.Count == 0 ? "" : "\n" + string.Join("\n", satirlar);
+    }
+    /// <summary>Son geri yüklemenin anı ve sunucunun raporu (yapılanlar ve yapılması gerekenler; '• ' ile). Hiç geri yükleme
+    /// olmadıysa ya da eski sunucu göndermezse satır yok. Web (app.js) ile aynı metin.</summary>
+    public static string GeriYuklemeSatirlari(YedekDurumuDto y)
+    {
+        if (y.SonGeriYukleme is not { } son) return "";
+        var satirlar = new List<string> { $"Son geri yükleme: {Zaman(son)}" };
+        satirlar.AddRange((y.GeriYuklemeRaporu ?? []).Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => "• " + m));
+        return "\n" + string.Join("\n", satirlar);
     }
     [RelayCommand] private Task SifreDegistirAsync() => YurutAsync(async n =>
     {
