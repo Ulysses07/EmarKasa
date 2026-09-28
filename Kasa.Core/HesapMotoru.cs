@@ -116,13 +116,20 @@ public static class HesapMotoru
 
     /// <summary>
     /// Bir takvim ayı için kanal başına AY SONUCU üretir.
-    /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (Kanallar.Ortak)
-    /// aktif kanallara kuruş bazında (artık kuruşlar ilk aktif kanallara) dağıtılıp düşülür.
+    /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (Kanallar.Ortak) ayın Ortak kümesine (verilmezse aktif
+    /// kanallara) kuruş bazında (artık kuruşlar kümenin ilk kanallarına) dağıtılıp düşülür. Satırlar <paramref name="kanallar"/>
+    /// sırasıyla, kanal başına birer tanedir.
     /// <paramref name="kuralSurumu"/> (<see cref="AylikKural"/>): <see cref="AylikKural.V1"/> 2.1–2.3 davranışıdır ve birebir
     /// korunur (kilitli ayların geçişte dondurulması için). <see cref="AylikKural.V2"/> (varsayılan) kredi girişini
     /// (takipli kredinin kanal payları ve eski modelin '__KREDI__' çekimi) Gelen ve Ay sonucu dışında tutar,
     /// <see cref="AylikRapor.KrediGirisi"/>'nde ayrı döndürür; kanal satırlarının kredi girişi sütunu iki sürümde aynıdır.
     /// Haftalık kasa ve kanal devri kuraldan etkilenmez (kredi nakit olarak kasaya girer).
+    /// <paramref name="ortakKanallari"/> (core-1): ayın Ortak kümesi; kanal adlarıyla, Ortak gideri bölme sırasıyla. Verilirse Ortak
+    /// gider yalnız bu kanallara VERİLEN SIRAYLA bölünür; kanalların bugünkü Aktif bayrağı ve liste sırası Ortak payını etkilemez.
+    /// Böylece tamamlanmış ayın payı o ayın kümesiyle sabit kalır: sonradan pasife alınan kanal o ayın payını almaya devam eder,
+    /// sonradan açılan kanal almaz. Boş liste o ay Ortak gideri bölecek kanal olmadığını söyler (aktif kanal yokken olduğu gibi pay
+    /// üretilmez). Her ad <paramref name="kanallar"/>'da bulunmalı ve bir kez geçmelidir. Verilmezse (null) bugünkü davranış
+    /// birebir korunur: <paramref name="kanallar"/>'ın aktif olanları, liste sırasıyla.
     /// </summary>
     public static AylikRapor AylikHesapla(
         int yil,
@@ -131,10 +138,19 @@ public static class HesapMotoru
         IReadOnlyList<Islem> islemler,
         IReadOnlyList<Gelen> gelenler,
         IReadOnlyList<Donem> donemler,
-        int kuralSurumu = AylikKural.Guncel)
+        int kuralSurumu = AylikKural.Guncel,
+        IReadOnlyList<string>? ortakKanallari = null)
     {
         if (kuralSurumu is not (AylikKural.V1 or AylikKural.V2))
             throw new ArgumentOutOfRangeException(nameof(kuralSurumu), kuralSurumu, "Bilinmeyen aylık rapor kural sürümü.");
+        if (ortakKanallari is not null)
+        {
+            var adlar = kanallar.Select(k => k.Ad).ToHashSet();
+            if (ortakKanallari.FirstOrDefault(ad => !adlar.Contains(ad)) is { } bilinmeyen)
+                throw new ArgumentException($"Ortak pay kümesindeki kanal bulunamadı: {bilinmeyen}", nameof(ortakKanallari));
+            if (ortakKanallari.GroupBy(ad => ad).FirstOrDefault(g => g.Count() > 1) is { } yinelenen)
+                throw new ArgumentException($"Ortak pay kümesinde kanal birden çok kez geçiyor: {yinelenen.Key}", nameof(ortakKanallari));
+        }
         var krediAyri = kuralSurumu >= AylikKural.V2;
         var ayinDonemleri = donemler.Where(d => d.Yil == yil && d.Ay == ay).ToList();
         var ayinDonemStartlari = ayinDonemleri.Select(d => d.Start).ToHashSet();
@@ -143,10 +159,11 @@ public static class HesapMotoru
         var ayinIslemleri = islemler.Where(i => EtkiAyi(i) == (yil, ay)).ToList();
 
         decimal ortakToplam = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == Kanallar.Ortak).Sum(i => i.TutarTl);
-        int aktifKanalSayisi = kanallar.Count(k => k.Aktif);
+        var ortakKumesi = ortakKanallari ?? kanallar.Where(k => k.Aktif).Select(k => k.Ad).ToList();
+        int aktifKanalSayisi = ortakKumesi.Count;
 
-        // Ortak gideri aktif kanallara kuruş bazında dağıt. Tam bölünmediğinde
-        // artık kuruş(ları) işaretini koruyarak ilk aktif kanallara ver.
+        // Ortak gideri kümenin kanallarına kuruş bazında dağıt. Tam bölünmediğinde
+        // artık kuruş(ları) işaretini koruyarak kümenin ilk kanallarına ver.
         var ortakPaylari = new Dictionary<string, decimal>();
         if (aktifKanalSayisi > 0)
         {
@@ -154,10 +171,10 @@ public static class HesapMotoru
             long tabanKurus = toplamKurus / aktifKanalSayisi;
             long artanKurus = toplamKurus - tabanKurus * aktifKanalSayisi;
             int aktifIndex = 0;
-            foreach (var kanal in kanallar.Where(k => k.Aktif))
+            foreach (var kanalAdi in ortakKumesi)
             {
                 long payKurus = tabanKurus + (aktifIndex < Math.Abs(artanKurus) ? Math.Sign(artanKurus) : 0);
-                ortakPaylari[kanal.Ad] = payKurus / 100m;
+                ortakPaylari[kanalAdi] = payKurus / 100m;
                 aktifIndex++;
             }
         }

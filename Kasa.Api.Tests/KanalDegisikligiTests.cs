@@ -13,11 +13,11 @@ namespace Kasa.Api.Tests;
 
 /// <summary>
 /// Kanal değişikliği (ops-1, ops-2, statement-6, gap-veri-degismezleri-patlama-yaricapi-6): kanal kimliği mali bağdır, kayıtlardaki
-/// Kanal metni yalnız görünen ad kopyasıdır. Aylık rapor Ortak gideri güncel sıralı aktif kanal kümesine böler ve kilitli ayın
-/// dondurulmuş raporu ay açılınca silinir; bu yüzden kilit varken yalnız bu kümeyi değiştirmeyen kanal değişiklikleri serbesttir
-/// (ad, pasif yeni kanal, aktif kanalların sırasını bozmayan sıra, geçmişsiz pasif kanalı silme). Aktif kanal ekleme, aktiflik,
-/// aktif kanalların sırası, aktif kanal silme ve açılış devri kilitte değişmez: kapatılmış ay sonradan açılınca raporu
-/// kapanıştakiyle aynı kalır. Bugün 25 Eylül 2026 (sabit saat), takip başlangıcı Haziran 2026 başı, kilitlenen ay Ağustos 2026.
+/// Kanal metni yalnız görünen ad kopyasıdır. Tamamlanmış ayın kanal kümesi (Ortak gider dağılımı ve rapor satırları) kanal
+/// değişikliğinden önce ve ay kapatılırken dondurulur (AyKanalKumesi, core-1); bu yüzden kilit varken de ad, kanal ekleme, aktiflik
+/// ve sıra serbesttir: kapatılmış ay sonradan açılınca raporu kapanıştakiyle aynı kalır. Açılış devri kilitte değişmez; tamamlanmış
+/// bir ayın kümesinde yer alan kanal silinmez. Bugün 25 Eylül 2026 (sabit saat), takip başlangıcı Haziran 2026 başı, kilitlenen ay
+/// Ağustos 2026.
 /// </summary>
 public class KanalDegisikligiTests
 {
@@ -90,8 +90,8 @@ public class KanalDegisikligiTests
         var dondurulmus = await c.GetStringAsync(AylikUrl(Old));
         Assert.Equal(AyRaporuAnlikGoruntusuTests.Dondurulmus(kilitOncesiAylik, HesapServisi.AcikAyKurali), dondurulmus);
 
-        // Önceden hepsi 409 "... tarihine kadar dönem kilitli" idi. Ortak gideri bölen sıralı aktif küme (MEZAT, PERAKENDE, TOPTAN)
-        // değişmediği sürece serbest: pasif yeni kanal, pasif kanalın sırası, ad, aktif sırayı bozmayan sıra, geçmişsiz pasif kanalı silme.
+        // Önceden hepsi 409 "... tarihine kadar dönem kilitli" idi: pasif yeni kanal, pasif kanalın sırası, ad, sıra, geçmişsiz pasif
+        // kanalı silme. Ağustos'un kanal kümesi (MEZAT, PERAKENDE, TOPTAN) kapanışta dondurulmuştur.
         var online = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", false, 9));
         await Basarili(await c.PutAsJsonAsync($"/api/kanallar/{online.Id}", new KanalYazDto("ONLINE", false, 1)));
         await Basarili(await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT MAĞAZA")));
@@ -118,7 +118,7 @@ public class KanalDegisikligiTests
         }
         Assert.Contains(sonra, h => (decimal)h["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT MAĞAZA")!["gelen"]! == 300m);
 
-        // Açık ayda da küme aynı: bu ayın Ortak gideri aktif üç kanala bölünür, pasif ONLINE pay almaz.
+        // Açık ay güncel kanallarla: bu ayın Ortak gideri aktif üç kanala bölünür, pasif ONLINE pay almaz.
         var buAy = JsonNode.Parse(await c.GetStringAsync(AylikUrl(Month)))!["kanallar"]!.AsArray();
         Assert.Equal(30m, (decimal)buAy.Single(k => (string)k!["kanal"]! == "MEZAT MAĞAZA")!["ortakPay"]!);
         Assert.Equal(0m, (decimal)buAy.Single(k => (string)k!["kanal"]! == "ONLINE")!["ortakPay"]!);
@@ -139,30 +139,35 @@ public class KanalDegisikligiTests
             KanalBazindaAyni(kilitOncesiAylik, CanliAylik(scope, Old), adlar);
         }
 
-        // Ay düzeltme için açılınca rapor canlı hesaplanır: kanal bazında kapanıştakiyle aynı (ad güncel, pasif yeni kanal sıfır satır).
+        // Ay düzeltme için açılınca rapor ayın kümesiyle canlı hesaplanır: kanal bazında kapanıştakiyle aynı (ad güncel; kümeden sonra
+        // açılan ONLINE'ın satırı yok).
         await AyKilidi(c, Old, ac: true);
-        KanalBazindaAyni(kilitOncesiAylik, await c.GetStringAsync(AylikUrl(Old)), adlar);
-        // Önceki aylar hâlâ kilitli: pasif kanal aktifleştirilemez. Kilit takip başlangıcı ayından açılınca (kilit kalmayınca) serbest.
-        using (var r = await c.PutAsJsonAsync($"/api/kanallar/{online.Id}", new KanalYazDto("ONLINE", true, 1)))
-            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
-        await AyKilidi(c, Month.AddMonths(-3), ac: true);
+        var acilan = await c.GetStringAsync(AylikUrl(Old));
+        KanalBazindaAyni(kilitOncesiAylik, acilan, adlar);
+        Assert.DoesNotContain("ONLINE", acilan);
+        // Önceki aylar hâlâ kilitli: pasif kanal yine de aktifleştirilir (önceden 409); Ağustos'un raporu değişmez.
         await Basarili(await c.PutAsJsonAsync($"/api/kanallar/{online.Id}", new KanalYazDto("ONLINE", true, 1)));
+        Assert.Equal(acilan, await c.GetStringAsync(AylikUrl(Old)));
     }
 
-    /// <summary>İnceleme yeniden üretimi: kilitte Ortak kümesi değişip ay açılınca, hiçbir kayıt değişmeden kapanan ayın Ortak payı
-    /// yeniden yazılıyordu (ONLINE eklenince 25,01/25/25/25; MEZAT pasifken 0; sıra değişince artık kuruş başka kanalda). Burada
-    /// kapanışta dört aktif kanal (tohum kanalları ve geçmişsiz ONLINE) ve pasif YEDEK var.</summary>
+    /// <summary>İnceleme yeniden üretimi (önceden 409; daha önce de kilitte Ortak kümesi değişip ay açılınca, hiçbir kayıt değişmeden
+    /// kapanan ayın Ortak payı yeniden yazılıyordu: ONLINE eklenince 25,01/25/25/25; MEZAT pasifken 0; sıra değişince artık kuruş başka
+    /// kanalda). Ağustos'ta açılan ONLINE (aktif) ve YEDEK (pasif) Ağustos'un kümesindedir: Ağustos kapanışta dört aktif kanalla
+    /// dondurulur. Kilit altında ekleme, pasife alma, aktifleştirme ve sıra serbesttir; kümedeki kanal silinmez. Kapatılan ayın raporu,
+    /// canlı hesabı ve ay açılınca gösterilen raporu kapanıştakiyle birebir aynıdır.</summary>
     [Theory]
     [InlineData("aktif kanal ekle")]
     [InlineData("pasife al")]
     [InlineData("aktiflestir")]
     [InlineData("aktif sirayi degistir")]
     [InlineData("aktif kanali sil")]
-    public async Task Kilit_altinda_ortak_kumesini_degistiren_kanal_degisikligi_engellenir_ay_acilinca_rapor_birebir_ayni(string degisiklik)
+    public async Task Kilit_altinda_ortak_kumesini_degistiren_kanal_degisikligi_serbest_kumedeki_kanal_silinmez_ay_acilinca_rapor_birebir_ayni(string degisiklik)
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        var saat = new SabitSaat(Old.AddDays(19));
+        await using var f = new KasaWebFactory { Saat = saat }; using var c = await Editor(f);
         var online = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
         var yedek = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("YEDEK", false, 4));
+        saat.Ayarla(Today);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kira", 100.01m, Kanallar.Ortak, GiderTipi.Cari));
         var kilitOncesi = await c.GetStringAsync(AylikUrl(Old));
         Assert.Equal(25.01m, (decimal)JsonNode.Parse(kilitOncesi)!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!["ortakPay"]!);
@@ -178,14 +183,18 @@ public class KanalDegisikligiTests
             _ => await c.DeleteAsync($"/api/kanallar/{online.Id}"),
         })
         {
-            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
-            Assert.Contains("Ortak", await Hata(r));
+            if (degisiklik == "aktif kanali sil")
+            {
+                Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+                Assert.Contains("kanal kümesinde", await Hata(r));
+            }
+            else Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
         }
         Assert.Equal(dondurulmus, await c.GetStringAsync(AylikUrl(Old)));
         using (var scope = f.Services.CreateScope())
             Assert.Equal(kilitOncesi, CanliAylik(scope, Old));
 
-        // Yazım hatası düzeltmek için ay açılır: rapor canlı hesaplanır ve kapanmadan önce gösterilenle birebir aynıdır.
+        // Yazım hatası düzeltmek için ay açılır: rapor ayın kümesiyle canlı hesaplanır ve kapanmadan önce gösterilenle birebir aynıdır.
         await AyKilidi(c, Old, ac: true);
         Assert.Equal(kilitOncesi, await c.GetStringAsync(AylikUrl(Old)));
     }
@@ -244,25 +253,26 @@ public class KanalDegisikligiTests
         Assert.Equal(HttpStatusCode.Conflict, devirli.StatusCode); Assert.Contains("açılış devri", await Hata(devirli));
         Assert.Equal(haftalik, await c.GetStringAsync("/api/rapor/haftalik"));
 
-        // Kilitte yeni kanal pasif eklenir (Ortak kümesi değişmez); geçmişsiz pasif kanal silinir.
-        var yeni = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", false));
+        // Kilitte yeni kanal (açılış devri 0) aktif de eklenir; tamamlanmış ayların kümesinden sonra açılan geçmişsiz kanal silinir.
+        var yeni = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
         await Durum(await c.DeleteAsync($"/api/kanallar/{yeni.Id}"), HttpStatusCode.NoContent);
-        // Geçmişli kanal silinmez; kilit varken aktif kanalı pasife alma önerisi kilidi de söyler.
+        // Geçmişli kanal silinmez; ileti pasife almayı önerir (kilit varken de serbest; önceden "pasife alınamaz" diyordu).
         var gecmisli = await c.DeleteAsync("/api/kanallar/1");
         Assert.Equal(HttpStatusCode.Conflict, gecmisli.StatusCode);
-        var ileti = await Hata(gecmisli); Assert.Contains("Geçmişi", ileti); Assert.Contains("ay kilidi varken aktif kanal pasife alınamaz", ileti);
+        var ileti = await Hata(gecmisli); Assert.Contains("Geçmişi", ileti); Assert.Contains("pasifleştirebilirsiniz", ileti);
+        Assert.DoesNotContain("pasife alınamaz", ileti);
         Assert.Equal(haftalik, await c.GetStringAsync("/api/rapor/haftalik"));
     }
 
     /// <summary>Yalnız çok kanallı ekstre dağılımında ya da aylık gider şablonunda kullanılan kanal (gideri kanal kimliği taşımaz):
-    /// silme engeli uçta öteki geçmişle aynı iletiyle döner ve kilit varken aktif kanalın pasife alınamadığını da söyler. Önceden
-    /// kaydetme kuralının iletisi döndü: ekstrede kilitte de 'pasife alınabilir', şablonda kilit yokken de kilit notu.</summary>
+    /// silme engeli uçta öteki geçmişle aynı iletiyle döner ve kilitli de kilitsiz de pasife almayı önerir (ay kanal kümesiyle
+    /// pasife alma kilitte de serbesttir). Önceden kaydetme kuralının iletisi dönüyordu.</summary>
     [Theory]
     [InlineData("ekstre", false)]
     [InlineData("ekstre", true)]
     [InlineData("aylik gider", false)]
     [InlineData("aylik gider", true)]
-    public async Task Yalniz_dagilimda_kullanilan_kanal_silinmez_ileti_kilitte_pasife_almanin_engelini_soyler(string kaynak, bool kilitli)
+    public async Task Yalniz_dagilimda_kullanilan_kanal_silinmez_ileti_kilitte_de_pasife_almayi_onerir(string kaynak, bool kilitli)
     {
         await using var f = Fabrika(); using var c = await Editor(f);
         var online = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
@@ -282,8 +292,8 @@ public class KanalDegisikligiTests
             Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
             var ileti = await Hata(r);
             Assert.StartsWith("Geçmişi", ileti);
-            if (kilitli) Assert.Contains("ay kilidi varken aktif kanal pasife alınamaz", ileti);
-            else Assert.DoesNotContain("kilit", ileti);
+            Assert.EndsWith("Kanalı pasifleştirebilirsiniz.", ileti);
+            Assert.DoesNotContain("kilit", ileti);
         }
         using var scope = f.Services.CreateScope();
         Assert.True(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Kanallar.Any(k => k.Id == online.Id));
@@ -329,7 +339,7 @@ public class KanalDegisikligiTests
         await Basarili(await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT")));
         await Basarili(await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT MAĞAZA")));
 
-        // Ağustos açılır (Haziran ve Temmuz kilitli kalır: yeni kanal pasif eklenir, Ortak kümesi değişmez).
+        // Ağustos açılır (Haziran ve Temmuz kilitli kalır); aynı adla yeni bir pasif kanal açılır.
         await AyKilidi(c, Old, ac: true);
         var yeni = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("MEZAT", false, 5));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 10m))).EnsureSuccessStatusCode();
@@ -338,8 +348,12 @@ public class KanalDegisikligiTests
         Assert.Equal(new[] { ("MEZAT MAĞAZA", 1, 300m), ("MEZAT", yeni.Id, 10m) }, satirlar.Select(g => (g.Kanal, g.KanalId!.Value, g.TutarTl)).ToArray());
     }
 
+    /// <summary>Görüntüsü olmayan kilitli ay (bu sürümden önce kapatılmış; geçiş tohumu raporuna karantinadaki kayıt girdiği için
+    /// dondurmamış olabilir) canlı hesaplanır. Önceden kanal kümesini değiştiren her istek 409 alıyordu ("dondurulmamış"). Artık ilk
+    /// kanal değişikliğinden önce kilitli ayların kanal kümesi dondurulur (pasif kanal eklemede de): değişiklikler serbesttir ve ayın
+    /// canlı raporu (kural 1) birebir aynı kalır; ad değişikliği yalnız adları değiştirir.</summary>
     [Fact]
-    public async Task Kilitli_ayin_raporu_dondurulmamissa_kanal_kumesi_degismez_ad_degisir()
+    public async Task Kilitli_ayin_raporu_dondurulmamissa_da_kanal_degisikligi_serbest_rapor_ayin_kumesiyle_ayni_kalir()
     {
         await using var f = Fabrika(); using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, Kanallar.Ortak, GiderTipi.Cari));
@@ -351,15 +365,16 @@ public class KanalDegisikligiTests
         var once = await c.GetStringAsync(AylikUrl(Old));
         Assert.Null(JsonNode.Parse(once)!["dondurulmus"]);
 
-        // Görüntüsüz kilitli ayın raporu canlıdır: pasif yeni kanal bile ona satır ekler.
-        foreach (var istek in new Func<Task<HttpResponseMessage>>[] { () => c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("ONLINE")),
-                     () => c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("PASİF", false)),
+        // İlk istek pasif kanal ekler (Ortak kümesi değişmez): yine de kilitli ayların kümesi dondurulur, yeni kanal satır eklemez.
+        foreach (var istek in new Func<Task<HttpResponseMessage>>[] { () => c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("PASİF", false)),
+                     () => c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("ONLINE")),
                      () => c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", Sira: 99)), () => c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false)) })
         {
-            using var r = await istek();
-            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode); Assert.Contains("dondurulmamış", await Hata(r));
+            await Basarili(await istek());
+            Assert.Equal(once, await c.GetStringAsync(AylikUrl(Old)));
         }
-        Assert.Equal(once, await c.GetStringAsync(AylikUrl(Old)));
+        using (var scope = f.Services.CreateScope())
+            Assert.All(scope.ServiceProvider.GetRequiredService<KasaDbContext>().AyKanalKumeleri.AsNoTracking().ToList(), k => Assert.Equal(AyKanalKumesi.KanalDegisikligi, k.Kaynak));
         await Basarili(await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT MAĞAZA")));
         Assert.Equal(AdlarHaric(once), AdlarHaric(await c.GetStringAsync(AylikUrl(Old))));
     }

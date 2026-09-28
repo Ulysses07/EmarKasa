@@ -56,10 +56,15 @@ public static class AyKilidiEndpoints
         FinansHesaplari.IstekKaydet(db, d.IstekId, kind, digest, state.Id); db.SaveChanges();
         // Açma/kapatma merkezi denetim olayıdır: açma, penceresine düşecek değişikliklerin bağlanacağı kimliği (olay.Id) açar.
         KancaDisiOlaylar.AyKilidi(db, olay, reopen, kapatilan, d.IstekId);
-        // Aynı transaction'da, yeni kilit sınırı kaydedildikten sonra: kapatılan ayların raporu dondurulur, açılanlarınki
-        // silinir (görüntü yalnız kilitli ay için bulunabilir; bkz. AyRaporAnlikGoruntusu).
+        // Aynı transaction'da, yeni kilit sınırı kaydedildikten sonra: kapatılan ayların kanal kümesi (Ortak dağılımı ve rapor
+        // satırları; bkz. AyKanalKumesi) ve raporu dondurulur, açılanların rapor görüntüsü silinir (görüntü yalnız kilitli ay için
+        // bulunabilir; bkz. AyRaporAnlikGoruntusu). Kanal kümesi açılışta silinmez: açılan ay kendi kümesiyle hesaplanır.
         if (reopen) AyRaporAnlikGoruntusu.KilidiAcildi(db, next);
-        else AyRaporAnlikGoruntusu.Kilitlendi(db, previous, next!.Value, now);
+        else
+        {
+            AyKanalKumesi.AyKapanirken(db, next!.Value, now);
+            AyRaporAnlikGoruntusu.Kilitlendi(db, previous, next.Value, now);
+        }
         db.SaveChanges();
         return Results.Ok(Read(db));
     });

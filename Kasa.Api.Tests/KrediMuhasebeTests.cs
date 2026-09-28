@@ -32,10 +32,14 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         db.Islemler.RemoveRange(db.Islemler);
         db.Gelenler.RemoveRange(db.Gelenler);
         db.Krediler.RemoveRange(db.Krediler);
-        db.Kanallar.RemoveRange(db.Kanallar);
-        db.Kanallar.AddRange(
-            new KanalEntity { Ad = "MEZAT", Sira = 0, Aktif = true, AcilisDevri = 0m },
-            new KanalEntity { Ad = "PERAKENDE", Sira = 1, Aktif = true, AcilisDevri = 0m });
+        // Kanallar silinmez (tamamlanmış ayların kanal kümesinde yer alan kanal silinemez; AyKanalKumesi): MEZAT ve PERAKENDE aktif,
+        // açılış 0 olarak yeniden tohumlanır, öteki kanallar pasife alınır (Ortak gider yalnız iki aktif kanala bölünür).
+        foreach (var kanal in db.Kanallar) kanal.Aktif = false;
+        foreach (var (ad, sira) in new[] { ("MEZAT", 0), ("PERAKENDE", 1) })
+        {
+            var kanal = db.Kanallar.Local.SingleOrDefault(k => k.Ad == ad) ?? db.Kanallar.Add(new KanalEntity { Ad = ad }).Entity;
+            kanal.Sira = sira; kanal.Aktif = true; kanal.AcilisDevri = 0m;
+        }
 
         var ayar = db.Ayarlar.First();
         ayar.TakipBaslangic = Baslangic;

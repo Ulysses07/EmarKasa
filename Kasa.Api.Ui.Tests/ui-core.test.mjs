@@ -1567,17 +1567,17 @@ test('kanal ve genel kasa açılış devri ± seçiciyle eksi girilir', async ()
   formField(nodes, 'kasaAcilisDevri').value = '250'; await submitDialog(nodes);
   assert.deepEqual(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body, { takipBaslangic: '2026-01-01', kasaAcilisDevri: -250 });
 });
-// Ay kilidi varken aktif yeni kanal, Ortak gideri bölen aktif kanal kümesini değiştirdiği için sunucuda 409 alır: Ayarlar kilit
-// durumunu okur, yeni kanal formu kilitte pasif gelir ve kilidi söyler; düzenlenen kanal kendi aktifliğiyle açılır.
-test('ay kilidi varken yeni kanal formu pasif gelir ve kilidi söyler; kilit yokken ya da okunamazsa aktif gelir', async () => {
+// Tamamlanmış ayların kanal kümesi sunucuda dondurulduğundan kilit varken de aktif kanal eklenebilir: Ayarlar kilit durumunu okur,
+// kanal formu kilidi (yalnız açılış devri kilitte değişmez) söyler; yeni kanal kilitte de aktif gelir, düzenlenen kendi aktifliğiyle.
+test('ay kilidi varken kanal formu kilidi söyler ve yeni kanal aktif gelir; kilit yokken ya da okunamazsa not görünmez', async () => {
   const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': [{ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0 }], '/api/ay-kilidi': { surum: 2, kilitliSonTarih: '2026-08-31', gecmis: [] }, '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
   const lockText = `${dateText('2026-08-31')} dahil aylar kilitli`;
   await app.navigate('tools');
   await clickView(nodes, '+ Kanal ekle');
-  assert.equal(formField(nodes, 'aktif').checked, false, 'Kilitte yeni kanal pasif gelir.');
-  assert.ok(nodes.get('#modal-content').textContent.includes(`${lockText}. Yeni kanal pasif`), 'Kilit notu görünür.');
+  assert.equal(formField(nodes, 'aktif').checked, true, 'Kilitte de yeni kanal aktif gelir.');
+  assert.ok(nodes.get('#modal-content').textContent.includes(`${lockText}. Yeni kanal açılış devri 0`), 'Kilit notu görünür.');
   formField(nodes, 'ad').value = 'E-TİCARET'; await submitDialog(nodes);
-  assert.equal(calls.find(call => call.path === '/api/kanallar' && call.method === 'POST').body.aktif, false);
+  assert.equal(calls.find(call => call.path === '/api/kanallar' && call.method === 'POST').body.aktif, true);
 
   await clickView(nodes, 'Düzenle');
   assert.equal(formField(nodes, 'aktif').checked, true, 'Düzenlenen kanal kendi aktifliğiyle açılır.');
