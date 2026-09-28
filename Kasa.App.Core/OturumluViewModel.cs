@@ -6,18 +6,14 @@ namespace Kasa.App.Core;
 /// Yürütme deseni tabandaki <see cref="Yurutucu"/>'dur.</summary>
 public abstract partial class OturumluViewModel : TemelViewModel
 {
-    private readonly SynchronizationContext? _ui = SynchronizationContext.Current;
     protected readonly AuthViewModel Auth;
     protected OturumluViewModel(AuthViewModel auth)
     {
         Auth = auth;
-        auth.PropertyChanged += (_, e) =>
+        OturumDegisiminiDinle(auth, () =>
         {
-            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu)) return;
-            Yurutucu.GecersizKil();
-            void Sifirla() { VeriHazir = false; Mesgul = false; Hata = null; Mesaj = null; SonGuncelleme = null; OturumTemizle(); OnPropertyChanged(nameof(EditorMu)); }
-            if (_ui is not null && SynchronizationContext.Current != _ui) _ui.Post(_ => Sifirla(), null); else Sifirla();
-        };
+            VeriHazir = false; Mesgul = false; Hata = null; Mesaj = null; SonGuncelleme = null; OturumTemizle(); OnPropertyChanged(nameof(EditorMu));
+        });
     }
     public bool EditorMu => Auth.AktifRol == Rol.Editor;
     public int OturumNesli => Yurutucu.Nesil;

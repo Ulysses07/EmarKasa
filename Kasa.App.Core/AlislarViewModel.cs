@@ -30,7 +30,6 @@ public partial class AlislarViewModel : TemelViewModel
     /// <summary>Yeni alış için tekrar anahtarı (appcore-5): zaman aşımından sonra aynı taslağın yeniden gönderimi aynı kimliği
     /// taşır, sunucu ikinci taslak açmaz. Başarıda, yeni formda, başka alışa geçişte ve oturum değişince sıfırlanır.</summary>
     private readonly TekrarAnahtari _olusturAnahtari = new();
-    private readonly SynchronizationContext? _ui = SynchronizationContext.Current;
 
     /// <param name="auth">Verilirse model oturum değişimini kendisi alır (appcore-10): sayfa kod-arkası olmadan da bekleyen işler
     /// eskir, önceki oturumun verisi kalkar ve rol oturumdan gelir. Verilmezse oturum <see cref="OturumuAyarla"/> ile ayarlanır.</param>
@@ -50,14 +49,8 @@ public partial class AlislarViewModel : TemelViewModel
         };
         if (auth is null) return;
         OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor);
-        // OturumluViewModel ile aynı sıra: bekleyen işler hemen eskir, ekran (koleksiyonlar) UI bağlamında sıfırlanır.
-        auth.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu)) return;
-            Yurutucu.GecersizKil();
-            void Ayarla() => OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor);
-            if (_ui is not null && SynchronizationContext.Current != _ui) _ui.Post(_ => Ayarla(), null); else Ayarla();
-        };
+        // OturumluViewModel ile aynı yol: bekleyen işler hemen eskir, ekran (koleksiyonlar) UI bağlamında sıfırlanır.
+        OturumDegisiminiDinle(auth, () => OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor));
     }
 
     public ObservableCollection<AlisSatiri> Alislar { get; } = new();
@@ -488,8 +481,8 @@ public partial class AlislarViewModel : TemelViewModel
     });
 
     protected override void IletiyiTemizle() => Mesaj = null;
-    /// <summary>Oturum değişince (sayfa, <see cref="OturumuAyarla"/>'dan önce) bekleyen işleri eskitir; göstergeyi OturumuAyarla indirir.
-    /// AuthViewModel ile kurulan model bunu kendisi yapar; sayfanın ek çağrısı zararsızdır (aynı sürümde OturumuAyarla erken döner).</summary>
+    /// <summary>Bekleyen işleri eskitir (AuthViewModel olmadan kurulan modelde oturum değişince <see cref="OturumuAyarla"/>'dan önce);
+    /// göstergeyi OturumuAyarla indirir. AuthViewModel ile kurulan model (uygulama) oturum değişiminde bunu kendisi yapar.</summary>
     public void BekleyenIslemleriGecersizKil() => Yurutucu.GecersizKil();
     private bool HataYaz(string mesaj) { Hata = mesaj; return false; }
     private void KalemDegisti(object? sender, PropertyChangedEventArgs e) { ToplamlariYenile(); KirliYap(); }

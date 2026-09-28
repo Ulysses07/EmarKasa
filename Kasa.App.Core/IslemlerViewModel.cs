@@ -18,17 +18,14 @@ public partial class IslemlerViewModel : TemelViewModel
     {
         _api = api; _auth = auth; _zaman = zaman ?? TimeProvider.System; GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
         _listeHatti = new(Yurutucu); _kaynakHatti = new(Yurutucu); _gelenHatti = new(Yurutucu);
-        if (auth is not null) auth.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(auth.OturumSurumu)) OturumDegisti();
-        };
+        if (auth is not null) OturumDegisiminiDinle(auth, OturumDegisti);
     }
 
-    /// <summary>Oturum değişince bekleyen kayıt, liste ve gelir yanıtları eskir (sonuçları, hataları ve bitişleri yansımaz);
-    /// eskiyen kayıt göstergeyi indirmeyeceği için burada indirilir, önceki oturumun formu, listesi ve iletileri kalkar.</summary>
+    /// <summary>Oturum değişince bekleyen kayıt, liste ve gelir yanıtları eskir (sonuçları, hataları ve bitişleri yansımaz; nesli
+    /// <see cref="TemelViewModel.OturumDegisiminiDinle"/> hemen artırır); eskiyen kayıt göstergeyi indirmeyeceği için burada
+    /// indirilir, önceki oturumun formu, listesi ve iletileri UI bağlamında kalkar.</summary>
     private void OturumDegisti()
     {
-        Yurutucu.GecersizKil();
         Mesgul = false; Hata = null;
         GiderBenzerlik.Temizle(); Yeni(); GelenTemizle(); ListeTemizle();
     }

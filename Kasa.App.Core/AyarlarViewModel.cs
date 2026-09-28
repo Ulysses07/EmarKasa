@@ -6,13 +6,22 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-/// <summary>Editör ayarları: kanal CRUD + izleyici şifre + takip başlangıç/açılış devri (spec §6).</summary>
+/// <summary>Editör ayarları: kanal CRUD + izleyici şifre + takip başlangıç/açılış devri (spec §6). Yükleme ve bütün kayıtlar
+/// yürütücünün tekil işlemidir (appcore-10): biri sürerken ötekisi başlamaz (yükleme sürerken form gönderilmez), sonuç başladığı
+/// neslin hâlâ geçerli olduğu denetlenerek uygulanır.</summary>
 public partial class AyarlarViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
     private readonly IAylikGiderApi? _kilit;
     /// <param name="kilit">Ay kilidi durumu: yalnız kanal formundaki kilit notu için (kuralı sunucu uygular).</param>
-    public AyarlarViewModel(IKasaApi api, IAylikGiderApi? kilit = null) { _api = api; _kilit = kilit; }
+    /// <param name="auth">Verilirse model oturum değişimini kendisi alır: bekleyen yükleme ve kayıtlar eskir (sonuçları, hataları ve
+    /// bitişleri yansımaz, yeni oturum onları beklemez), önceki oturumun ayarları, kanalları, formları, onayları ve yazılmış izleyici
+    /// şifresi kalkar.</param>
+    public AyarlarViewModel(IKasaApi api, IAylikGiderApi? kilit = null, AuthViewModel? auth = null)
+    {
+        _api = api; _kilit = kilit;
+        if (auth is not null) OturumDegisiminiDinle(auth, OturumTemizle);
+    }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
 
@@ -67,17 +76,22 @@ public partial class AyarlarViewModel : TemelViewModel
             ? $"{ad} {Bicim.Tl(kayitli)} ₺ yerine 0,00 ₺ yapılacak. Alan boş bırakılmış olabilir. Onaylamak için yeniden kaydedin."
             : null;
 
-    private async Task DoldurAsync()
+    /// <summary>Ayarları, kanalları ve kilit notunu okur; her okumadan sonra nesil denetlenir: oturum değiştiyse sonuç yeni
+    /// oturumun ekranına yazılmaz.</summary>
+    private async Task DoldurAsync(int n)
     {
         var ayar = await _api.AyarlarAsync();
+        if (!Gecerli(n)) return;
         TakipBaslangic = ayar.TakipBaslangic.ToDateTime(TimeOnly.MinValue);
         KasaAcilisDevri = _kayitliKasaAcilisDevri = ayar.KasaAcilisDevri;
         IzleyiciSifreUyarisi = ayar.IzleyiciSifreKisa ? IzleyiciSifreKisaMesaji : null;
         VekilUyarisi = ayar.VekilUyarisi;
         var kanallar = await _api.KanallarAsync();
+        if (!Gecerli(n)) return;
         Kanallar.Clear();
         foreach (var k in kanallar) Kanallar.Add(k);
-        KilitliSonTarih = await KilitSonuAsync();
+        var kilitSonu = await KilitSonuAsync();
+        if (Gecerli(n)) KilitliSonTarih = kilitSonu;
     }
 
     private async Task<DateOnly?> KilitSonuAsync()
@@ -87,7 +101,20 @@ public partial class AyarlarViewModel : TemelViewModel
         catch (KasaApiException e) when (e.DurumKodu != HttpStatusCode.Unauthorized) { return null; }
     }
 
-    public Task YukleAsync() => CalistirAsync(DoldurAsync);
+    public Task YukleAsync() => YurutAsync(DoldurAsync);
+
+    /// <summary>Oturum değişince (nesil artmış, bekleyen işler eskimiştir) ekran yeni kurulmuş modelin durumuna döner: önceki
+    /// oturumun ayarları, kanalları, formları, sıfır onayları, iletileri ve yazılmış izleyici şifresi kalkar.</summary>
+    private void OturumTemizle()
+    {
+        Mesgul = false; Hata = null;
+        Kanallar.Clear();
+        TakipBaslangic = DateTime.Today; KasaAcilisDevri = _kayitliKasaAcilisDevri = 0;
+        YeniKanal();
+        AyarOnayiniSifirla(); KanalOnayiniSifirla();
+        KilitliSonTarih = null; VekilUyarisi = null;
+        YeniIzleyiciSifre = ""; IzleyiciSifreHatasi = null; IzleyiciSifreMesaji = null; IzleyiciSifreUyarisi = null;
+    }
 
     [RelayCommand]
     private void YeniKanal()
@@ -104,7 +131,7 @@ public partial class AyarlarViewModel : TemelViewModel
     }
 
     [RelayCommand]
-    private Task KanalKaydetAsync() => CalistirAsync(async () =>
+    private Task KanalKaydetAsync() => YurutAsync(async n =>
     {
         if (!ParaAyristirici.GecerliMi(DuzenKanalAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (SifirOnayMetni($"{DuzenKanalAd} açılış devri", _kayitliKanalAcilisDevri, DuzenKanalAcilisDevri, _kanalSifirOnayi) is { } onay)
@@ -112,22 +139,27 @@ public partial class AyarlarViewModel : TemelViewModel
             _kanalSifirOnayi = true; KanalUyarisi = onay; return;
         }
         var g = new KanalYaz(DuzenKanalAd, DuzenKanalAktif, DuzenKanalSira, DuzenKanalAcilisDevri);
-        if (DuzenKanalId == 0) await _api.KanalOlusturAsync(g);
-        else await _api.KanalGuncelleAsync(DuzenKanalId, g);
+        var id = DuzenKanalId;
+        if (id == 0) await _api.KanalOlusturAsync(g);
+        else await _api.KanalGuncelleAsync(id, g);
+        if (!Gecerli(n)) return;
         YeniKanal();
         KanalOnayiniSifirla();
-        await DoldurAsync();
+        await DoldurAsync(n);
     });
 
+    /// <summary>Onay diyaloğundan sonra gelir: başka işlem (yükleme, kayıt) sürerken silme yapılmaz ve bu söylenir (sessizce yok
+    /// sayılmaz).</summary>
     [RelayCommand]
-    private Task KanalSilAsync(KanalDto k) => CalistirAsync(async () =>
+    private Task KanalSilAsync(KanalDto k) => YurutAsync(async n =>
     {
         await _api.KanalSilAsync(k.Id);
-        await DoldurAsync();
-    });
+        if (!Gecerli(n)) return;
+        await DoldurAsync(n);
+    }, mesgulkenBildir: true);
 
     [RelayCommand]
-    private Task AyarKaydetAsync() => CalistirAsync(async () =>
+    private Task AyarKaydetAsync() => YurutAsync(async n =>
     {
         if (!ParaAyristirici.GecerliMi(KasaAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (SifirOnayMetni("Kasa açılış devri", _kayitliKasaAcilisDevri, KasaAcilisDevri, _kasaSifirOnayi) is { } onay)
@@ -136,25 +168,22 @@ public partial class AyarlarViewModel : TemelViewModel
         }
         var devir = KasaAcilisDevri;
         await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), devir));
+        if (!Gecerli(n)) return;
         _kayitliKasaAcilisDevri = devir;
         AyarOnayiniSifirla();
     });
 
     // Hata ve onay izleyici kartında gösterilir (kanal kartındaki genel Hata kutusuna düşmez).
     [RelayCommand]
-    private async Task IzleyiciSifreKaydetAsync()
+    private Task IzleyiciSifreKaydetAsync() => YurutAsync(async n =>
     {
         IzleyiciSifreHatasi = null; IzleyiciSifreMesaji = null;
         if (!IzleyiciSifresiGecerli(YeniIzleyiciSifre)) { IzleyiciSifreHatasi = IzleyiciSifreKuralMesaji; return; }
-        Mesgul = true;
-        try
-        {
-            await _api.IzleyiciSifreAsync(YeniIzleyiciSifre);
-            YeniIzleyiciSifre = "";
-            IzleyiciSifreUyarisi = null;
-            IzleyiciSifreMesaji = "İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.";
-        }
-        catch (Exception hata) { IzleyiciSifreHatasi = HataMesaji(hata); }
-        finally { Mesgul = false; }
-    }
+        try { await _api.IzleyiciSifreAsync(YeniIzleyiciSifre); }
+        catch (Exception hata) { if (Gecerli(n)) IzleyiciSifreHatasi = HataMesaji(hata); return; }
+        if (!Gecerli(n)) return;
+        YeniIzleyiciSifre = "";
+        IzleyiciSifreUyarisi = null;
+        IzleyiciSifreMesaji = "İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.";
+    });
 }

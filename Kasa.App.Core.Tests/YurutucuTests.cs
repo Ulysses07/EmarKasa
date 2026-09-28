@@ -302,7 +302,89 @@ public class YurutucuTests
         Assert.Null(vm.Hata); Assert.False(vm.Mesgul);
     }
 
-    // ---- Ayarlar: CalistirAsync artık yürütücünün tekil işlemidir ----
+    // ---- Ayarlar: yükleme ve kayıtlar yürütücünün tekil işlemidir, oturum değişimini model kendisi alır ----
+
+    [Fact]
+    public async Task Ayarlar_kanal_silme_baska_islem_surerken_yapilmaz_ve_yapilmadigi_soylenir()
+    {
+        var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarGetir = () => kanallar.Task };
+        var vm = new AyarlarViewModel(api);
+        var kanal = new KanalDto(4, "PERAKENDE", true, 1, 0m);
+        var yukleme = vm.YukleAsync();
+
+        // Silme onay diyaloğundan sonra gelir: sessizce yok sayılmaz, yüklemenin bitişi iletiyi silmez.
+        await vm.KanalSilCommand.ExecuteAsync(kanal);
+        Assert.Null(api.SonKanalSil);
+        Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
+        kanallar.SetResult(new[] { kanal }); await yukleme;
+        Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
+
+        api.KanallarGetir = null;
+        await vm.KanalSilCommand.ExecuteAsync(kanal);
+        Assert.Equal(4, api.SonKanalSil); Assert.Null(vm.Hata);
+    }
+
+    [Fact]
+    public async Task Ayarlar_oturum_degisince_bekleyen_yukleme_yansimaz_onceki_oturumun_ayarlari_formlari_ve_izleyici_sifresi_kalkar()
+    {
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var api = new SahteApi
+        {
+            AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 15000m, true, IzleyiciSifreKisa: true, VekilUyarisi: "Vekil ayarı hatalı."),
+            KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 5000m) },
+        };
+        var vm = new AyarlarViewModel(api, auth: auth);
+        await vm.YukleAsync();
+        vm.KanalDuzenle(vm.Kanallar[0]); vm.DuzenKanalAcilisDevri = 0m;
+        await vm.KanalKaydetCommand.ExecuteAsync(null);             // sıfır onayı bekliyor
+        Assert.NotNull(vm.KanalUyarisi);
+        vm.YeniIzleyiciSifre = "onceki-editorun-sifresi";
+        var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
+        api.KanallarGetir = () => kanallar.Task;
+        var yukleme = vm.YukleAsync();
+        Assert.True(vm.Mesgul);
+
+        auth.OturumSurumu++;
+
+        Assert.False(vm.Mesgul); Assert.Null(vm.Hata);
+        Assert.Empty(vm.Kanallar); Assert.Equal(0m, vm.KasaAcilisDevri);
+        Assert.Equal((0, "", 0m), (vm.DuzenKanalId, vm.DuzenKanalAd, vm.DuzenKanalAcilisDevri)); Assert.Null(vm.KanalUyarisi);
+        Assert.Equal("", vm.YeniIzleyiciSifre); Assert.Null(vm.IzleyiciSifreUyarisi); Assert.Null(vm.VekilUyarisi);
+        kanallar.SetResult(new[] { new KanalDto(1, "MEZAT", true, 0, 5000m) }); await yukleme;
+        Assert.Empty(vm.Kanallar); Assert.False(vm.Mesgul); Assert.Null(vm.Hata);
+
+        // Yeni oturumun yüklemesi eskisini beklemez; kanalın sıfır onayı önceki oturumdan taşınmaz.
+        api.KanallarGetir = null;
+        await vm.YukleAsync();
+        Assert.Single(vm.Kanallar); Assert.Equal(15000m, vm.KasaAcilisDevri);
+        vm.KanalDuzenle(vm.Kanallar[0]); vm.DuzenKanalAcilisDevri = 0m;
+        await vm.KanalKaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonKanalGuncelle); Assert.NotNull(vm.KanalUyarisi);
+    }
+
+    [Fact]
+    public async Task Ayarlar_oturum_degisince_bekleyen_kaydin_hatasi_ve_izleyici_sifresinin_sonucu_yeni_oturuma_yazilmaz()
+    {
+        var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
+        var ayar = new TaskCompletionSource(); var sifre = new TaskCompletionSource();
+        var api = new SahteApi { AyarGuncelleYaniti = ayar.Task, IzleyiciSifreYaniti = sifre.Task };
+        var vm = new AyarlarViewModel(api, auth: auth) { KasaAcilisDevri = 100m };
+        var kayit = vm.AyarKaydetCommand.ExecuteAsync(null);
+        Assert.NotNull(api.SonAyar);
+
+        auth.OturumSurumu++;
+        Assert.False(vm.Mesgul);
+        // Yeni oturumdaki kayıt eskisinin bitmesini beklemez.
+        vm.YeniIzleyiciSifre = "yeni-oturumun-sifresi";
+        var sifreKaydi = vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
+        Assert.Equal("yeni-oturumun-sifresi", api.SonIzleyiciSifre);
+        auth.OturumSurumu++;
+
+        ayar.SetException(new KasaApiException(HttpStatusCode.Unauthorized, "Yetkisiz")); await kayit;
+        sifre.SetResult(); await sifreKaydi;
+        Assert.Null(vm.Hata); Assert.Null(vm.IzleyiciSifreHatasi); Assert.Null(vm.IzleyiciSifreMesaji); Assert.False(vm.Mesgul);
+    }
 
     [Fact]
     public async Task Ayarlar_yukleme_surerken_ayar_ve_kanal_kaydi_gonderilmez()

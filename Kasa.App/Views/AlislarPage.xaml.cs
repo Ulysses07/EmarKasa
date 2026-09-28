@@ -13,19 +13,12 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
         if (query.TryGetValue("AlisId", out var value) && int.TryParse(value.ToString(), out var id))
         { _istenenAlisId = id; if (_vm.VeriHazir) { _vm.IdIleSec(id); _istenenAlisId = null; } }
     }
+    // Oturum değişimini model kendisi alır (AlislarViewModel, AuthViewModel ile kurulur; appcore-10): sayfa ayrıca abone olmaz.
     public AlislarPage(AlislarViewModel vm, AuthViewModel auth)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
         _auth = auth;
-        _auth.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(AuthViewModel.OturumSurumu))
-            {
-                _vm.BekleyenIslemleriGecersizKil();
-                MainThread.BeginInvokeOnMainThread(() => _vm.OturumuAyarla(_auth.OturumSurumu, _auth.AktifRol == Rol.Editor));
-            }
-        };
     }
     protected override async void OnAppearing()
     {

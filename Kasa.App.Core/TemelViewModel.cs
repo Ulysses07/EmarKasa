@@ -22,10 +22,19 @@ public partial class TemelViewModel : ObservableObject, IYurutmeYuzeyi
     protected virtual void IletiyiTemizle() { }
     void IYurutmeYuzeyi.IletiyiTemizle() => IletiyiTemizle();
 
-    /// <summary>Nesil kullanmayan işlem için <see cref="YurutAsync"/> kısayolu (AyarlarViewModel): ayrı bir desen değil, aynı tekil
-    /// işlemdir (yeniden giriş koruması, başlarken Hata ve ileti temizliği, eskiyen işin hatası ve bitişi yansımaz). Yeni ekranlar
-    /// sonucu nesille denetleyen <see cref="YurutAsync"/> kullanır.</summary>
-    protected Task CalistirAsync(Func<Task> islem) => Yurutucu.YurutAsync(_ => islem());
+    /// <summary>Oturum değişimini dinler (appcore-10): OturumSurumu değişince bekleyen işler hemen eskir (sonuçları, hataları ve
+    /// bitişleri yansımaz), ekran <paramref name="sifirla"/> ile model kurulurken yakalanan UI bağlamında sıfırlanır. Eskiyen iş
+    /// göstergeyi indirmediği için Mesgul'u sıfırlama indirir. OturumluViewModel, Alışlar, İşlemler ve Ayarlar aynı yoldan alır.</summary>
+    protected void OturumDegisiminiDinle(AuthViewModel auth, Action sifirla)
+    {
+        var ui = SynchronizationContext.Current;
+        auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu)) return;
+            Yurutucu.GecersizKil();
+            if (ui is not null && SynchronizationContext.Current != ui) ui.Post(_ => sifirla(), null); else sifirla();
+        };
+    }
 
     /// <summary>Yazma ve tekil işlem hatasının iletisi; bkz. <see cref="Yurutucu.HataMesaji"/>.</summary>
     protected static string HataMesaji(Exception hata) => Yurutucu.HataMesaji(hata);

@@ -118,8 +118,10 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task KrediGuncelleAsync(int id, KrediDto kredi) { SonKrediGuncelle = (id, kredi); return Task.CompletedTask; }
     public Task KrediSilAsync(int id) { SonKrediSil = id; return Task.CompletedTask; }
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; GelenKaydetCagri++; return GelenKaydetHatasi is { } hata ? Task.FromException<GelenDto>(hata) : Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
-    public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return Task.CompletedTask; }
-    public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return Task.CompletedTask; }
+    /// <summary>Ayarlanırsa ayar kaydı ve izleyici şifre kaydı bu görevlerle biter (bekleyen kayıt testleri için).</summary>
+    public Task? AyarGuncelleYaniti, IzleyiciSifreYaniti;
+    public Task AyarGuncelleAsync(AyarYaz g) { SonAyar = g; return AyarGuncelleYaniti ?? Task.CompletedTask; }
+    public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return IzleyiciSifreYaniti ?? Task.CompletedTask; }
 
     public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) { SonKartOdemelerId = krediKartiId; return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KartOdemeDto>>(YuklemeHatasi) : Task.FromResult(KartOdemelerListe); }
     public Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g) { SonKartOdemeKaydet = g; return Task.FromResult(new KartOdemeDto(0, g.KrediKartiId, g.Tarih, g.Tutar, g.Not)); }
