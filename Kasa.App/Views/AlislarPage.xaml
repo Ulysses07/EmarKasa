@@ -207,12 +207,18 @@
                             <Button Text="Belgeleri göster / yenile" Command="{Binding BelgeleriYukleCommand}" Style="{StaticResource BtnSecondary}" />
                             <Picker x:Name="BelgeOdemesi" Title="Belgeyi ödemeye bağla (isteğe bağlı)" ItemsSource="{Binding Odemeler}" ItemDisplayBinding="{Binding Baslik}" IsVisible="{Binding EditorMu}" />
                             <Button Text="Belge ekle" Clicked="BelgeEkleTiklandi" />
+                            <!-- Kaldırılan belgeler silinmez: editör onları kaldıran, zaman ve gerekçesiyle görebilir. -->
+                            <HorizontalStackLayout Spacing="8" IsVisible="{Binding EditorMu}">
+                                <CheckBox IsChecked="{Binding SilinenBelgeleriGoster}" />
+                                <Label Text="Kaldırılan belgeleri de göster" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
                             <VerticalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding Belgeler}">
                                 <BindableLayout.EmptyView><Label Text="Belgeleri görüntülemek için yenile düğmesini kullanın." Style="{StaticResource LblPageSub}" /></BindableLayout.EmptyView>
                                 <BindableLayout.ItemTemplate><DataTemplate><VerticalStackLayout Spacing="6">
                                     <Label Text="{Binding DosyaAdi}" FontAttributes="Bold" />
                                     <Label Text="{Binding Yuklendi, StringFormat='Yükleme: {0:dd.MM.yyyy HH:mm}'}" Style="{StaticResource LblPageSub}" />
-                                    <HorizontalStackLayout Spacing="8"><Button Text="Bilgisayara kaydet" Clicked="BelgeIndirTiklandi" CommandParameter="{Binding .}" Style="{StaticResource BtnSecondary}" /><Button Text="Sil" Clicked="BelgeSilTiklandi" CommandParameter="{Binding .}" Style="{StaticResource BtnRowDelete}" /></HorizontalStackLayout>
+                                    <Label Text="{Binding ., Converter={StaticResource BelgeAciklamasi}}" Style="{StaticResource LblPageSub}" />
+                                    <HorizontalStackLayout Spacing="8"><Button Text="Bilgisayara kaydet" Clicked="BelgeIndirTiklandi" CommandParameter="{Binding .}" Style="{StaticResource BtnSecondary}" /><Button Text="Kaldır" Clicked="BelgeSilTiklandi" CommandParameter="{Binding .}" IsVisible="{Binding Silindi, Converter={StaticResource TersIse}}" Style="{StaticResource BtnRowDelete}" /></HorizontalStackLayout>
                                 </VerticalStackLayout></DataTemplate></BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
                         </VerticalStackLayout>

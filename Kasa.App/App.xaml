@@ -17,6 +17,7 @@
             <conv:TersIseConverter x:Key="TersIse" />
             <conv:AyAdiConverter x:Key="AyAdi" />
             <conv:DonemBicimConverter x:Key="DonemBicim" />
+            <conv:BelgeAciklamasiConverter x:Key="BelgeAciklamasi" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -35,11 +35,24 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         SurumBilgisi = $"Uygulama {IstemciSurumu} · sunucu {s.Surum}" + (GuncellemeGerekli ? "\nDevam etmek için uygulamayı güncelleyin." : "") + (string.IsNullOrWhiteSpace(s.Notlar) ? "" : "\n" + s.Notlar);
         var y = await api.YedekDurumuAsync();
         if (!Gecerli(n)) return;
-        YedekBilgisi = $"Otomatik yedek: {(y.OtomatikEtkin ? "açık" : "kapalı")}\nSon yedek: {Zaman(y.SonYedek)}\nSon doğrulama: {Zaman(y.SonDogrulama)}";
-        var uyarilar = new[] { y.Hata, y.RotasyonUyarisi }.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+        YedekBilgisi = $"Otomatik yedek: {(y.OtomatikEtkin ? "açık" : "kapalı")}\nSon yedek: {Zaman(y.SonYedek)}\nSon doğrulama: {Zaman(y.SonDogrulama)}"
+            + DiskSatirlari(y);
+        // Sunucu disk uyarısını (asgari boş alanın altı, toplam boyut sınırı) ve bulunamayan belge uyarısını da verir.
+        var uyarilar = new[] { y.Hata, y.RotasyonUyarisi, y.DiskUyarisi, y.BelgeUyarisi }.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
         YedekUyarisi = uyarilar.Count == 0 ? null : string.Join("\n", uyarilar);
     });
     private static string Zaman(DateTimeOffset? tarih) => tarih?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Henüz yok";
+
+    /// <summary>Yedek ve veri diskinin boş alanı ve yedeklerin toplam boyutu (GB; eski sunucu göndermezse satır yok). Web (app.js)
+    /// ile aynı biçim.</summary>
+    public static string DiskSatirlari(YedekDurumuDto y)
+    {
+        var satirlar = new List<string>();
+        if (y.YedekDiskiBosAlanBayt is { } yedek) satirlar.Add($"Yedek diski boş alan: {Bicim.Gb(yedek)}");
+        if (y.VeriDiskiBosAlanBayt is { } veri) satirlar.Add($"Veri diski boş alan: {Bicim.Gb(veri)}");
+        if (y.ToplamYedekBayt is { } toplam) satirlar.Add($"Yedeklerin toplam boyutu: {Bicim.Gb(toplam)}");
+        return satirlar.Count == 0 ? "" : "\n" + string.Join("\n", satirlar);
+    }
     [RelayCommand] private Task SifreDegistirAsync() => YurutAsync(async n =>
     {
         Mesaj = null;

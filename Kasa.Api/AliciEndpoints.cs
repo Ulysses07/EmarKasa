@@ -143,17 +143,18 @@ internal static class AliciKotalari
     /// (yalnız boyut); 24 saat süzmesi ve toplamı sorguda yapılır: EF, SQLite'ta DateTimeOffset karşılaştırmasını çeviremediği
     /// için ham SQL'de julianday saat dilimli metni ana çevirir (farklı dilimle yazılmış eski kayıtlar da doğru karşılaştırılır);
     /// alıcının belge geçmişinin satırları belleğe alınmaz. Editörün alıcının alışına eklediği belge de hacme sayılır: kota
-    /// alıcının alışlarındaki veriyi sınırlar. Silinen belge disk tutmadığından sayılmaz; yükle-sil döngüsünü 'alis-yukleme'
-    /// hız politikası ve alıcının saatlik kovası yavaşlatır.</summary>
+    /// alıcının alışlarındaki veriyi sınırlar. Silme yumuşaktır (içerik korunur): taslak ve onay bekleyen sayım/hacim yalnız
+    /// silinmemiş belgeleri sayar (kaldırılan belge yer açar), son 24 saatteki yükleme hacmi ise silinenleri de sayar — yükle-sil
+    /// döngüsü diski büyütemez; ayrıca 'alis-yukleme' hız politikası ve alıcının saatlik kovası yavaşlatır.</summary>
     internal static IResult? Belge(KasaDbContext db, ClaimsPrincipal user, int alisId, long boyut, AliciKotaAyarlari kota, DateTimeOffset simdi)
     {
         if (user.IsInRole("editor") || AliciId(user) is not { } aliciId) return null;
-        var taslaktakiler = db.Belgeler.Where(b => b.AlisId == alisId).Select(b => b.Boyut).ToList();
+        var taslaktakiler = db.Belgeler.Where(b => b.AlisId == alisId && !b.Silindi).Select(b => b.Boyut).ToList();
         if (taslaktakiler.Count >= kota.TaslakBelgeSayisi)
             return AlisEndpoints.Conflict($"Bir taslağa en fazla {kota.TaslakBelgeSayisi} belge ekleyebilirsiniz. Gereksiz belgeleri silin veya editöre başvurun.");
         if (taslaktakiler.Sum() + boyut > kota.TaslakBelgeMb * Mb)
             return AlisEndpoints.Conflict($"Bir taslaktaki belgelerin toplam boyutu en fazla {kota.TaslakBelgeMb} MB olabilir. Daha küçük dosya seçin veya gereksiz belgeleri silin.");
-        var bekleyen = db.Belgeler.Where(b => db.Alislar.Any(a => a.Id == b.AlisId && a.AliciId == aliciId && a.Durum != AlisDurumlari.Onaylandi))
+        var bekleyen = db.Belgeler.Where(b => !b.Silindi && db.Alislar.Any(a => a.Id == b.AlisId && a.AliciId == aliciId && a.Durum != AlisDurumlari.Onaylandi))
             .Sum(b => (long?)b.Boyut) ?? 0;
         if (bekleyen + boyut > kota.OnayBekleyenBelgeMb * Mb)
             return AlisEndpoints.Conflict($"Onay bekleyen alışlarınızdaki belgelerin toplam boyutu en fazla {kota.OnayBekleyenBelgeMb} MB olabilir. Gereksiz belgeleri silin veya editörün bekleyen alışlarınızı onaylamasını bekleyin.");

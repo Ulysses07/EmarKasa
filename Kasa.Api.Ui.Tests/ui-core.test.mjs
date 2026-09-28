@@ -1631,6 +1631,57 @@ test('Ayarlar yedek bölümü sunucunun rotasyon uyarısını gösterir, uyarı 
   assert.doesNotMatch(nodes.get('#view').textContent, /rotasyonu tamamlanamadı/);
 });
 
+// Yedek disk durumu (data-3): boş alan ve toplam boyut GB olarak, eşik altı uyarısı ve bulunamayan belge uyarısı görünür.
+test('Ayarlar yedek bölümü disk alanlarını GB olarak ve sunucunun disk/belge uyarısını gösterir; eski sunucuda satır yok', async () => {
+  assert.equal(ui.gigabytes(104857600), '0,1 GB'); assert.equal(ui.gigabytes(3.5 * 1073741824), '3,5 GB');
+  assert.deepEqual(ui.backupDiskLines({ otomatikEtkin: true }), []);
+  const status = { otomatikEtkin: true, sonYedek: null, sonDogrulama: null, hata: null, yedekDiskiBosAlanBayt: 104857600, veriDiskiBosAlanBayt: 5 * 1073741824, toplamYedekBayt: 3.5 * 1073741824, asgariBosAlanBayt: 2 * 1073741824, diskUyarisi: 'Yedek diskinde 0,1 GB boş alan kaldı (asgari 2,0 GB).', belgeUyarisi: 'Son yedekte 1 belge dosyası bulunamadı.' };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': status, '/api/alicilar': [], '/api/kanallar': [] });
+  await app.navigate('tools');
+  const text = nodes.get('#view').textContent;
+  for (const line of ['Yedek diski boş alan: 0,1 GB', 'Veri diski boş alan: 5,0 GB', 'Yedeklerin toplam boyutu: 3,5 GB']) assert.match(text, new RegExp(line));
+  for (const warning of [status.diskUyarisi, status.belgeUyarisi]) assert.equal(nodes.get('#view').find(node => node.textContent === warning).attributes.role, 'alert');
+});
+
+// Alış belgeleri (gap-denetim-izi-gozlemlenebilirlik-9): yükleyen görünür; kaldırma yumuşaktır, editör gerekçe vermeden kaldıramaz ve
+// gerekçe DELETE gövdesinde gider; kaldırılanlar editörün isteğiyle kaldıran ve gerekçesiyle listelenir.
+test('purchase documents show the uploader, editor removal needs a reason sent in the DELETE body and removed ones are listed on request', async () => {
+  const purchase = { id: 9, surum: 1, tarih: '2026-09-23', tedarikci: 'Firma', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 0, odenen: 0, kalan: 0 };
+  const doc = { id: 5, alisId: 9, odemeId: null, dosyaAdi: 'fis.pdf', icerikTuru: 'application/pdf', boyut: 2048, yuklendi: '2026-09-23T10:00:00Z', yukleyenRol: 'alici', yukleyen: 'Ayşe' };
+  const removed = { ...doc, id: 6, dosyaAdi: 'eski.pdf', yukleyenRol: null, yukleyen: null, silindi: true, silinmeZamani: '2026-09-24T08:00:00Z', silenRol: 'editor', silen: 'Editör', silmeGerekcesi: 'Yanlış fiş' };
+  const { app, nodes, calls } = await openApp(false, { '/api/alis': [purchase], '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/alis/9/belgeler': [doc], '/api/alis/9/belgeler?silinenler=true': [doc, removed], '/api/belgeler/5': null });
+  await app.navigate('purchase', 9); await settle();
+  assert.match(nodes.get('#view').textContent, /Yükleyen: Ayşe/);
+  await clickView(nodes, 'Kaldır');
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/belgeler/5').length, 0, 'Gerekçesiz editör kaldırması gönderilmez.');
+  assert.match(nodes.get('#modal-content').textContent, new RegExp(ui.DOCUMENT_REASON_REQUIRED));
+  formField(nodes, 'gerekce').value = '  İade sonrası yanlış fiş  ';
+  await submitDialog(nodes);
+  const removal = calls.find(call => call.path === '/api/belgeler/5');
+  assert.equal(removal.method, 'DELETE'); assert.deepEqual(removal.body, { gerekce: 'İade sonrası yanlış fiş' });
+  await clickView(nodes, 'Kaldırılanları göster');
+  assert.ok(calls.some(call => call.path === '/api/alis/9/belgeler?silinenler=true'));
+  assert.match(nodes.get('#view').textContent, /Yükleyen: bilinmiyor \(eski kayıt\) · Kaldırıldı: Editör · .* · Gerekçe: Yanlış fiş/);
+  assert.equal(nodes.get('#view').find(node => node.className === 'document-row removed').find(node => node.tag === 'button'), null, 'Kaldırılan belge yeniden kaldırılamaz.');
+});
+test('document rules: buyer removes only own, unpaid draft documents and never asks for removed ones; reason optional for buyer', () => {
+  const draft = { durum: 'Taslak' };
+  const own = { yukleyenRol: 'alici', odemeId: null };
+  assert.equal(ui.documentRemovable('alici', draft, own), true);
+  assert.equal(ui.documentRemovable('alici', draft, { ...own, yukleyenRol: 'editor' }), false);
+  assert.equal(ui.documentRemovable('alici', draft, { ...own, yukleyenRol: null }), false);
+  assert.equal(ui.documentRemovable('alici', draft, { ...own, odemeId: 3 }), false);
+  assert.equal(ui.documentRemovable('alici', { durum: 'Incelemede' }, own), false);
+  assert.equal(ui.documentRemovable('editor', { durum: 'Onaylandi' }, { ...own, odemeId: 3 }), true);
+  assert.equal(ui.documentRemovable('editor', draft, { ...own, silindi: true }), false);
+  assert.equal(ui.documentsPath(9, 'alici', true), '/api/alis/9/belgeler');
+  assert.equal(ui.documentsPath(9, 'editor', true), '/api/alis/9/belgeler?silinenler=true');
+  assert.equal(ui.documentDeletePayload('alici', '  '), null);
+  assert.deepEqual(ui.documentDeletePayload('alici', ' neden '), { gerekce: 'neden' });
+  assert.throws(() => ui.documentDeletePayload('editor', ' '), new RegExp(ui.DOCUMENT_REASON_REQUIRED));
+});
+
 // ---- İstemci notları: birleşik ana sayfa, veri sağlığı uyarısı, iptal, diyalog kimliği, işaretli tutar etiketi ----
 const homeSummaryPath = '/api/rapor/ana-sayfa?gun=30';
 const sampleHome = () => ({

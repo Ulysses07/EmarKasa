@@ -33,6 +33,7 @@ public class AlisSozlesmeTests : SozlesmeTemeli
 
         var belge = await alici.Yonetim.BelgeYukleAsync(alis.Id, "fatura.pdf", "application/pdf", "%PDF-1.7 fatura"u8.ToArray());
         Assert.Equal(HttpStatusCode.Created, alici.SonYanit.Durum); Assert.Equal((alis.Id, "fatura.pdf", "application/pdf", 15L), (belge.AlisId, belge.DosyaAdi, belge.IcerikTuru, belge.Boyut));
+        Assert.Equal(("alici", "Sözleşme Alıcısı 2", false), (belge.YukleyenRol, belge.Yukleyen, belge.Silindi));
         Assert.Equal(belge.Id, Assert.Single(await alici.Yonetim.BelgelerAsync(alis.Id)).Id);
         alis = await alici.Alis.AlisGonderAsync(alis.Id, new AlisDurumYaz(alis.Surum));
         Assert.Equal("Incelemede", alis.Durum);
@@ -56,8 +57,12 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         var indirilen = await editor.Yonetim.BelgeIndirAsync(belge.Id, hedef);
         Assert.Equal(("fatura.pdf", "application/pdf", 15L), (indirilen.DosyaAdi, indirilen.IcerikTuru, indirilen.Boyut));
         Assert.Equal("%PDF-1.7 fatura"u8.ToArray(), hedef.ToArray());
-        await editor.Yonetim.BelgeSilAsync(belge.Id);
+        // Silme yumuşaktır: editör gerekçeyle kaldırır; varsayılan liste boşalır, silinenler listesinde iziyle görünür.
+        await editor.Yonetim.BelgeSilAsync(belge.Id, "Yanlış fatura");
         Assert.Equal(HttpStatusCode.NoContent, editor.SonYanit.Durum);
         Assert.Empty(await editor.Yonetim.BelgelerAsync(alis.Id));
+        var silinen = Assert.Single(await editor.Yonetim.BelgelerAsync(alis.Id, silinenler: true));
+        Assert.Equal((belge.Id, true, "editor", "Editör", "Yanlış fatura"), (silinen.Id, silinen.Silindi, silinen.SilenRol, silinen.Silen, silinen.SilmeGerekcesi));
+        Assert.NotNull(silinen.SilinmeZamani);
     }
 }

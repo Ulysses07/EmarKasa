@@ -107,6 +107,14 @@ public static class AyKilidiKurallari
                 AlisKalemEntity k => PurchaseLocked(k.AlisId),
                 AlisDagilimEntity d => PurchaseLocked(db.AlisKalemler.Where(k => k.Id == d.AlisKalemId).Select(k => k.AlisId).FirstOrDefault()),
                 AlisOdemeEntity p => e.State != EntityState.Added && PurchaseLocked(p.AlisId) || db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end),
+                // Kilitli dönem alışının belgesi (kanıt) kaldırılamaz, ödemeye bağlı olmayan belgesi başka alışa ya da ödemeye taşınamaz;
+                // yeni belge eklenebilir. Ödemeye bağlı belge ödemesiyle birlikte taşınır: o taşımanın kilidi ödeme kuralındadır
+                // (AlisOdemeIslemleri.TasimaKilidi).
+                BelgeEntity b => e.State == EntityState.Deleted && PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!)
+                    || e.State == EntityState.Modified
+                        && (e.Property(nameof(b.Silindi)).IsModified && PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!)
+                            || (e.Property(nameof(b.AlisId)).IsModified || e.Property(nameof(b.OdemeId)).IsModified) && e.OriginalValues[nameof(b.OdemeId)] is null
+                                && (PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!) || PurchaseLocked(b.AlisId))),
                 _ => false
             };
             if (blocked) Fail(end);

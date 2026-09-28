@@ -4,12 +4,22 @@ using System.Text;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Kasa.Api;
 
-public record BelgeDto(int Id, int AlisId, int? OdemeId, string DosyaAdi, string IcerikTuru, long Boyut, DateTimeOffset Yuklendi);
+/// <summary>Alış belgesi. İlk yedi alan eski istemcilerin okuduğu biçimdir. Yükleyen (gap-denetim-izi-gozlemlenebilirlik-9):
+/// rol ('editor'/'alici') ve görünen ad (alıcının adı ya da 'Editör'); bu sürümden önce yüklenenlerde bilinmez (null). Silinen
+/// belgeler yalnız editörün <c>?silinenler=true</c> listesinde, silen ve gerekçesiyle görünür.</summary>
+public record BelgeDto(int Id, int AlisId, int? OdemeId, string DosyaAdi, string IcerikTuru, long Boyut, DateTimeOffset Yuklendi,
+    string? YukleyenRol = null, string? Yukleyen = null, bool Silindi = false, DateTimeOffset? SilinmeZamani = null,
+    string? SilenRol = null, string? Silen = null, string? SilmeGerekcesi = null);
+
+/// <summary>Belge silme isteğinin isteğe bağlı gövdesi: gerekçe (editör için zorunlu, en çok 2000 karakter). Gövdesiz istemci
+/// gerekçeyi <c>X-Kasa-Gerekce</c> başlığıyla da verebilir.</summary>
+public record BelgeSilYaz(string? Gerekce);
 
 public static class BelgeEndpoints
 {
@@ -59,13 +69,13 @@ public static class BelgeEndpoints
     public static WebApplication MapBelgeEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api").RequireAuthorization("Alis");
-        api.MapGet("/alis/{id:int}/belgeler", (int id, ClaimsPrincipal user, KasaDbContext db) =>
+        api.MapGet("/alis/{id:int}/belgeler", (int id, bool? silinenler, ClaimsPrincipal user, KasaDbContext db) =>
         {
             if (!Sahibi(db, id, user)) return Results.NotFound();
-            // Eski kayıtların adı da okunurken aynı kuralla adlandırılır (veri dönüşümü gerekmez).
-            return Results.Ok(db.Belgeler.AsNoTracking().Where(b => b.AlisId == id).OrderBy(b => b.Id)
-                .Select(b => new { b.Id, b.AlisId, b.OdemeId, b.DosyaAdi, b.IcerikTuru, b.Boyut, b.Yuklendi }).AsEnumerable()
-                .Select(b => new BelgeDto(b.Id, b.AlisId, b.OdemeId, GuvenliBelgeAdi(b.DosyaAdi, b.IcerikTuru), b.IcerikTuru, b.Boyut, b.Yuklendi)).ToList());
+            // Silinen belgeler yalnız editöre ve istenirse listelenir; alıcı silinmiş belgeyi hiç görmez.
+            var hepsi = silinenler == true && user.IsInRole("editor");
+            var satirlar = db.Belgeler.AsNoTracking().Where(b => b.AlisId == id && (hepsi || !b.Silindi)).OrderBy(b => b.Id).ToList();
+            return Results.Ok(Dtolar(db, satirlar));
         });
         api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat, IOptionsMonitor<AliciKotaAyarlari> kota, BelgeDeposu depo) =>
         {
@@ -89,6 +99,7 @@ public static class BelgeEndpoints
             if (type is null) return Results.BadRequest(new { hata = "Yalnız PNG, JPEG veya PDF belgeleri kabul edilir." });
             if (Uyusmazlik(file.FileName, file.ContentType, type) is { } uyusmazlik) return Results.BadRequest(new { hata = uyusmazlik });
             var name = GuvenliBelgeAdi(file.FileName, type);
+            var editor = user.IsInRole("editor");
             IResult? Kurallar(DateTimeOffset an)
             {
                 if (!Sahibi(db, id, user)) return Results.NotFound();
@@ -96,7 +107,7 @@ public static class BelgeEndpoints
                     return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağına alış belgesi ekleyebilir." });
                 if (odemeId is not null && !db.AlisOdemeler.Any(o => o.Id == odemeId && o.AlisId == id))
                     return Results.BadRequest(new { hata = "Ödeme bu alışa ait değil." });
-                if (db.Belgeler.Count(b => b.AlisId == id) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
+                if (db.Belgeler.Count(b => b.AlisId == id && !b.Silindi) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
                 return AliciKotalari.Belge(db, user, id, bytes.Length, kota.CurrentValue, an);
             }
             // Kurallar önce kilitsiz denetlenir: reddedilecek yükleme belge deposuna dosya bırakmaz. İçerik, yazma kilidi alınmadan
@@ -108,16 +119,18 @@ public static class BelgeEndpoints
             // Yetki ve durum dosya okunurken değişmiş olabilir; yazma kilidi altında tekrar kontrol et.
             var simdi = saat.GetUtcNow();
             if (Kurallar(simdi) is { } hata) return hata;
-            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, IcerikOzeti = yazim.Ozet };
+            // Yükleyen iz olarak saklanır: rol ve alıcının kimliği (editör paylaşılan tek hesaptır).
+            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, IcerikOzeti = yazim.Ozet,
+                YukleyenRol = editor ? "editor" : "alici", YukleyenId = editor ? null : AliciKotalari.AliciId(user) };
             db.Belgeler.Add(belge); db.SaveChanges(); tx.Commit();
-            return Results.Created($"/api/belgeler/{belge.Id}", new BelgeDto(belge.Id, id, odemeId, name, type, bytes.Length, belge.Yuklendi));
+            return Results.Created($"/api/belgeler/{belge.Id}", Dtolar(db, [belge]).Single());
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024)).RequireRateLimiting(HizSinirlari.AlisYukleme).AddEndpointFilter(AliciAlisYuklemeSiniri.Filtre);
 
         api.MapGet("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db, BelgeDeposu depo, HttpResponse response, ILoggerFactory loglar) =>
         {
-            var parent = db.Belgeler.Where(b => b.Id == id).Select(b => (int?)b.AlisId).FirstOrDefault();
-            if (parent is null || !Sahibi(db, parent.Value, user)) return Results.NotFound();
-            var belge = db.Belgeler.AsNoTracking().Single(b => b.Id == id);
+            var belge = db.Belgeler.AsNoTracking().SingleOrDefault(b => b.Id == id);
+            // Silinmiş belgenin içeriği korunur; yalnız editör indirebilir.
+            if (belge is null || !Sahibi(db, belge.AlisId, user) || belge.Silindi && !user.IsInRole("editor")) return Results.NotFound();
             // İçerik belge deposundan akışla gelir (belleğe alınmaz). Dosya yoksa (ör. geri yüklemede unutulmuş belgeler/ klasörü)
             // sunucu kaydı yazılır, istemci açık bir 404 alır.
             Stream akis;
@@ -133,17 +146,52 @@ public static class BelgeEndpoints
             var tur = Uzantilar.ContainsKey(belge.IcerikTuru) ? belge.IcerikTuru : "application/octet-stream";
             return Results.File(akis, tur, GuvenliBelgeAdi(belge.DosyaAdi, belge.IcerikTuru));
         });
-        api.MapDelete("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db) =>
+        // Silme yumuşaktır (gap-denetim-izi-gozlemlenebilirlik-9): satır ve içerik korunur; silen rol/kimlik, zaman ve gerekçe yazılır,
+        // değişiklik denetim izine gerekçesiyle düşer. Editör için gerekçe zorunludur. Alıcı yalnız kendi yüklediği, ödemeye bağlı
+        // olmayan ve taslaktaki alışın belgesini kaldırabilir (yükleyeni bilinmeyen eski belgeyi kaldıramaz). Kilitli dönem alışının
+        // belgesi kaldırılamaz (AyKilidiKurallari). Silinmiş belge yeniden silinemez (404).
+        api.MapDelete("/belgeler/{id:int}", ([FromBody] BelgeSilYaz? girdi, int id, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat, HttpContext http) =>
         {
-            using var tx = db.Database.BeginTransaction();
-            var b = db.Belgeler.Find(id);
-            if (b is null || !Sahibi(db, b.AlisId, user)) return Results.NotFound();
-            if (!user.IsInRole("editor") && (b.OdemeId is not null || !db.Alislar.Any(a => a.Id == b.AlisId && a.Durum == AlisDurumlari.Taslak)))
-                return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağındaki alış belgesini kaldırabilir." });
-            db.Belgeler.Remove(b); db.SaveChanges(); tx.Commit();
-            return Results.NoContent();
+            var editor = user.IsInRole("editor");
+            var gerekce = (girdi?.Gerekce ?? Denetim.DenetimBaglami.IstekGerekcesi(http))?.Trim();
+            if (string.IsNullOrEmpty(gerekce)) gerekce = null;
+            if (editor && gerekce is null) return Results.BadRequest(new { hata = GerekceGerekli });
+            if (gerekce is { Length: > 2000 }) return Results.BadRequest(new { hata = "Silme gerekçesi en fazla 2000 karakter olabilir." });
+            if (GirdiDogrulama.GecersizKarakterIletisi(gerekce) is { } gecersiz) return Results.BadRequest(new { hata = $"Silme gerekçesi: {gecersiz}" });
+            return AlisEndpoints.Mutate(db, () =>
+            {
+                var b = db.Belgeler.Find(id);
+                if (b is null || b.Silindi || !Sahibi(db, b.AlisId, user)) return Results.NotFound();
+                var aliciId = editor ? null : AliciKotalari.AliciId(user);
+                if (!editor && (b.YukleyenRol != "alici" || b.YukleyenId != aliciId))
+                    return Results.Conflict(new { hata = "Alıcı yalnız kendi yüklediği belgeyi kaldırabilir." });
+                if (!editor && (b.OdemeId is not null || !db.Alislar.Any(a => a.Id == b.AlisId && a.Durum == AlisDurumlari.Taslak)))
+                    return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağındaki, ödemeye bağlı olmayan alış belgesini kaldırabilir." });
+                b.Silindi = true; b.SilinmeZamani = saat.GetUtcNow(); b.SilenRol = editor ? "editor" : "alici"; b.SilenId = aliciId; b.SilmeGerekcesi = gerekce;
+                using (db.Denetle(gerekce)) db.SaveChanges();
+                return Results.NoContent();
+            });
         });
         return app;
+    }
+
+    public const string GerekceGerekli = "Belge silme gerekçesi girin.";
+
+    /// <summary>Satırların yanıtı: ad güvenli biçimde, yükleyen ve silen görünen adlarıyla (alıcı adı ya da 'Editör').</summary>
+    private static List<BelgeDto> Dtolar(KasaDbContext db, IReadOnlyList<BelgeEntity> satirlar)
+    {
+        var aliciIdleri = satirlar.SelectMany(b => new[] { b.YukleyenRol == "alici" ? b.YukleyenId : null, b.SilenRol == "alici" ? b.SilenId : null })
+            .OfType<int>().Distinct().ToList();
+        var adlar = aliciIdleri.Count == 0 ? [] : db.Alicilar.AsNoTracking().Where(a => aliciIdleri.Contains(a.Id)).ToDictionary(a => a.Id, a => a.Ad);
+        string? Ad(string? rol, int? kimlik) => rol switch
+        {
+            "editor" => "Editör",
+            "alici" => kimlik is { } k && adlar.TryGetValue(k, out var ad) ? ad : "Alıcı",
+            _ => null,
+        };
+        // Eski kayıtların adı da okunurken aynı kuralla adlandırılır (veri dönüşümü gerekmez).
+        return satirlar.Select(b => new BelgeDto(b.Id, b.AlisId, b.OdemeId, GuvenliBelgeAdi(b.DosyaAdi, b.IcerikTuru), b.IcerikTuru, b.Boyut, b.Yuklendi,
+            b.YukleyenRol, Ad(b.YukleyenRol, b.YukleyenId), b.Silindi, b.SilinmeZamani, b.SilenRol, Ad(b.SilenRol, b.SilenId), b.SilmeGerekcesi)).ToList();
     }
 
     /// <summary>

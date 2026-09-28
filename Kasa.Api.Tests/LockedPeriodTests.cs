@@ -202,6 +202,32 @@ public class LockedPeriodTests
 
     /// <summary>Kilitli ayın raporu, kapatılmadan hemen önce gösterilen rapordur (dondurulmuş görüntü, K4); reddedilen
     /// değişiklik canlı hesabı da değiştirmemiştir (kilit kuralları): ikisi de kapatma öncesi rapora eşittir.</summary>
+    /// <summary>gap-denetim-izi-gozlemlenebilirlik-9: kilitli dönem alışının belgesi kanıttır; editör gerekçeyle de kaldıramaz. Yeni belge
+    /// (ek kanıt) eklenebilir; belge kilit açılınca gerekçeyle kaldırılabilir.</summary>
+    [Fact]
+    public async Task Kilitli_donem_alisinin_belgesi_gerekceyle_de_kaldirilamaz_yeni_belge_eklenebilir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var purchase = await Purchase(c);
+        purchase = await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Old, 100m));
+        using var yukle = await AlisTestYardimcisi.YukleYanit(c, purchase.Id, "%PDF-1.7 kilitli ayin faturasi"u8.ToArray(), "fatura.pdf");
+        var belge = (await yukle.Content.ReadFromJsonAsync<BelgeDto>())!;
+        var kilit = await Close(c);
+        using (var sil = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{belge.Id}") { Content = JsonContent.Create(new BelgeSilYaz("Yanlış fatura")) })
+        {
+            using var r = await c.SendAsync(sil);
+            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+            Assert.Contains("dönem kilitli", await AlisTestYardimcisi.Hata(r));
+        }
+        Assert.Equal(new[] { belge.Id }, (await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{purchase.Id}/belgeler"))!.Select(b => b.Id));
+        using (var ek = await AlisTestYardimcisi.YukleYanit(c, purchase.Id, "%PDF-1.7 ek dekont"u8.ToArray(), "dekont.pdf"))
+            Assert.Equal(HttpStatusCode.Created, ek.StatusCode);
+
+        await Post<AyKilidiDto>(c, "/api/ay-kilidi/ac", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Old.Year, Old.Month, "Yanlış fatura kaldırılacak"));
+        using (var sil = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{belge.Id}") { Content = JsonContent.Create(new BelgeSilYaz("Yanlış fatura")) })
+            Assert.Equal(HttpStatusCode.NoContent, (await c.SendAsync(sil)).StatusCode);
+    }
+
     private static async Task RaporDegismedi(KasaWebFactory f, HttpClient c, string kilitOncesi)
     {
         var beklenen = JsonNode.Parse(kilitOncesi)!.AsObject();

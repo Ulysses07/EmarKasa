@@ -69,6 +69,36 @@ public class YonetimVeOdemeTests
         Assert.EndsWith("/api/yedek/durum", h.SonIstek!.RequestUri!.AbsolutePath);
         Assert.Null((await c.YedekDurumuAsync()).RotasyonUyarisi);
     }
+    [Fact] public async Task Yedek_durumu_disk_alanlarini_okur_eski_sunucuda_bos_kalir()
+    {
+        var h = new SahteHandler()
+            .Kuyrukla(HttpStatusCode.OK, "{\"otomatikEtkin\":true,\"sonYedek\":null,\"sonDogrulama\":null,\"hata\":null,\"yedekDiskiBosAlanBayt\":104857600,\"veriDiskiBosAlanBayt\":5368709120,\"toplamYedekBayt\":1024,\"asgariBosAlanBayt\":2147483648,\"diskUyarisi\":\"Yedek diskinde 0,1 GB boş alan kaldı.\",\"belgeUyarisi\":\"1 belge bulunamadı.\"}")
+            .Kuyrukla(HttpStatusCode.OK, "{\"otomatikEtkin\":false,\"sonYedek\":null,\"sonDogrulama\":null,\"hata\":null}");
+        var c = Client(h);
+        var d = await c.YedekDurumuAsync();
+        Assert.Equal((104857600L, 5368709120L, 1024L, 2147483648L), (d.YedekDiskiBosAlanBayt, d.VeriDiskiBosAlanBayt, d.ToplamYedekBayt, d.AsgariBosAlanBayt));
+        Assert.Equal(("Yedek diskinde 0,1 GB boş alan kaldı.", "1 belge bulunamadı."), (d.DiskUyarisi, d.BelgeUyarisi));
+        var eski = await c.YedekDurumuAsync();
+        Assert.Null(eski.YedekDiskiBosAlanBayt); Assert.Null(eski.DiskUyarisi); Assert.Null(eski.BelgeUyarisi);
+    }
+    [Fact] public async Task Belge_silme_gerekceyi_govdede_gonderir_gerekcesiz_govdesizdir_silinenler_sorgusu()
+    {
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.NoContent).Kuyrukla(HttpStatusCode.NoContent)
+            .Kuyrukla(HttpStatusCode.OK, "[{\"id\":8,\"alisId\":7,\"odemeId\":null,\"dosyaAdi\":\"fis.pdf\",\"icerikTuru\":\"application/pdf\",\"boyut\":4,\"yuklendi\":\"2026-09-23T12:00:00Z\",\"yukleyenRol\":\"alici\",\"yukleyen\":\"Ayşe\",\"silindi\":true,\"silinmeZamani\":\"2026-09-24T08:00:00Z\",\"silenRol\":\"editor\",\"silen\":\"Editör\",\"silmeGerekcesi\":\"Yanlış fiş\"}]")
+            .Kuyrukla(HttpStatusCode.OK, "[{\"id\":9,\"alisId\":7,\"odemeId\":null,\"dosyaAdi\":\"eski.pdf\",\"icerikTuru\":\"application/pdf\",\"boyut\":4,\"yuklendi\":\"2026-09-23T12:00:00Z\"}]");
+        var c = Client(h);
+        await c.BelgeSilAsync(8, "  Yanlış fiş  ");
+        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method); Assert.EndsWith("/api/belgeler/8", h.SonIstek.RequestUri!.AbsolutePath);
+        Assert.Equal("Yanlış fiş", JsonDocument.Parse(h.SonGovde!).RootElement.GetProperty("gerekce").GetString());
+        await c.BelgeSilAsync(9);
+        Assert.Null(h.SonIstek!.Content);
+        var silinen = Assert.Single(await c.BelgelerAsync(7, silinenler: true));
+        Assert.Equal("?silinenler=true", h.SonIstek!.RequestUri!.Query);
+        Assert.Equal((true, "Ayşe", "Editör", "Yanlış fiş"), (silinen.Silindi, silinen.Yukleyen, silinen.Silen, silinen.SilmeGerekcesi));
+        var eski = Assert.Single(await c.BelgelerAsync(7));
+        Assert.Equal("", h.SonIstek!.RequestUri!.Query);
+        Assert.Equal((false, (string?)null), (eski.Silindi, eski.YukleyenRol));
+    }
     [Fact] public async Task Dosya_indirme_yol_gecisini_temizler_ve_baytlari_korur()
     {
         var c = Client(new Handler(_ =>

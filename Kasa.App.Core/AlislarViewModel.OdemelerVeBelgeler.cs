@@ -10,6 +10,11 @@ public partial class AlislarViewModel
     private readonly TekrarAnahtari _duzeltmeAnahtari = new();
     private readonly TekrarAnahtari _iptalAnahtari = new();
     public ObservableCollection<BelgeDto> Belgeler { get; } = new();
+    /// <summary>Yalnız editör: kaldırılmış belgeler de (kaldıran, zaman ve gerekçesiyle) listelenir; değişince liste yenilenir.</summary>
+    [ObservableProperty] private bool _silinenBelgeleriGoster;
+    partial void OnSilinenBelgeleriGosterChanged(bool value) { if (_secili is not null && EditorMu) _ = BelgeleriYukleAsync(); }
+    /// <summary>Web (app.js) ile aynı ileti; sunucu da aynı kuralı uygular.</summary>
+    public const string BelgeSilmeGerekcesiGerekli = "Belge silme gerekçesi girin.";
     public ObservableCollection<AlisSatiri> DuzeltmeHedefleri { get; } = new();
     public ObservableCollection<OdemeKartiSecenegi> DuzeltmeKartlari { get; } = new();
     [ObservableProperty] private AlisOdemeSatiri? _duzeltilecekOdeme;
@@ -78,7 +83,7 @@ public partial class AlislarViewModel
     {
         if (_yonetim is null || _secili is null) return;
         var id = _secili.Id;
-        var belgeler = await _yonetim.BelgelerAsync(id);
+        var belgeler = await _yonetim.BelgelerAsync(id, EditorMu && SilinenBelgeleriGoster);
         if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler);
     });
     /// <summary>Belge ekleme (maui-8; önceden AlislarPage.BelgeEkleTiklandi'deydi). Seçici açılırken oturum ve seçili alış
@@ -132,9 +137,33 @@ public partial class AlislarViewModel
         await YurutAsync(async n => { if (_yonetim is null) return; var d = await _yonetim.BelgeIndirAsync(belge.Id, hedef); if (Gecerli(n)) dosya = d; });
         return dosya;
     }
-    public Task BelgeSilAsync(BelgeDto belge) => YurutAsync(async n =>
+    /// <summary>Belgeyi kaldırır (gap-denetim-izi-gozlemlenebilirlik-9): sunucuda yumuşak silmedir, içerik ve kaldırma kaydı saklanır.
+    /// Editör için gerekçe zorunludur (boşsa istek gönderilmez), alıcı için isteğe bağlıdır. Silinenler gösteriliyorsa liste
+    /// yenilenir (belge 'kaldırıldı' olarak kalır), aksi halde listeden çıkar.</summary>
+    public Task BelgeSilAsync(BelgeDto belge, string? gerekce = null) => YurutAsync(async n =>
     {
-        if (_yonetim is null) return;
-        await _yonetim.BelgeSilAsync(belge.Id); if (Gecerli(n)) Belgeler.Remove(belge);
+        if (_yonetim is null || belge.Silindi) return;
+        gerekce = string.IsNullOrWhiteSpace(gerekce) ? null : gerekce.Trim();
+        if (EditorMu && gerekce is null) { Hata = BelgeSilmeGerekcesiGerekli; return; }
+        var alisId = _secili?.Id;
+        await _yonetim.BelgeSilAsync(belge.Id, gerekce);
+        if (!Gecerli(n)) return;
+        if (EditorMu && SilinenBelgeleriGoster && alisId is { } id)
+        {
+            var belgeler = await _yonetim.BelgelerAsync(id, true);
+            if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler);
+        }
+        else Belgeler.Remove(belge);
+        if (Gecerli(n)) Mesaj = "Belge kaldırıldı; içeriği ve kaldırma kaydı saklanır.";
     });
+
+    /// <summary>Belge satırının açıklaması: yükleyen (bu sürümden önceki belgelerde bilinmez) ve kaldırıldıysa kaldıran, zaman, gerekçe.</summary>
+    public static string BelgeAciklamasi(BelgeDto b)
+    {
+        var yukleyen = b.Yukleyen is { Length: > 0 } ad ? $"Yükleyen: {ad}" : "Yükleyen: bilinmiyor (eski kayıt)";
+        if (!b.Silindi) return yukleyen;
+        var kaldiran = b.Silen is { Length: > 0 } s ? s : "bilinmiyor";
+        var zaman = b.SilinmeZamani?.ToLocalTime().ToString("dd.MM.yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
+        return $"{yukleyen} · Kaldırıldı: {kaldiran}{(zaman is null ? "" : " · " + zaman)}{(string.IsNullOrWhiteSpace(b.SilmeGerekcesi) ? "" : " · Gerekçe: " + b.SilmeGerekcesi)}";
+    }
 }

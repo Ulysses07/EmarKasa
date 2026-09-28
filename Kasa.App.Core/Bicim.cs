@@ -23,6 +23,9 @@ public static class Bicim
     }
 
     /// <summary>Dosya boyutu: "512 B", "12,3 KB", "150 MB".</summary>
+    /// <summary>Gigabayt, bir ondalık (ör. "12,5 GB"); disk alanı ve yedek boyutu gösterimi.</summary>
+    public static string Gb(long bayt) => (bayt / (1024d * 1024 * 1024)).ToString("0.0", Tr) + " GB";
+
     public static string Boyut(long bayt) => bayt switch
     {
         < 1024 => $"{bayt} B",

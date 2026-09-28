@@ -190,6 +190,42 @@ export function documentFileName(name, type) {
   if (!base) return `belge${extension}`;
   return (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/iu.test(base.split('.')[0].replace(/ +$/u, '')) ? `belge-${base}` : base) + extension;
 }
+// Alış belgeleri (gap-denetim-izi-gozlemlenebilirlik-9): kaldırma yumuşaktır; editör kaldırılanları da isteyebilir (alıcı isteyemez).
+// Editör için gerekçe zorunludur; alıcı yalnız kendi yüklediği, ödemeye bağlı olmayan ve taslaktaki belgeyi kaldırabilir.
+// Masaüstü (AlislarViewModel.BelgeAciklamasi / BelgeSilmeGerekcesiGerekli) ile aynı metinler.
+export const DOCUMENT_REASON_REQUIRED = 'Belge silme gerekçesi girin.';
+export function documentsPath(purchaseId, role, showRemoved = false) {
+  return `/api/alis/${purchaseId}/belgeler${role === 'editor' && showRemoved ? '?silinenler=true' : ''}`;
+}
+export function documentRemovable(role, purchase, doc) {
+  if (!doc || doc.silindi) return false;
+  if (role === 'editor') return true;
+  return purchase?.durum === 'Taslak' && !doc.odemeId && doc.yukleyenRol === 'alici';
+}
+export function documentDescription(doc) {
+  const uploader = doc?.yukleyen ? `Yükleyen: ${doc.yukleyen}` : 'Yükleyen: bilinmiyor (eski kayıt)';
+  if (!doc?.silindi) return uploader;
+  const when = doc.silinmeZamani ? ` · ${new Date(doc.silinmeZamani).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '')}` : '';
+  return `${uploader} · Kaldırıldı: ${doc.silen || 'bilinmiyor'}${when}${doc.silmeGerekcesi ? ` · Gerekçe: ${doc.silmeGerekcesi}` : ''}`;
+}
+export function documentDeletePayload(role, reason) {
+  const text = String(reason ?? '').trim();
+  if (role === 'editor' && !text) throw new Error(DOCUMENT_REASON_REQUIRED);
+  if (text.length > 2000) throw new Error('Silme gerekçesi en fazla 2000 karakter olabilir.');
+  return text ? { gerekce: text } : null;
+}
+// Yedek disk durumu (data-3): boş alan ve toplam boyut GB olarak; eski sunucu göndermezse satır yok. Masaüstü
+// (GuvenlikViewModel.DiskSatirlari) ile aynı biçim.
+export function gigabytes(bytes) {
+  return `${(Number(bytes) / 1073741824).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB`;
+}
+export function backupDiskLines(status) {
+  const lines = [];
+  if (status?.yedekDiskiBosAlanBayt != null) lines.push(`Yedek diski boş alan: ${gigabytes(status.yedekDiskiBosAlanBayt)}`);
+  if (status?.veriDiskiBosAlanBayt != null) lines.push(`Veri diski boş alan: ${gigabytes(status.veriDiskiBosAlanBayt)}`);
+  if (status?.toplamYedekBayt != null) lines.push(`Yedeklerin toplam boyutu: ${gigabytes(status.toplamYedekBayt)}`);
+  return lines;
+}
 // Ödemeye bağlanabilir gider sorgusu (webui-6): arama metni açıklama/notta aranır; metin tutar gibi de okunuyorsa ('2024' bir
 // fatura numarası da olabilir) tutar okuması aramaTutari olarak eklenir ve sunucu ikisinden birine uyan gideri döndürür.
 export function linkableExpensesPath(text = '', cursor = null) {

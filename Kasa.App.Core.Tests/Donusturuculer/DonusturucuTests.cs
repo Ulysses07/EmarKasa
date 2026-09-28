@@ -35,7 +35,7 @@ public class DonusturucuTests
     public void Kapsam_her_donusturucu_bu_sinifta_sinanir()
     {
         // Yeni dönüştürücü eklendiğinde (csproj onu kendiliğinden derler) buraya ve aşağıya testi eklenmeli.
-        var bilinen = new[] { typeof(AyAdiConverter), typeof(BasHarfConverter), typeof(DoluIseConverter), typeof(DonemBicimConverter),
+        var bilinen = new[] { typeof(AyAdiConverter), typeof(BasHarfConverter), typeof(BelgeAciklamasiConverter), typeof(DoluIseConverter), typeof(DonemBicimConverter),
             typeof(ParaBicimConverter), typeof(ParaRenkConverter), typeof(TersIseConverter) };
         var derlenen = typeof(AyAdiConverter).Assembly.GetTypes()
             .Where(t => t.Namespace == "Kasa.App.Converters" && typeof(IValueConverter).IsAssignableFrom(t)).ToArray();
@@ -156,9 +156,18 @@ public class DonusturucuTests
     }
 
     [Fact]
+    public void Belge_aciklamasi_yukleyeni_ve_kaldirma_izini_verir_belge_disinda_bos()
+    {
+        var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
+        Assert.Equal("Yükleyen: Ayşe", Cevir(new BelgeAciklamasiConverter(), belge));
+        Assert.Contains("Kaldırıldı: Editör", (string?)Cevir(new BelgeAciklamasiConverter(), belge with { Silindi = true, Silen = "Editör" }));
+        Assert.Null(Cevir(new BelgeAciklamasiConverter(), "fis.pdf"));
+    }
+
+    [Fact]
     public void Tek_yonlu_donusturuculer_geri_donusumu_reddeder()
     {
-        IValueConverter[] tekYonlu = [new AyAdiConverter(), new BasHarfConverter(), new DoluIseConverter(), new DonemBicimConverter(),
+        IValueConverter[] tekYonlu = [new AyAdiConverter(), new BasHarfConverter(), new BelgeAciklamasiConverter(), new DoluIseConverter(), new DonemBicimConverter(),
             new ParaBicimConverter(), new ParaRenkConverter()];
         foreach (var d in tekYonlu)
             Assert.Throws<NotSupportedException>(() => d.ConvertBack("x", typeof(object), null, CultureInfo.InvariantCulture));

@@ -124,6 +124,7 @@ public partial class AlislarViewModel : TemelViewModel
         _giderImleci = null; _giderImleciAramasi = ""; DahaFazlaGiderVar = false; GiderArama = ""; _olusturAnahtari.Temizle();
         HesaplarAcik = false; YeniAlici();
         Belgeler.Clear(); DuzeltmeHedefleri.Clear(); _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
+        SilinenBelgeleriGoster = false;
         EditorMu = editorMu;
         KaydedilmemisDegisiklikVar = false;
         Yeni();

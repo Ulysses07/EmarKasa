@@ -113,6 +113,58 @@ public class YeniAkisTests
         api.Durum = new(true, null, null, null); await vm.YukleAsync();
         Assert.Null(vm.YedekUyarisi);
     }
+    // gap-denetim-izi-gozlemlenebilirlik-9: belge kaldırma yumuşak silmedir; editör gerekçe vermeden kaldıramaz (istek gitmez), alıcı
+    // için gerekçe isteğe bağlıdır. Editör kaldırılanları da gösterebilir: liste silinenlerle istenir, kaldırma listeyi yeniler.
+    [Fact] public async Task Editor_belgeyi_gerekcesiz_kaldiramaz_gerekce_gider_silinenler_istenirse_liste_yenilenir()
+    {
+        var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
+        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) }; var vm = await AlisVm(api);
+        await vm.BelgeleriYukleCommand.ExecuteAsync(null);
+        Assert.False(api.SonSilinenlerIstegi);
+        await vm.BelgeSilAsync(belge, "   ");
+        Assert.Null(api.SonSilme); Assert.Equal(AlislarViewModel.BelgeSilmeGerekcesiGerekli, vm.Hata); Assert.Single(vm.Belgeler);
+        await vm.BelgeSilAsync(belge, "  Yanlış fiş  ");
+        Assert.Equal((9, "Yanlış fiş"), api.SonSilme); Assert.Empty(vm.Belgeler); Assert.Contains("kaldırıldı", vm.Mesaj);
+
+        var silinmis = belge with { Silindi = true, Silen = "Editör", SilmeGerekcesi = "Yanlış fiş", SilinmeZamani = DateTimeOffset.UtcNow };
+        api.BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { silinmis });
+        vm.SilinenBelgeleriGoster = true;
+        await vm.BelgeleriYukleCommand.ExecuteAsync(null);
+        Assert.True(api.SonSilinenlerIstegi); Assert.True(Assert.Single(vm.Belgeler).Silindi);
+        // Kaldırılmış belge yeniden kaldırılmaz.
+        api.SonSilme = null; await vm.BelgeSilAsync(silinmis, "tekrar"); Assert.Null(api.SonSilme);
+    }
+    [Fact] public async Task Alici_belgeyi_gerekcesiz_kaldirabilir_silinenleri_isteyemez()
+    {
+        var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
+        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) }; var vm = await AlisVm(api);
+        vm.EditorMu = false; vm.SilinenBelgeleriGoster = true;
+        await vm.BelgeleriYukleCommand.ExecuteAsync(null);
+        Assert.False(api.SonSilinenlerIstegi);
+        await vm.BelgeSilAsync(belge);
+        Assert.Equal((9, (string?)null), api.SonSilme); Assert.Empty(vm.Belgeler); Assert.Null(vm.Hata);
+    }
+    [Fact] public void Belge_aciklamasi_yukleyeni_ve_kaldirma_izini_gosterir()
+    {
+        var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe Alıcı");
+        Assert.Equal("Yükleyen: Ayşe Alıcı", AlislarViewModel.BelgeAciklamasi(belge));
+        Assert.Equal("Yükleyen: bilinmiyor (eski kayıt)", AlislarViewModel.BelgeAciklamasi(belge with { YukleyenRol = null, Yukleyen = null }));
+        var silinen = AlislarViewModel.BelgeAciklamasi(belge with { Silindi = true, Silen = "Editör", SilmeGerekcesi = "İade sonrası yanlış fiş", SilinmeZamani = DateTimeOffset.UtcNow });
+        Assert.StartsWith("Yükleyen: Ayşe Alıcı · Kaldırıldı: Editör · ", silinen); Assert.EndsWith(" · Gerekçe: İade sonrası yanlış fiş", silinen);
+    }
+    [Fact] public async Task Yedek_durumu_disk_alanlarini_gb_olarak_ve_disk_uyarisini_gosterir()
+    {
+        const long Gb = 1024L * 1024 * 1024;
+        var api = new Fake { Durum = new(true, null, null, null, null, 100L * 1024 * 1024, 5 * Gb, 3 * Gb + Gb / 2, 2 * Gb,
+            "Yedek diskinde 0,1 GB boş alan kaldı (asgari 2,0 GB).", "Son yedekte 1 belge dosyası bulunamadı.") };
+        var vm = new GuvenlikViewModel(api, Auth());
+        await vm.YukleAsync();
+        Assert.Contains("Yedek diski boş alan: 0,1 GB", vm.YedekBilgisi); Assert.Contains("Veri diski boş alan: 5,0 GB", vm.YedekBilgisi);
+        Assert.Contains("Yedeklerin toplam boyutu: 3,5 GB", vm.YedekBilgisi);
+        Assert.Equal("Yedek diskinde 0,1 GB boş alan kaldı (asgari 2,0 GB).\nSon yedekte 1 belge dosyası bulunamadı.", vm.YedekUyarisi);
+        api.Durum = new(true, null, null, null); await vm.YukleAsync();
+        Assert.DoesNotContain("GB", vm.YedekBilgisi); Assert.Null(vm.YedekUyarisi);
+    }
     [Fact] public async Task Belge_yukleme_zaman_asiminda_liste_yenilenir_ki_tekrar_yuklemeden_once_gorulsun()
     {
         var sunucudaki = new BelgeDto(9, 7, null, "dekont.pdf", "application/pdf", 4, DateTimeOffset.UtcNow);
@@ -220,12 +272,14 @@ public class YeniAkisTests
         public Task<YedekDurumuDto> YedekDurumuAsync() => Task.FromResult(Durum);
         public Task<IndirmeBilgisi> YedekIndirAsync(Stream hedef, CancellationToken ct = default) => YedekYaniti?.Invoke(hedef, ct) ?? Yaz(hedef, "yedek.zip");
         private static async Task<IndirmeBilgisi> Yaz(Stream hedef, string ad) { await hedef.WriteAsync(new byte[] { 1, 2, 3 }); return new(ad, "application/octet-stream", 3); }
-        public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int id) => BelgeYaniti ?? Task.FromResult<IReadOnlyList<BelgeDto>>(Array.Empty<BelgeDto>());
+        public bool? SonSilinenlerIstegi;
+        public (int Id, string? Gerekce)? SonSilme;
+        public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int id, bool silinenler = false) { SonSilinenlerIstegi = silinenler; return BelgeYaniti ?? Task.FromResult<IReadOnlyList<BelgeDto>>(Array.Empty<BelgeDto>()); }
         public (string Ad, string Tur, byte[] Icerik, int? OdemeId)? SonBelge;
         public Task<BelgeDto> BelgeYukleAsync(int id, string ad, string tur, byte[] b, int? odemeId = null, CancellationToken ct = default)
         { BelgeYuklemeSayisi++; SonBelge = (ad, tur, b, odemeId); return BelgeYuklemeHatasi is { } hata ? Task.FromException<BelgeDto>(hata) : Task.FromResult(new BelgeDto(1, id, odemeId, ad, tur, b.Length, DateTimeOffset.UtcNow)); }
         public Task<IndirmeBilgisi> BelgeIndirAsync(int id, Stream hedef, CancellationToken ct = default) => Yaz(hedef, "belge.pdf");
-        public Task BelgeSilAsync(int id) => Task.CompletedTask;
+        public Task BelgeSilAsync(int id, string? gerekce = null) { SonSilme = (id, gerekce); return Task.CompletedTask; }
         public Task<IndirmeBilgisi> DisariAktarAsync(DateOnly b, DateOnly s, string? k, string bicim, Stream hedef, CancellationToken ct = default) { RaporIndirildi = true; return Yaz(hedef, "rapor." + bicim); }
         public Task<IReadOnlyList<AlisKanalDto>> AlisKanallariAsync() => Task.FromResult<IReadOnlyList<AlisKanalDto>>(new[] { new AlisKanalDto(1, "MEZAT", true) });
         public Task<IReadOnlyList<AlisDto>> AlislarAsync() => Task.FromResult<IReadOnlyList<AlisDto>>(new[] { IlkAlis ?? Alis(), Alis(8) });

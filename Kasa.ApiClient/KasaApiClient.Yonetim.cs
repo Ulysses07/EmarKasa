@@ -30,7 +30,8 @@ public sealed partial class KasaApiClient : IYonetimApi
     /// <paramref name="hedef"/>'e yazılır. Sunucunun yedek diskinde yer yoksa 507 ve Türkçe hata (<see cref="KasaApiException"/>).</summary>
     public Task<IndirmeBilgisi> YedekIndirAsync(Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Post, "api/yedek", "kasa-yedek.zip", hedef, _zaman.Yedek, cancellationToken);
-    public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int alisId) => GetAsync<IReadOnlyList<BelgeDto>>($"api/alis/{alisId}/belgeler");
+    public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int alisId, bool silinenler = false)
+        => GetAsync<IReadOnlyList<BelgeDto>>($"api/alis/{alisId}/belgeler" + (silinenler ? "?silinenler=true" : ""));
     /// <summary>Sunucunun belge sınırı (10 MB) istemcide de denetlenir: sınır dışı dosya yavaş bağlantıda boşuna gönderilmez.</summary>
     public async Task<BelgeDto> BelgeYukleAsync(int alisId, string dosyaAdi, string icerikTuru, byte[] icerik, int? odemeId = null, CancellationToken cancellationToken = default)
     {
@@ -48,7 +49,9 @@ public sealed partial class KasaApiClient : IYonetimApi
     /// <summary>Belgenin adı ve uzantısı sunucunun bildirdiği türden kurulur (<see cref="DosyaTurleri.GuvenliAd"/>).</summary>
     public Task<IndirmeBilgisi> BelgeIndirAsync(int belgeId, Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, $"api/belgeler/{belgeId}", $"belge-{belgeId}", hedef, _zaman.Indirme, cancellationToken);
-    public Task BelgeSilAsync(int belgeId) => SilAsync($"api/belgeler/{belgeId}");
+    /// <summary>Gerekçe varsa JSON gövdede ({"gerekce"}) gider; gövdesiz silme eski sunucuyla da çalışır.</summary>
+    public Task BelgeSilAsync(int belgeId, string? gerekce = null)
+        => string.IsNullOrWhiteSpace(gerekce) ? SilAsync($"api/belgeler/{belgeId}") : GonderJsonAsync(HttpMethod.Delete, $"api/belgeler/{belgeId}", new { gerekce = gerekce.Trim() });
     public Task<IndirmeBilgisi> DisariAktarAsync(DateOnly baslangic, DateOnly bitis, string? kanal, string bicim, Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, $"api/disari-aktar?baslangic={baslangic:yyyy-MM-dd}&bitis={bitis:yyyy-MM-dd}&bicim={Uri.EscapeDataString(bicim)}"
             + (string.IsNullOrWhiteSpace(kanal) ? "" : "&kanal=" + Uri.EscapeDataString(kanal)), $"kasa-rapor.{bicim}", hedef, _zaman.Indirme, cancellationToken);

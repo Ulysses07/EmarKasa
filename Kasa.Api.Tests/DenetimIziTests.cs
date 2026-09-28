@@ -423,9 +423,13 @@ public class DenetimIziTests
         using var yukle = await c.PostAsync($"/api/alis/{alis.Id}/belgeler", form);
         Assert.Equal(HttpStatusCode.Created, yukle.StatusCode);
         var belge = (await yukle.Content.ReadFromJsonAsync<BelgeDto>())!;
-        (await c.DeleteAsync($"/api/belgeler/{belge.Id}")).EnsureSuccessStatusCode();
+        // Silme yumuşaktır: editörün gerekçesiyle 'Degistir' olayı (Silindi) yazılır, satır ve içerik korunur.
+        using (var sil = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{belge.Id}") { Content = JsonContent.Create(new BelgeSilYaz("Yanlış alışa yüklendi")) })
+            (await c.SendAsync(sil)).EnsureSuccessStatusCode();
         var belgeOlaylari = Olaylar(f, "Belge", belge.Id);
-        Assert.Equal(["Ekle", "Sil"], belgeOlaylari.Select(o => o.Tur));
+        Assert.Equal(["Ekle", "Degistir"], belgeOlaylari.Select(o => o.Tur));
+        Assert.Equal("Yanlış alışa yüklendi", belgeOlaylari[1].Gerekce);
+        Assert.True(J(belgeOlaylari[1].YeniJson)["Silindi"]!.GetValue<bool>());
         // İçerik belge deposundadır: olay yalnız özeti taşır.
         Assert.Equal(TestBelgeDeposu.Ozet("%PDF-1.7 gizli fatura"u8.ToArray()), (string?)J(belgeOlaylari[0].YeniJson)["IcerikOzeti"]);
         Assert.Null(J(belgeOlaylari[0].YeniJson)["Icerik"]);
