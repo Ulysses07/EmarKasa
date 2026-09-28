@@ -1202,12 +1202,58 @@ test('PDF history shows the cancellation reason and time on cancelled records on
   assert.match(row(2).textContent, /Kaydedildi/); assert.doesNotMatch(row(2).textContent, /zamanı bilinmiyor|iki kez okundu/);
 });
 
-test('imported cash expenses have a source link and cannot be selected as purchase payments', async () => {
+test('imported cash expenses have a source link and can be linked to a purchase payment as bank statement expenses', async () => {
+  // gap-coklu-giris-cift-sayim-mutabakat-1: sunucu banka ekstresi giderini bağlanabilir listeler; bağlanınca ekstre satırı eşleşmeye döner.
   const expenses = [{ id: 21, tarih: ui.today(), cari: 'PDF Kira', tutarTl: 100, ekstreKayitId: 8 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }];
-  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/islemler': expenses, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses }));
+  const { app, nodes, calls } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/islemler': expenses, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses, '/api/alis/6/odemeler': { id: 6 } }));
   await app.navigate('transactions'); assert.match(nodes.get('#view').textContent, /Ekstre \/ Hareket Yükle bölümünden yönetilir/);
   const row = nodes.get('#view').find(node => node.tag === 'tr' && node.textContent.includes('PDF Kira')); assert.doesNotMatch(row.textContent, /Düzenle|Sil/);
-  await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' }); const existing = formField(nodes, 'mevcutIslemId'); assert.equal(existing.find(row => row.tag === 'option' && row.value === '21'), null);
+  await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' }); const existing = formField(nodes, 'mevcutIslemId');
+  assert.match(existing.find(row => row.tag === 'option' && row.value === '21').textContent, /PDF Kira.*banka ekstresinden/);
+  existing.value = '21'; existing.listeners.change(); await settle(); await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.mevcutIslemId, 21);
+});
+
+test('takipli card payment lists card charges without an expense and links the chosen one without a duplicate check', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 18000, durum: 'Taslak' };
+  const charge = { id: 31, krediKartiId: 4, tarih: '2026-09-24', aciklama: 'MEZAT', tutar: 18000, ekstreKayitId: 7 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı', yeniTakip: true, aktif: true }], '/api/islemler': [], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [],
+    '/api/islemler/benzerlik': new Error('Bağlamada benzerlik sorulmaz'), '/api/alis/baglanabilir-kart-harcamalari?krediKartiId=4&tutar=18000.00': [charge] });
+  await app.paymentDialog(purchase);
+  const card = formField(nodes, 'krediKartiId'); const linked = formField(nodes, 'mevcutKartHarcamaId');
+  assert.equal(linked.closest('label').hidden, true);
+  card.value = '4'; await card.listeners.change(); await settle();
+  assert.equal(linked.closest('label').hidden, false);
+  assert.match(linked.find(node => node.tag === 'option' && node.value === '31').textContent, /MEZAT.*18\.000,00.*ekstreden/);
+  linked.value = '31'; linked.listeners.change();
+  assert.equal(formField(nodes, 'tarih').value, '2026-09-24'); assert.equal(formField(nodes, 'tutar').disabled, true);
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/alis/6/odemeler');
+  assert.equal(save.body.mevcutKartHarcamaId, 31); assert.equal(save.body.krediKartiId, 4); assert.equal(save.body.tarih, '2026-09-24'); assert.equal(save.body.tutar, 18000); assert.equal(save.body.mevcutIslemId, null);
+  assert.equal(calls.some(call => call.path === '/api/islemler/benzerlik'), false);
+});
+
+test('PDF row can be matched to an existing record without allocation and shows the match in history', async () => {
+  const candidate = { tur: 'KartHarcama', id: 12, tarih: '2026-09-22', tutar: 100, aciklama: 'Alış ödemesi', krediKartiId: 4, kanalEtiketi: 'Dağılım bekliyor', alisId: 6 };
+  const { app, nodes, calls } = await openApp(false, importResponses(importDocument({ kaynak: 'Kart', kartId: 4, satirlar: [importRow({ onerilenIslem: 'KartHarcama' })] }), {
+    '/api/ekstre-aktar/12/eslesme-adaylari': [candidate],
+    '/api/ekstre-aktar/12/onizleme': importPreview({ kasaEtkisi: 0, satirlar: [{ satirNo: 1, tarih: '2026-09-23', aciklama: 'Kira', tutar: 100, islemTuru: 'Eslestir', kasaEtkisi: 0, dagilimlar: [], uyarilar: [] }] }) }));
+  await app.navigate('imports', 12); await chooseImportRow(nodes, 1, null);
+  const kind = viewField(nodes, 'tur-1'); kind.value = 'Eslestir'; await kind.listeners.change(); await settle();
+  const lookup = calls.find(call => call.path === '/api/ekstre-aktar/12/eslesme-adaylari'); assert.deepEqual(lookup.body, { tarih: '2026-09-23', tutar: 100 });
+  const match = viewField(nodes, 'eslesme-1'); assert.match(match.find(node => node.value === 'KartHarcama:12').textContent, /Kart harcaması #12.*Alış #6/);
+  assert.equal(importRowNode(nodes).find(node => node.tag === 'fieldset').hidden, true);
+  await clickView(nodes, 'Seçilenleri önizle'); assert.equal(calls.some(call => call.path.endsWith('/onizleme')), false);
+  match.value = 'KartHarcama:12'; match.listeners.change(); await clickView(nodes, 'Seçilenleri önizle');
+  const row = calls.find(call => call.path.endsWith('/onizleme')).body.satirlar[0];
+  assert.deepEqual([row.islemTuru, row.dagilimTuru, row.dagilimlar, row.eslesenKayitTuru, row.eslesenKayitId, row.krediKartiId], ['Eslestir', 'Eslesme', [], 'KartHarcama', 12, null]);
+  assert.match(nodes.get('#view').textContent, /Mevcut kayıtla eşleşir; kasa ve kart borcu değişmez/);
+
+  const saved = importDocument({ kaynak: 'Kart', kartId: 4, kayitlar: [{ id: 9, satirNo: 1, tarih: '2026-09-23', aciklama: 'Kira', tutar: 100, islemTuru: 'Eslestir', dagilimTuru: 'Eslesme', dagilimlar: [], iptal: false, eslesmeTuru: 'KartHarcama', eslesmeId: 12, eslesmeDurumu: 'Eslesti' }] });
+  const second = await openApp(false, importResponses(saved));
+  await second.app.navigate('imports', 12);
+  assert.match(second.nodes.get('#view').textContent, /Mevcut kayıtla eşleşti \(Kart harcaması #12\)/); assert.match(second.nodes.get('#view').textContent, /Kasa etkisi yok/);
+  assert.equal(viewField(second.nodes, 'sec-1').disabled, true);
 });
 
 test('imported card charges and payments expose source navigation instead of generic cancellation', async () => {

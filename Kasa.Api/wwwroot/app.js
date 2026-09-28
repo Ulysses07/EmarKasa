@@ -365,8 +365,31 @@ async function paymentDialog(p, payment = null) {
   const card = select('krediKartiId', paymentCardChoices(state.cards, payment?.krediKartiId), payment?.krediKartiId);
   const cardChoices = keepId => card.replaceChildren(...paymentCardChoices(state.cards, keepId).map(option => h('option', { value: option.value }, option.label)));
   const existing = select('mevcutIslemId', [{ value: '', label: 'Yeni gider oluştur' }], '');
-  const linkHelp = 'Daha önce gider olarak girdiğiniz bir ödemeyi bağlarsanız kasadan ikinci kez düşülmez.';
+  const linkHelp = 'Daha önce gider olarak girdiğiniz (ya da banka ekstresinden aktardığınız) bir ödemeyi bağlarsanız kasadan ikinci kez düşülmez.';
   const existingHelp = h('div', { class: 'stack' }, help(linkHelp));
+  // Ters sıra (gap-coklu-giris-cift-sayim-mutabakat-1): kart ekstresi önce aktarıldıysa harcama kart borcundadır. Takipli kart
+  // seçilince gidere bağlı olmayan harcamaları listelenir; seçilen harcamaya bağlanan ödeme ikinci harcama oluşturmaz.
+  const charge = select('mevcutKartHarcamaId', [{ value: '', label: 'Yeni kart harcaması oluştur' }], '');
+  const chargeStatus = h('p', { class: 'help', role: 'status' });
+  const chargeField = field('Kart harcaması', charge, h('div', { class: 'stack' }, chargeStatus, help('Kart ekstresi önce içe aktarıldıysa harcamayı seçin: ödeme ona bağlanır, kart borcu ve kasa ikinci kez sayılmaz. Tarih ve tutar harcamadan alınır.'))); chargeField.hidden = true;
+  let charges = []; let chargeGeneration = 0;
+  const chargeSync = () => {
+    const selected = charges.find(item => item.id === Number(charge.value));
+    if (selected) { date.value = selected.tarih; total.value = selected.tutar; }
+    date.disabled = Boolean(selected) || Boolean(existing.value); total.disabled = Boolean(selected) || Boolean(existing.value);
+  };
+  const loadCharges = async () => {
+    const mine = ++chargeGeneration; const cardId = optionalId(card.value);
+    charges = []; charge.replaceChildren(h('option', { value: '' }, 'Yeni kart harcaması oluştur')); charge.value = ''; chargeStatus.textContent = '';
+    chargeField.hidden = payment || !cardId || Boolean(existing.value); chargeSync();
+    if (chargeField.hidden) return;
+    let amountText = ''; try { amountText = (cents(total.value, { allowZero: false }) / 100).toFixed(2); } catch { amountText = ''; }
+    const list = await api(`/api/alis/baglanabilir-kart-harcamalari?krediKartiId=${cardId}${amountText ? `&tutar=${amountText}` : ''}`);
+    if (mine !== chargeGeneration) return;
+    charges = Array.isArray(list) ? list : [];
+    charge.replaceChildren(h('option', { value: '' }, 'Yeni kart harcaması oluştur'), ...charges.map(item => h('option', { value: item.id }, `#${item.id} · ${dateText(item.tarih)} · ${item.aciklama} · ${money(item.tutar)}${item.ekstreKayitId ? ' · ekstreden' : ''}`)));
+    charge.value = ''; chargeStatus.textContent = charges.length ? '' : 'Bu kartta bu tutarda bağlanabilecek harcama yok; ödeme yeni kart harcaması olarak kaydedilir.';
+  };
   if (!payment) {
     // webui-6: bütün gider geçmişi çekilmez. Sunucu yalnız bağlanabilir giderleri (en yeni önce) sayfa sayfa döndürür; eskisi
     // açıklama, not ya da tutarla aranır. Sunucunun süzdüğü bağlı kayıtlar istemcide de savunma olarak elenir.
@@ -380,6 +403,7 @@ async function paymentDialog(p, payment = null) {
       cardChoices(selected?.krediKartiId);
       if (selected) { date.value = selected.tarih; total.value = selected.tutarTl; card.value = selected.krediKartiId || ''; }
       date.disabled = Boolean(selected); total.disabled = Boolean(selected); card.disabled = Boolean(selected);
+      if (selected) { chargeGeneration++; charges = []; charge.value = ''; chargeField.hidden = true; }
     };
     const more = button('Daha eski giderler', event => run(event.currentTarget, () => load(true)), 'small', { hidden: true });
     const load = async append => {
@@ -388,11 +412,12 @@ async function paymentDialog(p, payment = null) {
       if (query !== cursorQuery) append = false;
       const page = await api(append ? linkableExpensesPath(text, cursor) : query);
       if (mine !== generation) return;
-      const items = (page?.ogeler || []).filter(e => !e.alisId && !e.aylikGiderOdemeId && !e.ekstreKayitId && e.tutarTl > 0);
+      // Banka ekstresi gideri bağlanabilir (sunucu listeler; bağlanınca ekstre satırı eşleşmeye döner).
+      const items = (page?.ogeler || []).filter(e => !e.alisId && !e.aylikGiderOdemeId && e.tutarTl > 0);
       available = append ? [...available, ...items.filter(e => !available.some(old => old.id === e.id))] : items;
       cursor = page?.devamVar ? page.sonrakiImlec : null; cursorQuery = query;
       const selectedValue = existing.value;
-      existing.replaceChildren(h('option', { value: '' }, 'Yeni gider oluştur'), ...available.map(e => h('option', { value: e.id }, `#${e.id} · ${dateText(e.tarih)} · ${e.cari} · ${money(e.tutarTl)}`)));
+      existing.replaceChildren(h('option', { value: '' }, 'Yeni gider oluştur'), ...available.map(e => h('option', { value: e.id }, `#${e.id} · ${dateText(e.tarih)} · ${e.cari} · ${money(e.tutarTl)}${e.ekstreKayitId ? ' · banka ekstresinden' : ''}`)));
       existing.value = available.some(e => String(e.id) === selectedValue) ? selectedValue : '';
       more.hidden = !cursor;
       status.textContent = !available.length ? 'Eşleşen bağlanabilir gider yok.' : cursor ? `En yeni ${available.length} gider gösteriliyor; daha eskisi için arayın veya “Daha eski giderler”e basın.` : '';
@@ -402,12 +427,14 @@ async function paymentDialog(p, payment = null) {
     search.addEventListener('change', find);
     // Arama kutusunda Enter ödeme formunu göndermez; yalnız arar.
     search.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); find(); } });
-    existing.addEventListener('change', sync);
+    existing.addEventListener('change', () => { sync(); if (!existing.value) run(null, loadCharges); });
+    card.addEventListener('change', () => run(null, loadCharges)); total.addEventListener('change', () => { if (!charge.value) run(null, loadCharges); });
+    charge.addEventListener('change', chargeSync);
     await load(false);
     existingHelp.replaceChildren(h('div', { class: 'row-actions' }, search, button('Ara', event => run(event.currentTarget, () => load(false)), 'small')), status, more, help(linkHelp));
   }
   const target = select('hedefAlisId', [{ value: '', label: 'Bu alışta kalsın' }, ...state.purchases.filter(other => other.id !== p.id && other.kalan > 0).map(other => ({ value: other.id, label: `#${other.id} · ${other.tedarikci} · ${money(other.kalan)} kalan` }))]);
-  formDialog(payment ? `Ödeme #${payment.id} · Düzelt / taşı` : 'Ödeme kaydet', h('div', { class: 'stack' }, h('div', { class: 'notice' }, payment ? 'Bu işlem kayıtlı ödemeyi değiştirir. Ödeme başka alışa aitse hedef alış seçin; para çıkışını yeniden kaydetmeyin.' : `Alışın kalan tutarı ${money(p.kalan)}. ${p.durum !== 'Onaylandi' ? 'Ödeme kasaya yansır; kanal dağılımı onay bekler.' : 'Ödeme onaylı kanal paylarına dağıtılır.'}`), !payment && field('Yeni ödeme veya mevcut gider', existing, existingHelp), h('div', { class: 'form-grid' }, field('Ödeme tarihi', date), field('Tutar (₺)', total), field('Ödeme yöntemi', card)), payment && field('Ödemeyi başka alışa taşı', target), field(payment ? 'Düzeltme açıklaması' : 'Ödeme notu (isteğe bağlı)', h('textarea', { name: 'aciklama', required: Boolean(payment), maxlength: 2000 })), help('Yeni takipte kartla alış, kart borcu oluşturur; kasa yalnız Kredi Kartları ekranında ödeme kaydedildiğinde azalır. Geçiş yapılmamış eski kartlarda önceki kasa kuralı sürer.')), payment ? 'Düzeltmeyi kaydet' : 'Ödemeyi kaydet', async form => {
+  formDialog(payment ? `Ödeme #${payment.id} · Düzelt / taşı` : 'Ödeme kaydet', h('div', { class: 'stack' }, h('div', { class: 'notice' }, payment ? 'Bu işlem kayıtlı ödemeyi değiştirir. Ödeme başka alışa aitse hedef alış seçin; para çıkışını yeniden kaydetmeyin.' : `Alışın kalan tutarı ${money(p.kalan)}. ${p.durum !== 'Onaylandi' ? 'Ödeme kasaya yansır; kanal dağılımı onay bekler.' : 'Ödeme onaylı kanal paylarına dağıtılır.'}`), !payment && field('Yeni ödeme veya mevcut gider', existing, existingHelp), h('div', { class: 'form-grid' }, field('Ödeme tarihi', date), field('Tutar (₺)', total), field('Ödeme yöntemi', card)), !payment && chargeField, payment && field('Ödemeyi başka alışa taşı', target), field(payment ? 'Düzeltme açıklaması' : 'Ödeme notu (isteğe bağlı)', h('textarea', { name: 'aciklama', required: Boolean(payment), maxlength: 2000 })), help('Yeni takipte kartla alış, kart borcu oluşturur; kasa yalnız Kredi Kartları ekranında ödeme kaydedildiğinde azalır. Geçiş yapılmamış eski kartlarda önceki kasa kuralı sürer.')), payment ? 'Düzeltmeyi kaydet' : 'Ödemeyi kaydet', async form => {
     const data = values(form);
     const payload = { surum: p.surum, tarih: date.value, tutar: cents(total.value, { allowZero: false }) / 100, krediKartiId: optionalId(card.value) };
     if (payment) {
@@ -415,12 +442,15 @@ async function paymentDialog(p, payment = null) {
       Object.assign(payload, { aciklama: data.aciklama.trim(), hedefAlisId: destination?.id || null, hedefSurum: destination?.surum ?? null });
       await api(`/api/alis/${p.id}/odemeler/${payment.id}`, { method: 'PUT', body: identity(payload) });
     } else {
-      Object.assign(payload, { mevcutIslemId: optionalId(existing.value), not: data.aciklama.trim() || null });
+      const linkedCharge = existing.value ? null : charges.find(item => item.id === Number(charge.value));
+      if (linkedCharge && (linkedCharge.krediKartiId !== payload.krediKartiId || cents(linkedCharge.tutar) !== cents(payload.tutar))) throw new Error('Seçilen kart harcaması ödeme kartı ve tutarıyla eşleşmiyor. Kartı yeniden seçin.');
+      Object.assign(payload, { mevcutIslemId: optionalId(existing.value), not: data.aciklama.trim() || null }, linkedCharge ? { tarih: linkedCharge.tarih, mevcutKartHarcamaId: linkedCharge.id } : {});
       const body = identity(payload);
-      if (!payload.mevcutIslemId && !await confirmSimilar(form, { tur: 'AlisOdeme', tarih: payload.tarih, tutar: payload.tutar, krediKartiId: payload.krediKartiId, kanal: null, alisId: p.id }, body)) return;
+      // Mevcut gidere ya da kart harcamasına bağlama yeni para çıkışı değildir: benzer kayıt sorulmaz.
+      if (!payload.mevcutIslemId && !payload.mevcutKartHarcamaId && !await confirmSimilar(form, { tur: 'AlisOdeme', tarih: payload.tarih, tutar: payload.tutar, krediKartiId: payload.krediKartiId, kanal: null, alisId: p.id }, body)) return;
       await api(`/api/alis/${p.id}/odemeler`, { method: 'POST', body });
     }
-    closeModal(); toast(payment ? 'Ödeme düzeltildi.' : 'Ödeme kaydedildi.'); await navigate('purchase', p.id);
+    closeModal(); toast(payment ? 'Ödeme düzeltildi.' : payload.mevcutKartHarcamaId ? 'Kart harcaması alışa bağlandı; ikinci harcama oluşmadı.' : 'Ödeme kaydedildi.'); await navigate('purchase', p.id);
   });
 }
 function cancelPayment(p, payment) {
