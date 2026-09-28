@@ -186,6 +186,31 @@ public class AlisApiTests
         Assert.Equal(["/api/alis/baglanabilir-giderler"], h.Yollar);
     }
 
+    /// <summary>Ters sıra (gap-coklu-giris-cift-sayim-mutabakat-1): bağlanabilir kart harcamaları yolu ve sorgusu, ödemenin
+    /// MevcutKartHarcamaId alanı ve gider sayfasındaki ekstre kaynağı; eski sunucuda (uç yok) boş liste.</summary>
+    [Fact]
+    public async Task Baglanabilir_kart_harcamalari_ve_mevcut_kart_harcamasiyla_odeme()
+    {
+        var (api, handler) = Kur("""[{"id":31,"krediKartiId":4,"tarih":"2026-09-20","aciklama":"MEZAT","tutar":18000,"ekstreKayitId":7}]""");
+        var harcama = Assert.Single(await api.BaglanabilirKartHarcamalariAsync(4, 18000m));
+        Assert.Equal("/api/alis/baglanabilir-kart-harcamalari", handler.SonIstek!.RequestUri!.AbsolutePath);
+        Assert.Equal("?krediKartiId=4&tutar=18000.00", handler.SonIstek.RequestUri.Query);
+        Assert.Equal((31, 4, 18000m, (int?)7), (harcama.Id, harcama.KrediKartiId, harcama.Tutar, harcama.EkstreKayitId));
+
+        (api, handler) = Kur(AlisJson);
+        await api.AlisOdemeKaydetAsync(7, new AlisOdemeYaz(3, Guid.NewGuid(), new DateOnly(2026, 9, 20), 18000m, 4, MevcutKartHarcamaId: 31));
+        using (var govde = JsonDocument.Parse(handler.SonGovde!))
+            Assert.Equal((31, JsonValueKind.Null), (govde.RootElement.GetProperty("mevcutKartHarcamaId").GetInt32(), govde.RootElement.GetProperty("mevcutIslemId").ValueKind));
+
+        (api, _) = Kur("""{"ogeler":[{"id":90,"tarih":"2026-09-20","cari":"PDF","tutarTl":12.5,"kanal":"Genel kasa","kanalId":null,"tip":"Cari","not":null,"krediKartiId":null,"ekstreKayitId":5}],"sonrakiImlec":null,"devamVar":false}""");
+        Assert.Equal(5, Assert.Single((await api.BaglanabilirGiderlerAsync()).Ogeler).EkstreKayitId);
+
+        foreach (var kod in new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed })
+            Assert.Empty(await Istemci(new YolaGoreHandler(_ => new HttpResponseMessage(kod))).BaglanabilirKartHarcamalariAsync(4));
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Istemci(new YolaGoreHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest))).BaglanabilirKartHarcamalariAsync(4));
+        Assert.Equal(HttpStatusCode.BadRequest, hata.DurumKodu);
+    }
+
     [Fact]
     public async Task Odeme_eski_kart_harcamasi_bayragini_okur_eski_sunucuda_false()
     {

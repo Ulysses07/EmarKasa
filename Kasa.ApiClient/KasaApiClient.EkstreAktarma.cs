@@ -14,6 +14,7 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
     public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreOnizlemeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/onizleme", g);
     public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/kaydet", g);
     public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) => GonderJsonAsync<EkstreBelgeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/kayitlar/{kayitId}/iptal", g);
+    public Task<IReadOnlyList<EkstreEslesmeAdayiDto>> EkstreEslesmeAdaylariAsync(int id, EkstreEslesmeAdayiSorgu g) => GonderJsonAsync<IReadOnlyList<EkstreEslesmeAdayiDto>>(HttpMethod.Post, $"api/ekstre-aktar/{id}/eslesme-adaylari", g);
 
     public async Task<EkstreBelgeDto> EkstreYukleAsync(byte[] icerik, string dosyaAdi, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken cancellationToken = default)
     {

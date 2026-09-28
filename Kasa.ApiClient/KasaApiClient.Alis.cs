@@ -45,6 +45,14 @@ public sealed partial class KasaApiClient : IAlisApi
             .ToList();
         return new(ogeler, null, false);
     }
+    public async Task<IReadOnlyList<BaglanabilirKartHarcamasiDto>> BaglanabilirKartHarcamalariAsync(int krediKartiId, decimal? tutar = null)
+    {
+        var yol = $"api/alis/baglanabilir-kart-harcamalari?krediKartiId={krediKartiId.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            + (tutar is { } t ? "&tutar=" + t.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "");
+        try { return await GetAsync<IReadOnlyList<BaglanabilirKartHarcamasiDto>>(yol); }
+        // Eski sunucu ucu tanımaz ve ters sıra bağlamayı desteklemez: ödeme formu yalnız yeni gider/mevcut gider seçeneğiyle çalışır.
+        catch (KasaApiException e) when (e.DurumKodu is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed) { return Array.Empty<BaglanabilirKartHarcamasiDto>(); }
+    }
     public Task<IReadOnlyList<AliciDto>> AlicilarAsync() => GetAsync<IReadOnlyList<AliciDto>>("api/alicilar");
     public Task<AliciDto> AliciOlusturAsync(AliciYaz g) => GonderJsonAsync<AliciDto>(HttpMethod.Post, "api/alicilar", g);
     public Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g) => GonderJsonAsync<AliciDto>(HttpMethod.Put, $"api/alicilar/{id}", g);

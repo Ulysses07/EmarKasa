@@ -15,6 +15,9 @@ public interface IAlisApi
     /// uyarsa gelir (<paramref name="tutar"/> ise kesin süzgeçtir). Eski sunucuda (uç yoksa 404 ya da 405) eski gider listesinden
     /// istemcide süzülmüş tek sayfa döner.</summary>
     Task<BaglanabilirGiderSayfasi> BaglanabilirGiderlerAsync(string? arama = null, decimal? tutar = null, DateOnly? baslangic = null, DateOnly? bitis = null, string? imlec = null, int? limit = null, decimal? aramaTutari = null);
+    /// <summary>Takipli kartla ödemede <c>MevcutKartHarcamaId</c> ile bağlanabilecek kart harcamaları (gidere bağlı olmayan, en yeni
+    /// 50; <paramref name="tutar"/> verilirse yalnız o tutar). Eski sunucuda (uç yok) boş liste döner.</summary>
+    Task<IReadOnlyList<BaglanabilirKartHarcamasiDto>> BaglanabilirKartHarcamalariAsync(int krediKartiId, decimal? tutar = null);
     Task<IReadOnlyList<AliciDto>> AlicilarAsync();
     Task<AliciDto> AliciOlusturAsync(AliciYaz g);
     Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g);
