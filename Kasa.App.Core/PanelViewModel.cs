@@ -36,11 +36,24 @@ public partial class PanelViewModel : RaporViewModel
     /// <summary><see cref="TakipOzeti"/>'nin istendiği gün ufku.</summary>
     public int TakipOzetiGunu { get; private set; }
 
+    /// <summary>Takipte olmayan (geçişi yapılmamış) kart ve kredilerin kalıcı uyarısı (gap-tarihsel-spec-ve-emekli-web-7): hatırlatmaları
+    /// eski kayıtlarla sınırlıdır. Kayıt yoksa (ya da eski sunucuda) boş.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TakipsizVar))]
+    private string _takipsizUyari = "";
+    public bool TakipsizVar => TakipsizUyari.Length > 0;
+
+    public static string TakipsizMetni(IReadOnlyList<TakipsizKayitDto>? kayitlar) => kayitlar is not { Count: > 0 } ? ""
+        : $"Kart ve kredi takibinde olmayan kayıtlar var: {string.Join(", ", kayitlar.Select(k => $"{k.Ad} ({(k.Kaynak == "Kart" ? "kart" : "kredi")})"))}. "
+          + "Bu kayıtların hatırlatmaları eski kayıtlardan hesaplanır ve sınırlıdır; yeni ödeme ve güncel ekstre görünmez. Kartlar ve Krediler ekranından geçiş yapın.";
+
     /// <summary>Panel, kanal eşikleri ve takip özeti tek istekte (GET /api/rapor/ana-sayfa): bakiye, eşik uyarısı ve kart
     /// borcu aynı andan gelir. Değerler <see cref="RaporViewModel.VeriVar"/> true olmadan önce yazılır.</summary>
     public override Task YukleAsync()
     {
         var gun = TakipGunu;
+        // Uyarı öbür panel alanları gibi yükleme sürerken ve yükleme başarısızsa görünmez.
+        TakipsizUyari = "";
         return RaporYukleAsync(ct => _api.AnaSayfaAsync(gun, ct), a =>
         {
             var p = a.Panel;
@@ -51,6 +64,7 @@ public partial class PanelViewModel : RaporViewModel
             Kanallar.Clear();
             foreach (var k in p.Kanallar) Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId));
             KasaEsikleri = a.KasaEsikleri; TakipOzeti = a.TakipOzeti; TakipOzetiGunu = gun;
+            TakipsizUyari = TakipsizMetni(a.TakipsizKayitlar);
         });
     }
 }

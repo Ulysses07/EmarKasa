@@ -28,4 +28,23 @@ public class PanelViewModelTests
         Assert.Equal(900, vm.GuncelKasa); Assert.Equal(300, vm.Kanallar[0].Bakiye); Assert.Equal(600, vm.Kanallar[1].Bakiye);
         vm.KartBorclariniYansit(null); Assert.All(vm.Kanallar, k => Assert.Null(k.KartBorcu));
     }
+
+    /// <summary>Takipte olmayan (geçişi yapılmamış) kart ve krediler ana sayfada kalıcı uyarıyla gösterilir
+    /// (gap-tarihsel-spec-ve-emekli-web-7); kayıt kalmayınca ya da eski sunucuda (alan yok) uyarı kalkar.</summary>
+    [Fact]
+    public async Task Takipte_olmayan_kayitlar_kalici_uyari_olarak_gosterilir_kalmayinca_kalkar()
+    {
+        var api = new SahteApi { Panel = new(900, new[] { new KanalBakiyeDto("MEZAT", 900, 1) }, 0, 0) };
+        IReadOnlyList<TakipsizKayitDto>? kayitlar = [new("Kart", 4, "Bonus"), new("Kredi", 7, "Taşıt")];
+        api.AnaSayfaGetir = async (_, _) => new(await api.PanelAsync(), null, null, kayitlar);
+        var vm = new PanelViewModel(api);
+
+        await vm.YukleAsync();
+        Assert.True(vm.TakipsizVar);
+        Assert.Equal("Kart ve kredi takibinde olmayan kayıtlar var: Bonus (kart), Taşıt (kredi). Bu kayıtların hatırlatmaları eski kayıtlardan hesaplanır ve sınırlıdır; yeni ödeme ve güncel ekstre görünmez. Kartlar ve Krediler ekranından geçiş yapın.", vm.TakipsizUyari);
+
+        kayitlar = null;
+        await vm.YukleAsync();
+        Assert.False(vm.TakipsizVar); Assert.Equal("", vm.TakipsizUyari);
+    }
 }

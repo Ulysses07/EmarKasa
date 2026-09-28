@@ -20,6 +20,14 @@
 
             <v:RaporDurumu />
 
+            <!-- Takipte olmayan kart ve krediler: hatırlatmaları eski kayıtlarla sınırlı; geçiş yapılana kadar kalıcı uyarı. -->
+            <Border Style="{StaticResource CardForm}" IsVisible="{Binding TakipsizVar}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Geçiş bekleyen kart ve krediler" Style="{StaticResource LblSection}" />
+                    <Label Text="{Binding TakipsizUyari}" Style="{StaticResource LblError}" />
+                </VerticalStackLayout>
+            </Border>
+
             <Border Style="{StaticResource CardHero}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
                     <Label Text="Genel kasa" Style="{StaticResource LblHeroLabel}" />

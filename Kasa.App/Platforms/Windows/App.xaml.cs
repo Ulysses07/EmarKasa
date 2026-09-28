@@ -1,3 +1,4 @@
+using Kasa.App.Core;
 using Microsoft.UI.Xaml;
 
 // To learn more about WinUI, the WinUI project structure,
@@ -21,15 +22,19 @@ public partial class App : MauiWinUIApplication
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
 
-	protected override void OnLaunched(LaunchActivatedEventArgs args)
+	protected override async void OnLaunched(LaunchActivatedEventArgs args)
 	{
-		var cmd = Environment.GetCommandLineArgs();
-		if (cmd.Contains("--hatirlatma-kontrol"))
+		// 07-15 hatırlatıcısının eski zamanlanmış görevi (EmarKasaHatirlatici) bir kez silinir: pencere açmadan, arka planda,
+		// hataları yutarak; başarıdan sonra yerel işaretle bir daha denenmez (bkz. EskiHatirlatmaGorevi).
+		var gorev = EskiHatirlatmaGorevi.Varsayilan();
+		if (EskiHatirlatmaGorevi.KontrolModu(Environment.GetCommandLineArgs()))
 		{
-			// Eski zamanlanmış görev bu sürümde pencere veya bildirim açmaz.
+			// Eski zamanlanmış görev bu sürümde pencere veya bildirim açmaz: görevi siler ve çıkar.
+			await Task.Run(() => gorev.TemizleAsync());
 			Exit();
 			return;
 		}
+		_ = Task.Run(() => gorev.TemizleAsync());
 		base.OnLaunched(args);
 	}
 }
