@@ -343,10 +343,13 @@ public class KanalDegisikligiTests
     {
         await using var f = Fabrika(); using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, Kanallar.Ortak, GiderTipi.Cari));
-        var once = await c.GetStringAsync(AylikUrl(Old));
         // Bu sürümden önce kapatılmış ay (görüntüsüz kilit): açılıştaki geçiş tohumu dondurana kadar rapor canlı hesaplanır.
         using (var scope = f.Services.CreateScope())
             scope.ServiceProvider.GetRequiredService<KasaDbContext>().Database.ExecuteSql($"UPDATE AyKilidi SET KilitliSonTarih = {OldSonu}, Surum = Surum + 1 WHERE Id = 1");
+        // Görüntüsüz kilitli ayın raporu açık ay kuralıyla değil, kilitlendiği sürümün kuralıyla (kural 1) canlı hesaplanır
+        // (HesapServisi.AylikYanit, TohumBekliyor): karşılaştırma tabanı kilitten sonraki rapordur.
+        var once = await c.GetStringAsync(AylikUrl(Old));
+        Assert.Null(JsonNode.Parse(once)!["dondurulmus"]);
 
         // Görüntüsüz kilitli ayın raporu canlıdır: pasif yeni kanal bile ona satır ekler.
         foreach (var istek in new Func<Task<HttpResponseMessage>>[] { () => c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("ONLINE")),

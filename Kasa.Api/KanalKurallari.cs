@@ -70,12 +70,14 @@ internal static class KanalKurallari
         var satirDegisir = kanallar.Any(e => e.State is EntityState.Added or EntityState.Deleted || e.State == EntityState.Modified
             && (e.Property(nameof(KanalEntity.Aktif)).IsModified || e.Property(nameof(KanalEntity.Sira)).IsModified));
         if (!satirDegisir) return null;
-        // Savunma: görüntüsü olmayan kilitli ay (açılıştaki geçiş tohumu bekliyor) canlı hesaplanır; pasif kanal bile ona satır ekler.
-        // Açılış tohumu başarısızsa uygulama açılmadığından olağan akışta her kilitli ayın görüntüsü vardır.
+        // Görüntüsü olmayan kilitli ay (açılıştaki geçiş tohumu bekliyor) kural 1 ile canlı hesaplanır; pasif kanal bile ona satır ekler.
+        // Geçiş tohumu raporuna karantinadaki kayıt giren ayı dondurmaz ve açılışı durdurmaz (AyRaporAnlikGoruntusu.GecisTohumu):
+        // böyle bir ay, kayıt düzeltilip ay yeniden kapatılana kadar görüntüsüz kalır; yeniden başlatmak onu dondurmaz.
         if (!KilitliRaporlarDondurulmus(db))
             return $"{son:yyyy-MM-dd} tarihine kadar dönem kilitli ve kilitli ayların bir kısmının raporu henüz dondurulmamış. Kanal eklemek, silmek, "
                 + "aktifliğini ya da sırasını değiştirmek bu ayların raporunu (kanal satırları ve Ortak gider payı) değiştireceği için engellendi; "
-                + "kanal adı değiştirilebilir. Uygulama yeniden başlatılınca kilitli ayların raporu dondurulur.";
+                + "kanal adı değiştirilebilir. Uygulama açılırken kilitli ayların raporu dondurulur; raporuna karantinadaki (okunamayan) kayıt "
+                + "giren ay ise dondurulmaz: o ayı gerekçeyle açıp kaydı düzeltin, sonra ayı yeniden kapatın.";
         var (once, sonra) = OrtakKumeleri(db, kanallar);
         if (once != sonra)
             return $"{son:yyyy-MM-dd} tarihine kadar dönem kilitli. Ortak giderler aylık raporda aktif kanallara sıralarına göre bölünür ve kapatılmış "
