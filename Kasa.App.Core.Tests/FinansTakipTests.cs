@@ -387,6 +387,9 @@ public class FinansTakipTests
         public Func<KartGecisYaz, TakipGecisDto>? KartGecisYaniti; public List<KartGecisYaz> KartGecisOnizlemeleri = new();
         public Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g) { KartGecisOnizlemeSayisi++; KartGecisOnizlemeleri.Add(g); return Task.FromResult(KartGecisYaniti?.Invoke(g) ?? Preview("Kart", id)); }
         public Task<KartTakipDto> TakipKartGecisAsync(int id, KartGecisYaz g) { KartGecis = g; return Task.FromResult(Kart with { YeniTakip = true }); }
+        public KartDevirDto? Devir; public List<KartDevirDuzeltYaz> DevirDuzeltmeleri = new();
+        public Task<KartDevirDto> TakipKartDevirAsync(int id) => Task.FromResult(Devir ?? throw new KasaApiException(System.Net.HttpStatusCode.NotFound, "Devir yok."));
+        public Task<KartTakipDto> TakipKartDevirDuzeltAsync(int id, KartDevirDuzeltYaz g) { DevirDuzeltmeleri.Add(g); return Task.FromResult(Kart); }
         public Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync() => Task.FromResult<IReadOnlyList<KrediTakipDto>>(new[] { Kredi });
         public Task<KrediTakipDto> TakipKrediAsync(int id) => Task.FromResult(Kredi);
         public Task<KrediTakipDto> TakipKrediKaydetAsync(KrediTakipYaz g) { KrediKayit = g; return Task.FromResult(Kredi); }

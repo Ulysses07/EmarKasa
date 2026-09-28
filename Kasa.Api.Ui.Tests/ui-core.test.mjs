@@ -1969,3 +1969,44 @@ test('benzer kayıt uyarısı sunucunun ±3 gün ve kanal kuralını anlatır, k
   assert.doesNotMatch(text, /Aynı tarih, tutar/);
   assert.match(text, /Kredi taksidi #5 · .* · MEZAT, PERAKENDE/); assert.match(text, /Eski kredi taksidi #6 · .* · Genel kasa/);
 });
+
+test('transitioned card shows the old debt transfer, keeps it and the locked advance allocation uncancellable and posts a reasoned correction', async () => {
+  const transferCard = { ...sampleCard, gecis: { kural: 'IslemTarihi', aciklama: 'Banka', onizleme: null, raporDisiEskiDusumTutari: 0, raporDisiIlkDusumTarihi: null, raporDisiSonDusumTarihi: null, tahminiKasaFarki: 0, uyari: null },
+    harcamalar: [{ id: 10, islemId: null, tarih: '2026-09-23', aciklama: 'Onaylanan eski borç devri', tutar: 100, taksitSayisi: 1, iptal: false, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }] },
+      { id: 11, islemId: null, tarih: '2026-09-24', aciklama: 'Satıcı iadesi', tutar: -30, taksitSayisi: 1, iptal: false, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 30 }], kasadaSayilanDuzeltme: 30 }],
+    odemeler: [{ id: 12, tarih: '2026-09-25', tutar: 0, kasaEtkisi: 0, not: 'Kilitli avans dağıtımı: 01.08.2026 tarihli ödemenin avansı', iptal: false, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 50 }, { kanalId: null, kanal: 'Dağılım bekliyor', tutar: -50 }], avansKaynakOdemeId: 3 }] };
+  const transfer = { harcamaId: 10, tarih: '2026-09-23', kalanBorc: 100, kasadaOncedenSayilanTutar: 80, iadeDuzeltmesi: 30, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }], kural: 'IslemTarihi', sistemKartBorcu: 80, raporDisiTutar: 0, acilisBorcu: 0, onerilenKasadaSayilanTutar: 80, enAzKasadaSayilanTutar: 80, duzeltilebilir: true, engel: null };
+  const { app, nodes, calls } = await openApp(false, { '/api/takip/kartlar/4': transferCard, '/api/takip/kartlar/4/devir': transfer, '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }], '/api/takip/kartlar/4/devir-duzelt': sampleCard });
+  await app.navigate('cards', 4);
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /Eski borç devri/); assert.match(view, /Kasada önceden sayılan.*80,00/); assert.match(view, /İadeyle kasaya dönen.*30,00/);
+  assert.match(view, /Önceden sayılan.*30,00.*iade tarihinde kasaya döndü/); assert.match(view, /Kilitli avans dağıtımı/);
+  const row = text => nodes.get('#view').find(node => node.tag === 'tr' && node.textContent.includes(text));
+  assert.doesNotMatch(row('Onaylanan eski borç devri').textContent, /İptal et/); assert.match(row('Onaylanan eski borç devri').textContent, /Devri düzelt/);
+  assert.match(row('Satıcı iadesi').textContent, /İptal et/);
+  assert.doesNotMatch(view, /Ödemeyi iptal et/);
+  await clickView(nodes, 'Devri düzelt');
+  const debt = formField(nodes, 'kalanBorc'); const counted = formField(nodes, 'kasadaOncedenSayilanTutar');
+  assert.equal(debt.value, '100'); assert.equal(counted.value, '80');
+  debt.value = '70'; debt.listeners.input(); assert.equal(counted.value, '70');
+  const share = formField(nodes, 'pay-tutar-0'); share.value = '70'; share.listeners.input({ target: share });
+  formField(nodes, 'aciklama').value = 'Banka ekstresine göre';
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/takip/kartlar/4/devir-duzelt');
+  assert.ok(save.body.istekId);
+  assert.deepEqual({ ...save.body, istekId: null }, { istekId: null, surum: 2, harcamaId: 10, kalanBorc: 70, kasadaOncedenSayilanTutar: 70, dagilimlar: [{ kanalId: 1, tutar: 70 }], aciklama: 'Banka ekstresine göre' });
+});
+
+test('card transfer section shows why a correction is blocked and the page opens without the transfer read', async () => {
+  const transferCard = { ...sampleCard, gecis: { kural: 'EtkiTarihi', aciklama: null, onizleme: null, raporDisiEskiDusumTutari: 0, raporDisiIlkDusumTarihi: null, raporDisiSonDusumTarihi: null, tahminiKasaFarki: 0, uyari: null },
+    harcamalar: [{ id: 10, islemId: null, tarih: '2026-09-23', aciklama: 'Onaylanan eski borç devri', tutar: 100, taksitSayisi: 1, iptal: false, dagilimlar: [] }] };
+  const blocked = { harcamaId: 10, tarih: '2026-09-23', kalanBorc: 100, kasadaOncedenSayilanTutar: 100, iadeDuzeltmesi: 0, dagilimlar: [], kural: 'EtkiTarihi', sistemKartBorcu: 100, raporDisiTutar: 0, acilisBorcu: 0, onerilenKasadaSayilanTutar: 100, enAzKasadaSayilanTutar: 100, duzeltilebilir: false, engel: 'Devre ödeme kaydedilmiş: düzeltme önceki ödemelerin kasa etkisini değiştirirdi.' };
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar/4': transferCard, '/api/takip/kartlar/4/devir': blocked });
+  await app.navigate('cards', 4);
+  assert.match(nodes.get('#view').textContent, /Devre ödeme kaydedilmiş/);
+  assert.equal(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Devri düzelt'), null);
+  assert.equal(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'İptal et'), null);
+  const missing = await openApp(false, { '/api/takip/kartlar/4': transferCard });
+  await missing.app.navigate('cards', 4);
+  assert.match(missing.nodes.get('#view').textContent, /Onaylanan eski borç devri/); assert.doesNotMatch(missing.nodes.get('#view').textContent, /İadeyle kasaya dönen/);
+});

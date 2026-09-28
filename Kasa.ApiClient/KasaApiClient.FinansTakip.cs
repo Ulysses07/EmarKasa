@@ -14,6 +14,8 @@ public sealed partial class KasaApiClient : IFinansTakipApi
     public Task<KartTakipDto> TakipOdemeIptalAsync(int id, int odemeId, TakipIptalYaz g) => GonderJsonAsync<KartTakipDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/odemeler/{odemeId}/iptal", g);
     public Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g) => GonderJsonAsync<TakipGecisDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/gecis-onizleme", g);
     public Task<KartTakipDto> TakipKartGecisAsync(int id, KartGecisYaz g) => GonderJsonAsync<KartTakipDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/gecis", g);
+    public Task<KartDevirDto> TakipKartDevirAsync(int id) => GetAsync<KartDevirDto>($"api/takip/kartlar/{id}/devir");
+    public Task<KartTakipDto> TakipKartDevirDuzeltAsync(int id, KartDevirDuzeltYaz g) => GonderJsonAsync<KartTakipDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/devir-duzelt", g);
     public Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync() => GetAsync<IReadOnlyList<KrediTakipDto>>("api/takip/krediler");
     public Task<KrediTakipDto> TakipKrediAsync(int id) => GetAsync<KrediTakipDto>($"api/takip/krediler/{id}");
     public Task<KrediTakipDto> TakipKrediKaydetAsync(KrediTakipYaz g) => GonderJsonAsync<KrediTakipDto>(HttpMethod.Post, "api/takip/krediler", g);
