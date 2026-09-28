@@ -12,7 +12,9 @@ export const ENTITY_LABELS = {
 };
 export const TYPE_LABELS = {
   Ekle: 'Eklendi', Degistir: 'Değiştirildi', Sil: 'Silindi', KilitAc: 'Ay kilidi açıldı', KilitKapat: 'Ay kapatıldı',
+  GecmisKayit: 'Sürüm öncesi kayıt (zamanı bilinmiyor)',
   GecmisAyEtkisi: 'Geçmiş ayın kanal payı değişti', GirisBasarili: 'Giriş yapıldı', GirisBasarisiz: 'Başarısız giriş', HizSiniri: 'Hız sınırı reddi',
+  GirisYogun: 'Sunucu yoğun: giriş ertelendi',
   SifreDegisti: 'Editör şifresi değişti', SifreDegistirmeBasarisiz: 'Şifre değiştirme reddedildi', KurtarmaKoduUretildi: 'Kurtarma kodu oluşturuldu',
   KurtarmaKoduUretimiBasarisiz: 'Kurtarma kodu reddedildi', KurtarmaKullanildi: 'Kurtarma kodu kullanıldı', KurtarmaBasarisiz: 'Başarısız kurtarma',
   IzleyiciSifresiDegisti: 'İzleyici şifresi değişti', AliciSifresiDegisti: 'Alıcı şifresi değişti', AliciOturumlariKapatildi: 'Alıcı oturumları kapatıldı',
@@ -100,7 +102,7 @@ export function createDenetimUi(c) {
       });
     } }, h('div', { class: 'form-grid' }, field('Kayıt türü', entity), field('Kayıt numarası', id), field('Ay kilidi açılışı numarası', lock)), errors,
     h('div', { class: 'modal-actions' }, h('button', { type: 'submit', class: 'button primary' }, 'Geçmişi göster')));
-    openModal('Değişiklik geçmişi', h('div', { class: 'stack' }, help('Kasayı değiştiren kayıtların önceki ve yeni değerleri, yapan, zaman ve gerekçesiyle; ay kilidi açılışları ve güvenlik olayları. Kayıtlar değiştirilemez ve silinemez.'), form, results), true);
+    openModal('Değişiklik geçmişi', h('div', { class: 'stack' }, help('Kasayı değiştiren kayıtların önceki ve yeni değerleri, yapan, zaman ve gerekçesiyle; ay kilidi açılışları ve güvenlik olayları. Kayıtlar değiştirilemez ve silinemez. Bu sürümden önce saklanan iptal gerekçeleri ve alış ödemesi düzeltmeleri “Sürüm öncesi kayıt” olarak aktarıldı; zamanları aktarım anıdır.'), form, results), true);
   }
   return { open };
 }
