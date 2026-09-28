@@ -86,6 +86,10 @@ public class AltinRaporTests
         // gideri artık bütün gider listesinden aramaz). Tutarlar değişmez; tohumdaki ödemelerin hiçbiri kartsız eski kart harcaması değil.
         foreach (var (alis, odeme) in new[] { (0, 0), (1, 0), (2, 0), (2, 1) })
             yield return new("/api/alis", $"[{alis}].odemeler[{odeme}].eskiKartHarcamasi", null, "false", "ALS: ödeme kartsız eski kart harcaması değil");
+        // contract-6: gider listesi her kaydın iyimser eşzamanlılık sürümünü sonda taşır (düzenleme onu geri gönderir). Okuma yanıtı
+        // yalnız genişler: tutarlar, kanallar ve sıra değişmez; tohumdaki giderler göçten sonra düzenlenmediği için hepsinin sürümü 0.
+        for (var i = 0; i < 17; i++)
+            yield return new("/api/islemler", $"[{i}].surum", null, "0", "contract-6: gider sürümü okuma yanıtında (hesaba girmez)");
     }
 
     private static string Aylik(DateOnly ay) => $"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}";

@@ -49,6 +49,11 @@ public partial class KasaDbContext : DbContext
 
         b.Entity<KanalEntity>().Property(k => k.Ad).UseCollation("NOCASE");
         b.Entity<KanalEntity>().HasIndex(k => k.Ad).IsUnique();
+        // contract-6: çekirdek kasa kayıtlarının sürümü; kaydetme kancası değişen kayıtta artırır (LockedPeriodDbContext).
+        b.Entity<KanalEntity>().Property(k => k.Surum).IsConcurrencyToken();
+        b.Entity<IslemEntity>().Property(i => i.Surum).IsConcurrencyToken();
+        b.Entity<GelenEntity>().Property(g => g.Surum).IsConcurrencyToken();
+        b.Entity<AyarEntity>().Property(a => a.Surum).IsConcurrencyToken();
 
         b.Entity<IslemEntity>()
             .HasOne(i => i.KanalKaydi).WithMany().HasForeignKey(i => i.KanalId)

@@ -340,7 +340,8 @@ public class AyRaporuAnlikGoruntusuTests
             UPDATE AyKilidi SET KilitliSonTarih = '2026-07-31', Surum = 2 WHERE Id = 1;
             """);
         var once = new Dictionary<(int, int), string>();
-        foreach (var ay in new[] { 6, 7, 8 }) once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(db).Aylik(2026, ay, kuralSurumu: AylikKural.V1), Web);
+        using (var eski = SurumOncesiBaglam.Ayni(db)) // önceki sürümün şeması: çekirdek sürüm sütunları yok
+            foreach (var ay in new[] { 6, 7, 8 }) once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(eski).Aylik(2026, ay, kuralSurumu: AylikKural.V1), Web);
         Assert.Contains("\"gelen\":200000", once[(2026, 7)]); // kural 1: takipli kredi Gelen'de
 
         KasaDatabaseInitializer.Initialize(db); // migration + geçiş tohumu (bellek içi: yedek gerekmez)

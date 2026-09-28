@@ -21,6 +21,7 @@ public partial class KasaDbContext
             AyKanalKumesi.KanalDegisikligindenOnce(this);
             AyKilidiKurallari.Dogrula(this);
             var yakalanan = DenetimYakalayici.Yakala(this);
+            CekirdekSurumleriniArtir();
             result = base.SaveChanges(acceptAllChangesOnSuccess: false);
             DenetimYakalayici.Yaz(this, yakalanan);
             transaction?.Commit();
@@ -38,11 +39,35 @@ public partial class KasaDbContext
             AyKanalKumesi.KanalDegisikligindenOnce(this);
             AyKilidiKurallari.Dogrula(this);
             var yakalanan = DenetimYakalayici.Yakala(this);
+            CekirdekSurumleriniArtir();
             result = await base.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
             DenetimYakalayici.Yaz(this, yakalanan);
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         }
         if (acceptAllChangesOnSuccess) ChangeTracker.AcceptAllChanges();
         return result;
+    }
+
+    /// <summary>
+    /// contract-6: değişen gider, gelir, kanal ve ayar kaydının sürümü, kayıt anındaki (okunan) sürümün bir fazlası olur. Uç
+    /// dışındaki dolaylı yazımlar da (alış ödemesi düzeltmesi ve alıştan ayırma, kanal adı değişikliğinin etiket senkronu, kart silinince
+    /// bağın kopması...) sürümü artırır: o kaydı önceden okumuş istemcinin düzenlemesi 409 alır. Sürüm eşzamanlılık belirteci
+    /// olduğundan UPDATE okunan sürümle koşullanır; arada başka bağlam yazdıysa kayıt DbUpdateConcurrencyException (409) ile durur.
+    /// Kilit kuralları ve denetim yakalaması bundan önce çalışır, değişen alan kümesini sürümsüz görür (etiket senkronu yalnız
+    /// Kanal metni değişen satırdır; sürüm sayacı olay üretmez). Değeri artırmak yerine "okunan + 1" atanır: başarısız kaydın aynı
+    /// bağlamla yeniden denenmesi sürümü ikinci kez artırmaz. Yalnız sürümü değişen ya da yalnız sürümü etkilemeyen alanı (izleyici
+    /// şifresi) değişen kayıt artırılmaz. Ham SQL yolu (gelir upsert'ü) sürümü kendisi artırır.
+    /// </summary>
+    private void CekirdekSurumleriniArtir()
+    {
+        foreach (var e in ChangeTracker.Entries())
+        {
+            if (e.State != EntityState.Modified || e.Entity is not (IslemEntity or GelenEntity or KanalEntity or AyarEntity)) continue;
+            // Sürüm sütunundan önceki şemanın modeli (göç testlerinin eski sürüm bağlamı) sürümü tanımaz.
+            if (e.Metadata.FindProperty(nameof(IslemEntity.Surum)) is null) continue;
+            if (!e.Properties.Any(p => p.IsModified && p.Metadata.Name is not (nameof(IslemEntity.Surum) or nameof(AyarEntity.IzleyiciSifreHash)))) continue;
+            var surum = e.Property(nameof(IslemEntity.Surum));
+            surum.CurrentValue = (int)surum.OriginalValue! + 1;
+        }
     }
 }

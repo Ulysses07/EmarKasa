@@ -301,6 +301,8 @@ api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =
 {
     var e = db.Kanallar.Find(id);
     if (e is null) return Results.NotFound();
+    // contract-6: istemcinin okuduğu kanal arada değiştiyse (sürüm gönderen istemci) üzerine yazılmaz.
+    if (CekirdekSurum.Denetle(gelen.Surum, e.Surum, CekirdekSurum.KanalIletisi) is { } eskiSurum) return eskiSurum;
     var v = new GirdiDogrulama();
     v.Metin(gelen.Ad, "ad");
     v.Para(gelen.AcilisDevri, "acilisDevri", negatifOlabilir: true);
@@ -472,6 +474,8 @@ api.MapPut("/islemler/{id:int}", (int id, IslemYazDto dto, KasaDbContext db) =>
         return Results.Conflict(new { hata = "Bu gider bir alışa bağlı. Kanal dağılımını Alışlar ekranından düzenleyin; ödeme tutarı ve tarihi burada değiştirilemez." });
     var e = db.Islemler.Find(id);
     if (e is null) return Results.NotFound();
+    // contract-6: istemcinin okuduğu gider arada (başka oturum ya da dolaylı yazım) değiştiyse eski değerler geri yazılmaz.
+    if (CekirdekSurum.Denetle(dto.Surum, e.Surum, CekirdekSurum.GiderIletisi) is { } eskiSurum) return eskiSurum;
     // gap-coklu-giris-cift-sayim-mutabakat-5: takipli kart giderinin kart harcaması ödenmemiş, iadesiz ve ekstreye bağsızsa açıklama,
     // not ve kanal düzeltilir; tarih, tutar ve kart harcamanın taksit planıdır, değişmez.
     var harcama = FinansTakipServisi.KaynakHarcama(db, id);
@@ -581,18 +585,24 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
         return Results.Conflict(new { hata = "Bu dönem ve kanalda birden fazla eski gelir kaydı var. Bütün kayıtlar tutarlarıyla korunur; bu eski grup salt okunurdur. Yeni dönemlere gelir girebilirsiniz." });
     // Tek SQL ifadesi: eşzamanlı ilk girişler çift gelir kaydı üretemez. Ham SQL SaveChanges kancasından geçmez: denetim
     // olayı açıkça ve upsert'le aynı (ertelenmiş) transaction'da yazılır; yazma kilidini autocommit'teki gibi upsert alır.
+    // contract-6: sürüm de burada artar. Yeni satır 1 ile eklenir: satırı görmeden (0) kaydeden istemci, arada eklenmiş satırın
+    // üzerine yazamaz. Sürüm gönderilmediyse (eski istemci) koşul yoktur; son yazan kazanır.
     var onceki = db.Gelenler.AsNoTracking().SingleOrDefault(g => g.DonemStart == dto.DonemStart && g.KanalId == kanal!.Id && !g.EskiYinelenenGrup);
     using var transaction = KancaDisiOlaylar.ErteliTransaction(db);
     var affected = db.Database.ExecuteSqlInterpolated($"""
-        INSERT INTO "Gelenler" ("DonemStart", "Kanal", "KanalId", "TutarTl")
-        VALUES ({dto.DonemStart}, {kanal!.Ad}, {kanal.Id}, {dto.TutarTl})
+        INSERT INTO "Gelenler" ("DonemStart", "Kanal", "KanalId", "TutarTl", "Surum")
+        VALUES ({dto.DonemStart}, {kanal!.Ad}, {kanal.Id}, {dto.TutarTl}, 1)
         ON CONFLICT ("DonemStart", "KanalId") WHERE "EskiYinelenenGrup" = 0
-        DO UPDATE SET "TutarTl" = excluded."TutarTl", "Kanal" = excluded."Kanal"
+        DO UPDATE SET "TutarTl" = excluded."TutarTl", "Kanal" = excluded."Kanal", "Surum" = "Gelenler"."Surum" + 1
         WHERE NOT EXISTS (SELECT 1 FROM "HesapHareketler" h WHERE h."GelenId" = "Gelenler"."Id")
+          AND ({dto.Surum} IS NULL OR "Gelenler"."Surum" = {dto.Surum})
         """);
     var e = db.Gelenler.AsNoTracking().Single(g => g.DonemStart == dto.DonemStart && g.KanalId == kanal.Id);
-    if (affected == 0 && e.TutarTl != dto.TutarTl)
-        return Results.Conflict(new { hata = "Hesaba bağlı gelir tutarı buradan değiştirilemez." });
+    if (affected == 0)
+    {
+        if (!db.HesapHareketler.Any(h => h.GelenId == e.Id)) return Results.Conflict(new { hata = CekirdekSurum.GelenIletisi });
+        if (e.TutarTl != dto.TutarTl) return Results.Conflict(new { hata = "Hesaba bağlı gelir tutarı buradan değiştirilemez." });
+    }
     if (affected > 0) KancaDisiOlaylar.GelenUpsert(db, onceki, e);
     transaction.Commit();
     return Results.Ok(e);
@@ -612,6 +622,8 @@ api.MapGet("/ayarlar", (KasaDbContext db, ClaimsPrincipal u, IzleyiciSifreDurumu
         // (hash uzunluk saklamaz) ve güvenilmeyen kaynaktan X-Forwarded-For geldiyse yanlış vekil ayarı uyarısı.
         IzleyiciSifreKisa = editor && izleyiciSifresi.KisaMi(a.IzleyiciSifreHash),
         VekilUyarisi = editor ? vekil.Uyari : null,
+        // contract-6: başlangıç/açılış devri formunun sürümü (PUT /api/ayarlar geri gönderir).
+        a.Surum,
     });
 });
 api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
@@ -622,6 +634,7 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
     v.Para(dto.KasaAcilisDevri, "kasaAcilisDevri", negatifOlabilir: true);
     if (v.Sonuc() is { } hata) return hata;
     var a = db.Ayarlar.First();
+    if (CekirdekSurum.Denetle(dto.Surum, a.Surum, CekirdekSurum.AyarIletisi) is { } eskiSurum) return eskiSurum;
     // gV5: gider üretmeyen mali kayıtlar da (takipli kart, ekstre geliri, kasa sayımı...) başlangıcı sabitler.
     if (a.TakipBaslangic != dto.TakipBaslangic && FinansHesaplari.IlkMaliKayitTuru(db) is { } kayit)
         return Results.Conflict(new { hata = $"Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez; mevcut dönem bağlantıları korunmalıdır (kayıtlı: {kayit})." });
@@ -656,6 +669,8 @@ api.MapGet("/rapor/ana-sayfa", (int? gun, KasaDbContext db, HesapServisi svc, Ca
 
 app.Run();
 
-public record AyarGuncelleDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri);
+/// <param name="Surum">contract-6: istemcinin okuduğu ayarların sürümü (GET /api/ayarlar); uyuşmazsa 409. Eski istemci göndermez (null):
+/// denetlenmez, son yazan kazanır.</param>
+public record AyarGuncelleDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, int? Surum = null);
 
 public partial class Program { }

@@ -58,7 +58,9 @@ public static class KayitGirdileri
             Tarih = dto.Tarih, Cari = dto.Cari?.Trim() ?? "", TutarTl = dto.TutarTl,
             Kanal = kanal?.Ad ?? dto.Kanal?.Trim() ?? "", KanalId = kanal?.Id,
             Tip = dto.KrediKartiId is not null ? GiderTipi.KrediKarti : dto.Tip,
-            Not = dto.Not, KrediKartiId = dto.KrediKartiId
+            Not = dto.Not, KrediKartiId = dto.KrediKartiId,
+            // Düzenlemede kayıt SetValues ile yazılır: sürüm mevcut kaydınki kalır, kaydetme kancası değişiklikte artırır (contract-6).
+            Surum = mevcut?.Surum ?? 0,
         }, v.Sonuc());
     }
 

@@ -263,7 +263,9 @@ public class KartGecisTests
         using (var db = Context(connection))
         {
             db.GetService<IMigrator>().Migrate("20260927000100_StatementImports");
-            EskiGecisVerisi(db);
+            // Önceki sürümün şeması: çekirdek sürüm sütunları yok.
+            using var eski = SurumOncesiBaglam.Ayni(db);
+            EskiGecisVerisi(eski);
         }
         var logs = new UyariToplayici();
         await using var f = new HazirFactory(connection, logs) { Saat = new SabitSaat(Today) }; using var c = await f.EditorClientAsync();
@@ -343,7 +345,9 @@ public class KartGecisTests
         using (var db = Context(connection))
         {
             db.GetService<IMigrator>().Migrate("20260927000100_StatementImports");
-            EskiGecisVerisi(db);
+            // Önceki sürümün şeması: çekirdek sürüm sütunları yok.
+            using var eski = SurumOncesiBaglam.Ayni(db);
+            EskiGecisVerisi(eski);
         }
         await using var f = new HazirFactory(connection) { Saat = new SabitSaat(Today) }; using var c = await f.EditorClientAsync();
         using (var check = connection.CreateCommand())

@@ -207,7 +207,9 @@ public class GocOncesiYedekTests
 
             using var db = Baglam(f.Yol);
             Assert.Contains("20260928000200_KartGecisIzi", db.Database.GetPendingMigrations());
-            Assert.Equal(345.67m, db.Islemler.Single().TutarTl);
+            // Göç çalışmadı: şema önceki sürümündedir (çekirdek sürüm sütunları yok).
+            using var eski = SurumOncesiBaglam.Ayni(db);
+            Assert.Equal(345.67m, eski.Islemler.Single().TutarTl);
         }
         finally { try { f.Dispose(); } catch (Exception) { /* açılmamış fabrika */ } Temizle(f.Yol, null); File.Delete(engel); Temizle(null, engel + "-anahtar"); }
     }

@@ -39,8 +39,11 @@ public class BelgeDeposuGecisTests
 
     private static string Ozet(byte[] b) => Convert.ToHexString(SHA256.HashData(b));
     private static string Baglanti(string yol) => new SqliteConnectionStringBuilder { DataSource = yol, Pooling = false }.ToString();
-    private static KasaDbContext Baglam(string yol) => new(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(Baglanti(yol))
-        .UseApplicationServiceProvider(new ServiceCollection().AddSingleton<TimeProvider>(new SabitSaat(KasaWebFactory.VarsayilanBugun)).BuildServiceProvider()).Options);
+    private static DbContextOptions<KasaDbContext> Secenekler(string yol) => new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(Baglanti(yol))
+        .UseApplicationServiceProvider(new ServiceCollection().AddSingleton<TimeProvider>(new SabitSaat(KasaWebFactory.VarsayilanBugun)).BuildServiceProvider()).Options;
+    private static KasaDbContext Baglam(string yol) => new(Secenekler(yol));
+    /// <summary>Önceki sürümün şemasında (çekirdek sürüm sütunlarından önce) veri kuran ve rapor okuyan bağlam; migration uygulamaz.</summary>
+    private static KasaDbContext EskiBaglam(string yol) => new SurumOncesiBaglam(Secenekler(yol));
     private static string GeciciDizin(string ad) => Path.Combine(Path.GetTempPath(), $"kasa-{ad}-" + Guid.NewGuid().ToString("N"));
 
     private static DosyaFabrikasi Fabrika(string yedekDizini) => new()
@@ -64,7 +67,7 @@ public class BelgeDeposuGecisTests
     {
         using (var db = Baglam(yol)) db.GetService<IMigrator>().Migrate(OncekiSurum);
         int onayli, taslak, odeme, mezat;
-        using (var db = Baglam(yol))
+        using (var db = EskiBaglam(yol))
         {
             var mezatKanal = new KanalEntity { Ad = "MEZAT", Sira = 0 };
             db.Kanallar.AddRange(mezatKanal, new KanalEntity { Ad = "TOPTAN", Sira = 1 });
@@ -159,7 +162,7 @@ public class BelgeDeposuGecisTests
     /// <summary>Rapor uçlarının gövdesi, uçların kullandığı hesapla ve uygulamanın HTTP JSON ayarlarıyla (bu kod, eski şemada).</summary>
     private static Dictionary<string, string> Raporlar(string yol)
     {
-        using var db = Baglam(yol);
+        using var db = EskiBaglam(yol);
         var hesap = new HesapServisi(db);
         var sonuc = new Dictionary<string, string>
         {
@@ -203,7 +206,7 @@ public class BelgeDeposuGecisTests
             Assert.Null(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('EkstreBelgeler') WHERE name = 'Dosya';"));
             using (var db = f.Baglam())
             {
-                Assert.Equal(21, db.Database.GetAppliedMigrations().Count());
+                Assert.Equal(22, db.Database.GetAppliedMigrations().Count());
                 Assert.Empty(db.Database.GetPendingMigrations());
                 Assert.False(db.Database.HasPendingModelChanges());
             }
@@ -298,7 +301,7 @@ public class BelgeDeposuGecisTests
             // Hiçbir migration uygulanmadı, BLOB'lar yerinde, bütün satırlar (içerikler dahil) aynı.
             Assert.Equal(once, Dokum(f.Yol, hepsi));
             using var db = Baglam(f.Yol);
-            Assert.Equal(new[] { BelgeDeposuHazirlik.Kimlik, BelgeDeposuGocu.Kimlik, EkstreEslesmesi.Kimlik, KasaKontrolFiligrani.Kimlik }, db.Database.GetPendingMigrations());
+            Assert.Equal(new[] { BelgeDeposuHazirlik.Kimlik, BelgeDeposuGocu.Kimlik, EkstreEslesmesi.Kimlik, KasaKontrolFiligrani.Kimlik, CekirdekSurumleri.Kimlik }, db.Database.GetPendingMigrations());
             Assert.NotNull(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('Belgeler') WHERE name = 'Icerik';"));
             Assert.Null(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('Belgeler') WHERE name = 'IcerikOzeti';"));
         }

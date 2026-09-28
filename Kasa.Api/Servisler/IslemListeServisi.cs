@@ -6,7 +6,8 @@ namespace Kasa.Api.Servisler;
 
 public record IslemOkuDto(
     int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, int? KanalId,
-    GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null);
+    GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
+    int Surum = 0);
 
 /// <summary>Gerçek giderleri tek satır olarak, alışın güncel ödeme dağılımıyla gösterir.</summary>
 public class IslemListeServisi
@@ -70,7 +71,7 @@ public class IslemListeServisi
                     .Select(p => new KanalPayYaz(p.KanalId!.Value, p.Tutar)));
                 if (!string.IsNullOrWhiteSpace(kanal) && !shares.Any(s => s.Kanal == kanal)) continue;
                 sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
-                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, EkstreKayitId: imported.Id));
+                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, EkstreKayitId: imported.Id, Surum: kayit.Surum));
                 continue;
             }
             if (monthly.TryGetValue(kayit.Id, out var monthlyPayment))
@@ -79,7 +80,7 @@ public class IslemListeServisi
                 var shares = FinansTakipServisi.Adlandir(kanalAdlari, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
                 if (!string.IsNullOrWhiteSpace(kanal) && !shares.Any(s => s.Kanal == kanal)) continue;
                 sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
-                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, AylikGiderOdemeId: monthlyPayment.Id));
+                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, AylikGiderOdemeId: monthlyPayment.Id, Surum: kayit.Surum));
                 continue;
             }
             eslemeler.TryGetValue(kayit.Id, out var esleme);
@@ -87,7 +88,7 @@ public class IslemListeServisi
             if (!string.IsNullOrWhiteSpace(kanal) && !adlar.Contains(kanal, StringComparer.Ordinal)) continue;
             sonuc.Add(new IslemOkuDto(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl,
                 string.Join(" / ", adlar), esleme is null ? kayit.KanalId : esleme.KanalId,
-                kayit.Tip, kayit.Not, kayit.KrediKartiId, esleme?.AlisId, esleme?.Bekliyor ?? false));
+                kayit.Tip, kayit.Not, kayit.KrediKartiId, esleme?.AlisId, esleme?.Bekliyor ?? false, Surum: kayit.Surum));
         }
 
         return sonuc;
