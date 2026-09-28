@@ -206,5 +206,41 @@ public class EkstreAktarmaTests
         public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }
         public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) { IptalSayisi++; return Task.FromResult(Veri); }
+        public IReadOnlyList<EkstreEslesmeAdayiDto> Adaylar = []; public List<(int Id, EkstreEslesmeAdayiSorgu Sorgu)> AdaySorgulari = [];
+        public Task<IReadOnlyList<EkstreEslesmeAdayiDto>> EkstreEslesmeAdaylariAsync(int id, EkstreEslesmeAdayiSorgu g) { AdaySorgulari.Add((id, g)); return Task.FromResult(Adaylar); }
+    }
+    // gap-coklu-giris-cift-sayim-mutabakat-1: 'Mevcut kayıtla eşleştir' satırı kanal dağılımı istemez, adayı seçilmeden yazılmaz;
+    // adaylar satırın (düzenlenmiş) tarih ve tutarıyla sorulur, bu değerler değişince seçim kalkar.
+    [Fact] public async Task Eslestir_satiri_aday_secilmeden_yazilmaz_secilince_hedefi_tasir()
+    {
+        var aday = new EkstreEslesmeAdayiDto("Gider", 42, Tarih.AddDays(-1), 100m, "Kargo", null, "MEZAT", 3);
+        var (vm, api, _) = await Hazir(new() { Adaylar = [aday] }); var s = vm.Satirlar[0];
+        s.IslemTuru = s.IslemTurleri.Single(x => x.Kod == "Eslestir"); s.Secili = true;
+        Assert.True(s.EslesmeMi); Assert.False(s.DagilimGorunur);
+        Assert.Contains("mevcut kaydı seçin", Assert.Throws<KasaApiException>(() => s.Yaz()).Message);
+        await vm.OnizleCommand.ExecuteAsync(null); Assert.Equal(0, api.OnizlemeSayisi);
+
+        vm.SeciliSatir = s; await vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null);
+        Assert.Equal((1, new EkstreEslesmeAdayiSorgu(Tarih, 100m)), Assert.Single(api.AdaySorgulari));
+        s.SeciliAday = Assert.Single(s.EslesmeAdaylari);
+        Assert.Contains("Gider #42", s.SeciliAday.Baslik); Assert.Contains("Alış #3", s.SeciliAday.Baslik);
+        var g = s.Yaz();
+        Assert.Equal(("Eslestir", "Eslesme", "Gider", (int?)42, (int?)null), (g.IslemTuru, g.DagilimTuru, g.EslesenKayitTuru, g.EslesenKayitId, g.KrediKartiId));
+        Assert.Empty(g.Dagilimlar);
+        await vm.OnizleCommand.ExecuteAsync(null); Assert.Contains("kasa ve kart borcu değişmez", vm.OnizlemeMetni);
+
+        // Tutar değişince adaylar yeniden sorulmalı; türden çıkınca bağ gönderilmez.
+        s.TutarMetni = "90"; Assert.Null(s.SeciliAday); Assert.Empty(s.EslesmeAdaylari);
+        s.IslemTuru = s.IslemTurleri.Single(x => x.Kod == "Gider"); s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
+        Assert.Null(s.Yaz().EslesenKayitTuru);
+    }
+    [Fact] public void Eslesen_ve_alisa_devredilen_kayit_gecmiste_kasa_etkisiz_gorunur()
+    {
+        var eslesme = new EkstreKayitSatiri(new EkstreKayitDto(7, 1, Tarih, "Kargo", 100, "Eslestir", "Eslesme", [], null, null, null, null, false, EslesmeTuru: "KartHarcama", EslesmeId: 12, EslesmeDurumu: "Eslesti"));
+        Assert.Contains("Mevcut kayıtla eşleşti (Kart harcaması #12)", eslesme.Ozet); Assert.Contains("Kasa etkisi yok", eslesme.Ozet);
+        var yok = eslesme with { Veri = eslesme.Veri with { EslesmeDurumu = "KayitYok" } };
+        Assert.Contains("silinmiş ya da iptal edilmiş", yok.Ozet);
+        var devir = new EkstreKayitSatiri(new EkstreKayitDto(8, 2, Tarih, "PDF", 100, "Gider", "Genel", [], null, null, null, null, false, EslesmeTuru: "Gider", EslesmeId: 5, EslesmeDurumu: "Eslesti"));
+        Assert.Contains("alış ödemesine bağlandı (Gider #5)", devir.Ozet);
     }
 }

@@ -163,6 +163,36 @@ public class AlislarViewModelTests
         Assert.Equal(91, api.SonOdeme!.MevcutIslemId); Assert.Equal(1, api.SonOdeme.KrediKartiId);
     }
 
+    // gap-coklu-giris-cift-sayim-mutabakat-1 (ters sıra): ekstreden önce girilmiş kart harcaması takipli kartla ödemeye bağlanır;
+    // tarih ve tutar harcamadan gelir, ikinci harcama oluşmaz ve benzer kayıt sorulmaz. Banka ekstresi gideri de bağlanabilir.
+    [Fact]
+    public async Task Takipli_kartla_odeme_ekstreden_gelen_kart_harcamasina_baglanir()
+    {
+        var harcama = new BaglanabilirKartHarcamasiDto(31, 2, new(2026, 9, 19), "MEZAT", 60m, EkstreKayitId: 7);
+        var banka = new IslemDto(95, new(2026, 9, 18), "PDF gider", 40m, "Genel kasa", GiderTipi.Cari, null, EkstreKayitId: 4);
+        var api = new SahteAlisApi { Liste = new[] { Alis() }, KartHarcamalari = new[] { harcama, harcama with { Id = 32, Tutar = 10m } }, Giderler = new[] { banka } };
+        var benzerlik = new BenzerKayitTests.Fake();
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, benzerlikApi: benzerlik) { EditorMu = true };
+        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Alislar[0]);
+        Assert.Contains("banka ekstresinden", Assert.Single(vm.BaglanabilirGiderler).Ad);
+
+        Assert.False(vm.KartHarcamasiBaglanabilir);
+        vm.OdemeKarti = vm.OdemeKartlari.Single(k => k.Id == 2); vm.OdemeTutari = 60m;
+        Assert.True(vm.KartHarcamasiBaglanabilir);
+        await vm.KartHarcamalariniGetirCommand.ExecuteAsync(null);
+        Assert.Equal((2, (decimal?)60m), Assert.Single(api.KartHarcamaSorgulari));
+        Assert.Equal(new[] { "Yeni kart harcaması oluştur", "#31 · 19.09.2026 · MEZAT · 60,00 ₺ · ekstreden" }, vm.BaglanabilirKartHarcamalari.Select(h => h.Ad));
+        vm.SeciliKartHarcamasi = vm.BaglanabilirKartHarcamalari[1];
+        Assert.False(vm.OdemeAlanlariAcik); Assert.Equal(new DateTime(2026, 9, 19), vm.OdemeTarihi);
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Null(vm.Hata);
+        Assert.Equal((31, (int?)2, new DateOnly(2026, 9, 19), 60m, (int?)null), (api.SonOdeme!.MevcutKartHarcamaId, api.SonOdeme.KrediKartiId, api.SonOdeme.Tarih, api.SonOdeme.Tutar, api.SonOdeme.MevcutIslemId));
+        Assert.Equal(0, benzerlik.Cagri);
+        Assert.Contains("ikinci bir kart harcaması oluşturulmadı", vm.Mesaj);
+        // Form temizlenir; kart değişince eski kartın harcamaları kalkar.
+        Assert.Empty(vm.BaglanabilirKartHarcamalari); Assert.Null(vm.SeciliKartHarcamasi);
+    }
+
     [Fact]
     public async Task Odeme_duzeltmesinde_odemenin_kendi_eski_karti_korunur_yeni_kart_takiptekilerden_secilir()
     {
@@ -395,7 +425,15 @@ public class AlislarViewModelTests
             return Task.FromResult(Kayit with { Surum = 3, Odenen = Kayit.Odenen + g.Tutar, Kalan = Kayit.Kalan - g.Tutar,
                 Odemeler = new[] { new AlisOdemeDto(1, g.MevcutIslemId ?? 90, g.Tarih, g.Tutar, g.KrediKartiId, true, Array.Empty<AlisDagilimDto>()) } });
         }
-        internal static BaglanabilirGiderDto Baglanabilir(IslemDto g) => new(g.Id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, null, g.Tip, g.Not, g.KrediKartiId);
+        internal static BaglanabilirGiderDto Baglanabilir(IslemDto g) => new(g.Id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, null, g.Tip, g.Not, g.KrediKartiId, g.EkstreKayitId);
+        /// <summary>Bağlanabilir kart harcamaları ve sorguları (kart, tutar).</summary>
+        public IReadOnlyList<BaglanabilirKartHarcamasiDto> KartHarcamalari = Array.Empty<BaglanabilirKartHarcamasiDto>();
+        public List<(int Kart, decimal? Tutar)> KartHarcamaSorgulari = new();
+        public Task<IReadOnlyList<BaglanabilirKartHarcamasiDto>> BaglanabilirKartHarcamalariAsync(int krediKartiId, decimal? tutar = null)
+        {
+            KartHarcamaSorgulari.Add((krediKartiId, tutar));
+            return Task.FromResult<IReadOnlyList<BaglanabilirKartHarcamasiDto>>(KartHarcamalari.Where(h => h.KrediKartiId == krediKartiId && (tutar is null || h.Tutar == tutar)).ToList());
+        }
         public Task<IReadOnlyList<AliciDto>> AlicilarAsync() { HesapOkuma++; return Task.FromResult<IReadOnlyList<AliciDto>>(Array.Empty<AliciDto>()); }
         public Task<AliciDto> AliciOlusturAsync(AliciYaz g) { SonAlici = g; return Task.FromResult(new AliciDto(4, g.Kullanici, g.Ad, g.Aktif)); }
         public Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g) { SonAlici = g; return Task.FromResult(new AliciDto(id, g.Kullanici, g.Ad, g.Aktif)); }

@@ -134,15 +134,30 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var p = await api.EkstreOnizlemeAsync(id, g);
         if (!Gecerli(n) || rev != _formSurumu || Belge?.Id != id) return;
         _onizleme = p; _onizlemeGirdi = g; _onizlemeForm = rev; Onay = false; TekrarOnay = false;
-        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {s.IslemTuru}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {(g.Satirlar.Single(x => x.SatirNo == s.SatirNo).DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(s.Dagilimlar))}\n{string.Join("\n", s.Uyarilar)}"));
+        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {s.IslemTuru}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {Dagilim(g.Satirlar.Single(x => x.SatirNo == s.SatirNo), s)}\n{string.Join("\n", s.Uyarilar)}"));
         OnPropertyChanged(nameof(OnizlemeVar)); OnPropertyChanged(nameof(TekrarOnayGerekli));
     });
+    private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreSatirEditor.Eslestir
+        ? $"Mevcut kayıtla eşleşir ({EslesmeAdayiSatiri.TurAdi(girdi.EslesenKayitTuru)} #{girdi.EslesenKayitId}); kasa ve kart borcu değişmez"
+        : girdi.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(satir.Dagilimlar);
     [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || Belge is null || _onizleme is null || _onizlemeGirdi is null || _formSurumu != _onizlemeForm || !Onay || (TekrarOnayGerekli && !TekrarOnay)) { Hata = "Önizlemeyi kontrol edin ve gerekli onayları işaretleyin."; return; }
         var id = Belge.Id; var g = _onizlemeGirdi with { OnizlemeOzeti = _onizleme.OnizlemeOzeti, TekrarOnay = TekrarOnay };
         try { var b = await api.EkstreKaydetAsync(id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _kayitKey.Temizle(); Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi."; }
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict) { if (Gecerli(n)) GirdiDegisti(); throw; }
+    });
+    /// <summary>Seçili satırın (tarih ve tutarıyla) eşleşebileceği mevcut kayıtları getirir; 'Mevcut kayıtla eşleştir' türünde
+    /// satır bunlardan birine bağlanır.</summary>
+    [RelayCommand] private Task EslesmeAdaylariniGetirAsync() => YurutAsync(async n =>
+    {
+        if (!EditorMu || !VeriHazir || Belge is null || SeciliSatir is not { EslesmeMi: true } satir) return;
+        if (!satir.AdaySorgusu(out var sorgu, out var hata)) { Hata = hata; return; }
+        var id = Belge.Id;
+        var adaylar = await api.EkstreEslesmeAdaylariAsync(id, sorgu);
+        if (!Gecerli(n) || Belge?.Id != id || !Satirlar.Contains(satir) || !satir.EslesmeMi) return;
+        satir.AdaylariYansit(adaylar);
+        Mesaj = adaylar.Count == 0 ? "Bu tutarda, en çok 3 gün farklı tarihte eşleştirilebilecek kayıt yok." : $"{adaylar.Count} aday bulundu; bağlanacak kaydı seçin.";
     });
     public Task KayitIptalAsync(EkstreKayitSatiri satir, string aciklama, int onayOturumu, int belgeId) => YurutAsync(async n =>
     {

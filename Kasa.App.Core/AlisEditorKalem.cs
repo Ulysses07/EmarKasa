@@ -68,5 +68,12 @@ public record AlisOdemeSatiri(AlisOdemeDto Veri)
 public record OdemeKartiSecenegi(int? Id, string Ad);
 public record GiderSecenegi(IslemDto Veri)
 {
-    public string Ad => $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Cari} · {Bicim.Tl(Veri.TutarTl)} ₺ · {(Veri.Tip == GiderTipi.KrediKarti ? "Kart harcaması" : "Nakit / banka")}";
+    public string Ad => $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Cari} · {Bicim.Tl(Veri.TutarTl)} ₺ · {(Veri.Tip == GiderTipi.KrediKarti ? "Kart harcaması" : "Nakit / banka")}"
+        + (Veri.EkstreKayitId is not null ? " · banka ekstresinden" : "");
+}
+/// <summary>Takipli kartla ödemede bağlanabilecek kart harcaması; <see cref="Veri"/> null ise yeni kart harcaması oluşturulur.</summary>
+public record KartHarcamasiSecenegi(BaglanabilirKartHarcamasiDto? Veri)
+{
+    public string Ad => Veri is null ? "Yeni kart harcaması oluştur"
+        : $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Aciklama} · {Bicim.Tl(Veri.Tutar)} ₺" + (Veri.EkstreKayitId is not null ? " · ekstreden" : "");
 }

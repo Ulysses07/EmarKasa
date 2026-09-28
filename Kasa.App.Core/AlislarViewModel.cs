@@ -61,6 +61,9 @@ public partial class AlislarViewModel : TemelViewModel
     public ObservableCollection<AlisDagilimDto> OdemeOnizleme { get; } = new();
     public ObservableCollection<OdemeKartiSecenegi> OdemeKartlari { get; } = new();
     public ObservableCollection<GiderSecenegi> BaglanabilirGiderler { get; } = new();
+    /// <summary>Takipli kartla ödemede bağlanabilecek, gidere bağlı olmayan kart harcamaları (ters sıra: ekstre önce işlenmiş); ilk
+    /// seçenek yeni harcamadır (Veri null).</summary>
+    public ObservableCollection<KartHarcamasiSecenegi> BaglanabilirKartHarcamalari { get; } = new();
     public ObservableCollection<AliciDto> Alicilar { get; } = new();
 
     [ObservableProperty] private bool _editorMu;
@@ -77,6 +80,7 @@ public partial class AlislarViewModel : TemelViewModel
     [ObservableProperty] private DateTime _odemeTarihi = DateTime.Today;
     [ObservableProperty] private decimal _odemeTutari;
     [ObservableProperty] private OdemeKartiSecenegi? _odemeKarti;
+    [ObservableProperty] private KartHarcamasiSecenegi? _seciliKartHarcamasi;
     [ObservableProperty] private string? _odemeNotu;
     /// <summary>Bağlanabilir gider araması: açıklama/not metni; tutar gibi de okunursa o tutardaki giderler de gelir.</summary>
     [ObservableProperty] private string _giderArama = "";
@@ -100,6 +104,10 @@ public partial class AlislarViewModel : TemelViewModel
     public bool IadeEdilebilir => EditorMu && _secili?.Durum is "Incelemede" or "Onaylandi";
     public bool OdemeAlaniGorunur => EditorMu && KayitVar;
     public bool YeniOdemeGirisi => !MevcutGiderKullan;
+    /// <summary>Takipli kart seçiliyken ekstreden gelmiş kart harcaması aranabilir.</summary>
+    public bool KartHarcamasiBaglanabilir => YeniOdemeGirisi && OdemeKarti?.Id is not null;
+    /// <summary>Tarih ve tutar yeni ödemede girilir; mevcut gider ya da kart harcaması bağlanırken onlardan okunur.</summary>
+    public bool OdemeAlanlariAcik => YeniOdemeGirisi && SeciliKartHarcamasi?.Veri is null;
     public decimal Toplam => Kalemler.Sum(k => k.Tutar);
     public decimal Dagitilan => Kalemler.Sum(k => k.Dagilan);
     public decimal Odenen => _secili?.Odenen ?? 0m;
@@ -118,7 +126,7 @@ public partial class AlislarViewModel : TemelViewModel
         _oturumSurumu = surum;
         Yurutucu.GecersizKil();
         Mesgul = false; VeriHazir = false; Hata = null; Mesaj = null;
-        Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear(); OdemeKartlari.Clear();
+        Alislar.Clear(); Alicilar.Clear(); Kanallar.Clear(); Odemeler.Clear(); BaglanabilirGiderler.Clear(); OdemeKartlari.Clear(); BaglanabilirKartHarcamalari.Clear();
         _secili = null; _bekleyenOdeme = null; _giderler = Array.Empty<IslemDto>(); _kartAdlari = new Dictionary<int, string>();
         OdemeBenzerlik.Temizle();
         _giderImleci = null; _giderImleciAramasi = ""; DahaFazlaGiderVar = false; GiderArama = ""; _olusturAnahtari.Temizle();
@@ -332,21 +340,29 @@ public partial class AlislarViewModel : TemelViewModel
         if (!ParaAyristirici.GecerliMi(OdemeTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (OdemeTutari <= 0 || decimal.Round(OdemeTutari, 2) != OdemeTutari || OdemeTutari > _secili.Kalan)
         { Hata = "Ödeme sıfırdan büyük, kuruş hassasiyetinde ve kalan tutarı aşmayacak şekilde olmalıdır."; return; }
+        // Ekstreden gelmiş kart harcaması (ters sıra): ödeme ona bağlanır; tarih, tutar ve kart harcamanınkidir.
+        var kartHarcamasi = MevcutGiderKullan ? null : SeciliKartHarcamasi?.Veri;
+        if (kartHarcamasi is not null && (kartHarcamasi.KrediKartiId != OdemeKarti?.Id || kartHarcamasi.Tutar != OdemeTutari))
+        { Hata = "Seçilen kart harcaması ödeme kartı ve tutarıyla eşleşmiyor. Kart harcamalarını yeniden getirin."; return; }
         // Bağlanan mevcut gider kendi kartıyla gider (sunucu kartın eşleşmesini ister): kart eski/kapalıysa listede yoktur.
-        var g = new AlisOdemeYaz(_secili.Surum, Guid.NewGuid(), DateOnly.FromDateTime(OdemeTarihi), OdemeTutari,
-            MevcutGiderKullan ? SeciliGider!.Veri.KrediKartiId : OdemeKarti?.Id, MevcutGiderKullan ? SeciliGider!.Veri.Id : null, OdemeNotu);
+        var g = new AlisOdemeYaz(_secili.Surum, Guid.NewGuid(), kartHarcamasi?.Tarih ?? DateOnly.FromDateTime(OdemeTarihi), OdemeTutari,
+            MevcutGiderKullan ? SeciliGider!.Veri.KrediKartiId : OdemeKarti?.Id, MevcutGiderKullan ? SeciliGider!.Veri.Id : null, OdemeNotu,
+            MevcutKartHarcamaId: kartHarcamasi?.Id);
         // Ağ hatasında aynı ödeme tekrar gönderilirse aynı anahtar ve gövde kullanılır.
         if (_bekleyenAlisId == _secili.Id && _bekleyenOdeme is { } eski
             && eski.Tarih == g.Tarih && eski.Tutar == g.Tutar && eski.KrediKartiId == g.KrediKartiId
-            && eski.MevcutIslemId == g.MevcutIslemId && eski.Not == g.Not && eski.HesapId == g.HesapId) g = eski;
+            && eski.MevcutIslemId == g.MevcutIslemId && eski.Not == g.Not && eski.HesapId == g.HesapId && eski.MevcutKartHarcamaId == g.MevcutKartHarcamaId) g = eski;
         _bekleyenOdeme = g; _bekleyenAlisId = _secili.Id;
         var alisId = _secili.Id;
-        if (g.MevcutIslemId is null && !await OdemeBenzerlik.DevamEdilebilirAsync(new("AlisOdeme", g.Tarih, g.Tutar, g.KrediKartiId, AlisId: alisId), new { alisId, g }, () => Gecerli(nesil) && _secili?.Id == alisId)) return;
+        // Mevcut kayda bağlama yeni para çıkışı değildir: benzer kayıt sorulmaz.
+        if (g.MevcutIslemId is null && g.MevcutKartHarcamaId is null
+            && !await OdemeBenzerlik.DevamEdilebilirAsync(new("AlisOdeme", g.Tarih, g.Tutar, g.KrediKartiId, AlisId: alisId), new { alisId, g }, () => Gecerli(nesil) && _secili?.Id == alisId)) return;
         try
         {
             if (!SonucuUygula(await _api.AlisOdemeKaydetAsync(_secili.Id, g), nesil)) return;
             OdemeBenzerlik.Temizle();
-            Mesaj = g.MevcutIslemId is null ? "Ödeme kaydedildi; tek bir gider oluşturuldu." : "Mevcut gider bağlandı; ikinci bir gider oluşturulmadı.";
+            Mesaj = g.MevcutKartHarcamaId is not null ? "Kart harcaması alışa bağlandı; ikinci bir kart harcaması oluşturulmadı."
+                : g.MevcutIslemId is null ? "Ödeme kaydedildi; tek bir gider oluşturuldu." : "Mevcut gider bağlandı; ikinci bir gider oluşturulmadı.";
         }
         catch (KasaApiException e) when (e.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
         { if (Gecerli(nesil)) _bekleyenOdeme = null; throw; }
@@ -356,10 +372,38 @@ public partial class AlislarViewModel : TemelViewModel
 
     partial void OnMevcutGiderKullanChanged(bool value)
     {
-        OnPropertyChanged(nameof(YeniOdemeGirisi));
-        if (value) GideriOdemeFormunaYansit();
+        OnPropertyChanged(nameof(YeniOdemeGirisi)); OnPropertyChanged(nameof(KartHarcamasiBaglanabilir)); OnPropertyChanged(nameof(OdemeAlanlariAcik));
+        if (value) { KartHarcamalariniTemizle(); GideriOdemeFormunaYansit(); }
         else { SeciliGider = null; OdemeTutari = 0; OdemeKarti = OdemeKartlari.FirstOrDefault(); }
     }
+    /// <summary>Kart değişince önceki kartın harcamaları geçersizdir.</summary>
+    partial void OnOdemeKartiChanged(OdemeKartiSecenegi? value)
+    {
+        OnPropertyChanged(nameof(KartHarcamasiBaglanabilir));
+        if (SeciliKartHarcamasi?.Veri is { } h && h.KrediKartiId == value?.Id) return;
+        KartHarcamalariniTemizle();
+    }
+    partial void OnSeciliKartHarcamasiChanged(KartHarcamasiSecenegi? value)
+    {
+        OnPropertyChanged(nameof(OdemeAlanlariAcik));
+        if (value?.Veri is not { } h) return;
+        OdemeTarihi = h.Tarih.ToDateTime(TimeOnly.MinValue);
+        OdemeTutari = h.Tutar;
+    }
+    private void KartHarcamalariniTemizle() { SeciliKartHarcamasi = null; BaglanabilirKartHarcamalari.Clear(); }
+
+    /// <summary>Seçili takipli kartın alışa bağlanabilecek (gidere bağlı olmayan) harcamaları; tutar girilmişse yalnız o tutar.
+    /// Ekstre önce işlenmişse ödeme bu harcamaya bağlanır, ikinci harcama oluşmaz.</summary>
+    [RelayCommand] private Task KartHarcamalariniGetirAsync() => YurutAsync(async nesil =>
+    {
+        if (!EditorMu || !KartHarcamasiBaglanabilir || OdemeKarti?.Id is not { } kart) return;
+        decimal? tutar = ParaAyristirici.GecerliMi(OdemeTutari) && OdemeTutari > 0 && SeciliKartHarcamasi?.Veri is null ? OdemeTutari : null;
+        var liste = await _api.BaglanabilirKartHarcamalariAsync(kart, tutar);
+        if (!Gecerli(nesil) || OdemeKarti?.Id != kart) return;
+        Degistir(BaglanabilirKartHarcamalari, liste.Select(h => new KartHarcamasiSecenegi(h)).Prepend(new KartHarcamasiSecenegi(null)));
+        SeciliKartHarcamasi = BaglanabilirKartHarcamalari[0];
+        Mesaj = liste.Count == 0 ? "Bu kartta bağlanabilecek kart harcaması yok; ödeme yeni kart harcaması olarak kaydedilir." : $"{liste.Count} kart harcaması bulundu; ekstreden gelen harcamayı seçerseniz ikinci harcama oluşmaz.";
+    });
     partial void OnSeciliGiderChanged(GiderSecenegi? value) => GideriOdemeFormunaYansit();
     private void GideriOdemeFormunaYansit()
     {
@@ -404,7 +448,7 @@ public partial class AlislarViewModel : TemelViewModel
         _bekleyenOdeme = null;
         MevcutGiderKullan = false; SeciliGider = null; OdemeTarihi = DateTime.Today;
         OdemeTutari = 0; OdemeNotu = null; OdemeKarti = OdemeKartlari.FirstOrDefault();
-       
+        KartHarcamalariniTemizle();
     }
 
     private bool SonucuUygula(AlisDto alis, int nesil)
@@ -447,7 +491,7 @@ public partial class AlislarViewModel : TemelViewModel
 
     private void GiderSayfasiniUygula(BaglanabilirGiderSayfasi sayfa, string arama, bool ekle)
     {
-        var gelen = sayfa.Ogeler.Select(g => new IslemDto(g.Id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not, g.KrediKartiId)).ToList();
+        var gelen = sayfa.Ogeler.Select(g => new IslemDto(g.Id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not, g.KrediKartiId, EkstreKayitId: g.EkstreKayitId)).ToList();
         _giderler = ekle ? _giderler.Concat(gelen).DistinctBy(g => g.Id).ToList() : gelen;
         _giderImleci = sayfa.SonrakiImlec; _giderImleciAramasi = arama;
         DahaFazlaGiderVar = sayfa.DevamVar && sayfa.SonrakiImlec is not null;
@@ -457,7 +501,8 @@ public partial class AlislarViewModel : TemelViewModel
     private void GiderSecenekleriniYenile()
     {
         var bagli = Alislar.SelectMany(a => a.Veri.Odemeler).Select(o => o.IslemId).ToHashSet();
-        Degistir(BaglanabilirGiderler, _giderler.Where(i => i.TutarTl > 0 && i.AlisId is null && i.AylikGiderOdemeId is null && i.EkstreKayitId is null && i.Tip is GiderTipi.Cari or GiderTipi.KrediKarti && !bagli.Contains(i.Id))
+        // Banka ekstresi gideri bağlanabilir (sunucu listeler; bağlanınca ekstre satırı eşleşmeye döner).
+        Degistir(BaglanabilirGiderler, _giderler.Where(i => i.TutarTl > 0 && i.AlisId is null && i.AylikGiderOdemeId is null && i.Tip is GiderTipi.Cari or GiderTipi.KrediKarti && !bagli.Contains(i.Id))
             .OrderByDescending(i => i.Tarih).Select(i => new GiderSecenegi(i)));
     }
 

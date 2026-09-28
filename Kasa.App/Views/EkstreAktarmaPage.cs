@@ -63,8 +63,14 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
             Alan("İşlem türü", Secim(nameof(s.IslemTurleri), nameof(s.IslemTuru))),
             Goster(Alan("Kart ödemesinde kullanılacak kart", Secim(nameof(s.Kartlar), nameof(s.Kart))), nameof(s.KartSecimiGorunur)),
             Goster(Alan("İadenin kaynak harcaması", Secim(nameof(s.KaynakHarcamalar), nameof(s.KaynakHarcama), "Baslik")), nameof(s.IadeMi)),
-            Alan("Kanal dağılımı", Secim(nameof(s.DagilimTurleri), nameof(s.DagilimTuru))),
-            Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."), Paylar(s.Paylar, s.PayEkle));
+            // Mevcut kayıtla eşleştirme yeni kayıt üretmez: kanal dağılımı yerine bağlanacak kayıt seçilir.
+            Goster(new VerticalStackLayout { Spacing = 8, Children = {
+                Metin("Bu satır yeni kayıt oluşturmaz; aynı tutarda, en çok 3 gün farklı tarihli mevcut bir kayda bağlanır. Kasa ve kart borcu değişmez; iptali de hiçbir kaydı değiştirmez."),
+                Tikla("Eşleşme adaylarını getir", () => Vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null)),
+                Alan("Bağlanacak mevcut kayıt", Secim(nameof(s.EslesmeAdaylari), nameof(s.SeciliAday), "Baslik")) } }, nameof(s.EslesmeMi)),
+            Goster(new VerticalStackLayout { Spacing = 8, Children = {
+                Alan("Kanal dağılımı", Secim(nameof(s.DagilimTurleri), nameof(s.DagilimTuru))),
+                Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."), Paylar(s.Paylar, s.PayEkle) } }, nameof(s.DagilimGorunur)));
         form.BindingContext = s; _satirFormu.Content = form;
     }
     // Yalnız PDF, 10 MB sınırı ve oturum koruması EkstreAktarmaViewModel.PdfSecVeYukleAsync'tedir (maui-8); sayfa yalnız dosya

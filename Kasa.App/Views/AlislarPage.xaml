@@ -147,11 +147,16 @@
                                 <Button Text="Daha eski giderleri göster" Command="{Binding DahaFazlaGiderCommand}" IsVisible="{Binding DahaFazlaGiderVar}" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
                                 <Label Text="Bu seçenek yeni gider oluşturmaz; seçilen kaydın tarihi ve tutarı kullanılır. Liste en yeni bağlanabilir giderlerle başlar; eskisi için arayın." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
-                            <Grid ColumnDefinitions="160,*" ColumnSpacing="12" IsEnabled="{Binding YeniOdemeGirisi}">
+                            <Grid ColumnDefinitions="160,*" ColumnSpacing="12" IsEnabled="{Binding OdemeAlanlariAcik}">
                                 <VerticalStackLayout><Label Text="Ödeme tarihi" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><DatePicker Date="{Binding OdemeTarihi}" /></Border></VerticalStackLayout>
                                 <VerticalStackLayout Grid.Column="1"><Label Text="Ödeme tutarı" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><ctl:ParaGirisi Tutar="{Binding OdemeTutari}" Placeholder="0,00 ₺" /></Border></VerticalStackLayout>
                             </Grid>
                             <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding YeniOdemeGirisi}"><Picker Title="Ödeme yöntemi" ItemsSource="{Binding OdemeKartlari}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding OdemeKarti}" /></Border>
+                            <VerticalStackLayout Spacing="6" IsVisible="{Binding KartHarcamasiBaglanabilir}">
+                                <Button Text="Ekstreden gelen kart harcamasını bul" Command="{Binding KartHarcamalariniGetirCommand}" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
+                                <Border Style="{StaticResource FieldBorder}"><Picker Title="Kart harcaması" ItemsSource="{Binding BaglanabilirKartHarcamalari}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding SeciliKartHarcamasi}" /></Border>
+                                <Label Text="Kart ekstresi önce içe aktarıldıysa harcama zaten kart borcundadır: onu seçin, ödeme bu harcamaya bağlanır ve ikinci harcama oluşmaz. Tarih ve tutar harcamadan alınır." Style="{StaticResource LblPageSub}" />
+                            </VerticalStackLayout>
                             <Label Text="Yeni takipte kart borcu ayrı izlenir; kasa, Kartlar ekranında ödeme kaydedilince azalır. Geçiş yapılmamış eski kartlar eski erteleme kuralını korur." Style="{StaticResource LblPageSub}" />
                             <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding OdemeNotu}" Placeholder="Ödeme notu (isteğe bağlı)" /></Border>
                             <Border BackgroundColor="#F1F5EE" StrokeThickness="0" StrokeShape="RoundRectangle 10" Padding="14">
