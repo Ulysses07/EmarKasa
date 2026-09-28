@@ -139,8 +139,13 @@
                             <Label Text="{Binding OdemeOzeti}" FontAttributes="Bold" />
                             <HorizontalStackLayout Spacing="10"><Switch IsToggled="{Binding MevcutGiderKullan}" /><Label Text="Önceden kaydedilmiş gideri bağla" VerticalOptions="Center" /></HorizontalStackLayout>
                             <VerticalStackLayout Spacing="6" IsVisible="{Binding MevcutGiderKullan}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding GiderArama}" Placeholder="Açıklama, not veya tutar ile ara" ReturnCommand="{Binding GiderAraCommand}" /></Border>
+                                    <Button Grid.Column="1" Text="Ara" Command="{Binding GiderAraCommand}" Style="{StaticResource BtnSecondary}" />
+                                </Grid>
                                 <Border Style="{StaticResource FieldBorder}"><Picker Title="Mevcut gideri seçin" ItemsSource="{Binding BaglanabilirGiderler}" ItemDisplayBinding="{Binding Ad}" SelectedItem="{Binding SeciliGider}" /></Border>
-                                <Label Text="Bu seçenek yeni gider oluşturmaz; seçilen kaydın tarihi ve tutarı kullanılır." Style="{StaticResource LblPageSub}" />
+                                <Button Text="Daha eski giderleri göster" Command="{Binding DahaFazlaGiderCommand}" IsVisible="{Binding DahaFazlaGiderVar}" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
+                                <Label Text="Bu seçenek yeni gider oluşturmaz; seçilen kaydın tarihi ve tutarı kullanılır. Liste en yeni bağlanabilir giderlerle başlar; eskisi için arayın." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
                             <Grid ColumnDefinitions="160,*" ColumnSpacing="12" IsEnabled="{Binding YeniOdemeGirisi}">
                                 <VerticalStackLayout><Label Text="Ödeme tarihi" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><DatePicker Date="{Binding OdemeTarihi}" /></Border></VerticalStackLayout>

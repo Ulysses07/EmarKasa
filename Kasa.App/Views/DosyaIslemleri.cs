@@ -6,8 +6,11 @@ internal static class DosyaIslemleri
 {
     /// <summary>Dosyayı önce önbellekteki geçici dosyaya akışla indirir (yedek yüzlerce MB olabilir; bellekte tutulmaz),
     /// tamamlanınca kullanıcının seçtiği yere kopyalar. İndirme başarısızsa hata ilgili ekranda gösterilir; seçilen hedefe
-    /// yalnız tamamlanmış dosya yazılır, yarım geçici dosya her durumda silinir.</summary>
-    public static async Task IndirVeKaydetAsync(Page sayfa, Func<Stream, Task<IndirmeBilgisi?>> indir, bool yazdir = false)
+    /// yalnız tamamlanmış dosya yazılır, yarım geçici dosya her durumda silinir. Kaydedilen dosyanın adı ve uzantısı sunucunun
+    /// bildirdiği içerik türünden kurulur (<see cref="DosyaTurleri.GuvenliAd"/>): alıcının yüklediği '.hta' gibi uzantı ya da yön
+    /// işareti kaydetme penceresine geçmez. <paramref name="disKaynak"/> (kullanıcının yüklediği belge) Windows'ta dosyaya
+    /// internet kaynağı işareti (Mark-of-the-Web) ekler: işletim sistemi dosyayı açarken güvenlik uyarısını gösterir.</summary>
+    public static async Task IndirVeKaydetAsync(Page sayfa, Func<Stream, Task<IndirmeBilgisi?>> indir, bool yazdir = false, bool disKaynak = false)
     {
         var gecici = Path.Combine(FileSystem.CacheDirectory, $"indirme-{Guid.NewGuid():N}.tmp");
         try
@@ -25,17 +28,17 @@ internal static class DosyaIslemleri
                 await sayfa.DisplayAlertAsync("Yazdır / PDF", "Açılan raporda Ctrl+P tuşlarına basın. Yazıcı olarak 'Microsoft Print to PDF' seçerek PDF kaydedebilirsiniz.", "Tamam");
                 return;
             }
-            var ad = Path.GetFileName(bilgi.DosyaAdi);
+            var ad = DosyaTurleri.GuvenliAd(bilgi.DosyaAdi, bilgi.IcerikTuru, "dosya");
 #if WINDOWS
             var secici = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = Path.GetFileNameWithoutExtension(ad) };
-            var uzanti = Path.GetExtension(ad);
-            secici.FileTypeChoices.Add("Dosya", new List<string> { string.IsNullOrEmpty(uzanti) ? ".bin" : uzanti });
+            secici.FileTypeChoices.Add(DosyaTurleri.Aciklama(bilgi.IcerikTuru), new List<string> { Path.GetExtension(ad) });
             var pencere = (Microsoft.UI.Xaml.Window)Application.Current!.Windows[0].Handler!.PlatformView!;
             WinRT.Interop.InitializeWithWindow.Initialize(secici, WinRT.Interop.WindowNative.GetWindowHandle(pencere));
             var hedef = await secici.PickSaveFileAsync();
             if (hedef is null) return;
             var kaynak = await Windows.Storage.StorageFile.GetFileFromPathAsync(gecici);
             await kaynak.CopyAndReplaceAsync(hedef);
+            if (disKaynak) InternetKaynagiIsaretle(hedef.Path);
             await sayfa.DisplayAlertAsync("Dosya kaydedildi", hedef.Path, "Tamam");
 #else
             var yol = Path.Combine(FileSystem.CacheDirectory, ad);
@@ -51,4 +54,13 @@ internal static class DosyaIslemleri
             catch (UnauthorizedAccessException) { /* önbellek temizliği işletim sistemine kalır */ }
         }
     }
+
+#if WINDOWS
+    /// <summary>En iyi çaba: NTFS dışı ya da yazılamayan hedefte (ör. ağ sürücüsü) işaret eklenmez, kayıt yine başarılıdır.</summary>
+    private static void InternetKaynagiIsaretle(string yol)
+    {
+        try { File.WriteAllText(yol + ":Zone.Identifier", "[ZoneTransfer]\r\nZoneId=3\r\n"); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException) { /* işaret isteğe bağlıdır */ }
+    }
+#endif
 }

@@ -30,17 +30,19 @@ public static class AlisEndpoints
             var result = query.OrderByDescending(a => a.Tarih).ThenByDescending(a => a.Id).ToList().Select(a => AlisHesaplari.ToDto(a, kartAdlari)).ToList();
             return Results.Ok(result);
         });
-        api.MapPost("", (AlisYaz dto, ClaimsPrincipal user, KasaDbContext db) => Mutate(db, () =>
+        api.MapPost("", (AlisYaz dto, ClaimsPrincipal user, KasaDbContext db, Microsoft.Extensions.Options.IOptionsMonitor<AliciKotaAyarlari> kota) => Mutate(db, () =>
         {
             if (!Editor(user) && AliciId(user) is null) return Results.Forbid();
+            if (AlisOlusturmaKurallari.Once(db, dto, user, kota.CurrentValue) is { } oncekiSonuc) return oncekiSonuc;
             if (dto.Surum != 0) return Conflict("Yeni alış için sürüm 0 olmalı.");
             if (Validate(dto, db) is { } hata) return hata;
             var alis = new AlisEntity { AliciId = Editor(user) ? null : AliciId(user) };
             if (SetFields(db, alis, dto) is { } tedarikciHatasi) return tedarikciHatasi;
             db.Alislar.Add(alis);
             db.SaveChanges();
+            AlisOlusturmaKurallari.Kaydet(db, dto, user, alis.Id);
             return Results.Created($"/api/alis/{alis.Id}", ReadDto(db, alis.Id));
-        }));
+        })).RequireRateLimiting(Auth.HizSinirlari.AlisYukleme).AddEndpointFilter(Auth.AliciAlisYuklemeSiniri.Filtre);
         api.MapPut("/{id:int}", (int id, AlisYaz dto, ClaimsPrincipal user, KasaDbContext db) => Mutate(db, () =>
         {
             var alis = Owned(db, id, user);

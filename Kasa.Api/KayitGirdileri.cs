@@ -59,6 +59,30 @@ public static class KayitGirdileri
         }, v.Sonuc());
     }
 
+    private const string IslemOlusturTuru = "IslemOlustur";
+
+    /// <summary>
+    /// POST /api/islemler tekrar anahtarı (appcore-5), yazma transaction'ı içinde kayıttan önce: istemci 15 sn'de isteği kesip
+    /// aynı gideri yeniden gönderdiğinde aynı istek kimliği ve aynı içerik ilk gideri 200 ile döndürür; farklı içerik 409,
+    /// boş kimlik 400 alır. İstek kimliği göndermeyen eski istemci için null (her istek yeni gider).
+    /// </summary>
+    public static IResult? IslemTekrari(IslemYazDto dto, KasaDbContext db)
+        => dto.IstekId is { } istekId
+            ? FinansHesaplari.Tekrar(db, istekId, IslemOlusturTuru, IslemOzeti(dto), id => db.Islemler.Find(id) is { } kayit
+                ? Results.Ok(kayit)
+                : AlisEndpoints.Conflict("Bu istekle oluşturulan gider sonradan silinmiş. Gideri yeniden kaydetmek için formu yenileyin."))
+            : null;
+
+    /// <summary>Kayıttan sonra, aynı transaction'da: istek kimliğini oluşan giderle saklar.</summary>
+    public static void IslemIstegiKaydet(IslemYazDto dto, KasaDbContext db, int islemId)
+    {
+        if (dto.IstekId is not { } istekId) return;
+        FinansHesaplari.IstekKaydet(db, istekId, IslemOlusturTuru, IslemOzeti(dto), islemId);
+        db.SaveChanges();
+    }
+
+    private static string IslemOzeti(IslemYazDto dto) => FinansHesaplari.Ozet(dto with { IstekId = null });
+
     /// <summary>K3 iletisi (yeni kredi kartı gideri takipsiz karta ya da kartsız kaydedilemez).</summary>
     public const string TakipliKartZorunlu = "Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.";
 

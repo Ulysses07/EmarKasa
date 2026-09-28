@@ -62,13 +62,20 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const root = node => Object.assign(node, { root: true });
   const modalNode = root(new Element('dialog')); const modalContent = new Element(); modalNode.append(modalContent);
   nodes.set('#modal', modalNode); nodes.set('#modal-content', modalContent);
-  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], '/api/rapor/ana-sayfa?gun=30': call => homeSummary(call), ...extraResponses };
+  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], '/api/rapor/ana-sayfa?gun=30': call => homeSummary(call), '/api/alis/baglanabilir-giderler': () => linkableExpenses(), '/api/alis/inceleme-ozeti?adet=4': { sayi: 0, ogeler: [] }, ...extraResponses };
   // Sunucu sözleşmesi: ana sayfa özeti ayrı uçların yanıtıyla birebir aynıdır. Varsayılan yanıt, testin o anki panel, eşik ve
   // takip özeti yanıtlarından kurulur; parçalardan biri hata verirse tek istek de o hatayı verir.
   const homeSummary = async call => {
     const part = async key => { const value = responses[key]; if (value instanceof Error) throw value; return typeof value === 'function' ? await value(call) : value; };
     const panel = await part('/api/rapor/panel'), kasaEsikleri = await part('/api/kasa-esikleri'), takipOzeti = await part('/api/takip/ozet?gun=30');
     return [panel, kasaEsikleri, takipOzeti].find(value => value?.$status) || { panel, kasaEsikleri, takipOzeti };
+  };
+  // Alış ödemesinin bağlanabilir gider sayfası (webui-6): açıkça verilmezse testin gider listesinden (/api/islemler) süzülmeden
+  // tek sayfa kurulur. Gider listesi veren testler yeni uçla da çalışır; istemcinin savunma amaçlı süzgeci de sınanır.
+  const linkableExpenses = () => {
+    const list = responses['/api/islemler'];
+    if (!Array.isArray(list)) throw new Error('Unexpected API: /api/alis/baglanabilir-giderler');
+    return { ogeler: list, sonrakiImlec: null, devamVar: false };
   };
   // Tarayıcı fetch'i gibi: iptal edilen sinyal bekleyen yanıtı AbortError ile reddeder.
   const aborted = () => new DOMException('The operation was aborted.', 'AbortError');
@@ -92,7 +99,9 @@ test('full editor startup renders transaction actions and settings navigation', 
   assert.match(nodes.get('#page-actions').textContent, /Gelir gir.*Gider kaydet/);
   assert.equal(nodes.get('#application').hidden, false);
   assert.deepEqual(requests.slice(0, 2), ['/kasa-runtime.json', '/api/auth/me']);
-  assert.ok(requests.includes('/api/alis'));
+  // Ana sayfanın inceleme kutusu (webui-6) bütün alış listesini değil, yalnız inceleme özetini okur.
+  assert.ok(requests.includes('/api/alis/inceleme-ozeti?adet=4'));
+  assert.ok(!requests.includes('/api/alis'));
 });
 test('read-only editor startup renders live cash without mutation actions or unsupported API calls', async () => {
   const { nodes, requests } = await openApp(true);
@@ -199,6 +208,102 @@ test('new purchase payment checks its purchase and card, while linking an existi
   await submitDialog(nodes);
   const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.ok(save); assert.equal(save.body.mevcutIslemId, 20); assert.equal(save.body.tutar, 75);
   assert.equal(calls.filter(call => call.path === '/api/islemler/benzerlik').length, 1);
+});
+test('purchase payment dialog uses the server linkable-expense page instead of the full expense history, with search and older pages', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
+  const row = (id, cari, tutarTl) => ({ id, tarih: `2026-09-${id - 10}`, cari, tutarTl, krediKartiId: null });
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kredikartlari': [], '/api/alis/6/odemeler': purchase,
+    '/api/alis/baglanabilir-giderler': { ogeler: [row(31, 'Kargo', 40), row(30, 'Ambalaj', 20)], sonrakiImlec: '20260920-30', devamVar: true },
+    '/api/alis/baglanabilir-giderler?imlec=20260920-30': { ogeler: [row(29, 'Eski mal', 75), { ...row(28, 'Bağlı', 10), alisId: 3 }], sonrakiImlec: null, devamVar: false },
+    '/api/alis/baglanabilir-giderler?arama=Kargo+Co': { ogeler: [], sonrakiImlec: null, devamVar: false },
+    '/api/alis/baglanabilir-giderler?arama=75&aramaTutari=75.00': { ogeler: [row(29, 'Eski mal', 75)], sonrakiImlec: null, devamVar: false },
+  });
+  await app.paymentDialog(purchase);
+  assert.equal(calls.some(call => call.path.startsWith('/api/islemler')), false);
+  const existing = formField(nodes, 'mevcutIslemId');
+  const options = () => existing.children.filter(node => node.tag === 'option').map(node => node.value);
+  assert.deepEqual(options(), ['', '31', '30']);
+  const more = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Daha eski giderler');
+  assert.equal(more.hidden, false);
+  existing.value = '31'; existing.listeners.change();
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.deepEqual(options(), ['', '31', '30', '29']);
+  assert.equal(existing.value, '31'); assert.equal(more.hidden, true);
+  const search = formField(nodes, 'giderArama');
+  search.value = 'Kargo Co'; search.listeners.change(); await settle();
+  assert.deepEqual(options(), ['']); assert.match(nodes.get('#modal-content').textContent, /Eşleşen bağlanabilir gider yok/);
+  assert.equal(formField(nodes, 'tutar').disabled, false);
+  let prevented = false; search.value = '75'; search.listeners.keydown({ key: 'Enter', preventDefault() { prevented = true; } }); await settle();
+  assert.equal(prevented, true); assert.deepEqual(options(), ['', '29']);
+  assert.equal(calls.some(call => call.path === '/api/alis/6/odemeler'), false);
+  existing.value = '29'; existing.listeners.change();
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.equal(save.body.mevcutIslemId, 29); assert.equal(save.body.tutar, 75);
+});
+test('older linkable-expense page uses the cursor only with the search text that produced it; changed text restarts the search', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
+  const row = (id, cari, tutarTl) => ({ id, tarih: `2026-09-${id - 10}`, cari, tutarTl, krediKartiId: null });
+  const base = '/api/alis/baglanabilir-giderler';
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kredikartlari': [], '/api/alis/6/odemeler': purchase,
+    [base]: { ogeler: [row(31, 'Kargo', 40), row(30, 'Ambalaj', 20)], sonrakiImlec: '20260920-30', devamVar: true },
+    [`${base}?arama=Kargo`]: { ogeler: [row(31, 'Kargo', 40), row(25, 'Kargo', 15)], sonrakiImlec: '20260915-25', devamVar: true },
+    [`${base}?arama=Kargo&imlec=20260915-25`]: { ogeler: [row(20, 'Kargo', 5)], sonrakiImlec: null, devamVar: false },
+  });
+  await app.paymentDialog(purchase);
+  const existing = formField(nodes, 'mevcutIslemId');
+  const options = () => existing.children.filter(node => node.tag === 'option').map(node => node.value);
+  const more = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Daha eski giderler');
+  // Yeni metin yazılıp doğrudan 'Daha eski giderler'e basılır: önce kutunun change (blur) araması başlar, tıklama onu geçersiz
+  // kılar. Süzgeçsiz listenin imleci 'Kargo' ile birleştirilmez (daha yeni Kargo #25 atlanır, Ambalaj listede kalırdı).
+  const search = formField(nodes, 'giderArama'); search.value = 'Kargo'; search.listeners.change();
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.equal(calls.some(call => call.path === `${base}?arama=Kargo&imlec=20260920-30`), false);
+  assert.deepEqual(options(), ['', '31', '25']); assert.equal(more.hidden, false);
+  // Metin değişmedikçe imleç aynı aramanın sonraki sayfasıdır.
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.deepEqual(options(), ['', '31', '25', '20']); assert.equal(more.hidden, true);
+});
+test('new expense and new purchase reuse the request id after a lost response, while edits send none', async () => {
+  let expenseAttempts = 0; let purchaseAttempts = 0;
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': [], '/api/islemler/20': { id: 20 },
+    '/api/islemler': call => { if (call.method === 'POST' && ++expenseAttempts === 1) throw new Error('Network response lost'); return call.method === 'POST' ? { id: 21 } : []; },
+    '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/alis/9/belgeler': [],
+    '/api/alis': call => { if (call.method === 'POST' && ++purchaseAttempts === 1) throw new Error('Network response lost'); return call.method === 'POST' ? { id: 9 } : [{ id: 9, surum: 1, tarih: '2026-09-23', tedarikci: 'Firma', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 0, odenen: 0, kalan: 0 }]; },
+  });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes); await submitDialog(nodes);
+  const expenseWrites = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(expenseWrites.length, 2); assert.ok(expenseWrites[0].body.istekId); assert.deepEqual(expenseWrites[0].body, expenseWrites[1].body);
+  await app.expenseDialog({ id: 20, tarih: '2026-09-23', cari: 'Kargo', tutarTl: 75, kanal: 'A', tip: 'Cari' });
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20' && call.method === 'PUT').body.istekId, undefined);
+
+  await app.navigate('purchases');
+  const create = nodes.get('#page-actions').find(node => node.tag === 'button' && node.textContent === '+ Yeni alış'); await create.listeners.click({ currentTarget: create }); await settle();
+  formField(nodes, 'tedarikci').listeners.input({ target: { value: 'Firma' } });
+  formField(nodes, 'aciklama-0').listeners.input({ target: { value: 'Mal' } });
+  formField(nodes, 'tutar-0').listeners.input({ target: { value: '100' } });
+  await submitDialog(nodes); await submitDialog(nodes);
+  const purchaseWrites = calls.filter(call => call.path === '/api/alis' && call.method === 'POST');
+  assert.equal(purchaseWrites.length, 2); assert.ok(purchaseWrites[0].body.istekId); assert.deepEqual(purchaseWrites[0].body, purchaseWrites[1].body);
+});
+test('purchase document download names come from the stored type, never from the uploaded extension or direction marks', () => {
+  assert.equal(ui.documentFileName('fatura.pdf.hta', 'application/pdf'), 'fatura.pdf');
+  assert.equal(ui.documentFileName('fatura‮fdp.hta', 'application/pdf'), 'faturafdp.pdf');
+  assert.equal(ui.documentFileName('..\\gizli\\CON.png', 'image/png'), 'belge-CON.png');
+  assert.equal(ui.documentFileName('foto.jpeg', 'image/jpeg'), 'foto.jpg');
+  assert.equal(ui.documentFileName('sayfa.html', 'text/html'), 'sayfa.bin');
+  assert.equal(ui.documentFileName('Fatura 12.05.2024', 'application/pdf'), 'Fatura 12.05.2024.pdf');
+  assert.equal(ui.documentFileName('', 'application/pdf'), 'belge.pdf');
+  assert.equal(ui.linkableExpensesPath('  Kargo & Co '), '/api/alis/baglanabilir-giderler?arama=Kargo+%26+Co');
+  // Tutar gibi okunan metin (ör. '2024' bir fatura numarası da olabilir) metin olarak da aranır; sunucu ikisinden birine uyanı döndürür.
+  assert.equal(ui.linkableExpensesPath('12,5', '20260920-30'), '/api/alis/baglanabilir-giderler?arama=12%2C5&aramaTutari=12.50&imlec=20260920-30');
+  assert.equal(ui.linkableExpensesPath('2024'), '/api/alis/baglanabilir-giderler?arama=2024&aramaTutari=2024.00');
+  assert.equal(ui.linkableExpensesPath(''), '/api/alis/baglanabilir-giderler');
 });
 test('changing a field invalidates duplicate approval and cancelling during lookup cannot create an expense', async () => {
   const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': [], '/api/islemler/benzerlik': [similarCharge] });
@@ -1599,7 +1704,40 @@ test('ekran değişince ana sayfa isteği iptal edilir; geç yanıt yeni ekrana 
   assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
   assert.equal(calls.find(call => call.path === '/api/rapor/haftalik').signal.aborted, false);
   // Rapor dışı okumalar (ve yazmalar) ekran sinyaline bağlanmaz.
-  assert.equal(calls.find(call => call.path === '/api/alis').signal, undefined);
+  assert.equal(calls.find(call => call.path === '/api/alis/inceleme-ozeti?adet=4').signal, undefined);
+});
+// webui-6 (ana sayfa bölümü): editörün ana sayfası inceleme kutusu için bütün alış listesini (kalem, dağılım ve ödemeleriyle)
+// indirmez; sunucu yalnız inceleme bekleyen sayısını ve en yeni dört alışı döndürür.
+const reviewSummaryPath = '/api/alis/inceleme-ozeti?adet=4';
+const reviewPurchase = (id, tedarikci, durum = 'Incelemede') => ({ id, surum: 2, tarih: '2026-09-27', tedarikci, alici: 'İpek', durum, kalemler: [], odemeler: [], toplam: 100, odenen: 0, kalan: 100 });
+const nodesWhere = (node, predicate, found = []) => { for (const child of node.children) if (child && typeof child === 'object') { if (predicate(child)) found.push(child); nodesWhere(child, predicate, found); } return found; };
+test('ana sayfa inceleme bekleyen alışları özet uçtan okur; bütün alış listesini indirmez', async () => {
+  const { nodes, requests } = await openApp(false, { [reviewSummaryPath]: { sayi: 7, ogeler: [reviewPurchase(12, 'Kargo'), reviewPurchase(11, 'Ambalaj')] } });
+  assert.ok(!requests.includes('/api/alis'), 'Alış listesi istenmez.');
+  assert.equal(requests.filter(path => path === reviewSummaryPath).length, 1);
+  const view = nodes.get('#view');
+  assert.match(view.textContent, /7 alış inceleme bekliyor/);
+  assert.deepEqual(nodesWhere(view, node => node.className === 'purchase-row').map(row => row.attributes['aria-label'].split(',')[0]), ['Kargo', 'Ambalaj']);
+});
+test('eski sunucuda inceleme özeti ucu yoksa (404/405) alış listesine geri düşer; uç yeniden denenmez', async () => {
+  for (const status of [404, 405]) {
+    const list = [reviewPurchase(5, 'Beşinci'), reviewPurchase(4, 'Dördüncü', 'Taslak'), reviewPurchase(3, 'Üçüncü'), reviewPurchase(2, 'İkinci'), reviewPurchase(1, 'Birinci', 'Onaylandi')];
+    const { app, nodes, requests } = await openApp(false, { [reviewSummaryPath]: { $status: status }, '/api/alis': list });
+    assert.match(nodes.get('#view').textContent, /3 alış inceleme bekliyor/, `${status}`);
+    assert.equal(nodesWhere(nodes.get('#view'), node => node.className === 'purchase-row').length, 3);
+    await app.navigate('home');
+    assert.equal(requests.filter(path => path === reviewSummaryPath).length, 1, `${status}: uç yeniden denenmez`);
+    assert.equal(requests.filter(path => path === '/api/alis').length, 2);
+  }
+});
+test('inceleme özeti ucunun başka hatası listeye düşürmez', async () => {
+  const { nodes, requests } = await openApp(false, { [reviewSummaryPath]: { $status: 500, hata: 'Veritabanı meşgul.' } });
+  assert.ok(!requests.includes('/api/alis'));
+  assert.match(nodes.get('#view').textContent, /Veritabanı meşgul./);
+});
+test('izleyici ana sayfası inceleme özetini istemez', async () => {
+  const { requests } = await openApp(false, { '/api/auth/me': { rol: 'viewer' } });
+  assert.ok(!requests.includes(reviewSummaryPath)); assert.ok(!requests.includes('/api/alis'));
 });
 test('oturum kapanınca süren rapor isteği de iptal edilir', async () => {
   const { app, calls } = await openApp(false, { '/api/rapor/haftalik': () => new Promise(() => {}) });

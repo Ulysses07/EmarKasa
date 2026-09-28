@@ -27,7 +27,8 @@ public partial class AlislarViewModel
         if (!EditorMu || Mesgul) return;
         if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
         DuzeltilecekOdeme = odeme; DuzeltmeTarihi = odeme.Veri.Tarih.ToDateTime(TimeOnly.MinValue); DuzeltmeTutari = odeme.Veri.Tutar;
-        EskiKartHarcamasi = odeme.Veri.KrediKartiId is null && _giderler.Any(g => g.Id == odeme.Veri.IslemId && g.Tip == GiderTipi.KrediKarti);
+        // Bağlı gider artık bağlanabilir listede değildir: kartsız eski kart harcaması bilgisi ödemenin kendisinden gelir.
+        EskiKartHarcamasi = odeme.Veri.KrediKartiId is null && odeme.Veri.EskiKartHarcamasi;
         DuzeltmeKartlari.Clear(); DuzeltmeKartlari.Add(new(null, EskiKartHarcamasi ? "Eski kart harcamasını koru" : "Nakit / banka"));
         foreach (var kart in OdemeKartlari.Where(k => k.Id is not null)) DuzeltmeKartlari.Add(kart);
         // K3: liste yalnız takipteki açık kartlardır; ödemenin kendi (eski/kapalı) kartı ayrıca eklenir, kayıt kartıyla kalabilir.
@@ -67,9 +68,10 @@ public partial class AlislarViewModel
         g = g with { IstekId = _iptalAnahtari.Al(new { _secili.Id, OdemeId = id, g }) };
         if (!SonucuUygula(await _odemelerApi.AlisOdemeIptalAsync(_secili.Id, id, g), n)) return;
         _iptalAnahtari.Temizle();
-        var giderler = await _finans.IslemlerAsync();
+        var arama = GiderArama.Trim();
+        var giderler = await GiderSayfasiAsync(arama, null);
         if (!Gecerli(n)) return;
-        _giderler = giderler; GiderSecenekleriniYenile();
+        GiderSayfasiniUygula(giderler, arama, ekle: false);
         Mesaj = "Ödeme ve bağlı gider iptal edildi. İptal gerekçesi geçmişte korundu.";
     });
     [RelayCommand] public Task BelgeleriYukleAsync() => YurutAsync(async n =>

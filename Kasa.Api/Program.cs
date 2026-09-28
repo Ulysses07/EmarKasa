@@ -253,6 +253,8 @@ app.MapBildirimEndpoints();
 app.MapAliciEndpoints();
 app.MapGuvenlikEndpoints();
 app.MapBelgeEndpoints();
+app.MapBaglanabilirGiderler();
+app.MapAlisIncelemeOzeti();
 app.MapYonetimEndpoints();
 
 // Finansal bilgiler yalnız editör ve izleyiciye açıktır.
@@ -427,11 +429,13 @@ api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, st
 api.MapPost("/islemler", (IslemYazDto dto, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
+    if (KayitGirdileri.IslemTekrari(dto, db) is { } tekrar) return tekrar;
     var (e, hata) = KayitGirdileri.Islem(dto, db);
     if (hata is not null) return hata;
     // finance-9: takipli karta eksi/sıfır gider kaynaksız alacak olurdu; iade Kredi Kartları ekranındaki akıştan girilir.
     if (FinansHesaplari.TakipliKartIadeHatasi(dto, db) is { } iade) return iade;
     db.Islemler.Add(e); db.SaveChanges();
+    KayitGirdileri.IslemIstegiKaydet(dto, db, e.Id);
     FinansTakipServisi.Sync(db);
     transaction.Commit();
     return Results.Created($"/api/islemler/{e.Id}", e);

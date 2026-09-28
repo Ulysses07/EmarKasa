@@ -50,7 +50,9 @@ public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikle
 
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
 public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
-public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null);
+/// <param name="IstekId">Yalnız oluşturmada tekrar anahtarı: zaman aşımından sonra aynı gövdeyle yeniden gönderilen gider
+/// ikinci kez kaydedilmez (sunucu ilk kaydı döndürür). Düzenlemede gönderilmez.</param>
+public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, Guid? IstekId = null);
 public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);

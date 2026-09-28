@@ -1,6 +1,10 @@
+using System.Globalization;
 using System.Security.Claims;
+using System.Text;
+using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Kasa.Api;
 
@@ -10,16 +14,57 @@ public static class BelgeEndpoints
 {
     public const int AzamiBoyut = 10 * 1024 * 1024;
 
+    /// <summary>Belge olarak kabul edilen türler ve indirmede verilen tek uzantıları.</summary>
+    private static readonly Dictionary<string, string> Uzantilar = new(StringComparer.Ordinal)
+    {
+        ["application/pdf"] = ".pdf", ["image/png"] = ".png", ["image/jpeg"] = ".jpg",
+    };
+    /// <summary>Yüklemede reddedilen ad uzantıları (addaki son noktadan sonrası, büyük/küçük harf duyarsız): Outlook'un doğrudan
+    /// engellediği (Level1) ekler; ayrıca tarayıcıda çalışan web sayfası ve görsel biçimleri, betikler, sürücü ve uygulama
+    /// paketleri, kitaplık/arama kısayolları ve disk kalıpları. Liste yalnız derinlemesine savunmadır: asıl koruma indirme adının
+    /// uzantısının addan değil, sihirli baytlardan tespit edilen türden kurulmasıdır (<see cref="GuvenliBelgeAdi"/>); listede
+    /// olmayan bir uzantı da indirmede .pdf/.png/.jpg olur.</summary>
+    private static readonly HashSet<string> TehlikeliUzantilar = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Outlook Level1.
+        "ade", "adp", "app", "application", "appref-ms", "asp", "aspx", "asx", "bas", "bat", "bgi", "cab", "cer", "chm", "cmd", "cnt",
+        "com", "cpl", "crt", "csh", "der", "diagcab", "exe", "fxp", "gadget", "grp", "hlp", "hpj", "hta", "htc", "inf", "ins", "isp",
+        "its", "jar", "jnlp", "js", "jse", "ksh", "lnk", "mad", "maf", "mag", "mam", "maq", "mar", "mas", "mat", "mau", "mav", "maw",
+        "mcf", "mda", "mdb", "mde", "mdt", "mdw", "mdz", "msc", "msh", "msh1", "msh2", "mshxml", "msh1xml", "msh2xml", "msi", "msp",
+        "mst", "msu", "ops", "osd", "pcd", "pif", "pl", "plg", "prf", "prg", "printerexport", "ps1", "ps1xml", "ps2", "ps2xml", "psc1",
+        "psc2", "psd1", "psdm1", "pst", "py", "pyc", "pyo", "pyw", "pyz", "pyzw", "reg", "scf", "scr", "sct", "shb", "shs", "theme",
+        "tmp", "url", "vb", "vbe", "vbp", "vbs", "vhd", "vhdx", "vsmacros", "vsw", "webpnp", "website", "ws", "wsc", "wsf", "wsh",
+        "xbap", "xll", "xnk", "appcontent-ms", "settingcontent-ms",
+        // Ek olarak.
+        "htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xml", "xsl", "xslt", "mjs", "psm1", "sh", "bash", "rb", "php",
+        "dll", "ocx", "sys", "drv", "msix", "msixbundle", "appx", "appxbundle", "library-ms", "search-ms", "iso", "img",
+    };
+    /// <summary>Yüklemede reddedilen bildirilen içerik türleri; ayrıca 'html' ya da 'script' içeren ve '+xml' ile biten her tür.</summary>
+    private static readonly HashSet<string> TehlikeliTurler = new(StringComparer.Ordinal)
+    {
+        "application/hta", "application/xml", "text/xml", "application/x-msdownload", "application/x-msdos-program", "application/x-dosexec",
+        "application/vnd.microsoft.portable-executable", "application/x-ms-installer", "application/x-msi", "application/x-bat", "application/bat",
+        "application/x-sh", "application/x-ms-shortcut", "application/x-ms-application", "application/java-archive", "application/x-java-jnlp-file",
+        "application/internet-shortcut", "application/x-url", "message/rfc822", "multipart/related",
+    };
+    private static readonly HashSet<string> AyrilmisAdlar = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
+    };
+
     public static WebApplication MapBelgeEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api").RequireAuthorization("Alis");
         api.MapGet("/alis/{id:int}/belgeler", (int id, ClaimsPrincipal user, KasaDbContext db) =>
         {
             if (!Sahibi(db, id, user)) return Results.NotFound();
-            return Results.Ok(db.Belgeler.AsNoTracking().Where(b => b.AlisId == id)
-                .OrderBy(b => b.Id).Select(b => new BelgeDto(b.Id, b.AlisId, b.OdemeId, b.DosyaAdi, b.IcerikTuru, b.Boyut, b.Yuklendi)).ToList());
+            // Eski kayıtların adı da okunurken aynı kuralla adlandırılır (veri dönüşümü gerekmez).
+            return Results.Ok(db.Belgeler.AsNoTracking().Where(b => b.AlisId == id).OrderBy(b => b.Id)
+                .Select(b => new { b.Id, b.AlisId, b.OdemeId, b.DosyaAdi, b.IcerikTuru, b.Boyut, b.Yuklendi }).AsEnumerable()
+                .Select(b => new BelgeDto(b.Id, b.AlisId, b.OdemeId, GuvenliBelgeAdi(b.DosyaAdi, b.IcerikTuru), b.IcerikTuru, b.Boyut, b.Yuklendi)).ToList());
         });
-        api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat) =>
+        api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat, IOptionsMonitor<AliciKotaAyarlari> kota) =>
         {
             if (!request.HasFormContentType) return Results.BadRequest(new { hata = "Dosyayı form olarak gönderin." });
             if (request.ContentLength is > AzamiBoyut + 64 * 1024) return Results.StatusCode(413);
@@ -39,9 +84,8 @@ public static class BelgeEndpoints
             var bytes = content.ToArray();
             var type = Tur(bytes);
             if (type is null) return Results.BadRequest(new { hata = "Yalnız PNG, JPEG veya PDF belgeleri kabul edilir." });
-            var name = Path.GetFileName(file.FileName.Replace('\\', '/'));
-            name = new string(name.Where(c => !char.IsControl(c)).Take(180).ToArray());
-            if (string.IsNullOrWhiteSpace(name)) name = "belge";
+            if (Uyusmazlik(file.FileName, file.ContentType, type) is { } uyusmazlik) return Results.BadRequest(new { hata = uyusmazlik });
+            var name = GuvenliBelgeAdi(file.FileName, type);
             using var tx = db.Database.BeginTransaction();
             // Yetki ve durum dosya okunurken değişmiş olabilir; yazma kilidi altında tekrar kontrol et.
             if (!Sahibi(db, id, user)) return Results.NotFound();
@@ -50,18 +94,23 @@ public static class BelgeEndpoints
             if (odemeId is not null && !db.AlisOdemeler.Any(o => o.Id == odemeId && o.AlisId == id))
                 return Results.BadRequest(new { hata = "Ödeme bu alışa ait değil." });
             if (db.Belgeler.Count(b => b.AlisId == id) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
-            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = saat.GetUtcNow(), Icerik = bytes };
+            var simdi = saat.GetUtcNow();
+            if (AliciKotalari.Belge(db, user, id, bytes.Length, kota.CurrentValue, simdi) is { } kotaHatasi) return kotaHatasi;
+            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, Icerik = bytes };
             db.Belgeler.Add(belge); db.SaveChanges(); tx.Commit();
             return Results.Created($"/api/belgeler/{belge.Id}", new BelgeDto(belge.Id, id, odemeId, name, type, bytes.Length, belge.Yuklendi));
-        }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024));
+        }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024)).RequireRateLimiting(HizSinirlari.AlisYukleme).AddEndpointFilter(AliciAlisYuklemeSiniri.Filtre);
 
-        api.MapGet("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db) =>
+        api.MapGet("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db, HttpResponse response) =>
         {
             var parent = db.Belgeler.Where(b => b.Id == id).Select(b => (int?)b.AlisId).FirstOrDefault();
             if (parent is null || !Sahibi(db, parent.Value, user)) return Results.NotFound();
             var belge = db.Belgeler.AsNoTracking().Single(b => b.Id == id);
-            // Her zaman indirme; kullanıcı belgesi aynı origin'de çalıştırılamaz.
-            return Results.File(belge.Icerik, belge.IcerikTuru, belge.DosyaAdi);
+            // Her zaman indirme (Content-Disposition: attachment; RFC 6266 filename*): kullanıcı belgesi aynı origin'de
+            // çalıştırılamaz. Ad ve uzantı saklanan türden türetilir; izinli türler dışındaki içerik tarayıcıda yorumlanmaz.
+            response.Headers.XContentTypeOptions = "nosniff";
+            var tur = Uzantilar.ContainsKey(belge.IcerikTuru) ? belge.IcerikTuru : "application/octet-stream";
+            return Results.File(belge.Icerik, tur, GuvenliBelgeAdi(belge.DosyaAdi, belge.IcerikTuru));
         });
         api.MapDelete("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db) =>
         {
@@ -74,6 +123,71 @@ public static class BelgeEndpoints
             return Results.NoContent();
         });
         return app;
+    }
+
+    /// <summary>
+    /// Güvenli belge adı (purchase-1, apiclient-3): yol parçaları; kontrol, Unicode biçim (U+202E gibi yön işaretleri, sıfır
+    /// genişlikli karakterler), satır/paragraf ayırıcı ve eşi olmayan vekil karakterleri; Windows'ta geçersiz karakterler
+    /// atılır. Son uzantı (harf içeren, en çok 8 karakterlik) ve onun önünde kalan türün kendi uzantısı çıkarılır; gövde en
+    /// çok 120 karakterdir. Uzantı YALNIZ içerik türünden gelir (.pdf/.png/.jpg; izinli olmayan türde .bin): istemcinin
+    /// verdiği .hta/.cmd/.html gibi uzantı hiçbir zaman indirme adına geçmez. Windows ayrılmış adları (CON, NUL, COM1...)
+    /// 'belge-' önekiyle, boş ad 'belge' olarak döner.
+    /// </summary>
+    public static string GuvenliBelgeAdi(string? ad, string icerikTuru)
+    {
+        var uzanti = Uzantilar.GetValueOrDefault(icerikTuru, ".bin");
+        var govde = Temizle(ad);
+        if (UzantiBenzeri(govde) is { } son) govde = govde[..^son.Length].TrimEnd(' ', '.');
+        if (govde.EndsWith(uzanti, StringComparison.OrdinalIgnoreCase) || uzanti == ".jpg" && govde.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+            govde = govde[..govde.LastIndexOf('.')].TrimEnd(' ', '.');
+        if (govde.Length > 120) govde = govde[..(char.IsHighSurrogate(govde[119]) ? 119 : 120)].TrimEnd(' ', '.');
+        if (govde.Length == 0) return "belge" + uzanti;
+        return (AyrilmisAdlar.Contains(govde.Split('.')[0].TrimEnd(' ')) ? "belge-" + govde : govde) + uzanti;
+    }
+
+    /// <summary>
+    /// Yüklemede reddedilen uyuşmazlık: tür yalnız sihirli baytlardan belirlenir ve indirme adı o türden kurulur, bu yüzden
+    /// adın uzantısı ve tarayıcının bildirdiği tür güvenlik için gerekmez. Yalnız çalıştırılabilir dosya, betik, kısayol ya da web
+    /// sayfası olarak işaretlenmiş çok biçimli dosya (ör. '%PDF-' ile başlayan .hta, text/html) hiç saklanmaz. Uzantısız ya da
+    /// noktalı ad ('Fatura No.A12'), beyaz liste dışı tür (image/x-png, application/vnd.pdf) ve başka belge uzantısı meşrudur.
+    /// </summary>
+    private static string? Uyusmazlik(string? ad, string? bildirilen, string tur)
+    {
+        var temiz = Temizle(ad);
+        var nokta = temiz.LastIndexOf('.');
+        var uzanti = nokta < 0 ? "" : temiz[(nokta + 1)..];
+        var bildirilenTur = (bildirilen ?? "").Split(';')[0].Trim().ToLowerInvariant();
+        var tehlikeliTur = TehlikeliTurler.Contains(bildirilenTur) || bildirilenTur.Contains("html", StringComparison.Ordinal)
+            || bildirilenTur.Contains("script", StringComparison.Ordinal) || bildirilenTur.EndsWith("+xml", StringComparison.Ordinal);
+        if (!TehlikeliUzantilar.Contains(uzanti) && !tehlikeliTur) return null;
+        var adi = tur switch { "application/pdf" => "PDF", "image/png" => "PNG", _ => "JPEG" };
+        return $"Dosyanın uzantısı veya türü içeriğiyle ({adi}) uyuşmuyor: dosya çalıştırılabilir, betik ya da web sayfası olarak işaretlenmiş. Yalnız gerçek PDF, PNG ya da JPEG belgesi yükleyin; dosyayı .pdf, .png veya .jpg uzantısıyla kaydedip yeniden seçin.";
+    }
+
+    /// <summary>Yol ve yasak karakterlerden arınmış; baştaki boşlukları, sondaki boşluk ve noktaları kırpılmış ad.</summary>
+    private static string Temizle(string? ad)
+    {
+        var s = (ad ?? "").Replace('\\', '/');
+        s = s[(s.LastIndexOf('/') + 1)..];
+        var sb = new StringBuilder(s.Length);
+        for (var i = 0; i < s.Length; i++)
+        {
+            var c = s[i];
+            if (char.IsHighSurrogate(c) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1])) { sb.Append(c).Append(s[++i]); continue; }
+            if (char.IsSurrogate(c) || char.IsControl(c) || "<>:\"|?*".Contains(c)) continue;
+            if (CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator) continue;
+            sb.Append(c);
+        }
+        return sb.ToString().TrimStart(' ').TrimEnd(' ', '.');
+    }
+
+    /// <summary>Addaki son uzantı: harf içeren, en çok 8 karakterlik '.xxx'; tarih gibi yalnız rakam içeren son ek uzantı sayılmaz.</summary>
+    private static string? UzantiBenzeri(string ad)
+    {
+        var nokta = ad.LastIndexOf('.');
+        if (nokta < 0 || ad.Length - nokta - 1 is < 1 or > 8) return null;
+        var son = ad[nokta..];
+        return son.Skip(1).All(char.IsLetterOrDigit) && son.Skip(1).Any(char.IsLetter) ? son : null;
     }
 
     private static bool Sahibi(KasaDbContext db, int id, ClaimsPrincipal user)

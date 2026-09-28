@@ -26,6 +26,38 @@ public class IslemEditorTests
     }
 
     [Fact]
+    public async Task Yeni_gider_zaman_asiminda_ayni_istek_kimligiyle_yeniden_gonderilir()
+    {
+        var api = new SahteApi { IslemOlusturHatasi = new TaskCanceledException("İstek süresi doldu") };
+        var vm = new IslemlerViewModel(api) { DuzenTarih = new DateTime(2026, 3, 5), DuzenCari = "Kargo", DuzenTutar = 75m, DuzenKanal = "MEZAT", DuzenTip = GiderTipi.Cari };
+
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.NotNull(vm.Hata);
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(2, api.IslemOlusturmalari.Count);
+        Assert.NotNull(api.IslemOlusturmalari[0].IstekId);
+        Assert.Equal(api.IslemOlusturmalari[0].IstekId, api.IslemOlusturmalari[1].IstekId);
+        Assert.Equal(api.IslemOlusturmalari[0] with { IstekId = null }, api.IslemOlusturmalari[1] with { IstekId = null });
+
+        // Başarıdan sonra aynı içerikli yeni gider bilinçli ikinci kayıttır: yeni kimlik alır.
+        vm.DuzenTarih = new DateTime(2026, 3, 5); vm.DuzenCari = "Kargo"; vm.DuzenTutar = 75m; vm.DuzenKanal = "MEZAT";
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(3, api.IslemOlusturmalari.Count);
+        Assert.NotEqual(api.IslemOlusturmalari[0].IstekId, api.IslemOlusturmalari[2].IstekId);
+    }
+
+    [Fact]
+    public async Task Gider_duzenleme_istek_kimligi_gondermez()
+    {
+        var api = new SahteApi();
+        var vm = new IslemlerViewModel(api);
+        vm.Duzenle(new IslemDto(5, new DateOnly(2026, 3, 5), "Kargo", 75m, "MEZAT", GiderTipi.Cari, null));
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.SonIslemGuncelle!.Value.G.IstekId);
+        Assert.Equal(0, api.IslemOlusturCagri);
+    }
+
+    [Fact]
     public async Task Kart_harcamasi_krediKartiId_ve_tip_ile_kaydeder()
     {
         var api = new SahteApi();

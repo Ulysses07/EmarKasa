@@ -34,6 +34,20 @@ public class MutasyonTests
     }
 
     [Fact]
+    public async Task Islem_olustur_istek_kimligini_gonderir_eski_govde_null_birakir()
+    {
+        var (c, h) = Kur();
+        var istekId = Guid.NewGuid();
+        h.Kuyrukla(HttpStatusCode.OK, """{"id":1,"tarih":"2026-03-05","cari":"K","tutarTl":5.0,"kanal":"MEZAT","tip":"Cari","not":null}""");
+        await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "K", 5m, "MEZAT", GiderTipi.Cari, null, IstekId: istekId));
+        using (var doc = JsonDocument.Parse(h.SonGovde!)) Assert.Equal(istekId, doc.RootElement.GetProperty("istekId").GetGuid());
+
+        h.Kuyrukla(HttpStatusCode.Created, """{"id":2,"tarih":"2026-03-05","cari":"K","tutarTl":5.0,"kanal":"MEZAT","tip":"Cari","not":null}""");
+        await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "K", 5m, "MEZAT", GiderTipi.Cari, null));
+        using (var doc = JsonDocument.Parse(h.SonGovde!)) Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("istekId").ValueKind);
+    }
+
+    [Fact]
     public async Task Islem_olustur_tip_string_gonderir()
     {
         var (c, h) = Kur();

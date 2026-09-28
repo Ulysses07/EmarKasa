@@ -57,8 +57,10 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public string? SonFiltreCari;
     /// <summary>Ayarlanırsa işlem listesi yanıtını verir (baslangic, bitis, kanal): gecikmeli/sırasız yanıt testleri için.</summary>
     public Func<DateOnly?, DateOnly?, string?, Task<IReadOnlyList<IslemDto>>>? IslemlerGetir;
+    public int IslemlerCagri;
     public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
     {
+        IslemlerCagri++;
         SonFiltreBaslangic = baslangic; SonFiltreBitis = bitis; SonFiltreKanal = kanal; SonFiltreCari = cari;
         if (IslemlerGetir is not null) return IslemlerGetir(baslangic, bitis, kanal);
         return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
@@ -97,7 +99,15 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task<KanalDto> KanalOlusturAsync(KanalYaz g) { SonKanalOlustur = g; return Task.FromResult(new KanalDto(0, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
     public Task<KanalDto> KanalGuncelleAsync(int id, KanalYaz g) { SonKanalGuncelle = (id, g); return Task.FromResult(new KanalDto(id, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
     public Task KanalSilAsync(int id) { SonKanalSil = id; return Task.CompletedTask; }
-    public Task<IslemDto> IslemOlusturAsync(IslemYaz g) { SonIslemOlustur = g; IslemOlusturCagri++; return IslemKayitYaniti ?? Task.FromResult(new IslemDto(0, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not)); }
+    public List<IslemYaz> IslemOlusturmalari = new();
+    /// <summary>Ayarlanırsa bir sonraki gider oluşturma bu hatayla biter (bir kez): zaman aşımı sonrası tekrar testleri için.</summary>
+    public Exception? IslemOlusturHatasi;
+    public Task<IslemDto> IslemOlusturAsync(IslemYaz g)
+    {
+        SonIslemOlustur = g; IslemOlusturCagri++; IslemOlusturmalari.Add(g);
+        if (IslemOlusturHatasi is { } hata) { IslemOlusturHatasi = null; return Task.FromException<IslemDto>(hata); }
+        return IslemKayitYaniti ?? Task.FromResult(new IslemDto(0, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not));
+    }
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) { SonIslemGuncelle = (id, g); return Task.FromResult(new IslemDto(id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not)); }
     public Task IslemSilAsync(int id) { SonIslemSil = id; return Task.CompletedTask; }
     public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) { SonKartOlustur = g; return Task.FromResult(new KrediKartiDto(0, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }

@@ -40,6 +40,7 @@ public static class AlisHesaplari
                 dagilimlar.TryGetValue(o.IslemId, out var paylar)
                     ? paylar.Select(p => new AlisDagilimDto(p.KanalId, kanalAdlari[p.KanalId], p.Tutar)).ToList()
                     : [], o.Islem.HesapHareketi?.HesapId,
-                o.Islem.KrediKartiId is { } kartId ? kartAdlari?.GetValueOrDefault(kartId) : null)).ToList(), alis.TedarikciId, alis.Vade);
+                o.Islem.KrediKartiId is { } kartId ? kartAdlari?.GetValueOrDefault(kartId) : null,
+                o.Islem is { Tip: GiderTipi.KrediKarti, KrediKartiId: null })).ToList(), alis.TedarikciId, alis.Vade);
     }
 }
