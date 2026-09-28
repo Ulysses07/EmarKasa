@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.MonthlyExpenseTests;
 
@@ -53,6 +54,34 @@ public class RaporKuraliKararlariTests
         Assert.All(haftalik.Take(haftalik.Count - 1), h => Assert.Null(h!["veriSagligiUyarisi"]));
         // Kasa: başlangıç öncesi gider hiç düşmez, Mayıs K.K'sı Haziran sonunda düşer (davranış aynen korunur).
         Assert.Equal(1_000m - 700m, (await Panel(c)).GuncelKasa);
+    }
+
+    /// <summary>K1 adedi kullanıcının kayıtlarını sayar (R3 notu): üç kanala eşit bölünmüş aylık gider ödemesi bir kayıt, takip
+    /// başlangıcından önce çekilmiş eski kredinin başlangıç öncesi türetilmiş taksitleri tek kayıt (kredi) sayılır. Tutarlar
+    /// bütün satırların toplamıdır; raporun rakamları değişmez.</summary>
+    [Fact]
+    public async Task K1_uyarisi_kaynak_kayitlari_sayar_bolunmus_gider_ve_eski_kredi_taksitleri_bir_kez()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
+        var sablon = await Create(c, "Esit", [new(1, 0), new(2, 0), new(3, 0)]); // 100 TL, üç kanala 33,34 / 33,33 / 33,33
+        var odeme = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            // Canlıdaki eski kayıt gibi başlangıç öncesine tarihli ödeme; eski kredi Şubat'ta çekilmiş, 5 Mart, 5 Nisan ve
+            // 5 Mayıs taksitleri başlangıçtan önce (5 Haziran ve sonrası takip içinde).
+            db.Database.ExecuteSqlRaw("UPDATE Islemler SET Tarih = '2026-05-20' WHERE Id = {0}", odeme.IslemId!.Value);
+            db.Krediler.Add(new KrediEntity { Ad = "Eski kredi", CekilenTutar = 6_000m, CekimTarihi = new(2026, 2, 10), TaksitSayisi = 12, AylikOdeme = 500m, OdemeGunu = 5, Kanal = "MEZAT", KanalId = 1 });
+            db.SaveChanges();
+        }
+
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        Assert.StartsWith("Takip başlangıcından önce tarihli 2 kayıt, toplam 1.600,00 ₺ —", (string)haftalik[^1]!["veriSagligiUyarisi"]!);
+        var mayis = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=5"))!;
+        Assert.StartsWith("Takip başlangıcından önce tarihli 2 kayıt, toplam 600,00 ₺ —", (string)mayis["veriSagligiUyarisi"]!);
+        Assert.Equal(-33.34m - 500m, Sayi(Kanal(mayis, "MEZAT")["aySonucu"]));
+        var mart = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=3"))!;
+        Assert.StartsWith("Takip başlangıcından önce tarihli 1 kayıt, toplam 500,00 ₺ —", (string)mart["veriSagligiUyarisi"]!);
     }
 
     [Fact]

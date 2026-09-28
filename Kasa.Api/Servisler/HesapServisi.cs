@@ -1,8 +1,12 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Kasa.Api;
 using Kasa.Api.Data;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Kasa.Api.Servisler;
 
@@ -69,9 +73,11 @@ public class HesapServisi
         }
         void KayitSatirlari(IslemEntity kayit)
         {
+            // Kaydın bütün satırları (kanal payları) aynı kaynak anahtarını taşır: K1 adedi kayıt düzeyinde sayılır.
+            var kaynak = "Islem:" + kayit.Id;
             if (importedExpenses.TryGetValue(kayit.Id, out var importedExpense))
             {
-                var source = kayit.ToCore();
+                var source = kayit.ToCore() with { Kaynak = kaynak };
                 if (importedExpense.DagilimTuru == "Genel") dbIslemler.Add(source with { YalnizGenelKasa = true });
                 else foreach (var share in FinansTakipServisi.Read<TakipKanalPayi>(importedExpense.DagilimJson))
                     dbIslemler.Add(source with { Kanal = kanalAdlari[share.KanalId!.Value], TutarTl = share.Tutar });
@@ -80,7 +86,7 @@ public class HesapServisi
             if (aylikOdemeler.TryGetValue(kayit.Id, out var aylikOdeme))
             {
                 var revision = aylikRevizyonlar[aylikOdeme.RevizyonId];
-                var source = kayit.ToCore() with { AylikGider = true };
+                var source = kayit.ToCore() with { AylikGider = true, Kaynak = kaynak };
                 if (revision.DagilimTuru == "Genel") dbIslemler.Add(source with { YalnizGenelKasa = true });
                 else foreach (var share in FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson))
                     dbIslemler.Add(source with { Kanal = kanalAdlari[share.KanalId], TutarTl = share.Tutar });
@@ -96,7 +102,7 @@ public class HesapServisi
                 // ekranında ve açılış logunda görünür (KartGecisHesabi.IlkSurumKalintisi, aynı koşul).
                 if (KartGecisHesabi.IlkSurumdeAtlanir(tracking, kayit.Tarih)) return;
             }
-            var islem = kayit.ToCore();
+            var islem = kayit.ToCore() with { Kaynak = kaynak };
             if (!eslemeler.TryGetValue(kayit.Id, out var alis))
                 dbIslemler.Add(islem);
             else if (alis.Durum != "Onaylandi")
@@ -132,9 +138,10 @@ public class HesapServisi
         var donemler = DonemUretici.Uret(baslangic, bitis);
 
         // Krediyi sentetik kayıtlara türet (DB'ye yazılmaz, yalnız motora beslenir):
-        // çekim → genel kasa geliri, taksitler → seçilen kanal/Ortak gideri.
+        // çekim → genel kasa geliri, taksitler → seçilen kanal/Ortak gideri. Türetilmiş taksitler kaynak kaydı (kredi) taşır.
         var taksitler = krediKayitlari.Where(k => !k.GerceklesmeTakibi).SelectMany(k =>
-            KrediTuretici.TaksitGiderleri(k.ToCore()).Where(t => !krediTakip.TryGetValue(k.Id, out var tracking) || (tracking.EskiKayit && t.Tarih < tracking.Baslangic)));
+            KrediTuretici.TaksitGiderleri(k.ToCore()).Where(t => !krediTakip.TryGetValue(k.Id, out var tracking) || (tracking.EskiKayit && t.Tarih < tracking.Baslangic))
+                .Select(t => t with { Kaynak = "Kredi:" + k.Id }));
         var islemler = dbIslemler.Concat(taksitler).ToList();
         var cekimGelenleri = krediKayitlari.Where(k => !krediTakip.TryGetValue(k.Id, out var tracking) || tracking.EskiKayit)
             .Select(k => KrediTuretici.CekimGeleni(k.ToCore(), donemler))
@@ -159,14 +166,20 @@ public class HesapServisi
                     gelenler.Add(new(period.Start, kanalAdlari[share.KanalId], share.Tutar, KrediGirisi: true));
             foreach (var installment in takipliTaksitler[loan.Id])
                 foreach (var share in FinansTakipServisi.Read<KanalPayYaz>(installment.DagilimJson))
-                    islemler.Add(new(installment.Tarih, loan.Ad + " / " + installment.No + ". taksit", share.Tutar, kanalAdlari[share.KanalId], GiderTipi.Cari));
+                    islemler.Add(new(installment.Tarih, loan.Ad + " / " + installment.No + ". taksit", share.Tutar, kanalAdlari[share.KanalId], GiderTipi.Cari) { Kaynak = "KrediTaksiti:" + installment.Id });
         }
         // Takipli kartın yalnız ödeme kanal payları gerekir: tam kart DTO'su (ekstre, harcama, kalan borç) hesaplanmaz.
         foreach (var cardId in kartTakip.Keys)
+        {
+            var sira = 0;
             foreach (var payment in FinansTakipServisi.KartOdemeDagilimlari(takip, cardId))
+            {
+                var kaynak = "KartOdemesi:" + cardId + ":" + sira++;
                 foreach (var share in payment.Dagilimlar)
                     islemler.Add(new(payment.Tarih, "Kart ödemesi", share.Tutar, share.Kanal, GiderTipi.KrediKarti, payment.Not,
-                        DagilimBekliyor: share.KanalId is null, NakitKartOdemesi: true));
+                        DagilimBekliyor: share.KanalId is null, NakitKartOdemesi: true) { Kaynak = kaynak });
+            }
+        }
 
         return new Yuk(kanallar, islemler, gelenler, donemler, ayar.KasaAcilisDevri,
             kanalAdlari.ToDictionary(k => k.Value, k => (int?)k.Key), ufukUyarisi);
@@ -240,5 +253,52 @@ public class HesapServisi
 
         return new PanelDto(guncelKasa, kanalBakiyeleri, buHafta, buAy,
             haftalik.Sum(h => h.DagilimBekleyenTutar));
+    }
+}
+
+/// <summary>
+/// Rapor yolunun veri karantinası (gap-veri-degismezleri-patlama-yaricapi-3). Rapora satır veren tek bir kaydın kendi verisindeki
+/// sorun (bilinmeyen kanal kimliği, okunamayan dağılım/pay JSON'u, eksik kaynak, türetilemeyen plan) bütün raporu düşürmez: kayıt
+/// karantinaya alınır, raporda veri sağlığı uyarısıyla görünür ve kayıt anahtarıyla uygulama başına bir kez Warning loglanır.
+/// Hata politikası listeleme yolununkiyle (<c>FinansTakipServisi.Adlandir</c>: silinmiş kanal adı) aynı yöndedir: kayıt
+/// gösterilir, sorun gizlenmez. Veritabanı, iptal ve kod hataları karantinaya alınmaz; olduğu gibi yükselir.
+/// </summary>
+internal static class VeriKarantinasi
+{
+    public const string LogKategorisi = "Kasa.Rapor";
+
+    /// <summary>Kaydın kendi verisinden doğan hata mı: JSON, eksik sözlük anahtarı, boş zorunlu değer, geçersiz tutar/plan.
+    /// Veritabanı hatası (SqliteException), iptal ve atılmış bağlam bu sınıfa girmez.</summary>
+    public static bool VeriHatasiMi(Exception e) => e is JsonException or KeyNotFoundException or ArgumentException or FormatException
+        or OverflowException or NullReferenceException or IndexOutOfRangeException
+        || (e is InvalidOperationException && e is not ObjectDisposedException);
+
+    /// <summary>Kaydın JSON listesi (dağılım, pay); okunamazsa null: çağıran kaydı karantinaya alır.</summary>
+    public static List<T>? Oku<T>(string? json)
+    {
+        if (json is null) return null;
+        try { return FinansTakipServisi.Read<T>(json); }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>Karantina kaydını <paramref name="anahtar"/> (kayıt türü ve kimliği) ile uygulama başına bir kez Warning olarak yazar:
+    /// aynı bozuk kayıt her rapor isteğinde ve dakikalık bildirim işçisinde yeniden görülür, log taşmaz.</summary>
+    public static void Logla(KasaDbContext db, string anahtar, string aciklama, Exception? hata = null)
+    {
+        if (!IlkKezMi(db, anahtar)) return;
+        db.GetService<ILoggerFactory>().CreateLogger(LogKategorisi).LogWarning(hata, "Veri karantinası [{Anahtar}]: {Aciklama}", anahtar, aciklama);
+    }
+
+    // Kapsam uygulamanın kök ILoggerFactory'sidir (üretimde süreçte tek; testlerde her uygulama ayrı). Önbellek sınırlıdır:
+    // dolunca boşaltılır ve uyarılar yeniden birer kez yazılır (FinansTakipServisi'nin kırpma uyarısıyla aynı kural).
+    private static readonly ConditionalWeakTable<object, ConcurrentDictionary<string, byte>> Gorulenler = new();
+    private static readonly object VarsayilanKapsam = new();
+    private const int GorulenSiniri = 1024;
+    private static bool IlkKezMi(KasaDbContext db, string anahtar)
+    {
+        var kapsam = (object?)db.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider?.GetService<ILoggerFactory>() ?? VarsayilanKapsam;
+        var gorulen = Gorulenler.GetValue(kapsam, _ => new(StringComparer.Ordinal));
+        if (gorulen.Count >= GorulenSiniri) gorulen.Clear();
+        return gorulen.TryAdd(anahtar, 0);
     }
 }

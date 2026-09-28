@@ -65,12 +65,22 @@ public static class AyRaporAnlikGoruntusu
 
     public static DateOnly AySonu(int yil, int ay) => new(yil, ay, DateTime.DaysInMonth(yil, ay));
 
-    /// <summary>Kilitli ayın dondurulmuş raporu; ay kilitli değilse (görüntü yoksa) null.</summary>
+    /// <summary>Kilitli ayın dondurulmuş raporu; görüntü yoksa ya da ay kilitli değilse null (rapor canlı hesaplanır). Görüntü
+    /// yalnız ay kilit sonuna kadarsa döner: görüntüyü silmeyen bir önceki sürüme dönülüp ay orada açılırsa satır artık kalır;
+    /// açık ay için bayat "dondurulmus" rapor sunulmaz, artık satır ay başına bir kez Warning olarak loglanır. Artık satır ay
+    /// yeniden kapatılmadan önce (ay açıkken tetikleyici silmeye izin verir) silinmelidir: kapatma aynı ay için yeni görüntü yazar.</summary>
     public static JsonObject? Oku(KasaDbContext db, int yil, int ay)
     {
         var satir = db.AyRaporAnlikGoruntuleri.AsNoTracking().Where(g => g.Yil == yil && g.Ay == ay)
             .Select(g => new { g.Json, g.KuralSurumu }).SingleOrDefault();
         if (satir is null) return null;
+        var kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).SingleOrDefault();
+        if (kilit is not { } son || AySonu(yil, ay) > son)
+        {
+            VeriKarantinasi.Logla(db, string.Create(CultureInfo.InvariantCulture, $"AyRaporGoruntusu:{yil:D4}-{ay:D2}"), string.Create(CultureInfo.InvariantCulture,
+                $"{yil:D4}-{ay:D2} ayının rapor görüntüsü var ama ay kilitli değil (kilit sonu: {(kilit is { } k ? k.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : "yok")}); rapor canlı hesaplandı. Satır görüntüyü silmeyen bir önceki sürümde açılan aydan kalmış olabilir; ay yeniden kapatılmadan önce silinmelidir."));
+            return null;
+        }
         var rapor = JsonNode.Parse(satir.Json)!.AsObject();
         rapor["kuralSurumu"] = satir.KuralSurumu;
         rapor["dondurulmus"] = true;

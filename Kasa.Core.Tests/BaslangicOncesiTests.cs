@@ -40,6 +40,37 @@ public class BaslangicOncesiTests
         Assert.Equal((3, 5_390m), HesapMotoru.BaslangicOncesi(Islemler, Donemler));
     }
 
+    /// <summary>R3 notu: adet motor satırı değil kaynak kayıttır. Kanallara bölünmüş bir gider ve eski kredinin türetilmiş
+    /// taksitleri kullanıcının girdiği kayıt sayısını şişirmez; tutar bütün satırların toplamı olarak kalır.</summary>
+    [Fact]
+    public void Adet_kaynak_kayit_duzeyindedir_bolunmus_gider_ve_turetilmis_taksitler_bir_kez_sayilir()
+    {
+        // Eski kredi 20 Mart'ta çekilmiş: taksitleri 5 Nisan, 5 Mayıs, 5 Haziran, 5 Temmuz; ilk üçü başlangıçtan (17 Haziran) önce.
+        var taksitler = KrediTuretici.TaksitGiderleri(new Kredi("Eski kredi", 0m, new DateOnly(2026, 3, 20), 4, 500m, 5, "MEZAT"))
+            .Select(t => t with { Kaynak = "Kredi:3" });
+        Islem[] islemler =
+        [
+            // Üç kanala bölünmüş tek gider: aynı kaynak.
+            new(new DateOnly(2026, 6, 10), "Bölünen gider", 100m, "MEZAT", GiderTipi.Cari) { Kaynak = "Islem:7" },
+            new(new DateOnly(2026, 6, 10), "Bölünen gider", 100m, "PERAKENDE", GiderTipi.Cari) { Kaynak = "Islem:7" },
+            new(new DateOnly(2026, 6, 10), "Bölünen gider", 100m, "TOPTAN", GiderTipi.Cari) { Kaynak = "Islem:7" },
+            .. taksitler,
+            // Anahtarsız satır tek başına bir kayıttır (eski davranış).
+            new(new DateOnly(2026, 6, 12), "Maaş", 300m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new(new DateOnly(2026, 6, 12), "Maaş", 300m, Kanallar.Ortak, GiderTipi.SabitGider),
+        ];
+        // Kaynaklar: bölünen gider, eski kredi ve iki anahtarsız satır.
+        Assert.Equal((4, 300m + 1_500m + 600m), HesapMotoru.BaslangicOncesi(islemler, Donemler));
+        Assert.Equal((4, 300m + 500m + 600m), HesapMotoru.BaslangicOncesi(islemler, Donemler, (2026, 6)));
+        Assert.Equal((1, 500m), HesapMotoru.BaslangicOncesi(islemler, Donemler, (2026, 4)));
+        // Kaynak anahtarı hesaba girmez: rapor anahtarsız satırlarla birebir aynıdır.
+        var anahtarsiz = islemler.Select(i => i with { Kaynak = null }).ToList();
+        Assert.Equal(HesapMotoru.AylikHesapla(2026, 6, UcKanal, anahtarsiz, [], Donemler).Kanallar,
+            HesapMotoru.AylikHesapla(2026, 6, UcKanal, islemler, [], Donemler).Kanallar);
+        Assert.Equal(HesapMotoru.HaftalikHesapla(0m, UcKanal, anahtarsiz, [], Donemler).Select(h => (h.KasaDevir, h.DagilimBekleyenTutar)),
+            HesapMotoru.HaftalikHesapla(0m, UcKanal, islemler, [], Donemler).Select(h => (h.KasaDevir, h.DagilimBekleyenTutar)));
+    }
+
     [Fact]
     public void Donem_yoksa_ayin_butun_giderleri_baslangic_oncesidir()
     {
