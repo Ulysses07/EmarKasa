@@ -135,6 +135,39 @@ public static class FinansTakipServisi
         }
         db.SaveChanges();
     }
+    /// <summary>
+    /// Eski kuralla yazılmış, otomatik dönüştürülmeyen takip kayıtlarının uyarıları (bütünlük denetimi; açılışta loglanır,
+    /// bkz. <see cref="KartGecisHesabi.IlkSurumKalintilari"/>). Kayıtlar raporlara bugünkü halleriyle girer; dönüştürme geçmiş
+    /// raporları değiştirirdi ve doğru hali ancak banka ekstresiyle belirlenebilir. Salt okunur; iki desen aranır:
+    /// kartın kesim günü (kısa ayda ay sonu) dışında kesilmiş ekstre — taksitleri ilk kesim gününe sabitleyen eski kuralın
+    /// kartın döngüsüne paralel ekstresi olabilir (finance-3; aynı ay ikinci kesim bildirimi), kesim günü sonradan
+    /// değiştirildiyse eski günün ekstresidir — ve genel gider ekranından takipli karta girilmiş eksi gider (gidere bağlı,
+    /// kaynak harcamasız eksi harcama): kaynaksız alacak olarak herhangi bir kanalın taksidine mahsup edilir (finance-9).
+    /// </summary>
+    public static List<string> EskiKuralKalintilari(KasaDbContext db)
+    {
+        var kartlar = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id);
+        string Kart(int id) => $"Kart {id} ({(kartlar.TryGetValue(id, out var k) ? k.Ad : "silinmiş kart")})";
+        var uyarilar = new List<string>();
+        foreach (var ekstreler in db.TakipEkstreler.AsNoTracking().ToList().GroupBy(s => s.KrediKartiId).OrderBy(g => g.Key))
+        {
+            if (!kartlar.TryGetValue(ekstreler.Key, out var kart)) continue;
+            var day = kart.KesimTarihi.Day;
+            var disarida = ekstreler.Select(s => s.KesimTarihi).Where(t => t != Gun(t, day)).Order().ToList();
+            if (disarida.Count == 0) continue;
+            var ciftAylar = ekstreler.GroupBy(s => (s.KesimTarihi.Year, s.KesimTarihi.Month)).Where(a => a.Count() > 1).Select(a => a.Key).ToHashSet();
+            uyarilar.Add($"{Kart(kart.Id)}: kartın kesim günü ({day}) dışında kesilmiş {disarida.Count} ekstre var "
+                + $"({KartGecisHesabi.Tarih(disarida[0])}–{KartGecisHesabi.Tarih(disarida[^1])}; {disarida.Count(t => ciftAylar.Contains((t.Year, t.Month)))} tanesi aynı ay kartın başka bir ekstresiyle birlikte). "
+                + "Taksitleri ilk kesim gününe sabitleyen eski kuralın paralel ekstresi olabilir (aynı ay ikinci kesim bildirimi); kesim günü sonradan değiştirildiyse eski günün ekstreleridir. "
+                + "Kayıtlar otomatik dönüştürülmez, raporlar değişmez; banka ekstreleriyle karşılaştırın.");
+        }
+        foreach (var eksiler in db.TakipHarcamalar.AsNoTracking().Where(h => h.IslemId != null && h.KaynakHarcamaId == null && !h.Iptal && h.Tutar < 0).ToList()
+            .GroupBy(h => h.KrediKartiId).OrderBy(g => g.Key))
+            uyarilar.Add($"{Kart(eksiler.Key)}: genel gider ekranından girilmiş {eksiler.Count()} eksi kart gideri (toplam {KartGecisHesabi.Tl(-eksiler.Sum(h => h.Tutar))}; "
+                + $"{KartGecisHesabi.Tarih(eksiler.Min(h => h.Tarih))}–{KartGecisHesabi.Tarih(eksiler.Max(h => h.Tarih))}) kaynak harcamasız alacak olarak herhangi bir kanalın taksidine mahsup ediliyor; "
+                + "iade akışının kaynak ve kanal korumaları uygulanmadı. Kayıtlar otomatik dönüştürülmez, raporlar değişmez; iadenin kaynak harcamasını banka ekstresiyle doğrulayın.");
+        return uyarilar;
+    }
     /// <summary>Eski kartı yeni takibe alır; doğrulama (KartGecisHesabi ile önizleme) çağırandadır. Yeni
     /// geçişler işlem tarihi kuralıyla yazılır: başlangıçtan önceki eski giderler eski ay sonu kuralıyla
     /// bir kez düşer, devir borcunun kasada önceden sayılan kısmı ödemede ikinci kez düşmez. Mali sonucu

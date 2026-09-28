@@ -2,7 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Kasa.Api.Data;
+using Kasa.Core;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Kasa.Api.Tests;
 
@@ -10,7 +16,8 @@ namespace Kasa.Api.Tests;
 /// Takipli kart taksitlerinin ekstreye bağlanması (finance-3). İlk kesim tarihi yalnız ilk taksidin girdiği
 /// döngüyü seçer; bütün taksitler kartın kendi kesim gününe (kısa ayda ay sonuna) düşer. Böylece bankada
 /// olmayan, kartın döngüsüne paralel ikinci ekstre ve aynı ay ikinci kesim bildirimi oluşmaz. İlk kesimsiz
-/// harcamanın ekstre ataması değişmez. Tarihler sabittir; sunucunun "bugün"ü her testte ayrıca verilir.
+/// harcamanın ekstre ataması değişmez. Eski kuralla yazılmış paralel ekstreler dönüştürülmez, açılışta uyarılır.
+/// Tarihler sabittir; sunucunun "bugün"ü her testte ayrıca verilir.
 /// </summary>
 public class KartKesimTests
 {
@@ -204,5 +211,70 @@ public class KartKesimTests
         Assert.Equal(eskiKesimler, TaksitKesimleri(f, eski.Id));
         Assert.Equal(30m, kart.Ekstreler.Single(s => s.KesimTarihi == new DateOnly(2026, 11, 5)).Borc);
         Assert.Equal(20m, kart.Ekstreler.Single(s => s.KesimTarihi == new DateOnly(2026, 11, 20)).Borc);
+    }
+
+    [Fact]
+    public async Task Eski_kuralla_yazilmis_paralel_ekstre_ve_kaynaksiz_eksi_kart_gideri_acilista_uyarilir_kayitlar_ve_raporlar_degismez()
+    {
+        // finance-3 ve finance-9 düzeltmeleri yalnız yeni yazmaları kapsar; eski kuralla yazılmış kayıtlar otomatik
+        // dönüştürülmez (doğru hali ancak banka ekstresiyle belirlenebilir), her açılışta uyarı olarak görünür kılınır.
+        using var baglanti = new SqliteConnection("Data Source=:memory:"); baglanti.Open();
+        KartTakipDto eski, temiz; string once;
+        await using (var f = new HazirFactory(baglanti) { Saat = new SabitSaat(Bugun) })
+        {
+            using var c = await Editor(f, Baslangic);
+            eski = await Kart(c, 5, 25, Baslangic);
+            temiz = await Kart(c, 5, 25, Baslangic);
+            eski = await Harcama(c, eski, new(2026, 9, 20), 300m, 3, null);
+            // Yeni kuralla kaymış ilk kesim (6 Ekim) kartın gününe bağlanır: uyarı üretmez.
+            temiz = await Harcama(c, temiz, new(2026, 9, 20), 300m, 3, new(2026, 10, 6));
+            using (var scope = f.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+                // Eski kural (finance-3): 6 Ekim ilk kesimli taksitler 6'sına sabitlenmiş, kartın döngüsüne paralel ekstrelerdeydi.
+                var harcamaId = Assert.Single(eski.Harcamalar).Id;
+                var taksitler = db.TakipKartTaksitler.Where(t => t.HarcamaId == harcamaId).OrderBy(t => t.Id).ToList();
+                for (var i = 0; i < taksitler.Count; i++)
+                {
+                    var paralel = new TakipEkstreEntity { KrediKartiId = eski.Id, KesimTarihi = new DateOnly(2026, 10, 6).AddMonths(i), SonOdemeTarihi = new DateOnly(2026, 10, 25).AddMonths(i) };
+                    db.TakipEkstreler.Add(paralel); db.SaveChanges(); taksitler[i].EkstreId = paralel.Id;
+                }
+                // Eski kural (finance-9): genel gider ekranından takipli karta girilen eksi gider kaynaksız alacak olurdu.
+                db.Islemler.Add(new IslemEntity { Tarih = new(2026, 9, 22), Cari = "PERAKENDE iadesi", TutarTl = -30m, Kanal = "PERAKENDE", KanalId = 2,
+                    Tip = GiderTipi.KrediKarti, KrediKartiId = eski.Id });
+                db.SaveChanges();
+                FinansTakipServisi.Bakim(db);
+                Assert.Single(db.TakipHarcamalar.Where(h => h.KrediKartiId == eski.Id && h.IslemId != null).ToList(), h => h.Tutar == -30m);
+            }
+            once = await Raporlar(c, eski.Id);
+        }
+
+        var loglar = new UyariToplayici();
+        await using var f2 = new HazirFactory(baglanti, loglar) { Saat = new SabitSaat(Bugun) };
+        using var c2 = await f2.EditorClientAsync();
+        Assert.Equal(once, await Raporlar(c2, eski.Id));
+        Assert.Contains(loglar.Uyarilar, m => m.StartsWith($"Kart {eski.Id} (Kesim kartı)") && m.Contains("kesim günü (5) dışında kesilmiş 3 ekstre")
+            && m.Contains("06.10.2026–06.12.2026") && m.Contains("3 tanesi aynı ay") && m.Contains("otomatik dönüştürülmez"));
+        Assert.Contains(loglar.Uyarilar, m => m.StartsWith($"Kart {eski.Id} (Kesim kartı)") && m.Contains("1 eksi kart gideri")
+            && m.Contains("30,00 TL") && m.Contains("22.09.2026") && m.Contains("otomatik dönüştürülmez"));
+        Assert.DoesNotContain(loglar.Uyarilar, m => m.StartsWith($"Kart {temiz.Id} ("));
+    }
+
+    private static async Task<string> Raporlar(HttpClient c, int kartId) =>
+        await c.GetStringAsync("/api/rapor/panel") + await c.GetStringAsync($"/api/takip/kartlar/{kartId}") + await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=9");
+
+    // Uygulamayı önceden hazırlanmış bağlantı üzerinde başlatır: ikinci açılış ilkinin yazdığı veriyi görür.
+    private sealed class HazirFactory(SqliteConnection hazir, UyariToplayici? loglar = null) : KasaWebFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            if (loglar is not null) builder.ConfigureLogging(logging => logging.AddProvider(loglar));
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<DbContextOptions<KasaDbContext>>();
+                services.AddDbContext<KasaDbContext>(o => o.UseSqlite(hazir));
+            });
+        }
     }
 }

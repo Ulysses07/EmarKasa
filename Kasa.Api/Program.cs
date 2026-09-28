@@ -108,6 +108,10 @@ using (var scope = app.Services.CreateScope())
     // kart ekranında da gösterilir.
     foreach (var kalinti in KartGecisHesabi.IlkSurumKalintilari(db))
         app.Logger.LogWarning("Kart {KartId} ({Kart}) yeni takibe ilk sürüm kuralıyla geçirildi. {Uyari}", kalinti.KartId, kalinti.KartAdi, KartGecisHesabi.Uyari(kalinti));
+    // Aynı yaklaşım: ilk kesim gününe sabitlenmiş paralel ekstreler (finance-3) ve gider ekranından takipli karta girilmiş
+    // eksi giderler (finance-9) eski kuralla yazılmıştır; otomatik dönüştürülmez, her açılışta görünür kılınır.
+    foreach (var uyari in FinansTakipServisi.EskiKuralKalintilari(db))
+        app.Logger.LogWarning("{Uyari}", uyari);
 }
 
 // İlk sırada: hız sınırı, kimlik doğrulama ve loglar güvenilen vekilin bildirdiği istemci IP'sini görür.

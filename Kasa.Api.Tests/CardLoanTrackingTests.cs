@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
@@ -194,6 +195,31 @@ public class CardLoanTrackingTests
         // Kartsız eksi gider (düzeltme) davranışı değişmez.
         (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kasa düzeltmesi", -30m, "PERAKENDE", GiderTipi.Cari))).EnsureSuccessStatusCode();
         Assert.Equal(930m, await Cash(c));
+    }
+
+    [Fact]
+    public async Task Eski_kuralla_gider_ekranindan_girilmis_eksi_kart_gideri_kalinti_olarak_bulunur_iade_akisi_ve_pozitif_gider_bulunmaz()
+    {
+        // finance-9 öncesi kuralla yazılmış kayıt dönüştürülmez; bütünlük denetimi (açılış uyarısı) onu bulur.
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Start, "MEZAT harcaması", 100m, 1, null, [new(1, 100m)]));
+        var kaynak = Assert.Single(card.Harcamalar).Id;
+        // Doğru yollar: kaynak seçilen iade ve gider ekranından pozitif kart gideri.
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "MEZAT iadesi", -20m, 1, null, [], kaynak));
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE alışı", 50m, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id))).EnsureSuccessStatusCode();
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        Assert.Empty(FinansTakipServisi.EskiKuralKalintilari(db));
+
+        // Eski kural: PERAKENDE iadesi gider ekranından eksi tutarla girilmişti; bakım adımı onu kaynaksız alacak yaptı.
+        db.Islemler.Add(new IslemEntity { Tarih = Today, Cari = "PERAKENDE iadesi", TutarTl = -30m, Kanal = "PERAKENDE", KanalId = 2, Tip = GiderTipi.KrediKarti, KrediKartiId = card.Id });
+        db.SaveChanges(); FinansTakipServisi.Bakim(db);
+        var once = await Cash(c);
+        var uyari = Assert.Single(FinansTakipServisi.EskiKuralKalintilari(db));
+        Assert.StartsWith($"Kart {card.Id} (Takip kart)", uyari);
+        Assert.Contains("1 eksi kart gideri", uyari); Assert.Contains("30,00 TL", uyari);
+        Assert.Contains(Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture), uyari);
+        Assert.False(db.ChangeTracker.HasChanges()); Assert.Equal(once, await Cash(c));
     }
 
     [Fact]
