@@ -125,6 +125,16 @@ export function permissions(role, purchase) {
   return { finance: editor, edit: (editor || buyer) && (purchase?.durum === 'Taslak' || editor && purchase?.durum === 'Incelemede'), send: (editor || buyer) && purchase?.durum === 'Taslak', approve: editor && purchase?.durum === 'Incelemede', return: editor && ['Incelemede', 'Onaylandi'].includes(purchase?.durum), pay: editor && Number(purchase?.kalan) > 0 };
 }
 export const statusLabels = { Taslak: 'Taslak', Incelemede: 'İncelemede', Onaylandi: 'Onaylandı' };
+// K3: alış ödemesinde kart yalnız yeni takipteki, yeni kullanıma açık kartlardan seçilir (sunucu kartlı yeni ödemeyi başka
+// karta bağlamaz). Mevcut kaydın kendi kartı (düzeltilen ödemenin ya da bağlanan giderin eski/kapalı kartı) ayrıca listelenir:
+// kayıt kendi kartıyla kalabilir. Gider formundaki (expenseDialog) kart listesiyle aynı kural ve etiket.
+export function paymentCardChoices(cards, keepId = null) {
+  const all = cards || [];
+  const tracked = all.filter(card => card.yeniTakip && card.aktif);
+  const keep = keepId == null || keepId === '' || tracked.some(card => card.id === Number(keepId)) ? null : Number(keepId);
+  return [{ value: '', label: 'Nakit / havale' }, ...tracked.map(card => ({ value: card.id, label: card.ad })),
+    ...(keep == null ? [] : [{ value: keep, label: `${all.find(card => card.id === keep)?.ad || `Kart #${keep}`} (eski kayıt)` }])];
+}
 export function filteredPurchases(purchases, query, status) {
   const term = (query || '').toLocaleLowerCase('tr-TR');
   return purchases.filter(p => (!status || p.durum === status) && `${p.id} ${p.tedarikci} ${p.alici} ${(p.kalemler || []).map(k => k.aciklama).join(' ')}`.toLocaleLowerCase('tr-TR').includes(term));

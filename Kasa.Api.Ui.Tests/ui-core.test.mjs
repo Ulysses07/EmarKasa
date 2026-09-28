@@ -187,8 +187,9 @@ test('new cash expense duplicate can be cancelled and lookup failure never silen
 test('new purchase payment checks its purchase and card, while linking an existing expense skips duplicate checks', async () => {
   const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 4 };
-  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı', yeniTakip: true, aktif: true }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
   await app.paymentDialog(purchase); formField(nodes, 'tutar').value = '75'; formField(nodes, 'krediKartiId').value = '4';
+  assert.ok(formField(nodes, 'krediKartiId').children.some(option => option.textContent === 'İş kartı'), 'Takipteki kart seçilebilir.');
   await submitDialog(nodes);
   const lookup = calls.find(call => call.path === '/api/islemler/benzerlik'); assert.equal(lookup.body.tur, 'AlisOdeme'); assert.equal(lookup.body.alisId, 6); assert.equal(lookup.body.krediKartiId, 4);
   assert.equal(calls.some(call => call.path === '/api/alis/6/odemeler'), false);
@@ -1699,4 +1700,26 @@ test('kural 1 ile dondurulmuş ayın kilidi açılırken rapor güncel kuralla y
   close.find(node => node.tag === 'button' && node.textContent === 'Bu ay sonuna kadar kilitle').listeners.click();
   assert.match(nodes.get('#modal-content').textContent, /son günü dahil bütün geçmiş/);
   assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/, 'Kapatma onayında uyarı yok.');
+});
+test('alış ödeme formu kartta yalnız takipteki açık kartları listeler; bağlanan giderin ve düzeltilen ödemenin kendi kartı korunur', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi', odemeler: [] };
+  const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 1 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/6/odemeler/8': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [] });
+  const labels = () => formField(nodes, 'krediKartiId').children.map(option => option.textContent);
+  await app.paymentDialog(purchase);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli']);
+  const existing = formField(nodes, 'mevcutIslemId'); existing.value = '20'; existing.listeners.change();
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Eski kart (eski kayıt)'], 'Bağlanan giderin eski kartı gösterilir.');
+  existing.value = ''; existing.listeners.change();
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli'], 'Seçim kalkınca eski kart yeni ödemede seçilemez.');
+  existing.value = '20'; existing.listeners.change(); await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.krediKartiId, 1);
+  const payment = { id: 8, tarih: '2026-09-23', tutar: 50, krediKartiId: 3, krediKartiAdi: 'Kapalı', dagilimBekliyor: false, dagilimlar: [] };
+  await app.paymentDialog({ ...purchase, odemeler: [payment] }, payment);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Kapalı (eski kayıt)']);
+  formField(nodes, 'aciklama').value = 'Tarih düzeltmesi'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8').body.krediKartiId, 3);
+  assert.deepEqual(ui.paymentCardChoices(cards, 9).map(option => option.label), ['Nakit / havale', 'Takipli', 'Kart #9 (eski kayıt)']);
+  assert.deepEqual(ui.paymentCardChoices(cards, 2).map(option => option.value), ['', 2]);
 });

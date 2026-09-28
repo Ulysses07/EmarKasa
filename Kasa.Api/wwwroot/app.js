@@ -1,4 +1,4 @@
-import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning } from './ui-core.js?v=2.3.0';
+import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, paymentCardChoices, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning } from './ui-core.js?v=2.3.0';
 import { createFinanceUi } from './finance-ui.js?v=2.3.0';
 import { createNotificationUi } from './notification-ui.js?v=2.3.0';
 import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
@@ -352,7 +352,9 @@ async function paymentDialog(p, payment = null) {
   const identity = requestIdentity();
   const date = input('tarih', payment?.tarih || today(), { type: 'date', required: true });
   const total = input('tutar', payment?.tutar ?? p.kalan, { inputmode: 'decimal', required: true });
-  const card = select('krediKartiId', [{ value: '', label: 'Nakit / havale' }, ...state.cards.map(k => ({ value: k.id, label: k.ad }))], payment?.krediKartiId);
+  // K3: yalnız takipteki açık kartlar; düzeltilen ödemenin ya da bağlanan giderin kendi kartı ayrıca listelenir.
+  const card = select('krediKartiId', paymentCardChoices(state.cards, payment?.krediKartiId), payment?.krediKartiId);
+  const cardChoices = keepId => card.replaceChildren(...paymentCardChoices(state.cards, keepId).map(option => h('option', { value: option.value }, option.label)));
   const existing = select('mevcutIslemId', [{ value: '', label: 'Yeni gider oluştur' }], '');
   const existingHelp = help('Daha önce gider olarak girdiğiniz bir ödemeyi bağlarsanız kasadan ikinci kez düşülmez.');
   if (!payment) {
@@ -361,6 +363,7 @@ async function paymentDialog(p, payment = null) {
     existing.replaceChildren(h('option', { value: '' }, 'Yeni gider oluştur'), ...available.map(e => h('option', { value: e.id }, `#${e.id} · ${dateText(e.tarih)} · ${e.cari} · ${money(e.tutarTl)}`)));
     existing.addEventListener('change', () => {
       const selected = available.find(e => e.id === Number(existing.value));
+      cardChoices(selected?.krediKartiId);
       if (selected) { date.value = selected.tarih; total.value = selected.tutarTl; card.value = selected.krediKartiId || ''; }
       date.disabled = Boolean(selected); total.disabled = Boolean(selected); card.disabled = Boolean(selected);
     });

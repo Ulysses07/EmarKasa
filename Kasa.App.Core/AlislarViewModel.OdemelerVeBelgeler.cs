@@ -30,6 +30,9 @@ public partial class AlislarViewModel
         EskiKartHarcamasi = odeme.Veri.KrediKartiId is null && _giderler.Any(g => g.Id == odeme.Veri.IslemId && g.Tip == GiderTipi.KrediKarti);
         DuzeltmeKartlari.Clear(); DuzeltmeKartlari.Add(new(null, EskiKartHarcamasi ? "Eski kart harcamasını koru" : "Nakit / banka"));
         foreach (var kart in OdemeKartlari.Where(k => k.Id is not null)) DuzeltmeKartlari.Add(kart);
+        // K3: liste yalnız takipteki açık kartlardır; ödemenin kendi (eski/kapalı) kartı ayrıca eklenir, kayıt kartıyla kalabilir.
+        if (odeme.Veri.KrediKartiId is { } kendi && DuzeltmeKartlari.All(k => k.Id != kendi))
+            DuzeltmeKartlari.Add(new(kendi, $"{(string.IsNullOrWhiteSpace(odeme.Veri.KrediKartiAdi) ? _kartAdlari.GetValueOrDefault(kendi, $"Kart #{kendi}") : odeme.Veri.KrediKartiAdi)} (eski kayıt)"));
         DuzeltmeKarti = DuzeltmeKartlari.FirstOrDefault(k => k.Id == odeme.Veri.KrediKartiId);
         HedefAlis = null; DuzeltmeAciklamasi = "";
         _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
