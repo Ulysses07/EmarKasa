@@ -178,7 +178,7 @@ public class CardLoanTrackingTests
             var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE iadesi", tutar, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id));
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
             var hata = (await r.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("errors").GetProperty("tutarTl")[0].GetString();
-            Assert.Equal(KayitGirdileri.TakipliKartIadeYolu, hata);
+            Assert.Equal(FinansHesaplari.TakipliKartIadeYolu, hata);
         }
         var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
         Assert.Equal(100m, after.Borc); Assert.Single(after.Harcamalar);

@@ -40,6 +40,20 @@ public static class FinansHesaplari
         : null;
     public static bool MaliKayitVar(KasaDbContext db) => IlkMaliKayitTuru(db) is not null;
 
+    /// <summary>finance-9 iletisi: takipteki karta genel gider ekranından sıfır/eksi tutar (iade, alacak) girilemez.</summary>
+    public const string TakipliKartIadeYolu = "Takipteki karta genel gider ekranından iade veya alacak girilemez; tutar sıfırdan büyük olmalı. İade için Kredi Kartları ekranında kaynak harcamayı seçerek iade girin.";
+
+    /// <summary>
+    /// Yeni genel giderin (POST /api/islemler) takipli kart denetimi (finance-9): takipteki karttaki sıfır/eksi gider
+    /// kaynaksız alacak olur, herhangi bir kanalın taksidini kapatırdı (iade akışının kaynak, kanal oranı ve ödenmiş kısım
+    /// korumaları atlanır). Alan doğrulamasıyla aynı biçimde 400 (<c>tutarTl</c>) ya da null. Takipsiz karta ya da kartsız
+    /// eksi gider değişmez; düzenlemede (PUT) takipli kart zaten 409 alır.
+    /// </summary>
+    public static IResult? TakipliKartIadeHatasi(IslemYazDto dto, KasaDbContext db) =>
+        dto.TutarTl <= 0 && dto.KrediKartiId is { } kartId && db.TakipKartlar.Any(k => k.KrediKartiId == kartId)
+            ? Results.ValidationProblem(new Dictionary<string, string[]> { ["tutarTl"] = [TakipliKartIadeYolu] })
+            : null;
+
     /// <summary>
     /// Eski (takipsiz) kredinin geçmiş kasa etkisi var mı (gap-tarihsel-spec-ve-emekli-web-6). Çekimi ve taksitleri kayıttan
     /// bellekte türetilir (<see cref="KrediTuretici"/>); taksitler çekimden kesin sonra olduğundan çekim bugün ya da daha

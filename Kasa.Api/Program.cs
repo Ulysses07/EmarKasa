@@ -423,6 +423,8 @@ api.MapPost("/islemler", (IslemYazDto dto, KasaDbContext db) =>
     using var transaction = db.Database.BeginTransaction();
     var (e, hata) = KayitGirdileri.Islem(dto, db);
     if (hata is not null) return hata;
+    // finance-9: takipli karta eksi/sıfır gider kaynaksız alacak olurdu; iade Kredi Kartları ekranındaki akıştan girilir.
+    if (FinansHesaplari.TakipliKartIadeHatasi(dto, db) is { } iade) return iade;
     db.Islemler.Add(e); db.SaveChanges();
     FinansTakipServisi.Sync(db);
     transaction.Commit();
