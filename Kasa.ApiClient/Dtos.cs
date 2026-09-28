@@ -5,9 +5,12 @@ public enum GiderTipi { Cari, SabitGider, KrediKarti }
 /// <summary>Cihaz: tanıdık cihaz belirteci (masaüstüne gövdede verilir; tarayıcıya HttpOnly çerezle gider, orada null).</summary>
 public record LoginYanit(string Rol, string Token, string? Cihaz = null);
 
-public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri);
-public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null);
-public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl, int? KanalId = null, bool EskiYinelenenGrup = false);
+/// <summary>Surum (contract-6, KanalDto/IslemDto/GelenDto/AyarlarDto): kaydın iyimser eşzamanlılık sürümü; düzenlemede yazma gövdesiyle
+/// geri gönderilir, kayıt arada değiştiyse sunucu 409 verir. Eski sunucu göndermez (0).</summary>
+public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri, int Surum = 0);
+public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
+    int Surum = 0);
+public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl, int? KanalId = null, bool EskiYinelenenGrup = false, int Surum = 0);
 /// <summary>YeniTakip/Aktif: kart yeni takipte ve yeni kullanıma açık; yeni kredi kartı gideri yalnız böyle bir karta bağlanabilir
 /// (K3). Eski sunucu göndermez: varsayılanlar eski kart gibidir (seçilemez).</summary>
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m,
@@ -17,7 +20,7 @@ public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tut
 /// <summary>IzleyiciSifreKisa: kayıtlı izleyici şifresinin 12 karakter kuralına uymadığı bir girişte görüldü.
 /// VekilUyarisi: sunucu güvenilmeyen kaynaktan vekil başlığı aldı (yanlış vekil ayarı). Eski sunucu ikisini de göndermez.</summary>
 public record AyarlarDto(DateOnly TakipBaslangic, decimal KasaAcilisDevri, bool IzleyiciSifreVarMi,
-    bool IzleyiciSifreKisa = false, string? VekilUyarisi = null);
+    bool IzleyiciSifreKisa = false, string? VekilUyarisi = null, int Surum = 0);
 
 public record DonemDto(DateOnly Start, DateOnly End, int Yil, int Ay);
 public record KanalHaftalikDto(string Kanal, decimal Gelen, decimal Giden, decimal Sonuc, decimal Devir);
@@ -51,15 +54,17 @@ public record PanelDto(decimal GuncelKasa, IReadOnlyList<KanalBakiyeDto> Kanalla
 public record AnaSayfaDto(PanelDto Panel, IReadOnlyList<KasaEsikDto>? KasaEsikleri, TakipOzetDto? TakipOzeti, IReadOnlyList<TakipsizKayitDto>? TakipsizKayitlar = null);
 
 // Mutasyon gövdeleri (Id sunucuda atanır; create'te gönderilmez)
-public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri);
+// Surum (contract-6, KanalYaz/IslemYaz/GelenYaz/AyarYaz): düzenlemede okunan kaydın sürümü; her zaman gönderilir (oluşturmada sunucu
+// yok sayar). Kayıt arada başka oturumda değiştiyse sunucu 409 verir ve kayıt değişmez. Gelirde dönem ve kanalın satırı yoksa 0.
+public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri, int Surum = 0);
 /// <param name="IstekId">Yalnız oluşturmada tekrar anahtarı: zaman aşımından sonra aynı gövdeyle yeniden gönderilen gider
 /// ikinci kez kaydedilmez (sunucu ilk kaydı döndürür). Düzenlemede gönderilmez.</param>
 /// <param name="TaksitSayisi">Yalnız oluşturmada, yeni takipteki kartla girilen kart giderinin taksit sayısı (1–60); boşsa tek taksit.
 /// Düzenlemede gönderilmez.</param>
 /// <param name="IlkKesimTarihi">Yalnız oluşturmada, isteğe bağlı ilk taksidin ekstre kesimi.</param>
 public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, Guid? IstekId = null,
-    int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null);
-public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl);
+    int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null, int Surum = 0);
+public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl, int Surum = 0);
 public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
-public record AyarYaz(DateOnly TakipBaslangic, decimal KasaAcilisDevri);
+public record AyarYaz(DateOnly TakipBaslangic, decimal KasaAcilisDevri, int Surum = 0);
