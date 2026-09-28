@@ -1,4 +1,4 @@
-import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, paymentCardChoices, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning, SIMILAR_RULE_TEXT } from './ui-core.js?v=2.3.0';
+import { money, dateText, today, cents, amount, serverCents, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_SHORT_MESSAGE, newPasswordRepeatError, permissions, statusLabels, filteredPurchases, purchasePayload, paymentCardChoices, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection, screenBoundRead, abortedRequestError, isAbortError, dataHealthWarning, SIMILAR_RULE_TEXT, trackedCardPayment, installmentFields, detachAllocations } from './ui-core.js?v=2.3.0';
 import { createFinanceUi } from './finance-ui.js?v=2.3.0';
 import { createNotificationUi } from './notification-ui.js?v=2.3.0';
 import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
@@ -354,7 +354,15 @@ function editPurchase(p = null) {
 function paymentRow(p, payment) {
   const cardName = payment.krediKartiAdi || `Kart #${payment.krediKartiId}`;
   const card = payment.krediKartiId && (['editor', 'viewer'].includes(state.role) ? button(cardName, () => navigate('cards', payment.krediKartiId), 'table-link') : h('span', {}, cardName));
-  return h('div', { class: 'payment' }, h('div', {}, h('div', { class: 'payment-name' }, dateText(payment.tarih)), h('div', { class: 'payment-info' }, payment.krediKartiId ? h('span', {}, card, ' ile ödendi · kart borcu ayrı izlenir') : 'Nakit / havale', ` · Ödeme #${payment.id}`), payment.dagilimBekliyor ? h('span', { class: 'badge pending' }, 'Dağılım bekliyor') : h('div', { class: 'allocation-tags' }, payment.dagilimlar.filter(d => d.tutar > 0).map(d => h('span', { class: 'allocation-tag' }, `${d.kanal}: ${money(d.tutar)}`))), state.role === 'editor' && h('div', { class: 'row-actions' }, button('Düzelt / taşı', event => run(event.currentTarget, () => paymentDialog(p, payment)), 'small'), button('Ödemeyi iptal et', () => cancelPayment(p, payment), 'small danger'))), h('div', { class: 'payment-amount money' }, money(payment.tutar)));
+  return h('div', { class: 'payment' }, h('div', {}, h('div', { class: 'payment-name' }, dateText(payment.tarih)), h('div', { class: 'payment-info' }, payment.krediKartiId ? h('span', {}, card, ' ile ödendi · kart borcu ayrı izlenir') : 'Nakit / havale', ` · Ödeme #${payment.id}`), payment.dagilimBekliyor ? h('span', { class: 'badge pending' }, 'Dağılım bekliyor') : h('div', { class: 'allocation-tags' }, payment.dagilimlar.filter(d => d.tutar > 0).map(d => h('span', { class: 'allocation-tag' }, `${d.kanal}: ${money(d.tutar)}`))), state.role === 'editor' && h('div', { class: 'row-actions' }, button('Düzelt / taşı', event => run(event.currentTarget, () => paymentDialog(p, payment)), 'small'), button('Ödemeyi iptal et', event => run(event.currentTarget, () => cancelPayment(p, payment)), 'small danger'))), h('div', { class: 'payment-amount money' }, money(payment.tutar)));
+}
+// gap-coklu-giris-cift-sayim-mutabakat-6: takipli kartla yeni kart harcamasının taksit sayısı ve isteğe bağlı ilk kesimi.
+function installmentEditor() {
+  const count = input('taksitSayisi', '1', { type: 'number', min: 1, max: 60, step: 1, inputmode: 'numeric' });
+  const firstCut = input('ilkKesimTarihi', '', { type: 'date' });
+  const node = h('div', { class: 'stack' }, h('div', { class: 'form-grid' }, field('Taksit sayısı', count), field('İlk kesim tarihi (isteğe bağlı)', firstCut)), help('Bankada taksitle çekildiyse taksit sayısını girin: her ekstreye yalnız taksit tutarı yazılır. İlk kesim boşsa harcamanın düştüğü ilk kesimdir.'));
+  node.hidden = true;
+  return { node, read: date => node.hidden ? {} : installmentFields(count.value, firstCut.value, date) };
 }
 async function paymentDialog(p, payment = null) {
   await loadPaymentLookups();
@@ -372,11 +380,18 @@ async function paymentDialog(p, payment = null) {
   const charge = select('mevcutKartHarcamaId', [{ value: '', label: 'Yeni kart harcaması oluştur' }], '');
   const chargeStatus = h('p', { class: 'help', role: 'status' });
   const chargeField = field('Kart harcaması', charge, h('div', { class: 'stack' }, chargeStatus, help('Kart ekstresi önce içe aktarıldıysa harcamayı seçin: ödeme ona bağlanır, kart borcu ve kasa ikinci kez sayılmaz. Tarih ve tutar harcamadan alınır.'))); chargeField.hidden = true;
+  // Taksit yalnız takipli kartla YENİ kart harcaması oluşturulurken: mevcut gider ya da ekstreden gelen harcama bağlanırken plan onundur.
+  const installments = installmentEditor();
+  const installmentSync = () => { installments.node.hidden = Boolean(payment) || !optionalId(card.value) || Boolean(existing.value) || Boolean(charge.value); };
+  // gap-coklu-giris-cift-sayim-mutabakat-5: kart takibindeki ödemenin tarihi, tutarı ve kartı kart harcamasıdır; yalnız hedef alış seçilir.
+  const tracked = trackedCardPayment(state.cards, payment);
+  if (tracked) { date.disabled = true; total.disabled = true; card.disabled = true; }
   let charges = []; let chargeGeneration = 0;
   const chargeSync = () => {
     const selected = charges.find(item => item.id === Number(charge.value));
     if (selected) { date.value = selected.tarih; total.value = selected.tutar; }
     date.disabled = Boolean(selected) || Boolean(existing.value); total.disabled = Boolean(selected) || Boolean(existing.value);
+    installmentSync();
   };
   const loadCharges = async () => {
     const mine = ++chargeGeneration; const cardId = optionalId(card.value);
@@ -404,6 +419,7 @@ async function paymentDialog(p, payment = null) {
       if (selected) { date.value = selected.tarih; total.value = selected.tutarTl; card.value = selected.krediKartiId || ''; }
       date.disabled = Boolean(selected); total.disabled = Boolean(selected); card.disabled = Boolean(selected);
       if (selected) { chargeGeneration++; charges = []; charge.value = ''; chargeField.hidden = true; }
+      installmentSync();
     };
     const more = button('Daha eski giderler', event => run(event.currentTarget, () => load(true)), 'small', { hidden: true });
     const load = async append => {
@@ -434,28 +450,48 @@ async function paymentDialog(p, payment = null) {
     existingHelp.replaceChildren(h('div', { class: 'row-actions' }, search, button('Ara', event => run(event.currentTarget, () => load(false)), 'small')), status, more, help(linkHelp));
   }
   const target = select('hedefAlisId', [{ value: '', label: 'Bu alışta kalsın' }, ...state.purchases.filter(other => other.id !== p.id && other.kalan > 0).map(other => ({ value: other.id, label: `#${other.id} · ${other.tedarikci} · ${money(other.kalan)} kalan` }))]);
-  formDialog(payment ? `Ödeme #${payment.id} · Düzelt / taşı` : 'Ödeme kaydet', h('div', { class: 'stack' }, h('div', { class: 'notice' }, payment ? 'Bu işlem kayıtlı ödemeyi değiştirir. Ödeme başka alışa aitse hedef alış seçin; para çıkışını yeniden kaydetmeyin.' : `Alışın kalan tutarı ${money(p.kalan)}. ${p.durum !== 'Onaylandi' ? 'Ödeme kasaya yansır; kanal dağılımı onay bekler.' : 'Ödeme onaylı kanal paylarına dağıtılır.'}`), !payment && field('Yeni ödeme veya mevcut gider', existing, existingHelp), h('div', { class: 'form-grid' }, field('Ödeme tarihi', date), field('Tutar (₺)', total), field('Ödeme yöntemi', card)), !payment && chargeField, payment && field('Ödemeyi başka alışa taşı', target), field(payment ? 'Düzeltme açıklaması' : 'Ödeme notu (isteğe bağlı)', h('textarea', { name: 'aciklama', required: Boolean(payment), maxlength: 2000 })), help('Yeni takipte kartla alış, kart borcu oluşturur; kasa yalnız Kredi Kartları ekranında ödeme kaydedildiğinde azalır. Geçiş yapılmamış eski kartlarda önceki kasa kuralı sürer.')), payment ? 'Düzeltmeyi kaydet' : 'Ödemeyi kaydet', async form => {
+  formDialog(payment ? `Ödeme #${payment.id} · Düzelt / taşı` : 'Ödeme kaydet', h('div', { class: 'stack' }, h('div', { class: 'notice' }, tracked ? 'Bu ödeme kart takibinde: tarihi, tutarı ve kartı kart harcamasının kendisidir, değiştirilemez. Ödeme başka alışa aitse hedef alışı seçin; kart harcaması, taksitleri ve kart ödemeleri aynen kalır. Kart tarafında yanlışlık varsa ödemeyi alıştan ayırın (Ödemeyi iptal et).' : payment ? 'Bu işlem kayıtlı ödemeyi değiştirir. Ödeme başka alışa aitse hedef alış seçin; para çıkışını yeniden kaydetmeyin.' : `Alışın kalan tutarı ${money(p.kalan)}. ${p.durum !== 'Onaylandi' ? 'Ödeme kasaya yansır; kanal dağılımı onay bekler.' : 'Ödeme onaylı kanal paylarına dağıtılır.'}`), !payment && field('Yeni ödeme veya mevcut gider', existing, existingHelp), h('div', { class: 'form-grid' }, field('Ödeme tarihi', date), field('Tutar (₺)', total), field('Ödeme yöntemi', card)), !payment && chargeField, !payment && installments.node, payment && field('Ödemeyi başka alışa taşı', target), field(payment ? 'Düzeltme açıklaması' : 'Ödeme notu (isteğe bağlı)', h('textarea', { name: 'aciklama', required: Boolean(payment), maxlength: 2000 })), help('Yeni takipte kartla alış, kart borcu oluşturur; kasa yalnız Kredi Kartları ekranında ödeme kaydedildiğinde azalır. Geçiş yapılmamış eski kartlarda önceki kasa kuralı sürer.')), payment ? 'Düzeltmeyi kaydet' : 'Ödemeyi kaydet', async form => {
     const data = values(form);
     const payload = { surum: p.surum, tarih: date.value, tutar: cents(total.value, { allowZero: false }) / 100, krediKartiId: optionalId(card.value) };
     if (payment) {
       const destination = state.purchases.find(other => other.id === Number(target.value));
+      if (tracked && !destination) throw new Error('Kart takibindeki ödemenin tarihi, tutarı ve kartı değiştirilemez: taşımak için hedef alış seçin ya da ödemeyi alıştan ayırın (Ödemeyi iptal et).');
+      if (tracked) Object.assign(payload, { tarih: payment.tarih, tutar: payment.tutar, krediKartiId: payment.krediKartiId });
       Object.assign(payload, { aciklama: data.aciklama.trim(), hedefAlisId: destination?.id || null, hedefSurum: destination?.surum ?? null });
       await api(`/api/alis/${p.id}/odemeler/${payment.id}`, { method: 'PUT', body: identity(payload) });
     } else {
       const linkedCharge = existing.value ? null : charges.find(item => item.id === Number(charge.value));
       if (linkedCharge && (linkedCharge.krediKartiId !== payload.krediKartiId || cents(linkedCharge.tutar) !== cents(payload.tutar))) throw new Error('Seçilen kart harcaması ödeme kartı ve tutarıyla eşleşmiyor. Kartı yeniden seçin.');
-      Object.assign(payload, { mevcutIslemId: optionalId(existing.value), not: data.aciklama.trim() || null }, linkedCharge ? { tarih: linkedCharge.tarih, mevcutKartHarcamaId: linkedCharge.id } : {});
+      Object.assign(payload, { mevcutIslemId: optionalId(existing.value), not: data.aciklama.trim() || null }, linkedCharge ? { tarih: linkedCharge.tarih, mevcutKartHarcamaId: linkedCharge.id } : {}, installments.read(payload.tarih));
       const body = identity(payload);
       // Mevcut gidere ya da kart harcamasına bağlama yeni para çıkışı değildir: benzer kayıt sorulmaz.
       if (!payload.mevcutIslemId && !payload.mevcutKartHarcamaId && !await confirmSimilar(form, { tur: 'AlisOdeme', tarih: payload.tarih, tutar: payload.tutar, krediKartiId: payload.krediKartiId, kanal: null, alisId: p.id }, body)) return;
       await api(`/api/alis/${p.id}/odemeler`, { method: 'POST', body });
     }
-    closeModal(); toast(payment ? 'Ödeme düzeltildi.' : payload.mevcutKartHarcamaId ? 'Kart harcaması alışa bağlandı; ikinci harcama oluşmadı.' : 'Ödeme kaydedildi.'); await navigate('purchase', p.id);
+    closeModal(); toast(payment ? (tracked ? 'Ödeme seçilen alışa taşındı; kart harcaması aynen kaldı.' : 'Ödeme düzeltildi.') : payload.mevcutKartHarcamaId ? 'Kart harcaması alışa bağlandı; ikinci harcama oluşmadı.' : payload.taksitSayisi ? `Ödeme ${payload.taksitSayisi} taksitli kart harcaması olarak kaydedildi.` : 'Ödeme kaydedildi.'); await navigate('purchase', p.id);
   });
 }
-function cancelPayment(p, payment) {
+// gap-coklu-giris-cift-sayim-mutabakat-5: kart takibindeki ödemenin iptali iki yoldur. Harcama hiç yapılmadıysa (ödenmemişse) harcama ve
+// taksitleri de kalkar. Harcama gerçekse ama bu alışa ait değilse ödeme alıştan AYRILIR: harcama girilen gerçek kanal paylarıyla kart gideri
+// olarak kalır (paylar ödemenin bugünkü paylarıyla başlar; aynen bırakılırsa önceki kart ödemelerinin kanal payı değişmez).
+async function cancelPayment(p, payment) {
+  await loadPaymentLookups();
   const identity = requestIdentity();
-  formDialog('Gerçek ödemeyi iptal et', h('div', { class: 'stack' }, h('div', { class: 'notice danger' }, `${dateText(payment.tarih)} tarihli ${money(payment.tutar)} ödeme mali kayıtlardan kaldırılacak. Ödeme gerçekten yapıldıysa, yalnız yanlış alışa yazıldığı için iptal etmeyin; “Düzelt / taşı” işlemini kullanın.`), field('İptal açıklaması', h('textarea', { name: 'aciklama', required: true, maxlength: 2000 }))), 'Ödemeyi iptal et', async form => { await api(`/api/alis/${p.id}/odemeler/${payment.id}/iptal`, { method: 'POST', body: identity({ surum: p.surum, aciklama: values(form).aciklama.trim() }) }); closeModal(); toast('Ödeme iptal edildi; alışın kalan tutarı güncellendi.'); await navigate('purchase', p.id); }, { danger: true });
+  const tracked = trackedCardPayment(state.cards, payment);
+  const shares = state.channels.filter(channel => channel.aktif || payment.dagilimlar.some(d => d.kanalId === channel.id))
+    .map(channel => ({ kanalId: channel.id, ad: channel.ad, tutar: payment.dagilimlar.filter(d => d.kanalId === channel.id).reduce((sum, d) => sum + d.tutar, 0) || '' }));
+  const keep = input('harcamayiKoru', '1', { type: 'checkbox' });
+  const shareRows = h('div', { class: 'stack' }, shares.map(row => field(`${row.ad} (₺)`, input(`ayir-${row.kanalId}`, row.tutar, { inputmode: 'decimal', oninput: event => { row.tutar = event.target.value; } }))));
+  shareRows.hidden = true; keep.addEventListener('change', () => { shareRows.hidden = !keep.checked; });
+  const trackedSection = tracked && h('fieldset', {}, h('legend', {}, 'Kart harcaması'), h('label', {}, keep, 'Kart harcaması gerçek: ödemeyi alıştan ayır, harcama kart gideri olarak kalsın'),
+    help('Seçilmezse kart harcaması hiç yapılmamış sayılır: ödenmemişse harcama ve taksitleri de kalkar; kart ödemesi yapıldıysa sunucu gerçek kanal dağılımını ister.'), shareRows);
+  const notice = tracked ? `${dateText(payment.tarih)} tarihli ${money(payment.tutar)} kart ödemesi bu alıştan kaldırılacak. Ödeme başka bir alışa aitse iptal etmeyin; “Düzelt / taşı” ile doğru alışa taşıyın.`
+    : `${dateText(payment.tarih)} tarihli ${money(payment.tutar)} ödeme mali kayıtlardan kaldırılacak. Ödeme gerçekten yapıldıysa, yalnız yanlış alışa yazıldığı için iptal etmeyin; “Düzelt / taşı” işlemini kullanın.`;
+  formDialog(tracked ? 'Kart ödemesini alıştan ayır / iptal et' : 'Gerçek ödemeyi iptal et', h('div', { class: 'stack' }, h('div', { class: 'notice danger' }, notice), trackedSection, field('İptal açıklaması', h('textarea', { name: 'aciklama', required: true, maxlength: 2000 }))), 'Ödemeyi iptal et', async form => {
+    const body = { surum: p.surum, aciklama: values(form).aciklama.trim(), ...(tracked && keep.checked ? { kanalDagilimlari: detachAllocations(shares, payment.tutar) } : {}) };
+    await api(`/api/alis/${p.id}/odemeler/${payment.id}/iptal`, { method: 'POST', body: identity(body) });
+    closeModal(); toast(body.kanalDagilimlari ? 'Ödeme alıştan ayrıldı; kart harcaması kart gideri olarak kaldı. Doğru alışa mevcut gider olarak bağlayabilirsiniz.' : tracked ? 'Ödeme iptal edildi; ödenmemiş kart harcaması ve taksitleri de kaldırıldı.' : 'Ödeme iptal edildi; alışın kalan tutarı güncellendi.'); await navigate('purchase', p.id);
+  }, { danger: true });
 }
 async function loadDocuments(p, container) {
   try {
@@ -738,13 +774,17 @@ async function expenseDialog(expense = null) {
   const cardRequired = 'Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.';
   const card = select('krediKartiId', [{ value: '', label: cardlessOld ? '— Kartsız eski kayıt —' : 'Kart seçin' }, ...tracked.map(k => ({ value: k.id, label: k.ad })), ...(oldCard ? [oldCard] : [])], expense?.krediKartiId);
   const cardField = field('Kredi kartı', card, !tracked.length && !oldCardExpense ? help('Takipte kart yok. Kredi Kartları bölümünden kart ekleyin ya da eski kartı yeni takibe geçirin.') : null);
-  const cardVisibility = () => { cardField.hidden = type.value !== 'KrediKarti'; card.required = type.value === 'KrediKarti' && !cardlessOld; }; type.addEventListener('change', cardVisibility); cardVisibility();
+  // gap-coklu-giris-cift-sayim-mutabakat-6: taksit yalnız yeni kart giderinde; düzenlemede plan değişmez (ödenmemişse gider silinip yeniden girilir).
+  const installments = installmentEditor();
+  const installmentSync = () => { installments.node.hidden = Boolean(expense) || type.value !== 'KrediKarti' || !card.value; };
+  card.addEventListener('change', installmentSync);
+  const cardVisibility = () => { cardField.hidden = type.value !== 'KrediKarti'; card.required = type.value === 'KrediKarti' && !cardlessOld; installmentSync(); }; type.addEventListener('change', cardVisibility); cardVisibility();
   const channel = select('kanal', [{ value: '', label: 'Kanal seçin' }, ...channels.filter(c => c.aktif || c.ad === expense?.kanal).map(c => ({ value: c.ad, label: c.ad })), { value: 'Ortak', label: 'Ortak' }], expense?.kanal || '', { required: true });
   const total = signedAmountField('tutarTl', expense?.tutarTl ?? '', 'Tutar (₺)');
-  formDialog(expense ? 'Gideri düzenle' : 'Gider kaydet', h('div', { class: 'stack' }, field('Açıklama / ödeme yapılan yer', input('cari', expense?.cari || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Tarih', input('tarih', expense?.tarih || today(), { type: 'date', required: true })), total.node, field('Kanal', channel), field('Gider türü', type)), cardField, field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')), help('Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.')), 'Gideri kaydet', async form => {
+  formDialog(expense ? 'Gideri düzenle' : 'Gider kaydet', h('div', { class: 'stack' }, field('Açıklama / ödeme yapılan yer', input('cari', expense?.cari || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Tarih', input('tarih', expense?.tarih || today(), { type: 'date', required: true })), total.node, field('Kanal', channel), field('Gider türü', type)), cardField, installments.node, field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')), help('Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.')), 'Gideri kaydet', async form => {
     const data = values(form);
     if (data.tip === 'KrediKarti' && !card.value && !cardlessOld) throw Object.assign(new Error(cardRequired), { fields: { krediKartiId: cardRequired } });
-    const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null };
+    const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null, ...installments.read(data.tarih) };
     if (!expense && !await confirmSimilar(form, { tur: 'Gider', tarih: body.tarih, tutar: body.tutarTl, krediKartiId: body.krediKartiId, kanal: body.kanal, alisId: null }, body)) return;
     await api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body: expense ? body : identity(body) }); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);
   });

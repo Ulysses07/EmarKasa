@@ -88,7 +88,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, AbortController, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; Object.defineProperty(call, 'signal', { value: options.signal }); calls.push(call); if (options.signal?.aborted) throw aborted(); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await abortable(response(call), options.signal) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
+  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, cancelPayment, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
   return { nodes, requests, calls, responses, stored, app: context.appTest };
 }
@@ -2012,11 +2012,12 @@ test('alış ödeme formu kartta yalnız takipteki açık kartları listeler; ba
   assert.deepEqual(labels(), ['Nakit / havale', 'Takipli'], 'Seçim kalkınca eski kart yeni ödemede seçilemez.');
   existing.value = '20'; existing.listeners.change(); await submitDialog(nodes);
   assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.krediKartiId, 1);
-  const payment = { id: 8, tarih: '2026-09-23', tutar: 50, krediKartiId: 3, krediKartiAdi: 'Kapalı', dagilimBekliyor: false, dagilimlar: [] };
+  // Takipsiz eski kartla girilmiş ödeme kendi kartıyla düzeltilir (kart takibindeki ödeme ayrı testte: yalnız taşınır).
+  const payment = { id: 8, tarih: '2026-09-23', tutar: 50, krediKartiId: 1, krediKartiAdi: 'Eski kart', dagilimBekliyor: false, dagilimlar: [] };
   await app.paymentDialog({ ...purchase, odemeler: [payment] }, payment);
-  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Kapalı (eski kayıt)']);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Eski kart (eski kayıt)']);
   formField(nodes, 'aciklama').value = 'Tarih düzeltmesi'; await submitDialog(nodes);
-  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8').body.krediKartiId, 3);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8').body.krediKartiId, 1);
   assert.deepEqual(ui.paymentCardChoices(cards, 9).map(option => option.label), ['Nakit / havale', 'Takipli', 'Kart #9 (eski kayıt)']);
   assert.deepEqual(ui.paymentCardChoices(cards, 2).map(option => option.value), ['', 2]);
 });
@@ -2106,4 +2107,86 @@ test('card transfer section shows why a correction is blocked and the page opens
   const missing = await openApp(false, { '/api/takip/kartlar/4': transferCard });
   await missing.app.navigate('cards', 4);
   assert.match(missing.nodes.get('#view').textContent, /Onaylanan eski borç devri/); assert.doesNotMatch(missing.nodes.get('#view').textContent, /İadeyle kasaya dönen/);
+});
+
+test('tracked card payments lock date, amount and card; detach shares must add up to the payment', () => {
+  const cards = [{ id: 1, ad: 'Eski', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: 2 }), true);
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: 3 }), true);
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: 1 }), false);
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: null }), false);
+  assert.equal(ui.trackedCardPayment(cards, null), false);
+  assert.deepEqual(ui.detachAllocations([{ kanalId: 1, tutar: 7200 }, { kanalId: 2, tutar: '4800,00' }, { kanalId: 3, tutar: '' }], 12000), [{ kanalId: 1, tutar: 7200 }, { kanalId: 2, tutar: 4800 }]);
+  assert.throws(() => ui.detachAllocations([{ kanalId: 1, tutar: 7000 }, { kanalId: 2, tutar: 4800 }], 12000), /toplamı ödeme tutarına/);
+  assert.throws(() => ui.detachAllocations([{ kanalId: 1, tutar: '' }], 10), /toplamı ödeme tutarına/);
+  assert.throws(() => ui.detachAllocations([{ kanalId: 1, tutar: '-10' }], 10), /kuruş/);
+});
+
+test('installment fields are sent only for a real installment plan', () => {
+  assert.deepEqual(ui.installmentFields('1'), {});
+  assert.deepEqual(ui.installmentFields(''), {});
+  assert.deepEqual(ui.installmentFields('3'), { taksitSayisi: 3 });
+  assert.deepEqual(ui.installmentFields('3', '2026-10-06', '2026-09-20'), { taksitSayisi: 3, ilkKesimTarihi: '2026-10-06' });
+  assert.deepEqual(ui.installmentFields('1', '2026-10-06', '2026-09-20'), { ilkKesimTarihi: '2026-10-06' });
+  for (const bad of ['0', '61', '2.5', 'abc']) assert.throws(() => ui.installmentFields(bad), error => error.message === ui.INSTALLMENT_RANGE_MESSAGE && error.fields.taksitSayisi === ui.INSTALLMENT_RANGE_MESSAGE);
+  assert.throws(() => ui.installmentFields('2', '2026-09-19', '2026-09-20'), error => Boolean(error.fields.ilkKesimTarihi));
+});
+
+test('kart takibindeki alış ödemesi yalnız başka alışa taşınır; iptal harcamayı korurken gerçek kanal paylarını gönderir', async () => {
+  const cards = [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const payment = { id: 8, tarih: '2026-09-23', tutar: 60, krediKartiId: 2, krediKartiAdi: 'Takipli', dagilimBekliyor: false, dagilimlar: [{ kanalId: 1, kanal: 'A', tutar: 36 }, { kanalId: 2, kanal: 'B', tutar: 24 }] };
+  const purchase = { id: 6, surum: 2, tarih: '2026-09-20', tedarikci: 'Yanlış', alici: 'Editör', durum: 'Onaylandi', kalemler: [], odemeler: [payment], toplam: 60, odenen: 60, kalan: 0 };
+  const other = { id: 7, surum: 4, tarih: '2026-09-20', tedarikci: 'Doğru', alici: 'Editör', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 60, odenen: 0, kalan: 60 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/alis': [purchase, other], '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }, { id: 2, ad: 'B', aktif: true }],
+    '/api/alis/6/odemeler/8': purchase, '/api/alis/6/odemeler/8/iptal': purchase });
+  await app.navigate('purchases');
+  await app.paymentDialog(purchase, payment);
+  assert.deepEqual(['tarih', 'tutar', 'krediKartiId'].map(name => formField(nodes, name).disabled), [true, true, true]);
+  assert.match(nodes.get('#modal-content').textContent, /kart takibinde/);
+  formField(nodes, 'aciklama').value = 'Yanlış alış'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8'), undefined, 'Hedefsiz düzeltme gönderilmez.');
+  assert.match(nodes.get('#modal-content').textContent, /hedef alış seçin/);
+  formField(nodes, 'hedefAlisId').value = '7'; await submitDialog(nodes);
+  const move = calls.find(call => call.path === '/api/alis/6/odemeler/8').body;
+  assert.deepEqual([move.tarih, move.tutar, move.krediKartiId, move.hedefAlisId, move.hedefSurum], ['2026-09-23', 60, 2, 7, 4]);
+
+  await app.cancelPayment(purchase, payment);
+  assert.match(nodes.get('#modal-content').textContent, /Kart harcaması gerçek/);
+  assert.deepEqual([formField(nodes, 'ayir-1').value, formField(nodes, 'ayir-2').value], ['36', '24'], 'Paylar ödemenin bugünkü paylarıyla başlar.');
+  const keep = formField(nodes, 'harcamayiKoru'); keep.checked = true; keep.listeners.change();
+  const first = formField(nodes, 'ayir-1'); first.value = '30'; first.listeners.input({ target: first });
+  formField(nodes, 'aciklama').value = 'Başka alışın'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8/iptal'), undefined);
+  assert.match(nodes.get('#modal-content').textContent, /toplamı ödeme tutarına/);
+  first.value = '36'; first.listeners.input({ target: first }); await submitDialog(nodes);
+  assert.deepEqual(calls.find(call => call.path === '/api/alis/6/odemeler/8/iptal').body.kanalDagilimlari, [{ kanalId: 1, tutar: 36 }, { kanalId: 2, tutar: 24 }]);
+  // Harcama korunmazsa kanal payı gönderilmez: ödenmemiş harcama gideriyle kalkar.
+  await app.cancelPayment(purchase, payment);
+  formField(nodes, 'aciklama').value = 'Harcama yapılmadı'; await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/alis/6/odemeler/8/iptal').at(-1).body.kanalDagilimlari, undefined);
+});
+
+test('yeni kart giderinde ve takipli kartla yeni alış ödemesinde taksit gövdeye yalnız planla taşınır', async () => {
+  const cards = [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi', odemeler: [] };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/islemler': [], '/api/alis/6/odemeler': purchase,
+    '/api/alis/kanallar': [], '/api/islemler/benzerlik': [], '/api/alis/baglanabilir-kart-harcamalari?krediKartiId=2&tutar=100.00': [] });
+  await app.paymentDialog(purchase);
+  const installments = () => formField(nodes, 'taksitSayisi').parentNode.parentNode.parentNode;
+  assert.equal(installments().hidden, true, 'Nakit ödemede taksit yok.');
+  const card = formField(nodes, 'krediKartiId'); card.value = '2'; card.listeners.change(); await settle();
+  assert.equal(installments().hidden, false);
+  formField(nodes, 'taksitSayisi').value = '3'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.taksitSayisi, 3);
+
+  await app.expenseDialog();
+  const expenseInstallments = () => formField(nodes, 'taksitSayisi').parentNode.parentNode.parentNode;
+  assert.equal(expenseInstallments().hidden, true);
+  const type = formField(nodes, 'tip'); type.value = 'KrediKarti'; type.listeners.change();
+  const expenseCard = formField(nodes, 'krediKartiId'); expenseCard.value = '2'; expenseCard.listeners.change();
+  assert.equal(expenseInstallments().hidden, false);
+  formField(nodes, 'cari').value = 'Telefon'; formField(nodes, 'tutarTl').value = '3000'; formField(nodes, 'kanal').value = 'A';
+  formField(nodes, 'taksitSayisi').value = '6'; await submitDialog(nodes);
+  const body = calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body;
+  assert.deepEqual([body.taksitSayisi, body.ilkKesimTarihi, body.krediKartiId], [6, undefined, 2]);
 });

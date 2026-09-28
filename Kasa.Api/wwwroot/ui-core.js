@@ -151,6 +151,29 @@ export function paymentCardChoices(cards, keepId = null) {
   return [{ value: '', label: 'Nakit / havale' }, ...tracked.map(card => ({ value: card.id, label: card.ad })),
     ...(keep == null ? [] : [{ value: keep, label: `${all.find(card => card.id === keep)?.ad || `Kart #${keep}`} (eski kayıt)` }])];
 }
+// gap-coklu-giris-cift-sayim-mutabakat-5: yeni takipteki kartla girilmiş ödeme kart takibindedir (kart yeni kullanıma kapalı olsa da):
+// tarihi, tutarı ve kartı kart harcamasıdır; yalnız başka alışa taşınır ya da alıştan ayrılır.
+export function trackedCardPayment(cards, payment) {
+  return payment?.krediKartiId != null && (cards || []).some(card => card.id === payment.krediKartiId && card.yeniTakip);
+}
+export const INSTALLMENT_RANGE_MESSAGE = 'Taksit sayısı 1 ile 60 arasında olmalı.';
+// gap-coklu-giris-cift-sayim-mutabakat-6: takipli kartla yeni kart harcamasının taksit alanları. Tek taksit ve ilk kesimsiz girişte alan
+// gönderilmez: istek eski biçimiyle aynıdır. İlk kesim harcamadan önce olamaz (sunucu kartın kesim gününe yakınlığını da denetler).
+export function installmentFields(countText, firstCut = '', date = '') {
+  const text = String(countText ?? '').trim();
+  const count = text === '' ? 1 : Number(text);
+  if (!Number.isInteger(count) || count < 1 || count > 60) throw Object.assign(new Error(INSTALLMENT_RANGE_MESSAGE), { fields: { taksitSayisi: INSTALLMENT_RANGE_MESSAGE } });
+  if (firstCut && date && firstCut < date) { const message = 'İlk kesim tarihi harcamadan önce olamaz.'; throw Object.assign(new Error(message), { fields: { ilkKesimTarihi: message } }); }
+  return { ...(count > 1 ? { taksitSayisi: count } : {}), ...(firstCut ? { ilkKesimTarihi: firstCut } : {}) };
+}
+// gap-coklu-giris-cift-sayim-mutabakat-5: alıştan ayrılan kart harcamasının gerçek kanal payları. Boş ya da sıfır satır atlanır; toplam
+// ödeme tutarına kuruşu kuruşuna eşit olmalı.
+export function detachAllocations(rows, total) {
+  const shares = (rows || []).map(row => ({ kanalId: Number(row.kanalId), cents: cents(row.tutar || 0) })).filter(share => share.cents !== 0);
+  if (!shares.length || shares.reduce((sum, share) => sum + share.cents, 0) !== serverCents(total))
+    throw new Error(`Kart harcamasının gerçek kanal paylarını girin; toplamı ödeme tutarına (${money(total)}) eşit olmalı.`);
+  return shares.map(share => ({ kanalId: share.kanalId, tutar: share.cents / 100 }));
+}
 export function filteredPurchases(purchases, query, status) {
   const term = (query || '').toLocaleLowerCase('tr-TR');
   return purchases.filter(p => (!status || p.durum === status) && `${p.id} ${p.tedarikci} ${p.alici} ${(p.kalemler || []).map(k => k.aciklama).join(' ')}`.toLocaleLowerCase('tr-TR').includes(term));
