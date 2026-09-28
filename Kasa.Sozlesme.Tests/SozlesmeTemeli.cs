@@ -115,6 +115,7 @@ public sealed class Oturum
     public IKasaKontrolApi Kontrol { get; }
     public IBildirimApi Bildirim { get; }
     public IBenzerKayitApi Benzer { get; }
+    public IDenetimApi Denetim { get; }
 
     internal Oturum(SozlesmeFabrikasi f, HashSet<string> cagrilan, ITokenStore? depo)
     {
@@ -128,7 +129,7 @@ public sealed class Oturum
         }
         Kasa = Vekil<IKasaApi>(); Takip = Vekil<IFinansTakipApi>(); Alis = Vekil<IAlisApi>(); AlisOdeme = Vekil<IAlisOdemeApi>();
         Yonetim = Vekil<IYonetimApi>(); Ekstre = Vekil<IEkstreAktarmaApi>(); AylikGider = Vekil<IAylikGiderApi>();
-        Kontrol = Vekil<IKasaKontrolApi>(); Bildirim = Vekil<IBildirimApi>(); Benzer = Vekil<IBenzerKayitApi>();
+        Kontrol = Vekil<IKasaKontrolApi>(); Bildirim = Vekil<IBildirimApi>(); Benzer = Vekil<IBenzerKayitApi>(); Denetim = Vekil<IDenetimApi>();
     }
 
     /// <summary>Son istemci yanıtı (durum kodu denetimleri için).</summary>
