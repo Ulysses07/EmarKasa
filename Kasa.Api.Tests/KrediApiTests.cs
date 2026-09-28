@@ -3,10 +3,11 @@ using System.Net.Http.Json;
 
 namespace Kasa.Api.Tests;
 
-public class KrediApiTests : IClassFixture<KasaWebFactory>
+// Eski kredinin geçmiş etkisi (gT6) sunucunun "bugün"üne bağlıdır: saat sabittir (KasaWebFactory.VarsayilanBugun).
+public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KrediApiTests(KasaWebFactory factory) => _factory = factory;
+    public KrediApiTests(SabitSaatliKasaWebFactory factory) => _factory = factory;
 
     private record KrediYanit(
         int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi,

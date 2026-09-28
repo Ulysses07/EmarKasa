@@ -38,7 +38,6 @@ public static class FinansHesaplari
         : db.KasaKontrolleri.Any() ? "kasa sayımı"
         : db.AlisOdemeler.Any() ? "alış ödemesi"
         : null;
-    public static bool MaliKayitVar(KasaDbContext db) => IlkMaliKayitTuru(db) is not null;
 
     /// <summary>finance-9 iletisi: takipteki karta genel gider ekranından sıfır/eksi tutar (iade, alacak) girilemez.</summary>
     public const string TakipliKartIadeYolu = "Takipteki karta genel gider ekranından iade veya alacak girilemez; tutar sıfırdan büyük olmalı. İade için Kredi Kartları ekranında kaynak harcamayı seçerek iade girin.";
