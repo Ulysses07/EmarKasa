@@ -20,10 +20,19 @@ internal static class KasaKontrolAlanlari
         var esikHatasi = Bagli(nameof(vm.EsikHatasi)); esikHatasi.TextColor = Colors.DarkRed;     // eşikler yüklenemedi; geçmiş yine görünür
         var body = new VerticalStackLayout { Spacing = 16, Children = {
             Kart("Kanal alt limit uyarıları", Bagli(nameof(vm.EsikUyarilari)), Goster(esikHatasi, nameof(vm.EsikHatasi), true), Metin("Alt limitler Ayarlar bölümünden açılır. Uyarılar kanal bakiyesini değiştirmez.")),
-            Editor(Kart("Gerçek genel bakiye ile karşılaştır", Metin("Gerçekte saydığınız toplam bakiyeyi girin. Karşılaştırma kaydı tutulur; fark kasaya veya kanallara otomatik işlenmez."),
-                Alan("Gerçek toplam bakiye", Girdi(nameof(vm.GercekBakiye), true)), Alan("Açıklama", Girdi(nameof(vm.Not))), Dugme("Farkı göster", nameof(vm.OnizleCommand)), Bagli(nameof(vm.Karsilastirma)), Dugme("Karşılaştırmayı kaydet", nameof(vm.KaydetCommand)),
+            Editor(Kart("Gerçek genel bakiye ile karşılaştır", Metin("Gerçekte saydığınız toplam bakiyeyi girin. Karşılaştırma kaydı tutulur; fark kasaya veya kanallara otomatik işlenmez. Fark varsa açıklama zorunludur; farkı gördükten sonra yazabilirsiniz."),
+                Alan("Gerçek toplam bakiye", Girdi(nameof(vm.GercekBakiye), true)), Alan("Açıklama (fark varsa zorunlu)", Girdi(nameof(vm.Not))), Dugme("Farkı göster", nameof(vm.OnizleCommand)), Bagli(nameof(vm.Karsilastirma)), Dugme("Karşılaştırmayı kaydet", nameof(vm.KaydetCommand)),
                 Goster(sifirOnayi, nameof(vm.KayitUyarisi), true))),
-            Kart("Bakiye karşılaştırma geçmişi", Liste<KasaKontrolSatiri>(nameof(vm.Gecmis)))
+            // Geçmiş: kayıtlı değerler değişmez; kayıt gününe ya da öncesine sonradan dokunan değişiklik "sonradan değişti" diye işaretlenir.
+            Kart("Bakiye karşılaştırma geçmişi", Metin("Kayıt gününe ya da öncesine sonradan girilen, silinen veya düzeltilen kayıtlar güncel durumu değiştirir; kayıtlı değerler değişmez."),
+                Liste<KasaKontrolSatiri>(nameof(vm.Gecmis), vm.IncelemeAsync, "Değişenleri göster", _ => vm.EditorMu)),
+            Goster(Kart("Bu kontrolden beri değişenler", Bagli(nameof(vm.SonrasiOzeti)),
+                Metin("Kontrolden sonra yapılan değişiklikler"), Liste<KasaKontrolDegisiklikSatiri>(nameof(vm.Degisiklikler)),
+                Metin("Kontrol gününe sonradan girilen giderler ve kontrol gününden bugüne kasaya işleyen hareketler"), Liste<KasaHareketiSatiri>(nameof(vm.SonrasiHareketler)),
+                Editor(Alan("Fark açıklaması", Girdi(nameof(vm.FarkAciklamasi)))), Editor(Dugme("Açıklamayı kaydet", nameof(vm.AciklaCommand)))), nameof(vm.Secili), true),
+            Kart("Kasa hareket dökümü", Metin("Genel kasayı ya da seçilen kanalın kasasını oluşturan bütün hareketler kaynağıyla. Kredi taksitleri ve eski kartın ay sonu düşümü tarihinde kendiliğinden işler."),
+                Alan("Başlangıç", Tarih(nameof(vm.DokumBaslangic))), Alan("Bitiş", Tarih(nameof(vm.DokumBitis))), Alan("Kasa", Secim(nameof(vm.DokumKasalari), nameof(vm.DokumKasa))),
+                Dugme("Dökümü göster", nameof(vm.DokumGetirCommand)), Bagli(nameof(vm.DokumOzeti)), Liste<KasaHareketiSatiri>(nameof(vm.DokumSatirlari)))
         } };
         return Durum(vm, vm.YukleAsync, body);
     }

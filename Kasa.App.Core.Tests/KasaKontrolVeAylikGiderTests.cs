@@ -53,14 +53,14 @@ public class KasaKontrolVeAylikGiderTests
     }
     [Fact] public async Task Gercek_bakiye_degistiginde_onizleme_tekrar_alinmalidir()
     {
-        var f = new Fake(); var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = -20 }; await v.OnizleCommand.ExecuteAsync(null); v.GercekBakiye = -21;
+        var f = new Fake(); var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = -20, Not = "Sayım" }; await v.OnizleCommand.ExecuteAsync(null); v.GercekBakiye = -21;
         await v.KaydetCommand.ExecuteAsync(null); Assert.Empty(f.Kontroller); Assert.Contains("önce", v.Hata!.ToLowerInvariant());
         await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null); Assert.Equal(-21, Assert.Single(f.Kontroller).GercekBakiye); Assert.Equal("hash", f.Kontroller[0].KontrolOzeti); Assert.Contains("değiştirilmedi", v.Mesaj);
     }
     [Fact] public async Task Bakiye_409_onizlemeyi_gecersizlestirir_ag_hatasi_anahtari_korur()
     {
         // Sıfırdan farklı bakiye: 0 ile kayıt ayrıca ikinci basışta onaylanır (aşağıdaki test).
-        var f = new Fake { KontrolHata = new HttpRequestException() }; var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = 50 }; await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null);
+        var f = new Fake { KontrolHata = new HttpRequestException() }; var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = 50, Not = "Sayım" }; await v.OnizleCommand.ExecuteAsync(null); await v.KaydetCommand.ExecuteAsync(null);
         f.KontrolHata = new KasaApiException(HttpStatusCode.Conflict, "Bakiye değişti"); await v.KaydetCommand.ExecuteAsync(null); Assert.Equal(f.Kontroller[0], f.Kontroller[1]);
         f.KontrolHata = null; await v.KaydetCommand.ExecuteAsync(null); Assert.Equal(2, f.Kontroller.Count); Assert.Null(v.Karsilastirma);
     }
@@ -166,6 +166,74 @@ public class KasaKontrolVeAylikGiderTests
         await v.MasrafOnizleCommand.ExecuteAsync(null); f.MasrafHata = true; await v.MasrafKaydetCommand.ExecuteAsync(null); f.MasrafHata = false; await v.MasrafKaydetCommand.ExecuteAsync(null);
         Assert.Equal(2, f.Masraflar.Count); Assert.Equal(f.Masraflar[0], f.Masraflar[1]); Assert.Equal("pay-hash", f.Masraflar[0].DagilimOzeti); Assert.NotEmpty(v.MasrafEkstreleri); Assert.Equal(0, v.MasrafTutari);
     }
+    // gap-denetim-izi-gozlemlenebilirlik-3: fark varken açıklama zorunlu; açıklama özete girmediği için farkı gördükten sonra yazılır.
+    [Fact] public async Task Fark_varken_aciklama_zorunlu_farki_gorduktan_sonra_yazilabilir()
+    {
+        var f = new Fake(); var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = 90 };
+        await v.OnizleCommand.ExecuteAsync(null);
+        Assert.Contains("Kanal kasaları: MEZAT 60,00 ₺ · PERAKENDE 40,00 ₺", v.Karsilastirma); Assert.Contains("açıklama zorunludur", v.Karsilastirma);
+        await v.KaydetCommand.ExecuteAsync(null);
+        Assert.Empty(f.Kontroller); Assert.Equal(KasaKontrolViewModel.NotZorunluMesaji, v.Hata);
+        v.Not = "  Sayım farkı "; await v.KaydetCommand.ExecuteAsync(null);
+        var kayit = Assert.Single(f.Kontroller); Assert.Equal((90m, "Sayım farkı", "hash"), (kayit.GercekBakiye, kayit.Not, kayit.KontrolOzeti));
+        v.GercekBakiye = 100; v.Not = ""; await v.OnizleCommand.ExecuteAsync(null); Assert.DoesNotContain("zorunludur", v.Karsilastirma);
+        await v.KaydetCommand.ExecuteAsync(null); Assert.Equal((100m, ""), (f.Kontroller[1].GercekBakiye, f.Kontroller[1].Not));
+    }
+    private static KasaKontrolDto Degisen => new(2, new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.FromHours(3)), 1000, 900, -100, "Sayım", 1, new DateOnly(2026, 9, 20),
+        new[] { new KasaKontrolKanalDto(1, "MEZAT", 600, 1100), new KasaKontrolKanalDto(2, "PERAKENDE", 400, 400) }, null, null, 1500, -600, true);
+    private static KasaKontrolDto Eski => new(1, new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.FromHours(3)), 800, 800, 0, null, GuncelSistemBakiye: 800, GuncelFark: 0);
+    // gap-coklu-giris-cift-sayim-mutabakat-17: sonradan değişen kontrol güncel sistem bakiyesi ve güncel farkla işaretlenir; eski kayıt belirtilir.
+    [Fact] public async Task Gecmis_sonradan_degisen_ve_filigransiz_eski_kayitlari_isaretler()
+    {
+        var f = new Fake { Gecmis = new[] { Degisen, Eski } }; var v = new KasaKontrolViewModel(f, Auth()); await v.YukleAsync();
+        Assert.EndsWith("fark -100,00 ₺ · sonradan değişti", v.Gecmis[0].Baslik);
+        Assert.Contains("Sonradan değişti: güncel sistem 1.500,00 ₺, güncel fark -600,00 ₺", v.Gecmis[0].Ozet);
+        Assert.Contains("Kanallar: MEZAT 600,00 ₺ (güncel 1.100,00 ₺) · PERAKENDE 400,00 ₺", v.Gecmis[0].Ozet);
+        Assert.DoesNotContain("sonradan", v.Gecmis[1].Baslik); Assert.Contains("Kayıttan sonra değişmedi · Eski kayıt, filigran yok", v.Gecmis[1].Ozet);
+        Assert.Equal(new[] { "Genel kasa", "MEZAT", "PERAKENDE" }, v.DokumKasalari.Select(k => k.Ad));
+    }
+    [Fact] public async Task Inceleme_kontrolden_beri_degisenleri_verir_fark_aciklamasi_surumle_ve_sabit_anahtarla_kaydedilir()
+    {
+        var f = new Fake { Gecmis = new[] { Degisen, Eski } };
+        f.Sonrasi = new(2, Degisen.Kaydedildi, new DateOnly(2026, 9, 20), true, 1000, 1500, 500,
+            [new DenetimOlayDto(9, new DateTimeOffset(2026, 9, 21, 10, 0, 0, TimeSpan.FromHours(3)), "editor", null, null, "Sil", "Islem", "812", """{"Tarih":"2026-09-18","TutarTl":500,"Iptal":false}""", null, null, null, null, null)],
+            [new KasaKontrolIstekDto(Guid.NewGuid(), "KartOdemeIptal", 4)],
+            [new KasaHareketiDto(new(2026, 9, 19), new(2026, 9, 19), "Gider", "Unutulan fatura", "MEZAT", 1, -70, -70, "Islem:900", false),
+             new KasaHareketiDto(new(2026, 9, 22), new(2026, 9, 22), "KrediTaksidi", "Kredi / 1. taksit", "MEZAT", 1, -1000, -1000, "TakipKrediTaksit:9", true)], false);
+        var izleyici = new KasaKontrolViewModel(f, Auth(Rol.Izleyici)); await izleyici.YukleAsync(); await izleyici.IncelemeAsync(izleyici.Gecmis[0]);
+        Assert.Empty(f.SonrasiIstekleri); Assert.Null(izleyici.Secili);
+
+        var v = new KasaKontrolViewModel(f, Auth()); await v.YukleAsync(); await v.IncelemeAsync(v.Gecmis[0]);
+        Assert.Equal(2, v.Secili!.Veri.Id); Assert.Equal(new[] { 2 }, f.SonrasiIstekleri);
+        Assert.Contains("geriye dönük değişim +500,00 ₺", v.SonrasiOzeti); Assert.Contains("kontrol gününden sonra -1.000,00 ₺", v.SonrasiOzeti); Assert.Contains("Mali istekler: KartOdemeIptal #4", v.SonrasiOzeti);
+        Assert.EndsWith("Silindi · Gider #812", Assert.Single(v.Degisiklikler).Baslik); Assert.Equal("Tarih: 2026-09-18 · TutarTl: 500 · Iptal: Hayır", v.Degisiklikler[0].Ozet);
+        Assert.EndsWith("Kontrol gününe ya da öncesine sonradan girildi.", v.SonrasiHareketler[0].Ozet);
+        Assert.Equal("22.09.2026 · Kredi taksidi (kendiliğinden) · -1.000,00 ₺", v.SonrasiHareketler[1].Baslik); Assert.DoesNotContain("sonradan girildi", v.SonrasiHareketler[1].Ozet);
+
+        // Ağ hatasında aynı istek kimliğiyle yeniden gönderilir; başarıda tutarlar ve güncel durum korunur, sürüm ilerler.
+        v.FarkAciklamasi = " Mükerrer gider silindi "; f.AciklamaHata = new HttpRequestException(); await v.AciklaCommand.ExecuteAsync(null);
+        f.AciklamaHata = null; await v.AciklaCommand.ExecuteAsync(null);
+        Assert.Equal(2, f.Aciklamalar.Count); Assert.Equal(f.Aciklamalar[0], f.Aciklamalar[1]); Assert.NotEqual(Guid.Empty, f.Aciklamalar[0].Girdi.IstekId);
+        Assert.Equal((2, 1, "Mükerrer gider silindi"), (f.Aciklamalar[0].Id, f.Aciklamalar[0].Girdi.Surum, f.Aciklamalar[0].Girdi.Aciklama));
+        var satir = v.Gecmis[0].Veri;
+        Assert.Equal((2, "Mükerrer gider silindi", -100m, true, (decimal?)1500), (satir.Surum, satir.FarkAciklamasi, satir.Fark, satir.SonradanDegisti, satir.GuncelSistemBakiye));
+        Assert.Same(v.Gecmis[0], v.Secili); Assert.Contains("değişmedi", v.Mesaj);
+        v.FarkAciklamasi = " "; await v.AciklaCommand.ExecuteAsync(null); Assert.Equal(2, f.Aciklamalar.Count); Assert.Contains("açıklamasını yazın", v.Hata);
+    }
+    [Fact] public async Task Dokum_secilen_aralik_ve_kasayla_istenir_acilis_kapanis_ve_satirlar_gosterilir()
+    {
+        var f = new Fake { Dokum = new(new(2026, 9, 1), new(2026, 9, 26), 1, "MEZAT", 1200, 780.25m,
+            [new KasaHareketiDto(new(2026, 9, 30), new(2026, 8, 20), "KartAySonu", "Eski kart", "MEZAT", 1, -400, 0, "Islem:5", true),
+             new KasaHareketiDto(new(2026, 9, 2), new(2026, 9, 2), "Gider", "Nakliye", "MEZAT", 1, -419.75m, -419.75m, "Islem:6", false)]) };
+        var v = new KasaKontrolViewModel(f, Auth()); await v.YukleAsync();
+        v.DokumBaslangic = new(2026, 9, 26); v.DokumBitis = new(2026, 9, 1); await v.DokumGetirCommand.ExecuteAsync(null);
+        Assert.Empty(f.DokumIstekleri); Assert.Contains("Bitiş tarihi başlangıçtan önce olamaz", v.Hata);
+        v.DokumBaslangic = new(2026, 9, 1); v.DokumBitis = new(2026, 9, 26); v.DokumKasa = v.DokumKasalari[1]; await v.DokumGetirCommand.ExecuteAsync(null);
+        Assert.Equal(((DateOnly?)new DateOnly(2026, 9, 1), (DateOnly?)new DateOnly(2026, 9, 26), (int?)1), Assert.Single(f.DokumIstekleri));
+        Assert.Equal("MEZAT · 01.09.2026 – 26.09.2026\nAçılış 1.200,00 ₺ · kapanış 780,25 ₺ · 2 hareket", v.DokumOzeti);
+        Assert.Equal("30.09.2026 · Eski kart ay sonu düşümü (kendiliğinden) · +0,00 ₺", v.DokumSatirlari[0].Baslik); Assert.Contains("kayıt 20.08.2026", v.DokumSatirlari[0].Ozet);
+        Assert.Equal("02.09.2026 · Gider · -419,75 ₺", v.DokumSatirlari[1].Baslik);
+    }
     internal sealed class Fake : IKasaKontrolApi, IAylikGiderApi
     {
         public AylikGiderSablonYaz? Sablon; public List<AylikGiderOdemeYaz> Odemeler = new(); public bool OdemeHata; public Task<AylikGiderAyDto>? BekleyenAy; public bool Odendi; public int IptalSayisi; public int KilitSurumu = 3;
@@ -182,7 +250,7 @@ public class KasaKontrolVeAylikGiderTests
         public Task<IReadOnlyList<KasaEsikDto>> KasaEsikleriAsync() => Task.FromResult<IReadOnlyList<KasaEsikDto>>(new[] { new KasaEsikDto(1, "MEZAT", 2, 10, true, -20, true), new KasaEsikDto(2, "PERAKENDE", 0, 100, false, 0, true) });
         public Task<KasaEsikDto> KasaEsigiKaydetAsync(int id, KasaEsikYaz g) { Esik = g; return Task.FromResult(new KasaEsikDto(id, "MEZAT", 3, g.Tutar, g.Etkin, -20, true)); }
         // Kasa kontrolü filigranı, fark açıklaması, "kontrolden beri değişenler" ve hareket dökümü (gap-denetim-izi-gozlemlenebilirlik-3).
-        public IReadOnlyList<KasaKontrolDto> Gecmis = Array.Empty<KasaKontrolDto>(); public List<(int Id, KasaKontrolAciklamaYaz Girdi)> Aciklamalar = new();
+        public IReadOnlyList<KasaKontrolDto> Gecmis = Array.Empty<KasaKontrolDto>(); public List<(int Id, KasaKontrolAciklamaYaz Girdi)> Aciklamalar = new(); public Exception? AciklamaHata { get; set; }
         public KasaKontrolSonrasiDto? Sonrasi { get; set; } public List<int> SonrasiIstekleri = new(); public KasaHareketleriDto? Dokum { get; set; } public List<(DateOnly? Baslangic, DateOnly? Bitis, int? KanalId)> DokumIstekleri = new();
         public Task<IReadOnlyList<KasaKontrolDto>> KasaKontrolleriAsync() => Task.FromResult(Gecmis);
         public Task<KasaKontrolOnizlemeDto> KasaKontrolOnizleAsync(KasaKontrolOnizle g) { KontrolOnizlemeSayisi++; return BekleyenKontrol ?? Task.FromResult(new KasaKontrolOnizlemeDto(100, g.GercekBakiye, g.GercekBakiye - 100, "hash",
@@ -190,6 +258,7 @@ public class KasaKontrolVeAylikGiderTests
         public Task<KasaKontrolDto> KasaKontrolAciklaAsync(int id, KasaKontrolAciklamaYaz g)
         {
             Aciklamalar.Add((id, g));
+            if (AciklamaHata is { } e) return Task.FromException<KasaKontrolDto>(e);
             // Sunucu gibi: tutarlar aynen, sürüm artar, güncel karşılaştırma alanları boş döner.
             return Task.FromResult(Gecmis.Single(k => k.Id == id) with { Surum = g.Surum + 1, FarkAciklamasi = g.Aciklama.Trim(), FarkAciklamaZamani = DateTimeOffset.Now, GuncelSistemBakiye = null, GuncelFark = null, SonradanDegisti = false });
         }
