@@ -208,7 +208,7 @@ A: sunucu çalışıyor, yerel yedekler kayıp ya da bozuk. B: VPS tamamen kayı
    sudo python3 /opt/kasa/deploy/restore_backup.py /root/kasa-geri/<ad> --output <yeni-veri-dizini>/kasa.db --belge-aynasi /root/kasa-geri/belgeler
    ```
    Yerel yedekten dönüşte ayna `KASA_BACKUP_DIR/belgeler`'dir (`--belge-aynasi <KASA_BACKUP_DIR>/belgeler`); Ayarlar'dan indirilen elle yedek belgeleri kendi içinde taşır, `--belge-aynasi` gerekmez. Eski yedekler (2.1.0 ve öncesi) belgeleri `kasa.db` içinde taşır.
-5. Uygulamayı yeni dizinle açın: `deploy/.env`'de `KASA_DATA_DIR=<yeni-veri-dizini>`; ardından A'da [deploy/README.md](../../deploy/README.md) "Güncelleme" 6–8, B'de "İlk kurulum" 5–7. A'da eski veri dizinini silmeyin, kenarda tutun. Yedek daha eski bir şemadaysa uygulama açılışta göç öncesi yedek alıp migration'ları uygular ([database-upgrade.md](database-upgrade.md)).
+5. Uygulamayı yeni dizinle açın: `deploy/.env`'de `KASA_DATA_DIR=<yeni-veri-dizini>` ve **`KASA_EDITOR_SIFRE`'yi yeni, en az 12 karakterlik bir değere** çevirin (aşağıda "Geri yüklemeden sonra", 1. adım); ardından A'da [deploy/README.md](../../deploy/README.md) "Güncelleme" 6–8, B'de "İlk kurulum" 5–7. A'da eski veri dizinini silmeyin, kenarda tutun. Yedek daha eski bir şemadaysa uygulama açılışta göç öncesi yedek alıp migration'ları uygular ([database-upgrade.md](database-upgrade.md)).
 6. Aşağıdaki "Geri yüklemeden sonra" bölümündeki zorunlu adımları uygulayın (yeni izleyici şifresi dahil). `/health`, giriş, panel ve son dönem raporlarını kontrol edin. Yedeğin alındığı andan sonraki kayıtlar yedekte yoktur. Uzak kopyadan dönüşte kayıp aralığı en yeni uzak kopyanın yaşıdır: uygulama yedeği saatlik denetimle 24–25 saatte bir alır, gönderim 6 saatte bir (en çok 15 dakika rastgele gecikmeyle) çalışır, bu yüzden aralık olağan durumda en çok ~31 saattir. Gönderim bir süredir hata veriyorsa aralık daha uzundur; esas olan 2. adımdaki `listele` çıktısındaki zamandır (UTC). Kullanıcılara bu aralığı bildirip kayıtları yeniden girdirin. Riskli bir işlemden (sürüm güncellemesi, toplu içe aktarma) önce uygulamada elle yedek alıp `sudo systemctl start kasa-uzak-yedek.service` ile hemen gönderirseniz aralık dakikalara iner.
 7. Geri dönüşü, kullanılan yedeği ve kaybedilen aralığı 8. bölümdeki tabloya yazın.
 
@@ -222,35 +222,48 @@ Kurulumdan hemen sonra ve üç ayda bir: `sudo systemctl start kasa-uzak-dogrula
 
 ## Geri yüklemeden sonra
 
-Canlıya alınan her geri yükleme (yerel yedek, uzak kopya ya da göç öncesi yedek) veritabanındaki bütün durumu yedek anına sarar. Yalnız kayıtlar değil; izleyici şifresi, editör şifresi ve kurtarma kodu, alıcı hesaplarının etkinliği ve şifreleri, oturum iptalleri, kayıt numarası sayaçları ve kayıt sürümleri de geri döner. Yedekten sonra yapılmış bir güvenlik değişikliğinin kaydı (ör. ayrılan bir çalışan yüzünden izleyici şifresinin değiştirilmesi) atılan kısımdadır; geri yüklenen dosyadan bilinemez.
+Canlıya alınan her geri yükleme (yerel yedek, uzak kopya ya da göç öncesi yedek) veritabanındaki bütün durumu yedek anına sarar. Yalnız kayıtlar değil; editör şifresi ve kurtarma kodu, izleyici şifresi, alıcı hesaplarının etkinliği ve şifreleri, oturum iptalleri, cihaz bildirim kayıtları, kayıt numarası sayaçları ve kayıt sürümleri de geri döner. Yedekten sonra yapılmış bir güvenlik kararı (ör. çalınan bir cihaz yüzünden editör şifresinin değiştirilmesi, ayrılan bir çalışanın alıcı hesabının pasife alınması) veritabanında atılan kısımdadır. Bu yüzden uygulama bu kararları veritabanı dışındaki **güvenlik günlüğünde** de tutar ve geri yüklemede oradan yeniden uygular.
+
+### Güvenlik günlüğü
+
+- Yer: yedek dizininde `guvenlik-gunlugu.jsonl` (compose'da `/yedekler`, sunucuda `KASA_BACKUP_DIR`; `GuvenlikGunlugu__Yol` ile değiştirilebilir). Canlı veritabanının dizininden (`/data`) bağımsızdır; veritabanı geri yüklense de kalır. Üretimde açıktır (`GuvenlikGunlugu__Etkin`, geliştirmede kapalı).
+- İçerik: editör şifre değişikliği, kurtarma kodu üretimi ve kullanımı, izleyici şifresi değişikliği, alıcı hesabı açma/güncelleme (pasife alma, şifre ya da kullanıcı adı değişikliği), cihaz bildirim kaydı kaldırma, ay kapatma/açma ve geri yüklemeler; her satırda an (UTC), tür, kayıt numarası ve kullanıcı adı. Şifre, şifre özeti, kurtarma kodu, oturum belirteci ve bildirim uç adresi **yazılmaz**. Her olay konteyner loguna da (`Kasa.Guvenlik`) düşer.
+- Dosyayı **silmeyin ve elle düzenlemeyin**. Yalnız eklenir, döndürülmez; olaylar seyrektir, boyutu küçük kalır. Yedek rotasyonu ve sunucu dışı yedek (`uzak_yedek.py`) yalnız `kasa-*.zip` dosyalarına bakar, bu dosyaya dokunmaz. VPS kaybında (7. bölüm, B) günlük de kaybolur; o durumda aşağıdaki "Günlük yoksa" maddesi geçerlidir.
 
 ### Uygulamanın kendiliğinden yaptıkları
 
-Uygulamanın aldığı her yedek SQLite başlığında geri yükleme işareti taşır (`PRAGMA user_version`; canlı dosyada 0). [`restore_backup.py`](../../deploy/restore_backup.py) bu sürümden önce alınmış işaretsiz yedeği geri açarken işaretler. Uygulama işaretli dosyayla ilk açılışta, migration'lardan sonra ve HTTP sunucusu açılmadan, tek transaction'da şunları yapar:
+Uygulamanın aldığı her yedek SQLite başlığında geri yükleme işareti (`PRAGMA user_version`; canlı dosyada 0) ve yedek anını taşır. [`restore_backup.py`](../../deploy/restore_backup.py) bu sürümden önce alınmış işaretsiz yedeği geri açarken işaretler ve her yedekte manifestteki yedek anını `__KasaGeriYukleme` tablosuna yazar. Uygulama işaretli dosyayla ilk açılışta, migration'lardan sonra ve HTTP sunucusu açılmadan, tek transaction'da şunları yapar:
 
-- **Bütün oturumları kapatır.** Editörün ve her alıcının oturum sürümü artar, izleyici şifresi silinir. Yedekten önce ya da sonra alınmış bütün oturum belirteçleri (30 gün), tanıdık cihaz belirteçleri ve bildirim abonelikleri geçersiz olur; herkes yeniden giriş yapar. `Kasa:JwtKey` değişmez. Açık kalmış masaüstü ya da web ekranı eski kayıt numarası ve sürümüyle yazamaz: oturum sonu alır, yeniden girişte ekran yeniden yüklenir.
-- **İzleyici girişini kapatır.** Editör yeni bir izleyici şifresi belirleyene kadar izleyici giremez. Yedekteki eski şifre de yedekten sonra belirlenen şifre de geçersizdir. Yalnız uyarmakla yetinilmez: izleyici bütün finans verisini (dışa aktarma dahil) okuyabilir, uyarı görülene kadar eski şifreyi bilen biri erişebilirdi. Editör Ayarlar'da izleyici şifresini belirlenmemiş görür.
-- **Kayıt numaralarını ileri alır.** AUTOINCREMENT'li her tablonun sayacı yedekteki en yüksek numaradan 1.000.000 ileri alınır. Yedekten sonra açılıp geri yüklemeyle atılan kayıtların numaraları yeni kayıtlara verilmez. Eski bir ekranın ya da bekleyen bir tekrarın taşıdığı numara başka bir kayda ulaşamaz (404). Yedek anında var olan kayıtların sürümü de geri döndüğü için eski sürümle gelen yazma 409 alır. Numaralar 32 bittir: her geri yükleme 1.000.000 kullanır (yaklaşık 2.000 geri yüklemeye yeter). Aynı yedeği ikinci kez geri yüklerseniz ilk geri yüklemeden sonra açılan kayıtların numaraları yeniden verilebilir; oturumlar yine kapandığından eski ekranlar yazamaz.
-- **İz bırakır ve işareti siler.** Değişiklik geçmişinin "Oturum ve güvenlik" bölümüne `GeriYuklemeIslendi` olayı (veri soyu kimliği, yeni sayaçlar, kapatılan oturumlar, yedekteki son olayın zamanı) yazılır. İzleyici şifresinin silinmesi ve alıcı oturumlarının kapatılması kendi olaylarıyla (aktör: Sistem) görünür. Sonraki açılışlarda işlem yeniden çalışmaz. Bir hata olursa hiçbir şey değişmez ve açılış durur.
+- **Bütün oturumları kapatır.** Yeni bir oturum dönemi açılır (veri soyu kimliği; oturum damgasına girer). Yedekten önce ya da sonra, hatta aynı yedeğin daha önceki bir geri yüklemesinden sonra alınmış bütün oturum belirteçleri (30 gün) ve tanıdık cihaz belirteçleri geçersiz olur; herkes yeniden giriş yapar. `Kasa:JwtKey` değişmez ve döndürülmesi gerekmez. Açık kalmış masaüstü ya da web ekranı eski kayıt numarası ve sürümüyle yazamaz: oturum sonu alır, yeniden girişte ekran yeniden yüklenir.
+- **Kurtarma kodunu iptal eder.** Yedekteki kurtarma kodu yeniden geçerli olmaz.
+- **Cihaz bildirim kayıtlarını kapatır.** Yedekten sonra kaldırılmış (ör. kayıp) bir cihaz dirilmez; bildirim kullanan cihazlarda bildirimler yeniden açılır.
+- **İzleyici girişini kapatır.** Editör yeni bir izleyici şifresi belirleyene kadar izleyici giremez. Yedekteki eski şifre de yedekten sonra belirlenen şifre de geçersizdir (izleyici bütün finans verisini, dışa aktarma dahil, okuyabilir).
+- **Güvenlik günlüğünden yedek anından sonraki kararları yeniden uygular** (yalnız sıkılaştırma; yeniden etkinleştirme gibi gevşetici kararlar uygulanmaz):
+  - Editör şifresi yedekten sonra değiştirildiyse ya da kurtarma kodu kullanıldıysa yedekteki eski şifre geçersiz kılınır. Editör girişi bundan sonra ortamdaki `KASA_EDITOR_SIFRE` ile yapılır. Bu kodda operatörün ayrı bir editör şifresi sıfırlama yolu yoktur; bu yüzden ortam şifresi, operatörün geri yüklemeden önce yenilediği (aşağıda 1. adım) bilinçli bir sıfırlama olarak kullanılır.
+  - Yedekten sonra pasife alınan, şifresi ya da kullanıcı adı değiştirilen alıcı pasif bırakılır; editör gerekirse yeni şifreyle etkinleştirir. Yedekten sonra açılıp geri yüklemede kaybolan alıcılar rapora yazılır.
+- **Kayıt numaralarını ileri alır.** AUTOINCREMENT'li her tablonun sayacı yedekteki en yüksek numaradan 1.000.000 ileri alınır. Yedekten sonra açılıp geri yüklemeyle atılan kayıtların numaraları yeni kayıtlara verilmez. Eski bir ekranın ya da bekleyen bir tekrarın taşıdığı numara başka bir kayda ulaşamaz (404). Yedek anında var olan kayıtların sürümü de geri döndüğü için eski sürümle gelen yazma 409 alır. Numaralar 32 bittir: her geri yükleme 1.000.000 kullanır (yaklaşık 2.000 geri yüklemeye yeter).
+- **Rapor ve iz bırakır, işaretleri siler.** Yapılanlar ve yapılması gerekenler Türkçe maddeler halinde web'de **Araçlar > Yedekleme** ve masaüstünde **Güvenlik** ekranında "Son geri yükleme" başlığıyla görünür (`/api/yedek/durum`: `sonGeriYukleme`, `geriYuklemeRaporu`). Değişiklik geçmişinin "Oturum ve güvenlik" bölümüne `GeriYuklemeIslendi` olayı (veri soyu, yedek anı, yeni sayaçlar, sıfırlanan şifre, pasif bırakılan alıcılar, günlük durumu) yazılır; aynı olay güvenlik günlüğüne, her rapor maddesi konteyner loguna uyarı olarak düşer. Sonraki açılışlarda işlem yeniden çalışmaz. Bir hata olursa hiçbir şey değişmez ve açılış durur. Kasa kayıtlarına ve raporlara dokunulmaz: panel, haftalık ve aylık raporlar yedek anındakiyle aynıdır.
+- **Günlük yoksa ya da yedekten sonra başladıysa** (ör. VPS kaybı, dosya silinmiş, yedek bu sürümden önce alınmış): yedekten sonraki kararlar bilinemez. Yukarıdaki koşulsuz adımlar yine uygulanır; editör şifresi yedek anındaki şifredir. Rapor "Güvenlik günlüğü bulunamadı" ya da "… tarihinden beri tutuluyor" maddesiyle editör şifresinin hemen değiştirilmesini ve alıcıların gözden geçirilmesini ister.
 
 Doğrulama (uygulama açıldıktan sonra):
 
 ```sh
-cd /opt/kasa/deploy && docker compose -f docker-compose.nginx.yml logs kasa | grep "Geri yüklenmiş veritabanı"
+cd /opt/kasa/deploy && docker compose -f docker-compose.nginx.yml logs kasa | grep "Geri yükle"
 ```
 
-Satır yoksa dosya işaretsiz açılmıştır (ör. ZIP'ten elle çıkarıldı). Uygulamayı durdurun ve dosyayı `restore_backup.py` ile yeniden geri açın. Yedeği ZIP'ten elle çıkarmayın.
+"Geri yüklenmiş veritabanı tanındı" satırı ve ardından rapor maddeleri görünür. Satır yoksa dosya işaretsiz açılmıştır (ör. ZIP'ten elle çıkarıldı). Uygulamayı durdurun ve dosyayı `restore_backup.py` ile yeniden geri açın. Yedeği ZIP'ten elle çıkarmayın.
 
 ### Operatörün yapacakları (zorunlu)
 
-Trafiği açtıktan hemen sonra, sırayla:
-
-1. Editör olarak girin. Editör şifresi yedek anındakidir: yedekten sonra değiştirdiyseniz eski şifreyle girip hemen Ayarlar'dan yeni şifre belirleyin.
-2. Ayarlar'dan **yeni** bir izleyici şifresi belirleyin ve yalnız erişmesi gereken kişilere iletin. Yedekteki eski şifreyi yeniden kullanmayın; ayrılan biri onu biliyor olabilir.
-3. Yeni kurtarma kodu üretin. Yedekteki kurtarma kodu yeniden geçerli olmuştur; yenisi onu geçersiz kılar.
-4. Alışlar ekranındaki alıcı hesaplarını gözden geçirin. Yedekten sonra pasife alınan ya da şifresi değiştirilen hesapları yeniden pasife alın ya da şifrelerini değiştirin.
-5. Bildirim kullanan cihazlarda bildirimleri yeniden açın.
-6. Kullanıcılara kayıp aralığını bildirin ("Uzak kopyadan geri dönüş" 6. adım; `restore_backup.py` yedek anını yazar) ve bu aralıktaki kayıtları yeniden girdirin.
+1. **Uygulamayı geri yüklenen dosyayla açmadan önce** `deploy/.env`'de `KASA_EDITOR_SIFRE`'yi yeni, en az 12 karakterlik ve daha önce kullanılmamış bir değere çevirin. İlk kurulumdaki ya da eski bir ortam şifresini bırakmayın: yedekten sonra editör şifresi değiştirildiyse giriş bu değerle açılır. (Açtıktan sonra fark ettiyseniz değeri değiştirip uygulamayı yeniden başlatın; geri yükleme işlemi tekrarlanmaz, yeni değer geçerli olur.)
+2. Trafiği açtıktan hemen sonra editör olarak girin ve **Araçlar > Yedekleme** (masaüstünde **Güvenlik**) altındaki geri yükleme raporunu okuyun.
+   - Raporda "Editör şifresi yedekten sonra değiştirilmişti" varsa 1. adımdaki ortam şifresiyle girin ve **hemen** Güvenlik'ten yeni bir editör şifresi belirleyin.
+   - Raporda "Güvenlik günlüğü bulunamadı" ya da "… tarihinden beri tutuluyor" varsa yedekteki şifreyle girin ve **hemen** yeni bir editör şifresi belirleyin.
+3. Ayarlar'dan **yeni** bir izleyici şifresi belirleyin ve yalnız erişmesi gereken kişilere iletin. Yedekteki eski şifreyi yeniden kullanmayın; ayrılan biri onu biliyor olabilir.
+4. Güvenlik'ten yeni bir kurtarma kodu üretin (eskisi iptal edildi) ve güvenli yerde saklayın.
+5. Alıcı hesaplarını gözden geçirin: raporda pasif bırakıldığı yazan alıcıları gerekiyorsa yeni şifreyle etkinleştirin, kaybolanları yeniden açın. Günlük yoksa yedekten sonra pasife alınması ya da şifresi değişmesi gereken hesapları elle düzeltin.
+6. Bildirim kullanan cihazlarda bildirimleri yeniden açın.
+7. Kullanıcılara kayıp aralığını bildirin ("Uzak kopyadan geri dönüş" 6. adım; `restore_backup.py` ve rapor yedek anını yazar) ve bu aralıktaki kayıtları yeniden girdirin. Yedekten sonra kapatılmış aylar geri yüklemede yeniden açık görünür; gerekiyorsa kayıtları girdikten sonra yeniden kapatın.
 
 ## Disk doluluğu
 

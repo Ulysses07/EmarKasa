@@ -29,6 +29,6 @@ JSON camelCase; tarihler YYYY-MM-DD; para en fazla 2 ondalık. Finans okuma edit
 - GET/POST `/api/alis/{id}/belgeler`, GET/DELETE `/api/belgeler/{id}`: sahiplik denetimli PNG/JPEG/PDF eki; 10 MB sınırı.
 - GET `/api/disari-aktar?baslangic=&bitis=&kanal=&bicim=xlsx|csv|html`: filtreli gider raporu. HTML yazdır/PDF akışı içindir.
 - POST `/api/auth/sifre`, `/api/auth/kurtarma-kodu`, `/api/auth/kurtar`: parola ve tek kullanımlık kurtarma kodu. Değişiklik önceki oturumları geçersizleştirir.
-- GET `/api/surum`, GET `/api/yedek/durum`, POST `/api/yedek`: sürüm ve editöre özel yedek yönetimi.
+- GET `/api/surum`, GET `/api/yedek/durum`, POST `/api/yedek`: sürüm ve editöre özel yedek yönetimi. `/api/yedek/durum` sonda isteğe bağlı `sonGeriYukleme` (son geri yüklemenin anı) ve `geriYuklemeRaporu` (Türkçe maddeler: açılışta yapılanlar ve yapılması gerekenler) taşır; hiç geri yükleme olmadıysa ikisi de `null`. Eski istemci yok sayar. Geri yüklemeden sonraki ilk açılışta bütün oturumlar, tanıdık cihaz belirteçleri, kurtarma kodu ve cihaz bildirim kayıtları geçersiz olur.
 
 `/api/cariler`, `/api/alis/tedarikciler`, `/api/tedarikciler/...`, `/api/hesaplar/...`, `/api/nakit-takvimi`, `/api/is-listesi` ve yeni kredi gerçekleşme uçları kaldırılmıştır. ERP12 ile senkronizasyon yoktur.
