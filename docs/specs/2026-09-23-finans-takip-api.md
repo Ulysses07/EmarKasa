@@ -66,6 +66,9 @@ GET /api/takip/ozet?gun=30 -> `TakipOzetDto { tarih, kartBorcu, kalanKrediPlani,
 
 Bildirim backend'i bu işten ayrı uygulanır; tekrar kullanılabilir `FinansTakipServisi.GetNotificationEvents(db,today)` aynı kaynak/kalem kimliklerini döndürür. Bildirim üretmek mali kayıt yaratmaz.
 
+Takipsiz (geçişi yapılmamış) kayıtlar: bildirim olayları takipli kayıtların olaylarından sonra, eski modelin hesabıyla takipsiz kartlar ve krediler için de üretilir (`EskiModelOlaylari`); veri dönüştürülmez, takip kaydı oluşturulmaz, kasa/rapor hesabı değişmez. Kart: ekstre borcu `/api/kredikartlari` `EkstreBorc` hesabıdır (güncel borç − son kesimden sonraki harcamalar); ekstre borcu > 0 ve kesimden sonra eski kart ödemesi yoksa kesim günü `Kesim`, son ödeme günü `SonOdeme` olayı (kalemId 0; önceki ekstrenin son ödeme günü geçmediyse o da). Kredi: eski planın her taksidi `Taksit` (gerçekleşme takipli eski kredide `otomatikKasa:false`). Olay adı ` (eski model; geçiş yapılmadı)` ile biter; bildirim metni eski kasa kuralını söyler ve geçiş ister. Bu olaylar `/api/takip/ozet`'e girmez (özet yanıtı değişmez).
+`GET /api/rapor/ana-sayfa` yanıtı takipsiz kayıt varken `takipsizKayitlar: TakipsizKayitDto[]` alanını yazar (`TakipsizKayitDto { kaynak:"Kart"|"Kredi", id, ad }`): geçişi yapılmamış bütün kartlar ve kalan taksidi olan (ya da planı geçersiz) eski krediler; web ve masaüstü ana sayfası kayıt kaldıkça kalıcı "hatırlatmalar sınırlı, geçiş yapın" uyarısı gösterir. Kayıt yoksa alan yazılmaz.
+
 İade sınırı: kaynak harcamanın henüz ödenmemiş kısmını aşan iade 409 ile reddedilir. Ödenmiş harcama için kanallar arası kart alacağı mahsubu bu sürümde yoktur; mevcut ödemeler sessizce değiştirilmez.
 Geçiş bugün eski kredi taksidi veya kart ay sonu düşümü içeriyorsa yarın veya sonrası seçilmelidir. /takip/ozet ileri gün aralığına ek olarak geçmiş son ödeme tarihli açık kart ekstrelerini de döndürür.
 
