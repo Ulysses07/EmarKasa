@@ -167,6 +167,36 @@ public class CardLoanTrackingTests
     }
 
     [Fact]
+    public async Task Genel_gider_ekranindan_takipli_karta_eksi_veya_sifir_tutar_girilemez_iade_kart_ekranina_yonlendirilir()
+    {
+        // finance-9: PERAKENDE'nin 30 TL iadesi gider ekranından eksi tutarla girilseydi kaynaksız alacak olur,
+        // MEZAT'ın harcamasını kapatırdı; sonraki ödeme 70 TL MEZAT'tan düşerdi.
+        await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Start, "MEZAT harcaması", 100m, 1, null, [new(1, 100m)]));
+        foreach (var tutar in new[] { -30m, 0m })
+        {
+            var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE iadesi", tutar, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id));
+            Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
+            var hata = (await r.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("errors").GetProperty("tutarTl")[0].GetString();
+            Assert.Equal(KayitGirdileri.TakipliKartIadeYolu, hata);
+        }
+        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        Assert.Equal(100m, after.Borc); Assert.Single(after.Harcamalar);
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            Assert.Equal(1, db.TakipHarcamalar.Count()); Assert.Equal(0, db.Islemler.Count());
+        }
+        after = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), after.Surum, Today, 100m));
+        var pay = Assert.Single(Assert.Single(after.Odemeler).Dagilimlar);
+        Assert.Equal((1, 100m), (pay.KanalId, pay.Tutar));
+        Assert.Equal(0m, after.Borc); Assert.Equal(900m, await Cash(c));
+        // Kartsız eksi gider (düzeltme) davranışı değişmez.
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kasa düzeltmesi", -30m, "PERAKENDE", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        Assert.Equal(930m, await Cash(c));
+    }
+
+    [Fact]
     public async Task Eski_uc_yeni_takip_kuralini_atlayamaz_ve_alici_finansa_erismez()
     {
         await using var f = Factory(); using var c = await Editor(f); var card = await Card(c);

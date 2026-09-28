@@ -49,6 +49,10 @@ public static class KayitGirdileri
         v.Kart(db, dto.KrediKartiId);
         if (dto.KrediKartiId is { } cardId)
             v.Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == cardId && dto.Tarih < k.Baslangic), "tarih", "Kart harcaması kart takip başlangıcından önce olamaz.");
+        // finance-9: takipli karttaki eksi gider kaynaksız alacak olur, herhangi bir kanalın taksidini kapatırdı (iade
+        // akışının kaynak, kanal oranı ve ödenmiş kısım korumaları atlanır). Takipsiz/kartsız eksi gider değişmez.
+        if (dto.KrediKartiId is { } takipKarti && db.TakipKartlar.Any(k => k.KrediKartiId == takipKarti))
+            v.Kontrol(dto.TutarTl > 0, "tutarTl", TakipliKartIadeYolu);
         TakipliKartKurali(v, db, dto.KrediKartiId is not null ? GiderTipi.KrediKarti : dto.Tip, dto.KrediKartiId, mevcut);
         return (new IslemEntity
         {
@@ -58,6 +62,9 @@ public static class KayitGirdileri
             Not = dto.Not, KrediKartiId = dto.KrediKartiId
         }, v.Sonuc());
     }
+
+    /// <summary>finance-9 iletisi: takipteki karta genel gider ekranından sıfır/eksi tutar (iade, alacak) girilemez.</summary>
+    public const string TakipliKartIadeYolu = "Takipteki karta genel gider ekranından iade veya alacak girilemez; tutar sıfırdan büyük olmalı. İade için Kredi Kartları ekranında kaynak harcamayı seçerek iade girin.";
 
     /// <summary>K3 iletisi (yeni kredi kartı gideri takipsiz karta ya da kartsız kaydedilemez).</summary>
     public const string TakipliKartZorunlu = "Kredi kartı gideri için yeni takipteki bir kart seçin. Kart eski takipteyse önce kart ekranından yeni takibe geçirin.";
