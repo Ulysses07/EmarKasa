@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Sözleşme testleri (contract-8, tests-8): gerçek KasaApiClient, test sunucusundaki gerçek Kasa.Api'ye konuşur.
-       Kök ad alanı Kasa.Sozlesme.Tests'tir: Kasa.Api altında olsaydı aynı adlı sunucu tipleri (Kasa.Api.PanelDto ...)
-       using yönergelerinden önce çözülürdü. Kasa.Api.Tests'e başvurmaz; kendi fabrikası vardır. -->
+  <!-- Sözleşme testleri (contract-8 ve tests-8'in gerçek API yarısı; tests-8'in Kasa.ApiClient.Tests maddeleri o projede
+       açık): gerçek KasaApiClient, test sunucusundaki gerçek Kasa.Api'ye konuşur. Kök ad alanı Kasa.Sozlesme.Tests'tir:
+       Kasa.Api altında olsaydı aynı adlı sunucu tipleri (Kasa.Api.PanelDto ...) using yönergelerinden önce çözülürdü.
+       Kasa.Api.Tests'e başvurmaz; kendi fabrikası vardır. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
