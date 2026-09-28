@@ -79,6 +79,47 @@ public class KapsanmayanUclarTests
             new KartHarcamaYaz(Guid.NewGuid(), aktif.Surum, Bugun, "Malzeme", 50m, 1, null, [new(1, 50m)]));
     }
 
+    /// <summary>Pasif kart gün dönümünde yeni kesim ekstresi almaz: bakım adımı (Sync) yalnız aktif kartın kesim
+    /// ekstrelerini yazar, okuma da pasif karta ekstre türetmez. Yeniden aktifleşince yazma yolunun Sync'i bugünün ve
+    /// önceki kesimin ekstrelerini yazar.</summary>
+    [Fact]
+    public async Task Pasif_kart_gun_donumunde_ekstre_uretmez_yeniden_aktiflesince_uretir()
+    {
+        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        var kart = await Kart(c); // kesim günü 5
+        var pasif = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", new TakipDurumYaz(Guid.NewGuid(), kart.Surum, false, "Kart kapatıldı"));
+        var onceki = pasif.Ekstreler.Select(e => e.KesimTarihi).ToList();
+        var kayitli = EkstreSayisi(f, kart.Id);
+        Assert.NotEmpty(onceki);
+
+        // İki ay sonra iki yeni kesim günü geçmiştir.
+        var sonra = Bugun.AddMonths(2); ((SabitSaat)f.Saat!).Ayarla(sonra);
+        var kesim = new DateOnly(sonra.Year, sonra.Month, 5); if (kesim < sonra) kesim = kesim.AddMonths(1);
+        var yeniKesimler = new[] { kesim.AddMonths(-1), kesim };
+        Assert.DoesNotContain(yeniKesimler, onceki.Contains);
+
+        Bakim(f);
+        Assert.Equal(kayitli, EkstreSayisi(f, kart.Id));
+        Assert.Equal(onceki, (await KartOku(c, kart.Id)).Ekstreler.Select(e => e.KesimTarihi));
+
+        var aktif = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", new TakipDurumYaz(Guid.NewGuid(), pasif.Surum, true, "Yeniden açıldı"));
+        Assert.True(aktif.Aktif);
+        Assert.All(yeniKesimler, k => Assert.Contains(aktif.Ekstreler, e => e.KesimTarihi == k && e.Id != 0));
+        Assert.Equal(kayitli + yeniKesimler.Length, EkstreSayisi(f, kart.Id));
+    }
+
+    private static int EkstreSayisi(KasaWebFactory f, int kartId)
+    {
+        using var scope = f.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<KasaDbContext>().TakipEkstreler.AsNoTracking().Count(e => e.KrediKartiId == kartId);
+    }
+
+    private static void Bakim(KasaWebFactory f)
+    {
+        using var scope = f.Services.CreateScope();
+        FinansTakipServisi.Bakim(scope.ServiceProvider.GetRequiredService<KasaDbContext>());
+    }
+
     [Fact]
     public async Task Kart_duzenleme_ad_limit_ve_gunleri_gunceller_eski_surum_ve_gecersiz_gun_reddedilir()
     {
