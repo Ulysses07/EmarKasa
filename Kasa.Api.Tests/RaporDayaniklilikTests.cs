@@ -117,6 +117,15 @@ public class RaporDayaniklilikTests
         Assert.Equal(once.GuncelKasa, sonra.GuncelKasa);
         Assert.Equal(once.DagilimBekleyenTutar + senaryo.Bekleyen, sonra.DagilimBekleyenTutar);
         Assert.Equal(Mezat(once) + senaryo.MezatFarki, Mezat(sonra));
+
+        // Kasa hareket dökümü (gap-denetim-izi-gozlemlenebilirlik-3) karantinalı kayıtla da panelin genel kasasını ve kanal kasasını
+        // verir: karantinaya alınan tutar dökümde "Dağılım bekliyor" ya da genel kasa satırıdır.
+        var takipBaslangici = Month.AddMonths(-3).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var dokum = (await c.GetFromJsonAsync<KasaHareketleriDto>($"/api/kasa-hareketleri?baslangic={takipBaslangici}"))!;
+        Assert.Equal((1_000m, sonra.GuncelKasa), (dokum.AcilisBakiyesi, dokum.KapanisBakiyesi));
+        Assert.Equal(dokum.KapanisBakiyesi - dokum.AcilisBakiyesi, dokum.Hareketler.Sum(h => h.GenelKasaEtkisi));
+        var mezat = (await c.GetFromJsonAsync<KasaHareketleriDto>($"/api/kasa-hareketleri?baslangic={takipBaslangici}&kanalId=1"))!;
+        Assert.Equal(Mezat(sonra), mezat.KapanisBakiyesi);
     }
 
     /// <summary>Sağlam veride karantina yoktur: altın rapor tohumunun (bütün kayıt türleri) hiçbir uç yanıtı uyarı ya da karantina

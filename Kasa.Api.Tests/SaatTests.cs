@@ -126,8 +126,12 @@ public class SaatTests
         var an = f.Saat!.GetUtcNow();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2021, 1, 1), kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
 
-        var onizleme = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(10m));
-        Assert.Equal(an, (await Post<KasaKontrolDto>(c, "/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 10m, onizleme.KontrolOzeti))).Kaydedildi);
+        // Fark sıfırdan farklı: açıklama zorunlu (gap-denetim-izi-gozlemlenebilirlik-3). Fark açıklamasının anı da sunucu saatidir.
+        var onizleme = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(10m, "Sayım"));
+        var kontrol = await Post<KasaKontrolDto>(c, "/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 10m, onizleme.KontrolOzeti, "Sayım"));
+        Assert.Equal((an, (DateOnly?)bugun), (kontrol.Kaydedildi, kontrol.HesapTarihi));
+        using (var r = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", new KasaKontrolAciklamaYaz(Guid.NewGuid(), kontrol.Surum, "Kasadaki fazla açıklandı")))
+            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<KasaKontrolDto>())!.FarkAciklamaZamani);
 
         var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
         kilit = await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, 2021, 2, "Şubat tamamlandı"));

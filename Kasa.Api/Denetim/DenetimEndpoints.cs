@@ -37,10 +37,13 @@ public static class DenetimEndpoints
                 if (kilitAcmaOlayiId is { } kilit) q = q.Where(o => o.KilitAcmaOlayiId == kilit);
                 if (oncekiId is { } once) q = q.Where(o => o.Id < once);
                 var satirlar = q.OrderByDescending(o => o.Id).Take(adet ?? VarsayilanAdet).ToList();
-                return Results.Ok(satirlar.Select(o => new DenetimOlayDto(o.Id, DateTimeOffset.FromUnixTimeMilliseconds(o.ZamanUtc), o.AktorRol, o.AktorId,
-                    o.IstemciIp, o.Tur, o.Varlik, o.VarlikId, o.OncekiJson, o.YeniJson, o.Gerekce, o.IstekId, o.TraceId, o.KilitAcmaOlayiId)).ToList());
+                return Results.Ok(satirlar.Select(Dto).ToList());
             });
         }).RequireAuthorization("Editor");
         return app;
     }
+
+    /// <summary>Olayın API görünümü (değişiklik geçmişi ve "kasa kontrolünden beri değişenler").</summary>
+    internal static DenetimOlayDto Dto(DenetimOlayEntity o) => new(o.Id, DateTimeOffset.FromUnixTimeMilliseconds(o.ZamanUtc), o.AktorRol, o.AktorId,
+        o.IstemciIp, o.Tur, o.Varlik, o.VarlikId, o.OncekiJson, o.YeniJson, o.Gerekce, o.IstekId, o.TraceId, o.KilitAcmaOlayiId);
 }

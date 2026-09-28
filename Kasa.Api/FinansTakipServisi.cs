@@ -598,11 +598,12 @@ public static class FinansTakipServisi
         return b.OdemeEtkileriOnbellegi[cardId] = result;
     }
     /// <summary>Kasa raporu için takipli kartın iptal edilmemiş ödemelerinin kanal payları (Id sırasıyla). Tam kart
-    /// DTO'su (ekstre, harcama, kalan borç payları) hesaplanmaz.</summary>
-    internal static IEnumerable<(DateOnly Tarih, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar)> KartOdemeDagilimlari(TakipHesapBaglami b, int cardId)
+    /// DTO'su (ekstre, harcama, kalan borç payları) hesaplanmaz. <c>Anahtar</c>: kasa hareket dökümündeki kaydı (ödeme
+    /// "TakipKartOdeme:{Id}", önceden sayılan iade "TakipHarcama:{Id}"); hesaba girmez.</summary>
+    internal static IEnumerable<(DateOnly Tarih, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Anahtar)> KartOdemeDagilimlari(TakipHesapBaglami b, int cardId)
     {
         var v = b.KartVerisi(cardId); var effects = OdemeEtkileri(b, cardId);
-        var sonuc = v.Odemeler.Where(p => !p.Iptal).Select(p => (p.Tarih, p.Not, effects[p.Id].Dagilimlar)).ToList();
+        var sonuc = v.Odemeler.Where(p => !p.Iptal).Select(p => (p.Tarih, p.Not, effects[p.Id].Dagilimlar, "TakipKartOdeme:" + p.Id.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToList();
         // Ödemelerden sonra eklenir: mevcut ödemelerin rapordaki kaynak anahtarları (sıra) değişmez.
         sonuc.AddRange(OncedenSayilanIadeleri(b, cardId));
         return sonuc;
@@ -610,9 +611,9 @@ public static class FinansTakipServisi
     /// <summary>Eski borç devrine yapılan iadenin kasada önceden sayılan kısmı (finance-2): eski kuralla kasadan düşülmüş borç
     /// iade edildiğinden iade tarihinde kasaya geri döner (eksi kart ödemesi), iadenin kanal payıyla. Payı olmayan iadede
     /// tutar "Dağılım bekliyor"a döner. İade iptal edilirse satır da kalkar.</summary>
-    internal static List<(DateOnly Tarih, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar)> OncedenSayilanIadeleri(TakipHesapBaglami b, int cardId)
+    internal static List<(DateOnly Tarih, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Anahtar)> OncedenSayilanIadeleri(TakipHesapBaglami b, int cardId)
     {
-        var v = b.KartVerisi(cardId); var sonuc = new List<(DateOnly, string?, IReadOnlyList<TakipKanalPayi>)>();
+        var v = b.KartVerisi(cardId); var sonuc = new List<(DateOnly, string?, IReadOnlyList<TakipKanalPayi>, string)>();
         if (!v.Harcamalar.Any(h => h.KaynakHarcamaId != null && !h.Iptal)) return sonuc;
         var hesaplar = v.IadeHesaplari(b);
         foreach (var iade in v.Harcamalar.Where(h => h.KaynakHarcamaId != null && !h.Iptal).OrderBy(h => h.Id))
@@ -622,7 +623,7 @@ public static class FinansTakipServisi
             var satirlar = Adlandir(b.KanalAdlari, paylar).Select(p => p with { Tutar = -p.Tutar }).ToList();
             var bekleyen = paylar.Count == 0 ? hesap.KasadaSayilanDuzeltme : tasan;
             if (bekleyen > 0) satirlar.Add(new(null, Kanallar.DagilimBekliyor, -bekleyen));
-            sonuc.Add((iade.Tarih, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama, satirlar));
+            sonuc.Add((iade.Tarih, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama, satirlar, "TakipHarcama:" + iade.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
         return sonuc;
     }
