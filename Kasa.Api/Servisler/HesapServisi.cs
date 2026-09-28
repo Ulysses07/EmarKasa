@@ -40,7 +40,8 @@ public class HesapServisi
         decimal KasaAcilis,
         IReadOnlyDictionary<string, int?> KanalIdleri,
         string? UfukUyarisi,
-        IReadOnlyList<KarantinaKaydi> Karantina);
+        IReadOnlyList<KarantinaKaydi> Karantina,
+        IReadOnlyDictionary<(int Yil, int Ay), IReadOnlyList<(string Ad, bool Aktif)>> AyKumeleri);
 
     /// <summary>Rapora olduğu gibi giremeyen (karantinaya alınan) kayıt: kayıt anahtarı (tür ve kimlik), kullanıcıya gösterilen
     /// açıklama ve kaydın rapordaki etki aralığı (aylık rapor yalnız dokunduğu ayda uyarır; <see cref="Son"/> null ise açık uçlu).</summary>
@@ -134,6 +135,17 @@ public class HesapServisi
         {
             ad = null;
             return kanalId is { } id && kanalAdlari.TryGetValue(id, out ad);
+        }
+        // Tamamlanmış ayların dondurulmuş kanal kümeleri (AyKanalKumesi), güncel adlarla. Kümede olup artık bulunmayan kanal (kısıtlar
+        // silinmesini engeller; ör. kısıtsız geri yüklenmiş veritabanı) o ayın kümesine alınmaz ve ayın raporunda karantinada görünür.
+        var ayKumeleri = new Dictionary<(int Yil, int Ay), IReadOnlyList<(string Ad, bool Aktif)>>();
+        foreach (var (kumeAyi, uyeler) in AyKanalKumesi.Oku(_db))
+        {
+            var ayBasi = new DateOnly(kumeAyi.Yil, kumeAyi.Ay, 1);
+            foreach (var (kanalId, _) in uyeler.Where(u => !kanalAdlari.ContainsKey(u.KanalId)))
+                Karantinaya($"AyKanalKumesi:{AyKanalKumesi.AyMetni(kumeAyi)}:{kanalId}", () => $"{AyKanalKumesi.AyMetni(kumeAyi)} ayının kanal kümesindeki kanal #{kanalId} bulunamadı; Ortak gider kümedeki öteki kanallara bölündü",
+                    ayBasi, AyRaporAnlikGoruntusu.AySonu(kumeAyi.Yil, kumeAyi.Ay));
+            ayKumeleri[kumeAyi] = uyeler.Where(u => kanalAdlari.ContainsKey(u.KanalId)).Select(u => (kanalAdlari[u.KanalId], u.Aktif)).ToList();
         }
         // Kaydın payları (okunamayan dağılımda null) ve tutarı: kanalı çözülen pay kanalına yazılır (Kanal dolu). Çözülemeyen tutar
         // (Kanal null, Sorun dolu): kanalı bilinmeyen ya da boş pay ve pay toplamının kayıt tutarından eksik kalan kısmı (boş liste
@@ -432,7 +444,31 @@ public class HesapServisi
 
         foreach (var k in karantina) VeriKarantinasi.Logla(_db, k.Anahtar, k.Aciklama, k.Hata);
         return new Yuk(kanallar, islemler, gelenler, donemler, ayar.KasaAcilisDevri,
-            kanalAdlari.ToDictionary(k => k.Value, k => (int?)k.Key), ufukUyarisi, karantina);
+            kanalAdlari.ToDictionary(k => k.Value, k => (int?)k.Key), ufukUyarisi, karantina, ayKumeleri);
+    }
+
+    /// <summary>
+    /// Ayın raporu, ayın kanal kümesiyle (core-1; bkz. <see cref="AyKanalKumesi"/>). Kümesi olmayan ay (içinde bulunulan ay, ileri
+    /// aylar ve henüz dondurulmamış tamamlanmış ay) bugünkü davranışla birebir hesaplanır: bütün kanallar raporun sırasıyla, Ortak
+    /// gider aktif kanallara. Kümesi olan ayda satırlar kümenin kanalları (kümenin sırasıyla, güncel adla) ve Ortak gider kümenin o
+    /// ayda aktif olan kanallarına kümenin sırasıyla bölünür: sonradan eklenen, pasife alınan ya da yeniden sıralanan kanal o ayı
+    /// değiştirmez. Kümeden sonra açılan kanal yalnız o ayda tutarı varsa (kilitli olmayan geçmiş aya girilen kayıt) sona eklenir ve
+    /// Ortak payı almaz; tutarı olmayan satırı rapora girmez (sıfır satır hiçbir toplamı değiştirmez).
+    /// </summary>
+    private static AylikRapor AyRaporu(Yuk y, int yil, int ay, int kural)
+    {
+        if (!y.AyKumeleri.TryGetValue((yil, ay), out var kume))
+            return HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, kural);
+        var uyeAdlari = kume.Select(u => u.Ad).ToHashSet();
+        var kanallar = y.Kanallar.ToDictionary(k => k.Ad);
+        var satirlar = kume.Select(u => kanallar[u.Ad]).Concat(y.Kanallar.Where(k => !uyeAdlari.Contains(k.Ad))).ToList();
+        var rapor = HesapMotoru.AylikHesapla(yil, ay, satirlar, y.Islemler, y.Gelenler, y.Donemler, kural,
+            kume.Where(u => u.Aktif).Select(u => u.Ad).ToList());
+        return rapor with
+        {
+            Kanallar = rapor.Kanallar.Where(k => uyeAdlari.Contains(k.Kanal)
+                || k.Gelen != 0 || k.CariGiden != 0 || k.SabitGider != 0 || k.KrediKarti != 0 || k.KrediGirisi != 0).ToList(),
+        };
     }
 
     /// <summary>Haftalık rapor. Ufkun ötesinde kayıt, takip başlangıcından önce tarihli gider (K1) ya da karantinaya alınan kayıt
@@ -468,7 +504,7 @@ public class HesapServisi
     internal (AylikRapor Rapor, IReadOnlyList<KarantinaKaydi> Karantina) AylikVeKarantina(int yil, int ay, CancellationToken ct = default, int? kuralSurumu = null)
     {
         var y = Yukle(new TakipHesapBaglami(_db, ct), new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)));
-        var rapor = HesapMotoru.AylikHesapla(yil, ay, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, kuralSurumu ?? AcikAyKurali);
+        var rapor = AyRaporu(y, yil, ay, kuralSurumu ?? AcikAyKurali);
         var karantina = y.Karantina.Where(k => k.AyaDokunur(yil, ay)).ToList();
         var uyarilar = new[] { HesapMotoru.BaslangicOncesiUyarisi(HesapMotoru.BaslangicOncesi(y.Islemler, y.Donemler, (yil, ay)), aylik: true),
                 KarantinaUyarisi(karantina) }
@@ -515,7 +551,7 @@ public class HesapServisi
             ? son.Kanallar.Select(k => new KanalBakiye(k.Kanal, k.Devir, kanalIdleri.GetValueOrDefault(k.Kanal))).ToList()
             : y.Kanallar.Select(k => new KanalBakiye(k.Ad, k.AcilisDevri, kanalIdleri.GetValueOrDefault(k.Ad))).ToList();
 
-        var buAyRapor = HesapMotoru.AylikHesapla(bugun.Year, bugun.Month, y.Kanallar, y.Islemler, y.Gelenler, y.Donemler, AcikAyKurali);
+        var buAyRapor = AyRaporu(y, bugun.Year, bugun.Month, AcikAyKurali);
         var buAy = buAyRapor.Kanallar.Sum(k => k.AySonucu) - buAyRapor.DagilimBekleyenTutar - buAyRapor.GenelGider + buAyRapor.GenelGelir;
 
         return (new PanelDto(guncelKasa, kanalBakiyeleri, buHafta, buAy,

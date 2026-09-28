@@ -5,6 +5,8 @@ namespace Kasa.Api.Data;
 
 public partial class KasaDbContext
 {
+    // Ortak kümesini değiştiren kanal değişikliğinden önce tamamlanmış ayların kanal kümesi aynı transaction'da dondurulur
+    // (AyKanalKumesi): kilit kuralları ve kayıt, dondurulmuş kümeyi görür; kayıt geri alınırsa dondurma da kalmaz.
     // Kilit kuralları geçen değişiklikler kaydedilir, ardından aynı transaction'da denetim olayları yazılır: olay yazılamazsa
     // değişiklik de geri alınır, değişiklik geri alınırsa olay da kalmaz. Eklenen kaydın anahtarı kayıttan sonra okunur.
     // İzleyici değişiklikleri olaylar yazılıp transaction commit edildikten sonra kabul eder: olay yazımı ya da commit
@@ -16,6 +18,7 @@ public partial class KasaDbContext
         int result;
         using (var transaction = Database.CurrentTransaction is null ? Database.BeginTransaction() : null)
         {
+            AyKanalKumesi.KanalDegisikligindenOnce(this);
             AyKilidiKurallari.Dogrula(this);
             var yakalanan = DenetimYakalayici.Yakala(this);
             result = base.SaveChanges(acceptAllChangesOnSuccess: false);
@@ -32,6 +35,7 @@ public partial class KasaDbContext
         int result;
         await using (var transaction = Database.CurrentTransaction is null ? await Database.BeginTransactionAsync(cancellationToken) : null)
         {
+            AyKanalKumesi.KanalDegisikligindenOnce(this);
             AyKilidiKurallari.Dogrula(this);
             var yakalanan = DenetimYakalayici.Yakala(this);
             result = await base.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);

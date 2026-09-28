@@ -109,6 +109,7 @@ public partial class KasaDbContext : DbContext
         ConfigureStatementImports(b);
         ConfigureMonthlyReportSnapshots(b);
         ConfigureDenetim(b);
+        ConfigureMonthlyChannelSets(b);
     }
 
     partial void ConfigureOperations(ModelBuilder b);
@@ -118,4 +119,5 @@ public partial class KasaDbContext : DbContext
     partial void ConfigureStatementImports(ModelBuilder b);
     partial void ConfigureMonthlyReportSnapshots(ModelBuilder b);
     partial void ConfigureDenetim(ModelBuilder b);
+    partial void ConfigureMonthlyChannelSets(ModelBuilder b);
 }

@@ -21,7 +21,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(42.75m, Assert.Single(db.Gelenler).TutarTl);
         Assert.Equal(125.50m, Assert.Single(db.Kanallar).AcilisDevri);
         Assert.Empty(db.Alislar);
@@ -39,7 +39,7 @@ public class DatabaseMigrationTests
         KasaDatabaseInitializer.Initialize(db);
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Empty(db.Islemler);
@@ -72,13 +72,13 @@ public class DatabaseMigrationTests
         Assert.Empty(db.KrediKartlari);
         Assert.Empty(db.Krediler);
         Assert.Empty(db.KartOdemeler);
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
 
         // Tekrar başlatma ne veri ne yeni migration kaydı üretir.
         KasaDatabaseInitializer.Initialize(db);
         Assert.Single(db.Islemler);
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal.Id, Assert.Single(db.Islemler).KanalId);
         Assert.Equal(50.02m, Assert.Single(db.KartOdemeler).Tutar);
         Assert.Equal(250.03m, Assert.Single(db.Gelenler).TutarTl);
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
 
         // Geçişten sonra da FK'nin SET NULL ve CASCADE davranışları korunur.
         Execute(connection, "DELETE FROM KrediKartlari;");
@@ -202,7 +202,7 @@ public class DatabaseMigrationTests
         Assert.Equal(kanal, Scalar(connection, "SELECT Kanal FROM Gelenler WHERE Id = 14;"));
         Assert.Equal("2026-09-01", Scalar(connection, "SELECT DonemStart FROM Gelenler WHERE Id = 14;"));
         Assert.All(db.Gelenler, g => { Assert.True(g.EskiYinelenenGrup); Assert.Equal(7, g.KanalId); });
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
     }
 
@@ -325,7 +325,7 @@ public class DatabaseMigrationTests
 
             using var verified = new SqliteConnection(connectionString);
             using var verify = Context(verified);
-            Assert.Equal(15, verify.Database.GetAppliedMigrations().Count());
+            Assert.Equal(16, verify.Database.GetAppliedMigrations().Count());
             Assert.Single(verify.Kanallar);
             Assert.Single(verify.Islemler);
             Assert.Single(verify.Gelenler);
@@ -369,7 +369,7 @@ public class DatabaseMigrationTests
 
         KasaDatabaseInitializer.Initialize(db);
 
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(once, Raporlar());
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
@@ -432,7 +432,7 @@ public class DatabaseMigrationTests
         KasaDatabaseInitializer.Initialize(db);
 
         var bitis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        Assert.Equal(15, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
         Assert.Contains("20260930000200_DenetimGecmisAktarimi", db.Database.GetAppliedMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(once, RaporOzeti(db, (2026, 3), (2026, 4)));
@@ -473,6 +473,69 @@ public class DatabaseMigrationTests
         Assert.Equal(1, db.DenetimOlaylari.Count(o => o.IstekId == sonrakiIstek));
         KasaDatabaseInitializer.Initialize(db);
         Assert.Equal(5L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
+    }
+
+    /// <summary>
+    /// Ay kanal kümesi migration'ı (core-1, ops-2): şema kurulur ve migration'ın uygulandığı açılışta takip başlangıcından geçen aya
+    /// kadar her tamamlanmış ay bugünkü kanallarla, raporun sırasıyla (Sira; eşitlerde veritabanı sırası) dondurulur. Eşit sıralı
+    /// kanallar, pasif kanal, kilitli ay ve üç geçmiş ayda kuruşlu Ortak giderlerle: raporlar (haftalık, aylık, panel) göç öncesi ve
+    /// sonrası birebir aynıdır. Göçten sonra aktif kanal eklemek ve pasife almak geçmiş ayların raporunu değiştirmez, içinde
+    /// bulunulan ay güncel kanallarla bölünür; yeniden başlatma küme yazmaz; küme değiştirilemez, kümedeki kanal silinemez.
+    /// </summary>
+    [Fact]
+    public void Ay_kanal_kumeleri_migrationi_tamamlanmis_aylari_bugunku_kanallarla_dondurur_raporlar_birebir_ayni()
+    {
+        using var connection = Open();
+        var saat = new ServiceCollection()
+            .AddSingleton<TimeProvider>(new SabitSaat(new DateOnly(2026, 9, 25))).BuildServiceProvider();
+        using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).UseApplicationServiceProvider(saat).Options);
+        db.GetService<IMigrator>().Migrate("20260930000200_DenetimGecmisAktarimi");
+        Execute(connection, """
+            INSERT INTO Kanallar (Id, Ad, Aktif, Sira, AcilisDevri) VALUES (1, 'MEZAT', 1, 0, '100.0'), (2, 'TOPTAN', 1, 1, '0'),
+                (3, 'ESKI', 0, 0, '0'), (4, 'PERAKENDE', 1, 1, '0'), (5, 'ONLINE', 1, 2, '0');
+            INSERT INTO Ayarlar (TakipBaslangic, KasaAcilisDevri, IzleyiciSifreHash) VALUES ('2026-06-01', '1000.0', NULL);
+            INSERT INTO Gelenler (DonemStart, Kanal, KanalId, TutarTl) VALUES ('2026-06-01', 'MEZAT', 1, '48000.00'), ('2026-08-03', 'ESKI', 3, '2500.5');
+            INSERT INTO Islemler (Tarih, Cari, TutarTl, Kanal, KanalId, Tip, "Not") VALUES ('2026-06-15', 'Ortak kira', '100.01', 'Ortak', NULL, 1, NULL),
+                ('2026-07-15', 'Ortak kuruş', '0.03', 'Ortak', NULL, 0, NULL), ('2026-08-20', 'Ortak SGK', '333.35', 'Ortak', NULL, 1, NULL),
+                ('2026-09-10', 'Bu ayın ortak gideri', '10.01', 'Ortak', NULL, 0, NULL), ('2026-07-05', 'Tedarik', '1200', 'TOPTAN', 2, 0, NULL);
+            UPDATE AyKilidi SET KilitliSonTarih = '2026-06-30', Surum = Surum + 1 WHERE Id = 1;
+            """);
+        (int, int)[] gecmis = [(2026, 6), (2026, 7), (2026, 8)];
+        var once = RaporOzeti(db, [.. gecmis, (2026, 9)]);
+        var onceGecmis = AylikOzeti(db, gecmis);
+
+        KasaDatabaseInitializer.Initialize(db);
+
+        Assert.Equal(16, db.Database.GetAppliedMigrations().Count());
+        Assert.Contains(AyKanalKumesi.MigrationId, db.Database.GetAppliedMigrations());
+        Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Equal(once, RaporOzeti(db, [.. gecmis, (2026, 9)]));
+        var kumeler = db.AyKanalKumeleri.AsNoTracking().OrderBy(k => k.Yil).ThenBy(k => k.Ay).ToList();
+        Assert.Equal(new[] { (2026, 6, AyKanalKumesi.Gecis), (2026, 7, AyKanalKumesi.Gecis), (2026, 8, AyKanalKumesi.Gecis) }, kumeler.Select(k => (k.Yil, k.Ay, k.Kaynak)).ToArray());
+        var agustos = kumeler[^1].Id;
+        Assert.Equal(new[] { (1, 0, true), (3, 1, false), (2, 2, true), (4, 3, true), (5, 4, true) },
+            db.AyKanalKumesiKanallari.AsNoTracking().Where(u => u.KumeId == agustos).OrderBy(u => u.Sira).ToList().Select(u => (u.KanalId, u.Sira, u.Aktif)).ToArray());
+        // Dondurma türetilmiş veridir: denetim olayı üretmez.
+        Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
+        foreach (var nesne in new[] { "IX_AyKanalKumeleri_Yil_Ay", "IX_AyKanalKumesiKanallari_KumeId_KanalId", "IX_AyKanalKumesiKanallari_KanalId",
+                     "TR_AyKanalKumeleri_Guncelleme", "TR_AyKanalKumeleri_Silme", "TR_AyKanalKumesiKanallari_Guncelleme", "TR_AyKanalKumesiKanallari_Silme" })
+            Assert.Equal(1L, Scalar(connection, $"SELECT COUNT(*) FROM sqlite_master WHERE name = '{nesne}';"));
+
+        // Göçten sonra aktif kanal eklenir ve bir kanal pasife alınır: geçmiş aylar kendi kümeleriyle aynı kalır, bu ay yeni kanallarla.
+        db.Kanallar.Add(new KanalEntity { Ad = "YENI", Sira = 3 });
+        db.SaveChanges();
+        db.Kanallar.Single(k => k.Id == 4).Aktif = false;
+        db.SaveChanges();
+        Assert.Equal(onceGecmis, AylikOzeti(db, gecmis));
+        var eylul = new Kasa.Api.Servisler.HesapServisi(db).Aylik(2026, 9);
+        Assert.Equal(new[] { ("MEZAT", 2.51m), ("ESKI", 0m), ("TOPTAN", 2.50m), ("PERAKENDE", 0m), ("ONLINE", 2.50m), ("YENI", 2.50m) },
+            eylul.Kanallar.Select(k => (k.Kanal, k.OrtakPay)).ToArray());
+
+        // Yeniden başlatma küme yazmaz; küme ve üyeleri değiştirilemez, kümedeki kanal silinemez.
+        KasaDatabaseInitializer.Initialize(db);
+        Assert.Equal(3, db.AyKanalKumeleri.Count());
+        foreach (var sql in new[] { "UPDATE AyKanalKumeleri SET Kaynak = 'sahte';", "DELETE FROM AyKanalKumesiKanallari;", "DELETE FROM Kanallar WHERE Id = 5;" })
+            Assert.Equal(19, Assert.Throws<SqliteException>(() => Execute(connection, sql)).SqliteErrorCode);
     }
 
     [Fact]
@@ -536,6 +599,14 @@ public class DatabaseMigrationTests
         var raporlar = new List<object> { hesap.Haftalik(), hesap.Panel() };
         raporlar.AddRange(aylar.Select(a => (object)hesap.Aylik(a.Yil, a.Ay)));
         return System.Text.Json.JsonSerializer.Serialize(raporlar, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+    }
+
+    /// <summary>Verilen ayların aylık raporu (bağlamın sabit saatiyle), JSON olarak.</summary>
+    private static string AylikOzeti(KasaDbContext db, IEnumerable<(int Yil, int Ay)> aylar)
+    {
+        var hesap = new Kasa.Api.Servisler.HesapServisi(db);
+        return System.Text.Json.JsonSerializer.Serialize(aylar.Select(a => hesap.Aylik(a.Yil, a.Ay)).ToList(),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
     }
 
     /// <summary>Tabloların bütün satır ve sütunları, saklama türüyle (kimliğe göre sıralı).</summary>

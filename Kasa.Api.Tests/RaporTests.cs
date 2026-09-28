@@ -26,11 +26,12 @@ public class RaporTests : IClassFixture<KasaWebFactory>
         // İki test aynı DB'yi paylaştığından sıra-bağımsızlık için tümünü temizle.
         db.Islemler.RemoveRange(db.Islemler);
         db.Gelenler.RemoveRange(db.Gelenler);
-        db.Kanallar.RemoveRange(db.Kanallar);
-        db.Kanallar.AddRange(
-            new KanalEntity { Ad = "MEZAT", Sira = 0, AcilisDevri = 4_991_052m },
-            new KanalEntity { Ad = "PERAKENDE", Sira = 1, AcilisDevri = 2_013_516m },
-            new KanalEntity { Ad = "TOPTAN", Sira = 2, AcilisDevri = 619_647m });
+        // Kanallar silinmez (tamamlanmış ayların kanal kümesinde yer alan kanal silinemez; AyKanalKumesi): adıyla yeniden tohumlanır.
+        foreach (var (ad, sira, devir) in new[] { ("MEZAT", 0, 4_991_052m), ("PERAKENDE", 1, 2_013_516m), ("TOPTAN", 2, 619_647m) })
+        {
+            var kanal = db.Kanallar.SingleOrDefault(k => k.Ad == ad) ?? db.Kanallar.Add(new KanalEntity { Ad = ad }).Entity;
+            kanal.Sira = sira; kanal.Aktif = true; kanal.AcilisDevri = devir;
+        }
 
         var ayar = db.Ayarlar.First();
         ayar.TakipBaslangic = new DateOnly(2026, 6, 29);

@@ -29,8 +29,10 @@ public static class KasaDatabaseInitializer
             GocOncesiYedek(db, connection, kopru, yedek);
             if (kopru) BridgeLegacyDatabase(connection);
 
+            var kanalKumesiGecisi = db.Database.GetPendingMigrations().Contains(AyKanalKumesi.MigrationId);
             db.Database.Migrate();
             WalKipineAl(db, connection);
+            if (kanalKumesiGecisi) KanalKumesiGecisi(db);
             GecisTohumu(db);
         }
         finally
@@ -84,6 +86,18 @@ public static class KasaDatabaseInitializer
         if (mode is "wal" or "memory") return;
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
             .LogWarning("Veritabanı WAL kipine alınamadı (günlük kipi: {Kip}); okumalar yazma işlemlerini bekletebilir.", mode);
+    }
+
+    /// <summary>Veri adımı (ay kanal kümesi migration'ının uygulandığı açılışta, göç öncesi yedekten sonra): takip başlangıcından geçen
+    /// aya kadar her tamamlanmış ayın kanal kümesi bugünkü kanallarla dondurulur (bkz. <see cref="AyKanalKumesi.GecisDondurmasi"/>);
+    /// geçmiş raporlar birebir aynı kalır. Rapor görüntüsü tohumundan önce çalışır: görüntüsüz kilitli ay da kendi kümesini alır.</summary>
+    private static void KanalKumesiGecisi(KasaDbContext db)
+    {
+        var aylar = AyKanalKumesi.GecisDondurmasi(db);
+        if (aylar.Count == 0) return;
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
+            "Tamamlanmış {Sayi} ayın kanal kümesi (Ortak gider dağılımı ve rapor satırları) bugünkü kanallarla donduruldu: {Aylar}.", aylar.Count,
+            string.Join(", ", aylar.Select(AyKanalKumesi.AyMetni)));
     }
 
     /// <summary>Veri adımı: bu sürümden önce kilitlenmiş ayların raporu kural 1 ile dondurulur (bkz.
