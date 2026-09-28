@@ -16,10 +16,15 @@ public static class EditorGuvenligi
             SHA256.HashData(Encoding.UTF8.GetBytes(sifre)), SHA256.HashData(Encoding.UTF8.GetBytes(eski)));
     }
 
+    /// <summary>Editör oturum damgasının kaynağı. Ortam şifresiyle çalışan editörün kaydı yalnız kurtarma kodu üretiminde (sürüm 0)
+    /// ya da geri yüklemede (<see cref="GeriYuklemeIsleyici"/>, sürüm artar) oluşur; sürüm 0'dan büyükse damgaya girer. Böylece
+    /// geri yükleme ortam şifresindeki editörün eski oturumlarını da kapatır; bugünkü oturumlar bu değişiklikle düşmez.</summary>
     public static string Kaynak(IConfiguration cfg, EditorGuvenlikEntity? kayit) =>
         kayit?.SifreHash is { } hash
             ? $"editor\n{cfg["Kasa:EditorKullanici"]}\n{hash}\n{kayit.Surum}"
-            : $"editor\n{cfg["Kasa:EditorKullanici"]}\n{cfg["Kasa:EditorSifre"]}";
+            : kayit is { Surum: > 0 }
+                ? $"editor\n{cfg["Kasa:EditorKullanici"]}\n{cfg["Kasa:EditorSifre"]}\n{kayit.Surum}"
+                : $"editor\n{cfg["Kasa:EditorKullanici"]}\n{cfg["Kasa:EditorSifre"]}";
 
     public static WebApplication MapGuvenlikEndpoints(this WebApplication app)
     {

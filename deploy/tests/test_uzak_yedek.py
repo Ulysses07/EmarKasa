@@ -602,7 +602,7 @@ class KomutSatiriTests(unittest.TestCase):
         # Hata iletisi operatörü runbook'taki bir bölüme yönlendirir; bölüm adı değişirse ileti boşa çıkmasın.
         basliklar = [s.lstrip("#").strip() for s in (DEPLOY.parent / "docs/deploy/operasyon-runbook.md").read_text(encoding="utf-8").splitlines()
                      if s.startswith("#")]
-        for betik in ("uzak_yedek.py", "temel_imaj.py"):
+        for betik in ("uzak_yedek.py", "temel_imaj.py", "restore_backup.py"):
             atiflar = re.findall(r"operasyon-runbook\.md ['\"]([^'\"]+)['\"]", (DEPLOY / betik).read_text(encoding="utf-8"))
             self.assertTrue(atiflar, betik)
             for bolum in atiflar:

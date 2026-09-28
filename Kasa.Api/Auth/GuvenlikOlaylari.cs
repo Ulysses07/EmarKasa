@@ -17,8 +17,10 @@ namespace Kasa.Api.Auth;
 /// HizSiniri, GirisYogun (şifre doğrulama kuyruğu dolu: sunucu yoğun, saldırı reddi değil), KurtarmaKullanildi,
 /// KurtarmaBasarisiz, SifreDegisti, SifreDegistirmeBasarisiz, KurtarmaKoduUretildi, KurtarmaKoduUretimiBasarisiz.
 /// İzleyici şifresi değişimi ve alıcı şifre/oturum iptalleri ilgili kaydın değişikliğiyle aynı tabloya yazılır
-/// (IzleyiciSifresiDegisti, AliciSifresiDegisti, AliciOturumlariKapatildi; bkz. DenetimYakalayici). Geçersiz oturum
-/// belirteci ve yetki reddi (403) yalnız seyrek loglanır (<see cref="AddKasaGuvenlikLoglari"/>).
+/// (IzleyiciSifresiDegisti, AliciSifresiDegisti, AliciOturumlariKapatildi; bkz. DenetimYakalayici). Geri yüklenmiş veritabanının
+/// ilk açılışta işlenmesi <see cref="GeriYuklemeIslendi"/> olarak (aktör sistem, VarlikId veri soyu kimliği) yazılır
+/// (<see cref="GeriYuklemeIsleyici"/>). Geçersiz oturum belirteci ve yetki reddi (403) yalnız seyrek loglanır
+/// (<see cref="AddKasaGuvenlikLoglari"/>).
 /// </summary>
 public static class GuvenlikOlaylari
 {
@@ -33,6 +35,8 @@ public static class GuvenlikOlaylari
     public const string SifreDegistirmeBasarisiz = "SifreDegistirmeBasarisiz";
     public const string KurtarmaKoduUretildi = "KurtarmaKoduUretildi";
     public const string KurtarmaKoduUretimiBasarisiz = "KurtarmaKoduUretimiBasarisiz";
+    /// <summary>Geri yüklenmiş veritabanı açılışta tanındı: oturumlar ve izleyici girişi kapatıldı, kimlikler ileri alındı.</summary>
+    public const string GeriYuklemeIslendi = "GeriYuklemeIslendi";
     /// <summary>Yalnız loglanan (olay tablosuna yazılmayan) kimlik doğrulama retleri.</summary>
     public const string GecersizBelirtec = "GecersizBelirtec";
     public const string YetkiReddi = "YetkiReddi";
