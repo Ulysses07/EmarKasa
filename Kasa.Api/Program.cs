@@ -262,8 +262,12 @@ api.MapPost("/kanallar", (KanalYazDto dto, KasaDbContext db) =>
     var ad = dto.Ad!.Trim();
     if (db.Kanallar.AsEnumerable().Any(k => string.Equals(k.Ad, ad, StringComparison.OrdinalIgnoreCase)))
         return Results.Conflict(new { hata = "Bu kanal adı zaten kullanılıyor." });
+    // Kilit varken de eklenir (kilitli ayların raporu dondurulmuş); açılış devri kilitte 0 olmalı (KanalKurallari).
+    using var transaction = db.Database.BeginTransaction();
+    if (KanalKurallari.AdEngeli(db, null, ad) is { } engel) return Results.Conflict(new { hata = engel });
     var e = new KanalEntity { Ad = ad, Aktif = dto.Aktif, Sira = dto.Sira, AcilisDevri = dto.AcilisDevri };
     db.Kanallar.Add(e); db.SaveChanges();
+    transaction.Commit();
     return Results.Created($"/api/kanallar/{e.Id}", e);
 }).RequireAuthorization("Editor");
 api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =>
@@ -279,14 +283,11 @@ api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =
     if (db.Kanallar.AsEnumerable().Any(k => k.Id != id && string.Equals(k.Ad, ad, StringComparison.OrdinalIgnoreCase)))
         return Results.Conflict(new { hata = "Bu kanal adı zaten kullanılıyor." });
 
+    // Ad, sıra ve aktiflik kilit varken de değişir; açılış devri kilitte değişmez. Kayıtlardaki kanal metni yalnız yeni ada
+    // eşitlenir (etiket senkronu: aylık gider/ekstre kaynak kuralına ve dönem kilidine takılmaz; bkz. KanalKurallari).
     using var transaction = db.Database.BeginTransaction();
-    var eskiAd = e.Ad;
-    foreach (var i in db.Islemler.Where(i => i.KanalId == id || (i.KanalId == null && i.Kanal == eskiAd)))
-    { i.KanalId = id; i.Kanal = ad; }
-    foreach (var g in db.Gelenler.Where(g => g.KanalId == id || (g.KanalId == null && g.Kanal == eskiAd)))
-    { g.KanalId = id; g.Kanal = ad; }
-    foreach (var k in db.Krediler.Where(k => k.KanalId == id || (k.KanalId == null && k.Kanal == eskiAd)))
-    { k.KanalId = id; k.Kanal = ad; }
+    if (KanalKurallari.AdEngeli(db, id, ad) is { } engel) return Results.Conflict(new { hata = engel });
+    KanalKurallari.EtiketleriGuncelle(db, id, ad);
     e.Ad = ad; e.Aktif = gelen.Aktif; e.Sira = gelen.Sira; e.AcilisDevri = gelen.AcilisDevri;
     db.SaveChanges();
     transaction.Commit();
@@ -294,17 +295,13 @@ api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =
 }).RequireAuthorization("Editor");
 api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) =>
 {
+    // Denetim ve silme tek transaction'da: arada yazılan hareket kısıt hatasına düşmez. Kasa alt sınırı kanalla silinir.
+    using var transaction = db.Database.BeginTransaction();
     var e = db.Kanallar.Find(id);
     if (e is null) return Results.NotFound();
-    if (e.AcilisDevri != 0
-        || db.Islemler.Any(i => i.KanalId == id || i.Kanal == e.Ad)
-        || db.Gelenler.Any(g => g.KanalId == id || g.Kanal == e.Ad)
-        || db.Krediler.Any(k => k.KanalId == id || k.Kanal == e.Ad)
-        || db.HesapHareketler.Any(h => h.KanalId == id)
-        || FinansTakipServisi.KanalKullaniliyor(db, id)
-        || db.AlisDagilimlar.Any(d => d.KanalId == id))
-        return Results.Conflict(new { hata = "Geçmişi veya açılış bakiyesi olan kanal silinemez. Kanalı pasifleştirebilirsiniz." });
-    db.Kanallar.Remove(e); db.SaveChanges();
+    if (KanalKurallari.SilmeEngeli(db, e) is { } engel) return Results.Conflict(new { hata = engel });
+    KanalKurallari.Sil(db, e);
+    transaction.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
 

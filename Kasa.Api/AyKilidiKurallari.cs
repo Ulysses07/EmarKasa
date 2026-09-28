@@ -16,7 +16,10 @@ public static class AyKilidiKurallari
     {
         // Dondurulmuş eski şema testleri/bridge aşaması kilit tablosundan öncedir.
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='AyKilidi'").Single() == 0) return;
-        var entries = db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
+        // Kanal adı değişikliğinin etiket senkronu (yalnız Kanal metni kanalın güncel adına eşitlenen gider/kredi) mali değişiklik
+        // değildir: kaynak kurallarına ve dönem kilidine girmez (KanalKurallari).
+        var entries = KanalKurallari.EtiketSenkronuHaric(db,
+            db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList());
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='EkstreKayitlar'").Single() != 0)
             EkstreKaynakKurallari.Dogrula(db, entries);
         foreach (var e in entries)
@@ -67,6 +70,8 @@ public static class AyKilidiKurallari
 
         foreach (var e in entries)
         {
+            // Kanal: kilitli ayın aylık raporu dondurulmuş olduğundan yalnız açılış devri kilitli dönemi etkiler (KanalKurallari).
+            if (e.Entity is KanalEntity && KanalKurallari.KilitIhlali(db, e, end) is { } kanalIletisi) throw new KilitliDonemException(kanalIletisi);
             bool blocked = e.Entity switch
             {
                 IslemEntity i => DateLocked(e, nameof(i.Tarih)) || i.KrediKartiId is { } card && e.State == EntityState.Added && CardFrozenAdvance(card)
@@ -75,7 +80,6 @@ public static class AyKilidiKurallari
                 KartOdemeEntity p => DateLocked(e, nameof(p.Tarih)),
                 AylikGiderOdemeEntity p => DateLocked(e, nameof(p.Tarih)) || DateLocked(e, nameof(p.Ay)),
                 AylikGiderRevizyonEntity r => e.State != EntityState.Added || DateLocked(e, nameof(r.GecerliAy)),
-                KanalEntity => Changed(e, "Ad", "Aktif", "Sira", "AcilisDevri"),
                 AyarEntity => Changed(e, "TakipBaslangic", "KasaAcilisDevri"),
                 KrediEntity k => !(e.State == EntityState.Added && db.GecmisEtkisizKrediOlusturma) && DateLocked(e, nameof(k.CekimTarihi)) && Changed(e, "CekilenTutar", "CekimTarihi", "TaksitSayisi", "AylikOdeme", "OdemeGunu", "Kanal", "KanalId", "GerceklesmeTakibi"),
                 KrediKartiEntity => e.State == EntityState.Deleted || e.State == EntityState.Modified && Changed(e, "Borc"),
