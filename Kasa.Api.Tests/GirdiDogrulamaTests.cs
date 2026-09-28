@@ -224,7 +224,7 @@ public class GirdiDogrulamaTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var eski = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "QNB", HesapAdi = "Eski hesap", DosyaAdi = "eski.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
-                Dosya = "%PDF-eski"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
                 SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "kaynak\u0001satır", Bugun, "ESKİ\u0001BELGE\u0007", 20m, "Cikis", "Gider", "Hareket", "TRY", []) }) };
             db.EkstreBelgeler.Add(eski); db.SaveChanges(); eskiId = eski.Id;
         }

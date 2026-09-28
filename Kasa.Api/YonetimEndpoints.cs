@@ -18,9 +18,13 @@ public static class YonetimEndpoints
         // Ayrı ve sıkı hız politikası: kullanıcı + IP başına saatte 5 (üretim); 'guvenlik' kovasını tüketmez.
         app.MapPost("/api/yedek", async (KasaDbContext db, YedekServisi yedek, HttpContext http) =>
         {
-            // Elle yedek ayrı adla yazılır ve yalnız elle yedeklerle döner; otomatik geçmişi silemez.
-            var path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted);
-            return Results.File(path, "application/zip", Path.GetFileName(path));
+            // Elle yedek ayrı adla yazılır ve yalnız elle yedeklerle döner; otomatik geçmişi silemez. Sunucudaki kopya belge içeriği
+            // taşımaz (belgeler yedek aynasında); indirilen dosya kendi kendine yeterlidir: belgeler/<özet> girdileri eklenerek
+            // diske yazılmadan akıtılır. Yedek diskinde yer yoksa hiçbir dosya yazılmaz: 507 ve Türkçe 'hata'.
+            string path;
+            try { path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted); }
+            catch (YedekDiskAlaniYetersizException ex) { return Results.Json(new { hata = ex.Message }, statusCode: StatusCodes.Status507InsufficientStorage); }
+            return Results.Stream(govde => yedek.KendiKendineYeterliYaz(path, govde, http.RequestAborted), "application/zip", Path.GetFileName(path));
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Yedek);
         app.MapGet("/api/disari-aktar", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? bicim, IslemListeServisi servis) =>
         {

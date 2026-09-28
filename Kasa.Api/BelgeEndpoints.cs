@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Api.Servisler;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +14,8 @@ public record BelgeDto(int Id, int AlisId, int? OdemeId, string DosyaAdi, string
 public static class BelgeEndpoints
 {
     public const int AzamiBoyut = 10 * 1024 * 1024;
+    /// <summary>Satırı olan belgenin dosyası belge deposunda yok (alış belgesi ve ekstre PDF'i indirmesi).</summary>
+    public const string DosyaYok = "Belge dosyası bulunamadı.";
 
     /// <summary>Belge olarak kabul edilen türler ve indirmede verilen tek uzantıları.</summary>
     private static readonly Dictionary<string, string> Uzantilar = new(StringComparer.Ordinal)
@@ -64,7 +67,7 @@ public static class BelgeEndpoints
                 .Select(b => new { b.Id, b.AlisId, b.OdemeId, b.DosyaAdi, b.IcerikTuru, b.Boyut, b.Yuklendi }).AsEnumerable()
                 .Select(b => new BelgeDto(b.Id, b.AlisId, b.OdemeId, GuvenliBelgeAdi(b.DosyaAdi, b.IcerikTuru), b.IcerikTuru, b.Boyut, b.Yuklendi)).ToList());
         });
-        api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat, IOptionsMonitor<AliciKotaAyarlari> kota) =>
+        api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat, IOptionsMonitor<AliciKotaAyarlari> kota, BelgeDeposu depo) =>
         {
             if (!request.HasFormContentType) return Results.BadRequest(new { hata = "Dosyayı form olarak gönderin." });
             if (request.ContentLength is > AzamiBoyut + 64 * 1024) return Results.StatusCode(413);
@@ -86,31 +89,49 @@ public static class BelgeEndpoints
             if (type is null) return Results.BadRequest(new { hata = "Yalnız PNG, JPEG veya PDF belgeleri kabul edilir." });
             if (Uyusmazlik(file.FileName, file.ContentType, type) is { } uyusmazlik) return Results.BadRequest(new { hata = uyusmazlik });
             var name = GuvenliBelgeAdi(file.FileName, type);
+            IResult? Kurallar(DateTimeOffset an)
+            {
+                if (!Sahibi(db, id, user)) return Results.NotFound();
+                if (!user.IsInRole("editor") && (odemeId is not null || !db.Alislar.Any(a => a.Id == id && a.Durum == AlisDurumlari.Taslak)))
+                    return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağına alış belgesi ekleyebilir." });
+                if (odemeId is not null && !db.AlisOdemeler.Any(o => o.Id == odemeId && o.AlisId == id))
+                    return Results.BadRequest(new { hata = "Ödeme bu alışa ait değil." });
+                if (db.Belgeler.Count(b => b.AlisId == id) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
+                return AliciKotalari.Belge(db, user, id, bytes.Length, kota.CurrentValue, an);
+            }
+            // Kurallar önce kilitsiz denetlenir: reddedilecek yükleme belge deposuna dosya bırakmaz. İçerik, yazma kilidi alınmadan
+            // depoya yazılır (diske işlenmiş, özeti hesaplanmış); satır ancak ondan sonra eklenir. Satır kaydedilemezse dosya hiçbir
+            // kaydın göstermediği dosya olarak kalır ve bakımda silinir.
+            if (Kurallar(saat.GetUtcNow()) is { } onHata) return onHata;
+            var yazim = depo.Yaz(bytes, request.HttpContext.RequestAborted);
             using var tx = db.Database.BeginTransaction();
             // Yetki ve durum dosya okunurken değişmiş olabilir; yazma kilidi altında tekrar kontrol et.
-            if (!Sahibi(db, id, user)) return Results.NotFound();
-            if (!user.IsInRole("editor") && (odemeId is not null || !db.Alislar.Any(a => a.Id == id && a.Durum == AlisDurumlari.Taslak)))
-                return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağına alış belgesi ekleyebilir." });
-            if (odemeId is not null && !db.AlisOdemeler.Any(o => o.Id == odemeId && o.AlisId == id))
-                return Results.BadRequest(new { hata = "Ödeme bu alışa ait değil." });
-            if (db.Belgeler.Count(b => b.AlisId == id) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
             var simdi = saat.GetUtcNow();
-            if (AliciKotalari.Belge(db, user, id, bytes.Length, kota.CurrentValue, simdi) is { } kotaHatasi) return kotaHatasi;
-            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, Icerik = bytes };
+            if (Kurallar(simdi) is { } hata) return hata;
+            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, IcerikOzeti = yazim.Ozet };
             db.Belgeler.Add(belge); db.SaveChanges(); tx.Commit();
             return Results.Created($"/api/belgeler/{belge.Id}", new BelgeDto(belge.Id, id, odemeId, name, type, bytes.Length, belge.Yuklendi));
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024)).RequireRateLimiting(HizSinirlari.AlisYukleme).AddEndpointFilter(AliciAlisYuklemeSiniri.Filtre);
 
-        api.MapGet("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db, HttpResponse response) =>
+        api.MapGet("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db, BelgeDeposu depo, HttpResponse response, ILoggerFactory loglar) =>
         {
             var parent = db.Belgeler.Where(b => b.Id == id).Select(b => (int?)b.AlisId).FirstOrDefault();
             if (parent is null || !Sahibi(db, parent.Value, user)) return Results.NotFound();
             var belge = db.Belgeler.AsNoTracking().Single(b => b.Id == id);
+            // İçerik belge deposundan akışla gelir (belleğe alınmaz). Dosya yoksa (ör. geri yüklemede unutulmuş belgeler/ klasörü)
+            // sunucu kaydı yazılır, istemci açık bir 404 alır.
+            Stream akis;
+            try { akis = depo.Ac(belge.IcerikOzeti); }
+            catch (BelgeDosyasiYokException)
+            {
+                loglar.CreateLogger("Kasa.Api.BelgeEndpoints").LogError("Belge {Id} dosyası belge deposunda yok ({Ozet}, {Depo}).", id, belge.IcerikOzeti, depo.Kok);
+                return Results.NotFound(new { hata = DosyaYok });
+            }
             // Her zaman indirme (Content-Disposition: attachment; RFC 6266 filename*): kullanıcı belgesi aynı origin'de
             // çalıştırılamaz. Ad ve uzantı saklanan türden türetilir; izinli türler dışındaki içerik tarayıcıda yorumlanmaz.
             response.Headers.XContentTypeOptions = "nosniff";
             var tur = Uzantilar.ContainsKey(belge.IcerikTuru) ? belge.IcerikTuru : "application/octet-stream";
-            return Results.File(belge.Icerik, tur, GuvenliBelgeAdi(belge.DosyaAdi, belge.IcerikTuru));
+            return Results.File(akis, tur, GuvenliBelgeAdi(belge.DosyaAdi, belge.IcerikTuru));
         });
         api.MapDelete("/belgeler/{id:int}", (int id, ClaimsPrincipal user, KasaDbContext db) =>
         {

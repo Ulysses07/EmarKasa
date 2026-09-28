@@ -53,6 +53,35 @@ def yedek_zip(dizin, user_version=0, ozet_boz=False, ad="kasa-oto-20260927-03000
     return yol
 
 
+def depolu_zip(dizin, belgeler, gomulu=False, ad="kasa-oto-20261003-030000-0a1b2c3d.zip", ayna=None, bozuk_belge=None):
+    """Belge deposu biçimi (manifest 2.2.0): kasa.db yalnız özetleri taşır; belgeler.json listedir. gomulu: elle indirilen
+    kendi kendine yeterli yedek (belgeler/<özet> girdileri); ayna: sunucudaki yedek aynası (<ayna>/<ab>/<özet>)."""
+    dizin = Path(dizin)
+    gecici = dizin / (".db-" + ad)
+    veritabani(gecici, rb.GERI_YUKLEME_ISARETI)
+    veri = gecici.read_bytes()
+    gecici.unlink()
+    liste = json.dumps({"belgeler": [{"ozet": hashlib.sha256(b).hexdigest().upper(), "boyut": len(b)} for b in belgeler], "eksik": []}).encode()
+    manifest = {"surum": "2.2.0", "olusturuldu": "2026-10-03T03:00:00+00:00", "tur": "otomatik", "sha256": hashlib.sha256(veri).hexdigest().upper(),
+                "belgelerDahil": False, "belgeDeposu": True, "belgeSayisi": len(belgeler), "belgeToplamBayt": sum(map(len, belgeler)),
+                "belgeListesiSha256": hashlib.sha256(liste).hexdigest().upper(), "eksikBelgeSayisi": 0, "belgelerGomulu": gomulu,
+                "bildirimAnahtariDahil": False, "bildirimAnahtariSha256": None}
+    yol = dizin / ad
+    with zipfile.ZipFile(yol, "w") as z:
+        z.writestr("kasa.db", veri)
+        z.writestr("belgeler.json", liste)
+        z.writestr("manifest.json", json.dumps(manifest))
+        if gomulu:
+            for b in belgeler:
+                z.writestr("belgeler/" + hashlib.sha256(b).hexdigest().upper(), bozuk_belge if bozuk_belge is not None else b)
+    if ayna is not None:
+        for b in belgeler:
+            ozet = hashlib.sha256(b).hexdigest().upper()
+            (Path(ayna) / ozet[:2]).mkdir(parents=True, exist_ok=True)
+            (Path(ayna) / ozet[:2] / ozet).write_bytes(bozuk_belge if bozuk_belge is not None else b)
+    return yol
+
+
 def user_version(yol):
     with closing(sqlite3.connect(str(yol))) as db:
         return db.execute("PRAGMA user_version").fetchone()[0]
@@ -114,6 +143,74 @@ class GeriYuklemeIsaretiTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "üzerine yazılmaz"):
             geri_ac(yedek_zip(self.dizin), cikti)
         self.assertEqual(0, user_version(cikti))
+
+
+class BelgeDeposuBicimiTests(unittest.TestCase):
+    """Manifest 2.2.0: belgeler kasa.db dışında; her içerik özet ve boyutuyla doğrulanıp çıktının yanına belgeler/<ab>/<özet>
+    olarak açılır; doğrulanamayan içerik varsa çıktı veritabanı hiç oluşmaz."""
+    BELGELER = [b"%PDF-1.7 fatura", b"\x89PNG\r\n\x1a\n dekont", b"%PDF-1.4 ekstre"]
+
+    def setUp(self):
+        self._d = tempfile.TemporaryDirectory()
+        self.dizin = Path(self._d.name)
+        self.cikti = self.dizin / "cikti"
+        self.cikti.mkdir()
+
+    def tearDown(self):
+        self._d.cleanup()
+
+    def belge(self, icerik):
+        ozet = hashlib.sha256(icerik).hexdigest().upper()
+        return self.cikti / "belgeler" / ozet[:2] / ozet
+
+    def test_elle_indirilen_kendi_kendine_yeterli_yedek_belgeleriyle_acilir(self):
+        metin = geri_ac(depolu_zip(self.dizin, self.BELGELER, gomulu=True), self.cikti / "kasa.db")
+        self.assertIn("3 belge içeriği", metin)
+        for b in self.BELGELER:
+            self.assertEqual(b, self.belge(b).read_bytes())
+        self.assertEqual(rb.GERI_YUKLEME_ISARETI, user_version(self.cikti / "kasa.db"))
+
+    def test_sunucu_yedegi_yedek_aynasiyla_acilir_aynasiz_reddedilir(self):
+        yol = depolu_zip(self.dizin, self.BELGELER, ayna=self.dizin / "ayna")
+        with self.assertRaisesRegex(ValueError, "--belge-aynasi"):
+            geri_ac(yol, self.cikti / "kasa.db")
+        self.assertFalse((self.cikti / "kasa.db").exists())
+        tampon = io.StringIO()
+        with contextlib.redirect_stdout(tampon):
+            rb.restore(yol, self.cikti / "kasa.db", belge_aynasi=self.dizin / "ayna")
+        for b in self.BELGELER:
+            self.assertEqual(b, self.belge(b).read_bytes())
+
+    def test_ozeti_tutmayan_belge_reddedilir_veritabani_olusmaz(self):
+        yol = depolu_zip(self.dizin, self.BELGELER[:1], gomulu=True, bozuk_belge=b"%PDF-1.7 fatur!")
+        with self.assertRaisesRegex(ValueError, "özetiyle eşleşmiyor"):
+            geri_ac(yol, self.cikti / "kasa.db")
+        self.assertFalse((self.cikti / "kasa.db").exists())
+        self.assertFalse(self.belge(self.BELGELER[0]).exists())
+
+    def test_belgesiz_yalniz_veritabanini_acar(self):
+        tampon = io.StringIO()
+        with contextlib.redirect_stdout(tampon):
+            rb.restore(depolu_zip(self.dizin, self.BELGELER), self.cikti / "kasa.db", belgesiz=True)
+        self.assertTrue((self.cikti / "kasa.db").exists())
+        self.assertIn("--belgesiz: 3 belge açılmadı", tampon.getvalue())
+        self.assertFalse((self.cikti / "belgeler").exists())
+
+    def test_liste_ozeti_tutmazsa_ya_da_bilinmeyen_girdi_varsa_reddedilir(self):
+        yol = depolu_zip(self.dizin, self.BELGELER, gomulu=True)
+        bozuk = self.dizin / "bozuk.zip"
+        with zipfile.ZipFile(yol) as eski, zipfile.ZipFile(bozuk, "w") as yeni:
+            for girdi in eski.namelist():
+                yeni.writestr(girdi, eski.read(girdi) if girdi != "belgeler.json" else eski.read(girdi).replace(b"\"eksik\": []", b"\"eksik\": [\"X\"]"))
+        with self.assertRaisesRegex(ValueError, "Belge listesi sağlama toplamı"):
+            geri_ac(bozuk, self.cikti / "kasa.db")
+        fazla = self.dizin / "fazla.zip"
+        with zipfile.ZipFile(yol) as eski, zipfile.ZipFile(fazla, "w") as yeni:
+            for girdi in eski.namelist():
+                yeni.writestr(girdi, eski.read(girdi))
+            yeni.writestr("belgeler/../../kasa.db", b"x")
+        with self.assertRaisesRegex(ValueError, "Beklenmeyen yedek içeriği"):
+            geri_ac(fazla, self.cikti / "kasa.db")
 
 
 class OrtakSabitTests(unittest.TestCase):

@@ -27,6 +27,9 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     // dizinini verebilir.
     private readonly string _yedekDizini = Path.Combine(Path.GetTempPath(), "kasa-test-yedek-" + Guid.NewGuid().ToString("N"));
 
+    /// <summary>Uygulamanın belge deposu (Belge:Dizin): kaynak ağacına değil geçici dizine; fabrika kapanınca silinir.</summary>
+    public string BelgeDizini { get; } = Path.Combine(Path.GetTempPath(), "kasa-test-belge-" + Guid.NewGuid().ToString("N"));
+
     /// <summary>Sunucunun saati; null ise sistem saati (üretimdeki gibi). Uygulama kurulmadan, nesne
     /// başlatıcısında verilir. Her fabrikanın kendi saati vardır; paralel fabrikalar birbirini etkilemez.</summary>
     public TimeProvider? Saat { get; init; }
@@ -61,6 +64,7 @@ public class KasaWebFactory : WebApplicationFactory<Program>
                 ["Kasa:EditorSifre"] = "kasa123",
                 ["Kasa:JwtKey"] = "test-jwt-anahtari-en-az-32-bayt-olmali!!",
                 ["Yedek:Dizin"] = _yedekDizini,
+                ["Belge:Dizin"] = BelgeDizini,
             });
         });
 
@@ -104,6 +108,7 @@ public class KasaWebFactory : WebApplicationFactory<Program>
         if (!disposing) return;
         _conn.Dispose();
         try { if (Directory.Exists(_yedekDizini)) Directory.Delete(_yedekDizini, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        try { if (Directory.Exists(BelgeDizini)) Directory.Delete(BelgeDizini, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }
 

@@ -73,6 +73,36 @@ def yedek_zip(dizin, dosya_adi, tur="otomatik", ozet_boz=False, anahtar=False, f
     return yol
 
 
+def depolu_yedek_zip(dizin, dosya_adi, belgeler, tur="otomatik", ayna=None, liste_boz=False):
+    """Belge deposu biçimi (manifest 2.2.0): kasa.db + manifest.json + belgeler.json; içerikler verilirse yedek aynasına
+    (<ayna>/<ab>/<özet>) yazılır. belgeler: içerik baytları listesi."""
+    dizin = Path(dizin)
+    gecici = dizin / (".db-" + dosya_adi)
+    veritabani(gecici)
+    veri = gecici.read_bytes()
+    gecici.unlink()
+    liste = json.dumps({"belgeler": [{"ozet": hashlib.sha256(b).hexdigest().upper(), "boyut": len(b)} for b in belgeler], "eksik": []}).encode()
+    manifest = {"surum": "2.2.0", "olusturuldu": "2026-09-27T03:00:00+00:00", "tur": tur, "sha256": hashlib.sha256(veri).hexdigest().upper(),
+                "belgelerDahil": False, "belgeDeposu": True, "belgeSayisi": len(belgeler), "belgeListesiSha256": "0" * 64 if liste_boz else hashlib.sha256(liste).hexdigest().upper(),
+                "eksikBelgeSayisi": 0, "belgelerGomulu": False, "bildirimAnahtariDahil": False, "bildirimAnahtariSha256": None}
+    yol = dizin / dosya_adi
+    with zipfile.ZipFile(yol, "w") as z:
+        z.writestr("kasa.db", veri)
+        z.writestr("belgeler.json", liste)
+        z.writestr("manifest.json", json.dumps(manifest))
+    if ayna is not None:
+        for b in belgeler:
+            ozet = hashlib.sha256(b).hexdigest().upper()
+            (Path(ayna) / ozet[:2]).mkdir(parents=True, exist_ok=True)
+            (Path(ayna) / ozet[:2] / ozet).write_bytes(b)
+    return yol
+
+
+def belge_yolu(kok, icerik):
+    ozet = hashlib.sha256(icerik).hexdigest().upper()
+    return Path(kok) / "belgeler" / ozet[:2] / ozet
+
+
 class Sessiz:
     """Betiğin çıktısını yakalar (sınama çıktısını kirletmez, iletiler denetlenebilir)."""
 
@@ -161,6 +191,14 @@ class ArsivTests(unittest.TestCase):
     def test_ad_turu_manifest_turuyle_celisirse_reddedilir(self):
         with self.assertRaisesRegex(uy.ArsivHatasi, "tür"):
             uy.arsiv_dogrula(yedek_zip(self.dizin, ad("elle-", SIMDI), tur="otomatik"))
+
+    def test_belge_deposu_bicimi_liste_ozetiyle_dogrulanir(self):
+        yol = depolu_yedek_zip(self.dizin, ad("oto-", SIMDI), [b"%PDF-a", b"%PDF-b"])
+        self.assertEqual("2.2.0", uy.arsiv_dogrula(yol)["surum"])
+        self.assertEqual(sorted(hashlib.sha256(b).hexdigest().upper() for b in [b"%PDF-a", b"%PDF-b"]), sorted(o for o, _ in uy.belge_ozetleri(yol)))
+        with self.assertRaisesRegex(uy.ArsivHatasi, "belge listesi"):
+            uy.arsiv_dogrula(depolu_yedek_zip(self.dizin, ad("oto-", SIMDI, 1), [b"%PDF-a"], liste_boz=True))
+        self.assertEqual([], uy.belge_ozetleri(yedek_zip(self.dizin, ad("oto-", SIMDI, 2))))  # eski biçim: belgeler kasa.db içinde
 
 
 class AyarTests(unittest.TestCase):
@@ -261,6 +299,37 @@ class GonderTests(unittest.TestCase):
         self.assertEqual(0, kod, metin)
         self.assertEqual(oncesi, {p.name: p.stat().st_mtime_ns for p in self.uzak.iterdir()})
         self.assertEqual(("https://izleme.example/ping/abc", True), self.bildirimler[-1])
+
+    def test_belgeler_yedekten_once_aynadan_dogrulanarak_gonderilir_ikinci_calisma_yeniden_gondermez(self):
+        ayna = self.yerel / "belgeler"
+        bir = depolu_yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=2), 1), [b"%PDF-fatura", b"%PDF-dekont"], ayna=ayna).name
+        iki = depolu_yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 2), [b"%PDF-fatura", b"%PDF-dekont", b"%PDF-yeni"], ayna=ayna).name
+        kod, metin = self.calistir()
+        self.assertEqual(0, kod, metin)
+        self.assertEqual(sorted([bir, iki, "belgeler"]), self.uzaktakiler())
+        for icerik in (b"%PDF-fatura", b"%PDF-dekont", b"%PDF-yeni"):
+            self.assertEqual(icerik, belge_yolu(self.uzak, icerik).read_bytes())
+        self.assertIn("3 yeni belge", metin)
+        zaman = belge_yolu(self.uzak, b"%PDF-fatura").stat().st_mtime_ns
+        uc = depolu_yedek_zip(self.yerel, ad("oto-", SIMDI, 3), [b"%PDF-fatura"], ayna=ayna).name
+        kod, metin = self.calistir()
+        self.assertEqual(0, kod, metin)
+        self.assertIn(uc, self.uzaktakiler())
+        self.assertNotIn("yeni belge", metin)
+        self.assertEqual(zaman, belge_yolu(self.uzak, b"%PDF-fatura").stat().st_mtime_ns)
+
+    def test_aynada_olmayan_ya_da_bozuk_belgenin_yedegi_gonderilmez(self):
+        ayna = self.yerel / "belgeler"
+        eksik = depolu_yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=2), 1), [b"%PDF-kayip"]).name
+        bozuk = depolu_yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 2), [b"%PDF-bozulacak"], ayna=ayna).name
+        belge_yolu(self.yerel, b"%PDF-bozulacak").write_bytes(b"%PDF-bozuldu!!")
+        kod, metin = self.calistir()
+        self.assertEqual(1, kod)
+        self.assertIn(eksik + ": belgeleri gönderilemedi", metin)
+        self.assertIn(bozuk + ": belgeleri gönderilemedi", metin)
+        self.assertNotIn(eksik, self.uzaktakiler())
+        self.assertNotIn(bozuk, self.uzaktakiler())
+        self.assertFalse(belge_yolu(self.uzak, b"%PDF-bozulacak").exists())
 
     def test_kuru_calistirma_hedefe_yazmaz_silmez_ve_bildirmez(self):
         yeni = yedek_zip(self.yerel, ad("oto-", SIMDI - timedelta(hours=1), 1)).name
@@ -554,6 +623,17 @@ class DogrulaVeIndirTests(unittest.TestCase):
         self.assertEqual(0, kod, metin)
         self.assertIn(en_yeni, metin)
         self.assertEqual([("https://izleme.example/ping/dogrula", True)], self.bildirimler)
+
+    def test_belge_deposu_bicimli_uzak_kopya_belgeleri_hedefte_denetlenerek_sinanir(self):
+        en_yeni = depolu_yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(hours=5), 2), [b"%PDF-a", b"%PDF-b"], ayna=self.uzak / "belgeler").name
+        kod, metin = self.dogrula()
+        self.assertEqual(0, kod, metin)
+        self.assertIn(en_yeni, metin)
+        self.assertIn("2 belgenin hedefte olduğu", metin)
+        belge_yolu(self.uzak, b"%PDF-b").unlink()
+        kod, metin = self.dogrula()
+        self.assertEqual(1, kod)
+        self.assertIn("1 belge hedefte yok", metin)
 
     def test_bozuk_ya_da_eski_uzak_kopya_hata_verir(self):
         yedek_zip(self.uzak, ad("oto-", SIMDI - timedelta(hours=5), 2), ozet_boz=True)

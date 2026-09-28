@@ -144,8 +144,8 @@ public class BelgeAdiTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            var eski = new BelgeEntity { AlisId = alis.Id, DosyaAdi = "eski‮lmth.hta", IcerikTuru = "application/pdf", Boyut = 9, Yuklendi = DateTimeOffset.UnixEpoch, Icerik = "%PDF-1.4\n"u8.ToArray() };
-            var tur = new BelgeEntity { AlisId = alis.Id, DosyaAdi = "rapor.html", IcerikTuru = "text/html", Boyut = 4, Yuklendi = DateTimeOffset.UnixEpoch, Icerik = "<b/>"u8.ToArray() };
+            var eski = new BelgeEntity { AlisId = alis.Id, DosyaAdi = "eski‮lmth.hta", IcerikTuru = "application/pdf", Boyut = 9, Yuklendi = DateTimeOffset.UnixEpoch, IcerikOzeti = TestBelgeDeposu.Yaz(scope.ServiceProvider, "%PDF-1.4\n"u8.ToArray()) };
+            var tur = new BelgeEntity { AlisId = alis.Id, DosyaAdi = "rapor.html", IcerikTuru = "text/html", Boyut = 4, Yuklendi = DateTimeOffset.UnixEpoch, IcerikOzeti = TestBelgeDeposu.Yaz(scope.ServiceProvider, "<b/>"u8.ToArray()) };
             db.Belgeler.AddRange(eski, tur); db.SaveChanges();
             (pdf, bilinmeyen) = (eski.Id, tur.Id);
         }

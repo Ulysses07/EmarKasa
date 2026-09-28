@@ -22,7 +22,7 @@ public class AlisOdemeDuzenlemeTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            db.Belgeler.Add(new BelgeEntity { AlisId = source.Id, OdemeId = payment.Id, DosyaAdi = "test.pdf", IcerikTuru = "application/pdf", Icerik = [1], Boyut = 1 }); db.SaveChanges();
+            db.Belgeler.Add(new BelgeEntity { AlisId = source.Id, OdemeId = payment.Id, DosyaAdi = "test.pdf", IcerikTuru = "application/pdf", IcerikOzeti = TestBelgeDeposu.Yaz(scope.ServiceProvider, [1]), Boyut = 1 }); db.SaveChanges();
         }
         var change = new AlisOdemeDuzelt(source.Surum, Guid.NewGuid(), Date, 70m, "Yanlış alış ve tutar düzeltildi", HedefAlisId: target.Id, HedefSurum: target.Surum);
         var emptied = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change));

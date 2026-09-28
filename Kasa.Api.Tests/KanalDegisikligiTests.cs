@@ -458,7 +458,7 @@ public class KanalDegisikligiTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var belge = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "test.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
-                Dosya = "%PDF-test"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
                 SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "Kaynak 1", tarih ?? Today, "Banka hareketi 1", 100m, "Cikis", "Gider", "Hareket", "TRY", []) }) };
             db.EkstreBelgeler.Add(belge); db.SaveChanges(); id = belge.Id;
         }

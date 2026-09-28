@@ -45,7 +45,7 @@ public class StatementImportTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var d = new EkstreBelgeEntity { Kaynak = source, Banka = "Akbank", HesapAdi = source == "Banka" ? "İş hesabı" : "", KartId = card,
-                DosyaAdi = "test.pdf", DosyaOzeti = Guid.NewGuid().ToString(), Dosya = "%PDF-test"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                DosyaAdi = "test.pdf", DosyaOzeti = Guid.NewGuid().ToString(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
                 SatirlarJson = JsonSerializer.Serialize(Enumerable.Range(1, count).Select(no => new EkstreOkunanSatir(no, 1, "Kaynak " + no, Today, "Banka hareketi " + no, 100m, direction,
                     source == "Banka" ? "Gider" : "KartHarcama", "Hareket", currency, []))) };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); id = d.Id;
@@ -285,7 +285,7 @@ public class StatementImportTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            for (var i = 0; i < 51; i++) db.EkstreBelgeler.Add(new() { Kaynak = "Banka", Banka = "QNB", HesapAdi = "Sonraki hesap", DosyaAdi = "sonraki.pdf", DosyaOzeti = Guid.NewGuid().ToString(), Dosya = "%PDF-test"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds() });
+            for (var i = 0; i < 51; i++) db.EkstreBelgeler.Add(new() { Kaynak = "Banka", Banka = "QNB", HesapAdi = "Sonraki hesap", DosyaAdi = "sonraki.pdf", DosyaOzeti = Guid.NewGuid().ToString(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds() });
             db.SaveChanges();
         }
         var first = (await c.GetFromJsonAsync<List<EkstreBelgeOzetDto>>("/api/ekstre-aktar"))!;

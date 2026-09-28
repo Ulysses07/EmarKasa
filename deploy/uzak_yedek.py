@@ -12,6 +12,11 @@ Kimlik bilgisi depoda ve bu betikte yoktur: uzak depo ve şifreleme ('crypt') rc
 (KASA_DEPLOY_ENV) yalnız bu iki değer okunur; yayın veri/yedek dizinini değiştirince betik de onu izler.
 Kurulum, zamanlayıcı ve geri dönüş: docs/deploy/operasyon-runbook.md "Sunucu dışı yedek".
 
+Belgeler (manifest 2.2.0): sunucu yedekleri belge içeriği taşımaz; ZIP'teki belgeler.json özet listesidir, içerikler yedek
+aynasındadır (KASA_BACKUP_DIR/belgeler/<ab>/<özet>). Betik bir yedeği göndermeden ÖNCE onun listesindeki ve hedefte henüz
+olmayan her belgeyi aynadan özetini doğrulayarak hedefin belgeler/<ab>/<özet> yoluna gönderir (artımlı; içerik adresli
+dosyalar değişmez); bir belge gönderilemezse o yedek de gönderilmez. Hedefteki belgeler saklama kuralıyla silinmez.
+
 Komutlar:
   python3 uzak_yedek.py gonder [--kuru]          yeni ve doğrulanmış yedekleri gönderir, hatasızsa hedefte saklamayı uygular
   python3 uzak_yedek.py listele                  uzaktaki yedekleri listeler
@@ -29,6 +34,7 @@ import hashlib
 import json
 import math
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -63,6 +69,11 @@ _SAAT_BOLUMU = 'docs/deploy/operasyon-runbook.md "Saat hatası ve toplu silme s�
 _AD = re.compile(r"^kasa-(?:(oto|elle|goc-oncesi)-)?([0-9]{8}-[0-9]{6})-[0-9a-f]{8}\.zip$")
 _TURLER = {"oto": "otomatik", "elle": "elle", "goc-oncesi": "goc-oncesi"}
 _ICERIKLER = (["kasa.db", "manifest.json"], [".kasa-push-keys.json", "kasa.db", "manifest.json"])
+# Belge deposu biçimi (manifest 2.2.0; restore_backup.py ile aynı kurallar): belge listesi zorunlu, belgeler/<özet> isteğe bağlı.
+BELGE_LISTESI = "belgeler.json"
+BELGE_KLASORU = "belgeler"
+_BELGE_OZETI = re.compile(r"^[0-9A-F]{64}$")
+_DEPOLU_ICERIKLER = ([BELGE_LISTESI, "kasa.db", "manifest.json"], [".kasa-push-keys.json", BELGE_LISTESI, "kasa.db", "manifest.json"])
 
 
 class YapilandirmaHatasi(Exception):
@@ -144,13 +155,24 @@ def arsiv_dogrula(yol: Path) -> dict:
     """
     try:
         with zipfile.ZipFile(yol) as arsiv:
-            if sorted(arsiv.namelist()) not in _ICERIKLER:
-                raise ArsivHatasi("beklenmeyen içerik: " + ", ".join(sorted(arsiv.namelist())[:5]))
+            adlar = sorted(arsiv.namelist())
+            temel = [a for a in adlar if not a.startswith(BELGE_KLASORU + "/")]
+            gomulu = [a[len(BELGE_KLASORU) + 1:] for a in adlar if a.startswith(BELGE_KLASORU + "/")]
+            if "manifest.json" not in adlar:
+                raise ArsivHatasi("beklenmeyen içerik: " + ", ".join(adlar[:5]))
             if arsiv.getinfo("manifest.json").file_size > 8192:
                 raise ArsivHatasi("manifest.json beklenenden büyük")
             manifest = json.loads(arsiv.read("manifest.json"))
             if not isinstance(manifest, dict):
                 raise ArsivHatasi("manifest.json bir nesne değil")
+            if manifest.get("surum") == "2.2.0":
+                if temel not in _DEPOLU_ICERIKLER or not all(_BELGE_OZETI.match(o) for o in gomulu):
+                    raise ArsivHatasi("beklenmeyen içerik: " + ", ".join(adlar[:5]))
+                liste = arsiv.read(BELGE_LISTESI)
+                if hashlib.sha256(liste).hexdigest().upper() != str(manifest.get("belgeListesiSha256") or "").upper():
+                    raise ArsivHatasi("belge listesi özeti manifestle eşleşmiyor")
+            elif adlar not in _ICERIKLER:
+                raise ArsivHatasi("beklenmeyen içerik: " + ", ".join(adlar[:5]))
             beklenen = manifest.get("sha256")
             if not isinstance(beklenen, str) or not re.fullmatch(r"[0-9A-Fa-f]{64}", beklenen):
                 raise ArsivHatasi("manifestte sha256 özeti yok")
@@ -177,6 +199,29 @@ def arsiv_dogrula(yol: Path) -> dict:
     if yedek is not None and manifest.get("tur") is not None and manifest.get("tur") != yedek.tur:
         raise ArsivHatasi("addaki tür ({}) manifestteki türle ({}) çelişiyor".format(yedek.tur, manifest.get("tur")))
     return manifest
+
+
+def belge_ozetleri(yol: Path) -> List[Tuple[str, int]]:
+    """Doğrulanmış yedeğin belge listesi ((özet, boyut)); belgeleri kasa.db içinde taşıyan eski biçimde boş."""
+    try:
+        with zipfile.ZipFile(yol) as arsiv:
+            if BELGE_LISTESI not in arsiv.namelist():
+                return []
+            veri = json.loads(arsiv.read(BELGE_LISTESI))
+        liste = [(b["ozet"], int(b["boyut"])) for b in veri["belgeler"]]
+    except (zipfile.BadZipFile, KeyError, TypeError, ValueError, OSError) as e:
+        raise ArsivHatasi("belge listesi okunamadı ({})".format(e.__class__.__name__)) from e
+    if not all(isinstance(o, str) and _BELGE_OZETI.match(o) and b >= 0 for o, b in liste):
+        raise ArsivHatasi("belge listesinde geçersiz özet")
+    return liste
+
+
+def _dosya_ozeti(yol: Path) -> str:
+    ozet = hashlib.sha256()
+    with open(yol, "rb") as f:
+        for parca in iter(lambda: f.read(1024 * 1024), b""):
+            ozet.update(parca)
+    return ozet.hexdigest().upper()
 
 
 # ---------------------------------------------------------------- ayarlar
@@ -348,6 +393,29 @@ class RcloneHedefi:
         if kod != 0:
             raise HedefHatasi("{} indirilemedi: {}".format(ad, _son_satir(hata)))
 
+    @staticmethod
+    def _belge(ozet: str) -> str:
+        return "{}/{}/{}".format(BELGE_KLASORU, ozet[:2], ozet)
+
+    def belgeler(self) -> set:
+        """Hedefteki belge özetleri (belgeler/<ab>/<özet>)."""
+        kod, cikti, hata = self._komut("lsf", "-R", "--files-only", self._yol(BELGE_KLASORU))
+        if kod != 0:
+            if "directory not found" in hata.lower():
+                return set()
+            raise HedefHatasi("Hedefteki belgeler listelenemedi: " + _son_satir(hata))
+        return {a for a in (satir.strip().rsplit("/", 1)[-1] for satir in cikti.splitlines()) if _BELGE_OZETI.match(a)}
+
+    def belge_gonder(self, yerel: Path, ozet: str) -> None:
+        kod, _, hata = self._komut("copyto", "--immutable", str(yerel), self._yol(self._belge(ozet)))
+        if kod != 0:
+            raise HedefHatasi("belge {}… gönderilemedi: {}".format(ozet[:12], _son_satir(hata)))
+
+    def belge_indir(self, ozet: str, yerel: Path) -> None:
+        kod, _, hata = self._komut("copyto", self._yol(self._belge(ozet)), str(yerel))
+        if kod != 0:
+            raise HedefHatasi("belge {}… indirilemedi: {}".format(ozet[:12], _son_satir(hata)))
+
 
 class DizinHedefi:
     """Bağlı bir dizin (ör. şifreli bağlı disk) ve sınamalar için. Şifreleme yapmaz; dizin yoksa (disk bağlı
@@ -392,6 +460,39 @@ class DizinHedefi:
             shutil.copyfile(self.dizin / ad, yerel)
         except OSError as e:
             raise HedefHatasi("{} indirilemedi: {}".format(ad, e)) from e
+
+    def belgeler(self) -> set:
+        self._var()
+        kok = self.dizin / BELGE_KLASORU
+        if not kok.is_dir():
+            return set()
+        try:
+            return {e.name for alt in os.scandir(kok) if alt.is_dir() and len(alt.name) == 2
+                    for e in os.scandir(alt.path) if e.is_file() and _BELGE_OZETI.match(e.name)}
+        except OSError as e:
+            raise HedefHatasi("Hedefteki belgeler okunamadı: {}".format(e)) from e
+
+    def belge_gonder(self, yerel: Path, ozet: str) -> None:
+        self._var()
+        alt = self.dizin / BELGE_KLASORU / ozet[:2]
+        son, gecici = alt / ozet, alt / (".{}.part".format(ozet))
+        try:
+            alt.mkdir(parents=True, exist_ok=True)
+            if son.exists():
+                return
+            shutil.copyfile(yerel, gecici)
+            os.replace(gecici, son)
+        except OSError as e:
+            raise HedefHatasi("belge {}… gönderilemedi: {}".format(ozet[:12], e)) from e
+        finally:
+            gecici.unlink(missing_ok=True)
+
+    def belge_indir(self, ozet: str, yerel: Path) -> None:
+        self._var()
+        try:
+            shutil.copyfile(self.dizin / BELGE_KLASORU / ozet[:2] / ozet, yerel)
+        except OSError as e:
+            raise HedefHatasi("belge {}… indirilemedi: {}".format(ozet[:12], e)) from e
 
 
 def hedef_olustur(ayarlar: Ayarlar, calistir: Optional[Calistirici] = None):
@@ -479,6 +580,8 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
     gonderilen: Dict[str, Optional[int]] = {}  # ad -> gönderilmeden hemen önceki yerel boyut
     silinen: List[str] = []
     dogrulanamayan = 0
+    belge_gonderilen = 0
+    uzak_belgeler = None  # ilk belge deposu biçimli yedekte bir kez listelenir
     try:
         uzak = {a: b for a, b in hedef.listele().items() if tani(a) is not None}
     except HedefHatasi as e:
@@ -501,6 +604,7 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
         for ad in (a for a in adaylar if a not in silinecek):
             try:
                 arsiv_dogrula(yerel[ad])
+                ozetler = belge_ozetleri(yerel[ad])
             except ArsivHatasi as e:
                 if not yerel[ad].exists():  # bu arada uygulamanın saklama kuralıyla silindi: hata değil
                     print("atlandı (yerelde artık yok): " + ad)
@@ -509,7 +613,23 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
                 hatalar.append("{}: doğrulanamadı, gönderilmedi ({}).".format(ad, e))
                 continue
             if kuru:
-                print("[kuru] gönderilecek: " + ad)
+                print("[kuru] gönderilecek: " + ad + (" ({} belgeli)".format(len(ozetler)) if ozetler else ""))
+                continue
+            # Belgeler yedekten önce: hedefteki hiçbir yedek hedefte olmayan belgeyi göstermez.
+            try:
+                if ozetler and uzak_belgeler is None:
+                    uzak_belgeler = hedef.belgeler()
+                for ozet, boyut in ozetler:
+                    if ozet in uzak_belgeler:
+                        continue
+                    kaynak = ayarlar.yedek_dizini / BELGE_KLASORU / ozet[:2] / ozet
+                    if _boyut(kaynak) != boyut or _dosya_ozeti(kaynak) != ozet:
+                        raise ArsivHatasi("belge {}… yedek aynasında yok ya da özeti tutmuyor ({})".format(ozet[:12], kaynak))
+                    hedef.belge_gonder(kaynak, ozet)
+                    uzak_belgeler.add(ozet)
+                    belge_gonderilen += 1
+            except (ArsivHatasi, HedefHatasi, OSError) as e:
+                hatalar.append("{}: belgeleri gönderilemedi, yedek gönderilmedi ({}).".format(ad, e))
                 continue
             try:
                 boyut = _boyut(yerel[ad])
@@ -572,6 +692,8 @@ def gonder(ayarlar: Ayarlar, hedef, kuru: bool = False, simdi: Optional[datetime
     print("Özet{}: {} gönderildi, {} hedefte silindi, {} doğrulanamadı; hedefte {} yedek.".format(
         " (kuru)" if kuru else "", len(gonderilen), len(silinen), dogrulanamayan,
         "?" if uzak is None else len(set(uzak) | set(gonderilen)) - len(silinen)))
+    if belge_gonderilen:
+        print("Belge: {} yeni belge hedefin {}/ klasörüne gönderildi.".format(belge_gonderilen, BELGE_KLASORU))
     for h in hatalar:
         print("HATA: " + h, file=sys.stderr)
     if not kuru:
@@ -615,7 +737,16 @@ def indir(hedef, ad: str, cikti: Path) -> int:
         return 1
     print("İndirildi ve manifest özeti doğrulandı: {}".format(son))
     print("Sonraki adım (yeni dosyaya geri açar, canlının üzerine yazmaz):")
-    print("  python3 {} {} --output <yeni-veri-dizini>/kasa.db".format(Path(__file__).resolve().with_name("restore_backup.py"), son))
+    arac = Path(__file__).resolve().with_name("restore_backup.py")
+    try:
+        belgeli = bool(belge_ozetleri(son))
+    except ArsivHatasi:
+        belgeli = False
+    if belgeli:
+        print("  Bu yedeğin belgeleri hedefin {0}/ klasöründedir; önce indirin (ör. rclone copy <KASA_UZAK_HEDEF>/{0} <dizin>/{0}), sonra:".format(BELGE_KLASORU))
+        print("  python3 {} {} --output <yeni-veri-dizini>/kasa.db --belge-aynasi <dizin>/{}".format(arac, son, BELGE_KLASORU))
+    else:
+        print("  python3 {} {} --output <yeni-veri-dizini>/kasa.db".format(arac, son))
     return 0
 
 
@@ -647,8 +778,21 @@ def dogrula(ayarlar: Ayarlar, hedef, simdi: Optional[datetime] = None, bildir: C
                 zip_yolu = Path(gecici) / secilen.ad
                 hedef.indir(secilen.ad, zip_yolu)
                 arsiv_dogrula(zip_yolu)
-                restore_backup.restore(zip_yolu, Path(gecici) / "kasa.db")
-            print("Doğrulandı: {} indirildi, geri açıldı ve sınandı; geçici dosyalar silindi.".format(secilen.ad))
+                ozetler = belge_ozetleri(zip_yolu)
+                if ozetler:
+                    # Belge deposu biçimi: listedeki her belge hedefte olmalı; birkaç tanesi indirilip özetiyle sınanır.
+                    uzaktaki = hedef.belgeler()
+                    eksik = [o for o, _ in ozetler if o not in uzaktaki]
+                    if eksik:
+                        hatalar.append("{}: listesindeki {} belge hedefte yok (ilk: {}…).".format(secilen.ad, len(eksik), eksik[0][:12]))
+                    for ozet, boyut in random.SystemRandom().sample([b for b in ozetler if b[0] in uzaktaki], min(3, len(ozetler) - len(eksik))):
+                        yerel_belge = Path(gecici) / ("belge-" + ozet)
+                        hedef.belge_indir(ozet, yerel_belge)
+                        if _boyut(yerel_belge) != boyut or _dosya_ozeti(yerel_belge) != ozet:
+                            hatalar.append("{}: hedefteki belge {}… özetiyle eşleşmiyor.".format(secilen.ad, ozet[:12]))
+                restore_backup.restore(zip_yolu, Path(gecici) / "kasa.db", belgesiz=bool(ozetler))
+            print("Doğrulandı: {} indirildi, geri açıldı ve sınandı{}; geçici dosyalar silindi.".format(
+                secilen.ad, "; {} belgenin hedefte olduğu denetlendi".format(len(ozetler)) if ozetler else ""))
     except (HedefHatasi, ArsivHatasi) as e:
         hatalar.append(str(e))
     except Exception as e:  # restore_backup: ValueError, sqlite3.DatabaseError, OSError

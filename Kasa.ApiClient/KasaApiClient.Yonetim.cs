@@ -25,8 +25,9 @@ public sealed partial class KasaApiClient : IYonetimApi
         => yanit.Headers.TryGetValues(TanidikCihazBasligi, out var degerler) ? degerler.FirstOrDefault() : null;
     public Task<SurumDto> SurumAsync() => GetAsync<SurumDto>("api/surum");
     public Task<YedekDurumuDto> YedekDurumuAsync() => GetAsync<YedekDurumuDto>("api/yedek/durum");
-    /// <summary>Sunucu yedeği isteğin içinde hazırlar (SQLite yedeği, doğrulama, zip); hazırlık ve indirme birlikte
-    /// <see cref="KasaZamanAsimlari.Yedek"/> süresine tabidir. Yedek belleğe alınmadan <paramref name="hedef"/>'e yazılır.</summary>
+    /// <summary>Sunucu yedeği isteğin içinde hazırlar (SQLite yedeği, doğrulama, yedek aynası) ve belgeleri de içeren kendi kendine
+    /// yeterli ZIP'i akıtır; hazırlık ve indirme birlikte <see cref="KasaZamanAsimlari.Yedek"/> süresine tabidir. Yedek belleğe alınmadan
+    /// <paramref name="hedef"/>'e yazılır. Sunucunun yedek diskinde yer yoksa 507 ve Türkçe hata (<see cref="KasaApiException"/>).</summary>
     public Task<IndirmeBilgisi> YedekIndirAsync(Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Post, "api/yedek", "kasa-yedek.zip", hedef, _zaman.Yedek, cancellationToken);
     public Task<IReadOnlyList<BelgeDto>> BelgelerAsync(int alisId) => GetAsync<IReadOnlyList<BelgeDto>>($"api/alis/{alisId}/belgeler");

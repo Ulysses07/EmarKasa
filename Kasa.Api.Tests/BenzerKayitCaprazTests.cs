@@ -296,7 +296,7 @@ public class BenzerKayitCaprazTests
         Seed(f, db =>
         {
             var d = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "test.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
-                Dosya = "%PDF-test"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
                 SatirlarJson = JsonSerializer.Serialize(satirlar.Select((s, i) => new EkstreOkunanSatir(i + 1, 1, $"Kaynak {i + 1}", s.Tarih, "Banka hareketi", s.Tutar, "Cikis", "Gider", "Hareket", "TRY", [])).ToArray()) };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); id = d.Id;
         });

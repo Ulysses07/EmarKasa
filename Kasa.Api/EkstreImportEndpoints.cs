@@ -34,13 +34,20 @@ public static class EkstreImportEndpoints
             Require(documentId is not null, "Kaynak ekstre kaydı bulunamadı.", 404);
             return Results.Ok(Document(db, documentId.Value));
         }));
-        api.MapGet("/{id:int}/dosya", (int id, KasaDbContext db, HttpResponse response) =>
+        api.MapGet("/{id:int}/dosya", (int id, KasaDbContext db, BelgeDeposu depo, HttpResponse response, ILoggerFactory loglar) =>
         {
             var d = db.EkstreBelgeler.AsNoTracking().SingleOrDefault(d => d.Id == id);
             if (d is null) return Results.NotFound();
+            Stream akis;
+            try { akis = depo.Ac(d.DosyaOzeti); }
+            catch (BelgeDosyasiYokException)
+            {
+                loglar.CreateLogger("Kasa.Api.EkstreImportEndpoints").LogError("Ekstre belgesi {Id} dosyası belge deposunda yok ({Ozet}, {Depo}).", id, d.DosyaOzeti, depo.Kok);
+                return Results.NotFound(new { hata = BelgeEndpoints.DosyaYok });
+            }
             response.Headers.CacheControl = "private, no-store";
             response.Headers.XContentTypeOptions = "nosniff";
-            return Results.File(d.Dosya, "application/pdf", d.DosyaAdi);
+            return Results.File(akis, "application/pdf", d.DosyaAdi);
         });
         // Önizleme bir benzetimdir: satırlar (ve tarihe bağlı türetme, Sync) geri alınan kayıt noktasında uygulanır, kalıcı
         // hiçbir şey yazılmaz. Benzetim yazarak hesaplandığından yazma transaction'ı içinde çalışır.
@@ -98,7 +105,7 @@ public static class EkstreImportEndpoints
         return app;
     }
 
-    private static async Task<IResult> Upload(HttpRequest request, KasaDbContext db, IPdfMetinOkuyucu pdf, TimeProvider saat, CancellationToken ct)
+    private static async Task<IResult> Upload(HttpRequest request, KasaDbContext db, IPdfMetinOkuyucu pdf, TimeProvider saat, BelgeDeposu depo, CancellationToken ct)
     {
         if (request.ContentLength is > FileLimit + 65536) return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
         if (!request.HasFormContentType) return Error("PDF dosyasını yükleyin.");
@@ -140,11 +147,14 @@ public static class EkstreImportEndpoints
         name = new string(name.Where(c => !char.IsControl(c)).Take(180).ToArray());
         if (string.IsNullOrWhiteSpace(name)) name = "ekstre.pdf";
         if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) name += ".pdf";
+        // PDF, yazma kilidi alınmadan belge deposuna yazılır (diske işlenmiş); satır ondan sonra eklenir. Satır kaydedilemezse dosya
+        // hiçbir kaydın göstermediği dosya olarak bakımda silinir.
+        if (depo.Yaz(bytes, ct).Ozet != hash) return Error("PDF belge deposuna doğrulanarak yazılamadı. Yeniden deneyin.", 500);
         return Safe(() => AlisEndpoints.Mutate(db, () =>
         {
             var old = db.EkstreBelgeler.SingleOrDefault(d => d.DosyaOzeti == hash); if (old is not null) return Existing(old);
             var d = new EkstreBelgeEntity { Kaynak = source, Banka = bank, HesapAdi = account, KartId = card,
-                DosyaAdi = name, DosyaOzeti = hash, Dosya = bytes, Yuklendi = saat.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = rows, UyarilarJson = warnings };
+                DosyaAdi = name, DosyaOzeti = hash, Yuklendi = saat.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = rows, UyarilarJson = warnings };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); return Results.Ok(Document(db, d.Id));
         }));
     }

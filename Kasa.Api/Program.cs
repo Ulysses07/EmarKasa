@@ -24,6 +24,9 @@ builder.Services.AddSingleton<IPdfMetinOkuyucu, PdfMetinOkuyucu>();
 builder.Services.AddKasaBildirimleri();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<VeritabaniHataIsleyici>();
+// Belge içerikleri veritabanında değil içerik adresli belge deposunda (Belge:Dizin; varsayılan veritabanı klasörü/belgeler).
+builder.Services.AddSingleton<BelgeDeposu>();
+builder.Services.AddSingleton<IDiskAlani, DiskAlani>();
 builder.Services.AddSingleton<YedekServisi>();
 builder.Services.AddHostedService<OtomatikYedek>();
 // Okumalar Sync yapmaz: tarihe bağlı takip türetmesi (kesim ekstreleri) gün dönümünde bakım adımıyla yazılır.
@@ -87,7 +90,12 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
     // Bekleyen migration/veri adımı varsa önce göç öncesi yedek alınır; alınamazsa açılış durur.
-    KasaDatabaseInitializer.Initialize(db, scope.ServiceProvider.GetRequiredService<YedekServisi>());
+    var yedekServisi = scope.ServiceProvider.GetRequiredService<YedekServisi>();
+    var belgeDeposu = scope.ServiceProvider.GetRequiredService<BelgeDeposu>();
+    // Yedek aynasının temizliği (hiçbir yedeğin göstermediği dosyalar) belge deposunun kendisinde çalışırsa canlı belgeleri silerdi.
+    if (string.Equals(Path.TrimEndingDirectorySeparator(yedekServisi.AynaDizini), Path.TrimEndingDirectorySeparator(belgeDeposu.Kok), StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException($"Yedek aynası ({yedekServisi.AynaDizini}) belge deposuyla (Belge:Dizin) aynı dizin olamaz. Yedek:Dizin'i veri dizininden ayırın.");
+    KasaDatabaseInitializer.Initialize(db, yedekServisi, belgeDeposu, scope.ServiceProvider.GetRequiredService<IDiskAlani>());
     // Yedekten geri yüklenmiş dosya: oturumlar ve izleyici girişi kapanır, kimlikler ileri alınır (HTTP açılmadan).
     GeriYuklemeIsleyici.Isle(db);
     if (!db.Kanallar.Any())

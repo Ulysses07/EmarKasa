@@ -426,7 +426,9 @@ public class DenetimIziTests
         (await c.DeleteAsync($"/api/belgeler/{belge.Id}")).EnsureSuccessStatusCode();
         var belgeOlaylari = Olaylar(f, "Belge", belge.Id);
         Assert.Equal(["Ekle", "Sil"], belgeOlaylari.Select(o => o.Tur));
-        Assert.Equal("21 bayt", (string?)J(belgeOlaylari[0].YeniJson)["Icerik"]);
+        // İçerik belge deposundadır: olay yalnız özeti taşır.
+        Assert.Equal(TestBelgeDeposu.Ozet("%PDF-1.7 gizli fatura"u8.ToArray()), (string?)J(belgeOlaylari[0].YeniJson)["IcerikOzeti"]);
+        Assert.Null(J(belgeOlaylari[0].YeniJson)["Icerik"]);
         Assert.DoesNotContain(belgeOlaylari, o => (o.YeniJson + o.OncekiJson).Contains("gizli", StringComparison.Ordinal));
 
         var sablon = await Create(c, "Ozel", [new(1, 100m)]);

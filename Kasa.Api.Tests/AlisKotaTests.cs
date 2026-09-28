@@ -166,7 +166,7 @@ public class AlisKotaTests
         {
             using var scope = f.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            db.Belgeler.Add(new BelgeEntity { AlisId = eski.Id, DosyaAdi = "eski.pdf", IcerikTuru = "application/pdf", Boyut = boyut, Yuklendi = an, Icerik = [1] });
+            db.Belgeler.Add(new BelgeEntity { AlisId = eski.Id, DosyaAdi = "eski.pdf", IcerikTuru = "application/pdf", Boyut = boyut, Yuklendi = an, IcerikOzeti = TestBelgeDeposu.Ozet([1]) });
             db.SaveChanges();
         }
 

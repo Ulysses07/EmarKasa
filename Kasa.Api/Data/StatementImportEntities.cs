@@ -11,8 +11,8 @@ public class EkstreBelgeEntity
     public string HesapAdi { get; set; } = "";
     public int? KartId { get; set; }
     public string DosyaAdi { get; set; } = "";
+    /// <summary>PDF'in SHA-256 özeti (büyük harf onaltılık); içerik belge deposundadır (<see cref="Servisler.BelgeDeposu"/>).</summary>
     public string DosyaOzeti { get; set; } = "";
-    public byte[] Dosya { get; set; } = [];
     public long Yuklendi { get; set; }
     public string SatirlarJson { get; set; } = "[]";
     public string UyarilarJson { get; set; } = "[]";

@@ -367,6 +367,9 @@ public class GeriYuklemeTests
             JsonNode manifest;
             using (var arsiv = ZipFile.OpenRead(zip)) using (var akis = arsiv.GetEntry("manifest.json")!.Open()) manifest = JsonNode.Parse(akis)!;
             manifest["sha256"] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(eskiDb)));
+            // 2.3 öncesinin biçimi (2.1.0): belge listesi girdisi ve belge deposu alanları yoktur.
+            manifest["surum"] = "2.1.0"; manifest["belgelerDahil"] = true;
+            foreach (var alan in new[] { "belgeDeposu", "belgeSayisi", "belgeToplamBayt", "belgeListesiSha256", "eksikBelgeSayisi", "belgelerGomulu" }) manifest.AsObject().Remove(alan);
             using (var yeni = ZipFile.Open(eskiZip, ZipArchiveMode.Create))
             {
                 yeni.CreateEntryFromFile(eskiDb, "kasa.db");

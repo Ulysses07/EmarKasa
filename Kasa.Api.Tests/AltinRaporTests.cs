@@ -286,7 +286,7 @@ internal static class AltinTohum
                 new EkstreOkunanSatir(2, 1, "Kaynak 2", new(2026, 9, 16), "Banka masrafı", 350m, "Cikis", "Gider", "Hareket", "TRY", []),
                 new EkstreOkunanSatir(3, 1, "Kaynak 3", new(2026, 9, 18), "Kart A ödemesi", 250m, "Cikis", "KartOdemesi", "Hareket", "TRY", []) };
             var d = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "altin.pdf", DosyaOzeti = "altin-belge",
-                Dosya = "%PDF-altin"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = JsonSerializer.Serialize(satirlar) };
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = JsonSerializer.Serialize(satirlar) };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); belge = d.Id;
         }
         var doc = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge}", Json))!;

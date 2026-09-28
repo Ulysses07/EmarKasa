@@ -440,7 +440,7 @@ public class RaporDayaniklilikTests
             var okunan = satirlar.Select((s, i) => new EkstreOkunanSatir(i + 1, 1, "Kaynak " + (i + 1), Today, "Hareket " + (i + 1), s.Tutar,
                 s.Tur == "Gelir" ? "Giris" : "Cikis", s.Tur, "Hareket", "TRY", [])).ToList();
             var d = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "dayaniklilik.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
-                Dosya = "%PDF-test"u8.ToArray(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = JsonSerializer.Serialize(okunan) };
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = JsonSerializer.Serialize(okunan) };
             db.EkstreBelgeler.Add(d); db.SaveChanges(); belge = d.Id;
         }
         var doc = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge}"))!;
