@@ -82,8 +82,8 @@
                 <VerticalStackLayout Spacing="0">
                     <VerticalStackLayout Padding="18,18,18,0" Spacing="12">
                         <Label Text="Kanallar" Style="{StaticResource LblSection}" />
-                        <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): kapatılmış ayın raporu dondurulmuştur. -->
-                        <Label Text="Kapatılmış ayların raporu kapanıştaki haliyle korunur: kanal eklemek, adını, sırasını ya da aktifliğini değiştirmek kapatılmış ayları etkilemez. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan kanalı silmek yerine pasife alın."
+                        <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): Ortak gideri bölen aktif kanal kümesi kilitte değişmez. -->
+                        <Label Text="Ortak giderler aylık raporda aktif kanallara sıralarına göre bölünür; aktiflik ya da aktif kanalların sırası değişirse açık ayların Ortak payı yeniden hesaplanır. Ay kilidi varken kanal adı değiştirilebilir ve yeni kanal pasif eklenebilir; aktif kanal eklemek ya da silmek, aktifliği ya da aktif kanalların sırasını değiştirmek engellenir, çünkü kapatılmış bir ay yeniden açıldığında Ortak payı güncel kanallarla yeniden hesaplanırdı. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan kanalı silmek yerine pasife alın."
                                Style="{StaticResource LblPageSub}" />
                         <Grid ColumnDefinitions="{OnIdiom Desktop='1.4*,90,*,Auto,Auto,Auto', Default='*'}"
                               RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto,Auto'}"
