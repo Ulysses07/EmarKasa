@@ -171,6 +171,16 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
   openModal(title, form, wide);
   return form;
 }
+// contract-6: gider, gelir, kanal ve ayar düzenlemesi okunan kaydın sürümünü gönderir. Kayıt arada başka oturumda değiştiyse sunucu
+// 409 verir: ileti formda görünür, arkadaki liste (ya da formun verisi) güncel kayıtlarla yenilenir; kayıt yeniden açılınca güncel
+// sürümle kaydedilir. Yenileme hatası kayıt hatasını örtmez.
+async function refreshOnConflict(work, refresh) {
+  try { return await work(); }
+  catch (error) {
+    if (error?.status === 409) { try { await refresh(); } catch { /* kayıt hatası gösterilir */ } }
+    throw error;
+  }
+}
 const similarApprovals = new WeakMap();
 const similarPanels = new WeakMap();
 async function confirmSimilar(form, query, payload) {
@@ -755,8 +765,10 @@ async function incomeDialog(periodStart = null) {
   await refresh();
   form = formDialog('Kanal geliri gir', h('div', { class: 'stack' }, field('Kasa dönemi', period), field('Kanal', channel), total.node, notice), 'Dönem toplamını kaydet', async () => {
     if (loading || loadError) throw new Error('Dönem gelirleri yüklenmeden kayıt yapılamaz. Lütfen yeniden deneyin.');
-    if (incomeSelection(incomes, selectedChannel()).readOnly) throw new Error('Bu eski gelir grubu geçmiş tutarları korumak için değiştirilemez.');
-    await api('/api/gelenler', { method: 'PUT', body: { donemStart: period.value, kanal: channel.value, tutarTl: total.read() } }); closeModal(); toast('Kanal geliri kaydedildi.'); await navigate(state.view);
+    const selected = incomeSelection(incomes, selectedChannel());
+    if (selected.readOnly) throw new Error('Bu eski gelir grubu geçmiş tutarları korumak için değiştirilemez.');
+    await refreshOnConflict(() => api('/api/gelenler', { method: 'PUT', body: { donemStart: period.value, kanal: channel.value, tutarTl: total.read(), surum: selected.surum } }), refresh);
+    closeModal(); toast('Kanal geliri kaydedildi.'); await navigate(state.view);
   });
   fill();
 }
@@ -785,9 +797,9 @@ async function expenseDialog(expense = null) {
   formDialog(expense ? 'Gideri düzenle' : 'Gider kaydet', h('div', { class: 'stack' }, field('Açıklama / ödeme yapılan yer', input('cari', expense?.cari || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, field('Tarih', input('tarih', expense?.tarih || today(), { type: 'date', required: true })), total.node, field('Kanal', channel), field('Gider türü', type)), cardField, installments.node, field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')), help('Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.')), 'Gideri kaydet', async form => {
     const data = values(form);
     if (data.tip === 'KrediKarti' && !card.value && !cardlessOld) throw Object.assign(new Error(cardRequired), { fields: { krediKartiId: cardRequired } });
-    const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null, ...installments.read(data.tarih) };
+    const body = { tarih: data.tarih, cari: data.cari.trim(), tutarTl: total.read(), kanal: data.kanal, tip: data.tip, not: data.not.trim() || null, krediKartiId: data.tip === 'KrediKarti' ? optionalId(card.value) : null, ...installments.read(data.tarih), surum: expense?.surum ?? 0 };
     if (!expense && !await confirmSimilar(form, { tur: 'Gider', tarih: body.tarih, tutar: body.tutarTl, krediKartiId: body.krediKartiId, kanal: body.kanal, alisId: null }, body)) return;
-    await api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body: expense ? body : identity(body) }); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);
+    await refreshOnConflict(() => api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', { method: expense ? 'PUT' : 'POST', body: expense ? body : identity(body) }), () => navigate(state.view)); closeModal(); toast('Gider kaydedildi.'); await navigate(state.view);
   });
 }
 function deleteExpense(expense) {
@@ -798,11 +810,11 @@ function deleteExpense(expense) {
 function channelDialog(channel = null, lockedUntil = null) {
   const opening = signedAmountField('acilisDevri', channel?.acilisDevri ?? 0, 'Açılış devri (₺)');
   const lockNote = lockedUntil && h('p', { class: 'notice' }, `${dateText(lockedUntil)} dahil aylar kilitli. ${channel ? 'Kanal adı, aktifliği ve sırası değiştirilebilir; açılış devri değiştirilemez.' : 'Yeni kanal açılış devri 0 ile eklenir; aktif ya da pasif olabilir.'}`);
-  formDialog(channel ? `${channel.ad} · Kanalı düzenle` : 'Kanal ekle', h('div', { class: 'stack' }, field('Kanal adı', input('ad', channel?.ad || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, opening.node, field('Görüntüleme sırası', input('sira', channel?.sira ?? state.channels.length, { required: true, type: 'number', step: 1, min: 0 }))), h('label', {}, input('aktif', '1', { type: 'checkbox', checked: channel?.aktif ?? true }), 'Kanal aktif'), lockNote, help('Geçmiş kayıtları olan kanalı silmek yerine pasife alın. Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez.'), channel && button('Kanalı sil', () => formDialog('Kanalı sil', h('p', { class: 'plain-note' }, `${channel.ad} kanalı silinecek; tanımlıysa kasa alt sınırı da silinir. Geçmiş kaydı varsa ya da tamamlanmış bir ayın kanal kümesinde yer alıyorsa silinemez; pasife alabilirsiniz.`), 'Kanalı sil', async () => { await api(`/api/kanallar/${channel.id}`, { method: 'DELETE' }); closeModal(); toast('Kanal silindi.'); await navigate('tools'); }, { danger: true }), 'danger small')), 'Kanalı kaydet', async form => { const data = values(form); await api(channel ? `/api/kanallar/${channel.id}` : '/api/kanallar', { method: channel ? 'PUT' : 'POST', body: { ad: data.ad.trim(), aktif: Boolean(data.aktif), sira: Number(data.sira), acilisDevri: opening.read() } }); closeModal(); toast('Kanal kaydedildi.'); await navigate('tools'); });
+  formDialog(channel ? `${channel.ad} · Kanalı düzenle` : 'Kanal ekle', h('div', { class: 'stack' }, field('Kanal adı', input('ad', channel?.ad || '', { required: true, maxlength: 200 })), h('div', { class: 'form-grid' }, opening.node, field('Görüntüleme sırası', input('sira', channel?.sira ?? state.channels.length, { required: true, type: 'number', step: 1, min: 0 }))), h('label', {}, input('aktif', '1', { type: 'checkbox', checked: channel?.aktif ?? true }), 'Kanal aktif'), lockNote, help('Geçmiş kayıtları olan kanalı silmek yerine pasife alın. Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez.'), channel && button('Kanalı sil', () => formDialog('Kanalı sil', h('p', { class: 'plain-note' }, `${channel.ad} kanalı silinecek; tanımlıysa kasa alt sınırı da silinir. Geçmiş kaydı varsa ya da tamamlanmış bir ayın kanal kümesinde yer alıyorsa silinemez; pasife alabilirsiniz.`), 'Kanalı sil', async () => { await api(`/api/kanallar/${channel.id}`, { method: 'DELETE' }); closeModal(); toast('Kanal silindi.'); await navigate('tools'); }, { danger: true }), 'danger small')), 'Kanalı kaydet', async form => { const data = values(form); await refreshOnConflict(() => api(channel ? `/api/kanallar/${channel.id}` : '/api/kanallar', { method: channel ? 'PUT' : 'POST', body: { ad: data.ad.trim(), aktif: Boolean(data.aktif), sira: Number(data.sira), acilisDevri: opening.read(), surum: channel?.surum ?? 0 } }), () => navigate('tools')); closeModal(); toast('Kanal kaydedildi.'); await navigate('tools'); });
 }
 function openingDialog(settings) {
   const opening = signedAmountField('kasaAcilisDevri', settings.kasaAcilisDevri, 'Genel kasa açılış devri (₺)');
-  formDialog('Kasa başlangıcını düzenle', h('div', { class: 'stack' }, field('Takip başlangıcı', input('takipBaslangic', settings.takipBaslangic, { type: 'date', required: true })), opening.node, help('Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez. Açılış devri, tüm sonraki genel kasa bakiyelerini etkiler.')), 'Başlangıcı kaydet', async form => { const data = values(form); await api('/api/ayarlar', { method: 'PUT', body: { takipBaslangic: data.takipBaslangic, kasaAcilisDevri: opening.read() } }); closeModal(); toast('Kasa başlangıcı kaydedildi.'); await navigate('tools'); });
+  formDialog('Kasa başlangıcını düzenle', h('div', { class: 'stack' }, field('Takip başlangıcı', input('takipBaslangic', settings.takipBaslangic, { type: 'date', required: true })), opening.node, help('Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez. Açılış devri, tüm sonraki genel kasa bakiyelerini etkiler.')), 'Başlangıcı kaydet', async form => { const data = values(form); await refreshOnConflict(() => api('/api/ayarlar', { method: 'PUT', body: { takipBaslangic: data.takipBaslangic, kasaAcilisDevri: opening.read(), surum: settings.surum ?? 0 } }), () => navigate('tools')); closeModal(); toast('Kasa başlangıcı kaydedildi.'); await navigate('tools'); });
 }
 function viewerPasswordDialog() {
   formDialog('İzleyici şifresi', h('div', { class: 'stack' }, field('Yeni izleyici şifresi', input('yeniSifre', '', { type: 'password', required: true, minlength: 12, maxlength: 1024, autocomplete: 'new-password' }), help('En az 12 karakter kullanın.')), help('İzleyici kasaları ve raporları okuyabilir; kayıtları değiştiremez. Şifre değişince eski izleyici oturumları kapanır.')), 'Şifreyi kaydet', async form => {

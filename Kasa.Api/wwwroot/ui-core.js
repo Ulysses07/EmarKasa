@@ -36,10 +36,14 @@ export function incomeSelection(rows, channel) {
   const selected = rows.filter(row => row.kanalId != null
     ? Number.isInteger(channelId) && channelId > 0 && Number(row.kanalId) === channelId
     : channelName && sqliteName(row.kanal) === sqliteName(channelName));
+  const readOnly = selected.length > 1 || selected.some(row => row.eskiYinelenenGrup === true);
   return {
     total: selected.reduce((sum, row) => sum + Math.round(row.tutarTl * 100), 0) / 100,
     count: selected.length,
-    readOnly: selected.length > 1 || selected.some(row => row.eskiYinelenenGrup === true)
+    readOnly,
+    // contract-6: tek normal satırın sürümü (satır yoksa 0). Kayıtla gönderilir; satır arada başka oturumda değiştiyse ya da
+    // eklendiyse sunucu 409 verir.
+    surum: selected.length === 1 && !readOnly ? Number(selected[0].surum) || 0 : 0
   };
 }
 export function childValues(values) { return values.flat(Infinity).filter(value => value != null && value !== false); }

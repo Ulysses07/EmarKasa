@@ -523,11 +523,15 @@ test('notification deep links enforce financial role and service worker rejects 
 });
 test('legacy income selection sums preserved rows without selecting one arbitrarily', () => {
   const rows = [{ kanal: 'A', tutarTl: 0.10, eskiYinelenenGrup: true }, { kanal: 'A', tutarTl: 0.20, eskiYinelenenGrup: true }, { kanal: 'B', tutarTl: 5 }];
-  assert.deepEqual(incomeSelection(rows, 'A'), { total: 0.30, count: 2, readOnly: true });
-  assert.deepEqual(incomeSelection(rows, 'B'), { total: 5, count: 1, readOnly: false });
-  assert.deepEqual(incomeSelection(rows, 'C'), { total: 0, count: 0, readOnly: false });
+  assert.deepEqual(incomeSelection(rows, 'A'), { total: 0.30, count: 2, readOnly: true, surum: 0 });
+  assert.deepEqual(incomeSelection(rows, 'B'), { total: 5, count: 1, readOnly: false, surum: 0 });
+  assert.deepEqual(incomeSelection(rows, 'C'), { total: 0, count: 0, readOnly: false, surum: 0 });
   assert.equal(incomeSelection([{ kanal: 'A', tutarTl: 5, eskiYinelenenGrup: true }], 'A').readOnly, true);
   assert.equal(incomeSelection([{ kanal: 'A', tutarTl: 5 }, { kanal: 'A', tutarTl: -2 }], 'A').readOnly, true);
+  // contract-6: tek normal satırın sürümü gönderilir; eski grup (salt okunur) ve satırsız kanal 0.
+  assert.equal(incomeSelection([{ kanalId: 7, kanal: 'A', tutarTl: 5, surum: 9 }], { id: 7, ad: 'A' }).surum, 9);
+  assert.equal(incomeSelection([{ kanalId: 7, kanal: 'A', tutarTl: 5, surum: 9, eskiYinelenenGrup: true }], { id: 7, ad: 'A' }).surum, 0);
+  assert.equal(incomeSelection([{ kanalId: 7, kanal: 'A', tutarTl: 5, surum: 9 }], { id: 8, ad: 'B' }).surum, 0);
 });
 test('income selection uses stable channel IDs across case variants and renames', () => {
   const rows = [
@@ -535,13 +539,13 @@ test('income selection uses stable channel IDs across case variants and renames'
     { kanalId: 7, kanal: 'shop', tutarTl: 200, eskiYinelenenGrup: true },
     { kanalId: 8, kanal: 'Yeni mağaza', tutarTl: 999 }
   ];
-  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'Yeni mağaza' }), { total: 300, count: 2, readOnly: true });
-  assert.deepEqual(incomeSelection(rows, { id: 8, ad: 'SHOP' }), { total: 999, count: 1, readOnly: false });
+  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'Yeni mağaza' }), { total: 300, count: 2, readOnly: true, surum: 0 });
+  assert.deepEqual(incomeSelection(rows, { id: 8, ad: 'SHOP' }), { total: 999, count: 1, readOnly: false, surum: 0 });
 });
 test('income name fallback applies only to rows without IDs and matches SQLite ASCII NOCASE', () => {
   const rows = [{ kanal: 'SHOP', tutarTl: 10 }, { kanalId: 8, kanal: 'shop', tutarTl: 999 }];
-  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'shop' }), { total: 10, count: 1, readOnly: false });
-  assert.deepEqual(incomeSelection([{ kanal: 'İSİM', tutarTl: 50 }, { kanal: 'ISIM', tutarTl: 20 }, { kanal: 'ısım', tutarTl: 90 }], { id: 7, ad: 'isim' }), { total: 20, count: 1, readOnly: false });
+  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'shop' }), { total: 10, count: 1, readOnly: false, surum: 0 });
+  assert.deepEqual(incomeSelection([{ kanal: 'İSİM', tutarTl: 50 }, { kanal: 'ISIM', tutarTl: 20 }, { kanal: 'ısım', tutarTl: 90 }], { id: 7, ad: 'isim' }), { total: 20, count: 1, readOnly: false, surum: 0 });
 });
 test('income form locks only the duplicate group and unlocks normal channels and new periods', async () => {
   const oldPeriod = '2026-09-07'; const newPeriod = '2026-09-14';
@@ -1646,7 +1650,7 @@ test('dönem geliri ± seçiciyle eksi girilir ve eski eksi toplam işaretle gö
   channel.value = 'Normal'; channel.listeners.change();
   assert.equal(sign.value, '+'); assert.equal(total.value, '0');
   sign.value = '-'; total.value = '15'; await submitDialog(nodes);
-  assert.deepEqual(calls.find(call => call.path === '/api/gelenler' && call.method === 'PUT').body, { donemStart: period, kanal: 'Normal', tutarTl: -15 });
+  assert.deepEqual(calls.find(call => call.path === '/api/gelenler' && call.method === 'PUT').body, { donemStart: period, kanal: 'Normal', tutarTl: -15, surum: 0 });
 });
 test('eski gelir grubu kilitliyken işaret seçici de kilitlidir', async () => {
   const period = '2026-09-07';
@@ -1667,7 +1671,7 @@ test('kanal ve genel kasa açılış devri ± seçiciyle eksi girilir', async ()
   app.openingDialog({ takipBaslangic: '2026-01-01', kasaAcilisDevri: -99.99 });
   assert.equal(formField(nodes, 'kasaAcilisDevriIsaret').value, '-'); assert.equal(formField(nodes, 'kasaAcilisDevri').value, '99.99');
   formField(nodes, 'kasaAcilisDevri').value = '250'; await submitDialog(nodes);
-  assert.deepEqual(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body, { takipBaslangic: '2026-01-01', kasaAcilisDevri: -250 });
+  assert.deepEqual(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body, { takipBaslangic: '2026-01-01', kasaAcilisDevri: -250, surum: 0 });
 });
 // Tamamlanmış ayların kanal kümesi sunucuda dondurulduğundan kilit varken de aktif kanal eklenebilir: Ayarlar kilit durumunu okur,
 // kanal formu kilidi (yalnız açılış devri kilitte değişmez) söyler; yeni kanal kilitte de aktif gelir, düzenlenen kendi aktifliğiyle.
@@ -2258,4 +2262,63 @@ test('yeni kart giderinde ve takipli kartla yeni alış ödemesinde taksit gövd
   formField(nodes, 'taksitSayisi').value = '6'; await submitDialog(nodes);
   const body = calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body;
   assert.deepEqual([body.taksitSayisi, body.ilkKesimTarihi, body.krediKartiId], [6, undefined, 2]);
+});
+
+// contract-6: düzenleme okunan kaydın sürümünü gönderir. Kayıt arada başka oturumda değiştiyse sunucu 409 verir: ileti formda görünür,
+// arkadaki liste (gelirde formun dönem verisi) güncel kayıtlarla yenilenir; kayıt yeniden açılınca güncel sürümle kaydedilir.
+test('gider düzenlemesi okunan sürümü gönderir; 409 iletisi formda görünür ve gider listesi yenilenir', async () => {
+  const listPath = `/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`;
+  const expense = { id: 20, tarih: ui.today(), tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null, surum: 3 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true, surum: 0 }], '/api/kredikartlari': [], [listPath]: [expense],
+    '/api/islemler/20': { $status: 409, hata: 'Gider başka bir oturumda değişti. Listeyi yenileyip tekrar deneyin.' }, '/api/islemler/benzerlik': [], '/api/islemler': { id: 21, surum: 0 } });
+  await app.navigate('transactions');
+  const listReads = () => calls.filter(call => call.path === listPath).length;
+  const before = listReads();
+  await app.expenseDialog(expense); formField(nodes, 'tutarTl').value = '80'; await submitDialog(nodes);
+  const put = calls.find(call => call.path === '/api/islemler/20');
+  assert.deepEqual([put.method, put.body.surum, put.body.tutarTl], ['PUT', 3, 80]);
+  assert.match(nodes.get('#modal-content').textContent, /Gider başka bir oturumda değişti/);
+  assert.equal(listReads(), before + 1, 'Liste güncel sürümlerle yenilendi.');
+  // Yeni gider sürüm 0 ile gider (sunucu oluşturmada yok sayar).
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: ui.today() })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.surum, 0);
+});
+test('kanal ve kasa başlangıcı düzenlemesi okunan sürümü gönderir; 409’da Ayarlar yenilenir', async () => {
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0, surum: 5 }],
+    '/api/kanallar/3': { $status: 409, hata: 'Kanal başka bir oturumda değişti. Listeyi yenileyip tekrar deneyin.' },
+    '/api/ayarlar': call => call.method === 'PUT' ? { $status: 409, hata: 'Ayarlar başka bir oturumda değişti. Güncel değerleri yükleyip tekrar deneyin.' }
+      : { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true, surum: 7 },
+    '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
+  const settingsReads = () => calls.filter(call => call.path === '/api/ayarlar' && call.method === 'GET').length;
+  let before = settingsReads();
+  app.channelDialog({ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0, surum: 5 });
+  formField(nodes, 'sira').value = '2'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kanallar/3').body.surum, 5);
+  assert.match(nodes.get('#modal-content').textContent, /Kanal başka bir oturumda değişti/);
+  assert.equal(settingsReads(), before + 1, 'Ayarlar ekranı güncel kayıtlarla yenilendi.');
+  before = settingsReads();
+  app.openingDialog({ takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, surum: 7 });
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body.surum, 7);
+  assert.match(nodes.get('#modal-content').textContent, /Ayarlar başka bir oturumda değişti/);
+  assert.equal(settingsReads(), before + 1);
+});
+test('gelir kaydı seçili satırın sürümünü gönderir; 409’da dönemin güncel toplamı forma yüklenir', async () => {
+  const period = '2026-09-14';
+  let reads = 0;
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': [{ donem: { start: period, end: '2026-09-20' } }], '/api/kanallar': [{ id: 7, ad: 'Mağaza' }, { id: 8, ad: 'Normal' }],
+    [`/api/gelenler?donemStart=${period}`]: () => (++reads === 1 ? [{ kanalId: 7, kanal: 'Mağaza', tutarTl: 30, surum: 4 }] : [{ kanalId: 7, kanal: 'Mağaza', tutarTl: 55, surum: 5 }]),
+    '/api/gelenler': { $status: 409, hata: 'Bu dönem ve kanalın geliri başka bir oturumda değişti. Güncel toplamı yükleyip tekrar deneyin.' } });
+  await app.incomeDialog(period);
+  const channel = formField(nodes, 'kanal'); channel.value = 'Mağaza'; channel.listeners.change();
+  formField(nodes, 'tutarTl').value = '40'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/gelenler' && call.method === 'PUT').body.surum, 4);
+  assert.match(nodes.get('#modal-content').textContent, /geliri başka bir oturumda değişti/);
+  assert.equal(reads, 2, 'Dönem gelirleri yeniden yüklendi.');
+  assert.equal(formField(nodes, 'tutarTl').value, '55', 'Güncel toplam forma yüklendi.');
+  channel.value = 'Normal'; channel.listeners.change(); formField(nodes, 'tutarTl').value = '10'; await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/gelenler' && call.method === 'PUT').at(-1).body.surum, 0, 'Satırı olmayan kanal 0 gönderir.');
 });
