@@ -4,7 +4,8 @@ using Kasa.ApiClient;
 
 namespace Kasa.Sozlesme.Tests;
 
-/// <summary>Oturum, kanallar, genel giderler, gelirler, ayarlar, raporlar, benzer kayıt ve dışa aktarma.</summary>
+/// <summary>Oturum, kanallar, genel giderler, gelirler, ayarlar, raporlar (ana sayfa özeti ve kilitli ay dahil), benzer kayıt ve
+/// dışa aktarma.</summary>
 public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
 {
     [Fact]
@@ -90,8 +91,8 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
     }
 
     /// <summary>Koşullu alan: sunucu HaftalikOzet.VeriSagligiUyarisi'ni yalnız ufkun ötesinde kayıt varken yazar. Olağan
-    /// veriyle alan yanıtta hiç görünmez; burada dolu gelir ve vekil onu istemci DTO'suna karşı denetler (bilinen sapma
-    /// izin listesinde gerekçesiyle durur, istemci alanı tanıyınca satır bayatlar).</summary>
+    /// veriyle alan yanıtta hiç görünmez; burada dolu gelir, vekil onu istemci DTO'suna karşı denetler ve istemci uyarıyı
+    /// okur (eskiden bilinen sapmaydı; istemci alanı F3C ile tanıdı, izin satırı kaldırıldı).</summary>
     [Fact]
     [SozlesmeKapsami(nameof(IKasaApi.HaftalikAsync))]
     [KosulluAlanSenaryosu(typeof(Kasa.Core.HaftalikOzet), nameof(Kasa.Core.HaftalikOzet.VeriSagligiUyarisi))]
@@ -113,5 +114,75 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         var donemler = JsonNode.Parse(o.SonYanit.Json!)!.AsArray();
         Assert.Contains("15.01.2031", donemler[^1]!["veriSagligiUyarisi"]!.GetValue<string>());
         Assert.All(donemler.Take(donemler.Count - 1), d => Assert.Null(d!["veriSagligiUyarisi"]));
+        Assert.Equal(donemler[^1]!["veriSagligiUyarisi"]!.GetValue<string>(), haftalik[^1].VeriSagligiUyarisi);
+        Assert.All(haftalik.Take(haftalik.Count - 1), h => Assert.Null(h.VeriSagligiUyarisi));
+    }
+
+    /// <summary>Koşullu alanlar: aylık raporun kredi girişi ve kural sürümü açık ayda (kural 2) yazılır, veri sağlığı
+    /// uyarısı yalnız ayın sonucuna takip başlangıcından önce tarihli gider girerken (K1). Kilitli ayın raporu kilitlendiği
+    /// andaki görüntüden "dondurulmus": true ile döner (K4); o alan Kasa.Core türünde olmadığı için izin listesinde
+    /// gerekçesiyle durur, dolu hâli burada denetlenir. Vekil her yanıtı istemci DTO'suna karşı denetler.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IKasaApi.AylikAsync), nameof(IFinansTakipApi.TakipKrediKaydetAsync), nameof(IAylikGiderApi.AyKilidiAsync),
+        nameof(IAylikGiderApi.AyKilidiDegistirAsync))]
+    [KosulluAlanSenaryosu(typeof(Kasa.Core.AylikRapor), nameof(Kasa.Core.AylikRapor.KrediGirisi))]
+    [KosulluAlanSenaryosu(typeof(Kasa.Core.AylikRapor), nameof(Kasa.Core.AylikRapor.KuralSurumu))]
+    [KosulluAlanSenaryosu(typeof(Kasa.Core.AylikRapor), nameof(Kasa.Core.AylikRapor.VeriSagligiUyarisi))]
+    public async Task Aylik_rapor_kredi_girisi_kural_uyari_ve_kilitli_ay_istemci_denetiminden_gecer()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        await o.Takip.TakipKrediKaydetAsync(new KrediTakipYaz(Guid.NewGuid(), "Sözleşme kredisi", 12000m, Baslangic, Baslangic.AddMonths(1), 12, 1000m, [1]));
+        // Başlangıç öncesi tarihli yeni gider reddedilir: canlıdaki eski kayıt gibi doğrudan veritabanına yazılır.
+        var oncesi = Baslangic.AddDays(-5);
+        F.Veri(db =>
+        {
+            var kanal = db.Kanallar.Single(k => k.Ad == "MEZAT");
+            db.Islemler.Add(new() { Tarih = oncesi, Cari = "Eski cari", TutarTl = 250m, KanalId = kanal.Id, Kanal = kanal.Ad, Tip = Kasa.Core.GiderTipi.Cari });
+            db.SaveChanges();
+        });
+
+        var acik = await o.Kasa.AylikAsync(Baslangic.Year, Baslangic.Month);
+        Assert.Equal((12000m, (int?)2, false), (acik.KrediGirisi, acik.KuralSurumu, acik.Dondurulmus));
+        Assert.Equal(12000m, acik.Kanallar.Single(k => k.Kanal == "MEZAT").KrediGirisi);
+        var json = JsonNode.Parse(o.SonYanit.Json!)!;
+        Assert.Equal((12000m, 2), (json["krediGirisi"]!.GetValue<decimal>(), json["kuralSurumu"]!.GetValue<int>()));
+        Assert.Null(json["dondurulmus"]); Assert.Null(json["veriSagligiUyarisi"]);
+
+        var eski = await o.Kasa.AylikAsync(oncesi.Year, oncesi.Month);
+        Assert.StartsWith("Takip başlangıcından önce tarihli 1 kayıt, toplam 250,00 ₺", eski.VeriSagligiUyarisi);
+        Assert.Equal(eski.VeriSagligiUyarisi, JsonNode.Parse(o.SonYanit.Json!)!["veriSagligiUyarisi"]!.GetValue<string>());
+
+        var kilit = await o.AylikGider.AyKilidiAsync();
+        await o.AylikGider.AyKilidiDegistirAsync(true, new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Baslangic.Year, Baslangic.Month, "Ay kapatıldı"));
+        var kilitli = await o.Kasa.AylikAsync(Baslangic.Year, Baslangic.Month);
+        Assert.Equal((12000m, (int?)2, true), (kilitli.KrediGirisi, kilitli.KuralSurumu, kilitli.Dondurulmus));
+        Assert.True(JsonNode.Parse(o.SonYanit.Json!)!["dondurulmus"]!.GetValue<bool>());
+        Assert.Equal(acik.Kanallar, kilitli.Kanallar);
+    }
+
+    /// <summary>Ana sayfa özeti tek istekte panel, kasa eşikleri ve takip özetini döner; her parça ayrı uçların yanıtıyla
+    /// JSON olarak birebir aynıdır.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IKasaApi.AnaSayfaAsync), nameof(IKasaApi.PanelAsync), nameof(IKasaKontrolApi.KasaEsikleriAsync),
+        nameof(IFinansTakipApi.TakipOzetAsync), nameof(IFinansTakipApi.TakipKartKaydetAsync))]
+    public async Task Ana_sayfa_ozeti_ayri_uclarin_yanitlariyla_birebir_ayni()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun, "Olağan gider", 100.25m, "MEZAT", GiderTipi.Cari, null));
+        await o.Takip.TakipKartKaydetAsync(null, new KartTakipYaz(Guid.NewGuid(), 0, "Ana sayfa kartı", 10000m, 5, 25, Baslangic, 0m, []));
+
+        var ozet = await o.Kasa.AnaSayfaAsync(60);
+        var birlesik = JsonNode.Parse(o.SonYanit.Json!)!;
+        Assert.Equal(1000m - 100.25m, ozet.Panel.GuncelKasa);
+        Assert.NotNull(ozet.KasaEsikleri); Assert.NotEmpty(ozet.KasaEsikleri); Assert.NotNull(ozet.TakipOzeti);
+
+        await o.Kasa.PanelAsync();
+        Assert.True(JsonNode.DeepEquals(birlesik["panel"], JsonNode.Parse(o.SonYanit.Json!)), "Ana sayfa paneli /api/rapor/panel yanıtından farklı.");
+        await o.Kontrol.KasaEsikleriAsync();
+        Assert.True(JsonNode.DeepEquals(birlesik["kasaEsikleri"], JsonNode.Parse(o.SonYanit.Json!)), "Ana sayfa eşikleri /api/kasa-esikleri yanıtından farklı.");
+        await o.Takip.TakipOzetAsync(60);
+        Assert.True(JsonNode.DeepEquals(birlesik["takipOzeti"], JsonNode.Parse(o.SonYanit.Json!)), "Ana sayfa takip özeti /api/takip/ozet yanıtından farklı.");
     }
 }

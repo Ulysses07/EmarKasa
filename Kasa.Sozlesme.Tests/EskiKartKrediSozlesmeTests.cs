@@ -44,6 +44,7 @@ public class EskiKartKrediSozlesmeTests : SozlesmeTemeli
 
         var kart = Assert.Single(await o.Kasa.KrediKartlariAsync());
         Assert.Equal((kartId, 250.5m, 250.5m, 100m, 350.5m), (kart.Id, kart.Borc, kart.AcilisBorc, kart.HarcamaToplam, kart.GuncelBorc));
+        Assert.Equal((false, true), (kart.YeniTakip, kart.Aktif)); // K3: eski kart yeni gidere seçilemez
         var odeme = await o.Kasa.KartOdemeKaydetAsync(new KartOdemeYaz(kartId, Bugun, 50.25m, "Eski ödeme"));
         Assert.Equal(HttpStatusCode.Created, o.SonYanit.Durum); Assert.Equal((kartId, Bugun, 50.25m), (odeme.KrediKartiId, odeme.Tarih, odeme.Tutar));
         Assert.Equal(odeme.Id, Assert.Single(await o.Kasa.KartOdemelerAsync(kartId)).Id);

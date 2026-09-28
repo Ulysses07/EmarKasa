@@ -1,3 +1,4 @@
+using System.Net;
 using Kasa.ApiClient;
 
 namespace Kasa.Sozlesme.Tests;
@@ -36,6 +37,33 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
         var olay = Assert.Single(kilit.Gecmis); Assert.Equal(("Ocak tamamlandı", (DateOnly?)null), (olay.Aciklama, olay.OncekiSonTarih));
         kilit = await o.AylikGider.AyKilidiDegistirAsync(false, new AyKilidiYaz(Yeni(), kilit.Surum, Baslangic.Year, Baslangic.Month, "Düzeltme için açıldı"));
         Assert.Null(kilit.KilitliSonTarih); Assert.Equal(2, kilit.Gecmis.Count);
+    }
+
+    /// <summary>Benzer kayıt (BNZ): masaüstü BenzerOnay alanını göndermez (izin listesinde gerekçesiyle). Aynı tutarda
+    /// yakın tarihli kayıt varken ilk ödeme isteği hiçbir şey yazmadan okunur iletili 409 alır (vekil iletinin okunduğunu
+    /// denetler); aynı istek kimliğiyle değişmeyen gövdenin yeniden gönderimi onay sayılır ve ödemeyi kaydeder.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IAylikGiderApi.AylikGiderSablonKaydetAsync), nameof(IAylikGiderApi.AylikGiderlerAsync), nameof(IAylikGiderApi.AylikGiderOdeAsync),
+        nameof(IKasaApi.IslemOlusturAsync))]
+    public async Task Aylik_gider_odemesi_benzer_kayitta_okunur_409_alir_ayni_istek_kimligiyle_kaydedilir()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        var buAy = new DateOnly(Bugun.Year, Bugun.Month, 1);
+        var sablon = await o.AylikGider.AylikGiderSablonKaydetAsync(null, new AylikGiderSablonYaz(Yeni(), 0, "Kira", "Kira", 4000m, 5, "Ozel", [new(1, 4000m)], buAy));
+        // Aynı kira bankadan gider olarak önceden işlenmiş: aynı tutar, ±3 gün, şablonun kanalı.
+        var banka = Bugun.AddDays(-1);
+        await o.Kasa.IslemOlusturAsync(new IslemYaz(banka, "Kira (banka)", 4000m, "MEZAT", GiderTipi.SabitGider, null));
+        var satir = Assert.Single((await o.AylikGider.AylikGiderlerAsync(Bugun.Year, Bugun.Month)).Kayitlar);
+        var istek = new AylikGiderOdemeYaz(Yeni(), satir.SablonSurum, Bugun.Year, Bugun.Month, Bugun, "Havale");
+
+        var uyari = await Assert.ThrowsAsync<KasaApiException>(() => o.AylikGider.AylikGiderOdeAsync(sablon.Id, istek));
+        Assert.Equal(HttpStatusCode.Conflict, uyari.DurumKodu);
+        Assert.Contains($"{banka:dd.MM.yyyy} · 4.000,00 TL", uyari.Message); Assert.Contains("değiştirmeden", uyari.Message);
+        Assert.Equal("Planlandi", Assert.Single((await o.AylikGider.AylikGiderlerAsync(Bugun.Year, Bugun.Month)).Kayitlar).Durum);
+
+        var odenen = await o.AylikGider.AylikGiderOdeAsync(sablon.Id, istek);
+        Assert.Equal(("Odendi", Bugun), (odenen.Durum, odenen.OdemeTarihi)); Assert.NotNull(odenen.IslemId);
     }
 
     [Fact]

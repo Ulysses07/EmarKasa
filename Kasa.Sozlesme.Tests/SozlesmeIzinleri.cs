@@ -32,12 +32,17 @@ public static class SozlesmeIzinleri
             "Eski kredi listesi; masaüstünde çağıranı yok (eski uç), kanal adı yeterli."),
         new(Yon.SunucuFazlasi, typeof(KanalHaftalikDto), "krediGirisi", null,
             "Gelen'in içindeki kredi çekimi payı; Gelen toplamı onu zaten içerir, masaüstü ayrıca göstermiyor (izleme notu)."),
-        new(Yon.SunucuFazlasi, typeof(KanalAylikDto), "krediGirisi", null,
-            "Gelen'in içindeki kredi çekimi payı; Gelen toplamı onu zaten içerir, masaüstü ayrıca göstermiyor (izleme notu)."),
-        new(Yon.SunucuFazlasi, typeof(HaftalikOzetDto), "veriSagligiUyarisi", null,
-            "Bilinen sapma: sunucu rapor ufkunun ötesindeki kayıt için son dönemde uyarı yazar, masaüstü DTO'su alanı tanımıyor ve "
-            + "uyarı masaüstünde görünmüyor (web gösterir). İstemci alanı F3C paketinde ekleniyor; birleşince bu satır bayatlık "
-            + "denetimince kaldırtılır."),
+        new(Yon.SunucuFazlasi, typeof(BenzerKayitDto), "kanalEtiketi", null,
+            "Benzer kaydın kasadan düştüğü kanal(lar) etiketi (BNZ); masaüstü uyarısı kaydı Kaynak, tarih, tutar ve açıklamayla "
+            + "gösterir, etiketi okumaz. İstemci ayağı ayrı iştir (izleme notu)."),
+        new(Yon.SunucuFazlasi, typeof(BenzerKayitDto), "ekstreKayitId", null,
+            "Benzer kaydın ekstre kaynağı (BNZ); masaüstü kaynağa bağlantı vermez, kimliği okumaz (izleme notu)."),
+        new(Yon.SunucuFazlasi, typeof(BenzerKayitDto), "aylikGiderOdemeId", null,
+            "Benzer kaydın aylık gider ödemesi kaynağı (BNZ); masaüstü kaynağa bağlantı vermez, kimliği okumaz (izleme notu)."),
+        new(Yon.SunucuFazlasi, typeof(AylikGiderOdemeYaz), "benzerOnay", null,
+            "Açık benzer kayıt protokolünün isteğe bağlı alanı (BNZ). Masaüstü göndermez (null): sunucu benzer kaydı ilk istekte "
+            + "okunur iletili 409 ile bildirir, aynı istek kimliğiyle değişmeyen gövdenin yeniden gönderimi onay sayılır "
+            + "(AylikGiderVeKontrolSozlesmeTests). Masaüstü açık protokolü bağlarsa satır bayatlar."),
         new(Yon.SunucuFazlasi, typeof(BildirimAyarDto), "sonHata", null,
             "Bildirim hattının son sunucu hatası web ayarlarında görünür; masaüstü göstermiyor (izleme notu)."),
         new(Yon.SunucuFazlasi, typeof(BildirimAyarDto), "sonHataZamani", null,
@@ -66,12 +71,21 @@ public static class SozlesmeIzinleri
         new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "harcamaToplam", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
         new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "odemeToplam", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
         new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "ekstreBorc", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
+        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "yeniTakip", "PUT api/kredikartlari/{id}",
+            "Eski uç yalnız takipsiz kartı düzeltir (takipteki kart 409); istemcinin varsayılanı (false) doğrudur, alan yalnız listede (K3)."),
+        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "aktif", "PUT api/kredikartlari/{id}",
+            "Eski uç yalnız takipsiz kartı düzeltir (takipteki kart 409); istemcinin varsayılanı (true) eski kartın değeridir, alan yalnız listede (K3)."),
         new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "id", "PUT api/krediler/{id}",
             "Eski uç: istemci gövde olarak KrediDto gönderir; kimlik yoldadır, sunucu gövdedekini yok sayar."),
         new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "gerceklesmeTakibi", "PUT api/krediler/{id}",
             "Eski uç: gerçekleşme takibi düzeltmede korunur (sunucu mevcut değeri yazar); istemcinin gönderdiği yok sayılır."),
         new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "id", "POST api/krediler", "Emekli uç: sunucu her isteği 409 ile reddeder (KrediEkleAsync)."),
         new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "gerceklesmeTakibi", "POST api/krediler", "Emekli uç: sunucu her isteği 409 ile reddeder (KrediEkleAsync)."),
+
+        // İstemci fazlası (bütün uçlar): kilitli ayın raporu anlık görüntüden döner ve sunucu "dondurulmus" alanını yalnız
+        // orada JSON'a ekler (AyRaporAnlikGoruntusu.Oku); Kasa.Core.AylikRapor türünde yoktur, koşullu alan kuralına girmez.
+        new(Yon.IstemciFazlasi, typeof(AylikRaporDto), "dondurulmus", null,
+            "Açık ayda sunucu yazmaz, istemcide false kalır (doğru). Dolu hâli KasaVeRaporSozlesmeTests'teki kilitli ay senaryosunda denetlenir."),
     ];
 
     public static bool Izinli(Yon yon, Type tur, string alan, string uc) => Liste.Any(i => i.Yon == yon && i.Tur == tur
