@@ -34,6 +34,10 @@ public static class SozlesmeIzinleri
             "Gelen'in içindeki kredi çekimi payı; Gelen toplamı onu zaten içerir, masaüstü ayrıca göstermiyor (izleme notu)."),
         new(Yon.SunucuFazlasi, typeof(KanalAylikDto), "krediGirisi", null,
             "Gelen'in içindeki kredi çekimi payı; Gelen toplamı onu zaten içerir, masaüstü ayrıca göstermiyor (izleme notu)."),
+        new(Yon.SunucuFazlasi, typeof(HaftalikOzetDto), "veriSagligiUyarisi", null,
+            "Bilinen sapma: sunucu rapor ufkunun ötesindeki kayıt için son dönemde uyarı yazar, masaüstü DTO'su alanı tanımıyor ve "
+            + "uyarı masaüstünde görünmüyor (web gösterir). İstemci alanı F3C paketinde ekleniyor; birleşince bu satır bayatlık "
+            + "denetimince kaldırtılır."),
         new(Yon.SunucuFazlasi, typeof(BildirimAyarDto), "sonHata", null,
             "Bildirim hattının son sunucu hatası web ayarlarında görünür; masaüstü göstermiyor (izleme notu)."),
         new(Yon.SunucuFazlasi, typeof(BildirimAyarDto), "sonHataZamani", null,
@@ -72,4 +76,34 @@ public static class SozlesmeIzinleri
 
     public static bool Izinli(Yon yon, Type tur, string alan, string uc) => Liste.Any(i => i.Yon == yon && i.Tur == tur
         && string.Equals(i.Alan, alan, StringComparison.OrdinalIgnoreCase) && (i.Uc is null || i.Uc == uc));
+
+    /// <summary>
+    /// Satır hâlâ gerçek bir farkı mı anlatıyor? Boş dönüş: geçerli. Bayat satır (DTO eşitlenmiş, uç kaldırılmış) sessizce
+    /// kalırsa aynı alandaki gelecekteki gerçek bir sapmayı örter; bu yüzden her satır sunucu ve istemci türlerine karşı
+    /// statik olarak yeniden doğrulanır. <paramref name="uclar"/>: sunucunun gerçek uçları ("YÖNTEM yol", parametreler {id}).
+    /// </summary>
+    public static IEnumerable<string> BayatlikHatalari(Izin i, IReadOnlySet<string> uclar)
+    {
+        var ad = $"{i.Yon} {i.Tur.Name}.{i.Alan}" + (i.Uc is null ? "" : $" ({i.Uc})");
+        if (i.Uc is not null && !uclar.Contains(i.Uc)) yield return $"{ad}: sunucuda böyle bir uç yok.";
+        var sunucu = i.Yon == Yon.IstekFazlasi ? null : SunucuKarsiliklari.Bul(i.Tur);
+        switch (i.Yon)
+        {
+            case Yon.SunucuFazlasi:
+                if (SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan)) yield return $"{ad}: istemci DTO'su alanı artık tanıyor.";
+                if (sunucu is not null && !SunucuKarsiliklari.Yazilan(sunucu).ContainsKey(i.Alan)) yield return $"{ad}: sunucu türü {sunucu.Name} alanı artık yazmıyor.";
+                break;
+            case Yon.IstemciFazlasi:
+                if (!SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan)) yield return $"{ad}: istemci DTO'sunda böyle bir alan yok.";
+                if (i.Uc is null && sunucu is not null && SunucuKarsiliklari.Yazilan(sunucu).ContainsKey(i.Alan)) yield return $"{ad}: sunucu türü {sunucu.Name} alanı artık yazıyor.";
+                break;
+            case Yon.IstekFazlasi:
+                if (SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan)) yield return $"{ad}: sunucu türü alanı artık bağlıyor.";
+                break;
+        }
+    }
+
+    /// <summary>Türün bütün uçlarında geçerli (Uc null) izin: statik DTO karşılaştırması yalnız bunları kabul eder.</summary>
+    public static bool HerUctaIzinli(Yon yon, Type tur, string alan) => Liste.Any(i => i.Yon == yon && i.Tur == tur
+        && string.Equals(i.Alan, alan, StringComparison.OrdinalIgnoreCase) && i.Uc is null);
 }

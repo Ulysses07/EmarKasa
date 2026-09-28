@@ -1,11 +1,15 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Kasa.ApiClient;
+using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Sozlesme.Tests;
 
 /// <summary>Kapsam bekçisi: KasaApiClient'ın uyguladığı arayüzlerdeki her metot en az bir sözleşme testinde gerçek
 /// sunucuya karşı çağrılır. Arayüze yeni metot eklenip sözleşme testi yazılmazsa bu test metodun adıyla kırılır.</summary>
-public class KapsamTests
+public partial class KapsamTests
 {
     private static IReadOnlyList<(string Arayuz, string Metot)> IstemciMetotlari() => typeof(KasaApiClient).GetInterfaces()
         .SelectMany(a => a.GetMethods().Where(m => !m.IsSpecialName).Select(m => (a.Name, m.Name))).Distinct().ToList();
@@ -38,4 +42,62 @@ public class KapsamTests
         Assert.All(SozlesmeIzinleri.Liste, i => Assert.False(string.IsNullOrWhiteSpace(i.Gerekce)));
         Assert.Equal(SozlesmeIzinleri.Liste.Count, SozlesmeIzinleri.Liste.Select(i => (i.Yon, i.Tur, i.Alan.ToLowerInvariant(), i.Uc)).Distinct().Count());
     }
+
+    /// <summary>Her izin satırı hâlâ gerçek bir farkı anlatır: DTO eşitlenince ya da uç kalkınca satır silinmelidir
+    /// (aksi halde aynı alandaki gelecekteki gerçek sapmayı örter).</summary>
+    [Fact]
+    public void Izin_listesi_satirlari_bayat_degil()
+    {
+        var uclar = SunucuUclari();
+        Assert.Contains("GET api/rapor/haftalik", uclar); Assert.Contains("PUT api/islemler/{id}", uclar);
+        var bayat = SozlesmeIzinleri.Liste.SelectMany(i => SozlesmeIzinleri.BayatlikHatalari(i, uclar)).ToList();
+        Assert.True(bayat.Count == 0, "Bayat izin satırları (silin ya da gerekçesini güncelleyin):\n" + string.Join("\n", bayat));
+    }
+
+    [Fact]
+    public void Bayat_izin_satiri_bildirilir()
+    {
+        var uclar = new HashSet<string> { "PUT api/islemler/{id}" };
+        Hata(new(SozlesmeIzinleri.Yon.SunucuFazlasi, typeof(IslemDto), "tutarTl", null, "istemci alanı tanıyor"), uclar, "artık tanıyor");
+        Hata(new(SozlesmeIzinleri.Yon.SunucuFazlasi, typeof(HaftalikOzetDto), "yokAlan", null, "sunucu yazmıyor"), uclar, "artık yazmıyor");
+        Hata(new(SozlesmeIzinleri.Yon.IstemciFazlasi, typeof(IslemDto), "yokAlan", null, "istemcide yok"), uclar, "böyle bir alan yok");
+        Hata(new(SozlesmeIzinleri.Yon.IstemciFazlasi, typeof(KanalHaftalikDto), "gelen", null, "sunucu yazıyor"), uclar, "artık yazıyor");
+        Hata(new(SozlesmeIzinleri.Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "ad", "PUT api/islemler/{id}", "sunucu bağlıyor"), uclar, "artık bağlıyor");
+        Hata(new(SozlesmeIzinleri.Yon.IstemciFazlasi, typeof(IslemDto), "alisId", "POST api/yok", "uç yok"), uclar, "böyle bir uç yok");
+        Assert.Empty(SozlesmeIzinleri.BayatlikHatalari(new(SozlesmeIzinleri.Yon.SunucuFazlasi, typeof(KanalHaftalikDto), "krediGirisi", null, "geçerli"), uclar));
+
+        static void Hata(SozlesmeIzinleri.Izin satir, IReadOnlySet<string> uclar, string beklenen)
+            => Assert.Contains(SozlesmeIzinleri.BayatlikHatalari(satir, uclar), h => h.Contains(beklenen));
+    }
+
+    /// <summary>Uç meta verisinde 200 yanıt türü olan (tipli dönüşlü) her ucun yazdığı tür bir istemci türünün sunucu
+    /// karşılığıdır: aksi halde o türün alanları statik karşılaştırmaya hiç girmez (sapma yalnız çalışan sunucu testi o
+    /// dalı doldurursa görünür).</summary>
+    [Fact]
+    public void Tipli_uclarin_yanit_turleri_bir_istemci_turuyle_eslenir()
+    {
+        var eslenen = SunucuKarsiliklari.Ciftler().Select(c => c.Sunucu).ToHashSet();
+        var tipli = SunucuUclariVeYanitlari().Where(u => u.Yanit is not null).ToList();
+        Assert.True(tipli.Count >= 10, $"Tipli dönüşlü uç okunamadı ({tipli.Count}).");
+        var eksik = tipli.Where(u => !eslenen.Contains(Eleman(u.Yanit!))).Select(u => $"{u.Uc} → {Eleman(u.Yanit!).FullName}").ToList();
+        Assert.True(eksik.Count == 0, "İstemci karşılığı bilinmeyen yanıt türleri (SunucuKarsiliklari'na ekleyin):\n" + string.Join("\n", eksik));
+
+        static Type Eleman(Type t) => t != typeof(string) && t.IsGenericType && typeof(System.Collections.IEnumerable).IsAssignableFrom(t) ? t.GetGenericArguments()[0] : t;
+    }
+
+    /// <summary>Sunucunun gerçek uçları, istemci uç adlarıyla aynı biçimde ("YÖNTEM yol", yol parametreleri {id}).</summary>
+    private static HashSet<string> SunucuUclari() => SunucuUclariVeYanitlari().Select(u => u.Uc).ToHashSet();
+
+    private static List<(string Uc, Type? Yanit)> SunucuUclariVeYanitlari()
+    {
+        using var f = new SozlesmeFabrikasi();
+        return f.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? []).Select(y => (
+                Uc: $"{y} {Parametre().Replace(e.RoutePattern.RawText!.TrimStart('/'), "{id}")}",
+                Yanit: e.Metadata.OfType<IProducesResponseTypeMetadata>().FirstOrDefault(p => p.StatusCode == 200 && p.Type is not null && p.Type != typeof(void))?.Type)))
+            .ToList();
+    }
+
+    [GeneratedRegex(@"\{[^}]+\}")]
+    private static partial Regex Parametre();
 }

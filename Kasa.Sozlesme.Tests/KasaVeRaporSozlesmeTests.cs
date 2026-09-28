@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json.Nodes;
 using Kasa.ApiClient;
 
 namespace Kasa.Sozlesme.Tests;
@@ -87,6 +88,33 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         await o.Kasa.KanalSilAsync(kanal.Id);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
         Assert.DoesNotContain(await o.Kasa.KanallarAsync(), k => k.Id == kanal.Id);
+        Bitir();
+    }
+
+    /// <summary>Koşullu alan: sunucu HaftalikOzet.VeriSagligiUyarisi'ni yalnız ufkun ötesinde kayıt varken yazar. Olağan
+    /// veriyle alan yanıtta hiç görünmez; burada dolu gelir ve vekil onu istemci DTO'suna karşı denetler (bilinen sapma
+    /// izin listesinde gerekçesiyle durur, istemci alanı tanıyınca satır bayatlar).</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IKasaApi.HaftalikAsync))]
+    [KosulluAlanSenaryosu(typeof(Kasa.Core.HaftalikOzet), nameof(Kasa.Core.HaftalikOzet.VeriSagligiUyarisi))]
+    public async Task Haftalik_rapor_ufuk_otesi_kayitta_veri_sagligi_uyarisini_yazar_istemci_denetimden_gecer()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun, "Olağan gider", 100m, "MEZAT", GiderTipi.Cari, null));
+        // Girdi doğrulaması ufuk ötesi tarihi reddeder: içe aktarılmış/eski kayıt gibi doğrudan veritabanına yazılır.
+        F.Veri(db =>
+        {
+            var kanal = db.Kanallar.Single(k => k.Ad == "MEZAT");
+            db.Islemler.Add(new() { Tarih = new DateOnly(2031, 1, 15), Cari = "Yıl yazım hatası", TutarTl = 50m, KanalId = kanal.Id, Kanal = kanal.Ad, Tip = Kasa.Core.GiderTipi.Cari });
+            db.SaveChanges();
+        });
+
+        var haftalik = await o.Kasa.HaftalikAsync();
+        Assert.Equal(900m, haftalik[^1].KasaDevir);
+        var donemler = JsonNode.Parse(o.SonYanit.Json!)!.AsArray();
+        Assert.Contains("15.01.2031", donemler[^1]!["veriSagligiUyarisi"]!.GetValue<string>());
+        Assert.All(donemler.Take(donemler.Count - 1), d => Assert.Null(d!["veriSagligiUyarisi"]));
         Bitir();
     }
 }

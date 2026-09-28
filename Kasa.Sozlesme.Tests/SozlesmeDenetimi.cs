@@ -34,9 +34,10 @@ public sealed class YanitKaydedici : DelegatingHandler
 /// <summary>
 /// Sunucu JSON'u ile istemci DTO'sunun alan alan karşılaştırılması. Varsayılan Web seçenekleri sunucuda olup istemcide
 /// olmayan alanı sessizce atar, istemcide olup sunucuda olmayan alanı null/0 bırakır: iki yön de hata sayılır
-/// (<see cref="SozlesmeIzinleri"/> gerekçeli istisnaları dışında). Tarih "yyyy-MM-dd", an ISO 8601 ve dilim, para JSON
-/// sayısı (üslü gösterim yok) olmalı; enum metin olarak ve istemcinin tanıdığı bir değer olmalı. Son olarak gövde, katı
-/// seçeneklerle (zorunlu kurucu parametreleri, null atanamaz alanlar) istemci türüne çözülür.
+/// (<see cref="SozlesmeIzinleri"/> gerekçeli istisnaları ve sunucunun yalnız doluyken yazdığı alanların yokluğu dışında).
+/// Tarih "yyyy-MM-dd", an ISO 8601 ve dilim, para JSON sayısı (üslü gösterim yok) olmalı; enum metin olarak ve istemcinin
+/// tanıdığı bir değer olmalı. Son olarak gövde, katı seçeneklerle (zorunlu kurucu parametreleri, null atanamaz alanlar)
+/// istemci türüne çözülür.
 /// </summary>
 public static partial class SozlesmeDenetimi
 {
@@ -57,12 +58,14 @@ public static partial class SozlesmeDenetimi
     public static string UcAdi(string yontem, string yol) => $"{yontem} {Sayi().Replace(yol.TrimStart('/'), "{id}")}";
 
     /// <summary>Yanıt gövdesi <paramref name="tur"/>'e birebir uymalı; hatalar okunur yollarıyla döner.</summary>
-    public static List<string> YanitHatalari(Type tur, IstemciYaniti yanit)
+    /// <param name="karsilik">İstemci türünün sunucu karşılığı (varsayılan <see cref="SunucuKarsiliklari.Bul"/>): sunucunun
+    /// yalnız doluyken yazdığı alanın yanıtta olmaması hata değildir.</param>
+    public static List<string> YanitHatalari(Type tur, IstemciYaniti yanit, Func<Type, Type?>? karsilik = null)
     {
         var hatalar = new List<string>();
         if (yanit.Json is null) { hatalar.Add($"{yanit.Uc}: JSON gövde yok ({(int)yanit.Durum})."); return hatalar; }
         using var belge = JsonDocument.Parse(yanit.Json);
-        Yuru(belge.RootElement, tur, "$", yanit.Uc, SozlesmeIzinleri.Yon.SunucuFazlasi, hatalar);
+        Yuru(belge.RootElement, tur, "$", yanit.Uc, SozlesmeIzinleri.Yon.SunucuFazlasi, hatalar, karsilik: karsilik ?? SunucuKarsiliklari.Bul);
         try { JsonSerializer.Deserialize(yanit.Json, tur, Kati); }
         catch (JsonException e) { hatalar.Add($"{yanit.Uc}: katı çözme {tur.Name}: {e.Message}"); }
         return hatalar;
@@ -78,7 +81,8 @@ public static partial class SozlesmeDenetimi
         return hatalar;
     }
 
-    private static void Yuru(JsonElement el, Type tur, string yol, string uc, SozlesmeIzinleri.Yon fazlaYonu, List<string> hatalar, bool sunucuTuru = false)
+    private static void Yuru(JsonElement el, Type tur, string yol, string uc, SozlesmeIzinleri.Yon fazlaYonu, List<string> hatalar, bool sunucuTuru = false,
+        Func<Type, Type?>? karsilik = null)
     {
         tur = Nullable.GetUnderlyingType(tur) ?? tur;
         if (el.ValueKind == JsonValueKind.Null) return; // null atanabilirlik katı çözmede denetlenir
@@ -105,7 +109,7 @@ public static partial class SozlesmeDenetimi
         {
             if (!Bekle(el, JsonValueKind.Array, tur, yol, uc, hatalar)) return;
             var i = 0;
-            foreach (var oge in el.EnumerateArray()) Yuru(oge, eleman, $"{yol}[{i++}]", uc, fazlaYonu, hatalar, sunucuTuru);
+            foreach (var oge in el.EnumerateArray()) Yuru(oge, eleman, $"{yol}[{i++}]", uc, fazlaYonu, hatalar, sunucuTuru, karsilik);
             return;
         }
         if (!Bekle(el, JsonValueKind.Object, tur, yol, uc, hatalar)) return;
@@ -117,15 +121,18 @@ public static partial class SozlesmeDenetimi
         var gelen = el.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var p in el.EnumerateObject())
         {
-            if (alanlar.TryGetValue(p.Name, out var alan)) Yuru(p.Value, alan.PropertyType, $"{yol}.{p.Name}", uc, fazlaYonu, hatalar, sunucuTuru);
+            if (alanlar.TryGetValue(p.Name, out var alan)) Yuru(p.Value, alan.PropertyType, $"{yol}.{p.Name}", uc, fazlaYonu, hatalar, sunucuTuru, karsilik);
             else if (!SozlesmeIzinleri.Izinli(fazlaYonu, tur, p.Name, uc))
                 hatalar.Add(fazlaYonu == SozlesmeIzinleri.Yon.IstekFazlasi
                     ? $"{uc} {yol}.{p.Name}: istemci gönderiyor, sunucu türü {tur.Name} tanımıyor (sessizce kaybolur)."
                     : $"{uc} {yol}.{p.Name}: sunucu gönderiyor, istemci DTO'su {tur.Name} tanımıyor (sessizce atılır).");
         }
         if (fazlaYonu == SozlesmeIzinleri.Yon.IstekFazlasi) return; // istemcinin göndermediği isteğe bağlı alan sunucuda varsayılan kalır
+        // Sunucunun yalnız doluyken yazdığı alan (JsonIgnore WhenWritingNull/WhenWritingDefault) yoksa değeri boştur:
+        // istemcide varsayılanda kalması doğrudur. Alanın iki tarafta da tanımlı olduğunu statik karşılaştırma denetler.
+        var sunucu = karsilik?.Invoke(tur);
         foreach (var alan in alanlar.Values.Where(a => !gelen.Contains(a.Name)))
-            if (!SozlesmeIzinleri.Izinli(SozlesmeIzinleri.Yon.IstemciFazlasi, tur, alan.Name, uc))
+            if (!SozlesmeIzinleri.Izinli(SozlesmeIzinleri.Yon.IstemciFazlasi, tur, alan.Name, uc) && !(sunucu is not null && SunucuKarsiliklari.KosulluMu(sunucu, alan.Name)))
                 hatalar.Add($"{uc} {yol}.{alan.Name}: istemci DTO'su {tur.Name} bekliyor, sunucu göndermiyor (varsayılan değerde kalır).");
     }
 
