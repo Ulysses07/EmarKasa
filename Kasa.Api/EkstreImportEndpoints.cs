@@ -371,22 +371,35 @@ public static class EkstreImportEndpoints
             foreach (var k in harcamalar)
                 if (k.Kaynak == "KartHarcama") Ekle("KartHarcama", k.Id, k, 0);
                 else if (gidereBagli.TryGetValue(k.Id, out var harcama)) Ekle("KartHarcama", harcama, k, 0, kart);
-            var taksitler = (from t in db.TakipKartTaksitler.AsNoTracking()
-                             join h in db.TakipHarcamalar.AsNoTracking() on t.HarcamaId equals h.Id
-                             join e in db.TakipEkstreler.AsNoTracking() on t.EkstreId equals e.Id
-                             where h.KrediKartiId == kart && !h.Iptal && h.TaksitSayisi > 1 && t.Tutar == tutar
-                             select new { t.Id, t.HarcamaId, h.Aciklama, HarcamaTarihi = h.Tarih, h.TaksitSayisi, e.KesimTarihi }).ToList()
-                .Where(t => Fark(t.HarcamaTarihi) <= BenzerKayitServisi.GunPenceresi || Fark(t.KesimTarihi) <= TaksitKesimPenceresi).ToList();
-            var taksitHarcamalari = taksitler.Select(t => t.HarcamaId).Distinct().ToArray();
-            var siralar = db.TakipKartTaksitler.AsNoTracking().Where(t => taksitHarcamalari.Contains(t.HarcamaId)).Select(t => new { t.Id, t.HarcamaId }).ToList()
-                .GroupBy(t => t.HarcamaId).SelectMany(g => g.OrderBy(t => t.Id).Select((t, i) => (t.Id, No: i + 1))).ToDictionary(x => x.Id, x => x.No);
-            foreach (var t in taksitler.Where(t => !eslesmis.Contains(("KartTaksidi", t.Id))))
-                adaylar.Add((new("KartTaksidi", t.Id, t.KesimTarihi, tutar, $"{t.Aciklama} · {t.HarcamaTarihi:dd.MM.yyyy} harcaması · {siralar[t.Id]}/{t.TaksitSayisi}. taksit", kart,
-                    HarcamaId: t.HarcamaId, TaksitNo: siralar[t.Id], TaksitSayisi: t.TaksitSayisi), Math.Min(Fark(t.HarcamaTarihi), Fark(t.KesimTarihi)), 1));
+            foreach (var t in TaksitAdaylari(db, kart, tarih, tutar).Where(t => !eslesmis.Contains(("KartTaksidi", t.Id))))
+                adaylar.Add((new("KartTaksidi", t.Id, t.KesimTarihi, tutar, $"{t.Aciklama} · {t.HarcamaTarihi:dd.MM.yyyy} harcaması · {t.No}/{t.TaksitSayisi}. taksit", kart,
+                    HarcamaId: t.HarcamaId, TaksitNo: t.No, TaksitSayisi: t.TaksitSayisi), Math.Min(Fark(t.HarcamaTarihi), Fark(t.KesimTarihi)), 1));
             foreach (var k in servis.Bul(new BenzerAramasi("KartOdeme", tarih, tutar, kart), k => k.Kaynak == "KartOdeme" && k.KrediKartiId == kart, int.MaxValue))
                 Ekle("KartOdeme", k.Id, k, 2);
         }
         return adaylar.OrderBy(a => a.Fark).ThenBy(a => a.Sira).ThenByDescending(a => a.Aday.Id).Take(EnFazlaAday).Select(a => a.Aday).ToList();
+    }
+
+    /// <summary>Taksit adayı: taksit ve harcama kimliği, harcamanın açıklaması, tarihi ve taksit sayısı, taksidin ekstre kesimi ve sırası.</summary>
+    private sealed record TaksitAdayi(int Id, int HarcamaId, string Aciklama, DateOnly HarcamaTarihi, int TaksitSayisi, DateOnly KesimTarihi, int No);
+
+    /// <summary>Kartın iptal edilmemiş taksitli (taksit sayısı &gt; 1) harcamalarının tutarı <paramref name="tutar"/>'a eşit taksitleri:
+    /// harcama tarihi ±<see cref="BenzerKayitServisi.GunPenceresi"/> ya da taksidin ekstre kesimi ±<see cref="TaksitKesimPenceresi"/>
+    /// gün. Eşleşme adayı ucu ve kart harcaması satırının benzer kayıt uyarısı (gap-coklu-giris-cift-sayim-mutabakat-6) aynı kuralı kullanır.</summary>
+    private static List<TaksitAdayi> TaksitAdaylari(KasaDbContext db, int kart, DateOnly tarih, decimal tutar)
+    {
+        int Fark(DateOnly t) => Math.Abs(t.DayNumber - tarih.DayNumber);
+        var taksitler = (from t in db.TakipKartTaksitler.AsNoTracking()
+                         join h in db.TakipHarcamalar.AsNoTracking() on t.HarcamaId equals h.Id
+                         join e in db.TakipEkstreler.AsNoTracking() on t.EkstreId equals e.Id
+                         where h.KrediKartiId == kart && !h.Iptal && h.TaksitSayisi > 1 && t.Tutar == tutar
+                         select new { t.Id, t.HarcamaId, h.Aciklama, HarcamaTarihi = h.Tarih, h.TaksitSayisi, e.KesimTarihi }).ToList()
+            .Where(t => Fark(t.HarcamaTarihi) <= BenzerKayitServisi.GunPenceresi || Fark(t.KesimTarihi) <= TaksitKesimPenceresi).ToList();
+        if (taksitler.Count == 0) return [];
+        var taksitHarcamalari = taksitler.Select(t => t.HarcamaId).Distinct().ToArray();
+        var siralar = db.TakipKartTaksitler.AsNoTracking().Where(t => taksitHarcamalari.Contains(t.HarcamaId)).Select(t => new { t.Id, t.HarcamaId }).ToList()
+            .GroupBy(t => t.HarcamaId).SelectMany(g => g.OrderBy(t => t.Id).Select((t, i) => (t.Id, No: i + 1))).ToDictionary(x => x.Id, x => x.No);
+        return taksitler.Select(t => new TaksitAdayi(t.Id, t.HarcamaId, t.Aciklama, t.HarcamaTarihi, t.TaksitSayisi, t.KesimTarihi, siralar[t.Id])).ToList();
     }
 
     /// <summary>Kaydı alış ödemesine bağlanmış (sahipliği eşleşmeye dönmüş) satırın alışı; bağ yoksa null.</summary>
@@ -507,6 +520,16 @@ public static class EkstreImportEndpoints
         };
         if (row.IslemTuru == "Gider" && (row.Aciklama.Contains("KREDİ", StringComparison.OrdinalIgnoreCase) || row.Aciklama.Contains("KREDI", StringComparison.OrdinalIgnoreCase)))
             yield return "Kredi/kart ödemesi olabilir. Otomatik taksit veya mevcut kart ödemesini ikinci kez gider yazmayın.";
+        if (row.IslemTuru == "KartHarcama")
+        {
+            // gap-coklu-giris-cift-sayim-mutabakat-6: bankanın aylık taksit satırı (tutar = taksit tutarı) taksitli harcamanın zaten kart
+            // borcunda olan taksididir; yeni harcama olarak işlenirse borç ikinci kez sayılır. Harcama başına tek uyarı, başka satırla
+            // eşleşmemiş ve kesimi satıra en yakın taksidi adlandırır.
+            var eslesmis = EslesmisHedefler(db, doc.Kaynak);
+            foreach (var t in TaksitAdaylari(db, CardId(doc, row), row.Tarih, row.Tutar).Where(t => !eslesmis.Contains(("KartTaksidi", t.Id)))
+                .GroupBy(t => t.HarcamaId).Select(g => g.OrderBy(t => Math.Abs(t.KesimTarihi.DayNumber - row.Tarih.DayNumber)).ThenBy(t => t.No).First()).OrderBy(t => t.HarcamaId))
+                yield return $"Bu satır #{t.HarcamaId} taksitli harcamanın {t.No}/{t.TaksitSayisi}. taksidi olabilir; atlayın ya da mevcut kayıtla eşleştirin.";
+        }
         var records = similar.Bul(search, k => k.EkstreKayitId is not { } kayit || !sameDocument.Contains(kayit) || k.Tarih == row.Tarih);
         if (records.Count == 0) yield break;
         var names = records.Select(k => BenzerKayitServisi.Satir(k, k.EkstreKayitId is { } kayit && batch.TryGetValue(kayit, out var satirNo) ? $"bu önizlemede seçilen {satirNo}. satır" : null)).ToList();

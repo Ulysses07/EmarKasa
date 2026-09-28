@@ -137,6 +137,8 @@ public static class AlisEndpoints
         v.Metin(dto.Not, "not", 2000, zorunlu: false);
         v.Kontrol(dto.HesapId is null, "hesapId", "Ödeme doğrudan kanal ve genel kasaya kaydedilir; ayrı hesap seçilmez.");
         v.Kontrol(dto.MevcutIslemId is null || dto.MevcutKartHarcamaId is null, "mevcutKartHarcamaId", "Mevcut gider ile mevcut kart harcaması birlikte seçilemez.");
+        // gap-coklu-giris-cift-sayim-mutabakat-6: taksit yalnız yeni takipteki kartla yeni harcamada; bağlanan kaydın planı kendisindedir.
+        KayitGirdileri.TaksitKurali(v, db, dto.TaksitSayisi, dto.IlkKesimTarihi, dto.Tarih, dto.KrediKartiId, mevcutKayit: dto.MevcutIslemId is not null || dto.MevcutKartHarcamaId is not null);
         if (v.Sonuc() is { } hata) return hata;
 
         var digest = Digest(id, dto);
@@ -236,6 +238,13 @@ public static class AlisEndpoints
             db.TakipKartlar.Single(t => t.KrediKartiId == kartHarcamasi.KrediKartiId).Surum++;
             db.SaveChanges();
             once[islem.Id] = AlisDurumEtkisi.KartHarcamasi(islem.Id, kartHarcamasi);
+        }
+        else if (dto.MevcutIslemId is null && dto.KrediKartiId is { } kart && db.TakipKartlar.Any(t => t.KrediKartiId == kart))
+        {
+            // Yeni takipli kart ödemesinin harcaması taksit planıyla hemen yazılır (Sync onu bilinen sayar); taksitsizde Sync'in
+            // tek taksitli kaydıyla aynıdır.
+            FinansTakipServisi.KaynakHarcamaEkle(db, islem, dto.TaksitSayisi ?? 1, dto.IlkKesimTarihi);
+            db.SaveChanges();
         }
         FinansTakipServisi.Sync(db);
         AlisDurumEtkisi.Yaz(db, http, alis, alis.Durum, once, null);
@@ -345,6 +354,8 @@ public static class AlisEndpoints
         if (dto.HesapId is { } hesap) payload += "|hesap:" + hesap.ToString(CultureInfo.InvariantCulture);
         // Sonradan eklenen alan yalnız doluyken eklenir: eski isteklerin özeti değişmez.
         if (dto.MevcutKartHarcamaId is { } harcama) payload += "|kartHarcama:" + harcama.ToString(CultureInfo.InvariantCulture);
+        if (dto.TaksitSayisi is { } taksit) payload += "|taksit:" + taksit.ToString(CultureInfo.InvariantCulture);
+        if (dto.IlkKesimTarihi is { } ilkKesim) payload += "|ilkKesim:" + ilkKesim.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
     }
 }

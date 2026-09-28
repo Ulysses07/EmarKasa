@@ -20,9 +20,17 @@ public record AlisDto(int Id, int Surum, int? AliciId, string Alici, DateOnly Ta
 /// <param name="MevcutKartHarcamaId">Takipli kartla ödemede, kart harcaması önceden (ekstreden ya da elle) gidersiz girilmişse o
 /// harcama: yeni harcama üretilmez, ödeme ona bağlanır (tarih, tutar ve kart harcamayla aynı olmalı). MevcutIslemId ile birlikte
 /// gönderilmez. Eski istemci göndermez (null).</param>
-public record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null, int? MevcutKartHarcamaId = null);
+/// <param name="TaksitSayisi">Yeni takipteki kartla yeni ödemede kart harcamasının taksit sayısı (1–60); boşsa tek taksit
+/// (gap-coklu-giris-cift-sayim-mutabakat-6). Mevcut gider ya da kart harcaması bağlanırken gönderilmez. Eski istemci göndermez.</param>
+/// <param name="IlkKesimTarihi">İsteğe bağlı: ilk taksidin girdiği ekstrenin kesim tarihi (kartın kesim gününe en çok 7 gün uzak,
+/// ödeme tarihinden önce değil). Yalnız yeni takipteki kartla yeni ödemede.</param>
+public record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null, int? MevcutKartHarcamaId = null,
+    int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null);
 public record AlisOdemeDuzelt(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, string Aciklama, int? KrediKartiId = null, int? HesapId = null, int? HedefAlisId = null, int? HedefSurum = null);
-public record AlisOdemeIptal(int Surum, Guid IstekId, string Aciklama);
+/// <param name="KanalDagilimlari">Yalnız kart takibindeki ödemede (gap-coklu-giris-cift-sayim-mutabakat-5): verilirse ödeme alıştan
+/// AYRILIR; kart harcaması ve gideri alıştan bağımsız kart gideri olarak bu gerçek kanal paylarıyla (toplamı ödeme tutarı) kalır.
+/// Verilmezse (eski istemci de) harcama ödenmemişse harcama, taksitleri ve gider birlikte kalkar; ödenmişse 409.</param>
+public record AlisOdemeIptal(int Surum, Guid IstekId, string Aciklama, IReadOnlyList<AlisDagilimYaz>? KanalDagilimlari = null);
 /// <summary>GET /api/alis/baglanabilir-giderler sayfası: tarih ve kimlik azalan sırada; <see cref="SonrakiImlec"/> bir sonraki
 /// sayfanın imlecidir (son sayfada null, <see cref="DevamVar"/> false).</summary>
 public record BaglanabilirGiderSayfasi(IReadOnlyList<BaglanabilirGiderDto> Ogeler, string? SonrakiImlec, bool DevamVar);

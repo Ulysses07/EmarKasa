@@ -106,7 +106,11 @@ public static class AyKilidiKurallari
                 AlisEntity a => Changed(e, "Durum", "Tarih") && PurchaseLocked(a.Id),
                 AlisKalemEntity k => PurchaseLocked(k.AlisId),
                 AlisDagilimEntity d => PurchaseLocked(db.AlisKalemler.Where(k => k.Id == d.AlisKalemId).Select(k => k.AlisId).FirstOrDefault()),
-                AlisOdemeEntity p => e.State != EntityState.Added && PurchaseLocked(p.AlisId) || db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end),
+                // Başka alışa taşınan kart ödemesinin (gap-coklu-giris-cift-sayim-mutabakat-5) harcaması kilitli dönemde bir kart
+                // ödemesiyle ödendiyse o ödemenin kanal payı yeni alışın dağılımına geçerdi. Kaynağın sonraki ödemeleri taşıma kilidinde
+                // (AlisOdemeIslemleri.TasimaKilidi), hedefinki burada (PurchaseLocked) denetlenir.
+                AlisOdemeEntity p => e.State != EntityState.Added && PurchaseLocked(p.AlisId) || db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end)
+                    || e.State == EntityState.Modified && db.TakipHarcamalar.Where(h => h.IslemId == p.IslemId).Select(h => h.Id).ToList().Any(ChargePaidBefore),
                 // Kilitli dönem alışının belgesi (kanıt) kaldırılamaz, ödemeye bağlı olmayan belgesi başka alışa ya da ödemeye taşınamaz;
                 // yeni belge eklenebilir. Ödemeye bağlı belge ödemesiyle birlikte taşınır: o taşımanın kilidi ödeme kuralındadır
                 // (AlisOdemeIslemleri.TasimaKilidi).

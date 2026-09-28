@@ -174,16 +174,23 @@ internal static class AlisOdemeIslemleri
         if (source is null) return Results.NotFound();
         if (source.Surum != dto.Surum) return AlisEndpoints.Conflict("Alış değişmiş. Listeyi yenileyin.");
         if (payment is null) return Results.NotFound();
-        // Ekstreden gelmiş kayda bağlanan ödemenin tarihi, tutarı ve kartı banka satırıdır: yalnız başka alışa taşınabilir ya da
-        // alıştan ayrılabilir (iptal satırı kendi kaydına döndürür). Kart harcamasına bağlı olan taşınamaz (gap-5 kapsamı).
-        if (DevredilenEkstreSatiri(db, payment.IslemId) is { } ekstreSatiri)
+        // Kart takibindeki ödeme (gap-coklu-giris-cift-sayim-mutabakat-5; ekstreden gelen kart harcamasına bağlı olan dahil): tarihi,
+        // tutarı ve kartı kart harcamasının kendisidir; yalnız başka alışa TAŞINIR (ya da iptal satırıyla alıştan ayrılır). Taşıma kart
+        // harcamasını, taksitlerini ve ödeme paylarını değiştirmez; harcamanın kanal kaynağı hedef alışın dağılımı olur.
+        var harcama = FinansTakipServisi.KaynakHarcama(db, payment.IslemId);
+        if (harcama is not null)
         {
-            if (ekstreSatiri.EslesmeTuru == "KartHarcama")
-                return AlisEndpoints.Conflict("Bu ödeme ekstreden gelen kart harcamasına bağlı. Düzeltmek için ödemeyi iptal edin (harcama ekstre kaydına döner) ve doğru alışa yeniden bağlayın.");
+            if (dto.Tarih != payment.Islem.Tarih || dto.Tutar != payment.Islem.TutarTl || dto.KrediKartiId != payment.Islem.KrediKartiId || dto.HedefAlisId is not { } hedefId || hedefId == id)
+                return AlisEndpoints.Conflict("Kart takibindeki ödemenin tarihi, tutarı ve kartı değiştirilemez; ödeme yalnız başka alışa taşınabilir ya da alıştan ayrılabilir (Ödemeyi iptal et). Kart tarafındaki yanlışlık için ödemeyi alıştan ayırıp Kredi Kartları ekranından düzeltin.");
+        }
+        // Ekstreden gelmiş banka giderine bağlanan ödemenin tarihi, tutarı ve ödeme yöntemi banka satırıdır: yalnız başka alışa taşınabilir
+        // ya da alıştan ayrılabilir (iptal satırı kendi kaydına döndürür).
+        else if (DevredilenEkstreSatiri(db, payment.IslemId) is not null)
+        {
             if (dto.Tarih != payment.Islem.Tarih || dto.Tutar != payment.Islem.TutarTl || dto.KrediKartiId is not null)
                 return AlisEndpoints.Conflict("Ekstreden gelen ödemenin tarihi, tutarı ve ödeme yöntemi değiştirilemez; yalnız başka alışa taşınabilir ya da alıştan ayrılabilir.");
         }
-        if (FinansTakipServisi.IslemYonetiliyor(db, payment.Islem) || (dto.KrediKartiId is { } targetCard && db.TakipKartlar.Any(t => t.KrediKartiId == targetCard)))
+        else if (FinansTakipServisi.IslemYonetiliyor(db, payment.Islem) || (dto.KrediKartiId is { } targetCard && db.TakipKartlar.Any(t => t.KrediKartiId == targetCard)))
             return AlisEndpoints.Conflict("Yeni kart takibine bağlı ödeme için Kredi Kartları ekranında açıklamalı iade girin; alışın kanal dağılımı ayrıca düzenlenebilir.");
         var target = source;
         if (dto.HedefAlisId is { } targetId && targetId != id)
@@ -194,15 +201,26 @@ internal static class AlisOdemeIslemleri
         }
         if (target.Odemeler.Where(o => o.Id != odemeId).Sum(o => o.Islem.TutarTl) + dto.Tutar > target.Kalemler.Sum(k => k.Tutar))
             return AlisEndpoints.Conflict("Düzeltilmiş ödeme hedef alış toplamını aşamaz.");
-        v.Kart(db, dto.KrediKartiId);
-        // K3: ödemeyi yeni bir karta bağlamak yeni kredi kartı gideridir; aynı kartla tutar/tarih düzeltmesi serbesttir.
-        KayitGirdileri.TakipliKartKurali(v, db, dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti, dto.KrediKartiId, payment.Islem);
+        // Kart takibindeki ödemenin kartı değişmez: yeni kullanıma kapatılmış kartın harcaması da taşınabilir.
+        if (harcama is null)
+        {
+            v.Kart(db, dto.KrediKartiId);
+            // K3: ödemeyi yeni bir karta bağlamak yeni kredi kartı gideridir; aynı kartla tutar/tarih düzeltmesi serbesttir.
+            KayitGirdileri.TakipliKartKurali(v, db, dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti, dto.KrediKartiId, payment.Islem);
+        }
         v.Kontrol(dto.Tarih >= db.Ayarlar.Select(a => a.TakipBaslangic).First(), "tarih", "Ödeme takip başlangıcından önce olamaz.");
         if (v.Sonuc() is { } invalidReference) return invalidReference;
         if (target.Id != source.Id && TasimaKilidi(db, source, odemeId) is { } kilitSonu)
             return AlisEndpoints.Conflict($"{kilitSonu:yyyy-MM-dd} tarihine kadar dönem kilitli. Bu ödemeyi taşımak, alışta ondan sonra girilmiş kilitli dönem ödemelerinin kanal paylarını değiştirir; ilgili ayı gerekçeyle açın.");
         var before = JsonSerializer.Serialize(new { aciklama = dto.Aciklama.Trim(), alis = AlisHesaplari.ToDto(source) });
         var expense = payment.Islem;
+        if (harcama is not null)
+        {
+            // Aynalanmış harcamanın açıklaması giderin açıklamasıdır (Sync): yeni alışın adını taşır; ekstreden gelen harcama banka
+            // metnini korur. Harcamanın kanal kaynağı değiştiği için kart sürümü artar.
+            if (harcama.Aciklama == expense.Cari) harcama.Aciklama = target.Tedarikci;
+            db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++;
+        }
         var eskiKartTipiniKoru = expense.Tip == GiderTipi.KrediKarti && expense.KrediKartiId is null && dto.KrediKartiId is null;
         expense.Tarih = dto.Tarih; expense.TutarTl = dto.Tutar; expense.KrediKartiId = dto.KrediKartiId;
         expense.Tip = dto.KrediKartiId is not null || eskiKartTipiniKoru ? GiderTipi.KrediKarti : GiderTipi.Cari;
@@ -224,8 +242,21 @@ internal static class AlisOdemeIslemleri
     internal static IResult Iptal(KasaDbContext db, int id, int odemeId, AlisOdemeIptal dto)
     {
         var v = new GirdiDogrulama(); v.Metin(dto.Aciklama, "aciklama", 2000);
+        var kanallar = dto.KanalDagilimlari?.OrderBy(p => p?.KanalId).ToList();
+        if (kanallar is not null)
+        {
+            v.Kontrol(kanallar.Count is >= 1 and <= 100 && kanallar.All(p => p is not null), "kanalDagilimlari", "Alıştan ayrılan kart harcaması için 1–100 kanal payı girin.");
+            if (v.Sonuc() is null)
+            {
+                var kayitli = db.Kanallar.Select(k => k.Id).ToHashSet();
+                foreach (var pay in kanallar) { v.Para(pay.Tutar, "kanalDagilimlari"); v.Kontrol(pay.Tutar > 0 && kayitli.Contains(pay.KanalId), "kanalDagilimlari", "Kayıtlı kanalları pozitif tutarla seçin."); }
+                v.Kontrol(kanallar.Select(p => p.KanalId).Distinct().Count() == kanallar.Count, "kanalDagilimlari", "Aynı kanal birden fazla seçilemez.");
+            }
+        }
         if (v.Sonuc() is { } invalid) return invalid;
-        var digest = FinansHesaplari.Ozet(new { id, odemeId, aciklama = dto.Aciklama.Trim() });
+        // Sonradan eklenen kanal payları yalnız doluyken özete girer: eski isteklerin özeti değişmez.
+        var digest = kanallar is null ? FinansHesaplari.Ozet(new { id, odemeId, aciklama = dto.Aciklama.Trim() })
+            : FinansHesaplari.Ozet(new { id, odemeId, aciklama = dto.Aciklama.Trim(), kanallar = kanallar.Select(p => $"{p.KanalId}:{p.Tutar.ToString("0.00", CultureInfo.InvariantCulture)}") });
         if (FinansHesaplari.Tekrar(db, dto.IstekId, "OdemeIptal", digest, key => Results.Ok(AlisEndpoints.ReadDto(db, key))) is { } replay) return replay;
         var alis = AlisEndpoints.Query(db).SingleOrDefault(a => a.Id == id);
         var payment = alis?.Odemeler.SingleOrDefault(o => o.Id == odemeId);
@@ -233,13 +264,25 @@ internal static class AlisOdemeIslemleri
         if (alis.Surum != dto.Surum) return AlisEndpoints.Conflict("Alış değişmiş. Listeyi yenileyin.");
         if (payment is null) return Results.NotFound();
         var ekstreSatiri = DevredilenEkstreSatiri(db, payment.IslemId);
-        if (ekstreSatiri is null && FinansTakipServisi.IslemYonetiliyor(db, payment.Islem)) return AlisEndpoints.Conflict("Yeni kart takibine bağlı ödeme silinemez; Kredi Kartları ekranında açıklamalı iade girin.");
+        var kartHarcamasi = FinansTakipServisi.KaynakHarcama(db, payment.IslemId);
+        if (kanallar is not null)
+        {
+            if (kartHarcamasi is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["kanalDagilimlari"] = ["Kanal dağılımı yalnız kart takibindeki ödeme alıştan ayrılırken girilir."] });
+            if (kanallar.Sum(p => p.Tutar) != payment.Islem.TutarTl)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["kanalDagilimlari"] = ["Kanal payları toplamı ödeme tutarına eşit olmalı."] });
+        }
+        if (ekstreSatiri is null && kartHarcamasi is null && FinansTakipServisi.IslemYonetiliyor(db, payment.Islem))
+            return AlisEndpoints.Conflict("Kart takip başlangıcından önceki (eski kuralda kalan) kart ödemesi silinemez; geçmiş raporlar korunur. Kredi Kartları ekranında açıklamalı iade girin.");
         var before = JsonSerializer.Serialize(new { aciklama = dto.Aciklama.Trim(), alis = AlisHesaplari.ToDto(alis) });
+        if (ekstreSatiri is null && kartHarcamasi is not null)
+            return KartOdemesiniAyir(db, alis, payment, kartHarcamasi, kanallar, dto, digest, before);
         if (ekstreSatiri is not null)
         {
             // Ekstreden gelmiş kayda bağlanan ödeme (gap-coklu-giris-cift-sayim-mutabakat-1): alıştan ayrılınca kayıt yeniden ekstre
             // satırınındır. Kart harcamasında bağlama için oluşturulan gider silinir, harcama gidersiz kalır; banka giderinde gider
             // korunur. Satırın sahiplik sütunu geri yazılır, eşleşme kalkar; kasa ve kart borcu bağlamadan önceki haline döner.
+            // Harcamanın kanal payı ekstre satırındaki dağılımdır: girilen kanal payları kullanılmaz.
             alis.Odemeler.Remove(payment); db.AlisOdemeler.Remove(payment);
             var harcama = ekstreSatiri.EslesmeTuru == "KartHarcama" ? db.TakipHarcamalar.Single(h => h.Id == ekstreSatiri.EslesmeId) : null;
             if (harcama is not null) { harcama.IslemId = null; db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++; }
@@ -264,6 +307,49 @@ internal static class AlisOdemeIslemleri
         FinansHesaplari.IstekKaydet(db, dto.IstekId, "OdemeIptal", digest, id, before);
         db.SaveChanges();
         return Results.Ok(AlisEndpoints.ReadDto(db, id));
+    }
+
+    /// <summary>
+    /// Kart takibindeki ödemenin alıştan ayrılması (gap-coklu-giris-cift-sayim-mutabakat-5). Kanal payı girilmezse ödeme gerçekleşmemiş
+    /// sayılır: kart harcaması ödenmemiş, iadesiz ve ekstreye bağsızsa harcama iptal edilir (taksitleri borçtan çıkar), gider ve ödeme
+    /// kalkar; aksi halde 409 (ödenmiş harcamanın kaldırılması önceki kart ödemelerinin kanal payını ve kasayı değiştirirdi). Kanal
+    /// payı girilirse yalnız alış bağı kalkar: gider ve harcama alıştan bağımsız kart gideri olarak kalır, harcamanın kanal kaynağı
+    /// girilen gerçek paylardır (tek kanalda o kanal, çok kanalda "A / B" etiketi). Alışın kalanı artar, gider listesi harcamayı bir
+    /// kez gösterir; gider başka alışa mevcut gider olarak bağlanabilir. Kilitli dönem kuralları (AyKilidiKurallari) geçerlidir.
+    /// </summary>
+    private static IResult KartOdemesiniAyir(KasaDbContext db, AlisEntity alis, AlisOdemeEntity payment, TakipHarcamaEntity harcama,
+        IReadOnlyList<AlisDagilimYaz>? kanallar, AlisOdemeIptal dto, string digest, string before)
+    {
+        var expense = payment.Islem;
+        if (kanallar is null && FinansTakipServisi.KaynakHarcamaEngeli(db, harcama) is { } engel)
+            return AlisEndpoints.Conflict(engel switch
+            {
+                "ödendi" => "Bu kart harcaması ödendi. Alıştan ayırmak için gerçek kanal dağılımını girin; harcama hiç yapılmadıysa Kredi Kartları ekranında iade girin.",
+                "iadesi var" => "Bu kart harcamasının iadesi var. Alıştan ayırmak için gerçek kanal dağılımını girin; iade hatalıysa önce Kredi Kartları ekranında gerekçeyle iptal edin.",
+                _ => "Bu kart harcaması bir ekstre satırıyla eşleştirildi. Alıştan ayırmak için gerçek kanal dağılımını girin; harcama hiç yapılmadıysa önce PDF İçe Aktarma bölümünden eşleştirmeyi iptal edin.",
+            });
+        alis.Odemeler.Remove(payment); db.AlisOdemeler.Remove(payment);
+        if (kanallar is not null)
+        {
+            var adlar = db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
+            expense.Kanal = string.Join(" / ", kanallar.Select(p => adlar[p.KanalId]));
+            expense.KanalId = kanallar.Count == 1 ? kanallar[0].KanalId : null;
+            var not = (string.IsNullOrWhiteSpace(expense.Not) ? "" : expense.Not.Trim() + " · ") + "Alıştan ayrıldı: " + dto.Aciklama.Trim();
+            expense.Not = not.Length <= 2000 ? not : not[..2000];
+            harcama.DagilimJson = FinansTakipServisi.Json(kanallar.Select(p => new KanalPayYaz(p.KanalId, p.Tutar)).ToList());
+        }
+        else { harcama.Iptal = true; harcama.IslemId = null; }
+        db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++;
+        alis.Surum++;
+        FinansHesaplari.IstekKaydet(db, dto.IstekId, "OdemeIptal", digest, alis.Id, before);
+        db.SaveChanges();
+        if (kanallar is null)
+        {
+            if (expense.HesapHareketi is { } account) db.HesapHareketler.Remove(account);
+            db.Islemler.Remove(expense); db.SaveChanges();
+        }
+        FinansTakipServisi.Sync(db);
+        return Results.Ok(AlisEndpoints.ReadDto(db, alis.Id));
     }
 }
 

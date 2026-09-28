@@ -10,8 +10,11 @@ public record IzleyiciSifreDto(string YeniSifre);
 public record KanalYazDto(string Ad, bool Aktif = true, int Sira = 0, decimal AcilisDevri = 0);
 public record CariYazDto(string Ad, bool Aktif = true);
 /// <param name="IstekId">Yalnız oluşturmada (POST) tekrar anahtarı (appcore-5); eski istemci göndermez, düzenlemede yok sayılır.</param>
+/// <param name="TaksitSayisi">Yalnız oluşturmada, yeni takipteki kartla girilen kart giderinde taksit sayısı (1–60); boşsa tek taksit
+/// (gap-coklu-giris-cift-sayim-mutabakat-6). Eski istemci göndermez; düzenlemede gönderilmez.</param>
+/// <param name="IlkKesimTarihi">Yalnız oluşturmada, isteğe bağlı ilk taksidin ekstre kesimi (<see cref="AlisOdemeYaz.IlkKesimTarihi"/>).</param>
 public record IslemYazDto(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal,
-    GiderTipi Tip, string? Not = null, int? KrediKartiId = null, Guid? IstekId = null);
+    GiderTipi Tip, string? Not = null, int? KrediKartiId = null, Guid? IstekId = null, int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null);
 public record KrediKartiYazDto(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi,
     decimal Limit, decimal Borc);
 public record KrediYazDto(string Ad, decimal CekilenTutar, DateOnly CekimTarihi,

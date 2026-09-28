@@ -172,11 +172,7 @@ public static class FinansTakipServisi
         if (firstCut is { } ilk)
         {
             cut = EnYakinDuzenliKesim(ilk, day);
-            FinansTakipEndpoints.Require(Math.Abs(ilk.DayNumber - cut.DayNumber) <= IlkKesimToleransi,
-                $"İlk kesim tarihi kartın hesap kesim gününe ({day}) en fazla {IlkKesimToleransi} gün uzak olabilir; bankanın kaydırdığı kesimi ya da harcamanın düştüğü sonraki kesimi girin.");
-            var baslangic = db.TakipKartlar.Where(t => t.KrediKartiId == card.Id).Select(t => t.Baslangic).Single();
-            FinansTakipEndpoints.Require(cut >= baslangic,
-                $"İlk kesim tarihi kartın takip başlangıcından ({KartGecisHesabi.Tarih(baslangic)}) önceki {KartGecisHesabi.Tarih(cut)} kesimine denk geliyor; takipten önceki ekstreler izlenmez. Harcamanın düştüğü sonraki kesimi girin ya da ilk kesimi boş bırakın.");
+            if (IlkKesimHatasi(db, card, ilk) is { } hata) FinansTakipEndpoints.Require(false, hata);
         }
         db.TakipHarcamalar.Add(charge); db.SaveChanges();
         var cents = decimal.ToInt64(Math.Abs(charge.Tutar) * 100); var sign = Math.Sign(charge.Tutar);
@@ -187,6 +183,64 @@ public static class FinansTakipServisi
                 Tutar = sign * (cents / charge.TaksitSayisi + (i < cents % charge.TaksitSayisi ? 1 : 0)) / 100m });
         }
         db.SaveChanges();
+    }
+    /// <summary>İlk kesim tarihinin (<see cref="HarcamaEkle"/> firstCut) kart döngüsü denetimi: düzenli kesime en çok
+    /// <see cref="IlkKesimToleransi"/> gün uzak ve yuvarlandığı kesim kartın takip başlangıcından önce değil. Uygunsa null.
+    /// Kart ekranı harcaması, kartlı alış ödemesi ve kartlı genel gider aynı iletiyi verir.</summary>
+    internal static string? IlkKesimHatasi(KasaDbContext db, KrediKartiEntity card, DateOnly ilk)
+    {
+        var day = card.KesimTarihi.Day;
+        var cut = EnYakinDuzenliKesim(ilk, day);
+        if (Math.Abs(ilk.DayNumber - cut.DayNumber) > IlkKesimToleransi)
+            return $"İlk kesim tarihi kartın hesap kesim gününe ({day}) en fazla {IlkKesimToleransi} gün uzak olabilir; bankanın kaydırdığı kesimi ya da harcamanın düştüğü sonraki kesimi girin.";
+        var baslangic = db.TakipKartlar.Where(t => t.KrediKartiId == card.Id).Select(t => t.Baslangic).Single();
+        return cut >= baslangic ? null
+            : $"İlk kesim tarihi kartın takip başlangıcından ({KartGecisHesabi.Tarih(baslangic)}) önceki {KartGecisHesabi.Tarih(cut)} kesimine denk geliyor; takipten önceki ekstreler izlenmez. Harcamanın düştüğü sonraki kesimi girin ya da ilk kesimi boş bırakın.";
+    }
+    /// <summary>Takipli karta bağlı giderin (genel gider ya da alış ödemesi) dondurulmuş kanal payı: tek kanallı giderde o kanal,
+    /// Ortak giderde o anki aktif kanallara eşit pay, diğerlerinde (alış ödemesi "Dağılım bekliyor", çok kanallı ayrılmış gider)
+    /// boş. Alışa bağlı giderin payı ayrıca alıştan okunur (<see cref="KaynakPaylari(KasaDbContext, TakipHarcamaEntity)"/>).</summary>
+    internal static List<KanalPayYaz> DonmusPaylar(KasaDbContext db, IslemEntity expense)
+    {
+        if (expense.KanalId is { } channel) return [new(channel, Math.Abs(expense.TutarTl))];
+        if (expense.Kanal != Kanallar.Ortak) return [];
+        var channelIds = db.Kanallar.Where(k => k.Aktif).Select(k => k.Id).ToList();
+        return channelIds.Count > 0 ? EsitPaylar(channelIds, Math.Abs(expense.TutarTl)) : [];
+    }
+    /// <summary>
+    /// Takipli karta bağlı giderin kart harcaması (kaynak bağı <c>IslemId</c>): Sync'in taksitsiz aynalaması ve kartlı alış ödemesi
+    /// ile kartlı genel giderin taksitli kaydı aynı kuralı kullanır (gap-coklu-giris-cift-sayim-mutabakat-6). Varsayılan tek taksit
+    /// ve ilk kesimsiz harcama önceki Sync kaydıyla birebir aynıdır; mevcut kayıtlar değişmez. Kart sürümü artar.
+    /// </summary>
+    internal static TakipHarcamaEntity KaynakHarcamaEkle(KasaDbContext db, IslemEntity expense, int taksitSayisi = 1, DateOnly? ilkKesim = null)
+    {
+        var tracking = db.TakipKartlar.Single(t => t.KrediKartiId == expense.KrediKartiId);
+        var card = db.KrediKartlari.Single(k => k.Id == tracking.KrediKartiId);
+        var charge = new TakipHarcamaEntity { KrediKartiId = card.Id, IslemId = expense.Id, Tarih = expense.Tarih,
+            Aciklama = expense.Cari, Tutar = expense.TutarTl, TaksitSayisi = taksitSayisi, DagilimJson = Json(DonmusPaylar(db, expense)) };
+        HarcamaEkle(db, card, charge, ilkKesim);
+        tracking.Surum++;
+        return charge;
+    }
+    /// <summary>Giderin kart takibindeki harcaması (kaynak bağı); yoksa null. Takipli karta bağlı ama takip başlangıcından önce
+    /// tarihli (eski kuralda kalan) giderin harcaması yoktur.</summary>
+    internal static TakipHarcamaEntity? KaynakHarcama(KasaDbContext db, int islemId) => db.TakipHarcamalar.SingleOrDefault(h => h.IslemId == islemId);
+    /// <summary>
+    /// Giderin kart harcaması kaldırılabilir ya da kanalı değiştirilebilir mi (gap-coklu-giris-cift-sayim-mutabakat-5): taksitlerine pay
+    /// ayırmış iptal edilmemiş kart ödemesi, iptal edilmemiş iadesi ya da harcamayı ya da taksidini gösteren ekstre satırı varsa hayır.
+    /// Ödenmiş harcamanın kaldırılması önceki ödemelerin kanal payını ve kasayı değiştirirdi; iade kaynağını, ekstre satırı kaydını
+    /// kaybederdi. Engel yoksa null, varsa nedeni ("ödendi", "iadesi var", "ekstre").
+    /// </summary>
+    internal static string? KaynakHarcamaEngeli(KasaDbContext db, TakipHarcamaEntity charge)
+    {
+        var taksitler = db.TakipKartTaksitler.Where(t => t.HarcamaId == charge.Id).Select(t => t.Id).ToHashSet();
+        if (db.TakipKartOdemeler.Where(p => p.KrediKartiId == charge.KrediKartiId && !p.Iptal).AsEnumerable()
+            .Any(p => Read<KartTaksitPayi>(p.PaylarJson).Any(x => taksitler.Contains(x.TaksitId))))
+            return "ödendi";
+        if (db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal)) return "iadesi var";
+        var ids = taksitler.ToArray();
+        return db.EkstreKayitlar.Any(k => !k.Iptal && (k.KartHarcamaId == charge.Id || k.EslesmeTuru == "KartHarcama" && k.EslesmeId == charge.Id
+            || k.EslesmeTuru == "KartTaksidi" && k.EslesmeId != null && ids.Contains(k.EslesmeId.Value))) ? "ekstre" : null;
     }
     /// <summary>
     /// Eski kuralla yazılmış, otomatik dönüştürülmeyen takip kayıtlarının uyarıları (bütünlük denetimi; açılışta loglanır,
@@ -333,15 +387,10 @@ public static class FinansTakipServisi
         {
             var card = db.KrediKartlari.Single(k => k.Id == tracking.KrediKartiId);
             var known = db.TakipHarcamalar.Where(h => h.KrediKartiId == card.Id && h.IslemId != null).Select(h => h.IslemId!.Value).ToHashSet();
+            // Kaydını yazma yolu yapmamış (taksitsiz) gider tek taksitle aynalanır; taksitli kartlı gider ve alış ödemesi harcamasını
+            // kaydederken aynı kuralla yazar (KaynakHarcamaEkle) ve burada bilinen sayılır.
             foreach (var expense in db.Islemler.Where(i => i.KrediKartiId == card.Id && i.Tarih >= tracking.Baslangic).ToList().Where(i => !known.Contains(i.Id)))
-            {
-                var channelIds = db.Kanallar.Where(k => k.Aktif).Select(k => k.Id).ToList();
-                List<KanalPayYaz> frozen = expense.KanalId is { } channel ? [new(channel, Math.Abs(expense.TutarTl))]
-                    : expense.Kanal == Kanallar.Ortak && channelIds.Count > 0 ? EsitPaylar(channelIds, Math.Abs(expense.TutarTl)) : [];
-                HarcamaEkle(db, card, new() { KrediKartiId = card.Id, IslemId = expense.Id, Tarih = expense.Tarih,
-                    Aciklama = expense.Cari, Tutar = expense.TutarTl, TaksitSayisi = 1, DagilimJson = Json(frozen) });
-                tracking.Surum++;
-            }
+                KaynakHarcamaEkle(db, expense);
             if (tracking.Aktif)
             {
                 // Sıfır borçlu aktif kart için de aylık kesim olayı vardır.

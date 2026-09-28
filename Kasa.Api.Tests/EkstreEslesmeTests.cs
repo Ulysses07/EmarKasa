@@ -269,4 +269,59 @@ public class EkstreEslesmeTests
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{belge.Id}/onizleme",
             new EkstreKaydetYaz(Guid.NewGuid(), sonuc.Surum, [Eslestir(sonuc, 3, "KartTaksidi", t2.Id)]))).StatusCode);
     }
+
+    /// <summary>gap-coklu-giris-cift-sayim-mutabakat-6: taksitle girilmiş kartlı alış ödemesi varken kart ekstresindeki aylık taksit
+    /// satırı yeni kart harcaması olarak işlenecekse önizleme onu taksit olarak adlandırır ve ayrıca onay ister. Harcama başına tek
+    /// uyarı, satırın tarihine en yakın kesimli taksidi adlandırır.</summary>
+    [Fact]
+    public async Task Ekstredeki_taksit_satiri_yeni_harcama_olarak_islenirken_taksitli_harcamanin_taksidi_diye_uyarir()
+    {
+        await using var f = Factory(); using var c = await Editor(f); var kart = await YeniKart(c);
+        var alis = await Alis(c, 36000m);
+        alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Gun, 36000m, kart.Id, TaksitSayisi: 3));
+        var harcama = Assert.Single((await Kart(c, kart.Id)).Harcamalar);
+        const string Uyari = "taksitli harcamanın 1/3. taksidi olabilir; atlayın ya da mevcut kayıtla eşleştirin.";
+        var belge = await Belge(f, c, "Kart", kart.Id, (Gun.AddDays(1), 12000m), (Gun.AddDays(1), 11999m));
+        var onizleme = await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{belge.Id}/onizleme",
+            new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [Satir(belge, 1, "KartHarcama", "Ozel", [new(1, 12000m)]), Satir(belge, 2, "KartHarcama", "Ozel", [new(1, 11999m)])]));
+        Assert.True(onizleme.TekrarOnayGerekli);
+        Assert.Equal($"Bu satır #{harcama.Id} {Uyari}", Assert.Single(onizleme.Satirlar[0].Uyarilar, u => u.Contains("taksidi olabilir")));
+        Assert.DoesNotContain(onizleme.Satirlar[1].Uyarilar, u => u.Contains("taksidi olabilir"));
+        // Harcama tarihinden uzak ama taksidin ekstre kesimine yakın (ekstre dönemi içinde) basan satır da tanınır.
+        var kesimBelgesi = await Belge(f, c, "Kart", kart.Id, (Today, 12000m));
+        var ikinci = await Post<EkstreOnizlemeDto>(c, $"/api/ekstre-aktar/{kesimBelgesi.Id}/onizleme",
+            new EkstreKaydetYaz(Guid.NewGuid(), kesimBelgesi.Surum, [Satir(kesimBelgesi, 1, "KartHarcama", "Ozel", [new(1, 12000m)])]));
+        Assert.True(ikinci.TekrarOnayGerekli);
+        Assert.Contains($"Bu satır #{harcama.Id} {Uyari}", ikinci.Satirlar[0].Uyarilar);
+    }
+
+    /// <summary>gap-coklu-giris-cift-sayim-mutabakat-5: ekstreden gelen kart harcamasına bağlı alış ödemesi de yalnız başka alışa
+    /// taşınır (tarih, tutar, kart sabit); ekstre bağı ve kart harcaması aynen kalır, ayrılınca harcama ekstre kaydına döner.</summary>
+    [Fact]
+    public async Task Ekstreden_gelen_kart_harcamasina_bagli_odeme_dogru_alisa_tasinir_ekstre_bagi_korunur()
+    {
+        await using var f = Factory(); using var c = await Editor(f); var kart = await YeniKart(c);
+        var belge = await Belge(f, c, "Kart", kart.Id, (Gun, 700m));
+        var (_, sonuc) = await Kaydet(c, belge, Satir(belge, 1, "KartHarcama", "Ozel", [new(1, 700m)]));
+        var harcama = Assert.Single(sonuc.Kayitlar).KartHarcamaId!.Value;
+        var yanlis = await Alis(c, 700m, "Yanlış"); var dogru = await Alis(c, 700m, "Doğru");
+        yanlis = await Post<AlisDto>(c, $"/api/alis/{yanlis.Id}/odemeler", new AlisOdemeYaz(yanlis.Surum, Guid.NewGuid(), Gun, 700m, kart.Id, MevcutKartHarcamaId: harcama));
+        var odeme = Assert.Single(yanlis.Odemeler); var kasa = await Kasa(c);
+
+        Assert.Contains("yalnız başka alışa taşınabilir", await Hata(await c.PutAsJsonAsync($"/api/alis/{yanlis.Id}/odemeler/{odeme.Id}",
+            new AlisOdemeDuzelt(yanlis.Surum, Guid.NewGuid(), Gun, 600m, "Tutar", kart.Id, HedefAlisId: dogru.Id, HedefSurum: dogru.Surum)), HttpStatusCode.Conflict));
+        await Hata(await c.PutAsJsonAsync($"/api/alis/{yanlis.Id}/odemeler/{odeme.Id}",
+            new AlisOdemeDuzelt(yanlis.Surum, Guid.NewGuid(), Gun, 700m, "Doğru alış", kart.Id, HedefAlisId: dogru.Id, HedefSurum: dogru.Surum)), HttpStatusCode.OK);
+        dogru = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis", Json))!.Single(a => a.Id == dogru.Id);
+        Assert.Equal(0m, dogru.Kalan); Assert.Equal(1, HarcamaSayisi(f, kart.Id)); Assert.Equal(700m, (await Kart(c, kart.Id)).Borc); Assert.Equal(kasa, await Kasa(c));
+        var satir = Assert.Single((await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge.Id}"))!.Kayitlar);
+        Assert.Equal(("KartHarcama", (int?)harcama, "Eslesti"), (satir.EslesmeTuru, satir.EslesmeId, satir.EslesmeDurumu));
+        Assert.Contains($"Alış #{dogru.Id}", await Hata(await c.PostAsJsonAsync($"/api/ekstre-aktar/{belge.Id}/kayitlar/{satir.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Yanlış")), HttpStatusCode.Conflict));
+
+        dogru = await Post<AlisDto>(c, $"/api/alis/{dogru.Id}/odemeler/{odeme.Id}/iptal", new AlisOdemeIptal(dogru.Surum, Guid.NewGuid(), "Ayır"));
+        Assert.Equal(700m, dogru.Kalan);
+        satir = Assert.Single((await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge.Id}"))!.Kayitlar);
+        Assert.Equal(((int?)harcama, (string?)null), (satir.KartHarcamaId, satir.EslesmeTuru));
+        Assert.Equal(700m, (await Kart(c, kart.Id)).Borc);
+    }
 }
