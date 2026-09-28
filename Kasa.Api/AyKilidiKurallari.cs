@@ -26,7 +26,7 @@ public static class AyKilidiKurallari
         {
             if (e.Entity is KanalEntity channel && e.State == EntityState.Deleted && db.AylikGiderRevizyonlar.AsNoTracking().AsEnumerable()
                 .Any(r => FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson).Any(p => p.KanalId == channel.Id)))
-                throw new KilitliDonemException("Aylık gider şablonunda kullanılan kanal silinemez; pasife alınabilir.");
+                throw new KilitliDonemException("Aylık gider şablonunda kullanılan kanal silinemez; pasife alınabilir (ay kilidi varken aktif kanal pasife alınamaz).");
             if (!db.AylikGiderDegisikligi && e.Entity is IslemEntity i && e.State != EntityState.Added
                 && db.AylikGiderOdemeler.Any(p => p.IslemId == i.Id))
                 throw new KilitliDonemException("Aylık gider ödemesini Aylık Giderler bölümünden iptal edip yeniden kaydedin.");
@@ -68,10 +68,12 @@ public static class AyKilidiKurallari
             return link is not null && db.AlisOdemeler.Any(p => p.AlisId == link.AlisId && p.Id > link.Id && p.Islem.Tarih <= end);
         }
 
+        // Kanal: yalnız Ortak gideri bölen sıralı aktif kanal kümesi ve açılış devri kilitli dönemi etkiler; ad, pasif yeni kanal ve
+        // kümeyi bozmayan sıra serbesttir (KanalKurallari). Küme bütün kanal değişikliklerinden birlikte hesaplanır.
+        if (KanalKurallari.KilitIhlali(db, entries.Where(e => e.Entity is KanalEntity).ToList(), end) is { } kanalIletisi)
+            throw new KilitliDonemException(kanalIletisi);
         foreach (var e in entries)
         {
-            // Kanal: kilitli ayın aylık raporu dondurulmuş olduğundan yalnız açılış devri kilitli dönemi etkiler (KanalKurallari).
-            if (e.Entity is KanalEntity && KanalKurallari.KilitIhlali(db, e, end) is { } kanalIletisi) throw new KilitliDonemException(kanalIletisi);
             bool blocked = e.Entity switch
             {
                 IslemEntity i => DateLocked(e, nameof(i.Tarih)) || i.KrediKartiId is { } card && e.State == EntityState.Added && CardFrozenAdvance(card)

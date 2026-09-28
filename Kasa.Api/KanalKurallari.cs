@@ -1,3 +1,4 @@
+using System.Globalization;
 using Kasa.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -11,10 +12,15 @@ namespace Kasa.Api;
 /// (dönem, kanal adı) tekilliği onu kullanır.
 /// - Etiket senkronu mali değişiklik değildir: kimliği, tutarı, tarihi ve tipi aynı kalıp yalnız Kanal metni kanalın güncel adına
 ///   eşitlenen gider/kredi satırı kaynak kurallarına (aylık gider ödemesi, ekstre) ve dönem kilidine takılmaz.
-/// - Dönem kilidi: kilitli ayların aylık raporu kapanışta dondurulur (<see cref="AyRaporAnlikGoruntusu"/>); haftalık rapor kanal
-///   satırlarını kimlik ve açılış devrinden hesaplar, aktiflik ve sırayı kullanmaz. Bu yüzden kilit varken kanal eklemek, adını,
-///   sırasını ve aktifliğini değiştirmek ya da geçmişsiz kanalı silmek kilitli dönemin tutarlarını değiştirmez. Açılış devri takip
-///   başlangıcından itibaren her haftanın kanal devrini değiştirir: kilitte değişmez (yeni kanal açılış devri 0 ile eklenir).
+/// - Dönem kilidi: aylık rapor Ortak gideri güncel SIRALI AKTİF KANAL KÜMESİNE böler (HesapServisi kanalları Sira'ya göre okur,
+///   HesapMotoru artık kuruşu ilk aktif kanallara verir). Kilitli ayın raporu kapanışta dondurulur (<see cref="AyRaporAnlikGoruntusu"/>)
+///   ama görüntü ay açılınca silinir ve ay yeniden canlı hesaplanır; ay bazında saklanan bir kanal kümesi yoktur. Bu yüzden kilit
+///   varken bu küme değişmez: aktif kanal eklenemez ya da silinemez, aktiflik değişmez, aktif kanalların sırası (eşit sıralılar dahil)
+///   değişmez. Böylece kapatılmış ay sonradan açılınca raporu kapanıştakiyle aynı kalır. Kümeyi değiştirmeyenler serbesttir: ad,
+///   pasif yeni kanal, aktif kanalların sırasını bozmayan sıra değişikliği, geçmişsiz pasif kanalı silme. Haftalık rapor kanal
+///   satırlarını kimlik ve açılış devrinden hesaplar, aktiflik ve sırayı kullanmaz. Açılış devri takip başlangıcından itibaren her
+///   haftanın kanal devrini değiştirir: kilitte değişmez (yeni kanal açılış devri 0 ile eklenir). Pasife almanın yalnız ileriye
+///   dönük uygulanması (ay bazında Ortak kümesi) şema ve hesap motoru değişikliği ister; bu kurallar onu sağlamaz.
 /// - Kilitli dönemin gelir satırını veritabanı tetikleyicisi hiç değiştirmez: kilit varken yeniden adlandırılan kanalın o satırı
 ///   kapanıştaki etiketi taşır. Bu eski ad, satır kilitli kaldıkça başka kanala verilmez (aynı dönemde iki kanal aynı adla gelir
 ///   tutamaz); ay açılınca etiket, kanal eklenirken ya da yeniden adlandırılırken kendi kanalının adına çekilir.
@@ -45,30 +51,59 @@ internal static class KanalKurallari
         && e.CurrentValues["KanalId"] is int kanal && Equals(e.OriginalValues["KanalId"], kanal)
         && e.Properties.Where(p => p.IsModified).Select(p => p.Metadata.Name).SequenceEqual(["Kanal"]);
 
-    /// <summary>Kilit varken (<paramref name="son"/>) kanal değişikliği kilitli dönemi etkiliyorsa ileti; etkilemiyorsa null.</summary>
-    internal static string? KilitIhlali(KasaDbContext db, EntityEntry e, DateOnly son)
+    /// <summary>Kilit varken (<paramref name="son"/>) bu SaveChanges'taki kanal değişiklikleri (<paramref name="kanallar"/>) kilitli
+    /// dönemi etkiliyorsa ileti; etkilemiyorsa null (bkz. sınıf özeti).</summary>
+    internal static string? KilitIhlali(KasaDbContext db, IReadOnlyList<EntityEntry> kanallar, DateOnly son)
     {
-        static decimal Devir(PropertyValues v) => (decimal)v["AcilisDevri"]!;
-        var devirDegisir = e.State switch
-        {
-            EntityState.Added => Devir(e.CurrentValues) != 0,
-            EntityState.Deleted => Devir(e.OriginalValues) != 0,
-            EntityState.Modified => Devir(e.OriginalValues) != Devir(e.CurrentValues),
-            _ => false,
-        };
-        if (devirDegisir)
+        static decimal Devir(PropertyValues v) => (decimal)v[nameof(KanalEntity.AcilisDevri)]!;
+        if (kanallar.Any(e => e.State switch
+            {
+                EntityState.Added => Devir(e.CurrentValues) != 0,
+                EntityState.Deleted => Devir(e.OriginalValues) != 0,
+                EntityState.Modified => Devir(e.OriginalValues) != Devir(e.CurrentValues),
+                _ => false,
+            }))
             return $"{son:yyyy-MM-dd} tarihine kadar dönem kilitli. Kanal açılış devri takip başlangıcından itibaren bütün haftaların kanal devrini "
                 + "değiştirdiği için kilit varken değiştirilemez; yeni kanalı açılış devri 0 ile ekleyin. Açılış devrini değiştirmek için kilidi "
                 + "takip başlangıcı ayından gerekçeyle açın.";
-        // Savunma: görüntüsü olmayan kilitli ay (açılıştaki geçiş tohumu bekliyor) canlı hesaplanır; kanal kümesi onun Ortak payını
-        // değiştirir. Açılış tohumu başarısızsa uygulama açılmadığından olağan akışta her kilitli ayın görüntüsü vardır.
-        var kumeDegisir = e.State is EntityState.Added or EntityState.Deleted
-            || e.State == EntityState.Modified && (e.Property(nameof(KanalEntity.Aktif)).IsModified || e.Property(nameof(KanalEntity.Sira)).IsModified);
-        if (kumeDegisir && !KilitliRaporlarDondurulmus(db))
+        var satirDegisir = kanallar.Any(e => e.State is EntityState.Added or EntityState.Deleted || e.State == EntityState.Modified
+            && (e.Property(nameof(KanalEntity.Aktif)).IsModified || e.Property(nameof(KanalEntity.Sira)).IsModified));
+        if (!satirDegisir) return null;
+        // Savunma: görüntüsü olmayan kilitli ay (açılıştaki geçiş tohumu bekliyor) canlı hesaplanır; pasif kanal bile ona satır ekler.
+        // Açılış tohumu başarısızsa uygulama açılmadığından olağan akışta her kilitli ayın görüntüsü vardır.
+        if (!KilitliRaporlarDondurulmus(db))
             return $"{son:yyyy-MM-dd} tarihine kadar dönem kilitli ve kilitli ayların bir kısmının raporu henüz dondurulmamış. Kanal eklemek, silmek, "
-                + "aktifliğini ya da sırasını değiştirmek bu ayların Ortak gider payını değiştireceği için engellendi; kanal adı değiştirilebilir. "
-                + "Uygulama yeniden başlatılınca kilitli ayların raporu dondurulur.";
+                + "aktifliğini ya da sırasını değiştirmek bu ayların raporunu (kanal satırları ve Ortak gider payı) değiştireceği için engellendi; "
+                + "kanal adı değiştirilebilir. Uygulama yeniden başlatılınca kilitli ayların raporu dondurulur.";
+        var (once, sonra) = OrtakKumeleri(db, kanallar);
+        if (once != sonra)
+            return $"{son:yyyy-MM-dd} tarihine kadar dönem kilitli. Ortak giderler aylık raporda aktif kanallara sıralarına göre bölünür ve kapatılmış "
+                + "bir ay yeniden açıldığında bu bölüşüm güncel kanallarla yeniden hesaplanır. Bu yüzden kilit varken aktif kanal eklenemez ya da "
+                + "silinemez, kanal aktifleştirilemez ya da pasife alınamaz ve aktif kanalların sırası değiştirilemez. Kanal adı değiştirilebilir, "
+                + "yeni kanal pasif olarak eklenebilir. Kanal kümesini değiştirmek için kilidi takip başlangıcı ayından gerekçeyle açın; değişiklik "
+                + "bütün ayların Ortak payını yeniden hesaplar.";
         return null;
+    }
+
+    /// <summary>Ortak gideri bölen sıralı aktif kanal kümesi değişiklikten önce (veritabanı) ve sonra (izlenen değerler): Sira'ya
+    /// göre sıralı gruplar. Eşit sıralı aktif kanalların kendi aralarındaki sırası veritabanına kaldığından bir grup sayılır; grup
+    /// oluşması ya da dağılması da küme değişikliğidir. Yeni kanal kimliksiz olduğundan kendi anahtarıyla girer.</summary>
+    private static (string Once, string Sonra) OrtakKumeleri(KasaDbContext db, IReadOnlyList<EntityEntry> kanallar)
+    {
+        static string Kimlik(int id) => id.ToString(CultureInfo.InvariantCulture);
+        static string Kume(Dictionary<string, (bool Aktif, int Sira)> d) => string.Join("|", d.Where(k => k.Value.Aktif)
+            .GroupBy(k => k.Value.Sira).OrderBy(g => g.Key).Select(g => string.Join(",", g.Select(k => k.Key).Order(StringComparer.Ordinal))));
+        var once = db.Kanallar.AsNoTracking().Select(k => new { k.Id, k.Aktif, k.Sira }).ToList().ToDictionary(k => Kimlik(k.Id), k => (k.Aktif, k.Sira));
+        var sonra = new Dictionary<string, (bool Aktif, int Sira)>(once);
+        for (var i = 0; i < kanallar.Count; i++)
+        {
+            var e = kanallar[i];
+            var anahtar = e.State == EntityState.Added ? $"yeni-{i}" : Kimlik((int)e.OriginalValues[nameof(KanalEntity.Id)]!);
+            if (e.State == EntityState.Deleted) sonra.Remove(anahtar);
+            else if (e.State is EntityState.Added or EntityState.Modified)
+                sonra[anahtar] = ((bool)e.CurrentValues[nameof(KanalEntity.Aktif)]!, (int)e.CurrentValues[nameof(KanalEntity.Sira)]!);
+        }
+        return (Kume(once), Kume(sonra));
     }
 
     private static bool KilitliRaporlarDondurulmus(KasaDbContext db) =>
@@ -110,18 +145,22 @@ internal static class KanalKurallari
     }
 
     /// <summary>Kanal silinebilir mi: geçmişi (kimliğiyle ya da kimliksiz eski etiketle bağlı hareket, takip veya alış payı) ya da
-    /// açılış devri varsa ileti; yoksa null. Aylık gider şablonu ve ekstre dağılımı kaydetme kurallarında denetlenir.</summary>
+    /// açılış devri varsa ileti; yoksa null. Aylık gider şablonu ve ekstre dağılımı kaydetme kurallarında denetlenir. İleti pasife
+    /// almayı önerir; ay kilidi varken aktif kanal pasife alınamadığı (Ortak kümesi) için bunu da söyler.</summary>
     internal static string? SilmeEngeli(KasaDbContext db, KanalEntity kanal)
     {
         var (id, ad) = (kanal.Id, kanal.Ad);
-        return kanal.AcilisDevri != 0
+        var gecmisli = kanal.AcilisDevri != 0
             || db.Islemler.Any(i => i.KanalId == id || i.KanalId == null && i.Kanal == ad)
             || db.Gelenler.Any(g => g.KanalId == id || g.KanalId == null && g.Kanal == ad)
             || db.Krediler.Any(k => k.KanalId == id || k.KanalId == null && k.Kanal == ad)
             || db.HesapHareketler.Any(h => h.KanalId == id)
             || FinansTakipServisi.KanalKullaniliyor(db, id)
-            || db.AlisDagilimlar.Any(d => d.KanalId == id)
-            ? GecmisIletisi : null;
+            || db.AlisDagilimlar.Any(d => d.KanalId == id);
+        if (!gecmisli) return null;
+        return kanal.Aktif && KilitSonu(db) is not null
+            ? GecmisIletisi + " Ancak ay kilidi varken aktif kanal pasife alınamaz: kapatılmış bir ay açıldığında Ortak gider payı değişirdi."
+            : GecmisIletisi;
     }
 
     /// <summary>

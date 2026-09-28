@@ -55,9 +55,8 @@ public class LockedPeriodTests
         var url = $"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}";
         var before = await c.GetStringAsync(url);
         await Close(c);
-        // Kilitli ayın raporu dondurulmuş olduğundan sıra değişikliği serbesttir; kapatılan ayın Ortak kuruşu yerinde kalır.
-        (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", Sira: 99))).EnsureSuccessStatusCode();
-        Assert.Equal(AyRaporuAnlikGoruntusuTests.Dondurulmus(before, HesapServisi.AcikAyKurali), await c.GetStringAsync(url));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", Sira: 99))).StatusCode);
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
@@ -73,8 +72,7 @@ public class LockedPeriodTests
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 200m))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "PERAKENDE", 200m))).StatusCode);
-        // Pasife alma kilitli dönemi etkilemez (aylık rapor dondurulmuş, haftalık aktifliği kullanmaz); açılış devri etkiler.
-        (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false))).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", AcilisDevri: 99m))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Month.AddMonths(-3), kasaAcilisDevri = 2000m })).StatusCode);
         Assert.Equal(report, await c.GetStringAsync("/api/rapor/panel"));

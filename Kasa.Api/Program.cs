@@ -262,7 +262,7 @@ api.MapPost("/kanallar", (KanalYazDto dto, KasaDbContext db) =>
     var ad = dto.Ad!.Trim();
     if (db.Kanallar.AsEnumerable().Any(k => string.Equals(k.Ad, ad, StringComparison.OrdinalIgnoreCase)))
         return Results.Conflict(new { hata = "Bu kanal adı zaten kullanılıyor." });
-    // Kilit varken de eklenir (kilitli ayların raporu dondurulmuş); açılış devri kilitte 0 olmalı (KanalKurallari).
+    // Kilit varken yeni kanal pasif ve açılış devri 0 ile eklenir: Ortak gideri bölen aktif küme kilitte değişmez (KanalKurallari).
     using var transaction = db.Database.BeginTransaction();
     if (KanalKurallari.AdEngeli(db, null, ad) is { } engel) return Results.Conflict(new { hata = engel });
     var e = new KanalEntity { Ad = ad, Aktif = dto.Aktif, Sira = dto.Sira, AcilisDevri = dto.AcilisDevri };
@@ -283,8 +283,9 @@ api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =
     if (db.Kanallar.AsEnumerable().Any(k => k.Id != id && string.Equals(k.Ad, ad, StringComparison.OrdinalIgnoreCase)))
         return Results.Conflict(new { hata = "Bu kanal adı zaten kullanılıyor." });
 
-    // Ad, sıra ve aktiflik kilit varken de değişir; açılış devri kilitte değişmez. Kayıtlardaki kanal metni yalnız yeni ada
-    // eşitlenir (etiket senkronu: aylık gider/ekstre kaynak kuralına ve dönem kilidine takılmaz; bkz. KanalKurallari).
+    // Ad kilit varken de değişir; aktiflik, aktif kanalların sırası ve açılış devri kilitte değişmez (Ortak kümesi; bkz.
+    // KanalKurallari). Kayıtlardaki kanal metni yalnız yeni ada eşitlenir (etiket senkronu: aylık gider/ekstre kaynak kuralına ve
+    // dönem kilidine takılmaz).
     using var transaction = db.Database.BeginTransaction();
     if (KanalKurallari.AdEngeli(db, id, ad) is { } engel) return Results.Conflict(new { hata = engel });
     KanalKurallari.EtiketleriGuncelle(db, id, ad);
