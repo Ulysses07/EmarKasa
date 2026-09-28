@@ -16,14 +16,17 @@ public static class AyKilidiKurallari
     {
         // Dondurulmuş eski şema testleri/bridge aşaması kilit tablosundan öncedir.
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='AyKilidi'").Single() == 0) return;
-        var entries = db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
+        // Kanal adı değişikliğinin etiket senkronu (yalnız Kanal metni kanalın güncel adına eşitlenen gider/kredi) mali değişiklik
+        // değildir: kaynak kurallarına ve dönem kilidine girmez (KanalKurallari).
+        var entries = KanalKurallari.EtiketSenkronuHaric(db,
+            db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList());
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='EkstreKayitlar'").Single() != 0)
             EkstreKaynakKurallari.Dogrula(db, entries);
         foreach (var e in entries)
         {
             if (e.Entity is KanalEntity channel && e.State == EntityState.Deleted && db.AylikGiderRevizyonlar.AsNoTracking().AsEnumerable()
                 .Any(r => FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson).Any(p => p.KanalId == channel.Id)))
-                throw new KilitliDonemException("Aylık gider şablonunda kullanılan kanal silinemez; pasife alınabilir.");
+                throw new KilitliDonemException("Aylık gider şablonunda kullanılan kanal silinemez; pasife alınabilir (ay kilidi varken aktif kanal pasife alınamaz).");
             if (!db.AylikGiderDegisikligi && e.Entity is IslemEntity i && e.State != EntityState.Added
                 && db.AylikGiderOdemeler.Any(p => p.IslemId == i.Id))
                 throw new KilitliDonemException("Aylık gider ödemesini Aylık Giderler bölümünden iptal edip yeniden kaydedin.");
@@ -65,6 +68,10 @@ public static class AyKilidiKurallari
             return link is not null && db.AlisOdemeler.Any(p => p.AlisId == link.AlisId && p.Id > link.Id && p.Islem.Tarih <= end);
         }
 
+        // Kanal: yalnız Ortak gideri bölen sıralı aktif kanal kümesi ve açılış devri kilitli dönemi etkiler; ad, pasif yeni kanal ve
+        // kümeyi bozmayan sıra serbesttir (KanalKurallari). Küme bütün kanal değişikliklerinden birlikte hesaplanır.
+        if (KanalKurallari.KilitIhlali(db, entries.Where(e => e.Entity is KanalEntity).ToList(), end) is { } kanalIletisi)
+            throw new KilitliDonemException(kanalIletisi);
         foreach (var e in entries)
         {
             bool blocked = e.Entity switch
@@ -75,7 +82,6 @@ public static class AyKilidiKurallari
                 KartOdemeEntity p => DateLocked(e, nameof(p.Tarih)),
                 AylikGiderOdemeEntity p => DateLocked(e, nameof(p.Tarih)) || DateLocked(e, nameof(p.Ay)),
                 AylikGiderRevizyonEntity r => e.State != EntityState.Added || DateLocked(e, nameof(r.GecerliAy)),
-                KanalEntity => Changed(e, "Ad", "Aktif", "Sira", "AcilisDevri"),
                 AyarEntity => Changed(e, "TakipBaslangic", "KasaAcilisDevri"),
                 KrediEntity k => !(e.State == EntityState.Added && db.GecmisEtkisizKrediOlusturma) && DateLocked(e, nameof(k.CekimTarihi)) && Changed(e, "CekilenTutar", "CekimTarihi", "TaksitSayisi", "AylikOdeme", "OdemeGunu", "Kanal", "KanalId", "GerceklesmeTakibi"),
                 KrediKartiEntity => e.State == EntityState.Deleted || e.State == EntityState.Modified && Changed(e, "Borc"),

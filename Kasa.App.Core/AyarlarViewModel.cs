@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
@@ -9,7 +10,9 @@ namespace Kasa.App.Core;
 public partial class AyarlarViewModel : TemelViewModel
 {
     private readonly IKasaApi _api;
-    public AyarlarViewModel(IKasaApi api) => _api = api;
+    private readonly IAylikGiderApi? _kilit;
+    /// <param name="kilit">Ay kilidi durumu: yalnız yeni kanal formunun aktiflik varsayılanı ve notu için (kuralı sunucu uygular).</param>
+    public AyarlarViewModel(IKasaApi api, IAylikGiderApi? kilit = null) { _api = api; _kilit = kilit; }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
 
@@ -24,6 +27,14 @@ public partial class AyarlarViewModel : TemelViewModel
     [ObservableProperty] private int _duzenKanalSira;
     [ObservableProperty] private decimal _duzenKanalAcilisDevri;
     [ObservableProperty] private string? _kanalUyarisi;
+
+    // Ay kilidi varken aktif yeni kanal, Ortak gideri bölen aktif kanal kümesini değiştirdiği için sunucuda 409 alır: yeni kanal
+    // formu kilitte pasif gelir ve kilidi söyler. Kilit durumu okunamazsa bilinmiyor sayılır (form aktif varsayılır).
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(KanalKilitNotu))] private DateOnly? _kilitliSonTarih;
+    public string? KanalKilitNotu => KilitliSonTarih is { } son
+        ? $"{son:dd.MM.yyyy} dahil aylar kilitli: yeni kanal pasif eklenir. Kilit varken kanal aktifleştirilemez ya da pasife alınamaz ve "
+          + "aktif kanalların sırası değişmez; bunun için kilidi takip başlangıcı ayından açın."
+        : null;
 
     // İzleyici şifre: sunucu ve web ile aynı kural ve ileti (yalnız belirlerken/değiştirirken).
     public const string IzleyiciSifreKuralMesaji = "İzleyici şifresi 12–1024 karakter olmalıdır.";
@@ -66,6 +77,16 @@ public partial class AyarlarViewModel : TemelViewModel
         var kanallar = await _api.KanallarAsync();
         Kanallar.Clear();
         foreach (var k in kanallar) Kanallar.Add(k);
+        KilitliSonTarih = await KilitSonuAsync();
+        // Boş yeni kanal formunun aktiflik varsayılanı kilide uyar; düzenlenen ya da yazılmaya başlanmış form değişmez.
+        if (DuzenKanalId == 0 && string.IsNullOrEmpty(DuzenKanalAd)) DuzenKanalAktif = KilitliSonTarih is null;
+    }
+
+    private async Task<DateOnly?> KilitSonuAsync()
+    {
+        if (_kilit is null) return null;
+        try { return (await _kilit.AyKilidiAsync()).KilitliSonTarih; }
+        catch (KasaApiException e) when (e.DurumKodu != HttpStatusCode.Unauthorized) { return null; }
     }
 
     public Task YukleAsync() => CalistirAsync(DoldurAsync);
@@ -73,7 +94,7 @@ public partial class AyarlarViewModel : TemelViewModel
     [RelayCommand]
     private void YeniKanal()
     {
-        DuzenKanalId = 0; DuzenKanalAd = ""; DuzenKanalAktif = true;
+        DuzenKanalId = 0; DuzenKanalAd = ""; DuzenKanalAktif = KilitliSonTarih is null;
         DuzenKanalSira = 0; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0;
     }
 
