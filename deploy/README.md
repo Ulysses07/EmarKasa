@@ -26,10 +26,11 @@ Bu bölüm yalnız boş bir sunucu içindir. Mevcut kurulumda aşağıdaki "Gün
    KASA_DATA_DIR=<veri-dizini>
    KASA_BACKUP_DIR=<yedek-dizini>
    ```
-5. `/opt/kasa/deploy` içinde önce kuru çalıştırmayla doğrulayın, ardından başlatın. `source:` satırları 4. adımdaki iki dizini göstermelidir:
+5. `/opt/kasa/deploy` içinde önce kuru çalıştırmayla doğrulayın, ardından imajı derleyip başlatın. `source:` satırları 4. adımdaki iki dizini göstermelidir:
    ```sh
    docker compose -f docker-compose.nginx.yml config | grep -A1 'source:'
-   docker compose -f docker-compose.nginx.yml up -d --build
+   docker compose -f docker-compose.nginx.yml build --pull kasa
+   docker compose -f docker-compose.nginx.yml up -d
    ```
 6. [Alan adı ve HTTPS geçiş kılavuzunu](../docs/deploy/emarglobal-domain.md) izleyerek Nginx ve sertifikayı kurun. Son HTTPS site dosyası `nginx/kasa.emarglobal.com.conf` içindedir; sertifika yokken etkinleştirmeyin.
 7. `curl --fail https://kasa.emarglobal.com/health` ile normal DNS ve TLS üzerinden 200 yanıtını doğrulayın.
@@ -64,7 +65,7 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    docker inspect kasa-app --format '{{.Image}}' > <geri-dönüş-dizini>/imaj-onceki.txt
    grep -n 'image:' <geri-dönüş-dizini>/compose-onceki.yml
    ```
-   7. adımdaki `--build`, şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Saklanan dosya aynı etiketi kullanıyorsa eski koda yalnız bu imaj kimliğiyle dönülebilir.
+   7. adımdaki derleme, şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Saklanan dosya aynı etiketi kullanıyorsa eski koda yalnız bu imaj kimliğiyle dönülebilir.
 5. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın. `deploy/.env`, veri ve yedek dizinleri ile `deploy/kasa-data` üzerine yazmayın; rsync kullanıyorsanız bunları `--exclude` ile hariç tutun. Depodaki compose şablonu sunucudakinin yerine geçebilir; bağlamalar artık yalnız `.env` değişkenlerinden gelir.
 6. Kuru çalıştırmayla doğrulayın:
    ```sh
@@ -74,7 +75,12 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    docker compose -f docker-compose.nginx.yml config | grep -A1 'source:'
    ```
    İlk komut `required variable KASA_DATA_DIR is missing a value` hatası vermiyorsa ya da ikinci komutta farklı bir kaynak veya `/opt/kasa/deploy/kasa-data` görünüyorsa `up` çalıştırmayın. Kabuğunuzda `KASA_DATA_DIR` dışa aktarılmışsa ilk komut hata vermez; önce `unset KASA_DATA_DIR KASA_BACKUP_DIR` çalıştırın. `config` çıktısının tamamı sırları da içerdiğinden yalnız `grep` ile süzülmüş satırları paylaşın.
-7. `docker compose -f docker-compose.nginx.yml up -d --build`
+7. İmajı derleyin, ardından başlatın:
+   ```sh
+   docker compose -f docker-compose.nginx.yml build --pull kasa
+   docker compose -f docker-compose.nginx.yml up -d
+   ```
+   `up -d --build` kullanmayın: `--pull` olmadan yerel önbellekte kalmış temel imajla derler. Dockerfile'daki temel imajlar etiket + `@sha256` özetiyle sabittir; `--pull` bu özeti kayıttan doğrular. Özetin ve imajdaki işletim sistemi paketlerinin (ör. `poppler-utils`) güvenlik yamalarıyla güncellenmesi [operasyon runbook'unda](../docs/deploy/operasyon-runbook.md) "Temel imajlar ve güvenlik yamaları" bölümündedir.
 8. 2. adımdaki `docker inspect` komutunu yeniden çalıştırıp `/data` kaynağının `KASA_DATA_DIR` ile aynı olduğunu doğrulayın. `/health`, giriş ve raporları kontrol edin; 2.0 sonrası kayıtlar (alışlar, kart/kredi, aylık gider, ekstre belgeleri) görünmelidir. Görünmüyorsa yanlış dizin bağlanmıştır: aşağıdaki "Geri dönüş" adımlarını uygulayın.
 
 ### Geri dönüş

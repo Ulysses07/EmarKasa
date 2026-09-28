@@ -103,6 +103,34 @@ public class DagitimSablonuTests
         Assert.Equal("", ornek);
     }
 
+    // devops-12: 'up -d --build' yereldeki önbellekten gelen temel imajla derler; temel imaj ve paket yamaları
+    // 'build --pull' ile gelir. Güncel dağıtım belgeleri ve şablon yorumları derlemeyi yalnız '--pull' ile anlatır.
+    // Tarihsel belgeler (docs/plans, docs/deploy/kasa-db-recreate.md) kapsam dışıdır.
+    public static TheoryData<string> GuncelDagitimBelgeleri => new()
+    {
+        "deploy/README.md", "deploy/docker-compose.nginx.yml", "deploy/docker-compose.yml", "docs/deploy/operasyon-runbook.md",
+    };
+
+    [Theory]
+    [MemberData(nameof(GuncelDagitimBelgeleri))]
+    public void Guncel_dagitim_belgeleri_imaji_pull_ile_derler(string dosya)
+    {
+        var komutlar = File.ReadAllLines(DepoDosyasi(dosya)).Where(s => s.Contains("docker compose", StringComparison.Ordinal)).ToList();
+
+        Assert.All(komutlar, s => Assert.False(Regex.IsMatch(s, @"\sup\s[^#`]*--build\b"),
+            $"{dosya}: '{s.Trim()}' önbellekteki temel imajla derler; önce 'build --pull kasa', ardından 'up -d' kullanın."));
+        Assert.All(komutlar.Where(s => Regex.IsMatch(s, @"\sbuild(\s|$)")), s => Assert.Contains("--pull", s));
+    }
+
+    [Fact]
+    public void Guncelleme_akisi_temel_imaji_pull_ile_derleyip_ayri_adimda_baslatir()
+    {
+        var readme = File.ReadAllText(DeployDosyasi("README.md"));
+
+        Assert.Contains("docker compose -f docker-compose.nginx.yml build --pull kasa", readme);
+        Assert.Contains("docker compose -f docker-compose.nginx.yml up -d", readme);
+    }
+
     private sealed record Baglama(IReadOnlyDictionary<string, string> Alanlar)
     {
         public string Kaynak => Alan("source");
@@ -149,8 +177,10 @@ public class DagitimSablonuTests
         return sonuc;
     }
 
-    private static Dictionary<string, string> EnvOrnegi() =>
-        YorumsuzSatirlar(DeployDosyasi(".env.example"))
+    private static Dictionary<string, string> EnvOrnegi() => Atamalar(DeployDosyasi(".env.example"));
+
+    private static Dictionary<string, string> Atamalar(string yol) =>
+        YorumsuzSatirlar(yol)
             .Select(s => s.Split('=', 2))
             .Where(p => p.Length == 2)
             .ToDictionary(p => p[0].Trim(), p => p[1].Trim());
@@ -160,11 +190,13 @@ public class DagitimSablonuTests
             .Where(s => s.Trim().Length > 0 && !s.TrimStart().StartsWith('#'))
             .ToList();
 
-    private static string DeployDosyasi(string ad)
+    private static string DeployDosyasi(string ad) => DepoDosyasi(Path.Combine("deploy", ad));
+
+    private static string DepoDosyasi(string goreliYol)
     {
         for (var dizin = new DirectoryInfo(AppContext.BaseDirectory); dizin is not null; dizin = dizin.Parent)
             if (File.Exists(Path.Combine(dizin.FullName, "Kasa.slnx")))
-                return Path.Combine(dizin.FullName, "deploy", ad);
+                return Path.Combine(dizin.FullName, goreliYol);
         throw new InvalidOperationException("Depo kökü (Kasa.slnx) test çıktısının üst dizinlerinde bulunamadı.");
     }
 }

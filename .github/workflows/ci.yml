@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  # Haftalık: yalnız temel imaj özetlerinin tazeliği (base-images). GitHub zamanlanmış koşuyu yalnız varsayılan dalda
+  # çalıştırır; varsayılan dal bu hat olmadıkça tetiklenmez.
+  schedule:
+    - cron: '17 5 * * 1'
 
 permissions:
   contents: read
@@ -15,6 +19,7 @@ concurrency:
 jobs:
   web-tests:
     name: Mobile web logic
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -29,6 +34,7 @@ jobs:
 
   tests:
     name: Test ${{ matrix.project }}
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -57,8 +63,50 @@ jobs:
       - name: Run tests
         run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
 
+  # Temel imaj özetleri (devops-12): Dockerfile'daki her FROM etiket + @sha256 özetiyle sabittir (biçimi
+  # Kasa.Api.Tests/DepoHijyeniTests de denetler). Bu iş yalnız kayıt meta verisini okur, imaj indirmez: sabit özet
+  # kayıtta çözülmeli ve aynı ana sürüm etiketinin (ör. 10.0) güncel özetiyle karşılaştırılır. Push/PR'da eski özet
+  # uyarıdır; haftalık zamanlanmış koşuda hatadır. Güncelleme: docs/deploy/operasyon-runbook.md "Temel imajlar".
+  base-images:
+    name: Pinned base images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Compare pinned digests with the registry
+        env:
+          ZAMANLANMIS: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -euo pipefail
+          eski=0
+          while read -r _ imaj _; do
+            if [[ ! "$imaj" =~ ^([^@:[:space:]]+):(([0-9]+\.[0-9]+)[^@[:space:]]*)@(sha256:[0-9a-f]{64})$ ]]; then
+              echo "::error file=Dockerfile::'$imaj' etiket ve @sha256 özetiyle sabitlenmemiş."
+              exit 1
+            fi
+            depo=${BASH_REMATCH[1]}; ana=${BASH_REMATCH[3]}; ozet=${BASH_REMATCH[4]}
+            if ! docker buildx imagetools inspect "$imaj" > /dev/null; then
+              echo "::error file=Dockerfile::'$imaj' kayıtta çözülemedi; özet yanlış ya da kaldırılmış."
+              exit 1
+            fi
+            guncel=$(docker buildx imagetools inspect "$depo:$ana" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            if [ "$guncel" = "$ozet" ]; then
+              echo "$imaj güncel."
+            else
+              echo "::warning file=Dockerfile::$depo:$ana için daha yeni özet var: $guncel (sabit: $ozet)."
+              eski=1
+            fi
+          done < <(tr -d '\r' < Dockerfile | grep -E '^FROM[[:space:]]')
+          if [ "$eski" = 1 ] && [ "$ZAMANLANMIS" = true ]; then
+            echo "::error file=Dockerfile::Temel imaj özetleri eski; docs/deploy/operasyon-runbook.md 'Temel imajlar' adımlarıyla güncelleyin."
+            exit 1
+          fi
+
   windows-app:
     name: Build and smoke-test Windows MAUI app
+    if: github.event_name != 'schedule'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
