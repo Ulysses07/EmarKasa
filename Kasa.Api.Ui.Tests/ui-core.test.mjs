@@ -984,10 +984,66 @@ test('actual balance comparison previews a signed value and stores only the snap
 test('changed cash requires a fresh comparison preview and a second explicit confirmation before save', async () => {
   let previews = 0; let saves = 0;
   const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/onizleme': () => ({ sistemBakiye: ++previews === 1 ? 123 : 150, gercekBakiye: 200, fark: previews === 1 ? 77 : 50, kontrolOzeti: `digest${previews}` }), '/api/kasa-kontrol': call => call.method === 'GET' ? [] : ++saves === 1 ? { $status: 409, hata: 'Bakiye değişti.' } : { id: 2 } });
-  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '200'; await submitDialog(nodes); await submitDialog(nodes);
+  // Fark sıfırdan farklı: açıklama zorunlu (gap-denetim-izi-gozlemlenebilirlik-3).
+  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '200'; formField(nodes, 'not').value = 'Sayım'; await submitDialog(nodes); await submitDialog(nodes);
   assert.match(nodes.get('#modal-content').textContent, /Kasa değişti/); await submitDialog(nodes);
   assert.equal(saves, 1); assert.match(nodes.get('#modal-content').textContent, /150,00.*200,00.*50,00/); await submitDialog(nodes);
   assert.equal(saves, 2); const writes = calls.filter(call => call.path === '/api/kasa-kontrol' && call.method === 'POST'); assert.equal(writes[1].body.kontrolOzeti, 'digest2'); assert.notEqual(writes[0].body.istekId, writes[1].body.istekId);
+});
+
+test('a comparison with a difference requires a note in the review step; the note can be written after seeing the difference', async () => {
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kasa-kontrol/onizleme': call => ({ sistemBakiye: 1000, gercekBakiye: call.body.gercekBakiye, fark: call.body.gercekBakiye - 1000, kontrolOzeti: `digest-${call.body.gercekBakiye}`, kanalBakiyeleri: [{ kanalId: 1, kanal: 'MEZAT', bakiye: 600 }, { kanalId: 2, kanal: 'PERAKENDE', bakiye: 400 }], hesapTarihi: '2026-09-26' }),
+    '/api/kasa-kontrol': call => call.method === 'GET' ? [] : { id: 3 } });
+  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '900'; await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /MEZAT.*600,00.*PERAKENDE.*400,00/);
+  await submitDialog(nodes);
+  assert.equal(calls.some(call => call.path === '/api/kasa-kontrol' && call.method === 'POST'), false);
+  assert.match(nodes.get('#modal-content').textContent, /Fark varsa açıklama girin\./);
+  formField(nodes, 'not').value = 'Kasada 100 TL eksik'; await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/kasa-kontrol' && call.method === 'POST');
+  assert.deepEqual([save.body.gercekBakiye, save.body.not, save.body.kontrolOzeti], [900, 'Kasada 100 TL eksik', 'digest-900']);
+  // Fark yoksa açıklama gerekmez.
+  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '1000'; await submitDialog(nodes); await submitDialog(nodes);
+  const equal = calls.filter(call => call.path === '/api/kasa-kontrol' && call.method === 'POST')[1]; assert.deepEqual([equal.body.gercekBakiye, equal.body.not], [1000, null]);
+  assert.equal(cashControls.noteRequired(-0.01, ' '), true); assert.equal(cashControls.noteRequired(0, ''), false); assert.equal(cashControls.noteRequired(5, 'Sayım'), false);
+});
+
+test('comparison history marks later changes and legacy rows; editors open the since-list and explain a difference', async () => {
+  const changed = { id: 2, kaydedildi: '2026-09-20T12:00:00+03:00', sistemBakiye: 1000, gercekBakiye: 900, fark: -100, not: 'Sayım', surum: 1, hesapTarihi: '2026-09-20', kanalBakiyeleri: [{ kanalId: 1, kanal: 'MEZAT', bakiye: 600, guncelBakiye: 1100 }], farkAciklamasi: null, farkAciklamaZamani: null, guncelSistemBakiye: 1500, guncelFark: -600, sonradanDegisti: true };
+  const legacy = { id: 1, kaydedildi: '2026-09-01T12:00:00+03:00', sistemBakiye: 800, gercekBakiye: 800, fark: 0, not: null, surum: 1, hesapTarihi: null, kanalBakiyeleri: null, guncelSistemBakiye: 800, guncelFark: 0, sonradanDegisti: false };
+  const since = { kontrolId: 2, kaydedildi: changed.kaydedildi, esasTarih: '2026-09-20', filigranVar: true, sistemBakiye: 1000, guncelSistemBakiye: 1500, bugunkuSistemBakiye: 500, kirpildi: false,
+    degisiklikler: [{ id: 9, zaman: '2026-09-21T10:00:00+03:00', aktorRol: 'editor', tur: 'Sil', varlik: 'Islem', varlikId: '812', oncekiJson: '{"Tarih":"2026-09-18","TutarTl":500}', yeniJson: null, gerekce: null }],
+    istekler: [{ istekId: '11111111-2222-3333-4444-555555555555', tur: 'KartOdemeIptal', sonucId: 4 }],
+    hareketler: [{ etkiTarihi: '2026-09-19', kayitTarihi: '2026-09-19', tur: 'Gider', aciklama: 'Unutulan fatura', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -70, kanalEtkisi: -70, kaynakAnahtari: 'Islem:900', otomatik: false },
+      { etkiTarihi: '2026-09-22', kayitTarihi: '2026-09-22', tur: 'KrediTaksidi', aciklama: 'Kredi / 1. taksit', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -1000, kanalEtkisi: -1000, kaynakAnahtari: 'TakipKrediTaksit:9', otomatik: true }] };
+  const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/2/sonrasi': since, '/api/kasa-kontrol/2/aciklama': { ...changed, surum: 2, farkAciklamasi: 'Mükerrer gider silindi' } });
+  const view = app.cashControlsUi.history([changed, legacy]);
+  assert.match(view.textContent, /Sonradan değişti: güncel sistem .*1\.500,00, güncel fark -₺600,00/);
+  assert.match(view.textContent, /Kayıttan sonra değişmedi · Eski kayıt, filigran yok/);
+  const buttons = label => [...(function* walk(node) { for (const child of node.children) { if (typeof child === 'string') continue; if (child.tag === 'button' && child.textContent === label) yield child; yield* walk(child); } })(view)];
+  assert.equal(buttons('Farkı açıkla').length, 1);   // yalnız farkı ya da sonradan değişimi olan satır
+  await buttons('Değişenleri göster')[0].listeners.click({ currentTarget: buttons('Değişenleri göster')[0] }); await settle();
+  const content = nodes.get('#modal-content').textContent;
+  for (const text of ['Geriye dönük değişim ₺500,00', 'Silindi', 'Gider #812', 'Tarih: 2026-09-18 · TutarTl: 500', 'KartOdemeIptal #4', 'Unutulan fatura', 'Kredi taksidi (kendiliğinden)'])
+    assert.ok(content.includes(text), `${text} görünür`);
+  assert.match(content, /Kontrol gününe ya da öncesine sonradan girilen giderler.*Unutulan fatura.*Kontrol gününden bugüne kasaya işleyen hareketler.*Kredi taksidi/);
+  buttons('Farkı açıkla')[0].listeners.click({}); formField(nodes, 'aciklama').value = '  Mükerrer gider silindi '; await submitDialog(nodes);
+  const put = calls.find(call => call.path === '/api/kasa-kontrol/2/aciklama');
+  assert.deepEqual([put.method, put.body.surum, put.body.aciklama, typeof put.body.istekId], ['PUT', 1, 'Mükerrer gider silindi', 'string']);
+});
+
+test('cash movements list queries the chosen range and channel and shows opening and closing balances', async () => {
+  const path = '/api/kasa-hareketleri?baslangic=2026-09-01&bitis=2026-09-26&kanalId=1';
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT' }, { id: 2, ad: 'PERAKENDE' }],
+    [path]: { baslangic: '2026-09-01', bitis: '2026-09-26', kanalId: 1, kanal: 'MEZAT', acilisBakiyesi: 1200, kapanisBakiyesi: 780.25, hareketler: [{ etkiTarihi: '2026-09-30', kayitTarihi: '2026-08-20', tur: 'KartAySonu', aciklama: 'Eski kart', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -400, kanalEtkisi: 0, kaynakAnahtari: 'Islem:5', otomatik: true }, { etkiTarihi: '2026-09-02', kayitTarihi: '2026-09-02', tur: 'Gider', aciklama: 'Nakliye', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -419.75, kanalEtkisi: -419.75, kaynakAnahtari: 'Islem:6', otomatik: false }] } });
+  const openList = view => [...(function* walk(node) { for (const child of node.children) { if (typeof child === 'string') continue; if (child.tag === 'button' && child.textContent === 'Kasa hareket dökümü') yield child; yield* walk(child); } })(view)][0];
+  const control = openList(app.cashControlsUi.history([])); await control.listeners.click({ currentTarget: control }); await settle();
+  formField(nodes, 'baslangic').value = '2026-09-01'; formField(nodes, 'bitis').value = '2026-09-26'; formField(nodes, 'kanalId').value = '1'; await submitDialog(nodes);
+  assert.ok(calls.some(call => call.path === path));
+  const content = nodes.get('#modal-content').textContent;
+  assert.match(content, /Açılış.*1\.200,00.*Kapanış.*780,25/); assert.match(content, /Eski kart ay sonu düşümü \(kendiliğinden\) · kayıt/); assert.match(content, /Kanal kasası etkisi/);
+  assert.equal(cashControls.movementsPath(), '/api/kasa-hareketleri'); assert.equal(cashControls.movementsPath({ bitis: '2026-01-31' }), '/api/kasa-hareketleri?bitis=2026-01-31');
 });
 
 test('card fee uses a selected cut statement and server shares, then records only after visible confirmation', async () => {
