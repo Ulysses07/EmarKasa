@@ -7,7 +7,11 @@ namespace Kasa.Api.Tests;
 internal sealed class UyariToplayici : ILoggerProvider, ILogger
 {
     public System.Collections.Concurrent.ConcurrentQueue<string> Uyarilar { get; } = new();
-    public ILogger CreateLogger(string categoryName) => this;
+    // Veri koruma (Data Protection) anahtarı süreçte bir kez üretilip profil klasörüne yazılır; Linux'ta şifreleyici olmadığından
+    // "No XML encryptor configured" uyarısı yalnız anahtarı İLK üreten fabrikanın logunda çıkar. Hangi testin ilk olduğu koşu
+    // sırasına bağlı (Windows'ta DPAPI olduğu için hiç çıkmaz); uygulamanın kendi uyarısı olmadığından toplanmaz.
+    public ILogger CreateLogger(string categoryName) =>
+        categoryName.StartsWith("Microsoft.AspNetCore.DataProtection", StringComparison.Ordinal) ? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance : this;
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
