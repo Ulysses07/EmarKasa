@@ -63,6 +63,15 @@ test('form alanı ve ikincil düğme kenarlığı zeminine karşı en az 3:1', (
   for (const background of [hover.background, root['--cream'], root['--paper']]) atLeast(hover['border-color'], background, 3, 'üzerine gelinen ikincil düğme kenarlığı');
 });
 
+test('kırmızı ikincil (tehlike) düğme kenarlığı kendi zemini, sayfa ve kâğıt zemine karşı en az 3:1', () => {
+  // Düğmenin sınırı ikincil düğmelerdeki gibi kenarlıkla belli olur (1.4.11); metin ayrıca --danger ile 4,5:1 üstündedir.
+  // Kural .button:hover'dan sonra gelir: üzerine gelince de aynı kenarlık ve zemin kalır.
+  const danger = rule('.button.danger');
+  assert.equal(danger['border-color'], 'var(--danger-line)');
+  for (const background of [danger.background, root['--cream'], root['--paper'], rule('dialog').background]) atLeast(danger['border-color'], background, 3, 'tehlike düğmesi kenarlığı');
+  atLeast(danger.color, danger.background, 4.5, 'tehlike düğmesi metni');
+});
+
 test('odak halkası sayfa, kâğıt, kenar çubuğu ve açık yeşil zemine karşı en az 3:1', () => {
   const focus = rule('button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible');
   assert.equal(outlineColor(focus.outline), 'var(--focus)');
