@@ -44,7 +44,8 @@ const sirali = nesne => Object.fromEntries(Object.entries(nesne).sort(([a], [b])
 
 /** axe ihlalleri "kural | hedef seçici" dizeleri olarak taban dosyasıyla (axe-tabani.json) karşılaştırılır. Test yalnız
  * tabanda olmayan (YENİ) ihlalde kırılır. Düzelen ihlal uyarı olarak bildirilir; KASA_E2E_AXE_TABANI=kucult tabandan
- * çıkarır (taban yalnız küçülür). KASA_E2E_AXE_TABANI=olustur yalnız ilk kurulumda tabanı olduğu gibi yazar. */
+ * çıkarır (taban yalnız küçülür). KASA_E2E_AXE_TABANI=olustur yalnız tabanda kaydı OLMAYAN (yeni eklenen) ekranın tabanını
+ * yazar; kayıtlı ekranda reddedilir, yoksa bakım koşusu yeni ihlalleri sessizce tabana alabilirdi. */
 async function axeDenetle(page, testInfo, ad) {
   const sonuc = await new AxeBuilder({ page }).withTags(WCAG).analyze();
   const simdiki = [...new Set(sonuc.violations.flatMap(v => v.nodes.map(n => `${v.id} | ${n.target.map(t => [t].flat().join(' >>> ')).join(' >>> ')}`)))].sort();
@@ -54,6 +55,8 @@ async function axeDenetle(page, testInfo, ad) {
   const yeni = simdiki.filter(s => !kayitli.includes(s));
   const duzelen = kayitli.filter(s => !simdiki.includes(s));
   await testInfo.attach(`${ad}-axe.json`, { body: JSON.stringify(sonuc.violations, null, 2), contentType: 'application/json' });
+  if (tabanKipi === 'olustur' && taban[proje]?.[ad] !== undefined)
+    throw new Error(`${proje}/${ad}: axe tabanında kayıt var; KASA_E2E_AXE_TABANI=olustur yalnız yeni ekran içindir. Düzelen ihlaller için kucult kullanın.`);
   if (tabanKipi === 'olustur' || (tabanKipi === 'kucult' && duzelen.length)) {
     const yazilacak = tabanKipi === 'olustur' ? simdiki : kayitli.filter(s => simdiki.includes(s));
     taban[proje] = sirali({ ...(taban[proje] ?? {}), [ad]: yazilacak });
