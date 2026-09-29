@@ -43,9 +43,9 @@ export function createMonthlyUi(c) {
       h('p', { class: 'plan-note' }, 'Şablon ve plan kasa bakiyesini değiştirmez. Nakit veya havale gerçekten ödendiğinde “Ödeme kaydet” ile işleyin. Kartla ödemeyi mevcut gider veya kart ekranında kaydedin; burada ikinci kez ödeme girmeyin.'),
       h('div', { class: 'toolbar' }, monthInput.node, act('Ayı göster', () => render(generation, monthInput.value))),
       h('div', { class: 'summary-strip' }, summary('Planlanan', money(data.planlananToplam)), summary('Ödendi', money(data.odenenToplam)), summary('Kalan plan', money(data.planlananToplam - data.odenenToplam))),
-      section('Ayın giderleri', rows.length ? table(['Gider', 'Plan tarihi', 'Tutar', 'Hangi kasa', 'Durum', 'Ödeme tarihi', ''], rows) : help('Bu ay için aylık gider planı yok.')),
-      ...(cancelled.length ? [section('İptal edilen ödemeler', h('div', {}, help('İptal edilen ödeme kasaya yansımaz ve ay toplamlarına girmez; planı yukarıda yeniden ödeme bekler.'), table(['Gider', 'Ödeme tarihi', 'Tutar', 'İptal zamanı', 'İptal gerekçesi'], cancelled)))] : []),
-      section('Gider şablonları', h('div', {}, help('Değişiklik seçtiğiniz aydan itibaren uygulanır. Eski aylar ve kaydedilmiş ödemeler korunur. Pasif şablonun geçmişi silinmez.'), templateRows.length ? table(['Şablon', 'Tür', 'Tutar', 'Ödeme günü', 'Hangi kasa', 'Durum', 'Geçerli ay', ''], templateRows) : help('Kira, maaş, fatura veya diğer düzenli giderler için şablon ekleyebilirsiniz.')))
+      section('Ayın giderleri', rows.length ? table(['Gider', 'Plan tarihi', 'Tutar', 'Hangi kasa', 'Durum', 'Ödeme tarihi', ''], rows, 'Ayın giderleri') : help('Bu ay için aylık gider planı yok.')),
+      ...(cancelled.length ? [section('İptal edilen ödemeler', h('div', {}, help('İptal edilen ödeme kasaya yansımaz ve ay toplamlarına girmez; planı yukarıda yeniden ödeme bekler.'), table(['Gider', 'Ödeme tarihi', 'Tutar', 'İptal zamanı', 'İptal gerekçesi'], cancelled, 'İptal edilen ödemeler')))] : []),
+      section('Gider şablonları', h('div', {}, help('Değişiklik seçtiğiniz aydan itibaren uygulanır. Eski aylar ve kaydedilmiş ödemeler korunur. Pasif şablonun geçmişi silinmez.'), templateRows.length ? table(['Şablon', 'Tür', 'Tutar', 'Ödeme günü', 'Hangi kasa', 'Durum', 'Geçerli ay', ''], templateRows, 'Gider şablonları') : help('Kira, maaş, fatura veya diğer düzenli giderler için şablon ekleyebilirsiniz.')))
     );
   }
 
@@ -113,7 +113,7 @@ export function createMonthlyUi(c) {
     const locked = data.kilitliSonTarih && `${month}-01` <= data.kilitliSonTarih;
     const status = data.kilitliSonTarih ? `${dateText(data.kilitliSonTarih)} dahil geçmiş kasa kayıtları kilitli.` : 'Kilitli ay yok.';
     const action = canEdit() && (locked || month < today().slice(0, 7)) ? button(locked ? 'Bu ayı ve sonrasını aç' : 'Bu ay sonuna kadar kilitle', () => lockDialog(data, month, Boolean(locked), refreshReport, report), 'small') : null;
-    const history = h('details', {}, h('summary', {}, 'Kilit geçmişi'), data.gecmis.length ? table(['Zaman', 'Önceki sınır', 'Yeni sınır', 'Açıklama'], data.gecmis.map(row => [new Date(row.zaman).toLocaleString('tr-TR'), row.oncekiSonTarih ? dateText(row.oncekiSonTarih) : 'Yok', row.yeniSonTarih ? dateText(row.yeniSonTarih) : 'Yok', row.aciklama])) : help('Henüz kilit değişikliği yok.'));
+    const history = h('details', {}, h('summary', {}, 'Kilit geçmişi'), data.gecmis.length ? table(['Zaman', 'Önceki sınır', 'Yeni sınır', 'Açıklama'], data.gecmis.map(row => [new Date(row.zaman).toLocaleString('tr-TR'), row.oncekiSonTarih ? dateText(row.oncekiSonTarih) : 'Yok', row.yeniSonTarih ? dateText(row.yeniSonTarih) : 'Yok', row.aciklama]), 'Kilit geçmişi') : help('Henüz kilit değişikliği yok.'));
     return section('Ay kilidi', h('div', { class: 'stack' }, h('div', { class: 'notice' }, status), help(locked ? 'Bu aydaki mali kayıtları değiştirmek için önce kilidi açın.' : 'Yalnız tamamlanmış ay kilitlenebilir. Okumalar ve gelecek planlar çalışmaya devam eder.'), history), action);
   }
   function lockDialog(data, month, unlock, refreshReport, report = null) {

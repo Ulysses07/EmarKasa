@@ -55,7 +55,7 @@ test('history dialog loads the filtered page, renders reasons as text and pages 
   const denetim = ui.createDenetimUi({
     api, h, button: (label, action) => h('button', { onclick: action }, label), input: (name, value) => { const n = h('input', { name }); n.value = value; return n; },
     field: (label, control) => h('label', {}, label, control), select: (name, choices, value) => { const n = h('select', { name }); n.value = value; return n; },
-    help: text => h('p', {}, text), table: (headers, rows) => { const n = { tag: 'table', headers, rows }; created.push(n); return n; }, openModal: (title, content) => { opened = { title, content }; },
+    help: text => h('p', {}, text), table: (headers, rows, label) => { const n = { tag: 'table', headers, rows, label }; created.push(n); return n; }, openModal: (title, content) => { opened = { title, content }; },
     run: async (_control, work) => work(),
   });
   denetim.open({ varlik: 'TakipKartOdeme', varlikId: '15' });
@@ -67,6 +67,7 @@ test('history dialog loads the filtered page, renders reasons as text and pages 
   const tables = () => created.filter(n => n.tag === 'table');
   const rows = tables().at(-1).rows;
   assert.equal(rows.length, 50);
+  assert.equal(tables().at(-1).label, 'Değişiklik kayıtları'); // kaydırılabilir tablo bölgesinin adı
   assert.equal(rows[0][5], '<b>bankadan iade geldi</b>'); // metin olarak verilir; h() textContent ile yazar
   const more = created.find(n => n.tag === 'button' && n.children[0] === 'Daha eski kayıtlar');
   await more.props.onclick({ currentTarget: more });

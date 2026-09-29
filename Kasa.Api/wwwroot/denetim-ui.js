@@ -83,7 +83,7 @@ export function createDenetimUi(c) {
       const body = rows.length ? table(['Zaman', 'Yapan', 'İşlem', 'Kayıt', 'Değişiklik', 'Gerekçe'], rows.map(event => [
         new Date(event.zaman).toLocaleString('tr-TR'), actorText(event), TYPE_LABELS[event.tur] || event.tur, recordText(event),
         h('div', {}, ...changeLines(event).map(line => h('div', { class: 'table-sub' }, line))), event.gerekce || '—',
-      ])) : help('Bu süzgeçte kayıt yok.');
+      ]), 'Değişiklik kayıtları') : help('Bu süzgeçte kayıt yok.');
       results.replaceChildren(body, done ? help('Daha eski kayıt yok.') : more);
     };
     async function load(append) {

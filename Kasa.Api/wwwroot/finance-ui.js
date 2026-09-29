@@ -1,6 +1,9 @@
 export function createFinanceUi(c) {
   const { api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, amount, signedAmount, formDialog, closeModal, page, navigate, run, toast, summary, childValues, requestIdentity, confirmSimilar, canEdit, isCurrent, view } = c;
   const base = '/api/takip';
+  // Kart ve kredi kutusu bir düğmedir: içindeki büyük tutar kaymaz (düğme içine odaklanan kaydırma bölgesi konamaz), sığmazsa
+  // satır kayar. Bölünme yeri binlik ayırıcıdan sonradır (<wbr>): basamak grubu ikiye bölünüp yanlış okunmaz.
+  const cardAmount = value => h('span', { class: 'money' }, money(value).split(/(?<=\.)/).flatMap((part, index) => index ? [h('wbr'), part] : [part]));
   const activeChannels = channels => channels.filter(channel => channel.aktif);
   const shares = rows => h('div', { class: 'allocation-tags' }, (rows || []).map(row => h('span', { class: `allocation-tag${row.kanalId == null ? ' pending' : ''}` }, `${row.kanal || 'Dağılım bekliyor'}: ${money(row.tutar)}`)));
   const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
@@ -19,7 +22,7 @@ export function createFinanceUi(c) {
       read(total) {
         const used = new Set();
         const values = rows.map(row => { const id = Number(row.kanalId); if (!id || used.has(id)) throw new Error('Her kanalı bir kez seçin.'); used.add(id); return { kanalId: id, tutar: cents(row.tutar, { allowZero: false }) / 100 }; });
-        if (values.length && values.reduce((sum, row) => sum + cents(row.tutar), 0) !== Math.round(Math.abs(total) * 100)) throw new Error('Kanal paylarının toplamı tutara eşit olmalı.');
+        if (values.length > 0 && values.reduce((sum, row) => sum + cents(row.tutar), 0) !== Math.round(Math.abs(total) * 100)) throw new Error('Kanal paylarının toplamı tutara eşit olmalı.');
         return values;
       }
     };
@@ -39,7 +42,7 @@ export function createFinanceUi(c) {
     }
     page('Kredi Kartları', 'Harcama, ekstre ve kaydedilen ödemeler', canEdit() ? [act('+ Kart ekle', () => cardDialog(), 'primary')] : []);
     const cards = await api(`${base}/kartlar`); if (!isCurrent(generation)) return;
-    const list = cards.map(card => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('cards', card.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, card.ad), h('span', { class: 'badge' }, card.aktif ? 'Aktif' : 'Yeni kullanıma kapalı')), h('span', { class: 'summary-label' }, 'Uygulamadaki kart borcu'), moneyNode(card.borc), h('small', {}, `Ekstre borcu ${money(card.ekstreBorc)} · Limit ${money(card.limit)}`), !card.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor'), card.gecis?.tahminiKasaFarki ? h('span', { class: 'badge pending' }, 'Geçiş farkını doğrulayın') : null));
+    const list = cards.map(card => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('cards', card.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, card.ad), h('span', { class: 'badge' }, card.aktif ? 'Aktif' : 'Yeni kullanıma kapalı')), h('span', { class: 'summary-label' }, 'Uygulamadaki kart borcu'), cardAmount(card.borc), h('small', {}, `Ekstre borcu ${money(card.ekstreBorc)} · Limit ${money(card.limit)}`), !card.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor'), card.gecis?.tahminiKasaFarki ? h('span', { class: 'badge pending' }, 'Geçiş farkını doğrulayın') : null));
     view().replaceChildren(h('p', { class: 'plan-note' }, 'Kartın son ödeme günü kasayı değiştirmez. Yalnız kaydettiğiniz kart ödemesi, ödeme tarihinde genel kasa ve ilgili kanallardan düşer.'), cards.length ? h('div', { class: 'finance-grid' }, list) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kart eklenmedi'), help('Kart adı, limit ve ödeme günleriyle başlayın. Kart numarası veya banka şifresi istenmez.')));
   }
   function renderCard(card, transfer = null) {
@@ -65,8 +68,8 @@ export function createFinanceUi(c) {
       h('div', { class: 'summary-strip' }, summary(card.borc < 0 ? 'Kart alacak bakiyesi' : 'Kart borcu', money(Math.abs(card.borc))), summary('Ekstre borcu', money(card.ekstreBorc)), summary('Limit', money(card.limit))),
       card.kanalKartBorclari && section('Kanallara göre kalan kart borcu', h('div', {}, shares(card.kanalKartBorclari), help('Bu tutarlar kasa bakiyesine eklenmez veya kasadan düşülmez. Kasa yalnız ödeme kaydında değişir.'))),
       help(`Hesap kesim günü ${card.kesimGunu} · Son ödeme günü ${card.sonOdemeGunu}. Son ödeme tarihi geçse de ödeme kaydı olmadan kasa değişmez.`),
-      section('Ekstreler', statementRows.length ? table(['Kesim', 'Son ödeme', 'Borç', 'Ödenen', 'Kalan', 'Asgari', ''], statementRows) : help('Henüz ekstre yok.')),
-      section('Harcamalar ve iadeler', expenseRows.length ? table(['Tarih', 'Açıklama', 'Tutar', 'Plan', 'Kanallar', ''], expenseRows) : help('Henüz harcama yok.')),
+      section('Ekstreler', statementRows.length ? table(['Kesim', 'Son ödeme', 'Borç', 'Ödenen', 'Kalan', 'Asgari', ''], statementRows, 'Ekstreler') : help('Henüz ekstre yok.')),
+      section('Harcamalar ve iadeler', expenseRows.length ? table(['Tarih', 'Açıklama', 'Tutar', 'Plan', 'Kanallar', ''], expenseRows, 'Harcamalar ve iadeler') : help('Henüz harcama yok.')),
       section('Kaydedilen kart ödemeleri', payments.length ? h('div', {}, payments) : help('Henüz ödeme kaydedilmedi.')),
       card.gecis && section('Eski karttan geçiş', transitionRecord(card.gecis)),
       transfer && section('Eski borç devri', transferRecord(card, transfer, editable)),
@@ -241,7 +244,7 @@ export function createFinanceUi(c) {
     if (id) { const loan = await api(`${base}/krediler/${id}`); if (isCurrent(generation)) renderLoan(loan); return; }
     page('Krediler', 'Çekim ve otomatik taksit planları', canEdit() ? [act('+ Kredi ekle', () => loanDialog(), 'primary')] : []);
     const loans = await api(`${base}/krediler`); if (!isCurrent(generation)) return;
-    view().replaceChildren(help('Taksitler kendi tarihlerinde genel kasadan ve seçili kanal kasalarından otomatik düşer. Bu, bankadan ödeme doğrulaması değildir.'), loans.length ? h('div', { class: 'finance-grid' }, loans.map(loan => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('loans', loan.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, loan.ad), h('span', { class: 'badge' }, loan.aktif ? 'Aktif' : 'Arşivde')), h('span', { class: 'summary-label' }, 'Kalan planlı ödeme'), moneyNode(loan.kalanPlanliOdeme), h('small', {}, `Çekilen ${money(loan.cekilenTutar)} · ${dateText(loan.cekimTarihi)}`), !loan.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor')))) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kredi eklenmedi'), help('Yeni çekilen veya önceden çekilmiş bir krediyi ayrı seçeneklerle kaydedebilirsiniz.')));
+    view().replaceChildren(help('Taksitler kendi tarihlerinde genel kasadan ve seçili kanal kasalarından otomatik düşer. Bu, bankadan ödeme doğrulaması değildir.'), loans.length ? h('div', { class: 'finance-grid' }, loans.map(loan => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('loans', loan.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, loan.ad), h('span', { class: 'badge' }, loan.aktif ? 'Aktif' : 'Arşivde')), h('span', { class: 'summary-label' }, 'Kalan planlı ödeme'), cardAmount(loan.kalanPlanliOdeme), h('small', {}, `Çekilen ${money(loan.cekilenTutar)} · ${dateText(loan.cekimTarihi)}`), !loan.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor')))) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kredi eklenmedi'), help('Yeni çekilen veya önceden çekilmiş bir krediyi ayrı seçeneklerle kaydedebilirsiniz.')));
   }
   function renderLoan(loan) {
     const editable = canEdit() && loan.yeniTakip;
@@ -249,7 +252,7 @@ export function createFinanceUi(c) {
     page(loan.ad, 'Kredi takibi', actions);
     const statuses = { Bekliyor: 'Bekliyor', KasayaIslendi: 'Kasaya işlendi', Iptal: 'Plan değişikliğiyle iptal' };
     const rows = loan.taksitler.map(row => [String(row.no), dateText(row.tarih), moneyNode(row.tutar), h('span', {}, statuses[row.durum] || row.durum, row.not && h('small', { class: 'table-sub' }, row.not)), shares(row.dagilimlar), editable && row.durum !== 'Iptal' ? button(row.durum === 'KasayaIslendi' ? 'Not ekle' : 'Planı düzenle', () => installmentDialog(loan, row), 'small') : '']);
-    view().replaceChildren(...childValues([button('← Kredilere dön', () => navigate('loans'), 'back-link'), !loan.yeniTakip && h('div', { class: 'notice' }, 'Bu kredi eski planı kullanıyor. Geçiş önizlemesi, ileri taksitlerin kanal paylarını gösterir; eski çekim yeniden gelir yazılmaz.'), h('div', { class: 'summary-strip' }, summary('Çekilen tutar', money(loan.cekilenTutar), dateText(loan.cekimTarihi)), summary('Kalan planlı ödeme', money(loan.kalanPlanliOdeme)), summary('Bekleyen taksit', String(loan.taksitler.filter(row => row.durum === 'Bekliyor').length))), section('Krediyi kullanan kanallar', shares(loan.kanalPaylari)), help('Kalan planlı ödeme, bankadaki kalan anapara değildir. Taksit gününde kasaya otomatik işlenmesi banka ödemesinin doğrulandığı anlamına gelmez.'), section('Taksit planı', rows.length ? table(['No', 'Tarih', 'Tutar', 'Durum', 'Kanallar', ''], rows) : help('Kayıtlı taksit yok.')), editable && button(loan.aktif ? 'Krediyi arşivle' : 'Arşivden çıkar', () => stateDialog(loan, 'loans'), 'small')]));
+    view().replaceChildren(...childValues([button('← Kredilere dön', () => navigate('loans'), 'back-link'), !loan.yeniTakip && h('div', { class: 'notice' }, 'Bu kredi eski planı kullanıyor. Geçiş önizlemesi, ileri taksitlerin kanal paylarını gösterir; eski çekim yeniden gelir yazılmaz.'), h('div', { class: 'summary-strip' }, summary('Çekilen tutar', money(loan.cekilenTutar), dateText(loan.cekimTarihi)), summary('Kalan planlı ödeme', money(loan.kalanPlanliOdeme)), summary('Bekleyen taksit', String(loan.taksitler.filter(row => row.durum === 'Bekliyor').length))), section('Krediyi kullanan kanallar', shares(loan.kanalPaylari)), help('Kalan planlı ödeme, bankadaki kalan anapara değildir. Taksit gününde kasaya otomatik işlenmesi banka ödemesinin doğrulandığı anlamına gelmez.'), section('Taksit planı', rows.length ? table(['No', 'Tarih', 'Tutar', 'Durum', 'Kanallar', ''], rows, 'Taksit planı') : help('Kayıtlı taksit yok.')), editable && button(loan.aktif ? 'Krediyi arşivle' : 'Arşivden çıkar', () => stateDialog(loan, 'loans'), 'small')]));
   }
   async function loanDialog() {
     const channels = await api('/api/kanallar'); const selection = channelSelection(channels); const identity = requestIdentity();
@@ -285,7 +288,7 @@ export function createFinanceUi(c) {
   function overview(data, days, changeDays) {
     const range = select('gun', [{ value: 7, label: '7 gün' }, { value: 30, label: '30 gün' }], days, { 'aria-label': 'Yaklaşan ödeme aralığı', onchange: event => changeDays(Number(event.target.value)) });
     const rows = data.olaylar.map(event => [h('span', {}, dateText(event.tarih), event.kaynak === 'Kart' && event.tur === 'SonOdeme' && event.tutar > 0 && event.tarih < (data.tarih || today()) && h('span', { class: 'badge pending' }, 'Gecikti')), button(event.ad, () => navigate(event.kaynak === 'Kart' ? 'cards' : 'loans', event.kaynakId), 'table-link'), event.tur === 'Kesim' ? 'Hesap kesimi' : event.tur === 'SonOdeme' ? 'Son ödeme' : 'Kredi taksidi', moneyNode(event.tutar), event.otomatikKasa ? 'Taksit tarihinde otomatik düşer' : event.tur === 'Kesim' ? 'Banka ekstresi doğrulaması değildir' : 'Ödeme kaydedilince düşer']);
-    return section('Yaklaşan ve geciken ödemeler', h('div', {}, h('div', { class: 'summary-strip' }, summary('Toplam kart borcu', money(data.kartBorcu)), data.kartAlacakBakiyesi > 0 && summary('Kart alacak bakiyesi', money(data.kartAlacakBakiyesi), 'Diğer kartların borcundan düşülmez.'), summary('Kalan kredi planı', money(data.kalanKrediPlani))), rows.length ? table(['Tarih', 'Kart / kredi', 'Olay', 'Tutar', 'Kasa etkisi'], rows) : help('Bu aralıkta kayıtlı ödeme yok.')), range);
+    return section('Yaklaşan ve geciken ödemeler', h('div', {}, h('div', { class: 'summary-strip' }, summary('Toplam kart borcu', money(data.kartBorcu)), data.kartAlacakBakiyesi > 0 && summary('Kart alacak bakiyesi', money(data.kartAlacakBakiyesi), 'Diğer kartların borcundan düşülmez.'), summary('Kalan kredi planı', money(data.kalanKrediPlani))), rows.length ? table(['Tarih', 'Kart / kredi', 'Olay', 'Tutar', 'Kasa etkisi'], rows, 'Yaklaşan ve geciken ödemeler') : help('Bu aralıkta kayıtlı ödeme yok.')), range);
   }
   // Takipte olmayan (geçişi yapılmamış) kart ve krediler (ana sayfa özetinin takipsizKayitlar alanı): hatırlatmaları eski
   // kayıtlardan hesaplanır ve sınırlıdır. Kayıt kaldıkça ana sayfada kalıcı uyarı; her kayıt kendi ekranını açar. Yoksa null.

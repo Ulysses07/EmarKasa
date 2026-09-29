@@ -52,7 +52,7 @@ export function createCashControlsUi(c) {
   const { api, h, button, input, field, select, help, section, table, money, moneyNode, signedAmountField, amount, formDialog, openModal, closeModal, run, toast, summary, requestIdentity, canEdit, isOpen, navigate, dateText, today } = c;
   const editor = () => { if (!canEdit()) throw new Error('Bu işlem için editör hesabı gerekir.'); };
   function thresholdSettings(rows) {
-    return section('Kanal alt bakiye uyarıları', h('div', { class: 'stack' }, help('İstediğiniz kanal için uyarıyı açıp alt sınır belirleyin. Uyarı bakiyeyi değiştirmez; kart borcu bu sınırdan düşülmez.'), rows.length ? table(['Kanal', 'Kasa bakiyesi', 'Alt sınır', 'Durum', ''], rows.map(row => [row.kanal, moneyNode(row.bakiye), row.etkin ? moneyNode(row.tutar) : 'Kapalı', row.etkin && row.esikAltinda ? h('span', { class: 'badge pending' }, 'Alt sınırın altında') : row.etkin ? 'Sınırın üzerinde veya eşit' : 'Uyarı kapalı', canEdit() ? button('Uyarıyı düzenle', () => thresholdDialog(row), 'small') : ''])) : help('Henüz kanal yok.')));
+    return section('Kanal alt bakiye uyarıları', h('div', { class: 'stack' }, help('İstediğiniz kanal için uyarıyı açıp alt sınır belirleyin. Uyarı bakiyeyi değiştirmez; kart borcu bu sınırdan düşülmez.'), rows.length ? table(['Kanal', 'Kasa bakiyesi', 'Alt sınır', 'Durum', ''], rows.map(row => [row.kanal, moneyNode(row.bakiye), row.etkin ? moneyNode(row.tutar) : 'Kapalı', row.etkin && row.esikAltinda ? h('span', { class: 'badge pending' }, 'Alt sınırın altında') : row.etkin ? 'Sınırın üzerinde veya eşit' : 'Uyarı kapalı', canEdit() ? button('Uyarıyı düzenle', () => thresholdDialog(row), 'small') : '']), 'Kanal alt bakiye uyarıları') : help('Henüz kanal yok.')));
   }
   function thresholdDialog(row) {
     editor(); const enabled = input('etkin', '1', { type: 'checkbox', checked: row.etkin }); const total = input('tutar', row.tutar, { inputmode: 'decimal', required: true });
@@ -68,10 +68,10 @@ export function createCashControlsUi(c) {
     return section('Gerçek bakiye karşılaştırmaları', h('div', { class: 'stack' },
       help('Kayıt anındaki genel kasa ile sizin bildirdiğiniz gerçek bakiye karşılaştırılır. Fark otomatik gelir veya gider yazılmaz. Kayıt gününe ya da öncesine sonradan girilen, silinen veya düzeltilen kayıtlar güncel durumu değiştirir; kayıtlı değerler değişmez.'),
       rows.length ? table(['Kayıt zamanı', 'Kayıtlı genel kasa', 'Gerçek bakiye', 'Gerçek − kayıtlı', 'Güncel durum', 'Not', ''], rows.map(row => [new Date(row.kaydedildi).toLocaleString('tr-TR'), moneyNode(row.sistemBakiye), moneyNode(row.gercekBakiye), moneyNode(row.fark),
-        row.sonradanDegisti ? h('span', { class: 'badge pending' }, controlStatus(row, money)) : controlStatus(row, money), note(row), actions(row)])) : help('Henüz bakiye karşılaştırması kaydedilmedi.'),
+        row.sonradanDegisti ? h('span', { class: 'badge pending' }, controlStatus(row, money)) : controlStatus(row, money), note(row), actions(row)]), 'Gerçek bakiye karşılaştırmaları') : help('Henüz bakiye karşılaştırması kaydedilmedi.'),
       h('div', { class: 'row-actions' }, canEdit() && button('Gerçek bakiye ile karşılaştır', comparisonDialog, 'small'), button('Kasa hareket dökümü', () => run(null, movementsDialog), 'small'))));
   }
-  const channelTable = channels => channels?.length ? table(['Kanal', 'Kanal kasası'], channels.map(k => [k.kanal, moneyNode(k.bakiye)])) : null;
+  const channelTable = channels => channels?.length ? table(['Kanal', 'Kanal kasası'], channels.map(k => [k.kanal, moneyNode(k.bakiye)]), 'Kanal kasaları') : null;
   function comparisonDialog() {
     editor(); const identity = requestIdentity(); const total = signedAmountField('gercekBakiye', '', 'Kontrol ettiğiniz gerçek bakiye (₺)'); const note = input('not', '', { maxlength: 2000 });
     formDialog('Genel kasa bakiyesini karşılaştır', h('div', { class: 'stack' }, total.node, field('Açıklama', note), help('Şu an kontrol ettiğiniz tutarı girin. Önce farkı göreceksiniz; fark varsa açıklama zorunludur. Bu işlem geçmiş tarihli kayıt veya otomatik düzeltme oluşturmaz.')), 'Farkı göster', async form => {
@@ -108,8 +108,8 @@ export function createCashControlsUi(c) {
     });
   }
   const movementType = m => `${MOVEMENT_LABELS[m.tur] || m.tur}${m.otomatik ? ' (kendiliğinden)' : ''}${m.etkiTarihi !== m.kayitTarihi ? ` · kayıt ${dateText(m.kayitTarihi)}` : ''}`;
-  const movementTable = (rows, effect = m => m.genelKasaEtkisi, label = 'Genel kasa etkisi') => table(['Etki tarihi', 'Tür', 'Açıklama', 'Kanal', label],
-    rows.map(m => [dateText(m.etkiTarihi), movementType(m), m.aciklama, m.kanal, moneyNode(effect(m), effect(m) < 0 ? 'negative' : '')]));
+  const movementTable = (rows, name, effect = m => m.genelKasaEtkisi, label = 'Genel kasa etkisi') => table(['Etki tarihi', 'Tür', 'Açıklama', 'Kanal', label],
+    rows.map(m => [dateText(m.etkiTarihi), movementType(m), m.aciklama, m.kanal, moneyNode(effect(m), effect(m) < 0 ? 'negative' : '')]), name);
   // "Bu kontrolden beri değişenler" (gap-denetim-izi-gozlemlenebilirlik-3): denetim olayları, mali istekler ve kontrol gününden bugüne hareketler.
   async function sinceDialog(row) {
     editor(); const data = await api(`/api/kasa-kontrol/${row.id}/sonrasi`);
@@ -120,10 +120,10 @@ export function createCashControlsUi(c) {
         summary('Bugünkü genel kasa', money(data.bugunkuSistemBakiye), `Kontrol gününden sonra ${money(data.bugunkuSistemBakiye - data.guncelSistemBakiye)}`)),
       !data.filigranVar && h('div', { class: 'notice', role: 'status' }, 'Eski kayıt, filigran yok: değişiklikler kayıt anından sonraki zamana göre listelenir; mali istek sırası bilinmez.'),
       data.kirpildi && h('div', { class: 'notice', role: 'status' }, 'Listeler en eski 500 öğeyle kırpıldı; ayrıntı için değişiklik geçmişini kullanın.'),
-      section('Kontrolden sonra yapılan değişiklikler', data.degisiklikler.length ? table(['Zaman', 'İşlem', 'Kayıt', 'Ayrıntı'], data.degisiklikler.map(e => [new Date(e.zaman).toLocaleString('tr-TR'), changeType(e), changeRecord(e), changeDetail(e)])) : help('Kontrolden sonra kasayı etkileyen değişiklik yok.')),
+      section('Kontrolden sonra yapılan değişiklikler', data.degisiklikler.length ? table(['Zaman', 'İşlem', 'Kayıt', 'Ayrıntı'], data.degisiklikler.map(e => [new Date(e.zaman).toLocaleString('tr-TR'), changeType(e), changeRecord(e), changeDetail(e)]), 'Kontrolden sonra yapılan değişiklikler') : help('Kontrolden sonra kasayı etkileyen değişiklik yok.')),
       data.istekler.length > 0 && help(`Mali istekler: ${data.istekler.map(r => `${r.tur} #${r.sonucId}`).join(', ')}`),
-      before.length > 0 && section('Kontrol gününe ya da öncesine sonradan girilen giderler', movementTable(before)),
-      section('Kontrol gününden bugüne kasaya işleyen hareketler', after.length ? movementTable(after) : help('Kontrol gününden sonra kasaya işleyen hareket yok.'))), true);
+      before.length > 0 && section('Kontrol gününe ya da öncesine sonradan girilen giderler', movementTable(before, 'Kontrol gününe ya da öncesine sonradan girilen giderler')),
+      section('Kontrol gününden bugüne kasaya işleyen hareketler', after.length ? movementTable(after, 'Kontrol gününden bugüne kasaya işleyen hareketler') : help('Kontrol gününden sonra kasaya işleyen hareket yok.'))), true);
   }
   // Kasa hareket dökümü: genel kasayı ya da seçilen kanalın kasasını oluşturan bütün hareketler kaynağıyla (en çok 366 gün, bitiş en geç bugün).
   async function movementsDialog() {
@@ -137,7 +137,7 @@ export function createCashControlsUi(c) {
       const data = await api(movementsPath({ baslangic: from.value, bitis: to.value, kanalId: channel.value }));
       const kanal = data.kanalId != null;
       results.replaceChildren(h('div', { class: 'summary-strip' }, summary('Açılış', money(data.acilisBakiyesi), dateText(data.baslangic)), summary('Kapanış', money(data.kapanisBakiyesi), dateText(data.bitis)), summary('Hareket sayısı', String(data.hareketler.length))),
-        data.hareketler.length ? movementTable(data.hareketler, kanal ? m => m.kanalEtkisi : m => m.genelKasaEtkisi, kanal ? 'Kanal kasası etkisi' : 'Genel kasa etkisi') : help('Bu aralıkta hareket yok.'));
+        data.hareketler.length ? movementTable(data.hareketler, 'Kasa hareketleri', kanal ? m => m.kanalEtkisi : m => m.genelKasaEtkisi, kanal ? 'Kanal kasası etkisi' : 'Genel kasa etkisi') : help('Bu aralıkta hareket yok.'));
     }, { wide: true });
   }
   return { thresholdSettings, thresholdDialog, history, comparisonDialog, explainDialog, sinceDialog, movementsDialog };
