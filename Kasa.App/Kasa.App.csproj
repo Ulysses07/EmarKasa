@@ -48,18 +48,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<!-- Uygulama ikonu: web/PWA ikonuyla (Kasa.Api/wwwroot/icon.svg) aynı marka işareti. Arka plan (Include) marka
+		     yeşili, ön plan (ForegroundFile) krem "K"; Color arka planı aynı yeşille doldurur (iOS/Mac'te saydam ikon kabul edilmez). -->
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#194D3C" />
 
-		<!-- Splash Screen -->
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
-
-		<!-- Images -->
-		<MauiImage Include="Resources\Images\*" />
-		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
-
-		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
-		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+		<!-- Açılış ekranı (Android/iOS'ta gösterilir): marka yeşili zeminde krem "K". -->
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#194D3C" BaseSize="128,128" />
 	</ItemGroup>
 
 	<ItemGroup>

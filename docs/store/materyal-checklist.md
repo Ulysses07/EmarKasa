@@ -12,8 +12,9 @@ Hazır olanları `[x]` ile işaretle; placeholder değerler `<...>` ile belirtil
 | App Store (iOS) | **1024 × 1024 px** | PNG, alfa katmanı YOK | [ ] |
 | Google Play (Android) | **512 × 512 px** | PNG (32-bit) | [ ] |
 
-> Kaynak dosya: `Kasa.App/Resources/AppIcon/appicon.svg` — vektör olduğu için her iki boyuta ihraç edilebilir.
-> Arka plan rengi: `#512BD4` (csproj'da tanımlı). Mağaza ikonunun markayla uyumlu olup olmadığını onaylayın.
+> Kaynak dosyalar: `Kasa.App/Resources/AppIcon/appicon.svg` (arka plan) + `appiconfg.svg` (ön plan "K") — web/PWA ikonuyla
+> (`Kasa.Api/wwwroot/icon.svg`) aynı marka işareti; vektör olduğu için her iki boyuta ihraç edilebilir.
+> Arka plan rengi: `#194D3C` (marka yeşili, csproj'da `MauiIcon Color`). App Store için alfa katmanı olmadan ihraç edin.
 
 ---
 
