@@ -29,12 +29,36 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          # Depoda package.json yok; v5'ten beri gelen otomatik paket yöneticisi önbelleği açıkça kapalı.
+          # Bu iş paket kurmaz (kökte package.json yok); v5'ten beri gelen otomatik paket yöneticisi önbelleği açıkça kapalı.
           package-manager-cache: false
           node-version: '24'
       - run: node --test Kasa.Api.Ui.Tests/*.test.mjs
       - run: node --input-type=module --check < Kasa.Api/wwwroot/app.js
       - run: node --input-type=module --check < Kasa.Api/wwwroot/m/app.js
+
+  # wwwroot ESLint (Aşama 2a): yalnız hata yakalayan kurallar (tanımsız ad, yinelenen anahtar/dal, sabite atama, NaN
+  # karşılaştırması...); biçim kuralı yok. Araç wwwroot dışında Kasa.Ui.E2E'nin kilit dosyasıyla kurulur (tam sürüm);
+  # wwwroot'a paket, derleme adımı ya da node_modules girmez.
+  web-lint:
+    name: Web lint (ESLint)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: Kasa.Ui.E2E/package-lock.json
+      - name: Install pinned lint tools
+        working-directory: Kasa.Ui.E2E
+        run: npm ci --no-audit --no-fund
+      - name: Lint wwwroot JavaScript
+        working-directory: Kasa.Ui.E2E
+        run: npm run lint:web
 
   tests:
     name: Test ${{ matrix.project }}
