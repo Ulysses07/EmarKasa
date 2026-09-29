@@ -40,7 +40,7 @@ export async function denetle(page, testInfo, ad, { kok = page.locator('body') }
 }
 
 const oku = () => JSON.parse(readFileSync(TABAN, 'utf8'));
-const siralı = nesne => Object.fromEntries(Object.entries(nesne).sort(([a], [b]) => a.localeCompare(b)));
+const sirali = nesne => Object.fromEntries(Object.entries(nesne).sort(([a], [b]) => a.localeCompare(b)));
 
 /** axe ihlalleri "kural | hedef seçici" dizeleri olarak taban dosyasıyla (axe-tabani.json) karşılaştırılır. Test yalnız
  * tabanda olmayan (YENİ) ihlalde kırılır. Düzelen ihlal uyarı olarak bildirilir; KASA_E2E_AXE_TABANI=kucult tabandan
@@ -56,11 +56,13 @@ async function axeDenetle(page, testInfo, ad) {
   await testInfo.attach(`${ad}-axe.json`, { body: JSON.stringify(sonuc.violations, null, 2), contentType: 'application/json' });
   if (tabanKipi === 'olustur' || (tabanKipi === 'kucult' && duzelen.length)) {
     const yazilacak = tabanKipi === 'olustur' ? simdiki : kayitli.filter(s => simdiki.includes(s));
-    taban[proje] = siralı({ ...(taban[proje] ?? {}), [ad]: yazilacak });
-    writeFileSync(TABAN, JSON.stringify(siralı(taban), null, 2) + '\n');
+    taban[proje] = sirali({ ...(taban[proje] ?? {}), [ad]: yazilacak });
+    writeFileSync(TABAN, JSON.stringify(sirali(taban), null, 2) + '\n');
     if (tabanKipi === 'olustur') return;
   } else if (duzelen.length) {
-    testInfo.annotations.push({ type: 'axe-tabani', description: `${ad}: düzelen ihlaller tabandan çıkarılmalı (KASA_E2E_AXE_TABANI=kucult):\n${duzelen.join('\n')}` });
+    const uyari = `${proje}/${ad}: düzelen axe ihlalleri tabandan çıkarılmalı (KASA_E2E_AXE_TABANI=kucult):\n  ${duzelen.join('\n  ')}`;
+    testInfo.annotations.push({ type: 'axe-tabani', description: uyari });
+    console.warn(uyari);
   }
   const ayrinti = sonuc.violations.filter(v => yeni.some(y => y.startsWith(`${v.id} | `)))
     .map(v => `${v.id} (${v.impact}): ${v.help}\n  ${v.helpUrl}`).join('\n');
