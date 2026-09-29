@@ -26,7 +26,8 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K1_baslangic_oncesi_mevcut_giderler_aynen_kalir_aylik_ve_haftalik_raporda_uyariyla_isaretlenir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
+        await using var f = Fabrika();
+        using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
         // Başlangıç öncesi tarihli yeni gider kabul edilmez; canlıdaki eski kayıtlar doğrudan veritabanında.
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 5, 20), "Geç girilen", 10m, "MEZAT", GiderTipi.Cari))).StatusCode);
         using (var scope = f.Services.CreateScope())
@@ -62,7 +63,8 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K1_uyarisi_kaynak_kayitlari_sayar_bolunmus_gider_ve_eski_kredi_taksitleri_bir_kez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
+        await using var f = Fabrika();
+        using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
         var sablon = await Create(c, "Esit", [new(1, 0), new(2, 0), new(3, 0)]); // 100 TL, üç kanala 33,34 / 33,33 / 33,33
         var odeme = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
         using (var scope = f.Services.CreateScope())
@@ -87,7 +89,8 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K2_takipli_ve_eski_kredi_girisi_aylik_raporda_ayri_alanda_kasa_ve_haftalik_degismez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f); // kasa açılışı 1.000
+        await using var f = Fabrika();
+        using var c = await Editor(f); // kasa açılışı 1.000
         await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "İşletme kredisi", 120_000m, new(2026, 9, 10), new(2026, 10, 10), 12, 11_000m, [1]));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Month, "MEZAT", 80_000m))).EnsureSuccessStatusCode();
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(new(2026, 9, 15), "Tedarik", 100_000m, "MEZAT", GiderTipi.Cari));
@@ -131,7 +134,8 @@ public class RaporKuraliKararlariTests
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var eski = new KrediKartiEntity { Ad = "Eski kart", KesimTarihi = new(2026, 1, 10), SonOdemeTarihi = new(2026, 1, 20), Limit = 5_000m };
         var diger = new KrediKartiEntity { Ad = "Diğer eski kart", KesimTarihi = new(2026, 1, 12), SonOdemeTarihi = new(2026, 1, 22), Limit = 5_000m };
-        db.KrediKartlari.AddRange(eski, diger); db.SaveChanges();
+        db.KrediKartlari.AddRange(eski, diger);
+        db.SaveChanges();
         return (takipli.Id, eski.Id, diger.Id);
     }
 
@@ -152,7 +156,8 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K3_yeni_kredi_karti_gideri_ve_kartli_alis_odemesi_takipteki_karta_baglanmak_zorundadir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var (takipli, eski, _) = await Kartlar(f, c);
         var gun = new DateOnly(2026, 9, 20);
 
@@ -180,7 +185,8 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K3_mevcut_kartsiz_ve_eski_kartli_kayitlar_aynen_kalir_tutar_ve_not_guncellenebilir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var (_, eski, diger) = await Kartlar(f, c);
         int kartsiz, eskiKartli, nakit;
         using (var scope = f.Services.CreateScope())
@@ -189,7 +195,8 @@ public class RaporKuraliKararlariTests
             var a = new IslemEntity { Tarih = new(2026, 8, 5), Cari = "Kartsız eski", TutarTl = 100m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti };
             var b = new IslemEntity { Tarih = new(2026, 8, 6), Cari = "Eski kartlı", TutarTl = 200m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti, KrediKartiId = eski };
             var n = new IslemEntity { Tarih = new(2026, 8, 7), Cari = "Nakit", TutarTl = 300m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
-            db.Islemler.AddRange(a, b, n); db.SaveChanges();
+            db.Islemler.AddRange(a, b, n);
+            db.SaveChanges();
             (kartsiz, eskiKartli, nakit) = (a.Id, b.Id, n.Id);
         }
         // Tutar, not ve tarih düzeltmesi: kart ve tip aynı kaldıkça kabul edilir.
@@ -210,7 +217,9 @@ public class RaporKuraliKararlariTests
 
         using var kontrol = f.Services.CreateScope();
         var son = kontrol.ServiceProvider.GetRequiredService<KasaDbContext>();
-        var k = son.Islemler.Single(i => i.Id == kartsiz); var e = son.Islemler.Single(i => i.Id == eskiKartli); var n2 = son.Islemler.Single(i => i.Id == nakit);
+        var k = son.Islemler.Single(i => i.Id == kartsiz);
+        var e = son.Islemler.Single(i => i.Id == eskiKartli);
+        var n2 = son.Islemler.Single(i => i.Id == nakit);
         Assert.Equal((GiderTipi.KrediKarti, (int?)null, 110m, "Dekont"), (k.Tip, k.KrediKartiId, k.TutarTl, k.Not));
         Assert.Equal((GiderTipi.KrediKarti, (int?)eski, 240m), (e.Tip, e.KrediKartiId, e.TutarTl));
         Assert.Equal((GiderTipi.Cari, (int?)null, 300m), (n2.Tip, n2.KrediKartiId, n2.TutarTl));

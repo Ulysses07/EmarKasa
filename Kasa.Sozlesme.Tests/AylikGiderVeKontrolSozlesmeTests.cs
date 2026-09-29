@@ -18,25 +18,31 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
         var buAy = new DateOnly(Bugun.Year, Bugun.Month, 1);
         var sablon = await o.AylikGider.AylikGiderSablonKaydetAsync(null, new AylikGiderSablonYaz(Yeni(), 0, "Kira", "Kira", 5000m, 5, "Ozel", [new(1, 3000m), new(2, 2000m)], buAy));
         sablon = await o.AylikGider.AylikGiderSablonKaydetAsync(sablon.Id, new AylikGiderSablonYaz(Yeni(), sablon.Surum, "Kira", "Kira", 5500.5m, 5, "Ozel", [new(1, 3300.5m), new(2, 2200m)], buAy));
-        Assert.Equal((2, 5500.5m, buAy), (sablon.Surum, sablon.Tutar, sablon.GecerliAy)); Assert.Equal(5500.5m, sablon.Dagilimlar.Sum(p => p.Tutar));
+        Assert.Equal((2, 5500.5m, buAy), (sablon.Surum, sablon.Tutar, sablon.GecerliAy));
+        Assert.Equal(5500.5m, sablon.Dagilimlar.Sum(p => p.Tutar));
         Assert.Equal(sablon.Id, Assert.Single(await o.AylikGider.AylikGiderSablonlariAsync()).Id);
 
         var ay = await o.AylikGider.AylikGiderlerAsync(Bugun.Year, Bugun.Month);
         var satir = Assert.Single(ay.Kayitlar);
         Assert.Equal(("Planlandi", new DateOnly(Bugun.Year, Bugun.Month, 5), 5500.5m), (satir.Durum, satir.PlanlananTarih, ay.PlanlananToplam));
         var odenen = await o.AylikGider.AylikGiderOdeAsync(sablon.Id, new AylikGiderOdemeYaz(Yeni(), satir.SablonSurum, Bugun.Year, Bugun.Month, Bugun, "Havale"));
-        Assert.Equal(("Odendi", Bugun), (odenen.Durum, odenen.OdemeTarihi)); Assert.NotNull(odenen.IslemId);
+        Assert.Equal(("Odendi", Bugun), (odenen.Durum, odenen.OdemeTarihi));
+        Assert.NotNull(odenen.IslemId);
         Assert.Equal(5500.5m, (await o.AylikGider.AylikGiderlerAsync(Bugun.Year, Bugun.Month)).OdenenToplam);
         var iptal = await o.AylikGider.AylikGiderIptalAsync(odenen.OdemeId!.Value, new AylikGiderIptalYaz(Yeni(), "Yanlış hesap"));
-        Assert.Equal("Iptal", iptal.Durum); Assert.Null(iptal.IslemId);
+        Assert.Equal("Iptal", iptal.Durum);
+        Assert.Null(iptal.IslemId);
 
         var kilit = await o.AylikGider.AyKilidiAsync();
-        Assert.Null(kilit.KilitliSonTarih); Assert.Empty(kilit.Gecmis);
+        Assert.Null(kilit.KilitliSonTarih);
+        Assert.Empty(kilit.Gecmis);
         kilit = await o.AylikGider.AyKilidiDegistirAsync(true, new AyKilidiYaz(Yeni(), kilit.Surum, Baslangic.Year, Baslangic.Month, "Ocak tamamlandı"));
         Assert.Equal(Baslangic.AddMonths(1).AddDays(-1), kilit.KilitliSonTarih);
-        var olay = Assert.Single(kilit.Gecmis); Assert.Equal(("Ocak tamamlandı", (DateOnly?)null), (olay.Aciklama, olay.OncekiSonTarih));
+        var olay = Assert.Single(kilit.Gecmis);
+        Assert.Equal(("Ocak tamamlandı", (DateOnly?)null), (olay.Aciklama, olay.OncekiSonTarih));
         kilit = await o.AylikGider.AyKilidiDegistirAsync(false, new AyKilidiYaz(Yeni(), kilit.Surum, Baslangic.Year, Baslangic.Month, "Düzeltme için açıldı"));
-        Assert.Null(kilit.KilitliSonTarih); Assert.Equal(2, kilit.Gecmis.Count);
+        Assert.Null(kilit.KilitliSonTarih);
+        Assert.Equal(2, kilit.Gecmis.Count);
     }
 
     /// <summary>Benzer kayıt (BNZ): masaüstü BenzerOnay alanını göndermez (izin listesinde gerekçesiyle). Aynı tutarda
@@ -59,11 +65,13 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
 
         var uyari = await Assert.ThrowsAsync<KasaApiException>(() => o.AylikGider.AylikGiderOdeAsync(sablon.Id, istek));
         Assert.Equal(HttpStatusCode.Conflict, uyari.DurumKodu);
-        Assert.Contains($"{banka:dd.MM.yyyy} · 4.000,00 TL", uyari.Message); Assert.Contains("değiştirmeden", uyari.Message);
+        Assert.Contains($"{banka:dd.MM.yyyy} · 4.000,00 TL", uyari.Message);
+        Assert.Contains("değiştirmeden", uyari.Message);
         Assert.Equal("Planlandi", Assert.Single((await o.AylikGider.AylikGiderlerAsync(Bugun.Year, Bugun.Month)).Kayitlar).Durum);
 
         var odenen = await o.AylikGider.AylikGiderOdeAsync(sablon.Id, istek);
-        Assert.Equal(("Odendi", Bugun), (odenen.Durum, odenen.OdemeTarihi)); Assert.NotNull(odenen.IslemId);
+        Assert.Equal(("Odendi", Bugun), (odenen.Durum, odenen.OdemeTarihi));
+        Assert.NotNull(odenen.IslemId);
     }
 
     [Fact]
@@ -102,11 +110,13 @@ public class AylikGiderVeKontrolSozlesmeTests : SozlesmeTemeli
         Assert.Equal("MEZAT", onizleme.KanalBakiyeleri!.Single(k => k.KanalId == 1).Kanal);
 
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Kontrol.KasaKontrolKaydetAsync(new KasaKontrolYaz(Yeni(), 900m, onizleme.KontrolOzeti)));
-        Assert.Equal(HttpStatusCode.BadRequest, hata.DurumKodu); Assert.Contains("Fark varsa açıklama girin.", hata.Message);
+        Assert.Equal(HttpStatusCode.BadRequest, hata.DurumKodu);
+        Assert.Contains("Fark varsa açıklama girin.", hata.Message);
         var kontrol = await o.Kontrol.KasaKontrolKaydetAsync(new KasaKontrolYaz(Yeni(), 900m, onizleme.KontrolOzeti, "Sayım"));
         Assert.Equal((1, (DateOnly?)Bugun, onizleme.KanalBakiyeleri!.Count), (kontrol.Surum, kontrol.HesapTarihi, kontrol.KanalBakiyeleri!.Count));
         kontrol = await o.Kontrol.KasaKontrolAciklaAsync(kontrol.Id, new KasaKontrolAciklamaYaz(Yeni(), kontrol.Surum, "Bankaya yatırıldı"));
-        Assert.Equal((2, "Bankaya yatırıldı"), (kontrol.Surum, kontrol.FarkAciklamasi)); Assert.NotNull(kontrol.FarkAciklamaZamani);
+        Assert.Equal((2, "Bankaya yatırıldı"), (kontrol.Surum, kontrol.FarkAciklamasi));
+        Assert.NotNull(kontrol.FarkAciklamaZamani);
         var liste = Assert.Single(await o.Kontrol.KasaKontrolleriAsync());
         Assert.Equal(((decimal?)960m, (decimal?)-60m, false), (liste.GuncelSistemBakiye, liste.GuncelFark, liste.SonradanDegisti));
         Assert.All(liste.KanalBakiyeleri!, k => Assert.Equal(k.Bakiye, k.GuncelBakiye));

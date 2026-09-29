@@ -39,8 +39,11 @@ public class IzKimligiTests
         var govdesiz = await Assert.ThrowsAsync<KasaApiException>(() => c.KanalSilAsync(2));
         var html = await Assert.ThrowsAsync<KasaApiException>(() => c.KanalSilAsync(3));
 
-        Assert.Equal("Kayıt değişti.", cakisma.Message); Assert.Null(cakisma.HataKodu);
-        Assert.Null(govdesiz.IzKimligi); Assert.Null(html.IzKimligi); Assert.Null(html.HataKodu);
+        Assert.Equal("Kayıt değişti.", cakisma.Message);
+        Assert.Null(cakisma.HataKodu);
+        Assert.Null(govdesiz.IzKimligi);
+        Assert.Null(html.IzKimligi);
+        Assert.Null(html.HataKodu);
         Assert.Equal(3, h.Istekler.Count);
     }
 

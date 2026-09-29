@@ -10,8 +10,11 @@ internal static class AyRaporAnlikGoruntuleriSchemaModel
         KartGecisIziSchemaModel.Build(b);
         b.Entity("Kasa.Api.Data.AyRaporAnlikGoruntuEntity", e =>
         {
-            e.ToTable("AyRaporAnlikGoruntuleri"); e.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER"); e.HasKey("Id");
-            foreach (var p in new[] { "Yil", "Ay", "KuralSurumu" }) e.Property<int>(p).HasColumnType("INTEGER");
+            e.ToTable("AyRaporAnlikGoruntuleri");
+            e.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+            e.HasKey("Id");
+            foreach (var p in new[] { "Yil", "Ay", "KuralSurumu" })
+                e.Property<int>(p).HasColumnType("INTEGER");
             e.Property<string>("Json").IsRequired().HasColumnType("TEXT");
             e.Property<DateTimeOffset>("Zaman").HasColumnType("TEXT");
             e.HasIndex("Yil", "Ay").IsUnique();

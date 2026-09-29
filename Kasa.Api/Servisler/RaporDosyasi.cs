@@ -16,15 +16,18 @@ public static class RaporDosyasi
         if (format == "csv")
         {
             var csv = new StringBuilder("Tarih;Ödeme yapılan yer;Kanal;Tür;Tutar (TL);Alış No;Açıklama\r\n");
-            foreach (var r in rows) csv.AppendLine(string.Join(';', Csv(r.Tarih.ToString("yyyy-MM-dd")), Csv(r.Cari), Csv(r.Kanal), Csv(r.Tip.ToString()), r.TutarTl.ToString("0.00", Tr), r.AlisId?.ToString() ?? "", Csv(r.Not)));
+            foreach (var r in rows)
+                csv.AppendLine(string.Join(';', Csv(r.Tarih.ToString("yyyy-MM-dd")), Csv(r.Cari), Csv(r.Kanal), Csv(r.Tip.ToString()), r.TutarTl.ToString("0.00", Tr), r.AlisId?.ToString() ?? "", Csv(r.Not)));
             csv.Append("TOPLAM;;;;").Append(rows.Sum(r => r.TutarTl).ToString("0.00", Tr)).AppendLine(";;");
             return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv; charset=utf-8", name + ".csv");
         }
-        if (format == "xlsx") return Results.File(Excel(rows, start, end, channel), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
+        if (format == "xlsx")
+            return Results.File(Excel(rows, start, end, channel), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
         var html = new StringBuilder("<!doctype html><html lang=\"tr\"><meta charset=\"utf-8\"><title>Emar Kasa · Gider raporu</title><style>body{font:14px system-ui;color:#182d23;margin:32px}h1{font-size:24px}table{width:100%;border-collapse:collapse}td,th{padding:9px;text-align:left;border-bottom:1px solid #ddd}.money{text-align:right;white-space:nowrap}tfoot{font-weight:bold}@media print{.print-help{display:none}tr{break-inside:avoid}thead{display:table-header-group}}</style><h1>Emar Kasa · Gider raporu</h1>");
         html.Append($"<p>{start:dd.MM.yyyy} – {end:dd.MM.yyyy} · Kanal: {H(channel ?? "Tümü")}</p>");
         html.Append("<p class=\"print-help\">Tarayıcının Yazdır menüsünden PDF olarak kaydedebilirsiniz.</p><p>Kanal filtresi, seçilen kanalla ilişkili giderlerin tamamını gösterir. Çok kanallı giderin tutarı tek kez listelenir.</p><table><thead><tr><th>Tarih</th><th>Ödeme yapılan yer</th><th>Kanal</th><th>Açıklama</th><th class=\"money\">Tutar (TL)</th></tr></thead><tbody>");
-        foreach (var r in rows) html.Append($"<tr><td>{r.Tarih:dd.MM.yyyy}</td><td>{H(r.Cari)}</td><td>{H(r.Kanal)}</td><td>{H(r.Not)}</td><td class=\"money\">{r.TutarTl.ToString("N2", Tr)}</td></tr>");
+        foreach (var r in rows)
+            html.Append($"<tr><td>{r.Tarih:dd.MM.yyyy}</td><td>{H(r.Cari)}</td><td>{H(r.Kanal)}</td><td>{H(r.Not)}</td><td class=\"money\">{r.TutarTl.ToString("N2", Tr)}</td></tr>");
         html.Append($"</tbody><tfoot><tr><td colspan=\"4\">Toplam ({rows.Count} kayıt)</td><td class=\"money\">{rows.Sum(r => r.TutarTl).ToString("N2", Tr)}</td></tr></tfoot></table></html>");
         return Results.Content(html.ToString(), "text/html; charset=utf-8", Encoding.UTF8);
     }
@@ -34,7 +37,8 @@ public static class RaporDosyasi
     private static string Csv(string? value)
     {
         value = DisaAktarimMetni(value);
-        if (value.Length > 0 && ("=+-@".Contains(value.TrimStart().FirstOrDefault()) || value[0] is '\t' or '\r' or '\n')) value = "'" + value;
+        if (value.Length > 0 && ("=+-@".Contains(value.TrimStart().FirstOrDefault()) || value[0] is '\t' or '\r' or '\n'))
+            value = "'" + value;
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? "");
@@ -50,8 +54,10 @@ public static class RaporDosyasi
         StringBuilder? temiz = null;
         for (int i = 0; i < value.Length; i++)
         {
-            if (XmlConvert.IsXmlChar(value[i])) { temiz?.Append(value[i]); continue; }
-            if (i + 1 < value.Length && XmlConvert.IsXmlSurrogatePair(value[i + 1], value[i])) { temiz?.Append(value, i, 2); i++; continue; }
+            if (XmlConvert.IsXmlChar(value[i]))
+            { temiz?.Append(value[i]); continue; }
+            if (i + 1 < value.Length && XmlConvert.IsXmlSurrogatePair(value[i + 1], value[i]))
+            { temiz?.Append(value, i, 2); i++; continue; }
             // İlk geçersiz karakterde kopyalamaya başla; temiz metin aynı örnekle döner.
             (temiz ??= new StringBuilder(value.Length).Append(value, 0, i)).Append('\uFFFD');
         }
@@ -68,12 +74,14 @@ public static class RaporDosyasi
             new XElement(ns + "row", Text($"{start:yyyy-MM-dd} / {end:yyyy-MM-dd}"), Text(channel ?? "Tüm kanallar")),
             new XElement(ns + "row", Text("Kanal filtresi eşleşen giderin tam tutarını gösterir.")),
             new XElement(ns + "row", new[] { "Tarih", "Ödeme yapılan yer", "Kanal", "Tür", "Tutar (TL)", "Alış No", "Açıklama" }.Select(Text)));
-        foreach (var r in rows) data.Add(new XElement(ns + "row", Text(r.Tarih.ToString("yyyy-MM-dd")), Text(r.Cari), Text(r.Kanal), Text(r.Tip.ToString()), Number(r.TutarTl), Text(r.AlisId?.ToString() ?? ""), Text(r.Not ?? "")));
+        foreach (var r in rows)
+            data.Add(new XElement(ns + "row", Text(r.Tarih.ToString("yyyy-MM-dd")), Text(r.Cari), Text(r.Kanal), Text(r.Tip.ToString()), Number(r.TutarTl), Text(r.AlisId?.ToString() ?? ""), Text(r.Not ?? "")));
         data.Add(new XElement(ns + "row", Text("TOPLAM"), Text(""), Text(""), Text(""), Number(rows.Sum(r => r.TutarTl))));
         using var result = new MemoryStream();
         using (var zip = new ZipArchive(result, ZipArchiveMode.Create, true))
         {
-            void Entry(string path, string contents) { using var w = new StreamWriter(zip.CreateEntry(path).Open(), new UTF8Encoding(false)); w.Write(contents); }
+            void Entry(string path, string contents)
+            { using var w = new StreamWriter(zip.CreateEntry(path).Open(), new UTF8Encoding(false)); w.Write(contents); }
             Entry("[Content_Types].xml", "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></Types>");
             Entry("_rels/.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>");
             Entry("xl/workbook.xml", "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Giderler\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>");

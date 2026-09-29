@@ -24,22 +24,28 @@ public class AlisConcurrencyTests
         try
         {
             await using var factory = new FileFactory(connectionString, rendezvous);
-            using var editor = await factory.EditorClientAsync(); await AlisWorkflowTests.Prepare(editor);
+            using var editor = await factory.EditorClientAsync();
+            await AlisWorkflowTests.Prepare(editor);
             var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
             var purchase = await AlisWorkflowTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisWorkflowTests.Draft(channels)));
             purchase = await AlisWorkflowTests.Read<AlisDto>(await editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 40m)));
-            var payment = purchase.Odemeler.Single(); rendezvous.Enabled = true;
+            var payment = purchase.Odemeler.Single();
+            rendezvous.Enabled = true;
             var results = await Task.WhenAll(
                 editor.PutAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{payment.Id}", new AlisOdemeDuzelt(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 60m, "Düzeltilen tutar")),
                 editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{payment.Id}/iptal", new AlisOdemeIptal(purchase.Surum, Guid.NewGuid(), "Ödenmedi")));
             rendezvous.Enabled = false;
-            try { Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK); Assert.Single(results, r => r.StatusCode == HttpStatusCode.Conflict); }
+            try
+            { Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK); Assert.Single(results, r => r.StatusCode == HttpStatusCode.Conflict); }
             finally { foreach (var result in results) result.Dispose(); }
             Assert.Equal(2, rendezvous.Connections.Count);
             using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connectionString).Options);
-            Assert.Equal(purchase.Surum + 1, db.Alislar.Single().Surum); Assert.Equal(2, db.FinansIstekler.Count());
-            Assert.Equal(db.Islemler.Count(), db.AlisOdemeler.Count()); Assert.InRange(db.Islemler.Count(), 0, 1);
-            if (db.Islemler.Any()) Assert.Equal(60m, db.Islemler.Single().TutarTl);
+            Assert.Equal(purchase.Surum + 1, db.Alislar.Single().Surum);
+            Assert.Equal(2, db.FinansIstekler.Count());
+            Assert.Equal(db.Islemler.Count(), db.AlisOdemeler.Count());
+            Assert.InRange(db.Islemler.Count(), 0, 1);
+            if (db.Islemler.Any())
+                Assert.Equal(60m, db.Islemler.Single().TutarTl);
         }
         finally { foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix); }
     }
@@ -81,7 +87,8 @@ public class AlisConcurrencyTests
         }
         finally
         {
-            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
+            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(path + suffix);
         }
     }
 
@@ -107,9 +114,11 @@ public class AlisConcurrencyTests
         public override InterceptionResult<DbTransaction> TransactionStarting(DbConnection connection,
             TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result)
         {
-            if (!Enabled) return result;
+            if (!Enabled)
+                return result;
             Connections.TryAdd(connection, 0);
-            if (!_barrier.SignalAndWait(TimeSpan.FromSeconds(20))) throw new TimeoutException("Ödeme istekleri eşzamanlı transaction başlangıcına ulaşamadı.");
+            if (!_barrier.SignalAndWait(TimeSpan.FromSeconds(20)))
+                throw new TimeoutException("Ödeme istekleri eşzamanlı transaction başlangıcına ulaşamadı.");
             return result;
         }
         public void Dispose() => _barrier.Dispose();

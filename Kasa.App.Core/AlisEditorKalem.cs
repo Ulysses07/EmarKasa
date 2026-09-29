@@ -32,8 +32,12 @@ public partial class AlisKalemEditor : ObservableObject
     {
         Dagilimlar.CollectionChanged += (_, e) =>
         {
-            if (e.OldItems is not null) foreach (AlisDagilimEditor d in e.OldItems) d.PropertyChanged -= DagilimDegisti;
-            if (e.NewItems is not null) foreach (AlisDagilimEditor d in e.NewItems) d.PropertyChanged += DagilimDegisti;
+            if (e.OldItems is not null)
+                foreach (AlisDagilimEditor d in e.OldItems)
+                    d.PropertyChanged -= DagilimDegisti;
+            if (e.NewItems is not null)
+                foreach (AlisDagilimEditor d in e.NewItems)
+                    d.PropertyChanged += DagilimDegisti;
             OzetiYenile();
         };
     }

@@ -66,7 +66,10 @@ public class RaporKuraliVmTests
         await vm.YukleAsync();
         Assert.Equal(new[] { (2, "Takipli") }, vm.KartCipleri.Select(k => (k.Id, k.Ad)));
 
-        vm.DuzenCari = "Market"; vm.DuzenTutar = 75m; vm.DuzenKanal = "MEZAT"; vm.DuzenTarih = new DateTime(2026, 9, 20);
+        vm.DuzenCari = "Market";
+        vm.DuzenTutar = 75m;
+        vm.DuzenKanal = "MEZAT";
+        vm.DuzenTarih = new DateTime(2026, 9, 20);
         vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
         Assert.Null(vm.KartUyarisi);
         await vm.KaydetCommand.ExecuteAsync(null);
@@ -114,7 +117,10 @@ public class RaporKuraliVmTests
 
         // Yeni kayda dönünce kartsız kredi kartı gideri yine reddedilir.
         vm.YeniCommand.Execute(null);
-        vm.DuzenCari = "Yeni"; vm.DuzenTutar = 10m; vm.DuzenKanal = "MEZAT"; vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
+        vm.DuzenCari = "Yeni";
+        vm.DuzenTutar = 10m;
+        vm.DuzenKanal = "MEZAT";
+        vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
         api.SonIslemOlustur = null;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(KartIletisi, vm.Hata);

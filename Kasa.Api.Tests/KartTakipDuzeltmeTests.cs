@@ -29,7 +29,8 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Devir_iadesi_kasada_onceden_sayilan_kismi_kasaya_dondurur_kalan_odeme_ikinci_kez_dusmez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Eski kuralla 31 Ağustos'ta 100 TL düşmüş kart borcu, K = 100 ile yeni takibe geçer.
         var kart = await GecisliKart(f, c, 100m, 100m, 100m);
         Assert.Equal(900m, (await Panel(c)).GuncelKasa);
@@ -55,7 +56,8 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Devir_kismen_odendikten_sonra_iade_yalniz_odenmemis_sayilmis_kismi_dondurur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // K = 60 (kalan 40 açılış borcu gibi kasadan ayrıca ödenir); 50 ödendi (kasa etkisi 0), 30 iade edildi.
         var kart = await GecisliKart(f, c, 60m, 100m, 60m, acilisBorcu: 40m);
         var devir = Assert.Single(kart.Harcamalar);
@@ -74,7 +76,8 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Kasada_onceden_sayilan_tutari_olan_devir_iptal_edilemez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var kart = await GecisliKart(f, c, 100m, 100m, 100m);
         var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/harcamalar/{kart.Harcamalar.Single().Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), kart.Surum, "Yanlış devir"));
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
@@ -87,7 +90,8 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Hatali_devir_gerekceyle_duzeltilir_eski_devir_iptal_yeni_odeme_ikinci_kez_dusmez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Eski sistem borcu 80 TL iken kalan borç yanlışlıkla 100 girildi (K = önerilen 80).
         var kart = await GecisliKart(f, c, 80m, 100m, 80m);
         Assert.Equal(920m, (await Panel(c)).GuncelKasa);
@@ -97,9 +101,11 @@ public class KartTakipDuzeltmeTests
 
         KartDevirDuzeltYaz Duzeltme(decimal kalan, decimal sayilan, int? harcama) => new(Guid.NewGuid(), kart.Surum, harcama, kalan, sayilan, [new(1, kalan)], "Banka ekstresine göre devir 80 TL");
         var fazla = await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/devir-duzelt", Duzeltme(100m, 90m, devir.HarcamaId));
-        Assert.Equal(HttpStatusCode.Conflict, fazla.StatusCode); Assert.Contains("önerilen tutarı (80,00 TL) aşamaz", await fazla.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Conflict, fazla.StatusCode);
+        Assert.Contains("önerilen tutarı (80,00 TL) aşamaz", await fazla.Content.ReadAsStringAsync());
         var eksik = await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/devir-duzelt", Duzeltme(80m, 50m, devir.HarcamaId));
-        Assert.Equal(HttpStatusCode.Conflict, eksik.StatusCode); Assert.Contains("en az 80,00 TL", await eksik.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Conflict, eksik.StatusCode);
+        Assert.Contains("en az 80,00 TL", await eksik.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/devir-duzelt", Duzeltme(80m, 80m, null))).StatusCode);
 
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/devir-duzelt", Duzeltme(80m, 80m, devir.HarcamaId));
@@ -125,18 +131,21 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Odemesi_ya_da_iadesi_olan_devir_duzeltilemez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var odenen = await GecisliKart(f, c, 100m, 100m, 100m);
         odenen = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{odenen.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), odenen.Surum, Today, 10m));
         var devir = (await c.GetFromJsonAsync<KartDevirDto>($"/api/takip/kartlar/{odenen.Id}/devir"))!;
-        Assert.False(devir.Duzeltilebilir); Assert.Contains("ödeme", devir.Engel);
+        Assert.False(devir.Duzeltilebilir);
+        Assert.Contains("ödeme", devir.Engel);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{odenen.Id}/devir-duzelt",
             new KartDevirDuzeltYaz(Guid.NewGuid(), odenen.Surum, devir.HarcamaId, 100m, 100m, [new(1, 100m)], "Deneme"))).StatusCode);
 
         var iadeli = await GecisliKart(f, c, 100m, 100m, 100m);
         iadeli = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{iadeli.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), iadeli.Surum, Today, "İade", -10m, 1, null, [], iadeli.Harcamalar.Single().Id));
         devir = (await c.GetFromJsonAsync<KartDevirDto>($"/api/takip/kartlar/{iadeli.Id}/devir"))!;
-        Assert.Equal((false, 10m), (devir.Duzeltilebilir, devir.IadeDuzeltmesi)); Assert.Contains("iade", devir.Engel);
+        Assert.Equal((false, 10m), (devir.Duzeltilebilir, devir.IadeDuzeltmesi));
+        Assert.Contains("iade", devir.Engel);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{iadeli.Id}/devir-duzelt",
             new KartDevirDuzeltYaz(Guid.NewGuid(), iadeli.Surum, devir.HarcamaId, 90m, 90m, [new(1, 90m)], "Deneme"))).StatusCode);
         // İade (devre ödeme yokken) iptal edilince kasaya dönen tutar da kalkar; devir yeniden düzeltilebilir.
@@ -153,7 +162,8 @@ public class KartTakipDuzeltmeTests
     public async Task Kilitli_doneme_dusen_devir_duzeltilemez_kilitli_ay_raporu_degismez()
     {
         var saat = new SabitSaat(Today);
-        await using var f = new KasaWebFactory { Saat = saat }; using var c = await Editor(f);
+        await using var f = new KasaWebFactory { Saat = saat };
+        using var c = await Editor(f);
         var kart = await GecisliKart(f, c, 80m, 100m, 80m);
         // Ay biter, geçiş ayı kapatılır (K4): devir tarihi kilitli dönemdedir.
         saat.Ayarla(Today.AddMonths(1).AddDays(-Today.Day + 5));
@@ -162,11 +172,14 @@ public class KartTakipDuzeltmeTests
         var durum = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
         await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), durum.Surum, Today.Year, Today.Month, "Ay tamamlandı"));
         var devir = (await c.GetFromJsonAsync<KartDevirDto>($"/api/takip/kartlar/{kart.Id}/devir"))!;
-        Assert.False(devir.Duzeltilebilir); Assert.Contains("kilitli dönemde", devir.Engel);
+        Assert.False(devir.Duzeltilebilir);
+        Assert.Contains("kilitli dönemde", devir.Engel);
         kart = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/devir-duzelt",
             new KartDevirDuzeltYaz(Guid.NewGuid(), kart.Surum, devir.HarcamaId, 80m, 80m, [new(1, 80m)], "Kilitli düzeltme"))).StatusCode);
-        var beklenen = JsonNode.Parse(kilitOncesi)!.AsObject(); beklenen["kuralSurumu"] = HesapServisi.AcikAyKurali; beklenen["dondurulmus"] = true;
+        var beklenen = JsonNode.Parse(kilitOncesi)!.AsObject();
+        beklenen["kuralSurumu"] = HesapServisi.AcikAyKurali;
+        beklenen["dondurulmus"] = true;
         Assert.Equal(beklenen.ToJsonString(), await c.GetStringAsync(eylul));
         using var scope = f.Services.CreateScope();
         Assert.Equal(kilitOncesi, JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Today.Year, Today.Month), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
@@ -176,7 +189,8 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Duzeltilmemis_eski_devir_iadesi_acilis_uyarisinda_gorunur_rapor_degismez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var kart = await GecisliKart(f, c, 100m, 100m, 100m);
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -184,8 +198,10 @@ public class KartTakipDuzeltmeTests
         // Bu sürümden önce girilmiş devir iadesi: hesap kaydı yok, kasada önceden sayılan tutar düzeltilmemiş.
         var devirTaksidi = db.TakipKartTaksitler.Single(t => t.HarcamaId == kart.Harcamalar.Single().Id);
         var eskiIade = new TakipHarcamaEntity { KrediKartiId = kart.Id, Tarih = Today, Aciklama = "Eski iade", Tutar = -30m, KaynakHarcamaId = devirTaksidi.HarcamaId, DagilimJson = "[{\"KanalId\":1,\"Tutar\":30}]" };
-        db.TakipHarcamalar.Add(eskiIade); db.SaveChanges();
-        db.TakipKartTaksitler.Add(new TakipKartTaksitEntity { HarcamaId = eskiIade.Id, EkstreId = devirTaksidi.EkstreId, Tutar = -30m }); db.SaveChanges();
+        db.TakipHarcamalar.Add(eskiIade);
+        db.SaveChanges();
+        db.TakipKartTaksitler.Add(new TakipKartTaksitEntity { HarcamaId = eskiIade.Id, EkstreId = devirTaksidi.EkstreId, Tutar = -30m });
+        db.SaveChanges();
         var uyari = Assert.Single(FinansTakipServisi.EskiKuralKalintilari(db), u => u.Contains("eski borç devrine"));
         Assert.Contains("1 iade (toplam 30,00 TL", uyari);
         Assert.Equal(900m, (await Panel(c)).GuncelKasa);
@@ -196,14 +212,16 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Kilitli_doneme_dusen_avans_karti_kapatmaz_kilit_sonrasi_dagitimla_baglanir_kilitli_ay_degismez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var eski = Month.AddMonths(-1);
         var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Avans", 1000m, 5, 25, eski, 0m, []));
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, eski, 50m));
         var kaynak = Assert.Single(kart.Odemeler);
         await Kilit(c, eski, kapat: true);
         var aylik = $"/api/rapor/aylik?yil={eski.Year}&ay={eski.Month}";
-        var aylikOnce = await c.GetStringAsync(aylik); var haftalikOnce = await KilitliHaftalar(c, eski);
+        var aylikOnce = await c.GetStringAsync(aylik);
+        var haftalikOnce = await KilitliHaftalar(c, eski);
         Assert.Equal(950m, (await Panel(c)).GuncelKasa);
 
         // Kart yeni harcamaya açıktır (eskiden 'dönem kilitli' ile reddediliyordu).
@@ -224,12 +242,14 @@ public class KartTakipDuzeltmeTests
         var gider = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kartla gider", 30m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id));
         Assert.True(gider.IsSuccessStatusCode, await gider.Content.ReadAsStringAsync());
         kart = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
-        Assert.Equal(80m, kart.Borc); Assert.Single(kart.Odemeler, o => o.AvansKaynakOdemeId is not null);
+        Assert.Equal(80m, kart.Borc);
+        Assert.Single(kart.Odemeler, o => o.AvansKaynakOdemeId is not null);
 
         // Kilitli avans ödemesi ve dağıtımı ayrı iptal edilemez; dağıtımla ödenmiş harcama iade yerine iptal edilemez.
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/odemeler/{kaynak.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), kart.Surum, "Eski avans"))).StatusCode);
         var dagitimIptal = await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/odemeler/{dagitim.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), kart.Surum, "Dağıtım"));
-        Assert.Equal(HttpStatusCode.Conflict, dagitimIptal.StatusCode); Assert.Contains("avans dağıtımı", await dagitimIptal.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Conflict, dagitimIptal.StatusCode);
+        Assert.Contains("avans dağıtımı", await dagitimIptal.Content.ReadAsStringAsync());
         var harcama = kart.Harcamalar.Single(h => h.Aciklama == "Yeni harcama");
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{kart.Id}/harcamalar/{harcama.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), kart.Surum, "Yanlış"))).StatusCode);
         Assert.Equal(950m, (await Panel(c)).GuncelKasa);
@@ -238,14 +258,16 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Acik_donem_avansi_sonraki_kilitli_odemenin_etkisini_degistirmeden_dagitimla_baglanir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var eski = Month.AddMonths(-1);
         var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Avans", 1000m, 5, 25, eski, 0m, []));
         // Açık dönemdeki avans (Id 1) ve sonradan geriye tarihli girilen kilitli dönem avansı (Id 2).
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Today, 50m));
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, eski.AddDays(14), 20m));
         await Kilit(c, eski, kapat: true);
-        var aylik = $"/api/rapor/aylik?yil={eski.Year}&ay={eski.Month}"; var aylikOnce = await c.GetStringAsync(aylik);
+        var aylik = $"/api/rapor/aylik?yil={eski.Year}&ay={eski.Month}";
+        var aylikOnce = await c.GetStringAsync(aylik);
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kart.Surum, Today, "Yeni harcama", 100m, 1, null, [new(1, 100m)]));
         Assert.Equal(30m, kart.Borc);
         var kaynaklar = kart.Odemeler.Where(o => o.Tutar > 0).OrderBy(o => o.Id).ToList();
@@ -258,7 +280,8 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public async Task Kilit_acilinca_avans_odemesinin_iptali_dagitimini_da_iptal_eder()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var eski = Month.AddMonths(-1);
         var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Avans", 1000m, 5, 25, eski, 0m, []));
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, eski, 50m));
@@ -288,7 +311,8 @@ public class KartTakipDuzeltmeTests
     [InlineData(200, 800, 120, 480, 80, 320)]
     public async Task Alis_yeniden_dagitilinca_kart_iadesi_ve_odemenin_kanal_etkisi_yeni_orani_izler(int mezat, int toptan, int odemeMezat, int odemeToptan, int iadeMezat, int iadeToptan)
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Alış kartı", 10000m, 5, 25, Month, 0m, []));
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Month, "Tedarikçi", null, [new("Mal", 1000m, [new(1, 1000m)])]));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
@@ -322,25 +346,31 @@ public class KartTakipDuzeltmeTests
     [Fact]
     public void Goc_bos_veritabaninda_uygulanir_ve_model_anlik_goruntusu_calisma_modeliyle_eslesir()
     {
-        using var connection = new SqliteConnection("Data Source=:memory:"); connection.Open();
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
         KasaDatabaseInitializer.Initialize(db);
         Assert.Contains(Migrations.KartTakipDuzeltmeleri.Kimlik, db.Database.GetAppliedMigrations());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
-        Assert.Empty(db.TakipIadeHesaplari); Assert.Empty(db.TakipAvansTahsisleri);
+        Assert.Empty(db.TakipIadeHesaplari);
+        Assert.Empty(db.TakipAvansTahsisleri);
     }
 
     [Fact]
     public async Task Goc_eski_iadelere_hesap_kaydi_yazar_raporlar_onceki_kodun_ciktisiyla_birebir_ayni()
     {
-        using var connection = new SqliteConnection("Data Source=:memory:"); connection.Open();
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         using (var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options))
             db.GetService<IMigrator>().Migrate("20260930000200_DenetimGecmisAktarimi");
-        using (var komut = connection.CreateCommand()) { komut.CommandText = EskiIadeVerisi; komut.ExecuteNonQuery(); }
-        await using var f = new HazirFactory(connection) { Saat = new SabitSaat(EskiBugun) }; using var c = await f.EditorClientAsync();
+        using (var komut = connection.CreateCommand())
+        { komut.CommandText = EskiIadeVerisi; komut.ExecuteNonQuery(); }
+        await using var f = new HazirFactory(connection) { Saat = new SabitSaat(EskiBugun) };
+        using var c = await f.EditorClientAsync();
 
-        foreach (var (uc, beklenen) in OncekiYanitlar) Assert.True(beklenen == await c.GetStringAsync(uc), $"{uc} göçten sonra değişti.");
+        foreach (var (uc, beklenen) in OncekiYanitlar)
+            Assert.True(beklenen == await c.GetStringAsync(uc), $"{uc} göçten sonra değişti.");
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -415,7 +445,9 @@ public class KartTakipDuzeltmeTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var kart = new KrediKartiEntity { Ad = "Eski kart", KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 15), Limit = 50000m, Borc = acilisBorcu };
-            db.KrediKartlari.Add(kart); db.SaveChanges(); id = kart.Id;
+            db.KrediKartlari.Add(kart);
+            db.SaveChanges();
+            id = kart.Id;
             db.Islemler.Add(new IslemEntity { Tarih = new(Today.Year, 7, 10), Cari = "Eski kart gideri", TutarTl = eskiGider, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti, KrediKartiId = id });
             db.SaveChanges();
         }

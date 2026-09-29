@@ -64,18 +64,26 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
     {
         if (yuzey.Mesgul)
         {
-            if (!TekilSuruyor && OkumaSuruyor) _okuyanHat!.Birak();
-            else { if (mesgulkenBildir) yuzey.Hata = SurenIslemIletisi; return; }
+            if (!TekilSuruyor && OkumaSuruyor)
+                _okuyanHat!.Birak();
+            else
+            { if (mesgulkenBildir) yuzey.Hata = SurenIslemIletisi; return; }
         }
         var nesil = Nesil;
-        _tekilNesli = nesil; _okuyanHat = null; _okumaBileti = null;
+        _tekilNesli = nesil;
+        _okuyanHat = null;
+        _okumaBileti = null;
         // Önce Mesgul: temizlemenin tetiklediği bildirimden gelen ikinci çağrı da korumaya takılır.
-        yuzey.Mesgul = true; yuzey.Hata = null; yuzey.IletiyiTemizle();
-        try { await islem(nesil); }
+        yuzey.Mesgul = true;
+        yuzey.Hata = null;
+        yuzey.IletiyiTemizle();
+        try
+        { await islem(nesil); }
         catch (Exception hata) { if (Gecerli(nesil)) yuzey.Hata = HataMesaji(hata); }
         finally
         {
-            if (Gecerli(nesil)) { _tekilNesli = null; yuzey.Mesgul = OkumaSuruyor; }
+            if (Gecerli(nesil))
+            { _tekilNesli = null; yuzey.Mesgul = OkumaSuruyor; }
         }
     }
 
@@ -85,7 +93,8 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
     /// <summary>Güncel okuma bitti; göstergenin açık kalıp kalmayacağını (tekil işlem sürüyor mu) döner.</summary>
     internal bool OkumaBitti(IstekBileti bilet)
     {
-        if (ReferenceEquals(_okumaBileti, bilet)) { _okuyanHat = null; _okumaBileti = null; }
+        if (ReferenceEquals(_okumaBileti, bilet))
+        { _okuyanHat = null; _okumaBileti = null; }
         return TekilSuruyor;
     }
 
@@ -164,20 +173,23 @@ public sealed class SonIstekHatti(Yurutucu yurutucu)
     {
         var yuzey = yurutucu.Yuzey;
         var bilet = Baslat();
-        if (!yurutucu.TekilSuruyor) { yuzey.Hata = null; yuzey.IletiyiTemizle(); }
+        if (!yurutucu.TekilSuruyor)
+        { yuzey.Hata = null; yuzey.IletiyiTemizle(); }
         yurutucu.OkumaBasladi(this, bilet);
         yuzey.Mesgul = true;
         try
         {
             var veri = await getir(bilet.Iptal);
-            if (!Guncel(bilet)) return;
+            if (!Guncel(bilet))
+                return;
             uygula(veri);
         }
         catch (OperationCanceledException) when (bilet.Iptal.IsCancellationRequested) { /* vazgeçildi: hata değil */ }
         catch (Exception hata) { if (Guncel(bilet)) yuzey.Hata = Yurutucu.OkumaHataMesaji(hata); }
         finally
         {
-            if (Guncel(bilet)) yuzey.Mesgul = yurutucu.OkumaBitti(bilet);
+            if (Guncel(bilet))
+                yuzey.Mesgul = yurutucu.OkumaBitti(bilet);
             Bitir(bilet);
         }
     }

@@ -14,7 +14,8 @@ public partial class KasaDbContext
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         ChangeTracker.DetectChanges();
-        if (!ChangeTracker.HasChanges()) return base.SaveChanges(acceptAllChangesOnSuccess);
+        if (!ChangeTracker.HasChanges())
+            return base.SaveChanges(acceptAllChangesOnSuccess);
         int result;
         using (var transaction = Database.CurrentTransaction is null ? Database.BeginTransaction() : null)
         {
@@ -26,13 +27,15 @@ public partial class KasaDbContext
             DenetimYakalayici.Yaz(this, yakalanan);
             transaction?.Commit();
         }
-        if (acceptAllChangesOnSuccess) ChangeTracker.AcceptAllChanges();
+        if (acceptAllChangesOnSuccess)
+            ChangeTracker.AcceptAllChanges();
         return result;
     }
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         ChangeTracker.DetectChanges();
-        if (!ChangeTracker.HasChanges()) return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        if (!ChangeTracker.HasChanges())
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         int result;
         await using (var transaction = Database.CurrentTransaction is null ? await Database.BeginTransactionAsync(cancellationToken) : null)
         {
@@ -42,9 +45,11 @@ public partial class KasaDbContext
             CekirdekSurumleriniArtir();
             result = await base.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
             DenetimYakalayici.Yaz(this, yakalanan);
-            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            if (transaction is not null)
+                await transaction.CommitAsync(cancellationToken);
         }
-        if (acceptAllChangesOnSuccess) ChangeTracker.AcceptAllChanges();
+        if (acceptAllChangesOnSuccess)
+            ChangeTracker.AcceptAllChanges();
         return result;
     }
 
@@ -62,10 +67,13 @@ public partial class KasaDbContext
     {
         foreach (var e in ChangeTracker.Entries())
         {
-            if (e.State != EntityState.Modified || e.Entity is not (IslemEntity or GelenEntity or KanalEntity or AyarEntity)) continue;
+            if (e.State != EntityState.Modified || e.Entity is not (IslemEntity or GelenEntity or KanalEntity or AyarEntity))
+                continue;
             // Sürüm sütunundan önceki şemanın modeli (göç testlerinin eski sürüm bağlamı) sürümü tanımaz.
-            if (e.Metadata.FindProperty(nameof(IslemEntity.Surum)) is null) continue;
-            if (!e.Properties.Any(p => p.IsModified && p.Metadata.Name is not (nameof(IslemEntity.Surum) or nameof(AyarEntity.IzleyiciSifreHash)))) continue;
+            if (e.Metadata.FindProperty(nameof(IslemEntity.Surum)) is null)
+                continue;
+            if (!e.Properties.Any(p => p.IsModified && p.Metadata.Name is not (nameof(IslemEntity.Surum) or nameof(AyarEntity.IzleyiciSifreHash))))
+                continue;
             var surum = e.Property(nameof(IslemEntity.Surum));
             surum.CurrentValue = (int)surum.OriginalValue! + 1;
         }

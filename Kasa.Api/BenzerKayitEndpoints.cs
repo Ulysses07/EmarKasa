@@ -31,18 +31,21 @@ public static class BenzerKayitEndpoints
             v.Kontrol(dto.Tur != "AylikGider" || dto.KrediKartiId is null, "krediKartiId", "Aylık gider ödemesi kartla kaydedilmez.");
             v.Metin(dto.Kanal, "kanal", zorunlu: dto.Tur == "Gider" && dto.KrediKartiId is null);
             v.Kontrol(dto.Tur != "AlisOdeme" || dto.AlisId is > 0, "alisId", "Alış seçin.");
-            if (v.Sonuc() is { } error) return error;
+            if (v.Sonuc() is { } error)
+                return error;
 
             // Salt okunur: tutarlı anlık görüntüde çalışır, yazma kilidi almaz ve Sync yapmaz.
             return AlisEndpoints.Oku(db, () =>
             {
                 var purchase = dto.Tur == "AlisOdeme" ? AlisEndpoints.Query(db).AsNoTracking().SingleOrDefault(a => a.Id == dto.AlisId) : null;
-                if (dto.Tur == "AlisOdeme" && purchase is null) return Results.NotFound();
+                if (dto.Tur == "AlisOdeme" && purchase is null)
+                    return Results.NotFound();
                 int? channelId = null;
                 if (dto.Tur is "Gider" or "AylikGider" && dto.KrediKartiId is null && dto.Kanal is not null && dto.Kanal != Kanallar.Ortak)
                 {
                     channelId = db.Kanallar.Where(k => k.Ad == dto.Kanal).Select(k => (int?)k.Id).SingleOrDefault();
-                    if (channelId is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["kanal"] = ["Kayıtlı bir kanal seçin."] });
+                    if (channelId is null)
+                        return Results.ValidationProblem(new Dictionary<string, string[]> { ["kanal"] = ["Kayıtlı bir kanal seçin."] });
                 }
                 var search = new BenzerAramasi(dto.Tur, dto.Tarih, dto.Tutar, dto.KrediKartiId, Channels(dto, purchase, channelId), purchase?.Id);
                 return Results.Ok(new BenzerKayitServisi(db).Bul(search));
@@ -55,9 +58,12 @@ public static class BenzerKayitEndpoints
     /// alışın payı henüz belli olmadığından tahmin yapılmaz. Kartlı sorgu ve kart ödemesi kanala bakmaz.</summary>
     private static HashSet<int>? Channels(BenzerKayitSorgu dto, AlisEntity? purchase, int? channelId)
     {
-        if (dto.KrediKartiId is not null) return null;
-        if (channelId is { } channel) return [channel];
-        if (purchase?.Durum != AlisDurumlari.Onaylandi) return null;
+        if (dto.KrediKartiId is not null)
+            return null;
+        if (channelId is { } channel)
+            return [channel];
+        if (purchase?.Durum != AlisDurumlari.Onaylandi)
+            return null;
         var shares = AlisHesaplari.KanalPaylari(purchase).Select(p => p.KanalId).ToHashSet();
         return shares.Count == 0 ? null : shares;
     }

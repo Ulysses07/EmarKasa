@@ -46,17 +46,20 @@ public class TakipsizHatirlatmaTests
         int kesimGunu = 18, int sonOdemeGunu = 28) => Veri(f, db =>
     {
         var kart = new KrediKartiEntity { Ad = ad, KesimTarihi = new(2026, 1, kesimGunu), SonOdemeTarihi = new(2026, 1, sonOdemeGunu), Limit = 50_000m, Borc = borc };
-        db.KrediKartlari.Add(kart); db.SaveChanges();
+        db.KrediKartlari.Add(kart);
+        db.SaveChanges();
         foreach (var (tarih, tutar) in harcamalar)
             db.Islemler.Add(new() { Tarih = tarih, Cari = ad + " harcaması", TutarTl = tutar, KanalId = 1, Kanal = "MEZAT", Tip = GiderTipi.KrediKarti, KrediKartiId = kart.Id });
-        foreach (var (tarih, tutar) in odemeler) db.KartOdemeler.Add(new() { KrediKartiId = kart.Id, Tarih = tarih, Tutar = tutar, Not = "Eski ödeme" });
+        foreach (var (tarih, tutar) in odemeler)
+            db.KartOdemeler.Add(new() { KrediKartiId = kart.Id, Tarih = tarih, Tutar = tutar, Not = "Eski ödeme" });
         db.SaveChanges();
         return kart.Id;
     });
     private static int EskiKredi(KasaWebFactory f, string ad, DateOnly cekim, int taksitSayisi, int odemeGunu, bool gerceklesmeTakibi = false) => Veri(f, db =>
     {
         var kredi = new KrediEntity { Ad = ad, CekilenTutar = 6000m, CekimTarihi = cekim, TaksitSayisi = taksitSayisi, AylikOdeme = 1000m, OdemeGunu = odemeGunu, Kanal = "MEZAT", KanalId = 1, GerceklesmeTakibi = gerceklesmeTakibi };
-        db.Krediler.Add(kredi); db.SaveChanges();
+        db.Krediler.Add(kredi);
+        db.SaveChanges();
         return kredi.Id;
     });
     private static IReadOnlyList<TakipOlayDto> Olaylar(KasaWebFactory f) => Veri(f, db => FinansTakipServisi.GetNotificationEvents(db, Bugun));
@@ -69,7 +72,8 @@ public class TakipsizHatirlatmaTests
     [Fact]
     public async Task Takipsiz_kart_borclu_ve_donemde_odemesizse_eski_ekstre_borcuyla_kesim_ve_son_odeme_olayi_uretir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         // Kesim 18 Eylül: 10 Eylül harcaması ekstreye girer, 20 Eylül harcaması girmez. Ekstre borcu 1.000 + 500 = 1.500.
         var id = EskiKart(f, "Bonus", 1000m, [(new(2026, 9, 10), 500m), (new(2026, 9, 20), 200m)], []);
 
@@ -110,7 +114,8 @@ public class TakipsizHatirlatmaTests
     [Fact]
     public async Task Takipsiz_kartta_kesimden_sonra_odeme_varsa_ya_da_ekstre_borcu_yoksa_olay_uretilmez()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         // Kesimden (18 Eylül) sonra girilmiş kısmi ödeme dönemi "ele alınmış" sayar: kalan borç olsa da susar.
         var odendi = EskiKart(f, "Ödendi", 800m, [], [(new(2026, 9, 21), 100m)]);
         // Yalnız kesimden sonraki harcama: ekstre borcu 0.
@@ -124,14 +129,16 @@ public class TakipsizHatirlatmaTests
         Assert.DoesNotContain(olaylar, e => e.KaynakId == odendi || e.KaynakId == borcsuz || e.KaynakId == kapali);
         Assert.Equal([("Kesim", 250m), ("SonOdeme", 250m)], olaylar.Where(e => e.KaynakId == kismi).Select(e => (e.Tur, e.Tutar)));
         var (isci, hatalar) = IsciOlaylari(f);
-        Assert.Empty(hatalar); Assert.Equal(olaylar, isci);
+        Assert.Empty(hatalar);
+        Assert.Equal(olaylar, isci);
     }
 
     [Fact]
     public async Task Kesim_ve_son_odeme_ayni_gunse_onceki_ekstrenin_son_odeme_gunu_de_hatirlatilir()
     {
         // Kesim ve son ödeme 25: bugün hem Eylül ekstresi kesilir hem Ağustos ekstresinin son günüdür (eski hatırlatıcıdaki gibi).
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var id = EskiKart(f, "Aynı gün", 300m, [(new(2026, 9, 1), 100m)], [], kesimGunu: 25, sonOdemeGunu: 25);
         var olaylar = Olaylar(f).Where(e => e.KaynakId == id).Select(e => (e.Tur, e.Tarih, e.Tutar)).ToList();
         // Ağustos ekstresi 1 Eylül harcamasını içermez (300); Eylül ekstresi içerir (400).
@@ -143,7 +150,8 @@ public class TakipsizHatirlatmaTests
     [Fact]
     public async Task Takipli_kartin_olaylari_ve_takip_ozeti_takipsiz_kart_ve_kredi_eklenince_degismez()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takipli", 10_000m, 18, 28, Baslangic, 0, []));
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kart.Surum, new(2026, 9, 10), "Malzeme", 250m, 1, null, [new(1, 250m)]));
         var kredi = await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "Takipli kredi", 300m, Bugun.AddDays(-10), Bugun.AddDays(3), 3, 100m, [1]));
@@ -171,7 +179,8 @@ public class TakipsizHatirlatmaTests
     [Fact]
     public async Task Takipsiz_eski_kredinin_taksitleri_eski_planindan_hatirlatilir_gerceklesme_takiplide_otomatik_degil()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         // Çekim 1 Ağustos, ödeme günü 28: taksitler 28 Ağustos, 28 Eylül, ... (bugünden 3 gün sonra 2. taksit).
         var otomatik = EskiKredi(f, "Taşıt", new(2026, 8, 1), 6, 28);
         var gercek = EskiKredi(f, "Konut", new(2026, 8, 1), 6, 28, gerceklesmeTakibi: true);
@@ -188,13 +197,15 @@ public class TakipsizHatirlatmaTests
         Assert.Equal(("Ödemeye 3 gün kaldı", $"/#loans/{gercek}"), (gercekBildirim.Baslik, gercekBildirim.Hedef));
         Assert.Contains("kasaya otomatik işlenmez", gercekBildirim.Mesaj);
         var (isci, hatalar) = IsciOlaylari(f);
-        Assert.Empty(hatalar); Assert.Equal(olaylar, isci);
+        Assert.Empty(hatalar);
+        Assert.Equal(olaylar, isci);
     }
 
     [Fact]
     public async Task Plani_gecersiz_eski_kredi_bildirim_hattinda_yalitilir_diger_hatirlatmalar_surer()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = EskiKart(f, "Bonus", 1000m, [], []);
         var bozuk = EskiKredi(f, "Bozuk plan", new(2026, 8, 1), 6, 0);
         var (isci, hatalar) = IsciOlaylari(f);
@@ -205,7 +216,8 @@ public class TakipsizHatirlatmaTests
     [Fact]
     public async Task Ana_sayfa_takipte_olmayan_kart_ve_suren_eski_krediyi_kalici_uyari_icin_listeler()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takipli", 10_000m, 18, 28, Baslangic, 0, []));
         // Takipsiz kayıt yokken alan yazılmaz (yanıt biçimi aynen korunur).
         Assert.False((await c.GetFromJsonAsync<JsonElement>("/api/rapor/ana-sayfa?gun=30")).TryGetProperty("takipsizKayitlar", out _));

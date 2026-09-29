@@ -21,7 +21,9 @@ public class KartTakipDuzeltmeSozlesmeTests : SozlesmeTemeli
         F.Veri(db =>
         {
             var k = new KrediKartiEntity { Ad = "Eski kart", KesimTarihi = Baslangic.AddDays(4), SonOdemeTarihi = Baslangic.AddDays(24), Limit = 10000m };
-            db.KrediKartlari.Add(k); db.SaveChanges(); eskiKart = k.Id;
+            db.KrediKartlari.Add(k);
+            db.SaveChanges();
+            eskiKart = k.Id;
             db.Islemler.Add(new() { Tarih = Baslangic, Cari = "Eski harcama", TutarTl = 100m, KanalId = 1, Kanal = "MEZAT", Tip = Kasa.Core.GiderTipi.KrediKarti, KrediKartiId = k.Id });
             db.SaveChanges();
         });
@@ -30,7 +32,8 @@ public class KartTakipDuzeltmeSozlesmeTests : SozlesmeTemeli
         Assert.Equal((120m, 100m, 100m, true), (devir.KalanBorc, devir.KasadaOncedenSayilanTutar, devir.SistemKartBorcu, devir.Duzeltilebilir));
         kart = await o.Takip.TakipKartDevirDuzeltAsync(eskiKart, new KartDevirDuzeltYaz(Yeni(), kart.Surum, devir.HarcamaId, 100m, 100m, [new(1, 100m)], "Banka ekstresine göre"));
         var yeniDevir = kart.Harcamalar.Single(h => !h.Iptal);
-        Assert.Equal(100m, yeniDevir.Tutar); Assert.True(kart.Harcamalar.Single(h => h.Id == devir.HarcamaId).Iptal);
+        Assert.Equal(100m, yeniDevir.Tutar);
+        Assert.True(kart.Harcamalar.Single(h => h.Id == devir.HarcamaId).Iptal);
         kart = await o.Takip.TakipHarcamaKaydetAsync(eskiKart, new KartHarcamaYaz(Yeni(), kart.Surum, Bugun, "Satıcı iadesi", -30m, 1, null, [], yeniDevir.Id));
         Assert.Equal(30m, kart.Harcamalar.Single(h => h.Tutar < 0).KasadaSayilanDuzeltme);
 

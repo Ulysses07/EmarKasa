@@ -21,7 +21,8 @@ internal static class KancaDisiOlaylar
         {
             var oncekiAlanlar = Alanlar(onceki);
             var degisen = yeniAlanlar.Keys.Where(k => !Equals(oncekiAlanlar[k], yeniAlanlar[k])).ToList();
-            if (degisen.Count == 0) return;
+            if (degisen.Count == 0)
+                return;
             eski = degisen.ToDictionary(k => k, k => oncekiAlanlar[k]);
             yeniAlanlar = degisen.ToDictionary(k => k, k => yeniAlanlar[k]);
         }
@@ -67,15 +68,20 @@ internal static class KancaDisiOlaylar
 
         public void Dispose()
         {
-            try { _ef.Dispose(); _transaction.Dispose(); }
+            try
+            { _ef.Dispose(); _transaction.Dispose(); }
             finally { _db.Database.CloseConnection(); }
         }
     }
 
     private static Dictionary<string, object?> Alanlar(GelenEntity g) => new()
     {
-        [nameof(GelenEntity.Id)] = g.Id, [nameof(GelenEntity.DonemStart)] = g.DonemStart, [nameof(GelenEntity.Kanal)] = g.Kanal,
-        [nameof(GelenEntity.KanalId)] = g.KanalId, [nameof(GelenEntity.TutarTl)] = g.TutarTl, [nameof(GelenEntity.EskiYinelenenGrup)] = g.EskiYinelenenGrup,
+        [nameof(GelenEntity.Id)] = g.Id,
+        [nameof(GelenEntity.DonemStart)] = g.DonemStart,
+        [nameof(GelenEntity.Kanal)] = g.Kanal,
+        [nameof(GelenEntity.KanalId)] = g.KanalId,
+        [nameof(GelenEntity.TutarTl)] = g.TutarTl,
+        [nameof(GelenEntity.EskiYinelenenGrup)] = g.EskiYinelenenGrup,
     };
 
     /// <summary>
@@ -87,7 +93,8 @@ internal static class KancaDisiOlaylar
     {
         // Aralığın başı yoksa (kilit tamamen kalktı ya da ilk kez kuruldu) takip başlangıcından itibaren demektir.
         var yeni = new Dictionary<string, object?> { ["KilitliSonTarih"] = olay.YeniSonTarih, ["KilitOlayiId"] = olay.Id };
-        if (acma) yeni["AcilanAralik"] = new { Baslangic = olay.YeniSonTarih?.AddDays(1), Bitis = olay.OncekiSonTarih };
+        if (acma)
+            yeni["AcilanAralik"] = new { Baslangic = olay.YeniSonTarih?.AddDays(1), Bitis = olay.OncekiSonTarih };
         else
         {
             yeni["KilitlenenAralik"] = new { Baslangic = olay.OncekiSonTarih?.AddDays(1), Bitis = olay.YeniSonTarih };

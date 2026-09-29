@@ -22,24 +22,35 @@ internal static class CardLoanTrackingSchemaModel
             b.Entity("Kasa.Api.Data." + name, e => { if (name != "TakipEkstreEntity") e.HasIndex("KrediKartiId"); e.HasOne("Kasa.Api.Data.TakipKartEntity", null).WithMany().HasForeignKey("KrediKartiId").OnDelete(DeleteBehavior.Restrict).IsRequired(); });
         b.Entity("Kasa.Api.Data.TakipKartTaksitEntity", e =>
         {
-            e.HasIndex("HarcamaId"); e.HasIndex("EkstreId");
+            e.HasIndex("HarcamaId");
+            e.HasIndex("EkstreId");
             e.HasOne("Kasa.Api.Data.TakipHarcamaEntity", null).WithMany().HasForeignKey("HarcamaId").OnDelete(DeleteBehavior.Restrict).IsRequired();
             e.HasOne("Kasa.Api.Data.TakipEkstreEntity", null).WithMany().HasForeignKey("EkstreId").OnDelete(DeleteBehavior.Restrict).IsRequired();
         });
         b.Entity("Kasa.Api.Data.TakipKrediEntity", e => { e.Property<int>("Surum").IsConcurrencyToken(); e.HasOne("Kasa.Api.Data.KrediEntity", null).WithMany().HasForeignKey("KrediId").OnDelete(DeleteBehavior.Restrict).IsRequired(); });
         b.Entity("Kasa.Api.Data.TakipKrediTaksitEntity", e => { e.HasIndex("KrediId", "No").IsUnique(); e.HasOne("Kasa.Api.Data.TakipKrediEntity", null).WithMany().HasForeignKey("KrediId").OnDelete(DeleteBehavior.Restrict).IsRequired(); });
-        foreach (var name in new[] { "TakipKartOdemeEntity", "TakipKrediTaksitEntity" }) b.Entity("Kasa.Api.Data." + name, e => e.Property<string>("Not").HasColumnType("TEXT"));
+        foreach (var name in new[] { "TakipKartOdemeEntity", "TakipKrediTaksitEntity" })
+            b.Entity("Kasa.Api.Data." + name, e => e.Property<string>("Not").HasColumnType("TEXT"));
     }
 
     private static void Define(ModelBuilder b, string name, string table, string key, string[] ints, string[] bools, string[] dates, string[] decimals, string[] texts) => b.Entity("Kasa.Api.Data." + name, e =>
     {
         var pk = e.Property<int>(key).HasColumnType("INTEGER");
-        if (key == "Id") pk.ValueGeneratedOnAdd(); else pk.ValueGeneratedNever();
-        foreach (var p in ints) e.Property<int>(p).HasColumnType("INTEGER");
-        foreach (var p in bools) e.Property<bool>(p).HasColumnType("INTEGER");
-        foreach (var p in dates) e.Property<DateOnly>(p).HasColumnType("TEXT");
-        foreach (var p in decimals) e.Property<decimal>(p).HasColumnType("TEXT");
-        foreach (var p in texts) e.Property<string>(p).IsRequired().HasColumnType("TEXT");
-        e.HasKey(key); e.ToTable(table);
+        if (key == "Id")
+            pk.ValueGeneratedOnAdd();
+        else
+            pk.ValueGeneratedNever();
+        foreach (var p in ints)
+            e.Property<int>(p).HasColumnType("INTEGER");
+        foreach (var p in bools)
+            e.Property<bool>(p).HasColumnType("INTEGER");
+        foreach (var p in dates)
+            e.Property<DateOnly>(p).HasColumnType("TEXT");
+        foreach (var p in decimals)
+            e.Property<decimal>(p).HasColumnType("TEXT");
+        foreach (var p in texts)
+            e.Property<string>(p).IsRequired().HasColumnType("TEXT");
+        e.HasKey(key);
+        e.ToTable(table);
     });
 }

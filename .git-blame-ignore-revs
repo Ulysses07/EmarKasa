@@ -1,0 +1,9 @@
+# git blame'de atlanan yalnız-biçim commit'leri (tam SHA, satır başına bir tane; # ile başlayan satır yorumdur).
+# GitHub blame görünümü bu dosyayı depo kökünden kendiliğinden okur. Yerelde bir kez:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# SHA'lar dal birleştirme commit'iyle (merge) korunur; squash ya da rebase ile birleştirilirse yeni SHA'lar yazılmalıdır.
+
+# style: web kaynakları Prettier ile biçimlendirildi (yalnız biçim)
+0f5cfbfce8b206cbcde191dfa64123931cf59798
+# style: C# kodu dotnet format whitespace ile biçimlendirildi (yalnız biçim)
+3c0b04a48ce64288b6f48081c5c9127eb0fc0f8c

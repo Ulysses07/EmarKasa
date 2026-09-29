@@ -25,7 +25,8 @@ internal sealed class DosyaFabrikasi : KasaWebFactory
         builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(EkAyarlar));
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<DbContextOptions<KasaDbContext>>(); services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+            services.RemoveAll<DbContextOptions<KasaDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
             services.AddDbContext<KasaDbContext>(o => o.UseSqlite(Baglanti).AddInterceptors(Kesiciler));
         });
     }
@@ -33,6 +34,10 @@ internal sealed class DosyaFabrikasi : KasaWebFactory
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing) foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) try { File.Delete(Yol + ek); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        if (disposing)
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
+                try
+                { File.Delete(Yol + ek); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }

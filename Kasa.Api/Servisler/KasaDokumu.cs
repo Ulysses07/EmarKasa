@@ -55,11 +55,16 @@ public sealed class KasaDokumu(DateOnly bugun, decimal kasaAcilis, IReadOnlyList
                 : anahtar.StartsWith("EkstreKayit:", StringComparison.Ordinal) ? "EkstreGeliri"
                 : anahtar.StartsWith("HesapHareket:", StringComparison.Ordinal) ? "EkGelir" : "Gelir";
         var i = h.Islem!;
-        if (h.KartAySonu) return "KartAySonu";
-        if (anahtar.StartsWith("Kredi:", StringComparison.Ordinal) || anahtar.StartsWith("TakipKrediTaksit:", StringComparison.Ordinal)) return "KrediTaksidi";
-        if (anahtar.StartsWith("TakipHarcama:", StringComparison.Ordinal)) return "KartIadesi";
-        if (i.NakitKartOdemesi) return "KartOdemesi";
-        if (i.AylikGider) return "AylikGider";
+        if (h.KartAySonu)
+            return "KartAySonu";
+        if (anahtar.StartsWith("Kredi:", StringComparison.Ordinal) || anahtar.StartsWith("TakipKrediTaksit:", StringComparison.Ordinal))
+            return "KrediTaksidi";
+        if (anahtar.StartsWith("TakipHarcama:", StringComparison.Ordinal))
+            return "KartIadesi";
+        if (i.NakitKartOdemesi)
+            return "KartOdemesi";
+        if (i.AylikGider)
+            return "AylikGider";
         return i.Tip == GiderTipi.SabitGider ? "SabitGider" : "Gider";
     }
 
@@ -72,7 +77,8 @@ public sealed class KasaDokumu(DateOnly bugun, decimal kasaAcilis, IReadOnlyList
 
     private static string Aciklama(KasaHareketi h, string tur)
     {
-        if (h.Gelen is { } g) return g.Aciklama is { Length: > 0 } a ? a : tur switch { "KrediCekimi" => "Kredi çekimi", "EkGelir" => "Ek gelir", "EkstreGeliri" => "Ekstre geliri", _ => "Dönem geliri" };
+        if (h.Gelen is { } g)
+            return g.Aciklama is { Length: > 0 } a ? a : tur switch { "KrediCekimi" => "Kredi çekimi", "EkGelir" => "Ek gelir", "EkstreGeliri" => "Ekstre geliri", _ => "Dönem geliri" };
         var i = h.Islem!;
         return string.IsNullOrWhiteSpace(i.Not) || i.Not == i.Cari ? i.Cari : $"{i.Cari} · {i.Not}";
     }

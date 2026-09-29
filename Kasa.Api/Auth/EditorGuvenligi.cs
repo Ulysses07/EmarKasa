@@ -9,8 +9,10 @@ public static class EditorGuvenligi
 {
     public static bool Dogrula(string? sifre, IConfiguration cfg, EditorGuvenlikEntity? kayit)
     {
-        if (string.IsNullOrEmpty(sifre) || sifre.Length > 1024) return false;
-        if (kayit?.SifreHash is { } hash) return SifreHasher.Dogrula(sifre, hash);
+        if (string.IsNullOrEmpty(sifre) || sifre.Length > 1024)
+            return false;
+        if (kayit?.SifreHash is { } hash)
+            return SifreHasher.Dogrula(sifre, hash);
         var eski = cfg["Kasa:EditorSifre"];
         return !string.IsNullOrEmpty(eski) && CryptographicOperations.FixedTimeEquals(
             SHA256.HashData(Encoding.UTF8.GetBytes(sifre)), SHA256.HashData(Encoding.UTF8.GetBytes(eski)));
@@ -31,14 +33,16 @@ public static class EditorGuvenligi
     {
         app.MapPost("/api/auth/sifre", (SifreDegistir dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz, GuvenlikGunlugu gunluk) =>
         {
-            if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
+            if (YeniSifreHatasi(dto.YeniSifre) is { } hata)
+                return hata;
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
             if (!Dogrula(dto.MevcutSifre, cfg, kayit))
             {
                 // Başarısız deneme de kalıcı güvenlik olayıdır: yalnız olay yazılmış transaction kaydedilir.
                 GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegistirmeBasarisiz, cfg["Kasa:EditorKullanici"], varlikId: "1");
-                tx.Commit(); return MevcutSifreHatali();
+                tx.Commit();
+                return MevcutSifreHatali();
             }
             kayit = KayitOlustur(db, kayit);
             kayit.SifreHash = SifreHasher.Hashle(dto.YeniSifre);
@@ -65,7 +69,8 @@ public static class EditorGuvenligi
             if (!Dogrula(dto.MevcutSifre, cfg, kayit))
             {
                 GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretimiBasarisiz, cfg["Kasa:EditorKullanici"], varlikId: "1");
-                tx.Commit(); return MevcutSifreHatali();
+                tx.Commit();
+                return MevcutSifreHatali();
             }
             kayit = KayitOlustur(db, kayit);
             var kod = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
@@ -80,13 +85,16 @@ public static class EditorGuvenligi
 
         app.MapPost("/api/auth/kurtar", (SifreKurtar dto, KasaDbContext db, IConfiguration cfg, HttpContext http, TanidikCihaz tanidikCihaz, GuvenlikGunlugu gunluk) =>
         {
-            if (YeniSifreHatasi(dto.YeniSifre) is { } hata) return hata;
-            if (dto.Kod is null || dto.Kod.Length > 200) return KurtarmaHatali();
+            if (YeniSifreHatasi(dto.YeniSifre) is { } hata)
+                return hata;
+            if (dto.Kod is null || dto.Kod.Length > 200)
+                return KurtarmaHatali();
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
             var beklenen = kayit?.KurtarmaHash;
             if (dto.Kullanici != cfg["Kasa:EditorKullanici"] || beklenen is null
-                || !OturumDamgasi.Esit(KodHash(dto.Kod), beklenen)) return KurtarmaHatali();
+                || !OturumDamgasi.Esit(KodHash(dto.Kod), beklenen))
+                return KurtarmaHatali();
             kayit!.SifreHash = SifreHasher.Hashle(dto.YeniSifre);
             kayit.KurtarmaHash = null;
             kayit.Surum++;
@@ -106,8 +114,11 @@ public static class EditorGuvenligi
 
     private static EditorGuvenlikEntity KayitOlustur(KasaDbContext db, EditorGuvenlikEntity? kayit)
     {
-        if (kayit is not null) return kayit;
-        kayit = new EditorGuvenlikEntity(); db.EditorGuvenlik.Add(kayit); return kayit;
+        if (kayit is not null)
+            return kayit;
+        kayit = new EditorGuvenlikEntity();
+        db.EditorGuvenlik.Add(kayit);
+        return kayit;
     }
     private static string KodHash(string kod) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(kod.Trim().ToUpperInvariant())));
     private static IResult? YeniSifreHatasi(string? sifre) => SifreKurallari.YeniSifreHatasi(sifre, "yeniSifre", "Yeni şifre");

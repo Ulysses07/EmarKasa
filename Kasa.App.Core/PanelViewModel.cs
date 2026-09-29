@@ -62,8 +62,11 @@ public partial class PanelViewModel : RaporViewModel
             BuAySonucu = p.BuAySonucu;
             DagilimBekleyenTutar = p.DagilimBekleyenTutar;
             Kanallar.Clear();
-            foreach (var k in p.Kanallar) Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId));
-            KasaEsikleri = a.KasaEsikleri; TakipOzeti = a.TakipOzeti; TakipOzetiGunu = gun;
+            foreach (var k in p.Kanallar)
+                Kanallar.Add(new(k.Kanal, k.Bakiye, k.KanalId));
+            KasaEsikleri = a.KasaEsikleri;
+            TakipOzeti = a.TakipOzeti;
+            TakipOzetiGunu = gun;
             TakipsizUyari = TakipsizMetni(a.TakipsizKayitlar);
         });
     }

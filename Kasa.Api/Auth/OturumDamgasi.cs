@@ -28,7 +28,8 @@ public static class OturumDamgasi
             "viewer" => db.Ayarlar.AsNoTracking().Select(a => a.IzleyiciSifreHash).FirstOrDefault(),
             _ => null
         };
-        if (kaynak is null) return null;
+        if (kaynak is null)
+            return null;
         return Imzala(kaynak, cfg, Donem(db));
     }
 

@@ -25,10 +25,15 @@ public class OkumaTests
 
         Assert.Equal(3, satirlar.Count);
         Assert.Equal(new[] { 10, 11, 12 }, satirlar.Select(g => g.Id));
-        Assert.Equal("MEZAT", satirlar[0].Kanal); Assert.Equal("mezat", satirlar[1].Kanal);
-        Assert.True(satirlar[0].EskiYinelenenGrup); Assert.True(satirlar[1].EskiYinelenenGrup);
-        Assert.Equal(2, satirlar[0].KanalId); Assert.Equal(100.01m, satirlar[0].TutarTl); Assert.Equal(20.02m, satirlar[1].TutarTl);
-        Assert.False(satirlar[2].EskiYinelenenGrup); Assert.Null(satirlar[2].KanalId);
+        Assert.Equal("MEZAT", satirlar[0].Kanal);
+        Assert.Equal("mezat", satirlar[1].Kanal);
+        Assert.True(satirlar[0].EskiYinelenenGrup);
+        Assert.True(satirlar[1].EskiYinelenenGrup);
+        Assert.Equal(2, satirlar[0].KanalId);
+        Assert.Equal(100.01m, satirlar[0].TutarTl);
+        Assert.Equal(20.02m, satirlar[1].TutarTl);
+        Assert.False(satirlar[2].EskiYinelenenGrup);
+        Assert.Null(satirlar[2].KanalId);
     }
 
     [Fact]

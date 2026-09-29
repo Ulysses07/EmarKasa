@@ -39,7 +39,8 @@ public class VekilVeHizSiniriTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            if (loglar is not null) builder.ConfigureLogging(logging => logging.AddProvider(loglar));
+            if (loglar is not null)
+                builder.ConfigureLogging(logging => logging.AddProvider(loglar));
             var ayarlar = new Dictionary<string, string?>
             {
                 ["Kasa:HizSiniri:GirisKullaniciIzni"] = "3",
@@ -54,10 +55,12 @@ public class VekilVeHizSiniriTests
                 ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "2",
                 ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
             };
-            foreach (var (k, v) in ek ?? new()) ayarlar[k] = v;
+            foreach (var (k, v) in ek ?? new())
+                ayarlar[k] = v;
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(ayarlar));
             builder.ConfigureServices(s => s.AddSingleton<IStartupFilter, BaglantiAdresi>());
-            if (saat is not null) builder.ConfigureTestServices(s => s.AddSingleton(saat));
+            if (saat is not null)
+                builder.ConfigureTestServices(s => s.AddSingleton(saat));
             if (dosyaVeritabani is not null)
                 builder.ConfigureServices(s =>
                 {
@@ -85,8 +88,10 @@ public class VekilVeHizSiniriTests
     internal static HttpClient Istemci(KasaWebFactory f, string? xff, string? baglanti = null)
     {
         var c = f.CreateClient();
-        if (xff is not null) c.DefaultRequestHeaders.Add("X-Forwarded-For", xff);
-        if (baglanti is not null) c.DefaultRequestHeaders.Add(Vekil, baglanti);
+        if (xff is not null)
+            c.DefaultRequestHeaders.Add("X-Forwarded-For", xff);
+        if (baglanti is not null)
+            c.DefaultRequestHeaders.Add(Vekil, baglanti);
         return c;
     }
 
@@ -114,7 +119,8 @@ public class VekilVeHizSiniriTests
         }
         finally
         {
-            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(yol + ek);
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(yol + ek);
         }
     }
 
@@ -139,7 +145,8 @@ public class VekilVeHizSiniriTests
         using (var editor = await f.EditorClientAsync())
             (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
         using var ofis = Istemci(f, "198.51.100.3");
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, " EDITOR ", "yanlis")).StatusCode);
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, " EDITOR ", "yanlis")).StatusCode);
         // Normalize kullanıcı adı ("editor") kilitli; aynı ofisten alıcı yine girer.
         await Reddedildi(await Giris(ofis, "editor", "yanlis"));
         Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "alici-1", "alici-sifre-1")).StatusCode);
@@ -202,11 +209,14 @@ public class VekilVeHizSiniriTests
         Assert.Equal(JsonValueKind.Null, (await Ayarlar(editor)).GetProperty("vekilUyarisi").ValueKind);
 
         // Güvenilen vekilden gelen başlık ya da başlıksız doğrudan bağlantı uyarı üretmez.
-        using (var guvenilir = Istemci(f, "198.51.100.62", baglanti: "172.18.0.1")) await Giris(guvenilir, "editor", "yanlis");
-        using (var basliksiz = Istemci(f, null, baglanti: "203.0.113.9")) await Giris(basliksiz, "editor", "yanlis");
+        using (var guvenilir = Istemci(f, "198.51.100.62", baglanti: "172.18.0.1"))
+            await Giris(guvenilir, "editor", "yanlis");
+        using (var basliksiz = Istemci(f, null, baglanti: "203.0.113.9"))
+            await Giris(basliksiz, "editor", "yanlis");
         Assert.Equal(JsonValueKind.Null, (await Ayarlar(editor)).GetProperty("vekilUyarisi").ValueKind);
 
-        using (var c = Istemci(f, "198.51.100.63", baglanti: "10.20.0.1")) await Giris(c, "editor", "yanlis");
+        using (var c = Istemci(f, "198.51.100.63", baglanti: "10.20.0.1"))
+            await Giris(c, "editor", "yanlis");
         var uyari = (await Ayarlar(editor)).GetProperty("vekilUyarisi").GetString();
         Assert.Contains("10.20.0.1", uyari);
         Assert.Contains("Kasa:GuvenilirVekiller", uyari);
@@ -496,7 +506,8 @@ public class VekilVeHizSiniriTests
         var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None);
         var giris = Giris(c, "editor", "kasa123");
         using (var zaman = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
-            while (sinir.KuyruktakiDogrulama == 0) await Task.Delay(10, zaman.Token);
+            while (sinir.KuyruktakiDogrulama == 0)
+                await Task.Delay(10, zaman.Token);
         Assert.False(giris.IsCompleted);
         tutulan.Dispose();
         Assert.Equal(HttpStatusCode.OK, (await giris).StatusCode);
@@ -513,16 +524,20 @@ public class VekilVeHizSiniriTests
         Assert.True(tutulan.IsAcquired);
         var istekler = denemeler.Select(d => Giris(d.Istemci, d.Kullanici, d.Sifre)).ToList();
         using (var zaman = new CancellationTokenSource(TimeSpan.FromSeconds(60)))
-            while (istekler.Count(t => t.IsCompleted) + sinir.KuyruktakiDogrulama < istekler.Count) await Task.Delay(10, zaman.Token);
+            while (istekler.Count(t => t.IsCompleted) + sinir.KuyruktakiDogrulama < istekler.Count)
+                await Task.Delay(10, zaman.Token);
         tutulan.Dispose();
         return await Task.WhenAll(istekler);
     }
 
     private static Dictionary<string, string?> PatlamaAyari(string agIzni, string hedefIzni) => new()
     {
-        [AgIzni] = agIzni, [HedefIzni] = hedefIzni,
-        ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
-        ["Kasa:HizSiniri:GirisKullaniciIzni"] = "1000", ["Kasa:HizSiniri:GirisIpIzni"] = "1000",
+        [AgIzni] = agIzni,
+        [HedefIzni] = hedefIzni,
+        ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1",
+        ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "60",
+        ["Kasa:HizSiniri:GirisKullaniciIzni"] = "1000",
+        ["Kasa:HizSiniri:GirisIpIzni"] = "1000",
     };
 
     [Fact]
@@ -534,7 +549,8 @@ public class VekilVeHizSiniriTests
 
         Assert.Equal(5, yanitlar.Count(y => y.StatusCode == HttpStatusCode.Unauthorized));
         Assert.Equal(35, yanitlar.Count(y => y.StatusCode == HttpStatusCode.TooManyRequests));
-        foreach (var y in yanitlar.Where(y => y.StatusCode == HttpStatusCode.TooManyRequests)) await Reddedildi(y);
+        foreach (var y in yanitlar.Where(y => y.StatusCode == HttpStatusCode.TooManyRequests))
+            await Reddedildi(y);
         // Doğru şifre de ağın bütçesi dolduğu için denenmez; başka ağ etkilenmez.
         await Reddedildi(await Giris(c, "editor", "kasa123"));
         using var baska = Istemci(f, "198.51.100.201");
@@ -563,8 +579,10 @@ public class VekilVeHizSiniriTests
     {
         await using var f = new VekilFabrikasi(new() { [AgIzni] = "2", [HedefIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
         using var ofis = Istemci(f, "198.51.100.210");
-        for (var i = 0; i < 6; i++) Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "editor", "kasa123")).StatusCode);
-        for (var i = 0; i < 2; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, "editor", "yanlis")).StatusCode);
+        for (var i = 0; i < 6; i++)
+            Assert.Equal(HttpStatusCode.OK, (await Giris(ofis, "editor", "kasa123")).StatusCode);
+        for (var i = 0; i < 2; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, "editor", "yanlis")).StatusCode);
         await Reddedildi(await Giris(ofis, "editor", "kasa123"));
     }
 
@@ -659,8 +677,10 @@ public class VekilVeHizSiniriTests
     {
         await using var f = new VekilFabrikasi(new()
         {
-            [HedefIzni] = hedef, [AgIzni] = ag,
-            ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = eszamanli, ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = kuyruk,
+            [HedefIzni] = hedef,
+            [AgIzni] = ag,
+            ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = eszamanli,
+            ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = kuyruk,
         });
         var hata = Assert.ThrowsAny<Exception>(() => f.CreateClient());
         Assert.Contains("Kasa:HizSiniri:AgBasarisizIzni", hata.ToString());

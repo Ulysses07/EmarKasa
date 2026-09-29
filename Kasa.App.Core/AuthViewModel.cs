@@ -49,19 +49,31 @@ public partial class AuthViewModel : ObservableObject
     [ObservableProperty] private bool _kurtarmaSifresiniGoster;
 
     [RelayCommand] private void KurtarmayiAcKapat() { KurtarmaAcik = !KurtarmaAcik; KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaYeniSifreTekrar = ""; KurtarmaSifresiniGoster = false; }
-    [RelayCommand] private async Task SifreKurtarAsync()
+    [RelayCommand]
+    private async Task SifreKurtarAsync()
     {
-        if (Mesgul || _api is not IYonetimApi yonetim) return;
-        Hata = null; Bilgi = null; KurtarmaMesaji = null; Mesgul = true;
+        if (Mesgul || _api is not IYonetimApi yonetim)
+            return;
+        Hata = null;
+        Bilgi = null;
+        KurtarmaMesaji = null;
+        Mesgul = true;
         var nesil = OturumSurumu;
         try
         {
             if (string.IsNullOrWhiteSpace(Kullanici) || string.IsNullOrWhiteSpace(KurtarmaKodu) || KurtarmaYeniSifre.Length < 12 || KurtarmaYeniSifre.Length > 1024)
             { Hata = "Kullanıcı adını, kurtarma kodunu ve 12–1024 karakterli yeni şifreyi yazın."; return; }
-            if (KurtarmaYeniSifre != KurtarmaYeniSifreTekrar) { Hata = GuvenlikViewModel.YeniSifreUyusmazMesaji; return; }
+            if (KurtarmaYeniSifre != KurtarmaYeniSifreTekrar)
+            { Hata = GuvenlikViewModel.YeniSifreUyusmazMesaji; return; }
             await yonetim.SifreKurtarAsync(new(Kullanici.Trim(), KurtarmaKodu.Trim(), KurtarmaYeniSifre));
-            if (nesil != OturumSurumu) return;
-            KurtarmaKodu = ""; KurtarmaYeniSifre = ""; KurtarmaYeniSifreTekrar = ""; Sifre = ""; KurtarmaAcik = false; KurtarmaSifresiniGoster = false;
+            if (nesil != OturumSurumu)
+                return;
+            KurtarmaKodu = "";
+            KurtarmaYeniSifre = "";
+            KurtarmaYeniSifreTekrar = "";
+            Sifre = "";
+            KurtarmaAcik = false;
+            KurtarmaSifresiniGoster = false;
             KurtarmaMesaji = "Şifreniz yenilendi. Yeni şifreyle giriş yapın.";
         }
         catch (KasaApiException ex)
@@ -138,7 +150,8 @@ public partial class AuthViewModel : ObservableObject
         OturumSurumu++;
         KurtarmaAlanlariniTemizle();
         Mesgul = false;
-        try { await _api.CikisAsync(); }
+        try
+        { await _api.CikisAsync(); }
         catch (Exception) { /* çıkışta hata önemsiz */ }
         GirisYapildi = false;
     }

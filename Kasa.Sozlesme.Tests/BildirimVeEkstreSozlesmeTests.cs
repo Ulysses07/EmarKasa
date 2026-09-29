@@ -20,11 +20,23 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         {
             // Teslim edilmiş bildirim, kaynağı artık üretmese de listede kalır.
             var bildirim = new BildirimEntity { OlayAnahtari = "sozlesme-1", Baslik = "Son ödeme", Mesaj = "Kart ödemesi yaklaşıyor", Tarih = Bugun, Hedef = "/#cards", Tur = "SonOdeme", KaynakId = 7 };
-            var cihaz = new PushAbonelikEntity { Endpoint = "https://fcm.googleapis.com/fcm/send/sozlesme", P256dh = "p", Auth = "a", CihazId = Guid.NewGuid().ToString("D"),
-                CihazAdi = "Kasa masası", OturumDamgasi = "damga", Olusturuldu = 1_790_000_000, SonBasarili = 1_790_000_100 };
-            db.AddRange(bildirim, cihaz); db.SaveChanges();
-            db.Add(new BildirimTeslimEntity { BildirimId = bildirim.Id, AbonelikId = cihaz.Id, Gonderildi = 1_790_000_100 }); db.SaveChanges();
-            bildirimId = bildirim.Id; cihazId = cihaz.Id;
+            var cihaz = new PushAbonelikEntity
+            {
+                Endpoint = "https://fcm.googleapis.com/fcm/send/sozlesme",
+                P256dh = "p",
+                Auth = "a",
+                CihazId = Guid.NewGuid().ToString("D"),
+                CihazAdi = "Kasa masası",
+                OturumDamgasi = "damga",
+                Olusturuldu = 1_790_000_000,
+                SonBasarili = 1_790_000_100
+            };
+            db.AddRange(bildirim, cihaz);
+            db.SaveChanges();
+            db.Add(new BildirimTeslimEntity { BildirimId = bildirim.Id, AbonelikId = cihaz.Id, Gonderildi = 1_790_000_100 });
+            db.SaveChanges();
+            bildirimId = bildirim.Id;
+            cihazId = cihaz.Id;
         });
         var bildirim = Assert.Single(await o.Bildirim.BildirimlerAsync(), b => b.Id == bildirimId);
         Assert.Equal(("Son ödeme", Bugun, false, "SonOdeme", 7), (bildirim.Baslik, bildirim.Tarih, bildirim.Okundu, bildirim.Tur, bildirim.KaynakId));
@@ -37,7 +49,8 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         ayar = await o.Bildirim.BildirimAyarKaydetAsync(new BildirimAyarYaz(true, 8, 30, ayar.Surum));
         Assert.Equal((true, 8, 30), (ayar.Etkin, ayar.Saat, ayar.Dakika));
         var anahtar = await o.Bildirim.BildirimAnahtariAsync();
-        Assert.True(anahtar.Etkin); Assert.False(string.IsNullOrEmpty(anahtar.PublicKey));
+        Assert.True(anahtar.Etkin);
+        Assert.False(string.IsNullOrEmpty(anahtar.PublicKey));
 
         var cihaz = Assert.Single(await o.Bildirim.BildirimCihazlariAsync());
         Assert.Equal((cihazId, "Kasa masası", true), (cihaz.Id, cihaz.CihazAdi, cihaz.Etkin));
@@ -55,16 +68,19 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         var o = await Editor();
         await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
         var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 sozlesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null);
-        Assert.Equal(("Banka", "Akbank", "Ana hesap", "ekstre.pdf"), (belge.Kaynak, belge.Banka, belge.HesapAdi, belge.DosyaAdi)); Assert.Empty(belge.Kayitlar);
+        Assert.Equal(("Banka", "Akbank", "Ana hesap", "ekstre.pdf"), (belge.Kaynak, belge.Banka, belge.HesapAdi, belge.DosyaAdi));
+        Assert.Empty(belge.Kayitlar);
         var okunan = Assert.Single(belge.Satirlar);
         Assert.Equal((Bugun, "TRY"), (okunan.Tarih, okunan.ParaBirimi));
 
         var istek = new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [new EkstreSatirYaz(okunan.No, okunan.Tarih!.Value, okunan.Aciklama, Math.Abs(okunan.Tutar!.Value), "Gider", "Genel", [])]);
         var onizleme = await o.Ekstre.EkstreOnizlemeAsync(belge.Id, istek);
-        Assert.Equal(-10m, onizleme.KasaEtkisi); Assert.False(string.IsNullOrEmpty(onizleme.OnizlemeOzeti));
+        Assert.Equal(-10m, onizleme.KasaEtkisi);
+        Assert.False(string.IsNullOrEmpty(onizleme.OnizlemeOzeti));
         belge = await o.Ekstre.EkstreKaydetAsync(belge.Id, istek with { OnizlemeOzeti = onizleme.OnizlemeOzeti, TekrarOnay = true });
         var kayit = Assert.Single(belge.Kayitlar);
-        Assert.Equal(("Gider", 10m, false), (kayit.IslemTuru, kayit.Tutar, kayit.Iptal)); Assert.NotNull(kayit.IslemId);
+        Assert.Equal(("Gider", 10m, false), (kayit.IslemTuru, kayit.Tutar, kayit.Iptal));
+        Assert.NotNull(kayit.IslemId);
 
         Assert.Equal(belge.Id, (await o.Ekstre.EkstreKaynakBelgeAsync(kayit.Id)).Id);
         var ozet = Assert.Single(await o.Ekstre.EkstreBelgelerAsync());
@@ -73,7 +89,8 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         Assert.Equal(belge.Surum, (await o.Ekstre.EkstreBelgeAsync(belge.Id)).Surum);
         using var pdf = new MemoryStream();
         var dosya = await o.Ekstre.EkstreDosyaAsync(belge.Id, pdf);
-        Assert.Equal(("ekstre.pdf", "application/pdf"), (dosya.DosyaAdi, dosya.IcerikTuru)); Assert.Equal("%PDF-1.7 sozlesme"u8.ToArray(), pdf.ToArray());
+        Assert.Equal(("ekstre.pdf", "application/pdf"), (dosya.DosyaAdi, dosya.IcerikTuru));
+        Assert.Equal("%PDF-1.7 sozlesme"u8.ToArray(), pdf.ToArray());
 
         belge = await o.Ekstre.EkstreKayitIptalAsync(belge.Id, kayit.Id, new EkstreIptalYaz(Guid.NewGuid(), "Yanlış satır"));
         Assert.True(Assert.Single(belge.Kayitlar).Iptal);

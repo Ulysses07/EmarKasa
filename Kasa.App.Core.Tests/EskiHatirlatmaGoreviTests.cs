@@ -34,7 +34,8 @@ public sealed class EskiHatirlatmaGoreviTests : IDisposable
     [Fact]
     public async Task Gorev_silinince_isaret_yazilir_ve_komut_bir_daha_calismaz()
     {
-        var gorev = new EskiHatirlatmaGorevi(_klasor); var c = new Calistirici(0);
+        var gorev = new EskiHatirlatmaGorevi(_klasor);
+        var c = new Calistirici(0);
         Assert.True(await gorev.TemizleAsync(c.Calistir));
         Assert.True(gorev.Yapildi);
         Assert.False(await new EskiHatirlatmaGorevi(_klasor).TemizleAsync(c.Calistir));
@@ -44,7 +45,8 @@ public sealed class EskiHatirlatmaGoreviTests : IDisposable
     [Fact]
     public async Task Gorev_zaten_yoksa_sorguyla_anlasilir_ve_isaret_yazilir()
     {
-        var gorev = new EskiHatirlatmaGorevi(_klasor); var c = new Calistirici(1, 1);
+        var gorev = new EskiHatirlatmaGorevi(_klasor);
+        var c = new Calistirici(1, 1);
         Assert.True(await gorev.TemizleAsync(c.Calistir));
         Assert.True(gorev.Yapildi);
         Assert.Equal(["schtasks /Delete /TN EmarKasaHatirlatici /F", "schtasks /Query /TN EmarKasaHatirlatici"], c.Ozet);
@@ -70,7 +72,8 @@ public sealed class EskiHatirlatmaGoreviTests : IDisposable
         Assert.False(await new EskiHatirlatmaGorevi(_klasor).TemizleAsync(_ => throw new InvalidOperationException("çalıştırılamadı")));
         // İşaret klasörü bir dosya: işaret yazılamaz, hata yutulur.
         File.WriteAllText(_klasor + ".dosya", "");
-        try { Assert.False(await new EskiHatirlatmaGorevi(Path.Combine(_klasor + ".dosya", "alt")).TemizleAsync(new Calistirici(0).Calistir)); }
+        try
+        { Assert.False(await new EskiHatirlatmaGorevi(Path.Combine(_klasor + ".dosya", "alt")).TemizleAsync(new Calistirici(0).Calistir)); }
         finally { File.Delete(_klasor + ".dosya"); }
     }
 

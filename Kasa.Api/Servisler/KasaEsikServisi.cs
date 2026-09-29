@@ -11,12 +11,14 @@ public static class KasaEsikServisi
     /// önleyen uyarı günüdür; çağıran onu aynı DI saatinden hesaplar.</summary>
     public static IReadOnlyList<BildirimTaslagi> Oku(KasaDbContext db, DateOnly today, bool yeniUyariEtkin)
     {
-        if (!db.KasaEsikleri.Any(x => x.Etkin || x.AlarmAcik)) return [];
+        if (!db.KasaEsikleri.Any(x => x.Etkin || x.AlarmAcik))
+            return [];
         // Bakiyeler salt okunur anlık görüntüden, yazma kilidi alınmadan hesaplanır (ağır kısım); yalnız alarm alanlarının
         // güncellenmesi kısa bir yazma transaction'ındadır. Arada kaydedilen hareket bir sonraki turda değerlendirilir.
         var balances = new HesapServisi(db).Panel().Kanallar.ToDictionary(k => k.KanalId ?? 0);
         using var snapshot = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
-        foreach (var entry in db.ChangeTracker.Entries<KasaEsikEntity>().ToList()) entry.State = EntityState.Detached;
+        foreach (var entry in db.ChangeTracker.Entries<KasaEsikEntity>().ToList())
+            entry.State = EntityState.Detached;
         var limits = db.KasaEsikleri.Where(x => x.Etkin || x.AlarmAcik).ToList();
         var result = new List<BildirimTaslagi>();
         foreach (var limit in limits)
@@ -24,21 +26,26 @@ public static class KasaEsikServisi
             balances.TryGetValue(limit.KanalId, out var channel);
             if (!limit.Etkin || channel is null || channel.Bakiye >= limit.Tutar)
             {
-                limit.AlarmAcik = false; limit.UyariTarihi = null;
+                limit.AlarmAcik = false;
+                limit.UyariTarihi = null;
                 continue;
             }
             if (!limit.AlarmAcik && yeniUyariEtkin)
             {
-                limit.AlarmAcik = true; limit.OlaySayisi++; limit.UyariTarihi = today;
+                limit.AlarmAcik = true;
+                limit.OlaySayisi++;
+                limit.UyariTarihi = today;
             }
             // Aynı düşük bakiye olayı ertesi gün veya sunucu yeniden başlarken tekrarlanmaz.
-            if (!yeniUyariEtkin || limit.UyariTarihi != today) continue;
+            if (!yeniUyariEtkin || limit.UyariTarihi != today)
+                continue;
             var culture = CultureInfo.GetCultureInfo("tr-TR");
             result.Add(new($"KasaEsik:{limit.Id}:{limit.OlaySayisi}", "Kanal kasası alt sınırın altında",
                 $"{channel.Kanal}: kasa {channel.Bakiye.ToString("N2", culture)} TL, belirlediğin alt sınır {limit.Tutar.ToString("N2", culture)} TL.",
                 today, "/#home", "KasaEsik", limit.KanalId));
         }
-        db.SaveChanges(); snapshot?.Commit();
+        db.SaveChanges();
+        snapshot?.Commit();
         return result;
     }
 }

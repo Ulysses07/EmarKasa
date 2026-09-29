@@ -32,9 +32,12 @@ public class SahteHandlerTests
         await c.KanalGuncelleAsync(4, new KanalYaz("MEZAT", true, 2, 0m));
 
         Assert.Equal(2, h.Istekler.Count);
-        Assert.Equal(HttpMethod.Delete, h.Istekler[0].Istek.Method); Assert.Null(h.Istekler[0].Govde);
-        Assert.Equal(HttpMethod.Put, h.Istekler[1].Istek.Method); Assert.Contains("\"sira\":2", h.Istekler[1].Govde);
-        Assert.Same(h.Istekler[1].Istek, h.SonIstek); Assert.Equal(h.Istekler[1].Govde, h.SonGovde);
+        Assert.Equal(HttpMethod.Delete, h.Istekler[0].Istek.Method);
+        Assert.Null(h.Istekler[0].Govde);
+        Assert.Equal(HttpMethod.Put, h.Istekler[1].Istek.Method);
+        Assert.Contains("\"sira\":2", h.Istekler[1].Govde);
+        Assert.Same(h.Istekler[1].Istek, h.SonIstek);
+        Assert.Equal(h.Istekler[1].Govde, h.SonGovde);
         Assert.Equal(1, h.KalanYanit);
     }
 }

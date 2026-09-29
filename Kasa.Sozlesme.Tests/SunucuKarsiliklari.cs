@@ -52,9 +52,12 @@ public static class SunucuKarsiliklari
 
     public static Type? Bul(Type istemci)
     {
-        if (Cekirdek.TryGetValue(istemci, out var cekirdek)) return cekirdek;
-        if (FarkliAdli.TryGetValue(istemci, out var farkli)) return farkli;
-        if (!ApiTurleri.Value.TryGetValue(istemci.Name, out var api)) return null;
+        if (Cekirdek.TryGetValue(istemci, out var cekirdek))
+            return cekirdek;
+        if (FarkliAdli.TryGetValue(istemci, out var farkli))
+            return farkli;
+        if (!ApiTurleri.Value.TryGetValue(istemci.Name, out var api))
+            return null;
         return api.Length == 1 ? api[0] : throw new InvalidOperationException($"{istemci.Name} Kasa.Api'de birden çok ad alanında tanımlı; karşılık belirsiz.");
     }
 

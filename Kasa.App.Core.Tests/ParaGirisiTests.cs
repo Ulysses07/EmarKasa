@@ -46,7 +46,12 @@ public partial class ParaGirisiTests
     }
 
     [Theory]
-    [InlineData("25.000")] [InlineData("1.500")] [InlineData("12.500")] [InlineData("1.250.000")] [InlineData("1,234.56")] [InlineData("1.234,56")]
+    [InlineData("25.000")]
+    [InlineData("1.500")]
+    [InlineData("12.500")]
+    [InlineData("1.250.000")]
+    [InlineData("1,234.56")]
+    [InlineData("1.234,56")]
     public void Gruplanmis_yazim_gecersiz_kalir_metin_bozulmaz(string metin)
     {
         var (g, vm) = Kur();
@@ -57,7 +62,10 @@ public partial class ParaGirisiTests
     }
 
     [Theory]
-    [InlineData("25000", "25000")] [InlineData("25000,5", "25000.5")] [InlineData("1500.50", "1500.50")] [InlineData("-12,30", "-12.30")]
+    [InlineData("25000", "25000")]
+    [InlineData("25000,5", "25000.5")]
+    [InlineData("1500.50", "1500.50")]
+    [InlineData("-12,30", "-12.30")]
     public void Gecerli_yazim_vm_ye_gider_metin_aynen_kalir(string metin, string beklenen)
     {
         var (g, vm) = Kur();
@@ -101,20 +109,26 @@ public partial class ParaGirisiTests
         var vm = new Vm { Tutar = ParaAyristirici.Gecersiz };
         var g = new ParaGirisi { Placeholder = "0,00 ₺" };
         var (yazi, yerTutucu) = (g.TextColor, g.PlaceholderColor);
-        g.BindingContext = vm; g.SetBinding(ParaGirisi.TutarProperty, nameof(Vm.Tutar)); vm.Degisim = 0;
+        g.BindingContext = vm;
+        g.SetBinding(ParaGirisi.TutarProperty, nameof(Vm.Tutar));
+        vm.Degisim = 0;
 
-        Assert.NotEqual(yazi, g.TextColor); Assert.NotEqual(yerTutucu, g.PlaceholderColor);
+        Assert.NotEqual(yazi, g.TextColor);
+        Assert.NotEqual(yerTutucu, g.PlaceholderColor);
         Assert.Equal(ParaAyristirici.GecersizGosterim, g.Placeholder);
         Assert.Equal(ParaGirisi.YenidenYazin, ToolTipProperties.GetText(g));
         Assert.Equal(ParaGirisi.YenidenYazin, SemanticProperties.GetHint(g));
         g.OdakKaybedildi();                                   // boş alandan çıkmak geçersiz tutarı 0'a çevirmez
-        Assert.Equal(ParaAyristirici.Gecersiz, vm.Tutar); Assert.Equal(0, vm.Degisim);
+        Assert.Equal(ParaAyristirici.Gecersiz, vm.Tutar);
+        Assert.Equal(0, vm.Degisim);
         Assert.Equal(ParaAyristirici.GecersizGosterim, g.Placeholder);
 
         TusTusYaz(g, "250");
         Assert.Equal(250m, vm.Tutar);
-        Assert.Equal(yazi, g.TextColor); Assert.Equal(yerTutucu, g.PlaceholderColor);
-        Assert.Equal("0,00 ₺", g.Placeholder); Assert.Null(ToolTipProperties.GetText(g));
+        Assert.Equal(yazi, g.TextColor);
+        Assert.Equal(yerTutucu, g.PlaceholderColor);
+        Assert.Equal("0,00 ₺", g.Placeholder);
+        Assert.Null(ToolTipProperties.GetText(g));
     }
 
     [Fact]
@@ -123,7 +137,9 @@ public partial class ParaGirisiTests
         var (g, vm) = Kur(ParaAyristirici.Gecersiz);
         Assert.Equal(ParaAyristirici.GecersizGosterim, g.Placeholder);
         vm.Tutar = 0m;
-        Assert.Null(g.Placeholder); Assert.Null(ToolTipProperties.GetText(g)); Assert.Equal(new ParaGirisi().TextColor, g.TextColor);
+        Assert.Null(g.Placeholder);
+        Assert.Null(ToolTipProperties.GetText(g));
+        Assert.Equal(new ParaGirisi().TextColor, g.TextColor);
     }
 
     [Fact]

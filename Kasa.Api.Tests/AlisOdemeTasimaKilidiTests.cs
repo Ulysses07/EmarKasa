@@ -28,7 +28,8 @@ public class AlisOdemeTasimaKilidiTests
         var p1 = alis.Odemeler.Single();
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Old, .01m));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
-        if (onayla) alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/onayla", new AlisDurumYaz(alis.Surum));
+        if (onayla)
+            alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/onayla", new AlisDurumYaz(alis.Surum));
         return (alis, p1);
     }
 
@@ -41,7 +42,8 @@ public class AlisOdemeTasimaKilidiTests
     [Fact]
     public async Task Saf_tasima_kaynak_alistaki_kilitli_odemenin_kurusunu_degistiremez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var (alis, p1) = await KurusAlisi(c);
         var hedef = await Hedef(c);
         var once = await c.GetStringAsync(Rapor);
@@ -59,7 +61,8 @@ public class AlisOdemeTasimaKilidiTests
     [Fact]
     public async Task Onayli_kaynakta_kilitli_odemeden_sonra_girilmis_acik_odeme_tasinir_oncesindeki_tasinamaz()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Onaylı kaynak: A (bugün, en düşük Id), B (geçen ay, kilitlenecek), C (bugün, en yüksek Id). Kümülatif paylarla A kanal2'yi,
         // B kanal1'i, C kanal2'yi alır. C'nin çıkması B'nin payını değiştirmez (B'den sonra gelir): kilit aşırı engellemez.
         // A'nın çıkması B'yi ilk ödeme yapar ve payını kanal2'ye kaydırırdı: 409.
@@ -79,7 +82,8 @@ public class AlisOdemeTasimaKilidiTests
         await RaporDegismedi(f, c, once);
 
         var guncel = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!;
-        kaynak = guncel.Single(a => a.Id == kaynak.Id); hedef = guncel.Single(a => a.Id == hedef.Id);
+        kaynak = guncel.Single(a => a.Id == kaynak.Id);
+        hedef = guncel.Single(a => a.Id == hedef.Id);
         Assert.Equal(odemeler[2].Id, Assert.Single(hedef.Odemeler).Id);
         using (var kilitli = await Tasi(c, kaynak, odemeler[0], hedef))
         {
@@ -93,7 +97,8 @@ public class AlisOdemeTasimaKilidiTests
     [Fact]
     public async Task Kilitli_donemde_kart_odemesiyle_odenmis_sonraki_kart_harcamasi_kaynaktan_tasimayi_engeller()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Onaylı kaynak: P1 (bugün, nakit, düşük Id) ve P2 (bugün, takipteki kartla). P2'nin tarihi açık dönemdedir ama kart
         // taksidi geçen ay tarihli bir kart ödemesiyle ödenmiştir: P2'nin kanal payı kilitli ayın kart ödemesine girmiştir.
         // P1'in çıkması P2'nin kümülatif payını kaydırırdı; genel kilit kuralı yalnız hedefi gördüğünden bunu kaynak denetimi yakalar.
@@ -121,7 +126,8 @@ public class AlisOdemeTasimaKilidiTests
     [Fact]
     public async Task Hedef_alista_kilitli_sonraki_odemenin_payini_degistiren_tasima_reddedilir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Kaynak onaysız: taşınan ödeme kaynağın kilitli ödemesini etkilemez. Hedef onaylı ve taşınan ödemeden SONRA girilmiş
         // kilitli ödemesi var: taşınan (düşük Id) ödeme hedefte onun önüne girer ve kuruşunu kaydırırdı. Hedef tarafını genel kilit
         // kuralı (AyKilidiKurallari: kilitli dönem ödemesi olan alışa ödeme taşınamaz) kapsar; bu test o korumanın regresyonudur.
@@ -143,7 +149,8 @@ public class AlisOdemeTasimaKilidiTests
     [Fact]
     public async Task Etkilenen_kilitli_odeme_yoksa_tasima_serbesttir_ve_kilitli_rapor_degismez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Onaysız kaynakta pay türetilmez (dağılım bekliyor): P1'in çıkması kilitli P2'nin kasaya etkisini değiştirmez.
         var (alis, p1) = await KurusAlisi(c, onayla: false);
         var hedef = await Hedef(c);
@@ -179,7 +186,8 @@ public class AlisOdemeTasimaKilidiTests
     private static async Task RaporDegismedi(KasaWebFactory f, HttpClient c, string kilitOncesi)
     {
         var beklenen = JsonNode.Parse(kilitOncesi)!.AsObject();
-        beklenen["kuralSurumu"] = HesapServisi.AcikAyKurali; beklenen["dondurulmus"] = true;
+        beklenen["kuralSurumu"] = HesapServisi.AcikAyKurali;
+        beklenen["dondurulmus"] = true;
         Assert.Equal(beklenen.ToJsonString(), await c.GetStringAsync(Rapor));
         using var scope = f.Services.CreateScope();
         var canli = scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Old.Year, Old.Month);

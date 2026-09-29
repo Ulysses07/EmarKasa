@@ -45,8 +45,10 @@ public static class SqliteBaglantiAyarlari
     /// süredir. 0 (sınırsız) verilmişse SQLite bekleyicisi kurulmaz, sürücünün sınırsız beklemesi korunur.</summary>
     public static void Uygula(SqliteConnection baglanti)
     {
-        if (!SureAcikVerilmis(baglanti.ConnectionString)) baglanti.DefaultTimeout = VarsayilanBeklemeSaniye;
-        if (baglanti.DefaultTimeout <= 0) return;
+        if (!SureAcikVerilmis(baglanti.ConnectionString))
+            baglanti.DefaultTimeout = VarsayilanBeklemeSaniye;
+        if (baglanti.DefaultTimeout <= 0)
+            return;
         using var komut = baglanti.CreateCommand();
         komut.CommandText = "PRAGMA busy_timeout = " + (baglanti.DefaultTimeout * 1000L).ToString(CultureInfo.InvariantCulture);
         komut.ExecuteNonQuery();
@@ -57,12 +59,14 @@ public static class SqliteBaglantiAyarlari
     {
         public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
         {
-            if (connection is SqliteConnection sqlite) Uygula(sqlite);
+            if (connection is SqliteConnection sqlite)
+                Uygula(sqlite);
         }
 
         public override Task ConnectionOpenedAsync(DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
         {
-            if (connection is SqliteConnection sqlite) Uygula(sqlite);
+            if (connection is SqliteConnection sqlite)
+                Uygula(sqlite);
             return Task.CompletedTask;
         }
     }

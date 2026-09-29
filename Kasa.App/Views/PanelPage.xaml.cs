@@ -20,8 +20,10 @@ public partial class PanelPage : ContentPage
             {
                 // Takip özeti ve kanal eşikleri panelle aynı ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı
                 // andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
-                if (vm.VeriVar) { await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu); await kontrol.YukleAsync(vm.KasaEsikleri); }
-                else { takip.VeriHazir = false; kontrol.VeriHazir = false; }
+                if (vm.VeriVar)
+                { await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu); await kontrol.YukleAsync(vm.KasaEsikleri); }
+                else
+                { takip.VeriHazir = false; kontrol.VeriHazir = false; }
             }
         };
         takip.PropertyChanged += (_, e) =>
@@ -30,9 +32,12 @@ public partial class PanelPage : ContentPage
                 _vm.KartBorclariniYansit(takip.VeriHazir ? takip.KanalKartBorclari : null);
         };
         var secim = new HorizontalStackLayout { Spacing = 10 };
-        foreach (var gun in new[] { 7, 30 }) secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
-        var yukle = new ActivityIndicator(); yukle.SetBinding(ActivityIndicator.IsRunningProperty, nameof(takip.Mesgul));
-        var hata = TakipUi.Bagli(nameof(takip.Hata)); hata.TextColor = Colors.DarkRed;
+        foreach (var gun in new[] { 7, 30 })
+            secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
+        var yukle = new ActivityIndicator();
+        yukle.SetBinding(ActivityIndicator.IsRunningProperty, nameof(takip.Mesgul));
+        var hata = TakipUi.Bagli(nameof(takip.Hata));
+        hata.TextColor = Colors.DarkRed;
         var icerik = new VerticalStackLayout { Spacing = 12 };
         icerik.Add(TakipUi.Bagli(nameof(takip.Ozet)));
         icerik.Add(TakipUi.Bagli(nameof(takip.BelirsizBorcOzeti)));
@@ -40,7 +45,8 @@ public partial class PanelPage : ContentPage
         icerik.SetBinding(IsVisibleProperty, nameof(takip.VeriHazir));
         var kart = TakipUi.Kart("Kart ve kredi takibi", TakipUi.Metin("Kart kesimi ve son ödeme günü hatırlatmadır; kartta kasa yalnız kaydedilen ödeme ile değişir. Kredi taksitleri ise vade tarihinde otomatik olarak kasaya işlenir."), secim, yukle, hata, icerik,
             TakipUi.Tikla("Kartlar", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Krediler", () => Shell.Current.GoToAsync("//krediler")));
-        kart.BindingContext = takip; PanelAlani.Add(kart);
+        kart.BindingContext = takip;
+        PanelAlani.Add(kart);
         PanelAlani.Add(KasaKontrolAlanlari.Kontrol(kontrol));
     }
 

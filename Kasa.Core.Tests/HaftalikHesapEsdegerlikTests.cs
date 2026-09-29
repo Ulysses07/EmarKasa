@@ -50,9 +50,15 @@ public class HaftalikHesapEsdegerlikTests
         var donemler = DonemUretici.Uret(baslangic, bitis).ToList();
         switch (no % 5)
         {
-            case 1: donemler = donemler.Where((_, i) => i % 3 != 1).ToList(); break;             // boşluklu
-            case 2: donemler = donemler.OrderBy(_ => rnd.Next()).ToList(); break;                // karışık sıra
-            case 3 when donemler.Count > 2: donemler.Add(donemler[1] with { End = donemler[2].End }); break; // çakışan (eski yola düşer)
+            case 1:
+                donemler = donemler.Where((_, i) => i % 3 != 1).ToList();
+                break;             // boşluklu
+            case 2:
+                donemler = donemler.OrderBy(_ => rnd.Next()).ToList();
+                break;                // karışık sıra
+            case 3 when donemler.Count > 2:
+                donemler.Add(donemler[1] with { End = donemler[2].End });
+                break; // çakışan (eski yola düşer)
         }
         var adlar = new[] { "MEZAT", "PERAKENDE", "TOPTAN", "ESKI" }.Take(rnd.Next(1, 5)).ToArray();
         var kanallar = adlar.Select((a, i) => new Kanal(a, Tutar(rnd), rnd.Next(0, 4) != 0, i)).ToList();
@@ -122,7 +128,8 @@ public class HaftalikHesapEsdegerlikTests
     private static (int Yil, int Ay) EtkiAyi(Islem islem)
     {
         int yil = islem.Tarih.Year, ay = islem.Tarih.Month;
-        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi) return (yil, ay);
+        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi)
+            return (yil, ay);
         return ay == 12 ? (yil + 1, 1) : (yil, ay + 1);
     }
 }

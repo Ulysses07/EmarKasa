@@ -124,7 +124,8 @@ public static class HesapMotoru
                 var kanal = !i.DagilimBekliyor && !i.YalnizGenelKasa && kanalAdlari.Contains(i.Kanal)
                     && (i.Tip == GiderTipi.Cari || i.NakitKartOdemesi || i.AylikGider) ? -i.TutarTl : 0m;
                 // Ertelemeli K.K kendi döneminde kasaya yazılmaz; kanal devrine de yazılmıyorsa satırı yalnız ay sonundadır.
-                if (ertelenen && kanal == 0m) continue;
+                if (ertelenen && kanal == 0m)
+                    continue;
                 sonuc.Add(new(i.Tarih, ertelenen ? 0m : -i.TutarTl, kanal, Islem: i));
             }
             var aySonu = new DateOnly(donem.Yil, donem.Ay, DateTime.DaysInMonth(donem.Yil, donem.Ay));
@@ -141,9 +142,11 @@ public static class HesapMotoru
     private static List<Islem>[]? DonemlereDagit(IReadOnlyList<Donem> sirali, IReadOnlyList<Islem> islemler)
     {
         for (var i = 0; i < sirali.Count; i++)
-            if (sirali[i].End < sirali[i].Start || (i > 0 && sirali[i].Start <= sirali[i - 1].End)) return null;
+            if (sirali[i].End < sirali[i].Start || (i > 0 && sirali[i].Start <= sirali[i - 1].End))
+                return null;
         var kovalar = new List<Islem>[sirali.Count];
-        for (var i = 0; i < kovalar.Length; i++) kovalar[i] = [];
+        for (var i = 0; i < kovalar.Length; i++)
+            kovalar[i] = [];
         foreach (var islem in islemler)
         {
             // Başlangıcı işlem tarihinden sonra olmayan son dönem; tarih onun bitişini aşıyorsa işlem hiçbir dönemde değildir.
@@ -151,10 +154,13 @@ public static class HesapMotoru
             while (alt <= ust)
             {
                 var orta = alt + (ust - alt) / 2;
-                if (sirali[orta].Start <= islem.Tarih) { bulunan = orta; alt = orta + 1; }
-                else ust = orta - 1;
+                if (sirali[orta].Start <= islem.Tarih)
+                { bulunan = orta; alt = orta + 1; }
+                else
+                    ust = orta - 1;
             }
-            if (bulunan >= 0 && islem.Tarih <= sirali[bulunan].End) kovalar[bulunan].Add(islem);
+            if (bulunan >= 0 && islem.Tarih <= sirali[bulunan].End)
+                kovalar[bulunan].Add(islem);
         }
         return kovalar;
     }
@@ -241,7 +247,8 @@ public static class HesapMotoru
             ayinIslemleri.Where(i => i.DagilimBekliyor).Sum(i => i.TutarTl),
             ayinIslemleri.Where(i => i.YalnizGenelKasa).Sum(i => i.TutarTl),
             gelenler.Where(g => g.GenelGelir && ayinDonemStartlari.Contains(g.DonemStart)).Sum(g => g.TutarTl));
-        if (!krediAyri) return rapor;
+        if (!krediAyri)
+            return rapor;
         // K2: ayın bütün kredi girişi tek alanda. Eski modelin çekimi hiçbir kanala ait değildir ('__KREDI__'); takipli
         // kredinin payları kanal satırlarında da görünür. İki model aynı ay sonucunu ve aynı toplamı verir.
         return rapor with
@@ -283,7 +290,8 @@ public static class HesapMotoru
     // İşlemin haftalık kasadan düştüğü gün: ertelemeli K.K etki ayının son günü, diğerleri kendi tarihi.
     private static DateOnly KasaEtkiTarihi(Islem islem)
     {
-        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi) return islem.Tarih;
+        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi)
+            return islem.Tarih;
         var (yil, ay) = EtkiAyi(islem);
         return new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay));
     }
@@ -292,7 +300,8 @@ public static class HesapMotoru
     private static (int Yil, int Ay) EtkiAyi(Islem islem)
     {
         int yil = islem.Tarih.Year, ay = islem.Tarih.Month;
-        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi) return (yil, ay);
+        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi)
+            return (yil, ay);
         return ay == 12 ? (yil + 1, 1) : (yil, ay + 1);
     }
 }

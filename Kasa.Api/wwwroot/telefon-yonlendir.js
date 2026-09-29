@@ -3,20 +3,31 @@
 (function () {
   var ANAHTAR = 'kasa.gorunum';
   var telefon = false;
-  try { telefon = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600; } catch (e) {}
+  try {
+    telefon = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
+  } catch (e) {}
   if (!telefon) return;
   var masaustu = false;
-  try { masaustu = localStorage.getItem(ANAHTAR) === 'masaustu'; } catch (e) {}
+  try {
+    masaustu = localStorage.getItem(ANAHTAR) === 'masaustu';
+  } catch (e) {}
   // Tarayıcı kaydı tutamıyorsa (gizli sekme, kapalı depolama) telefon arayüzü bu işaretle gelir.
   if (/[?&]gorunum=masaustu(&|$)/.test(location.search)) masaustu = true;
-  if (!masaustu) { location.replace('/m/' + location.hash); return; }
+  if (!masaustu) {
+    location.replace('/m/' + location.hash);
+    return;
+  }
   function telefonaDon() {
-    try { localStorage.removeItem(ANAHTAR); } catch (e) {}
+    try {
+      localStorage.removeItem(ANAHTAR);
+    } catch (e) {}
     location.href = '/m/' + location.hash;
   }
   function dugme(sinif) {
     var b = document.createElement('button');
-    b.type = 'button'; b.className = sinif; b.textContent = 'Telefon görünümü';
+    b.type = 'button';
+    b.className = sinif;
+    b.textContent = 'Telefon görünümü';
     b.addEventListener('click', telefonaDon);
     return b;
   }

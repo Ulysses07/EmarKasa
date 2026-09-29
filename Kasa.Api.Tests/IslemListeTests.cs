@@ -18,8 +18,12 @@ public class IslemListeTests
         using var ortam = new Ortam();
         var gider = new IslemEntity
         {
-            Tarih = Tarih, Cari = "Tedarikçi", TutarTl = 100m, Kanal = kayitliKanal,
-            Tip = GiderTipi.Cari, Not = "Fiş 42",
+            Tarih = Tarih,
+            Cari = "Tedarikçi",
+            TutarTl = 100m,
+            Kanal = kayitliKanal,
+            Tip = GiderTipi.Cari,
+            Not = "Fiş 42",
         };
         var alis = Alis(100m, 60m, 40m, AlisDurumlari.Taslak);
         alis.Odemeler.Add(Odeme(gider));
@@ -92,7 +96,7 @@ public class IslemListeTests
         using var ortam = new Ortam();
         var alis = Alis(100m, 100m, 0m);
         alis.Odemeler.Add(Odeme(new IslemEntity
-            { Tarih = Tarih, Cari = "Tedarikçi", TutarTl = 100m, Kanal = "Eski ad", KanalId = 2 }));
+        { Tarih = Tarih, Cari = "Tedarikçi", TutarTl = 100m, Kanal = "Eski ad", KanalId = 2 }));
         ortam.Db.Alislar.Add(alis);
         ortam.Db.SaveChanges();
         ortam.Db.Kanallar.Single(k => k.Id == 1).Ad = "YENİ MEZAT";
@@ -115,8 +119,14 @@ public class IslemListeTests
         ortam.Db.SaveChanges();
         var gider = new IslemEntity
         {
-            Tarih = Tarih, Cari = "Firma", TutarTl = 7.89m, Kanal = "TOPTAN", KanalId = 2,
-            Tip = GiderTipi.KrediKarti, Not = "Bağımsız kart gideri", KrediKartiId = kart.Id,
+            Tarih = Tarih,
+            Cari = "Firma",
+            TutarTl = 7.89m,
+            Kanal = "TOPTAN",
+            KanalId = 2,
+            Tip = GiderTipi.KrediKarti,
+            Not = "Bağımsız kart gideri",
+            KrediKartiId = kart.Id,
         };
         ortam.Db.Islemler.Add(gider);
         ortam.Db.SaveChanges();
@@ -133,7 +143,9 @@ public class IslemListeTests
 
     private static AlisEntity Alis(decimal toplam, decimal mezat, decimal toptan, string durum = AlisDurumlari.Onaylandi) => new()
     {
-        Tarih = Tarih, Tedarikci = "Tedarikçi", Durum = durum,
+        Tarih = Tarih,
+        Tedarikci = "Tedarikçi",
+        Durum = durum,
         Kalemler = [new AlisKalemEntity
         {
             Aciklama = "Mal", Tutar = toplam,
@@ -142,7 +154,7 @@ public class IslemListeTests
     };
 
     private static AlisOdemeEntity Odeme(IslemEntity islem) => new()
-        { Islem = islem, IstekId = Guid.NewGuid(), IstekOzeti = "test" };
+    { Islem = islem, IstekId = Guid.NewGuid(), IstekOzeti = "test" };
 
     private sealed class Ortam : IDisposable
     {

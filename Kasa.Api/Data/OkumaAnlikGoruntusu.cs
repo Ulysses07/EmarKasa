@@ -23,7 +23,8 @@ public sealed class OkumaAnlikGoruntusu : IDisposable
 
     internal static OkumaAnlikGoruntusu Baslat(KasaDbContext db)
     {
-        if (db.Database.CurrentTransaction is not null) return new(null, null, null, null);
+        if (db.Database.CurrentTransaction is not null)
+            return new(null, null, null, null);
         db.Database.OpenConnection();
         var connection = (SqliteConnection)db.Database.GetDbConnection();
         SqliteTransaction? transaction = null;
@@ -46,7 +47,8 @@ public sealed class OkumaAnlikGoruntusu : IDisposable
 
     public void Dispose()
     {
-        if (_db is null || _connection is null) return;
+        if (_db is null || _connection is null)
+            return;
         try
         {
             _efTransaction!.Dispose();
@@ -55,7 +57,8 @@ public sealed class OkumaAnlikGoruntusu : IDisposable
         finally
         {
             // Havuzdaki bağlantı sonraki kullanıcıya yazılabilir dönmeli.
-            if (_connection.State == System.Data.ConnectionState.Open) Calistir(_connection, "PRAGMA query_only = 0;");
+            if (_connection.State == System.Data.ConnectionState.Open)
+                Calistir(_connection, "PRAGMA query_only = 0;");
             _db.Database.CloseConnection();
         }
     }

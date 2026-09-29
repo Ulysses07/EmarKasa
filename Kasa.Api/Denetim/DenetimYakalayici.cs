@@ -68,7 +68,8 @@ internal static class DenetimYakalayici
         var entries = db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
         if (entries.Any(e => e.Entity is DenetimOlayEntity && e.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Denetim kaydı değiştirilemez ve silinemez.");
-        if (!DenetimYazici.TabloVar(db)) return null;
+        if (!DenetimYazici.TabloVar(db))
+            return null;
 
         // Kanal adı değişince eşitlenen metinler: kanal kimliği → yeni ad.
         var yenidenAdlandirilan = entries.Where(e => e.Entity is KanalEntity && e.State == EntityState.Modified && e.Property(nameof(KanalEntity.Ad)).IsModified
@@ -80,8 +81,10 @@ internal static class DenetimYakalayici
         var kayitlar = new List<Kayit>();
         foreach (var e in entries)
         {
-            if (e.Entity is FinansIstekEntity istek && e.State == EntityState.Added) istekId ??= istek.IstekId;
-            if (Haric.Contains(e.Entity.GetType())) continue;
+            if (e.Entity is FinansIstekEntity istek && e.State == EntityState.Added)
+                istekId ??= istek.IstekId;
+            if (Haric.Contains(e.Entity.GetType()))
+                continue;
             var yoksay = Turetilmis.GetValueOrDefault(e.Entity.GetType());
             var ozellikler = e.Properties.Where(p => !Sayac.Contains(p.Metadata.Name) && yoksay?.Contains(p.Metadata.Name) != true).ToList();
             var kayit = new Kayit { Entry = e, Nesne = e.Entity, Durum = e.State, Varlik = VarlikAdi(e.Entity.GetType()) };
@@ -89,16 +92,21 @@ internal static class DenetimYakalayici
             {
                 case EntityState.Modified:
                     var degisen = ozellikler.Where(p => p.IsModified && !Esit(p.OriginalValue, p.CurrentValue)).ToList();
-                    if (degisen.Count == 0) continue;
-                    if (yenidenAdlandirilan.Count > 0 && KanalMetniEsitlemesi(e, degisen, yenidenAdlandirilan)) continue;
+                    if (degisen.Count == 0)
+                        continue;
+                    if (yenidenAdlandirilan.Count > 0 && KanalMetniEsitlemesi(e, degisen, yenidenAdlandirilan))
+                        continue;
                     kayit.Onceki = degisen.ToDictionary(p => p.Metadata.Name, p => Deger(p.Metadata, p.OriginalValue));
                     kayit.Yeni = degisen.ToDictionary(p => p.Metadata.Name, p => Deger(p.Metadata, p.CurrentValue));
                     kayit.VarlikId = Anahtar(e, orijinal: true);
                     kayit.Tur = OzelTur(e, degisen) ?? "Degistir";
-                    foreach (var p in degisen) Tarih(kayit, p.OriginalValue);
-                    foreach (var p in degisen) Tarih(kayit, p.CurrentValue);
+                    foreach (var p in degisen)
+                        Tarih(kayit, p.OriginalValue);
+                    foreach (var p in degisen)
+                        Tarih(kayit, p.CurrentValue);
                     // Değişen alan tarih değilse (ör. tutar) kaydın kendi tarihi etkilenen dönemi gösterir.
-                    foreach (var p in ozellikler) Tarih(kayit, p.CurrentValue);
+                    foreach (var p in ozellikler)
+                        Tarih(kayit, p.CurrentValue);
                     if (otomatikGerekce is null && degisen.FirstOrDefault(p => p.Metadata.Name == "IptalAciklamasi")?.CurrentValue is string iptal && iptal.Length > 0)
                         otomatikGerekce = iptal;
                     break;
@@ -106,11 +114,13 @@ internal static class DenetimYakalayici
                     kayit.Onceki = ozellikler.ToDictionary(p => p.Metadata.Name, p => Deger(p.Metadata, p.OriginalValue));
                     kayit.VarlikId = Anahtar(e, orijinal: true);
                     kayit.Tur = "Sil";
-                    foreach (var p in ozellikler) Tarih(kayit, p.OriginalValue);
+                    foreach (var p in ozellikler)
+                        Tarih(kayit, p.OriginalValue);
                     break;
                 default:
                     kayit.Tur = "Ekle";
-                    foreach (var p in ozellikler) Tarih(kayit, p.CurrentValue);
+                    foreach (var p in ozellikler)
+                        Tarih(kayit, p.CurrentValue);
                     if (otomatikGerekce is null && ozellikler.FirstOrDefault(p => p.Metadata.Name == "IptalAciklamasi")?.CurrentValue is string eklenenIptal && eklenenIptal.Length > 0)
                         otomatikGerekce = eklenenIptal;
                     break;
@@ -118,7 +128,8 @@ internal static class DenetimYakalayici
             (kayit.AlisId, kayit.AlisKalemId) = AlisBagi(e.Entity);
             kayitlar.Add(kayit);
         }
-        if (entries.Any(e => e.State == EntityState.Deleted)) kayitlar.AddRange(VeritabaniEtkileri(db, entries));
+        if (entries.Any(e => e.State == EntityState.Deleted))
+            kayitlar.AddRange(VeritabaniEtkileri(db, entries));
         return new(kayitlar, db.DenetimGerekcesi ?? otomatikGerekce, db.DenetimIstekId ?? istekId);
     }
 
@@ -143,7 +154,8 @@ internal static class DenetimYakalayici
                 foreach (var fk in grup.Key.GetReferencingForeignKeys())
                 {
                     if (fk.DeleteBehavior is not (DeleteBehavior.SetNull or DeleteBehavior.Cascade) || fk.Properties.Count != 1
-                        || Haric.Contains(fk.DeclaringEntityType.ClrType)) continue;
+                        || Haric.Contains(fk.DeclaringEntityType.ClrType))
+                        continue;
                     var bagimli = fk.DeclaringEntityType;
                     var yabanci = fk.Properties[0];
                     var anahtarlar = grup.Select(s => s.Oku(fk.PrincipalKey.Properties[0])).Where(v => v is not null).Distinct().ToList();
@@ -151,10 +163,16 @@ internal static class DenetimYakalayici
                     {
                         object? Oku(IProperty p) => p.GetGetter().GetClrValueUsingContainingEntity(nesne);
                         var anahtar = string.Join("|", bagimli.FindPrimaryKey()!.Properties.Select(p => Convert.ToString(Oku(p), System.Globalization.CultureInfo.InvariantCulture)));
-                        if (!gorulen.Add($"{bagimli.Name}|{anahtar}")) continue;
+                        if (!gorulen.Add($"{bagimli.Name}|{anahtar}"))
+                            continue;
                         var ozellikler = bagimli.GetProperties().Where(p => !Sayac.Contains(p.Name) && Turetilmis.GetValueOrDefault(bagimli.ClrType)?.Contains(p.Name) != true).ToList();
-                        var kayit = new Kayit { Nesne = nesne, Varlik = VarlikAdi(bagimli.ClrType), VarlikId = anahtar,
-                            Durum = fk.DeleteBehavior == DeleteBehavior.Cascade ? EntityState.Deleted : EntityState.Modified };
+                        var kayit = new Kayit
+                        {
+                            Nesne = nesne,
+                            Varlik = VarlikAdi(bagimli.ClrType),
+                            VarlikId = anahtar,
+                            Durum = fk.DeleteBehavior == DeleteBehavior.Cascade ? EntityState.Deleted : EntityState.Modified
+                        };
                         if (kayit.Durum == EntityState.Deleted)
                         {
                             kayit.Tur = "Sil";
@@ -167,7 +185,8 @@ internal static class DenetimYakalayici
                             kayit.Onceki = new() { [yabanci.Name] = Oku(yabanci) };
                             kayit.Yeni = new() { [yabanci.Name] = null };
                         }
-                        foreach (var p in ozellikler) Tarih(kayit, Oku(p));
+                        foreach (var p in ozellikler)
+                            Tarih(kayit, Oku(p));
                         (kayit.AlisId, kayit.AlisKalemId) = AlisBagi(nesne);
                         sonuc.Add(kayit);
                     }
@@ -183,9 +202,11 @@ internal static class DenetimYakalayici
         foreach (var parca in anahtarlar.Chunk(500))
         {
             var liste = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(yabanci.ClrType))!;
-            foreach (var anahtar in parca) liste.Add(anahtar);
+            foreach (var anahtar in parca)
+                liste.Add(anahtar);
             var sonuc = (List<object>)BagimliSorgusu.MakeGenericMethod(bagimli.ClrType, yabanci.ClrType).Invoke(null, [db, yabanci.Name, liste])!;
-            foreach (var nesne in sonuc) yield return nesne;
+            foreach (var nesne in sonuc)
+                yield return nesne;
         }
     }
 
@@ -198,7 +219,8 @@ internal static class DenetimYakalayici
     /// <summary>Kayıttan sonra, aynı transaction'da: eklenenlerin anahtarı ve değerleri okunur, olaylar yazılır.</summary>
     internal static void Yaz(KasaDbContext db, Yakalanan? yakalanan)
     {
-        if (yakalanan is null || yakalanan.Kayitlar.Count == 0) return;
+        if (yakalanan is null || yakalanan.Kayitlar.Count == 0)
+            return;
         foreach (var k in yakalanan.Kayitlar.Where(k => k.Durum == EntityState.Added))
         {
             var entry = k.Entry!;
@@ -210,7 +232,8 @@ internal static class DenetimYakalayici
             (k.AlisId, k.AlisKalemId) = AlisBagi(k.Nesne);
         }
         var pencere = PencereGerekli(yakalanan.Kayitlar) ? DenetimKilitPenceresi.Oku(db) : DenetimKilitPenceresi.Bos;
-        if (pencere != DenetimKilitPenceresi.Bos) AlisTarihleri(db, yakalanan.Kayitlar);
+        if (pencere != DenetimKilitPenceresi.Bos)
+            AlisTarihleri(db, yakalanan.Kayitlar);
         DenetimYazici.Yaz(db, yakalanan.Kayitlar.Select(k => new DenetimOlayi(k.Tur, k.Varlik, k.VarlikId,
             DenetimYazici.Json(k.Onceki), DenetimYazici.Json(k.Yeni), yakalanan.Gerekce, Pencere(pencere, k), IstekId: yakalanan.IstekId)).ToList());
     }
@@ -220,9 +243,11 @@ internal static class DenetimYakalayici
 
     private static int? Pencere(DenetimKilitPenceresi pencere, Kayit k)
     {
-        if (GenelEtkili.Contains(k.Nesne.GetType())) return pencere.EnSon;
+        if (GenelEtkili.Contains(k.Nesne.GetType()))
+            return pencere.EnSon;
         foreach (var t in k.Tarihler.Distinct().OrderDescending())
-            if (pencere.Bul(t) is { } olay) return olay;
+            if (pencere.Bul(t) is { } olay)
+                return olay;
         return null;
     }
 
@@ -237,13 +262,16 @@ internal static class DenetimYakalayici
             foreach (var (id, alis) in db.AlisKalemler.AsNoTracking().Where(k => kalemler.Contains(k.Id)).Select(k => new { k.Id, k.AlisId }).AsEnumerable().Select(k => (k.Id, k.AlisId)))
                 kalemAlisi[id] = alis;
         foreach (var k in kayitlar.Where(k => k.AlisId is null && k.AlisKalemId is not null))
-            if (kalemAlisi.TryGetValue(k.AlisKalemId!.Value, out var alis)) k.AlisId = alis;
+            if (kalemAlisi.TryGetValue(k.AlisKalemId!.Value, out var alis))
+                k.AlisId = alis;
         var alislar = kayitlar.Where(k => k.AlisId is not null).Select(k => k.AlisId!.Value).Distinct().ToList();
-        if (alislar.Count == 0) return;
+        if (alislar.Count == 0)
+            return;
         var tarihler = db.AlisOdemeler.AsNoTracking().Where(o => alislar.Contains(o.AlisId)).Select(o => new { o.AlisId, o.Islem.Tarih }).ToList()
             .GroupBy(o => o.AlisId).ToDictionary(g => g.Key, g => g.Select(o => o.Tarih).ToList());
         foreach (var k in kayitlar.Where(k => k.AlisId is not null))
-            if (tarihler.TryGetValue(k.AlisId!.Value, out var t)) k.Tarihler.AddRange(t);
+            if (tarihler.TryGetValue(k.AlisId!.Value, out var t))
+                k.Tarihler.AddRange(t);
     }
 
     private static (int? AlisId, int? AlisKalemId) AlisBagi(object varlik) => varlik switch
@@ -275,7 +303,8 @@ internal static class DenetimYakalayici
     private static string? Anahtar(EntityEntry e, bool orijinal)
     {
         var anahtar = e.Metadata.FindPrimaryKey();
-        if (anahtar is null) return null;
+        if (anahtar is null)
+            return null;
         return string.Join("|", anahtar.Properties.Select(p =>
         {
             var deger = orijinal ? e.Property(p.Name).OriginalValue : e.Property(p.Name).CurrentValue;
@@ -285,7 +314,8 @@ internal static class DenetimYakalayici
 
     private static object? Deger(IProperty p, object? deger)
     {
-        if (Gizli.Contains(p.Name)) return deger is null ? null : "***";
+        if (Gizli.Contains(p.Name))
+            return deger is null ? null : "***";
         return deger switch
         {
             byte[] b => $"{b.Length} bayt",
@@ -299,6 +329,7 @@ internal static class DenetimYakalayici
 
     private static void Tarih(Kayit k, object? deger)
     {
-        if (deger is DateOnly t) k.Tarihler.Add(t);
+        if (deger is DateOnly t)
+            k.Tarihler.Add(t);
     }
 }

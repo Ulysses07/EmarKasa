@@ -22,14 +22,16 @@ public static class FinansTakipServisi
     internal static List<KanalPayYaz> EsitPaylar(IReadOnlyList<int> ids, decimal amount, decimal onceki = 0)
     {
         var sorted = ids.Order().ToArray();
-        var before = decimal.ToInt64(onceki * 100); var after = decimal.ToInt64((onceki + amount) * 100);
+        var before = decimal.ToInt64(onceki * 100);
+        var after = decimal.ToInt64((onceki + amount) * 100);
         return sorted.Select((id, i) => new KanalPayYaz(id,
             (after / sorted.Length + (i < after % sorted.Length ? 1 : 0) - before / sorted.Length - (i < before % sorted.Length ? 1 : 0)) / 100m)).ToList();
     }
     internal static List<KanalPayYaz> Oranla(IReadOnlyList<KanalPayYaz> weights, decimal amount, decimal onceki = 0)
     {
         var positive = weights.Where(w => w.Tutar > 0).ToList();
-        if (positive.Count == 0 || amount <= 0) return [];
+        if (positive.Count == 0 || amount <= 0)
+            return [];
         return AlisDagitici.Dagit(positive.Select(w => new AlisKanalPayi(w.KanalId, w.Tutar)).ToList(), onceki, amount)
             .Select(p => new KanalPayYaz(p.KanalId, p.Tutar)).Where(p => p.Tutar > 0).ToList();
     }
@@ -39,7 +41,8 @@ public static class FinansTakipServisi
     public static (List<KanalPayYaz> Paylar, decimal Tasan) KirparakOranla(IReadOnlyList<KanalPayYaz> weights, decimal amount, decimal onceki = 0)
     {
         var positive = weights.Where(w => w.Tutar > 0).ToList();
-        if (positive.Count == 0 || amount <= 0) return ([], 0);
+        if (positive.Count == 0 || amount <= 0)
+            return ([], 0);
         var dagitilan = Math.Min(amount, Math.Max(0, positive.Sum(w => w.Tutar) - onceki));
         return (Oranla(positive, dagitilan, onceki), amount - dagitilan);
     }
@@ -50,9 +53,11 @@ public static class FinansTakipServisi
         paylar.Select(p => new TakipKanalPayi(p.KanalId, names.GetValueOrDefault(p.KanalId, "Silinmiş kanal"), p.Tutar)).ToList();
     internal static List<KanalPayYaz> KaynakPaylari(KasaDbContext db, TakipHarcamaEntity charge)
     {
-        if (charge.IslemId is not { } id) return Read<KanalPayYaz>(charge.DagilimJson);
+        if (charge.IslemId is not { } id)
+            return Read<KanalPayYaz>(charge.DagilimJson);
         var purchaseId = db.AlisOdemeler.Where(o => o.IslemId == id).Select(o => (int?)o.AlisId).FirstOrDefault();
-        if (purchaseId is { } alisId) return AlisOdemePayi(AlisEndpoints.Query(db).AsNoTracking().Single(a => a.Id == alisId), id);
+        if (purchaseId is { } alisId)
+            return AlisOdemePayi(AlisEndpoints.Query(db).AsNoTracking().Single(a => a.Id == alisId), id);
         return Read<KanalPayYaz>(charge.DagilimJson);
     }
     /// <summary>Alışa bağlı giderin kanal payı: onaylı alışta ödemenin D'Hondt payı, onaysızda boş (dağılım bekliyor).</summary>
@@ -63,7 +68,8 @@ public static class FinansTakipServisi
     /// toplu okunur, sonuç harcama başına bir kez hesaplanır.</summary>
     internal static List<KanalPayYaz> KaynakPaylari(TakipHesapBaglami b, TakipHarcamaEntity charge)
     {
-        if (b.KaynakPaylariOnbellegi.TryGetValue(charge.Id, out var memo)) return memo;
+        if (b.KaynakPaylariOnbellegi.TryGetValue(charge.Id, out var memo))
+            return memo;
         var result = charge.IslemId is { } id && b.KartVerisi(charge.KrediKartiId).AlisPaylari(b).TryGetValue(id, out var shares)
             ? shares : Read<KanalPayYaz>(charge.DagilimJson);
         return b.KaynakPaylariOnbellegi[charge.Id] = result;
@@ -72,9 +78,12 @@ public static class FinansTakipServisi
     {
         var existing = db.TakipEkstreler.Local.FirstOrDefault(s => s.KrediKartiId == card.Id && s.KesimTarihi == cut)
             ?? db.TakipEkstreler.SingleOrDefault(s => s.KrediKartiId == card.Id && s.KesimTarihi == cut);
-        if (existing is not null) return existing;
+        if (existing is not null)
+            return existing;
         existing = new() { KrediKartiId = card.Id, KesimTarihi = cut, SonOdemeTarihi = Vade(cut, card.SonOdemeTarihi.Day) };
-        db.TakipEkstreler.Add(existing); db.SaveChanges(); return existing;
+        db.TakipEkstreler.Add(existing);
+        db.SaveChanges();
+        return existing;
     }
     internal static List<KanalPayYaz> IadeSonrasiPaylar(KasaDbContext db, TakipHarcamaEntity charge) => IadeDagilimiOku(db, charge).Kalan;
     /// <summary>İzlemeli (yazma yolu) iade hesabı: bellekte değiştirilmiş kayıtlar da görülür.</summary>
@@ -85,7 +94,8 @@ public static class FinansTakipServisi
     }
     internal static Dictionary<int, TakipIadeHesabiEntity> IadeHesaplariOku(IQueryable<TakipIadeHesabiEntity> tablo, IReadOnlyCollection<TakipHarcamaEntity> iadeler)
     {
-        if (iadeler.Count == 0) return [];
+        if (iadeler.Count == 0)
+            return [];
         var ids = iadeler.Select(h => h.Id).ToArray();
         return tablo.Where(x => ids.Contains(x.HarcamaId)).ToDictionary(x => x.HarcamaId);
     }
@@ -93,7 +103,8 @@ public static class FinansTakipServisi
     internal static List<KanalPayYaz> IadeSonrasiPaylar(TakipHesapBaglami b, TakipHarcamaEntity charge) => IadeDagilimiOku(b, charge).Kalan;
     internal static IadeDagilimi IadeDagilimiOku(TakipHesapBaglami b, TakipHarcamaEntity charge)
     {
-        if (b.IadeDagilimiOnbellegi.TryGetValue(charge.Id, out var memo)) return memo;
+        if (b.IadeDagilimiOnbellegi.TryGetValue(charge.Id, out var memo))
+            return memo;
         var v = b.KartVerisi(charge.KrediKartiId);
         return b.IadeDagilimiOnbellegi[charge.Id] = IadeHesabi(KaynakPaylari(b, charge), v.Iadeler(b)[charge.Id], v.IadeHesaplari(b));
     }
@@ -111,7 +122,8 @@ public static class FinansTakipServisi
     internal static IadeDagilimi IadeHesabi(IReadOnlyList<KanalPayYaz> kaynak, IEnumerable<TakipHarcamaEntity> iadeler, IReadOnlyDictionary<int, TakipIadeHesabiEntity> hesaplar)
     {
         var source = kaynak.ToDictionary(p => p.KanalId, p => p.Tutar);
-        var paylar = new Dictionary<int, List<KanalPayYaz>>(); var tutarsiz = false;
+        var paylar = new Dictionary<int, List<KanalPayYaz>>();
+        var tutarsiz = false;
         foreach (var refund in iadeler.OrderBy(h => h.Id))
         {
             List<KanalPayYaz> pay;
@@ -120,10 +132,12 @@ public static class FinansTakipServisi
                 pay = IadePayi(source.Where(p => p.Value > 0).Select(p => new KanalPayYaz(p.Key, p.Value)).ToList(), hesap.IadeAnindaOdenen, -refund.Tutar, out var tasan);
                 tutarsiz |= tasan > 0;
             }
-            else pay = Read<KanalPayYaz>(refund.DagilimJson);
+            else
+                pay = Read<KanalPayYaz>(refund.DagilimJson);
             paylar[refund.Id] = pay;
             foreach (var share in pay)
-                if (source.ContainsKey(share.KanalId)) source[share.KanalId] -= share.Tutar;
+                if (source.ContainsKey(share.KanalId))
+                    source[share.KanalId] -= share.Tutar;
         }
         return new(tutarsiz ? [] : source.Where(p => p.Value > 0).Select(p => new KanalPayYaz(p.Key, p.Value)).ToList(), paylar);
     }
@@ -141,7 +155,8 @@ public static class FinansTakipServisi
     /// düşülür (finance-2). Düzeltme yoksa değer aynen döner: ondalık ölçeği de değişmez, raporlar birebir aynı kalır.</summary>
     internal static decimal EtkinKasadaSayilan(TakipHarcamaEntity charge, IEnumerable<TakipHarcamaEntity> iadeler, IReadOnlyDictionary<int, TakipIadeHesabiEntity> hesaplar)
     {
-        if (charge.KasadaOncedenSayilanTutar <= 0) return charge.KasadaOncedenSayilanTutar;
+        if (charge.KasadaOncedenSayilanTutar <= 0)
+            return charge.KasadaOncedenSayilanTutar;
         var duzeltme = iadeler.Sum(r => hesaplar.TryGetValue(r.Id, out var h) ? h.KasadaSayilanDuzeltme : 0);
         return duzeltme > 0 ? charge.KasadaOncedenSayilanTutar - duzeltme : charge.KasadaOncedenSayilanTutar;
     }
@@ -152,7 +167,8 @@ public static class FinansTakipServisi
     /// düşen, <paramref name="date"/>'ten önceki ya da o gün/sonraki ilk kesim. Eşit uzaklıkta önceki seçilir.</summary>
     internal static DateOnly EnYakinDuzenliKesim(DateOnly date, int day)
     {
-        var next = Kesim(date, day); var previous = Gun(next.AddMonths(-1), day);
+        var next = Kesim(date, day);
+        var previous = Gun(next.AddMonths(-1), day);
         return date.DayNumber - previous.DayNumber <= next.DayNumber - date.DayNumber ? previous : next;
     }
     /// <summary>Harcamayı ve taksitlerini yazar. Her taksit kartın düzenli kesimine (kısa ayda ay sonuna) bağlanır;
@@ -172,15 +188,22 @@ public static class FinansTakipServisi
         if (firstCut is { } ilk)
         {
             cut = EnYakinDuzenliKesim(ilk, day);
-            if (IlkKesimHatasi(db, card, ilk) is { } hata) FinansTakipEndpoints.Require(false, hata);
+            if (IlkKesimHatasi(db, card, ilk) is { } hata)
+                FinansTakipEndpoints.Require(false, hata);
         }
-        db.TakipHarcamalar.Add(charge); db.SaveChanges();
-        var cents = decimal.ToInt64(Math.Abs(charge.Tutar) * 100); var sign = Math.Sign(charge.Tutar);
+        db.TakipHarcamalar.Add(charge);
+        db.SaveChanges();
+        var cents = decimal.ToInt64(Math.Abs(charge.Tutar) * 100);
+        var sign = Math.Sign(charge.Tutar);
         for (var i = 0; i < charge.TaksitSayisi; i++)
         {
             var statement = Ekstre(db, card, Gun(cut.AddMonths(i), day));
-            db.TakipKartTaksitler.Add(new() { HarcamaId = charge.Id, EkstreId = statement.Id,
-                Tutar = sign * (cents / charge.TaksitSayisi + (i < cents % charge.TaksitSayisi ? 1 : 0)) / 100m });
+            db.TakipKartTaksitler.Add(new()
+            {
+                HarcamaId = charge.Id,
+                EkstreId = statement.Id,
+                Tutar = sign * (cents / charge.TaksitSayisi + (i < cents % charge.TaksitSayisi ? 1 : 0)) / 100m
+            });
         }
         db.SaveChanges();
     }
@@ -202,8 +225,10 @@ public static class FinansTakipServisi
     /// boş. Alışa bağlı giderin payı ayrıca alıştan okunur (<see cref="KaynakPaylari(KasaDbContext, TakipHarcamaEntity)"/>).</summary>
     internal static List<KanalPayYaz> DonmusPaylar(KasaDbContext db, IslemEntity expense)
     {
-        if (expense.KanalId is { } channel) return [new(channel, Math.Abs(expense.TutarTl))];
-        if (expense.Kanal != Kanallar.Ortak) return [];
+        if (expense.KanalId is { } channel)
+            return [new(channel, Math.Abs(expense.TutarTl))];
+        if (expense.Kanal != Kanallar.Ortak)
+            return [];
         var channelIds = db.Kanallar.Where(k => k.Aktif).Select(k => k.Id).ToList();
         return channelIds.Count > 0 ? EsitPaylar(channelIds, Math.Abs(expense.TutarTl)) : [];
     }
@@ -216,8 +241,16 @@ public static class FinansTakipServisi
     {
         var tracking = db.TakipKartlar.Single(t => t.KrediKartiId == expense.KrediKartiId);
         var card = db.KrediKartlari.Single(k => k.Id == tracking.KrediKartiId);
-        var charge = new TakipHarcamaEntity { KrediKartiId = card.Id, IslemId = expense.Id, Tarih = expense.Tarih,
-            Aciklama = expense.Cari, Tutar = expense.TutarTl, TaksitSayisi = taksitSayisi, DagilimJson = Json(DonmusPaylar(db, expense)) };
+        var charge = new TakipHarcamaEntity
+        {
+            KrediKartiId = card.Id,
+            IslemId = expense.Id,
+            Tarih = expense.Tarih,
+            Aciklama = expense.Cari,
+            Tutar = expense.TutarTl,
+            TaksitSayisi = taksitSayisi,
+            DagilimJson = Json(DonmusPaylar(db, expense))
+        };
         HarcamaEkle(db, card, charge, ilkKesim);
         tracking.Surum++;
         return charge;
@@ -237,7 +270,8 @@ public static class FinansTakipServisi
         if (db.TakipKartOdemeler.Where(p => p.KrediKartiId == charge.KrediKartiId && !p.Iptal).AsEnumerable()
             .Any(p => Read<KartTaksitPayi>(p.PaylarJson).Any(x => taksitler.Contains(x.TaksitId))))
             return "ödendi";
-        if (db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal)) return "iadesi var";
+        if (db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal))
+            return "iadesi var";
         var ids = taksitler.ToArray();
         return db.EkstreKayitlar.Any(k => !k.Iptal && (k.KartHarcamaId == charge.Id || k.EslesmeTuru == "KartHarcama" && k.EslesmeId == charge.Id
             || k.EslesmeTuru == "KartTaksidi" && k.EslesmeId != null && ids.Contains(k.EslesmeId.Value))) ? "ekstre" : null;
@@ -258,10 +292,12 @@ public static class FinansTakipServisi
         var uyarilar = new List<string>();
         foreach (var ekstreler in db.TakipEkstreler.AsNoTracking().ToList().GroupBy(s => s.KrediKartiId).OrderBy(g => g.Key))
         {
-            if (!kartlar.TryGetValue(ekstreler.Key, out var kart)) continue;
+            if (!kartlar.TryGetValue(ekstreler.Key, out var kart))
+                continue;
             var day = kart.KesimTarihi.Day;
             var disarida = ekstreler.Select(s => s.KesimTarihi).Where(t => t != Gun(t, day)).Order().ToList();
-            if (disarida.Count == 0) continue;
+            if (disarida.Count == 0)
+                continue;
             var ciftAylar = ekstreler.GroupBy(s => (s.KesimTarihi.Year, s.KesimTarihi.Month)).Where(a => a.Count() > 1).Select(a => a.Key).ToHashSet();
             uyarilar.Add($"{Kart(kart.Id)}: kartın kesim günü ({day}) dışında kesilmiş {disarida.Count} ekstre var "
                 + $"({KartGecisHesabi.Tarih(disarida[0])}–{KartGecisHesabi.Tarih(disarida[^1])}; {disarida.Count(t => ciftAylar.Contains((t.Year, t.Month)))} tanesi aynı ay kartın başka bir ekstresiyle birlikte). "
@@ -285,7 +321,8 @@ public static class FinansTakipServisi
     private static IEnumerable<string> DuzeltilmemisDevirIadeleri(KasaDbContext db, Func<int, string> kart)
     {
         var devirler = db.TakipHarcamalar.AsNoTracking().Where(h => h.KaynakHarcamaId == null && !h.Iptal).ToList().Where(h => h.KasadaOncedenSayilanTutar > 0).ToDictionary(h => h.Id);
-        if (devirler.Count == 0) yield break;
+        if (devirler.Count == 0)
+            yield break;
         var ids = devirler.Keys.ToArray();
         var iadeler = db.TakipHarcamalar.AsNoTracking().Where(h => h.KaynakHarcamaId != null && ids.Contains(h.KaynakHarcamaId.Value) && !h.Iptal).OrderBy(h => h.Id).ToList();
         var hesaplar = IadeHesaplariOku(db.TakipIadeHesaplari.AsNoTracking(), iadeler);
@@ -295,9 +332,11 @@ public static class FinansTakipServisi
             decimal duzeltilen = 0;
             foreach (var iade in grup)
             {
-                if (!hesaplar.TryGetValue(iade.Id, out var hesap)) { eksik.Add(iade); continue; }
+                if (!hesaplar.TryGetValue(iade.Id, out var hesap))
+                { eksik.Add(iade); continue; }
                 var gereken = Math.Min(-iade.Tutar, Math.Max(0, devirler[grup.Key].KasadaOncedenSayilanTutar - duzeltilen - hesap.IadeAnindaOdenen));
-                if (gereken > 0 && hesap.KasadaSayilanDuzeltme == 0) eksik.Add(iade);
+                if (gereken > 0 && hesap.KasadaSayilanDuzeltme == 0)
+                    eksik.Add(iade);
                 duzeltilen += hesap.KasadaSayilanDuzeltme;
             }
         }
@@ -325,12 +364,14 @@ public static class FinansTakipServisi
         int eslesen = 0, eslesmeyen = 0;
         foreach (var kartId in kartlar)
         {
-            var b = new TakipHesapBaglami(db); var v = b.KartVerisi(kartId);
+            var b = new TakipHesapBaglami(db);
+            var v = b.KartVerisi(kartId);
             var hesaplar = new Dictionary<int, TakipIadeHesabiEntity>(v.IadeHesaplari(b));
             foreach (var kaynak in v.Harcamalar.Where(h => h.KaynakHarcamaId is null).OrderBy(h => h.Id))
             {
                 var iadeler = v.Iadeler(b)[kaynak.Id].OrderBy(h => h.Id).ToList();
-                if (iadeler.All(h => hesaplar.ContainsKey(h.Id))) continue;
+                if (iadeler.All(h => hesaplar.ContainsKey(h.Id)))
+                    continue;
                 var taksitler = v.Taksitler.Where(t => t.HarcamaId == kaynak.Id).Select(t => t.Id).ToHashSet();
                 decimal Odenen(TakipKartOdemeEntity p) => v.OdemePaylari[p.Id].Where(x => taksitler.Contains(x.TaksitId)).Sum(x => x.Tutar);
                 var kaynakPay = KaynakPaylari(b, kaynak);
@@ -342,18 +383,24 @@ public static class FinansTakipServisi
                     foreach (var iptalDahil in new[] { true, false })
                     {
                         decimal toplam = 0;
-                        foreach (var p in v.Odemeler.Where(p => iptalDahil || !p.Iptal)) adaylar.Add(toplam += Odenen(p));
+                        foreach (var p in v.Odemeler.Where(p => iptalDahil || !p.Iptal))
+                            adaylar.Add(toplam += Odenen(p));
                     }
                     decimal? bulunan = null;
                     foreach (var aday in adaylar.Distinct())
-                        if (IadePayi(onceki, aday, -iade.Tutar, out var tasan) is var pay && tasan == 0 && PayMetni(pay).SequenceEqual(dondurulmus)) { bulunan = aday; break; }
-                    if (bulunan is not { } odenen) { eslesmeyen++; continue; }
+                        if (IadePayi(onceki, aday, -iade.Tutar, out var tasan) is var pay && tasan == 0 && PayMetni(pay).SequenceEqual(dondurulmus))
+                        { bulunan = aday; break; }
+                    if (bulunan is not { } odenen)
+                    { eslesmeyen++; continue; }
                     var hesap = new TakipIadeHesabiEntity { HarcamaId = iade.Id, IadeAnindaOdenen = odenen, KasadaSayilanDuzeltme = 0 };
-                    db.TakipIadeHesaplari.Add(hesap); hesaplar[iade.Id] = hesap; eslesen++;
+                    db.TakipIadeHesaplari.Add(hesap);
+                    hesaplar[iade.Id] = hesap;
+                    eslesen++;
                 }
             }
         }
-        db.SaveChanges(); transaction?.Commit();
+        db.SaveChanges();
+        transaction?.Commit();
         return (eslesen, eslesmeyen);
     }
     private static List<string> PayMetni(IEnumerable<KanalPayYaz> paylar) =>
@@ -366,10 +413,26 @@ public static class FinansTakipServisi
     {
         var s = KartGecisHesabi.Hesapla(db, kartId, baslangic, kalanBorc);
         var kayit = new KartGecisKaydi(db.Bugunu(), kalanBorc, kasadaOncedenSayilan, s.SistemKartBorcu, s.EskiKuraldaIslenenTutar, s.BekleyenEskiDusumTutari, s.SonBekleyenDusumTarihi, s.OnerilenKasadaSayilanTutar);
-        db.TakipKartlar.Add(new() { KrediKartiId = kartId, Baslangic = baslangic, EskiKayit = true, EskiDusumKurali = EskiDusumKurali.IslemTarihi,
-            GecisAciklamasi = aciklama.Trim(), GecisOzetiJson = JsonSerializer.Serialize(kayit) }); db.SaveChanges();
-        if (kalanBorc != 0) HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == kartId), new() { KrediKartiId = kartId, Tarih = baslangic, Aciklama = KartGecisHesabi.DevirAciklamasi,
-            Tutar = kalanBorc, KasadaOncedenSayilanTutar = kasadaOncedenSayilan, DagilimJson = Json(dagilimlar) });
+        db.TakipKartlar.Add(new()
+        {
+            KrediKartiId = kartId,
+            Baslangic = baslangic,
+            EskiKayit = true,
+            EskiDusumKurali = EskiDusumKurali.IslemTarihi,
+            GecisAciklamasi = aciklama.Trim(),
+            GecisOzetiJson = JsonSerializer.Serialize(kayit)
+        });
+        db.SaveChanges();
+        if (kalanBorc != 0)
+            HarcamaEkle(db, db.KrediKartlari.Single(c => c.Id == kartId), new()
+            {
+                KrediKartiId = kartId,
+                Tarih = baslangic,
+                Aciklama = KartGecisHesabi.DevirAciklamasi,
+                Tutar = kalanBorc,
+                KasadaOncedenSayilanTutar = kasadaOncedenSayilan,
+                DagilimJson = Json(dagilimlar)
+            });
     }
     /// <summary>Bakım adımı: tarihe bağlı türetmeyi (aktif kartın kesim ekstreleri) ve yazma yollarının türettiği
     /// takip kayıtlarını kalıcı yazar. Kendi kısa yazma transaction'ını açar; okumalar Sync yapmaz ve bunu beklemez.</summary>
@@ -395,9 +458,11 @@ public static class FinansTakipServisi
             {
                 // Sıfır borçlu aktif kart için de aylık kesim olayı vardır.
                 var cut = Kesim(today, card.KesimTarihi.Day);
-                if (cut >= tracking.Baslangic) Ekstre(db, card, cut);
+                if (cut >= tracking.Baslangic)
+                    Ekstre(db, card, cut);
                 var last = Gun(cut.AddMonths(-1), card.KesimTarihi.Day);
-                if (last >= tracking.Baslangic) Ekstre(db, card, last);
+                if (last >= tracking.Baslangic)
+                    Ekstre(db, card, last);
             }
             // Borçtan önce yatırılmış avans yeni kaynak harcamaya bağlanır. Ödeme
             // tarihi/tutarı değişmez; dağılım bekleyen payın kanalı belli olur.
@@ -417,23 +482,28 @@ public static class FinansTakipServisi
     {
         var odemeler = db.TakipKartOdemeler.Where(p => p.KrediKartiId == card.Id && !p.Iptal).OrderBy(p => p.Id).ToList();
         var avansli = odemeler.Where(p => Read<KartTaksitPayi>(p.PaylarJson).Any(x => x.TaksitId == 0 && x.Tutar > 0)).ToList();
-        if (avansli.Count == 0) return;
+        if (avansli.Count == 0)
+            return;
         var ids = avansli.Select(p => p.Id).ToArray();
         var aktif = odemeler.ToDictionary(p => p.Id);
         var tahsisler = db.TakipAvansTahsisleri.Where(t => ids.Contains(t.KaynakOdemeId)).ToList()
             .Where(t => aktif.ContainsKey(t.OdemeId)).ToLookup(t => t.KaynakOdemeId, t => aktif[t.OdemeId]);
-        DateOnly? kilit = null; var kilitOkundu = false;
+        DateOnly? kilit = null;
+        var kilitOkundu = false;
         foreach (var payment in avansli)
         {
             var pays = Read<KartTaksitPayi>(payment.PaylarJson);
             var dagitimlar = tahsisler[payment.Id].ToList();
             var advance = pays.Where(p => p.TaksitId == 0).Sum(p => p.Tutar)
                 + dagitimlar.SelectMany(t => Read<KartTaksitPayi>(t.PaylarJson)).Where(p => p.TaksitId == 0).Sum(p => p.Tutar);
-            if (advance <= 0) continue;
+            if (advance <= 0)
+                continue;
             var allocated = OdemePaylari(db, card.Id, advance, null, ignoreAdvances: true);
             var taksitPaylari = allocated.Where(p => p.TaksitId != 0).ToList();
-            if (taksitPaylari.Count == 0) continue;
-            if (!kilitOkundu) { kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single(); kilitOkundu = true; }
+            if (taksitPaylari.Count == 0)
+                continue;
+            if (!kilitOkundu)
+            { kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single(); kilitOkundu = true; }
             // Ödeme payının yeniden yazılması sonraki (Id sırası) ödemelerin etkisini de değiştirebilir: kilitli döneme düşen
             // sonraki ödeme varsa da dağıtım kaydı kullanılır (kilit kuralı yeniden yazımı reddederdi).
             if (dagitimlar.Count == 0 && !(kilit is { } son && (payment.Tarih <= son || odemeler.Any(p => p.Id > payment.Id && p.Tarih <= son))))
@@ -442,13 +512,21 @@ public static class FinansTakipServisi
                 continue;
             }
             // Dağıtım kilit sonrası tarihlidir; saat kilit sınırının gerisindeyse (yalnız tamamlanmış ay kilitlenir) beklenir.
-            if (kilit is { } sinir && today <= sinir) continue;
+            if (kilit is { } sinir && today <= sinir)
+                continue;
             var dagitilan = taksitPaylari.Sum(p => p.Tutar);
-            var tahsis = new TakipKartOdemeEntity { KrediKartiId = card.Id, Tarih = today, Tutar = 0,
+            var tahsis = new TakipKartOdemeEntity
+            {
+                KrediKartiId = card.Id,
+                Tarih = today,
+                Tutar = 0,
                 Not = $"Kilitli avans dağıtımı: {KartGecisHesabi.Tarih(payment.Tarih)} tarihli ödemenin avansı",
-                PaylarJson = Json(taksitPaylari.Append(new KartTaksitPayi(0, -dagitilan))) };
-            db.TakipKartOdemeler.Add(tahsis); db.SaveChanges();
-            db.TakipAvansTahsisleri.Add(new() { OdemeId = tahsis.Id, KaynakOdemeId = payment.Id }); db.SaveChanges();
+                PaylarJson = Json(taksitPaylari.Append(new KartTaksitPayi(0, -dagitilan)))
+            };
+            db.TakipKartOdemeler.Add(tahsis);
+            db.SaveChanges();
+            db.TakipAvansTahsisleri.Add(new() { OdemeId = tahsis.Id, KaynakOdemeId = payment.Id });
+            db.SaveChanges();
         }
     }
     // Yazma yolları (Sync döngüsü, ödeme/iade doğrulaması) izlenen sorgularla okur: bellekte değiştirilmiş
@@ -471,8 +549,10 @@ public static class FinansTakipServisi
         decimal credit = 0;
         foreach (var pays in paymentPays)
             foreach (var pay in pays)
-                if (result.ContainsKey(pay.TaksitId)) result[pay.TaksitId] -= pay.Tutar;
-                else if (pay.TaksitId == 0 && !ignoreAdvances) credit += pay.Tutar;
+                if (result.ContainsKey(pay.TaksitId))
+                    result[pay.TaksitId] -= pay.Tutar;
+                else if (pay.TaksitId == 0 && !ignoreAdvances)
+                    credit += pay.Tutar;
         foreach (var refund in charges.Where(h => h.Tutar < 0))
         {
             var amount = -refund.Tutar;
@@ -481,17 +561,22 @@ public static class FinansTakipServisi
                 foreach (var sourceTax in taxes.Where(t => t.HarcamaId == sourceId).OrderBy(t => t.Id))
                 {
                     var applied = Math.Min(amount, Math.Max(0, result.GetValueOrDefault(sourceTax.Id)));
-                    result[sourceTax.Id] -= applied; amount -= applied;
+                    result[sourceTax.Id] -= applied;
+                    amount -= applied;
                 }
                 // Ödenmiş kaynak için kalan iade alacak bakiyesidir; başka kanalın
                 // harcamasına kendiliğinden atanmaz. Banka ödeme toplamı değişmez.
             }
-            else credit += amount; // Açılış alacak bakiyesi.
+            else
+                credit += amount; // Açılış alacak bakiyesi.
         }
         foreach (var id in result.Keys.ToArray())
         {
-            if (result[id] < 0) { credit -= result[id]; result[id] = 0; }
-            var applied = Math.Min(credit, result[id]); result[id] -= applied; credit -= applied;
+            if (result[id] < 0)
+            { credit -= result[id]; result[id] = 0; }
+            var applied = Math.Min(credit, result[id]);
+            result[id] -= applied;
+            credit -= applied;
         }
         return result;
     }
@@ -499,18 +584,22 @@ public static class FinansTakipServisi
     {
         var remaining = KalanTaksitler(db, cardId, ignoreAdvances);
         var statements = db.TakipEkstreler.Where(e => e.KrediKartiId == cardId).OrderBy(e => e.SonOdemeTarihi).ThenBy(e => e.Id).ToList();
-        if (statementId is { } selected) statements = statements.OrderBy(e => e.Id == selected ? 0 : 1).ToList();
-        var result = new List<KartTaksitPayi>(); var left = amount;
+        if (statementId is { } selected)
+            statements = statements.OrderBy(e => e.Id == selected ? 0 : 1).ToList();
+        var result = new List<KartTaksitPayi>();
+        var left = amount;
         foreach (var statement in statements)
         {
             var taxes = db.TakipKartTaksitler.Where(t => t.EkstreId == statement.Id).ToList();
             var weights = taxes.Where(t => remaining.GetValueOrDefault(t.Id) > 0).Select(t => new KanalPayYaz(t.Id, remaining[t.Id])).ToList();
             var allocated = Math.Min(left, weights.Sum(t => t.Tutar));
-            if (allocated <= 0) continue;
+            if (allocated <= 0)
+                continue;
             result.AddRange(Oranla(weights, allocated).Select(p => new KartTaksitPayi(p.KanalId, p.Tutar)));
             left -= allocated;
         }
-        if (left > 0) result.Add(new(0, left));
+        if (left > 0)
+            result.Add(new(0, left));
         return result;
     }
     // Aynı bozuk pay her rapor isteğinde ve dakikalık bildirim işçisinde yeniden hesaplanır; log taşmasın diye
@@ -524,7 +613,8 @@ public static class FinansTakipServisi
     {
         var kapsam = (object?)db.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider?.GetService<ILoggerFactory>() ?? KirpmaVarsayilanKapsam;
         var gorulen = KirpmaUyarilari.GetValue(kapsam, _ => new());
-        if (gorulen.Count >= KirpmaUyarisiSiniri) gorulen.Clear();
+        if (gorulen.Count >= KirpmaUyarisiSiniri)
+            gorulen.Clear();
         return gorulen.TryAdd(anahtar, 0);
     }
     /// <summary>Ödeme önizlemesi/anlık görüntüsü için tek ödemenin etkisi (yazma yolları). Her çağrı taze, izlemeli
@@ -544,19 +634,28 @@ public static class FinansTakipServisi
     private static KartOdemeOnizlemeDto OdemeEtkisi(TakipHesapBaglami b, int cardId, IReadOnlyList<KartTaksitPayi> pays,
         IReadOnlyDictionary<int, decimal> previousByCharge, int? beforePaymentId)
     {
-        var v = b.KartVerisi(cardId); var taxes = v.TaksitById; var charges = v.HarcamaById; var db = b.Db;
-        var shares = new List<TakipKanalPayi>(); var statementShares = new List<KartEkstreOdemePayi>(); decimal cash = 0;
+        var v = b.KartVerisi(cardId);
+        var taxes = v.TaksitById;
+        var charges = v.HarcamaById;
+        var db = b.Db;
+        var shares = new List<TakipKanalPayi>();
+        var statementShares = new List<KartEkstreOdemePayi>();
+        decimal cash = 0;
         foreach (var group in pays.GroupBy(p => taxes.TryGetValue(p.TaksitId, out var t) ? t.HarcamaId : 0))
         {
             var amount = group.Sum(p => p.Tutar);
-            if (group.Key == 0) { cash += amount; shares.Add(new(null, Kanallar.DagilimBekliyor, amount)); continue; }
-            var charge = charges[group.Key]; var previous = previousByCharge.GetValueOrDefault(charge.Id);
+            if (group.Key == 0)
+            { cash += amount; shares.Add(new(null, Kanallar.DagilimBekliyor, amount)); continue; }
+            var charge = charges[group.Key];
+            var previous = previousByCharge.GetValueOrDefault(charge.Id);
             // Devrin kasada önceden sayılan tutarından iadelerinin kasaya geri döndürdüğü kısım düşülür (finance-2).
             var counted = EtkinKasadaSayilan(charge, v.Iadeler(b)[charge.Id], v.IadeHesaplari(b));
             var credit = Math.Min(amount, Math.Max(0, counted - previous));
-            var effect = amount - credit; cash += effect;
+            var effect = amount - credit;
+            cash += effect;
             var source = IadeSonrasiPaylar(b, charge);
-            if (source.Count == 0) shares.Add(new(null, Kanallar.DagilimBekliyor, effect));
+            if (source.Count == 0)
+                shares.Add(new(null, Kanallar.DagilimBekliyor, effect));
             else
             {
                 var (paylar, tasan) = KirparakOranla(source, effect, Math.Max(0, previous - counted));
@@ -582,7 +681,8 @@ public static class FinansTakipServisi
     /// sırasıyla işlenir; önceki ödemelerin harcama başına toplamı yürüyen toplamla tutulur (her ödemede yeniden okunmaz).</summary>
     private static IReadOnlyDictionary<int, KartOdemeOnizlemeDto> OdemeEtkileri(TakipHesapBaglami b, int cardId)
     {
-        if (b.OdemeEtkileriOnbellegi.TryGetValue(cardId, out var memo)) return memo;
+        if (b.OdemeEtkileriOnbellegi.TryGetValue(cardId, out var memo))
+            return memo;
         var v = b.KartVerisi(cardId);
         var result = new Dictionary<int, KartOdemeOnizlemeDto>();
         var previousByCharge = new Dictionary<int, decimal>();
@@ -602,7 +702,8 @@ public static class FinansTakipServisi
     /// "TakipKartOdeme:{Id}", önceden sayılan iade "TakipHarcama:{Id}"); hesaba girmez.</summary>
     internal static IEnumerable<(DateOnly Tarih, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Anahtar)> KartOdemeDagilimlari(TakipHesapBaglami b, int cardId)
     {
-        var v = b.KartVerisi(cardId); var effects = OdemeEtkileri(b, cardId);
+        var v = b.KartVerisi(cardId);
+        var effects = OdemeEtkileri(b, cardId);
         var sonuc = v.Odemeler.Where(p => !p.Iptal).Select(p => (p.Tarih, p.Not, effects[p.Id].Dagilimlar, "TakipKartOdeme:" + p.Id.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToList();
         // Ödemelerden sonra eklenir: mevcut ödemelerin rapordaki kaynak anahtarları (sıra) değişmez.
         sonuc.AddRange(OncedenSayilanIadeleri(b, cardId));
@@ -613,16 +714,20 @@ public static class FinansTakipServisi
     /// tutar "Dağılım bekliyor"a döner. İade iptal edilirse satır da kalkar.</summary>
     internal static List<(DateOnly Tarih, string? Not, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Anahtar)> OncedenSayilanIadeleri(TakipHesapBaglami b, int cardId)
     {
-        var v = b.KartVerisi(cardId); var sonuc = new List<(DateOnly, string?, IReadOnlyList<TakipKanalPayi>, string)>();
-        if (!v.Harcamalar.Any(h => h.KaynakHarcamaId != null && !h.Iptal)) return sonuc;
+        var v = b.KartVerisi(cardId);
+        var sonuc = new List<(DateOnly, string?, IReadOnlyList<TakipKanalPayi>, string)>();
+        if (!v.Harcamalar.Any(h => h.KaynakHarcamaId != null && !h.Iptal))
+            return sonuc;
         var hesaplar = v.IadeHesaplari(b);
         foreach (var iade in v.Harcamalar.Where(h => h.KaynakHarcamaId != null && !h.Iptal).OrderBy(h => h.Id))
         {
-            if (!hesaplar.TryGetValue(iade.Id, out var hesap) || hesap.KasadaSayilanDuzeltme <= 0) continue;
+            if (!hesaplar.TryGetValue(iade.Id, out var hesap) || hesap.KasadaSayilanDuzeltme <= 0)
+                continue;
             var (paylar, tasan) = KirparakOranla(IadeSatiriPayi(b, iade), hesap.KasadaSayilanDuzeltme);
             var satirlar = Adlandir(b.KanalAdlari, paylar).Select(p => p with { Tutar = -p.Tutar }).ToList();
             var bekleyen = paylar.Count == 0 ? hesap.KasadaSayilanDuzeltme : tasan;
-            if (bekleyen > 0) satirlar.Add(new(null, Kanallar.DagilimBekliyor, -bekleyen));
+            if (bekleyen > 0)
+                satirlar.Add(new(null, Kanallar.DagilimBekliyor, -bekleyen));
             sonuc.Add((iade.Tarih, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama, satirlar, "TakipHarcama:" + iade.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
         return sonuc;
@@ -648,7 +753,9 @@ public static class FinansTakipServisi
         }
         var today = b.Bugun;
         var v = b.KartVerisi(id);
-        var charges = v.Harcamalar; var taxes = v.Taksitler; var payments = v.Odemeler;
+        var charges = v.Harcamalar;
+        var taxes = v.Taksitler;
+        var payments = v.Odemeler;
         var activeIds = charges.Where(h => !h.Iptal).Select(h => h.Id).ToHashSet();
         var activeTaxes = taxes.Where(t => activeIds.Contains(t.HarcamaId)).ToList();
         var remaining = KalanTaksitleriHesapla(charges.Where(h => !h.Iptal).ToList(), activeTaxes, payments.Where(p => !p.Iptal).Select(p => v.OdemePaylari[p.Id]), false);
@@ -685,7 +792,8 @@ public static class FinansTakipServisi
             {
                 var importId = importedPayments[p.Id].SingleOrDefault()?.Id;
                 int? avans = v.AvansKaynaklari(b).TryGetValue(p.Id, out var kaynak) ? kaynak : null;
-                if (p.Iptal) return new KartTakipOdemeDto(p.Id, p.Tarih, p.Tutar, 0, p.Not, true, [], importId, avans);
+                if (p.Iptal)
+                    return new KartTakipOdemeDto(p.Id, p.Tarih, p.Tutar, 0, p.Not, true, [], importId, avans);
                 var effect = effects[p.Id];
                 return new KartTakipOdemeDto(p.Id, p.Tarih, p.Tutar, effect.KasaEtkisi, p.Not, false, effect.Dagilimlar, importId, avans);
             }).ToList(),
@@ -696,11 +804,13 @@ public static class FinansTakipServisi
     /// kimliksiz (Id 0) eklenir. Böyle bir ekstrede taksit olamaz: taksit yazan her yol ekstresini de yazar.</summary>
     private static List<KartEkstreDto> TarihTuretilmisEkstreler(List<KartEkstreDto> statements, KrediKartiEntity card, TakipKartEntity track, DateOnly today)
     {
-        if (!track.Aktif) return statements;
+        if (!track.Aktif)
+            return statements;
         var cut = Kesim(today, card.KesimTarihi.Day);
         var missing = new[] { cut, Gun(cut.AddMonths(-1), card.KesimTarihi.Day) }
             .Where(d => d >= track.Baslangic && statements.All(s => s.KesimTarihi != d)).Distinct().ToList();
-        if (missing.Count == 0) return statements;
+        if (missing.Count == 0)
+            return statements;
         return statements.Concat(missing.Select(d => new KartEkstreDto(0, d, Vade(d, card.SonOdemeTarihi.Day), 0, 0, 0, null, null)))
             .OrderBy(s => s.KesimTarihi).ToList();
     }
@@ -714,10 +824,12 @@ public static class FinansTakipServisi
         foreach (var charge in charges.Where(h => !h.Iptal && h.Tutar > 0))
         {
             var debt = byCharge[charge.Id].Sum(t => remaining.GetValueOrDefault(t.Id));
-            if (debt <= 0) continue;
+            if (debt <= 0)
+                continue;
             var weights = IadeSonrasiPaylar(b, charge);
             var total = weights.Sum(p => p.Tutar);
-            if (weights.Count == 0 || total < debt) { unknown += debt; continue; }
+            if (weights.Count == 0 || total < debt)
+            { unknown += debt; continue; }
             // Brüt borcun ödenmemiş son kısmı: kasada daha önce sayılmış devir
             // borcu da ödeme ile kapanır. Nakit paylarını kullanmak bu kısmı
             // yanlış açık bırakır; kalan tutarı sıfırdan oranlamak da kuruşu taşır.
@@ -725,7 +837,8 @@ public static class FinansTakipServisi
         }
         var result = Adlandir(b.KanalAdlari, shares.GroupBy(p => p.KanalId).OrderBy(g => g.Key)
             .Select(g => new KanalPayYaz(g.Key, g.Sum(p => p.Tutar))));
-        if (unknown > 0) result.Add(new(null, Kanallar.DagilimBekliyor, unknown));
+        if (unknown > 0)
+            result.Add(new(null, Kanallar.DagilimBekliyor, unknown));
         return result;
     }
     public static KrediTakipDto Kredi(KasaDbContext db, int id) => Kredi(new TakipHesapBaglami(db, default, izle: true), id);
@@ -733,7 +846,8 @@ public static class FinansTakipServisi
     public static KrediTakipDto Kredi(TakipHesapBaglami b, int id)
     {
         b.Iptal.ThrowIfCancellationRequested();
-        var db = b.Db; var today = b.Bugun;
+        var db = b.Db;
+        var today = b.Bugun;
         var loan = db.Krediler.AsNoTracking().Single(k => k.Id == id);
         var tracking = db.TakipKrediler.AsNoTracking().SingleOrDefault(k => k.KrediId == id);
         if (tracking is null)
@@ -756,7 +870,8 @@ public static class FinansTakipServisi
         var b = new TakipHesapBaglami(db);
         var result = TakipOlaylari(b);
         result.AddRange(EskiModelOlaylari.Hepsi(b));
-        transaction?.Commit(); return result;
+        transaction?.Commit();
+        return result;
     }
     /// <summary>Takipli kartların kesim/son ödeme ve takipli kredilerin taksit olayları (yazmaz). Aynı istekte hesaplanmış
     /// kart/kredi DTO'ları verilirse yeniden hesaplanmaz. Sıra: takip kayıtlarının sırası, ekstre/taksit sırası.</summary>
@@ -776,8 +891,10 @@ public static class FinansTakipServisi
     {
         foreach (var s in dto.Ekstreler)
         {
-            if (aktif) yield return new("Kart", dto.Id, s.Id, dto.Ad, s.KesimTarihi, s.Borc, "Kesim", false);
-            if (s.Kalan > 0) yield return new("Kart", dto.Id, s.Id, dto.Ad, s.SonOdemeTarihi, s.Kalan, "SonOdeme", false);
+            if (aktif)
+                yield return new("Kart", dto.Id, s.Id, dto.Ad, s.KesimTarihi, s.Borc, "Kesim", false);
+            if (s.Kalan > 0)
+                yield return new("Kart", dto.Id, s.Id, dto.Ad, s.SonOdemeTarihi, s.Kalan, "SonOdeme", false);
         }
     }
     /// <summary>Bir takipli kredinin olayları (tek kural): iptal edilmemiş her taksit, kasaya otomatik işlenir.</summary>
@@ -816,7 +933,8 @@ public sealed class TakipHesapBaglami
     private readonly Dictionary<int, KartHesapVerisi> _kartlar = [];
     internal KartHesapVerisi KartVerisi(int kartId)
     {
-        if (!_kartlar.TryGetValue(kartId, out var veri)) _kartlar[kartId] = veri = new(this, kartId);
+        if (!_kartlar.TryGetValue(kartId, out var veri))
+            _kartlar[kartId] = veri = new(this, kartId);
         return veri;
     }
     internal Dictionary<int, List<KanalPayYaz>> KaynakPaylariOnbellegi { get; } = [];
@@ -855,7 +973,8 @@ internal sealed class KartHesapVerisi
     /// <summary>Kaynak harcama Id'sine göre iptal edilmemiş iadeler (kart süzgeci yok: eski tek harcamalık sorguyla aynı küme).</summary>
     public ILookup<int, TakipHarcamaEntity> Iadeler(TakipHesapBaglami b)
     {
-        if (_iadeler is not null) return _iadeler;
+        if (_iadeler is not null)
+            return _iadeler;
         var ids = _harcamaIdleri;
         return _iadeler = b.Sorgu(b.Db.TakipHarcamalar).Where(h => h.KaynakHarcamaId != null && ids.Contains(h.KaynakHarcamaId.Value) && !h.Iptal)
             .ToList().ToLookup(h => h.KaynakHarcamaId!.Value);
@@ -865,7 +984,8 @@ internal sealed class KartHesapVerisi
     /// <summary>Kartın iadelerinin hesap kayıtları (iade Id → kayıt); iadesi olmayan kartta sorgu atılmaz.</summary>
     public IReadOnlyDictionary<int, TakipIadeHesabiEntity> IadeHesaplari(TakipHesapBaglami b)
     {
-        if (_iadeHesaplari is not null) return _iadeHesaplari;
+        if (_iadeHesaplari is not null)
+            return _iadeHesaplari;
         var ids = Harcamalar.Where(h => h.KaynakHarcamaId != null).Select(h => h.Id).ToArray();
         return _iadeHesaplari = ids.Length == 0 ? [] : b.Sorgu(b.Db.TakipIadeHesaplari).Where(x => ids.Contains(x.HarcamaId)).ToDictionary(x => x.HarcamaId);
     }
@@ -875,7 +995,8 @@ internal sealed class KartHesapVerisi
     /// (gerçek ödeme pozitiftir): böyle ödeme yoksa sorgu atılmaz.</summary>
     public IReadOnlyDictionary<int, int> AvansKaynaklari(TakipHesapBaglami b)
     {
-        if (_avansKaynaklari is not null) return _avansKaynaklari;
+        if (_avansKaynaklari is not null)
+            return _avansKaynaklari;
         var ids = Odemeler.Where(p => p.Tutar == 0).Select(p => p.Id).ToArray();
         return _avansKaynaklari = ids.Length == 0 ? [] : b.Sorgu(b.Db.TakipAvansTahsisleri).Where(t => ids.Contains(t.OdemeId)).ToDictionary(t => t.OdemeId, t => t.KaynakOdemeId);
     }
@@ -885,9 +1006,11 @@ internal sealed class KartHesapVerisi
     /// sorguda okunur; alış başına ödeme dağılımı bir kez hesaplanır. Alışa bağlı olmayan gider sözlükte yoktur.</summary>
     public IReadOnlyDictionary<int, List<KanalPayYaz>> AlisPaylari(TakipHesapBaglami b)
     {
-        if (_alisPaylari is not null) return _alisPaylari;
+        if (_alisPaylari is not null)
+            return _alisPaylari;
         var islemIds = Harcamalar.Where(h => h.IslemId != null).Select(h => h.IslemId!.Value).Distinct().ToArray();
-        if (islemIds.Length == 0) return _alisPaylari = [];
+        if (islemIds.Length == 0)
+            return _alisPaylari = [];
         var db = b.Db;
         var baglar = db.AlisOdemeler.Where(o => islemIds.Contains(o.IslemId)).Select(o => new { o.IslemId, o.AlisId }).ToList();
         var alisIds = baglar.Select(x => x.AlisId).Distinct().ToArray();

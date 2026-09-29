@@ -10,12 +10,14 @@ public static class AyKilidiKurallari
     public static void TarihAcik(KasaDbContext db, DateOnly date)
     {
         var end = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single();
-        if (end is { } locked && date <= locked) Fail(locked);
+        if (end is { } locked && date <= locked)
+            Fail(locked);
     }
     internal static void Dogrula(KasaDbContext db)
     {
         // Dondurulmuş eski şema testleri/bridge aşaması kilit tablosundan öncedir.
-        if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='AyKilidi'").Single() == 0) return;
+        if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='AyKilidi'").Single() == 0)
+            return;
         // Kanal adı değişikliğinin etiket senkronu (yalnız Kanal metni kanalın güncel adına eşitlenen gider/kredi) mali değişiklik
         // değildir: kaynak kurallarına ve dönem kilidine girmez (KanalKurallari).
         var entries = KanalKurallari.EtiketSenkronuHaric(db,
@@ -45,7 +47,8 @@ public static class AyKilidiKurallari
                 if (e.State == EntityState.Modified || e.State == EntityState.Added && !kilitli || e.State == EntityState.Deleted && kilitli)
                     throw new KilitliDonemException("Kilitli ayın dondurulmuş raporu değiştirilemez; yalnız ay kapatılırken yazılır ve ay açılınca silinir.");
             }
-        if (until is not { } end) return;
+        if (until is not { } end)
+            return;
 
         bool DateLocked(EntityEntry e, string property) => e.CurrentValues[property] is DateOnly date && date <= end
             || e.State != EntityState.Added && e.OriginalValues[property] is DateOnly old && old <= end;
@@ -59,7 +62,8 @@ public static class AyKilidiKurallari
         bool PurchaseLocked(int id)
         {
             var expenseIds = db.AlisOdemeler.AsNoTracking().Where(p => p.AlisId == id).Select(p => p.IslemId).ToList();
-            if (db.Islemler.Any(i => expenseIds.Contains(i.Id) && i.Tarih <= end)) return true;
+            if (db.Islemler.Any(i => expenseIds.Contains(i.Id) && i.Tarih <= end))
+                return true;
             return db.TakipHarcamalar.Where(h => h.IslemId != null && expenseIds.Contains(h.IslemId.Value)).Select(h => h.Id).ToList().Any(ChargePaidBefore);
         }
         bool ExpenseChangesLaterClosedPurchasePayment(IslemEntity expense)
@@ -121,7 +125,8 @@ public static class AyKilidiKurallari
                                 && (PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!) || PurchaseLocked(b.AlisId))),
                 _ => false
             };
-            if (blocked) Fail(end);
+            if (blocked)
+                Fail(end);
         }
     }
     private static void Fail(DateOnly end) => throw new KilitliDonemException($"{end:yyyy-MM-dd} tarihine kadar dönem kilitli. Geçmişi etkileyen bu işlem için ilgili ayı gerekçeyle açın.");

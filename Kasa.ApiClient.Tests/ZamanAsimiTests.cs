@@ -33,10 +33,12 @@ public class ZamanAsimiTests
         private bool _beklendi;
         public override async ValueTask<int> ReadAsync(Memory<byte> hedef, CancellationToken ct = default)
         {
-            if (_konum >= ilkParca && !_beklendi) { _beklendi = true; await bekle(ct); }
+            if (_konum >= ilkParca && !_beklendi)
+            { _beklendi = true; await bekle(ct); }
             var sinir = _beklendi ? veri.Length : ilkParca;
             var n = Math.Min(hedef.Length, sinir - _konum);
-            if (n <= 0) return 0;
+            if (n <= 0)
+                return 0;
             veri.AsSpan(_konum, n).CopyTo(hedef.Span);
             _konum += n;
             return n;
@@ -89,8 +91,10 @@ public class ZamanAsimiTests
         {
             await Task.Delay(TimeSpan.FromMilliseconds(600), ct);   // normal sürenin (150 ms) dört katı
             var yol = r.RequestUri!.AbsolutePath;
-            if (yol.EndsWith("/belgeler")) return Json(BelgeJson);
-            if (yol.EndsWith("/yukle")) return Json(EkstreJson);
+            if (yol.EndsWith("/belgeler"))
+                return Json(BelgeJson);
+            if (yol.EndsWith("/yukle"))
+                return Json(EkstreJson);
             return Dosya(new ByteArrayContent([1, 2, 3]), "dosya.bin");
         }));
         using MemoryStream yedek = new(), belge = new(), rapor = new(), ekstre = new();
@@ -103,7 +107,8 @@ public class ZamanAsimiTests
             c.BelgeYukleAsync(7, "dekont.pdf", "application/pdf", Encoding.UTF8.GetBytes("%PDF")),
             c.EkstreYukleAsync(Encoding.UTF8.GetBytes("%PDF"), "hareket.pdf", "Banka", "QNB", "Ana", null));
 
-        foreach (var akis in new[] { yedek, belge, rapor, ekstre }) Assert.Equal(new byte[] { 1, 2, 3 }, akis.ToArray());
+        foreach (var akis in new[] { yedek, belge, rapor, ekstre })
+            Assert.Equal(new byte[] { 1, 2, 3 }, akis.ToArray());
     }
 
     [Fact]
@@ -138,7 +143,8 @@ public class ZamanAsimiTests
             return Task.FromResult(Dosya(new StreamContent(new ParcaliAkis(veri, 64 * 1024, async ct =>
             {
                 var biten = await Task.WhenAny(hedef.IlkYazma.Task, Task.Delay(TimeSpan.FromSeconds(5), ct));
-                if (biten != hedef.IlkYazma.Task) tamponlandi = true;
+                if (biten != hedef.IlkYazma.Task)
+                    tamponlandi = true;
             })), "kasa-20260923-120000.zip"));
         }));
 
@@ -160,8 +166,10 @@ public class ZamanAsimiTests
         var tumuBasladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var c = Client(new Handler(async (_, ct) =>
         {
-            if (Interlocked.Increment(ref baslayan) == 5) tumuBasladi.SetResult();
-            try { await Task.Delay(Timeout.Infinite, ct); }
+            if (Interlocked.Increment(ref baslayan) == 5)
+                tumuBasladi.SetResult();
+            try
+            { await Task.Delay(Timeout.Infinite, ct); }
             catch (OperationCanceledException) { Interlocked.Increment(ref gorulenIptal); throw; }
             return Json("{}");
         }));

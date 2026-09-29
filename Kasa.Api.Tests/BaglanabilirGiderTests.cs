@@ -41,7 +41,8 @@ public class BaglanabilirGiderTests
     [Fact]
     public async Task Yalniz_baglanabilir_giderler_listelenir_ve_liste_ile_odeme_kurali_tutarlidir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var old = Month.AddMonths(-1);
         var uygun = await Gider(c, Today.AddDays(-1), "Kargo A.Ş.", 50m, not: "Eylül kargosu");
         var eskiUygun = await Gider(c, Today.AddDays(-20), "Ambalaj", 20m);
@@ -58,12 +59,16 @@ public class BaglanabilirGiderTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             IslemEntity Yeni(string cari, DateOnly? tarih = null) => new() { Tarih = tarih ?? Today, Cari = cari, TutarTl = 40m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
-            var e = Yeni("Ekstreden"); var k = Yeni("Kredi taksidi"); var h = Yeni("Hesap hareketi"); var t = Yeni("Takip öncesi", Month.AddMonths(-4));
+            var e = Yeni("Ekstreden");
+            var k = Yeni("Kredi taksidi");
+            var h = Yeni("Hesap hareketi");
+            var t = Yeni("Takip öncesi", Month.AddMonths(-4));
             db.Islemler.AddRange(e, k, h, t);
             var kredi = new KrediEntity { Ad = "Kredi", CekilenTutar = 1000m, CekimTarihi = Today, TaksitSayisi = 2, AylikOdeme = 500m, OdemeGunu = 5, Kanal = "MEZAT", KanalId = 1 };
             var hesap = new HesapEntity { Ad = "Eski hesap", Tur = "Banka", AcilisTarihi = Today };
             var belge = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Test", HesapAdi = "Hesap", DosyaAdi = "e.pdf", DosyaOzeti = "x" };
-            db.AddRange(kredi, hesap, belge); db.SaveChanges();
+            db.AddRange(kredi, hesap, belge);
+            db.SaveChanges();
             db.KrediTaksitOdemeler.Add(new KrediTaksitOdemeEntity { KrediId = kredi.Id, TaksitNo = 1, IslemId = k.Id });
             db.HesapHareketler.Add(new HesapHareketEntity { HesapId = hesap.Id, KanalId = 1, Tarih = Today, Tutar = -40m, Aciklama = "Eski bağ", IslemId = h.Id });
             db.SaveChanges();
@@ -77,10 +82,13 @@ public class BaglanabilirGiderTests
         // Banka ekstresi gideri kaynak satırıyla listelenir (gap-coklu-giris-cift-sayim-mutabakat-1: bağlanınca satır eşleşmeye döner).
         var sayfa = await Oku(c);
         Assert.Equal([ekstreli, uygun, eskiUygun], sayfa.Ogeler.Select(o => o.Id));
-        Assert.False(sayfa.DevamVar); Assert.Null(sayfa.SonrakiImlec);
-        Assert.NotNull(sayfa.Ogeler[0].EkstreKayitId); Assert.Null(sayfa.Ogeler[1].EkstreKayitId);
+        Assert.False(sayfa.DevamVar);
+        Assert.Null(sayfa.SonrakiImlec);
+        Assert.NotNull(sayfa.Ogeler[0].EkstreKayitId);
+        Assert.Null(sayfa.Ogeler[1].EkstreKayitId);
         Assert.Equal(("Kargo A.Ş.", 50m, GiderTipi.Cari, "Eylül kargosu"), (sayfa.Ogeler[1].Cari, sayfa.Ogeler[1].TutarTl, sayfa.Ogeler[1].Tip, sayfa.Ogeler[1].Not));
-        foreach (var hic in new[] { alisa, kilitli, kredili, hesapli, takipOncesi }) Assert.DoesNotContain(sayfa.Ogeler, o => o.Id == hic);
+        foreach (var hic in new[] { alisa, kilitli, kredili, hesapli, takipOncesi })
+            Assert.DoesNotContain(sayfa.Ogeler, o => o.Id == hic);
 
         // Listedeki gider ödeme ucunun kurallarından geçer; bağlandıktan sonra listeden çıkar.
         var yeni = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Bağlanacak", null, [new("Mal", 100m, [new(1, 100m)])]));
@@ -92,9 +100,11 @@ public class BaglanabilirGiderTests
     [Fact]
     public async Task Tarih_tutar_ve_metin_suzgeci_ile_imlecli_sayfalama()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var idler = new List<int>();
-        for (var i = 0; i < 5; i++) idler.Add(await Gider(c, Today.AddDays(-i), $"Tedarik {i}", 10m + i, not: i == 3 ? "özel %_ not" : null));
+        for (var i = 0; i < 5; i++)
+            idler.Add(await Gider(c, Today.AddDays(-i), $"Tedarik {i}", 10m + i, not: i == 3 ? "özel %_ not" : null));
         var ayniGun = await Gider(c, Today, "Tedarik aynı gün", 99m);
 
         // Tarih azalan, aynı günde yeni kayıt önce; sayfalar çakışmaz ve eksiksizdir.
@@ -127,7 +137,8 @@ public class BaglanabilirGiderTests
     [Fact]
     public async Task Tutar_gibi_okunan_arama_metni_tutarla_ya_da_aciklama_ve_notla_eslesir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var aciklamada = await Gider(c, Today, "Fatura 2024", 10m);
         var tutarda = await Gider(c, Today.AddDays(-1), "Kira", 2024m);
         var notta = await Gider(c, Today.AddDays(-2), "Kargo", 5m, not: "sipariş 2024/17");
@@ -155,7 +166,8 @@ public class BaglanabilirGiderTests
     [Fact]
     public async Task Yalniz_editor_gorebilir()
     {
-        await using var f = Fabrika(); using var editor = await Editor(f);
+        await using var f = Fabrika();
+        using var editor = await Editor(f);
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "baglanabilir");
         Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(Uc)).StatusCode);
         (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi-12" })).EnsureSuccessStatusCode();
@@ -168,16 +180,22 @@ public class BaglanabilirGiderTests
     [Fact]
     public async Task Sorgu_sayisi_kayit_sayisindan_bagimsizdir()
     {
-        await using var f = new KartHesapMaliyetiTests.SayacliFabrika(); using var c = await Editor(f);
+        await using var f = new KartHesapMaliyetiTests.SayacliFabrika();
+        using var c = await Editor(f);
         async Task<int> Sorgular()
         {
-            f.Sayac.Sifirla(); f.Sayac.Etkin = true;
-            try { await Oku(c, "?limit=200"); } finally { f.Sayac.Etkin = false; }
+            f.Sayac.Sifirla();
+            f.Sayac.Etkin = true;
+            try
+            { await Oku(c, "?limit=200"); }
+            finally { f.Sayac.Etkin = false; }
             return f.Sayac.Komutlar.Count;
         }
-        for (var i = 0; i < 3; i++) await Gider(c, Today.AddDays(-i), $"Az {i}", 5m);
+        for (var i = 0; i < 3; i++)
+            await Gider(c, Today.AddDays(-i), $"Az {i}", 5m);
         var az = await Sorgular();
-        for (var i = 0; i < 40; i++) await Gider(c, Today.AddDays(-(i % 20)), $"Çok {i}", 5m + i);
+        for (var i = 0; i < 40; i++)
+            await Gider(c, Today.AddDays(-(i % 20)), $"Çok {i}", 5m + i);
         Assert.Equal(az, await Sorgular());
         Assert.True(az <= 8, $"Beklenenden çok sorgu: {az}");
     }
@@ -185,12 +203,17 @@ public class BaglanabilirGiderTests
     [Fact]
     public async Task Gider_listesi_kanal_adlarini_satir_basina_degil_bir_kez_okur()
     {
-        await using var f = new KartHesapMaliyetiTests.SayacliFabrika(); using var c = await Editor(f);
+        await using var f = new KartHesapMaliyetiTests.SayacliFabrika();
+        using var c = await Editor(f);
         var sablon = await Create(c, "Ozel", [new(1, 100m)]);
         await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
-        for (var i = 0; i < 5; i++) await Gider(c, Today.AddDays(-i), $"Gider {i}", 5m);
-        f.Sayac.Sifirla(); f.Sayac.Etkin = true;
-        try { (await c.GetAsync("/api/islemler")).EnsureSuccessStatusCode(); } finally { f.Sayac.Etkin = false; }
+        for (var i = 0; i < 5; i++)
+            await Gider(c, Today.AddDays(-i), $"Gider {i}", 5m);
+        f.Sayac.Sifirla();
+        f.Sayac.Etkin = true;
+        try
+        { (await c.GetAsync("/api/islemler")).EnsureSuccessStatusCode(); }
+        finally { f.Sayac.Etkin = false; }
         Assert.Equal(1, f.Sayac.Komutlar.Count(k => k.Contains("FROM \"Kanallar\"")));
         // Aylık gider revizyonları yalnız listedeki ödemeler için okunur (bütün tablo değil).
         Assert.All(f.Sayac.Komutlar.Where(k => k.Contains("FROM \"AylikGiderRevizyonlar\"")), k => Assert.Contains("WHERE", k));
@@ -222,10 +245,12 @@ public class AlisIncelemeOzetiTests
     [Fact]
     public async Task Inceleme_bekleyen_sayisini_ve_en_yeni_alislari_liste_sirasi_ve_bicimiyle_doner()
     {
-        await using var f = Fabrika(); using var editor = await Editor(f);
+        await using var f = Fabrika();
+        using var editor = await Editor(f);
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "inceleme-ozeti");
         var gonderilen = new List<AlisDto>();
-        for (var i = 0; i < 6; i++) gonderilen.Add(await Incelemede(i % 2 == 0 ? alici : editor, Today.AddDays(-(i % 3)), $"Tedarikçi {i}"));
+        for (var i = 0; i < 6; i++)
+            gonderilen.Add(await Incelemede(i % 2 == 0 ? alici : editor, Today.AddDays(-(i % 3)), $"Tedarikçi {i}"));
         await AlisTestYardimcisi.Taslak(alici, "Taslakta kalan");
         (await editor.PostAsJsonAsync($"/api/alis/{gonderilen[0].Id}/onayla", new AlisDurumYaz(gonderilen[0].Surum))).EnsureSuccessStatusCode();
 
@@ -252,17 +277,24 @@ public class AlisIncelemeOzetiTests
     [Fact]
     public async Task Sorgu_sayisi_alis_sayisindan_bagimsizdir()
     {
-        await using var f = new KartHesapMaliyetiTests.SayacliFabrika(); using var c = await Editor(f);
+        await using var f = new KartHesapMaliyetiTests.SayacliFabrika();
+        using var c = await Editor(f);
         async Task<int> Sorgular()
         {
-            f.Sayac.Sifirla(); f.Sayac.Etkin = true;
-            try { await Oku(c); } finally { f.Sayac.Etkin = false; }
+            f.Sayac.Sifirla();
+            f.Sayac.Etkin = true;
+            try
+            { await Oku(c); }
+            finally { f.Sayac.Etkin = false; }
             return f.Sayac.Komutlar.Count;
         }
-        for (var i = 0; i < 5; i++) await Incelemede(c, Today.AddDays(-i), $"Az {i}");
+        for (var i = 0; i < 5; i++)
+            await Incelemede(c, Today.AddDays(-i), $"Az {i}");
         var az = await Sorgular();
-        for (var i = 0; i < 25; i++) await Incelemede(c, Today.AddDays(-(i % 7)), $"Çok {i}");
-        for (var i = 0; i < 5; i++) await AlisTestYardimcisi.Taslak(c, $"Taslak {i}");
+        for (var i = 0; i < 25; i++)
+            await Incelemede(c, Today.AddDays(-(i % 7)), $"Çok {i}");
+        for (var i = 0; i < 5; i++)
+            await AlisTestYardimcisi.Taslak(c, $"Taslak {i}");
         Assert.Equal(az, await Sorgular());
         Assert.True(az <= 10, $"Beklenenden çok sorgu: {az}");
         Assert.Equal(30, (await Oku(c)).Sayi);

@@ -38,7 +38,8 @@ public class AltinRaporTests
         }
         var beklenen = JsonNode.Parse(File.ReadAllText(yol))!.AsObject();
         Assert.Equal(beklenen.Select(p => p.Key).Order(StringComparer.Ordinal), gercek.Select(p => p.Key).Order(StringComparer.Ordinal));
-        foreach (var fark in OnayliFarklar()) fark.Uygula(beklenen);
+        foreach (var fark in OnayliFarklar())
+            fark.Uygula(beklenen);
         // Birebir: sayı belirteçleri de metin olarak karşılaştırılır (ör. 1190.5 ile 1190.50 farklı sayılır).
         foreach (var (uc, deger) in beklenen)
             Assert.True(deger!.ToJsonString() == gercek[uc]!.ToJsonString(), $"{uc} altın çıktı + onaylı farklardan farklı:\nBEKLENEN {deger.ToJsonString()}\nGERÇEK   {gercek[uc]!.ToJsonString()}");
@@ -95,7 +96,8 @@ public class AltinRaporTests
     private static string Aylik(DateOnly ay) => $"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}";
     private static IEnumerable<DateOnly> Aylar(DateOnly ilk, DateOnly son)
     {
-        for (var ay = ilk; ay <= son; ay = ay.AddMonths(1)) yield return ay;
+        for (var ay = ilk; ay <= son; ay = ay.AddMonths(1))
+            yield return ay;
     }
 
     /// <summary>Bir uç yanıtındaki tek alanın onaylı değişimi. <paramref name="Yol"/>: nokta ile ayrılmış alan adları, dizi
@@ -107,18 +109,22 @@ public class AltinRaporTests
         {
             var parcalar = Yol.Replace("[", ".[").Split('.', StringSplitOptions.RemoveEmptyEntries);
             JsonNode dugum = altin[Uc] ?? throw new InvalidOperationException($"Onaylı fark için uç altın çıktıda yok: {Uc}");
-            foreach (var parca in parcalar[..^1]) dugum = Git(dugum, parca);
+            foreach (var parca in parcalar[..^1])
+                dugum = Git(dugum, parca);
             var son = parcalar[^1];
             if (son.StartsWith('['))
             {
-                var dizi = dugum.AsArray(); var i = int.Parse(son[1..^1], System.Globalization.CultureInfo.InvariantCulture);
+                var dizi = dugum.AsArray();
+                var i = int.Parse(son[1..^1], System.Globalization.CultureInfo.InvariantCulture);
                 Assert.True(Eski is not null && dizi[i]!.ToJsonString() == Eski, $"Onaylı fark ({Gerekce}) {Uc} {Yol}: altın değer {dizi[i]?.ToJsonString()}, beklenen eski {Eski}.");
                 dizi[i] = JsonNode.Parse(Yeni);
                 return;
             }
             var nesne = dugum.AsObject();
-            if (Eski is null) Assert.False(nesne.ContainsKey(son), $"Onaylı fark ({Gerekce}) {Uc} {Yol}: alan altın çıktıda zaten var.");
-            else Assert.True(nesne[son]?.ToJsonString() == Eski, $"Onaylı fark ({Gerekce}) {Uc} {Yol}: altın değer {nesne[son]?.ToJsonString()}, beklenen eski {Eski}.");
+            if (Eski is null)
+                Assert.False(nesne.ContainsKey(son), $"Onaylı fark ({Gerekce}) {Uc} {Yol}: alan altın çıktıda zaten var.");
+            else
+                Assert.True(nesne[son]?.ToJsonString() == Eski, $"Onaylı fark ({Gerekce}) {Uc} {Yol}: altın değer {nesne[son]?.ToJsonString()}, beklenen eski {Eski}.");
             nesne[son] = JsonNode.Parse(Yeni);
         }
 
@@ -289,9 +295,19 @@ internal static class AltinTohum
             var satirlar = new[] { new EkstreOkunanSatir(1, 1, "Kaynak 1", new(2026, 9, 15), "Havale geliri", 2_500m, "Giris", "Gelir", "Hareket", "TRY", []),
                 new EkstreOkunanSatir(2, 1, "Kaynak 2", new(2026, 9, 16), "Banka masrafı", 350m, "Cikis", "Gider", "Hareket", "TRY", []),
                 new EkstreOkunanSatir(3, 1, "Kaynak 3", new(2026, 9, 18), "Kart A ödemesi", 250m, "Cikis", "KartOdemesi", "Hareket", "TRY", []) };
-            var d = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "altin.pdf", DosyaOzeti = "altin-belge",
-                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = JsonSerializer.Serialize(satirlar) };
-            db.EkstreBelgeler.Add(d); db.SaveChanges(); belge = d.Id;
+            var d = new EkstreBelgeEntity
+            {
+                Kaynak = "Banka",
+                Banka = "Akbank",
+                HesapAdi = "İş hesabı",
+                DosyaAdi = "altin.pdf",
+                DosyaOzeti = "altin-belge",
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                SatirlarJson = JsonSerializer.Serialize(satirlar)
+            };
+            db.EkstreBelgeler.Add(d);
+            db.SaveChanges();
+            belge = d.Id;
         }
         var doc = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge}", Json))!;
         var istek = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [
@@ -320,7 +336,8 @@ internal static class AltinTohum
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var kilit = db.AyKilidi.Single();
         db.AyKilidiOlaylar.Add(new() { OncekiSonTarih = kilit.KilitliSonTarih, YeniSonTarih = son, Aciklama = aciklama, Zaman = f.Saat!.GetUtcNow() });
-        kilit.KilitliSonTarih = son; kilit.Surum++;
+        kilit.KilitliSonTarih = son;
+        kilit.Surum++;
         db.SaveChanges();
         Assert.Equal(6, AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat.GetUtcNow()).Count);
     }
@@ -332,7 +349,8 @@ internal static class AltinTohum
     private static async Task<AlisDto> Alis(HttpClient c, DateOnly tarih, string tedarikci, decimal tutar, IReadOnlyList<AlisDagilimYaz> paylar, bool onayla)
     {
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, tarih, tedarikci, null, [new("Mal", tutar, paylar)]));
-        if (!onayla) return alis;
+        if (!onayla)
+            return alis;
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
         return await Post<AlisDto>(c, $"/api/alis/{alis.Id}/onayla", new AlisDurumYaz(alis.Surum, "Uygun"));
     }

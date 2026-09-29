@@ -34,8 +34,10 @@ public sealed partial class KasaApiException : Exception
     public static string? KisaIz(string? iz)
     {
         var metin = iz?.Trim();
-        if (string.IsNullOrEmpty(metin) || !IzKarakterleri().IsMatch(metin)) return null;
-        if (W3cIz().Match(metin) is { Success: true } w3c) return w3c.Groups["iz"].Value[..8];
+        if (string.IsNullOrEmpty(metin) || !IzKarakterleri().IsMatch(metin))
+            return null;
+        if (W3cIz().Match(metin) is { Success: true } w3c)
+            return w3c.Groups["iz"].Value[..8];
         return metin.Length <= 24 ? metin : metin[..12];
     }
 

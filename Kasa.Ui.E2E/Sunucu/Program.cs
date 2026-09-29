@@ -35,7 +35,8 @@ internal static class Baslangic
         }
 
         var veri = Path.Combine(Path.GetTempPath(), $"kasa-e2e-{port}");
-        if (Directory.Exists(veri)) Directory.Delete(veri, recursive: true);
+        if (Directory.Exists(veri))
+            Directory.Delete(veri, recursive: true);
         Directory.CreateDirectory(veri);
         // Program.cs bağlantı dizesini ve yapılandırmayı oluşturucu kurulurken okur: ortam değişkeni en son sağlayıcıdır,
         // appsettings dosyalarındakini ezer.
@@ -65,7 +66,10 @@ internal static class Baslangic
         {
             await sunucu.DisposeAsync();
             SqliteConnection.ClearAllPools();
-            try { Directory.Delete(veri, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            try
+            { Directory.Delete(veri, recursive: true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
         return 0;
     }

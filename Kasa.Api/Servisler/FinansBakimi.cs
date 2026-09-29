@@ -14,13 +14,15 @@ public sealed class FinansBakimi(IServiceScopeFactory scopes, IConfiguration cfg
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!(cfg.GetValue<bool?>("Finans:BakimEtkin") ?? !env.IsDevelopment())) return;
+        if (!(cfg.GetValue<bool?>("Finans:BakimEtkin") ?? !env.IsDevelopment()))
+            return;
         DateOnly? sonGun = null;
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
         do
         {
             var bugun = saat.IstanbulBugun();
-            if (sonGun == bugun) continue;
+            if (sonGun == bugun)
+                continue;
             try
             {
                 using var scope = scopes.CreateScope();

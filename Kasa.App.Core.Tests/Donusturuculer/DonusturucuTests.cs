@@ -19,7 +19,8 @@ public class DonusturucuTests
     /// <summary>İş parçacığı kültürü İngilizceyken çalıştırır: dönüştürücü tr-TR'yi kendisi seçmeli.</summary>
     private static T IngilizceKulturde<T>(Func<T> islem)
     {
-        var onceki = CultureInfo.CurrentCulture; var oncekiUi = CultureInfo.CurrentUICulture;
+        var onceki = CultureInfo.CurrentCulture;
+        var oncekiUi = CultureInfo.CurrentUICulture;
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
@@ -43,9 +44,18 @@ public class DonusturucuTests
     }
 
     [Theory]
-    [InlineData(1, "Ocak")] [InlineData(2, "Şubat")] [InlineData(3, "Mart")] [InlineData(4, "Nisan")]
-    [InlineData(5, "Mayıs")] [InlineData(6, "Haziran")] [InlineData(7, "Temmuz")] [InlineData(8, "Ağustos")]
-    [InlineData(9, "Eylül")] [InlineData(10, "Ekim")] [InlineData(11, "Kasım")] [InlineData(12, "Aralık")]
+    [InlineData(1, "Ocak")]
+    [InlineData(2, "Şubat")]
+    [InlineData(3, "Mart")]
+    [InlineData(4, "Nisan")]
+    [InlineData(5, "Mayıs")]
+    [InlineData(6, "Haziran")]
+    [InlineData(7, "Temmuz")]
+    [InlineData(8, "Ağustos")]
+    [InlineData(9, "Eylül")]
+    [InlineData(10, "Ekim")]
+    [InlineData(11, "Kasım")]
+    [InlineData(12, "Aralık")]
     public void AyAdi_her_ay_turkce_ve_bas_harfi_buyuk(int ay, string beklenen)
     {
         foreach (var kultur in BaglamaKulturleri)
@@ -53,7 +63,11 @@ public class DonusturucuTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(13)] [InlineData(-1)] [InlineData(int.MaxValue)] [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(13)]
+    [InlineData(-1)]
+    [InlineData(int.MaxValue)]
+    [InlineData(null)]
     public void AyAdi_aralik_disi_ve_bos_deger_bos_metin(int? ay)
         => Assert.Equal("", Cevir(new AyAdiConverter(), ay));
 
@@ -70,8 +84,13 @@ public class DonusturucuTests
     [InlineData("ahmet", "A")]
     [InlineData("ismail", "İ")]   // tr-TR: noktalı büyük İ (en-US'te "I" olurdu)
     [InlineData("ılgaz", "I")]    // tr-TR: noktasız ı → I
-    [InlineData("çağrı", "Ç")] [InlineData("şule", "Ş")] [InlineData("öykü", "Ö")] [InlineData("ümit", "Ü")] [InlineData("ğ", "Ğ")]
-    [InlineData("Zeynep", "Z")] [InlineData("7 Numara", "7")]
+    [InlineData("çağrı", "Ç")]
+    [InlineData("şule", "Ş")]
+    [InlineData("öykü", "Ö")]
+    [InlineData("ümit", "Ü")]
+    [InlineData("ğ", "Ğ")]
+    [InlineData("Zeynep", "Z")]
+    [InlineData("7 Numara", "7")]
     public void BasHarf_turkce_buyuk_harf_kuralini_kullanir(string ad, string beklenen)
     {
         foreach (var kultur in BaglamaKulturleri)
@@ -79,7 +98,9 @@ public class DonusturucuTests
     }
 
     [Theory]
-    [InlineData(null)] [InlineData("")] [InlineData(42)]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(42)]
     public void BasHarf_bos_ya_da_metin_olmayan_deger_soru_isareti(object? deger)
         => Assert.Equal("?", Cevir(new BasHarfConverter(), deger));
 
@@ -88,8 +109,13 @@ public class DonusturucuTests
         => Assert.Equal(" ", Cevir(new BasHarfConverter(), " ahmet")); // Bugünkü davranış: rozet boş görünür.
 
     [Theory]
-    [InlineData(null, false)] [InlineData("", false)] [InlineData("   ", false)] [InlineData("\t\n", false)]
-    [InlineData("Hata", true)] [InlineData(" x ", true)] [InlineData(5, false)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData("\t\n", false)]
+    [InlineData("Hata", true)]
+    [InlineData(" x ", true)]
+    [InlineData(5, false)]
     public void DoluIse_yalniz_bosluk_disi_metinde_true(object? deger, bool beklenen)
         => Assert.Equal(beklenen, Cevir(new DoluIseConverter(), deger));
 
@@ -108,13 +134,20 @@ public class DonusturucuTests
     }
 
     [Theory]
-    [InlineData(null, "")] [InlineData("hazır metin", "hazır metin")] [InlineData(42, "42")]
+    [InlineData(null, "")]
+    [InlineData("hazır metin", "hazır metin")]
+    [InlineData(42, "42")]
     public void DonemBicim_donem_olmayan_deger_metne_cevrilir(object? deger, string beklenen)
         => Assert.Equal(beklenen, Cevir(new DonemBicimConverter(), deger));
 
     [Theory]
-    [InlineData("1308800", "1.308.800,00")] [InlineData("-48200", "-48.200,00")] [InlineData("0", "0,00")]
-    [InlineData("0.005", "0,01")] [InlineData("0.004", "0,00")] [InlineData("-0.01", "-0,01")] [InlineData("1234.5", "1.234,50")]
+    [InlineData("1308800", "1.308.800,00")]
+    [InlineData("-48200", "-48.200,00")]
+    [InlineData("0", "0,00")]
+    [InlineData("0.005", "0,01")]
+    [InlineData("0.004", "0,00")]
+    [InlineData("-0.01", "-0,01")]
+    [InlineData("1234.5", "1.234,50")]
     [InlineData("999999999999.99", "999.999.999.999,99")]
     public void ParaBicim_decimal_tr_TR_binlik_nokta_kurus_virgul(string tutar, string beklenen)
     {
@@ -124,12 +157,18 @@ public class DonusturucuTests
     }
 
     [Theory]
-    [InlineData(null, "")] [InlineData(1500, "1500")] [InlineData("12,50", "12,50")]
+    [InlineData(null, "")]
+    [InlineData(1500, "1500")]
+    [InlineData("12,50", "12,50")]
     public void ParaBicim_decimal_olmayan_deger_bicimlenmeden_metne_cevrilir(object? deger, string beklenen)
         => Assert.Equal(beklenen, Cevir(new ParaBicimConverter(), deger)); // Para alanları decimal'dır; int gelirse biçimlenmez.
 
     [Theory]
-    [InlineData("-0.01", true)] [InlineData("-48200", true)] [InlineData("0", false)] [InlineData("0.01", false)] [InlineData("1308800", false)]
+    [InlineData("-0.01", true)]
+    [InlineData("-48200", true)]
+    [InlineData("0", false)]
+    [InlineData("0.01", false)]
+    [InlineData("1308800", false)]
     public void ParaRenk_negatif_kirmizi_sifir_ve_pozitif_yesil(string tutar, bool kirmizi)
     {
         Assert.Equal(kirmizi ? "#C13A2E" : "#1B7A4E", Renk(decimal.Parse(tutar, CultureInfo.InvariantCulture)));
@@ -148,7 +187,11 @@ public class DonusturucuTests
     }
 
     [Theory]
-    [InlineData(true, false)] [InlineData(false, true)] [InlineData(null, true)] [InlineData("true", true)] [InlineData(1, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(null, true)]
+    [InlineData("true", true)]
+    [InlineData(1, true)]
     public void TersIse_bool_tersler_bool_olmayan_false_sayilir(object? deger, bool beklenen)
     {
         Assert.Equal(beklenen, Cevir(new TersIseConverter(), deger));

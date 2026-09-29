@@ -25,7 +25,8 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Bir_kartin_alacagi_diger_kartin_kanal_borcunu_azaltmaz_ve_okuma_kasayi_degistirmez()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var a = await Charge(c, await Card(c), 100m, [new(1, 60m), new(2, 40m)]);
         a = await Pay(c, a, 10m);
         await Charge(c, await Card(c), 20m, [new(1, 20m)]);
@@ -44,7 +45,8 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Odenmis_kurus_kalan_borcta_ikinci_kez_ayni_kanala_yazilmaz_iptaller_geri_alinir()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), .02m, [new(1, .01m), new(2, .01m)], 2);
         card = await Pay(c, card, .01m);
         AssertShares(card.KanalKartBorclari, (2, .01m));
@@ -54,13 +56,15 @@ public class CardDebtSummaryTests
         AssertShares(card.KanalKartBorclari, (1, .01m), (2, .01m));
         card = await CancelCharge(c, card, card.Harcamalar.Single().Id);
         Assert.Empty(card.KanalKartBorclari!);
-        Assert.Equal(0m, card.Borc); Assert.Equal(1000m, await Cash(c));
+        Assert.Equal(0m, card.Borc);
+        Assert.Equal(1000m, await Cash(c));
     }
 
     [Fact]
     public async Task Iade_yalniz_kendi_kaynak_kanal_borcunu_azaltir_iptal_edilince_geri_gelir()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         card = await Charge(c, card, 100m, [new(2, 100m)]);
         var source = card.Harcamalar.Last();
@@ -76,13 +80,15 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Kismi_odeme_ardindan_iade_kalan_paylari_ve_odeme_iptali_borcu_dogru_gosterir()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 60m), new(2, 40m)], 3);
         var source = card.Harcamalar.Single();
         card = await Pay(c, card, 25m);
         card = await Refund(c, card, source.Id, 25m);
         AssertShares(card.KanalKartBorclari, (1, 30m), (2, 20m));
-        Assert.Equal(50m, card.Borc); Assert.Equal(975m, await Cash(c));
+        Assert.Equal(50m, card.Borc);
+        Assert.Equal(975m, await Cash(c));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler.Single().Id}/iptal",
             new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Hatalı ödeme"));
         AssertShares(card.KanalKartBorclari, (1, 45m), (2, 30m));
@@ -92,13 +98,15 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Avans_yeni_harcamayi_kapatir_artan_alacak_ayri_kalir_iptal_borcu_acar()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Pay(c, await Card(c), 50m);
         Assert.Empty(card.KanalKartBorclari!);
         card = await Charge(c, card, 20m, [new(1, 20m)]);
         Assert.Empty(card.KanalKartBorclari!);
         var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!;
-        Assert.Equal(0m, summary.KartBorcu); Assert.Equal(30m, summary.KartAlacakBakiyesi);
+        Assert.Equal(0m, summary.KartBorcu);
+        Assert.Equal(30m, summary.KartAlacakBakiyesi);
         card = await Charge(c, card, 40m, [new(2, 40m)]);
         AssertShares(card.KanalKartBorclari, (2, 10m));
         Assert.Equal(950m, await Cash(c));
@@ -111,32 +119,49 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Acilis_alacagi_yalniz_ayni_kartin_kalan_kaynak_borcundan_duser()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c, -25m), 100m, [new(1, 60m), new(2, 40m)]);
         AssertShares(card.KanalKartBorclari, (1, 45m), (2, 30m));
-        Assert.Equal(75m, card.Borc); Assert.Equal(1000m, await Cash(c));
+        Assert.Equal(75m, card.Borc);
+        Assert.Equal(1000m, await Cash(c));
     }
 
     [Fact]
     public async Task Eski_kart_borcu_belirsizdir_geciste_kasada_sayilmis_odeme_de_brut_borcu_azaltir()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         int id;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            var card = new KrediKartiEntity { Ad = "Eski kart", Borc = 100m, Limit = 1000m,
-                KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25) };
+            var card = new KrediKartiEntity
+            {
+                Ad = "Eski kart",
+                Borc = 100m,
+                Limit = 1000m,
+                KesimTarihi = new(2000, 1, 5),
+                SonOdemeTarihi = new(2000, 1, 25)
+            };
             db.KrediKartlari.Add(card);
-            db.KrediKartlari.Add(new() { Ad = "Eski alacak", Borc = -20m, Limit = 1000m,
-                KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25) });
-            db.SaveChanges(); id = card.Id;
+            db.KrediKartlari.Add(new()
+            {
+                Ad = "Eski alacak",
+                Borc = -20m,
+                Limit = 1000m,
+                KesimTarihi = new(2000, 1, 5),
+                SonOdemeTarihi = new(2000, 1, 25)
+            });
+            db.SaveChanges();
+            id = card.Id;
         }
         var old = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!;
         AssertShares(old.KanalKartBorclari, (null, 100m));
         Assert.Equal(Kanallar.DagilimBekliyor, old.KanalKartBorclari!.Single().Kanal);
         var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!;
-        Assert.Equal(100m, summary.KartBorcu); Assert.Equal(20m, summary.KartAlacakBakiyesi);
+        Assert.Equal(100m, summary.KartBorcu);
+        Assert.Equal(20m, summary.KartAlacakBakiyesi);
         var moved = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis",
             new KartGecisYaz(Guid.NewGuid(), 0, Today, 100m, 100m, [new(1, 60m), new(2, 40m)], "Önceden kasada sayıldı", true));
         moved = await Pay(c, moved, 40m);
@@ -148,7 +173,8 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Onaysiz_alis_kalan_kart_borcu_belirsizdir_onay_sonrasi_kaynak_payina_gecer()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Card(c);
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Mağaza", null,
             [new("Malzeme", 100m, [new(1, 60m), new(2, 40m)])]));
@@ -166,7 +192,8 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Asgari_kalan_banka_hedefinden_aktif_odemeyi_duser_iadede_kalan_borcu_asmaz()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         var chargeId = card.Harcamalar.Single().Id;
         var statement = card.Ekstreler.Single(s => s.Borc > 0);
@@ -190,7 +217,8 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Asgari_odemeler_yalniz_bagli_ekstrede_sayilir_tam_odeme_sifira_indirir()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 200m, [new(1, 200m)], 2);
         var statements = card.Ekstreler.Where(s => s.Borc > 0).ToArray();
         card = await Minimum(c, card, statements[0].Id, 40m);
@@ -207,7 +235,8 @@ public class CardDebtSummaryTests
     [Fact]
     public async Task Iptal_edilen_odeme_sonrasi_iade_kart_ve_raporlari_dusurmez()
     {
-        await using var f = Factory(); using var c = await Editor(f);
+        await using var f = Factory();
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         var source = card.Harcamalar.Single();
         card = await Pay(c, card, 100m);
@@ -218,7 +247,9 @@ public class CardDebtSummaryTests
         AssertShares(card.KanalKartBorclari, (1, 40m));
         Assert.Equal(40m, card.Borc);
         var cancelled = Assert.Single(card.Odemeler);
-        Assert.True(cancelled.Iptal); Assert.Equal(0m, cancelled.KasaEtkisi); Assert.Empty(cancelled.Dagilimlar);
+        Assert.True(cancelled.Iptal);
+        Assert.Equal(0m, cancelled.KasaEtkisi);
+        Assert.Empty(cancelled.Dagilimlar);
         foreach (var path in new[] { "/api/rapor/panel", "/api/rapor/haftalik", "/api/takip/kartlar", $"/api/takip/kartlar/{card.Id}", "/api/takip/ozet" })
         {
             var response = await c.GetAsync(path);
@@ -231,7 +262,8 @@ public class CardDebtSummaryTests
     public async Task Bozuk_odeme_payi_kaynak_agirligini_asarsa_fazlasi_dagilim_bekliyor_olur_ve_uyari_loglanir()
     {
         var logs = new UyariToplayici();
-        await using var f = new LogluFactory(logs) { Saat = new SabitSaat(Today) }; using var c = await Editor(f);
+        await using var f = new LogluFactory(logs) { Saat = new SabitSaat(Today) };
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         card = await Pay(c, card, 50m);
         var payment = card.Odemeler.Single();
@@ -260,7 +292,8 @@ public class CardDebtSummaryTests
     public async Task Ayni_bozuk_odeme_payi_tekrar_tekrar_hesaplansa_da_uyari_bir_kez_loglanir()
     {
         var logs = new UyariToplayici();
-        await using var f = new LogluFactory(logs) { Saat = new SabitSaat(Today) }; using var c = await Editor(f);
+        await using var f = new LogluFactory(logs) { Saat = new SabitSaat(Today) };
+        using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         card = await Pay(c, card, 50m);
         var payment = card.Odemeler.Single();
@@ -294,22 +327,26 @@ public class CardDebtSummaryTests
             var positive = weights.Where(w => w.Tutar > 0).Select(w => new AlisKanalPayi(w.KanalId, w.Tutar)).ToList();
             List<KanalPayYaz> eski = positive.Count == 0 || amount <= 0 ? [] : AlisDagitici.Dagit(positive, onceki, amount)
                 .Where(p => p.Tutar > 0).Select(p => new KanalPayYaz(p.KanalId, p.Tutar)).ToList();
-            Assert.Equal(eski, paylar); Assert.Equal(0m, tasan);
+            Assert.Equal(eski, paylar);
+            Assert.Equal(0m, tasan);
         }
         // Taşan girdide eski yol istisna fırlatır; kırpılmış yol sığanı dağıtıp fazlayı döndürür.
         List<KanalPayYaz> source = [new(1, 30m), new(2, 10m)];
         Assert.Throws<ArgumentOutOfRangeException>(() => AlisDagitici.Dagit([new(1, 30m), new(2, 10m)], 5m, 100m));
         var (kirpik, fazla) = FinansTakipServisi.KirparakOranla(source, 100m, 5m);
-        Assert.Equal(new KanalPayYaz[] { new(1, 26.25m), new(2, 8.75m) }, kirpik); Assert.Equal(65m, fazla);
+        Assert.Equal(new KanalPayYaz[] { new(1, 26.25m), new(2, 8.75m) }, kirpik);
+        Assert.Equal(65m, fazla);
         var (bos, tamami) = FinansTakipServisi.KirparakOranla(source, 20m, 50m);
-        Assert.Empty(bos); Assert.Equal(20m, tamami);
+        Assert.Empty(bos);
+        Assert.Equal(20m, tamami);
     }
 
     private sealed class LogluFactory(UyariToplayici logs) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            base.ConfigureWebHost(builder); builder.ConfigureLogging(logging => logging.AddProvider(logs));
+            base.ConfigureWebHost(builder);
+            builder.ConfigureLogging(logging => logging.AddProvider(logs));
         }
     }
 

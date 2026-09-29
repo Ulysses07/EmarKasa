@@ -16,7 +16,8 @@ public static class DonemUretici
             var haftaSonu = HaftaninPazari(imlec);
             var aySonu = AyinSonGunu(imlec);
             var donemSonu = haftaSonu <= aySonu ? haftaSonu : aySonu;
-            if (donemSonu > bitis) donemSonu = bitis;
+            if (donemSonu > bitis)
+                donemSonu = bitis;
             sonuc.Add(new Donem(imlec, donemSonu));
             imlec = donemSonu.AddDays(1);
         }

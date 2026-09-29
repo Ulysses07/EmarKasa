@@ -20,7 +20,8 @@ public partial class HaftalikViewModel : RaporViewModel
         return RaporYukleAsync(ct => _api.HaftalikAsync(ct), liste =>
         {
             Donemler.Clear();
-            foreach (var d in liste) Donemler.Add(new HaftalikSatir(d));
+            foreach (var d in liste)
+                Donemler.Add(new HaftalikSatir(d));
             VeriSagligiUyarisi = liste.LastOrDefault(d => !string.IsNullOrWhiteSpace(d.VeriSagligiUyarisi))?.VeriSagligiUyarisi;
         });
     }

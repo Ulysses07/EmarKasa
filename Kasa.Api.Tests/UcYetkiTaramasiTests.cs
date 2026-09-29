@@ -68,11 +68,13 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
             var politikalar = uc.Yetkiler.Select(a => a.Policy).ToHashSet();
             if (AnonimUclar.Contains(uc.Ad))
             {
-                if (!uc.Anonim) ihlaller.Add($"{uc.Ad}: anonim listede ama yetki istiyor ({string.Join(",", politikalar)})");
+                if (!uc.Anonim)
+                    ihlaller.Add($"{uc.Ad}: anonim listede ama yetki istiyor ({string.Join(",", politikalar)})");
             }
             else if (AlisYazmaUclari.Contains(uc.Ad))
             {
-                if (!politikalar.SetEquals(["Alis"])) ihlaller.Add($"{uc.Ad}: yalnız Alis politikası beklenirdi ({string.Join(",", politikalar)})");
+                if (!politikalar.SetEquals(["Alis"]))
+                    ihlaller.Add($"{uc.Ad}: yalnız Alis politikası beklenirdi ({string.Join(",", politikalar)})");
             }
             else if (uc.Anonim || !politikalar.Contains("Editor"))
                 ihlaller.Add($"{uc.Ad}: Editor politikası yok ({(uc.Anonim ? "anonim" : string.Join(",", politikalar))})");
@@ -112,7 +114,8 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
             Assert.True(izinli.Contains("editor"), $"{uc.Ad}: editör hiçbir rolde yetkili değil.");
             var yol = Yol(uc.Kaynak.RoutePattern);
             var durum = await CagirAsync(kimliksiz, uc.Yontem, yol);
-            if (durum != HttpStatusCode.Unauthorized) ihlaller.Add($"{uc.Ad} kimliksiz: {(int)durum}");
+            if (durum != HttpStatusCode.Unauthorized)
+                ihlaller.Add($"{uc.Ad} kimliksiz: {(int)durum}");
             foreach (var (rol, istemci) in new[] { ("viewer", izleyici), ("alici", alici) })
             {
                 durum = await CagirAsync(istemci, uc.Yontem, yol);
@@ -123,7 +126,8 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
                     ihlaller.Add($"{uc.Ad} {rol}: 403 beklenirdi, {(int)durum}");
             }
             // İzleyici hiçbir yazma ucunda yetkili olmamalı (Finans grubu okuma içindir).
-            if (uc.Yazma && izinli.Contains("viewer")) ihlaller.Add($"{uc.Ad}: izleyici yazabiliyor");
+            if (uc.Yazma && izinli.Contains("viewer"))
+                ihlaller.Add($"{uc.Ad}: izleyici yazabiliyor");
         }
         Assert.True(ihlaller.Count == 0, "Yetki matrisi ihlalleri:\n" + string.Join("\n", ihlaller));
     }
@@ -190,12 +194,18 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
             {
                 switch (gereksinim)
                 {
-                    case RolesAuthorizationRequirement r: izinli.IntersectWith(r.AllowedRoles); break;
-                    case DenyAnonymousAuthorizationRequirement: break;
-                    default: Assert.Fail($"{uc.Ad}: taramanın tanımadığı yetki gereksinimi {gereksinim.GetType().Name}; tabloyu güncelleyin."); break;
+                    case RolesAuthorizationRequirement r:
+                        izinli.IntersectWith(r.AllowedRoles);
+                        break;
+                    case DenyAnonymousAuthorizationRequirement:
+                        break;
+                    default:
+                        Assert.Fail($"{uc.Ad}: taramanın tanımadığı yetki gereksinimi {gereksinim.GetType().Name}; tabloyu güncelleyin.");
+                        break;
                 }
             }
-            if (!string.IsNullOrEmpty(veri.Roles)) izinli.IntersectWith(veri.Roles.Split(',', StringSplitOptions.TrimEntries));
+            if (!string.IsNullOrEmpty(veri.Roles))
+                izinli.IntersectWith(veri.Roles.Split(',', StringSplitOptions.TrimEntries));
         }
         return izinli;
     }
@@ -212,7 +222,8 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
     private static async Task<HttpStatusCode> CagirAsync(HttpClient c, string yontem, string yol)
     {
         using var istek = new HttpRequestMessage(new HttpMethod(yontem), yol);
-        if (yontem != "GET") istek.Content = new StringContent("", Encoding.UTF8, "application/json");
+        if (yontem != "GET")
+            istek.Content = new StringContent("", Encoding.UTF8, "application/json");
         using var yanit = await c.SendAsync(istek);
         return yanit.StatusCode;
     }

@@ -27,41 +27,58 @@ public partial class BildirimViewModel(IBildirimApi api, AuthViewModel auth) : O
     [ObservableProperty] private bool _cihazBildirimiEtkin;
     public Task YukleAsync() => YurutAsync(async n =>
     {
-        if (!EditorMu) return;
+        if (!EditorMu)
+            return;
         VeriHazir = false;
         var ayar = await api.BildirimAyarlariAsync();
         var bildirimler = await api.BildirimlerAsync();
         var cihazlar = await api.BildirimCihazlariAsync();
         var anahtar = await api.BildirimAnahtariAsync();
-        if (!Gecerli(n)) return;
-        AyariYansit(ayar); TakipMetni.Doldur(Bildirimler, bildirimler.Select(x => new BildirimSatiri(x)));
+        if (!Gecerli(n))
+            return;
+        AyariYansit(ayar);
+        TakipMetni.Doldur(Bildirimler, bildirimler.Select(x => new BildirimSatiri(x)));
         TakipMetni.Doldur(Cihazlar, cihazlar.Select(x => new BildirimCihaziSatiri(x)));
         CihazBildirimiEtkin = anahtar.Etkin;
         CihazDurumu = anahtar.Etkin ? "Cihaz bildirimleri kullanılabilir. Bu bilgisayarda izin vermek veya denemek için aşağıdaki düğmeyi kullanın." : "Cihaz bildirimleri henüz açılmamış. Hatırlatmalar bu ekranda görünmeye devam eder.";
         Tamamlandi();
     });
     private void AyariYansit(BildirimAyarDto a) { Etkin = a.Etkin; Saat = a.Saat; Dakika = a.Dakika; _surum = a.Surum; }
-    [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    private Task KaydetAsync() => YurutAsync(async n =>
     {
-        if (!EditorMu || _surum == 0) return;
-        if (Saat is < 0 or > 23 || Dakika is < 0 or > 59) { Hata = "Saati 0–23, dakikayı 0–59 arasında girin."; return; }
+        if (!EditorMu || _surum == 0)
+            return;
+        if (Saat is < 0 or > 23 || Dakika is < 0 or > 59)
+        { Hata = "Saati 0–23, dakikayı 0–59 arasında girin."; return; }
         var a = await api.BildirimAyarKaydetAsync(new(Etkin, Saat, Dakika, _surum));
-        if (!Gecerli(n)) return;
-        AyariYansit(a); Tamamlandi(); Mesaj = "Bildirim ayarları kaydedildi. Saat Türkiye saatidir.";
+        if (!Gecerli(n))
+            return;
+        AyariYansit(a);
+        Tamamlandi();
+        Mesaj = "Bildirim ayarları kaydedildi. Saat Türkiye saatidir.";
     });
     public Task OkunduAsync(BildirimSatiri satir) => YurutAsync(async n =>
     {
-        if (!EditorMu || satir.Veri.Okundu) return;
+        if (!EditorMu || satir.Veri.Okundu)
+            return;
         await api.BildirimOkunduAsync(satir.Veri.Id);
-        if (!Gecerli(n)) return;
-        var index = Bildirimler.IndexOf(satir); if (index >= 0) Bildirimler[index] = new(satir.Veri with { Okundu = true });
+        if (!Gecerli(n))
+            return;
+        var index = Bildirimler.IndexOf(satir);
+        if (index >= 0)
+            Bildirimler[index] = new(satir.Veri with { Okundu = true });
     });
     public Task CihaziKaldirAsync(BildirimCihaziSatiri satir) => YurutAsync(async n =>
     {
-        if (!EditorMu || !satir.Veri.Etkin) return;
+        if (!EditorMu || !satir.Veri.Etkin)
+            return;
         await api.BildirimCihaziKaldirAsync(satir.Veri.Id);
-        if (!Gecerli(n)) return;
-        var index = Cihazlar.IndexOf(satir); if (index >= 0) Cihazlar[index] = new(satir.Veri with { Etkin = false });
+        if (!Gecerli(n))
+            return;
+        var index = Cihazlar.IndexOf(satir);
+        if (index >= 0)
+            Cihazlar[index] = new(satir.Veri with { Etkin = false });
         Mesaj = "Bu cihazın bildirimleri kapatıldı.";
     });
     public static Uri KurulumAdresi(string? apiAdresi) => new(ApiAdresi.Coz(apiAdresi), "#notifications");

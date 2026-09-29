@@ -88,7 +88,8 @@ public partial class KapsamTests
     public void Izin_listesi_satirlari_bayat_degil()
     {
         var uclar = SunucuUclari();
-        Assert.Contains("GET api/rapor/haftalik", uclar); Assert.Contains("PUT api/islemler/{id}", uclar);
+        Assert.Contains("GET api/rapor/haftalik", uclar);
+        Assert.Contains("PUT api/islemler/{id}", uclar);
         var bayat = SozlesmeIzinleri.Liste.SelectMany(i => SozlesmeIzinleri.BayatlikHatalari(i, uclar)).ToList();
         Assert.True(bayat.Count == 0, "Bayat izin satırları (silin ya da gerekçesini güncelleyin):\n" + string.Join("\n", bayat));
     }

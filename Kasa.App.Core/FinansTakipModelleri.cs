@@ -40,7 +40,8 @@ public static class TakipMetni
             if (g.OnerilenKasadaSayilanTutar is { } oneri)
                 satirlar.Add($"Önerilen kasada önceden sayılan: {Bicim.Tl(oneri)} ₺" + (g.EnAzKasadaSayilanTutar is { } enAz && enAz < oneri ? $" · en az {Bicim.Tl(enAz)} ₺ (yalnız açılış borcu kasadan ayrıca ödenecekse)" : ""));
         }
-        else satirlar.Add($"Kasada önceden sayılan: {Bicim.Tl(g.EskiKasadaSayilanTutar)} ₺");
+        else
+            satirlar.Add($"Kasada önceden sayılan: {Bicim.Tl(g.EskiKasadaSayilanTutar)} ₺");
         return string.Join("\n", satirlar.Concat(g.Aciklamalar));
     }
     /// <summary>KabulEdilebilir=false önizlemenin nedeni (sunucu /gecis bu girdiyi 409 ile reddeder).</summary>
@@ -70,8 +71,10 @@ public static class TakipMetni
             satirlar.Add(k.SonBekleyenDusumTarihi is { } son ? $"Bekleyen eski düşüm {Bicim.Tl(k.BekleyenEskiDusumTutari)} ₺ · son düşüm {son:dd.MM.yyyy}" : "Bekleyen eski düşüm yok.");
             satirlar.Add($"{k.OnayTarihi:dd.MM.yyyy} tarihinde onaylandı. Başlangıçtan önce eski kuralla düşen/düşecek kart gideri {Bicim.Tl(k.EskiKuraldaIslenenTutar)} ₺.");
         }
-        else satirlar.Add("Bu geçiş ilk sürümde yapıldı; önizleme özeti saklanmadı.");
-        if (!string.IsNullOrWhiteSpace(g.Aciklama)) satirlar.Add($"Geçiş açıklaması: {g.Aciklama}");
+        else
+            satirlar.Add("Bu geçiş ilk sürümde yapıldı; önizleme özeti saklanmadı.");
+        if (!string.IsNullOrWhiteSpace(g.Aciklama))
+            satirlar.Add($"Geçiş açıklaması: {g.Aciklama}");
         return string.Join("\n", satirlar);
     }
     /// <summary>İlk sürüm geçiş kalıntısı uyarısı; sunucu metni yoksa (eski sunucu) tutarlardan kurulur, kalıntı yoksa null.</summary>
@@ -96,7 +99,8 @@ public static class TakipMetni
                 + $" · önerilen {Bicim.Tl(d.OnerilenKasadaSayilanTutar)} ₺" + (d.EnAzKasadaSayilanTutar < d.OnerilenKasadaSayilanTutar ? $" · en az {Bicim.Tl(d.EnAzKasadaSayilanTutar)} ₺ (açılış borcu kasadan ayrıca ödenecekse)" : ""),
             "Devrin ödemesi kasada önceden sayılan kısım kadar kasadan ikinci kez düşmez. Düzeltme etkin devri iptal edip aynı tarihle yeni tutarı yazar; geçmiş kasa sonuçları değişmez.",
         };
-        if (d.Engel is { Length: > 0 } engel) satirlar.Add("Düzeltilemez: " + engel);
+        if (d.Engel is { Length: > 0 } engel)
+            satirlar.Add("Düzeltilemez: " + engel);
         return string.Join("\n", satirlar);
     }
     public static bool Ayni<T>(T a, T b) => System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(b);
@@ -105,8 +109,10 @@ public static class TakipMetni
     {
         var satirlar = paylar.ToList();
         ParaAyristirici.Dogrula(satirlar.Select(p => p.Tutar).ToArray());
-        if (satirlar.Any(p => p.Kanal is null || p.Tutar <= 0 || decimal.Round(p.Tutar, 2) != p.Tutar)) throw new DogrulamaHatasi("Her dağılım satırında kanal ve pozitif, kuruş hassasiyetinde tutar girin.");
-        if (satirlar.Select(p => p.Kanal!.Id).Distinct().Count() != satirlar.Count) throw new DogrulamaHatasi("Aynı kanalı iki kez seçmeyin.");
+        if (satirlar.Any(p => p.Kanal is null || p.Tutar <= 0 || decimal.Round(p.Tutar, 2) != p.Tutar))
+            throw new DogrulamaHatasi("Her dağılım satırında kanal ve pozitif, kuruş hassasiyetinde tutar girin.");
+        if (satirlar.Select(p => p.Kanal!.Id).Distinct().Count() != satirlar.Count)
+            throw new DogrulamaHatasi("Aynı kanalı iki kez seçmeyin.");
         return satirlar.Select(p => new KanalPayYaz(p.Kanal!.Id, p.Tutar)).ToList();
     }
 }

@@ -27,7 +27,8 @@ public class KanalKumesiTests
     [Fact]
     public async Task Kilit_yokken_aktif_kanal_eklemek_ve_pasife_almak_gecen_ayin_raporunu_degistirmez_bu_ay_yeni_kumeyle_bolunur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old.AddDays(9), "Ortak kira", 300m, Kanallar.Ortak, GiderTipi.SabitGider));
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Bu ayın ortak gideri", 90m, Kanallar.Ortak, GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 1_000m))).EnsureSuccessStatusCode();
@@ -66,7 +67,8 @@ public class KanalKumesiTests
         var sonra = JsonNode.Parse(await c.GetStringAsync(AylikUrl(Old)))!["kanallar"]!.AsArray();
         var eski = JsonNode.Parse(once)!["kanallar"]!.AsArray();
         Assert.Equal(eski.Count + 1, sonra.Count);
-        for (var i = 0; i < eski.Count; i++) Assert.Equal(eski[i]!.ToJsonString(), sonra[i]!.ToJsonString());
+        for (var i = 0; i < eski.Count; i++)
+            Assert.Equal(eski[i]!.ToJsonString(), sonra[i]!.ToJsonString());
         var online = sonra[^1]!;
         Assert.Equal(("ONLINE", 40m, 0m, -40m), ((string)online["kanal"]!, (decimal)online["cariGiden"]!, (decimal)online["ortakPay"]!, (decimal)online["aySonucu"]!));
     }
@@ -74,7 +76,8 @@ public class KanalKumesiTests
     [Fact]
     public async Task Kilit_altinda_aktif_kanal_eklenir_pasife_alinir_sirasi_degisir_kilitli_ay_acilinca_rapor_birebir_ayni()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", 100.01m, Kanallar.Ortak, GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "TOPTAN", 500m))).EnsureSuccessStatusCode();
         var kilitOncesi = await c.GetStringAsync(AylikUrl(Old));
@@ -114,7 +117,8 @@ public class KanalKumesiTests
     public async Task Kumede_yer_alan_kanal_silinemez_kumeden_sonra_acilan_gecmissiz_kanal_silinir()
     {
         var saat = new SabitSaat(Old.AddDays(19));
-        await using var f = new KasaWebFactory { Saat = saat }; using var c = await Editor(f);
+        await using var f = new KasaWebFactory { Saat = saat };
+        using var c = await Editor(f);
         // Ağustos'ta açılan ONLINE Ağustos'un kümesine girer (Haziran ve Temmuz ondan önce dondurulur).
         var online = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
         saat.Ayarla(Today);
@@ -130,7 +134,8 @@ public class KanalKumesiTests
         {
             Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
             var ileti = await Hata(r);
-            Assert.Contains("kanal kümesinde", ileti); Assert.Contains("pasifleştirebilirsiniz", ileti);
+            Assert.Contains("kanal kümesinde", ileti);
+            Assert.Contains("pasifleştirebilirsiniz", ileti);
         }
         // Kilit varken de pasife alınabilir.
         await Basarili(await c.PutAsJsonAsync($"/api/kanallar/{online.Id}", new KanalYazDto("ONLINE", false, 3)));
@@ -141,7 +146,8 @@ public class KanalKumesiTests
         await Durum(await c.DeleteAsync($"/api/kanallar/{yeni.Id}"), HttpStatusCode.NoContent);
         await Durum(await c.DeleteAsync($"/api/kanallar/{pasif.Id}"), HttpStatusCode.NoContent);
 
-        using var scope = f.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.True(db.Kanallar.Any(k => k.Id == online.Id));
         var onlineKumeleri = db.AyKanalKumesiKanallari.AsNoTracking().Where(u => u.KanalId == online.Id).Select(u => u.KumeId).ToList();
         var uyelik = db.AyKanalKumeleri.AsNoTracking().OrderBy(k => k.Ay).ToList().Select(k => (k.Ay, k.Kaynak, onlineKumeleri.Contains(k.Id))).ToArray();
@@ -151,9 +157,11 @@ public class KanalKumesiTests
     [Fact]
     public async Task Ay_kanal_kumesi_degistirilemez_ve_silinemez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
-        using var scope = f.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Equal(3, db.AyKanalKumeleri.Count());
 
         // Veritabanı tetikleyicileri ve kısıtları: küme ve üyeleri güncellenmez, silinmez; kümedeki kanal silinmez.
@@ -188,12 +196,14 @@ public class KanalKumesiTests
 
     private static async Task Basarili(HttpResponseMessage r)
     {
-        using (r) Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        using (r)
+            Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
     }
 
     private static async Task Durum(HttpResponseMessage r, HttpStatusCode beklenen)
     {
-        using (r) Assert.True(r.StatusCode == beklenen, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        using (r)
+            Assert.True(r.StatusCode == beklenen, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
     }
 
     private static async Task<string> Hata(HttpResponseMessage r) => (string)(await r.Content.ReadFromJsonAsync<JsonObject>())!["hata"]!;

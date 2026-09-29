@@ -39,7 +39,8 @@ internal sealed class ElleYedekPolitikasi : IRateLimiterPolicy<string>
             http.Response.Headers.RetryAfter = Math.Ceiling(sure.TotalSeconds).ToString(CultureInfo.InvariantCulture);
             mesaj += $" {Math.Max(1, (int)Math.Ceiling(sure.TotalMinutes))} dakika sonra yeniden deneyin.";
         }
-        else mesaj += " Birkaç dakika sonra yeniden deneyin.";
+        else
+            mesaj += " Birkaç dakika sonra yeniden deneyin.";
         return Results.Json(new { hata = mesaj + " Otomatik yedekleme bundan etkilenmez." }, statusCode: StatusCodes.Status429TooManyRequests);
     }
 }

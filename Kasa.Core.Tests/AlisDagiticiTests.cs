@@ -46,28 +46,28 @@ public class AlisDagiticiTests
     public void Kucuk_tum_agirliklar_kurus_kurus_referans_hesapla_ayni_sonucu_verir()
     {
         for (int a = 1; a <= 6; a++)
-        for (int b = 1; b <= 6; b++)
-        for (int c = 1; c <= 6; c++)
-        {
-            int[] agirliklar = [a, b, c];
-            int[] kumulatif = [0, 0, 0];
-            AlisKanalPayi[] paylar = [new(3, c / 100m), new(1, a / 100m), new(2, b / 100m)];
-            for (int onceki = 0; onceki < a + b + c; onceki++)
-            {
-                // Bağımsız referans: her kuruş için ağırlık/(önceki pay+1) en büyük olanı seç.
-                int secilen = 0;
-                for (int i = 1; i < 3; i++)
-                    if (agirliklar[i] * (kumulatif[secilen] + 1) > agirliklar[secilen] * (kumulatif[i] + 1))
-                        secilen = i;
-                kumulatif[secilen]++;
+            for (int b = 1; b <= 6; b++)
+                for (int c = 1; c <= 6; c++)
+                {
+                    int[] agirliklar = [a, b, c];
+                    int[] kumulatif = [0, 0, 0];
+                    AlisKanalPayi[] paylar = [new(3, c / 100m), new(1, a / 100m), new(2, b / 100m)];
+                    for (int onceki = 0; onceki < a + b + c; onceki++)
+                    {
+                        // Bağımsız referans: her kuruş için ağırlık/(önceki pay+1) en büyük olanı seç.
+                        int secilen = 0;
+                        for (int i = 1; i < 3; i++)
+                            if (agirliklar[i] * (kumulatif[secilen] + 1) > agirliklar[secilen] * (kumulatif[i] + 1))
+                                secilen = i;
+                        kumulatif[secilen]++;
 
-                var sonuc = AlisDagitici.Dagit(paylar, onceki / 100m, 0.01m);
-                Assert.Equal(secilen + 1, sonuc.Single(p => p.Tutar == 0.01m).KanalId);
-                Assert.All(sonuc, p => Assert.True(p.Tutar >= 0m));
-                Assert.Equal(0.01m, sonuc.Sum(p => p.Tutar));
-            }
-            Assert.Equal(agirliklar, kumulatif);
-        }
+                        var sonuc = AlisDagitici.Dagit(paylar, onceki / 100m, 0.01m);
+                        Assert.Equal(secilen + 1, sonuc.Single(p => p.Tutar == 0.01m).KanalId);
+                        Assert.All(sonuc, p => Assert.True(p.Tutar >= 0m));
+                        Assert.Equal(0.01m, sonuc.Sum(p => p.Tutar));
+                    }
+                    Assert.Equal(agirliklar, kumulatif);
+                }
     }
 
     [Fact]
@@ -83,7 +83,8 @@ public class AlisDagiticiTests
             var parca = AlisDagitici.Dagit(paylar, onceki, odeme);
             Assert.Equal(odeme, parca.Sum(p => p.Tutar));
             Assert.All(parca, p => Assert.True(p.Tutar >= 0m));
-            foreach (var p in parca) biriken[p.KanalId] += p.Tutar;
+            foreach (var p in parca)
+                biriken[p.KanalId] += p.Tutar;
             onceki += odeme;
             var tek = AlisDagitici.Dagit(paylar.Reverse().ToArray(), 0m, onceki);
             Assert.All(tek, p => Assert.Equal(p.Tutar, biriken[p.KanalId]));

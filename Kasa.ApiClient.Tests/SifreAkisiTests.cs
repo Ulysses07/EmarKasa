@@ -12,9 +12,11 @@ public class SifreAkisiTests
     [Fact]
     public async Task Sifre_degisiminde_yanlis_mevcut_sifre_alan_hatasidir_oturumu_kapatmaz()
     {
-        var store = new BellekTokenStore(); await store.YazAsync("gecerli");
+        var store = new BellekTokenStore();
+        await store.YazAsync("gecerli");
         var c = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.BadRequest, MevcutSifreHatali), store);
-        var bildirildi = false; c.OturumSonlandi += (_, _) => bildirildi = true;
+        var bildirildi = false;
+        c.OturumSonlandi += (_, _) => bildirildi = true;
 
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.SifreDegistirAsync(new("yanlis", "yepyeni-sifre-123")));
 
@@ -27,9 +29,11 @@ public class SifreAkisiTests
     [Fact]
     public async Task Kurtarma_kodunda_yanlis_mevcut_sifre_oturumu_kapatmaz()
     {
-        var store = new BellekTokenStore(); await store.YazAsync("gecerli");
+        var store = new BellekTokenStore();
+        await store.YazAsync("gecerli");
         var c = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.BadRequest, MevcutSifreHatali), store);
-        var bildirildi = false; c.OturumSonlandi += (_, _) => bildirildi = true;
+        var bildirildi = false;
+        c.OturumSonlandi += (_, _) => bildirildi = true;
 
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.KurtarmaKoduOlusturAsync("yanlis"));
 
@@ -41,7 +45,8 @@ public class SifreAkisiTests
     [Fact]
     public async Task Basarili_sifre_degisimi_oturum_sonunu_sifre_degisti_nedeniyle_bildirir()
     {
-        var store = new BellekTokenStore(); await store.YazAsync("eski");
+        var store = new BellekTokenStore();
+        await store.YazAsync("eski");
         var c = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.NoContent), store);
         var nedenler = new List<OturumSonuNedeni?>();
         c.OturumSonlandi += (_, e) => nedenler.Add((e as OturumSonlandiEventArgs)?.Neden);
@@ -55,7 +60,8 @@ public class SifreAkisiTests
     [Fact]
     public async Task Gercek_401_oturum_gecersiz_nedeniyle_bildirilir()
     {
-        var store = new BellekTokenStore(); await store.YazAsync("eski");
+        var store = new BellekTokenStore();
+        await store.YazAsync("eski");
         var c = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.Unauthorized), store);
         var nedenler = new List<OturumSonuNedeni?>();
         c.OturumSonlandi += (_, e) => nedenler.Add((e as OturumSonlandiEventArgs)?.Neden);
@@ -71,7 +77,8 @@ public class SifreAkisiTests
     [InlineData(null, "Çok fazla deneme yapıldı. Birkaç dakika sonra yeniden deneyin.")]
     public async Task Hiz_siniri_yaniti_turkce_iletiyle_gelir_ve_oturumu_kapatmaz(string? govde, string beklenen)
     {
-        var store = new BellekTokenStore(); await store.YazAsync("gecerli");
+        var store = new BellekTokenStore();
+        await store.YazAsync("gecerli");
         var c = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.TooManyRequests, govde), store);
 
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.LoginAsync("editor", "yanlis"));

@@ -18,7 +18,8 @@ internal static class DosyaIslemleri
             IndirmeBilgisi? bilgi;
             await using (var akis = new FileStream(gecici, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
                 bilgi = await indir(akis);
-            if (bilgi is null) return;
+            if (bilgi is null)
+                return;
             if (yazdir)
             {
                 // Tarayıcı dosyayı açılıştan sonra okur; rapor önbellekte kalır.
@@ -49,7 +50,8 @@ internal static class DosyaIslemleri
         catch (Exception) { await sayfa.DisplayAlertAsync("Dosya kaydedilemedi", "Hedef klasörü ve disk alanını kontrol edip yeniden deneyin.", "Tamam"); }
         finally
         {
-            try { File.Delete(gecici); }
+            try
+            { File.Delete(gecici); }
             catch (IOException) { /* önbellek temizliği işletim sistemine kalır */ }
             catch (UnauthorizedAccessException) { /* önbellek temizliği işletim sistemine kalır */ }
         }

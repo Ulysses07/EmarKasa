@@ -21,9 +21,20 @@ public class GirdiDogrulamaTests
     private static readonly DateOnly Bugun = KasaWebFactory.VarsayilanBugun;
 
     [Theory]
-    [InlineData(0x0000)] [InlineData(0x0001)] [InlineData(0x0008)] [InlineData(0x000B)] [InlineData(0x000C)]
-    [InlineData(0x000E)] [InlineData(0x001F)] [InlineData(0x007F)] [InlineData(0x0085)] [InlineData(0x009F)]
-    [InlineData(0xFFFE)] [InlineData(0xFFFF)] [InlineData(0xD83D)] [InlineData(0xDE00)]
+    [InlineData(0x0000)]
+    [InlineData(0x0001)]
+    [InlineData(0x0008)]
+    [InlineData(0x000B)]
+    [InlineData(0x000C)]
+    [InlineData(0x000E)]
+    [InlineData(0x001F)]
+    [InlineData(0x007F)]
+    [InlineData(0x0085)]
+    [InlineData(0x009F)]
+    [InlineData(0xFFFE)]
+    [InlineData(0xFFFF)]
+    [InlineData(0xD83D)]
+    [InlineData(0xDE00)]
     public void Metin_kontrol_karakterini_ve_gecersiz_Unicodeu_alan_bazli_reddeder(int kod)
     {
         var metin = "Kira ödemesi " + (char)kod + " eylül";
@@ -94,7 +105,8 @@ public class GirdiDogrulamaTests
     [Fact]
     public async Task Api_denetim_karakterli_metni_kaydetmeden_alan_hatasiyla_reddeder()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         var cari = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira\u000B", 10m, "MEZAT", GiderTipi.Cari));
         Assert.Equal(HttpStatusCode.BadRequest, cari.StatusCode);
         Assert.Contains("kontrol karakteri", AlanHatasi(await cari.Content.ReadFromJsonAsync<JsonElement>(), "cari"));
@@ -109,7 +121,8 @@ public class GirdiDogrulamaTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            Assert.Empty(db.Islemler); Assert.DoesNotContain(db.Kanallar, k => k.Ad.StartsWith("Yeni"));
+            Assert.Empty(db.Islemler);
+            Assert.DoesNotContain(db.Kanallar, k => k.Ad.StartsWith("Yeni"));
         }
         // Sekme ve satır sonu geçerli metindir.
         (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira\tEylül", 10m, "MEZAT", GiderTipi.Cari, Not: "Satır 1\r\nSatır 2"))).EnsureSuccessStatusCode();
@@ -118,7 +131,8 @@ public class GirdiDogrulamaTests
     [Fact]
     public async Task Mevcut_kontrol_karakterli_kanal_adina_gider_ve_gelir_girilebilir_yeni_ad_reddedilir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         // Metin kuralından önce kaydedilmiş, canlı veride bulunabilecek kanal adı: seçim kayıtlı kanalla eşleşir,
         // kontrol karakteri kuralı yalnız yeni ad oluşturmada ve yeniden adlandırmada uygulanır.
         const string eskiAd = "ESKİ\u0001KANAL";
@@ -127,7 +141,9 @@ public class GirdiDogrulamaTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var kanal = new KanalEntity { Ad = eskiAd, Sira = 9 };
-            db.Kanallar.Add(kanal); db.SaveChanges(); kanalId = kanal.Id;
+            db.Kanallar.Add(kanal);
+            db.SaveChanges();
+            kanalId = kanal.Id;
         }
         var gider = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, eskiAd, GiderTipi.Cari));
         Assert.Equal(HttpStatusCode.Created, gider.StatusCode);
@@ -154,7 +170,8 @@ public class GirdiDogrulamaTests
     [Fact]
     public async Task Aylik_gider_serbest_metinleri_ayni_kontrol_karakteri_kuralina_baglidir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         var ay = new DateOnly(Bugun.Year, Bugun.Month, 1);
         const string ileti = "karakterde görünmeyen bir kontrol karakteri ya da geçersiz bir karakter var. Metni yeniden yazın.";
         var ad = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira\u0007", "Kira", 100m, 1, "Genel", [], ay));
@@ -196,7 +213,8 @@ public class GirdiDogrulamaTests
         Assert.StartsWith("MARKET ALIŞVERİŞİ", satir.Aciklama);
         Assert.Equal(-1, GirdiDogrulama.GecersizKarakterKonumu(satir.Aciklama));
         Assert.Equal(-1, GirdiDogrulama.GecersizKarakterKonumu(satir.KaynakSatir));
-        Assert.Equal(10m, satir.Tutar); Assert.Equal("Gider", satir.OnerilenIslem);
+        Assert.Equal(10m, satir.Tutar);
+        Assert.Equal("Gider", satir.OnerilenIslem);
     }
 
     [Fact]
@@ -207,7 +225,9 @@ public class GirdiDogrulamaTests
         EkstreBelgeDto belge;
         using (var form = new MultipartFormDataContent())
         {
-            form.Add(new StringContent("Banka"), "kaynak"); form.Add(new StringContent("Akbank"), "banka"); form.Add(new StringContent("Ana hesap"), "hesapAdi");
+            form.Add(new StringContent("Banka"), "kaynak");
+            form.Add(new StringContent("Akbank"), "banka");
+            form.Add(new StringContent("Ana hesap"), "hesapAdi");
             form.Add(new ByteArrayContent("%PDF-1.7 ekstre"u8.ToArray()), "dosya", "ekstre.pdf");
             using var r = await c.PostAsync("/api/ekstre-aktar/yukle", form);
             Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
@@ -223,10 +243,19 @@ public class GirdiDogrulamaTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            var eski = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "QNB", HesapAdi = "Eski hesap", DosyaAdi = "eski.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
+            var eski = new EkstreBelgeEntity
+            {
+                Kaynak = "Banka",
+                Banka = "QNB",
+                HesapAdi = "Eski hesap",
+                DosyaAdi = "eski.pdf",
+                DosyaOzeti = Guid.NewGuid().ToString(),
                 Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
-                SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "kaynak\u0001satır", Bugun, "ESKİ\u0001BELGE\u0007", 20m, "Cikis", "Gider", "Hareket", "TRY", []) }) };
-            db.EkstreBelgeler.Add(eski); db.SaveChanges(); eskiId = eski.Id;
+                SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "kaynak\u0001satır", Bugun, "ESKİ\u0001BELGE\u0007", 20m, "Cikis", "Gider", "Hareket", "TRY", []) })
+            };
+            db.EkstreBelgeler.Add(eski);
+            db.SaveChanges();
+            eskiId = eski.Id;
         }
         var eskiBelge = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{eskiId}"))!;
         eskiBelge = await Kaydet(c, eskiBelge, new EkstreSatirYaz(1, Bugun, "ESKİ\u0001BELGE\u0007", 20m, "Gider", "Genel", []));

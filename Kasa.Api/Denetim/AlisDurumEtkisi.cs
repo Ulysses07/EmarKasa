@@ -51,13 +51,15 @@ public static class AlisDurumEtkisi
     {
         var sonra = Paylar(alis);
         var degisen = once.Keys.Union(sonra.Keys).Where(id => !Ayni(once.GetValueOrDefault(id), sonra.GetValueOrDefault(id))).Order().ToList();
-        if (degisen.Count == 0) return [];
+        if (degisen.Count == 0)
+            return [];
         var tarihler = degisen.SelectMany(id => new[] { once.GetValueOrDefault(id)?.Tarih, sonra.GetValueOrDefault(id)?.Tarih }).OfType<DateOnly>().ToList();
         tarihler.AddRange(KartOdemeTarihleri(db, degisen));
         var bugun = db.Bugunu();
         var ayBasi = new DateOnly(bugun.Year, bugun.Month, 1);
         var aylar = tarihler.Where(t => t < ayBasi).Select(t => t.ToString("yyyy-MM", CultureInfo.InvariantCulture)).Distinct().Order().ToList();
-        if (aylar.Count == 0) return [];
+        if (aylar.Count == 0)
+            return [];
         var pencere = DenetimKilitPenceresi.Oku(db);
         DenetimYazici.Yaz(db, new DenetimOlayi("GecmisAyEtkisi", "Alis", alis.Id.ToString(CultureInfo.InvariantCulture),
             DenetimYazici.Json(new { Durum = oncekiDurum, Odemeler = degisen.Select(id => once.GetValueOrDefault(id)).OfType<OdemePayi>().ToList() }),
@@ -75,7 +77,8 @@ public static class AlisDurumEtkisi
     private static IEnumerable<DateOnly> KartOdemeTarihleri(KasaDbContext db, IReadOnlyList<int> islemler)
     {
         var harcamalar = db.TakipHarcamalar.AsNoTracking().Where(h => h.IslemId != null && islemler.Contains(h.IslemId.Value)).Select(h => new { h.Id, h.KrediKartiId }).ToList();
-        if (harcamalar.Count == 0) return [];
+        if (harcamalar.Count == 0)
+            return [];
         var ids = harcamalar.Select(h => h.Id).ToList();
         var taksitler = db.TakipKartTaksitler.AsNoTracking().Where(t => ids.Contains(t.HarcamaId)).Select(t => t.Id).ToHashSet();
         var kartlar = harcamalar.Select(h => h.KrediKartiId).Distinct().ToList();

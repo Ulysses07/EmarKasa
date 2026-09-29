@@ -13,7 +13,8 @@ public static class AlisHesaplari
     public static IReadOnlyDictionary<int, IReadOnlyList<AlisKanalPayi>> OdemeDagilimlari(AlisEntity alis)
     {
         var result = new Dictionary<int, IReadOnlyList<AlisKanalPayi>>();
-        if (alis.Durum != AlisDurumlari.Onaylandi) return result;
+        if (alis.Durum != AlisDurumlari.Onaylandi)
+            return result;
         var paylar = KanalPaylari(alis);
         decimal onceki = 0;
         foreach (var odeme in alis.Odemeler.OrderBy(o => o.Id))

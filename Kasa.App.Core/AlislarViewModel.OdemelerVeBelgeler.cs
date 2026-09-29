@@ -38,35 +38,49 @@ public partial class AlislarViewModel
     partial void OnDuzeltmeTakipliChanged(bool value) { OnPropertyChanged(nameof(DuzeltmeAlanlariAcik)); OnPropertyChanged(nameof(AyirmaPaylariGorunur)); }
     partial void OnHarcamayiKoruChanged(bool value) => OnPropertyChanged(nameof(AyirmaPaylariGorunur));
     public void IdIleSec(int id) { var satir = Alislar.FirstOrDefault(a => a.Veri.Id == id); if (satir is not null) Sec(satir); }
-    [RelayCommand] private void OdemeDuzelt(AlisOdemeSatiri odeme)
+    [RelayCommand]
+    private void OdemeDuzelt(AlisOdemeSatiri odeme)
     {
-        if (!EditorMu || Mesgul) return;
-        if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
-        DuzeltilecekOdeme = odeme; DuzeltmeTarihi = odeme.Veri.Tarih.ToDateTime(TimeOnly.MinValue); DuzeltmeTutari = odeme.Veri.Tutar;
+        if (!EditorMu || Mesgul)
+            return;
+        if (KaydedilmemisDegisiklikVar)
+        { KaydetmeUyarisi(); return; }
+        DuzeltilecekOdeme = odeme;
+        DuzeltmeTarihi = odeme.Veri.Tarih.ToDateTime(TimeOnly.MinValue);
+        DuzeltmeTutari = odeme.Veri.Tutar;
         // Bağlı gider artık bağlanabilir listede değildir: kartsız eski kart harcaması bilgisi ödemenin kendisinden gelir.
         EskiKartHarcamasi = odeme.Veri.KrediKartiId is null && odeme.Veri.EskiKartHarcamasi;
-        DuzeltmeKartlari.Clear(); DuzeltmeKartlari.Add(new(null, EskiKartHarcamasi ? "Eski kart harcamasını koru" : "Nakit / banka"));
-        foreach (var kart in OdemeKartlari.Where(k => k.Id is not null)) DuzeltmeKartlari.Add(kart);
+        DuzeltmeKartlari.Clear();
+        DuzeltmeKartlari.Add(new(null, EskiKartHarcamasi ? "Eski kart harcamasını koru" : "Nakit / banka"));
+        foreach (var kart in OdemeKartlari.Where(k => k.Id is not null))
+            DuzeltmeKartlari.Add(kart);
         // K3: liste yalnız takipteki açık kartlardır; ödemenin kendi (eski/kapalı) kartı ayrıca eklenir, kayıt kartıyla kalabilir.
         if (odeme.Veri.KrediKartiId is { } kendi && DuzeltmeKartlari.All(k => k.Id != kendi))
             DuzeltmeKartlari.Add(new(kendi, $"{(string.IsNullOrWhiteSpace(odeme.Veri.KrediKartiAdi) ? _kartAdlari.GetValueOrDefault(kendi, $"Kart #{kendi}") : odeme.Veri.KrediKartiAdi)} (eski kayıt)"));
         DuzeltmeKarti = DuzeltmeKartlari.FirstOrDefault(k => k.Id == odeme.Veri.KrediKartiId);
-        HedefAlis = null; DuzeltmeAciklamasi = "";
+        HedefAlis = null;
+        DuzeltmeAciklamasi = "";
         DuzeltmeTakipli = odeme.Veri.KrediKartiId is { } odemeKarti && _takipliKartlar.Contains(odemeKarti);
         // Alıştan ayırmanın kanal payları ödemenin bugünkü paylarıyla başlar: aynen bırakılırsa önceki kart ödemelerinin kanal payı değişmez.
         HarcamayiKoru = false;
         Degistir(AyirmaPaylari, Kanallar.Where(k => k.Aktif || odeme.Veri.Dagilimlar.Any(d => d.KanalId == k.Id))
             .Select(k => new AyirmaPayi(k.Id, k.Ad, odeme.Veri.Dagilimlar.Where(d => d.KanalId == k.Id).Sum(d => d.Tutar))));
-        _duzeltmeAnahtari.Temizle(); _iptalAnahtari.Temizle();
+        _duzeltmeAnahtari.Temizle();
+        _iptalAnahtari.Temizle();
     }
     [RelayCommand] private void DuzeltmedenVazgec() { DuzeltilecekOdeme = null; HedefAlis = null; }
     [RelayCommand] private void HedefiTemizle() => HedefAlis = null;
-    [RelayCommand] private Task OdemeDuzeltKaydetAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    private Task OdemeDuzeltKaydetAsync() => YurutAsync(async n =>
     {
-        if (_odemelerApi is null || !EditorMu || _secili is null || DuzeltilecekOdeme is null) return;
-        if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
-        if (!ParaAyristirici.GecerliMi(DuzeltmeTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (DuzeltmeTutari <= 0 || string.IsNullOrWhiteSpace(DuzeltmeAciklamasi)) { Hata = "Pozitif ödeme tutarı ve düzeltme açıklaması girin."; return; }
+        if (_odemelerApi is null || !EditorMu || _secili is null || DuzeltilecekOdeme is null)
+            return;
+        if (KaydedilmemisDegisiklikVar)
+        { KaydetmeUyarisi(); return; }
+        if (!ParaAyristirici.GecerliMi(DuzeltmeTutari))
+        { Hata = ParaAyristirici.GecersizMesaji; return; }
+        if (DuzeltmeTutari <= 0 || string.IsNullOrWhiteSpace(DuzeltmeAciklamasi))
+        { Hata = "Pozitif ödeme tutarı ve düzeltme açıklaması girin."; return; }
         if (DuzeltmeTakipli && HedefAlis is null)
         { Hata = "Kart takibindeki ödemenin tarihi, tutarı ve kartı değiştirilemez: ödemeyi taşımak için hedef alış seçin ya da alıştan ayırın."; return; }
         var odeme = DuzeltilecekOdeme.Veri;
@@ -77,24 +91,33 @@ public partial class AlislarViewModel
                 null, DuzeltmeAciklamasi.Trim(), HedefAlis?.Veri.Id, HedefAlis?.Veri.Surum);
         g = g with { IstekId = _duzeltmeAnahtari.Al(new { AlisId = _secili.Id, OdemeId = DuzeltilecekOdeme.Veri.Id, g }) };
         var sonuc = await _odemelerApi.AlisOdemeDuzeltAsync(_secili.Id, DuzeltilecekOdeme.Veri.Id, g);
-        if (!SonucuUygula(sonuc, n)) return;
+        if (!SonucuUygula(sonuc, n))
+            return;
         _duzeltmeAnahtari.Temizle();
         var tumu = await _api.AlislarAsync();
-        if (!Gecerli(n)) return;
-        Degistir(Alislar, tumu.Select(a => new AlisSatiri(a))); SeciliyiGoster(sonuc); GiderSecenekleriniYenile();
-        OnPropertyChanged(nameof(DagilimBekleyenTutar)); OnPropertyChanged(nameof(DagilimBekliyor));
+        if (!Gecerli(n))
+            return;
+        Degistir(Alislar, tumu.Select(a => new AlisSatiri(a)));
+        SeciliyiGoster(sonuc);
+        GiderSecenekleriniYenile();
+        OnPropertyChanged(nameof(DagilimBekleyenTutar));
+        OnPropertyChanged(nameof(DagilimBekliyor));
         Mesaj = g.HedefAlisId is null ? "Ödeme düzeltildi; gerekçe işlem geçmişine kaydedildi." : "Ödeme seçilen alışa taşındı; ikinci gider oluşturulmadı.";
     });
     public Task OdemeIptalAsync() => YurutAsync(async n =>
     {
-        if (_odemelerApi is null || !EditorMu || _secili is null || DuzeltilecekOdeme is null) return;
-        if (KaydedilmemisDegisiklikVar) { KaydetmeUyarisi(); return; }
-        if (string.IsNullOrWhiteSpace(DuzeltmeAciklamasi)) { Hata = "İptal nedenini açıklama alanına yazın."; return; }
+        if (_odemelerApi is null || !EditorMu || _secili is null || DuzeltilecekOdeme is null)
+            return;
+        if (KaydedilmemisDegisiklikVar)
+        { KaydetmeUyarisi(); return; }
+        if (string.IsNullOrWhiteSpace(DuzeltmeAciklamasi))
+        { Hata = "İptal nedenini açıklama alanına yazın."; return; }
         var odeme = DuzeltilecekOdeme.Veri;
         IReadOnlyList<AlisDagilimYaz>? paylar = null;
         if (DuzeltmeTakipli && HarcamayiKoru)
         {
-            if (AyirmaPaylari.Any(p => !ParaAyristirici.GecerliMi(p.Tutar))) { Hata = ParaAyristirici.GecersizMesaji; return; }
+            if (AyirmaPaylari.Any(p => !ParaAyristirici.GecerliMi(p.Tutar)))
+            { Hata = ParaAyristirici.GecersizMesaji; return; }
             paylar = AyirmaPaylari.Where(p => p.Tutar != 0).Select(p => new AlisDagilimYaz(p.KanalId, p.Tutar)).ToList();
             if (paylar.Count == 0 || paylar.Any(p => p.Tutar < 0 || decimal.Round(p.Tutar, 2) != p.Tutar) || paylar.Sum(p => p.Tutar) != odeme.Tutar)
             { Hata = $"Kart harcamasının gerçek kanal paylarını girin; toplamı ödeme tutarına ({Bicim.Tl(odeme.Tutar)} ₺) eşit olmalı."; return; }
@@ -102,22 +125,27 @@ public partial class AlislarViewModel
         var g = new AlisOdemeIptalYaz(_secili.Surum, Guid.Empty, DuzeltmeAciklamasi.Trim(), paylar);
         var id = odeme.Id;
         g = g with { IstekId = _iptalAnahtari.Al(new { _secili.Id, OdemeId = id, g }) };
-        if (!SonucuUygula(await _odemelerApi.AlisOdemeIptalAsync(_secili.Id, id, g), n)) return;
+        if (!SonucuUygula(await _odemelerApi.AlisOdemeIptalAsync(_secili.Id, id, g), n))
+            return;
         _iptalAnahtari.Temizle();
         var arama = GiderArama.Trim();
         var giderler = await GiderSayfasiAsync(arama, null);
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         GiderSayfasiniUygula(giderler, arama, ekle: false);
         Mesaj = paylar is not null ? "Ödeme alıştan ayrıldı; kart harcaması girilen kanal paylarıyla kart gideri olarak kaldı. Doğru alışa mevcut gider olarak bağlayabilirsiniz."
             : DuzeltmeTakipli ? "Ödeme iptal edildi; ödenmemiş kart harcaması ve taksitleri de kaldırıldı. İptal gerekçesi geçmişte korundu."
             : "Ödeme ve bağlı gider iptal edildi. İptal gerekçesi geçmişte korundu.";
     });
-    [RelayCommand] public Task BelgeleriYukleAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    public Task BelgeleriYukleAsync() => YurutAsync(async n =>
     {
-        if (_yonetim is null || _secili is null) return;
+        if (_yonetim is null || _secili is null)
+            return;
         var id = _secili.Id;
         var belgeler = await _yonetim.BelgelerAsync(id, EditorMu && SilinenBelgeleriGoster);
-        if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler);
+        if (Gecerli(n) && _secili?.Id == id)
+            Degistir(Belgeler, belgeler);
     });
     /// <summary>Belge ekleme (maui-8; önceden AlislarPage.BelgeEkleTiklandi'deydi). Seçici açılırken oturum ve seçili alış
     /// yakalanır: seçim ya da okuma sürerken oturum veya alış değişirse dosya yüklenmez. İçerik türü uzantıdan, 10 MB sınırı
@@ -126,19 +154,26 @@ public partial class AlislarViewModel
     /// <param name="sec">Dosya seçiciyi açar; vazgeçilirse null.</param>
     public async Task<DosyaUyarisi?> BelgeEkleAsync(Func<Task<SecilenDosya?>> sec, int? odemeId)
     {
-        if (Mesgul || _secili is null) return null;
-        var nesil = Yurutucu.Nesil; var alisId = _secili.Id;
+        if (Mesgul || _secili is null)
+            return null;
+        var nesil = Yurutucu.Nesil;
+        var alisId = _secili.Id;
         bool SecimSuruyor() => Gecerli(nesil) && _secili?.Id == alisId;
         try
         {
             var dosya = await sec();
-            if (dosya is null || !SecimSuruyor()) return null;
+            if (dosya is null || !SecimSuruyor())
+                return null;
             var tur = DosyaSecimKurallari.BelgeIcerikTuru(dosya.Ad);
-            if (tur is null) return DosyaSecimKurallari.DesteklenmeyenBelge;
+            if (tur is null)
+                return DosyaSecimKurallari.DesteklenmeyenBelge;
             DosyaOkumasi okuma;
-            await using (var akis = await dosya.Ac()) okuma = await DosyaSecimKurallari.SinirliOkuAsync(akis, DosyaSecimKurallari.EnFazlaBayt, SecimSuruyor);
-            if (okuma.Durum == DosyaOkumaDurumu.SinirAsildi) return DosyaSecimKurallari.BuyukBelge;
-            if (okuma.Durum == DosyaOkumaDurumu.Vazgecildi || !SecimSuruyor()) return null;
+            await using (var akis = await dosya.Ac())
+                okuma = await DosyaSecimKurallari.SinirliOkuAsync(akis, DosyaSecimKurallari.EnFazlaBayt, SecimSuruyor);
+            if (okuma.Durum == DosyaOkumaDurumu.SinirAsildi)
+                return DosyaSecimKurallari.BuyukBelge;
+            if (okuma.Durum == DosyaOkumaDurumu.Vazgecildi || !SecimSuruyor())
+                return null;
             await BelgeYukleAsync(dosya.Ad, tur, okuma.Icerik!, odemeId);
             return null;
         }
@@ -146,19 +181,23 @@ public partial class AlislarViewModel
     }
     public Task BelgeYukleAsync(string ad, string tur, byte[] icerik, int? odemeId) => YurutAsync(async n =>
     {
-        if (_yonetim is null || _secili is null) return;
-        if (icerik.Length > DosyaSecimKurallari.EnFazlaBayt || icerik.Length == 0) { Hata = "Belge boş olamaz ve 10 MB sınırını aşamaz."; return; }
+        if (_yonetim is null || _secili is null)
+            return;
+        if (icerik.Length > DosyaSecimKurallari.EnFazlaBayt || icerik.Length == 0)
+        { Hata = "Belge boş olamaz ve 10 MB sınırını aşamaz."; return; }
         var id = _secili.Id;
         try
         {
             var belge = await _yonetim.BelgeYukleAsync(id, ad, tur, icerik, EditorMu ? odemeId : null);
-            if (Gecerli(n) && _secili?.Id == id) { Belgeler.Add(belge); Mesaj = "Belge eklendi."; }
+            if (Gecerli(n) && _secili?.Id == id)
+            { Belgeler.Add(belge); Mesaj = "Belge eklendi."; }
         }
         catch (TimeoutException)
         {
             // Yükleme sunucuda tamamlanmış olabilir (belge ucu tekrar anahtarı taşımaz): liste yenilenir ki kullanıcı
             // aynı belgeyi yeniden yüklemeden önce görsün. Yenileme de başarısızsa asıl zaman aşımı iletisi gösterilir.
-            try { var belgeler = await _yonetim.BelgelerAsync(id); if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler); }
+            try
+            { var belgeler = await _yonetim.BelgelerAsync(id); if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler); }
             catch (Exception) { /* zaman aşımı iletisi yeterli */ }
             throw;
         }
@@ -175,26 +214,33 @@ public partial class AlislarViewModel
     /// yenilenir (belge 'kaldırıldı' olarak kalır), aksi halde listeden çıkar.</summary>
     public Task BelgeSilAsync(BelgeDto belge, string? gerekce = null) => YurutAsync(async n =>
     {
-        if (_yonetim is null || belge.Silindi) return;
+        if (_yonetim is null || belge.Silindi)
+            return;
         gerekce = string.IsNullOrWhiteSpace(gerekce) ? null : gerekce.Trim();
-        if (EditorMu && gerekce is null) { Hata = BelgeSilmeGerekcesiGerekli; return; }
+        if (EditorMu && gerekce is null)
+        { Hata = BelgeSilmeGerekcesiGerekli; return; }
         var alisId = _secili?.Id;
         await _yonetim.BelgeSilAsync(belge.Id, gerekce);
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         if (EditorMu && SilinenBelgeleriGoster && alisId is { } id)
         {
             var belgeler = await _yonetim.BelgelerAsync(id, true);
-            if (Gecerli(n) && _secili?.Id == id) Degistir(Belgeler, belgeler);
+            if (Gecerli(n) && _secili?.Id == id)
+                Degistir(Belgeler, belgeler);
         }
-        else Belgeler.Remove(belge);
-        if (Gecerli(n)) Mesaj = "Belge kaldırıldı; içeriği ve kaldırma kaydı saklanır.";
+        else
+            Belgeler.Remove(belge);
+        if (Gecerli(n))
+            Mesaj = "Belge kaldırıldı; içeriği ve kaldırma kaydı saklanır.";
     });
 
     /// <summary>Belge satırının açıklaması: yükleyen (bu sürümden önceki belgelerde bilinmez) ve kaldırıldıysa kaldıran, zaman, gerekçe.</summary>
     public static string BelgeAciklamasi(BelgeDto b)
     {
         var yukleyen = b.Yukleyen is { Length: > 0 } ad ? $"Yükleyen: {ad}" : "Yükleyen: bilinmiyor (eski kayıt)";
-        if (!b.Silindi) return yukleyen;
+        if (!b.Silindi)
+            return yukleyen;
         var kaldiran = b.Silen is { Length: > 0 } s ? s : "bilinmiyor";
         var zaman = b.SilinmeZamani?.ToLocalTime().ToString("dd.MM.yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
         return $"{yukleyen} · Kaldırıldı: {kaldiran}{(zaman is null ? "" : " · " + zaman)}{(string.IsNullOrWhiteSpace(b.SilmeGerekcesi) ? "" : " · Gerekçe: " + b.SilmeGerekcesi)}";

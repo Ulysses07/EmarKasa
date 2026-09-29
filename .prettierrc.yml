@@ -1,0 +1,23 @@
+# Prettier (Aşama 2b): Kasa.Api/wwwroot JS/CSS ve web manifesti, Kasa.Api.Ui.Tests ve Kasa.Ui.E2E'nin kendi dosyaları.
+# Araç Kasa.Ui.E2E/package.json'da tam sürümle sabittir; depo kökünden çalışır (Kasa.Ui.E2E içinde):
+#   npm run format:web:check    denetle (CI "Web lint (ESLint)" işi)
+#   npm run format:web          biçimle
+# Yapılandırma kökte durur: Prettier ayarı biçimlenen dosyanın dizininden yukarı arar; Kasa.Ui.E2E içindeki bir dosya
+# wwwroot'a (komut satırında ve editörde) uygulanmazdı. Kapsam dışı dosyalar: .prettierignore.
+#
+# Seçenekler mevcut kodun çoğunluğuna göre (en az fark): tek tırnak, noktalı virgül, yalnız ES5 yerlerinde sonda virgül,
+# tek parametreli ok işlevinde parantez yok. Satır genişliği 140: kod yoğundur (200+ karakterlik satır yaygın); 120'de
+# fark yaklaşık %9 daha büyüktü. Girinti, satır sonu ve genişlik açıkça yazılır: .editorconfig bunları ezemez.
+printWidth: 140
+tabWidth: 2
+useTabs: false
+endOfLine: lf
+semi: true
+singleQuote: true
+trailingComma: es5
+arrowParens: avoid
+overrides:
+  # CSS dizeleri mevcut kodda çift tırnaklıdır (ör. local("Segoe UI")).
+  - files: '*.css'
+    options:
+      singleQuote: false

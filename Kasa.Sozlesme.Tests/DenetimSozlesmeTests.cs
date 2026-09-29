@@ -59,7 +59,8 @@ public class DenetimSozlesmeTests : SozlesmeTemeli
         var sablon = await o.AylikGider.AylikGiderSablonKaydetAsync(null, new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira", "Kira", 5000m, 5, "Genel", [], new DateOnly(Bugun.Year, Bugun.Month, 1)));
         var odenen = await o.AylikGider.AylikGiderOdeAsync(sablon.Id, new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, Bugun.Year, Bugun.Month, Bugun, "Havale"));
         var iptal = await o.AylikGider.AylikGiderIptalAsync(odenen.OdemeId!.Value, new AylikGiderIptalYaz(Guid.NewGuid(), "Kira yanlış aya girildi"));
-        Assert.Equal(("Iptal", "Kira yanlış aya girildi"), (iptal.Durum, iptal.IptalAciklamasi)); Assert.NotNull(iptal.IptalZamani);
+        Assert.Equal(("Iptal", "Kira yanlış aya girildi"), (iptal.Durum, iptal.IptalAciklamasi));
+        Assert.NotNull(iptal.IptalZamani);
         var ay = await o.AylikGider.AylikGiderlerAsync(Bugun.Year, Bugun.Month);
         Assert.Equal(("Planlandi", 0m), (Assert.Single(ay.Kayitlar).Durum, ay.OdenenToplam));
         var iptalEdilen = Assert.Single(ay.Iptaller!);
@@ -74,6 +75,7 @@ public class DenetimSozlesmeTests : SozlesmeTemeli
         Assert.Equal(((string?)null, (DateTimeOffset?)null), (kayit.IptalAciklamasi, kayit.IptalZamani));
         await o.Ekstre.EkstreKayitIptalAsync(belge.Id, kayit.Id, new EkstreIptalYaz(Guid.NewGuid(), "Yanlış satır"));
         var satir = Assert.Single((await o.Ekstre.EkstreBelgeAsync(belge.Id)).Kayitlar);
-        Assert.Equal((true, "Yanlış satır"), (satir.Iptal, satir.IptalAciklamasi)); Assert.NotNull(satir.IptalZamani);
+        Assert.Equal((true, "Yanlış satır"), (satir.Iptal, satir.IptalAciklamasi));
+        Assert.NotNull(satir.IptalZamani);
     }
 }

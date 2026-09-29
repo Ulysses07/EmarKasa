@@ -1,17 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { sikistir } from './css-metni.mjs';
 
 // Web arayüzünün renk çiftleri WCAG 2.2 eşiklerini geçer: metin 4,5:1 (1.4.3), kontrol sınırı ve odak göstergesi 3:1
 // (1.4.11). Değerler masaüstünde styles.css'ten, telefonda m/app.css'ten okunur; var(--x) o dosyanın :root belirteçlerinden
-// çözülür.
+// çözülür. Kaynak, biçimden bağımsız okunmak için sıkışık yazıma indirilir (css-metni.mjs).
 const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function stylesheet(css) {
-  // Medya sorgusu dışındaki (ilk) kuralın bildirimleri; seçici dosyada yazıldığı gibi verilir.
+  // Medya sorgusu dışındaki (ilk) kuralın bildirimleri; seçici sıkışık yazımla (boşluksuz virgül ve birleştirici) verilir.
   const rule = selector => {
     const match = new RegExp(`(?:^|[}\\n])${escape(selector)}\\{([^}]*)\\}`).exec(css);
     assert.ok(match, `${selector} kuralı yok`);
-    return Object.fromEntries(match[1].split(';').map(part => part.trim()).filter(Boolean).map(part => { const index = part.indexOf(':'); return [part.slice(0, index).trim(), part.slice(index + 1).trim()]; }));
+    return Object.fromEntries(
+      match[1]
+        .split(';')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => {
+          const index = part.indexOf(':');
+          return [part.slice(0, index).trim(), part.slice(index + 1).trim()];
+        })
+    );
   };
   const root = rule(':root');
   const color = value => {
@@ -22,11 +32,20 @@ function stylesheet(css) {
   };
   return { rule, root, color };
 }
-const { rule, root, color } = stylesheet(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8'));
-const mobile = stylesheet(await readFile(new URL('../Kasa.Api/wwwroot/m/app.css', import.meta.url), 'utf8'));
-const channel = value => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-const luminance = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b); };
-const ratio = (a, b, resolve = color) => { const [x, y] = [luminance(resolve(a)), luminance(resolve(b))].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const { rule, root, color } = stylesheet(sikistir(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8')));
+const mobile = stylesheet(sikistir(await readFile(new URL('../Kasa.Api/wwwroot/m/app.css', import.meta.url), 'utf8')));
+const channel = value => {
+  const c = value / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const luminance = hex => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+};
+const ratio = (a, b, resolve = color) => {
+  const [x, y] = [luminance(resolve(a)), luminance(resolve(b))].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+};
 const atLeast = (foreground, background, minimum, what, resolve = color) => {
   const value = ratio(foreground, background, resolve);
   assert.ok(value >= minimum, `${what}: ${foreground} / ${background} = ${value.toFixed(2)}:1, en az ${minimum}:1 olmalı`);
@@ -41,10 +60,17 @@ test('WCAG oran hesabı bilinen değerleri verir', () => {
 });
 
 test('ikincil metin (--muted) krem, kâğıt, kenar çubuğu ve tablo başlığı zemininde en az 4,5:1', () => {
-  for (const [background, what] of [[root['--cream'], 'sayfa'], [root['--paper'], 'bölüm'], [rule('.sidebar').background, 'rol etiketi'], [rule('th').background, 'tablo başlığı'], [root['--green-light'], 'açık yeşil zemin']]) {
+  for (const [background, what] of [
+    [root['--cream'], 'sayfa'],
+    [root['--paper'], 'bölüm'],
+    [rule('.sidebar').background, 'rol etiketi'],
+    [rule('th').background, 'tablo başlığı'],
+    [root['--green-light'], 'açık yeşil zemin'],
+  ]) {
     atLeast('var(--muted)', background, 4.5, what);
   }
-  assert.equal(rule('th').color, 'var(--muted)'); assert.equal(rule('.role-label').color, 'var(--muted)');
+  assert.equal(rule('th').color, 'var(--muted)');
+  assert.equal(rule('.role-label').color, 'var(--muted)');
 });
 
 test('sayfa altbilgisi ikincil metin rengini kullanır', () => {
@@ -55,12 +81,15 @@ test('sayfa altbilgisi ikincil metin rengini kullanır', () => {
 test('form alanı ve ikincil düğme kenarlığı zeminine karşı en az 3:1', () => {
   const field = rule('input,select,textarea');
   assert.equal(borderColor(field.border), 'var(--control-line)');
-  for (const background of [field.background, root['--cream'], root['--paper'], '#f8f7ee']) atLeast(borderColor(field.border), background, 3, 'form alanı kenarlığı');
+  for (const background of [field.background, root['--cream'], root['--paper'], '#f8f7ee'])
+    atLeast(borderColor(field.border), background, 3, 'form alanı kenarlığı');
   const secondary = rule('.button');
   assert.equal(borderColor(secondary.border), 'var(--control-line)');
-  for (const background of [secondary.background, root['--cream']]) atLeast(borderColor(secondary.border), background, 3, 'ikincil düğme kenarlığı');
+  for (const background of [secondary.background, root['--cream']])
+    atLeast(borderColor(secondary.border), background, 3, 'ikincil düğme kenarlığı');
   const hover = rule('.button:hover');
-  for (const background of [hover.background, root['--cream'], root['--paper']]) atLeast(hover['border-color'], background, 3, 'üzerine gelinen ikincil düğme kenarlığı');
+  for (const background of [hover.background, root['--cream'], root['--paper']])
+    atLeast(hover['border-color'], background, 3, 'üzerine gelinen ikincil düğme kenarlığı');
 });
 
 test('kırmızı ikincil (tehlike) düğme kenarlığı kendi zemini, sayfa ve kâğıt zemine karşı en az 3:1', () => {
@@ -68,14 +97,22 @@ test('kırmızı ikincil (tehlike) düğme kenarlığı kendi zemini, sayfa ve k
   // Kural .button:hover'dan sonra gelir: üzerine gelince de aynı kenarlık ve zemin kalır.
   const danger = rule('.button.danger');
   assert.equal(danger['border-color'], 'var(--danger-line)');
-  for (const background of [danger.background, root['--cream'], root['--paper'], rule('dialog').background]) atLeast(danger['border-color'], background, 3, 'tehlike düğmesi kenarlığı');
+  for (const background of [danger.background, root['--cream'], root['--paper'], rule('dialog').background])
+    atLeast(danger['border-color'], background, 3, 'tehlike düğmesi kenarlığı');
   atLeast(danger.color, danger.background, 4.5, 'tehlike düğmesi metni');
 });
 
 test('odak halkası sayfa, kâğıt, kenar çubuğu ve açık yeşil zemine karşı en az 3:1', () => {
   const focus = rule('button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible');
   assert.equal(outlineColor(focus.outline), 'var(--focus)');
-  for (const background of [root['--cream'], root['--paper'], rule('.sidebar').background, root['--green-light'], rule('input,select,textarea').background]) atLeast(outlineColor(focus.outline), background, 3, 'odak halkası');
+  for (const background of [
+    root['--cream'],
+    root['--paper'],
+    rule('.sidebar').background,
+    root['--green-light'],
+    rule('input,select,textarea').background,
+  ])
+    atLeast(outlineColor(focus.outline), background, 3, 'odak halkası');
   // Koyu bildirim üzerindeki kapatma düğmesinin halkası açık renktir.
   const toastFocus = rule('.toast-close:focus-visible');
   atLeast(toastFocus['outline-color'], rule('.toast.error').background, 3, 'hata bildirimi kapatma düğmesi odak halkası');
@@ -86,7 +123,8 @@ test('kaydırılabilir bölgelerin (tablo, genel kasa tutarı) odak halkası zem
   // Tablo kapsayıcısı kâğıt bölümde, pencerede ya da doğrudan sayfa zemininde durur; halka dışa (3px) çizilir.
   const table = rule('.table-wrap:focus-visible');
   assert.equal(table.outline, '3px solid var(--focus)');
-  for (const background of [root['--cream'], root['--paper'], rule('dialog').background]) atLeast(outlineColor(table.outline), background, 3, 'tablo bölgesi odak halkası');
+  for (const background of [root['--cream'], root['--paper'], rule('dialog').background])
+    atLeast(outlineColor(table.outline), background, 3, 'tablo bölgesi odak halkası');
   // Genel kasa tutarı koyu yeşil kahraman kutusunda: halka açık renktir (--focus bu zeminde 1,87:1 kalırdı).
   const total = rule('.cash-total:focus-visible');
   assert.equal(total['outline-offset'], '3px');
@@ -96,20 +134,37 @@ test('kaydırılabilir bölgelerin (tablo, genel kasa tutarı) odak halkası zem
 
 test('telefon: ikincil metin (--soluk) sayfa, kart, liste arası ve arama zemininde en az 4,5:1', () => {
   // 11,5–15 px ikincil yazılar (bölüm etiketi, alt yazı, gün başlığı, açıklama, alt sayfa başlıkları) --soluk kullanır.
-  for (const selector of ['.etiket', '.alt-yazi', '.gun-bas', '.aciklama', '.giris .dipnot', '.hz-not', '.hz-bas', '.sayfa-bas button', '.alan-etiket', '.mini .ust-etiket']) {
+  for (const selector of [
+    '.etiket',
+    '.alt-yazi',
+    '.gun-bas',
+    '.aciklama',
+    '.giris .dipnot',
+    '.hz-not',
+    '.hz-bas',
+    '.sayfa-bas button',
+    '.alan-etiket',
+    '.mini .ust-etiket',
+  ]) {
     assert.equal(mobile.rule(selector).color, 'var(--soluk)', `${selector} rengi`);
   }
-  assert.equal(mobile.rule('body').background, 'var(--zemin)'); assert.equal(mobile.rule('.kutu').background, 'var(--kart)');
-  assert.equal(mobile.rule('.arama').background, 'var(--arama)'); assert.equal(mobile.rule('.arama').color, 'var(--soluk)');
-  for (const background of ['--zemin', '--kart', '--ara', '--arama']) atLeast('var(--soluk)', `var(${background})`, 4.5, `--soluk / ${background}`, mobile.color);
-  for (const background of ['--kart', '--ara']) atLeast('var(--soluk2)', `var(${background})`, 4.5, `--soluk2 / ${background}`, mobile.color);
+  assert.equal(mobile.rule('body').background, 'var(--zemin)');
+  assert.equal(mobile.rule('.kutu').background, 'var(--kart)');
+  assert.equal(mobile.rule('.arama').background, 'var(--arama)');
+  assert.equal(mobile.rule('.arama').color, 'var(--soluk)');
+  for (const background of ['--zemin', '--kart', '--ara', '--arama'])
+    atLeast('var(--soluk)', `var(${background})`, 4.5, `--soluk / ${background}`, mobile.color);
+  for (const background of ['--kart', '--ara'])
+    atLeast('var(--soluk2)', `var(${background})`, 4.5, `--soluk2 / ${background}`, mobile.color);
   // Ton korunur: --soluk2 (daha koyu ikincil yazı) --soluk'tan koyu kalır.
   assert.ok(ratio('var(--soluk2)', 'var(--zemin)', mobile.color) > ratio('var(--soluk)', 'var(--zemin)', mobile.color));
 });
 
 test('telefon: koyu yeşil kutudaki etiket ve alt yazı en az 4,5:1', () => {
-  assert.equal(mobile.rule('.kahraman').background, 'var(--yesil)'); assert.equal(mobile.rule('.mini.koyu').background, 'var(--yesil)');
-  assert.equal(mobile.rule('.kahraman .ust-etiket').color, 'var(--yesil-acik)'); assert.equal(mobile.rule('.mini.koyu .ust-etiket').color, 'var(--yesil-acik)');
+  assert.equal(mobile.rule('.kahraman').background, 'var(--yesil)');
+  assert.equal(mobile.rule('.mini.koyu').background, 'var(--yesil)');
+  assert.equal(mobile.rule('.kahraman .ust-etiket').color, 'var(--yesil-acik)');
+  assert.equal(mobile.rule('.mini.koyu .ust-etiket').color, 'var(--yesil-acik)');
   atLeast('var(--yesil-acik)', 'var(--yesil)', 4.5, 'koyu kutu etiketi', mobile.color);
   assert.equal(mobile.rule('.kahraman .alt').color, 'var(--yesil-soluk)');
   atLeast('var(--yesil-soluk)', 'var(--yesil)', 4.5, 'koyu kutu alt yazısı', mobile.color);
@@ -119,21 +174,28 @@ test('telefon: koyu yeşil kutudaki etiket ve alt yazı en az 4,5:1', () => {
 // (MDN: Firefox giriş rengini %54 saydamlıkla, Chrome gri kullanır); renk ve tam opaklık açıkça verilir.
 test('yer tutucu metin masaüstünde ve telefonda alan zemininde en az 4,5:1', () => {
   const desktop = rule('input::placeholder,textarea::placeholder');
-  assert.equal(desktop.color, 'var(--muted)'); assert.equal(desktop.opacity, '1');
+  assert.equal(desktop.color, 'var(--muted)');
+  assert.equal(desktop.opacity, '1');
   atLeast(desktop.color, rule('input,select,textarea').background, 4.5, 'masaüstü yer tutucu');
   const phone = mobile.rule('input::placeholder,textarea::placeholder');
-  assert.equal(phone.color, 'var(--soluk)'); assert.equal(phone.opacity, '1');
+  assert.equal(phone.color, 'var(--soluk)');
+  assert.equal(phone.opacity, '1');
   // .girdi beyaz; tutar alanı alt sayfa zemininde (şeffaf); arama alanı kendi zemininde.
-  assert.equal(mobile.rule('.girdi').background, '#fff'); assert.equal(mobile.rule('.hz-tutar input').background, 'transparent'); assert.equal(mobile.rule('.sayfa').background, 'var(--zemin)');
-  for (const background of ['#ffffff', 'var(--zemin)', 'var(--arama)']) atLeast(phone.color, background, 4.5, `telefon yer tutucu / ${background}`, mobile.color);
+  assert.equal(mobile.rule('.girdi').background, '#fff');
+  assert.equal(mobile.rule('.hz-tutar input').background, 'transparent');
+  assert.equal(mobile.rule('.sayfa').background, 'var(--zemin)');
+  for (const background of ['#ffffff', 'var(--zemin)', 'var(--arama)'])
+    atLeast(phone.color, background, 4.5, `telefon yer tutucu / ${background}`, mobile.color);
 });
 
 test('telefon: form alanı kenarlığı (--alan-cizgi) alan içi, kart ve sayfa zeminine karşı en az 3:1; süs çizgileri ayrı', () => {
   const field = mobile.rule('.girdi');
   assert.equal(borderColor(field.border), 'var(--alan-cizgi)');
-  for (const background of ['#ffffff', 'var(--kart)', 'var(--zemin)']) atLeast('var(--alan-cizgi)', background, 3, `telefon form alanı kenarlığı / ${background}`, mobile.color);
+  for (const background of ['#ffffff', 'var(--kart)', 'var(--zemin)'])
+    atLeast('var(--alan-cizgi)', background, 3, `telefon form alanı kenarlığı / ${background}`, mobile.color);
   // Kart ve liste kenarlıkları süs olarak açık kalır (alanın sınırı değildir).
-  assert.equal(borderColor(mobile.rule('.kutu').border), 'var(--cizgi)'); assert.equal(borderColor(mobile.rule('.liste').border), 'var(--cizgi)');
+  assert.equal(borderColor(mobile.rule('.kutu').border), 'var(--cizgi)');
+  assert.equal(borderColor(mobile.rule('.liste').border), 'var(--cizgi)');
 });
 
 test('telefon form alanı kenarlığı MAUI FieldStroke ile aynı tondur', async () => {

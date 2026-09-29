@@ -147,7 +147,8 @@ public class YedekSaklamaTests
         Assert.Equal(10, Directory.GetFiles(f.Dizin, "kasa-elle-*.zip").Length);
 
         var durum = await c.GetFromJsonAsync<JsonElement>("/api/yedek/durum");
-        foreach (var alan in new[] { "otomatikEtkin", "sonYedek", "sonDogrulama", "hata" }) Assert.True(durum.TryGetProperty(alan, out _), alan);
+        foreach (var alan in new[] { "otomatikEtkin", "sonYedek", "sonDogrulama", "hata" })
+            Assert.True(durum.TryGetProperty(alan, out _), alan);
         Assert.Equal(45, durum.GetProperty("otomatikYedekSayisi").GetInt32());
         Assert.Equal(10, durum.GetProperty("elleYedekSayisi").GetInt32());
         Assert.Equal(Simdi, durum.GetProperty("sonOtomatikYedek").GetDateTimeOffset());
@@ -164,15 +165,18 @@ public class YedekSaklamaTests
         // Silme işlevi enjekte edilir: hata yolu işletim sisteminin dosya kilidine bağlı değildir.
         await using var f = new YedekFactory(silici: yol =>
         {
-            if (kilitli && yol == silinemeyen) throw new IOException("Dosya başka bir işlem tarafından kullanılıyor.");
+            if (kilitli && yol == silinemeyen)
+                throw new IOException("Dosya başka bir işlem tarafından kullanılıyor.");
             File.Delete(yol);
-        }) { Saat = new SabitSaat(Simdi) };
+        })
+        { Saat = new SabitSaat(Simdi) };
         Directory.CreateDirectory(f.Dizin);
         var elle = Enumerable.Range(0, 10).Select(i => Yaz(f.Dizin, Ad("elle-", Simdi.AddDays(-1 - i), 100 + i), Simdi.AddDays(-1 - i))).ToList();
         silinemeyen = elle[^1];
         using var c = await f.EditorClientAsync();
 
-        using (var r = await c.PostAsync("/api/yedek", null)) r.EnsureSuccessStatusCode();
+        using (var r = await c.PostAsync("/api/yedek", null))
+            r.EnsureSuccessStatusCode();
         var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
         Assert.Null(durum.Hata);
         Assert.Equal(Simdi, durum.SonDogrulama);
@@ -182,7 +186,8 @@ public class YedekSaklamaTests
         Assert.Equal(11, Directory.GetFiles(f.Dizin, "kasa-elle-*.zip").Length);
 
         kilitli = false;
-        using (var r = await c.PostAsync("/api/yedek", null)) r.EnsureSuccessStatusCode();
+        using (var r = await c.PostAsync("/api/yedek", null))
+            r.EnsureSuccessStatusCode();
         var json = await c.GetFromJsonAsync<JsonElement>("/api/yedek/durum");
         Assert.Equal(JsonValueKind.Null, json.GetProperty("rotasyonUyarisi").ValueKind);
         Assert.Equal(10, Directory.GetFiles(f.Dizin, "kasa-elle-*.zip").Length);
@@ -196,12 +201,15 @@ public class YedekSaklamaTests
         await using var f = new YedekFactory(silici: yol => { if (bozuk) throw new UnauthorizedAccessException("Erişim reddedildi."); File.Delete(yol); });
         Directory.CreateDirectory(f.Dizin);
         var eskiOtomatik = Yaz(f.Dizin, Ad("oto-", Simdi.AddDays(-400), 1), Simdi.AddDays(-400));
-        foreach (var g in Enumerable.Range(0, 7)) Yaz(f.Dizin, Ad("oto-", Simdi.AddDays(-g), 10 + g), Simdi.AddDays(-g));
+        foreach (var g in Enumerable.Range(0, 7))
+            Yaz(f.Dizin, Ad("oto-", Simdi.AddDays(-g), 10 + g), Simdi.AddDays(-g));
         var yedek = f.Services.GetRequiredService<YedekServisi>();
 
         yedek.Dondur(YedekTuru.Otomatik, Simdi);
         var uyari = yedek.Durum().RotasyonUyarisi;
-        Assert.NotNull(uyari); Assert.Contains("Otomatik", uyari); Assert.Contains(Path.GetFileName(eskiOtomatik), uyari);
+        Assert.NotNull(uyari);
+        Assert.Contains("Otomatik", uyari);
+        Assert.Contains(Path.GetFileName(eskiOtomatik), uyari);
 
         bozuk = false;
         yedek.Dondur(YedekTuru.Elle, Simdi); // silinecek elle yedek yok; otomatik uyarısı kalır
@@ -222,7 +230,8 @@ public class YedekSaklamaTests
 
         _ = f.Services; // sunucuyu ve OtomatikYedek arka plan servisini başlatır
         var sure = System.Diagnostics.Stopwatch.StartNew();
-        while (Directory.GetFiles(f.Dizin, "kasa-oto-*.zip").Length == 0 && sure.Elapsed < TimeSpan.FromSeconds(30)) await Task.Delay(100);
+        while (Directory.GetFiles(f.Dizin, "kasa-oto-*.zip").Length == 0 && sure.Elapsed < TimeSpan.FromSeconds(30))
+            await Task.Delay(100);
 
         // Otomatik yedek sunucunun saatiyle adlandırılır: elle yedekten 5 dakika sonra, aynı günde.
         var oto = Assert.Single(Directory.GetFiles(f.Dizin, "kasa-oto-*.zip"));
@@ -251,15 +260,22 @@ public class YedekSaklamaTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?> {
-                ["Yedek:Dizin"] = Dizin, ["Yedek:Etkin"] = otomatik ? "true" : "false", ["Bildirim:PushEtkin"] = "false",
-                ["Bildirim:WorkerEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(Dizin, ".kasa-push-keys.json") }));
-            if (silici is not null) builder.ConfigureServices(services => services.AddSingleton(silici));
+            builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Yedek:Dizin"] = Dizin,
+                ["Yedek:Etkin"] = otomatik ? "true" : "false",
+                ["Bildirim:PushEtkin"] = "false",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Bildirim:AnahtarDosyasi"] = Path.Combine(Dizin, ".kasa-push-keys.json")
+            }));
+            if (silici is not null)
+                builder.ConfigureServices(services => services.AddSingleton(silici));
         }
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing && Directory.Exists(Dizin)) Directory.Delete(Dizin, true);
+            if (disposing && Directory.Exists(Dizin))
+                Directory.Delete(Dizin, true);
         }
     }
 }

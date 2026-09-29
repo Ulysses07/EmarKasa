@@ -31,7 +31,8 @@ public sealed class EskiHatirlatmaGorevi
     private static ProcessStartInfo Komut(params string[] argumanlar)
     {
         var komut = new ProcessStartInfo("schtasks") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var a in argumanlar) komut.ArgumentList.Add(a);
+        foreach (var a in argumanlar)
+            komut.ArgumentList.Add(a);
         return komut;
     }
 
@@ -47,11 +48,14 @@ public sealed class EskiHatirlatmaGorevi
     {
         try
         {
-            if (Yapildi) return false;
+            if (Yapildi)
+                return false;
             var silme = await calistir(SilmeKomutu());
-            if (silme is null) return false;
+            if (silme is null)
+                return false;
             // Silme başarısız: görev yoksa (sorgu başarısız) iş bitmiştir; görev duruyor ya da sorgulanamadıysa yeniden denenir.
-            if (silme != 0 && await calistir(SorguKomutu()) is null or 0) return false;
+            if (silme != 0 && await calistir(SorguKomutu()) is null or 0)
+                return false;
             Directory.CreateDirectory(Path.GetDirectoryName(_isaret)!);
             File.WriteAllText(_isaret, DateTimeOffset.Now.ToString("O"));
             return true;
@@ -66,15 +70,19 @@ public sealed class EskiHatirlatmaGorevi
         try
         {
             using var surec = Process.Start(komut);
-            if (surec is null) return null;
+            if (surec is null)
+                return null;
             // Yönlendirilen çıktı okunmazsa tampon dolunca süreç beklemede kalabilir.
             var cikti = komut.RedirectStandardOutput ? surec.StandardOutput.ReadToEndAsync() : Task.FromResult("");
             var hata = komut.RedirectStandardError ? surec.StandardError.ReadToEndAsync() : Task.FromResult("");
             using var sure = new CancellationTokenSource(zamanAsimi);
-            try { await surec.WaitForExitAsync(sure.Token); }
+            try
+            { await surec.WaitForExitAsync(sure.Token); }
             catch (OperationCanceledException)
             {
-                try { surec.Kill(); } catch (Exception) { }
+                try
+                { surec.Kill(); }
+                catch (Exception) { }
                 return null;
             }
             await Task.WhenAll(cikti, hata);

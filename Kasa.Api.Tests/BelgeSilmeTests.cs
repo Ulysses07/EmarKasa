@@ -31,7 +31,8 @@ public class BelgeSilmeTests
     private static Task<HttpResponseMessage> Sil(HttpClient c, int id, string? gerekce = null)
     {
         var istek = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{id}");
-        if (gerekce is not null) istek.Content = JsonContent.Create(new BelgeSilYaz(gerekce));
+        if (gerekce is not null)
+            istek.Content = JsonContent.Create(new BelgeSilYaz(gerekce));
         return c.SendAsync(istek);
     }
 
@@ -145,7 +146,9 @@ public class BelgeSilmeTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var satir = new BelgeEntity { AlisId = taslak.Id, DosyaAdi = "eski.pdf", IcerikTuru = "application/pdf", Boyut = 1, Yuklendi = f.Saat!.GetUtcNow(), IcerikOzeti = TestBelgeDeposu.Ozet([1]) };
-            db.Belgeler.Add(satir); db.SaveChanges(); eski = satir.Id;
+            db.Belgeler.Add(satir);
+            db.SaveChanges();
+            eski = satir.Id;
         }
         Assert.Equal(HttpStatusCode.Conflict, (await Sil(alici, eski)).StatusCode);
         Assert.Null((await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Single(b => b.Id == eski).YukleyenRol);
@@ -170,7 +173,8 @@ public class BelgeSilmeTests
                 db.Belgeler.Add(new BelgeEntity { AlisId = alis.Id, DosyaAdi = $"b{i}.pdf", IcerikTuru = "application/pdf", Boyut = 1, Yuklendi = f.Saat!.GetUtcNow(), IcerikOzeti = TestBelgeDeposu.Ozet([(byte)i]), YukleyenRol = "editor" });
             db.SaveChanges();
         }
-        using (var r = await AlisTestYardimcisi.YukleYanit(editor, alis.Id, Fatura, "otuzbir.pdf")) Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+        using (var r = await AlisTestYardimcisi.YukleYanit(editor, alis.Id, Fatura, "otuzbir.pdf"))
+            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         var ilk = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))![0];
         Assert.Equal(HttpStatusCode.NoContent, (await Sil(editor, ilk.Id, "Yer açmak için")).StatusCode);
         await Yukle(editor, alis.Id, Fatura, "otuzbir.pdf");

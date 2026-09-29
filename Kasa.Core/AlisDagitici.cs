@@ -62,7 +62,8 @@ public static class AlisDagitici
         AlisKanalPayi[] kanallar, BigInteger[] agirliklar, BigInteger toplam, BigInteger odenen)
     {
         var sonuc = new BigInteger[kanallar.Length];
-        if (odenen.IsZero) return sonuc;
+        if (odenen.IsZero)
+            return sonuc;
 
         var oncelikler = new PriorityQueue<int, Oncelik>(OncelikKarsilastirici.Instance);
         var kalan = odenen;

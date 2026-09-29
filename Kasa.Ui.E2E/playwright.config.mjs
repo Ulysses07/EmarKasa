@@ -49,7 +49,13 @@ export default defineConfig({
   timeout: 60_000,
   expect: {
     timeout: 15_000,
-    toHaveScreenshot: { pathTemplate: '{testDir}/__ekran__/{projectName}/{arg}{ext}', animations: 'disabled', caret: 'hide', scale: 'css', maxDiffPixels: 20 },
+    toHaveScreenshot: {
+      pathTemplate: '{testDir}/__ekran__/{projectName}/{arg}{ext}',
+      animations: 'disabled',
+      caret: 'hide',
+      scale: 'css',
+      maxDiffPixels: 20,
+    },
     toMatchAriaSnapshot: { pathTemplate: '{testDir}/__aria__/{projectName}/{arg}{ext}' },
   },
   use: {

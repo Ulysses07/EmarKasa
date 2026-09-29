@@ -12,7 +12,8 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             TakipUi.Bagli(nameof(vm.CihazDurumu)),
             TakipUi.Tikla("Masaüstü bildirimlerini aç / test et", async () =>
             {
-                try { await Browser.Default.OpenAsync(BildirimViewModel.KurulumAdresi(Environment.GetEnvironmentVariable("KASA_API_URL")), BrowserLaunchMode.External); }
+                try
+                { await Browser.Default.OpenAsync(BildirimViewModel.KurulumAdresi(Environment.GetEnvironmentVariable("KASA_API_URL")), BrowserLaunchMode.External); }
                 catch { await DisplayAlertAsync("Tarayıcı açılamadı", "Kasa'nın web sitesindeki Bildirimler sayfasını tarayıcıda açın.", "Tamam"); }
             })));
         Govde.Add(TakipUi.Kart("Hatırlatma saati",
@@ -24,7 +25,8 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             TakipUi.Tikla("Kartları aç", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Kredileri aç", () => Shell.Current.GoToAsync("//krediler"))));
         Govde.Add(TakipUi.Kart("İzin verilmiş cihazlar", TakipUi.Liste<BildirimCihaziSatiri>(nameof(vm.Cihazlar), async c =>
         {
-            if (await DisplayAlertAsync("Cihaz bildirimleri", $"{c.Veri.CihazAdi} için bildirimler kapatılsın mı?", "Kapat", "Vazgeç")) await vm.CihaziKaldirAsync(c);
+            if (await DisplayAlertAsync("Cihaz bildirimleri", $"{c.Veri.CihazAdi} için bildirimler kapatılsın mı?", "Kapat", "Vazgeç"))
+                await vm.CihaziKaldirAsync(c);
         }, "Bu cihazı kapat", x => x.Veri.Etkin)));
     }
 }

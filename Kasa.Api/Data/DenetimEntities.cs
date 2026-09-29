@@ -64,9 +64,13 @@ public partial class KasaDbContext
 
         internal DenetimKapsami(KasaDbContext db, string? gerekce, Guid? istekId)
         {
-            _db = db; _oncekiGerekce = db.DenetimGerekcesi; _oncekiIstekId = db.DenetimIstekId;
-            if (!string.IsNullOrWhiteSpace(gerekce)) db.DenetimGerekcesi = gerekce.Trim();
-            if (istekId is { } id && id != Guid.Empty) db.DenetimIstekId = id;
+            _db = db;
+            _oncekiGerekce = db.DenetimGerekcesi;
+            _oncekiIstekId = db.DenetimIstekId;
+            if (!string.IsNullOrWhiteSpace(gerekce))
+                db.DenetimGerekcesi = gerekce.Trim();
+            if (istekId is { } id && id != Guid.Empty)
+                db.DenetimIstekId = id;
         }
 
         public void Dispose() { _db.DenetimGerekcesi = _oncekiGerekce; _db.DenetimIstekId = _oncekiIstekId; }

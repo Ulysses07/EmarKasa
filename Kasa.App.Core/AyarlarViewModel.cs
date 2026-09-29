@@ -19,8 +19,10 @@ public partial class AyarlarViewModel : TemelViewModel
     /// şifresi kalkar.</param>
     public AyarlarViewModel(IKasaApi api, IAylikGiderApi? kilit = null, AuthViewModel? auth = null)
     {
-        _api = api; _kilit = kilit;
-        if (auth is not null) OturumDegisiminiDinle(auth, OturumTemizle);
+        _api = api;
+        _kilit = kilit;
+        if (auth is not null)
+            OturumDegisiminiDinle(auth, OturumTemizle);
     }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
@@ -89,14 +91,18 @@ public partial class AyarlarViewModel : TemelViewModel
     private async Task DoldurAsync(int n)
     {
         var ayar = await _api.AyarlarAsync();
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         AyarlariUygula(ayar);
         var kanallar = await _api.KanallarAsync();
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         Kanallar.Clear();
-        foreach (var k in kanallar) Kanallar.Add(k);
+        foreach (var k in kanallar)
+            Kanallar.Add(k);
         var kilitSonu = await KilitSonuAsync();
-        if (Gecerli(n)) KilitliSonTarih = kilitSonu;
+        if (Gecerli(n))
+            KilitliSonTarih = kilitSonu;
     }
 
     private void AyarlariUygula(AyarlarDto ayar)
@@ -111,8 +117,10 @@ public partial class AyarlarViewModel : TemelViewModel
 
     private async Task<DateOnly?> KilitSonuAsync()
     {
-        if (_kilit is null) return null;
-        try { return (await _kilit.AyKilidiAsync()).KilitliSonTarih; }
+        if (_kilit is null)
+            return null;
+        try
+        { return (await _kilit.AyKilidiAsync()).KilitliSonTarih; }
         catch (KasaApiException e) when (e.DurumKodu != HttpStatusCode.Unauthorized) { return null; }
     }
 
@@ -122,53 +130,76 @@ public partial class AyarlarViewModel : TemelViewModel
     /// oturumun ayarları, kanalları, formları, sıfır onayları, iletileri ve yazılmış izleyici şifresi kalkar.</summary>
     private void OturumTemizle()
     {
-        Mesgul = false; Hata = null;
+        Mesgul = false;
+        Hata = null;
         Kanallar.Clear();
-        TakipBaslangic = DateTime.Today; KasaAcilisDevri = _kayitliKasaAcilisDevri = 0; _ayarSurum = 0;
+        TakipBaslangic = DateTime.Today;
+        KasaAcilisDevri = _kayitliKasaAcilisDevri = 0;
+        _ayarSurum = 0;
         AyarlarYuklendi = false;
         YeniKanal();
-        AyarOnayiniSifirla(); KanalOnayiniSifirla();
-        KilitliSonTarih = null; VekilUyarisi = null;
-        YeniIzleyiciSifre = ""; IzleyiciSifreHatasi = null; IzleyiciSifreMesaji = null; IzleyiciSifreUyarisi = null;
+        AyarOnayiniSifirla();
+        KanalOnayiniSifirla();
+        KilitliSonTarih = null;
+        VekilUyarisi = null;
+        YeniIzleyiciSifre = "";
+        IzleyiciSifreHatasi = null;
+        IzleyiciSifreMesaji = null;
+        IzleyiciSifreUyarisi = null;
     }
 
     [RelayCommand]
     private void YeniKanal()
     {
-        DuzenKanalId = 0; DuzenKanalAd = ""; DuzenKanalAktif = true;
-        DuzenKanalSira = 0; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0; _duzenKanalSurum = 0;
+        DuzenKanalId = 0;
+        DuzenKanalAd = "";
+        DuzenKanalAktif = true;
+        DuzenKanalSira = 0;
+        DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0;
+        _duzenKanalSurum = 0;
     }
 
     [RelayCommand]
     public void KanalDuzenle(KanalDto k)
     {
-        DuzenKanalId = k.Id; DuzenKanalAd = k.Ad; DuzenKanalAktif = k.Aktif;
-        DuzenKanalSira = k.Sira; DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = k.AcilisDevri; _duzenKanalSurum = k.Surum;
+        DuzenKanalId = k.Id;
+        DuzenKanalAd = k.Ad;
+        DuzenKanalAktif = k.Aktif;
+        DuzenKanalSira = k.Sira;
+        DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = k.AcilisDevri;
+        _duzenKanalSurum = k.Surum;
     }
 
     [RelayCommand]
     private Task KanalKaydetAsync() => YurutAsync(async n =>
     {
-        if (!ParaAyristirici.GecerliMi(DuzenKanalAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
+        if (!ParaAyristirici.GecerliMi(DuzenKanalAcilisDevri))
+        { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (SifirOnayMetni($"{DuzenKanalAd} açılış devri", _kayitliKanalAcilisDevri, DuzenKanalAcilisDevri, _kanalSifirOnayi) is { } onay)
         {
-            _kanalSifirOnayi = true; KanalUyarisi = onay; return;
+            _kanalSifirOnayi = true;
+            KanalUyarisi = onay;
+            return;
         }
         var g = new KanalYaz(DuzenKanalAd, DuzenKanalAktif, DuzenKanalSira, DuzenKanalAcilisDevri, _duzenKanalSurum);
         var id = DuzenKanalId;
         try
         {
-            if (id == 0) await _api.KanalOlusturAsync(g);
-            else await _api.KanalGuncelleAsync(id, g);
+            if (id == 0)
+                await _api.KanalOlusturAsync(g);
+            else
+                await _api.KanalGuncelleAsync(id, g);
         }
         // Kanal arada başka oturumda değiştiyse liste güncel kayıtlarla yenilenir; form korunur, kanal listeden yeniden seçilince
         // güncel sürümüyle kaydedilir.
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict && id != 0)
         {
-            if (Gecerli(n)) await EnIyiCaba(() => DoldurAsync(n));
+            if (Gecerli(n))
+                await EnIyiCaba(() => DoldurAsync(n));
             throw;
         }
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         YeniKanal();
         KanalOnayiniSifirla();
         await DoldurAsync(n);
@@ -180,28 +211,36 @@ public partial class AyarlarViewModel : TemelViewModel
     private Task KanalSilAsync(KanalDto k) => YurutAsync(async n =>
     {
         await _api.KanalSilAsync(k.Id);
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         await DoldurAsync(n);
     }, mesgulkenBildir: true);
 
     [RelayCommand(CanExecute = nameof(AyarlarYuklendi))]
     private Task AyarKaydetAsync() => YurutAsync(async n =>
     {
-        if (!ParaAyristirici.GecerliMi(KasaAcilisDevri)) { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (!AyarlarYuklendi) { Hata = AyarlarYuklenmediMesaji; return; }
+        if (!ParaAyristirici.GecerliMi(KasaAcilisDevri))
+        { Hata = ParaAyristirici.GecersizMesaji; return; }
+        if (!AyarlarYuklendi)
+        { Hata = AyarlarYuklenmediMesaji; return; }
         if (SifirOnayMetni("Kasa açılış devri", _kayitliKasaAcilisDevri, KasaAcilisDevri, _kasaSifirOnayi) is { } onay)
         {
-            _kasaSifirOnayi = true; AyarUyarisi = onay; return;
+            _kasaSifirOnayi = true;
+            AyarUyarisi = onay;
+            return;
         }
         var devir = KasaAcilisDevri;
-        try { await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), devir, _ayarSurum)); }
+        try
+        { await _api.AyarGuncelleAsync(new AyarYaz(DateOnly.FromDateTime(TakipBaslangic), devir, _ayarSurum)); }
         // Ayarlar arada başka oturumda değiştiyse güncel değerler forma yüklenir (ileti gösterilir); kullanıcı onları görerek yeniden kaydeder.
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict)
         {
-            if (Gecerli(n)) await EnIyiCaba(async () => { if (await AyarlariOkuAsync(n)) AyarOnayiniSifirla(); });
+            if (Gecerli(n))
+                await EnIyiCaba(async () => { if (await AyarlariOkuAsync(n)) AyarOnayiniSifirla(); });
             throw;
         }
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         _kayitliKasaAcilisDevri = devir;
         AyarOnayiniSifirla();
         // Kayıt sürümü artırır (yanıt gövdesizdir): sonraki kayıt için güncel sürüm ve değerler yeniden okunur. Okuma en iyi çabadır:
@@ -213,7 +252,8 @@ public partial class AyarlarViewModel : TemelViewModel
     /// sonu hariç: 401 yine yüzeye çıkar).</summary>
     private static async Task EnIyiCaba(Func<Task> oku)
     {
-        try { await oku(); }
+        try
+        { await oku(); }
         catch (Exception e) when (e is not KasaApiException { DurumKodu: HttpStatusCode.Unauthorized }) { }
     }
 
@@ -221,7 +261,8 @@ public partial class AyarlarViewModel : TemelViewModel
     private async Task<bool> AyarlariOkuAsync(int n)
     {
         var ayar = await _api.AyarlarAsync();
-        if (!Gecerli(n)) return false;
+        if (!Gecerli(n))
+            return false;
         AyarlariUygula(ayar);
         return true;
     }
@@ -230,11 +271,15 @@ public partial class AyarlarViewModel : TemelViewModel
     [RelayCommand]
     private Task IzleyiciSifreKaydetAsync() => YurutAsync(async n =>
     {
-        IzleyiciSifreHatasi = null; IzleyiciSifreMesaji = null;
-        if (!IzleyiciSifresiGecerli(YeniIzleyiciSifre)) { IzleyiciSifreHatasi = IzleyiciSifreKuralMesaji; return; }
-        try { await _api.IzleyiciSifreAsync(YeniIzleyiciSifre); }
+        IzleyiciSifreHatasi = null;
+        IzleyiciSifreMesaji = null;
+        if (!IzleyiciSifresiGecerli(YeniIzleyiciSifre))
+        { IzleyiciSifreHatasi = IzleyiciSifreKuralMesaji; return; }
+        try
+        { await _api.IzleyiciSifreAsync(YeniIzleyiciSifre); }
         catch (Exception hata) { if (Gecerli(n)) IzleyiciSifreHatasi = HataMesaji(hata); return; }
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         YeniIzleyiciSifre = "";
         IzleyiciSifreUyarisi = null;
         IzleyiciSifreMesaji = "İzleyici şifresi güncellendi. Eski izleyici oturumları kapandı.";

@@ -12,7 +12,13 @@ public abstract partial class OturumluViewModel : TemelViewModel
         Auth = auth;
         OturumDegisiminiDinle(auth, () =>
         {
-            VeriHazir = false; Mesgul = false; Hata = null; Mesaj = null; SonGuncelleme = null; OturumTemizle(); OnPropertyChanged(nameof(EditorMu));
+            VeriHazir = false;
+            Mesgul = false;
+            Hata = null;
+            Mesaj = null;
+            SonGuncelleme = null;
+            OturumTemizle();
+            OnPropertyChanged(nameof(EditorMu));
         });
     }
     public bool EditorMu => Auth.AktifRol == Rol.Editor;
@@ -33,7 +39,8 @@ public sealed class TekrarAnahtari
     public Guid Al(object govde)
     {
         var json = System.Text.Json.JsonSerializer.Serialize(govde);
-        if (_govde != json) { _govde = json; _id = Guid.NewGuid(); }
+        if (_govde != json)
+        { _govde = json; _id = Guid.NewGuid(); }
         return _id;
     }
     public void Temizle() { _govde = null; _id = Guid.Empty; }
@@ -47,7 +54,8 @@ public sealed class KayitBasinaTekrarAnahtari
     private readonly Dictionary<int, TekrarAnahtari> _kayitlar = new();
     public Guid Al(int kayitId, object govde)
     {
-        if (!_kayitlar.TryGetValue(kayitId, out var anahtar)) _kayitlar[kayitId] = anahtar = new();
+        if (!_kayitlar.TryGetValue(kayitId, out var anahtar))
+            _kayitlar[kayitId] = anahtar = new();
         return anahtar.Al(govde);
     }
     public void Temizle(int kayitId) => _kayitlar.Remove(kayitId);

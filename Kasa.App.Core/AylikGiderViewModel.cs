@@ -48,18 +48,27 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     public bool AySecimiDegisti => _ayVerisi is null || _ayVerisi.Yil != AyTarihi.Year || _ayVerisi.Ay != AyTarihi.Month;
     public Task YukleAsync() => YurutAsync(async n =>
     {
-        VeriHazir = false; SeciliOdeme = null; var ay = AyTarihi;
-        var s = await api.AylikGiderSablonlariAsync(); var k = await finans.KanallarAsync(); var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);
-        if (!Gecerli(n) || ay.Year != AyTarihi.Year || ay.Month != AyTarihi.Month) return;
-        TakipMetni.Doldur(Sablonlar, s.Select(x => new AylikSablonSatiri(x))); TakipMetni.Doldur(Kanallar, k);
+        VeriHazir = false;
+        SeciliOdeme = null;
+        var ay = AyTarihi;
+        var s = await api.AylikGiderSablonlariAsync();
+        var k = await finans.KanallarAsync();
+        var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);
+        if (!Gecerli(n) || ay.Year != AyTarihi.Year || ay.Month != AyTarihi.Month)
+            return;
+        TakipMetni.Doldur(Sablonlar, s.Select(x => new AylikSablonSatiri(x)));
+        TakipMetni.Doldur(Kanallar, k);
         var secili = KanalSecimleri.Where(x => x.Secili).Select(x => x.Veri.Id).ToHashSet();
         TakipMetni.Doldur(KanalSecimleri, k.Select(x => new TakipKanalSecimi(x) { Secili = secili.Contains(x.Id) }));
-        AyiYansit(a); Tamamlandi();
+        AyiYansit(a);
+        Tamamlandi();
     });
     private void AyiYansit(AylikGiderAyDto a)
     {
-        _ayVerisi = a; TakipMetni.Doldur(Kayitlar, a.Kayitlar.Select(x => new AylikGiderSatiri(x)));
-        TakipMetni.Doldur(Iptaller, (a.Iptaller ?? []).Select(x => new AylikGiderIptalSatiri(x))); OnPropertyChanged(nameof(IptalVar));
+        _ayVerisi = a;
+        TakipMetni.Doldur(Kayitlar, a.Kayitlar.Select(x => new AylikGiderSatiri(x)));
+        TakipMetni.Doldur(Iptaller, (a.Iptaller ?? []).Select(x => new AylikGiderIptalSatiri(x)));
+        OnPropertyChanged(nameof(IptalVar));
         AyOzeti = $"{a.Ay:00}.{a.Yil} · Planlanan {Bicim.Tl(a.PlanlananToplam)} ₺ · Ödenen {Bicim.Tl(a.OdenenToplam)} ₺";
         OnPropertyChanged(nameof(AySecimiDegisti));
     }
@@ -67,51 +76,103 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     [RelayCommand] private void Yeni() { _duzenlenen = null; Ad = ""; Tutar = 0; Tur = null; DagilimTuru = null; OdemeGunu = 1; Aktif = true; GecerliAy = new(DateTime.Today.Year, DateTime.Today.Month, 1); Paylar.Clear(); foreach (var k in KanalSecimleri) k.Secili = false; OnPropertyChanged(nameof(SablonBasligi)); }
     public void SablonSec(AylikSablonSatiri satir)
     {
-        if (!EditorMu || Mesgul) return;
-        _duzenlenen = satir.Veri; Ad = _duzenlenen.Ad; Tutar = _duzenlenen.Tutar; Tur = Turler.FirstOrDefault(t => t.Kod == _duzenlenen.Tur); DagilimTuru = DagilimTurleri.FirstOrDefault(t => t.Kod == _duzenlenen.DagilimTuru); OdemeGunu = _duzenlenen.OdemeGunu; Aktif = _duzenlenen.Aktif;
-        var bugun = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1); GecerliAy = (_duzenlenen.GecerliAy > bugun ? _duzenlenen.GecerliAy : bugun).ToDateTime(TimeOnly.MinValue);
-        foreach (var k in KanalSecimleri) k.Secili = _duzenlenen.Dagilimlar.Any(p => p.KanalId == k.Veri.Id);
-        Paylar.Clear(); foreach (var p in _duzenlenen.Dagilimlar.Where(x => x.KanalId is not null)) Paylar.Add(new(Kanallar.ToList()) { Kanal = Kanallar.FirstOrDefault(k => k.Id == p.KanalId), Tutar = p.Tutar });
+        if (!EditorMu || Mesgul)
+            return;
+        _duzenlenen = satir.Veri;
+        Ad = _duzenlenen.Ad;
+        Tutar = _duzenlenen.Tutar;
+        Tur = Turler.FirstOrDefault(t => t.Kod == _duzenlenen.Tur);
+        DagilimTuru = DagilimTurleri.FirstOrDefault(t => t.Kod == _duzenlenen.DagilimTuru);
+        OdemeGunu = _duzenlenen.OdemeGunu;
+        Aktif = _duzenlenen.Aktif;
+        var bugun = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+        GecerliAy = (_duzenlenen.GecerliAy > bugun ? _duzenlenen.GecerliAy : bugun).ToDateTime(TimeOnly.MinValue);
+        foreach (var k in KanalSecimleri)
+            k.Secili = _duzenlenen.Dagilimlar.Any(p => p.KanalId == k.Veri.Id);
+        Paylar.Clear();
+        foreach (var p in _duzenlenen.Dagilimlar.Where(x => x.KanalId is not null))
+            Paylar.Add(new(Kanallar.ToList()) { Kanal = Kanallar.FirstOrDefault(k => k.Id == p.KanalId), Tutar = p.Tutar });
         OnPropertyChanged(nameof(SablonBasligi));
     }
     public void PayEkle() => Paylar.Add(new(Kanallar.ToList()));
-    [RelayCommand] private Task SablonKaydetAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    private Task SablonKaydetAsync() => YurutAsync(async n =>
     {
-        if (!EditorMu) return;
-        if (!ParaAyristirici.GecerliMi(Tutar)) { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (string.IsNullOrWhiteSpace(Ad) || Tur is null || DagilimTuru is null || Tutar <= 0 || OdemeGunu is < 1 or > 31) { Hata = "Ad, tür, pozitif tutar, ödeme günü ve dağılım biçimini seçin."; return; }
+        if (!EditorMu)
+            return;
+        if (!ParaAyristirici.GecerliMi(Tutar))
+        { Hata = ParaAyristirici.GecersizMesaji; return; }
+        if (string.IsNullOrWhiteSpace(Ad) || Tur is null || DagilimTuru is null || Tutar <= 0 || OdemeGunu is < 1 or > 31)
+        { Hata = "Ad, tür, pozitif tutar, ödeme günü ve dağılım biçimini seçin."; return; }
         IReadOnlyList<KanalPayYaz> paylar = DagilimTuru.Kod switch { "Genel" => Array.Empty<KanalPayYaz>(), "Esit" => KanalSecimleri.Where(k => k.Secili).Select(k => new KanalPayYaz(k.Veri.Id, 0)).ToList(), _ => TakipMetni.Paylar(Paylar) };
-        if (DagilimTuru.Kod != "Genel" && paylar.Count == 0) { Hata = "Dağıtılacak kanalları seçin."; return; }
-        if (DagilimTuru.Kod == "Ozel" && paylar.Sum(p => p.Tutar) != Tutar) { Hata = "Kanal paylarının toplamı gider tutarıyla aynı olmalıdır."; return; }
-        var g = new AylikGiderSablonYaz(Guid.Empty, _duzenlenen?.Surum ?? 0, Ad.Trim(), Tur.Kod, Tutar, OdemeGunu, DagilimTuru.Kod, paylar, new(GecerliAy.Year, GecerliAy.Month, 1), Aktif); var id = _duzenlenen?.Id; g = g with { IstekId = _sablonKey.Al(new { id, g }) };
-        var sonuc = await api.AylikGiderSablonKaydetAsync(id, g); if (!Gecerli(n)) return;
-        _sablonKey.Temizle(); var eski = Sablonlar.FirstOrDefault(x => x.Veri.Id == sonuc.Id); if (eski is not null) Sablonlar[Sablonlar.IndexOf(eski)] = new(sonuc); else Sablonlar.Add(new(sonuc));
-        Yeni(); Mesaj = "Şablon kaydedildi; ödeme ve kasa hareketi oluşturulmadı.";
+        if (DagilimTuru.Kod != "Genel" && paylar.Count == 0)
+        { Hata = "Dağıtılacak kanalları seçin."; return; }
+        if (DagilimTuru.Kod == "Ozel" && paylar.Sum(p => p.Tutar) != Tutar)
+        { Hata = "Kanal paylarının toplamı gider tutarıyla aynı olmalıdır."; return; }
+        var g = new AylikGiderSablonYaz(Guid.Empty, _duzenlenen?.Surum ?? 0, Ad.Trim(), Tur.Kod, Tutar, OdemeGunu, DagilimTuru.Kod, paylar, new(GecerliAy.Year, GecerliAy.Month, 1), Aktif);
+        var id = _duzenlenen?.Id;
+        g = g with { IstekId = _sablonKey.Al(new { id, g }) };
+        var sonuc = await api.AylikGiderSablonKaydetAsync(id, g);
+        if (!Gecerli(n))
+            return;
+        _sablonKey.Temizle();
+        var eski = Sablonlar.FirstOrDefault(x => x.Veri.Id == sonuc.Id);
+        if (eski is not null)
+            Sablonlar[Sablonlar.IndexOf(eski)] = new(sonuc);
+        else
+            Sablonlar.Add(new(sonuc));
+        Yeni();
+        Mesaj = "Şablon kaydedildi; ödeme ve kasa hareketi oluşturulmadı.";
         VeriHazir = false;
-        var ay = AyTarihi; var a = await api.AylikGiderlerAsync(ay.Year, ay.Month); if (Gecerli(n) && ay == AyTarihi) { SeciliOdeme = null; AyiYansit(a); Tamamlandi(); }
+        var ay = AyTarihi;
+        var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);
+        if (Gecerli(n) && ay == AyTarihi)
+        { SeciliOdeme = null; AyiYansit(a); Tamamlandi(); }
     });
     public void OdemeSec(AylikGiderSatiri satir) { if (Mesgul || !EditorMu || AySecimiDegisti || satir.Veri.Durum == "Odendi") return; SeciliOdeme = satir; OdemeTarihi = DateTime.Today; OdemeNotu = ""; OdemeOnay = false; }
-    [RelayCommand] private Task OdeAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    private Task OdeAsync() => YurutAsync(async n =>
     {
-        if (!EditorMu || SeciliOdeme is null || _ayVerisi is null) return;
-        if (AySecimiDegisti || !OdemeOnay) { Hata = "Ayı yenileyin ve gösterilen ödeme tutarı ile kanal etkisini onaylayın."; return; }
-        var secili = SeciliOdeme.Veri; var ay = _ayVerisi;
-        var g = new AylikGiderOdemeYaz(Guid.Empty, secili.SablonSurum, ay.Yil, ay.Ay, DateOnly.FromDateTime(OdemeTarihi), OdemeNotu.Trim()); g = g with { IstekId = _odemeKey.Al(new { secili.SablonId, g }) };
-        var s = await api.AylikGiderOdeAsync(secili.SablonId, g); if (!Gecerli(n)) return;
-        _odemeKey.Temizle(); SeciliOdeme = null; Mesaj = "Nakit / havale ödemesi kaydedildi. Kasa etkisi bir kez işlendi.";
+        if (!EditorMu || SeciliOdeme is null || _ayVerisi is null)
+            return;
+        if (AySecimiDegisti || !OdemeOnay)
+        { Hata = "Ayı yenileyin ve gösterilen ödeme tutarı ile kanal etkisini onaylayın."; return; }
+        var secili = SeciliOdeme.Veri;
+        var ay = _ayVerisi;
+        var g = new AylikGiderOdemeYaz(Guid.Empty, secili.SablonSurum, ay.Yil, ay.Ay, DateOnly.FromDateTime(OdemeTarihi), OdemeNotu.Trim());
+        g = g with { IstekId = _odemeKey.Al(new { secili.SablonId, g }) };
+        var s = await api.AylikGiderOdeAsync(secili.SablonId, g);
+        if (!Gecerli(n))
+            return;
+        _odemeKey.Temizle();
+        SeciliOdeme = null;
+        Mesaj = "Nakit / havale ödemesi kaydedildi. Kasa etkisi bir kez işlendi.";
         VeriHazir = false;
-        var a = await api.AylikGiderlerAsync(ay.Yil, ay.Ay); if (Gecerli(n) && ay.Yil == AyTarihi.Year && ay.Ay == AyTarihi.Month) { AyiYansit(a); Tamamlandi(); }
+        var a = await api.AylikGiderlerAsync(ay.Yil, ay.Ay);
+        if (Gecerli(n) && ay.Yil == AyTarihi.Year && ay.Ay == AyTarihi.Month)
+        { AyiYansit(a); Tamamlandi(); }
     });
     public Task IptalAsync(AylikGiderSatiri satir, string aciklama, int onayOturumu) => YurutAsync(async n =>
     {
-        if (!EditorMu || !Gecerli(onayOturumu) || satir.Veri.OdemeId is not { } id) return;
-        if (!VeriHazir || AySecimiDegisti || !Kayitlar.Any(x => TakipMetni.Ayni(x.Veri, satir.Veri))) { Hata = "Gösterilen aylık gider değişti. Listeyi yenileyip ödemeyi yeniden seçin."; return; }
-        if (string.IsNullOrWhiteSpace(aciklama)) { Hata = "İptal gerekçesi yazın."; return; }
-        var g = new AylikGiderIptalYaz(Guid.Empty, aciklama.Trim()); g = g with { IstekId = _iptalKey.Al(new { id, g }) };
-        await api.AylikGiderIptalAsync(id, g); if (!Gecerli(n)) return;
-        _iptalKey.Temizle(); SeciliOdeme = null; Mesaj = "Ödeme iptal edildi; gerekçesiyle iptal edilen ödemeler listesinde görünür.";
+        if (!EditorMu || !Gecerli(onayOturumu) || satir.Veri.OdemeId is not { } id)
+            return;
+        if (!VeriHazir || AySecimiDegisti || !Kayitlar.Any(x => TakipMetni.Ayni(x.Veri, satir.Veri)))
+        { Hata = "Gösterilen aylık gider değişti. Listeyi yenileyip ödemeyi yeniden seçin."; return; }
+        if (string.IsNullOrWhiteSpace(aciklama))
+        { Hata = "İptal gerekçesi yazın."; return; }
+        var g = new AylikGiderIptalYaz(Guid.Empty, aciklama.Trim());
+        g = g with { IstekId = _iptalKey.Al(new { id, g }) };
+        await api.AylikGiderIptalAsync(id, g);
+        if (!Gecerli(n))
+            return;
+        _iptalKey.Temizle();
+        SeciliOdeme = null;
+        Mesaj = "Ödeme iptal edildi; gerekçesiyle iptal edilen ödemeler listesinde görünür.";
         VeriHazir = false;
-        var ay = AyTarihi; var a = await api.AylikGiderlerAsync(ay.Year, ay.Month); if (Gecerli(n) && ay == AyTarihi) { AyiYansit(a); Tamamlandi(); }
+        var ay = AyTarihi;
+        var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);
+        if (Gecerli(n) && ay == AyTarihi)
+        { AyiYansit(a); Tamamlandi(); }
     });
     protected override void OturumTemizle() { _ayVerisi = null; Kayitlar.Clear(); Iptaller.Clear(); OnPropertyChanged(nameof(IptalVar)); Sablonlar.Clear(); Kanallar.Clear(); KanalSecimleri.Clear(); SeciliOdeme = null; AyOzeti = OdemeNotu = ""; Yeni(); foreach (var k in new[] { _sablonKey, _odemeKey, _iptalKey }) k.Temizle(); }
 }

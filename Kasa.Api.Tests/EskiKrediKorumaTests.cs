@@ -34,7 +34,8 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Gecmis_etkili_eski_kredi_silinemez_rapor_ve_liste_degismez()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
         // Çekim genel kasaya girdi, 15 Temmuz/Ağustos/Eylül taksitleri düştü.
         Assert.Equal(100_000m + 120_000m - 3 * 11_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
@@ -50,18 +51,24 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Bugun_cekilen_eski_kredi_gecmis_etkili_sayilir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gecmis with { CekimTarihi = Bugun });
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/krediler/{kredi.Id}")).StatusCode);
         Assert.Single(await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler") ?? []);
     }
 
     [Theory]
-    [InlineData("cekilenTutar")] [InlineData("cekimTarihi")] [InlineData("taksitSayisi")]
-    [InlineData("aylikOdeme")] [InlineData("odemeGunu")] [InlineData("kanal")]
+    [InlineData("cekilenTutar")]
+    [InlineData("cekimTarihi")]
+    [InlineData("taksitSayisi")]
+    [InlineData("aylikOdeme")]
+    [InlineData("odemeGunu")]
+    [InlineData("kanal")]
     public async Task Gecmis_etkili_eski_kredinin_mali_alani_degistirilemez(string alan)
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
         var once = await Raporlar(c);
         var degisik = alan switch
@@ -87,7 +94,8 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Gecmis_etkili_eski_kredinin_yalniz_adi_duzeltilebilir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
         var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
 
@@ -102,7 +110,8 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Gecersiz_duzeltme_once_alan_hatasi_verir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { OdemeGunu = 0 })).StatusCode);
     }
@@ -110,7 +119,8 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Gecmisi_olmayan_eski_kredi_duzeltilir_ve_silinir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gelecek);
         var once = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa;
         Assert.Equal(100_000m, once);
@@ -127,7 +137,8 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Gecmisi_olmayan_eski_kredi_gecmis_tarihe_tasinamaz()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = LegacyFinanceSeed.Kredi(f, Gelecek);
         var once = await Raporlar(c);
 

@@ -86,7 +86,11 @@ public class OlusturmaTekrarTests
         var istekId = Guid.NewGuid();
         object Govde(string tedarikci) => new
         {
-            surum = 0, tarih = Bugun, tedarikci, not = (string?)null, istekId,
+            surum = 0,
+            tarih = Bugun,
+            tedarikci,
+            not = (string?)null,
+            istekId,
             kalemler = new[] { new { aciklama = "Mal", tutar = 100m, dagilimlar = new[] { new { kanalId = 1, tutar = 100m } } } },
         };
 
@@ -106,7 +110,8 @@ public class OlusturmaTekrarTests
         Assert.Equal(1, Say(f, db => db.Alislar.Where(a => a.Tedarikci == "Tekrar Ltd")));
 
         // Editör istek kimliği göndermezse (eski istemci) her istek yeni taslaktır.
-        for (var i = 0; i < 2; i++) await AlisTestYardimcisi.Taslak(editor, "Eski editör");
+        for (var i = 0; i < 2; i++)
+            await AlisTestYardimcisi.Taslak(editor, "Eski editör");
         Assert.Equal(2, Say(f, db => db.Alislar.Where(a => a.Tedarikci == "Eski editör")));
     }
 

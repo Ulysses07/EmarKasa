@@ -29,20 +29,28 @@ public static partial class ParaAyristirici
 
     public static bool Coz(string? metin, out decimal tutar, out string? hata)
     {
-        tutar = 0m; hata = null;
+        tutar = 0m;
+        hata = null;
         var temiz = Temizle(metin);
-        if (temiz.Length == 0) return true;
-        if (!Kalip().IsMatch(temiz)) { hata = BicimHatasi; return false; }
+        if (temiz.Length == 0)
+            return true;
+        if (!Kalip().IsMatch(temiz))
+        { hata = BicimHatasi; return false; }
         if (!decimal.TryParse(temiz.Replace(',', '.'), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var d)
-            || Math.Abs(d) > EnBuyuk) { hata = SinirHatasi; return false; }
-        tutar = d; return true;
+            || Math.Abs(d) > EnBuyuk)
+        { hata = SinirHatasi; return false; }
+        tutar = d;
+        return true;
     }
 
     private static string Temizle(string? metin)
     {
-        if (string.IsNullOrEmpty(metin)) return "";
+        if (string.IsNullOrEmpty(metin))
+            return "";
         var sb = new StringBuilder(metin.Length);
-        foreach (var c in metin) if (!char.IsWhiteSpace(c) && c != '₺') sb.Append(c);
+        foreach (var c in metin)
+            if (!char.IsWhiteSpace(c) && c != '₺')
+                sb.Append(c);
         var s = sb.ToString();
         return s.EndsWith("TL", StringComparison.OrdinalIgnoreCase) ? s[..^2] : s;
     }
@@ -61,6 +69,7 @@ public static partial class ParaAyristirici
     /// (TemelViewModel bu mesajı olduğu gibi gösterir).</summary>
     public static void Dogrula(params decimal[] tutarlar)
     {
-        if (!HepsiGecerli(tutarlar)) throw new DogrulamaHatasi(GecersizMesaji);
+        if (!HepsiGecerli(tutarlar))
+            throw new DogrulamaHatasi(GecersizMesaji);
     }
 }

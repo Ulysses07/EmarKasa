@@ -31,7 +31,8 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
         Dene(db, hatalar, "Kart", 0, "Kart hareketleri eşitlemesi", () =>
         {
             using var yazma = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
-            FinansTakipServisi.Sync(db); yazma?.Commit();
+            FinansTakipServisi.Sync(db);
+            yazma?.Commit();
         });
         using var okuma = db.OkumaBaslat();
         // Hesaplanamayan kart bağlamda yarım sonuç bırakmaz (paylar ve etkiler yalnız başarıyla hesaplanınca saklanır).
@@ -60,7 +61,8 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
 
     private static void Dene(KasaDbContext db, ICollection<BildirimKaynakHatasi> hatalar, string kaynak, int id, string ad, Action hesap)
     {
-        try { hesap(); }
+        try
+        { hesap(); }
         catch (Exception e) when (!BildirimHatalari.Gecici(e))
         {
             // Yarım kalan izlenen değişiklikler sonraki SaveChanges ile yazılmasın.
@@ -101,9 +103,12 @@ public static class BildirimTakvimi
         foreach (var e in events)
         {
             var isCard = e.Kaynak == "Kart";
-            if (e.Tur == "Kesim" && e.Tarih != today) continue;
-            if (e.Tur != "Kesim" && e.Tarih != today && e.Tarih != today.AddDays(3)) continue;
-            if (e.Tur != "Kesim" && e.Tutar <= 0) continue;
+            if (e.Tur == "Kesim" && e.Tarih != today)
+                continue;
+            if (e.Tur != "Kesim" && e.Tarih != today && e.Tarih != today.AddDays(3))
+                continue;
+            if (e.Tur != "Kesim" && e.Tutar <= 0)
+                continue;
             var offset = e.Tarih.DayNumber - today.DayNumber;
             var key = $"{e.Kaynak}:{e.KaynakId}:{e.KalemId}:{e.Tur}:{e.Tarih:yyyy-MM-dd}:{offset}";
             var amount = e.Tutar.ToString("N2", CultureInfo.GetCultureInfo("tr-TR")) + " TL";
@@ -160,11 +165,14 @@ public sealed class BildirimSagligi
         var anahtarlar = hatalar.Select(h => (h.Kaynak, h.KaynakId, h.Hata.GetType().FullName ?? h.Hata.GetType().Name)).ToList();
         lock (gate)
         {
-            foreach (var eski in kaynakHatalari.Keys.Except(anahtarlar).ToList()) kaynakHatalari.Remove(eski);
+            foreach (var eski in kaynakHatalari.Keys.Except(anahtarlar).ToList())
+                kaynakHatalari.Remove(eski);
             return anahtarlar.Select(a =>
             {
-                if (kaynakHatalari.TryGetValue(a, out var son) && an - son < aralik) return false;
-                kaynakHatalari[a] = an; return true;
+                if (kaynakHatalari.TryGetValue(a, out var son) && an - son < aralik)
+                    return false;
+                kaynakHatalari[a] = an;
+                return true;
             }).ToList();
         }
     }
@@ -192,7 +200,8 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         var hatalar = new List<BildirimKaynakHatasi>();
         var olaylar = sources.Oku(db, today, hatalar);
         IReadOnlyList<BildirimTaslagi> esik = [];
-        try { esik = KasaEsikServisi.Oku(db, today, yeniUyariEtkin); }
+        try
+        { esik = KasaEsikServisi.Oku(db, today, yeniUyariEtkin); }
         catch (Exception e) when (!BildirimHatalari.Gecici(e))
         {
             // Yarım kalan alarm durumu sonraki SaveChanges ile yazılmasın.
@@ -216,7 +225,8 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
     private static Dictionary<string, BildirimTaslagi> Sozluk(IEnumerable<BildirimTaslagi> taslaklar)
     {
         var result = new Dictionary<string, BildirimTaslagi>(StringComparer.Ordinal);
-        foreach (var t in taslaklar) result.TryAdd(t.Anahtar, t);
+        foreach (var t in taslaklar)
+            result.TryAdd(t.Anahtar, t);
         return result;
     }
 
@@ -231,14 +241,17 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
     private async Task<(DateOnly Gun, IReadOnlyList<BildirimTaslagi> Taslaklar)> YenileIc(CancellationToken ct)
     {
         var now = BildirimTakvimi.Yerel(clock.GetUtcNow());
-        var today = DateOnly.FromDateTime(now); var settings = Ayarlar();
+        var today = DateOnly.FromDateTime(now);
+        var settings = Ayarlar();
         var drafts = Taslaklar(today, settings.Etkin);
         var keys = drafts.Select(x => x.Anahtar).ToHashSet(StringComparer.Ordinal);
         // A changed due date, cancellation or full payment cancels any unsent reminder immediately.
         var todays = await db.Set<BildirimEntity>().Where(x => x.Tarih == today).ToListAsync(ct);
-        foreach (var row in todays) row.Iptal = !keys.Contains(row.OlayAnahtari);
+        foreach (var row in todays)
+            row.Iptal = !keys.Contains(row.OlayAnahtari);
         await db.SaveChangesAsync(ct);
-        if (!settings.Etkin || now.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0)) return (today, drafts);
+        if (!settings.Etkin || now.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0))
+            return (today, drafts);
         foreach (var d in drafts)
         {
             await db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -259,7 +272,8 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         // Tur boyunca tek bağlantı: PRAGMA data_version yalnız başka bağlantıların commit'leriyle değişir ve
         // "tur hesabından sonra veri değişti mi" sorusunu teslim başına tam hesap yapmadan yanıtlar.
         await db.Database.OpenConnectionAsync(ct);
-        try { await GonderIc(ct); }
+        try
+        { await GonderIc(ct); }
         finally { await db.Database.CloseConnectionAsync(); }
     }
 
@@ -276,10 +290,14 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         var version = await VeriSurumu(ct);
         var (day, computed) = await YenileIc(ct);
         var settings = Ayarlar();
-        if (!settings.Etkin) return;
-        var instant = clock.GetUtcNow(); var queryAt = instant.ToUnixTimeSeconds();
-        var local = BildirimTakvimi.Yerel(instant); var today = DateOnly.FromDateTime(local);
-        if (today != day || local.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0)) return;
+        if (!settings.Etkin)
+            return;
+        var instant = clock.GetUtcNow();
+        var queryAt = instant.ToUnixTimeSeconds();
+        var local = BildirimTakvimi.Yerel(instant);
+        var today = DateOnly.FromDateTime(local);
+        if (today != day || local.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0))
+            return;
         var drafts = Sozluk(computed);
         var stamp = OturumDamgasi.Uret("editor", cfg, db);
         var devices = await db.Set<PushAbonelikEntity>().Where(x => x.Etkin).AsNoTracking().ToListAsync(ct);
@@ -288,8 +306,8 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         devices = devices.Where(x => OturumDamgasi.Esit(x.OturumDamgasi, stamp)).ToList();
         var notifications = await db.Set<BildirimEntity>().Where(x => x.Tarih == today && !x.Iptal).AsNoTracking().ToListAsync(ct);
         foreach (var n in notifications)
-        foreach (var s in devices)
-            await db.Database.ExecuteSqlInterpolatedAsync($"""
+            foreach (var s in devices)
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT OR IGNORE INTO BildirimTeslimler (BildirimId,AbonelikId,Deneme,SonrakiDeneme,KilitBitis,Iptal)
                 VALUES ({n.Id},{s.Id},0,0,0,0)
                 """, ct);
@@ -303,9 +321,11 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         foreach (var d in deliveries)
         {
             ct.ThrowIfCancellationRequested();
-            var attempt = clock.GetUtcNow(); var now = attempt.ToUnixTimeSeconds();
+            var attempt = clock.GetUtcNow();
+            var now = attempt.ToUnixTimeSeconds();
             var localAttempt = BildirimTakvimi.Yerel(attempt);
-            if (DateOnly.FromDateTime(localAttempt) != today) break;
+            if (DateOnly.FromDateTime(localAttempt) != today)
+                break;
             var ttl = Math.Max(1, (int)(localAttempt.Date.AddDays(1) - localAttempt).TotalSeconds);
             var token = Guid.NewGuid().ToString("N");
             // Database lease gives multiple workers and process restarts the same single delivery record.
@@ -313,7 +333,8 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
                 && !x.Iptal && x.KilitBitis <= now && x.SonrakiDeneme <= now && x.Deneme < 5)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Kilit, token).SetProperty(x => x.KilitBitis, now + 120)
                     .SetProperty(x => x.Deneme, x => x.Deneme + 1), ct);
-            if (claimed != 1) continue;
+            if (claimed != 1)
+                continue;
             var n = notifications.Single(x => x.Id == d.BildirimId);
             var subscription = await db.Set<PushAbonelikEntity>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == d.AbonelikId, ct);
             // Ucuz denetimler önce: kapanmış, silinmiş ya da eski oturumlu aboneliğin teslimi hesap yapılmadan kalıcı kapanır.
@@ -347,7 +368,8 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
                 continue;
             }
             PushSonuc result;
-            try { result = await sender.Gonder(subscription, new(n.Id, current.Baslik, current.Mesaj, current.Hedef, $"kasa-{n.Id}"), ttl, ct); }
+            try
+            { result = await sender.Gonder(subscription, new(n.Id, current.Baslik, current.Mesaj, current.Hedef, $"kasa-{n.Id}"), ttl, ct); }
             catch (Exception e) when (!ct.IsCancellationRequested)
             {
                 // Bir cihazın beklenmeyen hatası ötekileri durdurmaz; geçici hata gibi yeniden denenir.
@@ -405,12 +427,15 @@ public sealed class BildirimWorker(IServiceScopeFactory scopes, IConfiguration c
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!(cfg.GetValue<bool?>("Bildirim:WorkerEtkin") ?? env.IsProduction())) return;
+        if (!(cfg.GetValue<bool?>("Bildirim:WorkerEtkin") ?? env.IsProduction()))
+            return;
         while (!stoppingToken.IsCancellationRequested)
         {
-            try { await Tur(stoppingToken); }
+            try
+            { await Tur(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); }
+            try
+            { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
     }
@@ -439,6 +464,7 @@ public sealed class BildirimWorker(IServiceScopeFactory scopes, IConfiguration c
         }
         if (ardisikHata > 0)
             logger.LogInformation("Bildirim denetimi {Ardisik} ardışık hatadan sonra yeniden tamamlandı (iz {Iz}).", ardisikHata, iz);
-        ardisikHata = 0; saglik.TurBasarili();
+        ardisikHata = 0;
+        saglik.TurBasarili();
     }
 }

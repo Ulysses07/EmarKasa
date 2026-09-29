@@ -78,10 +78,12 @@ public class NginxAyarTests
 
         public Konum Sec(string yol)
         {
-            if (Konumlar.FirstOrDefault(k => k.Tur == "=" && k.Desen == yol) is { } tam) return tam;
+            if (Konumlar.FirstOrDefault(k => k.Tur == "=" && k.Desen == yol) is { } tam)
+                return tam;
             var onek = Konumlar.Where(k => k.Tur is "" or "^~" && yol.StartsWith(k.Desen, StringComparison.Ordinal))
                 .OrderByDescending(k => k.Desen.Length).FirstOrDefault();
-            if (onek?.Tur == "^~") return onek;
+            if (onek?.Tur == "^~")
+                return onek;
             return Konumlar.FirstOrDefault(k => k.Tur is "~" or "~*" && Regex.IsMatch(yol, k.Desen,
                     k.Tur == "~*" ? RegexOptions.IgnoreCase : RegexOptions.None))
                 ?? onek ?? throw new Xunit.Sdk.XunitException($"{yol} için location yok.");
@@ -95,7 +97,8 @@ public class NginxAyarTests
             .Select(s => s.Split('#')[0]));
         foreach (var blok in Bloklar(metin, "server"))
         {
-            if (!Regex.IsMatch(blok, @"(^|\n)\s*listen\s+443\b")) continue;
+            if (!Regex.IsMatch(blok, @"(^|\n)\s*listen\s+443\b"))
+                continue;
             var konumlar = new List<Konum>();
             var govde = blok;
             foreach (Match m in Regex.Matches(blok, @"location\s+(?<tur>=|\^~|~\*|~)?\s*(?<desen>\S+)\s*\{(?<ic>[^{}]*)\}"))
@@ -112,8 +115,11 @@ public class NginxAyarTests
     {
         foreach (Match m in Regex.Matches(metin, $@"(^|\n)\s*{ad}\s*\{{"))
         {
-            var bas = m.Index + m.Length; var derinlik = 1; var i = bas;
-            for (; i < metin.Length && derinlik > 0; i++) derinlik += metin[i] == '{' ? 1 : metin[i] == '}' ? -1 : 0;
+            var bas = m.Index + m.Length;
+            var derinlik = 1;
+            var i = bas;
+            for (; i < metin.Length && derinlik > 0; i++)
+                derinlik += metin[i] == '{' ? 1 : metin[i] == '}' ? -1 : 0;
             yield return metin[bas..(i - 1)];
         }
     }
@@ -138,15 +144,19 @@ public class NginxAyarTests
         var n = int.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
         return m.Groups["b"].Value switch
         {
-            "ms" => TimeSpan.FromMilliseconds(n), "m" => TimeSpan.FromMinutes(n), "h" => TimeSpan.FromHours(n),
-            "d" => TimeSpan.FromDays(n), _ => TimeSpan.FromSeconds(n)
+            "ms" => TimeSpan.FromMilliseconds(n),
+            "m" => TimeSpan.FromMinutes(n),
+            "h" => TimeSpan.FromHours(n),
+            "d" => TimeSpan.FromDays(n),
+            _ => TimeSpan.FromSeconds(n)
         };
     }
 
     private static string DepoKoku()
     {
         for (var dizin = new DirectoryInfo(AppContext.BaseDirectory); dizin is not null; dizin = dizin.Parent)
-            if (File.Exists(Path.Combine(dizin.FullName, "Kasa.slnx"))) return dizin.FullName;
+            if (File.Exists(Path.Combine(dizin.FullName, "Kasa.slnx")))
+                return dizin.FullName;
         throw new DirectoryNotFoundException("Depo kökü (Kasa.slnx) bulunamadı.");
     }
 }

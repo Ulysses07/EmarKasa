@@ -30,7 +30,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Gider_ekleme_degistirme_ve_silme_onceki_yeni_deger_zaman_ve_aktorle_yazilir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var gider = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Toptancı", 12500m, "MEZAT", GiderTipi.Cari, "Fatura 12"));
         (await c.PutAsJsonAsync($"/api/islemler/{gider.Id}", new IslemYazDto(Today, "Toptancı", 13000m, "MEZAT", GiderTipi.Cari, "Fatura 12"))).EnsureSuccessStatusCode();
         (await c.DeleteAsync($"/api/islemler/{gider.Id}")).EnsureSuccessStatusCode();
@@ -39,25 +40,32 @@ public class DenetimIziTests
         Assert.Equal(["Ekle", "Degistir", "Sil"], olaylar.Select(o => o.Tur));
         Assert.All(olaylar, o =>
         {
-            Assert.Equal("editor", o.AktorRol); Assert.Null(o.AktorId); Assert.Equal(SabitAn, o.ZamanUtc);
-            Assert.False(string.IsNullOrEmpty(o.TraceId)); Assert.Null(o.KilitAcmaOlayiId);
+            Assert.Equal("editor", o.AktorRol);
+            Assert.Null(o.AktorId);
+            Assert.Equal(SabitAn, o.ZamanUtc);
+            Assert.False(string.IsNullOrEmpty(o.TraceId));
+            Assert.Null(o.KilitAcmaOlayiId);
         });
         var eklenen = J(olaylar[0].YeniJson);
         Assert.Null(olaylar[0].OncekiJson);
-        Assert.Equal(12500m, eklenen["TutarTl"]!.GetValue<decimal>()); Assert.Equal("Toptancı", (string?)eklenen["Cari"]); Assert.Equal("Cari", (string?)eklenen["Tip"]);
+        Assert.Equal(12500m, eklenen["TutarTl"]!.GetValue<decimal>());
+        Assert.Equal("Toptancı", (string?)eklenen["Cari"]);
+        Assert.Equal("Cari", (string?)eklenen["Tip"]);
         // Değişiklik yalnız değişen alanı iki tarafta taşır.
         Assert.Equal("""{"TutarTl":12500}""", olaylar[1].OncekiJson);
         Assert.Equal("""{"TutarTl":13000}""", olaylar[1].YeniJson);
         var silinen = J(olaylar[2].OncekiJson);
         Assert.Null(olaylar[2].YeniJson);
-        Assert.Equal(13000m, silinen["TutarTl"]!.GetValue<decimal>()); Assert.Equal("Fatura 12", (string?)silinen["Not"]);
+        Assert.Equal(13000m, silinen["TutarTl"]!.GetValue<decimal>());
+        Assert.Equal("Fatura 12", (string?)silinen["Not"]);
         Assert.Equal(Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), (string?)silinen["Tarih"]);
     }
 
     [Fact]
     public async Task Ham_sql_gelir_upserti_onceki_ve_yeni_tutari_olay_olarak_yazar_degismeyen_tekrar_olay_uretmez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Month, "PERAKENDE", 48000m))).EnsureSuccessStatusCode();
         var gelen = (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Month, "PERAKENDE", 44000m)));
         gelen.EnsureSuccessStatusCode();
@@ -75,7 +83,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Genel_kasa_acilis_devri_ve_kanal_degisikligi_yazilir_kanal_adi_esitlemesi_ayrica_olay_uretmez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f); // Editor(): açılış devri 0 → 1000
+        await using var f = Fabrika();
+        using var c = await Editor(f); // Editor(): açılış devri 0 → 1000
         var ayar = Assert.Single(Olaylar(f, "Ayar"), o => o.Tur == "Degistir");
         Assert.Equal(0m, J(ayar.OncekiJson)["KasaAcilisDevri"]!.GetValue<decimal>());
         Assert.Equal(1000m, J(ayar.YeniJson)["KasaAcilisDevri"]!.GetValue<decimal>());
@@ -85,7 +94,8 @@ public class DenetimIziTests
         (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT MERKEZ", AcilisDevri: 250m))).EnsureSuccessStatusCode();
 
         var kanal = Assert.Single(Olaylar(f, "Kanal", 1), o => o.Tur == "Degistir");
-        Assert.Equal("MEZAT", (string?)J(kanal.OncekiJson)["Ad"]); Assert.Equal("MEZAT MERKEZ", (string?)J(kanal.YeniJson)["Ad"]);
+        Assert.Equal("MEZAT", (string?)J(kanal.OncekiJson)["Ad"]);
+        Assert.Equal("MEZAT MERKEZ", (string?)J(kanal.YeniJson)["Ad"]);
         Assert.Equal(250m, J(kanal.YeniJson)["AcilisDevri"]!.GetValue<decimal>());
         // Geçmiş gider/gelir satırlarındaki kanal metni kanal kimliğiyle eşitlenir; bu eşitleme ayrı olay değildir.
         Assert.Equal(["Ekle"], Olaylar(f, "Islem", gider.Id).Select(o => o.Tur));
@@ -95,7 +105,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Olay_ana_islemle_ayni_transactionda_yazilir_biri_geri_alinirsa_digeri_de_kalmaz()
     {
-        await using var f = Fabrika(); _ = f.Services;
+        await using var f = Fabrika();
+        _ = f.Services;
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         using (db.Database.BeginTransaction())
@@ -127,7 +138,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Olay_yazilamazsa_izleyici_veritabaniyla_tutarli_kalir_yeniden_kayit_olaylariyla_yazar()
     {
-        await using var f = Fabrika(); _ = f.Services;
+        await using var f = Fabrika();
+        _ = f.Services;
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var silinecek = new IslemEntity { Tarih = Today, Cari = "Silinecek", TutarTl = 5m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
@@ -141,16 +153,21 @@ public class DenetimIziTests
             var eklenen = new IslemEntity { Tarih = Today, Cari = eszamansiz ? "Eşzamansız" : "Eşzamanlı", TutarTl = 10m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari };
             db.Islemler.Add(eklenen);
             kanal.AcilisDevri += 1m;
-            if (!eszamansiz) db.Islemler.Remove(silinecek);
+            if (!eszamansiz)
+                db.Islemler.Remove(silinecek);
             var hata = eszamansiz ? await Assert.ThrowsAnyAsync<Exception>(() => db.SaveChangesAsync()) : Assert.ThrowsAny<Exception>(() => db.SaveChanges());
             Assert.Contains("olay yazilamadi", hata.ToString());
             Assert.Equal(EntityState.Added, db.Entry(eklenen).State);
             Assert.Equal(EntityState.Modified, db.Entry(kanal).State);
-            if (!eszamansiz) Assert.Equal(EntityState.Deleted, db.Entry(silinecek).State);
+            if (!eszamansiz)
+                Assert.Equal(EntityState.Deleted, db.Entry(silinecek).State);
             Assert.False(db.Islemler.AsNoTracking().Any(i => i.Cari == eklenen.Cari));
 
             db.Database.ExecuteSqlRaw("DROP TRIGGER TR_Test_Olay_Reddi;");
-            if (eszamansiz) await db.SaveChangesAsync(); else db.SaveChanges();
+            if (eszamansiz)
+                await db.SaveChangesAsync();
+            else
+                db.SaveChanges();
             Assert.Equal(EntityState.Unchanged, db.Entry(eklenen).State);
             Assert.Equal(EntityState.Unchanged, db.Entry(kanal).State);
             Assert.True(db.Islemler.AsNoTracking().Any(i => i.Id == eklenen.Id && i.Cari == eklenen.Cari));
@@ -169,7 +186,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Cekirdek_uclarda_istege_bagli_gerekce_basliktan_olaya_yazilir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var gider = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Toptancı", 12500m, "MEZAT", GiderTipi.Cari));
         async Task Gerekceyle(HttpMethod metot, string yol, object? govde, string gerekce)
         {
@@ -235,14 +253,16 @@ public class DenetimIziTests
         finally
         {
             SqliteConnection.ClearAllPools();
-            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(yol + ek);
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(yol + ek);
         }
     }
 
     [Fact]
     public async Task Olay_satiri_ham_sql_ile_degistirilemez_ve_silinemez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Kalıcı", 1m, "MEZAT", GiderTipi.Cari));
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -255,7 +275,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Ay_kilidi_acilisi_olaydir_penceresine_dusen_degisiklikler_acilisa_baglanir_yeniden_kilitte_pencere_kapanir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var fatura = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(GecenAy.AddDays(4), "Ağustos faturası", 1000m, "MEZAT", GiderTipi.Cari));
         var nakit = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(GecenAy.AddDays(9), "Nakit gider", 3000m, "MEZAT", GiderTipi.Cari));
         var kilit = await Kilit(c, "kapat", "Ağustos tamamlandı");
@@ -295,7 +316,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Takip_uclarinin_zorunlu_gerekcesi_atilmaz_onceki_durum_ve_istek_kimligiyle_okunur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "İş kartı", 20000m, 5, 25, GecenAy, 0m, []));
         kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Today, 15000m));
         var odemeId = kart.Odemeler.Single().Id;
@@ -311,7 +333,8 @@ public class DenetimIziTests
         var iptal = Assert.Single(Olaylar(f, "TakipKartOdeme", odemeId), o => o.Tur == "Degistir");
         Assert.Equal("bankadan iade geldi", iptal.Gerekce);
         Assert.Equal(istek, iptal.IstekId);
-        Assert.Equal("""{"Iptal":false}""", iptal.OncekiJson); Assert.Equal("""{"Iptal":true}""", iptal.YeniJson);
+        Assert.Equal("""{"Iptal":false}""", iptal.OncekiJson);
+        Assert.Equal("""{"Iptal":true}""", iptal.YeniJson);
         var vade = Assert.Single(Olaylar(f, "TakipEkstre", ekstre.Id), o => o.Tur == "Degistir");
         Assert.Equal("Banka son ödemeyi öteledi", vade.Gerekce);
         Assert.Equal(ekstre.SonOdemeTarihi.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), (string?)J(vade.OncekiJson)["SonOdemeTarihi"]);
@@ -327,7 +350,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Degisiklik_gecmisi_yalniz_editore_acik_varlik_ve_sayfa_suzgecleri_calisir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var gider = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Süzgeç", 1m, "MEZAT", GiderTipi.Cari));
         for (var i = 2; i <= 4; i++)
             (await c.PutAsJsonAsync($"/api/islemler/{gider.Id}", new IslemYazDto(Today, "Süzgeç", i, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
@@ -352,7 +376,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Alis_iade_gerekcesi_notsuz_onayda_kaybolmaz_ve_gecmis_ay_kanal_etkisi_iz_ve_yanitta_gorunur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, GecenAy, "Tedarikçi", null, [new("Mal", 30000m, [new(1, 30000m)])]));
         (alis, _) = await Yanit<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), GecenAy.AddDays(4), 10000m));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
@@ -390,7 +415,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Gecmis_aydaki_gideri_alisa_baglamak_iz_ve_yanit_uretir_bu_ayki_onay_uretmez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var gider = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(GecenAy.AddDays(2), "Tedarikçi", 5000m, "MEZAT", GiderTipi.Cari));
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, GecenAy, "Tedarikçi", null, [new("Mal", 5000m, [new(2, 5000m)])]));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
@@ -416,7 +442,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Belge_aylik_gider_ve_kasa_kontrolu_olaylari_icerik_yazmadan_gerekce_ve_istek_kimligiyle_yazilir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Belgeli", null, [new("Mal", 100m, [new(1, 100m)])]));
         using var form = new MultipartFormDataContent();
         form.Add(new ByteArrayContent("%PDF-1.7 gizli fatura"u8.ToArray()), "dosya", "fatura.pdf");
@@ -456,7 +483,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Iptal_edilen_aylik_gider_odemesi_ay_listesinde_gerekcesi_ve_iptal_aniyla_ayrica_gorunur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var sablon = await Create(c, "Ozel", [new(1, 100m)]);
         var odeme = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon));
         Assert.Equal(((string?)null, (DateTimeOffset?)null), (odeme.IptalAciklamasi, odeme.IptalZamani));
@@ -483,7 +511,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Iptal_edilen_ekstre_satiri_belgede_gerekcesi_ve_iptal_aniyla_okunur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var (belge, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today, 250m, "Genel", []);
         Assert.Equal(((string?)null, (DateTimeOffset?)null), (satir.IptalAciklamasi, satir.IptalZamani));
         belge = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{belge.Id}/kayitlar/{satir.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Banka hareketi iki kez okundu"));
@@ -500,7 +529,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Iptal_edilen_alis_odemesinin_veritabaninda_kopan_belge_bagi_belgenin_izinde_gorunur()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Belgeli", null, [new("Mal", 100m, [new(1, 100m)])]));
         (alis, _) = await Yanit<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Today, 100m));
         var odemeId = alis.Odemeler.Single().Id;
@@ -528,7 +558,8 @@ public class DenetimIziTests
     [Fact]
     public async Task Veritabaninin_zincirleme_sildigi_yuklenmemis_bagimlilar_silme_olayiyla_yazilir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Tedarikçi", null, [new("Un", 300m, [new(1, 100m), new(2, 200m)]), new("Şeker", 50m, [new(3, 50m)])]));
         int[] dagilimlar;
         using (var scope = f.Services.CreateScope())
@@ -570,7 +601,8 @@ public class DenetimIziTests
 
     private static JsonSerializerOptions Json()
     {
-        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web); json.Converters.Add(new JsonStringEnumConverter());
+        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        json.Converters.Add(new JsonStringEnumConverter());
         return json;
     }
 

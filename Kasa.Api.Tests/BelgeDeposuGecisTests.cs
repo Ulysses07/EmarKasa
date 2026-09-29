@@ -50,22 +50,30 @@ public class BelgeDeposuGecisTests
     {
         EkAyarlar = new()
         {
-            ["Yedek:Dizin"] = yedekDizini, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false", ["Bildirim:WorkerEtkin"] = "false",
-            ["Finans:BakimEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(yedekDizini + "-anahtar", ".kasa-push-keys.json"),
+            ["Yedek:Dizin"] = yedekDizini,
+            ["Yedek:Etkin"] = "false",
+            ["Bildirim:PushEtkin"] = "false",
+            ["Bildirim:WorkerEtkin"] = "false",
+            ["Finans:BakimEtkin"] = "false",
+            ["Bildirim:AnahtarDosyasi"] = Path.Combine(yedekDizini + "-anahtar", ".kasa-push-keys.json"),
         }
     };
 
     private static void Temizle(params string[] dizinler)
     {
         SqliteConnection.ClearAllPools();
-        foreach (var d in dizinler) try { if (Directory.Exists(d)) Directory.Delete(d, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        foreach (var d in dizinler)
+            try
+            { if (Directory.Exists(d)) Directory.Delete(d, true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     /// <summary>Önceki sürüm (2.3.x, KartTakipDuzeltmeleri) şeması: onaylı alışın ödemeye bağlı faturası ve dekontu, taslakta aynı
     /// faturanın kopyası (aynı içerik), silinmiş bir belge (sayaç 4, içerik serbest sayfalarda) ve bir ekstre PDF'i.</summary>
     private static (int Onayli, int Taslak) EskiSurumVeritabani(string yol, string? ekstreOzeti = null)
     {
-        using (var db = Baglam(yol)) db.GetService<IMigrator>().Migrate(OncekiSurum);
+        using (var db = Baglam(yol))
+            db.GetService<IMigrator>().Migrate(OncekiSurum);
         int onayli, taslak, odeme, mezat;
         using (var db = EskiBaglam(yol))
         {
@@ -78,38 +86,52 @@ public class BelgeDeposuGecisTests
             mezat = mezatKanal.Id;
             db.Gelenler.Add(new GelenEntity { DonemStart = new(2026, 8, 3), Kanal = "MEZAT", KanalId = mezat, TutarTl = 48000.5m });
             var islem = new IslemEntity { Tarih = new(2026, 8, 5), Cari = "Kereste AŞ", TutarTl = 1500m, Kanal = "MEZAT", KanalId = mezat, Tip = GiderTipi.Cari };
-            var alis = new AlisEntity { AliciId = alici.Id, Tarih = new(2026, 8, 5), Tedarikci = "Kereste AŞ", Durum = AlisDurumlari.Onaylandi,
-                Kalemler = [new AlisKalemEntity { Aciklama = "Kereste", Tutar = 1500m, Dagilimlar = [new AlisDagilimEntity { KanalId = mezat, Tutar = 1500m }] }] };
+            var alis = new AlisEntity
+            {
+                AliciId = alici.Id,
+                Tarih = new(2026, 8, 5),
+                Tedarikci = "Kereste AŞ",
+                Durum = AlisDurumlari.Onaylandi,
+                Kalemler = [new AlisKalemEntity { Aciklama = "Kereste", Tutar = 1500m, Dagilimlar = [new AlisDagilimEntity { KanalId = mezat, Tutar = 1500m }] }]
+            };
             var taslakAlis = new AlisEntity { AliciId = alici.Id, Tarih = new(2026, 9, 20), Tedarikci = "Boya Ltd", Durum = AlisDurumlari.Taslak };
-            db.Islemler.Add(islem); db.Alislar.AddRange(alis, taslakAlis);
+            db.Islemler.Add(islem);
+            db.Alislar.AddRange(alis, taslakAlis);
             db.SaveChanges();
             var odemeKaydi = new AlisOdemeEntity { AlisId = alis.Id, IslemId = islem.Id, IstekId = Guid.NewGuid(), IstekOzeti = "gecis" };
             db.AlisOdemeler.Add(odemeKaydi);
             db.SaveChanges();
             (onayli, taslak, odeme) = (alis.Id, taslakAlis.Id, odemeKaydi.Id);
         }
-        using var c = new SqliteConnection(Baglanti(yol)); c.Open();
+        using var c = new SqliteConnection(Baglanti(yol));
+        c.Open();
         void Belge(int alis, int? odemeId, string ad, string tur, byte[] icerik, string yuklendi)
         {
             using var k = c.CreateCommand();
             k.CommandText = "INSERT INTO Belgeler (AlisId, OdemeId, DosyaAdi, IcerikTuru, Boyut, Yuklendi, Icerik) VALUES ($a, $o, $ad, $tur, $boyut, $y, $icerik);";
-            k.Parameters.AddWithValue("$a", alis); k.Parameters.AddWithValue("$o", (object?)odemeId ?? DBNull.Value);
-            k.Parameters.AddWithValue("$ad", ad); k.Parameters.AddWithValue("$tur", tur); k.Parameters.AddWithValue("$boyut", icerik.LongLength);
-            k.Parameters.AddWithValue("$y", yuklendi); k.Parameters.AddWithValue("$icerik", icerik);
+            k.Parameters.AddWithValue("$a", alis);
+            k.Parameters.AddWithValue("$o", (object?)odemeId ?? DBNull.Value);
+            k.Parameters.AddWithValue("$ad", ad);
+            k.Parameters.AddWithValue("$tur", tur);
+            k.Parameters.AddWithValue("$boyut", icerik.LongLength);
+            k.Parameters.AddWithValue("$y", yuklendi);
+            k.Parameters.AddWithValue("$icerik", icerik);
             k.ExecuteNonQuery();
         }
         Belge(onayli, odeme, "fatura.pdf", "application/pdf", Fatura, "2026-08-05 10:15:00+03:00");
         Belge(onayli, null, "dekont.png", "image/png", Dekont, "2026-08-05 10:16:30+03:00");
         Belge(taslak, null, "Fatura kopyası.pdf", "application/pdf", Fatura, "2026-09-20 09:00:00+03:00");
         Belge(taslak, null, "silinecek.pdf", "application/pdf", SilinenIcerik, "2026-09-20 09:01:00+03:00");
-        using (var k = c.CreateCommand()) { k.CommandText = "DELETE FROM Belgeler WHERE Id = 4;"; k.ExecuteNonQuery(); }
+        using (var k = c.CreateCommand())
+        { k.CommandText = "DELETE FROM Belgeler WHERE Id = 4;"; k.ExecuteNonQuery(); }
         using (var k = c.CreateCommand())
         {
             k.CommandText = """
                 INSERT INTO EkstreBelgeler (Surum, Kaynak, Banka, HesapAdi, KartId, DosyaAdi, DosyaOzeti, Dosya, Yuklendi, SatirlarJson, UyarilarJson)
                 VALUES (1, 'Banka', 'Akbank', 'İş hesabı', NULL, 'ağustos.pdf', $ozet, $dosya, 1788000000000, '[]', '[]');
                 """;
-            k.Parameters.AddWithValue("$ozet", ekstreOzeti ?? Ozet(EkstrePdf)); k.Parameters.AddWithValue("$dosya", EkstrePdf);
+            k.Parameters.AddWithValue("$ozet", ekstreOzeti ?? Ozet(EkstrePdf));
+            k.Parameters.AddWithValue("$dosya", EkstrePdf);
             k.ExecuteNonQuery();
         }
         return (onayli, taslak);
@@ -118,18 +140,26 @@ public class BelgeDeposuGecisTests
     /// <summary>Kullanıcı tablolarının bütün satırları (BLOB içerik sütunları hariç; verilen sütun kümesiyle) ve sqlite_sequence.</summary>
     private static Dictionary<string, List<string>> Sutunlar(string yol, params string[] haric)
     {
-        using var c = new SqliteConnection(Baglanti(yol)); c.Open();
+        using var c = new SqliteConnection(Baglanti(yol));
+        c.Open();
         var tablolar = new List<string>();
         using (var k = c.CreateCommand())
         {
             k.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> '__EFMigrationsHistory' ORDER BY name;";
-            using var r = k.ExecuteReader(); while (r.Read()) tablolar.Add(r.GetString(0));
+            using var r = k.ExecuteReader();
+            while (r.Read())
+                tablolar.Add(r.GetString(0));
         }
         var sonuc = new Dictionary<string, List<string>>();
         foreach (var t in tablolar)
         {
-            using var k = c.CreateCommand(); k.CommandText = $"SELECT name FROM pragma_table_info('{t}') ORDER BY cid;";
-            using var r = k.ExecuteReader(); var liste = new List<string>(); while (r.Read()) if (!haric.Contains($"{t}.{r.GetString(0)}")) liste.Add(r.GetString(0));
+            using var k = c.CreateCommand();
+            k.CommandText = $"SELECT name FROM pragma_table_info('{t}') ORDER BY cid;";
+            using var r = k.ExecuteReader();
+            var liste = new List<string>();
+            while (r.Read())
+                if (!haric.Contains($"{t}.{r.GetString(0)}"))
+                    liste.Add(r.GetString(0));
             sonuc[t] = liste;
         }
         return sonuc;
@@ -137,7 +167,8 @@ public class BelgeDeposuGecisTests
 
     private static string Dokum(string yol, Dictionary<string, List<string>> sutunlar)
     {
-        using var c = new SqliteConnection(Baglanti(yol)); c.Open();
+        using var c = new SqliteConnection(Baglanti(yol));
+        c.Open();
         var sb = new StringBuilder();
         foreach (var (t, liste) in sutunlar.Append(new("sqlite_sequence", ["name", "seq"])))
         {
@@ -153,8 +184,11 @@ public class BelgeDeposuGecisTests
 
     private static object? Deger(string yol, string sql)
     {
-        using var c = new SqliteConnection(Baglanti(yol)); c.Open();
-        using var k = c.CreateCommand(); k.CommandText = sql; return k.ExecuteScalar();
+        using var c = new SqliteConnection(Baglanti(yol));
+        c.Open();
+        using var k = c.CreateCommand();
+        k.CommandText = sql;
+        return k.ExecuteScalar();
     }
 
     private static (int Yil, int Ay)[] Aylar => [(2026, 7), (2026, 8), (2026, 9)];
@@ -194,8 +228,12 @@ public class BelgeDeposuGecisTests
             var onceBelgeler = new Dictionary<long, (string Ad, string Tur, byte[] Icerik)>();
             using (var c = new SqliteConnection(Baglanti(f.Yol)))
             {
-                c.Open(); using var k = c.CreateCommand(); k.CommandText = "SELECT Id, DosyaAdi, IcerikTuru, Icerik FROM Belgeler ORDER BY Id;";
-                using var r = k.ExecuteReader(); while (r.Read()) onceBelgeler[r.GetInt64(0)] = (r.GetString(1), r.GetString(2), (byte[])r.GetValue(3));
+                c.Open();
+                using var k = c.CreateCommand();
+                k.CommandText = "SELECT Id, DosyaAdi, IcerikTuru, Icerik FROM Belgeler ORDER BY Id;";
+                using var r = k.ExecuteReader();
+                while (r.Read())
+                    onceBelgeler[r.GetInt64(0)] = (r.GetString(1), r.GetString(2), (byte[])r.GetValue(3));
             }
             Assert.Equal(3, onceBelgeler.Count);
 
@@ -276,7 +314,8 @@ public class BelgeDeposuGecisTests
             Assert.Equal(("ağustos.pdf", "Akbank"), (ekstre.GetProperty("dosyaAdi").GetString(), ekstre.GetProperty("banka").GetString()));
 
             // Yeniden açılış: bekleyen iş yok, ikinci göç öncesi yedek ve yeniden aktarım yok.
-            using (var db = f.Baglam()) KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>(), depo);
+            using (var db = f.Baglam())
+                KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>(), depo);
             Assert.Single(Directory.GetFiles(yedekDizini, YedekSaklama.GocOncesiOnEki + "*.zip"));
         }
         finally { f.Dispose(); Temizle(yedekDizini, yedekDizini + "-anahtar"); }
@@ -321,16 +360,19 @@ public class BelgeDeposuGecisTests
             using (var db = Baglam(yol))
             {
                 db.GetService<IMigrator>().Migrate(BelgeDeposuHazirlik.Kimlik);
-                var c = (SqliteConnection)db.Database.GetDbConnection(); c.Open();
+                var c = (SqliteConnection)db.Database.GetDbConnection();
+                c.Open();
                 var ex = Assert.Throws<IOException>(() => BelgeDeposuAktarimi.BelgeleriAktar(c, depo, NullLogger.Instance, id => throw new IOException("Disk doldu (benzetim).")));
                 Assert.Equal("Disk doldu (benzetim).", ex.Message);
             }
             Assert.Equal(Ozet(Fatura), Deger(yol, "SELECT IcerikOzeti FROM Belgeler WHERE Id = 1;"));
             Assert.Equal(2L, Deger(yol, "SELECT COUNT(*) FROM Belgeler WHERE IcerikOzeti IS NULL;"));
 
-            using (var db = Baglam(yol)) KasaDatabaseInitializer.Initialize(db, GocOncesiYedekTests.TestYedegi(yedekDizini), depo);
+            using (var db = Baglam(yol))
+                KasaDatabaseInitializer.Initialize(db, GocOncesiYedekTests.TestYedegi(yedekDizini), depo);
 
-            using (var db = Baglam(yol)) Assert.Empty(db.Database.GetPendingMigrations());
+            using (var db = Baglam(yol))
+                Assert.Empty(db.Database.GetPendingMigrations());
             Assert.Equal(new[] { Ozet(Fatura), Ozet(Dekont), Ozet(Fatura) }, new[] { 1, 2, 3 }.Select(id => (string)Deger(yol, $"SELECT IcerikOzeti FROM Belgeler WHERE Id = {id};")!));
             Assert.Equal(Fatura, File.ReadAllBytes(depo.Yol(Ozet(Fatura))));
             Assert.Equal(Dekont, File.ReadAllBytes(depo.Yol(Ozet(Dekont))));
@@ -344,7 +386,10 @@ public class BelgeDeposuGecisTests
         finally
         {
             SqliteConnection.ClearAllPools();
-            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) try { File.Delete(yol + ek); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
+                try
+                { File.Delete(yol + ek); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             Temizle(yedekDizini, depo.Kok);
         }
     }
@@ -359,10 +404,12 @@ public class BelgeDeposuGecisTests
             var a = depo.Yaz(Fatura);
             var b = depo.Yaz(Fatura);
             Assert.Equal(a, b);
-            Assert.Equal(Ozet(Fatura), a.Ozet); Assert.Equal(Fatura.LongLength, a.Boyut);
+            Assert.Equal(Ozet(Fatura), a.Ozet);
+            Assert.Equal(Fatura.LongLength, a.Boyut);
             Assert.Single(depo.Ozetler());
             Assert.Empty(Directory.GetFiles(depo.Kok)); // geçici dosya kalmaz
-            using (var akis = depo.Ac(a.Ozet.ToLowerInvariant())) { using var m = new MemoryStream(); akis.CopyTo(m); Assert.Equal(Fatura, m.ToArray()); }
+            using (var akis = depo.Ac(a.Ozet.ToLowerInvariant()))
+            { using var m = new MemoryStream(); akis.CopyTo(m); Assert.Equal(Fatura, m.ToArray()); }
             Assert.Throws<BelgeDosyasiYokException>(() => depo.Ac(Ozet(Dekont)));
             Assert.Throws<BelgeDosyasiYokException>(() => depo.Ac("../../kasa.db"));
 
@@ -450,7 +497,9 @@ public class BelgeDeposuGecisTests
         for (Exception? x = e; x is not null; x = x.InnerException)
         {
             yield return x;
-            if (x is AggregateException a) foreach (var ic in a.InnerExceptions.SelectMany(Zincir)) yield return ic;
+            if (x is AggregateException a)
+                foreach (var ic in a.InnerExceptions.SelectMany(Zincir))
+                    yield return ic;
         }
     }
 }

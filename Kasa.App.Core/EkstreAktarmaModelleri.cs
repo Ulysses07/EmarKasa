@@ -46,15 +46,21 @@ public partial class EkstreSatirEditor : ObservableObject
 
     public EkstreSatirEditor(EkstreOkunanSatir kaynak, EkstreBelgeDto belge, IReadOnlyList<KanalDto> kanallar, IReadOnlyList<KartTakipDto> kartlar, Action degisti)
     {
-        _degisti = () => { }; Kaynak = kaynak;
-        var kayit = belge.Kayitlar.FirstOrDefault(k => k.SatirNo == kaynak.No && !k.Iptal); Kayitli = kayit is not null;
-        if (kayit is { IslemTuru: Eslestir }) EslesmeDurumu = $"Mevcut kayıtla eşleşti ({EslesmeAdayiSatiri.TurAdi(kayit.EslesmeTuru)} #{kayit.EslesmeId})";
-        Kanallar = kanallar; Kartlar = kartlar; KartSecimiGorunur = belge.Kaynak == "Banka";
+        _degisti = () => { };
+        Kaynak = kaynak;
+        var kayit = belge.Kayitlar.FirstOrDefault(k => k.SatirNo == kaynak.No && !k.Iptal);
+        Kayitli = kayit is not null;
+        if (kayit is { IslemTuru: Eslestir })
+            EslesmeDurumu = $"Mevcut kayıtla eşleşti ({EslesmeAdayiSatiri.TurAdi(kayit.EslesmeTuru)} #{kayit.EslesmeId})";
+        Kanallar = kanallar;
+        Kartlar = kartlar;
+        KartSecimiGorunur = belge.Kaynak == "Banka";
         IslemTurleri = belge.Kaynak == "Kart"
             ? [new("KartHarcama", "Kart harcaması"), new("KartIade", "Kart iadesi"), new("KartOdemesi", "Karta ödeme"), new(Eslestir, "Mevcut kayıtla eşleştir")]
             : [new("Gelir", "Gelir"), new("Gider", "Gider"), new("KartOdemesi", "Karta ödeme"), new(Eslestir, "Mevcut kayıtla eşleştir")];
         TarihMetni = kaynak.Tarih?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
-        Aciklama = kaynak.Aciklama; TutarMetni = kaynak.Tutar?.ToString("0.00", CultureInfo.GetCultureInfo("tr-TR")) ?? "";
+        Aciklama = kaynak.Aciklama;
+        TutarMetni = kaynak.Tutar?.ToString("0.00", CultureInfo.GetCultureInfo("tr-TR")) ?? "";
         IslemTuru = IslemTurleri.FirstOrDefault(t => t.Kod == kaynak.OnerilenIslem);
         Kart = kartlar.FirstOrDefault(k => k.Id == belge.KartId);
         Paylar.CollectionChanged += (_, e) => { if (e.NewItems is not null) foreach (TakipPayEditor p in e.NewItems) p.PropertyChanged += PayDegisti; if (e.OldItems is not null) foreach (TakipPayEditor p in e.OldItems) p.PropertyChanged -= PayDegisti; _degisti(); };
@@ -65,18 +71,26 @@ public partial class EkstreSatirEditor : ObservableObject
     partial void OnIslemTuruChanged(EkstreSecenek? value)
     {
         DagilimTuru = value?.Kod is "KartOdemesi" or "KartIade" ? DagilimTurleri.Single(x => x.Kod == "Otomatik") : value?.Kod == "KartHarcama" ? DagilimTurleri.Single(x => x.Kod == "Esit") : null;
-        KaynakHarcama = null; OnPropertyChanged(nameof(IadeMi)); OnPropertyChanged(nameof(EslesmeMi)); OnPropertyChanged(nameof(DagilimGorunur));
-        if (!EslesmeMi) AdaylariTemizle();
+        KaynakHarcama = null;
+        OnPropertyChanged(nameof(IadeMi));
+        OnPropertyChanged(nameof(EslesmeMi));
+        OnPropertyChanged(nameof(DagilimGorunur));
+        if (!EslesmeMi)
+            AdaylariTemizle();
     }
     /// <summary>Adaylar satırın o anki tarih ve tutarıyla sorulur; bu değerler değişince eski adaylar ve seçim geçersizdir.</summary>
     private void AdaylariTemizle() { SeciliAday = null; EslesmeAdaylari.Clear(); }
     /// <summary>Eşleşme adayı sorgusu (satırın tarih ve tutarı); geçersizse <paramref name="hata"/> dolar.</summary>
     public bool AdaySorgusu(out EkstreEslesmeAdayiSorgu sorgu, out string? hata)
     {
-        sorgu = null!; hata = null;
-        if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih)) { hata = $"Satır {Kaynak.No}: Tarihi yıl-ay-gün biçiminde girin (2026-09-27)."; return false; }
-        if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi) || tutar <= 0 || decimal.Round(tutar, 2) != tutar) { hata = $"Satır {Kaynak.No}: {paraHatasi ?? "Tutar pozitif ve kuruş hassasiyetinde olmalı."}"; return false; }
-        sorgu = new(tarih, tutar); return true;
+        sorgu = null!;
+        hata = null;
+        if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih))
+        { hata = $"Satır {Kaynak.No}: Tarihi yıl-ay-gün biçiminde girin (2026-09-27)."; return false; }
+        if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi) || tutar <= 0 || decimal.Round(tutar, 2) != tutar)
+        { hata = $"Satır {Kaynak.No}: {paraHatasi ?? "Tutar pozitif ve kuruş hassasiyetinde olmalı."}"; return false; }
+        sorgu = new(tarih, tutar);
+        return true;
     }
     /// <summary>Sunucudan gelen adayları yansıtır; önceki seçim yeni listede yoksa kalkar.</summary>
     public void AdaylariYansit(IEnumerable<EkstreEslesmeAdayiDto> adaylar)
@@ -87,39 +101,56 @@ public partial class EkstreSatirEditor : ObservableObject
     }
     partial void OnKartChanged(KartTakipDto? value)
     {
-        KaynakHarcama = null; TakipMetni.Doldur(KaynakHarcamalar, value?.Harcamalar.Where(h => h.Tutar > 0 && !h.Iptal).Select(h => new HarcamaSatiri(h)) ?? []);
+        KaynakHarcama = null;
+        TakipMetni.Doldur(KaynakHarcamalar, value?.Harcamalar.Where(h => h.Tutar > 0 && !h.Iptal).Select(h => new HarcamaSatiri(h)) ?? []);
     }
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
-        if (e.PropertyName is nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni)) base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(Ozet)));
-        if (e.PropertyName is nameof(TarihMetni) or nameof(TutarMetni) && EslesmeAdaylari.Count > 0) AdaylariTemizle();
+        if (e.PropertyName is nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni))
+            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(Ozet)));
+        if (e.PropertyName is nameof(TarihMetni) or nameof(TutarMetni) && EslesmeAdaylari.Count > 0)
+            AdaylariTemizle();
         _degisti?.Invoke();
     }
     public EkstreSatirYaz Yaz()
     {
         void Hata(string s) => throw new DogrulamaHatasi($"Satır {Kaynak.No}: {s}");
-        if (!Secilebilir) Hata(Kayitli ? "Bu satır zaten kayıtlı." : "Yalnız TL hareketleri kaydedilebilir.");
-        if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih)) Hata("Tarihi yıl-ay-gün biçiminde girin (2026-09-27).");
+        if (!Secilebilir)
+            Hata(Kayitli ? "Bu satır zaten kayıtlı." : "Yalnız TL hareketleri kaydedilebilir.");
+        if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih))
+            Hata("Tarihi yıl-ay-gün biçiminde girin (2026-09-27).");
         // Diğer para girişleriyle aynı kural: '1.500' 1,50 TL sayılmaz, hata verir.
-        if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi)) Hata(paraHatasi!);
-        if (tutar <= 0 || decimal.Round(tutar, 2) != tutar) Hata("Tutar pozitif ve kuruş hassasiyetinde olmalı.");
-        if (string.IsNullOrWhiteSpace(Aciklama)) Hata("Açıklamayı doldurun.");
-        if (IslemTuru is null || !IslemTurleri.Contains(IslemTuru)) Hata("İşlem türünü seçin.");
-        var tur = IslemTuru!.Kod; var dagilim = DagilimTuru?.Kod;
+        if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi))
+            Hata(paraHatasi!);
+        if (tutar <= 0 || decimal.Round(tutar, 2) != tutar)
+            Hata("Tutar pozitif ve kuruş hassasiyetinde olmalı.");
+        if (string.IsNullOrWhiteSpace(Aciklama))
+            Hata("Açıklamayı doldurun.");
+        if (IslemTuru is null || !IslemTurleri.Contains(IslemTuru))
+            Hata("İşlem türünü seçin.");
+        var tur = IslemTuru!.Kod;
+        var dagilim = DagilimTuru?.Kod;
         if (tur == Eslestir)
         {
             // Yalnız bağ: kanal dağılımı, kart ve iade kaynağı gönderilmez; kart eşleşen kayıttan okunur.
-            if (SeciliAday is null || !EslesmeAdaylari.Contains(SeciliAday)) Hata("Eşleşme adaylarını getirip bağlanacak mevcut kaydı seçin.");
+            if (SeciliAday is null || !EslesmeAdaylari.Contains(SeciliAday))
+                Hata("Eşleşme adaylarını getirip bağlanacak mevcut kaydı seçin.");
             return new(Kaynak.No, tarih, Aciklama.Trim(), tutar, Eslestir, "Eslesme", [], null, null, SeciliAday!.Veri.Tur, SeciliAday.Veri.Id);
         }
         IReadOnlyList<KanalPayYaz> paylar = [];
-        if (tur is "KartOdemesi" or "KartIade") dagilim = "Otomatik";
-        else if (dagilim == "Ozel") { paylar = TakipMetni.Paylar(Paylar); if (paylar.Sum(x => x.Tutar) != tutar) Hata("Kanal tutarları hareket tutarına eşit olmalı."); }
-        else if (dagilim == "Esit") { if (Paylar.Count == 0 || Paylar.Any(p => p.Kanal is null) || Paylar.Select(p => p.Kanal!.Id).Distinct().Count() != Paylar.Count) Hata("Dağıtılacak kanalları birer kez seçin."); paylar = Paylar.Select(p => new KanalPayYaz(p.Kanal!.Id, 0)).ToList(); }
-        else if (dagilim != "Genel" || tur == "KartHarcama") Hata("Bu hareket için kanal dağılımını seçin.");
-        if (tur is "KartHarcama" or "KartIade" or "KartOdemesi" && Kart is null) Hata("Yeni takibe alınmış kartı seçin.");
-        if (tur == "KartIade" && (KaynakHarcama is null || !KaynakHarcamalar.Contains(KaynakHarcama))) Hata("İadenin kaynak harcamasını seçin.");
+        if (tur is "KartOdemesi" or "KartIade")
+            dagilim = "Otomatik";
+        else if (dagilim == "Ozel")
+        { paylar = TakipMetni.Paylar(Paylar); if (paylar.Sum(x => x.Tutar) != tutar) Hata("Kanal tutarları hareket tutarına eşit olmalı."); }
+        else if (dagilim == "Esit")
+        { if (Paylar.Count == 0 || Paylar.Any(p => p.Kanal is null) || Paylar.Select(p => p.Kanal!.Id).Distinct().Count() != Paylar.Count) Hata("Dağıtılacak kanalları birer kez seçin."); paylar = Paylar.Select(p => new KanalPayYaz(p.Kanal!.Id, 0)).ToList(); }
+        else if (dagilim != "Genel" || tur == "KartHarcama")
+            Hata("Bu hareket için kanal dağılımını seçin.");
+        if (tur is "KartHarcama" or "KartIade" or "KartOdemesi" && Kart is null)
+            Hata("Yeni takibe alınmış kartı seçin.");
+        if (tur == "KartIade" && (KaynakHarcama is null || !KaynakHarcamalar.Contains(KaynakHarcama)))
+            Hata("İadenin kaynak harcamasını seçin.");
         return new(Kaynak.No, tarih, Aciklama.Trim(), tutar, tur, dagilim!, paylar, tur is "KartHarcama" or "KartIade" or "KartOdemesi" ? Kart?.Id : null, tur == "KartIade" ? KaynakHarcama?.Veri.Id : null);
     }
 }

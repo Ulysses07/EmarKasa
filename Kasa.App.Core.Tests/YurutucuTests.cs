@@ -22,14 +22,19 @@ public class YurutucuTests
     [Fact]
     public async Task Tekil_islem_surerken_ikincisi_calismaz_mesgul_ilki_bitince_iner()
     {
-        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var bekleyen = new TaskCompletionSource(); var cagri = 0;
+        var yuzey = new Yuzey();
+        var yurutucu = new Yurutucu(yuzey);
+        var bekleyen = new TaskCompletionSource();
+        var cagri = 0;
 
         var ilk = yurutucu.YurutAsync(async _ => { cagri++; await bekleyen.Task; });
         Assert.True(yuzey.Mesgul);
         await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; });
 
-        Assert.Equal(1, cagri); Assert.True(yuzey.Mesgul);
-        bekleyen.SetResult(); await ilk;
+        Assert.Equal(1, cagri);
+        Assert.True(yuzey.Mesgul);
+        bekleyen.SetResult();
+        await ilk;
         Assert.False(yuzey.Mesgul);
         await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; });
         Assert.Equal(2, cagri);
@@ -38,39 +43,51 @@ public class YurutucuTests
     [Fact]
     public async Task Tekil_islem_baslarken_onceki_hata_ve_ileti_temizlenir()
     {
-        var yuzey = new Yuzey { Hata = "eski hata", Mesaj = "eski ileti" }; var yurutucu = new Yurutucu(yuzey);
+        var yuzey = new Yuzey { Hata = "eski hata", Mesaj = "eski ileti" };
+        var yurutucu = new Yurutucu(yuzey);
         string? gorulenHata = "?", gorulenIleti = "?";
 
         await yurutucu.YurutAsync(_ => { gorulenHata = yuzey.Hata; gorulenIleti = yuzey.Mesaj; return Task.CompletedTask; });
 
-        Assert.Null(gorulenHata); Assert.Null(gorulenIleti); Assert.False(yuzey.Mesgul);
+        Assert.Null(gorulenHata);
+        Assert.Null(gorulenIleti);
+        Assert.False(yuzey.Mesgul);
     }
 
     [Fact]
     public async Task Gecersiz_kilinan_islemin_sonucu_hatasi_ve_bitisi_yeni_islemi_ezmez()
     {
-        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var eski = new TaskCompletionSource(); var yeni = new TaskCompletionSource();
+        var yuzey = new Yuzey();
+        var yurutucu = new Yurutucu(yuzey);
+        var eski = new TaskCompletionSource();
+        var yeni = new TaskCompletionSource();
         var ilk = yurutucu.YurutAsync(async n =>
         {
             await eski.Task;
-            if (yurutucu.Gecerli(n)) yuzey.Mesaj = "eski sonuç";
+            if (yurutucu.Gecerli(n))
+                yuzey.Mesaj = "eski sonuç";
             throw new HttpRequestException();
         });
 
-        yurutucu.GecersizKil(); yuzey.Mesgul = false;               // oturum değişimi: ekran sıfırlanır
+        yurutucu.GecersizKil();
+        yuzey.Mesgul = false;               // oturum değişimi: ekran sıfırlanır
         var ikinci = yurutucu.YurutAsync(_ => yeni.Task);
-        eski.SetResult(); await ilk;
+        eski.SetResult();
+        await ilk;
 
-        Assert.Null(yuzey.Mesaj); Assert.Null(yuzey.Hata);
+        Assert.Null(yuzey.Mesaj);
+        Assert.Null(yuzey.Hata);
         Assert.True(yuzey.Mesgul);                                  // eski işin bitişi yeni işin göstergesini indirmez
-        yeni.SetResult(); await ikinci;
+        yeni.SetResult();
+        await ikinci;
         Assert.False(yuzey.Mesgul);
     }
 
     [Fact]
     public async Task Yazma_zaman_asimi_sunucuda_tamamlanmis_olabilir_der_yetkisiz_yanit_oturumun_bittigini_soyler()
     {
-        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey);
+        var yuzey = new Yuzey();
+        var yurutucu = new Yurutucu(yuzey);
 
         await yurutucu.YurutAsync(_ => Task.FromException(new TimeoutException(KasaZamanAsimlari.Ileti)));
         Assert.Contains("tamamlanmış olabilir", yuzey.Hata);
@@ -85,23 +102,34 @@ public class YurutucuTests
     [Fact]
     public async Task Son_istek_kazanir_eski_yanit_uygulanmaz_eski_istek_iptal_edilir_gosterge_son_istekle_iner()
     {
-        var yuzey = new Yuzey(); var hat = new SonIstekHatti(new Yurutucu(yuzey)); var uygulanan = new List<int>();
-        var eski = new TaskCompletionSource<int>(); var yeni = new TaskCompletionSource<int>(); CancellationToken eskiBelirtec = default;
+        var yuzey = new Yuzey();
+        var hat = new SonIstekHatti(new Yurutucu(yuzey));
+        var uygulanan = new List<int>();
+        var eski = new TaskCompletionSource<int>();
+        var yeni = new TaskCompletionSource<int>();
+        CancellationToken eskiBelirtec = default;
 
         var ilk = hat.YukleAsync(ct => { eskiBelirtec = ct; return eski.Task; }, uygulanan.Add);
         var ikinci = hat.YukleAsync(_ => yeni.Task, uygulanan.Add);
         Assert.True(eskiBelirtec.IsCancellationRequested);
 
-        eski.SetResult(1); await ilk;
-        Assert.Empty(uygulanan); Assert.True(yuzey.Mesgul);
-        yeni.SetResult(2); await ikinci;
-        Assert.Equal(new[] { 2 }, uygulanan); Assert.False(yuzey.Mesgul); Assert.Null(yuzey.Hata);
+        eski.SetResult(1);
+        await ilk;
+        Assert.Empty(uygulanan);
+        Assert.True(yuzey.Mesgul);
+        yeni.SetResult(2);
+        await ikinci;
+        Assert.Equal(new[] { 2 }, uygulanan);
+        Assert.False(yuzey.Mesgul);
+        Assert.Null(yuzey.Hata);
     }
 
     [Fact]
     public async Task Birakilan_istek_iptal_edilir_iptal_hata_sayilmaz_sonucu_uygulanmaz()
     {
-        var yuzey = new Yuzey(); var hat = new SonIstekHatti(new Yurutucu(yuzey)); var uygulandi = false;
+        var yuzey = new Yuzey();
+        var hat = new SonIstekHatti(new Yurutucu(yuzey));
+        var uygulandi = false;
         var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var istek = hat.YukleAsync(async ct => { basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); return 1; }, _ => uygulandi = true);
@@ -109,13 +137,15 @@ public class YurutucuTests
         hat.Birak();
         await istek;
 
-        Assert.False(uygulandi); Assert.Null(yuzey.Hata);
+        Assert.False(uygulandi);
+        Assert.Null(yuzey.Hata);
     }
 
     [Fact]
     public async Task Okuma_zaman_asimi_yalniz_yeniden_deneme_ister_eski_istegin_hatasi_yazilmaz()
     {
-        var yuzey = new Yuzey(); var hat = new SonIstekHatti(new Yurutucu(yuzey));
+        var yuzey = new Yuzey();
+        var hat = new SonIstekHatti(new Yurutucu(yuzey));
         await hat.YukleAsync<int>(_ => Task.FromException<int>(new TimeoutException(KasaZamanAsimlari.Ileti)), _ => { });
         Assert.Contains("zamanında yanıt vermedi", yuzey.Hata);
         Assert.DoesNotContain("tamamlanmış olabilir", yuzey.Hata);
@@ -123,14 +153,17 @@ public class YurutucuTests
         var eski = new TaskCompletionSource<int>();
         var ilk = hat.YukleAsync(_ => eski.Task, _ => { });
         await hat.YukleAsync(_ => Task.FromResult(2), _ => { });
-        eski.SetException(new HttpRequestException()); await ilk;
-        Assert.Null(yuzey.Hata); Assert.False(yuzey.Mesgul);
+        eski.SetException(new HttpRequestException());
+        await ilk;
+        Assert.Null(yuzey.Hata);
+        Assert.False(yuzey.Mesgul);
     }
 
     [Fact]
     public void Oturum_degisince_son_istek_bileti_eskir()
     {
-        var yurutucu = new Yurutucu(new Yuzey()); var hat = new SonIstekHatti(yurutucu);
+        var yurutucu = new Yurutucu(new Yuzey());
+        var hat = new SonIstekHatti(yurutucu);
         var bilet = hat.Baslat();
         Assert.True(hat.Guncel(bilet));
 
@@ -145,43 +178,62 @@ public class YurutucuTests
     [Fact]
     public async Task Okuma_surerken_baslayan_tekil_islem_sessizce_engellenmez_okumayi_eskitir_ve_iptal_eder()
     {
-        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var hat = new SonIstekHatti(yurutucu);
-        var okuma = new TaskCompletionSource<int>(); CancellationToken belirtec = default; var uygulanan = new List<int>();
+        var yuzey = new Yuzey();
+        var yurutucu = new Yurutucu(yuzey);
+        var hat = new SonIstekHatti(yurutucu);
+        var okuma = new TaskCompletionSource<int>();
+        CancellationToken belirtec = default;
+        var uygulanan = new List<int>();
         var yukleme = hat.YukleAsync(ct => { belirtec = ct; return okuma.Task; }, uygulanan.Add);
         Assert.True(yuzey.Mesgul);
 
-        var yazma = new TaskCompletionSource(); var cagri = 0;
+        var yazma = new TaskCompletionSource();
+        var cagri = 0;
         var islem = yurutucu.YurutAsync(async _ => { cagri++; await yazma.Task; });
 
         Assert.Equal(1, cagri);
         Assert.True(belirtec.IsCancellationRequested);              // okuma ağda da bırakılır
-        okuma.SetResult(1); await yukleme;
+        okuma.SetResult(1);
+        await yukleme;
         Assert.Empty(uygulanan);                                    // eskiyen okumanın sonucu uygulanmaz
         Assert.True(yuzey.Mesgul);                                  // bitişi yazmanın göstergesini indirmez
-        yazma.SetResult(); await islem;
-        Assert.False(yuzey.Mesgul); Assert.Null(yuzey.Hata);
+        yazma.SetResult();
+        await islem;
+        Assert.False(yuzey.Mesgul);
+        Assert.Null(yuzey.Hata);
     }
 
     [Fact]
     public async Task Tekil_islem_surerken_baslayan_okuma_yazmanin_iletisini_silmez_gosterge_ikisi_de_bitince_iner()
     {
-        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var hat = new SonIstekHatti(yurutucu);
-        var yazma = new TaskCompletionSource(); var uygulanan = new List<int>(); var cagri = 0;
+        var yuzey = new Yuzey();
+        var yurutucu = new Yurutucu(yuzey);
+        var hat = new SonIstekHatti(yurutucu);
+        var yazma = new TaskCompletionSource();
+        var uygulanan = new List<int>();
+        var cagri = 0;
         var islem = yurutucu.YurutAsync(async _ => { yuzey.Mesaj = "kaydedildi"; await yazma.Task; });
 
         // Önce biten okuma: sonucu uygulanır; yazmanın iletisi ve göstergesi kalır, yazma sürdüğü için ikinci tekil işlem yapılmaz.
         await hat.YukleAsync(_ => Task.FromResult(1), uygulanan.Add);
-        Assert.Equal(new[] { 1 }, uygulanan); Assert.Equal("kaydedildi", yuzey.Mesaj); Assert.True(yuzey.Mesgul);
+        Assert.Equal(new[] { 1 }, uygulanan);
+        Assert.Equal("kaydedildi", yuzey.Mesaj);
+        Assert.True(yuzey.Mesgul);
         await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; });
         Assert.Equal(0, cagri);
 
         // Sonra biten okuma: yazma bitince gösterge okumada kalır, okuma bitince iner.
         var okuma = new TaskCompletionSource<int>();
         var yukleme = hat.YukleAsync(_ => okuma.Task, uygulanan.Add);
-        yazma.SetResult(); await islem;
-        Assert.True(yuzey.Mesgul); Assert.Equal("kaydedildi", yuzey.Mesaj);
-        okuma.SetResult(2); await yukleme;
-        Assert.Equal(new[] { 1, 2 }, uygulanan); Assert.False(yuzey.Mesgul); Assert.Null(yuzey.Hata);
+        yazma.SetResult();
+        await islem;
+        Assert.True(yuzey.Mesgul);
+        Assert.Equal("kaydedildi", yuzey.Mesaj);
+        okuma.SetResult(2);
+        await yukleme;
+        Assert.Equal(new[] { 1, 2 }, uygulanan);
+        Assert.False(yuzey.Mesgul);
+        Assert.Null(yuzey.Hata);
     }
 
     // ---- Ekran garantileri: eskiden CalistirAsync + elle 'Mesgul ?' ile korunan İşlemler ekranı ----
@@ -200,7 +252,8 @@ public class YurutucuTests
         Assert.Null(api.SonIslemSil);
         // Silme onay diyaloğundan sonra gelir: sessizce yok sayılmaz, yapılmadığı söylenir; kaydın bitişi iletiyi silmez.
         Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
-        bekleyen.SetResult(Gider(1)); await kayit;
+        bekleyen.SetResult(Gider(1));
+        await kayit;
         Assert.False(vm.Mesgul);
         Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
         await vm.SilCommand.ExecuteAsync(Gider());
@@ -211,7 +264,10 @@ public class YurutucuTests
     [Fact]
     public async Task Mesgul_iken_bildirilen_tekil_islem_calismaz_ve_yapilmadigini_soyler()
     {
-        var yuzey = new Yuzey(); var yurutucu = new Yurutucu(yuzey); var bekleyen = new TaskCompletionSource(); var cagri = 0;
+        var yuzey = new Yuzey();
+        var yurutucu = new Yurutucu(yuzey);
+        var bekleyen = new TaskCompletionSource();
+        var cagri = 0;
         var ilk = yurutucu.YurutAsync(_ => bekleyen.Task);
 
         await yurutucu.YurutAsync(_ => { cagri++; return Task.CompletedTask; });
@@ -220,7 +276,8 @@ public class YurutucuTests
         Assert.Equal(Yurutucu.SurenIslemIletisi, yuzey.Hata);
 
         Assert.Equal(0, cagri);
-        bekleyen.SetResult(); await ilk;
+        bekleyen.SetResult();
+        await ilk;
         Assert.False(yuzey.Mesgul);
     }
 
@@ -241,11 +298,13 @@ public class YurutucuTests
         Assert.Equal(1, api.GelenKaydetCagri);
         auth.OturumSurumu++;
         var yeniOturumBilgisi = vm.GelenBilgi;
-        yeniden.SetResult(new[] { new GelenDto(3, hafta.Start, "MEZAT", 5000m, KanalId: 1) }); await kayit;
+        yeniden.SetResult(new[] { new GelenDto(3, hafta.Start, "MEZAT", 5000m, KanalId: 1) });
+        await kayit;
 
         Assert.Equal(yeniOturumBilgisi, vm.GelenBilgi);
         Assert.DoesNotContain("kaydedildi", vm.GelenBilgi ?? "");
-        Assert.Null(vm.Hata); Assert.False(vm.Mesgul);
+        Assert.Null(vm.Hata);
+        Assert.False(vm.Mesgul);
     }
 
     // ---- Alışlar: oturum değişimini sayfa kod-arkası olmadan model kendisi alır ----
@@ -263,26 +322,39 @@ public class YurutucuTests
         var vm = new AlislarViewModel(api, new SahteApi(), auth: auth);
         Assert.True(vm.EditorMu);                                   // rol oturumdan gelir
         await vm.YukleAsync();
-        Assert.Single(vm.Alislar); Assert.NotEmpty(vm.Kanallar); Assert.NotEmpty(vm.BaglanabilirGiderler);
+        Assert.Single(vm.Alislar);
+        Assert.NotEmpty(vm.Kanallar);
+        Assert.NotEmpty(vm.BaglanabilirGiderler);
 
         var bekleyen = new TaskCompletionSource<IReadOnlyList<AlisDto>>();
         api.ListeGetir = () => bekleyen.Task;
         var yukleme = vm.YenileCommand.ExecuteAsync(null);
         Assert.True(vm.Mesgul);
 
-        auth.AktifRol = Rol.Alici; auth.OturumSurumu++;
+        auth.AktifRol = Rol.Alici;
+        auth.OturumSurumu++;
 
-        Assert.False(vm.Mesgul); Assert.False(vm.EditorMu); Assert.False(vm.VeriHazir);
-        Assert.Empty(vm.Alislar); Assert.Empty(vm.Kanallar); Assert.Empty(vm.BaglanabilirGiderler);
-        Assert.Empty(vm.OdemeKartlari); Assert.Empty(vm.Alicilar);
-        bekleyen.SetResult(new[] { Alis() }); await yukleme;
-        Assert.Empty(vm.Alislar); Assert.False(vm.VeriHazir); Assert.False(vm.Mesgul); Assert.Null(vm.Hata);
+        Assert.False(vm.Mesgul);
+        Assert.False(vm.EditorMu);
+        Assert.False(vm.VeriHazir);
+        Assert.Empty(vm.Alislar);
+        Assert.Empty(vm.Kanallar);
+        Assert.Empty(vm.BaglanabilirGiderler);
+        Assert.Empty(vm.OdemeKartlari);
+        Assert.Empty(vm.Alicilar);
+        bekleyen.SetResult(new[] { Alis() });
+        await yukleme;
+        Assert.Empty(vm.Alislar);
+        Assert.False(vm.VeriHazir);
+        Assert.False(vm.Mesgul);
+        Assert.Null(vm.Hata);
 
         // Sayfa aynı oturumla yeniden ayarlasa da (OnAppearing) sıfırlama tekrarlanmaz; yeni oturumda yükleme çalışır.
         vm.OturumuAyarla(auth.OturumSurumu, false);
         api.ListeGetir = null;
         await vm.YukleAsync();
-        Assert.Single(vm.Alislar); Assert.True(vm.VeriHazir);
+        Assert.Single(vm.Alislar);
+        Assert.True(vm.VeriHazir);
     }
 
     [Fact]
@@ -297,9 +369,11 @@ public class YurutucuTests
         var yukleme = vm.YukleAsync();
 
         auth.OturumSurumu++;
-        bekleyen.SetException(new KasaApiException(HttpStatusCode.Unauthorized, "Yetkisiz")); await yukleme;
+        bekleyen.SetException(new KasaApiException(HttpStatusCode.Unauthorized, "Yetkisiz"));
+        await yukleme;
 
-        Assert.Null(vm.Hata); Assert.False(vm.Mesgul);
+        Assert.Null(vm.Hata);
+        Assert.False(vm.Mesgul);
     }
 
     // ---- Ayarlar: yükleme ve kayıtlar yürütücünün tekil işlemidir, oturum değişimini model kendisi alır ----
@@ -317,12 +391,14 @@ public class YurutucuTests
         await vm.KanalSilCommand.ExecuteAsync(kanal);
         Assert.Null(api.SonKanalSil);
         Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
-        kanallar.SetResult(new[] { kanal }); await yukleme;
+        kanallar.SetResult(new[] { kanal });
+        await yukleme;
         Assert.Equal(Yurutucu.SurenIslemIletisi, vm.Hata);
 
         api.KanallarGetir = null;
         await vm.KanalSilCommand.ExecuteAsync(kanal);
-        Assert.Equal(4, api.SonKanalSil); Assert.Null(vm.Hata);
+        Assert.Equal(4, api.SonKanalSil);
+        Assert.Null(vm.Hata);
     }
 
     [Fact]
@@ -336,7 +412,8 @@ public class YurutucuTests
         };
         var vm = new AyarlarViewModel(api, auth: auth);
         await vm.YukleAsync();
-        vm.KanalDuzenle(vm.Kanallar[0]); vm.DuzenKanalAcilisDevri = 0m;
+        vm.KanalDuzenle(vm.Kanallar[0]);
+        vm.DuzenKanalAcilisDevri = 0m;
         await vm.KanalKaydetCommand.ExecuteAsync(null);             // sıfır onayı bekliyor
         Assert.NotNull(vm.KanalUyarisi);
         vm.YeniIzleyiciSifre = "onceki-editorun-sifresi";
@@ -347,27 +424,39 @@ public class YurutucuTests
 
         auth.OturumSurumu++;
 
-        Assert.False(vm.Mesgul); Assert.Null(vm.Hata);
-        Assert.Empty(vm.Kanallar); Assert.Equal(0m, vm.KasaAcilisDevri);
-        Assert.Equal((0, "", 0m), (vm.DuzenKanalId, vm.DuzenKanalAd, vm.DuzenKanalAcilisDevri)); Assert.Null(vm.KanalUyarisi);
-        Assert.Equal("", vm.YeniIzleyiciSifre); Assert.Null(vm.IzleyiciSifreUyarisi); Assert.Null(vm.VekilUyarisi);
-        kanallar.SetResult(new[] { new KanalDto(1, "MEZAT", true, 0, 5000m) }); await yukleme;
-        Assert.Empty(vm.Kanallar); Assert.False(vm.Mesgul); Assert.Null(vm.Hata);
+        Assert.False(vm.Mesgul);
+        Assert.Null(vm.Hata);
+        Assert.Empty(vm.Kanallar);
+        Assert.Equal(0m, vm.KasaAcilisDevri);
+        Assert.Equal((0, "", 0m), (vm.DuzenKanalId, vm.DuzenKanalAd, vm.DuzenKanalAcilisDevri));
+        Assert.Null(vm.KanalUyarisi);
+        Assert.Equal("", vm.YeniIzleyiciSifre);
+        Assert.Null(vm.IzleyiciSifreUyarisi);
+        Assert.Null(vm.VekilUyarisi);
+        kanallar.SetResult(new[] { new KanalDto(1, "MEZAT", true, 0, 5000m) });
+        await yukleme;
+        Assert.Empty(vm.Kanallar);
+        Assert.False(vm.Mesgul);
+        Assert.Null(vm.Hata);
 
         // Yeni oturumun yüklemesi eskisini beklemez; kanalın sıfır onayı önceki oturumdan taşınmaz.
         api.KanallarGetir = null;
         await vm.YukleAsync();
-        Assert.Single(vm.Kanallar); Assert.Equal(15000m, vm.KasaAcilisDevri);
-        vm.KanalDuzenle(vm.Kanallar[0]); vm.DuzenKanalAcilisDevri = 0m;
+        Assert.Single(vm.Kanallar);
+        Assert.Equal(15000m, vm.KasaAcilisDevri);
+        vm.KanalDuzenle(vm.Kanallar[0]);
+        vm.DuzenKanalAcilisDevri = 0m;
         await vm.KanalKaydetCommand.ExecuteAsync(null);
-        Assert.Null(api.SonKanalGuncelle); Assert.NotNull(vm.KanalUyarisi);
+        Assert.Null(api.SonKanalGuncelle);
+        Assert.NotNull(vm.KanalUyarisi);
     }
 
     [Fact]
     public async Task Ayarlar_oturum_degisince_bekleyen_kaydin_hatasi_ve_izleyici_sifresinin_sonucu_yeni_oturuma_yazilmaz()
     {
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
-        var ayar = new TaskCompletionSource(); var sifre = new TaskCompletionSource();
+        var ayar = new TaskCompletionSource();
+        var sifre = new TaskCompletionSource();
         var api = new SahteApi { AyarGuncelleYaniti = ayar.Task, IzleyiciSifreYaniti = sifre.Task, AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
         var vm = new AyarlarViewModel(api, auth: auth);
         await vm.YukleAsync();
@@ -383,9 +472,14 @@ public class YurutucuTests
         Assert.Equal("yeni-oturumun-sifresi", api.SonIzleyiciSifre);
         auth.OturumSurumu++;
 
-        ayar.SetException(new KasaApiException(HttpStatusCode.Unauthorized, "Yetkisiz")); await kayit;
-        sifre.SetResult(); await sifreKaydi;
-        Assert.Null(vm.Hata); Assert.Null(vm.IzleyiciSifreHatasi); Assert.Null(vm.IzleyiciSifreMesaji); Assert.False(vm.Mesgul);
+        ayar.SetException(new KasaApiException(HttpStatusCode.Unauthorized, "Yetkisiz"));
+        await kayit;
+        sifre.SetResult();
+        await sifreKaydi;
+        Assert.Null(vm.Hata);
+        Assert.Null(vm.IzleyiciSifreHatasi);
+        Assert.Null(vm.IzleyiciSifreMesaji);
+        Assert.False(vm.Mesgul);
     }
 
     [Fact]
@@ -401,9 +495,14 @@ public class YurutucuTests
         var ayarKaydi = vm.AyarKaydetCommand.ExecuteAsync(null);
         var kanalKaydi = vm.KanalKaydetCommand.ExecuteAsync(null);
 
-        Assert.Null(api.SonAyar); Assert.Null(api.SonKanalOlustur);
-        kanallar.SetResult(new[] { new KanalDto(1, "MEZAT", true, 0, 0m) }); await yukleme; await ayarKaydi; await kanalKaydi;
-        Assert.Null(api.SonAyar); Assert.Null(api.SonKanalOlustur);
+        Assert.Null(api.SonAyar);
+        Assert.Null(api.SonKanalOlustur);
+        kanallar.SetResult(new[] { new KanalDto(1, "MEZAT", true, 0, 0m) });
+        await yukleme;
+        await ayarKaydi;
+        await kanalKaydi;
+        Assert.Null(api.SonAyar);
+        Assert.Null(api.SonKanalOlustur);
         Assert.False(vm.Mesgul);
         api.KanallarGetir = null;
         await vm.AyarKaydetCommand.ExecuteAsync(null);
@@ -424,7 +523,9 @@ public class YurutucuTests
 
         // Yeni oturumdaki kayıt eski kaydın bitmesini beklemez.
         api.IslemKayitYaniti = null;
-        vm.DuzenTutar = 200; vm.DuzenCari = "Yeni"; vm.DuzenKanal = "MEZAT";
+        vm.DuzenTutar = 200;
+        vm.DuzenCari = "Yeni";
+        vm.DuzenKanal = "MEZAT";
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(2, api.IslemOlusturCagri);
         Assert.Equal("Gider kaydedildi.", vm.Mesaj);

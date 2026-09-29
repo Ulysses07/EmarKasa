@@ -67,7 +67,8 @@ public static partial class YedekSaklama
     {
         var m = AdKalibi().Match(ad);
         if (!m.Success || !DateTime.TryParseExact(m.Groups[2].Value, "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture,
-                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var zaman)) return null;
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var zaman))
+            return null;
         return new(ad, m.Groups[1].Value == "elle" ? YedekTuru.Elle : YedekTuru.Otomatik, new DateTimeOffset(zaman, TimeSpan.Zero));
     }
 
@@ -80,7 +81,8 @@ public static partial class YedekSaklama
     {
         var adaylar = dosyaAdlari.Select(Tani).OfType<YedekDosyasi>().Where(y => y.Tur == tur)
             .OrderByDescending(y => y.Ad == koru).ThenByDescending(y => y.Zaman).ThenByDescending(y => y.Ad, StringComparer.Ordinal).ToList();
-        if (tur == YedekTuru.Elle) return adaylar.Skip(ElleEnFazla).Select(y => y.Ad).ToList();
+        if (tur == YedekTuru.Elle)
+            return adaylar.Skip(ElleEnFazla).Select(y => y.Ad).ToList();
         var ilkAy = AyNumarasi(simdi) - (AylikAy - 1);
         var tut = adaylar.Take(OtomatikEnAz).Select(y => y.Ad).ToHashSet(StringComparer.Ordinal);
         tut.UnionWith(adaylar.Where(y => simdi - y.Zaman < TimeSpan.FromDays(GunlukGun)).Select(y => y.Ad));
@@ -154,7 +156,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             diskUyarilari.Add($"Yedek diskinde {Gb(yb)} GB boş alan kaldı (asgari {Gb(AsgariBosAlanBayt)} GB). Yeni yedekler alınamayabilir: eski yedekleri sunucu dışına taşıyın ya da diski büyütün.");
         if (veriBos is { } vb && vb < AsgariBosAlanBayt)
             diskUyarilari.Add($"Veri diskinde {Gb(vb)} GB boş alan kaldı (asgari {Gb(AsgariBosAlanBayt)} GB): kasa kayıtları ve belgeler yazılamayabilir; diski büyütün.");
-        if (boyutUyarisi is not null) diskUyarilari.Add(boyutUyarisi);
+        if (boyutUyarisi is not null)
+            diskUyarilari.Add(boyutUyarisi);
         return new(Etkin, sonYedek ?? EnYeni(yedekler), sonDogrulama, hata,
             sonOtomatikYedek ?? EnYeni(otomatik), otomatik.Count, EnYeni(elle), elle.Count,
             uyarilar.Count == 0 ? null : string.Join(" ", uyarilar),
@@ -170,9 +173,11 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     {
         try
         {
-            if (!Directory.Exists(Dizin)) return 0;
+            if (!Directory.Exists(Dizin))
+                return 0;
             long toplam = Directory.EnumerateFiles(Dizin, "kasa-*.zip").Sum(y => new FileInfo(y).Length);
-            if (Directory.Exists(AynaDizini)) toplam += Directory.EnumerateFiles(AynaDizini, "*", SearchOption.AllDirectories).Sum(y => new FileInfo(y).Length);
+            if (Directory.Exists(AynaDizini))
+                toplam += Directory.EnumerateFiles(AynaDizini, "*", SearchOption.AllDirectories).Sum(y => new FileInfo(y).Length);
             return toplam;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -210,7 +215,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     {
         var turAdi = tur == YedekTuru.Otomatik ? "Otomatik yedeklerin" : "Elle alınan yedeklerin";
         IReadOnlyList<string> silinecekler;
-        try { silinecekler = YedekSaklama.Silinecekler(Directory.EnumerateFiles(Dizin, "kasa-*.zip").Select(y => Path.GetFileName(y)), tur, simdi, koru); }
+        try
+        { silinecekler = YedekSaklama.Silinecekler(Directory.EnumerateFiles(Dizin, "kasa-*.zip").Select(y => Path.GetFileName(y)), tur, simdi, koru); }
         catch (Exception ex)
         {
             logger.LogError(ex, "{Tur} yedek rotasyonu için yedek dizini okunamadı.", tur);
@@ -231,8 +237,10 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
                 silinemeyen.Add(ad);
             }
         }
-        if (silinemeyen.Count == 0) rotasyonUyarilari.TryRemove(tur, out _);
-        else rotasyonUyarilari[tur] = $"{turAdi} rotasyonu tamamlanamadı: saklama süresi dolan {silinemeyen.Count} yedek silinemedi ({string.Join(", ", silinemeyen.Take(3))}{(silinemeyen.Count > 3 ? ", …" : "")}). "
+        if (silinemeyen.Count == 0)
+            rotasyonUyarilari.TryRemove(tur, out _);
+        else
+            rotasyonUyarilari[tur] = $"{turAdi} rotasyonu tamamlanamadı: saklama süresi dolan {silinemeyen.Count} yedek silinemedi ({string.Join(", ", silinemeyen.Take(3))}{(silinemeyen.Count > 3 ? ", …" : "")}). "
             + "Yedekler alınmaya devam eder; disk dolmadan sunucu kayıtlarını ve yedek dizininin izinlerini kontrol edin.";
     }
 
@@ -259,7 +267,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         try
         {
             Directory.CreateDirectory(Dizin);
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             var now = saat.GetUtcNow();
             var suffix = Guid.NewGuid().ToString("N");
             temporary = Path.Combine(Dizin, $".{suffix}.db");
@@ -267,7 +276,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             zipTemporary = path + ".part";
             var source = (SqliteConnection)db.Database.GetDbConnection();
             bool close = source.State != System.Data.ConnectionState.Open;
-            if (close) await source.OpenAsync(ct);
+            if (close)
+                await source.OpenAsync(ct);
             try
             {
                 DiskDenetimi(source);
@@ -281,19 +291,26 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             Dogrula(temporary);
             var belgeler = BelgeListesiOku(temporary) is { } ozetler ? Yansit(ozetler, ct) : null;
             byte[] checksum;
-            using (var stream = File.OpenRead(temporary)) checksum = await SHA256.HashDataAsync(stream, ct);
+            using (var stream = File.OpenRead(temporary))
+                checksum = await SHA256.HashDataAsync(stream, ct);
             Arsivle(temporary, zipTemporary, now, tur == YedekTuru.Otomatik ? "otomatik" : "elle", checksum, null, belgeler);
             File.Move(zipTemporary, path);
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            sonYedek = now; sonDogrulama = now; hata = null;
-            if (tur == YedekTuru.Otomatik) sonOtomatikYedek = now;
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            sonYedek = now;
+            sonDogrulama = now;
+            hata = null;
+            if (tur == YedekTuru.Otomatik)
+                sonOtomatikYedek = now;
             belgeUyarisi = belgeler is { Eksik.Count: > 0 } ? BelgeUyarisiMetni(belgeler.Eksik) : null;
             // Yalnız aynı türün, servisin ad kalıbına uyan yedekleri döner; rotasyon hatası bu yedeği bozmaz.
             Dondur(tur, now, Path.GetFileName(path));
             // Bakım adımlarının hatası yedeği başarısız saymaz: loglanır, sonraki yedekte yeniden denenir.
-            if (tur == YedekTuru.Otomatik) Bakim(() => BoyutSiniri(Path.GetFileName(path)));
+            if (tur == YedekTuru.Otomatik)
+                Bakim(() => BoyutSiniri(Path.GetFileName(path)));
             Bakim(AynaTemizle);
-            if (belgeler is not null) Bakim(() => DepoBakimi(belgeler));
+            if (belgeler is not null)
+                Bakim(() => DepoBakimi(belgeler));
             Bakim(BoyutUyarisiniGuncelle);
             return path;
         }
@@ -312,8 +329,10 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         {
             if (temporary is not null)
                 foreach (var file in new[] { temporary, temporary + "-wal", temporary + "-shm", temporary + "-journal" })
-                    if (File.Exists(file)) File.Delete(file);
-            if (zipTemporary is not null && File.Exists(zipTemporary)) File.Delete(zipTemporary);
+                    if (File.Exists(file))
+                        File.Delete(file);
+            if (zipTemporary is not null && File.Exists(zipTemporary))
+                File.Delete(zipTemporary);
             kilit.Release();
         }
     }
@@ -326,13 +345,15 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     /// kullanılan sayfalar) + aynaya yansıtılacak yeni belge dosyaları + asgari boş alan. Boş alan okunamazsa denetim yapılmaz.</summary>
     private void DiskDenetimi(SqliteConnection source)
     {
-        if (disk is null) return;
+        if (disk is null)
+            return;
         var sayfa = Tamsayi(source, "PRAGMA page_size;");
         var toplamSayfa = Tamsayi(source, "PRAGMA page_count;");
         var kullanilan = toplamSayfa - Tamsayi(source, "PRAGMA freelist_count;");
         var yeniBelgeler = YansitilacakBoyut(source);
         var gereken = toplamSayfa * sayfa + kullanilan * sayfa + yeniBelgeler + AsgariBosAlanBayt;
-        if (disk.BosAlan(Dizin) is not { } bos || bos >= gereken) return;
+        if (disk.BosAlan(Dizin) is not { } bos || bos >= gereken)
+            return;
         throw new YedekDiskAlaniYetersizException(
             $"Yedek alınmadı: yedek diskinde yeterli boş alan yok (gereken ~{MbMetni(gereken)} MB, boş {MbMetni(bos)} MB; bunun "
             + $"{MbMetni(AsgariBosAlanBayt)} MB'ı canlı veritabanı ve belgeler için ayrılır). Eski yedekleri sunucu dışına taşıyın ya da diski büyütün.");
@@ -340,17 +361,20 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     private static long Tamsayi(SqliteConnection c, string sql)
     {
-        using var k = c.CreateCommand(); k.CommandText = sql;
+        using var k = c.CreateCommand();
+        k.CommandText = sql;
         return Convert.ToInt64(k.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
     /// <summary>Canlı veritabanının gösterdiği ve aynada henüz bulunmayan içeriklerin toplam boyutu (depodaki dosyalardan).</summary>
     private long YansitilacakBoyut(SqliteConnection c)
     {
-        if (depo is null) return 0;
+        if (depo is null)
+            return 0;
         long toplam = 0;
         foreach (var ozet in Ozetler(c) ?? [])
-            if (!File.Exists(BelgeDeposu.DosyaYolu(AynaDizini, ozet)) && depo.Boyut(ozet) is { } boyut) toplam += boyut;
+            if (!File.Exists(BelgeDeposu.DosyaYolu(AynaDizini, ozet)) && depo.Boyut(ozet) is { } boyut)
+                toplam += boyut;
         return toplam;
     }
 
@@ -360,13 +384,17 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     private static List<string>? Ozetler(SqliteConnection c)
     {
         if (!BelgeDeposuAktarimi.SutunVar(c, "Belgeler", "IcerikOzeti") || BelgeDeposuAktarimi.SutunVar(c, "Belgeler", "Icerik")
-            || BelgeDeposuAktarimi.SutunVar(c, "EkstreBelgeler", "Dosya")) return null;
+            || BelgeDeposuAktarimi.SutunVar(c, "EkstreBelgeler", "Dosya"))
+            return null;
         var sql = "SELECT \"IcerikOzeti\" FROM \"Belgeler\" WHERE \"IcerikOzeti\" IS NOT NULL";
-        if (BelgeDeposuAktarimi.SutunVar(c, "EkstreBelgeler", "DosyaOzeti")) sql += " UNION SELECT upper(\"DosyaOzeti\") FROM \"EkstreBelgeler\"";
+        if (BelgeDeposuAktarimi.SutunVar(c, "EkstreBelgeler", "DosyaOzeti"))
+            sql += " UNION SELECT upper(\"DosyaOzeti\") FROM \"EkstreBelgeler\"";
         var liste = new SortedSet<string>(StringComparer.Ordinal);
-        using var k = c.CreateCommand(); k.CommandText = sql + ";";
+        using var k = c.CreateCommand();
+        k.CommandText = sql + ";";
         using var r = k.ExecuteReader();
-        while (r.Read()) liste.Add(r.GetString(0));
+        while (r.Read())
+            liste.Add(r.GetString(0));
         return [.. liste];
     }
 
@@ -390,7 +418,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         foreach (var ozet in ozetler)
         {
             ct.ThrowIfCancellationRequested();
-            if (!BelgeDeposu.GecerliOzet(ozet)) { eksik.Add(ozet); continue; }
+            if (!BelgeDeposu.GecerliOzet(ozet))
+            { eksik.Add(ozet); continue; }
             var ayna = BelgeDeposu.DosyaYolu(AynaDizini, ozet);
             var aynadaki = new FileInfo(ayna);
             var depodaki = depo?.Boyut(ozet);
@@ -410,7 +439,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             try
             {
                 (string Ozet, long Boyut) yazilan;
-                using (var kaynak = depo.Ac(ozet)) yazilan = BelgeDeposu.GeciciyeYaz(kaynak, gecici, ct);
+                using (var kaynak = depo.Ac(ozet))
+                    yazilan = BelgeDeposu.GeciciyeYaz(kaynak, gecici, ct);
                 if (yazilan.Ozet != ozet)
                 {
                     logger.LogError("Belge deposundaki dosyanın içeriği özetiyle eşleşmiyor, aynaya kopyalanmadı: {Ozet}", ozet);
@@ -430,7 +460,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             finally { if (File.Exists(gecici)) File.Delete(gecici); }
         }
         SonYansitilanBelge = kopyalanan;
-        if (kopyalanan > 0) logger.LogInformation("Yedek aynasına {Sayi} yeni belge kopyalandı.", kopyalanan);
+        if (kopyalanan > 0)
+            logger.LogInformation("Yedek aynasına {Sayi} yeni belge kopyalandı.", kopyalanan);
         return new(bulunan, eksik);
     }
 
@@ -438,13 +469,15 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     /// yazılan, elle ve göç öncesi yedekler korunur.</summary>
     private void BoyutSiniri(string koru)
     {
-        if (AzamiToplamBayt is not { } azami || ToplamYedekBayt() is not { } toplam || toplam <= azami) return;
+        if (AzamiToplamBayt is not { } azami || ToplamYedekBayt() is not { } toplam || toplam <= azami)
+            return;
         var eskidenYeniye = Yedekler().Where(y => y.Tur == YedekTuru.Otomatik)
             .OrderByDescending(y => y.Ad == koru).ThenByDescending(y => y.Zaman).ThenByDescending(y => y.Ad, StringComparer.Ordinal)
             .Skip(YedekSaklama.OtomatikEnAz).Reverse().ToList();
         foreach (var y in eskidenYeniye)
         {
-            if (toplam <= azami) break;
+            if (toplam <= azami)
+                break;
             var yol = Path.Combine(Dizin, y.Ad);
             try
             {
@@ -471,16 +504,19 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     /// </summary>
     private void AynaTemizle()
     {
-        if (!Directory.Exists(AynaDizini)) return;
+        if (!Directory.Exists(AynaDizini))
+            return;
         var tutulan = new HashSet<string>(StringComparer.Ordinal);
         foreach (var yol in Directory.EnumerateFiles(Dizin, "kasa-*.zip"))
         {
             try
             {
                 using var arsiv = ZipFile.OpenRead(yol);
-                if (arsiv.GetEntry(BelgeListesiGirdisi) is not { } girdi) continue;
+                if (arsiv.GetEntry(BelgeListesiGirdisi) is not { } girdi)
+                    continue;
                 using var akis = girdi.Open();
-                foreach (var b in BelgeListesiniOku(akis).Belgeler) tutulan.Add(b.Ozet);
+                foreach (var b in BelgeListesiniOku(akis).Belgeler)
+                    tutulan.Add(b.Ozet);
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or UnauthorizedAccessException)
             {
@@ -490,7 +526,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         }
         var sinir = saat.GetUtcNow().UtcDateTime.AddHours(-1);
         foreach (var gecici in Directory.EnumerateFiles(AynaDizini, "*.yaziliyor"))
-            if (File.GetLastWriteTimeUtc(gecici) < sinir) Sil(gecici);
+            if (File.GetLastWriteTimeUtc(gecici) < sinir)
+                Sil(gecici);
         foreach (var ozet in BelgeDeposu.Ozetler(AynaDizini).ToList())
             if (!tutulan.Contains(ozet) && Sil(BelgeDeposu.DosyaYolu(AynaDizini, ozet)))
                 logger.LogInformation("Hiçbir yedeğin göstermediği ayna dosyası silindi: {Ozet}", ozet);
@@ -501,7 +538,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     /// yedek geri yüklendiyse — hiçbiri silinmez, uyarı yazılır.</summary>
     private void DepoBakimi(YedekBelgeListesi belgeler)
     {
-        if (depo is null) return;
+        if (depo is null)
+            return;
         try
         {
             var referanslar = belgeler.Belgeler.Select(b => b.Ozet).Concat(belgeler.Eksik).ToHashSet(StringComparer.Ordinal);
@@ -522,7 +560,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     private void Bakim(Action adim)
     {
-        try { adim(); }
+        try
+        { adim(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
             logger.LogWarning(ex, "Yedekten sonraki bakım adımı tamamlanamadı; sonraki yedekte yeniden denenir.");
@@ -531,7 +570,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     private bool Sil(string yol)
     {
-        try { sil(yol); return true; }
+        try
+        { sil(yol); return true; }
         catch (Exception ex) { logger.LogWarning(ex, "Dosya silinemedi: {Dosya}", yol); return false; }
     }
 
@@ -567,7 +607,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         {
             try
             {
-                using (var akis = boru.Writer.AsStream(leaveOpen: true)) KendiKendineYeterliArsiv(zipYolu, akis, ct);
+                using (var akis = boru.Writer.AsStream(leaveOpen: true))
+                    KendiKendineYeterliArsiv(zipYolu, akis, ct);
                 boru.Writer.Complete();
             }
             catch (Exception ex) { boru.Writer.Complete(ex); }
@@ -602,11 +643,14 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
                 manifest["belgelerGomulu"] = true;
                 JsonSerializer.Serialize(yaz, manifest);
             }
-            else oku.CopyTo(yaz);
+            else
+                oku.CopyTo(yaz);
         }
-        if (liste is null) return;
+        if (liste is null)
+            return;
         YedekBelgeListesi belgeler;
-        using (var akis = liste.Open()) belgeler = BelgeListesiniOku(akis);
+        using (var akis = liste.Open())
+            belgeler = BelgeListesiniOku(akis);
         var tampon = new byte[81920];
         foreach (var b in belgeler.Belgeler)
         {
@@ -651,13 +695,15 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         try
         {
             Directory.CreateDirectory(Dizin);
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             var now = saat.GetUtcNow();
             temporary = Path.Combine(Dizin, $".{Guid.NewGuid():N}.db");
             TekDosyaKopyala(kaynak, temporary, CancellationToken.None);
             Butunluk(temporary);
             byte[] checksum;
-            using (var stream = File.OpenRead(temporary)) checksum = SHA256.HashData(stream);
+            using (var stream = File.OpenRead(temporary))
+                checksum = SHA256.HashData(stream);
             var ozet = Convert.ToHexString(checksum);
             if (MevcutGocOncesiYedegi(ozet) is { } mevcut)
             {
@@ -669,15 +715,18 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             zipTemporary = path + ".part";
             Arsivle(temporary, zipTemporary, now, "goc-oncesi", checksum, bekleyenIsler, belgeler);
             File.Move(zipTemporary, path);
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             return path;
         }
         finally
         {
             if (temporary is not null)
                 foreach (var file in new[] { temporary, temporary + "-wal", temporary + "-shm", temporary + "-journal" })
-                    if (File.Exists(file)) File.Delete(file);
-            if (zipTemporary is not null && File.Exists(zipTemporary)) File.Delete(zipTemporary);
+                    if (File.Exists(file))
+                        File.Delete(file);
+            if (zipTemporary is not null && File.Exists(zipTemporary))
+                File.Delete(zipTemporary);
             kilit.Release();
         }
     }
@@ -690,9 +739,11 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             {
                 using var arsiv = ZipFile.OpenRead(yol);
                 using var manifest = arsiv.GetEntry("manifest.json")?.Open();
-                if (manifest is null) continue;
+                if (manifest is null)
+                    continue;
                 using var belge = JsonDocument.Parse(manifest);
-                if (belge.RootElement.TryGetProperty("sha256", out var deger) && string.Equals(deger.GetString(), sha256, StringComparison.OrdinalIgnoreCase)) return yol;
+                if (belge.RootElement.TryGetProperty("sha256", out var deger) && string.Equals(deger.GetString(), sha256, StringComparison.OrdinalIgnoreCase))
+                    return yol;
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or UnauthorizedAccessException)
             {
@@ -720,9 +771,11 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         mode.ExecuteNonQuery();
         mode.CommandText = $"PRAGMA user_version = {GeriYuklemeIsleyici.Isaret.ToString(CultureInfo.InvariantCulture)};";
         mode.ExecuteNonQuery();
-        if (yedekZamani is not { } an) return;
+        if (yedekZamani is not { } an)
+            return;
         mode.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'SistemDurumu';";
-        if (mode.ExecuteScalar() is null) return;
+        if (mode.ExecuteScalar() is null)
+            return;
         mode.CommandText = """
             INSERT INTO "SistemDurumu" ("Id", "OturumDonemi", "YedekZamani") VALUES (1, '', $an)
             ON CONFLICT ("Id") DO UPDATE SET "YedekZamani" = excluded."YedekZamani";
@@ -754,8 +807,11 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         // belgeler.json listeyi ve özetini verir; içerikler yedek aynasında ya da elle indirilende belgeler/<özet> girdilerindedir.
         var manifest = new Dictionary<string, object?>
         {
-            ["surum"] = belgeler is null ? EskiSurum : DepoluSurum, ["olusturuldu"] = now, ["tur"] = tur,
-            ["sha256"] = Convert.ToHexString(checksum), ["belgelerDahil"] = belgeler is null,
+            ["surum"] = belgeler is null ? EskiSurum : DepoluSurum,
+            ["olusturuldu"] = now,
+            ["tur"] = tur,
+            ["sha256"] = Convert.ToHexString(checksum),
+            ["belgelerDahil"] = belgeler is null,
         };
         if (belgeler is not null)
         {
@@ -770,7 +826,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         manifest["bildirimAnahtariSha256"] = keyHash;
         // Göç öncesi yedekte bekleyen işler (migration kimlikleri, veri adımları) listelenir; restore aracının 8 KB manifest
         // sınırını aşmasın diye sayı ve uzunluk kısaltılır.
-        if (bekleyenIsler is not null) manifest["bekleyenIsler"] = bekleyenIsler.Take(40).Select(i => i.Length > 120 ? i[..120] : i).ToList();
+        if (bekleyenIsler is not null)
+            manifest["bekleyenIsler"] = bekleyenIsler.Take(40).Select(i => i.Length > 120 ? i[..120] : i).ToList();
         using var stream = zip.CreateEntry("manifest.json").Open();
         JsonSerializer.Serialize(stream, manifest);
     }
@@ -796,23 +853,28 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(sayfaGrubu, 1);
         using var yedek = raw.sqlite3_backup_init(hedef.Handle, "main", kaynak.Handle, "main");
-        if (yedek.IsInvalid) SqliteException.ThrowExceptionForRC(raw.sqlite3_errcode(hedef.Handle), hedef.Handle);
+        if (yedek.IsInvalid)
+            SqliteException.ThrowExceptionForRC(raw.sqlite3_errcode(hedef.Handle), hedef.Handle);
         int mesgul = 0, bastan = 0, oncekiKalan = int.MaxValue;
         while (true)
         {
             ct.ThrowIfCancellationRequested();
             var rc = raw.sqlite3_backup_step(yedek, bastan >= BastanAlmaSiniri ? -1 : sayfaGrubu);
-            if (rc == raw.SQLITE_DONE) return;
+            if (rc == raw.SQLITE_DONE)
+                return;
             if (rc is raw.SQLITE_BUSY or raw.SQLITE_LOCKED)
             {
-                if (++mesgul > MesgulDenemeSiniri) SqliteException.ThrowExceptionForRC(rc, hedef.Handle);
-                if (ct.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(50))) ct.ThrowIfCancellationRequested();
+                if (++mesgul > MesgulDenemeSiniri)
+                    SqliteException.ThrowExceptionForRC(rc, hedef.Handle);
+                if (ct.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(50)))
+                    ct.ThrowIfCancellationRequested();
                 continue;
             }
             SqliteException.ThrowExceptionForRC(rc, hedef.Handle);
             mesgul = 0;
             var kalan = raw.sqlite3_backup_remaining(yedek);
-            if (kalan > oncekiKalan) bastan++; // kaynak başka bağlantıdan yazıldı; SQLite kopyayı baştan aldı
+            if (kalan > oncekiKalan)
+                bastan++; // kaynak başka bağlantıdan yazıldı; SQLite kopyayı baştan aldı
             oncekiKalan = kalan;
             adimSonrasi?.Invoke();
         }
@@ -825,7 +887,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         restored.Open();
         using var check = restored.CreateCommand();
         check.CommandText = "PRAGMA integrity_check;";
-        if (!string.Equals(check.ExecuteScalar()?.ToString(), "ok", StringComparison.Ordinal)) throw new InvalidDataException("Göç öncesi yedeğin bütünlüğü doğrulanamadı (integrity_check).");
+        if (!string.Equals(check.ExecuteScalar()?.ToString(), "ok", StringComparison.Ordinal))
+            throw new InvalidDataException("Göç öncesi yedeğin bütünlüğü doğrulanamadı (integrity_check).");
     }
 
     public static void Dogrula(string path)
@@ -834,11 +897,15 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         restored.Open();
         using var check = restored.CreateCommand();
         check.CommandText = "PRAGMA integrity_check;";
-        if (!string.Equals(check.ExecuteScalar()?.ToString(), "ok", StringComparison.Ordinal)) throw new InvalidDataException("Yedek bütünlüğü doğrulanamadı.");
+        if (!string.Equals(check.ExecuteScalar()?.ToString(), "ok", StringComparison.Ordinal))
+            throw new InvalidDataException("Yedek bütünlüğü doğrulanamadı.");
         check.CommandText = "PRAGMA foreign_key_check;";
-        using (var reader = check.ExecuteReader()) if (reader.Read()) throw new InvalidDataException("Yedekte geçersiz ilişki var.");
+        using (var reader = check.ExecuteReader())
+            if (reader.Read())
+                throw new InvalidDataException("Yedekte geçersiz ilişki var.");
         check.CommandText = "SELECT COUNT(*) FROM __EFMigrationsHistory;";
-        if (Convert.ToInt32(check.ExecuteScalar()) < 1) throw new InvalidDataException("Yedek şeması bulunamadı.");
+        if (Convert.ToInt32(check.ExecuteScalar()) < 1)
+            throw new InvalidDataException("Yedek şeması bulunamadı.");
     }
 }
 
@@ -846,7 +913,8 @@ public sealed class OtomatikYedek(IServiceScopeFactory scopes, YedekServisi yede
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!yedek.Etkin) return;
+        if (!yedek.Etkin)
+            return;
         // Başlangıç geçişi tamamlandıktan sonra ilk günlük yedeği al.
         using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
         do

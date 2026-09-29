@@ -67,8 +67,10 @@ public class OkumaYoluTests
         kapi.Kur(tablo);
         var okuma = c.GetAsync(uc);
         Assert.True(await kapi.Girildi(), "Okuma beklenen tabloya ulaşmadı.");
-        HttpResponseMessage yazma; var sure = Stopwatch.StartNew();
-        try { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 9, 1), "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari)); }
+        HttpResponseMessage yazma;
+        var sure = Stopwatch.StartNew();
+        try
+        { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 9, 1), "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari)); }
         finally { sure.Stop(); kapi.Birak(); }
         var okumaYaniti = await okuma;
         Assert.Equal(HttpStatusCode.Created, yazma.StatusCode);
@@ -77,7 +79,8 @@ public class OkumaYoluTests
         var govde = await okumaYaniti.Content.ReadAsStringAsync();
         // Okuma, başladığı andaki anlık görüntüyü görür; paralel yazma sonraki okumada görünür.
         Assert.DoesNotContain("Okuma sırasında", govde);
-        if (uc == "/api/rapor/panel") Assert.Equal(once, JsonNode.Parse(govde)!["guncelKasa"]!.GetValue<decimal>());
+        if (uc == "/api/rapor/panel")
+            Assert.Equal(once, JsonNode.Parse(govde)!["guncelKasa"]!.GetValue<decimal>());
         Assert.Equal(once - 25m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
     }
 
@@ -122,8 +125,10 @@ public class OkumaYoluTests
             KasaDatabaseInitializer.Initialize(db);
             db.Ayarlar.Add(new() { TakipBaslangic = new DateOnly(2026, 1, 1) });
             var kart = new KrediKartiEntity { Ad = "Bakım kartı", KesimTarihi = new(2026, 1, 10), SonOdemeTarihi = new(2026, 1, 20), Limit = 1m };
-            db.KrediKartlari.Add(kart); db.SaveChanges();
-            db.TakipKartlar.Add(new() { KrediKartiId = kart.Id, Baslangic = new DateOnly(2026, 1, 1) }); db.SaveChanges();
+            db.KrediKartlari.Add(kart);
+            db.SaveChanges();
+            db.TakipKartlar.Add(new() { KrediKartiId = kart.Id, Baslangic = new DateOnly(2026, 1, 1) });
+            db.SaveChanges();
         }
         _ = f.Services; // Açılış: bakım adımı ilk turunu hemen çalıştırır.
         var bekle = Stopwatch.StartNew();
@@ -153,7 +158,8 @@ public class OkumaYoluTests
             db.ChangeTracker.Clear();
         }
         Assert.Null(db.Database.CurrentTransaction);
-        db.Kanallar.Add(new() { Ad = "Yazılır" }); db.SaveChanges();
+        db.Kanallar.Add(new() { Ad = "Yazılır" });
+        db.SaveChanges();
         Assert.True(db.Kanallar.Any(k => k.Ad == "Yazılır"));
     }
 
@@ -175,7 +181,8 @@ public class OkumaYoluTests
                 // EF'in bağlantı sayacı dengeli: dosya tanıtıcısı istek sonunu beklemeden bırakılır.
                 Assert.Equal(System.Data.ConnectionState.Closed, db.Database.GetDbConnection().State);
                 Assert.Null(db.Database.CurrentTransaction);
-                db.Kanallar.Add(new() { Ad = "Sonra yazılır" }); db.SaveChanges();
+                db.Kanallar.Add(new() { Ad = "Sonra yazılır" });
+                db.SaveChanges();
             }
             File.Delete(yol);
             Assert.False(File.Exists(yol));
@@ -214,11 +221,17 @@ public class OkumaYoluTests
         {
             if (n is JsonObject o)
             {
-                if (o["ekstreler"] is JsonArray ekstreler) foreach (var e in ekstreler) e!["id"] = 0;
-                if (o["kaynak"]?.GetValue<string>() == "Kart" && o.ContainsKey("kalemId")) o["kalemId"] = 0;
-                foreach (var (_, v) in o.ToList()) Gez(v);
+                if (o["ekstreler"] is JsonArray ekstreler)
+                    foreach (var e in ekstreler)
+                        e!["id"] = 0;
+                if (o["kaynak"]?.GetValue<string>() == "Kart" && o.ContainsKey("kalemId"))
+                    o["kalemId"] = 0;
+                foreach (var (_, v) in o.ToList())
+                    Gez(v);
             }
-            else if (n is JsonArray a) foreach (var v in a) Gez(v);
+            else if (n is JsonArray a)
+                foreach (var v in a)
+                    Gez(v);
         }
         Gez(kopya);
         return kopya;

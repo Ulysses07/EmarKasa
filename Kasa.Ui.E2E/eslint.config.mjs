@@ -37,13 +37,20 @@ const hataKurallari = {
   'no-setter-return': 'error',
   // Arayüz hatası kalıbı: h()/childValues sayıyı bilerek metin olarak basar (0 geçerli içeriktir), bu yüzden
   // `dizi.length && düğüm` boş dizide ekrana tek başına "0" yazar. Koşul her yerde boolean yazılır (`dizi.length > 0 && …`).
-  'no-restricted-syntax': ['error',
+  'no-restricted-syntax': [
+    'error',
     ...[
       "LogicalExpression[operator='&&'][left.type='MemberExpression'][left.property.name=/^(length|size)$/]",
       "LogicalExpression[operator='&&'][left.type='ChainExpression'][left.expression.property.name=/^(length|size)$/]",
-    ].map(selector => ({ selector, message: 'Sayı (length/size) && ile koşul yapılmaz: boşken 0 döner ve h() onu metin olarak basar. `> 0` ile boolean yazın.' })),
+    ].map(selector => ({
+      selector,
+      message: 'Sayı (length/size) && ile koşul yapılmaz: boşken 0 döner ve h() onu metin olarak basar. `> 0` ile boolean yazın.',
+    })),
     // table() kaydırılabilir kapsayıcıyı klavyeyle odaklanan bir bölge yapar; adsız bölge olmaz (WAI-ARIA: region adı zorunlu).
-    { selector: "CallExpression[callee.name='table'][arguments.length<3]", message: 'table(başlıklar, satırlar, ad): üçüncü bağımsız değişken tablo bölgesinin erişilebilir adıdır.' },
+    {
+      selector: "CallExpression[callee.name='table'][arguments.length<3]",
+      message: 'table(başlıklar, satırlar, ad): üçüncü bağımsız değişken tablo bölgesinin erişilebilir adıdır.',
+    },
   ],
 };
 

@@ -16,9 +16,15 @@ public static partial class FinansTakipEndpoints
                 var preview = MasrafOnizle(db, id, dto);
                 Require(dto.DagilimOzeti == preview.DagilimOzeti, "Borç dağılımı veya masraf bilgisi değişti. Yeniden önizleyin.", 409);
                 var card = db.KrediKartlari.Single(k => k.Id == id);
-                HarcamaEkle(db, card, new TakipHarcamaEntity { KrediKartiId = id, Tarih = dto.Tarih,
-                    Aciklama = "Faiz / masraf · " + dto.Aciklama.Trim(), Tutar = dto.Tutar, TaksitSayisi = 1,
-                    DagilimJson = Json(preview.Dagilimlar.Select(p => new KanalPayYaz(p.KanalId!.Value, p.Tutar)).ToList()) });
+                HarcamaEkle(db, card, new TakipHarcamaEntity
+                {
+                    KrediKartiId = id,
+                    Tarih = dto.Tarih,
+                    Aciklama = "Faiz / masraf · " + dto.Aciklama.Trim(),
+                    Tutar = dto.Tutar,
+                    TaksitSayisi = 1,
+                    DagilimJson = Json(preview.Dagilimlar.Select(p => new KanalPayYaz(p.KanalId!.Value, p.Tutar)).ToList())
+                });
                 return id;
             })).RequireAuthorization("Editor");
     }
@@ -28,7 +34,10 @@ public static partial class FinansTakipEndpoints
         var tracking = ManagedCard(db, id);
         Require(tracking.Aktif, "Bu kart yeni harekete kapalı.", 409);
         Require(dto.Surum == tracking.Surum, "Kart değişmiş. Güncel bilgileri yükleyip yeniden önizleyin.", 409);
-        Money(dto.Tutar); Require(dto.Tutar > 0, "Bankanın faiz/masraf tutarı sıfırdan büyük olmalı."); Text(dto.Aciklama); Date(dto.Tarih);
+        Money(dto.Tutar);
+        Require(dto.Tutar > 0, "Bankanın faiz/masraf tutarı sıfırdan büyük olmalı.");
+        Text(dto.Aciklama);
+        Date(dto.Tarih);
         var statement = db.TakipEkstreler.AsNoTracking().SingleOrDefault(e => e.Id == dto.EkstreId && e.KrediKartiId == id);
         Require(statement is not null && statement.KesimTarihi <= Bugun, "Bu karta ait kesilmiş bir ekstre seçin.");
         Require(dto.Tarih >= statement.KesimTarihi && dto.Tarih >= tracking.Baslangic && dto.Tarih <= Bugun,
@@ -47,7 +56,8 @@ public static partial class FinansTakipEndpoints
         {
             var parts = installments.Where(t => t.HarcamaId == charge.Id).ToList();
             var eligible = parts.Where(t => statements.Contains(t.EkstreId)).Sum(t => remaining.GetValueOrDefault(t.Id));
-            if (eligible <= 0) continue;
+            if (eligible <= 0)
+                continue;
             var source = IadeSonrasiPaylar(db, charge);
             var outstanding = parts.Sum(t => remaining.GetValueOrDefault(t.Id));
             var sourceTotal = source.Sum(p => p.Tutar);

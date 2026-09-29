@@ -57,7 +57,8 @@ public class DatabaseMigrationTests
         var kaynak = Dokum(connection, tablolar);
         var tanimlar = Scalar(connection, tetikleyiciler);
         string once;
-        using (var eski = SurumOncesiBaglam.Ayni(db)) once = RaporOzeti(eski, (2026, 6), (2026, 8), (2026, 9));
+        using (var eski = SurumOncesiBaglam.Ayni(db))
+            once = RaporOzeti(eski, (2026, 6), (2026, 8), (2026, 9));
 
         KasaDatabaseInitializer.Initialize(db);
 
@@ -415,8 +416,10 @@ public class DatabaseMigrationTests
         }
         finally
         {
-            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
-            if (Directory.Exists(backupDirectory)) Directory.Delete(backupDirectory, true);
+            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(path + suffix);
+            if (Directory.Exists(backupDirectory))
+                Directory.Delete(backupDirectory, true);
         }
     }
 
@@ -530,7 +533,11 @@ public class DatabaseMigrationTests
         Assert.Equal([("AylikGiderOdeme", "5"), ("EkstreKayit", "7"), ("Alis", "3")], aktarilan.Select(o => (o.Varlik, o.VarlikId!)));
         Assert.All(aktarilan, o =>
         {
-            Assert.Equal("sistem", o.AktorRol); Assert.Null(o.AktorId); Assert.Null(o.IstemciIp); Assert.Null(o.TraceId); Assert.Null(o.KilitAcmaOlayiId);
+            Assert.Equal("sistem", o.AktorRol);
+            Assert.Null(o.AktorId);
+            Assert.Null(o.IstemciIp);
+            Assert.Null(o.TraceId);
+            Assert.Null(o.KilitAcmaOlayiId);
             // Zaman aktarım anıdır: değişikliğin kendi zamanı eski sürümde tutulmuyordu.
             Assert.InRange(o.ZamanUtc, baslangic - 1000, bitis + 1000);
         });

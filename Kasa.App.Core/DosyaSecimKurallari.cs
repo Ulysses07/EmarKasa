@@ -42,8 +42,10 @@ public static class DosyaSecimKurallari
         int okunan;
         while ((okunan = await akis.ReadAsync(tampon, ct)) > 0)
         {
-            if (devam is not null && !devam()) return new(DosyaOkumaDurumu.Vazgecildi, null);
-            if (bellek.Length + okunan > sinir) return new(DosyaOkumaDurumu.SinirAsildi, null);
+            if (devam is not null && !devam())
+                return new(DosyaOkumaDurumu.Vazgecildi, null);
+            if (bellek.Length + okunan > sinir)
+                return new(DosyaOkumaDurumu.SinirAsildi, null);
             bellek.Write(tampon, 0, okunan);
         }
         return new(DosyaOkumaDurumu.Tamam, bellek.ToArray());

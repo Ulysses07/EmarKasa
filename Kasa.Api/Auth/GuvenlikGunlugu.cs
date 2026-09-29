@@ -80,16 +80,19 @@ public sealed class GuvenlikGunlugu
     {
         _log.LogInformation("Güvenlik günlüğü olayı {Tur}: hedef {Hedef}, kullanıcı {Kullanici}.", tur,
             hedefId?.ToString(CultureInfo.InvariantCulture) ?? "-", kullanici ?? "-");
-        if (Etkin) Ekle(tur, Satir(_saat.GetUtcNow(), tur, hedefId, kullanici, ayrinti));
+        if (Etkin)
+            Ekle(tur, Satir(_saat.GetUtcNow(), tur, hedefId, kullanici, ayrinti));
     }
 
     /// <summary>Açılışta: günlük açıksa ve dosya yoksa <see cref="Basladi"/> satırıyla oluşturur (yeri loglanır).</summary>
     public void Hazirla()
     {
-        if (!Etkin) return;
+        if (!Etkin)
+            return;
         var yeni = !File.Exists(Yol);
         Ekle(Basladi, null);
-        if (yeni && File.Exists(Yol)) _log.LogInformation("Güvenlik günlüğü oluşturuldu: {Yol}. Silmeyin; geri yüklemede yedekten sonraki kararlar buradan yeniden uygulanır.", Yol);
+        if (yeni && File.Exists(Yol))
+            _log.LogInformation("Güvenlik günlüğü oluşturuldu: {Yol}. Silmeyin; geri yüklemede yedekten sonraki kararlar buradan yeniden uygulanır.", Yol);
     }
 
     /// <summary>Günlüğü okur; dosya yoksa ya da okunamazsa null. Bozuk (ör. yarım yazılmış) satırlar atlanır.</summary>
@@ -100,10 +103,12 @@ public sealed class GuvenlikGunlugu
         {
             lock (_kilit)
             {
-                if (!File.Exists(Yol)) return null;
+                if (!File.Exists(Yol))
+                    return null;
                 using var akis = new FileStream(Yol, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var okuyucu = new StreamReader(akis, Encoding.UTF8);
-                while (okuyucu.ReadLine() is { } satir) satirlar.Add(satir);
+                while (okuyucu.ReadLine() is { } satir)
+                    satirlar.Add(satir);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -115,23 +120,27 @@ public sealed class GuvenlikGunlugu
         var olaylar = new List<Olay>();
         foreach (var satir in satirlar)
         {
-            if (Coz(satir) is not { } olay) continue;
+            if (Coz(satir) is not { } olay)
+                continue;
             baslangic ??= olay.Zaman;
-            if (olay.Tur != Basladi) olaylar.Add(olay);
+            if (olay.Tur != Basladi)
+                olaylar.Add(olay);
         }
         return new Icerik(baslangic, olaylar);
     }
 
     private static Olay? Coz(string satir)
     {
-        if (string.IsNullOrWhiteSpace(satir)) return null;
+        if (string.IsNullOrWhiteSpace(satir))
+            return null;
         try
         {
             using var belge = JsonDocument.Parse(satir);
             var kok = belge.RootElement;
             if (kok.ValueKind != JsonValueKind.Object
                 || !kok.TryGetProperty("zaman", out var zaman) || !zaman.TryGetDateTimeOffset(out var an)
-                || !kok.TryGetProperty("tur", out var tur) || tur.ValueKind != JsonValueKind.String) return null;
+                || !kok.TryGetProperty("tur", out var tur) || tur.ValueKind != JsonValueKind.String)
+                return null;
             int? hedef = kok.TryGetProperty("hedefId", out var h) && h.ValueKind == JsonValueKind.Number && h.TryGetInt32(out var id) ? id : null;
             var kullanici = kok.TryGetProperty("kullanici", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString() : null;
             var ayrinti = kok.TryGetProperty("ayrinti", out var a) && a.ValueKind == JsonValueKind.Object ? a.Clone() : default;
@@ -150,18 +159,27 @@ public sealed class GuvenlikGunlugu
             lock (_kilit)
             {
                 var dizin = Path.GetDirectoryName(Yol)!;
-                if (OperatingSystem.IsWindows()) Directory.CreateDirectory(dizin);
-                else Directory.CreateDirectory(dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                if (OperatingSystem.IsWindows())
+                    Directory.CreateDirectory(dizin);
+                else
+                    Directory.CreateDirectory(dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 var secenekler = new FileStreamOptions
                 {
-                    Mode = FileMode.Append, Access = FileAccess.Write, Share = FileShare.Read, Options = FileOptions.WriteThrough,
+                    Mode = FileMode.Append,
+                    Access = FileAccess.Write,
+                    Share = FileShare.Read,
+                    Options = FileOptions.WriteThrough,
                 };
-                if (!OperatingSystem.IsWindows()) secenekler.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                if (!OperatingSystem.IsWindows())
+                    secenekler.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
                 using var akis = new FileStream(Yol, secenekler);
                 var metin = new StringBuilder();
-                if (akis.Length == 0) metin.Append(Satir(_saat.GetUtcNow(), Basladi, null, null, null)).Append('\n');
-                if (satir is not null) metin.Append(satir).Append('\n');
-                if (metin.Length == 0) return;
+                if (akis.Length == 0)
+                    metin.Append(Satir(_saat.GetUtcNow(), Basladi, null, null, null)).Append('\n');
+                if (satir is not null)
+                    metin.Append(satir).Append('\n');
+                if (metin.Length == 0)
+                    return;
                 akis.Write(Encoding.UTF8.GetBytes(metin.ToString()));
                 akis.Flush(flushToDisk: true);
             }

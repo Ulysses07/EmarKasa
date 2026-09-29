@@ -84,20 +84,26 @@ public static class SozlesmeIzinleri
     public static IEnumerable<string> BayatlikHatalari(Izin i, IReadOnlySet<string> uclar)
     {
         var ad = $"{i.Yon} {i.Tur.Name}.{i.Alan}" + (i.Uc is null ? "" : $" ({i.Uc})");
-        if (i.Uc is not null && !uclar.Contains(i.Uc)) yield return $"{ad}: sunucuda böyle bir uç yok.";
+        if (i.Uc is not null && !uclar.Contains(i.Uc))
+            yield return $"{ad}: sunucuda böyle bir uç yok.";
         var sunucu = i.Yon == Yon.IstekFazlasi ? null : SunucuKarsiliklari.Bul(i.Tur);
         switch (i.Yon)
         {
             case Yon.SunucuFazlasi:
-                if (SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan)) yield return $"{ad}: istemci DTO'su alanı artık tanıyor.";
-                if (sunucu is not null && !SunucuKarsiliklari.Yazilan(sunucu).ContainsKey(i.Alan)) yield return $"{ad}: sunucu türü {sunucu.Name} alanı artık yazmıyor.";
+                if (SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan))
+                    yield return $"{ad}: istemci DTO'su alanı artık tanıyor.";
+                if (sunucu is not null && !SunucuKarsiliklari.Yazilan(sunucu).ContainsKey(i.Alan))
+                    yield return $"{ad}: sunucu türü {sunucu.Name} alanı artık yazmıyor.";
                 break;
             case Yon.IstemciFazlasi:
-                if (!SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan)) yield return $"{ad}: istemci DTO'sunda böyle bir alan yok.";
-                if (i.Uc is null && sunucu is not null && SunucuKarsiliklari.Yazilan(sunucu).ContainsKey(i.Alan)) yield return $"{ad}: sunucu türü {sunucu.Name} alanı artık yazıyor.";
+                if (!SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan))
+                    yield return $"{ad}: istemci DTO'sunda böyle bir alan yok.";
+                if (i.Uc is null && sunucu is not null && SunucuKarsiliklari.Yazilan(sunucu).ContainsKey(i.Alan))
+                    yield return $"{ad}: sunucu türü {sunucu.Name} alanı artık yazıyor.";
                 break;
             case Yon.IstekFazlasi:
-                if (SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan)) yield return $"{ad}: sunucu türü alanı artık bağlıyor.";
+                if (SunucuKarsiliklari.Okunan(i.Tur).ContainsKey(i.Alan))
+                    yield return $"{ad}: sunucu türü alanı artık bağlıyor.";
                 break;
         }
     }

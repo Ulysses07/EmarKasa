@@ -43,7 +43,8 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _conn.Open(); // bağlantı açık kaldıkça in-memory DB yaşar
-        if (Saat is not null) IlkAcilisAyari(Bugun);
+        if (Saat is not null)
+            IlkAcilisAyari(Bugun);
         // Testlerin Windows Event Log yazma iznine bağımlı olmasını engelle.
         builder.ConfigureLogging(logging => logging.ClearProviders());
 
@@ -71,7 +72,8 @@ public class KasaWebFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             var d = services.SingleOrDefault(s => s.ServiceType == typeof(DbContextOptions<KasaDbContext>));
-            if (d is not null) services.Remove(d);
+            if (d is not null)
+                services.Remove(d);
             services.AddDbContext<KasaDbContext>(o => o.UseSqlite(_conn));
             services.AddKasaSaati();
             if (Saat is not null)
@@ -105,10 +107,15 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (!disposing) return;
+        if (!disposing)
+            return;
         _conn.Dispose();
-        try { if (Directory.Exists(_yedekDizini)) Directory.Delete(_yedekDizini, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        try { if (Directory.Exists(BelgeDizini)) Directory.Delete(BelgeDizini, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        try
+        { if (Directory.Exists(_yedekDizini)) Directory.Delete(_yedekDizini, true); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        try
+        { if (Directory.Exists(BelgeDizini)) Directory.Delete(BelgeDizini, true); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }
 

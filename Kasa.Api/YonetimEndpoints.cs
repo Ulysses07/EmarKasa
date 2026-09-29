@@ -11,7 +11,8 @@ public static class YonetimEndpoints
     {
         app.MapGet("/api/surum", (IConfiguration cfg) => Results.Ok(new
         {
-            surum = "2.3.0", minimumIstemci = "2.3.0",
+            surum = "2.3.0",
+            minimumIstemci = "2.3.0",
             indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
             notlar = "Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü."
         }));
@@ -28,7 +29,8 @@ public static class YonetimEndpoints
             // taşımaz (belgeler yedek aynasında); indirilen dosya kendi kendine yeterlidir: belgeler/<özet> girdileri eklenerek
             // diske yazılmadan akıtılır. Yedek diskinde yer yoksa hiçbir dosya yazılmaz: 507 ve Türkçe 'hata'.
             string path;
-            try { path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted); }
+            try
+            { path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted); }
             catch (YedekDiskAlaniYetersizException ex) { return Results.Json(new { hata = ex.Message }, statusCode: StatusCodes.Status507InsufficientStorage); }
             return Results.Stream(govde => yedek.KendiKendineYeterliYaz(path, govde, http.RequestAborted), "application/zip", Path.GetFileName(path));
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Yedek);
@@ -36,7 +38,8 @@ public static class YonetimEndpoints
         {
             if (baslangic is null || bitis is null || bitis < baslangic || bitis.Value.DayNumber - baslangic.Value.DayNumber > 3660)
                 return Results.BadRequest(new { hata = "En fazla 10 yıllık geçerli bir başlangıç ve bitiş tarihi seçin." });
-            if (bicim is not ("csv" or "html" or "xlsx")) return Results.BadRequest(new { hata = "CSV, Excel veya yazdırılabilir rapor seçin." });
+            if (bicim is not ("csv" or "html" or "xlsx"))
+                return Results.BadRequest(new { hata = "CSV, Excel veya yazdırılabilir rapor seçin." });
             var rows = servis.Liste(baslangic, bitis, kanal, null);
             return RaporDosyasi.Olustur(rows, baslangic.Value, bitis.Value, kanal, bicim);
         }).RequireAuthorization("Finans");

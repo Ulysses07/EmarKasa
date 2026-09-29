@@ -31,7 +31,10 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         // Ödeme ekle → 201
         var ekle = await client.PostAsJsonAsync("/api/kartodemeler", new
         {
-            krediKartiId = kart!.Id, tarih = "2026-07-20", tutar = 1_500m, not = (string?)null,
+            krediKartiId = kart!.Id,
+            tarih = "2026-07-20",
+            tutar = 1_500m,
+            not = (string?)null,
         });
         Assert.Equal(HttpStatusCode.Created, ekle.StatusCode);
         var eklenen = await ekle.Content.ReadFromJsonAsync<OdemeYanit>();
@@ -68,7 +71,10 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
 
         await editor.PostAsJsonAsync("/api/kartodemeler", new
         {
-            krediKartiId = kart!.Id, tarih = "2026-07-15", tutar = 500m, not = (string?)null,
+            krediKartiId = kart!.Id,
+            tarih = "2026-07-15",
+            tutar = 500m,
+            not = (string?)null,
         });
 
         // İzleyici girişi
@@ -84,7 +90,10 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         // POST → 403
         var yazma = await izleyici.PostAsJsonAsync("/api/kartodemeler", new
         {
-            krediKartiId = kart.Id, tarih = "2026-07-16", tutar = 200m, not = (string?)null,
+            krediKartiId = kart.Id,
+            tarih = "2026-07-16",
+            tutar = 200m,
+            not = (string?)null,
         });
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }
@@ -102,7 +111,10 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         // Kart ödemesi ekle
         var odemeEkle = await client.PostAsJsonAsync("/api/kartodemeler", new
         {
-            krediKartiId = kart!.Id, tarih = "2026-07-10", tutar = 800m, not = (string?)null,
+            krediKartiId = kart!.Id,
+            tarih = "2026-07-10",
+            tutar = 800m,
+            not = (string?)null,
         });
         odemeEkle.EnsureSuccessStatusCode();
         var odeme = await odemeEkle.Content.ReadFromJsonAsync<OdemeYanit>();

@@ -55,7 +55,8 @@ public sealed class TanidikCihaz
     public TanidikCihaz(IConfiguration cfg, TimeProvider saat, IOptionsMonitor<HizSiniriAyarlari> ayarlar)
     {
         var jwtKey = cfg["Kasa:JwtKey"];
-        if (string.IsNullOrEmpty(jwtKey)) throw new InvalidOperationException("Kasa:JwtKey yapılandırılmalıdır.");
+        if (string.IsNullOrEmpty(jwtKey))
+            throw new InvalidOperationException("Kasa:JwtKey yapılandırılmalıdır.");
         _anahtar = HKDF.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(jwtKey), 32,
             info: Encoding.UTF8.GetBytes("kasa/tanidik-cihaz/v1"));
         _saat = saat;
@@ -78,26 +79,32 @@ public sealed class TanidikCihaz
     public string? Dogrula(HttpRequest istek, string hedef, string? damga)
     {
         var gun = _ayarlar.CurrentValue.TanidikCihazGun;
-        if (gun <= 0 || damga is null) return null;
+        if (gun <= 0 || damga is null)
+            return null;
         var aday = 0;
         foreach (var deger in istek.Headers[BaslikAdi])
             foreach (var belirtec in (deger ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                if (++aday > EnFazlaAday) return null;
-                if (Kimlik(belirtec, hedef, damga, gun) is { } kimlik) return kimlik;
+                if (++aday > EnFazlaAday)
+                    return null;
+                if (Kimlik(belirtec, hedef, damga, gun) is { } kimlik)
+                    return kimlik;
             }
         return aday == 0 && istek.Cookies[CerezAdi(hedef)] is { } cerez ? Kimlik(cerez, hedef, damga, gun) : null;
     }
 
     private string? Kimlik(string belirtec, string hedef, string damga, int gun)
     {
-        if (belirtec.Length is 0 or > EnUzun) return null;
+        if (belirtec.Length is 0 or > EnUzun)
+            return null;
         var parcalar = belirtec.Split('.');
         if (parcalar.Length != 4 || parcalar[0] != Surum
-            || !long.TryParse(parcalar[1], NumberStyles.None, CultureInfo.InvariantCulture, out var sonKullanma)) return null;
+            || !long.TryParse(parcalar[1], NumberStyles.None, CultureInfo.InvariantCulture, out var sonKullanma))
+            return null;
         // Süre imzanın içindedir; ayrıca ayarın izin verdiğinden uzun ömürlü belirteç kabul edilmez.
         var kalan = sonKullanma - _saat.GetUtcNow().ToUnixTimeSeconds();
-        if (kalan <= 0 || kalan > gun * 86_400L) return null;
+        if (kalan <= 0 || kalan > gun * 86_400L)
+            return null;
         return OturumDamgasi.Esit(parcalar[3], Imza(hedef, parcalar[1], parcalar[2], damga)) ? parcalar[2] : null;
     }
 
@@ -115,7 +122,8 @@ public sealed class TanidikCihaz
     /// </summary>
     public void GovdesizVer(HttpContext http, string hedef, string damga)
     {
-        if (Ver(http, hedef, damga) is { } belirtec) http.Response.Headers[BaslikAdi] = belirtec;
+        if (Ver(http, hedef, damga) is { } belirtec)
+            http.Response.Headers[BaslikAdi] = belirtec;
     }
 
     /// <summary>
@@ -138,7 +146,8 @@ public sealed class TanidikCihaz
                     ? GirisSiniri.AliciHedefi(kullanici) : null,
             _ => null,
         };
-        if (hedef is null || damga is null) return null;
+        if (hedef is null || damga is null)
+            return null;
         var masaustu = http.Request.Headers.ContainsKey("Authorization") && !TarayiciIstegi(http.Request);
         return Ver(http, hedef, damga, masaustu);
     }
@@ -146,11 +155,13 @@ public sealed class TanidikCihaz
     private string? Ver(HttpContext http, string hedef, string damga, bool masaustu)
     {
         var gun = _ayarlar.CurrentValue.TanidikCihazGun;
-        if (gun <= 0) return null;
+        if (gun <= 0)
+            return null;
         var sonKullanma = (_saat.GetUtcNow().ToUnixTimeSeconds() + gun * 86_400L).ToString(CultureInfo.InvariantCulture);
         var kimlik = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16));
         var belirtec = $"{Surum}.{sonKullanma}.{kimlik}.{Imza(hedef, sonKullanma, kimlik, damga)}";
-        if (masaustu) return belirtec;
+        if (masaustu)
+            return belirtec;
         http.Response.Cookies.Append(CerezAdi(hedef), belirtec, new CookieOptions
         {
             HttpOnly = true,

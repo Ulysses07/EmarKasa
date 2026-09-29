@@ -14,7 +14,9 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
     {
         var editor = Istemci();
         var giris = await editor.Kasa.LoginAsync("editor", SozlesmeFabrikasi.EditorSifresi);
-        Assert.Equal("editor", giris.Rol); Assert.False(string.IsNullOrWhiteSpace(giris.Token)); Assert.False(string.IsNullOrWhiteSpace(giris.Cihaz));
+        Assert.Equal("editor", giris.Rol);
+        Assert.False(string.IsNullOrWhiteSpace(giris.Token));
+        Assert.False(string.IsNullOrWhiteSpace(giris.Cihaz));
         Assert.Equal(giris.Token, await editor.Depo.OkuAsync());
         Assert.Equal("editor", await editor.Kasa.BenKimAsync());
         await editor.Kasa.IzleyiciSifreAsync("izleyici-sozlesme-1");
@@ -42,10 +44,14 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         var o = await Editor();
         await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
         var ayar = await o.Kasa.AyarlarAsync();
-        Assert.Equal(Baslangic, ayar.TakipBaslangic); Assert.Equal(1000m, ayar.KasaAcilisDevri); Assert.False(ayar.IzleyiciSifreVarMi);
+        Assert.Equal(Baslangic, ayar.TakipBaslangic);
+        Assert.Equal(1000m, ayar.KasaAcilisDevri);
+        Assert.False(ayar.IzleyiciSifreVarMi);
 
         var kanal = await o.Kasa.KanalOlusturAsync(new KanalYaz("SÖZLEŞME", true, 7, 0m));
-        Assert.Equal(HttpStatusCode.Created, o.SonYanit.Durum); Assert.True(kanal.Id > 0); Assert.Equal("SÖZLEŞME", kanal.Ad);
+        Assert.Equal(HttpStatusCode.Created, o.SonYanit.Durum);
+        Assert.True(kanal.Id > 0);
+        Assert.Equal("SÖZLEŞME", kanal.Ad);
         kanal = await o.Kasa.KanalGuncelleAsync(kanal.Id, new KanalYaz("SÖZLEŞME 2", false, 8, 0m));
         Assert.Equal(("SÖZLEŞME 2", false, 8), (kanal.Ad, kanal.Aktif, kanal.Sira));
         Assert.Contains(await o.Kasa.KanallarAsync(), k => k.Id == kanal.Id);
@@ -62,7 +68,8 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(2, (await o.Kasa.IslemlerAsync()).Count);
 
         var gelen = await o.Kasa.GelenKaydetAsync(new GelenYaz(Baslangic, "MEZAT", 5000.75m));
-        Assert.Equal((Baslangic, "MEZAT", 5000.75m), (gelen.DonemStart, gelen.Kanal, gelen.TutarTl)); Assert.NotNull(gelen.KanalId);
+        Assert.Equal((Baslangic, "MEZAT", 5000.75m), (gelen.DonemStart, gelen.Kanal, gelen.TutarTl));
+        Assert.NotNull(gelen.KanalId);
         Assert.Single(await o.Kasa.GelenlerAsync(Baslangic));
         Assert.Single(await o.Kasa.GelenlerAsync());
 
@@ -70,18 +77,24 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(1000m + 5000.75m - 1234.56m - 300.25m, panel.GuncelKasa);
         Assert.All(panel.Kanallar, k => Assert.NotNull(k.KanalId));
         var haftalik = await o.Kasa.HaftalikAsync();
-        Assert.NotEmpty(haftalik); Assert.All(haftalik, h => Assert.NotEmpty(h.Kanallar));
+        Assert.NotEmpty(haftalik);
+        Assert.All(haftalik, h => Assert.NotEmpty(h.Kanallar));
         var aylik = await o.Kasa.AylikAsync(Bugun.Year, Bugun.Month);
-        Assert.Equal((Bugun.Year, Bugun.Month), (aylik.Yil, aylik.Ay)); Assert.Contains(aylik.Kanallar, k => k.CariGiden == 1234.56m);
+        Assert.Equal((Bugun.Year, Bugun.Month), (aylik.Yil, aylik.Ay));
+        Assert.Contains(aylik.Kanallar, k => k.CariGiden == 1234.56m);
         var donemler = await o.Kasa.DonemlerAsync();
-        Assert.Equal(Baslangic, donemler[0].Start); Assert.All(donemler, d => Assert.Equal(d.Start.Month, d.Ay));
+        Assert.Equal(Baslangic, donemler[0].Start);
+        Assert.All(donemler, d => Assert.Equal(d.Start.Month, d.Ay));
 
         var benzer = await o.Benzer.BenzerKayitlarAsync(new BenzerlikYaz("Gider", Bugun, 1234.56m, Kanal: "MEZAT"));
         Assert.Equal(gider.Id, Assert.Single(benzer).Id);
 
         using var csv = new MemoryStream();
         var dosya = await o.Yonetim.DisariAktarAsync(Baslangic, Bugun, null, "csv", csv);
-        Assert.EndsWith(".csv", dosya.DosyaAdi); Assert.StartsWith("text/csv", dosya.IcerikTuru); Assert.Equal(csv.Length, dosya.Boyut); Assert.True(dosya.Boyut > 0);
+        Assert.EndsWith(".csv", dosya.DosyaAdi);
+        Assert.StartsWith("text/csv", dosya.IcerikTuru);
+        Assert.Equal(csv.Length, dosya.Boyut);
+        Assert.True(dosya.Boyut > 0);
 
         await o.Kasa.IslemSilAsync(ikinci.Id);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
@@ -147,7 +160,8 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(12000m, acik.Kanallar.Single(k => k.Kanal == "MEZAT").KrediGirisi);
         var json = JsonNode.Parse(o.SonYanit.Json!)!;
         Assert.Equal((12000m, 2), (json["krediGirisi"]!.GetValue<decimal>(), json["kuralSurumu"]!.GetValue<int>()));
-        Assert.Null(json["dondurulmus"]); Assert.Null(json["veriSagligiUyarisi"]);
+        Assert.Null(json["dondurulmus"]);
+        Assert.Null(json["veriSagligiUyarisi"]);
 
         var eski = await o.Kasa.AylikAsync(oncesi.Year, oncesi.Month);
         Assert.StartsWith("Takip başlangıcından önce tarihli 1 kayıt, toplam 250,00 ₺", eski.VeriSagligiUyarisi);
@@ -177,7 +191,9 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         var ozet = await o.Kasa.AnaSayfaAsync(60);
         var birlesik = JsonNode.Parse(o.SonYanit.Json!)!;
         Assert.Equal(1000m - 100.25m, ozet.Panel.GuncelKasa);
-        Assert.NotNull(ozet.KasaEsikleri); Assert.NotEmpty(ozet.KasaEsikleri); Assert.NotNull(ozet.TakipOzeti);
+        Assert.NotNull(ozet.KasaEsikleri);
+        Assert.NotEmpty(ozet.KasaEsikleri);
+        Assert.NotNull(ozet.TakipOzeti);
 
         using (var http = F.CreateClient())
         {
@@ -206,7 +222,8 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         F.Veri(db =>
         {
             var hesap = new Kasa.Api.Data.HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = Baslangic };
-            db.Hesaplar.Add(hesap); db.SaveChanges();
+            db.Hesaplar.Add(hesap);
+            db.SaveChanges();
             db.HesapHareketler.Add(new() { HesapId = hesap.Id, KanalId = null, Tarih = Bugun, Tutar = 250m, Aciklama = "Kanalsız eski ek gelir" });
             db.Krediler.Add(new() { Ad = "Bozuk plan", CekilenTutar = 0m, CekimTarihi = Baslangic, TaksitSayisi = 3, AylikOdeme = 100m, OdemeGunu = 0, Kanal = "MEZAT" });
             db.SaveChanges();
@@ -238,7 +255,10 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
             var kart = new Kasa.Api.Data.KrediKartiEntity { Ad = "Eski kart", KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25), Limit = 10000m, Borc = 250m };
             var kredi = new Kasa.Api.Data.KrediEntity { Ad = "Eski kredi", CekilenTutar = 12000m, CekimTarihi = Baslangic, TaksitSayisi = 24, AylikOdeme = 500m, OdemeGunu = 10, Kanal = "MEZAT", KanalId = 1 };
             var biten = new Kasa.Api.Data.KrediEntity { Ad = "Biten kredi", CekilenTutar = 300m, CekimTarihi = Baslangic, TaksitSayisi = 1, AylikOdeme = 300m, OdemeGunu = 10, Kanal = "MEZAT", KanalId = 1 };
-            db.AddRange(kart, kredi, biten); db.SaveChanges(); kartId = kart.Id; krediId = kredi.Id;
+            db.AddRange(kart, kredi, biten);
+            db.SaveChanges();
+            kartId = kart.Id;
+            krediId = kredi.Id;
         });
 
         var ozet = await o.Kasa.AnaSayfaAsync(30);

@@ -22,7 +22,7 @@ public class AlisGiderYarisiTests
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-expense-link-race-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder
-            { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
+        { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
         using var rendezvous = new TransactionRendezvous();
         try
         {
@@ -83,7 +83,8 @@ public class AlisGiderYarisiTests
         }
         finally
         {
-            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
+            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(path + suffix);
         }
     }
 
@@ -110,7 +111,8 @@ public class AlisGiderYarisiTests
         public override InterceptionResult<DbTransaction> TransactionStarting(DbConnection connection,
             TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result)
         {
-            if (!Enabled) return result;
+            if (!Enabled)
+                return result;
             Connections.TryAdd(connection, 0);
             // İki istek de yazma kilidini almadan buluşur; kilidi aldıktan sonra
             // beklemek testin kendisinin kilitlenmesine neden olurdu.

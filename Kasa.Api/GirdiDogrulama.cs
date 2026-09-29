@@ -13,7 +13,8 @@ public sealed class GirdiDogrulama
 
     public void Kontrol(bool gecerli, string alan, string mesaj)
     {
-        if (!gecerli) _hatalar[alan] = [mesaj];
+        if (!gecerli)
+            _hatalar[alan] = [mesaj];
     }
 
     public void Metin(string? deger, string alan, int sinir = 200, bool zorunlu = true)
@@ -21,7 +22,8 @@ public sealed class GirdiDogrulama
         Kontrol(!zorunlu || !string.IsNullOrWhiteSpace(deger), alan, "Bu alan boş olamaz.");
         Kontrol(deger is null || deger.Length <= sinir, alan, $"En fazla {sinir} karakter girilebilir.");
         // Kaydedilen metin dışa aktarımda (XLSX/XML) ve ekranlarda bozulmasın: görünmeyen karakter hiç saklanmaz.
-        if (GecersizKarakterIletisi(deger) is { } ileti) Kontrol(false, alan, ileti);
+        if (GecersizKarakterIletisi(deger) is { } ileti)
+            Kontrol(false, alan, ileti);
     }
 
     /// <summary>
@@ -56,7 +58,8 @@ public sealed class GirdiDogrulama
     /// içinde çağrılır (kasa günü <see cref="KasaSaati.Bugun"/>).</summary>
     public void Tarih(DateOnly tarih, string alan)
     {
-        if (tarih == default) { Kontrol(false, alan, "Geçerli bir tarih seçin."); return; }
+        if (tarih == default)
+        { Kontrol(false, alan, "Geçerli bir tarih seçin."); return; }
         var bugun = KasaSaati.Bugun;
         Kontrol(GecerliKayitTarihi(tarih, bugun), alan, $"Tarih {EnErkenTarih:dd.MM.yyyy} ile {EnGecTarih(bugun):dd.MM.yyyy} arasında olmalıdır.");
     }
@@ -81,13 +84,15 @@ public sealed class GirdiDogrulama
     public KanalEntity? Kanal(KasaDbContext db, string? ad, bool ortakOlabilir = true)
     {
         var temiz = ad?.Trim();
-        if (ortakOlabilir && temiz == Kanallar.Ortak) return null;
+        if (ortakOlabilir && temiz == Kanallar.Ortak)
+            return null;
         // Seçim önce kayıtlı kanallarla eşleşir: metin kuralından önce kaydedilmiş (kontrol karakterli) bir kanal adı
         // gider/gelir girişini düşürmez. Metin kuralı yeni ad oluşturmada ve yeniden adlandırmada uygulanır; eşleşmeyen
         // seçimde tek ileti "Kayıtlı bir kanal seçin." olur (metin kuralının iletisi bunun yerine geçmez).
         var kanal = temiz is null ? null
             : db.Kanallar.FirstOrDefault(k => k.Ad == temiz) ?? (ad != temiz ? db.Kanallar.FirstOrDefault(k => k.Ad == ad) : null);
-        if (kanal is not null) return kanal;
+        if (kanal is not null)
+            return kanal;
         Kontrol(false, "kanal", "Kayıtlı bir kanal seçin.");
         return null;
     }
@@ -95,7 +100,8 @@ public sealed class GirdiDogrulama
     public void Kart(KasaDbContext db, int? id, bool zorunlu = false)
     {
         Kontrol(id is null ? !zorunlu : db.KrediKartlari.Any(k => k.Id == id), "krediKartiId", "Kayıtlı bir kredi kartı seçin.");
-        if (id is not null) Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == id && !k.Aktif), "krediKartiId", "Bu kart yeni kullanıma kapalı.");
+        if (id is not null)
+            Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == id && !k.Aktif), "krediKartiId", "Bu kart yeni kullanıma kapalı.");
     }
 
     /// <summary>
@@ -107,8 +113,10 @@ public sealed class GirdiDogrulama
     {
         for (var i = 0; i < metin.Length; i++)
         {
-            if (char.IsHighSurrogate(metin[i]) && i + 1 < metin.Length && char.IsLowSurrogate(metin[i + 1])) { i++; continue; }
-            if (GecersizKarakter(metin[i])) return i;
+            if (char.IsHighSurrogate(metin[i]) && i + 1 < metin.Length && char.IsLowSurrogate(metin[i + 1]))
+            { i++; continue; }
+            if (GecersizKarakter(metin[i]))
+                return i;
         }
         return -1;
     }
@@ -120,16 +128,20 @@ public sealed class GirdiDogrulama
     /// </summary>
     public static string Temizle(string metin)
     {
-        if (GecersizKarakterKonumu(metin) < 0) return metin;
+        if (GecersizKarakterKonumu(metin) < 0)
+            return metin;
         var temiz = new StringBuilder(metin.Length);
         for (var i = 0; i < metin.Length; i++)
         {
             var c = metin[i];
-            if (char.IsHighSurrogate(c) && i + 1 < metin.Length && char.IsLowSurrogate(metin[i + 1])) { temiz.Append(c).Append(metin[++i]); continue; }
-            if (!GecersizKarakter(c)) { temiz.Append(c); continue; }
+            if (char.IsHighSurrogate(c) && i + 1 < metin.Length && char.IsLowSurrogate(metin[i + 1]))
+            { temiz.Append(c).Append(metin[++i]); continue; }
+            if (!GecersizKarakter(c))
+            { temiz.Append(c); continue; }
             var oncekiBosluk = temiz.Length > 0 && char.IsWhiteSpace(temiz[^1]);
             var sonrakiBosluk = i + 1 < metin.Length && char.IsWhiteSpace(metin[i + 1]);
-            if (!oncekiBosluk && !sonrakiBosluk) temiz.Append(' ');
+            if (!oncekiBosluk && !sonrakiBosluk)
+                temiz.Append(' ');
         }
         return temiz.ToString();
     }

@@ -22,7 +22,10 @@ public class CekirdekSurumVmTests
         Assert.Equal((5, 80m, 4), (api.SonIslemGuncelle!.Value.Id, api.SonIslemGuncelle.Value.G.TutarTl, api.SonIslemGuncelle.Value.G.Surum));
 
         // Kayıttan sonra form yeni gidere döner: sürüm 0 (sunucu oluşturmada yok sayar).
-        vm.DuzenTarih = new DateTime(2026, 3, 5); vm.DuzenCari = "Yeni"; vm.DuzenTutar = 10m; vm.DuzenKanal = "MEZAT";
+        vm.DuzenTarih = new DateTime(2026, 3, 5);
+        vm.DuzenCari = "Yeni";
+        vm.DuzenTutar = 10m;
+        vm.DuzenKanal = "MEZAT";
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.SonIslemOlustur!.Surum);
     }
@@ -50,7 +53,8 @@ public class CekirdekSurumVmTests
         var hafta = new DonemDto(new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 27), 2026, 9);
         var api = new SahteApi
         {
-            KanallarListe = [new(1, "MEZAT", true, 0, 0m), new(2, "PERAKENDE", true, 1, 0m)], DonemlerListe = [hafta],
+            KanallarListe = [new(1, "MEZAT", true, 0, 0m), new(2, "PERAKENDE", true, 1, 0m)],
+            DonemlerListe = [hafta],
             GelenlerListe = [new GelenDto(5, hafta.Start, "MEZAT", 5000m, KanalId: 1, Surum: 6)],
         };
         var vm = new IslemlerViewModel(api, zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 23)));

@@ -41,10 +41,19 @@ public class TakipBaslangiciDegisikligiTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            var belge = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "ekstre.pdf",
-                DosyaOzeti = Guid.NewGuid().ToString(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
-                SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "Kaynak 1", tarih, "Banka geliri", tutar, "Giris", "Gelir", "Hareket", "TRY", []) }) };
-            db.EkstreBelgeler.Add(belge); db.SaveChanges(); id = belge.Id;
+            var belge = new EkstreBelgeEntity
+            {
+                Kaynak = "Banka",
+                Banka = "Akbank",
+                HesapAdi = "İş hesabı",
+                DosyaAdi = "ekstre.pdf",
+                DosyaOzeti = Guid.NewGuid().ToString(),
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                SatirlarJson = JsonSerializer.Serialize(new[] { new EkstreOkunanSatir(1, 1, "Kaynak 1", tarih, "Banka geliri", tutar, "Giris", "Gelir", "Hareket", "TRY", []) })
+            };
+            db.EkstreBelgeler.Add(belge);
+            db.SaveChanges();
+            id = belge.Id;
         }
         var doc = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{id}"))!;
         var istek = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [new EkstreSatirYaz(1, tarih, "Banka geliri", tutar, "Gelir", "Genel", [])]);
@@ -70,7 +79,8 @@ public class TakipBaslangiciDegisikligiTests
     {
         // Bulgu senaryosu: elle gider yok; takipli kart açılmış, 17'sinde 5.000 TL kart ödemesi ve 16'sında
         // PDF'ten 20.000 TL banka geliri kaydedilmiş.
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = await Kart(c);
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, new(2026, 9, 17), 5_000m));
         await EkstreGeliri(f, c, new(2026, 9, 16), 20_000m);
@@ -81,7 +91,8 @@ public class TakipBaslangiciDegisikligiTests
     [Fact]
     public async Task Yalniz_takipli_kart_acilisi_baslangici_sabitler()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         await Kart(c);
         await Reddedilir(c, "takipli kart");
     }
@@ -89,7 +100,8 @@ public class TakipBaslangiciDegisikligiTests
     [Fact]
     public async Task Yalniz_ekstreden_alinan_banka_geliri_baslangici_sabitler()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         await EkstreGeliri(f, c, new(2026, 9, 16), 20_000m);
         Assert.Equal(30_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
         await Reddedilir(c, "ekstre kaydı");
@@ -98,7 +110,8 @@ public class TakipBaslangiciDegisikligiTests
     [Fact]
     public async Task Yalniz_kasa_sayimi_baslangici_sabitler()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -112,7 +125,8 @@ public class TakipBaslangiciDegisikligiTests
     public async Task Iptal_edilmis_ekstre_kaydi_baslangici_sabitlemez()
     {
         // İptal edilen satırın mali etkisi yoktur; başlangıç değişikliği raporlardan kayıt düşürmez.
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var doc = await EkstreGeliri(f, c, new(2026, 9, 16), 20_000m);
         await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{doc.Id}/kayitlar/{Assert.Single(doc.Kayitlar).Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Yanlış hesap"));
         (await Ayar(c, YeniBaslangic)).EnsureSuccessStatusCode();
@@ -121,7 +135,8 @@ public class TakipBaslangiciDegisikligiTests
     [Fact]
     public async Task Bos_veritabaninda_baslangic_ileri_ve_geri_alinabilir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         (await Ayar(c, YeniBaslangic)).EnsureSuccessStatusCode();
         (await Ayar(c, Baslangic)).EnsureSuccessStatusCode();
         Assert.Equal(Baslangic, (await c.GetFromJsonAsync<JsonElement>("/api/ayarlar")).GetProperty("takipBaslangic").Deserialize<DateOnly>());

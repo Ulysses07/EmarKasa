@@ -51,11 +51,13 @@ public class SaatTests
         Assert.Same(TimeProvider.System, KasaSaati.Gecerli);
         var disarida = new[] { KasaSaati.Bugun, FinansTakipServisi.Bugun };
         // Program.cs'nin kendi kablolaması: test fabrikasının saat kaydı yok.
-        await using var f = new UretimKablolamasi(); using var c = await f.EditorClientAsync();
+        await using var f = new UretimKablolamasi();
+        using var c = await f.EditorClientAsync();
         Assert.Same(TimeProvider.System, f.Services.GetRequiredService<TimeProvider>());
         var sunucu = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih;
         DateOnly servis;
-        using (var scope = f.Services.CreateScope()) servis = scope.ServiceProvider.GetRequiredService<KasaDbContext>().Bugunu();
+        using (var scope = f.Services.CreateScope())
+            servis = scope.ServiceProvider.GetRequiredService<KasaDbContext>().Bugunu();
         DateOnly bagimsizBaglam;
         using (var connection = new SqliteConnection("Data Source=:memory:"))
         using (var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options))
@@ -74,13 +76,16 @@ public class SaatTests
     {
         // Yalnız DI saati değişir; istek saatini uçlara taşıyan kayıt Program.cs'den gelmelidir.
         var bugun = new DateOnly(2091, 1, 15);
-        await using var f = new UretimKablolamasi(new SabitSaat(bugun)); using var c = await f.EditorClientAsync();
+        await using var f = new UretimKablolamasi(new SabitSaat(bugun));
+        using var c = await f.EditorClientAsync();
         Assert.Equal(bugun, (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih);
         // Eski kredi kartları ucu son kesimi kasa saatinden hesaplar: kesimi bugün olan kartta bugünkü harcama ekstrededir.
-        using var scope = f.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Equal(bugun, db.Bugunu());
         var kart = new KrediKartiEntity { Ad = "Saat kartı", KesimTarihi = bugun, SonOdemeTarihi = bugun.AddDays(10), Limit = 1000m };
-        db.KrediKartlari.Add(kart); db.SaveChanges();
+        db.KrediKartlari.Add(kart);
+        db.SaveChanges();
         // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır).
         db.Islemler.Add(new IslemEntity { Tarih = bugun, Cari = "Bugünkü kart harcaması", TutarTl = 40m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti, KrediKartiId = kart.Id });
         db.SaveChanges();
@@ -95,7 +100,8 @@ public class SaatTests
     public async Task Sabit_saatli_sunucu_tohumu_dogrulamayi_raporu_ve_istek_disi_cagrilari_ayni_gune_baglar(int yil, int ay, int gun)
     {
         var bugun = new DateOnly(yil, ay, gun);
-        await using var f = KasaWebFactory.Sabit(bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(bugun);
+        using var c = await f.EditorClientAsync();
         Assert.Equal(bugun, f.Bugun);
         Assert.Equal(bugun, (await c.GetFromJsonAsync<Ayar>("/api/ayarlar"))!.TakipBaslangic);
         Assert.Equal(bugun, (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih);
@@ -109,8 +115,10 @@ public class SaatTests
         // İstek dışında (arka plan işi, doğrudan servis çağrısı) bağlam fabrikanın saatini taşır; hesap servisi
         // paneli de aynı güne göre kurar (tek hesapta iki farklı "bugün" yok): istekteki panelle birebir aynıdır.
         var istek = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
-        using var scope = f.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-        Assert.Same(f.Saat, db.Saati()); Assert.Equal(bugun, db.Bugunu());
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        Assert.Same(f.Saat, db.Saati());
+        Assert.Equal(bugun, db.Bugunu());
         var servis = new HesapServisi(db).Panel();
         Assert.Equal((istek.GuncelKasa, istek.BuHaftaSonucu, istek.BuAySonucu), (servis.GuncelKasa, servis.BuHaftaSonucu, servis.BuAySonucu));
         Assert.NotEqual(0m, servis.BuAySonucu);
@@ -122,7 +130,8 @@ public class SaatTests
     public async Task Kayit_damgalari_sunucunun_saatinden_yazilir()
     {
         var bugun = new DateOnly(2021, 3, 10);
-        await using var f = new DamgaFabrikasi { Saat = new SabitSaat(bugun) }; using var c = await f.EditorClientAsync();
+        await using var f = new DamgaFabrikasi { Saat = new SabitSaat(bugun) };
+        using var c = await f.EditorClientAsync();
         var an = f.Saat!.GetUtcNow();
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2021, 1, 1), kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
 
@@ -148,7 +157,9 @@ public class SaatTests
 
         using (var form = new MultipartFormDataContent())
         {
-            form.Add(new StringContent("Banka"), "kaynak"); form.Add(new StringContent("Akbank"), "banka"); form.Add(new StringContent("Ana hesap"), "hesapAdi");
+            form.Add(new StringContent("Banka"), "kaynak");
+            form.Add(new StringContent("Akbank"), "banka");
+            form.Add(new StringContent("Ana hesap"), "hesapAdi");
             form.Add(new ByteArrayContent("%PDF-1.7 ekstre"u8.ToArray()), "dosya", "ekstre.pdf");
             using var r = await c.PostAsync("/api/ekstre-aktar/yukle", form);
             Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
@@ -161,20 +172,25 @@ public class SaatTests
             Assert.Equal(an, YedekSaklama.Tani(r.Content.Headers.ContentDisposition!.FileName!.Trim('"'))!.Value.Zaman);
         }
         var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
-        Assert.Equal(an, durum.SonYedek); Assert.Equal(an, durum.SonDogrulama); Assert.Equal(an, durum.SonElleYedek);
+        Assert.Equal(an, durum.SonYedek);
+        Assert.Equal(an, durum.SonDogrulama);
+        Assert.Equal(an, durum.SonElleYedek);
     }
 
     [Fact]
     public async Task Paralel_fabrikalar_birbirinin_saatini_gormez_istek_saati_cagirana_sizmaz()
     {
         DateOnly ocak = new(2027, 1, 1), subat = new(2028, 2, 29);
-        await using var f1 = KasaWebFactory.Sabit(ocak); await using var f2 = KasaWebFactory.Sabit(subat);
-        using var c1 = await f1.EditorClientAsync(); using var c2 = await f2.EditorClientAsync();
+        await using var f1 = KasaWebFactory.Sabit(ocak);
+        await using var f2 = KasaWebFactory.Sabit(subat);
+        using var c1 = await f1.EditorClientAsync();
+        using var c2 = await f2.EditorClientAsync();
         // Fabrika başına istekler sıralı (tek in-memory bağlantı), iki fabrikanınkiler eşzamanlı akar.
         async Task<DateOnly[]> Oku(HttpClient c)
         {
             var gunler = new List<DateOnly>();
-            for (var i = 0; i < 20; i++) gunler.Add((await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih);
+            for (var i = 0; i < 20; i++)
+                gunler.Add((await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih);
             return [.. gunler];
         }
         var okumalar = await Task.WhenAll(Task.Run(() => Oku(c1)), Task.Run(() => Oku(c2)));
@@ -208,9 +224,11 @@ public class SaatTests
             Environment.SetEnvironmentVariable("Kasa__JwtKey", "test-jwt-anahtari-en-az-32-bayt-olmali!!");
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<DbContextOptions<KasaDbContext>>(); services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+                services.RemoveAll<DbContextOptions<KasaDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
                 services.AddDbContext<KasaDbContext>(o => o.UseSqlite(_conn));
-                if (saat is not null) { services.RemoveAll<TimeProvider>(); services.AddSingleton(saat); }
+                if (saat is not null)
+                { services.RemoveAll<TimeProvider>(); services.AddSingleton(saat); }
             });
         }
 
@@ -224,7 +242,8 @@ public class SaatTests
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing) _conn.Dispose();
+            if (disposing)
+                _conn.Dispose();
         }
     }
 
@@ -236,16 +255,22 @@ public class SaatTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?> {
-                ["Yedek:Dizin"] = _dizin, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false",
-                ["Bildirim:WorkerEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(_dizin, ".kasa-push-keys.json") }));
+            builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Yedek:Dizin"] = _dizin,
+                ["Yedek:Etkin"] = "false",
+                ["Bildirim:PushEtkin"] = "false",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Bildirim:AnahtarDosyasi"] = Path.Combine(_dizin, ".kasa-push-keys.json")
+            }));
             builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu>(new SabitPdf()); });
         }
 
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing && Directory.Exists(_dizin)) Directory.Delete(_dizin, true);
+            if (disposing && Directory.Exists(_dizin))
+                Directory.Delete(_dizin, true);
         }
     }
 

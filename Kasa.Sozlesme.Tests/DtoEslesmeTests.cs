@@ -67,16 +67,19 @@ public class DtoEslesmeTests
 
     private static IEnumerable<string> Farklar(Type istemci, Type sunucu)
     {
-        var a = SunucuKarsiliklari.Okunan(istemci); var b = SunucuKarsiliklari.Yazilan(sunucu);
+        var a = SunucuKarsiliklari.Okunan(istemci);
+        var b = SunucuKarsiliklari.Yazilan(sunucu);
         foreach (var ad in a.Keys.Union(b.Keys, StringComparer.OrdinalIgnoreCase).Order())
         {
             if (!b.TryGetValue(ad, out var sunucuAlani))
             {
-                if (!SozlesmeIzinleri.HerUctaIzinli(SozlesmeIzinleri.Yon.IstemciFazlasi, istemci, ad)) yield return $"{istemci.Name}.{ad}: yalnız istemcide.";
+                if (!SozlesmeIzinleri.HerUctaIzinli(SozlesmeIzinleri.Yon.IstemciFazlasi, istemci, ad))
+                    yield return $"{istemci.Name}.{ad}: yalnız istemcide.";
             }
             else if (!a.TryGetValue(ad, out var istemciAlani))
             {
-                if (!SozlesmeIzinleri.HerUctaIzinli(SozlesmeIzinleri.Yon.SunucuFazlasi, istemci, ad)) yield return $"{istemci.Name}.{ad}: yalnız sunucuda ({sunucu.FullName}).";
+                if (!SozlesmeIzinleri.HerUctaIzinli(SozlesmeIzinleri.Yon.SunucuFazlasi, istemci, ad))
+                    yield return $"{istemci.Name}.{ad}: yalnız sunucuda ({sunucu.FullName}).";
             }
             else if (Tur(istemciAlani.PropertyType) != Tur(sunucuAlani.PropertyType))
                 yield return $"{istemci.Name}.{ad}: istemci {Tur(istemciAlani.PropertyType)}, sunucu {Tur(sunucuAlani.PropertyType)}.";
@@ -88,14 +91,22 @@ public class DtoEslesmeTests
     internal static string Tur(Type t)
     {
         t = Nullable.GetUnderlyingType(t) ?? t;
-        if (t == typeof(string)) return "metin";
-        if (t == typeof(bool)) return "mantıksal";
-        if (t == typeof(int) || t == typeof(long) || t == typeof(short) || t == typeof(byte)) return "tam sayı";
-        if (t == typeof(decimal) || t == typeof(double) || t == typeof(float)) return "ondalık";
-        if (t == typeof(DateOnly)) return "tarih";
-        if (t == typeof(DateTimeOffset)) return "an";
-        if (t == typeof(Guid)) return "guid";
-        if (t.IsEnum) return "enum";
+        if (t == typeof(string))
+            return "metin";
+        if (t == typeof(bool))
+            return "mantıksal";
+        if (t == typeof(int) || t == typeof(long) || t == typeof(short) || t == typeof(byte))
+            return "tam sayı";
+        if (t == typeof(decimal) || t == typeof(double) || t == typeof(float))
+            return "ondalık";
+        if (t == typeof(DateOnly))
+            return "tarih";
+        if (t == typeof(DateTimeOffset))
+            return "an";
+        if (t == typeof(Guid))
+            return "guid";
+        if (t.IsEnum)
+            return "enum";
         if (typeof(IEnumerable).IsAssignableFrom(t))
             return "dizi<" + Tur(t.IsArray ? t.GetElementType()! : t.GetGenericArguments()[0]) + ">";
         return t.Name.EndsWith("Dto") ? t.Name[..^3] : t.Name;

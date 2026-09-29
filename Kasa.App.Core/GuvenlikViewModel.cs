@@ -29,12 +29,14 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     public Task YukleAsync() => YurutAsync(async n =>
     {
         var s = await api.SurumAsync();
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         GuncellemeGerekli = Version.TryParse(s.MinimumIstemci, out var minimum) && minimum > Version.Parse(IstemciSurumu);
         IndirmeAdresi = Uri.TryCreate(s.IndirmeAdresi, UriKind.Absolute, out var uri) && uri.Scheme == "https" ? uri.AbsoluteUri : null;
         SurumBilgisi = $"Uygulama {IstemciSurumu} · sunucu {s.Surum}" + (GuncellemeGerekli ? "\nDevam etmek için uygulamayı güncelleyin." : "") + (string.IsNullOrWhiteSpace(s.Notlar) ? "" : "\n" + s.Notlar);
         var y = await api.YedekDurumuAsync();
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         YedekBilgisi = $"Otomatik yedek: {(y.OtomatikEtkin ? "açık" : "kapalı")}\nSon yedek: {Zaman(y.SonYedek)}\nSon doğrulama: {Zaman(y.SonDogrulama)}"
             + DiskSatirlari(y) + GeriYuklemeSatirlari(y);
         // Sunucu disk uyarısını (asgari boş alanın altı, toplam boyut sınırı) ve bulunamayan belge uyarısını da verir.
@@ -48,35 +50,48 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     public static string DiskSatirlari(YedekDurumuDto y)
     {
         var satirlar = new List<string>();
-        if (y.YedekDiskiBosAlanBayt is { } yedek) satirlar.Add($"Yedek diski boş alan: {Bicim.Gb(yedek)}");
-        if (y.VeriDiskiBosAlanBayt is { } veri) satirlar.Add($"Veri diski boş alan: {Bicim.Gb(veri)}");
-        if (y.ToplamYedekBayt is { } toplam) satirlar.Add($"Yedeklerin toplam boyutu: {Bicim.Gb(toplam)}");
+        if (y.YedekDiskiBosAlanBayt is { } yedek)
+            satirlar.Add($"Yedek diski boş alan: {Bicim.Gb(yedek)}");
+        if (y.VeriDiskiBosAlanBayt is { } veri)
+            satirlar.Add($"Veri diski boş alan: {Bicim.Gb(veri)}");
+        if (y.ToplamYedekBayt is { } toplam)
+            satirlar.Add($"Yedeklerin toplam boyutu: {Bicim.Gb(toplam)}");
         return satirlar.Count == 0 ? "" : "\n" + string.Join("\n", satirlar);
     }
     /// <summary>Son geri yüklemenin anı ve sunucunun raporu (yapılanlar ve yapılması gerekenler; '• ' ile). Hiç geri yükleme
     /// olmadıysa ya da eski sunucu göndermezse satır yok. Web (app.js) ile aynı metin.</summary>
     public static string GeriYuklemeSatirlari(YedekDurumuDto y)
     {
-        if (y.SonGeriYukleme is not { } son) return "";
+        if (y.SonGeriYukleme is not { } son)
+            return "";
         var satirlar = new List<string> { $"Son geri yükleme: {Zaman(son)}" };
         satirlar.AddRange((y.GeriYuklemeRaporu ?? []).Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => "• " + m));
         return "\n" + string.Join("\n", satirlar);
     }
-    [RelayCommand] private Task SifreDegistirAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    private Task SifreDegistirAsync() => YurutAsync(async n =>
     {
         Mesaj = null;
-        if (string.IsNullOrWhiteSpace(MevcutSifre) || YeniSifre.Length < 12 || YeniSifre.Length > 1024) { Hata = "Mevcut şifreyi ve 12–1024 karakterli yeni şifreyi yazın."; return; }
-        if (YeniSifre != YeniSifreTekrar) { Hata = YeniSifreUyusmazMesaji; return; }
+        if (string.IsNullOrWhiteSpace(MevcutSifre) || YeniSifre.Length < 12 || YeniSifre.Length > 1024)
+        { Hata = "Mevcut şifreyi ve 12–1024 karakterli yeni şifreyi yazın."; return; }
+        if (YeniSifre != YeniSifreTekrar)
+        { Hata = YeniSifreUyusmazMesaji; return; }
         await api.SifreDegistirAsync(new(MevcutSifre, YeniSifre));
-        if (!Gecerli(n)) return;
-        Temizle(); Mesaj = "Şifre değiştirildi. Yeni şifrenizle giriş yapın.";
+        if (!Gecerli(n))
+            return;
+        Temizle();
+        Mesaj = "Şifre değiştirildi. Yeni şifrenizle giriş yapın.";
     });
-    [RelayCommand] private Task KurtarmaKoduOlusturAsync() => YurutAsync(async n =>
+    [RelayCommand]
+    private Task KurtarmaKoduOlusturAsync() => YurutAsync(async n =>
     {
-        Mesaj = null; KurtarmaKodu = null;
-        if (string.IsNullOrWhiteSpace(MevcutSifre)) { Hata = "Mevcut şifrenizi yazın."; return; }
+        Mesaj = null;
+        KurtarmaKodu = null;
+        if (string.IsNullOrWhiteSpace(MevcutSifre))
+        { Hata = "Mevcut şifrenizi yazın."; return; }
         var yanit = await api.KurtarmaKoduOlusturAsync(MevcutSifre);
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         KurtarmaKodu = yanit.Kod;
         MevcutSifre = "";
         Mesaj = "Bu kod yalnız şimdi gösterilir. Güvenli bir yerde saklayın. Yeni kod önceki kodu geçersiz kılar.";
@@ -98,12 +113,15 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         await YurutAsync(async n =>
         {
             using var iptal = new CancellationTokenSource();
-            _yedekIptal = iptal; YedekIndiriliyor = true;
+            _yedekIptal = iptal;
+            YedekIndiriliyor = true;
             try
             {
                 var bilgi = await api.YedekIndirAsync(hedef, iptal.Token);
-                if (!Gecerli(n)) return;
-                sonuc = bilgi; Mesaj = $"Yedek indirildi ({Bicim.Boyut(bilgi.Boyut)}).";
+                if (!Gecerli(n))
+                    return;
+                sonuc = bilgi;
+                Mesaj = $"Yedek indirildi ({Bicim.Boyut(bilgi.Boyut)}).";
             }
             catch (OperationCanceledException) when (iptal.IsCancellationRequested) { if (Gecerli(n)) Mesaj = "Yedek indirme iptal edildi."; }
             finally { _yedekIptal = null; YedekIndiriliyor = false; }

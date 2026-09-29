@@ -16,7 +16,8 @@ public static class JwtYardimci
         var anahtar = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var kimlik = new SigningCredentials(anahtar, SecurityAlgorithms.HmacSha256);
         var claims = new List<Claim> { new(ClaimTypes.Role, rol), new(OturumDamgasi.ClaimAdi, oturumDamgasi) };
-        if (aliciId is { } id) claims.Add(new Claim("alici_id", id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        if (aliciId is { } id)
+            claims.Add(new Claim("alici_id", id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         var token = new JwtSecurityToken(
             claims: claims,
             expires: DateTime.UtcNow.AddDays(OturumGun),

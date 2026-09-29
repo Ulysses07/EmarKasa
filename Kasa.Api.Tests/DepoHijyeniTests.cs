@@ -29,7 +29,8 @@ public class DepoHijyeniTests
                 Assert.True(SabitImaj.IsMatch(satir),
                     $"Dockerfile: '{satir}' temel imajı etiket + @sha256:<özet> ile sabitlemiyor. Güncel özeti ağdan meta veriyle alın "
                     + "(docker buildx imagetools inspect <imaj>:<etiket>); özet uydurmayın. Adımlar: docs/deploy/operasyon-runbook.md.");
-            if (AsamaAdi.Match(satir) is { Success: true } m) asamalar.Add(m.Groups["asama"].Value);
+            if (AsamaAdi.Match(satir) is { Success: true } m)
+                asamalar.Add(m.Groups["asama"].Value);
         }
     }
 
@@ -63,7 +64,8 @@ public class DepoHijyeniTests
         // cancel-in-progress aynı gruptaki süren koşuyu iptal eder. Grup olay türünü ayırmazsa haftalık özet denetimi
         // o daldaki push CI'ını (45 dakikalık Windows derlemesi dahil) keser; o sırada gelen push da haftalık denetimi.
         var satirlar = File.ReadAllLines(DepoDosyasi(".github", "workflows", "ci.yml"));
-        if (!satirlar.Any(s => s.Trim() == "schedule:")) return;
+        if (!satirlar.Any(s => s.Trim() == "schedule:"))
+            return;
 
         var grup = satirlar.SkipWhile(s => s.TrimEnd() != "concurrency:").Skip(1).TakeWhile(s => s.StartsWith(' '))
             .Select(s => s.Trim()).Single(s => s.StartsWith("group:", StringComparison.Ordinal));

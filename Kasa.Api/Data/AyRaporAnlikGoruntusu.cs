@@ -60,7 +60,8 @@ public static class AyRaporAnlikGoruntusu
     /// <paramref name="oncekiKilitSonu"/> verilirse yalnız onun kapsamadığı (yeni kilitlenen) aylar.</summary>
     public static IEnumerable<(int Yil, int Ay)> KilitliAylar(DateOnly takipBaslangic, DateOnly? kilitSonu, DateOnly? oncekiKilitSonu = null)
     {
-        if (kilitSonu is not { } son) yield break;
+        if (kilitSonu is not { } son)
+            yield break;
         for (var ay = new DateOnly(takipBaslangic.Year, takipBaslangic.Month, 1); AySonu(ay.Year, ay.Month) <= son; ay = ay.AddMonths(1))
             if (oncekiKilitSonu is not { } onceki || AySonu(ay.Year, ay.Month) > onceki)
                 yield return (ay.Year, ay.Month);
@@ -76,7 +77,8 @@ public static class AyRaporAnlikGoruntusu
     {
         var satir = db.AyRaporAnlikGoruntuleri.AsNoTracking().Where(g => g.Yil == yil && g.Ay == ay)
             .Select(g => new { g.Json, g.KuralSurumu }).SingleOrDefault();
-        if (satir is null) return null;
+        if (satir is null)
+            return null;
         var kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).SingleOrDefault();
         if (kilit is not { } son || AySonu(yil, ay) > son)
         {
@@ -132,7 +134,8 @@ public static class AyRaporAnlikGoruntusu
     {
         using var transaction = db.Database.BeginTransaction();
         var eksik = EksikAylar(db);
-        if (eksik.Count == 0) return eksik;
+        if (eksik.Count == 0)
+            return eksik;
         var hesap = new HesapServisi(db);
         var donan = new List<(int Yil, int Ay)>();
         foreach (var (yil, ay) in eksik)
@@ -148,7 +151,8 @@ public static class AyRaporAnlikGoruntusu
             Ekle(db, yil, ay, AylikKural.V1, rapor, zaman);
             donan.Add((yil, ay));
         }
-        if (donan.Count == 0) return donan;
+        if (donan.Count == 0)
+            return donan;
         db.SaveChanges();
         transaction.Commit();
         return donan;
@@ -160,7 +164,8 @@ public static class AyRaporAnlikGoruntusu
     internal static bool TohumBekliyor(KasaDbContext db, int yil, int ay)
     {
         var kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).SingleOrDefault();
-        if (kilit is not { } son || AySonu(yil, ay) > son) return false;
+        if (kilit is not { } son || AySonu(yil, ay) > son)
+            return false;
         var baslangic = db.Ayarlar.AsNoTracking().Select(a => a.TakipBaslangic).First();
         return new DateOnly(yil, ay, 1) >= new DateOnly(baslangic.Year, baslangic.Month, 1)
             && !db.AyRaporAnlikGoruntuleri.AsNoTracking().Any(g => g.Yil == yil && g.Ay == ay);
@@ -171,7 +176,8 @@ public static class AyRaporAnlikGoruntusu
     {
         var baslangic = db.Ayarlar.AsNoTracking().Select(a => (DateOnly?)a.TakipBaslangic).FirstOrDefault();
         var kilit = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).SingleOrDefault();
-        if (baslangic is not { } b) return [];
+        if (baslangic is not { } b)
+            return [];
         var mevcut = db.AyRaporAnlikGoruntuleri.AsNoTracking().Select(g => new { g.Yil, g.Ay }).AsEnumerable().Select(g => (g.Yil, g.Ay)).ToHashSet();
         return KilitliAylar(b, kilit).Where(a => !mevcut.Contains(a)).ToList();
     }
@@ -182,16 +188,19 @@ public static class AyRaporAnlikGoruntusu
     {
         string? Oku(string sql)
         {
-            using var komut = connection.CreateCommand(); komut.CommandText = sql;
+            using var komut = connection.CreateCommand();
+            komut.CommandText = sql;
             return komut.ExecuteScalar() is string s ? s : null;
         }
         bool Tablo(string ad)
         {
             using var komut = connection.CreateCommand();
-            komut.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $ad;"; komut.Parameters.AddWithValue("$ad", ad);
+            komut.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $ad;";
+            komut.Parameters.AddWithValue("$ad", ad);
             return komut.ExecuteScalar() is not null;
         }
-        if (!Tablo("AyRaporAnlikGoruntuleri") || !Tablo("AyKilidi") || !Tablo("Ayarlar")) return [];
+        if (!Tablo("AyRaporAnlikGoruntuleri") || !Tablo("AyKilidi") || !Tablo("Ayarlar"))
+            return [];
         if (Oku("SELECT TakipBaslangic FROM Ayarlar ORDER BY Id LIMIT 1;") is not { } b || Oku("SELECT KilitliSonTarih FROM AyKilidi WHERE Id = 1;") is not { } k)
             return [];
         var mevcut = new HashSet<(int, int)>();
@@ -199,7 +208,8 @@ public static class AyRaporAnlikGoruntusu
         {
             komut.CommandText = "SELECT Yil, Ay FROM AyRaporAnlikGoruntuleri;";
             using var okuyucu = komut.ExecuteReader();
-            while (okuyucu.Read()) mevcut.Add((okuyucu.GetInt32(0), okuyucu.GetInt32(1)));
+            while (okuyucu.Read())
+                mevcut.Add((okuyucu.GetInt32(0), okuyucu.GetInt32(1)));
         }
         return KilitliAylar(DateOnly.Parse(b, CultureInfo.InvariantCulture), DateOnly.Parse(k, CultureInfo.InvariantCulture))
             .Where(a => !mevcut.Contains(a)).Select(a => $"Kilitli ay rapor görüntüsü (kural 1): {a.Yil:D4}-{a.Ay:D2}").ToList();
@@ -209,7 +219,11 @@ public static class AyRaporAnlikGoruntusu
     {
         db.AyRaporAnlikGoruntuleri.Add(new AyRaporAnlikGoruntuEntity
         {
-            Yil = yil, Ay = ay, KuralSurumu = kural, Json = JsonSerializer.Serialize(rapor, JsonSecenekleri), Zaman = zaman,
+            Yil = yil,
+            Ay = ay,
+            KuralSurumu = kural,
+            Json = JsonSerializer.Serialize(rapor, JsonSecenekleri),
+            Zaman = zaman,
         });
     }
 }

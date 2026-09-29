@@ -11,7 +11,8 @@ public class FinanceMigrationTests
     [Fact]
     public void Gecis_yeni_cari_uretmez_alis_adi_ve_odeme_istek_gecmisini_korur()
     {
-        using var connection = new SqliteConnection("Data Source=:memory:"); connection.Open();
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
         db.GetService<IMigrator>().Migrate("20260919000200_PurchaseWorkflow");
         using var command = connection.CreateCommand();
@@ -27,11 +28,19 @@ public class FinanceMigrationTests
         KasaDatabaseInitializer.Initialize(db);
         Assert.All(db.Alislar, a => Assert.Null(a.TedarikciId));
         Assert.Equal(new[] { "mevcut", "Yeni", "Belirsiz" }, db.Alislar.OrderBy(a => a.Id).Select(a => a.Tedarikci).ToArray());
-        Assert.Equal(3, db.Cariler.Count()); Assert.DoesNotContain(db.Cariler, c => c.Ad == "Yeni"); Assert.Equal(20m, db.Islemler.Single().TutarTl);
-        Assert.Null(db.AlisKalemler.Single().Miktar); Assert.Null(db.Alislar.Single(a => a.Id == 1).Vade);
+        Assert.Equal(3, db.Cariler.Count());
+        Assert.DoesNotContain(db.Cariler, c => c.Ad == "Yeni");
+        Assert.Equal(20m, db.Islemler.Single().TutarTl);
+        Assert.Null(db.AlisKalemler.Single().Miktar);
+        Assert.Null(db.Alislar.Single(a => a.Id == 1).Vade);
         Assert.False(db.Krediler.Single().GerceklesmeTakibi);
-        var history = Assert.Single(db.FinansIstekler); Assert.Equal("digest", history.Ozet); Assert.Equal("AlisOdeme", history.Tur); Assert.Equal(1, history.SonucId);
-        Assert.Empty(db.HesapHareketler); Assert.False(db.Database.HasPendingModelChanges());
-        KasaDatabaseInitializer.Initialize(db); Assert.Single(db.FinansIstekler);
+        var history = Assert.Single(db.FinansIstekler);
+        Assert.Equal("digest", history.Ozet);
+        Assert.Equal("AlisOdeme", history.Tur);
+        Assert.Equal(1, history.SonucId);
+        Assert.Empty(db.HesapHareketler);
+        Assert.False(db.Database.HasPendingModelChanges());
+        KasaDatabaseInitializer.Initialize(db);
+        Assert.Single(db.FinansIstekler);
     }
 }

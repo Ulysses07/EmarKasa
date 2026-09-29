@@ -10,7 +10,8 @@ public sealed class AyAdiConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var ay = System.Convert.ToInt32(value ?? 0);
-        if (ay < 1 || ay > 12) return "";
+        if (ay < 1 || ay > 12)
+            return "";
         var ad = Tr.DateTimeFormat.GetMonthName(ay);
         return Tr.TextInfo.ToTitleCase(ad);
     }

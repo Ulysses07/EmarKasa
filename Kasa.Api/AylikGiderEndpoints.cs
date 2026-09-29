@@ -37,7 +37,8 @@ public static class AylikGiderEndpoints
         api.MapPut("/sablonlar/{id:int}", (int id, AylikGiderSablonYaz dto, KasaDbContext db) => SaveTemplate(db, id, dto)).RequireAuthorization("Editor");
         api.MapGet("", (int yil, int ay, KasaDbContext db) => Oku(db, () =>
         {
-            if (GirdiDogrulama.RaporAyi(yil, ay) is { } hata) return hata;
+            if (GirdiDogrulama.RaporAyi(yil, ay) is { } hata)
+                return hata;
             var month = Month(yil, ay);
             var revisions = Revisions(db, month);
             var payments = db.AylikGiderOdemeler.AsNoTracking().Where(p => p.Ay == month && !p.Iptal).ToDictionary(p => p.SablonId);
@@ -54,7 +55,8 @@ public static class AylikGiderEndpoints
         api.MapPost("/{sablonId:int}/ode", (int sablonId, AylikGiderOdemeYaz dto, KasaDbContext db, TimeProvider saat) => Run(db, () =>
         {
             var digest = FinansHesaplari.Ozet(new { sablonId, dto.Yil, dto.Ay, dto.Tarih, dto.Not });
-            if (FinansHesaplari.Tekrar(db, dto.IstekId, "AylikGiderOdeme", digest, id => Results.Ok(Paid(db, db.AylikGiderOdemeler.Single(p => p.Id == id)))) is { } replay) return replay;
+            if (FinansHesaplari.Tekrar(db, dto.IstekId, "AylikGiderOdeme", digest, id => Results.Ok(Paid(db, db.AylikGiderOdemeler.Single(p => p.Id == id)))) is { } replay)
+                return replay;
             var month = Month(dto.Yil, dto.Ay);
             var revision = Revisions(db, month).SingleOrDefault(r => r.SablonId == sablonId);
             Need(revision is not null && revision.Aktif, "Bu ay için aktif şablon bulunamadı.", 404);
@@ -62,30 +64,52 @@ public static class AylikGiderEndpoints
             Need(!db.AylikGiderOdemeler.Any(p => p.SablonId == sablonId && p.Ay == month && !p.Iptal), "Bu şablonun bu aya ait ödemesi zaten kayıtlı.", 409);
             Need(dto.Tarih >= db.Ayarlar.Select(a => a.TakipBaslangic).First() && dto.Tarih <= FinansTakipServisi.Bugun, "Ödeme tarihi takip başlangıcı ile bugün arasında olmalı.");
             Need(dto.Tarih >= month, "Ödeme plan ayından önce olamaz.");
-            Need((dto.Not?.Length ?? 0) <= 2000, "Not en fazla 2000 karakter olabilir."); KontrolKarakteri(dto.Not, "Not");
-            AyKilidiKurallari.TarihAcik(db, month); AyKilidiKurallari.TarihAcik(db, dto.Tarih);
+            Need((dto.Not?.Length ?? 0) <= 2000, "Not en fazla 2000 karakter olabilir.");
+            KontrolKarakteri(dto.Not, "Not");
+            AyKilidiKurallari.TarihAcik(db, month);
+            AyKilidiKurallari.TarihAcik(db, dto.Tarih);
             var shares = FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
-            if (dto.BenzerOnay != true && Benzerler(db, dto, digest, revision, shares, uyarilar, saat.GetUtcNow()) is { } similar) return similar;
-            var expense = new IslemEntity { Tarih = dto.Tarih, Cari = revision.Ad, TutarTl = revision.Tutar, Tip = GiderTipi.SabitGider,
+            if (dto.BenzerOnay != true && Benzerler(db, dto, digest, revision, shares, uyarilar, saat.GetUtcNow()) is { } similar)
+                return similar;
+            var expense = new IslemEntity
+            {
+                Tarih = dto.Tarih,
+                Cari = revision.Ad,
+                TutarTl = revision.Tutar,
+                Tip = GiderTipi.SabitGider,
                 KanalId = shares.Count == 1 ? shares[0].KanalId : null,
-                Kanal = shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)), Not = dto.Not?.Trim() };
-            db.Islemler.Add(expense); db.SaveChanges();
+                Kanal = shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
+                Not = dto.Not?.Trim()
+            };
+            db.Islemler.Add(expense);
+            db.SaveChanges();
             var payment = new AylikGiderOdemeEntity { SablonId = sablonId, RevizyonId = revision.Id, Ay = month, Tarih = dto.Tarih, Tutar = revision.Tutar, IslemId = expense.Id };
-            db.AylikGiderOdemeler.Add(payment); db.SaveChanges();
-            FinansHesaplari.IstekKaydet(db, dto.IstekId, "AylikGiderOdeme", digest, payment.Id); db.SaveChanges();
+            db.AylikGiderOdemeler.Add(payment);
+            db.SaveChanges();
+            FinansHesaplari.IstekKaydet(db, dto.IstekId, "AylikGiderOdeme", digest, payment.Id);
+            db.SaveChanges();
             return Results.Ok(Paid(db, payment));
         })).RequireAuthorization("Editor");
         api.MapPost("/odemeler/{odemeId:int}/iptal", (int odemeId, AylikGiderIptalYaz dto, KasaDbContext db) => Run(db, () =>
         {
-            Text(dto.Aciklama); KontrolKarakteri(dto.Aciklama, "İptal gerekçesi");
+            Text(dto.Aciklama);
+            KontrolKarakteri(dto.Aciklama, "İptal gerekçesi");
             var digest = FinansHesaplari.Ozet(new { odemeId, dto.Aciklama });
-            if (FinansHesaplari.Tekrar(db, dto.IstekId, "AylikGiderIptal", digest, id => Results.Ok(Paid(db, db.AylikGiderOdemeler.Single(p => p.Id == id)))) is { } replay) return replay;
-            var p = db.AylikGiderOdemeler.SingleOrDefault(p => p.Id == odemeId); Need(p is not null, "Ödeme bulunamadı.", 404);
-            Need(!p!.Iptal, "Ödeme zaten iptal edilmiş.", 409); AyKilidiKurallari.TarihAcik(db, p.Tarih); AyKilidiKurallari.TarihAcik(db, p.Ay);
+            if (FinansHesaplari.Tekrar(db, dto.IstekId, "AylikGiderIptal", digest, id => Results.Ok(Paid(db, db.AylikGiderOdemeler.Single(p => p.Id == id)))) is { } replay)
+                return replay;
+            var p = db.AylikGiderOdemeler.SingleOrDefault(p => p.Id == odemeId);
+            Need(p is not null, "Ödeme bulunamadı.", 404);
+            Need(!p!.Iptal, "Ödeme zaten iptal edilmiş.", 409);
+            AyKilidiKurallari.TarihAcik(db, p.Tarih);
+            AyKilidiKurallari.TarihAcik(db, p.Ay);
             db.AylikGiderDegisikligi = true;
-            if (p.IslemId is { } expenseId) db.Islemler.Remove(db.Islemler.Single(i => i.Id == expenseId));
-            p.IslemId = null; p.Iptal = true; p.IptalAciklamasi = dto.Aciklama.Trim();
-            FinansHesaplari.IstekKaydet(db, dto.IstekId, "AylikGiderIptal", digest, p.Id); db.SaveChanges();
+            if (p.IslemId is { } expenseId)
+                db.Islemler.Remove(db.Islemler.Single(i => i.Id == expenseId));
+            p.IslemId = null;
+            p.Iptal = true;
+            p.IptalAciklamasi = dto.Aciklama.Trim();
+            FinansHesaplari.IstekKaydet(db, dto.IstekId, "AylikGiderIptal", digest, p.Id);
+            db.SaveChanges();
             return Results.Ok(Paid(db, p));
         })).RequireAuthorization("Editor");
         return app;
@@ -94,37 +118,60 @@ public static class AylikGiderEndpoints
     private static IResult SaveTemplate(KasaDbContext db, int id, AylikGiderSablonYaz d) => Run(db, () =>
     {
         var digest = FinansHesaplari.Ozet(new { id, d.Ad, d.Tur, d.Tutar, d.OdemeGunu, d.DagilimTuru, d.Dagilimlar, d.GecerliAy, d.Aktif });
-        if (FinansHesaplari.Tekrar(db, d.IstekId, "AylikGiderSablon", digest, key => Results.Ok(Template(db, db.AylikGiderRevizyonlar.Where(r => r.SablonId == key).OrderByDescending(r => r.Surum).First()))) is { } replay) return replay;
-        Text(d.Ad); KontrolKarakteri(d.Ad, "Gider adı"); Need(d.Tur is "Kira" or "Maas" or "Fatura" or "Diger", "Geçerli gider türü seçin.");
+        if (FinansHesaplari.Tekrar(db, d.IstekId, "AylikGiderSablon", digest, key => Results.Ok(Template(db, db.AylikGiderRevizyonlar.Where(r => r.SablonId == key).OrderByDescending(r => r.Surum).First()))) is { } replay)
+            return replay;
+        Text(d.Ad);
+        KontrolKarakteri(d.Ad, "Gider adı");
+        Need(d.Tur is "Kira" or "Maas" or "Fatura" or "Diger", "Geçerli gider türü seçin.");
         Need(d.Tutar > 0 && d.Tutar <= 999_999_999_999.99m && decimal.Round(d.Tutar, 2) == d.Tutar, "Pozitif, kuruş hassasiyetinde tutar girin.");
         Need(d.OdemeGunu is >= 1 and <= 31, "Ödeme günü 1–31 olmalı.");
         // Geçerlilik ayı kayıt tarihi penceresiyle sınırlı (yazım hatalı uzak yıl planı sessizce görünmez kılardı);
         // planın aylık satırları bu aydan sonra her ay için türetilir, pencereye bağlı değildir.
-        var today = FinansTakipServisi.Bugun; var current = new DateOnly(today.Year, today.Month, 1); var last = GirdiDogrulama.EnGecTarih(today);
+        var today = FinansTakipServisi.Bugun;
+        var current = new DateOnly(today.Year, today.Month, 1);
+        var last = GirdiDogrulama.EnGecTarih(today);
         Need(d.GecerliAy.Day == 1 && d.GecerliAy >= current && d.GecerliAy <= last, $"Geçerlilik cari ay ile {last:MM.yyyy} arasında bir ayın ilk günü olmalı.");
         Need(d.DagilimTuru is "Genel" or "Esit" or "Ozel", "Geçerli dağılım türü seçin.");
         Need(d.Dagilimlar is not null && d.Dagilimlar.Count <= 100 && d.Dagilimlar.All(p => p is not null), "En fazla 100 kanal seçin.");
-        var parts = d.Dagilimlar!; var ids = parts.Select(p => p.KanalId).ToList();
+        var parts = d.Dagilimlar!;
+        var ids = parts.Select(p => p.KanalId).ToList();
         Need(ids.Distinct().Count() == ids.Count && db.Kanallar.Count(k => ids.Contains(k.Id)) == ids.Count, "Kayıtlı ve tekil kanallar seçin.");
         Need(d.DagilimTuru == "Genel" ? parts.Count == 0 : parts.Count > 0, "Genel giderde kanal seçmeyin; diğer türlerde kanal seçin.");
         List<KanalPayYaz> shares = [];
-        if (d.DagilimTuru == "Esit") shares = FinansTakipServisi.EsitPaylar(ids, d.Tutar);
+        if (d.DagilimTuru == "Esit")
+            shares = FinansTakipServisi.EsitPaylar(ids, d.Tutar);
         if (d.DagilimTuru == "Ozel")
         {
             Need(parts.All(p => p.Tutar > 0 && p.Tutar <= d.Tutar && decimal.Round(p.Tutar, 2) == p.Tutar) && parts.Sum(p => p.Tutar) == d.Tutar, "Kanal tutarları pozitif ve toplamı gider tutarına eşit olmalı.");
             shares = parts.OrderBy(p => p.KanalId).ToList();
         }
         AylikGiderSablonEntity template;
-        if (id == 0) { Need(d.Surum == 0, "Yeni şablon sürümü 0 olmalı."); template = new(); db.AylikGiderSablonlar.Add(template); db.SaveChanges(); }
+        if (id == 0)
+        { Need(d.Surum == 0, "Yeni şablon sürümü 0 olmalı."); template = new(); db.AylikGiderSablonlar.Add(template); db.SaveChanges(); }
         else
         {
-            template = db.AylikGiderSablonlar.SingleOrDefault(s => s.Id == id)!; Need(template is not null, "Şablon bulunamadı.", 404);
+            template = db.AylikGiderSablonlar.SingleOrDefault(s => s.Id == id)!;
+            Need(template is not null, "Şablon bulunamadı.", 404);
             Need(template.Surum == d.Surum, "Şablon değişmiş. Yenileyin.", 409);
-            Need(!db.AylikGiderRevizyonlar.Any(r => r.SablonId == id && r.GecerliAy > d.GecerliAy), "Yeni sürüm son planlanan geçerlilik ayından önce olamaz."); template.Surum++;
+            Need(!db.AylikGiderRevizyonlar.Any(r => r.SablonId == id && r.GecerliAy > d.GecerliAy), "Yeni sürüm son planlanan geçerlilik ayından önce olamaz.");
+            template.Surum++;
         }
-        var revision = new AylikGiderRevizyonEntity { SablonId = template.Id, Surum = template.Surum, Ad = d.Ad.Trim(), Tur = d.Tur, Tutar = d.Tutar,
-            OdemeGunu = d.OdemeGunu, GecerliAy = d.GecerliAy, DagilimTuru = d.DagilimTuru, DagilimJson = FinansTakipServisi.Json(shares), Aktif = d.Aktif };
-        db.AylikGiderRevizyonlar.Add(revision); FinansHesaplari.IstekKaydet(db, d.IstekId, "AylikGiderSablon", digest, template.Id); db.SaveChanges();
+        var revision = new AylikGiderRevizyonEntity
+        {
+            SablonId = template.Id,
+            Surum = template.Surum,
+            Ad = d.Ad.Trim(),
+            Tur = d.Tur,
+            Tutar = d.Tutar,
+            OdemeGunu = d.OdemeGunu,
+            GecerliAy = d.GecerliAy,
+            DagilimTuru = d.DagilimTuru,
+            DagilimJson = FinansTakipServisi.Json(shares),
+            Aktif = d.Aktif
+        };
+        db.AylikGiderRevizyonlar.Add(revision);
+        FinansHesaplari.IstekKaydet(db, d.IstekId, "AylikGiderSablon", digest, template.Id);
+        db.SaveChanges();
         return Results.Ok(Template(db, revision));
     });
     /// <summary>Benzer kayıt protokolü (gap-coklu-giris-cift-sayim-mutabakat-8): bankadan işlenmiş kira, elle gider, alış ödemesi,
@@ -138,12 +185,14 @@ public static class AylikGiderEndpoints
     {
         var channels = shares.Where(s => s.KanalId is not null).Select(s => s.KanalId!.Value).ToHashSet();
         var records = new BenzerKayitServisi(db).Bul(new BenzerAramasi("AylikGider", dto.Tarih, revision.Tutar, Kanallar: channels.Count == 0 ? null : channels));
-        if (records.Count == 0) return null;
+        if (records.Count == 0)
+            return null;
         var names = BenzerKayitServisi.Liste(records.Select(k => BenzerKayitServisi.Satir(k)).ToList());
         var confirm = "; ayrı bir ödemeyse onaylayarak kaydedin.";
         if (dto.BenzerOnay is null)
         {
-            if (uyarilar.Goruldu(dto.IstekId, digest, records, now)) return null;
+            if (uyarilar.Goruldu(dto.IstekId, digest, records, now))
+                return null;
             uyarilar.Kaydet(dto.IstekId, digest, records, now);
             confirm = ". Ayrı bir ödemeyse bilgileri değiştirmeden ödemeyi yeniden kaydedin.";
         }
@@ -172,8 +221,10 @@ public static class AylikGiderEndpoints
         {
             if (_uyarilar.Count >= EnFazla)
             {
-                foreach (var eski in _uyarilar.Where(x => !Gecerli(x.Value.Zaman, simdi)).Select(x => x.Key).ToList()) _uyarilar.TryRemove(eski, out _);
-                foreach (var eski in _uyarilar.OrderBy(x => x.Value.Zaman).Take(_uyarilar.Count - EnFazla + 1).Select(x => x.Key).ToList()) _uyarilar.TryRemove(eski, out _);
+                foreach (var eski in _uyarilar.Where(x => !Gecerli(x.Value.Zaman, simdi)).Select(x => x.Key).ToList())
+                    _uyarilar.TryRemove(eski, out _);
+                foreach (var eski in _uyarilar.OrderBy(x => x.Value.Zaman).Take(_uyarilar.Count - EnFazla + 1).Select(x => x.Key).ToList())
+                    _uyarilar.TryRemove(eski, out _);
             }
             _uyarilar[istek] = (ozet, kayitlar.Select(Anahtar).ToHashSet(StringComparer.Ordinal), simdi);
         }
@@ -190,7 +241,10 @@ public static class AylikGiderEndpoints
     private static AylikGiderSatirDto Paid(KasaDbContext db, AylikGiderOdemeEntity p, IReadOnlyDictionary<int, DateTimeOffset>? cancelTimes = null) =>
         Row(db, db.AylikGiderRevizyonlar.AsNoTracking().Single(r => r.Id == p.RevizyonId), p.Ay) with
         {
-            Durum = p.Iptal ? "Iptal" : "Odendi", OdemeId = p.Id, OdemeTarihi = p.Tarih, IslemId = p.IslemId,
+            Durum = p.Iptal ? "Iptal" : "Odendi",
+            OdemeId = p.Id,
+            OdemeTarihi = p.Tarih,
+            IslemId = p.IslemId,
             IptalAciklamasi = p.Iptal ? p.IptalAciklamasi : null,
             IptalZamani = !p.Iptal ? null : cancelTimes is null ? DenetimOkuma.IptalAni<AylikGiderOdemeEntity>(db, p.Id) : cancelTimes.TryGetValue(p.Id, out var an) ? an : null,
         };
@@ -207,12 +261,14 @@ public static class AylikGiderEndpoints
     /// almaz. Doğrulama hataları yazma yolundakiyle aynı biçimde döner.</summary>
     internal static IResult Oku(KasaDbContext db, Func<IResult> action) => AlisEndpoints.Oku(db, () =>
     {
-        try { return action(); }
+        try
+        { return action(); }
         catch (AylikGiderHatasi e) { return Results.Json(new { hata = e.Message }, statusCode: e.Status); }
     });
     internal static IResult Run(KasaDbContext db, Func<IResult> action)
     {
-        try { return AlisEndpoints.Mutate(db, action); }
+        try
+        { return AlisEndpoints.Mutate(db, action); }
         catch (AylikGiderHatasi e) { return Results.Json(new { hata = e.Message }, statusCode: e.Status); }
         finally { db.AylikGiderDegisikligi = false; }
     }

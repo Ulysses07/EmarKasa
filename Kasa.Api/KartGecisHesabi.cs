@@ -107,7 +107,8 @@ public static class KartGecisHesabi
     /// banka/kasa kayıtlarıyla doğrulanabilir.</summary>
     public static IlkSurumKalintisi? IlkSurumKalintisi(KasaDbContext db, TakipKartEntity takip)
     {
-        if (!takip.EskiKayit || takip.EskiDusumKurali != EskiDusumKurali.EtkiTarihi) return null;
+        if (!takip.EskiKayit || takip.EskiDusumKurali != EskiDusumKurali.EtkiTarihi)
+            return null;
         var card = db.KrediKartlari.AsNoTracking().Single(k => k.Id == takip.KrediKartiId);
         var old = db.Islemler.AsNoTracking().Where(i => i.KrediKartiId == card.Id && i.Tarih < takip.Baslangic).ToList();
         var rows = old.Where(i => IlkSurumdeAtlanir(takip, i.Tarih)).ToList();
@@ -125,7 +126,8 @@ public static class KartGecisHesabi
         var pending = rows.Sum(i => i.TutarTl);
         var (debt, counted) = (transfer?.Tutar ?? 0, transfer?.KasadaOncedenSayilanTutar ?? 0);
         var difference = counted - (Math.Min(debt, system) - pending);
-        if (pending == 0 && difference == 0) return null;
+        if (pending == 0 && difference == 0)
+            return null;
         return new(card.Id, card.Ad, takip.Baslangic, pending, rows.Count == 0 ? null : rows.Min(i => SonrakiAySonu(i.Tarih)), rows.Count == 0 ? null : rows.Max(i => SonrakiAySonu(i.Tarih)),
             system, debt, counted, card.Borc, difference);
     }
@@ -153,7 +155,8 @@ public static class KartGecisHesabi
     /// <summary>Eski kayıttan geçirilmiş kartın denetim izi ve ilk sürüm tespiti; yeni açılan kartta null.</summary>
     public static KartGecisDto? Gecis(KasaDbContext db, TakipKartEntity takip)
     {
-        if (!takip.EskiKayit) return null;
+        if (!takip.EskiKayit)
+            return null;
         var kalinti = IlkSurumKalintisi(db, takip);
         return new(takip.EskiDusumKurali.ToString(), takip.GecisAciklamasi,
             takip.GecisOzetiJson is { } json ? JsonSerializer.Deserialize<KartGecisKaydi>(json) : null,

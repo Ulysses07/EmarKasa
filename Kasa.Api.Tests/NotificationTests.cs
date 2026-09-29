@@ -104,7 +104,8 @@ public sealed class NotificationTests
     {
         using var fixture = new Fixture();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day), Event("Kredi", "Taksit", Day)];
-        fixture.Device("a"); fixture.Device("b");
+        fixture.Device("a");
+        fixture.Device("b");
         await fixture.Service().Gonder();
         await fixture.Service().Gonder();
         Assert.Equal(4, fixture.Sender.Calls.Count);
@@ -116,7 +117,8 @@ public sealed class NotificationTests
     public async Task PaidBetweenQueueingAndDeliveryCancelsPendingReminder()
     {
         using var fixture = new Fixture();
-        fixture.Sources.Events = [Event("Kart", "SonOdeme", Day)]; fixture.Device("a");
+        fixture.Sources.Events = [Event("Kart", "SonOdeme", Day)];
+        fixture.Device("a");
         await fixture.Service().Yenile();
         fixture.Sources.Events = [];
         await fixture.Service().Gonder();
@@ -128,22 +130,26 @@ public sealed class NotificationTests
     public async Task PartialPaymentUpdatesMessageBeforeRetry()
     {
         using var fixture = new Fixture();
-        fixture.Sources.Events = [Event("Kart", "SonOdeme", Day, 250)]; fixture.Device("a");
+        fixture.Sources.Events = [Event("Kart", "SonOdeme", Day, 250)];
+        fixture.Device("a");
         fixture.Sender.Result = PushSonuc.GeciciHata;
         await fixture.Service().Gonder();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day, 100)];
-        fixture.Clock.Utc = fixture.Clock.Utc.AddMinutes(2); fixture.Sender.Result = PushSonuc.Basarili;
+        fixture.Clock.Utc = fixture.Clock.Utc.AddMinutes(2);
+        fixture.Sender.Result = PushSonuc.Basarili;
         await fixture.Service().Gonder();
         Assert.Equal(2, fixture.Sender.Calls.Count);
         Assert.Contains("100,00 TL", fixture.Sender.Calls.Last().Mesaj);
-        await fixture.Service().Gonder(); Assert.Equal(2, fixture.Sender.Calls.Count);
+        await fixture.Service().Gonder();
+        Assert.Equal(2, fixture.Sender.Calls.Count);
     }
 
     [Fact]
     public async Task ExpiredSubscriptionAndPasswordChangeStopPush()
     {
         using var fixture = new Fixture();
-        fixture.Sources.Events = [Event("Kredi", "Taksit", Day)]; fixture.Device("a");
+        fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
+        fixture.Device("a");
         fixture.Sender.Result = PushSonuc.AbonelikBitti;
         await fixture.Service().Gonder();
         Assert.False(fixture.Db.Set<PushAbonelikEntity>().AsNoTracking().Single().Etkin);
@@ -156,18 +162,22 @@ public sealed class NotificationTests
     [Fact]
     public async Task BeforeSendHourCreatesNothingAndMissedYesterdayIsNotSent()
     {
-        using var fixture = new Fixture(); fixture.Device("a");
+        using var fixture = new Fixture();
+        fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day), Event("Kart", "SonOdeme", Day.AddDays(-1))];
         fixture.Clock.Utc = new DateTimeOffset(2026, 9, 23, 5, 59, 0, TimeSpan.Zero);
-        await fixture.Service().Gonder(); Assert.Empty(fixture.Sender.Calls);
+        await fixture.Service().Gonder();
+        Assert.Empty(fixture.Sender.Calls);
         fixture.Clock.Utc = fixture.Clock.Utc.AddMinutes(1);
-        await fixture.Service().Gonder(); Assert.Single(fixture.Sender.Calls);
+        await fixture.Service().Gonder();
+        Assert.Single(fixture.Sender.Calls);
     }
 
     [Fact]
     public async Task ChangingDueDatePreservesSentHistoryAndCreatesTheNewReminder()
     {
-        using var fixture = new Fixture(); fixture.Device("a");
+        using var fixture = new Fixture();
+        fixture.Device("a");
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day.AddDays(3))];
         await fixture.Service().Gonder();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day.AddDays(4))];
@@ -175,26 +185,34 @@ public sealed class NotificationTests
         await fixture.Service().Gonder();
         Assert.Equal(2, fixture.Sender.Calls.Count);
         var history = fixture.Db.Set<BildirimEntity>().AsNoTracking().OrderBy(x => x.Id).ToArray();
-        Assert.Equal(Day, history[0].Tarih); Assert.Equal(Day.AddDays(1), history[1].Tarih);
-        Assert.Contains("26.09.2026", history[0].Mesaj); Assert.Contains("27.09.2026", history[1].Mesaj);
+        Assert.Equal(Day, history[0].Tarih);
+        Assert.Equal(Day.AddDays(1), history[1].Tarih);
+        Assert.Contains("26.09.2026", history[0].Mesaj);
+        Assert.Contains("27.09.2026", history[1].Mesaj);
     }
 
     [Fact]
     public async Task ChangingHourDefersAlreadyQueuedReminder()
     {
-        using var fixture = new Fixture(); fixture.Device("a");
+        using var fixture = new Fixture();
+        fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         await fixture.Service().Yenile();
         fixture.Db.Set<BildirimAyarEntity>().ExecuteUpdate(x => x.SetProperty(p => p.Saat, 10));
-        await fixture.Service().Gonder(); Assert.Empty(fixture.Sender.Calls);
+        await fixture.Service().Gonder();
+        Assert.Empty(fixture.Sender.Calls);
         fixture.Clock.Utc = fixture.Clock.Utc.AddHours(1);
-        await fixture.Service().Gonder(); Assert.Single(fixture.Sender.Calls);
+        await fixture.Service().Gonder();
+        Assert.Single(fixture.Sender.Calls);
     }
 
     [Fact]
     public async Task EachLeaseStartsAtFreshTimeAndBatchStopsAtMidnight()
     {
-        using var fixture = new Fixture(); fixture.Device("a"); fixture.Device("b"); fixture.Device("c");
+        using var fixture = new Fixture();
+        fixture.Device("a");
+        fixture.Device("b");
+        fixture.Device("c");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         var checkedLeases = 0;
         fixture.Sender.OnSend = () =>
@@ -207,13 +225,15 @@ public sealed class NotificationTests
             return Task.CompletedTask;
         };
         await fixture.Service().Gonder();
-        Assert.Equal(2, checkedLeases); Assert.Equal(2, fixture.Sender.Calls.Count);
+        Assert.Equal(2, checkedLeases);
+        Assert.Equal(2, fixture.Sender.Calls.Count);
     }
 
     [Fact]
     public async Task SecondWorkerCannotSendAnAlreadyLeasedDelivery()
     {
-        using var fixture = new Fixture(); fixture.Device("a");
+        using var fixture = new Fixture();
+        fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -222,7 +242,8 @@ public sealed class NotificationTests
         await reached.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await fixture.Service().Gonder();
         Assert.Single(fixture.Sender.Calls);
-        finish.SetResult(); await first;
+        finish.SetResult();
+        await first;
         Assert.Single(fixture.Db.Set<BildirimTeslimEntity>().Where(x => x.Gonderildi != null));
     }
 
@@ -234,7 +255,8 @@ public sealed class NotificationTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await guest.GetAsync("/api/bildirimler")).StatusCode);
         var editor = await factory.EditorClientAsync();
         var before = await editor.GetFromJsonAsync<BildirimAyarYaz>("/api/bildirimler/ayarlar");
-        Assert.NotNull(before); Assert.Equal(9, before.Saat);
+        Assert.NotNull(before);
+        Assert.Equal(9, before.Saat);
         var changed = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(true, 10, 30, before.Surum));
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         var stale = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(false, 10, 30, before.Surum));
@@ -247,7 +269,8 @@ public sealed class NotificationTests
     [Fact]
     public async Task PaidSameDayHidesPendingReminderButKeepsDeliveredHistory()
     {
-        using var factory = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun); var client = await factory.EditorClientAsync();
+        using var factory = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
+        var client = await factory.EditorClientAsync();
         int deliveredId, pendingId;
         using (var scope = factory.Services.CreateScope())
         {
@@ -256,9 +279,12 @@ public sealed class NotificationTests
             var sent = new BildirimEntity { OlayAnahtari = "paid-source-delivered", Baslik = "Ödeme günü", Mesaj = "Geçmiş uyarı", Tarih = today };
             var pending = new BildirimEntity { OlayAnahtari = "paid-source-pending", Baslik = "Ödeme günü", Mesaj = "Bekleyen uyarı", Tarih = today };
             var device = new PushAbonelikEntity { Endpoint = "https://fcm.googleapis.com/fcm/send/history-test" };
-            db.AddRange(sent, pending, device); db.SaveChanges();
+            db.AddRange(sent, pending, device);
+            db.SaveChanges();
             db.Add(new BildirimTeslimEntity { BildirimId = sent.Id, AbonelikId = device.Id, Gonderildi = factory.Saat!.GetUtcNow().ToUnixTimeSeconds() });
-            db.SaveChanges(); deliveredId = sent.Id; pendingId = pending.Id;
+            db.SaveChanges();
+            deliveredId = sent.Id;
+            pendingId = pending.Id;
         }
         // Neither paid source is returned by the finance event source during refresh.
         var rows = await client.GetFromJsonAsync<System.Text.Json.JsonElement[]>("/api/bildirimler");
@@ -272,10 +298,15 @@ public sealed class NotificationTests
     {
         using var fixture = new Fixture();
         fixture.Db.Ayarlar.Add(new() { TakipBaslangic = Day.AddDays(-10) });
-        var channel = new KanalEntity { Ad = "Kanal" }; fixture.Db.Kanallar.Add(channel); fixture.Db.SaveChanges();
-        fixture.Db.KasaEsikleri.Add(new() { KanalId = channel.Id, Etkin = true, Tutar = 100m }); fixture.Db.SaveChanges();
-        fixture.Device("a"); fixture.Device("b");
-        await fixture.Service().Gonder(); await fixture.Service().Gonder();
+        var channel = new KanalEntity { Ad = "Kanal" };
+        fixture.Db.Kanallar.Add(channel);
+        fixture.Db.SaveChanges();
+        fixture.Db.KasaEsikleri.Add(new() { KanalId = channel.Id, Etkin = true, Tutar = 100m });
+        fixture.Db.SaveChanges();
+        fixture.Device("a");
+        fixture.Device("b");
+        await fixture.Service().Gonder();
+        await fixture.Service().Gonder();
         Assert.Equal(2, fixture.Sender.Calls.Count);
         Assert.Single(fixture.Db.Set<BildirimEntity>());
         fixture.Clock.Utc = fixture.Clock.Utc.AddDays(1);
@@ -289,8 +320,11 @@ public sealed class NotificationTests
     {
         using var fixture = new Fixture();
         fixture.Db.Ayarlar.Add(new() { TakipBaslangic = Day.AddDays(-10) });
-        var channel = new KanalEntity { Ad = "Kanal" }; fixture.Db.Kanallar.Add(channel); fixture.Db.SaveChanges();
-        fixture.Db.KasaEsikleri.Add(new() { KanalId = channel.Id, Etkin = true, Tutar = 100m }); fixture.Db.SaveChanges();
+        var channel = new KanalEntity { Ad = "Kanal" };
+        fixture.Db.Kanallar.Add(channel);
+        fixture.Db.SaveChanges();
+        fixture.Db.KasaEsikleri.Add(new() { KanalId = channel.Id, Etkin = true, Tutar = 100m });
+        fixture.Db.SaveChanges();
         fixture.Device("a");
         await fixture.Service().Yenile();
         fixture.Db.Kanallar.ExecuteUpdate(p => p.SetProperty(k => k.AcilisDevri, 100m));
@@ -326,14 +360,22 @@ public sealed class NotificationTests
         { ["Kasa:EditorKullanici"] = "editor", ["Kasa:EditorSifre"] = "test", ["Kasa:JwtKey"] = "notification-tests-only-long-enough-key" }).Build();
         public Fixture()
         {
-            connection.Open(); Db = new(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
+            connection.Open();
+            Db = new(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
             Db.Database.Migrate();
         }
         public void Device(string suffix, string? stamp = null)
         {
-            Db.Add(new PushAbonelikEntity { Endpoint = "https://fcm.googleapis.com/fcm/send/" + suffix,
-                CihazId = Guid.NewGuid().ToString(), CihazAdi = suffix, OturumDamgasi = stamp ?? OturumDamgasi.Uret("editor", Config, Db)!,
-                Olusturuldu = Clock.GetUtcNow().ToUnixTimeSeconds() }); Db.SaveChanges(); Db.ChangeTracker.Clear();
+            Db.Add(new PushAbonelikEntity
+            {
+                Endpoint = "https://fcm.googleapis.com/fcm/send/" + suffix,
+                CihazId = Guid.NewGuid().ToString(),
+                CihazAdi = suffix,
+                OturumDamgasi = stamp ?? OturumDamgasi.Uret("editor", Config, Db)!,
+                Olusturuldu = Clock.GetUtcNow().ToUnixTimeSeconds()
+            });
+            Db.SaveChanges();
+            Db.ChangeTracker.Clear();
         }
         public readonly BildirimSagligi Saglik = new();
         public BildirimServisi Service() => new(Db, Sources, Sender, Config, Clock, Saglik, NullLogger<BildirimServisi>.Instance);

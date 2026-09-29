@@ -35,13 +35,16 @@ public sealed partial class KasaApiClient : IYonetimApi
     /// <summary>Sunucunun belge sınırı (10 MB) istemcide de denetlenir: sınır dışı dosya yavaş bağlantıda boşuna gönderilmez.</summary>
     public async Task<BelgeDto> BelgeYukleAsync(int alisId, string dosyaAdi, string icerikTuru, byte[] icerik, int? odemeId = null, CancellationToken cancellationToken = default)
     {
-        if (icerik.Length == 0) throw new ArgumentException("Belge dosyası boş.", nameof(icerik));
-        if (icerik.Length > EnBuyukBelge) throw new ArgumentException("Belge en fazla 10 MB olabilir.", nameof(icerik));
+        if (icerik.Length == 0)
+            throw new ArgumentException("Belge dosyası boş.", nameof(icerik));
+        if (icerik.Length > EnBuyukBelge)
+            throw new ArgumentException("Belge en fazla 10 MB olabilir.", nameof(icerik));
         using var govde = new MultipartFormDataContent();
         var dosya = new ByteArrayContent(icerik);
         dosya.Headers.ContentType = new MediaTypeHeaderValue(icerikTuru);
         govde.Add(dosya, "dosya", GuvenliDosyaAdi(dosyaAdi, "belge"));
-        if (odemeId is { } id) govde.Add(new StringContent(id.ToString(System.Globalization.CultureInfo.InvariantCulture)), "odemeId");
+        if (odemeId is { } id)
+            govde.Add(new StringContent(id.ToString(System.Globalization.CultureInfo.InvariantCulture)), "odemeId");
         using var istek = new HttpRequestMessage(HttpMethod.Post, $"api/alis/{alisId}/belgeler") { Content = govde };
         using var yanit = await GonderAsync(istek, zamanAsimi: _zaman.Yukleme, cancellationToken: cancellationToken);
         return (await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<BelgeDto>(yanit.Content, Json, cancellationToken))!;

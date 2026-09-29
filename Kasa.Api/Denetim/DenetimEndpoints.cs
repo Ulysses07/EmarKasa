@@ -27,15 +27,21 @@ public static class DenetimEndpoints
             v.Metin(tur, "tur", 100, zorunlu: false);
             v.Kontrol(varlikId is null || !string.IsNullOrWhiteSpace(varlik), "varlikId", "Kayıt kimliği varlık adıyla birlikte verilir.");
             v.Kontrol(adet is null || adet is >= 1 and <= EnFazlaAdet, "adet", $"Adet 1–{EnFazlaAdet} olmalı.");
-            if (v.Sonuc() is { } hata) return hata;
+            if (v.Sonuc() is { } hata)
+                return hata;
             return AlisEndpoints.Oku(db, () =>
             {
                 var q = db.DenetimOlaylari.AsNoTracking();
-                if (!string.IsNullOrWhiteSpace(varlik)) { var ad = varlik.Trim(); q = q.Where(o => o.Varlik == ad); }
-                if (!string.IsNullOrWhiteSpace(varlikId)) { var anahtar = varlikId.Trim(); q = q.Where(o => o.VarlikId == anahtar); }
-                if (!string.IsNullOrWhiteSpace(tur)) { var t = tur.Trim(); q = q.Where(o => o.Tur == t); }
-                if (kilitAcmaOlayiId is { } kilit) q = q.Where(o => o.KilitAcmaOlayiId == kilit);
-                if (oncekiId is { } once) q = q.Where(o => o.Id < once);
+                if (!string.IsNullOrWhiteSpace(varlik))
+                { var ad = varlik.Trim(); q = q.Where(o => o.Varlik == ad); }
+                if (!string.IsNullOrWhiteSpace(varlikId))
+                { var anahtar = varlikId.Trim(); q = q.Where(o => o.VarlikId == anahtar); }
+                if (!string.IsNullOrWhiteSpace(tur))
+                { var t = tur.Trim(); q = q.Where(o => o.Tur == t); }
+                if (kilitAcmaOlayiId is { } kilit)
+                    q = q.Where(o => o.KilitAcmaOlayiId == kilit);
+                if (oncekiId is { } once)
+                    q = q.Where(o => o.Id < once);
                 var satirlar = q.OrderByDescending(o => o.Id).Take(adet ?? VarsayilanAdet).ToList();
                 return Results.Ok(satirlar.Select(Dto).ToList());
             });

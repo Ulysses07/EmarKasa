@@ -34,16 +34,23 @@ public class CekirdekSurumTests
     {
         var govde = new Dictionary<string, object?>
         {
-            ["tarih"] = "2026-09-10", ["cari"] = "Kira", ["tutarTl"] = tutar, ["kanal"] = kanal, ["tip"] = "Cari", ["not"] = not,
+            ["tarih"] = "2026-09-10",
+            ["cari"] = "Kira",
+            ["tutarTl"] = tutar,
+            ["kanal"] = kanal,
+            ["tip"] = "Cari",
+            ["not"] = not,
         };
-        if (surum is { } s) govde["surum"] = s;
+        if (surum is { } s)
+            govde["surum"] = s;
         return govde;
     }
 
     private static Dictionary<string, object?> Gelen(decimal tutar, int? surum = null, string donem = "2026-09-01")
     {
         var govde = new Dictionary<string, object?> { ["donemStart"] = donem, ["kanal"] = "MEZAT", ["tutarTl"] = tutar };
-        if (surum is { } s) govde["surum"] = s;
+        if (surum is { } s)
+            govde["surum"] = s;
         return govde;
     }
 
@@ -74,7 +81,8 @@ public class CekirdekSurumTests
     public async Task Gider_eski_surumle_kaydedilemez_duzeltilen_tutar_geri_yazilmaz()
     {
         var (f, c) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var olusan = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(1000m)));
         var id = olusan["id"]!.GetValue<int>();
         Assert.Equal(0, Surum(olusan));
@@ -109,7 +117,8 @@ public class CekirdekSurumTests
     public async Task Kanal_eski_surumle_kaydedilemez_surumsuz_eski_istemci_kaydeder()
     {
         var (f, c) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var kanal = await Json(await c.PostAsJsonAsync("/api/kanallar", new { ad = "ONLINE", aktif = true, sira = 5, acilisDevri = 0m }));
         var id = kanal["id"]!.GetValue<int>();
         Assert.Equal(0, Surum(kanal));
@@ -129,7 +138,8 @@ public class CekirdekSurumTests
     public async Task Ayarlar_eski_surumle_kaydedilemez_izleyici_sifresi_surumu_artirmaz()
     {
         var (f, c) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var surum = Surum(await c.GetFromJsonAsync<JsonNode>("/api/ayarlar"));
 
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 500m, surum })).EnsureSuccessStatusCode();
@@ -154,7 +164,8 @@ public class CekirdekSurumTests
     public async Task Gelen_eski_surumle_ve_gorulmeyen_satirin_uzerine_kaydedilemez()
     {
         var (f, c) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var ilk = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 0)));
         Assert.Equal((1000m, 1), (ilk["tutarTl"]!.GetValue<decimal>(), Surum(ilk)));
         // Aynı dönem ve kanal için satırı görmeden (0) giren ikinci oturum.
@@ -180,7 +191,8 @@ public class CekirdekSurumTests
     public async Task Dolayli_yazimlar_surumu_artirir_onceden_okunan_kayit_409_alir()
     {
         var (f, c) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var gider = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(100m)));
         var giderId = gider["id"]!.GetValue<int>();
         await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 0)));
@@ -215,7 +227,8 @@ public class CekirdekSurumTests
     public async Task Ayni_kaydi_okuyan_ikinci_baglamin_yazimi_surum_cakismasiyla_durur()
     {
         var (f, c) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var id = (await Json(await c.PostAsJsonAsync("/api/islemler", Gider(100m))))["id"]!.GetValue<int>();
         using var s1 = f.Services.CreateScope();
         using var s2 = f.Services.CreateScope();
@@ -223,7 +236,8 @@ public class CekirdekSurumTests
         var b = s2.ServiceProvider.GetRequiredService<KasaDbContext>();
         var ia = a.Islemler.Single(i => i.Id == id);
         var ib = b.Islemler.Single(i => i.Id == id);
-        ia.TutarTl = 120m; a.SaveChanges();
+        ia.TutarTl = 120m;
+        a.SaveChanges();
         Assert.Equal(1, ia.Surum);
         ib.Not = "geç kalan";
         Assert.Throws<DbUpdateConcurrencyException>(() => b.SaveChanges());

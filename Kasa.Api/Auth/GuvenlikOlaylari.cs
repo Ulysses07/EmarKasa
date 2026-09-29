@@ -70,7 +70,8 @@ public static class GuvenlikOlaylari
         catch (Exception e)
         {
             // Ad çözülemediyse (veritabanı hatası) logda da düz metin yer almaz.
-            if (ad is null && !string.IsNullOrWhiteSpace(kullanici)) ad = BilinmeyenAd;
+            if (ad is null && !string.IsNullOrWhiteSpace(kullanici))
+                ad = BilinmeyenAd;
             if (zorunlu)
             {
                 log.LogError(e, "Güvenlik olayı ({Tur}) denetim kaydına yazılamadı; değişiklik geri alınıyor.", tur);
@@ -78,8 +79,10 @@ public static class GuvenlikOlaylari
             }
             log.LogError(e, "Güvenlik olayı ({Tur}) denetim kaydına yazılamadı; istek etkilenmedi.", tur);
         }
-        if (Olumsuz.Contains(tur)) log.LogWarning("Güvenlik olayı {Tur}: kullanıcı {Kullanici}, istemci {Ip}.", tur, ad ?? "-", ip ?? "-");
-        else log.LogInformation("Güvenlik olayı {Tur}: kullanıcı {Kullanici}, istemci {Ip}.", tur, ad ?? "-", ip ?? "-");
+        if (Olumsuz.Contains(tur))
+            log.LogWarning("Güvenlik olayı {Tur}: kullanıcı {Kullanici}, istemci {Ip}.", tur, ad ?? "-", ip ?? "-");
+        else
+            log.LogInformation("Güvenlik olayı {Tur}: kullanıcı {Kullanici}, istemci {Ip}.", tur, ad ?? "-", ip ?? "-");
     }
 
     /// <summary>
@@ -92,9 +95,11 @@ public static class GuvenlikOlaylari
     internal static string? YazilacakAd(HttpContext http, KasaDbContext db, string kullanici)
     {
         var ad = GirisSiniri.Normalize(kullanici);
-        if (ad.Length == 0) return null;
+        if (ad.Length == 0)
+            return null;
         var editor = http.RequestServices.GetService<IConfiguration>()?["Kasa:EditorKullanici"];
-        if (!string.IsNullOrEmpty(editor) && GirisSiniri.Normalize(editor) == ad) return ad;
+        if (!string.IsNullOrEmpty(editor) && GirisSiniri.Normalize(editor) == ad)
+            return ad;
         return db.Alicilar.AsNoTracking().Any(a => a.Kullanici == ad) ? ad : BilinmeyenAd;
     }
 
@@ -102,7 +107,8 @@ public static class GuvenlikOlaylari
     /// dakikada en çok bir olay yazılır; log da aynı sıklıkta.</summary>
     public static void HizSiniriYaz(HttpContext http, string? politika, string? kullanici = null)
     {
-        if (!Seyrek(http, $"{HizSiniri}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}\n{politika}\n{http.Request.Path}")) return;
+        if (!Seyrek(http, $"{HizSiniri}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}\n{politika}\n{http.Request.Path}"))
+            return;
         Yaz(http, http.RequestServices.GetRequiredService<KasaDbContext>(), HizSiniri, kullanici, new { politika });
     }
 
@@ -110,7 +116,8 @@ public static class GuvenlikOlaylari
     /// Hız sınırı reddiyle karışmasın diye ayrı türle, (istemci ağı, uç) başına dakikada en çok bir kez yazılır.</summary>
     public static void YogunYaz(HttpContext http, string? kullanici = null)
     {
-        if (!Seyrek(http, $"{GirisYogun}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}\n{http.Request.Path}")) return;
+        if (!Seyrek(http, $"{GirisYogun}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}\n{http.Request.Path}"))
+            return;
         Yaz(http, http.RequestServices.GetRequiredService<KasaDbContext>(), GirisYogun, kullanici, new { kuyruk = "sifre-dogrulama" });
     }
 
@@ -138,15 +145,19 @@ public static class GuvenlikOlaylari
     private static void GecersizBelirtecLogla(HttpContext http, Exception? hata)
     {
         var suresiDolmus = hata is SecurityTokenExpiredException;
-        if (!Seyrek(http, $"{GecersizBelirtec}\n{suresiDolmus}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}")) return;
+        if (!Seyrek(http, $"{GecersizBelirtec}\n{suresiDolmus}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}"))
+            return;
         var (ip, uc) = (DenetimBaglami.Ip(http) ?? "-", $"{http.Request.Method} {http.Request.Path}");
-        if (suresiDolmus) Log(http).LogInformation("Güvenlik olayı {Tur}: süresi dolmuş oturum belirteci, istemci {Ip}, uç {Uc}.", GecersizBelirtec, ip, uc);
-        else Log(http).LogWarning("Güvenlik olayı {Tur}: istemci {Ip}, uç {Uc}, neden {Neden}.", GecersizBelirtec, ip, uc, hata?.GetType().Name ?? "-");
+        if (suresiDolmus)
+            Log(http).LogInformation("Güvenlik olayı {Tur}: süresi dolmuş oturum belirteci, istemci {Ip}, uç {Uc}.", GecersizBelirtec, ip, uc);
+        else
+            Log(http).LogWarning("Güvenlik olayı {Tur}: istemci {Ip}, uç {Uc}, neden {Neden}.", GecersizBelirtec, ip, uc, hata?.GetType().Name ?? "-");
     }
 
     private static void YetkiReddiLogla(HttpContext http)
     {
-        if (!Seyrek(http, $"{YetkiReddi}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}")) return;
+        if (!Seyrek(http, $"{YetkiReddi}\n{HizSinirlari.IstemciAnahtari(http.Connection.RemoteIpAddress)}"))
+            return;
         var aktor = DenetimBaglami.Aktor(http);
         Log(http).LogWarning("Güvenlik olayı {Tur}: rol {Rol}, istemci {Ip}, uç {Uc}.", YetkiReddi,
             aktor.Id is { } id ? $"{aktor.Rol} #{id}" : aktor.Rol, aktor.Ip ?? "-", $"{http.Request.Method} {http.Request.Path}");
@@ -174,9 +185,13 @@ public sealed class GuvenlikOlayiSiniri
     {
         lock (_kilit)
         {
-            if (_son.TryGetValue(anahtar, out var son) && simdi - son < Aralik) return false;
+            if (_son.TryGetValue(anahtar, out var son) && simdi - son < Aralik)
+                return false;
             // Sözlük saldırıda görülen ağ sayısıyla büyümesin: dolunca süresi geçenler atılır.
-            if (_son.Count >= 1024) foreach (var (k, t) in _son) if (simdi - t >= Aralik) _son.Remove(k);
+            if (_son.Count >= 1024)
+                foreach (var (k, t) in _son)
+                    if (simdi - t >= Aralik)
+                        _son.Remove(k);
             _son[anahtar] = simdi;
             return true;
         }

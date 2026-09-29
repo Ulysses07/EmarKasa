@@ -46,7 +46,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         using var yanit = await GonderAsync(istek, tokenEkle: false);
         var login = (await yanit.Content.ReadFromJsonAsync<LoginYanit>(Json))!;
         await _oturumKilidi.WaitAsync();
-        try { await _store.YazAsync(login.Token); }
+        try
+        { await _store.YazAsync(login.Token); }
         finally { _oturumKilidi.Release(); }
         // Her başarılı giriş kendi rolünün belirtecini yeniler; belirteçsiz yanıt (eski sunucu) saklananı silmez.
         await CihazSaklaAsync(login.Rol, login.Cihaz);
@@ -70,7 +71,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         {
             try
             {
-                if (await _store.CihazOkuAsync(rol) is { Length: > 0 } belirtec && !belirtec.Contains(',')) cihazlar.Add(belirtec);
+                if (await _store.CihazOkuAsync(rol) is { Length: > 0 } belirtec && !belirtec.Contains(','))
+                    cihazlar.Add(belirtec);
             }
             catch (Exception) { /* Okunamayan kayıt yok sayılır; sunucu başarılı girişte yenisini verir. */ }
         }
@@ -81,8 +83,10 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     /// açıldı ya da değişti; cihaz yalnız bir sonraki belirtece kadar tanınmaz.</summary>
     private async Task CihazSaklaAsync(string? rol, string? belirtec)
     {
-        if (string.IsNullOrEmpty(belirtec) || rol is null || !CihazRolleri.Contains(rol)) return;
-        try { await _store.CihazYazAsync(rol, belirtec); }
+        if (string.IsNullOrEmpty(belirtec) || rol is null || !CihazRolleri.Contains(rol))
+            return;
+        try
+        { await _store.CihazYazAsync(rol, belirtec); }
         catch (Exception) { /* Belirteç isteğe bağlıdır. */ }
     }
 
@@ -110,7 +114,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     {
         if (!_anaSayfaUcuYok)
         {
-            try { return await GetAsync<AnaSayfaDto>($"api/rapor/ana-sayfa?gun={gun}", ct); }
+            try
+            { return await GetAsync<AnaSayfaDto>($"api/rapor/ana-sayfa?gun={gun}", ct); }
             catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound) { _anaSayfaUcuYok = true; }
             // Birleşik ucun sunucu hatası (5xx; ör. takip özeti hesaplanamadı) kasa bakiyelerini gizlemez: panel ayrı uçtan
             // alınır, eşikler ve özet çağıranca kendi uçlarından (kendi hatalarıyla) yüklenir. Uç sonraki yüklemede yeniden denenir.
@@ -133,10 +138,14 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
     {
         var q = new List<string>();
-        if (baslangic is { } b) q.Add($"baslangic={b:yyyy-MM-dd}");
-        if (bitis is { } s) q.Add($"bitis={s:yyyy-MM-dd}");
-        if (!string.IsNullOrWhiteSpace(kanal)) q.Add($"kanal={Uri.EscapeDataString(kanal)}");
-        if (!string.IsNullOrWhiteSpace(cari)) q.Add($"cari={Uri.EscapeDataString(cari)}");
+        if (baslangic is { } b)
+            q.Add($"baslangic={b:yyyy-MM-dd}");
+        if (bitis is { } s)
+            q.Add($"bitis={s:yyyy-MM-dd}");
+        if (!string.IsNullOrWhiteSpace(kanal))
+            q.Add($"kanal={Uri.EscapeDataString(kanal)}");
+        if (!string.IsNullOrWhiteSpace(cari))
+            q.Add($"cari={Uri.EscapeDataString(cari)}");
         var yol = q.Count > 0 ? $"api/islemler?{string.Join("&", q)}" : "api/islemler";
         return GetAsync<IReadOnlyList<IslemDto>>(yol);
     }
@@ -176,7 +185,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     {
         using var kaynak = CancellationTokenSource.CreateLinkedTokenSource(iptal);
         kaynak.CancelAfter(sure);
-        try { return await islem(kaynak.Token); }
+        try
+        { return await islem(kaynak.Token); }
         catch (OperationCanceledException e) when (!iptal.IsCancellationRequested && (kaynak.IsCancellationRequested || e.InnerException is TimeoutException))
         {
             throw new TimeoutException(KasaZamanAsimlari.Ileti, e);
@@ -221,7 +231,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             }
         }
         finally { _oturumKilidi.Release(); }
-        if (temizlendi) OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
+        if (temizlendi)
+            OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     }
 
     /// <summary>Hata yanıtından kullanıcıya taşınan ileti (yalnız sunucunun anlamlı Türkçe ileti verdiği durumlarda) ve sunucu
@@ -230,7 +241,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     {
         var iletiVar = yanit.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
         var sunucuHatasi = (int)yanit.StatusCode >= 500;
-        if (!iletiVar && !sunucuHatasi) return (null, null);
+        if (!iletiVar && !sunucuHatasi)
+            return (null, null);
         try
         {
             using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync(ct));
@@ -245,15 +257,18 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
 
     private static string? Ileti(JsonElement kok)
     {
-        if (kok.ValueKind == JsonValueKind.String) return kok.GetString();
-        if (kok.ValueKind != JsonValueKind.Object) return null;
+        if (kok.ValueKind == JsonValueKind.String)
+            return kok.GetString();
+        if (kok.ValueKind != JsonValueKind.Object)
+            return null;
         if (kok.TryGetProperty("errors", out var hatalar) && hatalar.ValueKind == JsonValueKind.Object)
         {
             var mesajlar = hatalar.EnumerateObject().SelectMany(h => h.Value.ValueKind == JsonValueKind.Array
                 ? h.Value.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString())
                 : Array.Empty<string?>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct();
             var mesaj = string.Join("\n", mesajlar);
-            if (mesaj.Length > 0) return mesaj;
+            if (mesaj.Length > 0)
+                return mesaj;
         }
         foreach (var alan in new[] { "detail", "hata", "message", "title" })
             if (kok.TryGetProperty(alan, out var deger) && deger.ValueKind == JsonValueKind.String)
