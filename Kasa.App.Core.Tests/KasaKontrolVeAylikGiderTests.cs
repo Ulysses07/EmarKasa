@@ -279,6 +279,19 @@ public class KasaKontrolVeAylikGiderTests
         await v.IptalAsync(yeniSatir, "Ay değişti", v.OturumNesli);
         Assert.Equal(0, f.IptalSayisi);
     }
+    /// <summary>Ödenmiş satır "Ödendi" yazar ve ödeme formunu açmaz (sayfada iptal penceresini açar); bekleyen satır formu açar.</summary>
+    [Fact]
+    public async Task Odenmis_aylik_gider_odendi_yazilir_odeme_formu_acilmaz_bekleyen_acilir()
+    {
+        var odenmis = await Aylik(new Fake { Odendi = true });
+        Assert.EndsWith("· Ödendi", odenmis.Kayitlar[0].Baslik);
+        odenmis.OdemeSec(odenmis.Kayitlar[0]);
+        Assert.Null(odenmis.SeciliOdeme);
+        var bekleyen = await Aylik(new Fake());
+        Assert.EndsWith("· Ödeme bekliyor", bekleyen.Kayitlar[0].Baslik);
+        bekleyen.OdemeSec(bekleyen.Kayitlar[0]);
+        Assert.Same(bekleyen.Kayitlar[0], bekleyen.SeciliOdeme);
+    }
     [Fact]
     public async Task Yenilenen_listede_artik_olmayan_odeme_iptal_edilemez()
     {
@@ -541,7 +554,9 @@ public class KasaKontrolVeAylikGiderTests
         public Task<KasaHareketleriDto> KasaHareketleriAsync(DateOnly? baslangic = null, DateOnly? bitis = null, int? kanalId = null)
         { DokumIstekleri.Add((baslangic, bitis, kanalId)); return Task.FromResult(Dokum ?? new KasaHareketleriDto(baslangic ?? new DateOnly(2026, 9, 1), bitis ?? new DateOnly(2026, 9, 26), kanalId, null, 0, 0, [])); }
         public Task<KasaKontrolDto> KasaKontrolKaydetAsync(KasaKontrolYaz g) { Kontroller.Add(g); return KontrolHata is { } e ? Task.FromException<KasaKontrolDto>(e) : Task.FromResult(new KasaKontrolDto(1, DateTimeOffset.Now, 100, g.GercekBakiye, g.GercekBakiye - 100, g.Not)); }
-        public Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int id, KartMasrafYaz g) { MasrafOnizlemeSayisi++; return Task.FromResult(new KartMasrafOnizlemeDto(id, g.EkstreId, g.Tarih, g.Tutar, 100, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, "pay-hash")); }
-        public Task<KartTakipDto> KartMasrafKaydetAsync(int id, KartMasrafYaz g) { Masraflar.Add(g); return MasrafHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : Task.FromResult(FinansTakipTests.Fake.OrnekKart() with { Surum = 4 }); }
+        /// <summary>Ayarlanırsa masraf önizlemesi yanıt vermeden önce bunu bekler; <see cref="MasrafIstisnasi"/> kaydı o hatayla bitirir (ör. 409).</summary>
+        public Task? MasrafOnizlemeKapisi; public Exception? MasrafIstisnasi;
+        public async Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int id, KartMasrafYaz g) { MasrafOnizlemeSayisi++; if (MasrafOnizlemeKapisi is { } kapi) await kapi; return new KartMasrafOnizlemeDto(id, g.EkstreId, g.Tarih, g.Tutar, 100, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, "pay-hash"); }
+        public Task<KartTakipDto> KartMasrafKaydetAsync(int id, KartMasrafYaz g) { Masraflar.Add(g); return MasrafIstisnasi is { } istisna ? Task.FromException<KartTakipDto>(istisna) : MasrafHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : Task.FromResult(FinansTakipTests.Fake.OrnekKart() with { Surum = 4 }); }
     }
 }

@@ -663,7 +663,10 @@ public class FinansTakipTests
         public Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g) { Harcama = g; return Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) { EkstreKayitSayisi++; return Task.FromResult(Kart); }
-        public Task<KartOdemeOnizlemeDto> TakipOdemeOnizlemeAsync(int id, KartTakipOdemeYaz g) { OnizlenenOdeme = g; return Task.FromResult(new KartOdemeOnizlemeDto(g.Tutar, g.Tutar, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, new[] { new KartEkstreOdemePayi(7, g.Tutar) })); }
+        /// <summary>Ayarlanırsa ödeme ve geçiş önizlemeleri yanıt vermeden önce bunu bekler (yanıt gelmeden girdi, kart ya da oturum
+        /// değişimi testleri için).</summary>
+        public Task? OnizlemeKapisi;
+        public async Task<KartOdemeOnizlemeDto> TakipOdemeOnizlemeAsync(int id, KartTakipOdemeYaz g) { OnizlenenOdeme = g; if (OnizlemeKapisi is { } kapi) await kapi; return new KartOdemeOnizlemeDto(g.Tutar, g.Tutar, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, new[] { new KartEkstreOdemePayi(7, g.Tutar) }); }
         public Task<KartTakipDto> TakipOdemeKaydetAsync(int id, KartTakipOdemeYaz g) { OdemeIstekleri.Add(g); return OdemeHatasi is { } hata ? Task.FromException<KartTakipDto>(hata) : OdemeHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : OdemeYaniti ?? Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipOdemeIptalAsync(int id, int oid, TakipIptalYaz g) => Task.FromResult(Kart);
         private static TakipGecisDto Preview(string kaynak, int id) => new(kaynak, id, Tarih, 0, 0, 30, new[] { "Geçmiş korunur" }, true);
@@ -677,7 +680,7 @@ public class FinansTakipTests
                 sistem, 300, 200, new DateOnly(2026, 10, 31), oneri, enAz);
         };
         public Func<KartGecisYaz, TakipGecisDto>? KartGecisYaniti; public List<KartGecisYaz> KartGecisOnizlemeleri = new();
-        public Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g) { KartGecisOnizlemeSayisi++; KartGecisOnizlemeleri.Add(g); return Task.FromResult(KartGecisYaniti?.Invoke(g) ?? Preview("Kart", id)); }
+        public async Task<TakipGecisDto> TakipKartGecisOnizlemeAsync(int id, KartGecisYaz g) { KartGecisOnizlemeSayisi++; KartGecisOnizlemeleri.Add(g); if (OnizlemeKapisi is { } kapi) await kapi; return KartGecisYaniti?.Invoke(g) ?? Preview("Kart", id); }
         public Task<KartTakipDto> TakipKartGecisAsync(int id, KartGecisYaz g) { KartGecis = g; return Task.FromResult(Kart with { YeniTakip = true }); }
         public KartDevirDto? Devir; public List<KartDevirDuzeltYaz> DevirDuzeltmeleri = new();
         public Task<KartDevirDto> TakipKartDevirAsync(int id) => Task.FromResult(Devir ?? throw new KasaApiException(System.Net.HttpStatusCode.NotFound, "Devir yok."));
@@ -688,7 +691,8 @@ public class FinansTakipTests
         public Task<KrediTakipDto> TakipKrediDurumAsync(int id, TakipDurumYaz g) => Task.FromResult(Kredi);
         public Task<KrediTakipDto> TakipTaksitKaydetAsync(int id, int tid, KrediTaksitYaz g) { Taksit = g; return Task.FromResult(Kredi); }
         public Task<KrediTakipDto> TakipKrediKapatAsync(int id, KrediKapatYaz g) { Kapatma = g; return Task.FromResult(Kredi); }
-        public Task<TakipGecisDto> TakipKrediGecisOnizlemeAsync(int id, KrediGecisYaz g) => Task.FromResult(Preview("Kredi", id));
+        public Func<KrediGecisYaz, TakipGecisDto>? KrediGecisYaniti; public List<KrediGecisYaz> KrediGecisOnizlemeleri = new();
+        public async Task<TakipGecisDto> TakipKrediGecisOnizlemeAsync(int id, KrediGecisYaz g) { KrediGecisOnizlemeleri.Add(g); if (OnizlemeKapisi is { } kapi) await kapi; return KrediGecisYaniti?.Invoke(g) ?? Preview("Kredi", id); }
         public Task<KrediTakipDto> TakipKrediGecisAsync(int id, KrediGecisYaz g) { KrediGecis = g; return Task.FromResult(Kredi with { YeniTakip = true }); }
         public int OzetCagri, SonOzetGunu; public Exception? OzetHatasi;
         public Task<TakipOzetDto> TakipOzetAsync(int gun = 30) { OzetCagri++; SonOzetGunu = gun; return OzetHatasi is { } e ? Task.FromException<TakipOzetDto>(e) : Task.FromResult(Ozet ?? new TakipOzetDto(Tarih, 100, 20, Array.Empty<TakipOlayDto>())); }

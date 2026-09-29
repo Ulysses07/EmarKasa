@@ -533,6 +533,9 @@ public class AlislarViewModelTests
         public List<(string? Arama, decimal? Tutar, string? Imlec, decimal? AramaTutari)> GiderSorgulari = new();
         public int GiderSayfaBoyutu = 50;
         public bool OdemeHatasi;
+        /// <summary>Bütün ödeme istekleri (sırayla) ve ayarlanırsa ödeme isteğinin bitirileceği hata (ör. 409, zaman aşımı).</summary>
+        public List<AlisOdemeYaz> OdemeIstekleri = new();
+        public Exception? OdemeIstisnasi;
         public Func<Task<IReadOnlyList<AlisDto>>>? ListeGetir;
         public Task<AlisDto>? OdemeYaniti;
         public int HesapOkuma;
@@ -564,10 +567,13 @@ public class AlislarViewModelTests
         public Task<AlisDto> AlisOdemeKaydetAsync(int id, AlisOdemeYaz g)
         {
             SonOdeme = g;
+            OdemeIstekleri.Add(g);
             if (OdemeYaniti is not null)
                 return OdemeYaniti;
             if (OdemeHatasi)
                 return Task.FromException<AlisDto>(new HttpRequestException("yanıt kayboldu"));
+            if (OdemeIstisnasi is { } istisna)
+                return Task.FromException<AlisDto>(istisna);
             return Task.FromResult(Kayit with
             {
                 Surum = 3,
