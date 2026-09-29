@@ -84,8 +84,10 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     public void Temizle() { MevcutSifre = ""; YeniSifre = ""; YeniSifreTekrar = ""; KurtarmaKodu = null; YeniSifreyiGoster = false; }
     /// <summary>Web (app.js) ile aynı ileti.</summary>
     public const string YeniSifreUyusmazMesaji = "Yeni şifreler aynı olmalı.";
-    /// <summary>Ekrandan ayrılınca süren yedek indirmesi de iptal edilir; sonucu zaten kullanılmayacaktı.</summary>
-    public void EkrandanAyril() { _yedekIptal?.Cancel(); BekleyenleriIptalEt(); Temizle(); }
+    /// <summary>Ekrandan ayrılınca süren yedek indirmesi de iptal edilir; sonucu zaten kullanılmayacaktı. Önce bekleyen işler
+    /// geçersiz kılınır, sonra iptal edilir: iptal devamı Cancel() içinde ya da hemen başka iş parçacığında çalışabilir ve
+    /// ekran hâlâ geçerliyse ayrılınmış ekrana 'iptal edildi' iletisi yazardı.</summary>
+    public void EkrandanAyril() { BekleyenleriIptalEt(); _yedekIptal?.Cancel(); Temizle(); }
     protected override void OturumTemizle() { _yedekIptal?.Cancel(); Temizle(); IndirmeAdresi = null; YedekBilgisi = "Yedek durumu henüz alınmadı."; YedekUyarisi = null; SurumBilgisi = $"Uygulama {IstemciSurumu}"; }
     /// <summary>Yedeği sunucudan belleğe almadan <paramref name="hedef"/>'e yazar. Sunucu yedeği isteğin içinde hazırladığı
     /// için büyük veritabanında dakikalar sürebilir; kullanıcı <see cref="YedekIptalCommand"/> ile vazgeçebilir.
