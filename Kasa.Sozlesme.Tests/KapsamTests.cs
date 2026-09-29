@@ -43,7 +43,7 @@ public partial class KapsamTests
     public void Kapsam_denetimi_cagrilmayan_isaretli_metodu_ve_isaretsiz_testi_bildirir()
     {
         var isaretli = typeof(OrnekTestler).GetMethod(nameof(OrnekTestler.Isaretli))!;
-        Assert.Empty(SozlesmeTemeli.KapsamHatalari(isaretli, new HashSet<string> { nameof(IKasaApi.LoginAsync), nameof(IKasaApi.BenKimAsync), nameof(IKasaApi.PanelAsync) }));
+        Assert.Empty(SozlesmeTemeli.KapsamHatalari(isaretli, new HashSet<string> { nameof(IKasaApi.LoginAsync), nameof(IKasaApi.BenKimAsync), nameof(IKasaApi.KanallarAsync) }));
         var hata = Assert.Single(SozlesmeTemeli.KapsamHatalari(isaretli, new HashSet<string> { nameof(IKasaApi.LoginAsync) }));
         Assert.Contains($"çağrılmayan metotlar: {nameof(IKasaApi.BenKimAsync)} ", hata);
         Assert.Contains("işareti yok", Assert.Single(SozlesmeTemeli.KapsamHatalari(typeof(OrnekTestler).GetMethod(nameof(OrnekTestler.Isaretsiz))!, new HashSet<string>())));

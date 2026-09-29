@@ -26,7 +26,7 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
     }
 
     [Fact]
-    [SozlesmeKapsami(nameof(IYonetimApi.SifreDegistirAsync), nameof(IYonetimApi.KurtarmaKoduOlusturAsync), nameof(IYonetimApi.SifreKurtarAsync), nameof(IKasaApi.PanelAsync))]
+    [SozlesmeKapsami(nameof(IYonetimApi.SifreDegistirAsync), nameof(IYonetimApi.KurtarmaKoduOlusturAsync), nameof(IYonetimApi.SifreKurtarAsync), nameof(IKasaApi.KanallarAsync))]
     public async Task Sifre_degisimi_oturumlari_kapatir_istemci_olay_yayar_kurtarma_kodu_yeni_sifre_verir()
     {
         var o = await Editor();
@@ -39,7 +39,7 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
         Assert.Equal([OturumSonuNedeni.SifreDegisti], olaylar); Assert.Null(await o.Depo.OkuAsync());
         // Eski şifreyle açılmış başka oturumun ilk isteği 401 alır; istemci token'ı siler ve olayı yayar.
-        Assert.Equal(HttpStatusCode.Unauthorized, (await Assert.ThrowsAsync<KasaApiException>(() => baska.Kasa.PanelAsync())).DurumKodu);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Assert.ThrowsAsync<KasaApiException>(() => baska.Kasa.KanallarAsync())).DurumKodu);
         Assert.Equal([OturumSonuNedeni.OturumGecersiz], baskaOlaylar); Assert.Null(await baska.Depo.OkuAsync());
 
         await o.Kasa.LoginAsync("editor", "yeni-editor-sifresi-1");

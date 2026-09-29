@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Kasa.App.Core;
 
-/// <summary>tr-TR para biçimi + kanal renkleri.</summary>
+/// <summary>tr-TR para, tarih aralığı ve dosya boyutu biçimleri.</summary>
 public static class Bicim
 {
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
@@ -31,13 +31,5 @@ public static class Bicim
         < 1024 => $"{bayt} B",
         < 1024 * 1024 => (bayt / 1024d).ToString("0.#", Tr) + " KB",
         _ => (bayt / (1024d * 1024)).ToString("0.#", Tr) + " MB",
-    };
-
-    public static string KanalRengi(string kanal) => kanal switch
-    {
-        "MEZAT" => "#C98A12",
-        "PERAKENDE" => "#3572C1",
-        "TOPTAN" => "#7E5BBF",
-        _ => "#7A828E",
     };
 }

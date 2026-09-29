@@ -15,6 +15,9 @@ public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarT
 /// (K3). Eski sunucu göndermez: varsayılanlar eski kart gibidir (seçilemez).</summary>
 public record KrediKartiDto(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc, decimal GuncelBorc = 0m, decimal AcilisBorc = 0m, decimal HarcamaToplam = 0m, decimal OdemeToplam = 0m, decimal EkstreBorc = 0m,
     bool YeniTakip = false, bool Aktif = true);
+/// <summary>Eski (takip öncesi) kredi listesinin (GET api/krediler) ve kart ödemesi listesinin (GET api/kartodemeler) biçimi.
+/// Masaüstünde bu uçları çağıran metot yoktur; sunucu uçları sunmayı sürdürdüğü için sözleşme testleri (Kasa.Sozlesme.Tests:
+/// SunucuKarsiliklari, KapsamTests, DtoEslesmeTests) yanıt türlerini bu kayıtlarla eşler ve alanlarını denetler.</summary>
 public record KrediDto(int Id, string Ad, decimal CekilenTutar, DateOnly CekimTarihi, int TaksitSayisi, decimal AylikOdeme, int OdemeGunu, string Kanal, bool GerceklesmeTakibi = false);
 public record KartOdemeDto(int Id, int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 /// <summary>IzleyiciSifreKisa: kayıtlı izleyici şifresinin 12 karakter kuralına uymadığı bir girişte görüldü.
@@ -65,6 +68,4 @@ public record KanalYaz(string Ad, bool Aktif, int Sira, decimal AcilisDevri, int
 public record IslemYaz(DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, Guid? IstekId = null,
     int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null, int Surum = 0);
 public record GelenYaz(DateOnly DonemStart, string Kanal, decimal TutarTl, int Surum = 0);
-public record KrediKartiYaz(string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
-public record KartOdemeYaz(int KrediKartiId, DateOnly Tarih, decimal Tutar, string? Not);
 public record AyarYaz(DateOnly TakipBaslangic, decimal KasaAcilisDevri, int Surum = 0);

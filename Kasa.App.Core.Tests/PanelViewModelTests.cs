@@ -36,7 +36,7 @@ public class PanelViewModelTests
     {
         var api = new SahteApi { Panel = new(900, new[] { new KanalBakiyeDto("MEZAT", 900, 1) }, 0, 0) };
         IReadOnlyList<TakipsizKayitDto>? kayitlar = [new("Kart", 4, "Bonus"), new("Kredi", 7, "Taşıt")];
-        api.AnaSayfaGetir = async (_, _) => new(await api.PanelAsync(), null, null, kayitlar);
+        api.AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(api.Panel!, null, null, kayitlar));
         var vm = new PanelViewModel(api);
 
         await vm.YukleAsync();

@@ -68,7 +68,7 @@ public class ZamanAsimiTests
     {
         var c = Client(new Handler(async (_, ct) => { await Task.Delay(TimeSpan.FromSeconds(5), ct); return Json("{}"); }));
 
-        var hata = await Assert.ThrowsAsync<TimeoutException>(() => c.PanelAsync());
+        var hata = await Assert.ThrowsAsync<TimeoutException>(() => c.KanallarAsync());
 
         Assert.Contains("zamanında yanıt vermedi", hata.Message);
     }
@@ -79,7 +79,7 @@ public class ZamanAsimiTests
         var c = Client(new Handler(async (_, ct) => { await Task.Delay(TimeSpan.FromSeconds(5), ct); return Json("{}"); }),
             new KasaZamanAsimlari(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10)), TimeSpan.FromMilliseconds(150));
 
-        await Assert.ThrowsAsync<TimeoutException>(() => c.PanelAsync());
+        await Assert.ThrowsAsync<TimeoutException>(() => c.KanallarAsync());
     }
 
     [Fact]

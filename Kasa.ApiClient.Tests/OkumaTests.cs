@@ -32,21 +32,6 @@ public class OkumaTests
     }
 
     [Fact]
-    public async Task Panel_eslenir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.OK, """
-            {"guncelKasa":90000.0,"kanallar":[{"kanal":"MEZAT","bakiye":150.5}],"buHaftaSonucu":10.0,"buAySonucu":-5.0}
-        """);
-        var p = await c.PanelAsync();
-        Assert.Equal(90000.0m, p.GuncelKasa);
-        Assert.Equal("MEZAT", p.Kanallar[0].Kanal);
-        Assert.Equal(150.5m, p.Kanallar[0].Bakiye);
-        Assert.Equal(-5.0m, p.BuAySonucu);
-        Assert.EndsWith("/api/rapor/panel", h.SonIstek!.RequestUri!.AbsolutePath);
-    }
-
-    [Fact]
     public async Task Haftalik_donem_ve_kanallar_eslenir()
     {
         var (c, h) = Kur();
@@ -170,25 +155,5 @@ public class OkumaTests
         h.Kuyrukla(HttpStatusCode.OK, """[{"id":1,"ad":"A","kesimTarihi":"2026-07-15","sonOdemeTarihi":"2026-07-22","limit":100000.0,"borc":1000.0,"guncelBorc":1800.0,"acilisBorc":1000.0,"harcamaToplam":800.0,"odemeToplam":0.0,"ekstreBorc":1500.0}]""");
         var liste = await c.KrediKartlariAsync();
         Assert.Equal(1500m, liste.Single().EkstreBorc);
-    }
-
-    [Fact]
-    public async Task Krediler_alanlari_cozer()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.OK, """
-            [{"id":3,"ad":"Taşıt Kredisi","cekilenTutar":120000.0,"cekimTarihi":"2026-08-03","taksitSayisi":12,"aylikOdeme":11000.0,"odemeGunu":15,"kanal":"MEZAT"}]
-        """);
-        var liste = await c.KredilerAsync();
-        var k = liste.Single();
-        Assert.Equal(3, k.Id);
-        Assert.Equal("Taşıt Kredisi", k.Ad);
-        Assert.Equal(120000.0m, k.CekilenTutar);
-        Assert.Equal(new DateOnly(2026, 8, 3), k.CekimTarihi);
-        Assert.Equal(12, k.TaksitSayisi);
-        Assert.Equal(11000.0m, k.AylikOdeme);
-        Assert.Equal(15, k.OdemeGunu);
-        Assert.Equal("MEZAT", k.Kanal);
-        Assert.EndsWith("/api/krediler", h.SonIstek!.RequestUri!.AbsolutePath);
     }
 }

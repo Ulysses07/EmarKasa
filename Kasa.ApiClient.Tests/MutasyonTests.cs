@@ -12,27 +12,6 @@ public class MutasyonTests
         return (new KasaApiClient(http, new BellekTokenStore()), h);
     }
 
-    // tests-8: POST api/kredikartlari ve POST api/krediler emekli uçlardır; sunucu her isteği koşulsuz 409 ve Türkçe iletiyle
-    // reddeder (yeni kart/kredi takip ekranlarından açılır). Başarı (201) kurgulanmaz: istemci 409'u iletisiyle taşır. Gerçek
-    // sunucuya karşı aynı davranış Kasa.Sozlesme.Tests/EskiKartKrediSozlesmeTests'te sınanır.
-    [Fact]
-    public async Task KrediKarti_olustur_emekli_uc_409_ve_sunucu_iletisiyle_reddedilir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.Conflict, """{"hata":"Yeni kartı güncel uygulamanın Kredi Kartları ekranından oluşturun."}""");
-
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.KrediKartiOlusturAsync(new KrediKartiYaz("Bonus", new DateOnly(2026, 7, 5), new DateOnly(2026, 7, 25), 100000m, 30000m)));
-
-        Assert.Equal(HttpStatusCode.Conflict, hata.DurumKodu);
-        Assert.Equal("Yeni kartı güncel uygulamanın Kredi Kartları ekranından oluşturun.", hata.Message);
-        var (istek, govde) = Assert.Single(h.Istekler);
-        Assert.Equal(HttpMethod.Post, istek.Method);
-        Assert.EndsWith("/api/kredikartlari", istek.RequestUri!.AbsolutePath);
-        using var doc = JsonDocument.Parse(govde!);
-        Assert.Equal("Bonus", doc.RootElement.GetProperty("ad").GetString());
-        Assert.Equal("2026-07-05", doc.RootElement.GetProperty("kesimTarihi").GetString());
-    }
-
     [Fact]
     public async Task Islem_olustur_istek_kimligini_gonderir_eski_govde_null_birakir()
     {
@@ -116,50 +95,6 @@ public class MutasyonTests
     }
 
     [Fact]
-    public async Task Kart_odeme_kaydet_post_dogru_govde_gonderir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.Created, """{"id":3,"krediKartiId":7,"tarih":"2026-07-20","tutar":500.0,"not":null}""");
-
-        var eklenen = await c.KartOdemeKaydetAsync(new KartOdemeYaz(7, new DateOnly(2026, 7, 20), 500m, null));
-
-        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method);
-        Assert.EndsWith("/api/kartodemeler", h.SonIstek.RequestUri!.AbsolutePath);
-        using var doc = JsonDocument.Parse(h.SonGovde!);
-        Assert.Equal(7, doc.RootElement.GetProperty("krediKartiId").GetInt32());
-        Assert.Equal(500m, doc.RootElement.GetProperty("tutar").GetDecimal());
-        Assert.Equal("2026-07-20", doc.RootElement.GetProperty("tarih").GetString());
-        Assert.Equal(3, eklenen.Id);
-    }
-
-    [Fact]
-    public async Task Kart_odemeler_listele_get_dogru_yol()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.OK, """[{"id":1,"krediKartiId":7,"tarih":"2026-07-20","tutar":500.0,"not":null}]""");
-
-        var liste = await c.KartOdemelerAsync(7);
-
-        Assert.Equal(HttpMethod.Get, h.SonIstek!.Method);
-        Assert.EndsWith("/api/kartodemeler", h.SonIstek.RequestUri!.AbsolutePath);
-        Assert.Contains("krediKartiId=7", h.SonIstek.RequestUri!.Query);
-        Assert.Single(liste);
-        Assert.Equal(500m, liste[0].Tutar);
-    }
-
-    [Fact]
-    public async Task Kart_odeme_sil_delete_gonderir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.NoContent);
-
-        await c.KartOdemeSilAsync(5);
-
-        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method);
-        Assert.EndsWith("/api/kartodemeler/5", h.SonIstek.RequestUri!.AbsolutePath);
-    }
-
-    [Fact]
     public async Task Islem_olustur_krediKartiId_govdede_gider()
     {
         var (c, h) = Kur();
@@ -169,50 +104,5 @@ public class MutasyonTests
 
         using var doc = JsonDocument.Parse(h.SonGovde!);
         Assert.Equal(7, doc.RootElement.GetProperty("krediKartiId").GetInt32());
-    }
-
-    [Fact]
-    public async Task Kredi_ekle_emekli_uc_409_ve_sunucu_iletisiyle_reddedilir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.Conflict, """{"hata":"Yeni krediyi güncel uygulamanın Krediler ekranından oluşturun."}""");
-
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => c.KrediEkleAsync(new KrediDto(0, "Taşıt Kredisi", 120000m, new DateOnly(2026, 8, 3), 12, 11000m, 15, "MEZAT")));
-
-        Assert.Equal(HttpStatusCode.Conflict, hata.DurumKodu);
-        Assert.Equal("Yeni krediyi güncel uygulamanın Krediler ekranından oluşturun.", hata.Message);
-        var (istek, govde) = Assert.Single(h.Istekler);
-        Assert.Equal(HttpMethod.Post, istek.Method);
-        Assert.EndsWith("/api/krediler", istek.RequestUri!.AbsolutePath);
-        using var doc = JsonDocument.Parse(govde!);
-        Assert.Equal("Taşıt Kredisi", doc.RootElement.GetProperty("ad").GetString());
-        Assert.Equal("2026-08-03", doc.RootElement.GetProperty("cekimTarihi").GetString());
-    }
-
-    [Fact]
-    public async Task Kredi_guncelle_put_dogru_yol_gonderir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.OK, """{"id":5,"ad":"Güncel","cekilenTutar":100000.0,"cekimTarihi":"2026-08-03","taksitSayisi":6,"aylikOdeme":18000.0,"odemeGunu":10,"kanal":"MEZAT"}""");
-
-        await c.KrediGuncelleAsync(5, new KrediDto(5, "Güncel", 100000m, new DateOnly(2026, 8, 3), 6, 18000m, 10, "MEZAT"));
-
-        Assert.Equal(HttpMethod.Put, h.SonIstek!.Method);
-        Assert.EndsWith("/api/krediler/5", h.SonIstek.RequestUri!.AbsolutePath);
-        using var doc = JsonDocument.Parse(h.SonGovde!);
-        Assert.Equal("Güncel", doc.RootElement.GetProperty("ad").GetString());
-        Assert.Equal(6, doc.RootElement.GetProperty("taksitSayisi").GetInt32());
-    }
-
-    [Fact]
-    public async Task Kredi_sil_delete_gonderir()
-    {
-        var (c, h) = Kur();
-        h.Kuyrukla(HttpStatusCode.NoContent);
-
-        await c.KrediSilAsync(8);
-
-        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method);
-        Assert.EndsWith("/api/krediler/8", h.SonIstek.RequestUri!.AbsolutePath);
     }
 }

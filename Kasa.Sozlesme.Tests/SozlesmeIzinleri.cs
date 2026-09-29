@@ -29,7 +29,7 @@ public static class SozlesmeIzinleri
         new(Yon.SunucuFazlasi, typeof(IslemDto), "kanalId", null,
             "Masaüstü gideri kanal adıyla gösterir ve süzer; kanal kimliği okunmaz."),
         new(Yon.SunucuFazlasi, typeof(KrediDto), "kanalId", null,
-            "Eski kredi listesi; masaüstünde çağıranı yok (eski uç), kanal adı yeterli."),
+            "Eski kredi listesi (GET api/krediler); masaüstünde çağıran metot yok, tür yalnız sözleşme eşlemesi için durur."),
         new(Yon.SunucuFazlasi, typeof(KanalHaftalikDto), "krediGirisi", null,
             "Gelen'in içindeki kredi çekimi payı; Gelen toplamı onu zaten içerir, masaüstü ayrıca göstermiyor (izleme notu)."),
         new(Yon.SunucuFazlasi, typeof(BenzerKayitDto), "kanalEtiketi", null,
@@ -66,24 +66,6 @@ public static class SozlesmeIzinleri
         new(Yon.IstemciFazlasi, typeof(IslemDto), "dagilimBekliyor", "PUT api/islemler/{id}", "Genel gider kanalı yazılırken seçilir."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "aylikGiderOdemeId", "PUT api/islemler/{id}", "Aylık gider ödemesi bu uçta değiştirilemez (409)."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "ekstreKayitId", "PUT api/islemler/{id}", "Ekstre kaydı bu uçta değiştirilemez (409)."),
-
-        // Eski kart/kredi uçları: masaüstünde çağıranı olmayan metotlar (KrediKartiGuncelleAsync, KrediGuncelleAsync);
-        // düzeltme yanıtı kart varlığıdır, türetilmiş borç alanları yalnız listede (GET api/kredikartlari) doludur.
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "guncelBorc", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "acilisBorc", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "harcamaToplam", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "odemeToplam", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "ekstreBorc", "PUT api/kredikartlari/{id}", "Eski uç; türetilmiş alan yalnız listede."),
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "yeniTakip", "PUT api/kredikartlari/{id}",
-            "Eski uç yalnız takipsiz kartı düzeltir (takipteki kart 409); istemcinin varsayılanı (false) doğrudur, alan yalnız listede (K3)."),
-        new(Yon.IstemciFazlasi, typeof(KrediKartiDto), "aktif", "PUT api/kredikartlari/{id}",
-            "Eski uç yalnız takipsiz kartı düzeltir (takipteki kart 409); istemcinin varsayılanı (true) eski kartın değeridir, alan yalnız listede (K3)."),
-        new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "id", "PUT api/krediler/{id}",
-            "Eski uç: istemci gövde olarak KrediDto gönderir; kimlik yoldadır, sunucu gövdedekini yok sayar."),
-        new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "gerceklesmeTakibi", "PUT api/krediler/{id}",
-            "Eski uç: gerçekleşme takibi düzeltmede korunur (sunucu mevcut değeri yazar); istemcinin gönderdiği yok sayılır."),
-        new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "id", "POST api/krediler", "Emekli uç: sunucu her isteği 409 ile reddeder (KrediEkleAsync)."),
-        new(Yon.IstekFazlasi, typeof(Kasa.Api.KrediYazDto), "gerceklesmeTakibi", "POST api/krediler", "Emekli uç: sunucu her isteği 409 ile reddeder (KrediEkleAsync)."),
 
         // İstemci fazlası (bütün uçlar): kilitli ayın raporu anlık görüntüden döner ve sunucu "dondurulmus" alanını yalnız
         // orada JSON'a ekler (AyRaporAnlikGoruntusu.Oku); Kasa.Core.AylikRapor türünde yoktur, koşullu alan kuralına girmez.
