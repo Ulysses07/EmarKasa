@@ -11,22 +11,19 @@ public abstract partial class OturumluViewModel : TemelViewModel
     protected OturumluViewModel(AuthViewModel auth)
     {
         Auth = auth;
-        OturumDegisiminiDinle(auth, () =>
-        {
-            VeriHazir = false;
-            Mesgul = false;
-            Hata = null;
-            Mesaj = null;
-            SonGuncelleme = null;
-            OturumTemizle();
-            RolBildir();
-        });
-        // Rol oturum sürümü değişmeden de değişebilir: EditorMu hesaplanan değer olduğu için ayrıca bildirilir.
-        auth.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(AuthViewModel.AktifRol))
-                RolBildir();
-        };
+        OturumDegisiminiDinle(auth);
+    }
+
+    /// <summary>Oturum değişince ekran yeni kurulmuş modelin durumuna döner; rol yeni oturumunkidir.</summary>
+    private void OturumuSifirla()
+    {
+        VeriHazir = false;
+        Mesgul = false;
+        Hata = null;
+        Mesaj = null;
+        SonGuncelleme = null;
+        OturumTemizle();
+        RolBildir();
     }
 
     /// <summary>EditorMu ve ona bağlı hesaplanan değerler bildirilir (rol ya da oturum değişince).</summary>
@@ -39,29 +36,39 @@ public abstract partial class OturumluViewModel : TemelViewModel
     /// <summary>Rol değişince EditorMu'ya bağlı hesaplanan değerleri bildirmek için (ör. Alışlar'da onay ve iade düğmeleri).</summary>
     protected virtual void RolDegisti() { }
 
-    /// <summary>Oturum değişimini dinler (appcore-10): OturumSurumu değişince bekleyen işler hemen eskir (sonuçları, hataları ve
-    /// bitişleri yansımaz), ekran <paramref name="sifirla"/> ile model kurulurken yakalanan UI bağlamında sıfırlanır. Eskiyen iş
-    /// göstergeyi indirmediği için Mesgul'u sıfırlama indirir.</summary>
-    private void OturumDegisiminiDinle(AuthViewModel auth, Action sifirla)
+    /// <summary>Oturum ve rol değişimini dinler (appcore-10): OturumSurumu değişince bekleyen işler hemen eskir (sonuçları, hataları ve
+    /// bitişleri yansımaz) ve ekran sıfırlanır (<see cref="OturumuSifirla"/>); AktifRol oturum sürümü değişmeden de değişirse EditorMu
+    /// ve ona bağlı değerler bildirilir. Sıfırlama ve bildirim model kurulurken yakalanan UI bağlamında yapılır. Eskiyen iş göstergeyi
+    /// indirmediği için Mesgul'u sıfırlama indirir.</summary>
+    private void OturumDegisiminiDinle(AuthViewModel auth)
     {
         var ui = SynchronizationContext.Current;
+        void UiBaglaminda(Action eylem)
+        {
+            if (ui is not null && SynchronizationContext.Current != ui)
+                ui.Post(_ => eylem(), null);
+            else
+                eylem();
+        }
         auth.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu))
-                return;
-            Yurutucu.GecersizKil();
-            if (ui is not null && SynchronizationContext.Current != ui)
-                ui.Post(_ => sifirla(), null);
-            else
-                sifirla();
+            if (e.PropertyName == nameof(AuthViewModel.OturumSurumu))
+            {
+                Yurutucu.GecersizKil();
+                UiBaglaminda(OturumuSifirla);
+            }
+            else if (e.PropertyName == nameof(AuthViewModel.AktifRol))
+                UiBaglaminda(RolBildir);
         };
     }
+
     public bool EditorMu => Auth.AktifRol == Rol.Editor;
     public int OturumNesli => Yurutucu.Nesil;
     [ObservableProperty] private bool _veriHazir;
     [ObservableProperty] private string? _mesaj;
     /// <summary>Son başarılı yükleme anı (yerel saat ve farkı); rapor ve işlem listesiyle aynı tür.</summary>
     [ObservableProperty] private DateTimeOffset? _sonGuncelleme;
+
     /// <summary>Gerekçe isteyen işlemin tek yolu (iptal, durum değişimi, belge kaldırma, ay kilidi): oturum gerekçe penceresi
     /// açılmadan ÖNCE yakalanır. Pencere açıkken oturum değişirse (çıkış, oturumun sona ermesi, yeni giriş) gerekçe yeni oturumun
     /// formuna yazılmaz ve işlem yapılmaz. Vazgeçilirse (null) işlem yapılmaz; boş gerekçe de yalnız
