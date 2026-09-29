@@ -1,2 +1,38 @@
+# Satır sonları (Aşama 2b). Depoda (index) bütün metin dosyaları LF'dir; bu kurallar bunu her geliştiricinin
+# core.autocrlf ayarından bağımsız kılar ve çalışma kopyasındaki satır sonunu dosya türüne göre belirler.
+#
+# Varsayılan: Git metin/ikili ayrımını kendisi yapar. Metin dosyası depoya LF girer; çalışma kopyasında platformun satır
+# sonu kullanılır (core.autocrlf / core.eol; ikisi de yoksa Windows'ta CRLF, Linux/macOS'ta LF). C#, XAML, proje, çözüm
+# ve belge (md) dosyaları buna uyar: Windows'ta Visual Studio CRLF görür, depo LF kalır.
+* text=auto
+
+# .NET kaynakları: her zaman metin (otomatik algılamaya bırakılmaz); C# için Git'in yerleşik fark başlığı deseni.
+*.cs            text diff=csharp
+*.xaml          text
+*.csproj        text
+*.props         text
+*.slnx          text
+
+# Her platformda LF (Windows'ta da). Web arayüzü ve araçları: Prettier satır sonunu LF denetler; Linux'taki CI ve
+# Playwright imajı aynı baytları görür; e2e tabanları (aria.yml, axe-tabani.json) Linux konteynerinde LF yazılır.
+*.js            text eol=lf
+*.mjs           text eol=lf
+*.css           text eol=lf
+*.html          text eol=lf
+*.svg           text eol=lf
+*.json          text eol=lf
+*.webmanifest   text eol=lf
+*.yml           text eol=lf
 # Kabuk betikleri Linux'ta (CI, Docker) ve Git Bash'te çalışır: çalışma kopyasında da LF kalır (CRLF ile bash kırılır).
-*.sh text eol=lf
+*.sh            text eol=lf
+# Linux sunucusunda ya da imajda kullanılan dağıtım dosyaları: CRLF, .env değerlerine ve systemd/nginx satırlarına
+# görünmez \r ekler.
+Dockerfile      text eol=lf
+*.py            text eol=lf
+*.conf          text eol=lf
+*.service       text eol=lf
+*.timer         text eol=lf
+*.example       text eol=lf
+
+# İkili: ekran görüntüsü tabanları; satır sonu dönüşümü ve metin farkı yapılmaz.
+*.png           binary
