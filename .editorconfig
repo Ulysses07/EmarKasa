@@ -1,0 +1,21 @@
+# Kasa EditorConfig (Aşama 2b). En üst dosya: üst dizinlerdeki .editorconfig'ler (ör. kullanıcı klasörü) bu depoya
+# uygulanmaz; biçim her makinede aynı kalır.
+root = true
+
+# C#: `dotnet format whitespace` (CI "C# format (dotnet format)" işi) ve IDE0055 bu bölümü okur. Roslyn'in varsayılan
+# biçim kuralları geçerlidir (Allman ayraçları, boşluk kuralları); varsayılandan ayrılan tek kural
+# csharp_preserve_single_line_statements'tır. Satır sonu (end_of_line) ve kodlama (charset) bilerek yazılmaz: satır
+# sonunu .gitattributes belirler (depoda LF, Windows çalışma kopyasında CRLF); MAUI şablonundan gelen 6 dosya BOM'lu,
+# diğerleri BOM'suzdur ve olduğu gibi kalır.
+#
+#   dotnet format whitespace --folder . --exclude '**/bin/' '**/obj/' --verify-no-changes    denetle (CI)
+#   dotnet format whitespace --folder . --exclude '**/bin/' '**/obj/'                        biçimle
+# Biçimleme, deyimi yeni satıra aldığı yerde iç satırların girintisini ikinci geçişte düzeltir: denetim hâlâ fark
+# gösterirse biçimle komutunu bir kez daha çalıştırın.
+[*.cs]
+# Girinti: mevcut kodun ve Roslyn'in 4 boşluğu; editörün kendi varsayılanı (ör. sekme) CI denetimiyle çatışmasın.
+indent_style = space
+indent_size = 4
+# Aynı satırdaki birden çok deyim ya da üye bildirimi ayrı satırlara ayrılır. Tek satırlık bloklar ({ get; set; })
+# csharp_preserve_single_line_blocks varsayılanıyla (true) korunur; o kural bilerek değiştirilmez.
+csharp_preserve_single_line_statements = false
