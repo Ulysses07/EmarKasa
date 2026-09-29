@@ -67,7 +67,13 @@ test('işlemler gün gün, en yeni önce ve kuruş toplamıyla gruplanır', () =
     { id: 2, tarih: '2026-09-25', tutarTl: 100, kanal: 'TOPTAN' },
     { id: 3, tarih: '2026-09-24', tutarTl: 0.2, kanal: 'MEZAT' },
   ]);
-  assert.deepEqual(gruplar.map(g => [g.tarih, g.toplam, g.islemler.map(i => i.id)]), [['2026-09-25', 100, [2]], ['2026-09-24', 0.3, [3, 1]]]);
+  assert.deepEqual(
+    gruplar.map(g => [g.tarih, g.toplam, g.islemler.map(i => i.id)]),
+    [
+      ['2026-09-25', 100, [2]],
+      ['2026-09-24', 0.3, [3, 1]],
+    ]
+  );
 });
 
 test('işlem araması Türkçe büyük/küçük harfe duyarsız, kanal ve tip filtreleri birlikte çalışır', () => {
@@ -101,7 +107,10 @@ test('iPhone ve iPad iOS görünümünü, diğer cihazlar Android görünümün�
 test('grafik yolları kutunun içinde kalır', () => {
   const y = m.cizgiYolu([10, 30, 20], 100, 50, 5);
   assert.equal(y.noktalar.length, 3);
-  for (const [x, yy] of y.noktalar) { assert.ok(x >= 5 && x <= 95); assert.ok(yy >= 5 && yy <= 45); }
+  for (const [x, yy] of y.noktalar) {
+    assert.ok(x >= 5 && x <= 95);
+    assert.ok(yy >= 5 && yy <= 45);
+  }
   assert.deepEqual(m.cizgiYolu([], 100, 50, 5).noktalar, []);
   const o = m.cubukOlcek([300, -100]);
   assert.equal(o.ust + o.alt, 100);
@@ -122,8 +131,21 @@ test('telefon arayüzünün modülleri ES modülü olarak ayrıştırılır ve k
   const sekmeler = app.match(/const SEKMELER = (\[[\s\S]*?\]);/)[1];
   const sekmeIkonlari = [...sekmeler.matchAll(/\[\s*'[a-z]+',\s*'([a-z_]+)',\s*'[^']+',?\s*\]/g)].map(x => x[1]);
   assert.ok(sekmeIkonlari.length > 0, 'SEKMELER okunamadı');
-  for (const ad of sekmeIkonlari) { assert.ok(kimlikler.has(ad), `sekme ikonu eksik: ${ad}`); assert.ok(kimlikler.has(`${ad}-fill`), `dolu sekme ikonu eksik: ${ad}`); }
-  for (const ad of ['lock', 'edit_calendar', 'error', 'check_circle', 'keyboard_arrow_up', 'keyboard_arrow_down', 'monitoring', 'desktop_windows']) assert.ok(kimlikler.has(ad), `ikon eksik: ${ad}`);
+  for (const ad of sekmeIkonlari) {
+    assert.ok(kimlikler.has(ad), `sekme ikonu eksik: ${ad}`);
+    assert.ok(kimlikler.has(`${ad}-fill`), `dolu sekme ikonu eksik: ${ad}`);
+  }
+  for (const ad of [
+    'lock',
+    'edit_calendar',
+    'error',
+    'check_circle',
+    'keyboard_arrow_up',
+    'keyboard_arrow_down',
+    'monitoring',
+    'desktop_windows',
+  ])
+    assert.ok(kimlikler.has(ad), `ikon eksik: ${ad}`);
 });
 
 test('telefon sayfası CSP ile uyumlu: satır içi betik yok, yalnız aynı kökten kaynak', async () => {
@@ -142,13 +164,26 @@ function yonlendir({ kaba = true, en = 390, boy = 844, secim = null, hash = '', 
     matchMedia: q => ({ matches: q === '(pointer: coarse)' && kaba }),
     screen: { width: en, height: boy },
     localStorage: { getItem: k => depo.get(k) ?? null, removeItem: k => depo.delete(k) },
-    location: { hash, search, href: '/', replace(u) { this.gidilen = u; } },
+    location: {
+      hash,
+      search,
+      href: '/',
+      replace(u) {
+        this.gidilen = u;
+      },
+    },
     document: {
-      addEventListener: (ad, fn) => { olaylar[ad] = fn; },
+      addEventListener: (ad, fn) => {
+        olaylar[ad] = fn;
+      },
       querySelector: () => ({ insertBefore: d => eklenen.push(d) }),
       getElementById: id => ({ id, parentNode: { insertBefore: d => eklenen.push(d) }, nextSibling: null }),
-      createElement: () => ({ addEventListener(ad, fn) { this.tik = fn; } })
-    }
+      createElement: () => ({
+        addEventListener(ad, fn) {
+          this.tik = fn;
+        },
+      }),
+    },
   };
   pencere.window = pencere;
   return { pencere, olaylar, eklenen, depo };
@@ -163,7 +198,10 @@ test('telefon masaüstü adresine gelince bildirim adresiyle birlikte telefon ar
 
 test('bilgisayar ve tablet masaüstü arayüzünde kalır', async () => {
   const betik = await kaynak('telefon-yonlendir.js');
-  for (const ayar of [{ kaba: false, en: 390 }, { kaba: true, en: 820, boy: 1180 }]) {
+  for (const ayar of [
+    { kaba: false, en: 390 },
+    { kaba: true, en: 820, boy: 1180 },
+  ]) {
     const t = yonlendir(ayar);
     runInNewContext(betik, t.pencere);
     assert.equal(t.pencere.location.gidilen, undefined);
@@ -207,6 +245,9 @@ test('hızlı giderde yalnız yeni takipteki açık kartlar seçilir (takipsiz y
     { id: 2, ad: 'Eski model', yeniTakip: false, aktif: true },
     { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false },
   ];
-  assert.deepEqual(m.giderKartlari(kartlar).map(k => k.id), [1]);
+  assert.deepEqual(
+    m.giderKartlari(kartlar).map(k => k.id),
+    [1]
+  );
   assert.deepEqual(m.giderKartlari(undefined), []);
 });

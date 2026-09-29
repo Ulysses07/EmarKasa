@@ -7,7 +7,10 @@ export const ORTAK = 'Ortak';
 const F2 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const F1 = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const F0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
-const sayi = value => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
+const sayi = value => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
 // Kuruşa yuvarlanmış mutlak değer; -0,00 gibi çıktıları önler.
 const kurus = value => Math.round(sayi(value) * 100);
 
@@ -24,22 +27,43 @@ export function imzaliYalin(value) {
 /** +47.750,00 ₺ */
 export const imzali = value => imzaliYalin(value) + ' ₺';
 /** Tutarın rengi için sınıf: arti · eksi · notr */
-export function isaretSinifi(value) { const k = kurus(value); return k < 0 ? 'eksi' : k > 0 ? 'arti' : 'notr'; }
+export function isaretSinifi(value) {
+  const k = kurus(value);
+  return k < 0 ? 'eksi' : k > 0 ? 'arti' : 'notr';
+}
 export const yuzde = value => '%' + F0.format(sayi(value));
 
 const parca = tarih => String(tarih).slice(0, 10).split('-').map(Number);
-export function tarihNesnesi(tarih) { const [y, m, d] = parca(tarih); return new Date(y, m - 1, d, 12); }
+export function tarihNesnesi(tarih) {
+  const [y, m, d] = parca(tarih);
+  return new Date(y, m - 1, d, 12);
+}
 /** 26 Eylül Cumartesi */
-export function uzunTarih(tarih) { const [y, m, d] = parca(tarih); return `${d} ${AYLAR[m - 1]} ${GUNLER[new Date(y, m - 1, d).getDay()]}`; }
+export function uzunTarih(tarih) {
+  const [y, m, d] = parca(tarih);
+  return `${d} ${AYLAR[m - 1]} ${GUNLER[new Date(y, m - 1, d).getDay()]}`;
+}
 /** 26 Eylül 2026 Cumartesi */
-export function tamTarih(tarih) { const [y, m, d] = parca(tarih); return `${d} ${AYLAR[m - 1]} ${y} ${GUNLER[new Date(y, m - 1, d).getDay()]}`; }
+export function tamTarih(tarih) {
+  const [y, m, d] = parca(tarih);
+  return `${d} ${AYLAR[m - 1]} ${y} ${GUNLER[new Date(y, m - 1, d).getDay()]}`;
+}
 /** 26 Eyl */
-export function kisaTarih(tarih) { const [, m, d] = parca(tarih); return `${d} ${AYK[m - 1]}`; }
+export function kisaTarih(tarih) {
+  const [, m, d] = parca(tarih);
+  return `${d} ${AYK[m - 1]}`;
+}
 export function isoGun(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
-export function gunEkle(tarih, gun) { const d = tarihNesnesi(tarih); d.setDate(d.getDate() + gun); return isoGun(d); }
-export function gunFarki(bas, son) { return Math.round((tarihNesnesi(son) - tarihNesnesi(bas)) / 86400000); }
+export function gunEkle(tarih, gun) {
+  const d = tarihNesnesi(tarih);
+  d.setDate(d.getDate() + gun);
+  return isoGun(d);
+}
+export function gunFarki(bas, son) {
+  return Math.round((tarihNesnesi(son) - tarihNesnesi(bas)) / 86400000);
+}
 
 /** Dönem adı: "21–27 Eylül 2026", "27–31 Temmuz 2026", ay değişirse "31 Ağu – 6 Eyl 2026", tek gün "31 Ağustos 2026". */
 export function donemAdi(donem) {
@@ -63,7 +87,8 @@ export function donemKisa(donem) {
  * bir ay sonunda biter. Bugünle kesilen açık dönem ve takip başlangıcındaki ilk dönem bölünmüş sayılmaz.
  */
 export function bolunmusMu(donem) {
-  const bas = tarihNesnesi(donem.start), son = tarihNesnesi(donem.end);
+  const bas = tarihNesnesi(donem.start),
+    son = tarihNesnesi(donem.end);
   const aySonu = gunEkle(donem.end, 1).endsWith('-01');
   return (bas.getDate() === 1 && bas.getDay() !== 1) || (aySonu && son.getDay() !== 0);
 }
@@ -75,12 +100,15 @@ export function bolunmusMu(donem) {
  * geçersiz girdide hata verir; hiçbir zaman sessizce yuvarlamaz.
  */
 export function tutarCoz(girdi, { sifirOlabilir = false } = {}) {
-  let metin = String(girdi ?? '').trim().replace(/\s|₺|TL/gi, '');
+  let metin = String(girdi ?? '')
+    .trim()
+    .replace(/\s|₺|TL/gi, '');
   if (!metin) throw new Error('Tutar girin.');
   if (metin.includes(',')) {
     if ((metin.match(/,/g) || []).length > 1) throw new Error('Tutarda yalnız bir virgül olabilir.');
     const [tam, ondalik] = metin.split(',');
-    if (tam.includes('.') && !/^[1-9]\d{0,2}(\.\d{3})+$/.test(tam)) throw new Error('Binlik ayırıcı noktaları kontrol edin (örnek: 1.500,50).');
+    if (tam.includes('.') && !/^[1-9]\d{0,2}(\.\d{3})+$/.test(tam))
+      throw new Error('Binlik ayırıcı noktaları kontrol edin (örnek: 1.500,50).');
     metin = tam.replace(/\./g, '') + '.' + ondalik;
   } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(metin)) {
     metin = metin.replace(/\./g, '');
@@ -97,18 +125,27 @@ export function tutarCoz(girdi, { sifirOlabilir = false } = {}) {
 export function cizgiYolu(degerler, w, h, p) {
   const v = degerler.map(sayi);
   if (!v.length) return { d: '', alan: '', noktalar: [] };
-  const mn = Math.min(...v), mx = Math.max(...v), r = (mx - mn) || 1;
+  const mn = Math.min(...v),
+    mx = Math.max(...v),
+    r = mx - mn || 1;
   const adim = v.length > 1 ? (w - 2 * p) / (v.length - 1) : 0;
   const noktalar = v.map((y, i) => [v.length > 1 ? p + i * adim : w / 2, p + (h - 2 * p) * (1 - (y - mn) / r)]);
   const d = noktalar.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
-  const son = noktalar[noktalar.length - 1], ilk = noktalar[0];
+  const son = noktalar[noktalar.length - 1],
+    ilk = noktalar[0];
   return { d, alan: `${d} L${son[0].toFixed(1)} ${h} L${ilk[0].toFixed(1)} ${h} Z`, noktalar };
 }
 /** Sıfır çizgili çubuk grafiği ölçekleri (yüzde). */
 export function cubukOlcek(degerler) {
   const v = degerler.map(sayi);
-  const mp = Math.max(0, ...v), mn = Math.max(0, ...v.map(x => -x)), t = (mp + mn) || 1;
-  return { ust: mp / t * 100, alt: mn / t * 100, cubuklar: v.map(x => ({ hp: x > 0 ? Math.max(3, x / mp * 100) : 0, hn: x < 0 ? Math.max(3, -x / mn * 100) : 0 })) };
+  const mp = Math.max(0, ...v),
+    mn = Math.max(0, ...v.map(x => -x)),
+    t = mp + mn || 1;
+  return {
+    ust: (mp / t) * 100,
+    alt: (mn / t) * 100,
+    cubuklar: v.map(x => ({ hp: x > 0 ? Math.max(3, (x / mp) * 100) : 0, hn: x < 0 ? Math.max(3, (-x / mn) * 100) : 0 })),
+  };
 }
 
 const KANAL_RENK = {
@@ -117,13 +154,19 @@ const KANAL_RENK = {
   TOPTAN: { r: '#7B4B73', z: '#F1E7EF' },
   [ORTAK]: { r: '#5E6457', z: '#ECEBE4' },
 };
-const YEDEK_RENK = [{ r: '#3F6B4E', z: '#E7EFE9' }, { r: '#6B4E2E', z: '#F1EAE1' }, { r: '#2E6B6B', z: '#E3F0F0' }, { r: '#6B2E4A', z: '#F2E6EC' }];
+const YEDEK_RENK = [
+  { r: '#3F6B4E', z: '#E7EFE9' },
+  { r: '#6B4E2E', z: '#F1EAE1' },
+  { r: '#2E6B6B', z: '#E3F0F0' },
+  { r: '#6B2E4A', z: '#F2E6EC' },
+];
 /** Kanal rengi: r yazı/nokta, z zemin. Bilinmeyen kanallar adına göre sabit bir yedek renk alır. */
 export function kanalRengi(ad) {
   const anahtar = String(ad || '').toLocaleUpperCase('tr-TR');
   if (KANAL_RENK[anahtar]) return KANAL_RENK[anahtar];
   if (String(ad) === ORTAK) return KANAL_RENK[ORTAK];
-  let h = 0; for (const c of String(ad || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  let h = 0;
+  for (const c of String(ad || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return YEDEK_RENK[h % YEDEK_RENK.length];
 }
 
@@ -144,7 +187,15 @@ export function platformBul(ua = '', dokunmaNoktasi = 0) {
 export function rotaCoz(hash) {
   const metin = String(hash || '').replace(/^#\/?/, '');
   const [ekran, parametre] = metin.split('/');
-  const cevir = { home: 'panel', notifications: 'bildirimler', cards: 'kartlar', loans: 'krediler', weekly: 'haftalik', monthly: 'aylik', transactions: 'islemler' };
+  const cevir = {
+    home: 'panel',
+    notifications: 'bildirimler',
+    cards: 'kartlar',
+    loans: 'krediler',
+    weekly: 'haftalik',
+    monthly: 'aylik',
+    transactions: 'islemler',
+  };
   const ad = cevir[ekran] || ekran || 'panel';
   const id = parametre && /^[1-9]\d*$/.test(parametre) ? Number(parametre) : null;
   return { ekran: ad, id };
@@ -157,7 +208,10 @@ export function gunlereAyir(islemler) {
   for (const islem of sirali) {
     const gun = String(islem.tarih).slice(0, 10);
     let grup = gruplar[gruplar.length - 1];
-    if (!grup || grup.tarih !== gun) { grup = { tarih: gun, toplam: 0, islemler: [] }; gruplar.push(grup); }
+    if (!grup || grup.tarih !== gun) {
+      grup = { tarih: gun, toplam: 0, islemler: [] };
+      gruplar.push(grup);
+    }
     grup.toplam = (Math.round(grup.toplam * 100) + kurus(islem.tutarTl)) / 100;
     grup.islemler.push(islem);
   }
@@ -167,7 +221,13 @@ export function gunlereAyir(islemler) {
 /** Türkçe duyarlı arama: cari, not ve kanal içinde geçer mi. */
 export function islemEslesir(islem, { ara = '', kanal = 'Tümü', tip = 'Tümü' } = {}) {
   // Birden çok kanala bölünmüş ödemeler "MEZAT / TOPTAN" gibi gelir; her kanalın filtresinde görünür.
-  if (kanal !== 'Tümü' && !String(islem.kanal || '').split(' / ').includes(kanal)) return false;
+  if (
+    kanal !== 'Tümü' &&
+    !String(islem.kanal || '')
+      .split(' / ')
+      .includes(kanal)
+  )
+    return false;
   if (tip !== 'Tümü' && islem.tip !== tip) return false;
   const q = ara.trim().toLocaleLowerCase('tr-TR');
   if (!q) return true;

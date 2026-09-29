@@ -48,7 +48,9 @@ const sirali = nesne => Object.fromEntries(Object.entries(nesne).sort(([a], [b])
  * yazar; kayıtlı ekranda reddedilir, yoksa bakım koşusu yeni ihlalleri sessizce tabana alabilirdi. */
 async function axeDenetle(page, testInfo, ad) {
   const sonuc = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  const simdiki = [...new Set(sonuc.violations.flatMap(v => v.nodes.map(n => `${v.id} | ${n.target.map(t => [t].flat().join(' >>> ')).join(' >>> ')}`)))].sort();
+  const simdiki = [
+    ...new Set(sonuc.violations.flatMap(v => v.nodes.map(n => `${v.id} | ${n.target.map(t => [t].flat().join(' >>> ')).join(' >>> ')}`))),
+  ].sort();
   const proje = testInfo.project.name;
   const taban = oku();
   const kayitli = taban[proje]?.[ad] ?? [];
@@ -56,7 +58,9 @@ async function axeDenetle(page, testInfo, ad) {
   const duzelen = kayitli.filter(s => !simdiki.includes(s));
   await testInfo.attach(`${ad}-axe.json`, { body: JSON.stringify(sonuc.violations, null, 2), contentType: 'application/json' });
   if (tabanKipi === 'olustur' && taban[proje]?.[ad] !== undefined)
-    throw new Error(`${proje}/${ad}: axe tabanında kayıt var; KASA_E2E_AXE_TABANI=olustur yalnız yeni ekran içindir. Düzelen ihlaller için kucult kullanın.`);
+    throw new Error(
+      `${proje}/${ad}: axe tabanında kayıt var; KASA_E2E_AXE_TABANI=olustur yalnız yeni ekran içindir. Düzelen ihlaller için kucult kullanın.`
+    );
   if (tabanKipi === 'olustur' || (tabanKipi === 'kucult' && duzelen.length)) {
     const yazilacak = tabanKipi === 'olustur' ? simdiki : kayitli.filter(s => simdiki.includes(s));
     taban[proje] = sirali({ ...(taban[proje] ?? {}), [ad]: yazilacak });
@@ -67,7 +71,9 @@ async function axeDenetle(page, testInfo, ad) {
     testInfo.annotations.push({ type: 'axe-tabani', description: uyari });
     console.warn(uyari);
   }
-  const ayrinti = sonuc.violations.filter(v => yeni.some(y => y.startsWith(`${v.id} | `)))
-    .map(v => `${v.id} (${v.impact}): ${v.help}\n  ${v.helpUrl}`).join('\n');
+  const ayrinti = sonuc.violations
+    .filter(v => yeni.some(y => y.startsWith(`${v.id} | `)))
+    .map(v => `${v.id} (${v.impact}): ${v.help}\n  ${v.helpUrl}`)
+    .join('\n');
   expect(yeni, `${ad}: tabanda olmayan yeni axe ihlalleri (WCAG 2.2 AA). Düzeltin; tabana eklemeyin.\n${ayrinti}`).toEqual([]);
 }

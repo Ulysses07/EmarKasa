@@ -10,8 +10,11 @@ kurulum('Playwright paketi, kilit dosyası ve Linux imajı aynı sürümde', () 
   const surum = JSON.parse(oku('../package.json')).devDependencies['@playwright/test'];
   expect(surum, 'package.json: @playwright/test tam sürümle sabitlenir').toMatch(/^\d+\.\d+\.\d+$/);
   const kilit = JSON.parse(oku('../package-lock.json')).packages;
-  for (const paket of ['@playwright/test', 'playwright', 'playwright-core']) expect(kilit[`node_modules/${paket}`]?.version, `package-lock.json: ${paket}`).toBe(surum);
-  const imajlar = [...oku('../../.github/workflows/ci.yml').matchAll(/mcr\.microsoft\.com\/playwright:v([\d.]+)-[a-z]+@sha256:[0-9a-f]{64}/g)];
+  for (const paket of ['@playwright/test', 'playwright', 'playwright-core'])
+    expect(kilit[`node_modules/${paket}`]?.version, `package-lock.json: ${paket}`).toBe(surum);
+  const imajlar = [
+    ...oku('../../.github/workflows/ci.yml').matchAll(/mcr\.microsoft\.com\/playwright:v([\d.]+)-[a-z]+@sha256:[0-9a-f]{64}/g),
+  ];
   expect(imajlar.length, 'ci.yml: özetle sabitlenmiş Playwright imajı').toBeGreaterThan(0);
   for (const [imaj, imajSurumu] of imajlar) expect(imajSurumu, `${imaj} @playwright/test ${surum} ile aynı sürümde olmalı`).toBe(surum);
 });
@@ -33,10 +36,17 @@ kurulum('tohum veriyi gir ve editör oturumunu kaydet', async ({ request }) => {
   const kanal = ad => kanallar.find(k => k.ad === ad).id;
 
   const gelirler = [
-    ['2026-09-01', 'MEZAT', 48500], ['2026-09-01', 'PERAKENDE', 12750.5], ['2026-09-01', 'TOPTAN', 30400],
-    ['2026-09-07', 'MEZAT', 52300], ['2026-09-07', 'PERAKENDE', 9800], ['2026-09-07', 'TOPTAN', 27650],
-    ['2026-09-14', 'MEZAT', 47100], ['2026-09-14', 'PERAKENDE', 11250.75], ['2026-09-14', 'TOPTAN', 33900],
-    ['2026-09-21', 'MEZAT', 21500], ['2026-09-21', 'PERAKENDE', 6400],
+    ['2026-09-01', 'MEZAT', 48500],
+    ['2026-09-01', 'PERAKENDE', 12750.5],
+    ['2026-09-01', 'TOPTAN', 30400],
+    ['2026-09-07', 'MEZAT', 52300],
+    ['2026-09-07', 'PERAKENDE', 9800],
+    ['2026-09-07', 'TOPTAN', 27650],
+    ['2026-09-14', 'MEZAT', 47100],
+    ['2026-09-14', 'PERAKENDE', 11250.75],
+    ['2026-09-14', 'TOPTAN', 33900],
+    ['2026-09-21', 'MEZAT', 21500],
+    ['2026-09-21', 'PERAKENDE', 6400],
   ];
   for (const [donemStart, ad, tutarTl] of gelirler) await iste('PUT', '/api/gelenler', { donemStart, kanal: ad, tutarTl });
 
@@ -52,11 +62,24 @@ kurulum('tohum veriyi gir ve editör oturumunu kaydet', async ({ request }) => {
     await iste('POST', '/api/islemler', { tarih, cari, tutarTl, kanal: kanalAdi, tip, not: null, istekId: randomUUID() });
   }
 
-  const alis = (tarih, tedarikci, aciklama, paylar) => iste('POST', '/api/alis', {
-    surum: 0, tarih, tedarikci, not: null,
-    kalemler: [{ aciklama, tutar: paylar.reduce((t, [, tutar]) => t + tutar, 0), dagilimlar: paylar.map(([ad, tutar]) => ({ kanalId: kanal(ad), tutar })) }],
-  });
-  const onayli = await alis('2026-09-18', 'Anadolu Toptan Gıda', 'Kuru gıda kolisi', [['MEZAT', 5000], ['PERAKENDE', 3400]]);
+  const alis = (tarih, tedarikci, aciklama, paylar) =>
+    iste('POST', '/api/alis', {
+      surum: 0,
+      tarih,
+      tedarikci,
+      not: null,
+      kalemler: [
+        {
+          aciklama,
+          tutar: paylar.reduce((t, [, tutar]) => t + tutar, 0),
+          dagilimlar: paylar.map(([ad, tutar]) => ({ kanalId: kanal(ad), tutar })),
+        },
+      ],
+    });
+  const onayli = await alis('2026-09-18', 'Anadolu Toptan Gıda', 'Kuru gıda kolisi', [
+    ['MEZAT', 5000],
+    ['PERAKENDE', 3400],
+  ]);
   const onayda = await iste('POST', `/api/alis/${onayli.id}/gonder`, { surum: onayli.surum });
   await iste('POST', `/api/alis/${onayli.id}/onayla`, { surum: onayda.surum, not: 'Faturayla karşılaştırıldı.' });
   const incelemede = await alis('2026-09-23', 'Ege Ambalaj', 'Karton kutu (500 adet)', [['TOPTAN', 6250]]);
@@ -66,7 +89,12 @@ kurulum('tohum veriyi gir ve editör oturumunu kaydet', async ({ request }) => {
   const onizleme = await iste('POST', '/api/kasa-kontrol/onizleme', { gercekBakiye: 0, not: null });
   const gercekBakiye = Math.round((onizleme.sistemBakiye - 150) * 100) / 100;
   const kontrol = await iste('POST', '/api/kasa-kontrol/onizleme', { gercekBakiye, not: null });
-  await iste('POST', '/api/kasa-kontrol', { istekId: randomUUID(), gercekBakiye, kontrolOzeti: kontrol.kontrolOzeti, not: 'Akşam sayımında 150 ₺ eksik.' });
+  await iste('POST', '/api/kasa-kontrol', {
+    istekId: randomUUID(),
+    gercekBakiye,
+    kontrolOzeti: kontrol.kontrolOzeti,
+    not: 'Akşam sayımında 150 ₺ eksik.',
+  });
 
   await request.storageState({ path: OTURUM });
 });

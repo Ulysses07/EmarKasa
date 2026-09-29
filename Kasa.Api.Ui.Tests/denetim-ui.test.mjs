@@ -14,16 +14,26 @@ test('denetim-ui.js parses as an explicit ES module', () => {
 
 test('history query carries only filled filters and rejects an id without its entity', () => {
   assert.equal(ui.historyQuery(), '/api/denetim?adet=50');
-  assert.equal(ui.historyQuery({ varlik: 'Islem', varlikId: ' 812 ', kilitAcmaOlayiId: '7', oncekiId: 90 }), '/api/denetim?varlik=Islem&varlikId=812&kilitAcmaOlayiId=7&oncekiId=90&adet=50');
+  assert.equal(
+    ui.historyQuery({ varlik: 'Islem', varlikId: ' 812 ', kilitAcmaOlayiId: '7', oncekiId: 90 }),
+    '/api/denetim?varlik=Islem&varlikId=812&kilitAcmaOlayiId=7&oncekiId=90&adet=50'
+  );
   assert.throws(() => ui.historyQuery({ varlikId: '812' }), /kayıt türünü de seçin/);
   assert.throws(() => ui.historyQuery({ kilitAcmaOlayiId: '-1' }), /pozitif/);
 });
 
 test('change lines show before and after for edits, one side for inserts and deletes', () => {
   assert.deepEqual(ui.changeLines({ oncekiJson: '{"TutarTl":48000}', yeniJson: '{"TutarTl":44000}' }), ['TutarTl: 48000 → 44000']);
-  assert.deepEqual(ui.changeLines({ oncekiJson: null, yeniJson: '{"Cari":"Toptancı","Iptal":false,"Not":null}' }), ['Cari: Toptancı', 'Iptal: Hayır', 'Not: —']);
+  assert.deepEqual(ui.changeLines({ oncekiJson: null, yeniJson: '{"Cari":"Toptancı","Iptal":false,"Not":null}' }), [
+    'Cari: Toptancı',
+    'Iptal: Hayır',
+    'Not: —',
+  ]);
   assert.deepEqual(ui.changeLines({ oncekiJson: '{"TutarTl":12500}', yeniJson: null }), ['TutarTl: 12500 (önceki)']);
-  assert.deepEqual(ui.changeLines({ oncekiJson: '{"Paylar":[{"KanalId":1}]}', yeniJson: 'bozuk' }), ['Paylar: [{"KanalId":1}] (önceki)', 'deger: bozuk']);
+  assert.deepEqual(ui.changeLines({ oncekiJson: '{"Paylar":[{"KanalId":1}]}', yeniJson: 'bozuk' }), [
+    'Paylar: [{"KanalId":1}] (önceki)',
+    'deger: bozuk',
+  ]);
 });
 
 test('actor and record text name the role, buyer id, client IP and lock window', () => {
@@ -41,21 +51,67 @@ test('a link broken by a deleted parent record has its own readable type', () =>
 test('history dialog loads the filtered page, renders reasons as text and pages older rows', async () => {
   const created = [];
   const h = (tag, props = {}, ...children) => {
-    const node = { tag, props, children: children.flat(Infinity).filter(c => c != null && c !== false), hidden: false, textContent: '',
-      replaceChildren(...items) { this.children = items; }, querySelector: () => submit };
+    const node = {
+      tag,
+      props,
+      children: children.flat(Infinity).filter(c => c != null && c !== false),
+      hidden: false,
+      textContent: '',
+      replaceChildren(...items) {
+        this.children = items;
+      },
+      querySelector: () => submit,
+    };
     if (props.hidden) node.hidden = true;
-    created.push(node); return node;
+    created.push(node);
+    return node;
   };
   let submit = null;
   const calls = [];
-  const page = (from, count) => Array.from({ length: count }, (_, i) => ({ id: from - i, zaman: '2026-09-25T09:00:00Z', aktorRol: 'editor', aktorId: null, istemciIp: null,
-    tur: 'Degistir', varlik: 'TakipKartOdeme', varlikId: '15', oncekiJson: '{"Iptal":false}', yeniJson: '{"Iptal":true}', gerekce: '<b>bankadan iade geldi</b>', kilitAcmaOlayiId: null }));
-  const api = async path => { calls.push(path); return calls.length === 1 ? page(200, 50) : page(150, 2); };
+  const page = (from, count) =>
+    Array.from({ length: count }, (_, i) => ({
+      id: from - i,
+      zaman: '2026-09-25T09:00:00Z',
+      aktorRol: 'editor',
+      aktorId: null,
+      istemciIp: null,
+      tur: 'Degistir',
+      varlik: 'TakipKartOdeme',
+      varlikId: '15',
+      oncekiJson: '{"Iptal":false}',
+      yeniJson: '{"Iptal":true}',
+      gerekce: '<b>bankadan iade geldi</b>',
+      kilitAcmaOlayiId: null,
+    }));
+  const api = async path => {
+    calls.push(path);
+    return calls.length === 1 ? page(200, 50) : page(150, 2);
+  };
   let opened = null;
   const denetim = ui.createDenetimUi({
-    api, h, button: (label, action) => h('button', { onclick: action }, label), input: (name, value) => { const n = h('input', { name }); n.value = value; return n; },
-    field: (label, control) => h('label', {}, label, control), select: (name, choices, value) => { const n = h('select', { name }); n.value = value; return n; },
-    help: text => h('p', {}, text), table: (headers, rows, label) => { const n = { tag: 'table', headers, rows, label }; created.push(n); return n; }, openModal: (title, content) => { opened = { title, content }; },
+    api,
+    h,
+    button: (label, action) => h('button', { onclick: action }, label),
+    input: (name, value) => {
+      const n = h('input', { name });
+      n.value = value;
+      return n;
+    },
+    field: (label, control) => h('label', {}, label, control),
+    select: (name, choices, value) => {
+      const n = h('select', { name });
+      n.value = value;
+      return n;
+    },
+    help: text => h('p', {}, text),
+    table: (headers, rows, label) => {
+      const n = { tag: 'table', headers, rows, label };
+      created.push(n);
+      return n;
+    },
+    openModal: (title, content) => {
+      opened = { title, content };
+    },
     run: async (_control, work) => work(),
   });
   denetim.open({ varlik: 'TakipKartOdeme', varlikId: '15' });
