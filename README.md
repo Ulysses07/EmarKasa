@@ -32,7 +32,8 @@ Kanal düzeltmek için editör açıklama yazarak alışını taslağa iade eder
 | `Kasa.Api/wwwroot` | Aktif, telefona uyumlu web arayüzü; ek paket/build gerektirmez |
 | `Kasa.Api.Ui.Tests` | Tarayıcı para girişi, form ve rol kurallarının Node testleri |
 | `*.Tests` | Core, API, API istemcisi ve görünüm modeli testleri |
-| `web` | Emekli React istemcisi; güncel ürünün dağıtımına dahil değil |
+
+Emekli React istemcisi (`web/`) dağıtımın parçası olmadığı için depodan kaldırıldı; son hâli [621b370](https://github.com/Ulysses07/EmarKasa/tree/621b370f0968829a2fbef9495155876e0661e9db/web) commit'indedir.
 
 Tüm aktif projeler .NET 10 kullanır. `Kasa.App` şu anda yalnız `net10.0-windows10.0.19041.0` hedefini derler. Android/iOS/MacCatalyst dosyaları depoda bulunsa da bu platformlar etkin derleme hedefleri değildir.
 
@@ -79,7 +80,7 @@ dotnet workload restore Kasa.App/Kasa.App.csproj
 dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0
 ```
 
-[CI iş akışı](.github/workflows/ci.yml), push ve pull request olaylarında dört test projesini Ubuntu üzerinde, Windows uygulaması derlemesini ayrı Windows işi olarak çalıştırır. İşler .NET 10 SDK'yı seçer. CI paket yayımlamaz ve canlıya dağıtım yapmaz; emekli web istemcisi zorunlu CI kapsamına dahil değildir.
+[CI iş akışı](.github/workflows/ci.yml), push ve pull request olaylarında dört test projesini Ubuntu üzerinde, Windows uygulaması derlemesini ayrı Windows işi olarak çalıştırır. İşler .NET 10 SDK'yı seçer. CI paket yayımlamaz ve canlıya dağıtım yapmaz.
 
 ## Üretim yapılandırması
 

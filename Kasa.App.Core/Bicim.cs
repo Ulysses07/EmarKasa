@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Kasa.App.Core;
 
-/// <summary>tr-TR para biçimi + kanal renkleri (web/src/format.ts + theme.ts aynası).</summary>
+/// <summary>tr-TR para biçimi + kanal renkleri.</summary>
 public static class Bicim
 {
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");

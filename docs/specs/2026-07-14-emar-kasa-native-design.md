@@ -126,6 +126,7 @@ erteleme senaryoları: ay geçişi, kanal eşleşmesi, M−1 boş, çok kanallı
 ## 8. Tema / marka
 
 `web/src/theme.ts` token'ları MAUI `Resources/Styles/Colors.xaml` + `Styles.xaml`'e birebir taşınır
+(`web/` sonradan arşivlendi; son hâli [621b370](https://github.com/Ulysses07/EmarKasa/blob/621b370f0968829a2fbef9495155876e0661e9db/web/src/theme.ts))
 (aynı hex): kâğıt zemin `#F5F4EF`, kart `#FFFFFF`, marka yeşili `#1E5F46`, koyu sidebar `#1F2A23`,
 metin `#20261F`, pozitif `#1B7A4E` / negatif `#C13A2E`. IBM Plex Sans/Mono `Resources/Fonts`'a
 bundle edilir; para rakamları mono. Kanal renkleri (`MEZAT/PERAKENDE/TOPTAN/Ortak`) resource olarak.
