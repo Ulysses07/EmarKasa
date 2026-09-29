@@ -129,7 +129,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         if (Gecerli(n) && ay == AyTarihi)
         { SeciliOdeme = null; AyiYansit(a); Tamamlandi(); }
     });
-    public void OdemeSec(AylikGiderSatiri satir) { if (Mesgul || !EditorMu || AySecimiDegisti || satir.Veri.Durum == "Odendi") return; SeciliOdeme = satir; OdemeTarihi = DateTime.Today; OdemeNotu = ""; OdemeOnay = false; }
+    public void OdemeSec(AylikGiderSatiri satir) { if (Mesgul || !EditorMu || AySecimiDegisti || satir.OdendiMi) return; SeciliOdeme = satir; OdemeTarihi = DateTime.Today; OdemeNotu = ""; OdemeOnay = false; }
     [RelayCommand]
     private Task OdeAsync() => YurutAsync(async n =>
     {
@@ -178,7 +178,9 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
 }
 public record AylikGiderSatiri(AylikGiderSatirDto Veri)
 {
-    public string Baslik => $"{Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺ · " + (Veri.Durum == "Odendi" ? "Ödendi" : "Ödeme bekliyor");
+    /// <summary>Ayın ödemesi kaydedilmiş (sunucu durumu "Odendi"); ödenmemiş plan ödeme bekler.</summary>
+    public bool OdendiMi => Veri.Durum == "Odendi";
+    public string Baslik => $"{Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺ · " + (OdendiMi ? "Ödendi" : "Ödeme bekliyor");
     public string Ozet => $"Planlanan {Veri.PlanlananTarih:dd.MM.yyyy}" + (Veri.OdemeTarihi is { } t ? $" · ödeme {t:dd.MM.yyyy}" : "") + "\n" + (Veri.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
 }
 /// <summary>İptal edilmiş aylık gider ödemesi (salt okunur): ödeme tarihi, iptal anı (sürüm öncesi iptalde bilinmez) ve gerekçe.</summary>

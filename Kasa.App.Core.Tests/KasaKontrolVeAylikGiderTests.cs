@@ -292,6 +292,17 @@ public class KasaKontrolVeAylikGiderTests
         bekleyen.OdemeSec(bekleyen.Kayitlar[0]);
         Assert.Same(bekleyen.Kayitlar[0], bekleyen.SeciliOdeme);
     }
+    /// <summary>Ödeme durumu satırda tipli özellikle okunur (OdendiMi); sunucunun durum metni tek yerde karşılaştırılır.</summary>
+    [Theory]
+    [InlineData("Odendi", true)]
+    [InlineData("Planlandi", false)]
+    [InlineData("Iptal", false)]
+    public void Aylik_gider_satiri_odendi_bilgisini_tipli_ozellikle_verir(string durum, bool odendi)
+    {
+        var satir = new AylikGiderSatiri(new Fake().Ay(2026, 9).Kayitlar[0] with { Durum = durum });
+        Assert.Equal(odendi, satir.OdendiMi);
+        Assert.EndsWith(odendi ? "· Ödendi" : "· Ödeme bekliyor", satir.Baslik);
+    }
     [Fact]
     public async Task Yenilenen_listede_artik_olmayan_odeme_iptal_edilemez()
     {

@@ -12,7 +12,7 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
             Goster(Metin("Ay seçimi değişti. Kayıtları ve ödeme tutarlarını yenilemek için seçilen ayı gösterin."), nameof(vm.AySecimiDegisti)), Bagli(nameof(vm.AyOzeti), 18),
             Liste<AylikGiderSatiri>(nameof(vm.Kayitlar), async s =>
             {
-                if (s.Veri.Durum == "Odendi")
+                if (s.OdendiMi)
                     await GerekceyleAsync("Aylık gider ödemesini iptal et", (gerekce, oturum) => vm.IptalAsync(s, gerekce, oturum));
                 else
                     vm.OdemeSec(s);

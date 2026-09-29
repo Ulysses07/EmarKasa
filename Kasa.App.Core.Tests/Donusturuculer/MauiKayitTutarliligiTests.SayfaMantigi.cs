@@ -43,6 +43,14 @@ public partial class MauiKayitTutarliligiTests
         Assert.True(toplam >= 3, $"Gerekçe pencereleri okunamadı ({toplam}).");
     }
 
+    /// <summary>Sayfalar sunucunun durum metnini karşılaştırmaz (ör. "Odendi"); modeldeki tipli özelliği okur (AylikGiderSatiri.OdendiMi).</summary>
+    [Fact]
+    public void Sayfalar_durum_metnini_karsilastirmaz()
+    {
+        foreach (var dosya in Directory.GetFiles(Path.Combine(Uygulama, "Views"), "*.cs"))
+            Assert.False(Regex.IsMatch(File.ReadAllText(dosya), @"Durum\s*[!=]=\s*"""), $"{Path.GetFileName(dosya)} durum metnini karşılaştırıyor.");
+    }
+
     /// <summary>Rol ve oturum tek kaynaktan gelir (OturumluViewModel: EditorMu hesaplanır, oturum değişimini model kendisi alır).
     /// Sayfa kod-arkası rolü ekrana atar ya da AuthViewModel'den ayrıca okursa ikinci bir rol mekanizması oluşur.</summary>
     [Fact]
