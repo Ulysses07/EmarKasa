@@ -1,3 +1,4 @@
+using System.Globalization;
 using Kasa.ApiClient;
 
 namespace Kasa.App.Core.Tests;
@@ -119,6 +120,29 @@ public class AnaSayfaVeRaporIptalTests
         api.HaftalikGetir = _ => Task.FromException<IReadOnlyList<HaftalikOzetDto>>(new HttpRequestException());
         await vm.YukleAsync();
         Assert.Null(vm.VeriSagligiUyarisi); Assert.False(vm.VeriVar);
+    }
+
+    /// <summary>"Dağılım bekleyen" yalnız tutar sıfırdan farklı dönemde görünür (her satırda "0,00 ₺" yazmaz); tutar
+    /// uygulamanın para biçimiyle (Bicim.Tl, tr-TR) yazılır, iş parçacığı kültürüne bağlı değildir.</summary>
+    [Fact]
+    public async Task Haftalik_satiri_dagilim_bekleyen_tutari_yalniz_sifir_degilken_gosterir()
+    {
+        var onceki = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            var api = new SahteApi { HaftalikGetir = _ => Task.FromResult<IReadOnlyList<HaftalikOzetDto>>(new[] { Hafta(6), Hafta(13) with { DagilimBekleyenTutar = 1234.5m, KasaSonucu = 75m }, Hafta(20) with { DagilimBekleyenTutar = -40m } }) };
+            var vm = new HaftalikViewModel(api);
+
+            await vm.YukleAsync();
+
+            Assert.Equal(3, vm.Donemler.Count);
+            Assert.False(vm.Donemler[0].DagilimBekliyor);
+            Assert.True(vm.Donemler[1].DagilimBekliyor); Assert.Equal("Dağılım bekleyen: 1.234,50 ₺", vm.Donemler[1].DagilimBekleyenMetni);
+            Assert.True(vm.Donemler[2].DagilimBekliyor); Assert.Equal("Dağılım bekleyen: -40,00 ₺", vm.Donemler[2].DagilimBekleyenMetni);
+            Assert.Equal(new DateOnly(2027, 9, 13), vm.Donemler[1].Donem.Start); Assert.Equal(75m, vm.Donemler[1].KasaSonucu);
+        }
+        finally { CultureInfo.CurrentCulture = onceki; }
     }
 
     [Fact]

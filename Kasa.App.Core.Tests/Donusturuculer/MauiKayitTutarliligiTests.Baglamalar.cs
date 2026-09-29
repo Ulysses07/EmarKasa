@@ -69,8 +69,20 @@ public partial class MauiKayitTutarliligiTests
         Assert.Equal(4, denetim.Hatalar.Count);
         Assert.Contains(denetim.Hatalar, h => h.Contains("VeriVarr") && h.Contains(nameof(HaftalikViewModel)));
         Assert.Contains(denetim.Hatalar, h => h.Contains("Donem.Baslangic") && h.Contains("DonemDto"));
-        Assert.Contains(denetim.Hatalar, h => h.Contains("KasaSonucux") && h.Contains("HaftalikOzetDto"));
+        Assert.Contains(denetim.Hatalar, h => h.Contains("KasaSonucux") && h.Contains(nameof(HaftalikSatir)));
         Assert.Contains(denetim.Hatalar, h => h.Contains("YenileKomutu"));
+    }
+
+    /// <summary>Haftalık raporda "Dağılım bekleyen" etiketi her dönem satırında koşulsuz "0,00 ₺" gösteriyordu: yalnız tutar
+    /// sıfırdan farklıyken görünür ve metni satır modelinden (HaftalikSatir, Bicim.Tl) gelir; görünüm sayı biçimi yazmaz.</summary>
+    [Fact]
+    public void Haftalik_dagilim_bekleyen_etiketi_satir_modeline_baglidir()
+    {
+        XNamespace maui = "http://schemas.microsoft.com/dotnet/2021/maui";
+        var etiket = Assert.Single(XDocument.Parse(Oku("Views/HaftalikPage.xaml")).Descendants(maui + "Label"),
+            l => (string?)l.Attribute("Text") is { } metin && metin.Contains("DagilimBekleyen"));
+        Assert.Equal("{Binding DagilimBekleyenMetni}", (string?)etiket.Attribute("Text"));
+        Assert.Equal("{Binding DagilimBekliyor}", (string?)etiket.Attribute("IsVisible"));
     }
 
     /// <summary>Kod ile kurulan sayfalardaki genel liste şablonu (TakipUi.Liste&lt;T&gt;) öğe türünde "Baslik" ve "Ozet"
