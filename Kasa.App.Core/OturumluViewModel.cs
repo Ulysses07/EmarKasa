@@ -25,9 +25,10 @@ public abstract partial class OturumluViewModel : TemelViewModel
     public int OturumNesli => Yurutucu.Nesil;
     [ObservableProperty] private bool _veriHazir;
     [ObservableProperty] private string? _mesaj;
-    [ObservableProperty] private DateTime? _sonGuncelleme;
+    /// <summary>Son başarılı yükleme anı (yerel saat ve farkı); rapor ve işlem listesiyle aynı tür.</summary>
+    [ObservableProperty] private DateTimeOffset? _sonGuncelleme;
     protected override void IletiyiTemizle() => Mesaj = null;
     protected void BekleyenleriIptalEt() { Yurutucu.GecersizKil(); Mesgul = false; }
     protected abstract void OturumTemizle();
-    protected void Tamamlandi() { VeriHazir = true; SonGuncelleme = DateTime.Now; }
+    protected void Tamamlandi() { VeriHazir = true; SonGuncelleme = DateTimeOffset.Now; }
 }
