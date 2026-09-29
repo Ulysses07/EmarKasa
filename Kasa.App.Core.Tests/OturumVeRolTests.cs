@@ -144,6 +144,34 @@ public class OturumVeRolTests
         Assert.Null(vm.SonGuncelleme);
     }
 
+    /// <summary>EditorMu yalnız hesaplanan değerdir: rol (AktifRol) oturum sürümü değişmeden değişse de EditorMu ve ona bağlı
+    /// hesaplanan değerler bildirilir; bağlı görünümler eski rolde kalmaz. Veri sıfırlanmaz (oturum değişmedi).</summary>
+    [Fact]
+    public async Task Rol_degisince_EditorMu_ve_bagli_degerler_bildirilir()
+    {
+        var auth = Oturum(Rol.Editor);
+        var takip = new KartTakipViewModel(new FinansTakipTests.Fake(), Finans(), auth);
+        await takip.YukleAsync();
+        var islemler = Islemler(Finans(), auth);
+        var alislar = new AlislarViewModel(new AlislarViewModelTests.SahteAlisApi(), new SahteApi(), auth: auth);
+        var (t, i, a) = (Bildirimler(takip), Bildirimler(islemler), Bildirimler(alislar));
+        Assert.True(takip.EditorMu && islemler.EditorMu && alislar.EditorMu);
+
+        auth.AktifRol = Rol.Izleyici;
+
+        Assert.False(takip.EditorMu);
+        Assert.False(islemler.EditorMu);
+        Assert.False(alislar.EditorMu);
+        Assert.Contains(nameof(takip.EditorMu), t);
+        Assert.Contains(nameof(islemler.EditorMu), i);
+        Assert.Contains(nameof(alislar.EditorMu), a);
+        foreach (var bagli in new[] { nameof(alislar.KaydiAcan), nameof(alislar.Duzenlenebilir), nameof(alislar.Onaylanabilir), nameof(alislar.IadeEdilebilir), nameof(alislar.OdemeAlaniGorunur), nameof(alislar.DuzeltmeAcik) })
+            Assert.Contains(bagli, a);
+        Assert.Equal("Sizin alışınız", alislar.KaydiAcan);
+        Assert.True(takip.VeriHazir);
+        Assert.NotEmpty(takip.Kartlar);
+    }
+
     [Fact]
     public async Task Ayarlar_yeni_oturumda_onceki_oturumun_ayarlarini_birakir()
     {

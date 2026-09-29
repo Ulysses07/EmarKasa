@@ -19,9 +19,25 @@ public abstract partial class OturumluViewModel : TemelViewModel
             Mesaj = null;
             SonGuncelleme = null;
             OturumTemizle();
-            OnPropertyChanged(nameof(EditorMu));
+            RolBildir();
         });
+        // Rol oturum sürümü değişmeden de değişebilir: EditorMu hesaplanan değer olduğu için ayrıca bildirilir.
+        auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AuthViewModel.AktifRol))
+                RolBildir();
+        };
     }
+
+    /// <summary>EditorMu ve ona bağlı hesaplanan değerler bildirilir (rol ya da oturum değişince).</summary>
+    private void RolBildir()
+    {
+        OnPropertyChanged(nameof(EditorMu));
+        RolDegisti();
+    }
+
+    /// <summary>Rol değişince EditorMu'ya bağlı hesaplanan değerleri bildirmek için (ör. Alışlar'da onay ve iade düğmeleri).</summary>
+    protected virtual void RolDegisti() { }
 
     /// <summary>Oturum değişimini dinler (appcore-10): OturumSurumu değişince bekleyen işler hemen eskir (sonuçları, hataları ve
     /// bitişleri yansımaz), ekran <paramref name="sifirla"/> ile model kurulurken yakalanan UI bağlamında sıfırlanır. Eskiyen iş

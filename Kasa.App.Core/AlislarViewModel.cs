@@ -513,6 +513,11 @@ public partial class AlislarViewModel : OturumluViewModel
         OdemeKarti = OdemeKartlari.FirstOrDefault(k => k.Id == SeciliGider.Veri.KrediKartiId);
     }
     partial void OnOdemeTutariChanged(decimal value) => OnizlemeyiYenile();
+    protected override void RolDegisti()
+    {
+        DurumuYenile();
+        OnPropertyChanged(nameof(DuzeltmeAcik));
+    }
     partial void OnTarihChanged(DateTime value) => KirliYap();
     partial void OnTedarikciChanged(string value) => KirliYap();
     partial void OnAlisNotuChanged(string? value) => KirliYap();
