@@ -94,14 +94,18 @@ jobs:
   # Web arayüzü uçtan uca korumaları (Aşama 2a; Kasa.Ui.E2E/playwright.config.mjs): Kasa.Api, Kasa.Ui.E2E/Sunucu
   # barındırıcısıyla geçici SQLite, durmuş saat (2026-09-25) ve koşuda üretilen test kimliğiyle yalnız 127.0.0.1'de açılır;
   # canlı sunucuya istek gitmez. Masaüstü 1280 px ve telefon 360/375 px (/m/) ana ekranlarında axe WCAG 2.2 AA taraması
-  # (Kasa.Ui.E2E/testler/axe-tabani.json'a göre yalnız YENİ ihlal kırar) ve rol bazlı erişilebilirlik ağacı anlık görüntüsü;
-  # ikisi de platformdan bağımsızdır. Chromium (yalnız headless shell) Playwright sürümüne bağlı anahtarla önbellekten gelir;
-  # önbellenemeyen sistem bağımlılıkları her koşuda kurulur.
+  # (Kasa.Ui.E2E/testler/axe-tabani.json'a göre yalnız YENİ ihlal kırar) ve rol bazlı erişilebilirlik ağacı anlık görüntüsü.
+  # axe'ın yerleşime bağlı kuralları (ör. scrollable-region-focusable: hangi alanın taşıp kaydırıldığı) yazı tipine bağlıdır;
+  # düz ubuntu runner'ında taban tutmadı. Bu yüzden iş, tabanların üretildiği ve ekran görüntüsü işinin koştuğu aynı
+  # Playwright imajında koşar (tarayıcı imajın içinde, indirilmez). Tabanlar yerelde Kasa.Ui.E2E/linux-kosu.sh ile üretilir.
   ui-e2e:
     name: UI e2e (axe + ARIA)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --ipc=host --init
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -113,31 +117,9 @@ jobs:
           dotnet-quality: ga
       - name: Select the installed .NET 10 SDK
         run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward latestPatch
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: Kasa.Ui.E2E/package-lock.json
       - name: Install pinned test tools
-        id: araclar
         working-directory: Kasa.Ui.E2E
-        run: |
-          npm ci --no-audit --no-fund
-          echo "playwright=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright Chromium
-        id: tarayici
-        uses: actions/cache@v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-shell-${{ runner.os }}-${{ steps.araclar.outputs.playwright }}
-      - name: Install Chromium and its system dependencies
-        if: steps.tarayici.outputs.cache-hit != 'true'
-        working-directory: Kasa.Ui.E2E
-        run: npx playwright install --with-deps --only-shell chromium
-      - name: Install Chromium system dependencies (browser restored from cache)
-        if: steps.tarayici.outputs.cache-hit == 'true'
-        working-directory: Kasa.Ui.E2E
-        run: npx playwright install-deps chromium
+        run: npm ci --no-audit --no-fund
       - name: Build the e2e server
         run: dotnet build Kasa.Ui.E2E/Sunucu/Kasa.Ui.E2E.Sunucu.csproj --configuration Release
       - name: Run axe and ARIA snapshot checks
