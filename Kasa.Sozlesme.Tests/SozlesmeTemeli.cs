@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Reflection;
 using Kasa.ApiClient;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Kasa.Sozlesme.Tests;
 
@@ -21,7 +21,7 @@ public sealed class SozlesmeKapsamiAttribute(params string[] metotlar) : Attribu
 [AttributeUsage(AttributeTargets.Class, Inherited = true)]
 public sealed class SozlesmeKapsamiDenetimiAttribute : BeforeAfterTestAttribute
 {
-    public override void After(MethodInfo methodUnderTest) => SozlesmeTemeli.KapsamiDenetle(methodUnderTest);
+    public override void After(MethodInfo methodUnderTest, IXunitTest test) => SozlesmeTemeli.KapsamiDenetle(methodUnderTest);
 }
 
 /// <summary>
