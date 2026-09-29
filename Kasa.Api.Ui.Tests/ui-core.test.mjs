@@ -2447,3 +2447,31 @@ test('aylık gider ekranı ve şablonun ilk ayı aynı ay seçiciyi kullanır; �
   await submitDialog(nodes);
   assert.equal(calls.find(call => call.method === 'POST' && call.path === '/api/aylik-giderler/sablonlar').body.gecerliAy, `${next}-01`);
 });
+
+// Kaydırılabilir kapsayıcılar (axe scrollable-region-focusable; WCAG 2.1.1): tablo kapsayıcısı ve genel kasa tutarı
+// overflow:auto ile kayar. Taşma yazı tipine, yakınlaştırmaya ve pencereye göre değiştiği için her zaman klavyeyle odaklanan
+// (tabindex 0), adlı bir bölgedir (role region + aria-label). Ekrandaki bölge adları birbirinden ayrıdır.
+test('scrollable table wrappers and the cash total are focusable regions with distinct names', async () => {
+  const scrollers = view => { const found = []; const visit = node => { if (!Array.isArray(node?.children)) return; if (/(^| )(table-wrap|cash-total)( |$)/.test(node.className || '')) found.push(node); node.children.forEach(visit); }; visit(view); return found; };
+  const names = view => scrollers(view).map(node => {
+    assert.equal(node.attributes.role, 'region', `${node.className} bölge`);
+    assert.equal(node.attributes.tabindex, '0', `${node.className} sekme sırasında`);
+    assert.ok(node.attributes['aria-label']?.trim(), `${node.className} adlı`);
+    return node.attributes['aria-label'];
+  });
+  const today = ui.today(); const [year, month] = today.split('-').map(Number);
+  const channel = { kanal: 'Mağaza', gelen: 10, giden: 2, sonuc: 8, devir: 8, krediGirisi: 0, cariGiden: 2, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 8 };
+  const { app, nodes } = await openApp(false, {
+    '/api/kasa-kontrol': [{ id: 1, surum: 1, kaydedildi: `${today}T09:00:00Z`, sistemBakiye: 100, gercekBakiye: 90, fark: -10, guncelSistemBakiye: 100, hesapTarihi: today }],
+    '/api/rapor/haftalik': [{ donem: { start: today, end: today }, kasaDevir: 8, toplamGelen: 10, toplamGiden: 2, kanallar: [channel] }],
+    [`/api/rapor/aylik?yil=${year}&ay=${month}`]: { yil: year, ay: month, kuralSurumu: 2, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0, kanallar: [channel] },
+    [`/api/islemler?baslangic=${today.slice(0, 8)}01&bitis=${today}`]: [{ id: 3, tarih: today, cari: 'Kargo', kanal: 'Mağaza', tip: 'Cari', tutarTl: 2 }],
+    '/api/kanallar': [{ id: 1, ad: 'Mağaza', aktif: true }]
+  });
+  await settle();
+  assert.deepEqual(names(nodes.get('#view')), ['Genel kasa', 'Gerçek bakiye karşılaştırmaları']);
+  for (const [screen, expected] of [['weekly', ['Dönemin kanal sonuçları']], ['monthly', ['Aylık kanal sonuçları']], ['transactions', ['Gider kayıtları']]]) {
+    await app.navigate(screen); await settle();
+    assert.deepEqual(names(nodes.get('#view')), expected, screen);
+  }
+});

@@ -67,3 +67,15 @@ test('odak halkası sayfa, kâğıt, kenar çubuğu ve açık yeşil zemine kar�
   atLeast(toastFocus['outline-color'], rule('.toast.error').background, 3, 'hata bildirimi kapatma düğmesi odak halkası');
   atLeast('#ffffff', rule('.toast.error').background, 4.5, 'hata bildirimi metni');
 });
+
+test('kaydırılabilir bölgelerin (tablo, genel kasa tutarı) odak halkası zeminine karşı en az 3:1', () => {
+  // Tablo kapsayıcısı kâğıt bölümde, pencerede ya da doğrudan sayfa zemininde durur; halka dışa (3px) çizilir.
+  const table = rule('.table-wrap:focus-visible');
+  assert.equal(table.outline, '3px solid var(--focus)');
+  for (const background of [root['--cream'], root['--paper'], rule('dialog').background]) atLeast(outlineColor(table.outline), background, 3, 'tablo bölgesi odak halkası');
+  // Genel kasa tutarı koyu yeşil kahraman kutusunda: halka açık renktir (--focus bu zeminde 1,87:1 kalırdı).
+  const total = rule('.cash-total:focus-visible');
+  assert.equal(total['outline-offset'], '3px');
+  atLeast(outlineColor(total.outline), rule('.cash-hero').background, 3, 'genel kasa bölgesi odak halkası');
+  assert.ok(ratio('var(--focus)', rule('.cash-hero').background) < 3, '--focus koyu yeşil zeminde yetersiz; ayrı renk gerekçesi');
+});
