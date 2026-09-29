@@ -1,0 +1,21 @@
+- link "İçeriğe geç":
+  - /url: "#main"
+- alert
+- status
+- complementary "Kasa":
+  - link "Kasa":
+    - /url: /
+  - paragraph: İşin hesabı, yerli yerinde.
+  - heading "Her kanalın hesabı net." [level=1]
+  - paragraph: Kanal kasalarını ve genel kasayı görün. Alışları doğru kanala kaydedin.
+  - paragraph: Kanal kasaları ve alış defteri
+- main:
+  - heading "Defterinizi açın" [level=2]
+  - paragraph: Hesabınızla güvenle giriş yapın.
+  - text: Kullanıcı adı
+  - textbox "Kullanıcı adı"
+  - text: Şifre
+  - textbox "Şifre"
+  - button "Giriş yap"
+  - button "Editör hesabımı kurtar"
+  - paragraph: İzleyici girişi için kullanıcı adını boş bırakıp size verilen şifreyi kullanın. Alıcı hesabınızın şifresini unuttuysanız editörünüzden yeni şifre isteyin.

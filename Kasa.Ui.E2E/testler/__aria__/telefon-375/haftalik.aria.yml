@@ -1,0 +1,16 @@
+- banner:
+  - heading "Haftalık" [level=1]
+- main:
+  - text: Haftalar pazartesi başlar; ay sonunda hafta ikiye bölünür.
+  - button /\d+–\d+ Eylül \d+ Devam ediyor Kasa devri \d+\.\d+,\d+ ₺ \+\d+\.\d+,\d+ ₺/ [expanded]
+  - text: /MEZAT \+\d+\.\d+,\d+ ₺ Gelen \d+\.\d+,\d+ · Giden \d+,\d+ Kanal devri \d+\.\d+,\d+ ₺ PERAKENDE \+\d+\.\d+,\d+ ₺ Gelen \d+\.\d+,\d+ · Giden \d+\.\d+,\d+ Kanal devri \d+\.\d+,\d+ ₺ TOPTAN −\d+\.\d+,\d+ ₺ Gelen \d+,\d+ · Giden \d+\.\d+,\d+ Kanal devri \d+\.\d+,\d+ ₺ Kanal dışı giderler \d+,\d+ ₺/
+  - button "Dönem ayrıntısı"
+  - button /\d+–\d+ Eylül \d+ Kasa devri \d+\.\d+,\d+ ₺ \+\d+\.\d+,\d+ ₺/
+  - button /7–\d+ Eylül \d+ Kasa devri \d+\.\d+,\d+ ₺ \+\d+\.\d+,\d+ ₺/
+  - button /1–6 Eylül \d+ Bölünmüş Kasa devri \d+\.\d+,\d+ ₺ \+\d+\.\d+,\d+ ₺/
+- navigation "Ana menü":
+  - button "Panel"
+  - button "Haftalık"
+  - button "Aylık"
+  - button "İşlemler"
+  - button "Diğer"

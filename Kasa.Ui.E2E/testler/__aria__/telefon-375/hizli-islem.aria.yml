@@ -1,0 +1,27 @@
+- dialog "Hızlı işlem":
+  - button "Vazgeç"
+  - text: ""
+  - button "Kaydet"
+  - textbox "Tutar":
+    - /placeholder: 0,00
+  - text: ₺ Giden tutar · kuruş virgülle Açıklama / ödeme yeri
+  - textbox "Açıklama / ödeme yeri":
+    - /placeholder: Firma, kişi ya da ödeme yeri
+  - text: Kanal
+  - group "Kanal":
+    - button "MEZAT"
+    - button "PERAKENDE"
+    - button "TOPTAN"
+    - button "Ortak"
+  - text: Tip
+  - group "Gider tipi":
+    - button "Diğer gider" [pressed]
+    - button "Sabit gider"
+    - button "Kredi kartı"
+  - group "Tarih":
+    - button /Bugün · \d+ Eyl/ [pressed]
+    - button /Dün · \d+ Eyl/
+  - textbox "Not":
+    - /placeholder: Not (isteğe bağlı)
+  - button "Kaydet"
+  - text: Alış olarak kaydettiğiniz bir ödemeyi burada ikinci kez girmeyin; alışın ödemesi masaüstü görünümündeki Alışlar ekranından eklenir.

@@ -1,0 +1,80 @@
+- link "İçeriğe geç":
+  - /url: "#main"
+- alert
+- status
+- complementary:
+  - link "Kasa":
+    - /url: /
+  - navigation "Ana menü":
+    - button "Kasalar"
+    - button "Haftalık kasa"
+    - button "Aylık kasa"
+    - button "İşlemler"
+    - button "Aylık Giderler"
+    - button "Kredi Kartları"
+    - button "Krediler"
+    - button "Alışlar"
+    - button "Ekstre / Hareket Yükle"
+    - button "Bildirimler"
+    - button "Ayarlar"
+  - text: Editör hesabı
+  - button "Çıkış yap"
+- main:
+  - paragraph: Kanal bazında aylık gelir ve giderler
+  - heading "Aylık kasa" [level=1]
+  - group "Rapor ayı":
+    - button "Önceki ay": ‹
+    - text: /Eylül \d+/
+    - button "Sonraki ay": ›
+  - button "Ayı göster"
+  - heading "Ay kilidi" [level=2]
+  - text: Kilitli ay yok.
+  - paragraph: Yalnız tamamlanmış ay kilitlenebilir. Okumalar ve gelecek planlar çalışmaya devam eder.
+  - group: Kilit geçmişi
+  - text: Aylık gelen
+  - strong: /₺\d+\.\d+,\d+/
+  - text: Aylık gider
+  - strong: /₺\d+\.\d+,\d+/
+  - text: Ay sonucu (kredi hariç)
+  - strong: /₺\d+\.\d+,\d+/
+  - table:
+    - rowgroup:
+      - row "Kanal Gelen Kredi girişi Diğer gider Sabit gider Kredi kartı Ortak pay Ay sonucu (kredi hariç)":
+        - columnheader "Kanal"
+        - columnheader "Gelen"
+        - columnheader "Kredi girişi"
+        - columnheader "Diğer gider"
+        - columnheader "Sabit gider"
+        - columnheader "Kredi kartı"
+        - columnheader "Ortak pay"
+        - columnheader "Ay sonucu (kredi hariç)"
+    - rowgroup:
+      - row /MEZAT ₺\d+\.\d+,\d+ ₺\d+,\d+ ₺\d+,\d+ ₺\d+\.\d+,\d+ ₺\d+,\d+ ₺\d+\.\d+,\d+ ₺\d+\.\d+,\d+/:
+        - cell "MEZAT"
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+      - row /PERAKENDE ₺\d+\.\d+,\d+ ₺\d+,\d+ ₺\d+\.\d+,\d+ ₺\d+,\d+ ₺\d+,\d+ ₺\d+\.\d+,\d+ ₺\d+\.\d+,\d+/:
+        - cell "PERAKENDE"
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+      - row /TOPTAN ₺\d+\.\d+,\d+ ₺\d+,\d+ ₺\d+\.\d+,\d+ ₺\d+,\d+ ₺\d+,\d+ ₺\d+\.\d+,\d+ ₺\d+\.\d+,\d+/:
+        - cell "TOPTAN"
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+  - paragraph: Yeni kart takibinde ödeme kaydı; eski kartlarda geçiş öncesi erteleme kuralı geçerlidir. Kredi taksitleri tarihinde otomatik işlenir. Ortak giderler ve dağılım bekleyen tutarlar ayrı izlenir.
+  - text: Kasa · Birlikte, hesabı net. Sürüm e2e

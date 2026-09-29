@@ -1,0 +1,23 @@
+- banner:
+  - heading "Panel" [level=1]
+  - button "Bildirimler"
+- main:
+  - text: /Güncel kasa \d+\.\d+,\d+ ₺ \d+ Eylül \d+ Cuma · kasa devri/
+  - button /Bu hafta \+\d+\.\d+,\d+ ₺ \d+–\d+ Eylül/
+  - button /Bu ay \+\d+\.\d+,\d+ ₺ Eylül · açık ay/
+  - text: Kanal bakiyeleri
+  - button /MEZAT Bu hafta \+\d+\.\d+,\d+ \d+\.\d+,\d+ ₺/
+  - button /PERAKENDE Bu hafta \+\d+\.\d+,\d+ \d+\.\d+,\d+ ₺/
+  - button /TOPTAN Bu hafta −\d+\.\d+,\d+ \d+\.\d+,\d+ ₺/
+  - text: Trend
+  - button /Kasa devri · 4 dönem \+%\d+,\d+ 1 Eyl \d+ Eyl/
+  - text: Kart ve kredi
+  - button /Kartlar \d+,\d+ ₺ Toplam güncel borç/
+  - button /Krediler \d+,\d+ ₺ Kalan planlı ödeme/
+- navigation "Ana menü":
+  - button "Panel"
+  - button "Haftalık"
+  - button "Aylık"
+  - button "İşlemler"
+  - button "Diğer"
+- button "İşlem"

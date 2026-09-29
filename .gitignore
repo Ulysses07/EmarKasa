@@ -492,3 +492,11 @@ Kasa.Api/belgeler/
 Kasa.Api/*.db
 Kasa.Api/*.db-shm
 Kasa.Api/*.db-wal
+
+# Web arayüzü korumaları (Kasa.Ui.E2E): klasör adı büyük/küçük harf duyarsız dosya sistemlerinde yukarıdaki '*.e2e'
+# (Visual Studio izleme dosyası) desenine takılır; klasör geri alınır. node_modules/ ve test-results/ yukarıda dışarıda;
+# Playwright raporları ve testlerin oturum dosyası da depoya girmez.
+!/Kasa.Ui.E2E/
+/Kasa.Ui.E2E/playwright-report/
+/Kasa.Ui.E2E/blob-report/
+/Kasa.Ui.E2E/.oturum/

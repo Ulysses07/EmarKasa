@@ -1,0 +1,35 @@
+- banner:
+  - heading "İşlemler" [level=1]
+- main:
+  - searchbox "İşlemlerde ara"
+  - group "Kanal":
+    - button "Tümü" [pressed]
+    - button "MEZAT"
+    - button "PERAKENDE"
+    - button "TOPTAN"
+    - button "Ortak"
+  - group "Gider tipi":
+    - button "Tüm tipler" [pressed]
+    - button "Diğer gider"
+    - button "Sabit gider"
+    - button "Kredi kartı"
+  - text: /6 işlem · toplam \d+\.\d+,\d+ ₺ · 1 Ağu – \d+ Eyl \d+ Eylül Perşembe −\d+\.\d+,\d+ ₺/
+  - button /Toptancı ödemesi TOPTAN Diğer gider −\d+\.\d+,\d+ ₺/
+  - text: /\d+ Eylül Salı −\d+\.\d+,\d+ ₺/
+  - button /Yemek kartı yüklemesi PERAKENDE Diğer gider −\d+\.\d+,\d+ ₺/
+  - text: /\d+ Eylül Çarşamba −\d+\.\d+,\d+ ₺/
+  - button /Elektrik faturası MEZAT Sabit gider −\d+\.\d+,\d+ ₺/
+  - text: /\d+ Eylül Perşembe −\d+\.\d+,\d+ ₺/
+  - button /Ambalaj malzemesi PERAKENDE Diğer gider −\d+\.\d+,\d+ ₺/
+  - text: /5 Eylül Cumartesi −\d+\.\d+,\d+ ₺/
+  - button /Dükkân kirası Ortak Sabit gider −\d+\.\d+,\d+ ₺/
+  - text: /2 Eylül Çarşamba −\d+\.\d+,\d+ ₺/
+  - button /Kargo ve nakliye TOPTAN Diğer gider −\d+\.\d+,\d+ ₺/
+  - button "Daha eski işlemleri yükle"
+- navigation "Ana menü":
+  - button "Panel"
+  - button "Haftalık"
+  - button "Aylık"
+  - button "İşlemler"
+  - button "Diğer"
+- button "İşlem"

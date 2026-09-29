@@ -29,12 +29,36 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          # Depoda package.json yok; v5'ten beri gelen otomatik paket yöneticisi önbelleği açıkça kapalı.
+          # Bu iş paket kurmaz (kökte package.json yok); v5'ten beri gelen otomatik paket yöneticisi önbelleği açıkça kapalı.
           package-manager-cache: false
           node-version: '24'
       - run: node --test Kasa.Api.Ui.Tests/*.test.mjs
       - run: node --input-type=module --check < Kasa.Api/wwwroot/app.js
       - run: node --input-type=module --check < Kasa.Api/wwwroot/m/app.js
+
+  # wwwroot ESLint (Aşama 2a): yalnız hata yakalayan kurallar (tanımsız ad, yinelenen anahtar/dal, sabite atama, NaN
+  # karşılaştırması...); biçim kuralı yok. Araç wwwroot dışında Kasa.Ui.E2E'nin kilit dosyasıyla kurulur (tam sürüm);
+  # wwwroot'a paket, derleme adımı ya da node_modules girmez.
+  web-lint:
+    name: Web lint (ESLint)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: Kasa.Ui.E2E/package-lock.json
+      - name: Install pinned lint tools
+        working-directory: Kasa.Ui.E2E
+        run: npm ci --no-audit --no-fund
+      - name: Lint wwwroot JavaScript
+        working-directory: Kasa.Ui.E2E
+        run: npm run lint:web
 
   tests:
     name: Test ${{ matrix.project }}
@@ -66,6 +90,97 @@ jobs:
         run: dotnet restore "${{ matrix.project }}/${{ matrix.project }}.csproj"
       - name: Run tests
         run: dotnet test "${{ matrix.project }}/${{ matrix.project }}.csproj" --configuration Release --no-restore
+
+  # Web arayüzü uçtan uca korumaları (Aşama 2a; Kasa.Ui.E2E/playwright.config.mjs): Kasa.Api, Kasa.Ui.E2E/Sunucu
+  # barındırıcısıyla geçici SQLite, durmuş saat (2026-09-25) ve koşuda üretilen test kimliğiyle yalnız 127.0.0.1'de açılır;
+  # canlı sunucuya istek gitmez. Masaüstü 1280 px ve telefon 360/375 px (/m/) ana ekranlarında axe WCAG 2.2 AA taraması
+  # (Kasa.Ui.E2E/testler/axe-tabani.json'a göre yalnız YENİ ihlal kırar) ve rol bazlı erişilebilirlik ağacı anlık görüntüsü.
+  # axe'ın yerleşime bağlı kuralları (ör. scrollable-region-focusable: hangi alanın taşıp kaydırıldığı) yazı tipine bağlıdır;
+  # düz ubuntu runner'ında taban tutmadı. Bu yüzden iş, tabanların üretildiği ve ekran görüntüsü işinin koştuğu aynı
+  # Playwright imajında koşar (tarayıcı imajın içinde, indirilmez). Tabanlar yerelde Kasa.Ui.E2E/linux-kosu.sh ile üretilir.
+  ui-e2e:
+    name: UI e2e (axe + ARIA)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --ipc=host --init
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.0.0
+        id: dotnet
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: ga
+      - name: Select the installed .NET 10 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward latestPatch
+      - name: Install pinned test tools
+        working-directory: Kasa.Ui.E2E
+        run: npm ci --no-audit --no-fund
+      - name: Build the e2e server
+        run: dotnet build Kasa.Ui.E2E/Sunucu/Kasa.Ui.E2E.Sunucu.csproj --configuration Release
+      - name: Run axe and ARIA snapshot checks
+        working-directory: Kasa.Ui.E2E
+        env:
+          KASA_E2E_DERLENDI: '1'
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ui-e2e-rapor
+          path: |
+            Kasa.Ui.E2E/playwright-report/
+            Kasa.Ui.E2E/test-results/
+          retention-days: 14
+
+  # Ekran görüntüsü karşılaştırması (Aşama 2a): yazı tipi ve çizim platforma bağlı olduğundan iş, tabanların üretildiği
+  # resmi Playwright imajında (etiket + özet; sürüm Kasa.Ui.E2E'deki @playwright/test ile aynı) koşar; tarayıcılar imajın
+  # içindedir, indirilmez. Tabanlar (Kasa.Ui.E2E/testler/__ekran__) yerelde aynı imajla Kasa.Ui.E2E/linux-kosu.sh üretir.
+  # Fark çıkınca rapor ve gerçek görüntüler (test-results/*-actual.png) eser olarak yüklenir.
+  ui-screenshots:
+    name: UI screenshots (Linux)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --ipc=host --init
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.0.0
+        id: dotnet
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: ga
+      - name: Select the installed .NET 10 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --roll-forward latestPatch
+      - name: Install pinned test tools
+        working-directory: Kasa.Ui.E2E
+        run: npm ci --no-audit --no-fund
+      - name: Build the e2e server
+        run: dotnet build Kasa.Ui.E2E/Sunucu/Kasa.Ui.E2E.Sunucu.csproj --configuration Release
+      - name: Compare screenshots with the Linux baselines
+        working-directory: Kasa.Ui.E2E
+        env:
+          KASA_E2E_DERLENDI: '1'
+          KASA_E2E_EKRAN: '1'
+          KASA_E2E_ERISIM: '0'
+        run: npx playwright test
+      - name: Upload Playwright report and actual screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ui-ekran-rapor
+          path: |
+            Kasa.Ui.E2E/playwright-report/
+            Kasa.Ui.E2E/test-results/
+          retention-days: 14
 
   # Dağıtım betikleri: sunucu dışı yedek (devops-9), temel imaj özeti denetimi (devops-12) ve geri yükleme aracı;
   # sözdizimi, kuru çalıştırma ve birim sınamaları. Runner'daki python3 yeterli; ağ, docker, rclone ve ek paket gerekmez.
@@ -108,6 +223,21 @@ jobs:
             echo "::error file=Dockerfile::Temel imaj özetleri eski; docs/deploy/operasyon-runbook.md 'Özet güncelleme' adımlarıyla güncelleyin."
           fi
           exit "$kod"
+
+  # MAUI kaynak denetimi (Aşama 2a; .github/scripts/maui-lint.sh): XAML/C#'ta başvurulan her kaynak anahtarı tanımlı;
+  # sayfalarda doğrudan hex renk ve 200 karakteri aşan satır sayısı dosya başına tabanı (.github/scripts/maui-lint-tabani.txt)
+  # aşmaz, taban yalnız azalır. Derleme, iş yükü ve ağ gerekmez; Windows derlemesini beklemeden saniyeler içinde biter.
+  maui-lint:
+    name: MAUI lint
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check MAUI resource keys, hex colours and line length
+        run: bash .github/scripts/maui-lint.sh
 
   windows-app:
     name: Build and smoke-test Windows MAUI app

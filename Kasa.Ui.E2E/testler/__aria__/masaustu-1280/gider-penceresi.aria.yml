@@ -1,0 +1,29 @@
+- dialog "Gider kaydet":
+  - heading "Gider kaydet" [level=2]
+  - button "Pencereyi kapat": ×
+  - text: Açıklama / ödeme yapılan yer
+  - textbox "Açıklama / ödeme yapılan yer"
+  - text: Tarih
+  - textbox "Tarih": /\d+-\d+-\d+/
+  - text: Tutar (₺)
+  - combobox "Tutar (₺) işareti":
+    - option "Artı (+)" [selected]
+    - option "Eksi (−)"
+  - textbox "Tutar (₺)"
+  - text: Kanal
+  - combobox "Kanal":
+    - option "Kanal seçin" [selected]
+    - option "MEZAT"
+    - option "PERAKENDE"
+    - option "TOPTAN"
+    - option "Ortak"
+  - text: Gider türü
+  - combobox "Gider türü":
+    - option "Diğer gider" [selected]
+    - option "Sabit gider"
+    - option "Kredi kartı gideri"
+  - text: Not
+  - textbox "Not"
+  - paragraph: Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.
+  - button "Vazgeç"
+  - button "Gideri kaydet"
