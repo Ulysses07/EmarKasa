@@ -8,7 +8,7 @@ public class IslemEditorTests
     public async Task Yeni_islem_olustur_cagirir()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api)
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac())
         {
             DuzenTarih = new DateTime(2026, 3, 5),
             DuzenCari = "MEZAT alış",
@@ -29,7 +29,7 @@ public class IslemEditorTests
     public async Task Yeni_gider_zaman_asiminda_ayni_istek_kimligiyle_yeniden_gonderilir()
     {
         var api = new SahteApi { IslemOlusturHatasi = new TaskCanceledException("İstek süresi doldu") };
-        var vm = new IslemlerViewModel(api) { DuzenTarih = new DateTime(2026, 3, 5), DuzenCari = "Kargo", DuzenTutar = 75m, DuzenKanal = "MEZAT", DuzenTip = GiderTipi.Cari };
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac()) { DuzenTarih = new DateTime(2026, 3, 5), DuzenCari = "Kargo", DuzenTutar = 75m, DuzenKanal = "MEZAT", DuzenTip = GiderTipi.Cari };
 
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.NotNull(vm.Hata);
@@ -53,7 +53,7 @@ public class IslemEditorTests
     public async Task Gider_duzenleme_istek_kimligi_gondermez()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         vm.Duzenle(new IslemDto(5, new DateOnly(2026, 3, 5), "Kargo", 75m, "MEZAT", GiderTipi.Cari, null));
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonIslemGuncelle!.Value.G.IstekId);
@@ -64,7 +64,7 @@ public class IslemEditorTests
     public async Task Kart_harcamasi_krediKartiId_ve_tip_ile_kaydeder()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api)
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac())
         {
             DuzenTarih = new DateTime(2026, 7, 10),
             DuzenCari = "Market",
@@ -85,7 +85,7 @@ public class IslemEditorTests
     public void SecTip_kredi_karti_secince_kart_secicisi_gorunur()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
 
         Assert.False(vm.KartSeciciGorunur);
         vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
@@ -98,7 +98,7 @@ public class IslemEditorTests
     public void SecKart_secilen_kart_idsini_atar_tip_disina_donunce_temizler()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api) { DuzenTip = GiderTipi.KrediKarti };
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac()) { DuzenTip = GiderTipi.KrediKarti };
 
         vm.SecKartCommand.Execute(new KartCipi(9, "Bonus"));
         Assert.Equal(9, vm.DuzenKrediKartiId);
@@ -111,7 +111,7 @@ public class IslemEditorTests
     public async Task Mevcut_islem_guncelle_cagirir()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         vm.Duzenle(new IslemDto(11, new DateOnly(2026, 3, 5), "K.K", 10000m, "MEZAT", GiderTipi.KrediKarti, null));
         vm.DuzenTutar = 12000m;
 
@@ -126,7 +126,7 @@ public class IslemEditorTests
     public async Task Sil_islem_silme_cagirir()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
 
         await vm.SilCommand.ExecuteAsync(new IslemDto(5, new DateOnly(2026, 3, 5), "x", 1m, "MEZAT", GiderTipi.Cari, null));
 
@@ -152,7 +152,7 @@ public class IslemEditorTests
         api.DonemlerListe = new[] { Hafta38, Hafta39, Hafta40 };
         if (gelenler.Length > 0)
             api.GelenlerListe = gelenler;
-        var vm = new IslemlerViewModel(api, zaman: new SabitZaman(new DateOnly(2026, 9, 23)));
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac(), zaman: new SabitZaman(new DateOnly(2026, 9, 23)));
         await vm.YukleAsync();
         return (vm, api);
     }
@@ -382,7 +382,7 @@ public class IslemEditorTests
         var geciken = new TaskCompletionSource<IReadOnlyList<GelenDto>>();
         var api = new SahteApi { KanallarListe = new[] { Mezat }, DonemlerListe = new[] { Hafta38, Hafta39 }, GelenlerListe = new[] { new GelenDto(5, Hafta39.Start, "MEZAT", 5000m, KanalId: 1) } };
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
-        var vm = new IslemlerViewModel(api, null, auth, new SabitZaman(new DateOnly(2026, 9, 23)));
+        var vm = new IslemlerViewModel(api, auth, null, new SabitZaman(new DateOnly(2026, 9, 23)));
         await vm.YukleAsync();
         KanalSec(vm, "MEZAT");
         api.GelenlerGetir = _ => geciken.Task;
@@ -408,7 +408,7 @@ public class IslemEditorTests
         {
             KanallarListe = new[] { new KanalDto(1, "MEZAT", true, 0, 0m), new KanalDto(2, "TOPTAN", true, 1, 0m) },
         };
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         var mezatCipi = vm.FiltreKanallari.First(c => c.Ad == "MEZAT");
@@ -423,7 +423,7 @@ public class IslemEditorTests
     public async Task Tum_kanal_cipi_filtreyi_temizler()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         await vm.SecFiltreKanalCommand.ExecuteAsync(vm.FiltreKanallari.First(c => c.Ad == "Ortak"));
@@ -438,7 +438,7 @@ public class IslemEditorTests
     {
         var donem = new DonemDto(new DateOnly(2026, 6, 15), new DateOnly(2026, 6, 21), 2026, 6);
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         vm.SeciliDonem = donem;
@@ -458,7 +458,7 @@ public class IslemEditorTests
                 new IslemDto(2, new DateOnly(2026, 6, 16), "b", 250m, "MEZAT", GiderTipi.Cari, null),
             },
         };
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         Assert.Equal(2, vm.FiltreSayi);

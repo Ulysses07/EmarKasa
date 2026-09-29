@@ -144,5 +144,8 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         Content = Kaydirici;
     }
     protected override async void OnAppearing() { base.OnAppearing(); if (!Vm.VeriHazir) await _yukle(); }
-    protected Task<string?> GerekceAsync(string title) => DisplayPromptAsync(title, "İşlemin nedenini yazın. Geçmiş kayıtlar korunur.", "Devam", "Vazgeç", maxLength: 1000);
+    /// <summary>Gerekçe penceresi (tek yol, <see cref="OturumluViewModel.GerekceyleAsync"/>): oturum pencere açılmadan önce yakalanır;
+    /// pencere açıkken oturum değişirse işlem yapılmaz, gerekçe yeni oturumun formuna yazılmaz.</summary>
+    protected Task GerekceyleAsync(string title, Func<string, int, Task> islem)
+        => Vm.GerekceyleAsync(() => DisplayPromptAsync(title, "İşlemin nedenini yazın. Geçmiş kayıtlar korunur.", "Devam", "Vazgeç", maxLength: 1000), islem);
 }

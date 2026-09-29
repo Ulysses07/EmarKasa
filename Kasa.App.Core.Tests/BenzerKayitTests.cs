@@ -58,14 +58,14 @@ public class BenzerKayitTests
     {
         var finans = new SahteApi();
         var lookup = new Fake();
-        var vm = new IslemlerViewModel(finans, lookup) { DuzenTarih = Tarih.ToDateTime(TimeOnly.MinValue), DuzenCari = "Mal", DuzenTutar = 100, DuzenKanal = "MEZAT" };
+        var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), lookup) { DuzenTarih = Tarih.ToDateTime(TimeOnly.MinValue), DuzenCari = "Mal", DuzenTutar = 100, DuzenKanal = "MEZAT" };
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(finans.SonIslemOlustur);
         Assert.True(vm.GiderBenzerlik.UyariVar);
         await vm.GideriAyriKaydetCommand.ExecuteAsync(null);
         Assert.Equal(100, finans.SonIslemOlustur!.TutarTl);
         Assert.Equal(1, lookup.Cagri);
-        var hatali = new IslemlerViewModel(new SahteApi(), new Fake { Hata = true }) { DuzenTutar = 100 };
+        var hatali = new IslemlerViewModel(new SahteApi(), TestOturumu.Ac(), new Fake { Hata = true }) { DuzenTutar = 100 };
         await hatali.KaydetCommand.ExecuteAsync(null);
         Assert.Contains("ulaşılamadı", hatali.Hata);
         Assert.False(hatali.GiderBenzerlik.Onayla());
@@ -75,7 +75,7 @@ public class BenzerKayitTests
     {
         var finans = new SahteApi();
         var lookup = new Fake();
-        var vm = new IslemlerViewModel(finans, lookup);
+        var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), lookup);
         vm.Duzenle(new(3, Tarih, "Mal", 100, "MEZAT", GiderTipi.Cari, null));
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(3, finans.SonIslemGuncelle!.Value.Id);
@@ -86,7 +86,7 @@ public class BenzerKayitTests
     {
         var bekleyen = new TaskCompletionSource<IslemDto>();
         var finans = new SahteApi { IslemKayitYaniti = bekleyen.Task };
-        var vm = new IslemlerViewModel(finans, new Fake()) { DuzenTutar = 100, DuzenCari = "Mal", DuzenKanal = "MEZAT" };
+        var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), new Fake()) { DuzenTutar = 100, DuzenCari = "Mal", DuzenKanal = "MEZAT" };
         await vm.KaydetCommand.ExecuteAsync(null);
         var devam = vm.GideriAyriKaydetCommand.ExecuteAsync(null);
         Assert.True(vm.Mesgul);

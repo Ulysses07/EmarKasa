@@ -65,16 +65,18 @@ internal static class KasaKontrolAlanlari
         {
             var yil = rapor.Yil;
             var ay = rapor.Ay;
-            var oturum = vm.OturumNesli;
             var surum = vm.DurumSurumu;
             if (surum is null || !vm.VeriHazir)
                 return;
             var mesaj = vm.OnayMetni(kapat, yil, ay, rapor.Rapor);
-            var gerekce = await page.DisplayPromptAsync(kapat ? "Ayı kapat" : "Ayı ve sonrasını aç", mesaj + "\nDeğişiklik gerekçesini yazın.", "Devam", "Vazgeç", maxLength: 1000);
-            if (string.IsNullOrWhiteSpace(gerekce) || !vm.IstekHalaGecerli(oturum, yil, ay, rapor.Yil, rapor.Ay))
-                return;
-            if (await page.DisplayAlertAsync("Ay kilidi değişikliğini onayla", mesaj + "\n\n" + gerekce, "Onayla", "Vazgeç") && vm.IstekHalaGecerli(oturum, yil, ay, rapor.Yil, rapor.Ay))
-                await vm.DegistirAsync(kapat, yil, ay, gerekce, oturum, surum.Value);
+            await vm.GerekceyleAsync(() => page.DisplayPromptAsync(kapat ? "Ayı kapat" : "Ayı ve sonrasını aç", mesaj + "\nDeğişiklik gerekçesini yazın.", "Devam", "Vazgeç", maxLength: 1000),
+                async (gerekce, oturum) =>
+                {
+                    if (!vm.IstekHalaGecerli(oturum, yil, ay, rapor.Yil, rapor.Ay))
+                        return;
+                    if (await page.DisplayAlertAsync("Ay kilidi değişikliğini onayla", mesaj + "\n\n" + gerekce, "Onayla", "Vazgeç") && vm.IstekHalaGecerli(oturum, yil, ay, rapor.Yil, rapor.Ay))
+                        await vm.DegistirAsync(kapat, yil, ay, gerekce, oturum, surum.Value);
+                });
         }
         var body = Kart("Ay kilidi", Bagli(nameof(vm.DurumMetni)), Metin("Üstte seçili rapor ayı kullanılır. Ayı kapatmak o ayın sonuna kadar geçmişi korur; açmak seçilen ayı ve sonrasını açar."),
             Editor(Tikla("Seçili ayı kapat", () => Degistir(true))), Editor(Tikla("Seçili ayı ve sonrasını aç", () => Degistir(false))), Liste<AyKilidiSatiri>(nameof(vm.Gecmis)));

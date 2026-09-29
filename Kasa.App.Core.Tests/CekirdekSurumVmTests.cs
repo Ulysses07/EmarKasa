@@ -15,7 +15,7 @@ public class CekirdekSurumVmTests
     public async Task Gider_duzenlemesi_okunan_surumu_gonderir_yeni_gider_sifir()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         vm.Duzenle(new IslemDto(5, new DateOnly(2026, 3, 5), "Kargo", 75m, "MEZAT", GiderTipi.Cari, null, Surum: 4));
         vm.DuzenTutar = 80m;
         await vm.KaydetCommand.ExecuteAsync(null);
@@ -34,7 +34,7 @@ public class CekirdekSurumVmTests
     public async Task Gider_surum_cakismasinda_ileti_gosterilir_liste_yenilenir_form_korunur()
     {
         var api = new SahteApi { IslemGuncelleHatasi = new KasaApiException(HttpStatusCode.Conflict, GiderIletisi) };
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         vm.Duzenle(new IslemDto(5, new DateOnly(2026, 3, 5), "Kargo", 75m, "MEZAT", GiderTipi.Cari, null, Surum: 0));
         vm.DuzenTutar = 80m;
         var okuma = api.IslemlerCagri;
@@ -57,7 +57,7 @@ public class CekirdekSurumVmTests
             DonemlerListe = [hafta],
             GelenlerListe = [new GelenDto(5, hafta.Start, "MEZAT", 5000m, KanalId: 1, Surum: 6)],
         };
-        var vm = new IslemlerViewModel(api, zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 23)));
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac(), zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 23)));
         await vm.YukleAsync();
 
         vm.SecGelenKanalCommand.Execute(vm.GelenKanallari.First(c => c.Ad == "MEZAT"));
@@ -79,7 +79,7 @@ public class CekirdekSurumVmTests
             AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 1000m, true, Surum: 3),
             KanallarListe = [new(1, "MEZAT", true, 0, 0m, Surum: 2)],
         };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         vm.KasaAcilisDevri = 1500m;
@@ -111,7 +111,7 @@ public class CekirdekSurumVmTests
             AyarGuncelleHatasi = new KasaApiException(HttpStatusCode.Conflict, ayarIletisi),
             KanalGuncelleHatasi = new KasaApiException(HttpStatusCode.Conflict, kanalIletisi),
         };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         vm.KasaAcilisDevri = 1500m;

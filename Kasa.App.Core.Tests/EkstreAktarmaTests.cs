@@ -331,7 +331,7 @@ public class EkstreAktarmaTests
     public async Task Ithal_islem_duzenlenmez_silinmez_ve_genel_gelir_ay_sonucuna_eklenir()
     {
         var api = new SahteApi { AylikRapor = new(2026, 9, [], 10, 20, 100) };
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         var i = new IslemDto(2, Tarih, "PDF", 10, "", GiderTipi.Cari, null, EkstreKayitId: 9);
         vm.Duzenle(i);
         Assert.Equal(0, vm.DuzenId);

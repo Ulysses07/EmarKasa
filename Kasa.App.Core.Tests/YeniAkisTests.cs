@@ -9,9 +9,9 @@ public class YeniAkisTests
     private static AlisDto Alis(int id = 7) => new(id, 3, null, "Editör", Bugun, "Firma", null, "Taslak", null, 100, 10, 90,
         new[] { new AlisKalemDto(1, "Mal", 100, new[] { new AlisDagilimDto(1, "MEZAT", 100) }) },
         new[] { new AlisOdemeDto(4, 20, Bugun, 10, null, true, Array.Empty<AlisDagilimDto>()) }, 2, Bugun.AddDays(10));
-    private static async Task<AlislarViewModel> AlisVm(Fake api, SahteApi? finans = null, IBenzerKayitApi? benzerlik = null)
+    private static async Task<AlislarViewModel> AlisVm(Fake api, SahteApi? finans = null, IBenzerKayitApi? benzerlik = null, AuthViewModel? auth = null)
     {
-        var vm = new AlislarViewModel(api, finans ?? new SahteApi(), api, api, benzerlik) { EditorMu = true };
+        var vm = new AlislarViewModel(api, finans ?? new SahteApi(), auth ?? TestOturumu.Ac(), api, api, benzerlik);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
         return vm;
@@ -87,9 +87,10 @@ public class YeniAkisTests
     {
         var bekleyen = new TaskCompletionSource<IReadOnlyList<BelgeDto>>();
         var api = new Fake { BelgeYaniti = bekleyen.Task };
-        var vm = await AlisVm(api);
+        var auth = TestOturumu.Ac();
+        var vm = await AlisVm(api, auth: auth);
         var islem = vm.BelgeleriYukleAsync();
-        vm.OturumuAyarla(2, false);
+        TestOturumu.YeniOturum(auth, Rol.Alici);
         bekleyen.SetResult(new[] { new BelgeDto(1, 7, null, "eski.pdf", "application/pdf", 10, DateTimeOffset.UtcNow) });
         await islem;
         Assert.Empty(vm.Belgeler);
@@ -234,13 +235,50 @@ public class YeniAkisTests
         await vm.BelgeSilAsync(silinmis, "tekrar");
         Assert.Null(api.SonSilme);
     }
+    /// <summary>Bulunan hata: AlislarPage belge kaldırma penceresinden sonra oturumu denetlemeden BelgeSilAsync çağırıyordu;
+    /// pencere açıkken oturum değişirse önceki oturumda seçilen belge yeni oturumda kaldırılmak üzere gönderiliyordu.
+    /// GerekceyleAsync (boş gerekçe alıcı için geçerli) göndermez.</summary>
+    [Fact]
+    public async Task Belge_kaldirma_penceresi_acikken_oturum_degisirse_istek_gitmez()
+    {
+        var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
+        var eskiApi = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var eskiAuth = TestOturumu.Ac();
+        var eskiVm = await AlisVm(eskiApi, auth: eskiAuth);
+        var eskiPencere = new TaskCompletionSource<string?>();
+        var eskiAkis = EskiSayfaAkisi();
+        TestOturumu.YeniOturum(eskiAuth, Rol.Alici);
+        eskiPencere.SetResult("Yanlış belge");
+        await eskiAkis;
+        Assert.Equal((9, (string?)"Yanlış belge"), eskiApi.SonSilme);
+
+        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var auth = TestOturumu.Ac();
+        var vm = await AlisVm(api, auth: auth);
+        var pencere = new TaskCompletionSource<string?>();
+        var akis = vm.GerekceyleAsync(() => pencere.Task, (g, _) => vm.BelgeSilAsync(belge, g), bosGerekceGecerli: true);
+        TestOturumu.YeniOturum(auth, Rol.Alici);
+        pencere.SetResult("Yanlış belge");
+        await akis;
+        Assert.Null(api.SonSilme);
+        Assert.Null(vm.Hata);
+
+        async Task EskiSayfaAkisi()
+        {
+            var gerekce = await eskiPencere.Task;
+            if (gerekce is null)
+                return;
+            await eskiVm.BelgeSilAsync(belge, gerekce);
+        }
+    }
     [Fact]
     public async Task Alici_belgeyi_gerekcesiz_kaldirabilir_silinenleri_isteyemez()
     {
         var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
         var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
-        var vm = await AlisVm(api);
-        vm.EditorMu = false;
+        var auth = TestOturumu.Ac();
+        var vm = await AlisVm(api, auth: auth);
+        auth.AktifRol = Rol.Alici;
         vm.SilinenBelgeleriGoster = true;
         await vm.BelgeleriYukleCommand.ExecuteAsync(null);
         Assert.False(api.SonSilinenlerIstegi);
@@ -335,15 +373,16 @@ public class YeniAkisTests
     public async Task Belge_secilirken_alis_ya_da_oturum_degisirse_yuklenmez()
     {
         var api = new Fake();
-        var vm = await AlisVm(api);
+        var auth = TestOturumu.Ac();
+        var vm = await AlisVm(api, auth: auth);
         Assert.Null(await vm.BelgeEkleAsync(Secici("a.pdf", [1], () => vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 8))), null));
         Assert.Equal(0, api.BelgeYuklemeSayisi);
 
         vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
-        Assert.Null(await vm.BelgeEkleAsync(Secici("a.pdf", [1], vm.BekleyenIslemleriGecersizKil), null));
+        Assert.Null(await vm.BelgeEkleAsync(Secici("a.pdf", [1], () => auth.OturumSurumu++), null));
         Assert.Equal(0, api.BelgeYuklemeSayisi);
 
-        var yeni = new AlislarViewModel(api, new SahteApi(), api, api) { EditorMu = true };
+        var yeni = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac(), api, api);
         await yeni.YukleAsync();
         yeni.YeniCommand.Execute(null);                                                 // seçili alış yok: seçici açılmaz
         var acildi = false;

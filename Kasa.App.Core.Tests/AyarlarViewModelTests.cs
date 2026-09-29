@@ -13,7 +13,7 @@ public class AyarlarViewModelTests
             AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 15000m, true),
             KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 0m) },
         };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
 
         await vm.YukleAsync();
 
@@ -25,7 +25,7 @@ public class AyarlarViewModelTests
     public async Task Yeni_kanal_olustur_cagirir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
-        var vm = new AyarlarViewModel(api) { DuzenKanalAd = "TOPTAN", DuzenKanalSira = 3 };
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac()) { DuzenKanalAd = "TOPTAN", DuzenKanalSira = 3 };
 
         await vm.KanalKaydetCommand.ExecuteAsync(null);
 
@@ -38,7 +38,7 @@ public class AyarlarViewModelTests
     public async Task Kanal_sil_cagirir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
 
         await vm.KanalSilCommand.ExecuteAsync(new KanalDto(4, "PERAKENDE", true, 1, 0m));
 
@@ -49,7 +49,7 @@ public class AyarlarViewModelTests
     public async Task Izleyici_sifre_kaydet_cagirir()
     {
         var api = new SahteApi();
-        var vm = new AyarlarViewModel(api) { YeniIzleyiciSifre = "gizli-izleyici-123" };
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac()) { YeniIzleyiciSifre = "gizli-izleyici-123" };
 
         await vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
 
@@ -61,7 +61,7 @@ public class AyarlarViewModelTests
     public async Task Ayar_kaydet_cagirir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.TakipBaslangic = new DateTime(2026, 2, 1);
         vm.KasaAcilisDevri = 20000m;
@@ -77,7 +77,7 @@ public class AyarlarViewModelTests
     public async Task Kayitli_kasa_acilis_devrini_sifira_indirmek_ikinci_basista_onaylanir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 15000m, true), KanallarListe = new List<KanalDto>() };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.KasaAcilisDevri = 0m;                                   // alan boşaltılmış olabilir
 
@@ -112,7 +112,7 @@ public class AyarlarViewModelTests
             AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, true),
             KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 5000m), new(2, "PERAKENDE", true, 1, 700m) },
         };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.KanalDuzenle(vm.Kanallar[0]);
         vm.DuzenKanalAcilisDevri = 0m;
@@ -151,7 +151,7 @@ public class AyarlarViewModelTests
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 0m) } };
         var kilit = new SahteKilit { KilitliSonTarih = new DateOnly(2026, 8, 31) };
-        var vm = new AyarlarViewModel(api, kilit);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac(), kilit);
 
         await vm.YukleAsync();
         Assert.True(vm.DuzenKanalAktif);
@@ -177,13 +177,13 @@ public class AyarlarViewModelTests
     public async Task Kilit_yokken_ya_da_kilit_durumu_okunamazsa_yeni_kanal_aktif_varsayilir_ayarlar_yuklenir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 0m) } };
-        var vm = new AyarlarViewModel(api, new SahteKilit());
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac(), new SahteKilit());
         await vm.YukleAsync();
         Assert.True(vm.DuzenKanalAktif);
         Assert.Null(vm.KanalKilitNotu);
 
         // Kilit durumu yalnız form varsayılanı içindir (kuralı sunucu uygular): okunamazsa ayarlar yine yüklenir.
-        var okunamaz = new AyarlarViewModel(api, new SahteKilit { Hata = new KasaApiException(HttpStatusCode.NotFound) });
+        var okunamaz = new AyarlarViewModel(api, TestOturumu.Ac(), new SahteKilit { Hata = new KasaApiException(HttpStatusCode.NotFound) });
         await okunamaz.YukleAsync();
         Assert.Null(okunamaz.Hata);
         Assert.Single(okunamaz.Kanallar);

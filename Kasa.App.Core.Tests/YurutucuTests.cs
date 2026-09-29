@@ -243,7 +243,7 @@ public class YurutucuTests
     {
         var bekleyen = new TaskCompletionSource<IslemDto>();
         var api = new SahteApi { IslemKayitYaniti = bekleyen.Task };
-        var vm = new IslemlerViewModel(api) { DuzenTutar = 100, DuzenCari = "Mal", DuzenKanal = "MEZAT" };
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac()) { DuzenTutar = 100, DuzenCari = "Mal", DuzenKanal = "MEZAT" };
 
         var kayit = vm.KaydetCommand.ExecuteAsync(null);
         Assert.True(vm.Mesgul);
@@ -349,8 +349,7 @@ public class YurutucuTests
         Assert.False(vm.Mesgul);
         Assert.Null(vm.Hata);
 
-        // Sayfa aynı oturumla yeniden ayarlasa da (OnAppearing) sıfırlama tekrarlanmaz; yeni oturumda yükleme çalışır.
-        vm.OturumuAyarla(auth.OturumSurumu, false);
+        // Yeni oturumda yükleme çalışır.
         api.ListeGetir = null;
         await vm.YukleAsync();
         Assert.Single(vm.Alislar);
@@ -383,7 +382,7 @@ public class YurutucuTests
     {
         var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarGetir = () => kanallar.Task };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         var kanal = new KanalDto(4, "PERAKENDE", true, 1, 0m);
         var yukleme = vm.YukleAsync();
 
@@ -487,7 +486,7 @@ public class YurutucuTests
     {
         var kanallar = new TaskCompletionSource<IReadOnlyList<KanalDto>>();
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarGetir = () => kanallar.Task };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
 
         var yukleme = vm.YukleAsync();
         Assert.True(vm.Mesgul);

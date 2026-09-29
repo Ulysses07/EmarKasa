@@ -2,62 +2,91 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Kasa.App.Core;
 
-/// <summary>Oturuma bağlı ekran: oturum değişince yürütücünün nesli artar (bekleyen işler eskir) ve ekran sıfırlanır.
-/// Yürütme deseni tabandaki <see cref="Yurutucu"/>'dur.</summary>
+/// <summary>Oturuma bağlı ekranların tek tabanı (oturum ve rol): rol oturumdan okunur (<see cref="EditorMu"/> hesaplanır, sayfa
+/// atamaz); oturum değişince yürütücünün nesli artar (bekleyen işler eskir) ve ekran sıfırlanır (<see cref="OturumTemizle"/>).
+/// Takip ekranları, İşlemler, Alışlar ve Ayarlar buradan türer. Yürütme deseni tabandaki <see cref="Yurutucu"/>'dur.</summary>
 public abstract partial class OturumluViewModel : TemelViewModel
 {
     protected readonly AuthViewModel Auth;
     protected OturumluViewModel(AuthViewModel auth)
     {
         Auth = auth;
-        OturumDegisiminiDinle(auth, () =>
-        {
-            VeriHazir = false;
-            Mesgul = false;
-            Hata = null;
-            Mesaj = null;
-            SonGuncelleme = null;
-            OturumTemizle();
-            OnPropertyChanged(nameof(EditorMu));
-        });
+        OturumDegisiminiDinle(auth);
     }
+
+    /// <summary>Oturum değişince ekran yeni kurulmuş modelin durumuna döner; rol yeni oturumunkidir.</summary>
+    private void OturumuSifirla()
+    {
+        VeriHazir = false;
+        Mesgul = false;
+        Hata = null;
+        Mesaj = null;
+        SonGuncelleme = null;
+        OturumTemizle();
+        RolBildir();
+    }
+
+    /// <summary>EditorMu ve ona bağlı hesaplanan değerler bildirilir (rol ya da oturum değişince).</summary>
+    private void RolBildir()
+    {
+        OnPropertyChanged(nameof(EditorMu));
+        RolDegisti();
+    }
+
+    /// <summary>Rol değişince EditorMu'ya bağlı hesaplanan değerleri bildirmek için (ör. Alışlar'da onay ve iade düğmeleri).</summary>
+    protected virtual void RolDegisti() { }
+
+    /// <summary>Oturum ve rol değişimini dinler (appcore-10): OturumSurumu değişince bekleyen işler hemen eskir (sonuçları, hataları ve
+    /// bitişleri yansımaz) ve ekran sıfırlanır (<see cref="OturumuSifirla"/>); AktifRol oturum sürümü değişmeden de değişirse EditorMu
+    /// ve ona bağlı değerler bildirilir. Sıfırlama ve bildirim model kurulurken yakalanan UI bağlamında yapılır. Eskiyen iş göstergeyi
+    /// indirmediği için Mesgul'u sıfırlama indirir.</summary>
+    private void OturumDegisiminiDinle(AuthViewModel auth)
+    {
+        var ui = SynchronizationContext.Current;
+        void UiBaglaminda(Action eylem)
+        {
+            if (ui is not null && SynchronizationContext.Current != ui)
+                ui.Post(_ => eylem(), null);
+            else
+                eylem();
+        }
+        auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AuthViewModel.OturumSurumu))
+            {
+                Yurutucu.GecersizKil();
+                UiBaglaminda(OturumuSifirla);
+            }
+            else if (e.PropertyName == nameof(AuthViewModel.AktifRol))
+                UiBaglaminda(RolBildir);
+        };
+    }
+
     public bool EditorMu => Auth.AktifRol == Rol.Editor;
     public int OturumNesli => Yurutucu.Nesil;
     [ObservableProperty] private bool _veriHazir;
     [ObservableProperty] private string? _mesaj;
-    [ObservableProperty] private DateTime? _sonGuncelleme;
+    /// <summary>Son başarılı yükleme anı (yerel saat ve farkı); rapor ve işlem listesiyle aynı tür.</summary>
+    [ObservableProperty] private DateTimeOffset? _sonGuncelleme;
+
+    /// <summary>Gerekçe isteyen işlemin tek yolu (iptal, durum değişimi, belge kaldırma, ay kilidi): oturum gerekçe penceresi
+    /// açılmadan ÖNCE yakalanır. Pencere açıkken oturum değişirse (çıkış, oturumun sona ermesi, yeni giriş) gerekçe yeni oturumun
+    /// formuna yazılmaz ve işlem yapılmaz. Vazgeçilirse (null) işlem yapılmaz; boş gerekçe de yalnız
+    /// <paramref name="bosGerekceGecerli"/> ise geçer.</summary>
+    /// <param name="sor">Gerekçe penceresi (sayfanın DisplayPromptAsync'i); vazgeçilirse null.</param>
+    /// <param name="islem">Gerekçe ve pencereden önce yakalanan oturum nesliyle yapılacak işlem; ardından ikinci bir onay
+    /// penceresi açılıyorsa model bu nesli (<see cref="OturumNesli"/>) onun sonrasında da denetler.</param>
+    public async Task GerekceyleAsync(Func<Task<string?>> sor, Func<string, int, Task> islem, bool bosGerekceGecerli = false)
+    {
+        var oturum = OturumNesli;
+        var gerekce = await sor();
+        if (gerekce is null || (!bosGerekceGecerli && string.IsNullOrWhiteSpace(gerekce)) || !Gecerli(oturum))
+            return;
+        await islem(gerekce, oturum);
+    }
+
     protected override void IletiyiTemizle() => Mesaj = null;
     protected void BekleyenleriIptalEt() { Yurutucu.GecersizKil(); Mesgul = false; }
     protected abstract void OturumTemizle();
-    protected void Tamamlandi() { VeriHazir = true; SonGuncelleme = DateTime.Now; }
-}
-
-public sealed class TekrarAnahtari
-{
-    private string? _govde;
-    private Guid _id;
-    public Guid Al(object govde)
-    {
-        var json = System.Text.Json.JsonSerializer.Serialize(govde);
-        if (_govde != json)
-        { _govde = json; _id = Guid.NewGuid(); }
-        return _id;
-    }
-    public void Temizle() { _govde = null; _id = Guid.Empty; }
-}
-
-/// <summary>Kayıt (ör. kart) başına tekrar anahtarı: bir kaydın yanıtı belirsiz kalan isteğinin anahtarı başka kayıtta yapılan
-/// işlemlerle ezilmez; aynı kayda dönülüp aynı gövde yeniden gönderilince aynı anahtar kullanılır (sunucu ikinci kez işlemez).
-/// Gövde kaydın kimliğini de taşıdığından başka kaydın isteği hiçbir zaman bu anahtarı almaz.</summary>
-public sealed class KayitBasinaTekrarAnahtari
-{
-    private readonly Dictionary<int, TekrarAnahtari> _kayitlar = new();
-    public Guid Al(int kayitId, object govde)
-    {
-        if (!_kayitlar.TryGetValue(kayitId, out var anahtar))
-            _kayitlar[kayitId] = anahtar = new();
-        return anahtar.Al(govde);
-    }
-    public void Temizle(int kayitId) => _kayitlar.Remove(kayitId);
-    public void Temizle() => _kayitlar.Clear();
+    protected void Tamamlandi() { VeriHazir = true; SonGuncelleme = DateTimeOffset.Now; }
 }

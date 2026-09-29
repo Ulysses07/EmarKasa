@@ -135,7 +135,7 @@ public partial class IslemlerViewModel
     [RelayCommand]
     private Task GelenKaydetAsync() => YurutAsync(async n =>
     {
-        if (_auth is not null && _auth.AktifRol != Rol.Editor)
+        if (!EditorMu)
             return;
         if (GelenDonem is not { } donem)
         { Hata = "Kasa dönemi seçin."; return; }

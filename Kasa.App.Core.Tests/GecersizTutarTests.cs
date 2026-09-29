@@ -14,7 +14,7 @@ public class GecersizTutarTests
     public async Task Islem_gider_tutari_gecersizken_kaydedilmez()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api) { DuzenTarih = new(2026, 9, 21), DuzenCari = "Kira", DuzenTutar = G, DuzenKanal = "MEZAT" };
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac()) { DuzenTarih = new(2026, 9, 21), DuzenCari = "Kira", DuzenTutar = G, DuzenKanal = "MEZAT" };
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.IslemOlusturCagri);
         Assert.Null(api.SonIslemOlustur);
@@ -25,7 +25,7 @@ public class GecersizTutarTests
     public async Task Ayarlar_acilis_devirleri_gecersizken_kaydedilmez()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
-        var vm = new AyarlarViewModel(api) { KasaAcilisDevri = G };
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac()) { KasaAcilisDevri = G };
         await vm.AyarKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonAyar);
         Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
@@ -41,7 +41,7 @@ public class GecersizTutarTests
     public async Task Alis_kalem_ve_pay_tutari_gecersizken_kaydedilmez_ozetler_sayi_gostermez()
     {
         var api = new AlislarViewModelTests.SahteAlisApi();
-        var vm = new AlislarViewModel(api, new SahteApi());
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac(Rol.Alici));
         await vm.YukleAsync();
         vm.Tedarikci = "Firma";
         vm.Kalemler[0].Aciklama = "Mal";
@@ -71,7 +71,7 @@ public class GecersizTutarTests
             Liste = new[] { new AlisDto(7, 2, 3, "Ayşe", new(2026, 9, 21), "Tedarikçi", null, "Taslak", null, 100m, 0m, 100m,
             new[] { new AlisKalemDto(1, "Mal alımı", 100m, new[] { new AlisDagilimDto(1, "MEZAT", 100m) }) }, Array.Empty<AlisOdemeDto>()) }
         };
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.OdemeTutari = G;
