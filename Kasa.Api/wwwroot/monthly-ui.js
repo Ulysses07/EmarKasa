@@ -20,6 +20,7 @@ export function createMonthlyUi(c) {
     table,
     money,
     moneyNode,
+    allocationTags,
     dateText,
     today,
     cents,
@@ -37,14 +38,7 @@ export function createMonthlyUi(c) {
   } = c;
   const base = '/api/aylik-giderler';
   const kinds = { Kira: 'Kira', Maas: 'Maaş', Fatura: 'Fatura', Diger: 'Diğer' };
-  const shares = row =>
-    row.dagilimTuru === 'Genel'
-      ? h('span', {}, 'Yalnız genel kasa')
-      : h(
-          'div',
-          { class: 'allocation-tags' },
-          row.dagilimlar.map(share => h('span', { class: 'allocation-tag' }, `${share.kanal}: ${money(share.tutar)}`))
-        );
+  const shares = row => (row.dagilimTuru === 'Genel' ? h('span', {}, 'Yalnız genel kasa') : allocationTags(row.dagilimlar));
   // İptal anı sunucuda denetim izinden okunur; sürüm öncesi iptalin anı bilinmez.
   const cancelTime = value => (value ? new Date(value).toLocaleString('tr-TR') : 'Sürüm öncesi (zamanı bilinmiyor)');
   let currentMonth = today().slice(0, 7);

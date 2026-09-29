@@ -20,6 +20,7 @@ export function createStatementImportUi(c) {
     table,
     money,
     moneyNode,
+    allocationTags,
     dateText,
     cents,
     formDialog,
@@ -88,12 +89,7 @@ export function createStatementImportUi(c) {
   const bankName = bank => statementBanks.find(([key]) => key === bank)?.[1] || bank;
   const sourceName = row =>
     `${bankName(row.banka)} · ${row.kaynak === 'Kart' ? `Kart ekstresi · ${row.hesapAdi || `Kart #${row.kartId}`}` : row.hesapAdi || 'Banka hareketi'}`;
-  const shares = rows =>
-    h(
-      'div',
-      { class: 'allocation-tags' },
-      (rows || []).map(row => h('span', { class: 'allocation-tag' }, `${row.kanal || 'Genel kasa'}: ${money(row.tutar)}`))
-    );
+  const shares = rows => allocationTags(rows, { empty: 'Genel kasa' });
   const warningList = warnings =>
     warnings?.length
       ? h(

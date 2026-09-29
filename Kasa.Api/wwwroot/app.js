@@ -88,6 +88,7 @@ const financeUi = createFinanceUi({
   table,
   money,
   moneyNode,
+  allocationTags,
   dateText,
   today,
   cents,
@@ -124,6 +125,7 @@ const monthlyUi = createMonthlyUi({
   table,
   money,
   moneyNode,
+  allocationTags,
   dateText,
   today,
   cents,
@@ -180,6 +182,7 @@ const statementImportUi = createStatementImportUi({
   table,
   money,
   moneyNode,
+  allocationTags,
   dateText,
   cents,
   formDialog,
@@ -289,6 +292,22 @@ function monthPicker(name, value, { label, min = '' } = {}) {
 }
 function moneyNode(value, className = '') {
   return h('span', { class: `money ${className}` }, money(value));
+}
+// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre ve alış ödemesi): div.allocation-tags içinde her pay için
+// span.allocation-tag "Kanal: tutar". empty: kanal adı yoksa yazılan ad (verilmezse ad olduğu gibi yazılır); pending: kanalı
+// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir.
+function allocationTags(rows, { empty, pending = false } = {}) {
+  return h(
+    'div',
+    { class: 'allocation-tags' },
+    (rows || []).map(row =>
+      h(
+        'span',
+        { class: `allocation-tag${pending && row.kanalId == null ? ' pending' : ''}` },
+        `${empty === undefined ? row.kanal : row.kanal || empty}: ${money(row.tutar)}`
+      )
+    )
+  );
 }
 // Bilgi iletisi kibar (polite) #notifications bölgesinde duyurulur ve 6 sn sonra kalkar. Hata iletisi kendiliğinden kaybolmaz
 // (WAI-ARIA APG uyarı deseni; WCAG 2.2.3): assertive #alerts (role="alert") bölgesinde kalır, kapatma düğmesiyle kapanır ve
@@ -1353,11 +1372,7 @@ function paymentRow(p, payment) {
       ),
       payment.dagilimBekliyor
         ? h('span', { class: 'badge pending' }, 'Dağılım bekliyor')
-        : h(
-            'div',
-            { class: 'allocation-tags' },
-            payment.dagilimlar.filter(d => d.tutar > 0).map(d => h('span', { class: 'allocation-tag' }, `${d.kanal}: ${money(d.tutar)}`))
-          ),
+        : allocationTags(payment.dagilimlar.filter(d => d.tutar > 0)),
       state.role === 'editor' &&
         h(
           'div',

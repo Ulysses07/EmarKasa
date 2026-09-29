@@ -11,6 +11,7 @@ export function createFinanceUi(c) {
     table,
     money,
     moneyNode,
+    allocationTags,
     dateText,
     today,
     cents,
@@ -44,18 +45,7 @@ export function createFinanceUi(c) {
         .flatMap((part, index) => (index ? [h('wbr'), part] : [part]))
     );
   const activeChannels = channels => channels.filter(channel => channel.aktif);
-  const shares = rows =>
-    h(
-      'div',
-      { class: 'allocation-tags' },
-      (rows || []).map(row =>
-        h(
-          'span',
-          { class: `allocation-tag${row.kanalId == null ? ' pending' : ''}` },
-          `${row.kanal || 'Dağılım bekliyor'}: ${money(row.tutar)}`
-        )
-      )
-    );
+  const shares = rows => allocationTags(rows, { empty: 'Dağılım bekliyor', pending: true });
   const integer = value => {
     const number = Number(value);
     if (!Number.isInteger(number)) throw new Error('Adet ve gün alanlarına tam sayı girin.');
