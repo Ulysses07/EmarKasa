@@ -62,6 +62,11 @@ const runtimeReady = loadRuntime(fetch).then(config => {
   return config;
 });
 const canEditCash = () => cashEditingAllowed(state.role, runtime);
+// Kasa düzenleme koruması (aylık gider, kasa kontrolü, ekstre aktarma ve kart ekranları): editör değilse ya da salt okunur
+// sürümdeyse işlem başlamaz. İleti ekrana göre verilebilir.
+function requireEditor(message = 'Bu işlem için editör hesabı gerekir.') {
+  if (!canEditCash()) throw new Error(message);
+}
 const modal = $('#modal');
 let modalCleanup = null;
 let renderId = 0;
@@ -102,6 +107,7 @@ const financeUi = createFinanceUi({
   confirmSimilar,
   isOpen,
   canEdit: canEditCash,
+  editor: requireEditor,
   isCurrent: generation => generation === renderId,
   view: () => $('#view'),
 });
@@ -130,6 +136,7 @@ const monthlyUi = createMonthlyUi({
   childValues,
   requestIdentity,
   canEdit: canEditCash,
+  editor: requireEditor,
   isCurrent: generation => generation === renderId,
   view: () => $('#view'),
 });
@@ -156,6 +163,7 @@ const cashControlsUi = createCashControlsUi({
   requestIdentity,
   isOpen,
   canEdit: canEditCash,
+  editor: requireEditor,
   navigate,
   dateText,
   today,
@@ -185,6 +193,7 @@ const statementImportUi = createStatementImportUi({
   requestIdentity,
   isOpen,
   canEdit: canEditCash,
+  editor: requireEditor,
   isCurrent: generation => generation === renderId,
   session: () => state.epoch,
   view: () => $('#view'),

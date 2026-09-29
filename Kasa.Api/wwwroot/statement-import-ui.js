@@ -79,9 +79,7 @@ export function createStatementImportUi(c) {
     Hareket: 'Hareket',
     Belirsiz: 'Kontrol edilmeli',
   };
-  const editor = () => {
-    if (!canEdit()) throw new Error('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
-  };
+  const editor = () => c.editor('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
   // İptal edilen kaydın gerekçesi ve anı (sunucu anı denetim izinden okur; sürüm öncesi iptalin anı bilinmez).
   const cancelNote = row =>
     [row.iptalAciklamasi, row.iptalZamani ? new Date(row.iptalZamani).toLocaleString('tr-TR') : 'zamanı bilinmiyor']

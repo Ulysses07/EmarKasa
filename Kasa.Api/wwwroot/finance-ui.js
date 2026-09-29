@@ -28,6 +28,7 @@ export function createFinanceUi(c) {
     requestIdentity,
     confirmSimilar,
     canEdit,
+    editor,
     isCurrent,
     view,
   } = c;
@@ -758,7 +759,7 @@ export function createFinanceUi(c) {
       ),
       'Kanal paylarını göster',
       async form => {
-        if (!canEdit()) throw new Error('Editör hesabı gerekir.');
+        editor('Editör hesabı gerekir.');
         const id = Number(statement.value);
         if (!eligible.some(row => row.id === id)) throw new Error('Kalan borcu olan kesilmiş bir ekstre seçin.');
         const body = identity({
@@ -797,7 +798,7 @@ export function createFinanceUi(c) {
           ),
           'Masrafı kaydet',
           async confirmation => {
-            if (!canEdit()) throw new Error('Editör hesabı gerekir.');
+            editor('Editör hesabı gerekir.');
             if (
               !(await confirmSimilar(
                 confirmation,

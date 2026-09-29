@@ -31,14 +31,12 @@ export function createMonthlyUi(c) {
     summary,
     requestIdentity,
     canEdit,
+    editor,
     isCurrent,
     view,
   } = c;
   const base = '/api/aylik-giderler';
   const kinds = { Kira: 'Kira', Maas: 'Maaş', Fatura: 'Fatura', Diger: 'Diğer' };
-  const editor = () => {
-    if (!canEdit()) throw new Error('Bu işlem için editör hesabı gerekir.');
-  };
   const shares = row =>
     row.dagilimTuru === 'Genel'
       ? h('span', {}, 'Yalnız genel kasa')

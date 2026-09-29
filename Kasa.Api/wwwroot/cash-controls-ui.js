@@ -124,14 +124,12 @@ export function createCashControlsUi(c) {
     summary,
     requestIdentity,
     canEdit,
+    editor,
     isOpen,
     navigate,
     dateText,
     today,
   } = c;
-  const editor = () => {
-    if (!canEdit()) throw new Error('Bu işlem için editör hesabı gerekir.');
-  };
   function thresholdSettings(rows) {
     return section(
       'Kanal alt bakiye uyarıları',
