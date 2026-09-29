@@ -115,6 +115,19 @@ test('telefon: koyu yeşil kutudaki etiket ve alt yazı en az 4,5:1', () => {
   atLeast('var(--yesil-soluk)', 'var(--yesil)', 4.5, 'koyu kutu alt yazısı', mobile.color);
 });
 
+// Yer tutucu metin de metindir (Understanding 1.4.3: "including placeholder text"). Tarayıcı varsayılanı tutarsızdır
+// (MDN: Firefox giriş rengini %54 saydamlıkla, Chrome gri kullanır); renk ve tam opaklık açıkça verilir.
+test('yer tutucu metin masaüstünde ve telefonda alan zemininde en az 4,5:1', () => {
+  const desktop = rule('input::placeholder,textarea::placeholder');
+  assert.equal(desktop.color, 'var(--muted)'); assert.equal(desktop.opacity, '1');
+  atLeast(desktop.color, rule('input,select,textarea').background, 4.5, 'masaüstü yer tutucu');
+  const phone = mobile.rule('input::placeholder,textarea::placeholder');
+  assert.equal(phone.color, 'var(--soluk)'); assert.equal(phone.opacity, '1');
+  // .girdi beyaz; tutar alanı alt sayfa zemininde (şeffaf); arama alanı kendi zemininde.
+  assert.equal(mobile.rule('.girdi').background, '#fff'); assert.equal(mobile.rule('.hz-tutar input').background, 'transparent'); assert.equal(mobile.rule('.sayfa').background, 'var(--zemin)');
+  for (const background of ['#ffffff', 'var(--zemin)', 'var(--arama)']) atLeast(phone.color, background, 4.5, `telefon yer tutucu / ${background}`, mobile.color);
+});
+
 test('telefon: form alanı kenarlığı (--alan-cizgi) alan içi, kart ve sayfa zeminine karşı en az 3:1; süs çizgileri ayrı', () => {
   const field = mobile.rule('.girdi');
   assert.equal(borderColor(field.border), 'var(--alan-cizgi)');

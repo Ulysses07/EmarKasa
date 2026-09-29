@@ -18,6 +18,7 @@ public partial class MauiKayitTutarliligiTests
     [InlineData("HeroSub", "Green")]
     [InlineData("HeroLabel", "Green")]
     [InlineData("SidebarMuted", "Sidebar")]
+    [InlineData("Neg", "Card")]             // geçersiz tutarda yer tutucu (ParaGirisi) hata rengine döner
     public void Ikincil_yazi_renkleri_zemininde_en_az_4_5_kontrast_verir(string yazi, string zemin)
     {
         var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
