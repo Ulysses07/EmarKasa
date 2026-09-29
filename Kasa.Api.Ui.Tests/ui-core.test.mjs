@@ -2475,3 +2475,20 @@ test('scrollable table wrappers and the cash total are focusable regions with di
     assert.deepEqual(names(nodes.get('#view')), expected, screen);
   }
 });
+
+// Kart ve kredi kutusu (düğme) içindeki tutar kaymaz; sığmazsa satır kayar. Bölünme yeri yalnız binlik ayırıcıdan sonradır
+// (<wbr>): "₺999.999.999.99 / 9,99" gibi basamak grubunu bölen yanlış okuma olmaz; tutarın metni ve okunuşu değişmez.
+test('card and loan boxes break a long amount only after a thousands separator and keep its full text', async () => {
+  const amountIn = view => view.find(node => node.tag === 'button' && node.className === 'finance-card').children.find(node => node?.className === 'money' && node.tag === 'span');
+  const big = 999999999999.99;
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar': [{ ...sampleCard, borc: big }], '/api/takip/krediler': [{ ...sampleLoan, kalanPlanliOdeme: 1250.5 }] });
+  for (const [screen, value] of [['cards', big], ['loans', 1250.5]]) {
+    await app.navigate(screen); await settle();
+    const node = amountIn(nodes.get('#view'));
+    assert.ok(node, `${screen}: tutar düğümü`);
+    assert.equal(node.textContent, money(value), `${screen}: tutarın metni aynı`);
+    const parts = node.children.map(child => typeof child === 'string' ? child : `<${child.tag}>`);
+    assert.deepEqual(parts, money(value).split(/(?<=\.)/).flatMap((part, index) => index ? ['<wbr>', part] : [part]), screen);
+    assert.ok(parts.every(part => part === '<wbr>' || !/\.\S/.test(part)), `${screen}: basamak grubu bölünmez`);
+  }
+});

@@ -1,6 +1,9 @@
 export function createFinanceUi(c) {
   const { api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, amount, signedAmount, formDialog, closeModal, page, navigate, run, toast, summary, childValues, requestIdentity, confirmSimilar, canEdit, isCurrent, view } = c;
   const base = '/api/takip';
+  // Kart ve kredi kutusu bir düğmedir: içindeki büyük tutar kaymaz (düğme içine odaklanan kaydırma bölgesi konamaz), sığmazsa
+  // satır kayar. Bölünme yeri binlik ayırıcıdan sonradır (<wbr>): basamak grubu ikiye bölünüp yanlış okunmaz.
+  const cardAmount = value => h('span', { class: 'money' }, money(value).split(/(?<=\.)/).flatMap((part, index) => index ? [h('wbr'), part] : [part]));
   const activeChannels = channels => channels.filter(channel => channel.aktif);
   const shares = rows => h('div', { class: 'allocation-tags' }, (rows || []).map(row => h('span', { class: `allocation-tag${row.kanalId == null ? ' pending' : ''}` }, `${row.kanal || 'Dağılım bekliyor'}: ${money(row.tutar)}`)));
   const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
@@ -39,7 +42,7 @@ export function createFinanceUi(c) {
     }
     page('Kredi Kartları', 'Harcama, ekstre ve kaydedilen ödemeler', canEdit() ? [act('+ Kart ekle', () => cardDialog(), 'primary')] : []);
     const cards = await api(`${base}/kartlar`); if (!isCurrent(generation)) return;
-    const list = cards.map(card => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('cards', card.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, card.ad), h('span', { class: 'badge' }, card.aktif ? 'Aktif' : 'Yeni kullanıma kapalı')), h('span', { class: 'summary-label' }, 'Uygulamadaki kart borcu'), moneyNode(card.borc), h('small', {}, `Ekstre borcu ${money(card.ekstreBorc)} · Limit ${money(card.limit)}`), !card.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor'), card.gecis?.tahminiKasaFarki ? h('span', { class: 'badge pending' }, 'Geçiş farkını doğrulayın') : null));
+    const list = cards.map(card => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('cards', card.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, card.ad), h('span', { class: 'badge' }, card.aktif ? 'Aktif' : 'Yeni kullanıma kapalı')), h('span', { class: 'summary-label' }, 'Uygulamadaki kart borcu'), cardAmount(card.borc), h('small', {}, `Ekstre borcu ${money(card.ekstreBorc)} · Limit ${money(card.limit)}`), !card.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor'), card.gecis?.tahminiKasaFarki ? h('span', { class: 'badge pending' }, 'Geçiş farkını doğrulayın') : null));
     view().replaceChildren(h('p', { class: 'plan-note' }, 'Kartın son ödeme günü kasayı değiştirmez. Yalnız kaydettiğiniz kart ödemesi, ödeme tarihinde genel kasa ve ilgili kanallardan düşer.'), cards.length ? h('div', { class: 'finance-grid' }, list) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kart eklenmedi'), help('Kart adı, limit ve ödeme günleriyle başlayın. Kart numarası veya banka şifresi istenmez.')));
   }
   function renderCard(card, transfer = null) {
@@ -241,7 +244,7 @@ export function createFinanceUi(c) {
     if (id) { const loan = await api(`${base}/krediler/${id}`); if (isCurrent(generation)) renderLoan(loan); return; }
     page('Krediler', 'Çekim ve otomatik taksit planları', canEdit() ? [act('+ Kredi ekle', () => loanDialog(), 'primary')] : []);
     const loans = await api(`${base}/krediler`); if (!isCurrent(generation)) return;
-    view().replaceChildren(help('Taksitler kendi tarihlerinde genel kasadan ve seçili kanal kasalarından otomatik düşer. Bu, bankadan ödeme doğrulaması değildir.'), loans.length ? h('div', { class: 'finance-grid' }, loans.map(loan => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('loans', loan.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, loan.ad), h('span', { class: 'badge' }, loan.aktif ? 'Aktif' : 'Arşivde')), h('span', { class: 'summary-label' }, 'Kalan planlı ödeme'), moneyNode(loan.kalanPlanliOdeme), h('small', {}, `Çekilen ${money(loan.cekilenTutar)} · ${dateText(loan.cekimTarihi)}`), !loan.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor')))) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kredi eklenmedi'), help('Yeni çekilen veya önceden çekilmiş bir krediyi ayrı seçeneklerle kaydedebilirsiniz.')));
+    view().replaceChildren(help('Taksitler kendi tarihlerinde genel kasadan ve seçili kanal kasalarından otomatik düşer. Bu, bankadan ödeme doğrulaması değildir.'), loans.length ? h('div', { class: 'finance-grid' }, loans.map(loan => h('button', { type: 'button', class: 'finance-card', onclick: () => navigate('loans', loan.id) }, h('div', { class: 'finance-card-head' }, h('strong', {}, loan.ad), h('span', { class: 'badge' }, loan.aktif ? 'Aktif' : 'Arşivde')), h('span', { class: 'summary-label' }, 'Kalan planlı ödeme'), cardAmount(loan.kalanPlanliOdeme), h('small', {}, `Çekilen ${money(loan.cekilenTutar)} · ${dateText(loan.cekimTarihi)}`), !loan.yeniTakip && h('span', { class: 'badge pending' }, 'Geçiş incelemesi gerekiyor')))) : h('div', { class: 'empty' }, h('h2', {}, 'Henüz kredi eklenmedi'), help('Yeni çekilen veya önceden çekilmiş bir krediyi ayrı seçeneklerle kaydedebilirsiniz.')));
   }
   function renderLoan(loan) {
     const editable = canEdit() && loan.yeniTakip;
