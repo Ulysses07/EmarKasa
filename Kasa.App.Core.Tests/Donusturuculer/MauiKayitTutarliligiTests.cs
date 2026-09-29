@@ -103,11 +103,15 @@ public partial class MauiKayitTutarliligiTests
         var bolumler = Enum.GetNames<Bolum>().Order().ToList();
         var ogeler = MenuOgesi().Matches(Oku("AppShell.xaml")).Select(m => m.Groups[1].Value).Order().ToList();
         Assert.True(bolumler.SequenceEqual(ogeler), $"Bolum değerleri ile AppShell.xaml menü öğeleri ('<Bolum>Item') aynı olmalı. Bolum: {string.Join(",", bolumler)}; menü: {string.Join(",", ogeler)}");
+        // Menü görünürlüğü tek sözlükten: her bölüm kendi menü öğesine bir kez bağlıdır; öğeler başka yerde tek tek açılıp
+        // kapanmaz. Menü role göre açılır, girişe dönüşte hepsi gizlenir.
         var kod = Oku("AppShell.xaml.cs");
-        var acilan = MenuBaglama().Matches(kod).Select(m => (Oge: m.Groups[1].Value, Bolum: m.Groups[2].Value)).ToList();
-        Assert.All(acilan, b => Assert.Equal(b.Oge, b.Bolum));
-        Assert.Equal(bolumler, acilan.Select(b => b.Bolum).Order().ToList());
-        Assert.Equal(bolumler, MenuGizleme().Matches(kod).Select(m => m.Groups[1].Value).Order().ToList());
+        var baglar = MenuSozlugu().Matches(kod).Select(m => (Bolum: m.Groups[1].Value, Oge: m.Groups[2].Value)).ToList();
+        Assert.All(baglar, b => Assert.Equal(b.Bolum, b.Oge));
+        Assert.Equal(bolumler, baglar.Select(b => b.Bolum).Order().ToList());
+        Assert.DoesNotMatch(@"\w+Item\.IsVisible", kod);
+        Assert.Contains("MenuyuGoster(SekmeModeli.Bolumler(_auth.AktifRol));", kod);
+        Assert.Contains("MenuyuGoster([]);", kod);
     }
 
     [Fact]
@@ -135,10 +139,8 @@ public partial class MauiKayitTutarliligiTests
     private static partial Regex KabukSayfasi();
     [GeneratedRegex(@"<FlyoutItem x:Name=""(\w+)Item""")]
     private static partial Regex MenuOgesi();
-    [GeneratedRegex(@"(\w+)Item\.IsVisible = bolumler\.Contains\(Bolum\.(\w+)\);")]
-    private static partial Regex MenuBaglama();
-    [GeneratedRegex(@"(\w+)Item\.IsVisible = false;")]
-    private static partial Regex MenuGizleme();
+    [GeneratedRegex(@"\[Bolum\.(\w+)\] = (\w+)Item,")]
+    private static partial Regex MenuSozlugu();
     [GeneratedRegex(@"<conv:(\w+) x:Key=""(\w+)""")]
     private static partial Regex DonusturucuKaynagi();
     [GeneratedRegex(@"Converter=\{StaticResource (\w+)\}")]

@@ -5,12 +5,29 @@ namespace Kasa.App;
 public partial class AppShell : Shell
 {
     private readonly AuthViewModel _auth;
+    /// <summary>Rol bölümü → menü öğesi (tek kaynak): menü öğeleri yalnız bu sözlükten açılır ve kapanır.</summary>
+    private readonly IReadOnlyDictionary<Bolum, FlyoutItem> _menu;
     private bool _giriseDonuluyor;
 
     public AppShell(AuthViewModel auth)
     {
         InitializeComponent();
         _auth = auth;
+        _menu = new Dictionary<Bolum, FlyoutItem>
+        {
+            [Bolum.Panel] = PanelItem,
+            [Bolum.Haftalik] = HaftalikItem,
+            [Bolum.Aylik] = AylikItem,
+            [Bolum.Islemler] = IslemlerItem,
+            [Bolum.AylikGiderler] = AylikGiderlerItem,
+            [Bolum.Ayarlar] = AyarlarItem,
+            [Bolum.Alislar] = AlislarItem,
+            [Bolum.DisariAktar] = DisariAktarItem,
+            [Bolum.Kartlar] = KartlarItem,
+            [Bolum.Krediler] = KredilerItem,
+            [Bolum.Bildirimler] = BildirimlerItem,
+            [Bolum.EkstreAktar] = EkstreAktarItem,
+        };
         _auth.OturumSonlandi += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await GiriseDonAsync());
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
     }
@@ -26,20 +43,15 @@ public partial class AppShell : Shell
 
     public void MenuyuAc()
     {
-        var bolumler = SekmeModeli.Bolumler(_auth.AktifRol);
-        PanelItem.IsVisible = bolumler.Contains(Bolum.Panel);
-        HaftalikItem.IsVisible = bolumler.Contains(Bolum.Haftalik);
-        AylikItem.IsVisible = bolumler.Contains(Bolum.Aylik);
-        IslemlerItem.IsVisible = bolumler.Contains(Bolum.Islemler);
-        AylikGiderlerItem.IsVisible = bolumler.Contains(Bolum.AylikGiderler);
-        AyarlarItem.IsVisible = bolumler.Contains(Bolum.Ayarlar);
-        AlislarItem.IsVisible = bolumler.Contains(Bolum.Alislar);
-        DisariAktarItem.IsVisible = bolumler.Contains(Bolum.DisariAktar);
-        KartlarItem.IsVisible = bolumler.Contains(Bolum.Kartlar);
-        KredilerItem.IsVisible = bolumler.Contains(Bolum.Krediler);
-        BildirimlerItem.IsVisible = bolumler.Contains(Bolum.Bildirimler);
-        EkstreAktarItem.IsVisible = bolumler.Contains(Bolum.EkstreAktar);
+        MenuyuGoster(SekmeModeli.Bolumler(_auth.AktifRol));
         _ = GoToAsync(_auth.AktifRol == Rol.Alici ? "//alislar" : "//panel");
+    }
+
+    /// <summary>Yalnız verilen bölümlerin menü öğeleri görünür (girişe dönüşte hiçbiri).</summary>
+    private void MenuyuGoster(IReadOnlyCollection<Bolum> bolumler)
+    {
+        foreach (var (bolum, oge) in _menu)
+            oge.IsVisible = bolumler.Contains(bolum);
     }
 
     private async void CikisTiklandi(object? sender, EventArgs e)
@@ -55,18 +67,7 @@ public partial class AppShell : Shell
         _giriseDonuluyor = true;
         try
         {
-            PanelItem.IsVisible = false;
-            HaftalikItem.IsVisible = false;
-            AylikItem.IsVisible = false;
-            IslemlerItem.IsVisible = false;
-            AylikGiderlerItem.IsVisible = false;
-            AyarlarItem.IsVisible = false;
-            AlislarItem.IsVisible = false;
-            DisariAktarItem.IsVisible = false;
-            KartlarItem.IsVisible = false;
-            KredilerItem.IsVisible = false;
-            BildirimlerItem.IsVisible = false;
-            EkstreAktarItem.IsVisible = false;
+            MenuyuGoster([]);
             await GoToAsync("//login");
         }
         finally { _giriseDonuluyor = false; }
