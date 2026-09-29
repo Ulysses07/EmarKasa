@@ -115,9 +115,14 @@ test('telefon arayüzünün modülleri ES modülü olarak ayrıştırılır ve k
   const app = await kaynak('m/app.js');
   const sprite = await kaynak('m/icons.svg');
   const kimlikler = new Set([...sprite.matchAll(/<symbol id="([^"]+)"/g)].map(x => x[1]));
-  for (const ad of [...app.matchAll(/ikon\('([a-z_]+)'/g)].map(x => x[1])) assert.ok(kimlikler.has(ad), `ikon eksik: ${ad}`);
-  const sekmeler = app.match(/const SEKMELER = (.+);/)[1];
-  for (const [, ad] of sekmeler.matchAll(/\['[a-z]+', '([a-z_]+)', '[^']+'\]/g)) { assert.ok(kimlikler.has(ad), `sekme ikonu eksik: ${ad}`); assert.ok(kimlikler.has(`${ad}-fill`), `dolu sekme ikonu eksik: ${ad}`); }
+  // Kaynak biçimden bağımsız okunur: çağrı bağımsız değişkenleri ve dizi öğeleri satırlara bölünmüş olabilir (Prettier).
+  const ikonlar = [...app.matchAll(/ikon\(\s*'([a-z_]+)'/g)].map(x => x[1]);
+  assert.ok(ikonlar.length > 0, 'ikon() çağrıları okunamadı');
+  for (const ad of ikonlar) assert.ok(kimlikler.has(ad), `ikon eksik: ${ad}`);
+  const sekmeler = app.match(/const SEKMELER = (\[[\s\S]*?\]);/)[1];
+  const sekmeIkonlari = [...sekmeler.matchAll(/\[\s*'[a-z]+',\s*'([a-z_]+)',\s*'[^']+',?\s*\]/g)].map(x => x[1]);
+  assert.ok(sekmeIkonlari.length > 0, 'SEKMELER okunamadı');
+  for (const ad of sekmeIkonlari) { assert.ok(kimlikler.has(ad), `sekme ikonu eksik: ${ad}`); assert.ok(kimlikler.has(`${ad}-fill`), `dolu sekme ikonu eksik: ${ad}`); }
   for (const ad of ['lock', 'edit_calendar', 'error', 'check_circle', 'keyboard_arrow_up', 'keyboard_arrow_down', 'monitoring', 'desktop_windows']) assert.ok(kimlikler.has(ad), `ikon eksik: ${ad}`);
 });
 

@@ -28,12 +28,19 @@ async function jsDosyalari(dizin, onek = '') {
   return sonuc.sort();
 }
 
+// Dosya satır satır değil bütün olarak taranır: biçimleyici bir çağrıyı ya da üye erişimini satırlara bölse de
+// (setTimeout(⏎ 'kod', …), document⏎ .write) desendeki \s satır sonunu da kapsar. ^ satır başıdır (m); her ihlal,
+// eşleşmenin ilk boşluk dışı karakterinin satırında bir kez raporlanır.
 function ihlaller(metin) {
-  const bulunan = [];
-  metin.split(/\r?\n/).forEach((satir, i) => {
-    for (const yasak of YASAKLAR) if (yasak.desen.test(satir)) bulunan.push({ satir: i + 1, yasak, metin: satir.trim().slice(0, 160) });
+  const satirlar = metin.split(/\r?\n/);
+  const bulunan = new Map();
+  YASAKLAR.forEach((yasak, sira) => {
+    for (const eslesme of metin.matchAll(new RegExp(yasak.desen.source, 'gm'))) {
+      const satir = metin.slice(0, eslesme.index + Math.max(0, eslesme[0].search(/\S/))).split('\n').length;
+      bulunan.set(`${satir}:${sira}`, { satir, sira, yasak, metin: satirlar[satir - 1].trim().slice(0, 160) });
+    }
   });
-  return bulunan;
+  return [...bulunan.values()].sort((a, b) => a.satir - b.satir || a.sira - b.sira);
 }
 
 const dosyalar = await jsDosyalari(kok);
@@ -53,6 +60,10 @@ test('desenler yasak kullanımı yakalar, benzer adlı meşru kodu yakalamaz', (
   assert.deepEqual(yakalanan('Function("return this")();'), ['Function kurucusu']);
   assert.deepEqual(yakalanan("setTimeout('ciz()', 10); setInterval(`x`, 5);"), ['dizeyle zamanlayıcı']);
   assert.deepEqual(yakalanan('const t = Number.parseFloat(girdi);'), ['parseFloat']);
+  // Satırlara bölünmüş yazım da yakalanır ve ifadenin başladığı satırda raporlanır.
+  assert.deepEqual(ihlaller("x();\nsetTimeout(\n  'ciz()',\n  10\n);").map(i => [i.satir, i.yasak.ad]), [[2, 'dizeyle zamanlayıcı']]);
+  assert.deepEqual(ihlaller('const d = document\n  .write(x);').map(i => [i.satir, i.yasak.ad]), [[1, 'document.write']]);
+  assert.deepEqual(ihlaller('const f = x;\nnew Function(\n  kod\n);').map(i => [i.satir, i.yasak.ad]), [[2, 'Function kurucusu']]);
   // Meşru benzerleri: işlev bildirimleri, evaluate, textContent, sayı çevirimi, işlevle zamanlayıcı.
   assert.deepEqual(yakalanan('async function ciz() {} const f = function (x) {}; x.evaluate(); el.textContent = s; Number(v); setTimeout(() => ciz(), 10);'), []);
   assert.deepEqual(yakalanan('typeof x === "function"; o.myFunction(1); o.Function(2);'), []);

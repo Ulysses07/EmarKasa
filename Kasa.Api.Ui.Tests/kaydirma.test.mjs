@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { sikistir } from './css-metni.mjs';
 
 // Kaydırılabilir kapsayıcılar (overflow auto/scroll) klavyeyle kaydırılabilmelidir (WCAG 2.1.1; axe
 // scrollable-region-focusable, ACT 0ssw9k): ya kapsayıcının kendisi odaklanır (tabindex 0, adlı bölge) ya da içinde
 // odaklanan denetim vardır. Düğmenin içinde kaydırma olmaz: düğme içine odaklanan bölge konamaz (iç içe etkileşim).
-const oku = async dosya => (await readFile(new URL(`../Kasa.Api/wwwroot/${dosya}`, import.meta.url), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+// Kaynak, biçimden bağımsız okunmak için yorumsuz, sıkışık yazıma indirilir (css-metni.mjs); seçiciler öyle yazılır.
+const oku = async dosya => sikistir(await readFile(new URL(`../Kasa.Api/wwwroot/${dosya}`, import.meta.url), 'utf8'));
 // Bütün kurallar (medya sorgusu içindekiler dahil): [seçici, { özellik: değer }].
 const kurallar = css => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, secici, govde]) => [secici.trim(),
   Object.fromEntries(govde.split(';').map(p => p.trim()).filter(Boolean).map(p => [p.slice(0, p.indexOf(':')).trim(), p.slice(p.indexOf(':') + 1).trim()]))]);

@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { sikistir } from './css-metni.mjs';
 
 // Web arayüzünün renk çiftleri WCAG 2.2 eşiklerini geçer: metin 4,5:1 (1.4.3), kontrol sınırı ve odak göstergesi 3:1
 // (1.4.11). Değerler masaüstünde styles.css'ten, telefonda m/app.css'ten okunur; var(--x) o dosyanın :root belirteçlerinden
-// çözülür.
+// çözülür. Kaynak, biçimden bağımsız okunmak için sıkışık yazıma indirilir (css-metni.mjs).
 const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function stylesheet(css) {
-  // Medya sorgusu dışındaki (ilk) kuralın bildirimleri; seçici dosyada yazıldığı gibi verilir.
+  // Medya sorgusu dışındaki (ilk) kuralın bildirimleri; seçici sıkışık yazımla (boşluksuz virgül ve birleştirici) verilir.
   const rule = selector => {
     const match = new RegExp(`(?:^|[}\\n])${escape(selector)}\\{([^}]*)\\}`).exec(css);
     assert.ok(match, `${selector} kuralı yok`);
@@ -22,8 +23,8 @@ function stylesheet(css) {
   };
   return { rule, root, color };
 }
-const { rule, root, color } = stylesheet(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8'));
-const mobile = stylesheet(await readFile(new URL('../Kasa.Api/wwwroot/m/app.css', import.meta.url), 'utf8'));
+const { rule, root, color } = stylesheet(sikistir(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8')));
+const mobile = stylesheet(sikistir(await readFile(new URL('../Kasa.Api/wwwroot/m/app.css', import.meta.url), 'utf8')));
 const channel = value => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 const luminance = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b); };
 const ratio = (a, b, resolve = color) => { const [x, y] = [luminance(resolve(a)), luminance(resolve(b))].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
