@@ -59,7 +59,9 @@ while IFS= read -r dosya; do
   case "$dosya" in "$UYGULAMA"/Platforms/*) continue ;; esac
   { cat "$gecici/genel"; anahtarlar "$dosya"; } | sort -u > "$gecici/tanimli"
   case "$dosya" in
-    *.xaml) grep -noE '\{(Static|Dynamic)Resource[[:space:]]+(Key=)?[A-Za-z_][A-Za-z0-9_.]*' "$dosya" \
+    # Anahtar, biçimlendirme sınırlayıcısına (boşluk, virgül ya da }) kadar bütünüyle alınır: geçersiz karakterli bir anahtar
+    # (ör. AppBg-TYPO) geçerli ön ekine (AppBg) kısalıp tanımlı sayılmasın.
+    *.xaml) grep -noE '\{(Static|Dynamic)Resource[[:space:]]+(Key=)?[^[:space:],}]+' "$dosya" \
               | sed -E 's/^([0-9]+):.*Resource[[:space:]]+(Key=)?/\1 /' || true ;;
     *.cs) { grep -noE 'Resources[[:space:]]*\??\[[[:space:]]*"[^"]+"' "$dosya" || true
             grep -noE 'Resources[[:space:]]*\??\.[[:space:]]*(TryGetValue|ContainsKey)[[:space:]]*\([[:space:]]*"[^"]+"' "$dosya" || true
