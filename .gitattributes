@@ -1,0 +1,2 @@
+# Kabuk betikleri Linux'ta (CI, Docker) ve Git Bash'te çalışır: çalışma kopyasında da LF kalır (CRLF ile bash kırılır).
+*.sh text eol=lf

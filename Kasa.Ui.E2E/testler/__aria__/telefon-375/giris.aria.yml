@@ -1,0 +1,11 @@
+- main:
+  - text: Emar Kasa Kasa defteri Kullanıcı adı
+  - textbox "Kullanıcı adı":
+    - /placeholder: İzleyici girişinde boş bırakın
+  - text: Şifre
+  - textbox "Şifre":
+    - /placeholder: ••••••••
+  - button "Giriş yap"
+  - button "Editör şifremi unuttum"
+  - text: İzleyici hesabı kasaları ve raporları görüntüler. Kayıt girişi editör hesabıyla yapılır.
+  - button "Masaüstü görünümüne geç"

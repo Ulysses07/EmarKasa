@@ -1,0 +1,108 @@
+- link "İçeriğe geç":
+  - /url: "#main"
+- alert
+- status
+- complementary:
+  - link "Kasa":
+    - /url: /
+  - navigation "Ana menü":
+    - button "Kasalar"
+    - button "Haftalık kasa"
+    - button "Aylık kasa"
+    - button "İşlemler"
+    - button "Aylık Giderler"
+    - button "Kredi Kartları"
+    - button "Krediler"
+    - button "Alışlar"
+    - button "Ekstre / Hareket Yükle"
+    - button "Bildirimler"
+    - button "Ayarlar"
+  - text: Editör hesabı
+  - button "Çıkış yap"
+- main:
+  - paragraph: Genel kasa gider kayıtları
+  - heading "İşlemler" [level=1]
+  - button "Gider raporu indir"
+  - button "+ Gelir gir"
+  - button "+ Gider kaydet"
+  - text: Başlangıç
+  - textbox "Başlangıç": /\d+-\d+-\d+/
+  - text: Bitiş
+  - textbox "Bitiş": /\d+-\d+-\d+/
+  - text: Kanal
+  - combobox "Kanal":
+    - option "Tüm kanallar" [selected]
+    - option "MEZAT"
+    - option "PERAKENDE"
+    - option "TOPTAN"
+    - option "Ortak"
+    - option "Dağılım bekliyor"
+  - text: Açıklama / ödeme yapılan yer
+  - searchbox "Açıklama / ödeme yapılan yer"
+  - button "Listele"
+  - paragraph: Kanal filtresi ilgili giderin tam tutarını gösterir; çok kanallı bir ödemenin kanal payı toplamı değildir. Alışa bağlı ödemeler alış kaydından düzeltilir.
+  - table:
+    - rowgroup:
+      - row "Tarih Açıklama Kanal Tür Tutar":
+        - columnheader "Tarih"
+        - columnheader "Açıklama"
+        - columnheader "Kanal"
+        - columnheader "Tür"
+        - columnheader "Tutar"
+        - columnheader
+    - rowgroup:
+      - row /2 Eyl \d+ Kargo ve nakliye TOPTAN Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+        - cell /2 Eyl \d+/
+        - cell "Kargo ve nakliye"
+        - cell "TOPTAN"
+        - cell "Diğer gider"
+        - cell /₺\d+\.\d+,\d+/
+        - cell "Düzenle Sil":
+          - button "Düzenle"
+          - button "Sil"
+      - row /5 Eyl \d+ Dükkân kirası Ortak Sabit gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+        - cell /5 Eyl \d+/
+        - cell "Dükkân kirası"
+        - cell "Ortak"
+        - cell "Sabit gider"
+        - cell /₺\d+\.\d+,\d+/
+        - cell "Düzenle Sil":
+          - button "Düzenle"
+          - button "Sil"
+      - row /\d+ Eyl \d+ Ambalaj malzemesi PERAKENDE Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+        - cell /\d+ Eyl \d+/
+        - cell "Ambalaj malzemesi"
+        - cell "PERAKENDE"
+        - cell "Diğer gider"
+        - cell /₺\d+\.\d+,\d+/
+        - cell "Düzenle Sil":
+          - button "Düzenle"
+          - button "Sil"
+      - row /\d+ Eyl \d+ Elektrik faturası MEZAT Sabit gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+        - cell /\d+ Eyl \d+/
+        - cell "Elektrik faturası"
+        - cell "MEZAT"
+        - cell "Sabit gider"
+        - cell /₺\d+\.\d+,\d+/
+        - cell "Düzenle Sil":
+          - button "Düzenle"
+          - button "Sil"
+      - row /\d+ Eyl \d+ Yemek kartı yüklemesi PERAKENDE Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+        - cell /\d+ Eyl \d+/
+        - cell "Yemek kartı yüklemesi"
+        - cell "PERAKENDE"
+        - cell "Diğer gider"
+        - cell /₺\d+\.\d+,\d+/
+        - cell "Düzenle Sil":
+          - button "Düzenle"
+          - button "Sil"
+      - row /\d+ Eyl \d+ Toptancı ödemesi TOPTAN Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+        - cell /\d+ Eyl \d+/
+        - cell "Toptancı ödemesi"
+        - cell "TOPTAN"
+        - cell "Diğer gider"
+        - cell /₺\d+\.\d+,\d+/
+        - cell "Düzenle Sil":
+          - button "Düzenle"
+          - button "Sil"
+  - text: Kasa · Birlikte, hesabı net. Sürüm e2e

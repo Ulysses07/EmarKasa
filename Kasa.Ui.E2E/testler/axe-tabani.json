@@ -1,0 +1,93 @@
+{
+  "masaustu-1280": {
+    "alislar": [],
+    "ana-sayfa": [
+      "scrollable-region-focusable | .cash-total"
+    ],
+    "aylik": [],
+    "gider-penceresi": [],
+    "giris": [],
+    "islemler": [],
+    "kasa-kontrolu": []
+  },
+  "telefon-360": {
+    "aylik": [
+      "color-contrast | .ust-etiket"
+    ],
+    "giris": [
+      "color-contrast | .dipnot",
+      "color-contrast | span"
+    ],
+    "haftalik": [
+      "color-contrast | .aciklama"
+    ],
+    "hizli-islem": [
+      "color-contrast | .hz-bas:nth-child(6)",
+      "color-contrast | .hz-bas:nth-child(8)",
+      "color-contrast | .hz-not",
+      "color-contrast | .sayfa-bas > button:nth-child(1)",
+      "color-contrast | label:nth-child(4)"
+    ],
+    "islemler": [
+      "color-contrast | .alt-yazi",
+      "color-contrast | div:nth-child(1) > .gun-bas > .num",
+      "color-contrast | div:nth-child(1) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(2) > .gun-bas > .num",
+      "color-contrast | div:nth-child(2) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(3) > .gun-bas > .num",
+      "color-contrast | div:nth-child(3) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(4) > .gun-bas > .num",
+      "color-contrast | div:nth-child(4) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(5) > .gun-bas > .num",
+      "color-contrast | div:nth-child(5) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(6) > .gun-bas > .num",
+      "color-contrast | div:nth-child(6) > .gun-bas > span:nth-child(1)"
+    ],
+    "panel": [
+      "color-contrast | .etiket:nth-child(3)",
+      "color-contrast | .etiket:nth-child(5)",
+      "color-contrast | .etiket:nth-child(7)",
+      "color-contrast | section > .ust-etiket"
+    ]
+  },
+  "telefon-375": {
+    "aylik": [
+      "color-contrast | .ust-etiket"
+    ],
+    "giris": [
+      "color-contrast | .dipnot",
+      "color-contrast | span"
+    ],
+    "haftalik": [
+      "color-contrast | .aciklama"
+    ],
+    "hizli-islem": [
+      "color-contrast | .hz-bas:nth-child(6)",
+      "color-contrast | .hz-bas:nth-child(8)",
+      "color-contrast | .hz-not",
+      "color-contrast | .sayfa-bas > button:nth-child(1)",
+      "color-contrast | label:nth-child(4)"
+    ],
+    "islemler": [
+      "color-contrast | .alt-yazi",
+      "color-contrast | div:nth-child(1) > .gun-bas > .num",
+      "color-contrast | div:nth-child(1) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(2) > .gun-bas > .num",
+      "color-contrast | div:nth-child(2) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(3) > .gun-bas > .num",
+      "color-contrast | div:nth-child(3) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(4) > .gun-bas > .num",
+      "color-contrast | div:nth-child(4) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(5) > .gun-bas > .num",
+      "color-contrast | div:nth-child(5) > .gun-bas > span:nth-child(1)",
+      "color-contrast | div:nth-child(6) > .gun-bas > .num",
+      "color-contrast | div:nth-child(6) > .gun-bas > span:nth-child(1)"
+    ],
+    "panel": [
+      "color-contrast | .etiket:nth-child(3)",
+      "color-contrast | .etiket:nth-child(5)",
+      "color-contrast | .etiket:nth-child(7)",
+      "color-contrast | section > .ust-etiket"
+    ]
+  }
+}

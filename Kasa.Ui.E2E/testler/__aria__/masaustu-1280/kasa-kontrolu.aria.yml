@@ -1,0 +1,13 @@
+- dialog "Genel kasa bakiyesini karşılaştır":
+  - heading "Genel kasa bakiyesini karşılaştır" [level=2]
+  - button "Pencereyi kapat": ×
+  - text: Kontrol ettiğiniz gerçek bakiye (₺)
+  - combobox "Kontrol ettiğiniz gerçek bakiye (₺) işareti":
+    - option "Artı (+)" [selected]
+    - option "Eksi (−)"
+  - textbox "Kontrol ettiğiniz gerçek bakiye (₺)"
+  - text: Açıklama
+  - textbox "Açıklama"
+  - paragraph: Şu an kontrol ettiğiniz tutarı girin. Önce farkı göreceksiniz; fark varsa açıklama zorunludur. Bu işlem geçmiş tarihli kayıt veya otomatik düzeltme oluşturmaz.
+  - button "Vazgeç"
+  - button "Farkı göster"

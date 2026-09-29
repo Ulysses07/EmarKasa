@@ -1,0 +1,42 @@
+- link "İçeriğe geç":
+  - /url: "#main"
+- alert
+- status
+- complementary:
+  - link "Kasa":
+    - /url: /
+  - navigation "Ana menü":
+    - button "Kasalar"
+    - button "Haftalık kasa"
+    - button "Aylık kasa"
+    - button "İşlemler"
+    - button "Aylık Giderler"
+    - button "Kredi Kartları"
+    - button "Krediler"
+    - button "Alışlar"
+    - button "Ekstre / Hareket Yükle"
+    - button "Bildirimler"
+    - button "Ayarlar"
+  - text: Editör hesabı
+  - button "Çıkış yap"
+- main:
+  - paragraph: Alış defteri
+  - heading "Alışlar" [level=1]
+  - button "+ Yeni alış"
+  - text: Alış toplamı
+  - strong: /₺\d+\.\d+,\d+/
+  - text: 3 kayıt Ödenmeyi bekleyen
+  - strong: /₺\d+\.\d+,\d+/
+  - text: Tüm açık alışlar İnceleme bekleyen
+  - strong: "1"
+  - text: Editörün onayında
+  - searchbox "Alışlarda ara"
+  - combobox "Alış durumu":
+    - option "Tüm durumlar" [selected]
+    - option "Taslak"
+    - option "İncelemede"
+    - option "Onaylandı"
+  - button /Merkez Kırtasiye, ₺\d+,\d+, Taslak/: "/Merkez Kırtasiye #3 · \\d+ Eyl \\d+ · Editör Taslak ₺\\d+,\\d+ ₺\\d+,\\d+ kalan/"
+  - button /Ege Ambalaj, ₺\d+\.\d+,\d+, İncelemede/: "/Ege Ambalaj #2 · \\d+ Eyl \\d+ · Editör İncelemede ₺\\d+\\.\\d+,\\d+ ₺\\d+\\.\\d+,\\d+ kalan/"
+  - button /Anadolu Toptan Gıda, ₺\d+\.\d+,\d+, Onaylandı/: "/Anadolu Toptan Gıda #1 · \\d+ Eyl \\d+ · Editör Onaylandı ₺\\d+\\.\\d+,\\d+ ₺\\d+\\.\\d+,\\d+ kalan/"
+  - text: Kasa · Birlikte, hesabı net. Sürüm e2e

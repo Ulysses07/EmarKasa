@@ -1,0 +1,77 @@
+- link "İçeriğe geç":
+  - /url: "#main"
+- alert
+- status
+- complementary:
+  - link "Kasa":
+    - /url: /
+  - navigation "Ana menü":
+    - button "Kasalar"
+    - button "Haftalık kasa"
+    - button "Aylık kasa"
+    - button "İşlemler"
+    - button "Aylık Giderler"
+    - button "Kredi Kartları"
+    - button "Krediler"
+    - button "Alışlar"
+    - button "Ekstre / Hareket Yükle"
+    - button "Bildirimler"
+    - button "Ayarlar"
+  - text: Editör hesabı
+  - button "Çıkış yap"
+- main:
+  - paragraph: Genel kasa ve kanal bakiyeleri
+  - heading "Kasalar" [level=1]
+  - button "+ Gelir gir"
+  - button "+ Gider kaydet"
+  - text: Genel kasa
+  - strong: /₺\d+\.\d+,\d+/
+  - text: Bu haftanın sonucu
+  - strong: /₺\d+\.\d+,\d+/
+  - text: Bu ayın sonucu
+  - strong: /₺\d+\.\d+,\d+/
+  - text: Kanal sayısı
+  - strong: "3"
+  - heading "Kanal kasaları" [level=2]
+  - text: "/MEZAT ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ PERAKENDE ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ TOPTAN ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ 0/"
+  - paragraph: Kart borçları kasa bakiyesine dahil edilmez; ödeme kaydedildiğinde kasadan düşer.
+  - heading "Gerçek bakiye karşılaştırmaları" [level=2]
+  - paragraph: Kayıt anındaki genel kasa ile sizin bildirdiğiniz gerçek bakiye karşılaştırılır. Fark otomatik gelir veya gider yazılmaz. Kayıt gününe ya da öncesine sonradan girilen, silinen veya düzeltilen kayıtlar güncel durumu değiştirir; kayıtlı değerler değişmez.
+  - table:
+    - rowgroup:
+      - row "Kayıt zamanı Kayıtlı genel kasa Gerçek bakiye Gerçek − kayıtlı Güncel durum Not":
+        - columnheader "Kayıt zamanı"
+        - columnheader "Kayıtlı genel kasa"
+        - columnheader "Gerçek bakiye"
+        - columnheader "Gerçek − kayıtlı"
+        - columnheader "Güncel durum"
+        - columnheader "Not"
+        - columnheader
+    - rowgroup:
+      - row /\d+\.\d+\.\d+ \d+:\d+:\d+ ₺\d+\.\d+,\d+ ₺\d+\.\d+,\d+ -₺\d+,\d+ Kayıttan sonra değişmedi Akşam sayımında \d+ ₺ eksik\. Değişenleri göster Farkı açıkla/:
+        - cell /\d+\.\d+\.\d+ \d+:\d+:\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /₺\d+\.\d+,\d+/
+        - cell /-₺\d+,\d+/
+        - cell "Kayıttan sonra değişmedi"
+        - cell /Akşam sayımında \d+ ₺ eksik\./
+        - cell "Değişenleri göster Farkı açıkla":
+          - button "Değişenleri göster"
+          - button "Farkı açıkla"
+  - button "Gerçek bakiye ile karşılaştır"
+  - button "Kasa hareket dökümü"
+  - heading "Yaklaşan ve geciken ödemeler" [level=2]
+  - combobox "Yaklaşan ödeme aralığı":
+    - option "7 gün"
+    - option /\d+ gün/ [selected]
+  - text: Toplam kart borcu
+  - strong: /₺\d+,\d+/
+  - text: Kalan kredi planı
+  - strong: /₺\d+,\d+/
+  - paragraph: Bu aralıkta kayıtlı ödeme yok.
+  - paragraph: Yeni kart takibinde kaydedilen kart ödemeleri kasadan düşer; kredi taksitleri kendi tarihinde otomatik işlenir. Eski kayıtlarda geçiş öncesi kasa kuralı korunur. Sabit, ortak ve dağılım bekleyen giderler nedeniyle kanal toplamı genel kasadan farklı olabilir.
+  - heading "Alışlar" [level=2]
+  - button "Alışları aç"
+  - paragraph: 1 alış inceleme bekliyor. Malları ve kanal paylarını kontrol ederek onaylayabilirsiniz.
+  - button /Ege Ambalaj, ₺\d+\.\d+,\d+, İncelemede/: "/Ege Ambalaj #2 · \\d+ Eyl \\d+ · Editör İncelemede ₺\\d+\\.\\d+,\\d+ ₺\\d+\\.\\d+,\\d+ kalan/"
+  - text: Kasa · Birlikte, hesabı net. Sürüm e2e

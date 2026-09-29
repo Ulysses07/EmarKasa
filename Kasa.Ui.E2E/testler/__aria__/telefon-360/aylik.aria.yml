@@ -1,0 +1,13 @@
+- banner:
+  - heading "Aylık" [level=1]
+- main:
+  - button "Önceki ay" [disabled]
+  - text: /Eylül \d+ Açık ay · rakamlar değişebilir/
+  - button "Sonraki ay" [disabled]
+  - text: /Ay sonucu · tüm kanallar \+\d+\.\d+,\d+ ₺ Gelen \d+\.\d+,\d+ ₺ · Gider \d+\.\d+,\d+ ₺ MEZAT \+\d+\.\d+,\d+ ₺ Gelen \d+\.\d+,\d+ ₺ Diğer gider \d+,\d+ ₺ Sabit gider \d+\.\d+,\d+ ₺ Kredi kartı \d+,\d+ ₺ Ortak pay \d+\.\d+,\d+ ₺ PERAKENDE \+\d+\.\d+,\d+ ₺ Gelen \d+\.\d+,\d+ ₺ Diğer gider \d+\.\d+,\d+ ₺ Sabit gider \d+,\d+ ₺ Kredi kartı \d+,\d+ ₺ Ortak pay \d+\.\d+,\d+ ₺ TOPTAN \+\d+\.\d+,\d+ ₺ Gelen \d+\.\d+,\d+ ₺ Diğer gider \d+\.\d+,\d+ ₺ Sabit gider \d+,\d+ ₺ Kredi kartı \d+,\d+ ₺ Ortak pay \d+\.\d+,\d+ ₺/
+- navigation "Ana menü":
+  - button "Panel"
+  - button "Haftalık"
+  - button "Aylık"
+  - button "İşlemler"
+  - button "Diğer"
