@@ -1,4 +1,6 @@
+using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Microsoft.EntityFrameworkCore;
 using static Kasa.Api.AylikGiderEndpoints;
 
@@ -14,14 +16,32 @@ public static class AyKilidiEndpoints
     public static WebApplication MapAyKilidiEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api/ay-kilidi").RequireAuthorization("Finans");
-        api.MapGet("", (KasaDbContext db) => Run(db, () => Results.Ok(Read(db))));
-        api.MapPost("/kapat", (AyKilidiYaz d, KasaDbContext db) => Change(db, d, false)).RequireAuthorization("Editor");
-        api.MapPost("/ac", (AyKilidiYaz d, KasaDbContext db) => Change(db, d, true)).RequireAuthorization("Editor");
+        // Okuma: kilit durumu ve geçmişi aynı salt okunur anlık görüntüden; yazma kilidi alınmaz.
+        api.MapGet("", (KasaDbContext db) => AlisEndpoints.Oku(db, () => Results.Ok(Read(db))));
+        api.MapPost("/kapat", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat, GuvenlikGunlugu gunluk) => Change(db, saat, gunluk, d, false)).RequireAuthorization("Editor");
+        api.MapPost("/ac", (AyKilidiYaz d, KasaDbContext db, TimeProvider saat, GuvenlikGunlugu gunluk) => Change(db, saat, gunluk, d, true)).RequireAuthorization("Editor");
         return app;
     }
-    private static IResult Change(KasaDbContext db, AyKilidiYaz d, bool reopen) => Run(db, () =>
+    /// <summary>Kilit kararı commit edildikten sonra veritabanı dışındaki güvenlik günlüğüne de yazılır (önceki ve yeni kilitli son tarih,
+    /// açıklamanın başı); tekrar isteği ve reddedilen istek yazılmaz.</summary>
+    private static IResult Change(KasaDbContext db, TimeProvider saat, GuvenlikGunlugu gunluk, AyKilidiYaz d, bool reopen)
+    {
+        (DateOnly? Onceki, DateOnly? Yeni, string Aciklama)? degisim = null;
+        var sonuc = Change(db, saat, d, reopen, (o, y, a) => degisim = (o, y, a));
+        if (degisim is { } g && sonuc is not IStatusCodeHttpResult { StatusCode: >= 400 })
+            gunluk.Yaz(reopen ? GuvenlikGunlugu.AyKilidiAcildi : GuvenlikGunlugu.AyKilidiKapatildi, ayrinti: new
+            {
+                onceki = g.Onceki?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                yeni = g.Yeni?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                aciklama = g.Aciklama.Length > 200 ? g.Aciklama[..200] : g.Aciklama,
+            });
+        return sonuc;
+    }
+    private static IResult Change(KasaDbContext db, TimeProvider saat, AyKilidiYaz d, bool reopen, Action<DateOnly?, DateOnly?, string> degisti) => Run(db, () =>
     {
         Text(d.Aciklama); var month = Month(d.Yil, d.Ay);
+        // Kapatmadan önceki bakım (Sync) değişiklikleri de bu isteğin gerekçesini ve kimliğini taşır.
+        using var denetim = db.Denetle(d.Aciklama, d.IstekId);
         var kind = reopen ? "AyKilidiAc" : "AyKilidiKapat";
         var digest = FinansHesaplari.Ozet(new { d.Yil, d.Ay, d.Aciklama });
         if (FinansHesaplari.Tekrar(db, d.IstekId, kind, digest, _ => Results.Ok(Read(db))) is { } replay) return replay;
@@ -36,16 +56,33 @@ public static class AyKilidiEndpoints
         else
         {
             var end = month.AddMonths(1).AddDays(-1);
-            var today = FinansTakipServisi.Bugun;
+            var today = saat.IstanbulBugun();
             Need(month < new DateOnly(today.Year, today.Month, 1), "Yalnız tamamlanmış bir ay kapatılabilir.");
             Need(end >= db.Ayarlar.Select(a => a.TakipBaslangic).First(), "Takip başlangıcından önceki ay kapatılamaz.");
             Need(state.KilitliSonTarih is null || end > state.KilitliSonTarih, "Seçilen ay zaten kilitli.", 409);
             // Mevcut giderlerin takip bağları kilit sınırı konmadan tamamlanır.
             FinansTakipServisi.Sync(db); next = end;
         }
-        db.AyKilidiOlaylar.Add(new() { OncekiSonTarih = state.KilitliSonTarih, YeniSonTarih = next, Aciklama = d.Aciklama.Trim(), Zaman = DateTimeOffset.UtcNow });
+        var previous = state.KilitliSonTarih; var now = saat.GetUtcNow();
+        // Kapatma, yeniden kilitlediği aralıkla kesişen açılış pencerelerini kapatır (kilit sınırı değişmeden okunur).
+        IReadOnlyList<int> kapatilan = reopen ? [] : DenetimKilitPenceresi.Oku(db).Kesisen(DenetimKilitPenceresi.Sonraki(previous), next!.Value);
+        var olay = new AyKilidiOlayEntity { OncekiSonTarih = previous, YeniSonTarih = next, Aciklama = d.Aciklama.Trim(), Zaman = now };
+        db.AyKilidiOlaylar.Add(olay);
         state.KilitliSonTarih = next; state.Surum++;
         FinansHesaplari.IstekKaydet(db, d.IstekId, kind, digest, state.Id); db.SaveChanges();
+        // Açma/kapatma merkezi denetim olayıdır: açma, penceresine düşecek değişikliklerin bağlanacağı kimliği (olay.Id) açar.
+        KancaDisiOlaylar.AyKilidi(db, olay, reopen, kapatilan, d.IstekId);
+        // Aynı transaction'da, yeni kilit sınırı kaydedildikten sonra: kapatılan ayların kanal kümesi (Ortak dağılımı ve rapor
+        // satırları; bkz. AyKanalKumesi) ve raporu dondurulur, açılanların rapor görüntüsü silinir (görüntü yalnız kilitli ay için
+        // bulunabilir; bkz. AyRaporAnlikGoruntusu). Kanal kümesi açılışta silinmez: açılan ay kendi kümesiyle hesaplanır.
+        if (reopen) AyRaporAnlikGoruntusu.KilidiAcildi(db, next);
+        else
+        {
+            AyKanalKumesi.AyKapanirken(db, next!.Value, now);
+            AyRaporAnlikGoruntusu.Kilitlendi(db, previous, next.Value, now);
+        }
+        db.SaveChanges();
+        degisti(previous, next, olay.Aciklama);
         return Results.Ok(Read(db));
     });
     private static AyKilidiDto Read(KasaDbContext db)

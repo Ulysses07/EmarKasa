@@ -16,9 +16,14 @@ public static class AyKilidiKurallari
     {
         // Dondurulmuş eski şema testleri/bridge aşaması kilit tablosundan öncedir.
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='AyKilidi'").Single() == 0) return;
-        var entries = db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
+        // Kanal adı değişikliğinin etiket senkronu (yalnız Kanal metni kanalın güncel adına eşitlenen gider/kredi) mali değişiklik
+        // değildir: kaynak kurallarına ve dönem kilidine girmez (KanalKurallari).
+        var entries = KanalKurallari.EtiketSenkronuHaric(db,
+            db.ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList());
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='EkstreKayitlar'").Single() != 0)
             EkstreKaynakKurallari.Dogrula(db, entries);
+        // Tamamlanmış ayın kanal kümesi (kilit olmasa da) değişmez ve kümedeki kanal silinmez (AyKanalKumesi).
+        AyKanalKumesi.Dogrula(db, entries);
         foreach (var e in entries)
         {
             if (e.Entity is KanalEntity channel && e.State == EntityState.Deleted && db.AylikGiderRevizyonlar.AsNoTracking().AsEnumerable()
@@ -31,13 +36,20 @@ public static class AyKilidiKurallari
                 throw new KilitliDonemException("Aylık gider ödemesi başka bir alışa bağlanamaz.");
         }
         var until = db.AyKilidi.AsNoTracking().Select(k => k.KilitliSonTarih).Single();
+        // Kilitli ay rapor görüntüsü (K4) değiştirilemez: hiç güncellenmez, yalnız kilitli ay için eklenir ve kilitli ayınki
+        // silinmez (önce kilit açılır). Ay kapatılırken/açılırken görüntü, kilit sınırı kaydedildikten sonra yazılır/silinir.
+        foreach (var e in entries)
+            if (e.Entity is AyRaporAnlikGoruntuEntity g)
+            {
+                var kilitli = until is { } son && AyRaporAnlikGoruntusu.AySonu(g.Yil, g.Ay) <= son;
+                if (e.State == EntityState.Modified || e.State == EntityState.Added && !kilitli || e.State == EntityState.Deleted && kilitli)
+                    throw new KilitliDonemException("Kilitli ayın dondurulmuş raporu değiştirilemez; yalnız ay kapatılırken yazılır ve ay açılınca silinir.");
+            }
         if (until is not { } end) return;
 
         bool DateLocked(EntityEntry e, string property) => e.CurrentValues[property] is DateOnly date && date <= end
             || e.State != EntityState.Added && e.OriginalValues[property] is DateOnly old && old <= end;
         bool Changed(EntityEntry e, params string[] properties) => e.State != EntityState.Modified || properties.Any(p => e.Property(p).IsModified);
-        bool CardFrozenAdvance(int card) => db.TakipKartOdemeler.AsNoTracking().Where(p => p.KrediKartiId == card && !p.Iptal && p.Tarih <= end).AsEnumerable()
-            .Any(p => FinansTakipServisi.Read<KartTaksitPayi>(p.PaylarJson).Any(x => x.TaksitId == 0 && x.Tutar > 0));
         bool ChargePaidBefore(int charge)
         {
             var taxes = db.TakipKartTaksitler.Where(t => t.HarcamaId == charge).Select(t => t.Id).ToHashSet();
@@ -56,27 +68,34 @@ public static class AyKilidiKurallari
             return link is not null && db.AlisOdemeler.Any(p => p.AlisId == link.AlisId && p.Id > link.Id && p.Islem.Tarih <= end);
         }
 
+        // Kanal: tamamlanmış ayların kanal kümesi değişiklikten önce dondurulduğundan (AyKanalKumesi) kilitli dönemi yalnız açılış
+        // devri etkiler; ekleme, ad, aktiflik ve sıra serbesttir (KanalKurallari).
+        if (KanalKurallari.KilitIhlali(entries.Where(e => e.Entity is KanalEntity).ToList(), end) is { } kanalIletisi)
+            throw new KilitliDonemException(kanalIletisi);
         foreach (var e in entries)
         {
             bool blocked = e.Entity switch
             {
-                IslemEntity i => DateLocked(e, nameof(i.Tarih)) || i.KrediKartiId is { } card && e.State == EntityState.Added && CardFrozenAdvance(card)
+                // Kilitli döneme düşen kart avansı yeni harcamayı engellemez: avans kilit sonrası tarihli ayrı dağıtım
+                // kaydıyla bağlanır, kilitli ödemenin payları değişmez (finance-8, FinansTakipServisi.AvanslariDagit).
+                IslemEntity i => DateLocked(e, nameof(i.Tarih))
                     || e.State != EntityState.Added && Changed(e, "TutarTl", "Tarih", "Kanal", "KanalId", "Tip", "KrediKartiId") && ExpenseChangesLaterClosedPurchasePayment(i),
                 GelenEntity g => DateLocked(e, nameof(g.DonemStart)),
                 KartOdemeEntity p => DateLocked(e, nameof(p.Tarih)),
                 AylikGiderOdemeEntity p => DateLocked(e, nameof(p.Tarih)) || DateLocked(e, nameof(p.Ay)),
                 AylikGiderRevizyonEntity r => e.State != EntityState.Added || DateLocked(e, nameof(r.GecerliAy)),
-                KanalEntity => Changed(e, "Ad", "Aktif", "Sira", "AcilisDevri"),
                 AyarEntity => Changed(e, "TakipBaslangic", "KasaAcilisDevri"),
                 KrediEntity k => !(e.State == EntityState.Added && db.GecmisEtkisizKrediOlusturma) && DateLocked(e, nameof(k.CekimTarihi)) && Changed(e, "CekilenTutar", "CekimTarihi", "TaksitSayisi", "AylikOdeme", "OdemeGunu", "Kanal", "KanalId", "GerceklesmeTakibi"),
                 KrediKartiEntity => e.State == EntityState.Deleted || e.State == EntityState.Modified && Changed(e, "Borc"),
                 TakipKartOdemeEntity p => DateLocked(e, nameof(p.Tarih)) || e.State != EntityState.Added
                     && db.TakipKartOdemeler.Any(later => later.KrediKartiId == p.KrediKartiId && later.Id > p.Id && !later.Iptal && later.Tarih <= end),
-                TakipHarcamaEntity h => DateLocked(e, nameof(h.Tarih)) || e.State == EntityState.Added && CardFrozenAdvance(h.KrediKartiId)
+                TakipHarcamaEntity h => DateLocked(e, nameof(h.Tarih))
                     || h.KaynakHarcamaId is { } source && ChargePaidBefore(source)
                     || e.State != EntityState.Added && ChargePaidBefore(h.Id),
+                // İade hesabı ve avans dağıtımı bağı yalnız eklenir (iade/dağıtım kaydıyla birlikte, kilit sonrası tarihte).
+                TakipIadeHesabiEntity or TakipAvansTahsisEntity => e.State != EntityState.Added,
                 TakipKartTaksitEntity t => e.State != EntityState.Added && db.TakipHarcamalar.Any(h => h.Id == t.HarcamaId && h.Tarih <= end),
-                TakipKartEntity t => Changed(e, "Baslangic", "EskiKayit") && DateLocked(e, nameof(t.Baslangic)),
+                TakipKartEntity t => Changed(e, "Baslangic", "EskiKayit", "EskiDusumKurali") && DateLocked(e, nameof(t.Baslangic)),
                 TakipKrediEntity t => Changed(e, "Baslangic", "MevcutKredi", "EskiKayit", "KanalIdleriJson", "CekimPaylariJson") && DateLocked(e, nameof(t.Baslangic)),
                 TakipKrediTaksitEntity t => DateLocked(e, nameof(t.Tarih)) && Changed(e, "Tarih", "Tutar", "Iptal", "DagilimJson", "KrediId"),
                 KrediTaksitOdemeEntity p => db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end),
@@ -87,7 +106,19 @@ public static class AyKilidiKurallari
                 AlisEntity a => Changed(e, "Durum", "Tarih") && PurchaseLocked(a.Id),
                 AlisKalemEntity k => PurchaseLocked(k.AlisId),
                 AlisDagilimEntity d => PurchaseLocked(db.AlisKalemler.Where(k => k.Id == d.AlisKalemId).Select(k => k.AlisId).FirstOrDefault()),
-                AlisOdemeEntity p => e.State != EntityState.Added && PurchaseLocked(p.AlisId) || db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end),
+                // Başka alışa taşınan kart ödemesinin (gap-coklu-giris-cift-sayim-mutabakat-5) harcaması kilitli dönemde bir kart
+                // ödemesiyle ödendiyse o ödemenin kanal payı yeni alışın dağılımına geçerdi. Kaynağın sonraki ödemeleri taşıma kilidinde
+                // (AlisOdemeIslemleri.TasimaKilidi), hedefinki burada (PurchaseLocked) denetlenir.
+                AlisOdemeEntity p => e.State != EntityState.Added && PurchaseLocked(p.AlisId) || db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end)
+                    || e.State == EntityState.Modified && db.TakipHarcamalar.Where(h => h.IslemId == p.IslemId).Select(h => h.Id).ToList().Any(ChargePaidBefore),
+                // Kilitli dönem alışının belgesi (kanıt) kaldırılamaz, ödemeye bağlı olmayan belgesi başka alışa ya da ödemeye taşınamaz;
+                // yeni belge eklenebilir. Ödemeye bağlı belge ödemesiyle birlikte taşınır: o taşımanın kilidi ödeme kuralındadır
+                // (AlisOdemeIslemleri.TasimaKilidi).
+                BelgeEntity b => e.State == EntityState.Deleted && PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!)
+                    || e.State == EntityState.Modified
+                        && (e.Property(nameof(b.Silindi)).IsModified && PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!)
+                            || (e.Property(nameof(b.AlisId)).IsModified || e.Property(nameof(b.OdemeId)).IsModified) && e.OriginalValues[nameof(b.OdemeId)] is null
+                                && (PurchaseLocked((int)e.OriginalValues[nameof(b.AlisId)]!) || PurchaseLocked(b.AlisId))),
                 _ => false
             };
             if (blocked) Fail(end);

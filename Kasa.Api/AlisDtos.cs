@@ -1,3 +1,5 @@
+using Kasa.Core;
+
 namespace Kasa.Api;
 
 public record AlisKanalDto(int Id, string Ad, bool Aktif);
@@ -5,12 +7,39 @@ public record AliciDto(int Id, string Kullanici, string Ad, bool Aktif);
 public record AliciYaz(string Kullanici, string Ad, string? Sifre, bool Aktif = true);
 public record AlisDagilimYaz(int KanalId, decimal Tutar);
 public record AlisKalemYaz(string Aciklama, decimal Tutar, IReadOnlyList<AlisDagilimYaz> Dagilimlar, decimal? Miktar = null, decimal? BirimFiyat = null);
-public record AlisYaz(int Surum, DateOnly Tarih, string Tedarikci, string? Not, IReadOnlyList<AlisKalemYaz> Kalemler, int? TedarikciId = null, DateOnly? Vade = null);
+/// <param name="IstekId">Yalnız oluşturmada (POST) tekrar anahtarı: aynı kimlik ve aynı içerik ilk alışı döndürür. Eski istemci
+/// göndermez (null): her istek yeni taslaktır. Düzenlemede (PUT) yok sayılır.</param>
+public record AlisYaz(int Surum, DateOnly Tarih, string Tedarikci, string? Not, IReadOnlyList<AlisKalemYaz> Kalemler, int? TedarikciId = null, DateOnly? Vade = null, Guid? IstekId = null);
 public record AlisDurumYaz(int Surum, string? Not = null);
 public record AlisDagilimDto(int KanalId, string Kanal, decimal Tutar);
 public record AlisKalemDto(int Id, string Aciklama, decimal Tutar, IReadOnlyList<AlisDagilimDto> Dagilimlar, decimal? Miktar = null, decimal? BirimFiyat = null);
-public record AlisOdemeDto(int Id, int IslemId, DateOnly Tarih, decimal Tutar, int? KrediKartiId, bool DagilimBekliyor, IReadOnlyList<AlisDagilimDto> Dagilimlar, int? HesapId = null, string? KrediKartiAdi = null);
+/// <param name="EskiKartHarcamasi">Bağlı gider kartsız eski kredi kartı harcaması (tip KrediKarti, kart yok): kart seçilmeden
+/// yapılan düzeltmede bu tip korunur. Eski sunucu göndermez (false).</param>
+public record AlisOdemeDto(int Id, int IslemId, DateOnly Tarih, decimal Tutar, int? KrediKartiId, bool DagilimBekliyor, IReadOnlyList<AlisDagilimDto> Dagilimlar, int? HesapId = null, string? KrediKartiAdi = null, bool EskiKartHarcamasi = false);
 public record AlisDto(int Id, int Surum, int? AliciId, string Alici, DateOnly Tarih, string Tedarikci, string? Not, string Durum, string? EditorNotu, decimal Toplam, decimal Odenen, decimal Kalan, IReadOnlyList<AlisKalemDto> Kalemler, IReadOnlyList<AlisOdemeDto> Odemeler, int? TedarikciId = null, DateOnly? Vade = null);
-public record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null);
+/// <param name="MevcutKartHarcamaId">Takipli kartla ödemede, kart harcaması önceden (ekstreden ya da elle) gidersiz girilmişse o
+/// harcama: yeni harcama üretilmez, ödeme ona bağlanır (tarih, tutar ve kart harcamayla aynı olmalı). MevcutIslemId ile birlikte
+/// gönderilmez. Eski istemci göndermez (null).</param>
+/// <param name="TaksitSayisi">Yeni takipteki kartla yeni ödemede kart harcamasının taksit sayısı (1–60); boşsa tek taksit
+/// (gap-coklu-giris-cift-sayim-mutabakat-6). Mevcut gider ya da kart harcaması bağlanırken gönderilmez. Eski istemci göndermez.</param>
+/// <param name="IlkKesimTarihi">İsteğe bağlı: ilk taksidin girdiği ekstrenin kesim tarihi (kartın kesim gününe en çok 7 gün uzak,
+/// ödeme tarihinden önce değil). Yalnız yeni takipteki kartla yeni ödemede.</param>
+public record AlisOdemeYaz(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, int? MevcutIslemId = null, string? Not = null, int? HesapId = null, int? MevcutKartHarcamaId = null,
+    int? TaksitSayisi = null, DateOnly? IlkKesimTarihi = null);
 public record AlisOdemeDuzelt(int Surum, Guid IstekId, DateOnly Tarih, decimal Tutar, string Aciklama, int? KrediKartiId = null, int? HesapId = null, int? HedefAlisId = null, int? HedefSurum = null);
-public record AlisOdemeIptal(int Surum, Guid IstekId, string Aciklama);
+/// <param name="KanalDagilimlari">Yalnız kart takibindeki ödemede (gap-coklu-giris-cift-sayim-mutabakat-5): verilirse ödeme alıştan
+/// AYRILIR; kart harcaması ve gideri alıştan bağımsız kart gideri olarak bu gerçek kanal paylarıyla (toplamı ödeme tutarı) kalır.
+/// Verilmezse (eski istemci de) harcama ödenmemişse harcama, taksitleri ve gider birlikte kalkar; ödenmişse 409.</param>
+public record AlisOdemeIptal(int Surum, Guid IstekId, string Aciklama, IReadOnlyList<AlisDagilimYaz>? KanalDagilimlari = null);
+/// <summary>GET /api/alis/baglanabilir-giderler sayfası: tarih ve kimlik azalan sırada; <see cref="SonrakiImlec"/> bir sonraki
+/// sayfanın imlecidir (son sayfada null, <see cref="DevamVar"/> false).</summary>
+public record BaglanabilirGiderSayfasi(IReadOnlyList<BaglanabilirGiderDto> Ogeler, string? SonrakiImlec, bool DevamVar);
+/// <summary>Ödemeye bağlanabilir gider: ödeme formunun mevcut gideri seçip tarih, tutar ve kartı doldurması için gereken alanlar.
+/// <paramref name="EkstreKayitId"/>: gider banka ekstresinden geldiyse kaynak satır (bağlanınca satır eşleşmeye döner); eski sunucu
+/// göndermez (null).</summary>
+public record BaglanabilirGiderDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, int? KanalId, GiderTipi Tip, string? Not, int? KrediKartiId, int? EkstreKayitId = null);
+/// <summary>GET /api/alis/baglanabilir-kart-harcamalari: takipli kartla ödemede bağlanabilecek, gidere bağlı olmayan kart harcaması
+/// (ters sıra: ekstre önce işlenmiş). <paramref name="EkstreKayitId"/> harcamayı üreten ekstre satırı.</summary>
+public record BaglanabilirKartHarcamasiDto(int Id, int KrediKartiId, DateOnly Tarih, string Aciklama, decimal Tutar, int? EkstreKayitId = null);
+/// <summary>GET /api/alis/inceleme-ozeti: inceleme bekleyen alışların sayısı ve en yenileri (GET /api/alis sırasıyla).</summary>
+public record AlisIncelemeOzetiDto(int Sayi, IReadOnlyList<AlisDto> Ogeler);

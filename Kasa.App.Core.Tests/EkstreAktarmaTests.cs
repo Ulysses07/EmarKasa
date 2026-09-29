@@ -84,6 +84,21 @@ public class EkstreAktarmaTests
         var (vm, api, _) = await Hazir(); var s = vm.Satirlar[0]; s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel"); s.Secili = true; s.TarihMetni = tarih; s.TutarMetni = tutar;
         await vm.OnizleCommand.ExecuteAsync(null); Assert.Equal(0, api.OnizlemeSayisi); Assert.Contains("Satır 1", vm.Hata);
     }
+    [Theory] [InlineData("1.500")] [InlineData("25.000")] [InlineData("1.234,56")] [InlineData("1,234.56")]
+    public void Gruplanmis_satir_tutari_ondalik_sanilmaz_hata_verir(string tutar)
+    {
+        var b = Belge(); var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [], () => { }); Sec(row);
+        row.TutarMetni = tutar;
+        var hata = Assert.Throws<KasaApiException>(() => row.Yaz());
+        Assert.StartsWith("Satır 1: ", hata.Message); Assert.Contains("binlik", hata.Message);
+    }
+    [Theory] [InlineData("1500,00", "1500")] [InlineData("1500.5", "1500.5")] [InlineData("100,00", "100")]
+    public void Gruplanmamis_satir_tutari_okunur(string metin, string beklenen)
+    {
+        var b = Belge(); var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [], () => { }); Sec(row);
+        row.TutarMetni = metin;
+        Assert.Equal(decimal.Parse(beklenen, System.Globalization.CultureInfo.InvariantCulture), row.Yaz().Tutar);
+    }
     [Fact] public async Task Aktif_kayitli_satir_secilemez_iptal_edilmis_satir_secilir()
     {
         var k = new EkstreKayitDto(7, 1, Tarih, "Eski", 100, "Gider", "Genel", [], null, 5, null, null, false);
@@ -96,6 +111,34 @@ public class EkstreAktarmaTests
         var (vm, api, auth) = await Hazir(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana"; var secim = vm.YuklemeSecimi()!;
         vm.Banka = vm.Bankalar[1]; await vm.PdfYukleAsync([1], "a.pdf", secim); Assert.Equal(0, api.YuklemeSayisi);
         vm.Banka = vm.Bankalar[0]; auth.OturumSurumu++; await vm.PdfYukleAsync([1], "a.pdf", secim); Assert.Equal(0, api.YuklemeSayisi);
+    }
+    // maui-8: EkstreAktarmaPage.PdfSecAsync mantığı (yalnız PDF, 10 MB sınırı, seçim/okuma sırasında oturum koruması, okuma
+    // hatası) EkstreAktarmaViewModel.PdfSecVeYukleAsync'te; sayfa yalnız dosya seçiciyi açar.
+    private static Func<Task<SecilenDosya?>> Secici(string ad, byte[] icerik, Action? secerken = null)
+        => () => { secerken?.Invoke(); return Task.FromResult<SecilenDosya?>(new(ad, () => Task.FromResult<Stream>(new MemoryStream(icerik)))); };
+    [Fact] public async Task Pdf_secimi_yalniz_pdf_ve_10_mb_sinirini_kabul_eder_okuma_hatasini_gosterir()
+    {
+        var (vm, api, _) = await Hazir(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana";
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("ekstre.png", [1]));
+        Assert.Equal("Yalnız PDF dosyası seçin.", vm.Hata); Assert.Equal(0, api.YuklemeSayisi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("buyuk.pdf", new byte[DosyaSecimKurallari.EnFazlaBayt + 1]));
+        Assert.Equal("PDF en fazla 10 MB olabilir.", vm.Hata); Assert.Equal(0, api.YuklemeSayisi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, () => Task.FromException<SecilenDosya?>(new IOException()));
+        Assert.Equal("PDF okunamadı. Dosyayı kontrol edip yeniden seçin.", vm.Hata);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, () => Task.FromResult<SecilenDosya?>(null));   // seçiciden vazgeçildi
+        Assert.Equal(0, api.YuklemeSayisi);
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("EKSTRE.PDF", [1, 2, 3]));
+        Assert.Equal(1, api.YuklemeSayisi); Assert.Equal((3, "EKSTRE.PDF"), (api.SonYukleme!.Value.Boyut, api.SonYukleme.Value.Ad)); Assert.Null(vm.Hata);
+    }
+    [Fact] public async Task Pdf_secilirken_oturum_degisirse_yuklenmez_ve_hata_yazilmaz()
+    {
+        var (vm, api, auth) = await Hazir(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana";
+        await vm.PdfSecVeYukleAsync(vm.YuklemeSecimi()!, Secici("a.pdf", [1], () => auth.OturumSurumu++));
+        Assert.Equal(0, api.YuklemeSayisi); Assert.Null(vm.Hata);
+        await vm.YukleAsync(); vm.Kaynak = vm.Kaynaklar[1]; vm.Banka = vm.Bankalar[0]; vm.HesapAdi = "Ana";   // yeni oturumda yeniden
+        var secim = vm.YuklemeSecimi()!;
+        await vm.PdfSecVeYukleAsync(secim, () => { auth.OturumSurumu++; return Task.FromException<SecilenDosya?>(new IOException()); });
+        Assert.Null(vm.Hata);                                                           // eski oturumun okuma hatası yeni oturuma yazılmaz
     }
     [Fact] public async Task Iptal_onayinda_eski_oturum_ve_eski_belge_satiri_gonderilmez()
     {
@@ -157,10 +200,52 @@ public class EkstreAktarmaTests
         public Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null) { ListeSayisi++; SonBeforeId = beforeId; return Task.FromResult(beforeId is null ? Liste : EskiListe); }
         public Task<EkstreBelgeDto> EkstreBelgeAsync(int id) { BelgeSayisi++; return Task.FromResult(Veri); }
         public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) { KaynakId = kayitId; return KaynakYaniti ?? Task.FromResult(Veri); }
-        public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default) { YuklemeSayisi++; return Task.FromResult(Veri); }
-        public Task<IndirilenDosya> EkstreDosyaAsync(int id) => Task.FromResult(new IndirilenDosya([1], "belge.pdf", "application/pdf"));
+        public (int Boyut, string Ad)? SonYukleme;
+        public Task<EkstreBelgeDto> EkstreYukleAsync(byte[] b, string ad, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken ct = default) { YuklemeSayisi++; SonYukleme = (b.Length, ad); return Task.FromResult(Veri); }
+        public async Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken ct = default) { await hedef.WriteAsync(new byte[] { 1 }, ct); return new("belge.pdf", "application/pdf", 1); }
         public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) { OnizlemeSayisi++; return OnizlemeYaniti ?? Task.FromResult(new EkstreOnizlemeDto("ozet", -g.Satirlar.Sum(s => s.Tutar), g.Satirlar.Select(s => new EkstreSatirOnizleme(s.SatirNo, s.Tarih, s.Aciklama, s.Tutar, s.IslemTuru, -s.Tutar, [], [])).ToArray(), [], TekrarGerekli)); }
         public Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g) { KaydetIstekleri.Add(g); if (KaydetHata) throw new HttpRequestException(); return KayitYaniti ?? Task.FromResult(Veri with { Surum = Veri.Surum + 1 }); }
         public Task<EkstreBelgeDto> EkstreKayitIptalAsync(int id, int kayitId, EkstreIptalYaz g) { IptalSayisi++; return Task.FromResult(Veri); }
+        public IReadOnlyList<EkstreEslesmeAdayiDto> Adaylar = []; public List<(int Id, EkstreEslesmeAdayiSorgu Sorgu)> AdaySorgulari = [];
+        public Task<IReadOnlyList<EkstreEslesmeAdayiDto>> EkstreEslesmeAdaylariAsync(int id, EkstreEslesmeAdayiSorgu g) { AdaySorgulari.Add((id, g)); return Task.FromResult(Adaylar); }
+    }
+    // gap-coklu-giris-cift-sayim-mutabakat-1: 'Mevcut kayıtla eşleştir' satırı kanal dağılımı istemez, adayı seçilmeden yazılmaz;
+    // adaylar satırın (düzenlenmiş) tarih ve tutarıyla sorulur, bu değerler değişince seçim kalkar.
+    [Fact] public async Task Eslestir_satiri_aday_secilmeden_yazilmaz_secilince_hedefi_tasir()
+    {
+        var aday = new EkstreEslesmeAdayiDto("Gider", 42, Tarih.AddDays(-1), 100m, "Kargo", null, "MEZAT", 3);
+        var (vm, api, _) = await Hazir(new() { Adaylar = [aday] }); var s = vm.Satirlar[0];
+        s.IslemTuru = s.IslemTurleri.Single(x => x.Kod == "Eslestir"); s.Secili = true;
+        Assert.True(s.EslesmeMi); Assert.False(s.DagilimGorunur);
+        Assert.Contains("mevcut kaydı seçin", Assert.Throws<KasaApiException>(() => s.Yaz()).Message);
+        await vm.OnizleCommand.ExecuteAsync(null); Assert.Equal(0, api.OnizlemeSayisi);
+
+        vm.SeciliSatir = s; await vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null);
+        Assert.Equal((1, new EkstreEslesmeAdayiSorgu(Tarih, 100m)), Assert.Single(api.AdaySorgulari));
+        s.SeciliAday = Assert.Single(s.EslesmeAdaylari);
+        Assert.Contains("Gider #42", s.SeciliAday.Baslik); Assert.Contains("Alış #3", s.SeciliAday.Baslik);
+        var g = s.Yaz();
+        Assert.Equal(("Eslestir", "Eslesme", "Gider", (int?)42, (int?)null), (g.IslemTuru, g.DagilimTuru, g.EslesenKayitTuru, g.EslesenKayitId, g.KrediKartiId));
+        Assert.Empty(g.Dagilimlar);
+        await vm.OnizleCommand.ExecuteAsync(null); Assert.Contains("kasa ve kart borcu değişmez", vm.OnizlemeMetni);
+
+        // Tutar değişince adaylar yeniden sorulmalı; türden çıkınca bağ gönderilmez.
+        s.TutarMetni = "90"; Assert.Null(s.SeciliAday); Assert.Empty(s.EslesmeAdaylari);
+        s.IslemTuru = s.IslemTurleri.Single(x => x.Kod == "Gider"); s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
+        Assert.Null(s.Yaz().EslesenKayitTuru);
+    }
+    [Fact] public void Eslesen_ve_alisa_devredilen_kayit_gecmiste_kasa_etkisiz_gorunur()
+    {
+        var eslesme = new EkstreKayitSatiri(new EkstreKayitDto(7, 1, Tarih, "Kargo", 100, "Eslestir", "Eslesme", [], null, null, null, null, false, EslesmeTuru: "KartHarcama", EslesmeId: 12, EslesmeDurumu: "Eslesti"));
+        Assert.Contains("Mevcut kayıtla eşleşti (Kart harcaması #12)", eslesme.Ozet); Assert.Contains("Kasa etkisi yok", eslesme.Ozet);
+        var yok = eslesme with { Veri = eslesme.Veri with { EslesmeDurumu = "KayitYok" } };
+        Assert.Contains("silinmiş ya da iptal edilmiş", yok.Ozet);
+        var devir = new EkstreKayitSatiri(new EkstreKayitDto(8, 2, Tarih, "PDF", 100, "Gider", "Genel", [], null, null, null, null, false, EslesmeTuru: "Gider", EslesmeId: 5, EslesmeDurumu: "Eslesti"));
+        Assert.Contains("alış ödemesine bağlandı (Gider #5)", devir.Ozet);
+        // Okunan satır listesinde eşleşmiş satır seçilemez ve durumunu gösterir.
+        var b = Belge() with { Kayitlar = [eslesme.Veri] };
+        var satir = new EkstreSatirEditor(b.Satirlar[0], b, [], [], () => { });
+        Assert.False(satir.Secilebilir); Assert.EndsWith("· Mevcut kayıtla eşleşti (Kart harcaması #12)", satir.Ozet); Assert.Contains("Bağı kaldırmak için", satir.Uyarilar);
+        Assert.Null(new EkstreSatirEditor(b.Satirlar[1], b, [], [], () => { }).EslesmeDurumu);
     }
 }

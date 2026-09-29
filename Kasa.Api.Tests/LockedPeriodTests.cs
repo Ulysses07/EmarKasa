@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kasa.Api.Data;
+using Kasa.Api.Servisler;
 using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +18,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Acik_tarihli_alis_odemesi_duzeltilerek_daha_sonra_girilen_kapali_odemenin_kurusu_tasinamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Old, "Kuruş", null, [new("Mal", .03m, [new(1, .01m), new(2, .02m)])]));
         purchase = await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Today, .01m));
         var first = purchase.Odemeler.Single();
@@ -26,13 +29,13 @@ public class LockedPeriodTests
         await Close(c);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{first.Id}",
             new AlisOdemeDuzelt(purchase.Surum, Guid.NewGuid(), Today, .02m, "Önceki ödeme artışı"))).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync(url));
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
     public async Task Once_girilmis_acik_ay_odemesi_iptal_edilerek_sonradan_girilen_kilitli_odemenin_kurusu_tasinamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Kuruş", 1000m, 5, 25, Old, .02m, [new(1, .01m), new(2, .01m)]));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, .01m));
         var earlierId = card.Odemeler.Single().Id;
@@ -41,25 +44,26 @@ public class LockedPeriodTests
         var before = await c.GetStringAsync(url);
         await Close(c);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{earlierId}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Ters tarih sırası"))).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync(url));
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
     public async Task Kanal_sirasi_kapali_ayin_ortak_gider_kurusunu_baska_kanala_tasiyamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, Kanallar.Ortak, GiderTipi.Cari));
         var url = $"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}";
         var before = await c.GetStringAsync(url);
         await Close(c);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", Sira: 99))).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync(url));
+        // Kapatılan ayın kanal kümesi dondurulduğundan sıra değişikliği kilitte de serbesttir ve o ayın kuruşunu taşıyamaz.
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", Sira: 99))).StatusCode);
+        await RaporDegismedi(f, c, before);
     }
 
     [Fact]
     public async Task Kilit_tarihli_hareket_gelir_rawsql_ve_dolayli_acilis_degisikliklerini_engeller()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var expense = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Önceki ay", 50m, "MEZAT", GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 100m))).EnsureSuccessStatusCode();
         await Close(c);
@@ -69,7 +73,7 @@ public class LockedPeriodTests
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 200m))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "PERAKENDE", 200m))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false))).StatusCode); // pasife alma kilitte de serbest (ay kanal kümesi)
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", AcilisDevri: 99m))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Month.AddMonths(-3), kasaAcilisDevri = 2000m })).StatusCode);
         Assert.Equal(report, await c.GetStringAsync("/api/rapor/panel"));
@@ -81,7 +85,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Gerekceli_acma_surum_ve_istek_kimligiyle_guvenlidir_onceki_aylar_kilitli_kalir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var state = await Close(c);
         var request = new AyKilidiYaz(Guid.NewGuid(), state.Surum, Old.Year, Old.Month, "Eksik dekont için açıldı");
         state = await Post<AyKilidiDto>(c, "/api/ay-kilidi/ac", request);
@@ -97,7 +101,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Eski_context_ile_SaveChangesAsync_yeni_kilidi_atlayamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var expense = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Kayıt", 10m, "MEZAT", GiderTipi.Cari));
         using var stale = f.Services.CreateScope(); var db = stale.ServiceProvider.GetRequiredService<KasaDbContext>();
         var loaded = await db.Islemler.SingleAsync(i => i.Id == expense.Id);
@@ -110,7 +114,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Kapali_ayin_aylik_odemesi_iptal_edilemez_okunabilir_ve_ileri_sablon_eklenebilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         int payment;
         using (var scope = f.Services.CreateScope())
         {
@@ -132,7 +136,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Eski_alis_odemelerinin_onay_ve_kanal_paylari_kilitli_ama_yeni_odeme_aciktir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var draft = await Purchase(c);
         draft = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Old, 40m));
         draft = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/gonder", new AlisDurumYaz(draft.Surum));
@@ -152,23 +156,29 @@ public class LockedPeriodTests
     }
 
     [Fact]
-    public async Task Kilitli_kart_avansi_yeni_harcamaya_sessiz_baglanmaz_okumalar_calismaya_devam_eder()
+    public async Task Kilitli_kart_avansi_yeni_harcamaya_kilit_sonrasi_dagitimla_baglanir_kilitli_ay_degismez()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Avans", 1000m, 5, 25, Old, 0m, []));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Old, 50m));
+        var before = await c.GetStringAsync($"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}");
         await Close(c);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Avansı dağıtacak", 100m, 1, null, [new(1, 100m)]))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Aynı kaçış", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: card.Id))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler.Single().Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Eski avans"))).StatusCode);
+        // finance-8: kilitli avans kartı yeni harcamaya kapatmaz; avansın kilitli ödemedeki payı yeniden yazılmaz, bugünkü
+        // dağıtım kaydıyla bağlanır (ayrıntı: KartTakipDuzeltmeTests).
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Avansı dağıtacak", 100m, 1, null, [new(1, 100m)]));
+        Assert.True((await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kartla gider", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: card.Id))).IsSuccessStatusCode);
+        var source = card.Odemeler.Single(o => o.Tutar == 50m);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{source.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Eski avans"))).StatusCode);
+        await RaporDegismedi(f, c, before);
         var read = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
-        Assert.Empty(read.Harcamalar); Assert.Equal(-50m, read.Borc); Assert.Equal(950m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(2, read.Harcamalar.Count); Assert.Equal(150m, read.Borc); Assert.Equal(950m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(source.Dagilimlar, read.Odemeler.Single(o => o.Id == source.Id).Dagilimlar);
     }
 
     [Fact]
     public async Task Eski_kart_kaynak_iadesi_gecmis_payi_oynatamaz_fakat_cari_ay_odeme_yapilabilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f);
+        await using var f = Fabrika(); using var c = await Editor(f);
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Borç", 1000m, 5, 25, Old, 100m, [new(1, 100m)]));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Old, 20m));
         await Close(c);
@@ -180,7 +190,7 @@ public class LockedPeriodTests
     [Fact]
     public async Task Mevcut_kredi_ileri_plani_kilitli_cekim_tarihine_ragmen_eklenebilir_yeni_cekim_yazilamaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await Editor(f); await Close(c);
+        await using var f = Fabrika(); using var c = await Editor(f); await Close(c);
         var input = new KrediTakipYaz(Guid.NewGuid(), "Mevcut kredi", 1000m, Old, Today.AddMonths(1), 3, 100m, [1, 2], true);
         var loan = await Post<KrediTakipDto>(c, "/api/takip/krediler", input);
         Assert.Equal(300m, loan.KalanPlanliOdeme); Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
@@ -188,6 +198,44 @@ public class LockedPeriodTests
         var first = loan.Taksitler.First();
         var update = await c.PutAsJsonAsync($"/api/takip/krediler/{loan.Id}/taksitler/{first.Id}", new KrediTaksitYaz(Guid.NewGuid(), loan.Surum, first.Tarih.AddDays(1), 90m, null, false, "Yeni banka planı"));
         update.EnsureSuccessStatusCode(); Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
+    }
+
+    /// <summary>Kilitli ayın raporu, kapatılmadan hemen önce gösterilen rapordur (dondurulmuş görüntü, K4); reddedilen
+    /// değişiklik canlı hesabı da değiştirmemiştir (kilit kuralları): ikisi de kapatma öncesi rapora eşittir.</summary>
+    /// <summary>gap-denetim-izi-gozlemlenebilirlik-9: kilitli dönem alışının belgesi kanıttır; editör gerekçeyle de kaldıramaz. Yeni belge
+    /// (ek kanıt) eklenebilir; belge kilit açılınca gerekçeyle kaldırılabilir.</summary>
+    [Fact]
+    public async Task Kilitli_donem_alisinin_belgesi_gerekceyle_de_kaldirilamaz_yeni_belge_eklenebilir()
+    {
+        await using var f = Fabrika(); using var c = await Editor(f);
+        var purchase = await Purchase(c);
+        purchase = await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Old, 100m));
+        using var yukle = await AlisTestYardimcisi.YukleYanit(c, purchase.Id, "%PDF-1.7 kilitli ayin faturasi"u8.ToArray(), "fatura.pdf");
+        var belge = (await yukle.Content.ReadFromJsonAsync<BelgeDto>())!;
+        var kilit = await Close(c);
+        using (var sil = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{belge.Id}") { Content = JsonContent.Create(new BelgeSilYaz("Yanlış fatura")) })
+        {
+            using var r = await c.SendAsync(sil);
+            Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+            Assert.Contains("dönem kilitli", await AlisTestYardimcisi.Hata(r));
+        }
+        Assert.Equal(new[] { belge.Id }, (await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{purchase.Id}/belgeler"))!.Select(b => b.Id));
+        using (var ek = await AlisTestYardimcisi.YukleYanit(c, purchase.Id, "%PDF-1.7 ek dekont"u8.ToArray(), "dekont.pdf"))
+            Assert.Equal(HttpStatusCode.Created, ek.StatusCode);
+
+        await Post<AyKilidiDto>(c, "/api/ay-kilidi/ac", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Old.Year, Old.Month, "Yanlış fatura kaldırılacak"));
+        using (var sil = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{belge.Id}") { Content = JsonContent.Create(new BelgeSilYaz("Yanlış fatura")) })
+            Assert.Equal(HttpStatusCode.NoContent, (await c.SendAsync(sil)).StatusCode);
+    }
+
+    private static async Task RaporDegismedi(KasaWebFactory f, HttpClient c, string kilitOncesi)
+    {
+        var beklenen = JsonNode.Parse(kilitOncesi)!.AsObject();
+        beklenen["kuralSurumu"] = HesapServisi.AcikAyKurali; beklenen["dondurulmus"] = true;
+        Assert.Equal(beklenen.ToJsonString(), await c.GetStringAsync($"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}"));
+        using var scope = f.Services.CreateScope();
+        var canli = scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Old.Year, Old.Month);
+        Assert.Equal(kilitOncesi, JsonSerializer.Serialize(canli, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }
 
     private static async Task<AyKilidiDto> Close(HttpClient c)

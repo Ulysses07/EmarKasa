@@ -1,5 +1,7 @@
+using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
 
@@ -13,12 +15,23 @@ public static class YonetimEndpoints
             indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
             notlar = "Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü."
         }));
-        app.MapGet("/api/yedek/durum", (YedekServisi yedek) => Results.Ok(yedek.Durum())).RequireAuthorization("Editor");
+        // Son geri yüklemenin anı ve raporu (SistemDurumu) sonda, opsiyonel: eski istemci yok sayar.
+        app.MapGet("/api/yedek/durum", (YedekServisi yedek, KasaDbContext db) =>
+        {
+            var geri = db.SistemDurumu.AsNoTracking().Where(s => s.Id == 1).Select(s => new { s.SonGeriYukleme, s.GeriYuklemeRaporu }).FirstOrDefault();
+            return Results.Ok(yedek.Durum() with { SonGeriYukleme = geri?.SonGeriYukleme, GeriYuklemeRaporu = GeriYuklemeIsleyici.RaporuOku(geri?.GeriYuklemeRaporu) });
+        }).RequireAuthorization("Editor");
+        // Ayrı ve sıkı hız politikası: kullanıcı + IP başına saatte 5 (üretim); 'guvenlik' kovasını tüketmez.
         app.MapPost("/api/yedek", async (KasaDbContext db, YedekServisi yedek, HttpContext http) =>
         {
-            var path = await yedek.Olustur(db, http.RequestAborted);
-            return Results.File(path, "application/zip", Path.GetFileName(path));
-        }).RequireAuthorization("Editor").RequireRateLimiting("guvenlik");
+            // Elle yedek ayrı adla yazılır ve yalnız elle yedeklerle döner; otomatik geçmişi silemez. Sunucudaki kopya belge içeriği
+            // taşımaz (belgeler yedek aynasında); indirilen dosya kendi kendine yeterlidir: belgeler/<özet> girdileri eklenerek
+            // diske yazılmadan akıtılır. Yedek diskinde yer yoksa hiçbir dosya yazılmaz: 507 ve Türkçe 'hata'.
+            string path;
+            try { path = await yedek.Olustur(db, YedekTuru.Elle, http.RequestAborted); }
+            catch (YedekDiskAlaniYetersizException ex) { return Results.Json(new { hata = ex.Message }, statusCode: StatusCodes.Status507InsufficientStorage); }
+            return Results.Stream(govde => yedek.KendiKendineYeterliYaz(path, govde, http.RequestAborted), "application/zip", Path.GetFileName(path));
+        }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Yedek);
         app.MapGet("/api/disari-aktar", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? bicim, IslemListeServisi servis) =>
         {
             if (baslangic is null || bitis is null || bitis < baslangic || bitis.Value.DayNumber - baslangic.Value.DayNumber > 3660)

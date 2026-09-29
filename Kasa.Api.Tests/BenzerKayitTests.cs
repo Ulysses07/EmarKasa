@@ -8,17 +8,18 @@ namespace Kasa.Api.Tests;
 
 public class BenzerKayitTests
 {
-    private static DateOnly Date => DateOnly.FromDateTime(DateTime.Today);
+    private static DateOnly Date => KasaWebFactory.VarsayilanBugun;
 
     [Fact]
     public async Task Kart_harcamasi_alis_gideri_ile_tek_gosterilir_baska_kart_ve_odeme_karismaz()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db =>
         {
             db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges();
             db.TakipKartlar.AddRange(new() { KrediKartiId = 1, Baslangic = Date }, new() { KrediKartiId = 2, Baslangic = Date }); db.SaveChanges();
-            db.Islemler.AddRange(Expense(1, 1), Expense(2, 2), Expense(3, 1, 101), Expense(4, 1, 100, Date.AddDays(1)));
+            // Tarih penceresi ±3 gündür: dört gün sonraki aynı tutar eşleşmez.
+            db.Islemler.AddRange(Expense(1, 1), Expense(2, 2), Expense(3, 1, 101), Expense(4, 1, 100, Date.AddDays(4)));
             db.SaveChanges();
             db.TakipHarcamalar.AddRange(
                 new() { KrediKartiId = 1, IslemId = 1, Tarih = Date, Tutar = 100, Aciklama = "Aynı gider" },
@@ -41,7 +42,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Kart_odeme_uyarisi_ayni_karttaki_aktif_odemelere_bakar()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db =>
         {
             db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges();
@@ -62,7 +63,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Nakit_benzerligi_kanala_bakar_ve_kullanici_ayri_kayit_olusturabilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         var write = new IslemYazDto(Date, "Malzeme", 100, "MEZAT", GiderTipi.Cari);
         (await c.PostAsJsonAsync("/api/islemler", write)).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/islemler", write with { Kanal = "TOPTAN" })).EnsureSuccessStatusCode();
@@ -73,13 +74,19 @@ public class BenzerKayitTests
     }
 
     [Fact]
-    public async Task Alisin_onayli_paylari_nakit_benzerliginde_kullanilir_taslakta_tahmin_yapilmaz()
+    public async Task Alisin_onayli_paylari_nakit_benzerliginde_kullanilir_taslak_odemesi_dagilim_bekliyor_olarak_her_kanalda_gorunur()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         var draft = await Purchase(c);
         var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100));
         Assert.Single(await Find(c, new("AlisOdeme", Date, 100, AlisId: draft.Id)));
-        Assert.Empty(await Find(c, new("Gider", Date, 100, Kanal: "MEZAT")));
+        // gap-coklu-giris-cift-sayim-mutabakat-2: taslak alışın ödemesinin kanalı henüz belli değildir; tahmin yapılmaz ama
+        // hiçbir kanal sorgusunda gizlenmez (aynı para başka yoldan elle girilebilir).
+        foreach (var channel in new[] { "MEZAT", "TOPTAN" })
+        {
+            var pending = Assert.Single(await Find(c, new("Gider", Date, 100, Kanal: channel)));
+            Assert.Equal((draft.Id, Kanallar.DagilimBekliyor), (pending.AlisId, pending.KanalEtiketi));
+        }
         var sent = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/gonder", new AlisDurumYaz(paid.Surum));
         await Post<AlisDto>(c, $"/api/alis/{draft.Id}/onayla", new AlisDurumYaz(sent.Surum));
         var rows = await Find(c, new("Gider", Date, 100, Kanal: "MEZAT"));
@@ -90,13 +97,13 @@ public class BenzerKayitTests
     [Fact]
     public async Task Benzerlik_sadece_editore_acik_ve_gecersiz_sorgular_reddedilir()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         using var anonymous = f.CreateClient();
         var valid = new BenzerKayitSorgu("Gider", Date, 100, Kanal: "MEZAT");
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici123" })).EnsureSuccessStatusCode();
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
         var buyer = await Post<AliciDto>(c, "/api/alicilar", new AliciYaz("benzer-alici", "Alıcı", "alici12345"));
         using var buyerClient = f.CreateClient();
@@ -110,10 +117,11 @@ public class BenzerKayitTests
     [Fact]
     public async Task Alis_satirinda_yalniz_kullanilan_kartin_adi_ve_panelde_kanal_kimligi_doner()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
-        Seed(f, db => { db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges(); });
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
+        // Eski kartla ödenmiş mevcut gider alışa bağlanır (K3: yeni kartlı ödeme takipteki karta bağlanır).
+        Seed(f, db => { db.KrediKartlari.AddRange(Card(1), Card(2)); db.SaveChanges(); db.Islemler.Add(Expense(1, 1)); db.SaveChanges(); });
         var draft = await Purchase(c);
-        var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100, 1));
+        var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100, 1, 1));
         Assert.Equal("Kart 1", Assert.Single(paid.Odemeler).KrediKartiAdi);
         Seed(f, db => { db.KrediKartlari.Find(1)!.Ad = "Yeni kart adı"; db.SaveChanges(); });
         var list = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!;
@@ -126,7 +134,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Uyari_en_fazla_on_eslesen_kaydi_gosterir()
     {
-        await using var f = new KasaWebFactory(); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Date); using var c = await f.EditorClientAsync();
         Seed(f, db => { db.KrediKartlari.Add(Card(1)); db.SaveChanges(); for (var i = 1; i <= 12; i++) db.Islemler.Add(Expense(i, 1)); db.SaveChanges(); });
         Assert.Equal(10, (await Find(c, new("KartHarcama", Date, 100, 1))).Count);
     }

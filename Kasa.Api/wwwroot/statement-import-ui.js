@@ -6,10 +6,20 @@ export const statementBanks = [
 export function createStatementImportUi(c) {
   const { api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, cents, formDialog, closeModal, page, navigate, run, toast, summary, requestIdentity, isOpen, canEdit, isCurrent, view } = c;
   const base = '/api/ekstre-aktar';
-  const kinds = { Gelir: 'Banka girişi', Gider: 'Banka çıkışı', KartHarcama: 'Kart harcaması / faiz / masraf', KartIade: 'Karta iade', KartOdemesi: 'Kart borcu ödemesi' };
+  const kinds = { Gelir: 'Banka girişi', Gider: 'Banka çıkışı', KartHarcama: 'Kart harcaması / faiz / masraf', KartIade: 'Karta iade', KartOdemesi: 'Kart borcu ödemesi', Eslestir: 'Mevcut kayıtla eşleştir' };
+  // Eşleştirme (gap-coklu-giris-cift-sayim-mutabakat-1): satır yeni kayıt üretmez, mevcut kayda bağlanır; kasa ve kart borcu değişmez.
+  const matchKinds = { Gider: 'Gider', KartHarcama: 'Kart harcaması', KartTaksidi: 'Kart taksidi', KartOdeme: 'Kart ödemesi' };
+  const matchName = (type, id) => `${matchKinds[type] || 'Kayıt'} #${id}`;
+  const candidateLabel = item => [matchName(item.tur, item.id), dateText(item.tarih), money(item.tutar), item.aciklama, item.kanalEtiketi, item.alisId && `Alış #${item.alisId}`, item.ekstreKayitId && 'ekstreden'].filter(Boolean).join(' · ');
+  // Kaydedilmiş satırın durumu: eşleştirme satırı bağlandığı kaydı, kaydı alış ödemesine bağlanmış satır bağlanan kaydı gösterir.
+  const recordState = row => row.islemTuru === 'Eslestir'
+    ? row.eslesmeDurumu === 'KayitYok' ? `Eşleştiği kayıt (${matchName(row.eslesmeTuru, row.eslesmeId)}) silinmiş ya da iptal edilmiş` : `Mevcut kayıtla eşleşti (${matchName(row.eslesmeTuru, row.eslesmeId)})`
+    : row.eslesmeTuru ? `Kaydı alış ödemesine bağlandı (${matchName(row.eslesmeTuru, row.eslesmeId)})` : 'Kaydedildi';
   const classes = { Faiz: 'Faiz', Komisyon: 'Komisyon', Vergi: 'Vergi', Ucret: 'Ücret', Transfer: 'Transfer', Odeme: 'Ödeme', Hareket: 'Hareket', Belirsiz: 'Kontrol edilmeli' };
   const editor = () => { if (!canEdit()) throw new Error('Ekstre yüklemek ve işlemek için editör hesabı gerekir.'); };
   const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
+  // İptal edilen kaydın gerekçesi ve anı (sunucu anı denetim izinden okur; sürüm öncesi iptalin anı bilinmez).
+  const cancelNote = row => [row.iptalAciklamasi, row.iptalZamani ? new Date(row.iptalZamani).toLocaleString('tr-TR') : 'zamanı bilinmiyor'].filter(Boolean).join(' · ');
   const bankName = bank => statementBanks.find(([key]) => key === bank)?.[1] || bank;
   const sourceName = row => `${bankName(row.banka)} · ${row.kaynak === 'Kart' ? `Kart ekstresi · ${row.hesapAdi || `Kart #${row.kartId}`}` : row.hesapAdi || 'Banka hareketi'}`;
   const shares = rows => h('div', { class: 'allocation-tags' }, (rows || []).map(row => h('span', { class: 'allocation-tag' }, `${row.kanal || 'Genel kasa'}: ${money(row.tutar)}`)));
@@ -102,8 +112,8 @@ export function createStatementImportUi(c) {
   }
 
   function renderDocument(document, channels, cards, generation, epoch) {
-    const records = document.kayitlar || []; const currentRows = new Set(records.filter(row => !row.iptal).map(row => row.satirNo));
-    const identity = requestIdentity(); const allowedKinds = document.kaynak === 'Kart' ? ['KartHarcama', 'KartIade', 'KartOdemesi'] : ['Gelir', 'Gider', 'KartOdemesi'];
+    const records = document.kayitlar || []; const currentRows = new Map(records.filter(row => !row.iptal).map(row => [row.satirNo, row]));
+    const identity = requestIdentity(); const allowedKinds = document.kaynak === 'Kart' ? ['KartHarcama', 'KartIade', 'KartOdemesi', 'Eslestir'] : ['Gelir', 'Gider', 'KartOdemesi', 'Eslestir'];
     const previewHost = h('div', { class: 'import-preview', hidden: true }); const selectedCount = h('strong', {}, '0 satır seçili');
     const list = h('div', { class: 'import-rows' }); let preview = null; let previewSignature = null; let previewSequence = 0; const rows = [];
     const active = () => stillHere(generation, epoch);
@@ -121,10 +131,27 @@ export function createStatementImportUi(c) {
       const cardField = field('Kredi kartı', card);
       const refund = select(`iade-kaynak-${source.no}`, [{ value: '', label: 'Önce kartı ve iade edilen harcamayı seç' }], ''); const refundField = field('İade edilen kart harcaması', refund); let refundSequence = 0;
       const refundHelp = h('p', { class: 'help' });
+      const match = select(`eslesme-${source.no}`, [{ value: '', label: 'Önce eşleşme adaylarını getir' }], ''); const matchField = field('Eşleşecek mevcut kayıt', match); let matchSequence = 0;
       const allocation = allocationEditor(channels, invalidate);
-      const fields = h('div', { hidden: true }, h('div', { class: 'form-grid' }, field('İşlem tarihi', date), field('Tutar (₺)', total), field('Açıklama', text), field('Kaydedilecek işlem', kind), cardField, refundField), refundHelp, allocation.node);
+      const fields = h('div', { hidden: true }, h('div', { class: 'form-grid' }, field('İşlem tarihi', date), field('Tutar (₺)', total), field('Açıklama', text), field('Kaydedilecek işlem', kind), cardField, refundField, matchField), refundHelp, allocation.node);
+      // Adaylar satırın (düzenlenmiş) tarih ve tutarıyla aranır: aynı tutar, en çok 3 gün farklı tarih, belge türüne uygun kayıtlar.
+      const loadMatches = async () => {
+        const sequence = ++matchSequence; match.disabled = true; match.value = '';
+        let amountValue = null; try { amountValue = cents(total.value, { allowZero: false }) / 100; } catch { amountValue = null; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date.value) || amountValue == null) { match.replaceChildren(h('option', { value: '' }, 'Önce tarihi ve tutarı düzelt')); refundHelp.textContent = 'Eşleşme adayları satırın tarihi ve tutarıyla aranır.'; return; }
+        match.replaceChildren(h('option', { value: '' }, 'Adaylar yükleniyor…'));
+        try {
+          const list = await api(`${base}/${document.id}/eslesme-adaylari`, { method: 'POST', body: { tarih: date.value, tutar: amountValue } });
+          if (!active() || sequence !== matchSequence || kind.value !== 'Eslestir') return;
+          const items = Array.isArray(list) ? list : [];
+          match.replaceChildren(h('option', { value: '' }, items.length ? 'Eşleşecek kaydı seç' : 'Eşleşecek kayıt yok'), ...items.map(item => h('option', { value: `${item.tur}:${item.id}` }, candidateLabel(item)))); match.value = ''; match.disabled = !items.length;
+          refundHelp.textContent = items.length ? 'Bu satır yeni kayıt oluşturmaz; seçtiğin mevcut kayda bağlanır. Kasa ve kart borcu değişmez, iptali de hiçbir kaydı değiştirmez.' : 'Bu tutarda, en çok 3 gün farklı tarihte eşleştirilebilecek kayıt yok. Satırı seçmeden bırakabilirsin.';
+        } catch (error) { if (active() && sequence === matchSequence) { refundHelp.textContent = `Eşleşme adayları yüklenemedi: ${error.message}. İşlem türünü yeniden seçerek deneyin.`; match.disabled = true; } }
+      };
       const updateKind = async () => {
-        invalidate(); const sequence = ++refundSequence; cardField.hidden = document.kaynak !== 'Banka' || kind.value !== 'KartOdemesi'; refundField.hidden = kind.value !== 'KartIade'; allocation.setKind(kind.value); refundHelp.textContent = kind.value === 'KartOdemesi' ? 'Bu satır gerçek kart ödemesi olarak kasadan düşer. Aynı ödeme daha önce girildiyse tekrar seçme.' : kind.value === 'KartIade' ? 'İade kart borcunu azaltır; nakit girişi oluşturmaz. İade edilen asıl harcamayı seç.' : kind.value === 'KartHarcama' ? 'Kart borcuna eklenir; bu satır kasadan düşmez. Faiz ve komisyonun kaynak kanallarını da sen seçersin.' : '';
+        invalidate(); const sequence = ++refundSequence; cardField.hidden = document.kaynak !== 'Banka' || kind.value !== 'KartOdemesi'; refundField.hidden = kind.value !== 'KartIade'; matchField.hidden = kind.value !== 'Eslestir'; allocation.setKind(kind.value); allocation.node.hidden = kind.value === 'Eslestir'; refundHelp.textContent = kind.value === 'KartOdemesi' ? 'Bu satır gerçek kart ödemesi olarak kasadan düşer. Aynı ödeme daha önce girildiyse tekrar seçme; mevcut ödemeyle eşleştir.' : kind.value === 'KartIade' ? 'İade kart borcunu azaltır; nakit girişi oluşturmaz. İade edilen asıl harcamayı seç.' : kind.value === 'KartHarcama' ? 'Kart borcuna eklenir; bu satır kasadan düşmez. Faiz ve komisyonun kaynak kanallarını da sen seçersin. Harcama zaten kayıtlıysa (ör. kartlı alış ödemesi) mevcut kayıtla eşleştir.' : '';
+        if (kind.value === 'Eslestir') { await loadMatches(); return; }
+        matchSequence++;
         if (kind.value !== 'KartIade') return;
         refund.disabled = true; refund.replaceChildren(h('option', { value: '' }, 'Harcamalar yükleniyor…')); refund.value = '';
         try {
@@ -133,16 +160,19 @@ export function createStatementImportUi(c) {
           refund.replaceChildren(h('option', { value: '' }, 'İade edilen harcamayı seç'), ...(detail.harcamalar || []).filter(charge => !charge.iptal && charge.tutar > 0).map(charge => h('option', { value: charge.id }, `#${charge.id} · ${dateText(charge.tarih)} · ${money(charge.tutar)} · ${charge.aciklama}`))); refund.value = ''; refund.disabled = false;
         } catch (error) { if (active() && sequence === refundSequence) { refundHelp.textContent = `İade kaynağı yüklenemedi: ${error.message}. İşlem türünü yeniden seçerek deneyin.`; refund.disabled = true; } }
       };
-      kind.addEventListener('change', updateKind); card.addEventListener('change', invalidate); refund.addEventListener('change', invalidate);
+      kind.addEventListener('change', updateKind); card.addEventListener('change', invalidate); refund.addEventListener('change', invalidate); match.addEventListener('change', invalidate);
       for (const control of [date, text, total]) control.addEventListener('input', invalidate);
+      // Tarih ya da tutar değişince eski adaylar geçersizdir: eşleştirmede yeniden aranır.
+      for (const control of [date, total]) control.addEventListener('change', () => { if (kind.value === 'Eslestir') run(null, loadMatches); });
       const status = h('p', { class: 'import-status' });
-      const updateStatus = () => { status.textContent = `Sayfa ${source.sayfa} · ${classes[source.sinif] || source.sinif || 'Hareket'}${blocked ? ' · Zaten kaydedildi' : foreign ? ' · Bu para birimi kaydedilemez' : checked.checked ? ' · Seçili' : ' · Henüz seçilmedi'}`; };
+      const saved = currentRows.get(source.no);
+      const updateStatus = () => { status.textContent = `Sayfa ${source.sayfa} · ${classes[source.sinif] || source.sinif || 'Hareket'}${blocked ? ` · ${saved.islemTuru === 'Eslestir' || saved.eslesmeTuru ? recordState(saved) : 'Zaten kaydedildi'}` : foreign ? ' · Bu para birimi kaydedilemez' : checked.checked ? ' · Seçili' : ' · Henüz seçilmedi'}`; };
       updateStatus();
       const node = h('article', { class: 'import-row' }, h('div', { class: 'import-row-head' }, field(`${source.no}. hareket · ${source.tarih ? dateText(source.tarih) : 'Tarih kontrol edilmeli'}`, checked), h('span', { class: 'money' }, source.tutar == null ? 'Tutar kontrol edilmeli' : `${money(source.tutar)}${foreign ? ` (${source.paraBirimi})` : ''}`)), h('strong', {}, source.aciklama || 'Açıklama kontrol edilmeli'), status, h('details', {}, h('summary', {}, 'PDF’deki kaynak satır'), h('p', { class: 'import-source-text' }, source.kaynakSatir)), warningList(source.uyarilar), fields);
       const selectionChanged = () => { fields.hidden = !checked.checked; node.classList.toggle('selected', checked.checked); updateStatus(); invalidate(); if (checked.checked) updateKind(); };
       checked.addEventListener('change', selectionChanged);
-      allocation.setKind(kind.value); cardField.hidden = true; refundField.hidden = true;
-      rows.push({ source, checked, date, text, total, kind, card, refund, allocation, node, selectionChanged }); list.append(node);
+      allocation.setKind(kind.value); cardField.hidden = true; refundField.hidden = true; matchField.hidden = true;
+      rows.push({ source, checked, date, text, total, kind, card, refund, match, allocation, node, selectionChanged }); list.append(node);
     }
     const read = () => {
       const selected = rows.filter(row => row.checked.checked);
@@ -153,6 +183,11 @@ export function createStatementImportUi(c) {
         if (!row.text.value.trim() || row.text.value.trim().length > 1000) throw new Error(`${row.source.no}. hareketin açıklamasını kontrol edin.`);
         if (!allowedKinds.includes(row.kind.value)) throw new Error(`${row.source.no}. hareketin işlem türünü seçin.`);
         const total = cents(row.total.value, { allowZero: false }) / 100;
+        if (row.kind.value === 'Eslestir') {
+          const [matchType, matchId] = row.match.value.split(':');
+          if (!matchKinds[matchType] || !Number(matchId) || row.match.disabled) throw new Error(`${row.source.no}. hareketin eşleşeceği mevcut kaydı seçin.`);
+          return { satirNo: row.source.no, tarih: row.date.value, aciklama: row.text.value.trim(), tutar: total, islemTuru: 'Eslestir', dagilimTuru: 'Eslesme', dagilimlar: [], krediKartiId: null, kaynakHarcamaId: null, eslesenKayitTuru: matchType, eslesenKayitId: Number(matchId) };
+        }
         const cardId = document.kaynak === 'Kart' ? document.kartId : row.kind.value === 'KartOdemesi' ? Number(row.card.value) : null;
         if (row.kind.value === 'KartOdemesi' && !cardId) throw new Error('Ödemenin ait olduğu kredi kartını seçin.');
         const refundId = row.kind.value === 'KartIade' ? Number(row.refund.value) : null;
@@ -183,16 +218,16 @@ export function createStatementImportUi(c) {
         } catch (error) { if (error.status === 409 && active()) invalidate(); throw error; }
       }, 'primary');
       const cardDebt = result.satirlar.reduce((sum, row) => sum + (row.islemTuru === 'KartHarcama' ? row.tutar : row.islemTuru === 'KartIade' ? -row.tutar : 0), 0);
-      previewHost.replaceChildren(h('div', { class: 'stack' }, h('h2', {}, 'Kaydetmeden önce kontrol et'), h('div', { class: 'summary-strip' }, summary('Seçilen hareket', result.satirlar.length), summary('Genel kasa değişimi', money(result.kasaEtkisi)), summary('Harcama / iade borç etkisi', money(cardDebt), 'Kart ödemeleri ayrıca borcu azaltır.')), warningList(result.uyarilar), table(['Tarih / açıklama', 'İşlem', 'Tutar', 'Kasa değişimi', 'Kanal dağılımı / uyarı'], result.satirlar.map(row => [h('div', {}, dateText(row.tarih), h('small', { class: 'table-sub' }, row.aciklama)), kinds[row.islemTuru] || row.islemTuru, moneyNode(row.tutar), moneyNode(row.kasaEtkisi), h('div', {}, shares(row.dagilimlar), warningList(row.uyarilar))])), help('Yalnız bu seçili hareketler kaydedilecek. Kart harcaması ve iadesi kasayı değiştirmez; kart ödemesi kasadan düşer. PDF’nin toplam borç veya hesap bakiyesi yeni hareket değildir.'), result.tekrarOnayGerekli && h('div', { class: 'notice' }, field('Uyarıları kontrol ettim. Benzer görünenler ayrı işlemler; belirsiz para birimli seçili tutarlar TL.', duplicateApproval)), h('div', { class: 'import-actions' }, save, button('Seçimleri düzenle', () => { invalidate(); list.scrollIntoView({ block: 'start' }); }))));
+      previewHost.replaceChildren(h('div', { class: 'stack' }, h('h2', {}, 'Kaydetmeden önce kontrol et'), h('div', { class: 'summary-strip' }, summary('Seçilen hareket', result.satirlar.length), summary('Genel kasa değişimi', money(result.kasaEtkisi)), summary('Harcama / iade borç etkisi', money(cardDebt), 'Kart ödemeleri ayrıca borcu azaltır.')), warningList(result.uyarilar), table(['Tarih / açıklama', 'İşlem', 'Tutar', 'Kasa değişimi', 'Kanal dağılımı / uyarı'], result.satirlar.map(row => [h('div', {}, dateText(row.tarih), h('small', { class: 'table-sub' }, row.aciklama)), kinds[row.islemTuru] || row.islemTuru, moneyNode(row.tutar), moneyNode(row.kasaEtkisi), h('div', {}, row.islemTuru === 'Eslestir' ? help('Mevcut kayıtla eşleşir; kasa ve kart borcu değişmez.') : shares(row.dagilimlar), warningList(row.uyarilar))])), help('Yalnız bu seçili hareketler kaydedilecek. Kart harcaması ve iadesi kasayı değiştirmez; kart ödemesi kasadan düşer; mevcut kayıtla eşleştirme hiçbir kaydı değiştirmez. PDF’nin toplam borç veya hesap bakiyesi yeni hareket değildir.'), result.tekrarOnayGerekli && h('div', { class: 'notice' }, field('Uyarıları kontrol ettim. Benzer görünenler ayrı işlemler; belirsiz para birimli seçili tutarlar TL.', duplicateApproval)), h('div', { class: 'import-actions' }, save, button('Seçimleri düzenle', () => { invalidate(); list.scrollIntoView({ block: 'start' }); }))));
       previewHost.hidden = false; previewHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     };
-    const history = records.length ? table(['Satır / tarih', 'İşlem', 'Tutar', 'Dağılım', 'Durum', ''], records.map(row => [h('span', {}, `#${row.satirNo} · ${dateText(row.tarih)}`, h('small', { class: 'table-sub' }, row.aciklama)), kinds[row.islemTuru] || row.islemTuru, moneyNode(row.tutar), row.dagilimTuru === 'Genel' ? 'Yalnız genel kasa' : shares(row.dagilimlar), row.iptal ? 'İptal' : 'Kaydedildi', !row.iptal && act('Kaydı iptal et', () => cancelDialog(document, row, generation, epoch), 'small danger')])) : help('Bu belgeden henüz mali kayıt oluşturulmadı.');
+    const history = records.length ? table(['Satır / tarih', 'İşlem', 'Tutar', 'Dağılım', 'Durum', ''], records.map(row => [h('span', {}, `#${row.satirNo} · ${dateText(row.tarih)}`, h('small', { class: 'table-sub' }, row.aciklama)), kinds[row.islemTuru] || row.islemTuru, moneyNode(row.tutar), row.islemTuru === 'Eslestir' ? 'Kasa etkisi yok' : row.dagilimTuru === 'Genel' ? 'Yalnız genel kasa' : shares(row.dagilimlar), row.iptal ? h('span', {}, 'İptal', h('small', { class: 'table-sub' }, cancelNote(row))) : recordState(row), !row.iptal && act('Kaydı iptal et', () => cancelDialog(document, row, generation, epoch), 'small danger')])) : help('Bu belgeden henüz mali kayıt oluşturulmadı.');
     view().replaceChildren(button('← Yüklenen belgelere dön', () => navigate('imports'), 'back-link'), section(document.dosyaAdi, h('div', { class: 'stack' }, h('p', { class: 'import-source-title' }, sourceName(document), document.kartId && ` · ${cards.find(card => card.id === document.kartId)?.ad || `Kart #${document.kartId}`}`), warningList(document.uyarilar), h('div', { class: 'notice' }, 'Okuma önerileri hata içerebilir. Tarih, tutar, işlem türü ve kanal dağılımını kaynak satırla karşılaştır. Tüm satırlar başlangıçta seçimsizdir.'), h('a', { class: 'button', href: `${base}/${document.id}/dosya`, download: document.dosyaAdi }, 'Kaynak PDF’yi indir'))), section('Okunan hareketler', h('div', { class: 'stack' }, filter, rows.length ? list : help('Kaydedilebilir hareket bulunamadı. Belge uyarılarını kontrol edin.'))), h('div', { class: 'import-toolbar' }, selectedCount, button('Seçimleri temizle', () => { for (const row of rows) { if (row.checked.checked) { row.checked.checked = false; row.selectionChanged(); } } invalidate(); }), act('Seçilenleri önizle', showPreview, 'primary')), previewHost, section('Bu belgeden kaydedilenler', history));
   }
 
   function cancelDialog(document, row, generation, epoch) {
     editor(); const identity = requestIdentity(); const reason = input('aciklama', '', { required: true, maxlength: 2000 });
-    formDialog('İçe aktarılan kaydı iptal et', h('div', { class: 'stack' }, help(`${dateText(row.tarih)} · ${row.aciklama} · ${money(row.tutar)}. Bu kaydın kasa veya kart etkisi geri alınır; kaynak PDF ve iptal geçmişi korunur.`), field('İptal açıklaması', reason)), 'Kaydı iptal et', async form => {
+    formDialog('İçe aktarılan kaydı iptal et', h('div', { class: 'stack' }, help(`${dateText(row.tarih)} · ${row.aciklama} · ${money(row.tutar)}. ${row.islemTuru === 'Eslestir' ? 'Yalnız mevcut kayıtla bağı kaldırılır; kasa ve kart borcu değişmez.' : 'Bu kaydın kasa veya kart etkisi geri alınır.'} Kaynak PDF korunur, iptal gerekçesi bu belgenin kayıt listesinde görünür.`), field('İptal açıklaması', reason)), 'Kaydı iptal et', async form => {
       editor(); if (!stillHere(generation, epoch) || !isOpen(form)) return;
       if (!reason.value.trim()) throw new Error('İptal açıklamasını yazın.');
       await api(`${base}/${document.id}/kayitlar/${row.id}/iptal`, { method: 'POST', body: identity({ aciklama: reason.value.trim() }) });

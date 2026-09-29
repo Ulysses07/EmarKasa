@@ -8,4 +8,5 @@
   <Project Path="Kasa.App/Kasa.App.csproj" />
   <Project Path="Kasa.Core.Tests/Kasa.Core.Tests.csproj" />
   <Project Path="Kasa.Core/Kasa.Core.csproj" />
+  <Project Path="Kasa.Sozlesme.Tests/Kasa.Sozlesme.Tests.csproj" />
 </Solution>

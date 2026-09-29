@@ -145,7 +145,22 @@ public class OkumaTests
         Assert.Equal(new DateOnly(2026, 1, 1), a.TakipBaslangic);
         Assert.Equal(85000.0m, a.KasaAcilisDevri);
         Assert.True(a.IzleyiciSifreVarMi);
+        // Eski sunucu uyarı alanlarını göndermez: kısa şifre işareti yok, vekil uyarısı yok.
+        Assert.False(a.IzleyiciSifreKisa);
+        Assert.Null(a.VekilUyarisi);
         Assert.EndsWith("/api/ayarlar", h.SonIstek!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task Ayarlar_izleyici_sifresi_ve_vekil_uyarilarini_esler()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """
+            {"takipBaslangic":"2026-01-01","kasaAcilisDevri":0,"izleyiciSifreVarMi":true,"izleyiciSifreKisa":true,"vekilUyarisi":"Vekil ayarı hatalı."}
+        """);
+        var a = await c.AyarlarAsync();
+        Assert.True(a.IzleyiciSifreKisa);
+        Assert.Equal("Vekil ayarı hatalı.", a.VekilUyarisi);
     }
 
     [Fact]

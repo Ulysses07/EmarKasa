@@ -13,19 +13,12 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
         if (query.TryGetValue("AlisId", out var value) && int.TryParse(value.ToString(), out var id))
         { _istenenAlisId = id; if (_vm.VeriHazir) { _vm.IdIleSec(id); _istenenAlisId = null; } }
     }
+    // Oturum değişimini model kendisi alır (AlislarViewModel, AuthViewModel ile kurulur; appcore-10): sayfa ayrıca abone olmaz.
     public AlislarPage(AlislarViewModel vm, AuthViewModel auth)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
         _auth = auth;
-        _auth.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(AuthViewModel.OturumSurumu))
-            {
-                _vm.BekleyenIslemleriGecersizKil();
-                MainThread.BeginInvokeOnMainThread(() => _vm.OturumuAyarla(_auth.OturumSurumu, _auth.AktifRol == Rol.Editor));
-            }
-        };
     }
     protected override async void OnAppearing()
     {
@@ -58,38 +51,33 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
         if (_auth.AktifRol != Rol.Alici && sender is Button { CommandParameter: AlisOdemeSatiri { Veri.KrediKartiId: { } id } })
             await Shell.Current.GoToAsync($"//kartlar?KartId={id}");
     }
+    // İçerik türü, 10 MB sınırı ve oturum/seçim koruması AlislarViewModel.BelgeEkleAsync'tedir (maui-8); sayfa yalnız dosya
+    // seçiciyi açar ve dönen uyarıyı gösterir.
     private async void BelgeEkleTiklandi(object? sender, EventArgs e)
     {
-        if (_vm.Mesgul || _vm.Secili is null) return;
-        var oturum = _auth.OturumSurumu; var alisId = _vm.Secili.Id;
-        try
-        {
-            var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "PDF, PNG veya JPEG belge seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } }) });
-            if (dosya is null || _auth.OturumSurumu != oturum || _vm.Secili?.Id != alisId) return;
-            var tur = Path.GetExtension(dosya.FileName).ToLowerInvariant() switch { ".pdf" => "application/pdf", ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", _ => null };
-            if (tur is null) { await DisplayAlertAsync("Desteklenmeyen belge", "PDF, PNG veya JPEG seçin.", "Tamam"); return; }
-            await using var stream = await dosya.OpenReadAsync();
-            using var bellek = new MemoryStream();
-            var buffer = new byte[81920];
-            int okunan;
-            while ((okunan = await stream.ReadAsync(buffer)) > 0)
-            {
-                if (bellek.Length + okunan > 10 * 1024 * 1024) { await DisplayAlertAsync("Belge büyük", "En fazla 10 MB belge yükleyebilirsiniz.", "Tamam"); return; }
-                bellek.Write(buffer, 0, okunan);
-            }
-            if (_auth.OturumSurumu == oturum && _vm.Secili?.Id == alisId)
-                await _vm.BelgeYukleAsync(dosya.FileName, tur, bellek.ToArray(), (BelgeOdemesi.SelectedItem as AlisOdemeSatiri)?.Veri.Id);
-        }
-        catch (Exception) { await DisplayAlertAsync("Belge okunamadı", "Dosyayı kontrol edip yeniden seçin.", "Tamam"); }
+        var uyari = await _vm.BelgeEkleAsync(BelgeSecAsync, (BelgeOdemesi.SelectedItem as AlisOdemeSatiri)?.Veri.Id);
+        if (uyari is not null) await DisplayAlertAsync(uyari.Baslik, uyari.Mesaj, "Tamam");
+    }
+    private static async Task<SecilenDosya?> BelgeSecAsync()
+    {
+        var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "PDF, PNG veya JPEG belge seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } }) });
+        return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
     }
     private async void BelgeIndirTiklandi(object? sender, EventArgs e)
     {
-        if (sender is Button { CommandParameter: BelgeDto belge } && await _vm.BelgeIndirAsync(belge) is { } dosya)
-            await DosyaIslemleri.KaydetAsync(this, dosya);
+        if (sender is Button { CommandParameter: BelgeDto belge } && !_vm.Mesgul)
+            await DosyaIslemleri.IndirVeKaydetAsync(this, hedef => _vm.BelgeIndirAsync(belge, hedef), disKaynak: true);
     }
+    /// <summary>Kaldırma yumuşaktır (gap-denetim-izi-gozlemlenebilirlik-9): belge ve kaldırma kaydı saklanır. Editör için gerekçe
+    /// zorunludur (boşsa model göndermez ve söyler), alıcı için isteğe bağlıdır; vazgeçilirse hiçbir şey gönderilmez.</summary>
     private async void BelgeSilTiklandi(object? sender, EventArgs e)
     {
-        if (sender is Button { CommandParameter: BelgeDto belge } && await DisplayAlertAsync("Belgeyi sil", $"{belge.DosyaAdi} silinecek. Devam edilsin mi?", "Sil", "Vazgeç"))
-            await _vm.BelgeSilAsync(belge);
+        if (sender is not Button { CommandParameter: BelgeDto belge } || _vm.Mesgul) return;
+        var gerekce = await DisplayPromptAsync("Belgeyi kaldır", _vm.EditorMu
+                ? $"{belge.DosyaAdi} listeden kaldırılacak; içeriği ve kaldırma kaydı saklanır. Kaldırma gerekçesini yazın (zorunlu)."
+                : $"{belge.DosyaAdi} listeden kaldırılacak; editör kaldırılan belgeyi görmeye devam eder. İsterseniz gerekçe yazın.",
+            "Kaldır", "Vazgeç", placeholder: "Gerekçe", maxLength: 2000);
+        if (gerekce is null) return;
+        await _vm.BelgeSilAsync(belge, gerekce);
     }
 }

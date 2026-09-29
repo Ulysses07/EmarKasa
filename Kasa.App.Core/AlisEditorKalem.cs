@@ -20,7 +20,10 @@ public partial class AlisKalemEditor : ObservableObject
     public ObservableCollection<AlisDagilimEditor> Dagilimlar { get; } = new();
     public decimal Dagilan => Dagilimlar.Sum(d => d.Tutar);
     public decimal DagilimFarki => Tutar - Dagilan;
-    public string DagilimOzeti => DagilimFarki == 0 && Tutar > 0
+    /// <summary>Kalem ve pay girişlerinin hiçbiri geçersiz metin taşımıyor; değilse toplamlar sayı olarak gösterilmez.</summary>
+    public bool TutarlarGecerli => ParaAyristirici.GecerliMi(Tutar) && Dagilimlar.All(d => ParaAyristirici.GecerliMi(d.Tutar));
+    public string DagilimOzeti => !TutarlarGecerli ? ParaAyristirici.GecersizGosterim
+        : DagilimFarki == 0 && Tutar > 0
         ? "Dağılım tamamlandı"
         : $"Dağıtılacak fark: {Bicim.Tl(DagilimFarki)} ₺";
 
@@ -63,7 +66,22 @@ public record AlisOdemeSatiri(AlisOdemeDto Veri)
 }
 
 public record OdemeKartiSecenegi(int? Id, string Ad);
+/// <summary>Kart takibindeki ödeme alıştan ayrılırken kart harcamasının gerçek kanal payı (gap-coklu-giris-cift-sayim-mutabakat-5).</summary>
+public partial class AyirmaPayi : ObservableObject
+{
+    public AyirmaPayi(int kanalId, string kanal, decimal tutar) { KanalId = kanalId; Kanal = kanal; _tutar = tutar; }
+    public int KanalId { get; }
+    public string Kanal { get; }
+    [ObservableProperty] private decimal _tutar;
+}
 public record GiderSecenegi(IslemDto Veri)
 {
-    public string Ad => $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Cari} · {Bicim.Tl(Veri.TutarTl)} ₺ · {(Veri.Tip == GiderTipi.KrediKarti ? "Kart harcaması" : "Nakit / banka")}";
+    public string Ad => $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Cari} · {Bicim.Tl(Veri.TutarTl)} ₺ · {(Veri.Tip == GiderTipi.KrediKarti ? "Kart harcaması" : "Nakit / banka")}"
+        + (Veri.EkstreKayitId is not null ? " · banka ekstresinden" : "");
+}
+/// <summary>Takipli kartla ödemede bağlanabilecek kart harcaması; <see cref="Veri"/> null ise yeni kart harcaması oluşturulur.</summary>
+public record KartHarcamasiSecenegi(BaglanabilirKartHarcamasiDto? Veri)
+{
+    public string Ad => Veri is null ? "Yeni kart harcaması oluştur"
+        : $"#{Veri.Id} · {Veri.Tarih:dd.MM.yyyy} · {Veri.Aciklama} · {Bicim.Tl(Veri.Tutar)} ₺" + (Veri.EkstreKayitId is not null ? " · ekstreden" : "");
 }

@@ -28,9 +28,13 @@ public class FinansIyilestirmeTests
     [Fact] public async Task Kanal_kimligi_ve_alis_odeme_kart_adi_geriye_uyumlu_okunur()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"guncelKasa":90,"kanallar":[{"kanal":"MEZAT","bakiye":90,"kanalId":2}],"buHaftaSonucu":0,"buAySonucu":0}""")
-            .Kuyrukla(HttpStatusCode.OK, """[{"id":5,"surum":2,"alicId":null,"alici":"Editör","tarih":"2026-09-24","tedarikci":"Mal","durum":"Onaylandi","toplam":100,"odenen":100,"kalan":0,"kalemler":[],"odemeler":[{"id":7,"islemId":8,"tarih":"2026-09-24","tutar":100,"krediKartiId":3,"krediKartiAdi":"Banka Kartı","dagilimBekliyor":false,"dagilimlar":[]}]}]""");
+            .Kuyrukla(HttpStatusCode.OK, """[{"id":5,"surum":2,"aliciId":3,"alici":"Editör","tarih":"2026-09-24","tedarikci":"Mal","durum":"Onaylandi","toplam":100,"odenen":100,"kalan":0,"kalemler":[],"odemeler":[{"id":7,"islemId":8,"tarih":"2026-09-24","tutar":100,"krediKartiId":3,"krediKartiAdi":"Banka Kartı","dagilimBekliyor":false,"dagilimlar":[]}]}]""");
         var client = Client(h); Assert.Equal(2, (await client.PanelAsync()).Kanallar.Single().KanalId);
-        Assert.Equal("Banka Kartı", (await client.AlislarAsync()).Single().Odemeler.Single().KrediKartiAdi);
+        var alis = (await client.AlislarAsync()).Single();
+        Assert.Equal("Banka Kartı", alis.Odemeler.Single().KrediKartiAdi);
+        // tests-8: kurgulanan JSON sunucunun alan adını taşır (aliciId); yanlış yazılmış alan sessizce null kalmaz.
+        Assert.Equal(3, alis.AliciId);
+        Assert.Equal(2, h.Istekler.Count);
         var eski = JsonSerializer.Deserialize<KartEkstreDto>("""{"id":1,"kesimTarihi":"2026-09-01","sonOdemeTarihi":"2026-09-10","borc":100,"odenen":0,"kalan":100,"asgariOdeme":20}""", new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Null(eski!.AsgariKalan);
     }

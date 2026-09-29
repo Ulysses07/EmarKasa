@@ -16,8 +16,8 @@
             <conv:BasHarfConverter x:Key="BasHarf" />
             <conv:TersIseConverter x:Key="TersIse" />
             <conv:AyAdiConverter x:Key="AyAdi" />
-            <conv:ParaGirisConverter x:Key="ParaGiris" />
             <conv:DonemBicimConverter x:Key="DonemBicim" />
+            <conv:BelgeAciklamasiConverter x:Key="BelgeAciklamasi" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

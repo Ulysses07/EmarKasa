@@ -24,11 +24,11 @@ public class GuvenliOturumTests
         bearer.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oturum!.Token);
         Assert.Equal(HttpStatusCode.OK, (await bearer.GetAsync("/api/auth/me")).StatusCode);
 
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-sifre" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifre" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Unauthorized, (await bearer.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await viewer.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await editor.GetAsync("/api/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-sifre" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-izleyici-sifre" })).StatusCode);
     }
 
     [Fact]
@@ -36,9 +36,9 @@ public class GuvenliOturumTests
     {
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "izleyici" })).EnsureSuccessStatusCode();
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
         var login = await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" });
         var oturum = await login.Content.ReadFromJsonAsync<Giris>();
         viewer.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oturum!.Token);

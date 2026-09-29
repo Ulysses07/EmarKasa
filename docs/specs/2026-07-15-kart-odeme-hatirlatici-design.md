@@ -4,6 +4,14 @@
 **Kapsam:** Kredi kartlarının kesim ve son ödeme tarihleri için Windows bildirimi (toast) + uygulama-içi "ödedin mi?" onay akışı.
 **Durum:** Onaylı — uygulama planına hazır.
 
+> **Sonraki durum (emekli):** İstemci tarafındaki hatırlatıcı (`KartHatirlatici`, Windows toast, `--hatirlatma-kontrol`
+> modu) kaldırıldı; hatırlatmalar sunucunun bildirim hattından gelir (bkz. `2026-09-23-finans-takip-api.md`, Özet).
+> Geçişi yapılmamış (takipsiz) kartlar için sunucu bu belgedeki kuralı sürdürür: ekstre borcu `/api/kredikartlari`
+> `EkstreBorc` hesabıyla, kapı "ekstre borcu > 0 ve kesimden sonra ödeme yok", olaylar kesim günü ile son ödemeye 3 gün kala
+> ve son ödeme günü. Uygulama, bu belgenin kurduğu `EmarKasaHatirlatici` zamanlanmış görevini hem normal açılışta hem
+> `--hatirlatma-kontrol` çalıştırmasında bir kez siler (`schtasks /Delete /TN EmarKasaHatirlatici /F`, pencere açmadan;
+> başarıdan sonra `%LOCALAPPDATA%\EmarKasa\eski-hatirlatma-gorevi-silindi.txt` işaretiyle bir daha denenmez).
+
 ## Amaç
 
 Editör, kredi kartlarının ekstre kesim ve son ödeme tarihlerini kaçırmasın. Uygulama

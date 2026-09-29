@@ -6,13 +6,18 @@ namespace Kasa.Api.Servisler;
 
 public static class KasaEsikServisi
 {
+    /// <summary>Kanal bakiyeleri bağlamın saatine göre bugünkü panelden okunur (HesapServisi, <c>db.Bugunu()</c>);
+    /// istek dışındaki çağrı (bildirim işi) da sunucunun gününü kullanır. <paramref name="today"/> olay tekrarını
+    /// önleyen uyarı günüdür; çağıran onu aynı DI saatinden hesaplar.</summary>
     public static IReadOnlyList<BildirimTaslagi> Oku(KasaDbContext db, DateOnly today, bool yeniUyariEtkin)
     {
         if (!db.KasaEsikleri.Any(x => x.Etkin || x.AlarmAcik)) return [];
+        // Bakiyeler salt okunur anlık görüntüden, yazma kilidi alınmadan hesaplanır (ağır kısım); yalnız alarm alanlarının
+        // güncellenmesi kısa bir yazma transaction'ındadır. Arada kaydedilen hareket bir sonraki turda değerlendirilir.
+        var balances = new HesapServisi(db).Panel().Kanallar.ToDictionary(k => k.KanalId ?? 0);
         using var snapshot = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
         foreach (var entry in db.ChangeTracker.Entries<KasaEsikEntity>().ToList()) entry.State = EntityState.Detached;
         var limits = db.KasaEsikleri.Where(x => x.Etkin || x.AlarmAcik).ToList();
-        var balances = new HesapServisi(db).Panel().Kanallar.ToDictionary(k => k.KanalId ?? 0);
         var result = new List<BildirimTaslagi>();
         foreach (var limit in limits)
         {

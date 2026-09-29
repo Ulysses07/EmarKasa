@@ -1,0 +1,6502 @@
+{
+  "/api/rapor/panel": {
+    "guncelKasa": 84846.12,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "bakiye": 24803.49,
+        "kanalId": 1
+      },
+      {
+        "kanal": "PERAKENDE",
+        "bakiye": 18192.70,
+        "kanalId": 2
+      },
+      {
+        "kanal": "TOPTAN",
+        "bakiye": 1853.51,
+        "kanalId": 3
+      },
+      {
+        "kanal": "ESKI",
+        "bakiye": 1380.0,
+        "kanalId": 4
+      }
+    ],
+    "buHaftaSonucu": 3000.0,
+    "buAySonucu": 7700.00,
+    "dagilimBekleyenTutar": 700.0
+  },
+  "/api/rapor/haftalik": [
+    {
+      "donem": {
+        "start": "2026-01-01",
+        "end": "2026-01-04",
+        "yil": 2026,
+        "ay": 1
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 10000.0,
+          "giden": 0,
+          "sonuc": 10000.0,
+          "devir": 22000.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1000.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 10000.0,
+      "toplamGiden": 0,
+      "kasaSonucu": 10000.0,
+      "kasaDevir": 60000.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-01-05",
+        "end": "2026-01-11",
+        "yil": 2026,
+        "ay": 1
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 1500.0,
+          "sonuc": -1500.0,
+          "devir": 20500.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1000.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 1500.0,
+      "kasaSonucu": -1500.0,
+      "kasaDevir": 58500.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-01-12",
+        "end": "2026-01-18",
+        "yil": 2026,
+        "ay": 1
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20500.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1000.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 58500.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-01-19",
+        "end": "2026-01-25",
+        "yil": 2026,
+        "ay": 1
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20500.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1000.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 58500.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-01-26",
+        "end": "2026-01-31",
+        "yil": 2026,
+        "ay": 1
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20500.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1000.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 58500.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-02-01",
+        "end": "2026-02-01",
+        "yil": 2026,
+        "ay": 2
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20500.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1000.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 10000.0,
+      "toplamGiden": 0,
+      "kasaSonucu": 10000.0,
+      "kasaDevir": 68500.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-02-02",
+        "end": "2026-02-08",
+        "yil": 2026,
+        "ay": 2
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 900.0,
+          "sonuc": -900.0,
+          "devir": 19600.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 8500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 500.0,
+          "giden": 0,
+          "sonuc": 500.0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 500.0,
+      "toplamGiden": 900.0,
+      "kasaSonucu": -400.0,
+      "kasaDevir": 68100.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-02-09",
+        "end": "2026-02-15",
+        "yil": 2026,
+        "ay": 2
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 10000,
+          "giden": 0,
+          "sonuc": 10000,
+          "devir": 29600.0,
+          "krediGirisi": 10000
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 10000,
+          "giden": 0,
+          "sonuc": 10000,
+          "devir": 18500.25,
+          "krediGirisi": 10000
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 20000,
+      "toplamGiden": 900.0,
+      "kasaSonucu": 19100.0,
+      "kasaDevir": 87200.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-02-16",
+        "end": "2026-02-22",
+        "yil": 2026,
+        "ay": 2
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 29600.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 87200.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-02-23",
+        "end": "2026-02-28",
+        "yil": 2026,
+        "ay": 2
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 29600.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 87200.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-03-01",
+        "end": "2026-03-01",
+        "yil": 2026,
+        "ay": 3
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 29600.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18500.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 87200.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-03-02",
+        "end": "2026-03-08",
+        "yil": 2026,
+        "ay": 3
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 2580.0,
+          "sonuc": -2580.0,
+          "devir": 27020.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 8000.0,
+          "giden": 1120,
+          "sonuc": 6880.0,
+          "devir": 25380.25,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 8000.0,
+      "toplamGiden": 3700.0,
+      "kasaSonucu": 4300.0,
+      "kasaDevir": 91500.0,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-03-09",
+        "end": "2026-03-15",
+        "yil": 2026,
+        "ay": 3
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 26095.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 1625.55,
+          "sonuc": -1625.55,
+          "devir": 23754.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 6000.0,
+      "toplamGiden": 2550.55,
+      "kasaSonucu": 3449.45,
+      "kasaDevir": 94949.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-03-16",
+        "end": "2026-03-22",
+        "yil": 2026,
+        "ay": 3
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 26095.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 23754.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 650.0,
+      "kasaSonucu": -650.0,
+      "kasaDevir": 94299.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-03-23",
+        "end": "2026-03-29",
+        "yil": 2026,
+        "ay": 3
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 900,
+          "sonuc": -900,
+          "devir": 25195.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 600,
+          "sonuc": -600,
+          "devir": 23154.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 1500,
+      "kasaSonucu": -1500,
+      "kasaDevir": 92799.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-03-30",
+        "end": "2026-03-31",
+        "yil": 2026,
+        "ay": 3
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 25195.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 23154.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 92799.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-04-01",
+        "end": "2026-04-05",
+        "yil": 2026,
+        "ay": 4
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 900.0,
+          "sonuc": -900.0,
+          "devir": 24295.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 23154.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 900.0,
+      "kasaSonucu": -900.0,
+      "kasaDevir": 91899.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-04-06",
+        "end": "2026-04-12",
+        "yil": 2026,
+        "ay": 4
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 23370.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 22229.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 2550.0,
+      "kasaSonucu": -2550.0,
+      "kasaDevir": 89349.45,
+      "dagilimBekleyenTutar": 700.0
+    },
+    {
+      "donem": {
+        "start": "2026-04-13",
+        "end": "2026-04-19",
+        "yil": 2026,
+        "ay": 4
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 23370.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 450.0,
+          "giden": 0,
+          "sonuc": 450.0,
+          "devir": 22679.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 450.0,
+      "toplamGiden": 0,
+      "kasaSonucu": 450.0,
+      "kasaDevir": 89799.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-04-20",
+        "end": "2026-04-26",
+        "yil": 2026,
+        "ay": 4
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 23370.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 22679.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 650.0,
+      "kasaSonucu": -650.0,
+      "kasaDevir": 89149.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-04-27",
+        "end": "2026-04-30",
+        "yil": 2026,
+        "ay": 4
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 23370.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 22679.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1250.0,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 89149.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-05-01",
+        "end": "2026-05-03",
+        "yil": 2026,
+        "ay": 5
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 610.36,
+          "sonuc": -610.36,
+          "devir": 22759.64,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 523.07,
+          "sonuc": -523.07,
+          "devir": 22156.63,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 366.57,
+          "sonuc": -366.57,
+          "devir": -1616.57,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 1500.00,
+      "kasaSonucu": -1500.00,
+      "kasaDevir": 87649.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-05-04",
+        "end": "2026-05-10",
+        "yil": 2026,
+        "ay": 5
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 1891.67,
+          "sonuc": -1891.67,
+          "devir": 20867.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 991.67,
+          "sonuc": -991.67,
+          "devir": 21164.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 366.66,
+          "sonuc": -366.66,
+          "devir": -1983.23,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 3250.00,
+      "kasaSonucu": -3250.00,
+      "kasaDevir": 84399.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-05-11",
+        "end": "2026-05-17",
+        "yil": 2026,
+        "ay": 5
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20867.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 21164.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1983.23,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 84399.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-05-18",
+        "end": "2026-05-24",
+        "yil": 2026,
+        "ay": 5
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20867.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 21164.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1983.23,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 650.0,
+      "kasaSonucu": -650.0,
+      "kasaDevir": 83749.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-05-25",
+        "end": "2026-05-31",
+        "yil": 2026,
+        "ay": 5
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20867.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 21164.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": -1983.23,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 400.0,
+      "kasaSonucu": -400.0,
+      "kasaDevir": 83349.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-06-01",
+        "end": "2026-06-07",
+        "yil": 2026,
+        "ay": 6
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 900.0,
+          "sonuc": -900.0,
+          "devir": 19967.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 21164.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 5000.0,
+          "giden": 0,
+          "sonuc": 5000.0,
+          "devir": 3016.77,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 5000.0,
+      "toplamGiden": 900.0,
+      "kasaSonucu": 4100.0,
+      "kasaDevir": 87449.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-06-08",
+        "end": "2026-06-14",
+        "yil": 2026,
+        "ay": 6
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 19042.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 20239.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 3016.77,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 1850,
+      "kasaSonucu": -1850,
+      "kasaDevir": 85599.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-06-15",
+        "end": "2026-06-21",
+        "yil": 2026,
+        "ay": 6
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19042.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20239.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 3016.77,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 650.0,
+      "kasaSonucu": -650.0,
+      "kasaDevir": 84949.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-06-22",
+        "end": "2026-06-28",
+        "yil": 2026,
+        "ay": 6
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19042.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20239.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 3016.77,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 84949.45,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-06-29",
+        "end": "2026-06-30",
+        "yil": 2026,
+        "ay": 6
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19042.97,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 20239.96,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 3016.77,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 333.33,
+      "kasaSonucu": -333.33,
+      "kasaDevir": 84616.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-07-01",
+        "end": "2026-07-05",
+        "yil": 2026,
+        "ay": 7
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 1359.48,
+          "sonuc": -1359.48,
+          "devir": 17683.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 257.26,
+          "sonuc": -257.26,
+          "devir": 19982.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 383.26,
+          "sonuc": -383.26,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 2000.00,
+      "kasaSonucu": -2000.00,
+      "kasaDevir": 82616.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-07-06",
+        "end": "2026-07-12",
+        "yil": 2026,
+        "ay": 7
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 16758.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 19057.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 2100.0,
+      "kasaSonucu": -2100.0,
+      "kasaDevir": 80516.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-07-13",
+        "end": "2026-07-19",
+        "yil": 2026,
+        "ay": 7
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 16758.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19057.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 80516.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-07-20",
+        "end": "2026-07-26",
+        "yil": 2026,
+        "ay": 7
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 16758.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19057.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 650.0,
+      "kasaSonucu": -650.0,
+      "kasaDevir": 79866.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-07-27",
+        "end": "2026-07-31",
+        "yil": 2026,
+        "ay": 7
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 16758.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19057.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 79866.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-08-01",
+        "end": "2026-08-02",
+        "yil": 2026,
+        "ay": 8
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 16758.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19057.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 79866.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-08-03",
+        "end": "2026-08-09",
+        "yil": 2026,
+        "ay": 8
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 900.0,
+          "sonuc": -900.0,
+          "devir": 15858.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 19057.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 900.0,
+      "kasaSonucu": -900.0,
+      "kasaDevir": 78966.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-08-10",
+        "end": "2026-08-16",
+        "yil": 2026,
+        "ay": 8
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 14933.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 925,
+          "sonuc": -925,
+          "devir": 18132.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1500.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 1850,
+      "kasaSonucu": -1850,
+      "kasaDevir": 77116.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-08-17",
+        "end": "2026-08-23",
+        "yil": 2026,
+        "ay": 8
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 14933.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18132.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 120.0,
+          "sonuc": -120.0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 770.0,
+      "kasaSonucu": -770.0,
+      "kasaDevir": 76346.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-08-24",
+        "end": "2026-08-30",
+        "yil": 2026,
+        "ay": 8
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 14933.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18132.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 76346.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-08-31",
+        "end": "2026-08-31",
+        "yil": 2026,
+        "ay": 8
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 14933.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18132.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 2633.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 0,
+      "kasaSonucu": 0,
+      "kasaDevir": 76346.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-09-01",
+        "end": "2026-09-06",
+        "yil": 2026,
+        "ay": 9
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 12000.0,
+          "giden": 1100.0,
+          "sonuc": 10900.0,
+          "devir": 25833.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 200,
+          "sonuc": -200,
+          "devir": 17932.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 200,
+          "sonuc": -200,
+          "devir": 2433.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 12000.0,
+      "toplamGiden": 1500.0,
+      "kasaSonucu": 10500.0,
+      "kasaDevir": 86846.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-09-07",
+        "end": "2026-09-13",
+        "yil": 2026,
+        "ay": 9
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 938.33,
+          "sonuc": -938.33,
+          "devir": 24895.16,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 1148.33,
+          "sonuc": -1148.33,
+          "devir": 16784.37,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 163.34,
+          "sonuc": -163.34,
+          "devir": 2270.17,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 2250.00,
+      "kasaSonucu": -2250.00,
+      "kasaDevir": 84596.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-09-14",
+        "end": "2026-09-20",
+        "yil": 2026,
+        "ay": 9
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 1500,
+          "giden": 1591.67,
+          "sonuc": -91.67,
+          "devir": 24803.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 1591.67,
+          "sonuc": -1591.67,
+          "devir": 15192.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 1000,
+          "giden": 1416.66,
+          "sonuc": -416.66,
+          "devir": 1853.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 2500,
+      "toplamGiden": 5250.00,
+      "kasaSonucu": -2750.00,
+      "kasaDevir": 81846.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-09-21",
+        "end": "2026-09-27",
+        "yil": 2026,
+        "ay": 9
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 24803.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 3000.0,
+          "giden": 0,
+          "sonuc": 3000.0,
+          "devir": 18192.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1853.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 3000.0,
+      "toplamGiden": 0,
+      "kasaSonucu": 3000.0,
+      "kasaDevir": 84846.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-09-28",
+        "end": "2026-09-30",
+        "yil": 2026,
+        "ay": 9
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 24803.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18192.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1853.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 800.0,
+      "kasaSonucu": -800.0,
+      "kasaDevir": 84046.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-10-01",
+        "end": "2026-10-04",
+        "yil": 2026,
+        "ay": 10
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 24803.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18192.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 700,
+          "sonuc": -700,
+          "devir": 1153.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 700,
+      "kasaSonucu": -700,
+      "kasaDevir": 83346.12,
+      "dagilimBekleyenTutar": 0
+    },
+    {
+      "donem": {
+        "start": "2026-10-05",
+        "end": "2026-10-05",
+        "yil": 2026,
+        "ay": 10
+      },
+      "kanallar": [
+        {
+          "kanal": "MEZAT",
+          "gelen": 0,
+          "giden": 1899.0,
+          "sonuc": -1899.0,
+          "devir": 22904.49,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "PERAKENDE",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 18192.70,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "TOPTAN",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1153.51,
+          "krediGirisi": 0
+        },
+        {
+          "kanal": "ESKI",
+          "gelen": 0,
+          "giden": 0,
+          "sonuc": 0,
+          "devir": 1380.0,
+          "krediGirisi": 0
+        }
+      ],
+      "toplamGelen": 0,
+      "toplamGiden": 1899.0,
+      "kasaSonucu": -1899.0,
+      "kasaDevir": 81447.12,
+      "dagilimBekleyenTutar": 0
+    }
+  ],
+  "/api/donemler": [
+    {
+      "start": "2026-01-01",
+      "end": "2026-01-04",
+      "yil": 2026,
+      "ay": 1
+    },
+    {
+      "start": "2026-01-05",
+      "end": "2026-01-11",
+      "yil": 2026,
+      "ay": 1
+    },
+    {
+      "start": "2026-01-12",
+      "end": "2026-01-18",
+      "yil": 2026,
+      "ay": 1
+    },
+    {
+      "start": "2026-01-19",
+      "end": "2026-01-25",
+      "yil": 2026,
+      "ay": 1
+    },
+    {
+      "start": "2026-01-26",
+      "end": "2026-01-31",
+      "yil": 2026,
+      "ay": 1
+    },
+    {
+      "start": "2026-02-01",
+      "end": "2026-02-01",
+      "yil": 2026,
+      "ay": 2
+    },
+    {
+      "start": "2026-02-02",
+      "end": "2026-02-08",
+      "yil": 2026,
+      "ay": 2
+    },
+    {
+      "start": "2026-02-09",
+      "end": "2026-02-15",
+      "yil": 2026,
+      "ay": 2
+    },
+    {
+      "start": "2026-02-16",
+      "end": "2026-02-22",
+      "yil": 2026,
+      "ay": 2
+    },
+    {
+      "start": "2026-02-23",
+      "end": "2026-02-28",
+      "yil": 2026,
+      "ay": 2
+    },
+    {
+      "start": "2026-03-01",
+      "end": "2026-03-01",
+      "yil": 2026,
+      "ay": 3
+    },
+    {
+      "start": "2026-03-02",
+      "end": "2026-03-08",
+      "yil": 2026,
+      "ay": 3
+    },
+    {
+      "start": "2026-03-09",
+      "end": "2026-03-15",
+      "yil": 2026,
+      "ay": 3
+    },
+    {
+      "start": "2026-03-16",
+      "end": "2026-03-22",
+      "yil": 2026,
+      "ay": 3
+    },
+    {
+      "start": "2026-03-23",
+      "end": "2026-03-29",
+      "yil": 2026,
+      "ay": 3
+    },
+    {
+      "start": "2026-03-30",
+      "end": "2026-03-31",
+      "yil": 2026,
+      "ay": 3
+    },
+    {
+      "start": "2026-04-01",
+      "end": "2026-04-05",
+      "yil": 2026,
+      "ay": 4
+    },
+    {
+      "start": "2026-04-06",
+      "end": "2026-04-12",
+      "yil": 2026,
+      "ay": 4
+    },
+    {
+      "start": "2026-04-13",
+      "end": "2026-04-19",
+      "yil": 2026,
+      "ay": 4
+    },
+    {
+      "start": "2026-04-20",
+      "end": "2026-04-26",
+      "yil": 2026,
+      "ay": 4
+    },
+    {
+      "start": "2026-04-27",
+      "end": "2026-04-30",
+      "yil": 2026,
+      "ay": 4
+    },
+    {
+      "start": "2026-05-01",
+      "end": "2026-05-03",
+      "yil": 2026,
+      "ay": 5
+    },
+    {
+      "start": "2026-05-04",
+      "end": "2026-05-10",
+      "yil": 2026,
+      "ay": 5
+    },
+    {
+      "start": "2026-05-11",
+      "end": "2026-05-17",
+      "yil": 2026,
+      "ay": 5
+    },
+    {
+      "start": "2026-05-18",
+      "end": "2026-05-24",
+      "yil": 2026,
+      "ay": 5
+    },
+    {
+      "start": "2026-05-25",
+      "end": "2026-05-31",
+      "yil": 2026,
+      "ay": 5
+    },
+    {
+      "start": "2026-06-01",
+      "end": "2026-06-07",
+      "yil": 2026,
+      "ay": 6
+    },
+    {
+      "start": "2026-06-08",
+      "end": "2026-06-14",
+      "yil": 2026,
+      "ay": 6
+    },
+    {
+      "start": "2026-06-15",
+      "end": "2026-06-21",
+      "yil": 2026,
+      "ay": 6
+    },
+    {
+      "start": "2026-06-22",
+      "end": "2026-06-28",
+      "yil": 2026,
+      "ay": 6
+    },
+    {
+      "start": "2026-06-29",
+      "end": "2026-06-30",
+      "yil": 2026,
+      "ay": 6
+    },
+    {
+      "start": "2026-07-01",
+      "end": "2026-07-05",
+      "yil": 2026,
+      "ay": 7
+    },
+    {
+      "start": "2026-07-06",
+      "end": "2026-07-12",
+      "yil": 2026,
+      "ay": 7
+    },
+    {
+      "start": "2026-07-13",
+      "end": "2026-07-19",
+      "yil": 2026,
+      "ay": 7
+    },
+    {
+      "start": "2026-07-20",
+      "end": "2026-07-26",
+      "yil": 2026,
+      "ay": 7
+    },
+    {
+      "start": "2026-07-27",
+      "end": "2026-07-31",
+      "yil": 2026,
+      "ay": 7
+    },
+    {
+      "start": "2026-08-01",
+      "end": "2026-08-02",
+      "yil": 2026,
+      "ay": 8
+    },
+    {
+      "start": "2026-08-03",
+      "end": "2026-08-09",
+      "yil": 2026,
+      "ay": 8
+    },
+    {
+      "start": "2026-08-10",
+      "end": "2026-08-16",
+      "yil": 2026,
+      "ay": 8
+    },
+    {
+      "start": "2026-08-17",
+      "end": "2026-08-23",
+      "yil": 2026,
+      "ay": 8
+    },
+    {
+      "start": "2026-08-24",
+      "end": "2026-08-30",
+      "yil": 2026,
+      "ay": 8
+    },
+    {
+      "start": "2026-08-31",
+      "end": "2026-08-31",
+      "yil": 2026,
+      "ay": 8
+    },
+    {
+      "start": "2026-09-01",
+      "end": "2026-09-06",
+      "yil": 2026,
+      "ay": 9
+    },
+    {
+      "start": "2026-09-07",
+      "end": "2026-09-13",
+      "yil": 2026,
+      "ay": 9
+    },
+    {
+      "start": "2026-09-14",
+      "end": "2026-09-20",
+      "yil": 2026,
+      "ay": 9
+    },
+    {
+      "start": "2026-09-21",
+      "end": "2026-09-27",
+      "yil": 2026,
+      "ay": 9
+    },
+    {
+      "start": "2026-09-28",
+      "end": "2026-09-30",
+      "yil": 2026,
+      "ay": 9
+    },
+    {
+      "start": "2026-10-01",
+      "end": "2026-10-04",
+      "yil": 2026,
+      "ay": 10
+    },
+    {
+      "start": "2026-10-05",
+      "end": "2026-10-05",
+      "yil": 2026,
+      "ay": 10
+    }
+  ],
+  "/api/takip/kartlar": [
+    {
+      "id": 1,
+      "surum": 0,
+      "ad": "Eski kart",
+      "yeniTakip": false,
+      "aktif": true,
+      "takipBaslangic": null,
+      "kesimGunu": 15,
+      "sonOdemeGunu": 25,
+      "limit": 20000.0,
+      "borc": 1433.33,
+      "ekstreBorc": 1433.33,
+      "ekstreler": [],
+      "harcamalar": [],
+      "odemeler": [],
+      "kanalKartBorclari": [
+        {
+          "kanalId": null,
+          "kanal": "Da\u011F\u0131l\u0131m bekliyor",
+          "tutar": 1433.33
+        }
+      ],
+      "gecis": null
+    },
+    {
+      "id": 2,
+      "surum": 3,
+      "ad": "Ge\u00E7i\u015F kart\u0131",
+      "yeniTakip": true,
+      "aktif": true,
+      "takipBaslangic": "2026-09-25",
+      "kesimGunu": 20,
+      "sonOdemeGunu": 30,
+      "limit": 15000.0,
+      "borc": 950.0,
+      "ekstreBorc": 0,
+      "ekstreler": [
+        {
+          "id": 14,
+          "kesimTarihi": "2026-10-20",
+          "sonOdemeTarihi": "2026-10-30",
+          "borc": 950.0,
+          "odenen": 0,
+          "kalan": 950.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        }
+      ],
+      "harcamalar": [
+        {
+          "id": 11,
+          "islemId": null,
+          "tarih": "2026-09-25",
+          "aciklama": "Onaylanan eski bor\u00E7 devri",
+          "tutar": 800.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 800
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 12,
+          "islemId": null,
+          "tarih": "2026-09-25",
+          "aciklama": "Ge\u00E7i\u015F sonras\u0131",
+          "tutar": 150.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 150
+            }
+          ],
+          "ekstreKayitId": null
+        }
+      ],
+      "odemeler": [],
+      "kanalKartBorclari": [
+        {
+          "kanalId": 2,
+          "kanal": "PERAKENDE",
+          "tutar": 950
+        }
+      ],
+      "gecis": {
+        "kural": "IslemTarihi",
+        "aciklama": "Banka borcu do\u011Fruland\u0131",
+        "onizleme": {
+          "onayTarihi": "2026-09-25",
+          "kalanBorc": 800,
+          "kasadaOncedenSayilanTutar": 800,
+          "sistemKartBorcu": 800.0,
+          "eskiKuraldaIslenenTutar": 0,
+          "bekleyenEskiDusumTutari": 800.0,
+          "sonBekleyenDusumTarihi": "2026-09-30",
+          "onerilenKasadaSayilanTutar": 800.0
+        },
+        "raporDisiEskiDusumTutari": 0,
+        "raporDisiIlkDusumTarihi": null,
+        "raporDisiSonDusumTarihi": null,
+        "tahminiKasaFarki": 0,
+        "uyari": null
+      }
+    },
+    {
+      "id": 3,
+      "surum": 16,
+      "ad": "Takip kart A",
+      "yeniTakip": true,
+      "aktif": true,
+      "takipBaslangic": "2026-02-01",
+      "kesimGunu": 12,
+      "sonOdemeGunu": 2,
+      "limit": 30000.0,
+      "borc": 1190.5,
+      "ekstreBorc": 1100.50,
+      "ekstreler": [
+        {
+          "id": 1,
+          "kesimTarihi": "2026-02-12",
+          "sonOdemeTarihi": "2026-03-02",
+          "borc": 1000.0,
+          "odenen": 1000,
+          "kalan": 0.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 4,
+          "kesimTarihi": "2026-03-12",
+          "sonOdemeTarihi": "2026-04-02",
+          "borc": 400.0,
+          "odenen": 400,
+          "kalan": 0.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 5,
+          "kesimTarihi": "2026-04-12",
+          "sonOdemeTarihi": "2026-05-02",
+          "borc": 1050.5,
+          "odenen": 1050.50,
+          "kalan": 0.00,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 6,
+          "kesimTarihi": "2026-05-12",
+          "sonOdemeTarihi": "2026-06-02",
+          "borc": 900.0,
+          "odenen": 900,
+          "kalan": 0.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 7,
+          "kesimTarihi": "2026-06-12",
+          "sonOdemeTarihi": "2026-07-02",
+          "borc": 500.0,
+          "odenen": 500.0,
+          "kalan": 0.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 8,
+          "kesimTarihi": "2026-07-12",
+          "sonOdemeTarihi": "2026-08-02",
+          "borc": 500.0,
+          "odenen": 399.5,
+          "kalan": 100.50,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 9,
+          "kesimTarihi": "2026-08-12",
+          "sonOdemeTarihi": "2026-09-02",
+          "borc": 500.0,
+          "odenen": 0,
+          "kalan": 500.00,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 3,
+          "kesimTarihi": "2026-09-12",
+          "sonOdemeTarihi": "2026-10-02",
+          "borc": 500.0,
+          "odenen": 0,
+          "kalan": 500.00,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 2,
+          "kesimTarihi": "2026-10-12",
+          "sonOdemeTarihi": "2026-11-02",
+          "borc": 90.0,
+          "odenen": 0,
+          "kalan": 90.00,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        }
+      ],
+      "harcamalar": [
+        {
+          "id": 1,
+          "islemId": null,
+          "tarih": "2026-02-01",
+          "aciklama": "A\u00E7\u0131l\u0131\u015F borcu",
+          "tutar": 1000.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 600
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 400
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 2,
+          "islemId": null,
+          "tarih": "2026-02-15",
+          "aciklama": "Malzeme",
+          "tutar": 1200.0,
+          "taksitSayisi": 3,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 700
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 500
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 3,
+          "islemId": null,
+          "tarih": "2026-03-20",
+          "aciklama": "Yak\u0131t",
+          "tutar": 450.5,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 450.50
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 4,
+          "islemId": null,
+          "tarih": "2026-04-02",
+          "aciklama": "Ekipman",
+          "tutar": 3000.0,
+          "taksitSayisi": 6,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 1000
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 1000
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 1000
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 5,
+          "islemId": null,
+          "tarih": "2026-04-10",
+          "aciklama": "Ekipman iadesi",
+          "tutar": -300.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 100
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 100
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 100
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 6,
+          "islemId": null,
+          "tarih": "2026-04-11",
+          "aciklama": "Hatal\u0131 harcama",
+          "tutar": 99.0,
+          "taksitSayisi": 1,
+          "iptal": true,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 99
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 7,
+          "islemId": 10,
+          "tarih": "2026-09-24",
+          "aciklama": "Kartla ortak gider",
+          "tutar": 90.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 30
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 30
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 30
+            }
+          ],
+          "ekstreKayitId": null
+        }
+      ],
+      "odemeler": [
+        {
+          "id": 1,
+          "tarih": "2026-03-05",
+          "tutar": 800.0,
+          "kasaEtkisi": 800,
+          "not": null,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 480
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 320
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 2,
+          "tarih": "2026-05-03",
+          "tutar": 1500.0,
+          "kasaEtkisi": 1500.00,
+          "not": "May\u0131s \u00F6demesi",
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 610.36
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 523.07
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 366.57
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 3,
+          "tarih": "2026-06-02",
+          "tutar": 700.0,
+          "kasaEtkisi": 0,
+          "not": null,
+          "iptal": true,
+          "dagilimlar": [],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 4,
+          "tarih": "2026-07-02",
+          "tutar": 1100.0,
+          "kasaEtkisi": 1100.00,
+          "not": null,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 459.48
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 383.26
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 257.26
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 5,
+          "tarih": "2026-09-02",
+          "tutar": 600.0,
+          "kasaEtkisi": 600.0,
+          "not": null,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 200
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 200
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 200
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 8,
+          "tarih": "2026-09-18",
+          "tutar": 250.0,
+          "kasaEtkisi": 250,
+          "not": "Kart A \u00F6demesi",
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 83.33
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 83.34
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 83.33
+            }
+          ],
+          "ekstreKayitId": 3
+        }
+      ],
+      "kanalKartBorclari": [
+        {
+          "kanalId": 1,
+          "kanal": "MEZAT",
+          "tutar": 396.83
+        },
+        {
+          "kanalId": 2,
+          "kanal": "PERAKENDE",
+          "tutar": 396.83
+        },
+        {
+          "kanalId": 3,
+          "kanal": "TOPTAN",
+          "tutar": 396.84
+        }
+      ],
+      "gecis": null
+    },
+    {
+      "id": 4,
+      "surum": 7,
+      "ad": "Takip kart B",
+      "yeniTakip": true,
+      "aktif": true,
+      "takipBaslangic": "2026-03-01",
+      "kesimGunu": 28,
+      "sonOdemeGunu": 8,
+      "limit": 10000.0,
+      "borc": 640.0,
+      "ekstreBorc": 640.0,
+      "ekstreler": [
+        {
+          "id": 12,
+          "kesimTarihi": "2026-06-28",
+          "sonOdemeTarihi": "2026-07-08",
+          "borc": 300.0,
+          "odenen": 300,
+          "kalan": 0.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 13,
+          "kesimTarihi": "2026-07-28",
+          "sonOdemeTarihi": "2026-08-08",
+          "borc": 240.0,
+          "odenen": 240,
+          "kalan": 0.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 11,
+          "kesimTarihi": "2026-08-28",
+          "sonOdemeTarihi": "2026-09-08",
+          "borc": 1000.0,
+          "odenen": 360,
+          "kalan": 640.0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        },
+        {
+          "id": 10,
+          "kesimTarihi": "2026-09-28",
+          "sonOdemeTarihi": "2026-10-08",
+          "borc": 0,
+          "odenen": 0,
+          "kalan": 0,
+          "asgariOdeme": null,
+          "asgariKalan": null
+        }
+      ],
+      "harcamalar": [
+        {
+          "id": 8,
+          "islemId": null,
+          "tarih": "2026-06-15",
+          "aciklama": "Sonradan harcama",
+          "tutar": 300.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 300
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 9,
+          "islemId": 11,
+          "tarih": "2026-07-12",
+          "aciklama": "Kartla ortak",
+          "tutar": 240.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 80
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 80
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 80
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 10,
+          "islemId": 14,
+          "tarih": "2026-08-05",
+          "aciklama": "Tedarik\u00E7i B",
+          "tutar": 1000.0,
+          "taksitSayisi": 1,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 583.33
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 416.67
+            }
+          ],
+          "ekstreKayitId": null
+        }
+      ],
+      "odemeler": [
+        {
+          "id": 6,
+          "tarih": "2026-05-10",
+          "tutar": 500.0,
+          "kasaEtkisi": 500,
+          "not": "Avans",
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 366.66
+            },
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 66.67
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 66.67
+            }
+          ],
+          "ekstreKayitId": null
+        },
+        {
+          "id": 7,
+          "tarih": "2026-09-08",
+          "tutar": 400.0,
+          "kasaEtkisi": 400,
+          "not": null,
+          "iptal": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 13.33
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 223.33
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 163.34
+            }
+          ],
+          "ekstreKayitId": null
+        }
+      ],
+      "kanalKartBorclari": [
+        {
+          "kanalId": 2,
+          "kanal": "PERAKENDE",
+          "tutar": 373.33
+        },
+        {
+          "kanalId": 3,
+          "kanal": "TOPTAN",
+          "tutar": 266.67
+        }
+      ],
+      "gecis": null
+    }
+  ],
+  "/api/takip/kartlar/3": {
+    "id": 3,
+    "surum": 16,
+    "ad": "Takip kart A",
+    "yeniTakip": true,
+    "aktif": true,
+    "takipBaslangic": "2026-02-01",
+    "kesimGunu": 12,
+    "sonOdemeGunu": 2,
+    "limit": 30000.0,
+    "borc": 1190.5,
+    "ekstreBorc": 1100.50,
+    "ekstreler": [
+      {
+        "id": 1,
+        "kesimTarihi": "2026-02-12",
+        "sonOdemeTarihi": "2026-03-02",
+        "borc": 1000.0,
+        "odenen": 1000,
+        "kalan": 0.0,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 4,
+        "kesimTarihi": "2026-03-12",
+        "sonOdemeTarihi": "2026-04-02",
+        "borc": 400.0,
+        "odenen": 400,
+        "kalan": 0.0,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 5,
+        "kesimTarihi": "2026-04-12",
+        "sonOdemeTarihi": "2026-05-02",
+        "borc": 1050.5,
+        "odenen": 1050.50,
+        "kalan": 0.00,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 6,
+        "kesimTarihi": "2026-05-12",
+        "sonOdemeTarihi": "2026-06-02",
+        "borc": 900.0,
+        "odenen": 900,
+        "kalan": 0.0,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 7,
+        "kesimTarihi": "2026-06-12",
+        "sonOdemeTarihi": "2026-07-02",
+        "borc": 500.0,
+        "odenen": 500.0,
+        "kalan": 0.0,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 8,
+        "kesimTarihi": "2026-07-12",
+        "sonOdemeTarihi": "2026-08-02",
+        "borc": 500.0,
+        "odenen": 399.5,
+        "kalan": 100.50,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 9,
+        "kesimTarihi": "2026-08-12",
+        "sonOdemeTarihi": "2026-09-02",
+        "borc": 500.0,
+        "odenen": 0,
+        "kalan": 500.00,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 3,
+        "kesimTarihi": "2026-09-12",
+        "sonOdemeTarihi": "2026-10-02",
+        "borc": 500.0,
+        "odenen": 0,
+        "kalan": 500.00,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      },
+      {
+        "id": 2,
+        "kesimTarihi": "2026-10-12",
+        "sonOdemeTarihi": "2026-11-02",
+        "borc": 90.0,
+        "odenen": 0,
+        "kalan": 90.00,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      }
+    ],
+    "harcamalar": [
+      {
+        "id": 1,
+        "islemId": null,
+        "tarih": "2026-02-01",
+        "aciklama": "A\u00E7\u0131l\u0131\u015F borcu",
+        "tutar": 1000.0,
+        "taksitSayisi": 1,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 600
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 400
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 2,
+        "islemId": null,
+        "tarih": "2026-02-15",
+        "aciklama": "Malzeme",
+        "tutar": 1200.0,
+        "taksitSayisi": 3,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 700
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 500
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 3,
+        "islemId": null,
+        "tarih": "2026-03-20",
+        "aciklama": "Yak\u0131t",
+        "tutar": 450.5,
+        "taksitSayisi": 1,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 450.50
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 4,
+        "islemId": null,
+        "tarih": "2026-04-02",
+        "aciklama": "Ekipman",
+        "tutar": 3000.0,
+        "taksitSayisi": 6,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 1000
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 1000
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 1000
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 5,
+        "islemId": null,
+        "tarih": "2026-04-10",
+        "aciklama": "Ekipman iadesi",
+        "tutar": -300.0,
+        "taksitSayisi": 1,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 100
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 100
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 100
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 6,
+        "islemId": null,
+        "tarih": "2026-04-11",
+        "aciklama": "Hatal\u0131 harcama",
+        "tutar": 99.0,
+        "taksitSayisi": 1,
+        "iptal": true,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 99
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 7,
+        "islemId": 10,
+        "tarih": "2026-09-24",
+        "aciklama": "Kartla ortak gider",
+        "tutar": 90.0,
+        "taksitSayisi": 1,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 30
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 30
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 30
+          }
+        ],
+        "ekstreKayitId": null
+      }
+    ],
+    "odemeler": [
+      {
+        "id": 1,
+        "tarih": "2026-03-05",
+        "tutar": 800.0,
+        "kasaEtkisi": 800,
+        "not": null,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 480
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 320
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 2,
+        "tarih": "2026-05-03",
+        "tutar": 1500.0,
+        "kasaEtkisi": 1500.00,
+        "not": "May\u0131s \u00F6demesi",
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 610.36
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 523.07
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 366.57
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 3,
+        "tarih": "2026-06-02",
+        "tutar": 700.0,
+        "kasaEtkisi": 0,
+        "not": null,
+        "iptal": true,
+        "dagilimlar": [],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 4,
+        "tarih": "2026-07-02",
+        "tutar": 1100.0,
+        "kasaEtkisi": 1100.00,
+        "not": null,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 459.48
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 383.26
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 257.26
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 5,
+        "tarih": "2026-09-02",
+        "tutar": 600.0,
+        "kasaEtkisi": 600.0,
+        "not": null,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 200
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 200
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 200
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 8,
+        "tarih": "2026-09-18",
+        "tutar": 250.0,
+        "kasaEtkisi": 250,
+        "not": "Kart A \u00F6demesi",
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 83.33
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 83.34
+          },
+          {
+            "kanalId": 3,
+            "kanal": "TOPTAN",
+            "tutar": 83.33
+          }
+        ],
+        "ekstreKayitId": 3
+      }
+    ],
+    "kanalKartBorclari": [
+      {
+        "kanalId": 1,
+        "kanal": "MEZAT",
+        "tutar": 396.83
+      },
+      {
+        "kanalId": 2,
+        "kanal": "PERAKENDE",
+        "tutar": 396.83
+      },
+      {
+        "kanalId": 3,
+        "kanal": "TOPTAN",
+        "tutar": 396.84
+      }
+    ],
+    "gecis": null
+  },
+  "/api/takip/kartlar/2": {
+    "id": 2,
+    "surum": 3,
+    "ad": "Ge\u00E7i\u015F kart\u0131",
+    "yeniTakip": true,
+    "aktif": true,
+    "takipBaslangic": "2026-09-25",
+    "kesimGunu": 20,
+    "sonOdemeGunu": 30,
+    "limit": 15000.0,
+    "borc": 950.0,
+    "ekstreBorc": 0,
+    "ekstreler": [
+      {
+        "id": 14,
+        "kesimTarihi": "2026-10-20",
+        "sonOdemeTarihi": "2026-10-30",
+        "borc": 950.0,
+        "odenen": 0,
+        "kalan": 950.0,
+        "asgariOdeme": null,
+        "asgariKalan": null
+      }
+    ],
+    "harcamalar": [
+      {
+        "id": 11,
+        "islemId": null,
+        "tarih": "2026-09-25",
+        "aciklama": "Onaylanan eski bor\u00E7 devri",
+        "tutar": 800.0,
+        "taksitSayisi": 1,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 800
+          }
+        ],
+        "ekstreKayitId": null
+      },
+      {
+        "id": 12,
+        "islemId": null,
+        "tarih": "2026-09-25",
+        "aciklama": "Ge\u00E7i\u015F sonras\u0131",
+        "tutar": 150.0,
+        "taksitSayisi": 1,
+        "iptal": false,
+        "dagilimlar": [
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 150
+          }
+        ],
+        "ekstreKayitId": null
+      }
+    ],
+    "odemeler": [],
+    "kanalKartBorclari": [
+      {
+        "kanalId": 2,
+        "kanal": "PERAKENDE",
+        "tutar": 950
+      }
+    ],
+    "gecis": {
+      "kural": "IslemTarihi",
+      "aciklama": "Banka borcu do\u011Fruland\u0131",
+      "onizleme": {
+        "onayTarihi": "2026-09-25",
+        "kalanBorc": 800,
+        "kasadaOncedenSayilanTutar": 800,
+        "sistemKartBorcu": 800.0,
+        "eskiKuraldaIslenenTutar": 0,
+        "bekleyenEskiDusumTutari": 800.0,
+        "sonBekleyenDusumTarihi": "2026-09-30",
+        "onerilenKasadaSayilanTutar": 800.0
+      },
+      "raporDisiEskiDusumTutari": 0,
+      "raporDisiIlkDusumTarihi": null,
+      "raporDisiSonDusumTarihi": null,
+      "tahminiKasaFarki": 0,
+      "uyari": null
+    }
+  },
+  "/api/takip/krediler": [
+    {
+      "id": 2,
+      "surum": 2,
+      "ad": "Ge\u00E7i\u015F kredisi",
+      "yeniTakip": true,
+      "aktif": true,
+      "takipBaslangic": "2026-09-26",
+      "cekilenTutar": 6000.0,
+      "cekimTarihi": "2026-03-10",
+      "kalanPlanliOdeme": 1950.0,
+      "kanalPaylari": [
+        {
+          "kanalId": 1,
+          "kanal": "MEZAT",
+          "tutar": 3000
+        },
+        {
+          "kanalId": 3,
+          "kanal": "TOPTAN",
+          "tutar": 3000
+        }
+      ],
+      "taksitler": [
+        {
+          "id": 20,
+          "no": 8,
+          "tarih": "2026-10-20",
+          "tutar": 650.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 325
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 325
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "no": 9,
+          "tarih": "2026-11-20",
+          "tutar": 650.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 325
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 325
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "no": 10,
+          "tarih": "2026-12-20",
+          "tutar": 650.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 325
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 325
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "surum": 3,
+      "ad": "Takip kredisi",
+      "yeniTakip": true,
+      "aktif": true,
+      "takipBaslangic": "2026-02-10",
+      "cekilenTutar": 20000.0,
+      "cekimTarihi": "2026-02-10",
+      "kalanPlanliOdeme": 15700.0,
+      "kanalPaylari": [
+        {
+          "kanalId": 1,
+          "kanal": "MEZAT",
+          "tutar": 10000
+        },
+        {
+          "kanalId": 2,
+          "kanal": "PERAKENDE",
+          "tutar": 10000
+        }
+      ],
+      "taksitler": [
+        {
+          "id": 1,
+          "no": 1,
+          "tarih": "2026-03-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "no": 2,
+          "tarih": "2026-04-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "no": 3,
+          "tarih": "2026-05-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "no": 4,
+          "tarih": "2026-06-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "no": 5,
+          "tarih": "2026-07-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "no": 6,
+          "tarih": "2026-08-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "no": 7,
+          "tarih": "2026-09-10",
+          "tutar": 1850.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "no": 8,
+          "tarih": "2026-10-10",
+          "tutar": 1850.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "no": 9,
+          "tarih": "2026-11-10",
+          "tutar": 1850.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "no": 10,
+          "tarih": "2026-12-10",
+          "tutar": 1850.0,
+          "durum": "Iptal",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "no": 11,
+          "tarih": "2027-01-10",
+          "tutar": 1850.0,
+          "durum": "Iptal",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "no": 12,
+          "tarih": "2027-02-10",
+          "tutar": 1850.0,
+          "durum": "Iptal",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 925
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 925
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "no": 13,
+          "tarih": "2026-12-10",
+          "tutar": 12000.0,
+          "durum": "Bekliyor",
+          "not": "Erken kapama: Erken kapama teklifi",
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 6000
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 6000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "surum": 0,
+      "ad": "Eski kredi",
+      "yeniTakip": false,
+      "aktif": true,
+      "takipBaslangic": null,
+      "cekilenTutar": 10000.0,
+      "cekimTarihi": "2026-02-01",
+      "kalanPlanliOdeme": 3600.0,
+      "kanalPaylari": [],
+      "taksitler": [
+        {
+          "id": 0,
+          "no": 1,
+          "tarih": "2026-02-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 2,
+          "tarih": "2026-03-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 3,
+          "tarih": "2026-04-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 4,
+          "tarih": "2026-05-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 5,
+          "tarih": "2026-06-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 6,
+          "tarih": "2026-07-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 7,
+          "tarih": "2026-08-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 8,
+          "tarih": "2026-09-05",
+          "tutar": 900.0,
+          "durum": "KasayaIslendi",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 9,
+          "tarih": "2026-10-05",
+          "tutar": 900.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 10,
+          "tarih": "2026-11-05",
+          "tutar": 900.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 11,
+          "tarih": "2026-12-05",
+          "tutar": 900.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": []
+        },
+        {
+          "id": 0,
+          "no": 12,
+          "tarih": "2027-01-05",
+          "tutar": 900.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": []
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "surum": 2,
+      "ad": "Mevcut banka kredisi",
+      "yeniTakip": true,
+      "aktif": true,
+      "takipBaslangic": "2026-09-25",
+      "cekilenTutar": 8000.0,
+      "cekimTarihi": "2025-12-01",
+      "kalanPlanliOdeme": 4200.0,
+      "kanalPaylari": [
+        {
+          "kanalId": 3,
+          "kanal": "TOPTAN",
+          "tutar": 8000
+        }
+      ],
+      "taksitler": [
+        {
+          "id": 14,
+          "no": 1,
+          "tarih": "2026-10-01",
+          "tutar": 700.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 700
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "no": 2,
+          "tarih": "2026-11-01",
+          "tutar": 700.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 700
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "no": 3,
+          "tarih": "2026-12-01",
+          "tutar": 700.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 700
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "no": 4,
+          "tarih": "2027-01-01",
+          "tutar": 700.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 700
+            }
+          ]
+        },
+        {
+          "id": 18,
+          "no": 5,
+          "tarih": "2027-02-01",
+          "tutar": 700.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 700
+            }
+          ]
+        },
+        {
+          "id": 19,
+          "no": 6,
+          "tarih": "2027-03-01",
+          "tutar": 700.0,
+          "durum": "Bekliyor",
+          "not": null,
+          "dagilimlar": [
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 700
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "/api/takip/krediler/3": {
+    "id": 3,
+    "surum": 3,
+    "ad": "Takip kredisi",
+    "yeniTakip": true,
+    "aktif": true,
+    "takipBaslangic": "2026-02-10",
+    "cekilenTutar": 20000.0,
+    "cekimTarihi": "2026-02-10",
+    "kalanPlanliOdeme": 15700.0,
+    "kanalPaylari": [
+      {
+        "kanalId": 1,
+        "kanal": "MEZAT",
+        "tutar": 10000
+      },
+      {
+        "kanalId": 2,
+        "kanal": "PERAKENDE",
+        "tutar": 10000
+      }
+    ],
+    "taksitler": [
+      {
+        "id": 1,
+        "no": 1,
+        "tarih": "2026-03-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "no": 2,
+        "tarih": "2026-04-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "no": 3,
+        "tarih": "2026-05-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "no": 4,
+        "tarih": "2026-06-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "no": 5,
+        "tarih": "2026-07-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "no": 6,
+        "tarih": "2026-08-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "no": 7,
+        "tarih": "2026-09-10",
+        "tutar": 1850.0,
+        "durum": "KasayaIslendi",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "no": 8,
+        "tarih": "2026-10-10",
+        "tutar": 1850.0,
+        "durum": "Bekliyor",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "no": 9,
+        "tarih": "2026-11-10",
+        "tutar": 1850.0,
+        "durum": "Bekliyor",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "no": 10,
+        "tarih": "2026-12-10",
+        "tutar": 1850.0,
+        "durum": "Iptal",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "no": 11,
+        "tarih": "2027-01-10",
+        "tutar": 1850.0,
+        "durum": "Iptal",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "no": 12,
+        "tarih": "2027-02-10",
+        "tutar": 1850.0,
+        "durum": "Iptal",
+        "not": null,
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 925
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 925
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "no": 13,
+        "tarih": "2026-12-10",
+        "tutar": 12000.0,
+        "durum": "Bekliyor",
+        "not": "Erken kapama: Erken kapama teklifi",
+        "dagilimlar": [
+          {
+            "kanalId": 1,
+            "kanal": "MEZAT",
+            "tutar": 6000
+          },
+          {
+            "kanalId": 2,
+            "kanal": "PERAKENDE",
+            "tutar": 6000
+          }
+        ]
+      }
+    ]
+  },
+  "/api/takip/ozet": {
+    "tarih": "2026-09-25",
+    "kartBorcu": 4213.83,
+    "kalanKrediPlani": 25450.0,
+    "olaylar": [
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 8,
+        "ad": "Takip kart A",
+        "tarih": "2026-08-02",
+        "tutar": 100.50,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 9,
+        "ad": "Takip kart A",
+        "tarih": "2026-09-02",
+        "tutar": 500.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 4,
+        "kalemId": 11,
+        "ad": "Takip kart B",
+        "tarih": "2026-09-08",
+        "tutar": 640.0,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 4,
+        "kalemId": 10,
+        "ad": "Takip kart B",
+        "tarih": "2026-09-28",
+        "tutar": 0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 14,
+        "ad": "Mevcut banka kredisi / 1. taksit",
+        "tarih": "2026-10-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 3,
+        "ad": "Takip kart A",
+        "tarih": "2026-10-02",
+        "tutar": 500.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 3,
+        "kalemId": 8,
+        "ad": "Takip kredisi / 8. taksit",
+        "tarih": "2026-10-10",
+        "tutar": 1850.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 2,
+        "ad": "Takip kart A",
+        "tarih": "2026-10-12",
+        "tutar": 90.0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 2,
+        "kalemId": 14,
+        "ad": "Ge\u00E7i\u015F kart\u0131",
+        "tarih": "2026-10-20",
+        "tutar": 950.0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 2,
+        "kalemId": 20,
+        "ad": "Ge\u00E7i\u015F kredisi / 8. taksit",
+        "tarih": "2026-10-20",
+        "tutar": 650.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      }
+    ],
+    "kanalKartBorclari": [
+      {
+        "kanalId": 1,
+        "kanal": "MEZAT",
+        "tutar": 396.83
+      },
+      {
+        "kanalId": 2,
+        "kanal": "PERAKENDE",
+        "tutar": 1720.16
+      },
+      {
+        "kanalId": 3,
+        "kanal": "TOPTAN",
+        "tutar": 663.51
+      },
+      {
+        "kanalId": null,
+        "kanal": "Da\u011F\u0131l\u0131m bekliyor",
+        "tutar": 1433.33
+      }
+    ],
+    "kartAlacakBakiyesi": 0
+  },
+  "/api/takip/ozet?gun=7": {
+    "tarih": "2026-09-25",
+    "kartBorcu": 4213.83,
+    "kalanKrediPlani": 25450.0,
+    "olaylar": [
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 8,
+        "ad": "Takip kart A",
+        "tarih": "2026-08-02",
+        "tutar": 100.50,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 9,
+        "ad": "Takip kart A",
+        "tarih": "2026-09-02",
+        "tutar": 500.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 4,
+        "kalemId": 11,
+        "ad": "Takip kart B",
+        "tarih": "2026-09-08",
+        "tutar": 640.0,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 4,
+        "kalemId": 10,
+        "ad": "Takip kart B",
+        "tarih": "2026-09-28",
+        "tutar": 0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 14,
+        "ad": "Mevcut banka kredisi / 1. taksit",
+        "tarih": "2026-10-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 3,
+        "ad": "Takip kart A",
+        "tarih": "2026-10-02",
+        "tutar": 500.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      }
+    ],
+    "kanalKartBorclari": [
+      {
+        "kanalId": 1,
+        "kanal": "MEZAT",
+        "tutar": 396.83
+      },
+      {
+        "kanalId": 2,
+        "kanal": "PERAKENDE",
+        "tutar": 1720.16
+      },
+      {
+        "kanalId": 3,
+        "kanal": "TOPTAN",
+        "tutar": 663.51
+      },
+      {
+        "kanalId": null,
+        "kanal": "Da\u011F\u0131l\u0131m bekliyor",
+        "tutar": 1433.33
+      }
+    ],
+    "kartAlacakBakiyesi": 0
+  },
+  "/api/takip/ozet?gun=366": {
+    "tarih": "2026-09-25",
+    "kartBorcu": 4213.83,
+    "kalanKrediPlani": 25450.0,
+    "olaylar": [
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 8,
+        "ad": "Takip kart A",
+        "tarih": "2026-08-02",
+        "tutar": 100.50,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 9,
+        "ad": "Takip kart A",
+        "tarih": "2026-09-02",
+        "tutar": 500.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 4,
+        "kalemId": 11,
+        "ad": "Takip kart B",
+        "tarih": "2026-09-08",
+        "tutar": 640.0,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 4,
+        "kalemId": 10,
+        "ad": "Takip kart B",
+        "tarih": "2026-09-28",
+        "tutar": 0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 14,
+        "ad": "Mevcut banka kredisi / 1. taksit",
+        "tarih": "2026-10-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 3,
+        "ad": "Takip kart A",
+        "tarih": "2026-10-02",
+        "tutar": 500.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 3,
+        "kalemId": 8,
+        "ad": "Takip kredisi / 8. taksit",
+        "tarih": "2026-10-10",
+        "tutar": 1850.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 2,
+        "ad": "Takip kart A",
+        "tarih": "2026-10-12",
+        "tutar": 90.0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 2,
+        "kalemId": 14,
+        "ad": "Ge\u00E7i\u015F kart\u0131",
+        "tarih": "2026-10-20",
+        "tutar": 950.0,
+        "tur": "Kesim",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 2,
+        "kalemId": 20,
+        "ad": "Ge\u00E7i\u015F kredisi / 8. taksit",
+        "tarih": "2026-10-20",
+        "tutar": 650.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 2,
+        "kalemId": 14,
+        "ad": "Ge\u00E7i\u015F kart\u0131",
+        "tarih": "2026-10-30",
+        "tutar": 950.0,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 15,
+        "ad": "Mevcut banka kredisi / 2. taksit",
+        "tarih": "2026-11-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kart",
+        "kaynakId": 3,
+        "kalemId": 2,
+        "ad": "Takip kart A",
+        "tarih": "2026-11-02",
+        "tutar": 90.00,
+        "tur": "SonOdeme",
+        "otomatikKasa": false
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 3,
+        "kalemId": 9,
+        "ad": "Takip kredisi / 9. taksit",
+        "tarih": "2026-11-10",
+        "tutar": 1850.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 2,
+        "kalemId": 21,
+        "ad": "Ge\u00E7i\u015F kredisi / 9. taksit",
+        "tarih": "2026-11-20",
+        "tutar": 650.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 16,
+        "ad": "Mevcut banka kredisi / 3. taksit",
+        "tarih": "2026-12-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 3,
+        "kalemId": 13,
+        "ad": "Takip kredisi / 13. taksit",
+        "tarih": "2026-12-10",
+        "tutar": 12000.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 2,
+        "kalemId": 22,
+        "ad": "Ge\u00E7i\u015F kredisi / 10. taksit",
+        "tarih": "2026-12-20",
+        "tutar": 650.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 17,
+        "ad": "Mevcut banka kredisi / 4. taksit",
+        "tarih": "2027-01-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 18,
+        "ad": "Mevcut banka kredisi / 5. taksit",
+        "tarih": "2027-02-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      },
+      {
+        "kaynak": "Kredi",
+        "kaynakId": 4,
+        "kalemId": 19,
+        "ad": "Mevcut banka kredisi / 6. taksit",
+        "tarih": "2027-03-01",
+        "tutar": 700.0,
+        "tur": "Taksit",
+        "otomatikKasa": true
+      }
+    ],
+    "kanalKartBorclari": [
+      {
+        "kanalId": 1,
+        "kanal": "MEZAT",
+        "tutar": 396.83
+      },
+      {
+        "kanalId": 2,
+        "kanal": "PERAKENDE",
+        "tutar": 1720.16
+      },
+      {
+        "kanalId": 3,
+        "kanal": "TOPTAN",
+        "tutar": 663.51
+      },
+      {
+        "kanalId": null,
+        "kanal": "Da\u011F\u0131l\u0131m bekliyor",
+        "tutar": 1433.33
+      }
+    ],
+    "kartAlacakBakiyesi": 0
+  },
+  "/api/kasa-esikleri": [
+    {
+      "kanalId": 1,
+      "kanal": "MEZAT",
+      "surum": 0,
+      "tutar": 0,
+      "etkin": false,
+      "bakiye": 24803.49,
+      "esikAltinda": false
+    },
+    {
+      "kanalId": 2,
+      "kanal": "PERAKENDE",
+      "surum": 1,
+      "tutar": 1000000.0,
+      "etkin": true,
+      "bakiye": 18192.70,
+      "esikAltinda": true
+    },
+    {
+      "kanalId": 3,
+      "kanal": "TOPTAN",
+      "surum": 0,
+      "tutar": 0,
+      "etkin": false,
+      "bakiye": 1853.51,
+      "esikAltinda": false
+    },
+    {
+      "kanalId": 4,
+      "kanal": "ESKI",
+      "surum": 0,
+      "tutar": 0,
+      "etkin": false,
+      "bakiye": 1380.0,
+      "esikAltinda": false
+    }
+  ],
+  "/api/islemler": [
+    {
+      "id": 1,
+      "tarih": "2026-01-05",
+      "cari": "Cari \u00F6deme",
+      "tutarTl": 1500.0,
+      "kanal": "MEZAT",
+      "kanalId": 1,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 2,
+      "tarih": "2026-02-10",
+      "cari": "SGK",
+      "tutarTl": 900.0,
+      "kanal": "Ortak",
+      "kanalId": null,
+      "tip": "SabitGider",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 12,
+      "tarih": "2026-03-03",
+      "cari": "Tedarik\u00E7i A",
+      "tutarTl": 2000.0,
+      "kanal": "MEZAT / PERAKENDE",
+      "kanalId": null,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": 1,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 3,
+      "tarih": "2026-03-15",
+      "cari": "Nakliye",
+      "tutarTl": 700.55,
+      "kanal": "PERAKENDE",
+      "kanalId": 2,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 13,
+      "tarih": "2026-03-25",
+      "cari": "Tedarik\u00E7i A",
+      "tutarTl": 1500.0,
+      "kanal": "MEZAT / PERAKENDE",
+      "kanalId": null,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": 1,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 15,
+      "tarih": "2026-04-08",
+      "cari": "Tedarik\u00E7i C",
+      "tutarTl": 700.0,
+      "kanal": "Da\u011F\u0131l\u0131m bekliyor",
+      "kanalId": null,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": 3,
+      "dagilimBekliyor": true,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 4,
+      "tarih": "2026-04-20",
+      "cari": "Eski kart al\u0131\u015F\u0131",
+      "tutarTl": 400.0,
+      "kanal": "MEZAT",
+      "kanalId": 1,
+      "tip": "KrediKarti",
+      "not": null,
+      "krediKartiId": 1,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 5,
+      "tarih": "2026-05-31",
+      "cari": "Eski kart ortak",
+      "tutarTl": 333.33,
+      "kanal": "Ortak",
+      "kanalId": null,
+      "tip": "KrediKarti",
+      "not": null,
+      "krediKartiId": 1,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 6,
+      "tarih": "2026-07-07",
+      "cari": "Elektrik",
+      "tutarTl": 250.0,
+      "kanal": "TOPTAN",
+      "kanalId": 3,
+      "tip": "SabitGider",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 11,
+      "tarih": "2026-07-12",
+      "cari": "Kartla ortak",
+      "tutarTl": 240.0,
+      "kanal": "Ortak",
+      "kanalId": null,
+      "tip": "KrediKarti",
+      "not": null,
+      "krediKartiId": 4,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 14,
+      "tarih": "2026-08-05",
+      "cari": "Tedarik\u00E7i B",
+      "tutarTl": 1000.0,
+      "kanal": "PERAKENDE / TOPTAN",
+      "kanalId": null,
+      "tip": "KrediKarti",
+      "not": null,
+      "krediKartiId": 4,
+      "alisId": 2,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 8,
+      "tarih": "2026-08-10",
+      "cari": "Ge\u00E7i\u015F \u00F6ncesi kart",
+      "tutarTl": 800.0,
+      "kanal": "PERAKENDE",
+      "kanalId": 2,
+      "tip": "KrediKarti",
+      "not": null,
+      "krediKartiId": 2,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 7,
+      "tarih": "2026-08-18",
+      "cari": "Pasif kanal gideri",
+      "tutarTl": 120.0,
+      "kanal": "ESKI",
+      "kanalId": 4,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 16,
+      "tarih": "2026-09-15",
+      "cari": "Kira",
+      "tutarTl": 4000.0,
+      "kanal": "MEZAT / PERAKENDE / TOPTAN",
+      "kanalId": null,
+      "tip": "SabitGider",
+      "not": "Eyl\u00FCl kiras\u0131",
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": 1,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 17,
+      "tarih": "2026-09-16",
+      "cari": "Banka masraf\u0131",
+      "tutarTl": 350.0,
+      "kanal": "MEZAT / PERAKENDE",
+      "kanalId": null,
+      "tip": "Cari",
+      "not": "PDF hesap hareketi \u00B7 Akbank \u00B7 \u0130\u015F hesab\u0131",
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": 2
+    },
+    {
+      "id": 10,
+      "tarih": "2026-09-24",
+      "cari": "Kartla ortak gider",
+      "tutarTl": 90.0,
+      "kanal": "Ortak",
+      "kanalId": null,
+      "tip": "KrediKarti",
+      "not": null,
+      "krediKartiId": 3,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    },
+    {
+      "id": 9,
+      "tarih": "2026-10-05",
+      "cari": "\u0130leri tarihli \u00F6deme",
+      "tutarTl": 999.0,
+      "kanal": "MEZAT",
+      "kanalId": 1,
+      "tip": "Cari",
+      "not": null,
+      "krediKartiId": null,
+      "alisId": null,
+      "dagilimBekliyor": false,
+      "aylikGiderOdemeId": null,
+      "ekstreKayitId": null
+    }
+  ],
+  "/api/alis": [
+    {
+      "id": 2,
+      "surum": 4,
+      "aliciId": null,
+      "alici": "Edit\u00F6r",
+      "tarih": "2026-08-01",
+      "tedarikci": "Tedarik\u00E7i B",
+      "not": null,
+      "durum": "Onaylandi",
+      "editorNotu": "Uygun",
+      "toplam": 2400.0,
+      "odenen": 1000.0,
+      "kalan": 1400.0,
+      "kalemler": [
+        {
+          "id": 2,
+          "aciklama": "Mal",
+          "tutar": 2400.0,
+          "dagilimlar": [
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 1400.0
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 1000.0
+            }
+          ],
+          "miktar": null,
+          "birimFiyat": null
+        }
+      ],
+      "odemeler": [
+        {
+          "id": 3,
+          "islemId": 14,
+          "tarih": "2026-08-05",
+          "tutar": 1000.0,
+          "krediKartiId": 4,
+          "dagilimBekliyor": false,
+          "dagilimlar": [
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 583.33
+            },
+            {
+              "kanalId": 3,
+              "kanal": "TOPTAN",
+              "tutar": 416.67
+            }
+          ],
+          "hesapId": null,
+          "krediKartiAdi": "Takip kart B"
+        }
+      ],
+      "tedarikciId": null,
+      "vade": null
+    },
+    {
+      "id": 3,
+      "surum": 2,
+      "aliciId": null,
+      "alici": "Edit\u00F6r",
+      "tarih": "2026-04-05",
+      "tedarikci": "Tedarik\u00E7i C",
+      "not": null,
+      "durum": "Taslak",
+      "editorNotu": null,
+      "toplam": 1000.0,
+      "odenen": 700.0,
+      "kalan": 300.0,
+      "kalemler": [
+        {
+          "id": 3,
+          "aciklama": "Mal",
+          "tutar": 1000.0,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 1000.0
+            }
+          ],
+          "miktar": null,
+          "birimFiyat": null
+        }
+      ],
+      "odemeler": [
+        {
+          "id": 4,
+          "islemId": 15,
+          "tarih": "2026-04-08",
+          "tutar": 700.0,
+          "krediKartiId": null,
+          "dagilimBekliyor": true,
+          "dagilimlar": [],
+          "hesapId": null,
+          "krediKartiAdi": null
+        }
+      ],
+      "tedarikciId": null,
+      "vade": null
+    },
+    {
+      "id": 1,
+      "surum": 5,
+      "aliciId": null,
+      "alici": "Edit\u00F6r",
+      "tarih": "2026-03-01",
+      "tedarikci": "Tedarik\u00E7i A",
+      "not": null,
+      "durum": "Onaylandi",
+      "editorNotu": "Uygun",
+      "toplam": 5000.0,
+      "odenen": 3500.0,
+      "kalan": 1500.0,
+      "kalemler": [
+        {
+          "id": 1,
+          "aciklama": "Mal",
+          "tutar": 5000.0,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 3000.0
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 2000.0
+            }
+          ],
+          "miktar": null,
+          "birimFiyat": null
+        }
+      ],
+      "odemeler": [
+        {
+          "id": 1,
+          "islemId": 12,
+          "tarih": "2026-03-03",
+          "tutar": 2000.0,
+          "krediKartiId": null,
+          "dagilimBekliyor": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 1200
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 800
+            }
+          ],
+          "hesapId": null,
+          "krediKartiAdi": null
+        },
+        {
+          "id": 2,
+          "islemId": 13,
+          "tarih": "2026-03-25",
+          "tutar": 1500.0,
+          "krediKartiId": null,
+          "dagilimBekliyor": false,
+          "dagilimlar": [
+            {
+              "kanalId": 1,
+              "kanal": "MEZAT",
+              "tutar": 900
+            },
+            {
+              "kanalId": 2,
+              "kanal": "PERAKENDE",
+              "tutar": 600
+            }
+          ],
+          "hesapId": null,
+          "krediKartiAdi": null
+        }
+      ],
+      "tedarikciId": null,
+      "vade": null
+    }
+  ],
+  "/api/ay-kilidi": {
+    "surum": 2,
+    "kilitliSonTarih": "2026-06-30",
+    "gecmis": [
+      {
+        "id": 1,
+        "oncekiSonTarih": null,
+        "yeniSonTarih": "2026-06-30",
+        "aciklama": "Haziran kapand\u0131",
+        "zaman": "2026-09-25T09:00:00\u002B00:00"
+      }
+    ]
+  },
+  "/api/kredikartlari": [
+    {
+      "id": 1,
+      "ad": "Eski kart",
+      "kesimTarihi": "2026-01-15",
+      "sonOdemeTarihi": "2026-01-25",
+      "limit": 20000.0,
+      "borc": 1200.0,
+      "guncelBorc": 1433.33,
+      "acilisBorc": 1200.0,
+      "harcamaToplam": 733.33,
+      "odemeToplam": 500.0,
+      "ekstreBorc": 1433.33
+    },
+    {
+      "id": 2,
+      "ad": "Ge\u00E7i\u015F kart\u0131",
+      "kesimTarihi": "2026-01-20",
+      "sonOdemeTarihi": "2026-01-30",
+      "limit": 15000.0,
+      "borc": 0.0,
+      "guncelBorc": 800.0,
+      "acilisBorc": 0.0,
+      "harcamaToplam": 800.0,
+      "odemeToplam": 0,
+      "ekstreBorc": 800.0
+    },
+    {
+      "id": 3,
+      "ad": "Takip kart A",
+      "kesimTarihi": "2000-01-12",
+      "sonOdemeTarihi": "2000-01-02",
+      "limit": 30000.0,
+      "borc": 1000.0,
+      "guncelBorc": 1090.0,
+      "acilisBorc": 1000.0,
+      "harcamaToplam": 90.0,
+      "odemeToplam": 0,
+      "ekstreBorc": 1000.0
+    },
+    {
+      "id": 4,
+      "ad": "Takip kart B",
+      "kesimTarihi": "2000-01-28",
+      "sonOdemeTarihi": "2000-01-08",
+      "limit": 10000.0,
+      "borc": 0.0,
+      "guncelBorc": 1240.0,
+      "acilisBorc": 0.0,
+      "harcamaToplam": 1240.0,
+      "odemeToplam": 0,
+      "ekstreBorc": 1240.0
+    }
+  ],
+  "/api/rapor/aylik?yil=2026\u0026ay=1": {
+    "yil": 2026,
+    "ay": 1,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 10000.0,
+        "cariGiden": 1500.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 8500.0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=2": {
+    "yil": 2026,
+    "ay": 2,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 10000,
+        "cariGiden": 900.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 300,
+        "aySonucu": 8800.0,
+        "krediGirisi": 10000
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 10000,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 300,
+        "aySonucu": 9700,
+        "krediGirisi": 10000
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 300,
+        "aySonucu": -300,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 500.0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 500.0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=3": {
+    "yil": 2026,
+    "ay": 3,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 3925.0,
+        "sabitGider": 0,
+        "krediKarti": 480,
+        "ortakPay": 216.67,
+        "aySonucu": -4621.67,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 8000.0,
+        "cariGiden": 3025.55,
+        "sabitGider": 0,
+        "krediKarti": 320,
+        "ortakPay": 216.67,
+        "aySonucu": 4437.78,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.66,
+        "aySonucu": -216.66,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=4": {
+    "yil": 2026,
+    "ay": 4,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 1825.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.67,
+        "aySonucu": -2041.67,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 450.0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.67,
+        "aySonucu": -691.67,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.66,
+        "aySonucu": -216.66,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 700.0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=5": {
+    "yil": 2026,
+    "ay": 5,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 1825.0,
+        "sabitGider": 0,
+        "krediKarti": 1077.03,
+        "ortakPay": 216.67,
+        "aySonucu": -3118.70,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 589.74,
+        "ortakPay": 216.67,
+        "aySonucu": -1731.41,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 733.23,
+        "ortakPay": 216.66,
+        "aySonucu": -949.89,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=6": {
+    "yil": 2026,
+    "ay": 6,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 1825.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 327.78,
+        "aySonucu": -2152.78,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 327.78,
+        "aySonucu": -1252.78,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 5000.0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 327.77,
+        "aySonucu": 4672.23,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=7": {
+    "yil": 2026,
+    "ay": 7,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 1825.0,
+        "sabitGider": 0,
+        "krediKarti": 459.48,
+        "ortakPay": 216.67,
+        "aySonucu": -2501.15,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 257.26,
+        "ortakPay": 216.67,
+        "aySonucu": -1398.93,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 250.0,
+        "krediKarti": 383.26,
+        "ortakPay": 216.66,
+        "aySonucu": -849.92,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=8": {
+    "yil": 2026,
+    "ay": 8,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 1825.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.67,
+        "aySonucu": -2041.67,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.67,
+        "aySonucu": -1141.67,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 216.66,
+        "aySonucu": -216.66,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 120.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -120.0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=9": {
+    "yil": 2026,
+    "ay": 9,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 13500.0,
+        "cariGiden": 2000.0,
+        "sabitGider": 1333.34,
+        "krediKarti": 296.66,
+        "ortakPay": 216.67,
+        "aySonucu": 9653.33,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 3000.0,
+        "cariGiden": 1100,
+        "sabitGider": 1333.33,
+        "krediKarti": 1306.67,
+        "ortakPay": 216.67,
+        "aySonucu": -956.67,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 1000,
+        "cariGiden": 0,
+        "sabitGider": 1333.33,
+        "krediKarti": 446.67,
+        "ortakPay": 216.66,
+        "aySonucu": -996.66,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=10": {
+    "yil": 2026,
+    "ay": 10,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 3149.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -3149.0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -925,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 1025,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -1025,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=11": {
+    "yil": 2026,
+    "ay": 11,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 2150.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -2150.0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 925,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -925,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 1025,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -1025,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2026\u0026ay=12": {
+    "yil": 2026,
+    "ay": 12,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 7225.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -7225.0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 6000,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -6000,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 1025,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -1025,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2027\u0026ay=1": {
+    "yil": 2027,
+    "ay": 1,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 900.0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -900.0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 700,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -700,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2027\u0026ay=2": {
+    "yil": 2027,
+    "ay": 2,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 700,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -700,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  },
+  "/api/rapor/aylik?yil=2027\u0026ay=3": {
+    "yil": 2027,
+    "ay": 3,
+    "kanallar": [
+      {
+        "kanal": "MEZAT",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "PERAKENDE",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "TOPTAN",
+        "gelen": 0,
+        "cariGiden": 700,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": -700,
+        "krediGirisi": 0
+      },
+      {
+        "kanal": "ESKI",
+        "gelen": 0,
+        "cariGiden": 0,
+        "sabitGider": 0,
+        "krediKarti": 0,
+        "ortakPay": 0,
+        "aySonucu": 0,
+        "krediGirisi": 0
+      }
+    ],
+    "dagilimBekleyenTutar": 0,
+    "genelGider": 0,
+    "genelGelir": 0
+  }
+}

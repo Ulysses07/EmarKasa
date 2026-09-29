@@ -4,6 +4,7 @@
     x:Class="Kasa.App.Views.AyarlarPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:ctl="clr-namespace:Kasa.App.Controls"
     x:Name="Sayfa"
     Title="Ayarlar"
     BackgroundColor="{StaticResource AppBg}">
@@ -15,6 +16,9 @@
                 <Label Text="Ayarlar" Style="{StaticResource LblPageTitle}" />
                 <Label Text="Genel ayar, izleyici şifresi ve kanallar" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
+            <!-- Sunucunun yanlış vekil ayarı uyarısı (hız sınırları tüm istemcileri tek IP sayabilir). -->
+            <Label Text="{Binding VekilUyarisi}" Style="{StaticResource LblError}"
+                   IsVisible="{Binding VekilUyarisi, Converter={StaticResource DoluIse}}" />
 
             <Grid ColumnDefinitions="{OnIdiom Desktop='*,*', Default='*'}"
                   RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto'}"
@@ -33,12 +37,14 @@
                         <VerticalStackLayout Spacing="0">
                             <Label Text="Kasa açılış devri" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
-                                <Entry Text="{Binding KasaAcilisDevri, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
-                                       Style="{StaticResource EntryMoney}" />
+                                <ctl:ParaGirisi Tutar="{Binding KasaAcilisDevri}" Placeholder="0,00 ₺" />
                             </Border>
                         </VerticalStackLayout>
                         <Button Text="Ayarı kaydet" Command="{Binding AyarKaydetCommand}"
                                 HorizontalOptions="Start" />
+                        <!-- Kayıtlı açılış devrini 0'a indirme onayı (ikinci basışta kaydedilir). -->
+                        <Label Text="{Binding AyarUyarisi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding AyarUyarisi, Converter={StaticResource DoluIse}}" />
                     </VerticalStackLayout>
                 </Border>
 
@@ -50,14 +56,23 @@
                         <Label Text="İzleyici Şifresi" Style="{StaticResource LblSection}" />
                         <Label Text="İzleyici bu şifreyle salt-okunur girer; formlar ve Ayarlar gizlenir."
                                Style="{StaticResource LblPageSub}" />
+                        <!-- Kayıtlı şifrenin kurala uymadığı bir izleyici girişinde görüldüyse sunucu bildirir. -->
+                        <Label Text="{Binding IzleyiciSifreUyarisi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding IzleyiciSifreUyarisi, Converter={StaticResource DoluIse}}" />
                         <VerticalStackLayout Spacing="0">
                             <Label Text="Yeni şifre" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
-                                <Entry Text="{Binding YeniIzleyiciSifre}" IsPassword="True" Placeholder="••••••••" />
+                                <Entry Text="{Binding YeniIzleyiciSifre}" IsPassword="True" Placeholder="En az 12 karakter" />
                             </Border>
+                            <Label Text="En az 12 karakter kullanın."
+                                   Style="{StaticResource LblPageSub}" Margin="0,6,0,0" />
                         </VerticalStackLayout>
                         <Button Text="Şifreyi kaydet" Command="{Binding IzleyiciSifreKaydetCommand}"
                                 HorizontalOptions="Start" />
+                        <Label Text="{Binding IzleyiciSifreMesaji}" TextColor="{StaticResource Green}"
+                               IsVisible="{Binding IzleyiciSifreMesaji, Converter={StaticResource DoluIse}}" />
+                        <Label Text="{Binding IzleyiciSifreHatasi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding IzleyiciSifreHatasi, Converter={StaticResource DoluIse}}" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
@@ -67,6 +82,9 @@
                 <VerticalStackLayout Spacing="0">
                     <VerticalStackLayout Padding="18,18,18,0" Spacing="12">
                         <Label Text="Kanallar" Style="{StaticResource LblSection}" />
+                        <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): tamamlanmış ayların kanal kümesi dondurulur. -->
+                        <Label Text="Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan ya da tamamlanmış bir ayın kanal kümesinde yer alan kanal silinemez; silmek yerine pasife alın."
+                               Style="{StaticResource LblPageSub}" />
                         <Grid ColumnDefinitions="{OnIdiom Desktop='1.4*,90,*,Auto,Auto,Auto', Default='*'}"
                               RowDefinitions="{OnIdiom Desktop='Auto', Default='Auto,Auto,Auto,Auto,Auto,Auto'}"
                               ColumnSpacing="10" RowSpacing="12">
@@ -88,8 +106,7 @@
                                                  Grid.Row="{OnIdiom Desktop=0, Default=2}" Spacing="0">
                                 <Label Text="Açılış devri" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenKanalAcilisDevri, Converter={StaticResource ParaGiris}}" Placeholder="0,00 ₺"
-                                           Style="{StaticResource EntryMoney}" />
+                                    <ctl:ParaGirisi Tutar="{Binding DuzenKanalAcilisDevri}" Placeholder="0,00 ₺" />
                                 </Border>
                             </VerticalStackLayout>
                             <HorizontalStackLayout Grid.Column="{OnIdiom Desktop=3, Default=0}"
@@ -109,6 +126,11 @@
                                     Grid.Row="{OnIdiom Desktop=0, Default=5}"
                                     VerticalOptions="End" />
                         </Grid>
+                        <!-- Ay kilidi varken kanal formu kilidi söyler: yalnız açılış devri kilitte değişmez. -->
+                        <Label Text="{Binding KanalKilitNotu}" Style="{StaticResource LblPageSub}"
+                               IsVisible="{Binding KanalKilitNotu, Converter={StaticResource DoluIse}}" />
+                        <Label Text="{Binding KanalUyarisi}" Style="{StaticResource LblError}"
+                               IsVisible="{Binding KanalUyarisi, Converter={StaticResource DoluIse}}" />
                         <Border Style="{StaticResource ErrorBox}" Margin="0,0,0,16"
                                 IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
                             <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />

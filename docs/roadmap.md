@@ -36,7 +36,7 @@ Alış içindeki ödenen/kalan tutar, o alışın gider bağlantısını kontrol
 - Yeni kredi çekimi seçilen kanallara eşit dağılır; taksit tarihinde ödeme aynı kanallardan otomatik düşer. Önceden çekilmiş kredi yalnız kalan ileri taksitleriyle eklenebilir. Bu işlem bankadan ödeme doğrulamaz.
 - Bir gider tek alışa bağlanabilir. Bir gideri birden fazla alışa bölme henüz desteklenmez; yanlış bağlantı ödeme taşıma ile düzeltilir.
 - Çok kanallı ödeme dışa aktarılan gider listesinde tam tutarıyla bir kez görünür. Kanal filtresi kanal payını değil, ilgili ödemenin tamamını getirir.
-- Sunucudaki son 30 yedek saklanır; sunucu dışı ikinci kopya ayrıca korunmalıdır. Geri yükleme, doğrulanmış yedeğin ayrı dosyaya açılması ve uygulama durdurularak kontrollü değiştirilmesiyle yapılır.
+- Sunucudaki yedekler türe göre saklanır. Otomatik (günlük) yedeklerde son 30 günün hepsi, daha eskilerden içinde bulunulan ay dahil son 12 takvim ayının (İstanbul) her birinin ilk yedeği ve yedekleme uzun süre durmuş olsa bile en yeni 7 yedek tutulur. Elle alınan yedeklerden yalnız en yeni 10'u tutulur; elle yedek otomatik yedekleri hiçbir koşulda silmez, servisin ad kalıbına uymayan dosyalara dokunulmaz. Silinemeyen eski yedek yedeklemeyi durdurmaz, yedek durumunda rotasyon uyarısı olarak görünür. Sunucu dışı ikinci kopya ayrıca korunmalıdır. Geri yükleme, doğrulanmış yedeğin ayrı dosyaya açılması ve uygulama durdurularak kontrollü değiştirilmesiyle yapılır.
 - Sürüm bildirimi otomatik kurulum değildir. Windows paketi ayrıca güncellenir; telefondan web arayüzü kullanılır.
 
 ## Veri ve yayın

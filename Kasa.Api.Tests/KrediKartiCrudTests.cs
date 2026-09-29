@@ -45,10 +45,10 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
     public async Task Izleyici_kart_okur_ama_ekleyemez()
     {
         var editor = await _factory.EditorClientAsync();
-        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izle123" });
+        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
 
         var izleyici = _factory.CreateClient();
-        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izle123" });
+        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
         giris.EnsureSuccessStatusCode();
 
         var okuma = await izleyici.GetAsync("/api/kredikartlari");

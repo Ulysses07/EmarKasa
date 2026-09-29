@@ -34,6 +34,7 @@ public class CrudTests : IClassFixture<KasaWebFactory>
     public async Task Editor_islem_ekleyip_listeleyip_silebilir()
     {
         var client = await _factory.EditorClientAsync();
+        TarihSiniriTests.TakipBaslangiciAyarla(_factory, new DateOnly(2026, 6, 29)); // gider takip içinde, test sırasından bağımsız
 
         var olustur = await client.PostAsJsonAsync("/api/islemler", new
         {
@@ -65,11 +66,11 @@ public class CrudTests : IClassFixture<KasaWebFactory>
     {
         // İzleyici şifresini editör olarak ayarla, sonra izleyici olarak login ol.
         var editor = await _factory.EditorClientAsync();
-        var setSifre = await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izle123" });
+        var setSifre = await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
         setSifre.EnsureSuccessStatusCode();
 
         var izleyici = _factory.CreateClient();
-        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izle123" });
+        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
         giris.EnsureSuccessStatusCode();
 
         // Okuma serbest:

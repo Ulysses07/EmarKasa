@@ -6,7 +6,8 @@ namespace Kasa.Api.Servisler;
 
 public record IslemOkuDto(
     int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, int? KanalId,
-    GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null);
+    GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
+    int Surum = 0);
 
 /// <summary>Gerçek giderleri tek satır olarak, alışın güncel ödeme dağılımıyla gösterir.</summary>
 public class IslemListeServisi
@@ -17,8 +18,8 @@ public class IslemListeServisi
 
     public IReadOnlyList<IslemOkuDto> Liste(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari)
     {
-        // Başlık, kalem ve ödeme sorguları aynı onay/iadeyi görmeli.
-        using var snapshot = _db.Database.BeginTransaction();
+        // Başlık, kalem ve ödeme sorguları aynı onay/iadeyi görmeli: salt okunur anlık görüntü, yazma kilidi yok.
+        using var snapshot = _db.OkumaBaslat();
         var query = _db.Islemler.AsNoTracking();
         if (baslangic is { } ilk) query = query.Where(i => i.Tarih >= ilk);
         if (bitis is { } son) query = query.Where(i => i.Tarih <= son);
@@ -26,8 +27,12 @@ public class IslemListeServisi
         var kayitlar = query.OrderBy(i => i.Tarih).ThenBy(i => i.Id).ToList();
         var secilenIdler = query.Select(i => i.Id);
         var monthly = _db.AylikGiderOdemeler.AsNoTracking().Where(p => !p.Iptal && p.IslemId != null && secilenIdler.Contains(p.IslemId.Value)).ToDictionary(p => p.IslemId!.Value);
-        var revisions = _db.AylikGiderRevizyonlar.AsNoTracking().ToDictionary(r => r.Id);
+        // Yalnız listedeki aylık gider ödemelerinin revizyonları okunur (bütün şablon geçmişi değil).
+        var revizyonIdleri = monthly.Values.Select(p => p.RevizyonId).Distinct().ToList();
+        var revisions = _db.AylikGiderRevizyonlar.AsNoTracking().Where(r => revizyonIdleri.Contains(r.Id)).ToDictionary(r => r.Id);
         var imports = _db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.IslemId != null && secilenIdler.Contains(k.IslemId.Value)).ToDictionary(k => k.IslemId!.Value);
+        // Kanal adları bir kez: aylık gider ve ekstre satırı başına Kanallar sorgusu atılmaz.
+        var kanalAdlari = _db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
 
         // Filtre dışındaki eski ödemeler de kümülatif kuruş hesabına katılır.
         var alislar = _db.Alislar.AsNoTracking()
@@ -62,20 +67,20 @@ public class IslemListeServisi
         {
             if (imports.TryGetValue(kayit.Id, out var imported))
             {
-                var shares = FinansTakipServisi.Adlandir(_db, FinansTakipServisi.Read<TakipKanalPayi>(imported.DagilimJson)
+                var shares = FinansTakipServisi.Adlandir(kanalAdlari, FinansTakipServisi.Read<TakipKanalPayi>(imported.DagilimJson)
                     .Select(p => new KanalPayYaz(p.KanalId!.Value, p.Tutar)));
                 if (!string.IsNullOrWhiteSpace(kanal) && !shares.Any(s => s.Kanal == kanal)) continue;
                 sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
-                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, EkstreKayitId: imported.Id));
+                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, EkstreKayitId: imported.Id, Surum: kayit.Surum));
                 continue;
             }
             if (monthly.TryGetValue(kayit.Id, out var monthlyPayment))
             {
                 var revision = revisions[monthlyPayment.RevizyonId];
-                var shares = FinansTakipServisi.Adlandir(_db, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
+                var shares = FinansTakipServisi.Adlandir(kanalAdlari, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
                 if (!string.IsNullOrWhiteSpace(kanal) && !shares.Any(s => s.Kanal == kanal)) continue;
                 sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
-                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, AylikGiderOdemeId: monthlyPayment.Id));
+                    shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, AylikGiderOdemeId: monthlyPayment.Id, Surum: kayit.Surum));
                 continue;
             }
             eslemeler.TryGetValue(kayit.Id, out var esleme);
@@ -83,10 +88,9 @@ public class IslemListeServisi
             if (!string.IsNullOrWhiteSpace(kanal) && !adlar.Contains(kanal, StringComparer.Ordinal)) continue;
             sonuc.Add(new IslemOkuDto(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl,
                 string.Join(" / ", adlar), esleme is null ? kayit.KanalId : esleme.KanalId,
-                kayit.Tip, kayit.Not, kayit.KrediKartiId, esleme?.AlisId, esleme?.Bekliyor ?? false));
+                kayit.Tip, kayit.Not, kayit.KrediKartiId, esleme?.AlisId, esleme?.Bekliyor ?? false, Surum: kayit.Surum));
         }
 
-        snapshot.Commit();
         return sonuc;
     }
 

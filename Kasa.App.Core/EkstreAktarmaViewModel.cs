@@ -68,10 +68,30 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (Kaynak is null || Banka is null || (BankaMi && (string.IsNullOrWhiteSpace(HesapAdi) || HesapAdi.Trim().Length > 100)) || (KartMi && Kart is null)) { Hata = "Belge türünü, bankayı ve kartı / kısa hesap adını seçin."; return null; }
         return new(OturumNesli, Kaynak.Kod, Banka.Kod, BankaMi ? HesapAdi.Trim() : "", KartMi ? Kart!.Id : null);
     }
+    /// <summary>PDF seçimi (maui-8; önceden EkstreAktarmaPage.PdfSecAsync'teydi): yalnız PDF, en çok 10 MB; seçim ya da okuma
+    /// sürerken oturum değişirse dosya yüklenmez ve eski oturumun hatası yazılmaz. Belge kaynağının değişmediğini
+    /// <see cref="PdfYukleAsync"/> denetler.</summary>
+    /// <param name="sec">Dosya seçiciyi açar; vazgeçilirse null.</param>
+    public async Task PdfSecVeYukleAsync(EkstreYuklemeSecimi secim, Func<Task<SecilenDosya?>> sec)
+    {
+        bool OturumSuruyor() => OturumNesli == secim.Oturum;
+        try
+        {
+            var dosya = await sec();
+            if (dosya is null || !OturumSuruyor()) return;
+            if (!DosyaSecimKurallari.PdfMi(dosya.Ad)) { Hata = "Yalnız PDF dosyası seçin."; return; }
+            DosyaOkumasi okuma;
+            await using (var akis = await dosya.Ac()) okuma = await DosyaSecimKurallari.SinirliOkuAsync(akis, DosyaSecimKurallari.EnFazlaBayt, OturumSuruyor);
+            if (okuma.Durum == DosyaOkumaDurumu.Vazgecildi) return;
+            if (okuma.Durum == DosyaOkumaDurumu.SinirAsildi) { Hata = "PDF en fazla 10 MB olabilir."; return; }
+            await PdfYukleAsync(okuma.Icerik!, dosya.Ad, secim);
+        }
+        catch (Exception) { if (OturumSuruyor()) Hata = "PDF okunamadı. Dosyayı kontrol edip yeniden seçin."; }
+    }
     public Task PdfYukleAsync(byte[] icerik, string ad, EkstreYuklemeSecimi secim) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || secim.Oturum != n || secim.Kaynak != Kaynak?.Kod || secim.Banka != Banka?.Kod || secim.HesapAdi != (BankaMi ? HesapAdi.Trim() : "") || secim.KartId != (KartMi ? Kart?.Id : null)) { Hata = "Dosya seçimi sırasında oturum veya belge kaynağı değişti. PDF'yi yeniden seçin."; return; }
-        if (!ad.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || icerik.Length is 0 or > 10 * 1024 * 1024) { Hata = "En fazla 10 MB büyüklüğünde bir PDF seçin."; return; }
+        if (!DosyaSecimKurallari.PdfMi(ad) || icerik.Length == 0 || icerik.Length > DosyaSecimKurallari.EnFazlaBayt) { Hata = "En fazla 10 MB büyüklüğünde bir PDF seçin."; return; }
         var b = await api.EkstreYukleAsync(icerik, ad, secim.Kaynak, secim.Banka, secim.HesapAdi, secim.KartId);
         if (!Gecerli(n)) return; BelgeyiYansit(b); Tamamlandi(); Mesaj = "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     });
@@ -114,9 +134,12 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var p = await api.EkstreOnizlemeAsync(id, g);
         if (!Gecerli(n) || rev != _formSurumu || Belge?.Id != id) return;
         _onizleme = p; _onizlemeGirdi = g; _onizlemeForm = rev; Onay = false; TekrarOnay = false;
-        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {s.IslemTuru}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {(g.Satirlar.Single(x => x.SatirNo == s.SatirNo).DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(s.Dagilimlar))}\n{string.Join("\n", s.Uyarilar)}"));
+        OnizlemeMetni = $"{p.Satirlar.Count} satır kaydedilecek. Genel kasa etkisi: {Bicim.Tl(p.KasaEtkisi)} ₺\n" + string.Join("\n", p.Uyarilar) + "\n\n" + string.Join("\n\n", p.Satirlar.Select(s => $"Satır {s.SatirNo} · {s.Tarih:dd.MM.yyyy} · {s.Aciklama} · {Bicim.Tl(s.Tutar)} ₺ · {s.IslemTuru}\nKasa etkisi: {Bicim.Tl(s.KasaEtkisi)} ₺ · {Dagilim(g.Satirlar.Single(x => x.SatirNo == s.SatirNo), s)}\n{string.Join("\n", s.Uyarilar)}"));
         OnPropertyChanged(nameof(OnizlemeVar)); OnPropertyChanged(nameof(TekrarOnayGerekli));
     });
+    private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreSatirEditor.Eslestir
+        ? $"Mevcut kayıtla eşleşir ({EslesmeAdayiSatiri.TurAdi(girdi.EslesenKayitTuru)} #{girdi.EslesenKayitId}); kasa ve kart borcu değişmez"
+        : girdi.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(satir.Dagilimlar);
     [RelayCommand] private Task KaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || Belge is null || _onizleme is null || _onizlemeGirdi is null || _formSurumu != _onizlemeForm || !Onay || (TekrarOnayGerekli && !TekrarOnay)) { Hata = "Önizlemeyi kontrol edin ve gerekli onayları işaretleyin."; return; }
@@ -124,14 +147,27 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         try { var b = await api.EkstreKaydetAsync(id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _kayitKey.Temizle(); Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi."; }
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict) { if (Gecerli(n)) GirdiDegisti(); throw; }
     });
+    /// <summary>Seçili satırın (tarih ve tutarıyla) eşleşebileceği mevcut kayıtları getirir; 'Mevcut kayıtla eşleştir' türünde
+    /// satır bunlardan birine bağlanır.</summary>
+    [RelayCommand] private Task EslesmeAdaylariniGetirAsync() => YurutAsync(async n =>
+    {
+        if (!EditorMu || !VeriHazir || Belge is null || SeciliSatir is not { EslesmeMi: true } satir) return;
+        if (!satir.AdaySorgusu(out var sorgu, out var hata)) { Hata = hata; return; }
+        var id = Belge.Id;
+        var adaylar = await api.EkstreEslesmeAdaylariAsync(id, sorgu);
+        if (!Gecerli(n) || Belge?.Id != id || !Satirlar.Contains(satir) || !satir.EslesmeMi) return;
+        satir.AdaylariYansit(adaylar);
+        Mesaj = adaylar.Count == 0 ? "Bu tutarda, en çok 3 gün farklı tarihte eşleştirilebilecek kayıt yok." : $"{adaylar.Count} aday bulundu; bağlanacak kaydı seçin.";
+    });
     public Task KayitIptalAsync(EkstreKayitSatiri satir, string aciklama, int onayOturumu, int belgeId) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir || onayOturumu != n || Belge?.Id != belgeId || !Kayitlar.Any(k => ReferenceEquals(k, satir)) || satir.Veri.Iptal || string.IsNullOrWhiteSpace(aciklama)) { Hata = "Geçerli kaydı seçip gerekçeyi yeniden onaylayın."; return; }
         var g = new EkstreIptalYaz(_iptalKey.Al(new { belgeId, satir.Veri.Id, Aciklama = aciklama.Trim() }), aciklama.Trim());
         var b = await api.EkstreKayitIptalAsync(belgeId, satir.Veri.Id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _iptalKey.Temizle(); Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
     });
-    public async Task<IndirilenDosya?> DosyaAsync()
+    /// <summary>Kaynak PDF'i <paramref name="hedef"/>'e yazar; hata, başka belge ya da eski oturumda null.</summary>
+    public async Task<IndirmeBilgisi?> DosyaAsync(Stream hedef)
     {
-        IndirilenDosya? sonuc = null; await YurutAsync(async n => { if (!EditorMu || Belge is null) return; var id = Belge.Id; var s = await api.EkstreDosyaAsync(id); if (Gecerli(n) && Belge?.Id == id) sonuc = s; }); return sonuc;
+        IndirmeBilgisi? sonuc = null; await YurutAsync(async n => { if (!EditorMu || Belge is null) return; var id = Belge.Id; var s = await api.EkstreDosyaAsync(id, hedef); if (Gecerli(n) && Belge?.Id == id) sonuc = s; }); return sonuc;
     }
 }

@@ -7,12 +7,13 @@ namespace Kasa.Api.Tests;
 
 public class AlisRaporTests
 {
-    private static DateOnly Bugun => DateOnly.FromDateTime(DateTime.Today);
+    // Sunucu saati sabit: bugünkü ödeme ve "bu ay" sonucu takvimden bağımsızdır.
+    private static DateOnly Bugun => KasaWebFactory.VarsayilanBugun;
 
     [Fact]
     public async Task Taslak_onay_ve_duzeltme_kasayi_tekrarlamaz_belirsiz_odeme_gorunur_kalir()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var a = await Taslak(c);
         Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
@@ -48,7 +49,7 @@ public class AlisRaporTests
     [Fact]
     public async Task Kismi_odemeler_tam_dagilimi_tamamlar_kanal_adi_degisse_de_bag_korunur()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var a = await Onayla(c, await Taslak(c));
         a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 33.33m));
@@ -68,7 +69,7 @@ public class AlisRaporTests
     [Fact]
     public async Task Mevcut_gideri_baglamak_ikinci_gider_uretmez_ve_gider_dogrudan_degistirilemez()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var r = await c.PostAsJsonAsync("/api/islemler", new { tarih = Bugun, cari = "Tedarikçi", tutarTl = 100m, kanal = "Ortak", tip = "Cari" });
         r.EnsureSuccessStatusCode();
@@ -85,11 +86,13 @@ public class AlisRaporTests
     [Fact]
     public async Task Kartli_alis_ile_kart_borc_odemesi_kasaya_iki_defa_yazilmaz()
     {
-        await using var f = new KasaWebFactory();
+        await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var kartId = LegacyFinanceSeed.Kart(f, new("Alış kartı", Bugun, Bugun, 1000m, 0m)).Id;
         var a = await Onayla(c, await Taslak(c));
-        a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, kartId));
+        // Eski kartla ödenmiş mevcut gider alışa bağlanır (K3: yeni kartlı ödeme takipteki karta bağlanır).
+        var gider = LegacyFinanceSeed.KartGideri(f, Bugun, "Tedarikçi", 100m, Kanallar.DagilimBekliyor, kartId);
+        a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, kartId, gider.Id));
         Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
         var gelecek = Bugun.AddMonths(1);
         var yol = $"/api/rapor/aylik?yil={gelecek.Year}&ay={gelecek.Month}";

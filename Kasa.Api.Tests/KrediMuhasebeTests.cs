@@ -9,13 +9,13 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// Kredinin hesap motoruna türetilmiş kayıtlarla yansımasını uçtan doğrular:
 /// çekim → genel kasa (kanala girmez), taksit → seçilen kanal/Ortak, gelecek taksit
-/// güncel kasayı etkilemez, silinince etki kalkar. Kontrollü baseline: KasaAcilisDevri
+/// güncel kasayı etkilemez, geçmiş etkili eski kredi silinemez (etki korunur). Kontrollü baseline: KasaAcilisDevri
 /// 100000, iki aktif kanal (açılış 0), başka işlem/gelen yok.
 /// </summary>
-public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
+public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KrediMuhasebeTests(KasaWebFactory factory) => _factory = factory;
+    public KrediMuhasebeTests(SabitSaatliKasaWebFactory factory) => _factory = factory;
 
     private record KanalAylikYanit(
         string Kanal, decimal Gelen, decimal CariGiden, decimal SabitGider,
@@ -32,10 +32,14 @@ public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
         db.Islemler.RemoveRange(db.Islemler);
         db.Gelenler.RemoveRange(db.Gelenler);
         db.Krediler.RemoveRange(db.Krediler);
-        db.Kanallar.RemoveRange(db.Kanallar);
-        db.Kanallar.AddRange(
-            new KanalEntity { Ad = "MEZAT", Sira = 0, Aktif = true, AcilisDevri = 0m },
-            new KanalEntity { Ad = "PERAKENDE", Sira = 1, Aktif = true, AcilisDevri = 0m });
+        // Kanallar silinmez (tamamlanmış ayların kanal kümesinde yer alan kanal silinemez; AyKanalKumesi): MEZAT ve PERAKENDE aktif,
+        // açılış 0 olarak yeniden tohumlanır, öteki kanallar pasife alınır (Ortak gider yalnız iki aktif kanala bölünür).
+        foreach (var kanal in db.Kanallar) kanal.Aktif = false;
+        foreach (var (ad, sira) in new[] { ("MEZAT", 0), ("PERAKENDE", 1) })
+        {
+            var kanal = db.Kanallar.Local.SingleOrDefault(k => k.Ad == ad) ?? db.Kanallar.Add(new KanalEntity { Ad = ad }).Entity;
+            kanal.Sira = sira; kanal.Aktif = true; kanal.AcilisDevri = 0m;
+        }
 
         var ayar = db.Ayarlar.First();
         ayar.TakipBaslangic = Baslangic;
@@ -106,7 +110,7 @@ public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
     public async Task Gelecek_taksit_guncel_kasayi_etkilemez()
     {
         // Çekim bugün (tutar 0), ödeme günü = bugünün günü → ilk taksit GELECEK ay (kesin sonra).
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = _factory.Bugun;
         Tohumla(new KrediEntity
         {
             Ad = "Ziraat", CekilenTutar = 0m, CekimTarihi = bugun,
@@ -119,8 +123,9 @@ public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
     }
 
     [Fact]
-    public async Task Kredi_silinince_muhasebe_etkisi_kalkar()
+    public async Task Gecmis_etkili_eski_kredi_silinemez_rapor_degismez()
     {
+        // gT6: çekimi geçmişte olan eski kredinin silinmesi geçmiş raporları yeniden yazardı; 409 ile reddedilir.
         Tohumla();
         var client = await _factory.EditorClientAsync();
 
@@ -135,9 +140,9 @@ public class KrediMuhasebeTests : IClassFixture<KasaWebFactory>
         Assert.Equal(105_000m, panelEkli.GuncelKasa);
 
         var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}");
-        sil.EnsureSuccessStatusCode();
+        Assert.Equal(System.Net.HttpStatusCode.Conflict, sil.StatusCode);
 
         var panelSonra = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
-        Assert.Equal(100_000m, panelSonra.GuncelKasa); // etki tamamen kalktı
+        Assert.Equal(105_000m, panelSonra.GuncelKasa); // geçmiş etki korundu
     }
 }

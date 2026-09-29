@@ -2,8 +2,12 @@ namespace Kasa.ApiClient;
 
 public record AylikGiderSablonYaz(Guid IstekId, int Surum, string Ad, string Tur, decimal Tutar, int OdemeGunu, string DagilimTuru, IReadOnlyList<KanalPayYaz> Dagilimlar, DateOnly GecerliAy, bool Aktif = true);
 public record AylikGiderSablonDto(int Id, int Surum, string Ad, string Tur, decimal Tutar, int OdemeGunu, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, DateOnly GecerliAy, bool Aktif);
-public record AylikGiderAyDto(int Yil, int Ay, decimal PlanlananToplam, decimal OdenenToplam, IReadOnlyList<AylikGiderSatirDto> Kayitlar);
-public record AylikGiderSatirDto(int SablonId, int SablonSurum, string Ad, string Tur, decimal Tutar, DateOnly PlanlananTarih, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Durum, int? OdemeId = null, DateOnly? OdemeTarihi = null, int? IslemId = null);
+/// <summary><paramref name="Iptaller"/>: o aya ait iptal edilmiş ödemeler ('Iptal'; gerekçe ve iptal anıyla), toplamlara girmez;
+/// iptal edilen ödemenin planı <paramref name="Kayitlar"/>'da yeniden 'Planlandi' olur. Alanı taşımayan eski sunucuda null.</summary>
+public record AylikGiderAyDto(int Yil, int Ay, decimal PlanlananToplam, decimal OdenenToplam, IReadOnlyList<AylikGiderSatirDto> Kayitlar, IReadOnlyList<AylikGiderSatirDto>? Iptaller = null);
+/// <summary><paramref name="IptalAciklamasi"/> ve <paramref name="IptalZamani"/> yalnız 'Iptal' satırda doludur; sürüm öncesi iptalin
+/// anı bilinmez (null).</summary>
+public record AylikGiderSatirDto(int SablonId, int SablonSurum, string Ad, string Tur, decimal Tutar, DateOnly PlanlananTarih, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, string Durum, int? OdemeId = null, DateOnly? OdemeTarihi = null, int? IslemId = null, string? IptalAciklamasi = null, DateTimeOffset? IptalZamani = null);
 public record AylikGiderOdemeYaz(Guid IstekId, int Surum, int Yil, int Ay, DateOnly Tarih, string? Not = null);
 public record AylikGiderIptalYaz(Guid IstekId, string Aciklama);
 public record AyKilidiYaz(Guid IstekId, int Surum, int Yil, int Ay, string Aciklama);

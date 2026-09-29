@@ -40,7 +40,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     public bool EskiTakip => Secili is { YeniTakip: false };
     public bool TaksitDuzenlenebilir => DuzenlenenTaksit?.Veri.Durum == "Bekliyor";
     public string KrediOzeti => Secili is { } k ? new KrediTakipSatiri(k).Ozet + "\n" + TakipMetni.Paylar(k.KanalPaylari) : "Yeni kredi bilgilerini girin.";
-    public string KapatmaOzeti => $"{KapatmaTarihi:dd.MM.yyyy} tarihinde {Bicim.Tl(KapatmaTutari)} ₺ kasa çıkışı kaydedilir; yerine geçen ileri taksitler iptal edilir. Bankanın bildirdiği kapama tutarını kullanın.";
+    public string KapatmaOzeti => !ParaAyristirici.GecerliMi(KapatmaTutari) ? $"{ParaAyristirici.GecersizGosterim}: {ParaAyristirici.BicimHatasi}" : $"{KapatmaTarihi:dd.MM.yyyy} tarihinde {Bicim.Tl(KapatmaTutari)} ₺ kasa çıkışı kaydedilir; yerine geçen ileri taksitler iptal edilir. Bankanın bildirdiği kapama tutarını kullanın.";
     partial void OnSeciliChanged(KrediTakipDto? value) { foreach (var p in new[] { nameof(YeniKredi), nameof(KrediSecili), nameof(YeniTakip), nameof(EskiTakip), nameof(KrediOzeti) }) OnPropertyChanged(p); }
     partial void OnDuzenlenenTaksitChanged(TaksitSatiri? value) => OnPropertyChanged(nameof(TaksitDuzenlenebilir));
     partial void OnKapatmaTutariChanged(decimal value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
@@ -78,6 +78,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     {
         if (!EditorMu || Secili is not null) return;
         var kanallar = SecilenKanallar();
+        if (!ParaAyristirici.HepsiGecerli(CekilenTutar, AylikOdeme)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (string.IsNullOrWhiteSpace(Ad) || CekilenTutar <= 0 || AylikOdeme <= 0 || TaksitSayisi is < 1 or > 600 || kanallar.Count == 0) { Hata = "Kredi adı, pozitif tutarlar, taksit sayısı ve en az bir kanal seçin."; return; }
         var g = new KrediTakipYaz(Guid.Empty, Ad.Trim(), CekilenTutar, DateOnly.FromDateTime(CekimTarihi), DateOnly.FromDateTime(IlkTaksitTarihi), TaksitSayisi, AylikOdeme, kanallar, MevcutKredi);
         g = g with { IstekId = _kayit.Al(g) };
@@ -91,6 +92,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     [RelayCommand] private Task TaksitKaydetAsync() => YurutAsync(async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kredi || DuzenlenenTaksit is not { } taksit || !GerekceVar()) return;
+        if (!ParaAyristirici.GecerliMi(TaksitTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (taksit.Veri.Durum != "Bekliyor" && (TaksitTarihi != taksit.Veri.Tarih.ToDateTime(TimeOnly.MinValue) || TaksitTutari != taksit.Veri.Tutar || TaksitIptal != (taksit.Veri.Durum == "Iptal"))) { Hata = "İşlenmiş taksidin tarih ve tutarı değişmez; yalnız not ekleyebilirsiniz."; return; }
         var g = new KrediTaksitYaz(Guid.Empty, kredi.Surum, DateOnly.FromDateTime(TaksitTarihi), TaksitTutari, TaksitNotu, TaksitIptal, Gerekce.Trim());
         g = g with { IstekId = _taksit.Al(new { kredi.Id, TaksitId = taksit.Veri.Id, g }) };
@@ -99,6 +101,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     [RelayCommand] private Task KapatAsync() => YurutAsync(async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kredi || !GerekceVar()) return;
+        if (!ParaAyristirici.GecerliMi(KapatmaTutari)) { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (!KapatmaOnay || KapatmaTutari <= 0) { Hata = "Bankanın kapama tutarını girin ve kasa etkisini onaylayın."; return; }
         var g = new KrediKapatYaz(Guid.Empty, kredi.Surum, DateOnly.FromDateTime(KapatmaTarihi), KapatmaTutari, Gerekce.Trim()); g = g with { IstekId = _kapat.Al(new { kredi.Id, g }) };
         if (Uygula(await api.TakipKrediKapatAsync(kredi.Id, g), n)) { _kapat.Temizle(); KapatmaOnay = false; Mesaj = "Erken kapama kaydedildi; ileri taksitler geçmişiyle korundu."; }
@@ -148,10 +151,23 @@ public partial class TakipOzetViewModel(IFinansTakipApi api, AuthViewModel auth)
     {
         VeriHazir = false; KanalKartBorclari = null; var v = await api.TakipOzetAsync(Gun);
         if (!Gecerli(n)) return;
+        Yansit(v);
+    });
+    /// <summary>Panelin ana sayfa yanıtındaki takip özetini (bakiyelerle aynı anlık görüntü) istek atmadan yansıtır. Özet
+    /// yoksa (eski sunucu) ya da başka gün ufku için alındıysa (panel yüklenirken gün değişti) özet uçtan yüklenir.</summary>
+    public Task PaneldenYukleAsync(TakipOzetDto? ozet, int gun)
+    {
+        if (ozet is null || gun != Gun) return YukleAsync();
+        BekleyenleriIptalEt(); Hata = null; Mesaj = null;
+        Yansit(ozet);
+        return Task.CompletedTask;
+    }
+    private void Yansit(TakipOzetDto v)
+    {
         Ozet = $"Toplam kart borcu {Bicim.Tl(v.KartBorcu)} ₺ · kalan planlı kredi ödemesi {Bicim.Tl(v.KalanKrediPlani)} ₺" + (v.KartAlacakBakiyesi > 0 ? $"\nKart alacak bakiyesi: {Bicim.Tl(v.KartAlacakBakiyesi)} ₺. Diğer kartların borcundan düşülmez." : "");
         KanalKartBorclari = v.KanalKartBorclari;
         BelirsizBorcOzeti = v.KanalKartBorclari is null ? "Kanallara göre kart borcu bilgisi alınamadı." : $"Dağılım bekleyen kart borcu: {Bicim.Tl(v.KanalKartBorclari.Where(p => p.KanalId is null).Sum(p => Math.Max(0, p.Tutar)))} ₺";
         TakipMetni.Doldur(Olaylar, v.Olaylar.Select(o => new TakipOlaySatiri(o, v.Tarih))); Tamamlandi();
-    });
+    }
     protected override void OturumTemizle() { Olaylar.Clear(); Ozet = ""; KanalKartBorclari = null; BelirsizBorcOzeti = ""; }
 }

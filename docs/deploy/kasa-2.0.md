@@ -1,5 +1,7 @@
 # Kasa 2.0 dağıtımı ve geri dönüş
 
+> Tarihsel sürüm notu (2.0, 23 Eylül 2026). "Canlı durum" ve etkin veri dizini bilgileri o yayın anına aittir; güncel sürüm 2.3.0'dır. Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
+
 Bu sürüm kanal/genel kasa odaklı mobil web ekranı, alış ödeme düzeltmeleri, belge içerikleri ve editör parola kaydı ekler. Cari, stok, ayrı hesap ve vade modülleri kapsam dışıdır. Önizleme şeması veri kaybı olmadan korunur; kaldırılan modüllerin uçları sunulmaz ve otomatik cari üretilmez. Canlı veriyi yerel geliştirme ortamına taşımadan geçiş sınaması sunucuda yapılabilir.
 
 ## Canlı durum: tam editör sürümü
@@ -25,8 +27,9 @@ Yayın öncesi ve son bakım snapshot'ında eski satır/sütun koruması, beş m
 ## Yayın
 
 - Kullanılan dosya `deploy/docker-compose.nginx.yml` dosyasıdır. Yeni sürüm `/data` kalıcı verisinin yanında `/yedekler` kalıcı alanını kullanır. Otomatik yedekleme günlük; son 30 dosya saklanır.
-- Sunucudaki etkin Compose `/data` için mutlak `/opt/kasa/deploy/kasa-data-editor-<stamp>` yolunu kullanır; kesin yol yayın manifestindedir. Depo şablonundaki `./kasa-data` eski, korunmuş veritabanını gösterir. Sonraki dağıtımlarda etkin `/data` bağlantısını koru; sunucu Compose dosyasını şablonla doğrudan değiştirme.
-- Uygulama içindeki tüm belgeler SQLite yedeğinin içindedir. `Kasa__JwtKey` ve diğer ortam sırları ayrı korunmalıdır; yedek ZIP'ine konmaz.
+- 2.0 yayınında etkin `/data` mutlak `/opt/kasa/deploy/kasa-data-editor-<stamp>` yoluydu; sonraki her yayın veriyi yeni bir dizine taşıdı (2.3.0: `kasa-data-imports-<stamp>`). Güncel yol son yayın manifestinin `dataDirectory` alanında ve çalışan konteynerin `/data` bağlama kaynağındadır. `/opt/kasa/deploy/kasa-data` 2.0 öncesinden korunmuş eski veritabanıdır; `/data`'ya bağlanmamalıdır.
+- Depo şablonu artık göreli `./kasa-data` bağlamaz: `/data` ve `/yedekler` kaynağını zorunlu `KASA_DATA_DIR` ve `KASA_BACKUP_DIR` değişkenlerinden (`deploy/.env`) alır; değişken tanımsız veya boşsa Compose durur. Sonraki dağıtımlarda [deploy/README.md](../../deploy/README.md) "Güncelleme" adımlarını izle: etkin dizini bul, `.env`'e yaz, `docker compose ... config` ile doğrula, ardından `up` çalıştır.
+- (2.0–2.3) Uygulama içindeki tüm belgeler SQLite yedeğinin içindeydi. 2.4'ten itibaren belgeler veri dizinindeki belge deposundadır (`belgeler/`); yedekler belge listesini taşır, içerikler yedek aynasındadır ([database-upgrade.md](database-upgrade.md) "Belge deposu geçişi"). `Kasa__JwtKey` ve diğer ortam sırları ayrı korunmalıdır; yedek ZIP'ine konmaz.
 - Bakım ekranını açıp servisi durdur; son tutarlı snapshot'ı ve veritabanı dışındaki dosyaları yeni bir veri dizinine aktar. Eski dizini değiştirme. Dosya yolları/hash'leri ve son snapshot üzerinden eski/yeni raporlar eşleşmeden trafiği açma. Public erişim açılmadan hata olursa önceki imaj ve korunmuş eski dizine dönülebilir. Public erişim açıldıktan sonra eski yedeği **otomatik geri koyma**; yeni kullanıcı kayıtlarını koruyarak incele.
 - Uygulama saat dilimi `TZ=Europe/Istanbul` olarak tanımlıdır; doğrulama konteynerleri aynı saat dilimini kullanır.
 - Nginx `client_max_body_size 11m` olmalı; `nginx -t` başarılı olmadan yeniden yükleme.
@@ -43,4 +46,4 @@ python3 deploy/restore_backup.py /safe/kasa-....zip --output /safe/recovered.db
 
 Araç manifest sürümünü, SHA-256 değerini, SQLite bütünlüğünü, yabancı anahtar ilişkilerini ve beklenen şema sürümünü kontrol eder. Canlı geri yükleme sırasında servis durdurulmalı, mevcut veri ayrıca korunmalı ve sonrasında giriş/rapor denemesi yapılmalıdır.
 
-Sunucu içindeki ikinci dizin, tüm VPS kaybına karşı yedek değildir. Düzenli ZIP indirmesi veya kurumun sunucu dışı yedek alanına kopyalama da sürdürülmelidir. Üçüncü taraf bir depolama hesabı bu proje tarafından kendiliğinden oluşturulmaz.
+Sunucu içindeki ikinci dizin, tüm VPS kaybına karşı yedek değildir. Sunucu dışı kopya artık `deploy/uzak_yedek.py` ile otomatiktir (yalnız manifest özeti doğrulanmış yedekler, şifreli uzak hedef, hedefte saklama, izleme); kurulum ve uzak kopyadan geri dönüş [operasyon runbook'unda](operasyon-runbook.md) "Sunucu dışı yedek" bölümündedir. Üçüncü taraf bir depolama hesabı bu proje tarafından kendiliğinden oluşturulmaz; hesap ve anahtar kurum tarafından açılır.

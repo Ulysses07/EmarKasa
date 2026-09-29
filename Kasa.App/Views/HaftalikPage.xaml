@@ -19,6 +19,11 @@
 
             <v:RaporDurumu />
 
+            <!-- Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt): dönem listesinden ayrı ve öne çıkar. -->
+            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding VeriSagligiUyarisi, Converter={StaticResource DoluIse}}">
+                <Label Text="{Binding VeriSagligiUyarisi}" Style="{StaticResource LblError}" />
+            </Border>
+
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">

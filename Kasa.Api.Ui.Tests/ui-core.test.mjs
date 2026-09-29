@@ -14,27 +14,34 @@ const monthly = await loadBrowserModule('monthly-ui.js');
 const cashControls = await loadBrowserModule('cash-controls-ui.js');
 const statementImport = await loadBrowserModule('statement-import-ui.js');
 const pushModule = await loadBrowserModule('push-client.js');
-const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
+const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_MESSAGE, VIEWER_PASSWORD_SHORT_MESSAGE, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
 
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
 async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   class Element {
-    constructor(tag = 'div') { this.tag = tag; this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; this.open = false; this.checked = false; this.isConnected = true; }
+    constructor(tag = 'div') { this.tag = tag; this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; this.open = false; this.checked = false; }
+    // Gerçek DOM gibi: yalnız belge köküne (document.querySelector düğümleri) zincirle bağlı düğüm bağlıdır; içerikten çıkarılan düğüm kopar.
+    get isConnected() { let node = this; while (node.parentNode) node = node.parentNode; return node.root === true; }
+    closest(selector) { const matches = node => selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector; for (let node = this; node; node = node.parentNode) if (matches(node)) return node; return null; }
+    detachChildren(kept = []) { for (const child of this.children) if (child instanceof Element && child.parentNode === this && !kept.includes(child)) child.parentNode = null; }
     set value(value) { this.currentValue = String(value); }
     get value() { return this.currentValue || ''; }
     setAttribute(name, value) { this.attributes[name] = value; if (['disabled', 'hidden', 'readonly'].includes(name)) this[name === 'readonly' ? 'readOnly' : name] = true; }
     addEventListener(name, handler) { this.listeners[name] = handler; }
-    append(...children) { this.children.push(...children); }
-    replaceChildren(...children) { this.children = children; }
-    set textContent(value) { this.children = [String(value)]; }
+    append(...children) { for (const child of children) if (child instanceof Element) child.parentNode = this; this.children.push(...children); }
+    replaceChildren(...children) { this.detachChildren(children); for (const child of children) if (child instanceof Element) child.parentNode = this; this.children = children; }
+    remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
+    removeAttribute(name) { delete this.attributes[name]; }
+    set textContent(value) { this.detachChildren(); this.children = [String(value)]; }
     get textContent() { return this.children.map(child => typeof child === 'string' ? child : child.textContent).join(''); }
-    querySelector(selector) { return this.find(node => selector === 'button[type="submit"]' ? node.tag === 'button' && node.attributes.type === 'submit' : selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector); }
+    querySelector(selector) { const named = /^\[name="([^"]+)"\]$/.exec(selector); return this.find(node => named ? node.attributes.name === named[1] : selector === 'button[type="submit"]' ? node.tag === 'button' && node.attributes.type === 'submit' : selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector); }
     find(predicate) { for (const node of this.children) { if (typeof node === 'string') continue; if (predicate(node)) return node; const child = node.find(predicate); if (child) return child; } return null; }
     focus() {}
     close() { this.open = false; }
     showModal() { this.open = true; }
     reportValidity() { return true; }
     requestSubmit() { this.listeners.submit?.({ preventDefault() {} }); }
+    reset() { this.children.forEach(child => { if (child instanceof Element) { child.currentValue = ''; child.reset(); } }); }
     scrollIntoView() {}
   }
   class TestFormData {
@@ -51,15 +58,39 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
     [Symbol.iterator]() { return this.items[Symbol.iterator](); }
   }
   const nodes = new Map(); const requests = [];
-  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], ...extraResponses };
+  // index.html'deki gibi #modal-content, <dialog id="modal"> içindedir; hata görünürlüğü diyaloğun açık olmasına bakar.
+  const root = node => Object.assign(node, { root: true });
+  const modalNode = root(new Element('dialog')); const modalContent = new Element(); modalNode.append(modalContent);
+  nodes.set('#modal', modalNode); nodes.set('#modal-content', modalContent);
+  const responses = { '/kasa-runtime.json': { saltOkunur: readOnly, surum: 'test' }, '/api/auth/me': { rol: 'editor' }, '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanal: 'Mağaza', bakiye: 123 }] }, '/api/alis': [], '/api/kasa-esikleri': [], '/api/kasa-kontrol': [], '/api/ay-kilidi': { surum: 0, kilitliSonTarih: null, gecmis: [] }, '/api/surum': { surum: '2.2.0' }, '/api/takip/ozet?gun=30': { kartBorcu: 0, kalanKrediPlani: 0, olaylar: [] }, '/api/islemler/benzerlik': [], '/api/rapor/ana-sayfa?gun=30': call => homeSummary(call), '/api/alis/baglanabilir-giderler': () => linkableExpenses(), '/api/alis/inceleme-ozeti?adet=4': { sayi: 0, ogeler: [] }, ...extraResponses };
+  // Sunucu sözleşmesi: ana sayfa özeti ayrı uçların yanıtıyla birebir aynıdır. Varsayılan yanıt, testin o anki panel, eşik ve
+  // takip özeti yanıtlarından kurulur; parçalardan biri hata verirse tek istek de o hatayı verir.
+  const homeSummary = async call => {
+    const part = async key => { const value = responses[key]; if (value instanceof Error) throw value; return typeof value === 'function' ? await value(call) : value; };
+    const panel = await part('/api/rapor/panel'), kasaEsikleri = await part('/api/kasa-esikleri'), takipOzeti = await part('/api/takip/ozet?gun=30');
+    return [panel, kasaEsikleri, takipOzeti].find(value => value?.$status) || { panel, kasaEsikleri, takipOzeti };
+  };
+  // Alış ödemesinin bağlanabilir gider sayfası (webui-6): açıkça verilmezse testin gider listesinden (/api/islemler) süzülmeden
+  // tek sayfa kurulur. Gider listesi veren testler yeni uçla da çalışır; istemcinin savunma amaçlı süzgeci de sınanır.
+  const linkableExpenses = () => {
+    const list = responses['/api/islemler'];
+    if (!Array.isArray(list)) throw new Error('Unexpected API: /api/alis/baglanabilir-giderler');
+    return { ogeler: list, sonrakiImlec: null, devamVar: false };
+  };
+  // Tarayıcı fetch'i gibi: iptal edilen sinyal bekleyen yanıtı AbortError ile reddeder.
+  const aborted = () => new DOMException('The operation was aborted.', 'AbortError');
+  const abortable = (value, signal) => !signal ? value : Promise.race([Promise.resolve(value), new Promise((_, reject) => { if (signal.aborted) reject(aborted()); signal.addEventListener('abort', () => reject(aborted()), { once: true }); })]);
   const calls = [];
+  // Tarayıcı depolarına yazılan her değer kaydedilir: oturum ve tanıdık cihaz belirteci yalnız HttpOnly çerezlerdedir.
+  const stored = [];
+  const storage = { getItem: () => null, setItem: (key, value) => { stored.push([key, String(value)]); }, removeItem() {} };
   let nextId = 0;
-  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, Node: Element, setTimeout: () => 0, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, new Element()); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; calls.push(call); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await response(call) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
+  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, AbortController, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; Object.defineProperty(call, 'signal', { value: options.signal }); calls.push(call); if (options.signal?.aborted) throw aborted(); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await abortable(response(call), options.signal) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession };', context);
+  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, cancelPayment, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
-  return { nodes, requests, calls, responses, app: context.appTest };
+  return { nodes, requests, calls, responses, stored, app: context.appTest };
 }
 
 test('full editor startup renders transaction actions and settings navigation', async () => {
@@ -68,7 +99,9 @@ test('full editor startup renders transaction actions and settings navigation', 
   assert.match(nodes.get('#page-actions').textContent, /Gelir gir.*Gider kaydet/);
   assert.equal(nodes.get('#application').hidden, false);
   assert.deepEqual(requests.slice(0, 2), ['/kasa-runtime.json', '/api/auth/me']);
-  assert.ok(requests.includes('/api/alis'));
+  // Ana sayfanın inceleme kutusu (webui-6) bütün alış listesini değil, yalnız inceleme özetini okur.
+  assert.ok(requests.includes('/api/alis/inceleme-ozeti?adet=4'));
+  assert.ok(!requests.includes('/api/alis'));
 });
 test('read-only editor startup renders live cash without mutation actions or unsupported API calls', async () => {
   const { nodes, requests } = await openApp(true);
@@ -163,8 +196,9 @@ test('new cash expense duplicate can be cancelled and lookup failure never silen
 test('new purchase payment checks its purchase and card, while linking an existing expense skips duplicate checks', async () => {
   const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 4 };
-  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı' }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı', yeniTakip: true, aktif: true }], '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [similarCharge] });
   await app.paymentDialog(purchase); formField(nodes, 'tutar').value = '75'; formField(nodes, 'krediKartiId').value = '4';
+  assert.ok(formField(nodes, 'krediKartiId').children.some(option => option.textContent === 'İş kartı'), 'Takipteki kart seçilebilir.');
   await submitDialog(nodes);
   const lookup = calls.find(call => call.path === '/api/islemler/benzerlik'); assert.equal(lookup.body.tur, 'AlisOdeme'); assert.equal(lookup.body.alisId, 6); assert.equal(lookup.body.krediKartiId, 4);
   assert.equal(calls.some(call => call.path === '/api/alis/6/odemeler'), false);
@@ -174,6 +208,102 @@ test('new purchase payment checks its purchase and card, while linking an existi
   await submitDialog(nodes);
   const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.ok(save); assert.equal(save.body.mevcutIslemId, 20); assert.equal(save.body.tutar, 75);
   assert.equal(calls.filter(call => call.path === '/api/islemler/benzerlik').length, 1);
+});
+test('purchase payment dialog uses the server linkable-expense page instead of the full expense history, with search and older pages', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
+  const row = (id, cari, tutarTl) => ({ id, tarih: `2026-09-${id - 10}`, cari, tutarTl, krediKartiId: null });
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kredikartlari': [], '/api/alis/6/odemeler': purchase,
+    '/api/alis/baglanabilir-giderler': { ogeler: [row(31, 'Kargo', 40), row(30, 'Ambalaj', 20)], sonrakiImlec: '20260920-30', devamVar: true },
+    '/api/alis/baglanabilir-giderler?imlec=20260920-30': { ogeler: [row(29, 'Eski mal', 75), { ...row(28, 'Bağlı', 10), alisId: 3 }], sonrakiImlec: null, devamVar: false },
+    '/api/alis/baglanabilir-giderler?arama=Kargo+Co': { ogeler: [], sonrakiImlec: null, devamVar: false },
+    '/api/alis/baglanabilir-giderler?arama=75&aramaTutari=75.00': { ogeler: [row(29, 'Eski mal', 75)], sonrakiImlec: null, devamVar: false },
+  });
+  await app.paymentDialog(purchase);
+  assert.equal(calls.some(call => call.path.startsWith('/api/islemler')), false);
+  const existing = formField(nodes, 'mevcutIslemId');
+  const options = () => existing.children.filter(node => node.tag === 'option').map(node => node.value);
+  assert.deepEqual(options(), ['', '31', '30']);
+  const more = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Daha eski giderler');
+  assert.equal(more.hidden, false);
+  existing.value = '31'; existing.listeners.change();
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.deepEqual(options(), ['', '31', '30', '29']);
+  assert.equal(existing.value, '31'); assert.equal(more.hidden, true);
+  const search = formField(nodes, 'giderArama');
+  search.value = 'Kargo Co'; search.listeners.change(); await settle();
+  assert.deepEqual(options(), ['']); assert.match(nodes.get('#modal-content').textContent, /Eşleşen bağlanabilir gider yok/);
+  assert.equal(formField(nodes, 'tutar').disabled, false);
+  let prevented = false; search.value = '75'; search.listeners.keydown({ key: 'Enter', preventDefault() { prevented = true; } }); await settle();
+  assert.equal(prevented, true); assert.deepEqual(options(), ['', '29']);
+  assert.equal(calls.some(call => call.path === '/api/alis/6/odemeler'), false);
+  existing.value = '29'; existing.listeners.change();
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/alis/6/odemeler'); assert.equal(save.body.mevcutIslemId, 29); assert.equal(save.body.tutar, 75);
+});
+test('older linkable-expense page uses the cursor only with the search text that produced it; changed text restarts the search', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' };
+  const row = (id, cari, tutarTl) => ({ id, tarih: `2026-09-${id - 10}`, cari, tutarTl, krediKartiId: null });
+  const base = '/api/alis/baglanabilir-giderler';
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kredikartlari': [], '/api/alis/6/odemeler': purchase,
+    [base]: { ogeler: [row(31, 'Kargo', 40), row(30, 'Ambalaj', 20)], sonrakiImlec: '20260920-30', devamVar: true },
+    [`${base}?arama=Kargo`]: { ogeler: [row(31, 'Kargo', 40), row(25, 'Kargo', 15)], sonrakiImlec: '20260915-25', devamVar: true },
+    [`${base}?arama=Kargo&imlec=20260915-25`]: { ogeler: [row(20, 'Kargo', 5)], sonrakiImlec: null, devamVar: false },
+  });
+  await app.paymentDialog(purchase);
+  const existing = formField(nodes, 'mevcutIslemId');
+  const options = () => existing.children.filter(node => node.tag === 'option').map(node => node.value);
+  const more = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Daha eski giderler');
+  // Yeni metin yazılıp doğrudan 'Daha eski giderler'e basılır: önce kutunun change (blur) araması başlar, tıklama onu geçersiz
+  // kılar. Süzgeçsiz listenin imleci 'Kargo' ile birleştirilmez (daha yeni Kargo #25 atlanır, Ambalaj listede kalırdı).
+  const search = formField(nodes, 'giderArama'); search.value = 'Kargo'; search.listeners.change();
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.equal(calls.some(call => call.path === `${base}?arama=Kargo&imlec=20260920-30`), false);
+  assert.deepEqual(options(), ['', '31', '25']); assert.equal(more.hidden, false);
+  // Metin değişmedikçe imleç aynı aramanın sonraki sayfasıdır.
+  await more.listeners.click({ currentTarget: more }); await settle();
+  assert.deepEqual(options(), ['', '31', '25', '20']); assert.equal(more.hidden, true);
+});
+test('new expense and new purchase reuse the request id after a lost response, while edits send none', async () => {
+  let expenseAttempts = 0; let purchaseAttempts = 0;
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': [], '/api/islemler/20': { id: 20 },
+    '/api/islemler': call => { if (call.method === 'POST' && ++expenseAttempts === 1) throw new Error('Network response lost'); return call.method === 'POST' ? { id: 21 } : []; },
+    '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/alis/9/belgeler': [],
+    '/api/alis': call => { if (call.method === 'POST' && ++purchaseAttempts === 1) throw new Error('Network response lost'); return call.method === 'POST' ? { id: 9 } : [{ id: 9, surum: 1, tarih: '2026-09-23', tedarikci: 'Firma', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 0, odenen: 0, kalan: 0 }]; },
+  });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes); await submitDialog(nodes);
+  const expenseWrites = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(expenseWrites.length, 2); assert.ok(expenseWrites[0].body.istekId); assert.deepEqual(expenseWrites[0].body, expenseWrites[1].body);
+  await app.expenseDialog({ id: 20, tarih: '2026-09-23', cari: 'Kargo', tutarTl: 75, kanal: 'A', tip: 'Cari' });
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20' && call.method === 'PUT').body.istekId, undefined);
+
+  await app.navigate('purchases');
+  const create = nodes.get('#page-actions').find(node => node.tag === 'button' && node.textContent === '+ Yeni alış'); await create.listeners.click({ currentTarget: create }); await settle();
+  formField(nodes, 'tedarikci').listeners.input({ target: { value: 'Firma' } });
+  formField(nodes, 'aciklama-0').listeners.input({ target: { value: 'Mal' } });
+  formField(nodes, 'tutar-0').listeners.input({ target: { value: '100' } });
+  await submitDialog(nodes); await submitDialog(nodes);
+  const purchaseWrites = calls.filter(call => call.path === '/api/alis' && call.method === 'POST');
+  assert.equal(purchaseWrites.length, 2); assert.ok(purchaseWrites[0].body.istekId); assert.deepEqual(purchaseWrites[0].body, purchaseWrites[1].body);
+});
+test('purchase document download names come from the stored type, never from the uploaded extension or direction marks', () => {
+  assert.equal(ui.documentFileName('fatura.pdf.hta', 'application/pdf'), 'fatura.pdf');
+  assert.equal(ui.documentFileName('fatura‮fdp.hta', 'application/pdf'), 'faturafdp.pdf');
+  assert.equal(ui.documentFileName('..\\gizli\\CON.png', 'image/png'), 'belge-CON.png');
+  assert.equal(ui.documentFileName('foto.jpeg', 'image/jpeg'), 'foto.jpg');
+  assert.equal(ui.documentFileName('sayfa.html', 'text/html'), 'sayfa.bin');
+  assert.equal(ui.documentFileName('Fatura 12.05.2024', 'application/pdf'), 'Fatura 12.05.2024.pdf');
+  assert.equal(ui.documentFileName('', 'application/pdf'), 'belge.pdf');
+  assert.equal(ui.linkableExpensesPath('  Kargo & Co '), '/api/alis/baglanabilir-giderler?arama=Kargo+%26+Co');
+  // Tutar gibi okunan metin (ör. '2024' bir fatura numarası da olabilir) metin olarak da aranır; sunucu ikisinden birine uyanı döndürür.
+  assert.equal(ui.linkableExpensesPath('12,5', '20260920-30'), '/api/alis/baglanabilir-giderler?arama=12%2C5&aramaTutari=12.50&imlec=20260920-30');
+  assert.equal(ui.linkableExpensesPath('2024'), '/api/alis/baglanabilir-giderler?arama=2024&aramaTutari=2024.00');
+  assert.equal(ui.linkableExpensesPath(''), '/api/alis/baglanabilir-giderler');
 });
 test('changing a field invalidates duplicate approval and cancelling during lookup cannot create an expense', async () => {
   const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': [], '/api/islemler/benzerlik': [similarCharge] });
@@ -393,11 +523,15 @@ test('notification deep links enforce financial role and service worker rejects 
 });
 test('legacy income selection sums preserved rows without selecting one arbitrarily', () => {
   const rows = [{ kanal: 'A', tutarTl: 0.10, eskiYinelenenGrup: true }, { kanal: 'A', tutarTl: 0.20, eskiYinelenenGrup: true }, { kanal: 'B', tutarTl: 5 }];
-  assert.deepEqual(incomeSelection(rows, 'A'), { total: 0.30, count: 2, readOnly: true });
-  assert.deepEqual(incomeSelection(rows, 'B'), { total: 5, count: 1, readOnly: false });
-  assert.deepEqual(incomeSelection(rows, 'C'), { total: 0, count: 0, readOnly: false });
+  assert.deepEqual(incomeSelection(rows, 'A'), { total: 0.30, count: 2, readOnly: true, surum: 0 });
+  assert.deepEqual(incomeSelection(rows, 'B'), { total: 5, count: 1, readOnly: false, surum: 0 });
+  assert.deepEqual(incomeSelection(rows, 'C'), { total: 0, count: 0, readOnly: false, surum: 0 });
   assert.equal(incomeSelection([{ kanal: 'A', tutarTl: 5, eskiYinelenenGrup: true }], 'A').readOnly, true);
   assert.equal(incomeSelection([{ kanal: 'A', tutarTl: 5 }, { kanal: 'A', tutarTl: -2 }], 'A').readOnly, true);
+  // contract-6: tek normal satırın sürümü gönderilir; eski grup (salt okunur) ve satırsız kanal 0.
+  assert.equal(incomeSelection([{ kanalId: 7, kanal: 'A', tutarTl: 5, surum: 9 }], { id: 7, ad: 'A' }).surum, 9);
+  assert.equal(incomeSelection([{ kanalId: 7, kanal: 'A', tutarTl: 5, surum: 9, eskiYinelenenGrup: true }], { id: 7, ad: 'A' }).surum, 0);
+  assert.equal(incomeSelection([{ kanalId: 7, kanal: 'A', tutarTl: 5, surum: 9 }], { id: 8, ad: 'B' }).surum, 0);
 });
 test('income selection uses stable channel IDs across case variants and renames', () => {
   const rows = [
@@ -405,13 +539,13 @@ test('income selection uses stable channel IDs across case variants and renames'
     { kanalId: 7, kanal: 'shop', tutarTl: 200, eskiYinelenenGrup: true },
     { kanalId: 8, kanal: 'Yeni mağaza', tutarTl: 999 }
   ];
-  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'Yeni mağaza' }), { total: 300, count: 2, readOnly: true });
-  assert.deepEqual(incomeSelection(rows, { id: 8, ad: 'SHOP' }), { total: 999, count: 1, readOnly: false });
+  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'Yeni mağaza' }), { total: 300, count: 2, readOnly: true, surum: 0 });
+  assert.deepEqual(incomeSelection(rows, { id: 8, ad: 'SHOP' }), { total: 999, count: 1, readOnly: false, surum: 0 });
 });
 test('income name fallback applies only to rows without IDs and matches SQLite ASCII NOCASE', () => {
   const rows = [{ kanal: 'SHOP', tutarTl: 10 }, { kanalId: 8, kanal: 'shop', tutarTl: 999 }];
-  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'shop' }), { total: 10, count: 1, readOnly: false });
-  assert.deepEqual(incomeSelection([{ kanal: 'İSİM', tutarTl: 50 }, { kanal: 'ISIM', tutarTl: 20 }, { kanal: 'ısım', tutarTl: 90 }], { id: 7, ad: 'isim' }), { total: 20, count: 1, readOnly: false });
+  assert.deepEqual(incomeSelection(rows, { id: 7, ad: 'shop' }), { total: 10, count: 1, readOnly: false, surum: 0 });
+  assert.deepEqual(incomeSelection([{ kanal: 'İSİM', tutarTl: 50 }, { kanal: 'ISIM', tutarTl: 20 }, { kanal: 'ısım', tutarTl: 90 }], { id: 7, ad: 'isim' }), { total: 20, count: 1, readOnly: false, surum: 0 });
 });
 test('income form locks only the duplicate group and unlocks normal channels and new periods', async () => {
   const oldPeriod = '2026-09-07'; const newPeriod = '2026-09-14';
@@ -590,6 +724,108 @@ test('validation errors and authentication/rate-limit failures have useful messa
   assert.equal(errorMessage({ errors: { tutar: ['Tutar geçersiz'], tarih: ['Tarih gerekli'] } }, 400), 'Tutar geçersiz\nTarih gerekli');
   assert.equal(errorMessage({ hata: 'Sürüm değişti' }, 409), 'Sürüm değişti');
   assert.match(errorMessage(null, 401), /giriş/); assert.match(errorMessage(null, 403), /yetki/); assert.match(errorMessage(null, 429), /bekleyip/);
+  assert.equal(errorMessage({ hata: 'Çok fazla deneme yapıldı. 5 dakika sonra yeniden deneyin.' }, 429), 'Çok fazla deneme yapıldı. 5 dakika sonra yeniden deneyin.');
+});
+test('only a real 401 ends the session; login/recovery failures and field errors keep it', () => {
+  assert.equal(sessionExpired(401, '/api/auth/me'), true);
+  assert.equal(sessionExpired(401, '/api/auth/kurtarma-kodu'), true);
+  assert.equal(sessionExpired(401, '/api/auth/sifre'), true);
+  assert.equal(sessionExpired(401, '/api/auth/login'), false);
+  assert.equal(sessionExpired(401, '/api/auth/kurtar'), false);
+  assert.equal(sessionExpired(401, '/api/auth/login?yeniden=1'), false);
+  assert.equal(sessionExpired(400, '/api/auth/sifre'), false);
+  assert.equal(sessionExpired(429, '/api/auth/sifre'), false);
+  assert.deepEqual(fieldErrors({ errors: { mevcutSifre: ['Mevcut şifre hatalı.'], tutar: ['A', 'B'] } }), { mevcutSifre: 'Mevcut şifre hatalı.', tutar: 'A\nB' });
+  assert.deepEqual(fieldErrors({ hata: 'Sürüm değişti' }), {});
+  assert.deepEqual(fieldErrors(null), {});
+});
+test('viewer password rule matches the server and desktop: 12–1024 characters, not blank', () => {
+  assert.equal(VIEWER_PASSWORD_MESSAGE, 'İzleyici şifresi 12–1024 karakter olmalıdır.');
+  for (const value of ['', null, 'kisa', 'on-bir-harf', ' '.repeat(12), 'x'.repeat(1025)]) assert.equal(viewerPasswordError(value), VIEWER_PASSWORD_MESSAGE);
+  for (const value of ['on-iki-harf!', 'x'.repeat(1024)]) assert.equal(viewerPasswordError(value), null);
+});
+test('wrong current password shows a field error and keeps the session; a real 401 on recovery code still ends it', async () => {
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/auth/sifre': { $status: 400, errors: { mevcutSifre: ['Mevcut şifre hatalı.'] } }, '/api/auth/kurtarma-kodu': { $status: 401 } });
+  app.passwordDialog();
+  formField(nodes, 'mevcutSifre').value = 'yanlis'; formField(nodes, 'yeniSifre').value = 'yepyeni-sifre-123'; formField(nodes, 'tekrar').value = 'yepyeni-sifre-123';
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#application').hidden, false);
+  assert.equal(nodes.get('#login-screen').hidden, true);
+  const current = formField(nodes, 'mevcutSifre');
+  assert.equal(current.attributes['aria-invalid'], 'true');
+  assert.match(current.parentNode.textContent, /Mevcut şifre.*Mevcut şifre hatalı\./);
+  assert.equal(nodes.get('#modal-content').find(node => node.attributes.role === 'alert').textContent, 'Mevcut şifre hatalı.');
+
+  // Yeni denemede önceki alan hatası silinir; yalnız yeni hatalı alan işaretlenir.
+  responses['/api/auth/sifre'] = { $status: 400, errors: { yeniSifre: ['Yeni şifre 12–1024 karakter olmalıdır.'] } };
+  await submitDialog(nodes);
+  assert.equal(current.attributes['aria-invalid'], undefined);
+  assert.doesNotMatch(current.parentNode.textContent, /hatalı/);
+  assert.equal(formField(nodes, 'yeniSifre').attributes['aria-invalid'], 'true');
+  assert.equal(nodes.get('#application').hidden, false);
+  assert.equal(calls.filter(call => call.path === '/api/auth/sifre').length, 2);
+
+  app.recoveryCodeDialog(); formField(nodes, 'mevcutSifre').value = 'kasa-sifre'; await submitDialog(nodes);
+  assert.equal(nodes.get('#application').hidden, true);
+  assert.equal(nodes.get('#login-screen').hidden, false);
+});
+// maui-4 (web tarafı): kurtarma kodu tek kullanımlıktır ve şifre değişimi kurtarma kodunu siler; yazım hatalı yeni şifre
+// tek editör hesabını kilitler. Tekrar uyuşmazsa istek gönderilmez, uyuşunca sunucuya tekrar alanı gitmez.
+test('yeni şifre tekrarı kuralı boşluk dahil birebir eşleşme ister', () => {
+  assert.equal(ui.NEW_PASSWORD_MISMATCH_MESSAGE, 'Yeni şifreler aynı olmalı.');
+  assert.equal(ui.newPasswordRepeatError('Kasa2026!Guvenli', 'Kasa2026!Guvenli'), null);
+  for (const repeat of ['Kasa2026!Guvenlı', 'Kasa2026!Guvenli ', '', null]) assert.equal(ui.newPasswordRepeatError('Kasa2026!Guvenli', repeat), ui.NEW_PASSWORD_MISMATCH_MESSAGE);
+});
+test('hesap kurtarmada yeni şifre tekrarı uyuşmazsa kod harcanmaz; eşleşince yalnız kullanıcı, kod ve yeni şifre gider', async () => {
+  const { nodes, calls } = await openApp(false, { '/api/auth/kurtar': null });
+  nodes.get('#recover-open').listeners.click({});
+  formField(nodes, 'kullanici').value = 'editor'; formField(nodes, 'kod').value = 'ABCD-EFGH';
+  formField(nodes, 'yeniSifre').value = 'Kasa2026!Guvenli'; formField(nodes, 'tekrar').value = 'Kasa2026!Guvenlı';
+  assert.equal(formField(nodes, 'tekrar').attributes.type, 'password');
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/auth/kurtar').length, 0);
+  assert.equal(formField(nodes, 'tekrar').attributes['aria-invalid'], 'true');
+  assert.equal(nodes.get('#modal-content').find(node => node.attributes.role === 'alert').textContent, 'Yeni şifreler aynı olmalı.');
+  formField(nodes, 'tekrar').value = 'Kasa2026!Guvenli'; await submitDialog(nodes);
+  assert.deepEqual(calls.filter(call => call.path === '/api/auth/kurtar').map(call => call.body), [{ kullanici: 'editor', kod: 'ABCD-EFGH', yeniSifre: 'Kasa2026!Guvenli' }]);
+  assert.match(nodes.get('#notifications').textContent, /Şifreniz yenilendi/);
+});
+test('şifre değişiminde tekrar uyuşmazsa istek gönderilmez ve tekrar alanı işaretlenir', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/auth/sifre': null });
+  app.passwordDialog();
+  formField(nodes, 'mevcutSifre').value = 'kasa-sifresi'; formField(nodes, 'yeniSifre').value = 'Kasa2026!Guvenli'; formField(nodes, 'tekrar').value = 'Kasa2026!Guvenlı';
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/auth/sifre').length, 0);
+  assert.equal(formField(nodes, 'tekrar').attributes['aria-invalid'], 'true');
+  assert.equal(nodes.get('#application').hidden, false);
+});
+test('viewer password is checked with the shared rule before any request and uses the 12 character hint', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/ayarlar/izleyici-sifre': null });
+  app.viewerPasswordDialog();
+  const password = formField(nodes, 'yeniSifre');
+  assert.equal(password.attributes.minlength, '12');
+  assert.match(nodes.get('#modal-content').textContent, /En az 12 karakter kullanın\./);
+  password.value = 'on-bir-harf'; await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/ayarlar/izleyici-sifre').length, 0);
+  assert.equal(password.attributes['aria-invalid'], 'true');
+  assert.match(nodes.get('#modal-content').textContent, /İzleyici şifresi 12–1024 karakter olmalıdır\./);
+  password.value = 'on-iki-harf!'; await submitDialog(nodes);
+  assert.deepEqual(calls.filter(call => call.path === '/api/ayarlar/izleyici-sifre').map(call => [call.method, call.body]), [['PUT', { yeniSifre: 'on-iki-harf!' }]]);
+  assert.match(nodes.get('#notifications').textContent, /İzleyici şifresi güncellendi/);
+});
+test('settings show server warnings for a short existing viewer password and an untrusted proxy until they clear', async () => {
+  const settings = { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true, izleyiciSifreKisa: true, vekilUyarisi: 'Sunucu, güvenilmeyen 10.20.0.1 bağlantısından gelen X-Forwarded-For başlığını yok saydı.' };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': settings, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [], '/api/kanallar': [], '/api/ayarlar/izleyici-sifre': null });
+  await app.navigate('tools');
+  assert.equal(VIEWER_PASSWORD_SHORT_MESSAGE, 'Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.');
+  assert.ok(nodes.get('#view').find(node => node.textContent === VIEWER_PASSWORD_SHORT_MESSAGE), 'Kısa izleyici şifresi uyarısı görünür.');
+  assert.ok(nodes.get('#view').find(node => node.textContent === settings.vekilUyarisi && node.attributes.role === 'alert'), 'Vekil uyarısı görünür.');
+
+  // Kurala uygun yeni şifre kaydedilince Ayarlar yenilenir; sunucu artık işaretlemediği için uyarılar kalkar.
+  settings.izleyiciSifreKisa = false; settings.vekilUyarisi = null;
+  app.viewerPasswordDialog(); formField(nodes, 'yeniSifre').value = 'on-iki-harf!'; await submitDialog(nodes);
+  assert.doesNotMatch(nodes.get('#view').textContent, /12 karakterden kısa|X-Forwarded-For/);
+  assert.match(nodes.get('#view').textContent, /İzleyici şifresini değiştir/);
 });
 test('display formatting keeps Turkish money and date meaning', () => {
   assert.match(money(1234.56), /1\.234,56/);
@@ -673,6 +909,27 @@ test('monthly payment cancellation keeps its explanation and idempotency key aft
   assert.equal(calls.some(call => call.path.startsWith('/api/islemler')), false);
 });
 
+test('cancelled monthly payments stay on the month screen with reason and time, outside the plan and without actions', async () => {
+  const plain = await openApp(false, monthlyResponses());
+  await plain.app.navigate('monthly-expenses');
+  assert.doesNotMatch(plain.nodes.get('#view').textContent, /İptal edilen ödemeler/); // alanı taşımayan eski sunucu da çalışır
+  const data = monthlyResponses();
+  const cancelled = { ...monthlyRow, durum: 'Iptal', odemeId: 11, odemeTarihi: `${monthNow}-05`, iptalAciklamasi: 'Kira yanlış aya girildi', iptalZamani: '2026-09-25T09:00:00Z' };
+  const legacy = { ...cancelled, odemeId: 10, iptalAciklamasi: '<b>Eski</b> iptal', iptalZamani: null };
+  const { app, nodes, calls } = await openApp(false, { ...data, [monthlyPath]: { ...data[monthlyPath], iptaller: [cancelled, legacy] } });
+  await app.navigate('monthly-expenses');
+  const section = nodes.get('#view').find(node => node.tag === 'section' && /İptal edilen ödemeler/.test(node.textContent));
+  assert.ok(section, 'cancelled payments section exists');
+  assert.match(section.textContent, /Kira yanlış aya girildi/);
+  assert.ok(section.textContent.includes(new Date('2026-09-25T09:00:00Z').toLocaleString('tr-TR')));
+  assert.match(section.textContent, /Sürüm öncesi \(zamanı bilinmiyor\)/);
+  assert.match(section.textContent, /<b>Eski<\/b> iptal/); assert.equal(section.find(node => node.tag === 'b'), null);
+  assert.equal(section.find(node => node.tag === 'button'), null);
+  // Plan satırı yine ödeme bekler; iptal kaydı yalnız okunur.
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Ödeme kaydet'));
+  assert.equal(calls.some(call => call.method !== 'GET'), false);
+});
+
 test('monthly total includes general-only expenses once and lock control explains the inclusive boundary', async () => {
   const report = { yil: yearNow, ay: monthNumberNow, genelGider: 30, dagilimBekleyenTutar: 5, kanallar: [{ kanal: 'A', gelen: 100, cariGiden: 10, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 90 }] };
   assert.deepEqual(monthlyTotals(report), { incoming: 100, expenses: 45, result: 55 });
@@ -731,10 +988,66 @@ test('actual balance comparison previews a signed value and stores only the snap
 test('changed cash requires a fresh comparison preview and a second explicit confirmation before save', async () => {
   let previews = 0; let saves = 0;
   const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/onizleme': () => ({ sistemBakiye: ++previews === 1 ? 123 : 150, gercekBakiye: 200, fark: previews === 1 ? 77 : 50, kontrolOzeti: `digest${previews}` }), '/api/kasa-kontrol': call => call.method === 'GET' ? [] : ++saves === 1 ? { $status: 409, hata: 'Bakiye değişti.' } : { id: 2 } });
-  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '200'; await submitDialog(nodes); await submitDialog(nodes);
+  // Fark sıfırdan farklı: açıklama zorunlu (gap-denetim-izi-gozlemlenebilirlik-3).
+  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '200'; formField(nodes, 'not').value = 'Sayım'; await submitDialog(nodes); await submitDialog(nodes);
   assert.match(nodes.get('#modal-content').textContent, /Kasa değişti/); await submitDialog(nodes);
   assert.equal(saves, 1); assert.match(nodes.get('#modal-content').textContent, /150,00.*200,00.*50,00/); await submitDialog(nodes);
   assert.equal(saves, 2); const writes = calls.filter(call => call.path === '/api/kasa-kontrol' && call.method === 'POST'); assert.equal(writes[1].body.kontrolOzeti, 'digest2'); assert.notEqual(writes[0].body.istekId, writes[1].body.istekId);
+});
+
+test('a comparison with a difference requires a note in the review step; the note can be written after seeing the difference', async () => {
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kasa-kontrol/onizleme': call => ({ sistemBakiye: 1000, gercekBakiye: call.body.gercekBakiye, fark: call.body.gercekBakiye - 1000, kontrolOzeti: `digest-${call.body.gercekBakiye}`, kanalBakiyeleri: [{ kanalId: 1, kanal: 'MEZAT', bakiye: 600 }, { kanalId: 2, kanal: 'PERAKENDE', bakiye: 400 }], hesapTarihi: '2026-09-26' }),
+    '/api/kasa-kontrol': call => call.method === 'GET' ? [] : { id: 3 } });
+  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '900'; await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /MEZAT.*600,00.*PERAKENDE.*400,00/);
+  await submitDialog(nodes);
+  assert.equal(calls.some(call => call.path === '/api/kasa-kontrol' && call.method === 'POST'), false);
+  assert.match(nodes.get('#modal-content').textContent, /Fark varsa açıklama girin\./);
+  formField(nodes, 'not').value = 'Kasada 100 TL eksik'; await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/kasa-kontrol' && call.method === 'POST');
+  assert.deepEqual([save.body.gercekBakiye, save.body.not, save.body.kontrolOzeti], [900, 'Kasada 100 TL eksik', 'digest-900']);
+  // Fark yoksa açıklama gerekmez.
+  app.cashControlsUi.comparisonDialog(); formField(nodes, 'gercekBakiye').value = '1000'; await submitDialog(nodes); await submitDialog(nodes);
+  const equal = calls.filter(call => call.path === '/api/kasa-kontrol' && call.method === 'POST')[1]; assert.deepEqual([equal.body.gercekBakiye, equal.body.not], [1000, null]);
+  assert.equal(cashControls.noteRequired(-0.01, ' '), true); assert.equal(cashControls.noteRequired(0, ''), false); assert.equal(cashControls.noteRequired(5, 'Sayım'), false);
+});
+
+test('comparison history marks later changes and legacy rows; editors open the since-list and explain a difference', async () => {
+  const changed = { id: 2, kaydedildi: '2026-09-20T12:00:00+03:00', sistemBakiye: 1000, gercekBakiye: 900, fark: -100, not: 'Sayım', surum: 1, hesapTarihi: '2026-09-20', kanalBakiyeleri: [{ kanalId: 1, kanal: 'MEZAT', bakiye: 600, guncelBakiye: 1100 }], farkAciklamasi: null, farkAciklamaZamani: null, guncelSistemBakiye: 1500, guncelFark: -600, sonradanDegisti: true };
+  const legacy = { id: 1, kaydedildi: '2026-09-01T12:00:00+03:00', sistemBakiye: 800, gercekBakiye: 800, fark: 0, not: null, surum: 1, hesapTarihi: null, kanalBakiyeleri: null, guncelSistemBakiye: 800, guncelFark: 0, sonradanDegisti: false };
+  const since = { kontrolId: 2, kaydedildi: changed.kaydedildi, esasTarih: '2026-09-20', filigranVar: true, sistemBakiye: 1000, guncelSistemBakiye: 1500, bugunkuSistemBakiye: 500, kirpildi: false,
+    degisiklikler: [{ id: 9, zaman: '2026-09-21T10:00:00+03:00', aktorRol: 'editor', tur: 'Sil', varlik: 'Islem', varlikId: '812', oncekiJson: '{"Tarih":"2026-09-18","TutarTl":500}', yeniJson: null, gerekce: null }],
+    istekler: [{ istekId: '11111111-2222-3333-4444-555555555555', tur: 'KartOdemeIptal', sonucId: 4 }],
+    hareketler: [{ etkiTarihi: '2026-09-19', kayitTarihi: '2026-09-19', tur: 'Gider', aciklama: 'Unutulan fatura', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -70, kanalEtkisi: -70, kaynakAnahtari: 'Islem:900', otomatik: false },
+      { etkiTarihi: '2026-09-22', kayitTarihi: '2026-09-22', tur: 'KrediTaksidi', aciklama: 'Kredi / 1. taksit', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -1000, kanalEtkisi: -1000, kaynakAnahtari: 'TakipKrediTaksit:9', otomatik: true }] };
+  const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/2/sonrasi': since, '/api/kasa-kontrol/2/aciklama': { ...changed, surum: 2, farkAciklamasi: 'Mükerrer gider silindi' } });
+  const view = app.cashControlsUi.history([changed, legacy]);
+  assert.match(view.textContent, /Sonradan değişti: güncel sistem .*1\.500,00, güncel fark -₺600,00/);
+  assert.match(view.textContent, /Kayıttan sonra değişmedi · Eski kayıt, filigran yok/);
+  const buttons = label => [...(function* walk(node) { for (const child of node.children) { if (typeof child === 'string') continue; if (child.tag === 'button' && child.textContent === label) yield child; yield* walk(child); } })(view)];
+  assert.equal(buttons('Farkı açıkla').length, 1);   // yalnız farkı ya da sonradan değişimi olan satır
+  await buttons('Değişenleri göster')[0].listeners.click({ currentTarget: buttons('Değişenleri göster')[0] }); await settle();
+  const content = nodes.get('#modal-content').textContent;
+  for (const text of ['Geriye dönük değişim ₺500,00', 'Silindi', 'Gider #812', 'Tarih: 2026-09-18 · TutarTl: 500', 'KartOdemeIptal #4', 'Unutulan fatura', 'Kredi taksidi (kendiliğinden)'])
+    assert.ok(content.includes(text), `${text} görünür`);
+  assert.match(content, /Kontrol gününe ya da öncesine sonradan girilen giderler.*Unutulan fatura.*Kontrol gününden bugüne kasaya işleyen hareketler.*Kredi taksidi/);
+  buttons('Farkı açıkla')[0].listeners.click({}); formField(nodes, 'aciklama').value = '  Mükerrer gider silindi '; await submitDialog(nodes);
+  const put = calls.find(call => call.path === '/api/kasa-kontrol/2/aciklama');
+  assert.deepEqual([put.method, put.body.surum, put.body.aciklama, typeof put.body.istekId], ['PUT', 1, 'Mükerrer gider silindi', 'string']);
+});
+
+test('cash movements list queries the chosen range and channel and shows opening and closing balances', async () => {
+  const path = '/api/kasa-hareketleri?baslangic=2026-09-01&bitis=2026-09-26&kanalId=1';
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT' }, { id: 2, ad: 'PERAKENDE' }],
+    [path]: { baslangic: '2026-09-01', bitis: '2026-09-26', kanalId: 1, kanal: 'MEZAT', acilisBakiyesi: 1200, kapanisBakiyesi: 780.25, hareketler: [{ etkiTarihi: '2026-09-30', kayitTarihi: '2026-08-20', tur: 'KartAySonu', aciklama: 'Eski kart', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -400, kanalEtkisi: 0, kaynakAnahtari: 'Islem:5', otomatik: true }, { etkiTarihi: '2026-09-02', kayitTarihi: '2026-09-02', tur: 'Gider', aciklama: 'Nakliye', kanal: 'MEZAT', kanalId: 1, genelKasaEtkisi: -419.75, kanalEtkisi: -419.75, kaynakAnahtari: 'Islem:6', otomatik: false }] } });
+  const openList = view => [...(function* walk(node) { for (const child of node.children) { if (typeof child === 'string') continue; if (child.tag === 'button' && child.textContent === 'Kasa hareket dökümü') yield child; yield* walk(child); } })(view)][0];
+  const control = openList(app.cashControlsUi.history([])); await control.listeners.click({ currentTarget: control }); await settle();
+  formField(nodes, 'baslangic').value = '2026-09-01'; formField(nodes, 'bitis').value = '2026-09-26'; formField(nodes, 'kanalId').value = '1'; await submitDialog(nodes);
+  assert.ok(calls.some(call => call.path === path));
+  const content = nodes.get('#modal-content').textContent;
+  assert.match(content, /Açılış.*1\.200,00.*Kapanış.*780,25/); assert.match(content, /Eski kart ay sonu düşümü \(kendiliğinden\) · kayıt/); assert.match(content, /Kanal kasası etkisi/);
+  assert.equal(cashControls.movementsPath(), '/api/kasa-hareketleri'); assert.equal(cashControls.movementsPath({ bitis: '2026-01-31' }), '/api/kasa-hareketleri?bitis=2026-01-31');
 });
 
 test('card fee uses a selected cut statement and server shares, then records only after visible confirmation', async () => {
@@ -935,12 +1248,72 @@ test('PDF history cancellation requires an explanation and retains its retry ide
   const requests = calls.filter(call => call.path.endsWith('/iptal')); assert.equal(requests.length, 2); assert.equal(requests[0].body.istekId, requests[1].body.istekId);
 });
 
-test('imported cash expenses have a source link and cannot be selected as purchase payments', async () => {
+test('PDF history shows the cancellation reason and time on cancelled records only', async () => {
+  const record = { satirNo: 1, tarih: '2026-09-23', aciklama: 'Kira', tutar: 100, islemTuru: 'Gider', dagilimTuru: 'Genel', dagilimlar: [] };
+  const document = importDocument({ kayitlar: [{ ...record, id: 9, iptal: true, iptalAciklamasi: 'Banka hareketi iki kez okundu', iptalZamani: '2026-09-25T09:00:00Z' },
+    { ...record, id: 8, iptal: true, iptalAciklamasi: 'Sürüm öncesi iptal', iptalZamani: null }, { ...record, id: 7, satirNo: 2, iptal: false }] });
+  const { app, nodes } = await openApp(false, importResponses(document));
+  await app.navigate('imports', 12);
+  const history = nodes.get('#view').find(node => node.tag === 'section' && /Bu belgeden kaydedilenler/.test(node.textContent));
+  const row = satirNo => history.find(node => node.tag === 'tr' && node.textContent.includes(`#${satirNo} ·`) && node.find(child => child.tag === 'td'));
+  assert.ok(history.textContent.includes(`Banka hareketi iki kez okundu · ${new Date('2026-09-25T09:00:00Z').toLocaleString('tr-TR')}`));
+  assert.match(history.textContent, /Sürüm öncesi iptal · zamanı bilinmiyor/);
+  assert.equal(history.find(node => node.tag === 'button' && node.textContent === 'Kaydı iptal et') !== null, true);
+  assert.match(row(2).textContent, /Kaydedildi/); assert.doesNotMatch(row(2).textContent, /zamanı bilinmiyor|iki kez okundu/);
+});
+
+test('imported cash expenses have a source link and can be linked to a purchase payment as bank statement expenses', async () => {
+  // gap-coklu-giris-cift-sayim-mutabakat-1: sunucu banka ekstresi giderini bağlanabilir listeler; bağlanınca ekstre satırı eşleşmeye döner.
   const expenses = [{ id: 21, tarih: ui.today(), cari: 'PDF Kira', tutarTl: 100, ekstreKayitId: 8 }, { id: 22, tarih: ui.today(), cari: 'Mal', tutarTl: 100 }];
-  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/islemler': expenses, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses }));
+  const { app, nodes, calls } = await openApp(false, importResponses(importDocument(), { '/api/kredikartlari': [], '/api/islemler': expenses, [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses, '/api/alis/6/odemeler': { id: 6 } }));
   await app.navigate('transactions'); assert.match(nodes.get('#view').textContent, /Ekstre \/ Hareket Yükle bölümünden yönetilir/);
   const row = nodes.get('#view').find(node => node.tag === 'tr' && node.textContent.includes('PDF Kira')); assert.doesNotMatch(row.textContent, /Düzenle|Sil/);
-  await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' }); const existing = formField(nodes, 'mevcutIslemId'); assert.equal(existing.find(row => row.tag === 'option' && row.value === '21'), null);
+  await app.paymentDialog({ id: 6, surum: 2, kalan: 100, durum: 'Onaylandi' }); const existing = formField(nodes, 'mevcutIslemId');
+  assert.match(existing.find(row => row.tag === 'option' && row.value === '21').textContent, /PDF Kira.*banka ekstresinden/);
+  existing.value = '21'; existing.listeners.change(); await settle(); await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.mevcutIslemId, 21);
+});
+
+test('takipli card payment lists card charges without an expense and links the chosen one without a duplicate check', async () => {
+  const purchase = { id: 6, surum: 2, kalan: 18000, durum: 'Taslak' };
+  const charge = { id: 31, krediKartiId: 4, tarih: '2026-09-24', aciklama: 'MEZAT', tutar: 18000, ekstreKayitId: 7 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': [{ id: 4, ad: 'İş kartı', yeniTakip: true, aktif: true }], '/api/islemler': [], '/api/alis/6/odemeler': purchase, '/api/alis/kanallar': [],
+    '/api/islemler/benzerlik': new Error('Bağlamada benzerlik sorulmaz'), '/api/alis/baglanabilir-kart-harcamalari?krediKartiId=4&tutar=18000.00': [charge] });
+  await app.paymentDialog(purchase);
+  const card = formField(nodes, 'krediKartiId'); const linked = formField(nodes, 'mevcutKartHarcamaId');
+  assert.equal(linked.closest('label').hidden, true);
+  card.value = '4'; await card.listeners.change(); await settle();
+  assert.equal(linked.closest('label').hidden, false);
+  assert.match(linked.find(node => node.tag === 'option' && node.value === '31').textContent, /MEZAT.*18\.000,00.*ekstreden/);
+  linked.value = '31'; linked.listeners.change();
+  assert.equal(formField(nodes, 'tarih').value, '2026-09-24'); assert.equal(formField(nodes, 'tutar').disabled, true);
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/alis/6/odemeler');
+  assert.equal(save.body.mevcutKartHarcamaId, 31); assert.equal(save.body.krediKartiId, 4); assert.equal(save.body.tarih, '2026-09-24'); assert.equal(save.body.tutar, 18000); assert.equal(save.body.mevcutIslemId, null);
+  assert.equal(calls.some(call => call.path === '/api/islemler/benzerlik'), false);
+});
+
+test('PDF row can be matched to an existing record without allocation and shows the match in history', async () => {
+  const candidate = { tur: 'KartHarcama', id: 12, tarih: '2026-09-22', tutar: 100, aciklama: 'Alış ödemesi', krediKartiId: 4, kanalEtiketi: 'Dağılım bekliyor', alisId: 6 };
+  const { app, nodes, calls } = await openApp(false, importResponses(importDocument({ kaynak: 'Kart', kartId: 4, satirlar: [importRow({ onerilenIslem: 'KartHarcama' })] }), {
+    '/api/ekstre-aktar/12/eslesme-adaylari': [candidate],
+    '/api/ekstre-aktar/12/onizleme': importPreview({ kasaEtkisi: 0, satirlar: [{ satirNo: 1, tarih: '2026-09-23', aciklama: 'Kira', tutar: 100, islemTuru: 'Eslestir', kasaEtkisi: 0, dagilimlar: [], uyarilar: [] }] }) }));
+  await app.navigate('imports', 12); await chooseImportRow(nodes, 1, null);
+  const kind = viewField(nodes, 'tur-1'); kind.value = 'Eslestir'; await kind.listeners.change(); await settle();
+  const lookup = calls.find(call => call.path === '/api/ekstre-aktar/12/eslesme-adaylari'); assert.deepEqual(lookup.body, { tarih: '2026-09-23', tutar: 100 });
+  const match = viewField(nodes, 'eslesme-1'); assert.match(match.find(node => node.value === 'KartHarcama:12').textContent, /Kart harcaması #12.*Alış #6/);
+  assert.equal(importRowNode(nodes).find(node => node.tag === 'fieldset').hidden, true);
+  await clickView(nodes, 'Seçilenleri önizle'); assert.equal(calls.some(call => call.path.endsWith('/onizleme')), false);
+  match.value = 'KartHarcama:12'; match.listeners.change(); await clickView(nodes, 'Seçilenleri önizle');
+  const row = calls.find(call => call.path.endsWith('/onizleme')).body.satirlar[0];
+  assert.deepEqual([row.islemTuru, row.dagilimTuru, row.dagilimlar, row.eslesenKayitTuru, row.eslesenKayitId, row.krediKartiId], ['Eslestir', 'Eslesme', [], 'KartHarcama', 12, null]);
+  assert.match(nodes.get('#view').textContent, /Mevcut kayıtla eşleşir; kasa ve kart borcu değişmez/);
+
+  const saved = importDocument({ kaynak: 'Kart', kartId: 4, kayitlar: [{ id: 9, satirNo: 1, tarih: '2026-09-23', aciklama: 'Kira', tutar: 100, islemTuru: 'Eslestir', dagilimTuru: 'Eslesme', dagilimlar: [], iptal: false, eslesmeTuru: 'KartHarcama', eslesmeId: 12, eslesmeDurumu: 'Eslesti' }] });
+  const second = await openApp(false, importResponses(saved));
+  await second.app.navigate('imports', 12);
+  assert.match(second.nodes.get('#view').textContent, /Mevcut kayıtla eşleşti \(Kart harcaması #12\)/); assert.match(second.nodes.get('#view').textContent, /Kasa etkisi yok/);
+  assert.equal(viewField(second.nodes, 'sec-1').disabled, true);
 });
 
 test('imported card charges and payments expose source navigation instead of generic cancellation', async () => {
@@ -983,4 +1356,985 @@ test('late old-history response cannot overwrite a newly opened PDF', async () =
   const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/ekstre-aktar?beforeId=51': () => delayed }));
   const older = app.navigate('imports', { beforeId: 51 }); await settle(); await app.navigate('imports', 12); release([]); await older;
   assert.ok(viewField(nodes, 'sec-1')); assert.doesNotMatch(nodes.get('#view').textContent, /Daha eski belge yok/);
+});
+
+test('old card transition prefills the suggested counted amount, shows pending old deductions and re-previews with the suggestion', async () => {
+  const oldCard = { ...sampleCard, yeniTakip: false, surum: 0, borc: 1500, ekstreler: [] };
+  const preview = call => { const counted = call.body.kasadaOncedenSayilanTutar; const diff = counted - 1200; return { kaynak: 'Kart', kaynakId: 4, baslangic: call.body.baslangic, genelKasaAnlikFarki: diff, kanalAnlikFarki: 0, eskiKasadaSayilanTutar: counted, aciklamalar: ['1.200,00 TL eski kart gideri eski kuralla 31.10.2026 tarihine kadar ay sonlarında düşmeye devam eder.'], kabulEdilebilir: diff <= 0 && counted >= 1000, sistemKartBorcu: 1500, eskiKuraldaIslenenTutar: 300, bekleyenEskiDusumTutari: 1200, sonBekleyenDusumTarihi: '2026-10-31', onerilenKasadaSayilanTutar: 1200, enAzKasadaSayilanTutar: 1000 }; };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }], '/api/takip/kartlar/4/gecis-onizleme': preview, '/api/takip/kartlar/4/gecis': sampleCard, '/api/takip/kartlar/4': sampleCard });
+  await app.financeUi.cardTransition(oldCard);
+  const debt = formField(nodes, 'kalanBorc'); const counted = formField(nodes, 'kasadaOncedenSayilanTutar');
+  assert.equal(debt.value, '1500'); assert.equal(counted.value, '1500');
+  debt.value = '1200'; debt.listeners.input(); assert.equal(counted.value, '1200');
+  counted.value = '700'; counted.listeners.input(); debt.value = '1300'; debt.listeners.input(); assert.equal(counted.value, '700');
+  formField(nodes, 'aciklama').value = 'Banka ekstresiyle doğrulandı';
+  await submitDialog(nodes);
+  const first = calls.filter(call => call.path.endsWith('/gecis-onizleme'))[0];
+  assert.equal(first.body.kasadaOncedenSayilanTutar, 700); assert.equal(first.body.kalanBorc, 1300); assert.equal(first.body.onay, false);
+  const text = nodes.get('#modal-content').textContent;
+  assert.match(text, /Sistem kart borcu.*1\.500,00/); assert.match(text, /Başlangıçtan önce düşen\/düşecek.*300,00/); assert.doesNotMatch(text, /Eski kuralla işlenen/);
+  assert.match(text, /Bekleyen eski düşüm.*1\.200,00/); assert.ok(text.includes(`Son düşüm ${dateText('2026-10-31')}`));
+  assert.match(text, /Önerilen önceden sayılan.*1\.200,00.*En az.*1\.000,00/); assert.match(text, /Genel kasa farkı.*-?.*500,00/);
+  await clickDialog(nodes, `Önerilen tutarla (${money(1200)}) yeniden önizle`);
+  const second = calls.filter(call => call.path.endsWith('/gecis-onizleme'))[1];
+  assert.equal(second.body.kasadaOncedenSayilanTutar, 1200); assert.notEqual(second.body.istekId, first.body.istekId); assert.equal(counted.value, '1200');
+  assert.equal(nodes.get('#modal-content').find(node => node.tag === 'button' && /yeniden önizle/.test(node.textContent)), null);
+  assert.equal(calls.some(call => call.path.endsWith('/gecis')), false);
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path.endsWith('/gecis'));
+  assert.equal(save.body.onay, true); assert.equal(save.body.kasadaOncedenSayilanTutar, 1200); assert.equal(save.body.istekId, second.body.istekId);
+});
+
+test('rejected card transition preview offers only the suggestion retry and never saves', async () => {
+  const oldCard = { ...sampleCard, yeniTakip: false, surum: 0, borc: 100, ekstreler: [] };
+  const preview = call => ({ kaynak: 'Kart', kaynakId: 4, baslangic: call.body.baslangic, genelKasaAnlikFarki: call.body.kasadaOncedenSayilanTutar - 100, kanalAnlikFarki: 0, eskiKasadaSayilanTutar: call.body.kasadaOncedenSayilanTutar, aciklamalar: ['Hiç düşmeyecek tutar'], kabulEdilebilir: call.body.kasadaOncedenSayilanTutar <= 100, sistemKartBorcu: 100, eskiKuraldaIslenenTutar: 0, bekleyenEskiDusumTutari: 0, sonBekleyenDusumTarihi: null, onerilenKasadaSayilanTutar: 100 });
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [], '/api/takip/kartlar/4/gecis-onizleme': preview });
+  await app.financeUi.cardTransition(oldCard);
+  formField(nodes, 'kalanBorc').value = '300'; const counted = formField(nodes, 'kasadaOncedenSayilanTutar'); counted.value = '250'; counted.listeners.input();
+  formField(nodes, 'aciklama').value = 'Fazla girildi';
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#modal-content').find(node => node.tag === 'form'), null);
+  assert.match(nodes.get('#modal-content').textContent, /Bekleyen düşüm yok/);
+  await clickDialog(nodes, `Önerilen tutarla (${money(100)}) yeniden önizle`);
+  assert.equal(calls.filter(call => call.path.endsWith('/gecis-onizleme'))[1].body.kasadaOncedenSayilanTutar, 100);
+  assert.equal(calls.some(call => call.path.endsWith('/gecis')), false);
+});
+
+test('transitioned card page shows the stored transition record and the first-version residual warning', async () => {
+  const card = { ...sampleCard, gecis: { kural: 'IslemTarihi', aciklama: 'Banka ekstresiyle <b>doğrulandı</b>', onizleme: { onayTarihi: '2026-09-25', kalanBorc: 1300, kasadaOncedenSayilanTutar: 1200, sistemKartBorcu: 1500, eskiKuraldaIslenenTutar: 300, bekleyenEskiDusumTutari: 1200, sonBekleyenDusumTarihi: '2026-10-31', onerilenKasadaSayilanTutar: 1200 }, raporDisiEskiDusumTutari: 0, raporDisiIlkDusumTarihi: null, raporDisiSonDusumTarihi: null, tahminiKasaFarki: 0, uyari: null } };
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar/4': card });
+  await app.navigate('cards', 4);
+  let text = nodes.get('#view').textContent;
+  assert.match(text, /Eski karttan geçiş/); assert.match(text, /Girilen kalan borç.*1\.300,00/); assert.match(text, /Kasada önceden sayılan.*1\.200,00.*Önerilen.*1\.200,00/);
+  assert.match(text, /Bekleyen eski düşüm.*1\.200,00/); assert.ok(text.includes(`Son düşüm ${dateText('2026-10-31')}`)); assert.ok(text.includes(`${dateText('2026-09-25')} tarihinde onaylandı`));
+  assert.ok(text.includes('Geçiş açıklaması: Banka ekstresiyle <b>doğrulandı</b>')); assert.doesNotMatch(text, /İlk sürüm/);
+  assert.equal(nodes.get('#view').find(node => (node.className || '').startsWith('notice')), null);
+
+  const warning = 'İlk sürüm kuralıyla geçiş: 1.400,00 TL eski ay sonu düşümü raporlara girmiyor; 500,00 TL kasadan hiçbir zaman düşmüyor.';
+  const first = { ...sampleCard, id: 5, gecis: { kural: 'EtkiTarihi', aciklama: null, onizleme: null, raporDisiEskiDusumTutari: 1400, raporDisiIlkDusumTarihi: '2026-09-30', raporDisiSonDusumTarihi: '2026-10-31', tahminiKasaFarki: 500, uyari: warning } };
+  const consistent = { ...first, id: 6, gecis: { ...first.gecis, tahminiKasaFarki: 0, uyari: 'Toplam kasa etkisi tutarlı, yalnız düşüş tarihi farklı.' } };
+  const second = await openApp(false, { '/api/takip/kartlar/5': first, '/api/takip/kartlar/6': consistent, '/api/takip/kartlar': [first, consistent, sampleCard] });
+  await second.app.navigate('cards', 5);
+  text = second.nodes.get('#view').textContent;
+  assert.equal(second.nodes.get('#view').find(node => (node.className || '').includes('notice danger')).textContent, warning);
+  assert.match(text, /önizleme özeti saklanmadı/); assert.doesNotMatch(text, /Geçiş açıklaması/);
+  await second.app.navigate('cards');
+  const list = second.nodes.get('#view').textContent;
+  assert.equal(list.split('Geçiş farkını doğrulayın').length - 1, 1);
+  assert.equal(second.nodes.get('#view').find(node => node.children.includes('0')), null);
+  await second.app.navigate('cards', 6);
+  const info = second.nodes.get('#view').find(node => (node.className || '').startsWith('notice') && node.textContent.includes('tutarlı'));
+  assert.equal(info.className, 'notice');
+});
+
+test('web login leaves the known-device token to the HttpOnly cookie: same-origin credentials, no device header, nothing stored', async () => {
+  // Sunucu tarayıcıya belirteci gövdede vermez; verse bile web onu hiçbir isteğe eklemez ve depoya yazmaz.
+  const { nodes, calls, stored } = await openApp(false, { '/api/auth/me': { $status: 401 }, '/api/auth/login': { rol: 'editor', token: 'jwt-gizli', cihaz: 'c1.gizli-cihaz' } });
+  assert.equal(nodes.get('#login-screen').hidden, false);
+  const form = nodes.get('#login-form'); const Element = form.constructor;
+  const user = new Element('input'); user.setAttribute('name', 'kullanici'); user.value = 'editor';
+  const password = new Element('input'); password.setAttribute('name', 'sifre'); password.setAttribute('type', 'password'); password.value = 'editor-sifresi';
+  form.append(user, password);
+  form.listeners.submit({ preventDefault() {}, currentTarget: form }); await settle();
+
+  assert.equal(nodes.get('#login-error').textContent, '');
+  assert.equal(nodes.get('#application').hidden, false);
+  const login = calls.find(call => call.path === '/api/auth/login');
+  assert.deepEqual([login.method, login.body], ['POST', { kullanici: 'editor', sifre: 'editor-sifresi' }]);
+  // Tarayıcı aynı kökenli isteğe __Host-kasa_cihaz_<rol> çerezini kendisi ekler; betik başlık koymaz.
+  assert.equal(login.credentials, 'same-origin');
+  assert.equal(login.headers['x-kasa-request'], '1');
+  assert.equal(login.headers['x-kasa-cihaz'], undefined);
+  const later = calls.slice(calls.indexOf(login) + 1);
+  assert.ok(later.length > 0, 'Girişten sonra ana sayfa yüklenir.');
+  for (const call of later) assert.doesNotMatch(JSON.stringify(call), /jwt-gizli|gizli-cihaz/);
+  assert.ok(calls.every(call => call.credentials === 'same-origin'));
+  assert.deepEqual(stored, []);
+  assert.deepEqual([user.value, password.value], ['', '']);
+});
+
+test('startup session check leaves a device token in the /me body unused: nothing stored or sent', async () => {
+  // Sunucu tarayıcıya /api/auth/me yanıtında belirteci gövdede vermez (yalnız çerezi yeniler); verse bile web onu kullanmaz.
+  const { nodes, calls, stored } = await openApp(false, { '/api/auth/me': { rol: 'editor', cihaz: 'c1.gizli-me' } });
+  assert.equal(nodes.get('#application').hidden, false);
+  const me = calls.find(call => call.path === '/api/auth/me');
+  assert.equal(me.credentials, 'same-origin');
+  assert.equal(me.headers['x-kasa-cihaz'], undefined);
+  const later = calls.slice(calls.indexOf(me) + 1);
+  assert.ok(later.length > 0, 'Doğrulamadan sonra ana sayfa yüklenir.');
+  for (const call of later) assert.doesNotMatch(JSON.stringify(call), /gizli-me/);
+  assert.deepEqual(stored, []);
+});
+
+test('manual backup rate limit shows the server Turkish 429 message and keeps the session', async () => {
+  const message = 'Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek alınabilir. 42 dakika sonra yeniden deneyin. Otomatik yedekleme bundan etkilenmez.';
+  const { app, nodes, calls } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [], '/api/kanallar': [], '/api/yedek': { $status: 429, hata: message } });
+  await app.navigate('tools');
+  await clickView(nodes, 'Şimdi yedek indir');
+  assert.deepEqual(calls.filter(call => call.path === '/api/yedek').map(call => call.method), ['POST']);
+  assert.match(nodes.get('#notifications').textContent, /Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek/);
+  assert.equal(nodes.get('#application').hidden, false);
+  assert.equal(nodes.get('#login-screen').hidden, true);
+});
+
+// webui-1: ESC / Android geri hareketiyle kapanan diyalogda kayıt sonucu kaybolmaz.
+const pendingExpense = async () => {
+  let finishSave;
+  const opened = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': call => call.method === 'POST' ? new Promise(resolve => { finishSave = resolve; }) : [] });
+  await opened.app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(opened.nodes, name).value = value;
+  await submitDialog(opened.nodes);
+  assert.equal(typeof finishSave, 'function', 'Kayıt isteği yanıt bekliyor.');
+  // Diyaloğun kendi kapatma isteği (ESC / geri hareketi): olayın hedefi <dialog>'un kendisidir.
+  const cancel = (cancelable, target = opened.nodes.get('#modal')) => { let prevented = false; opened.nodes.get('#modal').listeners.cancel({ target, cancelable, preventDefault() { prevented = true; } }); return prevented; };
+  return { ...opened, cancel, finish: async value => { finishSave(value); await settle(); } };
+};
+const cancelButton = nodes => nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Vazgeç');
+test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatası kapalı pencerede kalmaz, bildirim olarak görünür', async () => {
+  const { nodes, calls, cancel, finish } = await pendingExpense();
+  const errorBox = nodes.get('#modal-content').find(node => node.attributes.role === 'alert');
+  // Chrome art arda ESC / Android geri hareketinde cancel olayını iptal edilemez gönderir: pencere kapanır, içerik temizlenir.
+  assert.equal(cancel(false), false);
+  assert.equal(nodes.get('#modal').open, false);
+  assert.equal(nodes.get('#modal-content').children.length, 0);
+  assert.equal(errorBox.isConnected, false);
+  await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./);
+  assert.doesNotMatch(errorBox.textContent, /kilitli/);
+  assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
+  assert.ok(!nodes.get('#modal-close').disabled, 'Sonraki pencere kilitsiz açılır.');
+});
+test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × açık kalır; yanıt gelince hata açık pencerede görünür', async () => {
+  const { nodes, cancel, finish } = await pendingExpense();
+  // iOS'ta (ana ekran PWA dahil) ESC / geri hareketi yok ve isteğin zaman aşımı yok: pencereden çıkış yolu Vazgeç ve × açık kalır.
+  assert.ok(!cancelButton(nodes).disabled, 'Vazgeç kayıt sürerken de kullanılabilir.'); assert.ok(!nodes.get('#modal-close').disabled, '× kayıt sürerken de kullanılabilir.');
+  assert.equal(cancel(true), true, 'İptal edilebilir cancel olayı engellenir.');
+  assert.equal(nodes.get('#modal').open, true); assert.ok(formField(nodes, 'cari'), 'Form korunur.');
+  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Vazgeç/);
+  await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+  assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
+  assert.doesNotMatch(nodes.get('#notifications').textContent, /Bu ay kilitli/);
+  assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
+  assert.equal(nodes.get('#modal').open, false); assert.equal(nodes.get('#modal-content').children.length, 0);
+});
+test('diyalog cancel olayı olmadan kapansa bile geç gelen kayıt hatası bildirim olarak görünür', async () => {
+  const { nodes, finish } = await pendingExpense();
+  nodes.get('#modal').close();
+  await finish({ $status: 409, hata: 'Kayıt değişti.' });
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Kayıt değişti\./);
+  assert.ok(!nodes.get('#modal-close').disabled);
+});
+test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hatası bildirim olarak görünür', async () => {
+  for (const [name, closer] of [['Vazgeç', nodes => cancelButton(nodes)], ['×', nodes => nodes.get('#modal-close')]]) {
+    const { nodes, calls, finish } = await pendingExpense();
+    const close = closer(nodes);
+    assert.ok(!close.disabled, `${name} kayıt sürerken kilitli değildir.`);
+    close.listeners.click({ currentTarget: close });
+    assert.equal(nodes.get('#modal').open, false, `${name} pencereyi kapatır.`);
+    assert.equal(nodes.get('#modal-content').children.length, 0);
+    await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+    assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./, `${name} sonrası hata bildirimle görünür.`);
+    assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
+  }
+});
+test('dosya seçiciden vazgeçmek (dosya alanından yukarı taşınan cancel) pencereyi kapatmaz, girilenleri silmez', async () => {
+  const fire = (nodes, target, cancelable) => { let prevented = false; nodes.get('#modal').listeners.cancel({ target, cancelable, preventDefault() { prevented = true; } }); return prevented; };
+  // Belge ekle: dosya seçici kapatıldığında, iOS Fotoğraf/Dosya menüsü kapatıldığında ya da aynı dosya yeniden seçildiğinde.
+  const purchase = await openApp(false);
+  purchase.app.documentDialog({ id: 5, durum: 'Taslak', odemeler: [{ id: 9, tarih: '2026-09-20', tutar: 100 }] });
+  const payment = formField(purchase.nodes, 'odemeId'); payment.value = '9';
+  assert.equal(fire(purchase.nodes, formField(purchase.nodes, 'dosya'), false), false);
+  assert.equal(purchase.nodes.get('#modal').open, true, 'Belge ekle penceresi açık kalır.');
+  assert.equal(formField(purchase.nodes, 'odemeId'), payment); assert.equal(payment.value, '9');
+  // Ekstre / hareket PDF'si yükle: seçilen banka, kart ve hesap adı korunur.
+  const statement = await openApp(false, importResponses());
+  await statement.app.navigate('imports'); await clickView(statement.nodes, 'Kart ekstresi / hesap hareketi seç');
+  formField(statement.nodes, 'banka').value = 'Akbank'; formField(statement.nodes, 'kartId').value = '4';
+  const modal = statement.nodes.get('#modal');
+  for (const cancelable of [false, true]) assert.equal(fire(statement.nodes, formField(statement.nodes, 'dosya'), cancelable), false, 'Dosya alanının olayı engellenmez; diyaloğa ait değildir.');
+  assert.equal(modal.open, true, 'Ekstre yükleme penceresi açık kalır.');
+  assert.equal(formField(statement.nodes, 'banka').value, 'Akbank'); assert.equal(formField(statement.nodes, 'kartId').value, '4');
+  // Diyaloğun kendi kapatma isteği (ESC / geri hareketi) pencereyi yine kapatır.
+  assert.equal(fire(statement.nodes, modal, true), false);
+  assert.equal(modal.open, false); assert.equal(statement.nodes.get('#modal-content').children.length, 0);
+});
+test('önizlemeden açılan onay penceresi kilitsiz başlar ve ESC ile kapanabilir', async () => {
+  const preview = { tutar: 2000, kasaEtkisi: 2000, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 2000 }], ekstreler: [{ ekstreId: 8, tutar: 2000 }] };
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar/4/odeme-onizleme': preview, '/api/takip/kartlar/4': sampleCard });
+  app.financeUi.cardPaymentDialog(sampleCard); formField(nodes, 'tutar').value = '2000'; await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /Ödemeyi onayla/);
+  assert.ok(!nodes.get('#modal-close').disabled); assert.ok(!cancelButton(nodes).disabled);
+  let prevented = false; nodes.get('#modal').listeners.cancel({ target: nodes.get('#modal'), cancelable: true, preventDefault() { prevented = true; } });
+  assert.equal(prevented, false); assert.equal(nodes.get('#modal').open, false);
+});
+
+// webui-5: iOS ondalık klavyesinde eksi tuşu yok; eksi olabilen tutarlarda işaret ayrı seçilir, tutar kuralı (kuruş) aynıdır.
+const openCharge = async card => {
+  const opened = await openApp(false, { '/api/kanallar': [], '/api/takip/kartlar/4': card, '/api/takip/kartlar/4/harcamalar': card });
+  await opened.app.navigate('cards', 4);
+  const open = opened.nodes.get('#page-actions').find(node => node.tag === 'button' && node.textContent === '+ Harcama / iade');
+  await open.listeners.click({ currentTarget: open }); await settle();
+  return opened;
+};
+test('kart iadesi Hareket türü İade seçilerek eksi yazmadan girilir ve eksi tutarla gönderilir', async () => {
+  const card = { ...sampleCard, harcamalar: [{ id: 12, tarih: '2026-09-22', aciklama: 'B kanalı mal', tutar: 300, taksitSayisi: 1, dagilimlar: [] }] };
+  const { nodes, calls } = await openCharge(card);
+  const kind = formField(nodes, 'hareketTuru'); const total = formField(nodes, 'tutar'); const source = formField(nodes, 'kaynakHarcamaId');
+  assert.equal(kind.value, 'Harcama'); assert.equal(total.attributes.inputmode, 'decimal'); assert.equal(source.disabled, true);
+  assert.match(nodes.get('#modal-content').textContent, /Hareket türünü İade seçip/);
+  kind.value = 'Iade'; kind.listeners.change();
+  total.value = '25,50'; total.listeners.input();
+  assert.equal(kind.value, 'Iade', 'Eksisiz tutar İade seçimini geri almaz.');
+  assert.equal(source.disabled, false); assert.equal(source.required, true);
+  assert.equal(formField(nodes, 'taksitSayisi').disabled, true);
+  formField(nodes, 'aciklama').value = 'Mal iadesi'; source.value = '12';
+  await submitDialog(nodes);
+  const refund = calls.find(call => call.path.endsWith('/harcamalar'));
+  assert.ok(refund, 'İade kaydedilir.');
+  assert.equal(refund.body.tutar, -25.5); assert.equal(refund.body.kaynakHarcamaId, 12); assert.equal(refund.body.taksitSayisi, 1);
+  assert.deepEqual(refund.body.dagilimlar, []); assert.equal(refund.body.ilkKesimTarihi, null);
+  assert.equal(calls.find(call => call.path === '/api/islemler/benzerlik').body.tutar, -25.5);
+});
+test('eksi yazılabilen klavyede tutar eksi girilince Hareket türü İade olur, eksi silinince Harcama türüne döner', async () => {
+  const card = { ...sampleCard, harcamalar: [{ id: 11, tarih: '2026-09-21', aciklama: 'Mal', tutar: 200, taksitSayisi: 1, dagilimlar: [] }] };
+  const { nodes } = await openCharge(card);
+  const kind = formField(nodes, 'hareketTuru'); const total = formField(nodes, 'tutar');
+  total.value = '-'; total.listeners.input(); assert.equal(kind.value, 'Iade');
+  total.value = '-5'; total.listeners.input(); assert.equal(kind.value, 'Iade');
+  total.value = '5'; total.listeners.input(); assert.equal(kind.value, 'Harcama');
+  kind.value = 'Iade'; kind.listeners.change(); total.value = '7'; total.listeners.input();
+  assert.equal(kind.value, 'Iade', 'Kullanıcının seçtiği İade tutar yazılırken değişmez.');
+});
+test('eksi tutar yazılıp tür elle Harcama yapılırsa ekrandaki türle çelişen iade gönderilmez, açık hata gösterilir', async () => {
+  const card = { ...sampleCard, harcamalar: [{ id: 12, tarih: '2026-09-22', aciklama: 'B kanalı mal', tutar: 300, taksitSayisi: 1, dagilimlar: [] }] };
+  const { nodes, calls } = await openCharge(card);
+  const kind = formField(nodes, 'hareketTuru'); const total = formField(nodes, 'tutar'); const source = formField(nodes, 'kaynakHarcamaId');
+  total.value = '-25'; total.listeners.input(); assert.equal(kind.value, 'Iade');
+  formField(nodes, 'aciklama').value = 'Mal iadesi'; source.value = '12';
+  kind.value = 'Harcama'; kind.listeners.change();
+  assert.equal(source.disabled, true, 'Harcama türünde iade alanları kapalıdır.');
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#modal').open, true, 'Pencere açık kalır.');
+  assert.match(nodes.get('#modal-content').find(node => node.attributes.role === 'alert').textContent, /Harcama türünde tutar eksi olamaz.*İade/);
+  assert.equal(calls.filter(call => call.path.endsWith('/harcamalar') || call.path === '/api/islemler/benzerlik').length, 0, 'Ne benzerlik ne kayıt isteği gider.');
+  // Tür yeniden İade seçilince aynı tutar iade olarak kaydedilir.
+  kind.value = 'Iade'; kind.listeners.change(); await submitDialog(nodes);
+  const refund = calls.find(call => call.path.endsWith('/harcamalar'));
+  assert.equal(refund.body.tutar, -25); assert.equal(refund.body.kaynakHarcamaId, 12); assert.deepEqual(refund.body.dagilimlar, []);
+});
+test('gider tutarı ± seçiciyle eksi girilir; mevcut eksi gider işaret ve mutlak değerle açılır; kuruş kuralı değişmez', async () => {
+  const expense = { id: 20, tarih: '2026-09-23', tutarTl: -12.5, cari: 'İade düzeltmesi', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': [], '/api/islemler/20': expense });
+  await app.expenseDialog();
+  const sign = formField(nodes, 'tutarTlIsaret'); const total = formField(nodes, 'tutarTl');
+  assert.equal(sign.tag, 'select'); assert.equal(sign.value, '+'); assert.match(sign.attributes['aria-label'], /işareti/);
+  assert.equal(total.attributes.inputmode, 'decimal');
+  for (const [name, value] of Object.entries({ cari: 'Düzeltme', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  sign.value = '-'; total.value = '10,555'; await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /en çok iki ondalık/);
+  total.value = '10'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/benzerlik').body.tutar, -10);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.tutarTl, -10);
+  await app.expenseDialog(expense);
+  assert.equal(formField(nodes, 'tutarTlIsaret').value, '-'); assert.equal(formField(nodes, 'tutarTl').value, '12.5');
+  formField(nodes, 'tutarTlIsaret').value = '+'; formField(nodes, 'tutarTl').value = '-12,5'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20').body.tutarTl, -12.5, 'Klavyede yazılan eksi korunur.');
+});
+test('dönem geliri ± seçiciyle eksi girilir ve eski eksi toplam işaretle gösterilir', async () => {
+  const period = '2026-09-14';
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': [{ donem: { start: period, end: '2026-09-20' } }], '/api/kanallar': [{ id: 7, ad: 'Mağaza' }, { id: 8, ad: 'Normal' }], [`/api/gelenler?donemStart=${period}`]: [{ kanalId: 7, kanal: 'Mağaza', tutarTl: -30 }], '/api/gelenler': null });
+  await app.incomeDialog(period);
+  const channel = formField(nodes, 'kanal'); const sign = formField(nodes, 'tutarTlIsaret'); const total = formField(nodes, 'tutarTl');
+  channel.value = 'Mağaza'; channel.listeners.change();
+  assert.equal(sign.value, '-'); assert.equal(total.value, '30'); assert.equal(sign.disabled, false);
+  channel.value = 'Normal'; channel.listeners.change();
+  assert.equal(sign.value, '+'); assert.equal(total.value, '0');
+  sign.value = '-'; total.value = '15'; await submitDialog(nodes);
+  assert.deepEqual(calls.find(call => call.path === '/api/gelenler' && call.method === 'PUT').body, { donemStart: period, kanal: 'Normal', tutarTl: -15, surum: 0 });
+});
+test('eski gelir grubu kilitliyken işaret seçici de kilitlidir', async () => {
+  const period = '2026-09-07';
+  const { app, nodes } = await openApp(false, { '/api/rapor/haftalik': [{ donem: { start: period, end: '2026-09-13' } }], '/api/kanallar': [{ id: 7, ad: 'Mağaza' }], [`/api/gelenler?donemStart=${period}`]: [{ kanalId: 7, kanal: 'Mağaza', tutarTl: -10, eskiYinelenenGrup: true }, { kanalId: 7, kanal: 'mağaza', tutarTl: -20, eskiYinelenenGrup: true }] });
+  await app.incomeDialog(period);
+  const channel = formField(nodes, 'kanal'); channel.value = 'Mağaza'; channel.listeners.change();
+  assert.equal(formField(nodes, 'tutarTl').readOnly, true); assert.equal(formField(nodes, 'tutarTlIsaret').disabled, true);
+  assert.equal(formField(nodes, 'tutarTlIsaret').value, '-'); assert.equal(formField(nodes, 'tutarTl').value, '30');
+});
+test('kanal ve genel kasa açılış devri ± seçiciyle eksi girilir', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [], '/api/kanallar/3': null, '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: -99.99, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
+  app.channelDialog({ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: -150 });
+  assert.equal(formField(nodes, 'acilisDevriIsaret').value, '-'); assert.equal(formField(nodes, 'acilisDevri').value, '150');
+  formField(nodes, 'acilisDevri').value = '150,25'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kanallar/3').body.acilisDevri, -150.25);
+  app.channelDialog();
+  assert.equal(formField(nodes, 'acilisDevriIsaret').value, '+'); assert.equal(formField(nodes, 'acilisDevri').value, '0');
+  app.openingDialog({ takipBaslangic: '2026-01-01', kasaAcilisDevri: -99.99 });
+  assert.equal(formField(nodes, 'kasaAcilisDevriIsaret').value, '-'); assert.equal(formField(nodes, 'kasaAcilisDevri').value, '99.99');
+  formField(nodes, 'kasaAcilisDevri').value = '250'; await submitDialog(nodes);
+  assert.deepEqual(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body, { takipBaslangic: '2026-01-01', kasaAcilisDevri: -250, surum: 0 });
+});
+// Tamamlanmış ayların kanal kümesi sunucuda dondurulduğundan kilit varken de aktif kanal eklenebilir: Ayarlar kilit durumunu okur,
+// kanal formu kilidi (yalnız açılış devri kilitte değişmez) söyler; yeni kanal kilitte de aktif gelir, düzenlenen kendi aktifliğiyle.
+test('ay kilidi varken kanal formu kilidi söyler ve yeni kanal aktif gelir; kilit yokken ya da okunamazsa not görünmez', async () => {
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': [{ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0 }], '/api/ay-kilidi': { surum: 2, kilitliSonTarih: '2026-08-31', gecmis: [] }, '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
+  const lockText = `${dateText('2026-08-31')} dahil aylar kilitli`;
+  await app.navigate('tools');
+  await clickView(nodes, '+ Kanal ekle');
+  assert.equal(formField(nodes, 'aktif').checked, true, 'Kilitte de yeni kanal aktif gelir.');
+  assert.ok(nodes.get('#modal-content').textContent.includes(`${lockText}. Yeni kanal açılış devri 0`), 'Kilit notu görünür.');
+  formField(nodes, 'ad').value = 'E-TİCARET'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kanallar' && call.method === 'POST').body.aktif, true);
+
+  await clickView(nodes, 'Düzenle');
+  assert.equal(formField(nodes, 'aktif').checked, true, 'Düzenlenen kanal kendi aktifliğiyle açılır.');
+  assert.ok(nodes.get('#modal-content').textContent.includes(lockText), 'Düzenlemede de kilit söylenir.');
+
+  responses['/api/ay-kilidi'] = { surum: 3, kilitliSonTarih: null, gecmis: [] };
+  await app.navigate('tools'); await clickView(nodes, '+ Kanal ekle');
+  assert.equal(formField(nodes, 'aktif').checked, true);
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /dahil aylar kilitli/);
+
+  // Kilit durumu yalnız form varsayılanı içindir (kuralı sunucu uygular): okunamazsa Ayarlar yine açılır, form aktif gelir.
+  responses['/api/ay-kilidi'] = { $status: 500, hata: 'Sunucu hatası' };
+  await app.navigate('tools'); await clickView(nodes, '+ Kanal ekle');
+  assert.equal(formField(nodes, 'aktif').checked, true);
+  assert.match(nodes.get('#view').textContent, /Mezat/);
+});
+test('gerçek bakiye karşılaştırması ± seçiciyle eksi bakiyeyi önizler', async () => {
+  const { app, nodes, calls } = await openApp(false, { '/api/kasa-kontrol/onizleme': { sistemBakiye: 123, gercekBakiye: -20, fark: -143, kontrolOzeti: 'digest1' } });
+  app.cashControlsUi.comparisonDialog();
+  assert.equal(formField(nodes, 'gercekBakiyeIsaret').value, '+');
+  formField(nodes, 'gercekBakiyeIsaret').value = '-'; formField(nodes, 'gercekBakiye').value = '20'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kasa-kontrol/onizleme').body.gercekBakiye, -20);
+});
+test('işaretli tutarın sunucu alan hatası ± ızgarasına değil tutar etiketinin altına yazılır', async () => {
+  const message = 'Tutar en fazla iki ondalık basamak içerebilir.';
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler': call => call.method === 'POST' ? { $status: 400, errors: { tutarTl: [message] } } : [] });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const total = formField(nodes, 'tutarTl'); const grid = total.parentNode; const label = total.closest('.signed-field');
+  assert.equal(total.attributes['aria-invalid'], 'true');
+  assert.equal(grid.className, 'signed-amount');
+  assert.deepEqual(grid.children.map(child => child.attributes?.name), ['tutarTlIsaret', 'tutarTl'], 'Izgarada yalnız işaret ve tutar kalır.');
+  const note = label.children.find(child => child.className === 'form-error field-error');
+  assert.equal(note?.textContent, message, 'Not tutar etiketinin altındadır.');
+  // Sonraki denemede not etiketten silinir.
+  total.value = '80'; await submitDialog(nodes);
+  assert.equal(label.children.filter(child => child.className === 'form-error field-error').length, 1);
+});
+
+// Yedek rotasyon uyarısı: yedeğin kendisi başarılıdır, silinemeyen eski yedek ayrıca görünür.
+test('Ayarlar yedek bölümü sunucunun rotasyon uyarısını gösterir, uyarı kalkınca gizler', async () => {
+  const warning = 'Otomatik yedek rotasyonu tamamlanamadı: saklama süresi dolan 1 yedek silinemedi (kasa-oto-20260801T030000Z.zip). Sunucu kayıtlarını ve yedek dizininin izinlerini kontrol edin.';
+  const status = { otomatikEtkin: true, sonYedek: '2026-09-23T03:00:00Z', sonDogrulama: '2026-09-23T03:00:05Z', hata: null, rotasyonUyarisi: warning };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': status, '/api/alicilar': [], '/api/kanallar': [] });
+  await app.navigate('tools');
+  const notice = nodes.get('#view').find(node => node.textContent === warning);
+  assert.ok(notice, 'Rotasyon uyarısı görünür.'); assert.equal(notice.attributes.role, 'alert');
+  assert.equal(nodes.get('#view').find(node => node.className === 'form-error'), null, 'Yedek başarılıdır; hata gösterilmez.');
+  status.rotasyonUyarisi = null; await app.navigate('tools');
+  assert.doesNotMatch(nodes.get('#view').textContent, /rotasyonu tamamlanamadı/);
+});
+
+// Yedek disk durumu (data-3): boş alan ve toplam boyut GB olarak, eşik altı uyarısı ve bulunamayan belge uyarısı görünür.
+test('Ayarlar yedek bölümü disk alanlarını GB olarak ve sunucunun disk/belge uyarısını gösterir; eski sunucuda satır yok', async () => {
+  assert.equal(ui.gigabytes(104857600), '0,1 GB'); assert.equal(ui.gigabytes(3.5 * 1073741824), '3,5 GB');
+  assert.deepEqual(ui.backupDiskLines({ otomatikEtkin: true }), []);
+  const status = { otomatikEtkin: true, sonYedek: null, sonDogrulama: null, hata: null, yedekDiskiBosAlanBayt: 104857600, veriDiskiBosAlanBayt: 5 * 1073741824, toplamYedekBayt: 3.5 * 1073741824, asgariBosAlanBayt: 2 * 1073741824, diskUyarisi: 'Yedek diskinde 0,1 GB boş alan kaldı (asgari 2,0 GB).', belgeUyarisi: 'Son yedekte 1 belge dosyası bulunamadı.' };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true }, '/api/yedek/durum': status, '/api/alicilar': [], '/api/kanallar': [] });
+  await app.navigate('tools');
+  const text = nodes.get('#view').textContent;
+  for (const line of ['Yedek diski boş alan: 0,1 GB', 'Veri diski boş alan: 5,0 GB', 'Yedeklerin toplam boyutu: 3,5 GB']) assert.match(text, new RegExp(line));
+  for (const warning of [status.diskUyarisi, status.belgeUyarisi]) assert.equal(nodes.get('#view').find(node => node.textContent === warning).attributes.role, 'alert');
+});
+
+// Son geri yükleme (gap-geri-yukleme-durum-geri-sarma-1): Araçlar'ın yedek bölümü sunucunun raporunu (yapılanlar ve yapılacaklar)
+// madde madde gösterir; eski sunucu ya da hiç geri yükleme olmadıysa bölüm yok.
+test('Araçlar yedek bölümü son geri yüklemenin raporunu gösterir; eski sunucuda göstermez', async () => {
+  assert.equal(ui.restoreReport({ otomatikEtkin: true }), null);
+  assert.deepEqual(ui.restoreReport({ sonGeriYukleme: '2026-09-28T10:15:00Z', geriYuklemeRaporu: ['A', '', null, 'B'] }).items, ['A', 'B']);
+  const maddeler = ['Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.', 'Kurtarma kodu iptal edildi (yedekteki kod geçersiz): Güvenlik bölümünden yeni kurtarma kodu üretin.'];
+  const status = { otomatikEtkin: true, sonYedek: null, sonDogrulama: null, hata: null, sonGeriYukleme: '2026-09-28T10:15:00Z', geriYuklemeRaporu: maddeler };
+  const { app, nodes } = await openApp(false, { '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: false }, '/api/yedek/durum': status, '/api/alicilar': [], '/api/kanallar': [] });
+  await app.navigate('tools');
+  const text = nodes.get('#view').textContent;
+  assert.match(text, /Son geri yükleme: /);
+  for (const madde of maddeler) assert.ok(nodes.get('#view').find(node => node.tag === 'li' && node.textContent === madde), madde);
+  delete status.sonGeriYukleme; delete status.geriYuklemeRaporu; await app.navigate('tools');
+  assert.doesNotMatch(nodes.get('#view').textContent, /Son geri yükleme/);
+});
+
+// Alış belgeleri (gap-denetim-izi-gozlemlenebilirlik-9): yükleyen görünür; kaldırma yumuşaktır, editör gerekçe vermeden kaldıramaz ve
+// gerekçe DELETE gövdesinde gider; kaldırılanlar editörün isteğiyle kaldıran ve gerekçesiyle listelenir.
+test('purchase documents show the uploader, editor removal needs a reason sent in the DELETE body and removed ones are listed on request', async () => {
+  const purchase = { id: 9, surum: 1, tarih: '2026-09-23', tedarikci: 'Firma', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 0, odenen: 0, kalan: 0 };
+  const doc = { id: 5, alisId: 9, odemeId: null, dosyaAdi: 'fis.pdf', icerikTuru: 'application/pdf', boyut: 2048, yuklendi: '2026-09-23T10:00:00Z', yukleyenRol: 'alici', yukleyen: 'Ayşe' };
+  const removed = { ...doc, id: 6, dosyaAdi: 'eski.pdf', yukleyenRol: null, yukleyen: null, silindi: true, silinmeZamani: '2026-09-24T08:00:00Z', silenRol: 'editor', silen: 'Editör', silmeGerekcesi: 'Yanlış fiş' };
+  const { app, nodes, calls } = await openApp(false, { '/api/alis': [purchase], '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/alis/9/belgeler': [doc], '/api/alis/9/belgeler?silinenler=true': [doc, removed], '/api/belgeler/5': null });
+  await app.navigate('purchase', 9); await settle();
+  assert.match(nodes.get('#view').textContent, /Yükleyen: Ayşe/);
+  await clickView(nodes, 'Kaldır');
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/belgeler/5').length, 0, 'Gerekçesiz editör kaldırması gönderilmez.');
+  assert.match(nodes.get('#modal-content').textContent, new RegExp(ui.DOCUMENT_REASON_REQUIRED));
+  formField(nodes, 'gerekce').value = '  İade sonrası yanlış fiş  ';
+  await submitDialog(nodes);
+  const removal = calls.find(call => call.path === '/api/belgeler/5');
+  assert.equal(removal.method, 'DELETE'); assert.deepEqual(removal.body, { gerekce: 'İade sonrası yanlış fiş' });
+  await clickView(nodes, 'Kaldırılanları göster');
+  assert.ok(calls.some(call => call.path === '/api/alis/9/belgeler?silinenler=true'));
+  assert.match(nodes.get('#view').textContent, /Yükleyen: bilinmiyor \(eski kayıt\) · Kaldırıldı: Editör · .* · Gerekçe: Yanlış fiş/);
+  assert.equal(nodes.get('#view').find(node => node.className === 'document-row removed').find(node => node.tag === 'button'), null, 'Kaldırılan belge yeniden kaldırılamaz.');
+});
+test('document rules: buyer removes only own, unpaid draft documents and never asks for removed ones; reason optional for buyer', () => {
+  const draft = { durum: 'Taslak' };
+  const own = { yukleyenRol: 'alici', odemeId: null };
+  assert.equal(ui.documentRemovable('alici', draft, own), true);
+  assert.equal(ui.documentRemovable('alici', draft, { ...own, yukleyenRol: 'editor' }), false);
+  assert.equal(ui.documentRemovable('alici', draft, { ...own, yukleyenRol: null }), false);
+  assert.equal(ui.documentRemovable('alici', draft, { ...own, odemeId: 3 }), false);
+  assert.equal(ui.documentRemovable('alici', { durum: 'Incelemede' }, own), false);
+  assert.equal(ui.documentRemovable('editor', { durum: 'Onaylandi' }, { ...own, odemeId: 3 }), true);
+  assert.equal(ui.documentRemovable('editor', draft, { ...own, silindi: true }), false);
+  assert.equal(ui.documentsPath(9, 'alici', true), '/api/alis/9/belgeler');
+  assert.equal(ui.documentsPath(9, 'editor', true), '/api/alis/9/belgeler?silinenler=true');
+  assert.equal(ui.documentDeletePayload('alici', '  '), null);
+  assert.deepEqual(ui.documentDeletePayload('alici', ' neden '), { gerekce: 'neden' });
+  assert.throws(() => ui.documentDeletePayload('editor', ' '), new RegExp(ui.DOCUMENT_REASON_REQUIRED));
+});
+
+// ---- İstemci notları: birleşik ana sayfa, veri sağlığı uyarısı, iptal, diyalog kimliği, işaretli tutar etiketi ----
+const homeSummaryPath = '/api/rapor/ana-sayfa?gun=30';
+const sampleHome = () => ({
+  panel: { guncelKasa: 900, buHaftaSonucu: 0, buAySonucu: 0, kanallar: [{ kanalId: 1, kanal: 'MEZAT', bakiye: 600 }, { kanalId: 2, kanal: 'PERAKENDE', bakiye: 300 }] },
+  kasaEsikleri: [{ kanalId: 1, kanal: 'MEZAT', surum: 1, tutar: 1000, etkin: true, bakiye: 600, esikAltinda: true }],
+  takipOzeti: { tarih: '2026-09-28', kartBorcu: 70, kalanKrediPlani: 0, olaylar: [], kanalKartBorclari: [{ kanalId: 1, kanal: 'MEZAT', tutar: 70 }] }
+});
+test('ana sayfa panel, kanal eşiği ve takip özetini tek istekte okur; ayrı uçlara gitmez', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: sampleHome() });
+  assert.equal(requests.filter(path => path === homeSummaryPath).length, 1);
+  for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(!requests.includes(old), `${old} istenmez`);
+  const view = nodes.get('#view');
+  assert.match(view.textContent, /900,00/);
+  const mezat = view.find(node => (node.className || '').split(' ')[0] === 'channel-balance' && node.textContent.includes('MEZAT'));
+  assert.match(mezat.className, /below-threshold/); assert.match(mezat.textContent, /Alt sınırın altında/); assert.match(mezat.textContent, /Kalan kart borcu: .*70,00/);
+  assert.doesNotMatch(view.textContent, /yükleniyor…/);
+});
+// gap-tarihsel-spec-ve-emekli-web-7: takipte olmayan (geçişi yapılmamış) kart ve krediler kaldıkça ana sayfada kalıcı uyarı; her kayıt
+// kendi ekranını açar. Alan yoksa (kayıt yok ya da eski sunucu) uyarı çizilmez.
+test('ana sayfa takipte olmayan kart ve kredileri kalıcı uyarıyla listeler, kayda gider', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { ...sampleHome(), takipsizKayitlar: [{ kaynak: 'Kart', id: 4, ad: 'Bonus' }, { kaynak: 'Kredi', id: 7, ad: 'Taşıt' }] }, '/api/takip/krediler/7': { $status: 404, hata: 'Yok' } });
+  const view = nodes.get('#view');
+  assert.match(view.textContent, /Kart ve kredi takibinde olmayan kayıtlar var: Bonus \(kart\), Taşıt \(kredi\)\. Bu kayıtların hatırlatmaları eski kayıtlardan hesaplanır ve sınırlıdır/);
+  const notice = view.find(node => node.attributes?.role === 'status' && node.textContent.includes('takibinde olmayan'));
+  const loan = notice.find(node => node.tag === 'button' && node.textContent === 'Taşıt (kredi)');
+  loan.listeners.click({ currentTarget: loan }); await settle();
+  assert.ok(requests.includes('/api/takip/krediler/7'), 'kredi ekranı açılır');
+  const { nodes: bos } = await openApp(false, { [homeSummaryPath]: sampleHome() });
+  assert.doesNotMatch(bos.get('#view').textContent, /takibinde olmayan/);
+});
+test('eski sunucuda ana sayfa ucu yoksa (404) ayrı uçlara geri düşer, sonraki açılışta ucu yeniden denemez', async () => {
+  const { app, nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 404 } });
+  for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(requests.includes(old), `${old} istenir`);
+  assert.match(nodes.get('#view').textContent, /123,00/);
+  await app.navigate('home');
+  assert.equal(requests.filter(path => path === homeSummaryPath).length, 1);
+  assert.equal(requests.filter(path => path === '/api/rapor/panel').length, 2);
+});
+// IST4: birleşik ucun sunucu hatası (5xx) ana sayfayı düşürmez. Kasa bakiyeleri panel ucundan gelir; eşikler ve takip
+// özeti kendi uçlarından yüklenir ve kendi hatalarını gösterir. 404'ten farklı olarak uç sonraki açılışta yeniden denenir.
+test('ana sayfa ucunun sunucu hatası (5xx) paneli ayrı uçtan dener; sonraki açılışta birleşik uç yeniden denenir', async () => {
+  for (const status of [500, 503]) {
+    const { app, nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: status } });
+    for (const old of ['/api/rapor/panel', '/api/kasa-esikleri', '/api/takip/ozet?gun=30']) assert.ok(requests.includes(old), `${status}: ${old} istenir`);
+    assert.match(nodes.get('#view').textContent, /123,00/);
+    assert.doesNotMatch(nodes.get('#view').textContent, /Kayıtlar yüklenemedi/);
+    await app.navigate('home');
+    assert.equal(requests.filter(path => path === homeSummaryPath).length, 2, `${status}: uç yeniden denenir`);
+  }
+});
+test('ana sayfa ucu da panel ucu da hata verirse yeniden deneme gösterilir', async () => {
+  const { nodes, requests } = await openApp(false, { [homeSummaryPath]: { $status: 500 }, '/api/rapor/panel': { $status: 503, hata: 'Sunucu meşgul.' } });
+  assert.ok(requests.includes('/api/rapor/panel'));
+  assert.match(nodes.get('#view').textContent, /Kayıtlar yüklenemedi.*Sunucu meşgul\./);
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Yeniden dene'));
+});
+test('özetsiz ana sayfa yanıtında kasa bakiyeleri görünür; özet ve eşik hataları ayrı ayrı gösterilir', async () => {
+  // Sunucu (RDY) takip özeti hesaplanamayınca paneli özetsiz (null) döndürür; istemci özeti ve eşikleri kendi uçlarından dener.
+  const home = { ...sampleHome(), kasaEsikleri: null, takipOzeti: null };
+  const { nodes } = await openApp(false, { [homeSummaryPath]: home, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': { $status: 503, hata: 'Veritabanı meşgul.' } });
+  await settle();
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /900,00/); assert.match(view, /MEZAT/); assert.match(view, /600,00/);
+  assert.match(view, /Ödeme özeti yüklenemedi: /); assert.match(view, /Kanal uyarıları yüklenemedi: Veritabanı meşgul\./);
+  assert.match(view, /Kart borcu yüklenemedi\./);
+  assert.ok(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Uyarıları yeniden yükle'));
+});
+test('özet yüklenemediğinde kart borcu iletisi eşikler sonradan çizilince "yükleniyor"a dönmez', async () => {
+  const { nodes } = await openApp(false, { [homeSummaryPath]: { $status: 404 }, '/api/takip/ozet?gun=30': { $status: 500 }, '/api/kasa-esikleri': () => new Promise(resolve => setImmediate(() => setImmediate(() => resolve([])))) });
+  await settle();
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /Kart borcu yüklenemedi\./); assert.doesNotMatch(view, /Kart borcu yükleniyor/);
+});
+test('ekran değişince ana sayfa isteği iptal edilir; geç yanıt yeni ekrana yansımaz, hata bildirimi çıkmaz', async () => {
+  let release;
+  const { app, nodes, calls } = await openApp(false, { [homeSummaryPath]: () => new Promise(resolve => { release = resolve; }), '/api/rapor/haftalik': [] });
+  const home = calls.find(call => call.path === homeSummaryPath);
+  assert.equal(home.signal.aborted, false);
+  await app.navigate('weekly');
+  assert.equal(home.signal.aborted, true, 'Önceki ekranın isteği iptal edildi.');
+  assert.match(nodes.get('#view').textContent, /Henüz kasa dönemi yok/);
+  release(sampleHome()); await settle();
+  assert.match(nodes.get('#view').textContent, /Henüz kasa dönemi yok/);
+  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  assert.equal(calls.find(call => call.path === '/api/rapor/haftalik').signal.aborted, false);
+  // Rapor dışı okumalar (ve yazmalar) ekran sinyaline bağlanmaz.
+  assert.equal(calls.find(call => call.path === '/api/alis/inceleme-ozeti?adet=4').signal, undefined);
+});
+// webui-6 (ana sayfa bölümü): editörün ana sayfası inceleme kutusu için bütün alış listesini (kalem, dağılım ve ödemeleriyle)
+// indirmez; sunucu yalnız inceleme bekleyen sayısını ve en yeni dört alışı döndürür.
+const reviewSummaryPath = '/api/alis/inceleme-ozeti?adet=4';
+const reviewPurchase = (id, tedarikci, durum = 'Incelemede') => ({ id, surum: 2, tarih: '2026-09-27', tedarikci, alici: 'İpek', durum, kalemler: [], odemeler: [], toplam: 100, odenen: 0, kalan: 100 });
+const nodesWhere = (node, predicate, found = []) => { for (const child of node.children) if (child && typeof child === 'object') { if (predicate(child)) found.push(child); nodesWhere(child, predicate, found); } return found; };
+test('ana sayfa inceleme bekleyen alışları özet uçtan okur; bütün alış listesini indirmez', async () => {
+  const { nodes, requests } = await openApp(false, { [reviewSummaryPath]: { sayi: 7, ogeler: [reviewPurchase(12, 'Kargo'), reviewPurchase(11, 'Ambalaj')] } });
+  assert.ok(!requests.includes('/api/alis'), 'Alış listesi istenmez.');
+  assert.equal(requests.filter(path => path === reviewSummaryPath).length, 1);
+  const view = nodes.get('#view');
+  assert.match(view.textContent, /7 alış inceleme bekliyor/);
+  assert.deepEqual(nodesWhere(view, node => node.className === 'purchase-row').map(row => row.attributes['aria-label'].split(',')[0]), ['Kargo', 'Ambalaj']);
+});
+test('eski sunucuda inceleme özeti ucu yoksa (404/405) alış listesine geri düşer; uç yeniden denenmez', async () => {
+  for (const status of [404, 405]) {
+    const list = [reviewPurchase(5, 'Beşinci'), reviewPurchase(4, 'Dördüncü', 'Taslak'), reviewPurchase(3, 'Üçüncü'), reviewPurchase(2, 'İkinci'), reviewPurchase(1, 'Birinci', 'Onaylandi')];
+    const { app, nodes, requests } = await openApp(false, { [reviewSummaryPath]: { $status: status }, '/api/alis': list });
+    assert.match(nodes.get('#view').textContent, /3 alış inceleme bekliyor/, `${status}`);
+    assert.equal(nodesWhere(nodes.get('#view'), node => node.className === 'purchase-row').length, 3);
+    await app.navigate('home');
+    assert.equal(requests.filter(path => path === reviewSummaryPath).length, 1, `${status}: uç yeniden denenmez`);
+    assert.equal(requests.filter(path => path === '/api/alis').length, 2);
+  }
+});
+test('inceleme özeti ucunun başka hatası listeye düşürmez', async () => {
+  const { nodes, requests } = await openApp(false, { [reviewSummaryPath]: { $status: 500, hata: 'Veritabanı meşgul.' } });
+  assert.ok(!requests.includes('/api/alis'));
+  assert.match(nodes.get('#view').textContent, /Veritabanı meşgul./);
+});
+test('izleyici ana sayfası inceleme özetini istemez', async () => {
+  const { requests } = await openApp(false, { '/api/auth/me': { rol: 'viewer' } });
+  assert.ok(!requests.includes(reviewSummaryPath)); assert.ok(!requests.includes('/api/alis'));
+});
+test('oturum kapanınca süren rapor isteği de iptal edilir', async () => {
+  const { app, calls } = await openApp(false, { '/api/rapor/haftalik': () => new Promise(() => {}) });
+  const weekly = app.navigate('weekly'); await settle();
+  const call = calls.find(item => item.path === '/api/rapor/haftalik');
+  assert.equal(call.signal.aborted, false);
+  app.clearSession(); await weekly;
+  assert.equal(call.signal.aborted, true);
+});
+test('ekrana bağlı okumalar yalnız rapor ve takip özeti GET istekleridir; iptal hatası ayırt edilir', () => {
+  for (const path of ['/api/rapor/ana-sayfa?gun=30', '/api/rapor/panel', '/api/rapor/haftalik', '/api/rapor/aylik?yil=2026&ay=9', '/api/takip/ozet?gun=7']) assert.equal(ui.screenBoundRead(path, 'GET'), true, path);
+  for (const [path, method] of [['/api/rapor/haftalik', 'POST'], ['/api/alis', 'GET'], ['/api/takip/kartlar', 'GET'], ['/api/kasa-esikleri', 'GET'], ['/api/raporlar', 'GET']]) assert.equal(ui.screenBoundRead(path, method), false, `${method} ${path}`);
+  assert.equal(ui.isAbortError(ui.abortedRequestError()), true);
+  assert.equal(ui.isAbortError(new DOMException('x', 'AbortError')), true);
+  assert.equal(ui.isAbortError(new Error('Sunucuya ulaşılamadı.')), false);
+});
+test('haftalık raporun veri sağlığı uyarısı seçili dönemden bağımsız, listenin üstünde görünür', async () => {
+  const week = (start, end, extra = {}) => ({ donem: { start, end, yil: 2026, ay: 1 }, kanallar: [], toplamGelen: 0, toplamGiden: 0, kasaSonucu: 0, kasaDevir: 900, dagilimBekleyenTutar: 0, ...extra });
+  const warning = 'Rapor ufkunun (30.09.2027) ötesinde 1 kayıt var; en geç 22.06.2206.';
+  const weeks = [week('2026-01-05', '2026-01-11'), week('2026-01-12', '2027-09-30', { veriSagligiUyarisi: warning })];
+  const { app, nodes, responses } = await openApp(false, { '/api/rapor/haftalik': weeks });
+  await app.navigate('weekly');
+  const view = nodes.get('#view');
+  assert.equal(view.children[0].attributes.role, 'alert'); assert.equal(view.children[0].textContent, warning);
+  const period = view.find(node => node.attributes.name === 'donem'); period.value = '2026-01-05'; period.listeners.change();
+  assert.equal(view.children[0].textContent, warning, 'Başka dönem seçilince de uyarı kalır.');
+  responses['/api/rapor/haftalik'] = [week('2026-01-05', '2026-01-11')];
+  await app.navigate('weekly');
+  assert.equal(nodes.get('#view').find(node => node.attributes.role === 'alert'), null);
+  assert.equal(ui.dataHealthWarning([{ veriSagligiUyarisi: '  ' }, {}]), null);
+  assert.equal(ui.dataHealthWarning(null), null);
+});
+test('kayıt sürerken kapatılıp yerine açılan pencere önceki kaydın geç gelen başarısıyla kapanmaz', async () => {
+  const { app, nodes, finish } = await pendingExpense();
+  const vazgec = cancelButton(nodes); vazgec.listeners.click({ currentTarget: vazgec });
+  assert.equal(nodes.get('#modal').open, false);
+  app.channelDialog();
+  assert.equal(nodes.get('#modal-title').textContent, 'Kanal ekle');
+  await finish({ id: 5, tarih: '2026-09-23', cari: 'Kargo', tutarTl: 75, kanal: 'A', tip: 'Cari', not: null });
+  assert.equal(nodes.get('#modal').open, true, 'Yeni pencere açık kalır.');
+  assert.equal(nodes.get('#modal-title').textContent, 'Kanal ekle');
+  assert.ok(formField(nodes, 'ad'), 'Yeni pencerenin formu korunur.');
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydedildi\./);
+  // Yeni pencerenin kendi kaydı pencereyi yine kapatır.
+  formField(nodes, 'ad').value = 'B'; formField(nodes, 'acilisDevri').value = '0';
+  await submitDialog(nodes);
+  assert.equal(nodes.get('#modal').open, false);
+});
+test('kayıt sürerken engellenen ESC bildirimi gerçek davranışı anlatır', async () => {
+  const { nodes, cancel } = await pendingExpense();
+  assert.equal(cancel(true), true);
+  const text = nodes.get('#notifications').textContent;
+  assert.match(text, /yanıt gelene kadar pencere açık kalır/); assert.match(text, /hata olursa burada görünür/);
+  assert.match(text, /Vazgeç’e basın: kayıt durmaz/); assert.match(text, /hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır/);
+  assert.doesNotMatch(text, /sonucu bildirim olarak görürsünüz/);
+});
+test('işaretli tutar etiketi işaret seçicisine değil tutar alanına bağlıdır; kimlikler tekildir', async () => {
+  const { app, nodes } = await openApp(false);
+  const signedLabel = () => nodes.get('#modal-content').find(node => node.tag === 'label' && (node.className || '').split(' ').includes('signed-field'));
+  app.channelDialog();
+  const first = signedLabel(); const amountInput = formField(nodes, 'acilisDevri');
+  assert.ok(first.attributes.for, 'Etiket bir alana bağlı.');
+  assert.equal(first.attributes.for, amountInput.attributes.id);
+  assert.notEqual(formField(nodes, 'acilisDevriIsaret').attributes.id, first.attributes.for);
+  app.channelDialog();
+  assert.notEqual(signedLabel().attributes.for, first.attributes.for, 'Yeni pencerede yeni kimlik.');
+});
+
+// Rapor kuralı kararları (2026-09-27). K2: aylık raporda kredi girişi ayrı sütun, ay sonucu kredi hariç; K4: kapatılmış ay
+// dondurulmuş raporla ve işaretle; K1: takip başlangıcı öncesi uyarısı; K3: gider formunda yalnız takipteki kartlar.
+test('aylık rapor kredi girişini ayrı gösterir, kapatılmış ayı ve veri sağlığı uyarısını işaretler', async () => {
+  const path = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const warning = 'Takip başlangıcından önce tarihli 2 kayıt, toplam 5.300,00 ₺ — raporlarda farklı işlenir.';
+  const report = { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, krediGirisi: 170000, veriSagligiUyarisi: warning, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0,
+    kanallar: [{ kanal: 'MEZAT', gelen: 80000, krediGirisi: 120000, cariGiden: 100000, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: -20000 }] };
+  const { app, nodes, responses } = await openApp(false, { [path]: report });
+  await app.navigate('monthly');
+  const text = nodes.get('#view').textContent;
+  assert.match(text, /Ay sonucu \(kredi hariç\)/); assert.match(text, /Kredi girişi/);
+  assert.ok(text.includes(`Kredi girişi: ${money(170000)}`), 'Kredi girişi toplamı notta.');
+  assert.ok(text.includes(`Kanala dağıtılmayan eski kredi çekimi: ${money(50000)}`), 'Eski kredi çekimi ayrıca söylenir.');
+  assert.match(text, /Takip başlangıcından önce tarihli 2 kayıt/);
+  assert.doesNotMatch(text, /Kapatılmış ay/);
+  // Kural 1 ile dondurulmuş kapalı ay: kredi Gelen'in içinde; sütun bilgi amaçlıdır ve bu açıkça söylenir.
+  responses[path] = { ...report, kuralSurumu: 1, krediGirisi: undefined, veriSagligiUyarisi: undefined, dondurulmus: true,
+    kanallar: [{ ...report.kanallar[0], gelen: 200000, aySonucu: 100000 }] };
+  await app.navigate('monthly');
+  const frozen = nodes.get('#view').textContent;
+  assert.match(frozen, /Kapatılmış ay/); assert.match(frozen, /eski kuralla dondurulmuştur/);
+  assert.doesNotMatch(frozen, /kredi hariç/); assert.doesNotMatch(frozen, /Takip başlangıcından önce/);
+});
+
+test('gider formu kredi kartında yalnız takipteki açık kartları listeler ve kart seçmeden kaydetmez', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': cards, '/api/islemler': { id: 9 }, '/api/islemler/benzerlik': [] });
+  await app.expenseDialog();
+  const card = formField(nodes, 'krediKartiId');
+  assert.deepEqual(card.children.map(option => option.textContent), ['Kart seçin', 'Takipli']);
+  for (const [name, value] of Object.entries({ cari: 'Market', tutarTl: '75', kanal: 'A', tarih: '2026-09-23', tip: 'KrediKarti' })) formField(nodes, name).value = value;
+  formField(nodes, 'tip').listeners.change();
+  await submitDialog(nodes);
+  assert.equal(calls.some(call => call.path === '/api/islemler' && call.method === 'POST'), false);
+  assert.match(nodes.get('#modal-content').textContent, /yeni takipteki bir kart seçin/);
+  card.value = '2'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.krediKartiId, 2);
+});
+
+test('eski kredi kartı gideri düzenlenirken kendi kartıyla ya da kartsız kalır ve kaydedilir', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const eski = { id: 20, tarih: '2026-08-05', tutarTl: 75, cari: 'Eski', tip: 'KrediKarti', kanal: 'A', not: '', krediKartiId: 1 };
+  const kartsiz = { ...eski, id: 21, krediKartiId: null };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': cards, '/api/islemler/20': eski, '/api/islemler/21': kartsiz });
+  await app.expenseDialog(eski);
+  assert.deepEqual(formField(nodes, 'krediKartiId').children.map(option => option.textContent), ['Kart seçin', 'Takipli', 'Eski kart (eski kayıt)']);
+  formField(nodes, 'tutarTl').value = '80'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler/20').body.krediKartiId, 1);
+  await app.expenseDialog(kartsiz);
+  assert.equal(formField(nodes, 'krediKartiId').children[0].textContent, '— Kartsız eski kayıt —');
+  formField(nodes, 'tutarTl').value = '90'; await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/islemler/21'); assert.equal(save.body.krediKartiId, null); assert.equal(save.body.tutarTl, 90);
+});
+
+// ---- IST4: aylık sayfa sunucu sayıları, ana sayfa dayanıklılığı, kilit açma uyarısı, K3 kart listesi, iz kimliği ----
+test('aylık rapor sunucu sayılarını kullanıcı girdisi gibi ayrıştırmaz: eksi ve üslü kredi girişiyle de sayfa çizilir', async () => {
+  const path = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  // 1e-7 JSON'dan sayı olarak gelir; String(1e-7) === '1e-7' kullanıcı girdisi ayrıştırıcısını düşürürdü.
+  const report = { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, krediGirisi: -1500.5, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0,
+    kanallar: [{ kanal: 'MEZAT', gelen: 100, krediGirisi: -1000.25, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 },
+      { kanal: 'PERAKENDE', gelen: 0, krediGirisi: 1e-7, cariGiden: 0, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 0 }] };
+  const { app, nodes } = await openApp(false, { [path]: report });
+  await app.navigate('monthly');
+  const text = nodes.get('#view').textContent;
+  assert.doesNotMatch(text, /Kayıtlar yüklenemedi/);
+  assert.ok(text.includes(`Kredi girişi: ${money(-1500.5)}`), 'Eksi kredi girişi notta.');
+  assert.ok(text.includes(`Kanala dağıtılmayan eski kredi çekimi: ${money(-500.25)}`), 'Kuruş farkı sunucu sayılarından hesaplanır.');
+  assert.equal(ui.serverCents(-1500.5), -150050); assert.equal(ui.serverCents(1e-7), 0); assert.equal(ui.serverCents(null), 0); assert.equal(ui.serverCents(0.29), 29);
+});
+test('kural 1 ile dondurulmuş ayın kilidi açılırken rapor güncel kuralla yeniden hesaplanacağı uyarılır', async () => {
+  const current = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const august = '/api/rapor/aylik?yil=2026&ay=8';
+  const channels = [{ kanal: 'MEZAT', gelen: 200, krediGirisi: 120, cariGiden: 100, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 }];
+  const { app, nodes, responses, calls } = await openApp(false, { [current]: { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, kanallar: channels },
+    [august]: { yil: 2026, ay: 8, kuralSurumu: 1, dondurulmus: true, kanallar: channels }, '/api/ay-kilidi': { surum: 4, kilitliSonTarih: '2026-08-31', gecmis: [] }, '/api/ay-kilidi/ac': { surum: 5, kilitliSonTarih: '2026-07-31', gecmis: [] } });
+  await app.navigate('monthly');
+  const show = async month => { viewField(nodes, 'ay').value = month; await clickView(nodes, 'Ayı göster'); };
+  await show('2026-08');
+  await clickView(nodes, 'Bu ayı ve sonrasını aç');
+  const warning = nodes.get('#modal-content').textContent;
+  assert.match(warning, /eski kuralla \(kural 1\) kapatılmış/); assert.match(warning, /yeniden kapatınca da güncel kuralla/);
+  assert.match(warning, /takipli kredi çekimi Gelen ve Ay sonucundan çıkar/);
+  formField(nodes, 'aciklama').value = 'Ağustos düzeltmesi'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/ay-kilidi/ac').body.ay, 8, 'Uyarı yalnız bilgidir; açma yine gönderilir.');
+  // Kural 2 ile dondurulmuş ay ve kapatma onayı uyarı taşımaz.
+  responses[august] = { ...responses[august], kuralSurumu: 2 };
+  await show('2026-08'); await clickView(nodes, 'Bu ayı ve sonrasını aç');
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/);
+  const frozenOld = { yil: 2026, ay: 7, kuralSurumu: 1, dondurulmus: true, kanallar: channels };
+  responses['/api/ay-kilidi'] = { surum: 5, kilitliSonTarih: '2026-06-30', gecmis: [] };
+  const close = await app.monthlyUi.lockPanel('2026-07', () => {}, frozenOld);
+  close.find(node => node.tag === 'button' && node.textContent === 'Bu ay sonuna kadar kilitle').listeners.click();
+  assert.match(nodes.get('#modal-content').textContent, /son günü dahil bütün geçmiş/);
+  assert.doesNotMatch(nodes.get('#modal-content').textContent, /kural 1/, 'Kapatma onayında uyarı yok.');
+});
+test('alış ödeme formu kartta yalnız takipteki açık kartları listeler; bağlanan giderin ve düzeltilen ödemenin kendi kartı korunur', async () => {
+  const cards = [{ id: 1, ad: 'Eski kart', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi', odemeler: [] };
+  const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Mal', krediKartiId: 1 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/islemler': [expense], '/api/alis/6/odemeler': purchase, '/api/alis/6/odemeler/8': purchase, '/api/alis/kanallar': [], '/api/islemler/benzerlik': [] });
+  const labels = () => formField(nodes, 'krediKartiId').children.map(option => option.textContent);
+  await app.paymentDialog(purchase);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli']);
+  const existing = formField(nodes, 'mevcutIslemId'); existing.value = '20'; existing.listeners.change();
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Eski kart (eski kayıt)'], 'Bağlanan giderin eski kartı gösterilir.');
+  existing.value = ''; existing.listeners.change();
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli'], 'Seçim kalkınca eski kart yeni ödemede seçilemez.');
+  existing.value = '20'; existing.listeners.change(); await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.krediKartiId, 1);
+  // Takipsiz eski kartla girilmiş ödeme kendi kartıyla düzeltilir (kart takibindeki ödeme ayrı testte: yalnız taşınır).
+  const payment = { id: 8, tarih: '2026-09-23', tutar: 50, krediKartiId: 1, krediKartiAdi: 'Eski kart', dagilimBekliyor: false, dagilimlar: [] };
+  await app.paymentDialog({ ...purchase, odemeler: [payment] }, payment);
+  assert.deepEqual(labels(), ['Nakit / havale', 'Takipli', 'Eski kart (eski kayıt)']);
+  formField(nodes, 'aciklama').value = 'Tarih düzeltmesi'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8').body.krediKartiId, 1);
+  assert.deepEqual(ui.paymentCardChoices(cards, 9).map(option => option.label), ['Nakit / havale', 'Takipli', 'Kart #9 (eski kayıt)']);
+  assert.deepEqual(ui.paymentCardChoices(cards, 2).map(option => option.value), ['', 2]);
+});
+test('sunucu hatasının (5xx) iz kimliği hata iletisinde kısa "Hata kodu" olarak görünür', async () => {
+  const trace = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+  assert.equal(ui.traceCode(trace), '4bf92f35');
+  assert.equal(ui.traceCode('0HN7ABCDEF:00000002'), '0HN7ABCDEF:00000002');
+  assert.equal(ui.traceCode('0HN7ABCDEFGHIJKLMNOPQRSTU:00000002'), '0HN7ABCDEFGH');
+  for (const value of [null, undefined, '  ', '<script>', 42]) assert.equal(ui.traceCode(value), null, String(value));
+  assert.equal(errorMessage({ title: 'An error occurred while processing your request.', status: 500, traceId: trace }, 500), 'İşlem tamamlanamadı. Lütfen yeniden deneyin. Hata kodu: 4bf92f35');
+  assert.equal(errorMessage({ detail: 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi.', traceId: trace }, 500), 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi. Hata kodu: 4bf92f35');
+  assert.equal(errorMessage({ hata: 'Kayıt değişti.', traceId: trace }, 409), 'Kayıt değişti.', 'İstemci hatasında iz eklenmez.');
+  assert.equal(errorMessage(null, 500), 'İşlem tamamlanamadı. Lütfen yeniden deneyin.');
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': [], '/api/islemler': { $status: 500, title: 'Veri bütünlüğü hatası', detail: 'Kayıt bir veri bütünlüğü kuralına takıldığı için kaydedilmedi.', traceId: trace } });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.match(nodes.get('#modal-content').textContent, /kaydedilmedi\. Hata kodu: 4bf92f35/);
+});
+test('gelir penceresinin dönem okuması ekran sinyaline bağlanmaz; pencere açılırken gezinme onu bozmaz', async () => {
+  let release;
+  const week = { donem: { start: '2026-09-21', end: '2026-09-27', yil: 2026, ay: 9 }, kanallar: [], toplamGelen: 0, toplamGiden: 0, kasaSonucu: 0, kasaDevir: 0, dagilimBekleyenTutar: 0 };
+  const monthly = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': () => new Promise(resolve => { release = resolve; }), '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/gelenler?donemStart=2026-09-21': [],
+    [monthly]: { yil: yearNow, ay: monthNumberNow, kanallar: [] } });
+  const opening = app.incomeDialog(); await settle();
+  const weekly = calls.find(call => call.path === '/api/rapor/haftalik');
+  assert.equal(weekly.signal, undefined, 'Pencere verisi ekrana bağlı değildir.');
+  await app.navigate('monthly');                                  // pencere açılmadan başka ekrana geçildi
+  release([week]); await opening; await settle();
+  assert.equal(nodes.get('#modal').open, true); assert.equal(nodes.get('#modal-title').textContent, 'Kanal geliri gir');
+  assert.ok(formField(nodes, 'donemStart'), 'Dönem seçimi dolu.');
+  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  // Ekranın kendi rapor okumaları ekran sinyaline bağlı kalır.
+  assert.ok(calls.find(call => call.path === monthly).signal);
+});
+test('benzer kayıt uyarısı sunucunun ±3 gün ve kanal kuralını anlatır, kredi taksidini ve kanal etiketini gösterir', async () => {
+  const similar = [{ kaynak: 'KrediTaksidi', id: 5, tarih: '2026-09-25', tutar: 75, aciklama: 'Taksit 3', krediKartiId: null, kanalEtiketi: 'MEZAT, PERAKENDE' },
+    { kaynak: 'EskiKrediTaksidi', id: 6, tarih: '2026-09-20', tutar: 75, aciklama: 'Kredi', krediKartiId: null, kanalEtiketi: 'Genel kasa' }];
+  const { app, nodes } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/kredikartlari': [], '/api/islemler/benzerlik': similar });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const text = nodes.get('#modal-content').textContent;
+  assert.ok(text.includes(ui.SIMILAR_RULE_TEXT), 'Kural metni gösterilir.');
+  assert.match(ui.SIMILAR_RULE_TEXT, /±3 gün/); assert.match(ui.SIMILAR_RULE_TEXT, /kanalı belirsiz/); assert.match(ui.SIMILAR_RULE_TEXT, /çok kanallı/); assert.match(ui.SIMILAR_RULE_TEXT, /kart ödemeleri/);
+  assert.doesNotMatch(text, /Aynı tarih, tutar/);
+  assert.match(text, /Kredi taksidi #5 · .* · MEZAT, PERAKENDE/); assert.match(text, /Eski kredi taksidi #6 · .* · Genel kasa/);
+});
+
+test('transitioned card shows the old debt transfer, keeps it and the locked advance allocation uncancellable and posts a reasoned correction', async () => {
+  const transferCard = { ...sampleCard, gecis: { kural: 'IslemTarihi', aciklama: 'Banka', onizleme: null, raporDisiEskiDusumTutari: 0, raporDisiIlkDusumTarihi: null, raporDisiSonDusumTarihi: null, tahminiKasaFarki: 0, uyari: null },
+    harcamalar: [{ id: 10, islemId: null, tarih: '2026-09-23', aciklama: 'Onaylanan eski borç devri', tutar: 100, taksitSayisi: 1, iptal: false, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }] },
+      { id: 11, islemId: null, tarih: '2026-09-24', aciklama: 'Satıcı iadesi', tutar: -30, taksitSayisi: 1, iptal: false, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 30 }], kasadaSayilanDuzeltme: 30 }],
+    odemeler: [{ id: 12, tarih: '2026-09-25', tutar: 0, kasaEtkisi: 0, not: 'Kilitli avans dağıtımı: 01.08.2026 tarihli ödemenin avansı', iptal: false, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 50 }, { kanalId: null, kanal: 'Dağılım bekliyor', tutar: -50 }], avansKaynakOdemeId: 3 }] };
+  const transfer = { harcamaId: 10, tarih: '2026-09-23', kalanBorc: 100, kasadaOncedenSayilanTutar: 80, iadeDuzeltmesi: 30, dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }], kural: 'IslemTarihi', sistemKartBorcu: 80, raporDisiTutar: 0, acilisBorcu: 0, onerilenKasadaSayilanTutar: 80, enAzKasadaSayilanTutar: 80, duzeltilebilir: true, engel: null };
+  const { app, nodes, calls } = await openApp(false, { '/api/takip/kartlar/4': transferCard, '/api/takip/kartlar/4/devir': transfer, '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }], '/api/takip/kartlar/4/devir-duzelt': sampleCard });
+  await app.navigate('cards', 4);
+  const view = nodes.get('#view').textContent;
+  assert.match(view, /Eski borç devri/); assert.match(view, /Kasada önceden sayılan.*80,00/); assert.match(view, /İadeyle kasaya dönen.*30,00/);
+  assert.match(view, /Önceden sayılan.*30,00.*iade tarihinde kasaya döndü/); assert.match(view, /Kilitli avans dağıtımı/);
+  const row = text => nodes.get('#view').find(node => node.tag === 'tr' && node.textContent.includes(text));
+  assert.doesNotMatch(row('Onaylanan eski borç devri').textContent, /İptal et/); assert.match(row('Onaylanan eski borç devri').textContent, /Devri düzelt/);
+  assert.match(row('Satıcı iadesi').textContent, /İptal et/);
+  assert.doesNotMatch(view, /Ödemeyi iptal et/);
+  await clickView(nodes, 'Devri düzelt');
+  const debt = formField(nodes, 'kalanBorc'); const counted = formField(nodes, 'kasadaOncedenSayilanTutar');
+  assert.equal(debt.value, '100'); assert.equal(counted.value, '80');
+  debt.value = '70'; debt.listeners.input(); assert.equal(counted.value, '70');
+  const share = formField(nodes, 'pay-tutar-0'); share.value = '70'; share.listeners.input({ target: share });
+  formField(nodes, 'aciklama').value = 'Banka ekstresine göre';
+  await submitDialog(nodes);
+  const save = calls.find(call => call.path === '/api/takip/kartlar/4/devir-duzelt');
+  assert.ok(save.body.istekId);
+  assert.deepEqual({ ...save.body, istekId: null }, { istekId: null, surum: 2, harcamaId: 10, kalanBorc: 70, kasadaOncedenSayilanTutar: 70, dagilimlar: [{ kanalId: 1, tutar: 70 }], aciklama: 'Banka ekstresine göre' });
+});
+
+test('card transfer section shows why a correction is blocked and the page opens without the transfer read', async () => {
+  const transferCard = { ...sampleCard, gecis: { kural: 'EtkiTarihi', aciklama: null, onizleme: null, raporDisiEskiDusumTutari: 0, raporDisiIlkDusumTarihi: null, raporDisiSonDusumTarihi: null, tahminiKasaFarki: 0, uyari: null },
+    harcamalar: [{ id: 10, islemId: null, tarih: '2026-09-23', aciklama: 'Onaylanan eski borç devri', tutar: 100, taksitSayisi: 1, iptal: false, dagilimlar: [] }] };
+  const blocked = { harcamaId: 10, tarih: '2026-09-23', kalanBorc: 100, kasadaOncedenSayilanTutar: 100, iadeDuzeltmesi: 0, dagilimlar: [], kural: 'EtkiTarihi', sistemKartBorcu: 100, raporDisiTutar: 0, acilisBorcu: 0, onerilenKasadaSayilanTutar: 100, enAzKasadaSayilanTutar: 100, duzeltilebilir: false, engel: 'Devre ödeme kaydedilmiş: düzeltme önceki ödemelerin kasa etkisini değiştirirdi.' };
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar/4': transferCard, '/api/takip/kartlar/4/devir': blocked });
+  await app.navigate('cards', 4);
+  assert.match(nodes.get('#view').textContent, /Devre ödeme kaydedilmiş/);
+  assert.equal(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Devri düzelt'), null);
+  assert.equal(nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'İptal et'), null);
+  const missing = await openApp(false, { '/api/takip/kartlar/4': transferCard });
+  await missing.app.navigate('cards', 4);
+  assert.match(missing.nodes.get('#view').textContent, /Onaylanan eski borç devri/); assert.doesNotMatch(missing.nodes.get('#view').textContent, /İadeyle kasaya dönen/);
+});
+
+test('tracked card payments lock date, amount and card; detach shares must add up to the payment', () => {
+  const cards = [{ id: 1, ad: 'Eski', yeniTakip: false, aktif: true }, { id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }, { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false }];
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: 2 }), true);
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: 3 }), true);
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: 1 }), false);
+  assert.equal(ui.trackedCardPayment(cards, { krediKartiId: null }), false);
+  assert.equal(ui.trackedCardPayment(cards, null), false);
+  assert.deepEqual(ui.detachAllocations([{ kanalId: 1, tutar: 7200 }, { kanalId: 2, tutar: '4800,00' }, { kanalId: 3, tutar: '' }], 12000), [{ kanalId: 1, tutar: 7200 }, { kanalId: 2, tutar: 4800 }]);
+  assert.throws(() => ui.detachAllocations([{ kanalId: 1, tutar: 7000 }, { kanalId: 2, tutar: 4800 }], 12000), /toplamı ödeme tutarına/);
+  assert.throws(() => ui.detachAllocations([{ kanalId: 1, tutar: '' }], 10), /toplamı ödeme tutarına/);
+  assert.throws(() => ui.detachAllocations([{ kanalId: 1, tutar: '-10' }], 10), /kuruş/);
+});
+
+test('installment fields are sent only for a real installment plan', () => {
+  assert.deepEqual(ui.installmentFields('1'), {});
+  assert.deepEqual(ui.installmentFields(''), {});
+  assert.deepEqual(ui.installmentFields('3'), { taksitSayisi: 3 });
+  assert.deepEqual(ui.installmentFields('3', '2026-10-06', '2026-09-20'), { taksitSayisi: 3, ilkKesimTarihi: '2026-10-06' });
+  assert.deepEqual(ui.installmentFields('1', '2026-10-06', '2026-09-20'), { ilkKesimTarihi: '2026-10-06' });
+  for (const bad of ['0', '61', '2.5', 'abc']) assert.throws(() => ui.installmentFields(bad), error => error.message === ui.INSTALLMENT_RANGE_MESSAGE && error.fields.taksitSayisi === ui.INSTALLMENT_RANGE_MESSAGE);
+  assert.throws(() => ui.installmentFields('2', '2026-09-19', '2026-09-20'), error => Boolean(error.fields.ilkKesimTarihi));
+});
+
+test('kart takibindeki alış ödemesi yalnız başka alışa taşınır; iptal harcamayı korurken gerçek kanal paylarını gönderir', async () => {
+  const cards = [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const payment = { id: 8, tarih: '2026-09-23', tutar: 60, krediKartiId: 2, krediKartiAdi: 'Takipli', dagilimBekliyor: false, dagilimlar: [{ kanalId: 1, kanal: 'A', tutar: 36 }, { kanalId: 2, kanal: 'B', tutar: 24 }] };
+  const purchase = { id: 6, surum: 2, tarih: '2026-09-20', tedarikci: 'Yanlış', alici: 'Editör', durum: 'Onaylandi', kalemler: [], odemeler: [payment], toplam: 60, odenen: 60, kalan: 0 };
+  const other = { id: 7, surum: 4, tarih: '2026-09-20', tedarikci: 'Doğru', alici: 'Editör', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 60, odenen: 0, kalan: 60 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/alis': [purchase, other], '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }, { id: 2, ad: 'B', aktif: true }],
+    '/api/alis/6/odemeler/8': purchase, '/api/alis/6/odemeler/8/iptal': purchase });
+  await app.navigate('purchases');
+  await app.paymentDialog(purchase, payment);
+  assert.deepEqual(['tarih', 'tutar', 'krediKartiId'].map(name => formField(nodes, name).disabled), [true, true, true]);
+  assert.match(nodes.get('#modal-content').textContent, /kart takibinde/);
+  formField(nodes, 'aciklama').value = 'Yanlış alış'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8'), undefined, 'Hedefsiz düzeltme gönderilmez.');
+  assert.match(nodes.get('#modal-content').textContent, /hedef alış seçin/);
+  formField(nodes, 'hedefAlisId').value = '7'; await submitDialog(nodes);
+  const move = calls.find(call => call.path === '/api/alis/6/odemeler/8').body;
+  assert.deepEqual([move.tarih, move.tutar, move.krediKartiId, move.hedefAlisId, move.hedefSurum], ['2026-09-23', 60, 2, 7, 4]);
+
+  await app.cancelPayment(purchase, payment);
+  assert.match(nodes.get('#modal-content').textContent, /Kart harcaması gerçek/);
+  assert.deepEqual([formField(nodes, 'ayir-1').value, formField(nodes, 'ayir-2').value], ['36', '24'], 'Paylar ödemenin bugünkü paylarıyla başlar.');
+  const keep = formField(nodes, 'harcamayiKoru'); keep.checked = true; keep.listeners.change();
+  const first = formField(nodes, 'ayir-1'); first.value = '30'; first.listeners.input({ target: first });
+  formField(nodes, 'aciklama').value = 'Başka alışın'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler/8/iptal'), undefined);
+  assert.match(nodes.get('#modal-content').textContent, /toplamı ödeme tutarına/);
+  first.value = '36'; first.listeners.input({ target: first }); await submitDialog(nodes);
+  assert.deepEqual(calls.find(call => call.path === '/api/alis/6/odemeler/8/iptal').body.kanalDagilimlari, [{ kanalId: 1, tutar: 36 }, { kanalId: 2, tutar: 24 }]);
+  // Harcama korunmazsa kanal payı gönderilmez: ödenmemiş harcama gideriyle kalkar.
+  await app.cancelPayment(purchase, payment);
+  formField(nodes, 'aciklama').value = 'Harcama yapılmadı'; await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/alis/6/odemeler/8/iptal').at(-1).body.kanalDagilimlari, undefined);
+});
+
+test('yeni kart giderinde ve takipli kartla yeni alış ödemesinde taksit gövdeye yalnız planla taşınır', async () => {
+  const cards = [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const purchase = { id: 6, surum: 2, kalan: 100, durum: 'Onaylandi', odemeler: [] };
+  const { app, nodes, calls } = await openApp(false, { '/api/kredikartlari': cards, '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }], '/api/islemler': [], '/api/alis/6/odemeler': purchase,
+    '/api/alis/kanallar': [], '/api/islemler/benzerlik': [], '/api/alis/baglanabilir-kart-harcamalari?krediKartiId=2&tutar=100.00': [] });
+  await app.paymentDialog(purchase);
+  const installments = () => formField(nodes, 'taksitSayisi').parentNode.parentNode.parentNode;
+  assert.equal(installments().hidden, true, 'Nakit ödemede taksit yok.');
+  const card = formField(nodes, 'krediKartiId'); card.value = '2'; card.listeners.change(); await settle();
+  assert.equal(installments().hidden, false);
+  formField(nodes, 'taksitSayisi').value = '3'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/alis/6/odemeler').body.taksitSayisi, 3);
+
+  await app.expenseDialog();
+  const expenseInstallments = () => formField(nodes, 'taksitSayisi').parentNode.parentNode.parentNode;
+  assert.equal(expenseInstallments().hidden, true);
+  const type = formField(nodes, 'tip'); type.value = 'KrediKarti'; type.listeners.change();
+  const expenseCard = formField(nodes, 'krediKartiId'); expenseCard.value = '2'; expenseCard.listeners.change();
+  assert.equal(expenseInstallments().hidden, false);
+  formField(nodes, 'cari').value = 'Telefon'; formField(nodes, 'tutarTl').value = '3000'; formField(nodes, 'kanal').value = 'A';
+  formField(nodes, 'taksitSayisi').value = '6'; await submitDialog(nodes);
+  const body = calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body;
+  assert.deepEqual([body.taksitSayisi, body.ilkKesimTarihi, body.krediKartiId], [6, undefined, 2]);
+});
+
+// contract-6: düzenleme okunan kaydın sürümünü gönderir. Kayıt arada başka oturumda değiştiyse sunucu 409 verir: ileti formda görünür,
+// arkadaki liste (gelirde formun dönem verisi) güncel kayıtlarla yenilenir; kayıt yeniden açılınca güncel sürümle kaydedilir.
+test('gider düzenlemesi okunan sürümü gönderir; 409 iletisi formda görünür ve gider listesi yenilenir', async () => {
+  const listPath = `/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`;
+  const expense = { id: 20, tarih: ui.today(), tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null, surum: 3 };
+  const { app, nodes, calls } = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'A', aktif: true, surum: 0 }], '/api/kredikartlari': [], [listPath]: [expense],
+    '/api/islemler/20': { $status: 409, hata: 'Gider başka bir oturumda değişti. Listeyi yenileyip tekrar deneyin.' }, '/api/islemler/benzerlik': [], '/api/islemler': { id: 21, surum: 0 } });
+  await app.navigate('transactions');
+  const listReads = () => calls.filter(call => call.path === listPath).length;
+  const before = listReads();
+  await app.expenseDialog(expense); formField(nodes, 'tutarTl').value = '80'; await submitDialog(nodes);
+  const put = calls.find(call => call.path === '/api/islemler/20');
+  assert.deepEqual([put.method, put.body.surum, put.body.tutarTl], ['PUT', 3, 80]);
+  assert.match(nodes.get('#modal-content').textContent, /Gider başka bir oturumda değişti/);
+  assert.equal(listReads(), before + 1, 'Liste güncel sürümlerle yenilendi.');
+  // Yeni gider sürüm 0 ile gider (sunucu oluşturmada yok sayar).
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: ui.today() })) formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.surum, 0);
+});
+test('kanal ve kasa başlangıcı düzenlemesi okunan sürümü gönderir; 409’da Ayarlar yenilenir', async () => {
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0, surum: 5 }],
+    '/api/kanallar/3': { $status: 409, hata: 'Kanal başka bir oturumda değişti. Listeyi yenileyip tekrar deneyin.' },
+    '/api/ayarlar': call => call.method === 'PUT' ? { $status: 409, hata: 'Ayarlar başka bir oturumda değişti. Güncel değerleri yükleyip tekrar deneyin.' }
+      : { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true, surum: 7 },
+    '/api/yedek/durum': { otomatikEtkin: true }, '/api/alicilar': [] });
+  const settingsReads = () => calls.filter(call => call.path === '/api/ayarlar' && call.method === 'GET').length;
+  let before = settingsReads();
+  app.channelDialog({ id: 3, ad: 'Mezat', aktif: true, sira: 0, acilisDevri: 0, surum: 5 });
+  formField(nodes, 'sira').value = '2'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/kanallar/3').body.surum, 5);
+  assert.match(nodes.get('#modal-content').textContent, /Kanal başka bir oturumda değişti/);
+  assert.equal(settingsReads(), before + 1, 'Ayarlar ekranı güncel kayıtlarla yenilendi.');
+  before = settingsReads();
+  app.openingDialog({ takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, surum: 7 });
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/ayarlar' && call.method === 'PUT').body.surum, 7);
+  assert.match(nodes.get('#modal-content').textContent, /Ayarlar başka bir oturumda değişti/);
+  assert.equal(settingsReads(), before + 1);
+});
+test('gelir kaydı seçili satırın sürümünü gönderir; 409’da dönemin güncel toplamı forma yüklenir', async () => {
+  const period = '2026-09-14';
+  let reads = 0;
+  const { app, nodes, calls } = await openApp(false, { '/api/rapor/haftalik': [{ donem: { start: period, end: '2026-09-20' } }], '/api/kanallar': [{ id: 7, ad: 'Mağaza' }, { id: 8, ad: 'Normal' }],
+    [`/api/gelenler?donemStart=${period}`]: () => (++reads === 1 ? [{ kanalId: 7, kanal: 'Mağaza', tutarTl: 30, surum: 4 }] : [{ kanalId: 7, kanal: 'Mağaza', tutarTl: 55, surum: 5 }]),
+    '/api/gelenler': { $status: 409, hata: 'Bu dönem ve kanalın geliri başka bir oturumda değişti. Güncel toplamı yükleyip tekrar deneyin.' } });
+  await app.incomeDialog(period);
+  const channel = formField(nodes, 'kanal'); channel.value = 'Mağaza'; channel.listeners.change();
+  formField(nodes, 'tutarTl').value = '40'; await submitDialog(nodes);
+  assert.equal(calls.find(call => call.path === '/api/gelenler' && call.method === 'PUT').body.surum, 4);
+  assert.match(nodes.get('#modal-content').textContent, /geliri başka bir oturumda değişti/);
+  assert.equal(reads, 2, 'Dönem gelirleri yeniden yüklendi.');
+  assert.equal(formField(nodes, 'tutarTl').value, '55', 'Güncel toplam forma yüklendi.');
+  channel.value = 'Normal'; channel.listeners.change(); formField(nodes, 'tutarTl').value = '10'; await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/gelenler' && call.method === 'PUT').at(-1).body.surum, 0, 'Satırı olmayan kanal 0 gönderir.');
 });

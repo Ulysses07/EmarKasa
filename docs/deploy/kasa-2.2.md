@@ -1,5 +1,7 @@
 # Emar Kasa 2.2 — aylık giderler ve kasa kontrolleri
 
+> Tarihsel sürüm notu (2.2). "Canlıda" ifadesi o yayın anına aittir; güncel sürüm [2.3.0](kasa-2.3.md). Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
+
 ## Kullanım
 
 - **Aylık Giderler:** kira, maaş, fatura ve diğer düzenli giderler; ay seçimi, planlanan/ödenen/kalan tutarlar. Her şablonda yalnız genel kasa, seçilen kanallara eşit dağılım veya kanal başına tutar seçilir. Plan kasayı değiştirmez. Ödemeyi kaydet yalnız nakit/banka ödemesini kasaya işler; kredi kartıyla yapılan gider mevcut kart/alış akışından girilir. Aynı ay ve şablon için bir aktif ödeme olabilir. İptal geçmişi korunur; yeniden ödeme ayrı istekle kaydedilir.

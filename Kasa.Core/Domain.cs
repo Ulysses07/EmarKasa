@@ -33,10 +33,29 @@ public record Islem(
     bool DagilimBekliyor = false,
     bool NakitKartOdemesi = false,
     bool AylikGider = false,
-    bool YalnizGenelKasa = false);
+    bool YalnizGenelKasa = false)
+{
+    /// <summary>Satırı üreten kaynak kaydın anahtarı (ör. "Islem:12", "Kredi:3"): aynı kaydın kanal payları ve aynı kredinin
+    /// türetilmiş taksitleri aynı anahtarı taşır. Hesaba girmez; yalnız veri sağlığı uyarısının kayıt adedi
+    /// (<see cref="HesapMotoru.BaslangicOncesi"/>) kaynak kayıt düzeyinde sayılır. Anahtarsız satır tek başına bir kayıttır.</summary>
+    public string? Kaynak { get; init; }
+
+    /// <summary>Kasa hareket dökümünde satırın kaydı (<see cref="HesapMotoru.KasaHareketleri"/>): denetim izindeki varlık adı ve
+    /// kimliği ("Islem:812", "Kredi:5", "TakipKrediTaksit:9", "TakipKartOdeme:44", "TakipHarcama:12"). Hesaba girmez.</summary>
+    public string? KaynakAnahtari { get; init; }
+}
 
 /// <summary>Haftalık gelen — dönem başına, kanal başına tek rakam.</summary>
-public record Gelen(DateOnly DonemStart, string Kanal, decimal TutarTl, bool KrediGirisi = false, bool GenelGelir = false);
+public record Gelen(DateOnly DonemStart, string Kanal, decimal TutarTl, bool KrediGirisi = false, bool GenelGelir = false)
+{
+    /// <summary>Gelirin kendi günü (ekstre geliri, ek gelir, kredi çekimi); dönemin içinde olmalıdır. Dönem geliri tarihsizdir
+    /// (null): dökümde dönem başında görünür. Hesaba girmez; yalnız kasa hareket dökümünün etki tarihidir.</summary>
+    public DateOnly? Tarih { get; init; }
+    /// <summary>Kasa hareket dökümünde gelirin kaydı ("Gelen:17", "EkstreKayit:9", "HesapHareket:3", "Kredi:5"). Hesaba girmez.</summary>
+    public string? KaynakAnahtari { get; init; }
+    /// <summary>Dökümde gösterilen açıklama (ekstre satırı, ek gelir ya da kredi adı); dönem gelirinde null. Hesaba girmez.</summary>
+    public string? Aciklama { get; init; }
+}
 
 /// <summary>Devir segmenti. End dahildir (inclusive).</summary>
 public record Donem(DateOnly Start, DateOnly End)

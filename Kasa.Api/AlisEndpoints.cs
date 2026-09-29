@@ -4,8 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Kasa.Api.Data;
+using Kasa.Api.Denetim;
 using Kasa.Core;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
@@ -22,25 +22,27 @@ public static class AlisEndpoints
         api.MapGet("", (ClaimsPrincipal user, KasaDbContext db) =>
         {
             if (!Editor(user) && AliciId(user) is null) return Results.Forbid();
-            using var transaction = db.Database.BeginTransaction();
+            // Bölünmüş sorgunun parçaları aynı anlık görüntüyü görür; yazma kilidi alınmaz.
+            using var snapshot = db.OkumaBaslat();
             var query = Query(db).AsNoTracking();
             if (!Editor(user)) query = query.Where(a => a.AliciId == AliciId(user));
             var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
             var result = query.OrderByDescending(a => a.Tarih).ThenByDescending(a => a.Id).ToList().Select(a => AlisHesaplari.ToDto(a, kartAdlari)).ToList();
-            transaction.Commit();
             return Results.Ok(result);
         });
-        api.MapPost("", (AlisYaz dto, ClaimsPrincipal user, KasaDbContext db) => Mutate(db, () =>
+        api.MapPost("", (AlisYaz dto, ClaimsPrincipal user, KasaDbContext db, Microsoft.Extensions.Options.IOptionsMonitor<AliciKotaAyarlari> kota) => Mutate(db, () =>
         {
             if (!Editor(user) && AliciId(user) is null) return Results.Forbid();
+            if (AlisOlusturmaKurallari.Once(db, dto, user, kota.CurrentValue) is { } oncekiSonuc) return oncekiSonuc;
             if (dto.Surum != 0) return Conflict("Yeni alış için sürüm 0 olmalı.");
             if (Validate(dto, db) is { } hata) return hata;
             var alis = new AlisEntity { AliciId = Editor(user) ? null : AliciId(user) };
             if (SetFields(db, alis, dto) is { } tedarikciHatasi) return tedarikciHatasi;
             db.Alislar.Add(alis);
             db.SaveChanges();
+            AlisOlusturmaKurallari.Kaydet(db, dto, user, alis.Id);
             return Results.Created($"/api/alis/{alis.Id}", ReadDto(db, alis.Id));
-        }));
+        })).RequireRateLimiting(Auth.HizSinirlari.AlisYukleme).AddEndpointFilter(Auth.AliciAlisYuklemeSiniri.Filtre);
         api.MapPut("/{id:int}", (int id, AlisYaz dto, ClaimsPrincipal user, KasaDbContext db) => Mutate(db, () =>
         {
             var alis = Owned(db, id, user);
@@ -68,7 +70,9 @@ public static class AlisEndpoints
             db.SaveChanges();
             return Results.Ok(ReadDto(db, id));
         }));
-        api.MapPost("/{id:int}/onayla", (int id, AlisDurumYaz dto, KasaDbContext db) => Mutate(db, () =>
+        // Onay ve iade: durum değişikliği denetim olayına notuyla (iade gerekçesi) yazılır; not verilmeyen onay önceki iade
+        // gerekçesini silmez (olaylar yalnız eklenir). Geçmiş ayların kanal payı değişiyorsa ayrıca iz ve yanıt başlığı.
+        api.MapPost("/{id:int}/onayla", (int id, AlisDurumYaz dto, KasaDbContext db, HttpContext http) => Mutate(db, () =>
         {
             var alis = Query(db).SingleOrDefault(a => a.Id == id);
             if (alis is null) return Results.NotFound();
@@ -80,13 +84,16 @@ public static class AlisEndpoints
             v.Kontrol(alis.Kalemler.Any(k => k.Tutar > 0), "kalemler", "En az bir pozitif alış kalemi gerekir.");
             v.Kontrol(alis.Kalemler.All(k => k.Dagilimlar.Sum(d => d.Tutar) == k.Tutar), "dagilimlar", "Her kalemin kanal dağılımı kalem tutarına tam eşit olmalı.");
             if (v.Sonuc() is { } hata) return hata;
+            var once = AlisDurumEtkisi.Paylar(alis); var oncekiDurum = alis.Durum;
+            using var denetim = db.Denetle(dto.Not);
             alis.Durum = AlisDurumlari.Onaylandi;
             alis.EditorNotu = dto.Not?.Trim();
             alis.Surum++;
             db.SaveChanges();
+            AlisDurumEtkisi.Yaz(db, http, alis, oncekiDurum, once, dto.Not?.Trim());
             return Results.Ok(ReadDto(db, id));
         })).RequireAuthorization("Editor");
-        api.MapPost("/{id:int}/iade", (int id, AlisDurumYaz dto, KasaDbContext db) => Mutate(db, () =>
+        api.MapPost("/{id:int}/iade", (int id, AlisDurumYaz dto, KasaDbContext db, HttpContext http) => Mutate(db, () =>
         {
             var alis = Query(db).SingleOrDefault(a => a.Id == id);
             if (alis is null) return Results.NotFound();
@@ -96,20 +103,32 @@ public static class AlisEndpoints
             var v = new GirdiDogrulama();
             v.Metin(dto.Not, "not", 2000);
             if (v.Sonuc() is { } hata) return hata;
+            var once = AlisDurumEtkisi.Paylar(alis); var oncekiDurum = alis.Durum;
+            using var denetim = db.Denetle(dto.Not);
             alis.Durum = AlisDurumlari.Taslak;
             alis.EditorNotu = dto.Not!.Trim();
             alis.Surum++;
             db.SaveChanges();
+            AlisDurumEtkisi.Yaz(db, http, alis, oncekiDurum, once, dto.Not.Trim());
             return Results.Ok(ReadDto(db, id));
         })).RequireAuthorization("Editor");
-        api.MapPost("/{id:int}/odemeler", (int id, AlisOdemeYaz dto, KasaDbContext db) => Mutate(db, () => Pay(db, id, dto)))
+        api.MapPost("/{id:int}/odemeler", (int id, AlisOdemeYaz dto, KasaDbContext db, HttpContext http) => Mutate(db, () => Pay(db, id, dto, http), OdemeCakismasi))
             .RequireAuthorization("Editor");
-        api.MapPut("/{id:int}/odemeler/{odemeId:int}", (int id, int odemeId, AlisOdemeDuzelt dto, KasaDbContext db) => Mutate(db, () => AlisOdemeIslemleri.Duzelt(db, id, odemeId, dto))).RequireAuthorization("Editor");
-        api.MapPost("/{id:int}/odemeler/{odemeId:int}/iptal", (int id, int odemeId, AlisOdemeIptal dto, KasaDbContext db) => Mutate(db, () => AlisOdemeIslemleri.Iptal(db, id, odemeId, dto))).RequireAuthorization("Editor");
+        // Düzeltme ve iptal açıklaması (zorunlu) değişen gider ve ödeme kayıtlarının denetim olayına gerekçe olarak yazılır.
+        api.MapPut("/{id:int}/odemeler/{odemeId:int}", (int id, int odemeId, AlisOdemeDuzelt dto, KasaDbContext db) => Mutate(db, () =>
+        {
+            using var denetim = db.Denetle(dto.Aciklama, dto.IstekId);
+            return AlisOdemeIslemleri.Duzelt(db, id, odemeId, dto);
+        }, OdemeCakismasi)).RequireAuthorization("Editor");
+        api.MapPost("/{id:int}/odemeler/{odemeId:int}/iptal", (int id, int odemeId, AlisOdemeIptal dto, KasaDbContext db) => Mutate(db, () =>
+        {
+            using var denetim = db.Denetle(dto.Aciklama, dto.IstekId);
+            return AlisOdemeIslemleri.Iptal(db, id, odemeId, dto);
+        }, OdemeCakismasi)).RequireAuthorization("Editor");
         return app;
     }
 
-    private static IResult Pay(KasaDbContext db, int id, AlisOdemeYaz dto)
+    private static IResult Pay(KasaDbContext db, int id, AlisOdemeYaz dto, HttpContext http)
     {
         var v = new GirdiDogrulama();
         v.Kontrol(dto.IstekId != Guid.Empty, "istekId", "Tekrarları önlemek için geçerli bir istek kimliği gerekir.");
@@ -117,6 +136,9 @@ public static class AlisEndpoints
         v.Kontrol(dto.Tutar > 0, "tutar", "Ödeme tutarı sıfırdan büyük olmalı.");
         v.Metin(dto.Not, "not", 2000, zorunlu: false);
         v.Kontrol(dto.HesapId is null, "hesapId", "Ödeme doğrudan kanal ve genel kasaya kaydedilir; ayrı hesap seçilmez.");
+        v.Kontrol(dto.MevcutIslemId is null || dto.MevcutKartHarcamaId is null, "mevcutKartHarcamaId", "Mevcut gider ile mevcut kart harcaması birlikte seçilemez.");
+        // gap-coklu-giris-cift-sayim-mutabakat-6: taksit yalnız yeni takipteki kartla yeni harcamada; bağlanan kaydın planı kendisindedir.
+        KayitGirdileri.TaksitKurali(v, db, dto.TaksitSayisi, dto.IlkKesimTarihi, dto.Tarih, dto.KrediKartiId, mevcutKayit: dto.MevcutIslemId is not null || dto.MevcutKartHarcamaId is not null);
         if (v.Sonuc() is { } hata) return hata;
 
         var digest = Digest(id, dto);
@@ -133,11 +155,16 @@ public static class AlisEndpoints
         v.Kart(db, dto.KrediKartiId);
         if (dto.KrediKartiId is { } cardId)
             v.Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == cardId && dto.Tarih < k.Baslangic), "tarih", "Kart harcaması kart takip başlangıcından önce olamaz.");
+        // K3: kartlı yeni ödeme takipteki karta bağlanır (mevcut gider bağlamada kayıt zaten vardır).
+        if (dto.MevcutIslemId is null) KayitGirdileri.TakipliKartKurali(v, db, dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti, dto.KrediKartiId, null);
         if (v.Sonuc() is { } alanHatasi) return alanHatasi;
         if (alis.Odemeler.Sum(o => o.Islem.TutarTl) + dto.Tutar > alis.Kalemler.Sum(k => k.Tutar))
             return Conflict("Ödemeler alış toplamını aşamaz.");
+        var once = AlisDurumEtkisi.Paylar(alis);
 
         IslemEntity islem;
+        // Ekstreden gelmiş kayıt (banka gideri ya da gidersiz kart harcaması): bağlanınca satırın sahipliği eşleşmeye döner.
+        EkstreKayitEntity? ekstreSatiri = null; TakipHarcamaEntity? kartHarcamasi = null;
         if (dto.MevcutIslemId is { } islemId)
         {
             var existing = db.Islemler.Include(i => i.HesapHareketi).SingleOrDefault(i => i.Id == islemId);
@@ -149,7 +176,32 @@ public static class AlisEndpoints
             if (db.AlisOdemeler.Any(o => o.IslemId == islemId)) return Conflict("Bu gider zaten bir alışa bağlı.");
             if (db.KrediTaksitOdemeler.Any(o => o.IslemId == islemId)) return Conflict("Kredi taksidi alışa bağlanamaz.");
             if (existing.HesapHareketi is { } h && dto.HesapId != h.HesapId) return Conflict("Giderin bağlı olduğu hesap ödeme hesabıyla eşleşmiyor.");
+            ekstreSatiri = db.EkstreKayitlar.SingleOrDefault(k => k.IslemId == islemId && !k.Iptal);
+            if (ekstreSatiri is { IslemTuru: not "Gider" }) return Conflict("Ekstreden alınan bu kayıt alışa bağlanamaz. PDF İçe Aktarma bölümünden düzeltin.");
             islem = existing;
+            // Bağlanan gider önce kendi kanalına (ekstre giderinde satırın dağılımına) yazılıydı; bağlama onu alışın paylarına
+            // (ya da dağılım beklemeye) taşır.
+            once[existing.Id] = ekstreSatiri is null ? AlisDurumEtkisi.Gider(existing) : AlisDurumEtkisi.EkstreGideri(existing, ekstreSatiri);
+        }
+        else if (dto.MevcutKartHarcamaId is { } harcamaId)
+        {
+            // Ters sıra (gap-coklu-giris-cift-sayim-mutabakat-1): kart harcaması ekstreden (ya da elle) gidersiz girilmiş, alış ödemesi
+            // sonra kaydediliyor. İkinci harcama üretilmez: ödemenin gideri oluşturulup bu harcamaya bağlanır (Sync onu bilinen sayar).
+            var charge = db.TakipHarcamalar.SingleOrDefault(x => x.Id == harcamaId);
+            if (charge is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["mevcutKartHarcamaId"] = ["Kayıtlı bir kart harcaması seçin."] });
+            if (charge.KrediKartiId != dto.KrediKartiId || charge.Iptal || charge.IslemId is not null || charge.KaynakHarcamaId is not null
+                || charge.Tutar <= 0 || charge.Tutar != dto.Tutar || charge.Tarih != dto.Tarih)
+                return Conflict("Seçilen kart harcaması ödeme ile eşleşmiyor: aynı kartın, gidere bağlı olmayan ve tarihi ile tutarı ödemeyle aynı harcaması seçilmeli.");
+            if (charge.KasadaOncedenSayilanTutar > 0 || charge.Aciklama == KartGecisHesabi.DevirAciklamasi) return Conflict("Eski borç devri alışa bağlanamaz.");
+            if (db.TakipHarcamalar.Any(x => x.KaynakHarcamaId == charge.Id && !x.Iptal)) return Conflict("İadesi bulunan kart harcaması alışa bağlanamaz.");
+            kartHarcamasi = charge;
+            ekstreSatiri = db.EkstreKayitlar.SingleOrDefault(k => k.KartHarcamaId == charge.Id && !k.Iptal);
+            islem = new IslemEntity
+            {
+                Tarih = charge.Tarih, Cari = alis.Tedarikci, TutarTl = dto.Tutar,
+                Kanal = Kanallar.DagilimBekliyor, KanalId = null,
+                Tip = GiderTipi.KrediKarti, KrediKartiId = charge.KrediKartiId, Not = dto.Not?.Trim()
+            };
         }
         else
         {
@@ -161,11 +213,41 @@ public static class AlisEndpoints
                 KrediKartiId = dto.KrediKartiId, Not = dto.Not?.Trim()
             };
         }
+        using var denetim = db.Denetle(null, dto.IstekId);
+        if (ekstreSatiri is not null)
+        {
+            // Satır kaydını alışa devreder: sahiplik sütunu boşalır, satır eşleşmeye döner. Ayrı kaydedilir: ekstre kaynak kuralı
+            // (EkstreKaynakKurallari) alış bağını artık ekstre sahipli kayda yapılmış görmez. Ödeme alıştan ayrılınca sahiplik geri
+            // yazılır (AlisOdemeIslemleri.Iptal).
+            db.EkstreDegisikligi = true;
+            try
+            {
+                if (kartHarcamasi is null) { ekstreSatiri.IslemId = null; ekstreSatiri.EslesmeTuru = "Gider"; ekstreSatiri.EslesmeId = islem.Id; }
+                else { ekstreSatiri.KartHarcamaId = null; ekstreSatiri.EslesmeTuru = "KartHarcama"; ekstreSatiri.EslesmeId = kartHarcamasi.Id; }
+                db.SaveChanges();
+            }
+            finally { db.EkstreDegisikligi = false; }
+        }
         alis.Odemeler.Add(new AlisOdemeEntity { Islem = islem, IstekId = dto.IstekId, IstekOzeti = digest });
         FinansHesaplari.IstekKaydet(db, dto.IstekId, "AlisOdeme", digest, id);
         alis.Surum++;
         db.SaveChanges();
+        if (kartHarcamasi is not null)
+        {
+            kartHarcamasi.IslemId = islem.Id;
+            db.TakipKartlar.Single(t => t.KrediKartiId == kartHarcamasi.KrediKartiId).Surum++;
+            db.SaveChanges();
+            once[islem.Id] = AlisDurumEtkisi.KartHarcamasi(islem.Id, kartHarcamasi);
+        }
+        else if (dto.MevcutIslemId is null && dto.KrediKartiId is { } kart && db.TakipKartlar.Any(t => t.KrediKartiId == kart))
+        {
+            // Yeni takipli kart ödemesinin harcaması taksit planıyla hemen yazılır (Sync onu bilinen sayar); taksitsizde Sync'in
+            // tek taksitli kaydıyla aynıdır.
+            FinansTakipServisi.KaynakHarcamaEkle(db, islem, dto.TaksitSayisi ?? 1, dto.IlkKesimTarihi);
+            db.SaveChanges();
+        }
         FinansTakipServisi.Sync(db);
+        AlisDurumEtkisi.Yaz(db, http, alis, alis.Durum, once, null);
         return Results.Ok(ReadDto(db, id));
     }
 
@@ -227,8 +309,26 @@ public static class AlisEndpoints
         db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad));
     internal static IResult Conflict(string message) => Results.Conflict(new { hata = message });
     private static IResult VersionConflict() => Conflict("Alış başka bir işlemle değişti. Listeyi yenileyip tekrar deneyin.");
+    // Ödeme uçlarında UNIQUE çakışması: aynı istek kimliği ya da gider aynı anda başka bir ödemeyle kaydedildi.
+    private const string OdemeCakismasi = "Ödeme aynı anda başka bir işlemle kaydedilmiş. Listeyi yenileyip tekrar deneyin.";
 
-    internal static IResult Mutate(KasaDbContext db, Func<IResult> action)
+    /// <summary>Salt okunur uç: işlem tutarlı okuma anlık görüntüsünde (DEFERRED, yazmaya kapalı) çalışır; yazma kilidi
+    /// almaz. Veritabanı hatası (ör. meşgul veritabanı → 503) <see cref="VeritabaniHataSiniflandirici"/> ile yanıtlanır.</summary>
+    internal static IResult Oku(KasaDbContext db, Func<IResult> action)
+    {
+        try
+        {
+            using var snapshot = db.OkumaBaslat();
+            return action();
+        }
+        catch (Exception e) when (VeritabaniHataSiniflandirici.Siniflandir(e) is { } hata) { return new VeritabaniHataSonucu(hata, e); }
+    }
+
+    /// <summary>Yazma ucu: işlem tek yazma transaction'ında çalışır; 400 ve üstü sonuç geri alınır. Veritabanı hatası genel
+    /// kuralla (<see cref="VeritabaniHataSiniflandirici"/>) yanıtlanır ve loglanır: kilit beklemesi 503 + Retry-After, UNIQUE ve
+    /// sürüm çakışması 409, kodun doğrulamadığı bütünlük hatası (FK, CHECK) 500. <paramref name="cakismaIletisi"/> UNIQUE
+    /// çakışmasında bağlama özgü iletidir (ör. aynı anda kaydedilen ödeme); verilmezse genel ileti kullanılır.</summary>
+    internal static IResult Mutate(KasaDbContext db, Func<IResult> action, string? cakismaIletisi = null)
     {
         try
         {
@@ -240,13 +340,7 @@ public static class AlisEndpoints
             transaction.Commit();
             return result;
         }
-        catch (DbUpdateConcurrencyException) { return VersionConflict(); }
-        catch (SqliteException e) when (e.SqliteErrorCode == 19 && e.Message.Contains("Kilitli ay", StringComparison.Ordinal))
-        { return Conflict("Bu tarih kilitli dönemde. Değişiklik için ilgili ayı gerekçeyle açın."); }
-        catch (DbUpdateException e) when (e.InnerException is SqliteException { SqliteErrorCode: 19 or 5 or 6 })
-        { return Conflict("Bağlı kayıt değişmiş veya başka bir ödeme kaydedilmiş. Listeyi yenileyin."); }
-        catch (SqliteException e) when (e.SqliteErrorCode is 19 or 5 or 6)
-        { return Conflict("Başka bir kayıt işlemiyle çakışma oldu. Listeyi yenileyip tekrar deneyin."); }
+        catch (Exception e) when (VeritabaniHataSiniflandirici.Siniflandir(e, cakismaIletisi) is { } hata) { return new VeritabaniHataSonucu(hata, e); }
     }
 
     private static string Digest(int alisId, AlisOdemeYaz dto)
@@ -258,6 +352,10 @@ public static class AlisEndpoints
             dto.MevcutIslemId, not = dto.Not?.Trim()
         });
         if (dto.HesapId is { } hesap) payload += "|hesap:" + hesap.ToString(CultureInfo.InvariantCulture);
+        // Sonradan eklenen alan yalnız doluyken eklenir: eski isteklerin özeti değişmez.
+        if (dto.MevcutKartHarcamaId is { } harcama) payload += "|kartHarcama:" + harcama.ToString(CultureInfo.InvariantCulture);
+        if (dto.TaksitSayisi is { } taksit) payload += "|taksit:" + taksit.ToString(CultureInfo.InvariantCulture);
+        if (dto.IlkKesimTarihi is { } ilkKesim) payload += "|ilkKesim:" + ilkKesim.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
     }
 }

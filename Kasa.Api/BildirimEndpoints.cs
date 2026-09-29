@@ -18,6 +18,7 @@ public static class BildirimEndpoints
     {
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<PushKimligi>();
+        services.AddSingleton<BildirimSagligi>();
         services.AddSingleton<IPushGonderici, WebPushGonderici>();
         services.AddSingleton<IBildirimKaynaklari, FinansBildirimKaynaklari>();
         services.AddScoped<BildirimServisi>();
@@ -36,8 +37,8 @@ public static class BildirimEndpoints
                 .OrderByDescending(x => x.Tarih).ThenByDescending(x => x.Id).Take(200)
                 .Select(x => new { x.Id, x.Baslik, x.Mesaj, x.Tarih, x.Okundu, x.Hedef, x.Tur, x.KaynakId }).ToListAsync(ct));
         });
-        group.MapGet("/ayarlar", (BildirimServisi service) => Results.Ok(AyarDto(service.Ayarlar())));
-        group.MapPut("/ayarlar", async (BildirimAyarYaz input, KasaDbContext db, BildirimServisi service, CancellationToken ct) =>
+        group.MapGet("/ayarlar", (BildirimServisi service, BildirimSagligi saglik) => Results.Ok(AyarDto(service.Ayarlar(), saglik)));
+        group.MapPut("/ayarlar", async (BildirimAyarYaz input, KasaDbContext db, BildirimServisi service, BildirimSagligi saglik, CancellationToken ct) =>
         {
             if (input.Saat is < 0 or > 23 || input.Dakika is < 0 or > 59 || input.Surum < 1)
                 return Results.BadRequest(new { hata = "Geçerli saat ve dakika seçin." });
@@ -45,7 +46,7 @@ public static class BildirimEndpoints
             var changed = await db.Set<BildirimAyarEntity>().Where(x => x.Id == 1 && x.Surum == input.Surum)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, input.Etkin).SetProperty(x => x.Saat, input.Saat)
                     .SetProperty(x => x.Dakika, input.Dakika).SetProperty(x => x.Surum, x => x.Surum + 1), ct);
-            return changed == 1 ? Results.Ok(AyarDto(service.Ayarlar()))
+            return changed == 1 ? Results.Ok(AyarDto(service.Ayarlar(), saglik))
                 : Results.Conflict(new { hata = "Bildirim ayarları değişti. Yenileyip tekrar deneyin." });
         });
         group.MapPost("/{id:int}/okundu", async (int id, KasaDbContext db, CancellationToken ct) =>
@@ -83,11 +84,14 @@ public static class BildirimEndpoints
             await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
             return Results.Ok(new { row.Id, row.CihazAdi });
         }).RequireRateLimiting("guvenlik");
-        group.MapDelete("/push/abonelik", async ([Microsoft.AspNetCore.Mvc.FromBody] PushEndpointYaz input, KasaDbContext db, CancellationToken ct) =>
+        // Cihaz kaldırma veritabanı dışındaki güvenlik günlüğüne de yazılır (yalnız kayıt kimliği; uç adresi yazılmaz).
+        group.MapDelete("/push/abonelik", async ([Microsoft.AspNetCore.Mvc.FromBody] PushEndpointYaz input, KasaDbContext db, GuvenlikGunlugu gunluk, CancellationToken ct) =>
         {
             if (!PushDogrulama.Endpoint(input.Endpoint)) return Results.BadRequest(new { hata = "Geçersiz abonelik." });
+            var kayitlar = await db.Set<PushAbonelikEntity>().Where(x => x.Endpoint == input.Endpoint && x.Etkin).Select(x => x.Id).ToListAsync(ct);
             await db.Set<PushAbonelikEntity>().Where(x => x.Endpoint == input.Endpoint)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
+            foreach (var kayit in kayitlar) gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, kayit);
             return Results.NoContent();
         });
         group.MapGet("/push/abonelikler", async (KasaDbContext db, CancellationToken ct) =>
@@ -97,14 +101,15 @@ public static class BildirimEndpoints
                 Olusturuldu = DateTimeOffset.FromUnixTimeSeconds(x.Olusturuldu),
                 SonBasarili = x.SonBasarili is { } last ? (DateTimeOffset?)DateTimeOffset.FromUnixTimeSeconds(last) : null, x.Etkin }));
         });
-        group.MapDelete("/push/abonelikler/{id:int}", async (int id, KasaDbContext db, CancellationToken ct) =>
+        group.MapDelete("/push/abonelikler/{id:int}", async (int id, KasaDbContext db, GuvenlikGunlugu gunluk, CancellationToken ct) =>
         {
             var changed = await db.Set<PushAbonelikEntity>().Where(x => x.Id == id)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
+            if (changed == 1) gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, id);
             return changed == 1 ? Results.NoContent() : Results.NotFound();
         });
         group.MapPost("/test", async (PushEndpointYaz input, KasaDbContext db, IPushGonderici sender,
-            IConfiguration cfg, TimeProvider clock, CancellationToken ct) =>
+            IConfiguration cfg, TimeProvider clock, BildirimSagligi saglik, CancellationToken ct) =>
         {
             if (!PushDogrulama.Endpoint(input.Endpoint)) return Results.BadRequest(new { hata = "Önce bu cihazda bildirimleri aç." });
             var row = await db.Set<PushAbonelikEntity>().AsNoTracking().SingleOrDefaultAsync(x => x.Endpoint == input.Endpoint && x.Etkin, ct);
@@ -112,16 +117,30 @@ public static class BildirimEndpoints
                 return Results.BadRequest(new { hata = "Önce bu cihazda bildirimleri yeniden aç." });
             var result = await sender.Gonder(row, new(0, "Emar Kasa", "Bu cihazın bildirim denemesi. Kart ve kredi hatırlatmaları burada görünecek.", "/#notifications", "kasa-test"), 60, ct);
             if (result == PushSonuc.Basarili)
+            {
+                saglik.GonderimBasarili();
                 await db.Set<PushAbonelikEntity>().Where(x => x.Id == row.Id)
                     .ExecuteUpdateAsync(p => p.SetProperty(x => x.SonBasarili, (long?)clock.GetUtcNow().ToUnixTimeSeconds()), ct);
+            }
             if (result == PushSonuc.AbonelikBitti)
                 await db.Set<PushAbonelikEntity>().Where(x => x.Id == row.Id).ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
-            return Results.Ok(new { basarili = result == PushSonuc.Basarili, mesaj = result == PushSonuc.Basarili
-                ? "Bildirim hizmetine iletildi. Cihazında görünüp görünmediğini kontrol et."
-                : "Bildirim iletilemedi. Cihaz iznini kontrol edip yeniden dene." });
+            // Sunucu anahtarı bozuksa cihaz izni sorun değildir; editör bunu yöneticiye iletebilsin.
+            if (result == PushSonuc.YapilandirmaHatasi)
+                saglik.GonderimHatasi("Sunucudaki bildirim anahtarı hatalı yapılandırılmış; cihaz bildirimleri gönderilemiyor.", clock.GetUtcNow());
+            return Results.Ok(new { basarili = result == PushSonuc.Basarili, mesaj = result switch
+            {
+                PushSonuc.Basarili => "Bildirim hizmetine iletildi. Cihazında görünüp görünmediğini kontrol et.",
+                PushSonuc.YapilandirmaHatasi => "Sunucudaki bildirim anahtarı hatalı yapılandırılmış. Yöneticiye bildir.",
+                _ => "Bildirim iletilemedi. Cihaz iznini kontrol edip yeniden dene."
+            } });
         }).RequireRateLimiting("guvenlik");
         return app;
     }
 
-    private static object AyarDto(BildirimAyarEntity x) => new { x.Etkin, x.Saat, x.Dakika, saatDilimi = "Europe/Istanbul", x.Surum };
+    // sonHata: bildirim hattının son sunucu hatası (tur ya da anahtar); ayrıntısı sunucu kaydındadır.
+    private static object AyarDto(BildirimAyarEntity x, BildirimSagligi saglik)
+    {
+        var hata = saglik.Son;
+        return new { x.Etkin, x.Saat, x.Dakika, saatDilimi = "Europe/Istanbul", x.Surum, sonHata = hata?.Mesaj, sonHataZamani = hata?.An };
+    }
 }

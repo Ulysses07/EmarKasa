@@ -10,6 +10,9 @@ public class KanalEntity
     public bool Aktif { get; set; } = true;
     public int Sira { get; set; }
     public decimal AcilisDevri { get; set; }
+    /// <summary>İyimser eşzamanlılık belirteci (contract-6): kayıt her değiştiğinde bir artar (KasaDbContext kaydetme kancası;
+    /// ham SQL gelir upsert'ünde elle). Yazma isteği sürüm gönderirse uyuşmazlıkta 409 döner; göndermeyen eski istemci denetlenmez.</summary>
+    public int Surum { get; set; }
 }
 
 public class CariEntity
@@ -34,6 +37,8 @@ public class IslemEntity
     public int? KrediKartiId { get; set; }
     [JsonIgnore]
     public HesapHareketEntity? HesapHareketi { get; set; }
+    /// <summary>İyimser eşzamanlılık belirteci (bkz. <see cref="KanalEntity.Surum"/>).</summary>
+    public int Surum { get; set; }
 }
 
 public class GelenEntity
@@ -47,6 +52,9 @@ public class GelenEntity
     public decimal TutarTl { get; set; }
     /// <summary>Eski aynı dönem/kanal grubunun bütün satırları korunur ve tutarları değiştirilemez.</summary>
     public bool EskiYinelenenGrup { get; set; }
+    /// <summary>İyimser eşzamanlılık belirteci (bkz. <see cref="KanalEntity.Surum"/>). Migration öncesi satırlar 0; PUT /api/gelenler
+    /// yeni satırı 1 ile ekler: satır görmeden 0 gönderen istemci, arada eklenmiş satırın üzerine yazamaz.</summary>
+    public int Surum { get; set; }
 }
 
 /// <summary>Tek satırlık uygulama ayarları.</summary>
@@ -56,6 +64,9 @@ public class AyarEntity
     public DateOnly TakipBaslangic { get; set; }
     public decimal KasaAcilisDevri { get; set; }
     public string? IzleyiciSifreHash { get; set; }
+    /// <summary>İyimser eşzamanlılık belirteci (bkz. <see cref="KanalEntity.Surum"/>): takip başlangıcı ve açılış devri formu için;
+    /// izleyici şifresi değişikliği ayrı formdur, sürümü artırmaz.</summary>
+    public int Surum { get; set; }
 }
 
 public class KrediKartiEntity

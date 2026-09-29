@@ -15,6 +15,8 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
                 if (s.Veri.Durum == "Odendi") { var oturum = vm.OturumNesli; var gerekce = await GerekceAsync("Aylık gider ödemesini iptal et"); if (!string.IsNullOrWhiteSpace(gerekce)) await vm.IptalAsync(s, gerekce, oturum); }
                 else vm.OdemeSec(s);
             }, "Ödemeyi aç / iptal et", _ => vm.EditorMu)));
+        Govde.Add(Goster(Kart("İptal edilen ödemeler", Metin("İptal edilen ödeme kasaya yansımaz ve ay toplamlarına girmez; planı yukarıda yeniden ödeme bekler."),
+            Liste<AylikGiderIptalSatiri>(nameof(vm.Iptaller))), nameof(vm.IptalVar)));
         Govde.Add(Editor(Goster(Kart("Bu ayın ödemesini kaydet", Bagli(nameof(vm.OdemeEtkisi)), Alan("Gerçek ödeme tarihi", Tarih(nameof(vm.OdemeTarihi))), Alan("Not / dekont açıklaması", Girdi(nameof(vm.OdemeNotu))),
             Onay("Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.", nameof(vm.OdemeOnay)), Dugme("Nakit / havale ödemesini kaydet", nameof(vm.OdeCommand))), nameof(vm.OdemeSecili))));
         Govde.Add(Kart("Düzenli gider şablonları", Metin("Kaydedilmiş ödemelerin tutarı ve kanal payları sabit kalır. Değişiklikler seçilen geçerlilik ayından itibaren uygulanır."),

@@ -4,6 +4,11 @@
 > 19 Eylül 2026 sağlamlaştırmasıyla `KasaDatabaseInitializer` ve EF migrations eklendi.
 > Güncel, veri koruyan süreç: [Veritabanı yükseltme](database-upgrade.md).
 > Aşağıdaki içerik yalnız eski `EnsureCreated` sorununun kaydı olarak korunuyor.
+>
+> Tarihsel: bu sayfadaki `./kasa-data:/data` bağlaması, `/opt/kasa/deploy/kasa-data` yolları, rsync komutu ve
+> "Hızlı Başvuru" tablosu 2.0 öncesi düzene aittir. `/opt/kasa/deploy/kasa-data` artık korunmuş **eski**
+> veritabanıdır ve `/data`'ya bağlanmaz. Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory`
+> = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR`; adımlar [deploy/README.md](../../deploy/README.md).
 
 ## Amaç & Neden Gerekli
 
@@ -151,6 +156,9 @@ exit
 
 ## 3. Backend Yeniden Dağıtım
 
+> Tarihsel: aşağıdaki rsync komutu `deploy/.env` dosyasını ve sunucudaki compose dosyasını dışlamaz;
+> güncel dağıtımda kullanmayın, [deploy/README.md](../../deploy/README.md) "Güncelleme" adımlarını izleyin.
+
 SPA kaldırılmış yeni imajı çek ve servisi yeniden başlat:
 
 ```bash
@@ -214,6 +222,8 @@ Bu adım tamamlandığında `MEMORY.md`'deki Emar Kasa native girişini şu şek
 ---
 
 ## Hızlı Başvuru
+
+> Tarihsel (2.0 öncesi) değerler; DB host yolu artık etkin veri dizini değildir.
 
 | Bilgi | Değer |
 |---|---|

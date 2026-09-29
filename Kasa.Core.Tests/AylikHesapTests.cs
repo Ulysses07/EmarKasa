@@ -136,4 +136,49 @@ public class AylikHesapTests
         Assert.Equal(toplamKurus / 100m, aylik.Kanallar.Sum(k => k.OrtakPay));
         Assert.Equal(haftalik.Sum(o => o.KasaSonucu), aylik.Kanallar.Sum(k => k.AySonucu));
     }
+
+    // core-1: ayın Ortak kümesi verilirse Ortak gider bugünkü Aktif bayrağına ve Sira'ya göre değil, o ayın kümesine VERİLEN SIRAYLA
+    // bölünür: ay tamamlandıktan sonra pasife alınan kanal o ayın payını almaya devam eder, sonradan açılan kanal almaz.
+    [Fact]
+    public void Verilen_ortak_kumesi_verilen_sirayla_bolunur_sonradan_pasiflesen_pay_alir_sonradan_acilan_almaz()
+    {
+        var kanallar = new[] { new Kanal("A"), new Kanal("B", Aktif: false), new Kanal("C"), new Kanal("YENI") };
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
+        var islemler = new[] { new Islem(new DateOnly(2026, 6, 10), "Kira", 100.01m, Kanallar.Ortak, GiderTipi.SabitGider) };
+
+        var aylik = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler, ortakKanallari: ["C", "A", "B"]);
+
+        // 10.001 kuruş / 3 = 3.333, 2 artık: artık kuruşlar kümenin ilk iki kanalına (C, A).
+        Assert.Equal(new[] { ("A", 33.34m), ("B", 33.33m), ("C", 33.34m), ("YENI", 0m) }, aylik.Kanallar.Select(k => (k.Kanal, k.OrtakPay)).ToArray());
+        Assert.Equal(100.01m, aylik.Kanallar.Sum(k => k.OrtakPay));
+        Assert.Equal(-33.33m, aylik.Kanallar.Single(k => k.Kanal == "B").AySonucu);
+    }
+
+    [Fact]
+    public void Ortak_kumesi_sirasi_artik_kurusu_belirler_bos_kume_pay_uretmez()
+    {
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
+        var islemler = new[] { new Islem(new DateOnly(2026, 6, 10), "Kuruş", 0.01m, Kanallar.Ortak, GiderTipi.Cari) };
+        var kanallar = new[] { new Kanal("A"), new Kanal("B"), new Kanal("C") };
+
+        var ters = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler, ortakKanallari: ["C", "A"]);
+        Assert.Equal(new[] { 0m, 0m, 0.01m }, ters.Kanallar.Select(k => k.OrtakPay).ToArray());
+
+        // Boş küme: o ay Ortak gideri bölecek kanal yoktu (bugünkü davranışta aktif kanal yokken olduğu gibi).
+        var bos = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler, ortakKanallari: []);
+        Assert.All(bos.Kanallar, k => Assert.Equal(0m, k.OrtakPay));
+        // Verilmezse bugünkü davranış: aktif kanallar liste sırasıyla.
+        Assert.Equal(new[] { 0.01m, 0m, 0m }, HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler).Kanallar.Select(k => k.OrtakPay).ToArray());
+    }
+
+    [Theory]
+    [InlineData("YOK")]
+    [InlineData("A,A")]
+    public void Ortak_kumesinde_bilinmeyen_ya_da_yinelenen_kanal_reddedilir(string kume)
+    {
+        var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
+        var hata = Assert.Throws<ArgumentException>(() => HesapMotoru.AylikHesapla(2026, 6, [new Kanal("A")], [], [], donemler,
+            ortakKanallari: kume.Split(',')));
+        Assert.Equal("ortakKanallari", hata.ParamName);
+    }
 }

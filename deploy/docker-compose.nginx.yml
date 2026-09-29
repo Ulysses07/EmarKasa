@@ -1,7 +1,17 @@
 # Bağımsız VPS dağıtımı — mevcut sistem nginx'i reverse proxy olarak kullanılır.
 # Konteyner yalnızca 127.0.0.1:8080 dinler (dışarı kapalı); nginx 80/443'ten
 # kasa.<domain> için proxy_pass eder ve certbot TLS'i sağlar.
-# Çalıştır: cd deploy && docker compose -f docker-compose.nginx.yml up -d --build
+#
+# Veri (/data) ve yedek (/yedekler) dizini ZORUNLU olarak deploy/.env içindeki
+# KASA_DATA_DIR ve KASA_BACKUP_DIR değişkenlerinden gelir; tanımsız veya boşsa
+# `docker compose` hata verip durur. Varsayılan dizin bilerek yoktur: deploy/ altındaki
+# ./kasa-data 2.0 öncesinden korunmuş ESKİ veritabanıdır; /data'ya asla bağlamayın.
+# Etkin dizin = son yayın manifestinin dataDirectory alanı = KASA_DATA_DIR = çalışan
+# konteynerin /data bağlama kaynağı (docker inspect kasa-app). Ayrıntı: deploy/README.md.
+# Önce doğrula: cd deploy && docker compose -f docker-compose.nginx.yml config
+# Derle:        cd deploy && docker compose -f docker-compose.nginx.yml build --pull kasa
+# Çalıştır:     cd deploy && docker compose -f docker-compose.nginx.yml up -d
+# ('up -d --build' önbellekteki temel imajla derler; güncelleme adımları: deploy/README.md "Güncelleme".)
 services:
   kasa:
     build:
@@ -15,14 +25,27 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       TZ: Europe/Istanbul
       ConnectionStrings__Kasa: "Data Source=/data/kasa.db"
+      # Alış belgeleri ve ekstre PDF'leri veritabanında değil bu içerik adresli depoda (<ab>/<SHA-256>); veri diziniyle
+      # birlikte taşınır ve yedeklenir. Değiştirmeyin: geçişte içerikler buraya taşınır (docs/deploy/database-upgrade.md).
+      Belge__Dizin: "/data/belgeler"
       Kasa__JwtKey: "${KASA_JWT_KEY}"
       Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
       Yedek__Etkin: "true"
       Yedek__Dizin: "/yedekler"
+    # Uzun sözdizimi + create_host_path: false: kaynak yol yoksa Docker boş dizin AÇMAZ, 'up' hata verir.
+    # Kısa "kaynak:/data" sözdizimine dönmeyin; yazım hatalı yol boş veritabanıyla açılışa yol açar.
     volumes:
-      - ./kasa-data:/data
-      - ./kasa-backups:/yedekler
+      - type: bind
+        source: "${KASA_DATA_DIR:?KASA_DATA_DIR deploy/.env içinde etkin veri dizinine (yayın manifesti dataDirectory) ayarlanmalı; bkz. deploy/README.md}"
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${KASA_BACKUP_DIR:?KASA_BACKUP_DIR deploy/.env içinde etkin yedek dizinine ayarlanmalı; bkz. deploy/README.md}"
+        target: /yedekler
+        bind:
+          create_host_path: false
     ports:
       # Yalnızca localhost'a bağla — public erişim nginx üzerinden.
       - "127.0.0.1:8080:8080"

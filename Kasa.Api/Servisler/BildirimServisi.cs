@@ -1,23 +1,97 @@
+using System.Diagnostics;
 using System.Globalization;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
 
+/// <summary>Hesaplanamayan bildirim kaynağı (kart, kredi, kasa alt sınırı). Diğer kaynakların hatırlatmalarını durdurmaz.</summary>
+public record BildirimKaynakHatasi(string Kaynak, int KaynakId, string Ad, Exception Hata);
+
 public interface IBildirimKaynaklari
 {
-    IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today);
+    /// <summary>Hesaplanamayan kart/kredi atlanıp <paramref name="hatalar"/>'a eklenir; diğerlerinin olayları döner.</summary>
+    IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar);
 }
+
+/// <summary><see cref="FinansTakipServisi.GetNotificationEvents"/> ile aynı olayları aynı kuraldan
+/// (<see cref="FinansTakipServisi.KartOlaylari"/>, <see cref="FinansTakipServisi.KrediOlaylari"/>; takipsiz kayıtlar için
+/// <see cref="EskiModelOlaylari"/>) üretir; farkı her kart ve
+/// kredinin ayrı hesaplanmasıdır: bozuk bir kayıt atlanır, ötekilerin hatırlatmaları sürer. Yeni kart hareketleri kısa ve ayrı
+/// bir yazma adımında eşitlenir; hesabın kendisi yazma kilidi almadan, salt okunur anlık görüntüde (<see cref="OkumaAnlikGoruntusu"/>)
+/// ve tur boyunca paylaşılan izlemesiz hesap bağlamıyla (<see cref="TakipHesapBaglami"/>) yapılır: eşitlemenin izlediği
+/// kayıtlar değil, anlık görüntünün verisi okunur.</summary>
 public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
 {
-    public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today) => FinansTakipServisi.GetNotificationEvents(db, today);
+    public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar)
+    {
+        // Eşitlenemeyen hareketler kayıtlı veriyle okumayı durdurmaz; hata ayrıca bildirilir.
+        Dene(db, hatalar, "Kart", 0, "Kart hareketleri eşitlemesi", () =>
+        {
+            using var yazma = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
+            FinansTakipServisi.Sync(db); yazma?.Commit();
+        });
+        using var okuma = db.OkumaBaslat();
+        // Hesaplanamayan kart bağlamda yarım sonuç bırakmaz (paylar ve etkiler yalnız başarıyla hesaplanınca saklanır).
+        var baglam = new TakipHesapBaglami(db);
+        var result = new List<TakipOlayDto>();
+        var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
+        foreach (var card in db.TakipKartlar.AsNoTracking().ToList())
+            Dene(db, hatalar, "Kart", card.KrediKartiId, kartAdlari.GetValueOrDefault(card.KrediKartiId, $"Kart #{card.KrediKartiId}"), () =>
+            {
+                // Olaylar önce tamamlanır: hesap yarıda kalırsa karttan yarım olay listesi eklenmez.
+                result.AddRange(FinansTakipServisi.KartOlaylari(FinansTakipServisi.Kart(baglam, card.KrediKartiId), card.Aktif).ToList());
+            });
+        var krediAdlari = db.Krediler.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
+        foreach (var loan in db.TakipKrediler.AsNoTracking().ToList())
+            Dene(db, hatalar, "Kredi", loan.KrediId, krediAdlari.GetValueOrDefault(loan.KrediId, $"Kredi #{loan.KrediId}"), () =>
+            {
+                result.AddRange(FinansTakipServisi.KrediOlaylari(FinansTakipServisi.Kredi(baglam, loan.KrediId)).ToList());
+            });
+        // Takipsiz (geçişi yapılmamış) kart ve krediler eski modelin hesabıyla, aynı yalıtımla (gap-tarihsel-spec-ve-emekli-web-7).
+        foreach (var id in EskiModelOlaylari.TakipsizKartlar(db))
+            Dene(db, hatalar, "Kart", id, kartAdlari.GetValueOrDefault(id, $"Kart #{id}"), () => result.AddRange(EskiModelOlaylari.Kart(baglam, id)));
+        foreach (var id in EskiModelOlaylari.TakipsizKrediler(db))
+            Dene(db, hatalar, "Kredi", id, krediAdlari.GetValueOrDefault(id, $"Kredi #{id}"), () => result.AddRange(EskiModelOlaylari.Kredi(baglam, id)));
+        return result;
+    }
+
+    private static void Dene(KasaDbContext db, ICollection<BildirimKaynakHatasi> hatalar, string kaynak, int id, string ad, Action hesap)
+    {
+        try { hesap(); }
+        catch (Exception e) when (!BildirimHatalari.Gecici(e))
+        {
+            // Yarım kalan izlenen değişiklikler sonraki SaveChanges ile yazılmasın.
+            db.ChangeTracker.Clear();
+            hatalar.Add(new(kaynak, id, ad, e));
+        }
+    }
+}
+
+internal static class BildirimHatalari
+{
+    /// <summary>Kayda özgü olmayan hata: iptal, kilit beklemesi (SQLITE_BUSY/LOCKED) ve veritabanının kendi arızası (disk, dosya,
+    /// bellek, bozulma: IOERR, FULL, CANTOPEN, CORRUPT...; bkz. <see cref="VeritabaniHataSiniflandirici.Altyapi"/>). Bunlar bir
+    /// kartın ya da kredinin hesaplanamadığını göstermez: kaynak "bozuk" işaretlenmez (hatırlatmaları iptal edilmez, editöre
+    /// yanlış kayıt uyarısı gitmez), tur yarım veriyle sürmez; işçi hatayı loglar ve sonraki turda yeniden dener. Geçmeyen
+    /// arıza (dolu disk, bozuk dosya) ardışık tur hatası olarak görünür ve Critical'a yükselir.</summary>
+    public static bool Gecici(Exception e) => e switch
+    {
+        OperationCanceledException => true,
+        SqliteException s => VeritabaniHataSiniflandirici.Mesgul(s) || VeritabaniHataSiniflandirici.Altyapi(s),
+        { InnerException: { } ic } => Gecici(ic),
+        _ => false
+    };
 }
 
 public record BildirimTaslagi(string Anahtar, string Baslik, string Mesaj, DateOnly Tarih, string Hedef, string Tur, int KaynakId);
 
 public static class BildirimTakvimi
 {
+    private const string EskiKartNotu = "Kart yeni takipte olmadığı için yeni ödeme ve harcamalar bu tutara yansımaz; bankadaki ekstreyi kontrol edip Kartlar ekranından geçişi yapın.";
+
     public static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
     public static DateTime Yerel(DateTimeOffset utc) => TimeZoneInfo.ConvertTime(utc, Istanbul).DateTime;
 
@@ -34,24 +108,117 @@ public static class BildirimTakvimi
             var key = $"{e.Kaynak}:{e.KaynakId}:{e.KalemId}:{e.Tur}:{e.Tarih:yyyy-MM-dd}:{offset}";
             var amount = e.Tutar.ToString("N2", CultureInfo.GetCultureInfo("tr-TR")) + " TL";
             var title = e.Tur == "Kesim" ? "Bugün hesap kesim günü" : offset == 3 ? "Ödemeye 3 gün kaldı" : "Bugün ödeme günü";
-            var message = e.Tur == "Kesim"
-                ? $"{e.Ad}: kayıtlı ekstre borcu {amount}. Kasadan ancak ödeme kaydettiğinde düşer."
-                : isCard ? $"{e.Ad}: kalan ödeme {amount}. Son gün {e.Tarih:dd.MM.yyyy}."
-                : $"{e.Ad}: taksit {amount}, {e.Tarih:dd.MM.yyyy}. " + (offset == 0
+            // Takipsiz eski kart (EskiModel): tutar eski kayıtlardan hesaplanır, kasa ödeme kaydıyla değişmez; geçiş istenir.
+            // Taksidi kasaya otomatik işlenmeyen kredi yalnız gerçekleşme takipli eski kredidir.
+            var message = (e.Tur, isCard, e.EskiModel) switch
+            {
+                ("Kesim", _, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. {EskiKartNotu}",
+                ("Kesim", _, false) => $"{e.Ad}: kayıtlı ekstre borcu {amount}. Kasadan ancak ödeme kaydettiğinde düşer.",
+                (_, true, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. Son gün {e.Tarih:dd.MM.yyyy}. {EskiKartNotu}",
+                (_, true, false) => $"{e.Ad}: kalan ödeme {amount}. Son gün {e.Tarih:dd.MM.yyyy}.",
+                _ => $"{e.Ad}: taksit {amount}, {e.Tarih:dd.MM.yyyy}. " + (!e.OtomatikKasa
+                    ? "Bu kredinin taksidi kasaya otomatik işlenmez; bankadaki ödemeyi kontrol et."
+                    : offset == 0
                     ? "Taksit bugün kasaya otomatik işlendi; bankadaki ödemeyi ayrıca kontrol et."
-                    : "Taksit tarihinde ilgili kanal kasalarından otomatik düşecek.");
+                    : "Taksit tarihinde ilgili kanal kasalarından otomatik düşecek.")
+            };
             result.Add(new(key, title, message, today, isCard ? $"/#cards/{e.KaynakId}" : $"/#loans/{e.KaynakId}", e.Tur, e.KaynakId));
         }
         return result;
     }
+
+    /// <summary>Hesaplanamayan kaynak için editöre günde bir kez giden uyarı: o kaynağın hatırlatmaları sessizce durmaz.</summary>
+    public static BildirimTaslagi Hata(BildirimKaynakHatasi h, DateOnly today)
+    {
+        var hedef = h.Kaynak switch
+        {
+            "Kart" => h.KaynakId > 0 ? $"/#cards/{h.KaynakId}" : "/#cards",
+            "Kredi" => $"/#loans/{h.KaynakId}",
+            _ => "/#home"
+        };
+        return new($"Hata:{h.Kaynak}:{h.KaynakId}:{today:yyyy-MM-dd}", "Kayıt hesaplanamadı",
+            $"{h.Ad}: kayıt hesaplanamadığı için hatırlatmaları eksik ya da güncel olmayabilir. Kaydı açıp kontrol et; sorun sürerse yöneticiye bildir.",
+            today, hedef, "Hata", h.KaynakId);
+    }
+}
+
+/// <summary>Bildirim hattının son sunucu hatası; ayarlar yanıtında (sonHata) editöre görünür. Ayrıntı ve yığın izi
+/// sunucu kaydındadır. Tur hatası başarılı turla, gönderim (yapılandırma) hatası başarılı gönderimle temizlenir.</summary>
+public sealed class BildirimSagligi
+{
+    private readonly object gate = new();
+    private (string Mesaj, DateTimeOffset An)? tur, gonderim;
+    private readonly Dictionary<(string Kaynak, int KaynakId, string HataTuru), DateTimeOffset> kaynakHatalari = [];
+
+    /// <summary>
+    /// Bu hesabın kaynak hatalarından hangilerinin Error olarak yazılacağı (aynı sırayla). Kalıcı bozuk bir kaynak her turda
+    /// (dakikada bir) aynı hatayı üretir: aynı (kaynak, kimlik, hata türü) en çok <paramref name="aralik"/>'ta bir kez yazılır.
+    /// Bu hesapta hata vermeyen kaynakların kaydı silinir: iyileşip yeniden bozulan kaynak ya da yeni bir hata türü beklemeden yazılır.
+    /// </summary>
+    public IReadOnlyList<bool> KaynakHatalariYazilsin(IReadOnlyList<BildirimKaynakHatasi> hatalar, DateTimeOffset an, TimeSpan aralik)
+    {
+        var anahtarlar = hatalar.Select(h => (h.Kaynak, h.KaynakId, h.Hata.GetType().FullName ?? h.Hata.GetType().Name)).ToList();
+        lock (gate)
+        {
+            foreach (var eski in kaynakHatalari.Keys.Except(anahtarlar).ToList()) kaynakHatalari.Remove(eski);
+            return anahtarlar.Select(a =>
+            {
+                if (kaynakHatalari.TryGetValue(a, out var son) && an - son < aralik) return false;
+                kaynakHatalari[a] = an; return true;
+            }).ToList();
+        }
+    }
+
+    public (string Mesaj, DateTimeOffset An)? Son { get { lock (gate) return tur ?? gonderim; } }
+    public void TurHatasi(string mesaj, DateTimeOffset an) { lock (gate) tur = (mesaj, an); }
+    public void TurBasarili() { lock (gate) tur = null; }
+    public void GonderimHatasi(string mesaj, DateTimeOffset an) { lock (gate) gonderim = (mesaj, an); }
+    public void GonderimBasarili() { lock (gate) gonderim = null; }
 }
 
 public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari sources, IPushGonderici sender,
-    IConfiguration cfg, TimeProvider clock)
+    IConfiguration cfg, TimeProvider clock, BildirimSagligi saglik, ILogger<BildirimServisi> logger)
 {
-    private IReadOnlyList<BildirimTaslagi> Taslaklar(DateOnly today, bool yeniUyariEtkin) =>
-        BildirimTakvimi.Olustur(sources.Oku(db, today), today)
-            .Concat(KasaEsikServisi.Oku(db, today, yeniUyariEtkin)).ToList();
+    /// <summary>Logları isteğe/tura bağlayan kimlik: istek içinde TraceId, işçide yeni tur kimliği.</summary>
+    public string Iz { get; } = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N")[..12];
+
+    /// <summary>Kalıcı bozuk kaynağın aynı hatasının Error olarak yeniden yazılma aralığı; aradaki tekrarlar Debug'dadır.
+    /// Editöre giden günlük uyarı bildirimi bu sıklıktan etkilenmez.</summary>
+    public static readonly TimeSpan KaynakHatasiLogAraligi = TimeSpan.FromHours(1);
+
+    // Her kaynak (kart, kredi, kasa alt sınırı) ayrı yalıtılır; hesaplanamayan kaynak loglanır ve editöre uyarı olur.
+    private IReadOnlyList<BildirimTaslagi> Taslaklar(DateOnly today, bool yeniUyariEtkin)
+    {
+        var hatalar = new List<BildirimKaynakHatasi>();
+        var olaylar = sources.Oku(db, today, hatalar);
+        IReadOnlyList<BildirimTaslagi> esik = [];
+        try { esik = KasaEsikServisi.Oku(db, today, yeniUyariEtkin); }
+        catch (Exception e) when (!BildirimHatalari.Gecici(e))
+        {
+            // Yarım kalan alarm durumu sonraki SaveChanges ile yazılmasın.
+            db.ChangeTracker.Clear();
+            hatalar.Add(new("KasaEsik", 0, "Kasa alt sınırı denetimi", e));
+        }
+        var yazilsin = saglik.KaynakHatalariYazilsin(hatalar, clock.GetUtcNow(), KaynakHatasiLogAraligi);
+        for (var i = 0; i < hatalar.Count; i++)
+        {
+            var h = hatalar[i];
+            if (yazilsin[i])
+                logger.LogError(h.Hata, "Bildirim kaynağı hesaplanamadı: {Kaynak} #{KaynakId} ({Ad}), iz {Iz}. Diğer hatırlatmalar sürüyor.",
+                    h.Kaynak, h.KaynakId, h.Ad, Iz);
+            else
+                logger.LogDebug("Bildirim kaynağı hâlâ hesaplanamıyor: {Kaynak} #{KaynakId} ({Ad}), {HataTuru}, iz {Iz}. Aynı hata en çok {Aralik} dakikada bir Error olarak yazılır.",
+                    h.Kaynak, h.KaynakId, h.Ad, h.Hata.GetType().Name, Iz, KaynakHatasiLogAraligi.TotalMinutes);
+        }
+        return [.. BildirimTakvimi.Olustur(olaylar, today), .. esik, .. hatalar.Select(h => BildirimTakvimi.Hata(h, today))];
+    }
+
+    private static Dictionary<string, BildirimTaslagi> Sozluk(IEnumerable<BildirimTaslagi> taslaklar)
+    {
+        var result = new Dictionary<string, BildirimTaslagi>(StringComparer.Ordinal);
+        foreach (var t in taslaklar) result.TryAdd(t.Anahtar, t);
+        return result;
+    }
 
     public BildirimAyarEntity Ayarlar()
     {
@@ -59,7 +226,9 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         return db.Set<BildirimAyarEntity>().AsNoTracking().Single(x => x.Id == 1);
     }
 
-    public async Task Yenile(CancellationToken ct = default)
+    public async Task Yenile(CancellationToken ct = default) => await YenileIc(ct);
+
+    private async Task<(DateOnly Gun, IReadOnlyList<BildirimTaslagi> Taslaklar)> YenileIc(CancellationToken ct)
     {
         var now = BildirimTakvimi.Yerel(clock.GetUtcNow());
         var today = DateOnly.FromDateTime(now); var settings = Ayarlar();
@@ -69,7 +238,7 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
         var todays = await db.Set<BildirimEntity>().Where(x => x.Tarih == today).ToListAsync(ct);
         foreach (var row in todays) row.Iptal = !keys.Contains(row.OlayAnahtari);
         await db.SaveChangesAsync(ct);
-        if (!settings.Etkin || now.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0)) return;
+        if (!settings.Etkin || now.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0)) return (today, drafts);
         foreach (var d in drafts)
         {
             await db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -82,16 +251,36 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
                 """, ct);
         }
         db.ChangeTracker.Clear();
+        return (today, drafts);
     }
 
     public async Task Gonder(CancellationToken ct = default)
     {
-        await Yenile(ct);
+        // Tur boyunca tek bağlantı: PRAGMA data_version yalnız başka bağlantıların commit'leriyle değişir ve
+        // "tur hesabından sonra veri değişti mi" sorusunu teslim başına tam hesap yapmadan yanıtlar.
+        await db.Database.OpenConnectionAsync(ct);
+        try { await GonderIc(ct); }
+        finally { await db.Database.CloseConnectionAsync(); }
+    }
+
+    private async Task<long> VeriSurumu(CancellationToken ct)
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "PRAGMA data_version";
+        return Convert.ToInt64(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+    }
+
+    private async Task GonderIc(CancellationToken ct)
+    {
+        // Sürüm hesaptan önce okunur: hesap sırasında gelen commit de teslimden önce yeniden hesaplatır.
+        var version = await VeriSurumu(ct);
+        var (day, computed) = await YenileIc(ct);
         var settings = Ayarlar();
         if (!settings.Etkin) return;
         var instant = clock.GetUtcNow(); var queryAt = instant.ToUnixTimeSeconds();
         var local = BildirimTakvimi.Yerel(instant); var today = DateOnly.FromDateTime(local);
-        if (local.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0)) return;
+        if (today != day || local.TimeOfDay < new TimeSpan(settings.Saat, settings.Dakika, 0)) return;
+        var drafts = Sozluk(computed);
         var stamp = OturumDamgasi.Uret("editor", cfg, db);
         var devices = await db.Set<PushAbonelikEntity>().Where(x => x.Etkin).AsNoTracking().ToListAsync(ct);
         foreach (var s in devices.Where(x => !OturumDamgasi.Esit(x.OturumDamgasi, stamp)))
@@ -105,9 +294,12 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
                 VALUES ({n.Id},{s.Id},0,0,0,0)
                 """, ct);
         var ids = notifications.Select(x => x.Id).ToArray();
+        // Kapanmış ya da silinmiş aboneliğin bekleyen teslimi kiralanmaz: her dakika dönmez, 100'lük kotayı tüketmez.
         var deliveries = await db.Set<BildirimTeslimEntity>().AsNoTracking()
             .Where(x => ids.Contains(x.BildirimId) && x.Gonderildi == null && !x.Iptal && x.Deneme < 5
-                && x.SonrakiDeneme <= queryAt && x.KilitBitis <= queryAt).OrderBy(x => x.Id).Take(100).ToListAsync(ct);
+                && x.SonrakiDeneme <= queryAt && x.KilitBitis <= queryAt
+                && db.Set<PushAbonelikEntity>().Any(s => s.Id == x.AbonelikId && s.Etkin))
+            .OrderBy(x => x.Id).Take(100).ToListAsync(ct);
         foreach (var d in deliveries)
         {
             ct.ThrowIfCancellationRequested();
@@ -123,27 +315,60 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
                     .SetProperty(x => x.Deneme, x => x.Deneme + 1), ct);
             if (claimed != 1) continue;
             var n = notifications.Single(x => x.Id == d.BildirimId);
-            var subscription = await db.Set<PushAbonelikEntity>().AsNoTracking().SingleAsync(x => x.Id == d.AbonelikId, ct);
-            // Recheck debt and session immediately before handing off to the external provider.
-            var current = Taslaklar(today, settings.Etkin).FirstOrDefault(x => x.Anahtar == n.OlayAnahtari);
-            var currentSettings = Ayarlar();
-            if (current is null || !currentSettings.Etkin || !subscription.Etkin
-                || localAttempt.TimeOfDay < new TimeSpan(currentSettings.Saat, currentSettings.Dakika, 0)
+            var subscription = await db.Set<PushAbonelikEntity>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == d.AbonelikId, ct);
+            // Ucuz denetimler önce: kapanmış, silinmiş ya da eski oturumlu aboneliğin teslimi hesap yapılmadan kalıcı kapanır.
+            if (subscription is null || !subscription.Etkin
                 || !OturumDamgasi.Esit(subscription.OturumDamgasi, OturumDamgasi.Uret("editor", cfg, db)))
             {
-                await db.Set<BildirimTeslimEntity>().Where(x => x.Id == d.Id && x.Kilit == token)
-                    .ExecuteUpdateAsync(p => p.SetProperty(x => x.SonrakiDeneme, now + 60)
-                        .SetProperty(x => x.KilitBitis, 0).SetProperty(x => x.Kilit, (string?)null)
-                        .SetProperty(x => x.Deneme, x => x.Deneme - 1), ct);
+                if (subscription is { Etkin: true })
+                    await db.Set<PushAbonelikEntity>().Where(x => x.Id == subscription.Id)
+                        .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
+                await Kapat(d.Id, token, ct);
                 continue;
             }
-            var result = await sender.Gonder(subscription, new(n.Id, current.Baslik, current.Mesaj, current.Hedef, $"kasa-{n.Id}"), ttl, ct);
+            var currentSettings = Ayarlar();
+            if (!currentSettings.Etkin || localAttempt.TimeOfDay < new TimeSpan(currentSettings.Saat, currentSettings.Dakika, 0))
+            {
+                await Ertele(d.Id, token, now, ct);
+                continue;
+            }
+            // Dış sağlayıcıya vermeden hemen önce borç yeniden denetlenir: tur hesabı, başka bir bağlantı commit edene
+            // (ör. ödeme kaydı) kadar geçerlidir; ancak o zaman yeniden hesaplanır.
+            var currentVersion = await VeriSurumu(ct);
+            if (currentVersion != version)
+            {
+                db.ChangeTracker.Clear();
+                version = currentVersion;
+                drafts = Sozluk(Taslaklar(today, currentSettings.Etkin));
+            }
+            if (!drafts.TryGetValue(n.OlayAnahtari, out var current))
+            {
+                await Ertele(d.Id, token, now, ct);
+                continue;
+            }
+            PushSonuc result;
+            try { result = await sender.Gonder(subscription, new(n.Id, current.Baslik, current.Mesaj, current.Hedef, $"kasa-{n.Id}"), ttl, ct); }
+            catch (Exception e) when (!ct.IsCancellationRequested)
+            {
+                // Bir cihazın beklenmeyen hatası ötekileri durdurmaz; geçici hata gibi yeniden denenir.
+                logger.LogError(e, "Bildirim #{BildirimId} abonelik #{AbonelikId} cihazına gönderilemedi (iz {Iz}); geçici hata sayıldı, yeniden denenecek.",
+                    n.Id, subscription.Id, Iz);
+                result = PushSonuc.GeciciHata;
+            }
             now = clock.GetUtcNow().ToUnixTimeSeconds();
+            if (result == PushSonuc.YapilandirmaHatasi)
+            {
+                // Sunucu anahtarı düzelene kadar hiçbir cihaza gönderilemez: deneme hakkı harcanmaz, tur burada durur.
+                await Ertele(d.Id, token, now, ct);
+                saglik.GonderimHatasi("Sunucudaki bildirim anahtarı hatalı yapılandırılmış; cihaz bildirimleri gönderilemiyor.", clock.GetUtcNow());
+                break;
+            }
             if (result == PushSonuc.AbonelikBitti)
                 await db.Set<PushAbonelikEntity>().Where(x => x.Id == subscription.Id)
                     .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
             if (result == PushSonuc.Basarili)
             {
+                saglik.GonderimBasarili();
                 await db.Set<PushAbonelikEntity>().Where(x => x.Id == subscription.Id)
                     .ExecuteUpdateAsync(p => p.SetProperty(x => x.SonBasarili, (long?)now), ct);
                 await db.Set<BildirimTeslimEntity>().Where(x => x.Id == d.Id && x.Kilit == token)
@@ -159,25 +384,61 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
             }
         }
     }
+
+    // Geçici erteleme (saat, ayar, güncel borç): bir dakika sonra, deneme hakkı harcanmadan yeniden denenir.
+    private Task Ertele(int id, string token, long now, CancellationToken ct) =>
+        db.Set<BildirimTeslimEntity>().Where(x => x.Id == id && x.Kilit == token)
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.SonrakiDeneme, now + 60)
+                .SetProperty(x => x.KilitBitis, 0).SetProperty(x => x.Kilit, (string?)null)
+                .SetProperty(x => x.Deneme, x => x.Deneme - 1), ct);
+
+    private Task Kapat(int id, string token, CancellationToken ct) =>
+        db.Set<BildirimTeslimEntity>().Where(x => x.Id == id && x.Kilit == token)
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.Iptal, true)
+                .SetProperty(x => x.KilitBitis, 0).SetProperty(x => x.Kilit, (string?)null), ct);
 }
 
 public sealed class BildirimWorker(IServiceScopeFactory scopes, IConfiguration cfg, IWebHostEnvironment env,
-    ILogger<BildirimWorker> logger) : BackgroundService
+    ILogger<BildirimWorker> logger, BildirimSagligi saglik, TimeProvider clock) : BackgroundService
 {
+    private int ardisikHata;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!(cfg.GetValue<bool?>("Bildirim:WorkerEtkin") ?? env.IsProduction())) return;
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                using var scope = scopes.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<BildirimServisi>().Gonder(stoppingToken);
-            }
+            try { await Tur(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch { logger.LogWarning("Bildirim denetimi tamamlanamadı; sonraki turda yeniden denenecek."); }
             try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
+    }
+
+    /// <summary>Tek bildirim turu. Hata işçiyi durdurmaz: istisna nesnesi, tur kimliği ve ardışık hata sayısıyla
+    /// loglanır, ayarlar yanıtında (sonHata) görünür; sonraki tur yeniden dener.</summary>
+    public async Task Tur(CancellationToken ct)
+    {
+        var iz = Guid.NewGuid().ToString("N")[..12];
+        try
+        {
+            using var scope = scopes.CreateScope();
+            var servis = scope.ServiceProvider.GetRequiredService<BildirimServisi>();
+            iz = servis.Iz;
+            await servis.Gonder(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            ardisikHata++;
+            logger.LogError(ex, "Bildirim denetimi tamamlanamadı ({Ardisik}. ardışık hata, iz {Iz}); sonraki turda yeniden denenecek.", ardisikHata, iz);
+            if (ardisikHata == 5)
+                logger.LogCritical("Bildirim denetimi {Ardisik} turdur tamamlanamıyor (iz {Iz}); hatırlatmalar gönderilmiyor.", ardisikHata, iz);
+            saglik.TurHatasi($"Bildirim denetimi tamamlanamadı; ayrıntı sunucu kaydında (iz {iz}).", clock.GetUtcNow());
+            return;
+        }
+        if (ardisikHata > 0)
+            logger.LogInformation("Bildirim denetimi {Ardisik} ardışık hatadan sonra yeniden tamamlandı (iz {Iz}).", ardisikHata, iz);
+        ardisikHata = 0; saglik.TurBasarili();
     }
 }

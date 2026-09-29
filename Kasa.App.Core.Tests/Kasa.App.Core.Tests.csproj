@@ -22,4 +22,20 @@
     <ProjectReference Include="..\Kasa.App.Core\Kasa.App.Core.csproj" />
   </ItemGroup>
 
+  <!-- ParaGirisi kontrolünün TwoWay bağlama davranışı gerçek MAUI bağlama motoruyla sınanır (net10.0 kütüphanesi,
+       iş yükü gerektirmez). Sürüm Kasa.App ile aynı kaynaktan gelir: depo kökündeki Directory.Build.props $(MauiVersion). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls.Core" Version="$(MauiVersion)" />
+    <Compile Include="..\Kasa.App\Controls\ParaGirisi.cs" Link="Kontroller\ParaGirisi.cs" />
+  </ItemGroup>
+
+  <!-- Kasa.App dönüştürücüleri aynı kaynak dosyalarıyla derlenip Donusturuculer/ altında sınanır (Kasa.App'e ve Windows
+       iş yüküne başvuru gerekmez; CI'da Linux'ta koşar). Yeni dönüştürücü kendiliğinden derlenir; kapsam testi onu da
+       ister. Dosyalar MAUI SDK'nın örtük using'lerine dayanır: yalnız kullandıkları iki ad alanı burada eklenir. -->
+  <ItemGroup>
+    <Compile Include="..\Kasa.App\Converters\*.cs" Link="Donusturuculer\Kaynak\%(Filename)%(Extension)" />
+    <Using Include="Microsoft.Maui.Controls" />
+    <Using Include="Microsoft.Maui.Graphics" />
+  </ItemGroup>
+
 </Project>

@@ -43,6 +43,22 @@ public class EkstreAktarmaApiTests
         Assert.Equal("/api/ekstre-aktar/8/onizleme", requests[0].Path); Assert.Equal("/api/ekstre-aktar/8/kaydet", requests[1].Path);
         Assert.Equal(g.IstekId, requests[1].Yaz.IstekId); Assert.Equal("hash", requests[1].Yaz.OnizlemeOzeti); Assert.True(requests[1].Yaz.TekrarOnay); Assert.Equal(12.34m, requests[1].Yaz.Satirlar.Single().Tutar); Assert.Equal(9, requests[1].Yaz.Satirlar.Single().SatirNo);
     }
+    [Fact] public async Task Eslesme_adaylari_satir_tarih_ve_tutariyla_sorulur_eslestir_satiri_hedefi_tasir()
+    {
+        var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """[{"tur":"KartTaksidi","id":44,"tarih":"2026-10-05","tutar":1000.5,"aciklama":"Laptop · 2/3. taksit","krediKartiId":3,"harcamaId":12,"taksitNo":2,"taksitSayisi":3}]""");
+        var aday = Assert.Single(await Client(h).EkstreEslesmeAdaylariAsync(8, new EkstreEslesmeAdayiSorgu(new(2026, 10, 7), 1000.5m)));
+        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method); Assert.Equal("/api/ekstre-aktar/8/eslesme-adaylari", h.SonIstek.RequestUri!.AbsolutePath);
+        Assert.Equal(new EkstreEslesmeAdayiSorgu(new(2026, 10, 7), 1000.5m), JsonSerializer.Deserialize<EkstreEslesmeAdayiSorgu>(h.SonGovde!, web));
+        Assert.Equal(("KartTaksidi", 44, (int?)12, (int?)2, (int?)3), (aday.Tur, aday.Id, aday.HarcamaId, aday.TaksitNo, aday.TaksitSayisi));
+
+        var satir = new EkstreSatirYaz(4, new(2026, 10, 7), "Taksit", 1000.5m, "Eslestir", "Eslesme", [], EslesenKayitTuru: aday.Tur, EslesenKayitId: aday.Id);
+        using var govde = JsonDocument.Parse(JsonSerializer.Serialize(satir, web));
+        Assert.Equal(("KartTaksidi", 44), (govde.RootElement.GetProperty("eslesenKayitTuru").GetString(), govde.RootElement.GetProperty("eslesenKayitId").GetInt32()));
+        // Eşleşme alanlarını taşımayan eski sunucu kaydı null okunur.
+        var kayit = JsonSerializer.Deserialize<EkstreKayitDto>("""{"id":1,"satirNo":4,"tarih":"2026-10-07","aciklama":"a","tutar":1,"islemTuru":"Gider","dagilimTuru":"Genel","dagilimlar":[],"iptal":false}""", web)!;
+        Assert.Equal(((string?)null, (int?)null, (string?)null), (kayit.EslesmeTuru, kayit.EslesmeId, kayit.EslesmeDurumu));
+    }
     [Fact] public async Task Iptal_kaynak_belge_ve_kayit_yolunu_kullanir()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, JsonSerializer.Serialize(Belge(), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
@@ -65,7 +81,7 @@ public class EkstreAktarmaApiTests
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
             response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileNameStar = "../../gizli/ekstre.pdf" }; return Task.FromResult(response);
         }));
-        var file = await c.EkstreDosyaAsync(8); Assert.Equal("ekstre.pdf", file.DosyaAdi); Assert.Equal(new byte[] { 1, 2, 3 }, file.Icerik);
+        var hedef = new MemoryStream(); var file = await c.EkstreDosyaAsync(8, hedef); Assert.Equal("ekstre.pdf", file.DosyaAdi); Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray());
     }
     [Fact] public void Eski_sunucu_jsonlari_yeni_opsiyonel_alanlar_olmadan_okunur()
     {
