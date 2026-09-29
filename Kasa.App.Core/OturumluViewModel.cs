@@ -2,8 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Kasa.App.Core;
 
-/// <summary>Oturuma bağlı ekran: oturum değişince yürütücünün nesli artar (bekleyen işler eskir) ve ekran sıfırlanır.
-/// Yürütme deseni tabandaki <see cref="Yurutucu"/>'dur.</summary>
+/// <summary>Oturuma bağlı ekranların tek tabanı (oturum ve rol): rol oturumdan okunur (<see cref="EditorMu"/> hesaplanır, sayfa
+/// atamaz); oturum değişince yürütücünün nesli artar (bekleyen işler eskir) ve ekran sıfırlanır (<see cref="OturumTemizle"/>).
+/// Takip ekranları, İşlemler, Alışlar ve Ayarlar buradan türer. Yürütme deseni tabandaki <see cref="Yurutucu"/>'dur.</summary>
 public abstract partial class OturumluViewModel : TemelViewModel
 {
     protected readonly AuthViewModel Auth;
@@ -20,6 +21,24 @@ public abstract partial class OturumluViewModel : TemelViewModel
             OturumTemizle();
             OnPropertyChanged(nameof(EditorMu));
         });
+    }
+
+    /// <summary>Oturum değişimini dinler (appcore-10): OturumSurumu değişince bekleyen işler hemen eskir (sonuçları, hataları ve
+    /// bitişleri yansımaz), ekran <paramref name="sifirla"/> ile model kurulurken yakalanan UI bağlamında sıfırlanır. Eskiyen iş
+    /// göstergeyi indirmediği için Mesgul'u sıfırlama indirir.</summary>
+    private void OturumDegisiminiDinle(AuthViewModel auth, Action sifirla)
+    {
+        var ui = SynchronizationContext.Current;
+        auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu))
+                return;
+            Yurutucu.GecersizKil();
+            if (ui is not null && SynchronizationContext.Current != ui)
+                ui.Post(_ => sifirla(), null);
+            else
+                sifirla();
+        };
     }
     public bool EditorMu => Auth.AktifRol == Rol.Editor;
     public int OturumNesli => Yurutucu.Nesil;

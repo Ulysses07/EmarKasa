@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,41 +8,40 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-public partial class IslemlerViewModel : TemelViewModel
+public partial class IslemlerViewModel : OturumluViewModel
 {
     private readonly IKasaApi _api;
-    private readonly AuthViewModel? _auth;
     /// <summary>Yeni gider için tekrar anahtarı (appcore-5): istek zaman aşımına uğrayıp sunucuda yine de kaydedildiyse aynı
     /// formun yeniden gönderimi aynı kimliği taşır, sunucu ikinci gider açmaz. Başarıda, yeni formda ve düzenlemeye geçişte sıfırlanır.</summary>
     private readonly TekrarAnahtari _giderAnahtari = new();
     public BenzerKayitKontrolu GiderBenzerlik { get; }
-    public IslemlerViewModel(IKasaApi api, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null, TimeProvider? zaman = null)
+    public IslemlerViewModel(IKasaApi api, AuthViewModel auth, IBenzerKayitApi? benzerlikApi = null, TimeProvider? zaman = null) : base(auth)
     {
         _api = api;
-        _auth = auth;
         _zaman = zaman ?? TimeProvider.System;
         GiderBenzerlik = new(benzerlikApi ?? api as IBenzerKayitApi);
         _listeHatti = new(Yurutucu);
         _kaynakHatti = new(Yurutucu);
         _gelenHatti = new(Yurutucu);
-        if (auth is not null)
-            OturumDegisiminiDinle(auth, OturumDegisti);
     }
 
-    /// <summary>Oturum değişince bekleyen kayıt, liste ve gelir yanıtları eskir (sonuçları, hataları ve bitişleri yansımaz; nesli
-    /// <see cref="TemelViewModel.OturumDegisiminiDinle"/> hemen artırır); eskiyen kayıt göstergeyi indirmeyeceği için burada
-    /// indirilir, önceki oturumun formu, listesi ve iletileri UI bağlamında kalkar.</summary>
-    private void OturumDegisti()
+    /// <summary>Oturum değişince bekleyen kayıt, liste ve gelir yanıtları eskir (sonuçları, hataları ve bitişleri yansımaz; gösterge,
+    /// hata ve ileti tabanda kalkar); önceki oturumun formu, listesi ve gelir formu UI bağlamında kalkar.</summary>
+    protected override void OturumTemizle()
     {
-        Mesgul = false;
-        Hata = null;
         GiderBenzerlik.Temizle();
         Yeni();
         GelenTemizle();
         ListeTemizle();
     }
 
-    protected override void IletiyiTemizle() => Mesaj = null;
+    /// <summary><see cref="SonGuncellemeMetni"/> tabandaki <see cref="OturumluViewModel.SonGuncelleme"/>'ye bağlıdır.</summary>
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.PropertyName == nameof(SonGuncelleme))
+            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(SonGuncellemeMetni)));
+    }
 
     /// <summary>Belirli bir kanala ait olmayan ortak gider etiketi (motorla birebir eşleşmeli).</summary>
     public const string OrtakKanal = "Ortak";
@@ -109,11 +109,6 @@ public partial class IslemlerViewModel : TemelViewModel
     [ObservableProperty] private string? _yuklemeHatasi;
     /// <summary>Gösterilen liste güncel süzgecin başarılı yanıtıdır; yüklenirken ve hatada false (boş liste başlığı gizlenir).</summary>
     [ObservableProperty] private bool _veriVar;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
-    private DateTimeOffset? _sonGuncelleme;
-    /// <summary>Kayıt ve silme başarısı; liste yenilenemese de kaydın alındığını söyler.</summary>
-    [ObservableProperty] private string? _mesaj;
     [ObservableProperty] private string _bosListeBasligi = "Henüz işlem yok";
     [ObservableProperty] private string _bosListeAciklamasi = "İlk kayıtla liste burada oluşur.";
     public string SonGuncellemeMetni => SonGuncelleme is { } zaman ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm}" : "Liste henüz yüklenmedi.";
@@ -370,13 +365,11 @@ public partial class IslemlerViewModel : TemelViewModel
         Mesaj = null;
         if (!await ListeyiYenile(tam: true))
             return;
-        if (_auth is null || _auth.AktifRol == Rol.Editor)
+        if (EditorMu)
             await GelenFormunuHazirlaAsync();
     }
 
     [RelayCommand] private Task YenileAsync() => YukleAsync();
-
-    [ObservableProperty] private bool _editorMu;
 
     // İşlem düzenleme
     [ObservableProperty] private int _duzenId;          // 0 = yeni
@@ -528,7 +521,7 @@ public partial class IslemlerViewModel : TemelViewModel
     [RelayCommand]
     private Task KaydetAsync() => YurutAsync(async n =>
     {
-        if (_auth is not null && _auth.AktifRol != Rol.Editor)
+        if (!EditorMu)
             return;
         if (!ParaAyristirici.GecerliMi(DuzenTutar))
         { Hata = ParaAyristirici.GecersizMesaji; return; }

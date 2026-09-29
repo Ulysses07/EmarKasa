@@ -20,7 +20,7 @@ public class AlislarViewModelTests
         Assert.DoesNotContain(Bolum.Alislar, SekmeModeli.Bolumler(Rol.Izleyici));
         Assert.Contains(Bolum.Alislar, SekmeModeli.Bolumler(Rol.Editor));
         var api = new SahteAlisApi();
-        var vm = new AlislarViewModel(api, new SahteApi { YuklemeHatasi = new Exception("Alıcı finans çağrısı yapamaz") });
+        var vm = new AlislarViewModel(api, new SahteApi { YuklemeHatasi = new Exception("Alıcı finans çağrısı yapamaz") }, TestOturumu.Ac(Rol.Alici));
         await vm.YukleAsync();
         Assert.True(vm.VeriHazir);
         Assert.Null(vm.Hata);
@@ -31,7 +31,7 @@ public class AlislarViewModelTests
     public async Task Cok_kalemli_cok_kanalli_taslak_tam_govdeyle_kaydedilir()
     {
         var api = new SahteAlisApi();
-        var vm = new AlislarViewModel(api, new SahteApi());
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac(Rol.Alici));
         await vm.YukleAsync();
         vm.Tedarikci = "Firma";
         var ilk = vm.Kalemler[0];
@@ -57,7 +57,7 @@ public class AlislarViewModelTests
     public async Task Gonder_once_son_degisimleri_kaydeder_sonra_yeni_surumu_gonderir()
     {
         var api = new SahteAlisApi { Liste = new[] { Alis() } };
-        var vm = new AlislarViewModel(api, new SahteApi());
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac(Rol.Alici));
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.Kalemler[0].Aciklama = "Düzeltilen açıklama";
@@ -72,7 +72,7 @@ public class AlislarViewModelTests
     public async Task Eksik_dagilim_onayi_engeller_ve_iade_nedeni_zorunludur()
     {
         var api = new SahteAlisApi { Liste = new[] { Alis("Incelemede") } };
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.Kalemler[0].Dagilimlar.RemoveAt(1);
@@ -92,7 +92,7 @@ public class AlislarViewModelTests
     public async Task Kismi_odeme_onizlemesi_kuruslari_korur_ve_yeni_odeme_bekleyen_olarak_gosterilir()
     {
         var api = new SahteAlisApi { Liste = new[] { Alis("Taslak", 20m) } };
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.OdemeTutari = 0.01m;
@@ -110,7 +110,7 @@ public class AlislarViewModelTests
     public async Task Ag_hatasinda_ayni_odeme_anahtari_ve_surumu_tekrar_kullanilir()
     {
         var api = new SahteAlisApi { Liste = new[] { Alis() }, OdemeHatasi = true };
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.OdemeTutari = 30m;
@@ -134,7 +134,7 @@ public class AlislarViewModelTests
         var baska = Alis() with { Id = 8, Odemeler = new[] { new AlisOdemeDto(5, 92, new(2026, 9, 20), 25m, null, true, Array.Empty<AlisDagilimDto>()) } };
         var api = new SahteAlisApi { Liste = new[] { Alis(), baska }, Giderler = new[] { gider, bagli } };
         var finans = new SahteApi { IslemlerListe = new[] { gider with { Id = 93 } } };
-        var vm = new AlislarViewModel(api, finans) { EditorMu = true };
+        var vm = new AlislarViewModel(api, finans, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
         Assert.Equal(91, Assert.Single(vm.BaglanabilirGiderler).Veri.Id);
@@ -162,7 +162,7 @@ public class AlislarViewModelTests
         var eskiKartliGider = new IslemDto(91, new(2026, 9, 20), "Firma", 25m, "Ortak", GiderTipi.KrediKarti, null, KrediKartiId: 1);
         // Bağlanabilir giderler ALS'den beri sayfalı uçtan (SahteAlisApi.Giderler) gelir.
         var api = new SahteAlisApi { Liste = new[] { Alis() }, Giderler = new[] { eskiKartliGider } };
-        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
 
@@ -185,7 +185,7 @@ public class AlislarViewModelTests
         var banka = new IslemDto(95, new(2026, 9, 18), "PDF gider", 40m, "Genel kasa", GiderTipi.Cari, null, EkstreKayitId: 4);
         var api = new SahteAlisApi { Liste = new[] { Alis() }, KartHarcamalari = new[] { harcama, harcama with { Id = 32, Tutar = 10m } }, Giderler = new[] { banka } };
         var benzerlik = new BenzerKayitTests.Fake();
-        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, benzerlikApi: benzerlik) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac(), benzerlikApi: benzerlik);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         Assert.Contains("banka ekstresinden", Assert.Single(vm.BaglanabilirGiderler).Ad);
@@ -215,7 +215,7 @@ public class AlislarViewModelTests
     {
         var odeme = new AlisOdemeDto(5, 91, new(2026, 9, 20), 25m, 3, false, Array.Empty<AlisDagilimDto>(), KrediKartiAdi: "Kapalı");
         var api = new SahteAlisApi { Liste = new[] { Alis(odenen: 25) with { Odemeler = new[] { odeme } } } };
-        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
 
@@ -233,7 +233,7 @@ public class AlislarViewModelTests
     {
         var odeme = new AlisOdemeDto(5, 91, new(2026, 9, 20), 60m, 2, false, new[] { new AlisDagilimDto(1, "MEZAT", 36m), new AlisDagilimDto(2, "PERAKENDE", 24m) }, KrediKartiAdi: "Takipli");
         var api = new SahteAlisApi { Liste = new[] { Alis(odenen: 60) with { Odemeler = new[] { odeme } }, Alis() with { Id = 8, Surum = 5 } } };
-        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, api) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac(), api);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 7));
 
@@ -277,7 +277,7 @@ public class AlislarViewModelTests
     {
         var api = new SahteAlisApi { Liste = new[] { Alis() } };
         var benzerlik = new BenzerKayitTests.Fake { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(Array.Empty<BenzerKayitDto>()) };
-        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, benzerlikApi: benzerlik) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac(), benzerlikApi: benzerlik);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
 
@@ -310,7 +310,7 @@ public class AlislarViewModelTests
     public async Task Takipli_kart_giderinde_taksit_yalniz_yeni_kayitta_gonderilir()
     {
         var api = new SahteApi { KrediKartlariListe = Kartlar() };
-        var vm = new IslemlerViewModel(api) { DuzenTarih = new DateTime(2026, 9, 20), DuzenCari = "Telefon", DuzenTutar = 3000m, DuzenKanal = "MEZAT" };
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac()) { DuzenTarih = new DateTime(2026, 9, 20), DuzenCari = "Telefon", DuzenTutar = 3000m, DuzenKanal = "MEZAT" };
         vm.DuzenTaksitSayisi = 6;
         Assert.False(vm.TaksitGirilebilir);
         vm.DuzenTip = GiderTipi.KrediKarti;
@@ -331,7 +331,7 @@ public class AlislarViewModelTests
     public async Task Alici_hesabi_sifreyi_bos_birakinca_korur_pasife_alinabilir()
     {
         var api = new SahteAlisApi();
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.AliciDuzenleCommand.Execute(new AliciDto(4, "ayse", "Ayşe", true));
         vm.AliciAktif = false;
@@ -345,7 +345,7 @@ public class AlislarViewModelTests
     public async Task Bagli_finans_gideri_normal_ekrandan_degistirilemez_ve_silinemez()
     {
         var api = new SahteApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         var gider = new IslemDto(9, new(2026, 9, 20), "Firma", 10m, "Dağılım bekliyor", GiderTipi.Cari, null, AlisId: 7);
         vm.Duzenle(gider);
         Assert.Equal(0, vm.DuzenId);
@@ -359,7 +359,7 @@ public class AlislarViewModelTests
     public async Task Kaydedilmemis_degisim_odeme_secim_yeni_ve_yenile_ile_kaybolmaz()
     {
         var api = new SahteAlisApi { Liste = new[] { Alis(), Alis() with { Id = 8 } } };
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar.First(a => a.Veri.Id == 7));
         vm.Tedarikci = "Kaydedilmemiş firma";
@@ -384,10 +384,10 @@ public class AlislarViewModelTests
         var eski = new TaskCompletionSource<IReadOnlyList<AlisDto>>();
         var yeniKayit = Alis() with { Id = 22, Alici = "Yeni alıcı", Tedarikci = "Yeni firma" };
         var api = new SahteAlisApi { ListeGetir = () => eski.Task };
-        var vm = new AlislarViewModel(api, new SahteApi());
-        vm.OturumuAyarla(1, false);
+        var auth = TestOturumu.Ac(Rol.Alici);
+        var vm = new AlislarViewModel(api, new SahteApi(), auth);
         var ilk = vm.YukleAsync();
-        vm.OturumuAyarla(2, false);
+        auth.OturumSurumu++;
         api.ListeGetir = () => Task.FromResult<IReadOnlyList<AlisDto>>(new[] { yeniKayit });
         await vm.YukleAsync();
         eski.SetResult(new[] { Alis() });
@@ -402,13 +402,13 @@ public class AlislarViewModelTests
     {
         var bekleyen = new TaskCompletionSource<AlisDto>();
         var api = new SahteAlisApi { Liste = new[] { Alis() }, OdemeYaniti = bekleyen.Task };
-        var vm = new AlislarViewModel(api, new SahteApi());
-        vm.OturumuAyarla(1, true);
+        var auth = TestOturumu.Ac();
+        var vm = new AlislarViewModel(api, new SahteApi(), auth);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.OdemeTutari = 10m;
         var odeme = vm.OdemeKaydetCommand.ExecuteAsync(null);
-        vm.OturumuAyarla(2, false);
+        TestOturumu.YeniOturum(auth, Rol.Alici);
         api.Liste = new[] { Alis() with { Id = 22, Alici = "Yeni alıcı" } };
         await vm.YukleAsync();
         bekleyen.SetResult(Alis() with { Odenen = 10m });
@@ -427,7 +427,7 @@ public class AlislarViewModelTests
             Kalemler = new[] { new AlisKalemDto(1, "Mal", 100m,
             new[] { new AlisDagilimDto(1, "MEZAT", 100m), new AlisDagilimDto(2, "PERAKENDE", 0m) }) }
         };
-        var vm = new AlislarViewModel(new SahteAlisApi { Liste = new[] { alis } }, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(new SahteAlisApi { Liste = new[] { alis } }, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.OdemeTutari = 10m;
@@ -440,7 +440,7 @@ public class AlislarViewModelTests
         var giderler = Enumerable.Range(1, 3).Select(i => new IslemDto(90 + i, new(2026, 9, 20 - i), i == 2 ? "Kargo" : "Firma", 10m * i, "MEZAT", GiderTipi.Cari, null)).ToArray();
         var api = new SahteAlisApi { Liste = new[] { Alis() }, Giderler = giderler, GiderSayfaBoyutu = 2 };
         var finans = new SahteApi();
-        var vm = new AlislarViewModel(api, finans) { EditorMu = true };
+        var vm = new AlislarViewModel(api, finans, TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         Assert.Equal(new[] { 91, 92 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
@@ -468,7 +468,7 @@ public class AlislarViewModelTests
     {
         var giderler = Enumerable.Range(1, 4).Select(i => new IslemDto(90 + i, new(2026, 9, 20 - i), i % 2 == 0 ? "Kargo" : "Firma", 10m * i, "MEZAT", GiderTipi.Cari, null)).ToArray();
         var api = new SahteAlisApi { Liste = new[] { Alis() }, Giderler = giderler, GiderSayfaBoyutu = 1 };
-        var vm = new AlislarViewModel(api, new SahteApi()) { EditorMu = true };
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac());
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
         Assert.Equal(new[] { 91 }, vm.BaglanabilirGiderler.Select(g => g.Veri.Id));
@@ -492,7 +492,7 @@ public class AlislarViewModelTests
     public async Task Yeni_alis_zaman_asiminda_ayni_istek_kimligiyle_yeniden_gonderilir_duzenleme_kimlik_tasimaz()
     {
         var api = new SahteAlisApi { OlusturmaHatasi = new TimeoutException("Sunucu 15 sn içinde yanıt vermedi.") };
-        var vm = new AlislarViewModel(api, new SahteApi());
+        var vm = new AlislarViewModel(api, new SahteApi(), TestOturumu.Ac(Rol.Alici));
         await vm.YukleAsync();
         void Doldur()
         { vm.Tedarikci = "Firma"; vm.Kalemler[0].Aciklama = "Mal"; vm.Kalemler[0].Tutar = 100m; }

@@ -9,20 +9,18 @@ namespace Kasa.App.Core;
 /// <summary>Editör ayarları: kanal CRUD + izleyici şifre + takip başlangıç/açılış devri (spec §6). Yükleme ve bütün kayıtlar
 /// yürütücünün tekil işlemidir (appcore-10): biri sürerken ötekisi başlamaz (yükleme sürerken form gönderilmez), sonuç başladığı
 /// neslin hâlâ geçerli olduğu denetlenerek uygulanır.</summary>
-public partial class AyarlarViewModel : TemelViewModel
+public partial class AyarlarViewModel : OturumluViewModel
 {
     private readonly IKasaApi _api;
     private readonly IAylikGiderApi? _kilit;
+    /// <param name="auth">Model oturum değişimini kendisi alır (<see cref="OturumluViewModel"/>): bekleyen yükleme ve kayıtlar eskir
+    /// (sonuçları, hataları ve bitişleri yansımaz, yeni oturum onları beklemez), önceki oturumun ayarları, kanalları, formları,
+    /// onayları ve yazılmış izleyici şifresi kalkar.</param>
     /// <param name="kilit">Ay kilidi durumu: yalnız kanal formundaki kilit notu için (kuralı sunucu uygular).</param>
-    /// <param name="auth">Verilirse model oturum değişimini kendisi alır: bekleyen yükleme ve kayıtlar eskir (sonuçları, hataları ve
-    /// bitişleri yansımaz, yeni oturum onları beklemez), önceki oturumun ayarları, kanalları, formları, onayları ve yazılmış izleyici
-    /// şifresi kalkar.</param>
-    public AyarlarViewModel(IKasaApi api, IAylikGiderApi? kilit = null, AuthViewModel? auth = null)
+    public AyarlarViewModel(IKasaApi api, AuthViewModel auth, IAylikGiderApi? kilit = null) : base(auth)
     {
         _api = api;
         _kilit = kilit;
-        if (auth is not null)
-            OturumDegisiminiDinle(auth, OturumTemizle);
     }
 
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
@@ -126,12 +124,11 @@ public partial class AyarlarViewModel : TemelViewModel
 
     public Task YukleAsync() => YurutAsync(DoldurAsync);
 
-    /// <summary>Oturum değişince (nesil artmış, bekleyen işler eskimiştir) ekran yeni kurulmuş modelin durumuna döner: önceki
-    /// oturumun ayarları, kanalları, formları, sıfır onayları, iletileri ve yazılmış izleyici şifresi kalkar.</summary>
-    private void OturumTemizle()
+    /// <summary>Oturum değişince (nesil artmış, bekleyen işler eskimiştir; gösterge ve hata tabanda kalkar) ekran yeni kurulmuş
+    /// modelin durumuna döner: önceki oturumun ayarları, kanalları, formları, sıfır onayları, iletileri ve yazılmış izleyici şifresi
+    /// kalkar.</summary>
+    protected override void OturumTemizle()
     {
-        Mesgul = false;
-        Hata = null;
         Kanallar.Clear();
         TakipBaslangic = DateTime.Today;
         KasaAcilisDevri = _kayitliKasaAcilisDevri = 0;

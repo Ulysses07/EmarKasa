@@ -214,7 +214,7 @@ public class SifreAkisiTests
     public async Task Izleyici_sifresi_12_karakterden_kisaysa_gonderilmez(string sifre)
     {
         var api = new SahteApi();
-        var vm = new AyarlarViewModel(api) { YeniIzleyiciSifre = sifre };
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac()) { YeniIzleyiciSifre = sifre };
 
         await vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
 
@@ -228,7 +228,7 @@ public class SifreAkisiTests
     public async Task Izleyici_sifresi_12_karakterle_gonderilir_ve_onay_gosterilir()
     {
         var api = new SahteApi();
-        var vm = new AyarlarViewModel(api) { YeniIzleyiciSifre = "on-iki-harf!" };
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac()) { YeniIzleyiciSifre = "on-iki-harf!" };
 
         await vm.IzleyiciSifreKaydetCommand.ExecuteAsync(null);
 
@@ -243,7 +243,7 @@ public class SifreAkisiTests
     public async Task Kurala_uymayan_mevcut_izleyici_sifresi_uyarisi_gosterilir_ve_yenilenince_kalkar()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, true, IzleyiciSifreKisa: true) };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
 
         await vm.YukleAsync();
         Assert.Equal("Mevcut izleyici şifresi 12 karakterden kısa (son izleyici girişinde görüldü). Kurala uygun yeni bir şifre belirleyin.", vm.IzleyiciSifreUyarisi);
@@ -261,7 +261,7 @@ public class SifreAkisiTests
     public async Task Uyari_yoksa_izleyici_ve_vekil_uyarisi_bos_kalir_varsa_vekil_uyarisi_aynen_gosterilir()
     {
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, true) };
-        var vm = new AyarlarViewModel(api);
+        var vm = new AyarlarViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         Assert.Null(vm.IzleyiciSifreUyarisi);
         Assert.Null(vm.VekilUyarisi);

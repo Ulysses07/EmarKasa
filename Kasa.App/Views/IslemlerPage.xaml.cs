@@ -6,19 +6,17 @@ namespace Kasa.App.Views;
 public partial class IslemlerPage : ContentPage
 {
     private readonly IslemlerViewModel _vm;
-    private readonly AuthViewModel _auth;
 
-    public IslemlerPage(IslemlerViewModel vm, AuthViewModel auth)
+    // Rol ve oturum modelden gelir (OturumluViewModel): sayfa rolü ekrana atamaz.
+    public IslemlerPage(IslemlerViewModel vm)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
-        _auth = auth;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _vm.EditorMu = _auth.AktifRol == Rol.Editor;
         await _vm.YukleAsync();
     }
 
@@ -35,7 +33,7 @@ public partial class IslemlerPage : ContentPage
     }
     private async void KaynakTiklandi(object? sender, EventArgs e)
     {
-        if (_auth.AktifRol == Rol.Editor && sender is Button { CommandParameter: IslemDto { EkstreKayitId: { } id } })
+        if (_vm.EditorMu && sender is Button { CommandParameter: IslemDto { EkstreKayitId: { } id } })
             await Shell.Current.GoToAsync($"//ekstreaktar?KayitId={id}");
     }
 }

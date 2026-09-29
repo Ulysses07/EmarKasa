@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Kasa.App.Core.Tests;
 
 public partial class MauiKayitTutarliligiTests
@@ -21,5 +23,21 @@ public partial class MauiKayitTutarliligiTests
         Assert.Contains("vm.OnayMetni(", kilit);
         Assert.Contains("vm.IstekHalaGecerli(", kilit);
         Assert.DoesNotContain("ayının sonuna kadar", kilit);
+    }
+
+    /// <summary>Rol ve oturum tek kaynaktan gelir (OturumluViewModel: EditorMu hesaplanır, oturum değişimini model kendisi alır).
+    /// Sayfa kod-arkası rolü ekrana atar ya da AuthViewModel'den ayrıca okursa ikinci bir rol mekanizması oluşur.</summary>
+    [Fact]
+    public void Sayfalar_rolu_ekrana_atamaz_rolu_modelden_okur()
+    {
+        var dosyalar = Directory.GetFiles(Path.Combine(Uygulama, "Views"), "*.cs");
+        Assert.True(dosyalar.Length > 10, $"Views dosyaları okunamadı ({dosyalar.Length}).");
+        foreach (var dosya in dosyalar)
+        {
+            var kaynak = File.ReadAllText(dosya);
+            Assert.False(Regex.IsMatch(kaynak, @"\.EditorMu\s*=[^=]"), $"{Path.GetFileName(dosya)} EditorMu atıyor.");
+            Assert.DoesNotContain("AktifRol", kaynak);
+            Assert.DoesNotContain("OturumuAyarla", kaynak);
+        }
     }
 }

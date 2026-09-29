@@ -6,24 +6,22 @@ namespace Kasa.App.Views;
 public partial class AlislarPage : ContentPage, IQueryAttributable
 {
     private readonly AlislarViewModel _vm;
-    private readonly AuthViewModel _auth;
     private int? _istenenAlisId;
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
         if (query.TryGetValue("AlisId", out var value) && int.TryParse(value.ToString(), out var id))
         { _istenenAlisId = id; if (_vm.VeriHazir) { _vm.IdIleSec(id); _istenenAlisId = null; } }
     }
-    // Oturum değişimini model kendisi alır (AlislarViewModel, AuthViewModel ile kurulur; appcore-10): sayfa ayrıca abone olmaz.
-    public AlislarPage(AlislarViewModel vm, AuthViewModel auth)
+    // Oturum değişimini ve rolü model kendisi alır (AlislarViewModel : OturumluViewModel; appcore-10): sayfa ayrıca abone olmaz,
+    // rolü ekrana atamaz.
+    public AlislarPage(AlislarViewModel vm)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
-        _auth = auth;
     }
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _vm.OturumuAyarla(_auth.OturumSurumu, _auth.AktifRol == Rol.Editor);
         if (!_vm.VeriHazir)
             await _vm.YukleAsync();
         if (_istenenAlisId is { } id && _vm.VeriHazir)
@@ -50,7 +48,7 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     }
     private async void KartAcTiklandi(object? sender, EventArgs e)
     {
-        if (_auth.AktifRol != Rol.Alici && sender is Button { CommandParameter: AlisOdemeSatiri { Veri.KrediKartiId: { } id } })
+        if (_vm.EditorMu && sender is Button { CommandParameter: AlisOdemeSatiri { Veri.KrediKartiId: { } id } })
             await Shell.Current.GoToAsync($"//kartlar?KartId={id}");
     }
     // İçerik türü, 10 MB sınırı ve oturum/seçim koruması AlislarViewModel.BelgeEkleAsync'tedir (maui-8); sayfa yalnız dosya

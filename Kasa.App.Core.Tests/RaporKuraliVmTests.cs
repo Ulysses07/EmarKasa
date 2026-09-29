@@ -62,7 +62,7 @@ public class RaporKuraliVmTests
     public async Task Gider_formu_yalniz_takipteki_acik_kartlari_listeler_ve_kartsiz_yeni_kredi_karti_giderini_gondermez()
     {
         var api = KartliApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         Assert.Equal(new[] { (2, "Takipli") }, vm.KartCipleri.Select(k => (k.Id, k.Ad)));
 
@@ -86,7 +86,7 @@ public class RaporKuraliVmTests
     {
         var api = KartliApi();
         api.KrediKartlariListe = [api.KrediKartlariListe[0]];
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         Assert.Empty(vm.KartCipleri);
         Assert.Null(vm.KartUyarisi);
@@ -98,7 +98,7 @@ public class RaporKuraliVmTests
     public async Task Eski_kartsiz_ve_eski_kartli_kayit_kendi_kartiyla_duzenlenip_kaydedilir()
     {
         var api = KartliApi();
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
 
         vm.Duzenle(new IslemDto(20, new DateOnly(2026, 8, 5), "Eski kartlı", 100m, "MEZAT", GiderTipi.KrediKarti, null, KrediKartiId: 1));

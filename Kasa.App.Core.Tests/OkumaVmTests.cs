@@ -43,7 +43,7 @@ public class OkumaVmTests
                 new(1, new DateOnly(2026,3,5), "K.K", 10000m, "MEZAT", GiderTipi.KrediKarti, null),
             },
         };
-        var vm = new IslemlerViewModel(api);
+        var vm = new IslemlerViewModel(api, TestOturumu.Ac());
         await vm.YukleAsync();
         Assert.Single(vm.Islemler);
         Assert.Equal(GiderTipi.KrediKarti, vm.Islemler[0].Tip);

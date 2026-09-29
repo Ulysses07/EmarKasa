@@ -9,7 +9,7 @@ using AlisKanalPayi = Kasa.Core.AlisKanalPayi;
 
 namespace Kasa.App.Core;
 
-public partial class AlislarViewModel : TemelViewModel
+public partial class AlislarViewModel : OturumluViewModel
 {
     private readonly IAlisApi _api;
     private readonly IKasaApi _finans;
@@ -23,7 +23,6 @@ public partial class AlislarViewModel : TemelViewModel
     // Yeni takipteki kartlar (yeni kullanıma kapalı olanlar dahil): bu kartlarla girilmiş ödeme kart takibindedir (gap-5).
     private IReadOnlySet<int> _takipliKartlar = new HashSet<int>();
     private bool _yansitiliyor;
-    private int _oturumSurumu = int.MinValue;
     /// <summary>Bağlanabilir giderlerin sonraki sayfa imleci ve onu üreten sorgunun (kırpılmış) arama metni.</summary>
     private string? _giderImleci;
     private string _giderImleciAramasi = "";
@@ -35,9 +34,9 @@ public partial class AlislarViewModel : TemelViewModel
     /// geçişte ve oturum değişince sıfırlanır.</summary>
     private readonly TekrarAnahtari _odemeAnahtari = new();
 
-    /// <param name="auth">Verilirse model oturum değişimini kendisi alır (appcore-10): sayfa kod-arkası olmadan da bekleyen işler
-    /// eskir, önceki oturumun verisi kalkar ve rol oturumdan gelir. Verilmezse oturum <see cref="OturumuAyarla"/> ile ayarlanır.</param>
-    public AlislarViewModel(IAlisApi api, IKasaApi finans, IAlisOdemeApi? odemelerApi = null, IYonetimApi? yonetim = null, IBenzerKayitApi? benzerlikApi = null, AuthViewModel? auth = null)
+    /// <param name="auth">Model oturum değişimini kendisi alır (appcore-10, <see cref="OturumluViewModel"/>): sayfa kod-arkası
+    /// olmadan da bekleyen işler eskir, önceki oturumun verisi kalkar ve rol oturumdan gelir.</param>
+    public AlislarViewModel(IAlisApi api, IKasaApi finans, AuthViewModel auth, IAlisOdemeApi? odemelerApi = null, IYonetimApi? yonetim = null, IBenzerKayitApi? benzerlikApi = null) : base(auth)
     {
         _api = api;
         _finans = finans;
@@ -55,11 +54,8 @@ public partial class AlislarViewModel : TemelViewModel
             ToplamlariYenile();
             KirliYap();
         };
-        if (auth is null)
-            return;
-        OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor);
-        // OturumluViewModel ile aynı yol: bekleyen işler hemen eskir, ekran (koleksiyonlar) UI bağlamında sıfırlanır.
-        OturumDegisiminiDinle(auth, () => OturumuAyarla(auth.OturumSurumu, auth.AktifRol == Rol.Editor));
+        // Yeni oturumdaki gibi boş formla başlar.
+        OturumTemizle();
     }
 
     public ObservableCollection<AlisSatiri> Alislar { get; } = new();
@@ -75,10 +71,7 @@ public partial class AlislarViewModel : TemelViewModel
     public ObservableCollection<KartHarcamasiSecenegi> BaglanabilirKartHarcamalari { get; } = new();
     public ObservableCollection<AliciDto> Alicilar { get; } = new();
 
-    [ObservableProperty] private bool _editorMu;
-    [ObservableProperty] private bool _veriHazir;
     [ObservableProperty] private bool _kaydedilmemisDegisiklikVar;
-    [ObservableProperty] private string? _mesaj;
     [ObservableProperty] private DateTime _tarih = DateTime.Today;
     [ObservableProperty] private string _tedarikci = "";
     [ObservableProperty] private string? _alisNotu;
@@ -136,16 +129,10 @@ public partial class AlislarViewModel : TemelViewModel
     public string OdemeOzeti => TutarlarGecerli ? $"Ödenen {Bicim.Tl(Odenen)} ₺ · kalan {Bicim.Tl(Kalan)} ₺" : ParaAyristirici.GecersizGosterim;
     public string ToplamMetni => TutarlarGecerli ? Bicim.Tl(Toplam) : ParaAyristirici.GecersizGosterim;
 
-    public void OturumuAyarla(int surum, bool editorMu)
+    /// <summary>Oturum değişince (taban: bekleyen işler eskir, gösterge, hata ve ileti kalkar) önceki oturumun alışları, alıcıları,
+    /// kanalları, formları, tekrar anahtarları ve belgeleri kalkar; ekran yeni oturumun rolüyle boş formla başlar.</summary>
+    protected override void OturumTemizle()
     {
-        if (_oturumSurumu == surum && EditorMu == editorMu)
-            return;
-        _oturumSurumu = surum;
-        Yurutucu.GecersizKil();
-        Mesgul = false;
-        VeriHazir = false;
-        Hata = null;
-        Mesaj = null;
         Alislar.Clear();
         Alicilar.Clear();
         Kanallar.Clear();
@@ -174,7 +161,6 @@ public partial class AlislarViewModel : TemelViewModel
         DuzeltmeTakipli = false;
         HarcamayiKoru = false;
         SilinenBelgeleriGoster = false;
-        EditorMu = editorMu;
         KaydedilmemisDegisiklikVar = false;
         Yeni();
         OnPropertyChanged(nameof(DagilimBekleyenTutar));
@@ -527,7 +513,6 @@ public partial class AlislarViewModel : TemelViewModel
         OdemeKarti = OdemeKartlari.FirstOrDefault(k => k.Id == SeciliGider.Veri.KrediKartiId);
     }
     partial void OnOdemeTutariChanged(decimal value) => OnizlemeyiYenile();
-    partial void OnEditorMuChanged(bool value) => DurumuYenile();
     partial void OnTarihChanged(DateTime value) => KirliYap();
     partial void OnTedarikciChanged(string value) => KirliYap();
     partial void OnAlisNotuChanged(string? value) => KirliYap();
@@ -668,10 +653,6 @@ public partial class AlislarViewModel : TemelViewModel
         Mesaj = "Alıcı hesabı kaydedildi. Pasifleştirme veya şifre değişimi eski oturumu kapatır.";
     });
 
-    protected override void IletiyiTemizle() => Mesaj = null;
-    /// <summary>Bekleyen işleri eskitir (AuthViewModel olmadan kurulan modelde oturum değişince <see cref="OturumuAyarla"/>'dan önce);
-    /// göstergeyi OturumuAyarla indirir. AuthViewModel ile kurulan model (uygulama) oturum değişiminde bunu kendisi yapar.</summary>
-    public void BekleyenIslemleriGecersizKil() => Yurutucu.GecersizKil();
     private bool HataYaz(string mesaj) { Hata = mesaj; return false; }
     private void KalemDegisti(object? sender, PropertyChangedEventArgs e) { ToplamlariYenile(); KirliYap(); }
     private void ToplamlariYenile()

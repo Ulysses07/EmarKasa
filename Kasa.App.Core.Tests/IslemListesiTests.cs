@@ -14,7 +14,7 @@ public class IslemListesiTests
 
     private static IslemDto Islem(int id, decimal tutar, DateOnly? tarih = null) => new(id, tarih ?? new DateOnly(2026, 7, 8), "Gider " + id, tutar, "MEZAT", GiderTipi.Cari, null);
     private static SahteApi Api() => new() { KanallarListe = new[] { Mezat }, DonemlerListe = new[] { Hafta1, Hafta2 } };
-    private static IslemlerViewModel Vm(SahteApi api) => new(api, zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 7, 15)));
+    private static IslemlerViewModel Vm(SahteApi api) => new(api, TestOturumu.Ac(), zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 7, 15)));
 
     /// <summary>Her liste isteği ayrı bekleyen yanıt alır; test yanıtların sırasını belirler.</summary>
     private static List<TaskCompletionSource<IReadOnlyList<IslemDto>>> Bekleyenler(SahteApi api)

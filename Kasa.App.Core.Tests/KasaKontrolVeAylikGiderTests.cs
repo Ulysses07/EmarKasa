@@ -364,7 +364,7 @@ public class KasaKontrolVeAylikGiderTests
     public async Task Aylik_gider_gider_editorunden_degistirilemez_ve_genel_gider_raporda_bir_kez_duser()
     {
         var finans = Finans();
-        var v = new IslemlerViewModel(finans);
+        var v = new IslemlerViewModel(finans, TestOturumu.Ac());
         var i = new IslemDto(2, new(2026, 9, 1), "Kira", 100, "", GiderTipi.Cari, null, AylikGiderOdemeId: 8);
         v.Duzenle(i);
         await v.SilCommand.ExecuteAsync(i);
