@@ -11,9 +11,11 @@ export function createFinanceUi(c) {
     table,
     money,
     moneyNode,
+    allocationTags,
     dateText,
     today,
     cents,
+    serverCents,
     amount,
     signedAmount,
     formDialog,
@@ -21,12 +23,14 @@ export function createFinanceUi(c) {
     page,
     navigate,
     run,
+    act,
     toast,
     summary,
     childValues,
     requestIdentity,
     confirmSimilar,
     canEdit,
+    editor,
     isCurrent,
     view,
   } = c;
@@ -42,19 +46,7 @@ export function createFinanceUi(c) {
         .flatMap((part, index) => (index ? [h('wbr'), part] : [part]))
     );
   const activeChannels = channels => channels.filter(channel => channel.aktif);
-  const shares = rows =>
-    h(
-      'div',
-      { class: 'allocation-tags' },
-      (rows || []).map(row =>
-        h(
-          'span',
-          { class: `allocation-tag${row.kanalId == null ? ' pending' : ''}` },
-          `${row.kanal || 'Dağılım bekliyor'}: ${money(row.tutar)}`
-        )
-      )
-    );
-  const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
+  const shares = rows => allocationTags(rows, { empty: 'Dağılım bekliyor', pending: true });
   const integer = value => {
     const number = Number(value);
     if (!Number.isInteger(number)) throw new Error('Adet ve gün alanlarına tam sayı girin.');
@@ -459,7 +451,7 @@ export function createFinanceUi(c) {
     let countedEdited = false;
     const suggestion = () => {
       try {
-        return Math.max(0, Math.min(amount(debt.value), transfer.sistemKartBorcu) - transfer.raporDisiTutar);
+        return Math.max(0, Math.min(cents(debt.value), serverCents(transfer.sistemKartBorcu)) - serverCents(transfer.raporDisiTutar)) / 100;
       } catch {
         return null;
       }
@@ -758,7 +750,7 @@ export function createFinanceUi(c) {
       ),
       'Kanal paylarını göster',
       async form => {
-        if (!canEdit()) throw new Error('Editör hesabı gerekir.');
+        editor('Editör hesabı gerekir.');
         const id = Number(statement.value);
         if (!eligible.some(row => row.id === id)) throw new Error('Kalan borcu olan kesilmiş bir ekstre seçin.');
         const body = identity({
@@ -797,7 +789,7 @@ export function createFinanceUi(c) {
           ),
           'Masrafı kaydet',
           async confirmation => {
-            if (!canEdit()) throw new Error('Editör hesabı gerekir.');
+            editor('Editör hesabı gerekir.');
             if (
               !(await confirmSimilar(
                 confirmation,

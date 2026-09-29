@@ -5611,3 +5611,1484 @@ test('card and loan boxes break a long amount only after a thousands separator a
     );
   }
 });
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Aşama 3 kapısı (UI raporu "Kapı"): birleştirme öncesi karakterizasyon testleri. Aşağıdakiler BUGÜNKÜ davranışı sabitler: act()
+// düğmesi (meşgul durumu, hata gösterimi, yeniden yükleme), editör koruması, kanal payı etiketleri (shares), dağıtım editörleri
+// (aylık gider, ekstre satırı, kart dağılımı, alış satırı) ve kayan nokta para hesaplarının bugünkü çıktısı. Birleştirmeler bu
+// testleri değiştirmeden geçmelidir.
+// KAPI_DOM: karakterizasyonla alınan DOM tabanları (domLines çıktısı); birleştirme öncesi kodla üretildi, elle düzenlenmez.
+const KAPI_DOM = {
+  'act-monthly-expenses': ['button class="button primary" type="button" onclick', '  "+ Şablon ekle"'],
+  'act-cards': ['button class="button primary" type="button" onclick', '  "+ Kart ekle"'],
+  'act-imports': ['button class="button primary" type="button" onclick', '  "+ PDF yükle"'],
+  'act-notifications': ['button class="button small" type="button" onclick', '  "Okundu olarak işaretle"'],
+  'act-props': ['button class="button primary" type="button" disabled onclick', '  "Bu cihazda bildirimleri aç"'],
+  'shares-card': [
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "MEZAT: ₺1.234,50"',
+    '  span class="allocation-tag pending"',
+    '    "Dağılım bekliyor: ₺30,00"',
+    '  span class="allocation-tag"',
+    '    "Ortak: ₺0,07"',
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "MEZAT: -₺50,25"',
+    'div class="allocation-tags"',
+  ],
+  'shares-loan': [
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "A: ₺60.000,01"',
+    '  span class="allocation-tag pending"',
+    '    "Dağılım bekliyor: ₺59.999,99"',
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "A: ₺12.000,00"',
+  ],
+  'shares-monthly': [
+    'td',
+    '  span',
+    '    "Yalnız genel kasa"',
+    'td',
+    '  div class="allocation-tags"',
+    '    span class="allocation-tag"',
+    '      "B: ₺60,01"',
+    '    span class="allocation-tag"',
+    '      "Ortak: ₺40,00"',
+    'td',
+    '  span',
+    '    "Yalnız genel kasa"',
+  ],
+  'shares-monthly-payment': [
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "B: ₺60,01"',
+    '  span class="allocation-tag"',
+    '    "Ortak: ₺40,00"',
+  ],
+  'shares-import-history': [
+    ['td', '  "Yalnız genel kasa"'],
+    [
+      'td',
+      '  div class="allocation-tags"',
+      '    span class="allocation-tag"',
+      '      "Mezat: ₺7,49"',
+      '    span class="allocation-tag"',
+      '      "Genel kasa: ₺0,01"',
+    ],
+    ['td', '  "Kasa etkisi yok"'],
+  ],
+  'shares-import-preview': [
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "Genel kasa: -₺100,00"',
+    '  span class="allocation-tag"',
+    '    "Mağaza: ₺0,00"',
+  ],
+  'shares-purchase-payment': [
+    'div class="allocation-tags"',
+    '  span class="allocation-tag"',
+    '    "A: ₺49,99"',
+    '  span class="allocation-tag"',
+    '    "C: ₺0,01"',
+    'span class="badge pending"',
+    '  "Dağılım bekliyor"',
+  ],
+  'monthly-new': [
+    'fieldset',
+    '  legend',
+    '    "Kasa dağılımı"',
+    '  label',
+    '    "Dağılım"',
+    '    select name="dagilimTuru" value="" required onchange',
+    '      option value=""',
+    '        "Dağılım seçin"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div class="stack" hidden',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Ortak"',
+    '        input name="dagilim-kanal-3" type="checkbox" value="3" onchange',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "A"',
+    '        input name="dagilim-kanal-1" type="checkbox" value="1" onchange',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "B"',
+    '        input name="dagilim-kanal-2" type="checkbox" value="2" onchange',
+    '  p class="help"',
+    '    "Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez."',
+  ],
+  'monthly-new-ozel': [
+    'fieldset',
+    '  legend',
+    '    "Kasa dağılımı"',
+    '  label',
+    '    "Dağılım"',
+    '    select name="dagilimTuru" value="Ozel" required onchange',
+    '      option value=""',
+    '        "Dağılım seçin"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div class="stack"',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Ortak"',
+    '        input name="dagilim-kanal-3" type="checkbox" value="3" checked onchange',
+    '      input aria-label="Ortak payı (₺)" inputmode="decimal" name="dagilim-tutar-3" value="" required oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "A"',
+    '        input name="dagilim-kanal-1" type="checkbox" value="1" checked onchange',
+    '      input aria-label="A payı (₺)" inputmode="decimal" name="dagilim-tutar-1" value="" required oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "B"',
+    '        input name="dagilim-kanal-2" type="checkbox" value="2" onchange',
+    '      input aria-label="B payı (₺)" inputmode="decimal" name="dagilim-tutar-2" value="" disabled oninput',
+    '  p class="help"',
+    '    "Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez."',
+  ],
+  'monthly-new-esit': [
+    'fieldset',
+    '  legend',
+    '    "Kasa dağılımı"',
+    '  label',
+    '    "Dağılım"',
+    '    select name="dagilimTuru" value="Esit" required onchange',
+    '      option value=""',
+    '        "Dağılım seçin"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div class="stack"',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Ortak"',
+    '        input name="dagilim-kanal-3" type="checkbox" value="3" onchange',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "A"',
+    '        input name="dagilim-kanal-1" type="checkbox" value="1" checked onchange',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "B"',
+    '        input name="dagilim-kanal-2" type="checkbox" value="2" onchange',
+    '  p class="help"',
+    '    "Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez."',
+  ],
+  'monthly-new-genel-kept': [
+    'fieldset',
+    '  legend',
+    '    "Kasa dağılımı"',
+    '  label',
+    '    "Dağılım"',
+    '    select name="dagilimTuru" value="Genel" required onchange',
+    '      option value=""',
+    '        "Dağılım seçin"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div class="stack" hidden',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Ortak"',
+    '        input name="dagilim-kanal-3" type="checkbox" value="3" onchange',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "A"',
+    '        input name="dagilim-kanal-1" type="checkbox" value="1" onchange',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "B"',
+    '        input name="dagilim-kanal-2" type="checkbox" value="2" checked onchange',
+    '  p class="help"',
+    '    "Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez."',
+  ],
+  'monthly-edit-ozel': [
+    'fieldset',
+    '  legend',
+    '    "Kasa dağılımı"',
+    '  label',
+    '    "Dağılım"',
+    '    select name="dagilimTuru" value="Ozel" required onchange',
+    '      option value=""',
+    '        "Dağılım seçin"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div class="stack"',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Ortak"',
+    '        input name="dagilim-kanal-3" type="checkbox" value="3" checked onchange',
+    '      input aria-label="Ortak payı (₺)" inputmode="decimal" name="dagilim-tutar-3" value="89.5" required oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "A"',
+    '        input name="dagilim-kanal-1" type="checkbox" value="1" onchange',
+    '      input aria-label="A payı (₺)" inputmode="decimal" name="dagilim-tutar-1" value="" disabled oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "B"',
+    '        input name="dagilim-kanal-2" type="checkbox" value="2" onchange',
+    '      input aria-label="B payı (₺)" inputmode="decimal" name="dagilim-tutar-2" value="" disabled oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Kapalı"',
+    '        input name="dagilim-kanal-4" type="checkbox" value="4" checked onchange',
+    '      input aria-label="Kapalı payı (₺)" inputmode="decimal" name="dagilim-tutar-4" value="10.5" required oninput',
+    '  p class="help"',
+    '    "Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez."',
+  ],
+  'import-unselected': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  label',
+    '    "Hangi kasa / kanallar?"',
+    '    select name="dagilimTuru" value="" onchange',
+    '      option value=""',
+    '        "Dağılım seç"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div hidden',
+  ],
+  'import-gider': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  label',
+    '    "Hangi kasa / kanallar?"',
+    '    select name="dagilimTuru" value="" onchange',
+    '      option value=""',
+    '        "Dağılım seç"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div hidden',
+  ],
+  'import-ozel': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  label',
+    '    "Hangi kasa / kanallar?"',
+    '    select name="dagilimTuru" value="Ozel" onchange',
+    '      option value=""',
+    '        "Dağılım seç"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "Ortak"',
+    '        input name="pay-kanal-3" type="checkbox" value="3" checked onchange',
+    '      input aria-label="Ortak payı (₺)" inputmode="decimal" name="pay-tutar-3" value="" oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "A"',
+    '        input name="pay-kanal-1" type="checkbox" value="1" checked onchange',
+    '      input aria-label="A payı (₺)" inputmode="decimal" name="pay-tutar-1" value="" oninput',
+    '    div class="monthly-allocation"',
+    '      label',
+    '        "B"',
+    '        input name="pay-kanal-2" type="checkbox" value="2" checked onchange',
+    '      input aria-label="B payı (₺)" inputmode="decimal" name="pay-tutar-2" value="" oninput',
+  ],
+  'import-genel': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  label',
+    '    "Hangi kasa / kanallar?"',
+    '    select name="dagilimTuru" value="Genel" onchange',
+    '      option value=""',
+    '        "Dağılım seç"',
+    '      option value="Genel"',
+    '        "Yalnız genel kasa"',
+    '      option value="Esit"',
+    '        "Seçilen kanallara eşit"',
+    '      option value="Ozel"',
+    '        "Kanal tutarlarını gir"',
+    '  div hidden',
+  ],
+  'import-otomatik': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  label',
+    '    "Hangi kasa / kanallar?"',
+    '    select name="dagilimTuru" value="Otomatik" disabled onchange',
+    '      option value="Otomatik"',
+    '        "İlgili kart hareketlerinden otomatik"',
+    '  div hidden',
+  ],
+  'import-kart': [
+    'label',
+    '  "Hangi kasa / kanallar?"',
+    '  select name="dagilimTuru" value="" onchange',
+    '    option value=""',
+    '      "Dağılım seç"',
+    '    option value="Esit"',
+    '      "Seçilen kanallara eşit"',
+    '    option value="Ozel"',
+    '      "Kanal tutarlarını gir"',
+    'label',
+    '  "Hangi kasa / kanallar?"',
+    '  select name="dagilimTuru" value="Otomatik" disabled onchange',
+    '    option value="Otomatik"',
+    '      "İlgili kart hareketlerinden otomatik"',
+  ],
+  'card-empty': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  div',
+    '  button class="button small" type="button" onclick',
+    '    "+ Kanal payı"',
+    '  p class="help"',
+    '    "Kanal bilinmiyorsa boş bırakın. Bu tutar “Dağılım bekliyor” olarak izlenir. Pay girerseniz toplamı tutarın tamamına eşit olmalı."',
+  ],
+  'card-two-rows': [
+    'fieldset',
+    '  legend',
+    '    "Kanal dağılımı"',
+    '  div',
+    '    div class="allocation-row"',
+    '      label',
+    '        "Kanal"',
+    '        select name="pay-kanal-0" value="" required onchange',
+    '          option value=""',
+    '            "Kanal seçin"',
+    '          option value="3"',
+    '            "Ortak"',
+    '          option value="1"',
+    '            "A"',
+    '          option value="2"',
+    '            "B"',
+    '      label',
+    '        "Pay (₺)"',
+    '        input inputmode="decimal" name="pay-tutar-0" value="" required oninput',
+    '      button class="button icon-button" aria-label="1. kanal payını kaldır" type="button" onclick',
+    '        "×"',
+    '    div class="allocation-row"',
+    '      label',
+    '        "Kanal"',
+    '        select name="pay-kanal-1" value="" required onchange',
+    '          option value=""',
+    '            "Kanal seçin"',
+    '          option value="3"',
+    '            "Ortak"',
+    '          option value="1"',
+    '            "A"',
+    '          option value="2"',
+    '            "B"',
+    '      label',
+    '        "Pay (₺)"',
+    '        input inputmode="decimal" name="pay-tutar-1" value="" required oninput',
+    '      button class="button icon-button" aria-label="2. kanal payını kaldır" type="button" onclick',
+    '        "×"',
+    '  button class="button small" type="button" onclick',
+    '    "+ Kanal payı"',
+    '  p class="help"',
+    '    "Kanal bilinmiyorsa boş bırakın. Bu tutar “Dağılım bekliyor” olarak izlenir. Pay girerseniz toplamı tutarın tamamına eşit olmalı."',
+  ],
+  purchase: [
+    'div class="allocation-editor"',
+    '  div class="allocation-editor-head"',
+    '    span',
+    '      "Hangi kanala alındı?"',
+    '    button class="button small" type="button" onclick',
+    '      "+ Kanal payı"',
+    '  div',
+    '    div class="allocation-row"',
+    '      label',
+    '        "Kanal"',
+    '        select name="kanal-0-0" value="" required onchange',
+    '          option value=""',
+    '            "Kanal seçin"',
+    '          option value="3"',
+    '            "Ortak"',
+    '          option value="1"',
+    '            "A"',
+    '          option value="2"',
+    '            "B"',
+    '      label',
+    '        "Pay (₺)"',
+    '        input inputmode="decimal" name="pay-0-0" value="100.01" required oninput',
+    '      button class="icon-button" aria-label="1. kalemin 1. kanal payını kaldır" type="button" onclick',
+    '        "×"',
+    '  div class="allocation-summary"',
+    '    span class="money"',
+    '      "Kalem: ₺100,01"',
+    '    span',
+    '      "₺40,01 dağıtılmadı"',
+  ],
+};
+// domLines: sahte DOM düğümünün tam yapısı satır satır — etiket, sınıf, öznitelikler (ada göre sıralı), değer, durum (gizli/kapalı/
+// zorunlu: özellik atanmışsa o, yoksa öznitelik; işaretli), dinlenen olaylar (on…) ve çocuklar (metinler JSON dizesi).
+const DOM_STATES = ['hidden', 'disabled', 'required'];
+function domLines(node, depth = 0, lines = []) {
+  const pad = '  '.repeat(depth);
+  if (node == null || typeof node !== 'object') {
+    lines.push(pad + JSON.stringify(String(node)));
+    return lines;
+  }
+  const parts = [node.tag];
+  if (node.className) parts.push(`class=${JSON.stringify(node.className)}`);
+  for (const name of Object.keys(node.attributes).sort())
+    if (!DOM_STATES.includes(name)) parts.push(`${name}=${JSON.stringify(node.attributes[name])}`);
+  if (node.currentValue !== undefined) parts.push(`value=${JSON.stringify(node.currentValue)}`);
+  for (const name of DOM_STATES) if (Object.hasOwn(node, name) ? Boolean(node[name]) : name in node.attributes) parts.push(name);
+  if (node.checked) parts.push('checked');
+  for (const name of Object.keys(node.listeners).sort()) parts.push(`on${name}`);
+  lines.push(pad + parts.join(' '));
+  for (const child of node.children) domLines(child, depth + 1, lines);
+  return lines;
+}
+const same = (actual, key, message) => assert.deepEqual(actual, KAPI_DOM[key], message);
+const deferred = () => {
+  let resolve;
+  const promise = new Promise(done => {
+    resolve = done;
+  });
+  return { promise, resolve };
+};
+const buttonIn = (node, label) => node.find(item => item.tag === 'button' && item.textContent === label);
+const classNodes = (node, name) => nodesWhere(node, item => (item.className || '').split(' ').includes(name));
+const kapiNotification = {
+  id: 3,
+  baslik: 'Kart ödemesi yaklaşıyor',
+  mesaj: 'Üç gün sonra son ödeme.',
+  tarih: '2026-09-23',
+  okundu: false,
+  hedef: '/#cards/4',
+  tur: 'SonOdeme',
+  kaynakId: 4,
+};
+
+test('Aşama 3 kapısı: act() düğmesi çalışırken kapalıdır, ikinci basışı yok sayar, hatayı bildirimde gösterip yeniden açılır', async () => {
+  const cases = [
+    { screen: 'monthly-expenses', host: '#page-actions', label: '+ Şablon ekle', path: '/api/kanallar', extra: monthlyResponses() },
+    { screen: 'cards', host: '#page-actions', label: '+ Kart ekle', path: '/api/kanallar', extra: { '/api/takip/kartlar': [sampleCard] } },
+    { screen: 'imports', host: '#page-actions', label: '+ PDF yükle', path: '/api/takip/kartlar', extra: importResponses() },
+    {
+      screen: 'notifications',
+      host: '#view',
+      label: 'Okundu olarak işaretle',
+      path: '/api/bildirimler/3/okundu',
+      extra: { '/api/bildirimler': [kapiNotification] },
+    },
+  ];
+  for (const item of cases) {
+    const { app, nodes, calls, responses } = await openApp(false, item.extra);
+    await app.navigate(item.screen);
+    await settle();
+    const control = buttonIn(nodes.get(item.host), item.label);
+    assert.ok(control, item.label);
+    same(domLines(control), `act-${item.screen}`, item.label);
+    const gate = deferred();
+    responses[item.path] = () => gate.promise;
+    const count = () => calls.filter(call => call.path === item.path).length;
+    const before = count();
+    control.listeners.click({ currentTarget: control });
+    await settle();
+    assert.equal(control.disabled, true, `${item.label}: iş sürerken düğme kapalı`);
+    control.listeners.click({ currentTarget: control });
+    await settle();
+    assert.equal(count(), before + 1, `${item.label}: ikinci basış yok sayılır`);
+    gate.resolve({ $status: 409, hata: `${item.label} tamamlanamadı.` });
+    await settle();
+    assert.equal(control.disabled, false, `${item.label}: iş bitince düğme açık`);
+    assert.equal(nodes.get('#alerts').textContent, `${item.label} tamamlanamadı.×`, `${item.label}: hata bildirimi`);
+    assert.equal(nodes.get('#modal').open, false, `${item.label}: pencere açılmaz`);
+  }
+});
+
+test('Aşama 3 kapısı: act() işi bitince ekran yeniden yüklenir; aylık gider kaydı yalnız o ekran açıkken listeyi yeniler', async () => {
+  // Bildirim: okundu işareti listeyi yeniden okur.
+  const notice = await openApp(false, { '/api/bildirimler': [kapiNotification], '/api/bildirimler/3/okundu': null });
+  await notice.app.navigate('notifications');
+  await settle();
+  const mark = buttonIn(notice.nodes.get('#view'), 'Okundu olarak işaretle');
+  await mark.listeners.click({ currentTarget: mark });
+  await settle();
+  assert.deepEqual(
+    notice.calls.map(call => `${call.method} ${call.path}`).filter(text => text.includes('/api/bildirimler')),
+    ['GET /api/bildirimler', 'POST /api/bildirimler/3/okundu', 'GET /api/bildirimler']
+  );
+  assert.equal(mark.disabled, false);
+  // Ekstre belgesi: "Belgeyi yenile" belgeyi yeniden okur.
+  const imports = await openApp(false, importResponses());
+  await imports.app.navigate('imports', 12);
+  await settle();
+  const reload = buttonIn(imports.nodes.get('#page-actions'), 'Belgeyi yenile');
+  await reload.listeners.click({ currentTarget: reload });
+  await settle();
+  assert.equal(imports.calls.filter(call => call.path === '/api/ekstre-aktar/12').length, 2);
+  // Aylık gider: "Ayı göster" seçilen ayı okur; şablon kaydı ekran açıkken listeyi yeniler, başka ekrana geçildiyse yenilemez.
+  const nextMonth = ui.shiftMonth(monthNow, 1);
+  const [nextYear, nextNumber] = nextMonth.split('-').map(Number);
+  const nextPath = `/api/aylik-giderler?yil=${nextYear}&ay=${nextNumber}`;
+  const monthly = await openApp(false, {
+    ...monthlyResponses(),
+    [nextPath]: { yil: nextYear, ay: nextNumber, planlananToplam: 0, odenenToplam: 0, kayitlar: [] },
+    '/api/aylik-giderler/sablonlar': [monthlyTemplate],
+  });
+  await monthly.app.navigate('monthly-expenses');
+  await settle();
+  const view = monthly.nodes.get('#view');
+  buttonIn(view, '›').listeners.click({ currentTarget: buttonIn(view, '›') });
+  await clickView(monthly.nodes, 'Ayı göster');
+  assert.ok(monthly.calls.some(call => call.path === nextPath));
+  const reads = () => monthly.calls.filter(call => call.method === 'GET' && call.path === '/api/aylik-giderler/sablonlar').length;
+  const saveTemplate = async () => {
+    await monthly.app.monthlyUi.templateDialog(monthlyTemplate);
+    await submitDialog(monthly.nodes);
+  };
+  monthly.responses['/api/aylik-giderler/sablonlar/7'] = monthlyTemplate;
+  const beforeSave = reads();
+  await saveTemplate();
+  assert.equal(reads(), beforeSave + 1, 'ekran açıkken şablon kaydı listeyi yeniler');
+  assert.ok(monthly.calls.filter(call => call.path === nextPath).length >= 2, 'yenileme seçili ayı okur');
+  await monthly.app.navigate('home');
+  await settle();
+  const afterLeave = reads();
+  await saveTemplate();
+  assert.equal(reads(), afterLeave, 'başka ekrana geçildiyse aylık gider listesi yenilenmez');
+});
+
+test('Aşama 3 kapısı: bildirim ayarlarındaki act() düğmesi ek özellikleri (disabled) aynen taşır', async () => {
+  const browser = fakePushBrowser();
+  const { app, nodes } = await openApp(
+    false,
+    {
+      '/api/bildirimler/ayarlar': { etkin: true, saat: 9, dakika: 0, surum: 1 },
+      '/api/bildirimler/push/anahtar': { etkin: false, publicKey: null },
+      '/api/bildirimler/push/abonelikler': [],
+    },
+    browser.environment
+  );
+  await app.notificationUi.settings();
+  same(domLines(buttonIn(nodes.get('#modal-content'), 'Bu cihazda bildirimleri aç')), 'act-props');
+});
+
+test('Aşama 3 kapısı: editör koruması ekrana göre aynı iletiyle işlemi başlatmaz', async () => {
+  const MONTHLY = 'Bu işlem için editör hesabı gerekir.';
+  const IMPORT = 'Ekstre yüklemek ve işlemek için editör hesabı gerekir.';
+  const { app, calls } = await openApp(false, { ...monthlyResponses(), '/api/auth/me': { rol: 'viewer' } });
+  // Hata türü adla denetlenir: testte app.js ayrı bir vm bağlamında (başka Error kurucusuyla) çalışır; tarayıcıda tek bağlam vardır.
+  const exact = message => error => error?.name === 'Error' && error.message === message;
+  await assert.rejects(app.monthlyUi.templateDialog(), exact(MONTHLY));
+  assert.throws(() => app.monthlyUi.paymentDialog(monthlyRow, yearNow, monthNumberNow), exact(MONTHLY));
+  assert.throws(() => app.monthlyUi.cancelDialog({ ...monthlyRow, durum: 'Odendi', odemeId: 4 }), exact(MONTHLY));
+  const threshold = { kanalId: 1, kanal: 'MEZAT', surum: 1, tutar: 10, etkin: true };
+  assert.throws(() => app.cashControlsUi.thresholdDialog(threshold), exact(MONTHLY));
+  assert.throws(() => app.cashControlsUi.comparisonDialog(), exact(MONTHLY));
+  assert.throws(() => app.cashControlsUi.explainDialog({ id: 2, surum: 1, fark: 5 }), exact(MONTHLY));
+  await assert.rejects(app.cashControlsUi.sinceDialog({ id: 2 }), exact(MONTHLY));
+  await assert.rejects(app.statementImportUi.render(0), exact(IMPORT));
+  await assert.rejects(app.statementImportUi.uploadDialog(0), exact(IMPORT));
+  assert.throws(() => app.financeUi.feeDialog(sampleCard), exact('Yeni kart takibinde editör hesabı gerekir.'));
+  assert.deepEqual(
+    calls.filter(call => call.method !== 'GET' || /kanallar|takip|kasa-kontrol\/|ekstre-aktar|aylik-giderler/.test(call.path)),
+    [],
+    'korunan işlem istek göndermez'
+  );
+  const editor = await openApp(false, {});
+  assert.throws(
+    () => editor.app.financeUi.feeDialog({ ...sampleCard, yeniTakip: false }),
+    exact('Yeni kart takibinde editör hesabı gerekir.')
+  );
+});
+
+test('Aşama 3 kapısı: pencere açıkken oturum kapanırsa kayıt editör korumasıyla durur ve ileti pencere adıyla bildirilir', async () => {
+  const cases = [
+    {
+      title: 'Aylık gider şablonu ekle',
+      message: 'Bu işlem için editör hesabı gerekir.',
+      extra: monthlyResponses(),
+      open: app => app.monthlyUi.templateDialog(),
+    },
+    {
+      title: 'Kanal alt bakiye uyarısı',
+      message: 'Bu işlem için editör hesabı gerekir.',
+      extra: {},
+      open: app => app.cashControlsUi.thresholdDialog({ kanalId: 1, kanal: 'Kanal', surum: 1, tutar: 10, etkin: true }),
+    },
+    {
+      title: 'Ekstre / hareket PDF’si yükle',
+      message: 'Ekstre yüklemek ve işlemek için editör hesabı gerekir.',
+      extra: importResponses(),
+      open: async (app, nodes) => {
+        await app.navigate('imports');
+        await settle();
+        const upload = buttonIn(nodes.get('#page-actions'), '+ PDF yükle');
+        await upload.listeners.click({ currentTarget: upload });
+      },
+    },
+    {
+      title: 'Kart faizini / masrafını ekle',
+      message: 'Editör hesabı gerekir.',
+      extra: {},
+      open: app => app.financeUi.feeDialog(sampleCard),
+    },
+  ];
+  for (const item of cases) {
+    const { app, nodes, calls } = await openApp(false, item.extra);
+    await item.open(app, nodes);
+    await settle();
+    const form = nodes.get('#modal-content').find(node => node.tag === 'form');
+    assert.ok(form, item.title);
+    const writes = calls.length;
+    app.clearSession();
+    form.listeners.submit({ preventDefault() {} });
+    await settle();
+    assert.equal(nodes.get('#alerts').textContent, `${item.title}: ${item.message}×`, item.title);
+    assert.equal(calls.length, writes, `${item.title}: istek gönderilmez`);
+  }
+  // Masraf onayı (ikinci pencere) da aynı korumayla durur.
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/takip/kartlar/4/masraf-onizleme': { tutar: 12.5, devredenBorc: 12000, dagilimOzeti: 'ozet', dagilimlar: [] },
+  });
+  app.financeUi.feeDialog({ ...sampleCard, ekstreler: [{ ...sampleCard.ekstreler[0], kesimTarihi: '2020-01-20' }] });
+  formField(nodes, 'ekstreId').value = '8';
+  formField(nodes, 'tutar').value = '12,50';
+  formField(nodes, 'aciklama').value = 'Faiz';
+  await submitDialog(nodes);
+  const confirmation = nodes.get('#modal-content').find(node => node.tag === 'form');
+  assert.match(nodes.get('#modal-title').textContent, /Faiz \/ masraf dağılımını onaylayın/);
+  const writes = calls.length;
+  app.clearSession();
+  confirmation.listeners.submit({ preventDefault() {} });
+  await settle();
+  assert.equal(nodes.get('#alerts').textContent, 'Faiz / masraf dağılımını onaylayın: Editör hesabı gerekir.×');
+  assert.equal(calls.length, writes);
+});
+
+test('Aşama 3 kapısı: kanal payı etiketleri (kart, kredi, aylık gider, ekstre, alış ödemesi) bugünkü yapıyla çizilir', async () => {
+  // Kart: kanalı olmayan pay "Dağılım bekliyor" adıyla ve pending sınıfıyla; boş liste boş kutu; eksi ve kuruşlu tutar.
+  const card = {
+    ...sampleCard,
+    kanalKartBorclari: [
+      { kanalId: 1, kanal: 'MEZAT', tutar: 1234.5 },
+      { kanalId: null, kanal: null, tutar: 30 },
+      { kanalId: 3, kanal: 'Ortak', tutar: 0.07 },
+    ],
+    harcamalar: [
+      {
+        id: 1,
+        tarih: '2026-09-23',
+        aciklama: 'İade',
+        tutar: -50.25,
+        taksitSayisi: 1,
+        iptal: false,
+        dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: -50.25 }],
+      },
+      { id: 2, tarih: '2026-09-23', aciklama: 'Belirsiz', tutar: 10, taksitSayisi: 1, iptal: false, dagilimlar: [] },
+    ],
+  };
+  const finance = await openApp(false, { '/api/takip/kartlar/4': card });
+  await finance.app.navigate('cards', 4);
+  await settle();
+  same(
+    classNodes(finance.nodes.get('#view'), 'allocation-tags').flatMap(node => domLines(node)),
+    'shares-card'
+  );
+  const loans = await openApp(false, {
+    '/api/takip/krediler/5': {
+      ...sampleLoan,
+      kanalPaylari: [
+        { kanalId: 1, kanal: 'A', tutar: 60000.01 },
+        { kanalId: null, kanal: 'Dağılım bekliyor', tutar: 59999.99 },
+      ],
+    },
+  });
+  await loans.app.navigate('loans', 5);
+  await settle();
+  same(
+    classNodes(loans.nodes.get('#view'), 'allocation-tags').flatMap(node => domLines(node)),
+    'shares-loan'
+  );
+  // Aylık gider: "Yalnız genel kasa" ayrı yazı; kanallı satırda etiketler; ödeme penceresinde aynı etiketler.
+  const channelRow = {
+    ...monthlyRow,
+    sablonId: 8,
+    ad: 'Maaş',
+    dagilimTuru: 'Ozel',
+    dagilimlar: [
+      { kanalId: 2, kanal: 'B', tutar: 60.01 },
+      { kanalId: 3, kanal: 'Ortak', tutar: 40 },
+    ],
+  };
+  const monthly = await openApp(false, monthlyResponses([monthlyRow, channelRow]));
+  await monthly.app.navigate('monthly-expenses');
+  await settle();
+  const monthlyCells = nodesWhere(
+    monthly.nodes.get('#view'),
+    node => node.tag === 'td' && (node.textContent === 'Yalnız genel kasa' || classNodes(node, 'allocation-tags').length > 0)
+  );
+  same(
+    monthlyCells.flatMap(node => domLines(node)),
+    'shares-monthly'
+  );
+  monthly.app.monthlyUi.paymentDialog(channelRow, yearNow, monthNumberNow);
+  same(
+    classNodes(monthly.nodes.get('#modal-content'), 'allocation-tags').flatMap(node => domLines(node)),
+    'shares-monthly-payment'
+  );
+  // Ekstre: kanalı olmayan pay "Genel kasa" adıyla, pending sınıfı yok; kayıt geçmişinde Genel ve eşleştirme yazıyla.
+  const imports = await openApp(
+    false,
+    importResponses(
+      importDocument({
+        kayitlar: [
+          { id: 1, satirNo: 5, tarih: '2026-09-20', aciklama: 'Genel', tutar: 5, islemTuru: 'Gider', dagilimTuru: 'Genel', dagilimlar: [] },
+          {
+            id: 2,
+            satirNo: 6,
+            tarih: '2026-09-20',
+            aciklama: 'Kanallı',
+            tutar: 7.5,
+            islemTuru: 'Gider',
+            dagilimTuru: 'Ozel',
+            dagilimlar: [
+              { kanalId: 1, kanal: 'Mezat', tutar: 7.49 },
+              { kanalId: null, kanal: null, tutar: 0.01 },
+            ],
+          },
+          {
+            id: 3,
+            satirNo: 7,
+            tarih: '2026-09-20',
+            aciklama: 'Eş',
+            tutar: 9,
+            islemTuru: 'Eslestir',
+            dagilimTuru: 'Eslesme',
+            dagilimlar: [],
+          },
+        ],
+      }),
+      {
+        '/api/ekstre-aktar/12/onizleme': importPreview({
+          satirlar: [
+            {
+              satirNo: 1,
+              tarih: '2026-09-23',
+              aciklama: 'Kira',
+              tutar: 100,
+              islemTuru: 'Gider',
+              kasaEtkisi: -100,
+              dagilimlar: [
+                { kanalId: null, kanal: null, tutar: -100 },
+                { kanalId: 2, kanal: 'Mağaza', tutar: 0 },
+              ],
+              uyarilar: [],
+            },
+          ],
+        }),
+      }
+    )
+  );
+  await imports.app.navigate('imports', 12);
+  await settle();
+  const history = imports.nodes.get('#view').find(node => node.attributes['aria-label'] === 'Bu belgeden kaydedilenler');
+  same(
+    nodesWhere(history, node => node.tag === 'tr')
+      .slice(1)
+      .map(row => domLines(row.children[3])),
+    'shares-import-history'
+  );
+  await chooseImportRow(imports.nodes);
+  await clickView(imports.nodes, 'Seçilenleri önizle');
+  const preview = imports.nodes.get('#view').find(node => (node.className || '') === 'import-preview');
+  same(
+    classNodes(preview, 'allocation-tags').flatMap(node => domLines(node)),
+    'shares-import-preview'
+  );
+  // Alış ödemesi: yalnız sıfırdan büyük paylar, kanal adı aynen; dağılım bekleyen ödemede etiket yerine rozet.
+  const purchase = await openApp(false, { '/api/alis/kanallar': [] });
+  const payment = (overrides = {}) => ({
+    id: 8,
+    tarih: '2026-09-23',
+    tutar: 50,
+    krediKartiId: null,
+    dagilimBekliyor: false,
+    dagilimlar: [
+      { kanalId: 1, kanal: 'A', tutar: 49.99 },
+      { kanalId: 2, kanal: 'B', tutar: 0 },
+      { kanalId: 3, kanal: 'C', tutar: 0.01 },
+    ],
+    ...overrides,
+  });
+  same(
+    [payment(), payment({ dagilimBekliyor: true })].flatMap(value =>
+      domLines(purchase.app.paymentRow({ id: 1 }, value).children[0].children[2])
+    ),
+    'shares-purchase-payment'
+  );
+});
+
+const kapiChannels = [
+  { id: 3, ad: 'Ortak', aktif: true },
+  { id: 1, ad: 'A', aktif: true },
+  { id: 2, ad: 'B', aktif: true },
+  { id: 4, ad: 'Kapalı', aktif: false },
+];
+test('Aşama 3 kapısı: aylık gider dağıtım editörü (distribution) — yapı, seçim, sıralama, kuruş ve hata iletileri', async () => {
+  const { app, nodes, calls, responses } = await openApp(false, { ...monthlyResponses(), '/api/kanallar': kapiChannels });
+  const allocation = () => nodes.get('#modal-content').find(node => node.tag === 'fieldset');
+  const mode = value => {
+    const control = formField(nodes, 'dagilimTuru');
+    control.value = value;
+    control.listeners.change();
+  };
+  const check = (id, on = true) => {
+    const control = formField(nodes, `dagilim-kanal-${id}`);
+    control.checked = on;
+    control.listeners.change({ target: control });
+  };
+  const amountOf = (id, value) => {
+    const control = formField(nodes, `dagilim-tutar-${id}`);
+    control.value = value;
+    control.listeners.input({ target: control });
+  };
+  const posts = () => calls.filter(call => call.method === 'POST' && call.path === '/api/aylik-giderler/sablonlar');
+  const errorText = () => nodes.get('#modal-content').find(node => node.className === 'form-error').textContent;
+  await app.monthlyUi.templateDialog();
+  same(domLines(allocation()), 'monthly-new');
+  mode('Ozel');
+  check(1);
+  check(3);
+  same(domLines(allocation()), 'monthly-new-ozel');
+  formField(nodes, 'ad').value = 'Kira';
+  formField(nodes, 'tutar').value = '100,01';
+  amountOf(1, '50');
+  amountOf(3, '50,02');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'Kanal paylarının toplamı gider tutarına eşit olmalı.');
+  amountOf(3, '0');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'Tutar geçerli aralıkta ve sıfırdan büyük olmalı.');
+  amountOf(3, '-50,01');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'Tutarı kuruş cinsinden, en çok iki ondalık basamakla girin.');
+  amountOf(3, '50,001');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'Tutarı kuruş cinsinden, en çok iki ondalık basamakla girin.');
+  amountOf(3, '50,01');
+  await submitDialog(nodes);
+  assert.equal(posts().length, 1);
+  assert.deepEqual(
+    [posts()[0].body.dagilimTuru, posts()[0].body.dagilimlar],
+    [
+      'Ozel',
+      [
+        { kanalId: 1, tutar: 50 },
+        { kanalId: 3, tutar: 50.01 },
+      ],
+    ]
+  );
+  // Eşit dağılım: tutarlar 0, yalnız seçilenler; seçim kaldırılınca kanal çıkar; hiç kanal yoksa ileti.
+  await app.monthlyUi.templateDialog();
+  formField(nodes, 'ad').value = 'Maaş';
+  formField(nodes, 'tutar').value = '10';
+  mode('Esit');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'En az bir kanal seçin.');
+  check(2);
+  check(1);
+  check(2, false);
+  same(domLines(allocation()), 'monthly-new-esit');
+  await submitDialog(nodes);
+  assert.deepEqual(posts()[1].body.dagilimlar, [{ kanalId: 1, tutar: 0 }]);
+  // Seçim ve tutar kip değişince korunur (liste gizliyken de çizili kalır).
+  await app.monthlyUi.templateDialog();
+  mode('Ozel');
+  check(2);
+  amountOf(2, '7,5');
+  mode('Genel');
+  same(domLines(allocation()), 'monthly-new-genel-kept');
+  mode('Ozel');
+  assert.equal(formField(nodes, 'dagilim-tutar-2').value, '7,5');
+  assert.equal(formField(nodes, 'dagilim-kanal-2').checked, true);
+  // Kayıtlı şablon: kapalı ama seçili kanal görünür, tutarlar dolu gelir, istek kanal numarasına göre sıralanır.
+  responses['/api/aylik-giderler/sablonlar/9'] = monthlyTemplate;
+  const saved = {
+    ...monthlyTemplate,
+    id: 9,
+    tutar: 100,
+    dagilimTuru: 'Ozel',
+    dagilimlar: [
+      { kanalId: 4, kanal: 'Kapalı', tutar: 10.5 },
+      { kanalId: 3, kanal: 'Ortak', tutar: 89.5 },
+    ],
+  };
+  await app.monthlyUi.templateDialog(saved);
+  same(domLines(allocation()), 'monthly-edit-ozel');
+  await submitDialog(nodes);
+  const put = calls.find(call => call.method === 'PUT' && call.path === '/api/aylik-giderler/sablonlar/9');
+  assert.deepEqual(put.body.dagilimlar, [
+    { kanalId: 3, tutar: 89.5 },
+    { kanalId: 4, tutar: 10.5 },
+  ]);
+  // Eşit şablonun sıfır tutarı Özel kipte "0" olarak görünür.
+  await app.monthlyUi.templateDialog({
+    ...saved,
+    dagilimTuru: 'Esit',
+    dagilimlar: [{ kanalId: 1, kanal: 'A', tutar: 0 }],
+  });
+  mode('Ozel');
+  assert.equal(formField(nodes, 'dagilim-tutar-1').value, '0');
+});
+
+test('Aşama 3 kapısı: ekstre satırı dağıtım editörü — işlem türüne göre seçenekler, liste sırası, otomatik ve hata iletileri', async () => {
+  const bank = importDocument({
+    satirlar: [importRow(), importRow({ no: 2, onerilenIslem: 'Gelir', tutar: 20.01 })],
+  });
+  const { app, nodes, calls, responses } = await openApp(
+    false,
+    importResponses(bank, {
+      '/api/kanallar': kapiChannels,
+      '/api/ekstre-aktar/12/onizleme': importPreview(),
+    })
+  );
+  await app.navigate('imports', 12);
+  await settle();
+  const fieldset = (no = 1) => importRowNode(nodes, no).find(node => node.tag === 'fieldset');
+  const rowField = (no, name) => importRowNode(nodes, no).find(node => node.attributes.name === name);
+  const mode = (no, value) => {
+    const control = rowField(no, 'dagilimTuru');
+    control.value = value;
+    control.listeners.change();
+  };
+  const check = (no, id, on = true) => {
+    const control = rowField(no, `pay-kanal-${id}`);
+    control.checked = on;
+    control.listeners.change();
+  };
+  const amountOf = (no, id, value) => {
+    const control = rowField(no, `pay-tutar-${id}`);
+    control.value = value;
+    control.listeners.input();
+  };
+  const previews = () => calls.filter(call => call.path.endsWith('/onizleme'));
+  const alerts = () => nodes.get('#alerts').textContent;
+  // Seçilmeden önce: seçenek yok, liste gizli ve boş.
+  same(domLines(fieldset()), 'import-unselected');
+  await chooseImportRow(nodes, 1, null);
+  same(domLines(fieldset()), 'import-gider');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.equal(alerts(), 'Seçili hareketin kasa / kanal dağılımını seçin.×');
+  mode(1, 'Esit');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.match(alerts(), /Seçili hareket için en az bir kanal seçin\.×$/);
+  // Liste sırası (Sira) korunur: B (2) önce işaretlense de istek Ortak (3), A (1), B (2) sırasıyla gider; kapalı kanal yok.
+  check(1, 2);
+  check(1, 3);
+  check(1, 1);
+  mode(1, 'Ozel');
+  same(domLines(fieldset()), 'import-ozel');
+  amountOf(1, 2, '33,33');
+  amountOf(1, 3, '33,33');
+  amountOf(1, 1, '33,33');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.match(alerts(), /Kanal paylarının toplamı hareket tutarına eşit olmalı\.×$/);
+  amountOf(1, 1, '33,34');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.equal(previews().length, 1);
+  assert.deepEqual(previews()[0].body.satirlar[0].dagilimlar, [
+    { kanalId: 3, tutar: 33.33 },
+    { kanalId: 1, tutar: 33.34 },
+    { kanalId: 2, tutar: 33.33 },
+  ]);
+  // Dağılım değişikliği önizlemeyi geçersiz kılar (changed → invalidate).
+  const host = () => nodes.get('#view').find(node => node.className === 'import-preview');
+  assert.equal(host().hidden, false);
+  amountOf(1, 1, '33,34');
+  assert.equal(host().hidden, true, 'tutar girişi önizlemeyi kapatır');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.equal(host().hidden, false);
+  check(1, 3, false);
+  assert.equal(host().hidden, true, 'kanal seçimi önizlemeyi kapatır');
+  mode(1, 'Esit');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.equal(host().hidden, false);
+  assert.deepEqual(previews().at(-1).body.satirlar[0].dagilimlar, [
+    { kanalId: 1, tutar: 0 },
+    { kanalId: 2, tutar: 0 },
+  ]);
+  mode(1, 'Ozel');
+  assert.equal(host().hidden, true, 'kip değişimi önizlemeyi kapatır');
+  // Kip Genel'e geçince liste boşaltılır; geri dönünce seçim ve tutarlar korunur.
+  mode(1, 'Genel');
+  same(domLines(fieldset()), 'import-genel');
+  mode(1, 'Ozel');
+  assert.equal(rowField(1, 'pay-kanal-3').checked, false);
+  assert.equal(rowField(1, 'pay-kanal-1').checked, true);
+  assert.equal(rowField(1, 'pay-tutar-1').value, '33,34');
+  assert.equal(rowField(1, 'pay-tutar-3').disabled, true);
+  // Kart ödemesi: otomatik, kapalı seçim; tür yeniden Gider olunca önceki seçenek (Özel) yoksa boşa, varsa korunur.
+  const kind = rowField(1, 'tur-1');
+  kind.value = 'KartOdemesi';
+  await kind.listeners.change();
+  await settle();
+  same(domLines(fieldset()), 'import-otomatik');
+  rowField(1, 'kart-1').value = '4';
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.deepEqual([previews().at(-1).body.satirlar[0].dagilimTuru, previews().at(-1).body.satirlar[0].dagilimlar], ['Otomatik', []]);
+  kind.value = 'Gider';
+  await kind.listeners.change();
+  await settle();
+  assert.equal(rowField(1, 'dagilimTuru').value, '');
+  assert.equal(rowField(1, 'dagilimTuru').disabled, false);
+  mode(1, 'Ozel');
+  kind.value = 'Gelir';
+  await kind.listeners.change();
+  await settle();
+  assert.equal(rowField(1, 'dagilimTuru').value, 'Ozel');
+  // Genel kasa: dağılım boş gider; ikinci satırın editörü ayrıdır.
+  mode(1, 'Genel');
+  await chooseImportRow(nodes, 2, 'Genel');
+  await clickView(nodes, 'Seçilenleri önizle');
+  assert.deepEqual(
+    previews()
+      .at(-1)
+      .body.satirlar.map(row => [row.satirNo, row.islemTuru, row.dagilimTuru, row.dagilimlar]),
+    [
+      [1, 'Gelir', 'Genel', []],
+      [2, 'Gelir', 'Genel', []],
+    ]
+  );
+  // Kart belgesi: harcama türünde Genel seçeneği yok, iadede otomatik.
+  responses['/api/ekstre-aktar/12'] = importDocument({
+    kaynak: 'Kart',
+    kartId: 4,
+    satirlar: [importRow({ onerilenIslem: 'KartHarcama' }), importRow({ no: 2, onerilenIslem: 'KartIade' })],
+  });
+  responses['/api/takip/kartlar/4'] = sampleCard;
+  await app.navigate('imports', 12);
+  await settle();
+  await chooseImportRow(nodes, 1, null);
+  await chooseImportRow(nodes, 2, null);
+  same(
+    [fieldset(1), fieldset(2)].flatMap(node => domLines(node.children[1])),
+    'import-kart'
+  );
+});
+
+test('Aşama 3 kapısı: kart dağılım editörü (satır ekle/kaldır) — boş bırakılabilir, kanal bir kez, toplam tutara eşit', async () => {
+  const { app, nodes, calls, responses } = await openApp(false, { '/api/kanallar': kapiChannels });
+  responses['/api/takip/kartlar'] = { id: 4 };
+  responses['/api/takip/kartlar/4'] = sampleCard;
+  responses['/api/takip/kartlar/4/devir'] = { $status: 404 };
+  const allocation = () => nodes.get('#modal-content').find(node => node.tag === 'fieldset');
+  const errorText = () => nodes.get('#modal-content').find(node => node.className === 'form-error').textContent;
+  const fill = () => {
+    formField(nodes, 'ad').value = 'Kart';
+    formField(nodes, 'limit').value = '1000';
+    formField(nodes, 'acilisBorc').value = '100,01';
+  };
+  await app.financeUi.cardDialog();
+  same(domLines(allocation()), 'card-empty');
+  fill();
+  await clickDialog(nodes, '+ Kanal payı');
+  await clickDialog(nodes, '+ Kanal payı');
+  same(domLines(allocation()), 'card-two-rows');
+  const choose = (index, id) => {
+    const control = formField(nodes, `pay-kanal-${index}`);
+    control.value = String(id);
+    control.listeners.change({ target: control });
+  };
+  const share = (index, value) => {
+    const control = formField(nodes, `pay-tutar-${index}`);
+    control.value = value;
+    control.listeners.input({ target: control });
+  };
+  choose(0, 1);
+  choose(1, 1);
+  share(0, '50');
+  share(1, '50,01');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'Her kanalı bir kez seçin.');
+  choose(1, 3);
+  share(1, '50');
+  await submitDialog(nodes);
+  assert.equal(errorText(), 'Kanal paylarının toplamı tutara eşit olmalı.');
+  share(1, '50,01');
+  const posts = () => calls.filter(call => call.method === 'POST' && call.path === '/api/takip/kartlar');
+  await submitDialog(nodes);
+  assert.deepEqual(posts()[0].body.acilisDagilimlari, [
+    { kanalId: 1, tutar: 50 },
+    { kanalId: 3, tutar: 50.01 },
+  ]);
+  // Boş bırakılan dağılım (kanal bilinmiyor) gönderilir: [].
+  await app.financeUi.cardDialog();
+  fill();
+  await clickDialog(nodes, '+ Kanal payı');
+  const remove = nodes.get('#modal-content').find(node => node.attributes['aria-label'] === '1. kanal payını kaldır');
+  remove.listeners.click();
+  await submitDialog(nodes);
+  assert.deepEqual(posts()[1].body.acilisDagilimlari, []);
+});
+
+test('Aşama 3 kapısı: alış satır editörü ayrı kalır — kısmi dağıtım, kalan tutar önerisi ve alıcı rolü', async () => {
+  for (const role of ['editor', 'alici']) {
+    const { app, nodes, calls } = await openApp(false, {
+      '/api/auth/me': { rol: role },
+      '/api/alis': [],
+      '/api/alis/kanallar': kapiChannels,
+    });
+    await app.navigate('purchases');
+    await settle();
+    const create = buttonIn(nodes.get('#page-actions'), '+ Yeni alış');
+    await create.listeners.click({ currentTarget: create });
+    await settle();
+    const status = () => nodes.get('#modal-content').find(node => (node.className || '').startsWith('allocation-summary'));
+    const type = (name, value) => formField(nodes, name).listeners.input({ target: { value } });
+    type('tedarikci', 'Firma');
+    type('aciklama-0', 'Mal');
+    type('tutar-0', '100,01');
+    assert.equal(status().textContent, 'Kalem: ₺100,01₺100,01 dağıtılmadı', role);
+    await clickDialog(nodes, '+ Kanal payı');
+    assert.equal(formField(nodes, 'pay-0-0').value, '100.01', `${role}: kalan tutar önerilir`);
+    type('pay-0-0', '60');
+    const channel = formField(nodes, 'kanal-0-0');
+    channel.listeners.change({ target: { value: '2' } });
+    assert.equal(status().textContent, 'Kalem: ₺100,01₺40,01 dağıtılmadı', role);
+    same(domLines(nodes.get('#modal-content').find(node => node.className === 'allocation-editor')), 'purchase', role);
+    type('pay-0-0', '100,02');
+    assert.equal(status().textContent, 'Kalem: ₺100,01₺0,01 fazla pay', role);
+    await submitDialog(nodes);
+    assert.equal(
+      nodes.get('#modal-content').find(node => node.className === 'form-error').textContent,
+      '1. kalemde kanal payları kalem tutarını aşıyor.',
+      role
+    );
+    type('pay-0-0', '60');
+    assert.equal(status().textContent, 'Kalem: ₺100,01₺40,01 dağıtılmadı', role);
+    await submitDialog(nodes);
+    const post = calls.find(call => call.method === 'POST' && call.path === '/api/alis');
+    assert.deepEqual(post.body.kalemler, [{ aciklama: 'Mal', tutar: 100.01, dagilimlar: [{ kanalId: 2, tutar: 60 }] }], role);
+  }
+});
+
+test('Aşama 3 kapısı: para hesaplarının bugünkü çıktısı (aylık kalan plan, kontrol farkları, kart borcu etkisi, ana sayfa, ayırma, devir)', async () => {
+  // Aylık gider: kalan plan = planlanan − ödenen.
+  const monthly = await openApp(false, {
+    ...monthlyResponses(),
+    [monthlyPath]: { yil: yearNow, ay: monthNumberNow, planlananToplam: 1234.56, odenenToplam: 234.5, kayitlar: [] },
+  });
+  await monthly.app.navigate('monthly-expenses');
+  await settle();
+  assert.match(monthly.nodes.get('#view').textContent, /Kalan plan₺1\.000,06/);
+  // Kasa kontrolü: geriye dönük değişim ve kontrol gününden sonraki fark.
+  const since = {
+    kontrolId: 2,
+    esasTarih: '2026-09-20',
+    filigranVar: true,
+    sistemBakiye: 1000.1,
+    guncelSistemBakiye: 1500.35,
+    bugunkuSistemBakiye: 500,
+    kirpildi: false,
+    degisiklikler: [],
+    istekler: [],
+    hareketler: [],
+  };
+  const cash = await openApp(false, { '/api/kasa-kontrol/2/sonrasi': since });
+  await cash.app.cashControlsUi.sinceDialog({ id: 2 });
+  const sinceText = cash.nodes.get('#modal-content').textContent;
+  assert.ok(sinceText.includes('Geriye dönük değişim ₺500,25'), sinceText);
+  assert.ok(sinceText.includes('Kontrol gününden sonra -₺1.000,35'), sinceText);
+  // Ekstre önizlemesi: harcama − iade (kart ödemesi hariç).
+  const imports = await openApp(
+    false,
+    importResponses(importDocument(), {
+      '/api/ekstre-aktar/12/onizleme': importPreview({
+        satirlar: [
+          {
+            satirNo: 1,
+            tarih: '2026-09-23',
+            aciklama: 'a',
+            tutar: 100.25,
+            islemTuru: 'KartHarcama',
+            kasaEtkisi: 0,
+            dagilimlar: [],
+            uyarilar: [],
+          },
+          {
+            satirNo: 2,
+            tarih: '2026-09-23',
+            aciklama: 'b',
+            tutar: 20.1,
+            islemTuru: 'KartIade',
+            kasaEtkisi: 0,
+            dagilimlar: [],
+            uyarilar: [],
+          },
+          {
+            satirNo: 3,
+            tarih: '2026-09-23',
+            aciklama: 'c',
+            tutar: 50,
+            islemTuru: 'KartOdemesi',
+            kasaEtkisi: -50,
+            dagilimlar: [],
+            uyarilar: [],
+          },
+        ],
+      }),
+    })
+  );
+  await imports.app.navigate('imports', 12);
+  await chooseImportRow(imports.nodes);
+  await clickView(imports.nodes, 'Seçilenleri önizle');
+  assert.match(imports.nodes.get('#view').textContent, /Harcama \/ iade borç etkisi₺80,15/);
+  // Ana sayfa: aynı kanala düşen kart borcu satırları toplanır.
+  const home = sampleHome();
+  home.takipOzeti.kanalKartBorclari = [
+    { kanalId: 1, kanal: 'MEZAT', tutar: 40.1 },
+    { kanalId: 1, kanal: 'MEZAT', tutar: 9.9 },
+    { kanalId: 2, kanal: 'PERAKENDE', tutar: 0.07 },
+  ];
+  const homeApp = await openApp(false, { [homeSummaryPath]: home });
+  const balances = homeApp.nodes.get('#view').find(node => node.className === 'channel-balances');
+  assert.match(balances.children[0].textContent, /Kalan kart borcu: ₺50,00$/);
+  assert.match(balances.children[1].textContent, /Kalan kart borcu: ₺0,07$/);
+  // Alış ödemesini ayırma: kanalın payları toplanıp alana yazılır.
+  const cards = [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }];
+  const purchase = { id: 6, surum: 3, tarih: '2026-09-23', tedarikci: 'Alış', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 60 };
+  const payment = {
+    id: 8,
+    tarih: '2026-09-23',
+    tutar: 60,
+    krediKartiId: 2,
+    dagilimBekliyor: false,
+    dagilimlar: [
+      { kanalId: 1, kanal: 'A', tutar: 20 },
+      { kanalId: 1, kanal: 'A', tutar: 16.5 },
+      { kanalId: 2, kanal: 'B', tutar: 23.5 },
+    ],
+  };
+  const detach = await openApp(false, {
+    '/api/kredikartlari': cards,
+    '/api/alis': [purchase],
+    '/api/alis/kanallar': [
+      { id: 1, ad: 'A', aktif: true },
+      { id: 2, ad: 'B', aktif: true },
+      { id: 3, ad: 'C', aktif: true },
+    ],
+  });
+  await detach.app.navigate('purchases');
+  await detach.app.cancelPayment(purchase, payment);
+  assert.deepEqual(
+    ['ayir-1', 'ayir-2', 'ayir-3'].map(name => formField(detach.nodes, name).value),
+    ['36.5', '23.5', '']
+  );
+  // Eski borç devri: önerilen önceden sayılan = min(kalan borç, sistem kart borcu) − rapor dışı düşüm.
+  const transfer = {
+    harcamaId: 10,
+    tarih: '2026-09-23',
+    kalanBorc: 100,
+    kasadaOncedenSayilanTutar: 80,
+    iadeDuzeltmesi: 0,
+    dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }],
+    sistemKartBorcu: 80.5,
+    raporDisiTutar: 5.25,
+    acilisBorcu: 0,
+    onerilenKasadaSayilanTutar: 75.25,
+    duzeltilebilir: true,
+    engel: null,
+  };
+  const finance = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }] });
+  await finance.app.financeUi.transferDialog(sampleCard, transfer);
+  const debt = formField(finance.nodes, 'kalanBorc');
+  const counted = formField(finance.nodes, 'kasadaOncedenSayilanTutar');
+  for (const [typed, expected] of [
+    ['70', '64.75'],
+    ['90', '75.25'],
+    ['3', '0'],
+  ]) {
+    debt.value = typed;
+    debt.listeners.input();
+    assert.equal(counted.value, expected, typed);
+  }
+  debt.value = 'x';
+  debt.listeners.input();
+  assert.equal(counted.value, '0', 'geçersiz tutarda öneri değişmez');
+});
+
+// Aşama 3 · toplamlar kuruşla: sunucu tutarlarının toplamı ve farkı tamsayı kuruşla (sumCents / serverCents) hesaplanır. Kayan
+// nokta toplamı alana "36.010000000000005" yazıyor (tutar ayrıştırıcısı onu reddeder) ya da sıfır sonucu "-₺0,00" gösteriyordu.
+test('sumCents sunucu tutarlarını tamsayı kuruşla toplar; eksik değer 0, eksi ve üslü sayı serverCents gibi', () => {
+  assert.equal(ui.sumCents([0.1, 0.2]), 30);
+  assert.equal(ui.sumCents([0.3, -0.1, -0.2]), 0);
+  assert.equal(ui.sumCents([20, 16.01]), 3601);
+  assert.equal(ui.sumCents([1e-7, 1234567.37, -0.07]), 123456730);
+  assert.equal(ui.sumCents([null, undefined, 0]), 0);
+  assert.equal(ui.sumCents([]), 0);
+  assert.equal(ui.sumCents(null), 0);
+});
+
+test('para hesapları kayan nokta artığı göstermez: kart borcu etkisi, ana sayfa kart borcu, ayırma payı, devir önerisi ve farklar', async () => {
+  // Ekstre önizlemesi: 0,30 harcama − 0,10 − 0,20 iade = 0 (eskiden "-₺0,00").
+  const line = (satirNo, islemTuru, tutar) => ({
+    satirNo,
+    tarih: '2026-09-23',
+    aciklama: 'x',
+    tutar,
+    islemTuru,
+    kasaEtkisi: 0,
+    dagilimlar: [],
+    uyarilar: [],
+  });
+  const imports = await openApp(
+    false,
+    importResponses(importDocument(), {
+      '/api/ekstre-aktar/12/onizleme': importPreview({
+        satirlar: [line(1, 'KartHarcama', 0.3), line(2, 'KartIade', 0.1), line(3, 'KartIade', 0.2)],
+      }),
+    })
+  );
+  await imports.app.navigate('imports', 12);
+  await chooseImportRow(imports.nodes);
+  await clickView(imports.nodes, 'Seçilenleri önizle');
+  assert.match(imports.nodes.get('#view').textContent, /Harcama \/ iade borç etkisi₺0,00Kart/);
+  // Ana sayfa: aynı kanalın kart borcu satırları toplamı (0,30 − 0,10 − 0,20) sıfır; eksi sıfır yazılmaz.
+  const home = sampleHome();
+  home.takipOzeti.kanalKartBorclari = [
+    { kanalId: 1, kanal: 'MEZAT', tutar: 0.3 },
+    { kanalId: 1, kanal: 'MEZAT', tutar: -0.1 },
+    { kanalId: 1, kanal: 'MEZAT', tutar: -0.2 },
+    { kanalId: 2, kanal: 'PERAKENDE', tutar: 0.1 },
+    { kanalId: 2, kanal: 'PERAKENDE', tutar: 0.2 },
+  ];
+  const homeApp = await openApp(false, { [homeSummaryPath]: home });
+  const balances = homeApp.nodes.get('#view').find(node => node.className === 'channel-balances');
+  assert.match(balances.children[0].textContent, /Kalan kart borcu: ₺0,00$/);
+  assert.match(balances.children[1].textContent, /Kalan kart borcu: ₺0,30$/);
+  // Alış ödemesini ayırma: aynı kanalın payları 20 + 16,01 = 36,01 (eskiden "36.010000000000005", tutar ayrıştırıcısı reddederdi).
+  const purchase = { id: 6, surum: 3, tarih: '2026-09-23', tedarikci: 'Alış', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 60 };
+  const payment = {
+    id: 8,
+    tarih: '2026-09-23',
+    tutar: 60,
+    krediKartiId: 2,
+    dagilimBekliyor: false,
+    dagilimlar: [
+      { kanalId: 1, kanal: 'A', tutar: 20 },
+      { kanalId: 1, kanal: 'A', tutar: 16.01 },
+      { kanalId: 2, kanal: 'B', tutar: 23.99 },
+    ],
+  };
+  const detach = await openApp(false, {
+    '/api/kredikartlari': [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }],
+    '/api/alis': [purchase],
+    '/api/alis/kanallar': [
+      { id: 1, ad: 'A', aktif: true },
+      { id: 2, ad: 'B', aktif: true },
+    ],
+    '/api/alis/6/odemeler/8/iptal': purchase,
+  });
+  await detach.app.navigate('purchases');
+  await detach.app.cancelPayment(purchase, payment);
+  assert.deepEqual(
+    ['ayir-1', 'ayir-2'].map(name => formField(detach.nodes, name).value),
+    ['36.01', '23.99']
+  );
+  const keep = formField(detach.nodes, 'harcamayiKoru');
+  keep.checked = true;
+  keep.listeners.change();
+  formField(detach.nodes, 'aciklama').value = 'Başka alışın';
+  await submitDialog(detach.nodes);
+  assert.deepEqual(detach.calls.find(call => call.path === '/api/alis/6/odemeler/8/iptal').body.kanalDagilimlari, [
+    { kanalId: 1, tutar: 36.01 },
+    { kanalId: 2, tutar: 23.99 },
+  ]);
+  // Eski borç devri: min(100,10; 200) − 0,20 = 99,90 (eskiden "99.89999999999999", tutar ayrıştırıcısı reddederdi).
+  const transfer = {
+    harcamaId: 10,
+    tarih: '2026-09-23',
+    kalanBorc: 100,
+    kasadaOncedenSayilanTutar: 80,
+    iadeDuzeltmesi: 0,
+    dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }],
+    sistemKartBorcu: 200,
+    raporDisiTutar: 0.2,
+    acilisBorcu: 0,
+    onerilenKasadaSayilanTutar: 99.8,
+    duzeltilebilir: true,
+    engel: null,
+  };
+  const finance = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }] });
+  await finance.app.financeUi.transferDialog(sampleCard, transfer);
+  const debt = formField(finance.nodes, 'kalanBorc');
+  debt.value = '100,1';
+  debt.listeners.input();
+  assert.equal(formField(finance.nodes, 'kasadaOncedenSayilanTutar').value, '99.9');
+  // Aylık kalan plan ve kasa kontrolü farkları: iki sunucu tutarının farkı kuruşla (ekrandaki sonuç aynı; eşitse "₺0,00").
+  for (const [planned, paid, expected] of [
+    [0.3, 0.1, '₺0,20'],
+    [0.3, 0.3, '₺0,00'],
+    [100.1, 100.35, '-₺0,25'],
+  ]) {
+    const monthly = await openApp(false, {
+      ...monthlyResponses(),
+      [monthlyPath]: { yil: yearNow, ay: monthNumberNow, planlananToplam: planned, odenenToplam: paid, kayitlar: [] },
+    });
+    await monthly.app.navigate('monthly-expenses');
+    await settle();
+    assert.ok(monthly.nodes.get('#view').textContent.includes(`Kalan plan${expected}`), `${planned} − ${paid}`);
+  }
+  const cash = await openApp(false, {
+    '/api/kasa-kontrol/2/sonrasi': {
+      kontrolId: 2,
+      esasTarih: '2026-09-20',
+      filigranVar: true,
+      sistemBakiye: 0.1,
+      guncelSistemBakiye: 0.3,
+      bugunkuSistemBakiye: 0.3,
+      kirpildi: false,
+      degisiklikler: [],
+      istekler: [],
+      hareketler: [],
+    },
+  });
+  await cash.app.cashControlsUi.sinceDialog({ id: 2 });
+  const sinceText = cash.nodes.get('#modal-content').textContent;
+  assert.ok(sinceText.includes('Geriye dönük değişim ₺0,20'), sinceText);
+  assert.ok(sinceText.includes('Kontrol gününden sonra ₺0,00'), sinceText);
+});

@@ -11,7 +11,7 @@ export function createNotificationUi(c) {
     dateText,
     formDialog,
     closeModal,
-    run,
+    act,
     toast,
     navigate,
     view,
@@ -20,7 +20,6 @@ export function createNotificationUi(c) {
     notificationRoute,
     role,
   } = c;
-  const act = (label, work, style = '', props = {}) => button(label, event => run(event.currentTarget, work), style, props);
   async function render(generation) {
     page('Bildirimler', 'Kart ve kredi hatırlatmaları', [act('Bildirim ayarları', () => settings())]);
     const records = await api('/api/bildirimler');
