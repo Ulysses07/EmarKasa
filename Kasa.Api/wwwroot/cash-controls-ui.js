@@ -116,6 +116,7 @@ export function createCashControlsUi(c) {
     moneyNode,
     signedAmountField,
     amount,
+    serverCents,
     formDialog,
     openModal,
     closeModal,
@@ -369,12 +370,12 @@ export function createCashControlsUi(c) {
           summary(
             'Aynı gün, bugünkü veriyle',
             money(data.guncelSistemBakiye),
-            `Geriye dönük değişim ${money(data.guncelSistemBakiye - data.sistemBakiye)}`
+            `Geriye dönük değişim ${money((serverCents(data.guncelSistemBakiye) - serverCents(data.sistemBakiye)) / 100)}`
           ),
           summary(
             'Bugünkü genel kasa',
             money(data.bugunkuSistemBakiye),
-            `Kontrol gününden sonra ${money(data.bugunkuSistemBakiye - data.guncelSistemBakiye)}`
+            `Kontrol gününden sonra ${money((serverCents(data.bugunkuSistemBakiye) - serverCents(data.guncelSistemBakiye)) / 100)}`
           )
         ),
         !data.filigranVar &&

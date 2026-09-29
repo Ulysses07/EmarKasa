@@ -5,6 +5,7 @@ import {
   cents,
   amount,
   serverCents,
+  sumCents,
   errorMessage,
   fieldErrors,
   sessionExpired,
@@ -92,6 +93,7 @@ const financeUi = createFinanceUi({
   dateText,
   today,
   cents,
+  serverCents,
   amount,
   signedAmount,
   formDialog,
@@ -129,6 +131,7 @@ const monthlyUi = createMonthlyUi({
   dateText,
   today,
   cents,
+  serverCents,
   formDialog,
   closeModal,
   page,
@@ -157,6 +160,7 @@ const cashControlsUi = createCashControlsUi({
   moneyNode,
   signedAmountField,
   amount,
+  serverCents,
   formDialog,
   openModal,
   closeModal,
@@ -186,6 +190,7 @@ const statementImportUi = createStatementImportUi({
   allocationTags,
   dateText,
   cents,
+  sumCents,
   formDialog,
   closeModal,
   page,
@@ -1793,7 +1798,7 @@ async function cancelPayment(p, payment) {
     .map(channel => ({
       kanalId: channel.id,
       ad: channel.ad,
-      tutar: payment.dagilimlar.filter(d => d.kanalId === channel.id).reduce((sum, d) => sum + d.tutar, 0) || '',
+      tutar: sumCents(payment.dagilimlar.filter(d => d.kanalId === channel.id).map(d => d.tutar)) / 100 || '',
     }));
   const keep = input('harcamayiKoru', '1', { type: 'checkbox' });
   const shareRows = h(
@@ -2245,7 +2250,7 @@ async function renderHome(generation) {
       debt.kanalId != null && (channel.kanalId != null ? channel.kanalId === debt.kanalId : channel.kanal === debt.kanal);
     balances.replaceChildren(
       ...panel.kanallar.map(k => {
-        const debt = debts?.filter(row => matches(k, row)).reduce((total, row) => total + row.tutar, 0);
+        const debt = debts ? sumCents(debts.filter(row => matches(k, row)).map(row => row.tutar)) / 100 : undefined;
         const threshold = thresholds.find(row => (k.kanalId != null ? row.kanalId === k.kanalId : row.kanal === k.kanal));
         return h(
           'div',
@@ -2468,7 +2473,7 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   const creditSeparate = (report.kuralSurumu || 1) >= 2;
   const credit = report.krediGirisi || 0;
   // Sunucu sayıları kullanıcı girdisi değildir: eksi ya da üslü kredi girişi sayfayı düşürmez (serverCents).
-  const unassignedCredit = (serverCents(credit) - report.kanallar.reduce((sum, k) => sum + serverCents(k.krediGirisi), 0)) / 100;
+  const unassignedCredit = (serverCents(credit) - sumCents(report.kanallar.map(k => k.krediGirisi))) / 100;
   const resultLabel = creditSeparate ? 'Ay sonucu (kredi hariç)' : 'Ay sonucu';
   $('#view').replaceChildren(
     ...childValues([

@@ -6950,3 +6950,145 @@ test('Aşama 3 kapısı: para hesaplarının bugünkü çıktısı (aylık kalan
   debt.listeners.input();
   assert.equal(counted.value, '0', 'geçersiz tutarda öneri değişmez');
 });
+
+// Aşama 3 · toplamlar kuruşla: sunucu tutarlarının toplamı ve farkı tamsayı kuruşla (sumCents / serverCents) hesaplanır. Kayan
+// nokta toplamı alana "36.010000000000005" yazıyor (tutar ayrıştırıcısı onu reddeder) ya da sıfır sonucu "-₺0,00" gösteriyordu.
+test('sumCents sunucu tutarlarını tamsayı kuruşla toplar; eksik değer 0, eksi ve üslü sayı serverCents gibi', () => {
+  assert.equal(ui.sumCents([0.1, 0.2]), 30);
+  assert.equal(ui.sumCents([0.3, -0.1, -0.2]), 0);
+  assert.equal(ui.sumCents([20, 16.01]), 3601);
+  assert.equal(ui.sumCents([1e-7, 1234567.37, -0.07]), 123456730);
+  assert.equal(ui.sumCents([null, undefined, 0]), 0);
+  assert.equal(ui.sumCents([]), 0);
+  assert.equal(ui.sumCents(null), 0);
+});
+
+test('para hesapları kayan nokta artığı göstermez: kart borcu etkisi, ana sayfa kart borcu, ayırma payı, devir önerisi ve farklar', async () => {
+  // Ekstre önizlemesi: 0,30 harcama − 0,10 − 0,20 iade = 0 (eskiden "-₺0,00").
+  const line = (satirNo, islemTuru, tutar) => ({
+    satirNo,
+    tarih: '2026-09-23',
+    aciklama: 'x',
+    tutar,
+    islemTuru,
+    kasaEtkisi: 0,
+    dagilimlar: [],
+    uyarilar: [],
+  });
+  const imports = await openApp(
+    false,
+    importResponses(importDocument(), {
+      '/api/ekstre-aktar/12/onizleme': importPreview({
+        satirlar: [line(1, 'KartHarcama', 0.3), line(2, 'KartIade', 0.1), line(3, 'KartIade', 0.2)],
+      }),
+    })
+  );
+  await imports.app.navigate('imports', 12);
+  await chooseImportRow(imports.nodes);
+  await clickView(imports.nodes, 'Seçilenleri önizle');
+  assert.match(imports.nodes.get('#view').textContent, /Harcama \/ iade borç etkisi₺0,00Kart/);
+  // Ana sayfa: aynı kanalın kart borcu satırları toplamı (0,30 − 0,10 − 0,20) sıfır; eksi sıfır yazılmaz.
+  const home = sampleHome();
+  home.takipOzeti.kanalKartBorclari = [
+    { kanalId: 1, kanal: 'MEZAT', tutar: 0.3 },
+    { kanalId: 1, kanal: 'MEZAT', tutar: -0.1 },
+    { kanalId: 1, kanal: 'MEZAT', tutar: -0.2 },
+    { kanalId: 2, kanal: 'PERAKENDE', tutar: 0.1 },
+    { kanalId: 2, kanal: 'PERAKENDE', tutar: 0.2 },
+  ];
+  const homeApp = await openApp(false, { [homeSummaryPath]: home });
+  const balances = homeApp.nodes.get('#view').find(node => node.className === 'channel-balances');
+  assert.match(balances.children[0].textContent, /Kalan kart borcu: ₺0,00$/);
+  assert.match(balances.children[1].textContent, /Kalan kart borcu: ₺0,30$/);
+  // Alış ödemesini ayırma: aynı kanalın payları 20 + 16,01 = 36,01 (eskiden "36.010000000000005", tutar ayrıştırıcısı reddederdi).
+  const purchase = { id: 6, surum: 3, tarih: '2026-09-23', tedarikci: 'Alış', durum: 'Taslak', kalemler: [], odemeler: [], toplam: 60 };
+  const payment = {
+    id: 8,
+    tarih: '2026-09-23',
+    tutar: 60,
+    krediKartiId: 2,
+    dagilimBekliyor: false,
+    dagilimlar: [
+      { kanalId: 1, kanal: 'A', tutar: 20 },
+      { kanalId: 1, kanal: 'A', tutar: 16.01 },
+      { kanalId: 2, kanal: 'B', tutar: 23.99 },
+    ],
+  };
+  const detach = await openApp(false, {
+    '/api/kredikartlari': [{ id: 2, ad: 'Takipli', yeniTakip: true, aktif: true }],
+    '/api/alis': [purchase],
+    '/api/alis/kanallar': [
+      { id: 1, ad: 'A', aktif: true },
+      { id: 2, ad: 'B', aktif: true },
+    ],
+    '/api/alis/6/odemeler/8/iptal': purchase,
+  });
+  await detach.app.navigate('purchases');
+  await detach.app.cancelPayment(purchase, payment);
+  assert.deepEqual(
+    ['ayir-1', 'ayir-2'].map(name => formField(detach.nodes, name).value),
+    ['36.01', '23.99']
+  );
+  const keep = formField(detach.nodes, 'harcamayiKoru');
+  keep.checked = true;
+  keep.listeners.change();
+  formField(detach.nodes, 'aciklama').value = 'Başka alışın';
+  await submitDialog(detach.nodes);
+  assert.deepEqual(detach.calls.find(call => call.path === '/api/alis/6/odemeler/8/iptal').body.kanalDagilimlari, [
+    { kanalId: 1, tutar: 36.01 },
+    { kanalId: 2, tutar: 23.99 },
+  ]);
+  // Eski borç devri: min(100,10; 200) − 0,20 = 99,90 (eskiden "99.89999999999999", tutar ayrıştırıcısı reddederdi).
+  const transfer = {
+    harcamaId: 10,
+    tarih: '2026-09-23',
+    kalanBorc: 100,
+    kasadaOncedenSayilanTutar: 80,
+    iadeDuzeltmesi: 0,
+    dagilimlar: [{ kanalId: 1, kanal: 'MEZAT', tutar: 100 }],
+    sistemKartBorcu: 200,
+    raporDisiTutar: 0.2,
+    acilisBorcu: 0,
+    onerilenKasadaSayilanTutar: 99.8,
+    duzeltilebilir: true,
+    engel: null,
+  };
+  const finance = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }] });
+  await finance.app.financeUi.transferDialog(sampleCard, transfer);
+  const debt = formField(finance.nodes, 'kalanBorc');
+  debt.value = '100,1';
+  debt.listeners.input();
+  assert.equal(formField(finance.nodes, 'kasadaOncedenSayilanTutar').value, '99.9');
+  // Aylık kalan plan ve kasa kontrolü farkları: iki sunucu tutarının farkı kuruşla (ekrandaki sonuç aynı; eşitse "₺0,00").
+  for (const [planned, paid, expected] of [
+    [0.3, 0.1, '₺0,20'],
+    [0.3, 0.3, '₺0,00'],
+    [100.1, 100.35, '-₺0,25'],
+  ]) {
+    const monthly = await openApp(false, {
+      ...monthlyResponses(),
+      [monthlyPath]: { yil: yearNow, ay: monthNumberNow, planlananToplam: planned, odenenToplam: paid, kayitlar: [] },
+    });
+    await monthly.app.navigate('monthly-expenses');
+    await settle();
+    assert.ok(monthly.nodes.get('#view').textContent.includes(`Kalan plan${expected}`), `${planned} − ${paid}`);
+  }
+  const cash = await openApp(false, {
+    '/api/kasa-kontrol/2/sonrasi': {
+      kontrolId: 2,
+      esasTarih: '2026-09-20',
+      filigranVar: true,
+      sistemBakiye: 0.1,
+      guncelSistemBakiye: 0.3,
+      bugunkuSistemBakiye: 0.3,
+      kirpildi: false,
+      degisiklikler: [],
+      istekler: [],
+      hareketler: [],
+    },
+  });
+  await cash.app.cashControlsUi.sinceDialog({ id: 2 });
+  const sinceText = cash.nodes.get('#modal-content').textContent;
+  assert.ok(sinceText.includes('Geriye dönük değişim ₺0,20'), sinceText);
+  assert.ok(sinceText.includes('Kontrol gününden sonra ₺0,00'), sinceText);
+});

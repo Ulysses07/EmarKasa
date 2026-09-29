@@ -24,6 +24,7 @@ export function createMonthlyUi(c) {
     dateText,
     today,
     cents,
+    serverCents,
     formDialog,
     closeModal,
     page,
@@ -110,7 +111,7 @@ export function createMonthlyUi(c) {
         { class: 'summary-strip' },
         summary('Planlanan', money(data.planlananToplam)),
         summary('Ödendi', money(data.odenenToplam)),
-        summary('Kalan plan', money(data.planlananToplam - data.odenenToplam))
+        summary('Kalan plan', money((serverCents(data.planlananToplam) - serverCents(data.odenenToplam)) / 100))
       ),
       section(
         'Ayın giderleri',

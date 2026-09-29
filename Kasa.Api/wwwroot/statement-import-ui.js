@@ -23,6 +23,7 @@ export function createStatementImportUi(c) {
     allocationTags,
     dateText,
     cents,
+    sumCents,
     formDialog,
     closeModal,
     page,
@@ -629,10 +630,10 @@ export function createStatementImportUi(c) {
         },
         'primary'
       );
-      const cardDebt = result.satirlar.reduce(
-        (sum, row) => sum + (row.islemTuru === 'KartHarcama' ? row.tutar : row.islemTuru === 'KartIade' ? -row.tutar : 0),
-        0
-      );
+      const cardDebt =
+        sumCents(
+          result.satirlar.map(row => (row.islemTuru === 'KartHarcama' ? row.tutar : row.islemTuru === 'KartIade' ? -row.tutar : 0))
+        ) / 100;
       previewHost.replaceChildren(
         h(
           'div',

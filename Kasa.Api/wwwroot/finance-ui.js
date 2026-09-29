@@ -15,6 +15,7 @@ export function createFinanceUi(c) {
     dateText,
     today,
     cents,
+    serverCents,
     amount,
     signedAmount,
     formDialog,
@@ -450,7 +451,7 @@ export function createFinanceUi(c) {
     let countedEdited = false;
     const suggestion = () => {
       try {
-        return Math.max(0, Math.min(amount(debt.value), transfer.sistemKartBorcu) - transfer.raporDisiTutar);
+        return Math.max(0, Math.min(cents(debt.value), serverCents(transfer.sistemKartBorcu)) - serverCents(transfer.raporDisiTutar)) / 100;
       } catch {
         return null;
       }
