@@ -1,0 +1,26 @@
+# maui-lint.sh tabanı: (b) doğrudan hex renk ve (c) 200 karakteri aşan satır sayısı, dosya başına (tür<TAB>dosya<TAB>sayı).
+# Sayılar yalnız azalır: artış CI'ı kırar. Düzeltmeden sonra: bash .github/scripts/maui-lint.sh --tabani-guncelle
+hex	Kasa.App/AppShell.xaml	1
+hex	Kasa.App/Converters/ParaRenkConverter.cs	2
+hex	Kasa.App/Views/AlislarPage.xaml	14
+hex	Kasa.App/Views/AylikPage.xaml	7
+hex	Kasa.App/Views/HaftalikPage.xaml	1
+hex	Kasa.App/Views/IslemlerPage.xaml	1
+hex	Kasa.App/Views/LoginPage.xaml	1
+hex	Kasa.App/Views/PanelPage.xaml	3
+hex	Kasa.App/Views/TakipUi.cs	1
+satir	Kasa.App/Platforms/Android/MainActivity.cs	1
+satir	Kasa.App/Views/AlislarPage.xaml	37
+satir	Kasa.App/Views/AlislarPage.xaml.cs	2
+satir	Kasa.App/Views/AyarlarPage.xaml	1
+satir	Kasa.App/Views/AylikGiderPage.cs	6
+satir	Kasa.App/Views/BildirimPage.cs	2
+satir	Kasa.App/Views/EkstreAktarmaPage.cs	6
+satir	Kasa.App/Views/GuvenlikAlani.cs	1
+satir	Kasa.App/Views/IslemlerPage.xaml	1
+satir	Kasa.App/Views/KartTakipPage.cs	25
+satir	Kasa.App/Views/KasaKontrolAlanlari.cs	6
+satir	Kasa.App/Views/KrediTakipPage.cs	11
+satir	Kasa.App/Views/LoginPage.xaml	2
+satir	Kasa.App/Views/PanelPage.xaml.cs	1
+satir	Kasa.App/Views/TakipUi.cs	4

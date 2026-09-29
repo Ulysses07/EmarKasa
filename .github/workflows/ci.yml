@@ -242,6 +242,21 @@ jobs:
           fi
           exit "$kod"
 
+  # MAUI kaynak denetimi (Aşama 2a; .github/scripts/maui-lint.sh): XAML/C#'ta başvurulan her kaynak anahtarı tanımlı;
+  # sayfalarda doğrudan hex renk ve 200 karakteri aşan satır sayısı dosya başına tabanı (.github/scripts/maui-lint-tabani.txt)
+  # aşmaz, taban yalnız azalır. Derleme, iş yükü ve ağ gerekmez; Windows derlemesini beklemeden saniyeler içinde biter.
+  maui-lint:
+    name: MAUI lint
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check MAUI resource keys, hex colours and line length
+        run: bash .github/scripts/maui-lint.sh
+
   windows-app:
     name: Build and smoke-test Windows MAUI app
     if: github.event_name != 'schedule'
