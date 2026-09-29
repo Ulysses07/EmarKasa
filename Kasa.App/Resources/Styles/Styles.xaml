@@ -217,7 +217,7 @@
                     </VisualState>
                     <VisualState x:Name="Disabled">
                         <VisualState.Setters>
-                            <Setter Property="BackgroundColor" Value="{StaticResource Muted}" />
+                            <Setter Property="BackgroundColor" Value="{StaticResource DisabledBg}" />
                         </VisualState.Setters>
                     </VisualState>
                 </VisualStateGroup>

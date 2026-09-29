@@ -43,11 +43,15 @@
     <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}"/>
 
     <!-- Emar Kasa tema renkleri -->
+    <!-- İkincil yazı renkleri (Sub, Muted, HeroLabel, HeroSub, SidebarMuted) kullanıldıkları zeminde en az 4,5:1 kontrast
+         verir (WCAG 2.2 1.4.3); ton korunup yalnız eşiği geçecek kadar koyulaştırıldı/açıldı. Kasa.App.Core.Tests sınar. -->
     <Color x:Key="AppBg">#F5F4EF</Color>
     <Color x:Key="Card">#FFFFFF</Color>
     <Color x:Key="Ink">#20261F</Color>
-    <Color x:Key="Sub">#6F7566</Color>
-    <Color x:Key="Muted">#9AA08F</Color>
+    <Color x:Key="Sub">#6C7163</Color>
+    <Color x:Key="Muted">#6C7261</Color>
+    <!-- Pasif düğme zemini: eski Muted tonu. WCAG 1.4.3 pasif bileşeni kapsam dışı tutar; açık görünüm korunur. -->
+    <Color x:Key="DisabledBg">#9AA08F</Color>
     <Color x:Key="Border">#E3E0D6</Color>
     <Color x:Key="RowLine">#F1EFE8</Color>
     <Color x:Key="Green">#1E5F46</Color>
@@ -67,10 +71,10 @@
     <Color x:Key="GreenSoftHover">#E2EBE4</Color>
     <Color x:Key="NegSoft">#FAEDEB</Color>
     <Color x:Key="NegBorder">#F0D2CC</Color>
-    <Color x:Key="HeroLabel">#A9C8B7</Color>
-    <Color x:Key="HeroSub">#8FB4A2</Color>
+    <Color x:Key="HeroLabel">#B3CFC0</Color>
+    <Color x:Key="HeroSub">#B5CEC2</Color>
     <Color x:Key="SidebarHover">#2A3830</Color>
-    <Color x:Key="SidebarMuted">#7E8A7C</Color>
+    <Color x:Key="SidebarMuted">#869184</Color>
     <Color x:Key="SidebarAccent">#9CC4AC</Color>
     <Color x:Key="SidebarLine">#14FFFFFF</Color>
     <Color x:Key="FocusRing">#2E1E5F46</Color>
