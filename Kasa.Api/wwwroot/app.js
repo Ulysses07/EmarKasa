@@ -198,6 +198,7 @@ const statementImportUi = createStatementImportUi({
   isOpen,
   canEdit: canEditCash,
   editor: requireEditor,
+  distribution,
   isCurrent: generation => generation === renderId,
   session: () => state.epoch,
   view: () => $('#view'),
@@ -291,71 +292,100 @@ function monthPicker(name, value, { label, min = '' } = {}) {
     },
   };
 }
-// Kasa dağılımı düzenleyicisi (aylık gider şablonu): Yalnız genel kasa / seçilen kanallara eşit / kanal tutarları.
-function distribution(channels, initial) {
-  const selected = new Set((initial?.dagilimlar || []).map(row => row.kanalId));
-  const totals = new Map((initial?.dagilimlar || []).map(row => [row.kanalId, row.tutar]));
-  const list = h('div', { class: 'stack' });
-  const mode = select(
-    'dagilimTuru',
-    [
+// Kasa dağılımı düzenleyicisi: Yalnız genel kasa / seçilen kanallara eşit / kanal tutarları. Taban aylık gider şablonudur
+// (varsayılanlar onun); ekstre satırı (statement-import-ui) aynı düzenleyiciyi kendi seçenekleriyle kullanır. Seçim ve
+// tutarlar düzenleyicide tutulur, liste yeniden çizilince korunur. Seçenekler:
+//   prefix       alan adları (`${prefix}-kanal-…`, `${prefix}-tutar-…`)
+//   choices      dağılım seçimi seçenekleri; mode ile sonradan değiştirilip redraw ile yeniden çizilebilir
+//   required     dağılım seçimi ve Özel kipte seçili kanalın tutarı zorunlu (form denetimi)
+//   listClass    kanal listesinin sınıfı; emptyHidden: liste gizliyken (Genel ya da seçimsiz) boşaltılır
+//   sortById     paylar kanal numarasına göre sıralanır (false: kanal listesi sırası)
+//   onChange     seçim, tutar ya da dağılım değişince çağrılır
+//   legend, label, note (yardım metni; null: yok) ve messages (mode / channel / sum hata iletileri)
+// Ayrı kalanlar: alış satır editörü (editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
+// rolü de (telefonda) kullanır; kart dağılımı (finance-ui allocationEditor) serbest satırlıdır, boş bırakılabilir (Dağılım
+// bekliyor) ve eksi tutarı (iade) mutlak değerle karşılaştırır.
+function distribution(
+  channels,
+  initial,
+  {
+    prefix = 'dagilim',
+    choices = [
       { value: '', label: 'Dağılım seçin' },
       { value: 'Genel', label: 'Yalnız genel kasa' },
       { value: 'Esit', label: 'Seçilen kanallara eşit' },
       { value: 'Ozel', label: 'Kanal tutarlarını gir' },
     ],
-    initial?.dagilimTuru || '',
-    { required: true }
-  );
+    required = true,
+    listClass = 'stack',
+    emptyHidden = false,
+    sortById = true,
+    onChange = () => {},
+    legend = 'Kasa dağılımı',
+    label = 'Dağılım',
+    note = 'Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez.',
+    messages = {
+      mode: 'Giderin hangi kasaya yazılacağını seçin.',
+      channel: 'En az bir kanal seçin.',
+      sum: 'Kanal paylarının toplamı gider tutarına eşit olmalı.',
+    },
+  } = {}
+) {
+  const selected = new Set((initial?.dagilimlar || []).map(row => row.kanalId));
+  const totals = new Map((initial?.dagilimlar || []).map(row => [row.kanalId, row.tutar]));
+  const list = h('div', { class: listClass });
+  const mode = select('dagilimTuru', choices, initial?.dagilimTuru || '', { required });
   const draw = () => {
     list.hidden = !['Esit', 'Ozel'].includes(mode.value);
+    if (emptyHidden && list.hidden) {
+      list.replaceChildren();
+      return;
+    }
     list.replaceChildren(
       ...channels
         .filter(row => row.aktif || selected.has(row.id))
         .map(channel => {
-          const checked = input(`dagilim-kanal-${channel.id}`, channel.id, {
+          const checked = input(`${prefix}-kanal-${channel.id}`, channel.id, {
             type: 'checkbox',
             checked: selected.has(channel.id),
-            onchange: event => {
-              if (event.target.checked) selected.add(channel.id);
+            onchange: () => {
+              if (checked.checked) selected.add(channel.id);
               else selected.delete(channel.id);
               total.disabled = !selected.has(channel.id);
-              total.required = mode.value === 'Ozel' && selected.has(channel.id);
+              total.required = required && mode.value === 'Ozel' && selected.has(channel.id);
+              onChange();
             },
           });
-          const total = input(`dagilim-tutar-${channel.id}`, totals.get(channel.id) ?? '', {
+          const total = input(`${prefix}-tutar-${channel.id}`, totals.get(channel.id) ?? '', {
             inputmode: 'decimal',
-            required: mode.value === 'Ozel' && selected.has(channel.id),
+            required: required && mode.value === 'Ozel' && selected.has(channel.id),
             disabled: !selected.has(channel.id),
-            oninput: event => totals.set(channel.id, event.target.value),
+            oninput: () => {
+              totals.set(channel.id, total.value);
+              onChange();
+            },
             'aria-label': `${channel.ad} payı (₺)`,
           });
           return h('div', { class: 'monthly-allocation' }, field(channel.ad, checked), mode.value === 'Ozel' && total);
         })
     );
   };
-  mode.addEventListener('change', draw);
+  mode.addEventListener('change', () => {
+    draw();
+    onChange();
+  });
   draw();
   return {
-    node: h(
-      'fieldset',
-      {},
-      h('legend', {}, 'Kasa dağılımı'),
-      field('Dağılım', mode),
-      list,
-      help(
-        'Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez.'
-      )
-    ),
+    node: h('fieldset', {}, h('legend', {}, legend), field(label, mode), list, note && help(note)),
+    mode,
+    redraw: draw,
     read(total) {
-      if (!['Genel', 'Esit', 'Ozel'].includes(mode.value)) throw new Error('Giderin hangi kasaya yazılacağını seçin.');
+      if (!['Genel', 'Esit', 'Ozel'].includes(mode.value)) throw new Error(messages.mode);
       if (mode.value === 'Genel') return { dagilimTuru: 'Genel', dagilimlar: [] };
-      if (!selected.size) throw new Error('En az bir kanal seçin.');
-      const result = [...selected]
-        .sort((a, b) => a - b)
-        .map(id => ({ kanalId: id, tutar: mode.value === 'Esit' ? 0 : cents(totals.get(id), { allowZero: false }) / 100 }));
-      if (mode.value === 'Ozel' && result.reduce((sum, row) => sum + cents(row.tutar), 0) !== cents(total))
-        throw new Error('Kanal paylarının toplamı gider tutarına eşit olmalı.');
+      if (!selected.size) throw new Error(messages.channel);
+      const ids = sortById ? [...selected].sort((a, b) => a - b) : channels.map(channel => channel.id).filter(id => selected.has(id));
+      const result = ids.map(id => ({ kanalId: id, tutar: mode.value === 'Esit' ? 0 : cents(totals.get(id), { allowZero: false }) / 100 }));
+      if (mode.value === 'Ozel' && result.reduce((sum, row) => sum + cents(row.tutar), 0) !== cents(total)) throw new Error(messages.sum);
       return { dagilimTuru: mode.value, dagilimlar: result };
     },
   };
