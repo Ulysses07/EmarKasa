@@ -28,6 +28,25 @@ public class DogrulamaHatasiTests
         Assert.True(SunucuReddi(sunucu));
     }
 
+    /// <summary>İstemci sunucu hatası üretmez: KasaApiException yalnız ApiClient'ta sunucu yanıtından oluşur. App.Core ya da MAUI
+    /// kodu yerel ret için onu (sahte 400) kurarsa sunucu reddiyle ayırt edilemez; yerel ret <see cref="DogrulamaHatasi"/>'dır.</summary>
+    [Fact]
+    public void Uygulama_kodu_sahte_sunucu_hatasi_uretmez()
+    {
+        var kok = new DirectoryInfo(AppContext.BaseDirectory);
+        while (kok is not null && !File.Exists(Path.Combine(kok.FullName, "Kasa.slnx")))
+            kok = kok.Parent;
+        Assert.NotNull(kok);
+        var dosyalar = new[] { "Kasa.App.Core", "Kasa.App" }
+            .SelectMany(p => Directory.GetFiles(Path.Combine(kok.FullName, p), "*.cs", SearchOption.AllDirectories))
+            .Where(d => !d.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !d.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .ToList();
+        Assert.True(dosyalar.Count > 50, $"Kaynak dosyaları okunamadı ({dosyalar.Count}).");
+        var kuran = dosyalar.Where(d => File.ReadAllText(d).Contains("new KasaApiException(")).Select(Path.GetFileName).ToList();
+        Assert.True(kuran.Count == 0, "KasaApiException kuran uygulama dosyaları: " + string.Join(", ", kuran));
+        Assert.Contains(dosyalar, d => File.ReadAllText(d).Contains("throw new DogrulamaHatasi("));
+    }
+
     [Fact]
     public void Gecersiz_tutar_dogrulamasi_yerel_hata_verir_gecerli_tutarlar_gecer()
     {
