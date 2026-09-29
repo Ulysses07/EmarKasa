@@ -18,11 +18,35 @@ public partial class MauiKayitTutarliligiTests
     [InlineData("HeroSub", "Green")]
     [InlineData("HeroLabel", "Green")]
     [InlineData("SidebarMuted", "Sidebar")]
+    [InlineData("Neg", "Card")]             // geçersiz tutarda yer tutucu (ParaGirisi) hata rengine döner
     public void Ikincil_yazi_renkleri_zemininde_en_az_4_5_kontrast_verir(string yazi, string zemin)
     {
         var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
         var oran = KontrastOrani(renkler[yazi], zemin.StartsWith('#') ? zemin : renkler[zemin]);
         Assert.True(oran >= 4.5, $"{yazi} / {zemin} kontrastı {oran:0.00}:1; en az 4,5:1 olmalı.");
+    }
+
+    /// <summary>WCAG 2.2 1.4.11: form alanının (FieldBorder) tek görsel sınırı kenarlığıdır; alanın beyaz içine ve alanın durduğu
+    /// zeminlere karşı en az 3:1 kontrast verir. Kart ve ayırıcı kenarlıkları (Border) süs olarak açık kalabilir.</summary>
+    [Theory]
+    [InlineData("Card")]      // alanın içi (FieldBorder zemini) ve form kartı
+    [InlineData("AppBg")]     // sayfa zemini
+    [InlineData("#F8F8F3")]   // alış kalemi düzenleyicisi
+    public void Form_alani_kenarligi_zemininde_en_az_3_kontrast_verir(string zemin)
+    {
+        var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+        var oran = KontrastOrani(renkler["FieldStroke"], zemin.StartsWith('#') ? zemin : renkler[zemin]);
+        Assert.True(oran >= 3, $"FieldStroke / {zemin} kontrastı {oran:0.00}:1; en az 3:1 olmalı.");
+    }
+
+    /// <summary>FieldBorder kenarlığı süs kenarlığından (BrushBorder) ayrı fırçadan gelir: alan sınırı koyulaşırken kartlar değişmez.</summary>
+    [Fact]
+    public void Form_alani_stili_ayri_kenarlik_fircasini_kullanir()
+    {
+        var alan = Regex.Match(Oku("Resources/Styles/Styles.xaml"), @"<Style x:Key=""FieldBorder"" TargetType=""Border"">(.*?)</Style>", RegexOptions.Singleline);
+        Assert.True(alan.Success, "FieldBorder stili bulunamadı.");
+        Assert.Contains("<Setter Property=\"Stroke\" Value=\"{StaticResource BrushFieldStroke}\" />", alan.Groups[1].Value);
+        Assert.Contains("<SolidColorBrush x:Key=\"BrushFieldStroke\" Color=\"{StaticResource FieldStroke}\" />", Oku("Resources/Styles/Colors.xaml"));
     }
 
     /// <summary>Koyulaşan Muted pasif düğme zeminini değiştirmez: pasif bileşen 1.4.3 kapsamı dışındadır, eski açık görünüm korunur.</summary>

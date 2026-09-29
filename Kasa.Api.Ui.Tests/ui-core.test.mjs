@@ -130,6 +130,21 @@ test('channel boxes show server card debt separately from cash and keep unknown 
   assert.equal(view.find(node => node.className === 'cash-total money').textContent, money(123));
   assert.match(view.textContent, /Toplam kart borcu.*95,00/); assert.match(view.textContent, /Kart alacak bakiyesi.*15,00.*Diğer kartların borcundan düşülmez/);
 });
+// Koşullu içerik boolean koşulla eklenir: `dizi.length && düğüm` boş dizide 0 döndürür ve h() sayıyı (bilerek, bkz. childValues
+// testi) metin olarak basar. Kanalına bağlanamayan kart borcu yokken ana sayfada kutunun altında tek başına "0" görünüyordu.
+test('home screen does not print a stray 0 when every card debt belongs to a listed channel', async () => {
+  const texts = node => Array.isArray(node?.children) ? node.children.flatMap(texts) : [String(node)];
+  for (const debts of [undefined, [], [{ kanalId: 1, kanal: 'Mağaza', tutar: 40 }]]) {
+    const { nodes } = await openApp(false, {
+      '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanalId: 1, kanal: 'Mağaza', bakiye: 123 }] },
+      '/api/takip/ozet?gun=30': { kartBorcu: 40, kalanKrediPlani: 0, olaylar: [], ...(debts ? { kanalKartBorclari: debts } : {}) }
+    });
+    const view = nodes.get('#view');
+    assert.deepEqual(texts(view).filter(text => text.trim() === '0'), [], `kanalKartBorclari: ${JSON.stringify(debts)}`);
+    assert.doesNotMatch(view.textContent, /Kanalı belirsiz kart borcu|Mağaza kart borcu:/);
+    assert.match(view.textContent, /Kart borçları kasa bakiyesine dahil edilmez/);
+  }
+});
 test('card details show server minimum status and remaining channel debt without changing payment values', async () => {
   const card = { ...sampleCard, kanalKartBorclari: [{ kanalId: 1, kanal: 'MEZAT', tutar: 70 }, { kanalId: null, kanal: 'Dağılım bekliyor', tutar: 30 }], ekstreler: [
     { ...sampleCard.ekstreler[0], asgariOdeme: 100, asgariKalan: 37, odenen: 10 },
@@ -2431,4 +2446,49 @@ test('aylık gider ekranı ve şablonun ilk ayı aynı ay seçiciyi kullanır; �
   formField(nodes, 'ad').value = 'Kira'; formField(nodes, 'tutar').value = '100'; formField(nodes, 'dagilimTuru').value = 'Genel';
   await submitDialog(nodes);
   assert.equal(calls.find(call => call.method === 'POST' && call.path === '/api/aylik-giderler/sablonlar').body.gecerliAy, `${next}-01`);
+});
+
+// Kaydırılabilir kapsayıcılar (axe scrollable-region-focusable; WCAG 2.1.1): tablo kapsayıcısı ve genel kasa tutarı
+// overflow:auto ile kayar. Taşma yazı tipine, yakınlaştırmaya ve pencereye göre değiştiği için her zaman klavyeyle odaklanan
+// (tabindex 0), adlı bir bölgedir (role region + aria-label). Ekrandaki bölge adları birbirinden ayrıdır.
+test('scrollable table wrappers and the cash total are focusable regions with distinct names', async () => {
+  const scrollers = view => { const found = []; const visit = node => { if (!Array.isArray(node?.children)) return; if (/(^| )(table-wrap|cash-total)( |$)/.test(node.className || '')) found.push(node); node.children.forEach(visit); }; visit(view); return found; };
+  const names = view => scrollers(view).map(node => {
+    assert.equal(node.attributes.role, 'region', `${node.className} bölge`);
+    assert.equal(node.attributes.tabindex, '0', `${node.className} sekme sırasında`);
+    assert.ok(node.attributes['aria-label']?.trim(), `${node.className} adlı`);
+    return node.attributes['aria-label'];
+  });
+  const today = ui.today(); const [year, month] = today.split('-').map(Number);
+  const channel = { kanal: 'Mağaza', gelen: 10, giden: 2, sonuc: 8, devir: 8, krediGirisi: 0, cariGiden: 2, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 8 };
+  const { app, nodes } = await openApp(false, {
+    '/api/kasa-kontrol': [{ id: 1, surum: 1, kaydedildi: `${today}T09:00:00Z`, sistemBakiye: 100, gercekBakiye: 90, fark: -10, guncelSistemBakiye: 100, hesapTarihi: today }],
+    '/api/rapor/haftalik': [{ donem: { start: today, end: today }, kasaDevir: 8, toplamGelen: 10, toplamGiden: 2, kanallar: [channel] }],
+    [`/api/rapor/aylik?yil=${year}&ay=${month}`]: { yil: year, ay: month, kuralSurumu: 2, genelGelir: 0, genelGider: 0, dagilimBekleyenTutar: 0, kanallar: [channel] },
+    [`/api/islemler?baslangic=${today.slice(0, 8)}01&bitis=${today}`]: [{ id: 3, tarih: today, cari: 'Kargo', kanal: 'Mağaza', tip: 'Cari', tutarTl: 2 }],
+    '/api/kanallar': [{ id: 1, ad: 'Mağaza', aktif: true }]
+  });
+  await settle();
+  assert.deepEqual(names(nodes.get('#view')), ['Genel kasa', 'Gerçek bakiye karşılaştırmaları']);
+  for (const [screen, expected] of [['weekly', ['Dönemin kanal sonuçları']], ['monthly', ['Aylık kanal sonuçları']], ['transactions', ['Gider kayıtları']]]) {
+    await app.navigate(screen); await settle();
+    assert.deepEqual(names(nodes.get('#view')), expected, screen);
+  }
+});
+
+// Kart ve kredi kutusu (düğme) içindeki tutar kaymaz; sığmazsa satır kayar. Bölünme yeri yalnız binlik ayırıcıdan sonradır
+// (<wbr>): "₺999.999.999.99 / 9,99" gibi basamak grubunu bölen yanlış okuma olmaz; tutarın metni ve okunuşu değişmez.
+test('card and loan boxes break a long amount only after a thousands separator and keep its full text', async () => {
+  const amountIn = view => view.find(node => node.tag === 'button' && node.className === 'finance-card').children.find(node => node?.className === 'money' && node.tag === 'span');
+  const big = 999999999999.99;
+  const { app, nodes } = await openApp(false, { '/api/takip/kartlar': [{ ...sampleCard, borc: big }], '/api/takip/krediler': [{ ...sampleLoan, kalanPlanliOdeme: 1250.5 }] });
+  for (const [screen, value] of [['cards', big], ['loans', 1250.5]]) {
+    await app.navigate(screen); await settle();
+    const node = amountIn(nodes.get('#view'));
+    assert.ok(node, `${screen}: tutar düğümü`);
+    assert.equal(node.textContent, money(value), `${screen}: tutarın metni aynı`);
+    const parts = node.children.map(child => typeof child === 'string' ? child : `<${child.tag}>`);
+    assert.deepEqual(parts, money(value).split(/(?<=\.)/).flatMap((part, index) => index ? ['<wbr>', part] : [part]), screen);
+    assert.ok(parts.every(part => part === '<wbr>' || !/\.\S/.test(part)), `${screen}: basamak grubu bölünmez`);
+  }
 });

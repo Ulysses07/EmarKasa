@@ -1,7 +1,11 @@
 /* Emar Kasa telefon arayüzü · tasarım: "Emar Kasa Mobil" · Yön A (Defter) */
+/* İkincil yazı (--soluk; yer tutucu metin de) ve koyu yeşil üstündeki etiket (--yesil-acik) kullanıldıkları her yüzeyde en az
+   4,5:1 verir (WCAG 2.2 1.4.3); ton korunup yalnız eşiği geçecek kadar koyulaştırıldı/açıldı. Form alanının tek sınırı olan
+   kenarlık (--alan-cizgi, MAUI FieldStroke ile aynı) en az 3:1'dir (1.4.11); --cizgi kart/ayırıcı süsü olarak açık kalır.
+   Kasa.Api.Ui.Tests/kontrast.test.mjs sınar. */
 :root{
-  --zemin:#F5F4EF;--kart:#FFFFFF;--murekkep:#20261F;--soluk:#6F7566;--soluk2:#5E6457;--cizgi:#E3E0D6;--ara:#F1EFE8;--ok:#9AA08F;
-  --yesil:#1E5F46;--koyu:#194D3C;--yesil-acik:#A9C8B7;--yesil-soluk:#CFE0D6;--yesil-zemin:#F0F5F1;--arti:#1B7A4E;--eksi:#C13A2E;--eksi-zemin:#FAEDEB;
+  --zemin:#F5F4EF;--kart:#FFFFFF;--murekkep:#20261F;--soluk:#64695C;--soluk2:#5E6457;--cizgi:#E3E0D6;--alan-cizgi:#948966;--ara:#F1EFE8;--ok:#9AA08F;
+  --yesil:#1E5F46;--koyu:#194D3C;--yesil-acik:#B3CFC0;--yesil-soluk:#CFE0D6;--yesil-zemin:#F0F5F1;--arti:#1B7A4E;--eksi:#C13A2E;--eksi-zemin:#FAEDEB;
   --amber:#8C5B14;--amber-zemin:#F5ECDC;--segment:#E9E7DF;--arama:#EAE8E0;--kesik:#C9C5B8;--nokta:#D8D4C8;
   --ust:env(safe-area-inset-top,0px);--alt:env(safe-area-inset-bottom,0px);
   color-scheme:light;
@@ -12,7 +16,7 @@ body{margin:0;background:var(--zemin);color:var(--murekkep);font-family:-apple-s
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 button:disabled{opacity:.55;cursor:wait}
-input::placeholder,textarea::placeholder{color:#8A907F}
+input::placeholder,textarea::placeholder{color:var(--soluk);opacity:1}
 :focus-visible{outline:3px solid rgba(30,95,70,.45);outline-offset:2px}
 #ekran:focus{outline:none}
 [hidden]{display:none!important}
@@ -203,7 +207,7 @@ input::placeholder,textarea::placeholder{color:#8A907F}
 .giris .logo b{font-size:24px;font-weight:700;margin-top:6px}
 .form-kutu{display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid var(--cizgi);border-radius:16px;padding:18px 16px}
 .alan-etiket{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--soluk)}
-.girdi{min-height:48px;border:1px solid var(--cizgi);border-radius:12px;padding:0 14px;background:#fff;color:var(--murekkep);font-size:16px;font-weight:400;outline:none;width:100%}
+.girdi{min-height:48px;border:1px solid var(--alan-cizgi);border-radius:12px;padding:0 14px;background:#fff;color:var(--murekkep);font-size:16px;font-weight:400;outline:none;width:100%}
 .girdi:focus{border-color:var(--yesil);box-shadow:0 0 0 3px rgba(30,95,70,.15)}
 textarea.girdi{padding:12px 14px;min-height:96px;resize:none;line-height:1.4}
 .giris .dipnot{font-size:12.5px;color:var(--soluk);text-align:center;text-wrap:pretty}

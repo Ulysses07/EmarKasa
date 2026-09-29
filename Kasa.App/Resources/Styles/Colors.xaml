@@ -14,6 +14,9 @@
     <!-- Pasif düğme zemini: eski Muted tonu. WCAG 1.4.3 pasif bileşeni kapsam dışı tutar; açık görünüm korunur. -->
     <Color x:Key="DisabledBg">#9AA08F</Color>
     <Color x:Key="Border">#E3E0D6</Color>
+    <!-- Form alanı (FieldBorder) sınırı: alanın tek görsel sınırıdır, beyaz alan içine ve kart, sayfa, kalem düzenleyicisi
+         zeminlerine karşı en az 3:1 verir (WCAG 2.2 1.4.11). Kart ve ayırıcı kenarlıkları (Border) süs olarak açık kalır. -->
+    <Color x:Key="FieldStroke">#948966</Color>
     <Color x:Key="RowLine">#F1EFE8</Color>
     <Color x:Key="Green">#1E5F46</Color>
     <Color x:Key="GreenDark">#174D38</Color>
@@ -43,6 +46,7 @@
     <!-- Sık kullanılan fırçalar -->
     <SolidColorBrush x:Key="BrushCard" Color="{StaticResource Card}" />
     <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource Border}" />
+    <SolidColorBrush x:Key="BrushFieldStroke" Color="{StaticResource FieldStroke}" />
     <SolidColorBrush x:Key="BrushRowLine" Color="{StaticResource RowLine}" />
     <SolidColorBrush x:Key="BrushGreen" Color="{StaticResource Green}" />
     <SolidColorBrush x:Key="BrushGreenSoft" Color="{StaticResource GreenSoft}" />
