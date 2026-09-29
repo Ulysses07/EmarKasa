@@ -30,8 +30,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --test Kasa.Api.Ui.Tests/ui-core.test.mjs
+      - run: node --test Kasa.Api.Ui.Tests/*.test.mjs
       - run: node --input-type=module --check < Kasa.Api/wwwroot/app.js
+      - run: node --input-type=module --check < Kasa.Api/wwwroot/m/app.js
 
   tests:
     name: Test ${{ matrix.project }}
@@ -129,14 +130,14 @@ jobs:
       - name: Restore app dependencies
         run: dotnet restore Kasa.App/Kasa.App.csproj
       - name: Build Windows app (shipped configuration)
-        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 --no-restore
+        # Derleme kendi geri yüklemesini aynı -f ile yapar; ayrı restore win-x64 çalışma paketini indirmiyordu (NETSDK1112).
+        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0
       # Yalnız duman testi için ikinci derleme: Windows App SDK çalışma zamanı uygulamanın yanına alınır
       # (WindowsAppSDKSelfContained), böylece test runner'da kurulu bir çalışma zamanına dayanmaz. Çıktı ayrı dizine
       # gider; dağıtılan paket bu derlemeden üretilmez.
-      - name: Restore smoke-test dependencies
-        run: dotnet restore Kasa.App/Kasa.App.csproj -p:WindowsAppSDKSelfContained=true
       - name: Build Windows app for smoke test (self-contained Windows App SDK)
-        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 --no-restore -p:WindowsAppSDKSelfContained=true --output "${{ runner.temp }}/kasa-smoke"
+        # Geri yükleme derlemenin içinde, aynı -f ve özellikle (NETSDK1112).
+        run: dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0 -p:WindowsAppSDKSelfContained=true --output "${{ runner.temp }}/kasa-smoke"
       # Duman testi (tests-9): uygulama açılır, pencere gelir ve kabuk, kaynak sözlükleri ve giriş sayfası yüklenirken
       # çökmez. Derlemeyi geçen XAML kaynak hataları, DI eksikleri ve açılış istisnaları burada kırılır. KASA_API_URL
       # ulaşılamayan yerel adrestir: canlı sunucuya istek gitmez, oturum doğrulaması ağ hatasıyla giriş sayfasına döner.
