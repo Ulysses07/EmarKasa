@@ -235,6 +235,42 @@ public class YeniAkisTests
         await vm.BelgeSilAsync(silinmis, "tekrar");
         Assert.Null(api.SonSilme);
     }
+    /// <summary>Bulunan hata: AlislarPage belge kaldırma penceresinden sonra oturumu denetlemeden BelgeSilAsync çağırıyordu;
+    /// pencere açıkken oturum değişirse önceki oturumda seçilen belge yeni oturumda kaldırılmak üzere gönderiliyordu.
+    /// GerekceyleAsync (boş gerekçe alıcı için geçerli) göndermez.</summary>
+    [Fact]
+    public async Task Belge_kaldirma_penceresi_acikken_oturum_degisirse_istek_gitmez()
+    {
+        var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
+        var eskiApi = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var eskiAuth = TestOturumu.Ac();
+        var eskiVm = await AlisVm(eskiApi, auth: eskiAuth);
+        var eskiPencere = new TaskCompletionSource<string?>();
+        var eskiAkis = EskiSayfaAkisi();
+        TestOturumu.YeniOturum(eskiAuth, Rol.Alici);
+        eskiPencere.SetResult("Yanlış belge");
+        await eskiAkis;
+        Assert.Equal((9, (string?)"Yanlış belge"), eskiApi.SonSilme);
+
+        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var auth = TestOturumu.Ac();
+        var vm = await AlisVm(api, auth: auth);
+        var pencere = new TaskCompletionSource<string?>();
+        var akis = vm.GerekceyleAsync(() => pencere.Task, (g, _) => vm.BelgeSilAsync(belge, g), bosGerekceGecerli: true);
+        TestOturumu.YeniOturum(auth, Rol.Alici);
+        pencere.SetResult("Yanlış belge");
+        await akis;
+        Assert.Null(api.SonSilme);
+        Assert.Null(vm.Hata);
+
+        async Task EskiSayfaAkisi()
+        {
+            var gerekce = await eskiPencere.Task;
+            if (gerekce is null)
+                return;
+            await eskiVm.BelgeSilAsync(belge, gerekce);
+        }
+    }
     [Fact]
     public async Task Alici_belgeyi_gerekcesiz_kaldirabilir_silinenleri_isteyemez()
     {

@@ -62,6 +62,22 @@ public abstract partial class OturumluViewModel : TemelViewModel
     [ObservableProperty] private string? _mesaj;
     /// <summary>Son başarılı yükleme anı (yerel saat ve farkı); rapor ve işlem listesiyle aynı tür.</summary>
     [ObservableProperty] private DateTimeOffset? _sonGuncelleme;
+    /// <summary>Gerekçe isteyen işlemin tek yolu (iptal, durum değişimi, belge kaldırma, ay kilidi): oturum gerekçe penceresi
+    /// açılmadan ÖNCE yakalanır. Pencere açıkken oturum değişirse (çıkış, oturumun sona ermesi, yeni giriş) gerekçe yeni oturumun
+    /// formuna yazılmaz ve işlem yapılmaz. Vazgeçilirse (null) işlem yapılmaz; boş gerekçe de yalnız
+    /// <paramref name="bosGerekceGecerli"/> ise geçer.</summary>
+    /// <param name="sor">Gerekçe penceresi (sayfanın DisplayPromptAsync'i); vazgeçilirse null.</param>
+    /// <param name="islem">Gerekçe ve pencereden önce yakalanan oturum nesliyle yapılacak işlem; ardından ikinci bir onay
+    /// penceresi açılıyorsa model bu nesli (<see cref="OturumNesli"/>) onun sonrasında da denetler.</param>
+    public async Task GerekceyleAsync(Func<Task<string?>> sor, Func<string, int, Task> islem, bool bosGerekceGecerli = false)
+    {
+        var oturum = OturumNesli;
+        var gerekce = await sor();
+        if (gerekce is null || (!bosGerekceGecerli && string.IsNullOrWhiteSpace(gerekce)) || !Gecerli(oturum))
+            return;
+        await islem(gerekce, oturum);
+    }
+
     protected override void IletiyiTemizle() => Mesaj = null;
     protected void BekleyenleriIptalEt() { Yurutucu.GecersizKil(); Mesgul = false; }
     protected abstract void OturumTemizle();

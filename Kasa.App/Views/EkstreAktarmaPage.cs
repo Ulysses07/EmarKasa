@@ -109,15 +109,13 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
     }
     private async Task KaydiIptalAsync(EkstreKayitSatiri s)
     {
-        var oturum = Vm.OturumNesli;
         var belgeId = Vm.Belge?.Id;
         if (belgeId is null)
             return;
-        var gerekce = await GerekceAsync("Aktarılan kaydı iptal et");
-        if (string.IsNullOrWhiteSpace(gerekce))
-            return;
-        if (!await DisplayAlertAsync("İptali onayla", $"{s.Baslik}\nBu kaydın mali etkisi iptal edilecek. Kaynak PDF ve işlem geçmişi korunur.", "İptal et", "Vazgeç"))
-            return;
-        await Vm.KayitIptalAsync(s, gerekce, oturum, belgeId.Value);
+        await GerekceyleAsync("Aktarılan kaydı iptal et", async (gerekce, oturum) =>
+        {
+            if (await DisplayAlertAsync("İptali onayla", $"{s.Baslik}\nBu kaydın mali etkisi iptal edilecek. Kaynak PDF ve işlem geçmişi korunur.", "İptal et", "Vazgeç"))
+                await Vm.KayitIptalAsync(s, gerekce, oturum, belgeId.Value);
+        });
     }
 }

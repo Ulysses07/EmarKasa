@@ -13,7 +13,7 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
             Liste<AylikGiderSatiri>(nameof(vm.Kayitlar), async s =>
             {
                 if (s.Veri.Durum == "Odendi")
-                { var oturum = vm.OturumNesli; var gerekce = await GerekceAsync("Aylık gider ödemesini iptal et"); if (!string.IsNullOrWhiteSpace(gerekce)) await vm.IptalAsync(s, gerekce, oturum); }
+                    await GerekceyleAsync("Aylık gider ödemesini iptal et", (gerekce, oturum) => vm.IptalAsync(s, gerekce, oturum));
                 else
                     vm.OdemeSec(s);
             }, "Ödemeyi aç / iptal et", _ => vm.EditorMu)));

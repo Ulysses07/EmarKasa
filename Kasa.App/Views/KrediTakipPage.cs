@@ -26,6 +26,6 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>
             Alan("Not / dekont referansı", Girdi(nameof(vm.TaksitNotu))), Alan("Değişiklik açıklaması", Girdi(nameof(vm.Gerekce))), Dugme("Taksiti kaydet", nameof(vm.TaksitKaydetCommand))), nameof(vm.DuzenlenenTaksit), true)));
         Govde.Add(Editor(Goster(Kart("Erken kapama", Alan("Kapama tarihi", Tarih(nameof(vm.KapatmaTarihi))), Alan("Bankanın kapama tutarı", Girdi(nameof(vm.KapatmaTutari), true)),
             Alan("Kapama açıklaması", Girdi(nameof(vm.Gerekce))), Bagli(nameof(vm.KapatmaOzeti)), Onay("Bu çıkışı ve yerine geçen ileri taksitlerin iptalini onaylıyorum.", nameof(vm.KapatmaOnay)), Dugme("Erken kapamayı kaydet", nameof(vm.KapatCommand))), nameof(vm.YeniTakip))));
-        Govde.Add(Editor(Goster(Kart("Arşiv", Metin("Arşiv geçmişi ve planın kasa etkisini silmez."), Tikla("Arşiv / aktif durumunu değiştir", async () => { var reason = await GerekceAsync("Kredi arşiv durumunu değiştir"); if (!string.IsNullOrWhiteSpace(reason)) { vm.Gerekce = reason; await vm.DurumDegistirAsync(); } })), nameof(vm.KrediSecili))));
+        Govde.Add(Editor(Goster(Kart("Arşiv", Metin("Arşiv geçmişi ve planın kasa etkisini silmez."), Tikla("Arşiv / aktif durumunu değiştir", () => GerekceyleAsync("Kredi arşiv durumunu değiştir", (gerekce, _) => { vm.Gerekce = gerekce; return vm.DurumDegistirAsync(); }))), nameof(vm.KrediSecili))));
     }
 }
