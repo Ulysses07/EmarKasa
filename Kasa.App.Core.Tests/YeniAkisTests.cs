@@ -94,6 +94,23 @@ public class YeniAkisTests
         vm.EkrandanAyril();
         Assert.Null(await islem); Assert.True(gorulen.IsCancellationRequested); Assert.Null(vm.Hata); Assert.Null(vm.Mesaj);
     }
+    // CI'da kararsızdı: iptal devamı Cancel() içinde eşzamanlı (ya da başka iş parçacığında hemen) çalışırsa ekran henüz
+    // geçersiz kılınmadığı için ayrılınmış ekrana 'iptal edildi' iletisi yazılıyordu. Burada devam Cancel() içinde çalışır.
+    [Fact] public async Task Ekrandan_ayrilma_iptali_devam_hemen_calissa_da_ileti_birakmaz()
+    {
+        var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var api = new Fake { YedekYaniti = async (_, ct) =>
+        {
+            var bekle = new TaskCompletionSource<IndirmeBilgisi>(); // devamlar SetCanceled'i çağıranda (Cancel içinde) çalışır
+            using var kayit = ct.Register(() => bekle.TrySetCanceled(ct));
+            basladi.SetResult();
+            return await bekle.Task;
+        } };
+        var vm = new GuvenlikViewModel(api, Auth());
+        var islem = vm.YedekIndirAsync(new MemoryStream()); await basladi.Task;
+        vm.EkrandanAyril();
+        Assert.Null(await islem); Assert.Null(vm.Hata); Assert.Null(vm.Mesaj);
+    }
     [Fact] public async Task Yedek_zaman_asimi_baglanti_hatasindan_ayri_anlatilir()
     {
         var api = new Fake { YedekYaniti = (_, _) => Task.FromException<IndirmeBilgisi>(new TimeoutException(KasaZamanAsimlari.Ileti)) };

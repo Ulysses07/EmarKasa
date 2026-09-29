@@ -4,6 +4,6 @@
        sürümünü atar. Workload güncellenince burada birlikte yükseltin. Bu dosyaya başka özellik eklemeyin: depo
        kökündeki her projeye (Kasa.Api dahil) uygulanır. -->
   <PropertyGroup>
-    <MauiVersion>10.0.20</MauiVersion>
+    <MauiVersion>10.0.110</MauiVersion>
   </PropertyGroup>
 </Project>
