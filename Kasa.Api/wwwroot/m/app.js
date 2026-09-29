@@ -3,7 +3,7 @@
 import { errorMessage, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, monthlyTotals, currentPeriod } from '../ui-core.js?v=2.3.0-m1';
 import {
   AYLAR, AYK, ORTAK, tl, f2, imzali, imzaliYalin, isaretSinifi, uzunTarih, tamTarih, kisaTarih, isoGun, gunEkle, gunFarki,
-  donemAdi, donemKisa, bolunmusMu, tutarCoz, cizgiYolu, cubukOlcek, kanalRengi, tipAdi, platformBul, rotaCoz, gunlereAyir, islemEslesir
+  donemAdi, donemKisa, bolunmusMu, tutarCoz, cizgiYolu, cubukOlcek, kanalRengi, tipAdi, giderKartlari, platformBul, rotaCoz, gunlereAyir, islemEslesir
 } from './mobil-cekirdek.js?v=2.3.0-m1';
 
 const IKON = '/m/icons.svg?v=2.3.0-m1';
@@ -679,7 +679,7 @@ async function hizliIslemAc() {
     const kanalAlani = h('div', { class: `secim kanal s${Math.min(4, kanalSecenek.length)}`, role: 'group', 'aria-label': 'Kanal' });
     const tipAlani = h('div', { class: 'secim s3', role: 'group', 'aria-label': 'Gider tipi' });
     const gunAlani = h('div', { class: 'secim s2', role: 'group', 'aria-label': 'Tarih' });
-    const kartAlani = h('label', { class: 'alan-etiket' }, 'Kredi kartı', h('select', { class: 'girdi', onchange: e => { hz.kart = e.target.value; degisti(); } }, h('option', { value: '' }, 'Kart seçilmedi'), kartlar.map(k => h('option', { value: k.id }, k.ad))));
+    const kartAlani = h('label', { class: 'alan-etiket' }, 'Kredi kartı', h('select', { class: 'girdi', onchange: e => { hz.kart = e.target.value; degisti(); } }, h('option', { value: '' }, 'Kart seçilmedi'), giderKartlari(kartlar).map(k => h('option', { value: k.id }, k.ad))));
     const not = h('input', { class: 'girdi', value: '', placeholder: 'Not (isteğe bağlı)', 'aria-label': 'Not', maxlength: '2000' });
     not.addEventListener('input', () => { hz.not = not.value; });
     const benzerAlani = h('div');

@@ -195,3 +195,13 @@ test('masaüstü sayfası yönlendirme betiğini modülden önce, klasik betik o
   assert.ok(yon > 0);
   assert.ok(yon < html.indexOf('<script type="module"'));
 });
+
+test('hızlı giderde yalnız yeni takipteki açık kartlar seçilir (takipsiz ya da kapalı karta sunucu gider almaz)', () => {
+  const kartlar = [
+    { id: 1, ad: 'Takipte', yeniTakip: true, aktif: true },
+    { id: 2, ad: 'Eski model', yeniTakip: false, aktif: true },
+    { id: 3, ad: 'Kapalı', yeniTakip: true, aktif: false },
+  ];
+  assert.deepEqual(m.giderKartlari(kartlar).map(k => k.id), [1]);
+  assert.deepEqual(m.giderKartlari(undefined), []);
+});

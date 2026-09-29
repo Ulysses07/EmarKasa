@@ -129,6 +129,9 @@ export function kanalRengi(ad) {
 
 export const TIP_ADLARI = { Cari: 'Diğer gider', SabitGider: 'Sabit gider', KrediKarti: 'Kredi kartı' };
 export const tipAdi = tip => TIP_ADLARI[tip] || String(tip || '');
+// Yeni kartlı gider yalnız yeni takipteki, açık karta girilir (gap-tarihsel-3, K3); sunucu takipsiz ya da kapalı kartı reddeder.
+// Masaüstü görünümündeki gider formu da aynı süzgeci kullanır (app.js).
+export const giderKartlari = kartlar => (kartlar || []).filter(k => k.yeniTakip && k.aktif);
 
 /** iOS mu Android mi: iPhone/iPad (iPadOS masaüstü kimliği dahil) iOS görünümünü alır, diğer her şey Android. */
 export function platformBul(ua = '', dokunmaNoktasi = 0) {
