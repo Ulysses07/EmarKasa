@@ -235,8 +235,8 @@ public class FinansTakipTests
     {
         var kanal = Finans().KanallarListe[0];
         var pay = new TakipPayEditor(new[] { kanal }) { Kanal = kanal, Tutar = 0.001m };
-        Assert.Contains("kuruş", Assert.Throws<KasaApiException>(() => TakipMetni.Paylar(new[] { pay })).Message);
-        pay.Tutar = 10; Assert.Contains("iki kez", Assert.Throws<KasaApiException>(() => TakipMetni.Paylar(new[] { pay, pay })).Message);
+        Assert.Contains("kuruş", Assert.Throws<DogrulamaHatasi>(() => TakipMetni.Paylar(new[] { pay })).Message);
+        pay.Tutar = 10; Assert.Contains("iki kez", Assert.Throws<DogrulamaHatasi>(() => TakipMetni.Paylar(new[] { pay, pay })).Message);
     }
     [Fact] public async Task Kart_iadesi_kaynak_harcama_gerektirir_kanal_dagilimi_kaynakta_kalir()
     {

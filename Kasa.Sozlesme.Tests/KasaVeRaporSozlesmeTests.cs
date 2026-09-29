@@ -25,7 +25,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
 
         await izleyici.Kasa.CikisAsync();
         Assert.Null(await izleyici.Depo.OkuAsync());
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => izleyici.Kasa.PanelAsync());
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => izleyici.Kasa.KanallarAsync());
         Assert.Equal(HttpStatusCode.Unauthorized, hata.DurumKodu);
         var yanlis = await Assert.ThrowsAsync<KasaApiException>(() => Istemci().Kasa.LoginAsync("editor", "yanlis-sifre"));
         Assert.Equal(HttpStatusCode.Unauthorized, yanlis.DurumKodu);
@@ -35,7 +35,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
     [SozlesmeKapsami(nameof(IKasaApi.AyarGuncelleAsync), nameof(IKasaApi.AyarlarAsync), nameof(IKasaApi.KanalOlusturAsync), nameof(IKasaApi.KanalGuncelleAsync),
         nameof(IKasaApi.KanalSilAsync), nameof(IKasaApi.KanallarAsync), nameof(IKasaApi.IslemOlusturAsync), nameof(IKasaApi.IslemGuncelleAsync),
         nameof(IKasaApi.IslemSilAsync), nameof(IKasaApi.IslemlerAsync), nameof(IKasaApi.GelenKaydetAsync), nameof(IKasaApi.GelenlerAsync),
-        nameof(IKasaApi.PanelAsync), nameof(IKasaApi.HaftalikAsync), nameof(IKasaApi.AylikAsync), nameof(IKasaApi.DonemlerAsync),
+        nameof(IKasaApi.AnaSayfaAsync), nameof(IKasaApi.HaftalikAsync), nameof(IKasaApi.AylikAsync), nameof(IKasaApi.DonemlerAsync),
         nameof(IBenzerKayitApi.BenzerKayitlarAsync), nameof(IYonetimApi.DisariAktarAsync))]
     public async Task Kanal_gider_gelir_ve_raporlar_istemci_turlerine_birebir_uyar()
     {
@@ -66,7 +66,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Single(await o.Kasa.GelenlerAsync(Baslangic));
         Assert.Single(await o.Kasa.GelenlerAsync());
 
-        var panel = await o.Kasa.PanelAsync();
+        var panel = (await o.Kasa.AnaSayfaAsync()).Panel;
         Assert.Equal(1000m + 5000.75m - 1234.56m - 300.25m, panel.GuncelKasa);
         Assert.All(panel.Kanallar, k => Assert.NotNull(k.KanalId));
         var haftalik = await o.Kasa.HaftalikAsync();
@@ -162,9 +162,10 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
     }
 
     /// <summary>Ana sayfa özeti tek istekte panel, kasa eşikleri ve takip özetini döner; her parça ayrı uçların yanıtıyla
-    /// JSON olarak birebir aynıdır.</summary>
+    /// JSON olarak birebir aynıdır. Panel ucunun istemci metodu yoktur: masaüstü onu yalnız ana sayfa özetinin yedeği olarak
+    /// (birleşik uç yoksa ya da 5xx verirse) AnaSayfaAsync içinden okur; aynı JSON olduğu için aynı PanelDto'ya uyar.</summary>
     [Fact]
-    [SozlesmeKapsami(nameof(IKasaApi.AnaSayfaAsync), nameof(IKasaApi.PanelAsync), nameof(IKasaKontrolApi.KasaEsikleriAsync),
+    [SozlesmeKapsami(nameof(IKasaApi.AnaSayfaAsync), nameof(IKasaKontrolApi.KasaEsikleriAsync),
         nameof(IFinansTakipApi.TakipOzetAsync), nameof(IFinansTakipApi.TakipKartKaydetAsync))]
     public async Task Ana_sayfa_ozeti_ayri_uclarin_yanitlariyla_birebir_ayni()
     {
@@ -178,8 +179,12 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(1000m - 100.25m, ozet.Panel.GuncelKasa);
         Assert.NotNull(ozet.KasaEsikleri); Assert.NotEmpty(ozet.KasaEsikleri); Assert.NotNull(ozet.TakipOzeti);
 
-        await o.Kasa.PanelAsync();
-        Assert.True(JsonNode.DeepEquals(birlesik["panel"], JsonNode.Parse(o.SonYanit.Json!)), "Ana sayfa paneli /api/rapor/panel yanıtından farklı.");
+        using (var http = F.CreateClient())
+        {
+            http.DefaultRequestHeaders.Authorization = new("Bearer", await o.Depo.OkuAsync());
+            var panel = JsonNode.Parse(await http.GetStringAsync("api/rapor/panel"));
+            Assert.True(JsonNode.DeepEquals(birlesik["panel"], panel), "Ana sayfa paneli /api/rapor/panel yanıtından farklı.");
+        }
         await o.Kontrol.KasaEsikleriAsync();
         Assert.True(JsonNode.DeepEquals(birlesik["kasaEsikleri"], JsonNode.Parse(o.SonYanit.Json!)), "Ana sayfa eşikleri /api/kasa-esikleri yanıtından farklı.");
         await o.Takip.TakipOzetAsync(60);

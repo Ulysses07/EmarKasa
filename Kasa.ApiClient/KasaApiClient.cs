@@ -100,9 +100,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
 
     // ---- okuma metotları ----
 
-    public Task<PanelDto> PanelAsync() => GetAsync<PanelDto>("api/rapor/panel");
-    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => HaftalikAsync(CancellationToken.None);
-    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct) => GetAsync<IReadOnlyList<HaftalikOzetDto>>("api/rapor/haftalik", ct);
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct = default) => GetAsync<IReadOnlyList<HaftalikOzetDto>>("api/rapor/haftalik", ct);
 
     /// <summary>Uç bir kez 404 verdiyse (eski sunucu) sonraki yüklemeler doğrudan panele gider; uygulama yeniden
     /// başlatılınca yeniden denenir.</summary>
@@ -125,7 +123,6 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => GetAsync<IReadOnlyList<DonemDto>>("api/donemler");
     public Task<IReadOnlyList<KanalDto>> KanallarAsync() => GetAsync<IReadOnlyList<KanalDto>>("api/kanallar");
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => GetAsync<IReadOnlyList<KrediKartiDto>>("api/kredikartlari");
-    public Task<IReadOnlyList<KrediDto>> KredilerAsync() => GetAsync<IReadOnlyList<KrediDto>>("api/krediler");
     public Task<AyarlarDto> AyarlarAsync() => GetAsync<AyarlarDto>("api/ayarlar");
 
 
@@ -157,21 +154,6 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     public Task<IslemDto> IslemOlusturAsync(IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, "api/islemler", g);
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Put, $"api/islemler/{id}", g);
     public Task IslemSilAsync(int id) => SilAsync($"api/islemler/{id}");
-
-    // Kredi kartı
-    public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) => GonderJsonAsync<KrediKartiDto>(HttpMethod.Post, "api/kredikartlari", g);
-    public Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g) => GonderJsonAsync<KrediKartiDto>(HttpMethod.Put, $"api/kredikartlari/{id}", g);
-    public Task KrediKartiSilAsync(int id) => SilAsync($"api/kredikartlari/{id}");
-
-    // Kredi
-    public Task KrediEkleAsync(KrediDto kredi) => GonderJsonAsync(HttpMethod.Post, "api/krediler", kredi);
-    public Task KrediGuncelleAsync(int id, KrediDto kredi) => GonderJsonAsync(HttpMethod.Put, $"api/krediler/{id}", kredi);
-    public Task KrediSilAsync(int id) => SilAsync($"api/krediler/{id}");
-
-    // Kart ödeme
-    public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) => GetAsync<IReadOnlyList<KartOdemeDto>>($"api/kartodemeler?krediKartiId={krediKartiId}");
-    public Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g) => GonderJsonAsync<KartOdemeDto>(HttpMethod.Post, "api/kartodemeler", g);
-    public Task KartOdemeSilAsync(int id) => SilAsync($"api/kartodemeler/{id}");
 
     // Gelen upsert
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) => GonderJsonAsync<GelenDto>(HttpMethod.Put, "api/gelenler", g);

@@ -92,10 +92,12 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
     /// <summary>Son istek kazanır yüklemesinin yüzeyi: yükleme göstergesi Mesgul, hata Hata'dır.</summary>
     internal IYurutmeYuzeyi Yuzey => yuzey;
 
-    /// <summary>Yazma ve tekil işlem hatasının iletisi. 401'de oturumun bittiği söylenir (oturum zaten eskidiyse hiç yazılmaz);
+    /// <summary>Yazma ve tekil işlem hatasının iletisi. Yerel doğrulama (<see cref="DogrulamaHatasi"/>) ve sunucunun iletili
+    /// reddi (400/409…) iletisini olduğu gibi gösterir. 401'de oturumun bittiği söylenir (oturum zaten eskidiyse hiç yazılmaz);
     /// zaman aşımında istek sunucuya ulaşmış olabileceği için önce kontrol istenir.</summary>
     public static string HataMesaji(Exception hata) => hata switch
     {
+        DogrulamaHatasi yerel => yerel.Message,
         KasaApiException { DurumKodu: HttpStatusCode.Unauthorized } => "Oturumunuz sona erdi. Yeniden giriş yapın.",
         KasaApiException { DurumKodu: HttpStatusCode.Forbidden } => "Bu işlem için yetkiniz yok.",
         KasaApiException api when api.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable => TemelViewModel.HataKoduEkle(api.Message, api),

@@ -31,8 +31,6 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
 
     public PanelDto? Panel;
     public IReadOnlyList<KrediKartiDto> KrediKartlariListe = new List<KrediKartiDto>();
-    public IReadOnlyList<KartOdemeDto> KartOdemelerListe = new List<KartOdemeDto>();
-    public IReadOnlyList<KrediDto> KredilerListe = new List<KrediDto>();
     public IReadOnlyList<IslemDto> IslemlerListe = new List<IslemDto>();
     public IReadOnlyList<HaftalikOzetDto> HaftalikListe = new List<HaftalikOzetDto>();
     public AylikRaporDto? AylikRapor;
@@ -45,8 +43,6 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
         => MeHatasi is not null ? Task.FromException<string?>(MeHatasi) : Task.FromResult(MeRol);
     public Task CikisAsync() { CikisCagrildi = true; return Task.CompletedTask; }
 
-    public Task<PanelDto> PanelAsync() => PanelGetir?.Invoke() ?? (YuklemeHatasi is not null ? Task.FromException<PanelDto>(YuklemeHatasi) : Task.FromResult(Panel!));
-    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<HaftalikOzetDto>>(YuklemeHatasi) : Task.FromResult(HaftalikListe);
     public Task<AylikRaporDto> AylikAsync(int yil, int ay) { SonAylikYil = yil; SonAylikAy = ay; return AylikGetir?.Invoke(yil, ay) ?? (YuklemeHatasi is not null ? Task.FromException<AylikRaporDto>(YuklemeHatasi) : Task.FromResult(AylikRapor!)); }
     public Task<IReadOnlyList<DonemDto>> DonemlerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<DonemDto>>(YuklemeHatasi) : Task.FromResult(DonemlerListe);
     public Task<IReadOnlyList<KanalDto>> KanallarAsync() => KanallarGetir?.Invoke() ?? (YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KanalDto>>(YuklemeHatasi) : Task.FromResult(KanallarListe));
@@ -54,14 +50,13 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public DateOnly? SonFiltreBaslangic;
     public DateOnly? SonFiltreBitis;
     public string? SonFiltreKanal;
-    public string? SonFiltreCari;
     /// <summary>Ayarlanırsa işlem listesi yanıtını verir (baslangic, bitis, kanal): gecikmeli/sırasız yanıt testleri için.</summary>
     public Func<DateOnly?, DateOnly?, string?, Task<IReadOnlyList<IslemDto>>>? IslemlerGetir;
     public int IslemlerCagri;
     public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
     {
         IslemlerCagri++;
-        SonFiltreBaslangic = baslangic; SonFiltreBitis = bitis; SonFiltreKanal = kanal; SonFiltreCari = cari;
+        SonFiltreBaslangic = baslangic; SonFiltreBitis = bitis; SonFiltreKanal = kanal;
         if (IslemlerGetir is not null) return IslemlerGetir(baslangic, bitis, kanal);
         return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
     }
@@ -81,20 +76,11 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public int IslemOlusturCagri;
     public (int Id, IslemYaz G)? SonIslemGuncelle;
     public int? SonIslemSil;
-    public KrediKartiYaz? SonKartOlustur;
-    public (int Id, KrediKartiYaz G)? SonKartGuncelle;
-    public int? SonKartSil;
     public GelenYaz? SonGelen;
     public int GelenKaydetCagri;
     public Exception? GelenKaydetHatasi;
     public AyarYaz? SonAyar;
     public string? SonIzleyiciSifre;
-    public int? SonKartOdemelerId;
-    public KartOdemeYaz? SonKartOdemeKaydet;
-    public int? SonKartOdemeSil;
-    public KrediDto? SonKrediEkle;
-    public (int Id, KrediDto K)? SonKrediGuncelle;
-    public int? SonKrediSil;
 
     public Task<KanalDto> KanalOlusturAsync(KanalYaz g) { SonKanalOlustur = g; return Task.FromResult(new KanalDto(0, g.Ad, g.Aktif, g.Sira, g.AcilisDevri)); }
     /// <summary>Ayarlanırsa kanal düzenlemesi, gider düzenlemesi ve ayar kaydı bu hatayla biter (ör. contract-6 sürüm çakışması 409).</summary>
@@ -120,13 +106,6 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
         return IslemGuncelleHatasi is { } hata ? Task.FromException<IslemDto>(hata) : Task.FromResult(new IslemDto(id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not, Surum: g.Surum + 1));
     }
     public Task IslemSilAsync(int id) { SonIslemSil = id; return Task.CompletedTask; }
-    public Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g) { SonKartOlustur = g; return Task.FromResult(new KrediKartiDto(0, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }
-    public Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g) { SonKartGuncelle = (id, g); return Task.FromResult(new KrediKartiDto(id, g.Ad, g.KesimTarihi, g.SonOdemeTarihi, g.Limit, g.Borc)); }
-    public Task KrediKartiSilAsync(int id) { SonKartSil = id; return Task.CompletedTask; }
-    public Task<IReadOnlyList<KrediDto>> KredilerAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediDto>>(YuklemeHatasi) : Task.FromResult(KredilerListe);
-    public Task KrediEkleAsync(KrediDto kredi) { SonKrediEkle = kredi; return Task.CompletedTask; }
-    public Task KrediGuncelleAsync(int id, KrediDto kredi) { SonKrediGuncelle = (id, kredi); return Task.CompletedTask; }
-    public Task KrediSilAsync(int id) { SonKrediSil = id; return Task.CompletedTask; }
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; GelenKaydetCagri++; return GelenKaydetHatasi is { } hata ? Task.FromException<GelenDto>(hata) : Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     /// <summary>Ayarlanırsa ayar kaydı ve izleyici şifre kaydı bu görevlerle biter (bekleyen kayıt testleri için).</summary>
     public Task? AyarGuncelleYaniti, IzleyiciSifreYaniti;
@@ -140,28 +119,24 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return IzleyiciSifreYaniti ?? Task.CompletedTask; }
 
-    public Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId) { SonKartOdemelerId = krediKartiId; return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KartOdemeDto>>(YuklemeHatasi) : Task.FromResult(KartOdemelerListe); }
-    public Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g) { SonKartOdemeKaydet = g; return Task.FromResult(new KartOdemeDto(0, g.KrediKartiId, g.Tarih, g.Tutar, g.Not)); }
-    public Task KartOdemeSilAsync(int id) { SonKartOdemeSil = id; return Task.CompletedTask; }
-
     public Task<AyarlarDto> AyarlarAsync() => YuklemeHatasi is not null ? Task.FromException<AyarlarDto>(YuklemeHatasi) : Task.FromResult(AyarlarSonuc!);
 
     /// <summary>Ayarlanırsa kanal listesi yanıtını verir (eski tam yüklemenin geç kaynakları testleri için).</summary>
     public Func<Task<IReadOnlyList<KanalDto>>>? KanallarGetir;
 
-    // Ana sayfa özeti: kanca yoksa panel (Panel / PanelGetir / YuklemeHatasi) ile ayarlanan eşik ve takip özeti döner.
+    // Ana sayfa özeti: kanca yoksa yalnız panel (Panel / PanelGetir / YuklemeHatasi) dolu döner; eşik ve takip özeti boştur.
     public Func<int, CancellationToken, Task<AnaSayfaDto>>? AnaSayfaGetir;
     public List<int> AnaSayfaIstekleri = new();
-    public IReadOnlyList<KasaEsikDto>? AnaSayfaEsikleri;
-    public TakipOzetDto? AnaSayfaTakipOzeti;
     public async Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default)
     {
         AnaSayfaIstekleri.Add(gun);
         if (AnaSayfaGetir is not null) return await AnaSayfaGetir(gun, ct);
-        return new(await PanelAsync(), AnaSayfaEsikleri, AnaSayfaTakipOzeti);
+        var panel = await (PanelGetir?.Invoke() ?? (YuklemeHatasi is not null ? Task.FromException<PanelDto>(YuklemeHatasi) : Task.FromResult(Panel!)));
+        return new(panel, null, null);
     }
 
     /// <summary>Ayarlanırsa iptal edilebilir haftalık rapor yanıtını verir; yoksa <see cref="HaftalikListe"/>.</summary>
     public Func<CancellationToken, Task<IReadOnlyList<HaftalikOzetDto>>>? HaftalikGetir;
-    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct) => HaftalikGetir?.Invoke(ct) ?? HaftalikAsync();
+    public Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct = default) => HaftalikGetir?.Invoke(ct)
+        ?? (YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<HaftalikOzetDto>>(YuklemeHatasi) : Task.FromResult(HaftalikListe));
 }

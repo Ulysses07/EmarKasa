@@ -105,8 +105,8 @@ public static class TakipMetni
     {
         var satirlar = paylar.ToList();
         ParaAyristirici.Dogrula(satirlar.Select(p => p.Tutar).ToArray());
-        if (satirlar.Any(p => p.Kanal is null || p.Tutar <= 0 || decimal.Round(p.Tutar, 2) != p.Tutar)) throw new KasaApiException(System.Net.HttpStatusCode.BadRequest, "Her dağılım satırında kanal ve pozitif, kuruş hassasiyetinde tutar girin.");
-        if (satirlar.Select(p => p.Kanal!.Id).Distinct().Count() != satirlar.Count) throw new KasaApiException(System.Net.HttpStatusCode.BadRequest, "Aynı kanalı iki kez seçmeyin.");
+        if (satirlar.Any(p => p.Kanal is null || p.Tutar <= 0 || decimal.Round(p.Tutar, 2) != p.Tutar)) throw new DogrulamaHatasi("Her dağılım satırında kanal ve pozitif, kuruş hassasiyetinde tutar girin.");
+        if (satirlar.Select(p => p.Kanal!.Id).Distinct().Count() != satirlar.Count) throw new DogrulamaHatasi("Aynı kanalı iki kez seçmeyin.");
         return satirlar.Select(p => new KanalPayYaz(p.Kanal!.Id, p.Tutar)).ToList();
     }
 }

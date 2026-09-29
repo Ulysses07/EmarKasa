@@ -7,10 +7,8 @@ public interface IKasaApi
     Task<string?> BenKimAsync();
     Task CikisAsync();
 
-    Task<PanelDto> PanelAsync();
-    Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync();
     /// <summary>Haftalık rapor; ekran değişince çağıran isteği iptal edebilir.</summary>
-    Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct);
+    Task<IReadOnlyList<HaftalikOzetDto>> HaftalikAsync(CancellationToken ct = default);
     /// <summary>Ana sayfa özeti tek istekte; <paramref name="gun"/> takip özetinin ufku. Eski sunucuda (uç yoksa 404) ve
     /// ucun sunucu hatasında (5xx) yalnız panel dolu döner (bkz. <see cref="AnaSayfaDto"/>).</summary>
     Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default);
@@ -19,7 +17,6 @@ public interface IKasaApi
     Task<IReadOnlyList<KanalDto>> KanallarAsync();
     Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null);
     Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync();
-    Task<IReadOnlyList<KrediDto>> KredilerAsync();
     Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null);
     Task<AyarlarDto> AyarlarAsync();
 
@@ -30,15 +27,6 @@ public interface IKasaApi
     Task<IslemDto> IslemOlusturAsync(IslemYaz g);
     Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g);
     Task IslemSilAsync(int id);
-    Task<KrediKartiDto> KrediKartiOlusturAsync(KrediKartiYaz g);
-    Task<KrediKartiDto> KrediKartiGuncelleAsync(int id, KrediKartiYaz g);
-    Task KrediKartiSilAsync(int id);
-    Task KrediEkleAsync(KrediDto kredi);
-    Task KrediGuncelleAsync(int id, KrediDto kredi);
-    Task KrediSilAsync(int id);
-    Task<IReadOnlyList<KartOdemeDto>> KartOdemelerAsync(int krediKartiId);
-    Task<KartOdemeDto> KartOdemeKaydetAsync(KartOdemeYaz g);
-    Task KartOdemeSilAsync(int id);
     Task<GelenDto> GelenKaydetAsync(GelenYaz g);
     Task AyarGuncelleAsync(AyarYaz g);
     Task IzleyiciSifreAsync(string yeniSifre);

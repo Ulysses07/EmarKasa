@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
-using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.ApiClient;
 
@@ -99,7 +98,7 @@ public partial class EkstreSatirEditor : ObservableObject
     }
     public EkstreSatirYaz Yaz()
     {
-        void Hata(string s) => throw new KasaApiException(HttpStatusCode.BadRequest, $"Satır {Kaynak.No}: {s}");
+        void Hata(string s) => throw new DogrulamaHatasi($"Satır {Kaynak.No}: {s}");
         if (!Secilebilir) Hata(Kayitli ? "Bu satır zaten kayıtlı." : "Yalnız TL hareketleri kaydedilebilir.");
         if (!DateOnly.TryParseExact(TarihMetni.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var tarih)) Hata("Tarihi yıl-ay-gün biçiminde girin (2026-09-27).");
         // Diğer para girişleriyle aynı kural: '1.500' 1,50 TL sayılmaz, hata verir.

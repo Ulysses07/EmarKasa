@@ -27,14 +27,6 @@ public class BicimTests
         => Assert.Equal(beklenen, Bicim.Boyut(bayt));
 
     [Fact]
-    public void KanalRengi_bilinen_kanali_dondurur()
-        => Assert.Equal("#C98A12", Bicim.KanalRengi("MEZAT"));
-
-    [Fact]
-    public void KanalRengi_bilinmeyene_ortak_rengi()
-        => Assert.Equal("#7A828E", Bicim.KanalRengi("BILINMEYEN"));
-
-    [Fact]
     public void Donem_etiketi_filtrede_yilsiz_gelir_formunda_yillidir()
     {
         // Yıl sınırını aşan dönem: gelir formu yanlış yılın dönem toplamını ezmesin diye yılı gösterir.

@@ -35,9 +35,9 @@ public static class SunucuKarsiliklari
         [typeof(KanalDto)] = typeof(Kasa.Api.Data.KanalEntity),                 // GET api/kanallar
         [typeof(IslemDto)] = typeof(Kasa.Api.Servisler.IslemOkuDto),            // GET api/islemler
         [typeof(GelenDto)] = typeof(Kasa.Api.Data.GelenEntity),                 // GET api/gelenler
-        [typeof(KrediDto)] = typeof(Kasa.Api.Data.KrediEntity),                 // GET api/krediler (eski uç)
+        [typeof(KrediDto)] = typeof(Kasa.Api.Data.KrediEntity),                 // GET api/krediler (eski uç; istemci metodu yok)
         [typeof(KrediKartiDto)] = typeof(Kasa.Api.KrediKartiTuretilmisDto),     // GET api/kredikartlari (eski uç)
-        [typeof(KartOdemeDto)] = typeof(Kasa.Api.Data.KartOdemeEntity),         // GET api/kartodemeler (eski uç)
+        [typeof(KartOdemeDto)] = typeof(Kasa.Api.Data.KartOdemeEntity),         // GET api/kartodemeler (eski uç; istemci metodu yok)
     };
 
     private static readonly Lazy<Dictionary<string, Type[]>> ApiTurleri = new(() => typeof(Kasa.Api.KartTakipDto).Assembly.GetTypes()

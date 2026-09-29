@@ -119,7 +119,7 @@ public class TanidikCihazTests
                .Kuyrukla(HttpStatusCode.NoContent);
         await client.LoginAsync("editor", "sifre");
 
-        await Assert.ThrowsAsync<KasaApiException>(client.PanelAsync);
+        await Assert.ThrowsAsync<KasaApiException>(client.KanallarAsync);
         Assert.Null(CihazBasligi(handler.SonIstek!));
         Assert.Null(await store.OkuAsync());
         await client.CikisAsync();

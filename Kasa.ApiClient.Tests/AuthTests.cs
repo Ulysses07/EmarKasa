@@ -46,7 +46,7 @@ public class AuthTests
         var (client, handler, _) = Kur();
         handler.Kuyrukla(HttpStatusCode.Unauthorized);
 
-        var ex = await Assert.ThrowsAsync<KasaApiException>(() => client.PanelAsync());
+        var ex = await Assert.ThrowsAsync<KasaApiException>(() => client.KanallarAsync());
         Assert.Equal(HttpStatusCode.Unauthorized, ex.DurumKodu);
     }
 

@@ -173,7 +173,7 @@ public class GecersizTutarTests
     {
         var pay = new TakipPayEditor(new[] { new KanalDto(1, "MEZAT", true, 0, 0) }) { Tutar = G };
         pay.Kanal = pay.Kanallar[0];
-        var hata = Assert.Throws<KasaApiException>(() => TakipMetni.Paylar(new[] { pay }));
+        var hata = Assert.Throws<DogrulamaHatasi>(() => TakipMetni.Paylar(new[] { pay }));
         Assert.Equal(ParaAyristirici.GecersizMesaji, hata.Message);
     }
 }

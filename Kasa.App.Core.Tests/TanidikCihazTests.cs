@@ -90,7 +90,7 @@ public class TanidikCihazTests
         await auth.GirisCommand.ExecuteAsync(null);
 
         // Oturum düşer (401): yalnız JWT silinir.
-        await Assert.ThrowsAsync<KasaApiException>(api.PanelAsync);
+        await Assert.ThrowsAsync<KasaApiException>(api.KanallarAsync);
         Assert.False(auth.GirisYapildi);
         Assert.Null(await store.OkuAsync());
 
@@ -114,7 +114,7 @@ public class TanidikCihazTests
 
         // Oturum dolar; saldırı hedefi kilitlemiştir.
         sunucu.OturumGecerli = false;
-        await Assert.ThrowsAsync<KasaApiException>(api.PanelAsync);
+        await Assert.ThrowsAsync<KasaApiException>(api.KanallarAsync);
         sunucu.Kilitli = true;
         auth.Sifre = "editor-sifresi";
         await auth.GirisCommand.ExecuteAsync(null);

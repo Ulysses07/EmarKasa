@@ -117,7 +117,7 @@ public class DagitimSablonuTests
 
     // devops-12: 'up -d --build' yereldeki önbellekten gelen temel imajla derler; temel imaj ve paket yamaları
     // 'build --pull' ile gelir. Güncel dağıtım belgeleri ve şablon yorumları derlemeyi yalnız '--pull' ile anlatır.
-    // Tarihsel belgeler (docs/plans, docs/deploy/kasa-db-recreate.md) kapsam dışıdır.
+    // Tarihsel belgeler (docs/deploy/kasa-db-recreate.md) kapsam dışıdır.
     public static TheoryData<string> GuncelDagitimBelgeleri => new()
     {
         "deploy/README.md", "deploy/docker-compose.nginx.yml", "deploy/docker-compose.yml", "docs/deploy/operasyon-runbook.md",

@@ -41,7 +41,7 @@ public class OturumVeHataTests
         var client = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.Unauthorized), store);
         var bildirildi = 0;
         client.OturumSonlandi += (_, _) => bildirildi++;
-        await Assert.ThrowsAsync<KasaApiException>(client.PanelAsync);
+        await Assert.ThrowsAsync<KasaApiException>(client.KanallarAsync);
         Assert.Null(await store.OkuAsync());
         Assert.Equal(1, bildirildi);
     }
@@ -72,7 +72,7 @@ public class OturumVeHataTests
             })
             : bekleyen.Task);
         var client = Kur(handler, store);
-        var eskiIstek = client.PanelAsync();
+        var eskiIstek = client.KanallarAsync();
         await client.LoginAsync("x", "y");
         bekleyen.SetResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
         await Assert.ThrowsAsync<KasaApiException>(() => eskiIstek);
@@ -87,7 +87,7 @@ public class OturumVeHataTests
     public async Task Dogrulama_ve_cakisma_mesajlarini_korur(HttpStatusCode kod, string govde, string beklenen)
     {
         var client = Kur(new SahteHandler().Kuyrukla(kod, govde), new BellekTokenStore());
-        var hata = await Assert.ThrowsAsync<KasaApiException>(client.PanelAsync);
+        var hata = await Assert.ThrowsAsync<KasaApiException>(client.KanallarAsync);
         Assert.Equal(kod, hata.DurumKodu);
         Assert.Equal(beklenen, hata.Message);
     }

@@ -1,8 +1,6 @@
 using System.Globalization;
-using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
-using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
@@ -59,10 +57,10 @@ public static partial class ParaAyristirici
     /// <summary>Özet/toplam gösterimi: geçersiz girdi sayı olarak gösterilmez.</summary>
     public static string Goster(decimal tutar) => GecerliMi(tutar) ? Bicim.Tl(tutar) : GecersizGosterim;
 
-    /// <summary>Gövde/önizleme yolları için: geçersiz tutar varsa API çağrılmadan BadRequest hatası verir
+    /// <summary>Gövde/önizleme yolları için: geçersiz tutar varsa API çağrılmadan <see cref="DogrulamaHatasi"/> verir
     /// (TemelViewModel bu mesajı olduğu gibi gösterir).</summary>
     public static void Dogrula(params decimal[] tutarlar)
     {
-        if (!HepsiGecerli(tutarlar)) throw new KasaApiException(HttpStatusCode.BadRequest, GecersizMesaji);
+        if (!HepsiGecerli(tutarlar)) throw new DogrulamaHatasi(GecersizMesaji);
     }
 }
