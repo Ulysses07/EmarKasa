@@ -53,10 +53,20 @@ function section(title, content, action) { return h('section', { class: 'section
 function badge(status) { return h('span', { class: `badge ${status === 'Onaylandi' ? 'approved' : status === 'Incelemede' ? 'review' : ''}` }, statusLabels[status] || status); }
 function help(text) { return h('p', { class: 'help' }, text); }
 function moneyNode(value, className = '') { return h('span', { class: `money ${className}` }, money(value)); }
+// Bilgi iletisi kibar (polite) #notifications bölgesinde duyurulur ve 6 sn sonra kalkar. Hata iletisi kendiliğinden kaybolmaz
+// (WAI-ARIA APG uyarı deseni; WCAG 2.2.3): assertive #alerts (role="alert") bölgesinde kalır, kapatma düğmesiyle kapanır ve
+// odağı almaz. Odaktaki kapatma düğmesi kalkınca odak belge başına düşmez, ana içeriğe geçer.
 function toast(message, error = false) {
-  const item = h('div', { class: `toast${error ? ' error' : ''}` }, message);
-  $('#notifications').append(item);
-  setTimeout(() => item.remove(), error ? 10000 : 6000);
+  if (!error) {
+    const item = h('div', { class: 'toast' }, message);
+    $('#notifications').append(item);
+    setTimeout(() => item.remove(), 6000);
+    return;
+  }
+  const close = h('button', { type: 'button', class: 'toast-close', 'aria-label': 'Hata iletisini kapat' }, '×');
+  const item = h('div', { class: 'toast error' }, h('span', {}, message), close);
+  close.addEventListener('click', () => { const focused = document.activeElement === close; item.remove(); if (focused) $('#main').focus(); });
+  $('#alerts').append(item);
 }
 function clearSession() {
   state.epoch++;
@@ -64,6 +74,7 @@ function clearSession() {
   state.role = null; state.purchases = []; state.channels = []; state.cards = []; state.selected = null; state.query = ''; state.status = '';
   $('#view').replaceChildren(); $('#navigation').replaceChildren(); $('#application').hidden = true; $('#login-screen').hidden = false;
   screenAbort?.abort(); screenAbort = null;
+  $('#alerts').replaceChildren(); // önceki oturumun hataları sonraki kullanıcıya kalmaz
   closeModal(true);
 }
 async function api(path, options = {}) {
