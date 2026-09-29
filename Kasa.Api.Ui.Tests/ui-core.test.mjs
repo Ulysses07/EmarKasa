@@ -130,6 +130,21 @@ test('channel boxes show server card debt separately from cash and keep unknown 
   assert.equal(view.find(node => node.className === 'cash-total money').textContent, money(123));
   assert.match(view.textContent, /Toplam kart borcu.*95,00/); assert.match(view.textContent, /Kart alacak bakiyesi.*15,00.*Diğer kartların borcundan düşülmez/);
 });
+// Koşullu içerik boolean koşulla eklenir: `dizi.length && düğüm` boş dizide 0 döndürür ve h() sayıyı (bilerek, bkz. childValues
+// testi) metin olarak basar. Kanalına bağlanamayan kart borcu yokken ana sayfada kutunun altında tek başına "0" görünüyordu.
+test('home screen does not print a stray 0 when every card debt belongs to a listed channel', async () => {
+  const texts = node => Array.isArray(node?.children) ? node.children.flatMap(texts) : [String(node)];
+  for (const debts of [undefined, [], [{ kanalId: 1, kanal: 'Mağaza', tutar: 40 }]]) {
+    const { nodes } = await openApp(false, {
+      '/api/rapor/panel': { guncelKasa: 123, buHaftaSonucu: 20, buAySonucu: 50, kanallar: [{ kanalId: 1, kanal: 'Mağaza', bakiye: 123 }] },
+      '/api/takip/ozet?gun=30': { kartBorcu: 40, kalanKrediPlani: 0, olaylar: [], ...(debts ? { kanalKartBorclari: debts } : {}) }
+    });
+    const view = nodes.get('#view');
+    assert.deepEqual(texts(view).filter(text => text.trim() === '0'), [], `kanalKartBorclari: ${JSON.stringify(debts)}`);
+    assert.doesNotMatch(view.textContent, /Kanalı belirsiz kart borcu|Mağaza kart borcu:/);
+    assert.match(view.textContent, /Kart borçları kasa bakiyesine dahil edilmez/);
+  }
+});
 test('card details show server minimum status and remaining channel debt without changing payment values', async () => {
   const card = { ...sampleCard, kanalKartBorclari: [{ kanalId: 1, kanal: 'MEZAT', tutar: 70 }, { kanalId: null, kanal: 'Dağılım bekliyor', tutar: 30 }], ekstreler: [
     { ...sampleCard.ekstreler[0], asgariOdeme: 100, asgariKalan: 37, odenen: 10 },

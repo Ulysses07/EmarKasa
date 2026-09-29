@@ -19,7 +19,7 @@ export function createFinanceUi(c) {
       read(total) {
         const used = new Set();
         const values = rows.map(row => { const id = Number(row.kanalId); if (!id || used.has(id)) throw new Error('Her kanalı bir kez seçin.'); used.add(id); return { kanalId: id, tutar: cents(row.tutar, { allowZero: false }) / 100 }; });
-        if (values.length && values.reduce((sum, row) => sum + cents(row.tutar), 0) !== Math.round(Math.abs(total) * 100)) throw new Error('Kanal paylarının toplamı tutara eşit olmalı.');
+        if (values.length > 0 && values.reduce((sum, row) => sum + cents(row.tutar), 0) !== Math.round(Math.abs(total) * 100)) throw new Error('Kanal paylarının toplamı tutara eşit olmalı.');
         return values;
       }
     };

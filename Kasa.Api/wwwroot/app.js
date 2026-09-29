@@ -634,7 +634,7 @@ async function renderHome(generation) {
       return h('div', { class: `channel-balance${threshold?.etkin && threshold.esikAltinda ? ' below-threshold' : ''}` }, h('span', { class: 'channel-name' }, k.kanal), moneyNode(k.bakiye, k.bakiye < 0 ? 'negative' : ''), threshold?.etkin && threshold.esikAltinda && h('span', { class: 'badge pending' }, `Alt sınırın altında · Sınır ${money(threshold.tutar)}`), !runtime.saltOkunur && h('div', { class: 'channel-card-debt' }, debt == null ? (debtFailed ? 'Kart borcu yüklenemedi.' : 'Kart borcu yükleniyor…') : h('span', {}, 'Kalan kart borcu: ', moneyNode(debt))));
     }));
     const other = (debts || []).filter(row => row.tutar > 0 && !panel.kanallar.some(channel => matches(channel, row)));
-    unassignedDebt.replaceChildren(...childValues([other.length && h('div', { class: 'notice' }, other.map(row => h('div', {}, `${row.kanalId == null ? 'Kanalı belirsiz kart borcu' : `${row.kanal} kart borcu`}: ${money(row.tutar)}`))), debts && help('Kart borçları kasa bakiyesine dahil edilmez; ödeme kaydedildiğinde kasadan düşer.')]));
+    unassignedDebt.replaceChildren(...childValues([other.length > 0 && h('div', { class: 'notice' }, other.map(row => h('div', {}, `${row.kanalId == null ? 'Kanalı belirsiz kart borcu' : `${row.kanal} kart borcu`}: ${money(row.tutar)}`))), debts && help('Kart borçları kasa bakiyesine dahil edilmez; ödeme kaydedildiğinde kasadan düşer.')]));
   };
   drawBalances(null);
   const showOverview = (data, days) => { debtFailed = false; drawBalances(data.kanalKartBorclari || []); paymentOverview.replaceChildren(financeUi.overview(data, days, selected => run(null, () => loadOverview(selected)))); };

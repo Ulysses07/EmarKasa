@@ -35,6 +35,14 @@ const hataKurallari = {
   'no-async-promise-executor': 'error',
   'getter-return': 'error',
   'no-setter-return': 'error',
+  // Arayüz hatası kalıbı: h()/childValues sayıyı bilerek metin olarak basar (0 geçerli içeriktir), bu yüzden
+  // `dizi.length && düğüm` boş dizide ekrana tek başına "0" yazar. Koşul her yerde boolean yazılır (`dizi.length > 0 && …`).
+  'no-restricted-syntax': ['error',
+    ...[
+      "LogicalExpression[operator='&&'][left.type='MemberExpression'][left.property.name=/^(length|size)$/]",
+      "LogicalExpression[operator='&&'][left.type='ChainExpression'][left.expression.property.name=/^(length|size)$/]",
+    ].map(selector => ({ selector, message: 'Sayı (length/size) && ile koşul yapılmaz: boşken 0 döner ve h() onu metin olarak basar. `> 0` ile boolean yazın.' })),
+  ],
 };
 
 const ortak = { ecmaVersion: 'latest' };
