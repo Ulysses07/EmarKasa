@@ -8,8 +8,7 @@ namespace Kasa.App.Core;
 public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, AuthViewModel auth) : OturumluViewModel(auth)
 {
     private readonly TekrarAnahtari _kayit = new(), _taksit = new(), _kapat = new(), _durum = new(), _gecis = new();
-    private KrediGecisYaz? _onizlenenGecis;
-    private bool _gecisUygun;
+    private readonly OnizlemeOnay<KrediGecisYaz, TakipGecisDto> _gecisOnizlemesi = new();
     public ObservableCollection<KrediTakipSatiri> Krediler { get; } = new();
     public ObservableCollection<TaksitSatiri> Taksitler { get; } = new();
     public ObservableCollection<TakipKanalSecimi> Kanallar { get; } = new();
@@ -67,8 +66,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         DuzenlenenTaksit = null;
         GecisOnizleme = null;
         GecisOnay = KapatmaOnay = false;
-        _onizlenenGecis = null;
-        _gecisUygun = false;
+        _gecisOnizlemesi.Temizle();
         Gerekce = "";
     }
     [RelayCommand]
@@ -87,7 +85,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
             k.Secili = false;
         GecisOnizleme = null;
         GecisOnay = KapatmaOnay = false;
-        _onizlenenGecis = null;
+        _gecisOnizlemesi.Temizle();
     }
     [RelayCommand] private void TumKanallariSec() { foreach (var k in Kanallar) k.Secili = k.Veri.Aktif; }
     private IReadOnlyList<int> SecilenKanallar() => Kanallar.Where(k => k.Secili).Select(k => k.Veri.Id).ToList();
@@ -178,17 +176,11 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     {
         if (!EditorMu || Secili is not { YeniTakip: false } kredi)
             return;
-        _onizlenenGecis = null;
-        _gecisUygun = false;
         GecisOnay = false;
         GecisOnizleme = null;
-        var g = GecisGovde();
-        var sonuc = await api.TakipKrediGecisOnizlemeAsync(kredi.Id, g);
-        if (!Gecerli(n) || Secili?.Id != kredi.Id || !TakipMetni.Ayni(g, GecisGovde()))
+        if (!await _gecisOnizlemesi.IsteAsync(GecisGovde, g => api.TakipKrediGecisOnizlemeAsync(kredi.Id, g), () => Gecerli(n) && Secili?.Id == kredi.Id))
             return;
-        _onizlenenGecis = g;
-        _gecisUygun = sonuc.KabulEdilebilir;
-        GecisOnizleme = TakipMetni.Gecis(sonuc);
+        GecisOnizleme = TakipMetni.Gecis(_gecisOnizlemesi.Onizleme!);
     });
     [RelayCommand]
     private Task GecisiOnaylaAsync() => YurutAsync(async n =>
@@ -196,7 +188,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         if (!EditorMu || Secili is not { YeniTakip: false } kredi)
             return;
         var g = GecisGovde();
-        if (!GecisOnay || !_gecisUygun || _onizlenenGecis is null || !TakipMetni.Ayni(g, _onizlenenGecis))
+        if (!GecisOnay || _gecisOnizlemesi.Onizleme is not { KabulEdilebilir: true } || !_gecisOnizlemesi.Gecerli(g))
         { Hata = "Güncel geçiş önizlemesini inceleyip onay kutusunu işaretleyin."; return; }
         g = g with { Onay = true };
         if (Uygula(await api.TakipKrediGecisAsync(kredi.Id, g), n))

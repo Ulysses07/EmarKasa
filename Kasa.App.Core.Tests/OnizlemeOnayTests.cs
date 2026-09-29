@@ -31,6 +31,41 @@ public class OnizlemeOnayTests
         return vm;
     }
 
+    // ---- Yardımcının kendisi ----
+
+    private sealed record Govde(int Id, decimal Tutar);
+    private sealed record Yanit(string Metin);
+
+    [Fact]
+    public async Task Yardimci_yanit_gelince_gecerlilik_ve_govde_tutuyorsa_onizlemeyi_uygular_onay_ayni_govdeyi_ister()
+    {
+        var onay = new OnizlemeOnay<Govde, Yanit>();
+        var girdi = new Govde(1, 10m);
+        Assert.True(await onay.IsteAsync(() => girdi, g => Task.FromResult(new Yanit($"{g.Tutar}")), () => true));
+        Assert.True(onay.Var);
+        Assert.Equal(girdi, onay.Govde);
+        Assert.Equal("10", onay.Onizleme!.Metin);
+        Assert.True(onay.Gecerli(new Govde(1, 10m)));
+        Assert.False(onay.Gecerli(new Govde(1, 11m)));
+        onay.Temizle();
+        Assert.False(onay.Var);
+        Assert.Null(onay.Onizleme);
+        Assert.False(onay.Gecerli(girdi));
+    }
+
+    [Fact]
+    public async Task Yardimci_yanit_gelmeden_girdi_ya_da_gecerlilik_degisirse_onizlemeyi_uygulamaz_eskisini_birakmaz()
+    {
+        var onay = new OnizlemeOnay<Govde, Yanit>();
+        await onay.IsteAsync(() => new Govde(1, 5m), _ => Task.FromResult(new Yanit("eski")), () => true);
+        var girdi = new Govde(1, 10m);
+        Assert.False(await onay.IsteAsync(() => girdi, _ => { girdi = girdi with { Tutar = 11m }; return Task.FromResult(new Yanit("x")); }, () => true));
+        Assert.False(onay.Var);
+        Assert.Null(onay.Onizleme);
+        Assert.False(await onay.IsteAsync(() => girdi, _ => Task.FromResult(new Yanit("x")), () => false));
+        Assert.False(onay.Var);
+    }
+
     // ---- Kart ödemesi ----
 
     [Fact]
