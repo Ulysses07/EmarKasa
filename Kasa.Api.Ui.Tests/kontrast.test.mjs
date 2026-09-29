@@ -2,28 +2,33 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-// Masaüstü web arayüzünün renk çiftleri WCAG 2.2 eşiklerini geçer: metin 4,5:1 (1.4.3), kontrol sınırı ve odak göstergesi
-// 3:1 (1.4.11). Değerler styles.css'ten okunur; var(--x) :root belirteçlerinden çözülür.
-const css = await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8');
+// Web arayüzünün renk çiftleri WCAG 2.2 eşiklerini geçer: metin 4,5:1 (1.4.3), kontrol sınırı ve odak göstergesi 3:1
+// (1.4.11). Değerler masaüstünde styles.css'ten, telefonda m/app.css'ten okunur; var(--x) o dosyanın :root belirteçlerinden
+// çözülür.
 const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// Medya sorgusu dışındaki (ilk) kuralın bildirimleri; seçici dosyada yazıldığı gibi verilir.
-function rule(selector) {
-  const match = new RegExp(`(?:^|[}\\n])${escape(selector)}\\{([^}]*)\\}`).exec(css);
-  assert.ok(match, `${selector} kuralı yok`);
-  return Object.fromEntries(match[1].split(';').filter(Boolean).map(part => { const index = part.indexOf(':'); return [part.slice(0, index).trim(), part.slice(index + 1).trim()]; }));
+function stylesheet(css) {
+  // Medya sorgusu dışındaki (ilk) kuralın bildirimleri; seçici dosyada yazıldığı gibi verilir.
+  const rule = selector => {
+    const match = new RegExp(`(?:^|[}\\n])${escape(selector)}\\{([^}]*)\\}`).exec(css);
+    assert.ok(match, `${selector} kuralı yok`);
+    return Object.fromEntries(match[1].split(';').map(part => part.trim()).filter(Boolean).map(part => { const index = part.indexOf(':'); return [part.slice(0, index).trim(), part.slice(index + 1).trim()]; }));
+  };
+  const root = rule(':root');
+  const color = value => {
+    const token = /^var\((--[\w-]+)\)$/.exec(value);
+    const resolved = token ? root[token[1]] : value;
+    assert.match(resolved ?? '', /^#[0-9a-f]{6}$/i, `çözülemeyen renk: ${value}`);
+    return resolved;
+  };
+  return { rule, root, color };
 }
-const root = rule(':root');
-const color = value => {
-  const token = /^var\((--[\w-]+)\)$/.exec(value);
-  const resolved = token ? root[token[1]] : value;
-  assert.match(resolved ?? '', /^#[0-9a-f]{6}$/i, `çözülemeyen renk: ${value}`);
-  return resolved;
-};
+const { rule, root, color } = stylesheet(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8'));
+const mobile = stylesheet(await readFile(new URL('../Kasa.Api/wwwroot/m/app.css', import.meta.url), 'utf8'));
 const channel = value => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 const luminance = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b); };
-const ratio = (a, b) => { const [x, y] = [luminance(color(a)), luminance(color(b))].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-const atLeast = (foreground, background, minimum, what) => {
-  const value = ratio(foreground, background);
+const ratio = (a, b, resolve = color) => { const [x, y] = [luminance(resolve(a)), luminance(resolve(b))].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const atLeast = (foreground, background, minimum, what, resolve = color) => {
+  const value = ratio(foreground, background, resolve);
   assert.ok(value >= minimum, `${what}: ${foreground} / ${background} = ${value.toFixed(2)}:1, en az ${minimum}:1 olmalı`);
 };
 const outlineColor = declaration => declaration.split(' ').at(-1);
@@ -78,4 +83,25 @@ test('kaydırılabilir bölgelerin (tablo, genel kasa tutarı) odak halkası zem
   assert.equal(total['outline-offset'], '3px');
   atLeast(outlineColor(total.outline), rule('.cash-hero').background, 3, 'genel kasa bölgesi odak halkası');
   assert.ok(ratio('var(--focus)', rule('.cash-hero').background) < 3, '--focus koyu yeşil zeminde yetersiz; ayrı renk gerekçesi');
+});
+
+test('telefon: ikincil metin (--soluk) sayfa, kart, liste arası ve arama zemininde en az 4,5:1', () => {
+  // 11,5–15 px ikincil yazılar (bölüm etiketi, alt yazı, gün başlığı, açıklama, alt sayfa başlıkları) --soluk kullanır.
+  for (const selector of ['.etiket', '.alt-yazi', '.gun-bas', '.aciklama', '.giris .dipnot', '.hz-not', '.hz-bas', '.sayfa-bas button', '.alan-etiket', '.mini .ust-etiket']) {
+    assert.equal(mobile.rule(selector).color, 'var(--soluk)', `${selector} rengi`);
+  }
+  assert.equal(mobile.rule('body').background, 'var(--zemin)'); assert.equal(mobile.rule('.kutu').background, 'var(--kart)');
+  assert.equal(mobile.rule('.arama').background, 'var(--arama)'); assert.equal(mobile.rule('.arama').color, 'var(--soluk)');
+  for (const background of ['--zemin', '--kart', '--ara', '--arama']) atLeast('var(--soluk)', `var(${background})`, 4.5, `--soluk / ${background}`, mobile.color);
+  for (const background of ['--kart', '--ara']) atLeast('var(--soluk2)', `var(${background})`, 4.5, `--soluk2 / ${background}`, mobile.color);
+  // Ton korunur: --soluk2 (daha koyu ikincil yazı) --soluk'tan koyu kalır.
+  assert.ok(ratio('var(--soluk2)', 'var(--zemin)', mobile.color) > ratio('var(--soluk)', 'var(--zemin)', mobile.color));
+});
+
+test('telefon: koyu yeşil kutudaki etiket ve alt yazı en az 4,5:1', () => {
+  assert.equal(mobile.rule('.kahraman').background, 'var(--yesil)'); assert.equal(mobile.rule('.mini.koyu').background, 'var(--yesil)');
+  assert.equal(mobile.rule('.kahraman .ust-etiket').color, 'var(--yesil-acik)'); assert.equal(mobile.rule('.mini.koyu .ust-etiket').color, 'var(--yesil-acik)');
+  atLeast('var(--yesil-acik)', 'var(--yesil)', 4.5, 'koyu kutu etiketi', mobile.color);
+  assert.equal(mobile.rule('.kahraman .alt').color, 'var(--yesil-soluk)');
+  atLeast('var(--yesil-soluk)', 'var(--yesil)', 4.5, 'koyu kutu alt yazısı', mobile.color);
 });
