@@ -7,7 +7,7 @@ export function frozenRuleUnlockWarning(report, month) {
   return 'Bu ay eski kuralla (kural 1) kapatılmış: raporunda takipli kredi çekimi Gelen ve Ay sonucu içindedir. Kilit açılınca rapor güncel kuralla yeniden hesaplanır, yeniden kapatınca da güncel kuralla dondurulur: takipli kredi çekimi Gelen ve Ay sonucundan çıkar, eski kuraldaki rakamlara dönülemez. Eski kuralla kapatılmış sonraki aylar için de aynısı geçerlidir.';
 }
 export function createMonthlyUi(c) {
-  const { api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, formDialog, closeModal, page, run, toast, summary, requestIdentity, canEdit, isCurrent, view } = c;
+  const { api, h, button, input, field, select, monthPicker, help, section, table, money, moneyNode, dateText, today, cents, formDialog, closeModal, page, run, toast, summary, requestIdentity, canEdit, isCurrent, view } = c;
   const base = '/api/aylik-giderler';
   const kinds = { Kira: 'Kira', Maas: 'Maaş', Fatura: 'Fatura', Diger: 'Diğer' };
   const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
@@ -25,7 +25,7 @@ export function createMonthlyUi(c) {
     const [year, period] = month.split('-').map(Number);
     const [data, templates] = await Promise.all([api(`${base}?yil=${year}&ay=${period}`), api(`${base}/sablonlar`)]);
     if (!isCurrent(generation) || month !== currentMonth) return;
-    const monthInput = input('ay', month, { type: 'month', required: true, 'aria-label': 'Aylık gider ayı' });
+    const monthInput = monthPicker('ay', month, { label: 'Aylık gider ayı' });
     const rows = data.kayitlar.map(row => [
       h('div', {}, h('strong', {}, row.ad), h('small', { class: 'table-sub' }, kinds[row.tur] || row.tur)),
       dateText(row.planlananTarih), moneyNode(row.tutar), shares(row),
@@ -41,7 +41,7 @@ export function createMonthlyUi(c) {
     const templateRows = templates.map(row => [row.ad, kinds[row.tur] || row.tur, moneyNode(row.tutar), `Her ay ${row.odemeGunu}. gün`, shares(row), row.aktif ? 'Aktif' : 'Pasif', dateText(row.gecerliAy), canEdit() ? act('Düzenle', () => templateDialog(row), 'small') : '']);
     view().replaceChildren(
       h('p', { class: 'plan-note' }, 'Şablon ve plan kasa bakiyesini değiştirmez. Nakit veya havale gerçekten ödendiğinde “Ödeme kaydet” ile işleyin. Kartla ödemeyi mevcut gider veya kart ekranında kaydedin; burada ikinci kez ödeme girmeyin.'),
-      h('div', { class: 'toolbar' }, monthInput, act('Ayı göster', () => monthInput.reportValidity() && render(generation, monthInput.value))),
+      h('div', { class: 'toolbar' }, monthInput.node, act('Ayı göster', () => render(generation, monthInput.value))),
       h('div', { class: 'summary-strip' }, summary('Planlanan', money(data.planlananToplam)), summary('Ödendi', money(data.odenenToplam)), summary('Kalan plan', money(data.planlananToplam - data.odenenToplam))),
       section('Ayın giderleri', rows.length ? table(['Gider', 'Plan tarihi', 'Tutar', 'Hangi kasa', 'Durum', 'Ödeme tarihi', ''], rows) : help('Bu ay için aylık gider planı yok.')),
       ...(cancelled.length ? [section('İptal edilen ödemeler', h('div', {}, help('İptal edilen ödeme kasaya yansımaz ve ay toplamlarına girmez; planı yukarıda yeniden ödeme bekler.'), table(['Gider', 'Ödeme tarihi', 'Tutar', 'İptal zamanı', 'İptal gerekçesi'], cancelled)))] : []),
@@ -83,9 +83,10 @@ export function createMonthlyUi(c) {
     const kind = select('tur', Object.entries(kinds).map(([value, label]) => ({ value, label })), template?.tur || 'Kira', { required: true });
     const total = input('tutar', template?.tutar ?? '', { inputmode: 'decimal', required: true });
     const day = input('odemeGunu', template?.odemeGunu || 1, { type: 'number', min: 1, max: 31, required: true });
-    const first = input('gecerliAy', template?.gecerliAy?.slice(0, 7) > today().slice(0, 7) ? template.gecerliAy.slice(0, 7) : today().slice(0, 7), { type: 'month', min: today().slice(0, 7), required: true });
+    const thisMonth = today().slice(0, 7);
+    const first = monthPicker('gecerliAy', template?.gecerliAy?.slice(0, 7) > thisMonth ? template.gecerliAy.slice(0, 7) : thisMonth, { label: 'Bu aydan itibaren', min: thisMonth });
     const active = input('aktif', '1', { type: 'checkbox', checked: template?.aktif ?? true });
-    formDialog(template ? 'Aylık gider şablonunu düzenle' : 'Aylık gider şablonu ekle', h('div', { class: 'stack' }, field('Gider adı', name), h('div', { class: 'form-grid' }, field('Tür', kind), field('Aylık tutar (₺)', total), field('Ödeme günü', day), field('Bu aydan itibaren', first)), allocation.node, field('Şablon aktif', active), help('Kısa aylarda ödeme günü ayın son gününe alınır. Bu kayıt ödeme değildir; kasaya işlem yazılmaz. Önceki aylar ve ödenmiş kayıtlar değişmez.')), 'Şablonu kaydet', async () => {
+    formDialog(template ? 'Aylık gider şablonunu düzenle' : 'Aylık gider şablonu ekle', h('div', { class: 'stack' }, field('Gider adı', name), h('div', { class: 'form-grid' }, field('Tür', kind), field('Aylık tutar (₺)', total), field('Ödeme günü', day), h('div', { class: 'month-field' }, h('span', { 'aria-hidden': 'true' }, 'Bu aydan itibaren'), first.node)), allocation.node, field('Şablon aktif', active), help('Kısa aylarda ödeme günü ayın son gününe alınır. Bu kayıt ödeme değildir; kasaya işlem yazılmaz. Önceki aylar ve ödenmiş kayıtlar değişmez.')), 'Şablonu kaydet', async () => {
       editor();
       const value = cents(total.value, { allowZero: false }) / 100; const paymentDay = Number(day.value);
       if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 31) throw new Error('Ödeme günü 1 ile 31 arasında olmalı.');

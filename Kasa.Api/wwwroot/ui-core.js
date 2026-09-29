@@ -62,6 +62,17 @@ export function today() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
+// "YYYY-AA" ayına delta ay ekler; yıl sınırını geçer (2026-12 + 1 = 2027-01).
+export function shiftMonth(month, delta) {
+  const [year, number] = String(month).split('-').map(Number);
+  const index = year * 12 + number - 1 + delta;
+  return `${Math.floor(index / 12)}-${String(index % 12 + 1).padStart(2, '0')}`;
+}
+// "YYYY-AA" → "Eylül 2026" (ay seçicinin görünen değeri).
+export function monthLabel(month) {
+  const [year, number] = String(month).split('-').map(Number);
+  return new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, number - 1, 1)));
+}
 // Inputs accept an ungrouped decimal with either separator. Never silently round money.
 export function cents(value, { allowZero = true } = {}) {
   const text = String(value ?? '').trim().replace(',', '.');

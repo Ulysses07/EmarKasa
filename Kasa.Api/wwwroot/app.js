@@ -5,7 +5,7 @@ import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
 import { createCashControlsUi } from './cash-controls-ui.js?v=2.3.0';
 import { createStatementImportUi } from './statement-import-ui.js?v=2.3.0';
 import { createPushClient, notificationRoute } from './push-client.js?v=2.3.0';
-import { purchaseTotals, documentFileName, linkableExpensesPath, documentsPath, documentRemovable, documentDescription, documentDeletePayload, backupDiskLines, restoreReport } from './ui-core.js?v=2.3.0';
+import { purchaseTotals, shiftMonth, monthLabel, documentFileName, linkableExpensesPath, documentsPath, documentRemovable, documentDescription, documentDeletePayload, backupDiskLines, restoreReport } from './ui-core.js?v=2.3.0';
 
 const $ = selector => document.querySelector(selector);
 const state = { role: null, view: 'home', purchases: [], channels: [], cards: [], query: '', status: '', selected: null, epoch: 0 };
@@ -22,7 +22,7 @@ let screenAbort = null;
 const isOpen = form => modal.open && $('#modal-content').querySelector('form') === form;
 const push = createPushClient({ api, session: () => canEditCash() ? state.epoch : null });
 const financeUi = createFinanceUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, amount, signedAmount, formDialog, openModal, closeModal, page, navigate, run, toast, summary, childValues, requestIdentity, confirmSimilar, isOpen, canEdit: canEditCash, isCurrent: generation => generation === renderId, view: () => $('#view') });
-const monthlyUi = createMonthlyUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, today, cents, formDialog, closeModal, page, run, toast, summary, childValues, requestIdentity, canEdit: canEditCash, isCurrent: generation => generation === renderId, view: () => $('#view') });
+const monthlyUi = createMonthlyUi({ api, h, button, input, field, select, monthPicker, help, section, table, money, moneyNode, dateText, today, cents, formDialog, closeModal, page, run, toast, summary, childValues, requestIdentity, canEdit: canEditCash, isCurrent: generation => generation === renderId, view: () => $('#view') });
 const cashControlsUi = createCashControlsUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, signedAmountField, amount, formDialog, openModal, closeModal, run, toast, summary, requestIdentity, isOpen, canEdit: canEditCash, navigate, dateText, today });
 const statementImportUi = createStatementImportUi({ api, h, button, input, field, select, help, section, table, money, moneyNode, dateText, cents, formDialog, closeModal, page, navigate, run, toast, summary, requestIdentity, isOpen, canEdit: canEditCash, isCurrent: generation => generation === renderId, session: () => state.epoch, view: () => $('#view'), createFormData: () => new FormData() });
 const notificationUi = createNotificationUi({ api, h, button, input, field, help, section, page, dateText, formDialog, closeModal, run, toast, navigate, view: () => $('#view'), isCurrent: generation => generation === renderId, push, notificationRoute, role: () => state.role });
@@ -52,6 +52,18 @@ function select(name, choices, value = '', props = {}) {
 function section(title, content, action) { return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), action), content); }
 function badge(status) { return h('span', { class: `badge ${status === 'Onaylandi' ? 'approved' : status === 'Incelemede' ? 'review' : ''}` }, statusLabels[status] || status); }
 function help(text) { return h('p', { class: 'help' }, text); }
+// Ay seçici: masaüstü Firefox ve Safari'de type="month" denetimi yok (MDN browser-compat-data). "‹ Eylül 2026 ›" düğmeleri
+// YYYY-AA değerini değiştirir; değer adlı gizli alanda da durur. Grup erişilebilir adını label'dan alır; düğmeler <label> içine
+// konmaz (etikete tıklamak önceki ayı seçerdi). min (YYYY-AA) verilirse o aydan önceye inilmez.
+function monthPicker(name, value, { label, min = '' } = {}) {
+  const field = h('input', { type: 'hidden', name, value });
+  const text = h('span', { class: 'month-picker-value', 'aria-live': 'polite' });
+  const previous = button('‹', () => set(shiftMonth(field.value, -1)), 'small', { 'aria-label': 'Önceki ay' });
+  const next = button('›', () => set(shiftMonth(field.value, 1)), 'small', { 'aria-label': 'Sonraki ay' });
+  function set(month) { field.value = month; text.textContent = monthLabel(month); previous.disabled = Boolean(min) && month <= min; }
+  set(value);
+  return { node: h('div', { class: 'month-picker', role: 'group', 'aria-label': label }, previous, text, next, field), get value() { return field.value; } };
+}
 function moneyNode(value, className = '') { return h('span', { class: `money ${className}` }, money(value)); }
 // Bilgi iletisi kibar (polite) #notifications bölgesinde duyurulur ve 6 sn sonra kalkar. Hata iletisi kendiliğinden kaybolmaz
 // (WAI-ARIA APG uyarı deseni; WCAG 2.2.3): assertive #alerts (role="alert") bölgesinde kalır, kapatma düğmesiyle kapanır ve
@@ -691,7 +703,7 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   page('Aylık kasa', 'Kanal bazında aylık gelir ve giderler');
   const [year, period] = month.split('-').map(Number);
   const report = await api(`/api/rapor/aylik?yil=${year}&ay=${period}`); if (generation !== renderId || request !== monthlyRequest) return;
-  const total = monthlyTotals(report); const monthInput = input('ay', month, { type: 'month', required: true, 'aria-label': 'Rapor ayı' });
+  const total = monthlyTotals(report); const monthInput = monthPicker('ay', month, { label: 'Rapor ayı' });
   const lock = h('div');
   // Kural 2 (K2): kredi girişi Gelen ve Ay sonucu dışında, ayrı sütunda. Kural 1 ile dondurulmuş kapalı ayda (ya da eski sunucuda)
   // takipli kredi çekimi Gelen'in ve Ay sonucunun içindedir; sütun bilgi amaçlıdır.
@@ -700,7 +712,7 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   // Sunucu sayıları kullanıcı girdisi değildir: eksi ya da üslü kredi girişi sayfayı düşürmez (serverCents).
   const unassignedCredit = (serverCents(credit) - report.kanallar.reduce((sum, k) => sum + serverCents(k.krediGirisi), 0)) / 100;
   const resultLabel = creditSeparate ? 'Ay sonucu (kredi hariç)' : 'Ay sonucu';
-  $('#view').replaceChildren(...childValues([h('div', { class: 'toolbar' }, monthInput, button('Ayı göster', event => run(event.currentTarget, () => { if (monthInput.reportValidity()) return renderMonthly(generation, monthInput.value); }))), !runtime.saltOkunur && lock,
+  $('#view').replaceChildren(...childValues([h('div', { class: 'toolbar' }, monthInput.node, button('Ayı göster', event => run(event.currentTarget, () => renderMonthly(generation, monthInput.value)))), !runtime.saltOkunur && lock,
     report.dondurulmus && h('div', { class: 'notice', role: 'status' }, h('strong', {}, 'Kapatılmış ay. '), `Rapor, ay kapatıldığı andaki haliyle gösterilir; sonraki kural değişiklikleri bu ayı etkilemez${creditSeparate ? '' : ' (eski kural: takipli kredi çekimi Gelen ve Ay sonucu içindedir)'}. Değişiklik için ayı gerekçeyle açın.`),
     report.veriSagligiUyarisi && h('div', { class: 'notice', role: 'status' }, report.veriSagligiUyarisi),
     h('div', { class: 'summary-strip' }, summary('Aylık gelen', money(total.incoming)), summary('Aylık gider', money(total.expenses)), summary(resultLabel, money(total.result), creditSeparate && credit !== 0 ? `Kredi girişi ${money(credit)} sonuca dahil değildir.` : null)),

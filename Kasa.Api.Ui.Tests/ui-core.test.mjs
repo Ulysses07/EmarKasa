@@ -2380,3 +2380,55 @@ test('alış toplamı ve ödenmeyi bekleyen tutar sunucu tutarlarından kuruşla
   assert.ok(strip.textContent.includes(`Ödenmeyi bekleyen${money(0.3)}`), strip.textContent);
   assert.match(strip.textContent, /İnceleme bekleyen2/);
 });
+
+// Masaüstü Firefox ve Safari'de type="month" denetimi yok (MDN browser-compat-data html.elements.input.type_month:
+// firefox ve safari version_added false). Ay seçici "‹ Eylül 2026 ›" düğmeleriyle YYYY-AA değeri üretir.
+test('ay seçici type="month" kullanmaz; önceki/sonraki düğmeleri YYYY-AA değerini ve görünen ay adını değiştirir', async () => {
+  for (const file of ['app.js', 'monthly-ui.js', 'finance-ui.js', 'cash-controls-ui.js', 'statement-import-ui.js', 'notification-ui.js']) {
+    assert.doesNotMatch(await readFile(new URL(`../Kasa.Api/wwwroot/${file}`, import.meta.url), 'utf8'), /type:\s*'month'/, file);
+  }
+  assert.equal(ui.shiftMonth('2026-01', -1), '2025-12'); assert.equal(ui.shiftMonth('2026-12', 1), '2027-01'); assert.equal(ui.shiftMonth('2026-09', 0), '2026-09');
+  assert.equal(ui.monthLabel('2026-09'), 'Eylül 2026'); assert.equal(ui.monthLabel('2027-01'), 'Ocak 2027');
+  const previous = ui.shiftMonth(monthNow, -1); const [previousYear, previousMonth] = previous.split('-').map(Number);
+  const channels = [{ kanal: 'MEZAT', gelen: 200, krediGirisi: 0, cariGiden: 100, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 }];
+  const previousPath = `/api/rapor/aylik?yil=${previousYear}&ay=${previousMonth}`;
+  const { app, nodes, calls } = await openApp(false, { [`/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`]: { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, kanallar: channels }, [previousPath]: { yil: previousYear, ay: previousMonth, kuralSurumu: 2, kanallar: channels } });
+  await app.navigate('monthly');
+  const picker = nodes.get('#view').find(node => node.attributes.role === 'group' && node.attributes['aria-label'] === 'Rapor ayı');
+  assert.ok(picker, 'Ay seçici erişilebilir adlı bir grup.');
+  assert.ok(picker.textContent.includes(ui.monthLabel(monthNow)));
+  const back = picker.find(node => node.tag === 'button' && node.attributes['aria-label'] === 'Önceki ay');
+  assert.ok(picker.find(node => node.tag === 'button' && node.attributes['aria-label'] === 'Sonraki ay'));
+  back.listeners.click({ currentTarget: back });
+  assert.equal(viewField(nodes, 'ay').value, previous); assert.ok(picker.textContent.includes(ui.monthLabel(previous)));
+  assert.equal(calls.some(call => call.path === previousPath), false, 'Ay yalnız "Ayı göster" ile yüklenir; odak düğmede kalır.');
+  await clickView(nodes, 'Ayı göster');
+  assert.ok(calls.some(call => call.path === previousPath));
+  assert.ok(nodes.get('#view').find(node => node.attributes.role === 'group').textContent.includes(ui.monthLabel(previous)));
+});
+
+test('aylık gider ekranı ve şablonun ilk ayı aynı ay seçiciyi kullanır; şablon bu aydan önceye inemez', async () => {
+  const next = ui.shiftMonth(monthNow, 1); const [nextYear, nextMonth] = next.split('-').map(Number);
+  const nextPath = `/api/aylik-giderler?yil=${nextYear}&ay=${nextMonth}`;
+  const { app, nodes, calls } = await openApp(false, { ...monthlyResponses(), [nextPath]: { yil: nextYear, ay: nextMonth, planlananToplam: 0, odenenToplam: 0, kayitlar: [] } });
+  await app.navigate('monthly-expenses');
+  const picker = nodes.get('#view').find(node => node.attributes.role === 'group' && node.attributes['aria-label'] === 'Aylık gider ayı');
+  const forward = picker.find(node => node.attributes['aria-label'] === 'Sonraki ay');
+  forward.listeners.click({ currentTarget: forward });
+  assert.equal(viewField(nodes, 'ay').value, next);
+  await clickView(nodes, 'Ayı göster');
+  assert.ok(calls.some(call => call.path === nextPath));
+
+  await app.monthlyUi.templateDialog();
+  const first = nodes.get('#modal-content').find(node => node.attributes.role === 'group' && node.attributes['aria-label'] === 'Bu aydan itibaren');
+  assert.ok(first, 'Şablonun ilk ayı adlı bir grup.');
+  assert.equal(nodes.get('#modal-content').find(node => node.tag === 'label' && node.find(child => child === first)), null, 'Düğmeler <label> içinde değil: etikete tıklamak önceki ayı seçmez.');
+  const firstBack = first.find(node => node.attributes['aria-label'] === 'Önceki ay');
+  assert.equal(firstBack.disabled, true, 'Şablon bu aydan önceye alınamaz.');
+  const firstForward = first.find(node => node.attributes['aria-label'] === 'Sonraki ay');
+  firstForward.listeners.click({ currentTarget: firstForward });
+  assert.equal(firstBack.disabled, false);
+  formField(nodes, 'ad').value = 'Kira'; formField(nodes, 'tutar').value = '100'; formField(nodes, 'dagilimTuru').value = 'Genel';
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.method === 'POST' && call.path === '/api/aylik-giderler/sablonlar').body.gecerliAy, `${next}-01`);
+});
