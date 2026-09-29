@@ -10,18 +10,8 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
-        builder
-            .UseMauiApp<App>()
-            .ConfigureFonts(fonts =>
-            {
-                fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-                fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
-                // Tasarım PlexSans* alias'ları — gerçek IBM Plex ttf yoksa OpenSans'a maplenir.
-                fonts.AddFont("OpenSans-Regular.ttf", "PlexSans");
-                fonts.AddFont("OpenSans-Regular.ttf", "PlexSansMedium");
-                fonts.AddFont("OpenSans-Semibold.ttf", "PlexSansSemiBold");
-                fonts.AddFont("OpenSans-Semibold.ttf", "PlexSansBold");
-            });
+        // Font paketlenmez: yazı ailesi Styles.xaml'daki YaziAilesi anahtarındaki Windows sistem fontudur (₺ içerir).
+        builder.UseMauiApp<App>();
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
         builder.Services.AddSingleton(sp =>

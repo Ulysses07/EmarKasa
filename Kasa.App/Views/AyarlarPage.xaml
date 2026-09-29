@@ -151,7 +151,7 @@
                                             <Border.Background>
                                                 <SolidColorBrush Color="{StaticResource DateChipBg}" />
                                             </Border.Background>
-                                            <Label Text="{Binding Sira}" FontFamily="PlexSansSemiBold" FontSize="12"
+                                            <Label Text="{Binding Sira}" FontAttributes="Bold" FontSize="12"
                                                    TextColor="{StaticResource Sub}"
                                                    HorizontalOptions="Center" VerticalOptions="Center" />
                                         </Border>

@@ -21,10 +21,10 @@
                 <Border.Shadow>
                     <Shadow Brush="#1E5F46" Opacity="0.25" Radius="14" Offset="0,6" />
                 </Border.Shadow>
-                <Label Text="₺" TextColor="White" FontFamily="PlexSansBold" FontSize="22"
+                <Label Text="₺" TextColor="White" FontAttributes="Bold" FontSize="22"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <Label Text="Emar Kasa" FontFamily="PlexSansBold" FontSize="24"
+            <Label Text="Emar Kasa" FontAttributes="Bold" FontSize="24"
                    TextColor="{StaticResource Ink}" HorizontalTextAlignment="Center" Margin="0,14,0,0" />
             <Label Text="Kasa defteri · nakit akışı takibi" Style="{StaticResource LblPageSub}"
                    FontSize="13" HorizontalTextAlignment="Center" Margin="0,4,0,0" />
@@ -51,7 +51,7 @@
                                 <Border.Background>
                                     <SolidColorBrush Color="{StaticResource Neg}" />
                                 </Border.Background>
-                                <Label Text="!" TextColor="White" FontFamily="PlexSansBold" FontSize="11"
+                                <Label Text="!" TextColor="White" FontAttributes="Bold" FontSize="11"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
                             <Label Grid.Column="1" Text="{Binding Hata}" Style="{StaticResource LblError}"
