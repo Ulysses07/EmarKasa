@@ -9,13 +9,10 @@
 # Ek bağımsız değişkenler `playwright test`e geçer. Git Bash, Linux ve macOS'ta çalışır; yalnız Docker gerekir. Depo
 # konteynere bağlanır ama derleme ve npm kurulumu konteyner içindeki kopyada yapılır (Windows bin/obj ve node_modules
 # bozulmaz); sonunda yalnız tabanlar (testler/__ekran__, testler/__aria__, testler/axe-tabani.json) ve rapor geri yazılır.
-# .NET SDK, depo Dockerfile'ındaki derleme imajının aynısından (etiket + özet) bir Docker birimine bir kez kopyalanır.
+# İmajlar tek kaynaktan okunur (etiket + özet): Playwright imajı ci.yml'deki "UI screenshots (Linux)" işinden (sürümü
+# @playwright/test ile aynı olmalı; testler/kurulum.setup.mjs denetler), .NET SDK imajı depo Dockerfile'ının derleme
+# aşamasından. SDK bir Docker birimine bir kez kopyalanır (indirme betiği çalıştırılmaz).
 set -euo pipefail
-
-# Sürüm @playwright/test ile aynı olmalı (package.json); özet ci.yml'deki "UI screenshots (Linux)" işiyle aynıdır.
-PLAYWRIGHT_IMAJ='mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27'
-DOTNET_IMAJ='mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29'
-DOTNET_BIRIMI='kasa-e2e-dotnet-sdk-10.0.401'
 
 if [ "${KASA_E2E_KONTEYNER:-}" = 1 ]; then
   # ---- konteyner içi ----
@@ -43,6 +40,12 @@ fi
 kok="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Git Bash: Docker'a Windows yolu verilir, MSYS yol çevirisi kapatılır.
 if kok_docker="$(cd "$kok" && pwd -W 2>/dev/null)"; then export MSYS_NO_PATHCONV=1; else kok_docker="$kok"; fi
+PLAYWRIGHT_IMAJ="$(grep -oE 'mcr\.microsoft\.com/playwright:v[0-9.]+-[a-z]+@sha256:[0-9a-f]{64}' "$kok/.github/workflows/ci.yml" | head -n 1)"
+DOTNET_IMAJ="$(sed -nE 's#^FROM (mcr\.microsoft\.com/dotnet/sdk:[^ @]+@sha256:[0-9a-f]{64}).*#\1#p' "$kok/Dockerfile" | head -n 1)"
+if [ -z "$PLAYWRIGHT_IMAJ" ] || [ -z "$DOTNET_IMAJ" ]; then echo "İmaj adları ci.yml ya da Dockerfile'dan okunamadı." >&2; exit 2; fi
+DOTNET_BIRIMI="kasa-e2e-dotnet-$(printf '%s' "${DOTNET_IMAJ##*sha256:}" | cut -c1-24)"
+echo "Playwright imajı: $PLAYWRIGHT_IMAJ"
+echo ".NET SDK imajı:   $DOTNET_IMAJ (birim $DOTNET_BIRIMI)"
 
 if ! docker run --rm -v "$DOTNET_BIRIMI:/opt/dotnet" "$PLAYWRIGHT_IMAJ" test -x /opt/dotnet/dotnet; then
   echo ".NET SDK ($DOTNET_IMAJ) $DOTNET_BIRIMI birimine kopyalanıyor (bir kez)..."

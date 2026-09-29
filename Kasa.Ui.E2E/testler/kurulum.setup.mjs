@@ -1,6 +1,20 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test as kurulum } from '@playwright/test';
 import { OTURUM } from './ortak.mjs';
+
+// Ekran görüntüsü tabanları resmi Playwright imajında üretilir ve karşılaştırılır: imaj (ci.yml, linux-kosu.sh oradan
+// okur) kurulu @playwright/test ile aynı sürümde olmalı; paket tam sürümle sabittir ve kilit dosyasıyla uyuşur.
+kurulum('Playwright paketi, kilit dosyası ve Linux imajı aynı sürümde', () => {
+  const oku = yol => readFileSync(new URL(yol, import.meta.url), 'utf8');
+  const surum = JSON.parse(oku('../package.json')).devDependencies['@playwright/test'];
+  expect(surum, 'package.json: @playwright/test tam sürümle sabitlenir').toMatch(/^\d+\.\d+\.\d+$/);
+  const kilit = JSON.parse(oku('../package-lock.json')).packages;
+  for (const paket of ['@playwright/test', 'playwright', 'playwright-core']) expect(kilit[`node_modules/${paket}`]?.version, `package-lock.json: ${paket}`).toBe(surum);
+  const imajlar = [...oku('../../.github/workflows/ci.yml').matchAll(/mcr\.microsoft\.com\/playwright:v([\d.]+)-[a-z]+@sha256:[0-9a-f]{64}/g)];
+  expect(imajlar.length, 'ci.yml: özetle sabitlenmiş Playwright imajı').toBeGreaterThan(0);
+  for (const [imaj, imajSurumu] of imajlar) expect(imajSurumu, `${imaj} @playwright/test ${surum} ile aynı sürümde olmalı`).toBe(surum);
+});
 
 // Sunucu her koşuda boş veritabanıyla açılır (bugün 2026-09-25 Cuma, sabit saat). Ekranların boş değil gerçekçi görünmesi
 // için tohum veri yalnız API'den, kullanıcının yapacağı sırayla girilir: takip başlangıcı, dönem gelirleri, giderler,
