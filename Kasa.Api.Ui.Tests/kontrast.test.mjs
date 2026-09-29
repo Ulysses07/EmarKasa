@@ -114,3 +114,18 @@ test('telefon: koyu yeşil kutudaki etiket ve alt yazı en az 4,5:1', () => {
   assert.equal(mobile.rule('.kahraman .alt').color, 'var(--yesil-soluk)');
   atLeast('var(--yesil-soluk)', 'var(--yesil)', 4.5, 'koyu kutu alt yazısı', mobile.color);
 });
+
+test('telefon: form alanı kenarlığı (--alan-cizgi) alan içi, kart ve sayfa zeminine karşı en az 3:1; süs çizgileri ayrı', () => {
+  const field = mobile.rule('.girdi');
+  assert.equal(borderColor(field.border), 'var(--alan-cizgi)');
+  for (const background of ['#ffffff', 'var(--kart)', 'var(--zemin)']) atLeast('var(--alan-cizgi)', background, 3, `telefon form alanı kenarlığı / ${background}`, mobile.color);
+  // Kart ve liste kenarlıkları süs olarak açık kalır (alanın sınırı değildir).
+  assert.equal(borderColor(mobile.rule('.kutu').border), 'var(--cizgi)'); assert.equal(borderColor(mobile.rule('.liste').border), 'var(--cizgi)');
+});
+
+test('telefon form alanı kenarlığı MAUI FieldStroke ile aynı tondur', async () => {
+  const colors = await readFile(new URL('../Kasa.App/Resources/Styles/Colors.xaml', import.meta.url), 'utf8');
+  const maui = /<Color x:Key="FieldStroke">(#[0-9A-F]{6})<\/Color>/i.exec(colors)?.[1];
+  assert.ok(maui, 'Colors.xaml FieldStroke okunamadı');
+  assert.equal(mobile.root['--alan-cizgi'].toUpperCase(), maui.toUpperCase());
+});
