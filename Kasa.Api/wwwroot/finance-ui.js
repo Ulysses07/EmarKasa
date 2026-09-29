@@ -21,6 +21,7 @@ export function createFinanceUi(c) {
     page,
     navigate,
     run,
+    act,
     toast,
     summary,
     childValues,
@@ -54,7 +55,6 @@ export function createFinanceUi(c) {
         )
       )
     );
-  const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
   const integer = value => {
     const number = Number(value);
     if (!Number.isInteger(number)) throw new Error('Adet ve gün alanlarına tam sayı girin.');

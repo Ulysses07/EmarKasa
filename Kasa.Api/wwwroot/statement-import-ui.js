@@ -27,6 +27,7 @@ export function createStatementImportUi(c) {
     page,
     navigate,
     run,
+    act,
     toast,
     summary,
     requestIdentity,
@@ -81,7 +82,6 @@ export function createStatementImportUi(c) {
   const editor = () => {
     if (!canEdit()) throw new Error('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
   };
-  const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
   // İptal edilen kaydın gerekçesi ve anı (sunucu anı denetim izinden okur; sürüm öncesi iptalin anı bilinmez).
   const cancelNote = row =>
     [row.iptalAciklamasi, row.iptalZamani ? new Date(row.iptalZamani).toLocaleString('tr-TR') : 'zamanı bilinmiyor']

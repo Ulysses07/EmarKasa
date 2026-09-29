@@ -26,7 +26,7 @@ export function createMonthlyUi(c) {
     formDialog,
     closeModal,
     page,
-    run,
+    act,
     toast,
     summary,
     requestIdentity,
@@ -36,7 +36,6 @@ export function createMonthlyUi(c) {
   } = c;
   const base = '/api/aylik-giderler';
   const kinds = { Kira: 'Kira', Maas: 'Maaş', Fatura: 'Fatura', Diger: 'Diğer' };
-  const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
   const editor = () => {
     if (!canEdit()) throw new Error('Bu işlem için editör hesabı gerekir.');
   };

@@ -94,6 +94,7 @@ const financeUi = createFinanceUi({
   page,
   navigate,
   run,
+  act,
   toast,
   summary,
   childValues,
@@ -123,7 +124,7 @@ const monthlyUi = createMonthlyUi({
   formDialog,
   closeModal,
   page,
-  run,
+  act,
   toast,
   summary,
   childValues,
@@ -178,6 +179,7 @@ const statementImportUi = createStatementImportUi({
   page,
   navigate,
   run,
+  act,
   toast,
   summary,
   requestIdentity,
@@ -200,7 +202,7 @@ const notificationUi = createNotificationUi({
   dateText,
   formDialog,
   closeModal,
-  run,
+  act,
   toast,
   navigate,
   view: () => $('#view'),
@@ -395,6 +397,11 @@ async function run(control, work, errorBox = null, title = '') {
   } finally {
     if (control) control.disabled = false;
   }
+}
+// İşlem düğmesi (aylık gider, kart/kredi, ekstre ve bildirim ekranları): iş sürerken düğme kapalıdır, ikinci basış yok sayılır,
+// hata bildirim olarak görünür (run). props düğmeye aynen geçer (ör. disabled).
+function act(label, work, style = '', props = {}) {
+  return button(label, event => run(event.currentTarget, work), style, props);
 }
 // Kaydı süren form: yanıt gelene kadar pencere (iptal edilebilir) ESC/geri hareketiyle kazara kapanmaz. Vazgeç ve × açık kalır:
 // iOS'ta ESC/geri hareketi yok, isteğin de zaman aşımı yok; kapatılan pencerenin sonucu run() ile bildirim olarak görünür.
