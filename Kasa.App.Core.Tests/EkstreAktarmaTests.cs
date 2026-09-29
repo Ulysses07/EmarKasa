@@ -23,6 +23,13 @@ public class EkstreAktarmaTests
         var secim = vm.YuklemeSecimi()!; await vm.PdfYukleAsync([1, 2], "dosya.pdf", secim);
         Assert.Equal(1, api.YuklemeSayisi); Assert.Empty(api.KaydetIstekleri); Assert.All(vm.Satirlar, s => Assert.False(s.Secili));
     }
+    /// <summary>Seçimsiz önizleme yerel doğrulamadır (DogrulamaHatasi): istek gitmez, ileti eskisi gibi Hata'da görünür.</summary>
+    [Fact] public async Task Secimsiz_onizleme_istek_gondermez_yerel_dogrulama_iletisini_gosterir()
+    {
+        var (vm, api, _) = await Hazir();
+        await vm.OnizleCommand.ExecuteAsync(null);
+        Assert.Equal(0, api.OnizlemeSayisi); Assert.Equal("Kaydedilecek en az bir satırı seçin.", vm.Hata);
+    }
     [Fact] public async Task Yalniz_secilen_duzeltilen_satirlar_onaydan_sonra_kaydedilir()
     {
         var (vm, api, _) = await Hazir(); var s = vm.Satirlar[1]; s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel"); s.Secili = true; s.TutarMetni = "123,45"; s.Aciklama = "Düzeltilmiş hareket";
@@ -89,7 +96,7 @@ public class EkstreAktarmaTests
     {
         var b = Belge(); var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [], () => { }); Sec(row);
         row.TutarMetni = tutar;
-        var hata = Assert.Throws<KasaApiException>(() => row.Yaz());
+        var hata = Assert.Throws<DogrulamaHatasi>(() => row.Yaz());
         Assert.StartsWith("Satır 1: ", hata.Message); Assert.Contains("binlik", hata.Message);
     }
     [Theory] [InlineData("1500,00", "1500")] [InlineData("1500.5", "1500.5")] [InlineData("100,00", "100")]
@@ -153,7 +160,7 @@ public class EkstreAktarmaTests
         var kart = FinansTakipTests.Fake.OrnekKart() with { Harcamalar = [new(7, null, Tarih, "Kaynak", 100, 1, false, [new(2, "PERAKENDE", 100)])] };
         var b = Belge() with { Kaynak = "Kart", KartId = kart.Id, Satirlar = [Satir(1) with { OnerilenIslem = "KartHarcama" }] };
         var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [kart], () => { });
-        Assert.Throws<KasaApiException>(() => row.Yaz()); row.PayEkle(); row.Paylar[0].Kanal = row.Kanallar[0]; Assert.Equal("Esit", row.Yaz().DagilimTuru);
+        Assert.Throws<DogrulamaHatasi>(() => row.Yaz()); row.PayEkle(); row.Paylar[0].Kanal = row.Kanallar[0]; Assert.Equal("Esit", row.Yaz().DagilimTuru);
         row.IslemTuru = row.IslemTurleri.Single(x => x.Kod == "KartIade"); row.KaynakHarcama = row.KaynakHarcamalar.Single();
         var g = row.Yaz(); Assert.Equal(7, g.KaynakHarcamaId); Assert.Equal("Otomatik", g.DagilimTuru); Assert.Empty(g.Dagilimlar); Assert.Equal(100, g.Tutar);
     }
@@ -217,7 +224,7 @@ public class EkstreAktarmaTests
         var (vm, api, _) = await Hazir(new() { Adaylar = [aday] }); var s = vm.Satirlar[0];
         s.IslemTuru = s.IslemTurleri.Single(x => x.Kod == "Eslestir"); s.Secili = true;
         Assert.True(s.EslesmeMi); Assert.False(s.DagilimGorunur);
-        Assert.Contains("mevcut kaydı seçin", Assert.Throws<KasaApiException>(() => s.Yaz()).Message);
+        Assert.Contains("mevcut kaydı seçin", Assert.Throws<DogrulamaHatasi>(() => s.Yaz()).Message);
         await vm.OnizleCommand.ExecuteAsync(null); Assert.Equal(0, api.OnizlemeSayisi);
 
         vm.SeciliSatir = s; await vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null);

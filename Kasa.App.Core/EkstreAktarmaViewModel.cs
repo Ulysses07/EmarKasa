@@ -123,7 +123,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     }
     private EkstreKaydetYaz Girdi()
     {
-        if (Belge is null || !Satirlar.Any(s => s.Secili)) throw new KasaApiException(HttpStatusCode.BadRequest, "Kaydedilecek en az bir satırı seçin.");
+        if (Belge is null || !Satirlar.Any(s => s.Secili)) throw new DogrulamaHatasi("Kaydedilecek en az bir satırı seçin.");
         var g = new EkstreKaydetYaz(Guid.Empty, Belge.Surum, Satirlar.Where(s => s.Secili).Select(s => s.Yaz()).ToArray());
         return g with { IstekId = _kayitKey.Al(new { Belge.Id, g }) };
     }
