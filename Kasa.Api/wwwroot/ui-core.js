@@ -123,6 +123,11 @@ export function amount(value) {
 export function serverCents(value) {
   return Math.round(Number(value || 0) * 100);
 }
+// Sunucu tutarlarının toplamı tamsayı kuruşla: her tutar serverCents ile kuruşa çevrilip tamsayı olarak toplanır; kayan
+// noktayla toplanmaz (0,1 + 0,2 = 30 kuruş; 0,3 − 0,1 − 0,2 = 0, "-0,00" değil). Boş ya da eksik değer 0 sayılır.
+export function sumCents(values) {
+  return (values || []).reduce((sum, value) => sum + serverCents(value), 0);
+}
 export function navigationFor(role, runtime = { saltOkunur: false }) {
   if (runtime.saltOkunur && !['editor', 'viewer'].includes(role)) return [];
   if (role === 'alici') return [['purchases', 'Alışlarım', '≡']];
@@ -293,8 +298,8 @@ export function filteredPurchases(purchases, query, status) {
 // Alış listesinin özet şeridi. Tutarlar sunucudan gelir (JSON sayısı): kayan noktayla toplanmaz, serverCents ile kuruşa
 // çevrilip tamsayı olarak toplanır (0,1 + 0,2 = 0,3). Kullanıcı girdisi ayrıştırıcısı (cents) burada kullanılmaz.
 export function purchaseTotals(purchases) {
-  const total = purchases.reduce((sum, p) => sum + serverCents(p.toplam), 0);
-  const remaining = purchases.reduce((sum, p) => sum + serverCents(p.kalan), 0);
+  const total = sumCents(purchases.map(p => p.toplam));
+  const remaining = sumCents(purchases.map(p => p.kalan));
   return { total: total / 100, remaining: remaining / 100, reviewing: purchases.filter(p => p.durum === 'Incelemede').length };
 }
 export function purchasePayload(form) {

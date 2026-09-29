@@ -5,6 +5,7 @@ import {
   cents,
   amount,
   serverCents,
+  sumCents,
   errorMessage,
   fieldErrors,
   sessionExpired,
@@ -62,6 +63,11 @@ const runtimeReady = loadRuntime(fetch).then(config => {
   return config;
 });
 const canEditCash = () => cashEditingAllowed(state.role, runtime);
+// Kasa düzenleme koruması (aylık gider, kasa kontrolü, ekstre aktarma ve kart ekranları): editör değilse ya da salt okunur
+// sürümdeyse işlem başlamaz. İleti ekrana göre verilebilir.
+function requireEditor(message = 'Bu işlem için editör hesabı gerekir.') {
+  if (!canEditCash()) throw new Error(message);
+}
 const modal = $('#modal');
 let modalCleanup = null;
 let renderId = 0;
@@ -83,9 +89,11 @@ const financeUi = createFinanceUi({
   table,
   money,
   moneyNode,
+  allocationTags,
   dateText,
   today,
   cents,
+  serverCents,
   amount,
   signedAmount,
   formDialog,
@@ -94,6 +102,7 @@ const financeUi = createFinanceUi({
   page,
   navigate,
   run,
+  act,
   toast,
   summary,
   childValues,
@@ -101,6 +110,7 @@ const financeUi = createFinanceUi({
   confirmSimilar,
   isOpen,
   canEdit: canEditCash,
+  editor: requireEditor,
   isCurrent: generation => generation === renderId,
   view: () => $('#view'),
 });
@@ -117,18 +127,22 @@ const monthlyUi = createMonthlyUi({
   table,
   money,
   moneyNode,
+  allocationTags,
   dateText,
   today,
   cents,
+  serverCents,
   formDialog,
   closeModal,
   page,
-  run,
+  act,
   toast,
   summary,
   childValues,
   requestIdentity,
   canEdit: canEditCash,
+  editor: requireEditor,
+  distribution,
   isCurrent: generation => generation === renderId,
   view: () => $('#view'),
 });
@@ -146,6 +160,7 @@ const cashControlsUi = createCashControlsUi({
   moneyNode,
   signedAmountField,
   amount,
+  serverCents,
   formDialog,
   openModal,
   closeModal,
@@ -155,6 +170,7 @@ const cashControlsUi = createCashControlsUi({
   requestIdentity,
   isOpen,
   canEdit: canEditCash,
+  editor: requireEditor,
   navigate,
   dateText,
   today,
@@ -171,18 +187,23 @@ const statementImportUi = createStatementImportUi({
   table,
   money,
   moneyNode,
+  allocationTags,
   dateText,
   cents,
+  sumCents,
   formDialog,
   closeModal,
   page,
   navigate,
   run,
+  act,
   toast,
   summary,
   requestIdentity,
   isOpen,
   canEdit: canEditCash,
+  editor: requireEditor,
+  distribution,
   isCurrent: generation => generation === renderId,
   session: () => state.epoch,
   view: () => $('#view'),
@@ -200,7 +221,7 @@ const notificationUi = createNotificationUi({
   dateText,
   formDialog,
   closeModal,
-  run,
+  act,
   toast,
   navigate,
   view: () => $('#view'),
@@ -276,8 +297,122 @@ function monthPicker(name, value, { label, min = '' } = {}) {
     },
   };
 }
+// Kasa dağılımı düzenleyicisi: Yalnız genel kasa / seçilen kanallara eşit / kanal tutarları. Taban aylık gider şablonudur
+// (varsayılanlar onun); ekstre satırı (statement-import-ui) aynı düzenleyiciyi kendi seçenekleriyle kullanır. Seçim ve
+// tutarlar düzenleyicide tutulur, liste yeniden çizilince korunur. Seçenekler:
+//   prefix       alan adları (`${prefix}-kanal-…`, `${prefix}-tutar-…`)
+//   choices      dağılım seçimi seçenekleri; mode ile sonradan değiştirilip redraw ile yeniden çizilebilir
+//   required     dağılım seçimi ve Özel kipte seçili kanalın tutarı zorunlu (form denetimi)
+//   listClass    kanal listesinin sınıfı; emptyHidden: liste gizliyken (Genel ya da seçimsiz) boşaltılır
+//   sortById     paylar kanal numarasına göre sıralanır (false: kanal listesi sırası)
+//   onChange     seçim, tutar ya da dağılım değişince çağrılır
+//   legend, label, note (yardım metni; null: yok) ve messages (mode / channel / sum hata iletileri)
+// Ayrı kalanlar: alış satır editörü (editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
+// rolü de (telefonda) kullanır; kart dağılımı (finance-ui allocationEditor) serbest satırlıdır, boş bırakılabilir (Dağılım
+// bekliyor) ve eksi tutarı (iade) mutlak değerle karşılaştırır.
+function distribution(
+  channels,
+  initial,
+  {
+    prefix = 'dagilim',
+    choices = [
+      { value: '', label: 'Dağılım seçin' },
+      { value: 'Genel', label: 'Yalnız genel kasa' },
+      { value: 'Esit', label: 'Seçilen kanallara eşit' },
+      { value: 'Ozel', label: 'Kanal tutarlarını gir' },
+    ],
+    required = true,
+    listClass = 'stack',
+    emptyHidden = false,
+    sortById = true,
+    onChange = () => {},
+    legend = 'Kasa dağılımı',
+    label = 'Dağılım',
+    note = 'Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez.',
+    messages = {
+      mode: 'Giderin hangi kasaya yazılacağını seçin.',
+      channel: 'En az bir kanal seçin.',
+      sum: 'Kanal paylarının toplamı gider tutarına eşit olmalı.',
+    },
+  } = {}
+) {
+  const selected = new Set((initial?.dagilimlar || []).map(row => row.kanalId));
+  const totals = new Map((initial?.dagilimlar || []).map(row => [row.kanalId, row.tutar]));
+  const list = h('div', { class: listClass });
+  const mode = select('dagilimTuru', choices, initial?.dagilimTuru || '', { required });
+  const draw = () => {
+    list.hidden = !['Esit', 'Ozel'].includes(mode.value);
+    if (emptyHidden && list.hidden) {
+      list.replaceChildren();
+      return;
+    }
+    list.replaceChildren(
+      ...channels
+        .filter(row => row.aktif || selected.has(row.id))
+        .map(channel => {
+          const checked = input(`${prefix}-kanal-${channel.id}`, channel.id, {
+            type: 'checkbox',
+            checked: selected.has(channel.id),
+            onchange: () => {
+              if (checked.checked) selected.add(channel.id);
+              else selected.delete(channel.id);
+              total.disabled = !selected.has(channel.id);
+              total.required = required && mode.value === 'Ozel' && selected.has(channel.id);
+              onChange();
+            },
+          });
+          const total = input(`${prefix}-tutar-${channel.id}`, totals.get(channel.id) ?? '', {
+            inputmode: 'decimal',
+            required: required && mode.value === 'Ozel' && selected.has(channel.id),
+            disabled: !selected.has(channel.id),
+            oninput: () => {
+              totals.set(channel.id, total.value);
+              onChange();
+            },
+            'aria-label': `${channel.ad} payı (₺)`,
+          });
+          return h('div', { class: 'monthly-allocation' }, field(channel.ad, checked), mode.value === 'Ozel' && total);
+        })
+    );
+  };
+  mode.addEventListener('change', () => {
+    draw();
+    onChange();
+  });
+  draw();
+  return {
+    node: h('fieldset', {}, h('legend', {}, legend), field(label, mode), list, note && help(note)),
+    mode,
+    redraw: draw,
+    read(total) {
+      if (!['Genel', 'Esit', 'Ozel'].includes(mode.value)) throw new Error(messages.mode);
+      if (mode.value === 'Genel') return { dagilimTuru: 'Genel', dagilimlar: [] };
+      if (!selected.size) throw new Error(messages.channel);
+      const ids = sortById ? [...selected].sort((a, b) => a - b) : channels.map(channel => channel.id).filter(id => selected.has(id));
+      const result = ids.map(id => ({ kanalId: id, tutar: mode.value === 'Esit' ? 0 : cents(totals.get(id), { allowZero: false }) / 100 }));
+      if (mode.value === 'Ozel' && result.reduce((sum, row) => sum + cents(row.tutar), 0) !== cents(total)) throw new Error(messages.sum);
+      return { dagilimTuru: mode.value, dagilimlar: result };
+    },
+  };
+}
 function moneyNode(value, className = '') {
   return h('span', { class: `money ${className}` }, money(value));
+}
+// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre ve alış ödemesi): div.allocation-tags içinde her pay için
+// span.allocation-tag "Kanal: tutar". empty: kanal adı yoksa yazılan ad (verilmezse ad olduğu gibi yazılır); pending: kanalı
+// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir.
+function allocationTags(rows, { empty, pending = false } = {}) {
+  return h(
+    'div',
+    { class: 'allocation-tags' },
+    (rows || []).map(row =>
+      h(
+        'span',
+        { class: `allocation-tag${pending && row.kanalId == null ? ' pending' : ''}` },
+        `${empty === undefined ? row.kanal : row.kanal || empty}: ${money(row.tutar)}`
+      )
+    )
+  );
 }
 // Bilgi iletisi kibar (polite) #notifications bölgesinde duyurulur ve 6 sn sonra kalkar. Hata iletisi kendiliğinden kaybolmaz
 // (WAI-ARIA APG uyarı deseni; WCAG 2.2.3): assertive #alerts (role="alert") bölgesinde kalır, kapatma düğmesiyle kapanır ve
@@ -395,6 +530,11 @@ async function run(control, work, errorBox = null, title = '') {
   } finally {
     if (control) control.disabled = false;
   }
+}
+// İşlem düğmesi (aylık gider, kart/kredi, ekstre ve bildirim ekranları): iş sürerken düğme kapalıdır, ikinci basış yok sayılır,
+// hata bildirim olarak görünür (run). props düğmeye aynen geçer (ör. disabled).
+function act(label, work, style = '', props = {}) {
+  return button(label, event => run(event.currentTarget, work), style, props);
 }
 // Kaydı süren form: yanıt gelene kadar pencere (iptal edilebilir) ESC/geri hareketiyle kazara kapanmaz. Vazgeç ve × açık kalır:
 // iOS'ta ESC/geri hareketi yok, isteğin de zaman aşımı yok; kapatılan pencerenin sonucu run() ile bildirim olarak görünür.
@@ -1337,11 +1477,7 @@ function paymentRow(p, payment) {
       ),
       payment.dagilimBekliyor
         ? h('span', { class: 'badge pending' }, 'Dağılım bekliyor')
-        : h(
-            'div',
-            { class: 'allocation-tags' },
-            payment.dagilimlar.filter(d => d.tutar > 0).map(d => h('span', { class: 'allocation-tag' }, `${d.kanal}: ${money(d.tutar)}`))
-          ),
+        : allocationTags(payment.dagilimlar.filter(d => d.tutar > 0)),
       state.role === 'editor' &&
         h(
           'div',
@@ -1662,7 +1798,7 @@ async function cancelPayment(p, payment) {
     .map(channel => ({
       kanalId: channel.id,
       ad: channel.ad,
-      tutar: payment.dagilimlar.filter(d => d.kanalId === channel.id).reduce((sum, d) => sum + d.tutar, 0) || '',
+      tutar: sumCents(payment.dagilimlar.filter(d => d.kanalId === channel.id).map(d => d.tutar)) / 100 || '',
     }));
   const keep = input('harcamayiKoru', '1', { type: 'checkbox' });
   const shareRows = h(
@@ -2114,7 +2250,7 @@ async function renderHome(generation) {
       debt.kanalId != null && (channel.kanalId != null ? channel.kanalId === debt.kanalId : channel.kanal === debt.kanal);
     balances.replaceChildren(
       ...panel.kanallar.map(k => {
-        const debt = debts?.filter(row => matches(k, row)).reduce((total, row) => total + row.tutar, 0);
+        const debt = debts ? sumCents(debts.filter(row => matches(k, row)).map(row => row.tutar)) / 100 : undefined;
         const threshold = thresholds.find(row => (k.kanalId != null ? row.kanalId === k.kanalId : row.kanal === k.kanal));
         return h(
           'div',
@@ -2337,7 +2473,7 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   const creditSeparate = (report.kuralSurumu || 1) >= 2;
   const credit = report.krediGirisi || 0;
   // Sunucu sayıları kullanıcı girdisi değildir: eksi ya da üslü kredi girişi sayfayı düşürmez (serverCents).
-  const unassignedCredit = (serverCents(credit) - report.kanallar.reduce((sum, k) => sum + serverCents(k.krediGirisi), 0)) / 100;
+  const unassignedCredit = (serverCents(credit) - sumCents(report.kanallar.map(k => k.krediGirisi))) / 100;
   const resultLabel = creditSeparate ? 'Ay sonucu (kredi hariç)' : 'Ay sonucu';
   $('#view').replaceChildren(
     ...childValues([

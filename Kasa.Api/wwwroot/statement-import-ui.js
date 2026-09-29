@@ -20,18 +20,22 @@ export function createStatementImportUi(c) {
     table,
     money,
     moneyNode,
+    allocationTags,
     dateText,
     cents,
+    sumCents,
     formDialog,
     closeModal,
     page,
     navigate,
     run,
+    act,
     toast,
     summary,
     requestIdentity,
     isOpen,
     canEdit,
+    distribution,
     isCurrent,
     view,
   } = c;
@@ -78,10 +82,7 @@ export function createStatementImportUi(c) {
     Hareket: 'Hareket',
     Belirsiz: 'Kontrol edilmeli',
   };
-  const editor = () => {
-    if (!canEdit()) throw new Error('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
-  };
-  const act = (label, work, style = '') => button(label, event => run(event.currentTarget, work), style);
+  const editor = () => c.editor('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
   // İptal edilen kaydın gerekçesi ve anı (sunucu anı denetim izinden okur; sürüm öncesi iptalin anı bilinmez).
   const cancelNote = row =>
     [row.iptalAciklamasi, row.iptalZamani ? new Date(row.iptalZamani).toLocaleString('tr-TR') : 'zamanı bilinmiyor']
@@ -90,12 +91,7 @@ export function createStatementImportUi(c) {
   const bankName = bank => statementBanks.find(([key]) => key === bank)?.[1] || bank;
   const sourceName = row =>
     `${bankName(row.banka)} · ${row.kaynak === 'Kart' ? `Kart ekstresi · ${row.hesapAdi || `Kart #${row.kartId}`}` : row.hesapAdi || 'Banka hareketi'}`;
-  const shares = rows =>
-    h(
-      'div',
-      { class: 'allocation-tags' },
-      (rows || []).map(row => h('span', { class: 'allocation-tag' }, `${row.kanal || 'Genel kasa'}: ${money(row.tutar)}`))
-    );
+  const shares = rows => allocationTags(rows, { empty: 'Genel kasa' });
   const warningList = warnings =>
     warnings?.length
       ? h(
@@ -271,50 +267,30 @@ export function createStatementImportUi(c) {
     );
   }
 
+  // Ekstre satırının kanal dağılımı: ortak dağıtım düzenleyicisi (distribution) bu ekranın adları, iletileri ve seçenekleriyle.
+  // Seçenekler işlem türüne göre değişir (setKind); kart ödemesi ve iadesinde dağılım otomatiktir. Paylar kanal listesi
+  // sırasıyla gider, gizli liste boşaltılır, dağılım değişikliği önizlemeyi geçersiz kılar (changed).
   function allocationEditor(channels, changed) {
-    const selected = new Set();
-    const totals = new Map();
-    const controls = new Map();
-    const list = h('div');
-    const mode = select('dagilimTuru', [], '');
-    const draw = () => {
-      controls.clear();
-      list.hidden = !['Esit', 'Ozel'].includes(mode.value);
-      if (list.hidden) {
-        list.replaceChildren();
-        return;
-      }
-      list.replaceChildren(
-        ...channels
-          .filter(channel => channel.aktif)
-          .map(channel => {
-            const checked = input(`pay-kanal-${channel.id}`, channel.id, { type: 'checkbox', checked: selected.has(channel.id) });
-            const total = input(`pay-tutar-${channel.id}`, totals.get(channel.id) || '', {
-              inputmode: 'decimal',
-              disabled: !selected.has(channel.id),
-              'aria-label': `${channel.ad} payı (₺)`,
-            });
-            checked.addEventListener('change', () => {
-              if (checked.checked) selected.add(channel.id);
-              else selected.delete(channel.id);
-              total.disabled = !checked.checked;
-              changed();
-            });
-            total.addEventListener('input', () => {
-              totals.set(channel.id, total.value);
-              changed();
-            });
-            controls.set(channel.id, { checked, total });
-            return h('div', { class: 'monthly-allocation' }, field(channel.ad, checked), mode.value === 'Ozel' && total);
-          })
-      );
-    };
-    mode.addEventListener('change', () => {
-      draw();
-      changed();
+    const allocation = distribution(channels, null, {
+      prefix: 'pay',
+      choices: [],
+      required: false,
+      listClass: null,
+      emptyHidden: true,
+      sortById: false,
+      onChange: changed,
+      legend: 'Kanal dağılımı',
+      label: 'Hangi kasa / kanallar?',
+      note: null,
+      messages: {
+        mode: 'Seçili hareketin kasa / kanal dağılımını seçin.',
+        channel: 'Seçili hareket için en az bir kanal seçin.',
+        sum: 'Kanal paylarının toplamı hareket tutarına eşit olmalı.',
+      },
     });
+    const { mode } = allocation;
     return {
-      node: h('fieldset', {}, h('legend', {}, 'Kanal dağılımı'), field('Hangi kasa / kanallar?', mode), list),
+      node: allocation.node,
       setKind(kind) {
         const automatic = ['KartOdemesi', 'KartIade'].includes(kind);
         const options = automatic
@@ -329,21 +305,11 @@ export function createStatementImportUi(c) {
         mode.replaceChildren(...options.map(option => h('option', { value: option.value }, option.label)));
         mode.value = automatic ? 'Otomatik' : options.some(option => option.value === previous) ? previous : '';
         mode.disabled = automatic;
-        draw();
+        allocation.redraw();
       },
       read(total) {
-        if (mode.value === 'Otomatik' || mode.value === 'Genel') return { dagilimTuru: mode.value, dagilimlar: [] };
-        if (!['Esit', 'Ozel'].includes(mode.value)) throw new Error('Seçili hareketin kasa / kanal dağılımını seçin.');
-        const rows = [...controls]
-          .filter(([, controls]) => controls.checked.checked)
-          .map(([id, controls]) => ({
-            kanalId: id,
-            tutar: mode.value === 'Esit' ? 0 : cents(controls.total.value, { allowZero: false }) / 100,
-          }));
-        if (!rows.length) throw new Error('Seçili hareket için en az bir kanal seçin.');
-        if (mode.value === 'Ozel' && rows.reduce((sum, row) => sum + cents(row.tutar), 0) !== cents(total))
-          throw new Error('Kanal paylarının toplamı hareket tutarına eşit olmalı.');
-        return { dagilimTuru: mode.value, dagilimlar: rows };
+        if (mode.value === 'Otomatik') return { dagilimTuru: 'Otomatik', dagilimlar: [] };
+        return allocation.read(total);
       },
     };
   }
@@ -664,10 +630,10 @@ export function createStatementImportUi(c) {
         },
         'primary'
       );
-      const cardDebt = result.satirlar.reduce(
-        (sum, row) => sum + (row.islemTuru === 'KartHarcama' ? row.tutar : row.islemTuru === 'KartIade' ? -row.tutar : 0),
-        0
-      );
+      const cardDebt =
+        sumCents(
+          result.satirlar.map(row => (row.islemTuru === 'KartHarcama' ? row.tutar : row.islemTuru === 'KartIade' ? -row.tutar : 0))
+        ) / 100;
       previewHost.replaceChildren(
         h(
           'div',
