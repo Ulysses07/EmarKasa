@@ -17,9 +17,12 @@ public sealed partial class KasaApiClient : IKasaKontrolApi, IAylikGiderApi
     internal static string KasaHareketleriYolu(DateOnly? baslangic, DateOnly? bitis, int? kanalId)
     {
         var q = new List<string>();
-        if (baslangic is { } b) q.Add("baslangic=" + b.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
-        if (bitis is { } s) q.Add("bitis=" + s.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
-        if (kanalId is { } k) q.Add("kanalId=" + k.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (baslangic is { } b)
+            q.Add("baslangic=" + b.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        if (bitis is { } s)
+            q.Add("bitis=" + s.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        if (kanalId is { } k)
+            q.Add("kanalId=" + k.ToString(System.Globalization.CultureInfo.InvariantCulture));
         return q.Count == 0 ? "api/kasa-hareketleri" : "api/kasa-hareketleri?" + string.Join("&", q);
     }
     public Task<IReadOnlyList<AylikGiderSablonDto>> AylikGiderSablonlariAsync() => GetAsync<IReadOnlyList<AylikGiderSablonDto>>("api/aylik-giderler/sablonlar");

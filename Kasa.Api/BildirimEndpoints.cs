@@ -59,13 +59,15 @@ public static class BildirimEndpoints
         group.MapPost("/push/abonelik", async (PushAbonelikYaz input, KasaDbContext db, HttpContext context,
             TimeProvider clock, PushKimligi identity, CancellationToken ct) =>
         {
-            if (!identity.Etkin) return Results.BadRequest(new { hata = "Cihaz bildirimleri bu ortamda açık değil." });
+            if (!identity.Etkin)
+                return Results.BadRequest(new { hata = "Cihaz bildirimleri bu ortamda açık değil." });
             if (!PushDogrulama.Endpoint(input.Endpoint) || input.Keys is null
                 || !PushDogrulama.Anahtarlar(input.Keys.P256dh, input.Keys.Auth) || input.CihazId == Guid.Empty
                 || (input.CihazAdi?.Length ?? 0) > 100)
                 return Results.BadRequest(new { hata = "Geçerli bir cihaz aboneliği gönderin." });
             var stamp = context.User.FindFirstValue(OturumDamgasi.ClaimAdi);
-            if (string.IsNullOrEmpty(stamp)) return Results.Unauthorized();
+            if (string.IsNullOrEmpty(stamp))
+                return Results.Unauthorized();
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var deviceId = input.CihazId.ToString("D");
             await db.Set<PushAbonelikEntity>().Where(x => x.CihazId == deviceId && x.Endpoint != input.Endpoint)
@@ -78,40 +80,53 @@ public static class BildirimEndpoints
                 row = new PushAbonelikEntity { Endpoint = input.Endpoint, Olusturuldu = clock.GetUtcNow().ToUnixTimeSeconds() };
                 db.Add(row);
             }
-            row.P256dh = input.Keys.P256dh; row.Auth = input.Keys.Auth; row.CihazId = deviceId;
+            row.P256dh = input.Keys.P256dh;
+            row.Auth = input.Keys.Auth;
+            row.CihazId = deviceId;
             row.CihazAdi = string.IsNullOrWhiteSpace(input.CihazAdi) ? "Tarayıcı" : input.CihazAdi.Trim();
-            row.OturumDamgasi = stamp; row.Etkin = true;
-            await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+            row.OturumDamgasi = stamp;
+            row.Etkin = true;
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.Ok(new { row.Id, row.CihazAdi });
         }).RequireRateLimiting("guvenlik");
         // Cihaz kaldırma veritabanı dışındaki güvenlik günlüğüne de yazılır (yalnız kayıt kimliği; uç adresi yazılmaz).
         group.MapDelete("/push/abonelik", async ([Microsoft.AspNetCore.Mvc.FromBody] PushEndpointYaz input, KasaDbContext db, GuvenlikGunlugu gunluk, CancellationToken ct) =>
         {
-            if (!PushDogrulama.Endpoint(input.Endpoint)) return Results.BadRequest(new { hata = "Geçersiz abonelik." });
+            if (!PushDogrulama.Endpoint(input.Endpoint))
+                return Results.BadRequest(new { hata = "Geçersiz abonelik." });
             var kayitlar = await db.Set<PushAbonelikEntity>().Where(x => x.Endpoint == input.Endpoint && x.Etkin).Select(x => x.Id).ToListAsync(ct);
             await db.Set<PushAbonelikEntity>().Where(x => x.Endpoint == input.Endpoint)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
-            foreach (var kayit in kayitlar) gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, kayit);
+            foreach (var kayit in kayitlar)
+                gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, kayit);
             return Results.NoContent();
         });
         group.MapGet("/push/abonelikler", async (KasaDbContext db, CancellationToken ct) =>
         {
             var rows = await db.Set<PushAbonelikEntity>().AsNoTracking().OrderByDescending(x => x.Id).Take(100).ToListAsync(ct);
-            return Results.Ok(rows.Select(x => new { x.Id, x.CihazAdi,
+            return Results.Ok(rows.Select(x => new
+            {
+                x.Id,
+                x.CihazAdi,
                 Olusturuldu = DateTimeOffset.FromUnixTimeSeconds(x.Olusturuldu),
-                SonBasarili = x.SonBasarili is { } last ? (DateTimeOffset?)DateTimeOffset.FromUnixTimeSeconds(last) : null, x.Etkin }));
+                SonBasarili = x.SonBasarili is { } last ? (DateTimeOffset?)DateTimeOffset.FromUnixTimeSeconds(last) : null,
+                x.Etkin
+            }));
         });
         group.MapDelete("/push/abonelikler/{id:int}", async (int id, KasaDbContext db, GuvenlikGunlugu gunluk, CancellationToken ct) =>
         {
             var changed = await db.Set<PushAbonelikEntity>().Where(x => x.Id == id)
                 .ExecuteUpdateAsync(p => p.SetProperty(x => x.Etkin, false), ct);
-            if (changed == 1) gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, id);
+            if (changed == 1)
+                gunluk.Yaz(GuvenlikGunlugu.PushAboneligiKaldirildi, id);
             return changed == 1 ? Results.NoContent() : Results.NotFound();
         });
         group.MapPost("/test", async (PushEndpointYaz input, KasaDbContext db, IPushGonderici sender,
             IConfiguration cfg, TimeProvider clock, BildirimSagligi saglik, CancellationToken ct) =>
         {
-            if (!PushDogrulama.Endpoint(input.Endpoint)) return Results.BadRequest(new { hata = "Önce bu cihazda bildirimleri aç." });
+            if (!PushDogrulama.Endpoint(input.Endpoint))
+                return Results.BadRequest(new { hata = "Önce bu cihazda bildirimleri aç." });
             var row = await db.Set<PushAbonelikEntity>().AsNoTracking().SingleOrDefaultAsync(x => x.Endpoint == input.Endpoint && x.Etkin, ct);
             if (row is null || !OturumDamgasi.Esit(row.OturumDamgasi, OturumDamgasi.Uret("editor", cfg, db)))
                 return Results.BadRequest(new { hata = "Önce bu cihazda bildirimleri yeniden aç." });
@@ -127,12 +142,16 @@ public static class BildirimEndpoints
             // Sunucu anahtarı bozuksa cihaz izni sorun değildir; editör bunu yöneticiye iletebilsin.
             if (result == PushSonuc.YapilandirmaHatasi)
                 saglik.GonderimHatasi("Sunucudaki bildirim anahtarı hatalı yapılandırılmış; cihaz bildirimleri gönderilemiyor.", clock.GetUtcNow());
-            return Results.Ok(new { basarili = result == PushSonuc.Basarili, mesaj = result switch
+            return Results.Ok(new
             {
-                PushSonuc.Basarili => "Bildirim hizmetine iletildi. Cihazında görünüp görünmediğini kontrol et.",
-                PushSonuc.YapilandirmaHatasi => "Sunucudaki bildirim anahtarı hatalı yapılandırılmış. Yöneticiye bildir.",
-                _ => "Bildirim iletilemedi. Cihaz iznini kontrol edip yeniden dene."
-            } });
+                basarili = result == PushSonuc.Basarili,
+                mesaj = result switch
+                {
+                    PushSonuc.Basarili => "Bildirim hizmetine iletildi. Cihazında görünüp görünmediğini kontrol et.",
+                    PushSonuc.YapilandirmaHatasi => "Sunucudaki bildirim anahtarı hatalı yapılandırılmış. Yöneticiye bildir.",
+                    _ => "Bildirim iletilemedi. Cihaz iznini kontrol edip yeniden dene."
+                }
+            });
         }).RequireRateLimiting("guvenlik");
         return app;
     }

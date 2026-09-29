@@ -41,10 +41,14 @@ public class OperationsTests
 
     private static int SeedLegacyAccountIncome(KasaWebFactory factory, DateOnly date)
     {
-        using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var account = new HesapEntity { Ad = "Eski test hesabı", Tur = "Kasa", AcilisTarihi = date };
-        db.Hesaplar.Add(account); db.SaveChanges(); var channel = db.Kanallar.First();
-        db.HesapHareketler.Add(new HesapHareketEntity { HesapId = account.Id, KanalId = channel.Id, Tarih = date, Tutar = 100m, Aciklama = "Korunan eski bağlantı" }); db.SaveChanges();
+        db.Hesaplar.Add(account);
+        db.SaveChanges();
+        var channel = db.Kanallar.First();
+        db.HesapHareketler.Add(new HesapHareketEntity { HesapId = account.Id, KanalId = channel.Id, Tarih = date, Tutar = 100m, Aciklama = "Korunan eski bağlantı" });
+        db.SaveChanges();
         return channel.Id;
     }
 
@@ -146,7 +150,9 @@ public class OperationsTests
         using var xlsx = new ZipArchive(new MemoryStream(await c.GetByteArrayAsync(url + "xlsx")));
         using var reader = new StreamReader(xlsx.GetEntry("xl/worksheets/sheet1.xml")!.Open());
         var sheet = await reader.ReadToEndAsync();
-        Assert.Contains("=2+2", sheet); Assert.DoesNotContain("<f>", sheet); Assert.Contains("12.34", sheet);
+        Assert.Contains("=2+2", sheet);
+        Assert.DoesNotContain("<f>", sheet);
+        Assert.Contains("12.34", sheet);
     }
 
     [Fact]
@@ -158,11 +164,13 @@ public class OperationsTests
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var a = new AlisEntity { Tarih = f.Bugun, Tedarikci = "Yedek firma", Durum = "Taslak" };
-            db.Alislar.Add(a); db.SaveChanges();
+            db.Alislar.Add(a);
+            db.SaveChanges();
             db.Belgeler.Add(new BelgeEntity { AlisId = a.Id, DosyaAdi = "test.pdf", IcerikTuru = "application/pdf", Boyut = 5, IcerikOzeti = TestBelgeDeposu.Yaz(scope.ServiceProvider, "%PDF-"u8.ToArray()), Yuklendi = f.Saat!.GetUtcNow() });
             db.SaveChanges();
         }
-        var r = await c.PostAsync("/api/yedek", null); r.EnsureSuccessStatusCode();
+        var r = await c.PostAsync("/api/yedek", null);
+        r.EnsureSuccessStatusCode();
         using var zip = new ZipArchive(new MemoryStream(await r.Content.ReadAsByteArrayAsync()));
         Assert.NotNull(zip.GetEntry(".kasa-push-keys.json"));
         using (var keyStream = zip.GetEntry(".kasa-push-keys.json")!.Open())
@@ -174,11 +182,14 @@ public class OperationsTests
         var restored = Path.Combine(f.DirectoryPath, "restored.db");
         zip.GetEntry("kasa.db")!.ExtractToFile(restored);
         YedekServisi.Dogrula(restored);
-        using var conn = new SqliteConnection($"Data Source={restored};Mode=ReadOnly;Pooling=False"); conn.Open();
-        using var cmd = conn.CreateCommand(); cmd.CommandText = "SELECT COUNT(*) FROM Belgeler WHERE DosyaAdi='test.pdf';";
+        using var conn = new SqliteConnection($"Data Source={restored};Mode=ReadOnly;Pooling=False");
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM Belgeler WHERE DosyaAdi='test.pdf';";
         Assert.Equal(1L, cmd.ExecuteScalar());
         var state = await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum");
-        Assert.NotNull(state!.SonDogrulama); Assert.Null(state.Hata);
+        Assert.NotNull(state!.SonDogrulama);
+        Assert.Null(state.Hata);
     }
 
     private sealed class BackupFactory : KasaWebFactory
@@ -187,14 +198,20 @@ public class OperationsTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?> {
-                ["Yedek:Dizin"] = DirectoryPath, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "true",
-                ["Bildirim:WorkerEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(DirectoryPath, ".kasa-push-keys.json") }));
+            builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Yedek:Dizin"] = DirectoryPath,
+                ["Yedek:Etkin"] = "false",
+                ["Bildirim:PushEtkin"] = "true",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Bildirim:AnahtarDosyasi"] = Path.Combine(DirectoryPath, ".kasa-push-keys.json")
+            }));
         }
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing && Directory.Exists(DirectoryPath)) Directory.Delete(DirectoryPath, true);
+            if (disposing && Directory.Exists(DirectoryPath))
+                Directory.Delete(DirectoryPath, true);
         }
     }
 }

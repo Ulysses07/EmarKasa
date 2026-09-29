@@ -48,7 +48,8 @@ public static class DenetimYazici
 
     public static void Yaz(KasaDbContext db, IReadOnlyList<DenetimOlayi> olaylar)
     {
-        if (olaylar.Count == 0 || !TabloVar(db)) return;
+        if (olaylar.Count == 0 || !TabloVar(db))
+            return;
         var istek = DenetimBaglami.Istek(db);
         var istekAktoru = DenetimBaglami.Aktor(istek);
         // Başlıktaki gerekçe yalnız kasayı değiştirebilen oturumlu isteğe aittir: kimliksiz istek (giriş, kurtarma)
@@ -68,12 +69,14 @@ public static class DenetimYazici
                     zaman, aktor.Rol, aktor.Id, aktor.Ip, olay.Tur, olay.Varlik, olay.VarlikId, olay.OncekiJson, olay.YeniJson,
                     Kisalt(olay.Gerekce ?? (olay.BaslikGerekcesi ? istekGerekcesi : null)), istekId is { } g && g != Guid.Empty ? g.ToString().ToUpperInvariant() : null, aktor.TraceId, olay.KilitAcmaOlayiId,
                 ];
-                if (sira > 0) sql.Append(", ");
+                if (sira > 0)
+                    sql.Append(", ");
                 sql.Append('(');
                 for (var i = 0; i < degerler.Length; i++)
                 {
                     var ad = "$d" + sira.ToString(CultureInfo.InvariantCulture) + "_" + i.ToString(CultureInfo.InvariantCulture);
-                    if (i > 0) sql.Append(", ");
+                    if (i > 0)
+                        sql.Append(", ");
                     sql.Append(ad);
                     parametreler.Add(new SqliteParameter(ad, degerler[i] ?? DBNull.Value));
                 }
@@ -86,7 +89,8 @@ public static class DenetimYazici
     /// <summary>Bağlamın bağlandığı veritabanında olay tablosu var mı? Bir kez görülünce bağlam boyunca yeniden sorulmaz.</summary>
     internal static bool TabloVar(KasaDbContext db)
     {
-        if (db.DenetimTablosuGoruldu) return true;
+        if (db.DenetimTablosuGoruldu)
+            return true;
         var var = db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='DenetimOlaylari'").Single() > 0;
         db.DenetimTablosuGoruldu = var;
         return var;

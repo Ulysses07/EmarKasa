@@ -9,8 +9,11 @@ public static class KartDonem
     {
         int y = bugun.Year, m = bugun.Month;
         var t = GunClamp(y, m, gun);
-        if (t <= bugun) return t;
-        m--; if (m < 1) { m = 12; y--; }
+        if (t <= bugun)
+            return t;
+        m--;
+        if (m < 1)
+        { m = 12; y--; }
         return GunClamp(y, m, gun);
     }
 

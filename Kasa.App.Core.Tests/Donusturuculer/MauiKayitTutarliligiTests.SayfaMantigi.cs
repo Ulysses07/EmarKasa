@@ -18,7 +18,8 @@ public partial class MauiKayitTutarliligiTests
         Assert.Contains("_vm.BelgeEkleAsync(", Oku("Views/AlislarPage.xaml.cs"));
         Assert.Contains("Vm.PdfSecVeYukleAsync(", Oku("Views/EkstreAktarmaPage.cs"));
         var kilit = Oku("Views/KasaKontrolAlanlari.cs");
-        Assert.Contains("vm.OnayMetni(", kilit); Assert.Contains("vm.IstekHalaGecerli(", kilit);
+        Assert.Contains("vm.OnayMetni(", kilit);
+        Assert.Contains("vm.IstekHalaGecerli(", kilit);
         Assert.DoesNotContain("ayının sonuna kadar", kilit);
     }
 }

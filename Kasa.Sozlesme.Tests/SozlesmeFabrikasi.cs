@@ -60,24 +60,38 @@ public sealed class SozlesmeFabrikasi : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Kasa__JwtKey", "sozlesme-testleri-jwt-anahtari-32-bayt-ustu!!");
         var ayarlar = new Dictionary<string, string?>
         {
-            ["Kasa:EditorKullanici"] = "editor", ["Kasa:EditorSifre"] = EditorSifresi,
+            ["Kasa:EditorKullanici"] = "editor",
+            ["Kasa:EditorSifre"] = EditorSifresi,
             ["Kasa:JwtKey"] = "sozlesme-testleri-jwt-anahtari-32-bayt-ustu!!",
-            ["Kasa:HizSiniri:GuvenlikIzni"] = "100000", ["Kasa:HizSiniri:GirisIpIzni"] = "100000", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "100000",
-            ["Kasa:HizSiniri:GirisAgIzni"] = "100000", ["Kasa:HizSiniri:HedefBasarisizIzni"] = "100000", ["Kasa:HizSiniri:AgBasarisizIzni"] = "50000",
-            ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "100000", ["Kasa:HizSiniri:YedekIzni"] = "100000",
-            ["Yedek:Dizin"] = _dizin, ["Yedek:Etkin"] = "false", ["Finans:BakimEtkin"] = "false",
-            ["Bildirim:PushEtkin"] = "true", ["Bildirim:WorkerEtkin"] = "false",
-            ["Bildirim:PublicKey"] = _acikAnahtar, ["Bildirim:PrivateKey"] = _gizliAnahtar,
+            ["Kasa:HizSiniri:GuvenlikIzni"] = "100000",
+            ["Kasa:HizSiniri:GirisIpIzni"] = "100000",
+            ["Kasa:HizSiniri:GirisKullaniciIzni"] = "100000",
+            ["Kasa:HizSiniri:GirisAgIzni"] = "100000",
+            ["Kasa:HizSiniri:HedefBasarisizIzni"] = "100000",
+            ["Kasa:HizSiniri:AgBasarisizIzni"] = "50000",
+            ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "100000",
+            ["Kasa:HizSiniri:YedekIzni"] = "100000",
+            ["Yedek:Dizin"] = _dizin,
+            ["Yedek:Etkin"] = "false",
+            ["Finans:BakimEtkin"] = "false",
+            ["Bildirim:PushEtkin"] = "true",
+            ["Bildirim:WorkerEtkin"] = "false",
+            ["Bildirim:PublicKey"] = _acikAnahtar,
+            ["Bildirim:PrivateKey"] = _gizliAnahtar,
         };
-        foreach (var (anahtar, deger) in EkAyarlar) ayarlar[anahtar] = deger;
+        foreach (var (anahtar, deger) in EkAyarlar)
+            ayarlar[anahtar] = deger;
         builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(ayarlar));
         builder.ConfigureServices(s =>
         {
             s.RemoveAll<DbContextOptions<KasaDbContext>>();
             s.AddDbContext<KasaDbContext>(o => o.UseSqlite(_baglanti));
-            s.RemoveAll<TimeProvider>(); s.AddSingleton<TimeProvider>(new SabitSaat(Bugun));
-            s.RemoveAll<IPushGonderici>(); s.AddSingleton<IPushGonderici>(Push);
-            s.RemoveAll<IPdfMetinOkuyucu>(); s.AddSingleton<IPdfMetinOkuyucu>(new SabitPdf(PdfMetni));
+            s.RemoveAll<TimeProvider>();
+            s.AddSingleton<TimeProvider>(new SabitSaat(Bugun));
+            s.RemoveAll<IPushGonderici>();
+            s.AddSingleton<IPushGonderici>(Push);
+            s.RemoveAll<IPdfMetinOkuyucu>();
+            s.AddSingleton<IPdfMetinOkuyucu>(new SabitPdf(PdfMetni));
             s.AddSingleton<IStartupFilter>(Istekler);
         });
     }
@@ -95,9 +109,11 @@ public sealed class SozlesmeFabrikasi : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (!disposing) return;
+        if (!disposing)
+            return;
         _baglanti.Dispose();
-        try { if (Directory.Exists(_dizin)) Directory.Delete(_dizin, true); }
+        try
+        { if (Directory.Exists(_dizin)) Directory.Delete(_dizin, true); }
         catch (IOException) { /* geçici dizin işletim sistemine kalır */ }
     }
 
@@ -138,9 +154,11 @@ public sealed class IstekKaydedici : IStartupFilter
         app.Use(async (http, devam) =>
         {
             var json = http.Request.ContentType?.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) == true;
-            if (json) http.Request.EnableBuffering();
+            if (json)
+                http.Request.EnableBuffering();
             await devam(http);
-            if (!json || http.GetEndpoint() is not RouteEndpoint uc) return;
+            if (!json || http.GetEndpoint() is not RouteEndpoint uc)
+                return;
             http.Request.Body.Position = 0;
             var govde = await new StreamReader(http.Request.Body).ReadToEndAsync();
             var tur = uc.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType;

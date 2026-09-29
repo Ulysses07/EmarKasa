@@ -31,21 +31,30 @@ internal static class InitialStableSchemaModel
         });
         Entity(modelBuilder, "KrediKartiEntity", "KrediKartlari", b =>
         {
-            Text(b, "Ad"); Date(b, "KesimTarihi"); Date(b, "SonOdemeTarihi");
-            Money(b, "Limit"); Money(b, "Borc");
+            Text(b, "Ad");
+            Date(b, "KesimTarihi");
+            Date(b, "SonOdemeTarihi");
+            Money(b, "Limit");
+            Money(b, "Borc");
         });
         Entity(modelBuilder, "IslemEntity", "Islemler", b =>
         {
-            Date(b, "Tarih"); Text(b, "Cari"); Money(b, "TutarTl"); Text(b, "Kanal");
+            Date(b, "Tarih");
+            Text(b, "Cari");
+            Money(b, "TutarTl");
+            Text(b, "Kanal");
             b.Property<int>("Tip").HasColumnType("INTEGER");
             b.Property<string>("Not").HasColumnType("TEXT");
             b.Property<int?>("KrediKartiId").HasColumnType("INTEGER");
             b.Property<int?>("KanalId").HasColumnType("INTEGER");
-            b.HasIndex("KrediKartiId"); b.HasIndex("KanalId");
+            b.HasIndex("KrediKartiId");
+            b.HasIndex("KanalId");
         });
         Entity(modelBuilder, "GelenEntity", "Gelenler", b =>
         {
-            Date(b, "DonemStart"); Text(b, "Kanal").UseCollation("NOCASE"); Money(b, "TutarTl");
+            Date(b, "DonemStart");
+            Text(b, "Kanal").UseCollation("NOCASE");
+            Money(b, "TutarTl");
             b.Property<int?>("KanalId").HasColumnType("INTEGER");
             b.HasIndex("KanalId");
             b.HasIndex("DonemStart", "KanalId").IsUnique();
@@ -54,13 +63,16 @@ internal static class InitialStableSchemaModel
         Entity(modelBuilder, "KartOdemeEntity", "KartOdemeler", b =>
         {
             b.Property<int>("KrediKartiId").HasColumnType("INTEGER");
-            Date(b, "Tarih"); Money(b, "Tutar");
+            Date(b, "Tarih");
+            Money(b, "Tutar");
             b.Property<string>("Not").HasColumnType("TEXT");
             b.HasIndex("KrediKartiId");
         });
         Entity(modelBuilder, "KrediEntity", "Krediler", b =>
         {
-            Text(b, "Ad"); Money(b, "CekilenTutar"); Date(b, "CekimTarihi");
+            Text(b, "Ad");
+            Money(b, "CekilenTutar");
+            Date(b, "CekimTarihi");
             b.Property<int>("TaksitSayisi").HasColumnType("INTEGER");
             Money(b, "AylikOdeme");
             b.Property<int>("OdemeGunu").HasColumnType("INTEGER");

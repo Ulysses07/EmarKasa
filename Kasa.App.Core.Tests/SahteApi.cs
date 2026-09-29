@@ -56,15 +56,19 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
     {
         IslemlerCagri++;
-        SonFiltreBaslangic = baslangic; SonFiltreBitis = bitis; SonFiltreKanal = kanal;
-        if (IslemlerGetir is not null) return IslemlerGetir(baslangic, bitis, kanal);
+        SonFiltreBaslangic = baslangic;
+        SonFiltreBitis = bitis;
+        SonFiltreKanal = kanal;
+        if (IslemlerGetir is not null)
+            return IslemlerGetir(baslangic, bitis, kanal);
         return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
     }
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediKartiDto>>(YuklemeHatasi) : Task.FromResult(KrediKartlariListe);
     public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null)
     {
         GelenlerIstekleri.Add(donemStart);
-        if ((YuklemeHatasi ?? GelenlerHatasi) is { } hata) return Task.FromException<IReadOnlyList<GelenDto>>(hata);
+        if ((YuklemeHatasi ?? GelenlerHatasi) is { } hata)
+            return Task.FromException<IReadOnlyList<GelenDto>>(hata);
         return GelenlerGetir?.Invoke(donemStart) ?? Task.FromResult(GelenlerListe);
     }
     // Mutasyon çağrı kayıtları (son çağrıyı tutar)
@@ -96,8 +100,11 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Exception? IslemOlusturHatasi;
     public Task<IslemDto> IslemOlusturAsync(IslemYaz g)
     {
-        SonIslemOlustur = g; IslemOlusturCagri++; IslemOlusturmalari.Add(g);
-        if (IslemOlusturHatasi is { } hata) { IslemOlusturHatasi = null; return Task.FromException<IslemDto>(hata); }
+        SonIslemOlustur = g;
+        IslemOlusturCagri++;
+        IslemOlusturmalari.Add(g);
+        if (IslemOlusturHatasi is { } hata)
+        { IslemOlusturHatasi = null; return Task.FromException<IslemDto>(hata); }
         return IslemKayitYaniti ?? Task.FromResult(new IslemDto(0, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not));
     }
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g)
@@ -113,8 +120,10 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public Task AyarGuncelleAsync(AyarYaz g)
     {
         SonAyar = g;
-        if (AyarGuncelleHatasi is { } hata) return Task.FromException(hata);
-        if (AyarlarSonuc is { } a) AyarlarSonuc = a with { TakipBaslangic = g.TakipBaslangic, KasaAcilisDevri = g.KasaAcilisDevri, Surum = a.Surum + 1 };
+        if (AyarGuncelleHatasi is { } hata)
+            return Task.FromException(hata);
+        if (AyarlarSonuc is { } a)
+            AyarlarSonuc = a with { TakipBaslangic = g.TakipBaslangic, KasaAcilisDevri = g.KasaAcilisDevri, Surum = a.Surum + 1 };
         return AyarGuncelleYaniti ?? Task.CompletedTask;
     }
     public Task IzleyiciSifreAsync(string yeniSifre) { SonIzleyiciSifre = yeniSifre; return IzleyiciSifreYaniti ?? Task.CompletedTask; }
@@ -130,7 +139,8 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public async Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default)
     {
         AnaSayfaIstekleri.Add(gun);
-        if (AnaSayfaGetir is not null) return await AnaSayfaGetir(gun, ct);
+        if (AnaSayfaGetir is not null)
+            return await AnaSayfaGetir(gun, ct);
         var panel = await (PanelGetir?.Invoke() ?? (YuklemeHatasi is not null ? Task.FromException<PanelDto>(YuklemeHatasi) : Task.FromResult(Panel!)));
         return new(panel, null, null);
     }

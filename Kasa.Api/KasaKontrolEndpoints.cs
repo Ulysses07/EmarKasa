@@ -30,15 +30,23 @@ public static class KasaKontrolEndpoints
         app.MapPut("/api/kasa-esikleri/{kanalId:int}", (int kanalId, KasaEsikYaz dto, KasaDbContext db, HesapServisi hesap) => AlisEndpoints.Mutate(db, () =>
         {
             var channel = db.Kanallar.Find(kanalId);
-            if (channel is null) return Results.NotFound();
-            var v = new GirdiDogrulama(); v.Para(dto.Tutar, "tutar");
-            if (v.Sonuc() is { } error) return error;
+            if (channel is null)
+                return Results.NotFound();
+            var v = new GirdiDogrulama();
+            v.Para(dto.Tutar, "tutar");
+            if (v.Sonuc() is { } error)
+                return error;
             var limit = db.KasaEsikleri.SingleOrDefault(x => x.KanalId == kanalId);
-            if (dto.Surum != (limit?.Surum ?? 0)) return AlisEndpoints.Conflict("Alt sınır değişmiş. Yenileyip tekrar deneyin.");
-            if (limit is null) { limit = new() { KanalId = kanalId, Surum = 0 }; db.KasaEsikleri.Add(limit); }
+            if (dto.Surum != (limit?.Surum ?? 0))
+                return AlisEndpoints.Conflict("Alt sınır değişmiş. Yenileyip tekrar deneyin.");
+            if (limit is null)
+            { limit = new() { KanalId = kanalId, Surum = 0 }; db.KasaEsikleri.Add(limit); }
             // Bir eşik değişikliği mevcut düşük bakiye olayını tekrar tekrar üretmez.
-            if (!dto.Etkin) { limit.AlarmAcik = false; limit.UyariTarihi = null; }
-            limit.Tutar = dto.Tutar; limit.Etkin = dto.Etkin; limit.Surum++;
+            if (!dto.Etkin)
+            { limit.AlarmAcik = false; limit.UyariTarihi = null; }
+            limit.Tutar = dto.Tutar;
+            limit.Etkin = dto.Etkin;
+            limit.Surum++;
             db.SaveChanges();
             var balance = hesap.Panel().Kanallar.Single(k => k.KanalId == kanalId).Bakiye;
             return Results.Ok(new KasaEsikDto(kanalId, channel.Ad, limit.Surum, limit.Tutar, limit.Etkin, balance, limit.Etkin && balance < limit.Tutar));
@@ -54,44 +62,65 @@ public static class KasaKontrolEndpoints
         })).RequireAuthorization("Finans");
         app.MapPost("/api/kasa-kontrol/onizleme", (KasaKontrolOnizle dto, KasaDbContext db, HesapServisi hesap, CancellationToken ct) => AlisEndpoints.Oku(db, () =>
         {
-            if (Validate(dto.GercekBakiye, dto.Not) is { } error) return error;
+            if (Validate(dto.GercekBakiye, dto.Not) is { } error)
+                return error;
             var takip = new TakipHesapBaglami(db, ct);
             return Results.Ok(Preview(hesap.Panel(takip), takip.Bugun, dto.GercekBakiye));
         })).RequireAuthorization("Editor");
         app.MapPost("/api/kasa-kontrol", (KasaKontrolYaz dto, KasaDbContext db, HesapServisi hesap, TimeProvider saat) => AlisEndpoints.Mutate(db, () =>
         {
-            if (Validate(dto.GercekBakiye, dto.Not) is { } error) return error;
+            if (Validate(dto.GercekBakiye, dto.Not) is { } error)
+                return error;
             var digest = FinansHesaplari.Ozet(dto with { IstekId = Guid.Empty });
-            if (FinansHesaplari.Tekrar(db, dto.IstekId, "KasaKontrol", digest, id => Results.Ok(ToDto(db.KasaKontrolleri.Single(x => x.Id == id)))) is { } replay) return replay;
+            if (FinansHesaplari.Tekrar(db, dto.IstekId, "KasaKontrol", digest, id => Results.Ok(ToDto(db.KasaKontrolleri.Single(x => x.Id == id)))) is { } replay)
+                return replay;
             var takip = new TakipHesapBaglami(db);
             var preview = Preview(hesap.Panel(takip), takip.Bugun, dto.GercekBakiye);
-            if (dto.KontrolOzeti != preview.KontrolOzeti) return AlisEndpoints.Conflict("Kasa bakiyesi veya karşılaştırma bilgileri değişti. Yeniden karşılaştırın.");
+            if (dto.KontrolOzeti != preview.KontrolOzeti)
+                return AlisEndpoints.Conflict("Kasa bakiyesi veya karşılaştırma bilgileri değişti. Yeniden karşılaştırın.");
             // Özet tuttu: fark kullanıcının önizlemede gördüğü farktır. Açıklama önizlemeden sonra da yazılabilir (özete girmez).
             if (preview.Fark != 0 && string.IsNullOrWhiteSpace(dto.Not))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["not"] = [NotZorunluIletisi] });
             // Filigran: panel ile aynı yazma transaction'ında (BEGIN IMMEDIATE) okunur; arada başka yazma olamaz. Bu kaydın kendi
             // denetim olayı ve mali isteği bu kimliklerden sonra yazılır.
-            var row = new KasaKontrolEntity { Kaydedildi = saat.GetUtcNow().ToUnixTimeMilliseconds(),
-                SistemBakiye = preview.SistemBakiye, GercekBakiye = dto.GercekBakiye, Fark = preview.Fark, Not = dto.Not?.Trim(),
-                HesapTarihi = takip.Bugun, KanalBakiyeleriJson = KanallariYaz(preview.KanalBakiyeleri!),
-                SonIslemId = db.Islemler.Max(i => (int?)i.Id) ?? 0, SonFinansIstekId = db.FinansIstekler.Max(f => (int?)f.Id) ?? 0,
-                SonDenetimOlayId = db.DenetimOlaylari.Max(o => (int?)o.Id) ?? 0 };
-            db.KasaKontrolleri.Add(row); db.SaveChanges();
-            FinansHesaplari.IstekKaydet(db, dto.IstekId, "KasaKontrol", digest, row.Id); db.SaveChanges();
+            var row = new KasaKontrolEntity
+            {
+                Kaydedildi = saat.GetUtcNow().ToUnixTimeMilliseconds(),
+                SistemBakiye = preview.SistemBakiye,
+                GercekBakiye = dto.GercekBakiye,
+                Fark = preview.Fark,
+                Not = dto.Not?.Trim(),
+                HesapTarihi = takip.Bugun,
+                KanalBakiyeleriJson = KanallariYaz(preview.KanalBakiyeleri!),
+                SonIslemId = db.Islemler.Max(i => (int?)i.Id) ?? 0,
+                SonFinansIstekId = db.FinansIstekler.Max(f => (int?)f.Id) ?? 0,
+                SonDenetimOlayId = db.DenetimOlaylari.Max(o => (int?)o.Id) ?? 0
+            };
+            db.KasaKontrolleri.Add(row);
+            db.SaveChanges();
+            FinansHesaplari.IstekKaydet(db, dto.IstekId, "KasaKontrol", digest, row.Id);
+            db.SaveChanges();
             return Results.Ok(ToDto(row));
         })).RequireAuthorization("Editor");
         // Farkın sonradan açıklanması: yalnız açıklama ve sürüm değişir; tutarlar ve filigran aynen kalır.
         app.MapPut("/api/kasa-kontrol/{id:int}/aciklama", (int id, KasaKontrolAciklamaYaz dto, KasaDbContext db, TimeProvider saat) => AlisEndpoints.Mutate(db, () =>
         {
-            var v = new GirdiDogrulama(); v.Metin(dto.Aciklama, "aciklama", 2000);
-            if (v.Sonuc() is { } error) return error;
+            var v = new GirdiDogrulama();
+            v.Metin(dto.Aciklama, "aciklama", 2000);
+            if (v.Sonuc() is { } error)
+                return error;
             var aciklama = dto.Aciklama.Trim();
             var digest = FinansHesaplari.Ozet(new { id, dto.Surum, aciklama });
-            if (FinansHesaplari.Tekrar(db, dto.IstekId, "KasaKontrolAciklama", digest, sonuc => Results.Ok(ToDto(db.KasaKontrolleri.AsNoTracking().Single(x => x.Id == sonuc)))) is { } replay) return replay;
+            if (FinansHesaplari.Tekrar(db, dto.IstekId, "KasaKontrolAciklama", digest, sonuc => Results.Ok(ToDto(db.KasaKontrolleri.AsNoTracking().Single(x => x.Id == sonuc)))) is { } replay)
+                return replay;
             var row = db.KasaKontrolleri.SingleOrDefault(x => x.Id == id);
-            if (row is null) return Results.NotFound();
-            if (dto.Surum != row.Surum) return AlisEndpoints.Conflict("Kontrol kaydı değişmiş. Yenileyin.");
-            row.FarkAciklamasi = aciklama; row.FarkAciklamaZamani = saat.GetUtcNow().ToUnixTimeMilliseconds(); row.Surum++;
+            if (row is null)
+                return Results.NotFound();
+            if (dto.Surum != row.Surum)
+                return AlisEndpoints.Conflict("Kontrol kaydı değişmiş. Yenileyin.");
+            row.FarkAciklamasi = aciklama;
+            row.FarkAciklamaZamani = saat.GetUtcNow().ToUnixTimeMilliseconds();
+            row.Surum++;
             // İstek kaydı aynı kayıtta: değişikliğin denetim olayı istek kimliğini taşır.
             FinansHesaplari.IstekKaydet(db, dto.IstekId, "KasaKontrolAciklama", digest, row.Id);
             db.SaveChanges();
@@ -103,7 +132,8 @@ public static class KasaKontrolEndpoints
         app.MapGet("/api/kasa-kontrol/{id:int}/sonrasi", (int id, KasaDbContext db, HesapServisi hesap, CancellationToken ct) => AlisEndpoints.Oku(db, () =>
         {
             var row = db.KasaKontrolleri.AsNoTracking().SingleOrDefault(x => x.Id == id);
-            if (row is null) return Results.NotFound();
+            if (row is null)
+                return Results.NotFound();
             var dokum = hesap.Dokum(ct);
             var gun = EsasTarih(row);
             var olaylar = db.DenetimOlaylari.AsNoTracking().Where(o => !SonrasiDisi.Contains(o.Varlik) && o.Tur != "GecmisKayit");
@@ -135,7 +165,8 @@ public static class KasaKontrolEndpoints
             v.Kontrol(ilk <= son, "baslangic", "Başlangıç, bitişten (en geç bugün) sonra olamaz.");
             v.Kontrol(son.DayNumber - ilk.DayNumber < DokumEnFazlaGun, "bitis", $"Döküm en fazla {DokumEnFazlaGun} günü kapsar.");
             v.Kontrol(kanalId is not { } k || db.Kanallar.Any(x => x.Id == k), "kanalId", "Kanal bulunamadı.");
-            if (v.Sonuc() is { } error) return error;
+            if (v.Sonuc() is { } error)
+                return error;
             var dokum = hesap.Dokum(takip);
             var kanal = kanalId is { } kid ? dokum.KanalAdi(kid) : null;
             var satirlar = dokum.Hareketler.Where(h => h.EtkiTarihi >= ilk && h.EtkiTarihi <= son && (kanal is null || h.Kanal == kanal)).Select(dokum.Dto).ToList();
@@ -205,8 +236,10 @@ public static class KasaKontrolEndpoints
     /// <summary>Saklanan kanal bakiyeleri; filigransız kayıtta ya da okunamayan değerde null (liste düşmez).</summary>
     private static List<KasaKontrolKanalDto>? KanallariOku(string? json)
     {
-        if (json is null) return null;
-        try { return JsonSerializer.Deserialize<List<KanalBakiyeKaydi>>(json)?.Where(k => k is not null).Select(k => new KasaKontrolKanalDto(k.KanalId, k.Kanal, k.Bakiye)).ToList(); }
+        if (json is null)
+            return null;
+        try
+        { return JsonSerializer.Deserialize<List<KanalBakiyeKaydi>>(json)?.Where(k => k is not null).Select(k => new KasaKontrolKanalDto(k.KanalId, k.Kanal, k.Bakiye)).ToList(); }
         catch (JsonException) { return null; }
     }
 }

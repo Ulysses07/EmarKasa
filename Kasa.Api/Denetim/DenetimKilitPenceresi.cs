@@ -26,8 +26,10 @@ internal sealed class DenetimKilitPenceresi
         var acik = new List<(DateOnly, DateOnly, int)>();
         foreach (var (id, onceki, yeni) in olaylar)
         {
-            if (onceki is { } p && (yeni is not { } n1 || n1 < p)) Uygula(acik, Sonraki(yeni), p, id);
-            else if (yeni is { } n && (onceki is not { } p2 || n > p2)) Uygula(acik, Sonraki(onceki), n, null);
+            if (onceki is { } p && (yeni is not { } n1 || n1 < p))
+                Uygula(acik, Sonraki(yeni), p, id);
+            else if (yeni is { } n && (onceki is not { } p2 || n > p2))
+                Uygula(acik, Sonraki(onceki), n, null);
         }
         return new(acik);
     }
@@ -35,7 +37,9 @@ internal sealed class DenetimKilitPenceresi
     /// <summary>Tarihin düştüğü açık pencerenin açılış olayı; yoksa null.</summary>
     internal int? Bul(DateOnly tarih)
     {
-        foreach (var (bas, son, olay) in _acik) if (bas <= tarih && tarih <= son) return olay;
+        foreach (var (bas, son, olay) in _acik)
+            if (bas <= tarih && tarih <= son)
+                return olay;
         return null;
     }
 
@@ -50,15 +54,21 @@ internal sealed class DenetimKilitPenceresi
 
     private static void Uygula(List<(DateOnly Bas, DateOnly Son, int Olay)> acik, DateOnly bas, DateOnly son, int? olay)
     {
-        if (bas > son) return;
+        if (bas > son)
+            return;
         var kalan = new List<(DateOnly, DateOnly, int)>();
         foreach (var a in acik)
         {
-            if (a.Son < bas || a.Bas > son) { kalan.Add(a); continue; }
-            if (a.Bas < bas) kalan.Add((a.Bas, bas.AddDays(-1), a.Olay));
-            if (a.Son > son) kalan.Add((son.AddDays(1), a.Son, a.Olay));
+            if (a.Son < bas || a.Bas > son)
+            { kalan.Add(a); continue; }
+            if (a.Bas < bas)
+                kalan.Add((a.Bas, bas.AddDays(-1), a.Olay));
+            if (a.Son > son)
+                kalan.Add((son.AddDays(1), a.Son, a.Olay));
         }
-        if (olay is { } id) kalan.Add((bas, son, id));
-        acik.Clear(); acik.AddRange(kalan);
+        if (olay is { } id)
+            kalan.Add((bas, son, id));
+        acik.Clear();
+        acik.AddRange(kalan);
     }
 }

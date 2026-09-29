@@ -20,7 +20,8 @@ public sealed class DiskAlani : IDiskAlani
             while (!Directory.Exists(dizin))
             {
                 var ust = Path.GetDirectoryName(dizin);
-                if (string.IsNullOrEmpty(ust)) return null;
+                if (string.IsNullOrEmpty(ust))
+                    return null;
                 dizin = ust;
             }
             var kok = OperatingSystem.IsWindows() ? Path.GetPathRoot(dizin) : dizin;

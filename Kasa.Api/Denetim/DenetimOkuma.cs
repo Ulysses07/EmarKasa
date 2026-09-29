@@ -14,7 +14,8 @@ public static class DenetimOkuma
     /// </summary>
     public static Dictionary<int, DateTimeOffset> IptalAnlari<TVarlik>(KasaDbContext db, IReadOnlyCollection<int> kimlikler)
     {
-        if (kimlikler.Count == 0 || !DenetimYazici.TabloVar(db)) return [];
+        if (kimlikler.Count == 0 || !DenetimYazici.TabloVar(db))
+            return [];
         var varlik = DenetimYakalayici.VarlikAdi(typeof(TVarlik));
         var anahtarlar = kimlikler.Select(k => k.ToString(CultureInfo.InvariantCulture)).ToList();
         return db.DenetimOlaylari.AsNoTracking()

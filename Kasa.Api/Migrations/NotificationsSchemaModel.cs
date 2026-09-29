@@ -21,7 +21,8 @@ internal static class NotificationsSchemaModel
         {
             e.Property<string>("Kilit").HasColumnType("TEXT");
             e.Property<long?>("Gonderildi").HasColumnType("INTEGER");
-            e.HasIndex("BildirimId", "AbonelikId").IsUnique(); e.HasIndex("AbonelikId");
+            e.HasIndex("BildirimId", "AbonelikId").IsUnique();
+            e.HasIndex("AbonelikId");
             e.HasOne("Kasa.Api.Data.BildirimEntity", null).WithMany().HasForeignKey("BildirimId").OnDelete(DeleteBehavior.Cascade).IsRequired();
             e.HasOne("Kasa.Api.Data.PushAbonelikEntity", null).WithMany().HasForeignKey("AbonelikId").OnDelete(DeleteBehavior.Cascade).IsRequired();
         });
@@ -30,10 +31,16 @@ internal static class NotificationsSchemaModel
     private static void Define(ModelBuilder b, string name, string table, string[] ints, string[] bools, string[] strings, string[] longs)
         => b.Entity("Kasa.Api.Data." + name, e =>
         {
-            e.ToTable(table); e.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER"); e.HasKey("Id");
-            foreach (var x in ints) e.Property<int>(x).HasColumnType("INTEGER");
-            foreach (var x in bools) e.Property<bool>(x).HasColumnType("INTEGER");
-            foreach (var x in strings) e.Property<string>(x).IsRequired().HasColumnType("TEXT");
-            foreach (var x in longs) e.Property<long>(x).HasColumnType("INTEGER");
+            e.ToTable(table);
+            e.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+            e.HasKey("Id");
+            foreach (var x in ints)
+                e.Property<int>(x).HasColumnType("INTEGER");
+            foreach (var x in bools)
+                e.Property<bool>(x).HasColumnType("INTEGER");
+            foreach (var x in strings)
+                e.Property<string>(x).IsRequired().HasColumnType("TEXT");
+            foreach (var x in longs)
+                e.Property<long>(x).HasColumnType("INTEGER");
         });
 }

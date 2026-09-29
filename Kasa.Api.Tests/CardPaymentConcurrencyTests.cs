@@ -16,7 +16,8 @@ namespace Kasa.Api.Tests;
 public class CardPaymentConcurrencyTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Fiziksel_SQLite_farkli_baglantili_kart_odemeleri_surumu_ve_istek_tekrarini_korur(bool sameRequest)
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-card-race-" + Guid.NewGuid().ToString("N") + ".db");
@@ -29,7 +30,8 @@ public class CardPaymentConcurrencyTests
             var today = factory.Bugun;
             (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = today, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
             var create = await c.PostAsJsonAsync("/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Yarış", 1000m, 5, 25, today, 100m, [new(1, 100m)]));
-            create.EnsureSuccessStatusCode(); var card = (await create.Content.ReadFromJsonAsync<KartTakipDto>())!;
+            create.EnsureSuccessStatusCode();
+            var card = (await create.Content.ReadFromJsonAsync<KartTakipDto>())!;
             var request = new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, today, 60m);
             rendezvous.Enabled = true;
             var responses = await Task.WhenAll(c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", request),
@@ -43,7 +45,8 @@ public class CardPaymentConcurrencyTests
             finally { foreach (var response in responses) response.Dispose(); }
             Assert.Equal(2, rendezvous.Connections.Count);
             using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(cs).Options);
-            Assert.Single(db.TakipKartOdemeler); Assert.Equal(60m, db.TakipKartOdemeler.Single().Tutar);
+            Assert.Single(db.TakipKartOdemeler);
+            Assert.Equal(60m, db.TakipKartOdemeler.Single().Tutar);
             Assert.Equal(1, db.FinansIstekler.Count(r => r.Tur == "KartOdeme"));
             Assert.Equal(940m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
         }
@@ -56,7 +59,8 @@ public class CardPaymentConcurrencyTests
             base.ConfigureWebHost(builder);
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<DbContextOptions<KasaDbContext>>(); services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+                services.RemoveAll<DbContextOptions<KasaDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
                 services.AddDbContext<KasaDbContext>(o => o.UseSqlite(cs).AddInterceptors(rendezvous));
             });
         }
@@ -68,9 +72,11 @@ public class CardPaymentConcurrencyTests
         public ConcurrentDictionary<DbConnection, byte> Connections { get; } = new(ReferenceEqualityComparer.Instance);
         public override InterceptionResult<DbTransaction> TransactionStarting(DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result)
         {
-            if (!Enabled) return result;
+            if (!Enabled)
+                return result;
             Connections.TryAdd(connection, 0);
-            if (!_barrier.SignalAndWait(TimeSpan.FromSeconds(20))) throw new TimeoutException("İki kart ödemesi aynı transaction başlangıcına ulaşamadı.");
+            if (!_barrier.SignalAndWait(TimeSpan.FromSeconds(20)))
+                throw new TimeoutException("İki kart ödemesi aynı transaction başlangıcına ulaşamadı.");
             return result;
         }
         public void Dispose() => _barrier.Dispose();

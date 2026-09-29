@@ -33,14 +33,16 @@ internal static class KanalKurallari
     internal static List<EntityEntry> EtiketSenkronuHaric(KasaDbContext db, List<EntityEntry> entries)
     {
         var adaylar = entries.Where(EtiketAdayi).ToList();
-        if (adaylar.Count == 0) return entries;
+        if (adaylar.Count == 0)
+            return entries;
         var kimlikler = adaylar.Select(e => (int)e.CurrentValues["KanalId"]!).ToHashSet();
         // Aynı SaveChanges'ta yeniden adlandırılan kanalın kaydedilecek adı izlenen varlıktadır; diğerleri veritabanından okunur.
         var adlar = db.ChangeTracker.Entries<KanalEntity>().Where(k => k.State != EntityState.Deleted && kimlikler.Contains(k.Entity.Id))
             .ToDictionary(k => k.Entity.Id, k => k.Entity.Ad);
         var eksik = kimlikler.Where(id => !adlar.ContainsKey(id)).ToList();
         if (eksik.Count > 0)
-            foreach (var k in db.Kanallar.AsNoTracking().Where(k => eksik.Contains(k.Id)).Select(k => new { k.Id, k.Ad }).ToList()) adlar[k.Id] = k.Ad;
+            foreach (var k in db.Kanallar.AsNoTracking().Where(k => eksik.Contains(k.Id)).Select(k => new { k.Id, k.Ad }).ToList())
+                adlar[k.Id] = k.Ad;
         return entries.Where(e => !(EtiketAdayi(e) && adlar.TryGetValue((int)e.CurrentValues["KanalId"]!, out var ad)
             && string.Equals(ad, (string?)e.CurrentValues["Kanal"], StringComparison.Ordinal))).ToList();
     }
@@ -77,11 +79,13 @@ internal static class KanalKurallari
     {
         // Gelenler.Kanal NOCASE: karşılaştırma (dönem, kanal adı) tekilliğiyle aynı kuraldadır.
         var eskiEtiketler = db.Gelenler.Where(g => g.KanalId != null && g.KanalId != kanalId && g.Kanal == ad).ToList();
-        if (eskiEtiketler.Count == 0) return null;
+        if (eskiEtiketler.Count == 0)
+            return null;
         var son = KilitSonu(db);
         var adlar = db.Kanallar.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
         bool Kilitli(GelenEntity g) => son is { } s && g.DonemStart <= s;
-        foreach (var g in eskiEtiketler.Where(g => !Kilitli(g))) g.Kanal = adlar[g.KanalId!.Value];
+        foreach (var g in eskiEtiketler.Where(g => !Kilitli(g)))
+            g.Kanal = adlar[g.KanalId!.Value];
         db.SaveChanges();
         var sahipler = eskiEtiketler.Where(Kilitli).Select(g => $"'{adlar[g.KanalId!.Value]}'").Distinct().ToList();
         return sahipler.Count == 0 ? null
@@ -95,11 +99,14 @@ internal static class KanalKurallari
     /// satırı atlanır: veritabanı tetikleyicisi kilitli geliri hiç değiştirmez.</summary>
     internal static void EtiketleriGuncelle(KasaDbContext db, int kanalId, string ad)
     {
-        foreach (var i in db.Islemler.Where(i => i.KanalId == kanalId && i.Kanal != ad)) i.Kanal = ad;
-        foreach (var k in db.Krediler.Where(k => k.KanalId == kanalId && k.Kanal != ad)) k.Kanal = ad;
+        foreach (var i in db.Islemler.Where(i => i.KanalId == kanalId && i.Kanal != ad))
+            i.Kanal = ad;
+        foreach (var k in db.Krediler.Where(k => k.KanalId == kanalId && k.Kanal != ad))
+            k.Kanal = ad;
         var son = KilitSonu(db);
         // Gelenler.Kanal NOCASE: yalnız büyük/küçük harfi değişen ad SQL'de eşit sayılır; karşılaştırmayı EF (ordinal) yapar.
-        foreach (var g in db.Gelenler.Where(g => g.KanalId == kanalId && (son == null || g.DonemStart > son))) g.Kanal = ad;
+        foreach (var g in db.Gelenler.Where(g => g.KanalId == kanalId && (son == null || g.DonemStart > son)))
+            g.Kanal = ad;
     }
 
     /// <summary>Kanal silinebilir mi: geçmişi (kimliğiyle ya da kimliksiz eski etiketle bağlı hareket, takip, alış payı, aylık gider

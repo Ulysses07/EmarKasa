@@ -41,8 +41,10 @@ public class KartTakipDuzeltmeApiTests
             .Kuyrukla(HttpStatusCode.OK, """{"harcamaId":null,"tarih":"2026-09-25","kalanBorc":0,"kasadaOncedenSayilanTutar":0,"iadeDuzeltmesi":0,"dagilimlar":[],"kural":"EtkiTarihi","sistemKartBorcu":50,"raporDisiTutar":20,"acilisBorcu":10,"onerilenKasadaSayilanTutar":0,"enAzKasadaSayilanTutar":0,"duzeltilebilir":true,"engel":null}""");
         var client = Client(h);
         var kart = await client.TakipKartAsync(8);
-        Assert.Equal(0m, kart.Harcamalar.Single().KasadaSayilanDuzeltme); Assert.Null(kart.Odemeler.Single().AvansKaynakOdemeId);
+        Assert.Equal(0m, kart.Harcamalar.Single().KasadaSayilanDuzeltme);
+        Assert.Null(kart.Odemeler.Single().AvansKaynakOdemeId);
         var devir = await client.TakipKartDevirAsync(8);
-        Assert.Null(devir.HarcamaId); Assert.Equal((20m, 10m, true), (devir.RaporDisiTutar, devir.AcilisBorcu, devir.Duzeltilebilir));
+        Assert.Null(devir.HarcamaId);
+        Assert.Equal((20m, 10m, true), (devir.RaporDisiTutar, devir.AcilisBorcu, devir.Duzeltilebilir));
     }
 }

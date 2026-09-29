@@ -30,9 +30,13 @@ public partial class TemelViewModel : ObservableObject, IYurutmeYuzeyi
         var ui = SynchronizationContext.Current;
         auth.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu)) return;
+            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu))
+                return;
             Yurutucu.GecersizKil();
-            if (ui is not null && SynchronizationContext.Current != ui) ui.Post(_ => sifirla(), null); else sifirla();
+            if (ui is not null && SynchronizationContext.Current != ui)
+                ui.Post(_ => sifirla(), null);
+            else
+                sifirla();
         };
     }
 

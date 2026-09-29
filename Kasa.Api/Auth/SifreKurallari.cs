@@ -26,7 +26,8 @@ public sealed class IzleyiciSifreDurumu(ILogger<IzleyiciSifreDurumu> log)
 
     public void GirisYapildi(string hash, string sifre)
     {
-        if (SifreKurallari.Gecerli(sifre) || _kisaHash == hash) return;
+        if (SifreKurallari.Gecerli(sifre) || _kisaHash == hash)
+            return;
         _kisaHash = hash;
         log.LogWarning("İzleyici şifresi {EnAz}–{EnCok} karakter kuralına uymuyor (kuraldan önce belirlenmiş). Ayarlar'dan kurala uygun yeni bir izleyici şifresi belirleyin.",
             SifreKurallari.EnAz, SifreKurallari.EnCok);

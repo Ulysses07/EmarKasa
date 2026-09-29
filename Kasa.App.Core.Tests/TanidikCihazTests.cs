@@ -36,7 +36,8 @@ public class TanidikCihazTests
             }
             if (yol == "/api/auth/me" && OturumGecerli && istek.Headers.Authorization is not null)
                 return Task.FromResult(Json(HttpStatusCode.OK, """{"rol":"editor","cihaz":"c1.acilis"}"""));
-            if (yol == "/api/auth/logout") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+            if (yol == "/api/auth/logout")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
         }
 

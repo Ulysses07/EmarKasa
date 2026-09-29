@@ -50,7 +50,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     /// bu aramayla bulunur (<see cref="EkstreImportEndpoints"/>).</summary>
     public IReadOnlyList<BenzerKayitDto> Bul(BenzerAramasi a, Func<BenzerKayitDto, bool>? dahil = null, int enFazla = EnFazla)
     {
-        var bas = a.Tarih.AddDays(-GunPenceresi); var son = a.Tarih.AddDays(GunPenceresi);
+        var bas = a.Tarih.AddDays(-GunPenceresi);
+        var son = a.Tarih.AddDays(GunPenceresi);
         var adaylar = new List<(BenzerKayitDto Kayit, int Sira)>();
         if (a.Tur == "KartHarcama" || a.Tur is "Gider" or "AlisOdeme" && a.KrediKartiId is not null)
         {
@@ -63,7 +64,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
             var kartOdemesi = a.Tur == "KartOdeme";
             adaylar.AddRange(Giderler(a, bas, son, null).Select(k => (k, 0)));
             adaylar.AddRange(KartOdemeleri(a, bas, son, kartOdemesi ? a.KrediKartiId : null));
-            if (!kartOdemesi) adaylar.AddRange(KrediTaksitleri(a, bas, son));
+            if (!kartOdemesi)
+                adaylar.AddRange(KrediTaksitleri(a, bas, son));
         }
         return adaylar.Where(x => dahil is null || dahil(x.Kayit))
             .OrderBy(x => Math.Abs(x.Kayit.Tarih.DayNumber - a.Tarih.DayNumber)).ThenBy(x => x.Sira).ThenByDescending(x => x.Kayit.Id)
@@ -104,7 +106,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     {
         var giderler = db.Islemler.AsNoTracking()
             .Where(i => i.KrediKartiId == kart && i.TutarTl == a.Tutar && i.Tarih >= bas && i.Tarih <= son).ToList();
-        if (giderler.Count == 0) return [];
+        if (giderler.Count == 0)
+            return [];
         var ids = giderler.Select(i => i.Id).ToArray();
         var ekstre = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.IslemId != null && ids.Contains(k.IslemId.Value)).ToList()
             .GroupBy(k => k.IslemId!.Value).ToDictionary(g => g.Key, g => g.First());
@@ -127,7 +130,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
             if (bagliAlis.TryGetValue(i.Id, out var alis))
                 return alis.Durum != AlisDurumlari.Onaylandi ? (null, Kanallar.DagilimBekliyor)
                     : Belirli(alisPaylari[alis.Id].TryGetValue(i.Id, out var paylar) ? paylar.Where(p => p.Tutar > 0).Select(p => p.KanalId) : []);
-            if (i.KanalId is { } kanal) return Belirli([kanal]);
+            if (i.KanalId is { } kanal)
+                return Belirli([kanal]);
             return (null, string.IsNullOrWhiteSpace(i.Kanal) ? Belirsiz : i.Kanal);
         }
         (IReadOnlySet<int>? Kume, string Etiket) Belirli(IEnumerable<int> kanallar)
@@ -141,7 +145,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         {
             var (kume, etiket) = Kanal(i);
             var alis = bagliAlis.GetValueOrDefault(i.Id);
-            if (Gorunur(a, kume) || a.AlisId is { } alisId && alis?.Id == alisId) sonuc.Add(new("Islem", i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId, alis?.Id, etiket, ekstre.GetValueOrDefault(i.Id)?.Id, aylik.GetValueOrDefault(i.Id)?.Id));
+            if (Gorunur(a, kume) || a.AlisId is { } alisId && alis?.Id == alisId)
+                sonuc.Add(new("Islem", i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId, alis?.Id, etiket, ekstre.GetValueOrDefault(i.Id)?.Id, aylik.GetValueOrDefault(i.Id)?.Id));
         }
         return sonuc;
     }
@@ -151,7 +156,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         // Giderden türeyen takip harcaması (IslemId) gider olarak zaten listelenir; aynı para iki kez gösterilmez.
         var harcamalar = db.TakipHarcamalar.AsNoTracking()
             .Where(h => h.KrediKartiId == kart && !h.Iptal && h.IslemId == null && h.Tutar == a.Tutar && h.Tarih >= bas && h.Tarih <= son).ToList();
-        if (harcamalar.Count == 0) return [];
+        if (harcamalar.Count == 0)
+            return [];
         var ids = harcamalar.Select(h => h.Id).ToArray();
         var ekstre = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.KartHarcamaId != null && ids.Contains(k.KartHarcamaId.Value))
             .Select(k => new { k.Id, Harcama = k.KartHarcamaId!.Value }).ToList().GroupBy(k => k.Harcama).ToDictionary(g => g.Key, g => g.First().Id);
@@ -163,9 +169,12 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     {
         var takip = db.TakipKartOdemeler.AsNoTracking().Where(p => !p.Iptal && p.Tutar == a.Tutar && p.Tarih >= bas && p.Tarih <= son);
         var eski = db.KartOdemeler.AsNoTracking().Where(p => p.Tutar == a.Tutar && p.Tarih >= bas && p.Tarih <= son);
-        if (kart is { } id) { takip = takip.Where(p => p.KrediKartiId == id); eski = eski.Where(p => p.KrediKartiId == id); }
-        var odemeler = takip.ToList(); var eskiOdemeler = eski.ToList();
-        if (odemeler.Count == 0 && eskiOdemeler.Count == 0) return [];
+        if (kart is { } id)
+        { takip = takip.Where(p => p.KrediKartiId == id); eski = eski.Where(p => p.KrediKartiId == id); }
+        var odemeler = takip.ToList();
+        var eskiOdemeler = eski.ToList();
+        if (odemeler.Count == 0 && eskiOdemeler.Count == 0)
+            return [];
         var kartIds = odemeler.Select(p => p.KrediKartiId).Concat(eskiOdemeler.Select(p => p.KrediKartiId)).Distinct().ToArray();
         var kartAdlari = db.KrediKartlari.AsNoTracking().Where(k => kartIds.Contains(k.Id)).ToDictionary(k => k.Id, k => k.Ad);
         var odemeIds = odemeler.Select(p => p.Id).ToArray();
@@ -208,7 +217,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     /// olmayan eski kayıtta hesap motoru kanalı adıyla eşlediğinden ad kayıtlı kanala çözülür. Ortak ya da bilinmeyen ad null.</summary>
     private List<(int KrediId, int No, DateOnly Tarih, decimal Tutar, string Ad, string Kanal, int? KanalId)> EskiTaksitler()
     {
-        if (_eskiTaksitler is not null) return _eskiTaksitler;
+        if (_eskiTaksitler is not null)
+            return _eskiTaksitler;
         var takip = db.TakipKrediler.AsNoTracking().ToDictionary(t => t.KrediId);
         _eskiTaksitler = [];
         foreach (var kredi in db.Krediler.AsNoTracking().Include(k => k.KanalKaydi).Where(k => !k.GerceklesmeTakibi).ToList())
@@ -230,7 +240,8 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     private (IReadOnlySet<int>? Kume, string? Etiket) Kume(IEnumerable<int> ids)
     {
         var kume = ids.ToHashSet();
-        if (kume.Count == 0) return (null, null);
+        if (kume.Count == 0)
+            return (null, null);
         var kanallar = Kanallari();
         var adlar = kume.Select(id => kanallar.TryGetValue(id, out var k) ? k : ($"Kanal #{id}", int.MaxValue))
             .OrderBy(k => k.Item2).ThenBy(k => k.Item1, StringComparer.Ordinal).Select(k => k.Item1);

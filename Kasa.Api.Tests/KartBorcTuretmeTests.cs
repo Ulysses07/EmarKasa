@@ -27,7 +27,10 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
 
         await client.PostAsJsonAsync("/api/kartodemeler", new
         {
-            krediKartiId = kart.Id, tarih = "2026-07-20", tutar = 200m, not = (string?)null,
+            krediKartiId = kart.Id,
+            tarih = "2026-07-20",
+            tutar = 200m,
+            not = (string?)null,
         });
 
         var liste = await client.GetFromJsonAsync<List<KartYanit>>("/api/kredikartlari");
@@ -50,8 +53,13 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
 
         var olustur = await client.PostAsJsonAsync("/api/islemler", new
         {
-            tarih = "2026-07-11", cari = "X", tutarTl = 90m, kanal = "MEZAT",
-            tip = "Cari", not = (string?)null, krediKartiId = kart!.Id,
+            tarih = "2026-07-11",
+            cari = "X",
+            tutarTl = 90m,
+            kanal = "MEZAT",
+            tip = "Cari",
+            not = (string?)null,
+            krediKartiId = kart!.Id,
         });
         var olusan = await olustur.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         Assert.Equal("KrediKarti", olusan.GetProperty("tip").GetString());

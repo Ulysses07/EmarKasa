@@ -133,7 +133,8 @@ public partial class MauiKayitTutarliligiTests
                 var ad = Path.GetFileNameWithoutExtension(dosya);
                 if (SayfaTuru(ad) is not { } kok)
                 {
-                    if (!File.ReadAllText(dosya + ".cs").Contains("BindingContext")) continue; // bağlamını kullanıldığı yerden alan görünüm
+                    if (!File.ReadAllText(dosya + ".cs").Contains("BindingContext"))
+                        continue; // bağlamını kullanıldığı yerden alan görünüm
                     Hatalar.Add($"{ad}: kod-arkasındaki BindingContext ataması çözülemedi.");
                     continue;
                 }
@@ -145,28 +146,34 @@ public partial class MauiKayitTutarliligiTests
         public void Denetle(XDocument belge, string dosya, Type? kok)
         {
             var adlar = new Dictionary<string, Type?>();
-            if (belge.Root!.Attribute(Xaml + "Name")?.Value is { } kokAdi) adlar[kokAdi] = kok;
+            if (belge.Root!.Attribute(Xaml + "Name")?.Value is { } kokAdi)
+                adlar[kokAdi] = kok;
             Yuru(belge.Root, dosya, kok, null, adlar);
         }
 
         private void Yuru(XElement el, string dosya, Type? baglam, Type? sablon, Dictionary<string, Type?> adlar)
         {
             var ad = el.Name.LocalName;
-            if (ad == "DataTemplate") baglam = sablon;
+            if (ad == "DataTemplate")
+                baglam = sablon;
             if (ad.Contains('.'))
             {
                 // Özellik öğesi (CollectionView.ItemTemplate, Label.FormattedText ...): bağlam değişmez; kabuk şablonları hariç.
-                if (KabukSablonlari.TryGetValue(ad, out var kabuk)) sablon = kabuk;
-                foreach (var c in el.Elements()) Yuru(c, dosya, baglam, sablon, adlar);
+                if (KabukSablonlari.TryGetValue(ad, out var kabuk))
+                    sablon = kabuk;
+                foreach (var c in el.Elements())
+                    Yuru(c, dosya, baglam, sablon, adlar);
                 return;
             }
-            if (el.Attribute("BindingContext") is { } bc && Baglama(bc.Value)) baglam = Degerlendir(bc, dosya, baglam, adlar);
+            if (el.Attribute("BindingContext") is { } bc && Baglama(bc.Value))
+                baglam = Degerlendir(bc, dosya, baglam, adlar);
             Type? oge = null;
             foreach (var kaynak in el.Attributes().Where(a => a.Name.LocalName is "ItemsSource" or "BindableLayout.ItemsSource" && Baglama(a.Value)))
                 oge = Eleman(dosya, kaynak, Degerlendir(kaynak, dosya, baglam, adlar));
             foreach (var a in el.Attributes().Where(a => Baglama(a.Value) && a.Name.LocalName is not ("BindingContext" or "ItemsSource" or "BindableLayout.ItemsSource")))
                 Degerlendir(a, dosya, a.Name.LocalName == "ItemDisplayBinding" ? oge : baglam, adlar, oge is null && a.Name.LocalName == "ItemDisplayBinding" ? "ItemsSource öğe türü bilinmiyor" : null);
-            if (el.Attribute(Xaml + "Name")?.Value is { } isim) adlar.TryAdd(isim, baglam);
+            if (el.Attribute(Xaml + "Name")?.Value is { } isim)
+                adlar.TryAdd(isim, baglam);
             if (el.Attribute("Style")?.Value is { } stil && StaticResource().Match(stil) is { Success: true } s && _stilBaglamalari.TryGetValue(s.Groups[1].Value, out var stilBaglamalari))
                 foreach (var (yol, anahtar) in stilBaglamalari)
                 {
@@ -176,7 +183,8 @@ public partial class MauiKayitTutarliligiTests
             if (el.Name.NamespaceName == GorunumAdAlani && File.Exists(Path.Combine(uygulama, "Views", ad + ".xaml")) && SayfaTuru(ad) is null)
                 foreach (var c in Yukle(Path.Combine(uygulama, "Views", ad + ".xaml")).Root!.Elements())
                     Yuru(c, ad + ".xaml", baglam, null, new Dictionary<string, Type?>());
-            foreach (var c in el.Elements()) Yuru(c, dosya, baglam, oge ?? sablon, adlar);
+            foreach (var c in el.Elements())
+                Yuru(c, dosya, baglam, oge ?? sablon, adlar);
         }
 
         /// <summary>Bağlamayı çözer, sonucun türünü döndürür (çözülemezse null ve hata).</summary>
@@ -185,27 +193,35 @@ public partial class MauiKayitTutarliligiTests
             Degerlendirilen.Add(Anahtar(dosya, a));
             var yer = $"{dosya}:{Satir(a)} {a.Name.LocalName}=\"{a.Value}\"";
             var (yol, kaynak, desteksiz) = Ayristir(a.Value);
-            if (desteksiz is not null) { Hatalar.Add($"{yer}: desteklenmeyen bağlama ({desteksiz})."); return null; }
+            if (desteksiz is not null)
+            { Hatalar.Add($"{yer}: desteklenmeyen bağlama ({desteksiz})."); return null; }
             if (kaynak is not null)
             {
-                if (!adlar.TryGetValue(kaynak, out var hedef)) { Hatalar.Add($"{yer}: x:Reference '{kaynak}' bulunamadı."); return null; }
-                if (!yol.StartsWith("BindingContext.")) { Hatalar.Add($"{yer}: x:Reference ile yalnız BindingContext.X yolu denetlenebilir."); return null; }
+                if (!adlar.TryGetValue(kaynak, out var hedef))
+                { Hatalar.Add($"{yer}: x:Reference '{kaynak}' bulunamadı."); return null; }
+                if (!yol.StartsWith("BindingContext."))
+                { Hatalar.Add($"{yer}: x:Reference ile yalnız BindingContext.X yolu denetlenebilir."); return null; }
                 return Coz(yol["BindingContext.".Length..], hedef, yer);
             }
-            if (baglam is null) { Hatalar.Add($"{yer}: bağlam türü bilinmiyor ({baglamYokNedeni ?? "sayfa kökü ya da DataTemplate öğe türü çözülemedi"})."); return null; }
+            if (baglam is null)
+            { Hatalar.Add($"{yer}: bağlam türü bilinmiyor ({baglamYokNedeni ?? "sayfa kökü ya da DataTemplate öğe türü çözülemedi"})."); return null; }
             return Coz(yol, baglam, yer);
         }
 
         private Type? Coz(string yol, Type? tur, string yer)
         {
-            if (tur is null) { Hatalar.Add($"{yer}: bağlam türü bilinmiyor."); return null; }
-            if (yol == ".") return tur;
+            if (tur is null)
+            { Hatalar.Add($"{yer}: bağlam türü bilinmiyor."); return null; }
+            if (yol == ".")
+                return tur;
             foreach (var parca in yol.Split('.'))
             {
-                if (parca.Contains('[')) { Hatalar.Add($"{yer}: dizinli yol desteklenmiyor ({yol})."); return null; }
+                if (parca.Contains('['))
+                { Hatalar.Add($"{yer}: dizinli yol desteklenmiyor ({yol})."); return null; }
                 var t = Nullable.GetUnderlyingType(tur!) ?? tur!;
                 var ozellik = Ozellik(t, parca);
-                if (ozellik is null) { Hatalar.Add($"{yer}: {t.Name} türünde '{parca}' özelliği yok ({yol})."); return null; }
+                if (ozellik is null)
+                { Hatalar.Add($"{yer}: {t.Name} türünde '{parca}' özelliği yok ({yol})."); return null; }
                 tur = ozellik.PropertyType;
             }
             return tur;
@@ -219,7 +235,8 @@ public partial class MauiKayitTutarliligiTests
 
         private Type? Eleman(string dosya, XAttribute kaynak, Type? tur)
         {
-            if (tur is null) return null;
+            if (tur is null)
+                return null;
             var eleman = tur.IsArray ? tur.GetElementType()
                 : (tur.IsGenericType && tur.GetGenericTypeDefinition() == typeof(IEnumerable<>) ? tur : tur.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>)))?.GetGenericArguments()[0];
             if (eleman is null || tur == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(tur))
@@ -230,10 +247,13 @@ public partial class MauiKayitTutarliligiTests
         private Type? SayfaTuru(string sayfa)
         {
             var kod = Path.Combine(uygulama, "Views", sayfa + ".xaml.cs");
-            if (!File.Exists(kod)) return null;
+            if (!File.Exists(kod))
+                return null;
             var metin = File.ReadAllText(kod);
-            if (SayfaBaglami().Match(metin) is not { Success: true } atama) return null;
-            if (new Regex($@"public {sayfa}\(([^)]*)\)").Match(metin) is not { Success: true } kurucu) return null;
+            if (SayfaBaglami().Match(metin) is not { Success: true } atama)
+                return null;
+            if (new Regex($@"public {sayfa}\(([^)]*)\)").Match(metin) is not { Success: true } kurucu)
+                return null;
             var parametre = kurucu.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                 .Select(p => p.Split(' ', StringSplitOptions.RemoveEmptyEntries)).FirstOrDefault(p => p.Length == 2 && p[1] == atama.Groups[1].Value);
             return parametre is null ? null : _cekirdek.GetTypes().SingleOrDefault(t => t.Name == parametre[0]);
@@ -252,7 +272,8 @@ public partial class MauiKayitTutarliligiTests
                         .Select(a => (Ayristir(a.Value).Yol, Anahtar(Path.GetFileName(dosya), a))).ToList();
                     if (stil.Attribute(Xaml + "Key")?.Value is not { } anahtar)
                     {
-                        if (baglamalar.Count > 0) hatalar.Add($"{Path.GetFileName(dosya)}:{Satir(stil)}: anahtarsız stilde bağlama denetlenemez.");
+                        if (baglamalar.Count > 0)
+                            hatalar.Add($"{Path.GetFileName(dosya)}:{Satir(stil)}: anahtarsız stilde bağlama denetlenemez.");
                         continue;
                     }
                     var temel = stil.Attribute("BasedOn")?.Value is { } b && StaticResource().Match(b) is { Success: true } m ? m.Groups[1].Value : null;
@@ -267,21 +288,32 @@ public partial class MauiKayitTutarliligiTests
         private static (string Yol, string? Kaynak, string? Desteksiz) Ayristir(string deger)
         {
             var ic = deger.Trim()["{Binding".Length..^1];
-            string yol = "."; string? kaynak = null; string? desteksiz = null;
+            string yol = ".";
+            string? kaynak = null;
+            string? desteksiz = null;
             var ilk = true;
             foreach (var parca in UstDuzeyBol(ic).Select(p => p.Trim()).Where(p => p.Length > 0))
             {
                 var esit = UstDuzeyEsittir(parca);
-                if (esit < 0) { if (ilk) yol = parca; ilk = false; continue; }
+                if (esit < 0)
+                { if (ilk) yol = parca; ilk = false; continue; }
                 ilk = false;
-                var anahtar = parca[..esit].Trim(); var d = parca[(esit + 1)..].Trim();
+                var anahtar = parca[..esit].Trim();
+                var d = parca[(esit + 1)..].Trim();
                 switch (anahtar)
                 {
-                    case "Path": yol = d; break;
-                    case "Source":
-                        if (ReferansKaynagi().Match(d) is { Success: true } r) kaynak = r.Groups[1].Value; else desteksiz = parca;
+                    case "Path":
+                        yol = d;
                         break;
-                    case "RelativeSource": desteksiz = parca; break;
+                    case "Source":
+                        if (ReferansKaynagi().Match(d) is { Success: true } r)
+                            kaynak = r.Groups[1].Value;
+                        else
+                            desteksiz = parca;
+                        break;
+                    case "RelativeSource":
+                        desteksiz = parca;
+                        break;
                 }
             }
             return (yol, kaynak, desteksiz);
@@ -289,13 +321,18 @@ public partial class MauiKayitTutarliligiTests
 
         private static IEnumerable<string> UstDuzeyBol(string s)
         {
-            int derinlik = 0, bas = 0; var tirnak = false;
+            int derinlik = 0, bas = 0;
+            var tirnak = false;
             for (var i = 0; i < s.Length; i++)
             {
-                if (s[i] == '\'') tirnak = !tirnak;
-                else if (!tirnak && s[i] == '{') derinlik++;
-                else if (!tirnak && s[i] == '}') derinlik--;
-                else if (!tirnak && derinlik == 0 && s[i] == ',') { yield return s[bas..i]; bas = i + 1; }
+                if (s[i] == '\'')
+                    tirnak = !tirnak;
+                else if (!tirnak && s[i] == '{')
+                    derinlik++;
+                else if (!tirnak && s[i] == '}')
+                    derinlik--;
+                else if (!tirnak && derinlik == 0 && s[i] == ',')
+                { yield return s[bas..i]; bas = i + 1; }
             }
             yield return s[bas..];
         }
@@ -304,8 +341,10 @@ public partial class MauiKayitTutarliligiTests
         {
             for (var i = 0; i < parca.Length; i++)
             {
-                if (parca[i] is '{' or '\'') return -1;
-                if (parca[i] == '=') return i;
+                if (parca[i] is '{' or '\'')
+                    return -1;
+                if (parca[i] == '=')
+                    return i;
             }
             return -1;
         }

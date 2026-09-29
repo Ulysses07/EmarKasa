@@ -80,7 +80,12 @@ public class CrudTests : IClassFixture<KasaWebFactory>
         // Yazma yasak:
         var yazma = await izleyici.PostAsJsonAsync("/api/islemler", new
         {
-            tarih = "2026-06-29", cari = "X", tutarTl = 1m, kanal = "MEZAT", tip = "Cari", not = (string?)null,
+            tarih = "2026-06-29",
+            cari = "X",
+            tutarTl = 1m,
+            kanal = "MEZAT",
+            tip = "Cari",
+            not = (string?)null,
         });
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }

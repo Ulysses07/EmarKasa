@@ -8,15 +8,19 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
     private int? _kaynakKayitId;
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
-        if (query.TryGetValue("KayitId", out var value) && int.TryParse(value.ToString(), out var id) && id > 0) _kaynakKayitId = id;
+        if (query.TryGetValue("KayitId", out var value) && int.TryParse(value.ToString(), out var id) && id > 0)
+            _kaynakKayitId = id;
     }
     protected override async void OnAppearing()
     {
         if (_kaynakKayitId is { } id)
         {
-            _kaynakKayitId = null; var oturum = Vm.OturumNesli;
-            if (!Vm.VeriHazir) await Vm.YukleAsync();
-            if (Vm.OturumNesli == oturum && Vm.VeriHazir) await Vm.KaynakAcAsync(id);
+            _kaynakKayitId = null;
+            var oturum = Vm.OturumNesli;
+            if (!Vm.VeriHazir)
+                await Vm.YukleAsync();
+            if (Vm.OturumNesli == oturum && Vm.VeriHazir)
+                await Vm.KaynakAcAsync(id);
         }
         base.OnAppearing();
     }
@@ -35,9 +39,16 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
         liste.ItemTemplate = new DataTemplate(() =>
         {
             var grid = new Grid { Padding = new Thickness(2, 10), ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
-            var sec = new CheckBox(); sec.SetBinding(CheckBox.IsCheckedProperty, nameof(EkstreSatirEditor.Secili)); sec.SetBinding(IsEnabledProperty, nameof(EkstreSatirEditor.Secilebilir)); grid.Add(sec);
-            var metin = Bagli(nameof(EkstreSatirEditor.Ozet)); metin.VerticalOptions = LayoutOptions.Center; grid.Add(metin, 1);
-            var duzenle = new Button { Text = "İncele / düzenle" }; duzenle.Clicked += (_, _) => { if (duzenle.BindingContext is EkstreSatirEditor s) vm.SeciliSatir = s; }; grid.Add(duzenle, 2);
+            var sec = new CheckBox();
+            sec.SetBinding(CheckBox.IsCheckedProperty, nameof(EkstreSatirEditor.Secili));
+            sec.SetBinding(IsEnabledProperty, nameof(EkstreSatirEditor.Secilebilir));
+            grid.Add(sec);
+            var metin = Bagli(nameof(EkstreSatirEditor.Ozet));
+            metin.VerticalOptions = LayoutOptions.Center;
+            grid.Add(metin, 1);
+            var duzenle = new Button { Text = "İncele / düzenle" };
+            duzenle.Clicked += (_, _) => { if (duzenle.BindingContext is EkstreSatirEditor s) vm.SeciliSatir = s; };
+            grid.Add(duzenle, 2);
             return grid;
         });
         Govde.Add(Editor(Goster(Kart("2. Hareket satırları",
@@ -55,7 +66,8 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
     }
     private void SatirFormunuKur()
     {
-        if (Vm.SeciliSatir is not { } s) { _satirFormu.Content = null; return; }
+        if (Vm.SeciliSatir is not { } s)
+        { _satirFormu.Content = null; return; }
         var form = Kart($"Satır {s.Kaynak.No}", Bagli(nameof(s.KaynakMetni)), Bagli(nameof(s.Uyarilar)),
             Alan("Tarih (yıl-ay-gün)", Girdi(nameof(s.TarihMetni))),
             Alan("Açıklama", Girdi(nameof(s.Aciklama))),
@@ -64,20 +76,31 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
             Goster(Alan("Kart ödemesinde kullanılacak kart", Secim(nameof(s.Kartlar), nameof(s.Kart))), nameof(s.KartSecimiGorunur)),
             Goster(Alan("İadenin kaynak harcaması", Secim(nameof(s.KaynakHarcamalar), nameof(s.KaynakHarcama), "Baslik")), nameof(s.IadeMi)),
             // Mevcut kayıtla eşleştirme yeni kayıt üretmez: kanal dağılımı yerine bağlanacak kayıt seçilir.
-            Goster(new VerticalStackLayout { Spacing = 8, Children = {
+            Goster(new VerticalStackLayout
+            {
+                Spacing = 8,
+                Children = {
                 Metin("Bu satır yeni kayıt oluşturmaz; aynı tutarda, en çok 3 gün farklı tarihli mevcut bir kayda bağlanır. Kasa ve kart borcu değişmez; iptali de hiçbir kaydı değiştirmez."),
                 Tikla("Eşleşme adaylarını getir", () => Vm.EslesmeAdaylariniGetirCommand.ExecuteAsync(null)),
-                Alan("Bağlanacak mevcut kayıt", Secim(nameof(s.EslesmeAdaylari), nameof(s.SeciliAday), "Baslik")) } }, nameof(s.EslesmeMi)),
-            Goster(new VerticalStackLayout { Spacing = 8, Children = {
+                Alan("Bağlanacak mevcut kayıt", Secim(nameof(s.EslesmeAdaylari), nameof(s.SeciliAday), "Baslik")) }
+            }, nameof(s.EslesmeMi)),
+            Goster(new VerticalStackLayout
+            {
+                Spacing = 8,
+                Children = {
                 Alan("Kanal dağılımı", Secim(nameof(s.DagilimTurleri), nameof(s.DagilimTuru))),
-                Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."), Paylar(s.Paylar, s.PayEkle) } }, nameof(s.DagilimGorunur)));
-        form.BindingContext = s; _satirFormu.Content = form;
+                Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."), Paylar(s.Paylar, s.PayEkle) }
+            }, nameof(s.DagilimGorunur)));
+        form.BindingContext = s;
+        _satirFormu.Content = form;
     }
     // Yalnız PDF, 10 MB sınırı ve oturum koruması EkstreAktarmaViewModel.PdfSecVeYukleAsync'tedir (maui-8); sayfa yalnız dosya
     // seçiciyi açar.
     private async Task PdfSecAsync()
     {
-        var secim = Vm.YuklemeSecimi(); if (secim is null) return;
+        var secim = Vm.YuklemeSecimi();
+        if (secim is null)
+            return;
         await Vm.PdfSecVeYukleAsync(secim, async () =>
         {
             var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Banka veya kart PDF ekstresini seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf" } }) });
@@ -86,9 +109,15 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
     }
     private async Task KaydiIptalAsync(EkstreKayitSatiri s)
     {
-        var oturum = Vm.OturumNesli; var belgeId = Vm.Belge?.Id; if (belgeId is null) return;
-        var gerekce = await GerekceAsync("Aktarılan kaydı iptal et"); if (string.IsNullOrWhiteSpace(gerekce)) return;
-        if (!await DisplayAlertAsync("İptali onayla", $"{s.Baslik}\nBu kaydın mali etkisi iptal edilecek. Kaynak PDF ve işlem geçmişi korunur.", "İptal et", "Vazgeç")) return;
+        var oturum = Vm.OturumNesli;
+        var belgeId = Vm.Belge?.Id;
+        if (belgeId is null)
+            return;
+        var gerekce = await GerekceAsync("Aktarılan kaydı iptal et");
+        if (string.IsNullOrWhiteSpace(gerekce))
+            return;
+        if (!await DisplayAlertAsync("İptali onayla", $"{s.Baslik}\nBu kaydın mali etkisi iptal edilecek. Kaynak PDF ve işlem geçmişi korunur.", "İptal et", "Vazgeç"))
+            return;
         await Vm.KayitIptalAsync(s, gerekce, oturum, belgeId.Value);
     }
 }

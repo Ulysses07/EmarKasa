@@ -37,9 +37,11 @@ public static class EkstreImportEndpoints
         api.MapGet("/{id:int}/dosya", (int id, KasaDbContext db, BelgeDeposu depo, HttpResponse response, ILoggerFactory loglar) =>
         {
             var d = db.EkstreBelgeler.AsNoTracking().SingleOrDefault(d => d.Id == id);
-            if (d is null) return Results.NotFound();
+            if (d is null)
+                return Results.NotFound();
             Stream akis;
-            try { akis = depo.Ac(d.DosyaOzeti); }
+            try
+            { akis = depo.Ac(d.DosyaOzeti); }
             catch (BelgeDosyasiYokException)
             {
                 loglar.CreateLogger("Kasa.Api.EkstreImportEndpoints").LogError("Ekstre belgesi {Id} dosyası belge deposunda yok ({Ozet}, {Depo}).", id, d.DosyaOzeti, depo.Kok);
@@ -64,7 +66,8 @@ public static class EkstreImportEndpoints
         api.MapPost("/{id:int}/kaydet", (int id, EkstreKaydetYaz dto, KasaDbContext db) => Safe(() => AlisEndpoints.Mutate(db, () =>
         {
             var digest = FinansHesaplari.Ozet(new { id, dto.Satirlar, dto.OnizlemeOzeti, dto.TekrarOnay });
-            if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreKaydet", digest, key => Results.Ok(Document(db, key))) is { } old) return old;
+            if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreKaydet", digest, key => Results.Ok(Document(db, key))) is { } old)
+                return old;
             // Sıra korunmalı: önce kalıcı Sync, sonra önizleme. Önizleme ucu Sync'i geri alınan kayıt noktasında çalıştırır;
             // kaydet yolunda kalıcı Sync önce çalıştığından ikisi aynı durumdan aynı özeti (kart sürümleri dahil) hesaplar
             // (BenzerKayitCaprazTests.Ekstre_onizlemesi_Sync_dahil_kalici_yazmaz_kaydet_ayni_ozetle_yazar).
@@ -79,7 +82,9 @@ public static class EkstreImportEndpoints
                 var applied = dto.Satirlar.Select(row => Apply(db, document, row)).ToList();
                 RefreshPaymentSnapshots(db, applied);
                 document.Surum++;
-                FinansHesaplari.IstekKaydet(db, dto.IstekId, "EkstreKaydet", digest, id); db.SaveChanges(); Sync(db);
+                FinansHesaplari.IstekKaydet(db, dto.IstekId, "EkstreKaydet", digest, id);
+                db.SaveChanges();
+                Sync(db);
             }
             finally { db.EkstreDegisikligi = false; }
             return Results.Ok(Document(db, id));
@@ -91,7 +96,8 @@ public static class EkstreImportEndpoints
             var gecersiz = GirdiDogrulama.GecersizKarakterIletisi(dto.Aciklama);
             Require(gecersiz is null, $"İptal gerekçesi: {gecersiz}");
             var digest = FinansHesaplari.Ozet(new { id, kayitId, Aciklama = dto.Aciklama.Trim() });
-            if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreIptal", digest, key => Results.Ok(Document(db, key))) is { } old) return old;
+            if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreIptal", digest, key => Results.Ok(Document(db, key))) is { } old)
+                return old;
             var document = GetDocument(db, id);
             var row = db.EkstreKayitlar.SingleOrDefault(k => k.Id == kayitId && k.BelgeId == id);
             Require(row is not null, "Ekstre kaydı bulunamadı.", 404);
@@ -104,12 +110,20 @@ public static class EkstreImportEndpoints
             try
             {
                 // Eşleşme satırının sahiplik sütunları boştur: iptali hiçbir kaydı ve kart borcunu değiştirmez, yalnız bağı kaldırır.
-                if (row.IslemId is { } expense) db.Islemler.Remove(db.Islemler.Single(i => i.Id == expense));
-                if (row.KartHarcamaId is { } charge) FinansTakipEndpoints.CancelCardCharge(db, row.KrediKartiId!.Value, charge, dto.Aciklama);
-                if (row.KartOdemeId is { } payment) db.TakipKartOdemeler.Single(p => p.Id == payment).Iptal = true;
-                if (row.EslesmeTuru is null && row.KrediKartiId is { } card) db.TakipKartlar.Single(t => t.KrediKartiId == card).Surum++;
-                row.Iptal = true; row.IptalAciklamasi = dto.Aciklama.Trim(); document.Surum++;
-                FinansHesaplari.IstekKaydet(db, dto.IstekId, "EkstreIptal", digest, id); db.SaveChanges(); Sync(db);
+                if (row.IslemId is { } expense)
+                    db.Islemler.Remove(db.Islemler.Single(i => i.Id == expense));
+                if (row.KartHarcamaId is { } charge)
+                    FinansTakipEndpoints.CancelCardCharge(db, row.KrediKartiId!.Value, charge, dto.Aciklama);
+                if (row.KartOdemeId is { } payment)
+                    db.TakipKartOdemeler.Single(p => p.Id == payment).Iptal = true;
+                if (row.EslesmeTuru is null && row.KrediKartiId is { } card)
+                    db.TakipKartlar.Single(t => t.KrediKartiId == card).Surum++;
+                row.Iptal = true;
+                row.IptalAciklamasi = dto.Aciklama.Trim();
+                document.Surum++;
+                FinansHesaplari.IstekKaydet(db, dto.IstekId, "EkstreIptal", digest, id);
+                db.SaveChanges();
+                Sync(db);
             }
             finally { db.EkstreDegisikligi = false; }
             return Results.Ok(Document(db, id));
@@ -119,68 +133,107 @@ public static class EkstreImportEndpoints
 
     private static async Task<IResult> Upload(HttpRequest request, KasaDbContext db, IPdfMetinOkuyucu pdf, TimeProvider saat, BelgeDeposu depo, CancellationToken ct)
     {
-        if (request.ContentLength is > FileLimit + 65536) return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
-        if (!request.HasFormContentType) return Error("PDF dosyasını yükleyin.");
+        if (request.ContentLength is > FileLimit + 65536)
+            return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
+        if (!request.HasFormContentType)
+            return Error("PDF dosyasını yükleyin.");
         IFormCollection form;
-        try { form = await request.ReadFormAsync(ct); }
+        try
+        { form = await request.ReadFormAsync(ct); }
         catch (InvalidDataException) { return Error("Dosya boyutu veya yükleme biçimi geçersiz.", 413); }
-        var file = form.Files.GetFile("dosya"); var source = form["kaynak"].ToString(); var bank = form["banka"].ToString();
-        var account = form["hesapAdi"].ToString().Trim(); int? card = int.TryParse(form["kartId"], out var parsed) ? parsed : null;
-        if (source is not ("Kart" or "Banka") || !Banks.Contains(bank)) return Error("Geçerli kaynak ve banka seçin.");
-        if (source == "Banka" && (account.Length is < 1 or > 100 || card is not null)) return Error("Banka hesabına kısa bir ad girin (en fazla 100 karakter).");
-        if (source == "Kart" && (card is null || !db.KrediKartlari.Any(k => k.Id == card))) return Error("Kart seçin.");
-        if (source == "Kart") account = "";
-        if (file is null || file.Length is <= 0 or > FileLimit) return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
+        var file = form.Files.GetFile("dosya");
+        var source = form["kaynak"].ToString();
+        var bank = form["banka"].ToString();
+        var account = form["hesapAdi"].ToString().Trim();
+        int? card = int.TryParse(form["kartId"], out var parsed) ? parsed : null;
+        if (source is not ("Kart" or "Banka") || !Banks.Contains(bank))
+            return Error("Geçerli kaynak ve banka seçin.");
+        if (source == "Banka" && (account.Length is < 1 or > 100 || card is not null))
+            return Error("Banka hesabına kısa bir ad girin (en fazla 100 karakter).");
+        if (source == "Kart" && (card is null || !db.KrediKartlari.Any(k => k.Id == card)))
+            return Error("Kart seçin.");
+        if (source == "Kart")
+            account = "";
+        if (file is null || file.Length is <= 0 or > FileLimit)
+            return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
         byte[] bytes;
         await using (var stream = file.OpenReadStream())
         using (var buffer = new MemoryStream())
         {
-            var block = new byte[81920]; int count;
+            var block = new byte[81920];
+            int count;
             while ((count = await stream.ReadAsync(block, ct)) > 0)
             {
-                if (buffer.Length + count > FileLimit) return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
+                if (buffer.Length + count > FileLimit)
+                    return Error("PDF dosyası en fazla 10 MB olabilir.", 413);
                 await buffer.WriteAsync(block.AsMemory(0, count), ct);
             }
             bytes = buffer.ToArray();
         }
-        if (bytes.Length < 5 || !bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8)) return Error("Geçerli PDF dosyası seçin.");
+        if (bytes.Length < 5 || !bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8))
+            return Error("Geçerli PDF dosyası seçin.");
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         var existing = db.EkstreBelgeler.AsNoTracking().SingleOrDefault(d => d.DosyaOzeti == hash);
         IResult Existing(EkstreBelgeEntity d) => d.Kaynak == source && d.Banka == bank && d.HesapAdi == account && d.KartId == card
             ? Results.Ok(Document(db, d.Id)) : Error("Bu PDF farklı kaynak bilgileriyle yüklenmiş. İlk belgeden devam edin.", 409);
-        if (existing is not null) return Existing(existing);
+        if (existing is not null)
+            return Existing(existing);
         EkstreOkumaSonucu read;
-        try { read = EkstreMetinOkuyucu.Oku(await pdf.OkuAsync(bytes, ct), source, bank); }
+        try
+        { read = EkstreMetinOkuyucu.Oku(await pdf.OkuAsync(bytes, ct), source, bank); }
         catch (PdfOkumaException e) { return Error(e.Message, e.StatusCode); }
-        if (read.Satirlar.Count > 1500) return Error("PDF en fazla 1500 hareket içerebilir.", 422);
-        var rows = Json(read.Satirlar); var warnings = Json(read.Uyarilar);
-        if (rows.Length > 4_000_000 || warnings.Length > 100_000) return Error("PDF metni çok uzun; daha kısa tarih aralığı seçin.", 422);
+        if (read.Satirlar.Count > 1500)
+            return Error("PDF en fazla 1500 hareket içerebilir.", 422);
+        var rows = Json(read.Satirlar);
+        var warnings = Json(read.Uyarilar);
+        if (rows.Length > 4_000_000 || warnings.Length > 100_000)
+            return Error("PDF metni çok uzun; daha kısa tarih aralığı seçin.", 422);
         var name = Path.GetFileName(file.FileName.Replace('\\', '/'));
         name = new string(name.Where(c => !char.IsControl(c)).Take(180).ToArray());
-        if (string.IsNullOrWhiteSpace(name)) name = "ekstre.pdf";
-        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) name += ".pdf";
+        if (string.IsNullOrWhiteSpace(name))
+            name = "ekstre.pdf";
+        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            name += ".pdf";
         // PDF, yazma kilidi alınmadan belge deposuna yazılır (diske işlenmiş); satır ondan sonra eklenir. Satır kaydedilemezse dosya
         // hiçbir kaydın göstermediği dosya olarak bakımda silinir.
-        if (depo.Yaz(bytes, ct).Ozet != hash) return Error("PDF belge deposuna doğrulanarak yazılamadı. Yeniden deneyin.", 500);
+        if (depo.Yaz(bytes, ct).Ozet != hash)
+            return Error("PDF belge deposuna doğrulanarak yazılamadı. Yeniden deneyin.", 500);
         return Safe(() => AlisEndpoints.Mutate(db, () =>
         {
-            var old = db.EkstreBelgeler.SingleOrDefault(d => d.DosyaOzeti == hash); if (old is not null) return Existing(old);
-            var d = new EkstreBelgeEntity { Kaynak = source, Banka = bank, HesapAdi = account, KartId = card,
-                DosyaAdi = name, DosyaOzeti = hash, Yuklendi = saat.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = rows, UyarilarJson = warnings };
-            db.EkstreBelgeler.Add(d); db.SaveChanges(); return Results.Ok(Document(db, d.Id));
+            var old = db.EkstreBelgeler.SingleOrDefault(d => d.DosyaOzeti == hash);
+            if (old is not null)
+                return Existing(old);
+            var d = new EkstreBelgeEntity
+            {
+                Kaynak = source,
+                Banka = bank,
+                HesapAdi = account,
+                KartId = card,
+                DosyaAdi = name,
+                DosyaOzeti = hash,
+                Yuklendi = saat.GetUtcNow().ToUnixTimeMilliseconds(),
+                SatirlarJson = rows,
+                UyarilarJson = warnings
+            };
+            db.EkstreBelgeler.Add(d);
+            db.SaveChanges();
+            return Results.Ok(Document(db, d.Id));
         }));
     }
 
     private sealed record KartSurumu(int KrediKartiId, int Surum);
     private static EkstreOnizlemeDto Preview(KasaDbContext db, int id, EkstreKaydetYaz dto)
     {
-        List<KartSurumu> cardVersions = []; DateOnly? locked = null;
+        List<KartSurumu> cardVersions = [];
+        DateOnly? locked = null;
         var document = GetDocument(db, id);
         Require(document.Surum == dto.Surum, "Belge değişmiş. Yenileyip yeniden önizleyin.", 409);
         Require(dto.Satirlar is { Count: > 0 and <= 1500 } && dto.Satirlar.All(r => r is not null), "İşlenecek satırları seçin.");
         Require(dto.Satirlar.Select(r => r.SatirNo).Distinct().Count() == dto.Satirlar.Count, "Bir kaynak satırı iki kez seçilemez.");
         var sourceRows = Read<EkstreOkunanSatir>(document.SatirlarJson).ToDictionary(r => r.No);
-        var output = new List<EkstreSatirOnizleme>(); var warnings = new List<string>(); bool confirm = false;
+        var output = new List<EkstreSatirOnizleme>();
+        var warnings = new List<string>();
+        bool confirm = false;
         var selected = new List<(EkstreSatirYaz Row, EkstreKayitEntity Applied, List<string> Notices)>();
         // Bu önizlemede az önce uygulanan satırlar (EkstreKayit kimliği → kaynak satır no): benzer kayıt uyarısında adlandırılır.
         var batch = new Dictionary<int, int>();
@@ -205,17 +258,22 @@ public static class EkstreImportEndpoints
                 Require(sourceRows.TryGetValue(row.SatirNo, out var original), "Kaynak satır bu PDF'de bulunamadı.");
                 Validate(db, document, row, original);
                 var notices = original.Uyarilar.ToList();
-                if (original.ParaBirimi == "Belirsiz") notices.Add("Para birimi okunamadı. Bu satırı TL olarak kaydettiğinizi doğrulayın.");
-                if (original.Yon == "Belirsiz") notices.Add("Giriş/çıkış yönü okunamadı; seçtiğiniz işlem türünü doğrulayın.");
+                if (original.ParaBirimi == "Belirsiz")
+                    notices.Add("Para birimi okunamadı. Bu satırı TL olarak kaydettiğinizi doğrulayın.");
+                if (original.Yon == "Belirsiz")
+                    notices.Add("Giriş/çıkış yönü okunamadı; seçtiğiniz işlem türünü doğrulayın.");
                 // Eşleştirme kasa ve kart borcunu değiştirmez, yeni kayıt da üretmez: tür/transfer/benzer kayıt uyarıları ona ait değildir.
                 if (row.IslemTuru != Eslestir)
                 {
-                    if (original.OnerilenIslem != row.IslemTuru) notices.Add("İşlem türü PDF önerisinden farklı; yönünü ve kasaya etkisini kontrol edin.");
-                    if (document.Kaynak == "Banka" && original.Sinif == "Transfer") notices.Add("Kendi hesaplarınız arasındaki transfer genel kasayı değiştirmez; böyle bir satırı seçmeden bırakın. Gelir/gider olarak işlerseniz genel kasa değişir.");
+                    if (original.OnerilenIslem != row.IslemTuru)
+                        notices.Add("İşlem türü PDF önerisinden farklı; yönünü ve kasaya etkisini kontrol edin.");
+                    if (document.Kaynak == "Banka" && original.Sinif == "Transfer")
+                        notices.Add("Kendi hesaplarınız arasındaki transfer genel kasayı değiştirmez; böyle bir satırı seçmeden bırakın. Gelir/gider olarak işlerseniz genel kasa değişir.");
                     notices.AddRange(Duplicates(db, similar, document, row, batch, sameDocument));
                 }
                 var applied = Apply(db, document, row);
-                batch[applied.Id] = row.SatirNo; sameDocument.Add(applied.Id);
+                batch[applied.Id] = row.SatirNo;
+                sameDocument.Add(applied.Id);
                 selected.Add((row, applied, notices));
             }
             // A later selected charge may allocate an earlier payment's advance.
@@ -224,7 +282,8 @@ public static class EkstreImportEndpoints
             foreach (var (row, applied, notices) in selected)
             {
                 var cash = row.IslemTuru switch { "Gelir" => row.Tutar, "Gider" => -row.Tutar, "KartOdemesi" => -PaymentEffect(db, applied).KasaEtkisi, _ => 0m };
-                var distinct = notices.Distinct().ToList(); confirm |= distinct.Count > 0;
+                var distinct = notices.Distinct().ToList();
+                confirm |= distinct.Count > 0;
                 output.Add(new(row.SatirNo, row.Tarih, Aciklama(row), row.Tutar, row.IslemTuru, cash, Read<TakipKanalPayi>(applied.DagilimJson), distinct));
             }
             foreach (var old in db.TakipKartOdemeler.Where(p => oldPayments.Keys.Contains(p.Id)).ToList())
@@ -240,9 +299,13 @@ public static class EkstreImportEndpoints
         }
         finally
         {
-            tx.RollbackToSavepoint("ekstre_preview"); tx.ReleaseSavepoint("ekstre_preview"); db.ChangeTracker.Clear(); db.EkstreDegisikligi = false;
+            tx.RollbackToSavepoint("ekstre_preview");
+            tx.ReleaseSavepoint("ekstre_preview");
+            db.ChangeTracker.Clear();
+            db.EkstreDegisikligi = false;
         }
-        if (confirm) warnings.Add("İşaretli satırların yönünü, tutarını ve benzer kayıtlarını kontrol edin; ayrı kayıt olarak işleneceğini ayrıca onaylayın.");
+        if (confirm)
+            warnings.Add("İşaretli satırların yönünü, tutarını ve benzer kayıtlarını kontrol edin; ayrı kayıt olarak işleneceğini ayrıca onaylayın.");
         var digest = FinansHesaplari.Ozet(new { id, dto.Surum, dto.Satirlar, output, warnings, confirm, cardVersions, locked });
         return new(digest, output.Sum(r => r.KasaEtkisi), output, warnings, confirm);
     }
@@ -257,15 +320,20 @@ public static class EkstreImportEndpoints
         Require(Aciklama(row).Length > 0 && row.Aciklama.Length <= 2000, "Açıklama 1–2000 karakter olmalı.");
         Require(doc.Kaynak == "Banka" ? row.IslemTuru is "Gelir" or "Gider" or "KartOdemesi" or Eslestir : row.IslemTuru is "KartHarcama" or "KartIade" or "KartOdemesi" or Eslestir, "Bu belge kaynağı için geçerli işlem türü seçin.");
         Require(row.Dagilimlar is not null && row.Dagilimlar.All(p => p is not null), "Kanal dağılımı geçersiz.");
-        if (row.IslemTuru == Eslestir) { ValidateMatch(db, doc, row); return; }
+        if (row.IslemTuru == Eslestir)
+        { ValidateMatch(db, doc, row); return; }
         Require(row.EslesenKayitTuru is null && row.EslesenKayitId is null, "Mevcut kayıt yalnız 'Mevcut kayıtla eşleştir' türünde seçilir.");
-        if (row.IslemTuru is "KartOdemesi" or "KartIade") Require(row.DagilimTuru == "Otomatik" && row.Dagilimlar.Count == 0, "Kart ödemesi/iadesi kaynak borçtan otomatik dağılır.");
-        else ResolveShares(db, row);
+        if (row.IslemTuru is "KartOdemesi" or "KartIade")
+            Require(row.DagilimTuru == "Otomatik" && row.Dagilimlar.Count == 0, "Kart ödemesi/iadesi kaynak borçtan otomatik dağılır.");
+        else
+            ResolveShares(db, row);
         Require(row.IslemTuru == "KartIade" || row.KaynakHarcamaId is null, "Kaynak harcama yalnız kart iadesinde seçilir.");
-        if (row.IslemTuru is "Gelir" or "Gider") Require(row.KrediKartiId is null, "Banka gelir/giderinde kart seçilemez.");
+        if (row.IslemTuru is "Gelir" or "Gider")
+            Require(row.KrediKartiId is null, "Banka gelir/giderinde kart seçilemez.");
         else
         {
-            var card = CardId(doc, row); var tracking = FinansTakipEndpoints.ManagedCard(db, card);
+            var card = CardId(doc, row);
+            var tracking = FinansTakipEndpoints.ManagedCard(db, card);
             Require(tracking.Aktif || row.IslemTuru == "KartOdemesi", "Kart yeni harekete kapalı.", 409);
             Require(row.Tarih >= tracking.Baslangic, "Tarih kart takip başlangıcından önce olamaz.");
         }
@@ -293,7 +361,8 @@ public static class EkstreImportEndpoints
         Require(row.DagilimTuru == "Eslesme" && row.Dagilimlar.Count == 0 && row.KaynakHarcamaId is null, "Mevcut kayıtla eşleştirmede kanal dağılımı ve iade kaynağı seçilmez.");
         Require(row.KrediKartiId is null || doc.Kaynak == "Kart" && row.KrediKartiId == doc.KartId, "Eşleştirmede kart seçilmez; kart eşleşen kayıttan okunur.");
         Require(row.EslesenKayitTuru is not null && row.EslesenKayitId is > 0, "Eşleştirilecek mevcut kaydı seçin.");
-        var tur = row.EslesenKayitTuru!; var id = row.EslesenKayitId!.Value;
+        var tur = row.EslesenKayitTuru!;
+        var id = row.EslesenKayitId!.Value;
         bool Yakin(DateOnly t) => Math.Abs(t.DayNumber - row.Tarih.DayNumber) <= BenzerKayitServisi.GunPenceresi;
         const string Uyusmaz = "Seçilen kayıt bu satırla eşleşmiyor: tutarı aynı, tarihi en çok 3 gün farklı olmalı.";
         switch (tur)
@@ -369,8 +438,10 @@ public static class EkstreImportEndpoints
             var gidereBagli = db.TakipHarcamalar.AsNoTracking().Where(h => h.IslemId != null && giderIds.Contains(h.IslemId.Value) && !h.Iptal)
                 .ToDictionary(h => h.IslemId!.Value, h => h.Id);
             foreach (var k in harcamalar)
-                if (k.Kaynak == "KartHarcama") Ekle("KartHarcama", k.Id, k, 0);
-                else if (gidereBagli.TryGetValue(k.Id, out var harcama)) Ekle("KartHarcama", harcama, k, 0, kart);
+                if (k.Kaynak == "KartHarcama")
+                    Ekle("KartHarcama", k.Id, k, 0);
+                else if (gidereBagli.TryGetValue(k.Id, out var harcama))
+                    Ekle("KartHarcama", harcama, k, 0, kart);
             foreach (var t in TaksitAdaylari(db, kart, tarih, tutar).Where(t => !eslesmis.Contains(("KartTaksidi", t.Id))))
                 adaylar.Add((new("KartTaksidi", t.Id, t.KesimTarihi, tutar, $"{t.Aciklama} · {t.HarcamaTarihi:dd.MM.yyyy} harcaması · {t.No}/{t.TaksitSayisi}. taksit", kart,
                     HarcamaId: t.HarcamaId, TaksitNo: t.No, TaksitSayisi: t.TaksitSayisi), Math.Min(Fark(t.HarcamaTarihi), Fark(t.KesimTarihi)), 1));
@@ -395,7 +466,8 @@ public static class EkstreImportEndpoints
                          where h.KrediKartiId == kart && !h.Iptal && h.TaksitSayisi > 1 && t.Tutar == tutar
                          select new { t.Id, t.HarcamaId, h.Aciklama, HarcamaTarihi = h.Tarih, h.TaksitSayisi, e.KesimTarihi }).ToList()
             .Where(t => Fark(t.HarcamaTarihi) <= BenzerKayitServisi.GunPenceresi || Fark(t.KesimTarihi) <= TaksitKesimPenceresi).ToList();
-        if (taksitler.Count == 0) return [];
+        if (taksitler.Count == 0)
+            return [];
         var taksitHarcamalari = taksitler.Select(t => t.HarcamaId).Distinct().ToArray();
         var siralar = db.TakipKartTaksitler.AsNoTracking().Where(t => taksitHarcamalari.Contains(t.HarcamaId)).Select(t => new { t.Id, t.HarcamaId }).ToList()
             .GroupBy(t => t.HarcamaId).SelectMany(g => g.OrderBy(t => t.Id).Select((t, i) => (t.Id, No: i + 1))).ToDictionary(x => x.Id, x => x.No);
@@ -415,12 +487,14 @@ public static class EkstreImportEndpoints
     {
         if (row.DagilimTuru == "Genel")
         {
-            Require(row.IslemTuru is "Gelir" or "Gider" && row.Dagilimlar.Count == 0, "Yalnız banka gelir/gideri genel kasaya yazılabilir."); return [];
+            Require(row.IslemTuru is "Gelir" or "Gider" && row.Dagilimlar.Count == 0, "Yalnız banka gelir/gideri genel kasaya yazılabilir.");
+            return [];
         }
         Require(row.DagilimTuru is "Esit" or "Ozel" && row.Dagilimlar.Count > 0, "Dağıtılacak kanalları seçin.");
         var ids = row.Dagilimlar.Select(p => p.KanalId).ToList();
         Require(ids.Distinct().Count() == ids.Count && db.Kanallar.Count(k => ids.Contains(k.Id)) == ids.Count, "Kayıtlı kanalları birer kez seçin.");
-        if (row.DagilimTuru == "Esit") { Require(row.Dagilimlar.All(p => p.Tutar == 0), "Eşit dağılımda kanal tutarı sıfır gönderilmeli."); return EsitPaylar(ids, row.Tutar); }
+        if (row.DagilimTuru == "Esit")
+        { Require(row.Dagilimlar.All(p => p.Tutar == 0), "Eşit dağılımda kanal tutarı sıfır gönderilmeli."); return EsitPaylar(ids, row.Tutar); }
         Require(row.Dagilimlar.All(p => p.Tutar > 0 && p.Tutar <= row.Tutar && decimal.Round(p.Tutar, 2) == p.Tutar) && row.Dagilimlar.Sum(p => p.Tutar) == row.Tutar, "Kanal tutarları pozitif olmalı ve hareket tutarına eşitlenmeli.");
         return row.Dagilimlar.OrderBy(p => p.KanalId).ToList();
     }
@@ -429,35 +503,59 @@ public static class EkstreImportEndpoints
     {
         Require(doc.Kaynak != "Kart" || row.KrediKartiId is null || row.KrediKartiId == doc.KartId, "Kart belgesinin kartı değiştirilemez.");
         var card = doc.Kaynak == "Kart" ? doc.KartId : row.KrediKartiId;
-        Require(card is > 0, "Ödemenin kartını seçin."); return card.Value;
+        Require(card is > 0, "Ödemenin kartını seçin.");
+        return card.Value;
     }
 
     private static EkstreKayitEntity Apply(KasaDbContext db, EkstreBelgeEntity doc, EkstreSatirYaz row)
     {
         var aciklama = Aciklama(row);
-        var result = new EkstreKayitEntity { BelgeId = doc.Id, SatirNo = row.SatirNo, Tarih = row.Tarih,
-            Aciklama = aciklama, Tutar = row.Tutar, IslemTuru = row.IslemTuru, DagilimTuru = row.DagilimTuru };
+        var result = new EkstreKayitEntity
+        {
+            BelgeId = doc.Id,
+            SatirNo = row.SatirNo,
+            Tarih = row.Tarih,
+            Aciklama = aciklama,
+            Tutar = row.Tutar,
+            IslemTuru = row.IslemTuru,
+            DagilimTuru = row.DagilimTuru
+        };
         if (row.IslemTuru == Eslestir)
         {
             // Yalnız bağ: yeni gider, harcama ya da ödeme yok; kart sürümü ve Sync değişmez.
-            result.EslesmeTuru = row.EslesenKayitTuru; result.EslesmeId = row.EslesenKayitId;
-            if (doc.Kaynak == "Kart") result.KrediKartiId = doc.KartId;
-            db.EkstreKayitlar.Add(result); db.SaveChanges(); return result;
+            result.EslesmeTuru = row.EslesenKayitTuru;
+            result.EslesmeId = row.EslesenKayitId;
+            if (doc.Kaynak == "Kart")
+                result.KrediKartiId = doc.KartId;
+            db.EkstreKayitlar.Add(result);
+            db.SaveChanges();
+            return result;
         }
         if (row.IslemTuru is "Gelir" or "Gider")
         {
-            var shares = Adlandir(db, ResolveShares(db, row)); result.DagilimJson = Json(shares);
+            var shares = Adlandir(db, ResolveShares(db, row));
+            result.DagilimJson = Json(shares);
             if (row.IslemTuru == "Gider")
             {
-                var expense = new IslemEntity { Tarih = row.Tarih, Cari = aciklama, TutarTl = row.Tutar,
-                    Kanal = shares.Count == 1 ? shares[0].Kanal : "Genel kasa", KanalId = shares.Count == 1 ? shares[0].KanalId : null,
-                    Tip = GiderTipi.Cari, Not = "PDF hesap hareketi · " + doc.Banka + " · " + doc.HesapAdi };
-                db.Islemler.Add(expense); db.SaveChanges(); result.IslemId = expense.Id;
+                var expense = new IslemEntity
+                {
+                    Tarih = row.Tarih,
+                    Cari = aciklama,
+                    TutarTl = row.Tutar,
+                    Kanal = shares.Count == 1 ? shares[0].Kanal : "Genel kasa",
+                    KanalId = shares.Count == 1 ? shares[0].KanalId : null,
+                    Tip = GiderTipi.Cari,
+                    Not = "PDF hesap hareketi · " + doc.Banka + " · " + doc.HesapAdi
+                };
+                db.Islemler.Add(expense);
+                db.SaveChanges();
+                result.IslemId = expense.Id;
             }
         }
         else
         {
-            var cardId = CardId(doc, row); result.KrediKartiId = cardId;
+            var cardId = CardId(doc, row);
+            result.KrediKartiId = cardId;
             var track = FinansTakipEndpoints.ManagedCard(db, cardId);
             if (row.IslemTuru == "KartOdemesi")
             {
@@ -466,7 +564,9 @@ public static class EkstreImportEndpoints
                 var allocations = OdemePaylari(db, cardId, row.Tutar, null);
                 result.DagilimJson = Json(OdemeEtkisi(db, cardId, allocations).Dagilimlar);
                 var payment = new TakipKartOdemeEntity { KrediKartiId = cardId, Tarih = row.Tarih, Tutar = row.Tutar, Not = aciklama, PaylarJson = Json(allocations) };
-                db.TakipKartOdemeler.Add(payment); db.SaveChanges(); result.KartOdemeId = payment.Id;
+                db.TakipKartOdemeler.Add(payment);
+                db.SaveChanges();
+                result.KartOdemeId = payment.Id;
             }
             else
             {
@@ -475,11 +575,15 @@ public static class EkstreImportEndpoints
                 FinansTakipEndpoints.ApplyCardCharge(db, cardId, new KartHarcamaYaz(Guid.NewGuid(), track.Surum, row.Tarih, aciklama,
                     refund ? -row.Tutar : row.Tutar, 1, null, shares, row.KaynakHarcamaId));
                 var charge = db.TakipHarcamalar.Where(h => h.KrediKartiId == cardId).OrderByDescending(h => h.Id).First();
-                result.KartHarcamaId = charge.Id; result.DagilimJson = Json(Adlandir(db, Read<KanalPayYaz>(charge.DagilimJson)));
+                result.KartHarcamaId = charge.Id;
+                result.DagilimJson = Json(Adlandir(db, Read<KanalPayYaz>(charge.DagilimJson)));
             }
             track.Surum++;
         }
-        db.EkstreKayitlar.Add(result); db.SaveChanges(); Sync(db); return result;
+        db.EkstreKayitlar.Add(result);
+        db.SaveChanges();
+        Sync(db);
+        return result;
     }
 
     private static KartOdemeOnizlemeDto PaymentEffect(KasaDbContext db, EkstreKayitEntity row)
@@ -489,7 +593,8 @@ public static class EkstreImportEndpoints
     }
     private static void RefreshPaymentSnapshots(KasaDbContext db, IEnumerable<EkstreKayitEntity> rows)
     {
-        foreach (var row in rows.Where(r => r.KartOdemeId != null)) row.DagilimJson = Json(PaymentEffect(db, row).Dagilimlar);
+        foreach (var row in rows.Where(r => r.KartOdemeId != null))
+            row.DagilimJson = Json(PaymentEffect(db, row).Dagilimlar);
         db.SaveChanges();
     }
 
@@ -503,13 +608,15 @@ public static class EkstreImportEndpoints
         if (row.IslemTuru == "Gelir")
         {
             // Gider tarafıyla aynı pencere (±3 gün, valör farkı); aynı belgenin satırları yalnız aynı günde benzer sayılır.
-            var first = row.Tarih.AddDays(-BenzerKayitServisi.GunPenceresi); var last = row.Tarih.AddDays(BenzerKayitServisi.GunPenceresi);
+            var first = row.Tarih.AddDays(-BenzerKayitServisi.GunPenceresi);
+            var last = row.Tarih.AddDays(BenzerKayitServisi.GunPenceresi);
             var duplicate = db.EkstreKayitlar.Where(k => k.IslemTuru == "Gelir" && !k.Iptal && k.Tutar == row.Tutar && k.Tarih >= first && k.Tarih <= last)
                     .Select(k => new { k.Id, k.Tarih }).AsEnumerable().Any(k => !sameDocument.Contains(k.Id) || k.Tarih == row.Tarih)
                 || db.Krediler.Any(k => k.CekimTarihi >= first && k.CekimTarihi <= last && k.CekilenTutar == row.Tutar)
                 || db.HesapHareketler.Any(h => h.Tarih >= first && h.Tarih <= last && h.Tutar == row.Tutar)
                 || db.Gelenler.AsNoTracking().AsEnumerable().Any(g => g.DonemStart <= row.Tarih && g.DonemStart.AddDays(7) > row.Tarih && g.TutarTl == row.Tutar);
-            if (duplicate) yield return "Aynı tutarda, en çok 3 gün farklı tarihte mevcut/az önce seçilen bir kayıt var. Ayrı hareket olduğundan emin olun.";
+            if (duplicate)
+                yield return "Aynı tutarda, en çok 3 gün farklı tarihte mevcut/az önce seçilen bir kayıt var. Ayrı hareket olduğundan emin olun.";
             yield break;
         }
         var search = row.IslemTuru switch
@@ -531,7 +638,8 @@ public static class EkstreImportEndpoints
                 yield return $"Bu satır #{t.HarcamaId} taksitli harcamanın {t.No}/{t.TaksitSayisi}. taksidi olabilir; atlayın ya da mevcut kayıtla eşleştirin.";
         }
         var records = similar.Bul(search, k => k.EkstreKayitId is not { } kayit || !sameDocument.Contains(kayit) || k.Tarih == row.Tarih);
-        if (records.Count == 0) yield break;
+        if (records.Count == 0)
+            yield break;
         var names = records.Select(k => BenzerKayitServisi.Satir(k, k.EkstreKayitId is { } kayit && batch.TryGetValue(kayit, out var satirNo) ? $"bu önizlemede seçilen {satirNo}. satır" : null)).ToList();
         yield return $"Benzer kayıt: {BenzerKayitServisi.Liste(names)}. Ayrı hareket olduğundan emin olun. Aynı hareketse satırı yeni kayıt olarak işlemeyin; 'Mevcut kayıtla eşleştir' ile bağlayın.";
     }
@@ -566,18 +674,27 @@ public static class EkstreImportEndpoints
     private static Dictionary<int, string> MatchStates(KasaDbContext db, IReadOnlyList<EkstreKayitEntity> rows)
     {
         int[] Ids(string type) => rows.Where(k => k.EslesmeTuru == type).Select(k => k.EslesmeId!.Value).Distinct().ToArray();
-        var expenses = Ids("Gider"); var charges = Ids("KartHarcama"); var installments = Ids("KartTaksidi"); var payments = Ids("KartOdeme");
+        var expenses = Ids("Gider");
+        var charges = Ids("KartHarcama");
+        var installments = Ids("KartTaksidi");
+        var payments = Ids("KartOdeme");
         var live = new HashSet<(string, int)>();
-        if (expenses.Length > 0) live.UnionWith(db.Islemler.AsNoTracking().Where(i => expenses.Contains(i.Id)).Select(i => i.Id).ToList().Select(id => ("Gider", id)));
-        if (charges.Length > 0) live.UnionWith(db.TakipHarcamalar.AsNoTracking().Where(h => charges.Contains(h.Id) && !h.Iptal).Select(h => h.Id).ToList().Select(id => ("KartHarcama", id)));
-        if (installments.Length > 0) live.UnionWith(db.TakipKartTaksitler.AsNoTracking().Where(t => installments.Contains(t.Id) && db.TakipHarcamalar.Any(h => h.Id == t.HarcamaId && !h.Iptal))
+        if (expenses.Length > 0)
+            live.UnionWith(db.Islemler.AsNoTracking().Where(i => expenses.Contains(i.Id)).Select(i => i.Id).ToList().Select(id => ("Gider", id)));
+        if (charges.Length > 0)
+            live.UnionWith(db.TakipHarcamalar.AsNoTracking().Where(h => charges.Contains(h.Id) && !h.Iptal).Select(h => h.Id).ToList().Select(id => ("KartHarcama", id)));
+        if (installments.Length > 0)
+            live.UnionWith(db.TakipKartTaksitler.AsNoTracking().Where(t => installments.Contains(t.Id) && db.TakipHarcamalar.Any(h => h.Id == t.HarcamaId && !h.Iptal))
             .Select(t => t.Id).ToList().Select(id => ("KartTaksidi", id)));
-        if (payments.Length > 0) live.UnionWith(db.TakipKartOdemeler.AsNoTracking().Where(p => payments.Contains(p.Id) && !p.Iptal).Select(p => p.Id).ToList().Select(id => ("KartOdeme", id)));
+        if (payments.Length > 0)
+            live.UnionWith(db.TakipKartOdemeler.AsNoTracking().Where(p => payments.Contains(p.Id) && !p.Iptal).Select(p => p.Id).ToList().Select(id => ("KartOdeme", id)));
         return rows.ToDictionary(k => k.Id, k => live.Contains((k.EslesmeTuru!, k.EslesmeId!.Value)) ? "Eslesti" : "KayitYok");
     }
     private static EkstreBelgeEntity GetDocument(KasaDbContext db, int id)
     {
-        var d = db.EkstreBelgeler.SingleOrDefault(d => d.Id == id); Require(d is not null, "Belge bulunamadı.", 404); return d;
+        var d = db.EkstreBelgeler.SingleOrDefault(d => d.Id == id);
+        Require(d is not null, "Belge bulunamadı.", 404);
+        return d;
     }
     private static IResult Safe(Func<IResult> run) => FinansTakipEndpoints.Safe(() => { try { return run(); } catch (ImportException e) { return Error(e.Message, e.Status); } });
     private static IResult Error(string message, int status = 400) => Results.Json(new { hata = message }, statusCode: status);

@@ -25,8 +25,13 @@ public class SaglamlikTests
         var seed = LegacyFinanceSeed.Kredi(f, Kredi(15));
         var r = await c.PutAsJsonAsync($"/api/krediler/{seed.Id}", new
         {
-            ad = "Hatalı kredi", cekilenTutar = tutar, cekimTarihi = "2026-09-01",
-            taksitSayisi = taksit, aylikOdeme = odeme, odemeGunu = gun, kanal = "MEZAT"
+            ad = "Hatalı kredi",
+            cekilenTutar = tutar,
+            cekimTarihi = "2026-09-01",
+            taksitSayisi = taksit,
+            aylikOdeme = odeme,
+            odemeGunu = gun,
+            kanal = "MEZAT"
         });
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var hata = await r.Content.ReadFromJsonAsync<JsonElement>();

@@ -125,7 +125,8 @@ public class LegacyIncomeTests
             new { donemStart = "2026-09-01", kanal = "MEZAT", tutarTl = i * 100m })));
         foreach (var response in responses)
         {
-            using (response) Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            using (response)
+                Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         }
         using var db = factory.Context();
         AssertOriginalRows(db);
@@ -143,7 +144,8 @@ public class LegacyIncomeTests
 
     private static void SeedLegacy(SqliteConnection connection)
     {
-        foreach (var operation in new InitialStableSchema().UpOperations.OfType<SqlOperation>()) Execute(connection, operation.Sql);
+        foreach (var operation in new InitialStableSchema().UpOperations.OfType<SqlOperation>())
+            Execute(connection, operation.Sql);
         Execute(connection, """
             DROP INDEX IX_Gelenler_DonemStart_KanalId;
             DROP INDEX IX_Gelenler_DonemStart_Kanal;
@@ -193,7 +195,8 @@ public class LegacyIncomeTests
         {
             base.Dispose(disposing);
             if (disposing)
-                foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(_path + suffix);
+                foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+                    File.Delete(_path + suffix);
         }
     }
 }

@@ -36,7 +36,8 @@ public class RaporUfkuTests
     public async Task Tek_ileri_tarihli_kayit_haftalik_raporu_ve_donemleri_ufkun_otesine_uzatmaz_uyari_doner()
     {
         var (f, c) = await Kur(new DateOnly(2206, 6, 22));
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
         var donemler = JsonNode.Parse(await c.GetStringAsync("/api/donemler"))!.AsArray();
         Assert.Equal(UfukSonu, DateOnly.Parse(haftalik[^1]!["donem"]!["end"]!.GetValue<string>()));
@@ -58,7 +59,8 @@ public class RaporUfkuTests
     public async Task Yil_9998_kaydi_bile_ufku_sinirli_tutar_ve_uyari_en_gec_tarihi_verir()
     {
         var (f, c) = await Kur(new DateOnly(2206, 6, 22), new DateOnly(9998, 12, 31));
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
         Assert.Equal(UfukSonu, DateOnly.Parse(haftalik[^1]!["donem"]!["end"]!.GetValue<string>()));
         var uyari = haftalik[^1]!["veriSagligiUyarisi"]!.GetValue<string>();
@@ -72,7 +74,8 @@ public class RaporUfkuTests
     {
         var ileri = Bugun.AddDays(300);
         var (f, c) = await Kur(ileri);
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
         Assert.Equal(ileri, DateOnly.Parse(haftalik[^1]!["donem"]!["end"]!.GetValue<string>()));
         Assert.All(haftalik, d => Assert.False(d!.AsObject().ContainsKey("veriSagligiUyarisi")));

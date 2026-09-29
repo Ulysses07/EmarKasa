@@ -21,15 +21,20 @@ public class YedekHizSiniriTests
         {
             await using var f = new VekilFabrikasi(new()
             {
-                ["Kasa:HizSiniri:YedekIzni"] = yedekIzni, ["Kasa:HizSiniri:GuvenlikIzni"] = "1",
-                ["Yedek:Dizin"] = dizin, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false",
-                ["Bildirim:WorkerEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(dizin, ".kasa-push-keys.json"),
+                ["Kasa:HizSiniri:YedekIzni"] = yedekIzni,
+                ["Kasa:HizSiniri:GuvenlikIzni"] = "1",
+                ["Yedek:Dizin"] = dizin,
+                ["Yedek:Etkin"] = "false",
+                ["Bildirim:PushEtkin"] = "false",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Bildirim:AnahtarDosyasi"] = Path.Combine(dizin, ".kasa-push-keys.json"),
             });
             await senaryo(f);
         }
         finally
         {
-            if (Directory.Exists(dizin)) Directory.Delete(dizin, true);
+            if (Directory.Exists(dizin))
+                Directory.Delete(dizin, true);
         }
     }
 
@@ -61,7 +66,8 @@ public class YedekHizSiniriTests
 
         // Aynı kullanıcı başka ağda ayrı kovadadır: ele geçirilmiş bir oturum editörün kendi kotasını tüketemez, tersi de.
         using var ev = await Editor(f, "198.51.100.11");
-        using (var yanit = await ev.PostAsync("/api/yedek", null)) Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
+        using (var yanit = await ev.PostAsync("/api/yedek", null))
+            Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
     });
 
     [Fact]
@@ -80,12 +86,14 @@ public class YedekHizSiniriTests
     public Task Kimliksiz_ve_yetkisiz_istek_yedek_kotasini_tuketmez() => YedekDizininde("2", async f =>
     {
         using var anonim = Istemci(f, "198.51.100.30");
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsync("/api/yedek", null)).StatusCode);
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsync("/api/yedek", null)).StatusCode);
         using (var editor = await f.EditorClientAsync())
             (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
         using var izleyici = Istemci(f, "198.51.100.30");
         (await Giris(izleyici, null, "izleyici-sifresi")).EnsureSuccessStatusCode();
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.PostAsync("/api/yedek", null)).StatusCode);
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.PostAsync("/api/yedek", null)).StatusCode);
 
         using var ofis = await Editor(f, "198.51.100.30");
         for (var i = 0; i < 2; i++)

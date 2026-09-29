@@ -269,7 +269,9 @@ public sealed class VeritabaniHataTests
         finally
         {
             foreach (var ek2 in new[] { "", "-wal", "-shm", "-journal" })
-                try { File.Delete(yol + ek2); } catch (IOException) { }
+                try
+                { File.Delete(yol + ek2); }
+                catch (IOException) { }
         }
     }
 
@@ -360,7 +362,8 @@ public sealed class VeritabaniHataTests
             builder.ConfigureLogging(l => l.AddProvider(Log));
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<DbContextOptions<KasaDbContext>>(); services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+                services.RemoveAll<DbContextOptions<KasaDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
                 services.AddDbContext<KasaDbContext>(o => o.UseSqlite(Baglanti));
             });
         }
@@ -392,8 +395,11 @@ public sealed class VeritabaniHataTests
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing) foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
-                try { File.Delete(yol + ek); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            if (disposing)
+                foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
+                    try
+                    { File.Delete(yol + ek); }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
     }
 
@@ -407,8 +413,10 @@ public sealed class VeritabaniHataTests
             builder.ConfigureLogging(l => l.AddProvider(log));
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Bildirim:WorkerEtkin"] = "false", ["Bildirim:PushEtkin"] = "false",
-                ["Finans:BakimEtkin"] = "false", ["Yedek:Etkin"] = "false",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Bildirim:PushEtkin"] = "false",
+                ["Finans:BakimEtkin"] = "false",
+                ["Yedek:Etkin"] = "false",
             }));
         }
 

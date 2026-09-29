@@ -38,7 +38,8 @@ public class BelgeAdiTests
     public async Task Yuklenen_belgenin_adi_turden_uzantiyla_ve_bicim_karakterleri_olmadan_saklanir()
     {
         var (f, c, alis) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         Assert.Equal("faturagpj.pdf", (await Yuklendi(c, alis.Id, AlisTestYardimcisi.Pdf(64), "fatura‮gpj.pdf", "application/pdf")).DosyaAdi);
         Assert.Equal("x.pdf", (await Yuklendi(c, alis.Id, AlisTestYardimcisi.Pdf(64), "..\\..\\gizli\\x.pdf")).DosyaAdi);
         Assert.Equal("belge-CON.png", (await Yuklendi(c, alis.Id, Png, "CON.png", "image/png")).DosyaAdi);
@@ -66,7 +67,8 @@ public class BelgeAdiTests
     public async Task Calistirilabilir_betik_veya_web_sayfasi_uzantisi_ya_da_turu_reddedilir(string ad, string? tur)
     {
         var (f, c, alis) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         // İçerik '%PDF-' ile başlar (çok biçimli dosya): ad yine türden kurulacak olsa da böyle dosya hiç saklanmaz.
         using var r = await AlisTestYardimcisi.YukleYanit(c, alis.Id, AlisTestYardimcisi.Pdf(64), ad, tur);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
@@ -92,12 +94,14 @@ public class BelgeAdiTests
     public async Task Outlookun_engelledigi_her_uzanti_yuklemede_reddedilir()
     {
         var (f, c, alis) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var kabulEdilen = new List<string>();
         foreach (var uzanti in OutlookLevel1)
         {
             using var r = await AlisTestYardimcisi.YukleYanit(c, alis.Id, AlisTestYardimcisi.Pdf(64), "fatura." + uzanti.ToUpperInvariant());
-            if (r.StatusCode != HttpStatusCode.BadRequest) kabulEdilen.Add($"{uzanti}: {(int)r.StatusCode}");
+            if (r.StatusCode != HttpStatusCode.BadRequest)
+                kabulEdilen.Add($"{uzanti}: {(int)r.StatusCode}");
         }
         Assert.True(kabulEdilen.Count == 0, "Reddedilmeyen uzantılar: " + string.Join(", ", kabulEdilen));
         Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
@@ -113,7 +117,8 @@ public class BelgeAdiTests
     public async Task Tehlikesiz_uzanti_ya_da_tur_uyusmazligi_reddedilmez_icerik_turu_esastir(string ad, string? tur, string icerik, string beklenen)
     {
         var (f, c, alis) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         // Tarayıcılar ve tarayıcı uygulamaları beyaz liste dışı tür bildirebilir, adlar uzantısız ya da noktalı olabilir: güvenlik
         // için ad zaten sihirli baytlarla tespit edilen türden kurulduğundan meşru belge geri çevrilmez.
         var baytlar = icerik switch { "png" => Png, "jpeg" => Jpeg, _ => AlisTestYardimcisi.Pdf(64) };
@@ -124,7 +129,8 @@ public class BelgeAdiTests
     public async Task Indirme_ek_olarak_rfc6266_adi_ve_nosniff_ile_gider()
     {
         var (f, c, alis) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         var belge = await Yuklendi(c, alis.Id, AlisTestYardimcisi.Pdf(64), "Fatura Ş.pdf");
         Assert.Equal("Fatura Ş.pdf", belge.DosyaAdi);
         using var r = await c.GetAsync($"/api/belgeler/{belge.Id}");
@@ -139,14 +145,16 @@ public class BelgeAdiTests
     public async Task Eski_kayitlarin_adi_okunurken_ture_gore_normalize_edilir()
     {
         var (f, c, alis) = await Kur();
-        await using var _ = f; using var __ = c;
+        await using var _ = f;
+        using var __ = c;
         int pdf, bilinmeyen;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var eski = new BelgeEntity { AlisId = alis.Id, DosyaAdi = "eski‮lmth.hta", IcerikTuru = "application/pdf", Boyut = 9, Yuklendi = DateTimeOffset.UnixEpoch, IcerikOzeti = TestBelgeDeposu.Yaz(scope.ServiceProvider, "%PDF-1.4\n"u8.ToArray()) };
             var tur = new BelgeEntity { AlisId = alis.Id, DosyaAdi = "rapor.html", IcerikTuru = "text/html", Boyut = 4, Yuklendi = DateTimeOffset.UnixEpoch, IcerikOzeti = TestBelgeDeposu.Yaz(scope.ServiceProvider, "<b/>"u8.ToArray()) };
-            db.Belgeler.AddRange(eski, tur); db.SaveChanges();
+            db.Belgeler.AddRange(eski, tur);
+            db.SaveChanges();
             (pdf, bilinmeyen) = (eski.Id, tur.Id);
         }
         var liste = (await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!;

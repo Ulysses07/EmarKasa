@@ -41,7 +41,8 @@ public class IncomeConcurrencyTests
             }
             finally
             {
-                foreach (var response in responses) response.Dispose();
+                foreach (var response in responses)
+                    response.Dispose();
             }
 
             Assert.Equal(requestCount, rendezvous.ContextCount);
@@ -54,7 +55,8 @@ public class IncomeConcurrencyTests
         }
         finally
         {
-            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix);
+            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(path + suffix);
         }
     }
 
@@ -97,7 +99,8 @@ public class IncomeConcurrencyTests
 
         private void MeetBeforeInsert(DbCommand command, CommandEventData eventData)
         {
-            if (!command.CommandText.TrimStart().StartsWith("INSERT INTO \"Gelenler\"", StringComparison.OrdinalIgnoreCase)) return;
+            if (!command.CommandText.TrimStart().StartsWith("INSERT INTO \"Gelenler\"", StringComparison.OrdinalIgnoreCase))
+                return;
             _contexts.TryAdd(eventData.Context!.ContextId.InstanceId, 0);
             _connections.TryAdd(command.Connection!, 0);
             if (!_barrier.SignalAndWait(TimeSpan.FromSeconds(20)))

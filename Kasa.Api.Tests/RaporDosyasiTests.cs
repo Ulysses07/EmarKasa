@@ -93,8 +93,15 @@ public class RaporDosyasiTests
             // Doğrulamadan önce kaydedilmiş (ya da API dışından gelmiş) kayıtları temsil eder.
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             db.Islemler.AddRange(
-                new IslemEntity { Tarih = Gun, Cari = "Firma\u000B", TutarTl = 12.34m, Kanal = Kanallar.Ortak, Tip = GiderTipi.Cari,
-                    Not = "a\u0001b\u000Bc\uFFFFd" + YalnizYuksekVekil + "e" },
+                new IslemEntity
+                {
+                    Tarih = Gun,
+                    Cari = "Firma\u000B",
+                    TutarTl = 12.34m,
+                    Kanal = Kanallar.Ortak,
+                    Tip = GiderTipi.Cari,
+                    Not = "a\u0001b\u000Bc\uFFFFd" + YalnizYuksekVekil + "e"
+                },
                 new IslemEntity { Tarih = Gun, Cari = "=2+2", TutarTl = 5m, Kanal = Kanallar.Ortak, Tip = GiderTipi.Cari, Not = "düz" });
             db.SaveChanges();
         }
@@ -132,7 +139,8 @@ public class RaporDosyasiTests
             using var akis = parca.Open();
             using var okuyucu = XmlReader.Create(akis, new XmlReaderSettings { CheckCharacters = true, DtdProcessing = DtdProcessing.Prohibit });
             var belge = XDocument.Load(okuyucu);
-            if (parca.FullName == "xl/worksheets/sheet1.xml") sayfa = belge;
+            if (parca.FullName == "xl/worksheets/sheet1.xml")
+                sayfa = belge;
         }
         Assert.NotNull(sayfa);
         XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";

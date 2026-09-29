@@ -18,9 +18,11 @@ public partial class DisariAktarViewModel(IYonetimApi api, IKasaApi finans, Auth
         IndirmeBilgisi? dosya = null;
         await YurutAsync(async n =>
         {
-            if (Bitis < Baslangic) { Hata = "Bitiş tarihi başlangıçtan önce olamaz."; return; }
+            if (Bitis < Baslangic)
+            { Hata = "Bitiş tarihi başlangıçtan önce olamaz."; return; }
             var d = await api.DisariAktarAsync(DateOnly.FromDateTime(Baslangic), DateOnly.FromDateTime(Bitis), Kanal?.Ad, bicim, hedef);
-            if (Gecerli(n)) dosya = d;
+            if (Gecerli(n))
+                dosya = d;
         });
         return dosya;
     }

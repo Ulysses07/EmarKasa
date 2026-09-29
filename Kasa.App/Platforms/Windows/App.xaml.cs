@@ -11,31 +11,31 @@ namespace Kasa.App.WinUI;
 /// </summary>
 public partial class App : MauiWinUIApplication
 {
-	/// <summary>
-	/// Initializes the singleton application object.  This is the first line of authored code
-	/// executed, and as such is the logical equivalent of main() or WinMain().
-	/// </summary>
-	public App()
-	{
-		this.InitializeComponent();
-	}
+    /// <summary>
+    /// Initializes the singleton application object.  This is the first line of authored code
+    /// executed, and as such is the logical equivalent of main() or WinMain().
+    /// </summary>
+    public App()
+    {
+        this.InitializeComponent();
+    }
 
-	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+    protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
 
-	protected override async void OnLaunched(LaunchActivatedEventArgs args)
-	{
-		// 07-15 hatırlatıcısının eski zamanlanmış görevi (EmarKasaHatirlatici) bir kez silinir: pencere açmadan, arka planda,
-		// hataları yutarak; başarıdan sonra yerel işaretle bir daha denenmez (bkz. EskiHatirlatmaGorevi).
-		var gorev = EskiHatirlatmaGorevi.Varsayilan();
-		if (EskiHatirlatmaGorevi.KontrolModu(Environment.GetCommandLineArgs()))
-		{
-			// Eski zamanlanmış görev bu sürümde pencere veya bildirim açmaz: görevi siler ve çıkar.
-			await Task.Run(() => gorev.TemizleAsync());
-			Exit();
-			return;
-		}
-		_ = Task.Run(() => gorev.TemizleAsync());
-		base.OnLaunched(args);
-	}
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
+    {
+        // 07-15 hatırlatıcısının eski zamanlanmış görevi (EmarKasaHatirlatici) bir kez silinir: pencere açmadan, arka planda,
+        // hataları yutarak; başarıdan sonra yerel işaretle bir daha denenmez (bkz. EskiHatirlatmaGorevi).
+        var gorev = EskiHatirlatmaGorevi.Varsayilan();
+        if (EskiHatirlatmaGorevi.KontrolModu(Environment.GetCommandLineArgs()))
+        {
+            // Eski zamanlanmış görev bu sürümde pencere veya bildirim açmaz: görevi siler ve çıkar.
+            await Task.Run(() => gorev.TemizleAsync());
+            Exit();
+            return;
+        }
+        _ = Task.Run(() => gorev.TemizleAsync());
+        base.OnLaunched(args);
+    }
 }
 

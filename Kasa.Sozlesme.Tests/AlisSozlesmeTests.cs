@@ -18,7 +18,8 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         var editor = await Editor();
         await editor.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
         var hesap = await editor.Alis.AliciOlusturAsync(new AliciYaz("sozlesme-alici", "Sözleşme Alıcısı", "alici-sifre-1"));
-        Assert.Equal(HttpStatusCode.Created, editor.SonYanit.Durum); Assert.Equal(("sozlesme-alici", true), (hesap.Kullanici, hesap.Aktif));
+        Assert.Equal(HttpStatusCode.Created, editor.SonYanit.Durum);
+        Assert.Equal(("sozlesme-alici", true), (hesap.Kullanici, hesap.Aktif));
         hesap = await editor.Alis.AliciGuncelleAsync(hesap.Id, new AliciYaz("sozlesme-alici", "Sözleşme Alıcısı 2", null));
         Assert.Equal("Sözleşme Alıcısı 2", hesap.Ad);
         Assert.Equal(hesap.Id, Assert.Single(await editor.Alis.AlicilarAsync()).Id);
@@ -27,12 +28,15 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         Assert.Equal("alici", (await alici.Kasa.LoginAsync("sozlesme-alici", "alici-sifre-1")).Rol);
         Assert.Equal(3, (await alici.Alis.AlisKanallariAsync()).Count);
         var alis = await alici.Alis.AlisOlusturAsync(new AlisYaz(0, Bugun, "Tedarikçi", "İlk not", [new AlisKalemYaz("Mal", 1000m, [new(1, 600m), new(2, 400m)])]));
-        Assert.Equal(HttpStatusCode.Created, alici.SonYanit.Durum); Assert.Equal((hesap.Id, "Taslak", 1000m), (alis.AliciId, alis.Durum, alis.Toplam));
+        Assert.Equal(HttpStatusCode.Created, alici.SonYanit.Durum);
+        Assert.Equal((hesap.Id, "Taslak", 1000m), (alis.AliciId, alis.Durum, alis.Toplam));
         alis = await alici.Alis.AlisGuncelleAsync(alis.Id, new AlisYaz(alis.Surum, Bugun, "Tedarikçi A.Ş.", "İlk not", [new AlisKalemYaz("Mal", 1200.5m, [new(1, 700.5m), new(2, 500m)])]));
-        Assert.Equal(1200.5m, alis.Toplam); Assert.Equal(2, Assert.Single(alis.Kalemler).Dagilimlar.Count);
+        Assert.Equal(1200.5m, alis.Toplam);
+        Assert.Equal(2, Assert.Single(alis.Kalemler).Dagilimlar.Count);
 
         var belge = await alici.Yonetim.BelgeYukleAsync(alis.Id, "fatura.pdf", "application/pdf", "%PDF-1.7 fatura"u8.ToArray());
-        Assert.Equal(HttpStatusCode.Created, alici.SonYanit.Durum); Assert.Equal((alis.Id, "fatura.pdf", "application/pdf", 15L), (belge.AlisId, belge.DosyaAdi, belge.IcerikTuru, belge.Boyut));
+        Assert.Equal(HttpStatusCode.Created, alici.SonYanit.Durum);
+        Assert.Equal((alis.Id, "fatura.pdf", "application/pdf", 15L), (belge.AlisId, belge.DosyaAdi, belge.IcerikTuru, belge.Boyut));
         Assert.Equal(("alici", "Sözleşme Alıcısı 2", false), (belge.YukleyenRol, belge.Yukleyen, belge.Silindi));
         Assert.Equal(belge.Id, Assert.Single(await alici.Yonetim.BelgelerAsync(alis.Id)).Id);
         alis = await alici.Alis.AlisGonderAsync(alis.Id, new AlisDurumYaz(alis.Surum));
@@ -46,7 +50,8 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         Assert.Equal("Onaylandi", alis.Durum);
         alis = await editor.Alis.AlisOdemeKaydetAsync(alis.Id, new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Bugun, 500m, Not: "Peşinat"));
         var odeme = Assert.Single(alis.Odemeler);
-        Assert.Equal((500m, 500m, 700.5m), (odeme.Tutar, alis.Odenen, alis.Kalan)); Assert.Equal(1200.5m, alis.Kalemler.Sum(k => k.Tutar));
+        Assert.Equal((500m, 500m, 700.5m), (odeme.Tutar, alis.Odenen, alis.Kalan));
+        Assert.Equal(1200.5m, alis.Kalemler.Sum(k => k.Tutar));
         alis = await editor.AlisOdeme.AlisOdemeDuzeltAsync(alis.Id, odeme.Id, new AlisOdemeDuzeltYaz(alis.Surum, Guid.NewGuid(), Bugun, 450.25m, null, null, "Tutar düzeltmesi"));
         Assert.Equal(450.25m, Assert.Single(alis.Odemeler).Tutar);
         alis = await editor.AlisOdeme.AlisOdemeIptalAsync(alis.Id, odeme.Id, new AlisOdemeIptalYaz(alis.Surum, Guid.NewGuid(), "Yanlış ödeme"));

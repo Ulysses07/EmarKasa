@@ -7,51 +7,73 @@ public class FinansTakipApiTests
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static KasaApiClient Client(SahteHandler h, ITokenStore? store = null) => new(new HttpClient(h) { BaseAddress = new("https://ornek.test/") }, store ?? new BellekTokenStore());
-    [Fact] public async Task Odeme_onizlemesi_tarih_surumu_kuruslari_ve_dagilim_bekleyen_payi_korur()
+    [Fact]
+    public async Task Odeme_onizlemesi_tarih_surumu_kuruslari_ve_dagilim_bekleyen_payi_korur()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"tutar":10.01,"kasaEtkisi":8.01,"dagilimlar":[{"kanalId":1,"kanal":"MEZAT","tutar":5.00},{"kanalId":null,"kanal":"","tutar":3.01}],"ekstreler":[{"ekstreId":9,"tutar":10.01}]}""");
         var g = new KartTakipOdemeYaz(Guid.NewGuid(), 8, new(2026, 9, 23), 10.01m, 9, "Dekont");
         var result = await Client(h).TakipOdemeOnizlemeAsync(7, g);
         Assert.Equal("/api/takip/kartlar/7/odeme-onizleme", h.SonIstek!.RequestUri!.AbsolutePath);
-        Assert.Equal(HttpMethod.Post, h.SonIstek.Method); Assert.Equal(g, JsonSerializer.Deserialize<KartTakipOdemeYaz>(h.SonGovde!, Json));
-        Assert.Equal(8.01m, result.KasaEtkisi); Assert.Null(result.Dagilimlar[1].KanalId); Assert.Equal(3.01m, result.Dagilimlar[1].Tutar);
+        Assert.Equal(HttpMethod.Post, h.SonIstek.Method);
+        Assert.Equal(g, JsonSerializer.Deserialize<KartTakipOdemeYaz>(h.SonGovde!, Json));
+        Assert.Equal(8.01m, result.KasaEtkisi);
+        Assert.Null(result.Dagilimlar[1].KanalId);
+        Assert.Equal(3.01m, result.Dagilimlar[1].Tutar);
     }
-    [Fact] public async Task Kart_odeme_mutasyonu_tam_yanit_ve_iptal_gecmisini_okur()
+    [Fact]
+    public async Task Kart_odeme_mutasyonu_tam_yanit_ve_iptal_gecmisini_okur()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"id":7,"surum":9,"ad":"Banka","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-23","kesimGunu":1,"sonOdemeGunu":10,"limit":1000,"borc":90,"ekstreBorc":90,"ekstreler":[],"harcamalar":[],"odemeler":[{"id":2,"tarih":"2026-09-23","tutar":10,"kasaEtkisi":10,"not":null,"iptal":true,"dagilimlar":[]}]}""");
         var result = await Client(h).TakipOdemeIptalAsync(7, 2, new(Guid.NewGuid(), 8, "Yanlış tarih"));
         Assert.Equal("/api/takip/kartlar/7/odemeler/2/iptal", h.SonIstek!.RequestUri!.AbsolutePath);
-        Assert.Equal(9, result.Surum); Assert.True(result.Odemeler.Single().Iptal); Assert.Equal(new DateOnly(2026, 9, 23), result.TakipBaslangic);
+        Assert.Equal(9, result.Surum);
+        Assert.True(result.Odemeler.Single().Iptal);
+        Assert.Equal(new DateOnly(2026, 9, 23), result.TakipBaslangic);
     }
-    [Fact] public async Task Mevcut_kredi_istegi_cift_girisi_engelleyen_bayragi_ve_kanallari_gonderir()
+    [Fact]
+    public async Task Mevcut_kredi_istegi_cift_girisi_engelleyen_bayragi_ve_kanallari_gonderir()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"id":1,"surum":1,"ad":"Kredi","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-23","cekilenTutar":100,"cekimTarihi":"2026-08-01","kalanPlanliOdeme":120,"kanalPaylari":[],"taksitler":[]}""");
         var g = new KrediTakipYaz(Guid.NewGuid(), "Kredi", 100, new(2026, 8, 1), new(2026, 10, 1), 12, 10, new[] { 1, 3 }, true);
         var result = await Client(h).TakipKrediKaydetAsync(g);
         Assert.Equal("/api/takip/krediler", h.SonIstek!.RequestUri!.AbsolutePath);
         var sent = JsonSerializer.Deserialize<KrediTakipYaz>(h.SonGovde!, Json)!;
-        Assert.True(sent.MevcutKredi); Assert.Equal(g.KanalIdleri, sent.KanalIdleri); Assert.Equal(g.IstekId, sent.IstekId); Assert.Equal(120, result.KalanPlanliOdeme);
+        Assert.True(sent.MevcutKredi);
+        Assert.Equal(g.KanalIdleri, sent.KanalIdleri);
+        Assert.Equal(g.IstekId, sent.IstekId);
+        Assert.Equal(120, result.KalanPlanliOdeme);
     }
-    [Fact] public async Task Gecis_onayi_farklar_ve_aciklamalarla_doner()
+    [Fact]
+    public async Task Gecis_onayi_farklar_ve_aciklamalarla_doner()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"kaynak":"Kart","kaynakId":7,"baslangic":"2026-09-23","genelKasaAnlikFarki":0,"kanalAnlikFarki":0,"eskiKasadaSayilanTutar":30.03,"aciklamalar":["Geçmiş korunur"],"kabulEdilebilir":true}""");
         var g = new KartGecisYaz(Guid.NewGuid(), 4, new(2026, 9, 23), 100, 30.03m, new[] { new KanalPayYaz(1, 100) }, "Kontrol edildi", false);
         var result = await Client(h).TakipKartGecisOnizlemeAsync(7, g);
-        Assert.Equal(30.03m, result.EskiKasadaSayilanTutar); Assert.True(result.KabulEdilebilir); Assert.Single(result.Aciklamalar);
+        Assert.Equal(30.03m, result.EskiKasadaSayilanTutar);
+        Assert.True(result.KabulEdilebilir);
+        Assert.Single(result.Aciklamalar);
         Assert.False(JsonSerializer.Deserialize<KartGecisYaz>(h.SonGovde!, Json)!.Onay);
         // Eski sunucu yanıtında kart geçişi hesap alanları yoktur; istemci kırılmadan null okur.
-        Assert.Null(result.SistemKartBorcu); Assert.Null(result.OnerilenKasadaSayilanTutar); Assert.Null(result.SonBekleyenDusumTarihi); Assert.Null(result.EnAzKasadaSayilanTutar);
+        Assert.Null(result.SistemKartBorcu);
+        Assert.Null(result.OnerilenKasadaSayilanTutar);
+        Assert.Null(result.SonBekleyenDusumTarihi);
+        Assert.Null(result.EnAzKasadaSayilanTutar);
     }
-    [Fact] public async Task Kart_gecis_onizlemesi_sistem_borcu_bekleyen_dusum_ve_onerilen_tutari_okur()
+    [Fact]
+    public async Task Kart_gecis_onizlemesi_sistem_borcu_bekleyen_dusum_ve_onerilen_tutari_okur()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"kaynak":"Kart","kaynakId":7,"baslangic":"2026-09-25","genelKasaAnlikFarki":-250.5,"kanalAnlikFarki":-250.5,"eskiKasadaSayilanTutar":749.5,"aciklamalar":["a","b"],"kabulEdilebilir":true,"sistemKartBorcu":1000.00,"eskiKuraldaIslenenTutar":300.01,"bekleyenEskiDusumTutari":699.99,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1000.00}""");
         var g = new KartGecisYaz(Guid.NewGuid(), 0, new(2026, 9, 25), 1000, 749.5m, new[] { new KanalPayYaz(1, 1000) }, "Kontrol edildi", false);
         var result = await Client(h).TakipKartGecisOnizlemeAsync(7, g);
         Assert.Equal((-250.5m, -250.5m, true), (result.GenelKasaAnlikFarki, result.KanalAnlikFarki, result.KabulEdilebilir));
-        Assert.Equal(1000m, result.SistemKartBorcu); Assert.Equal(300.01m, result.EskiKuraldaIslenenTutar); Assert.Equal(699.99m, result.BekleyenEskiDusumTutari);
-        Assert.Equal(new DateOnly(2026, 10, 31), result.SonBekleyenDusumTarihi); Assert.Equal(1000m, result.OnerilenKasadaSayilanTutar);
+        Assert.Equal(1000m, result.SistemKartBorcu);
+        Assert.Equal(300.01m, result.EskiKuraldaIslenenTutar);
+        Assert.Equal(699.99m, result.BekleyenEskiDusumTutari);
+        Assert.Equal(new DateOnly(2026, 10, 31), result.SonBekleyenDusumTarihi);
+        Assert.Equal(1000m, result.OnerilenKasadaSayilanTutar);
     }
-    [Fact] public async Task Kart_gecis_denetim_izi_ve_ilk_surum_uyarisi_okunur_eski_yanitta_null_kalir()
+    [Fact]
+    public async Task Kart_gecis_denetim_izi_ve_ilk_surum_uyarisi_okunur_eski_yanitta_null_kalir()
     {
         var h = new SahteHandler()
             .Kuyrukla(HttpStatusCode.OK, """{"id":7,"surum":3,"ad":"Eski","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-20","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"EtkiTarihi","aciklama":null,"onizleme":null,"raporDisiEskiDusumTutari":1400.01,"raporDisiIlkDusumTarihi":"2026-09-30","raporDisiSonDusumTarihi":"2026-10-31","uyari":"İlk sürüm kuralıyla geçiş"}}""")
@@ -67,38 +89,56 @@ public class FinansTakipApiTests
         // Eski sunucu yanıtında geçiş alanı yoktur; istemci kırılmadan null okur.
         Assert.Null((await client.TakipKartAsync(9)).Gecis);
     }
-    [Fact] public async Task Kart_gecis_onizlemesi_en_az_kasada_sayilan_tutari_okur()
+    [Fact]
+    public async Task Kart_gecis_onizlemesi_en_az_kasada_sayilan_tutari_okur()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"kaynak":"Kart","kaynakId":7,"baslangic":"2026-09-25","genelKasaAnlikFarki":-1100,"kanalAnlikFarki":-1100,"eskiKasadaSayilanTutar":0,"aciklamalar":["en az"],"kabulEdilebilir":false,"sistemKartBorcu":1100,"eskiKuraldaIslenenTutar":0,"bekleyenEskiDusumTutari":1000,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1100,"enAzKasadaSayilanTutar":1000.01}""");
         var result = await Client(h).TakipKartGecisOnizlemeAsync(7, new KartGecisYaz(Guid.NewGuid(), 0, new(2026, 9, 25), 1100, 0, new[] { new KanalPayYaz(1, 1100) }, "Varsayılan", false));
         Assert.Equal((1000.01m, false), (result.EnAzKasadaSayilanTutar, result.KabulEdilebilir));
     }
-    [Fact] public async Task Bildirimler_tarih_ve_okundu_uclarini_kullanir()
+    [Fact]
+    public async Task Bildirimler_tarih_ve_okundu_uclarini_kullanir()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """[{"id":3,"baslik":"Kart","mesaj":"Son ödeme","tarih":"2026-09-23","okundu":false,"hedef":"/#cards/7","tur":"SonOdeme","kaynakId":7}]""").Kuyrukla(HttpStatusCode.NoContent);
-        var c = Client(h); var list = await c.BildirimlerAsync(); Assert.Equal(new DateOnly(2026, 9, 23), list.Single().Tarih);
-        await c.BildirimOkunduAsync(3); Assert.Equal(HttpMethod.Post, h.SonIstek!.Method); Assert.Equal("/api/bildirimler/3/okundu", h.SonIstek.RequestUri!.AbsolutePath);
+        var c = Client(h);
+        var list = await c.BildirimlerAsync();
+        Assert.Equal(new DateOnly(2026, 9, 23), list.Single().Tarih);
+        await c.BildirimOkunduAsync(3);
+        Assert.Equal(HttpMethod.Post, h.SonIstek!.Method);
+        Assert.Equal("/api/bildirimler/3/okundu", h.SonIstek.RequestUri!.AbsolutePath);
     }
-    [Fact] public async Task Bildirim_ayarinda_409_kullanici_mesaji_korunur()
+    [Fact]
+    public async Task Bildirim_ayarinda_409_kullanici_mesaji_korunur()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.Conflict, """{"hata":"Bildirim ayarları değişti. Yenileyip tekrar deneyin."}""");
         var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).BildirimAyarKaydetAsync(new(true, 9, 30, 2)));
-        Assert.Contains("Yenileyip", hata.Message); Assert.Equal(HttpMethod.Put, h.SonIstek!.Method);
+        Assert.Contains("Yenileyip", hata.Message);
+        Assert.Equal(HttpMethod.Put, h.SonIstek!.Method);
         Assert.Equal(new BildirimAyarYaz(true, 9, 30, 2), JsonSerializer.Deserialize<BildirimAyarYaz>(h.SonGovde!, Json));
     }
-    [Fact] public async Task Yeni_finans_endpointinde_401_tokeni_merkezi_temizler()
+    [Fact]
+    public async Task Yeni_finans_endpointinde_401_tokeni_merkezi_temizler()
     {
-        var store = new BellekTokenStore(); await store.YazAsync("eski"); var h = new SahteHandler().Kuyrukla(HttpStatusCode.Unauthorized); var c = Client(h, store);
-        var bitti = false; c.OturumSonlandi += (_, _) => bitti = true;
-        await Assert.ThrowsAsync<KasaApiException>(() => c.TakipKartlarAsync()); Assert.Null(await store.OkuAsync()); Assert.True(bitti);
+        var store = new BellekTokenStore();
+        await store.YazAsync("eski");
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.Unauthorized);
+        var c = Client(h, store);
+        var bitti = false;
+        c.OturumSonlandi += (_, _) => bitti = true;
+        await Assert.ThrowsAsync<KasaApiException>(() => c.TakipKartlarAsync());
+        Assert.Null(await store.OkuAsync());
+        Assert.True(bitti);
     }
-    [Fact] public async Task Iade_kaynak_harcama_kimligini_ve_eksi_tutari_gonderir()
+    [Fact]
+    public async Task Iade_kaynak_harcama_kimligini_ve_eksi_tutari_gonderir()
     {
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"id":7,"surum":9,"ad":"Banka","yeniTakip":true,"aktif":true,"kesimGunu":1,"sonOdemeGunu":10,"limit":1000,"borc":90,"ekstreBorc":90,"ekstreler":[],"harcamalar":[],"odemeler":[]}""");
         var g = new KartHarcamaYaz(Guid.NewGuid(), 8, new(2026, 9, 23), "Mal iadesi", -10.01m, 1, null, Array.Empty<KanalPayYaz>(), 42);
         await Client(h).TakipHarcamaKaydetAsync(7, g);
         var sent = JsonSerializer.Deserialize<KartHarcamaYaz>(h.SonGovde!, Json)!;
-        Assert.Equal(42, sent.KaynakHarcamaId); Assert.Equal(-10.01m, sent.Tutar); Assert.Empty(sent.Dagilimlar);
+        Assert.Equal(42, sent.KaynakHarcamaId);
+        Assert.Equal(-10.01m, sent.Tutar);
+        Assert.Empty(sent.Dagilimlar);
         Assert.Equal("/api/takip/kartlar/7/harcamalar", h.SonIstek!.RequestUri!.AbsolutePath);
     }
 }

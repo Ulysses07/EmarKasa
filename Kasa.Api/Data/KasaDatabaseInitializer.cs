@@ -26,27 +26,34 @@ public static class KasaDatabaseInitializer
     {
         var connection = (SqliteConnection)db.Database.GetDbConnection();
         var openedHere = connection.State != ConnectionState.Open;
-        if (openedHere) connection.Open();
+        if (openedHere)
+            connection.Open();
         try
         {
             var kopru = !HasMigrationHistory(connection) && StableSchemaDefinition.Tables.Any(t => TableExists(connection, t.Name));
             GocOncesiYedek(db, connection, kopru, yedek);
             var kartIadeAdimi = db.Database.GetPendingMigrations().Contains(KartTakipDuzeltmeleri.Kimlik);
             var belgeDeposuGecisi = db.Database.GetPendingMigrations().Contains(BelgeDeposuGocu.Kimlik);
-            if (kopru) BridgeLegacyDatabase(connection);
+            if (kopru)
+                BridgeLegacyDatabase(connection);
 
             var kanalKumesiGecisi = db.Database.GetPendingMigrations().Contains(AyKanalKumesi.MigrationId);
-            if (belgeDeposuGecisi) BelgeDeposunaGecis(db, connection, depo, disk);
+            if (belgeDeposuGecisi)
+                BelgeDeposunaGecis(db, connection, depo, disk);
             db.Database.Migrate();
-            if (belgeDeposuGecisi) Sikistir(db, connection);
+            if (belgeDeposuGecisi)
+                Sikistir(db, connection);
             WalKipineAl(db, connection);
-            if (kanalKumesiGecisi) KanalKumesiGecisi(db);
+            if (kanalKumesiGecisi)
+                KanalKumesiGecisi(db);
             GecisTohumu(db);
-            if (kartIadeAdimi) KartIadeTohumu(db);
+            if (kartIadeAdimi)
+                KartIadeTohumu(db);
         }
         finally
         {
-            if (openedHere) connection.Close();
+            if (openedHere)
+                connection.Close();
         }
     }
 
@@ -62,15 +69,19 @@ public static class KasaDatabaseInitializer
             || Scalar(connection, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1;") is null)
             return;
         var bekleyen = new List<string>();
-        if (kopru) bekleyen.Add("Eski şema köprüsü (migration geçmişi yok)");
+        if (kopru)
+            bekleyen.Add("Eski şema köprüsü (migration geçmişi yok)");
         bekleyen.AddRange(db.Database.GetPendingMigrations());
         bekleyen.AddRange(AyRaporAnlikGoruntusu.BekleyenTohum(connection));
-        if (BelgeDeposuAktarimi.BekleyenIs(connection) is { } belgeAktarimi) bekleyen.Add(belgeAktarimi);
-        if (bekleyen.Count == 0) return;
+        if (BelgeDeposuAktarimi.BekleyenIs(connection) is { } belgeAktarimi)
+            bekleyen.Add(belgeAktarimi);
+        if (bekleyen.Count == 0)
+            return;
         if (yedek is null)
             throw new InvalidOperationException("Kasa veritabanında bekleyen güncelleme var ancak göç öncesi yedek servisi verilmedi; yedeksiz güncelleme yapılmaz. Veritabanı değiştirilmedi.");
         string yol;
-        try { yol = yedek.GocOncesiYedekAl(connection, bekleyen); }
+        try
+        { yol = yedek.GocOncesiYedekAl(connection, bekleyen); }
         catch (Exception ex)
         {
             throw new InvalidOperationException(
@@ -92,7 +103,8 @@ public static class KasaDatabaseInitializer
     {
         var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer));
         var tasinacak = BelgeDeposuAktarimi.TasinacakIcerik(connection);
-        if (depo is null && BellekIci(connection)) depo = BelgeDeposu.Gecici();
+        if (depo is null && BellekIci(connection))
+            depo = BelgeDeposu.Gecici();
         if (tasinacak.Sayi > 0)
         {
             if (depo is null)
@@ -110,10 +122,12 @@ public static class KasaDatabaseInitializer
         // Hedefli Migrate hedeften sonraki uygulanmış migration'ları geri alır: yalnız hazırlık bekliyorsa ve içerikleri düşüren
         // migration henüz uygulanmamışsa (ör. eşzamanlı ikinci başlangıç onu tamamlamadıysa) çalıştırılır.
         var bekleyen = db.Database.GetPendingMigrations().ToList();
-        if (!bekleyen.Contains(BelgeDeposuGocu.Kimlik)) return;
+        if (!bekleyen.Contains(BelgeDeposuGocu.Kimlik))
+            return;
         if (bekleyen.Contains(BelgeDeposuHazirlik.Kimlik))
         {
-            try { db.GetService<IMigrator>().Migrate(BelgeDeposuHazirlik.Kimlik); }
+            try
+            { db.GetService<IMigrator>().Migrate(BelgeDeposuHazirlik.Kimlik); }
             catch (NotSupportedException)
             {
                 // Denetim ile Migrate arasında eşzamanlı başka bir başlangıç (ör. aynı anda açılan ikinci konteyner) geçişi tamamladıysa
@@ -121,11 +135,13 @@ public static class KasaDatabaseInitializer
                 // yolda SQLite migration kilidini (__EFMigrationsLock satırı) bırakmaz; Down kilit alındıktan sonra üretildiği için satır
                 // bu başlangıcındır ve burada bırakılır (yoksa sonraki her Migrate sonsuza dek bekler). Geçiş tamamlanmıştır: açılış sürer.
                 Execute(connection, "DELETE FROM \"__EFMigrationsLock\";");
-                if (db.Database.GetPendingMigrations().Contains(BelgeDeposuGocu.Kimlik)) throw;
+                if (db.Database.GetPendingMigrations().Contains(BelgeDeposuGocu.Kimlik))
+                    throw;
                 return;
             }
         }
-        if (depo is not null) BelgeDeposuAktarimi.BelgeleriAktar(connection, depo, logger);
+        if (depo is not null)
+            BelgeDeposuAktarimi.BelgeleriAktar(connection, depo, logger);
     }
 
     /// <summary>BLOB sütunları düşürüldükten sonra bir kez (transaction dışında): VACUUM dosyayı yeniden yazar, silinmiş belge
@@ -133,7 +149,8 @@ public static class KasaDatabaseInitializer
     /// (veri doğrudur, yalnız dosya büyük kalır): uyarı yazılır, sonraki sürümde elle çalıştırılabilir.</summary>
     private static void Sikistir(KasaDbContext db, SqliteConnection connection)
     {
-        if (BellekIci(connection)) return;
+        if (BellekIci(connection))
+            return;
         var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer));
         try
         {
@@ -168,7 +185,8 @@ public static class KasaDatabaseInitializer
     private static void WalKipineAl(KasaDbContext db, SqliteConnection connection)
     {
         var mode = Convert.ToString(Scalar(connection, "PRAGMA journal_mode = WAL;"), System.Globalization.CultureInfo.InvariantCulture);
-        if (mode is "wal" or "memory") return;
+        if (mode is "wal" or "memory")
+            return;
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
             .LogWarning("Veritabanı WAL kipine alınamadı (günlük kipi: {Kip}); okumalar yazma işlemlerini bekletebilir.", mode);
     }
@@ -179,7 +197,8 @@ public static class KasaDatabaseInitializer
     private static void KanalKumesiGecisi(KasaDbContext db)
     {
         var aylar = AyKanalKumesi.GecisDondurmasi(db);
-        if (aylar.Count == 0) return;
+        if (aylar.Count == 0)
+            return;
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
             "Tamamlanmış {Sayi} ayın kanal kümesi (Ortak gider dağılımı ve rapor satırları) bugünkü kanallarla donduruldu: {Aylar}.", aylar.Count,
             string.Join(", ", aylar.Select(AyKanalKumesi.AyMetni)));
@@ -190,7 +209,8 @@ public static class KasaDatabaseInitializer
     private static void GecisTohumu(KasaDbContext db)
     {
         var aylar = AyRaporAnlikGoruntusu.GecisTohumu(db, db.Saati().GetUtcNow());
-        if (aylar.Count == 0) return;
+        if (aylar.Count == 0)
+            return;
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
             "Bu sürümden önce kilitlenmiş {Sayi} ayın raporu kural 1 ile donduruldu: {Aylar}.", aylar.Count,
             string.Join(", ", aylar.Select(a => $"{a.Yil:D4}-{a.Ay:D2}")));
@@ -201,7 +221,8 @@ public static class KasaDatabaseInitializer
     private static void KartIadeTohumu(KasaDbContext db)
     {
         var (eslesen, eslesmeyen) = FinansTakipServisi.IadeHesabiTohumu(db);
-        if (eslesen + eslesmeyen == 0) return;
+        if (eslesen + eslesmeyen == 0)
+            return;
         db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
             "Kart iadelerinin hesap kaydı yazıldı: {Eslesen} iade kaynak harcamanın güncel payını izleyecek, {Eslesmeyen} iade dondurulmuş payıyla kalır. Raporlar değişmedi.",
             eslesen, eslesmeyen);
@@ -268,7 +289,8 @@ public static class KasaDatabaseInitializer
                 // eski gruplar işaretlendikten sonra filtreli olarak kurulacak.
                 // Arada süreç durursa initial history sayesinde kalan migration'lar
                 // sonraki başlangıçta tamamlanır; henüz HTTP sunucusu açılmamıştır.
-                if (duplicateIncome && name is "IX_Gelenler_DonemStart_KanalId" or "IX_Gelenler_DonemStart_Kanal") continue;
+                if (duplicateIncome && name is "IX_Gelenler_DonemStart_KanalId" or "IX_Gelenler_DonemStart_Kanal")
+                    continue;
                 Execute(connection, sql, transaction);
             }
 
@@ -350,7 +372,8 @@ public static class KasaDatabaseInitializer
         using var command = Command(connection, $"PRAGMA table_info(\"{table}\");", transaction);
         using var reader = command.ExecuteReader();
         var columns = new HashSet<string>(StringComparer.Ordinal);
-        while (reader.Read()) columns.Add(reader.GetString(1));
+        while (reader.Read())
+            columns.Add(reader.GetString(1));
         return columns;
     }
 
@@ -367,7 +390,8 @@ public static class KasaDatabaseInitializer
         var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Transaction = transaction;
-        foreach (var (name, value) in parameters) command.Parameters.AddWithValue(name, value);
+        foreach (var (name, value) in parameters)
+            command.Parameters.AddWithValue(name, value);
         return command;
     }
 

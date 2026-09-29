@@ -257,8 +257,10 @@ public class DagitimSablonuTests
             var girinti = satir.Length - icerik.Length;
             if (blokGirintisi is { } g && (girinti < g || (girinti == g && !icerik.StartsWith("- ", StringComparison.Ordinal))))
                 (blokGirintisi, oge) = (null, null);
-            if (icerik == "volumes:") { blokGirintisi = girinti; continue; }
-            if (blokGirintisi is null) continue;
+            if (icerik == "volumes:")
+            { blokGirintisi = girinti; continue; }
+            if (blokGirintisi is null)
+                continue;
 
             if (icerik.StartsWith("- ", StringComparison.Ordinal))
             {
@@ -271,7 +273,8 @@ public class DagitimSablonuTests
             var m = AnahtarDeger.Match(icerik);
             Assert.True(oge is not null && m.Success,
                 $"{dosya}: '{icerik}' uzun bağlama sözdizimi değil; bağlamayı type/source/target ve bind.create_host_path: false ile yazın.");
-            while (ustler.TryPeek(out var ust) && ust.Girinti >= girinti) ustler.Pop();
+            while (ustler.TryPeek(out var ust) && ust.Girinti >= girinti)
+                ustler.Pop();
             var anahtar = m.Groups["anahtar"].Value;
             if (m.Groups["deger"].Success)
                 oge![string.Join('.', ustler.Reverse().Select(u => u.Anahtar).Append(anahtar))] = m.Groups["deger"].Value.Trim().Trim('"', '\'');

@@ -35,9 +35,14 @@ public class AnaSayfaVeIptalTests
         var a = await Client(h).AnaSayfaAsync(7);
 
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=7" }, h.Istekler);
-        Assert.Equal(900, a.Panel.GuncelKasa); Assert.Equal(2, a.Panel.Kanallar[1].KanalId); Assert.Equal(7, a.Panel.DagilimBekleyenTutar);
-        var esik = Assert.Single(a.KasaEsikleri!); Assert.True(esik.EsikAltinda); Assert.Equal(600, esik.Bakiye);
-        Assert.Equal(120, a.TakipOzeti!.KartBorcu); Assert.Equal(1, a.TakipOzeti.KanalKartBorclari!.Single().KanalId);
+        Assert.Equal(900, a.Panel.GuncelKasa);
+        Assert.Equal(2, a.Panel.Kanallar[1].KanalId);
+        Assert.Equal(7, a.Panel.DagilimBekleyenTutar);
+        var esik = Assert.Single(a.KasaEsikleri!);
+        Assert.True(esik.EsikAltinda);
+        Assert.Equal(600, esik.Bakiye);
+        Assert.Equal(120, a.TakipOzeti!.KartBorcu);
+        Assert.Equal(1, a.TakipOzeti.KanalKartBorclari!.Single().KanalId);
         // Takipte olmayan kayıt yoksa sunucu alanı yazmaz: null.
         Assert.Null(a.TakipsizKayitlar);
     }
@@ -62,9 +67,11 @@ public class AnaSayfaVeIptalTests
         var ikinci = await c.AnaSayfaAsync();
 
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/panel" }, h.Istekler);
-        Assert.Equal(900, ilk.Panel.GuncelKasa); Assert.Equal(900, ikinci.Panel.GuncelKasa);
+        Assert.Equal(900, ilk.Panel.GuncelKasa);
+        Assert.Equal(900, ikinci.Panel.GuncelKasa);
         // Eşikler ve takip özeti eski uçlardan ayrıca yüklenir (eski davranış); boş liste uydurulmaz.
-        Assert.Null(ilk.KasaEsikleri); Assert.Null(ilk.TakipOzeti);
+        Assert.Null(ilk.KasaEsikleri);
+        Assert.Null(ilk.TakipOzeti);
     }
 
     // IST4: birleşik ucun sunucu hatası (5xx) ana sayfayı düşürmez: kasa bakiyeleri panel ucundan gelir, eşikler ve takip
@@ -80,8 +87,10 @@ public class AnaSayfaVeIptalTests
         var ilk = await c.AnaSayfaAsync();
         await c.AnaSayfaAsync();
 
-        Assert.Equal(900, ilk.Panel.GuncelKasa); Assert.Equal(2, ilk.Panel.Kanallar.Count);
-        Assert.Null(ilk.KasaEsikleri); Assert.Null(ilk.TakipOzeti);
+        Assert.Equal(900, ilk.Panel.GuncelKasa);
+        Assert.Equal(2, ilk.Panel.Kanallar.Count);
+        Assert.Null(ilk.KasaEsikleri);
+        Assert.Null(ilk.TakipOzeti);
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
     }
 
@@ -100,7 +109,9 @@ public class AnaSayfaVeIptalTests
         // Sunucu (RDY) takip özeti hesaplanamayınca paneli özetsiz döndürür; istemci boş liste ya da sıfır uydurmaz.
         var h = new Kayitci((_, _) => Json("""{"panel":""" + PanelJson + ""","kasaEsikleri":null,"takipOzeti":null}"""));
         var a = await Client(h).AnaSayfaAsync();
-        Assert.Equal(900, a.Panel.GuncelKasa); Assert.Null(a.KasaEsikleri); Assert.Null(a.TakipOzeti);
+        Assert.Equal(900, a.Panel.GuncelKasa);
+        Assert.Null(a.KasaEsikleri);
+        Assert.Null(a.TakipOzeti);
         Assert.Single(h.Istekler);
     }
 
@@ -136,7 +147,8 @@ public class AnaSayfaVeIptalTests
         using var iptal = new CancellationTokenSource();
 
         var ana = Client(h).AnaSayfaAsync(30, iptal.Token);
-        await basladi.Task; iptal.Cancel();
+        await basladi.Task;
+        iptal.Cancel();
 
         var hata = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ana);
         Assert.IsNotType<TimeoutException>(hata.InnerException);

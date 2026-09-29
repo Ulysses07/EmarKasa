@@ -23,7 +23,9 @@ public class EskiKartKrediSozlesmeTests : SozlesmeTemeli
         F.Veri(db =>
         {
             var kart = new KrediKartiEntity { Ad = "Eski kart", KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25), Limit = 10000m, Borc = 250.5m };
-            db.Add(kart); db.SaveChanges(); kartId = kart.Id;
+            db.Add(kart);
+            db.SaveChanges();
+            kartId = kart.Id;
             db.Islemler.Add(new() { Tarih = Bugun, Cari = "Eski kart harcaması", TutarTl = 100m, KanalId = 1, Kanal = "MEZAT", Tip = Kasa.Core.GiderTipi.KrediKarti, KrediKartiId = kart.Id });
             db.KartOdemeler.Add(new() { KrediKartiId = kart.Id, Tarih = Bugun, Tutar = 50.25m, Not = "Eski ödeme" });
             db.SaveChanges();

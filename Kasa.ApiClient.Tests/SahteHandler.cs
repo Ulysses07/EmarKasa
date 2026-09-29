@@ -20,7 +20,8 @@ public sealed class SahteHandler : HttpMessageHandler
     public SahteHandler Kuyrukla(HttpStatusCode kod, string? json = null)
     {
         var resp = new HttpResponseMessage(kod);
-        if (json is not null) resp.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        if (json is not null)
+            resp.Content = new StringContent(json, Encoding.UTF8, "application/json");
         _yanitlar.Enqueue(resp);
         return this;
     }

@@ -30,7 +30,9 @@ public class RaporTests : IClassFixture<KasaWebFactory>
         foreach (var (ad, sira, devir) in new[] { ("MEZAT", 0, 4_991_052m), ("PERAKENDE", 1, 2_013_516m), ("TOPTAN", 2, 619_647m) })
         {
             var kanal = db.Kanallar.SingleOrDefault(k => k.Ad == ad) ?? db.Kanallar.Add(new KanalEntity { Ad = ad }).Entity;
-            kanal.Sira = sira; kanal.Aktif = true; kanal.AcilisDevri = devir;
+            kanal.Sira = sira;
+            kanal.Aktif = true;
+            kanal.AcilisDevri = devir;
         }
 
         var ayar = db.Ayarlar.First();
@@ -98,8 +100,10 @@ public class RaporIptalTests
         private bool _iptalEdildi;
         public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
         {
-            if (_iptalEdildi) Interlocked.Increment(ref IptalSonrasiKomut);
-            else if (Tablo is not null && command.CommandText.Contains($"FROM \"{Tablo}\"", StringComparison.Ordinal)) { _iptalEdildi = true; Iptal!.Cancel(); }
+            if (_iptalEdildi)
+                Interlocked.Increment(ref IptalSonrasiKomut);
+            else if (Tablo is not null && command.CommandText.Contains($"FROM \"{Tablo}\"", StringComparison.Ordinal))
+            { _iptalEdildi = true; Iptal!.Cancel(); }
             return result;
         }
     }
@@ -130,12 +134,14 @@ public class RaporIptalTests
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var hesap = new HesapServisi(db);
         using var iptal = new CancellationTokenSource();
-        kesici.Iptal = iptal; kesici.Tablo = tablo;
+        kesici.Iptal = iptal;
+        kesici.Tablo = tablo;
         Assert.Throws<OperationCanceledException>(() => hesap.Panel(iptal.Token));
         Assert.Equal(0, kesici.IptalSonrasiKomut);
         Assert.Null(db.Database.CurrentTransaction);
         // Anlık görüntü bırakıldı: aynı bağlantı yeniden yazmaya açık.
-        db.Kanallar.Add(new() { Ad = "İptalden sonra" }); db.SaveChanges();
+        db.Kanallar.Add(new() { Ad = "İptalden sonra" });
+        db.SaveChanges();
         // Önceden bırakılmış istek hiç hesaplanmaz.
         Assert.Throws<OperationCanceledException>(() => hesap.Haftalik(new CancellationToken(true)));
         Assert.Throws<OperationCanceledException>(() => FinansTakipServisi.Kart(new TakipHesapBaglami(db, new CancellationToken(true)), kart.Id));

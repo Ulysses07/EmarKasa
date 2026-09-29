@@ -24,8 +24,13 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
 
         var olustur = await client.PostAsJsonAsync("/api/krediler", new
         {
-            ad = "İhtiyaç Kredisi", cekilenTutar = 50_000.50m, cekimTarihi = "2026-08-03",
-            taksitSayisi = 12, aylikOdeme = 4_800.25m, odemeGunu = 15, kanal = "Instagram",
+            ad = "İhtiyaç Kredisi",
+            cekilenTutar = 50_000.50m,
+            cekimTarihi = "2026-08-03",
+            taksitSayisi = 12,
+            aylikOdeme = 4_800.25m,
+            odemeGunu = 15,
+            kanal = "Instagram",
         });
         Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
         var eklenen = LegacyFinanceSeed.Kredi(_factory, new("İhtiyaç Kredisi", 50_000.50m,
@@ -42,16 +47,26 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
         // gT6: çekimi geçmişte olan eski kredinin tutar/gün/kanal düzeltmesi geçmiş raporları yeniden yazardı: 409.
         var guncelle = await client.PutAsJsonAsync($"/api/krediler/{eklenen.Id}", new
         {
-            ad = "İhtiyaç Kredisi", cekilenTutar = 50_000.50m, cekimTarihi = "2026-08-03",
-            taksitSayisi = 12, aylikOdeme = 5_000m, odemeGunu = 20, kanal = "Ortak",
+            ad = "İhtiyaç Kredisi",
+            cekilenTutar = 50_000.50m,
+            cekimTarihi = "2026-08-03",
+            taksitSayisi = 12,
+            aylikOdeme = 5_000m,
+            odemeGunu = 20,
+            kanal = "Ortak",
         });
         Assert.Equal(HttpStatusCode.Conflict, guncelle.StatusCode);
 
         // Yalnız ad düzeltmesi serbesttir.
         var adDuzelt = await client.PutAsJsonAsync($"/api/krediler/{eklenen.Id}", new
         {
-            ad = "Ziraat İhtiyaç Kredisi", cekilenTutar = 50_000.50m, cekimTarihi = "2026-08-03",
-            taksitSayisi = 12, aylikOdeme = 4_800.25m, odemeGunu = 15, kanal = "Instagram",
+            ad = "Ziraat İhtiyaç Kredisi",
+            cekilenTutar = 50_000.50m,
+            cekimTarihi = "2026-08-03",
+            taksitSayisi = 12,
+            aylikOdeme = 4_800.25m,
+            odemeGunu = 15,
+            kanal = "Instagram",
         });
         Assert.Equal(HttpStatusCode.OK, adDuzelt.StatusCode);
 
@@ -85,8 +100,13 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
 
         var yazma = await izleyici.PostAsJsonAsync("/api/krediler", new
         {
-            ad = "X", cekilenTutar = 1m, cekimTarihi = "2026-08-03",
-            taksitSayisi = 3, aylikOdeme = 1m, odemeGunu = 1, kanal = "Ortak",
+            ad = "X",
+            cekilenTutar = 1m,
+            cekimTarihi = "2026-08-03",
+            taksitSayisi = 3,
+            aylikOdeme = 1m,
+            odemeGunu = 1,
+            kanal = "Ortak",
         });
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }

@@ -61,11 +61,16 @@ public static partial class VeritabaniHataSiniflandirici
     /// </summary>
     public static VeritabaniHatasi? Siniflandir(Exception e, string? cakismaIletisi = null)
     {
-        if (e is KilitliDonemException) return new(VeritabaniHataTuru.KilitliDonem, StatusCodes.Status409Conflict, e.Message, null);
-        if (e is DbUpdateConcurrencyException) return new(VeritabaniHataTuru.SurumCakismasi, StatusCodes.Status409Conflict, SurumIletisi, null);
-        if (Sqlite(e) is not { } s) return null;
-        if (Mesgul(s)) return new(VeritabaniHataTuru.Mesgul, StatusCodes.Status503ServiceUnavailable, MesgulIletisi, s);
-        if ((s.SqliteErrorCode & 0xFF) != Constraint) return null;
+        if (e is KilitliDonemException)
+            return new(VeritabaniHataTuru.KilitliDonem, StatusCodes.Status409Conflict, e.Message, null);
+        if (e is DbUpdateConcurrencyException)
+            return new(VeritabaniHataTuru.SurumCakismasi, StatusCodes.Status409Conflict, SurumIletisi, null);
+        if (Sqlite(e) is not { } s)
+            return null;
+        if (Mesgul(s))
+            return new(VeritabaniHataTuru.Mesgul, StatusCodes.Status503ServiceUnavailable, MesgulIletisi, s);
+        if ((s.SqliteErrorCode & 0xFF) != Constraint)
+            return null;
         if (s.Message.Contains("Kilitli ay", StringComparison.Ordinal))
             return new(VeritabaniHataTuru.KilitliDonem, StatusCodes.Status409Conflict, KilitliAyIletisi, s);
         if (s.SqliteExtendedErrorCode == ConstraintTrigger)
@@ -80,7 +85,8 @@ public static partial class VeritabaniHataSiniflandirici
     public static SqliteException? Sqlite(Exception? e)
     {
         for (var i = 0; e is not null && i < 8; e = e.InnerException, i++)
-            if (e is SqliteException s) return s;
+            if (e is SqliteException s)
+                return s;
         return null;
     }
 

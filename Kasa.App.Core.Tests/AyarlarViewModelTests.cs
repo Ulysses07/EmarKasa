@@ -24,7 +24,7 @@ public class AyarlarViewModelTests
     [Fact]
     public async Task Yeni_kanal_olustur_cagirir()
     {
-        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026,1,1), 0m, false) };
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
         var vm = new AyarlarViewModel(api) { DuzenKanalAd = "TOPTAN", DuzenKanalSira = 3 };
 
         await vm.KanalKaydetCommand.ExecuteAsync(null);
@@ -37,7 +37,7 @@ public class AyarlarViewModelTests
     [Fact]
     public async Task Kanal_sil_cagirir()
     {
-        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026,1,1), 0m, false) };
+        var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false) };
         var vm = new AyarlarViewModel(api);
 
         await vm.KanalSilCommand.ExecuteAsync(new KanalDto(4, "PERAKENDE", true, 1, 0m));
@@ -86,7 +86,8 @@ public class AyarlarViewModelTests
         Assert.Contains("15.000,00 ₺ yerine 0,00 ₺", vm.AyarUyarisi);
         Assert.Contains("Onaylamak için yeniden kaydedin", vm.AyarUyarisi);
 
-        vm.KasaAcilisDevri = 1m; vm.KasaAcilisDevri = 0m;          // değer değişti: onay sıfırlanır
+        vm.KasaAcilisDevri = 1m;
+        vm.KasaAcilisDevri = 0m;          // değer değişti: onay sıfırlanır
         Assert.Null(vm.AyarUyarisi);
         await vm.AyarKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonAyar);
@@ -113,13 +114,15 @@ public class AyarlarViewModelTests
         };
         var vm = new AyarlarViewModel(api);
         await vm.YukleAsync();
-        vm.KanalDuzenle(vm.Kanallar[0]); vm.DuzenKanalAcilisDevri = 0m;
+        vm.KanalDuzenle(vm.Kanallar[0]);
+        vm.DuzenKanalAcilisDevri = 0m;
 
         await vm.KanalKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonKanalGuncelle);
         Assert.Contains("MEZAT açılış devri 5.000,00 ₺ yerine 0,00 ₺", vm.KanalUyarisi);
 
-        vm.KanalDuzenle(vm.Kanallar[1]); vm.DuzenKanalAcilisDevri = 0m;   // başka kanal: onay sıfırlanır
+        vm.KanalDuzenle(vm.Kanallar[1]);
+        vm.DuzenKanalAcilisDevri = 0m;   // başka kanal: onay sıfırlanır
         Assert.Null(vm.KanalUyarisi);
         await vm.KanalKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonKanalGuncelle);
@@ -130,11 +133,13 @@ public class AyarlarViewModelTests
         Assert.Equal(0m, api.SonKanalGuncelle!.Value.G.AcilisDevri);
         Assert.Null(vm.KanalUyarisi);
 
-        vm.KanalDuzenle(vm.Kanallar[0]); vm.DuzenKanalAcilisDevri = 4000m;  // sıfır olmayan değişiklik onaysız gider
+        vm.KanalDuzenle(vm.Kanallar[0]);
+        vm.DuzenKanalAcilisDevri = 4000m;  // sıfır olmayan değişiklik onaysız gider
         await vm.KanalKaydetCommand.ExecuteAsync(null);
         Assert.Equal((1, 4000m), (api.SonKanalGuncelle!.Value.Id, api.SonKanalGuncelle.Value.G.AcilisDevri));
 
-        vm.YeniKanalCommand.Execute(null); vm.DuzenKanalAd = "TOPTAN";     // yeni kanalın kayıtlı devri yok
+        vm.YeniKanalCommand.Execute(null);
+        vm.DuzenKanalAd = "TOPTAN";     // yeni kanalın kayıtlı devri yok
         await vm.KanalKaydetCommand.ExecuteAsync(null);
         Assert.Equal("TOPTAN", api.SonKanalOlustur!.Ad);
     }
@@ -174,13 +179,16 @@ public class AyarlarViewModelTests
         var api = new SahteApi { AyarlarSonuc = new AyarlarDto(new DateOnly(2026, 1, 1), 0m, false), KanallarListe = new List<KanalDto> { new(1, "MEZAT", true, 0, 0m) } };
         var vm = new AyarlarViewModel(api, new SahteKilit());
         await vm.YukleAsync();
-        Assert.True(vm.DuzenKanalAktif); Assert.Null(vm.KanalKilitNotu);
+        Assert.True(vm.DuzenKanalAktif);
+        Assert.Null(vm.KanalKilitNotu);
 
         // Kilit durumu yalnız form varsayılanı içindir (kuralı sunucu uygular): okunamazsa ayarlar yine yüklenir.
         var okunamaz = new AyarlarViewModel(api, new SahteKilit { Hata = new KasaApiException(HttpStatusCode.NotFound) });
         await okunamaz.YukleAsync();
-        Assert.Null(okunamaz.Hata); Assert.Single(okunamaz.Kanallar);
-        Assert.True(okunamaz.DuzenKanalAktif); Assert.Null(okunamaz.KanalKilitNotu);
+        Assert.Null(okunamaz.Hata);
+        Assert.Single(okunamaz.Kanallar);
+        Assert.True(okunamaz.DuzenKanalAktif);
+        Assert.Null(okunamaz.KanalKilitNotu);
     }
 
     // Ayarlar bu oturumda sunucudan okunmadan formda varsayılanlar durur (takip başlangıcı bugün, açılış devri 0): yükleme
@@ -196,7 +204,8 @@ public class AyarlarViewModelTests
 
         await vm.YukleAsync();
         Assert.NotNull(vm.Hata);
-        Assert.Equal(DateTime.Today, vm.TakipBaslangic); Assert.Equal(0m, vm.KasaAcilisDevri);
+        Assert.Equal(DateTime.Today, vm.TakipBaslangic);
+        Assert.Equal(0m, vm.KasaAcilisDevri);
         Assert.False(vm.AyarKaydetCommand.CanExecute(null));
         await vm.AyarKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonAyar);

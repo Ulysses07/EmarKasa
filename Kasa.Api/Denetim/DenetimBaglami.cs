@@ -46,7 +46,8 @@ public static class DenetimBaglami
     /// Geçersiz yüzde kodu olduğu gibi kalır.</summary>
     internal static string? IstekGerekcesi(HttpContext? http)
     {
-        if (http is null || !http.Request.Headers.TryGetValue(GerekceBasligi, out var deger)) return null;
+        if (http is null || !http.Request.Headers.TryGetValue(GerekceBasligi, out var deger))
+            return null;
         var metin = Uri.UnescapeDataString(deger.ToString()).Trim();
         return metin.Length == 0 ? null : metin;
     }
@@ -58,7 +59,8 @@ public static class DenetimBaglami
 
     public static DenetimAktoru Aktor(HttpContext? http)
     {
-        if (http is null) return DenetimAktoru.Sistem;
+        if (http is null)
+            return DenetimAktoru.Sistem;
         var user = http.User;
         var rol = user.Identity?.IsAuthenticated == true ? user.FindFirstValue(ClaimTypes.Role) ?? "anonim" : "anonim";
         int? id = int.TryParse(user.FindFirstValue("alici_id"), out var aliciId) && aliciId > 0 ? aliciId : null;
@@ -68,7 +70,8 @@ public static class DenetimBaglami
     internal static string? Ip(HttpContext http)
     {
         var ip = http.Connection.RemoteIpAddress;
-        if (ip is null) return null;
+        if (ip is null)
+            return null;
         return (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).ToString();
     }
 

@@ -25,7 +25,8 @@ public static class PushDogrulama
     {
         if (value is null || value.Length > 2048 || !Uri.TryCreate(value, UriKind.Absolute, out var uri)
             || uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0
-            || uri.AbsolutePath == "/" || IPAddress.TryParse(uri.Host, out _)) return false;
+            || uri.AbsolutePath == "/" || IPAddress.TryParse(uri.Host, out _))
+            return false;
         var host = uri.IdnHost.ToLowerInvariant();
         return host == "fcm.googleapis.com" || host == "web.push.apple.com"
             || host.EndsWith(".push.apple.com", StringComparison.Ordinal)
@@ -35,7 +36,8 @@ public static class PushDogrulama
 
     public static byte[] Decode(string value)
     {
-        if (value.Length > 256 || value.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_')) throw new FormatException();
+        if (value.Length > 256 || value.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_'))
+            throw new FormatException();
         return Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
     }
 
@@ -45,9 +47,11 @@ public static class PushDogrulama
     {
         try
         {
-            if (p256dh is null || auth is null || Decode(auth).Length != 16) return false;
+            if (p256dh is null || auth is null || Decode(auth).Length != 16)
+                return false;
             var point = Decode(p256dh);
-            if (point.Length != 65 || point[0] != 4) return false;
+            if (point.Length != 65 || point[0] != 4)
+                return false;
             using var key = ECDiffieHellman.Create(new ECParameters
             { Curve = ECCurve.NamedCurves.nistP256, Q = new ECPoint { X = point[1..33], Y = point[33..65] } });
             return true;
@@ -64,11 +68,14 @@ public sealed class PushKimligi(IConfiguration cfg, IWebHostEnvironment environm
     public bool Etkin => cfg.GetValue<bool?>("Bildirim:PushEtkin") ?? environment.IsProduction();
     public PushAnahtarlar? Get()
     {
-        if (!Etkin) return null;
+        if (!Etkin)
+            return null;
         lock (gate)
         {
-            if (keys is not null) return keys;
-            var publicKey = cfg["Bildirim:PublicKey"]; var privateKey = cfg["Bildirim:PrivateKey"];
+            if (keys is not null)
+                return keys;
+            var publicKey = cfg["Bildirim:PublicKey"];
+            var privateKey = cfg["Bildirim:PrivateKey"];
             if (!string.IsNullOrWhiteSpace(publicKey) && !string.IsNullOrWhiteSpace(privateKey))
                 return keys = new(publicKey, privateKey);
             var database = new SqliteConnectionStringBuilder(cfg.GetConnectionString("Kasa") ?? "Data Source=kasa.db").DataSource;
@@ -81,12 +88,16 @@ public sealed class PushKimligi(IConfiguration cfg, IWebHostEnvironment environm
                 var generated = new PushAnahtarlar(PushDogrulama.Encode([4, .. p.Q.X!, .. p.Q.Y!]), PushDogrulama.Encode(p.D!));
                 var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
-                if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-                using (var stream = new FileStream(temp, options)) JsonSerializer.Serialize(stream, generated);
-                try { File.Move(temp, path, false); }
+                if (!OperatingSystem.IsWindows())
+                    options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                using (var stream = new FileStream(temp, options))
+                    JsonSerializer.Serialize(stream, generated);
+                try
+                { File.Move(temp, path, false); }
                 catch (IOException) when (File.Exists(path)) { File.Delete(temp); }
             }
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             return keys = JsonSerializer.Deserialize<PushAnahtarlar>(File.ReadAllText(path))
                 ?? throw new InvalidOperationException("Bildirim anahtarı okunamadı.");
         }
@@ -120,12 +131,14 @@ public sealed class WebPushGonderici(PushKimligi identity, IConfiguration cfg, I
     private string? bildirilenYapilandirmaHatasi;
     public async Task<PushSonuc> Gonder(PushAbonelikEntity abonelik, PushIleti ileti, int ttl, CancellationToken ct)
     {
-        if (!PushDogrulama.Endpoint(abonelik.Endpoint)) return PushSonuc.KaliciHata;
+        if (!PushDogrulama.Endpoint(abonelik.Endpoint))
+            return PushSonuc.KaliciHata;
         VapidAuthentication authentication;
         try
         {
             var keys = identity.Get();
-            if (keys is null) return PushSonuc.GeciciHata;
+            if (keys is null)
+                return PushSonuc.GeciciHata;
             authentication = new VapidAuthentication(keys.PublicKey, keys.PrivateKey)
             { Subject = cfg["Bildirim:Subject"] ?? "https://kasa.emarglobal.com" };
         }

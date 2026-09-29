@@ -13,7 +13,8 @@ internal static class OperationsSchemaModel
             e.Property<string>("SifreHash").HasColumnType("TEXT");
             e.Property<string>("KurtarmaHash").HasColumnType("TEXT");
             e.Property<int>("Surum").IsConcurrencyToken().HasColumnType("INTEGER");
-            e.HasKey("Id"); e.ToTable("EditorGuvenlik");
+            e.HasKey("Id");
+            e.ToTable("EditorGuvenlik");
         });
         b.Entity("Kasa.Api.Data.BelgeEntity", e =>
         {
@@ -25,7 +26,10 @@ internal static class OperationsSchemaModel
             e.Property<long>("Boyut").HasColumnType("INTEGER");
             e.Property<DateTimeOffset>("Yuklendi").HasColumnType("TEXT");
             e.Property<byte[]>("Icerik").IsRequired().HasColumnType("BLOB");
-            e.HasKey("Id"); e.HasIndex("AlisId"); e.HasIndex("OdemeId"); e.ToTable("Belgeler");
+            e.HasKey("Id");
+            e.HasIndex("AlisId");
+            e.HasIndex("OdemeId");
+            e.ToTable("Belgeler");
             e.HasOne("Kasa.Api.Data.AlisEntity", null).WithMany().HasForeignKey("AlisId").OnDelete(DeleteBehavior.Restrict).IsRequired();
             e.HasOne("Kasa.Api.Data.AlisOdemeEntity", null).WithMany().HasForeignKey("OdemeId").OnDelete(DeleteBehavior.SetNull);
         });

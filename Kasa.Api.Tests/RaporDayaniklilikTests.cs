@@ -71,7 +71,8 @@ public class RaporDayaniklilikTests
     public async Task Bozuk_kayit_raporlari_dusurmez_karantinaya_alinir_uyari_ve_bir_kez_log_verir(Bozulma bozulma)
     {
         var loglar = new UyariToplayici();
-        await using var f = new LogluFabrika(loglar); using var c = await Editor(f);
+        await using var f = new LogluFabrika(loglar);
+        using var c = await Editor(f);
         var senaryo = await Kur(bozulma, f, c);
         var once = await Panel(c);
         var saglamAnaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa"))!;
@@ -100,8 +101,10 @@ public class RaporDayaniklilikTests
         Assert.Contains(parca, (string)anaSayfa["veriSagligiUyarisi"]!);
         Assert.StartsWith("Okunamayan ", (string)anaSayfa["veriSagligiUyarisi"]!);
         Assert.Equal(senaryo.OzetDuser, anaSayfa["takipOzeti"] is null);
-        if (senaryo.OzetDuser) Assert.Contains("Kart ve kredi takip özeti hesaplanamadı", (string)anaSayfa["veriSagligiUyarisi"]!);
-        Assert.NotNull(anaSayfa["panel"]); Assert.NotNull(anaSayfa["kasaEsikleri"]);
+        if (senaryo.OzetDuser)
+            Assert.Contains("Kart ve kredi takip özeti hesaplanamadı", (string)anaSayfa["veriSagligiUyarisi"]!);
+        Assert.NotNull(anaSayfa["panel"]);
+        Assert.NotNull(anaSayfa["kasaEsikleri"]);
         var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
         Assert.Contains(parca, (string)haftalik[^1]!["veriSagligiUyarisi"]!);
         Assert.Contains(parca, (string)JsonNode.Parse(await c.GetStringAsync(Aylik(senaryo.Ay)))!["veriSagligiUyarisi"]!);
@@ -134,7 +137,8 @@ public class RaporDayaniklilikTests
     public async Task Saglam_veride_karantina_uyarisi_ve_logu_yoktur()
     {
         var loglar = new UyariToplayici();
-        await using var f = new LogluFabrika(loglar, AltinTohum.Bugun); using var c = await f.EditorClientAsync();
+        await using var f = new LogluFabrika(loglar, AltinTohum.Bugun);
+        using var c = await f.EditorClientAsync();
         var tohum = await AltinTohum.Kur(f, c);
         var yanitlar = await AltinTohum.Yanitlar(c, tohum);
         var anaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa?gun=366"))!;
@@ -152,7 +156,8 @@ public class RaporDayaniklilikTests
     public async Task Cok_sayida_bozuk_kayit_uyarida_ozetlenir_her_biri_bir_kez_loglanir()
     {
         var loglar = new UyariToplayici();
-        await using var f = new LogluFabrika(loglar); using var c = await Editor(f);
+        await using var f = new LogluFabrika(loglar);
+        using var c = await Editor(f);
         var doc = await Ekstre(f, c, Enumerable.Range(0, 7).Select(i => ("Gider", 10m + i, new KanalPayYaz[] { new(1, 10m + i) })).ToArray());
         using (var scope = f.Services.CreateScope())
             Bozuk(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), "UPDATE EkstreKayitlar SET DagilimJson = '[{bozuk';");
@@ -174,13 +179,16 @@ public class RaporDayaniklilikTests
     [Fact]
     public async Task Gecis_kartinin_karantinasi_kasada_onceden_sayilan_payi_ikinci_kez_dusmez()
     {
-        await using var f = new LogluFabrika(new UyariToplayici()); using var c = await Editor(f);
+        await using var f = new LogluFabrika(new UyariToplayici());
+        using var c = await Editor(f);
         int id;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var eski = new KrediKartiEntity { Ad = "Geçiş kartı", Borc = 100m, Limit = 1_000m, KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25) };
-            db.KrediKartlari.Add(eski); db.SaveChanges(); id = eski.Id;
+            db.KrediKartlari.Add(eski);
+            db.SaveChanges();
+            id = eski.Id;
         }
         // Devir borcu 100, tamamı kasada önceden sayılmış; geçişten sonra MEZAT'a 60 harcama; 160 ödeme ikisini de kapatır.
         var kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis", new KartGecisYaz(Guid.NewGuid(), 0, Today, 100m, 100m, [new(1, 100m)], "Önceden kasada sayıldı", true));
@@ -221,13 +229,16 @@ public class RaporDayaniklilikTests
     [Fact]
     public async Task Gecis_kartinin_karantinasi_devir_iadesinin_kasaya_dondurdugu_tutari_kart_hesabiyla_ayni_sayar()
     {
-        await using var f = new LogluFabrika(new UyariToplayici()); using var c = await Editor(f);
+        await using var f = new LogluFabrika(new UyariToplayici());
+        using var c = await Editor(f);
         int id;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var eski = new KrediKartiEntity { Ad = "Geçiş kartı", Borc = 100m, Limit = 1_000m, KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 25) };
-            db.KrediKartlari.Add(eski); db.SaveChanges(); id = eski.Id;
+            db.KrediKartlari.Add(eski);
+            db.SaveChanges();
+            id = eski.Id;
         }
         // Devir borcu 100, tamamı kasada önceden sayılmış. 30 iade edilir: kasaya döner (düzeltme 30), devrin sayılan tutarı 70'e
         // iner. Bankanın istediği kalan 70 ödenir: kasada sayılmış kabul edilir, kasa etkisi 0.
@@ -268,13 +279,15 @@ public class RaporDayaniklilikTests
     [Fact]
     public async Task Karantinali_kayda_dokunan_ay_kapatilamaz_409_kaydi_kimligiyle_soyler()
     {
-        await using var f = new LogluFabrika(new UyariToplayici()); using var c = await Editor(f);
+        await using var f = new LogluFabrika(new UyariToplayici());
+        using var c = await Editor(f);
         var senaryo = await Kur(Bozulma.EkGelirKanalsiz, f, c); // Ağustos'ta kanalı olmayan eski ek gelir
         string parca;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            Bozuk(db, senaryo.Sql); parca = senaryo.Parca(db);
+            Bozuk(db, senaryo.Sql);
+            parca = senaryo.Parca(db);
         }
 
         var yanit = await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Agustos));
@@ -311,8 +324,10 @@ public class RaporDayaniklilikTests
     [InlineData("KrediKartlari", "/api/rapor/ana-sayfa", false)]
     public async Task Temiz_veride_kod_hatasi_karantinaya_alinmaz_rapor_hatayla_doner(string tablo, string uc, bool bosBasvuru)
     {
-        var loglar = new UyariToplayici(); var kesici = new KodHatasiKesici();
-        await using var f = new LogluFabrika(loglar, kesici: kesici); using var c = await Editor(f);
+        var loglar = new UyariToplayici();
+        var kesici = new KodHatasiKesici();
+        await using var f = new LogluFabrika(loglar, kesici: kesici);
+        using var c = await Editor(f);
         await Kur(Bozulma.KartOdemesiBozukPaylar, f, c); // temiz takipli kart: harcama ve ödeme (bozan SQL çalıştırılmaz)
         Assert.Equal(HttpStatusCode.OK, (await c.GetAsync(uc)).StatusCode);
 
@@ -331,103 +346,106 @@ public class RaporDayaniklilikTests
         {
             case Bozulma.EkstreGiderBilinmeyenKanal or Bozulma.EkstreGiderKanalsizPay or Bozulma.EkstreGiderBozukDagilim
                 or Bozulma.EkstreGiderBosOge or Bozulma.EkstreGiderBosDagilim or Bozulma.EkstreGiderEksikPay:
-            {
-                var id = (await Ekstre(f, c, ("Gider", 90m, [new(1, 90m)]))).Kayitlar.Single().Id;
-                var yeni = bozulma switch
                 {
-                    Bozulma.EkstreGiderBilinmeyenKanal => Degistir("DagilimJson"),
-                    Bozulma.EkstreGiderKanalsizPay => "REPLACE(DagilimJson, '\"KanalId\":1,', '\"KanalId\":null,')",
-                    Bozulma.EkstreGiderBosOge => "'[null]'",
-                    Bozulma.EkstreGiderBosDagilim => "'[]'",
-                    // Payların toplamı (60) gider tutarını (90) tutmaz: eksik 30 'Dağılım bekliyor' olur, MEZAT'ın 60'ı yerinde kalır.
-                    Bozulma.EkstreGiderEksikPay => "'[{\"KanalId\":1,\"Kanal\":\"MEZAT\",\"Tutar\":60}]'",
-                    _ => "'[{\"KanalId\":1,\"Tutar\":'",
-                };
-                var fark = bozulma == Bozulma.EkstreGiderEksikPay ? 30m : 90m;
-                return new($"UPDATE EkstreKayitlar SET DagilimJson = {yeni} WHERE Id = {id};", _ => $"Ekstre kaydı #{id} (gider, 25.09.2026)", Month, fark, fark);
-            }
+                    var id = (await Ekstre(f, c, ("Gider", 90m, [new(1, 90m)]))).Kayitlar.Single().Id;
+                    var yeni = bozulma switch
+                    {
+                        Bozulma.EkstreGiderBilinmeyenKanal => Degistir("DagilimJson"),
+                        Bozulma.EkstreGiderKanalsizPay => "REPLACE(DagilimJson, '\"KanalId\":1,', '\"KanalId\":null,')",
+                        Bozulma.EkstreGiderBosOge => "'[null]'",
+                        Bozulma.EkstreGiderBosDagilim => "'[]'",
+                        // Payların toplamı (60) gider tutarını (90) tutmaz: eksik 30 'Dağılım bekliyor' olur, MEZAT'ın 60'ı yerinde kalır.
+                        Bozulma.EkstreGiderEksikPay => "'[{\"KanalId\":1,\"Kanal\":\"MEZAT\",\"Tutar\":60}]'",
+                        _ => "'[{\"KanalId\":1,\"Tutar\":'",
+                    };
+                    var fark = bozulma == Bozulma.EkstreGiderEksikPay ? 30m : 90m;
+                    return new($"UPDATE EkstreKayitlar SET DagilimJson = {yeni} WHERE Id = {id};", _ => $"Ekstre kaydı #{id} (gider, 25.09.2026)", Month, fark, fark);
+                }
             case Bozulma.EkstreGiderIkinciBag:
-            {
-                // Benzersizlik dizini kaldırılmış (eski/geri yüklenmiş) veritabanında aynı gidere ikinci ekstre kaydı bağlanır: gider bir
-                // kez, ilk kaydın dağılımıyla sayılır; ikinci bağ rapora alınmaz ve karantinada görünür.
-                var id = (await Ekstre(f, c, ("Gider", 90m, [new(1, 90m)]))).Kayitlar.Single().Id;
-                return new($"""
+                {
+                    // Benzersizlik dizini kaldırılmış (eski/geri yüklenmiş) veritabanında aynı gidere ikinci ekstre kaydı bağlanır: gider bir
+                    // kez, ilk kaydın dağılımıyla sayılır; ikinci bağ rapora alınmaz ve karantinada görünür.
+                    var id = (await Ekstre(f, c, ("Gider", 90m, [new(1, 90m)]))).Kayitlar.Single().Id;
+                    return new($"""
                     DROP INDEX IX_EkstreKayitlar_IslemId;
                     INSERT INTO EkstreKayitlar (BelgeId, SatirNo, Tarih, Aciklama, Tutar, IslemTuru, DagilimTuru, DagilimJson, IslemId, Iptal)
                         SELECT BelgeId, SatirNo + 100, Tarih, Aciklama, Tutar, IslemTuru, DagilimTuru, '[]', IslemId, 0 FROM EkstreKayitlar WHERE Id = {id};
                     """, db => $"Ekstre kaydı #{db.EkstreKayitlar.Max(k => k.Id)} (gider, 25.09.2026)", Month, 0m, 0m);
-            }
+                }
             case Bozulma.EkstreGelirBilinmeyenKanal or Bozulma.EkstreGelirBosOge:
-            {
-                var id = (await Ekstre(f, c, ("Gelir", 200m, [new(1, 200m)]))).Kayitlar.Single().Id;
-                var yeni = bozulma == Bozulma.EkstreGelirBosOge ? "'[null]'" : Degistir("DagilimJson");
-                return new($"UPDATE EkstreKayitlar SET DagilimJson = {yeni} WHERE Id = {id};", _ => $"Ekstre kaydı #{id} (gelir, 25.09.2026)", Month, 0m, -200m);
-            }
-            case Bozulma.AylikGiderBilinmeyenKanal or Bozulma.AylikGiderRevizyonuYok or Bozulma.AylikGiderBosOge:
-            {
-                var sablon = await Create(c, "Ozel", [new(1, 100m)]);
-                var odeme = (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon))).OdemeId!.Value;
-                var sql = bozulma switch
                 {
-                    Bozulma.AylikGiderBilinmeyenKanal => $"UPDATE AylikGiderRevizyonlar SET DagilimJson = {Degistir("DagilimJson")};",
-                    Bozulma.AylikGiderBosOge => "UPDATE AylikGiderRevizyonlar SET DagilimJson = '[null]';",
-                    _ => $"UPDATE AylikGiderOdemeler SET RevizyonId = 9999 WHERE Id = {odeme};",
-                };
-                return new(sql, _ => $"Aylık gider ödemesi #{odeme} (", Month, 100m, 100m);
-            }
+                    var id = (await Ekstre(f, c, ("Gelir", 200m, [new(1, 200m)]))).Kayitlar.Single().Id;
+                    var yeni = bozulma == Bozulma.EkstreGelirBosOge ? "'[null]'" : Degistir("DagilimJson");
+                    return new($"UPDATE EkstreKayitlar SET DagilimJson = {yeni} WHERE Id = {id};", _ => $"Ekstre kaydı #{id} (gelir, 25.09.2026)", Month, 0m, -200m);
+                }
+            case Bozulma.AylikGiderBilinmeyenKanal or Bozulma.AylikGiderRevizyonuYok or Bozulma.AylikGiderBosOge:
+                {
+                    var sablon = await Create(c, "Ozel", [new(1, 100m)]);
+                    var odeme = (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", Payment(sablon))).OdemeId!.Value;
+                    var sql = bozulma switch
+                    {
+                        Bozulma.AylikGiderBilinmeyenKanal => $"UPDATE AylikGiderRevizyonlar SET DagilimJson = {Degistir("DagilimJson")};",
+                        Bozulma.AylikGiderBosOge => "UPDATE AylikGiderRevizyonlar SET DagilimJson = '[null]';",
+                        _ => $"UPDATE AylikGiderOdemeler SET RevizyonId = 9999 WHERE Id = {odeme};",
+                    };
+                    return new(sql, _ => $"Aylık gider ödemesi #{odeme} (", Month, 100m, 100m);
+                }
             case Bozulma.AlisDagilimiHesaplanamaz:
-            {
-                var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Tedarikçi", null, [new("Mal", 1_000m, [new(1, 1_000m)])]));
-                alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
-                alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/onayla", new AlisDurumYaz(alis.Surum, "Uygun"));
-                await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Today, 400m));
-                // Kalem dağılımı ödemelerin altına iner: ödeme dağılımı (D'Hondt) hesaplanamaz.
-                return new($"UPDATE AlisDagilimlar SET Tutar = '100' WHERE AlisKalemId IN (SELECT Id FROM AlisKalemler WHERE AlisId = {alis.Id});",
-                    _ => $"Alış #{alis.Id} ödemesi", Month, 400m, 400m);
-            }
+                {
+                    var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Tedarikçi", null, [new("Mal", 1_000m, [new(1, 1_000m)])]));
+                    alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/gonder", new AlisDurumYaz(alis.Surum));
+                    alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/onayla", new AlisDurumYaz(alis.Surum, "Uygun"));
+                    await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Today, 400m));
+                    // Kalem dağılımı ödemelerin altına iner: ödeme dağılımı (D'Hondt) hesaplanamaz.
+                    return new($"UPDATE AlisDagilimlar SET Tutar = '100' WHERE AlisKalemId IN (SELECT Id FROM AlisKalemler WHERE AlisId = {alis.Id});",
+                        _ => $"Alış #{alis.Id} ödemesi", Month, 400m, 400m);
+                }
             case Bozulma.TakipliKrediTaksitiBilinmeyenKanal or Bozulma.TakipliKrediCekimiBilinmeyenKanal
                 or Bozulma.TakipliKrediTaksitiBosOge or Bozulma.TakipliKrediCekimiBosOge:
-            {
-                // Çekim 10 Temmuz; taksitler 10 Ağustos'tan itibaren (Ağustos ve Eylül taksitleri kasaya işlenmiş). Boş öğeli dağılımı
-                // takip özetinin kredi hesabı da okuyamaz; bilinmeyen kanalı ise "Silinmiş kanal" adıyla gösterir.
-                var kredi = await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "Takip kredisi", 12_000m, new(2026, 7, 10), new(2026, 8, 10), 12, 1_000m, [1]));
-                var bosOge = bozulma is Bozulma.TakipliKrediTaksitiBosOge or Bozulma.TakipliKrediCekimiBosOge;
-                if (bozulma is Bozulma.TakipliKrediCekimiBilinmeyenKanal or Bozulma.TakipliKrediCekimiBosOge)
-                    return new($"UPDATE TakipKrediler SET CekimPaylariJson = {(bosOge ? "'[null]'" : Degistir("CekimPaylariJson"))} WHERE KrediId = {kredi.Id};",
-                        _ => $"Kredi #{kredi.Id} ('Takip kredisi') çekimi", Temmuz, 0m, -12_000m, OzetDuser: bosOge);
-                return new($"UPDATE TakipKrediTaksitler SET DagilimJson = {(bosOge ? "'[null]'" : Degistir("DagilimJson"))} WHERE KrediId = {kredi.Id} AND No = 1;",
-                    db => $"Kredi taksiti #{db.TakipKrediTaksitler.Single(t => t.KrediId == kredi.Id && t.No == 1).Id} ('Takip kredisi' 1. taksit, 10.08.2026)", Agustos, 1_000m, 1_000m, OzetDuser: bosOge);
-            }
+                {
+                    // Çekim 10 Temmuz; taksitler 10 Ağustos'tan itibaren (Ağustos ve Eylül taksitleri kasaya işlenmiş). Boş öğeli dağılımı
+                    // takip özetinin kredi hesabı da okuyamaz; bilinmeyen kanalı ise "Silinmiş kanal" adıyla gösterir.
+                    var kredi = await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "Takip kredisi", 12_000m, new(2026, 7, 10), new(2026, 8, 10), 12, 1_000m, [1]));
+                    var bosOge = bozulma is Bozulma.TakipliKrediTaksitiBosOge or Bozulma.TakipliKrediCekimiBosOge;
+                    if (bozulma is Bozulma.TakipliKrediCekimiBilinmeyenKanal or Bozulma.TakipliKrediCekimiBosOge)
+                        return new($"UPDATE TakipKrediler SET CekimPaylariJson = {(bosOge ? "'[null]'" : Degistir("CekimPaylariJson"))} WHERE KrediId = {kredi.Id};",
+                            _ => $"Kredi #{kredi.Id} ('Takip kredisi') çekimi", Temmuz, 0m, -12_000m, OzetDuser: bosOge);
+                    return new($"UPDATE TakipKrediTaksitler SET DagilimJson = {(bosOge ? "'[null]'" : Degistir("DagilimJson"))} WHERE KrediId = {kredi.Id} AND No = 1;",
+                        db => $"Kredi taksiti #{db.TakipKrediTaksitler.Single(t => t.KrediId == kredi.Id && t.No == 1).Id} ('Takip kredisi' 1. taksit, 10.08.2026)", Agustos, 1_000m, 1_000m, OzetDuser: bosOge);
+                }
             case Bozulma.KartOdemesiBozukPaylar or Bozulma.KartHarcamasiBosOge:
-            {
-                var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takip kartı", 10_000m, 5, 25, new(2026, 6, 1), 0m, []));
-                kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kart.Surum, new(2026, 8, 1), "Malzeme", 300m, 1, null, [new(1, 300m)]));
-                kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, new(2026, 9, 10), 300m));
-                var odeme = kart.Odemeler.Single().Id;
-                var basi = $"Kredi kartı #{kart.Id} ('Takip kartı'): ödemelerin kanal dağılımı hesaplanamadı";
-                if (bozulma == Bozulma.KartHarcamasiBosOge)
                 {
-                    // Harcamanın boş öğeli dağılımı kart hesabında NullReferenceException verir; kayıt doğrulaması onu veri hatası sayar.
-                    var harcama = kart.Harcamalar.Single().Id;
-                    return new($"UPDATE TakipHarcamalar SET DagilimJson = '[null]' WHERE Id = {harcama};",
-                        _ => $"{basi} (dağılımı okunamayan harcama: #{harcama}); 1 ödemenin nakit etkisi (300,00 TL)", Month, 300m, 300m, OzetDuser: true);
+                    var kart = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takip kartı", 10_000m, 5, 25, new(2026, 6, 1), 0m, []));
+                    kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kart.Surum, new(2026, 8, 1), "Malzeme", 300m, 1, null, [new(1, 300m)]));
+                    kart = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, new(2026, 9, 10), 300m));
+                    var odeme = kart.Odemeler.Single().Id;
+                    var basi = $"Kredi kartı #{kart.Id} ('Takip kartı'): ödemelerin kanal dağılımı hesaplanamadı";
+                    if (bozulma == Bozulma.KartHarcamasiBosOge)
+                    {
+                        // Harcamanın boş öğeli dağılımı kart hesabında NullReferenceException verir; kayıt doğrulaması onu veri hatası sayar.
+                        var harcama = kart.Harcamalar.Single().Id;
+                        return new($"UPDATE TakipHarcamalar SET DagilimJson = '[null]' WHERE Id = {harcama};",
+                            _ => $"{basi} (dağılımı okunamayan harcama: #{harcama}); 1 ödemenin nakit etkisi (300,00 TL)", Month, 300m, 300m, OzetDuser: true);
+                    }
+                    return new($"UPDATE TakipKartOdemeler SET PaylarJson = 'bozuk' WHERE Id = {odeme};",
+                        _ => $"{basi} (payları okunamayan ödeme: #{odeme}); 1 ödemenin nakit etkisi (300,00 TL)", Month, 300m, 300m, OzetDuser: true);
                 }
-                return new($"UPDATE TakipKartOdemeler SET PaylarJson = 'bozuk' WHERE Id = {odeme};",
-                    _ => $"{basi} (payları okunamayan ödeme: #{odeme}); 1 ödemenin nakit etkisi (300,00 TL)", Month, 300m, 300m, OzetDuser: true);
-            }
             case Bozulma.EkGelirKanalsiz:
-            {
-                int id;
-                using (var scope = f.Services.CreateScope())
                 {
-                    var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-                    var hesap = new HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = new(2026, 6, 1) };
-                    db.Hesaplar.Add(hesap); db.SaveChanges();
-                    var hareket = new HesapHareketEntity { HesapId = hesap.Id, KanalId = 1, Tarih = new(2026, 8, 14), Tutar = 450m, Aciklama = "Eski ek gelir" };
-                    db.HesapHareketler.Add(hareket); db.SaveChanges(); id = hareket.Id;
+                    int id;
+                    using (var scope = f.Services.CreateScope())
+                    {
+                        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+                        var hesap = new HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = new(2026, 6, 1) };
+                        db.Hesaplar.Add(hesap);
+                        db.SaveChanges();
+                        var hareket = new HesapHareketEntity { HesapId = hesap.Id, KanalId = 1, Tarih = new(2026, 8, 14), Tutar = 450m, Aciklama = "Eski ek gelir" };
+                        db.HesapHareketler.Add(hareket);
+                        db.SaveChanges();
+                        id = hareket.Id;
+                    }
+                    return new($"UPDATE HesapHareketler SET KanalId = NULL WHERE Id = {id};", _ => $"Ek gelir #{id} (14.08.2026): kanalı yok", Agustos, 0m, -450m);
                 }
-                return new($"UPDATE HesapHareketler SET KanalId = NULL WHERE Id = {id};", _ => $"Ek gelir #{id} (14.08.2026): kanalı yok", Agustos, 0m, -450m);
-            }
             case Bozulma.EskiKrediPlaniGecersiz:
                 // Eski (takipsiz) kredi, ödeme günü 0: taksit planı türetilemez. Takip özeti de onu okuyamaz.
                 return new("""
@@ -448,9 +466,19 @@ public class RaporDayaniklilikTests
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var okunan = satirlar.Select((s, i) => new EkstreOkunanSatir(i + 1, 1, "Kaynak " + (i + 1), Today, "Hareket " + (i + 1), s.Tutar,
                 s.Tur == "Gelir" ? "Giris" : "Cikis", s.Tur, "Hareket", "TRY", [])).ToList();
-            var d = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Akbank", HesapAdi = "İş hesabı", DosyaAdi = "dayaniklilik.pdf", DosyaOzeti = Guid.NewGuid().ToString(),
-                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(), SatirlarJson = JsonSerializer.Serialize(okunan) };
-            db.EkstreBelgeler.Add(d); db.SaveChanges(); belge = d.Id;
+            var d = new EkstreBelgeEntity
+            {
+                Kaynak = "Banka",
+                Banka = "Akbank",
+                HesapAdi = "İş hesabı",
+                DosyaAdi = "dayaniklilik.pdf",
+                DosyaOzeti = Guid.NewGuid().ToString(),
+                Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
+                SatirlarJson = JsonSerializer.Serialize(okunan)
+            };
+            db.EkstreBelgeler.Add(d);
+            db.SaveChanges();
+            belge = d.Id;
         }
         var doc = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{belge}"))!;
         var istek = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, satirlar.Select((s, i) => new EkstreSatirYaz(i + 1, Today, "Hareket " + (i + 1), s.Tutar, s.Tur, "Ozel", s.Paylar)).ToList());
@@ -468,12 +496,14 @@ public class RaporDayaniklilikTests
             var baglanti = db.Database.GetDbConnection();
             string Tek(string komutMetni)
             {
-                using var komut = baglanti.CreateCommand(); komut.CommandText = komutMetni;
+                using var komut = baglanti.CreateCommand();
+                komut.CommandText = komutMetni;
                 return Convert.ToString(komut.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) ?? "";
             }
             var fk = Tek("PRAGMA foreign_keys;");
             Tek("PRAGMA foreign_keys = OFF;");
-            try { using var komut = baglanti.CreateCommand(); komut.CommandText = sql; Assert.True(komut.ExecuteNonQuery() > 0, sql); }
+            try
+            { using var komut = baglanti.CreateCommand(); komut.CommandText = sql; Assert.True(komut.ExecuteNonQuery() > 0, sql); }
             finally { Tek($"PRAGMA foreign_keys = {fk};"); }
         }
         finally { db.Database.CloseConnection(); }
@@ -500,12 +530,16 @@ public class RaporDayaniklilikTests
         private readonly KodHatasiKesici? _kesici;
         public LogluFabrika(UyariToplayici loglar, DateOnly? bugun = null, KodHatasiKesici? kesici = null)
         {
-            _loglar = loglar; _kesici = kesici; Saat = new SabitSaat(bugun ?? Today);
+            _loglar = loglar;
+            _kesici = kesici;
+            Saat = new SabitSaat(bugun ?? Today);
         }
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            base.ConfigureWebHost(builder); builder.ConfigureLogging(l => l.AddProvider(_loglar));
-            if (_kesici is { } kesici) builder.ConfigureServices(s => s.ConfigureDbContext<KasaDbContext>(o => o.AddInterceptors(kesici)));
+            base.ConfigureWebHost(builder);
+            builder.ConfigureLogging(l => l.AddProvider(_loglar));
+            if (_kesici is { } kesici)
+                builder.ConfigureServices(s => s.ConfigureDbContext<KasaDbContext>(o => o.AddInterceptors(kesici)));
         }
     }
 

@@ -24,8 +24,10 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     {
         base.OnAppearing();
         _vm.OturumuAyarla(_auth.OturumSurumu, _auth.AktifRol == Rol.Editor);
-        if (!_vm.VeriHazir) await _vm.YukleAsync();
-        if (_istenenAlisId is { } id && _vm.VeriHazir) { _vm.IdIleSec(id); _istenenAlisId = null; }
+        if (!_vm.VeriHazir)
+            await _vm.YukleAsync();
+        if (_istenenAlisId is { } id && _vm.VeriHazir)
+        { _vm.IdIleSec(id); _istenenAlisId = null; }
     }
     private async void HesaplarTiklandi(object? sender, EventArgs e)
     {
@@ -56,7 +58,8 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     private async void BelgeEkleTiklandi(object? sender, EventArgs e)
     {
         var uyari = await _vm.BelgeEkleAsync(BelgeSecAsync, (BelgeOdemesi.SelectedItem as AlisOdemeSatiri)?.Veri.Id);
-        if (uyari is not null) await DisplayAlertAsync(uyari.Baslik, uyari.Mesaj, "Tamam");
+        if (uyari is not null)
+            await DisplayAlertAsync(uyari.Baslik, uyari.Mesaj, "Tamam");
     }
     private static async Task<SecilenDosya?> BelgeSecAsync()
     {
@@ -72,12 +75,14 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     /// zorunludur (boşsa model göndermez ve söyler), alıcı için isteğe bağlıdır; vazgeçilirse hiçbir şey gönderilmez.</summary>
     private async void BelgeSilTiklandi(object? sender, EventArgs e)
     {
-        if (sender is not Button { CommandParameter: BelgeDto belge } || _vm.Mesgul) return;
+        if (sender is not Button { CommandParameter: BelgeDto belge } || _vm.Mesgul)
+            return;
         var gerekce = await DisplayPromptAsync("Belgeyi kaldır", _vm.EditorMu
                 ? $"{belge.DosyaAdi} listeden kaldırılacak; içeriği ve kaldırma kaydı saklanır. Kaldırma gerekçesini yazın (zorunlu)."
                 : $"{belge.DosyaAdi} listeden kaldırılacak; editör kaldırılan belgeyi görmeye devam eder. İsterseniz gerekçe yazın.",
             "Kaldır", "Vazgeç", placeholder: "Gerekçe", maxLength: 2000);
-        if (gerekce is null) return;
+        if (gerekce is null)
+            return;
         await _vm.BelgeSilAsync(belge, gerekce);
     }
 }

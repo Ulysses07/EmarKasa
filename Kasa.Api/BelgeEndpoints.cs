@@ -30,7 +30,9 @@ public static class BelgeEndpoints
     /// <summary>Belge olarak kabul edilen türler ve indirmede verilen tek uzantıları.</summary>
     private static readonly Dictionary<string, string> Uzantilar = new(StringComparer.Ordinal)
     {
-        ["application/pdf"] = ".pdf", ["image/png"] = ".png", ["image/jpeg"] = ".jpg",
+        ["application/pdf"] = ".pdf",
+        ["image/png"] = ".png",
+        ["image/jpeg"] = ".jpg",
     };
     /// <summary>Yüklemede reddedilen ad uzantıları (addaki son noktadan sonrası, büyük/küçük harf duyarsız): Outlook'un doğrudan
     /// engellediği (Level1) ekler; ayrıca tarayıcıda çalışan web sayfası ve görsel biçimleri, betikler, sürücü ve uygulama
@@ -71,7 +73,8 @@ public static class BelgeEndpoints
         var api = app.MapGroup("/api").RequireAuthorization("Alis");
         api.MapGet("/alis/{id:int}/belgeler", (int id, bool? silinenler, ClaimsPrincipal user, KasaDbContext db) =>
         {
-            if (!Sahibi(db, id, user)) return Results.NotFound();
+            if (!Sahibi(db, id, user))
+                return Results.NotFound();
             // Silinen belgeler yalnız editöre ve istenirse listelenir; alıcı silinmiş belgeyi hiç görmez.
             var hepsi = silinenler == true && user.IsInRole("editor");
             var satirlar = db.Belgeler.AsNoTracking().Where(b => b.AlisId == id && (hepsi || !b.Silindi)).OrderBy(b => b.Id).ToList();
@@ -79,9 +82,12 @@ public static class BelgeEndpoints
         });
         api.MapPost("/alis/{id:int}/belgeler", async (int id, HttpRequest request, ClaimsPrincipal user, KasaDbContext db, TimeProvider saat, IOptionsMonitor<AliciKotaAyarlari> kota, BelgeDeposu depo) =>
         {
-            if (!request.HasFormContentType) return Results.BadRequest(new { hata = "Dosyayı form olarak gönderin." });
-            if (request.ContentLength is > AzamiBoyut + 64 * 1024) return Results.StatusCode(413);
-            if (!Sahibi(db, id, user)) return Results.NotFound();
+            if (!request.HasFormContentType)
+                return Results.BadRequest(new { hata = "Dosyayı form olarak gönderin." });
+            if (request.ContentLength is > AzamiBoyut + 64 * 1024)
+                return Results.StatusCode(413);
+            if (!Sahibi(db, id, user))
+                return Results.NotFound();
             var form = await request.ReadFormAsync(request.HttpContext.RequestAborted);
             var file = form.Files.GetFile("dosya");
             if (file is null || form.Files.Count != 1 || file.Length <= 0 || file.Length > AzamiBoyut)
@@ -89,40 +95,59 @@ public static class BelgeEndpoints
             int? odemeId = null;
             if (form.ContainsKey("odemeId") && !string.IsNullOrWhiteSpace(form["odemeId"]))
             {
-                if (!int.TryParse(form["odemeId"], out var value) || value <= 0) return Results.BadRequest(new { hata = "Geçerli bir ödeme seçin." });
+                if (!int.TryParse(form["odemeId"], out var value) || value <= 0)
+                    return Results.BadRequest(new { hata = "Geçerli bir ödeme seçin." });
                 odemeId = value;
             }
             using var content = new MemoryStream();
             await file.CopyToAsync(content, request.HttpContext.RequestAborted);
             var bytes = content.ToArray();
             var type = Tur(bytes);
-            if (type is null) return Results.BadRequest(new { hata = "Yalnız PNG, JPEG veya PDF belgeleri kabul edilir." });
-            if (Uyusmazlik(file.FileName, file.ContentType, type) is { } uyusmazlik) return Results.BadRequest(new { hata = uyusmazlik });
+            if (type is null)
+                return Results.BadRequest(new { hata = "Yalnız PNG, JPEG veya PDF belgeleri kabul edilir." });
+            if (Uyusmazlik(file.FileName, file.ContentType, type) is { } uyusmazlik)
+                return Results.BadRequest(new { hata = uyusmazlik });
             var name = GuvenliBelgeAdi(file.FileName, type);
             var editor = user.IsInRole("editor");
             IResult? Kurallar(DateTimeOffset an)
             {
-                if (!Sahibi(db, id, user)) return Results.NotFound();
+                if (!Sahibi(db, id, user))
+                    return Results.NotFound();
                 if (!user.IsInRole("editor") && (odemeId is not null || !db.Alislar.Any(a => a.Id == id && a.Durum == AlisDurumlari.Taslak)))
                     return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağına alış belgesi ekleyebilir." });
                 if (odemeId is not null && !db.AlisOdemeler.Any(o => o.Id == odemeId && o.AlisId == id))
                     return Results.BadRequest(new { hata = "Ödeme bu alışa ait değil." });
-                if (db.Belgeler.Count(b => b.AlisId == id && !b.Silindi) >= 30) return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
+                if (db.Belgeler.Count(b => b.AlisId == id && !b.Silindi) >= 30)
+                    return Results.Conflict(new { hata = "Bir alışa en fazla 30 belge eklenebilir." });
                 return AliciKotalari.Belge(db, user, id, bytes.Length, kota.CurrentValue, an);
             }
             // Kurallar önce kilitsiz denetlenir: reddedilecek yükleme belge deposuna dosya bırakmaz. İçerik, yazma kilidi alınmadan
             // depoya yazılır (diske işlenmiş, özeti hesaplanmış); satır ancak ondan sonra eklenir. Satır kaydedilemezse dosya hiçbir
             // kaydın göstermediği dosya olarak kalır ve bakımda silinir.
-            if (Kurallar(saat.GetUtcNow()) is { } onHata) return onHata;
+            if (Kurallar(saat.GetUtcNow()) is { } onHata)
+                return onHata;
             var yazim = depo.Yaz(bytes, request.HttpContext.RequestAborted);
             using var tx = db.Database.BeginTransaction();
             // Yetki ve durum dosya okunurken değişmiş olabilir; yazma kilidi altında tekrar kontrol et.
             var simdi = saat.GetUtcNow();
-            if (Kurallar(simdi) is { } hata) return hata;
+            if (Kurallar(simdi) is { } hata)
+                return hata;
             // Yükleyen iz olarak saklanır: rol ve alıcının kimliği (editör paylaşılan tek hesaptır).
-            var belge = new BelgeEntity { AlisId = id, OdemeId = odemeId, DosyaAdi = name, IcerikTuru = type, Boyut = bytes.Length, Yuklendi = simdi, IcerikOzeti = yazim.Ozet,
-                YukleyenRol = editor ? "editor" : "alici", YukleyenId = editor ? null : AliciKotalari.AliciId(user) };
-            db.Belgeler.Add(belge); db.SaveChanges(); tx.Commit();
+            var belge = new BelgeEntity
+            {
+                AlisId = id,
+                OdemeId = odemeId,
+                DosyaAdi = name,
+                IcerikTuru = type,
+                Boyut = bytes.Length,
+                Yuklendi = simdi,
+                IcerikOzeti = yazim.Ozet,
+                YukleyenRol = editor ? "editor" : "alici",
+                YukleyenId = editor ? null : AliciKotalari.AliciId(user)
+            };
+            db.Belgeler.Add(belge);
+            db.SaveChanges();
+            tx.Commit();
             return Results.Created($"/api/belgeler/{belge.Id}", Dtolar(db, [belge]).Single());
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(AzamiBoyut + 64 * 1024)).RequireRateLimiting(HizSinirlari.AlisYukleme).AddEndpointFilter(AliciAlisYuklemeSiniri.Filtre);
 
@@ -130,11 +155,13 @@ public static class BelgeEndpoints
         {
             var belge = db.Belgeler.AsNoTracking().SingleOrDefault(b => b.Id == id);
             // Silinmiş belgenin içeriği korunur; yalnız editör indirebilir.
-            if (belge is null || !Sahibi(db, belge.AlisId, user) || belge.Silindi && !user.IsInRole("editor")) return Results.NotFound();
+            if (belge is null || !Sahibi(db, belge.AlisId, user) || belge.Silindi && !user.IsInRole("editor"))
+                return Results.NotFound();
             // İçerik belge deposundan akışla gelir (belleğe alınmaz). Dosya yoksa (ör. geri yüklemede unutulmuş belgeler/ klasörü)
             // sunucu kaydı yazılır, istemci açık bir 404 alır.
             Stream akis;
-            try { akis = depo.Ac(belge.IcerikOzeti); }
+            try
+            { akis = depo.Ac(belge.IcerikOzeti); }
             catch (BelgeDosyasiYokException)
             {
                 loglar.CreateLogger("Kasa.Api.BelgeEndpoints").LogError("Belge {Id} dosyası belge deposunda yok ({Ozet}, {Depo}).", id, belge.IcerikOzeti, depo.Kok);
@@ -154,21 +181,31 @@ public static class BelgeEndpoints
         {
             var editor = user.IsInRole("editor");
             var gerekce = (girdi?.Gerekce ?? Denetim.DenetimBaglami.IstekGerekcesi(http))?.Trim();
-            if (string.IsNullOrEmpty(gerekce)) gerekce = null;
-            if (editor && gerekce is null) return Results.BadRequest(new { hata = GerekceGerekli });
-            if (gerekce is { Length: > 2000 }) return Results.BadRequest(new { hata = "Silme gerekçesi en fazla 2000 karakter olabilir." });
-            if (GirdiDogrulama.GecersizKarakterIletisi(gerekce) is { } gecersiz) return Results.BadRequest(new { hata = $"Silme gerekçesi: {gecersiz}" });
+            if (string.IsNullOrEmpty(gerekce))
+                gerekce = null;
+            if (editor && gerekce is null)
+                return Results.BadRequest(new { hata = GerekceGerekli });
+            if (gerekce is { Length: > 2000 })
+                return Results.BadRequest(new { hata = "Silme gerekçesi en fazla 2000 karakter olabilir." });
+            if (GirdiDogrulama.GecersizKarakterIletisi(gerekce) is { } gecersiz)
+                return Results.BadRequest(new { hata = $"Silme gerekçesi: {gecersiz}" });
             return AlisEndpoints.Mutate(db, () =>
             {
                 var b = db.Belgeler.Find(id);
-                if (b is null || b.Silindi || !Sahibi(db, b.AlisId, user)) return Results.NotFound();
+                if (b is null || b.Silindi || !Sahibi(db, b.AlisId, user))
+                    return Results.NotFound();
                 var aliciId = editor ? null : AliciKotalari.AliciId(user);
                 if (!editor && (b.YukleyenRol != "alici" || b.YukleyenId != aliciId))
                     return Results.Conflict(new { hata = "Alıcı yalnız kendi yüklediği belgeyi kaldırabilir." });
                 if (!editor && (b.OdemeId is not null || !db.Alislar.Any(a => a.Id == b.AlisId && a.Durum == AlisDurumlari.Taslak)))
                     return Results.Conflict(new { hata = "Alıcı yalnız kendi taslağındaki, ödemeye bağlı olmayan alış belgesini kaldırabilir." });
-                b.Silindi = true; b.SilinmeZamani = saat.GetUtcNow(); b.SilenRol = editor ? "editor" : "alici"; b.SilenId = aliciId; b.SilmeGerekcesi = gerekce;
-                using (db.Denetle(gerekce)) db.SaveChanges();
+                b.Silindi = true;
+                b.SilinmeZamani = saat.GetUtcNow();
+                b.SilenRol = editor ? "editor" : "alici";
+                b.SilenId = aliciId;
+                b.SilmeGerekcesi = gerekce;
+                using (db.Denetle(gerekce))
+                    db.SaveChanges();
                 return Results.NoContent();
             });
         });
@@ -206,11 +243,14 @@ public static class BelgeEndpoints
     {
         var uzanti = Uzantilar.GetValueOrDefault(icerikTuru, ".bin");
         var govde = Temizle(ad);
-        if (UzantiBenzeri(govde) is { } son) govde = govde[..^son.Length].TrimEnd(' ', '.');
+        if (UzantiBenzeri(govde) is { } son)
+            govde = govde[..^son.Length].TrimEnd(' ', '.');
         if (govde.EndsWith(uzanti, StringComparison.OrdinalIgnoreCase) || uzanti == ".jpg" && govde.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
             govde = govde[..govde.LastIndexOf('.')].TrimEnd(' ', '.');
-        if (govde.Length > 120) govde = govde[..(char.IsHighSurrogate(govde[119]) ? 119 : 120)].TrimEnd(' ', '.');
-        if (govde.Length == 0) return "belge" + uzanti;
+        if (govde.Length > 120)
+            govde = govde[..(char.IsHighSurrogate(govde[119]) ? 119 : 120)].TrimEnd(' ', '.');
+        if (govde.Length == 0)
+            return "belge" + uzanti;
         return (AyrilmisAdlar.Contains(govde.Split('.')[0].TrimEnd(' ')) ? "belge-" + govde : govde) + uzanti;
     }
 
@@ -228,7 +268,8 @@ public static class BelgeEndpoints
         var bildirilenTur = (bildirilen ?? "").Split(';')[0].Trim().ToLowerInvariant();
         var tehlikeliTur = TehlikeliTurler.Contains(bildirilenTur) || bildirilenTur.Contains("html", StringComparison.Ordinal)
             || bildirilenTur.Contains("script", StringComparison.Ordinal) || bildirilenTur.EndsWith("+xml", StringComparison.Ordinal);
-        if (!TehlikeliUzantilar.Contains(uzanti) && !tehlikeliTur) return null;
+        if (!TehlikeliUzantilar.Contains(uzanti) && !tehlikeliTur)
+            return null;
         var adi = tur switch { "application/pdf" => "PDF", "image/png" => "PNG", _ => "JPEG" };
         return $"Dosyanın uzantısı veya türü içeriğiyle ({adi}) uyuşmuyor: dosya çalıştırılabilir, betik ya da web sayfası olarak işaretlenmiş. Yalnız gerçek PDF, PNG ya da JPEG belgesi yükleyin; dosyayı .pdf, .png veya .jpg uzantısıyla kaydedip yeniden seçin.";
     }
@@ -242,9 +283,12 @@ public static class BelgeEndpoints
         for (var i = 0; i < s.Length; i++)
         {
             var c = s[i];
-            if (char.IsHighSurrogate(c) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1])) { sb.Append(c).Append(s[++i]); continue; }
-            if (char.IsSurrogate(c) || char.IsControl(c) || "<>:\"|?*".Contains(c)) continue;
-            if (CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator) continue;
+            if (char.IsHighSurrogate(c) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1]))
+            { sb.Append(c).Append(s[++i]); continue; }
+            if (char.IsSurrogate(c) || char.IsControl(c) || "<>:\"|?*".Contains(c))
+                continue;
+            if (CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+                continue;
             sb.Append(c);
         }
         return sb.ToString().TrimStart(' ').TrimEnd(' ', '.');
@@ -254,22 +298,27 @@ public static class BelgeEndpoints
     private static string? UzantiBenzeri(string ad)
     {
         var nokta = ad.LastIndexOf('.');
-        if (nokta < 0 || ad.Length - nokta - 1 is < 1 or > 8) return null;
+        if (nokta < 0 || ad.Length - nokta - 1 is < 1 or > 8)
+            return null;
         var son = ad[nokta..];
         return son.Skip(1).All(char.IsLetterOrDigit) && son.Skip(1).Any(char.IsLetter) ? son : null;
     }
 
     private static bool Sahibi(KasaDbContext db, int id, ClaimsPrincipal user)
     {
-        if (user.IsInRole("editor")) return db.Alislar.Any(a => a.Id == id);
+        if (user.IsInRole("editor"))
+            return db.Alislar.Any(a => a.Id == id);
         return int.TryParse(user.FindFirstValue("alici_id"), out var aliciId)
             && db.Alislar.Any(a => a.Id == id && a.AliciId == aliciId);
     }
     private static string? Tur(byte[] b)
     {
-        if (b.Length >= 8 && b.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })) return "image/png";
-        if (b.Length >= 3 && b[0] == 255 && b[1] == 216 && b[2] == 255) return "image/jpeg";
-        if (b.Length >= 5 && b.AsSpan(0, 5).SequenceEqual("%PDF-"u8)) return "application/pdf";
+        if (b.Length >= 8 && b.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }))
+            return "image/png";
+        if (b.Length >= 3 && b[0] == 255 && b[1] == 216 && b[2] == 255)
+            return "image/jpeg";
+        if (b.Length >= 5 && b.AsSpan(0, 5).SequenceEqual("%PDF-"u8))
+            return "application/pdf";
         return null;
     }
 }

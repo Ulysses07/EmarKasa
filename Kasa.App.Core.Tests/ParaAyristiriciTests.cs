@@ -92,18 +92,37 @@ public class ParaAyristiriciTests
     {
         var text = metin.Trim();
         var virgul = text.IndexOf(',');
-        if (virgul >= 0) text = text[..virgul] + "." + text[(virgul + 1)..];
-        if (!Regex.IsMatch(text, "^[0-9]+(?:\\.[0-9]{1,2})?$")) return false;
+        if (virgul >= 0)
+            text = text[..virgul] + "." + text[(virgul + 1)..];
+        if (!Regex.IsMatch(text, "^[0-9]+(?:\\.[0-9]{1,2})?$"))
+            return false;
         var parcalar = text.Split('.');
         var kurus = System.Numerics.BigInteger.Parse(parcalar[0]) * 100 + System.Numerics.BigInteger.Parse((parcalar.Length > 1 ? parcalar[1] : "").PadRight(2, '0'));
         return kurus <= 99999999999999;
     }
 
     [Theory]
-    [InlineData("25.000")] [InlineData("1.500")] [InlineData("1.500.000")] [InlineData("1,234.56")] [InlineData("1.234,56")]
-    [InlineData("12,345")] [InlineData("abc")] [InlineData("1,")] [InlineData("1.")] [InlineData(",5")] [InlineData("1..5")]
-    [InlineData("1,5,0")] [InlineData("1500")] [InlineData("1500,5")] [InlineData("1500.50")] [InlineData("0")] [InlineData("007")]
-    [InlineData("0,01")] [InlineData("999999999999,99")] [InlineData("1000000000000")] [InlineData("٣")]
+    [InlineData("25.000")]
+    [InlineData("1.500")]
+    [InlineData("1.500.000")]
+    [InlineData("1,234.56")]
+    [InlineData("1.234,56")]
+    [InlineData("12,345")]
+    [InlineData("abc")]
+    [InlineData("1,")]
+    [InlineData("1.")]
+    [InlineData(",5")]
+    [InlineData("1..5")]
+    [InlineData("1,5,0")]
+    [InlineData("1500")]
+    [InlineData("1500,5")]
+    [InlineData("1500.50")]
+    [InlineData("0")]
+    [InlineData("007")]
+    [InlineData("0,01")]
+    [InlineData("999999999999,99")]
+    [InlineData("1000000000000")]
+    [InlineData("٣")]
     public void Kabul_ret_kumesi_web_cents_ile_ayni(string metin)
         => Assert.Equal(WebKabulEder(metin), ParaAyristirici.Coz(metin, out _, out _));
 
@@ -118,7 +137,11 @@ public class ParaAyristiriciTests
         => Assert.Equal(beklenen, ParaAyristirici.Bicimle(decimal.Parse(tutar, System.Globalization.CultureInfo.InvariantCulture)));
 
     [Theory]
-    [InlineData("1500.5")] [InlineData("0.01")] [InlineData("25000")] [InlineData("-250.75")] [InlineData("999999999999.99")]
+    [InlineData("1500.5")]
+    [InlineData("0.01")]
+    [InlineData("25000")]
+    [InlineData("-250.75")]
+    [InlineData("999999999999.99")]
     public void Bicimle_ve_Coz_gidis_donus_ayni_tutari_verir(string tutar)
     {
         var d = decimal.Parse(tutar, System.Globalization.CultureInfo.InvariantCulture);

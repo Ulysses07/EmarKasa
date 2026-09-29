@@ -30,13 +30,16 @@ public class DosyaSecimKurallariTests
         Assert.Equal(10 * 1024 * 1024, sinir);
 
         var tam = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[sinir]), sinir);
-        Assert.Equal(DosyaOkumaDurumu.Tamam, tam.Durum); Assert.Equal(sinir, tam.Icerik!.LongLength);
+        Assert.Equal(DosyaOkumaDurumu.Tamam, tam.Durum);
+        Assert.Equal(sinir, tam.Icerik!.LongLength);
 
         var fazla = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[sinir + 1]), sinir);
-        Assert.Equal(DosyaOkumaDurumu.SinirAsildi, fazla.Durum); Assert.Null(fazla.Icerik);
+        Assert.Equal(DosyaOkumaDurumu.SinirAsildi, fazla.Durum);
+        Assert.Null(fazla.Icerik);
 
         var bos = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(), sinir);
-        Assert.Equal(DosyaOkumaDurumu.Tamam, bos.Durum); Assert.Empty(bos.Icerik!);
+        Assert.Equal(DosyaOkumaDurumu.Tamam, bos.Durum);
+        Assert.Empty(bos.Icerik!);
     }
 
     [Fact]
@@ -44,7 +47,8 @@ public class DosyaSecimKurallariTests
     {
         var parca = 0;
         var okuma = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[300_000]), DosyaSecimKurallari.EnFazlaBayt, () => ++parca < 2);
-        Assert.Equal(DosyaOkumaDurumu.Vazgecildi, okuma.Durum); Assert.Null(okuma.Icerik);
+        Assert.Equal(DosyaOkumaDurumu.Vazgecildi, okuma.Durum);
+        Assert.Null(okuma.Icerik);
 
         var kosulsuz = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream([1, 2, 3]), 3, () => true);
         Assert.Equal(new byte[] { 1, 2, 3 }, kosulsuz.Icerik);

@@ -22,28 +22,40 @@ public class MonthlyExpenseTests
     internal static KasaWebFactory Fabrika() => KasaWebFactory.Sabit(Today);
 
     [Theory]
-    [InlineData("Genel", 0)] [InlineData("Esit", 1)] [InlineData("Ozel", 2)]
+    [InlineData("Genel", 0)]
+    [InlineData("Esit", 1)]
+    [InlineData("Ozel", 2)]
     public async Task Plan_kasayi_degistirmez_manuel_odeme_genel_kasaya_bir_kez_kanallara_secilen_payla_yansir(string mode, int variant)
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var template = await Create(c, mode, variant == 0 ? [] : variant == 1 ? [new(1, 0), new(2, 0), new(3, 0)] : [new(1, 70m), new(2, 30m)]);
         var plan = (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Today.Year}&ay={Today.Month}"))!;
-        Assert.Equal(100m, plan.PlanlananToplam); Assert.Equal(0m, plan.OdenenToplam);
+        Assert.Equal(100m, plan.PlanlananToplam);
+        Assert.Equal(0m, plan.OdenenToplam);
         Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
         var request = Payment(template);
         var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{template.Id}/ode", request);
         Assert.Equal("Odendi", paid.Durum);
-        var result = await Panel(c); Assert.Equal(900m, result.GuncelKasa); Assert.Equal(-100m, result.BuAySonucu); Assert.Equal(0m, result.DagilimBekleyenTutar);
+        var result = await Panel(c);
+        Assert.Equal(900m, result.GuncelKasa);
+        Assert.Equal(-100m, result.BuAySonucu);
+        Assert.Equal(0m, result.DagilimBekleyenTutar);
         Assert.Equal(variant == 0 ? 0m : -100m, result.Kanallar.Sum(k => k.Bakiye));
-        if (variant == 1) Assert.Equal(new[] { -33.34m, -33.33m, -33.33m }, result.Kanallar.Select(k => k.Bakiye));
-        if (variant == 2) Assert.Equal(-70m, result.Kanallar.Single(k => k.KanalId == 1).Bakiye);
+        if (variant == 1)
+            Assert.Equal(new[] { -33.34m, -33.33m, -33.33m }, result.Kanallar.Select(k => k.Bakiye));
+        if (variant == 2)
+            Assert.Equal(-70m, result.Kanallar.Single(k => k.KanalId == 1).Bakiye);
         var replay = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{template.Id}/ode", request);
-        Assert.Equal(paid.OdemeId, replay.OdemeId); Assert.Equal(900m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(paid.OdemeId, replay.OdemeId);
+        Assert.Equal(900m, (await Panel(c)).GuncelKasa);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/aylik-giderler/{template.Id}/ode", request with { IstekId = Guid.NewGuid() })).StatusCode);
-        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web); json.Converters.Add(new JsonStringEnumConverter());
+        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        json.Converters.Add(new JsonStringEnumConverter());
         var expense = Assert.Single((await c.GetFromJsonAsync<List<IslemOkuDto>>("/api/islemler", json))!);
         var paidMonth = (await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Today.Year}&ay={Today.Month}"))!;
-        Assert.Equal(100m, paidMonth.PlanlananToplam); Assert.Equal(100m, paidMonth.OdenenToplam);
+        Assert.Equal(100m, paidMonth.PlanlananToplam);
+        Assert.Equal(100m, paidMonth.OdenenToplam);
         Assert.Equal(paid.OdemeId, expense.AylikGiderOdemeId);
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{expense.Id}", new IslemYazDto(Today, "Değişiklik", 200, "MEZAT", GiderTipi.SabitGider))).StatusCode);
@@ -53,38 +65,50 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Sablon_degisse_ve_pasife_alinsa_bile_odeme_kopyasi_korunur_iptal_yeniden_odeme_tek_kaydi_yaratir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var template = await Create(c, "Ozel", [new(1, 100m)]);
         var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{template.Id}/ode", Payment(template));
         var updated = await c.PutAsJsonAsync($"/api/aylik-giderler/sablonlar/{template.Id}", new AylikGiderSablonYaz(Guid.NewGuid(), template.Surum, "Yeni kira", "Kira", 200m, 31, "Genel", [], Month));
         updated.EnsureSuccessStatusCode();
         template = (await updated.Content.ReadFromJsonAsync<AylikGiderSablonDto>())!;
         var old = Assert.Single((await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!.Kayitlar);
-        Assert.Equal(100m, old.Tutar); Assert.Equal("Kira", old.Ad); Assert.Equal(1, Assert.Single(old.Dagilimlar).KanalId);
+        Assert.Equal(100m, old.Tutar);
+        Assert.Equal("Kira", old.Ad);
+        Assert.Equal(1, Assert.Single(old.Dagilimlar).KanalId);
         var cancelled = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/odemeler/{paid.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı ödeme"));
-        Assert.Equal("Iptal", cancelled.Durum); Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
+        Assert.Equal("Iptal", cancelled.Durum);
+        Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
         var next = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{template.Id}/ode", Payment(template));
-        Assert.Equal(200m, next.Tutar); Assert.NotEqual(paid.OdemeId, next.OdemeId); Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(200m, next.Tutar);
+        Assert.NotEqual(paid.OdemeId, next.OdemeId);
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
         var archive = await c.PutAsJsonAsync($"/api/aylik-giderler/sablonlar/{template.Id}", new AylikGiderSablonYaz(Guid.NewGuid(), template.Surum, "Arşiv", "Kira", 300m, 1, "Genel", [], Month, false));
         archive.EnsureSuccessStatusCode();
         Assert.Equal(200m, Assert.Single((await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!.Kayitlar).Tutar);
-        using var scope = f.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-        Assert.Equal(2, db.AylikGiderOdemeler.Count()); Assert.Single(db.Islemler); Assert.Equal(3, db.AylikGiderRevizyonlar.Count());
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        Assert.Equal(2, db.AylikGiderOdemeler.Count());
+        Assert.Single(db.Islemler);
+        Assert.Equal(3, db.AylikGiderRevizyonlar.Count());
     }
 
     [Fact]
     public async Task Ileri_ay_revizyonu_onceki_planlari_degistirmez_ve_kisa_ay_odemesi_son_gune_uyarlanir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var template = await Create(c, "Genel", []);
         // İlk kısa ileri ay (varsayılan günde Kasım): 31'inci gün ödemesi ayın son gününe uyarlanır.
         var nextMonth = Month.AddMonths(1);
-        while (DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month) == 31) nextMonth = nextMonth.AddMonths(1);
+        while (DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month) == 31)
+            nextMonth = nextMonth.AddMonths(1);
         var update = await c.PutAsJsonAsync($"/api/aylik-giderler/sablonlar/{template.Id}", new AylikGiderSablonYaz(Guid.NewGuid(), template.Surum, "Yeni", "Maas", 250m, 31, "Genel", [], nextMonth));
         update.EnsureSuccessStatusCode();
         Assert.Equal(100m, Assert.Single((await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={Month.Year}&ay={Month.Month}"))!.Kayitlar).Tutar);
         var future = Assert.Single((await c.GetFromJsonAsync<AylikGiderAyDto>($"/api/aylik-giderler?yil={nextMonth.Year}&ay={nextMonth.Month}"))!.Kayitlar);
-        Assert.Equal(250m, future.Tutar); Assert.Equal(DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month), future.PlanlananTarih.Day);
+        Assert.Equal(250m, future.Tutar);
+        Assert.Equal(DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month), future.PlanlananTarih.Day);
         Assert.Equal(1000m, (await Panel(c)).GuncelKasa);
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Eski", "Kira", 100m, 1, "Genel", [], Month.AddMonths(-1)))).StatusCode);
     }
@@ -92,7 +116,8 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Dagilim_kimlikleri_sabittir_yeni_kanal_eklemek_ve_pasiflik_odeme_paylarini_degistirmez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var template = await Create(c, "Esit", [new(1, 0), new(2, 0)]);
         (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", false))).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Yeni kanal"))).EnsureSuccessStatusCode();
@@ -105,12 +130,15 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Aylik_odeme_ayri_alisa_baglanamaz_ve_alici_erisemez()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
-        var t = await Create(c, "Genel", []); var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", Payment(t));
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var t = await Create(c, "Genel", []);
+        var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", Payment(t));
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Satıcı", null, [new("Mal", 100, [new(1, 100)])]));
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Today, 100, MevcutIslemId: paid.IslemId))).StatusCode);
         var buyer = await Post<AliciDto>(c, "/api/alicilar", new AliciYaz("aylik-alici", "Alıcı", "alici12345"));
-        using var b = f.CreateClient(); (await b.PostAsJsonAsync("/api/auth/login", new { kullanici = buyer.Kullanici, sifre = "alici12345" })).EnsureSuccessStatusCode();
+        using var b = f.CreateClient();
+        (await b.PostAsJsonAsync("/api/auth/login", new { kullanici = buyer.Kullanici, sifre = "alici12345" })).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await b.GetAsync("/api/aylik-giderler/sablonlar")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await b.GetAsync("/api/ay-kilidi")).StatusCode);
     }
@@ -121,14 +149,20 @@ public class MonthlyExpenseTests
         var path = Path.Combine(Path.GetTempPath(), "kasa-monthly-" + Guid.NewGuid().ToString("N") + ".db");
         try
         {
-            await using var f = new MonthlyFileFactory(path) { Saat = new SabitSaat(Today) }; using var c = await Editor(f);
-            var t = await Create(c, "Genel", []); var request = Payment(t);
+            await using var f = new MonthlyFileFactory(path) { Saat = new SabitSaat(Today) };
+            using var c = await Editor(f);
+            var t = await Create(c, "Genel", []);
+            var request = Payment(t);
             using var start = new Barrier(3);
             var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => Task.Run(async () =>
             { Assert.True(start.SignalAndWait(TimeSpan.FromSeconds(10))); return await c.PostAsJsonAsync($"/api/aylik-giderler/{t.Id}/ode", request); })));
-            foreach (var r in results) { Assert.Equal(HttpStatusCode.OK, r.StatusCode); r.Dispose(); }
-            using var scope = f.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            Assert.Single(db.AylikGiderOdemeler); Assert.Single(db.Islemler); Assert.Equal(900m, (await Panel(c)).GuncelKasa);
+            foreach (var r in results)
+            { Assert.Equal(HttpStatusCode.OK, r.StatusCode); r.Dispose(); }
+            using var scope = f.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            Assert.Single(db.AylikGiderOdemeler);
+            Assert.Single(db.Islemler);
+            Assert.Equal(900m, (await Panel(c)).GuncelKasa);
         }
         finally { foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix); }
     }
@@ -138,7 +172,8 @@ public class MonthlyExpenseTests
     {
         // gap-coklu-giris-cift-sayim-mutabakat-8: kira bankadan "Yalnız genel kasa" gideri olarak işlendikten iki gün sonra
         // aynı tutar Aylık Giderler'den ödenmek istenir. İstemci ödeme öncesi aynı benzerlik ucunu 'AylikGider' türüyle sorar.
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var t = await Create(c, "Esit", [new(1, 0), new(3, 0)]);
         var (_, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today.AddDays(-2), 100m, "Genel", []);
         var benzer = Assert.Single(await BenzerKayitCaprazTests.Bul(c, new("AylikGider", Today, 100m)));
@@ -166,7 +201,8 @@ public class MonthlyExpenseTests
         // gap-coklu-giris-cift-sayim-mutabakat-8 senaryosu: kira bankadan "Yalnız genel kasa" gideri olarak işlendi; iki gün
         // sonra Aylık Giderler'den "Ödendi" denir. BenzerOnay=false gönderen istemcide ödeme ucu benzerliği yazma
         // transaction'ında denetler: benzer kayıt varsa hiçbir şey yazmaz, 409 ile kayıtları döner.
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var t = await Create(c, "Genel", []);
         var (_, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today.AddDays(-2), 100m, "Genel", []);
         var istek = Payment(t) with { BenzerOnay = false };
@@ -179,14 +215,17 @@ public class MonthlyExpenseTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            Assert.Empty(db.AylikGiderOdemeler); Assert.Single(db.Islemler); Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
+            Assert.Empty(db.AylikGiderOdemeler);
+            Assert.Single(db.Islemler);
+            Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
         }
         // Açık protokolde onay yalnız BenzerOnay=true'dur: aynı isteğin onaysız yeniden gönderimi yine 409 alır.
         Assert.Single((await Cakisma(c, t, istek)).Benzerler);
         Assert.Equal(900m, (await Panel(c)).GuncelKasa);
         // Kullanıcı benzer kaydı gördü ve ayrı ödeme olduğunu onayladı: reddedilen istek kimliği tüketmediğinden aynı kimlikle kaydedilir.
         var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek with { BenzerOnay = true });
-        Assert.Equal("Odendi", paid.Durum); Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        Assert.Equal("Odendi", paid.Durum);
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
         // Onay alanı özete girmez: onaylı isteğin ve onaysız biçiminin tekrarı aynı ödemeyi döner, ödemenin kendi gideri 409'a yol açmaz.
         Assert.Equal(paid.OdemeId, (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek with { BenzerOnay = true })).OdemeId);
         Assert.Equal(paid.OdemeId, (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", istek)).OdemeId);
@@ -196,7 +235,8 @@ public class MonthlyExpenseTests
     [Fact]
     public async Task Benzer_denetimi_sablonun_kanal_kumesiyle_yapilir_dogrulama_once_gelir_eski_istemci_uyarilip_yeniden_gonderince_oder()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Kanalı kesin olarak başka olan (PERAKENDE) elle gider, MEZAT / TOPTAN şablonunun ödemesine benzemez.
         (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today.AddDays(-1), "Perakende gideri", 100m, "PERAKENDE", GiderTipi.Cari))).EnsureSuccessStatusCode();
         var cok = await Create(c, "Esit", [new(1, 0), new(3, 0)]);
@@ -207,7 +247,8 @@ public class MonthlyExpenseTests
         var cakisma = await Cakisma(c, genel, Payment(genel) with { BenzerOnay = false });
         Assert.Equal(new[] { cokOdeme.OdemeId }, cakisma.Benzerler.Where(b => b.AylikGiderOdemeId is not null).Select(b => b.AylikGiderOdemeId));
         Assert.Equal(2, cakisma.Benzerler.Count);
-        Assert.Contains("Aylık gider ödemesi #", cakisma.Hata); Assert.Contains("Gider #", cakisma.Hata);
+        Assert.Contains("Aylık gider ödemesi #", cakisma.Hata);
+        Assert.Contains("Gider #", cakisma.Hata);
         // Doğrulama benzerlikten önce gelir: geçersiz tarih 400, eski şablon sürümü benzer listesi olmadan 409 döner.
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", Payment(genel) with { BenzerOnay = false, Tarih = Today.AddDays(1) })).StatusCode);
         var eskiSurum = await c.PostAsJsonAsync($"/api/aylik-giderler/{genel.Id}/ode", Payment(genel) with { BenzerOnay = false, Surum = genel.Surum + 1 });
@@ -232,7 +273,8 @@ public class MonthlyExpenseTests
         // hiçbir şey yazmadan 409 ile uyarılır; iki istemci de sunucunun 'hata' iletisini ödeme formunda gösterir ve formu açık
         // tutar. Değişmeyen gövdeye aynı istek kimliği verilir (web requestIdentity, MAUI TekrarAnahtari): kullanıcı uyarıyı
         // görüp aynı ödemeyi yeniden kaydederse ikinci istek onay sayılır.
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         var t = await Create(c, "Genel", []);
         var (_, satir) = await BenzerKayitCaprazTests.EkstreGideri(f, c, Today.AddDays(-2), 100m, "Genel", []);
         var govde = EskiGovde(t, Guid.NewGuid());
@@ -246,11 +288,14 @@ public class MonthlyExpenseTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            Assert.Empty(db.AylikGiderOdemeler); Assert.Single(db.Islemler); Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
+            Assert.Empty(db.AylikGiderOdemeler);
+            Assert.Single(db.Islemler);
+            Assert.Empty(db.FinansIstekler.Where(i => i.Tur == "AylikGiderOdeme"));
         }
         // Kullanıcı uyarıyı gördü, ayrı ödeme olduğundan emin: aynı gövdeyi yeniden gönderir.
         var paid = await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", govde);
-        Assert.Equal("Odendi", paid.Durum); Assert.Equal(800m, (await Panel(c)).GuncelKasa);
+        Assert.Equal("Odendi", paid.Durum);
+        Assert.Equal(800m, (await Panel(c)).GuncelKasa);
         // Kaydedilmiş isteğin tekrarı (ör. yanıt kaybolduktan sonra) aynı ödemeyi döner; ikinci gider oluşmaz.
         Assert.Equal(paid.OdemeId, (await Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{t.Id}/ode", govde)).OdemeId);
         Assert.Equal(800m, (await Panel(c)).GuncelKasa);
@@ -263,7 +308,8 @@ public class MonthlyExpenseTests
     public async Task Yeniden_gonderim_yalniz_ayni_icerik_ve_gorulmus_kayitlar_icin_onaydir_uyari_otuz_dakika_gecerlidir()
     {
         var saat = new IlerleyenSaat(Today);
-        await using var f = new KasaWebFactory { Saat = saat }; using var c = await Editor(f);
+        await using var f = new KasaWebFactory { Saat = saat };
+        using var c = await Editor(f);
         var t = await Create(c, "Genel", []);
         async Task Gider(DateOnly tarih) => (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(tarih, "Elle kira", 100m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
         await Gider(Today.AddDays(-1));
@@ -325,8 +371,10 @@ public class MonthlyExpenseTests
         kapi.Kur("AylikGiderRevizyonlar");
         var okuma = c.GetAsync(uc);
         Assert.True(await kapi.Girildi(), "Okuma aylık gider tablosuna ulaşmadı.");
-        HttpResponseMessage yazma; var sure = System.Diagnostics.Stopwatch.StartNew();
-        try { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari)); }
+        HttpResponseMessage yazma;
+        var sure = System.Diagnostics.Stopwatch.StartNew();
+        try
+        { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari)); }
         finally { sure.Stop(); kapi.Birak(); }
         var yanit = await okuma;
         Assert.Equal(HttpStatusCode.Created, yazma.StatusCode);
@@ -343,7 +391,8 @@ public class MonthlyExpenseTests
             base.ConfigureWebHost(builder);
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<DbContextOptions<KasaDbContext>>(); services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+                services.RemoveAll<DbContextOptions<KasaDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
                 services.AddDbContext<KasaDbContext>(o => o.UseSqlite(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString()));
             });
         }
@@ -351,14 +400,17 @@ public class MonthlyExpenseTests
     internal static async Task<HttpClient> Editor(KasaWebFactory f)
     {
         var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Month.AddMonths(-3), kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode(); return c;
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Month.AddMonths(-3), kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
+        return c;
     }
     internal static Task<AylikGiderSablonDto> Create(HttpClient c, string mode, IReadOnlyList<KanalPayYaz> shares) => Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira", "Kira", 100m, 31, mode, shares, Month));
     internal static AylikGiderOdemeYaz Payment(AylikGiderSablonDto t) => new(Guid.NewGuid(), t.Surum, Month.Year, Month.Month, Today);
     internal static async Task<T> Post<T>(HttpClient c, string path, object body)
     {
-        var r = await c.PostAsJsonAsync(path, body); Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
-        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web); json.Converters.Add(new JsonStringEnumConverter());
+        var r = await c.PostAsJsonAsync(path, body);
+        Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        json.Converters.Add(new JsonStringEnumConverter());
         return (await r.Content.ReadFromJsonAsync<T>(json))!;
     }
     internal static async Task<PanelDto> Panel(HttpClient c) => (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;

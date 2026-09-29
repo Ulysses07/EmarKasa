@@ -12,17 +12,24 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
     public async Task Surum_kimliksiz_okunur_yedek_indirilir_durumu_okunur()
     {
         var surum = await Istemci().Yonetim.SurumAsync();
-        Assert.Matches(@"^\d+\.\d+\.\d+$", surum.Surum); Assert.Matches(@"^\d+\.\d+\.\d+$", surum.MinimumIstemci); Assert.Null(surum.IndirmeAdresi);
+        Assert.Matches(@"^\d+\.\d+\.\d+$", surum.Surum);
+        Assert.Matches(@"^\d+\.\d+\.\d+$", surum.MinimumIstemci);
+        Assert.Null(surum.IndirmeAdresi);
         var o = await Editor();
         var once = await o.Yonetim.YedekDurumuAsync();
-        Assert.False(once.OtomatikEtkin); Assert.Null(once.SonYedek);
+        Assert.False(once.OtomatikEtkin);
+        Assert.Null(once.SonYedek);
         using var zip = new MemoryStream();
         var yedek = await o.Yonetim.YedekIndirAsync(zip);
-        Assert.Equal("application/zip", yedek.IcerikTuru); Assert.EndsWith(".zip", yedek.DosyaAdi); Assert.Equal(zip.Length, yedek.Boyut);
+        Assert.Equal("application/zip", yedek.IcerikTuru);
+        Assert.EndsWith(".zip", yedek.DosyaAdi);
+        Assert.Equal(zip.Length, yedek.Boyut);
         using (var arsiv = new System.IO.Compression.ZipArchive(new MemoryStream(zip.ToArray())))
             Assert.NotNull(arsiv.GetEntry("kasa.db"));
         var sonra = await o.Yonetim.YedekDurumuAsync();
-        Assert.NotNull(sonra.SonYedek); Assert.NotNull(sonra.SonDogrulama); Assert.Null(sonra.Hata);
+        Assert.NotNull(sonra.SonYedek);
+        Assert.NotNull(sonra.SonDogrulama);
+        Assert.Null(sonra.Hata);
     }
 
     [Fact]
@@ -31,16 +38,19 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
     {
         var o = await Editor();
         var baska = await Editor();
-        var olaylar = new List<OturumSonuNedeni>(); var baskaOlaylar = new List<OturumSonuNedeni>();
+        var olaylar = new List<OturumSonuNedeni>();
+        var baskaOlaylar = new List<OturumSonuNedeni>();
         o.Istemci.OturumSonlandi += (_, e) => olaylar.Add(((OturumSonlandiEventArgs)e).Neden);
         baska.Istemci.OturumSonlandi += (_, e) => baskaOlaylar.Add(((OturumSonlandiEventArgs)e).Neden);
 
         await o.Yonetim.SifreDegistirAsync(new SifreDegistirYaz(SozlesmeFabrikasi.EditorSifresi, "yeni-editor-sifresi-1"));
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
-        Assert.Equal([OturumSonuNedeni.SifreDegisti], olaylar); Assert.Null(await o.Depo.OkuAsync());
+        Assert.Equal([OturumSonuNedeni.SifreDegisti], olaylar);
+        Assert.Null(await o.Depo.OkuAsync());
         // Eski şifreyle açılmış başka oturumun ilk isteği 401 alır; istemci token'ı siler ve olayı yayar.
         Assert.Equal(HttpStatusCode.Unauthorized, (await Assert.ThrowsAsync<KasaApiException>(() => baska.Kasa.KanallarAsync())).DurumKodu);
-        Assert.Equal([OturumSonuNedeni.OturumGecersiz], baskaOlaylar); Assert.Null(await baska.Depo.OkuAsync());
+        Assert.Equal([OturumSonuNedeni.OturumGecersiz], baskaOlaylar);
+        Assert.Null(await baska.Depo.OkuAsync());
 
         await o.Kasa.LoginAsync("editor", "yeni-editor-sifresi-1");
         var kod = await o.Yonetim.KurtarmaKoduOlusturAsync("yeni-editor-sifresi-1");

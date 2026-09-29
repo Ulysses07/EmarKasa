@@ -32,7 +32,8 @@ public class AyRaporuAnlikGoruntusuTests
     internal static string Dondurulmus(string canli, int kural)
     {
         var rapor = JsonNode.Parse(canli)!.AsObject();
-        rapor["kuralSurumu"] = kural; rapor["dondurulmus"] = true;
+        rapor["kuralSurumu"] = kural;
+        rapor["dondurulmus"] = true;
         return rapor.ToJsonString();
     }
 
@@ -54,8 +55,11 @@ public class AyRaporuAnlikGoruntusuTests
     private static void Calistir(KasaDbContext db, string sql)
     {
         var baglanti = db.Database.GetDbConnection();
-        if (baglanti.State != System.Data.ConnectionState.Open) db.Database.OpenConnection();
-        using var komut = baglanti.CreateCommand(); komut.CommandText = sql; komut.ExecuteNonQuery();
+        if (baglanti.State != System.Data.ConnectionState.Open)
+            db.Database.OpenConnection();
+        using var komut = baglanti.CreateCommand();
+        komut.CommandText = sql;
+        komut.ExecuteNonQuery();
     }
 
     private static List<AyRaporAnlikGoruntuEntity> Goruntuler(KasaWebFactory f)
@@ -67,10 +71,12 @@ public class AyRaporuAnlikGoruntusuTests
     [Fact]
     public async Task Ay_kapatilinca_ara_aylar_dahil_rapor_kapatma_anindaki_haliyle_saklanir_ve_ondan_doner()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Veri(c);
         var once = new Dictionary<DateOnly, string>();
-        foreach (var ay in new[] { Haziran, Temmuz, Agustos, Month }) once[ay] = await c.GetStringAsync(Url(ay));
+        foreach (var ay in new[] { Haziran, Temmuz, Agustos, Month })
+            once[ay] = await c.GetStringAsync(Url(ay));
 
         await Kilit(c, Agustos); // Haziran–Ağustos birlikte kilitlenir
 
@@ -88,7 +94,8 @@ public class AyRaporuAnlikGoruntusuTests
     [Fact]
     public async Task Kilit_acilinca_acilan_aylarin_goruntusu_silinir_ve_rapor_yeniden_canli_hesaplanir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Veri(c);
         await Kilit(c, Agustos);
         var kilit = await Kilit(c, Temmuz, ac: true); // Temmuz ve sonrası açılır, Haziran kilitli kalır
@@ -119,7 +126,8 @@ public class AyRaporuAnlikGoruntusuTests
     public async Task Kilidi_acilmis_ayin_artik_goruntusu_sunulmaz_rapor_canli_hesaplanir_ve_bir_kez_loglanir()
     {
         var loglar = new UyariToplayici();
-        await using var f = new LogluFabrika(loglar); using var c = await Editor(f);
+        await using var f = new LogluFabrika(loglar);
+        using var c = await Editor(f);
         await Veri(c);
         await Kilit(c, Agustos);
         var haziran = await c.GetStringAsync(Url(Haziran));
@@ -156,14 +164,16 @@ public class AyRaporuAnlikGoruntusuTests
         public LogluFabrika(UyariToplayici loglar) { _loglar = loglar; Saat = new SabitSaat(Today); }
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            base.ConfigureWebHost(builder); builder.ConfigureLogging(l => l.AddProvider(_loglar));
+            base.ConfigureWebHost(builder);
+            builder.ConfigureLogging(l => l.AddProvider(_loglar));
         }
     }
 
     [Fact]
     public async Task Kilitli_ayin_goruntusu_degistirilemez_silinemez_kilitsiz_aya_goruntu_yazilamaz()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Veri(c);
         await Kilit(c, Agustos);
         var haziran = await c.GetStringAsync(Url(Haziran));
@@ -201,19 +211,22 @@ public class AyRaporuAnlikGoruntusuTests
     [Fact]
     public async Task Gecis_oncesi_kilitlenmis_aylar_kural_1_ile_bir_kez_dondurulur_ve_tohum_idempotenttir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         await Veri(c);
         var kural1 = new Dictionary<DateOnly, string>();
         using (var scope = f.Services.CreateScope())
         {
             var hesap = scope.ServiceProvider.GetRequiredService<HesapServisi>();
-            foreach (var ay in new[] { Haziran, Temmuz }) kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
+            foreach (var ay in new[] { Haziran, Temmuz })
+                kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
         }
         // Bu sürümden önce Temmuz'a kadar kapatılmış veritabanı: kilit var, görüntü yok.
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1); db.SaveChanges();
+            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1);
+            db.SaveChanges();
             Assert.Equal(new[] { (2026, 6), (2026, 7) }, AyRaporAnlikGoruntusu.EksikAylar(db));
             var ilk = AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat!.GetUtcNow());
             Assert.Equal(new[] { (2026, 6), (2026, 7) }, ilk);
@@ -236,7 +249,8 @@ public class AyRaporuAnlikGoruntusuTests
     public async Task Gecis_tohumu_karantinali_ayi_dondurmaz_ay_kural_1_ile_canli_ve_uyariyla_doner()
     {
         var loglar = new UyariToplayici();
-        await using var f = new LogluFabrika(loglar); using var c = await Editor(f);
+        await using var f = new LogluFabrika(loglar);
+        using var c = await Editor(f);
         await Veri(c);
         int hareket;
         using (var scope = f.Services.CreateScope())
@@ -244,15 +258,19 @@ public class AyRaporuAnlikGoruntusuTests
             // Temmuz'da kanalı olmayan eski ek gelir (geri yüklenmiş veri): karantinaya alınır, genel kasaya gelir yazılır.
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var hesap = new HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = Haziran };
-            db.Hesaplar.Add(hesap); db.SaveChanges();
+            db.Hesaplar.Add(hesap);
+            db.SaveChanges();
             var h = new HesapHareketEntity { HesapId = hesap.Id, KanalId = null, Tarih = Temmuz.AddDays(13), Tutar = 450m, Aciklama = "Kanalsız eski ek gelir" };
-            db.HesapHareketler.Add(h); db.SaveChanges(); hareket = h.Id;
+            db.HesapHareketler.Add(h);
+            db.SaveChanges();
+            hareket = h.Id;
         }
         var kural1 = new Dictionary<DateOnly, string>();
         using (var scope = f.Services.CreateScope())
         {
             var hesap = scope.ServiceProvider.GetRequiredService<HesapServisi>();
-            foreach (var ay in new[] { Haziran, Temmuz }) kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
+            foreach (var ay in new[] { Haziran, Temmuz })
+                kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
         }
         Assert.Contains($"Ek gelir #{hareket} (14.07.2026): kanalı yok", (string)JsonNode.Parse(kural1[Temmuz])!["veriSagligiUyarisi"]!);
         Assert.DoesNotContain("veriSagligiUyarisi", kural1[Haziran]);
@@ -261,7 +279,8 @@ public class AyRaporuAnlikGoruntusuTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1); db.SaveChanges();
+            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1);
+            db.SaveChanges();
             Assert.Equal(new[] { (2026, 6) }, AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat!.GetUtcNow()));
             Assert.Equal(new[] { (2026, 7) }, AyRaporAnlikGoruntusu.EksikAylar(db));
         }
@@ -280,7 +299,8 @@ public class AyRaporuAnlikGoruntusuTests
     [Fact]
     public async Task Kural_degisince_kilitli_ay_ayni_kalir_acik_ay_yeni_kuralla_hesaplanir()
     {
-        await using var f = Fabrika(); using var c = await Editor(f);
+        await using var f = Fabrika();
+        using var c = await Editor(f);
         // Temmuz ve Eylül'de aynı yapı: satış 80.000, takipli kredi çekimi 120.000, cari gider 100.000 (MEZAT).
         foreach (var ay in new[] { Temmuz, Month })
         {
@@ -296,7 +316,8 @@ public class AyRaporuAnlikGoruntusuTests
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1); db.SaveChanges();
+            db.AyKilidi.Single().KilitliSonTarih = Agustos.AddDays(-1);
+            db.SaveChanges();
             AyRaporAnlikGoruntusu.GecisTohumu(db, f.Saat!.GetUtcNow());
         }
 
@@ -324,7 +345,8 @@ public class AyRaporuAnlikGoruntusuTests
     public void Goc_oncesi_kilitli_ay_raporu_goc_sonrasinda_birebir_ayni_kalir()
     {
         // Bir önceki sürümün şeması (20260928000200_KartGecisIzi), Temmuz sonuna kadar kilitli; takipli kredi Temmuz'da çekilmiş.
-        using var baglanti = new SqliteConnection("Data Source=:memory:;Foreign Keys=True"); baglanti.Open();
+        using var baglanti = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
+        baglanti.Open();
         var saat = new ServiceCollection().AddSingleton<TimeProvider>(new SabitSaat(Today)).BuildServiceProvider();
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(baglanti).UseApplicationServiceProvider(saat).Options);
         db.GetService<IMigrator>().Migrate("20260928000200_KartGecisIzi");
@@ -341,7 +363,8 @@ public class AyRaporuAnlikGoruntusuTests
             """);
         var once = new Dictionary<(int, int), string>();
         using (var eski = SurumOncesiBaglam.Ayni(db)) // önceki sürümün şeması: çekirdek sürüm sütunları yok
-            foreach (var ay in new[] { 6, 7, 8 }) once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(eski).Aylik(2026, ay, kuralSurumu: AylikKural.V1), Web);
+            foreach (var ay in new[] { 6, 7, 8 })
+                once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(eski).Aylik(2026, ay, kuralSurumu: AylikKural.V1), Web);
         Assert.Contains("\"gelen\":200000", once[(2026, 7)]); // kural 1: takipli kredi Gelen'de
 
         KasaDatabaseInitializer.Initialize(db); // migration + geçiş tohumu (bellek içi: yedek gerekmez)

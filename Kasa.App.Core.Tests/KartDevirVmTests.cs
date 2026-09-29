@@ -20,7 +20,8 @@ public class KartDevirVmTests
         api.Kart = FinansTakipTests.Fake.OrnekKart() with { Gecis = new KartGecisDto("IslemTarihi", "Banka", null), Harcamalar = [DevirSatiri, IadeSatiri], Odemeler = [Dagitim] };
         var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0)] };
         var vm = new KartTakipViewModel(api, finans, new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
-        await vm.YukleAsync(); vm.SecCommand.Execute(vm.Kartlar[0]);
+        await vm.YukleAsync();
+        vm.SecCommand.Execute(vm.Kartlar[0]);
         return (vm, api);
     }
 
@@ -28,22 +29,29 @@ public class KartDevirVmTests
     public async Task Devir_okununca_form_dolar_gerekceyle_duzeltme_gonderilir()
     {
         var (vm, api) = await Vm();
-        Assert.Null(vm.DevirOzeti); Assert.False(vm.DevirDuzeltilebilir);
+        Assert.Null(vm.DevirOzeti);
+        Assert.False(vm.DevirDuzeltilebilir);
         await vm.DevirYukleCommand.ExecuteAsync(null);
-        Assert.Contains("kasada önceden sayılan 80,00", vm.DevirOzeti); Assert.True(vm.DevirDuzeltilebilir);
+        Assert.Contains("kasada önceden sayılan 80,00", vm.DevirOzeti);
+        Assert.True(vm.DevirDuzeltilebilir);
         Assert.Equal((100m, 80m), (vm.DevirKalanBorc, vm.DevirOncedenSayilan));
         Assert.Equal((1, 100m), (Assert.Single(vm.DevirPaylari).Kanal!.Id, vm.DevirPaylari[0].Tutar));
 
-        vm.DevirKalanBorc = 80m; vm.DevirOncedenSayilan = 80m; vm.DevirPaylari[0].Tutar = 80m;
+        vm.DevirKalanBorc = 80m;
+        vm.DevirOncedenSayilan = 80m;
+        vm.DevirPaylari[0].Tutar = 80m;
         await vm.DevirDuzeltCommand.ExecuteAsync(null);
-        Assert.Empty(api.DevirDuzeltmeleri); Assert.Contains("gerekçesini", vm.Hata);
+        Assert.Empty(api.DevirDuzeltmeleri);
+        Assert.Contains("gerekçesini", vm.Hata);
 
         vm.DevirAciklama = "  Banka ekstresine göre  ";
         await vm.DevirDuzeltCommand.ExecuteAsync(null);
         var g = Assert.Single(api.DevirDuzeltmeleri);
         Assert.Equal((3, (int?)11, 80m, 80m, "Banka ekstresine göre"), (g.Surum, g.HarcamaId, g.KalanBorc, g.KasadaOncedenSayilanTutar, g.Aciklama));
-        Assert.Equal([new KanalPayYaz(1, 80m)], g.Dagilimlar); Assert.NotEqual(Guid.Empty, g.IstekId);
-        Assert.Null(vm.Devir); Assert.Contains("düzeltildi", vm.Mesaj);
+        Assert.Equal([new KanalPayYaz(1, 80m)], g.Dagilimlar);
+        Assert.NotEqual(Guid.Empty, g.IstekId);
+        Assert.Null(vm.Devir);
+        Assert.Contains("düzeltildi", vm.Mesaj);
     }
 
     [Fact]
@@ -51,18 +59,23 @@ public class KartDevirVmTests
     {
         var (vm, api) = await Vm(Devir(false, "Devre ödeme kaydedilmiş."));
         await vm.DevirYukleCommand.ExecuteAsync(null);
-        Assert.False(vm.DevirDuzeltilebilir); Assert.Contains("Düzeltilemez: Devre ödeme kaydedilmiş.", vm.DevirOzeti);
+        Assert.False(vm.DevirDuzeltilebilir);
+        Assert.Contains("Düzeltilemez: Devre ödeme kaydedilmiş.", vm.DevirOzeti);
         vm.DevirAciklama = "Deneme";
         await vm.DevirDuzeltCommand.ExecuteAsync(null);
-        Assert.Empty(api.DevirDuzeltmeleri); Assert.Equal("Devre ödeme kaydedilmiş.", vm.Hata);
+        Assert.Empty(api.DevirDuzeltmeleri);
+        Assert.Equal("Devre ödeme kaydedilmiş.", vm.Hata);
 
         vm.Gerekce = "Yanlış";
         var devirSatiri = vm.Harcamalar.Single(h => h.Veri.Id == 11);
-        Assert.True(vm.DevirSatiri(devirSatiri)); Assert.False(vm.DevirSatiri(vm.Harcamalar.Single(h => h.Veri.Id == 12)));
-        await vm.HarcamaIptalAsync(devirSatiri); Assert.Contains("düzeltin", vm.Hata);
+        Assert.True(vm.DevirSatiri(devirSatiri));
+        Assert.False(vm.DevirSatiri(vm.Harcamalar.Single(h => h.Veri.Id == 12)));
+        await vm.HarcamaIptalAsync(devirSatiri);
+        Assert.Contains("düzeltin", vm.Hata);
         var dagitim = Assert.Single(vm.Odemeler);
         Assert.True(dagitim.AvansDagitimi);
-        await vm.OdemeIptalAsync(dagitim); Assert.Contains("avans dağıtımı ayrıca iptal edilemez", vm.Hata);
+        await vm.OdemeIptalAsync(dagitim);
+        Assert.Contains("avans dağıtımı ayrıca iptal edilemez", vm.Hata);
     }
 
     [Fact]
@@ -71,7 +84,8 @@ public class KartDevirVmTests
         Assert.Contains("Önceden sayılan 30,00 ₺ iade tarihinde kasaya döndü.", new HarcamaSatiri(IadeSatiri).Ozet);
         Assert.DoesNotContain("kasaya döndü", new HarcamaSatiri(DevirSatiri).Ozet);
         var satir = new KartOdemeSatiri(Dagitim);
-        Assert.Contains("kilitli avans dağıtımı", satir.Baslik); Assert.Contains("Kasa değişmez", satir.Ozet);
+        Assert.Contains("kilitli avans dağıtımı", satir.Baslik);
+        Assert.Contains("Kasa değişmez", satir.Ozet);
         Assert.Contains("ödeme 10,00", new KartOdemeSatiri(new KartTakipOdemeDto(1, Tarih, 10m, 10m, null, false, [])).Baslik);
     }
 }

@@ -46,7 +46,8 @@ public static class EskiModelOlaylari
     internal static List<TakipOlayDto> Kart(TakipHesapBaglami b, int kartId)
     {
         b.Iptal.ThrowIfCancellationRequested();
-        var db = b.Db; var bugun = b.Bugun;
+        var db = b.Db;
+        var bugun = b.Bugun;
         var kart = db.KrediKartlari.AsNoTracking().Single(k => k.Id == kartId);
         var harcamalar = db.Islemler.AsNoTracking().Where(i => i.KrediKartiId == kartId).Select(i => new { i.Tarih, i.TutarTl }).ToList()
             .Select(i => (i.Tarih, i.TutarTl)).ToList();
@@ -59,7 +60,8 @@ public static class EskiModelOlaylari
         foreach (var k in FinansTakipServisi.Vade(onceki, odemeGunu) >= bugun ? [onceki, kesim] : new[] { kesim })
         {
             var borc = EkstreBorc(guncel, harcamalar, k);
-            if (borc <= 0 || odemeler.Any(o => o.Tarih > k)) continue;
+            if (borc <= 0 || odemeler.Any(o => o.Tarih > k))
+                continue;
             sonuc.Add(new("Kart", kart.Id, 0, kart.Ad + Ek, k, borc, "Kesim", false) { EskiModel = true });
             sonuc.Add(new("Kart", kart.Id, 0, kart.Ad + Ek, FinansTakipServisi.Vade(k, odemeGunu), borc, "SonOdeme", false) { EskiModel = true });
         }
@@ -79,17 +81,20 @@ public static class EskiModelOlaylari
     /// Kayıt yoksa null (alan yazılmaz).</summary>
     public static IReadOnlyList<TakipsizKayitDto>? TakipsizKayitlar(TakipHesapBaglami b)
     {
-        var db = b.Db; var bugun = b.Bugun;
+        var db = b.Db;
+        var bugun = b.Bugun;
         var liste = db.KrediKartlari.AsNoTracking().Where(k => !db.TakipKartlar.Any(t => t.KrediKartiId == k.Id)).OrderBy(k => k.Id)
             .Select(k => new { k.Id, k.Ad }).ToList().Select(k => new TakipsizKayitDto("Kart", k.Id, k.Ad)).ToList();
         foreach (var k in db.Krediler.AsNoTracking().Where(k => !db.TakipKrediler.Any(t => t.KrediId == k.Id)).OrderBy(k => k.Id).ToList())
-            if (KrediSuruyor(k, bugun)) liste.Add(new("Kredi", k.Id, k.Ad));
+            if (KrediSuruyor(k, bugun))
+                liste.Add(new("Kredi", k.Id, k.Ad));
         return liste.Count == 0 ? null : liste;
     }
 
     private static bool KrediSuruyor(KrediEntity kredi, DateOnly bugun)
     {
-        try { return KrediTuretici.TaksitGiderleri(kredi.ToCore()).Any(t => t.Tarih > bugun); }
+        try
+        { return KrediTuretici.TaksitGiderleri(kredi.ToCore()).Any(t => t.Tarih > bugun); }
         catch (ArgumentException) { return true; }
     }
 }

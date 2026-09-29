@@ -15,7 +15,8 @@ internal static class EkstreKaynakKurallari
                 throw new KilitliDonemException("Ekstre geçmişinde kullanılan kanal silinemez; pasife alınabilir.");
             if (e.Entity is AlisOdemeEntity purchase && db.EkstreKayitlar.Any(k => k.IslemId == purchase.IslemId))
                 throw new KilitliDonemException("Ekstreden alınan gider başka bir alışa bağlanamaz. PDF İçe Aktarma bölümünden düzeltin.");
-            if (db.EkstreDegisikligi) continue;
+            if (db.EkstreDegisikligi)
+                continue;
             bool blocked = e.Entity switch
             {
                 IslemEntity expense when e.State != EntityState.Added => db.EkstreKayitlar.Any(k => k.IslemId == expense.Id),
@@ -25,7 +26,8 @@ internal static class EkstreKaynakKurallari
                 EkstreKayitEntity => true,
                 _ => false
             };
-            if (blocked) throw new KilitliDonemException("Ekstreden alınan kaydı PDF İçe Aktarma bölümünden gerekçeyle iptal edip yeniden işleyin.");
+            if (blocked)
+                throw new KilitliDonemException("Ekstreden alınan kaydı PDF İçe Aktarma bölümünden gerekçeyle iptal edip yeniden işleyin.");
         }
     }
 }

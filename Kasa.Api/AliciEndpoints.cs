@@ -18,11 +18,14 @@ public static partial class AliciEndpoints
         // alınan ya da şifresi/adı değişen alıcı pasif bırakılır (GeriYuklemeIsleyici). Şifre ve özeti yazılmaz.
         api.MapPost("", (AliciYaz dto, KasaDbContext db, IConfiguration cfg, GuvenlikGunlugu gunluk) =>
         {
-            if (Dogrula(dto, db, cfg, null) is { } hata) return hata;
+            if (Dogrula(dto, db, cfg, null) is { } hata)
+                return hata;
             var e = new AliciEntity
             {
-                Kullanici = dto.Kullanici.Trim().ToLowerInvariant(), Ad = dto.Ad.Trim(),
-                SifreHash = SifreHasher.Hashle(dto.Sifre!), Aktif = dto.Aktif
+                Kullanici = dto.Kullanici.Trim().ToLowerInvariant(),
+                Ad = dto.Ad.Trim(),
+                SifreHash = SifreHasher.Hashle(dto.Sifre!),
+                Aktif = dto.Aktif
             };
             db.Alicilar.Add(e);
             db.SaveChanges();
@@ -32,15 +35,19 @@ public static partial class AliciEndpoints
         api.MapPut("/{id:int}", (int id, AliciYaz dto, KasaDbContext db, IConfiguration cfg, GuvenlikGunlugu gunluk) =>
         {
             var e = db.Alicilar.Find(id);
-            if (e is null) return Results.NotFound();
-            if (Dogrula(dto, db, cfg, id) is { } hata) return hata;
+            if (e is null)
+                return Results.NotFound();
+            if (Dogrula(dto, db, cfg, id) is { } hata)
+                return hata;
             var oturumlariKapat = e.Aktif != dto.Aktif || e.Kullanici != dto.Kullanici.Trim().ToLowerInvariant();
             var (oncekiKullanici, oncekiAktif) = (e.Kullanici, e.Aktif);
             e.Kullanici = dto.Kullanici.Trim().ToLowerInvariant();
             e.Ad = dto.Ad.Trim();
             // Pasife alıp tekrar açmak eski oturumu diriltmesin.
-            if (!string.IsNullOrEmpty(dto.Sifre)) e.SifreHash = SifreHasher.Hashle(dto.Sifre);
-            if (oturumlariKapat) e.OturumSurumu++;
+            if (!string.IsNullOrEmpty(dto.Sifre))
+                e.SifreHash = SifreHasher.Hashle(dto.Sifre);
+            if (oturumlariKapat)
+                e.OturumSurumu++;
             e.Aktif = dto.Aktif;
             db.SaveChanges();
             gunluk.Yaz(GuvenlikGunlugu.AliciGuncellendi, e.Id, e.Kullanici,
@@ -63,7 +70,8 @@ public static partial class AliciEndpoints
         if (id is null || !string.IsNullOrEmpty(dto.Sifre))
             v.Kontrol(!string.IsNullOrWhiteSpace(dto.Sifre) && dto.Sifre.Length is >= 8 and <= 1024,
                 "sifre", "Şifre 8–1024 karakter olmalı.");
-        if (v.Sonuc() is { } hata) return hata;
+        if (v.Sonuc() is { } hata)
+            return hata;
         return db.Alicilar.Any(a => a.Id != id && a.Kullanici == kullanici)
             ? Results.Conflict(new { hata = "Bu kullanıcı adı zaten kullanılıyor." }) : null;
     }
@@ -135,7 +143,8 @@ internal static class AliciKotalari
     /// Kota alıcı başınadır; IP'den ve oturumdan bağımsızdır (hız penceresi yalnız isteklerin hızını sınırlar).</summary>
     internal static IResult? Taslak(KasaDbContext db, ClaimsPrincipal user, AliciKotaAyarlari kota)
     {
-        if (user.IsInRole("editor") || AliciId(user) is not { } aliciId) return null;
+        if (user.IsInRole("editor") || AliciId(user) is not { } aliciId)
+            return null;
         if (db.Alislar.Count(a => a.AliciId == aliciId && a.Durum == AlisDurumlari.Taslak) >= kota.AcikTaslak)
             return AlisEndpoints.Conflict($"En fazla {kota.AcikTaslak} açık taslak alışınız olabilir. Önce mevcut taslakları incelemeye gönderin.");
         return db.Alislar.Count(a => a.AliciId == aliciId && a.Durum != AlisDurumlari.Onaylandi) >= kota.OnayBekleyen
@@ -154,7 +163,8 @@ internal static class AliciKotalari
     /// döngüsü diski büyütemez; ayrıca 'alis-yukleme' hız politikası ve alıcının saatlik kovası yavaşlatır.</summary>
     internal static IResult? Belge(KasaDbContext db, ClaimsPrincipal user, int alisId, long boyut, AliciKotaAyarlari kota, DateTimeOffset simdi)
     {
-        if (user.IsInRole("editor") || AliciId(user) is not { } aliciId) return null;
+        if (user.IsInRole("editor") || AliciId(user) is not { } aliciId)
+            return null;
         var taslaktakiler = db.Belgeler.Where(b => b.AlisId == alisId && !b.Silindi).Select(b => b.Boyut).ToList();
         if (taslaktakiler.Count >= kota.TaslakBelgeSayisi)
             return AlisEndpoints.Conflict($"Bir taslağa en fazla {kota.TaslakBelgeSayisi} belge ekleyebilirsiniz. Gereksiz belgeleri silin veya editöre başvurun.");
@@ -197,7 +207,8 @@ internal static class AlisOlusturmaKurallari
     /// <summary>Kayıttan sonra, aynı transaction'da: istek kimliğini sonucuyla saklar.</summary>
     internal static void Kaydet(KasaDbContext db, AlisYaz dto, ClaimsPrincipal user, int alisId)
     {
-        if (dto.IstekId is not { } istekId) return;
+        if (dto.IstekId is not { } istekId)
+            return;
         FinansHesaplari.IstekKaydet(db, istekId, Tur, Ozet(dto, user), alisId);
         db.SaveChanges();
     }

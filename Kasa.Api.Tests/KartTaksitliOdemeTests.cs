@@ -25,16 +25,20 @@ public class KartTaksitliOdemeTests
     private static async Task<HttpClient> Editor(KasaWebFactory f)
     {
         var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Start, kasaAcilisDevri = 100000m })).EnsureSuccessStatusCode(); return c;
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Start, kasaAcilisDevri = 100000m })).EnsureSuccessStatusCode();
+        return c;
     }
     private static async Task<T> Post<T>(HttpClient c, string path, object value)
     {
-        var r = await c.PostAsJsonAsync(path, value); Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        var r = await c.PostAsJsonAsync(path, value);
+        Assert.True(r.IsSuccessStatusCode, $"{r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
         return (await r.Content.ReadFromJsonAsync<T>(Json))!;
     }
     private static async Task<string> Hata(HttpResponseMessage r, HttpStatusCode beklenen)
     {
-        var metin = await r.Content.ReadAsStringAsync(); Assert.True(r.StatusCode == beklenen, $"{r.StatusCode}: {metin}"); return metin;
+        var metin = await r.Content.ReadAsStringAsync();
+        Assert.True(r.StatusCode == beklenen, $"{r.StatusCode}: {metin}");
+        return metin;
     }
     private static async Task<KartTakipDto> Kart(HttpClient c, int id) => (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", Json))!;
     private static Task<KartTakipDto> YeniKart(HttpClient c) => Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Taksit kart", 100000m, 5, 25, Start, 0, []));
@@ -48,7 +52,9 @@ public class KartTaksitliOdemeTests
     [Fact]
     public async Task Kartli_alis_odemesi_taksitle_girilince_ekstre_borcu_ve_son_odeme_taksit_tutarindadir()
     {
-        await using var f = Factory(); using var c = await Editor(f); var kart = await YeniKart(c);
+        await using var f = Factory();
+        using var c = await Editor(f);
+        var kart = await YeniKart(c);
         var alis = await Alis(c, 36000m);
         var istek = new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Gun, 36000m, kart.Id, TaksitSayisi: 3);
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", istek);
@@ -71,7 +77,9 @@ public class KartTaksitliOdemeTests
     [Fact]
     public async Task Ilk_kesim_tarihi_ilk_taksidin_dongusunu_secer()
     {
-        await using var f = Factory(); using var c = await Editor(f); var kart = await YeniKart(c);
+        await using var f = Factory();
+        using var c = await Editor(f);
+        var kart = await YeniKart(c);
         var alis = await Alis(c, 1000m);
         var ilk = new DateOnly(Gun.Year, Gun.Month, 5).AddMonths(Gun.Day > 5 ? 2 : 1);
         await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Gun, 1000m, kart.Id, TaksitSayisi: 2, IlkKesimTarihi: ilk));
@@ -82,7 +90,9 @@ public class KartTaksitliOdemeTests
     [Fact]
     public async Task Gecersiz_taksit_girdisi_kayit_yazmadan_reddedilir()
     {
-        await using var f = Factory(); using var c = await Editor(f); var kart = await YeniKart(c);
+        await using var f = Factory();
+        using var c = await Editor(f);
+        var kart = await YeniKart(c);
         var alis = await Alis(c, 1000m);
         async Task Red(AlisOdemeYaz g, string alan)
             => Assert.Contains(alan, await Hata(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", g), HttpStatusCode.BadRequest));
@@ -102,7 +112,9 @@ public class KartTaksitliOdemeTests
     [Fact]
     public async Task Kartli_manuel_gider_taksitle_girilir_eski_istemci_tek_taksitle_devam_eder()
     {
-        await using var f = Factory(); using var c = await Editor(f); var kart = await YeniKart(c);
+        await using var f = Factory();
+        using var c = await Editor(f);
+        var kart = await YeniKart(c);
         (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Gun, "Telefon", 3000m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id, IstekId: Guid.NewGuid(), TaksitSayisi: 6))).EnsureSuccessStatusCode();
         // Eski istemci yeni alanları hiç göndermez (JSON'da yok).
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = Gun, cari = "Kargo", tutarTl = 120m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = kart.Id })).EnsureSuccessStatusCode();

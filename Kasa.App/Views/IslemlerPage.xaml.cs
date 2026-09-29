@@ -30,7 +30,8 @@ public partial class IslemlerPage : ContentPage
     }
     private void KaynakBaglamiDegisti(object? sender, EventArgs e)
     {
-        if (sender is Button b) b.IsVisible = b.BindingContext is IslemDto { EkstreKayitId: not null };
+        if (sender is Button b)
+            b.IsVisible = b.BindingContext is IslemDto { EkstreKayitId: not null };
     }
     private async void KaynakTiklandi(object? sender, EventArgs e)
     {

@@ -77,7 +77,8 @@ public class MimariTests
     private static string DepoKoku()
     {
         for (var dizin = new DirectoryInfo(AppContext.BaseDirectory); dizin is not null; dizin = dizin.Parent)
-            if (File.Exists(Path.Combine(dizin.FullName, "Kasa.slnx"))) return dizin.FullName;
+            if (File.Exists(Path.Combine(dizin.FullName, "Kasa.slnx")))
+                return dizin.FullName;
         throw new InvalidOperationException("Depo kökü (Kasa.slnx) test çıktısının üst dizinlerinde bulunamadı.");
     }
 
@@ -108,7 +109,8 @@ public class MimariTests
             {
                 var hedef = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(yol)!, ((string?)basvuru.Attribute("Include") ?? "").Replace('\\', Path.DirectorySeparatorChar)));
                 Assert.True(File.Exists(hedef), $"{yol}: başvurulan proje yok: {hedef}");
-                if (gorulen.Add(Path.GetFileNameWithoutExtension(hedef))) bekleyen.Push(hedef);
+                if (gorulen.Add(Path.GetFileNameWithoutExtension(hedef)))
+                    bekleyen.Push(hedef);
             }
         }
         return [.. gorulen];
@@ -133,7 +135,8 @@ public class MimariTests
         {
             foreach (var basvuru in derleme.GetReferencedAssemblies())
             {
-                if (basvuru.Name is not { } ad || !adlar.Add(ad) || !Izlenir(ad)) continue;
+                if (basvuru.Name is not { } ad || !adlar.Add(ad) || !Izlenir(ad))
+                    continue;
                 bekleyen.Push(Assembly.Load(basvuru));
             }
         }

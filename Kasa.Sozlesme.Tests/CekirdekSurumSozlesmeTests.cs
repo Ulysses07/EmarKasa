@@ -68,7 +68,8 @@ public class CekirdekSurumSozlesmeTests : SozlesmeTemeli
         var o = await Editor();
         using var eski = F.CreateClient();
         eski.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await o.Depo.OkuAsync());
-        async Task Kabul(HttpResponseMessage yanit) { using (yanit) Assert.True(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}"); }
+        async Task Kabul(HttpResponseMessage yanit)
+        { using (yanit) Assert.True(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}"); }
 
         var surum = (await o.Kasa.AyarlarAsync()).Surum;
         await Kabul(await eski.PutAsJsonAsync("api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 250m }));

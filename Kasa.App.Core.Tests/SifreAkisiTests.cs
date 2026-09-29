@@ -24,7 +24,8 @@ public class SifreAkisiTests
         {
             "/api/auth/login" => Json(HttpStatusCode.OK, """{"rol":"editor","token":"jwt"}"""),
             _ => sifreYaniti(istek),
-        })) { BaseAddress = new("https://ornek.test/") }, store);
+        }))
+        { BaseAddress = new("https://ornek.test/") }, store);
         var auth = new AuthViewModel(api) { Kullanici = "editor", Sifre = "kasa-sifresi" };
         await auth.GirisCommand.ExecuteAsync(null);
         Assert.True(auth.GirisYapildi);
@@ -86,7 +87,9 @@ public class SifreAkisiTests
 
         Assert.Equal(new[] { "/api/auth/sifre" }, istekler);
         Assert.False(auth.GirisYapildi);
-        Assert.Equal("", vm.YeniSifre); Assert.Equal("", vm.YeniSifreTekrar); Assert.Equal("", vm.MevcutSifre);
+        Assert.Equal("", vm.YeniSifre);
+        Assert.Equal("", vm.YeniSifreTekrar);
+        Assert.Equal("", vm.MevcutSifre);
     }
 
     [Fact]
@@ -94,21 +97,25 @@ public class SifreAkisiTests
     {
         var istekler = new List<string>();
         var api = new KasaApiClient(new HttpClient(new Sunucu(istek => { istekler.Add(istek.RequestUri!.AbsolutePath); return new HttpResponseMessage(HttpStatusCode.NoContent); }))
-            { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
+        { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
         var auth = new AuthViewModel(api) { Kullanici = "editor", KurtarmaAcik = true, KurtarmaKodu = "ABCD-EFGH", KurtarmaYeniSifre = "Kasa2026!Guvenli", KurtarmaYeniSifreTekrar = "Kasa2026!Guvenlı" };
 
         await auth.SifreKurtarCommand.ExecuteAsync(null);
 
         Assert.Empty(istekler);
         Assert.Equal("Yeni şifreler aynı olmalı.", auth.Hata);
-        Assert.Equal("ABCD-EFGH", auth.KurtarmaKodu); Assert.True(auth.KurtarmaAcik); Assert.False(auth.Mesgul);
+        Assert.Equal("ABCD-EFGH", auth.KurtarmaKodu);
+        Assert.True(auth.KurtarmaAcik);
+        Assert.False(auth.Mesgul);
 
         auth.KurtarmaYeniSifreTekrar = "Kasa2026!Guvenli";
         await auth.SifreKurtarCommand.ExecuteAsync(null);
 
         Assert.Equal(new[] { "/api/auth/kurtar" }, istekler);
         Assert.Null(auth.Hata);
-        Assert.Equal("", auth.KurtarmaKodu); Assert.Equal("", auth.KurtarmaYeniSifre); Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
+        Assert.Equal("", auth.KurtarmaKodu);
+        Assert.Equal("", auth.KurtarmaYeniSifre);
+        Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
         Assert.False(auth.KurtarmaAcik);
     }
 
@@ -117,13 +124,16 @@ public class SifreAkisiTests
     {
         var auth = new AuthViewModel(new SahteApi { LoginYaniti = new LoginYanit("editor", "jwt") }) { KurtarmaYeniSifre = "gizli-yeni-sifre", KurtarmaYeniSifreTekrar = "gizli-yeni-sifre" };
         auth.KurtarmayiAcKapatCommand.Execute(null);
-        Assert.Equal("", auth.KurtarmaYeniSifre); Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
-        auth.KurtarmaYeniSifreTekrar = "gizli-yeni-sifre"; auth.Sifre = "sifre";
+        Assert.Equal("", auth.KurtarmaYeniSifre);
+        Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
+        auth.KurtarmaYeniSifreTekrar = "gizli-yeni-sifre";
+        auth.Sifre = "sifre";
         await auth.GirisCommand.ExecuteAsync(null);
         Assert.Equal("", auth.KurtarmaYeniSifreTekrar);
         var guvenlik = new GuvenlikViewModel(new KasaApiClient(new HttpClient(), new BellekTokenStore()), auth) { YeniSifre = "gizli-yeni-sifre", YeniSifreTekrar = "gizli-yeni-sifre" };
         guvenlik.Temizle();
-        Assert.Equal("", guvenlik.YeniSifre); Assert.Equal("", guvenlik.YeniSifreTekrar);
+        Assert.Equal("", guvenlik.YeniSifre);
+        Assert.Equal("", guvenlik.YeniSifreTekrar);
     }
 
     // IST4 (F3C notu): "Yeni şifreyi göster" kutusu görünüm modelinde tutulur; açık bırakılan kutu bir sonraki şifre girişinde
@@ -136,7 +146,9 @@ public class SifreAkisiTests
         vm.EkrandanAyril();
         Assert.False(vm.YeniSifreyiGoster);
 
-        vm.YeniSifreyiGoster = true; vm.MevcutSifre = "kasa-sifresi"; vm.YeniSifre = vm.YeniSifreTekrar = "yepyeni-sifre-123";
+        vm.YeniSifreyiGoster = true;
+        vm.MevcutSifre = "kasa-sifresi";
+        vm.YeniSifre = vm.YeniSifreTekrar = "yepyeni-sifre-123";
         await vm.SifreDegistirCommand.ExecuteAsync(null);
         Assert.False(vm.YeniSifreyiGoster);
 
@@ -154,14 +166,16 @@ public class SifreAkisiTests
         auth.KurtarmayiAcKapatCommand.Execute(null);                // form kapandı
         Assert.False(auth.KurtarmaSifresiniGoster);
 
-        auth.KurtarmayiAcKapatCommand.Execute(null); auth.KurtarmaSifresiniGoster = true;
+        auth.KurtarmayiAcKapatCommand.Execute(null);
+        auth.KurtarmaSifresiniGoster = true;
         sahte.OturumuSonlandir();
         Assert.False(auth.KurtarmaSifresiniGoster);
 
         var api = new KasaApiClient(new HttpClient(new Sunucu(_ => new HttpResponseMessage(HttpStatusCode.NoContent))) { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
         var kurtarma = new AuthViewModel(api) { Kullanici = "editor", KurtarmaAcik = true, KurtarmaKodu = "ABCD-EFGH", KurtarmaYeniSifre = "Kasa2026!Guvenli", KurtarmaYeniSifreTekrar = "Kasa2026!Guvenli", KurtarmaSifresiniGoster = true };
         await kurtarma.SifreKurtarCommand.ExecuteAsync(null);
-        Assert.Null(kurtarma.Hata); Assert.False(kurtarma.KurtarmaSifresiniGoster);
+        Assert.Null(kurtarma.Hata);
+        Assert.False(kurtarma.KurtarmaSifresiniGoster);
     }
 
     [Fact]

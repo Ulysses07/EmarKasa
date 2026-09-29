@@ -19,11 +19,13 @@ public class MutasyonTests
         var istekId = Guid.NewGuid();
         h.Kuyrukla(HttpStatusCode.OK, """{"id":1,"tarih":"2026-03-05","cari":"K","tutarTl":5.0,"kanal":"MEZAT","tip":"Cari","not":null}""");
         await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "K", 5m, "MEZAT", GiderTipi.Cari, null, IstekId: istekId));
-        using (var doc = JsonDocument.Parse(h.SonGovde!)) Assert.Equal(istekId, doc.RootElement.GetProperty("istekId").GetGuid());
+        using (var doc = JsonDocument.Parse(h.SonGovde!))
+            Assert.Equal(istekId, doc.RootElement.GetProperty("istekId").GetGuid());
 
         h.Kuyrukla(HttpStatusCode.Created, """{"id":2,"tarih":"2026-03-05","cari":"K","tutarTl":5.0,"kanal":"MEZAT","tip":"Cari","not":null}""");
         await c.IslemOlusturAsync(new IslemYaz(new DateOnly(2026, 3, 5), "K", 5m, "MEZAT", GiderTipi.Cari, null));
-        using (var doc = JsonDocument.Parse(h.SonGovde!)) Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("istekId").ValueKind);
+        using (var doc = JsonDocument.Parse(h.SonGovde!))
+            Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("istekId").ValueKind);
 
         // gap-coklu-giris-cift-sayim-mutabakat-6: kartlı giderin taksit alanları gövdeye taşınır; verilmezse null (tek taksit).
         h.Kuyrukla(HttpStatusCode.Created, """{"id":3,"tarih":"2026-03-05","cari":"Tel","tutarTl":3000.0,"kanal":"MEZAT","tip":"KrediKarti","not":null,"krediKartiId":7}""");

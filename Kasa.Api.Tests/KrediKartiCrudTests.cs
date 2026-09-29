@@ -17,8 +17,11 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
 
         var olustur = await client.PostAsJsonAsync("/api/kredikartlari", new
         {
-            ad = "Bonus", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 100_000m, borc = 30_000m,
+            ad = "Bonus",
+            kesimTarihi = "2026-07-05",
+            sonOdemeTarihi = "2026-07-25",
+            limit = 100_000m,
+            borc = 30_000m,
         });
         Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
         var eklenen = LegacyFinanceSeed.Kart(_factory, new("Bonus", new DateOnly(2026, 7, 5),
@@ -29,8 +32,11 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
 
         var guncelle = await client.PutAsJsonAsync($"/api/kredikartlari/{eklenen.Id}", new
         {
-            ad = "Bonus", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25",
-            limit = 100_000m, borc = 45_000m,
+            ad = "Bonus",
+            kesimTarihi = "2026-07-05",
+            sonOdemeTarihi = "2026-07-25",
+            limit = 100_000m,
+            borc = 45_000m,
         });
         Assert.Equal(HttpStatusCode.OK, guncelle.StatusCode);
 
@@ -56,7 +62,11 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
 
         var yazma = await izleyici.PostAsJsonAsync("/api/kredikartlari", new
         {
-            ad = "X", kesimTarihi = "2026-07-05", sonOdemeTarihi = "2026-07-25", limit = 1m, borc = 0m,
+            ad = "X",
+            kesimTarihi = "2026-07-05",
+            sonOdemeTarihi = "2026-07-25",
+            limit = 1m,
+            borc = 0m,
         });
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }

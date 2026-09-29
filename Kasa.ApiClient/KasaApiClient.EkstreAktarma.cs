@@ -18,7 +18,8 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
 
     public async Task<EkstreBelgeDto> EkstreYukleAsync(byte[] icerik, string dosyaAdi, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken cancellationToken = default)
     {
-        if (icerik.Length is 0 or > 10 * 1024 * 1024) throw new ArgumentException("PDF dosyası en fazla 10 MB olabilir.", nameof(icerik));
+        if (icerik.Length is 0 or > 10 * 1024 * 1024)
+            throw new ArgumentException("PDF dosyası en fazla 10 MB olabilir.", nameof(icerik));
         using var form = new MultipartFormDataContent();
         var dosya = new ByteArrayContent(icerik);
         dosya.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
@@ -26,7 +27,8 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
         form.Add(new StringContent(kaynak), "kaynak");
         form.Add(new StringContent(banka), "banka");
         form.Add(new StringContent(hesapAdi), "hesapAdi");
-        if (kartId is { } id) form.Add(new StringContent(id.ToString(CultureInfo.InvariantCulture)), "kartId");
+        if (kartId is { } id)
+            form.Add(new StringContent(id.ToString(CultureInfo.InvariantCulture)), "kartId");
         using var istek = new HttpRequestMessage(HttpMethod.Post, "api/ekstre-aktar/yukle") { Content = form };
         using var yanit = await GonderAsync(istek, zamanAsimi: _zaman.Yukleme, cancellationToken: cancellationToken);
         return (await yanit.Content.ReadFromJsonAsync<EkstreBelgeDto>(Json, cancellationToken))!;

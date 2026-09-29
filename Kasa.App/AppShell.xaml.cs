@@ -18,8 +18,10 @@ public partial class AppShell : Shell
     private async Task AcilistaYonlendirAsync()
     {
         var girildi = await _auth.AcilistaDogrulaAsync();
-        if (girildi) MenuyuAc();
-        else await GiriseDonAsync();
+        if (girildi)
+            MenuyuAc();
+        else
+            await GiriseDonAsync();
     }
 
     public void MenuyuAc()
@@ -48,7 +50,8 @@ public partial class AppShell : Shell
 
     private async Task GiriseDonAsync()
     {
-        if (_giriseDonuluyor) return;
+        if (_giriseDonuluyor)
+            return;
         _giriseDonuluyor = true;
         try
         {

@@ -85,7 +85,8 @@ public class AylikKuralSurumuTests
     {
         // İki kanal payı (takipli kredi), eski kredi çekimi, genel gelir, ortak gider, dağılım bekleyen ve yalnız genel kasa gideri.
         var donemler = DonemUretici.Uret(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
-        var d0 = donemler[0].Start; var d2 = donemler[2].Start;
+        var d0 = donemler[0].Start;
+        var d2 = donemler[2].Start;
         var gelenler = new List<Gelen>
         {
             new(d0, "MEZAT", 50_000m), new(d0, "TOPTAN", 20_000m),
@@ -207,7 +208,8 @@ public class AylikKuralSurumuTests
     private static (int Yil, int Ay) EtkiAyi(Islem islem)
     {
         int yil = islem.Tarih.Year, ay = islem.Tarih.Month;
-        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi) return (yil, ay);
+        if (islem.Tip != GiderTipi.KrediKarti || islem.NakitKartOdemesi)
+            return (yil, ay);
         return ay == 12 ? (yil + 1, 1) : (yil, ay + 1);
     }
 }

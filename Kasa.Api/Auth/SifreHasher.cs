@@ -19,7 +19,8 @@ public static class SifreHasher
     public static bool Dogrula(string sifre, string kayitliHash)
     {
         var parcalar = kayitliHash.Split('.');
-        if (parcalar.Length != 2) return false;
+        if (parcalar.Length != 2)
+            return false;
         try
         {
             byte[] salt = Convert.FromBase64String(parcalar[0]);

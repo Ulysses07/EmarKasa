@@ -28,9 +28,12 @@ public class AnaSayfaVeRaporIptalTests
         await vm.YukleAsync();
 
         Assert.Equal(new[] { 7 }, api.AnaSayfaIstekleri);
-        Assert.True(vm.VeriVar); Assert.Equal(900, vm.GuncelKasa); Assert.Equal(2, vm.Kanallar.Count);
+        Assert.True(vm.VeriVar);
+        Assert.Equal(900, vm.GuncelKasa);
+        Assert.Equal(2, vm.Kanallar.Count);
         Assert.Equal(Esik, Assert.Single(vm.KasaEsikleri!));
-        Assert.Equal(120, vm.TakipOzeti!.KartBorcu); Assert.Equal(7, vm.TakipOzetiGunu);
+        Assert.Equal(120, vm.TakipOzeti!.KartBorcu);
+        Assert.Equal(7, vm.TakipOzetiGunu);
     }
 
     [Fact]
@@ -41,14 +44,19 @@ public class AnaSayfaVeRaporIptalTests
 
         await vm.PaneldenYukleAsync(Ozet(120), 30);
         Assert.Equal(0, takip.OzetCagri);
-        Assert.True(vm.VeriHazir); Assert.Contains("120,00", vm.Ozet); Assert.Equal(120, vm.KanalKartBorclari!.Single().Tutar);
+        Assert.True(vm.VeriHazir);
+        Assert.Contains("120,00", vm.Ozet);
+        Assert.Equal(120, vm.KanalKartBorclari!.Single().Tutar);
 
         await vm.PaneldenYukleAsync(null, 30);                     // eski sunucu: ana sayfa yanıtında özet yok
-        Assert.Equal(1, takip.OzetCagri); Assert.Contains("80,00", vm.Ozet);
+        Assert.Equal(1, takip.OzetCagri);
+        Assert.Contains("80,00", vm.Ozet);
 
         vm.Gun = 7;                                                 // panel yüklenirken gün değişti: 30 günlük özet yansıtılmaz
         await vm.PaneldenYukleAsync(Ozet(120), 30);
-        Assert.Equal(2, takip.OzetCagri); Assert.Equal(7, takip.SonOzetGunu); Assert.Contains("80,00", vm.Ozet);
+        Assert.Equal(2, takip.OzetCagri);
+        Assert.Equal(7, takip.SonOzetGunu);
+        Assert.Contains("80,00", vm.Ozet);
     }
 
     [Fact]
@@ -59,7 +67,8 @@ public class AnaSayfaVeRaporIptalTests
 
         await vm.YukleAsync(new[] { Esik });
         Assert.Equal((1, 0), (kontrol.GecmisCagri, kontrol.EsikCagri));
-        Assert.Contains("MEZAT: bakiye 600,00 ₺", vm.EsikUyarilari); Assert.True(vm.VeriHazir);
+        Assert.Contains("MEZAT: bakiye 600,00 ₺", vm.EsikUyarilari);
+        Assert.True(vm.VeriHazir);
 
         await vm.YukleAsync();
         Assert.Equal((2, 1), (kontrol.GecmisCagri, kontrol.EsikCagri));
@@ -75,14 +84,17 @@ public class AnaSayfaVeRaporIptalTests
 
         var ilk = vm.YukleAsync();
         var ikinci = vm.YukleAsync();
-        Assert.True(belirtecler[0].IsCancellationRequested); Assert.False(belirtecler[1].IsCancellationRequested);
+        Assert.True(belirtecler[0].IsCancellationRequested);
+        Assert.False(belirtecler[1].IsCancellationRequested);
         Assert.True(vm.Mesgul);
 
         vm.EkrandanAyril();
         await Task.WhenAll(ilk, ikinci);
 
         Assert.True(belirtecler[1].IsCancellationRequested);
-        Assert.Null(vm.Hata); Assert.False(vm.Mesgul); Assert.False(vm.VeriVar);
+        Assert.Null(vm.Hata);
+        Assert.False(vm.Mesgul);
+        Assert.False(vm.VeriVar);
     }
 
     [Fact]
@@ -98,7 +110,10 @@ public class AnaSayfaVeRaporIptalTests
         eski.SetResult(new AnaSayfaDto(Panel(900), new[] { Esik }, Ozet()));   // sahte iptali dinlemese de sonuç uygulanmaz
         await ilk;
 
-        Assert.Equal(500, vm.GuncelKasa); Assert.Null(vm.KasaEsikleri); Assert.Null(vm.TakipOzeti); Assert.True(vm.VeriVar);
+        Assert.Equal(500, vm.GuncelKasa);
+        Assert.Null(vm.KasaEsikleri);
+        Assert.Null(vm.TakipOzeti);
+        Assert.True(vm.VeriVar);
     }
 
     [Fact]
@@ -119,7 +134,8 @@ public class AnaSayfaVeRaporIptalTests
 
         api.HaftalikGetir = _ => Task.FromException<IReadOnlyList<HaftalikOzetDto>>(new HttpRequestException());
         await vm.YukleAsync();
-        Assert.Null(vm.VeriSagligiUyarisi); Assert.False(vm.VeriVar);
+        Assert.Null(vm.VeriSagligiUyarisi);
+        Assert.False(vm.VeriVar);
     }
 
     /// <summary>"Dağılım bekleyen" yalnız tutar sıfırdan farklı dönemde görünür (her satırda "0,00 ₺" yazmaz); tutar
@@ -138,9 +154,12 @@ public class AnaSayfaVeRaporIptalTests
 
             Assert.Equal(3, vm.Donemler.Count);
             Assert.False(vm.Donemler[0].DagilimBekliyor);
-            Assert.True(vm.Donemler[1].DagilimBekliyor); Assert.Equal("Dağılım bekleyen: 1.234,50 ₺", vm.Donemler[1].DagilimBekleyenMetni);
-            Assert.True(vm.Donemler[2].DagilimBekliyor); Assert.Equal("Dağılım bekleyen: -40,00 ₺", vm.Donemler[2].DagilimBekleyenMetni);
-            Assert.Equal(new DateOnly(2027, 9, 13), vm.Donemler[1].Donem.Start); Assert.Equal(75m, vm.Donemler[1].KasaSonucu);
+            Assert.True(vm.Donemler[1].DagilimBekliyor);
+            Assert.Equal("Dağılım bekleyen: 1.234,50 ₺", vm.Donemler[1].DagilimBekleyenMetni);
+            Assert.True(vm.Donemler[2].DagilimBekliyor);
+            Assert.Equal("Dağılım bekleyen: -40,00 ₺", vm.Donemler[2].DagilimBekleyenMetni);
+            Assert.Equal(new DateOnly(2027, 9, 13), vm.Donemler[1].Donem.Start);
+            Assert.Equal(75m, vm.Donemler[1].KasaSonucu);
         }
         finally { CultureInfo.CurrentCulture = onceki; }
     }
@@ -156,7 +175,9 @@ public class AnaSayfaVeRaporIptalTests
         vm.EkrandanAyril();
         await yukleme;
 
-        Assert.True(gorulen.IsCancellationRequested); Assert.Null(vm.Hata); Assert.False(vm.Mesgul);
+        Assert.True(gorulen.IsCancellationRequested);
+        Assert.Null(vm.Hata);
+        Assert.False(vm.Mesgul);
     }
 
     [Fact]
@@ -181,13 +202,15 @@ public class AnaSayfaVeRaporIptalTests
 
         await vm.YukleAsync();
 
-        Assert.True(vm.VeriHazir); Assert.Null(vm.Hata);
+        Assert.True(vm.VeriHazir);
+        Assert.Null(vm.Hata);
         Assert.Equal("Kanal uyarıları yüklenemedi: Veritabanı meşgul.", vm.EsikHatasi);
         Assert.Null(vm.EsikUyarilari);
 
         kontrol.EsikHatasi = null;
         await vm.YukleAsync();
-        Assert.Null(vm.EsikHatasi); Assert.Contains("Açık uyarılarda alt limitin altında kanal yok.", vm.EsikUyarilari);
+        Assert.Null(vm.EsikHatasi);
+        Assert.Contains("Açık uyarılarda alt limitin altında kanal yok.", vm.EsikUyarilari);
     }
 
     [Fact]
@@ -201,10 +224,13 @@ public class AnaSayfaVeRaporIptalTests
         await takip.PaneldenYukleAsync(panel.TakipOzeti, panel.TakipOzetiGunu);
         panel.KartBorclariniYansit(takip.VeriHazir ? takip.KanalKartBorclari : null);
 
-        Assert.True(panel.VeriVar); Assert.Null(panel.Hata); Assert.Equal(900, panel.GuncelKasa);
+        Assert.True(panel.VeriVar);
+        Assert.Null(panel.Hata);
+        Assert.Equal(900, panel.GuncelKasa);
         Assert.Equal(new[] { 600m, 300m }, panel.Kanallar.Select(k => k.Bakiye));
         Assert.All(panel.Kanallar, k => Assert.Equal("Kart borcu bilgisi alınmadı.", k.KartBorcuMetni));
-        Assert.False(takip.VeriHazir); Assert.Equal("Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.", takip.Hata);
+        Assert.False(takip.VeriHazir);
+        Assert.Equal("Sunucu işlemi tamamlayamadı. Lütfen yeniden deneyin.", takip.Hata);
     }
 
     private sealed class KontrolSahtesi : IKasaKontrolApi

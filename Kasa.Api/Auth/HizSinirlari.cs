@@ -132,7 +132,8 @@ public static class HizSinirlari
             o.ForwardLimit = 1;
             o.KnownProxies.Clear();
             o.KnownIPNetworks.Clear();
-            foreach (var ag in GuvenilirAglar(cfg["Kasa:GuvenilirVekiller"])) o.KnownIPNetworks.Add(ag);
+            foreach (var ag in GuvenilirAglar(cfg["Kasa:GuvenilirVekiller"]))
+                o.KnownIPNetworks.Add(ag);
         });
         services.AddOptions<HizSiniriAyarlari>().BindConfiguration("Kasa:HizSiniri").ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<HizSiniriAyarlari>, HizSiniriDogrulayici>());
@@ -186,7 +187,8 @@ public static class HizSinirlari
 
     private static bool Guvenilir(ForwardedHeadersOptions o, IPAddress ip)
     {
-        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        if (ip.IsIPv4MappedToIPv6)
+            ip = ip.MapToIPv4();
         return o.KnownProxies.Contains(ip) || o.KnownIPNetworks.Any(ag => ag.Contains(ip));
     }
 
@@ -197,10 +199,12 @@ public static class HizSinirlari
         var aglar = new List<System.Net.IPNetwork>();
         foreach (var parca in liste.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (System.Net.IPNetwork.TryParse(parca, out var ag)) aglar.Add(ag);
+            if (System.Net.IPNetwork.TryParse(parca, out var ag))
+                aglar.Add(ag);
             else if (!parca.Contains('/') && IPAddress.TryParse(parca, out var ip))
                 aglar.Add(new System.Net.IPNetwork(ip, ip.AddressFamily == AddressFamily.InterNetwork ? 32 : 128));
-            else throw new InvalidOperationException($"Kasa:GuvenilirVekiller geçersiz CIDR içeriyor: '{parca}'.");
+            else
+                throw new InvalidOperationException($"Kasa:GuvenilirVekiller geçersiz CIDR içeriyor: '{parca}'.");
         }
         return aglar;
     }
@@ -208,9 +212,12 @@ public static class HizSinirlari
     /// <summary>IPv4 adresin kendisi; IPv6 istemciler /64 önekiyle tek bölüme düşer (adres döndürerek kaçamaz).</summary>
     public static string IstemciAnahtari(IPAddress? ip)
     {
-        if (ip is null) return "yerel";
-        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
-        if (ip.AddressFamily != AddressFamily.InterNetworkV6) return ip.ToString();
+        if (ip is null)
+            return "yerel";
+        if (ip.IsIPv4MappedToIPv6)
+            ip = ip.MapToIPv4();
+        if (ip.AddressFamily != AddressFamily.InterNetworkV6)
+            return ip.ToString();
         var baytlar = ip.GetAddressBytes();
         Array.Clear(baytlar, 8, 8);
         return new IPAddress(baytlar) + "/64";
@@ -219,7 +226,8 @@ public static class HizSinirlari
     /// <summary>IPv6 istemcinin /48 bloğu (giriş için toplu pencere); IPv4 ve IPv4 eşlemeli adreslerde null.</summary>
     public static string? AgAnahtari(IPAddress? ip)
     {
-        if (ip is null || ip.IsIPv4MappedToIPv6 || ip.AddressFamily != AddressFamily.InterNetworkV6) return null;
+        if (ip is null || ip.IsIPv4MappedToIPv6 || ip.AddressFamily != AddressFamily.InterNetworkV6)
+            return null;
         var baytlar = ip.GetAddressBytes();
         Array.Clear(baytlar, 6, 10);
         return new IPAddress(baytlar) + "/48";
@@ -273,7 +281,8 @@ public static class HizSinirlari
             }
             var sonuc = await sonraki(baglam);
             // Olay yazılamasa da (ör. veritabanı hatası) giriş yanıtı değişmez; hata loglanır.
-            try { GirisSonucu(http, sonuc, ad, kurtarma); }
+            try
+            { GirisSonucu(http, sonuc, ad, kurtarma); }
             catch (Exception e) when (e is not OperationCanceledException)
             {
                 http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Kasa.Guvenlik")
@@ -367,7 +376,8 @@ internal sealed class AlisYuklemePolitikasi : Microsoft.AspNetCore.RateLimiting.
             http.Response.Headers.RetryAfter = Math.Ceiling(sure.TotalSeconds).ToString(CultureInfo.InvariantCulture);
             mesaj += $" {Math.Max(1, (int)Math.Ceiling(sure.TotalMinutes))} dakika sonra yeniden deneyin.";
         }
-        else mesaj += " Birkaç dakika sonra yeniden deneyin.";
+        else
+            mesaj += " Birkaç dakika sonra yeniden deneyin.";
         return Results.Json(new { hata = mesaj }, statusCode: StatusCodes.Status429TooManyRequests);
     }
 }
@@ -385,7 +395,9 @@ internal sealed class AliciAlisYuklemeSiniri(IOptionsMonitor<HizSiniriAyarlari> 
     private readonly PartitionedRateLimiter<string> _kovalar = PartitionedRateLimiter.Create<string, string>(alici =>
         RateLimitPartition.GetFixedWindowLimiter(alici, _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = ayarlar.CurrentValue.AliciSaatlikAlisYuklemeIzni, Window = TimeSpan.FromHours(1), QueueLimit = 0,
+            PermitLimit = ayarlar.CurrentValue.AliciSaatlikAlisYuklemeIzni,
+            Window = TimeSpan.FromHours(1),
+            QueueLimit = 0,
         }));
 
     public RateLimitLease Dene(string aliciId) => _kovalar.AttemptAcquire(aliciId);
@@ -398,7 +410,8 @@ internal sealed class AliciAlisYuklemeSiniri(IOptionsMonitor<HizSiniriAyarlari> 
         if (!http.User.IsInRole("editor") && http.User.FindFirstValue("alici_id") is { Length: > 0 } alici)
         {
             using var lease = http.RequestServices.GetRequiredService<AliciAlisYuklemeSiniri>().Dene(alici);
-            if (!lease.IsAcquired) return AlisYuklemePolitikasi.SaatlikRed(http, lease);
+            if (!lease.IsAcquired)
+                return AlisYuklemePolitikasi.SaatlikRed(http, lease);
         }
         return await sonraki(baglam);
     }
@@ -525,7 +538,8 @@ public sealed class GirisSiniri : IDisposable
         if (HizSinirlari.AgAnahtari(ip) is { } blok)
         {
             var blokIzni = _pencere.AttemptAcquire(AgOnEki + blok);
-            if (!blokIzni.IsAcquired) return blokIzni;
+            if (!blokIzni.IsAcquired)
+                return blokIzni;
             blokIzni.Dispose();
         }
         return _pencere.AttemptAcquire(HizSinirlari.IstemciAnahtari(ip) + "\n" + Normalize(kullanici));
@@ -563,8 +577,10 @@ public sealed class GirisSiniri : IDisposable
             return;
         }
         // Tanıdık cihazın başarısızlığı da hedefin bütçesine yazılır: bütçe hedefe yapılan bütün denemeleri gösterir.
-        if (muaf) _butce.Say(hedefKovasi);
-        if (!_butce.IlkKezDoldu(hedefKovasi)) return;
+        if (muaf)
+            _butce.Say(hedefKovasi);
+        if (!_butce.IlkKezDoldu(hedefKovasi))
+            return;
         _log.LogWarning("Giriş bütçesi '{Butce}' için başarısız deneme sınırı doldu ({Izin} deneme / {Dakika} dk). Pencere bitene kadar kilitten muaf olmayan istemcilerin bu bütçeye bağlı adlarla girişi şifre denenmeden reddedilir; dağıtık bir kaba kuvvet denemesi olabilir.",
             hedefKovasi.Anahtar, hedefKovasi.Izin, hedefKovasi.Pencere.TotalMinutes);
     }
@@ -620,12 +636,14 @@ public sealed class GirisDenemesi : IDisposable
 
     public void Sonuc(bool basarili)
     {
-        if (Interlocked.Exchange(ref _kapandi, 1) == 0) _sonuc!(basarili);
+        if (Interlocked.Exchange(ref _kapandi, 1) == 0)
+            _sonuc!(basarili);
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _kapandi, 1) == 0) _iade!();
+        if (Interlocked.Exchange(ref _kapandi, 1) == 0)
+            _iade!();
     }
 }
 
@@ -663,7 +681,8 @@ internal sealed class DenemeButcesi(TimeProvider saat)
             for (var i = 0; i < kovalar.Count; i++)
             {
                 sayaclar[i] = Guncel(kovalar[i], simdi);
-                if (sayaclar[i].Deger >= kovalar[i].Izin && sayaclar[i].Bitis - simdi > bekleme) bekleme = sayaclar[i].Bitis - simdi;
+                if (sayaclar[i].Deger >= kovalar[i].Izin && sayaclar[i].Bitis - simdi > bekleme)
+                    bekleme = sayaclar[i].Bitis - simdi;
             }
             if (bekleme > TimeSpan.Zero)
             {
@@ -685,7 +704,8 @@ internal sealed class DenemeButcesi(TimeProvider saat)
     {
         lock (_kilit)
             foreach (var a in ayrilanlar)
-                if (_sayaclar.TryGetValue(a.Anahtar, out var s) && s.Bitis == a.Bitis && s.Deger > 0) s.Deger--;
+                if (_sayaclar.TryGetValue(a.Anahtar, out var s) && s.Bitis == a.Bitis && s.Deger > 0)
+                    s.Deger--;
     }
 
     /// <summary>Sınır denetlemeden bir deneme sayar (kilitten muaf istemcinin başarısızlığı için).</summary>
@@ -694,7 +714,8 @@ internal sealed class DenemeButcesi(TimeProvider saat)
         lock (_kilit)
         {
             var s = Guncel(kova, saat.GetUtcNow());
-            if (s.Deger < int.MaxValue) s.Deger++;
+            if (s.Deger < int.MaxValue)
+                s.Deger++;
         }
     }
 
@@ -703,7 +724,8 @@ internal sealed class DenemeButcesi(TimeProvider saat)
     {
         lock (_kilit)
         {
-            if (!_sayaclar.TryGetValue(kova.Anahtar, out var s) || s.Bitis <= saat.GetUtcNow() || s.Deger < kova.Izin || s.Uyarildi) return false;
+            if (!_sayaclar.TryGetValue(kova.Anahtar, out var s) || s.Bitis <= saat.GetUtcNow() || s.Deger < kova.Izin || s.Uyarildi)
+                return false;
             s.Uyarildi = true;
             return true;
         }
@@ -725,9 +747,11 @@ internal sealed class DenemeButcesi(TimeProvider saat)
     // Süresi dolan kovalar (ör. saldırganın tek seferlik ağları) aralıkla atılır: sözlük bir pencerede görülen ağ sayısıyla sınırlı kalır.
     private void Temizle(DateTimeOffset simdi)
     {
-        if (_sayaclar.Count < TemizlikEsigi || simdi - _sonTemizlik < TimeSpan.FromMinutes(1)) return;
+        if (_sayaclar.Count < TemizlikEsigi || simdi - _sonTemizlik < TimeSpan.FromMinutes(1))
+            return;
         _sonTemizlik = simdi;
         foreach (var (anahtar, s) in _sayaclar)
-            if (s.Bitis <= simdi) _sayaclar.Remove(anahtar);
+            if (s.Bitis <= simdi)
+                _sayaclar.Remove(anahtar);
     }
 }

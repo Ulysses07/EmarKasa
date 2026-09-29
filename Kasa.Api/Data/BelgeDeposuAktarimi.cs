@@ -29,7 +29,8 @@ public static class BelgeDeposuAktarimi
 
     public static Tasinacak TasinacakIcerik(SqliteConnection c)
     {
-        int belge = 0, ekstre = 0; long bayt = 0;
+        int belge = 0, ekstre = 0;
+        long bayt = 0;
         if (SutunVar(c, "Belgeler", "Icerik"))
         {
             var bekleyen = SutunVar(c, "Belgeler", "IcerikOzeti") ? " WHERE \"IcerikOzeti\" IS NULL" : "";
@@ -38,7 +39,8 @@ public static class BelgeDeposuAktarimi
         if (SutunVar(c, "EkstreBelgeler", "Dosya"))
         {
             var (sayi, boyut) = SayiVeBayt(c, "SELECT COUNT(*), COALESCE(SUM(length(\"Dosya\")), 0) FROM \"EkstreBelgeler\";");
-            ekstre = sayi; bayt += boyut;
+            ekstre = sayi;
+            bayt += boyut;
         }
         return new(belge, ekstre, bayt);
     }
@@ -55,18 +57,21 @@ public static class BelgeDeposuAktarimi
     /// <see cref="InvalidDataException"/>. Yazılan (doğrulanmış) dosya sayısını döner.</summary>
     public static int EkstreleriAktar(SqliteConnection c, BelgeDeposu depo, ILogger logger)
     {
-        if (!SutunVar(c, "EkstreBelgeler", "Dosya")) return 0;
+        if (!SutunVar(c, "EkstreBelgeler", "Dosya"))
+            return 0;
         var satirlar = new List<(long Id, string Ozet, string Ad)>();
         using (var komut = c.CreateCommand())
         {
             komut.CommandText = "SELECT \"Id\", \"DosyaOzeti\", \"DosyaAdi\" FROM \"EkstreBelgeler\" ORDER BY \"Id\";";
             using var okuyucu = komut.ExecuteReader();
-            while (okuyucu.Read()) satirlar.Add((okuyucu.GetInt64(0), okuyucu.GetString(1), okuyucu.GetString(2)));
+            while (okuyucu.Read())
+                satirlar.Add((okuyucu.GetInt64(0), okuyucu.GetString(1), okuyucu.GetString(2)));
         }
         foreach (var (id, kayitli, ad) in satirlar)
         {
             BelgeYazimi yazim;
-            using (var blob = new SqliteBlob(c, "EkstreBelgeler", "Dosya", id, readOnly: true)) yazim = depo.Yaz(blob);
+            using (var blob = new SqliteBlob(c, "EkstreBelgeler", "Dosya", id, readOnly: true))
+                yazim = depo.Yaz(blob);
             if (!string.Equals(yazim.Ozet, kayitli, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException(
                     $"Ekstre belgesi {id} ('{ad}') içeriği kayıtlı özetle eşleşmiyor (kayıtlı {Kisa(kayitli)}, hesaplanan {Kisa(yazim.Ozet)}). "
@@ -74,7 +79,8 @@ public static class BelgeDeposuAktarimi
             if (!depo.Dogrula(yazim.Ozet))
                 throw new IOException($"Ekstre belgesi {id} belge deposuna yazıldı ancak geri okunup doğrulanamadı; geçiş durduruldu, veritabanı değiştirilmedi.");
         }
-        if (satirlar.Count > 0) logger.LogInformation("{Sayi} ekstre PDF'i belge deposuna yazıldı ve özetleri doğrulandı.", satirlar.Count);
+        if (satirlar.Count > 0)
+            logger.LogInformation("{Sayi} ekstre PDF'i belge deposuna yazıldı ve özetleri doğrulandı.", satirlar.Count);
         return satirlar.Count;
     }
 
@@ -82,20 +88,23 @@ public static class BelgeDeposuAktarimi
     /// her satır kaydedildikten sonra çağrılır (sınama). Aktarılan belge sayısını döner.</summary>
     public static int BelgeleriAktar(SqliteConnection c, BelgeDeposu depo, ILogger logger, Action<long>? belgeSonrasi = null)
     {
-        if (!SutunVar(c, "Belgeler", "Icerik") || !SutunVar(c, "Belgeler", "IcerikOzeti")) return 0;
+        if (!SutunVar(c, "Belgeler", "Icerik") || !SutunVar(c, "Belgeler", "IcerikOzeti"))
+            return 0;
         var idler = new List<long>();
         using (var komut = c.CreateCommand())
         {
             komut.CommandText = "SELECT \"Id\" FROM \"Belgeler\" WHERE \"IcerikOzeti\" IS NULL ORDER BY \"Id\";";
             using var okuyucu = komut.ExecuteReader();
-            while (okuyucu.Read()) idler.Add(okuyucu.GetInt64(0));
+            while (okuyucu.Read())
+                idler.Add(okuyucu.GetInt64(0));
         }
         long toplam = 0;
         for (var i = 0; i < idler.Count; i++)
         {
             var id = idler[i];
             BelgeYazimi yazim;
-            using (var blob = new SqliteBlob(c, "Belgeler", "Icerik", id, readOnly: true)) yazim = depo.Yaz(blob);
+            using (var blob = new SqliteBlob(c, "Belgeler", "Icerik", id, readOnly: true))
+                yazim = depo.Yaz(blob);
             if (!depo.Dogrula(yazim.Ozet))
                 throw new IOException($"Alış belgesi {id} belge deposuna yazıldı ancak geri okunup doğrulanamadı; geçiş durduruldu. Aktarılan belgeler korunur, sonraki açılış kaldığı yerden sürer.");
             using (var tx = c.BeginTransaction(deferred: false))
@@ -109,10 +118,12 @@ public static class BelgeDeposuAktarimi
                 tx.Commit();
             }
             toplam += yazim.Boyut;
-            if ((i + 1) % 100 == 0) logger.LogInformation("Belge deposuna aktarım sürüyor: {Aktarilan}/{Toplam} alış belgesi ({Mb} MB).", i + 1, idler.Count, Mb(toplam));
+            if ((i + 1) % 100 == 0)
+                logger.LogInformation("Belge deposuna aktarım sürüyor: {Aktarilan}/{Toplam} alış belgesi ({Mb} MB).", i + 1, idler.Count, Mb(toplam));
             belgeSonrasi?.Invoke(id);
         }
-        if (idler.Count > 0) logger.LogInformation("{Sayi} alış belgesi ({Mb} MB) belge deposuna aktarıldı ve doğrulandı.", idler.Count, Mb(toplam));
+        if (idler.Count > 0)
+            logger.LogInformation("{Sayi} alış belgesi ({Mb} MB) belge deposuna aktarıldı ve doğrulandı.", idler.Count, Mb(toplam));
         return idler.Count;
     }
 

@@ -81,16 +81,22 @@ public class GeriYuklemeTests
             {
                 var ayarlar = new Dictionary<string, string?>
                 {
-                    ["Yedek:Dizin"] = _dizin, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false", ["Bildirim:WorkerEtkin"] = "false",
-                    ["Finans:BakimEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(_dizin + "-anahtar", ".kasa-push-keys.json"),
+                    ["Yedek:Dizin"] = _dizin,
+                    ["Yedek:Etkin"] = "false",
+                    ["Bildirim:PushEtkin"] = "false",
+                    ["Bildirim:WorkerEtkin"] = "false",
+                    ["Finans:BakimEtkin"] = "false",
+                    ["Bildirim:AnahtarDosyasi"] = Path.Combine(_dizin + "-anahtar", ".kasa-push-keys.json"),
                     ["GuvenlikGunlugu:Etkin"] = _gunluk ? "true" : "false",
                 };
-                if (_editorSifresi is not null) ayarlar["Kasa:EditorSifre"] = _editorSifresi;
+                if (_editorSifresi is not null)
+                    ayarlar["Kasa:EditorSifre"] = _editorSifresi;
                 cfg.AddInMemoryCollection(ayarlar);
             });
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<DbContextOptions<KasaDbContext>>(); services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
+                services.RemoveAll<DbContextOptions<KasaDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<KasaDbContext>>();
                 services.AddDbContext<KasaDbContext>(o => o.UseSqlite(_baglanti));
             });
         }
@@ -98,7 +104,10 @@ public class GeriYuklemeTests
 
     private static string Baglanti(string yol, bool saltOkunur = false) => new SqliteConnectionStringBuilder
     {
-        DataSource = yol, Pooling = false, DefaultTimeout = 5, Mode = saltOkunur ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
+        DataSource = yol,
+        Pooling = false,
+        DefaultTimeout = 5,
+        Mode = saltOkunur ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
     }.ToString();
 
     private static string GeciciYol(string ek) => Path.Combine(Path.GetTempPath(), "kasa-geri-" + Guid.NewGuid().ToString("N") + ek);
@@ -108,16 +117,21 @@ public class GeriYuklemeTests
         SqliteConnection.ClearAllPools();
         foreach (var dosya in dosyalar)
             foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
-                try { File.Delete(dosya + ek); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                try
+                { File.Delete(dosya + ek); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         foreach (var d in new[] { dizin, dizin + "-anahtar" })
-            try { if (Directory.Exists(d)) Directory.Delete(d, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            try
+            { if (Directory.Exists(d)) Directory.Delete(d, true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     /// <summary>Çerezsiz istemci: oturum yalnız verilen Bearer belirteciyle taşınır (masaüstü gibi).</summary>
     private static HttpClient Oturumlu(KasaWebFactory f, string? jwt)
     {
         var c = f.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        if (jwt is not null) c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+        if (jwt is not null)
+            c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
         return c;
     }
 
@@ -183,7 +197,8 @@ public class GeriYuklemeTests
     private static async Task<Dictionary<string, string>> Raporlar(HttpClient c)
     {
         var yollar = new List<string> { "/api/rapor/panel", "/api/rapor/haftalik" };
-        for (var ay = Haziran; ay <= Ay; ay = ay.AddMonths(1)) yollar.Add($"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}");
+        for (var ay = Haziran; ay <= Ay; ay = ay.AddMonths(1))
+            yollar.Add($"/api/rapor/aylik?yil={ay.Year}&ay={ay.Month}");
         var sonuc = new Dictionary<string, string>();
         foreach (var yol in yollar)
         {
@@ -202,8 +217,14 @@ public class GeriYuklemeTests
         var damga = OturumDamgasi.Uret("editor", scope.ServiceProvider.GetRequiredService<IConfiguration>(), db)!;
         var satirlar = Enumerable.Range(1, sayi).Select(i => new PushAbonelikEntity
         {
-            Endpoint = $"https://push.example.test/gizli-uc-{i}-{Guid.NewGuid():N}", P256dh = "p256dh-anahtari", Auth = "auth-anahtari",
-            CihazId = Guid.NewGuid().ToString("D"), CihazAdi = $"Cihaz {i}", OturumDamgasi = damga, Olusturuldu = 1, Etkin = true,
+            Endpoint = $"https://push.example.test/gizli-uc-{i}-{Guid.NewGuid():N}",
+            P256dh = "p256dh-anahtari",
+            Auth = "auth-anahtari",
+            CihazId = Guid.NewGuid().ToString("D"),
+            CihazAdi = $"Cihaz {i}",
+            OturumDamgasi = damga,
+            Olusturuldu = 1,
+            Etkin = true,
         }).ToList();
         db.AddRange(satirlar);
         db.SaveChanges();
@@ -224,15 +245,18 @@ public class GeriYuklemeTests
 
     private static object? Oku(string yol, string sql)
     {
-        using var c = new SqliteConnection(Baglanti(yol, saltOkunur: true)); c.Open();
-        using var k = c.CreateCommand(); k.CommandText = sql;
+        using var c = new SqliteConnection(Baglanti(yol, saltOkunur: true));
+        c.Open();
+        using var k = c.CreateCommand();
+        k.CommandText = sql;
         var deger = k.ExecuteScalar();
         return deger is DBNull ? null : deger;
     }
 
     private static void Calistir(string yol, string sql)
     {
-        using (var c = new SqliteConnection(Baglanti(yol))) { c.Open(); using var k = c.CreateCommand(); k.CommandText = sql; k.ExecuteNonQuery(); }
+        using (var c = new SqliteConnection(Baglanti(yol)))
+        { c.Open(); using var k = c.CreateCommand(); k.CommandText = sql; k.ExecuteNonQuery(); }
         SqliteConnection.ClearAllPools();
     }
 
@@ -244,13 +268,15 @@ public class GeriYuklemeTests
     /// (hiç kayıt almamış) tablo da listededir.</summary>
     private static Dictionary<string, long> KimlikTabanlari(string yol)
     {
-        using var c = new SqliteConnection(Baglanti(yol, saltOkunur: true)); c.Open();
+        using var c = new SqliteConnection(Baglanti(yol, saltOkunur: true));
+        c.Open();
         var tablolar = new List<string>();
         using (var k = c.CreateCommand())
         {
             k.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND sql LIKE '%AUTOINCREMENT%' ORDER BY name;";
             using var r = k.ExecuteReader();
-            while (r.Read()) tablolar.Add(r.GetString(0));
+            while (r.Read())
+                tablolar.Add(r.GetString(0));
         }
         var sonuc = new Dictionary<string, long>();
         foreach (var t in tablolar)
@@ -317,7 +343,8 @@ public class GeriYuklemeTests
                 using (var scope = fA.Services.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-                    var istek = new DefaultHttpContext().Request; istek.Headers[TanidikCihaz.BaslikAdi] = editorCihazi;
+                    var istek = new DefaultHttpContext().Request;
+                    istek.Headers[TanidikCihaz.BaslikAdi] = editorCihazi;
                     Assert.NotNull(fA.Services.GetRequiredService<TanidikCihaz>().Dogrula(istek, GirisSiniri.EditorHedefi,
                         OturumDamgasi.Uret("editor", scope.ServiceProvider.GetRequiredService<IConfiguration>(), db)));
                 }
@@ -362,7 +389,8 @@ public class GeriYuklemeTests
                 using (var scope = fB.Services.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-                    var istek = new DefaultHttpContext().Request; istek.Headers[TanidikCihaz.BaslikAdi] = editorCihazi;
+                    var istek = new DefaultHttpContext().Request;
+                    istek.Headers[TanidikCihaz.BaslikAdi] = editorCihazi;
                     Assert.Null(fB.Services.GetRequiredService<TanidikCihaz>().Dogrula(istek, GirisSiniri.EditorHedefi,
                         OturumDamgasi.Uret("editor", scope.ServiceProvider.GetRequiredService<IConfiguration>(), db)));
                 }
@@ -566,7 +594,8 @@ public class GeriYuklemeTests
                 // (l) Kasa kayıtları ve raporlar yedek anındakiyle birebir aynı.
                 var sonraki = await Raporlar(editor);
                 Assert.Equal(raporlar.Keys, sonraki.Keys);
-                foreach (var (yol, once) in raporlar) Assert.True(once == sonraki[yol], $"{yol} değişti:\n{once}\n{sonraki[yol]}");
+                foreach (var (yol, once) in raporlar)
+                    Assert.True(once == sonraki[yol], $"{yol} değişti:\n{once}\n{sonraki[yol]}");
             }
             finally { fB.Dispose(); }
             Assert.Contains(File.ReadAllLines(gunlukYolu), s => s.Contains("\"tur\":\"GeriYuklemeIslendi\"", StringComparison.Ordinal));
@@ -692,8 +721,10 @@ public class GeriYuklemeTests
                 var cfg = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var durum = db.SistemDurumu.AsNoTracking().Single();
                 Assert.Equal("", durum.OturumDonemi);
-                Assert.Null(durum.SonGeriYukleme); Assert.Null(durum.GeriYuklemeRaporu);
-                var istek = new DefaultHttpContext().Request; istek.Headers[TanidikCihaz.BaslikAdi] = cihaz;
+                Assert.Null(durum.SonGeriYukleme);
+                Assert.Null(durum.GeriYuklemeRaporu);
+                var istek = new DefaultHttpContext().Request;
+                istek.Headers[TanidikCihaz.BaslikAdi] = cihaz;
                 Assert.NotNull(fB.Services.GetRequiredService<TanidikCihaz>().Dogrula(istek, GirisSiniri.EditorHedefi, OturumDamgasi.Uret("editor", cfg, db)));
                 Assert.True(OturumDamgasi.Esit(abonelikDamgasi, OturumDamgasi.Uret("editor", cfg, db)));
                 Assert.Empty(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == OlayTuru).ToList());
@@ -739,7 +770,8 @@ public class GeriYuklemeTests
                 var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
                 Assert.Empty(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == OlayTuru).ToList());
                 var durum = db.SistemDurumu.AsNoTracking().Single();
-                Assert.Equal("", durum.OturumDonemi); Assert.Null(durum.SonGeriYukleme);
+                Assert.Equal("", durum.OturumDonemi);
+                Assert.Null(durum.SonGeriYukleme);
             }
             finally { f2.Dispose(); }
             IleriAlinmadi(tabanlar, KimlikTabanlari(yol));
@@ -791,11 +823,15 @@ public class GeriYuklemeTests
             Calistir(eskiDb, $"PRAGMA user_version = 0; DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = '{Kasa.Api.Migrations.GeriYuklemeGuvenligi.Kimlik}';");
             var eskiZip = Path.Combine(dizin, "kasa-elle-20260920-030000-0a1b2c3d.zip");
             JsonNode manifest;
-            using (var arsiv = ZipFile.OpenRead(zip)) using (var akis = arsiv.GetEntry("manifest.json")!.Open()) manifest = JsonNode.Parse(akis)!;
+            using (var arsiv = ZipFile.OpenRead(zip))
+            using (var akis = arsiv.GetEntry("manifest.json")!.Open())
+                manifest = JsonNode.Parse(akis)!;
             manifest["sha256"] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(eskiDb)));
             // 2.3 öncesinin biçimi (2.1.0): belge listesi girdisi ve belge deposu alanları yoktur.
-            manifest["surum"] = "2.1.0"; manifest["belgelerDahil"] = true;
-            foreach (var alan in new[] { "belgeDeposu", "belgeSayisi", "belgeToplamBayt", "belgeListesiSha256", "eksikBelgeSayisi", "belgelerGomulu" }) manifest.AsObject().Remove(alan);
+            manifest["surum"] = "2.1.0";
+            manifest["belgelerDahil"] = true;
+            foreach (var alan in new[] { "belgeDeposu", "belgeSayisi", "belgeToplamBayt", "belgeListesiSha256", "eksikBelgeSayisi", "belgelerGomulu" })
+                manifest.AsObject().Remove(alan);
             using (var yeni = ZipFile.Open(eskiZip, ZipArchiveMode.Create))
             {
                 yeni.CreateEntryFromFile(eskiDb, "kasa.db");
@@ -805,7 +841,8 @@ public class GeriYuklemeTests
             Assert.Equal(0, UserVersion(eskiDb));
 
             var cikti = RestoreAraci(eskiZip, geri);
-            if (cikti is null) return; // Python yok
+            if (cikti is null)
+                return; // Python yok
             Assert.Contains("izleyici şifresi", cikti);
             Assert.Equal(Isaret, UserVersion(geri));
             Assert.Equal(manifest["olusturuldu"]!.GetValue<string>(), Oku(geri, $"SELECT \"YedekZamani\" FROM \"{IsaretTablosu}\";"));
@@ -860,19 +897,29 @@ public class GeriYuklemeTests
             Process? p;
             try
             {
-                var bilgi = new ProcessStartInfo(python) { ArgumentList = { arac, zip, "--output", cikti }, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
-                    StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8 };
+                var bilgi = new ProcessStartInfo(python)
+                {
+                    ArgumentList = { arac, zip, "--output", cikti },
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding = System.Text.Encoding.UTF8
+                };
                 bilgi.Environment["PYTHONIOENCODING"] = "utf-8";
                 p = Process.Start(bilgi);
             }
             catch (System.ComponentModel.Win32Exception) { continue; }
-            if (p is null) continue;
+            if (p is null)
+                continue;
             using (p)
             {
-                var cikis = p.StandardOutput.ReadToEndAsync(); var hata = p.StandardError.ReadToEndAsync();
+                var cikis = p.StandardOutput.ReadToEndAsync();
+                var hata = p.StandardError.ReadToEndAsync();
                 Assert.True(p.WaitForExit(60_000), "restore_backup.py zamanında bitmedi.");
                 // Windows'taki 'python3' uygulama mağazası kısayolu olabilir (9009): gerçek Python değilse sonrakine geç.
-                if (p.ExitCode == 9009) continue;
+                if (p.ExitCode == 9009)
+                    continue;
                 Assert.True(p.ExitCode == 0, $"restore_backup.py yedeği reddetti: {hata.Result} {cikis.Result}");
                 return cikis.Result;
             }

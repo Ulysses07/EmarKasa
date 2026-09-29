@@ -40,7 +40,10 @@ public class IslemEditorTests
         Assert.Equal(api.IslemOlusturmalari[0] with { IstekId = null }, api.IslemOlusturmalari[1] with { IstekId = null });
 
         // Başarıdan sonra aynı içerikli yeni gider bilinçli ikinci kayıttır: yeni kimlik alır.
-        vm.DuzenTarih = new DateTime(2026, 3, 5); vm.DuzenCari = "Kargo"; vm.DuzenTutar = 75m; vm.DuzenKanal = "MEZAT";
+        vm.DuzenTarih = new DateTime(2026, 3, 5);
+        vm.DuzenCari = "Kargo";
+        vm.DuzenTutar = 75m;
+        vm.DuzenKanal = "MEZAT";
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(3, api.IslemOlusturmalari.Count);
         Assert.NotEqual(api.IslemOlusturmalari[0].IstekId, api.IslemOlusturmalari[2].IstekId);
@@ -109,7 +112,7 @@ public class IslemEditorTests
     {
         var api = new SahteApi();
         var vm = new IslemlerViewModel(api);
-        vm.Duzenle(new IslemDto(11, new DateOnly(2026,3,5), "K.K", 10000m, "MEZAT", GiderTipi.KrediKarti, null));
+        vm.Duzenle(new IslemDto(11, new DateOnly(2026, 3, 5), "K.K", 10000m, "MEZAT", GiderTipi.KrediKarti, null));
         vm.DuzenTutar = 12000m;
 
         await vm.KaydetCommand.ExecuteAsync(null);
@@ -125,7 +128,7 @@ public class IslemEditorTests
         var api = new SahteApi();
         var vm = new IslemlerViewModel(api);
 
-        await vm.SilCommand.ExecuteAsync(new IslemDto(5, new DateOnly(2026,3,5), "x", 1m, "MEZAT", GiderTipi.Cari, null));
+        await vm.SilCommand.ExecuteAsync(new IslemDto(5, new DateOnly(2026, 3, 5), "x", 1m, "MEZAT", GiderTipi.Cari, null));
 
         Assert.Equal(5, api.SonIslemSil);
     }
@@ -145,8 +148,10 @@ public class IslemEditorTests
     private static async Task<(IslemlerViewModel Vm, SahteApi Api)> GelirFormu(SahteApi? api = null, params GelenDto[] gelenler)
     {
         api ??= new SahteApi();
-        api.KanallarListe = new[] { Mezat, Perakende }; api.DonemlerListe = new[] { Hafta38, Hafta39, Hafta40 };
-        if (gelenler.Length > 0) api.GelenlerListe = gelenler;
+        api.KanallarListe = new[] { Mezat, Perakende };
+        api.DonemlerListe = new[] { Hafta38, Hafta39, Hafta40 };
+        if (gelenler.Length > 0)
+            api.GelenlerListe = gelenler;
         var vm = new IslemlerViewModel(api, zaman: new SabitZaman(new DateOnly(2026, 9, 23)));
         await vm.YukleAsync();
         return (vm, api);
@@ -233,7 +238,8 @@ public class IslemEditorTests
     {
         const string mesaj = "Hesaba bağlı gelir tutarı buradan değiştirilemez.";
         var (vm, api) = await GelirFormu(new SahteApi { GelenKaydetHatasi = new KasaApiException(System.Net.HttpStatusCode.Conflict, mesaj) });
-        KanalSec(vm, "MEZAT"); vm.GelenTutar = 123.45m;
+        KanalSec(vm, "MEZAT");
+        vm.GelenTutar = 123.45m;
         var okuma = api.GelenlerIstekleri.Count;
 
         await vm.GelenKaydetCommand.ExecuteAsync(null);
@@ -250,7 +256,8 @@ public class IslemEditorTests
     public async Task Donem_gelirleri_yuklenemezse_kayit_yapilmaz()
     {
         var (vm, api) = await GelirFormu(new SahteApi { GelenlerHatasi = new HttpRequestException() });
-        KanalSec(vm, "MEZAT"); vm.GelenTutar = 5000m;
+        KanalSec(vm, "MEZAT");
+        vm.GelenTutar = 5000m;
 
         Assert.True(vm.GelenYuklemeHatasi);
         Assert.False(vm.GelenKaydedilebilir);
@@ -271,7 +278,8 @@ public class IslemEditorTests
         Assert.Equal(0, api.GelenKaydetCagri);
         Assert.Contains("Onaylamak için yeniden kaydedin", vm.GelenBilgi);
 
-        vm.GelenTutar = 1m; vm.GelenTutar = 0m;                     // tutar değişti: onay sıfırlanır
+        vm.GelenTutar = 1m;
+        vm.GelenTutar = 0m;                     // tutar değişti: onay sıfırlanır
         await vm.GelenKaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.GelenKaydetCagri);
 
@@ -283,13 +291,20 @@ public class IslemEditorTests
     public async Task Sifir_onayi_donem_veya_kanal_degisince_sifirlanir()
     {
         var (vm, api) = await GelirFormu(null, new GelenDto(5, Hafta39.Start, "MEZAT", 5000m, KanalId: 1), new GelenDto(6, Hafta39.Start, "PERAKENDE", 700m, KanalId: 2));
-        KanalSec(vm, "MEZAT"); vm.GelenTutar = 0m;
+        KanalSec(vm, "MEZAT");
+        vm.GelenTutar = 0m;
         await vm.GelenKaydetCommand.ExecuteAsync(null);             // onay kuruldu
-        KanalSec(vm, "PERAKENDE"); KanalSec(vm, "MEZAT"); vm.GelenTutar = 0m;
+        KanalSec(vm, "PERAKENDE");
+        KanalSec(vm, "MEZAT");
+        vm.GelenTutar = 0m;
         await vm.GelenKaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.GelenKaydetCagri);
 
-        vm.GelenDonem = Hafta38; await vm.GelenYuklemesi; vm.GelenDonem = Hafta39; await vm.GelenYuklemesi; vm.GelenTutar = 0m;
+        vm.GelenDonem = Hafta38;
+        await vm.GelenYuklemesi;
+        vm.GelenDonem = Hafta39;
+        await vm.GelenYuklemesi;
+        vm.GelenTutar = 0m;
         await vm.GelenKaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.GelenKaydetCagri);
     }
@@ -310,7 +325,8 @@ public class IslemEditorTests
     public async Task Gecersiz_gelir_tutari_gonderilmez()
     {
         var (vm, api) = await GelirFormu(null, new GelenDto(5, Hafta39.Start, "MEZAT", 5000m, KanalId: 1));
-        KanalSec(vm, "MEZAT"); vm.GelenTutar = ParaAyristirici.Gecersiz;
+        KanalSec(vm, "MEZAT");
+        vm.GelenTutar = ParaAyristirici.Gecersiz;
 
         await vm.GelenKaydetCommand.ExecuteAsync(null);
 
@@ -321,7 +337,8 @@ public class IslemEditorTests
     [Fact]
     public async Task Kanal_secilmeden_gelir_kaydedilmez()
     {
-        var (vm, api) = await GelirFormu(); vm.GelenTutar = 100m;
+        var (vm, api) = await GelirFormu();
+        vm.GelenTutar = 100m;
         await vm.GelenKaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.GelenKaydetCagri);
         Assert.Equal("Kanal seçin.", vm.Hata);
@@ -339,12 +356,14 @@ public class IslemEditorTests
         var (vm, _) = await GelirFormu(api);
         KanalSec(vm, "MEZAT");
 
-        vm.GelenDonem = Hafta38; var eskiYukleme = vm.GelenYuklemesi;
+        vm.GelenDonem = Hafta38;
+        var eskiYukleme = vm.GelenYuklemesi;
         Assert.True(vm.GelenYukleniyor);
         Assert.False(vm.GelenKaydedilebilir);
         Assert.Equal("Dönem gelirleri yükleniyor…", vm.GelenBilgi);
 
-        vm.GelenDonem = Hafta40; await vm.GelenYuklemesi;
+        vm.GelenDonem = Hafta40;
+        await vm.GelenYuklemesi;
         Assert.Equal(Hafta40.Start, api.SonGelenlerDonem);
         Assert.Equal(700m, vm.GelenTutar);
 
@@ -364,9 +383,11 @@ public class IslemEditorTests
         var api = new SahteApi { KanallarListe = new[] { Mezat }, DonemlerListe = new[] { Hafta38, Hafta39 }, GelenlerListe = new[] { new GelenDto(5, Hafta39.Start, "MEZAT", 5000m, KanalId: 1) } };
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
         var vm = new IslemlerViewModel(api, null, auth, new SabitZaman(new DateOnly(2026, 9, 23)));
-        await vm.YukleAsync(); KanalSec(vm, "MEZAT");
+        await vm.YukleAsync();
+        KanalSec(vm, "MEZAT");
         api.GelenlerGetir = _ => geciken.Task;
-        vm.GelenDonem = Hafta38; var bekleyen = vm.GelenYuklemesi;
+        vm.GelenDonem = Hafta38;
+        var bekleyen = vm.GelenYuklemesi;
 
         auth.OturumSurumu++;
         geciken.SetResult(new[] { new GelenDto(8, Hafta38.Start, "MEZAT", 9999m, KanalId: 1) });

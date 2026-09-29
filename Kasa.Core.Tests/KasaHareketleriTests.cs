@@ -72,7 +72,8 @@ public class KasaHareketleriTests
         Assert.Equal((new DateOnly(2026, 1, 10), 6_000m, 0m), Tuple(dokum.Single(h => h.Gelen?.KaynakAnahtari == "Kredi:5")));
         Assert.Equal((new DateOnly(2026, 3, 4), 10_000m, 10_000m), Tuple(dokum.Single(h => h.KaynakAnahtari == "Kredi:6")));
         // Sabit/Ortak/dağılım bekleyen/yalnız genel kasa giderleri yalnız genel kasayı; aylık gider ve nakit kart ödemesi payı kanalı da değiştirir.
-        foreach (var anahtar in new[] { "Islem:2", "Islem:5", "Islem:6" }) Assert.Equal(0m, dokum.Single(h => h.KaynakAnahtari == anahtar).KanalEtkisi);
+        foreach (var anahtar in new[] { "Islem:2", "Islem:5", "Islem:6" })
+            Assert.Equal(0m, dokum.Single(h => h.KaynakAnahtari == anahtar).KanalEtkisi);
         Assert.Equal((new DateOnly(2026, 3, 2), -4_000m, -4_000m), Tuple(dokum.Single(h => h.KaynakAnahtari == "Islem:7")));
         Assert.Equal(new[] { (-250m, -250m), (-50m, 0m) }, dokum.Where(h => h.KaynakAnahtari == "TakipKartOdeme:44").Select(h => (h.GenelKasaEtkisi, h.KanalEtkisi)));
         // Eski kredinin türetilmiş taksitleri (Şubat ve Mart 5'i) tarihinde, kanalıyla.

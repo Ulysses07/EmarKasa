@@ -50,21 +50,25 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Kart_pasife_alininca_surum_artar_yeni_harcama_reddedilir_tekrar_ayni_yaniti_verir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = await Kart(c);
         var istek = new TakipDurumYaz(Guid.NewGuid(), kart.Surum, false, "Kart kapatıldı");
         var pasif = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", istek);
-        Assert.False(pasif.Aktif); Assert.Equal(kart.Surum + 1, pasif.Surum);
+        Assert.False(pasif.Aktif);
+        Assert.Equal(kart.Surum + 1, pasif.Surum);
         Assert.False((await KartOku(c, kart.Id)).Aktif);
 
         // Pasif kart yeni harcamaya kapalıdır (FinansTakipEndpoints.ApplyCardCharge).
         var (durum, govde) = await Dene(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/harcamalar",
             new KartHarcamaYaz(Guid.NewGuid(), pasif.Surum, Bugun, "Malzeme", 50m, 1, null, [new(1, 50m)]));
-        Assert.Equal(HttpStatusCode.Conflict, durum); Assert.Contains("yeni kullanıma kapalı", govde);
+        Assert.Equal(HttpStatusCode.Conflict, durum);
+        Assert.Contains("yeni kullanıma kapalı", govde);
 
         // Aynı istek kimliği ve içerik: aynı sonuç, sürüm ikinci kez artmaz.
         var tekrar = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", istek);
-        Assert.Equal(pasif.Surum, tekrar.Surum); Assert.False(tekrar.Aktif);
+        Assert.Equal(pasif.Surum, tekrar.Surum);
+        Assert.False(tekrar.Aktif);
         Assert.Equal(pasif.Surum, (await KartOku(c, kart.Id)).Surum);
         // Aynı kimlik farklı içerikle ve eski sürümle yeni istek reddedilir.
         Assert.Equal(HttpStatusCode.Conflict, (await Dene(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", istek with { Aktif = true })).Durum);
@@ -74,7 +78,8 @@ public class KapsanmayanUclarTests
             new TakipDurumYaz(Guid.NewGuid(), pasif.Surum, true, " "))).Durum);
 
         var aktif = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", new TakipDurumYaz(Guid.NewGuid(), pasif.Surum, true, "Yeniden açıldı"));
-        Assert.True(aktif.Aktif); Assert.Equal(pasif.Surum + 1, aktif.Surum);
+        Assert.True(aktif.Aktif);
+        Assert.Equal(pasif.Surum + 1, aktif.Surum);
         await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/harcamalar",
             new KartHarcamaYaz(Guid.NewGuid(), aktif.Surum, Bugun, "Malzeme", 50m, 1, null, [new(1, 50m)]));
     }
@@ -85,7 +90,8 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Pasif_kart_gun_donumunde_ekstre_uretmez_yeniden_aktiflesince_uretir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = await Kart(c); // kesim günü 5
         var pasif = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/durum", new TakipDurumYaz(Guid.NewGuid(), kart.Surum, false, "Kart kapatıldı"));
         var onceki = pasif.Ekstreler.Select(e => e.KesimTarihi).ToList();
@@ -93,8 +99,11 @@ public class KapsanmayanUclarTests
         Assert.NotEmpty(onceki);
 
         // İki ay sonra iki yeni kesim günü geçmiştir.
-        var sonra = Bugun.AddMonths(2); ((SabitSaat)f.Saat!).Ayarla(sonra);
-        var kesim = new DateOnly(sonra.Year, sonra.Month, 5); if (kesim < sonra) kesim = kesim.AddMonths(1);
+        var sonra = Bugun.AddMonths(2);
+        ((SabitSaat)f.Saat!).Ayarla(sonra);
+        var kesim = new DateOnly(sonra.Year, sonra.Month, 5);
+        if (kesim < sonra)
+            kesim = kesim.AddMonths(1);
         var yeniKesimler = new[] { kesim.AddMonths(-1), kesim };
         Assert.DoesNotContain(yeniKesimler, onceki.Contains);
 
@@ -123,13 +132,19 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Kart_duzenleme_ad_limit_ve_gunleri_gunceller_eski_surum_ve_gecersiz_gun_reddedilir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = await Kart(c);
         // Düzenleme açılış alanlarını (tarih, borç, dağılım) yok sayar; yalnız ad, limit ve günler değişir.
         var istek = new KartTakipYaz(Guid.NewGuid(), kart.Surum, "  Yeni ad  ", 25000m, 10, 28, Bugun, 999m, [new(1, 999m)]);
         var yeni = await Gonder<KartTakipDto>(c, HttpMethod.Put, $"/api/takip/kartlar/{kart.Id}", istek);
-        Assert.Equal("Yeni ad", yeni.Ad); Assert.Equal(25000m, yeni.Limit); Assert.Equal(10, yeni.KesimGunu); Assert.Equal(28, yeni.SonOdemeGunu);
-        Assert.Equal(kart.Surum + 1, yeni.Surum); Assert.Equal(0m, yeni.Borc); Assert.Empty(yeni.Harcamalar);
+        Assert.Equal("Yeni ad", yeni.Ad);
+        Assert.Equal(25000m, yeni.Limit);
+        Assert.Equal(10, yeni.KesimGunu);
+        Assert.Equal(28, yeni.SonOdemeGunu);
+        Assert.Equal(kart.Surum + 1, yeni.Surum);
+        Assert.Equal(0m, yeni.Borc);
+        Assert.Empty(yeni.Harcamalar);
         Assert.Equal(yeni.Ad, (await KartOku(c, kart.Id)).Ad);
 
         Assert.Equal(HttpStatusCode.Conflict, (await Dene(c, HttpMethod.Put, $"/api/takip/kartlar/{kart.Id}", istek with { IstekId = Guid.NewGuid(), Ad = "Eski sürüm" })).Durum);
@@ -141,16 +156,20 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Ekstre_asgari_odeme_ve_son_odeme_tarihi_kaydedilir_asgari_kalan_odemeyle_azalir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kart = await Harcama(c, await Kart(c), 300m);
         var ekstre = kart.Ekstreler.Single(e => e.Borc == 300m);
-        Assert.Null(ekstre.AsgariOdeme); Assert.Null(ekstre.AsgariKalan);
+        Assert.Null(ekstre.AsgariOdeme);
+        Assert.Null(ekstre.AsgariKalan);
         var sonOdeme = ekstre.SonOdemeTarihi.AddDays(2);
         var yol = $"/api/takip/kartlar/{kart.Id}/ekstreler/{ekstre.Id}";
 
         kart = await Gonder<KartTakipDto>(c, HttpMethod.Put, yol, new KartEkstreYaz(Guid.NewGuid(), kart.Surum, sonOdeme, 100m, "Banka asgarisi"));
         var kayitli = kart.Ekstreler.Single(e => e.Id == ekstre.Id);
-        Assert.Equal(sonOdeme, kayitli.SonOdemeTarihi); Assert.Equal(100m, kayitli.AsgariOdeme); Assert.Equal(100m, kayitli.AsgariKalan);
+        Assert.Equal(sonOdeme, kayitli.SonOdemeTarihi);
+        Assert.Equal(100m, kayitli.AsgariOdeme);
+        Assert.Equal(100m, kayitli.AsgariKalan);
 
         // Ekstreye ödeme asgari kalanı düşürür; asgari, ekstrenin kalan borcunu aşamaz.
         kart = await Gonder<KartTakipDto>(c, HttpMethod.Post, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Bugun, 40m, ekstre.Id, null));
@@ -166,21 +185,25 @@ public class KapsanmayanUclarTests
 
         // Asgari boşaltılınca hedef de kalkar.
         kart = await Gonder<KartTakipDto>(c, HttpMethod.Put, yol, new KartEkstreYaz(Guid.NewGuid(), kart.Surum, sonOdeme, null, "Asgari yok"));
-        Assert.Null(kart.Ekstreler.Single(e => e.Id == ekstre.Id).AsgariOdeme); Assert.Null(kart.Ekstreler.Single(e => e.Id == ekstre.Id).AsgariKalan);
+        Assert.Null(kart.Ekstreler.Single(e => e.Id == ekstre.Id).AsgariOdeme);
+        Assert.Null(kart.Ekstreler.Single(e => e.Id == ekstre.Id).AsgariKalan);
     }
 
     [Fact]
     public async Task Kredi_arsivlenince_taksit_plani_ve_kasa_degismez_eski_surum_reddedilir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
         var kredi = await Gonder<KrediTakipDto>(c, HttpMethod.Post, "/api/takip/krediler",
             new KrediTakipYaz(Guid.NewGuid(), "Arşiv kredisi", 1200m, Baslangic, Baslangic.AddMonths(1), 12, 100m, [1]));
         var kasa = await Kasa(c);
-        var taksitAyi = Baslangic.AddMonths(1); var raporYolu = $"/api/rapor/aylik?yil={taksitAyi.Year}&ay={taksitAyi.Month}";
+        var taksitAyi = Baslangic.AddMonths(1);
+        var raporYolu = $"/api/rapor/aylik?yil={taksitAyi.Year}&ay={taksitAyi.Month}";
         var rapor = await c.GetStringAsync(raporYolu);
         var istek = new TakipDurumYaz(Guid.NewGuid(), kredi.Surum, false, "Kapandı, arşive");
         var arsiv = await Gonder<KrediTakipDto>(c, HttpMethod.Post, $"/api/takip/krediler/{kredi.Id}/durum", istek);
-        Assert.False(arsiv.Aktif); Assert.Equal(kredi.Surum + 1, arsiv.Surum);
+        Assert.False(arsiv.Aktif);
+        Assert.Equal(kredi.Surum + 1, arsiv.Surum);
         Assert.Equal(kredi.Taksitler.Select(t => (t.No, t.Tarih, t.Tutar, t.Durum)), arsiv.Taksitler.Select(t => (t.No, t.Tarih, t.Tutar, t.Durum)));
         Assert.Equal(kredi.KalanPlanliOdeme, arsiv.KalanPlanliOdeme);
         Assert.Equal(kasa, await Kasa(c));
@@ -192,24 +215,32 @@ public class KapsanmayanUclarTests
         Assert.Equal(HttpStatusCode.NotFound, (await Dene(c, HttpMethod.Post, "/api/takip/krediler/999999/durum",
             new TakipDurumYaz(Guid.NewGuid(), 1, true, "Yok"))).Durum);
         var geri = await Gonder<KrediTakipDto>(c, HttpMethod.Post, $"/api/takip/krediler/{kredi.Id}/durum", new TakipDurumYaz(Guid.NewGuid(), arsiv.Surum, true, "Geri al"));
-        Assert.True(geri.Aktif); Assert.Equal(kasa, await Kasa(c));
+        Assert.True(geri.Aktif);
+        Assert.Equal(kasa, await Kasa(c));
     }
 
     [Fact]
     public async Task Push_anahtari_abonelik_test_iletisi_ve_kaldirma_uclari_calisir()
     {
-        await using var f = new BildirimFabrikasi(); using var c = await f.EditorClientAsync();
+        await using var f = new BildirimFabrikasi();
+        using var c = await f.EditorClientAsync();
         var anahtar = await c.GetFromJsonAsync<JsonElement>("/api/bildirimler/push/anahtar");
-        Assert.True(anahtar.GetProperty("etkin").GetBoolean()); Assert.Equal(f.AcikAnahtar, anahtar.GetProperty("publicKey").GetString());
+        Assert.True(anahtar.GetProperty("etkin").GetBoolean());
+        Assert.Equal(f.AcikAnahtar, anahtar.GetProperty("publicKey").GetString());
 
         const string Uc = "https://fcm.googleapis.com/fcm/send/kapsam-cihazi";
         var abonelik = await Gonder<JsonElement>(c, HttpMethod.Post, "/api/bildirimler/push/abonelik", Abonelik(Uc, "Kasa masası"));
-        var id = abonelik.GetProperty("id").GetInt32(); Assert.Equal("Kasa masası", abonelik.GetProperty("cihazAdi").GetString());
-        var cihaz = Assert.Single(await Cihazlar(c)); Assert.Equal(id, cihaz.GetProperty("id").GetInt32()); Assert.True(cihaz.GetProperty("etkin").GetBoolean());
+        var id = abonelik.GetProperty("id").GetInt32();
+        Assert.Equal("Kasa masası", abonelik.GetProperty("cihazAdi").GetString());
+        var cihaz = Assert.Single(await Cihazlar(c));
+        Assert.Equal(id, cihaz.GetProperty("id").GetInt32());
+        Assert.True(cihaz.GetProperty("etkin").GetBoolean());
 
         var test = await Gonder<JsonElement>(c, HttpMethod.Post, "/api/bildirimler/test", new { endpoint = Uc });
         Assert.True(test.GetProperty("basarili").GetBoolean());
-        var ileti = Assert.Single(f.Gonderici.Iletiler); Assert.Equal("Emar Kasa", ileti.Baslik); Assert.Equal("kasa-test", ileti.Tag);
+        var ileti = Assert.Single(f.Gonderici.Iletiler);
+        Assert.Equal("Emar Kasa", ileti.Baslik);
+        Assert.Equal("kasa-test", ileti.Tag);
         Assert.NotNull((await Cihazlar(c)).Single().GetProperty("sonBasarili").GetString());
 
         // Gövdeli DELETE aboneliği kapatır (kayıt geçmiş için kalır); kapalı cihaza test iletisi gönderilmez.
@@ -231,31 +262,39 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Push_kapaliyken_abonelik_reddedilir_anahtar_bos_doner()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         var anahtar = await c.GetFromJsonAsync<JsonElement>("/api/bildirimler/push/anahtar");
-        Assert.False(anahtar.GetProperty("etkin").GetBoolean()); Assert.Equal(JsonValueKind.Null, anahtar.GetProperty("publicKey").ValueKind);
+        Assert.False(anahtar.GetProperty("etkin").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, anahtar.GetProperty("publicKey").ValueKind);
         var (durum, govde) = await Dene(c, HttpMethod.Post, "/api/bildirimler/push/abonelik", Abonelik("https://fcm.googleapis.com/fcm/send/kapali", "Cihaz"));
-        Assert.Equal(HttpStatusCode.BadRequest, durum); Assert.Contains("açık değil", govde);
+        Assert.Equal(HttpStatusCode.BadRequest, durum);
+        Assert.Contains("açık değil", govde);
     }
 
     [Fact]
     public async Task Bildirim_okundu_isaretlenir_bilinmeyen_kimlik_404()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         int id;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var bildirim = new BildirimEntity { OlayAnahtari = "kapsam-okundu", Baslik = "Son ödeme", Mesaj = "Kart ödemesi", Tarih = Bugun, Hedef = "/#cards", Tur = "SonOdeme" };
-            db.Add(bildirim); db.SaveChanges(); id = bildirim.Id;
+            db.Add(bildirim);
+            db.SaveChanges();
+            id = bildirim.Id;
         }
-        using (var r = await c.PostAsync($"/api/bildirimler/{id}/okundu", null)) Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
+        using (var r = await c.PostAsync($"/api/bildirimler/{id}/okundu", null))
+            Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
         using (var scope = f.Services.CreateScope())
             Assert.True(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Set<BildirimEntity>().AsNoTracking().Single(b => b.Id == id).Okundu);
         // Okunan bildirim, kaynağı artık üretmese de listede kalır.
         var liste = await c.GetFromJsonAsync<JsonElement[]>("/api/bildirimler");
         Assert.True(Assert.Single(liste!, b => b.GetProperty("id").GetInt32() == id).GetProperty("okundu").GetBoolean());
-        using (var r = await c.PostAsync("/api/bildirimler/999999/okundu", null)) Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        using (var r = await c.PostAsync("/api/bildirimler/999999/okundu", null))
+            Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
     [Theory]
@@ -266,7 +305,8 @@ public class KapsanmayanUclarTests
     [InlineData("javascript:alert(1)", null)]
     public async Task Surum_kimliksiz_okunur_indirme_adresi_yalniz_guvenli_https(string? ayar, string? beklenen)
     {
-        await using var f = new SurumFabrikasi(ayar); using var c = f.CreateClient();
+        await using var f = new SurumFabrikasi(ayar);
+        using var c = f.CreateClient();
         using var r = await c.GetAsync("/api/surum");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var surum = await r.Content.ReadFromJsonAsync<JsonElement>();
@@ -279,7 +319,8 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Alis_belgeleri_sahibine_ve_editore_listelenir_baska_alici_goremez()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var editor = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var editor = await f.EditorClientAsync();
         using var alici = await Alici(f, editor, "belge-sahibi");
         using var baska = await Alici(f, editor, "belge-baskasi");
         var alis = await Gonder<AlisDto>(alici, HttpMethod.Post, "/api/alis", new AlisYaz(0, Bugun, "Tedarikçi", null, [new("Mal", 100m, [new(1, 100m)])]));
@@ -306,15 +347,18 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Kullanilmayan_kanal_silinir_listeden_kalkar_ikinci_silme_404()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         using var olustur = await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Silinecek kanal", true, 9, 0m));
         Assert.Equal(HttpStatusCode.Created, olustur.StatusCode);
         var kanal = (await olustur.Content.ReadFromJsonAsync<KanalEntity>())!;
         Assert.Contains(await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar") ?? [], k => k.Id == kanal.Id);
 
-        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}")) Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
+        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}"))
+            Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
         Assert.DoesNotContain(await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar") ?? [], k => k.Id == kanal.Id);
-        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}")) Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}"))
+            Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
     private static async Task<HttpClient> Alici(KasaWebFactory f, HttpClient editor, string kullanici)
@@ -345,15 +389,18 @@ public class KapsanmayanUclarTests
             Saat = new SabitSaat(VarsayilanBugun);
             using var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             var p = ec.ExportParameters(true);
-            AcikAnahtar = PushDogrulama.Encode([4, .. p.Q.X!, .. p.Q.Y!]); _gizliAnahtar = PushDogrulama.Encode(p.D!);
+            AcikAnahtar = PushDogrulama.Encode([4, .. p.Q.X!, .. p.Q.Y!]);
+            _gizliAnahtar = PushDogrulama.Encode(p.D!);
         }
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
             builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Bildirim:PushEtkin"] = "true", ["Bildirim:WorkerEtkin"] = "false",
-                ["Bildirim:PublicKey"] = AcikAnahtar, ["Bildirim:PrivateKey"] = _gizliAnahtar,
+                ["Bildirim:PushEtkin"] = "true",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Bildirim:PublicKey"] = AcikAnahtar,
+                ["Bildirim:PrivateKey"] = _gizliAnahtar,
             }));
             builder.ConfigureServices(s => { s.RemoveAll<IPushGonderici>(); s.AddSingleton<IPushGonderici>(Gonderici); });
         }
@@ -364,7 +411,8 @@ public class KapsanmayanUclarTests
         public List<PushIleti> Iletiler { get; } = [];
         public Task<PushSonuc> Gonder(PushAbonelikEntity abonelik, PushIleti ileti, int ttl, CancellationToken ct)
         {
-            lock (Iletiler) Iletiler.Add(ileti);
+            lock (Iletiler)
+                Iletiler.Add(ileti);
             return Task.FromResult(PushSonuc.Basarili);
         }
     }

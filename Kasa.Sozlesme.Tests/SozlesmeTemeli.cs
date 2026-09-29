@@ -73,9 +73,11 @@ public abstract class SozlesmeTemeli : IDisposable
     /// verdiyse kayıtlı örnek yoktur; kurucunun hatası zaten bildirilmiştir.</summary>
     internal static void KapsamiDenetle(MethodInfo test)
     {
-        if (!Kosan.TryGetValue(test.ReflectedType ?? test.DeclaringType!, out var ornek)) return;
+        if (!Kosan.TryGetValue(test.ReflectedType ?? test.DeclaringType!, out var ornek))
+            return;
         HashSet<string> cagrilan;
-        lock (ornek._cagrilan) cagrilan = [.. ornek._cagrilan];
+        lock (ornek._cagrilan)
+            cagrilan = [.. ornek._cagrilan];
         var hatalar = KapsamHatalari(test, cagrilan);
         Assert.True(hatalar.Count == 0, string.Join("\n", hatalar));
     }
@@ -85,7 +87,8 @@ public abstract class SozlesmeTemeli : IDisposable
     internal static List<string> KapsamHatalari(MethodInfo test, IReadOnlySet<string> cagrilan)
     {
         var isaretli = test.GetCustomAttributes<SozlesmeKapsamiAttribute>().SelectMany(a => a.Metotlar).ToHashSet();
-        if (isaretli.Count == 0) return [$"{test.Name}: [SozlesmeKapsami] işareti yok."];
+        if (isaretli.Count == 0)
+            return [$"{test.Name}: [SozlesmeKapsami] işareti yok."];
         var cagrilmayan = isaretli.Where(m => !cagrilan.Contains(m)).Order(StringComparer.Ordinal).ToList();
         return cagrilmayan.Count == 0 ? []
             : [$"{test.Name}: işaretli ama çağrılmayan metotlar: {string.Join(", ", cagrilmayan)} (test bu çağrılardan önce başka bir hatayla bittiyse önce o hatayı düzeltin)."];
@@ -94,7 +97,8 @@ public abstract class SozlesmeTemeli : IDisposable
     public void Dispose()
     {
         Kosan.TryRemove(KeyValuePair.Create(GetType(), this));
-        foreach (var f in _fabrikalar) f.Dispose();
+        foreach (var f in _fabrikalar)
+            f.Dispose();
         GC.SuppressFinalize(this);
     }
 }
@@ -127,9 +131,17 @@ public sealed class Oturum
             ((SozlesmeVekili)(object)v).Kur(Istemci, Kayit, f.Istekler, cagrilan);
             return v;
         }
-        Kasa = Vekil<IKasaApi>(); Takip = Vekil<IFinansTakipApi>(); Alis = Vekil<IAlisApi>(); AlisOdeme = Vekil<IAlisOdemeApi>();
-        Yonetim = Vekil<IYonetimApi>(); Ekstre = Vekil<IEkstreAktarmaApi>(); AylikGider = Vekil<IAylikGiderApi>();
-        Kontrol = Vekil<IKasaKontrolApi>(); Bildirim = Vekil<IBildirimApi>(); Benzer = Vekil<IBenzerKayitApi>(); Denetim = Vekil<IDenetimApi>();
+        Kasa = Vekil<IKasaApi>();
+        Takip = Vekil<IFinansTakipApi>();
+        Alis = Vekil<IAlisApi>();
+        AlisOdeme = Vekil<IAlisOdemeApi>();
+        Yonetim = Vekil<IYonetimApi>();
+        Ekstre = Vekil<IEkstreAktarmaApi>();
+        AylikGider = Vekil<IAylikGiderApi>();
+        Kontrol = Vekil<IKasaKontrolApi>();
+        Bildirim = Vekil<IBildirimApi>();
+        Benzer = Vekil<IBenzerKayitApi>();
+        Denetim = Vekil<IDenetimApi>();
     }
 
     /// <summary>Son istemci yanıtı (durum kodu denetimleri için).</summary>
@@ -154,12 +166,16 @@ public class SozlesmeVekili : DispatchProxy
     protected override object? Invoke(MethodInfo? metot, object?[]? arguman)
     {
         ArgumentNullException.ThrowIfNull(metot);
-        lock (_cagrilan) _cagrilan.Add(metot.Name);
-        var yanitSayisi = _kayit.Kayitlar.Count; var istekSayisi = _istekler.Kayitlar.Count;
+        lock (_cagrilan)
+            _cagrilan.Add(metot.Name);
+        var yanitSayisi = _kayit.Kayitlar.Count;
+        var istekSayisi = _istekler.Kayitlar.Count;
         object? sonuc;
-        try { sonuc = metot.Invoke(_istemci, arguman); }
+        try
+        { sonuc = metot.Invoke(_istemci, arguman); }
         catch (TargetInvocationException e) when (e.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(e.InnerException); throw; }
-        if (sonuc is not Task gorev) return sonuc;
+        if (sonuc is not Task gorev)
+            return sonuc;
         var tur = metot.ReturnType.IsGenericType ? metot.ReturnType.GetGenericArguments()[0] : null;
         return tur is null
             ? Bekle(gorev, metot.Name, yanitSayisi, istekSayisi)
@@ -168,7 +184,8 @@ public class SozlesmeVekili : DispatchProxy
 
     private async Task Bekle(Task gorev, string ad, int yanitSayisi, int istekSayisi)
     {
-        try { await gorev; }
+        try
+        { await gorev; }
         catch (KasaApiException e) { Denetle(ad, null, yanitSayisi, istekSayisi); HataIletisiOkunur(ad, e, yanitSayisi); throw; }
         Denetle(ad, null, yanitSayisi, istekSayisi);
     }
@@ -176,7 +193,8 @@ public class SozlesmeVekili : DispatchProxy
     private async Task<T> Sar<T>(Task<T> gorev, string ad, int yanitSayisi, int istekSayisi)
     {
         T sonuc;
-        try { sonuc = await gorev; }
+        try
+        { sonuc = await gorev; }
         catch (KasaApiException e) { Denetle(ad, null, yanitSayisi, istekSayisi); HataIletisiOkunur(ad, e, yanitSayisi); throw; }
         Denetle(ad, ad == nameof(IKasaApi.BenKimAsync) ? typeof(RolYaniti) : typeof(T) == typeof(IndirmeBilgisi) ? null : typeof(T), yanitSayisi, istekSayisi);
         return sonuc;
@@ -188,8 +206,10 @@ public class SozlesmeVekili : DispatchProxy
         if (tur is not null)
         {
             var yanit = _kayit.Kayitlar.Skip(yanitSayisi).LastOrDefault();
-            if (yanit is null) hatalar.Add($"{ad}: yanıt kaydı yok.");
-            else hatalar.AddRange(SozlesmeDenetimi.YanitHatalari(tur, yanit));
+            if (yanit is null)
+                hatalar.Add($"{ad}: yanıt kaydı yok.");
+            else
+                hatalar.AddRange(SozlesmeDenetimi.YanitHatalari(tur, yanit));
         }
         Assert.True(hatalar.Count == 0, $"{ad} sözleşme farkları:\n" + string.Join("\n", hatalar));
     }
@@ -197,7 +217,8 @@ public class SozlesmeVekili : DispatchProxy
     /// <summary>İletili hata yanıtında istemci sunucunun iletisini okumalı; genel yedek iletiye düşmemeli.</summary>
     private void HataIletisiOkunur(string ad, KasaApiException e, int yanitSayisi)
     {
-        if (e.DurumKodu is not (HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests)) return;
+        if (e.DurumKodu is not (HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests))
+            return;
         var yanit = _kayit.Kayitlar.Skip(yanitSayisi).LastOrDefault();
         Assert.True(yanit?.Json is not null, $"{ad}: {(int)e.DurumKodu} yanıtı JSON gövde taşımıyor.");
         Assert.True(e.Message != new KasaApiException(e.DurumKodu).Message, $"{ad}: {(int)e.DurumKodu} iletisi okunamadı, istemci genel iletiye düştü. Gövde: {yanit!.Json}");

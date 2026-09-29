@@ -38,7 +38,8 @@ public class AlisKotaTests
         // editörün kendi taslakları hiç sayılmaz.
         (await alici.PostAsJsonAsync($"/api/alis/{ikinci.Id}/gonder", new AlisDurumYaz(ikinci.Surum))).EnsureSuccessStatusCode();
         await AlisTestYardimcisi.Taslak(alici, "Üçüncü");
-        for (var i = 0; i < 3; i++) await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
+        for (var i = 0; i < 3; i++)
+            await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
     }
 
     [Fact]
@@ -73,7 +74,8 @@ public class AlisKotaTests
         (await ikinciOturum.PostAsJsonAsync("/api/auth/login", new { kullanici = "kota-bekleyen", sifre = "alici-sifre-1" })).EnsureSuccessStatusCode();
         using (var baskaOturum = await ikinciOturum.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Başka oturum")))
             Assert.Equal(HttpStatusCode.Conflict, baskaOturum.StatusCode);
-        for (var i = 0; i < 4; i++) await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
+        for (var i = 0; i < 4; i++)
+            await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
     }
 
     [Fact]
@@ -172,8 +174,10 @@ public class AlisKotaTests
 
         // 25 saat önce, +03:00 ile yazılmış: metni pencerenin içinde görünür, anı dışındadır; sayılmaz.
         Ekle(simdi.AddHours(-25).ToOffset(TimeSpan.FromHours(3)), 600 * 1024);
-        f.Sayac.Sifirla(); f.Sayac.Etkin = true;
-        try { Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, yeni.Id, 500 * 1024)); }
+        f.Sayac.Sifirla();
+        f.Sayac.Etkin = true;
+        try
+        { Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, yeni.Id, 500 * 1024)); }
         finally { f.Sayac.Etkin = false; }
         var okuyanlar = f.Sayac.Komutlar.Where(k => k.Contains("\"Yuklendi\"") && !k.TrimStart().StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)).ToList();
         Assert.NotEmpty(okuyanlar);
@@ -239,7 +243,8 @@ public class AlisKotaTests
         Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(baskaAg, taslak.Id, 1024));
 
         // Editör ayrı ve yüksek sınırdadır.
-        for (var i = 0; i < 6; i++) Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(kurulum, taslak.Id, 1024));
+        for (var i = 0; i < 6; i++)
+            Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(kurulum, taslak.Id, 1024));
         using (var red = await AlisTestYardimcisi.YukleYanit(kurulum, taslak.Id, 1024))
             Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
     }
@@ -345,7 +350,8 @@ internal static class AlisTestYardimcisi
     {
         using var form = new MultipartFormDataContent();
         var dosya = new ByteArrayContent(icerik);
-        if (icerikTuru is not null) dosya.Headers.ContentType = new(icerikTuru);
+        if (icerikTuru is not null)
+            dosya.Headers.ContentType = new(icerikTuru);
         form.Add(dosya, "dosya", ad);
         return await c.PostAsync($"/api/alis/{alisId}/belgeler", form);
     }

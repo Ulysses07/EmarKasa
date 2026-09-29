@@ -78,10 +78,13 @@ public class GuvenlikOlayiTests
     {
         await using var f = new VekilFabrikasi();
         using var saldirgan = Istemci(f, "198.51.100.20");
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(saldirgan, "editor", "yanlis")).StatusCode);
-        for (var i = 0; i < 3; i++) await Reddedildi(await Giris(saldirgan, "editor", "yanlis"));
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(saldirgan, "editor", "yanlis")).StatusCode);
+        for (var i = 0; i < 3; i++)
+            await Reddedildi(await Giris(saldirgan, "editor", "yanlis"));
         using var baska = Istemci(f, "198.51.100.21");
-        for (var i = 0; i < 4; i++) await Giris(baska, "editor", "yanlis");
+        for (var i = 0; i < 4; i++)
+            await Giris(baska, "editor", "yanlis");
 
         var retler = Olaylar(f, GuvenlikOlaylari.Varlik).Where(o => o.Tur == GuvenlikOlaylari.HizSiniri).ToList();
         Assert.Equal(["198.51.100.20", "198.51.100.21"], retler.Select(o => o.IstemciIp));
@@ -96,15 +99,18 @@ public class GuvenlikOlayiTests
     {
         await using var f = new VekilFabrikasi(new()
         {
-            ["Kasa:HizSiniri:AgBasarisizIzni"] = "1", ["Kasa:HizSiniri:HedefBasarisizIzni"] = "2",
-            ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1", ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "1",
+            ["Kasa:HizSiniri:AgBasarisizIzni"] = "1",
+            ["Kasa:HizSiniri:HedefBasarisizIzni"] = "2",
+            ["Kasa:HizSiniri:SifreDogrulamaEszamanli"] = "1",
+            ["Kasa:HizSiniri:SifreDogrulamaKuyrugu"] = "1",
         });
         using var c = Istemci(f, "198.51.100.231");
         var sinir = f.Services.GetRequiredService<GirisSiniri>();
         using (var tutulan = await sinir.DogrulamaIzniAsync(CancellationToken.None))
         {
             var bekleyen = sinir.DogrulamaIzniAsync(CancellationToken.None);
-            for (var i = 0; i < 2; i++) Assert.Equal(HttpStatusCode.TooManyRequests, (await Giris(c, "editor", "yanlis")).StatusCode);
+            for (var i = 0; i < 2; i++)
+                Assert.Equal(HttpStatusCode.TooManyRequests, (await Giris(c, "editor", "yanlis")).StatusCode);
             tutulan.Dispose();
             (await bekleyen).Dispose();
         }
@@ -150,7 +156,8 @@ public class GuvenlikOlayiTests
         await using var f = new VekilFabrikasi(loglar: loglar);
         using var sahte = Istemci(f, "198.51.100.60");
         sahte.DefaultRequestHeaders.Authorization = new("Bearer", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiZWRpdG9yIn0.c2FodGUtaW16YQ");
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await sahte.GetAsync("/api/islemler")).StatusCode);
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await sahte.GetAsync("/api/islemler")).StatusCode);
         using (var editor = Istemci(f, "198.51.100.61"))
         {
             Assert.Equal(HttpStatusCode.OK, (await Giris(editor, "editor", "kasa123")).StatusCode);
@@ -158,7 +165,8 @@ public class GuvenlikOlayiTests
         }
         using var izleyici = Istemci(f, "198.51.100.62");
         Assert.Equal(HttpStatusCode.OK, (await Giris(izleyici, "", "izleyici-sifre-123")).StatusCode);
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync("/api/denetim")).StatusCode);
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync("/api/denetim")).StatusCode);
 
         Assert.Single(loglar.Uyarilar, u => u.Contains("Güvenlik olayı GecersizBelirtec", StringComparison.Ordinal)
             && u.Contains("198.51.100.60", StringComparison.Ordinal) && u.Contains("GET /api/islemler", StringComparison.Ordinal));

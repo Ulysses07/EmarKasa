@@ -93,11 +93,13 @@ public static class AyKanalKumesi
     internal static Dictionary<(int Yil, int Ay), List<(int KanalId, bool Aktif)>> Oku(KasaDbContext db)
     {
         var sonuc = new Dictionary<(int Yil, int Ay), List<(int KanalId, bool Aktif)>>();
-        if (!TabloVar(db)) return sonuc;
+        if (!TabloVar(db))
+            return sonuc;
         var aylar = db.AyKanalKumeleri.AsNoTracking().Select(k => new { k.Id, k.Yil, k.Ay }).ToList();
         var uyeler = db.AyKanalKumesiKanallari.AsNoTracking().OrderBy(u => u.KumeId).ThenBy(u => u.Sira)
             .Select(u => new { u.KumeId, u.KanalId, u.Aktif }).ToList().ToLookup(u => u.KumeId);
-        foreach (var k in aylar) sonuc[(k.Yil, k.Ay)] = uyeler[k.Id].Select(u => (u.KanalId, u.Aktif)).ToList();
+        foreach (var k in aylar)
+            sonuc[(k.Yil, k.Ay)] = uyeler[k.Id].Select(u => (u.KanalId, u.Aktif)).ToList();
         return sonuc;
     }
 
@@ -107,7 +109,8 @@ public static class AyKanalKumesi
         var mevcut = db.AyKanalKumeleri.AsNoTracking().Select(k => new { k.Yil, k.Ay }).AsEnumerable().Select(k => (k.Yil, k.Ay)).ToHashSet();
         var eksik = new List<(int Yil, int Ay)>();
         for (var ay = new DateOnly(takipBaslangic.Year, takipBaslangic.Month, 1); ay <= son; ay = ay.AddMonths(1))
-            if (!mevcut.Contains((ay.Year, ay.Month))) eksik.Add((ay.Year, ay.Month));
+            if (!mevcut.Contains((ay.Year, ay.Month)))
+                eksik.Add((ay.Year, ay.Month));
         return eksik;
     }
 
@@ -125,7 +128,8 @@ public static class AyKanalKumesi
     /// transaction'ında çalışır.</summary>
     internal static void Dondur(KasaDbContext db, IReadOnlyCollection<(int Yil, int Ay)> aylar, string kaynak, DateTimeOffset zaman)
     {
-        if (aylar.Count == 0) return;
+        if (aylar.Count == 0)
+            return;
         var kanallar = Kanallar(db);
         foreach (var (yil, ay) in aylar)
         {
@@ -148,17 +152,21 @@ public static class AyKanalKumesi
     {
         static bool Degisti(EntityEntry e, string alan) => !Equals(e.OriginalValues[alan], e.CurrentValues[alan]);
         var girdiler = db.ChangeTracker.Entries<KanalEntity>().Where(e => e.State is EntityState.Added or EntityState.Deleted or EntityState.Modified).ToList();
-        if (girdiler.Count == 0) return;
+        if (girdiler.Count == 0)
+            return;
         var ortakDegisir = girdiler.Any(e => e.State switch
         {
             EntityState.Added => e.Entity.Aktif,
             EntityState.Deleted => (bool)e.OriginalValues[nameof(KanalEntity.Aktif)]!,
             _ => Degisti(e, nameof(KanalEntity.Aktif)) || Degisti(e, nameof(KanalEntity.Sira)),
         });
-        if (!ortakDegisir && !girdiler.Any(e => e.State is EntityState.Added or EntityState.Deleted)) return;
-        if (!TabloVar(db) || TakipBaslangici(db) is not { } baslangic) return;
+        if (!ortakDegisir && !girdiler.Any(e => e.State is EntityState.Added or EntityState.Deleted))
+            return;
+        if (!TabloVar(db) || TakipBaslangici(db) is not { } baslangic)
+            return;
         DateOnly? son = ortakDegisir ? TamamlanmisSonu(db) : KilitSonu(db);
-        if (son is not { } s) return;
+        if (son is not { } s)
+            return;
         Dondur(db, EksikAylar(db, baslangic, s), KanalDegisikligi, db.Saati().GetUtcNow());
     }
 
@@ -166,7 +174,8 @@ public static class AyKanalKumesi
     /// kadar kümesi olmayan aylar dondurulur. Kilidin açılması kümeleri silmez.</summary>
     internal static void AyKapanirken(KasaDbContext db, DateOnly kilitSonu, DateTimeOffset zaman)
     {
-        if (!TabloVar(db) || TakipBaslangici(db) is not { } baslangic) return;
+        if (!TabloVar(db) || TakipBaslangici(db) is not { } baslangic)
+            return;
         Dondur(db, EksikAylar(db, baslangic, kilitSonu), AyKapanisi, zaman);
     }
 
@@ -179,7 +188,8 @@ public static class AyKanalKumesi
     /// </summary>
     internal static IReadOnlyList<(int Yil, int Ay)> GecisDondurmasi(KasaDbContext db)
     {
-        if (!TabloVar(db) || TakipBaslangici(db) is not { } baslangic) return [];
+        if (!TabloVar(db) || TakipBaslangici(db) is not { } baslangic)
+            return [];
         using var transaction = db.Database.BeginTransaction();
         var aylar = EksikAylar(db, baslangic, TamamlanmisSonu(db));
         Dondur(db, aylar, Gecis, db.Saati().GetUtcNow());
@@ -194,7 +204,8 @@ public static class AyKanalKumesi
     /// </summary>
     internal static string? SilmeEngeli(KasaDbContext db, KanalEntity kanal)
     {
-        if (!TabloVar(db)) return null;
+        if (!TabloVar(db))
+            return null;
         var engel = db.AyKanalKumesiKanallari.Any(u => u.KanalId == kanal.Id);
         if (!engel && TakipBaslangici(db) is { } baslangic)
             engel = kanal.Aktif && EksikAylar(db, baslangic, TamamlanmisSonu(db)).Count > 0
@@ -209,10 +220,12 @@ public static class AyKanalKumesi
         if (entries.Any(e => e.Entity is AyKanalKumesiEntity or AyKanalKumesiKanalEntity))
             throw new KilitliDonemException("Tamamlanmış ayın kanal kümesi değiştirilemez; yalnız kanal değişikliğinden önce ve ay kapatılırken otomatik yazılır.");
         var silinen = entries.Where(e => e.Entity is KanalEntity && e.State == EntityState.Deleted).Select(e => (KanalEntity)e.Entity).ToList();
-        if (silinen.Count == 0 || !TabloVar(db)) return;
+        if (silinen.Count == 0 || !TabloVar(db))
+            return;
         var kimlikler = silinen.Select(k => k.Id).ToList();
         var uye = db.AyKanalKumesiKanallari.AsNoTracking().Where(u => kimlikler.Contains(u.KanalId)).Select(u => u.KanalId).FirstOrDefault();
-        if (uye != 0) throw new KilitliDonemException(SilmeIletisi(silinen.Single(k => k.Id == uye).Aktif));
+        if (uye != 0)
+            throw new KilitliDonemException(SilmeIletisi(silinen.Single(k => k.Id == uye).Aktif));
     }
 
     internal static string AyMetni((int Yil, int Ay) ay) => string.Create(CultureInfo.InvariantCulture, $"{ay.Yil:D4}-{ay.Ay:D2}");

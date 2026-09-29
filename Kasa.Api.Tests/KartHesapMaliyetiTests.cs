@@ -66,8 +66,10 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
             {
                 // Başka bir kartın çok sayıda taksidi: hedef kartın hesabı bunları okumamalı.
                 var diger = new KrediKartiEntity { Ad = "Diğer kart", KesimTarihi = new(2026, 1, 5), SonOdemeTarihi = new(2026, 1, 15), Limit = 1m };
-                db.KrediKartlari.Add(diger); db.SaveChanges();
-                db.TakipKartlar.Add(new() { KrediKartiId = diger.Id, Baslangic = Baslangic }); db.SaveChanges();
+                db.KrediKartlari.Add(diger);
+                db.SaveChanges();
+                db.TakipKartlar.Add(new() { KrediKartiId = diger.Id, Baslangic = Baslangic });
+                db.SaveChanges();
                 for (var i = 0; i < ikinciKartTaksiti; i++)
                     db.Islemler.Add(new() { Tarih = Baslangic.AddDays(i % 200), Cari = "Diğer " + i, TutarTl = 10m, KanalId = 1, Kanal = "MEZAT", Tip = GiderTipi.KrediKarti, KrediKartiId = diger.Id });
                 db.SaveChanges();
@@ -89,7 +91,9 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
             var tarih = ilk.AddDays(i % 250);
             db.Alislar.Add(new AlisEntity
             {
-                Tarih = tarih, Tedarikci = "Tedarikçi " + i, Durum = AlisDurumlari.Onaylandi,
+                Tarih = tarih,
+                Tedarikci = "Tedarikçi " + i,
+                Durum = AlisDurumlari.Onaylandi,
                 Kalemler = [new() { Aciklama = "Mal", Tutar = 90m, Dagilimlar = [new() { KanalId = 1, Tutar = 50m }, new() { KanalId = 2 + i % 2, Tutar = 40m }] }],
                 Odemeler = [new() { IstekId = Guid.NewGuid(), IstekOzeti = "tohum", Islem = new() { Tarih = tarih, Cari = "Tedarikçi " + i, TutarTl = 60m,
                     Kanal = Kanallar.DagilimBekliyor, Tip = GiderTipi.KrediKarti, KrediKartiId = kartId } }],
@@ -100,8 +104,10 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
 
     private static async Task<IReadOnlyList<string>> Olc(SayacliFabrika f, HttpClient c, string uc)
     {
-        f.Sayac.Sifirla(); f.Sayac.Etkin = true;
-        try { (await c.GetAsync(uc)).EnsureSuccessStatusCode(); }
+        f.Sayac.Sifirla();
+        f.Sayac.Etkin = true;
+        try
+        { (await c.GetAsync(uc)).EnsureSuccessStatusCode(); }
         finally { f.Sayac.Etkin = false; }
         return f.Sayac.Komutlar;
     }
@@ -197,14 +203,27 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
                 var ekstreler = mevcut.Concat(Enumerable.Range(0, 38).Select(ay => KesimGunu(new DateOnly(2023, 10, 1).AddMonths(ay), kart.KesimGunu))
                     .Where(kesim => mevcut.All(m => m.KesimTarihi != kesim))
                     .Select(kesim => new TakipEkstreEntity { KrediKartiId = kart.Id, KesimTarihi = kesim, SonOdemeTarihi = kesim.AddDays(10) })).OrderBy(e => e.KesimTarihi).ToList();
-                db.TakipEkstreler.AddRange(ekstreler.Where(e => e.Id == 0)); db.SaveChanges();
+                db.TakipEkstreler.AddRange(ekstreler.Where(e => e.Id == 0));
+                db.SaveChanges();
                 var harcamalar = Enumerable.Range(0, 400).Select(i => (Tarih: new DateOnly(2023, 10, 2).AddDays(i * 1080 / 400), IslemId: (int?)null, Tutar: 100m + i % 7, Kanal: 1 + i % 3))
                     .Concat(giderler.Select(g => (g.Tarih, IslemId: (int?)g.Id, Tutar: g.TutarTl, Kanal: 0))).ToList();
-                var kayitlar = harcamalar.Select(h => new TakipHarcamaEntity { KrediKartiId = kart.Id, IslemId = h.IslemId, Tarih = h.Tarih, Aciklama = "Harcama",
-                    Tutar = h.Tutar, DagilimJson = h.Kanal == 0 ? "[]" : $"[{{\"KanalId\":{h.Kanal},\"Tutar\":{h.Tutar.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}]" }).ToList();
-                db.TakipHarcamalar.AddRange(kayitlar); db.SaveChanges();
-                db.TakipKartTaksitler.AddRange(kayitlar.Select(h => new TakipKartTaksitEntity { HarcamaId = h.Id, Tutar = h.Tutar,
-                    EkstreId = ekstreler.First(e => e.KesimTarihi >= h.Tarih).Id }));
+                var kayitlar = harcamalar.Select(h => new TakipHarcamaEntity
+                {
+                    KrediKartiId = kart.Id,
+                    IslemId = h.IslemId,
+                    Tarih = h.Tarih,
+                    Aciklama = "Harcama",
+                    Tutar = h.Tutar,
+                    DagilimJson = h.Kanal == 0 ? "[]" : $"[{{\"KanalId\":{h.Kanal},\"Tutar\":{h.Tutar.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}]"
+                }).ToList();
+                db.TakipHarcamalar.AddRange(kayitlar);
+                db.SaveChanges();
+                db.TakipKartTaksitler.AddRange(kayitlar.Select(h => new TakipKartTaksitEntity
+                {
+                    HarcamaId = h.Id,
+                    Tutar = h.Tutar,
+                    EkstreId = ekstreler.First(e => e.KesimTarihi >= h.Tarih).Id
+                }));
                 db.SaveChanges();
                 // Aylık 1.000 TL ödeme: en eski açık taksitlerden başlayarak (ödeme ucunun ürettiği taksit payları).
                 var kalan = db.TakipKartTaksitler.AsNoTracking().Where(t => db.TakipHarcamalar.Any(h => h.Id == t.HarcamaId && h.KrediKartiId == kart.Id))
@@ -212,16 +231,24 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
                 var sira = 0;
                 for (var ay = 0; ay < 36; ay++)
                 {
-                    decimal tutar = 1_000m; var paylar = new List<object>();
+                    decimal tutar = 1_000m;
+                    var paylar = new List<object>();
                     while (tutar > 0 && sira < kalan.Count)
                     {
                         var pay = Math.Min(tutar, kalan[sira].Kalan);
                         paylar.Add(new { TaksitId = kalan[sira].Id, Tutar = pay, OncedenOdenen = 0m });
-                        tutar -= pay; kalan[sira] = (kalan[sira].Id, kalan[sira].Kalan - pay);
-                        if (kalan[sira].Kalan == 0) sira++;
+                        tutar -= pay;
+                        kalan[sira] = (kalan[sira].Id, kalan[sira].Kalan - pay);
+                        if (kalan[sira].Kalan == 0)
+                            sira++;
                     }
-                    db.TakipKartOdemeler.Add(new() { KrediKartiId = kart.Id, Tarih = new DateOnly(2023, 10, 20).AddMonths(ay), Tutar = 1_000m - tutar,
-                        PaylarJson = System.Text.Json.JsonSerializer.Serialize(paylar) });
+                    db.TakipKartOdemeler.Add(new()
+                    {
+                        KrediKartiId = kart.Id,
+                        Tarih = new DateOnly(2023, 10, 20).AddMonths(ay),
+                        Tutar = 1_000m - tutar,
+                        PaylarJson = System.Text.Json.JsonSerializer.Serialize(paylar)
+                    });
                 }
                 db.SaveChanges();
             }

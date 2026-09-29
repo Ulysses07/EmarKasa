@@ -23,7 +23,8 @@ public static class GelirSecimi
     /// <summary>SQLite NOCASE yalnız ASCII A-Z'yi küçültür; Türkçe İ/ı ayrı kalır.</summary>
     private static string SqliteAdi(string? ad) => string.Create((ad ?? "").Length, ad ?? "", (hedef, kaynak) =>
     {
-        for (var i = 0; i < kaynak.Length; i++) hedef[i] = kaynak[i] is >= 'A' and <= 'Z' ? (char)(kaynak[i] + 32) : kaynak[i];
+        for (var i = 0; i < kaynak.Length; i++)
+            hedef[i] = kaynak[i] is >= 'A' and <= 'Z' ? (char)(kaynak[i] + 32) : kaynak[i];
     });
 
     /// <summary>Bugünü içeren dönem; yoksa başlangıcı bugün ya da önce olan en yeni dönem; o da yoksa ilk dönem.</summary>

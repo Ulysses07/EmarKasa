@@ -10,7 +10,9 @@ internal static class GeriYuklemeGuvenligiSchemaModel
         CekirdekSurumleriSchemaModel.Build(b);
         b.Entity("Kasa.Api.Data.SistemDurumuEntity", e =>
         {
-            e.ToTable("SistemDurumu"); e.Property<int>("Id").ValueGeneratedNever().HasColumnType("INTEGER"); e.HasKey("Id");
+            e.ToTable("SistemDurumu");
+            e.Property<int>("Id").ValueGeneratedNever().HasColumnType("INTEGER");
+            e.HasKey("Id");
             e.Property<string>("OturumDonemi").IsRequired().HasColumnType("TEXT");
             e.Property<DateTimeOffset?>("YedekZamani").HasColumnType("TEXT");
             e.Property<DateTimeOffset?>("SonGeriYukleme").HasColumnType("TEXT");

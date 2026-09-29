@@ -67,7 +67,8 @@ public class KasaHareketDokumuTests
         // Bir gün itibarıyla döküm bakiyesi, o gün hesaplanan panelin bugünkü veriyle aynısıdır (kasa kontrolünün "sonradan
         // değişti" ölçüsü). Panel her gün için sunucu saati o güne alınarak hesaplanır.
         KasaDokumu bugunku;
-        using (var scope = f.Services.CreateScope()) bugunku = scope.ServiceProvider.GetRequiredService<HesapServisi>().Dokum();
+        using (var scope = f.Services.CreateScope())
+            bugunku = scope.ServiceProvider.GetRequiredService<HesapServisi>().Dokum();
         Assert.Equal(tum.Hareketler.Count, bugunku.Hareketler.Count(h => h.EtkiTarihi >= new DateOnly(2026, 1, 1)));
         var saat = (SabitSaat)f.Saat!;
         foreach (var gun in new DateOnly[] { new(2026, 1, 31), new(2026, 3, 15), new(2026, 5, 31), new(2026, 6, 30), new(2026, 8, 18), new(2026, 9, 24) })

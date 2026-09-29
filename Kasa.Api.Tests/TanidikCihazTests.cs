@@ -26,10 +26,13 @@ public class TanidikCihazTests
     {
         var ayar = new Dictionary<string, string?>
         {
-            ["Kasa:HizSiniri:HedefBasarisizIzni"] = "4", ["Kasa:HizSiniri:AgBasarisizIzni"] = "3",
-            ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50",
+            ["Kasa:HizSiniri:HedefBasarisizIzni"] = "4",
+            ["Kasa:HizSiniri:AgBasarisizIzni"] = "3",
+            ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50",
+            ["Kasa:HizSiniri:GirisIpIzni"] = "50",
         };
-        foreach (var (k, v) in ek) ayar[k] = v;
+        foreach (var (k, v) in ek)
+            ayar[k] = v;
         return ayar;
     }
 
@@ -48,7 +51,8 @@ public class TanidikCihazTests
     private static HttpClient Masaustu(KasaWebFactory f, string xff, string? belirtec = null)
     {
         var c = Istemci(f, xff);
-        if (belirtec is not null) c.DefaultRequestHeaders.Add(Baslik, belirtec);
+        if (belirtec is not null)
+            c.DefaultRequestHeaders.Add(Baslik, belirtec);
         return c;
     }
 
@@ -151,7 +155,8 @@ public class TanidikCihazTests
         var belirtec = await GovdedekiBelirtec(await Giris(Masaustu(f, "198.51.100.30"), "editor", "kasa123"));
         await HedefiKilitle(f, "editor", 10, "kasa123");
         using var cihaz = Masaustu(f, "198.51.100.30", belirtec);
-        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(cihaz, "editor", "yanlis")).StatusCode);
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(cihaz, "editor", "yanlis")).StatusCode);
         await Reddedildi(await Giris(cihaz, "editor", "kasa123"));
     }
 

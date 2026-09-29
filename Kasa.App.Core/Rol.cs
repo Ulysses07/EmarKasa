@@ -12,13 +12,15 @@ public static class SekmeModeli
 
     public static IReadOnlyList<Bolum> Bolumler(Rol rol)
     {
-        if (rol == Rol.Alici) return new[] { Bolum.Alislar };
+        if (rol == Rol.Alici)
+            return new[] { Bolum.Alislar };
         var liste = new List<Bolum>
         {
             Bolum.Panel, Bolum.Haftalik, Bolum.Aylik,
             Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.DisariAktar,
         };
-        if (rol == Rol.Editor) { liste.Add(Bolum.Alislar); liste.Add(Bolum.Bildirimler); liste.Add(Bolum.EkstreAktar); liste.Add(Bolum.Ayarlar); }
+        if (rol == Rol.Editor)
+        { liste.Add(Bolum.Alislar); liste.Add(Bolum.Bildirimler); liste.Add(Bolum.EkstreAktar); liste.Add(Bolum.Ayarlar); }
         return liste;
     }
 }

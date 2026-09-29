@@ -17,7 +17,8 @@ public partial class MauiKayitTutarliligiTests
     private static string DepoKoku()
     {
         for (var d = new DirectoryInfo(AppContext.BaseDirectory); d is not null; d = d.Parent)
-            if (File.Exists(Path.Combine(d.FullName, "Kasa.slnx"))) return d.FullName;
+            if (File.Exists(Path.Combine(d.FullName, "Kasa.slnx")))
+                return d.FullName;
         throw new InvalidOperationException("Depo kökü (Kasa.slnx) bulunamadı.");
     }
 
@@ -57,7 +58,8 @@ public partial class MauiKayitTutarliligiTests
         var kayitlar = Kayitlar();
         var eksik = sayfalar.Where(s => !kayitlar.Contains(s)).ToList();
         Assert.True(eksik.Count == 0, "AppShell.xaml'da olup MauiProgram'da AddTransient ile kayıtlı olmayan sayfalar: " + string.Join(", ", eksik));
-        Assert.Contains("AppShell", kayitlar); Assert.Contains("App", kayitlar);
+        Assert.Contains("AppShell", kayitlar);
+        Assert.Contains("App", kayitlar);
     }
 
     [Fact]

@@ -34,18 +34,22 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         db.Krediler.RemoveRange(db.Krediler);
         // Kanallar silinmez (tamamlanmış ayların kanal kümesinde yer alan kanal silinemez; AyKanalKumesi): MEZAT ve PERAKENDE aktif,
         // açılış 0 olarak yeniden tohumlanır, öteki kanallar pasife alınır (Ortak gider yalnız iki aktif kanala bölünür).
-        foreach (var kanal in db.Kanallar) kanal.Aktif = false;
+        foreach (var kanal in db.Kanallar)
+            kanal.Aktif = false;
         foreach (var (ad, sira) in new[] { ("MEZAT", 0), ("PERAKENDE", 1) })
         {
             var kanal = db.Kanallar.Local.SingleOrDefault(k => k.Ad == ad) ?? db.Kanallar.Add(new KanalEntity { Ad = ad }).Entity;
-            kanal.Sira = sira; kanal.Aktif = true; kanal.AcilisDevri = 0m;
+            kanal.Sira = sira;
+            kanal.Aktif = true;
+            kanal.AcilisDevri = 0m;
         }
 
         var ayar = db.Ayarlar.First();
         ayar.TakipBaslangic = Baslangic;
         ayar.KasaAcilisDevri = 100_000m;
 
-        if (krediler.Length > 0) db.Krediler.AddRange(krediler);
+        if (krediler.Length > 0)
+            db.Krediler.AddRange(krediler);
         db.SaveChanges();
     }
 
@@ -61,8 +65,13 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         // Taksit tutarı 0 → yalnız çekim etkisi izole.
         Tohumla(new KrediEntity
         {
-            Ad = "Ziraat", CekilenTutar = 5_000m, CekimTarihi = new DateOnly(2026, 7, 6),
-            TaksitSayisi = 1, AylikOdeme = 0m, OdemeGunu = 15, Kanal = "MEZAT"
+            Ad = "Ziraat",
+            CekilenTutar = 5_000m,
+            CekimTarihi = new DateOnly(2026, 7, 6),
+            TaksitSayisi = 1,
+            AylikOdeme = 0m,
+            OdemeGunu = 15,
+            Kanal = "MEZAT"
         });
 
         var panel = await PanelAsync();
@@ -78,8 +87,13 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         // Çekim 0 → yalnız taksit etkisi izole. İlk taksit 2026-07-10 (geçmiş → sayılır).
         Tohumla(new KrediEntity
         {
-            Ad = "Ziraat", CekilenTutar = 0m, CekimTarihi = new DateOnly(2026, 7, 6),
-            TaksitSayisi = 1, AylikOdeme = 1_000m, OdemeGunu = 10, Kanal = "MEZAT"
+            Ad = "Ziraat",
+            CekilenTutar = 0m,
+            CekimTarihi = new DateOnly(2026, 7, 6),
+            TaksitSayisi = 1,
+            AylikOdeme = 1_000m,
+            OdemeGunu = 10,
+            Kanal = "MEZAT"
         });
 
         var panel = await PanelAsync();
@@ -95,8 +109,13 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         // Ortak taksit: 2 aktif kanala 300 → her birine 150.
         Tohumla(new KrediEntity
         {
-            Ad = "Ziraat", CekilenTutar = 0m, CekimTarihi = new DateOnly(2026, 7, 6),
-            TaksitSayisi = 1, AylikOdeme = 300m, OdemeGunu = 10, Kanal = Kanallar.Ortak
+            Ad = "Ziraat",
+            CekilenTutar = 0m,
+            CekimTarihi = new DateOnly(2026, 7, 6),
+            TaksitSayisi = 1,
+            AylikOdeme = 300m,
+            OdemeGunu = 10,
+            Kanal = Kanallar.Ortak
         });
 
         var client = await _factory.EditorClientAsync();
@@ -113,8 +132,13 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         var bugun = _factory.Bugun;
         Tohumla(new KrediEntity
         {
-            Ad = "Ziraat", CekilenTutar = 0m, CekimTarihi = bugun,
-            TaksitSayisi = 1, AylikOdeme = 9_999m, OdemeGunu = bugun.Day, Kanal = "MEZAT"
+            Ad = "Ziraat",
+            CekilenTutar = 0m,
+            CekimTarihi = bugun,
+            TaksitSayisi = 1,
+            AylikOdeme = 9_999m,
+            OdemeGunu = bugun.Day,
+            Kanal = "MEZAT"
         });
 
         var panel = await PanelAsync();
@@ -131,8 +155,13 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
 
         var yeni = new KrediEntity
         {
-            Ad = "Ziraat", CekilenTutar = 5_000m, CekimTarihi = new DateOnly(2026, 7, 6),
-            TaksitSayisi = 1, AylikOdeme = 0m, OdemeGunu = 15, Kanal = "MEZAT"
+            Ad = "Ziraat",
+            CekilenTutar = 5_000m,
+            CekimTarihi = new DateOnly(2026, 7, 6),
+            TaksitSayisi = 1,
+            AylikOdeme = 0m,
+            OdemeGunu = 15,
+            Kanal = "MEZAT"
         };
         var eklenen = LegacyFinanceSeed.Kaydet(_factory, yeni);
 

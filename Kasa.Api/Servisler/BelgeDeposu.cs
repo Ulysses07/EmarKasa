@@ -56,7 +56,8 @@ public sealed partial class BelgeDeposu
     /// veritabanında geçici dizin.</summary>
     public static string KokDizini(IConfiguration cfg)
     {
-        if (cfg["Belge:Dizin"] is { Length: > 0 } dizin) return Path.GetFullPath(dizin);
+        if (cfg["Belge:Dizin"] is { Length: > 0 } dizin)
+            return Path.GetFullPath(dizin);
         var baglanti = new SqliteConnectionStringBuilder(cfg.GetConnectionString("Kasa") ?? "Data Source=kasa.db");
         if (baglanti.Mode == SqliteOpenMode.Memory || baglanti.DataSource is "" or ":memory:")
             return Path.Combine(Path.GetTempPath(), "kasa-belgeler-" + Guid.NewGuid().ToString("N"));
@@ -75,7 +76,8 @@ public sealed partial class BelgeDeposu
     /// <summary>Verilen kök altında özetin yolu (depo ve yedek aynası aynı düzeni kullanır).</summary>
     public static string DosyaYolu(string kok, string ozet)
     {
-        if (!GecerliOzet(ozet)) throw new ArgumentException("Geçersiz belge özeti.", nameof(ozet));
+        if (!GecerliOzet(ozet))
+            throw new ArgumentException("Geçersiz belge özeti.", nameof(ozet));
         return Path.Combine(kok, ozet[..2], ozet);
     }
 
@@ -93,7 +95,8 @@ public sealed partial class BelgeDeposu
         }
         finally
         {
-            try { if (File.Exists(gecici)) File.Delete(gecici); }
+            try
+            { if (File.Exists(gecici)) File.Delete(gecici); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _logger?.LogWarning(e, "Belge deposunda geçici dosya silinemedi: {Dosya}", gecici); }
         }
     }
@@ -108,7 +111,8 @@ public sealed partial class BelgeDeposu
     internal static (string Ozet, long Boyut) GeciciyeYaz(Stream kaynak, string gecici, CancellationToken ct)
     {
         var secenek = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, BufferSize = 0 };
-        if (!OperatingSystem.IsWindows()) secenek.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        if (!OperatingSystem.IsWindows())
+            secenek.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using var hedef = new FileStream(gecici, secenek);
         var tampon = ArrayPool<byte>.Shared.Rent(81920);
@@ -145,7 +149,8 @@ public sealed partial class BelgeDeposu
                 File.Move(gecici, hedef, overwrite: true);
                 return;
             }
-            try { File.Move(gecici, hedef); }
+            try
+            { File.Move(gecici, hedef); }
             // Başka bir süreç aynı içeriği aynı anda yerleştirdiyse onunki doğrulanır.
             catch (IOException) when (File.Exists(hedef) && DosyaDogru(hedef, ozet, boyut)) { }
         }
@@ -156,8 +161,10 @@ public sealed partial class BelgeDeposu
     public Stream Ac(string ozet)
     {
         var buyuk = ozet.ToUpperInvariant();
-        if (!GecerliOzet(buyuk)) throw new BelgeDosyasiYokException(ozet);
-        try { return new FileStream(Yol(buyuk), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.SequentialScan); }
+        if (!GecerliOzet(buyuk))
+            throw new BelgeDosyasiYokException(ozet);
+        try
+        { return new FileStream(Yol(buyuk), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.SequentialScan); }
         catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { throw new BelgeDosyasiYokException(ozet); }
     }
 
@@ -171,7 +178,8 @@ public sealed partial class BelgeDeposu
     public long? Boyut(string ozet)
     {
         var buyuk = ozet.ToUpperInvariant();
-        if (!GecerliOzet(buyuk)) return null;
+        if (!GecerliOzet(buyuk))
+            return null;
         var bilgi = new FileInfo(Yol(buyuk));
         return bilgi.Exists ? bilgi.Length : null;
     }
@@ -189,7 +197,8 @@ public sealed partial class BelgeDeposu
         try
         {
             using var akis = new FileStream(yol, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.SequentialScan);
-            if (boyut is { } b && akis.Length != b) return false;
+            if (boyut is { } b && akis.Length != b)
+                return false;
             return string.Equals(Convert.ToHexString(SHA256.HashData(akis)), ozet, StringComparison.Ordinal);
         }
         catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return false; }
@@ -201,15 +210,18 @@ public sealed partial class BelgeDeposu
     /// <summary>Verilen kök altında (depo ya da yedek aynası) geçerli adlı dosyaların özetleri.</summary>
     public static IEnumerable<string> Ozetler(string kok)
     {
-        if (!Directory.Exists(kok)) yield break;
+        if (!Directory.Exists(kok))
+            yield break;
         foreach (var alt in Directory.EnumerateDirectories(kok))
         {
             var ad = Path.GetFileName(alt);
-            if (ad.Length != 2) continue;
+            if (ad.Length != 2)
+                continue;
             foreach (var dosya in Directory.EnumerateFiles(alt))
             {
                 var ozet = Path.GetFileName(dosya);
-                if (GecerliOzet(ozet) && ozet.StartsWith(ad, StringComparison.Ordinal)) yield return ozet;
+                if (GecerliOzet(ozet) && ozet.StartsWith(ad, StringComparison.Ordinal))
+                    yield return ozet;
             }
         }
     }
@@ -222,18 +234,22 @@ public sealed partial class BelgeDeposu
     /// </summary>
     public int Temizle(IReadOnlySet<string> referanslar, TimeSpan enAzYas)
     {
-        if (!Directory.Exists(Kok)) return 0;
+        if (!Directory.Exists(Kok))
+            return 0;
         var sinir = _saat.GetUtcNow().UtcDateTime - enAzYas;
         var silinen = 0;
         foreach (var gecici in Directory.EnumerateFiles(Kok, "*" + GeciciUzanti))
-            if (File.GetLastWriteTimeUtc(gecici) < sinir && Sil(gecici)) silinen++;
+            if (File.GetLastWriteTimeUtc(gecici) < sinir && Sil(gecici))
+                silinen++;
         foreach (var ozet in Ozetler().ToList())
         {
-            if (referanslar.Contains(ozet)) continue;
+            if (referanslar.Contains(ozet))
+                continue;
             var yol = Yol(ozet);
             lock (_kilit)
             {
-                if (!File.Exists(yol) || File.GetLastWriteTimeUtc(yol) >= sinir) continue;
+                if (!File.Exists(yol) || File.GetLastWriteTimeUtc(yol) >= sinir)
+                    continue;
                 if (Sil(yol))
                 {
                     silinen++;
@@ -246,7 +262,8 @@ public sealed partial class BelgeDeposu
 
     private bool Sil(string yol)
     {
-        try { File.Delete(yol); return true; }
+        try
+        { File.Delete(yol); return true; }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             _logger?.LogWarning(e, "Belge deposunda dosya silinemedi: {Dosya}", yol);
@@ -257,7 +274,9 @@ public sealed partial class BelgeDeposu
     /// <summary>Dizini açar; Unix'te yalnız sahibine (0700).</summary>
     internal static void DizinHazirla(string dizin)
     {
-        if (OperatingSystem.IsWindows()) Directory.CreateDirectory(dizin);
-        else Directory.CreateDirectory(dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        if (OperatingSystem.IsWindows())
+            Directory.CreateDirectory(dizin);
+        else
+            Directory.CreateDirectory(dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 }

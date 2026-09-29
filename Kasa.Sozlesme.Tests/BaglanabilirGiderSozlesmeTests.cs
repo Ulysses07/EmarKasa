@@ -20,11 +20,13 @@ public class BaglanabilirGiderSozlesmeTests : SozlesmeTemeli
         var ilk = await editor.Kasa.IslemOlusturAsync(gider);
         Assert.Equal(HttpStatusCode.Created, editor.SonYanit.Durum);
         var tekrar = await editor.Kasa.IslemOlusturAsync(gider);
-        Assert.Equal(HttpStatusCode.OK, editor.SonYanit.Durum); Assert.Equal(ilk.Id, tekrar.Id);
+        Assert.Equal(HttpStatusCode.OK, editor.SonYanit.Durum);
+        Assert.Equal(ilk.Id, tekrar.Id);
         await editor.Kasa.IslemOlusturAsync(gider with { Cari = "Diğer gider", IstekId = Guid.NewGuid() });
 
         var sayfa = await editor.Alis.BaglanabilirGiderlerAsync(limit: 1);
-        Assert.True(sayfa.DevamVar); Assert.NotNull(sayfa.SonrakiImlec);
+        Assert.True(sayfa.DevamVar);
+        Assert.NotNull(sayfa.SonrakiImlec);
         var sonraki = await editor.Alis.BaglanabilirGiderlerAsync(imlec: sayfa.SonrakiImlec, limit: 1);
         Assert.Equal(new[] { ilk.Id }, sonraki.Ogeler.Select(o => o.Id));
         var bulunan = Assert.Single((await editor.Alis.BaglanabilirGiderlerAsync("Kargo", 42.5m, Baslangic, Bugun)).Ogeler);

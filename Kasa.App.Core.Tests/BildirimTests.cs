@@ -5,24 +5,48 @@ namespace Kasa.App.Core.Tests;
 public class BildirimTests
 {
     private static AuthViewModel Auth() => new(new SahteApi()) { AktifRol = Rol.Editor };
-    [Fact] public async Task Bildirim_ayari_saat_ve_guncel_surumu_korur()
+    [Fact]
+    public async Task Bildirim_ayari_saat_ve_guncel_surumu_korur()
     {
-        var api = new Fake(); var vm = new BildirimViewModel(api, Auth()); await vm.YukleAsync(); vm.Saat = 25;
-        await vm.KaydetCommand.ExecuteAsync(null); Assert.Null(api.Yazilan);
-        vm.Saat = 10; vm.Dakika = 30; await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(new BildirimAyarYaz(true, 10, 30, 3), api.Yazilan); Assert.True(vm.CihazBildirimiEtkin);
+        var api = new Fake();
+        var vm = new BildirimViewModel(api, Auth());
+        await vm.YukleAsync();
+        vm.Saat = 25;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.Yazilan);
+        vm.Saat = 10;
+        vm.Dakika = 30;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(new BildirimAyarYaz(true, 10, 30, 3), api.Yazilan);
+        Assert.True(vm.CihazBildirimiEtkin);
     }
-    [Fact] public async Task Oturum_degistiginde_geciken_bildirim_ve_cihazlar_gosterilmez()
+    [Fact]
+    public async Task Oturum_degistiginde_geciken_bildirim_ve_cihazlar_gosterilmez()
     {
-        var bekleyen = new TaskCompletionSource<IReadOnlyList<BildirimDto>>(); var api = new Fake { Bekleyen = bekleyen.Task }; var auth = Auth(); var vm = new BildirimViewModel(api, auth);
-        var yukle = vm.YukleAsync(); auth.OturumSurumu++; bekleyen.SetResult(new[] { Fake.Bildirim() }); await yukle;
-        Assert.Empty(vm.Bildirimler); Assert.Empty(vm.Cihazlar); Assert.False(vm.VeriHazir);
+        var bekleyen = new TaskCompletionSource<IReadOnlyList<BildirimDto>>();
+        var api = new Fake { Bekleyen = bekleyen.Task };
+        var auth = Auth();
+        var vm = new BildirimViewModel(api, auth);
+        var yukle = vm.YukleAsync();
+        auth.OturumSurumu++;
+        bekleyen.SetResult(new[] { Fake.Bildirim() });
+        await yukle;
+        Assert.Empty(vm.Bildirimler);
+        Assert.Empty(vm.Cihazlar);
+        Assert.False(vm.VeriHazir);
     }
-    [Fact] public async Task Okundu_isareti_ve_cihaz_kapatma_basarili_cevaptan_sonra_yansir()
+    [Fact]
+    public async Task Okundu_isareti_ve_cihaz_kapatma_basarili_cevaptan_sonra_yansir()
     {
-        var api = new Fake(); var vm = new BildirimViewModel(api, Auth()); await vm.YukleAsync();
-        await vm.OkunduAsync(vm.Bildirimler[0]); Assert.True(vm.Bildirimler[0].Veri.Okundu); Assert.Equal(3, api.Okundu);
-        await vm.CihaziKaldirAsync(vm.Cihazlar[0]); Assert.False(vm.Cihazlar[0].Veri.Etkin); Assert.Equal(4, api.Kaldirilan);
+        var api = new Fake();
+        var vm = new BildirimViewModel(api, Auth());
+        await vm.YukleAsync();
+        await vm.OkunduAsync(vm.Bildirimler[0]);
+        Assert.True(vm.Bildirimler[0].Veri.Okundu);
+        Assert.Equal(3, api.Okundu);
+        await vm.CihaziKaldirAsync(vm.Cihazlar[0]);
+        Assert.False(vm.Cihazlar[0].Veri.Etkin);
+        Assert.Equal(4, api.Kaldirilan);
     }
     [Theory]
     [InlineData(null, "https://kasa.emarglobal.com/#notifications")]

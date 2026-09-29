@@ -11,13 +11,23 @@ public class AuthViewModelTests
         var api = new SahteApi { LoginYaniti = new LoginYanit("editor", "jwt") };
         var vm = new AuthViewModel(api) { KurtarmaAcik = true, KurtarmaKodu = "kod", KurtarmaYeniSifre = "gizli-yeni-sifre" };
         await vm.GirisCommand.ExecuteAsync(null);
-        Assert.Empty(vm.KurtarmaKodu); Assert.Empty(vm.KurtarmaYeniSifre); Assert.False(vm.KurtarmaAcik);
-        vm.KurtarmaKodu = "kod"; vm.KurtarmaYeniSifre = "gizli"; vm.KurtarmaAcik = true;
+        Assert.Empty(vm.KurtarmaKodu);
+        Assert.Empty(vm.KurtarmaYeniSifre);
+        Assert.False(vm.KurtarmaAcik);
+        vm.KurtarmaKodu = "kod";
+        vm.KurtarmaYeniSifre = "gizli";
+        vm.KurtarmaAcik = true;
         await vm.CikisAsync();
-        Assert.Empty(vm.KurtarmaKodu); Assert.Empty(vm.KurtarmaYeniSifre); Assert.False(vm.KurtarmaAcik);
-        vm.KurtarmaKodu = "kod"; vm.KurtarmaYeniSifre = "gizli"; vm.KurtarmaAcik = true;
+        Assert.Empty(vm.KurtarmaKodu);
+        Assert.Empty(vm.KurtarmaYeniSifre);
+        Assert.False(vm.KurtarmaAcik);
+        vm.KurtarmaKodu = "kod";
+        vm.KurtarmaYeniSifre = "gizli";
+        vm.KurtarmaAcik = true;
         api.OturumuSonlandir();
-        Assert.Empty(vm.KurtarmaKodu); Assert.Empty(vm.KurtarmaYeniSifre); Assert.False(vm.KurtarmaAcik);
+        Assert.Empty(vm.KurtarmaKodu);
+        Assert.Empty(vm.KurtarmaYeniSifre);
+        Assert.False(vm.KurtarmaAcik);
     }
     [Fact]
     public async Task Basarili_login_rolu_ayarlar_ve_hata_temizler()

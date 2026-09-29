@@ -14,15 +14,18 @@ public partial class AyKilidiViewModel(IAylikGiderApi api, AuthViewModel auth) :
     public Task YukleAsync() => YurutAsync(async n => { VeriHazir = false; var s = await api.AyKilidiAsync(); if (Gecerli(n)) Uygula(s); });
     private void Uygula(AyKilidiDto s)
     {
-        _durum = s; DurumMetni = s.KilitliSonTarih is { } tarih ? $"{tarih:dd.MM.yyyy} dahil geçmiş mali hareketler kilitli." : "Kilitli ay yok.";
-        TakipMetni.Doldur(Gecmis, s.Gecmis.Select(x => new AyKilidiSatiri(x))); Tamamlandi();
+        _durum = s;
+        DurumMetni = s.KilitliSonTarih is { } tarih ? $"{tarih:dd.MM.yyyy} dahil geçmiş mali hareketler kilitli." : "Kilitli ay yok.";
+        TakipMetni.Doldur(Gecmis, s.Gecmis.Select(x => new AyKilidiSatiri(x)));
+        Tamamlandi();
     }
     /// <summary>Kilit değişikliği onayının metni (maui-8: görünüm yalnız diyaloğu gösterir). <paramref name="rapor"/> ekrandaki
     /// aylık rapordur; kural 1 ile dondurulmuş ay açılırken güncel kuralla yeniden hesaplanacağı eklenir (web
     /// frozenRuleUnlockWarning ile aynı uyarı).</summary>
     public string OnayMetni(bool kapat, int yil, int ay, AylikRaporDto? rapor = null)
     {
-        if (kapat) return $"{ay:00}.{yil} ayının sonuna kadar bütün geçmiş mali hareketler kilitlenecek. Okumalar ve gelecek planlar devam eder.";
+        if (kapat)
+            return $"{ay:00}.{yil} ayının sonuna kadar bütün geçmiş mali hareketler kilitlenecek. Okumalar ve gelecek planlar devam eder.";
         var metin = $"{ay:00}.{yil} ayı ve sonraki aylar yeniden açılacak. Bu dönemlerin mali hareketleri değiştirilebilir olacak.";
         return rapor is { Dondurulmus: true, KuralSurumu: null or < 2 } r && r.Yil == yil && r.Ay == ay ? metin + "\n" + EskiKuralUyarisi : metin;
     }
@@ -33,14 +36,24 @@ public partial class AyKilidiViewModel(IAylikGiderApi api, AuthViewModel auth) :
     public bool IstekHalaGecerli(int oturum, int yil, int ay, int raporYil, int raporAy) => Gecerli(oturum) && yil == raporYil && ay == raporAy;
     public Task DegistirAsync(bool kapat, int yil, int ay, string aciklama, int onayOturumu, int onaySurumu) => YurutAsync(async n =>
     {
-        if (!EditorMu || !Gecerli(onayOturumu) || !VeriHazir || _durum is null) return;
-        if (_durum.Surum != onaySurumu) { Hata = "Ay kilidi değişti. Güncel durumu inceleyip yeniden onaylayın."; return; }
-        if (string.IsNullOrWhiteSpace(aciklama)) { Hata = "Ay kilidi değişikliği için açıklama yazın."; return; }
-        var ilk = new DateOnly(yil, ay, 1); var bugun = DateOnly.FromDateTime(DateTime.Today);
-        if (kapat && ilk.AddMonths(1) > bugun) { Hata = "Yalnız tamamlanmış aylar kapatılabilir."; return; }
-        var g = new AyKilidiYaz(Guid.Empty, _durum.Surum, yil, ay, aciklama.Trim()); g = g with { IstekId = _anahtar.Al(new { kapat, g }) };
-        var sonuc = await api.AyKilidiDegistirAsync(kapat, g); if (!Gecerli(n)) return;
-        Uygula(sonuc); _anahtar.Temizle(); Mesaj = kapat ? "Seçilen ayın sonuna kadar geçmiş kilitlendi." : "Seçilen ay ve sonraki aylar açıldı.";
+        if (!EditorMu || !Gecerli(onayOturumu) || !VeriHazir || _durum is null)
+            return;
+        if (_durum.Surum != onaySurumu)
+        { Hata = "Ay kilidi değişti. Güncel durumu inceleyip yeniden onaylayın."; return; }
+        if (string.IsNullOrWhiteSpace(aciklama))
+        { Hata = "Ay kilidi değişikliği için açıklama yazın."; return; }
+        var ilk = new DateOnly(yil, ay, 1);
+        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        if (kapat && ilk.AddMonths(1) > bugun)
+        { Hata = "Yalnız tamamlanmış aylar kapatılabilir."; return; }
+        var g = new AyKilidiYaz(Guid.Empty, _durum.Surum, yil, ay, aciklama.Trim());
+        g = g with { IstekId = _anahtar.Al(new { kapat, g }) };
+        var sonuc = await api.AyKilidiDegistirAsync(kapat, g);
+        if (!Gecerli(n))
+            return;
+        Uygula(sonuc);
+        _anahtar.Temizle();
+        Mesaj = kapat ? "Seçilen ayın sonuna kadar geçmiş kilitlendi." : "Seçilen ay ve sonraki aylar açıldı.";
     });
     protected override void OturumTemizle() { _durum = null; Gecmis.Clear(); DurumMetni = "Ay kilidi bilgisi alınmadı."; _anahtar.Temizle(); }
 }

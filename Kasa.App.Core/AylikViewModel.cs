@@ -64,16 +64,20 @@ public partial class AylikViewModel : RaporViewModel
     [RelayCommand]
     private Task OncekiAy()
     {
-        if (Ay == 1) { Ay = 12; Yil--; }
-        else Ay--;
+        if (Ay == 1)
+        { Ay = 12; Yil--; }
+        else
+            Ay--;
         return YukleAsync();
     }
 
     [RelayCommand]
     private Task SonrakiAy()
     {
-        if (Ay == 12) { Ay = 1; Yil++; }
-        else Ay++;
+        if (Ay == 12)
+        { Ay = 1; Yil++; }
+        else
+            Ay++;
         return YukleAsync();
     }
 }

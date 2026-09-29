@@ -79,21 +79,25 @@ public static class GeriYuklemeIsleyici
     {
         var baglanti = (SqliteConnection)db.Database.GetDbConnection();
         var acildi = baglanti.State != ConnectionState.Open;
-        if (acildi) db.Database.OpenConnection();
+        if (acildi)
+            db.Database.OpenConnection();
         try
         {
             // Olağan açılışta yazma kilidi alınmaz; aynı dosyayla aynı anda açılan iki süreçte işareti transaction içinde yeniden okur.
-            if (!Isaretli(baglanti, null)) return null;
+            if (!Isaretli(baglanti, null))
+                return null;
             // Günlük veritabanından bağımsız bir dosyadır: transaction'dan önce okunur.
             var icerik = gunluk?.Oku();
             using var tx = db.Database.BeginTransaction();
             var sqliteTx = (SqliteTransaction)tx.GetDbTransaction();
-            if (!Isaretli(baglanti, sqliteTx)) { tx.Commit(); return null; }
+            if (!Isaretli(baglanti, sqliteTx))
+            { tx.Commit(); return null; }
 
             var simdi = db.Saati().GetUtcNow();
             var sonOlay = Deger(baglanti, sqliteTx, "SELECT MAX(\"ZamanUtc\") FROM \"DenetimOlaylari\";");
             var durum = db.SistemDurumu.SingleOrDefault(s => s.Id == 1);
-            if (durum is null) db.SistemDurumu.Add(durum = new SistemDurumuEntity());
+            if (durum is null)
+                db.SistemDurumu.Add(durum = new SistemDurumuEntity());
             var (yedekAni, anKaynagi) = YedekAni(baglanti, sqliteTx, durum);
             var sayaclar = KimlikleriIlerlet(baglanti, sqliteTx);
             var rapor = new List<string>
@@ -106,11 +110,14 @@ public static class GeriYuklemeIsleyici
 
             var ayar = db.Ayarlar.FirstOrDefault();
             var izleyiciKapatildi = ayar?.IzleyiciSifreHash is not null;
-            if (ayar is not null) ayar.IzleyiciSifreHash = null;
+            if (ayar is not null)
+                ayar.IzleyiciSifreHash = null;
             var alicilar = db.Alicilar.ToList();
-            foreach (var a in alicilar) a.OturumSurumu++;
+            foreach (var a in alicilar)
+                a.OturumSurumu++;
             var editor = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
-            if (editor is null) db.EditorGuvenlik.Add(editor = new EditorGuvenlikEntity());
+            if (editor is null)
+                db.EditorGuvenlik.Add(editor = new EditorGuvenlikEntity());
             editor.Surum++;
             var kurtarmaKoduVardi = editor.KurtarmaHash is not null;
             editor.KurtarmaHash = null;
@@ -119,7 +126,8 @@ public static class GeriYuklemeIsleyici
             var kesim = yedekAni ?? DateTimeOffset.MinValue;
             var sonrakiler = icerik?.Olaylar.Where(o => o.Zaman > kesim).ToList() ?? [];
             var editorSifirlandi = sonrakiler.Any(o => o.Tur is GuvenlikGunlugu.EditorSifresiDegisti or GuvenlikGunlugu.KurtarmaKullanildi);
-            if (editorSifirlandi) { editor.SifreHash = null; rapor.Add(EditorSifresiSifirlandi); }
+            if (editorSifirlandi)
+            { editor.SifreHash = null; rapor.Add(EditorSifresiSifirlandi); }
             if (izleyiciKapatildi)
                 rapor.Add("İzleyici girişi kapatıldı: Ayarlar'dan yeni bir izleyici şifresi belirleyin; yedekteki eski şifreyi yeniden kullanmayın.");
             rapor.Add(kurtarmaKoduVardi
@@ -129,7 +137,8 @@ public static class GeriYuklemeIsleyici
             db.SaveChanges();
 
             var bildirim = Calistir(baglanti, sqliteTx, "UPDATE \"PushAbonelikler\" SET \"Etkin\" = 0 WHERE \"Etkin\" = 1;");
-            if (bildirim > 0) rapor.Add($"{bildirim} cihazın bildirim kaydı kapatıldı: bildirim kullanan cihazlarda bildirimleri yeniden açın.");
+            if (bildirim > 0)
+                rapor.Add($"{bildirim} cihazın bildirim kaydı kapatıldı: bildirim kullanan cihazlarda bildirimleri yeniden açın.");
             var gunlukDurumu = icerik is null ? "bulunamadi" : icerik.Baslangic is { } bas && bas <= kesim ? "tam" : "eksik";
             if (gunlukDurumu == "bulunamadi")
                 rapor.Add("Güvenlik günlüğü bulunamadı: yedekten sonra değişen editör şifresi ve alıcı hesapları bilinemiyor. "
@@ -170,28 +179,37 @@ public static class GeriYuklemeIsleyici
 
             gunluk?.Yaz(GuvenlikGunlugu.GeriYuklemeIslendi, ayrinti: new
             {
-                yedekAni, yedekAniKaynagi = anKaynagi, guvenlikGunlugu = gunlukDurumu, editorSifresiSifirlandi = editorSifirlandi,
-                kurtarmaKoduIptal = kurtarmaKoduVardi, pasifAlicilar = pasif.Count, bildirimKayitlariKapatildi = bildirim,
+                yedekAni,
+                yedekAniKaynagi = anKaynagi,
+                guvenlikGunlugu = gunlukDurumu,
+                editorSifresiSifirlandi = editorSifirlandi,
+                kurtarmaKoduIptal = kurtarmaKoduVardi,
+                pasifAlicilar = pasif.Count,
+                bildirimKayitlariKapatildi = bildirim,
             });
             var log = db.GetService<ILoggerFactory>().CreateLogger("Kasa.Guvenlik");
             log.LogWarning(
                 "Geri yüklenmiş veritabanı tanındı ve işlendi (veri soyu {Soy}): bütün oturumlar kapatıldı, kurtarma kodu iptal edildi, izleyici girişi {Izleyici}, "
                 + "{Sayi} tablonun kayıt numarası {Aralik} ileri alındı, güvenlik günlüğü {Gunluk}. Rapor maddeleri aşağıdadır (runbook: Geri yüklemeden sonra).",
                 soy, izleyiciKapatildi ? "kapatıldı" : "zaten kapalıydı", sayaclar.Count, KimlikAraligi, gunlukDurumu);
-            foreach (var madde in rapor) log.LogWarning("Geri yükleme: {Madde}", madde);
+            foreach (var madde in rapor)
+                log.LogWarning("Geri yükleme: {Madde}", madde);
             return new Sonuc(soy, sayaclar, izleyiciKapatildi, alicilar.Count, editorSifirlandi, pasif, bildirim, rapor);
         }
         finally
         {
-            if (acildi) db.Database.CloseConnection();
+            if (acildi)
+                db.Database.CloseConnection();
         }
     }
 
     /// <summary>SistemDurumu.GeriYuklemeRaporu'nun maddeleri; yoksa ya da okunamazsa null.</summary>
     public static IReadOnlyList<string>? RaporuOku(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return null;
-        try { return JsonSerializer.Deserialize<List<string>>(json); }
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+        try
+        { return JsonSerializer.Deserialize<List<string>>(json); }
         catch (JsonException) { return null; }
     }
 
@@ -209,15 +227,20 @@ public static class GeriYuklemeIsleyici
             var sifre = olaylar.Any(o => o.Mantiksal("sifreDegisti") == true);
             var ad = olaylar.Any(o => o.Metin("oncekiKullanici") is { } onceki && !string.Equals(onceki, o.Kullanici, StringComparison.OrdinalIgnoreCase));
             var pasifeAlindi = olaylar[^1].Mantiksal("aktif") == false;
-            if (!(sifre || ad || pasifeAlindi)) continue;
+            if (!(sifre || ad || pasifeAlindi))
+                continue;
             var adlar = olaylar.SelectMany(o => new[] { o.Kullanici, o.Metin("oncekiKullanici") }).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (alicilar.FirstOrDefault(a => a.Id == grup.Key && adlar.Contains(a.Kullanici)) is not { Aktif: true } alici) continue;
+            if (alicilar.FirstOrDefault(a => a.Id == grup.Key && adlar.Contains(a.Kullanici)) is not { Aktif: true } alici)
+                continue;
             alici.Aktif = false;
             pasif.Add(alici.Id);
             var nedenler = new List<string>();
-            if (pasifeAlindi) nedenler.Add("pasife alınmıştı");
-            if (sifre) nedenler.Add("şifresi değiştirilmişti");
-            if (ad) nedenler.Add("kullanıcı adı değiştirilmişti");
+            if (pasifeAlindi)
+                nedenler.Add("pasife alınmıştı");
+            if (sifre)
+                nedenler.Add("şifresi değiştirilmişti");
+            if (ad)
+                nedenler.Add("kullanıcı adı değiştirilmişti");
             rapor.Add($"'{alici.Kullanici}' alıcısı yedekten sonra {string.Join(" ve ", nedenler)}; pasif bırakıldı. Gerekirse alıcı hesaplarından yeni şifreyle etkinleştirin.");
         }
         var mevcut = alicilar.Select(a => a.Kullanici).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -231,7 +254,8 @@ public static class GeriYuklemeIsleyici
     /// <see cref="IsaretTablosu"/>'na yazdığı manifest anı; ikisi de yoksa bilinmiyor.</summary>
     private static (DateTimeOffset? An, string Kaynak) YedekAni(SqliteConnection baglanti, SqliteTransaction tx, SistemDurumuEntity durum)
     {
-        if (durum.YedekZamani is { } z) return (z, "yedek");
+        if (durum.YedekZamani is { } z)
+            return (z, "yedek");
         if (Deger(baglanti, tx, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $ad;", ("$ad", IsaretTablosu)) is not null
             && Deger(baglanti, tx, $"SELECT \"YedekZamani\" FROM \"{IsaretTablosu}\" LIMIT 1;") is string metin
             && DateTimeOffset.TryParse(metin, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var an))
@@ -251,7 +275,8 @@ public static class GeriYuklemeIsleyici
         var tablolar = new List<string>();
         using (var komut = Komut(baglanti, tx, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND sql LIKE '%AUTOINCREMENT%' ORDER BY name;"))
         using (var okuyucu = komut.ExecuteReader())
-            while (okuyucu.Read()) tablolar.Add(okuyucu.GetString(0));
+            while (okuyucu.Read())
+                tablolar.Add(okuyucu.GetString(0));
         var sonuc = new SortedDictionary<string, long>(StringComparer.Ordinal);
         foreach (var tablo in tablolar)
         {
@@ -271,7 +296,8 @@ public static class GeriYuklemeIsleyici
         var komut = baglanti.CreateCommand();
         komut.Transaction = tx;
         komut.CommandText = sql;
-        foreach (var (ad, deger) in parametreler) komut.Parameters.AddWithValue(ad, deger);
+        foreach (var (ad, deger) in parametreler)
+            komut.Parameters.AddWithValue(ad, deger);
         return komut;
     }
 

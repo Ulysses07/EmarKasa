@@ -60,7 +60,8 @@ public class KartKesimTests
     public async Task Kaymis_ilk_kesim_sonraki_taksitleri_sabitlemez_her_ay_tek_ekstre_ve_tek_kesim_bildirimi_olur()
     {
         // Kesim günü 5 olan kartta banka Ekim kesimini 6'sına kaydırmış; editör ilk kesimi 6 Ekim giriyor.
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f, Baslangic);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 5, 25, Baslangic);
         kart = await Harcama(c, kart, new(2026, 9, 20), 600m, 6, new(2026, 10, 6));
 
@@ -81,12 +82,16 @@ public class KartKesimTests
     }
 
     [Theory]
-    [InlineData(29)] [InlineData(30)] [InlineData(31)]
+    [InlineData(29)]
+    [InlineData(30)]
+    [InlineData(31)]
     public async Task Kisa_ayda_verilen_ilk_kesim_sonraki_taksitleri_kartin_gunune_dondurur(int kesimGunu)
     {
         // Şubat 2027 28 gün: kesim günü 29–31 olan kartın Şubat kesimi 28'idir; sonraki taksitler 28'ine sabitlenmez.
-        var bugun = new DateOnly(2027, 3, 10); var baslangic = new DateOnly(2027, 1, 1);
-        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, baslangic);
+        var bugun = new DateOnly(2027, 3, 10);
+        var baslangic = new DateOnly(2027, 1, 1);
+        await using var f = KasaWebFactory.Sabit(bugun);
+        using var c = await Editor(f, baslangic);
         var kart = await Kart(c, kesimGunu, 10, baslangic);
         kart = await Harcama(c, kart, new(2027, 2, 10), 90m, 3, new(2027, 2, 28));
         Assert.Equal(new[] { new DateOnly(2027, 2, 28), Gun(2027, 3, kesimGunu), Gun(2027, 4, kesimGunu) }, TaksitKesimleri(f, Assert.Single(kart.Harcamalar).Id));
@@ -98,13 +103,15 @@ public class KartKesimTests
     [InlineData(2026, 10, 13)] // 5 Ekim'e 8 gün
     public async Task Kart_dongusunden_uzak_ilk_kesim_veri_yazmadan_reddedilir(int yil, int ay, int gun)
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f, Baslangic);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 5, 25, Baslangic);
         var r = await HarcamaIstegi(c, kart, new(2026, 9, 20), 600m, 6, new(yil, ay, gun));
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         Assert.Contains("hesap kesim gününe (5)", (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
         var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
-        Assert.Empty(sonra.Harcamalar); Assert.Equal(kart.Surum, sonra.Surum);
+        Assert.Empty(sonra.Harcamalar);
+        Assert.Equal(kart.Surum, sonra.Surum);
         Assert.All(sonra.Ekstreler, s => Assert.Equal(0m, s.Borc));
     }
 
@@ -114,7 +121,8 @@ public class KartKesimTests
     [InlineData(2026, 11, 5, 2026, 11, 5)]  // provizyon kesimden sonra düştü: bir sonraki döngü
     public async Task Yakin_ilk_kesim_kartin_en_yakin_duzenli_kesimine_baglanir(int yil, int ay, int gun, int beklenenYil, int beklenenAy, int beklenenGun)
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f, Baslangic);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 5, 25, Baslangic);
         kart = await Harcama(c, kart, new(2026, 9, 20), 30m, 3, new(yil, ay, gun));
         var ilk = new DateOnly(beklenenYil, beklenenAy, beklenenGun);
@@ -130,7 +138,8 @@ public class KartKesimTests
         // dar: ilk kesim harcamadan önce olamaz ve düzenli kesimden en çok 7 gün uzaktır. Vade düzenli kesimden
         // hesaplanır (25 Ekim): banka vadeyi de kaydırdıysa hatırlatma erken gelir, geç kalmaz.
         var bugun = new DateOnly(2026, 10, 15);
-        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, Baslangic);
+        await using var f = KasaWebFactory.Sabit(bugun);
+        using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 5, 25, Baslangic);
         kart = await Harcama(c, kart, new(2026, 10, 9), 90m, 3, new(2026, 10, 12));
         var kaymis = Assert.Single(kart.Harcamalar);
@@ -152,18 +161,22 @@ public class KartKesimTests
     {
         // Takip 3 Ekim'de başladı, kesim günü 30: 3 ve 5 Ekim'lik ilk kesim en yakın düzenli kesim olan 30 Eylül'e düşer.
         // Takipten önceki ekstre izlenmez (bakım adımı da açmaz); harcama başlangıçtan önceki bir ekstre açmaz.
-        var bugun = new DateOnly(2026, 10, 20); var baslangic = new DateOnly(2026, 10, 3);
-        await using var f = KasaWebFactory.Sabit(bugun); using var c = await Editor(f, baslangic);
+        var bugun = new DateOnly(2026, 10, 20);
+        var baslangic = new DateOnly(2026, 10, 3);
+        await using var f = KasaWebFactory.Sabit(bugun);
+        using var c = await Editor(f, baslangic);
         var kart = await Kart(c, 30, 10, baslangic);
         foreach (var ilk in new[] { new DateOnly(2026, 10, 3), new DateOnly(2026, 10, 5) })
         {
             var r = await HarcamaIstegi(c, kart, baslangic, 100m, 2, ilk);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
             var hata = (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
-            Assert.Contains("takip başlangıcından (03.10.2026)", hata); Assert.Contains("30.09.2026", hata);
+            Assert.Contains("takip başlangıcından (03.10.2026)", hata);
+            Assert.Contains("30.09.2026", hata);
         }
         var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
-        Assert.Empty(sonra.Harcamalar); Assert.Equal(kart.Surum, sonra.Surum);
+        Assert.Empty(sonra.Harcamalar);
+        Assert.Equal(kart.Surum, sonra.Surum);
         using (var scope = f.Services.CreateScope())
             Assert.DoesNotContain(scope.ServiceProvider.GetRequiredService<KasaDbContext>().TakipEkstreler.ToList(), s => s.KesimTarihi < baslangic);
 
@@ -177,7 +190,8 @@ public class KartKesimTests
     {
         // Eşitlik: ilk kesim verilmeyen (mevcut verideki bütün yollar: gider, açılış, geçiş, masraf, içe aktarma)
         // harcamanın taksitleri önceki kuralla aynı ekstrelere bağlanır.
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f, Baslangic);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 31, 10, Baslangic);
         kart = await Harcama(c, kart, new(2026, 9, 20), 50m, 5, null);
         Assert.Equal(new DateOnly[] { new(2026, 9, 30), new(2026, 10, 31), new(2026, 11, 30), new(2026, 12, 31), new(2027, 1, 31) },
@@ -187,7 +201,8 @@ public class KartKesimTests
     [Fact]
     public async Task Kesim_gunu_degisince_yeni_taksitler_yeni_gune_duser_eski_ekstre_atamalari_degismez()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await Editor(f, Baslangic);
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 5, 25, Baslangic);
         kart = await Harcama(c, kart, new(2026, 9, 10), 90m, 3, null);
         var eski = Assert.Single(kart.Harcamalar);
@@ -218,8 +233,10 @@ public class KartKesimTests
     {
         // finance-3 ve finance-9 düzeltmeleri yalnız yeni yazmaları kapsar; eski kuralla yazılmış kayıtlar otomatik
         // dönüştürülmez (doğru hali ancak banka ekstresiyle belirlenebilir), her açılışta uyarı olarak görünür kılınır.
-        using var baglanti = new SqliteConnection("Data Source=:memory:"); baglanti.Open();
-        KartTakipDto eski, temiz; string once;
+        using var baglanti = new SqliteConnection("Data Source=:memory:");
+        baglanti.Open();
+        KartTakipDto eski, temiz;
+        string once;
         await using (var f = new HazirFactory(baglanti) { Saat = new SabitSaat(Bugun) })
         {
             using var c = await Editor(f, Baslangic);
@@ -237,11 +254,21 @@ public class KartKesimTests
                 for (var i = 0; i < taksitler.Count; i++)
                 {
                     var paralel = new TakipEkstreEntity { KrediKartiId = eski.Id, KesimTarihi = new DateOnly(2026, 10, 6).AddMonths(i), SonOdemeTarihi = new DateOnly(2026, 10, 25).AddMonths(i) };
-                    db.TakipEkstreler.Add(paralel); db.SaveChanges(); taksitler[i].EkstreId = paralel.Id;
+                    db.TakipEkstreler.Add(paralel);
+                    db.SaveChanges();
+                    taksitler[i].EkstreId = paralel.Id;
                 }
                 // Eski kural (finance-9): genel gider ekranından takipli karta girilen eksi gider kaynaksız alacak olurdu.
-                db.Islemler.Add(new IslemEntity { Tarih = new(2026, 9, 22), Cari = "PERAKENDE iadesi", TutarTl = -30m, Kanal = "PERAKENDE", KanalId = 2,
-                    Tip = GiderTipi.KrediKarti, KrediKartiId = eski.Id });
+                db.Islemler.Add(new IslemEntity
+                {
+                    Tarih = new(2026, 9, 22),
+                    Cari = "PERAKENDE iadesi",
+                    TutarTl = -30m,
+                    Kanal = "PERAKENDE",
+                    KanalId = 2,
+                    Tip = GiderTipi.KrediKarti,
+                    KrediKartiId = eski.Id
+                });
                 db.SaveChanges();
                 FinansTakipServisi.Bakim(db);
                 Assert.Single(db.TakipHarcamalar.Where(h => h.KrediKartiId == eski.Id && h.IslemId != null).ToList(), h => h.Tutar == -30m);
@@ -269,7 +296,8 @@ public class KartKesimTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            if (loglar is not null) builder.ConfigureLogging(logging => logging.AddProvider(loglar));
+            if (loglar is not null)
+                builder.ConfigureLogging(logging => logging.AddProvider(loglar));
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<DbContextOptions<KasaDbContext>>();

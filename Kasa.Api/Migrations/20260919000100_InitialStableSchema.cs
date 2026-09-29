@@ -11,8 +11,10 @@ public sealed class InitialStableSchema : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        foreach (var table in StableSchemaDefinition.Tables) migrationBuilder.Sql(table.Create());
-        foreach (var (_, sql) in StableSchemaDefinition.Indexes) migrationBuilder.Sql(sql);
+        foreach (var table in StableSchemaDefinition.Tables)
+            migrationBuilder.Sql(table.Create());
+        foreach (var (_, sql) in StableSchemaDefinition.Indexes)
+            migrationBuilder.Sql(sql);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)

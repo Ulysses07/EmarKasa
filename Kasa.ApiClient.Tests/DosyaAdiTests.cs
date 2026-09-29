@@ -18,12 +18,15 @@ public class DosyaAdiTests
         var c = new KasaApiClient(new HttpClient(new Handler(_ =>
         {
             var r = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
-            if (tur is not null) r.Content.Headers.ContentType = new MediaTypeHeaderValue(tur);
-            if (ad is not null) r.Content.Headers.ContentDisposition = yildizli
+            if (tur is not null)
+                r.Content.Headers.ContentType = new MediaTypeHeaderValue(tur);
+            if (ad is not null)
+                r.Content.Headers.ContentDisposition = yildizli
                 ? new ContentDispositionHeaderValue("attachment") { FileNameStar = ad }
                 : new ContentDispositionHeaderValue("attachment") { FileName = ad };
             return r;
-        })) { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
+        }))
+        { BaseAddress = new("https://ornek.test/") }, new BellekTokenStore());
         return await c.BelgeIndirAsync(belgeId, new MemoryStream());
     }
 

@@ -37,11 +37,13 @@ public static class AnaSayfaOzeti
             var (panel, uyari) = hesap.PanelVeUyari(takip);
             var esikler = KasaKontrolEndpoints.Esikler(db, panel);
             TakipOzetDto? ozet;
-            try { ozet = FinansTakipEndpoints.Ozet(takip, gun); }
+            try
+            { ozet = FinansTakipEndpoints.Ozet(takip, gun); }
             catch (Exception e) when (VeriKarantinasi.VeriKaynakliOlabilir(e))
             {
                 // Okunamayan kart/kredi kaydı bulunmazsa (ya da bir kaydın temiz verisinde kod hatası çıkarsa) istisna yükselir.
-                if (TakipOzetiUyarisi(takip, e) is not { } ozetUyarisi) throw;
+                if (TakipOzetiUyarisi(takip, e) is not { } ozetUyarisi)
+                    throw;
                 ozet = null;
                 uyari = uyari is null ? ozetUyarisi : uyari + " " + ozetUyarisi;
             }
@@ -60,26 +62,33 @@ public static class AnaSayfaOzeti
         var kodHatasi = false;
         bool VeriHatasi(Exception e, Func<IReadOnlyList<string>> sorunlar)
         {
-            if (VeriKarantinasi.VeriHatasiMi(e) || sorunlar().Count > 0) return true;
+            if (VeriKarantinasi.VeriHatasiMi(e) || sorunlar().Count > 0)
+                return true;
             kodHatasi = true;
             return false;
         }
         foreach (var kart in db.KrediKartlari.AsNoTracking().OrderBy(k => k.Id).Select(k => new { k.Id, k.Ad }).ToList())
-            try { FinansTakipServisi.Kart(takip, kart.Id); }
+            try
+            { FinansTakipServisi.Kart(takip, kart.Id); }
             catch (Exception e) when (VeriKarantinasi.VeriKaynakliOlabilir(e))
             {
-                if (VeriHatasi(e, () => VeriKarantinasi.KartVerisiSorunlari(db, kart.Id))) bozuk.Add(("TakipOzeti:KrediKarti:" + kart.Id, $"kredi kartı #{kart.Id} ('{kart.Ad}')", e));
+                if (VeriHatasi(e, () => VeriKarantinasi.KartVerisiSorunlari(db, kart.Id)))
+                    bozuk.Add(("TakipOzeti:KrediKarti:" + kart.Id, $"kredi kartı #{kart.Id} ('{kart.Ad}')", e));
             }
         foreach (var kredi in db.Krediler.AsNoTracking().OrderBy(k => k.Id).Select(k => new { k.Id, k.Ad }).ToList())
-            try { FinansTakipServisi.Kredi(takip, kredi.Id); }
+            try
+            { FinansTakipServisi.Kredi(takip, kredi.Id); }
             catch (Exception e) when (VeriKarantinasi.VeriKaynakliOlabilir(e))
             {
-                if (VeriHatasi(e, () => VeriKarantinasi.KrediVerisiSorunlari(db, kredi.Id))) bozuk.Add(("TakipOzeti:Kredi:" + kredi.Id, $"kredi #{kredi.Id} ('{kredi.Ad}')", e));
+                if (VeriHatasi(e, () => VeriKarantinasi.KrediVerisiSorunlari(db, kredi.Id)))
+                    bozuk.Add(("TakipOzeti:Kredi:" + kredi.Id, $"kredi #{kredi.Id} ('{kredi.Ad}')", e));
             }
-        if (kodHatasi) return null;
+        if (kodHatasi)
+            return null;
         if (bozuk.Count == 0)
         {
-            if (!VeriKarantinasi.VeriHatasiMi(hata)) return null;
+            if (!VeriKarantinasi.VeriHatasiMi(hata))
+                return null;
             bozuk.Add(("TakipOzeti", "kart/kredi kayıtları", hata));
         }
         foreach (var b in bozuk)

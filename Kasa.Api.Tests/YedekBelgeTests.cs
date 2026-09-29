@@ -46,17 +46,25 @@ public class YedekBelgeTests
             base.ConfigureWebHost(builder);
             var ayarlar = new Dictionary<string, string?>
             {
-                ["Yedek:Dizin"] = Dizin, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false", ["Bildirim:WorkerEtkin"] = "false", ["Finans:BakimEtkin"] = "false",
+                ["Yedek:Dizin"] = Dizin,
+                ["Yedek:Etkin"] = "false",
+                ["Bildirim:PushEtkin"] = "false",
+                ["Bildirim:WorkerEtkin"] = "false",
+                ["Finans:BakimEtkin"] = "false",
             };
-            foreach (var (k, v) in Ek) ayarlar[k] = v;
+            foreach (var (k, v) in Ek)
+                ayarlar[k] = v;
             builder.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(ayarlar));
-            if (Disk is not null) builder.ConfigureServices(s => { s.RemoveAll<IDiskAlani>(); s.AddSingleton(Disk); });
+            if (Disk is not null)
+                builder.ConfigureServices(s => { s.RemoveAll<IDiskAlani>(); s.AddSingleton(Disk); });
         }
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
             SqliteConnection.ClearAllPools();
-            try { if (disposing && Directory.Exists(Dizin)) Directory.Delete(Dizin, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            try
+            { if (disposing && Directory.Exists(Dizin)) Directory.Delete(Dizin, true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
     }
 
@@ -102,9 +110,11 @@ public class YedekBelgeTests
         {
             Assert.Equal(new[] { "belgeler.json", "kasa.db", "manifest.json" }, Girdiler(zip));
             JsonElement manifest;
-            using (var akis = zip.GetEntry("manifest.json")!.Open()) manifest = JsonDocument.Parse(akis).RootElement.Clone();
+            using (var akis = zip.GetEntry("manifest.json")!.Open())
+                manifest = JsonDocument.Parse(akis).RootElement.Clone();
             byte[] liste;
-            using (var akis = zip.GetEntry("belgeler.json")!.Open()) { using var m = new MemoryStream(); akis.CopyTo(m); liste = m.ToArray(); }
+            using (var akis = zip.GetEntry("belgeler.json")!.Open())
+            { using var m = new MemoryStream(); akis.CopyTo(m); liste = m.ToArray(); }
             Assert.Equal(YedekServisi.DepoluSurum, manifest.GetProperty("surum").GetString());
             Assert.Equal(("otomatik", 2, false, false), (manifest.GetProperty("tur").GetString(), manifest.GetProperty("belgeSayisi").GetInt32(),
                 manifest.GetProperty("belgelerDahil").GetBoolean(), manifest.GetProperty("belgelerGomulu").GetBoolean()));
@@ -127,7 +137,8 @@ public class YedekBelgeTests
         Assert.Equal(zaman, File.GetLastWriteTimeUtc(BelgeDeposu.DosyaYolu(f.Ayna, Ozet(Fatura))));
         Assert.Equal(new[] { Ozet(Dekont), Ozet(Fatura) }.Order(StringComparer.Ordinal), BelgeDeposu.Ozetler(f.Ayna).Order(StringComparer.Ordinal));
         var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
-        Assert.Null(durum.Hata); Assert.Null(durum.BelgeUyarisi);
+        Assert.Null(durum.Hata);
+        Assert.Null(durum.BelgeUyarisi);
         Assert.Equal(new FileInfo(yol).Length + new FileInfo(ikinci).Length + Fatura.Length + Dekont.Length, durum.ToplamYedekBayt);
     }
 
@@ -148,7 +159,9 @@ public class YedekBelgeTests
             Assert.Equal(new[] { "belgeler.json", "belgeler/" + Ozet(Dekont), "belgeler/" + Ozet(Fatura), "kasa.db", "manifest.json" }.Order(StringComparer.Ordinal), Girdiler(zip));
             foreach (var icerik in new[] { Fatura, Dekont })
             {
-                using var akis = zip.GetEntry("belgeler/" + Ozet(icerik))!.Open(); using var m = new MemoryStream(); akis.CopyTo(m);
+                using var akis = zip.GetEntry("belgeler/" + Ozet(icerik))!.Open();
+                using var m = new MemoryStream();
+                akis.CopyTo(m);
                 Assert.Equal(icerik, m.ToArray());
             }
             using var man = zip.GetEntry("manifest.json")!.Open();
@@ -158,11 +171,13 @@ public class YedekBelgeTests
         }
         // Sunucudaki elle yedek yalnız veritabanı ve listedir: belgeler aynada, rotasyon ve disk ölçüsü bunlara göre.
         var sunucudaki = Assert.Single(Directory.GetFiles(f.Dizin, "kasa-elle-*.zip"));
-        using (var zip = ZipFile.OpenRead(sunucudaki)) Assert.Equal(new[] { "belgeler.json", "kasa.db", "manifest.json" }, Girdiler(zip));
+        using (var zip = ZipFile.OpenRead(sunucudaki))
+            Assert.Equal(new[] { "belgeler.json", "kasa.db", "manifest.json" }, Girdiler(zip));
 
         // restore_backup.py: indirilen yedek kendi başına, sunucudaki yedek yedek aynasıyla açılır; aynasız sunucu yedeği reddedilir.
         var python = Python();
-        if (python is null) return; // Python yoksa biçim yukarıda yapısal olarak doğrulandı.
+        if (python is null)
+            return; // Python yoksa biçim yukarıda yapısal olarak doğrulandı.
         foreach (var (zipYolu, ek) in new[] { (indirilen, Array.Empty<string>()), (sunucudaki, new[] { "--belge-aynasi", f.Ayna }) })
         {
             var cikti = Path.Combine(f.Dizin, "geri-" + Guid.NewGuid().ToString("N"));
@@ -174,7 +189,8 @@ public class YedekBelgeTests
                 Assert.Equal(icerik, File.ReadAllBytes(BelgeDeposu.DosyaYolu(Path.Combine(cikti, "belgeler"), Ozet(icerik))));
             using var oku = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(cikti, "kasa.db"), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
             oku.Open();
-            using var k = oku.CreateCommand(); k.CommandText = $"SELECT group_concat(IcerikOzeti, ',') FROM (SELECT IcerikOzeti FROM Belgeler WHERE AlisId = {alisId} ORDER BY Id);";
+            using var k = oku.CreateCommand();
+            k.CommandText = $"SELECT group_concat(IcerikOzeti, ',') FROM (SELECT IcerikOzeti FROM Belgeler WHERE AlisId = {alisId} ORDER BY Id);";
             Assert.Equal(string.Join(',', Ozet(Fatura), Ozet(Dekont), Ozet(Fatura)), k.ExecuteScalar());
         }
         var red = Path.Combine(f.Dizin, "geri-aynasiz");
@@ -212,7 +228,8 @@ public class YedekBelgeTests
         disk.Yedek = disk.Veri = 50L * 1024 * Mb;
         Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/yedek", null)).StatusCode);
         durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
-        Assert.Null(durum.Hata); Assert.Null(durum.DiskUyarisi);
+        Assert.Null(durum.Hata);
+        Assert.Null(durum.DiskUyarisi);
     }
 
     [Fact]
@@ -255,7 +272,8 @@ public class YedekBelgeTests
             try
             {
                 var (kod, metin) = Calistir(aday, ["-c", "import sys; print(sys.version_info[0])"]);
-                if (kod == 0 && metin.Trim().StartsWith('3')) return aday;
+                if (kod == 0 && metin.Trim().StartsWith('3'))
+                    return aday;
             }
             catch (System.ComponentModel.Win32Exception) { }
         }
@@ -266,9 +284,11 @@ public class YedekBelgeTests
     {
         var bilgi = new ProcessStartInfo(dosya) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8 };
         bilgi.Environment["PYTHONIOENCODING"] = "utf-8";
-        foreach (var a in arguman) bilgi.ArgumentList.Add(a);
+        foreach (var a in arguman)
+            bilgi.ArgumentList.Add(a);
         using var p = Process.Start(bilgi)!;
-        var cikis = p.StandardOutput.ReadToEndAsync(); var hata = p.StandardError.ReadToEndAsync();
+        var cikis = p.StandardOutput.ReadToEndAsync();
+        var hata = p.StandardError.ReadToEndAsync();
         Assert.True(p.WaitForExit(60_000), "Süreç zamanında bitmedi.");
         return (p.ExitCode, cikis.Result + hata.Result);
     }

@@ -38,7 +38,8 @@ public class TarihSiniriTests
     [Fact]
     public async Task Gider_tarihi_bugunden_bir_yil_sonrasini_asamaz_sinir_dahildir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         // host-auth-4 (b): yazım hatalı gelecek tarih (9026) haftalık raporun ufkunu kalıcı olarak uzatırdı.
         foreach (var tarih in new[] { Bugun.AddYears(1).AddDays(1), new DateOnly(9026, 9, 25), new DateOnly(9998, 12, 31) })
         {
@@ -60,7 +61,8 @@ public class TarihSiniriTests
     [Fact]
     public async Task Ayni_pencere_takip_baslangici_gelir_donemi_ve_alis_tarihinde_uygulanir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         // host-auth-4 (c): kurulumda 0026 yazılan takip başlangıcı ilk hareketten sonra düzeltilemezdi.
         foreach (var tarih in new[] { "0026-09-01", "1999-12-31", "2027-09-26" })
         {
@@ -82,7 +84,8 @@ public class TarihSiniriTests
     [Fact]
     public async Task Aylik_rapor_ve_aylik_gider_yili_makul_aralikla_alan_bazli_sinirlanir()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         // host-auth-4 (a): 9998 yılı yaklaşık 500 bin dönem ürettirirdi.
         foreach (var (yil, ay, alan, ileti) in new[]
         {
@@ -110,7 +113,8 @@ public class TarihSiniriTests
     [Fact]
     public async Task Aylik_gider_sablonunun_gecerlilik_ayi_ileri_pencereyi_asamaz()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         var ileri = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", Sablon(new DateOnly(2027, 10, 1)));
         Assert.Equal(HttpStatusCode.BadRequest, ileri.StatusCode);
         Assert.Equal("Geçerlilik cari ay ile 09.2027 arasında bir ayın ilk günü olmalı.", (await ileri.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
@@ -120,7 +124,8 @@ public class TarihSiniriTests
     [Fact]
     public async Task Takip_baslangicindan_once_yeni_gider_girilemez_mevcut_eski_kayit_ve_raporlari_degismez()
     {
-        await using var f = KasaWebFactory.Sabit(Bugun); using var c = await f.EditorClientAsync();
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await f.EditorClientAsync();
         var baslangic = new DateOnly(2026, 6, 15);
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
         // Kural öncesinden kalan kayıt (canlı veride olabilir): takip başlangıcından önce tarihli nakit gider.
@@ -130,7 +135,9 @@ public class TarihSiniriTests
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var mezat = db.Kanallar.Single(k => k.Ad == "MEZAT");
             var eski = new IslemEntity { Tarih = new DateOnly(2026, 6, 10), Cari = "Eski fatura", TutarTl = 5000m, Kanal = mezat.Ad, KanalId = mezat.Id, Tip = GiderTipi.Cari };
-            db.Islemler.Add(eski); db.SaveChanges(); eskiId = eski.Id;
+            db.Islemler.Add(eski);
+            db.SaveChanges();
+            eskiId = eski.Id;
         }
         (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new DateOnly(2026, 7, 1), "Temmuz gideri", 300m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
         var raporlar = new[] { "/api/rapor/aylik?yil=2026&ay=6", "/api/rapor/aylik?yil=2026&ay=7", "/api/rapor/haftalik", "/api/rapor/panel", "/api/donemler" };
@@ -178,7 +185,8 @@ public class TarihSiniriTests
     {
         // 09.03.2026 22:30 UTC İstanbul'da 10.03.2026 01:30'dur; makinenin yerel günü ve UTC günü değil, kasa günü tohumlanır.
         var an = new DateTimeOffset(2026, 3, 9, 22, 30, 0, TimeSpan.Zero);
-        await using var f = new TohumsuzSaatliFabrika(new SabitSaat(an)); using var c = await f.EditorClientAsync();
+        await using var f = new TohumsuzSaatliFabrika(new SabitSaat(an));
+        using var c = await f.EditorClientAsync();
         Assert.Equal(new DateOnly(2026, 3, 10), DateOnly.Parse((await c.GetFromJsonAsync<JsonElement>("/api/ayarlar")).GetProperty("takipBaslangic").GetString()!));
     }
 
@@ -199,7 +207,8 @@ public class TarihSiniriTests
     private static async Task<List<string>> Oku(HttpClient c, IEnumerable<string> yollar)
     {
         var sonuc = new List<string>();
-        foreach (var yol in yollar) sonuc.Add(await c.GetStringAsync(yol));
+        foreach (var yol in yollar)
+            sonuc.Add(await c.GetStringAsync(yol));
         return sonuc;
     }
 

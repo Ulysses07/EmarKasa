@@ -89,7 +89,9 @@ public class GuvenliOturumTests
     private static IConfiguration Config(string? key, string? sifre) => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Kasa:JwtKey"] = key, ["Kasa:EditorKullanici"] = "editor", ["Kasa:EditorSifre"] = sifre
+            ["Kasa:JwtKey"] = key,
+            ["Kasa:EditorKullanici"] = "editor",
+            ["Kasa:EditorSifre"] = sifre
         }).Build();
 
     private record RolYanit(string Rol);

@@ -31,25 +31,38 @@ public class GocOncesiYedekTests
     private static void Temizle(string? dosya, string? dizin)
     {
         SqliteConnection.ClearAllPools();
-        if (dosya is not null) foreach (var ek in new[] { "", "-wal", "-shm", "-journal" }) try { File.Delete(dosya + ek); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        if (dizin is not null) try { if (Directory.Exists(dizin)) Directory.Delete(dizin, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        if (dosya is not null)
+            foreach (var ek in new[] { "", "-wal", "-shm", "-journal" })
+                try
+                { File.Delete(dosya + ek); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        if (dizin is not null)
+            try
+            { if (Directory.Exists(dizin)) Directory.Delete(dizin, true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
     private static string[] GocOncesiYedekleri(string dizin) => Directory.Exists(dizin)
         ? Directory.GetFiles(dizin, YedekSaklama.GocOncesiOnEki + "*.zip").Select(y => Path.GetFileName(y)!).ToArray() : [];
     private static void Calistir(SqliteConnection baglanti, string sql)
     {
-        using var komut = baglanti.CreateCommand(); komut.CommandText = sql; komut.ExecuteNonQuery();
+        using var komut = baglanti.CreateCommand();
+        komut.CommandText = sql;
+        komut.ExecuteNonQuery();
     }
     private static object? Deger(SqliteConnection baglanti, string sql)
     {
-        using var komut = baglanti.CreateCommand(); komut.CommandText = sql; return komut.ExecuteScalar();
+        using var komut = baglanti.CreateCommand();
+        komut.CommandText = sql;
+        return komut.ExecuteScalar();
     }
 
     /// <summary>Canlıdaki gibi bir önceki sürümün şemasında, kayıt içeren dosya veritabanı.</summary>
     private static void OncekiSurumVeritabani(string yol)
     {
-        using (var db = Baglam(yol)) db.GetService<IMigrator>().Migrate(OncekiMigration);
-        using var baglanti = new SqliteConnection(Baglanti(yol)); baglanti.Open();
+        using (var db = Baglam(yol))
+            db.GetService<IMigrator>().Migrate(OncekiMigration);
+        using var baglanti = new SqliteConnection(Baglanti(yol));
+        baglanti.Open();
         Calistir(baglanti, """
             INSERT INTO Kanallar (Ad, Aktif, Sira, AcilisDevri) VALUES ('MEZAT', 1, 0, '125.50');
             INSERT INTO Ayarlar (TakipBaslangic, KasaAcilisDevri, IzleyiciSifreHash) VALUES ('2026-09-01', '1000.0', NULL);
@@ -62,7 +75,9 @@ public class GocOncesiYedekTests
     {
         var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Yedek:Dizin"] = dizin, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false",
+            ["Yedek:Dizin"] = dizin,
+            ["Yedek:Etkin"] = "false",
+            ["Bildirim:PushEtkin"] = "false",
         }).Build();
         var ortam = new TestOrtami();
         return new YedekServisi(cfg, ortam, new PushKimligi(cfg, ortam), NullLogger<YedekServisi>.Instance, TimeProvider.System);
@@ -82,8 +97,12 @@ public class GocOncesiYedekTests
     {
         EkAyarlar = new()
         {
-            ["Yedek:Dizin"] = yedekDizini, ["Yedek:Etkin"] = "false", ["Bildirim:PushEtkin"] = "false", ["Bildirim:WorkerEtkin"] = "false",
-            ["Finans:BakimEtkin"] = "false", ["Bildirim:AnahtarDosyasi"] = Path.Combine(yedekDizini + "-anahtar", ".kasa-push-keys.json"),
+            ["Yedek:Dizin"] = yedekDizini,
+            ["Yedek:Etkin"] = "false",
+            ["Bildirim:PushEtkin"] = "false",
+            ["Bildirim:WorkerEtkin"] = "false",
+            ["Finans:BakimEtkin"] = "false",
+            ["Bildirim:AnahtarDosyasi"] = Path.Combine(yedekDizini + "-anahtar", ".kasa-push-keys.json"),
         }
     };
 
@@ -108,7 +127,8 @@ public class GocOncesiYedekTests
             {
                 // restore_backup.py'nin kabul ettiği içerik: kasa.db + manifest.json (bildirim anahtarı yoksa).
                 Assert.Equal(new[] { "kasa.db", "manifest.json" }, arsiv.Entries.Select(e => e.FullName).Order(StringComparer.Ordinal));
-                using (var akis = arsiv.GetEntry("manifest.json")!.Open()) manifest = JsonDocument.Parse(akis).RootElement.Clone();
+                using (var akis = arsiv.GetEntry("manifest.json")!.Open())
+                    manifest = JsonDocument.Parse(akis).RootElement.Clone();
                 arsiv.GetEntry("kasa.db")!.ExtractToFile(acilan);
             }
             Assert.Equal("2.1.0", manifest.GetProperty("surum").GetString());
@@ -121,8 +141,10 @@ public class GocOncesiYedekTests
 
             // Tek dosya (geri alma günlüğü kipi), bütünlüğü sağlam ve göç ÖNCESİ durumu taşır.
             var baslik = new byte[100];
-            using (var akis = File.OpenRead(acilan)) akis.ReadExactly(baslik);
-            Assert.Equal((byte)1, baslik[18]); Assert.Equal((byte)1, baslik[19]);
+            using (var akis = File.OpenRead(acilan))
+                akis.ReadExactly(baslik);
+            Assert.Equal((byte)1, baslik[18]);
+            Assert.Equal((byte)1, baslik[19]);
             using (var oku = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = acilan, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
             {
                 oku.Open();
@@ -151,7 +173,8 @@ public class GocOncesiYedekTests
         try
         {
             // Güncel şema, veri adımı (kilitli ay rapor görüntüsü tohumu) henüz çalışmamış: Ağustos sonuna kadar kilitli, görüntü yok.
-            using (var db = Baglam(f.Yol)) db.GetService<IMigrator>().Migrate();
+            using (var db = Baglam(f.Yol))
+                db.GetService<IMigrator>().Migrate();
             using (var baglanti = new SqliteConnection(Baglanti(f.Yol)))
             {
                 baglanti.Open();
@@ -184,7 +207,8 @@ public class GocOncesiYedekTests
                 Assert.Equal(new[] { (2026, 7, 1), (2026, 8, 1) }, db.AyRaporAnlikGoruntuleri.OrderBy(g => g.Ay).Select(g => new { g.Yil, g.Ay, g.KuralSurumu }).AsEnumerable().Select(g => (g.Yil, g.Ay, g.KuralSurumu)));
 
             // Veri adımı bittikten sonraki açılışlarda bekleyen iş yoktur: yeni yedek alınmaz.
-            using (var db = f.Baglam()) KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
+            using (var db = f.Baglam())
+                KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
             Assert.Single(GocOncesiYedekleri(dizin));
         }
         finally { f.Dispose(); Temizle(null, dizin); Temizle(null, dizin + "-anahtar"); }
@@ -227,13 +251,16 @@ public class GocOncesiYedekTests
                 p = Process.Start(new ProcessStartInfo(python) { ArgumentList = { arac, zip, "--output", cikti }, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false });
             }
             catch (System.ComponentModel.Win32Exception) { continue; }
-            if (p is null) continue;
+            if (p is null)
+                continue;
             using (p)
             {
-                var cikis = p.StandardOutput.ReadToEndAsync(); var hata = p.StandardError.ReadToEndAsync();
+                var cikis = p.StandardOutput.ReadToEndAsync();
+                var hata = p.StandardError.ReadToEndAsync();
                 Assert.True(p.WaitForExit(60_000), "restore_backup.py zamanında bitmedi.");
                 // Windows'taki 'python3' uygulama mağazası kısayolu olabilir (9009): gerçek Python değilse sonrakine geç.
-                if (p.ExitCode == 9009) continue;
+                if (p.ExitCode == 9009)
+                    continue;
                 Assert.True(p.ExitCode == 0, $"restore_backup.py göç öncesi yedeği reddetti: {hata.Result} {cikis.Result}");
                 Assert.Contains("goc-oncesi", cikis.Result);
             }
@@ -249,7 +276,9 @@ public class GocOncesiYedekTests
         for (Exception? x = e; x is not null; x = x.InnerException)
         {
             yield return x;
-            if (x is AggregateException a) foreach (var ic in a.InnerExceptions.SelectMany(Zincir)) yield return ic;
+            if (x is AggregateException a)
+                foreach (var ic in a.InnerExceptions.SelectMany(Zincir))
+                    yield return ic;
         }
     }
 
@@ -262,9 +291,11 @@ public class GocOncesiYedekTests
         {
             _ = f.Services; // yeni, boş dosya: korunacak veri yok
             Assert.Empty(GocOncesiYedekleri(dizin));
-            using (var db = f.Baglam()) { db.Kanallar.Add(new() { Ad = "YENİ", Sira = 9 }); db.SaveChanges(); }
+            using (var db = f.Baglam())
+            { db.Kanallar.Add(new() { Ad = "YENİ", Sira = 9 }); db.SaveChanges(); }
             // Olağan yeniden açılış: bütün migration'lar uygulanmış, veri adımı yok.
-            using (var db = f.Baglam()) KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
+            using (var db = f.Baglam())
+                KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
             Assert.Empty(GocOncesiYedekleri(dizin));
         }
         finally { f.Dispose(); Temizle(null, dizin); Temizle(null, dizin + "-anahtar"); }
@@ -302,7 +333,8 @@ public class GocOncesiYedekTests
             }
             Assert.Single(GocOncesiYedekleri(dizin));
             // Aynı servisin yeni örneği de (yeniden başlayan süreç) dizindeki yedeği tanır.
-            using (var db = Baglam(yol)) Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db, TestYedegi(dizin)));
+            using (var db = Baglam(yol))
+                Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db, TestYedegi(dizin)));
             Assert.Single(GocOncesiYedekleri(dizin));
         }
         finally { Temizle(yol, dizin); }
@@ -320,7 +352,8 @@ public class GocOncesiYedekTests
                 var hata = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db));
                 Assert.Contains("yedeksiz güncelleme yapılmaz", hata.Message);
             }
-            using (var db = Baglam(yol)) Assert.Contains("20260928000200_KartGecisIzi", db.Database.GetPendingMigrations());
+            using (var db = Baglam(yol))
+                Assert.Contains("20260928000200_KartGecisIzi", db.Database.GetPendingMigrations());
         }
         finally { Temizle(yol, null); }
     }
@@ -331,12 +364,14 @@ public class GocOncesiYedekTests
     private static string BuyukKaynak()
     {
         var yol = Path.Combine(Path.GetTempPath(), "kasa-adim-" + Guid.NewGuid().ToString("N") + ".db");
-        using var baglanti = new SqliteConnection(Baglanti(yol)); baglanti.Open();
+        using var baglanti = new SqliteConnection(Baglanti(yol));
+        baglanti.Open();
         Calistir(baglanti, "PRAGMA journal_mode = DELETE; CREATE TABLE Veri (Id INTEGER PRIMARY KEY, Icerik BLOB NOT NULL);");
         using var tx = baglanti.BeginTransaction();
         using var komut = baglanti.CreateCommand();
         komut.CommandText = "INSERT INTO Veri (Icerik) VALUES (randomblob(3000));";
-        for (var i = 0; i < 300; i++) komut.ExecuteNonQuery();
+        for (var i = 0; i < 300; i++)
+            komut.ExecuteNonQuery();
         tx.Commit();
         return yol;
     }
@@ -348,15 +383,19 @@ public class GocOncesiYedekTests
         var hedefYol = kaynakYol + ".kopya";
         try
         {
-            using var kaynak = new SqliteConnection(Baglanti(kaynakYol)); kaynak.Open();
-            using var hedef = new SqliteConnection(Baglanti(hedefYol)); hedef.Open();
+            using var kaynak = new SqliteConnection(Baglanti(kaynakYol));
+            kaynak.Open();
+            using var hedef = new SqliteConnection(Baglanti(hedefYol));
+            hedef.Open();
             // Yazanın kilit bekleme süresi 1 sn: kopya bütün dosya boyunca paylaşılan kilidi tutsaydı yazma düşerdi.
             using var yazan = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = kaynakYol, Pooling = false, DefaultTimeout = 1 }.ToString());
             yazan.Open();
-            var adimlar = 0; TimeSpan? yazmaSuresi = null;
+            var adimlar = 0;
+            TimeSpan? yazmaSuresi = null;
             YedekServisi.AdimliKopyala(kaynak, hedef, sayfaGrubu: 16, adimSonrasi: () =>
             {
-                if (++adimlar != 3) return;
+                if (++adimlar != 3)
+                    return;
                 var sure = Stopwatch.StartNew();
                 Calistir(yazan, "INSERT INTO Veri (Icerik) VALUES (x'CAFE');");
                 yazmaSuresi = sure.Elapsed;
@@ -377,11 +416,14 @@ public class GocOncesiYedekTests
         var hedefYol = kaynakYol + ".kopya";
         try
         {
-            using var tutan = new SqliteConnection(Baglanti(kaynakYol)); tutan.Open();
+            using var tutan = new SqliteConnection(Baglanti(kaynakYol));
+            tutan.Open();
             Calistir(tutan, "BEGIN EXCLUSIVE; INSERT INTO Veri (Icerik) VALUES (x'BEEF');");
             var birak = Task.Run(async () => { await Task.Delay(400); Calistir(tutan, "COMMIT;"); });
-            using var kaynak = new SqliteConnection(Baglanti(kaynakYol)); kaynak.Open();
-            using var hedef = new SqliteConnection(Baglanti(hedefYol)); hedef.Open();
+            using var kaynak = new SqliteConnection(Baglanti(kaynakYol));
+            kaynak.Open();
+            using var hedef = new SqliteConnection(Baglanti(hedefYol));
+            hedef.Open();
             var sure = Stopwatch.StartNew();
             YedekServisi.AdimliKopyala(kaynak, hedef);
             await birak;
@@ -399,10 +441,13 @@ public class GocOncesiYedekTests
         var hedefYol = kaynakYol + ".kopya";
         try
         {
-            using var tutan = new SqliteConnection(Baglanti(kaynakYol)); tutan.Open();
+            using var tutan = new SqliteConnection(Baglanti(kaynakYol));
+            tutan.Open();
             Calistir(tutan, "BEGIN EXCLUSIVE; INSERT INTO Veri (Icerik) VALUES (x'BEEF');");
-            using var kaynak = new SqliteConnection(Baglanti(kaynakYol)); kaynak.Open();
-            using var hedef = new SqliteConnection(Baglanti(hedefYol)); hedef.Open();
+            using var kaynak = new SqliteConnection(Baglanti(kaynakYol));
+            kaynak.Open();
+            using var hedef = new SqliteConnection(Baglanti(hedefYol));
+            hedef.Open();
             using var iptal = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
             var sure = Stopwatch.StartNew();
             Assert.ThrowsAny<OperationCanceledException>(() => YedekServisi.AdimliKopyala(kaynak, hedef, iptal.Token));

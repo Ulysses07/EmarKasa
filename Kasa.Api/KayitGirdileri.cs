@@ -17,12 +17,19 @@ public static class KayitGirdileri
         var kanal = v.Kanal(db, dto.Kanal);
         var e = new KrediEntity
         {
-            Ad = dto.Ad?.Trim() ?? "", CekilenTutar = dto.CekilenTutar, CekimTarihi = dto.CekimTarihi,
-            TaksitSayisi = dto.TaksitSayisi, AylikOdeme = dto.AylikOdeme, OdemeGunu = dto.OdemeGunu,
-            Kanal = kanal?.Ad ?? dto.Kanal?.Trim() ?? "", KanalId = kanal?.Id
+            Ad = dto.Ad?.Trim() ?? "",
+            CekilenTutar = dto.CekilenTutar,
+            CekimTarihi = dto.CekimTarihi,
+            TaksitSayisi = dto.TaksitSayisi,
+            AylikOdeme = dto.AylikOdeme,
+            OdemeGunu = dto.OdemeGunu,
+            Kanal = kanal?.Ad ?? dto.Kanal?.Trim() ?? "",
+            KanalId = kanal?.Id
         };
-        if (v.Sonuc() is { } hata) return (e, hata);
-        try { KrediTuretici.Dogrula(e.ToCore()); }
+        if (v.Sonuc() is { } hata)
+            return (e, hata);
+        try
+        { KrediTuretici.Dogrula(e.ToCore()); }
         catch (ArgumentException)
         {
             v.Kontrol(false, "cekimTarihi", "Kredi taksitleri desteklenen tarih aralığını aşıyor.");
@@ -50,15 +57,21 @@ public static class KayitGirdileri
         if (dto.KrediKartiId is { } cardId)
             v.Kontrol(!db.TakipKartlar.Any(k => k.KrediKartiId == cardId && dto.Tarih < k.Baslangic), "tarih", "Kart harcaması kart takip başlangıcından önce olamaz.");
         TakipliKartKurali(v, db, dto.KrediKartiId is not null ? GiderTipi.KrediKarti : dto.Tip, dto.KrediKartiId, mevcut);
-        if (mevcut is null) TaksitKurali(v, db, dto.TaksitSayisi, dto.IlkKesimTarihi, dto.Tarih, dto.KrediKartiId, mevcutKayit: false);
-        else v.Kontrol(dto.TaksitSayisi is null && dto.IlkKesimTarihi is null, "taksitSayisi",
+        if (mevcut is null)
+            TaksitKurali(v, db, dto.TaksitSayisi, dto.IlkKesimTarihi, dto.Tarih, dto.KrediKartiId, mevcutKayit: false);
+        else
+            v.Kontrol(dto.TaksitSayisi is null && dto.IlkKesimTarihi is null, "taksitSayisi",
             "Taksit planı düzenlemede değiştirilemez; kart harcaması ödenmediyse gideri silip taksitle yeniden girin.");
         return (new IslemEntity
         {
-            Tarih = dto.Tarih, Cari = dto.Cari?.Trim() ?? "", TutarTl = dto.TutarTl,
-            Kanal = kanal?.Ad ?? dto.Kanal?.Trim() ?? "", KanalId = kanal?.Id,
+            Tarih = dto.Tarih,
+            Cari = dto.Cari?.Trim() ?? "",
+            TutarTl = dto.TutarTl,
+            Kanal = kanal?.Ad ?? dto.Kanal?.Trim() ?? "",
+            KanalId = kanal?.Id,
             Tip = dto.KrediKartiId is not null ? GiderTipi.KrediKarti : dto.Tip,
-            Not = dto.Not, KrediKartiId = dto.KrediKartiId,
+            Not = dto.Not,
+            KrediKartiId = dto.KrediKartiId,
             // Düzenlemede kayıt SetValues ile yazılır: sürüm mevcut kaydınki kalır, kaydetme kancası değişiklikte artırır (contract-6).
             Surum = mevcut?.Surum ?? 0,
         }, v.Sonuc());
@@ -81,7 +94,8 @@ public static class KayitGirdileri
     /// <summary>Kayıttan sonra, aynı transaction'da: istek kimliğini oluşan giderle saklar.</summary>
     public static void IslemIstegiKaydet(IslemYazDto dto, KasaDbContext db, int islemId)
     {
-        if (dto.IstekId is not { } istekId) return;
+        if (dto.IstekId is not { } istekId)
+            return;
         FinansHesaplari.IstekKaydet(db, istekId, IslemOlusturTuru, IslemOzeti(dto), islemId);
         db.SaveChanges();
     }
@@ -106,16 +120,22 @@ public static class KayitGirdileri
     /// </summary>
     public static void TaksitKurali(GirdiDogrulama v, KasaDbContext db, int? taksitSayisi, DateOnly? ilkKesim, DateOnly tarih, int? kartId, bool mevcutKayit)
     {
-        if (taksitSayisi is null && ilkKesim is null) return;
+        if (taksitSayisi is null && ilkKesim is null)
+            return;
         v.Kontrol(taksitSayisi is null or (>= 1 and <= 60), "taksitSayisi", "Taksit sayısı 1 ile 60 arasında olmalı.");
-        if (mevcutKayit) { v.Kontrol(false, "taksitSayisi", "Mevcut gider ya da kart harcaması bağlanırken taksit girilmez; taksit planı bağlanan kaydındır."); return; }
+        if (mevcutKayit)
+        { v.Kontrol(false, "taksitSayisi", "Mevcut gider ya da kart harcaması bağlanırken taksit girilmez; taksit planı bağlanan kaydındır."); return; }
         var kart = kartId is { } id && db.TakipKartlar.Any(t => t.KrediKartiId == id) ? db.KrediKartlari.SingleOrDefault(k => k.Id == id) : null;
-        if (kart is null) { v.Kontrol(false, "taksitSayisi", TaksitYalnizTakipliKartta); return; }
-        if (ilkKesim is not { } ilk) return;
+        if (kart is null)
+        { v.Kontrol(false, "taksitSayisi", TaksitYalnizTakipliKartta); return; }
+        if (ilkKesim is not { } ilk)
+            return;
         v.Tarih(ilk, "ilkKesimTarihi");
-        if (ilk == default) return;
+        if (ilk == default)
+            return;
         v.Kontrol(ilk >= tarih, "ilkKesimTarihi", "İlk kesim tarihi harcamadan önce olamaz.");
-        if (FinansTakipServisi.IlkKesimHatasi(db, kart, ilk) is { } hata) v.Kontrol(false, "ilkKesimTarihi", hata);
+        if (FinansTakipServisi.IlkKesimHatasi(db, kart, ilk) is { } hata)
+            v.Kontrol(false, "ilkKesimTarihi", hata);
     }
 
     /// <summary>K3 iletisi (yeni kredi kartı gideri takipsiz karta ya da kartsız kaydedilemez).</summary>
@@ -133,8 +153,10 @@ public static class KayitGirdileri
     /// </summary>
     public static void TakipliKartKurali(GirdiDogrulama v, KasaDbContext db, GiderTipi tip, int? kartId, IslemEntity? mevcut)
     {
-        if (tip != GiderTipi.KrediKarti) return;
-        if (mevcut is { Tip: GiderTipi.KrediKarti } && mevcut.KrediKartiId == kartId) return;
+        if (tip != GiderTipi.KrediKarti)
+            return;
+        if (mevcut is { Tip: GiderTipi.KrediKarti } && mevcut.KrediKartiId == kartId)
+            return;
         v.Kontrol(kartId is { } id && db.TakipKartlar.Any(t => t.KrediKartiId == id), "krediKartiId", TakipliKartZorunlu);
     }
 
@@ -148,8 +170,11 @@ public static class KayitGirdileri
         v.Para(dto.Borc, "borc", negatifOlabilir: true);
         return (new KrediKartiEntity
         {
-            Ad = dto.Ad?.Trim() ?? "", KesimTarihi = dto.KesimTarihi, SonOdemeTarihi = dto.SonOdemeTarihi,
-            Limit = dto.Limit, Borc = dto.Borc
+            Ad = dto.Ad?.Trim() ?? "",
+            KesimTarihi = dto.KesimTarihi,
+            SonOdemeTarihi = dto.SonOdemeTarihi,
+            Limit = dto.Limit,
+            Borc = dto.Borc
         }, v.Sonuc());
     }
 
@@ -163,7 +188,10 @@ public static class KayitGirdileri
         v.Metin(dto.Not, "not", 2000, zorunlu: false);
         return (new KartOdemeEntity
         {
-            KrediKartiId = dto.KrediKartiId, Tarih = dto.Tarih, Tutar = dto.Tutar, Not = dto.Not
+            KrediKartiId = dto.KrediKartiId,
+            Tarih = dto.Tarih,
+            Tutar = dto.Tutar,
+            Not = dto.Not
         }, v.Sonuc());
     }
 }

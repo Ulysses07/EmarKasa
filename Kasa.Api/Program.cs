@@ -209,10 +209,12 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
     // Başarı ayrılanı iade eder; sonuçsuz kapanan deneme (doğrulama kuyruğu dolu, iptal) şifre denenmediği için iade edilir.
     // Geçerli tanıdık cihaz belirteci hedef kilidinden muaf tutar, ağ bütçesinden tutmaz.
     using var deneme = sinir.Baslat(hedef, ip, tanidikCihaz.Dogrula(http.Request, hedef, hedefDamgasi));
-    if (deneme.RedSuresi is { } bekleme) return HizSinirlari.Red(http, bekleme);
+    if (deneme.RedSuresi is { } bekleme)
+        return HizSinirlari.Red(http, bekleme);
     // PBKDF2 doğrulaması eşzamanlılık sınırında: giriş seli CPU'yu tüketip uygulamanın geri kalanını yavaşlatamaz.
     using var izin = await sinir.DogrulamaIzniAsync(http.RequestAborted);
-    if (!izin.IsAcquired) return HizSinirlari.Yogun(http);
+    if (!izin.IsAcquired)
+        return HizSinirlari.Yogun(http);
 
     string? rol = null;
     int? aliciId = null;
@@ -231,13 +233,15 @@ app.MapPost("/api/auth/login", async (LoginDto dto, KasaDbContext db, IConfigura
     {
         if (izleyiciHash is string h && SifreHasher.Dogrula(dto.Sifre, h))
         {
-            rol = "viewer"; dogrulanmisDamga = OturumDamgasi.IzleyiciIcin(h, cfg, db);
+            rol = "viewer";
+            dogrulanmisDamga = OturumDamgasi.IzleyiciIcin(h, cfg, db);
             izleyiciSifresi.GirisYapildi(h, dto.Sifre);
         }
     }
     deneme.Sonuc(rol is not null);
 
-    if (rol is null) return hatali;
+    if (rol is null)
+        return hatali;
 
     var damga = dogrulanmisDamga ?? OturumDamgasi.Uret(rol, cfg, db, aliciId)!;
     var token = JwtYardimci.Uret(rol, cfg["Kasa:JwtKey"]!, damga, aliciId);
@@ -289,30 +293,36 @@ api.MapPost("/kanallar", (KanalYazDto dto, KasaDbContext db) =>
     v.Metin(dto.Ad, "ad");
     v.Para(dto.AcilisDevri, "acilisDevri", negatifOlabilir: true);
     v.Kontrol(!GirdiDogrulama.AyrilmisKanalAdi(dto.Ad?.Trim() ?? ""), "ad", "Bu ad sistem tarafından kullanılıyor.");
-    if (v.Sonuc() is { } hata) return hata;
+    if (v.Sonuc() is { } hata)
+        return hata;
     var ad = dto.Ad!.Trim();
     if (db.Kanallar.AsEnumerable().Any(k => string.Equals(k.Ad, ad, StringComparison.OrdinalIgnoreCase)))
         return Results.Conflict(new { hata = "Bu kanal adı zaten kullanılıyor." });
     // Kilit varken yeni kanal açılış devri 0 ile eklenir (aktif de olabilir): tamamlanmış ayların kanal kümesi değişiklikten önce
     // dondurulur, kapanmış ayların Ortak dağılımı değişmez (AyKanalKumesi, KanalKurallari).
     using var transaction = db.Database.BeginTransaction();
-    if (KanalKurallari.AdEngeli(db, null, ad) is { } engel) return Results.Conflict(new { hata = engel });
+    if (KanalKurallari.AdEngeli(db, null, ad) is { } engel)
+        return Results.Conflict(new { hata = engel });
     var e = new KanalEntity { Ad = ad, Aktif = dto.Aktif, Sira = dto.Sira, AcilisDevri = dto.AcilisDevri };
-    db.Kanallar.Add(e); db.SaveChanges();
+    db.Kanallar.Add(e);
+    db.SaveChanges();
     transaction.Commit();
     return Results.Created($"/api/kanallar/{e.Id}", e);
 }).RequireAuthorization("Editor");
 api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =>
 {
     var e = db.Kanallar.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     // contract-6: istemcinin okuduğu kanal arada değiştiyse (sürüm gönderen istemci) üzerine yazılmaz.
-    if (CekirdekSurum.Denetle(gelen.Surum, e.Surum, CekirdekSurum.KanalIletisi) is { } eskiSurum) return eskiSurum;
+    if (CekirdekSurum.Denetle(gelen.Surum, e.Surum, CekirdekSurum.KanalIletisi) is { } eskiSurum)
+        return eskiSurum;
     var v = new GirdiDogrulama();
     v.Metin(gelen.Ad, "ad");
     v.Para(gelen.AcilisDevri, "acilisDevri", negatifOlabilir: true);
     v.Kontrol(!GirdiDogrulama.AyrilmisKanalAdi(gelen.Ad?.Trim() ?? ""), "ad", "Bu ad sistem tarafından kullanılıyor.");
-    if (v.Sonuc() is { } hata) return hata;
+    if (v.Sonuc() is { } hata)
+        return hata;
     var ad = gelen.Ad!.Trim();
     if (db.Kanallar.AsEnumerable().Any(k => k.Id != id && string.Equals(k.Ad, ad, StringComparison.OrdinalIgnoreCase)))
         return Results.Conflict(new { hata = "Bu kanal adı zaten kullanılıyor." });
@@ -321,9 +331,13 @@ api.MapPut("/kanallar/{id:int}", (int id, KanalYazDto gelen, KasaDbContext db) =
     // AyKanalKumesi); açılış devri kilitte değişmez (KanalKurallari). Kayıtlardaki kanal metni yalnız yeni ada eşitlenir (etiket
     // senkronu: aylık gider/ekstre kaynak kuralına ve dönem kilidine takılmaz).
     using var transaction = db.Database.BeginTransaction();
-    if (KanalKurallari.AdEngeli(db, id, ad) is { } engel) return Results.Conflict(new { hata = engel });
+    if (KanalKurallari.AdEngeli(db, id, ad) is { } engel)
+        return Results.Conflict(new { hata = engel });
     KanalKurallari.EtiketleriGuncelle(db, id, ad);
-    e.Ad = ad; e.Aktif = gelen.Aktif; e.Sira = gelen.Sira; e.AcilisDevri = gelen.AcilisDevri;
+    e.Ad = ad;
+    e.Aktif = gelen.Aktif;
+    e.Sira = gelen.Sira;
+    e.AcilisDevri = gelen.AcilisDevri;
     db.SaveChanges();
     transaction.Commit();
     return Results.Ok(e);
@@ -334,8 +348,10 @@ api.MapDelete("/kanallar/{id:int}", (int id, KasaDbContext db) =>
     // olan ya da tamamlanmış bir ayın kanal kümesinde yer alan kanal silinmez (KanalKurallari.SilmeEngeli).
     using var transaction = db.Database.BeginTransaction();
     var e = db.Kanallar.Find(id);
-    if (e is null) return Results.NotFound();
-    if (KanalKurallari.SilmeEngeli(db, e) is { } engel) return Results.Conflict(new { hata = engel });
+    if (e is null)
+        return Results.NotFound();
+    if (KanalKurallari.SilmeEngeli(db, e) is { } engel)
+        return Results.Conflict(new { hata = engel });
     KanalKurallari.Sil(db, e);
     transaction.Commit();
     return Results.NoContent();
@@ -378,11 +394,14 @@ api.MapPost("/kredikartlari", (KrediKartiYazDto dto, KasaDbContext db) =>
 api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiYazDto dto, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
-    if (db.TakipKartlar.Any(k => k.KrediKartiId == id)) return Results.Conflict(new { hata = "Bu kart yeni takipte; Kredi Kartları ekranından düzenleyin." });
+    if (db.TakipKartlar.Any(k => k.KrediKartiId == id))
+        return Results.Conflict(new { hata = "Bu kart yeni takipte; Kredi Kartları ekranından düzenleyin." });
     var e = db.KrediKartlari.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     var (gelen, hata) = KayitGirdileri.Kart(dto);
-    if (hata is not null) return hata;
+    if (hata is not null)
+        return hata;
     gelen.Id = id;
     db.Entry(e).CurrentValues.SetValues(gelen);
     db.SaveChanges();
@@ -392,17 +411,21 @@ api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiYazDto dto, KasaDbConte
 api.MapDelete("/kredikartlari/{id:int}", (int id, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
-    if (db.TakipKartlar.Any(k => k.KrediKartiId == id)) return Results.Conflict(new { hata = "Takip edilen kart silinemez; yeni kullanıma kapatın." });
+    if (db.TakipKartlar.Any(k => k.KrediKartiId == id))
+        return Results.Conflict(new { hata = "Takip edilen kart silinemez; yeni kullanıma kapatın." });
     if (db.HesapHareketler.Any(h => h.KartOdeme != null && h.KartOdeme.KrediKartiId == id))
         return Results.Conflict(new { hata = "Hesaba bağlı ödemesi bulunan kart silinemez." });
     if (db.AlisOdemeler.Any(o => o.Islem.KrediKartiId == id))
         return Results.Conflict(new { hata = "Bu kart alış ödemelerine bağlı; ödeme bağlantısı korunmalıdır." });
     var e = db.KrediKartlari.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     // Harcama işlemlerinin bağını kopar (işlem kalır), ödemeleri sil.
-    foreach (var i in db.Islemler.Where(i => i.KrediKartiId == id)) i.KrediKartiId = null;
+    foreach (var i in db.Islemler.Where(i => i.KrediKartiId == id))
+        i.KrediKartiId = null;
     db.KartOdemeler.RemoveRange(db.KartOdemeler.Where(o => o.KrediKartiId == id));
-    db.KrediKartlari.Remove(e); db.SaveChanges();
+    db.KrediKartlari.Remove(e);
+    db.SaveChanges();
     transaction.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -416,15 +439,19 @@ api.MapPost("/krediler", (KrediYazDto dto, KasaDbContext db) =>
 api.MapPut("/krediler/{id:int}", (int id, KrediYazDto dto, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
-    if (db.TakipKrediler.Any(k => k.KrediId == id)) return Results.Conflict(new { hata = "Bu kredi yeni takipte; Krediler ekranından düzenleyin." });
+    if (db.TakipKrediler.Any(k => k.KrediId == id))
+        return Results.Conflict(new { hata = "Bu kredi yeni takipte; Krediler ekranından düzenleyin." });
     var e = db.Krediler.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     if (db.KrediTaksitOdemeler.Any(o => o.KrediId == id) || db.HesapHareketler.Any(h => h.KrediId == id))
         return Results.Conflict(new { hata = "Ödemesi veya hesap bağlantısı bulunan kredi değiştirilemez." });
     var (gelen, hata) = KayitGirdileri.Kredi(dto, db);
-    if (hata is not null) return hata;
+    if (hata is not null)
+        return hata;
     // gT6: geçmiş kasa etkisi olan eski kredinin yalnız adı düzeltilir; etkisi olmayan kredi geçmişe taşınamaz.
-    if (FinansHesaplari.EskiKrediDuzeltmeHatasi(db, e, gelen, db.Bugunu()) is { } koruma) return Results.Conflict(new { hata = koruma });
+    if (FinansHesaplari.EskiKrediDuzeltmeHatasi(db, e, gelen, db.Bugunu()) is { } koruma)
+        return Results.Conflict(new { hata = koruma });
     gelen.Id = id;
     gelen.GerceklesmeTakibi = e.GerceklesmeTakibi;
     db.Entry(e).CurrentValues.SetValues(gelen);
@@ -435,15 +462,18 @@ api.MapPut("/krediler/{id:int}", (int id, KrediYazDto dto, KasaDbContext db) =>
 api.MapDelete("/krediler/{id:int}", (int id, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
-    if (db.TakipKrediler.Any(k => k.KrediId == id)) return Results.Conflict(new { hata = "Takip edilen kredi silinemez; arşivleyin." });
+    if (db.TakipKrediler.Any(k => k.KrediId == id))
+        return Results.Conflict(new { hata = "Takip edilen kredi silinemez; arşivleyin." });
     var e = db.Krediler.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     if (db.KrediTaksitOdemeler.Any(o => o.KrediId == id) || db.HesapHareketler.Any(h => h.KrediId == id))
         return Results.Conflict(new { hata = "Ödemesi veya hesap bağlantısı bulunan kredi silinemez." });
     // gT6: çekimi ve taksitleri bellekte türetildiğinden silme bütün geçmiş raporları yeniden yazardı.
     if (FinansHesaplari.EskiKrediGecmisEtkili(e, db.Bugunu()))
         return Results.Conflict(new { hata = "Geçmiş kasa etkisi olan eski kredi silinemez; geçmiş raporlar korunur. Krediyi Krediler ekranında yeni takibe geçirip arşivleyebilirsiniz." });
-    db.Krediler.Remove(e); db.SaveChanges();
+    db.Krediler.Remove(e);
+    db.SaveChanges();
     transaction.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -454,12 +484,16 @@ api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, st
 api.MapPost("/islemler", (IslemYazDto dto, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
-    if (KayitGirdileri.IslemTekrari(dto, db) is { } tekrar) return tekrar;
+    if (KayitGirdileri.IslemTekrari(dto, db) is { } tekrar)
+        return tekrar;
     var (e, hata) = KayitGirdileri.Islem(dto, db);
-    if (hata is not null) return hata;
+    if (hata is not null)
+        return hata;
     // finance-9: takipli karta eksi/sıfır gider kaynaksız alacak olurdu; iade Kredi Kartları ekranındaki akıştan girilir.
-    if (FinansHesaplari.TakipliKartIadeHatasi(dto, db) is { } iade) return iade;
-    db.Islemler.Add(e); db.SaveChanges();
+    if (FinansHesaplari.TakipliKartIadeHatasi(dto, db) is { } iade)
+        return iade;
+    db.Islemler.Add(e);
+    db.SaveChanges();
     KayitGirdileri.IslemIstegiKaydet(dto, db, e.Id);
     // Takipli kart giderinin harcaması taksit planıyla hemen yazılır (gap-coklu-giris-cift-sayim-mutabakat-6); taksitsizde Sync'in
     // tek taksitli kaydıyla aynıdır.
@@ -478,9 +512,11 @@ api.MapPut("/islemler/{id:int}", (int id, IslemYazDto dto, KasaDbContext db) =>
     if (db.AlisOdemeler.Any(o => o.IslemId == id))
         return Results.Conflict(new { hata = "Bu gider bir alışa bağlı. Kanal dağılımını Alışlar ekranından düzenleyin; ödeme tutarı ve tarihi burada değiştirilemez." });
     var e = db.Islemler.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     // contract-6: istemcinin okuduğu gider arada (başka oturum ya da dolaylı yazım) değiştiyse eski değerler geri yazılmaz.
-    if (CekirdekSurum.Denetle(dto.Surum, e.Surum, CekirdekSurum.GiderIletisi) is { } eskiSurum) return eskiSurum;
+    if (CekirdekSurum.Denetle(dto.Surum, e.Surum, CekirdekSurum.GiderIletisi) is { } eskiSurum)
+        return eskiSurum;
     // gap-coklu-giris-cift-sayim-mutabakat-5: takipli kart giderinin kart harcaması ödenmemiş, iadesiz ve ekstreye bağsızsa açıklama,
     // not ve kanal düzeltilir; tarih, tutar ve kart harcamanın taksit planıdır, değişmez.
     var harcama = FinansTakipServisi.KaynakHarcama(db, id);
@@ -488,12 +524,14 @@ api.MapPut("/islemler/{id:int}", (int id, IslemYazDto dto, KasaDbContext db) =>
     {
         if (dto.Tarih != e.Tarih || dto.TutarTl != e.TutarTl || dto.KrediKartiId != e.KrediKartiId)
             return Results.Conflict(new { hata = "Kart takibindeki giderin tarihi, tutarı ve kartı değiştirilemez. Kart harcaması ödenmediyse gideri silip doğru bilgilerle yeniden girin; ödendiyse Kredi Kartları ekranında açıklamalı iade girin." });
-        if (FinansTakipServisi.KaynakHarcamaEngeli(db, harcama) is { } engel) return Results.Conflict(new { hata = KartGideriEngeli(engel, "değiştirilemez") });
+        if (FinansTakipServisi.KaynakHarcamaEngeli(db, harcama) is { } engel)
+            return Results.Conflict(new { hata = KartGideriEngeli(engel, "değiştirilemez") });
     }
     else if (FinansTakipServisi.IslemYonetiliyor(db, e) || (dto.KrediKartiId is { } newCard && db.TakipKartlar.Any(t => t.KrediKartiId == newCard)))
         return Results.Conflict(new { hata = "Kart takibine bağlı hareket için Kredi Kartları ekranından açıklamalı iade/düzeltme girin." });
     var (gelen, hata) = KayitGirdileri.Islem(dto, db, e);
-    if (hata is not null) return hata;
+    if (hata is not null)
+        return hata;
     gelen.Id = id;
     var kanalDegisti = e.Kanal != gelen.Kanal || e.KanalId != gelen.KanalId;
     db.Entry(e).CurrentValues.SetValues(gelen);
@@ -501,7 +539,8 @@ api.MapPut("/islemler/{id:int}", (int id, IslemYazDto dto, KasaDbContext db) =>
     {
         // Kanal değişince harcamanın dondurulmuş payı giderle aynı kuralla yeniden yazılır (ödeme payı yoktur).
         harcama.Aciklama = e.Cari;
-        if (kanalDegisti) harcama.DagilimJson = FinansTakipServisi.Json(FinansTakipServisi.DonmusPaylar(db, e));
+        if (kanalDegisti)
+            harcama.DagilimJson = FinansTakipServisi.Json(FinansTakipServisi.DonmusPaylar(db, e));
         db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++;
     }
     db.SaveChanges();
@@ -516,19 +555,24 @@ api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
     if (db.AlisOdemeler.Any(o => o.IslemId == id))
         return Results.Conflict(new { hata = "Alışa bağlı ödeme silinemez; alış ve kasa bağlantısı korunmalıdır." });
     var e = db.Islemler.Find(id);
-    if (e is null) return Results.NotFound();
+    if (e is null)
+        return Results.NotFound();
     // gap-coklu-giris-cift-sayim-mutabakat-5: ödenmemiş, iadesiz ve ekstreye bağsız kart harcamasının gideri harcamayla birlikte kalkar
     // (harcama iptal edilir, taksitleri borçtan çıkar); diğer takipli kart giderleri için açıklamalı iade yolu kalır.
     var harcama = FinansTakipServisi.KaynakHarcama(db, id);
     if (harcama is not null)
     {
-        if (FinansTakipServisi.KaynakHarcamaEngeli(db, harcama) is { } engel) return Results.Conflict(new { hata = KartGideriEngeli(engel, "silinemez") });
-        harcama.Iptal = true; harcama.IslemId = null;
+        if (FinansTakipServisi.KaynakHarcamaEngeli(db, harcama) is { } engel)
+            return Results.Conflict(new { hata = KartGideriEngeli(engel, "silinemez") });
+        harcama.Iptal = true;
+        harcama.IslemId = null;
         db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++;
         db.SaveChanges();
     }
-    else if (FinansTakipServisi.IslemYonetiliyor(db, e)) return Results.Conflict(new { hata = "Kart takibine bağlı hareket silinemez; açıklamalı iade girin." });
-    db.Islemler.Remove(e); db.SaveChanges();
+    else if (FinansTakipServisi.IslemYonetiliyor(db, e))
+        return Results.Conflict(new { hata = "Kart takibine bağlı hareket silinemez; açıklamalı iade girin." });
+    db.Islemler.Remove(e);
+    db.SaveChanges();
     transaction.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -543,26 +587,33 @@ static string KartGideriEngeli(string engel, string islem) => engel switch
 api.MapGet("/kartodemeler", (int? krediKartiId, KasaDbContext db) =>
 {
     var q = db.KartOdemeler.AsQueryable();
-    if (krediKartiId is { } id) q = q.Where(o => o.KrediKartiId == id);
+    if (krediKartiId is { } id)
+        q = q.Where(o => o.KrediKartiId == id);
     return q.OrderByDescending(o => o.Tarih).ThenByDescending(o => o.Id).ToList();
 });
 api.MapPost("/kartodemeler", (KartOdemeYazDto dto, KasaDbContext db) =>
 {
-    if (db.TakipKartlar.Any(k => k.KrediKartiId == dto.KrediKartiId)) return Results.Conflict(new { hata = "Yeni takipteki kartın ödemesini Kredi Kartları ekranından kaydedin." });
+    if (db.TakipKartlar.Any(k => k.KrediKartiId == dto.KrediKartiId))
+        return Results.Conflict(new { hata = "Yeni takipteki kartın ödemesini Kredi Kartları ekranından kaydedin." });
     var (e, hata) = KayitGirdileri.KartOdeme(dto, db);
-    if (hata is not null) return hata;
-    db.KartOdemeler.Add(e); db.SaveChanges();
+    if (hata is not null)
+        return hata;
+    db.KartOdemeler.Add(e);
+    db.SaveChanges();
     return Results.Created($"/api/kartodemeler/{e.Id}", e);
 }).RequireAuthorization("Editor");
 api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
 {
     using var transaction = db.Database.BeginTransaction();
     var e = db.KartOdemeler.Find(id);
-    if (e is null) return Results.NotFound();
-    if (db.TakipKartlar.Any(k => k.KrediKartiId == e.KrediKartiId)) return Results.Conflict(new { hata = "Geçişi yapılmış kartın eski ödemeleri korunur." });
+    if (e is null)
+        return Results.NotFound();
+    if (db.TakipKartlar.Any(k => k.KrediKartiId == e.KrediKartiId))
+        return Results.Conflict(new { hata = "Geçişi yapılmış kartın eski ödemeleri korunur." });
     if (db.HesapHareketler.Any(h => h.KartOdemeId == id))
         return Results.Conflict(new { hata = "Hesaba bağlı kart ödemesi silinemez." });
-    db.KartOdemeler.Remove(e); db.SaveChanges();
+    db.KartOdemeler.Remove(e);
+    db.SaveChanges();
     transaction.Commit();
     return Results.NoContent();
 }).RequireAuthorization("Editor");
@@ -571,7 +622,8 @@ api.MapDelete("/kartodemeler/{id:int}", (int id, KasaDbContext db) =>
 api.MapGet("/gelenler", (DateOnly? donemStart, KasaDbContext db) =>
 {
     var q = db.Gelenler.AsQueryable();
-    if (donemStart is { } d) q = q.Where(g => g.DonemStart == d);
+    if (donemStart is { } d)
+        q = q.Where(g => g.DonemStart == d);
     return q.ToList();
 });
 api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
@@ -584,7 +636,8 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
     v.Kontrol(dto.DonemStart >= takipBaslangic
               && (dto.DonemStart == takipBaslangic || dto.DonemStart.Day == 1 || dto.DonemStart.DayOfWeek == DayOfWeek.Monday),
         "donemStart", "Gelir için takip başlangıcından itibaren geçerli bir dönem başlangıcı seçin.");
-    if (v.Sonuc() is { } hata) return hata;
+    if (v.Sonuc() is { } hata)
+        return hata;
     if (db.Gelenler.Any(g => g.EskiYinelenenGrup && g.DonemStart == dto.DonemStart
         && (g.KanalId == kanal!.Id || g.Kanal == kanal.Ad)))
         return Results.Conflict(new { hata = "Bu dönem ve kanalda birden fazla eski gelir kaydı var. Bütün kayıtlar tutarlarıyla korunur; bu eski grup salt okunurdur. Yeni dönemlere gelir girebilirsiniz." });
@@ -605,10 +658,13 @@ api.MapPut("/gelenler", (GelenUpsertDto dto, KasaDbContext db) =>
     var e = db.Gelenler.AsNoTracking().Single(g => g.DonemStart == dto.DonemStart && g.KanalId == kanal.Id);
     if (affected == 0)
     {
-        if (!db.HesapHareketler.Any(h => h.GelenId == e.Id)) return Results.Conflict(new { hata = CekirdekSurum.GelenIletisi });
-        if (e.TutarTl != dto.TutarTl) return Results.Conflict(new { hata = "Hesaba bağlı gelir tutarı buradan değiştirilemez." });
+        if (!db.HesapHareketler.Any(h => h.GelenId == e.Id))
+            return Results.Conflict(new { hata = CekirdekSurum.GelenIletisi });
+        if (e.TutarTl != dto.TutarTl)
+            return Results.Conflict(new { hata = "Hesaba bağlı gelir tutarı buradan değiştirilemez." });
     }
-    if (affected > 0) KancaDisiOlaylar.GelenUpsert(db, onceki, e);
+    if (affected > 0)
+        KancaDisiOlaylar.GelenUpsert(db, onceki, e);
     transaction.Commit();
     return Results.Ok(e);
 }).RequireAuthorization("Editor");
@@ -637,9 +693,11 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
     var v = new GirdiDogrulama();
     v.Tarih(dto.TakipBaslangic, "takipBaslangic");
     v.Para(dto.KasaAcilisDevri, "kasaAcilisDevri", negatifOlabilir: true);
-    if (v.Sonuc() is { } hata) return hata;
+    if (v.Sonuc() is { } hata)
+        return hata;
     var a = db.Ayarlar.First();
-    if (CekirdekSurum.Denetle(dto.Surum, a.Surum, CekirdekSurum.AyarIletisi) is { } eskiSurum) return eskiSurum;
+    if (CekirdekSurum.Denetle(dto.Surum, a.Surum, CekirdekSurum.AyarIletisi) is { } eskiSurum)
+        return eskiSurum;
     // gV5: gider üretmeyen mali kayıtlar da (takipli kart, ekstre geliri, kasa sayımı...) başlangıcı sabitler.
     if (a.TakipBaslangic != dto.TakipBaslangic && FinansHesaplari.IlkMaliKayitTuru(db) is { } kayit)
         return Results.Conflict(new { hata = $"Hareketler kaydedildikten sonra takip başlangıcı değiştirilemez; mevcut dönem bağlantıları korunmalıdır (kayıtlı: {kayit})." });
@@ -652,7 +710,8 @@ api.MapPut("/ayarlar", (AyarGuncelleDto dto, KasaDbContext db) =>
 api.MapPut("/ayarlar/izleyici-sifre", (IzleyiciSifreDto dto, KasaDbContext db, GuvenlikGunlugu gunluk) =>
 {
     // Kural yalnız belirlerken/değiştirirken uygulanır; mevcut kısa hash ile giriş sürer.
-    if (SifreKurallari.YeniSifreHatasi(dto.YeniSifre, "yeniSifre", "İzleyici şifresi") is { } hata) return hata;
+    if (SifreKurallari.YeniSifreHatasi(dto.YeniSifre, "yeniSifre", "İzleyici şifresi") is { } hata)
+        return hata;
     var a = db.Ayarlar.First();
     a.IzleyiciSifreHash = SifreHasher.Hashle(dto.YeniSifre);
     db.SaveChanges();
