@@ -1,5 +1,10 @@
 namespace Kasa.App.Core;
 
+/// <summary>İstemcinin tek tekrar anahtarı mekanizması (sunucu tekrar koruması, IstekId): aynı gövdenin yeniden gönderimi aynı
+/// kimliği taşır, yanıtı kaybolan (ağ hatası, zaman aşımı) istek sunucuda ikinci kez işlenmez. Gövde değişince yeni kimlik
+/// alınır; yalnız son gövde tutulur (önceki gövdeye dönmek yeni kimlik alır). Başarıdan, sunucu reddinden ve form
+/// sıfırlanmasından sonra çağıran <see cref="Temizle"/> ile kimliği yeniler. Gövde, isteğin hedefini (kayıt kimliği) de
+/// taşımalıdır: başka kaydın isteği aynı kimliği almaz.</summary>
 public sealed class TekrarAnahtari
 {
     private string? _govde;

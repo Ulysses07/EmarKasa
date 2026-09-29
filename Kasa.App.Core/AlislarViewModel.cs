@@ -22,8 +22,6 @@ public partial class AlislarViewModel : TemelViewModel
     private IReadOnlyDictionary<int, string> _kartAdlari = new Dictionary<int, string>();
     // Yeni takipteki kartlar (yeni kullanıma kapalı olanlar dahil): bu kartlarla girilmiş ödeme kart takibindedir (gap-5).
     private IReadOnlySet<int> _takipliKartlar = new HashSet<int>();
-    private AlisOdemeYaz? _bekleyenOdeme;
-    private int _bekleyenAlisId;
     private bool _yansitiliyor;
     private int _oturumSurumu = int.MinValue;
     /// <summary>Bağlanabilir giderlerin sonraki sayfa imleci ve onu üreten sorgunun (kırpılmış) arama metni.</summary>
@@ -32,6 +30,10 @@ public partial class AlislarViewModel : TemelViewModel
     /// <summary>Yeni alış için tekrar anahtarı (appcore-5): zaman aşımından sonra aynı taslağın yeniden gönderimi aynı kimliği
     /// taşır, sunucu ikinci taslak açmaz. Başarıda, yeni formda, başka alışa geçişte ve oturum değişince sıfırlanır.</summary>
     private readonly TekrarAnahtari _olusturAnahtari = new();
+    /// <summary>Alış ödemesinin tekrar anahtarı: yanıtı kaybolan ödeme aynı alış ve aynı bilgilerle yeniden gönderilince aynı
+    /// kimliği taşır, sunucu ikinci ödeme (ve gider) açmaz. Başarıda (form temizlenir), sunucu reddinde (400/409), başka alışa
+    /// geçişte ve oturum değişince sıfırlanır.</summary>
+    private readonly TekrarAnahtari _odemeAnahtari = new();
 
     /// <param name="auth">Verilirse model oturum değişimini kendisi alır (appcore-10): sayfa kod-arkası olmadan da bekleyen işler
     /// eskir, önceki oturumun verisi kalkar ve rol oturumdan gelir. Verilmezse oturum <see cref="OturumuAyarla"/> ile ayarlanır.</param>
@@ -152,7 +154,7 @@ public partial class AlislarViewModel : TemelViewModel
         OdemeKartlari.Clear();
         BaglanabilirKartHarcamalari.Clear();
         _secili = null;
-        _bekleyenOdeme = null;
+        _odemeAnahtari.Temizle();
         _giderler = Array.Empty<IslemDto>();
         _kartAdlari = new Dictionary<int, string>();
         _takipliKartlar = new HashSet<int>();
@@ -442,17 +444,14 @@ public partial class AlislarViewModel : TemelViewModel
         if (taksitli && OdemeIlkKesimVar && OdemeIlkKesimTarihi.Date < OdemeTarihi.Date)
         { Hata = "İlk kesim tarihi ödeme tarihinden önce olamaz."; return; }
         // Bağlanan mevcut gider kendi kartıyla gider (sunucu kartın eşleşmesini ister): kart eski/kapalıysa listede yoktur.
-        var g = new AlisOdemeYaz(_secili.Surum, Guid.NewGuid(), kartHarcamasi?.Tarih ?? DateOnly.FromDateTime(OdemeTarihi), OdemeTutari,
+        var g = new AlisOdemeYaz(_secili.Surum, Guid.Empty, kartHarcamasi?.Tarih ?? DateOnly.FromDateTime(OdemeTarihi), OdemeTutari,
             MevcutGiderKullan ? SeciliGider!.Veri.KrediKartiId : OdemeKarti?.Id, MevcutGiderKullan ? SeciliGider!.Veri.Id : null, OdemeNotu,
             MevcutKartHarcamaId: kartHarcamasi?.Id,
             TaksitSayisi: taksitli && OdemeTaksitSayisi > 1 ? OdemeTaksitSayisi : null,
             IlkKesimTarihi: taksitli && OdemeIlkKesimVar ? DateOnly.FromDateTime(OdemeIlkKesimTarihi) : null);
-        // Ağ hatasında aynı ödeme tekrar gönderilirse aynı anahtar ve gövde kullanılır.
-        if (_bekleyenAlisId == _secili.Id && _bekleyenOdeme is { } eski && eski == g with { IstekId = eski.IstekId, Surum = eski.Surum })
-            g = eski;
-        _bekleyenOdeme = g;
-        _bekleyenAlisId = _secili.Id;
         var alisId = _secili.Id;
+        // Yanıtı kaybolan ödeme aynı alışa aynı bilgilerle yeniden gönderilirse aynı anahtarla gider.
+        g = g with { IstekId = _odemeAnahtari.Al(new { AlisId = alisId, g }) };
         // Mevcut kayda bağlama yeni para çıkışı değildir: benzer kayıt sorulmaz.
         if (g.MevcutIslemId is null && g.MevcutKartHarcamaId is null
             && !await OdemeBenzerlik.DevamEdilebilirAsync(new("AlisOdeme", g.Tarih, g.Tutar, g.KrediKartiId, AlisId: alisId), new { alisId, g }, () => Gecerli(nesil) && _secili?.Id == alisId))
@@ -467,7 +466,7 @@ public partial class AlislarViewModel : TemelViewModel
                 : g.MevcutIslemId is null ? "Ödeme kaydedildi; tek bir gider oluşturuldu." : "Mevcut gider bağlandı; ikinci bir gider oluşturulmadı.";
         }
         catch (KasaApiException e) when (e.DurumKodu is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
-        { if (Gecerli(nesil)) _bekleyenOdeme = null; throw; }
+        { if (Gecerli(nesil)) _odemeAnahtari.Temizle(); throw; }
     });
 
     [RelayCommand] private async Task OdemeyiAyriKaydetAsync() { if (OdemeBenzerlik.Onayla()) await OdemeKaydetAsync(); }
@@ -565,7 +564,7 @@ public partial class AlislarViewModel : TemelViewModel
     private void OdemeFormunuTemizle()
     {
         OdemeBenzerlik.Temizle();
-        _bekleyenOdeme = null;
+        _odemeAnahtari.Temizle();
         MevcutGiderKullan = false;
         SeciliGider = null;
         OdemeTarihi = DateTime.Today;
