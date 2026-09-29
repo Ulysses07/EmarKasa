@@ -41,68 +41,69 @@
   - searchbox "Açıklama / ödeme yapılan yer"
   - button "Listele"
   - paragraph: Kanal filtresi ilgili giderin tam tutarını gösterir; çok kanallı bir ödemenin kanal payı toplamı değildir. Alışa bağlı ödemeler alış kaydından düzeltilir.
-  - table:
-    - rowgroup:
-      - row "Tarih Açıklama Kanal Tür Tutar":
-        - columnheader "Tarih"
-        - columnheader "Açıklama"
-        - columnheader "Kanal"
-        - columnheader "Tür"
-        - columnheader "Tutar"
-        - columnheader
-    - rowgroup:
-      - row /2 Eyl \d+ Kargo ve nakliye TOPTAN Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
-        - cell /2 Eyl \d+/
-        - cell "Kargo ve nakliye"
-        - cell "TOPTAN"
-        - cell "Diğer gider"
-        - cell /₺\d+\.\d+,\d+/
-        - cell "Düzenle Sil":
-          - button "Düzenle"
-          - button "Sil"
-      - row /5 Eyl \d+ Dükkân kirası Ortak Sabit gider ₺\d+\.\d+,\d+ Düzenle Sil/:
-        - cell /5 Eyl \d+/
-        - cell "Dükkân kirası"
-        - cell "Ortak"
-        - cell "Sabit gider"
-        - cell /₺\d+\.\d+,\d+/
-        - cell "Düzenle Sil":
-          - button "Düzenle"
-          - button "Sil"
-      - row /\d+ Eyl \d+ Ambalaj malzemesi PERAKENDE Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
-        - cell /\d+ Eyl \d+/
-        - cell "Ambalaj malzemesi"
-        - cell "PERAKENDE"
-        - cell "Diğer gider"
-        - cell /₺\d+\.\d+,\d+/
-        - cell "Düzenle Sil":
-          - button "Düzenle"
-          - button "Sil"
-      - row /\d+ Eyl \d+ Elektrik faturası MEZAT Sabit gider ₺\d+\.\d+,\d+ Düzenle Sil/:
-        - cell /\d+ Eyl \d+/
-        - cell "Elektrik faturası"
-        - cell "MEZAT"
-        - cell "Sabit gider"
-        - cell /₺\d+\.\d+,\d+/
-        - cell "Düzenle Sil":
-          - button "Düzenle"
-          - button "Sil"
-      - row /\d+ Eyl \d+ Yemek kartı yüklemesi PERAKENDE Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
-        - cell /\d+ Eyl \d+/
-        - cell "Yemek kartı yüklemesi"
-        - cell "PERAKENDE"
-        - cell "Diğer gider"
-        - cell /₺\d+\.\d+,\d+/
-        - cell "Düzenle Sil":
-          - button "Düzenle"
-          - button "Sil"
-      - row /\d+ Eyl \d+ Toptancı ödemesi TOPTAN Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
-        - cell /\d+ Eyl \d+/
-        - cell "Toptancı ödemesi"
-        - cell "TOPTAN"
-        - cell "Diğer gider"
-        - cell /₺\d+\.\d+,\d+/
-        - cell "Düzenle Sil":
-          - button "Düzenle"
-          - button "Sil"
+  - region "Gider kayıtları":
+    - table:
+      - rowgroup:
+        - row "Tarih Açıklama Kanal Tür Tutar":
+          - columnheader "Tarih"
+          - columnheader "Açıklama"
+          - columnheader "Kanal"
+          - columnheader "Tür"
+          - columnheader "Tutar"
+          - columnheader
+      - rowgroup:
+        - row /2 Eyl \d+ Kargo ve nakliye TOPTAN Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+          - cell /2 Eyl \d+/
+          - cell "Kargo ve nakliye"
+          - cell "TOPTAN"
+          - cell "Diğer gider"
+          - cell /₺\d+\.\d+,\d+/
+          - cell "Düzenle Sil":
+            - button "Düzenle"
+            - button "Sil"
+        - row /5 Eyl \d+ Dükkân kirası Ortak Sabit gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+          - cell /5 Eyl \d+/
+          - cell "Dükkân kirası"
+          - cell "Ortak"
+          - cell "Sabit gider"
+          - cell /₺\d+\.\d+,\d+/
+          - cell "Düzenle Sil":
+            - button "Düzenle"
+            - button "Sil"
+        - row /\d+ Eyl \d+ Ambalaj malzemesi PERAKENDE Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+          - cell /\d+ Eyl \d+/
+          - cell "Ambalaj malzemesi"
+          - cell "PERAKENDE"
+          - cell "Diğer gider"
+          - cell /₺\d+\.\d+,\d+/
+          - cell "Düzenle Sil":
+            - button "Düzenle"
+            - button "Sil"
+        - row /\d+ Eyl \d+ Elektrik faturası MEZAT Sabit gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+          - cell /\d+ Eyl \d+/
+          - cell "Elektrik faturası"
+          - cell "MEZAT"
+          - cell "Sabit gider"
+          - cell /₺\d+\.\d+,\d+/
+          - cell "Düzenle Sil":
+            - button "Düzenle"
+            - button "Sil"
+        - row /\d+ Eyl \d+ Yemek kartı yüklemesi PERAKENDE Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+          - cell /\d+ Eyl \d+/
+          - cell "Yemek kartı yüklemesi"
+          - cell "PERAKENDE"
+          - cell "Diğer gider"
+          - cell /₺\d+\.\d+,\d+/
+          - cell "Düzenle Sil":
+            - button "Düzenle"
+            - button "Sil"
+        - row /\d+ Eyl \d+ Toptancı ödemesi TOPTAN Diğer gider ₺\d+\.\d+,\d+ Düzenle Sil/:
+          - cell /\d+ Eyl \d+/
+          - cell "Toptancı ödemesi"
+          - cell "TOPTAN"
+          - cell "Diğer gider"
+          - cell /₺\d+\.\d+,\d+/
+          - cell "Düzenle Sil":
+            - button "Düzenle"
+            - button "Sil"
   - text: Kasa · Birlikte, hesabı net. Sürüm e2e

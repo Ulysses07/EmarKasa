@@ -25,7 +25,7 @@
   - button "+ Gelir gir"
   - button "+ Gider kaydet"
   - text: Genel kasa
-  - strong: /₺\d+\.\d+,\d+/
+  - region "Genel kasa": /₺\d+\.\d+,\d+/
   - text: Bu haftanın sonucu
   - strong: /₺\d+\.\d+,\d+/
   - text: Bu ayın sonucu
@@ -33,31 +33,32 @@
   - text: Kanal sayısı
   - strong: "3"
   - heading "Kanal kasaları" [level=2]
-  - text: "/MEZAT ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ PERAKENDE ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ TOPTAN ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ 0/"
+  - text: "/MEZAT ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ PERAKENDE ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+ TOPTAN ₺\\d+\\.\\d+,\\d+ Kalan kart borcu: ₺\\d+,\\d+/"
   - paragraph: Kart borçları kasa bakiyesine dahil edilmez; ödeme kaydedildiğinde kasadan düşer.
   - heading "Gerçek bakiye karşılaştırmaları" [level=2]
   - paragraph: Kayıt anındaki genel kasa ile sizin bildirdiğiniz gerçek bakiye karşılaştırılır. Fark otomatik gelir veya gider yazılmaz. Kayıt gününe ya da öncesine sonradan girilen, silinen veya düzeltilen kayıtlar güncel durumu değiştirir; kayıtlı değerler değişmez.
-  - table:
-    - rowgroup:
-      - row "Kayıt zamanı Kayıtlı genel kasa Gerçek bakiye Gerçek − kayıtlı Güncel durum Not":
-        - columnheader "Kayıt zamanı"
-        - columnheader "Kayıtlı genel kasa"
-        - columnheader "Gerçek bakiye"
-        - columnheader "Gerçek − kayıtlı"
-        - columnheader "Güncel durum"
-        - columnheader "Not"
-        - columnheader
-    - rowgroup:
-      - row /\d+\.\d+\.\d+ \d+:\d+:\d+ ₺\d+\.\d+,\d+ ₺\d+\.\d+,\d+ -₺\d+,\d+ Kayıttan sonra değişmedi Akşam sayımında \d+ ₺ eksik\. Değişenleri göster Farkı açıkla/:
-        - cell /\d+\.\d+\.\d+ \d+:\d+:\d+/
-        - cell /₺\d+\.\d+,\d+/
-        - cell /₺\d+\.\d+,\d+/
-        - cell /-₺\d+,\d+/
-        - cell "Kayıttan sonra değişmedi"
-        - cell /Akşam sayımında \d+ ₺ eksik\./
-        - cell "Değişenleri göster Farkı açıkla":
-          - button "Değişenleri göster"
-          - button "Farkı açıkla"
+  - region "Gerçek bakiye karşılaştırmaları":
+    - table:
+      - rowgroup:
+        - row "Kayıt zamanı Kayıtlı genel kasa Gerçek bakiye Gerçek − kayıtlı Güncel durum Not":
+          - columnheader "Kayıt zamanı"
+          - columnheader "Kayıtlı genel kasa"
+          - columnheader "Gerçek bakiye"
+          - columnheader "Gerçek − kayıtlı"
+          - columnheader "Güncel durum"
+          - columnheader "Not"
+          - columnheader
+      - rowgroup:
+        - row /\d+\.\d+\.\d+ \d+:\d+:\d+ ₺\d+\.\d+,\d+ ₺\d+\.\d+,\d+ -₺\d+,\d+ Kayıttan sonra değişmedi Akşam sayımında \d+ ₺ eksik\. Değişenleri göster Farkı açıkla/:
+          - cell /\d+\.\d+\.\d+ \d+:\d+:\d+/
+          - cell /₺\d+\.\d+,\d+/
+          - cell /₺\d+\.\d+,\d+/
+          - cell /-₺\d+,\d+/
+          - cell "Kayıttan sonra değişmedi"
+          - cell /Akşam sayımında \d+ ₺ eksik\./
+          - cell "Değişenleri göster Farkı açıkla":
+            - button "Değişenleri göster"
+            - button "Farkı açıkla"
   - button "Gerçek bakiye ile karşılaştır"
   - button "Kasa hareket dökümü"
   - heading "Yaklaşan ve geciken ödemeler" [level=2]
