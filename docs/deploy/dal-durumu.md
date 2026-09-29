@@ -154,8 +154,8 @@ Uygulanan adımlar (etiket, dal ve varsayılan dal komutlarını depo sahibi ça
 
 Açık kalanlar (devops-1'in kapsamı dışında, sırası geldiğinde):
 
-- **Zorunlu CI kontrolü:** `release/2.x` korumasına `Kasa CI` kontrolleri, denetim düzeltmelerinin PR'ında CI yeşil görüldükten sonra zorunlu olarak eklenir.
-- **A7:** `denetim-duzeltmeleri`, önce `origin/canli-2.3.0-imports` (PR #11; `.github/workflows/ci.yml` çakışması elle çözülür) birleştirilip `release/2.x`'e PR ile alınır.
+- **Zorunlu CI kontrolü (uygulandı, 29 Eylül 2026):** PR #12'de (denetim düzeltmeleri) bütün kontroller yeşil geçtikten sonra `release/2.x` korumasına zorunlu kontroller eklendi: `Build and smoke-test Windows MAUI app`, `Deploy scripts`, `Mobile web logic`, `Pinned base images` ve beş `Test Kasa.*` işi. Dalın güncel olması şartı (`strict`) kapalı. Bir CI işinin adı değişirse koruma listesi de güncellenmelidir; yoksa PR'lar birleştirilemez.
+- **A7 (uygulandı):** `denetim-duzeltmeleri`, `origin/canli-2.3.0-imports` (PR #11) birleştirildikten sonra PR #12 ile `release/2.x`'e alındı (29 Eylül 2026).
 - **A8:** ana worktree'deki commit edilmemiş içeriğin yerel yedek dala alınması ve `Kasa-deploy` worktree'sinin kaldırılması depo sahibinin onayıyla yapılır.
 - **A9:** bundan sonra yalnız etiketli commit dağıtılır.
 - **Paralel hattın özellikleri** (devops-28, yol haritası) ürün sahibinin kararıdır.
