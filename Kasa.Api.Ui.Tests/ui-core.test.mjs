@@ -6210,7 +6210,8 @@ test('Aşama 3 kapısı: editör koruması ekrana göre aynı iletiyle işlemi b
   const MONTHLY = 'Bu işlem için editör hesabı gerekir.';
   const IMPORT = 'Ekstre yüklemek ve işlemek için editör hesabı gerekir.';
   const { app, calls } = await openApp(false, { ...monthlyResponses(), '/api/auth/me': { rol: 'viewer' } });
-  const exact = message => error => error instanceof Error && error.message === message;
+  // Hata türü adla denetlenir: testte app.js ayrı bir vm bağlamında (başka Error kurucusuyla) çalışır; tarayıcıda tek bağlam vardır.
+  const exact = message => error => error?.name === 'Error' && error.message === message;
   await assert.rejects(app.monthlyUi.templateDialog(), exact(MONTHLY));
   assert.throws(() => app.monthlyUi.paymentDialog(monthlyRow, yearNow, monthNumberNow), exact(MONTHLY));
   assert.throws(() => app.monthlyUi.cancelDialog({ ...monthlyRow, durum: 'Odendi', odemeId: 4 }), exact(MONTHLY));
