@@ -15,7 +15,11 @@
 </head>
 <body>
   <a class="skip-link" href="#main">İçeriğe geç</a>
-  <div id="notifications" class="notifications" role="status" aria-live="polite" aria-atomic="true"></div>
+  <!-- Canlı bölgeler sayfa açılışında boş olarak vardır: hata assertive (role="alert"), bilgi kibar (role="status"). -->
+  <div class="notifications">
+    <div id="alerts" role="alert"></div>
+    <div id="notifications" role="status" aria-live="polite" aria-atomic="true"></div>
+  </div>
   <section id="login-screen" class="login-screen" hidden>
     <aside class="login-story" aria-label="Kasa">
       <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">K</span><span>Kasa</span></a>

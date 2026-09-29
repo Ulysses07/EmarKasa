@@ -62,6 +62,17 @@ export function today() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
+// "YYYY-AA" ayına delta ay ekler; yıl sınırını geçer (2026-12 + 1 = 2027-01).
+export function shiftMonth(month, delta) {
+  const [year, number] = String(month).split('-').map(Number);
+  const index = year * 12 + number - 1 + delta;
+  return `${Math.floor(index / 12)}-${String(index % 12 + 1).padStart(2, '0')}`;
+}
+// "YYYY-AA" → "Eylül 2026" (ay seçicinin görünen değeri).
+export function monthLabel(month) {
+  const [year, number] = String(month).split('-').map(Number);
+  return new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, number - 1, 1)));
+}
 // Inputs accept an ungrouped decimal with either separator. Never silently round money.
 export function cents(value, { allowZero = true } = {}) {
   const text = String(value ?? '').trim().replace(',', '.');
@@ -181,6 +192,13 @@ export function detachAllocations(rows, total) {
 export function filteredPurchases(purchases, query, status) {
   const term = (query || '').toLocaleLowerCase('tr-TR');
   return purchases.filter(p => (!status || p.durum === status) && `${p.id} ${p.tedarikci} ${p.alici} ${(p.kalemler || []).map(k => k.aciklama).join(' ')}`.toLocaleLowerCase('tr-TR').includes(term));
+}
+// Alış listesinin özet şeridi. Tutarlar sunucudan gelir (JSON sayısı): kayan noktayla toplanmaz, serverCents ile kuruşa
+// çevrilip tamsayı olarak toplanır (0,1 + 0,2 = 0,3). Kullanıcı girdisi ayrıştırıcısı (cents) burada kullanılmaz.
+export function purchaseTotals(purchases) {
+  const total = purchases.reduce((sum, p) => sum + serverCents(p.toplam), 0);
+  const remaining = purchases.reduce((sum, p) => sum + serverCents(p.kalan), 0);
+  return { total: total / 100, remaining: remaining / 100, reviewing: purchases.filter(p => p.durum === 'Incelemede').length };
 }
 export function purchasePayload(form) {
   if (form.kalemler.length > 100) throw new Error('Bir alışta en fazla 100 kalem olabilir.');

@@ -17,7 +17,8 @@ const pushModule = await loadBrowserModule('push-client.js');
 const { cents, amount, money, dateText, permissions, filteredPurchases, purchasePayload, errorMessage, fieldErrors, sessionExpired, viewerPasswordError, VIEWER_PASSWORD_MESSAGE, VIEWER_PASSWORD_SHORT_MESSAGE, MAX_CENTS, childValues, logoutAndClear, navigationFor, currentPeriod, monthlyTotals, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, incomeSelection } = ui;
 
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
-async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
+// timers: verilirse app.js'in kurduğu zamanlayıcılar ({ fn, ms }) buraya yazılır; testte elle çalıştırılır.
+async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, timers = null) {
   class Element {
     constructor(tag = 'div') { this.tag = tag; this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; this.open = false; this.checked = false; }
     // Gerçek DOM gibi: yalnız belge köküne (document.querySelector düğümleri) zincirle bağlı düğüm bağlıdır; içerikten çıkarılan düğüm kopar.
@@ -85,10 +86,10 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null) {
   const stored = [];
   const storage = { getItem: () => null, setItem: (key, value) => { stored.push([key, String(value)]); }, removeItem() {} };
   let nextId = 0;
-  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, AbortController, Node: Element, setTimeout: () => 0, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; Object.defineProperty(call, 'signal', { value: options.signal }); calls.push(call); if (options.signal?.aborted) throw aborted(); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await abortable(response(call), options.signal) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
+  const context = { ...ui, ...finance, ...notification, ...monthly, ...cashControls, ...statementImport, ...pushModule, crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` }, Headers, FormData: TestFormData, URLSearchParams, URL, AbortController, Node: Element, setTimeout: (fn, ms) => { timers?.push({ fn, ms }); return 0; }, localStorage: storage, sessionStorage: storage, document: { querySelector: key => { if (!nodes.has(key)) nodes.set(key, root(new Element())); return nodes.get(key); }, createElement: tag => new Element(tag), createTextNode: text => String(text) }, fetch: async (path, options = {}) => { requests.push(path); const call = { path, method: options.method || 'GET', credentials: options.credentials, headers: Object.fromEntries(new Headers(options.headers || {})), body: options.body instanceof TestFormData ? Object.fromEntries(options.body) : options.body ? JSON.parse(options.body) : null }; Object.defineProperty(call, 'signal', { value: options.signal }); calls.push(call); if (options.signal?.aborted) throw aborted(); if (!(path in responses)) throw new Error(`Unexpected API: ${path}`); const response = responses[path]; if (response instanceof Error) throw response; const value = typeof response === 'function' ? await abortable(response(call), options.signal) : response; return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) }; } };
   if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
   const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, incomeDialog, expenseDialog, paymentDialog, paymentRow, cancelPayment, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
+  runInNewContext(source.replace(/^import[^\n]+\n/gm, '') + '\nglobalThis.appTest = { navigate, toast, incomeDialog, expenseDialog, paymentDialog, paymentRow, cancelPayment, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };', context);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
   return { nodes, requests, calls, responses, stored, app: context.appTest };
 }
@@ -1183,7 +1184,7 @@ test('PDF silent field change cannot reuse an old financial preview', async () =
   await app.navigate('imports', 12); await chooseImportRow(nodes); await clickView(nodes, 'Seçilenleri önizle');
   viewField(nodes, 'tutar-1').value = '101'; await clickView(nodes, 'Onayla ve kaydet');
   assert.equal(calls.some(call => call.path.endsWith('/kaydet')), false);
-  assert.match(nodes.get('#notifications').textContent, /Yeniden önizleyin/);
+  assert.match(nodes.get('#alerts').textContent, /Yeniden önizleyin/);
 });
 
 test('PDF uncertain save retries retain the idempotency key and a conflict requires new preview', async () => {
@@ -1472,7 +1473,7 @@ test('manual backup rate limit shows the server Turkish 429 message and keeps th
   await app.navigate('tools');
   await clickView(nodes, 'Şimdi yedek indir');
   assert.deepEqual(calls.filter(call => call.path === '/api/yedek').map(call => call.method), ['POST']);
-  assert.match(nodes.get('#notifications').textContent, /Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek/);
+  assert.match(nodes.get('#alerts').textContent, /Elle yedek sınırına ulaşıldı: 60 dakikada en çok 5 elle yedek/);
   assert.equal(nodes.get('#application').hidden, false);
   assert.equal(nodes.get('#login-screen').hidden, true);
 });
@@ -1499,7 +1500,7 @@ test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatas�
   assert.equal(nodes.get('#modal-content').children.length, 0);
   assert.equal(errorBox.isConnected, false);
   await finish({ $status: 409, hata: 'Bu ay kilitli.' });
-  assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./);
+  assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Bu ay kilitli\./);
   assert.doesNotMatch(errorBox.textContent, /kilitli/);
   assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
   assert.ok(!nodes.get('#modal-close').disabled, 'Sonraki pencere kilitsiz açılır.');
@@ -1513,7 +1514,7 @@ test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × açık k
   assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Vazgeç/);
   await finish({ $status: 409, hata: 'Bu ay kilitli.' });
   assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
-  assert.doesNotMatch(nodes.get('#notifications').textContent, /Bu ay kilitli/);
+  assert.doesNotMatch(nodes.get('#alerts')?.textContent ?? '', /Bu ay kilitli/);
   assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
   assert.equal(nodes.get('#modal').open, false); assert.equal(nodes.get('#modal-content').children.length, 0);
 });
@@ -1521,7 +1522,7 @@ test('diyalog cancel olayı olmadan kapansa bile geç gelen kayıt hatası bildi
   const { nodes, finish } = await pendingExpense();
   nodes.get('#modal').close();
   await finish({ $status: 409, hata: 'Kayıt değişti.' });
-  assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Kayıt değişti\./);
+  assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Kayıt değişti\./);
   assert.ok(!nodes.get('#modal-close').disabled);
 });
 test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hatası bildirim olarak görünür', async () => {
@@ -1533,7 +1534,7 @@ test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hat
     assert.equal(nodes.get('#modal').open, false, `${name} pencereyi kapatır.`);
     assert.equal(nodes.get('#modal-content').children.length, 0);
     await finish({ $status: 409, hata: 'Bu ay kilitli.' });
-    assert.match(nodes.get('#notifications').textContent, /Gider kaydet: Bu ay kilitli\./, `${name} sonrası hata bildirimle görünür.`);
+    assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Bu ay kilitli\./, `${name} sonrası hata bildirimle görünür.`);
     assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
   }
 });
@@ -1887,7 +1888,7 @@ test('ekran değişince ana sayfa isteği iptal edilir; geç yanıt yeni ekrana 
   assert.match(nodes.get('#view').textContent, /Henüz kasa dönemi yok/);
   release(sampleHome()); await settle();
   assert.match(nodes.get('#view').textContent, /Henüz kasa dönemi yok/);
-  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  assert.equal((nodes.get('#notifications')?.textContent ?? '') + (nodes.get('#alerts')?.textContent ?? ''), '');
   assert.equal(calls.find(call => call.path === '/api/rapor/haftalik').signal.aborted, false);
   // Rapor dışı okumalar (ve yazmalar) ekran sinyaline bağlanmaz.
   assert.equal(calls.find(call => call.path === '/api/alis/inceleme-ozeti?adet=4').signal, undefined);
@@ -2139,7 +2140,7 @@ test('gelir penceresinin dönem okuması ekran sinyaline bağlanmaz; pencere aç
   release([week]); await opening; await settle();
   assert.equal(nodes.get('#modal').open, true); assert.equal(nodes.get('#modal-title').textContent, 'Kanal geliri gir');
   assert.ok(formField(nodes, 'donemStart'), 'Dönem seçimi dolu.');
-  assert.equal(nodes.get('#notifications')?.textContent ?? '', '');
+  assert.equal((nodes.get('#notifications')?.textContent ?? '') + (nodes.get('#alerts')?.textContent ?? ''), '');
   // Ekranın kendi rapor okumaları ekran sinyaline bağlı kalır.
   assert.ok(calls.find(call => call.path === monthly).signal);
 });
@@ -2337,4 +2338,97 @@ test('gelir kaydı seçili satırın sürümünü gönderir; 409’da dönemin g
   assert.equal(formField(nodes, 'tutarTl').value, '55', 'Güncel toplam forma yüklendi.');
   channel.value = 'Normal'; channel.listeners.change(); formField(nodes, 'tutarTl').value = '10'; await submitDialog(nodes);
   assert.equal(calls.filter(call => call.path === '/api/gelenler' && call.method === 'PUT').at(-1).body.surum, 0, 'Satırı olmayan kanal 0 gönderir.');
+});
+
+// Hata iletisi kendiliğinden kaybolmaz (WAI-ARIA APG uyarı deseni; WCAG 2.2.3) ve assertive bölgede duyurulur. Canlı bölge
+// sayfa açılışında boş olarak işaretlemede bulunur (MDN: role="alert" içeriği sonradan değişince duyurulur).
+test('hata bildirimi role="alert" bölgesinde kalır ve kapatma düğmesiyle kapanır; bilgi iletisi kibar bölgede 6 sn sonra kalkar', async () => {
+  const html = await readFile(new URL('../Kasa.Api/wwwroot/index.html', import.meta.url), 'utf8');
+  assert.match(html, /<div id="alerts" role="alert"><\/div>/);
+  assert.match(html, /<div id="notifications" role="status" aria-live="polite" aria-atomic="true"><\/div>/);
+  const timers = [];
+  const { app, nodes } = await openApp(false, {}, null, timers);
+  timers.length = 0;
+  app.toast('Gider kaydedildi.');
+  assert.match(nodes.get('#notifications').textContent, /Gider kaydedildi\./);
+  assert.deepEqual(timers.map(timer => timer.ms), [6000]);
+  timers[0].fn();
+  assert.equal(nodes.get('#notifications').textContent, '');
+  app.toast('Gider kaydet: Bu ay kilitli.', true);
+  app.toast('Sunucuya ulaşılamadı.', true);
+  const alerts = nodes.get('#alerts');
+  assert.match(alerts.textContent, /Gider kaydet: Bu ay kilitli\..*Sunucuya ulaşılamadı\./);
+  assert.equal(nodes.get('#notifications').textContent, '', 'Hata kibar bölgeye yazılmaz.');
+  assert.equal(timers.length, 1, 'Hata için kaldırma zamanlayıcısı kurulmaz.');
+  const close = alerts.find(node => node.tag === 'button');
+  assert.equal(close.attributes.type, 'button'); assert.equal(close.attributes['aria-label'], 'Hata iletisini kapat');
+  close.listeners.click({ currentTarget: close });
+  assert.doesNotMatch(alerts.textContent, /Bu ay kilitli/); assert.match(alerts.textContent, /Sunucuya ulaşılamadı/);
+  app.clearSession();
+  assert.equal(alerts.textContent, '', 'Oturum kapanınca önceki oturumun hataları ekranda kalmaz.');
+});
+
+test('alış toplamı ve ödenmeyi bekleyen tutar sunucu tutarlarından kuruşla toplanır (kayan nokta kayması yok)', async () => {
+  const purchases = [{ id: 1, toplam: 0.1, kalan: 0.1, durum: 'Onaylandi' }, { id: 2, toplam: 0.2, kalan: 0.2, durum: 'Incelemede' }, { id: 3, toplam: 1234567.07, kalan: 0, durum: 'Incelemede' }];
+  assert.notEqual(0.1 + 0.2, 0.3, 'Kayan nokta toplamı kayar.');
+  assert.deepEqual(ui.purchaseTotals(purchases), { total: 1234567.37, remaining: 0.3, reviewing: 2 });
+  assert.deepEqual(ui.purchaseTotals([]), { total: 0, remaining: 0, reviewing: 0 });
+  const { app, nodes } = await openApp(false, { '/api/alis': purchases, '/api/alis/kanallar': [] });
+  await app.navigate('purchases');
+  const strip = nodes.get('#view').find(node => node.className === 'summary-strip');
+  assert.ok(strip.textContent.includes(`Alış toplamı${money(1234567.37)}3 kayıt`), strip.textContent);
+  assert.ok(strip.textContent.includes(`Ödenmeyi bekleyen${money(0.3)}`), strip.textContent);
+  assert.match(strip.textContent, /İnceleme bekleyen2/);
+});
+
+// Masaüstü Firefox ve Safari'de type="month" denetimi yok (MDN browser-compat-data html.elements.input.type_month:
+// firefox ve safari version_added false). Ay seçici "‹ Eylül 2026 ›" düğmeleriyle YYYY-AA değeri üretir.
+test('ay seçici type="month" kullanmaz; önceki/sonraki düğmeleri YYYY-AA değerini ve görünen ay adını değiştirir', async () => {
+  for (const file of ['app.js', 'monthly-ui.js', 'finance-ui.js', 'cash-controls-ui.js', 'statement-import-ui.js', 'notification-ui.js']) {
+    assert.doesNotMatch(await readFile(new URL(`../Kasa.Api/wwwroot/${file}`, import.meta.url), 'utf8'), /type:\s*'month'/, file);
+  }
+  assert.equal(ui.shiftMonth('2026-01', -1), '2025-12'); assert.equal(ui.shiftMonth('2026-12', 1), '2027-01'); assert.equal(ui.shiftMonth('2026-09', 0), '2026-09');
+  assert.equal(ui.monthLabel('2026-09'), 'Eylül 2026'); assert.equal(ui.monthLabel('2027-01'), 'Ocak 2027');
+  const previous = ui.shiftMonth(monthNow, -1); const [previousYear, previousMonth] = previous.split('-').map(Number);
+  const channels = [{ kanal: 'MEZAT', gelen: 200, krediGirisi: 0, cariGiden: 100, sabitGider: 0, krediKarti: 0, ortakPay: 0, aySonucu: 100 }];
+  const previousPath = `/api/rapor/aylik?yil=${previousYear}&ay=${previousMonth}`;
+  const { app, nodes, calls } = await openApp(false, { [`/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`]: { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, kanallar: channels }, [previousPath]: { yil: previousYear, ay: previousMonth, kuralSurumu: 2, kanallar: channels } });
+  await app.navigate('monthly');
+  const picker = nodes.get('#view').find(node => node.attributes.role === 'group' && node.attributes['aria-label'] === 'Rapor ayı');
+  assert.ok(picker, 'Ay seçici erişilebilir adlı bir grup.');
+  assert.ok(picker.textContent.includes(ui.monthLabel(monthNow)));
+  const back = picker.find(node => node.tag === 'button' && node.attributes['aria-label'] === 'Önceki ay');
+  assert.ok(picker.find(node => node.tag === 'button' && node.attributes['aria-label'] === 'Sonraki ay'));
+  back.listeners.click({ currentTarget: back });
+  assert.equal(viewField(nodes, 'ay').value, previous); assert.ok(picker.textContent.includes(ui.monthLabel(previous)));
+  assert.equal(calls.some(call => call.path === previousPath), false, 'Ay yalnız "Ayı göster" ile yüklenir; odak düğmede kalır.');
+  await clickView(nodes, 'Ayı göster');
+  assert.ok(calls.some(call => call.path === previousPath));
+  assert.ok(nodes.get('#view').find(node => node.attributes.role === 'group').textContent.includes(ui.monthLabel(previous)));
+});
+
+test('aylık gider ekranı ve şablonun ilk ayı aynı ay seçiciyi kullanır; şablon bu aydan önceye inemez', async () => {
+  const next = ui.shiftMonth(monthNow, 1); const [nextYear, nextMonth] = next.split('-').map(Number);
+  const nextPath = `/api/aylik-giderler?yil=${nextYear}&ay=${nextMonth}`;
+  const { app, nodes, calls } = await openApp(false, { ...monthlyResponses(), [nextPath]: { yil: nextYear, ay: nextMonth, planlananToplam: 0, odenenToplam: 0, kayitlar: [] } });
+  await app.navigate('monthly-expenses');
+  const picker = nodes.get('#view').find(node => node.attributes.role === 'group' && node.attributes['aria-label'] === 'Aylık gider ayı');
+  const forward = picker.find(node => node.attributes['aria-label'] === 'Sonraki ay');
+  forward.listeners.click({ currentTarget: forward });
+  assert.equal(viewField(nodes, 'ay').value, next);
+  await clickView(nodes, 'Ayı göster');
+  assert.ok(calls.some(call => call.path === nextPath));
+
+  await app.monthlyUi.templateDialog();
+  const first = nodes.get('#modal-content').find(node => node.attributes.role === 'group' && node.attributes['aria-label'] === 'Bu aydan itibaren');
+  assert.ok(first, 'Şablonun ilk ayı adlı bir grup.');
+  assert.equal(nodes.get('#modal-content').find(node => node.tag === 'label' && node.find(child => child === first)), null, 'Düğmeler <label> içinde değil: etikete tıklamak önceki ayı seçmez.');
+  const firstBack = first.find(node => node.attributes['aria-label'] === 'Önceki ay');
+  assert.equal(firstBack.disabled, true, 'Şablon bu aydan önceye alınamaz.');
+  const firstForward = first.find(node => node.attributes['aria-label'] === 'Sonraki ay');
+  firstForward.listeners.click({ currentTarget: firstForward });
+  assert.equal(firstBack.disabled, false);
+  formField(nodes, 'ad').value = 'Kira'; formField(nodes, 'tutar').value = '100'; formField(nodes, 'dagilimTuru').value = 'Genel';
+  await submitDialog(nodes);
+  assert.equal(calls.find(call => call.method === 'POST' && call.path === '/api/aylik-giderler/sablonlar').body.gecerliAy, `${next}-01`);
 });

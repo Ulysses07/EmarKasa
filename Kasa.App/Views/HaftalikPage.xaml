@@ -35,7 +35,8 @@
                             <DataTemplate>
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
-                                    <Label Text="{Binding DagilimBekleyenTutar, StringFormat='Dağılım bekleyen: {0:N2} ₺'}" TextColor="#765100" FontSize="12" Margin="18,5,18,0" />
+                                    <!-- Yalnız dağılım bekleyen tutar sıfırdan farklıyken; metin satır modelinde (Bicim.Tl). -->
+                                    <Label Text="{Binding DagilimBekleyenMetni}" IsVisible="{Binding DagilimBekliyor}" TextColor="#765100" FontSize="12" Margin="18,5,18,0" />
                                     <Grid Padding="18,0" HeightRequest="54"
                                           ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">

@@ -19,12 +19,12 @@
             <Border Grid.RowSpan="2" WidthRequest="30" HeightRequest="30" StrokeThickness="0"
                     StrokeShape="RoundRectangle 9" Background="{StaticResource BrushGreen}"
                     VerticalOptions="Center">
-                <Label Text="₺" TextColor="White" FontFamily="PlexSansBold" FontSize="15"
+                <Label Text="₺" TextColor="White" FontAttributes="Bold" FontSize="15"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <Label Grid.Column="1" Text="Emar Kasa" FontFamily="PlexSansBold" FontSize="15.5"
+            <Label Grid.Column="1" Text="Emar Kasa" FontAttributes="Bold" FontSize="15.5"
                    TextColor="{StaticResource SidebarTitle}" />
-            <Label Grid.Column="1" Grid.Row="1" Text="KASA DEFTERİ" FontFamily="PlexSans" FontSize="10.5"
+            <Label Grid.Column="1" Grid.Row="1" Text="KASA DEFTERİ" FontSize="10.5"
                    CharacterSpacing="1" TextColor="{StaticResource SidebarMuted}" />
         </Grid>
     </Shell.FlyoutHeader>
@@ -54,7 +54,7 @@
                 </VisualStateManager.VisualStateGroups>
                 <Ellipse WidthRequest="6" HeightRequest="6" Fill="{StaticResource SidebarAccent}"
                          VerticalOptions="Center" />
-                <Label Grid.Column="1" Text="{Binding Title}" FontFamily="PlexSansMedium" FontSize="13.5"
+                <Label Grid.Column="1" Text="{Binding Title}" FontSize="13.5"
                        TextColor="{StaticResource SidebarText}" VerticalOptions="Center" />
             </Grid>
         </DataTemplate>
@@ -63,7 +63,7 @@
         <DataTemplate>
             <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <Ellipse WidthRequest="6" HeightRequest="6" Fill="Transparent" VerticalOptions="Center" />
-                <Label Grid.Column="1" Text="{Binding Text}" FontFamily="PlexSansMedium" FontSize="13.5"
+                <Label Grid.Column="1" Text="{Binding Text}" FontSize="13.5"
                        TextColor="{StaticResource SidebarText}" VerticalOptions="Center" />
             </Grid>
         </DataTemplate>
