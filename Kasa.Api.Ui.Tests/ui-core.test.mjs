@@ -2338,3 +2338,16 @@ test('gelir kaydı seçili satırın sürümünü gönderir; 409’da dönemin g
   channel.value = 'Normal'; channel.listeners.change(); formField(nodes, 'tutarTl').value = '10'; await submitDialog(nodes);
   assert.equal(calls.filter(call => call.path === '/api/gelenler' && call.method === 'PUT').at(-1).body.surum, 0, 'Satırı olmayan kanal 0 gönderir.');
 });
+
+test('alış toplamı ve ödenmeyi bekleyen tutar sunucu tutarlarından kuruşla toplanır (kayan nokta kayması yok)', async () => {
+  const purchases = [{ id: 1, toplam: 0.1, kalan: 0.1, durum: 'Onaylandi' }, { id: 2, toplam: 0.2, kalan: 0.2, durum: 'Incelemede' }, { id: 3, toplam: 1234567.07, kalan: 0, durum: 'Incelemede' }];
+  assert.notEqual(0.1 + 0.2, 0.3, 'Kayan nokta toplamı kayar.');
+  assert.deepEqual(ui.purchaseTotals(purchases), { total: 1234567.37, remaining: 0.3, reviewing: 2 });
+  assert.deepEqual(ui.purchaseTotals([]), { total: 0, remaining: 0, reviewing: 0 });
+  const { app, nodes } = await openApp(false, { '/api/alis': purchases, '/api/alis/kanallar': [] });
+  await app.navigate('purchases');
+  const strip = nodes.get('#view').find(node => node.className === 'summary-strip');
+  assert.ok(strip.textContent.includes(`Alış toplamı${money(1234567.37)}3 kayıt`), strip.textContent);
+  assert.ok(strip.textContent.includes(`Ödenmeyi bekleyen${money(0.3)}`), strip.textContent);
+  assert.match(strip.textContent, /İnceleme bekleyen2/);
+});

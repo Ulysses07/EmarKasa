@@ -182,6 +182,13 @@ export function filteredPurchases(purchases, query, status) {
   const term = (query || '').toLocaleLowerCase('tr-TR');
   return purchases.filter(p => (!status || p.durum === status) && `${p.id} ${p.tedarikci} ${p.alici} ${(p.kalemler || []).map(k => k.aciklama).join(' ')}`.toLocaleLowerCase('tr-TR').includes(term));
 }
+// Alış listesinin özet şeridi. Tutarlar sunucudan gelir (JSON sayısı): kayan noktayla toplanmaz, serverCents ile kuruşa
+// çevrilip tamsayı olarak toplanır (0,1 + 0,2 = 0,3). Kullanıcı girdisi ayrıştırıcısı (cents) burada kullanılmaz.
+export function purchaseTotals(purchases) {
+  const total = purchases.reduce((sum, p) => sum + serverCents(p.toplam), 0);
+  const remaining = purchases.reduce((sum, p) => sum + serverCents(p.kalan), 0);
+  return { total: total / 100, remaining: remaining / 100, reviewing: purchases.filter(p => p.durum === 'Incelemede').length };
+}
 export function purchasePayload(form) {
   if (form.kalemler.length > 100) throw new Error('Bir alışta en fazla 100 kalem olabilir.');
   const kalemler = form.kalemler.map((line, index) => {

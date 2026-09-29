@@ -5,7 +5,7 @@ import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
 import { createCashControlsUi } from './cash-controls-ui.js?v=2.3.0';
 import { createStatementImportUi } from './statement-import-ui.js?v=2.3.0';
 import { createPushClient, notificationRoute } from './push-client.js?v=2.3.0';
-import { documentFileName, linkableExpensesPath, documentsPath, documentRemovable, documentDescription, documentDeletePayload, backupDiskLines, restoreReport } from './ui-core.js?v=2.3.0';
+import { purchaseTotals, documentFileName, linkableExpensesPath, documentsPath, documentRemovable, documentDescription, documentDeletePayload, backupDiskLines, restoreReport } from './ui-core.js?v=2.3.0';
 
 const $ = selector => document.querySelector(selector);
 const state = { role: null, view: 'home', purchases: [], channels: [], cards: [], query: '', status: '', selected: null, epoch: 0 };
@@ -296,9 +296,7 @@ $('#recover-open').addEventListener('click', () => formDialog('Editör hesabın�
 
 function renderPurchases() {
   page(state.role === 'alici' ? 'Alışlarım' : 'Alışlar', 'Alış defteri', [button('+ Yeni alış', () => editPurchase(), 'primary')]);
-  const count = state.purchases.filter(p => p.durum === 'Incelemede').length;
-  const total = state.purchases.reduce((sum, p) => sum + Number(p.toplam), 0);
-  const remaining = state.purchases.reduce((sum, p) => sum + Number(p.kalan), 0);
+  const { total, remaining, reviewing: count } = purchaseTotals(state.purchases);
   const list = h('div', { class: 'purchase-list' });
   const draw = () => {
     const items = filteredPurchases(state.purchases, state.query, state.status);
