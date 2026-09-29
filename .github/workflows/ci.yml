@@ -37,8 +37,9 @@ jobs:
       - run: node --input-type=module --check < Kasa.Api/wwwroot/m/app.js
 
   # wwwroot ESLint (Aşama 2a): yalnız hata yakalayan kurallar (tanımsız ad, yinelenen anahtar/dal, sabite atama, NaN
-  # karşılaştırması...); biçim kuralı yok. Araç wwwroot dışında Kasa.Ui.E2E'nin kilit dosyasıyla kurulur (tam sürüm);
-  # wwwroot'a paket, derleme adımı ya da node_modules girmez.
+  # karşılaştırması...); biçim kuralı yok. Biçim Prettier'dadır (Aşama 2b; .prettierrc.yml, .prettierignore):
+  # Kasa.Api/wwwroot JS/CSS ve manifest, Kasa.Api.Ui.Tests, Kasa.Ui.E2E; HTML kapsam dışı. Araçlar wwwroot dışında
+  # Kasa.Ui.E2E'nin kilit dosyasıyla kurulur (tam sürüm); wwwroot'a paket, derleme adımı ya da node_modules girmez.
   web-lint:
     name: Web lint (ESLint)
     if: github.event_name != 'schedule'
@@ -59,6 +60,9 @@ jobs:
       - name: Lint wwwroot JavaScript
         working-directory: Kasa.Ui.E2E
         run: npm run lint:web
+      - name: Check web formatting (Prettier)
+        working-directory: Kasa.Ui.E2E
+        run: npm run format:web:check
 
   tests:
     name: Test ${{ matrix.project }}

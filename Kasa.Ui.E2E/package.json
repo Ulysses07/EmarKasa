@@ -1,19 +1,22 @@
 {
   "name": "kasa-ui-e2e",
   "private": true,
-  "description": "Kasa web arayüzü korumaları: Playwright + axe uçtan uca testleri ve wwwroot ESLint denetimi (wwwroot'a paket eklemez).",
+  "description": "Kasa web arayüzü korumaları: Playwright + axe uçtan uca testleri, wwwroot ESLint denetimi ve web kaynaklarının Prettier biçim denetimi (wwwroot'a paket eklemez).",
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "lint:web": "cd .. && eslint --config Kasa.Ui.E2E/eslint.config.mjs Kasa.Api/wwwroot",
+    "format:web": "cd .. && prettier --write Kasa.Api/wwwroot Kasa.Api.Ui.Tests Kasa.Ui.E2E",
+    "format:web:check": "cd .. && prettier --check Kasa.Api/wwwroot Kasa.Api.Ui.Tests Kasa.Ui.E2E",
     "test": "playwright test"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
     "eslint": "10.11.0",
-    "globals": "17.12.0"
+    "globals": "17.12.0",
+    "prettier": "3.9.9"
   }
 }

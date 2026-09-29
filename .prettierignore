@@ -1,0 +1,13 @@
+# Prettier kapsamı dışı (Aşama 2b; ayarlar .prettierrc.yml). Kapsam Kasa.Ui.E2E/package.json'daki format:web betiğinin
+# yollarıdır (Kasa.Api/wwwroot, Kasa.Api.Ui.Tests, Kasa.Ui.E2E); .gitignore (node_modules, bin, obj, test-results) ayrıca
+# uygulanır. Bu dosya editördeki "kaydederken biçimle"nin de aynı sınırı tanımasını sağlar.
+
+# HTML: satır içi öğeler arasındaki boşluk görüntüyü değiştirebilir (htmlWhitespaceSensitivity); biçimlenmez.
+*.html
+
+# Aracın yazdığı dosyalar: biçimi üreten araç belirler (npm kilidi, Playwright ARIA/ekran ve axe tabanları).
+Kasa.Ui.E2E/package-lock.json
+Kasa.Ui.E2E/testler/axe-tabani.json
+Kasa.Ui.E2E/testler/__aria__/
+Kasa.Ui.E2E/testler/__ekran__/
+Kasa.Ui.E2E/playwright-report/
