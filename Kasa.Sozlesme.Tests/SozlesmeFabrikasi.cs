@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -23,9 +22,11 @@ namespace Kasa.Sozlesme.Tests;
 /// Sözleşme testlerinin sunucusu: gerçek Kasa.Api, açık tutulan bellek içi SQLite, sabit saat (İstanbul'da
 /// <see cref="Bugun"/> 12:00), yüksek hız sınırları, sahte push göndericisi ve sabit PDF metni. Ağa ve diske (geçici
 /// yedek dizini dışında) çıkılmaz. Sunucu, istemcinin gönderdiği JSON gövdelerini ucun bağladığı türle birlikte kaydeder
-/// (<see cref="Istekler"/>): istemcinin gönderip sunucunun tanımadığı alan sessizce kaybolmasın.
+/// (<see cref="Istekler"/>): istemcinin gönderip sunucunun tanımadığı alan sessizce kaybolmasın. Kapanınca hız sınırı ara katmanının
+/// sızdırdığı sınırlayıcıları da kapatır (<see cref="SizdirmayanFabrika{TGiris}"/>): aksi halde her testin sunucusu koşu sonuna dek
+/// bellekte kalırdı.
 /// </summary>
-public sealed class SozlesmeFabrikasi : WebApplicationFactory<Program>
+public sealed class SozlesmeFabrikasi : SizdirmayanFabrika<Program>
 {
     public static readonly DateOnly Bugun = new(2026, 9, 25);
     public const string EditorSifresi = "kasa-sozlesme-123";

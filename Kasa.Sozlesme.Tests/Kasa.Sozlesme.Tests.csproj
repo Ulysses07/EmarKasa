@@ -4,7 +4,7 @@
        kapandı: SahteHandler, MutasyonTests, FinansIyilestirmeTests): gerçek KasaApiClient, test sunucusundaki gerçek
        Kasa.Api'ye konuşur. Kök ad alanı Kasa.Sozlesme.Tests'tir:
        Kasa.Api altında olsaydı aynı adlı sunucu tipleri (Kasa.Api.PanelDto ...) using yönergelerinden önce çözülürdü.
-       Kasa.Api.Tests'e başvurmaz; kendi fabrikası vardır. -->
+       Kasa.Api.Tests'e başvurmaz; kendi fabrikası vardır (sızıntı önleyen temel sınıfı TestOrtak'tan kaynak olarak alır). -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
@@ -36,6 +36,13 @@
     <!-- Yalnız MimariTests içindir: katman sınırı denetimi dört katmanın (Core, ApiClient, App.Core, Api) derlemesini
          birlikte görür. Kasa.App.Core net10.0 kütüphanesidir; MAUI ve iş yükü gerektirmez. -->
     <ProjectReference Include="..\Kasa.App.Core\Kasa.App.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Test projelerinin ortak kaynağı (proje başvurusu değil): hız sınırı sızıntısını kapatan SizdirmayanFabrika
+       (TestOrtak/HizSiniriSizintisi.cs, aspnetcore#66434). Kasa.Api.Tests ve Kasa.Sozlesme.Tests aynı dosyayı derler. -->
+  <ItemGroup>
+    <Compile Include="..\TestOrtak\*.cs" Link="Ortak\%(Filename)%(Extension)" />
+    <Using Include="Kasa.TestOrtak" />
   </ItemGroup>
 
 </Project>

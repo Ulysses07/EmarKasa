@@ -28,4 +28,11 @@
     <ProjectReference Include="..\Kasa.Api\Kasa.Api.csproj" />
   </ItemGroup>
 
+  <!-- Test projelerinin ortak kaynağı (proje başvurusu değil): hız sınırı sızıntısını kapatan SizdirmayanFabrika
+       (TestOrtak/HizSiniriSizintisi.cs, aspnetcore#66434). Kasa.Api.Tests ve Kasa.Sozlesme.Tests aynı dosyayı derler. -->
+  <ItemGroup>
+    <Compile Include="..\TestOrtak\*.cs" Link="Ortak\%(Filename)%(Extension)" />
+    <Using Include="Kasa.TestOrtak" />
+  </ItemGroup>
+
 </Project>
