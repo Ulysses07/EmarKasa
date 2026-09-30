@@ -8,7 +8,11 @@ namespace Kasa.App.Core.Tests;
 /// <summary>TakipUi (kodla yazılmış sayfaların yapı taşları) sabit yazı boyutu ve renkleri yerine Styles.xaml anahtarlarını
 /// uygular; kodla yazılmış sayfaların üç durum başlığı (TakipSayfasi, Kasa kontrolü, Dışa aktar) tek yardımcıya
 /// (<see cref="TakipUi.DurumSatirlari"/>) indi. Her yapı taşı, değişiklikten önceki kodun birebir kopyasıyla
-/// (<see cref="EskiTakipUi"/>, 1efdcb4; görünümü etkilemeyen tıklama işleyicileri hariç) aynı bağlamda kurulur ve çözümlenmiş görsel ağaçları karşılaştırılır.</summary>
+/// (<see cref="EskiTakipUi"/>, 1efdcb4; görünümü etkilemeyen tıklama işleyicileri hariç) aynı bağlamda kurulur ve çözümlenmiş görsel ağaçları karşılaştırılır.
+/// <para>Bilinçli değişiklikler (menü ve kartlar düzeltmesi, gerçek pencere görüntüleri): eski kopyaya da <see cref="EskiTakipUi.Bilincli"/>
+/// ile uygulanır, kalan her şey birebir karşılaştırılır. (1) Durum satırlarında gösterge yalnız meşgulken, hata ve ileti yalnız
+/// doluyken görünür (boşken Yenile ile son güncelleme arasında ~130 px boşluk kalıyordu). (2) Onay kutusunun en küçük genişliği 0
+/// (WinUI CheckBox'ın MinWidth=120'si etiketi ~110 px uzağa itiyordu).</para></summary>
 public partial class GorunumEsdegerligiTests
 {
     public sealed record ListeSatiri(string Baslik, string Ozet, bool Acik);
@@ -115,6 +119,28 @@ public partial class GorunumEsdegerligiTests
     private sealed class DenemeSayfasi(AyarlarViewModel vm)
         : TakipSayfasi<AyarlarViewModel>(vm, "Bildirimler", "Kart kesimi, son ödeme ve kredi taksiti hatırlatmaları", () => Task.CompletedTask);
 
+    /// <summary>Bilinçli değişiklik (1): meşgul değilken ve hata/ileti boşken durum satırlarında yalnız Yenile ve son güncelleme
+    /// görünür; meşgulken gösterge, dolu hata ve ileti görünür. Dönen değer hata satırıdır.</summary>
+    [Fact]
+    public void Bos_durum_satirlari_yer_kaplamaz()
+    {
+        GorunumOrtami.Kur();
+        var panel = new VerticalStackLayout();
+        var yenile = new Button { Text = "Yenile" };
+        var mesaj = TakipUi.Bagli("Mesaj");
+        var hata = TakipUi.DurumSatirlari(panel, yenile, mesaj);
+        var baglam = TakipBaglam(mesgul: false, hata: false, mesaj: false);
+        panel.BindingContext = baglam;
+        Assert.Equal(2, panel.Children.OfType<VisualElement>().Count(v => v.IsVisible));
+        Assert.True(yenile.IsVisible);
+        Assert.False(hata.IsVisible);
+        Assert.False(mesaj.IsVisible);
+        Assert.False(panel.Children.OfType<ActivityIndicator>().Single().IsVisible);
+        panel.BindingContext = TakipBaglam(mesgul: true, hata: true, mesaj: true);
+        Assert.Equal(5, panel.Children.OfType<VisualElement>().Count(v => v.IsVisible));
+        Assert.Equal(HataMetni, hata.Text);
+    }
+
     /// <summary>Kasa kontrolü (KasaKontrolAlanlari.Durum) başlığı: gösterge satır boyunca, ileti örtük stilde.</summary>
     [Theory]
     [MemberData(nameof(TakipDurumlari))]
@@ -149,6 +175,25 @@ public partial class GorunumEsdegerligiTests
     /// <summary>Değişiklikten önceki TakipUi ve durum başlıklarının birebir kopyası (yalnız karşılaştırma için).</summary>
     private static class EskiTakipUi
     {
+        /// <summary>Eski koda sonradan bilerek uygulanan görünüm değişiklikleri (sınıf belgesindeki liste).</summary>
+        public static class Bilincli
+        {
+            public static ActivityIndicator Gosterge(ActivityIndicator gosterge)
+            {
+                gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
+                return gosterge;
+            }
+
+            public static Label Doluysa(Label etiket)
+            {
+                etiket.SetBinding(VisualElement.IsVisibleProperty, new Binding(nameof(Label.Text), source: etiket,
+                    converter: new Kasa.App.Converters.DoluIseConverter()));
+                return etiket;
+            }
+
+            public static CheckBox OnayKutusu() => new() { MinimumWidthRequest = 0 };
+        }
+
         public static Label Metin(string text) => new() { Text = text, FontSize = 13 };
         public static Label Bagli(string yol, double size = 14) { var l = new Label { FontSize = size }; l.SetBinding(Label.TextProperty, yol); return l; }
         public static View Alan(string ad, View v) => new VerticalStackLayout { Spacing = 5, Children = { new Label { Text = ad, FontSize = 12 }, v } };
@@ -170,7 +215,7 @@ public partial class GorunumEsdegerligiTests
         }
         public static View Onay(string text, string yol)
         {
-            var c = new CheckBox();
+            var c = Bilincli.OnayKutusu();
             c.SetBinding(CheckBox.IsCheckedProperty, yol);
             var grid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8 };
             grid.Add(c);
@@ -239,7 +284,7 @@ public partial class GorunumEsdegerligiTests
         {
             var rows = new VerticalStackLayout { Spacing = 3 };
             rows.SetBinding(BindableLayout.ItemsSourceProperty, yol);
-            BindableLayout.SetItemTemplate(rows, new DataTemplate(() => { var c = new CheckBox(); c.SetBinding(CheckBox.IsCheckedProperty, "Secili"); var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } }; g.Add(c); var l = Bagli("Ad"); l.VerticalOptions = LayoutOptions.Center; g.Add(l, 1); return g; }));
+            BindableLayout.SetItemTemplate(rows, new DataTemplate(() => { var c = Bilincli.OnayKutusu(); c.SetBinding(CheckBox.IsCheckedProperty, "Secili"); var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } }; g.Add(c); var l = Bagli("Ad"); l.VerticalOptions = LayoutOptions.Center; g.Add(l, 1); return g; }));
             return rows;
         }
 
@@ -254,13 +299,13 @@ public partial class GorunumEsdegerligiTests
             root.Add(Tikla("Yenile / tekrar dene", () => Task.CompletedTask));
             var busy = new ActivityIndicator { HorizontalOptions = LayoutOptions.Start };
             busy.SetBinding(ActivityIndicator.IsRunningProperty, nameof(vm.Mesgul));
-            root.Add(busy);
+            root.Add(Bilincli.Gosterge(busy));
             var hata = Bagli(nameof(vm.Hata));
             hata.TextColor = Colors.DarkRed;
-            root.Add(hata);
+            root.Add(Bilincli.Doluysa(hata));
             var mesaj = Bagli(nameof(vm.Mesaj));
             mesaj.TextColor = Colors.DarkGreen;
-            root.Add(mesaj);
+            root.Add(Bilincli.Doluysa(mesaj));
             var zaman = new Label { FontSize = 12 };
             zaman.SetBinding(Label.TextProperty, new Binding(nameof(vm.SonGuncelleme), stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
             root.Add(zaman);
@@ -280,9 +325,9 @@ public partial class GorunumEsdegerligiTests
             var hata = Bagli("Hata");
             hata.TextColor = Colors.DarkRed;
             panel.Add(Tikla("Yenile / tekrar dene", () => Task.CompletedTask));
-            panel.Add(busy);
-            panel.Add(hata);
-            panel.Add(Bagli("Mesaj"));
+            panel.Add(Bilincli.Gosterge(busy));
+            panel.Add(Bilincli.Doluysa(hata));
+            panel.Add(Bilincli.Doluysa(Bagli("Mesaj")));
             var tarih = new Label { FontSize = 12 };
             tarih.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
             panel.Add(tarih);
@@ -298,10 +343,10 @@ public partial class GorunumEsdegerligiTests
             root.Add(yenile);
             var busy = new ActivityIndicator { HorizontalOptions = LayoutOptions.Start };
             busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
-            root.Add(busy);
+            root.Add(Bilincli.Gosterge(busy));
             var hata = new Label { TextColor = Colors.DarkRed };
             hata.SetBinding(Label.TextProperty, "Hata");
-            root.Add(hata);
+            root.Add(Bilincli.Doluysa(hata));
             var zaman = new Label { FontSize = 12 };
             zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
             root.Add(zaman);

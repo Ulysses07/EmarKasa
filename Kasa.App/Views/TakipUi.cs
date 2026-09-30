@@ -67,13 +67,17 @@ internal static class TakipUi
 
     public static View Onay(string text, string yol)
     {
-        var c = new CheckBox();
+        var c = OnayKutusu();
         c.SetBinding(CheckBox.IsCheckedProperty, yol);
         var grid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8 };
         grid.Add(c);
         grid.Add(new Label { Text = text, VerticalOptions = LayoutOptions.Center }, 1);
         return grid;
     }
+
+    /// <summary>Etiketli onay kutusunun kutusu: WinUI CheckBox'ın varsayılan stili MinWidth=120 yazar; etiket kutudan ~110 px
+    /// uzakta kalıyordu. Açıkça verilen en küçük genişlik (0) onu ezer, kutu kendi genişliğinde ölçülür.</summary>
+    private static CheckBox OnayKutusu() => new() { MinimumWidthRequest = 0 };
 
     public static Button Dugme(string text, string command)
     {
@@ -124,21 +128,32 @@ internal static class TakipUi
     /// güncelleme): TakipSayfasi, Kasa kontrolü ve Dışa aktar aynı sırayı ve stilleri kullanır. Bağlam modelinde Mesgul,
     /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncelleme beklenir. <paramref name="gostergeSolda"/> false iken gösterge
     /// satır boyunca yerleşir (Kasa kontrolünün önceki görünümü). Kartlar ekranı hatayı form açıkken formun içinde gösterdiği
-    /// için buraya SayfaHatasi'nı bağlar.</summary>
-    public static void DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, bool gostergeSolda = true, string hataYolu = "Hata")
+    /// için buraya SayfaHatasi'nı bağlar. Gösterge yalnız meşgulken, hata ve ileti yalnız doluyken yer kaplar (boşken Yenile ile
+    /// son güncelleme arasında ~130 px boşluk kalıyordu). Dönen değer hata satırıdır (sayfa onu görünür yere kaydırabilir).</summary>
+    public static Label DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, bool gostergeSolda = true, string hataYolu = "Hata")
     {
         hedef.Add(yenile);
         var busy = new ActivityIndicator();
         if (gostergeSolda)
             busy.HorizontalOptions = LayoutOptions.Start;
         busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
+        busy.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
         hedef.Add(busy);
-        hedef.Add(BagliHata(hataYolu));
+        var hata = DoluysaGoster(BagliHata(hataYolu));
+        hedef.Add(hata);
         if (mesaj is not null)
-            hedef.Add(mesaj);
+            hedef.Add(DoluysaGoster(mesaj));
         var zaman = new Label { Style = (Style)Application.Current!.Resources["LblTakipKucuk"] };
         zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
         hedef.Add(zaman);
+        return hata;
+    }
+
+    /// <summary>Etiket yalnız metni doluyken görünür (boş hata/ileti satırı yığında yer ve aralık kaplamaz).</summary>
+    private static Label DoluysaGoster(Label etiket)
+    {
+        etiket.SetBinding(VisualElement.IsVisibleProperty, new Binding(nameof(Label.Text), source: etiket, converter: new Converters.DoluIseConverter()));
+        return etiket;
     }
 
     public static View Liste<T>(string yol, Func<T, Task>? ac = null, string action = "Aç", Func<T, bool>? gorunur = null,
@@ -222,7 +237,7 @@ internal static class TakipUi
         rows.SetBinding(BindableLayout.ItemsSourceProperty, yol);
         BindableLayout.SetItemTemplate(rows, new DataTemplate(() =>
         {
-            var c = new CheckBox();
+            var c = OnayKutusu();
             c.SetBinding(CheckBox.IsCheckedProperty, "Secili");
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
             g.Add(c);
@@ -246,6 +261,8 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
     protected readonly T Vm;
     protected readonly VerticalStackLayout Govde = new() { Spacing = 18 };
     protected readonly ScrollView Kaydirici;
+    /// <summary>Sayfa başındaki hata satırı (DurumSatirlari).</summary>
+    protected readonly Label HataSatiri;
     private readonly Func<Task> _yukle;
     protected TakipSayfasi(T vm, string title, string aciklama, Func<Task> yukle, string hataYolu = nameof(TemelViewModel.Hata))
     {
@@ -259,7 +276,7 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         root.Add(TakipUi.Metin(aciklama));
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
-        TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
+        HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
         Govde.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         root.Add(Govde);
