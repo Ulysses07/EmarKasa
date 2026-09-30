@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Kasa.App.Controls;
 using Kasa.App.Core;
@@ -37,6 +38,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
 
     private int? _istenenKartId;
     private int? _gosterilenKartId;
+    /// <summary>Son kaydırma isteğinin sırası ve kaydırması yapılmış istek: yalnız en son istek, bir kez kaydırır.</summary>
+    private int _kaydirmaIstegi, _kaydirilanIstek;
     private readonly View _ayrinti;
     private readonly View _formAlani;
 
@@ -88,14 +91,16 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         bos.SetBinding(IsVisibleProperty, $"{nameof(vm.Kartlar)}.{nameof(vm.Kartlar.Count)}", converter: new SifirIse());
         Govde.Add(bos);
         Govde.Add(izgara);
-        // Başka bir kart açılınca ayrıntısı, form açılınca form ekranın dışındaysa görünür yere kaydırılır. Aynı kartın kayıttan
-        // sonra güncellenmesi (AcikKartId yine bildirilir) kaydırmaz.
+        // Başka bir kart açılınca (kutu ya da sayfa belirirken IdIleSec) ayrıntısı, form açılınca form görünür yere kaydırılır.
+        // Aynı kartın kayıttan sonra güncellenmesi (AcikKartId yine bildirilir) ve kartın kapanması kaydırmaz; yeni kart formu
+        // AcikForm üzerinden kaydırılır.
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(vm.AcikKartId) && vm.AcikKartId != _gosterilenKartId)
             {
                 _gosterilenKartId = vm.AcikKartId;
-                GorunurYap(_ayrinti);
+                if (vm.AcikKartId is not null)
+                    GorunurYap(_ayrinti);
             }
             else if (e.PropertyName == nameof(vm.AcikForm) && vm.FormAcik)
             {
@@ -104,11 +109,71 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         };
     }
 
-    private void GorunurYap(View hedef) => Dispatcher.Dispatch(async () =>
+    /// <summary>
+    /// Hedef yerleştikten sonra (konumu okunabilir olunca) üstü görünür alanın dışındaysa hedefin üstüne kaydırır
+    /// (KaydirmaHesabi). Zamanlama: hedefin bir sonraki SizeChanged'i (yerleşim turunda üst öğeleri de yerleşmiş olur) ya da,
+    /// boyutu değişmeden yalnız yeri değişirse (başka satırdaki kart, aynı boyda form), 100 ms aralıklı yoklama; yoklama hedef
+    /// yerleşmiş (genişliği olan) bulunca ya da 1 sn sonra biter. Kaydırma her iki yolda da yerleşim turunun bitimine
+    /// (Dispatch) bırakılır. Yeni istek eskisini geçersiz kılar; istek bir kez kaydırır.
+    /// </summary>
+    private void GorunurYap(View hedef)
     {
-        if (hedef.IsVisible)
-            await Kaydirici.ScrollToAsync(hedef, ScrollToPosition.MakeVisible, true);
-    });
+        var istek = ++_kaydirmaIstegi;
+        var deneme = 0;
+        void Boyutlandi(object? sender, EventArgs e) => Yerlesti();
+        void Yerlesti()
+        {
+            hedef.SizeChanged -= Boyutlandi;
+            Dispatcher.Dispatch(() => Kaydir(hedef, istek));
+        }
+        void Yokla()
+        {
+            if (istek != _kaydirmaIstegi || istek == _kaydirilanIstek)
+            {
+                hedef.SizeChanged -= Boyutlandi;
+                return;
+            }
+            if (hedef.Width > 0)
+                Yerlesti();
+            else if (++deneme < 10)
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
+            else
+                hedef.SizeChanged -= Boyutlandi;
+        }
+        hedef.SizeChanged += Boyutlandi;
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
+    }
+
+    private async void Kaydir(View hedef, int istek)
+    {
+        if (istek != _kaydirmaIstegi || istek == _kaydirilanIstek || !hedef.IsVisible)
+            return;
+        _kaydirilanIstek = istek;
+        try
+        {
+            if (KaydirmaHesabi.BasaKaydirilmali(KaydiriciyaGoreY(hedef), Kaydirici.ScrollY, Kaydirici.Height))
+                await Kaydirici.ScrollToAsync(hedef, ScrollToPosition.Start, true);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Kartlar ekranı kaydırılamadı: {ex}");
+        }
+    }
+
+    /// <summary>Hedefin kaydırılan içeriğe göre üstü: ata zinciri boyunca her öğenin üst öğesine göre yeri (Frame.Y) toplanır;
+    /// hedef kaydırıcının içinde değilse NaN (kaydırılmaz).</summary>
+    private double KaydiriciyaGoreY(VisualElement hedef)
+    {
+        var y = 0d;
+        for (Element? e = hedef; e is not null; e = e.Parent)
+        {
+            if (ReferenceEquals(e, Kaydirici))
+                return y;
+            if (e is VisualElement v)
+                y += v.Frame.Y;
+        }
+        return double.NaN;
+    }
 
     // ---- Özet ----
 
@@ -150,12 +215,27 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         },
     };
 
+    /// <summary>Formu açan düğme; formu açıkken vurgulanır (birincil: koyu yeşil, ikincil: açık yeşil zemin ve yeşil yazı/kenar)
+    /// ve ekran okuyucuya "Açık" ipucu verir.</summary>
     private static Button FormDugmesi(string metin, KartFormu form, bool birincil = false)
     {
         var dugme = Dugme(metin, nameof(KartTakipViewModel.FormAcCommand));
         dugme.CommandParameter = form;
         if (!birincil)
             dugme.Style = (Style)Application.Current!.Resources["BtnSecondary"];
+        var acik = new DataTrigger(typeof(Button)) { Binding = new Binding(nameof(KartTakipViewModel.AcikForm)), Value = form };
+        acik.Setters.Add(new Setter { Property = SemanticProperties.HintProperty, Value = "Açık" });
+        if (birincil)
+        {
+            acik.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = (Color)Application.Current!.Resources["GreenDark"] });
+        }
+        else
+        {
+            acik.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = (Color)Application.Current!.Resources["GreenSoft"] });
+            acik.Setters.Add(new Setter { Property = Button.TextColorProperty, Value = (Color)Application.Current!.Resources["Green"] });
+            acik.Setters.Add(new Setter { Property = Button.BorderColorProperty, Value = (Color)Application.Current!.Resources["Green"] });
+        }
+        dugme.Triggers.Add(acik);
         return dugme;
     }
 
