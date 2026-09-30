@@ -1,3 +1,33 @@
+import { cents, dateText, money, serverCents, today } from './ui-core.js';
+import {
+  $,
+  h,
+  button,
+  input,
+  field,
+  select,
+  monthPicker,
+  help,
+  section,
+  table,
+  moneyNode,
+  allocationTags,
+  summary,
+  distribution,
+} from './ui-dom.js';
+import {
+  api,
+  formDialog,
+  closeModal,
+  page,
+  act,
+  toast,
+  requestIdentity,
+  isCurrent,
+  canEditCash as canEdit,
+  requireEditor as editor,
+} from './ui-shell.js';
+
 // K4: kapatılmış ayın raporu kapatıldığı kuralla dondurulur. Kural 1 ile dondurulmuş ay açılınca görüntü silinir, rapor güncel
 // kuralla (kural 2: takipli kredi çekimi Gelen ve Ay sonucu dışında) hesaplanır ve yeniden kapatınca öyle dondurulur. Masaüstü
 // AyKilidiViewModel.OnayMetni ile aynı uyarı. report: ekrandaki aylık rapor; başka ayın raporuysa ya da yoksa uyarı yok.
@@ -6,38 +36,8 @@ export function frozenRuleUnlockWarning(report, month) {
   if (report.yil && report.ay && `${report.yil}-${String(report.ay).padStart(2, '0')}` !== month) return null;
   return 'Bu ay eski kuralla (kural 1) kapatılmış: raporunda takipli kredi çekimi Gelen ve Ay sonucu içindedir. Kilit açılınca rapor güncel kuralla yeniden hesaplanır, yeniden kapatınca da güncel kuralla dondurulur: takipli kredi çekimi Gelen ve Ay sonucundan çıkar, eski kuraldaki rakamlara dönülemez. Eski kuralla kapatılmış sonraki aylar için de aynısı geçerlidir.';
 }
-export function createMonthlyUi(c) {
-  const {
-    api,
-    h,
-    button,
-    input,
-    field,
-    select,
-    monthPicker,
-    help,
-    section,
-    table,
-    money,
-    moneyNode,
-    allocationTags,
-    dateText,
-    today,
-    cents,
-    serverCents,
-    formDialog,
-    closeModal,
-    page,
-    act,
-    toast,
-    summary,
-    requestIdentity,
-    canEdit,
-    editor,
-    distribution,
-    isCurrent,
-    view,
-  } = c;
+export function createMonthlyUi() {
+  const view = () => $('#view');
   const base = '/api/aylik-giderler';
   const kinds = { Kira: 'Kira', Maas: 'Maaş', Fatura: 'Fatura', Diger: 'Diğer' };
   const shares = row => (row.dagilimTuru === 'Genel' ? h('span', {}, 'Yalnız genel kasa') : allocationTags(row.dagilimlar));

@@ -27,6 +27,29 @@
   --arama: #eae8e0;
   --kesik: #c9c5b8;
   --nokta: #d8d4c8;
+  /* Beyaz: yüzeyler (kart, çip, alan, seçili bölüm) --kart ile aynı değer; koyu zemindeki yazı ve halka --beyaz */
+  --beyaz: #ffffff;
+  /* Sekme çubukları ve düğmeler: Android sekme zemini ve yazısı, seçili hap ve yüzen düğme, iOS cam sekme çubuğu */
+  --sekme-zemin: #eceae2;
+  --sekme-yazi: #5f6559;
+  --hap: #cfe3d6;
+  --sekme-cam: rgba(252, 251, 248, 0.84);
+  --sekme-cizgi: rgba(0, 0, 0, 0.08);
+  --sekme-secili: rgba(30, 95, 70, 0.12);
+  --cam: rgba(255, 255, 255, 0.9);
+  --zemin-saydam: rgba(245, 244, 239, 0);
+  /* Odak ve vurgu: odak halkası, alan odak gölgesi, grafik alan dolgusu, bildirim simgesi */
+  --odak: rgba(30, 95, 70, 0.45);
+  --alan-odak: rgba(30, 95, 70, 0.15);
+  --grafik-alan: rgba(30, 95, 70, 0.1);
+  --tost-ikon: #9fe0bd;
+  /* Gölgeler ve perde */
+  --golge-hafif: rgba(0, 0, 0, 0.06);
+  --golge-segment: rgba(0, 0, 0, 0.12);
+  --golge-sekme: rgba(32, 38, 31, 0.12);
+  --golge-orta: rgba(0, 0, 0, 0.18);
+  --golge-tost: rgba(0, 0, 0, 0.2);
+  --perde: rgba(20, 26, 20, 0.38);
   --ust: env(safe-area-inset-top, 0px);
   --alt: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
@@ -72,7 +95,7 @@ textarea::placeholder {
   opacity: 1;
 }
 :focus-visible {
-  outline: 3px solid rgba(30, 95, 70, 0.45);
+  outline: 3px solid var(--odak);
   outline-offset: 2px;
 }
 #ekran:focus {
@@ -171,7 +194,7 @@ textarea::placeholder {
   left: 0;
   right: 0;
   height: calc(var(--ust) + 6px);
-  background: linear-gradient(var(--zemin) 70%, rgba(245, 244, 239, 0));
+  background: linear-gradient(var(--zemin) 70%, var(--zemin-saydam));
   z-index: 30;
   pointer-events: none;
 }
@@ -214,7 +237,7 @@ textarea::placeholder {
   height: 18px;
   border-radius: 9px;
   background: var(--eksi);
-  color: #fff;
+  color: var(--beyaz);
   font-size: 11px;
   font-weight: 700;
   display: flex;
@@ -228,7 +251,7 @@ textarea::placeholder {
   border-radius: 20px;
   background: var(--yesil);
   border: 0;
-  color: #fff;
+  color: var(--beyaz);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,9 +268,9 @@ textarea::placeholder {
   width: 44px;
   height: 44px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--cam);
   border: 1px solid var(--cizgi);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px var(--golge-hafif);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -306,7 +329,7 @@ textarea::placeholder {
   height: 16px;
   border-radius: 8px;
   background: var(--eksi);
-  color: #fff;
+  color: var(--beyaz);
   font-size: 10px;
   font-weight: 700;
   display: flex;
@@ -324,11 +347,11 @@ textarea::placeholder {
   z-index: 20;
   height: 62px;
   border-radius: 31px;
-  background: rgba(252, 251, 248, 0.84);
+  background: var(--sekme-cam);
   -webkit-backdrop-filter: blur(16px) saturate(170%);
   backdrop-filter: blur(16px) saturate(170%);
-  border: 0.5px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 8px 24px rgba(32, 38, 31, 0.12);
+  border: 0.5px solid var(--sekme-cizgi);
+  box-shadow: 0 8px 24px var(--golge-sekme);
   display: flex;
   align-items: center;
   padding: 4px;
@@ -341,7 +364,7 @@ textarea::placeholder {
   border-radius: 27px;
   border: 0;
   background: transparent;
-  color: #5f6559;
+  color: var(--sekme-yazi);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -350,7 +373,7 @@ textarea::placeholder {
   padding: 0;
 }
 .sekme-ios button[aria-current="page"] {
-  background: rgba(30, 95, 70, 0.12);
+  background: var(--sekme-secili);
   color: var(--yesil);
 }
 .sekme-ios span {
@@ -365,7 +388,7 @@ textarea::placeholder {
   z-index: 20;
   height: calc(80px + var(--alt));
   padding-bottom: var(--alt);
-  background: #eceae2;
+  background: var(--sekme-zemin);
   display: flex;
   align-items: flex-start;
   padding-top: 12px;
@@ -379,7 +402,7 @@ textarea::placeholder {
   align-items: center;
   gap: 4px;
   padding: 0;
-  color: #5f6559;
+  color: var(--sekme-yazi);
 }
 .sekme-and button[aria-current="page"] {
   color: var(--murekkep);
@@ -393,7 +416,7 @@ textarea::placeholder {
   justify-content: center;
 }
 .sekme-and button[aria-current="page"] .hap {
-  background: #cfe3d6;
+  background: var(--hap);
 }
 .sekme-and span.ad {
   font-size: 12px;
@@ -407,9 +430,9 @@ textarea::placeholder {
   height: 56px;
   border-radius: 16px;
   border: 0;
-  background: #cfe3d6;
+  background: var(--hap);
   color: var(--koyu);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 12px var(--golge-orta);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -496,7 +519,7 @@ textarea::placeholder {
 }
 .kahraman {
   background: var(--yesil);
-  color: #fff;
+  color: var(--beyaz);
   border-radius: 18px;
   padding: 20px 20px 18px;
   display: flex;
@@ -573,7 +596,7 @@ textarea::placeholder {
 .mini.koyu {
   background: var(--yesil);
   border-color: var(--yesil);
-  color: #fff;
+  color: var(--beyaz);
 }
 .mini.koyu .ust-etiket {
   color: var(--yesil-acik);
@@ -660,7 +683,7 @@ textarea::placeholder {
 .dugme.ana {
   min-height: 50px;
   background: var(--yesil);
-  color: #fff;
+  color: var(--beyaz);
   border: 0;
   font-size: 16px;
 }
@@ -701,8 +724,8 @@ textarea::placeholder {
   padding: 0 4px;
 }
 .segment button[aria-pressed="true"] {
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  background: var(--kart);
+  box-shadow: 0 1px 3px var(--golge-segment);
 }
 .cipler {
   display: flex;
@@ -721,7 +744,7 @@ textarea::placeholder {
   padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--cizgi);
-  background: #fff;
+  background: var(--kart);
   font-size: 13px;
   font-weight: 600;
   display: flex;
@@ -731,10 +754,10 @@ textarea::placeholder {
 .cip[aria-pressed="true"] {
   background: var(--yesil);
   border-color: var(--yesil);
-  color: #fff;
+  color: var(--beyaz);
 }
 .cip .nokta8 {
-  box-shadow: 0 0 0 1.5px #fff;
+  box-shadow: 0 0 0 1.5px var(--beyaz);
 }
 .cubuk {
   height: 8px;
@@ -780,7 +803,7 @@ textarea::placeholder {
 
 /* panel trend */
 .trend-kart {
-  background: #fff;
+  background: var(--kart);
   border: 1px solid var(--cizgi);
   border-radius: 14px;
   padding: 14px 16px;
@@ -805,7 +828,7 @@ textarea::placeholder {
   width: 100%;
 }
 .alan {
-  fill: rgba(30, 95, 70, 0.1);
+  fill: var(--grafik-alan);
 }
 .cizgi-yol {
   fill: none;
@@ -824,7 +847,7 @@ textarea::placeholder {
 
 /* haftalık */
 .hafta {
-  background: #fff;
+  background: var(--kart);
   border: 1px solid var(--cizgi);
   border-radius: 14px;
   overflow: hidden;
@@ -871,7 +894,7 @@ textarea::placeholder {
   border-top: 1px solid var(--ara);
 }
 .hafta-ic > div {
-  background: #fff;
+  background: var(--kart);
   padding: 10px 16px;
   display: flex;
   flex-direction: column;
@@ -900,7 +923,7 @@ textarea::placeholder {
   color: var(--soluk);
 }
 .hafta-ic > button {
-  background: #fff;
+  background: var(--kart);
   border: 0;
   padding: 12px 16px;
   display: flex;
@@ -1024,7 +1047,7 @@ textarea::placeholder {
   color: var(--soluk);
 }
 .bilgi-kutu {
-  background: #fff;
+  background: var(--kart);
   border: 1px solid var(--cizgi);
   border-radius: 14px;
   padding: 6px 16px;
@@ -1042,7 +1065,7 @@ textarea::placeholder {
 
 /* kartlar */
 .kart-kutu {
-  background: #fff;
+  background: var(--kart);
   border: 1px solid var(--cizgi);
   border-radius: 14px;
   padding: 14px 16px;
@@ -1131,7 +1154,7 @@ textarea::placeholder {
 
 /* diğer */
 .kim {
-  background: #fff;
+  background: var(--kart);
   border: 1px solid var(--cizgi);
   border-radius: 14px;
   padding: 14px 16px;
@@ -1144,7 +1167,7 @@ textarea::placeholder {
   height: 44px;
   border-radius: 22px;
   background: var(--yesil);
-  color: #fff;
+  color: var(--beyaz);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1171,7 +1194,7 @@ textarea::placeholder {
   height: 22px;
   border-radius: 11px;
   background: var(--eksi);
-  color: #fff;
+  color: var(--beyaz);
   font-size: 12px;
   font-weight: 700;
   display: flex;
@@ -1213,7 +1236,7 @@ textarea::placeholder {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: #fff;
+  background: var(--kart);
   border: 1px solid var(--cizgi);
   border-radius: 16px;
   padding: 18px 16px;
@@ -1231,7 +1254,7 @@ textarea::placeholder {
   border: 1px solid var(--alan-cizgi);
   border-radius: 12px;
   padding: 0 14px;
-  background: #fff;
+  background: var(--kart);
   color: var(--murekkep);
   font-size: 16px;
   font-weight: 400;
@@ -1240,7 +1263,7 @@ textarea::placeholder {
 }
 .girdi:focus {
   border-color: var(--yesil);
-  box-shadow: 0 0 0 3px rgba(30, 95, 70, 0.15);
+  box-shadow: 0 0 0 3px var(--alan-odak);
 }
 textarea.girdi {
   padding: 12px 14px;
@@ -1259,7 +1282,7 @@ textarea.girdi {
 .perde {
   position: fixed;
   inset: 0;
-  background: rgba(20, 26, 20, 0.38);
+  background: var(--perde);
   z-index: 40;
 }
 .sayfa {
@@ -1273,7 +1296,7 @@ textarea.girdi {
   max-height: 90%;
   overflow-y: auto;
   padding: 8px 16px calc(36px + var(--alt));
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 -10px 40px var(--golge-orta);
   max-width: 640px;
   margin: 0 auto;
   overscroll-behavior: contain;
@@ -1365,7 +1388,7 @@ textarea.girdi {
   min-height: 40px;
   border-radius: 10px;
   border: 1px solid var(--cizgi);
-  background: #fff;
+  background: var(--kart);
   color: var(--murekkep);
   font-size: 13px;
   font-weight: 600;
@@ -1376,7 +1399,7 @@ textarea.girdi {
 }
 .secim button[aria-pressed="true"] {
   background: var(--yesil);
-  color: #fff;
+  color: var(--beyaz);
   border-color: var(--yesil);
 }
 .secim.kanal button {
@@ -1405,7 +1428,7 @@ textarea.girdi {
   padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--cizgi);
-  background: #fff;
+  background: var(--kart);
   font-size: 13px;
   font-weight: 500;
 }
@@ -1431,7 +1454,7 @@ textarea.girdi {
   bottom: calc(112px + var(--alt));
   z-index: 70;
   background: var(--murekkep);
-  color: #fff;
+  color: var(--beyaz);
   border-radius: 999px;
   padding: 10px 16px;
   font-size: 14px;
@@ -1439,17 +1462,17 @@ textarea.girdi {
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px var(--golge-tost);
   max-width: calc(100% - 32px);
 }
 .tost .ik {
-  color: #9fe0bd;
+  color: var(--tost-ikon);
 }
 .tost.hata {
   background: var(--eksi);
 }
 .tost.hata .ik {
-  color: #fff;
+  color: var(--beyaz);
 }
 
 /* geniş ekran: telefona göre ortala */
