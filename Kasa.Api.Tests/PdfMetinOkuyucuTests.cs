@@ -76,6 +76,74 @@ public class PdfMetinOkuyucuTests
         finally { File.Delete(isaret); }
     }
 
+    // İptal kaydı, belirteç araç başlarken dolmuşsa aracı hemen öldürür. WaitForExitAsync çıkmış süreçte iptali denetlemediği için
+    // öldürülen araç eskiden "çıkış kodu sıfır değil" yolundan "PDF okunamadı (şifreli/bozuk)" diye bildiriliyordu; istek iptali de
+    // iptal yerine 422 dönüyordu. Yük altında (test ana makinesinin uzun duraklamalarında) 1 sn'lik gerçek sınırla da oluyordu.
+    [Fact]
+    public async Task Zaman_siniri_arac_baslarken_dolsa_da_zaman_asimi_olarak_bildirilir()
+    {
+        var saat = new ElleZamanSiniri();
+        var log = new LogToplayici();
+        var okuyucu = new PdfMetinOkuyucu(Ayar("1"), log, (_, _) =>
+        {
+            saat.Tetikle();
+            return Kabuk("ping -n 61 127.0.0.1 >nul", "sleep 60; true");
+        }, saat);
+        var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf));
+        Assert.Equal(422, hata.StatusCode);
+        Assert.Contains("zaman sınırı", hata.Message);
+        Assert.Contains(log.Uyarilar, u => u.Contains("pdfinfo") && u.Contains("zaman sınırı veya istek iptali"));
+    }
+
+    [Fact]
+    public async Task Istek_arac_baslarken_iptal_edilirse_iptal_olarak_doner()
+    {
+        using var iptal = new CancellationTokenSource();
+        var okuyucu = new PdfMetinOkuyucu(Ayar("20"), null, (_, _) =>
+        {
+            iptal.Cancel();
+            return Kabuk("ping -n 61 127.0.0.1 >nul", "sleep 60; true");
+        });
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => okuyucu.OkuAsync(Pdf, iptal.Token));
+    }
+
+    /// <summary>Elle dolan zaman sınırı: okuyucunun kurduğu zamanlayıcılar yalnız <see cref="Tetikle"/> ile çalışır.</summary>
+    private sealed class ElleZamanSiniri : TimeProvider
+    {
+        private readonly ConcurrentQueue<Zamanlayici> _kurulan = new();
+        public int KurulanSayisi => _kurulan.Count;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var zamanlayici = new Zamanlayici(callback, state);
+            _kurulan.Enqueue(zamanlayici);
+            return zamanlayici;
+        }
+
+        public void Tetikle()
+        {
+            foreach (var zamanlayici in _kurulan)
+                zamanlayici.Calistir();
+        }
+
+        private sealed class Zamanlayici(TimerCallback geriCagri, object? durum) : ITimer
+        {
+            private int _bitti;
+            public void Calistir()
+            {
+                if (Interlocked.Exchange(ref _bitti, 1) == 0)
+                    geriCagri(durum);
+            }
+            public bool Change(TimeSpan dueTime, TimeSpan period) => Volatile.Read(ref _bitti) == 0;
+            public void Dispose() => Interlocked.Exchange(ref _bitti, 1);
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
     [Fact]
     public async Task Basarisiz_aracin_stderr_ozeti_uyari_olarak_loglanir_pdf_metni_loglanmaz()
     {
