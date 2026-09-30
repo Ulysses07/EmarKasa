@@ -72,7 +72,22 @@ public class MenuModeliTests
         Assert.Equal(Enum.GetValues<Bolum>().Order(), ogeler.Select(o => o.Bolum).Order());
         Assert.All(ogeler, o => Assert.False(string.IsNullOrWhiteSpace(o.Simge)));
         Assert.Equal(ogeler.Count + 1, ogeler.Select(o => o.Simge).Append(MenuSimgeleri.Cikis).Distinct().Count());
+        Assert.All(ogeler.Select(o => o.Simge).Append(MenuSimgeleri.Cikis), simge =>
+        {
+            Assert.Equal(1, simge.Length);
+            Assert.InRange(simge[0], '\uE000', '\uF8FF');
+        });
         Assert.Equal("kartlar", MenuModeli.Rota(Bolum.Kartlar));
+    }
+
+    [Fact]
+    public void Gruplar_degisince_Ogeler_de_bildirilir()
+    {
+        var menu = new MenuModeli();
+        var bildirilen = new List<string?>();
+        menu.PropertyChanged += (_, e) => bildirilen.Add(e.PropertyName);
+        menu.Goster(new[] { Bolum.Kartlar });
+        Assert.Contains(nameof(MenuModeli.Ogeler), bildirilen);
     }
 
     [Theory]
@@ -80,6 +95,7 @@ public class MenuModeliTests
     [InlineData("//kartlar?KartId=3", "kartlar")]
     [InlineData("//panel/IMPL_panel", "panel")]
     [InlineData("aylik", "aylik")]
+    [InlineData("//", null)]
     [InlineData("", null)]
     [InlineData(null, null)]
     public void Rota_adi_konumun_ilk_parcasidir(string? konum, string? beklenen)

@@ -8,19 +8,19 @@ namespace Kasa.App.Core;
 /// segoe-fluent-icons-font ve segoe-ui-symbol-font sayfalarındaki simge adlarıdır; her kod noktası iki sayfada aynı simgedir.</summary>
 public static class MenuSimgeleri
 {
-    public const string Kasalar = "";        // Home
-    public const string Haftalik = "";       // CalendarWeek
-    public const string Aylik = "";          // Calendar
-    public const string Islemler = "";       // BulletedList
-    public const string Alislar = "";        // ShoppingCart
-    public const string AylikGiderler = "";  // RepeatAll
-    public const string EkstreAktar = "";    // Import
-    public const string Kartlar = "";        // PaymentCard
-    public const string Krediler = "";       // Bank
-    public const string Bildirimler = "";    // Ringer
-    public const string DisariAktar = "";    // Export
-    public const string Ayarlar = "";        // Settings
-    public const string Cikis = "";          // SignOut
+    public const string Kasalar = "\uE80F";        // Home
+    public const string Haftalik = "\uE8C0";       // CalendarWeek
+    public const string Aylik = "\uE787";          // Calendar
+    public const string Islemler = "\uE8FD";       // BulletedList
+    public const string Alislar = "\uE7BF";        // ShoppingCart
+    public const string AylikGiderler = "\uE8EE";  // RepeatAll
+    public const string EkstreAktar = "\uE8B5";    // Import
+    public const string Kartlar = "\uE8C7";        // PaymentCard
+    public const string Krediler = "\uE825";       // Bank
+    public const string Bildirimler = "\uEA8F";    // Ringer
+    public const string DisariAktar = "\uEDE1";    // Export
+    public const string Ayarlar = "\uE713";        // Settings
+    public const string Cikis = "\uF3B1";          // SignOut
 }
 
 /// <summary>Menü öğesinin tanımı: rol bölümü, başlık, simge ve Shell rotası (AppShell.xaml FlyoutItem Route).</summary>
@@ -120,6 +120,7 @@ public sealed partial class MenuModeli : ObservableObject
     private string? _seciliRota;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Ogeler))]
     private IReadOnlyList<MenuGrubu> _gruplar = [];
 
     /// <summary>Bir öğeye tıklandı: kabuk bu rotaya (//rota) gider.</summary>
@@ -154,14 +155,16 @@ public sealed partial class MenuModeli : ObservableObject
         SeciliyiYansit();
     }
 
-    /// <summary>"//kartlar?KartId=3" → "kartlar": baştaki eğik çizgiler atılır, ilk '/' ya da '?' işaretine kadar alınır.</summary>
+    /// <summary>"//kartlar?KartId=3" → "kartlar": baştaki eğik çizgiler atılır, ilk '/' ya da '?' işaretine kadar alınır;
+    /// sonuç boşsa (örn. "//") null döner.</summary>
     public static string? RotaAdi(string? konum)
     {
         if (string.IsNullOrWhiteSpace(konum))
             return null;
         var ad = konum.TrimStart('/');
         var son = ad.IndexOfAny(['/', '?']);
-        return son < 0 ? ad : ad[..son];
+        var sonuc = son < 0 ? ad : ad[..son];
+        return string.IsNullOrEmpty(sonuc) ? null : sonuc;
     }
 
     /// <summary>Bölümün Shell rotası (AppShell.xaml FlyoutItem Route ile aynı; MauiKayitTutarliligiTests sınar).</summary>
