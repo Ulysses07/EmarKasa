@@ -62,6 +62,13 @@ public class KodlarTests
         ("EskiKartOdeme", BenzerKayitKaynaklari.EskiKartOdeme), ("KrediTaksidi", BenzerKayitKaynaklari.KrediTaksidi),
         ("EskiKrediTaksidi", BenzerKayitKaynaklari.EskiKrediTaksidi));
 
+    [Fact]
+    public void Kasa_hareket_turleri() => Esit(
+        ("Gelir", KasaHareketTurleri.Gelir), ("EkstreGeliri", KasaHareketTurleri.EkstreGeliri), ("EkGelir", KasaHareketTurleri.EkGelir),
+        ("KrediCekimi", KasaHareketTurleri.KrediCekimi), ("Gider", KasaHareketTurleri.Gider), ("SabitGider", KasaHareketTurleri.SabitGider),
+        ("AylikGider", KasaHareketTurleri.AylikGider), ("KartOdemesi", KasaHareketTurleri.KartOdemesi), ("KartIadesi", KasaHareketTurleri.KartIadesi),
+        ("KrediTaksidi", KasaHareketTurleri.KrediTaksidi), ("KartAySonu", KasaHareketTurleri.KartAySonu));
+
     private static void Esit(params (string Beklenen, string Gercek)[] ciftler) =>
         Assert.All(ciftler, c => Assert.Equal(c.Beklenen, c.Gercek));
 }

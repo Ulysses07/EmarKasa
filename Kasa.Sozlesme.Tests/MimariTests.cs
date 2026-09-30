@@ -103,11 +103,10 @@ public class MimariTests
     /// "KartHarcama", "KartOdeme", "AlisOdeme": istek kaydının işlem adı (IstekKaydi.Tur, yalnız sunucuda, her biri tek uçta);
     /// "Islem", "AlisOdeme", "KartOdeme", "Kredi": denetim varlık adı (sunucuda varlık türünün adından türer, KasaKontrolMetni'nde
     /// sözlük anahtarı); "Iptal": alan adı (kilit kuralı, denetim alanları); "Gelir", "Gider", "Kart", "Kredi", "Banka": görünen
-    /// metin (seçenek adı, ad yedeği, alan etiketi). "Gelir", "Gider", "KartOdemesi", "AylikGider", "KrediTaksidi": kasa dökümü
-    /// satır türü (henüz dize).</summary>
+    /// metin (seçenek adı, ad yedeği, alan etiketi).</summary>
     private static readonly HashSet<string> CokAnlamliDegerler = new(StringComparer.Ordinal)
     {
-        "Gelir", "Gider", "KartHarcama", "KartOdeme", "KartOdemesi", "AlisOdeme", "Islem", "AylikGider", "KrediTaksidi", "Kart", "Kredi", "Banka", "Iptal",
+        "Gelir", "Gider", "KartHarcama", "KartOdeme", "AlisOdeme", "Islem", "Kart", "Kredi", "Banka", "Iptal",
     };
 
     /// <summary>Kod değerleri kaynakta elle yazılmaz: Kasa.Core, Kasa.Api ve istemci projelerinde Kodlar'daki bir sabitin

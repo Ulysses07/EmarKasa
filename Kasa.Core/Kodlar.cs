@@ -158,6 +158,30 @@ public static class BenzerKayitKaynaklari
     public const string EskiKrediTaksidi = "EskiKrediTaksidi";
 }
 
+/// <summary>Kasa hareketi dökümünün satır türü (KasaHareketiDto.Tur; saklanmaz, KasaDokumu.Tur satırın kaynağından hesaplar).
+/// Gelir satırları <see cref="Gelir"/>, <see cref="EkstreGeliri"/>, <see cref="EkGelir"/> ve <see cref="KrediCekimi"/>; kalanlar
+/// gider satırıdır. <see cref="KrediTaksidi"/> ve <see cref="KartAySonu"/> yazma olmadan, tarihi gelince kendiliğinden işler.</summary>
+public static class KasaHareketTurleri
+{
+    /// <summary>Dönem geliri.</summary>
+    public const string Gelir = "Gelir";
+    /// <summary>Banka ekstresinden kaydedilen gelir.</summary>
+    public const string EkstreGeliri = "EkstreGeliri";
+    /// <summary>Hesap hareketinden gelen ek gelir.</summary>
+    public const string EkGelir = "EkGelir";
+    public const string KrediCekimi = "KrediCekimi";
+    public const string Gider = "Gider";
+    public const string SabitGider = "SabitGider";
+    public const string AylikGider = "AylikGider";
+    /// <summary>Nakit kart ödemesi.</summary>
+    public const string KartOdemesi = "KartOdemesi";
+    /// <summary>Önceden sayılan kart borcunun kasaya dönüşü.</summary>
+    public const string KartIadesi = "KartIadesi";
+    public const string KrediTaksidi = "KrediTaksidi";
+    /// <summary>Eski (ertelemeli) kartın etki ayı sonundaki kasa düşümü.</summary>
+    public const string KartAySonu = "KartAySonu";
+}
+
 /// <summary>Kart ve kredi takibi olayının türü (TakipOlayDto.Tur; bildirimin türü ve anahtarı).</summary>
 public static class TakipOlayTurleri
 {
