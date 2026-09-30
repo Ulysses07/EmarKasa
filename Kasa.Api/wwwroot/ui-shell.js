@@ -34,6 +34,8 @@ function requireEditor(message = 'Bu işlem için editör hesabı gerekir.') {
 const modal = $('#modal');
 let modalCleanup = null;
 let renderId = 0;
+// Ekran modüllerinin geç yanıt denetimi: çizime başlanan ekran hâlâ açıksa (nesil değişmediyse) doğrudur.
+const isCurrent = generation => generation === renderId;
 // Ekranın rapor okumaları (screenBoundRead) bu denetleyicinin sinyaliyle gider: ekran değişince ya da oturum kapanınca istek
 // tarayıcıda iptal edilir, sunucu da hesabı keser; geç yanıt ekrana yansımaz.
 let screenAbort = null;
@@ -436,6 +438,7 @@ export {
   canEditCash,
   requireEditor,
   renderId,
+  isCurrent,
   isOpen,
   push,
   toast,

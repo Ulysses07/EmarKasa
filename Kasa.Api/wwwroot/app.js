@@ -50,7 +50,6 @@ import {
   empty,
   summary,
   table,
-  signedAmount,
   signedAmountField,
 } from './ui-dom.js';
 import {
@@ -91,43 +90,7 @@ import {
 } from './ui-core.js?v=2.3.0';
 
 let monthlyRequest = 0;
-const financeUi = createFinanceUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  allocationTags,
-  dateText,
-  today,
-  cents,
-  serverCents,
-  amount,
-  signedAmount,
-  formDialog,
-  openModal,
-  closeModal,
-  page,
-  navigate,
-  run,
-  act,
-  toast,
-  summary,
-  childValues,
-  requestIdentity,
-  confirmSimilar,
-  isOpen,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  isCurrent: generation => generation === renderId,
-  view: () => $('#view'),
-});
+const financeUi = createFinanceUi();
 const monthlyUi = createMonthlyUi({
   api,
   h,
