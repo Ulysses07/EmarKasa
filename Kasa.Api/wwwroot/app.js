@@ -91,38 +91,7 @@ import {
 
 let monthlyRequest = 0;
 const financeUi = createFinanceUi();
-const monthlyUi = createMonthlyUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  monthPicker,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  allocationTags,
-  dateText,
-  today,
-  cents,
-  serverCents,
-  formDialog,
-  closeModal,
-  page,
-  act,
-  toast,
-  summary,
-  childValues,
-  requestIdentity,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  distribution,
-  isCurrent: generation => generation === renderId,
-  view: () => $('#view'),
-});
+const monthlyUi = createMonthlyUi();
 const cashControlsUi = createCashControlsUi({
   api,
   h,
