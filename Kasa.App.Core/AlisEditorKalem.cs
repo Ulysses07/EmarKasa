@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -57,7 +58,7 @@ public record AlisSatiri(AlisDto Veri)
     public string Baslik => $"#{Veri.Id} · {Veri.Tedarikci}";
     public string Alt => $"{Veri.Tarih:dd.MM.yyyy} · {Veri.Alici} · {DurumAdi(Veri.Durum)}";
     public string Tutar => $"{Bicim.Tl(Veri.Toplam)} ₺ · kalan {Bicim.Tl(Veri.Kalan)} ₺";
-    public static string DurumAdi(string durum) => durum switch { "Taslak" => "Taslak", "Incelemede" => "İncelemede", "Onaylandi" => "Onaylandı", _ => durum };
+    public static string DurumAdi(string durum) => durum switch { AlisDurumlari.Taslak => "Taslak", AlisDurumlari.Incelemede => "İncelemede", AlisDurumlari.Onaylandi => "Onaylandı", _ => durum };
 }
 
 public record AlisOdemeSatiri(AlisOdemeDto Veri)

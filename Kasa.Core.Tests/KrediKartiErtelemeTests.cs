@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -163,9 +164,9 @@ public class KrediKartiErtelemeTests
         var donemler = DonemUretici.Uret(new DateOnly(yil, ay, 1), aySonu);
         var islemler = new[]
         {
-            new Islem(new DateOnly(yil, ay, 3), "Ortak kart", 300.01m, Kanallar.Ortak, GiderTipi.KrediKarti),
+            new Islem(new DateOnly(yil, ay, 3), "Ortak kart", 300.01m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti),
             new Islem(new DateOnly(yil, ay, 5), "Kanal kart", 90m, "MEZAT", GiderTipi.KrediKarti),
-            new Islem(new DateOnly(sonrakiYil, sonrakiAy, 1), "Kira", 60m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(sonrakiYil, sonrakiAy, 1), "Kira", 60m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
         var haftalik = HesapMotoru.HaftalikHesapla(0m, UcKanal, islemler, [], donemler);
         var ilkAy = HesapMotoru.AylikHesapla(yil, ay, UcKanal, islemler, [], donemler);

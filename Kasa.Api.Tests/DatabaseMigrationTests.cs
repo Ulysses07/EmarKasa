@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -254,9 +255,9 @@ public class DatabaseMigrationTests
         Assert.Equal(recovered.Id, db.Gelenler.Single(g => g.Id == 13).KanalId);
         Assert.Null(db.Islemler.Single(i => i.Id == 13).KanalId);
         Assert.Null(db.Gelenler.Single(g => g.Id == 14).KanalId);
-        Assert.Equal(Kanallar.Ortak, db.Islemler.Single(i => i.Id == 13).ToCore().Kanal);
+        Assert.Equal(KanalEtiketleri.Ortak, db.Islemler.Single(i => i.Id == 13).ToCore().Kanal);
         Assert.Equal(KrediTuretici.KrediKanal, db.Gelenler.Single(g => g.Id == 14).ToCore().Kanal);
-        Assert.DoesNotContain(db.Kanallar, k => k.Ad == Kanallar.Ortak || k.Ad == KrediTuretici.KrediKanal);
+        Assert.DoesNotContain(db.Kanallar, k => k.Ad == KanalEtiketleri.Ortak || k.Ad == KrediTuretici.KrediKanal);
         Assert.Equal(250m, db.Gelenler.Single(g => g.Id == 13).TutarTl);
     }
 

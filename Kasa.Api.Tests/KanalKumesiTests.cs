@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,8 +30,8 @@ public class KanalKumesiTests
     {
         await using var f = Fabrika();
         using var c = await Editor(f);
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old.AddDays(9), "Ortak kira", 300m, Kanallar.Ortak, GiderTipi.SabitGider));
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Bu ayın ortak gideri", 90m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old.AddDays(9), "Ortak kira", 300m, KanalEtiketleri.Ortak, GiderTipi.SabitGider));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Bu ayın ortak gideri", 90m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 1_000m))).EnsureSuccessStatusCode();
         var once = await c.GetStringAsync(AylikUrl(Old));
         Assert.Equal(100m, OrtakPay(once, "MEZAT"));
@@ -78,7 +79,7 @@ public class KanalKumesiTests
     {
         await using var f = Fabrika();
         using var c = await Editor(f);
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", 100.01m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", 100.01m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "TOPTAN", 500m))).EnsureSuccessStatusCode();
         var kilitOncesi = await c.GetStringAsync(AylikUrl(Old));
         Assert.Equal(new[] { ("MEZAT", 33.34m), ("PERAKENDE", 33.34m), ("TOPTAN", 33.33m) }, OrtakPaylari(kilitOncesi));
@@ -107,7 +108,7 @@ public class KanalKumesiTests
         await AyKilidi(c, Old, ac: true);
         Assert.Equal(kilitOncesi, await c.GetStringAsync(AylikUrl(Old)));
         // Açık ay yeni kümeyle: MEZAT pasif, TOPTAN ilk sırada, E-TİCARET aktif.
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Kuruş", 0.01m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Kuruş", 0.01m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         var buAy = OrtakPaylari(await c.GetStringAsync(AylikUrl(Month)));
         Assert.Equal(0.01m, buAy.Single(p => p.Kanal == "TOPTAN").Pay);
         Assert.Equal(0.01m, buAy.Sum(p => p.Pay));

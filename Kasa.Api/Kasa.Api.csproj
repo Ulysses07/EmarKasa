@@ -16,7 +16,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>2.3.0</Version>
+    <!-- Sürümün tek kaynağı depo kökündeki Directory.Build.props (KasaSurumu); /api/surum onu bu derlemenin meta
+         verisinden okur (SunucuSurumu). -->
+    <Version>$(KasaSurumu)</Version>
   </PropertyGroup>
+
+  <!-- Directory.Build.props derlemeye girmezse (ör. Dockerfile onu kopyalamazsa) Version boş kalır ve SDK 1.0.0 yazar:
+       sunucu yanlış sürüm bildirmesin diye derleme durur. -->
+  <Target Name="KasaSurumuDenetle" BeforeTargets="PrepareForBuild">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(KasaSurumu)', '^\d+\.\d+\.\d+$'))"
+           Text="KasaSurumu tanımsız ya da üç parçalı değil ('$(KasaSurumu)'): depo kökündeki Directory.Build.props derlemeye girmeli." />
+  </Target>
 
 </Project>

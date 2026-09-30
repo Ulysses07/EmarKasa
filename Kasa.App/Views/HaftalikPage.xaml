@@ -5,6 +5,8 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
+    x:DataType="core:HaftalikViewModel"
     x:Name="Sayfa"
     Title="Haftalık"
     BackgroundColor="{StaticResource AppBg}">
@@ -32,7 +34,7 @@
                     </Grid>
                     <CollectionView ItemsSource="{Binding Donemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="core:HaftalikSatir">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <!-- Yalnız dağılım bekleyen tutar sıfırdan farklıyken; metin satır modelinde (Bicim.Tl). -->

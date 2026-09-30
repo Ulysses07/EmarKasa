@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -102,7 +103,7 @@ public class AlisWorkflowTests
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Equal(2, db.Islemler.Count());
         Assert.Equal(2, db.AlisOdemeler.Count());
-        Assert.All(db.Islemler, i => { Assert.Equal(Kanallar.DagilimBekliyor, i.Kanal); Assert.Null(i.KanalId); });
+        Assert.All(db.Islemler, i => { Assert.Equal(KanalEtiketleri.DagilimBekliyor, i.Kanal); Assert.Null(i.KanalId); });
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -158,7 +159,7 @@ public class CardDebtSummaryTests
         }
         var old = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!;
         AssertShares(old.KanalKartBorclari, (null, 100m));
-        Assert.Equal(Kanallar.DagilimBekliyor, old.KanalKartBorclari!.Single().Kanal);
+        Assert.Equal(KanalEtiketleri.DagilimBekliyor, old.KanalKartBorclari!.Single().Kanal);
         var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!;
         Assert.Equal(100m, summary.KartBorcu);
         Assert.Equal(20m, summary.KartAlacakBakiyesi);
@@ -282,7 +283,7 @@ public class CardDebtSummaryTests
         var broken = (await response.Content.ReadFromJsonAsync<KartTakipDto>())!;
         var shares = broken.Odemeler.Single().Dagilimlar;
         AssertShares(shares, (1, 100m), (null, 50m));
-        Assert.Equal(Kanallar.DagilimBekliyor, shares.Single(p => p.KanalId is null).Kanal);
+        Assert.Equal(KanalEtiketleri.DagilimBekliyor, shares.Single(p => p.KanalId is null).Kanal);
         Assert.Contains(logs.Uyarilar, m => m.Contains($"ödeme {payment.Id}") && m.Contains("50"));
         foreach (var path in new[] { "/api/rapor/panel", "/api/takip/kartlar", "/api/takip/ozet" })
             Assert.True((await c.GetAsync(path)).IsSuccessStatusCode, path);

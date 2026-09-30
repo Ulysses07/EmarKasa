@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -31,14 +32,14 @@ public class KasaHareketleriTests
         var islemler = new List<Islem>
         {
             new(new(2026, 1, 5), "Cari", 300m, "MEZAT", GiderTipi.Cari) { KaynakAnahtari = "Islem:1" },
-            new(new(2026, 1, 12), "SGK", 900m, Kanallar.Ortak, GiderTipi.SabitGider) { KaynakAnahtari = "Islem:2" },
+            new(new(2026, 1, 12), "SGK", 900m, KanalEtiketleri.Ortak, GiderTipi.SabitGider) { KaynakAnahtari = "Islem:2" },
             // Eski kart: Ocak harcaması Şubat sonunda, Şubat harcaması Mart sonunda (ufkun dışında) düşer.
             new(new(2026, 1, 20), "Eski kart", 400m, "PERAKENDE", GiderTipi.KrediKarti) { KaynakAnahtari = "Islem:3" },
-            new(new(2026, 2, 14), "Eski kart ortak", 333.33m, Kanallar.Ortak, GiderTipi.KrediKarti) { KaynakAnahtari = "Islem:4" },
+            new(new(2026, 2, 14), "Eski kart ortak", 333.33m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti) { KaynakAnahtari = "Islem:4" },
             // Takipli kart ödemesi: nakit, kanal payıyla ve dağılım bekleyen payla.
             new(new(2026, 2, 3), "Kart ödemesi", 250m, "MEZAT", GiderTipi.KrediKarti, NakitKartOdemesi: true) { KaynakAnahtari = "TakipKartOdeme:44" },
-            new(new(2026, 2, 3), "Kart ödemesi", 50m, Kanallar.DagilimBekliyor, GiderTipi.KrediKarti, DagilimBekliyor: true, NakitKartOdemesi: true) { KaynakAnahtari = "TakipKartOdeme:44" },
-            new(new(2026, 2, 16), "Onaysız alış", 700m, Kanallar.DagilimBekliyor, GiderTipi.Cari, DagilimBekliyor: true) { KaynakAnahtari = "Islem:5" },
+            new(new(2026, 2, 3), "Kart ödemesi", 50m, KanalEtiketleri.DagilimBekliyor, GiderTipi.KrediKarti, DagilimBekliyor: true, NakitKartOdemesi: true) { KaynakAnahtari = "TakipKartOdeme:44" },
+            new(new(2026, 2, 16), "Onaysız alış", 700m, KanalEtiketleri.DagilimBekliyor, GiderTipi.Cari, DagilimBekliyor: true) { KaynakAnahtari = "Islem:5" },
             new(new(2026, 2, 17), "Banka masrafı", 80m, "Genel kasa", GiderTipi.Cari, YalnizGenelKasa: true) { KaynakAnahtari = "Islem:6" },
             new(new(2026, 3, 2), "Kira", 4_000m, "PERAKENDE", GiderTipi.SabitGider, AylikGider: true) { KaynakAnahtari = "Islem:7" },
             // Aylık gider kartla: kanal devrine kendi gününde, genel kasaya ay sonunda (ufkun dışında) yazılır.

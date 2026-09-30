@@ -146,6 +146,9 @@ jarsigner -verify -verbose -certs Kasa.App/bin/Release/net10.0-android/publish/*
 | `ApplicationDisplayVersion` | `1.0` | Kullanıcıya gösterilen sürüm ("1.0", "1.1", "2.0" vb.) |
 | `ApplicationVersion` | `1` | Play Store'daki integer `versionCode`; her yeni yüklemede artırılmalı |
 
+`ApplicationDisplayVersion` csproj'da elle yazılmaz: değeri depo kökündeki `Directory.Build.props`'taki `KasaSurumu`'dur
+(`$(KasaSurumu)`; sunucu ve masaüstü uygulamayla aynı sürüm, en çok üç parça). Kullanıcıya gösterilen sürüm orada yükseltilir.
+
 **Kural:** Her yeni Play yüklemesinde `ApplicationVersion` mutlaka bir öncekinden
 büyük olmalı (örn. 1 → 2 → 3). Aynı veya küçük `versionCode` ile yükleme
 Play Console tarafından reddedilir.
@@ -223,7 +226,7 @@ materyaller Play Console'da zorunludur:
 
 ### Teknik Kontrol
 - [ ] `ApplicationVersion` (versionCode) bir önceki yüklemeden büyük
-- [ ] `ApplicationDisplayVersion` (versionName) güncellendi
+- [ ] `ApplicationDisplayVersion` (versionName; `Directory.Build.props` → `KasaSurumu`) güncellendi
 - [ ] AAB imzalandı (`*-Signed.aab` mevcut)
 - [ ] Minimum Android API: **21** (csproj'da tanımlı)
 

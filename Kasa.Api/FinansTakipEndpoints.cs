@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using static Kasa.Api.FinansTakipServisi;
 
@@ -306,7 +307,7 @@ public static partial class FinansTakipEndpoints
                 AylikOdeme = dto.AylikOdeme,
                 OdemeGunu = dto.IlkTaksitTarihi.Day,
                 KanalId = dto.KanalIdleri.Count == 1 ? dto.KanalIdleri[0] : null,
-                Kanal = dto.KanalIdleri.Count == 1 ? db.Kanallar.Single(k => k.Id == dto.KanalIdleri[0]).Ad : Kanallar.Ortak
+                Kanal = dto.KanalIdleri.Count == 1 ? db.Kanallar.Single(k => k.Id == dto.KanalIdleri[0]).Ad : KanalEtiketleri.Ortak
             };
             db.Krediler.Add(loan);
             db.GecmisEtkisizKrediOlusturma = dto.MevcutKredi;

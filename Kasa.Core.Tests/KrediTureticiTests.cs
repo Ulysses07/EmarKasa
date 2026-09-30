@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -114,10 +115,10 @@ public class KrediTureticiTests
     [Fact]
     public void Ortak_kanal_korunur()
     {
-        var k = OrnekKredi(kanal: Kanallar.Ortak, taksitSayisi: 3);
+        var k = OrnekKredi(kanal: KanalEtiketleri.Ortak, taksitSayisi: 3);
         var taksitler = KrediTuretici.TaksitGiderleri(k);
 
-        Assert.All(taksitler, i => Assert.Equal(Kanallar.Ortak, i.Kanal));
+        Assert.All(taksitler, i => Assert.Equal(KanalEtiketleri.Ortak, i.Kanal));
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -177,7 +178,7 @@ public class CardLoanTrackingTests
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Card(c);
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Start, "Ortak gider", 30m, Kanallar.Ortak, GiderTipi.KrediKarti, KrediKartiId: card.Id))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Start, "Ortak gider", 30m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti, KrediKartiId: card.Id))).EnsureSuccessStatusCode();
         card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
         Assert.Single(card.Harcamalar);
         Assert.Equal(1000m, await Cash(c));

@@ -3,6 +3,7 @@ using Kasa.Api.Data;
 using Kasa.Api.Denetim;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
@@ -78,7 +79,7 @@ public static class AylikGiderEndpoints
                 TutarTl = revision.Tutar,
                 Tip = GiderTipi.SabitGider,
                 KanalId = shares.Count == 1 ? shares[0].KanalId : null,
-                Kanal = shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
+                Kanal = shares.Count == 0 ? KanalEtiketleri.GenelKasa : string.Join(" / ", shares.Select(s => s.Kanal)),
                 Not = dto.Not?.Trim()
             };
             db.Islemler.Add(expense);

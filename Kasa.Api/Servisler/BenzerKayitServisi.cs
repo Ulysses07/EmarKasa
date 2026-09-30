@@ -1,6 +1,7 @@
 using System.Globalization;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using static Kasa.Api.FinansTakipServisi;
 
@@ -38,7 +39,6 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     public const int EnFazla = 10;
     /// <summary>Uyarı metninde adlandırılan kayıt sayısı; kalanlar sayılır (satır başına tek uyarı).</summary>
     public const int UyaridaEnFazla = 3;
-    public const string GenelKasa = "Genel kasa";
     private const string Belirsiz = "Kanal belirsiz";
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
@@ -124,11 +124,11 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         (IReadOnlySet<int>? Kume, string Etiket) Kanal(IslemEntity i)
         {
             if (ekstre.TryGetValue(i.Id, out var satir))
-                return satir.DagilimTuru == "Genel" ? (null, GenelKasa) : Belirli(Read<TakipKanalPayi>(satir.DagilimJson).Where(p => p.KanalId is not null).Select(p => p.KanalId!.Value));
+                return satir.DagilimTuru == "Genel" ? (null, KanalEtiketleri.GenelKasa) : Belirli(Read<TakipKanalPayi>(satir.DagilimJson).Where(p => p.KanalId is not null).Select(p => p.KanalId!.Value));
             if (aylik.TryGetValue(i.Id, out var odeme) && revizyonlar.TryGetValue(odeme.RevizyonId, out var revizyon))
-                return revizyon.DagilimTuru == "Genel" ? (null, GenelKasa) : Belirli(Read<KanalPayYaz>(revizyon.DagilimJson).Select(p => p.KanalId));
+                return revizyon.DagilimTuru == "Genel" ? (null, KanalEtiketleri.GenelKasa) : Belirli(Read<KanalPayYaz>(revizyon.DagilimJson).Select(p => p.KanalId));
             if (bagliAlis.TryGetValue(i.Id, out var alis))
-                return alis.Durum != AlisDurumlari.Onaylandi ? (null, Kanallar.DagilimBekliyor)
+                return alis.Durum != AlisDurumlari.Onaylandi ? (null, KanalEtiketleri.DagilimBekliyor)
                     : Belirli(alisPaylari[alis.Id].TryGetValue(i.Id, out var paylar) ? paylar.Where(p => p.Tutar > 0).Select(p => p.KanalId) : []);
             if (i.KanalId is { } kanal)
                 return Belirli([kanal]);

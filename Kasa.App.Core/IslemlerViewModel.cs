@@ -5,6 +5,7 @@ using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -42,9 +43,6 @@ public partial class IslemlerViewModel : OturumluViewModel
         if (e.PropertyName == nameof(SonGuncelleme))
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(SonGuncellemeMetni)));
     }
-
-    /// <summary>Belirli bir kanala ait olmayan ortak gider etiketi (motorla birebir eşleşmeli).</summary>
-    public const string OrtakKanal = "Ortak";
 
     /// <summary>Kanal filtresi "tüm kanallar" çip/etiket metni (gerçek kanal olamaz).</summary>
     private const string TumKanal = "Tümü";
@@ -130,7 +128,7 @@ public partial class IslemlerViewModel : OturumluViewModel
         GiderKanallari.Clear();
         foreach (var ad in adlar)
         { GelenKanallari.Add(new SecimCipi(ad)); GiderKanallari.Add(new SecimCipi(ad)); }
-        GiderKanallari.Add(new SecimCipi(OrtakKanal));
+        GiderKanallari.Add(new SecimCipi(KanalEtiketleri.Ortak));
         SenkronSecim();
 
         if (TipCipleri.Count == 0)
@@ -145,7 +143,7 @@ public partial class IslemlerViewModel : OturumluViewModel
         FiltreKanallari.Add(new SecimCipi(TumKanal));
         foreach (var ad in adlar)
             FiltreKanallari.Add(new SecimCipi(ad));
-        FiltreKanallari.Add(new SecimCipi(OrtakKanal));
+        FiltreKanallari.Add(new SecimCipi(KanalEtiketleri.Ortak));
 
         if (FiltreZamanlar.Count == 0)
         {

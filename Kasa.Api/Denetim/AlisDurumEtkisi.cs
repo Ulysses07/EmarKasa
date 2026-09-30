@@ -1,5 +1,6 @@
 using System.Globalization;
 using Kasa.Api.Data;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Denetim;
@@ -36,7 +37,7 @@ public static class AlisDurumEtkisi
     /// (yalnız genel kasa satırı hiçbir kanala düşmez).</summary>
     internal static OdemePayi EkstreGideri(IslemEntity islem, EkstreKayitEntity satir) =>
         new(islem.Id, islem.Tarih, islem.TutarTl, islem.KrediKartiId, satir.DagilimTuru == "Genel"
-            ? [new KanalPayi(null, Servisler.BenzerKayitServisi.GenelKasa, islem.TutarTl)]
+            ? [new KanalPayi(null, KanalEtiketleri.GenelKasa, islem.TutarTl)]
             : FinansTakipServisi.Read<TakipKanalPayi>(satir.DagilimJson).Select(p => new KanalPayi(p.KanalId, p.Kanal, p.Tutar)).ToList());
 
     /// <summary>Alış ödemesine bağlanan (gidersiz) kart harcamasının bağlanmadan önceki payları: kendi dağılımı. Kimlik, bağlama

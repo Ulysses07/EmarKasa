@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -23,6 +24,6 @@ public class DomainTests
     [Fact]
     public void Ortak_kanal_sabiti_dogru()
     {
-        Assert.Equal("Ortak", Kanallar.Ortak);
+        Assert.Equal("Ortak", KanalEtiketleri.Ortak);
     }
 }

@@ -27,14 +27,22 @@
 		       <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
+		<!-- Derlenmiş bağlamalar (x:DataType; Kasa.App.Core.Tests MauiKayitTutarliligiTests x:DataType'ı gerçek bağlam türüyle
+		     karşılaştırır): XAML kaynak üreteci bağlama yolunu x:DataType türünde bulamazsa (MAUIG2045) ya da DataTemplate
+		     x:DataType'ı dış kapsamdan devralırsa (MAUIG2024) derleme durur. XC0022-XC0025 XamlC'nin derlenmiş bağlama
+		     uyarılarıdır (bir dosya ya da proje XamlC'ye dönerse). Kaynak: learn.microsoft.com/dotnet/maui/fundamentals/data-binding/compiled-bindings -->
+		<WarningsAsErrors>$(WarningsAsErrors);MAUIG2024;MAUIG2045;XC0022;XC0023;XC0024;XC0025</WarningsAsErrors>
+
 		<!-- Display name -->
 		<ApplicationTitle>Emar Kasa</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.royalmezat.kasa</ApplicationId>
 
-		<!-- Versions -->
-		<ApplicationDisplayVersion>2.3.0</ApplicationDisplayVersion>
+		<!-- Sürüm: tek kaynak depo kökündeki Directory.Build.props (KasaSurumu; en çok üç parça). MAUI Windows'ta Version'ı da
+		     buna eşitler; uygulamanın gösterdiği sürüm Kasa.App.Core derlemesinin aynı değerli meta verisinden okunur.
+		     ApplicationVersion yayın başına artan tam sayıdır (derleme numarası). -->
+		<ApplicationDisplayVersion>$(KasaSurumu)</ApplicationDisplayVersion>
 		<ApplicationVersion>6</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->

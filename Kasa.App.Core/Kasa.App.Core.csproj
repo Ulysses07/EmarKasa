@@ -3,6 +3,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Uygulama sürümü (GuvenlikViewModel.IstemciSurumu) bu derlemenin meta verisinden okunur; tek kaynak depo kökündeki
+         Directory.Build.props (KasaSurumu). Kasa.App aynı değeri ApplicationDisplayVersion olarak kullanır. -->
+    <Version>$(KasaSurumu)</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

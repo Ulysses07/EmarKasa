@@ -4,6 +4,7 @@ using System.Text;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;

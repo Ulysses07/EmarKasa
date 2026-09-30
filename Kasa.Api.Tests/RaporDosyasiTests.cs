@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -98,11 +99,11 @@ public class RaporDosyasiTests
                     Tarih = Gun,
                     Cari = "Firma\u000B",
                     TutarTl = 12.34m,
-                    Kanal = Kanallar.Ortak,
+                    Kanal = KanalEtiketleri.Ortak,
                     Tip = GiderTipi.Cari,
                     Not = "a\u0001b\u000Bc\uFFFFd" + YalnizYuksekVekil + "e"
                 },
-                new IslemEntity { Tarih = Gun, Cari = "=2+2", TutarTl = 5m, Kanal = Kanallar.Ortak, Tip = GiderTipi.Cari, Not = "düz" });
+                new IslemEntity { Tarih = Gun, Cari = "=2+2", TutarTl = 5m, Kanal = KanalEtiketleri.Ortak, Tip = GiderTipi.Cari, Not = "düz" });
             db.SaveChanges();
         }
         string url = $"/api/disari-aktar?baslangic={Gun:yyyy-MM-dd}&bitis={Gun:yyyy-MM-dd}&bicim=";

@@ -130,6 +130,9 @@ Ana dosya: `Kasa.App.ipa`
 | `ApplicationDisplayVersion` | `CFBundleShortVersionString` (kullanıcıya gösterilen) | `1.0` |
 | `ApplicationVersion` | `CFBundleVersion` (derleme numarası) | `1` |
 
+`ApplicationDisplayVersion` csproj'da elle yazılmaz: değeri depo kökündeki `Directory.Build.props`'taki `KasaSurumu`'dur
+(`$(KasaSurumu)`; sunucu ve masaüstü uygulamayla aynı sürüm, en çok üç parça). Kullanıcıya gösterilen sürüm orada yükseltilir.
+
 Yeni sürüm yayınlarken:
 - `ApplicationDisplayVersion`: kullanıcıya gösterilen sürüm (ör. `1.0.1`, `1.1`)
 - `ApplicationVersion`: her App Store yüklemesinde artırılmalıdır (App Store Connect bunu zorunlu tutar; ör. `2`, `3`, ...)

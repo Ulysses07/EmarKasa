@@ -5,6 +5,8 @@
 # ---- 1) .NET publish ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
 WORKDIR /src
+# Depo kökündeki ortak MSBuild özellikleri (KasaSurumu: /api/surum'un bildirdiği sürüm); yoksa Kasa.Api derlemesi durur.
+COPY Directory.Build.props ./
 COPY Kasa.Core/Kasa.Core.csproj Kasa.Core/
 COPY Kasa.Api/Kasa.Api.csproj Kasa.Api/
 RUN dotnet restore Kasa.Api/Kasa.Api.csproj

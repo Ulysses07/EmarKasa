@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
@@ -203,7 +204,7 @@ internal static class AltinTohum
             var k2 = new KrediKartiEntity { Ad = "Geçiş kartı", KesimTarihi = new(2026, 1, 20), SonOdemeTarihi = new(2026, 1, 30), Limit = 15_000m, Borc = 0m };
             db.KrediKartlari.AddRange(k1, k2);
             var kr1 = new KrediEntity { Ad = "Eski kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 2, 1), TaksitSayisi = 12, AylikOdeme = 900m, OdemeGunu = 5, Kanal = "MEZAT", KanalId = 1 };
-            var kr2 = new KrediEntity { Ad = "Geçiş kredisi", CekilenTutar = 6_000m, CekimTarihi = new(2026, 3, 10), TaksitSayisi = 10, AylikOdeme = 650m, OdemeGunu = 20, Kanal = Kanallar.Ortak };
+            var kr2 = new KrediEntity { Ad = "Geçiş kredisi", CekilenTutar = 6_000m, CekimTarihi = new(2026, 3, 10), TaksitSayisi = 10, AylikOdeme = 650m, OdemeGunu = 20, Kanal = KanalEtiketleri.Ortak };
             db.Krediler.AddRange(kr1, kr2);
             var hesap = new HesapEntity { Ad = "Eski hesap", Tur = "Kasa", AcilisTarihi = Baslangic };
             db.Hesaplar.Add(hesap);
@@ -221,12 +222,12 @@ internal static class AltinTohum
 
         // Genel giderler: bütün tipler, Ortak, pasif kanal, eski kart ve ileri tarihli kayıt.
         await Gider(c, new(2026, 1, 5), "Cari ödeme", 1_500m, "MEZAT", GiderTipi.Cari);
-        await Gider(c, new(2026, 2, 10), "SGK", 900m, Kanallar.Ortak, GiderTipi.SabitGider);
+        await Gider(c, new(2026, 2, 10), "SGK", 900m, KanalEtiketleri.Ortak, GiderTipi.SabitGider);
         await Gider(c, new(2026, 3, 15), "Nakliye", 700.55m, "PERAKENDE", GiderTipi.Cari);
         // K3'ten önce API'den girilmiş eski (takipsiz) kart giderleri: yeni kayıt artık reddedilir, canlıdaki geçmiş
         // kayıtlar gibi API'nin yazdığı alanlarla doğrudan veritabanına yazılır (kimlik sırası korunur).
         EskiKartGideri(f, new(2026, 4, 20), "Eski kart alışı", 400m, "MEZAT", 1, eskiKart);
-        EskiKartGideri(f, new(2026, 5, 31), "Eski kart ortak", 333.33m, Kanallar.Ortak, null, eskiKart);
+        EskiKartGideri(f, new(2026, 5, 31), "Eski kart ortak", 333.33m, KanalEtiketleri.Ortak, null, eskiKart);
         await Gider(c, new(2026, 7, 7), "Elektrik", 250m, "TOPTAN", GiderTipi.SabitGider);
         await Gider(c, new(2026, 8, 18), "Pasif kanal gideri", 120m, "ESKI", GiderTipi.Cari);
         EskiKartGideri(f, new(2026, 8, 10), "Geçiş öncesi kart", 800m, "PERAKENDE", 2, gecisKarti);
@@ -250,13 +251,13 @@ internal static class AltinTohum
         a = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{a.Id}/odemeler/{iptalOdeme}/iptal", new TakipIptalYaz(Guid.NewGuid(), a.Surum, "Mükerrer"));
         a = await Odeme(c, a, new(2026, 7, 2), 1_100m);
         a = await Odeme(c, a, new(2026, 9, 2), 600m);
-        await Gider(c, new(2026, 9, 24), "Kartla ortak gider", 90m, Kanallar.Ortak, GiderTipi.KrediKarti, a.Id);
+        await Gider(c, new(2026, 9, 24), "Kartla ortak gider", 90m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti, a.Id);
 
         // Takipli kart B: avans, sonradan harcama, genel giderden ve onaylı alıştan gelen kart harcamaları.
         var b = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takip kart B", 10_000m, 28, 8, new(2026, 3, 1), 0m, []));
         b = await Odeme(c, b, new(2026, 5, 10), 500m, "Avans");
         b = await Harcama(c, b, new(2026, 6, 15), "Sonradan harcama", 300m, 1, [new(3, 300m)]);
-        await Gider(c, new(2026, 7, 12), "Kartla ortak", 240m, Kanallar.Ortak, GiderTipi.KrediKarti, b.Id);
+        await Gider(c, new(2026, 7, 12), "Kartla ortak", 240m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti, b.Id);
 
         // Alışlar: onaylı nakit ödemeli, onaylı kartlı ödemeli (takipli kart B), onaysız (dağılım bekliyor).
         var a1 = await Alis(c, new(2026, 3, 1), "Tedarikçi A", 5_000m, [new(1, 3_000m), new(2, 2_000m)], onayla: true);

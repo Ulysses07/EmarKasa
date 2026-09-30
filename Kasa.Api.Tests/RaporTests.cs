@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -48,7 +49,7 @@ public class RaporTests : IClassFixture<KasaWebFactory>
             new IslemEntity { Tarih = new DateOnly(2026, 6, 29), Cari = "MEZAT-cari", TutarTl = 1_308_800m, Kanal = "MEZAT", Tip = GiderTipi.Cari },
             new IslemEntity { Tarih = new DateOnly(2026, 6, 29), Cari = "PER-cari", TutarTl = 1_221_374m, Kanal = "PERAKENDE", Tip = GiderTipi.Cari },
             new IslemEntity { Tarih = new DateOnly(2026, 6, 29), Cari = "TOP-cari", TutarTl = 360_000m, Kanal = "TOPTAN", Tip = GiderTipi.Cari },
-            new IslemEntity { Tarih = new DateOnly(2026, 6, 30), Cari = "SGK/Vergi", TutarTl = 455_321m, Kanal = Kanallar.Ortak, Tip = GiderTipi.SabitGider });
+            new IslemEntity { Tarih = new DateOnly(2026, 6, 30), Cari = "SGK/Vergi", TutarTl = 455_321m, Kanal = KanalEtiketleri.Ortak, Tip = GiderTipi.SabitGider });
 
         db.SaveChanges();
     }
