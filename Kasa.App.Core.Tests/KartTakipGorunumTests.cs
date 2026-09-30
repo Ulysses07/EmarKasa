@@ -1,3 +1,4 @@
+using System.Net;
 using Kasa.ApiClient;
 
 namespace Kasa.App.Core.Tests;
@@ -13,10 +14,10 @@ public class KartTakipGorunumTests
     private static SahteApi Finans() => new() { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0)] };
 
     private static async Task<(KartTakipViewModel Vm, FinansTakipTests.Sahte Api)> Vm(Rol rol = Rol.Editor, FinansTakipTests.Sahte? api = null,
-        AuthViewModel? auth = null)
+        AuthViewModel? auth = null, IBenzerKayitApi? benzerlik = null, IKasaKontrolApi? kontrol = null)
     {
         api ??= new FinansTakipTests.Sahte();
-        var vm = new KartTakipViewModel(api, Finans(), auth ?? TestOturumu.Ac(rol));
+        var vm = new KartTakipViewModel(api, Finans(), auth ?? TestOturumu.Ac(rol), benzerlik, kontrol);
         await vm.YukleAsync();
         return (vm, api);
     }
@@ -160,6 +161,7 @@ public class KartTakipGorunumTests
         Assert.False(vm.YeniKartFormuAcik);
         vm.EkstreSecCommand.Execute(vm.Ekstreler[0]);
         Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.Null(vm.DuzenlenenEkstre);
     }
 
     [Fact]
@@ -185,6 +187,9 @@ public class KartTakipGorunumTests
             Assert.Equal(KartFormu.Yok, vm.AcikForm);
         }
         vm.FormAcCommand.Execute(KartFormu.Gecis);
+        Assert.Equal(KartFormu.Gecis, vm.AcikForm);
+        vm.EkstreSecCommand.Execute(vm.Ekstreler[0]);   // eski takipte ekstre bilgisi düzenlenmez
+        Assert.Null(vm.DuzenlenenEkstre);
         Assert.Equal(KartFormu.Gecis, vm.AcikForm);
     }
 
@@ -225,7 +230,9 @@ public class KartTakipGorunumTests
     [Fact]
     public async Task Yeni_kart_kutusu_bos_kart_formunu_acar_kayittan_sonra_yeni_kart_acik_gelir()
     {
-        var (vm, api) = await Vm();
+        var api = new FinansTakipTests.Sahte();
+        api.YeniKartYaniti = api.Kart with { Id = 3, Ad = "Yeni kart" };
+        var (vm, _) = await Vm(api: api);
         vm.KutuSecCommand.Execute(vm.Kartlar[0]);
         vm.YeniKartAcCommand.Execute(null);
         Assert.Null(vm.Secili);
@@ -238,7 +245,8 @@ public class KartTakipGorunumTests
         Assert.Null(api.KartKayit!.Value.Id);   // yeni kart olarak gitti
         Assert.Equal(KartFormu.Yok, vm.AcikForm);
         Assert.False(vm.YeniKartFormuAcik);
-        Assert.Equal(api.Kart.Id, vm.AcikKartId);
+        Assert.Equal(3, vm.AcikKartId);
+        Assert.Equal(2, vm.Kartlar.Count);
     }
 
     [Fact]
@@ -261,5 +269,277 @@ public class KartTakipGorunumTests
         vm.SekmeSecCommand.Execute(vm.Sekmeler[1]);
         Assert.Equal(KartSekmesi.Harcamalar, vm.SeciliSekme);
         Assert.Equal(new[] { false, true, false }, vm.Sekmeler.Select(s => s.Secili));
+    }
+
+    // --- Hata yönlendirmesi: yalnız açık formun kendi komutunun hatası formda görünür ---
+
+    [Fact]
+    public async Task Form_acikken_iptal_reddi_ve_iptal_sunucu_hatasi_sayfada_gosterilir()
+    {
+        var harcama = new KartHarcamaDto(20, null, new DateOnly(2026, 9, 20), "Mal", 50, 1, false, [new TakipKanalPayi(1, "MEZAT", 50)]);
+        var api = new FinansTakipTests.Sahte();
+        api.Kart = api.Kart with { Harcamalar = [harcama, harcama with { Id = 21, EkstreKayitId = 5 }] };
+        var (vm, _) = await Vm(api: api);
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+
+        await vm.HarcamaIptalAsync(vm.Harcamalar.Single(h => h.Veri.Id == 21));   // istemci reddi
+        Assert.Contains("Ekstre İçe Aktar", vm.SayfaHatasi);
+        Assert.Null(vm.FormHatasi);
+
+        vm.Gerekce = "Yanlış kayıt";
+        api.IptalHatasi = new KasaApiException(HttpStatusCode.Conflict, "Kart başka bir işlemle değişti.");
+        await vm.HarcamaIptalAsync(vm.Harcamalar.Single(h => h.Veri.Id == 20));   // sunucu 409
+        Assert.Equal("Kart başka bir işlemle değişti.", vm.SayfaHatasi);
+        Assert.Null(vm.FormHatasi);
+        Assert.Equal(KartFormu.Odeme, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Form_acikken_yukleme_hatasi_sayfada_gosterilir()
+    {
+        var (vm, api) = await Vm();
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        api.KartlarYaniti = Task.FromException<IReadOnlyList<KartTakipDto>>(new HttpRequestException());
+        await vm.YukleAsync();
+        Assert.NotNull(vm.SayfaHatasi);
+        Assert.Null(vm.FormHatasi);
+        Assert.Equal(KartFormu.Odeme, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Odeme_kaydi_sunucu_hatasi_formda_gosterilir_form_acik_kalir()
+    {
+        var (vm, api) = await Vm();
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null);
+        api.OdemeHata = true;
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(KartFormu.Odeme, vm.AcikForm);
+        Assert.NotNull(vm.FormHatasi);
+        Assert.Null(vm.SayfaHatasi);
+    }
+
+    // --- Başarı yalnız işlemi başlatan formu kapatır ---
+
+    [Fact]
+    public async Task Odeme_kaydi_surerken_acilan_harcama_formu_odeme_basarisiyla_kapanmaz()
+    {
+        var bekleyen = new TaskCompletionSource<KartTakipDto>();
+        var (vm, api) = await Vm();
+        api.OdemeYaniti = bekleyen.Task;
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null);
+        var kayit = vm.OdemeKaydetCommand.ExecuteAsync(null);
+        vm.FormAcCommand.Execute(KartFormu.Harcama);
+        bekleyen.SetResult(api.Kart);
+        await kayit;
+        Assert.Contains("kaydedildi", vm.Mesaj);
+        Assert.Equal(KartFormu.Harcama, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Odeme_kaydi_surerken_form_degisirse_odeme_hatasi_sayfada_gosterilir()
+    {
+        var bekleyen = new TaskCompletionSource<KartTakipDto>();
+        var (vm, api) = await Vm();
+        api.OdemeYaniti = bekleyen.Task;
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null);
+        var kayit = vm.OdemeKaydetCommand.ExecuteAsync(null);
+        vm.FormAcCommand.Execute(KartFormu.Harcama);
+        bekleyen.SetException(new HttpRequestException());
+        await kayit;
+        Assert.Equal(KartFormu.Harcama, vm.AcikForm);
+        Assert.NotNull(vm.SayfaHatasi);
+        Assert.Null(vm.FormHatasi);
+    }
+
+    [Fact]
+    public async Task Ekstre_kaydi_surerken_secilen_baska_ekstrenin_formu_acik_kalir()
+    {
+        var bekleyen = new TaskCompletionSource<KartTakipDto>();
+        var api = new FinansTakipTests.Sahte();
+        var ilk = api.Kart.Ekstreler[0];
+        api.Kart = api.Kart with { Ekstreler = [ilk, ilk with { Id = 8, KesimTarihi = ilk.KesimTarihi.AddMonths(-1) }] };
+        api.EkstreYaniti = bekleyen.Task;
+        var (vm, _) = await Vm(api: api);
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.EkstreSecCommand.Execute(vm.Ekstreler.Single(e => e.Veri.Id == 7));
+        vm.Gerekce = "Banka ekstresiyle kontrol edildi";
+        var kayit = vm.EkstreKaydetCommand.ExecuteAsync(null);
+        vm.EkstreSecCommand.Execute(vm.Ekstreler.Single(e => e.Veri.Id == 8));
+        bekleyen.SetResult(api.Kart);
+        await kayit;
+        Assert.Equal(KartFormu.Ekstre, vm.AcikForm);
+        Assert.Equal(8, vm.DuzenlenenEkstre!.Veri.Id);
+    }
+
+    [Fact]
+    public async Task Basarili_harcama_kaydindan_sonra_form_kapanir()
+    {
+        var (vm, api) = await Vm();
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Harcama);
+        vm.HarcamaTutari = 10;
+        vm.HarcamaAciklama = "Mal";
+        await vm.HarcamaKaydetCommand.ExecuteAsync(null);
+        Assert.NotNull(api.Harcama);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Basarili_masraf_kaydindan_sonra_form_kapanir()
+    {
+        var kontrol = new KasaKontrolVeAylikGiderTests.Sahte();
+        var (vm, _) = await Vm(kontrol: kontrol);
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Masraf);
+        vm.MasrafEkstresi = vm.MasrafEkstreleri[0];
+        vm.MasrafTutari = 10;
+        vm.MasrafAciklama = "Banka faizi";
+        await vm.MasrafOnizleCommand.ExecuteAsync(null);
+        await vm.MasrafKaydetCommand.ExecuteAsync(null);
+        Assert.Single(kontrol.Masraflar);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Basarili_durum_degisiminden_sonra_kart_bilgisi_formu_kapanir()
+    {
+        var (vm, _) = await Vm();
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        vm.Gerekce = "Kart kapatıldı";
+        await vm.DurumDegistirAsync();
+        Assert.Contains("kullanım durumu", vm.Mesaj);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Basarili_gecis_onayindan_sonra_form_kapanir()
+    {
+        var api = new FinansTakipTests.Sahte { Kart = FinansTakipTests.Sahte.OrnekKart() with { YeniTakip = false } };
+        var (vm, _) = await Vm(api: api);
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Gecis);
+        vm.GecisAciklama = "Eski borç kontrol edildi";
+        await vm.GecisOnizleCommand.ExecuteAsync(null);
+        vm.GecisOnay = true;
+        await vm.GecisiOnaylaCommand.ExecuteAsync(null);
+        Assert.NotNull(api.KartGecis);
+        Assert.Equal(1, vm.AcikKartId);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+    }
+
+    [Fact]
+    public async Task Basarili_devir_duzeltmesinden_sonra_kart_bilgisi_formu_kapanir()
+    {
+        var tarih = new DateOnly(2026, 9, 25);
+        var api = new FinansTakipTests.Sahte
+        {
+            Devir = new(11, tarih, 100m, 80m, 0m, [new TakipKanalPayi(1, "MEZAT", 100m)], "IslemTarihi", 80m, 0m, 0m, 80m, 80m, true, null),
+        };
+        api.Kart = api.Kart with { Gecis = new KartGecisDto("IslemTarihi", "Banka", null) };
+        var (vm, _) = await Vm(api: api);
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        await vm.DevirYukleCommand.ExecuteAsync(null);
+        vm.DevirAciklama = "Banka ekstresine göre";
+        await vm.DevirDuzeltCommand.ExecuteAsync(null);
+        Assert.Single(api.DevirDuzeltmeleri);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+    }
+
+    // --- Benzer kayıt uyarısı ---
+
+    [Fact]
+    public async Task Benzer_odeme_uyarisinda_form_acik_kalir_form_degisince_uyari_temizlenir()
+    {
+        var (vm, api) = await Vm(benzerlik: new BenzerKayitTests.Sahte());
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 10;
+        await vm.OdemeOnizleCommand.ExecuteAsync(null);
+        await vm.OdemeKaydetCommand.ExecuteAsync(null);
+        Assert.Empty(api.OdemeIstekleri);
+        Assert.True(vm.OdemeBenzerlik.UyariVar);
+        Assert.Equal(KartFormu.Odeme, vm.AcikForm);
+        vm.FormAcCommand.Execute(KartFormu.Harcama);
+        Assert.False(vm.OdemeBenzerlik.UyariVar);
+    }
+
+    [Fact]
+    public async Task Benzer_harcama_uyarisinda_form_acik_kalir_vazgecince_uyari_temizlenir()
+    {
+        var (vm, api) = await Vm(benzerlik: new BenzerKayitTests.Sahte());
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Harcama);
+        vm.HarcamaTutari = 10;
+        vm.HarcamaAciklama = "Mal";
+        await vm.HarcamaKaydetCommand.ExecuteAsync(null);
+        Assert.Null(api.Harcama);
+        Assert.True(vm.HarcamaBenzerlik.UyariVar);
+        Assert.Equal(KartFormu.Harcama, vm.AcikForm);
+        vm.VazgecCommand.Execute(null);
+        Assert.False(vm.HarcamaBenzerlik.UyariVar);
+    }
+
+    // --- Oturum, bildirim, güvenli giriş ---
+
+    [Fact]
+    public async Task Yeni_oturum_acik_formu_kapatir_ve_sekmeyi_sifirlar()
+    {
+        var auth = TestOturumu.Ac(Rol.Editor);
+        var (vm, _) = await Vm(auth: auth);
+        vm.SekmeSecCommand.Execute(vm.Sekmeler[2]);
+        vm.YeniKartAcCommand.Execute(null);   // kart seçili değilken açık form: Secili değişmeden kapanmalı
+        Assert.True(vm.YeniKartFormuAcik);
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.Equal(KartSekmesi.Ekstreler, vm.SeciliSekme);
+        Assert.Equal(new[] { true, false, false }, vm.Sekmeler.Select(s => s.Secili));
+    }
+
+    [Fact]
+    public async Task Arayuz_durumu_degisiklikleri_bildirilir()
+    {
+        var (vm, _) = await Vm();
+        var bildirilen = new List<string?>();
+        vm.PropertyChanged += (_, e) => bildirilen.Add(e.PropertyName);
+        vm.KutuSecCommand.Execute(vm.Kartlar[0]);
+        Assert.Contains(nameof(vm.AcikKartId), bildirilen);
+
+        bildirilen.Clear();
+        vm.YeniKartAcCommand.Execute(null);
+        Assert.Contains(nameof(vm.YeniKartFormuAcik), bildirilen);
+        Assert.Contains(nameof(vm.AcikKartId), bildirilen);
+
+        bildirilen.Clear();
+        await vm.KaydetCommand.ExecuteAsync(null);   // boş ad: formun hatası
+        Assert.NotNull(vm.FormHatasi);
+        Assert.Contains(nameof(vm.FormHatasi), bildirilen);
+        Assert.Contains(nameof(vm.SayfaHatasi), bildirilen);
+
+        bildirilen.Clear();
+        vm.VazgecCommand.Execute(null);
+        Assert.Null(vm.FormHatasi);
+        Assert.Contains(nameof(vm.FormHatasi), bildirilen);
+    }
+
+    [Fact]
+    public async Task Bos_kutu_secimi_hicbir_sey_yapmaz()
+    {
+        var (vm, _) = await Vm();
+        vm.KutuSecCommand.Execute(null);
+        Assert.Null(vm.AcikKartId);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
     }
 }

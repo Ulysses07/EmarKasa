@@ -144,12 +144,12 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
             return false;
         var satir = Kartlar.FirstOrDefault(k => k.Veri.Id == id);
         if (satir is null)
-        { Hata = "Kart bulunamadı. Listeyi yenileyip tekrar deneyin."; return false; }
+        { SayfaHatasiYaz("Kart bulunamadı. Listeyi yenileyip tekrar deneyin."); return false; }
         Sec(satir);
         return true;
     }
 
-    public Task YukleAsync() => YurutAsync(async n =>
+    public Task YukleAsync() => YurutAsync(KartFormu.Yok, async n =>
     {
         var kanallar = await finans.KanallarAsync();
         var kartlar = await api.TakipKartlarAsync();
@@ -213,6 +213,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         Odemeler.Clear();
         OdemeOnizleme = null;
         _odemeOnizlemesi.Temizle();
+        DuzenlenenEkstre = null;
         GecisDurumu(null, null);
         DevirTemizle();
     }
@@ -276,7 +277,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         liste.Add(pay);
     }
     [RelayCommand]
-    private Task KaydetAsync() => YurutAsync(async n =>
+    private Task KaydetAsync() => YurutAsync(KartFormu.KartBilgisi, async n =>
     {
         if (!EditorMu)
             return;
@@ -292,10 +293,10 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
             : new KartTakipYaz(Guid.Empty, Secili!.Surum, Ad.Trim(), Limit, KesimGunu, SonOdemeGunu, Secili.TakipBaslangic ?? DateOnly.FromDateTime(AcilisTarihi), 0, Array.Empty<KanalPayYaz>());
         g = g with { IstekId = _kayit.Al(new { Id = Secili?.Id, g }) };
         if (Uygula(await api.TakipKartKaydetAsync(Secili?.Id, g), n))
-        { _kayit.Temizle(); AcikForm = KartFormu.Yok; Mesaj = "Kart kaydedildi."; }
+        { _kayit.Temizle(); FormuKapat(KartFormu.KartBilgisi); Mesaj = "Kart kaydedildi."; }
     });
     [RelayCommand]
-    private Task HarcamaKaydetAsync() => YurutAsync(async n =>
+    private Task HarcamaKaydetAsync() => YurutAsync(KartFormu.Harcama, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart)
             return;
@@ -310,7 +311,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         if (!await HarcamaBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.KartHarcama, g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
             return;
         if (Uygula(await api.TakipHarcamaKaydetAsync(kart.Id, g), n))
-        { _harcama.Temizle(kart.Id); HarcamaBenzerlik.Temizle(); HarcamaTutari = 0; HarcamaAciklama = ""; HarcamaPaylari.Clear(); AcikForm = KartFormu.Yok; Mesaj = "Kart hareketi kaydedildi. Henüz kasa çıkışı oluşmadı."; }
+        { _harcama.Temizle(kart.Id); HarcamaBenzerlik.Temizle(); HarcamaTutari = 0; HarcamaAciklama = ""; HarcamaPaylari.Clear(); FormuKapat(KartFormu.Harcama); Mesaj = "Kart hareketi kaydedildi. Henüz kasa çıkışı oluşmadı."; }
     });
     [RelayCommand] private async Task HarcamayiAyriKaydetAsync() { if (HarcamaBenzerlik.Onayla()) await HarcamaKaydetAsync(); }
     private KartTakipOdemeYaz OdemeGovde()
@@ -320,7 +321,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         return g with { IstekId = _odeme.Al(Secili.Id, new { Secili.Id, g }) };
     }
     [RelayCommand]
-    private Task OdemeOnizleAsync() => YurutAsync(async n =>
+    private Task OdemeOnizleAsync() => YurutAsync(KartFormu.Odeme, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart)
             return;
@@ -336,7 +337,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         OdemeOnizleme = $"Kasa çıkışı: {Bicim.Tl(sonuc.KasaEtkisi)} ₺\n{TakipMetni.Paylar(sonuc.Dagilimlar)}\n" + string.Join(" · ", sonuc.Ekstreler.Select(e => $"Ekstre #{e.EkstreId}: {Bicim.Tl(e.Tutar)} ₺"));
     });
     [RelayCommand]
-    private Task OdemeKaydetAsync() => YurutAsync(async n =>
+    private Task OdemeKaydetAsync() => YurutAsync(KartFormu.Odeme, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart)
             return;
@@ -346,12 +347,15 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         if (!await OdemeBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.KartOdeme, g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
             return;
         if (Uygula(await api.TakipOdemeKaydetAsync(kart.Id, g), n))
-        { _odeme.Temizle(kart.Id); OdemeBenzerlik.Temizle(); _odemeOnizlemesi.Temizle(); OdemeOnizleme = null; OdemeTutari = 0; OdemeNotu = ""; AcikForm = KartFormu.Yok; Mesaj = "Kart ödemesi kaydedildi; kasa etkisi bir kez işlendi."; }
+        { _odeme.Temizle(kart.Id); OdemeBenzerlik.Temizle(); _odemeOnizlemesi.Temizle(); OdemeOnizleme = null; OdemeTutari = 0; OdemeNotu = ""; FormuKapat(KartFormu.Odeme); Mesaj = "Kart ödemesi kaydedildi; kasa etkisi bir kez işlendi."; }
     });
     [RelayCommand] private async Task OdemeyiAyriKaydetAsync() { if (OdemeBenzerlik.Onayla()) await OdemeKaydetAsync(); }
     [RelayCommand]
     private void EkstreSec(EkstreSatiri satir)
     {
+        // Ekstre bilgisi yalnız editörde ve yeni takipteki kartta düzenlenir; izleyicide ya da eski takipte seçim de olmaz.
+        if (!EditorMu || !YeniTakip)
+            return;
         DuzenlenenEkstre = satir;
         EkstreSonOdeme = satir.Veri.SonOdemeTarihi.ToDateTime(TimeOnly.MinValue);
         AsgariVar = satir.Veri.AsgariOdeme is not null;
@@ -359,9 +363,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         FormAc(KartFormu.Ekstre);
     }
     [RelayCommand]
-    private Task EkstreKaydetAsync() => YurutAsync(async n =>
+    private Task EkstreKaydetAsync() => YurutAsync(KartFormu.Ekstre, async n =>
     {
-        if (!EditorMu || Secili is null || DuzenlenenEkstre is null)
+        if (!EditorMu || Secili is null || DuzenlenenEkstre is not { } ekstre)
             return;
         if (!GerekceVar())
             return;
@@ -370,26 +374,35 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         var g = new KartEkstreYaz(Guid.Empty, Secili.Surum, DateOnly.FromDateTime(EkstreSonOdeme), AsgariVar ? AsgariTutar : null, Gerekce.Trim());
         g = g with { IstekId = _ekstre.Al(Secili.Id, new { Secili.Id, EkstreId = DuzenlenenEkstre.Veri.Id, g }) };
         if (Uygula(await api.TakipEkstreKaydetAsync(Secili.Id, DuzenlenenEkstre.Veri.Id, g), n))
-        { _ekstre.Temizle(Secili.Id); DuzenlenenEkstre = null; AcikForm = KartFormu.Yok; Mesaj = "Ekstre bilgisi kaydedildi."; }
+        {
+            _ekstre.Temizle(Secili.Id);
+            // Kayıt sürerken başka ekstre seçildiyse onun formu açık kalır.
+            if (ReferenceEquals(DuzenlenenEkstre, ekstre))
+            {
+                DuzenlenenEkstre = null;
+                FormuKapat(KartFormu.Ekstre);
+            }
+            Mesaj = "Ekstre bilgisi kaydedildi.";
+        }
     });
     private bool GerekceVar() { if (!string.IsNullOrWhiteSpace(Gerekce)) return true; Hata = "İşlem gerekçesini yazın."; return false; }
     public Task OdemeIptalAsync(KartOdemeSatiri satir)
     {
         if (satir.Veri.EkstreKayitId is not null)
-        { Hata = "Bu ödeme Ekstre İçe Aktar bölümünden gerekçeyle iptal edilir."; return Task.CompletedTask; }
+        { SayfaHatasiYaz("Bu ödeme Ekstre İçe Aktar bölümünden gerekçeyle iptal edilir."); return Task.CompletedTask; }
         if (satir.AvansDagitimi)
-        { Hata = "Kilitli avans dağıtımı ayrıca iptal edilemez; gerekirse avansı yatıran ödemeyi (dönemi açıksa) iptal edin."; return Task.CompletedTask; }
+        { SayfaHatasiYaz("Kilitli avans dağıtımı ayrıca iptal edilemez; gerekirse avansı yatıran ödemeyi (dönemi açıksa) iptal edin."); return Task.CompletedTask; }
         return IptalAsync(satir.Veri.Id, false);
     }
     public Task HarcamaIptalAsync(HarcamaSatiri satir)
     {
         if (satir.Veri.EkstreKayitId is not null)
-        { Hata = "Bu hareket Ekstre İçe Aktar bölümünden gerekçeyle iptal edilir."; return Task.CompletedTask; }
+        { SayfaHatasiYaz("Bu hareket Ekstre İçe Aktar bölümünden gerekçeyle iptal edilir."); return Task.CompletedTask; }
         if (DevirSatiri(satir))
-        { Hata = "Eski borç devri iptal edilmez; \"Eski borç devri\" bölümünden gerekçeyle düzeltin."; return Task.CompletedTask; }
+        { SayfaHatasiYaz("Eski borç devri iptal edilmez; \"Eski borç devri\" bölümünden gerekçeyle düzeltin."); return Task.CompletedTask; }
         return IptalAsync(satir.Veri.Id, true);
     }
-    private Task IptalAsync(int id, bool harcama) => YurutAsync(async n =>
+    private Task IptalAsync(int id, bool harcama) => YurutAsync(KartFormu.Yok, async n =>
     {
         if (!EditorMu || Secili is null || !GerekceVar())
             return;
@@ -399,14 +412,14 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         if (Uygula(sonuc, n))
         { _iptal.Temizle(sonuc.Id); Mesaj = "İptal kaydedildi; geçmiş korundu."; }
     });
-    public Task DurumDegistirAsync() => YurutAsync(async n =>
+    public Task DurumDegistirAsync() => YurutAsync(KartFormu.KartBilgisi, async n =>
     {
         if (!EditorMu || Secili is null || !GerekceVar())
             return;
         var g = new TakipDurumYaz(Guid.Empty, Secili.Surum, !Secili.Aktif, Gerekce.Trim());
         g = g with { IstekId = _durum.Al(Secili.Id, new { Secili.Id, g }) };
         if (Uygula(await api.TakipKartDurumAsync(Secili.Id, g), n))
-        { _durum.Temizle(Secili.Id); AcikForm = KartFormu.Yok; Mesaj = "Kartın kullanım durumu değiştirildi; geçmiş korundu."; }
+        { _durum.Temizle(Secili.Id); FormuKapat(KartFormu.KartBilgisi); Mesaj = "Kartın kullanım durumu değiştirildi; geçmiş korundu."; }
     });
     private KartGecisYaz GecisGovde()
     {
@@ -415,7 +428,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         return g with { IstekId = _gecis.Al(Secili.Id, new { Secili.Id, g }) };
     }
     [RelayCommand]
-    private Task GecisOnizleAsync() => YurutAsync(async n =>
+    private Task GecisOnizleAsync() => YurutAsync(KartFormu.Gecis, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: false } kart)
             return;
@@ -437,7 +450,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         return GecisOnizleAsync();
     }
     [RelayCommand(CanExecute = nameof(GecisOnaylanabilir))]
-    private Task GecisiOnaylaAsync() => YurutAsync(async n =>
+    private Task GecisiOnaylaAsync() => YurutAsync(KartFormu.Gecis, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: false } kart)
             return;
@@ -448,14 +461,14 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         { Hata = "Güncel geçiş önizlemesini inceleyip onay kutusunu işaretleyin."; return; }
         g = g with { Onay = true };
         if (Uygula(await api.TakipKartGecisAsync(kart.Id, g), n))
-        { _gecis.Temizle(kart.Id); GecisDurumu(null, null); AcikForm = KartFormu.Yok; Mesaj = "Yeni takip açıldı; geçmiş kayıtlar korundu."; }
+        { _gecis.Temizle(kart.Id); GecisDurumu(null, null); FormuKapat(KartFormu.Gecis); Mesaj = "Yeni takip açıldı; geçmiş kayıtlar korundu."; }
     });
     // Devir başka karta geçişte (KartFormlariniTemizle) ve düzeltmeden sonra temizlenir; aynı kartın yenilenmesinde korunur.
     private int? _devirKartId;
     private void DevirTemizle() { Devir = null; _devirKartId = null; DevirKalanBorc = DevirOncedenSayilan = 0; DevirAciklama = ""; DevirPaylari.Clear(); }
     /// <summary>Geçişli kartın eski borç devrini ve düzeltme sınırlarını okur; form güncel devirle doldurulur.</summary>
     [RelayCommand]
-    private Task DevirYukleAsync() => YurutAsync(async n =>
+    private Task DevirYukleAsync() => YurutAsync(KartFormu.KartBilgisi, async n =>
     {
         if (Secili is not { YeniTakip: true, Gecis: not null } kart)
             return;
@@ -477,7 +490,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     });
     /// <summary>Eski borç devrinin gerekçeli düzeltmesi (finance-2): etkin devir iptal edilir, aynı tarihle yeni tutar yazılır.</summary>
     [RelayCommand]
-    private Task DevirDuzeltAsync() => YurutAsync(async n =>
+    private Task DevirDuzeltAsync() => YurutAsync(KartFormu.KartBilgisi, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart || Devir is not { } devir || _devirKartId != kart.Id)
             return;
@@ -490,7 +503,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         var g = new KartDevirDuzeltYaz(Guid.Empty, kart.Surum, devir.HarcamaId, DevirKalanBorc, DevirOncedenSayilan, TakipMetni.Paylar(DevirPaylari), DevirAciklama.Trim());
         g = g with { IstekId = _devirDuzelt.Al(kart.Id, new { kart.Id, g }) };
         if (Uygula(await api.TakipKartDevirDuzeltAsync(kart.Id, g), n))
-        { _devirDuzelt.Temizle(kart.Id); DevirTemizle(); AcikForm = KartFormu.Yok; Mesaj = "Eski borç devri düzeltildi; geçmiş kasa sonuçları korundu."; }
+        { _devirDuzelt.Temizle(kart.Id); DevirTemizle(); FormuKapat(KartFormu.KartBilgisi); Mesaj = "Eski borç devri düzeltildi; geçmiş kasa sonuçları korundu."; }
     });
     protected override void OturumTemizle()
     {

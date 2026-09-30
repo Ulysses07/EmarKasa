@@ -22,7 +22,7 @@ public partial class KartTakipViewModel
         return g with { IstekId = _masrafKey.Al(new { Secili.Id, g }) };
     }
     [RelayCommand]
-    private Task MasrafOnizleAsync() => YurutAsync(async n =>
+    private Task MasrafOnizleAsync() => YurutAsync(KartFormu.Masraf, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart)
             return;
@@ -40,7 +40,7 @@ public partial class KartTakipViewModel
         MasrafOnizleme = $"Dağıtılacak faiz / masraf: {Bicim.Tl(s.Tutar)} ₺\nDevreden borç: {Bicim.Tl(s.DevredenBorc)} ₺\n{TakipMetni.Paylar(s.Dagilimlar)}\nKart borcu artar; kasa ancak kart ödemesi kaydedilince azalır.";
     });
     [RelayCommand]
-    private Task MasrafKaydetAsync() => YurutAsync(async n =>
+    private Task MasrafKaydetAsync() => YurutAsync(KartFormu.Masraf, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart || kontrolApi is null)
             return;
@@ -50,7 +50,7 @@ public partial class KartTakipViewModel
         try
         {
             if (Uygula(await kontrolApi.KartMasrafKaydetAsync(kart.Id, g with { DagilimOzeti = dagilimOzeti }), n))
-            { MasrafTemizle(); AcikForm = KartFormu.Yok; Mesaj = "Faiz / masraf kanal paylarıyla karta kaydedildi. Henüz kasa çıkışı oluşmadı."; }
+            { MasrafTemizle(); FormuKapat(KartFormu.Masraf); Mesaj = "Faiz / masraf kanal paylarıyla karta kaydedildi. Henüz kasa çıkışı oluşmadı."; }
         }
         catch (KasaApiException e) when ((int)e.DurumKodu == 409) { if (Gecerli(n)) { _masrafOnizlemesi.Temizle(); MasrafOnizleme = null; } throw; }
     });

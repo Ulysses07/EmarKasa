@@ -670,11 +670,15 @@ public class FinansTakipTests
         public int KartKayitSayisi, EkstreKayitSayisi, KartGecisOnizlemeSayisi;
         public (int? Id, KartTakipYaz Govde)? KartKayit;
         public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => KartlarYaniti ?? Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Kart });
-        public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) { KartKayitSayisi++; KartKayit = (id, g); return Task.FromResult(Kart); }
+        /// <summary>Ayarlanırsa yeni kart kaydı (id null) bunu döner (yeni kimlikli kart); yoksa <see cref="Kart"/>.</summary>
+        public KartTakipDto? YeniKartYaniti;
+        public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) { KartKayitSayisi++; KartKayit = (id, g); return Task.FromResult(id is null && YeniKartYaniti is { } yeni ? yeni : Kart); }
         public Task<KartTakipDto> TakipKartDurumAsync(int id, TakipDurumYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g) { Harcama = g; return Task.FromResult(Kart); }
-        public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => Task.FromResult(Kart);
-        public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) { EkstreKayitSayisi++; return Task.FromResult(Kart); }
+        public Exception? IptalHatasi;
+        public Task<KartTakipDto> TakipHarcamaIptalAsync(int id, int hid, TakipIptalYaz g) => IptalHatasi is { } hata ? Task.FromException<KartTakipDto>(hata) : Task.FromResult(Kart);
+        public Task<KartTakipDto>? EkstreYaniti;
+        public Task<KartTakipDto> TakipEkstreKaydetAsync(int id, int eid, KartEkstreYaz g) { EkstreKayitSayisi++; return EkstreYaniti ?? Task.FromResult(Kart); }
         /// <summary>Ayarlanırsa ödeme ve geçiş önizlemeleri yanıt vermeden önce bunu bekler (yanıt gelmeden girdi, kart ya da oturum
         /// değişimi testleri için).</summary>
         public Task? OnizlemeKapisi;
