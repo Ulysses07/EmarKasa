@@ -1,6 +1,9 @@
 // Değişiklik geçmişi (merkezi denetim izi): editörün salt okunur görünümü. Kasayı değiştiren her kaydın önceki/yeni değeri,
 // yapan, zaman, gerekçe, ay kilidi açılışı ve güvenlik olayları GET /api/denetim'den okunur (yeniden eskiye, sayfalı).
 // app.js modülü yalnız Ayarlar'daki düğmeyle yükler. Bütün metinler textContent ile yazılır (sunucu verisi HTML sayılmaz).
+import { h, button, input, field, select, help, table } from './ui-dom.js';
+import { api, openModal, run } from './ui-shell.js';
+
 export const ENTITY_LABELS = {
   Islem: 'Gider',
   Gelen: 'Gelir',
@@ -124,8 +127,7 @@ export function recordText(event) {
     .join(' · ');
 }
 
-export function createDenetimUi(c) {
-  const { api, h, button, input, field, select, help, table, openModal, run } = c;
+export function createDenetimUi() {
   function open(initial = {}) {
     const entity = select(
       'varlik',

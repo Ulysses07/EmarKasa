@@ -100,3 +100,41 @@ test("wwwroot JS'inde HTML dizesiyle DOM yazımı, dizeden kod ve parseFloat yok
   }
   assert.equal(bulunan.length, 0, 'Yasak kullanım:\n' + bulunan.join('\n'));
 });
+
+// Statik dosyalar sunucudan Cache-Control: no-cache ve ETag ile gelir (Program.cs UseStaticFiles; Kasa.Api.Tests
+// StatikServisTests): tarayıcı saklanan kopyayı her kullanımdan önce sunucuya doğrulatır (değişmediyse 304), değişen dosya
+// hemen gelir. Adrese sürüm sorgusu (?v=…) eklemek bu yüzden gereksizdir ve modülde zararlıdır: tarayıcının modül haritası
+// adrese göre tutulur; aynı dosya iki adresle içe aktarılırsa (./ui-shell.js ile ./ui-shell.js?v=2) iki ayrı kopya çalışır,
+// oturum ve pencere durumu bölünür. Yerel dosya adresi (JS, CSS, HTML, SVG, manifest) sorgu dizesi taşımaz.
+const YEREL_ADRES_SORGUSU = /[\w./-]+\.(?:m?js|css|html|svg|webmanifest|json|png|ico)\?[^\s'"`)>]*/g;
+const sorguluAdresler = metin => [...metin.matchAll(YEREL_ADRES_SORGUSU)].map(e => e[0]);
+
+async function kaynakDosyalari(dizin, onek = '') {
+  const sonuc = [];
+  for (const oge of await readdir(dizin, { withFileTypes: true })) {
+    if (oge.isDirectory()) sonuc.push(...(await kaynakDosyalari(new URL(`${oge.name}/`, dizin), `${onek}${oge.name}/`)));
+    else if (/\.(?:m?js|css|html|svg|webmanifest)$/.test(oge.name)) sonuc.push(`${onek}${oge.name}`);
+  }
+  return sonuc.sort();
+}
+
+test('sürüm sorgusu deseni yerel dosya adresini yakalar, API adresini ve sorgusuz adresi yakalamaz', () => {
+  assert.deepEqual(sorguluAdresler("import { h } from './ui-dom.js?v=2.3.0';"), ['./ui-dom.js?v=2.3.0']);
+  assert.deepEqual(sorguluAdresler("await import('./denetim-ui.js?t=1')"), ['./denetim-ui.js?t=1']);
+  assert.deepEqual(sorguluAdresler('<link rel="stylesheet" href="/m/app.css?v=2.3.0-m1">'), ['/m/app.css?v=2.3.0-m1']);
+  assert.deepEqual(sorguluAdresler("const IKON = '/m/icons.svg?v=1';"), ['/m/icons.svg?v=1']);
+  assert.deepEqual(
+    sorguluAdresler("api('/api/denetim?adet=50'); fetch('/kasa-runtime.json'); api(`/api/rapor/ana-sayfa?gun=${gun}`);"),
+    []
+  );
+});
+
+test('wwwroot ve m/ kaynaklarında yerel dosya adresi sorgu dizesi (?v=…) taşımaz: tazelik no-cache + ETag ile sağlanır', async () => {
+  const dosyalar = await kaynakDosyalari(kok);
+  for (const beklenen of ['index.html', 'app.js', 'styles.css', 'm/index.html', 'm/app.js', 'm/app.css'])
+    assert.ok(dosyalar.includes(beklenen), `${beklenen} taranmadı`);
+  const bulunan = [];
+  for (const dosya of dosyalar)
+    for (const adres of sorguluAdresler(await readFile(new URL(dosya, kok), 'utf8'))) bulunan.push(`Kasa.Api/wwwroot/${dosya}: ${adres}`);
+  assert.deepEqual(bulunan, [], 'Sürüm sorgusu olan adres:\n' + bulunan.join('\n'));
+});

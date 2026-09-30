@@ -180,8 +180,8 @@ test('yer tutucu metin masaüstünde ve telefonda alan zemininde en az 4,5:1', (
   const phone = mobile.rule('input::placeholder,textarea::placeholder');
   assert.equal(phone.color, 'var(--soluk)');
   assert.equal(phone.opacity, '1');
-  // .girdi beyaz; tutar alanı alt sayfa zemininde (şeffaf); arama alanı kendi zemininde.
-  assert.equal(mobile.rule('.girdi').background, '#fff');
+  // .girdi beyaz (kart yüzeyi belirteci); tutar alanı alt sayfa zemininde (şeffaf); arama alanı kendi zemininde.
+  assert.equal(mobile.color(mobile.rule('.girdi').background), '#ffffff');
   assert.equal(mobile.rule('.hz-tutar input').background, 'transparent');
   assert.equal(mobile.rule('.sayfa').background, 'var(--zemin)');
   for (const background of ['#ffffff', 'var(--zemin)', 'var(--arama)'])
@@ -203,4 +203,28 @@ test('telefon form alanı kenarlığı MAUI FieldStroke ile aynı tondur', async
   const maui = /<Color x:Key="FieldStroke">(#[0-9A-F]{6})<\/Color>/i.exec(colors)?.[1];
   assert.ok(maui, 'Colors.xaml FieldStroke okunamadı');
   assert.equal(mobile.root['--alan-cizgi'].toUpperCase(), maui.toUpperCase());
+});
+
+// Renk kodları yalnız :root belirteçlerinde tanımlanır; kurallar renge var(--…) ile başvurur. Bir tonu değiştirmek tek
+// belirteci değiştirir ve yukarıdaki oran sınamaları belirteçten çözülür. transparent ve currentColor renk kodu sayılmaz.
+const RENK_KODU = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|(?<![\w-])(?:white|black)(?![\w-])/gi;
+const kokDisiRenkler = css =>
+  [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, secici]) => secici.trim() !== ':root')
+    .flatMap(([, secici, govde]) => [...govde.matchAll(RENK_KODU)].map(e => `${secici.trim()} → ${e[0]}`));
+
+test('renk kodu deseni rengi yakalar, belirteci ve beyaz boşluk özelliğini yakalamaz', () => {
+  assert.deepEqual(kokDisiRenkler(':root{--a:#fff}.x{color:#fff;background:rgba(0,0,0,.1);border-color:white}'), [
+    '.x → #fff',
+    '.x → rgba(',
+    '.x → white',
+  ]);
+  assert.deepEqual(kokDisiRenkler('.x{color:var(--white);white-space:nowrap;background:transparent;fill:currentColor}'), []);
+});
+
+test('masaüstü ve telefon: renk kodları yalnız :root belirteçlerinde', async () => {
+  for (const dosya of ['styles.css', 'm/app.css']) {
+    const css = sikistir(await readFile(new URL(`../Kasa.Api/wwwroot/${dosya}`, import.meta.url), 'utf8'));
+    assert.deepEqual(kokDisiRenkler(css), [], `${dosya}: :root dışında renk kodu; belirteç tanımlayıp var(--…) kullanın`);
+  }
 });

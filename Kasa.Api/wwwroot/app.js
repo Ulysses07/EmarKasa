@@ -3,12 +3,8 @@ import {
   dateText,
   today,
   cents,
-  amount,
   serverCents,
   sumCents,
-  errorMessage,
-  fieldErrors,
-  sessionExpired,
   viewerPasswordError,
   VIEWER_PASSWORD_SHORT_MESSAGE,
   newPasswordRepeatError,
@@ -19,32 +15,65 @@ import {
   paymentCardChoices,
   childValues,
   logoutAndClear,
-  navigationFor,
   currentPeriod,
   monthlyTotals,
-  loadRuntime,
-  runtimeRequestAllowed,
-  cashEditingAllowed,
   incomeSelection,
-  screenBoundRead,
-  abortedRequestError,
   isAbortError,
   dataHealthWarning,
-  SIMILAR_RULE_TEXT,
   trackedCardPayment,
   installmentFields,
   detachAllocations,
-} from './ui-core.js?v=2.3.0';
-import { createFinanceUi } from './finance-ui.js?v=2.3.0';
-import { createNotificationUi } from './notification-ui.js?v=2.3.0';
-import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
-import { createCashControlsUi } from './cash-controls-ui.js?v=2.3.0';
-import { createStatementImportUi } from './statement-import-ui.js?v=2.3.0';
-import { createPushClient, notificationRoute } from './push-client.js?v=2.3.0';
+} from './ui-core.js';
+import { createFinanceUi } from './finance-ui.js';
+import { createNotificationUi } from './notification-ui.js';
+import { createMonthlyUi } from './monthly-ui.js';
+import { createCashControlsUi } from './cash-controls-ui.js';
+import { createStatementImportUi } from './statement-import-ui.js';
+import { notificationRoute } from './push-client.js';
+import {
+  $,
+  h,
+  button,
+  input,
+  field,
+  select,
+  section,
+  badge,
+  help,
+  monthPicker,
+  moneyNode,
+  allocationTags,
+  values,
+  optionalId,
+  empty,
+  summary,
+  table,
+  signedAmountField,
+} from './ui-dom.js';
+import {
+  state,
+  runtime,
+  runtimeReady,
+  canEditCash,
+  renderId,
+  push,
+  toast,
+  clearSession,
+  api,
+  run,
+  closeModal,
+  setModalCleanup,
+  openModal,
+  formDialog,
+  refreshOnConflict,
+  confirmSimilar,
+  requestIdentity,
+  page,
+  registerScreens,
+  navigate,
+} from './ui-shell.js';
 import {
   purchaseTotals,
-  shiftMonth,
-  monthLabel,
   documentFileName,
   linkableExpensesPath,
   documentsPath,
@@ -53,773 +82,39 @@ import {
   documentDeletePayload,
   backupDiskLines,
   restoreReport,
-} from './ui-core.js?v=2.3.0';
+} from './ui-core.js';
 
-const $ = selector => document.querySelector(selector);
-const state = { role: null, view: 'home', purchases: [], channels: [], cards: [], query: '', status: '', selected: null, epoch: 0 };
-let runtime = null;
-const runtimeReady = loadRuntime(fetch).then(config => {
-  runtime = config;
-  return config;
-});
-const canEditCash = () => cashEditingAllowed(state.role, runtime);
-// Kasa düzenleme koruması (aylık gider, kasa kontrolü, ekstre aktarma ve kart ekranları): editör değilse ya da salt okunur
-// sürümdeyse işlem başlamaz. İleti ekrana göre verilebilir.
-function requireEditor(message = 'Bu işlem için editör hesabı gerekir.') {
-  if (!canEditCash()) throw new Error(message);
-}
-const modal = $('#modal');
-let modalCleanup = null;
-let renderId = 0;
 let monthlyRequest = 0;
-// Ekranın rapor okumaları (screenBoundRead) bu denetleyicinin sinyaliyle gider: ekran değişince ya da oturum kapanınca istek
-// tarayıcıda iptal edilir, sunucu da hesabı keser; geç yanıt ekrana yansımaz.
-let screenAbort = null;
-const isOpen = form => modal.open && $('#modal-content').querySelector('form') === form;
-const push = createPushClient({ api, session: () => (canEditCash() ? state.epoch : null) });
-const financeUi = createFinanceUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  allocationTags,
-  dateText,
-  today,
-  cents,
-  serverCents,
-  amount,
-  signedAmount,
-  formDialog,
-  openModal,
-  closeModal,
-  page,
-  navigate,
-  run,
-  act,
-  toast,
-  summary,
-  childValues,
-  requestIdentity,
-  confirmSimilar,
-  isOpen,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  isCurrent: generation => generation === renderId,
-  view: () => $('#view'),
-});
-const monthlyUi = createMonthlyUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  monthPicker,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  allocationTags,
-  dateText,
-  today,
-  cents,
-  serverCents,
-  formDialog,
-  closeModal,
-  page,
-  act,
-  toast,
-  summary,
-  childValues,
-  requestIdentity,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  distribution,
-  isCurrent: generation => generation === renderId,
-  view: () => $('#view'),
-});
-const cashControlsUi = createCashControlsUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  signedAmountField,
-  amount,
-  serverCents,
-  formDialog,
-  openModal,
-  closeModal,
-  run,
-  toast,
-  summary,
-  requestIdentity,
-  isOpen,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  navigate,
-  dateText,
-  today,
-});
-const statementImportUi = createStatementImportUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  allocationTags,
-  dateText,
-  cents,
-  sumCents,
-  formDialog,
-  closeModal,
-  page,
-  navigate,
-  run,
-  act,
-  toast,
-  summary,
-  requestIdentity,
-  isOpen,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  distribution,
-  isCurrent: generation => generation === renderId,
-  session: () => state.epoch,
-  view: () => $('#view'),
-  createFormData: () => new FormData(),
-});
-const notificationUi = createNotificationUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  help,
-  section,
-  page,
-  dateText,
-  formDialog,
-  closeModal,
-  act,
-  toast,
-  navigate,
-  view: () => $('#view'),
-  isCurrent: generation => generation === renderId,
-  push,
-  notificationRoute,
-  role: () => state.role,
+const financeUi = createFinanceUi();
+const monthlyUi = createMonthlyUi();
+const cashControlsUi = createCashControlsUi();
+const statementImportUi = createStatementImportUi();
+const notificationUi = createNotificationUi();
+// Gezinmenin çizdiği ekranlar (navigate): görünüm → çizim. Alış ekranları çizimden önce alış listesini yükler; bu arada başka
+// ekrana geçildiyse çizmez.
+registerScreens({
+  purchases: async generation => {
+    await loadPurchases();
+    if (generation !== renderId) return;
+    renderPurchases();
+  },
+  purchase: async (generation, id) => {
+    await loadPurchases();
+    if (generation !== renderId) return;
+    renderPurchase(id);
+  },
+  home: generation => renderHome(generation),
+  weekly: generation => renderWeekly(generation),
+  monthly: generation => renderMonthly(generation),
+  'monthly-expenses': generation => monthlyUi.render(generation),
+  imports: (generation, id) => statementImportUi.render(generation, id),
+  transactions: generation => renderTransactions(generation),
+  tools: generation => renderTools(generation),
+  cards: (generation, id) => financeUi.renderCards(generation, id),
+  loans: (generation, id) => financeUi.renderLoans(generation, id),
+  notifications: generation => notificationUi.render(generation),
 });
 
-function h(tag, props = {}, ...children) {
-  const element = document.createElement(tag);
-  for (const [key, value] of Object.entries(props)) {
-    if (value == null || value === false) continue;
-    if (key.startsWith('on')) element.addEventListener(key.slice(2).toLowerCase(), value);
-    else if (key === 'class') element.className = value;
-    else if (key === 'text') element.textContent = value;
-    else if (key === 'value') element.value = value;
-    else if (key === 'checked') element.checked = Boolean(value);
-    else element.setAttribute(key, value === true ? '' : String(value));
-  }
-  for (const child of childValues(children)) element.append(child instanceof Node ? child : document.createTextNode(String(child)));
-  return element;
-}
-function button(text, action, kind = '', props = {}) {
-  return h('button', { type: 'button', class: `button ${kind}`, onclick: action, ...props }, text);
-}
-function input(name, value = '', props = {}) {
-  return h('input', { name, value: value ?? '', ...props });
-}
-function field(label, control, extra = null) {
-  return h('label', {}, label, control, extra);
-}
-function select(name, choices, value = '', props = {}) {
-  const control = h(
-    'select',
-    { name, ...props },
-    choices.map(option => h('option', { value: option.value, disabled: option.disabled }, option.label))
-  );
-  control.value = value == null ? '' : String(value);
-  return control;
-}
-function section(title, content, action) {
-  return h('section', { class: 'section' }, h('div', { class: 'section-head' }, h('h2', {}, title), action), content);
-}
-function badge(status) {
-  return h(
-    'span',
-    { class: `badge ${status === 'Onaylandi' ? 'approved' : status === 'Incelemede' ? 'review' : ''}` },
-    statusLabels[status] || status
-  );
-}
-function help(text) {
-  return h('p', { class: 'help' }, text);
-}
-// Ay seçici: masaüstü Firefox ve Safari'de type="month" denetimi yok (MDN browser-compat-data). "‹ Eylül 2026 ›" düğmeleri
-// YYYY-AA değerini değiştirir; değer adlı gizli alanda da durur. Grup erişilebilir adını label'dan alır; düğmeler <label> içine
-// konmaz (etikete tıklamak önceki ayı seçerdi). min (YYYY-AA) verilirse o aydan önceye inilmez.
-function monthPicker(name, value, { label, min = '' } = {}) {
-  const field = h('input', { type: 'hidden', name, value });
-  const text = h('span', { class: 'month-picker-value', 'aria-live': 'polite' });
-  const previous = button('‹', () => set(shiftMonth(field.value, -1)), 'small', { 'aria-label': 'Önceki ay' });
-  const next = button('›', () => set(shiftMonth(field.value, 1)), 'small', { 'aria-label': 'Sonraki ay' });
-  function set(month) {
-    field.value = month;
-    text.textContent = monthLabel(month);
-    previous.disabled = Boolean(min) && month <= min;
-  }
-  set(value);
-  return {
-    node: h('div', { class: 'month-picker', role: 'group', 'aria-label': label }, previous, text, next, field),
-    get value() {
-      return field.value;
-    },
-  };
-}
-// Kasa dağılımı düzenleyicisi: Yalnız genel kasa / seçilen kanallara eşit / kanal tutarları. Taban aylık gider şablonudur
-// (varsayılanlar onun); ekstre satırı (statement-import-ui) aynı düzenleyiciyi kendi seçenekleriyle kullanır. Seçim ve
-// tutarlar düzenleyicide tutulur, liste yeniden çizilince korunur. Seçenekler:
-//   prefix       alan adları (`${prefix}-kanal-…`, `${prefix}-tutar-…`)
-//   choices      dağılım seçimi seçenekleri; mode ile sonradan değiştirilip redraw ile yeniden çizilebilir
-//   required     dağılım seçimi ve Özel kipte seçili kanalın tutarı zorunlu (form denetimi)
-//   listClass    kanal listesinin sınıfı; emptyHidden: liste gizliyken (Genel ya da seçimsiz) boşaltılır
-//   sortById     paylar kanal numarasına göre sıralanır (false: kanal listesi sırası)
-//   onChange     seçim, tutar ya da dağılım değişince çağrılır
-//   legend, label, note (yardım metni; null: yok) ve messages (mode / channel / sum hata iletileri)
-// Ayrı kalanlar: alış satır editörü (editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
-// rolü de (telefonda) kullanır; kart dağılımı (finance-ui allocationEditor) serbest satırlıdır, boş bırakılabilir (Dağılım
-// bekliyor) ve eksi tutarı (iade) mutlak değerle karşılaştırır.
-function distribution(
-  channels,
-  initial,
-  {
-    prefix = 'dagilim',
-    choices = [
-      { value: '', label: 'Dağılım seçin' },
-      { value: 'Genel', label: 'Yalnız genel kasa' },
-      { value: 'Esit', label: 'Seçilen kanallara eşit' },
-      { value: 'Ozel', label: 'Kanal tutarlarını gir' },
-    ],
-    required = true,
-    listClass = 'stack',
-    emptyHidden = false,
-    sortById = true,
-    onChange = () => {},
-    legend = 'Kasa dağılımı',
-    label = 'Dağılım',
-    note = 'Yalnız genel kasa seçeneği hiçbir kanal kasasına yazılmaz. Eşit dağılımda seçtiğiniz kanallar sabittir; sonradan açılan kanallar bu plana eklenmez.',
-    messages = {
-      mode: 'Giderin hangi kasaya yazılacağını seçin.',
-      channel: 'En az bir kanal seçin.',
-      sum: 'Kanal paylarının toplamı gider tutarına eşit olmalı.',
-    },
-  } = {}
-) {
-  const selected = new Set((initial?.dagilimlar || []).map(row => row.kanalId));
-  const totals = new Map((initial?.dagilimlar || []).map(row => [row.kanalId, row.tutar]));
-  const list = h('div', { class: listClass });
-  const mode = select('dagilimTuru', choices, initial?.dagilimTuru || '', { required });
-  const draw = () => {
-    list.hidden = !['Esit', 'Ozel'].includes(mode.value);
-    if (emptyHidden && list.hidden) {
-      list.replaceChildren();
-      return;
-    }
-    list.replaceChildren(
-      ...channels
-        .filter(row => row.aktif || selected.has(row.id))
-        .map(channel => {
-          const checked = input(`${prefix}-kanal-${channel.id}`, channel.id, {
-            type: 'checkbox',
-            checked: selected.has(channel.id),
-            onchange: () => {
-              if (checked.checked) selected.add(channel.id);
-              else selected.delete(channel.id);
-              total.disabled = !selected.has(channel.id);
-              total.required = required && mode.value === 'Ozel' && selected.has(channel.id);
-              onChange();
-            },
-          });
-          const total = input(`${prefix}-tutar-${channel.id}`, totals.get(channel.id) ?? '', {
-            inputmode: 'decimal',
-            required: required && mode.value === 'Ozel' && selected.has(channel.id),
-            disabled: !selected.has(channel.id),
-            oninput: () => {
-              totals.set(channel.id, total.value);
-              onChange();
-            },
-            'aria-label': `${channel.ad} payı (₺)`,
-          });
-          return h('div', { class: 'monthly-allocation' }, field(channel.ad, checked), mode.value === 'Ozel' && total);
-        })
-    );
-  };
-  mode.addEventListener('change', () => {
-    draw();
-    onChange();
-  });
-  draw();
-  return {
-    node: h('fieldset', {}, h('legend', {}, legend), field(label, mode), list, note && help(note)),
-    mode,
-    redraw: draw,
-    read(total) {
-      if (!['Genel', 'Esit', 'Ozel'].includes(mode.value)) throw new Error(messages.mode);
-      if (mode.value === 'Genel') return { dagilimTuru: 'Genel', dagilimlar: [] };
-      if (!selected.size) throw new Error(messages.channel);
-      const ids = sortById ? [...selected].sort((a, b) => a - b) : channels.map(channel => channel.id).filter(id => selected.has(id));
-      const result = ids.map(id => ({ kanalId: id, tutar: mode.value === 'Esit' ? 0 : cents(totals.get(id), { allowZero: false }) / 100 }));
-      if (mode.value === 'Ozel' && result.reduce((sum, row) => sum + cents(row.tutar), 0) !== cents(total)) throw new Error(messages.sum);
-      return { dagilimTuru: mode.value, dagilimlar: result };
-    },
-  };
-}
-function moneyNode(value, className = '') {
-  return h('span', { class: `money ${className}` }, money(value));
-}
-// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre ve alış ödemesi): div.allocation-tags içinde her pay için
-// span.allocation-tag "Kanal: tutar". empty: kanal adı yoksa yazılan ad (verilmezse ad olduğu gibi yazılır); pending: kanalı
-// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir.
-function allocationTags(rows, { empty, pending = false } = {}) {
-  return h(
-    'div',
-    { class: 'allocation-tags' },
-    (rows || []).map(row =>
-      h(
-        'span',
-        { class: `allocation-tag${pending && row.kanalId == null ? ' pending' : ''}` },
-        `${empty === undefined ? row.kanal : row.kanal || empty}: ${money(row.tutar)}`
-      )
-    )
-  );
-}
-// Bilgi iletisi kibar (polite) #notifications bölgesinde duyurulur ve 6 sn sonra kalkar. Hata iletisi kendiliğinden kaybolmaz
-// (WAI-ARIA APG uyarı deseni; WCAG 2.2.3): assertive #alerts (role="alert") bölgesinde kalır, kapatma düğmesiyle kapanır ve
-// odağı almaz. Odaktaki kapatma düğmesi kalkınca odak belge başına düşmez, ana içeriğe geçer.
-function toast(message, error = false) {
-  if (!error) {
-    const item = h('div', { class: 'toast' }, message);
-    $('#notifications').append(item);
-    setTimeout(() => item.remove(), 6000);
-    return;
-  }
-  const close = h('button', { type: 'button', class: 'toast-close', 'aria-label': 'Hata iletisini kapat' }, '×');
-  const item = h('div', { class: 'toast error' }, h('span', {}, message), close);
-  close.addEventListener('click', () => {
-    const focused = document.activeElement === close;
-    item.remove();
-    if (focused) $('#main').focus();
-  });
-  $('#alerts').append(item);
-}
-function clearSession() {
-  state.epoch++;
-  renderId++;
-  state.role = null;
-  state.purchases = [];
-  state.channels = [];
-  state.cards = [];
-  state.selected = null;
-  state.query = '';
-  state.status = '';
-  $('#view').replaceChildren();
-  $('#navigation').replaceChildren();
-  $('#application').hidden = true;
-  $('#login-screen').hidden = false;
-  screenAbort?.abort();
-  screenAbort = null;
-  $('#alerts').replaceChildren(); // önceki oturumun hataları sonraki kullanıcıya kalmaz
-  closeModal(true);
-}
-async function api(path, options = {}) {
-  await runtimeReady;
-  const headers = new Headers(options.headers || {});
-  const method = (options.method || 'GET').toUpperCase();
-  if (!runtimeRequestAllowed(runtime, path, method)) throw new Error('Bu sürüm yalnız kasa görüntüleme içindir. Kayıtlar değiştirilemez.');
-  if (!['GET', 'HEAD'].includes(method)) headers.set('X-Kasa-Request', '1');
-  let body = options.body;
-  if (body != null && !(body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
-    body = JSON.stringify(body);
-  }
-  const epoch = state.epoch;
-  // options.screen === false: pencere (diyalog) verisi ekrana ait değildir; rapor ucundan okunsa da gezinmede iptal edilmez.
-  const signal = options.signal ?? (options.screen !== false && screenBoundRead(path, method) ? screenAbort?.signal : undefined);
-  let response;
-  try {
-    response = await fetch(path, { ...options, method, body, headers, signal, credentials: 'same-origin', cache: 'no-store' });
-  } catch {
-    if (signal?.aborted) throw abortedRequestError();
-    throw new Error('Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.');
-  }
-  if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
-  if (!response.ok) {
-    let result;
-    try {
-      result = await response.json();
-    } catch {
-      result = null;
-    }
-    const error = new Error(errorMessage(result, response.status));
-    error.status = response.status;
-    error.fields = fieldErrors(result);
-    if (sessionExpired(response.status, path)) clearSession();
-    throw error;
-  }
-  if (options.binary) {
-    const result = await response.blob();
-    if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
-    return result;
-  }
-  if (response.status === 204) return null;
-  let text;
-  try {
-    text = await response.text();
-  } catch (error) {
-    if (signal?.aborted) throw abortedRequestError();
-    throw error;
-  }
-  if (epoch !== state.epoch) throw new Error('Oturum değişti. Lütfen yeniden deneyin.');
-  return text ? JSON.parse(text) : null;
-}
-// Hata kutusu yalnız belgeye bağlıysa ve (diyalogdaysa) diyaloğu açıksa görünür.
-function gorunur(node) {
-  if (!node?.isConnected) return false;
-  const dialog = node.closest?.('dialog');
-  return !dialog || dialog.open;
-}
-// Kapanmış pencerenin hatası görünmeyen kutuya yazılmaz; hangi pencereden geldiği belirtilerek bildirim olarak gösterilir.
-// Ekran değişince iptal edilen okuma hata değildir; bildirim çıkmaz.
-async function run(control, work, errorBox = null, title = '') {
-  if (control?.disabled) return;
-  if (control) control.disabled = true;
-  if (errorBox) {
-    errorBox.hidden = true;
-    errorBox.textContent = '';
-  }
-  try {
-    await work();
-  } catch (error) {
-    if (isAbortError(error)) return;
-    if (errorBox && gorunur(errorBox)) {
-      errorBox.textContent = error.message;
-      errorBox.hidden = false;
-      errorBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    } else toast(title ? `${title}: ${error.message}` : error.message, true);
-  } finally {
-    if (control) control.disabled = false;
-  }
-}
-// İşlem düğmesi (aylık gider, kart/kredi, ekstre ve bildirim ekranları): iş sürerken düğme kapalıdır, ikinci basış yok sayılır,
-// hata bildirim olarak görünür (run). props düğmeye aynen geçer (ör. disabled).
-function act(label, work, style = '', props = {}) {
-  return button(label, event => run(event.currentTarget, work), style, props);
-}
-// Kaydı süren form: yanıt gelene kadar pencere (iptal edilebilir) ESC/geri hareketiyle kazara kapanmaz. Vazgeç ve × açık kalır:
-// iOS'ta ESC/geri hareketi yok, isteğin de zaman aşımı yok; kapatılan pencerenin sonucu run() ile bildirim olarak görünür.
-let busyForm = null;
-// Yanıt bekleyen kayıt formları. Kayıt sürerken kapatılıp (Vazgeç, ×, ESC) yerine yeni pencere açıldıysa, önceki kaydın geç
-// gelen başarısındaki argümansız closeModal() çağrısı yeni pencereyi kapatmaz: açık pencere kendi kaydını beklemiyorken
-// kapatılmış bir pencerenin kaydı sürüyorsa çağrı o kayda aittir. Kullanıcı eylemleri (olay nesnesiyle) ve iç çağrılar
-// (true) her zaman kapatır. Sınır: iki kayıt aynı anda sürerken önce biten eski kayıt, yenisinin penceresini kapatabilir;
-// o zaman yeni kaydın sonucu run() ile bildirim olarak görünür.
-const savingForms = new Set();
-function strayClose() {
-  const open = modal.open ? $('#modal-content').querySelector('form') : null;
-  if (open && savingForms.has(open)) return false;
-  return [...savingForms].some(form => !isOpen(form));
-}
-function closeModal(explicit) {
-  if (explicit === undefined && strayClose()) return;
-  busyForm = null;
-  if (modal.open) modal.close();
-  if (modalCleanup) modalCleanup();
-  modalCleanup = null;
-  $('#modal-content').replaceChildren();
-}
-function openModal(title, content, wide = false) {
-  closeModal(true);
-  $('#modal-title').textContent = title;
-  $('#modal-content').replaceChildren(content);
-  modal.classList.toggle('wide', wide);
-  modal.showModal();
-}
-$('#modal-close').addEventListener('click', closeModal);
-// ESC ve Android geri hareketi. Yalnız diyaloğun kendi kapatma isteği işlenir: dosya alanı da seçici kapatılınca ya da aynı
-// dosya yeniden seçilince yukarı taşınan, iptal edilemez bir cancel olayı gönderir; o olay pencereyi kapatmaz.
-// Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de temizlenir; kayıt sonradan hata
-// verirse run() onu bildirim olarak gösterir; başarıda kaydın kendi bildirimi ya da sayfa yenilemesi görünür.
-// Engellenen kapatmanın bildirimi gerçek davranışı söyler: yanıt gelene kadar pencere açık kalır, hata pencerede görünür.
-// Vazgeç (ya da ×) kaydı durdurmaz; kapatılan pencerenin hatası bildirim olarak çıkar, başarılı kayıt ekrana yansır ve o sırada
-// açılmış başka pencereyi kapatmaz.
-const BUSY_CLOSE_MESSAGE =
-  'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden kapatmak için Vazgeç’e basın: kayıt durmaz, tamamlanabilir; hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır.';
-modal.addEventListener('cancel', event => {
-  if (event.target !== modal) return;
-  if (busyForm && isOpen(busyForm) && event.cancelable) {
-    event.preventDefault();
-    toast(BUSY_CLOSE_MESSAGE);
-    return;
-  }
-  closeModal(event);
-});
-function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
-  const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
-  const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
-  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
-  // Meşgul işareti yalnız bu form açıkken konur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
-  const markBusy = busy => {
-    if (busy ? isOpen(form) : busyForm === form) busyForm = busy ? form : null;
-  };
-  // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
-  let marked = [];
-  const clearFields = () => {
-    for (const [control, note] of marked) {
-      control.removeAttribute('aria-invalid');
-      note.remove();
-    }
-    marked = [];
-  };
-  const markFields = fields => {
-    for (const [name, message] of Object.entries(fields || {})) {
-      let control = null;
-      try {
-        control = form.querySelector(`[name="${name}"]`);
-      } catch {
-        control = null;
-      }
-      if (!control?.parentNode) continue;
-      const note = h('p', { class: 'form-error field-error' }, message);
-      // İşaretli tutarda (± seçici + tutar ızgarası) not ızgaraya değil, tutar etiketinin altına eklenir.
-      control.setAttribute('aria-invalid', 'true');
-      (control.closest('.signed-field') || control.parentNode).append(note);
-      marked.push([control, note]);
-    }
-  };
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    if (form.reportValidity())
-      run(
-        submit,
-        async () => {
-          markBusy(true);
-          savingForms.add(form);
-          clearFields();
-          try {
-            await save(form);
-          } catch (error) {
-            markFields(error?.fields);
-            throw error;
-          } finally {
-            savingForms.delete(form);
-            markBusy(false);
-          }
-        },
-        errors,
-        title
-      );
-  });
-  openModal(title, form, wide);
-  return form;
-}
-// contract-6: gider, gelir, kanal ve ayar düzenlemesi okunan kaydın sürümünü gönderir. Kayıt arada başka oturumda değiştiyse sunucu
-// 409 verir: ileti formda görünür, arkadaki liste (ya da formun verisi) güncel kayıtlarla yenilenir; kayıt yeniden açılınca güncel
-// sürümle kaydedilir. Yenileme hatası kayıt hatasını örtmez.
-async function refreshOnConflict(work, refresh) {
-  try {
-    return await work();
-  } catch (error) {
-    if (error?.status === 409) {
-      try {
-        await refresh();
-      } catch {
-        /* kayıt hatası gösterilir */
-      }
-    }
-    throw error;
-  }
-}
-const similarApprovals = new WeakMap();
-const similarPanels = new WeakMap();
-async function confirmSimilar(form, query, payload) {
-  const signature = JSON.stringify({ query, payload });
-  if (!form.isConnected || !modal.open) return false;
-  if (similarApprovals.get(form) === signature) return true;
-  const oldPanel = similarPanels.get(form);
-  if (oldPanel) oldPanel.hidden = true;
-  let records;
-  try {
-    records = await api('/api/islemler/benzerlik', { method: 'POST', body: query });
-  } catch (error) {
-    throw new Error(`Benzer kayıt kontrolü tamamlanamadı. Kayıt yapılmadı; yeniden deneyin. ${error.message}`);
-  }
-  if (!Array.isArray(records)) throw new Error('Benzer kayıt kontrolünden geçerli yanıt alınamadı. Kayıt yapılmadı; yeniden deneyin.');
-  if (!form.isConnected || !modal.open) return false;
-  if (!records.length) return true;
-  const panel = oldPanel || h('div', { class: 'notice similar-warning', role: 'status', tabindex: '-1' });
-  const sourceNames = {
-    Islem: 'Gider',
-    KartHarcama: 'Kart harcaması',
-    KartOdeme: 'Kart ödemesi',
-    EskiKartOdeme: 'Eski kart ödemesi',
-    KrediTaksidi: 'Kredi taksidi',
-    EskiKrediTaksidi: 'Eski kredi taksidi',
-  };
-  // Kural metni sunucunun kuralını anlatır (±3 gün; kanalsız/çok kanallı kayıtlar ve kart ödemeleri her kanalda); kanal etiketi
-  // kaydın kasadan düştüğü kanal(lar)dır.
-  panel.replaceChildren(
-    h('strong', {}, 'Benzer kayıt bulundu'),
-    help(`${SIMILAR_RULE_TEXT} Aynı ödemeyi yeniden girmediğinizi kontrol edin. Ayrı bir işlemse yine kaydedebilirsiniz.`),
-    h(
-      'ul',
-      { class: 'similar-records' },
-      records.map(record =>
-        h(
-          'li',
-          {},
-          `${sourceNames[record.kaynak] || 'Kayıt'} #${record.id} · ${dateText(record.tarih)} · ${money(record.tutar)} · ${record.aciklama || 'Açıklama yok'}${record.kanalEtiketi ? ` · ${record.kanalEtiketi}` : ''}${record.alisId ? ` · Alış #${record.alisId}` : ''}`
-        )
-      )
-    ),
-    h(
-      'div',
-      { class: 'row-actions' },
-      button('Vazgeç', closeModal),
-      button(
-        'Ayrı işlem olarak kaydet',
-        () => {
-          similarApprovals.set(form, signature);
-          form.requestSubmit();
-        },
-        'primary'
-      )
-    )
-  );
-  panel.hidden = false;
-  if (!oldPanel) {
-    form.append(panel);
-    similarPanels.set(form, panel);
-  }
-  panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  panel.focus();
-  return false;
-}
-// Reuse the same key after an uncertain response; changed fields get a fresh key.
-function requestIdentity() {
-  let previous, id;
-  return payload => {
-    const { surum, hedefSurum, ...stable } = payload;
-    const serialized = JSON.stringify(stable);
-    if (serialized !== previous) {
-      previous = serialized;
-      id = crypto.randomUUID();
-    }
-    return { ...payload, istekId: id };
-  };
-}
-function values(form) {
-  return Object.fromEntries(new FormData(form));
-}
-function optionalId(value) {
-  return value ? Number(value) : null;
-}
-function page(title, context, actions = []) {
-  $('#page-title').textContent = title;
-  $('#page-context').textContent = runtime?.saltOkunur ? `Kasa görüntüleme · ${context}` : context;
-  $('#page-actions').replaceChildren(...actions);
-}
-function empty(title, text, action) {
-  return h(
-    'div',
-    { class: 'empty' },
-    h('span', { class: 'empty-mark', 'aria-hidden': 'true' }, '↳'),
-    h('h2', {}, title),
-    h('p', {}, text),
-    action
-  );
-}
-function summary(label, value, note) {
-  return h(
-    'div',
-    { class: 'summary' },
-    h('span', { class: 'summary-label' }, label),
-    h('strong', { class: 'summary-value' }, value),
-    note && h('div', { class: 'summary-note' }, note)
-  );
-}
-// Tablo kapsayıcısı dar pencerede, büyütmede ya da yazı tipine göre yatay kayar (overflow:auto). Klavyeyle de kaydırılabilsin
-// diye odaklanabilir, adlı bir bölgedir (WCAG 2.1.1; axe scrollable-region-focusable). Taşma yazı tipi, yakınlaştırma, pencere
-// ve veriyle çalışırken değiştiğinden bütün tablolara uygulanır; bölge adı (name) zorunludur (ESLint denetler).
-function table(headers, rows, name) {
-  return h(
-    'div',
-    { class: 'table-wrap', role: 'region', 'aria-label': name, tabindex: '0' },
-    h(
-      'table',
-      {},
-      h(
-        'thead',
-        {},
-        h(
-          'tr',
-          {},
-          headers.map(label => h('th', { scope: 'col' }, label))
-        )
-      ),
-      h(
-        'tbody',
-        {},
-        rows.map(cells =>
-          h(
-            'tr',
-            {},
-            cells.map(cell => h('td', {}, cell))
-          )
-        )
-      )
-    )
-  );
-}
-function nav() {
-  const items = navigationFor(state.role, runtime);
-  $('#navigation').replaceChildren(
-    ...items.map(([key, title, icon]) =>
-      h(
-        'button',
-        {
-          type: 'button',
-          class: `nav-button${state.view === key || (key === 'purchases' && state.view === 'purchase') ? ' active' : ''}`,
-          'aria-current': state.view === key ? 'page' : null,
-          onclick: () => navigate(key),
-        },
-        h('span', { class: 'nav-icon', 'aria-hidden': 'true' }, icon),
-        title
-      )
-    )
-  );
-  $('#role-label').textContent = state.role === 'editor' ? 'Editör hesabı' : state.role === 'alici' ? 'Alıcı hesabı' : 'İzleyici hesabı';
-}
 async function loadPurchases() {
   const [purchases, channels] = await Promise.all([api('/api/alis'), api('/api/alis/kanallar')]);
   state.purchases = purchases;
@@ -827,52 +122,6 @@ async function loadPurchases() {
 }
 async function loadPaymentLookups() {
   state.cards = await api('/api/kredikartlari');
-}
-async function navigate(view, id = null) {
-  if (!navigationFor(state.role, runtime).some(([key]) => key === (view === 'purchase' ? 'purchases' : view)))
-    throw new Error('Bu ekran için erişiminiz yok.');
-  state.view = view;
-  state.selected = id;
-  nav();
-  screenAbort?.abort();
-  screenAbort = new AbortController();
-  const generation = ++renderId;
-  const content = $('#view');
-  content.setAttribute('aria-busy', 'true');
-  content.replaceChildren(
-    h('div', { class: 'empty' }, h('span', { class: 'loader', 'aria-hidden': 'true' }), h('p', {}, 'Kayıtlar yükleniyor…'))
-  );
-  try {
-    if (view === 'purchases' || view === 'purchase') {
-      await loadPurchases();
-      if (generation !== renderId) return;
-      if (view === 'purchase') renderPurchase(id);
-      else renderPurchases();
-    } else if (view === 'home') await renderHome(generation);
-    else if (view === 'weekly') await renderWeekly(generation);
-    else if (view === 'monthly') await renderMonthly(generation);
-    else if (view === 'monthly-expenses') await monthlyUi.render(generation);
-    else if (view === 'imports') await statementImportUi.render(generation, id);
-    else if (view === 'transactions') await renderTransactions(generation);
-    else if (view === 'tools') await renderTools(generation);
-    else if (view === 'cards') await financeUi.renderCards(generation, id);
-    else if (view === 'loans') await financeUi.renderLoans(generation, id);
-    else if (view === 'notifications') await notificationUi.render(generation);
-  } catch (error) {
-    if (generation === renderId && state.role)
-      content.replaceChildren(
-        empty(
-          'Kayıtlar yüklenemedi',
-          error.message,
-          button('Yeniden dene', () => navigate(view, id), 'primary')
-        )
-      );
-  } finally {
-    if (generation === renderId) {
-      content.setAttribute('aria-busy', 'false');
-      if (state.role && !modal.open) $('#main').focus({ preventScroll: true });
-    }
-  }
 }
 async function enter(role) {
   await runtimeReady;
@@ -2172,8 +1421,8 @@ async function renderTools(generation) {
 
 // Değişiklik geçmişi modülü yalnız açılınca yüklenir (denetim-ui.js).
 async function openHistory() {
-  const { createDenetimUi } = await import('./denetim-ui.js?v=2.3.0');
-  createDenetimUi({ api, h, button, input, field, select, help, table, openModal, run }).open();
+  const { createDenetimUi } = await import('./denetim-ui.js');
+  createDenetimUi().open();
 }
 function pendingNotice(value) {
   return value > 0
@@ -2660,47 +1909,6 @@ async function renderTransactions(generation, filters = {}) {
       : empty('Bu aralıkta gider yok', 'Tarih veya kanal filtresini değiştirerek diğer kayıtları görebilirsiniz.')
   );
 }
-function signedAmount(value) {
-  const text = String(value).trim().replace(',', '.');
-  return text.startsWith('-') ? -amount(text.slice(1)) : amount(text);
-}
-// iOS ondalık klavyesinde eksi tuşu yok: eksi olabilen tutarın işareti ayrı seçilir, tutar mutlak değer olarak yazılır.
-// Klavyesinde eksi olan kullanıcı eksi yazmaya devam edebilir; yazılan eksi "Artı" seçimiyle artıya dönmez. Kuruş kuralı signedAmount'tadır.
-// Etiket iki denetimi sarar; 'for' ile tutar alanına bağlanır: etikete dokunmak işaret seçicisini değil tutarı odaklar.
-let signedFieldCount = 0;
-function signedAmountField(name, value, label) {
-  const id = `signed-${name}-${++signedFieldCount}`;
-  const sign = select(
-    `${name}Isaret`,
-    [
-      { value: '+', label: 'Artı (+)' },
-      { value: '-', label: 'Eksi (−)' },
-    ],
-    '+',
-    { 'aria-label': `${label} işareti` }
-  );
-  const control = input(name, '', { id, inputmode: 'decimal', required: true, 'aria-label': label });
-  const set = amountValue => {
-    const number = amountValue === '' || amountValue == null ? NaN : Number(amountValue);
-    sign.value = number < 0 ? '-' : '+';
-    control.value = Number.isFinite(number) ? String(Math.abs(number)) : String(amountValue ?? '');
-  };
-  set(value);
-  return {
-    node: h('label', { class: 'signed-field', for: id }, label, h('div', { class: 'signed-amount' }, sign, control)),
-    sign,
-    input: control,
-    set,
-    read() {
-      const typed = signedAmount(control.value);
-      return sign.value === '-' ? -Math.abs(typed) : typed;
-    },
-    setReadOnly(locked) {
-      control.readOnly = locked;
-      sign.disabled = locked;
-    },
-  };
-}
 async function incomeDialog(periodStart = null) {
   // Dönem listesi pencerenin verisidir: ekran sinyaline bağlanmaz, pencere açılırken başka ekrana geçilse de pencere açılır.
   const [weeks, channels] = await Promise.all([api('/api/rapor/haftalik', { screen: false }), api('/api/kanallar')]);
@@ -3138,10 +2346,10 @@ function recoveryCodeDialog() {
           button('Kodu sakladım, kapat', closeModal, 'primary')
         )
       );
-      modalCleanup = () => {
+      setModalCleanup(() => {
         code.textContent = '';
         result.kod = '';
-      };
+      });
     }
   );
 }
@@ -3268,3 +2476,28 @@ runtimeReady
     $('#recover-open').hidden = true;
     $('#login-description').textContent = error.message || 'Kasa ayarı yüklenemedi. Sayfayı yenileyin.';
   });
+
+// Testlerin (Kasa.Api.Ui.Tests) doğrudan çalıştırdığı iç işlevler ve ekran modülleri. Tarayıcıda giriş modülünün dışa açtığı
+// adları içe aktaran yoktur; davranışı değiştirmez.
+export {
+  navigate,
+  toast,
+  incomeDialog,
+  expenseDialog,
+  paymentDialog,
+  paymentRow,
+  cancelPayment,
+  financeUi,
+  notificationUi,
+  monthlyUi,
+  cashControlsUi,
+  statementImportUi,
+  renderMonthly,
+  clearSession,
+  passwordDialog,
+  recoveryCodeDialog,
+  viewerPasswordDialog,
+  channelDialog,
+  openingDialog,
+  documentDialog,
+};

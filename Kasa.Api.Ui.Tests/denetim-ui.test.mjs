@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { Element, sessizOrtam, webModulu } from './tarayici.mjs';
 
-// Değişiklik geçmişi görünümü (denetim-ui.js): tarayıcı modülü paket bağımlılığı olmadan olduğu gibi yüklenir.
+// Değişiklik geçmişi görünümü (denetim-ui.js): tarayıcı modülü paket bağımlılığı olmadan, Node'un ES modül yükleyicisiyle
+// içe aktardığı ui-dom.js ve ui-shell.js ile birlikte olduğu gibi yüklenir (tarayici.mjs).
 const source = await readFile(new URL('../Kasa.Api/wwwroot/denetim-ui.js', import.meta.url), 'utf8');
-const ui = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const ui = await webModulu('denetim-ui.js', sessizOrtam());
 
 test('denetim-ui.js parses as an explicit ES module', () => {
   const result = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: source, encoding: 'utf8' });
@@ -49,24 +51,7 @@ test('a link broken by a deleted parent record has its own readable type', () =>
 });
 
 test('history dialog loads the filtered page, renders reasons as text and pages older rows', async () => {
-  const created = [];
-  const h = (tag, props = {}, ...children) => {
-    const node = {
-      tag,
-      props,
-      children: children.flat(Infinity).filter(c => c != null && c !== false),
-      hidden: false,
-      textContent: '',
-      replaceChildren(...items) {
-        this.children = items;
-      },
-      querySelector: () => submit,
-    };
-    if (props.hidden) node.hidden = true;
-    created.push(node);
-    return node;
-  };
-  let submit = null;
+  const nodes = new Map();
   const calls = [];
   const page = (from, count) =>
     Array.from({ length: count }, (_, i) => ({
@@ -83,50 +68,42 @@ test('history dialog loads the filtered page, renders reasons as text and pages 
       gerekce: '<b>bankadan iade geldi</b>',
       kilitAcmaOlayiId: null,
     }));
-  const api = async path => {
-    calls.push(path);
-    return calls.length === 1 ? page(200, 50) : page(150, 2);
-  };
-  let opened = null;
-  const denetim = ui.createDenetimUi({
-    api,
-    h,
-    button: (label, action) => h('button', { onclick: action }, label),
-    input: (name, value) => {
-      const n = h('input', { name });
-      n.value = value;
-      return n;
+  // Gerçek h/table/openModal/run/api: sahte belge ve sahte fetch üzerinde (çalışma ayarı yok → tam sürüm).
+  const denetim = await webModulu('denetim-ui.js', {
+    ...sessizOrtam(),
+    document: {
+      querySelector: key => {
+        if (!nodes.has(key)) nodes.set(key, Object.assign(new Element(), { root: true }));
+        return nodes.get(key);
+      },
+      createElement: tag => new Element(tag),
+      createTextNode: text => String(text),
     },
-    field: (label, control) => h('label', {}, label, control),
-    select: (name, choices, value) => {
-      const n = h('select', { name });
-      n.value = value;
-      return n;
+    fetch: async path => {
+      if (path === '/kasa-runtime.json') return { ok: false, status: 404 };
+      calls.push(path);
+      const rows = calls.length === 1 ? page(200, 50) : page(150, 2);
+      return { ok: true, status: 200, text: async () => JSON.stringify(rows) };
     },
-    help: text => h('p', {}, text),
-    table: (headers, rows, label) => {
-      const n = { tag: 'table', headers, rows, label };
-      created.push(n);
-      return n;
-    },
-    openModal: (title, content) => {
-      opened = { title, content };
-    },
-    run: async (_control, work) => work(),
   });
-  denetim.open({ varlik: 'TakipKartOdeme', varlikId: '15' });
-  assert.equal(opened.title, 'Değişiklik geçmişi');
-  const form = created.find(n => n.tag === 'form');
-  submit = created.find(n => n.tag === 'button' && n.props.type === 'submit');
-  await form.props.onsubmit({ preventDefault() {} });
+  denetim.createDenetimUi().open({ varlik: 'TakipKartOdeme', varlikId: '15' });
+  assert.equal(nodes.get('#modal-title').textContent, 'Değişiklik geçmişi');
+  const content = nodes.get('#modal-content');
+  const form = content.find(n => n.tag === 'form');
+  await form.listeners.submit({ preventDefault() {} });
   assert.deepEqual(calls, ['/api/denetim?varlik=TakipKartOdeme&varlikId=15&adet=50']);
-  const tables = () => created.filter(n => n.tag === 'table');
-  const rows = tables().at(-1).rows;
-  assert.equal(rows.length, 50);
-  assert.equal(tables().at(-1).label, 'Değişiklik kayıtları'); // kaydırılabilir tablo bölgesinin adı
-  assert.equal(rows[0][5], '<b>bankadan iade geldi</b>'); // metin olarak verilir; h() textContent ile yazar
-  const more = created.find(n => n.tag === 'button' && n.children[0] === 'Daha eski kayıtlar');
-  await more.props.onclick({ currentTarget: more });
+  // Sonuç bölgesindeki güncel tablo: kaydırılabilir tablo bölgesi (table()) ve gövde satırları.
+  const region = () => content.find(n => n.className === 'table-wrap');
+  const rows = () => region().find(n => n.tag === 'tbody').children;
+  assert.equal(rows().length, 50);
+  assert.equal(region().attributes['aria-label'], 'Değişiklik kayıtları'); // kaydırılabilir tablo bölgesinin adı
+  assert.equal(rows()[0].children[5].textContent, '<b>bankadan iade geldi</b>'); // metin olarak verilir; h() textContent ile yazar
+  assert.equal(
+    content.find(n => n.tag === 'b'),
+    null
+  );
+  const more = content.find(n => n.tag === 'button' && n.textContent === 'Daha eski kayıtlar');
+  await more.listeners.click({ currentTarget: more });
   assert.equal(calls[1], '/api/denetim?varlik=TakipKartOdeme&varlikId=15&oncekiId=151&adet=50');
-  assert.equal(tables().at(-1).rows.length, 52);
+  assert.equal(rows().length, 52);
 });

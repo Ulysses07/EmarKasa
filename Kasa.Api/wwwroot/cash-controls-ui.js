@@ -1,3 +1,19 @@
+import { amount, dateText, money, serverCents, today } from './ui-core.js';
+import { h, button, input, field, select, help, section, table, moneyNode, summary, signedAmountField } from './ui-dom.js';
+import {
+  api,
+  formDialog,
+  openModal,
+  closeModal,
+  navigate,
+  run,
+  toast,
+  requestIdentity,
+  isOpen,
+  canEditCash as canEdit,
+  requireEditor as editor,
+} from './ui-shell.js';
+
 // Kasa hareket dökümü satır türleri (GET /api/kasa-hareketleri; gap-denetim-izi-gozlemlenebilirlik-3).
 export const MOVEMENT_LABELS = {
   Gelir: 'Dönem geliri',
@@ -101,36 +117,7 @@ export function changeType(event) {
   return CHANGE_TYPES[event.tur] || event.tur;
 }
 
-export function createCashControlsUi(c) {
-  const {
-    api,
-    h,
-    button,
-    input,
-    field,
-    select,
-    help,
-    section,
-    table,
-    money,
-    moneyNode,
-    signedAmountField,
-    amount,
-    serverCents,
-    formDialog,
-    openModal,
-    closeModal,
-    run,
-    toast,
-    summary,
-    requestIdentity,
-    canEdit,
-    editor,
-    isOpen,
-    navigate,
-    dateText,
-    today,
-  } = c;
+export function createCashControlsUi() {
   function thresholdSettings(rows) {
     return section(
       'Kanal alt bakiye uyarıları',

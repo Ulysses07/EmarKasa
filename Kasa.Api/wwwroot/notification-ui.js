@@ -1,25 +1,11 @@
-export function createNotificationUi(c) {
-  const {
-    api,
-    h,
-    button,
-    input,
-    field,
-    help,
-    section,
-    page,
-    dateText,
-    formDialog,
-    closeModal,
-    act,
-    toast,
-    navigate,
-    view,
-    isCurrent,
-    push,
-    notificationRoute,
-    role,
-  } = c;
+import { dateText } from './ui-core.js';
+import { notificationRoute } from './push-client.js';
+import { $, h, button, input, field, help, section } from './ui-dom.js';
+import { state, push, api, formDialog, closeModal, page, navigate, act, toast, isCurrent } from './ui-shell.js';
+
+export function createNotificationUi() {
+  const view = () => $('#view');
+  const role = () => state.role;
   async function render(generation) {
     page('Bildirimler', 'Kart ve kredi hatırlatmaları', [act('Bildirim ayarları', () => settings())]);
     const records = await api('/api/bildirimler');

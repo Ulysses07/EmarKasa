@@ -1,39 +1,25 @@
-export function createFinanceUi(c) {
-  const {
-    api,
-    h,
-    button,
-    input,
-    field,
-    select,
-    help,
-    section,
-    table,
-    money,
-    moneyNode,
-    allocationTags,
-    dateText,
-    today,
-    cents,
-    serverCents,
-    amount,
-    signedAmount,
-    formDialog,
-    closeModal,
-    page,
-    navigate,
-    run,
-    act,
-    toast,
-    summary,
-    childValues,
-    requestIdentity,
-    confirmSimilar,
-    canEdit,
-    editor,
-    isCurrent,
-    view,
-  } = c;
+import { amount, cents, childValues, dateText, money, serverCents, today } from './ui-core.js';
+import { $, h, button, input, field, select, help, section, table, moneyNode, allocationTags, summary, signedAmount } from './ui-dom.js';
+import {
+  api,
+  formDialog,
+  openModal,
+  closeModal,
+  page,
+  navigate,
+  run,
+  act,
+  toast,
+  requestIdentity,
+  confirmSimilar,
+  isOpen,
+  isCurrent,
+  canEditCash as canEdit,
+  requireEditor as editor,
+} from './ui-shell.js';
+
+export function createFinanceUi() {
+  const view = () => $('#view');
   const base = '/api/takip';
   // Kart ve kredi kutusu bir düğmedir: içindeki büyük tutar kaymaz (düğme içine odaklanan kaydırma bölgesi konamaz), sığmazsa
   // satır kayar. Bölünme yeri binlik ayırıcıdan sonradır (<wbr>): basamak grubu ikiye bölünüp yanlış okunmaz.
@@ -761,7 +747,7 @@ export function createFinanceUi(c) {
           aciklama: description.value.trim(),
         });
         const preview = await api(`${base}/kartlar/${card.id}/masraf-onizleme`, { method: 'POST', body });
-        if (!c.isOpen(form)) return;
+        if (!isOpen(form)) return;
         const payload = { ...body, dagilimOzeti: preview.dagilimOzeti };
         formDialog(
           'Faiz / masraf dağılımını onaylayın',
@@ -969,7 +955,7 @@ export function createFinanceUi(c) {
       help('Tarih öncesindeki kayıtlar korunur. Bu özeti doğrulamadan geçişi onaylamayın.')
     );
     if (!preview.kabulEdilebilir) {
-      c.openModal(
+      openModal(
         'Geçiş tamamlanamıyor',
         h('div', { class: 'stack' }, content, help('Girdi ve eşleştirmeleri düzeltip yeniden önizleyin.'), button('Kapat', closeModal))
       );
