@@ -298,15 +298,42 @@
     </Style>
 
     <!-- Şeffaf düğme: menü öğesinin ve kart kutusunun tıklama/klavye yüzeyi (Tab ile odaklanır, UI Otomasyonu'nda adıyla
-         görünür). Zemin ve görsel durum yazmaz, zemini üstündeki öğe çizer; açık anahtarlı stil örtük Button stilinin yeşil
-         zeminini ve PointerOver durumunu uygulamaz. Düz renk BackgroundColor ile (dotnet/maui#38813). -->
+         görünür). Zemin ve görsel durum yazmaz, zemini üstündeki öğe çizer. MAUI açık anahtarlı stille birlikte örtük Button
+         stilini de uygular: onun sabit yüksekliği (44; düğme kutunun ortasında şerit kalıyordu) HeightRequest=-1 (ayarsız) ile,
+         görsel durumları (PointerOver/Pressed yeşil, Disabled DisabledBg zemin) burada saydam durumlarla ezilir; düğme bulunduğu
+         hücreyi doldurur ve hiçbir durumda zemin boyamaz (KartKutusuTests). Düz renk BackgroundColor ile (dotnet/maui#38813). -->
     <Style x:Key="SeffafDugme" TargetType="Button">
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="BorderWidth" Value="0" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="0" />
+        <Setter Property="HeightRequest" Value="-1" />
         <Setter Property="MinimumHeightRequest" Value="0" />
         <Setter Property="MinimumWidthRequest" Value="0" />
+        <Setter Property="HorizontalOptions" Value="Fill" />
+        <Setter Property="VerticalOptions" Value="Fill" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="Transparent" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="Transparent" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="Transparent" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
     </Style>
 
     <!-- ===== KARTLAR & KUTULAR ===== -->

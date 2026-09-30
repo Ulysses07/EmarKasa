@@ -93,6 +93,45 @@ public class KartKutusuTests
         Assert.Equal(yeniOlcusu, Olcu(yeni));
     }
 
+    /// <summary>Tıklama yüzeyi kutunun tamamıdır: şeffaf düğme içerikle aynı Grid hücresinde, iki yönde Fill'dir ve örtük Button
+    /// stilinin sabit yüksekliği (44) ona geçmez (MAUI açık stil ile birlikte örtük stili de uygular; gerçek pencerede düğme
+    /// kutunun ortasında 44 px'lik bir şeritti). Kapalı, üzerinde ve basılı durumda da zemin saydam kalır (örtük stilin
+    /// Disabled/PointerOver zemini boyanmaz).</summary>
+    [Fact]
+    public void Tiklama_dugmesi_kutunun_tamamini_kaplar_ve_her_durumda_saydamdir()
+    {
+        GorunumOrtami.Kur();
+        var kutular = new View[] { new KartKutusu { BindingContext = Satir(3, "Garanti Bonus") }, new YeniKartKutusu() };
+        foreach (var kutu in kutular)
+        {
+            var dugme = kutu.GetVisualTreeDescendants().OfType<Button>().Single();
+            var hucre = Assert.IsType<Grid>(dugme.Parent);
+            Assert.Empty(hucre.RowDefinitions);
+            Assert.Empty(hucre.ColumnDefinitions);
+            Assert.Same(hucre, ((Border)kutu).Content);
+            var icerik = Assert.Single(hucre.Children.OfType<View>(), v => v != dugme);
+            Assert.All(new[] { dugme, icerik }, v =>
+            {
+                Assert.Equal(0, Grid.GetRow(v));
+                Assert.Equal(0, Grid.GetColumn(v));
+                Assert.Equal(1, Grid.GetRowSpan(v));
+                Assert.Equal(1, Grid.GetColumnSpan(v));
+            });
+            Assert.Equal(LayoutOptions.Fill, dugme.HorizontalOptions);
+            Assert.Equal(LayoutOptions.Fill, dugme.VerticalOptions);
+            Assert.Equal(-1, dugme.HeightRequest);
+            Assert.Equal(-1, dugme.WidthRequest);
+            Assert.Equal(Colors.Transparent, dugme.BackgroundColor);
+            foreach (var durum in new[] { "PointerOver", "Pressed", "Disabled", "Normal" })
+            {
+                Assert.True(VisualStateManager.GoToState(dugme, durum), durum);
+                Assert.Equal(Colors.Transparent, dugme.BackgroundColor);
+            }
+            dugme.IsEnabled = false;
+            Assert.Equal(Colors.Transparent, dugme.BackgroundColor);
+        }
+    }
+
     /// <summary>Kutu zeminleri BackgroundColor düz boyasıdır; Background fırçası yazılmaz (dotnet/maui#38813 dersi).</summary>
     [Fact]
     public void Kutular_Background_firca_ozelligini_yazmaz()
