@@ -26,7 +26,9 @@ public static class KartIzgarasiHesabi
         return (sutun, g, (g - (sutun - 1) * aralik) / sutun);
     }
 
-    /// <param name="kutuYukseklikleri">Görünen kutuların ölçülmüş yükseklikleri, sırayla.</param>
+    /// <param name="kutuYukseklikleri">Görünen kutuların ölçülmüş yükseklikleri, sırayla. Sözleşme: kutular aynı
+    /// <paramref name="genislik"/> için <see cref="Olcu"/>'nun verdiği kutu genişliğiyle (ayrıntı tam genişlikle) ölçülmüş
+    /// olmalıdır; başka genişlikle ölçülen (ör. sonsuz kısıtla) kutuları KartIzgarasi yerleştirmeden önce yeniden ölçer.</param>
     /// <param name="acikIndeks">Açık kutunun sırası (<see cref="AcikIndeks"/>); yoksa -1.</param>
     public static KartIzgarasiYerlesimi Hesapla(double genislik, double aralik, IReadOnlyList<double> kutuYukseklikleri, int acikIndeks,
         double ayrintiYuksekligi)

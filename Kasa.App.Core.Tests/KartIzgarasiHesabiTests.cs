@@ -13,6 +13,7 @@ public class KartIzgarasiHesabiTests
     [InlineData(455, 1)]
     [InlineData(220, 1)]
     [InlineData(200, 1)]
+    [InlineData(0, 1)]
     [InlineData(double.PositiveInfinity, 1)]
     public void Sutun_sayisi_en_az_220_piksellik_kutu_sigdirir(double genislik, int beklenen)
         => Assert.Equal(beklenen, KartIzgarasiHesabi.Olcu(genislik, Aralik).Sutun);
