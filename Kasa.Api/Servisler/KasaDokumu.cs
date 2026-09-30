@@ -1,4 +1,3 @@
-using Kasa.Api;
 using Kasa.Core;
 using Kasa.Core.Kodlar;
 

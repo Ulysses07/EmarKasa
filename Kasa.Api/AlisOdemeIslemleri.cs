@@ -376,9 +376,10 @@ internal static class AlisOdemeIslemleri
         if (kanallar is null && FinansTakipServisi.KaynakHarcamaEngeli(db, harcama) is { } engel)
             return AlisEndpoints.Conflict(engel switch
             {
-                "ödendi" => "Bu kart harcaması ödendi. Alıştan ayırmak için gerçek kanal dağılımını girin; harcama hiç yapılmadıysa Kredi Kartları ekranında iade girin.",
-                "iadesi var" => "Bu kart harcamasının iadesi var. Alıştan ayırmak için gerçek kanal dağılımını girin; iade hatalıysa önce Kredi Kartları ekranında gerekçeyle iptal edin.",
-                _ => "Bu kart harcaması bir ekstre satırıyla eşleştirildi. Alıştan ayırmak için gerçek kanal dağılımını girin; harcama hiç yapılmadıysa önce PDF İçe Aktarma bölümünden eşleştirmeyi iptal edin.",
+                FinansTakipServisi.HarcamaEngeli.Odendi => "Bu kart harcaması ödendi. Alıştan ayırmak için gerçek kanal dağılımını girin; harcama hiç yapılmadıysa Kredi Kartları ekranında iade girin.",
+                FinansTakipServisi.HarcamaEngeli.IadesiVar => "Bu kart harcamasının iadesi var. Alıştan ayırmak için gerçek kanal dağılımını girin; iade hatalıysa önce Kredi Kartları ekranında gerekçeyle iptal edin.",
+                FinansTakipServisi.HarcamaEngeli.Ekstre => "Bu kart harcaması bir ekstre satırıyla eşleştirildi. Alıştan ayırmak için gerçek kanal dağılımını girin; harcama hiç yapılmadıysa önce PDF İçe Aktarma bölümünden eşleştirmeyi iptal edin.",
+                _ => throw new ArgumentOutOfRangeException(nameof(engel), engel, null),
             });
         alis.Odemeler.Remove(payment);
         db.AlisOdemeler.Remove(payment);

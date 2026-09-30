@@ -151,6 +151,7 @@ class GeriYuklemeIsaretiTests(unittest.TestCase):
         metin = geri_ac(yedek_zip(self.dizin), self.dizin / "kasa.db")
         self.assertIn("ZORUNLU", metin)
         self.assertIn("KASA_EDITOR_SIFRE", metin)
+        self.assertIn("KASA_EDITOR_SIFRE_SIFIRLA=true", metin)
         self.assertIn("kurtarma kodu iptal edilir", metin)
         self.assertIn("guvenlik-gunlugu.jsonl", metin)
         self.assertIn("YENİ bir izleyici şifresi", metin)

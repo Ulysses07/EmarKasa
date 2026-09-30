@@ -4,8 +4,11 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-public partial class AyKilidiViewModel(IAylikGiderApi api, AuthViewModel auth) : OturumluViewModel(auth)
+/// <param name="zaman">"Tamamlanmış ay" denetiminin saati (yerel gün); verilmezse sistem saati. DI'da kayıtlı değildir (isteğe
+/// bağlı parametre varsayılana düşer); testler sabit saat verir.</param>
+public partial class AyKilidiViewModel(IAylikGiderApi api, AuthViewModel auth, TimeProvider? zaman = null) : OturumluViewModel(auth)
 {
+    private readonly TimeProvider _zaman = zaman ?? TimeProvider.System;
     private readonly TekrarAnahtari _anahtar = new();
     private AyKilidiDto? _durum;
     public int? DurumSurumu => _durum?.Surum;
@@ -43,7 +46,7 @@ public partial class AyKilidiViewModel(IAylikGiderApi api, AuthViewModel auth) :
         if (string.IsNullOrWhiteSpace(aciklama))
         { Hata = "Ay kilidi değişikliği için açıklama yazın."; return; }
         var ilk = new DateOnly(yil, ay, 1);
-        var bugun = DateOnly.FromDateTime(DateTime.Today);
+        var bugun = DateOnly.FromDateTime(_zaman.GetLocalNow().DateTime);
         if (kapat && ilk.AddMonths(1) > bugun)
         { Hata = "Yalnız tamamlanmış aylar kapatılabilir."; return; }
         var g = new AyKilidiYaz(Guid.Empty, _durum.Surum, yil, ay, aciklama.Trim());

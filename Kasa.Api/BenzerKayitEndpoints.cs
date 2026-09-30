@@ -1,6 +1,5 @@
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
-using Kasa.Core;
 using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 

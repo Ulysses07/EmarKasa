@@ -3,7 +3,6 @@ namespace Kasa.ApiClient;
 public sealed partial class KasaApiClient : IFinansTakipApi
 {
     public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => GetAsync<IReadOnlyList<KartTakipDto>>("api/takip/kartlar");
-    public Task<KartTakipDto> TakipKartAsync(int id) => GetAsync<KartTakipDto>($"api/takip/kartlar/{id}");
     public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) => GonderJsonAsync<KartTakipDto>(id is null ? HttpMethod.Post : HttpMethod.Put, id is null ? "api/takip/kartlar" : $"api/takip/kartlar/{id}", g);
     public Task<KartTakipDto> TakipKartDurumAsync(int id, TakipDurumYaz g) => GonderJsonAsync<KartTakipDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/durum", g);
     public Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g) => GonderJsonAsync<KartTakipDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/harcamalar", g);
@@ -17,7 +16,6 @@ public sealed partial class KasaApiClient : IFinansTakipApi
     public Task<KartDevirDto> TakipKartDevirAsync(int id) => GetAsync<KartDevirDto>($"api/takip/kartlar/{id}/devir");
     public Task<KartTakipDto> TakipKartDevirDuzeltAsync(int id, KartDevirDuzeltYaz g) => GonderJsonAsync<KartTakipDto>(HttpMethod.Post, $"api/takip/kartlar/{id}/devir-duzelt", g);
     public Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync() => GetAsync<IReadOnlyList<KrediTakipDto>>("api/takip/krediler");
-    public Task<KrediTakipDto> TakipKrediAsync(int id) => GetAsync<KrediTakipDto>($"api/takip/krediler/{id}");
     public Task<KrediTakipDto> TakipKrediKaydetAsync(KrediTakipYaz g) => GonderJsonAsync<KrediTakipDto>(HttpMethod.Post, "api/takip/krediler", g);
     public Task<KrediTakipDto> TakipKrediDurumAsync(int id, TakipDurumYaz g) => GonderJsonAsync<KrediTakipDto>(HttpMethod.Post, $"api/takip/krediler/{id}/durum", g);
     public Task<KrediTakipDto> TakipTaksitKaydetAsync(int id, int taksitId, KrediTaksitYaz g) => GonderJsonAsync<KrediTakipDto>(HttpMethod.Put, $"api/takip/krediler/{id}/taksitler/{taksitId}", g);

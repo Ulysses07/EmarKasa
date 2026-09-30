@@ -54,6 +54,7 @@ export const TYPE_LABELS = {
   HizSiniri: 'Hız sınırı reddi',
   GirisYogun: 'Sunucu yoğun: giriş ertelendi',
   SifreDegisti: 'Editör şifresi değişti',
+  EditorSifresiSifirlandi: 'Editör şifresi sunucu ayarıyla sıfırlandı',
   SifreDegistirmeBasarisiz: 'Şifre değiştirme reddedildi',
   KurtarmaKoduUretildi: 'Kurtarma kodu oluşturuldu',
   KurtarmaKoduUretimiBasarisiz: 'Kurtarma kodu reddedildi',

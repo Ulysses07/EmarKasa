@@ -115,6 +115,19 @@ public class DagitimSablonuTests
         Assert.Equal("", ornek);
     }
 
+    /// <summary>Editör şifresi sıfırlama bayrağı (gap-geri-yukleme-durum-geri-sarma-10) iki şablonda da .env'den gelir ve
+    /// varsayılanı kapalıdır: değişken tanımsız ya da boşsa sıfırlama uygulanmaz. Örnek dosyada olağan değer false'tur.</summary>
+    [Theory]
+    [MemberData(nameof(ComposeDosyalari))]
+    public void Sablon_editor_sifre_sifirlama_bayragini_env_den_varsayilan_kapali_alir(string dosya)
+    {
+        var bayrak = Assert.Single(YorumsuzSatirlar(DeployDosyasi(dosya)).Select(s => s.Trim()),
+            s => s.StartsWith("Kasa__EditorSifreSifirla:", StringComparison.Ordinal));
+        Assert.Equal("${KASA_EDITOR_SIFRE_SIFIRLA:-false}", bayrak["Kasa__EditorSifreSifirla:".Length..].Trim().Trim('"', '\''));
+        Assert.True(EnvOrnegi().TryGetValue("KASA_EDITOR_SIFRE_SIFIRLA", out var ornek), ".env.example KASA_EDITOR_SIFRE_SIFIRLA satırını içermeli.");
+        Assert.Equal("false", ornek);
+    }
+
     // devops-12: 'up -d --build' yereldeki önbellekten gelen temel imajla derler; temel imaj ve paket yamaları
     // 'build --pull' ile gelir. Güncel dağıtım belgeleri ve şablon yorumları derlemeyi yalnız '--pull' ile anlatır.
     // Tarihsel belgeler (docs/deploy/kasa-db-recreate.md) kapsam dışıdır.

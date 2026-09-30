@@ -2500,8 +2500,18 @@ const importDocument = (overrides = {}) => ({
   kayitlar: [],
   ...overrides,
 });
+// Sunucunun banka listesi (GET /api/ekstre-aktar/bankalar; tek kaynak EkstreImportEndpoints.Bankalar): arayüzde kopyası yoktur.
+const importBanks = [
+  { kod: 'Vakifbank', ad: 'VakıfBank' },
+  { kod: 'Akbank', ad: 'Akbank' },
+  { kod: 'QNB', ad: 'QNB' },
+  { kod: 'Isbank', ad: 'İş Bankası' },
+  { kod: 'Garanti', ad: 'Garanti BBVA' },
+  { kod: 'Denizbank', ad: 'DenizBank' },
+];
 const importResponses = (document = importDocument(), extra = {}) => ({
   '/api/ekstre-aktar': [],
+  '/api/ekstre-aktar/bankalar': importBanks,
   '/api/ekstre-aktar/12': document,
   '/api/kanallar': [
     { id: 1, ad: 'Mezat', aktif: true },
@@ -2604,6 +2614,36 @@ test('PDF upload exposes all six banks, sends only selected source metadata and 
   assert.equal(request.body.kartId, undefined);
   assert.equal(calls.filter(call => call.method === 'POST').length, 1);
   assert.equal(viewField(nodes, 'sec-1').checked, false);
+});
+
+test('PDF bank choices come only from the server list and an unreachable list stops the screen with a clear error', async () => {
+  const listed = await openApp(
+    false,
+    importResponses(importDocument(), { '/api/ekstre-aktar/bankalar': [{ kod: 'Yenibank', ad: 'Yeni Banka' }] })
+  );
+  await listed.app.navigate('imports');
+  assert.match(listed.nodes.get('#view').textContent, /Yeni Banka/);
+  await clickView(listed.nodes, 'Kart ekstresi / hesap hareketi seç');
+  assert.match(formField(listed.nodes, 'banka').textContent, /Yeni Banka/);
+  assert.doesNotMatch(formField(listed.nodes, 'banka').textContent, /VakıfBank/);
+
+  // Ekran hatası görünümde kalır ("Kayıtlar yüklenemedi" + neden + Yeniden dene); yedek liste gösterilmez, hiçbir şey yazılmaz.
+  for (const [answer, message] of [
+    [new Error('offline'), /Banka listesi alınamadı: Sunucuya ulaşılamadı/],
+    [{ $status: 500, hata: 'Sunucu hatası.' }, /Banka listesi alınamadı: /],
+    [[], /Banka listesi alınamadı: sunucu boş liste gönderdi\./],
+  ]) {
+    const { app, nodes, calls } = await openApp(false, importResponses(importDocument(), { '/api/ekstre-aktar/bankalar': answer }));
+    await app.navigate('imports');
+    const text = nodes.get('#view').textContent;
+    assert.match(text, /Kayıtlar yüklenemedi/);
+    assert.match(text, message);
+    assert.doesNotMatch(text, /VakıfBank/);
+    assert.equal(
+      calls.some(call => call.method === 'POST'),
+      false
+    );
+  }
 });
 
 test('PDF upload refuses wrong type and oversized files before calling the server', async () => {

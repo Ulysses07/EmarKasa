@@ -18,6 +18,42 @@ public class EkstreAktarmaTests
         await vm.BelgeAcAsync(1);
         return (vm, api, auth);
     }
+    /// <summary>Banka seçenekleri sunucudan gelir (tek kaynak; istemcide kopya ya da yedek liste yok). Uç yoksa (eski sunucu) ya da
+    /// hata verirse liste boş kalır, ileti nedenini söyler, PDF seçimi başlamaz; geçmiş ve açık belge yine yüklenir. Seçili banka
+    /// yenilemede korunur.</summary>
+    [Fact]
+    public async Task Bankalar_sunucudan_gelir_alinamazsa_anlasilir_hata_ve_yukleme_kapali()
+    {
+        var (vm, api, _) = await Hazir();
+        Assert.Equal(api.BankaListesi.Select(b => (b.Kod, b.Ad)), vm.Bankalar.Select(b => (b.Kod, b.Ad)));
+        vm.Banka = vm.Bankalar[2];
+        await vm.YukleAsync();
+        Assert.Equal(("Isbank", "İş Bankası"), (vm.Banka!.Kod, vm.Banka.Ad));
+
+        static EkstreAktarmaViewModel Yeni(Fake api) => new(api, new SahteApi(), new FinansTakipTests.Fake(), new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
+        var vm2 = Yeni(new Fake { BankaHatasi = new KasaApiException(HttpStatusCode.NotFound), Liste = [new(3, 0, "Banka", "QNB", "Ana", null, "3.pdf", DateTimeOffset.UtcNow, 1, 0)] });
+        await vm2.YukleAsync();
+        Assert.Empty(vm2.Bankalar);
+        Assert.StartsWith("Banka listesi alınamadı: sunucu banka listesini vermiyor", vm2.Hata);
+        Assert.Single(vm2.Gecmis);
+        Assert.True(vm2.VeriHazir);
+        vm2.Kaynak = vm2.Kaynaklar.Single(x => x.Kod == "Banka");
+        vm2.HesapAdi = "Ana";
+        vm2.Hata = null;
+        Assert.Null(vm2.YuklemeSecimi());
+        Assert.StartsWith("Banka listesi sunucudan alınamadı", vm2.Hata);
+
+        var vm3 = Yeni(new Fake { BankaHatasi = new KasaApiException(HttpStatusCode.InternalServerError, izKimligi: "0HN7ABCDEF") });
+        await vm3.YukleAsync();
+        Assert.Empty(vm3.Bankalar);
+        Assert.StartsWith("Banka listesi alınamadı; PDF yüklenemez. Sunucu işlemi tamamlayamadı.", vm3.Hata);
+
+        // Oturum sonu bütün yüklemeyi durdurur (liste boş, iletisi oturum iletisidir).
+        var vm4 = Yeni(new Fake { BankaHatasi = new KasaApiException(HttpStatusCode.Unauthorized) });
+        await vm4.YukleAsync();
+        Assert.False(vm4.VeriHazir);
+        Assert.Equal("Oturumunuz sona erdi. Yeniden giriş yapın.", vm4.Hata);
+    }
     [Fact]
     public async Task Butun_satirlar_gorunur_hicbiri_secili_degil_yukleme_para_kaydetmez()
     {
@@ -400,6 +436,9 @@ public class EkstreAktarmaTests
     }
     private sealed class Fake : IEkstreAktarmaApi
     {
+        public IReadOnlyList<EkstreBankaDto> BankaListesi = [new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("Isbank", "İş Bankası")];
+        public Exception? BankaHatasi; public int BankaSayisi;
+        public Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync() { BankaSayisi++; return BankaHatasi is { } h ? Task.FromException<IReadOnlyList<EkstreBankaDto>>(h) : Task.FromResult(BankaListesi); }
         public EkstreBelgeDto Veri = Belge(); public int ListeSayisi, BelgeSayisi, YuklemeSayisi, OnizlemeSayisi, IptalSayisi;
         public bool KaydetHata, TekrarGerekli; public Task<EkstreOnizlemeDto>? OnizlemeYaniti; public Task<EkstreBelgeDto>? KayitYaniti, KaynakYaniti;
         public IReadOnlyList<EkstreBelgeOzetDto> Liste = [], EskiListe = []; public int? SonBeforeId, KaynakId;

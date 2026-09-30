@@ -62,7 +62,7 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
     }
 
     [Fact]
-    [SozlesmeKapsami(nameof(IKasaApi.KanalOlusturAsync), nameof(IKasaApi.IslemOlusturAsync), nameof(IKasaApi.IslemSilAsync), nameof(IFinansTakipApi.TakipKartAsync),
+    [SozlesmeKapsami(nameof(IKasaApi.KanalOlusturAsync), nameof(IKasaApi.IslemOlusturAsync), nameof(IKasaApi.IslemSilAsync),
         nameof(IFinansTakipApi.TakipKartKaydetAsync))]
     public async Task Hata_durum_kodlari_ve_iletileri_istemciye_ulasir()
     {
@@ -77,8 +77,6 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         var gun = await Assert.ThrowsAsync<KasaApiException>(() => o.Takip.TakipKartKaydetAsync(null, new KartTakipYaz(Guid.NewGuid(), 0, "Kart", 1000m, 32, 25, Bugun, 0m, [])));
         Assert.Equal((HttpStatusCode.BadRequest, "Gün 1–31 olmalı."), (gun.DurumKodu, gun.Message));
         // 404: gövdesiz ya da iletisiz; istemci genel iletiyi verir.
-        var yok = await Assert.ThrowsAsync<KasaApiException>(() => o.Takip.TakipKartAsync(999_999));
-        Assert.Equal(HttpStatusCode.NotFound, yok.DurumKodu);
         var silinemez = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.IslemSilAsync(999_999));
         Assert.Equal(HttpStatusCode.NotFound, silinemez.DurumKodu);
     }

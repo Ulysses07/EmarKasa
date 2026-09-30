@@ -1,4 +1,4 @@
-import { cents, dateText, money, sumCents } from './ui-core.js';
+import { cents, dateText, money, sumCents, isAbortError } from './ui-core.js';
 import { $, h, button, input, field, select, help, section, table, moneyNode, allocationTags, summary, distribution } from './ui-dom.js';
 import {
   state,
@@ -17,18 +17,24 @@ import {
   requireEditor,
 } from './ui-shell.js';
 
-export const statementBanks = [
-  ['Vakifbank', 'VakıfBank'],
-  ['Akbank', 'Akbank'],
-  ['QNB', 'QNB'],
-  ['Isbank', 'İş Bankası'],
-  ['Garanti', 'Garanti BBVA'],
-  ['Denizbank', 'DenizBank'],
-];
-
 export function createStatementImportUi() {
   const view = () => $('#view');
   const base = '/api/ekstre-aktar';
+  // Bankalar tek kaynaktan gelir: sunucu (GET /api/ekstre-aktar/bankalar; kod ve görünen ad). İstemcide kopya ya da yedek liste
+  // yoktur; liste alınamazsa ekran ve yükleme penceresi nedenini söyleyen hatayla durur.
+  let banks = [];
+  async function loadBanks() {
+    let list;
+    try {
+      list = await api(`${base}/bankalar`);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      throw Object.assign(new Error(`Banka listesi alınamadı: ${error.message}`), { status: error.status });
+    }
+    if (!Array.isArray(list) || !list.length) throw new Error('Banka listesi alınamadı: sunucu boş liste gönderdi.');
+    banks = list;
+    return list;
+  }
   const kinds = {
     Gelir: 'Banka girişi',
     Gider: 'Banka çıkışı',
@@ -77,7 +83,7 @@ export function createStatementImportUi() {
     [row.iptalAciklamasi, row.iptalZamani ? new Date(row.iptalZamani).toLocaleString('tr-TR') : 'zamanı bilinmiyor']
       .filter(Boolean)
       .join(' · ');
-  const bankName = bank => statementBanks.find(([key]) => key === bank)?.[1] || bank;
+  const bankName = bank => banks.find(item => item.kod === bank)?.ad || bank;
   const sourceName = row =>
     `${bankName(row.banka)} · ${row.kaynak === 'Kart' ? `Kart ekstresi · ${row.hesapAdi || `Kart #${row.kartId}`}` : row.hesapAdi || 'Banka hareketi'}`;
   const shares = rows => allocationTags(rows, { empty: 'Genel kasa' });
@@ -106,12 +112,17 @@ export function createStatementImportUi() {
       act('+ PDF yükle', () => uploadDialog(generation), 'primary'),
     ]);
     if (documentPath) {
-      const [document, channels, cards] = await Promise.all([api(documentPath), api('/api/kanallar'), api('/api/takip/kartlar')]);
+      const [document, channels, cards] = await Promise.all([
+        api(documentPath),
+        api('/api/kanallar'),
+        api('/api/takip/kartlar'),
+        loadBanks(),
+      ]);
       if (!stillHere(generation, epoch)) return;
       renderDocument(document, channels, cards, generation, epoch);
       return;
     }
-    const documents = await api(beforeId ? `${base}?beforeId=${beforeId}` : base);
+    const [documents] = await Promise.all([api(beforeId ? `${base}?beforeId=${beforeId}` : base), loadBanks()]);
     if (!stillHere(generation, epoch)) return;
     view().replaceChildren(
       h(
@@ -127,7 +138,7 @@ export function createStatementImportUi() {
           help(
             'Kart ekstresinden harcama, faiz, komisyon ve ödemeleri; banka hesap hareketinden giriş ve çıkışları inceleyebilirsin. Kanal bilgisi PDF’de bulunmaz; kaydetmeden önce sen seçersin.'
           ),
-          h('p', { class: 'import-bank-hint' }, statementBanks.map(([, name]) => name).join(' · ')),
+          h('p', { class: 'import-bank-hint' }, banks.map(bank => bank.ad).join(' · ')),
           act('Kart ekstresi / hesap hareketi seç', () => uploadDialog(generation), 'primary')
         )
       ),
@@ -165,7 +176,7 @@ export function createStatementImportUi() {
   async function uploadDialog(generation) {
     editor();
     const epoch = session();
-    const cards = await api('/api/takip/kartlar');
+    const [cards, bankList] = await Promise.all([api('/api/takip/kartlar'), loadBanks()]);
     if (!stillHere(generation, epoch)) return;
     const file = input('dosya', '', { type: 'file', accept: '.pdf,application/pdf', required: true });
     const source = select(
@@ -176,9 +187,8 @@ export function createStatementImportUi() {
       ],
       'Kart'
     );
-    const bank = select('banka', [{ value: '', label: 'Bankayı seç' }, ...statementBanks.map(([value, label]) => ({ value, label }))], '', {
-      required: true,
-    });
+    const bankOptions = bankList.map(item => ({ value: item.kod, label: item.ad }));
+    const bank = select('banka', [{ value: '', label: 'Bankayı seç' }, ...bankOptions], '', { required: true });
     const card = select(
       'kartId',
       [
@@ -237,7 +247,7 @@ export function createStatementImportUi() {
           (selected.type && selected.type !== 'application/pdf')
         )
           throw new Error('Boş olmayan, en fazla 10 MB boyutunda bir PDF dosyası seçin.');
-        if (!statementBanks.some(([key]) => key === bank.value)) throw new Error('Bankayı seçin.');
+        if (!bankList.some(item => item.kod === bank.value)) throw new Error('Bankayı seçin.');
         if (source.value === 'Kart' && !Number(card.value)) throw new Error('Ekstrenin ait olduğu kartı seçin.');
         if (source.value === 'Banka' && !account.value.trim()) throw new Error('Hesaba kısa bir ad verin.');
         const payload = new FormData();

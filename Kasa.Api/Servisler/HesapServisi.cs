@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using Kasa.Api;
 using Kasa.Api.Data;
 using Kasa.Core;
 using Kasa.Core.Kodlar;

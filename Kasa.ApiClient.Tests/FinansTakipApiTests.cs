@@ -76,18 +76,16 @@ public class FinansTakipApiTests
     public async Task Kart_gecis_denetim_izi_ve_ilk_surum_uyarisi_okunur_eski_yanitta_null_kalir()
     {
         var h = new SahteHandler()
-            .Kuyrukla(HttpStatusCode.OK, """{"id":7,"surum":3,"ad":"Eski","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-20","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"EtkiTarihi","aciklama":null,"onizleme":null,"raporDisiEskiDusumTutari":1400.01,"raporDisiIlkDusumTarihi":"2026-09-30","raporDisiSonDusumTarihi":"2026-10-31","uyari":"İlk sürüm kuralıyla geçiş"}}""")
-            .Kuyrukla(HttpStatusCode.OK, """{"id":8,"surum":2,"ad":"Yeni kural","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":1000,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"IslemTarihi","aciklama":"Banka","onizleme":{"onayTarihi":"2026-09-25","kalanBorc":1000,"kasadaOncedenSayilanTutar":900.5,"sistemKartBorcu":1000,"eskiKuraldaIslenenTutar":0,"bekleyenEskiDusumTutari":1000,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1000},"raporDisiEskiDusumTutari":0,"raporDisiIlkDusumTarihi":null,"raporDisiSonDusumTarihi":null,"uyari":null}}""")
-            .Kuyrukla(HttpStatusCode.OK, """{"id":9,"surum":1,"ad":"2.3.0","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[]}""");
-        var client = Client(h);
-        var ilk = (await client.TakipKartAsync(7)).Gecis!;
+            .Kuyrukla(HttpStatusCode.OK, """[{"id":7,"surum":3,"ad":"Eski","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-20","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"EtkiTarihi","aciklama":null,"onizleme":null,"raporDisiEskiDusumTutari":1400.01,"raporDisiIlkDusumTarihi":"2026-09-30","raporDisiSonDusumTarihi":"2026-10-31","uyari":"İlk sürüm kuralıyla geçiş"}},{"id":8,"surum":2,"ad":"Yeni kural","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":1000,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[],"gecis":{"kural":"IslemTarihi","aciklama":"Banka","onizleme":{"onayTarihi":"2026-09-25","kalanBorc":1000,"kasadaOncedenSayilanTutar":900.5,"sistemKartBorcu":1000,"eskiKuraldaIslenenTutar":0,"bekleyenEskiDusumTutari":1000,"sonBekleyenDusumTarihi":"2026-10-31","onerilenKasadaSayilanTutar":1000},"raporDisiEskiDusumTutari":0,"raporDisiIlkDusumTarihi":null,"raporDisiSonDusumTarihi":null,"uyari":null}},{"id":9,"surum":1,"ad":"2.3.0","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[],"odemeler":[]}]""");
+        var kartlar = await Client(h).TakipKartlarAsync();
+        var ilk = kartlar[0].Gecis!;
         Assert.Equal(("EtkiTarihi", (string?)null, (KartGecisKaydi?)null, 1400.01m), (ilk.Kural, ilk.Aciklama, ilk.Onizleme, ilk.RaporDisiEskiDusumTutari));
         Assert.Equal((new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 31), "İlk sürüm kuralıyla geçiş"), (ilk.RaporDisiIlkDusumTarihi!.Value, ilk.RaporDisiSonDusumTarihi!.Value, ilk.Uyari));
-        var yeni = (await client.TakipKartAsync(8)).Gecis!;
+        var yeni = kartlar[1].Gecis!;
         Assert.Equal(new KartGecisKaydi(new(2026, 9, 25), 1000m, 900.5m, 1000m, 0m, 1000m, new(2026, 10, 31), 1000m), yeni.Onizleme);
         Assert.Equal(("IslemTarihi", "Banka", (string?)null), (yeni.Kural, yeni.Aciklama, yeni.Uyari));
         // Eski sunucu yanıtında geçiş alanı yoktur; istemci kırılmadan null okur.
-        Assert.Null((await client.TakipKartAsync(9)).Gecis);
+        Assert.Null(kartlar[2].Gecis);
     }
     [Fact]
     public async Task Kart_gecis_onizlemesi_en_az_kasada_sayilan_tutari_okur()

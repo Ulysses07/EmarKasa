@@ -8,10 +8,10 @@ namespace Kasa.Api.Auth;
 
 /// <summary>
 /// Veritabanı dışındaki güvenlik günlüğü (gap-geri-yukleme-durum-geri-sarma-1, -11). Kimlik durumunu değiştiren kararlar (editör
-/// şifresi ve kurtarma kodu, izleyici şifresi, alıcı hesapları, cihaz bildirim kayıtları, dönem kilidi) ve geri yüklemeler,
-/// veritabanıyla birlikte geri sarılmayan bir dosyaya satır satır JSON olarak eklenir. Geri yüklenen veritabanı yedek anından
-/// sonraki kararları taşımaz; açılıştaki geri yükleme işlemi (<see cref="GeriYuklemeIsleyici"/>) yedek anından sonraki olayları bu
-/// dosyadan okur ve yalnız sıkılaştırıcı olanları yeniden uygular.
+/// şifresi, kurtarma kodu ve operatörün şifre sıfırlaması, izleyici şifresi, alıcı hesapları, cihaz bildirim kayıtları, dönem
+/// kilidi) ve geri yüklemeler, veritabanıyla birlikte geri sarılmayan bir dosyaya satır satır JSON olarak eklenir. Geri yüklenen
+/// veritabanı yedek anından sonraki kararları taşımaz; açılıştaki geri yükleme işlemi (<see cref="GeriYuklemeIsleyici"/>) yedek
+/// anından sonraki olayları bu dosyadan okur ve yalnız sıkılaştırıcı olanları yeniden uygular.
 /// <list type="bullet">
 /// <item>Yer: <c>GuvenlikGunlugu:Yol</c>; verilmezse yedek dizininde (<c>Yedek:Dizin</c>, compose'da <c>/yedekler</c>)
 /// <see cref="DosyaAdi"/>. Canlı veritabanının dizininden (<c>/data</c>) bağımsızdır: veritabanı geri yüklense de kalır. Yedek
@@ -35,6 +35,9 @@ public sealed class GuvenlikGunlugu
     /// <summary>Editörün şifre değişikliği (<see cref="GuvenlikOlaylari.SifreDegisti"/> ile aynı ad).</summary>
     public const string EditorSifresiDegisti = GuvenlikOlaylari.SifreDegisti;
     public const string KurtarmaKullanildi = GuvenlikOlaylari.KurtarmaKullanildi;
+    /// <summary>Operatörün editör şifresi sıfırlaması (<see cref="EditorSifreSifirlama"/>). Ayrıntı: oturumlarKapatildi,
+    /// kurtarmaKoduIptal, girisKilidiKaldirildi. Şifre ve sıfırlama izi yazılmaz.</summary>
+    public const string EditorSifresiSifirlandi = GuvenlikOlaylari.EditorSifresiSifirlandi;
     public const string KurtarmaKoduUretildi = GuvenlikOlaylari.KurtarmaKoduUretildi;
     public const string IzleyiciSifresiDegisti = "IzleyiciSifresiDegisti";
     /// <summary>Ayrıntı: aktif.</summary>

@@ -14,7 +14,7 @@ public class TakipSozlesmeTests : SozlesmeTemeli
     [SozlesmeKapsami(nameof(IFinansTakipApi.TakipKartKaydetAsync), nameof(IFinansTakipApi.TakipHarcamaKaydetAsync), nameof(IFinansTakipApi.TakipEkstreKaydetAsync),
         nameof(IFinansTakipApi.TakipOdemeOnizlemeAsync), nameof(IFinansTakipApi.TakipOdemeKaydetAsync), nameof(IFinansTakipApi.TakipOdemeIptalAsync),
         nameof(IFinansTakipApi.TakipHarcamaIptalAsync), nameof(IFinansTakipApi.TakipKartDurumAsync), nameof(IFinansTakipApi.TakipKartGecisOnizlemeAsync),
-        nameof(IFinansTakipApi.TakipKartGecisAsync), nameof(IFinansTakipApi.TakipKartlarAsync), nameof(IFinansTakipApi.TakipKartAsync),
+        nameof(IFinansTakipApi.TakipKartGecisAsync), nameof(IFinansTakipApi.TakipKartlarAsync),
         nameof(IFinansTakipApi.TakipOzetAsync), nameof(IKasaKontrolApi.KartMasrafOnizleAsync), nameof(IKasaKontrolApi.KartMasrafKaydetAsync))]
     public async Task Takip_karti_yasam_dongusu_istemci_turlerine_birebir_uyar()
     {
@@ -77,12 +77,13 @@ public class TakipSozlesmeTests : SozlesmeTemeli
         var gecen = await o.Takip.TakipKartGecisAsync(eskiKart, gecisIstegi with { Onay = true });
         Assert.True(gecen.YeniTakip);
         Assert.Equal(100m, gecen.Gecis!.Onizleme!.KalanBorc);
-        Assert.Equal(gecen.Gecis.Kural, (await o.Takip.TakipKartAsync(eskiKart)).Gecis!.Kural);
+        Assert.Equal(gecen.Gecis.Kural, (await o.Takip.TakipKartlarAsync()).Single(k => k.Id == eskiKart).Gecis!.Kural);
 
         kart = await o.Takip.TakipKartDurumAsync(kart.Id, new TakipDurumYaz(Yeni(), kart.Surum, false, "Kart kapatıldı"));
         Assert.False(kart.Aktif);
-        Assert.Equal(2, (await o.Takip.TakipKartlarAsync()).Count);
-        Assert.Equal(kart.Surum, (await o.Takip.TakipKartAsync(kart.Id)).Surum);
+        var kartlar = await o.Takip.TakipKartlarAsync();
+        Assert.Equal(2, kartlar.Count);
+        Assert.Equal(kart.Surum, kartlar.Single(k => k.Id == kart.Id).Surum);
         var ozet = await o.Takip.TakipOzetAsync(60);
         Assert.Equal(Bugun, ozet.Tarih);
         Assert.NotEmpty(ozet.Olaylar);
@@ -92,7 +93,7 @@ public class TakipSozlesmeTests : SozlesmeTemeli
     [Fact]
     [SozlesmeKapsami(nameof(IFinansTakipApi.TakipKrediKaydetAsync), nameof(IFinansTakipApi.TakipTaksitKaydetAsync), nameof(IFinansTakipApi.TakipKrediKapatAsync),
         nameof(IFinansTakipApi.TakipKrediDurumAsync), nameof(IFinansTakipApi.TakipKrediGecisOnizlemeAsync), nameof(IFinansTakipApi.TakipKrediGecisAsync),
-        nameof(IFinansTakipApi.TakipKredilerAsync), nameof(IFinansTakipApi.TakipKrediAsync), nameof(IFinansTakipApi.TakipOzetAsync))]
+        nameof(IFinansTakipApi.TakipKredilerAsync), nameof(IFinansTakipApi.TakipOzetAsync))]
     public async Task Takip_kredisi_yasam_dongusu_istemci_turlerine_birebir_uyar()
     {
         var o = await Editor();
@@ -120,7 +121,7 @@ public class TakipSozlesmeTests : SozlesmeTemeli
             db.SaveChanges();
             eskiKredi = k.Id;
         });
-        Assert.False((await o.Takip.TakipKrediAsync(eskiKredi)).YeniTakip);
+        Assert.False((await o.Takip.TakipKredilerAsync()).Single(k => k.Id == eskiKredi).YeniTakip);
         var gecisIstegi = new KrediGecisYaz(Yeni(), 0, Bugun.AddDays(1), [1], "Eski kredi takibe", false);
         var onizleme = await o.Takip.TakipKrediGecisOnizlemeAsync(eskiKredi, gecisIstegi);
         Assert.Equal(("Kredi", eskiKredi, true), (onizleme.Kaynak, onizleme.KaynakId, onizleme.KabulEdilebilir));

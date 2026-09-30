@@ -34,9 +34,11 @@ namespace Kasa.Api.Auth;
 /// <item>İzleyici girişi kapanır: editör yeni izleyici şifresi belirleyene kadar izleyici giremez; yedekteki eski şifre de
 /// yedekten sonra belirlenen de geçersizdir (izleyici bütün finans verisini okur).</item>
 /// <item>Güvenlik günlüğünden, yedek anından SONRAKİ olaylar yeniden uygulanır (yalnız sıkılaştırma; yeniden etkinleştirme gibi
-/// gevşetici olay uygulanmaz): editör şifresi değiştirildiyse ya da kurtarma kullanıldıysa yedekteki şifre geçersiz kılınır
-/// (<see cref="EditorGuvenlikEntity.SifreHash"/> silinir, giriş ortamdaki Kasa:EditorSifre ile yapılır; operatör onu yeni bir
-/// değere çevirip editör şifreyi hemen değiştirir). Şifresi ya da kullanıcı adı değiştirilen veya son olayı pasife alma olan alıcı
+/// gevşetici olay uygulanmaz): editör şifresi değiştirildiyse, kurtarma kullanıldıysa ya da operatör şifreyi sıfırladıysa yedekteki
+/// şifre geçersiz kılınır ve editör girişi kilitlenir (<see cref="EditorGuvenligi.GirisKilidi"/>): ne yedekteki ya da sonradan
+/// kaybolan şifre ne de ortamdaki Kasa:EditorSifre geçer (ilk kurulumun ya da unutulmuş eski bir ortam şifresinin kendiliğinden
+/// geçerli olmaması için). Kilidi yalnız operatörün bilinçli sıfırlaması açar: yeni Kasa:EditorSifre ve Kasa:EditorSifreSifirla
+/// (<see cref="EditorSifreSifirlama"/>, bu işlemden hemen sonra aynı açılışta çalışır). Şifresi ya da kullanıcı adı değiştirilen veya son olayı pasife alma olan alıcı
 /// (kimliği ve adı eşleşirse) pasif bırakılır; yedekten sonra açılıp kaybolan alıcılar rapora yazılır. Günlük yoksa ya da yedek
 /// anından sonra başladıysa yalnız koşulsuz adımlar uygulanır ve rapor editör şifresinin değiştirilmesini ister.</item>
 /// <item>Kimlikler ileri alınır: AUTOINCREMENT'li her tablonun sayacı MAX(sayaç, en yüksek kimlik) + <see cref="KimlikAraligi"/>
@@ -62,16 +64,17 @@ public static class GeriYuklemeIsleyici
     public const int KimlikAraligi = 1_000_000;
     public const string OlayTuru = GuvenlikOlaylari.GeriYuklemeIslendi;
 
-    /// <summary>Ortam şifresine dönüşün rapor maddesi (web ve masaüstü aynen gösterir).</summary>
-    public const string EditorSifresiSifirlandi = "Editör şifresi yedekten sonra değiştirilmişti: yedekteki eski şifre geçersiz kılındı. "
-        + "Editör girişi sunucudaki ortam şifresiyle (KASA_EDITOR_SIFRE) yapılır; operatör bu değeri geri yüklemeden önce yenilemediyse "
-        + "şimdi yeni bir şifreyle değiştirip uygulamayı yeniden başlatmalı. Editör girip şifreyi hemen değiştirmeli.";
+    /// <summary>Editör girişinin kilitlendiğini bildiren rapor maddesi (web ve masaüstü aynen gösterir; açılışta loglanır).</summary>
+    public const string EditorGirisiKilitlendi = "Editör şifresi yedekten sonra değiştirilmişti: yedekteki eski şifre geçersiz kılındı ve editör girişi "
+        + "kilitlendi (sunucudaki KASA_EDITOR_SIFRE de geçmez). Sunucu operatörü sıfırlamalı: deploy/.env'de KASA_EDITOR_SIFRE'yi yeni, en az 12 "
+        + "karakterlik bir değere çevirip KASA_EDITOR_SIFRE_SIFIRLA=true ile uygulamayı yeniden başlatır (Kasa:EditorSifreSifirla). Editör bu "
+        + "şifreyle girip şifresini hemen değiştirmeli; ardından bayrak kaldırılıp uygulama yeniden başlatılmalı.";
 
     /// <param name="Soy">Geri yüklemeyle başlayan veri soyunun kimliği (olayın VarlikId'si; oturum dönemi onun 32 haneli biçimi).</param>
     /// <param name="Sayaclar">Tablo → ileri alınmış sayaç.</param>
     /// <param name="Rapor">Operatör ve editör için Türkçe maddeler (SistemDurumu.GeriYuklemeRaporu).</param>
     public sealed record Sonuc(Guid Soy, IReadOnlyDictionary<string, long> Sayaclar, bool IzleyiciErisimiKapatildi, int AliciOturumlariKapatildi,
-        bool EditorSifresiSifirlandi, IReadOnlyList<int> PasifAlicilar, int BildirimKayitlariKapatildi, IReadOnlyList<string> Rapor);
+        bool EditorGirisiKilitlendi, IReadOnlyList<int> PasifAlicilar, int BildirimKayitlariKapatildi, IReadOnlyList<string> Rapor);
 
     /// <summary>Veritabanı geri yükleme işaretliyse işler ve sonucu döner; değilse hiçbir şeye dokunmaz (null).</summary>
     /// <param name="gunluk">Yedekten sonraki kararların okunduğu güvenlik günlüğü; verilmezse günlük yok sayılır.</param>
@@ -125,9 +128,11 @@ public static class GeriYuklemeIsleyici
             // Yedekten sonraki kararlar (yalnız sıkılaştırma). Yedek anı bilinmiyorsa günlüğün tamamı yedekten sonraki sayılır.
             var kesim = yedekAni ?? DateTimeOffset.MinValue;
             var sonrakiler = icerik?.Olaylar.Where(o => o.Zaman > kesim).ToList() ?? [];
-            var editorSifirlandi = sonrakiler.Any(o => o.Tur is GuvenlikGunlugu.EditorSifresiDegisti or GuvenlikGunlugu.KurtarmaKullanildi);
-            if (editorSifirlandi)
-            { editor.SifreHash = null; rapor.Add(EditorSifresiSifirlandi); }
+            // Operatörün yedekten sonraki sıfırlaması da bir şifre kararıdır: yedekteki şifre (belki sıfırlamanın nedeni) geri gelmez.
+            var editorKilitlendi = sonrakiler.Any(o => o.Tur is GuvenlikGunlugu.EditorSifresiDegisti or GuvenlikGunlugu.KurtarmaKullanildi
+                or GuvenlikGunlugu.EditorSifresiSifirlandi);
+            if (editorKilitlendi)
+            { editor.SifreHash = EditorGuvenligi.GirisKilidi; rapor.Add(EditorGirisiKilitlendi); }
             if (izleyiciKapatildi)
                 rapor.Add("İzleyici girişi kapatıldı: Ayarlar'dan yeni bir izleyici şifresi belirleyin; yedekteki eski şifreyi yeniden kullanmayın.");
             rapor.Add(kurtarmaKoduVardi
@@ -169,7 +174,7 @@ public static class GeriYuklemeIsleyici
                 yedekAni,
                 yedekAniKaynagi = anKaynagi,
                 kurtarmaKoduIptal = kurtarmaKoduVardi,
-                editorSifresiSifirlandi = editorSifirlandi,
+                editorGirisiKilitlendi = editorKilitlendi,
                 pasifAlicilar = pasif,
                 bildirimKayitlariKapatildi = bildirim,
                 guvenlikGunlugu = gunlukDurumu,
@@ -182,7 +187,7 @@ public static class GeriYuklemeIsleyici
                 yedekAni,
                 yedekAniKaynagi = anKaynagi,
                 guvenlikGunlugu = gunlukDurumu,
-                editorSifresiSifirlandi = editorSifirlandi,
+                editorGirisiKilitlendi = editorKilitlendi,
                 kurtarmaKoduIptal = kurtarmaKoduVardi,
                 pasifAlicilar = pasif.Count,
                 bildirimKayitlariKapatildi = bildirim,
@@ -194,7 +199,7 @@ public static class GeriYuklemeIsleyici
                 soy, izleyiciKapatildi ? "kapatıldı" : "zaten kapalıydı", sayaclar.Count, KimlikAraligi, gunlukDurumu);
             foreach (var madde in rapor)
                 log.LogWarning("Geri yükleme: {Madde}", madde);
-            return new Sonuc(soy, sayaclar, izleyiciKapatildi, alicilar.Count, editorSifirlandi, pasif, bildirim, rapor);
+            return new Sonuc(soy, sayaclar, izleyiciKapatildi, alicilar.Count, editorKilitlendi, pasif, bildirim, rapor);
         }
         finally
         {
@@ -263,7 +268,7 @@ public static class GeriYuklemeIsleyici
         return (null, "bilinmiyor");
     }
 
-    private static string Yerel(DateTimeOffset an)
+    internal static string Yerel(DateTimeOffset an)
         => TimeZoneInfo.ConvertTime(an, KasaSaati.Istanbul).ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
 
     private static bool Isaretli(SqliteConnection baglanti, SqliteTransaction? tx)

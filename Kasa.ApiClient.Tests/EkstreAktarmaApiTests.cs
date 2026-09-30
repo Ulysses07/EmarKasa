@@ -12,6 +12,18 @@ public class EkstreAktarmaApiTests
     private static HttpResponseMessage Response(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web)), Encoding.UTF8, "application/json") };
     private static KasaApiClient Client(HttpMessageHandler h, ITokenStore? store = null) => new(new HttpClient(h) { BaseAddress = new("https://ornek.test/"), Timeout = TimeSpan.FromSeconds(60) }, store ?? new BellekTokenStore());
     private static EkstreBelgeDto Belge() => new(8, 2, "Banka", "QNB", "Son 1234", null, "hareket.pdf", DateTimeOffset.UtcNow, [], [], []);
+    /// <summary>Banka seçenekleri sunucudan (tek kaynak) okunur: kod ve görünen ad; istemcide yedek liste yoktur.</summary>
+    [Fact]
+    public async Task Banka_listesi_sunucudan_kod_ve_adla_okunur()
+    {
+        var client = Client(new Handler((r, _) =>
+        {
+            Assert.Equal(HttpMethod.Get, r.Method);
+            Assert.Equal("/api/ekstre-aktar/bankalar", r.RequestUri!.AbsolutePath);
+            return Task.FromResult(Response(new[] { new { kod = "Isbank", ad = "İş Bankası" }, new { kod = "QNB", ad = "QNB" } }));
+        }));
+        Assert.Equal([new EkstreBankaDto("Isbank", "İş Bankası"), new EkstreBankaDto("QNB", "QNB")], await client.EkstreBankalarAsync());
+    }
     [Fact]
     public async Task Pdf_multipart_kaynak_banka_hesap_kart_ve_guvenli_adla_yuklenir()
     {

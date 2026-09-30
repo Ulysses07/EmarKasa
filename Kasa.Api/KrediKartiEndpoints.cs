@@ -41,10 +41,10 @@ public static class KrediKartiEndpoints
                     YeniTakip: takip.ContainsKey(k.Id), Aktif: takip.GetValueOrDefault(k.Id, true));
             }).ToList();
         });
-        api.MapPost("/kredikartlari", (KrediKartiYazDto dto, KasaDbContext db) =>
-        {
-            return Results.Conflict(new { hata = "Yeni kartı güncel uygulamanın Kredi Kartları ekranından oluşturun." });
-        }).RequireAuthorization("Editor");
+        // Eski istemcinin kart ekleme ucu: her durumda aynı iletili 409. Gövde bağlanmaz (okunmaz): bozuk JSON ya da başka içerik
+        // türü de 400/415 yerine aynı 409'u alır.
+        api.MapPost("/kredikartlari", () =>
+            Results.Conflict(new { hata = "Yeni kartı güncel uygulamanın Kredi Kartları ekranından oluşturun." })).RequireAuthorization("Editor");
         api.MapPut("/kredikartlari/{id:int}", (int id, KrediKartiYazDto dto, KasaDbContext db) =>
         {
             using var transaction = db.Database.BeginTransaction();

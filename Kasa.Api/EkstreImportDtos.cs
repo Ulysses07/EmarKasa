@@ -1,5 +1,8 @@
 namespace Kasa.Api;
 
+/// <summary>Ekstre yüklemede seçilebilen banka: <paramref name="Kod"/> yükleme formundaki 'banka' alanının ve belgenin Banka
+/// değeri, <paramref name="Ad"/> görünen adı. GET /api/ekstre-aktar/bankalar'ın öğesi (web ve masaüstü listeyi yalnız buradan alır).</summary>
+public record EkstreBankaDto(string Kod, string Ad);
 public record EkstreBelgeOzetDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, int SatirSayisi, int KayitSayisi);
 public record EkstreBelgeDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<EkstreKayitDto> Kayitlar);
 public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar);

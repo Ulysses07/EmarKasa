@@ -111,10 +111,11 @@ public static class IslemEndpoints
         return app;
     }
 
-    private static string KartGideriEngeli(string engel, string islem) => engel switch
+    private static string KartGideriEngeli(FinansTakipServisi.HarcamaEngeli engel, string islem) => engel switch
     {
-        "ödendi" => $"Bu kart harcaması ödendi; gideri {islem}: önceki kart ödemesinin kanal payı değişirdi. Harcama gerçekleşmediyse Kredi Kartları ekranında açıklamalı iade girin.",
-        "iadesi var" => $"Bu kart harcamasının iadesi var; gideri {islem}. Önce iadeyi Kredi Kartları ekranında gerekçeyle iptal edin.",
-        _ => $"Bu kart harcaması bir ekstre satırıyla eşleştirildi; gideri {islem}. Önce PDF İçe Aktarma bölümünden eşleştirmeyi gerekçeyle iptal edin.",
+        FinansTakipServisi.HarcamaEngeli.Odendi => $"Bu kart harcaması ödendi; gideri {islem}: önceki kart ödemesinin kanal payı değişirdi. Harcama gerçekleşmediyse Kredi Kartları ekranında açıklamalı iade girin.",
+        FinansTakipServisi.HarcamaEngeli.IadesiVar => $"Bu kart harcamasının iadesi var; gideri {islem}. Önce iadeyi Kredi Kartları ekranında gerekçeyle iptal edin.",
+        FinansTakipServisi.HarcamaEngeli.Ekstre => $"Bu kart harcaması bir ekstre satırıyla eşleştirildi; gideri {islem}. Önce PDF İçe Aktarma bölümünden eşleştirmeyi gerekçeyle iptal edin.",
+        _ => throw new ArgumentOutOfRangeException(nameof(engel), engel, null),
     };
 }

@@ -13,7 +13,8 @@
 ## Amaç & Neden Gerekli
 
 Plan 1 (Emar Kasa native backend), EF Core modeline `KrediKartlari` tablosunu ekledi.
-Backend `EnsureCreated()` kullanıyor (`Program.cs`, satır 55). `EnsureCreated()` yalnızca
+Backend o sürümde başlangıçta `EnsureCreated()` kullanıyordu (dönemin `Program.cs` başlangıç kodu;
+bugün yerinde `Kasa.Api/Data/KasaDatabaseInitializer.cs`'teki migration başlatıcısı vardır). `EnsureCreated()` yalnızca
 DB dosyası **yoksa** tüm şemayı sıfırdan oluşturur; var olan bir SQLite dosyasına yeni
 tablo **eklemez**. Dolayısıyla VPS'teki canlı DB, `KrediKartlari` tablosunu içermiyor.
 

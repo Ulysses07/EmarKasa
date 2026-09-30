@@ -4,7 +4,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Kasa.Api.Tests;
+// Test projelerinin ortak kaynağı: proje değildir, Kasa.Api.Tests ve Kasa.Sozlesme.Tests bu dosyayı kendi derlemelerine bağlantıyla
+// (<Compile Include="..\TestOrtak\*.cs" Link=...>) katar ve Kasa.TestOrtak ad alanını genel using ile alır. Projeler birbirine
+// başvurmaz (MimariTests katman sınırları ve test projelerinin bağımsızlığı korunur); iki derlemede ayrı birer kopya derlenir.
+namespace Kasa.TestOrtak;
 
 /// <summary>
 /// ASP.NET Core'un hız sınırı ara katmanı (RateLimitingMiddleware) uç politikaları için kurduğu PartitionedRateLimiter'ı hiç
@@ -12,7 +15,8 @@ namespace Kasa.Api.Tests;
 /// köklenir; bölümleyici ara katmanı, ara katmanın _next zinciri de bütün uygulamayı (kök servis sağlayıcı, bellek içi
 /// veritabanı bağlantısı, uç tablosu) tutar. Üretimde süreç başına tek uygulama olduğundan etkisizdir; testte ise kapatılan
 /// her fabrika bellekte kalıyordu (fabrika başına ≈2–3 MB, tam koşuda ≈1.200 fabrika): yığın büyüdükçe çöp toplayıcı bütün
-/// testleri giderek yavaşlatıyordu. Bu sınıf fabrika kapanırken ara katmanı istek hattında bulur ve sınırlayıcılarını kapatır.
+/// testleri giderek yavaşlatıyordu (sözleşme testlerinin fabrikası da aynı uygulamayı açar). Bu sınıf fabrika kapanırken ara
+/// katmanı istek hattında bulur ve sınırlayıcılarını kapatır.
 /// </summary>
 internal static class HizSiniriSizintisi
 {

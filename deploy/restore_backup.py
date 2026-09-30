@@ -40,7 +40,8 @@ Araç her yedekte (eski biçimler dahil) manifestteki yedek anını ('olusturuld
 yazar: uygulama veritabanı dışındaki güvenlik günlüğünün (yedek dizininde guvenlik-gunlugu.jsonl) bu andan sonraki
 olaylarını yeniden uygular. Uygulama işaretli dosyayla ilk açılışta, HTTP açılmadan: yeni oturum dönemi açar
 (bütün oturumlar ve tanıdık cihazlar geçersiz), kurtarma kodunu, izleyici girişini ve cihaz bildirim kayıtlarını
-kapatır, yedekten sonra değiştirilen editör şifresini geçersiz kılar (giriş ortamdaki KASA_EDITOR_SIFRE ile),
+kapatır, yedekten sonra değiştirilen editör şifresini geçersiz kılar (editör girişi kilitlenir; kilidi yalnız
+KASA_EDITOR_SIFRE_SIFIRLA=true ile yeni KASA_EDITOR_SIFRE'ye sıfırlama açar),
 yedekten sonra pasife alınan ya da şifresi değişen alıcıları pasif bırakır, kayıt numarası sayaçlarını
 KIMLIK_ARALIGI ileri alır, işaretleri siler, raporunu Araçlar/Güvenlik ekranına ve değişiklik geçmişine
 (GeriYuklemeIslendi) yazar. Yedeği ZIP'ten elle çıkarmayın; her zaman bu aracı kullanın.
@@ -184,21 +185,25 @@ def sonraki_adimlar() -> str:
     True
     >>> "KASA_EDITOR_SIFRE" in sonraki_adimlar() and "kurtarma kodu" in sonraki_adimlar()
     True
+    >>> "KASA_EDITOR_SIFRE_SIFIRLA=true" in sonraki_adimlar() and "KASA_EDITOR_SIFRE_SIFIRLA=false" in sonraki_adimlar()
+    True
     """
     aralik = "{:,}".format(KIMLIK_ARALIGI).replace(",", ".")
     return "\n".join([
-        "ZORUNLU: Uygulamayı bu dosyayla açmadan ÖNCE deploy/.env'de KASA_EDITOR_SIFRE'yi yeni, en az 12 karakterlik bir",
-        "  değere çevirin: yedekten sonra editör şifresi değiştirildiyse uygulama yedekteki eski şifreyi geçersiz kılar ve",
-        "  editör girişi bu değerle olur.",
+        "ZORUNLU: Uygulamayı bu dosyayla açmadan ÖNCE deploy/.env'de KASA_EDITOR_SIFRE'yi yeni, en az 12 karakterlik ve daha",
+        "  önce kullanılmamış bir değere çevirin ve KASA_EDITOR_SIFRE_SIFIRLA=true yapın: ilk açılışta editör şifresi bu değere",
+        "  sıfırlanır, yedekteki ve yedekten sonraki şifreler geçmez. Bayrak açılmazsa ve yedekten sonra editör şifresi",
+        "  değiştirildiyse editör girişi kilitli kalır (ortamdaki şifre de geçmez); bayrağı açıp yeniden başlatın.",
         "Uygulama bu dosyayla ilk açılışta geri yüklemeyi tanır ve işler:",
         "  - bütün oturumlar (editör, izleyici, alıcı) ve tanıdık cihazlar geçersiz olur; herkes yeniden giriş yapar,",
         "  - kurtarma kodu iptal edilir, cihaz bildirim kayıtları kapatılır,",
         "  - izleyici girişi kapatılır: yedekteki eski izleyici şifresi de, yedekten sonra belirlenen de geçersizdir,",
         "  - güvenlik günlüğündeki (yedek dizininde guvenlik-gunlugu.jsonl) yedekten sonraki şifre ve alıcı kararları",
-        "    yeniden uygulanır (editör şifresi geçersiz kılınır, alıcılar pasif bırakılır),",
+        "    yeniden uygulanır (yedekteki editör şifresi geçersiz kılınır, alıcılar pasif bırakılır),",
         "  - yeni kayıt numaraları yedekteki en yüksek numaradan " + aralik + " ileri başlar.",
-        "Açılıştan sonra editör olarak girin ve Araçlar/Güvenlik'teki geri yükleme raporunu okuyun: gerekiyorsa şifreyi hemen",
-        "değiştirin, Ayarlar'dan YENİ bir izleyici şifresi belirleyin (eski şifreyi yeniden kullanmayın), yeni kurtarma kodu üretin.",
+        "Açılıştan sonra yeni ortam şifresiyle editör olarak girin, şifreyi hemen değiştirin ve Araçlar/Güvenlik'teki geri yükleme",
+        "raporunu okuyun; Ayarlar'dan YENİ bir izleyici şifresi belirleyin (eski şifreyi yeniden kullanmayın), yeni kurtarma kodu",
+        "üretin. Ardından KASA_EDITOR_SIFRE_SIFIRLA=false yapıp 'docker compose ... up -d' ile yeniden oluşturun.",
         "Kalan adımlar: operasyon-runbook.md 'Geri yüklemeden sonra'.",
     ])
 

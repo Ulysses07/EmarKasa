@@ -61,7 +61,6 @@ public record TakipsizKayitDto(string Kaynak, int Id, string Ad);
 public interface IFinansTakipApi
 {
     Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync();
-    Task<KartTakipDto> TakipKartAsync(int id);
     Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g);
     Task<KartTakipDto> TakipKartDurumAsync(int id, TakipDurumYaz g);
     Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g);
@@ -75,7 +74,6 @@ public interface IFinansTakipApi
     Task<KartDevirDto> TakipKartDevirAsync(int id);
     Task<KartTakipDto> TakipKartDevirDuzeltAsync(int id, KartDevirDuzeltYaz g);
     Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync();
-    Task<KrediTakipDto> TakipKrediAsync(int id);
     Task<KrediTakipDto> TakipKrediKaydetAsync(KrediTakipYaz g);
     Task<KrediTakipDto> TakipKrediDurumAsync(int id, TakipDurumYaz g);
     Task<KrediTakipDto> TakipTaksitKaydetAsync(int id, int taksitId, KrediTaksitYaz g);

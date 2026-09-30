@@ -1,5 +1,8 @@
 namespace Kasa.ApiClient;
 
+/// <summary>Ekstre yüklemede seçilebilen banka: <paramref name="Kod"/> yüklemede gönderilen ve belgede görünen değer,
+/// <paramref name="Ad"/> görünen adı (GET api/ekstre-aktar/bankalar; liste yalnız sunucudadır).</summary>
+public record EkstreBankaDto(string Kod, string Ad);
 public record EkstreBelgeOzetDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, int SatirSayisi, int KayitSayisi);
 public record EkstreBelgeDto(int Id, int Surum, string Kaynak, string Banka, string HesapAdi, int? KartId, string DosyaAdi, DateTimeOffset Yuklendi, IReadOnlyList<string> Uyarilar, IReadOnlyList<EkstreOkunanSatir> Satirlar, IReadOnlyList<EkstreKayitDto> Kayitlar);
 public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar);
@@ -27,6 +30,8 @@ public record EkstreEslesmeAdayiDto(string Tur, int Id, DateOnly Tarih, decimal 
 
 public interface IEkstreAktarmaApi
 {
+    /// <summary>Yükleme formunun banka seçenekleri (tek kaynak: sunucu).</summary>
+    Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync();
     Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null);
     Task<EkstreBelgeDto> EkstreBelgeAsync(int id);
     Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId);

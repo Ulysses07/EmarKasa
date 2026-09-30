@@ -59,6 +59,25 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         Assert.False(Assert.Single(await o.Bildirim.BildirimCihazlariAsync()).Etkin);
     }
 
+    /// <summary>Banka seçenekleri tek kaynaktan (EkstreImportEndpoints.Bankalar) gelir: listedeki her kod yüklemede kabul edilir,
+    /// liste dışı kod iletili 400 alır. Web ve masaüstü kendi kopyalarını tutmaz.</summary>
+    [Fact]
+    [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreBankalarAsync), nameof(IEkstreAktarmaApi.EkstreYukleAsync))]
+    public async Task Banka_listesi_tek_kaynaktan_gelir_yukleme_yalniz_listedeki_kodu_kabul_eder()
+    {
+        var o = await Editor();
+        var bankalar = await o.Ekstre.EkstreBankalarAsync();
+        Assert.Equal(Kasa.Api.EkstreImportEndpoints.Bankalar.Select(b => (b.Kod, b.Ad)), bankalar.Select(b => (b.Kod, b.Ad)));
+        Assert.Contains(bankalar, b => b is { Kod: "Isbank", Ad: "İş Bankası" });
+        // Aynı PDF (özet) başka kaynak bilgisiyle ikinci kez yüklenemez: her banka kendi dosyasıyla.
+        static byte[] Pdf(string ek) => System.Text.Encoding.UTF8.GetBytes("%PDF-1.7 sozlesme " + ek);
+        foreach (var banka in bankalar)
+            Assert.Equal(banka.Kod, (await o.Ekstre.EkstreYukleAsync(Pdf(banka.Kod), "ekstre.pdf", "Banka", banka.Kod, "Ana hesap", null)).Banka);
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Ekstre.EkstreYukleAsync(Pdf("liste dışı"), "ekstre.pdf", "Banka", "Ziraat", "Ana hesap", null));
+        Assert.Equal(HttpStatusCode.BadRequest, hata.DurumKodu);
+        Assert.Contains("banka", hata.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreYukleAsync), nameof(IEkstreAktarmaApi.EkstreOnizlemeAsync), nameof(IEkstreAktarmaApi.EkstreKaydetAsync),
         nameof(IEkstreAktarmaApi.EkstreKaynakBelgeAsync), nameof(IEkstreAktarmaApi.EkstreBelgelerAsync), nameof(IEkstreAktarmaApi.EkstreBelgeAsync),

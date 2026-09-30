@@ -657,7 +657,6 @@ public class FinansTakipTests
         public int KartKayitSayisi, EkstreKayitSayisi, KartGecisOnizlemeSayisi;
         public (int? Id, KartTakipYaz Govde)? KartKayit;
         public Task<IReadOnlyList<KartTakipDto>> TakipKartlarAsync() => KartlarYaniti ?? Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Kart });
-        public Task<KartTakipDto> TakipKartAsync(int id) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipKartKaydetAsync(int? id, KartTakipYaz g) { KartKayitSayisi++; KartKayit = (id, g); return Task.FromResult(Kart); }
         public Task<KartTakipDto> TakipKartDurumAsync(int id, TakipDurumYaz g) => Task.FromResult(Kart);
         public Task<KartTakipDto> TakipHarcamaKaydetAsync(int id, KartHarcamaYaz g) { Harcama = g; return Task.FromResult(Kart); }
@@ -686,7 +685,6 @@ public class FinansTakipTests
         public Task<KartDevirDto> TakipKartDevirAsync(int id) => Task.FromResult(Devir ?? throw new KasaApiException(System.Net.HttpStatusCode.NotFound, "Devir yok."));
         public Task<KartTakipDto> TakipKartDevirDuzeltAsync(int id, KartDevirDuzeltYaz g) { DevirDuzeltmeleri.Add(g); return Task.FromResult(Kart); }
         public Task<IReadOnlyList<KrediTakipDto>> TakipKredilerAsync() => Task.FromResult<IReadOnlyList<KrediTakipDto>>(new[] { Kredi });
-        public Task<KrediTakipDto> TakipKrediAsync(int id) => Task.FromResult(Kredi);
         public Task<KrediTakipDto> TakipKrediKaydetAsync(KrediTakipYaz g) { KrediKayit = g; return Task.FromResult(Kredi); }
         public Task<KrediTakipDto> TakipKrediDurumAsync(int id, TakipDurumYaz g) => Task.FromResult(Kredi);
         public Task<KrediTakipDto> TakipTaksitKaydetAsync(int id, int tid, KrediTaksitYaz g) { Taksit = g; return Task.FromResult(Kredi); }

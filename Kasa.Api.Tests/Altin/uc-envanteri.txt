@@ -1,4 +1,4 @@
-uç sayısı: 124
+uç sayısı: 125
 
 #1 Microsoft.AspNetCore.Routing.RouteEndpoint /health order=0
   görünen ad: HTTP: GET /health
@@ -1331,7 +1331,21 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/ekstre-aktar/{id:int}/kayitlar/{kayitId:int}/iptal
 
-#79 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ order=0
+#79 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ekstre-aktar/bankalar order=0
+  görünen ad: HTTP: GET /api/ekstre-aktar/bankalar
+  yöntem: GET
+  ad: - / rota adı: -
+  yetki: politika=Editor roller=- şemalar=-
+  hız sınırı: -
+  meta veri (6):
+    - System.Reflection.RuntimeMethodInfo: imza System.Collections.Generic.IReadOnlyList<Kasa.Api.EkstreBankaDto>~ ()
+    - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=GET cors=False
+    - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
+    - Microsoft.AspNetCore.Http.ProducesResponseTypeMetadata: durum=200 tür=System.Collections.Generic.IReadOnlyList<Kasa.Api.EkstreBankaDto> içerik=application/json
+    - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
+    - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/ekstre-aktar/bankalar
+
+#80 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ order=0
   görünen ad: HTTP: GET /api/bildirimler/
   yöntem: GET
   ad: - / rota adı: -
@@ -1347,7 +1361,7 @@ uç sayısı: 124
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/
 
-#80 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ayarlar order=0
+#81 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ayarlar order=0
   görünen ad: HTTP: GET /api/bildirimler/ayarlar
   yöntem: GET
   ad: - / rota adı: -
@@ -1361,7 +1375,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=saglik tür=Kasa.Api.Servisler.BildirimSagligi TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/ayarlar
 
-#81 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ayarlar order=0
+#82 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ayarlar order=0
   görünen ad: HTTP: PUT /api/bildirimler/ayarlar
   yöntem: PUT
   ad: - / rota adı: -
@@ -1381,7 +1395,7 @@ uç sayısı: 124
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/ayarlar
 
-#82 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/{id:int}/okundu order=0
+#83 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/{id:int}/okundu order=0
   görünen ad: HTTP: POST /api/bildirimler/{id:int}/okundu
   yöntem: POST
   ad: - / rota adı: -
@@ -1397,7 +1411,7 @@ uç sayısı: 124
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/{id:int}/okundu
 
-#83 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/anahtar order=0
+#84 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/anahtar order=0
   görünen ad: HTTP: GET /api/bildirimler/push/anahtar
   yöntem: GET
   ad: - / rota adı: -
@@ -1410,7 +1424,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=identity tür=Kasa.Api.Servisler.PushKimligi TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/anahtar
 
-#84 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelik order=0
+#85 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelik order=0
   görünen ad: HTTP: POST /api/bildirimler/push/abonelik
   yöntem: POST
   ad: - / rota adı: -
@@ -1432,7 +1446,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=guvenlik
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelik
 
-#85 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelik order=0
+#86 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelik order=0
   görünen ad: HTTP: DELETE /api/bildirimler/push/abonelik
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1451,7 +1465,7 @@ uç sayısı: 124
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelik
 
-#86 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelikler order=0
+#87 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelikler order=0
   görünen ad: HTTP: GET /api/bildirimler/push/abonelikler
   yöntem: GET
   ad: - / rota adı: -
@@ -1466,7 +1480,7 @@ uç sayısı: 124
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelikler
 
-#87 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelikler/{id:int} order=0
+#88 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelikler/{id:int} order=0
   görünen ad: HTTP: DELETE /api/bildirimler/push/abonelikler/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1483,7 +1497,7 @@ uç sayısı: 124
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelikler/{id:int}
 
-#88 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/test order=0
+#89 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/test order=0
   görünen ad: HTTP: POST /api/bildirimler/test
   yöntem: POST
   ad: - / rota adı: -
@@ -1506,7 +1520,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=guvenlik
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/test
 
-#89 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alicilar/ order=0
+#90 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alicilar/ order=0
   görünen ad: HTTP: GET /api/alicilar/
   yöntem: GET
   ad: - / rota adı: -
@@ -1521,7 +1535,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/alicilar/
 
-#90 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alicilar/ order=0
+#91 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alicilar/ order=0
   görünen ad: HTTP: POST /api/alicilar/
   yöntem: POST
   ad: - / rota adı: -
@@ -1539,7 +1553,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/alicilar/
 
-#91 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alicilar/{id:int} order=0
+#92 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alicilar/{id:int} order=0
   görünen ad: HTTP: PUT /api/alicilar/{id:int}
   yöntem: PUT
   ad: - / rota adı: -
@@ -1558,7 +1572,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/alicilar/{id:int}
 
-#92 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alis/{id:int}/belgeler order=0
+#93 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alis/{id:int}/belgeler order=0
   görünen ad: HTTP: GET /api/alis/{id:int}/belgeler
   yöntem: GET
   ad: - / rota adı: -
@@ -1574,7 +1588,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/alis/{id:int}/belgeler
 
-#93 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alis/{id:int}/belgeler order=0
+#94 Microsoft.AspNetCore.Routing.RouteEndpoint /api/alis/{id:int}/belgeler order=0
   görünen ad: HTTP: POST /api/alis/{id:int}/belgeler
   yöntem: POST
   ad: - / rota adı: -
@@ -1596,7 +1610,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=alis-yukleme
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/alis/{id:int}/belgeler
 
-#94 Microsoft.AspNetCore.Routing.RouteEndpoint /api/belgeler/{id:int} order=0
+#95 Microsoft.AspNetCore.Routing.RouteEndpoint /api/belgeler/{id:int} order=0
   görünen ad: HTTP: GET /api/belgeler/{id:int}
   yöntem: GET
   ad: - / rota adı: -
@@ -1614,7 +1628,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=loglar tür=Microsoft.Extensions.Logging.ILoggerFactory TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/belgeler/{id:int}
 
-#95 Microsoft.AspNetCore.Routing.RouteEndpoint /api/belgeler/{id:int} order=0
+#96 Microsoft.AspNetCore.Routing.RouteEndpoint /api/belgeler/{id:int} order=0
   görünen ad: HTTP: DELETE /api/belgeler/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1634,7 +1648,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/belgeler/{id:int}
 
-#96 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar order=0
+#97 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar order=0
   görünen ad: HTTP: GET /api/kanallar
   yöntem: GET
   ad: - / rota adı: -
@@ -1649,7 +1663,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kanallar
 
-#97 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar order=0
+#98 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar order=0
   görünen ad: HTTP: POST /api/kanallar
   yöntem: POST
   ad: - / rota adı: -
@@ -1666,7 +1680,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kanallar
 
-#98 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar/{id:int} order=0
+#99 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar/{id:int} order=0
   görünen ad: HTTP: PUT /api/kanallar/{id:int}
   yöntem: PUT
   ad: - / rota adı: -
@@ -1684,7 +1698,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kanallar/{id:int}
 
-#99 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar/{id:int} order=0
+#100 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kanallar/{id:int} order=0
   görünen ad: HTTP: DELETE /api/kanallar/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1699,7 +1713,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kanallar/{id:int}
 
-#100 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari order=0
+#101 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari order=0
   görünen ad: HTTP: GET /api/kredikartlari
   yöntem: GET
   ad: - / rota adı: -
@@ -1714,24 +1728,20 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kredikartlari
 
-#101 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari order=0
+#102 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari order=0
   görünen ad: HTTP: POST /api/kredikartlari
   yöntem: POST
   ad: - / rota adı: -
   yetki: politika=Finans roller=- şemalar=- + politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (9):
-    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (Kasa.Api.KrediKartiYazDto dto, Kasa.Api.Data.KasaDbContext db)
+  meta veri (5):
+    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ ()
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Finans roller=- şemalar=-
-    - Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata: istek=Kasa.Api.KrediKartiYazDto içerik=application/json isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=dto tür=Kasa.Api.KrediKartiYazDto TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kredikartlari
 
-#102 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari/{id:int} order=0
+#103 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari/{id:int} order=0
   görünen ad: HTTP: PUT /api/kredikartlari/{id:int}
   yöntem: PUT
   ad: - / rota adı: -
@@ -1749,7 +1759,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kredikartlari/{id:int}
 
-#103 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari/{id:int} order=0
+#104 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kredikartlari/{id:int} order=0
   görünen ad: HTTP: DELETE /api/kredikartlari/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1764,7 +1774,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kredikartlari/{id:int}
 
-#104 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler order=0
+#105 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler order=0
   görünen ad: HTTP: GET /api/krediler
   yöntem: GET
   ad: - / rota adı: -
@@ -1779,24 +1789,20 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/krediler
 
-#105 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler order=0
+#106 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler order=0
   görünen ad: HTTP: POST /api/krediler
   yöntem: POST
   ad: - / rota adı: -
   yetki: politika=Finans roller=- şemalar=- + politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (9):
-    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (Kasa.Api.KrediYazDto dto, Kasa.Api.Data.KasaDbContext db)
+  meta veri (5):
+    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ ()
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Finans roller=- şemalar=-
-    - Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata: istek=Kasa.Api.KrediYazDto içerik=application/json isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=dto tür=Kasa.Api.KrediYazDto TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/krediler
 
-#106 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler/{id:int} order=0
+#107 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler/{id:int} order=0
   görünen ad: HTTP: PUT /api/krediler/{id:int}
   yöntem: PUT
   ad: - / rota adı: -
@@ -1814,7 +1820,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/krediler/{id:int}
 
-#107 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler/{id:int} order=0
+#108 Microsoft.AspNetCore.Routing.RouteEndpoint /api/krediler/{id:int} order=0
   görünen ad: HTTP: DELETE /api/krediler/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1829,7 +1835,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/krediler/{id:int}
 
-#108 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler order=0
+#109 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler order=0
   görünen ad: HTTP: GET /api/islemler
   yöntem: GET
   ad: - / rota adı: -
@@ -1848,7 +1854,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/islemler
 
-#109 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler order=0
+#110 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler order=0
   görünen ad: HTTP: POST /api/islemler
   yöntem: POST
   ad: - / rota adı: -
@@ -1865,7 +1871,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/islemler
 
-#110 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler/{id:int} order=0
+#111 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler/{id:int} order=0
   görünen ad: HTTP: PUT /api/islemler/{id:int}
   yöntem: PUT
   ad: - / rota adı: -
@@ -1883,7 +1889,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/islemler/{id:int}
 
-#111 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler/{id:int} order=0
+#112 Microsoft.AspNetCore.Routing.RouteEndpoint /api/islemler/{id:int} order=0
   görünen ad: HTTP: DELETE /api/islemler/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1898,7 +1904,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/islemler/{id:int}
 
-#112 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kartodemeler order=0
+#113 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kartodemeler order=0
   görünen ad: HTTP: GET /api/kartodemeler
   yöntem: GET
   ad: - / rota adı: -
@@ -1914,7 +1920,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kartodemeler
 
-#113 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kartodemeler order=0
+#114 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kartodemeler order=0
   görünen ad: HTTP: POST /api/kartodemeler
   yöntem: POST
   ad: - / rota adı: -
@@ -1931,7 +1937,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kartodemeler
 
-#114 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kartodemeler/{id:int} order=0
+#115 Microsoft.AspNetCore.Routing.RouteEndpoint /api/kartodemeler/{id:int} order=0
   görünen ad: HTTP: DELETE /api/kartodemeler/{id:int}
   yöntem: DELETE
   ad: - / rota adı: -
@@ -1946,7 +1952,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kartodemeler/{id:int}
 
-#115 Microsoft.AspNetCore.Routing.RouteEndpoint /api/gelenler order=0
+#116 Microsoft.AspNetCore.Routing.RouteEndpoint /api/gelenler order=0
   görünen ad: HTTP: GET /api/gelenler
   yöntem: GET
   ad: - / rota adı: -
@@ -1962,7 +1968,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/gelenler
 
-#116 Microsoft.AspNetCore.Routing.RouteEndpoint /api/gelenler order=0
+#117 Microsoft.AspNetCore.Routing.RouteEndpoint /api/gelenler order=0
   görünen ad: HTTP: PUT /api/gelenler
   yöntem: PUT
   ad: - / rota adı: -
@@ -1979,7 +1985,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/gelenler
 
-#117 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ayarlar order=0
+#118 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ayarlar order=0
   görünen ad: HTTP: GET /api/ayarlar
   yöntem: GET
   ad: - / rota adı: -
@@ -1995,7 +2001,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=vekil tür=Kasa.Api.Auth.VekilDurumu TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/ayarlar
 
-#118 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ayarlar order=0
+#119 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ayarlar order=0
   görünen ad: HTTP: PUT /api/ayarlar
   yöntem: PUT
   ad: - / rota adı: -
@@ -2012,7 +2018,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/ayarlar
 
-#119 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ayarlar/izleyici-sifre order=0
+#120 Microsoft.AspNetCore.Routing.RouteEndpoint /api/ayarlar/izleyici-sifre order=0
   görünen ad: HTTP: PUT /api/ayarlar/izleyici-sifre
   yöntem: PUT
   ad: - / rota adı: -
@@ -2030,7 +2036,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/ayarlar/izleyici-sifre
 
-#120 Microsoft.AspNetCore.Routing.RouteEndpoint /api/donemler order=0
+#121 Microsoft.AspNetCore.Routing.RouteEndpoint /api/donemler order=0
   görünen ad: HTTP: GET /api/donemler
   yöntem: GET
   ad: - / rota adı: -
@@ -2046,7 +2052,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/donemler
 
-#121 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/haftalik order=0
+#122 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/haftalik order=0
   görünen ad: HTTP: GET /api/rapor/haftalik
   yöntem: GET
   ad: - / rota adı: -
@@ -2062,7 +2068,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/rapor/haftalik
 
-#122 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/aylik order=0
+#123 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/aylik order=0
   görünen ad: HTTP: GET /api/rapor/aylik
   yöntem: GET
   ad: - / rota adı: -
@@ -2078,7 +2084,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/rapor/aylik
 
-#123 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/panel order=0
+#124 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/panel order=0
   görünen ad: HTTP: GET /api/rapor/panel
   yöntem: GET
   ad: - / rota adı: -
@@ -2094,7 +2100,7 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/rapor/panel
 
-#124 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/ana-sayfa order=0
+#125 Microsoft.AspNetCore.Routing.RouteEndpoint /api/rapor/ana-sayfa order=0
   görünen ad: HTTP: GET /api/rapor/ana-sayfa
   yöntem: GET
   ad: - / rota adı: -

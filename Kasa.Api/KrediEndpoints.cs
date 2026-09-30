@@ -11,10 +11,10 @@ public static class KrediEndpoints
 
         // Krediler (banka kredileri)
         api.MapGet("/krediler", (KasaDbContext db) => db.Krediler.ToList());
-        api.MapPost("/krediler", (KrediYazDto dto, KasaDbContext db) =>
-        {
-            return Results.Conflict(new { hata = "Yeni krediyi güncel uygulamanın Krediler ekranından oluşturun." });
-        }).RequireAuthorization("Editor");
+        // Eski istemcinin kredi ekleme ucu: her durumda aynı iletili 409. Gövde bağlanmaz (okunmaz): bozuk JSON ya da başka içerik
+        // türü de 400/415 yerine aynı 409'u alır.
+        api.MapPost("/krediler", () =>
+            Results.Conflict(new { hata = "Yeni krediyi güncel uygulamanın Krediler ekranından oluşturun." })).RequireAuthorization("Editor");
         api.MapPut("/krediler/{id:int}", (int id, KrediYazDto dto, KasaDbContext db) =>
         {
             using var transaction = db.Database.BeginTransaction();
