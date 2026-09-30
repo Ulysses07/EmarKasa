@@ -37,7 +37,8 @@ const {
 
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
 // timers: verilirse app.js'in kurduğu zamanlayıcılar ({ fn, ms }) buraya yazılır; testte elle çalıştırılır.
-async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, timers = null) {
+// globals: bu örneğin tarayıcı globallerine eklenen ya da onları ezen sahteler (ör. panoya yazan navigator).
+async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, timers = null, globals = {}) {
   const nodes = new Map();
   const requests = [];
   // index.html'deki gibi #modal-content, <dialog id="modal"> içindedir; hata görünürlüğü diyaloğun açık olmasına bakar.
@@ -146,6 +147,7 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, ti
       const value = typeof response === 'function' ? await abortable(response(call), options.signal) : response;
       return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) };
     },
+    ...globals,
   };
   // app.js başlangıcı gerçek içe aktarmalarıyla çalışır; testlerin eriştiği iç işlevler app.js'in dışa açtığı adlardır.
   const app = await webModulu('app.js', browser);
@@ -7018,4 +7020,282 @@ test('para hesapları kayan nokta artığı göstermez: kart borcu etkisi, ana s
   const sinceText = cash.nodes.get('#modal-content').textContent;
   assert.ok(sinceText.includes('Geriye dönük değişim ₺0,20'), sinceText);
   assert.ok(sinceText.includes('Kontrol gününden sonra ₺0,00'), sinceText);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// act() birleştirmesi kapısı: app.js'te düğmesini kendisi kurup işi run(event.currentTarget, …) ile çalıştıran işlem düğmeleri.
+// Aşağıdakiler BUGÜNKÜ davranışı sabitler: düğmenin yapısı (sınıf, öznitelik, gizlilik, dinlenen olay), iş sürerken düğmenin
+// kapalı olması, ikinci basışın yok sayılması, hatanın kalıcı bildirimde görünmesi, düğmenin yeniden açılması ve başarıda işin
+// sonucu (açılan pencere, yeniden okunan liste). Düğmeler act() ile kurulunca bu testler değişmeden geçmelidir.
+// ACT_KAPISI_DOM: karakterizasyonla alınan düğme tabanları (domLines çıktısı); birleştirme öncesi kodla üretildi, elle düzenlenmez.
+const ACT_KAPISI_DOM = {
+  '+ Ödeme ekle': ['button class="button small" type="button" onclick', '  "+ Ödeme ekle"'],
+  'Ödeme kaydet': ['button class="button " type="button" onclick', '  "Ödeme kaydet"'],
+  'Düzelt / taşı': ['button class="button small" type="button" onclick', '  "Düzelt / taşı"'],
+  'Ödemeyi iptal et': ['button class="button small danger" type="button" onclick', '  "Ödemeyi iptal et"'],
+  'Daha eski giderler': ['button class="button small" type="button" onclick', '  "Daha eski giderler"'],
+  Ara: ['button class="button small" type="button" onclick', '  "Ara"'],
+  'Şimdi yedek indir': ['button class="button primary" type="button" onclick', '  "Şimdi yedek indir"'],
+  'İzin, saat ve cihaz ayarları': ['button class="button " type="button" onclick', '  "İzin, saat ve cihaz ayarları"'],
+  '+ Gelir gir': ['button class="button " type="button" onclick', '  "+ Gelir gir"'],
+  '+ Gider kaydet': ['button class="button primary" type="button" onclick', '  "+ Gider kaydet"'],
+  'Dönem geliri gir': ['button class="button primary" type="button" onclick', '  "Dönem geliri gir"'],
+  'Ayı göster': ['button class="button " type="button" onclick', '  "Ayı göster"'],
+  'Gider raporu indir': ['button class="button " type="button" onclick', '  "Gider raporu indir"'],
+  Düzenle: ['button class="button small" type="button" onclick', '  "Düzenle"'],
+  'Değişiklik geçmişini aç': ['button class="button " type="button" onclick', '  "Değişiklik geçmişini aç"'],
+  'Kodu kopyala': ['button class="button " type="button" onclick', '  "Kodu kopyala"'],
+};
+const actPurchase = {
+  id: 6,
+  surum: 2,
+  tarih: '2026-09-23',
+  tedarikci: 'Ege Ambalaj',
+  alici: null,
+  durum: 'Onaylandi',
+  not: null,
+  editorNotu: null,
+  toplam: 100,
+  odenen: 40,
+  kalan: 60,
+  kalemler: [{ aciklama: 'Karton', tutar: 100, dagilimlar: [{ kanalId: 1, kanal: 'A', tutar: 100 }] }],
+  odemeler: [
+    {
+      id: 8,
+      tarih: '2026-09-23',
+      tutar: 40,
+      krediKartiId: null,
+      dagilimBekliyor: false,
+      dagilimlar: [{ kanalId: 1, kanal: 'A', tutar: 40 }],
+    },
+  ],
+};
+const actLinkable = (id, sonrakiImlec = null) => ({
+  ogeler: [{ id, tarih: '2026-09-20', cari: `Gider ${id}`, tutarTl: 10, krediKartiId: null }],
+  sonrakiImlec,
+  devamVar: Boolean(sonrakiImlec),
+});
+const actPurchaseResponses = () => ({
+  '/api/alis': [actPurchase],
+  '/api/alis/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+  '/api/alis/6/belgeler': [],
+  '/api/kredikartlari': [],
+  '/api/alis/baglanabilir-giderler': actLinkable(31, 'c1'),
+  '/api/alis/baglanabilir-giderler?imlec=c1': actLinkable(29),
+});
+const actToolsResponses = () => ({
+  '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true },
+  '/api/yedek/durum': { otomatikEtkin: true },
+  '/api/alicilar': [],
+  '/api/kanallar': [],
+  '/api/bildirimler/ayarlar': { etkin: true, saat: 9, dakika: 0, surum: 1 },
+  '/api/bildirimler/push/anahtar': { etkin: false, publicKey: null },
+  '/api/bildirimler/push/abonelikler': [],
+});
+const actToday = ui.today();
+const actIncomeResponses = () => ({
+  '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+  '/api/kredikartlari': [],
+  '/api/rapor/haftalik': [{ donem: { start: actToday, end: actToday }, kasaDevir: 8, toplamGelen: 10, toplamGiden: 2, kanallar: [] }],
+  [`/api/gelenler?donemStart=${actToday}`]: [],
+});
+const actExpense = { id: 20, tarih: actToday, tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null, surum: 3 };
+const actTransactionsResponses = () => ({
+  '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+  '/api/kredikartlari': [],
+  [`/api/islemler?baslangic=${actToday.slice(0, 8)}01&bitis=${actToday}`]: [actExpense],
+});
+const actMonthlyPath = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
+const modalTitle =
+  title =>
+  ({ nodes }) => {
+    assert.equal(nodes.get('#modal').open, true, title);
+    assert.equal(nodes.get('#modal-title').textContent, title);
+  };
+const readAgain = ({ count, before }, label) => assert.equal(count(), before + 2, `${label}: başarıda yeniden okur`);
+const ACT_KAPISI_DUGMELERI = [
+  // Alış ayrıntısı (editör, kalan tutar var): ödeme ekleme ve ödeme satırının düzelt / iptal düğmeleri.
+  ...[
+    ['+ Ödeme ekle', 'Ödeme kaydet'],
+    ['Ödeme kaydet', 'Ödeme kaydet'],
+    ['Düzelt / taşı', 'Ödeme #8 · Düzelt / taşı'],
+    ['Ödemeyi iptal et', 'Gerçek ödemeyi iptal et'],
+  ].map(([label, title]) => ({
+    label,
+    host: '#view',
+    path: '/api/kredikartlari',
+    extra: actPurchaseResponses(),
+    open: app => app.navigate('purchase', 6),
+    done: modalTitle(title),
+  })),
+  // Alış ödeme penceresi: bağlanabilir gider araması ve eski sayfa.
+  {
+    label: 'Daha eski giderler',
+    host: '#modal-content',
+    path: '/api/alis/baglanabilir-giderler?imlec=c1',
+    extra: actPurchaseResponses(),
+    open: app => app.paymentDialog(actPurchase),
+    done: ({ nodes }) =>
+      assert.deepEqual(
+        formField(nodes, 'mevcutIslemId').children.map(node => node.value),
+        ['', '31', '29']
+      ),
+  },
+  {
+    label: 'Ara',
+    host: '#modal-content',
+    path: '/api/alis/baglanabilir-giderler',
+    extra: actPurchaseResponses(),
+    open: app => app.paymentDialog(actPurchase),
+    done: state => readAgain(state, 'Ara'),
+  },
+  // Ayarlar: yedek ve bildirim ayarları.
+  { label: 'Şimdi yedek indir', host: '#view', path: '/api/yedek', extra: actToolsResponses(), open: app => app.navigate('tools') },
+  {
+    label: 'İzin, saat ve cihaz ayarları',
+    host: '#view',
+    path: '/api/bildirimler/ayarlar',
+    extra: actToolsResponses(),
+    open: app => app.navigate('tools'),
+    done: ({ nodes }) => assert.equal(nodes.get('#modal').open, true),
+  },
+  // Ana sayfa, haftalık ve aylık kasa, işlemler.
+  {
+    label: '+ Gelir gir',
+    host: '#page-actions',
+    path: '/api/rapor/haftalik',
+    extra: actIncomeResponses(),
+    open: app => app.navigate('home'),
+    done: modalTitle('Kanal geliri gir'),
+  },
+  {
+    label: '+ Gider kaydet',
+    host: '#page-actions',
+    path: '/api/kanallar',
+    extra: actIncomeResponses(),
+    open: app => app.navigate('home'),
+    done: modalTitle('Gider kaydet'),
+  },
+  {
+    label: 'Dönem geliri gir',
+    host: '#view',
+    path: '/api/rapor/haftalik',
+    extra: actIncomeResponses(),
+    open: app => app.navigate('weekly'),
+    done: modalTitle('Kanal geliri gir'),
+  },
+  {
+    label: 'Ayı göster',
+    host: '#view',
+    path: actMonthlyPath,
+    extra: { [actMonthlyPath]: { yil: yearNow, ay: monthNumberNow, kuralSurumu: 2, kanallar: [] } },
+    open: app => app.navigate('monthly'),
+    done: state => readAgain(state, 'Ayı göster'),
+  },
+  {
+    label: 'Gider raporu indir',
+    host: '#page-actions',
+    path: '/api/kanallar',
+    extra: actTransactionsResponses(),
+    open: app => app.navigate('transactions'),
+    done: modalTitle('Gider raporu hazırla'),
+  },
+  {
+    label: 'Düzenle',
+    host: '#view',
+    path: '/api/kanallar',
+    extra: actTransactionsResponses(),
+    open: app => app.navigate('transactions'),
+    done: modalTitle('Gideri düzenle'),
+  },
+];
+
+test('act() birleştirmesi kapısı: app.js işlem düğmeleri çalışırken kapalıdır, ikinci basışı yok sayar, hatayı bildirir, işi yapar', async () => {
+  for (const item of ACT_KAPISI_DUGMELERI) {
+    const { app, nodes, calls, responses } = await openApp(false, item.extra);
+    await item.open(app, nodes);
+    await settle();
+    const control = buttonIn(nodes.get(item.host), item.label);
+    assert.ok(control, item.label);
+    assert.deepEqual(domLines(control), ACT_KAPISI_DOM[item.label], `${item.label}: düğme yapısı`);
+    const ok = responses[item.path];
+    const gate = deferred();
+    responses[item.path] = () => gate.promise;
+    const count = () => calls.filter(call => call.path === item.path).length;
+    const before = count();
+    control.listeners.click({ currentTarget: control });
+    await settle();
+    assert.equal(control.disabled, true, `${item.label}: iş sürerken düğme kapalı`);
+    control.listeners.click({ currentTarget: control });
+    await settle();
+    assert.equal(count(), before + 1, `${item.label}: ikinci basış yok sayılır`);
+    gate.resolve({ $status: 409, hata: `${item.label} tamamlanamadı.` });
+    await settle();
+    assert.equal(control.disabled, false, `${item.label}: iş bitince düğme açık`);
+    assert.equal(nodes.get('#alerts').textContent, `${item.label} tamamlanamadı.×`, `${item.label}: hata bildirimi`);
+    if (!item.done) continue;
+    responses[item.path] = ok;
+    await control.listeners.click({ currentTarget: control });
+    await settle();
+    assert.equal(control.disabled, false, `${item.label}: başarıdan sonra düğme açık`);
+    item.done({ nodes, calls, count, before });
+  }
+});
+
+test('act() birleştirmesi kapısı: değişiklik geçmişi düğmesi modül yüklenirken kapalıdır, sonra pencereyi açar', async () => {
+  const { app, nodes } = await openApp(false, { ...actToolsResponses(), '/api/denetim?adet=50': [] });
+  await app.navigate('tools');
+  await settle();
+  const control = buttonIn(nodes.get('#view'), 'Değişiklik geçmişini aç');
+  assert.deepEqual(domLines(control), ACT_KAPISI_DOM['Değişiklik geçmişini aç']);
+  control.listeners.click({ currentTarget: control });
+  assert.equal(control.disabled, true, 'modül yüklenirken düğme kapalı');
+  await settle();
+  assert.equal(control.disabled, false);
+  modalTitle('Değişiklik geçmişi')({ nodes });
+  assert.equal(nodes.get('#alerts')?.textContent ?? '', '', 'hata bildirimi yok');
+});
+
+test('act() birleştirmesi kapısı: kurtarma kodunu kopyalama düğmesi yazarken kapalıdır, hatayı bildirir, başarıyı duyurur', async () => {
+  const writes = [];
+  let pending = null;
+  const clipboard = {
+    writeText: text => {
+      writes.push(text);
+      return new Promise((resolve, reject) => {
+        pending = { resolve, reject };
+      });
+    },
+  };
+  const codeResponses = { '/api/auth/kurtarma-kodu': { kod: 'KOD-1234' } };
+  const { app, nodes } = await openApp(false, codeResponses, null, null, { navigator: { clipboard } });
+  app.recoveryCodeDialog();
+  formField(nodes, 'mevcutSifre').value = 'eski-sifre-uzun';
+  await submitDialog(nodes);
+  const control = buttonIn(nodes.get('#modal-content'), 'Kodu kopyala');
+  assert.ok(control);
+  assert.deepEqual(domLines(control), ACT_KAPISI_DOM['Kodu kopyala']);
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(control.disabled, true, 'yazarken düğme kapalı');
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.deepEqual(writes, ['KOD-1234'], 'ikinci basış yok sayılır');
+  pending.reject(new Error('Panoya yazılamadı.'));
+  await settle();
+  assert.equal(control.disabled, false);
+  assert.equal(nodes.get('#alerts').textContent, 'Panoya yazılamadı.×');
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  pending.resolve();
+  await settle();
+  assert.equal(control.disabled, false);
+  assert.equal(nodes.get('#notifications').textContent, 'Kurtarma kodu kopyalandı.');
+  // Panosu olmayan tarayıcı: elle kopyalama iletisi.
+  const bare = await openApp(false, codeResponses, null, null, { navigator: {} });
+  bare.app.recoveryCodeDialog();
+  formField(bare.nodes, 'mevcutSifre').value = 'eski-sifre-uzun';
+  await submitDialog(bare.nodes);
+  await clickDialog(bare.nodes, 'Kodu kopyala');
+  assert.equal(bare.nodes.get('#alerts').textContent, 'Tarayıcı kopyalamaya izin vermiyor. Kodu seçip elle kopyalayabilirsiniz.×');
 });
