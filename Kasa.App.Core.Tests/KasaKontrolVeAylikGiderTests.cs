@@ -247,15 +247,24 @@ public class KasaKontrolVeAylikGiderTests
         Assert.Contains(Bolum.AylikGiderler, SekmeModeli.Bolumler(Rol.Izleyici));
         Assert.DoesNotContain(Bolum.AylikGiderler, SekmeModeli.Bolumler(Rol.Alici));
     }
+    /// <summary>Tamamlanmış ay denetimi görünüm modelinin saatine bağlıdır (sabit saat: ay sonu gece yarısında testin ve modelin
+    /// gördüğü gün ayrışmaz). Ayın son günü o ay kapatılamaz, ertesi ayın ilk günü kapatılabilir.</summary>
     [Fact]
     public async Task Ay_kilidi_tamamlanmamis_ayi_kapatmaz_ve_acma_yonunu_korur()
     {
         var f = new Fake();
-        var v = new AyKilidiViewModel(f, Auth());
+        var v = new AyKilidiViewModel(f, Auth(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 30)));
         await v.YukleAsync();
-        var bugun = DateTime.Today;
-        await v.DegistirAsync(true, bugun.Year, bugun.Month, "Kontrol", v.OturumNesli, 3);
+        await v.DegistirAsync(true, 2026, 9, "Kontrol", v.OturumNesli, 3);
         Assert.Null(f.KilitGirdi);
+        Assert.Equal("Yalnız tamamlanmış aylar kapatılabilir.", v.Hata);
+        var f2 = new Fake();
+        var ertesiGun = new AyKilidiViewModel(f2, Auth(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 10, 1)));
+        await ertesiGun.YukleAsync();
+        await ertesiGun.DegistirAsync(true, 2026, 9, "Eylül kapandı", ertesiGun.OturumNesli, 3);
+        Assert.Null(ertesiGun.Hata);
+        Assert.True(f2.Kapat);
+        Assert.Equal((2026, 9), (f2.KilitGirdi!.Yil, f2.KilitGirdi.Ay));
         await v.DegistirAsync(false, 2025, 12, "Düzeltme", v.OturumNesli, 3);
         Assert.False(f.Kapat);
         Assert.Equal(3, f.KilitGirdi!.Surum);
