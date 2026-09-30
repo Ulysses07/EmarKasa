@@ -50,7 +50,7 @@ public partial class KartTakipViewModel
         try
         {
             if (Uygula(await kontrolApi.KartMasrafKaydetAsync(kart.Id, g with { DagilimOzeti = dagilimOzeti }), n))
-            { MasrafTemizle(); Mesaj = "Faiz / masraf kanal paylarıyla karta kaydedildi. Henüz kasa çıkışı oluşmadı."; }
+            { MasrafTemizle(); AcikForm = KartFormu.Yok; Mesaj = "Faiz / masraf kanal paylarıyla karta kaydedildi. Henüz kasa çıkışı oluşmadı."; }
         }
         catch (KasaApiException e) when ((int)e.DurumKodu == 409) { if (Gecerli(n)) { _masrafOnizlemesi.Temizle(); MasrafOnizleme = null; } throw; }
     });
