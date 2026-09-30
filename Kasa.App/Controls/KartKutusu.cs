@@ -4,6 +4,7 @@ using Microsoft.Maui;            // Kasa.App.Core.Tests bu dosyayı MAUI örtük
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Layouts;
 
 namespace Kasa.App.Controls;
 
@@ -33,7 +34,7 @@ public class KartKutusu : Border
     private readonly Label _ad, _borcEtiketi, _borc, _limit, _sonOdeme;
     private readonly Grid _cubuk;
     private readonly BoxView _iz, _dolu;
-    private readonly HorizontalStackLayout _etiketler;
+    private readonly FlexLayout _etiketler;
     private Color? _kenar, _yazi;
     private bool _secili;
 
@@ -55,7 +56,8 @@ public class KartKutusu : Border
         var alt = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 8 };
         alt.Add(_limit);
         alt.Add(_sonOdeme, 1);
-        _etiketler = new HorizontalStackLayout { Spacing = 6 };
+        // Etiketler satıra sığmazsa alt satıra geçer: en dar kutuda (220 px) iki etiket yan yana sığmayabilir.
+        _etiketler = new FlexLayout { Wrap = FlexWrap.Wrap, AlignItems = FlexAlignItems.Center };
         var icerik = new VerticalStackLayout
         {
             Padding = new Thickness(16, 14),
@@ -170,6 +172,7 @@ public class KartKutusu : Border
         {
             Style = (Style)Application.Current!.Resources["StatusChip"],
             BackgroundColor = zemin,
+            Margin = new Thickness(0, 0, 6, 4),   // etiketler arası: yanda 6, alta geçen satırla 4
             Content = Yazi(new Label { Text = etiket.Metin, Style = (Style)Application.Current!.Resources["LblStatusChip"], TextColor = yazi }),
         };
         AutomationProperties.SetIsInAccessibleTree(cip, false);

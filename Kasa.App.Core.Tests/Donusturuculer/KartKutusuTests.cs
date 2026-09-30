@@ -45,6 +45,21 @@ public class KartKutusuTests
     }
 
     [Fact]
+    public void Iki_durum_etiketi_dar_kutuda_alt_satira_gecer()
+    {
+        GorunumOrtami.Kur();
+        // En dar kutu 220 px (iç boşluktan sonra ~188 px): "Son ödeme geçti" ile "Eski takip" yan yana sığmayabilir; etiket kabı
+        // tek satıra zorlamaz, sığmayan etiket alt satıra geçer (kutunun dışına taşmaz).
+        var kutu = new KartKutusu
+        {
+            BindingContext = Satir(3, "Garanti Bonus", yeniTakip: false, ekstreler: [new KartEkstreDto(7, new(2026, 9, 10), new(2026, 9, 20), 12500, 0, 12500, null)]),
+        };
+        var kap = kutu.GetVisualTreeDescendants().OfType<Microsoft.Maui.Controls.FlexLayout>()
+            .Single(f => f.Children.OfType<Border>().Count() == 2);
+        Assert.Equal(Microsoft.Maui.Layouts.FlexWrap.Wrap, kap.Wrap);
+    }
+
+    [Fact]
     public void Doluluk_cubugu_orani_gosterir_limit_sifirsa_gizlenir()
     {
         GorunumOrtami.Kur();
