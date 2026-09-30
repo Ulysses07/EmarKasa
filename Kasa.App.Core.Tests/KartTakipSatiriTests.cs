@@ -115,4 +115,15 @@ public class KartTakipSatiriTests
     [Fact]
     public void Renk_kart_adindaki_bankadan_gelir()
         => Assert.Equal(KartRenkAilesi.Yesil, Satir(Kart()).Renk);
+
+    /// <summary>Ekran okuyucu özeti (kutunun düğmesinin ipucu): kutudaki borç, limit, son ödeme ve etiketler tek cümlede;
+    /// olmayan parça yazılmaz, boş parça ya da çift virgül kalmaz.</summary>
+    [Fact]
+    public void Erisilebilir_ozet_kutudaki_bilgileri_sirayla_verir()
+    {
+        Assert.Equal("Kart borcu 12.500,00 ₺, Limit 40.000,00 ₺", Satir(Kart(borc: 12500, limit: 40000)).ErisilebilirOzet);
+        var satir = Satir(Kart(borc: 12500, limit: 40000, yeniTakip: false, ekstreler: [Ekstre(new(2026, 9, 20), 100)]));
+        Assert.Equal("Kart borcu 12.500,00 ₺, Limit 40.000,00 ₺, Son ödeme 20.09.2026, Son ödeme geçti, Eski takip", satir.ErisilebilirOzet);
+        Assert.Equal("Kart borcu 12.500,00 ₺, Limit 40.000,00 ₺, Pasif", Satir(Kart(borc: 12500, limit: 40000, aktif: false)).ErisilebilirOzet);
+    }
 }

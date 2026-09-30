@@ -160,6 +160,12 @@ public record KartTakipSatiri(KartTakipDto Veri, TimeProvider? Zaman = null)
     }
 
     public KartRenkAilesi Renk => KartRengi.Sec(Veri.Ad, Veri.Id);
+
+    /// <summary>Kutunun ekran okuyucu özeti (KartKutusu düğmesinin ipucu; adı ayrıca "{ad} kartı"): borç, limit, varsa son ödeme ve
+    /// kutudaki etiketler, kutudaki sırayla virgülle.</summary>
+    public string ErisilebilirOzet
+        => string.Join(", ", new[] { $"Kart borcu {BorcMetni}", LimitMetni, SonOdemeMetni }.Concat(Etiketler.Select(e => e.Metin))
+            .Where(p => !string.IsNullOrEmpty(p)));
 }
 
 /// <summary>Kart kutusu durum etiketinin türü: rengini belirler (Tehlike NegSoft/Neg, Uyari UyariZemin/UyariMetin, Notr ChipBg/Ink).</summary>

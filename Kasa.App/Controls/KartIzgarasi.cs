@@ -16,6 +16,10 @@ namespace Kasa.App.Controls;
 /// ayrıntı yalnız bir kutu açıkken görünür ve o kutunun satırının hemen altına tam genişlikte yerleşir. Satırdaki kutu sayısı
 /// genişliğe göre değişir. Ölçüm ve yerleştirmenin hesabı KartIzgarasiHesabi'ndadır (Kasa.App.Core, sınanır); bu sınıf yalnız
 /// çocukları ölçüp o hesabın dikdörtgenlerine yerleştirir.
+/// <para>Notlar: <see cref="Ayrinti"/>'nin <c>IsVisible</c>'ını ızgara yönetir (açık kutu varken görünür); sayfa onu ayrıca
+/// bağlamamalıdır, bağlama ızgaranın yazdığı değeri ezer. Ölçüm ve yerleşim genişliği farklı gelirse çocuklar yerleşimde yeniden
+/// ölçülür ve ızgaranın ölçüsü yalnız bir kez (yeni yerleşim genişliğinde) geçersiz kılınır; aynı genişlikte yinelenmez, bu
+/// yüzden üst öğe her turda başka genişlikle ölçüp yerleştirirse yükseklik bir tur gecikebilir ama döngü kurulmaz.</para>
 /// </summary>
 public class KartIzgarasi : Layout
 {
@@ -69,22 +73,85 @@ public class KartIzgarasi : Layout
         KutulariKur();
     }
 
-    private void KaynakDegisti(object? sender, NotifyCollectionChangedEventArgs e) => KutulariKur();
+    /// <summary>Kaynak değişikliği artımlı işlenir (TakipMetni.Doldur'un Clear + N×Add'i N kutu kurar): eklenen satıra kutu
+    /// kurulur, çıkanın kutusu kaldırılır, değişen satır yerindeki kutuya bağlanır, taşınan kutu taşınır. Reset ya da
+    /// işlenemeyen değişiklik (satır olmayan öğe, geçersiz sıra) bütün kutuları yeniden kurar.</summary>
+    private void KaynakDegisti(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (ArtimliIsle(e))
+            Guncelle();
+        else
+            KutulariKur();
+    }
 
-    /// <summary>Kutular kaynaktan yeniden kurulur (satır kayıtları değişmez: güncellenen kart yeni satırdır).</summary>
+    private bool ArtimliIsle(NotifyCollectionChangedEventArgs e)
+    {
+        static List<KartTakipSatiri>? Satirlar(IList? liste)
+            => liste is null ? [] : liste.OfType<KartTakipSatiri>().ToList() is var s && s.Count == liste.Count ? s : null;
+        if (Satirlar(e.NewItems) is not { } yeniler || Satirlar(e.OldItems) is not { } eskiler)
+            return false;
+        int yeni = e.NewStartingIndex, eski = e.OldStartingIndex, sayi = _kutular.Count;
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add when yeni >= 0 && yeni <= sayi:
+                for (var i = 0; i < yeniler.Count; i++)
+                    KutuEkle(yeni + i, yeniler[i]);
+                return true;
+            case NotifyCollectionChangedAction.Remove when eski >= 0 && eski + eskiler.Count <= sayi:
+                foreach (var _ in eskiler)
+                    KutuCikar(eski);
+                return true;
+            case NotifyCollectionChangedAction.Replace when yeni >= 0 && yeniler.Count == eskiler.Count && yeni + yeniler.Count <= sayi:
+                for (var i = 0; i < yeniler.Count; i++)
+                    Bagla(_kutular[yeni + i], yeniler[i]);
+                return true;
+            case NotifyCollectionChangedAction.Move when yeniler.Count == 1 && eski >= 0 && eski < sayi && yeni >= 0 && yeni < sayi:
+                var kutu = _kutular[eski];
+                _kutular.RemoveAt(eski);
+                Remove(kutu);
+                _kutular.Insert(yeni, kutu);
+                Insert(yeni, kutu);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Bütün kutular kaynaktan yeniden kurulur (yeni kaynak, Reset).</summary>
     private void KutulariKur()
     {
-        foreach (var kutu in _kutular)
-            Remove(kutu);
-        _kutular.Clear();
+        while (_kutular.Count > 0)
+            KutuCikar(_kutular.Count - 1);
         foreach (var satir in ItemsSource?.OfType<KartTakipSatiri>() ?? [])
-        {
-            var kutu = new KartKutusu { BindingContext = satir, CommandParameter = satir };
-            kutu.SetBinding(KartKutusu.CommandProperty, new Binding(nameof(SecCommand), source: this));
-            Insert(_kutular.Count, kutu);
-            _kutular.Add(kutu);
-        }
+            KutuEkle(_kutular.Count, satir);
         Guncelle();
+    }
+
+    /// <summary>Kutular ızgaranın ilk çocuklarıdır ("Yeni kart ekle" ve ayrıntı onlardan sonra): kutunun sırası çocuk sırasıdır.</summary>
+    private void KutuEkle(int sira, KartTakipSatiri satir)
+    {
+        var kutu = new KartKutusu();
+        Bagla(kutu, satir);
+        kutu.SetBinding(KartKutusu.CommandProperty, new Binding(nameof(SecCommand), source: this));
+        _kutular.Insert(sira, kutu);
+        Insert(sira, kutu);
+    }
+
+    /// <summary>Kaldırılan kutu ızgaranın komutuna bağlı kalmaz ve platform işleyicisini bırakır.</summary>
+    private void KutuCikar(int sira)
+    {
+        var kutu = _kutular[sira];
+        _kutular.RemoveAt(sira);
+        Remove(kutu);
+        kutu.RemoveBinding(KartKutusu.CommandProperty);
+        kutu.DisconnectHandlers();
+    }
+
+    /// <summary>Satır kayıtları değişmez (güncellenen kart yeni satırdır): kutu yeni satırla yeniden dolar.</summary>
+    private static void Bagla(KartKutusu kutu, KartTakipSatiri satir)
+    {
+        kutu.BindingContext = satir;
+        kutu.CommandParameter = satir;
     }
 
     private void AyrintiDegisti(View? eski, View? yeni)

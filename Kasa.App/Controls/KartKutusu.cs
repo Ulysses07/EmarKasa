@@ -9,10 +9,11 @@ namespace Kasa.App.Controls;
 
 /// <summary>Kredi kartı kutusu (Kartlar ekranı, tasarım 2026-09-30 §2): banka rengindeki zeminde kart adı, "Kart borcu" ve borç,
 /// limit doluluk çubuğu, limit ve ilk açık ekstrenin son ödemesi, en çok iki durum etiketi. İçerik bağlamdaki
-/// <see cref="KartTakipSatiri"/>'ndan gelir; satır değişince KartIzgarasi kutuyu yeniden kurar. Tıklama ve klavye yüzeyi alttaki
-/// şeffaf düğmedir (SeffafDugme, menü öğesiyle aynı desen): Tab ile odaklanır, UI Otomasyonu'nda "{kart adı} kartı" adlı
-/// düğmedir, açık kutu "Ayrıntısı açık" ipucuyla bildirilir; yazılar girdiyi geçirir ve erişilebilirlik ağacında ayrı öğe
-/// değildir. Zemin <c>BackgroundColor</c>'dır (Background fırçası yazılmaz).</summary>
+/// <see cref="KartTakipSatiri"/>'ndan gelir; bağlam değişince kutu yeniden dolar, satır değilse boşalır. Tıklama ve klavye yüzeyi
+/// alttaki şeffaf düğmedir (SeffafDugme, menü öğesiyle aynı desen): Tab ile odaklanır, UI Otomasyonu'nda "{kart adı} kartı" adlı
+/// düğmedir; ipucu kutudaki bilgilerin özetidir (KartTakipSatiri.ErisilebilirOzet), açık kutuda sonuna "; Ayrıntısı açık"
+/// eklenir. Yazılar girdiyi geçirir ve erişilebilirlik ağacında ayrı öğe değildir. Zemin <c>BackgroundColor</c>'dır (Background
+/// fırçası yazılmaz).</summary>
 public class KartKutusu : Border
 {
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(KartKutusu),
@@ -23,8 +24,10 @@ public class KartKutusu : Border
     public ICommand? Command { get => (ICommand?)GetValue(CommandProperty); set => SetValue(CommandProperty, value); }
     public object? CommandParameter { get => GetValue(CommandParameterProperty); set => SetValue(CommandParameterProperty, value); }
 
-    /// <summary>Açık kutunun düğmesine yazılan UI Otomasyonu ipucu.</summary>
+    /// <summary>Açık kutunun düğmesinin ipucuna (satırın ErisilebilirOzet'i) eklenen durum.</summary>
     public const string SeciliIpucu = "Ayrıntısı açık";
+    /// <summary>Kenar kalınlığı; seçili kutuda kalınlaşır. Fark kutunun iç boşluğundan düşülür: seçim kutuyu büyütmez.</summary>
+    private const double Kenar = 1, SeciliKenar = 2.5;
 
     private readonly Button _dugme;
     private readonly Label _ad, _borcEtiketi, _borc, _limit, _sonOdeme;
@@ -37,7 +40,6 @@ public class KartKutusu : Border
     public KartKutusu()
     {
         StrokeShape = new RoundRectangle { CornerRadius = 14 };
-        StrokeThickness = 1;
         _dugme = new Button { Style = (Style)Application.Current!.Resources["SeffafDugme"] };
         _ad = Yazi(new Label { FontAttributes = FontAttributes.Bold, FontSize = 15, LineBreakMode = LineBreakMode.TailTruncation });
         _borcEtiketi = Yazi(new Label { Text = "Kart borcu", FontSize = 12 });
@@ -65,6 +67,7 @@ public class KartKutusu : Border
         kok.Add(_dugme);
         kok.Add(icerik);
         Content = kok;
+        Cerceve();
     }
 
     /// <summary>Kutunun gösterdiği satır (bağlam).</summary>
@@ -76,6 +79,8 @@ public class KartKutusu : Border
         get => _secili;
         set
         {
+            if (_secili == value)
+                return;
             _secili = value;
             Cerceve();
         }
@@ -86,6 +91,26 @@ public class KartKutusu : Border
         base.OnBindingContextChanged();
         if (BindingContext is KartTakipSatiri satir)
             Doldur(satir);
+        else
+            Temizle();
+    }
+
+    /// <summary>Bağlam satır değilse kutu boşalır: eski kartın adı, rengi ve ekran okuyucu metni kalmaz.</summary>
+    private void Temizle()
+    {
+        Satir = null;
+        _kenar = _yazi = null;
+        ClearValue(BackgroundColorProperty);
+        foreach (var etiket in new[] { _ad, _borc, _limit, _sonOdeme })
+            etiket.ClearValue(Label.TextProperty);
+        foreach (var etiket in new[] { _ad, _borcEtiketi, _borc, _limit, _sonOdeme })
+            etiket.ClearValue(Label.TextColorProperty);
+        _sonOdeme.IsVisible = false;
+        _cubuk.IsVisible = false;
+        _etiketler.Clear();
+        _etiketler.IsVisible = false;
+        _dugme.ClearValue(SemanticProperties.DescriptionProperty);
+        Cerceve();
     }
 
     private void Doldur(KartTakipSatiri satir)
@@ -115,16 +140,21 @@ public class KartKutusu : Border
         Cerceve();
     }
 
+    /// <summary>Kenar ve ipucu: seçili kutuda kenar kalın ve yazı renginde, ipucu "{özet}; Ayrıntısı açık".</summary>
     private void Cerceve()
     {
-        if (_secili)
-            SemanticProperties.SetHint(_dugme, SeciliIpucu);
+        StrokeThickness = _secili ? SeciliKenar : Kenar;
+        Padding = new Thickness(SeciliKenar - StrokeThickness);
+        if (Satir is { } satir && _kenar is not null && _yazi is not null)
+        {
+            Stroke = new SolidColorBrush(_secili ? _yazi : _kenar);
+            SemanticProperties.SetHint(_dugme, _secili ? $"{satir.ErisilebilirOzet}; {SeciliIpucu}" : satir.ErisilebilirOzet);
+        }
         else
+        {
+            ClearValue(StrokeProperty);
             _dugme.ClearValue(SemanticProperties.HintProperty);
-        if (_kenar is null || _yazi is null)
-            return;
-        Stroke = new SolidColorBrush(_secili ? _yazi : _kenar);
-        StrokeThickness = _secili ? 2.5 : 1;
+        }
     }
 
     /// <summary>Durum etiketi (StatusChip): tehlike NegSoft/Neg, uyarı UyariZemin/UyariMetin, nötr ChipBg/Ink (kontrast testli).</summary>

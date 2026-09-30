@@ -62,14 +62,65 @@ public class KartKutusuTests
         GorunumOrtami.Kur();
         var kutu = new KartKutusu { BindingContext = Satir(3, "Garanti Bonus") };
         var dugme = kutu.GetVisualTreeDescendants().OfType<Button>().Single();
+        const string ozet = "Kart borcu 12.500,00 ₺, Limit 40.000,00 ₺";
         Assert.Equal(1, kutu.StrokeThickness);
-        Assert.Null(SemanticProperties.GetHint(dugme));
+        Assert.Equal(ozet, SemanticProperties.GetHint(dugme));
         kutu.Secili = true;
         Assert.Equal(2.5, kutu.StrokeThickness);
         Assert.Equal(Renk("KartYesilYazi"), Assert.IsType<SolidColorBrush>(kutu.Stroke).Color);
-        Assert.Equal("Ayrıntısı açık", SemanticProperties.GetHint(dugme));
+        Assert.Equal(ozet + "; Ayrıntısı açık", SemanticProperties.GetHint(dugme));
         kutu.Secili = false;
+        Assert.Equal(ozet, SemanticProperties.GetHint(dugme));
+        Assert.Equal("Garanti Bonus kartı", SemanticProperties.GetDescription(dugme));
+    }
+
+    /// <summary>Seçimle kalınlaşan kenar kutuyu büyütmez (satır zıplamaz): kalınlık farkı kutunun iç boşluğundan düşülür.</summary>
+    [Fact]
+    public void Secim_kutunun_olcusunu_degistirmez()
+    {
+        GorunumOrtami.Kur();
+        var kutu = new KartKutusu { BindingContext = Satir(3, "Garanti Bonus") };
+        var yeni = new YeniKartKutusu();
+        Size Olcu(IContentView v) => v.CrossPlatformMeasure(272, double.PositiveInfinity);
+        var (kutuOlcusu, yeniOlcusu) = (Olcu(kutu), Olcu(yeni));
+        kutu.Secili = true;
+        yeni.Secili = true;
+        Assert.Equal(kutuOlcusu, Olcu(kutu));
+        Assert.Equal(yeniOlcusu, Olcu(yeni));
+        kutu.Secili = false;
+        yeni.Secili = false;
+        Assert.Equal(kutuOlcusu, Olcu(kutu));
+        Assert.Equal(yeniOlcusu, Olcu(yeni));
+    }
+
+    /// <summary>Kutu zeminleri BackgroundColor düz boyasıdır; Background fırçası yazılmaz (dotnet/maui#38813 dersi).</summary>
+    [Fact]
+    public void Kutular_Background_firca_ozelligini_yazmaz()
+    {
+        GorunumOrtami.Kur();
+        var kutu = new KartKutusu { BindingContext = Satir(3, "Garanti Bonus"), Secili = true };
+        var yeni = new YeniKartKutusu { Secili = true };
+        Assert.False(kutu.IsSet(VisualElement.BackgroundProperty));
+        Assert.False(yeni.IsSet(VisualElement.BackgroundProperty));
+        Assert.All(kutu.GetVisualTreeDescendants().Concat(yeni.GetVisualTreeDescendants()).OfType<VisualElement>(),
+            v => Assert.False(v.IsSet(VisualElement.BackgroundProperty)));
+    }
+
+    [Fact]
+    public void Baglam_satir_degilse_kutu_bosalir()
+    {
+        GorunumOrtami.Kur();
+        var kutu = new KartKutusu { BindingContext = Satir(3, "Garanti Bonus", yeniTakip: false), Secili = true };
+        kutu.BindingContext = null;
+        Assert.Null(kutu.Satir);
+        Assert.DoesNotContain(kutu.GetVisualTreeDescendants().OfType<Label>(), l => l.IsVisible && !string.IsNullOrEmpty(l.Text) && l.Text != "Kart borcu");
+        Assert.False(kutu.IsSet(VisualElement.BackgroundColorProperty));
+        var dugme = kutu.GetVisualTreeDescendants().OfType<Button>().Single();
+        Assert.Null(SemanticProperties.GetDescription(dugme));
         Assert.Null(SemanticProperties.GetHint(dugme));
+        kutu.BindingContext = Satir(4, "Akbank");
+        Assert.Equal("Akbank kartı", SemanticProperties.GetDescription(dugme));
+        Assert.Equal(Renk("KartKirmiziZemin"), kutu.BackgroundColor);
     }
 
     [Fact]
@@ -86,6 +137,82 @@ public class KartKutusuTests
         Assert.Same(izgara.YeniKutusu, izgara[3]);
         Assert.Same(ayrinti, izgara[4]);
         Assert.False(ayrinti.IsVisible);   // açık kart yok
+    }
+
+    /// <summary>Kaynak değişiklikleri artımlı işlenir: TakipMetni.Doldur (Clear + N×Add) N kutu kurar, mevcut kutular korunur.</summary>
+    [Fact]
+    public void Kaynaga_eklenen_kart_yalniz_kendi_kutusunu_kurar()
+    {
+        GorunumOrtami.Kur();
+        var kartlar = new ObservableCollection<KartTakipSatiri> { Satir(1, "Eski") };
+        var ayrinti = new Label();
+        var izgara = new KartIzgarasi { ItemsSource = kartlar, Ayrinti = ayrinti, YeniGorunur = true };
+        var kurulan = new List<KartKutusu>();
+        TakipMetni.Doldur(kartlar, Enumerable.Range(1, 10).Select(i => Satir(i, "Kart " + i)));
+        Assert.Equal(10, izgara.Kutular.Count);
+        // Her ekleme yalnız yeni kutuyu kurar: önceki eklemelerde kurulan kutu örnekleri aynen yerindedir.
+        kartlar.Clear();
+        for (var i = 1; i <= 10; i++)
+        {
+            kartlar.Add(Satir(i, "Kart " + i));
+            kurulan.Add(izgara.Kutular[^1]);
+            Assert.Equal(kurulan, izgara.Kutular);
+        }
+        Assert.Equal(Enumerable.Range(1, 10), izgara.Kutular.Select(k => k.Satir!.Veri.Id));
+        kartlar.Insert(0, Satir(42, "Başa"));
+        Assert.Equal(kurulan, izgara.Kutular.Skip(1));
+        Assert.Equal(42, izgara.Kutular[0].Satir!.Veri.Id);
+        Assert.Equal(izgara.Kutular.Cast<object>().Append(izgara.YeniKutusu).Append(ayrinti), izgara.Cast<object>());
+    }
+
+    [Fact]
+    public void Kaynaktan_cikan_tasinan_ve_degisen_kart_kutusunu_gunceller()
+    {
+        GorunumOrtami.Kur();
+        var kartlar = new ObservableCollection<KartTakipSatiri> { Satir(5, "Garanti"), Satir(7, "Akbank"), Satir(9, "Ziraat") };
+        var ayrinti = new Label();
+        var izgara = new KartIzgarasi { ItemsSource = kartlar, Ayrinti = ayrinti, YeniGorunur = true, AcikKartId = 11 };
+        var (k5, k7, k9) = (izgara.Kutular[0], izgara.Kutular[1], izgara.Kutular[2]);
+        var isleyici = new SarimliIsleyici();
+        k7.Handler = isleyici;
+
+        kartlar.RemoveAt(1);   // çıkan kutu ızgaradan ayrılır, bağlaması ve işleyicisi kopar
+        Assert.Equal([k5, k9], izgara.Kutular);
+        Assert.DoesNotContain(k7, izgara.Cast<object>());
+        Assert.True(isleyici.Koptu);
+        izgara.SecCommand = new RelayCommand<KartTakipSatiri>(_ => { });
+        Assert.Same(izgara.SecCommand, k5.Command);
+        Assert.NotSame(izgara.SecCommand, k7.Command);
+
+        kartlar[1] = Satir(11, "İş Bankası");   // değişen kart: kutu yerinde kalır, yeni satırı gösterir ve açık kart olur
+        Assert.Equal([k5, k9], izgara.Kutular);
+        Assert.Equal(11, k9.Satir!.Veri.Id);
+        Assert.Same(kartlar[1], k9.CommandParameter);
+        Assert.True(k9.Secili);
+        Assert.True(ayrinti.IsVisible);
+
+        kartlar.Move(0, 1);
+        Assert.Equal([k9, k5], izgara.Kutular);
+        Assert.Equal(0, izgara.AcikIndeks);
+        Assert.Equal(new object[] { k9, k5, izgara.YeniKutusu, ayrinti }, izgara.Cast<object>().ToArray());
+
+        kartlar.Clear();   // Reset
+        Assert.Empty(izgara.Kutular);
+        Assert.Equal(new object[] { izgara.YeniKutusu, ayrinti }, izgara.Cast<object>().ToArray());
+        Assert.False(ayrinti.IsVisible);
+    }
+
+    [Fact]
+    public void Kaynak_degisince_eski_kaynagin_aboneligi_kalkar()
+    {
+        GorunumOrtami.Kur();
+        var eski = new ObservableCollection<KartTakipSatiri> { Satir(5, "Garanti") };
+        var izgara = new KartIzgarasi { ItemsSource = eski };
+        izgara.ItemsSource = new ObservableCollection<KartTakipSatiri> { Satir(7, "Akbank"), Satir(9, "Ziraat") };
+        var kutular = izgara.Kutular.ToList();
+        eski.Add(Satir(11, "QNB"));
+        eski.Clear();
+        Assert.Equal(kutular, izgara.Kutular);
     }
 
     [Fact]
@@ -187,6 +314,39 @@ public class KartKutusuTests
         Assert.Equal(1, gecersiz);
     }
 
+    /// <summary>İç boşluk (Padding) ölçüye eklenir, hesap iç genişlikle yapılır ve dikdörtgenler boşluk kadar kayar.</summary>
+    [Fact]
+    public void Ic_bosluk_olcuye_eklenir_ve_yerlesimi_kaydirir()
+    {
+        GorunumOrtami.Kur();
+        var ayrinti = new Label();
+        var izgara = new KartIzgarasi
+        {
+            ItemsSource = new[] { Satir(5, "Garanti"), Satir(7, "Akbank") },
+            Ayrinti = ayrinti,
+            AcikKartId = 7,
+            Padding = new Thickness(10, 20, 30, 40),
+        };
+        var isleyiciler = izgara.Kutular.Cast<View>().Append(ayrinti).Select(v =>
+        {
+            var i = new SarimliIsleyici();
+            v.Handler = i;
+            return i;
+        }).ToList();
+        var yerlesim = (ICrossPlatformLayout)izgara;
+        var boyut = yerlesim.CrossPlatformMeasure(1176, double.PositiveInfinity);   // iç genişlik 1136: dört sütun
+        Assert.Equal([272d, 272d, 1136d], isleyiciler.Select(i => i.Genislikler.Last()));
+        Assert.Equal(new Size(1176, 200 + 60), boyut);
+        var gecersiz = 0;
+        izgara.MeasureInvalidated += (_, _) => gecersiz++;
+        var yerlesen = yerlesim.CrossPlatformArrange(new Rect(0, 0, 1176, 260));
+        Assert.Equal(new Rect(10, 20, 272, 148), izgara.Kutular[0].Frame);
+        Assert.Equal(new Rect(298, 20, 272, 148), izgara.Kutular[1].Frame);
+        Assert.Equal(new Rect(10, 184, 1136, 36), ayrinti.Frame);
+        Assert.Equal(new Size(1176, 260), yerlesen);
+        Assert.Equal(0, gecersiz);   // ölçüm ve yerleşim genişliği aynı: yeniden ölçüm ve geçersiz kılma yok
+    }
+
     /// <summary>Platform işleyicisi yerine geçen sahte işleyici: yükseklik genişlikle ters orantılıdır (metin sarımı benzetimi);
     /// ölçüldüğü genişlikleri kaydeder.</summary>
     private sealed class SarimliIsleyici : IViewHandler
@@ -208,6 +368,7 @@ public class KartKutusuTests
         public void SetVirtualView(IElement view) => VirtualView = (IView)view;
         public void UpdateValue(string property) { }
         public void Invoke(string command, object? args = null) { }
-        public void DisconnectHandler() { }
+        public bool Koptu { get; private set; }
+        public void DisconnectHandler() => Koptu = true;
     }
 }

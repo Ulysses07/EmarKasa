@@ -18,6 +18,8 @@ public class YeniKartKutusu : Border
 
     /// <summary>Yeni kart formu açıkken düğmeye yazılan UI Otomasyonu ipucu.</summary>
     public const string SeciliIpucu = "Form açık";
+    /// <summary>Kenar kalınlığı; form açıkken kalınlaşır. Fark kutunun iç boşluğundan düşülür: seçim kutuyu büyütmez.</summary>
+    private const double Kenar = 1.5, SeciliKenar = 2.5;
 
     private readonly Button _dugme;
     private bool _secili;
@@ -56,6 +58,8 @@ public class YeniKartKutusu : Border
         get => _secili;
         set
         {
+            if (_secili == value)
+                return;
             _secili = value;
             Cerceve();
         }
@@ -64,7 +68,8 @@ public class YeniKartKutusu : Border
     private void Cerceve()
     {
         Stroke = new SolidColorBrush(_secili ? (Color)Application.Current!.Resources["Green"] : (Color)Application.Current!.Resources["FieldStroke"]);
-        StrokeThickness = _secili ? 2.5 : 1.5;
+        StrokeThickness = _secili ? SeciliKenar : Kenar;
+        Padding = new Thickness(SeciliKenar - StrokeThickness);
         if (_secili)
             SemanticProperties.SetHint(_dugme, SeciliIpucu);
         else
