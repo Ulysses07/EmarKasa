@@ -73,10 +73,10 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Single(await o.Kasa.GelenlerAsync(Baslangic));
         Assert.Single(await o.Kasa.GelenlerAsync());
 
-        var panel = (await o.Kasa.AnaSayfaAsync()).Panel;
+        var panel = (await o.Kasa.AnaSayfaAsync(ct: TestContext.Current.CancellationToken)).Panel;
         Assert.Equal(1000m + 5000.75m - 1234.56m - 300.25m, panel.GuncelKasa);
         Assert.All(panel.Kanallar, k => Assert.NotNull(k.KanalId));
-        var haftalik = await o.Kasa.HaftalikAsync();
+        var haftalik = await o.Kasa.HaftalikAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(haftalik);
         Assert.All(haftalik, h => Assert.NotEmpty(h.Kanallar));
         var aylik = await o.Kasa.AylikAsync(Bugun.Year, Bugun.Month);
@@ -90,7 +90,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(gider.Id, Assert.Single(benzer).Id);
 
         using var csv = new MemoryStream();
-        var dosya = await o.Yonetim.DisariAktarAsync(Baslangic, Bugun, null, "csv", csv);
+        var dosya = await o.Yonetim.DisariAktarAsync(Baslangic, Bugun, null, "csv", csv, TestContext.Current.CancellationToken);
         Assert.EndsWith(".csv", dosya.DosyaAdi);
         Assert.StartsWith("text/csv", dosya.IcerikTuru);
         Assert.Equal(csv.Length, dosya.Boyut);
@@ -122,7 +122,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
             db.SaveChanges();
         });
 
-        var haftalik = await o.Kasa.HaftalikAsync();
+        var haftalik = await o.Kasa.HaftalikAsync(TestContext.Current.CancellationToken);
         Assert.Equal(900m, haftalik[^1].KasaDevir);
         var donemler = JsonNode.Parse(o.SonYanit.Json!)!.AsArray();
         Assert.Contains("15.01.2031", donemler[^1]!["veriSagligiUyarisi"]!.GetValue<string>());
@@ -188,7 +188,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun, "Olağan gider", 100.25m, "MEZAT", GiderTipi.Cari, null));
         await o.Takip.TakipKartKaydetAsync(null, new KartTakipYaz(Guid.NewGuid(), 0, "Ana sayfa kartı", 10000m, 5, 25, Baslangic, 0m, []));
 
-        var ozet = await o.Kasa.AnaSayfaAsync(60);
+        var ozet = await o.Kasa.AnaSayfaAsync(60, TestContext.Current.CancellationToken);
         var birlesik = JsonNode.Parse(o.SonYanit.Json!)!;
         Assert.Equal(1000m - 100.25m, ozet.Panel.GuncelKasa);
         Assert.NotNull(ozet.KasaEsikleri);
@@ -198,7 +198,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         using (var http = F.CreateClient())
         {
             http.DefaultRequestHeaders.Authorization = new("Bearer", await o.Depo.OkuAsync());
-            var panel = JsonNode.Parse(await http.GetStringAsync("api/rapor/panel"));
+            var panel = JsonNode.Parse(await http.GetStringAsync("api/rapor/panel", TestContext.Current.CancellationToken));
             Assert.True(JsonNode.DeepEquals(birlesik["panel"], panel), "Ana sayfa paneli /api/rapor/panel yanıtından farklı.");
         }
         await o.Kontrol.KasaEsikleriAsync();
@@ -229,7 +229,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
             db.SaveChanges();
         });
 
-        var ozet = await o.Kasa.AnaSayfaAsync(30);
+        var ozet = await o.Kasa.AnaSayfaAsync(30, TestContext.Current.CancellationToken);
         Assert.Equal(1000m - 100m + 250m, ozet.Panel.GuncelKasa);
         Assert.Null(ozet.TakipOzeti);
         var uyari = JsonNode.Parse(o.SonYanit.Json!)!["veriSagligiUyarisi"]!.GetValue<string>();
@@ -247,7 +247,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
     {
         var o = await Editor();
         await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
-        Assert.Null((await o.Kasa.AnaSayfaAsync(30)).TakipsizKayitlar);
+        Assert.Null((await o.Kasa.AnaSayfaAsync(30, TestContext.Current.CancellationToken)).TakipsizKayitlar);
         Assert.Null(JsonNode.Parse(o.SonYanit.Json!)!["takipsizKayitlar"]);
         int kartId = 0, krediId = 0;
         F.Veri(db =>
@@ -261,7 +261,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
             krediId = kredi.Id;
         });
 
-        var ozet = await o.Kasa.AnaSayfaAsync(30);
+        var ozet = await o.Kasa.AnaSayfaAsync(30, TestContext.Current.CancellationToken);
         Assert.Equal([new TakipsizKayitDto("Kart", kartId, "Eski kart"), new TakipsizKayitDto("Kredi", krediId, "Eski kredi")], ozet.TakipsizKayitlar!);
         Assert.Equal(2, JsonNode.Parse(o.SonYanit.Json!)!["takipsizKayitlar"]!.AsArray().Count);
     }

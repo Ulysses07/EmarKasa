@@ -26,7 +26,7 @@ public class DenetimSozlesmeTests : SozlesmeTemeli
         var iptalEdilen = Assert.Single(ay.Iptaller!);
         Assert.Equal((odenen.OdemeId, "Iptal", "Kira yanlış aya girildi", iptal.IptalZamani), (iptalEdilen.OdemeId, iptalEdilen.Durum, iptalEdilen.IptalAciklamasi, iptalEdilen.IptalZamani));
 
-        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 sozlesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null);
+        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 sozlesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null, TestContext.Current.CancellationToken);
         var okunan = Assert.Single(belge.Satirlar);
         var istek = new EkstreKaydetYaz(Guid.NewGuid(), belge.Surum, [new EkstreSatirYaz(okunan.No, okunan.Tarih!.Value, okunan.Aciklama, Math.Abs(okunan.Tutar!.Value), "Gider", "Genel", [])]);
         var onizleme = await o.Ekstre.EkstreOnizlemeAsync(belge.Id, istek);

@@ -65,6 +65,7 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
     [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreBankalarAsync), nameof(IEkstreAktarmaApi.EkstreYukleAsync))]
     public async Task Banka_listesi_tek_kaynaktan_gelir_yukleme_yalniz_listedeki_kodu_kabul_eder()
     {
+        var ct = TestContext.Current.CancellationToken;
         var o = await Editor();
         var bankalar = await o.Ekstre.EkstreBankalarAsync();
         Assert.Equal(Kasa.Api.EkstreAktarmaEndpoints.Bankalar.Select(b => (b.Kod, b.Ad)), bankalar.Select(b => (b.Kod, b.Ad)));
@@ -72,8 +73,8 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         // Aynı PDF (özet) başka kaynak bilgisiyle ikinci kez yüklenemez: her banka kendi dosyasıyla.
         static byte[] Pdf(string ek) => System.Text.Encoding.UTF8.GetBytes("%PDF-1.7 sozlesme " + ek);
         foreach (var banka in bankalar)
-            Assert.Equal(banka.Kod, (await o.Ekstre.EkstreYukleAsync(Pdf(banka.Kod), "ekstre.pdf", "Banka", banka.Kod, "Ana hesap", null)).Banka);
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Ekstre.EkstreYukleAsync(Pdf("liste dışı"), "ekstre.pdf", "Banka", "Ziraat", "Ana hesap", null));
+            Assert.Equal(banka.Kod, (await o.Ekstre.EkstreYukleAsync(Pdf(banka.Kod), "ekstre.pdf", "Banka", banka.Kod, "Ana hesap", null, ct)).Banka);
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => o.Ekstre.EkstreYukleAsync(Pdf("liste dışı"), "ekstre.pdf", "Banka", "Ziraat", "Ana hesap", null, ct));
         Assert.Equal(HttpStatusCode.BadRequest, hata.DurumKodu);
         Assert.Contains("banka", hata.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -86,7 +87,7 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
     {
         var o = await Editor();
         await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
-        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 sozlesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null);
+        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 sozlesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null, TestContext.Current.CancellationToken);
         Assert.Equal(("Banka", "Akbank", "Ana hesap", "ekstre.pdf"), (belge.Kaynak, belge.Banka, belge.HesapAdi, belge.DosyaAdi));
         Assert.Empty(belge.Kayitlar);
         var okunan = Assert.Single(belge.Satirlar);
@@ -107,7 +108,7 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         Assert.Empty(await o.Ekstre.EkstreBelgelerAsync(belge.Id));
         Assert.Equal(belge.Surum, (await o.Ekstre.EkstreBelgeAsync(belge.Id)).Surum);
         using var pdf = new MemoryStream();
-        var dosya = await o.Ekstre.EkstreDosyaAsync(belge.Id, pdf);
+        var dosya = await o.Ekstre.EkstreDosyaAsync(belge.Id, pdf, TestContext.Current.CancellationToken);
         Assert.Equal(("ekstre.pdf", "application/pdf"), (dosya.DosyaAdi, dosya.IcerikTuru));
         Assert.Equal("%PDF-1.7 sozlesme"u8.ToArray(), pdf.ToArray());
 
