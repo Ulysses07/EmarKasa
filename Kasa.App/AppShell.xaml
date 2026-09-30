@@ -29,7 +29,11 @@
         </Grid>
     </Shell.FlyoutHeader>
 
-    <!-- Menü öğesi şablonu: aktif sekme SidebarActive zemin + açık nokta -->
+    <!-- Menü öğesi şablonu: aktif sekme SidebarActive zemin + açık nokta.
+         Zemin BackgroundColor ile yazılır, Background (Brush) ile değil: MAUI 10.0.100–10.0.110'da menü öğesinin görsel
+         durumundaki Background setter'ı UI iş parçacığını sonsuz döngüye sokar (dotnet/maui#38813; Release'te girişten
+         birkaç sn sonra askıda kalma). MAUI 10.0.120+ ile (dotnet/maui#38887) gereksizleşebilir ama zararsızdır; görünüm aynı
+         (düz dolgu). MauiKayitTutarliligiTests.Kabuk_menu_sablonlari_Background_firca_ozelligini_yazmaz bunu korur. -->
     <Shell.ItemTemplate>
         <DataTemplate>
             <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -37,17 +41,17 @@
                     <VisualStateGroup x:Name="CommonStates">
                         <VisualState x:Name="Normal">
                             <VisualState.Setters>
-                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BackgroundColor" Value="Transparent" />
                             </VisualState.Setters>
                         </VisualState>
                         <VisualState x:Name="Selected">
                             <VisualState.Setters>
-                                <Setter Property="Background" Value="{StaticResource SidebarActive}" />
+                                <Setter Property="BackgroundColor" Value="{StaticResource SidebarActive}" />
                             </VisualState.Setters>
                         </VisualState>
                         <VisualState x:Name="PointerOver">
                             <VisualState.Setters>
-                                <Setter Property="Background" Value="{StaticResource SidebarHover}" />
+                                <Setter Property="BackgroundColor" Value="{StaticResource SidebarHover}" />
                             </VisualState.Setters>
                         </VisualState>
                     </VisualStateGroup>
