@@ -23,13 +23,13 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     }
     public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kredi Kartları", "Yeni takipte kartla harcama nakit çıkışı oluşturmaz; kasa kaydettiğiniz ödeme ile azalır. Geçiş yapılmamış eski kartlarda önceki ay sonu kuralı korunur.", vm.YukleAsync)
     {
-        var ozet = Kart("Kart ayrıntısı", Bagli(nameof(vm.KartOzeti), 18));
+        var ozet = Kart("Kart ayrıntısı", BagliBuyuk(nameof(vm.KartOzeti)));
         Govde.Add(Kart("Kartlar", Liste<KartTakipSatiri>(nameof(vm.Kartlar), async s => { vm.SecCommand.Execute(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }), Editor(Dugme("Yeni kart", nameof(vm.YeniCommand)))));
         Govde.Add(ozet);
         // İlk sürüm geçiş kalıntısı (web'deki notice): tahmini kasa farkı varsa koyu kırmızı, yalnız düşüş tarihi farklıysa bilgi.
         var gecisUyarisi = Bagli(nameof(vm.GecisUyarisi));
         gecisUyarisi.FontAttributes = FontAttributes.Bold;
-        gecisUyarisi.Triggers.Add(new DataTrigger(typeof(Label)) { Binding = new Binding(nameof(vm.GecisUyarisiTehlikeli)), Value = true, Setters = { new Setter { Property = Label.TextColorProperty, Value = Colors.DarkRed } } });
+        gecisUyarisi.Triggers.Add(new DataTrigger(typeof(Label)) { Binding = new Binding(nameof(vm.GecisUyarisiTehlikeli)), Value = true, Setters = { new Setter { Property = Label.TextColorProperty, Value = (Color)Application.Current!.Resources["KoyuKirmizi"] } } });
         Govde.Add(Goster(Kart("Geçiş uyarısı", gecisUyarisi), nameof(vm.GecisUyarisi), true));
         Govde.Add(Goster(Kart("Kanalların kalan kart borcu", Bagli(nameof(vm.KanalBorcOzeti)), Metin("Bu tutarlar mevcut kasadan düşülmüş değildir. Kasa, kaydedilen kart ödemesiyle değişir.")), nameof(vm.KartSecili)));
         Govde.Add(Editor(Kart("Kart bilgileri", Alan("Kart / banka adı", Girdi(nameof(vm.Ad))), Alan("Limit", Girdi(nameof(vm.Limit), true)),
@@ -37,8 +37,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Goster(new VerticalStackLayout { Spacing = 12, Children = { Alan("Açılış tarihi", Tarih(nameof(vm.AcilisTarihi))), Alan("Açılış borcu", Girdi(nameof(vm.AcilisBorc), true)), Metin("Açılış borcunun bilinen kanal paylarını girin. Bilinmeyen dağılım tahmin edilmez."), Paylar(vm.AcilisPaylari, () => vm.PayEkle(vm.AcilisPaylari)) } }, nameof(vm.YeniKart)),
             Dugme("Kartı kaydet", nameof(vm.KaydetCommand)))));
         // Kabul edilemez önizlemede (KabulEdilebilir=false) onay kutusu ve düğme kapalıdır; neden kırmızı yazılır.
-        var gecisEngeli = Bagli(nameof(vm.GecisEngeli));
-        gecisEngeli.TextColor = Colors.DarkRed;
+        var gecisEngeli = BagliHata(nameof(vm.GecisEngeli));
         var gecisOnayi = Onay("Gösterilen kasa ve kanal etkisini inceledim; geçişi onaylıyorum.", nameof(vm.GecisOnay));
         gecisOnayi.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.GecisOnaylanabilir));
         // Sunucu farklı bir tutar önerirse alana kendiliğinden yazılmaz; web'deki gibi açık eylemle uygulanıp yeniden önizlenir.

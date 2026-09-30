@@ -18,16 +18,11 @@
         </Grid>
 
         <VerticalStackLayout Grid.Row="1" Spacing="8">
-            <HorizontalStackLayout Spacing="8" IsVisible="{Binding Mesgul}">
-                <ActivityIndicator IsRunning="{Binding Mesgul}" WidthRequest="20" HeightRequest="20" />
-                <Label Text="İşlem tamamlanıyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
-                <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
-            </Border>
+            <!-- Şerit boşken gizlenir: aşağıdaki ileti ve uyarı kutusu yukarı kayar (eski düz yerleşimle aynı). -->
+            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" YukleniyorMetni="İşlem tamamlanıyor…" Hata="{Binding Hata}" HataKutusu="True" />
             <Label Text="{Binding Mesaj}" TextColor="{StaticResource Green}" IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
-            <Border BackgroundColor="#FFF2D9" Stroke="#E9C880" StrokeShape="RoundRectangle 10" Padding="14,10" IsVisible="{Binding DagilimBekliyor}">
-                <Label TextColor="#765100">
+            <Border BackgroundColor="{StaticResource UyariZemin}" Stroke="{StaticResource BrushUyariKenar}" StrokeShape="RoundRectangle 10" Padding="14,10" IsVisible="{Binding DagilimBekliyor}">
+                <Label TextColor="{StaticResource UyariMetin}">
                     <Label.FormattedText><FormattedString>
                         <Span Text="DAĞILIM BEKLİYOR  ·  " FontAttributes="Bold" />
                         <Span Text="{Binding DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" FontAttributes="Bold" />
@@ -64,18 +59,18 @@
                         <VerticalStackLayout Spacing="8">
                             <Grid ColumnDefinitions="*,Auto">
                                 <Label Text="{Binding Baslik}" FontSize="20" FontAttributes="Bold" TextColor="White" />
-                                <Label Grid.Column="1" Text="{Binding Durum}" TextColor="#CBE6D5" FontAttributes="Bold" VerticalOptions="Center" />
+                                <Label Grid.Column="1" Text="{Binding Durum}" TextColor="{StaticResource HeroAcik}" FontAttributes="Bold" VerticalOptions="Center" />
                             </Grid>
                             <Label Text="{Binding KaydiAcan}" Style="{StaticResource LblHeroSub}" />
                             <Label Text="{Binding ToplamMetni}" FontSize="29" FontAttributes="Bold" TextColor="White" />
-                            <Label Text="{Binding OdemeOzeti}" TextColor="#CBE6D5" />
+                            <Label Text="{Binding OdemeOzeti}" TextColor="{StaticResource HeroAcik}" />
                         </VerticalStackLayout>
                     </Border>
-                    <Border BackgroundColor="#FFF2D9" Stroke="#E9C880" StrokeShape="RoundRectangle 10" Padding="14"
+                    <Border BackgroundColor="{StaticResource UyariZemin}" Stroke="{StaticResource BrushUyariKenar}" StrokeShape="RoundRectangle 10" Padding="14"
                             IsVisible="{Binding EditorNotu, Converter={StaticResource DoluIse}}">
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Editörün iade açıklaması" FontAttributes="Bold" TextColor="#765100" />
-                            <Label Text="{Binding EditorNotu}" TextColor="#765100" />
+                            <Label Text="Editörün iade açıklaması" FontAttributes="Bold" TextColor="{StaticResource UyariMetin}" />
+                            <Label Text="{Binding EditorNotu}" TextColor="{StaticResource UyariMetin}" />
                         </VerticalStackLayout>
                     </Border>
 
@@ -90,7 +85,7 @@
                                 <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding AlisNotu}" Placeholder="Alış notu (isteğe bağlı)" /></Border>
                                 <VerticalStackLayout Spacing="12" BindableLayout.ItemsSource="{Binding Kalemler}">
                                     <BindableLayout.ItemTemplate><DataTemplate x:DataType="core:AlisKalemEditor">
-                                        <Border BackgroundColor="#F8F8F3" Stroke="#E3E0D6" StrokeShape="RoundRectangle 10" Padding="14">
+                                        <Border BackgroundColor="{StaticResource KalemZemin}" Stroke="{StaticResource BrushBorder}" StrokeShape="RoundRectangle 10" Padding="14">
                                             <VerticalStackLayout Spacing="10">
                                                 <Grid ColumnDefinitions="*,150,Auto" ColumnSpacing="8">
                                                     <VerticalStackLayout><Label Text="Kalem açıklaması" Style="{StaticResource LblField}" /><Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding Aciklama}" Placeholder="Örn. ürün / hizmet" /></Border></VerticalStackLayout>
@@ -118,7 +113,7 @@
                                 <Button Text="+ Alış kalemi ekle" Command="{Binding KalemEkleCommand}" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start" />
                             </VerticalStackLayout>
                             <Label Text="{Binding DagilimOzeti}" FontAttributes="Bold" />
-                            <Label Text="Kaydedilmemiş değişiklikler var." TextColor="#765100" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
+                            <Label Text="Kaydedilmemiş değişiklikler var." TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
                             <FlexLayout Wrap="Wrap" AlignItems="Center">
                                 <Button Text="Değişiklikleri kaydet" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
                                 <Button Text="İncelemeye gönder" Command="{Binding GonderCommand}" IsVisible="{Binding Gonderilebilir}" Style="{StaticResource BtnSecondary}" Margin="0,0,10,6" />
@@ -172,7 +167,7 @@
                             </VerticalStackLayout>
                             <Label Text="Yeni takipte kart borcu ayrı izlenir; kasa, Kartlar ekranında ödeme kaydedilince azalır. Geçiş yapılmamış eski kartlar eski erteleme kuralını korur." Style="{StaticResource LblPageSub}" />
                             <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding OdemeNotu}" Placeholder="Ödeme notu (isteğe bağlı)" /></Border>
-                            <Border BackgroundColor="#F1F5EE" StrokeThickness="0" StrokeShape="RoundRectangle 10" Padding="14">
+                            <Border BackgroundColor="{StaticResource PayZemin}" StrokeThickness="0" StrokeShape="RoundRectangle 10" Padding="14">
                                 <VerticalStackLayout Spacing="8">
                                     <Label Text="Bu ödemenin kanal payları" FontAttributes="Bold" />
                                     <Label Text="{Binding OnizlemeAciklamasi}" Style="{StaticResource LblPageSub}" />
@@ -181,7 +176,7 @@
                                     </VerticalStackLayout>
                                 </VerticalStackLayout>
                             </Border>
-                            <Label Text="Ödeme eklemek için önce alıştaki değişiklikleri kaydedin." TextColor="#765100" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
+                            <Label Text="Ödeme eklemek için önce alıştaki değişiklikleri kaydedin." TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
                             <Button Text="Ödemeyi kaydet / gideri bağla" Command="{Binding OdemeKaydetCommand}" HorizontalOptions="Start" IsEnabled="{Binding KaydedilmemisDegisiklikVar, Converter={StaticResource TersIse}}" />
                             <Border Style="{StaticResource CardForm}" IsVisible="{Binding OdemeBenzerlik.UyariVar}">
                                 <VerticalStackLayout Spacing="8"><Label Text="{Binding OdemeBenzerlik.Uyari}" /><Button Text="Ayrı bir işlem, devam et" Command="{Binding OdemeyiAyriKaydetCommand}" /></VerticalStackLayout>

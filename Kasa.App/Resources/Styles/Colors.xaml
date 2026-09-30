@@ -43,6 +43,23 @@
     <Color x:Key="SidebarLine">#14FFFFFF</Color>
     <Color x:Key="FocusRing">#2E1E5F46</Color>
 
+    <!-- Uyarı ve bilgi kutuları (dağılım bekliyor, veri sağlığı, kaydedilmemiş değişiklik, iade açıklaması) -->
+    <Color x:Key="UyariMetin">#765100</Color>
+    <Color x:Key="UyariZemin">#FFF2D9</Color>
+    <Color x:Key="UyariKenar">#E9C880</Color>
+    <!-- Kapatılmış (dondurulmuş) ay bilgisi -->
+    <Color x:Key="KilitZemin">#E3EDDF</Color>
+    <Color x:Key="KilitMetin">#366341</Color>
+    <!-- Yeşil hero kart üzerindeki açık metin ve uyarı -->
+    <Color x:Key="HeroAcik">#CBE6D5</Color>
+    <Color x:Key="HeroUyari">#FFDA91</Color>
+    <!-- Alış kalemi düzenleyicisi ve ödeme kanal payları zeminleri -->
+    <Color x:Key="KalemZemin">#F8F8F3</Color>
+    <Color x:Key="PayZemin">#F1F5EE</Color>
+    <!-- Kodla yazılmış takip sayfalarının hata ve bilgi metni (MAUI adlı renkleri Colors.DarkRed / Colors.DarkGreen) -->
+    <Color x:Key="KoyuKirmizi">DarkRed</Color>
+    <Color x:Key="KoyuYesil">DarkGreen</Color>
+
     <!-- Sık kullanılan fırçalar -->
     <SolidColorBrush x:Key="BrushCard" Color="{StaticResource Card}" />
     <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource Border}" />
@@ -53,4 +70,5 @@
     <SolidColorBrush x:Key="BrushNegBorder" Color="{StaticResource NegBorder}" />
     <SolidColorBrush x:Key="BrushSidebar" Color="{StaticResource Sidebar}" />
     <SolidColorBrush x:Key="BrushDateChipBorder" Color="{StaticResource DateChipBorder}" />
+    <SolidColorBrush x:Key="BrushUyariKenar" Color="{StaticResource UyariKenar}" />
 </ResourceDictionary>

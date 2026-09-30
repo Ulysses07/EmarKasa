@@ -8,17 +8,7 @@ internal static class KasaKontrolAlanlari
     private static View Durum(OturumluViewModel vm, Func<Task> yukle, View govde)
     {
         var panel = new VerticalStackLayout { Spacing = 12, BindingContext = vm };
-        var busy = new ActivityIndicator();
-        busy.SetBinding(ActivityIndicator.IsRunningProperty, nameof(vm.Mesgul));
-        var hata = Bagli(nameof(vm.Hata));
-        hata.TextColor = Colors.DarkRed;
-        panel.Add(Tikla("Yenile / tekrar dene", yukle));
-        panel.Add(busy);
-        panel.Add(hata);
-        panel.Add(Bagli(nameof(vm.Mesaj)));
-        var tarih = new Label { FontSize = 12 };
-        tarih.SetBinding(Label.TextProperty, new Binding(nameof(vm.SonGuncelleme), stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
-        panel.Add(tarih);
+        DurumSatirlari(panel, Tikla("Yenile / tekrar dene", yukle), Bagli(nameof(vm.Mesaj)), gostergeSolda: false);
         govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
         govde.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         panel.Add(govde);
@@ -26,10 +16,8 @@ internal static class KasaKontrolAlanlari
     }
     public static View Kontrol(KasaKontrolViewModel vm)
     {
-        var sifirOnayi = Bagli(nameof(vm.KayitUyarisi));
-        sifirOnayi.TextColor = Colors.DarkRed;   // 0 bakiye: ikinci basışta kaydedilir
-        var esikHatasi = Bagli(nameof(vm.EsikHatasi));
-        esikHatasi.TextColor = Colors.DarkRed;     // eşikler yüklenemedi; geçmiş yine görünür
+        var sifirOnayi = BagliHata(nameof(vm.KayitUyarisi));   // 0 bakiye: ikinci basışta kaydedilir
+        var esikHatasi = BagliHata(nameof(vm.EsikHatasi));     // eşikler yüklenemedi; geçmiş yine görünür
         var body = new VerticalStackLayout
         {
             Spacing = 16,

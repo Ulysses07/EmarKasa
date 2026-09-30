@@ -7,7 +7,7 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>
 {
     public KrediTakipPage(KrediTakipViewModel vm) : base(vm, "Krediler", "Taksitler tarihlerinde genel kasa ve sabit kanal paylarından otomatik düşer. Bu, bankaya ödemenin doğrulandığı anlamına gelmez.", vm.YukleAsync)
     {
-        var ozet = Kart("Kredi ayrıntısı", Bagli(nameof(vm.KrediOzeti), 18));
+        var ozet = Kart("Kredi ayrıntısı", BagliBuyuk(nameof(vm.KrediOzeti)));
         Govde.Add(Kart("Krediler", Liste<KrediTakipSatiri>(nameof(vm.Krediler), async s => { vm.SecCommand.Execute(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }), Editor(Dugme("Yeni kredi / mevcut krediyi ekle", nameof(vm.YeniCommand)))));
         Govde.Add(ozet);
         Govde.Add(Editor(Goster(Kart("Kredi ekle", Alan("Banka / kredi adı", Girdi(nameof(vm.Ad))), Onay("Önceden çekilmiş mevcut kredi: yeni kasa girişi oluşturma", nameof(vm.MevcutKredi)),

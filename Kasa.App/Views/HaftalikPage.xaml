@@ -4,7 +4,7 @@
     x:Class="Kasa.App.Views.HaftalikPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:ctl="clr-namespace:Kasa.App.Controls"
     xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:DataType="core:HaftalikViewModel"
     x:Name="Sayfa"
@@ -19,7 +19,8 @@
                 <Label Text="Dönem bazlı kasa sonuçları" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
 
-            <v:RaporDurumu />
+            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" Hata="{Binding Hata}"
+                             SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <!-- Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt): dönem listesinden ayrı ve öne çıkar. -->
             <Border Style="{StaticResource ErrorBox}" IsVisible="{Binding VeriSagligiUyarisi, Converter={StaticResource DoluIse}}">
@@ -38,7 +39,7 @@
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <!-- Yalnız dağılım bekleyen tutar sıfırdan farklıyken; metin satır modelinde (Bicim.Tl). -->
-                                    <Label Text="{Binding DagilimBekleyenMetni}" IsVisible="{Binding DagilimBekliyor}" TextColor="#765100" FontSize="12" Margin="18,5,18,0" />
+                                    <Label Text="{Binding DagilimBekleyenMetni}" IsVisible="{Binding DagilimBekliyor}" TextColor="{StaticResource UyariMetin}" FontSize="12" Margin="18,5,18,0" />
                                     <Grid Padding="18,0" HeightRequest="54"
                                           ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
@@ -75,15 +76,8 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                         <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
-                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
-                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
-                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
-                                </Border>
-                                <Label Text="Kayıtlı dönem yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
-                                <Label Text="İşlem girdikçe haftalık sonuçlar burada birikir."
-                                       Style="{StaticResource LblEmptySub}" />
-                            </VerticalStackLayout>
+                            <ctl:BosDurum Baslik="Kayıtlı dönem yok"
+                                          Aciklama="İşlem girdikçe haftalık sonuçlar burada birikir." />
                         </CollectionView.EmptyView>
                     </CollectionView>
                 </VerticalStackLayout>

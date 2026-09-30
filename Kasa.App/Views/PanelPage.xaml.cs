@@ -36,8 +36,7 @@ public partial class PanelPage : ContentPage
             secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
         var yukle = new ActivityIndicator();
         yukle.SetBinding(ActivityIndicator.IsRunningProperty, nameof(takip.Mesgul));
-        var hata = TakipUi.Bagli(nameof(takip.Hata));
-        hata.TextColor = Colors.DarkRed;
+        var hata = TakipUi.BagliHata(nameof(takip.Hata));
         var icerik = new VerticalStackLayout { Spacing = 12 };
         icerik.Add(TakipUi.Bagli(nameof(takip.Ozet)));
         icerik.Add(TakipUi.Bagli(nameof(takip.BelirsizBorcOzeti)));
