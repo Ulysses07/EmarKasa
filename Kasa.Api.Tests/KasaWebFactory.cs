@@ -16,7 +16,7 @@ namespace Kasa.Api.Tests;
 /// Testler için uygulamayı açık tutulan bir SQLite in-memory bağlantısıyla
 /// (kalıcı şema) ve sabit editör/JWT config'iyle ayağa kaldırır.
 /// </summary>
-public class KasaWebFactory : WebApplicationFactory<Program>
+public class KasaWebFactory : SizdirmayanFabrika<Program>
 {
     /// <summary>Takvime bağlı testlerin varsayılan "bugün"ü (paket bu gün yeşil doğrulandı). Yıl başı,
     /// artık yılın Şubat sonu ve kırpılan ay sonu, ilgili test sınıflarının iç sınıflarında ayrıca koşar.</summary>

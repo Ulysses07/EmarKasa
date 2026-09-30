@@ -210,7 +210,7 @@ public class SaatTests
     /// Program.cs'nin kendi kablolaması: <see cref="KasaWebFactory"/>'nin saat kaydı (AddKasaSaati) yoktur; yalnız
     /// veritabanı bellek içine alınır. Saat verilirse yalnız DI'daki <see cref="TimeProvider"/> değiştirilir.
     /// </summary>
-    private sealed class UretimKablolamasi(TimeProvider? saat = null) : WebApplicationFactory<Program>
+    private sealed class UretimKablolamasi(TimeProvider? saat = null) : SizdirmayanFabrika<Program>
     {
         private readonly SqliteConnection _conn = new("Data Source=:memory:");
 
