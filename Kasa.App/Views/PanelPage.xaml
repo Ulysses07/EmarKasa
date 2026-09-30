@@ -5,6 +5,8 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
+    x:DataType="core:PanelViewModel"
     x:Name="Sayfa"
     Title="Kasalar"
     BackgroundColor="{StaticResource AppBg}">
@@ -48,7 +50,7 @@
                     <Label Text="Kanal Bakiyeleri" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
                     <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="core:KanalKasaSatiri">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,8" MinimumHeightRequest="66"

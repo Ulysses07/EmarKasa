@@ -5,6 +5,9 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
+    xmlns:api="clr-namespace:Kasa.ApiClient;assembly=Kasa.ApiClient"
+    x:DataType="core:AylikViewModel"
     x:Name="Sayfa"
     Title="Aylık"
     BackgroundColor="{StaticResource AppBg}">
@@ -54,7 +57,7 @@
                     </Grid>
                     <CollectionView ItemsSource="{Binding Rapor.Kanallar}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="api:KanalAylikDto">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,0" HeightRequest="54"

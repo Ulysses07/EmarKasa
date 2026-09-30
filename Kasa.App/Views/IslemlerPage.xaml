@@ -5,6 +5,9 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:ctl="clr-namespace:Kasa.App.Controls"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
+    xmlns:api="clr-namespace:Kasa.ApiClient;assembly=Kasa.ApiClient"
+    x:DataType="core:IslemlerViewModel"
     x:Name="Sayfa"
     Title="İşlemler"
     BackgroundColor="{StaticResource AppBg}">
@@ -50,7 +53,7 @@
                                 <FlexLayout Wrap="Wrap" AlignItems="Center"
                                             BindableLayout.ItemsSource="{Binding GiderKanallari}">
                                     <BindableLayout.ItemTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="core:SecimCipi">
                                             <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer
@@ -68,7 +71,7 @@
                                 <FlexLayout Wrap="Wrap" AlignItems="Center"
                                             BindableLayout.ItemsSource="{Binding TipCipleri}">
                                     <BindableLayout.ItemTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="core:SecimCipi">
                                             <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer
@@ -87,7 +90,7 @@
                                 <FlexLayout Wrap="Wrap" AlignItems="Center"
                                             BindableLayout.ItemsSource="{Binding KartCipleri}">
                                     <BindableLayout.ItemTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="core:KartCipi">
                                             <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer
@@ -146,7 +149,7 @@
                                     <Border Style="{StaticResource FieldBorder}">
                                         <Picker ItemsSource="{Binding GelenDonemler}"
                                                 SelectedItem="{Binding GelenDonem}"
-                                                ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, ConverterParameter=yil}"
+                                                ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, ConverterParameter=yil, x:DataType=api:DonemDto}"
                                                 Title="Dönem seçin" />
                                     </Border>
                                 </VerticalStackLayout>
@@ -155,7 +158,7 @@
                                     <FlexLayout Wrap="Wrap" AlignItems="Center"
                                                 BindableLayout.ItemsSource="{Binding GelenKanallari}">
                                         <BindableLayout.ItemTemplate>
-                                            <DataTemplate>
+                                            <DataTemplate x:DataType="core:SecimCipi">
                                                 <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
                                                     <Border.GestureRecognizers>
                                                         <TapGestureRecognizer
@@ -213,7 +216,7 @@
                         <FlexLayout Wrap="Wrap" AlignItems="Center"
                                     BindableLayout.ItemsSource="{Binding FiltreKanallari}">
                             <BindableLayout.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="core:SecimCipi">
                                     <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer
@@ -231,7 +234,7 @@
                             <FlexLayout Wrap="Wrap" AlignItems="Center"
                                         BindableLayout.ItemsSource="{Binding FiltreZamanlar}">
                                 <BindableLayout.ItemTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="core:SecimCipi">
                                         <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer
@@ -247,7 +250,7 @@
                                     MinimumWidthRequest="150" MinimumHeightRequest="38">
                                 <Picker ItemsSource="{Binding FiltreDonemler}"
                                         SelectedItem="{Binding SeciliDonem}"
-                                        ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}}"
+                                        ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, x:DataType=api:DonemDto}"
                                         Title="Hafta seç" />
                             </Border>
                         </Grid>
@@ -258,7 +261,7 @@
                     </VerticalStackLayout>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="api:IslemDto">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,6" MinimumHeightRequest="58"

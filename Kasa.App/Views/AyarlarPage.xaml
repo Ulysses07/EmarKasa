@@ -5,6 +5,9 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:ctl="clr-namespace:Kasa.App.Controls"
+    xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
+    xmlns:api="clr-namespace:Kasa.ApiClient;assembly=Kasa.ApiClient"
+    x:DataType="core:AyarlarViewModel"
     x:Name="Sayfa"
     Title="Ayarlar"
     BackgroundColor="{StaticResource AppBg}">
@@ -140,7 +143,7 @@
                     <!-- Kanal listesi -->
                     <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None" Margin="0,4,0,0">
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="api:KanalDto">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,0" HeightRequest="52"

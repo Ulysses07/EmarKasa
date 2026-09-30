@@ -7,9 +7,12 @@ using System.Xml.Linq;
 namespace Kasa.App.Core.Tests;
 
 /// <summary>
-/// XAML bağlama yolları (tests-9): Kasa.App XAML'inde x:DataType yok, bağlamalar çalışma anında yansımayla çözülür ve
-/// yanlış özellik adı derlemeyi geçip ekranda sessizce boş kalır. Burada her {Binding} yolu, bağlamın gerçek türüne karşı
-/// Kasa.App.Core (ve MAUI) türleri üzerinde yansımayla çözülür:
+/// XAML bağlama yolları (tests-9). Görünümlerin kökü ve her DataTemplate x:DataType taşır (Aşama 4): MAUI XAML kaynak üreteci
+/// (MauiXamlInflator=SourceGen) bu bağlamaları derler, yanlış yol derleme hatasıdır (Kasa.App.csproj WarningsAsErrors:
+/// MAUIG2045/MAUIG2024). Derlenmeyen bağlamalar yine çalışma anında yansımayla çözülür: Source={x:Reference Sayfa} ile
+/// BindingContext.X yolları ve Styles.xaml DataTrigger'ları; yanlış ad orada derlemeyi geçip ekranda sessizce boş kalır.
+/// Burada her {Binding} yolu, bağlamın gerçek türüne karşı Kasa.App.Core (ve MAUI) türleri üzerinde yansımayla çözülür ve
+/// x:DataType'ın o gerçek türle aynı olduğu denetlenir (yanlış x:DataType derlenmiş bağlamayı sessizce boşa düşürür):
 /// <list type="bullet">
 /// <item>Sayfa kökü: kod-arkasında <c>BindingContext = ... vm</c> ile atanan kurucu parametresinin ViewModel türü.</item>
 /// <item>ItemsSource / BindableLayout.ItemsSource yolunun öğe türü, o öğenin DataTemplate'ine ve ItemDisplayBinding'e geçer.</item>
@@ -40,6 +43,49 @@ public partial class MauiKayitTutarliligiTests
         var atlanan = denetim.TumBaglamalar.Except(denetim.Degerlendirilen).Order().ToList();
         Assert.True(atlanan.Count == 0, "Hiç değerlendirilmeyen bağlamalar (sayfa/görünüm/stil kapsamı dışında):\n" + string.Join("\n", atlanan));
         Assert.True(denetim.TumBaglamalar.Count > 240, $"XAML bağlamaları okunamadı ({denetim.TumBaglamalar.Count}).");
+    }
+
+    /// <summary>Derlenmiş bağlamalar (Aşama 4): Views altındaki her görünümün kökü, her DataTemplate ve her Picker
+    /// ItemDisplayBinding'i x:DataType taşır ve bu tür bağlamanın gerçek türüyle aynıdır (kendi bağlamı olmayan RaporDurumu
+    /// kullanıldığı her bağlamın atanabileceği türdür). x:DataType'sız DataTemplate dış kapsamın türünü devralır; yanlış tür
+    /// derlenmiş bağlamayı çalışma anında sessizce boşa düşürür.</summary>
+    [Fact]
+    public void Xaml_gorunumleri_derlenmis_baglama_icin_dogru_x_DataType_tasir()
+    {
+        var denetim = new XamlBaglamaDenetimi(Uygulama);
+        denetim.HepsiniDenetle();
+        Assert.True(denetim.VeriTuruHatalari.Count == 0, "x:DataType sorunları:\n" + string.Join("\n", denetim.VeriTuruHatalari));
+        // 7 sayfa kökü + RaporDurumu'nun 3 kullanımı + 19 DataTemplate + 9 ItemDisplayBinding.
+        Assert.True(denetim.DenetlenenVeriTuru >= 38, $"x:DataType denetimi eksik ({denetim.DenetlenenVeriTuru}).");
+    }
+
+    /// <summary>x:DataType denetiminin kendisi: eksik ve yanlış x:DataType bildirilir; doğrusu bildirilmez.</summary>
+    [Fact]
+    public void Eksik_ya_da_yanlis_x_DataType_bildirilir()
+    {
+        const string xaml = """
+            <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                         xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core" xmlns:api="clr-namespace:Kasa.ApiClient;assembly=Kasa.ApiClient"
+                         x:DataType="core:HaftalikViewModel" x:Name="Sayfa">
+              <VerticalStackLayout>
+                <CollectionView ItemsSource="{Binding Donemler}">
+                  <CollectionView.ItemTemplate><DataTemplate x:DataType="core:HaftalikSatir"><Label Text="{Binding KasaSonucu}" /></DataTemplate></CollectionView.ItemTemplate>
+                </CollectionView>
+                <CollectionView ItemsSource="{Binding Donemler}">
+                  <CollectionView.ItemTemplate><DataTemplate><Label Text="{Binding KasaSonucu}" /></DataTemplate></CollectionView.ItemTemplate>
+                </CollectionView>
+                <CollectionView ItemsSource="{Binding Donemler}">
+                  <CollectionView.ItemTemplate><DataTemplate x:DataType="api:DonemDto"><Label Text="{Binding KasaSonucu}" /></DataTemplate></CollectionView.ItemTemplate>
+                </CollectionView>
+              </VerticalStackLayout>
+            </ContentPage>
+            """;
+        var denetim = new XamlBaglamaDenetimi(Uygulama);
+        denetim.Denetle(XDocument.Parse(xaml, LoadOptions.SetLineInfo), "Ornek.xaml", typeof(HaftalikViewModel), veriTuruZorunlu: true);
+        Assert.Empty(denetim.Hatalar);
+        Assert.Equal(2, denetim.VeriTuruHatalari.Count);
+        Assert.Contains(denetim.VeriTuruHatalari, h => h.Contains("x:DataType yok") && h.Contains(nameof(HaftalikSatir)));
+        Assert.Contains(denetim.VeriTuruHatalari, h => h.Contains("DonemDto") && h.Contains(nameof(HaftalikSatir)));
     }
 
     /// <summary>Çözücünün kendisi: yanlış ad, şablon içinde yanlış öğe alanı, sayfa referansıyla yanlış komut ve yanlış iç
@@ -122,6 +168,10 @@ public partial class MauiKayitTutarliligiTests
         /// <summary>Kaynaktaki bütün bağlama öznitelikleri ("dosya:satır öznitelik=değer").</summary>
         public HashSet<string> TumBaglamalar { get; } = [];
         public HashSet<string> Degerlendirilen { get; } = [];
+        /// <summary>x:DataType eksikleri ve bağlamanın gerçek türüyle uyuşmazlıkları (yalnız Views altındaki görünümler).</summary>
+        public List<string> VeriTuruHatalari { get; } = [];
+        public int DenetlenenVeriTuru { get; private set; }
+        private bool _veriTuruZorunlu;
 
         public void HepsiniDenetle()
         {
@@ -138,13 +188,17 @@ public partial class MauiKayitTutarliligiTests
                     Hatalar.Add($"{ad}: kod-arkasındaki BindingContext ataması çözülemedi.");
                     continue;
                 }
-                Denetle(Yukle(dosya), Path.GetFileName(dosya), kok);
+                Denetle(Yukle(dosya), Path.GetFileName(dosya), kok, veriTuruZorunlu: true);
             }
+            // Kabuk şablonları (menü öğesi, menü komutu) Aşama 4 kapsamı dışında: bağlamaları çalışma anında çözülür.
             Denetle(Yukle(Path.Combine(uygulama, "AppShell.xaml")), "AppShell.xaml", null);
         }
 
-        public void Denetle(XDocument belge, string dosya, Type? kok)
+        public void Denetle(XDocument belge, string dosya, Type? kok, bool veriTuruZorunlu = false)
         {
+            _veriTuruZorunlu = veriTuruZorunlu;
+            if (veriTuruZorunlu)
+                VeriTuruDenetle(belge.Root!, dosya, kok);
             var adlar = new Dictionary<string, Type?>();
             if (belge.Root!.Attribute(Xaml + "Name")?.Value is { } kokAdi)
                 adlar[kokAdi] = kok;
@@ -155,7 +209,13 @@ public partial class MauiKayitTutarliligiTests
         {
             var ad = el.Name.LocalName;
             if (ad == "DataTemplate")
+            {
                 baglam = sablon;
+                if (_veriTuruZorunlu)
+                    VeriTuruDenetle(el, dosya, sablon);
+            }
+            else if (_veriTuruZorunlu && el.Parent is not null && el.Attribute(Xaml + "DataType") is not null)
+                VeriTuruDenetle(el, dosya, baglam);   // ara öğede yeniden tanımlanan x:DataType da gerçek bağlamla aynı olmalı
             if (ad.Contains('.'))
             {
                 // Özellik öğesi (CollectionView.ItemTemplate, Label.FormattedText ...): bağlam değişmez; kabuk şablonları hariç.
@@ -171,7 +231,12 @@ public partial class MauiKayitTutarliligiTests
             foreach (var kaynak in el.Attributes().Where(a => a.Name.LocalName is "ItemsSource" or "BindableLayout.ItemsSource" && Baglama(a.Value)))
                 oge = Eleman(dosya, kaynak, Degerlendir(kaynak, dosya, baglam, adlar));
             foreach (var a in el.Attributes().Where(a => Baglama(a.Value) && a.Name.LocalName is not ("BindingContext" or "ItemsSource" or "BindableLayout.ItemsSource")))
+            {
                 Degerlendir(a, dosya, a.Name.LocalName == "ItemDisplayBinding" ? oge : baglam, adlar, oge is null && a.Name.LocalName == "ItemDisplayBinding" ? "ItemsSource öğe türü bilinmiyor" : null);
+                // Picker ItemDisplayBinding'i öğeye uygulanır; sayfanın x:DataType'ı ona uymaz, öğe türü bağlamada yazılır.
+                if (_veriTuruZorunlu && a.Name.LocalName == "ItemDisplayBinding")
+                    VeriTuruDenetle(el, $"{dosya} ItemDisplayBinding", oge, deger: Ayristir(a.Value).VeriTuru ?? "");
+            }
             if (el.Attribute(Xaml + "Name")?.Value is { } isim)
                 adlar.TryAdd(isim, baglam);
             if (el.Attribute("Style")?.Value is { } stil && StaticResource().Match(stil) is { Success: true } s && _stilBaglamalari.TryGetValue(s.Groups[1].Value, out var stilBaglamalari))
@@ -181,10 +246,45 @@ public partial class MauiKayitTutarliligiTests
                     Coz(yol, baglam, $"{dosya}:{Satir(el)} Style={s.Groups[1].Value} → {anahtar}");
                 }
             if (el.Name.NamespaceName == GorunumAdAlani && File.Exists(Path.Combine(uygulama, "Views", ad + ".xaml")) && SayfaTuru(ad) is null)
-                foreach (var c in Yukle(Path.Combine(uygulama, "Views", ad + ".xaml")).Root!.Elements())
+            {
+                var gorunum = Yukle(Path.Combine(uygulama, "Views", ad + ".xaml")).Root!;
+                if (_veriTuruZorunlu)
+                    VeriTuruDenetle(gorunum, $"{ad}.xaml ({dosya}:{Satir(el)} kullanımı)", baglam, atanabilir: true);
+                foreach (var c in gorunum.Elements())
                     Yuru(c, ad + ".xaml", baglam, null, new Dictionary<string, Type?>());
+            }
             foreach (var c in el.Elements())
                 Yuru(c, dosya, baglam, oge ?? sablon, adlar);
+        }
+
+        /// <summary>Öğenin x:DataType'ı (ya da bağlamanın kendi <paramref name="deger"/>'i) bağlamın gerçek türüdür;
+        /// <paramref name="atanabilir"/> ise gerçek tür ona atanabilir (taban tür).</summary>
+        private void VeriTuruDenetle(XElement el, string yer, Type? beklenen, bool atanabilir = false, string? deger = null)
+        {
+            DenetlenenVeriTuru++;
+            yer = $"{yer}:{Satir(el)} {el.Name.LocalName}";
+            deger ??= el.Attribute(Xaml + "DataType")?.Value;
+            if (string.IsNullOrEmpty(deger))
+            { VeriTuruHatalari.Add($"{yer}: x:DataType yok (beklenen {beklenen?.FullName ?? "bilinmiyor"})."); return; }
+            if (TurCoz(el, deger) is not { } tur)
+            { VeriTuruHatalari.Add($"{yer}: x:DataType=\"{deger}\" çözülemedi."); return; }
+            if (beklenen is null)
+                VeriTuruHatalari.Add($"{yer}: bağlamın gerçek türü bilinmiyor; x:DataType={tur.Name} doğrulanamadı.");
+            else if (atanabilir ? !tur.IsAssignableFrom(beklenen) : tur != beklenen)
+                VeriTuruHatalari.Add($"{yer}: x:DataType={tur.FullName}, bağlamın gerçek türü {beklenen.FullName}.");
+        }
+
+        /// <summary>"önek:Ad" biçimindeki XAML tür adını çözer: clr-namespace eşlemesi ya da MAUI'nin varsayılan ad alanı.</summary>
+        private static Type? TurCoz(XElement el, string deger)
+        {
+            var parca = deger.Split(':');
+            var (onek, ad) = parca.Length == 2 ? (parca[0], parca[1]) : ("", parca[0]);
+            var ns = (onek.Length == 0 ? el.GetDefaultNamespace() : el.GetNamespaceOfPrefix(onek))?.NamespaceName;
+            if (ns == "http://schemas.microsoft.com/dotnet/2021/maui")
+                return typeof(BaseShellItem).Assembly.GetType("Microsoft.Maui.Controls." + ad);
+            if (ns is null || ClrAdAlani().Match(ns) is not { Success: true } m || !m.Groups[2].Success)
+                return null;
+            return Assembly.Load(m.Groups[2].Value).GetType($"{m.Groups[1].Value}.{ad}");
         }
 
         /// <summary>Bağlamayı çözer, sonucun türünü döndürür (çözülemezse null ve hata).</summary>
@@ -192,7 +292,7 @@ public partial class MauiKayitTutarliligiTests
         {
             Degerlendirilen.Add(Anahtar(dosya, a));
             var yer = $"{dosya}:{Satir(a)} {a.Name.LocalName}=\"{a.Value}\"";
-            var (yol, kaynak, desteksiz) = Ayristir(a.Value);
+            var (yol, kaynak, desteksiz, _) = Ayristir(a.Value);
             if (desteksiz is not null)
             { Hatalar.Add($"{yer}: desteklenmeyen bağlama ({desteksiz})."); return null; }
             if (kaynak is not null)
@@ -284,13 +384,15 @@ public partial class MauiKayitTutarliligiTests
             return stiller.Keys.Select(k => (k, Topla(k))).Where(x => x.Item2.Count > 0).ToDictionary(x => x.k, x => x.Item2);
         }
 
-        /// <summary>{Binding yol, Source={x:Reference Ad}, Converter=..., StringFormat='...'} → yol ve kaynak adı.</summary>
-        private static (string Yol, string? Kaynak, string? Desteksiz) Ayristir(string deger)
+        /// <summary>{Binding yol, Source={x:Reference Ad}, Converter=..., StringFormat='...', x:DataType=...} → yol, kaynak adı
+        /// ve bağlamanın kendi x:DataType'ı.</summary>
+        private static (string Yol, string? Kaynak, string? Desteksiz, string? VeriTuru) Ayristir(string deger)
         {
             var ic = deger.Trim()["{Binding".Length..^1];
             string yol = ".";
             string? kaynak = null;
             string? desteksiz = null;
+            string? veriTuru = null;
             var ilk = true;
             foreach (var parca in UstDuzeyBol(ic).Select(p => p.Trim()).Where(p => p.Length > 0))
             {
@@ -314,9 +416,12 @@ public partial class MauiKayitTutarliligiTests
                     case "RelativeSource":
                         desteksiz = parca;
                         break;
+                    case "x:DataType":
+                        veriTuru = d;
+                        break;
                 }
             }
-            return (yol, kaynak, desteksiz);
+            return (yol, kaynak, desteksiz, veriTuru);
         }
 
         private static IEnumerable<string> UstDuzeyBol(string s)
@@ -360,5 +465,7 @@ public partial class MauiKayitTutarliligiTests
         private static partial Regex StaticResource();
         [GeneratedRegex(@"^\{x:Reference (\w+)\}$")]
         private static partial Regex ReferansKaynagi();
+        [GeneratedRegex(@"^clr-namespace:([\w.]+)(?:;assembly=([\w.]+))?$")]
+        private static partial Regex ClrAdAlani();
     }
 }
