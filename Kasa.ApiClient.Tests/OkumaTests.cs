@@ -45,7 +45,7 @@ public class OkumaTests
               "kanallar":[{"kanal":"MEZAT","gelen":500.0,"giden":200.0,"sonuc":300.0,"devir":100.0}],
               "toplamGelen":500.0,"toplamGiden":200.0,"kasaSonucu":300.0,"kasaDevir":1000.0}]
         """);
-        var liste = await c.HaftalikAsync();
+        var liste = await c.HaftalikAsync(TestContext.Current.CancellationToken);
         Assert.Single(liste);
         Assert.Equal(new DateOnly(2026, 3, 2), liste[0].Donem.Start);
         Assert.Equal(3, liste[0].Donem.Ay);

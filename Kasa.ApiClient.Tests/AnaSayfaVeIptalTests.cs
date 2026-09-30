@@ -32,7 +32,7 @@ public class AnaSayfaVeIptalTests
     {
         var h = new Kayitci((_, _) => Json(AnaSayfaJson));
 
-        var a = await Client(h).AnaSayfaAsync(7);
+        var a = await Client(h).AnaSayfaAsync(7, TestContext.Current.CancellationToken);
 
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=7" }, h.Istekler);
         Assert.Equal(900, a.Panel.GuncelKasa);
@@ -53,7 +53,7 @@ public class AnaSayfaVeIptalTests
     public async Task Ana_sayfa_takipte_olmayan_kayitlari_okur()
     {
         var json = AnaSayfaJson.TrimEnd()[..^1] + ""","takipsizKayitlar":[{"kaynak":"Kart","id":4,"ad":"Bonus"},{"kaynak":"Kredi","id":7,"ad":"Taşıt"}]}""";
-        var a = await Client(new Kayitci((_, _) => Json(json))).AnaSayfaAsync();
+        var a = await Client(new Kayitci((_, _) => Json(json))).AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
         Assert.Equal([new TakipsizKayitDto("Kart", 4, "Bonus"), new TakipsizKayitDto("Kredi", 7, "Taşıt")], a.TakipsizKayitlar!);
     }
 
@@ -63,8 +63,8 @@ public class AnaSayfaVeIptalTests
         var h = new Kayitci((istek, _) => istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? Json(PanelJson) : Durum(HttpStatusCode.NotFound));
         var c = Client(h);
 
-        var ilk = await c.AnaSayfaAsync();
-        var ikinci = await c.AnaSayfaAsync();
+        var ilk = await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
+        var ikinci = await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/panel" }, h.Istekler);
         Assert.Equal(900, ilk.Panel.GuncelKasa);
@@ -84,8 +84,8 @@ public class AnaSayfaVeIptalTests
         var h = new Kayitci((istek, _) => istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? Json(PanelJson) : Durum(kod));
         var c = Client(h);
 
-        var ilk = await c.AnaSayfaAsync();
-        await c.AnaSayfaAsync();
+        var ilk = await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
+        await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(900, ilk.Panel.GuncelKasa);
         Assert.Equal(2, ilk.Panel.Kanallar.Count);
@@ -98,7 +98,7 @@ public class AnaSayfaVeIptalTests
     public async Task Ana_sayfa_ve_panel_ikisi_de_hata_verirse_panelin_hatasi_tasinir()
     {
         var h = new Kayitci((istek, _) => Durum(istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? HttpStatusCode.BadGateway : HttpStatusCode.InternalServerError));
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync());
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken));
         Assert.Equal(HttpStatusCode.BadGateway, hata.DurumKodu);
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
     }
@@ -108,7 +108,7 @@ public class AnaSayfaVeIptalTests
     {
         // Sunucu (RDY) takip özeti hesaplanamayınca paneli özetsiz döndürür; istemci boş liste ya da sıfır uydurmaz.
         var h = new Kayitci((_, _) => Json("""{"panel":""" + PanelJson + ""","kasaEsikleri":null,"takipOzeti":null}"""));
-        var a = await Client(h).AnaSayfaAsync();
+        var a = await Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
         Assert.Equal(900, a.Panel.GuncelKasa);
         Assert.Null(a.KasaEsikleri);
         Assert.Null(a.TakipOzeti);
@@ -119,7 +119,7 @@ public class AnaSayfaVeIptalTests
     public async Task Ana_sayfa_istemci_hatasi_panele_dusmez()
     {
         var h = new Kayitci((_, _) => Durum(HttpStatusCode.Forbidden));
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync());
+        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken));
         Assert.Equal(HttpStatusCode.Forbidden, hata.DurumKodu);
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30" }, h.Istekler);
     }

@@ -40,7 +40,7 @@ public class EkstreAktarmaApiTests
             body = await r.Content!.ReadAsStringAsync(ct);
             return Response(Belge());
         }), store);
-        var b = await client.EkstreYukleAsync(Encoding.UTF8.GetBytes("%PDF"), "C:\\gizli\\hareket.pdf", "Kart", "Vakifbank", "", 4);
+        var b = await client.EkstreYukleAsync(Encoding.UTF8.GetBytes("%PDF"), "C:\\gizli\\hareket.pdf", "Kart", "Vakifbank", "", 4, TestContext.Current.CancellationToken);
         Assert.Equal(8, b.Id);
         Assert.Contains("name=dosya", body);
         Assert.Contains("application/pdf", body);
@@ -130,7 +130,7 @@ public class EkstreAktarmaApiTests
             return Task.FromResult(response);
         }));
         var hedef = new MemoryStream();
-        var file = await c.EkstreDosyaAsync(8, hedef);
+        var file = await c.EkstreDosyaAsync(8, hedef, TestContext.Current.CancellationToken);
         Assert.Equal("ekstre.pdf", file.DosyaAdi);
         Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray());
     }
