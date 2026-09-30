@@ -51,25 +51,25 @@ public sealed class KasaDokumu(DateOnly bugun, decimal kasaAcilis, IReadOnlyList
     {
         var anahtar = h.KaynakAnahtari ?? "";
         if (h.Gelen is not null)
-            return anahtar.StartsWith("Kredi:", StringComparison.Ordinal) ? "KrediCekimi"
-                : anahtar.StartsWith("EkstreKayit:", StringComparison.Ordinal) ? "EkstreGeliri"
-                : anahtar.StartsWith("HesapHareket:", StringComparison.Ordinal) ? "EkGelir" : "Gelir";
+            return anahtar.StartsWith("Kredi:", StringComparison.Ordinal) ? KasaHareketTurleri.KrediCekimi
+                : anahtar.StartsWith("EkstreKayit:", StringComparison.Ordinal) ? KasaHareketTurleri.EkstreGeliri
+                : anahtar.StartsWith("HesapHareket:", StringComparison.Ordinal) ? KasaHareketTurleri.EkGelir : KasaHareketTurleri.Gelir;
         var i = h.Islem!;
         if (h.KartAySonu)
-            return "KartAySonu";
+            return KasaHareketTurleri.KartAySonu;
         if (anahtar.StartsWith("Kredi:", StringComparison.Ordinal) || anahtar.StartsWith("TakipKrediTaksit:", StringComparison.Ordinal))
-            return "KrediTaksidi";
+            return KasaHareketTurleri.KrediTaksidi;
         if (anahtar.StartsWith("TakipHarcama:", StringComparison.Ordinal))
-            return "KartIadesi";
+            return KasaHareketTurleri.KartIadesi;
         if (i.NakitKartOdemesi)
-            return "KartOdemesi";
+            return KasaHareketTurleri.KartOdemesi;
         if (i.AylikGider)
-            return "AylikGider";
-        return i.Tip == GiderTipi.SabitGider ? "SabitGider" : "Gider";
+            return KasaHareketTurleri.AylikGider;
+        return i.Tip == GiderTipi.SabitGider ? KasaHareketTurleri.SabitGider : KasaHareketTurleri.Gider;
     }
 
     /// <summary>Yazma olmadan, tarihi gelince kendiliğinden işleyen etki: kredi taksidi ve eski kartın ay sonu düşümü.</summary>
-    public static bool Otomatik(string tur) => tur is "KrediTaksidi" or "KartAySonu";
+    public static bool Otomatik(string tur) => tur is KasaHareketTurleri.KrediTaksidi or KasaHareketTurleri.KartAySonu;
 
     /// <summary>Satırı üreten genel giderin (Islemler) kimliği; başka kaynaklı satırda null.</summary>
     public static int? IslemId(KasaHareketi h) =>
@@ -78,7 +78,7 @@ public sealed class KasaDokumu(DateOnly bugun, decimal kasaAcilis, IReadOnlyList
     private static string Aciklama(KasaHareketi h, string tur)
     {
         if (h.Gelen is { } g)
-            return g.Aciklama is { Length: > 0 } a ? a : tur switch { "KrediCekimi" => "Kredi çekimi", "EkGelir" => "Ek gelir", "EkstreGeliri" => "Ekstre geliri", _ => "Dönem geliri" };
+            return g.Aciklama is { Length: > 0 } a ? a : tur switch { KasaHareketTurleri.KrediCekimi => "Kredi çekimi", KasaHareketTurleri.EkGelir => "Ek gelir", KasaHareketTurleri.EkstreGeliri => "Ekstre geliri", _ => "Dönem geliri" };
         var i = h.Islem!;
         return string.IsNullOrWhiteSpace(i.Not) || i.Not == i.Cari ? i.Cari : $"{i.Cari} · {i.Not}";
     }

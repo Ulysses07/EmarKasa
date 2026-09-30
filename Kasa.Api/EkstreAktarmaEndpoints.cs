@@ -434,25 +434,25 @@ public static class EkstreAktarmaEndpoints
         }
         if (doc.Kaynak == EkstreKaynaklari.Banka)
         {
-            foreach (var k in servis.Bul(new BenzerAramasi("Gider", tarih, tutar), k => k.Kaynak is "Islem" or "KartOdeme", int.MaxValue))
-                Ekle(k.Kaynak == "Islem" ? EslesmeTurleri.Gider : EslesmeTurleri.KartOdeme, k.Id, k, k.Kaynak == "Islem" ? 0 : 1);
+            foreach (var k in servis.Bul(new BenzerAramasi(BenzerAramaTurleri.Gider, tarih, tutar), k => k.Kaynak is BenzerKayitKaynaklari.Islem or BenzerKayitKaynaklari.KartOdeme, int.MaxValue))
+                Ekle(k.Kaynak == BenzerKayitKaynaklari.Islem ? EslesmeTurleri.Gider : EslesmeTurleri.KartOdeme, k.Id, k, k.Kaynak == BenzerKayitKaynaklari.Islem ? 0 : 1);
         }
         else
         {
             var kart = doc.KartId!.Value;
-            var harcamalar = servis.Bul(new BenzerAramasi("KartHarcama", tarih, tutar, kart), null, int.MaxValue);
-            var giderIds = harcamalar.Where(k => k.Kaynak == "Islem").Select(k => k.Id).ToArray();
+            var harcamalar = servis.Bul(new BenzerAramasi(BenzerAramaTurleri.KartHarcama, tarih, tutar, kart), null, int.MaxValue);
+            var giderIds = harcamalar.Where(k => k.Kaynak == BenzerKayitKaynaklari.Islem).Select(k => k.Id).ToArray();
             var gidereBagli = db.TakipHarcamalar.AsNoTracking().Where(h => h.IslemId != null && giderIds.Contains(h.IslemId.Value) && !h.Iptal)
                 .ToDictionary(h => h.IslemId!.Value, h => h.Id);
             foreach (var k in harcamalar)
-                if (k.Kaynak == "KartHarcama")
+                if (k.Kaynak == BenzerKayitKaynaklari.KartHarcama)
                     Ekle(EslesmeTurleri.KartHarcama, k.Id, k, 0);
                 else if (gidereBagli.TryGetValue(k.Id, out var harcama))
                     Ekle(EslesmeTurleri.KartHarcama, harcama, k, 0, kart);
             foreach (var t in TaksitAdaylari(db, kart, tarih, tutar).Where(t => !eslesmis.Contains((EslesmeTurleri.KartTaksidi, t.Id))))
                 adaylar.Add((new(EslesmeTurleri.KartTaksidi, t.Id, t.KesimTarihi, tutar, $"{t.Aciklama} · {t.HarcamaTarihi:dd.MM.yyyy} harcaması · {t.No}/{t.TaksitSayisi}. taksit", kart,
                     HarcamaId: t.HarcamaId, TaksitNo: t.No, TaksitSayisi: t.TaksitSayisi), Math.Min(Fark(t.HarcamaTarihi), Fark(t.KesimTarihi)), 1));
-            foreach (var k in servis.Bul(new BenzerAramasi("KartOdeme", tarih, tutar, kart), k => k.Kaynak == "KartOdeme" && k.KrediKartiId == kart, int.MaxValue))
+            foreach (var k in servis.Bul(new BenzerAramasi(BenzerAramaTurleri.KartOdeme, tarih, tutar, kart), k => k.Kaynak == BenzerKayitKaynaklari.KartOdeme && k.KrediKartiId == kart, int.MaxValue))
                 Ekle(EslesmeTurleri.KartOdeme, k.Id, k, 2);
         }
         return adaylar.OrderBy(a => a.Fark).ThenBy(a => a.Sira).ThenByDescending(a => a.Aday.Id).Take(EnFazlaAday).Select(a => a.Aday).ToList();
@@ -628,9 +628,9 @@ public static class EkstreAktarmaEndpoints
         }
         var search = row.IslemTuru switch
         {
-            EkstreIslemTurleri.KartHarcama or EkstreIslemTurleri.KartIade => new BenzerAramasi("KartHarcama", row.Tarih, row.IslemTuru == EkstreIslemTurleri.KartIade ? -row.Tutar : row.Tutar, CardId(doc, row)),
-            EkstreIslemTurleri.KartOdemesi => new BenzerAramasi("KartOdeme", row.Tarih, row.Tutar, CardId(doc, row)),
-            _ => new BenzerAramasi("Gider", row.Tarih, row.Tutar)
+            EkstreIslemTurleri.KartHarcama or EkstreIslemTurleri.KartIade => new BenzerAramasi(BenzerAramaTurleri.KartHarcama, row.Tarih, row.IslemTuru == EkstreIslemTurleri.KartIade ? -row.Tutar : row.Tutar, CardId(doc, row)),
+            EkstreIslemTurleri.KartOdemesi => new BenzerAramasi(BenzerAramaTurleri.KartOdeme, row.Tarih, row.Tutar, CardId(doc, row)),
+            _ => new BenzerAramasi(BenzerAramaTurleri.Gider, row.Tarih, row.Tutar)
         };
         if (row.IslemTuru == EkstreIslemTurleri.Gider && (row.Aciklama.Contains("KREDİ", StringComparison.OrdinalIgnoreCase) || row.Aciklama.Contains("KREDI", StringComparison.OrdinalIgnoreCase)))
             yield return "Kredi/kart ödemesi olabilir. Otomatik taksit veya mevcut kart ödemesini ikinci kez gider yazmayın.";

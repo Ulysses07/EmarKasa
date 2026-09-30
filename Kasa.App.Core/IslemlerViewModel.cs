@@ -531,7 +531,7 @@ public partial class IslemlerViewModel : OturumluViewModel
         { Hata = "İlk kesim tarihi harcamadan önce olamaz."; return; }
         var g = FormGovdesi();
         var id = DuzenId;
-        if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new("Gider", g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
+        if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.Gider, g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
             () => Gecerli(n) && DuzenId == id && TakipMetni.Ayni(g, FormGovdesi())))
             return;
         try

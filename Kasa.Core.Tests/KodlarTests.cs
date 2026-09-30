@@ -51,6 +51,24 @@ public class KodlarTests
     public void Takip_olay_turleri() => Esit(
         ("Kesim", TakipOlayTurleri.Kesim), ("SonOdeme", TakipOlayTurleri.SonOdeme), ("Taksit", TakipOlayTurleri.Taksit));
 
+    [Fact]
+    public void Benzer_arama_turleri() => Esit(
+        ("Gider", BenzerAramaTurleri.Gider), ("AylikGider", BenzerAramaTurleri.AylikGider), ("AlisOdeme", BenzerAramaTurleri.AlisOdeme),
+        ("KartHarcama", BenzerAramaTurleri.KartHarcama), ("KartOdeme", BenzerAramaTurleri.KartOdeme));
+
+    [Fact]
+    public void Benzer_kayit_kaynaklari() => Esit(
+        ("Islem", BenzerKayitKaynaklari.Islem), ("KartHarcama", BenzerKayitKaynaklari.KartHarcama), ("KartOdeme", BenzerKayitKaynaklari.KartOdeme),
+        ("EskiKartOdeme", BenzerKayitKaynaklari.EskiKartOdeme), ("KrediTaksidi", BenzerKayitKaynaklari.KrediTaksidi),
+        ("EskiKrediTaksidi", BenzerKayitKaynaklari.EskiKrediTaksidi));
+
+    [Fact]
+    public void Kasa_hareket_turleri() => Esit(
+        ("Gelir", KasaHareketTurleri.Gelir), ("EkstreGeliri", KasaHareketTurleri.EkstreGeliri), ("EkGelir", KasaHareketTurleri.EkGelir),
+        ("KrediCekimi", KasaHareketTurleri.KrediCekimi), ("Gider", KasaHareketTurleri.Gider), ("SabitGider", KasaHareketTurleri.SabitGider),
+        ("AylikGider", KasaHareketTurleri.AylikGider), ("KartOdemesi", KasaHareketTurleri.KartOdemesi), ("KartIadesi", KasaHareketTurleri.KartIadesi),
+        ("KrediTaksidi", KasaHareketTurleri.KrediTaksidi), ("KartAySonu", KasaHareketTurleri.KartAySonu));
+
     private static void Esit(params (string Beklenen, string Gercek)[] ciftler) =>
         Assert.All(ciftler, c => Assert.Equal(c.Beklenen, c.Gercek));
 }
