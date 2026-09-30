@@ -3454,6 +3454,33 @@ test('manual backup rate limit shows the server Turkish 429 message and keeps th
   assert.equal(nodes.get('#login-screen').hidden, true);
 });
 
+// Değişiklik geçmişi (denetim-ui.js) Ayarlar'daki düğmeyle tembel yüklenir ve uygulamanın tek kabuğunu (ui-shell.js: pencere,
+// oturum, api) içe aktarır. Kabuğun ikinci bir kopyası yüklenseydi çalışma ayarını yeniden okur, pencereyi ayrı durumla açardı.
+test('değişiklik geçmişi modülü tembel yüklenir, uygulamanın penceresinde açılır ve aynı kabuğun api’siyle okur', async () => {
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/ayarlar': { takipBaslangic: '2026-01-01', kasaAcilisDevri: 0, izleyiciSifreVarMi: true },
+    '/api/yedek/durum': { otomatikEtkin: true },
+    '/api/alicilar': [],
+    '/api/kanallar': [],
+    '/api/denetim?adet=50': [],
+  });
+  await app.navigate('tools');
+  await clickView(nodes, 'Değişiklik geçmişini aç');
+  assert.equal(nodes.get('#modal').open, true);
+  assert.equal(nodes.get('#modal-title').textContent, 'Değişiklik geçmişi');
+  await nodes
+    .get('#modal-content')
+    .find(node => node.tag === 'form')
+    .listeners.submit({ preventDefault() {} });
+  await settle();
+  assert.deepEqual(
+    calls.filter(call => call.path.startsWith('/api/denetim')).map(call => call.path),
+    ['/api/denetim?adet=50']
+  );
+  assert.match(nodes.get('#modal-content').textContent, /Bu süzgeçte kayıt yok/);
+  assert.equal(calls.filter(call => call.path === '/kasa-runtime.json').length, 1, 'çalışma ayarı bir kez okunur: kabuk tek kopyadır');
+});
+
 // webui-1: ESC / Android geri hareketiyle kapanan diyalogda kayıt sonucu kaybolmaz.
 const pendingExpense = async () => {
   let finishSave;

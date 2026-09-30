@@ -1422,7 +1422,7 @@ async function renderTools(generation) {
 // Değişiklik geçmişi modülü yalnız açılınca yüklenir (denetim-ui.js).
 async function openHistory() {
   const { createDenetimUi } = await import('./denetim-ui.js?v=2.3.0');
-  createDenetimUi({ api, h, button, input, field, select, help, table, openModal, run }).open();
+  createDenetimUi().open();
 }
 function pendingNotice(value) {
   return value > 0
