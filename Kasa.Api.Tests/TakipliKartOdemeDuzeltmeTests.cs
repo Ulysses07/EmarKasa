@@ -252,6 +252,27 @@ public class TakipliKartOdemeDuzeltmeTests
             new TakipIptalYaz(Guid.NewGuid(), kartDto.Surum, "Yanlış")), HttpStatusCode.Conflict));
     }
 
+    /// <summary>Kaynak harcama engeli (FinansTakipServisi.HarcamaEngeli) iadede: iadesi olan kart harcamasının gideri silinemez ve kanalı
+    /// değiştirilemez; ileti işleme göre yazılır (tipli sonuca geçişte iletiler aynen korunur).</summary>
+    [Fact]
+    public async Task Iadesi_olan_kart_harcamasinin_gideri_silinemez_ve_kanali_degismez()
+    {
+        await using var f = Factory();
+        using var c = await Editor(f);
+        var kart = await YeniKart(c);
+        using var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Gun, "Kargo", 200m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id));
+        var gider = (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+        var kartDto = await Kart(c, kart.Id);
+        var harcama = Assert.Single(kartDto.Harcamalar, h => !h.Iptal);
+        await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kartDto.Surum, Gun, "Kargo iadesi", -50m, 1, null, [], harcama.Id));
+        static string Ileti(string json) => JsonDocument.Parse(json).RootElement.GetProperty("hata").GetString()!;
+        Assert.Equal("Bu kart harcamasının iadesi var; gideri silinemez. Önce iadeyi Kredi Kartları ekranında gerekçeyle iptal edin.",
+            Ileti(await Hata(await c.DeleteAsync($"/api/islemler/{gider}"), HttpStatusCode.Conflict)));
+        var yeni = new IslemYazDto(Gun, "Kargo", 200m, "PERAKENDE", GiderTipi.KrediKarti, null, kart.Id);
+        Assert.Equal("Bu kart harcamasının iadesi var; gideri değiştirilemez. Önce iadeyi Kredi Kartları ekranında gerekçeyle iptal edin.",
+            Ileti(await Hata(await c.PutAsJsonAsync($"/api/islemler/{gider}", yeni), HttpStatusCode.Conflict)));
+    }
+
     [Fact]
     public async Task Alisa_bagli_kart_harcamasi_kart_ekraninda_alisi_gosterir()
     {

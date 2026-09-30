@@ -263,19 +263,30 @@ public static class FinansTakipServisi
     /// Giderin kart harcaması kaldırılabilir ya da kanalı değiştirilebilir mi (gap-coklu-giris-cift-sayim-mutabakat-5): taksitlerine pay
     /// ayırmış iptal edilmemiş kart ödemesi, iptal edilmemiş iadesi ya da harcamayı ya da taksidini gösteren ekstre satırı varsa hayır.
     /// Ödenmiş harcamanın kaldırılması önceki ödemelerin kanal payını ve kasayı değiştirirdi; iade kaynağını, ekstre satırı kaydını
-    /// kaybederdi. Engel yoksa null, varsa nedeni ("ödendi", "iadesi var", "ekstre").
+    /// kaybederdi. Engel yoksa null, varsa nedeni (<see cref="HarcamaEngeli"/>; ilk bulunan, bu sırayla denetlenir).
     /// </summary>
-    internal static string? KaynakHarcamaEngeli(KasaDbContext db, TakipHarcamaEntity charge)
+    internal static HarcamaEngeli? KaynakHarcamaEngeli(KasaDbContext db, TakipHarcamaEntity charge)
     {
         var taksitler = db.TakipKartTaksitler.Where(t => t.HarcamaId == charge.Id).Select(t => t.Id).ToHashSet();
         if (db.TakipKartOdemeler.Where(p => p.KrediKartiId == charge.KrediKartiId && !p.Iptal).AsEnumerable()
             .Any(p => Read<KartTaksitPayi>(p.PaylarJson).Any(x => taksitler.Contains(x.TaksitId))))
-            return "ödendi";
+            return HarcamaEngeli.Odendi;
         if (db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal))
-            return "iadesi var";
+            return HarcamaEngeli.IadesiVar;
         var ids = taksitler.ToArray();
         return db.EkstreKayitlar.Any(k => !k.Iptal && (k.KartHarcamaId == charge.Id || k.EslesmeTuru == "KartHarcama" && k.EslesmeId == charge.Id
-            || k.EslesmeTuru == "KartTaksidi" && k.EslesmeId != null && ids.Contains(k.EslesmeId.Value))) ? "ekstre" : null;
+            || k.EslesmeTuru == "KartTaksidi" && k.EslesmeId != null && ids.Contains(k.EslesmeId.Value))) ? HarcamaEngeli.Ekstre : null;
+    }
+    /// <summary>Kart harcamasının kaldırılmasını ya da kanalının değiştirilmesini engelleyen neden (<see cref="KaynakHarcamaEngeli"/>).
+    /// İletiler çağıranda, işleme göre yazılır (gider düzenleme/silme, alış ödemesini ayırma).</summary>
+    internal enum HarcamaEngeli
+    {
+        /// <summary>Taksitlerine pay ayırmış iptal edilmemiş kart ödemesi var.</summary>
+        Odendi,
+        /// <summary>İptal edilmemiş iadesi var.</summary>
+        IadesiVar,
+        /// <summary>Harcamayı ya da taksidini gösteren iptal edilmemiş ekstre satırı var (eşleştirme dahil).</summary>
+        Ekstre,
     }
     /// <summary>
     /// Eski kuralla yazılmış, otomatik dönüştürülmeyen takip kayıtlarının uyarıları (bütünlük denetimi; açılışta loglanır,
