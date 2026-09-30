@@ -10,7 +10,7 @@ namespace Kasa.Api;
 
 public static partial class AliciEndpoints
 {
-    public static void MapAliciEndpoints(this WebApplication app)
+    public static WebApplication MapAliciEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api/alicilar").RequireAuthorization("Editor");
         api.MapGet("", (KasaDbContext db) => db.Alicilar.AsNoTracking().OrderBy(a => a.Ad)
@@ -55,6 +55,7 @@ public static partial class AliciEndpoints
                 new { oncekiKullanici, oncekiAktif, aktif = e.Aktif, sifreDegisti = !string.IsNullOrEmpty(dto.Sifre) });
             return Results.Ok(Oku(e));
         });
+        return app;
     }
 
     private static AliciDto Oku(AliciEntity e) => new(e.Id, e.Kullanici, e.Ad, e.Aktif);
