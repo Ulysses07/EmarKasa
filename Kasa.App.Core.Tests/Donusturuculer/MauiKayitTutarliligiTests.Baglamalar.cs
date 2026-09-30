@@ -18,8 +18,8 @@ namespace Kasa.App.Core.Tests;
 /// <item>ItemsSource / BindableLayout.ItemsSource yolunun öğe türü, o öğenin DataTemplate'ine ve ItemDisplayBinding'e geçer.</item>
 /// <item><c>Source={x:Reference Sayfa}</c> ile <c>BindingContext.X</c>: sayfanın ViewModel'i.</item>
 /// <item>Styles.xaml'deki DataTrigger bağlamaları stili kullanan her öğenin bağlamıyla (kodla kurulan CipGrubu'nun her
-/// çipe uyguladığı Chip/ChipText stilleri ve "Ad" yolu grubun öğe türüyle); kabuk şablonları MAUI'nin öğe türleriyle
-/// denetlenir.</item>
+/// çipe uyguladığı Chip/ChipText stilleri ve "Ad" yolu grubun öğe türüyle); kabuk menüsü (Shell.FlyoutContent) MenuModeli
+/// bağlamıyla denetlenir.</item>
 /// </list>
 /// Her XAML dosyasındaki her bağlama en az bir kez değerlendirilmelidir: çözücünün sessizce atladığı bağlama kalmaz.
 /// </summary>
@@ -28,11 +28,10 @@ public partial class MauiKayitTutarliligiTests
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2009/xaml";
     private const string GorunumAdAlani = "clr-namespace:Kasa.App.Views";
 
-    /// <summary>Kabuk şablonlarının bağlamı MAUI'nin kendi öğesidir (menü öğesi ve menü komutu).</summary>
-    private static readonly Dictionary<string, Type> KabukSablonlari = new()
+    /// <summary>Kabuk menüsünün bağlamı: AppShell.xaml.cs, Shell.FlyoutContent kökünün (MenuAlani) BindingContext'ine MenuModeli atar.</summary>
+    private static readonly Dictionary<string, Type> KabukIcerikleri = new()
     {
-        ["Shell.ItemTemplate"] = typeof(BaseShellItem),
-        ["Shell.MenuItemTemplate"] = typeof(MenuItem),
+        ["Shell.FlyoutContent"] = typeof(MenuModeli),
     };
 
     [Fact]
@@ -191,7 +190,7 @@ public partial class MauiKayitTutarliligiTests
                 }
                 Denetle(Yukle(dosya), Path.GetFileName(dosya), kok, veriTuruZorunlu: true);
             }
-            // Kabuk şablonları (menü öğesi, menü komutu) Aşama 4 kapsamı dışında: bağlamaları çalışma anında çözülür.
+            // Kabuk menüsü (Shell.FlyoutContent, bağlamı MenuModeli) Aşama 4'ün x:DataType zorunluluğu dışında; yolları burada çözülür.
             Denetle(Yukle(Path.Combine(uygulama, "AppShell.xaml")), "AppShell.xaml", null);
         }
 
@@ -219,9 +218,9 @@ public partial class MauiKayitTutarliligiTests
                 VeriTuruDenetle(el, dosya, baglam);   // ara öğede yeniden tanımlanan x:DataType da gerçek bağlamla aynı olmalı
             if (ad.Contains('.'))
             {
-                // Özellik öğesi (CollectionView.ItemTemplate, Label.FormattedText ...): bağlam değişmez; kabuk şablonları hariç.
-                if (KabukSablonlari.TryGetValue(ad, out var kabuk))
-                    sablon = kabuk;
+                // Özellik öğesi (CollectionView.ItemTemplate, Label.FormattedText ...): bağlam değişmez; kabuk menüsü hariç.
+                if (KabukIcerikleri.TryGetValue(ad, out var kabuk))
+                    baglam = kabuk;
                 foreach (var c in el.Elements())
                     Yuru(c, dosya, baglam, sablon, adlar);
                 return;

@@ -114,6 +114,15 @@ public partial class MauiKayitTutarliligiTests
         Assert.Contains("MenuyuGoster([]);", kod);
     }
 
+    /// <summary>Menü (MenuModeli) her bölümü, kabuktaki aynı adlı FlyoutItem'ın rotasına gönderir: menü ile rota kaynağı ayrışmaz.</summary>
+    [Fact]
+    public void Menu_modeli_rotalari_kabuktaki_sayfa_rotalariyla_ayni()
+    {
+        var rotalar = KabukRotasi().Matches(Oku("AppShell.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value);
+        Assert.Equal(Enum.GetValues<Bolum>().Length, rotalar.Count);
+        Assert.All(Enum.GetValues<Bolum>(), b => Assert.Equal(rotalar[b.ToString()], MenuModeli.Rota(b)));
+    }
+
     [Fact]
     public void Xaml_donusturucu_anahtarlari_uygulama_kaynaklarinda_tanimli()
     {
@@ -141,6 +150,8 @@ public partial class MauiKayitTutarliligiTests
     private static partial Regex MenuOgesi();
     [GeneratedRegex(@"\[Bolum\.(\w+)\] = (\w+)Item,")]
     private static partial Regex MenuSozlugu();
+    [GeneratedRegex(@"<FlyoutItem x:Name=""(\w+)Item""[^>]*?Route=""(\w+)""")]
+    private static partial Regex KabukRotasi();
     [GeneratedRegex(@"<conv:(\w+) x:Key=""(\w+)""")]
     private static partial Regex DonusturucuKaynagi();
     [GeneratedRegex(@"Converter=\{StaticResource (\w+)\}")]

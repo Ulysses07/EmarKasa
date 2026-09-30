@@ -11,10 +11,12 @@ namespace Kasa.App.Core.Tests;
 /// duruma sokar; UI iş parçacığı bu döngüde %100 CPU ile askıda kalır (Release'te girişten birkaç saniye sonra). Düzeltme
 /// (dotnet/maui#38887) .NET 10 SR12'de (10.0.120) gelir. O zamana dek şablon kökü, içindeki öğeler, görsel durum setter'ları
 /// ve öğelere uygulanan stiller düz renk için BackgroundColor kullanır (görünüm aynı: düz dolgu).
+/// Menü artık Shell.FlyoutContent'teki kendi listemizdir (ShellFlyoutItemView kullanılmaz); kural onu da kapsar: sorunlu
+/// sürümlerde menüye Background fırçası girmez, görünüm düz dolguyla aynıdır.
 /// </summary>
 public partial class MauiKayitTutarliligiTests
 {
-    private static readonly string[] KabukSablonuOzellikleri = ["Shell.ItemTemplate", "Shell.MenuItemTemplate"];
+    private static readonly string[] KabukSablonuOzellikleri = ["Shell.ItemTemplate", "Shell.MenuItemTemplate", "Shell.FlyoutContent"];
 
     [Fact]
     public void Kabuk_menu_sablonlari_Background_firca_ozelligini_yazmaz()
@@ -39,7 +41,8 @@ public partial class MauiKayitTutarliligiTests
                     hatalar.AddRange(ArkaPlanYazimlari(oge, stiller).Select(h => $"{ad}:{Satir(oge)} ({sablon.Name.LocalName}) {h}"));
             }
         }
-        Assert.True(sablonSayisi >= 2, $"Kabuk menü şablonları okunamadı ({sablonSayisi}); AppShell.xaml'da Shell.ItemTemplate ve Shell.MenuItemTemplate beklenir.");
+        Assert.True(sablonSayisi >= 1, $"Kabuk menüsü okunamadı ({sablonSayisi}); AppShell.xaml'da Shell.FlyoutContent beklenir.");
+        Assert.Contains("<Shell.FlyoutContent>", File.ReadAllText(Path.Combine(Uygulama, "AppShell.xaml")));
         Assert.True(hatalar.Count == 0,
             "Kabuk menü şablonunda Background (Brush) yazılıyor; MAUI 10.0.100–10.0.110'da menü öğesi UI iş parçacığını sonsuz döngüye sokar "
             + "(dotnet/maui#38813). Düz renk için BackgroundColor kullanın:\n" + string.Join("\n", hatalar));

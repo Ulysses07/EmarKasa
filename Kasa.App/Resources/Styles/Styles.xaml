@@ -14,6 +14,11 @@
          tasarımdaki yarı kalın yerleri Bold'dur. -->
     <x:String x:Key="YaziAilesi">Segoe UI Variable Text, Segoe UI</x:String>
 
+    <!-- Simge yazı tipi (menü simgeleri, Kasa.App.Core MenuSimgeleri): Windows 11'de Segoe Fluent Icons, onun olmadığı Windows
+         10'da Segoe MDL2 Assets. İkisi de Windows'la gelir, paketlenmez (Segoe Fluent Icons başka platforma dağıtılamaz);
+         kullanılan kod noktaları iki yazı tipinde aynı simgedir. -->
+    <x:String x:Key="SimgeAilesi">Segoe Fluent Icons, Segoe MDL2 Assets</x:String>
+
     <!-- ===== ETİKETLER ===== -->
     <Style TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
@@ -290,6 +295,18 @@
                 </VisualStateGroup>
             </VisualStateGroupList>
         </Setter>
+    </Style>
+
+    <!-- Şeffaf düğme: menü öğesinin ve kart kutusunun tıklama/klavye yüzeyi (Tab ile odaklanır, UI Otomasyonu'nda adıyla
+         görünür). Zemin ve görsel durum yazmaz, zemini üstündeki öğe çizer; açık anahtarlı stil örtük Button stilinin yeşil
+         zeminini ve PointerOver durumunu uygulamaz. Düz renk BackgroundColor ile (dotnet/maui#38813). -->
+    <Style x:Key="SeffafDugme" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="BorderWidth" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinimumHeightRequest" Value="0" />
+        <Setter Property="MinimumWidthRequest" Value="0" />
     </Style>
 
     <!-- ===== KARTLAR & KUTULAR ===== -->
