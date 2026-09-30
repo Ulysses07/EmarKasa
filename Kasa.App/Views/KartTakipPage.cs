@@ -227,33 +227,9 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         },
     };
 
-    /// <summary>Formu açan düğme; formu açıkken vurgulanır ve ekran okuyucuya "Açık" ipucu verir. Birincil (yeşil dolgu) düğmede
-    /// koyu yeşil zemin tek başına seçilmiyordu: içte açık yeşil (GreenSoft) 3 px halka; ikincil düğmede açık yeşil zemin, yeşil yazı
-    /// ve 2 px yeşil kenar.</summary>
+    /// <summary>Formu açan düğme (TakipUi.FormDugmesi): açık formun düğmesi vurgulanır, genişliği değişmez.</summary>
     private static Button FormDugmesi(string metin, KartFormu form, bool birincil = false)
-    {
-        var dugme = Dugme(metin, nameof(KartTakipViewModel.FormAcCommand));
-        dugme.CommandParameter = form;
-        if (!birincil)
-            dugme.Style = (Style)Application.Current!.Resources["BtnSecondary"];
-        var acik = new DataTrigger(typeof(Button)) { Binding = new Binding(nameof(KartTakipViewModel.AcikForm)), Value = form };
-        acik.Setters.Add(new Setter { Property = SemanticProperties.HintProperty, Value = "Açık" });
-        if (birincil)
-        {
-            acik.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = (Color)Application.Current!.Resources["GreenDark"] });
-            acik.Setters.Add(new Setter { Property = Button.BorderColorProperty, Value = (Color)Application.Current!.Resources["GreenSoft"] });
-            acik.Setters.Add(new Setter { Property = Button.BorderWidthProperty, Value = 3d });
-        }
-        else
-        {
-            acik.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = (Color)Application.Current!.Resources["GreenSoft"] });
-            acik.Setters.Add(new Setter { Property = Button.TextColorProperty, Value = (Color)Application.Current!.Resources["Green"] });
-            acik.Setters.Add(new Setter { Property = Button.BorderColorProperty, Value = (Color)Application.Current!.Resources["Green"] });
-            acik.Setters.Add(new Setter { Property = Button.BorderWidthProperty, Value = 2d });
-        }
-        dugme.Triggers.Add(acik);
-        return dugme;
-    }
+        => TakipUi.FormDugmesi(metin, nameof(KartTakipViewModel.FormAcCommand), form, nameof(KartTakipViewModel.AcikForm), birincil);
 
     private static FlexLayout DugmeSirasi(params Button[] dugmeler)
     {

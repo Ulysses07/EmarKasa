@@ -12,7 +12,9 @@ namespace Kasa.App.Core.Tests;
 /// <para>Bilinçli değişiklikler (menü ve kartlar düzeltmesi, gerçek pencere görüntüleri): eski kopyaya da <see cref="EskiTakipUi.Bilincli"/>
 /// ile uygulanır, kalan her şey birebir karşılaştırılır. (1) Durum satırlarında gösterge yalnız meşgulken, hata ve ileti yalnız
 /// doluyken görünür (boşken Yenile ile son güncelleme arasında ~130 px boşluk kalıyordu). (2) Onay kutusunun en küçük genişliği 0
-/// (WinUI CheckBox'ın MinWidth=120'si etiketi ~110 px uzağa itiyordu).</para></summary>
+/// (WinUI CheckBox'ın MinWidth=120'si etiketi ~110 px uzağa itiyordu). (3) Gösterge ayrı satırda değil, Yenile düğmesinin sağında
+/// "Veriler yükleniyor…" metniyle aynı yatay satırdadır (gösterge görününce içerik 48 px aşağı kayıyordu); Kasa kontrolündeki
+/// "gösterge satır boyunca" seçeneği bu yüzden kalktı.</para></summary>
 public partial class GorunumEsdegerligiTests
 {
     public sealed record ListeSatiri(string Baslik, string Ozet, bool Acik);
@@ -119,27 +121,90 @@ public partial class GorunumEsdegerligiTests
     private sealed class DenemeSayfasi(AyarlarViewModel vm)
         : TakipSayfasi<AyarlarViewModel>(vm, "Bildirimler", "Kart kesimi, son ödeme ve kredi taksiti hatırlatmaları", () => Task.CompletedTask);
 
-    /// <summary>Bilinçli değişiklik (1): meşgul değilken ve hata/ileti boşken durum satırlarında yalnız Yenile ve son güncelleme
-    /// görünür; meşgulken gösterge, dolu hata ve ileti görünür. Dönen değer hata satırıdır.</summary>
+    /// <summary>Bilinçli değişiklikler (1) ve (3): boş hata/ileti yer kaplamaz; gösterge Yenile düğmesinin satırındadır, bu yüzden
+    /// meşgul olmak dikey yığındaki görünür satırları değiştirmez (Yenile satırı, son güncelleme). Dönen değer hata satırıdır.</summary>
     [Fact]
-    public void Bos_durum_satirlari_yer_kaplamaz()
+    public void Bos_durum_satirlari_yer_kaplamaz_gosterge_Yenile_satirindadir()
     {
         GorunumOrtami.Kur();
         var panel = new VerticalStackLayout();
         var yenile = new Button { Text = "Yenile" };
         var mesaj = TakipUi.Bagli("Mesaj");
         var hata = TakipUi.DurumSatirlari(panel, yenile, mesaj);
-        var baglam = TakipBaglam(mesgul: false, hata: false, mesaj: false);
-        panel.BindingContext = baglam;
-        Assert.Equal(2, panel.Children.OfType<VisualElement>().Count(v => v.IsVisible));
-        Assert.True(yenile.IsVisible);
+        var gosterge = panel.GetVisualTreeDescendants().OfType<ActivityIndicator>().Single();
+        var satir = Assert.IsType<HorizontalStackLayout>(yenile.Parent);
+        Assert.Same(satir, gosterge.Parent);
+        Assert.Same(panel, satir.Parent);
+        Assert.Equal(0, satir.IndexOf(yenile));
+        var yukleniyor = satir.Children.OfType<Label>().Single();
+        Assert.Equal("Veriler yükleniyor…", yukleniyor.Text);
+        Assert.Equal(LayoutOptions.Center, gosterge.VerticalOptions);
+        Assert.True(gosterge.HeightRequest is > 0 and <= 44, "Gösterge Yenile düğmesinden (44 px) yüksek olursa satır büyür.");
+
+        List<VisualElement> Gorunen() => panel.Children.OfType<VisualElement>().Where(v => v.IsVisible).ToList();
+        panel.BindingContext = TakipBaglam(mesgul: false, hata: false, mesaj: false);
+        var bosta = Gorunen();
+        Assert.Equal(2, bosta.Count);
+        Assert.False(gosterge.IsVisible);
+        Assert.False(yukleniyor.IsVisible);
         Assert.False(hata.IsVisible);
         Assert.False(mesaj.IsVisible);
-        Assert.False(panel.Children.OfType<ActivityIndicator>().Single().IsVisible);
+        panel.BindingContext = TakipBaglam(mesgul: true, hata: false, mesaj: false);
+        Assert.Equal(bosta, Gorunen());   // meşgulken dikey yığın aynı: içerik kaymaz
+        Assert.True(gosterge.IsVisible);
+        Assert.True(yukleniyor.IsVisible);
         panel.BindingContext = TakipBaglam(mesgul: true, hata: true, mesaj: true);
-        Assert.Equal(5, panel.Children.OfType<VisualElement>().Count(v => v.IsVisible));
+        Assert.Equal(4, Gorunen().Count);
         Assert.Equal(HataMetni, hata.Text);
     }
+
+    public sealed class FormBaglami : System.ComponentModel.INotifyPropertyChanged
+    {
+        private KartFormu _acikForm;
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public KartFormu AcikForm
+        {
+            get => _acikForm;
+            set
+            {
+                _acikForm = value;
+                PropertyChanged?.Invoke(this, new(nameof(AcikForm)));
+            }
+        }
+    }
+
+    /// <summary>Açık formun düğmesi (Kartlar ekranı): kenar kalınlığı her durumda 2'dir, açılınca yalnız kenar rengi (beyaz karta
+    /// karşı belirgin, kontrastı MauiKayitTutarliligiTests'te) ve zemin değişir; düğme genişlemez, yanındakileri itmez. Kapalıyken
+    /// kenar düğmenin kendi rengindedir (birincil: zemini Green, ikincil: BtnSecondary kenarı Border).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Form_dugmesi_acilinca_kenar_kalinligi_ve_ic_boslugu_degismez(bool birincil)
+    {
+        GorunumOrtami.Kur();
+        var baglam = new FormBaglami();
+        var dugme = TakipUi.FormDugmesi("Ödeme kaydet", "X", KartFormu.Odeme, nameof(FormBaglami.AcikForm), birincil);
+        dugme.BindingContext = baglam;
+        var kapali = (dugme.BorderWidth, dugme.Padding, dugme.WidthRequest, dugme.BorderColor, dugme.BackgroundColor);
+        Assert.Equal(2, dugme.BorderWidth);
+        Assert.Equal(Renk(birincil ? "Green" : "Border"), dugme.BorderColor);
+        Assert.Null(SemanticProperties.GetHint(dugme));
+
+        baglam.AcikForm = KartFormu.Odeme;
+        Assert.Equal(kapali.BorderWidth, dugme.BorderWidth);
+        Assert.Equal(kapali.Padding, dugme.Padding);
+        Assert.Equal(kapali.WidthRequest, dugme.WidthRequest);
+        Assert.Equal(Renk(TakipUi.AcikFormKenari), dugme.BorderColor);
+        Assert.Equal(Renk(birincil ? "GreenDark" : "GreenSoft"), dugme.BackgroundColor);
+        Assert.Equal("Açık", SemanticProperties.GetHint(dugme));
+
+        baglam.AcikForm = KartFormu.Harcama;   // başka form açıldı: bu düğme kapalı görünüme döner
+        Assert.Equal((kapali.BorderWidth, kapali.Padding, kapali.WidthRequest, kapali.BorderColor, kapali.BackgroundColor),
+            (dugme.BorderWidth, dugme.Padding, dugme.WidthRequest, dugme.BorderColor, dugme.BackgroundColor));
+        Assert.Null(SemanticProperties.GetHint(dugme));
+    }
+
+    private static Color Renk(string anahtar) => (Color)Application.Current!.Resources[anahtar];
 
     /// <summary>Kasa kontrolü (KasaKontrolAlanlari.Durum) başlığı: gösterge satır boyunca, ileti örtük stilde.</summary>
     [Theory]
@@ -149,7 +214,7 @@ public partial class GorunumEsdegerligiTests
             () =>
             {
                 var panel = new VerticalStackLayout { Spacing = 12 };
-                TakipUi.DurumSatirlari(panel, TakipUi.Tikla("Yenile / tekrar dene", () => Task.CompletedTask), TakipUi.Bagli("Mesaj"), gostergeSolda: false);
+                TakipUi.DurumSatirlari(panel, TakipUi.Tikla("Yenile / tekrar dene", () => Task.CompletedTask), TakipUi.Bagli("Mesaj"));
                 return panel;
             }, TakipBaglam(mesgul, hata, mesaj));
 
@@ -178,10 +243,17 @@ public partial class GorunumEsdegerligiTests
         /// <summary>Eski koda sonradan bilerek uygulanan görünüm değişiklikleri (sınıf belgesindeki liste).</summary>
         public static class Bilincli
         {
-            public static ActivityIndicator Gosterge(ActivityIndicator gosterge)
+            /// <summary>(1) ve (3): eski gösterge yalnız meşgulken görünür, 24 px'e iner ve Yenile'nin sağına, "Veriler yükleniyor…"
+            /// metniyle aynı yatay satıra taşınır (satırın yüksekliği Yenile düğmesidir).</summary>
+            public static HorizontalStackLayout YenileSatiri(View yenile, ActivityIndicator gosterge)
             {
+                gosterge.HorizontalOptions = LayoutOptions.Fill;
+                gosterge.VerticalOptions = LayoutOptions.Center;
+                gosterge.WidthRequest = gosterge.HeightRequest = 24;
                 gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-                return gosterge;
+                var metin = new Label { Text = "Veriler yükleniyor…", FontSize = 13, VerticalOptions = LayoutOptions.Center };
+                metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
+                return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
             }
 
             public static Label Doluysa(Label etiket)
@@ -296,10 +368,10 @@ public partial class GorunumEsdegerligiTests
             var root = new VerticalStackLayout { Padding = new Thickness(28, 22), Spacing = 16, MaximumWidthRequest = 1160 };
             root.Add(new Label { Text = title, FontSize = 28, FontAttributes = FontAttributes.Bold });
             root.Add(Metin(aciklama));
-            root.Add(Tikla("Yenile / tekrar dene", () => Task.CompletedTask));
+            var yenile = Tikla("Yenile / tekrar dene", () => Task.CompletedTask);
             var busy = new ActivityIndicator { HorizontalOptions = LayoutOptions.Start };
             busy.SetBinding(ActivityIndicator.IsRunningProperty, nameof(vm.Mesgul));
-            root.Add(Bilincli.Gosterge(busy));
+            root.Add(Bilincli.YenileSatiri(yenile, busy));
             var hata = Bagli(nameof(vm.Hata));
             hata.TextColor = Colors.DarkRed;
             root.Add(Bilincli.Doluysa(hata));
@@ -324,8 +396,7 @@ public partial class GorunumEsdegerligiTests
             busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
             var hata = Bagli("Hata");
             hata.TextColor = Colors.DarkRed;
-            panel.Add(Tikla("Yenile / tekrar dene", () => Task.CompletedTask));
-            panel.Add(Bilincli.Gosterge(busy));
+            panel.Add(Bilincli.YenileSatiri(Tikla("Yenile / tekrar dene", () => Task.CompletedTask), busy));
             panel.Add(Bilincli.Doluysa(hata));
             panel.Add(Bilincli.Doluysa(Bagli("Mesaj")));
             var tarih = new Label { FontSize = 12 };
@@ -340,10 +411,9 @@ public partial class GorunumEsdegerligiTests
             var root = new VerticalStackLayout { Padding = new Thickness(28, 22), Spacing = 16, MaximumWidthRequest = 1220 };
             root.Add(new Label { Text = "Gider raporu dışa aktar", FontSize = 28, FontAttributes = FontAttributes.Bold });
             var yenile = new Button { Text = "Yenile / tekrar dene", HorizontalOptions = LayoutOptions.Start };
-            root.Add(yenile);
             var busy = new ActivityIndicator { HorizontalOptions = LayoutOptions.Start };
             busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
-            root.Add(Bilincli.Gosterge(busy));
+            root.Add(Bilincli.YenileSatiri(yenile, busy));
             var hata = new Label { TextColor = Colors.DarkRed };
             hata.SetBinding(Label.TextProperty, "Hata");
             root.Add(Bilincli.Doluysa(hata));

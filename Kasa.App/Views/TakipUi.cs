@@ -86,6 +86,39 @@ internal static class TakipUi
         return b;
     }
 
+    /// <summary>Açık formun düğmesinin kenar rengi (Colors.xaml anahtarı): beyaz kart zeminine karşı en az 3:1 (kontrast testi).</summary>
+    public const string AcikFormKenari = "Ink";
+
+    /// <summary>Form açan düğme (Kartlar ekranı): <paramref name="acikYol"/> <paramref name="form"/> iken açık görünür ve ekran
+    /// okuyucuya "Açık" ipucu verir. Kenar kalınlığı her durumda 2'dir; açılınca yalnız kenar rengi (<see cref="AcikFormKenari"/>)
+    /// ve zemin (birincil GreenDark, ikincil GreenSoft ve yeşil yazı) değişir, düğme genişleyip yanındakileri itmez. Kapalıyken
+    /// kenar düğmenin kendi rengindedir (birincil: zemini Green, ikincil: BtnSecondary kenarı Border), görünmez. Kenar rengi
+    /// bağlamayla, zemin tetikle gelir: kapalı düğmede stilin görsel durumları (üzerinde, basılı, kapalı) çalışmaya devam eder.</summary>
+    public static Button FormDugmesi(string metin, string komut, object form, string acikYol, bool birincil = false)
+    {
+        var dugme = Dugme(metin, komut);
+        dugme.CommandParameter = form;
+        if (!birincil)
+            dugme.Style = (Style)Application.Current!.Resources["BtnSecondary"];
+        dugme.BorderWidth = 2;
+        var kapaliKenar = birincil ? (Color)Application.Current!.Resources["Green"] : (Color)Application.Current!.Resources["Border"];
+        dugme.SetBinding(Button.BorderColorProperty, acikYol,
+            converter: new AcikIseConverter(form, (Color)Application.Current!.Resources[AcikFormKenari], kapaliKenar));
+        var acik = new DataTrigger(typeof(Button)) { Binding = new Binding(acikYol), Value = form };
+        acik.Setters.Add(new Setter { Property = SemanticProperties.HintProperty, Value = "Açık" });
+        if (birincil)
+        {
+            acik.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = (Color)Application.Current!.Resources["GreenDark"] });
+        }
+        else
+        {
+            acik.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = (Color)Application.Current!.Resources["GreenSoft"] });
+            acik.Setters.Add(new Setter { Property = Button.TextColorProperty, Value = (Color)Application.Current!.Resources["Green"] });
+        }
+        dugme.Triggers.Add(acik);
+        return dugme;
+    }
+
     public static Button Tikla(string text, Func<Task> action)
     {
         var b = new Button { Text = text, HorizontalOptions = LayoutOptions.Start };
@@ -124,21 +157,14 @@ internal static class TakipUi
     public static View Benzerlik(string yol, string command)
         => Goster(Kart("Benzer kayıt kontrolü", Bagli(yol + ".Uyari"), Dugme("Ayrı bir işlem, devam et", command)), yol + ".UyariVar");
 
-    /// <summary>Kodla yazılmış sayfaların durum satırları (Yenile, yükleniyor göstergesi, hata, isteğe bağlı ileti, son
+    /// <summary>Kodla yazılmış sayfaların durum satırları (Yenile ve sağında yükleniyor göstergesi, hata, isteğe bağlı ileti, son
     /// güncelleme): TakipSayfasi, Kasa kontrolü ve Dışa aktar aynı sırayı ve stilleri kullanır. Bağlam modelinde Mesgul,
-    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncelleme beklenir. <paramref name="gostergeSolda"/> false iken gösterge
-    /// satır boyunca yerleşir (Kasa kontrolünün önceki görünümü). Kartlar ekranı hatayı form açıkken formun içinde gösterdiği
-    /// için buraya SayfaHatasi'nı bağlar. Gösterge yalnız meşgulken, hata ve ileti yalnız doluyken yer kaplar (boşken Yenile ile
-    /// son güncelleme arasında ~130 px boşluk kalıyordu). Dönen değer hata satırıdır (sayfa onu görünür yere kaydırabilir).</summary>
-    public static Label DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, bool gostergeSolda = true, string hataYolu = "Hata")
+    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncelleme beklenir. Kartlar ekranı hatayı form açıkken formun içinde
+    /// gösterdiği için buraya SayfaHatasi'nı bağlar. Hata ve ileti yalnız doluyken yer kaplar (boşken Yenile ile son güncelleme
+    /// arasında ~130 px boşluk kalıyordu). Dönen değer hata satırıdır (sayfa onu görünür yere kaydırabilir).</summary>
+    public static Label DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, string hataYolu = "Hata")
     {
-        hedef.Add(yenile);
-        var busy = new ActivityIndicator();
-        if (gostergeSolda)
-            busy.HorizontalOptions = LayoutOptions.Start;
-        busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
-        busy.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-        hedef.Add(busy);
+        hedef.Add(YenileSatiri(yenile));
         var hata = DoluysaGoster(BagliHata(hataYolu));
         hedef.Add(hata);
         if (mesaj is not null)
@@ -147,6 +173,19 @@ internal static class TakipUi
         zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
         hedef.Add(zaman);
         return hata;
+    }
+
+    /// <summary>Yenile düğmesi ve sağında, yalnız meşgulken, gösterge ile "Veriler yükleniyor…": gösterge ayrı satırdayken
+    /// görününce bütün içerik 48 px aşağı kayıyordu. Gösterge 24 px'tir, satırın yüksekliğini Yenile düğmesi belirler.</summary>
+    private static HorizontalStackLayout YenileSatiri(View yenile)
+    {
+        var gosterge = new ActivityIndicator { WidthRequest = 24, HeightRequest = 24, VerticalOptions = LayoutOptions.Center };
+        gosterge.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
+        gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
+        var metin = Metin("Veriler yükleniyor…");
+        metin.VerticalOptions = LayoutOptions.Center;
+        metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
+        return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
     }
 
     /// <summary>Etiket yalnız metni doluyken görünür (boş hata/ileti satırı yığında yer ve aralık kaplamaz).</summary>
@@ -247,6 +286,13 @@ internal static class TakipUi
             return g;
         }));
         return rows;
+    }
+
+    /// <summary>Bağlı değer <paramref name="deger"/> ise <paramref name="acik"/>, değilse <paramref name="kapali"/>.</summary>
+    private sealed class AcikIseConverter(object deger, object acik, object kapali) : IValueConverter
+    {
+        public object Convert(object? value, Type type, object? parameter, System.Globalization.CultureInfo culture) => Equals(value, deger) ? acik : kapali;
+        public object ConvertBack(object? value, Type type, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
     }
 
     private sealed class NesneVarConverter : IValueConverter

@@ -65,6 +65,17 @@ public partial class MauiKayitTutarliligiTests
         Assert.True(oran >= 3, $"FieldStroke / {zemin} kontrastı {oran:0.00}:1; en az 3:1 olmalı.");
     }
 
+    /// <summary>WCAG 2.2 1.4.11: Kartlar ekranında açık formun düğmesini gösteren tek işaret kenarıdır (birincil düğmede zemin de
+    /// koyulaşır); kenar, düğmelerin durduğu kart zeminine (CardForm → BrushCard → Card) karşı en az 3:1 kontrast verir.</summary>
+    [Fact]
+    public void Acik_form_dugmesi_kenari_kart_zemininde_en_az_3_kontrast_verir()
+    {
+        var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+        Assert.Contains("<SolidColorBrush x:Key=\"BrushCard\" Color=\"{StaticResource Card}\" />", Oku("Resources/Styles/Colors.xaml"));
+        var oran = KontrastOrani(renkler[Kasa.App.Views.TakipUi.AcikFormKenari], renkler["Card"]);
+        Assert.True(oran >= 3, $"{Kasa.App.Views.TakipUi.AcikFormKenari} / Card kontrastı {oran:0.00}:1; en az 3:1 olmalı.");
+    }
+
     /// <summary>FieldBorder kenarlığı süs kenarlığından (BrushBorder) ayrı fırçadan gelir: alan sınırı koyulaşırken kartlar değişmez.</summary>
     [Fact]
     public void Form_alani_stili_ayri_kenarlik_fircasini_kullanir()
