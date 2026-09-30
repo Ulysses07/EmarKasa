@@ -109,7 +109,7 @@ Apple, her cihaz sınıfı için ayrı ekran görüntüsü ister.
 - [ ] İkon onaylandı (marka renkleriyle uyumlu)
 - [ ] Ekran görüntüleri gerçek uygulamayı yansıtıyor (test verisi değil, makul örnek veri)
 - [ ] Gizlilik politikası URL'i canlıda erişilebilir
-- [ ] `ApplicationDisplayVersion` ve `ApplicationVersion` (csproj) artırıldı
+- [ ] `ApplicationDisplayVersion` (`Directory.Build.props` → `KasaSurumu`) ve `ApplicationVersion` (csproj) artırıldı
 - [ ] TestFlight veya iç test tamamlandı
 - [ ] App Store Connect: tüm alanlar dolduruldu, "Ready for Review" durumuna getirildi
 - [ ] Son "Submit for Review" tıklaması: **kullanıcı** yapar
