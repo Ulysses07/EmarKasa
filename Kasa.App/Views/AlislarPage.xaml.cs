@@ -9,8 +9,14 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     private int? _istenenAlisId;
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
-        if (query.TryGetValue("AlisId", out var value) && int.TryParse(value.ToString(), out var id))
-        { _istenenAlisId = id; if (_vm.VeriHazir) { _vm.IdIleSec(id); _istenenAlisId = null; } }
+        if (!query.TryGetValue("AlisId", out var value) || !int.TryParse(value.ToString(), out var id))
+            return;
+        _istenenAlisId = id;
+        if (_vm.VeriHazir)
+        {
+            _vm.IdIleSec(id);
+            _istenenAlisId = null;
+        }
     }
     // Oturum değişimini ve rolü model kendisi alır (AlislarViewModel : OturumluViewModel; appcore-10): sayfa ayrıca abone olmaz,
     // rolü ekrana atamaz.
@@ -25,7 +31,10 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
         if (!_vm.VeriHazir)
             await _vm.YukleAsync();
         if (_istenenAlisId is { } id && _vm.VeriHazir)
-        { _vm.IdIleSec(id); _istenenAlisId = null; }
+        {
+            _vm.IdIleSec(id);
+            _istenenAlisId = null;
+        }
     }
     private async void HesaplarTiklandi(object? sender, EventArgs e)
     {
@@ -43,7 +52,9 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     }
     private async void OdemeIptalTiklandi(object? sender, EventArgs e)
     {
-        if (await DisplayAlertAsync("Ödemeyi iptal et", "Ödeme ve bağlı gider kaldırılacak; gerekçe işlem geçmişinde kalacak. Gerçekte yapılmış ödeme için bu işlemi kullanmayın. Devam edilsin mi?", "Ödemeyi iptal et", "Vazgeç"))
+        if (await DisplayAlertAsync("Ödemeyi iptal et",
+            "Ödeme ve bağlı gider kaldırılacak; gerekçe işlem geçmişinde kalacak. Gerçekte yapılmış ödeme için bu işlemi kullanmayın. Devam edilsin mi?",
+            "Ödemeyi iptal et", "Vazgeç"))
             await _vm.OdemeIptalAsync();
     }
     private async void KartAcTiklandi(object? sender, EventArgs e)
@@ -61,7 +72,11 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     }
     private static async Task<SecilenDosya?> BelgeSecAsync()
     {
-        var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "PDF, PNG veya JPEG belge seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } }) });
+        var dosya = await FilePicker.Default.PickAsync(new PickOptions
+        {
+            PickerTitle = "PDF, PNG veya JPEG belge seçin",
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } })
+        });
         return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
     }
     private async void BelgeIndirTiklandi(object? sender, EventArgs e)

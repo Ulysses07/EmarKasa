@@ -26,11 +26,15 @@
     <ProjectReference Include="..\Kasa.App.Core\Kasa.App.Core.csproj" />
   </ItemGroup>
 
-  <!-- ParaGirisi kontrolünün TwoWay bağlama davranışı gerçek MAUI bağlama motoruyla sınanır (net10.0 kütüphanesi,
-       iş yükü gerektirmez). Sürüm Kasa.App ile aynı kaynaktan gelir: depo kökündeki Directory.Build.props $(MauiVersion). -->
+  <!-- Kasa.App'in kodla yazılmış kontrolleri (ParaGirisi, DurumSeridi, CipGrubu, BosDurum) ve takip sayfası yapı taşları
+       (Views/TakipUi.cs) aynı kaynak dosyalarıyla derlenip gerçek MAUI bağlama ve stil motoruyla sınanır (net10.0 kütüphanesi,
+       iş yükü gerektirmez). Controls.Xaml, görünüm eşdeğerliği testlerinde Colors.xaml/Styles.xaml'i ve eski biçimlendirmeyi
+       çalışma anında yükler. Sürüm Kasa.App ile aynı kaynaktan gelir: depo kökündeki Directory.Build.props $(MauiVersion). -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls.Core" Version="$(MauiVersion)" />
-    <Compile Include="..\Kasa.App\Controls\ParaGirisi.cs" Link="Kontroller\ParaGirisi.cs" />
+    <PackageReference Include="Microsoft.Maui.Controls.Xaml" Version="$(MauiVersion)" />
+    <Compile Include="..\Kasa.App\Controls\*.cs" Link="Kontroller\%(Filename)%(Extension)" />
+    <Compile Include="..\Kasa.App\Views\TakipUi.cs" Link="Kontroller\TakipUi.cs" />
   </ItemGroup>
 
   <!-- Kasa.App dönüştürücüleri aynı kaynak dosyalarıyla derlenip Donusturuculer/ altında sınanır (Kasa.App'e ve Windows

@@ -4,7 +4,7 @@
     x:Class="Kasa.App.Views.PanelPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:ctl="clr-namespace:Kasa.App.Controls"
     xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     x:DataType="core:PanelViewModel"
     x:Name="Sayfa"
@@ -20,7 +20,8 @@
                 <Label Text="Kasa özeti ve kanal bakiyeleri" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
 
-            <v:RaporDurumu />
+            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" Hata="{Binding Hata}"
+                             SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <!-- Takipte olmayan kart ve krediler: hatırlatmaları eski kayıtlarla sınırlı; geçiş yapılana kadar kalıcı uyarı. -->
             <Border Style="{StaticResource CardForm}" IsVisible="{Binding TakipsizVar}">
@@ -38,9 +39,9 @@
                     <Label Text="Takip başlangıcı ve açılış devri dahil"
                            Style="{StaticResource LblHeroSub}" Margin="0,10,0,0" />
                     <VerticalStackLayout IsVisible="{Binding DagilimBekliyor}" Spacing="4" Margin="0,14,0,0">
-                        <Label Text="Dağılım bekleyen alış ödemesi" TextColor="#FFDA91" FontAttributes="Bold" />
-                        <Label Text="{Binding DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="#FFDA91" FontSize="20" />
-                        <Label Text="Kasa hareketi kayıtlı; bu tutar alış onaylanana kadar kanal bakiyelerine dağıtılmaz." TextColor="#FFDA91" FontSize="12" />
+                        <Label Text="Dağılım bekleyen alış ödemesi" TextColor="{StaticResource HeroUyari}" FontAttributes="Bold" />
+                        <Label Text="{Binding DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="{StaticResource HeroUyari}" FontSize="20" />
+                        <Label Text="Kasa hareketi kayıtlı; bu tutar alış onaylanana kadar kanal bakiyelerine dağıtılmaz." TextColor="{StaticResource HeroUyari}" FontSize="12" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </Border>
@@ -73,15 +74,8 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                         <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
-                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
-                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
-                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
-                                </Border>
-                                <Label Text="Henüz kanal yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
-                                <Label Text="Ayarlar → Kanallar bölümünden ilk kanalınızı ekleyin."
-                                       Style="{StaticResource LblEmptySub}" />
-                            </VerticalStackLayout>
+                            <ctl:BosDurum Baslik="Henüz kanal yok"
+                                          Aciklama="Ayarlar → Kanallar bölümünden ilk kanalınızı ekleyin." />
                         </CollectionView.EmptyView>
                     </CollectionView>
                 </VerticalStackLayout>

@@ -50,65 +50,26 @@
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Kanal" Style="{StaticResource LblField}" />
-                                <FlexLayout Wrap="Wrap" AlignItems="Center"
-                                            BindableLayout.ItemsSource="{Binding GiderKanallari}">
-                                    <BindableLayout.ItemTemplate>
-                                        <DataTemplate x:DataType="core:SecimCipi">
-                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding BindingContext.SecGiderKanalCommand, Source={x:Reference Sayfa}}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
+                                <ctl:CipGrubu BindableLayout.ItemsSource="{Binding GiderKanallari}" SecCommand="{Binding SecGiderKanalCommand}" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Tip" Style="{StaticResource LblField}" />
-                                <FlexLayout Wrap="Wrap" AlignItems="Center"
-                                            BindableLayout.ItemsSource="{Binding TipCipleri}">
-                                    <BindableLayout.ItemTemplate>
-                                        <DataTemplate x:DataType="core:SecimCipi">
-                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding BindingContext.SecTipCommand, Source={x:Reference Sayfa}}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
+                                <ctl:CipGrubu BindableLayout.ItemsSource="{Binding TipCipleri}" SecCommand="{Binding SecTipCommand}" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0" IsVisible="{Binding KartSeciciGorunur}">
                                 <Label Text="Kart (yeni takipteki kartlar)" Style="{StaticResource LblField}" />
-                                <Label Text="{Binding KartUyarisi}" TextColor="#765100" IsVisible="{Binding KartUyarisi, Converter={StaticResource DoluIse}}" />
-                                <FlexLayout Wrap="Wrap" AlignItems="Center"
-                                            BindableLayout.ItemsSource="{Binding KartCipleri}">
-                                    <BindableLayout.ItemTemplate>
-                                        <DataTemplate x:DataType="core:KartCipi">
-                                            <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding BindingContext.SecKartCommand, Source={x:Reference Sayfa}}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </FlexLayout>
+                                <Label Text="{Binding KartUyarisi}" TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KartUyarisi, Converter={StaticResource DoluIse}}" />
+                                <ctl:CipGrubu BindableLayout.ItemsSource="{Binding KartCipleri}" SecCommand="{Binding SecKartCommand}" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="6" IsVisible="{Binding TaksitGirilebilir}">
                                 <Label Text="Taksit sayısı" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}" WidthRequest="120" HorizontalOptions="Start">
                                     <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" />
                                 </Border>
-                                <HorizontalStackLayout Spacing="10"><Switch IsToggled="{Binding DuzenIlkKesimVar}" /><Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" /></HorizontalStackLayout>
+                                <HorizontalStackLayout Spacing="10">
+                                    <Switch IsToggled="{Binding DuzenIlkKesimVar}" />
+                                    <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
                                 <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}"><DatePicker Date="{Binding DuzenIlkKesimTarihi}" /></Border>
                                 <Label Text="Bankada taksitle çekildiyse her ekstreye yalnız taksit tutarı yazılır." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
@@ -155,21 +116,7 @@
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
                                     <Label Text="Kanal" Style="{StaticResource LblField}" />
-                                    <FlexLayout Wrap="Wrap" AlignItems="Center"
-                                                BindableLayout.ItemsSource="{Binding GelenKanallari}">
-                                        <BindableLayout.ItemTemplate>
-                                            <DataTemplate x:DataType="core:SecimCipi">
-                                                <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
-                                                    <Border.GestureRecognizers>
-                                                        <TapGestureRecognizer
-                                                            Command="{Binding BindingContext.SecGelenKanalCommand, Source={x:Reference Sayfa}}"
-                                                            CommandParameter="{Binding .}" />
-                                                    </Border.GestureRecognizers>
-                                                    <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </BindableLayout.ItemTemplate>
-                                    </FlexLayout>
+                                    <ctl:CipGrubu BindableLayout.ItemsSource="{Binding GelenKanallari}" SecCommand="{Binding SecGelenKanalCommand}" />
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
                                     <Label Text="Bu dönem için toplam gelir (₺)" Style="{StaticResource LblField}" />
@@ -195,57 +142,16 @@
 
                         <!-- Durum şeridi (tüm roller): yükleniyor · liste hatası · kayıt/silme bilgisi · son güncelleme + yenile.
                              Form hataları sol sütundaki kutuda kalır; liste hatası izleyicide de görünür. -->
-                        <HorizontalStackLayout Spacing="8" IsVisible="{Binding ListeYukleniyor}">
-                            <ActivityIndicator IsRunning="{Binding ListeYukleniyor}" WidthRequest="20" HeightRequest="20" />
-                            <Label Text="İşlemler yükleniyor…" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-                        </HorizontalStackLayout>
-                        <Border Style="{StaticResource ErrorBox}"
-                                IsVisible="{Binding YuklemeHatasi, Converter={StaticResource DoluIse}}">
-                            <Label Text="{Binding YuklemeHatasi}" Style="{StaticResource LblError}" />
-                        </Border>
-                        <Label Text="{Binding Mesaj}" Style="{StaticResource LblPageSub}" TextColor="{StaticResource Green}"
-                               IsVisible="{Binding Mesaj, Converter={StaticResource DoluIse}}" />
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
-                            <Button Grid.Column="1" Text="Yenile / tekrar dene" Style="{StaticResource BtnSecondary}"
-                                    Command="{Binding YenileCommand}"
-                                    IsEnabled="{Binding ListeYukleniyor, Converter={StaticResource TersIse}}" />
-                        </Grid>
+                        <ctl:DurumSeridi Spacing="10" Mesgul="{Binding ListeYukleniyor}" YukleniyorMetni="İşlemler yükleniyor…"
+                                         Hata="{Binding YuklemeHatasi}" HataKutusu="True" Mesaj="{Binding Mesaj}"
+                                         SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
                         <!-- Filtre: kanal çipleri -->
-                        <FlexLayout Wrap="Wrap" AlignItems="Center"
-                                    BindableLayout.ItemsSource="{Binding FiltreKanallari}">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate x:DataType="core:SecimCipi">
-                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,8">
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer
-                                                Command="{Binding BindingContext.SecFiltreKanalCommand, Source={x:Reference Sayfa}}"
-                                                CommandParameter="{Binding .}" />
-                                        </Border.GestureRecognizers>
-                                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                                    </Border>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </FlexLayout>
+                        <ctl:CipGrubu BindableLayout.ItemsSource="{Binding FiltreKanallari}" SecCommand="{Binding SecFiltreKanalCommand}" />
 
                         <!-- Filtre: zaman çipleri + dönem seçici -->
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                            <FlexLayout Wrap="Wrap" AlignItems="Center"
-                                        BindableLayout.ItemsSource="{Binding FiltreZamanlar}">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="core:SecimCipi">
-                                        <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer
-                                                    Command="{Binding BindingContext.SecFiltreZamanCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
-                                            </Border.GestureRecognizers>
-                                            <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </FlexLayout>
+                            <ctl:CipGrubu BindableLayout.ItemsSource="{Binding FiltreZamanlar}" SecCommand="{Binding SecFiltreZamanCommand}" CipKenari="0,0,8,0" />
                             <Border Grid.Column="1" Style="{StaticResource FieldBorder}"
                                     MinimumWidthRequest="150" MinimumHeightRequest="38">
                                 <Picker ItemsSource="{Binding FiltreDonemler}"
@@ -297,17 +203,9 @@
                         </CollectionView.ItemTemplate>
                         <!-- Boş liste yalnız başarılı ve boş yüklemede; yüklenirken ya da hatada gösterilmez. -->
                         <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6"
-                                                 IsVisible="{Binding BindingContext.VeriVar, Source={x:Reference Sayfa}}">
-                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
-                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
-                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
-                                </Border>
-                                <Label Text="{Binding BindingContext.BosListeBasligi, Source={x:Reference Sayfa}}"
-                                       Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
-                                <Label Text="{Binding BindingContext.BosListeAciklamasi, Source={x:Reference Sayfa}}"
-                                       Style="{StaticResource LblEmptySub}" />
-                            </VerticalStackLayout>
+                            <ctl:BosDurum IsVisible="{Binding BindingContext.VeriVar, Source={x:Reference Sayfa}}"
+                                          Baslik="{Binding BindingContext.BosListeBasligi, Source={x:Reference Sayfa}}"
+                                          Aciklama="{Binding BindingContext.BosListeAciklamasi, Source={x:Reference Sayfa}}" />
                         </CollectionView.EmptyView>
                     </CollectionView>
                 </Grid>

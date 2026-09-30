@@ -13,8 +13,14 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             TakipUi.Tikla("Masaüstü bildirimlerini aç / test et", async () =>
             {
                 try
-                { await Browser.Default.OpenAsync(BildirimViewModel.KurulumAdresi(Environment.GetEnvironmentVariable("KASA_API_URL")), BrowserLaunchMode.External); }
-                catch { await DisplayAlertAsync("Tarayıcı açılamadı", "Kasa'nın web sitesindeki Bildirimler sayfasını tarayıcıda açın.", "Tamam"); }
+                {
+                    var adres = BildirimViewModel.KurulumAdresi(Environment.GetEnvironmentVariable("KASA_API_URL"));
+                    await Browser.Default.OpenAsync(adres, BrowserLaunchMode.External);
+                }
+                catch
+                {
+                    await DisplayAlertAsync("Tarayıcı açılamadı", "Kasa'nın web sitesindeki Bildirimler sayfasını tarayıcıda açın.", "Tamam");
+                }
             })));
         Govde.Add(TakipUi.Kart("Hatırlatma saati",
             TakipUi.Onay("Hatırlatmalar açık", nameof(vm.Etkin)),
