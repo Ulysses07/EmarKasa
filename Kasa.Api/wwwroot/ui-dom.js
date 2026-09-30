@@ -79,7 +79,7 @@ function monthPicker(name, value, { label, min = '' } = {}) {
 //   sortById     paylar kanal numarasına göre sıralanır (false: kanal listesi sırası)
 //   onChange     seçim, tutar ya da dağılım değişince çağrılır
 //   legend, label, note (yardım metni; null: yok) ve messages (mode / channel / sum hata iletileri)
-// Ayrı kalanlar: alış satır editörü (editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
+// Ayrı kalanlar: alış satır editörü (purchases-ui editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
 // rolü de (telefonda) kullanır; kart dağılımı (finance-ui allocationEditor) serbest satırlıdır, boş bırakılabilir (Dağılım
 // bekliyor) ve eksi tutarı (iade) mutlak değerle karşılaştırır.
 function distribution(

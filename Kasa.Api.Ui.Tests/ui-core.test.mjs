@@ -1368,6 +1368,7 @@ test('browser entry and helper parse as explicit ES modules before the login scr
     'cash-controls-ui.js',
     'statement-import-ui.js',
     'notification-ui.js',
+    'purchases-ui.js',
     'push-client.js',
     'service-worker.js',
   ]) {
@@ -5348,6 +5349,7 @@ test('ay seçici type="month" kullanmaz; önceki/sonraki düğmeleri YYYY-AA de�
     'cash-controls-ui.js',
     'statement-import-ui.js',
     'notification-ui.js',
+    'purchases-ui.js',
   ]) {
     assert.doesNotMatch(await readFile(new URL(`../Kasa.Api/wwwroot/${file}`, import.meta.url), 'utf8'), /type:\s*'month'/, file);
   }
@@ -7023,7 +7025,8 @@ test('para hesapları kayan nokta artığı göstermez: kart borcu etkisi, ana s
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------
-// act() birleştirmesi kapısı: app.js'te düğmesini kendisi kurup işi run(event.currentTarget, …) ile çalıştıran işlem düğmeleri.
+// act() birleştirmesi kapısı: app.js'te düğmesini kendisi kurup işi run(event.currentTarget, …) ile çalıştıran işlem düğmeleri
+// (alış düğmeleri sonradan purchases-ui.js'e taşındı).
 // Aşağıdakiler BUGÜNKÜ davranışı sabitler: düğmenin yapısı (sınıf, öznitelik, gizlilik, dinlenen olay), iş sürerken düğmenin
 // kapalı olması, ikinci basışın yok sayılması, hatanın kalıcı bildirimde görünmesi, düğmenin yeniden açılması ve başarıda işin
 // sonucu (açılan pencere, yeniden okunan liste). Düğmeler act() ile kurulunca bu testler değişmeden geçmelidir.
