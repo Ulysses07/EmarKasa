@@ -7299,3 +7299,72 @@ test('act() birleştirmesi kapısı: kurtarma kodunu kopyalama düğmesi yazarke
   await clickDialog(bare.nodes, 'Kodu kopyala');
   assert.equal(bare.nodes.get('#alerts').textContent, 'Tarayıcı kopyalamaya izin vermiyor. Kodu seçip elle kopyalayabilirsiniz.×');
 });
+
+// Alış kalemi etiketleri kapısı: alış ayrıntısındaki her kalemin kanal payları div.allocation-tags içinde "Kanal: tutar"
+// etiketleriyle, payı olmayan kalem aynı kutuda "Kanal dağılımı bekliyor" rozetiyle çizilir. Aşağıdaki taban BUGÜNKÜ yapıyı
+// sabitler (kuruşlu ve eksi tutar, paysız kalem, alıcı rolü; sunucunun göndermediği adsız payda da ad olduğu gibi yazılır ve
+// pending işareti konmaz); etiketler allocationTags ile çizilince bu test değişmeden geçmelidir. ALIS_KALEMI_DOM: birleştirme
+// öncesi kodla üretildi (domLines), elle düzenlenmez.
+const ALIS_KALEMI_DOM = {
+  kalemler: [
+    'div class="item-detail"',
+    '  div class="item-heading"',
+    '    span',
+    '      "Karton"',
+    '    span class="money "',
+    '      "₺100,01"',
+    '  div class="allocation-tags"',
+    '    span class="allocation-tag"',
+    '      "A: ₺60,01"',
+    '    span class="allocation-tag"',
+    '      "B: ₺40,00"',
+    'div class="item-detail"',
+    '  div class="item-heading"',
+    '    span',
+    '      "Bant"',
+    '    span class="money "',
+    '      "₺12,50"',
+    '  div class="allocation-tags"',
+    '    span class="badge pending"',
+    '      "Kanal dağılımı bekliyor"',
+    'div class="item-detail"',
+    '  div class="item-heading"',
+    '    span',
+    '      "İade"',
+    '    span class="money "',
+    '      "-₺5,00"',
+    '  div class="allocation-tags"',
+    '    span class="allocation-tag"',
+    '      "null: -₺5,00"',
+  ],
+};
+test('alış kalemi etiketleri kapısı: kalem payları etiketlerle, paysız kalem aynı kutuda bekleme rozetiyle çizilir', async () => {
+  const purchase = {
+    ...actPurchase,
+    durum: 'Taslak',
+    kalemler: [
+      {
+        aciklama: 'Karton',
+        tutar: 100.01,
+        dagilimlar: [
+          { kanalId: 1, kanal: 'A', tutar: 60.01 },
+          { kanalId: 2, kanal: 'B', tutar: 40 },
+        ],
+      },
+      { aciklama: 'Bant', tutar: 12.5, dagilimlar: [] },
+      { aciklama: 'İade', tutar: -5, dagilimlar: [{ kanalId: null, kanal: null, tutar: -5 }] },
+    ],
+  };
+  for (const role of ['editor', 'alici']) {
+    const { app, nodes } = await openApp(false, { ...actPurchaseResponses(), '/api/alis': [purchase], '/api/auth/me': { rol: role } });
+    await app.navigate('purchase', 6);
+    await settle();
+    const items = classNodes(nodes.get('#view'), 'item-detail');
+    assert.equal(items.length, 3, role);
+    assert.deepEqual(
+      items.flatMap(item => domLines(item)),
+      ALIS_KALEMI_DOM.kalemler,
+      role
+    );
+  }
+});
