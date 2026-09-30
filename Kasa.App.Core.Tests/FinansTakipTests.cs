@@ -633,6 +633,19 @@ public class FinansTakipTests
         Assert.Equal(30, vm.OdemeTutari);
         Assert.Equal("Not", vm.OdemeNotu);
     }
+    // Son ödeme günü test saati 2026-09-20'de henüz geçmez (ekstrenin son ödemesi 2026-09-25); gerçek sistem saati bu testin
+    // yazıldığı gündür (2026-09-30, son ödemeden sonra) — KartTakipSatiri'ye vm'nin saati iletilmezse (yanlışlıkla sistem
+    // saatine düşerse) SonOdemeGecti yanlışlıkla true olur ve bu test kırmızı görünür.
+    [Fact]
+    public async Task Kart_kutusu_saati_goruntu_modelinin_saatinden_gelir()
+    {
+        var ekstre = new KartEkstreDto(7, Tarih, new DateOnly(2026, 9, 25), 100, 0, 100, null);
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { Ekstreler = new[] { ekstre } } };
+        var vm = new KartTakipViewModel(api, Finans(), Auth(), zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 20)));
+        await vm.YukleAsync();
+        Assert.False(vm.Kartlar[0].SonOdemeGecti);
+        Assert.DoesNotContain(vm.Kartlar[0].Etiketler, e => e.Metin == "Son ödeme geçti");
+    }
     [Fact]
     public async Task Ozet_farkli_kart_alacagini_borctan_dusmez_belirsiz_payi_ayirir()
     {

@@ -85,7 +85,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     public bool IadeGirisi => HarcamaTutari < 0 && ParaAyristirici.GecerliMi(HarcamaTutari);
     public bool HarcamaGirisi => !IadeGirisi;
     partial void OnHarcamaTutariChanged(decimal value) { OnPropertyChanged(nameof(IadeGirisi)); OnPropertyChanged(nameof(HarcamaGirisi)); if (value >= 0) IadeKaynagi = null; }
-    public string KartOzeti => Secili is { } k ? new KartTakipSatiri(k).Ozet : "Yeni kart bilgilerini girin.";
+    public string KartOzeti => Secili is { } k ? new KartTakipSatiri(k, _zaman).Ozet : "Yeni kart bilgilerini girin.";
     public string KanalBorcOzeti => Secili?.KanalKartBorclari is { } paylar ? paylar.Count == 0 ? "Kayıtlı kanal kart borcu yok." : string.Join("\n", paylar.Select(p => TakipMetni.Paylar(new[] { p }))) : "Kanal kart borcu bilgisi alınamadı.";
     /// <summary>Eski karttan geçişin denetim izi (kural, açıklama, onay anındaki özet); geçiş yoksa null.</summary>
     public string? GecisKaydi => Secili?.Gecis is { } g ? TakipMetni.GecisKaydi(g) : null;

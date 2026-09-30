@@ -90,6 +90,29 @@ public class KartTakipSatiriTests
     }
 
     [Fact]
+    public void Tahmini_kasa_farki_sifirsa_gecis_etiketi_cikmaz()
+    {
+        var gecis = new KartGecisDto("EtkiTarihi", null, null, TahminiKasaFarki: 0);
+        var satir = Satir(Kart(gecis: gecis));
+        Assert.DoesNotContain(satir.Etiketler, e => e.Metin == "Geçiş farkını doğrulayın");
+    }
+
+    [Fact]
+    public void Gecis_farkiyla_eski_takip_ve_pasifte_ilk_iki_etiket_gecis_ve_eski_takiptir()
+    {
+        var gecis = new KartGecisDto("EtkiTarihi", null, null, TahminiKasaFarki: 75);
+        var satir = Satir(Kart(yeniTakip: false, aktif: false, gecis: gecis));
+        Assert.Equal(new[] { "Geçiş farkını doğrulayın", "Eski takip" }, satir.Etiketler.Select(e => e.Metin));
+    }
+
+    [Fact]
+    public void Ozet_ikinci_satirinda_ilk_acik_ekstrenin_son_odemesi_yazar()
+    {
+        var satir = Satir(Kart(ekstreler: [Ekstre(new(2026, 10, 5), 30)]));
+        Assert.Contains("İlk açık ekstrenin son ödemesi: 05.10.2026", satir.Ozet);
+    }
+
+    [Fact]
     public void Renk_kart_adindaki_bankadan_gelir()
         => Assert.Equal(KartRenkAilesi.Yesil, Satir(Kart()).Renk);
 }
