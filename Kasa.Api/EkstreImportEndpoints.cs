@@ -12,7 +12,13 @@ namespace Kasa.Api;
 public static class EkstreImportEndpoints
 {
     private const int FileLimit = 10 * 1024 * 1024;
-    private static readonly string[] Banks = ["Vakifbank", "Akbank", "QNB", "Isbank", "Garanti", "Denizbank"];
+    /// <summary>Desteklenen bankaların tek kaynağı: yükleme yalnız bu kodları kabul eder; web ve masaüstü seçim listesini ve görünen
+    /// adları GET /api/ekstre-aktar/bankalar'dan alır (istemcilerde kopya ya da yedek liste yoktur).</summary>
+    public static readonly IReadOnlyList<EkstreBankaDto> Bankalar =
+    [
+        new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("QNB", "QNB"), new("Isbank", "İş Bankası"), new("Garanti", "Garanti BBVA"),
+        new("Denizbank", "DenizBank"),
+    ];
 
     public static WebApplication MapEkstreImportEndpoints(this WebApplication app)
     {
@@ -129,6 +135,8 @@ public static class EkstreImportEndpoints
             finally { db.EkstreDegisikligi = false; }
             return Results.Ok(Document(db, id));
         })));
+        // Yükleme formunun banka seçenekleri (kod ve görünen ad); veritabanına dokunmaz.
+        api.MapGet("/bankalar", () => Bankalar);
         return app;
     }
 
@@ -147,7 +155,7 @@ public static class EkstreImportEndpoints
         var bank = form["banka"].ToString();
         var account = form["hesapAdi"].ToString().Trim();
         int? card = int.TryParse(form["kartId"], out var parsed) ? parsed : null;
-        if (source is not ("Kart" or "Banka") || !Banks.Contains(bank))
+        if (source is not ("Kart" or "Banka") || !Bankalar.Any(b => b.Kod == bank))
             return Error("Geçerli kaynak ve banka seçin.");
         if (source == "Banka" && (account.Length is < 1 or > 100 || card is not null))
             return Error("Banka hesabına kısa bir ad girin (en fazla 100 karakter).");

@@ -6,6 +6,7 @@ namespace Kasa.ApiClient;
 
 public sealed partial class KasaApiClient : IEkstreAktarmaApi
 {
+    public Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync() => GetAsync<IReadOnlyList<EkstreBankaDto>>("api/ekstre-aktar/bankalar");
     public Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null) => GetAsync<IReadOnlyList<EkstreBelgeOzetDto>>("api/ekstre-aktar" + (beforeId is { } id ? $"?beforeId={id}" : ""));
     public Task<EkstreBelgeDto> EkstreBelgeAsync(int id) => GetAsync<EkstreBelgeDto>($"api/ekstre-aktar/{id}");
     public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) => GetAsync<EkstreBelgeDto>($"api/ekstre-aktar/kayitlar/{kayitId}");

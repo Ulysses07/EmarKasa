@@ -15,7 +15,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     private int _onizlemeForm;
     private int? _gecmisImleci;
     public IReadOnlyList<EkstreSecenek> Kaynaklar { get; } = [new("Kart", "Kredi kartı ekstresi"), new("Banka", "Banka hesap hareketleri")];
-    public IReadOnlyList<EkstreSecenek> Bankalar { get; } = [new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("QNB", "QNB"), new("Isbank", "İş Bankası"), new("Garanti", "Garanti BBVA"), new("Denizbank", "DenizBank")];
+    /// <summary>Yükleme formunun bankaları: sunucudan (GET api/ekstre-aktar/bankalar, tek kaynak) yüklenir; istemcide yedek liste
+    /// yoktur. Alınamazsa boş kalır ve <see cref="TemelViewModel"/> hatası nedenini söyler (PDF yüklenemez).</summary>
+    public ObservableCollection<EkstreSecenek> Bankalar { get; } = new();
     public ObservableCollection<KartTakipDto> Kartlar { get; } = new();
     public ObservableCollection<KanalDto> Kanallar { get; } = new();
     public ObservableCollection<EkstreSatirEditor> Satirlar { get; } = new();
@@ -65,6 +67,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         Gecmis.Clear();
         Kartlar.Clear();
         Kanallar.Clear();
+        Bankalar.Clear();
         _kayitKey.Temizle();
         _iptalKey.Temizle();
         _gecmisImleci = null;
@@ -76,6 +79,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         GirdiDegisti();
         var id = Belge?.Id;
+        var (bankalar, bankaHatasi) = await BankalariAlAsync();
         var gecmis = await api.EkstreBelgelerAsync();
         var kartlar = await takip.TakipKartlarAsync();
         var kanallar = await finans.KanallarAsync();
@@ -87,14 +91,32 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         EskiBelgeVar = gecmis.Count == 50;
         TakipMetni.Doldur(Kartlar, kartlar.Where(k => k.YeniTakip));
         TakipMetni.Doldur(Kanallar, kanallar.Where(k => k.Aktif).OrderBy(k => k.Sira));
+        var seciliBanka = Banka?.Kod;
+        TakipMetni.Doldur(Bankalar, bankalar.Select(b => new EkstreSecenek(b.Kod, b.Ad)));
+        Banka = Bankalar.FirstOrDefault(b => b.Kod == seciliBanka);
         if (belge is not null)
             BelgeyiYansit(belge);
         Tamamlandi();
+        if (bankaHatasi is not null)
+            Hata = bankaHatasi;
     });
+    /// <summary>Bankalar sunucudan; alınamazsa (eski sunucuda uç yok, sunucu hatası) boş liste ve anlaşılır ileti döner, geçmiş ve
+    /// açık belge yine yüklenir. Oturum sonu ve yetki reddi bütün yüklemeyi durdurur.</summary>
+    private async Task<(IReadOnlyList<EkstreBankaDto> Bankalar, string? Hata)> BankalariAlAsync()
+    {
+        try
+        { return (await api.EkstreBankalarAsync(), null); }
+        catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound)
+        { return ([], "Banka listesi alınamadı: sunucu banka listesini vermiyor (sunucu bu uygulama sürümünden eski olabilir). PDF yüklemek için sunucu güncellenmeli."); }
+        catch (KasaApiException e) when (e.DurumKodu is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+        { return ([], "Banka listesi alınamadı; PDF yüklenemez. " + OkumaHataMesaji(e)); }
+    }
     public EkstreYuklemeSecimi? YuklemeSecimi()
     {
         if (!EditorMu || !VeriHazir || Mesgul)
             return null;
+        if (Bankalar.Count == 0)
+        { Hata = "Banka listesi sunucudan alınamadı; PDF yüklenemez. Ekranı yenileyip yeniden deneyin."; return null; }
         if (Kaynak is null || Banka is null || (BankaMi && (string.IsNullOrWhiteSpace(HesapAdi) || HesapAdi.Trim().Length > 100)) || (KartMi && Kart is null))
         { Hata = "Belge türünü, bankayı ve kartı / kısa hesap adını seçin."; return null; }
         return new(OturumNesli, Kaynak.Kod, Banka.Kod, BankaMi ? HesapAdi.Trim() : "", KartMi ? Kart!.Id : null);
