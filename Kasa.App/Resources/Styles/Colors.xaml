@@ -60,6 +60,40 @@
     <Color x:Key="KoyuKirmizi">DarkRed</Color>
     <Color x:Key="KoyuYesil">DarkGreen</Color>
 
+    <!-- Kart kutuları (KartKutusu; Kasa.App.Core KartRengi): banka renk ailesi başına açık zemin, kenar (doluluk çubuğunun izi)
+         ve koyu yazı (çubuğun dolgusu). Yazı zeminine en az 4,5:1, çubuk dolgusu izine en az 3:1 verir; Kasa.App.Core.Tests sınar.
+         Turuncu, Camgobegi, Kahve ve Gri tanınmayan bankaların paletidir. -->
+    <Color x:Key="KartYesilZemin">#E6F2EA</Color>
+    <Color x:Key="KartYesilKenar">#A9D1B6</Color>
+    <Color x:Key="KartYesilYazi">#1D5B3A</Color>
+    <Color x:Key="KartKirmiziZemin">#FBE9E7</Color>
+    <Color x:Key="KartKirmiziKenar">#EDB3AB</Color>
+    <Color x:Key="KartKirmiziYazi">#8E2419</Color>
+    <Color x:Key="KartMaviZemin">#E6EFFA</Color>
+    <Color x:Key="KartMaviKenar">#A8C4EA</Color>
+    <Color x:Key="KartMaviYazi">#1B4A86</Color>
+    <Color x:Key="KartMorZemin">#F0EAF8</Color>
+    <Color x:Key="KartMorKenar">#C8B5E6</Color>
+    <Color x:Key="KartMorYazi">#55307F</Color>
+    <Color x:Key="KartSariZemin">#FBF3D9</Color>
+    <Color x:Key="KartSariKenar">#E6CF7F</Color>
+    <Color x:Key="KartSariYazi">#6B4E00</Color>
+    <Color x:Key="KartLacivertZemin">#E7EAF4</Color>
+    <Color x:Key="KartLacivertKenar">#AEB8D8</Color>
+    <Color x:Key="KartLacivertYazi">#1F2D5C</Color>
+    <Color x:Key="KartTuruncuZemin">#FCEEE3</Color>
+    <Color x:Key="KartTuruncuKenar">#EDBE98</Color>
+    <Color x:Key="KartTuruncuYazi">#8A3F0C</Color>
+    <Color x:Key="KartCamgobegiZemin">#E3F3F3</Color>
+    <Color x:Key="KartCamgobegiKenar">#9ED0CF</Color>
+    <Color x:Key="KartCamgobegiYazi">#115A5A</Color>
+    <Color x:Key="KartKahveZemin">#F3ECE6</Color>
+    <Color x:Key="KartKahveKenar">#CDB8A6</Color>
+    <Color x:Key="KartKahveYazi">#5E3F27</Color>
+    <Color x:Key="KartGriZemin">#EEF0EC</Color>
+    <Color x:Key="KartGriKenar">#C3C8BE</Color>
+    <Color x:Key="KartGriYazi">#3E453B</Color>
+
     <!-- Sık kullanılan fırçalar -->
     <SolidColorBrush x:Key="BrushCard" Color="{StaticResource Card}" />
     <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource Border}" />
