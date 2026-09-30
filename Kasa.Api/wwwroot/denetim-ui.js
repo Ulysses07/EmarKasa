@@ -1,8 +1,8 @@
 // Değişiklik geçmişi (merkezi denetim izi): editörün salt okunur görünümü. Kasayı değiştiren her kaydın önceki/yeni değeri,
 // yapan, zaman, gerekçe, ay kilidi açılışı ve güvenlik olayları GET /api/denetim'den okunur (yeniden eskiye, sayfalı).
 // app.js modülü yalnız Ayarlar'daki düğmeyle yükler. Bütün metinler textContent ile yazılır (sunucu verisi HTML sayılmaz).
-import { h, button, input, field, select, help, table } from './ui-dom.js';
-import { api, openModal, run } from './ui-shell.js';
+import { h, input, field, select, help, table } from './ui-dom.js';
+import { api, openModal, run, act } from './ui-shell.js';
 
 export const ENTITY_LABELS = {
   Islem: 'Gider',
@@ -142,7 +142,7 @@ export function createDenetimUi() {
     let filters = null;
     let lastId = null;
     let rows = [];
-    const more = button('Daha eski kayıtlar', event => run(event.currentTarget, () => load(true)), 'small');
+    const more = act('Daha eski kayıtlar', () => load(true), 'small');
     const draw = done => {
       const body = rows.length
         ? table(
