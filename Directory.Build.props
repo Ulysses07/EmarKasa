@@ -11,6 +11,6 @@
          kavramdır ve bu değere bağlı değildir. -->
   <PropertyGroup>
     <MauiVersion>10.0.110</MauiVersion>
-    <KasaSurumu>2.3.0</KasaSurumu>
+    <KasaSurumu>2.4.0</KasaSurumu>
   </PropertyGroup>
 </Project>

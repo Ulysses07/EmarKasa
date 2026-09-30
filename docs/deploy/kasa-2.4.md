@@ -1,6 +1,6 @@
 # Emar Kasa 2.4 — denetim düzeltmeleri, telefon arayüzü ve belge deposu (yayın taslağı)
 
-> **Durum: TASLAK, yayın yapılmadı.** Kapsam: canlıdaki `v2.3.0` (`fce8578`, yayın `kasa:2.3.0-imports-20260923`) → `origin/release/2.x` `ec2178b` (PR #12–#29, 379 commit). "2.4" çalışma adıdır: `Directory.Build.props` içindeki `KasaSurumu` hâlâ `2.3.0`'dır ve bu belge onu değiştirmez (aşağıda "Karar noktaları"). Her iddia koddan ya da PR gövdesinden alındı; alınamayan ya da yalnız sunucuda ölçülebilen bilgiler **doğrulanmadı** diye işaretlidir. Sunucuya bağlanılmadı, canlı veri okunmadı.
+> **Durum: TASLAK, yayın yapılmadı.** Kapsam: canlıdaki `v2.3.0` (`fce8578`, yayın `kasa:2.3.0-imports-20260923`) → `origin/release/2.x` `ec2178b` (PR #12–#29, 379 commit). Sürüm `KasaSurumu` = **2.4.0**, minimum istemci 2.4.0 (aşağıda "Karar noktaları"). Her iddia koddan ya da PR gövdesinden alındı; alınamayan ya da yalnız sunucuda ölçülebilen bilgiler **doğrulanmadı** diye işaretlidir. Sunucuya bağlanılmadı, canlı veri okunmadı.
 >
 > Bu belgeyle birlikte birleşmesi beklenenler: PR #30 (kalan İngilizce dosya/tip/test adlarının Türkçeleşmesi) ve ardından "Kodlar kalan aileleri" (yalnız `Kasa.Core.Kodlar` sabitleri). İkisi de yalnız ad/sabit değişikliğidir; şema, rota, DTO alanı, davranış ve log kategorisi (`Kasa.Api.EkstreImportEndpoints`) aynı kalır. Log satırlarındaki sınıf adı PR #30'dan sonra `KasaVeritabaniBaslatici` olur (bugün `KasaDatabaseInitializer`).
 
@@ -8,10 +8,10 @@
 
 | Karar | Bugünkü değer | Not |
 | --- | --- | --- |
-| Sürüm numarası | `KasaSurumu` 2.3.0 | Yükseltilmezse `/api/surum` ve yeni masaüstü paketi "2.3.0" bildirir; canlıdaki sürümden ayırt edilemez. Üç parçalı olmalı (MAUI sınırı). |
-| Minimum istemci | `YonetimEndpoints.MinimumIstemci` = 2.3.0 | Yükseltmek eski masaüstünü engellemez; yalnız Güvenlik ekranında "Devam etmek için uygulamayı güncelleyin." yazar (`GuvenlikViewModel`, 2.3.0'da da aynı). `KasaSurumu`'ndan büyük olamaz, yoksa yeni istemci de uyarı gösterir. Aşağıda "Eski istemci uyumu". |
-| `/api/surum` `notlar` metni | 2.3'ün PDF ekstre metni | Yeni sürümün kısa notu yazılmalı (Güvenlik ekranında görünür). |
-| Etiket | yok | [dal-durumu.md](dal-durumu.md) A9: yalnız etiketli commit dağıtılır (`v2.4.0` önerisi). Etiket #30 ve "Kodlar" birleştikten, sürüm değişikliği girdikten sonra atılır. |
+| Sürüm numarası | **Karar verildi: 2.4.0** (`KasaSurumu`; masaüstü `ApplicationVersion` 6 → 7) | `/api/surum` ve yeni masaüstü "2.4.0" bildirir. |
+| Minimum istemci | **Karar verildi: 2.4.0** (`YonetimEndpoints.MinimumIstemci`) | Eski 2.3.0 masaüstü engellenmez; Güvenlik ekranında "Devam etmek için uygulamayı güncelleyin." yazar (`GuvenlikViewModel`). Gerekçe: 2.3.0 masaüstünde K2 sonrası "Gelen" açıklamasız düşük görünür, editör belge silemez (bölüm 7). Yeni masaüstü paketi yayınla birlikte dağıtılmalıdır; dağıtılmazsa 2.3.0 kullanıcıları uyarıyı görür ama çalışmaya devam eder. |
+| `/api/surum` `notlar` metni | **Yazıldı** | "Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi. Bu sürümle masaüstü uygulamasını güncelleyin." |
+| Etiket | yok | [dal-durumu.md](dal-durumu.md) A9: yalnız etiketli commit dağıtılır. `v2.4.0`, yayına karar verilince yayımlanacak commit'e atılır (kullanıcı kararı). |
 | Yayın zamanı ve kesinti | — | İlk açılışta belge taşıması bitene kadar HTTP kapalı (nginx 502). Süre canlı veritabanı boyutuna bağlı; kopya provasında ölçülmeli (doğrulanmadı). Kullanıcılara bakım aralığı bildirilir. |
 | Masaüstü paketinin dağıtımı | — | Girişten sonraki askıda kalma `duzeltme/maui-menu-donmasi` dalında giderildi (dotnet/maui#38813 geçici çözümü, "Bilinen konular"); paket bu dal birleşmeden dağıtılmaz. Dağıtmadan önce yine normal (etkin, ekranda) pencerede giriş sonrası bütün menüler elle denenmeli. Sunucu yeni masaüstü olmadan da yayınlanabilir. |
 | Sunucu dışı yedek | runbook tablosu "Henüz yapılmadı" | `uzak_yedek.py` + systemd bu sürümle gelir; kurulum isteğe bağlı ama belge deposundan sonra önerilir. Sunucuda kurulu olup olmadığı doğrulanmadı. |
@@ -167,7 +167,7 @@ Yedek her zaman `restore_backup.py` ile açılır (ZIP'ten elle çıkarılmaz); 
 
 ## 7. Eski istemci uyumu (canlıdaki 2.3.0 masaüstü)
 
-Sunucu 2.3.0 istemcisini desteklemeye devam eder (`minimumIstemci` 2.3.0). Bilinen farklar:
+Sunucu 2.3.0 istemcisini çalıştırmaya devam eder, ancak `minimumIstemci` 2.4.0 olduğundan Güvenlik ekranında güncelleme uyarısı görünür. Bilinen farklar:
 
 | Durum | 2.3.0 masaüstünde ne olur | Kaynak |
 | --- | --- | --- |
