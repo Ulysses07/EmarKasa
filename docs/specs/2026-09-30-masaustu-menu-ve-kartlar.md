@@ -35,7 +35,7 @@ Menü, MAUI'nin öğe şablonu (`Shell.ItemTemplate`) yerine kendi bileşenimizl
 
 - Sayfa geçişi yine Shell üzerinden yapılır (`GoToAsync("//rota")`). Rotalar, `FlyoutItem` tanımları, geri tuşu ve sayfa yaşam döngüsü aynı kalır. `FlyoutItem`'lar menüde görünmez, yalnız rota kaynağıdır.
 - Menü içeriği (grup, sıra, başlık, simge, rota, bölüm) tek bir görünüm modelinden gelir: `Kasa.App.Core`'da yeni `MenuModeli`. Bu model `SekmeModeli.Bolumler(rol)` ile süzülür ve seçili rotayı tutar. Böylece menünün içeriği ve rol kuralı Windows'tan bağımsız olarak testle sabitlenir.
-- `AppShell.xaml.cs`'teki bölüm → `FlyoutItem` sözlüğü rota eşlemesine döner. Menü görünürlüğü artık `FlyoutItem.IsVisible` ile değil `MenuModeli` ile yönetilir. Doğrudan rotayla gidilen, yetkisi olmayan bir sayfaya erişimi bugün hangi kural engelliyorsa aynı kural korunur.
+- `AppShell.xaml.cs`'teki bölüm → `FlyoutItem` sözlüğü rota eşlemesine döner. Menüde görünen öğeler `MenuModeli` ile çizilir (`FlyoutContent` ayarlıyken `FlyoutItem`'lar menüde çizilmez). Doğrudan rotayla gidilen, yetkisi olmayan bir sayfaya erişimi sınırlayan `FlyoutItem.IsVisible` ise aynı rol listesiyle (`SekmeModeli.Bolumler`) `MenuyuGoster`'te yönetilmeye devam eder.
 - Seçili ve üzerine gelinen öğenin zemini `BackgroundColor` ile yazılır (dotnet/maui#38813 dersi). `MauiKayitTutarliligiTests.Kabuk_menu_sablonlari_Background_firca_ozelligini_yazmaz` testi, yeni menü şablonunu da kapsayacak biçimde güncellenir.
 - Simgeler, uygulamada zaten bulunan yazı tipi ya da görsel kaynaklarından seçilir. Yeni bir simge paketi gerekirse sürümü ve lisansı internetten doğrulanır.
 
