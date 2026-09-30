@@ -1,3 +1,4 @@
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
@@ -6,7 +7,12 @@ namespace Kasa.App.Core;
 
 public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : OturumluViewModel(auth)
 {
-    public const string IstemciSurumu = "2.3.0";
+    /// <summary>Uygulama sürümü. Tek kaynağı depo kökündeki Directory.Build.props'taki KasaSurumu'dur (Kasa.App'te
+    /// ApplicationDisplayVersion, burada Version): derleme meta verisinden okunur, kodda sürüm dizesi yoktur. .NET 8 SDK'sının
+    /// bilgi sürümüne eklediği "+&lt;commit&gt;" atılır.</summary>
+    public static readonly string IstemciSurumu =
+        (typeof(GuvenlikViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+         ?? throw new InvalidOperationException("Kasa.App.Core derlemesinde AssemblyInformationalVersion yok (KasaSurumu, Directory.Build.props).")).Split('+')[0];
     [ObservableProperty] private string _mevcutSifre = "";
     [ObservableProperty] private string _yeniSifre = "";
     /// <summary>Yeni şifrenin tekrarı: değişim token'ı ve kurtarma kodunu hemen geçersiz kıldığı için yazım hatası hesabı

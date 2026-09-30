@@ -33,8 +33,10 @@
 		<!-- App Identifier -->
 		<ApplicationId>com.royalmezat.kasa</ApplicationId>
 
-		<!-- Versions -->
-		<ApplicationDisplayVersion>2.3.0</ApplicationDisplayVersion>
+		<!-- Sürüm: tek kaynak depo kökündeki Directory.Build.props (KasaSurumu; en çok üç parça). MAUI Windows'ta Version'ı da
+		     buna eşitler; uygulamanın gösterdiği sürüm Kasa.App.Core derlemesinin aynı değerli meta verisinden okunur.
+		     ApplicationVersion yayın başına artan tam sayıdır (derleme numarası). -->
+		<ApplicationDisplayVersion>$(KasaSurumu)</ApplicationDisplayVersion>
 		<ApplicationVersion>6</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->

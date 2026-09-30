@@ -1,9 +1,16 @@
 <Project>
-  <!-- MAUI paket sürümünün tek kaynağı. Kasa.App (Microsoft.Maui.Controls, MAUI SDK'nın örtük paketleri) ve
-       Kasa.App.Core.Tests (Microsoft.Maui.Controls.Core) bu değeri kullanır; MAUI SDK yalnız boşsa kendi workload
-       sürümünü atar. Workload güncellenince burada birlikte yükseltin. Bu dosyaya başka özellik eklemeyin: depo
-       kökündeki her projeye (Kasa.Api dahil) uygulanır. -->
+  <!-- Bu dosya depo kökündeki her projeye (Kasa.Api dahil; Dockerfile onu imaja kopyalar) uygulanır. Yalnız birden çok
+       projenin paylaştığı iki değeri taşır; başka özellik eklemeyin.
+       - MauiVersion: MAUI paket sürümünün tek kaynağı. Kasa.App (Microsoft.Maui.Controls, MAUI SDK'nın örtük paketleri) ve
+         Kasa.App.Core.Tests (Microsoft.Maui.Controls.Core) bu değeri kullanır; MAUI SDK yalnız boşsa kendi workload
+         sürümünü atar. Workload güncellenince burada birlikte yükseltin.
+       - KasaSurumu: Emar Kasa ürün sürümünün tek kaynağı. Kasa.Api ve Kasa.App.Core onu Version, Kasa.App
+         ApplicationDisplayVersion olarak derlemeye yazar; /api/surum'daki "surum" ve uygulamanın gösterdiği sürüm çalışma
+         anında derleme meta verisinden okunur. Üç parçalı olmalıdır (MAUI ApplicationDisplayVersion en çok üç parça).
+         Yükseltmek yayın kararıdır. Desteklenen en eski istemci (minimumIstemci, Kasa.Api/YonetimEndpoints.cs) ayrı bir
+         kavramdır ve bu değere bağlı değildir. -->
   <PropertyGroup>
     <MauiVersion>10.0.110</MauiVersion>
+    <KasaSurumu>2.3.0</KasaSurumu>
   </PropertyGroup>
 </Project>

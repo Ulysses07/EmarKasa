@@ -7,12 +7,17 @@ namespace Kasa.Api;
 
 public static class YonetimEndpoints
 {
+    /// <summary>Desteklenen en eski masaüstü istemci sürümü (/api/surum "minimumIstemci"): daha eski istemci güncelleme ister
+    /// (GuvenlikViewModel). Sunucu sürümünden (<see cref="SunucuSurumu"/>, KasaSurumu) bağımsızdır; yalnız eski istemcinin
+    /// artık desteklenmediğine karar verilince elle yükseltilir.</summary>
+    public const string MinimumIstemci = "2.3.0";
+
     public static WebApplication MapYonetimEndpoints(this WebApplication app)
     {
         app.MapGet("/api/surum", (IConfiguration cfg) => Results.Ok(new
         {
-            surum = "2.3.0",
-            minimumIstemci = "2.3.0",
+            surum = SunucuSurumu.Deger,
+            minimumIstemci = MinimumIstemci,
             indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
             notlar = "Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü."
         }));
