@@ -66,7 +66,10 @@
                                 <Border Style="{StaticResource FieldBorder}" WidthRequest="120" HorizontalOptions="Start">
                                     <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" />
                                 </Border>
-                                <HorizontalStackLayout Spacing="10"><Switch IsToggled="{Binding DuzenIlkKesimVar}" /><Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" /></HorizontalStackLayout>
+                                <HorizontalStackLayout Spacing="10">
+                                    <Switch IsToggled="{Binding DuzenIlkKesimVar}" />
+                                    <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
                                 <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}"><DatePicker Date="{Binding DuzenIlkKesimTarihi}" /></Border>
                                 <Label Text="Bankada taksitle çekildiyse her ekstreye yalnız taksit tutarı yazılır." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
