@@ -61,6 +61,7 @@ import {
   clearSession,
   api,
   run,
+  act,
   closeModal,
   setModalCleanup,
   openModal,
@@ -346,7 +347,7 @@ function renderPurchase(id) {
           p.odemeler.map(payment => paymentRow(p, payment))
         )
       : h('p', { class: 'plain-note' }, 'Bu alışa henüz ödeme kaydedilmedi.'),
-    rights.pay ? button('+ Ödeme ekle', event => run(event.currentTarget, () => paymentDialog(p)), 'small') : null
+    rights.pay ? act('+ Ödeme ekle', () => paymentDialog(p), 'small') : null
   );
   const docs = h('div', {}, help('Belgeler yükleniyor…'));
   // Editör kaldırılan belgeleri de (kaldıran, zaman ve gerekçesiyle) açıp kapatabilir; alıcı kaldırılanları görmez.
@@ -379,7 +380,7 @@ function renderPurchase(id) {
     rights.send && button('İncelemeye gönder', () => statusDialog(p, 'gonder'), 'primary'),
     rights.approve && button('Alışı onayla', () => statusDialog(p, 'onayla'), 'primary'),
     rights.return && button('Açıklamayla iade et', () => statusDialog(p, 'iade')),
-    rights.pay && button('Ödeme kaydet', event => run(event.currentTarget, () => paymentDialog(p)))
+    rights.pay && act('Ödeme kaydet', () => paymentDialog(p))
   );
   const total = section(
     'Alış hesabı',
@@ -731,8 +732,8 @@ function paymentRow(p, payment) {
         h(
           'div',
           { class: 'row-actions' },
-          button('Düzelt / taşı', event => run(event.currentTarget, () => paymentDialog(p, payment)), 'small'),
-          button('Ödemeyi iptal et', event => run(event.currentTarget, () => cancelPayment(p, payment)), 'small danger')
+          act('Düzelt / taşı', () => paymentDialog(p, payment), 'small'),
+          act('Ödemeyi iptal et', () => cancelPayment(p, payment), 'small danger')
         )
     ),
     h('div', { class: 'payment-amount money' }, money(payment.tutar))
@@ -876,7 +877,7 @@ async function paymentDialog(p, payment = null) {
       }
       installmentSync();
     };
-    const more = button('Daha eski giderler', event => run(event.currentTarget, () => load(true)), 'small', { hidden: true });
+    const more = act('Daha eski giderler', () => load(true), 'small', { hidden: true });
     const load = async append => {
       const mine = ++generation;
       const text = search.value;
@@ -933,7 +934,7 @@ async function paymentDialog(p, payment = null) {
         'div',
         { class: 'row-actions' },
         search,
-        button('Ara', event => run(event.currentTarget, () => load(false)), 'small')
+        act('Ara', () => load(false), 'small')
       ),
       status,
       more,
@@ -1303,15 +1304,14 @@ async function renderTools(generation) {
           restoreNotice(restoreReport(backup))
         )
       : h('p', { class: 'form-error' }, backupResult.reason.message),
-    button(
+    act(
       'Şimdi yedek indir',
-      event =>
-        run(event.currentTarget, async () => {
-          const blob = await api('/api/yedek', { method: 'POST', binary: true });
-          download(blob, `kasa-yedek-${today()}.zip`);
-          toast('Yedek dosyası indirildi.');
-          await navigate('tools');
-        }),
+      async () => {
+        const blob = await api('/api/yedek', { method: 'POST', binary: true });
+        download(blob, `kasa-yedek-${today()}.zip`);
+        toast('Yedek dosyası indirildi.');
+        await navigate('tools');
+      },
       'primary'
     ),
     help('Yedeği güvenli bir yerde saklayın. Geri yükleme, çalışan uygulama durdurularak sunucuda yapılır.')
@@ -1330,7 +1330,7 @@ async function renderTools(generation) {
     help(
       'Değişiklik geçmişi: kasayı değiştiren kayıtların önceki ve yeni değerleri, gerekçeleri, ay kilidi açılışları ve güvenlik olayları.'
     ),
-    button('Değişiklik geçmişini aç', event => run(event.currentTarget, openHistory))
+    act('Değişiklik geçmişini aç', openHistory)
   );
   const versionContent = version
     ? h(
@@ -1401,7 +1401,7 @@ async function renderTools(generation) {
           'div',
           { class: 'stack' },
           help('Kart ve kredi hatırlatmalarını telefonunuza veya bu bilgisayara gönderin.'),
-          button('İzin, saat ve cihaz ayarları', event => run(event.currentTarget, () => notificationUi.settings()))
+          act('İzin, saat ve cihaz ayarları', () => notificationUi.settings())
         )
       ),
       section(
@@ -1435,12 +1435,7 @@ function pendingNotice(value) {
     : null;
 }
 function cashActions() {
-  return canEditCash()
-    ? [
-        button('+ Gelir gir', event => run(event.currentTarget, () => incomeDialog())),
-        button('+ Gider kaydet', event => run(event.currentTarget, () => expenseDialog()), 'primary'),
-      ]
-    : [];
+  return canEditCash() ? [act('+ Gelir gir', () => incomeDialog()), act('+ Gider kaydet', () => expenseDialog(), 'primary')] : [];
 }
 // Ana sayfa özeti tek istekte: panel, kanal eşikleri ve takip özeti sunucunun tek anlık görüntüsünden gelir; bakiye, eşik
 // rozeti ve kart borcu birbiriyle çelişmez, sunucu kart hesabını bir kez yapar. Eski sunucuda uç yoksa (404) panel tek başına
@@ -1697,12 +1692,7 @@ async function renderWeekly(generation) {
   $('#view').replaceChildren(
     ...childValues([
       health && h('div', { class: 'notice danger', role: 'alert' }, health),
-      h(
-        'div',
-        { class: 'toolbar' },
-        period,
-        canEditCash() && button('Dönem geliri gir', event => run(event.currentTarget, () => incomeDialog(selected.donem.start)), 'primary')
-      ),
+      h('div', { class: 'toolbar' }, period, canEditCash() && act('Dönem geliri gir', () => incomeDialog(selected.donem.start), 'primary')),
       details,
     ])
   );
@@ -1730,7 +1720,7 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
         'div',
         { class: 'toolbar' },
         monthInput.node,
-        button('Ayı göster', event => run(event.currentTarget, () => renderMonthly(generation, monthInput.value)))
+        act('Ayı göster', () => renderMonthly(generation, monthInput.value))
       ),
       !runtime.saltOkunur && lock,
       report.dondurulmus &&
@@ -1820,12 +1810,10 @@ async function renderTransactions(generation, filters = {}) {
     runtime.saltOkunur
       ? []
       : [
-          button('Gider raporu indir', event =>
-            run(event.currentTarget, async () => {
-              state.channels = await api('/api/kanallar');
-              exportDialog();
-            })
-          ),
+          act('Gider raporu indir', async () => {
+            state.channels = await api('/api/kanallar');
+            exportDialog();
+          }),
           ...cashActions(),
         ]
   );
@@ -1892,7 +1880,7 @@ async function renderTransactions(generation, filters = {}) {
             : h(
                 'div',
                 { class: 'row-actions' },
-                button('Düzenle', event => run(event.currentTarget, () => expenseDialog(e)), 'small'),
+                act('Düzenle', () => expenseDialog(e), 'small'),
                 button('Sil', () => deleteExpense(e), 'small danger')
               )
           : '',
@@ -2336,13 +2324,11 @@ function recoveryCodeDialog() {
             'Bu kod bir kez gösterilir ve yalnız bir kurtarma işleminde kullanılabilir. Pencereyi kapatmadan önce güvenli bir yere kaydedin.'
           ),
           code,
-          button('Kodu kopyala', event =>
-            run(event.currentTarget, async () => {
-              if (!navigator.clipboard) throw new Error('Tarayıcı kopyalamaya izin vermiyor. Kodu seçip elle kopyalayabilirsiniz.');
-              await navigator.clipboard.writeText(code.textContent);
-              toast('Kurtarma kodu kopyalandı.');
-            })
-          ),
+          act('Kodu kopyala', async () => {
+            if (!navigator.clipboard) throw new Error('Tarayıcı kopyalamaya izin vermiyor. Kodu seçip elle kopyalayabilirsiniz.');
+            await navigator.clipboard.writeText(code.textContent);
+            toast('Kurtarma kodu kopyalandı.');
+          }),
           button('Kodu sakladım, kapat', closeModal, 'primary')
         )
       );
