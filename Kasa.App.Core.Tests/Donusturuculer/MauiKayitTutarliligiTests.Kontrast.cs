@@ -19,11 +19,37 @@ public partial class MauiKayitTutarliligiTests
     [InlineData("HeroLabel", "Green")]
     [InlineData("SidebarMuted", "Sidebar")]
     [InlineData("Neg", "Card")]             // geçersiz tutarda yer tutucu (ParaGirisi) hata rengine döner
+    [InlineData("Neg", "NegSoft")]          // kart kutusu "Son ödeme geçti" etiketi
+    [InlineData("UyariMetin", "UyariZemin")] // kart kutusu "Geçiş farkını doğrulayın" etiketi
+    [InlineData("Ink", "ChipBg")]           // kart kutusu "Eski takip" ve "Pasif" etiketleri
     public void Ikincil_yazi_renkleri_zemininde_en_az_4_5_kontrast_verir(string yazi, string zemin)
     {
         var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
         var oran = KontrastOrani(renkler[yazi], zemin.StartsWith('#') ? zemin : renkler[zemin]);
         Assert.True(oran >= 4.5, $"{yazi} / {zemin} kontrastı {oran:0.00}:1; en az 4,5:1 olmalı.");
+    }
+
+    /// <summary>Kart kutuları (KartKutusu): her renk ailesinde kutu yazısı zeminine karşı en az 4,5:1 (WCAG 1.4.3), doluluk
+    /// çubuğunun dolgusu (Yazi) izine (Kenar) karşı en az 3:1 (WCAG 1.4.11 grafik nesne) verir. Anahtarlar KartRengi.Anahtar'dır.</summary>
+    [Fact]
+    public void Kart_renk_ailelerinde_yazi_zemininde_4_5_cubuk_izinde_3_kontrast_verir()
+    {
+        var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+        var hatalar = new List<string>();
+        foreach (var aile in Enum.GetValues<KartRenkAilesi>())
+        {
+            var anahtarlar = Enum.GetValues<KartRenkParcasi>().ToDictionary(p => p, p => KartRengi.Anahtar(aile, p));
+            var eksik = anahtarlar.Values.Where(a => !renkler.ContainsKey(a)).ToList();
+            if (eksik.Count > 0)
+            { hatalar.Add($"{aile}: Colors.xaml'da tanımsız {string.Join(", ", eksik)}"); continue; }
+            var yazi = KontrastOrani(renkler[anahtarlar[KartRenkParcasi.Yazi]], renkler[anahtarlar[KartRenkParcasi.Zemin]]);
+            var cubuk = KontrastOrani(renkler[anahtarlar[KartRenkParcasi.Yazi]], renkler[anahtarlar[KartRenkParcasi.Kenar]]);
+            if (yazi < 4.5)
+                hatalar.Add($"{aile}: yazı/zemin {yazi:0.00}:1 (en az 4,5)");
+            if (cubuk < 3)
+                hatalar.Add($"{aile}: çubuk dolgu/iz {cubuk:0.00}:1 (en az 3)");
+        }
+        Assert.True(hatalar.Count == 0, string.Join("\n", hatalar));
     }
 
     /// <summary>WCAG 2.2 1.4.11: form alanının (FieldBorder) tek görsel sınırı kenarlığıdır; alanın beyaz içine ve alanın durduğu
@@ -37,6 +63,17 @@ public partial class MauiKayitTutarliligiTests
         var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
         var oran = KontrastOrani(renkler["FieldStroke"], zemin.StartsWith('#') ? zemin : renkler[zemin]);
         Assert.True(oran >= 3, $"FieldStroke / {zemin} kontrastı {oran:0.00}:1; en az 3:1 olmalı.");
+    }
+
+    /// <summary>WCAG 2.2 1.4.11: Kartlar ekranında açık formun düğmesini gösteren tek işaret kenarıdır (birincil düğmede zemin de
+    /// koyulaşır); kenar, düğmelerin durduğu kart zeminine (CardForm → BrushCard → Card) karşı en az 3:1 kontrast verir.</summary>
+    [Fact]
+    public void Acik_form_dugmesi_kenari_kart_zemininde_en_az_3_kontrast_verir()
+    {
+        var renkler = RenkTanimi().Matches(Oku("Resources/Styles/Colors.xaml")).ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+        Assert.Contains("<SolidColorBrush x:Key=\"BrushCard\" Color=\"{StaticResource Card}\" />", Oku("Resources/Styles/Colors.xaml"));
+        var oran = KontrastOrani(renkler[Kasa.App.Views.TakipUi.AcikFormKenari], renkler["Card"]);
+        Assert.True(oran >= 3, $"{Kasa.App.Views.TakipUi.AcikFormKenari} / Card kontrastı {oran:0.00}:1; en az 3:1 olmalı.");
     }
 
     /// <summary>FieldBorder kenarlığı süs kenarlığından (BrushBorder) ayrı fırçadan gelir: alan sınırı koyulaşırken kartlar değişmez.</summary>

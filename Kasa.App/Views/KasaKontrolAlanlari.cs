@@ -8,7 +8,7 @@ internal static class KasaKontrolAlanlari
     private static View Durum(OturumluViewModel vm, Func<Task> yukle, View govde)
     {
         var panel = new VerticalStackLayout { Spacing = 12, BindingContext = vm };
-        DurumSatirlari(panel, Tikla("Yenile / tekrar dene", yukle), Bagli(nameof(vm.Mesaj)), gostergeSolda: false);
+        DurumSatirlari(panel, Tikla("Yenile / tekrar dene", yukle), Bagli(nameof(vm.Mesaj)));
         govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
         govde.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         panel.Add(govde);

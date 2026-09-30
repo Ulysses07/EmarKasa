@@ -14,6 +14,11 @@
          tasarımdaki yarı kalın yerleri Bold'dur. -->
     <x:String x:Key="YaziAilesi">Segoe UI Variable Text, Segoe UI</x:String>
 
+    <!-- Simge yazı tipi (menü simgeleri, Kasa.App.Core MenuSimgeleri): Windows 11'de Segoe Fluent Icons, onun olmadığı Windows
+         10'da Segoe MDL2 Assets. İkisi de Windows'la gelir, paketlenmez (Segoe Fluent Icons başka platforma dağıtılamaz);
+         kullanılan kod noktaları iki yazı tipinde aynı simgedir. -->
+    <x:String x:Key="SimgeAilesi">Segoe Fluent Icons, Segoe MDL2 Assets</x:String>
+
     <!-- ===== ETİKETLER ===== -->
     <Style TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
@@ -285,6 +290,45 @@
                     <VisualState x:Name="PointerOver">
                         <VisualState.Setters>
                             <Setter Property="BackgroundColor" Value="{StaticResource NegSoft}" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- Şeffaf düğme: menü öğesinin ve kart kutusunun tıklama/klavye yüzeyi (Tab ile odaklanır, UI Otomasyonu'nda adıyla
+         görünür). Zemin ve görsel durum yazmaz, zemini üstündeki öğe çizer. MAUI açık anahtarlı stille birlikte örtük Button
+         stilini de uygular: onun sabit yüksekliği (44; düğme kutunun ortasında şerit kalıyordu) HeightRequest=-1 (ayarsız) ile,
+         görsel durumları (PointerOver/Pressed yeşil, Disabled DisabledBg zemin) burada saydam durumlarla ezilir; düğme bulunduğu
+         hücreyi doldurur ve hiçbir durumda zemin boyamaz (KartKutusuTests). Düz renk BackgroundColor ile (dotnet/maui#38813). -->
+    <Style x:Key="SeffafDugme" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="BorderWidth" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HeightRequest" Value="-1" />
+        <Setter Property="MinimumHeightRequest" Value="0" />
+        <Setter Property="MinimumWidthRequest" Value="0" />
+        <Setter Property="HorizontalOptions" Value="Fill" />
+        <Setter Property="VerticalOptions" Value="Fill" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="Transparent" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="Transparent" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="BackgroundColor" Value="Transparent" />
                         </VisualState.Setters>
                     </VisualState>
                 </VisualStateGroup>

@@ -22,10 +22,14 @@ public partial class MauiKayitTutarliligiTests
         var aile = YaziAilesiTanimi().Match(Oku("Resources/Styles/Styles.xaml"));
         Assert.True(aile.Success, "Styles.xaml'da <x:String x:Key=\"YaziAilesi\"> tanımı yok.");
         Assert.Equal(new[] { "Segoe UI Variable Text", "Segoe UI" }, aile.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries));
+        // Menü simgeleri: Windows 11'in Segoe Fluent Icons'u, onun olmadığı Windows 10'da Segoe MDL2 Assets (ikisi de sistemle gelir).
+        var simge = SimgeAilesiTanimi().Match(Oku("Resources/Styles/Styles.xaml"));
+        Assert.True(simge.Success, "Styles.xaml'da <x:String x:Key=\"SimgeAilesi\"> tanımı yok.");
+        Assert.Equal(new[] { "Segoe Fluent Icons", "Segoe MDL2 Assets" }, simge.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries));
 
         var dogrudan = UygulamaKaynaklari("*.xaml", "*.cs")
             .SelectMany(d => AileKullanimi().Matches(File.ReadAllText(d)).Select(m => (Dosya: Path.GetFileName(d), Deger: m.Groups[1].Value)))
-            .Where(k => k.Deger != "{StaticResource YaziAilesi}").Select(k => $"{k.Dosya}: {k.Deger}").ToList();
+            .Where(k => k.Deger is not ("{StaticResource YaziAilesi}" or "{StaticResource SimgeAilesi}")).Select(k => $"{k.Dosya}: {k.Deger}").ToList();
         Assert.True(dogrudan.Count == 0, "YaziAilesi anahtarı yerine doğrudan yazılmış yazı ailesi: " + string.Join(", ", dogrudan));
 
         var program = Oku("MauiProgram.cs");
@@ -37,6 +41,8 @@ public partial class MauiKayitTutarliligiTests
 
     [GeneratedRegex(@"<x:String x:Key=""YaziAilesi"">([^<]+)</x:String>")]
     private static partial Regex YaziAilesiTanimi();
+    [GeneratedRegex(@"<x:String x:Key=""SimgeAilesi"">([^<]+)</x:String>")]
+    private static partial Regex SimgeAilesiTanimi();
     // XAML özniteliği (FontFamily="…"), stil ayarlayıcısı (Property="FontFamily" Value="…") ve C# ataması (FontFamily = "…").
     [GeneratedRegex(@"FontFamily""?\s*(?:Value\s*)?=\s*""([^""]*)""")]
     private static partial Regex AileKullanimi();

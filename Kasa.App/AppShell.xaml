@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!-- Emar Kasa · AppShell — koyu yeşil flyout (tasarım handoff).
-     Görünürlük/route mantığı code-behind'da: AnaMenu, AyarlarSekme, CikisTiklandi. -->
+     Menü Shell'in öğe şablonu değil, Shell.FlyoutContent'teki gruplu listedir; içerik ve rol kuralı Kasa.App.Core MenuModeli'nden
+     gelir (docs/specs/2026-09-30-masaustu-menu-ve-kartlar.md §1). FlyoutItem'lar menüde çizilmez: rota kaynağıdır ve yetkisi
+     olmayan bölümün öğesi gizli (IsVisible=false) kalır. Görünürlük/route mantığı code-behind'da: MenuyuGoster, GiriseDonAsync. -->
 <Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:v="clr-namespace:Kasa.App.Views"
+       xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
        x:Class="Kasa.App.AppShell"
        Title="Emar Kasa"
        FlyoutBehavior="Locked"
@@ -29,49 +32,69 @@
         </Grid>
     </Shell.FlyoutHeader>
 
-    <!-- Menü öğesi şablonu: aktif sekme SidebarActive zemin + açık nokta.
-         Zemin BackgroundColor ile yazılır, Background (Brush) ile değil: MAUI 10.0.100–10.0.110'da menü öğesinin görsel
-         durumundaki Background setter'ı UI iş parçacığını sonsuz döngüye sokar (dotnet/maui#38813; Release'te girişten
-         birkaç sn sonra askıda kalma). MAUI 10.0.120+ ile (dotnet/maui#38887) gereksizleşebilir ama zararsızdır; görünüm aynı
-         (düz dolgu). MauiKayitTutarliligiTests.Kabuk_menu_sablonlari_Background_firca_ozelligini_yazmaz bunu korur. -->
-    <Shell.ItemTemplate>
-        <DataTemplate>
-            <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                <VisualStateManager.VisualStateGroups>
-                    <VisualStateGroup x:Name="CommonStates">
-                        <VisualState x:Name="Normal">
-                            <VisualState.Setters>
-                                <Setter Property="BackgroundColor" Value="Transparent" />
-                            </VisualState.Setters>
-                        </VisualState>
-                        <VisualState x:Name="Selected">
-                            <VisualState.Setters>
-                                <Setter Property="BackgroundColor" Value="{StaticResource SidebarActive}" />
-                            </VisualState.Setters>
-                        </VisualState>
-                        <VisualState x:Name="PointerOver">
-                            <VisualState.Setters>
-                                <Setter Property="BackgroundColor" Value="{StaticResource SidebarHover}" />
-                            </VisualState.Setters>
-                        </VisualState>
-                    </VisualStateGroup>
-                </VisualStateManager.VisualStateGroups>
-                <Ellipse WidthRequest="6" HeightRequest="6" Fill="{StaticResource SidebarAccent}"
-                         VerticalOptions="Center" />
-                <Label Grid.Column="1" Text="{Binding Title}" FontSize="13.5"
-                       TextColor="{StaticResource SidebarText}" VerticalOptions="Center" />
-            </Grid>
-        </DataTemplate>
-    </Shell.ItemTemplate>
-    <Shell.MenuItemTemplate>
-        <DataTemplate>
-            <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                <Ellipse WidthRequest="6" HeightRequest="6" Fill="Transparent" VerticalOptions="Center" />
-                <Label Grid.Column="1" Text="{Binding Text}" FontSize="13.5"
-                       TextColor="{StaticResource SidebarText}" VerticalOptions="Center" />
-            </Grid>
-        </DataTemplate>
-    </Shell.MenuItemTemplate>
+    <!-- Gruplu menü (MenuModeli.Gruplar; bağlam code-behind'da MenuAlani.BindingContext). Öğe zemini BackgroundColor ile yazılır,
+         Background (Brush) ile değil (dotnet/maui#38813 dersi; MauiKayitTutarliligiTests.Kabuk_menu_sablonlari_Background_firca_ozelligini_yazmaz
+         bu içeriği de tarar). Seçili öğe SidebarActive zemin + açık nokta, fareyle üzerine gelinen öğe SidebarHover zemin
+         (MenuOgesi.Secili / UzerindeVurgu; ikisi aynı anda doğru olmaz). Tıklama ve klavye yüzeyi alttaki şeffaf düğmedir
+         (SeffafDugme): Tab ile odaklanır, UI Otomasyonu'nda öğe başlığıyla adlanır, seçili öğe "Seçili sayfa" ipucuyla bildirilir;
+         yazılar ve nokta girdiyi geçirir ve erişilebilirlik ağacında ayrı öğe olarak görünmez. Grup başlığı ekran okuyucuda
+         düzey 2 başlıktır. -->
+    <Shell.FlyoutContent>
+        <ScrollView x:Name="MenuAlani" x:DataType="core:MenuModeli">
+            <VerticalStackLayout Padding="0,4,0,16" BindableLayout.ItemsSource="{Binding Gruplar}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="core:MenuGrubu">
+                        <VerticalStackLayout Spacing="2">
+                            <BoxView IsVisible="{Binding Ayri}" HeightRequest="1" Margin="20,10,20,6"
+                                     Color="{StaticResource SidebarLine}" />
+                            <Label IsVisible="{Binding BaslikVar}" Text="{Binding Baslik}" Margin="22,14,22,4"
+                                   FontSize="11.5" FontAttributes="Bold" TextColor="{StaticResource SidebarMuted}"
+                                   SemanticProperties.HeadingLevel="Level2" />
+                            <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding Ogeler}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="core:MenuOgesi">
+                                        <Grid Margin="10,0" HeightRequest="38" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
+                                              BackgroundColor="Transparent">
+                                            <Grid.Triggers>
+                                                <DataTrigger TargetType="Grid" Binding="{Binding UzerindeVurgu}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="{StaticResource SidebarHover}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Grid" Binding="{Binding Secili}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="{StaticResource SidebarActive}" />
+                                                </DataTrigger>
+                                            </Grid.Triggers>
+                                            <Grid.GestureRecognizers>
+                                                <PointerGestureRecognizer PointerEnteredCommand="{Binding UzerineGelCommand}"
+                                                                          PointerExitedCommand="{Binding AyrilCommand}" />
+                                            </Grid.GestureRecognizers>
+                                            <Button Grid.ColumnSpan="3" Style="{StaticResource SeffafDugme}"
+                                                    Command="{Binding SecCommand}"
+                                                    SemanticProperties.Description="{Binding Baslik}">
+                                                <Button.Triggers>
+                                                    <DataTrigger TargetType="Button" Binding="{Binding Secili}" Value="True">
+                                                        <Setter Property="SemanticProperties.Hint" Value="Seçili sayfa" />
+                                                    </DataTrigger>
+                                                </Button.Triggers>
+                                            </Button>
+                                            <Label Text="{Binding Simge}" Margin="12,0,0,0" FontFamily="{StaticResource SimgeAilesi}"
+                                                   FontSize="16" TextColor="{StaticResource SidebarText}" VerticalOptions="Center"
+                                                   InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
+                                            <Label Grid.Column="1" Text="{Binding Baslik}" FontSize="13.5"
+                                                   TextColor="{StaticResource SidebarText}" VerticalOptions="Center"
+                                                   InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
+                                            <Ellipse Grid.Column="2" IsVisible="{Binding Secili}" Margin="0,0,12,0" WidthRequest="6"
+                                                     HeightRequest="6" Fill="{StaticResource SidebarAccent}" VerticalOptions="Center"
+                                                     InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Shell.FlyoutContent>
 
     <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />
     <FlyoutItem x:Name="PanelItem" Title="Kasalar" Route="panel" IsVisible="False">
@@ -98,5 +121,4 @@
     <FlyoutItem x:Name="KartlarItem" Title="Kartlar" Route="kartlar" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:KartTakipPage}" /></FlyoutItem>
     <FlyoutItem x:Name="KredilerItem" Title="Krediler" Route="krediler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:KrediTakipPage}" /></FlyoutItem>
     <FlyoutItem x:Name="BildirimlerItem" Title="Bildirimler" Route="bildirimler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:BildirimPage}" /></FlyoutItem>
-    <MenuItem x:Name="CikisMenu" Text="Çıkış" Clicked="CikisTiklandi" />
 </Shell>
