@@ -23,7 +23,7 @@ public class SurumKaynagiTests
         Assert.Equal(KasaSurumu(), yanit.GetProperty("surum").GetString());
         Assert.Equal("2.4.0", yanit.GetProperty("minimumIstemci").GetString());
         Assert.Equal(JsonValueKind.Null, yanit.GetProperty("indirmeAdresi").ValueKind);
-        Assert.Equal("Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi. Bu sürümle masaüstü uygulamasını güncelleyin.",
+        Assert.Equal("Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi.",
             yanit.GetProperty("notlar").GetString());
     }
 

@@ -19,7 +19,7 @@ public static class YonetimEndpoints
             surum = SunucuSurumu.Deger,
             minimumIstemci = MinimumIstemci,
             indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
-            notlar = "Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi. Bu sürümle masaüstü uygulamasını güncelleyin."
+            notlar = "Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi."
         }));
         // Son geri yüklemenin anı ve raporu (SistemDurumu) sonda, opsiyonel: eski istemci yok sayar.
         app.MapGet("/api/yedek/durum", (YedekServisi yedek, KasaDbContext db) =>
