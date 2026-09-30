@@ -45,7 +45,7 @@ public partial class KasaDbContext
     public DbSet<EditorGuvenlikEntity> EditorGuvenlik => Set<EditorGuvenlikEntity>();
     public DbSet<BelgeEntity> Belgeler => Set<BelgeEntity>();
 
-    partial void ConfigureOperations(ModelBuilder b)
+    partial void ConfigureEditorGuvenlikVeBelge(ModelBuilder b)
     {
         b.Entity<EditorGuvenlikEntity>().Property(e => e.Surum).IsConcurrencyToken();
         b.Entity<BelgeEntity>().HasOne<AlisEntity>().WithMany()

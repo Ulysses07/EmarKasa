@@ -16,14 +16,14 @@ namespace Kasa.Api.Data;
 /// Dosya tabanlı, boş olmayan veritabanında bekleyen iş (eski şema köprüsü, migration, veri adımı) varsa önce
 /// göç öncesi yedek alınır (<see cref="YedekServisi.GocOncesiYedekAl"/>); yedek alınamazsa hiçbir iş çalışmaz ve
 /// açılış açıklayıcı hatayla durur.</summary>
-public static class KasaDatabaseInitializer
+public static class KasaVeritabaniBaslatici
 {
     /// <param name="yedek">Göç öncesi yedeği alan servis (Program.cs verir). Yalnız bellek içi ya da boş veritabanında,
     /// ya da bekleyen iş yokken verilmeyebilir; aksi halde yedeksiz migration çalıştırılmaz.</param>
     /// <param name="depo">Belge deposu (Program.cs verir). Belge içerikleri henüz veritabanındaysa zorunludur; bellek içi
     /// veritabanında verilmezse geçici dizinde depo kullanılır.</param>
     /// <param name="disk">Belge deposu geçişinden önce boş alan denetimi; verilmezse denetlenmez.</param>
-    public static void Initialize(KasaDbContext db, YedekServisi? yedek = null, BelgeDeposu? depo = null, IDiskAlani? disk = null)
+    public static void Baslat(KasaDbContext db, YedekServisi? yedek = null, BelgeDeposu? depo = null, IDiskAlani? disk = null)
     {
         var connection = (SqliteConnection)db.Database.GetDbConnection();
         var openedHere = connection.State != ConnectionState.Open;
@@ -89,7 +89,7 @@ public static class KasaDatabaseInitializer
                 $"Kasa veritabanı güncellenmeden önce göç öncesi yedek alınamadı: {ex.Message} Güncelleme çalıştırılmadı; veritabanı değiştirilmedi. "
                 + $"Yedek dizinini ({yedek.Dizin}), boş disk alanını ve yazma izinlerini kontrol edip uygulamayı yeniden başlatın. Veritabanını silmeyin.", ex);
         }
-        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici))
             .LogInformation("Göç öncesi yedek hazır: {Yedek}. Bekleyen işler: {Isler}.", yol, string.Join(", ", bekleyen));
     }
 
@@ -102,7 +102,7 @@ public static class KasaDatabaseInitializer
     /// </summary>
     private static void BelgeDeposunaGecis(KasaDbContext db, SqliteConnection connection, BelgeDeposu? depo, IDiskAlani? disk)
     {
-        var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer));
+        var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici));
         var tasinacak = BelgeDeposuAktarimi.TasinacakIcerik(connection);
         if (depo is null && BellekIci(connection))
             depo = BelgeDeposu.Gecici();
@@ -152,7 +152,7 @@ public static class KasaDatabaseInitializer
     {
         if (BellekIci(connection))
             return;
-        var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer));
+        var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici));
         try
         {
             var once = Boyut(connection);
@@ -188,7 +188,7 @@ public static class KasaDatabaseInitializer
         var mode = Convert.ToString(Scalar(connection, "PRAGMA journal_mode = WAL;"), System.Globalization.CultureInfo.InvariantCulture);
         if (mode is "wal" or "memory")
             return;
-        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer))
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici))
             .LogWarning("Veritabanı WAL kipine alınamadı (günlük kipi: {Kip}); okumalar yazma işlemlerini bekletebilir.", mode);
     }
 
@@ -200,7 +200,7 @@ public static class KasaDatabaseInitializer
         var aylar = AyKanalKumesi.GecisDondurmasi(db);
         if (aylar.Count == 0)
             return;
-        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici)).LogInformation(
             "Tamamlanmış {Sayi} ayın kanal kümesi (Ortak gider dağılımı ve rapor satırları) bugünkü kanallarla donduruldu: {Aylar}.", aylar.Count,
             string.Join(", ", aylar.Select(AyKanalKumesi.AyMetni)));
     }
@@ -212,7 +212,7 @@ public static class KasaDatabaseInitializer
         var aylar = AyRaporAnlikGoruntusu.GecisTohumu(db, db.Saati().GetUtcNow());
         if (aylar.Count == 0)
             return;
-        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici)).LogInformation(
             "Bu sürümden önce kilitlenmiş {Sayi} ayın raporu kural 1 ile donduruldu: {Aylar}.", aylar.Count,
             string.Join(", ", aylar.Select(a => $"{a.Yil:D4}-{a.Ay:D2}")));
     }
@@ -224,7 +224,7 @@ public static class KasaDatabaseInitializer
         var (eslesen, eslesmeyen) = FinansTakipServisi.IadeHesabiTohumu(db);
         if (eslesen + eslesmeyen == 0)
             return;
-        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaDatabaseInitializer)).LogInformation(
+        db.GetService<ILoggerFactory>().CreateLogger(typeof(KasaVeritabaniBaslatici)).LogInformation(
             "Kart iadelerinin hesap kaydı yazıldı: {Eslesen} iade kaynak harcamanın güncel payını izleyecek, {Eslesmeyen} iade dondurulmuş payıyla kalır. Raporlar değişmedi.",
             eslesen, eslesmeyen);
     }

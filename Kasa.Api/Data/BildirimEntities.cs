@@ -54,7 +54,7 @@ public sealed class BildirimTeslimEntity
 
 public partial class KasaDbContext
 {
-    partial void ConfigureNotifications(ModelBuilder b)
+    partial void ConfigureBildirim(ModelBuilder b)
     {
         b.Entity<BildirimAyarEntity>().ToTable("BildirimAyarlari");
         b.Entity<BildirimAyarEntity>().Property(x => x.Surum).IsConcurrencyToken();

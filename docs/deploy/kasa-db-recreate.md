@@ -1,7 +1,7 @@
 # Emar Kasa — Üretim DB Yeniden Oluşturma Kılavuzu
 
 > **Tarihsel belge — güncel dağıtımda bu sayfadaki silme/yeniden oluşturma adımlarını uygulamayın.**
-> 19 Eylül 2026 sağlamlaştırmasıyla `KasaDatabaseInitializer` ve EF migrations eklendi.
+> 19 Eylül 2026 sağlamlaştırmasıyla `KasaDatabaseInitializer` (bugün `KasaVeritabaniBaslatici`) ve EF migrations eklendi.
 > Güncel, veri koruyan süreç: [Veritabanı yükseltme](database-upgrade.md).
 > Aşağıdaki içerik yalnız eski `EnsureCreated` sorununun kaydı olarak korunuyor.
 >
@@ -14,7 +14,7 @@
 
 Plan 1 (Emar Kasa native backend), EF Core modeline `KrediKartlari` tablosunu ekledi.
 Backend o sürümde başlangıçta `EnsureCreated()` kullanıyordu (dönemin `Program.cs` başlangıç kodu;
-bugün yerinde `Kasa.Api/Data/KasaDatabaseInitializer.cs`'teki migration başlatıcısı vardır). `EnsureCreated()` yalnızca
+bugün yerinde `Kasa.Api/Data/KasaVeritabaniBaslatici.cs`'teki migration başlatıcısı vardır). `EnsureCreated()` yalnızca
 DB dosyası **yoksa** tüm şemayı sıfırdan oluşturur; var olan bir SQLite dosyasına yeni
 tablo **eklemez**. Dolayısıyla VPS'teki canlı DB, `KrediKartlari` tablosunu içermiyor.
 
@@ -105,7 +105,7 @@ Başarı göstergesi: log'da hata yok, "Now listening on: http://[::]:8080" sat�
 **Veri silinmez. Uygun durum:** mevcut işlem/kanal/cari/ayar verileri korunmalı.**
 
 Container ayaktayken çalışan SQLite dosyasına `sqlite3` (veya `docker exec`) ile bağlanıp
-eksik tabloyu elle ekle. `KrediKartiEntity` şeması (`Kasa.Api/Data/Entities.cs`'den):
+eksik tabloyu elle ekle. `KrediKartiEntity` şeması (`Kasa.Api/Data/TemelEntities.cs`'den):
 
 ```sql
 CREATE TABLE "KrediKartlari" (

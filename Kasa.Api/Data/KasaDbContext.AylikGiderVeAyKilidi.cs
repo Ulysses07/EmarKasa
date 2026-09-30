@@ -12,7 +12,7 @@ public partial class KasaDbContext
     internal bool AylikGiderDegisikligi { get; set; }
     internal bool GecmisEtkisizKrediOlusturma { get; set; }
 
-    partial void ConfigureMonthlyExpensesAndLocks(ModelBuilder b)
+    partial void ConfigureAylikGiderVeAyKilidi(ModelBuilder b)
     {
         b.Entity<AylikGiderSablonEntity>().Property(s => s.Surum).IsConcurrencyToken();
         b.Entity<AylikGiderRevizyonEntity>().HasOne<AylikGiderSablonEntity>().WithMany().HasForeignKey(s => s.SablonId).OnDelete(DeleteBehavior.Restrict);

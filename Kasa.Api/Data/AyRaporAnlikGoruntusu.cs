@@ -25,7 +25,7 @@ public partial class KasaDbContext
 {
     public DbSet<AyRaporAnlikGoruntuEntity> AyRaporAnlikGoruntuleri => Set<AyRaporAnlikGoruntuEntity>();
 
-    partial void ConfigureMonthlyReportSnapshots(ModelBuilder b)
+    partial void ConfigureAyRaporAnlikGoruntusu(ModelBuilder b)
     {
         b.Entity<AyRaporAnlikGoruntuEntity>().ToTable("AyRaporAnlikGoruntuleri");
         b.Entity<AyRaporAnlikGoruntuEntity>().HasIndex(g => new { g.Yil, g.Ay }).IsUnique();

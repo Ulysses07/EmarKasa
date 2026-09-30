@@ -51,7 +51,7 @@ public partial class KasaDbContext
     public DbSet<KasaEsikEntity> KasaEsikleri => Set<KasaEsikEntity>();
     public DbSet<KasaKontrolEntity> KasaKontrolleri => Set<KasaKontrolEntity>();
 
-    partial void ConfigureCashControls(ModelBuilder b)
+    partial void ConfigureKasaKontrol(ModelBuilder b)
     {
         b.Entity<KasaEsikEntity>().ToTable("KasaEsikleri");
         b.Entity<KasaEsikEntity>().HasIndex(x => x.KanalId).IsUnique();

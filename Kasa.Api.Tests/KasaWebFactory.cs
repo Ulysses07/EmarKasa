@@ -40,10 +40,10 @@ public class KasaWebFactory : SizdirmayanFabrika<Program>
     /// <summary>Sunucunun "bugün"ünü verilen İstanbul gününe sabitleyen fabrika.</summary>
     public static KasaWebFactory Sabit(DateOnly bugun) => new() { Saat = new SabitSaat(bugun) };
 
-    // Şablon veritabanı: boş bellek içi veritabanında migration'lar ve ilk açılış veri adımları (KasaDatabaseInitializer) süreç
+    // Şablon veritabanı: boş bellek içi veritabanında migration'lar ve ilk açılış veri adımları (KasaVeritabaniBaslatici) süreç
     // başına bir kez çalışır; her fabrikanın bağlantısına SQLite yedekleme API'siyle sayfa sayfa birebir kopyalanır (≈1 ms; boş
     // veritabanında migration her fabrikada ≈200 ms sürüyordu). Uygulamanın açılışı (Program.cs) her fabrikada yine
-    // KasaDatabaseInitializer'ı çalıştırır; güncel veritabanında bekleyen adım yoktur. Boş veritabanından ilk açılış yolu şablonda,
+    // KasaVeritabaniBaslatici'ı çalıştırır; güncel veritabanında bekleyen adım yoktur. Boş veritabanından ilk açılış yolu şablonda,
     // eski şemalardan göçler kendi testlerinde (DatabaseMigrationTests, FinanceMigrationTests...) sınanır; kopyanın boş
     // veritabanındaki ilk açılışla aynı olduğunu SablonVeritabaniTests denetler.
     private static readonly Lazy<SqliteConnection> Sablon = new(() =>
@@ -51,7 +51,7 @@ public class KasaWebFactory : SizdirmayanFabrika<Program>
         var baglanti = new SqliteConnection("Data Source=:memory:");
         baglanti.Open();
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(baglanti).Options);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         return baglanti;
     });
     private static readonly Lock SablonKilidi = new();

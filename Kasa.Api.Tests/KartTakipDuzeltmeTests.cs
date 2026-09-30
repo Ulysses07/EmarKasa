@@ -349,7 +349,7 @@ public class KartTakipDuzeltmeTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Contains(Migrations.KartTakipDuzeltmeleri.Kimlik, db.Database.GetAppliedMigrations());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());

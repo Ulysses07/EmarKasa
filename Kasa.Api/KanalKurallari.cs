@@ -6,7 +6,7 @@ namespace Kasa.Api;
 
 /// <summary>
 /// Kanal değişikliği kuralları (ops-1, ops-2, statement-6, gap-veri-degismezleri-patlama-yaricapi-6). Kanalın mali bağı kimliğidir
-/// (KanalId): hesap motoru ve raporlar kanalı kimlikten adlandırır (CoreMapping, dağılım JSON'ları). Gider, gelir ve kredi
+/// (KanalId): hesap motoru ve raporlar kanalı kimlikten adlandırır (CekirdekEslemesi, dağılım JSON'ları). Gider, gelir ve kredi
 /// satırlarındaki Kanal metni o kimliğin görünen adının kopyasıdır (etiket): gider listesi ve filtresi onu gösterir, gelirin
 /// (dönem, kanal adı) tekilliği onu kullanır.
 /// - Etiket senkronu mali değişiklik değildir: kimliği, tutarı, tarihi ve tipi aynı kalıp yalnız Kanal metni kanalın güncel adına

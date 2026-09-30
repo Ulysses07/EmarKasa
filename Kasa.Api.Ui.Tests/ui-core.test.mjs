@@ -2503,7 +2503,7 @@ const importDocument = (overrides = {}) => ({
   kayitlar: [],
   ...overrides,
 });
-// Sunucunun banka listesi (GET /api/ekstre-aktar/bankalar; tek kaynak EkstreImportEndpoints.Bankalar): arayüzde kopyası yoktur.
+// Sunucunun banka listesi (GET /api/ekstre-aktar/bankalar; tek kaynak EkstreAktarmaEndpoints.Bankalar): arayüzde kopyası yoktur.
 const importBanks = [
   { kod: 'Vakifbank', ad: 'VakıfBank' },
   { kod: 'Akbank', ad: 'Akbank' },

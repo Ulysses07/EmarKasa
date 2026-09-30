@@ -14,7 +14,7 @@ public partial class KasaDbContext
     public DbSet<TakipKrediEntity> TakipKrediler => Set<TakipKrediEntity>();
     public DbSet<TakipKrediTaksitEntity> TakipKrediTaksitler => Set<TakipKrediTaksitEntity>();
 
-    private static void ConfigureCardLoanTracking(ModelBuilder b)
+    private static void ConfigureKartKrediTakibi(ModelBuilder b)
     {
         b.Entity<TakipKartEntity>().HasKey(x => x.KrediKartiId);
         b.Entity<TakipKartEntity>().Property(x => x.KrediKartiId).ValueGeneratedNever();

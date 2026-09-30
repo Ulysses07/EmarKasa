@@ -50,7 +50,7 @@ public partial class KasaDbContext
     public DbSet<EkstreKayitEntity> EkstreKayitlar => Set<EkstreKayitEntity>();
     internal bool EkstreDegisikligi { get; set; }
 
-    partial void ConfigureStatementImports(ModelBuilder b)
+    partial void ConfigureEkstreAktarma(ModelBuilder b)
     {
         b.Entity<EkstreBelgeEntity>().HasIndex(d => d.DosyaOzeti).IsUnique();
         b.Entity<EkstreBelgeEntity>().Property(d => d.Surum).IsConcurrencyToken();

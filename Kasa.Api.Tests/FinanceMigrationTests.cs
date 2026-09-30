@@ -25,7 +25,7 @@ public class FinanceMigrationTests
             INSERT INTO Krediler(Id,Ad,CekilenTutar,CekimTarihi,TaksitSayisi,AylikOdeme,OdemeGunu,Kanal) VALUES (1,'Eski kredi','100','2026-09-01',2,'50',10,'Ortak');
             """;
         command.ExecuteNonQuery();
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.All(db.Alislar, a => Assert.Null(a.TedarikciId));
         Assert.Equal(new[] { "mevcut", "Yeni", "Belirsiz" }, db.Alislar.OrderBy(a => a.Id).Select(a => a.Tedarikci).ToArray());
         Assert.Equal(3, db.Cariler.Count());
@@ -40,7 +40,7 @@ public class FinanceMigrationTests
         Assert.Equal(1, history.SonucId);
         Assert.Empty(db.HesapHareketler);
         Assert.False(db.Database.HasPendingModelChanges());
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Single(db.FinansIstekler);
     }
 }

@@ -316,7 +316,7 @@ public class BelgeDeposuGecisTests
 
             // Yeniden açılış: bekleyen iş yok, ikinci göç öncesi yedek ve yeniden aktarım yok.
             using (var db = f.Baglam())
-                KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>(), depo);
+                KasaVeritabaniBaslatici.Baslat(db, f.Services.GetRequiredService<YedekServisi>(), depo);
             Assert.Single(Directory.GetFiles(yedekDizini, YedekSaklama.GocOncesiOnEki + "*.zip"));
         }
         finally { f.Dispose(); Temizle(yedekDizini, yedekDizini + "-anahtar"); }
@@ -370,7 +370,7 @@ public class BelgeDeposuGecisTests
             Assert.Equal(2L, Deger(yol, "SELECT COUNT(*) FROM Belgeler WHERE IcerikOzeti IS NULL;"));
 
             using (var db = Baglam(yol))
-                KasaDatabaseInitializer.Initialize(db, GocOncesiYedekTests.TestYedegi(yedekDizini), depo);
+                KasaVeritabaniBaslatici.Baslat(db, GocOncesiYedekTests.TestYedegi(yedekDizini), depo);
 
             using (var db = Baglam(yol))
                 Assert.Empty(db.Database.GetPendingMigrations());

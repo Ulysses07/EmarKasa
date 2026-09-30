@@ -4,7 +4,7 @@ Bu kılavuz, 19 Eylül 2026 sağlamlaştırma sürümü ve sonrasındaki başlan
 
 ## Başlangıç davranışı
 
-API `KasaDatabaseInitializer.Initialize(db)` çağırır:
+API `KasaVeritabaniBaslatici.Baslat(db)` çağırır:
 
 - Boş veritabanına EF migrations ile güncel tablolar kurulur.
 - Migration geçmişi olmayan desteklenen `EnsureCreated` tabloları tek transaction içinde güncellenir. Eksik kart/kredi tabloları eklenir; kayıt kimlikleri, tutarlar ve mevcut ilişkiler korunur.

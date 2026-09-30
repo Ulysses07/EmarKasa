@@ -17,7 +17,7 @@ public class SablonVeritabaniTests
         using var taze = new SqliteConnection("Data Source=:memory:");
         taze.Open();
         using (var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(taze).Options))
-            KasaDatabaseInitializer.Initialize(db);
+            KasaVeritabaniBaslatici.Baslat(db);
         using var kopya = new SqliteConnection("Data Source=:memory:");
         kopya.Open();
         KasaWebFactory.SablonuKopyala(kopya);

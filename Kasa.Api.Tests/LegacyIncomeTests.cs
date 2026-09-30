@@ -34,7 +34,7 @@ public class LegacyIncomeTests
         using var connection = Open();
         SeedLegacy(connection);
         using var db = Context(connection);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         var error = Assert.Throws<SqliteException>(() => Execute(connection, mutation));
 
@@ -55,8 +55,8 @@ public class LegacyIncomeTests
             INSERT INTO __EFMigrationsHistory VALUES ('20260919000100_InitialStableSchema', '10.0.9');
             """);
         using var db = Context(connection);
-        KasaDatabaseInitializer.Initialize(db);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
@@ -75,7 +75,7 @@ public class LegacyIncomeTests
         Execute(connection, "UPDATE Gelenler SET Kanal = 'eski başka ad' WHERE Id = 14;");
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(2, db.Gelenler.Count(g => g.EskiYinelenenGrup));
         Assert.Equal("eski başka ad", db.Gelenler.Single(g => g.Id == 14).Kanal);

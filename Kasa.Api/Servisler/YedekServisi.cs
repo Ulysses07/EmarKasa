@@ -675,7 +675,7 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     /// <summary>
     /// Göç öncesi yedek (kullanıcı kararı: veri dönüştüren her migration'dan önce otomatik, tutarlı yedek). Başlatıcı
-    /// (<see cref="KasaDatabaseInitializer"/>) dosya tabanlı, boş olmayan veritabanında bekleyen migration ya da veri adımı
+    /// (<see cref="KasaVeritabaniBaslatici"/>) dosya tabanlı, boş olmayan veritabanında bekleyen migration ya da veri adımı
     /// varsa Migrate'ten ÖNCE, HTTP sunucusu açılmadan çağırır. Kopya olağan yedekle aynı yoldan alınır (adımlı yedekleme
     /// API'si, tek dosya) ve olağan yedekle aynı ZIP biçimindedir (kasa.db + manifest.json, varsa bildirim anahtarı;
     /// restore_backup.py açar); manifest türü "goc-oncesi"dir ve bekleyen işleri listeler. Veritabanı belge deposu biçimindeyse

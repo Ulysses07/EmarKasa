@@ -20,7 +20,7 @@ public class DatabaseMigrationTests
         db.GetService<IMigrator>().Migrate("20260919000100_InitialStableSchema");
         Execute(connection, "INSERT INTO Kanallar VALUES (1, 'MEZAT', 1, 0, '125.50'); INSERT INTO Gelenler VALUES (1, '2026-09-01', 'MEZAT', '42.75', 1);");
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.Equal(42.75m, Assert.Single(db.Gelenler).TutarTl);
@@ -61,7 +61,7 @@ public class DatabaseMigrationTests
         using (var eski = SurumOncesiBaglam.Ayni(db))
             once = RaporOzeti(eski, (2026, 6), (2026, 8), (2026, 9));
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.Contains(Kasa.Api.Migrations.CekirdekSurumleri.Kimlik, db.Database.GetAppliedMigrations());
@@ -100,7 +100,7 @@ public class DatabaseMigrationTests
         string[] yeniSutunlar = ["Surum", "HesapTarihi", "KanalBakiyeleriJson", "SonIslemId", "SonFinansIstekId", "SonDenetimOlayId", "FarkAciklamasi", "FarkAciklamaZamani"];
         var kaynak = Dokum(connection, ["KasaKontrolleri"]);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
@@ -124,7 +124,7 @@ public class DatabaseMigrationTests
             """);
         var kaynak = Dokum(connection, ["SistemDurumu", "EditorGuvenlik"]);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
@@ -138,8 +138,8 @@ public class DatabaseMigrationTests
         using var connection = Open();
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
@@ -156,7 +156,7 @@ public class DatabaseMigrationTests
         LegacyBase(connection);
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         var kanal = Assert.Single(db.Kanallar);
         Assert.Equal(7, kanal.Id);
@@ -178,7 +178,7 @@ public class DatabaseMigrationTests
         Assert.Equal(1L, Scalar(connection, "PRAGMA foreign_keys;"));
 
         // Tekrar başlatma ne veri ne yeni migration kaydı üretir.
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Single(db.Islemler);
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
     }
@@ -204,7 +204,7 @@ public class DatabaseMigrationTests
         Execute(connection, $"INSERT INTO Gelenler VALUES (1, '2026-09-01', 'MEZAT', '250.03', {kanal.Id});");
         db.ChangeTracker.Clear();
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(kart.Id, Assert.Single(db.Islemler).KrediKartiId);
         Assert.Equal(kanal.Id, Assert.Single(db.Islemler).KanalId);
@@ -241,7 +241,7 @@ public class DatabaseMigrationTests
             """);
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(1000.25m, Assert.Single(db.KrediKartlari).Borc);
         Assert.Equal(5, Assert.Single(db.Islemler).KrediKartiId);
@@ -269,7 +269,7 @@ public class DatabaseMigrationTests
             """);
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         var recovered = db.Kanallar.Single(k => k.Ad == "ESKI");
         Assert.False(recovered.Aktif);
@@ -298,8 +298,8 @@ public class DatabaseMigrationTests
         }
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(2L, Scalar(connection, "SELECT COUNT(*) FROM Gelenler;"));
         Assert.Equal("2000.25", Scalar(connection, "SELECT TutarTl FROM Gelenler WHERE Id = 12;"));
@@ -318,12 +318,12 @@ public class DatabaseMigrationTests
         LegacyBase(connection);
         Execute(connection, "INSERT INTO Kanallar VALUES (8, 'mezat', 1, 1, '900.0');");
         using var db = Context(connection);
-        var duplicate = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db));
+        var duplicate = Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db));
         Assert.Contains("birden fazla kanal", duplicate.Message);
         Assert.Equal(2L, Scalar(connection, "SELECT COUNT(*) FROM Kanallar;"));
 
         Execute(connection, "DELETE FROM Kanallar WHERE Id = 8; ALTER TABLE Kanallar ADD COLUMN OzelNot TEXT NULL; UPDATE Kanallar SET OzelNot = 'korunmali';");
-        var custom = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db));
+        var custom = Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db));
         Assert.Contains("tanınmayan alanlar", custom.Message);
         Assert.Equal("korunmali", Scalar(connection, "SELECT OzelNot FROM Kanallar;"));
     }
@@ -333,7 +333,7 @@ public class DatabaseMigrationTests
     {
         using var connection = Open();
         using var db = Context(connection);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Execute(connection, "INSERT INTO Kanallar (Id, Ad, Aktif, Sira, AcilisDevri) VALUES (1, 'MEZAT', 1, 0, '0.0');");
 
         Assert.Throws<SqliteException>(() => Execute(connection, "INSERT INTO Kanallar (Id, Ad, Aktif, Sira, AcilisDevri) VALUES (2, 'mezat', 1, 0, '0.0');"));
@@ -351,12 +351,12 @@ public class DatabaseMigrationTests
         LegacyBase(connection);
         Execute(connection, "ALTER TABLE Islemler ADD COLUMN KrediKartiId INTEGER NULL; UPDATE Islemler SET KrediKartiId = 999;");
         using var db = Context(connection);
-        var broken = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db));
+        var broken = Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db));
         Assert.Contains("ilişkisi geçersiz", broken.Message);
         Assert.Equal(999L, Scalar(connection, "SELECT KrediKartiId FROM Islemler;"));
 
         Execute(connection, "UPDATE Islemler SET KrediKartiId = NULL; INSERT INTO Kanallar VALUES (80, 'gecici', 0, 1, '0.0'); DELETE FROM Kanallar WHERE Id = 80;");
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         var yeni = new KanalEntity { Ad = "YENI" };
         db.Kanallar.Add(yeni);
         db.SaveChanges();
@@ -371,7 +371,7 @@ public class DatabaseMigrationTests
         Execute(connection, "INSERT INTO Cariler VALUES (100, 'silinen', 1); DELETE FROM Cariler;");
         using var db = Context(connection);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         var yeni = new CariEntity { Ad = "Yeni cari" };
         db.Cariler.Add(yeni);
@@ -394,7 +394,7 @@ public class DatabaseMigrationTests
         }
         using var db = Context(connection);
 
-        var error = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db));
+        var error = Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db));
 
         Assert.Contains("özel muhasebe etiketi", error.Message);
         Assert.Equal(2L, Scalar(connection, "SELECT COUNT(*) FROM Kanallar;"));
@@ -423,7 +423,7 @@ public class DatabaseMigrationTests
                 start.Wait();
                 using var connection = new SqliteConnection(connectionString);
                 using var db = Context(connection);
-                KasaDatabaseInitializer.Initialize(db, backup);
+                KasaVeritabaniBaslatici.Baslat(db, backup);
             })).ToArray();
             start.Set();
             await Task.WhenAll(initializers);
@@ -476,7 +476,7 @@ public class DatabaseMigrationTests
         }, web);
         var once = Raporlar(eski);
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
@@ -542,7 +542,7 @@ public class DatabaseMigrationTests
         var once = RaporOzeti(eski, (2026, 3), (2026, 4));
         var baslangic = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         var bitis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
@@ -589,7 +589,7 @@ public class DatabaseMigrationTests
         // Olay tablosundan sonra yazılanlar yeniden aktarılmadı (iki eski olay + üç aktarım); yeniden başlatma aktarmaz.
         Assert.Equal(5L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
         Assert.Equal(1, db.DenetimOlaylari.Count(o => o.IstekId == sonrakiIstek));
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Equal(5L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
     }
 
@@ -626,7 +626,7 @@ public class DatabaseMigrationTests
             onceGecmis = AylikOzeti(eski, gecmis);
         }
 
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
 
         Assert.Equal(24, db.Database.GetAppliedMigrations().Count());
         Assert.Contains(AyKanalKumesi.MigrationId, db.Database.GetAppliedMigrations());
@@ -654,7 +654,7 @@ public class DatabaseMigrationTests
             eylul.Kanallar.Select(k => (k.Kanal, k.OrtakPay)).ToArray());
 
         // Yeniden başlatma küme yazmaz; küme ve üyeleri değiştirilemez, kümedeki kanal silinemez.
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Equal(3, db.AyKanalKumeleri.Count());
         foreach (var sql in new[] { "UPDATE AyKanalKumeleri SET Kaynak = 'sahte';", "DELETE FROM AyKanalKumesiKanallari;", "DELETE FROM Kanallar WHERE Id = 5;" })
             Assert.Equal(19, Assert.Throws<SqliteException>(() => Execute(connection, sql)).SqliteErrorCode);
@@ -665,7 +665,7 @@ public class DatabaseMigrationTests
     {
         using var connection = Open();
         using var db = Context(connection);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         db.Kanallar.Add(new KanalEntity { Ad = "MEZAT" });
         db.SaveChanges();
         Assert.Equal(1L, Scalar(connection, "SELECT COUNT(*) FROM DenetimOlaylari;"));
