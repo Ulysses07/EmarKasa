@@ -3,7 +3,6 @@ import {
   dateText,
   today,
   cents,
-  amount,
   serverCents,
   sumCents,
   viewerPasswordError,
@@ -92,35 +91,7 @@ import {
 let monthlyRequest = 0;
 const financeUi = createFinanceUi();
 const monthlyUi = createMonthlyUi();
-const cashControlsUi = createCashControlsUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  select,
-  help,
-  section,
-  table,
-  money,
-  moneyNode,
-  signedAmountField,
-  amount,
-  serverCents,
-  formDialog,
-  openModal,
-  closeModal,
-  run,
-  toast,
-  summary,
-  requestIdentity,
-  isOpen,
-  canEdit: canEditCash,
-  editor: requireEditor,
-  navigate,
-  dateText,
-  today,
-});
+const cashControlsUi = createCashControlsUi();
 const statementImportUi = createStatementImportUi({
   api,
   h,
