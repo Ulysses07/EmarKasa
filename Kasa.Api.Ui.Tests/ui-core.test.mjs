@@ -1359,6 +1359,7 @@ test('browser entry and helper parse as explicit ES modules before the login scr
   for (const file of [
     'app.js',
     'ui-core.js',
+    'ui-dom.js',
     'finance-ui.js',
     'monthly-ui.js',
     'cash-controls-ui.js',
@@ -5268,7 +5269,15 @@ test('alış toplamı ve ödenmeyi bekleyen tutar sunucu tutarlarından kuruşla
 // Masaüstü Firefox ve Safari'de type="month" denetimi yok (MDN browser-compat-data html.elements.input.type_month:
 // firefox ve safari version_added false). Ay seçici "‹ Eylül 2026 ›" düğmeleriyle YYYY-AA değeri üretir.
 test('ay seçici type="month" kullanmaz; önceki/sonraki düğmeleri YYYY-AA değerini ve görünen ay adını değiştirir', async () => {
-  for (const file of ['app.js', 'monthly-ui.js', 'finance-ui.js', 'cash-controls-ui.js', 'statement-import-ui.js', 'notification-ui.js']) {
+  for (const file of [
+    'app.js',
+    'ui-dom.js',
+    'monthly-ui.js',
+    'finance-ui.js',
+    'cash-controls-ui.js',
+    'statement-import-ui.js',
+    'notification-ui.js',
+  ]) {
     assert.doesNotMatch(await readFile(new URL(`../Kasa.Api/wwwroot/${file}`, import.meta.url), 'utf8'), /type:\s*'month'/, file);
   }
   assert.equal(ui.shiftMonth('2026-01', -1), '2025-12');
