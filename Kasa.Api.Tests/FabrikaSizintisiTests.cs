@@ -7,7 +7,7 @@ namespace Kasa.Api.Tests;
 public class FabrikaSizintisiTests
 {
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static async Task<WeakReference[]> KullanVeKapat()
+    private static async Task<WeakReference[]> KullanVeKapat(bool senkron)
     {
         var f = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
         using (var c = await f.EditorClientAsync())
@@ -18,14 +18,21 @@ public class FabrikaSizintisiTests
         using (var c = yeniden.CreateClient())
             (await c.GetAsync("/health")).EnsureSuccessStatusCode();
         WeakReference[] izler = [new(f), new(f.Services), new(yeniden), new(yeniden.Services)];
-        await f.DisposeAsync();
+        // Senkron Dispose() (using var) da WebApplicationFactory.Dispose(bool) üzerinden sanal DisposeAsync()'i çağırır;
+        // sınırlayıcılar iki yolda da kapanır.
+        if (senkron)
+            f.Dispose();
+        else
+            await f.DisposeAsync();
         return izler;
     }
 
-    [Fact]
-    public async Task Kapatilan_fabrika_ve_uygulamasi_cop_toplayiciya_birakilir()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Kapatilan_fabrika_ve_uygulamasi_cop_toplayiciya_birakilir(bool senkron)
     {
-        var izler = await KullanVeKapat();
+        var izler = await KullanVeKapat(senkron);
         // Kapanışın ardından biten iş parçacığı havuzu devamları kısa süre başvuru tutabilir; tam toplama birkaç kez denenir.
         for (var i = 0; i < 10 && izler.Any(z => z.IsAlive); i++)
         {
