@@ -14,6 +14,9 @@ namespace Kasa.App.Core.Tests;
 /// </summary>
 public partial class GorunumEsdegerligiTests
 {
+    /// <summary>AppShell.xaml'da seçili menü öğesinin düğmesine DataTrigger'la yazılan ipucu.</summary>
+    private const string MenuSeciliIpucu = "Seçili sayfa";
+
     private static Grid MenuOgesiYukle(MenuOgesi oge)
     {
         var sablon = Regex.Match(GorunumOrtami.Oku("AppShell.xaml"), @"<DataTemplate x:DataType=""core:MenuOgesi"">(.*?)</DataTemplate>", RegexOptions.Singleline);
@@ -34,6 +37,8 @@ public partial class GorunumEsdegerligiTests
         Assert.Equal(beklenen.ToArgbHex(true), Zemin(kok));
         Assert.True(Brush.IsNullOrEmpty(kok.Background), "Menü öğesi Background (Brush) yazmamalı (dotnet/maui#38813).");
         Assert.Equal(secili, kok.Children.OfType<Ellipse>().Single().IsVisible);
+        // Ekran okuyucu: seçili sayfa düğmenin ipucuyla bildirilir.
+        Assert.Equal(secili ? MenuSeciliIpucu : null, SemanticProperties.GetHint(kok.Children.OfType<Button>().Single()));
     }
 
     [Fact]
@@ -46,12 +51,25 @@ public partial class GorunumEsdegerligiTests
         oge.Secili = true;
         Assert.Equal(((Color)Application.Current!.Resources["SidebarActive"]).ToArgbHex(true), Zemin(kok));
         oge.Secili = false;
+        Assert.Equal(((Color)Application.Current!.Resources["SidebarHover"]).ToArgbHex(true), Zemin(kok));
         oge.AyrilCommand.Execute(null);
         Assert.Equal(Colors.Transparent.ToArgbHex(true), Zemin(kok));
         var dugme = kok.Children.OfType<Button>().Single();
         Assert.Equal("Kartlar", SemanticProperties.GetDescription(dugme));
         Assert.Same(oge.SecCommand, dugme.Command);
         Assert.All(kok.Children.OfType<Label>(), l => Assert.True(l.InputTransparent));
+        // Simge, başlık ve nokta ekran okuyucuya ayrı öğe olarak görünmez: öğeyi düğme başlığıyla okur.
+        Assert.All(kok.Children.Where(c => c is not Button).Cast<BindableObject>(), c => Assert.False(AutomationProperties.GetIsInAccessibleTree(c)));
+    }
+
+    /// <summary>Grup başlığı ekran okuyucuda başlık (düzey 2) olarak gezilir.</summary>
+    [Fact]
+    public void Kabuk_menu_grup_basligi_ekran_okuyucuda_baslik()
+    {
+        var belge = System.Xml.Linq.XDocument.Parse(GorunumOrtami.Oku("AppShell.xaml"));
+        var grup = belge.Descendants().Single(e => e.Name.LocalName == "DataTemplate" && (string?)e.Attributes().FirstOrDefault(a => a.Name.LocalName == "DataType") == "core:MenuGrubu");
+        var baslik = grup.Descendants().Single(e => e.Name.LocalName == "Label" && (string?)e.Attribute("Text") == "{Binding Baslik}" && e.Ancestors().TakeWhile(a => a != grup).All(a => a.Name.LocalName != "DataTemplate"));
+        Assert.Equal("Level2", (string?)baslik.Attribute("SemanticProperties.HeadingLevel"));
     }
 
     /// <summary>İşleyicinin çizdiği zemin: IView.Background düz boya olmalı; rengi ARGB onaltılık.</summary>
