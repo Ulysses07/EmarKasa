@@ -123,6 +123,41 @@ public static class TakipKaynaklari
     public const string Kredi = "Kredi";
 }
 
+/// <summary>Benzer kayıt aramasının türü: yeni kaydın hangi yoldan girildiği (BenzerAramasi.Tur, benzerlik ucunun gövdesi
+/// BenzerKayitSorgu.Tur ve istemcideki BenzerlikYaz.Tur). Aranan kaynak kümesini seçer (BenzerKayitServisi.Bul); bulunan kaydın
+/// türü <see cref="BenzerKayitKaynaklari"/>'dır.</summary>
+public static class BenzerAramaTurleri
+{
+    /// <summary>Gider (kartlı ya da kartsız); banka ekstresi satırı ve eşleşme adayı da bu türle aranır.</summary>
+    public const string Gider = "Gider";
+    /// <summary>Aylık gider ödemesi; kartla kaydedilmez.</summary>
+    public const string AylikGider = "AylikGider";
+    /// <summary>Alış ödemesi (kartlı ya da kartsız); aynı alışın ödemeleri kanal süzgecinden bağımsız listelenir.</summary>
+    public const string AlisOdeme = "AlisOdeme";
+    /// <summary>Kart harcaması; iade eksi tutarla aranır.</summary>
+    public const string KartHarcama = "KartHarcama";
+    /// <summary>Karta ödeme.</summary>
+    public const string KartOdeme = "KartOdeme";
+}
+
+/// <summary>Benzer kaydın kaynağı: bulunan kaydın nereden geldiği (BenzerKayitDto.Kaynak). Aramanın türü
+/// <see cref="BenzerAramaTurleri"/>'dır.</summary>
+public static class BenzerKayitKaynaklari
+{
+    /// <summary>Gider kaydı: elle, Ortak, alış ödemesi, aylık gider ödemesi ya da banka ekstresi gideri.</summary>
+    public const string Islem = "Islem";
+    /// <summary>Giderden türememiş kart harcaması (TakipHarcama).</summary>
+    public const string KartHarcama = "KartHarcama";
+    /// <summary>Takipteki kartın ödemesi (TakipKartOdeme).</summary>
+    public const string KartOdeme = "KartOdeme";
+    /// <summary>Kart takibinden önceki eski kart ödemesi (KartOdeme kaydı).</summary>
+    public const string EskiKartOdeme = "EskiKartOdeme";
+    /// <summary>Takipli kredinin taksidi (TakipKrediTaksit); kimlik taksidindir.</summary>
+    public const string KrediTaksidi = "KrediTaksidi";
+    /// <summary>Hesap motorunun takipsiz krediden türettiği taksit gideri; kimlik kredinindir.</summary>
+    public const string EskiKrediTaksidi = "EskiKrediTaksidi";
+}
+
 /// <summary>Kart ve kredi takibi olayının türü (TakipOlayDto.Tur; bildirimin türü ve anahtarı).</summary>
 public static class TakipOlayTurleri
 {

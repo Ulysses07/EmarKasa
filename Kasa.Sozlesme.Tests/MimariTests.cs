@@ -98,14 +98,16 @@ public class MimariTests
         Assert.True(kokUsing.Count == 0, "Kasa.App.Core'da 'using Kasa.Core;' (GiderTipi CS0104): " + string.Join(", ", kokUsing.Select(Path.GetFileName)));
     }
 
-    /// <summary>Başka bir sözlükte ya da görünen metinde de aynen geçen kod değerleri; tarama bunlarda yanlış alarm verir, bu
-    /// değerlerin sabite bağlanması incelemeyle yapılır. "Gider", "KartHarcama", "KartOdeme": benzer kayıt aramasının türü ve
-    /// kaynağı (BenzerAramasi.Tur, BenzerKayitDto.Kaynak), istek kaydının işlem adı; "Gelir", "Gider", "KartOdemesi": kasa dökümü
-    /// satır türü; "Kart", "Kredi", "Banka", "Gelir", "Gider": görünen metin (seçenek adı, ad yedeği, alan etiketi); "Iptal",
-    /// "Kredi": alan ya da varlık adı (kilit kuralı, denetim alanları ve varlıkları).</summary>
+    /// <summary>Kodlar dışındaki bir sözlükte ya da görünen metinde de aynen geçen kod değerleri: tarama değerin anlamını ayırt
+    /// edemez, bunlarda yanlış alarm verir; bu değerlerin sabite bağlanması incelemeyle yapılır. Kodlar dışında kalan anlamlar:
+    /// "KartHarcama", "KartOdeme", "AlisOdeme": istek kaydının işlem adı (IstekKaydi.Tur, yalnız sunucuda, her biri tek uçta);
+    /// "Islem", "AlisOdeme", "KartOdeme", "Kredi": denetim varlık adı (sunucuda varlık türünün adından türer, KasaKontrolMetni'nde
+    /// sözlük anahtarı); "Iptal": alan adı (kilit kuralı, denetim alanları); "Gelir", "Gider", "Kart", "Kredi", "Banka": görünen
+    /// metin (seçenek adı, ad yedeği, alan etiketi). "Gelir", "Gider", "KartOdemesi", "AylikGider", "KrediTaksidi": kasa dökümü
+    /// satır türü (henüz dize).</summary>
     private static readonly HashSet<string> CokAnlamliDegerler = new(StringComparer.Ordinal)
     {
-        "Gelir", "Gider", "KartHarcama", "KartOdeme", "KartOdemesi", "Kart", "Kredi", "Banka", "Iptal",
+        "Gelir", "Gider", "KartHarcama", "KartOdeme", "KartOdemesi", "AlisOdeme", "Islem", "AylikGider", "KrediTaksidi", "Kart", "Kredi", "Banka", "Iptal",
     };
 
     /// <summary>Kod değerleri kaynakta elle yazılmaz: Kasa.Core, Kasa.Api ve istemci projelerinde Kodlar'daki bir sabitin

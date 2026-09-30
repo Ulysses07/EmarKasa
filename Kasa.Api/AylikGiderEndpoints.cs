@@ -185,7 +185,7 @@ public static class AylikGiderEndpoints
         BenzerUyarilari uyarilar, DateTimeOffset now)
     {
         var channels = shares.Where(s => s.KanalId is not null).Select(s => s.KanalId!.Value).ToHashSet();
-        var records = new BenzerKayitServisi(db).Bul(new BenzerAramasi("AylikGider", dto.Tarih, revision.Tutar, Kanallar: channels.Count == 0 ? null : channels));
+        var records = new BenzerKayitServisi(db).Bul(new BenzerAramasi(BenzerAramaTurleri.AylikGider, dto.Tarih, revision.Tutar, Kanallar: channels.Count == 0 ? null : channels));
         if (records.Count == 0)
             return null;
         var names = BenzerKayitServisi.Liste(records.Select(k => BenzerKayitServisi.Satir(k)).ToList());

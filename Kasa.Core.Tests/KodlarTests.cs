@@ -51,6 +51,17 @@ public class KodlarTests
     public void Takip_olay_turleri() => Esit(
         ("Kesim", TakipOlayTurleri.Kesim), ("SonOdeme", TakipOlayTurleri.SonOdeme), ("Taksit", TakipOlayTurleri.Taksit));
 
+    [Fact]
+    public void Benzer_arama_turleri() => Esit(
+        ("Gider", BenzerAramaTurleri.Gider), ("AylikGider", BenzerAramaTurleri.AylikGider), ("AlisOdeme", BenzerAramaTurleri.AlisOdeme),
+        ("KartHarcama", BenzerAramaTurleri.KartHarcama), ("KartOdeme", BenzerAramaTurleri.KartOdeme));
+
+    [Fact]
+    public void Benzer_kayit_kaynaklari() => Esit(
+        ("Islem", BenzerKayitKaynaklari.Islem), ("KartHarcama", BenzerKayitKaynaklari.KartHarcama), ("KartOdeme", BenzerKayitKaynaklari.KartOdeme),
+        ("EskiKartOdeme", BenzerKayitKaynaklari.EskiKartOdeme), ("KrediTaksidi", BenzerKayitKaynaklari.KrediTaksidi),
+        ("EskiKrediTaksidi", BenzerKayitKaynaklari.EskiKrediTaksidi));
+
     private static void Esit(params (string Beklenen, string Gercek)[] ciftler) =>
         Assert.All(ciftler, c => Assert.Equal(c.Beklenen, c.Gercek));
 }

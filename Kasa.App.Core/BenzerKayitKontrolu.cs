@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -37,10 +38,10 @@ public partial class BenzerKayitKontrolu(IBenzerKayitApi? api) : ObservableObjec
     public const string KuralMetni = "Aynı tutarda ve ±3 gün içindeki kayıtlar gösterilir; kartlı kayıtta aynı kartın kayıtları aranır. Kanal yalnız kesin olarak başka kanala düşen kaydı eler: kanalı belirsiz, Ortak, yalnız genel kasa ya da dağılım bekleyen kayıtlar, seçilen kanalı da içeren çok kanallı kayıtlar ve kart ödemeleri her kanalda görünür.";
     private static string KaynakAdi(string kaynak) => kaynak switch
     {
-        "KartHarcama" => "Kart harcaması",
-        "KartOdeme" or "EskiKartOdeme" => "Kart ödemesi",
-        "KrediTaksidi" => "Kredi taksidi",
-        "EskiKrediTaksidi" => "Eski kredi taksidi",
+        BenzerKayitKaynaklari.KartHarcama => "Kart harcaması",
+        BenzerKayitKaynaklari.KartOdeme or BenzerKayitKaynaklari.EskiKartOdeme => "Kart ödemesi",
+        BenzerKayitKaynaklari.KrediTaksidi => "Kredi taksidi",
+        BenzerKayitKaynaklari.EskiKrediTaksidi => "Eski kredi taksidi",
         _ => "Gider",
     };
     public bool Onayla()
