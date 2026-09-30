@@ -1,3 +1,5 @@
+using Kasa.Core.Kodlar;
+
 namespace Kasa.Api.Data;
 
 public class AylikGiderSablonEntity
@@ -17,7 +19,7 @@ public class AylikGiderRevizyonEntity
     public string Tur { get; set; } = "";
     public decimal Tutar { get; set; }
     public int OdemeGunu { get; set; }
-    public string DagilimTuru { get; set; } = "Genel";
+    public string DagilimTuru { get; set; } = DagilimBicimleri.Genel;
     public string DagilimJson { get; set; } = "[]";
     public bool Aktif { get; set; } = true;
 }

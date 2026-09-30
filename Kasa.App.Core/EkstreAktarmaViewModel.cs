@@ -3,6 +3,7 @@ using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -14,7 +15,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     private EkstreOnizlemeDto? _onizleme;
     private int _onizlemeForm;
     private int? _gecmisImleci;
-    public IReadOnlyList<EkstreSecenek> Kaynaklar { get; } = [new("Kart", "Kredi kartı ekstresi"), new("Banka", "Banka hesap hareketleri")];
+    public IReadOnlyList<EkstreSecenek> Kaynaklar { get; } = [new(EkstreKaynaklari.Kart, "Kredi kartı ekstresi"), new(EkstreKaynaklari.Banka, "Banka hesap hareketleri")];
     /// <summary>Yükleme formunun bankaları: sunucudan (GET api/ekstre-aktar/bankalar, tek kaynak) yüklenir; istemcide yedek liste
     /// yoktur. Alınamazsa boş kalır ve <see cref="TemelViewModel"/> hatası nedenini söyler (PDF yüklenemez).</summary>
     public ObservableCollection<EkstreSecenek> Bankalar { get; } = new();
@@ -33,8 +34,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     [ObservableProperty] private bool _onay;
     [ObservableProperty] private bool _tekrarOnay;
     [ObservableProperty] private bool _eskiBelgeVar;
-    public bool BankaMi => Kaynak?.Kod == "Banka";
-    public bool KartMi => Kaynak?.Kod == "Kart";
+    public bool BankaMi => Kaynak?.Kod == EkstreKaynaklari.Banka;
+    public bool KartMi => Kaynak?.Kod == EkstreKaynaklari.Kart;
     public bool BelgeVar => Belge is not null;
     public bool OnizlemeVar => _onizleme is not null;
     public bool TekrarOnayGerekli => _onizleme?.TekrarOnayGerekli ?? false;
@@ -233,9 +234,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         OnPropertyChanged(nameof(OnizlemeVar));
         OnPropertyChanged(nameof(TekrarOnayGerekli));
     });
-    private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreSatirEditor.Eslestir
+    private static string Dagilim(EkstreSatirYaz girdi, EkstreSatirOnizleme satir) => girdi.IslemTuru == EkstreIslemTurleri.Eslestir
         ? $"Mevcut kayıtla eşleşir ({EslesmeAdayiSatiri.TurAdi(girdi.EslesenKayitTuru)} #{girdi.EslesenKayitId}); kasa ve kart borcu değişmez"
-        : girdi.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(satir.Dagilimlar);
+        : girdi.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(satir.Dagilimlar);
     [RelayCommand]
     private Task KaydetAsync() => YurutAsync(async n =>
     {

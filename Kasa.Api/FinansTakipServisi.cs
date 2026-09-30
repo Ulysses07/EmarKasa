@@ -274,8 +274,8 @@ public static class FinansTakipServisi
         if (db.TakipHarcamalar.Any(h => h.KaynakHarcamaId == charge.Id && !h.Iptal))
             return HarcamaEngeli.IadesiVar;
         var ids = taksitler.ToArray();
-        return db.EkstreKayitlar.Any(k => !k.Iptal && (k.KartHarcamaId == charge.Id || k.EslesmeTuru == "KartHarcama" && k.EslesmeId == charge.Id
-            || k.EslesmeTuru == "KartTaksidi" && k.EslesmeId != null && ids.Contains(k.EslesmeId.Value))) ? HarcamaEngeli.Ekstre : null;
+        return db.EkstreKayitlar.Any(k => !k.Iptal && (k.KartHarcamaId == charge.Id || k.EslesmeTuru == EslesmeTurleri.KartHarcama && k.EslesmeId == charge.Id
+            || k.EslesmeTuru == EslesmeTurleri.KartTaksidi && k.EslesmeId != null && ids.Contains(k.EslesmeId.Value))) ? HarcamaEngeli.Ekstre : null;
     }
     /// <summary>Kart harcamasının kaldırılmasını ya da kanalının değiştirilmesini engelleyen neden (<see cref="KaynakHarcamaEngeli"/>).
     /// İletiler çağıranda, işleme göre yazılır (gider düzenleme/silme, alış ödemesini ayırma).</summary>

@@ -36,7 +36,7 @@ public static class AlisDurumEtkisi
     /// <summary>Alışa bağlanmadan önceki banka ekstresi giderinin payları: hesap motoru onu ekstre satırının dağılımıyla sayar
     /// (yalnız genel kasa satırı hiçbir kanala düşmez).</summary>
     internal static OdemePayi EkstreGideri(IslemEntity islem, EkstreKayitEntity satir) =>
-        new(islem.Id, islem.Tarih, islem.TutarTl, islem.KrediKartiId, satir.DagilimTuru == "Genel"
+        new(islem.Id, islem.Tarih, islem.TutarTl, islem.KrediKartiId, satir.DagilimTuru == DagilimBicimleri.Genel
             ? [new KanalPayi(null, KanalEtiketleri.GenelKasa, islem.TutarTl)]
             : FinansTakipServisi.Read<TakipKanalPayi>(satir.DagilimJson).Select(p => new KanalPayi(p.KanalId, p.Kanal, p.Tutar)).ToList());
 

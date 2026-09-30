@@ -98,14 +98,26 @@ public class MimariTests
         Assert.True(kokUsing.Count == 0, "Kasa.App.Core'da 'using Kasa.Core;' (GiderTipi CS0104): " + string.Join(", ", kokUsing.Select(Path.GetFileName)));
     }
 
+    /// <summary>Başka bir sözlükte ya da görünen metinde de aynen geçen kod değerleri; tarama bunlarda yanlış alarm verir, bu
+    /// değerlerin sabite bağlanması incelemeyle yapılır. "Gider", "KartHarcama", "KartOdeme": benzer kayıt aramasının türü ve
+    /// kaynağı (BenzerAramasi.Tur, BenzerKayitDto.Kaynak), istek kaydının işlem adı; "Gelir", "Gider", "KartOdemesi": kasa dökümü
+    /// satır türü; "Kart", "Banka", "Gelir", "Gider": görünen metin (seçenek adı, ad yedeği, alan etiketi).</summary>
+    private static readonly HashSet<string> CokAnlamliDegerler = new(StringComparer.Ordinal)
+    {
+        "Gelir", "Gider", "KartHarcama", "KartOdeme", "KartOdemesi", "Kart", "Banka",
+    };
+
     /// <summary>Kod değerleri kaynakta elle yazılmaz: Kasa.Core, Kasa.Api ve istemci projelerinde Kodlar'daki bir sabitin
-    /// değeri dize olarak geçmez (yorum satırları ve bir kodu görünen ada çeviren switch kolunun sağ tarafı hariç).</summary>
+    /// değeri dize olarak geçmez (yorum satırları, bir kodu görünen ada çeviren switch kolunun sağ tarafı ve
+    /// <see cref="CokAnlamliDegerler"/> hariç).</summary>
     [Fact]
     public void Kod_degerleri_kaynakta_elle_yazilmaz()
     {
         var degerler = Cekirdek.GetTypes().Where(t => t.Namespace == KodlarAdAlani)
             .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static).Select(f => (Ad: $"{t.Name}.{f.Name}", Deger: (string)f.GetRawConstantValue()!)))
             .ToList();
+        Assert.All(CokAnlamliDegerler, d => Assert.Contains(degerler, k => k.Deger == d));
+        degerler.RemoveAll(k => CokAnlamliDegerler.Contains(k.Deger));
         Assert.True(degerler.Count >= 6, $"Kodlar sabitleri okunamadı ({degerler.Count}).");
         var bulunan = new List<string>();
         foreach (var dosya in new[] { "Kasa.Core", "Kasa.Api", "Kasa.ApiClient", "Kasa.App.Core", "Kasa.App" }.SelectMany(KaynakDosyalari))

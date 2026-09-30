@@ -132,16 +132,16 @@ public static class AylikGiderEndpoints
         var current = new DateOnly(today.Year, today.Month, 1);
         var last = GirdiDogrulama.EnGecTarih(today);
         Need(d.GecerliAy.Day == 1 && d.GecerliAy >= current && d.GecerliAy <= last, $"Geçerlilik cari ay ile {last:MM.yyyy} arasında bir ayın ilk günü olmalı.");
-        Need(d.DagilimTuru is "Genel" or "Esit" or "Ozel", "Geçerli dağılım türü seçin.");
+        Need(d.DagilimTuru is DagilimBicimleri.Genel or DagilimBicimleri.Esit or DagilimBicimleri.Ozel, "Geçerli dağılım türü seçin.");
         Need(d.Dagilimlar is not null && d.Dagilimlar.Count <= 100 && d.Dagilimlar.All(p => p is not null), "En fazla 100 kanal seçin.");
         var parts = d.Dagilimlar!;
         var ids = parts.Select(p => p.KanalId).ToList();
         Need(ids.Distinct().Count() == ids.Count && db.Kanallar.Count(k => ids.Contains(k.Id)) == ids.Count, "Kayıtlı ve tekil kanallar seçin.");
-        Need(d.DagilimTuru == "Genel" ? parts.Count == 0 : parts.Count > 0, "Genel giderde kanal seçmeyin; diğer türlerde kanal seçin.");
+        Need(d.DagilimTuru == DagilimBicimleri.Genel ? parts.Count == 0 : parts.Count > 0, "Genel giderde kanal seçmeyin; diğer türlerde kanal seçin.");
         List<KanalPayYaz> shares = [];
-        if (d.DagilimTuru == "Esit")
+        if (d.DagilimTuru == DagilimBicimleri.Esit)
             shares = FinansTakipServisi.EsitPaylar(ids, d.Tutar);
-        if (d.DagilimTuru == "Ozel")
+        if (d.DagilimTuru == DagilimBicimleri.Ozel)
         {
             Need(parts.All(p => p.Tutar > 0 && p.Tutar <= d.Tutar && decimal.Round(p.Tutar, 2) == p.Tutar) && parts.Sum(p => p.Tutar) == d.Tutar, "Kanal tutarları pozitif ve toplamı gider tutarına eşit olmalı.");
             shares = parts.OrderBy(p => p.KanalId).ToList();

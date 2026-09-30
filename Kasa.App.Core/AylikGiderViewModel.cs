@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -12,7 +13,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     private AylikGiderAyDto? _ayVerisi;
     private AylikGiderSablonDto? _duzenlenen;
     public IReadOnlyList<GiderSecimi> Turler { get; } = new[] { new GiderSecimi("Kira", "Kira"), new("Maas", "Maaş"), new("Fatura", "Fatura"), new("Diger", "Diğer") };
-    public IReadOnlyList<GiderSecimi> DagilimTurleri { get; } = new[] { new GiderSecimi("Genel", "Yalnız genel kasa"), new("Esit", "Seçilen kanallara eşit"), new("Ozel", "Kanallara tutar girerek") };
+    public IReadOnlyList<GiderSecimi> DagilimTurleri { get; } = new[] { new GiderSecimi(DagilimBicimleri.Genel, "Yalnız genel kasa"), new(DagilimBicimleri.Esit, "Seçilen kanallara eşit"), new(DagilimBicimleri.Ozel, "Kanallara tutar girerek") };
     public ObservableCollection<AylikGiderSatiri> Kayitlar { get; } = new();
     /// <summary>Ayın iptal edilmiş ödemeleri (salt okunur; gerekçe ve iptal anıyla). Toplamlara girmez; planı <see cref="Kayitlar"/>'da
     /// yeniden ödeme bekler. Alanı taşımayan eski sunucuda boştur.</summary>
@@ -35,10 +36,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     [ObservableProperty] private GiderSecimi? _dagilimTuru;
     [ObservableProperty] private DateTime _gecerliAy = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     [ObservableProperty] private bool _aktif = true;
-    public bool EsitDagilim => DagilimTuru?.Kod == "Esit";
-    public bool OzelDagilim => DagilimTuru?.Kod == "Ozel";
+    public bool EsitDagilim => DagilimTuru?.Kod == DagilimBicimleri.Esit;
+    public bool OzelDagilim => DagilimTuru?.Kod == DagilimBicimleri.Ozel;
     public bool OdemeSecili => SeciliOdeme is not null;
-    public string OdemeEtkisi => SeciliOdeme is { } s ? $"{s.Baslik}\nGenel kasadan {Bicim.Tl(s.Veri.Tutar)} ₺ çıkar.\n" + (s.Veri.DagilimTuru == "Genel" ? "Kanal bakiyeleri değişmez." : TakipMetni.Paylar(s.Veri.Dagilimlar)) : "Ödenecek aylık gideri seçin.";
+    public string OdemeEtkisi => SeciliOdeme is { } s ? $"{s.Baslik}\nGenel kasadan {Bicim.Tl(s.Veri.Tutar)} ₺ çıkar.\n" + (s.Veri.DagilimTuru == DagilimBicimleri.Genel ? "Kanal bakiyeleri değişmez." : TakipMetni.Paylar(s.Veri.Dagilimlar)) : "Ödenecek aylık gideri seçin.";
     public string SablonBasligi => _duzenlenen is null ? "Yeni aylık gider şablonu" : $"Şablonu düzenle: {_duzenlenen.Ad}";
     partial void OnDagilimTuruChanged(GiderSecimi? value) { OnPropertyChanged(nameof(EsitDagilim)); OnPropertyChanged(nameof(OzelDagilim)); }
     partial void OnSeciliOdemeChanged(AylikGiderSatiri? value) { OdemeOnay = false; OnPropertyChanged(nameof(OdemeEtkisi)); OnPropertyChanged(nameof(OdemeSecili)); }
@@ -104,10 +105,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         { Hata = ParaAyristirici.GecersizMesaji; return; }
         if (string.IsNullOrWhiteSpace(Ad) || Tur is null || DagilimTuru is null || Tutar <= 0 || OdemeGunu is < 1 or > 31)
         { Hata = "Ad, tür, pozitif tutar, ödeme günü ve dağılım biçimini seçin."; return; }
-        IReadOnlyList<KanalPayYaz> paylar = DagilimTuru.Kod switch { "Genel" => Array.Empty<KanalPayYaz>(), "Esit" => KanalSecimleri.Where(k => k.Secili).Select(k => new KanalPayYaz(k.Veri.Id, 0)).ToList(), _ => TakipMetni.Paylar(Paylar) };
-        if (DagilimTuru.Kod != "Genel" && paylar.Count == 0)
+        IReadOnlyList<KanalPayYaz> paylar = DagilimTuru.Kod switch { DagilimBicimleri.Genel => Array.Empty<KanalPayYaz>(), DagilimBicimleri.Esit => KanalSecimleri.Where(k => k.Secili).Select(k => new KanalPayYaz(k.Veri.Id, 0)).ToList(), _ => TakipMetni.Paylar(Paylar) };
+        if (DagilimTuru.Kod != DagilimBicimleri.Genel && paylar.Count == 0)
         { Hata = "Dağıtılacak kanalları seçin."; return; }
-        if (DagilimTuru.Kod == "Ozel" && paylar.Sum(p => p.Tutar) != Tutar)
+        if (DagilimTuru.Kod == DagilimBicimleri.Ozel && paylar.Sum(p => p.Tutar) != Tutar)
         { Hata = "Kanal paylarının toplamı gider tutarıyla aynı olmalıdır."; return; }
         var g = new AylikGiderSablonYaz(Guid.Empty, _duzenlenen?.Surum ?? 0, Ad.Trim(), Tur.Kod, Tutar, OdemeGunu, DagilimTuru.Kod, paylar, new(GecerliAy.Year, GecerliAy.Month, 1), Aktif);
         var id = _duzenlenen?.Id;
@@ -181,7 +182,7 @@ public record AylikGiderSatiri(AylikGiderSatirDto Veri)
     /// <summary>Ayın ödemesi kaydedilmiş (sunucu durumu "Odendi"); ödenmemiş plan ödeme bekler.</summary>
     public bool OdendiMi => Veri.Durum == "Odendi";
     public string Baslik => $"{Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺ · " + (OdendiMi ? "Ödendi" : "Ödeme bekliyor");
-    public string Ozet => $"Planlanan {Veri.PlanlananTarih:dd.MM.yyyy}" + (Veri.OdemeTarihi is { } t ? $" · ödeme {t:dd.MM.yyyy}" : "") + "\n" + (Veri.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
+    public string Ozet => $"Planlanan {Veri.PlanlananTarih:dd.MM.yyyy}" + (Veri.OdemeTarihi is { } t ? $" · ödeme {t:dd.MM.yyyy}" : "") + "\n" + (Veri.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
 }
 /// <summary>İptal edilmiş aylık gider ödemesi (salt okunur): ödeme tarihi, iptal anı (sürüm öncesi iptalde bilinmez) ve gerekçe.</summary>
 public record AylikGiderIptalSatiri(AylikGiderSatirDto Veri)
@@ -194,5 +195,5 @@ public record AylikGiderIptalSatiri(AylikGiderSatirDto Veri)
 public record AylikSablonSatiri(AylikGiderSablonDto Veri)
 {
     public string Baslik => Veri.Ad + (Veri.Aktif ? "" : " · arşiv");
-    public string Ozet => $"{Bicim.Tl(Veri.Tutar)} ₺ · her ayın {Veri.OdemeGunu}. günü · geçerlilik {Veri.GecerliAy:MM.yyyy}\n" + (Veri.DagilimTuru == "Genel" ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
+    public string Ozet => $"{Bicim.Tl(Veri.Tutar)} ₺ · her ayın {Veri.OdemeGunu}. günü · geçerlilik {Veri.GecerliAy:MM.yyyy}\n" + (Veri.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar));
 }
