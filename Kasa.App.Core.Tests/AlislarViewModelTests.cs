@@ -296,10 +296,12 @@ public class AlislarViewModelTests
         Assert.Contains("1 ile 60", vm.Hata);
         vm.OdemeTaksitSayisi = 3;
         vm.OdemeIlkKesimVar = true;
-        vm.OdemeIlkKesimTarihi = vm.OdemeTarihi.AddDays(16);
+        // Beklenen tarih formdaki ödeme tarihinden: DateTime.Today'e karşı karşılaştırma gece yarısını geçen koşuda kayardı.
+        var ilkKesim = vm.OdemeTarihi.AddDays(16);
+        vm.OdemeIlkKesimTarihi = ilkKesim;
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Null(vm.Hata);
-        Assert.Equal(((int?)2, (int?)3, (DateOnly?)DateOnly.FromDateTime(DateTime.Today.AddDays(16))), (api.SonOdeme!.KrediKartiId, api.SonOdeme.TaksitSayisi, api.SonOdeme.IlkKesimTarihi));
+        Assert.Equal(((int?)2, (int?)3, (DateOnly?)DateOnly.FromDateTime(ilkKesim)), (api.SonOdeme!.KrediKartiId, api.SonOdeme.TaksitSayisi, api.SonOdeme.IlkKesimTarihi));
         Assert.Contains("3 taksitli", vm.Mesaj);
         // Form temizlenir: sonraki ödeme tek taksitle başlar.
         Assert.Equal(1, vm.OdemeTaksitSayisi);
