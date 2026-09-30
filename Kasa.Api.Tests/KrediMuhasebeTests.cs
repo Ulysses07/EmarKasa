@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using Kasa.Api;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
@@ -115,7 +116,7 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
             TaksitSayisi = 1,
             AylikOdeme = 300m,
             OdemeGunu = 10,
-            Kanal = Kanallar.Ortak
+            Kanal = KanalEtiketleri.Ortak
         });
 
         var client = await _factory.EditorClientAsync();

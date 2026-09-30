@@ -4,6 +4,7 @@ using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 using AlisDagitici = Kasa.Core.AlisDagitici;
 using AlisKanalPayi = Kasa.Core.AlisKanalPayi;
 
@@ -100,14 +101,14 @@ public partial class AlislarViewModel : OturumluViewModel
 
     public AlisDto? Secili => _secili;
     public string Baslik => _secili is null ? "Yeni alış" : $"Alış #{_secili.Id}";
-    public string Durum => AlisSatiri.DurumAdi(_secili?.Durum ?? "Taslak");
+    public string Durum => AlisSatiri.DurumAdi(_secili?.Durum ?? AlisDurumlari.Taslak);
     public string KaydiAcan => _secili?.Alici ?? (EditorMu ? "Editör" : "Sizin alışınız");
     public string? EditorNotu => _secili?.EditorNotu;
     public bool KayitVar => _secili is not null;
-    public bool Duzenlenebilir => _secili is null || _secili.Durum == "Taslak" || (EditorMu && _secili.Durum == "Incelemede");
-    public bool Gonderilebilir => _secili is null || _secili.Durum == "Taslak";
-    public bool Onaylanabilir => EditorMu && _secili?.Durum == "Incelemede";
-    public bool IadeEdilebilir => EditorMu && _secili?.Durum is "Incelemede" or "Onaylandi";
+    public bool Duzenlenebilir => _secili is null || _secili.Durum == AlisDurumlari.Taslak || (EditorMu && _secili.Durum == AlisDurumlari.Incelemede);
+    public bool Gonderilebilir => _secili is null || _secili.Durum == AlisDurumlari.Taslak;
+    public bool Onaylanabilir => EditorMu && _secili?.Durum == AlisDurumlari.Incelemede;
+    public bool IadeEdilebilir => EditorMu && _secili?.Durum is AlisDurumlari.Incelemede or AlisDurumlari.Onaylandi;
     public bool OdemeAlaniGorunur => EditorMu && KayitVar;
     public bool YeniOdemeGirisi => !MevcutGiderKullan;
     /// <summary>Takipli kart seçiliyken ekstreden gelmiş kart harcaması aranabilir.</summary>
@@ -545,7 +546,7 @@ public partial class AlislarViewModel : OturumluViewModel
                 .Select(g => new AlisKanalPayi(g.Key, g.Sum(d => d.Tutar))).Where(d => d.Tutar > 0).OrderBy(d => d.KanalId).ToList();
             foreach (var pay in AlisDagitici.Dagit(paylar, _secili.Odenen, OdemeTutari))
                 OdemeOnizleme.Add(new(pay.KanalId, Kanallar.FirstOrDefault(k => k.Id == pay.KanalId)?.Ad ?? $"Kanal #{pay.KanalId}", pay.Tutar));
-            if (_secili.Durum != "Onaylandi")
+            if (_secili.Durum != AlisDurumlari.Onaylandi)
                 OnizlemeAciklamasi = "Kaydedilmiş dağılıma göre tahmin. Alış onaylanana kadar bu ödeme dağılım bekler.";
         }
         catch (ArgumentException) { OnizlemeAciklamasi = "Önizleme için kalan tutarı aşmayan geçerli bir ödeme girin."; }

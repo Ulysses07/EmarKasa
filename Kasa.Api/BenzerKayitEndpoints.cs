@@ -1,6 +1,7 @@
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
@@ -41,7 +42,7 @@ public static class BenzerKayitEndpoints
                 if (dto.Tur == "AlisOdeme" && purchase is null)
                     return Results.NotFound();
                 int? channelId = null;
-                if (dto.Tur is "Gider" or "AylikGider" && dto.KrediKartiId is null && dto.Kanal is not null && dto.Kanal != Kanallar.Ortak)
+                if (dto.Tur is "Gider" or "AylikGider" && dto.KrediKartiId is null && dto.Kanal is not null && dto.Kanal != KanalEtiketleri.Ortak)
                 {
                     channelId = db.Kanallar.Where(k => k.Ad == dto.Kanal).Select(k => (int?)k.Id).SingleOrDefault();
                     if (channelId is null)

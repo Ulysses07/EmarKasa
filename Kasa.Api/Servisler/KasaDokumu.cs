@@ -1,5 +1,6 @@
 using Kasa.Api;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Api.Servisler;
 
@@ -39,7 +40,7 @@ public sealed class KasaDokumu(DateOnly bugun, decimal kasaAcilis, IReadOnlyList
     /// <summary>Satırın API görünümü: türü, açıklaması, gösterilen kanal etiketi ve kimliği.</summary>
     public KasaHareketiDto Dto(KasaHareketi h)
     {
-        var kanal = h.Kanal == KrediTuretici.KrediKanal ? "Genel kasa" : h.Kanal;
+        var kanal = h.Kanal == KrediTuretici.KrediKanal ? KanalEtiketleri.GenelKasa : h.Kanal;
         var tur = Tur(h);
         return new(h.EtkiTarihi, h.KayitTarihi, tur, Aciklama(h, tur), kanal, kanalIdleri.GetValueOrDefault(h.Kanal), h.GenelKasaEtkisi, h.KanalEtkisi,
             h.KaynakAnahtari, Otomatik(tur));

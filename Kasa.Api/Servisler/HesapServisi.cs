@@ -6,6 +6,7 @@ using System.Text.Json;
 using Kasa.Api;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -223,7 +224,7 @@ public class HesapServisi
             // Kanalı çözülemeyen tutar: kasadan düşer, hiçbir kanala yazılmaz.
             void Bekliyor(Islem satir, decimal tutar, string anahtar, Func<string> aciklama, Exception? hata = null)
             {
-                dbIslemler.Add(satir with { Kanal = Kanallar.DagilimBekliyor, TutarTl = tutar, DagilimBekliyor = true });
+                dbIslemler.Add(satir with { Kanal = KanalEtiketleri.DagilimBekliyor, TutarTl = tutar, DagilimBekliyor = true });
                 Karantinaya(anahtar, aciklama, satir.Tarih, EtkiSonu(satir), hata);
             }
             // Kaydın paylarını satırlara çevirir (bkz. Coz): çözülen pay kanalına, çözülemeyen tutar "Dağılım bekliyor"a.
@@ -273,8 +274,8 @@ public class HesapServisi
             var islem = kayit.ToCore() with { Kaynak = kaynak, KaynakAnahtari = kaynak };
             if (!eslemeler.TryGetValue(kayit.Id, out var alis))
                 dbIslemler.Add(islem);
-            else if (alis.Durum != "Onaylandi")
-                dbIslemler.Add(islem with { Kanal = Kanallar.DagilimBekliyor, DagilimBekliyor = true });
+            else if (alis.Durum != AlisDurumlari.Onaylandi)
+                dbIslemler.Add(islem with { Kanal = KanalEtiketleri.DagilimBekliyor, DagilimBekliyor = true });
             else
             {
                 var anahtar = "Alis:" + alis.Id;
@@ -356,7 +357,7 @@ public class HesapServisi
                 else
                 {
                     // Kanalı olmayan gelir kasaya girer, hiçbir kanala yazılmaz.
-                    ekGelirler.Add(new(period.Start, "Genel kasa", hareket.Tutar, GenelGelir: true) { Tarih = hareket.Tarih, KaynakAnahtari = "HesapHareket:" + hareket.Id, Aciklama = hareket.Aciklama });
+                    ekGelirler.Add(new(period.Start, KanalEtiketleri.GenelKasa, hareket.Tutar, GenelGelir: true) { Tarih = hareket.Tarih, KaynakAnahtari = "HesapHareket:" + hareket.Id, Aciklama = hareket.Aciklama });
                     Karantinaya("EkGelir:" + hareket.Id, () => $"Ek gelir #{hareket.Id} ({Gun(hareket.Tarih)}): kanalı yok; tutar genel kasaya gelir yazıldı", period.Start, hareket.Tarih);
                 }
             }
@@ -366,14 +367,14 @@ public class HesapServisi
             {
                 Gelen Iz(Gelen g) => g with { Tarih = income.Tarih, KaynakAnahtari = "EkstreKayit:" + income.Id, Aciklama = income.Aciklama };
                 if (income.DagilimTuru == "Genel")
-                { gelenler.Add(Iz(new(period.Start, "Genel kasa", income.Tutar, GenelGelir: true))); continue; }
+                { gelenler.Add(Iz(new(period.Start, KanalEtiketleri.GenelKasa, income.Tutar, GenelGelir: true))); continue; }
                 foreach (var (ad, tutar, sorun) in Coz(VeriKarantinasi.Oku<TakipKanalPayi>(income.DagilimJson)?.Select(p => (p.KanalId, p.Tutar)), income.Tutar, "dağılımı okunamadı"))
                     if (ad is not null)
                         gelenler.Add(Iz(new(period.Start, ad, tutar)));
                     else
                     {
                         // Kanalı çözülemeyen gelir kasaya girer, hiçbir kanala yazılmaz.
-                        gelenler.Add(Iz(new(period.Start, "Genel kasa", tutar, GenelGelir: true)));
+                        gelenler.Add(Iz(new(period.Start, KanalEtiketleri.GenelKasa, tutar, GenelGelir: true)));
                         Karantinaya("EkstreKaydi:" + income.Id, () => $"Ekstre kaydı #{income.Id} (gelir, {Gun(income.Tarih)}): {sorun}; tutar genel kasaya gelir yazıldı", period.Start, income.Tarih);
                     }
             }
@@ -396,7 +397,7 @@ public class HesapServisi
                     }
             foreach (var installment in takipliTaksitler[loan.Id])
             {
-                var satir = new Islem(installment.Tarih, loan.Ad + " / " + installment.No + ". taksit", installment.Tutar, Kanallar.DagilimBekliyor, GiderTipi.Cari) { Kaynak = "KrediTaksiti:" + installment.Id, KaynakAnahtari = "TakipKrediTaksit:" + installment.Id };
+                var satir = new Islem(installment.Tarih, loan.Ad + " / " + installment.No + ". taksit", installment.Tutar, KanalEtiketleri.DagilimBekliyor, GiderTipi.Cari) { Kaynak = "KrediTaksiti:" + installment.Id, KaynakAnahtari = "TakipKrediTaksit:" + installment.Id };
                 foreach (var (ad, tutar, sorun) in Coz(Paylar(VeriKarantinasi.Oku<KanalPayYaz>(installment.DagilimJson)), installment.Tutar, "dağılımı okunamadı"))
                     if (ad is not null)
                         islemler.Add(satir with { TutarTl = tutar, Kanal = ad });
@@ -443,7 +444,7 @@ public class HesapServisi
                         Karantinaya($"KrediKarti:{cardId}:{Gun(payment.Tarih)}:{kanalId}",
                             () => $"Kredi kartı #{cardId} ({KartAdi(cardId)}) {Gun(payment.Tarih)} tarihli ödemesi: {PaySorunu(kanalId)}; pay 'Dağılım bekliyor' sayıldı", payment.Tarih, payment.Tarih);
                     }
-                    islemler.Add(new(payment.Tarih, "Kart ödemesi", share.Tutar, bekliyor ? Kanallar.DagilimBekliyor : share.Kanal, GiderTipi.KrediKarti, payment.Not,
+                    islemler.Add(new(payment.Tarih, "Kart ödemesi", share.Tutar, bekliyor ? KanalEtiketleri.DagilimBekliyor : share.Kanal, GiderTipi.KrediKarti, payment.Not,
                         DagilimBekliyor: bekliyor, NakitKartOdemesi: true)
                     { Kaynak = kaynak, KaynakAnahtari = payment.Anahtar });
                 }
@@ -499,7 +500,7 @@ public class HesapServisi
                 }
                 toplam += etki;
                 if (etki != 0)
-                    islemler.Add(new(p.Tarih, "Kart ödemesi", etki, Kanallar.DagilimBekliyor, GiderTipi.KrediKarti, p.Not,
+                    islemler.Add(new(p.Tarih, "Kart ödemesi", etki, KanalEtiketleri.DagilimBekliyor, GiderTipi.KrediKarti, p.Not,
                         DagilimBekliyor: true, NakitKartOdemesi: true)
                     { Kaynak = "KartOdemesi:" + cardId + ":" + p.Id, KaynakAnahtari = "TakipKartOdeme:" + p.Id });
             }
@@ -514,7 +515,7 @@ public class HesapServisi
                 iadeSayisi++;
                 iadeToplami += duzeltme;
                 tarihler.Add(iade.Tarih);
-                islemler.Add(new(iade.Tarih, "Kart ödemesi", -duzeltme, Kanallar.DagilimBekliyor, GiderTipi.KrediKarti, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama,
+                islemler.Add(new(iade.Tarih, "Kart ödemesi", -duzeltme, KanalEtiketleri.DagilimBekliyor, GiderTipi.KrediKarti, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama,
                     DagilimBekliyor: true, NakitKartOdemesi: true)
                 { Kaynak = "KartIadesi:" + cardId + ":" + iade.Id, KaynakAnahtari = "TakipHarcama:" + iade.Id });
             }

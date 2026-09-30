@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -7,7 +8,7 @@ public class PendingDistributionTests
     // Eski veride aynı isimde gerçek kanal bulunabilse de bekleme durumu adla değil,
     // işlem üzerindeki işaretle belirlenmelidir.
     private static readonly Kanal[] KanallarTest =
-    [new("MEZAT"), new("TOPTAN"), new(Kanallar.DagilimBekliyor)];
+    [new("MEZAT"), new("TOPTAN"), new(KanalEtiketleri.DagilimBekliyor)];
 
     [Theory]
     [InlineData("MEZAT", GiderTipi.Cari)]
@@ -22,8 +23,8 @@ public class PendingDistributionTests
         Islem[] islemler =
         [
             new(new(2026, 6, 5), "Bekleyen mal", 100.01m, kanal, tip, DagilimBekliyor: true),
-            new(new(2026, 6, 5), "Gerçek ortak gider", 60m, Kanallar.Ortak, GiderTipi.SabitGider),
-            new(new(2026, 6, 5), "Eski kanalın gideri", 30m, Kanallar.DagilimBekliyor, GiderTipi.Cari),
+            new(new(2026, 6, 5), "Gerçek ortak gider", 60m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
+            new(new(2026, 6, 5), "Eski kanalın gideri", 30m, KanalEtiketleri.DagilimBekliyor, GiderTipi.Cari),
         ];
 
         var haftalik = HesapMotoru.HaftalikHesapla(1_000m, KanallarTest, islemler, [], donemler);
@@ -33,8 +34,8 @@ public class PendingDistributionTests
         Assert.Equal(809.99m, haftalik[^1].KasaDevir);
         Assert.Equal(100.01m, haftalik.Sum(h => h.DagilimBekleyenTutar));
         Assert.Equal(30m, haftalik.SelectMany(h => h.Kanallar).Sum(k => k.Giden));
-        Assert.Equal(-30m, haftalik[^1].Kanallar.Single(k => k.Kanal == Kanallar.DagilimBekliyor).Devir);
-        Assert.All(haftalik[^1].Kanallar.Where(k => k.Kanal != Kanallar.DagilimBekliyor), k => Assert.Equal(0m, k.Devir));
+        Assert.Equal(-30m, haftalik[^1].Kanallar.Single(k => k.Kanal == KanalEtiketleri.DagilimBekliyor).Devir);
+        Assert.All(haftalik[^1].Kanallar.Where(k => k.Kanal != KanalEtiketleri.DagilimBekliyor), k => Assert.Equal(0m, k.Devir));
         Assert.All(aylik.Kanallar, k => Assert.Equal(20m, k.OrtakPay));
         Assert.Equal(100.01m, aylik.DagilimBekleyenTutar);
         Assert.Equal(-90m, aylik.Kanallar.Sum(k => k.AySonucu));
@@ -45,7 +46,7 @@ public class PendingDistributionTests
     public void Bekleyen_kart_gideri_yil_gecisinde_gercek_ay_sonunda_bir_kez_duser()
     {
         Islem[] islemler =
-        [new(new(2025, 12, 5), "Kartlı alış", 99.99m, Kanallar.DagilimBekliyor, GiderTipi.KrediKarti, DagilimBekliyor: true)];
+        [new(new(2025, 12, 5), "Kartlı alış", 99.99m, KanalEtiketleri.DagilimBekliyor, GiderTipi.KrediKarti, DagilimBekliyor: true)];
         var kismi = DonemUretici.Uret(new DateOnly(2025, 12, 1), new DateOnly(2026, 1, 30));
         var tam = DonemUretici.Uret(new DateOnly(2025, 12, 1), new DateOnly(2026, 2, 28));
 
@@ -76,7 +77,7 @@ public class PendingDistributionTests
     public void Bekleyen_giderin_onayli_paylarla_degismesi_kasayi_ikinci_kez_etkilemez(GiderTipi tip)
     {
         var donemler = DonemUretici.Uret(new DateOnly(2026, 5, 1), new DateOnly(2026, 6, 30));
-        var bekleyen = new Islem(new(2026, 5, 12), "Alış", 275.03m, Kanallar.DagilimBekliyor, tip, DagilimBekliyor: true);
+        var bekleyen = new Islem(new(2026, 5, 12), "Alış", 275.03m, KanalEtiketleri.DagilimBekliyor, tip, DagilimBekliyor: true);
         Islem[] onayli =
         [
             bekleyen with { Kanal = "MEZAT", TutarTl = 120.01m, DagilimBekliyor = false },

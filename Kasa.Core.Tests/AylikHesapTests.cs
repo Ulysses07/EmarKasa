@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -21,7 +22,7 @@ public class AylikHesapTests
             new Islem(new DateOnly(2026, 6, 3), "Tedarik", 100m, "MEZAT", GiderTipi.Cari),
             new Islem(new DateOnly(2026, 6, 4), "Maaş",    200m, "MEZAT", GiderTipi.SabitGider),
             new Islem(new DateOnly(2026, 5, 5), "K.K",     50m,  "MEZAT", GiderTipi.KrediKarti), // önceki ay → Haziran'a ertelenir
-            new Islem(new DateOnly(2026, 6, 6), "Kira",    300m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 6), "Kira",    300m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var rapor = HesapMotoru.AylikHesapla(2026, 6, UcKanal, islemler, gelenler, donemler);
@@ -47,7 +48,7 @@ public class AylikHesapTests
         var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
         var islemler = new[]
         {
-            new Islem(new DateOnly(2026, 6, 6), "Kira", 300m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 6), "Kira", 300m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var rapor = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, Array.Empty<Gelen>(), donemler);
@@ -62,7 +63,7 @@ public class AylikHesapTests
         var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
         var islemler = new[]
         {
-            new Islem(new DateOnly(2026, 6, 6), "SGK/Vergi", 455_321m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 6), "SGK/Vergi", 455_321m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var rapor = HesapMotoru.AylikHesapla(2026, 6, UcKanal, islemler, Array.Empty<Gelen>(), donemler);
@@ -98,7 +99,7 @@ public class AylikHesapTests
             new Islem(new DateOnly(2026, 6, 5), "TOP-cari", 360_000m, "TOPTAN", GiderTipi.Cari),
             new Islem(new DateOnly(2026, 6, 9), "MEZAT-maaş", 200_000m, "MEZAT", GiderTipi.SabitGider),
             new Islem(new DateOnly(2026, 6, 10), "PER-kk", 45_500m, "PERAKENDE", GiderTipi.KrediKarti),
-            new Islem(new DateOnly(2026, 6, 6), "Ortak SGK", 455_321m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 6), "Ortak SGK", 455_321m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var haftalik = HesapMotoru.HaftalikHesapla(0m, UcKanal, islemler, gelenler, donemler);
@@ -123,7 +124,7 @@ public class AylikHesapTests
         var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
         var islemler = new[]
         {
-            new Islem(new DateOnly(2026, 6, 10), "Düzeltme", toplamKurus / 100m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 10), "Düzeltme", toplamKurus / 100m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var aylik = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler);
@@ -144,7 +145,7 @@ public class AylikHesapTests
     {
         var kanallar = new[] { new Kanal("A"), new Kanal("B", Aktif: false), new Kanal("C"), new Kanal("YENI") };
         var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
-        var islemler = new[] { new Islem(new DateOnly(2026, 6, 10), "Kira", 100.01m, Kanallar.Ortak, GiderTipi.SabitGider) };
+        var islemler = new[] { new Islem(new DateOnly(2026, 6, 10), "Kira", 100.01m, KanalEtiketleri.Ortak, GiderTipi.SabitGider) };
 
         var aylik = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler, ortakKanallari: ["C", "A", "B"]);
 
@@ -158,7 +159,7 @@ public class AylikHesapTests
     public void Ortak_kumesi_sirasi_artik_kurusu_belirler_bos_kume_pay_uretmez()
     {
         var donemler = DonemUretici.Uret(new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30));
-        var islemler = new[] { new Islem(new DateOnly(2026, 6, 10), "Kuruş", 0.01m, Kanallar.Ortak, GiderTipi.Cari) };
+        var islemler = new[] { new Islem(new DateOnly(2026, 6, 10), "Kuruş", 0.01m, KanalEtiketleri.Ortak, GiderTipi.Cari) };
         var kanallar = new[] { new Kanal("A"), new Kanal("B"), new Kanal("C") };
 
         var ters = HesapMotoru.AylikHesapla(2026, 6, kanallar, islemler, [], donemler, ortakKanallari: ["C", "A"]);

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.MonthlyExpenseTests;
@@ -35,7 +36,7 @@ public class RaporKuraliKararlariTests
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             db.Islemler.AddRange(
                 new IslemEntity { Tarih = new(2026, 5, 20), Cari = "Eski cari", TutarTl = 5_000m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.Cari },
-                new IslemEntity { Tarih = new(2026, 5, 28), Cari = "Eski maaş", TutarTl = 300m, Kanal = Kanallar.Ortak, Tip = GiderTipi.SabitGider },
+                new IslemEntity { Tarih = new(2026, 5, 28), Cari = "Eski maaş", TutarTl = 300m, Kanal = KanalEtiketleri.Ortak, Tip = GiderTipi.SabitGider },
                 // Mayıs K.K'sı Haziran sonunda haftalık kasadan da düşer: tutarlıdır, işaretlenmez.
                 new IslemEntity { Tarih = new(2026, 5, 25), Cari = "Eski kart", TutarTl = 700m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti });
             db.SaveChanges();
@@ -164,7 +165,7 @@ public class RaporKuraliKararlariTests
         // Genel gider: kartsız K.K ve eski (takipsiz) karta bağlı gider reddedilir.
         await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Kartsız", 100m, "MEZAT", GiderTipi.KrediKarti)));
         await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Eski kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: eski)));
-        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Tipsiz eski kart", 100m, Kanallar.Ortak, GiderTipi.Cari, KrediKartiId: eski)));
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Tipsiz eski kart", 100m, KanalEtiketleri.Ortak, GiderTipi.Cari, KrediKartiId: eski)));
         // Takipteki kart ve kartsız diğer giderler kabul edilir.
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(gun, "Takipli kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: takipli));
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(gun, "Nakit", 50m, "MEZAT", GiderTipi.Cari));

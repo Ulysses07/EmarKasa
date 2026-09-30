@@ -6,6 +6,7 @@ using System.Text.Json;
 using Kasa.Api.Data;
 using Kasa.Api.Denetim;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
@@ -240,7 +241,7 @@ public static class AlisEndpoints
                 Tarih = charge.Tarih,
                 Cari = alis.Tedarikci,
                 TutarTl = dto.Tutar,
-                Kanal = Kanallar.DagilimBekliyor,
+                Kanal = KanalEtiketleri.DagilimBekliyor,
                 KanalId = null,
                 Tip = GiderTipi.KrediKarti,
                 KrediKartiId = charge.KrediKartiId,
@@ -254,7 +255,7 @@ public static class AlisEndpoints
                 Tarih = dto.Tarih,
                 Cari = alis.Tedarikci,
                 TutarTl = dto.Tutar,
-                Kanal = Kanallar.DagilimBekliyor,
+                Kanal = KanalEtiketleri.DagilimBekliyor,
                 KanalId = null,
                 Tip = dto.KrediKartiId is null ? GiderTipi.Cari : GiderTipi.KrediKarti,
                 KrediKartiId = dto.KrediKartiId,

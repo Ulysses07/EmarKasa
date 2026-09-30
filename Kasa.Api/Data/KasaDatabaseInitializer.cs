@@ -2,6 +2,7 @@ using System.Data;
 using Kasa.Api.Migrations;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -335,7 +336,7 @@ public static class KasaDatabaseInitializer
             throw CannotUpgrade($"Aynı adlı birden fazla kanal var: '{duplicateChannel}'. Kanal kimliklerini ve hareketlerini inceleyip birleştirmeden geçiş yapılamaz.");
 
         var reservedChannel = Scalar(connection, "SELECT Ad FROM Kanallar WHERE Ad COLLATE NOCASE IN ($common, $credit) LIMIT 1;", transaction,
-            ("$common", Kanallar.Ortak), ("$credit", KrediTuretici.KrediKanal));
+            ("$common", KanalEtiketleri.Ortak), ("$credit", KrediTuretici.KrediKanal));
         if (reservedChannel is not null)
             throw CannotUpgrade($"'{reservedChannel}' özel muhasebe etiketi gerçek kanal olarak kullanılmış.");
 
@@ -356,7 +357,7 @@ public static class KasaDatabaseInitializer
                 WHERE KanalId IS NULL AND Kanal COLLATE NOCASE NOT IN ($common, $credit);
                 UPDATE "{table}" SET Kanal = $common WHERE KanalId IS NULL AND Kanal COLLATE NOCASE = $common;
                 UPDATE "{table}" SET Kanal = $credit WHERE KanalId IS NULL AND Kanal COLLATE NOCASE = $credit;
-                """, transaction, ("$common", Kanallar.Ortak), ("$credit", KrediTuretici.KrediKanal));
+                """, transaction, ("$common", KanalEtiketleri.Ortak), ("$credit", KrediTuretici.KrediKanal));
         }
     }
 

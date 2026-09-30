@@ -8,14 +8,6 @@ public enum GiderTipi
     KrediKarti   // K.K — bir sonraki ay sonunda kasadan/kanaldan düşülür (ertelemeli)
 }
 
-public static class Kanallar
-{
-    /// <summary>Belirli bir kanala ait olmayan ortak gider için kanal etiketi.</summary>
-    public const string Ortak = "Ortak";
-    /// <summary>Gerçek giderin kanalı henüz kesinleşmedi; ortak paya dağıtılmaz.</summary>
-    public const string DagilimBekliyor = "Dağılım bekliyor";
-}
-
 /// <summary>Gelir kanalı ve kümülatif devir başlangıcı.</summary>
 public record Kanal(string Ad, decimal AcilisDevri = 0m, bool Aktif = true, int Sira = 0);
 
@@ -27,7 +19,7 @@ public record Islem(
     DateOnly Tarih,
     string Cari,
     decimal TutarTl,
-    string Kanal,          // "MEZAT" | "PERAKENDE" | "TOPTAN" | Kanallar.Ortak
+    string Kanal,          // "MEZAT" | "PERAKENDE" | "TOPTAN" | KanalEtiketleri.Ortak
     GiderTipi Tip,
     string? Not = null,
     bool DagilimBekliyor = false,

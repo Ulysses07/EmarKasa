@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -96,8 +97,8 @@ public class AylikKuralSurumuTests
         var islemler = new List<Islem>
         {
             new(new DateOnly(2026, 9, 3), "Tedarik", 10_000m, "MEZAT", GiderTipi.Cari),
-            new(new DateOnly(2026, 9, 10), "Kira", 900.01m, Kanallar.Ortak, GiderTipi.SabitGider),
-            new(new DateOnly(2026, 9, 12), "Bekleyen", 700m, Kanallar.DagilimBekliyor, GiderTipi.Cari, DagilimBekliyor: true),
+            new(new DateOnly(2026, 9, 10), "Kira", 900.01m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
+            new(new DateOnly(2026, 9, 12), "Bekleyen", 700m, KanalEtiketleri.DagilimBekliyor, GiderTipi.Cari, DagilimBekliyor: true),
             new(new DateOnly(2026, 9, 20), "Banka", 350m, "Genel kasa", GiderTipi.Cari, YalnizGenelKasa: true),
         };
         var haftalik = HesapMotoru.HaftalikHesapla(0m, UcKanal, islemler, gelenler, donemler);
@@ -143,7 +144,7 @@ public class AylikKuralSurumuTests
         var donemler = DonemUretici.Uret(baslangic, bitis);
         var adlar = new[] { "MEZAT", "PERAKENDE", "TOPTAN", "ESKI" }.Take(rnd.Next(1, 5)).ToArray();
         var kanallar = adlar.Select((a, i) => new Kanal(a, Tutar(rnd), rnd.Next(0, 4) != 0, i)).ToList();
-        var etiketler = adlar.Concat([Kanallar.Ortak, Kanallar.DagilimBekliyor, "Genel kasa", KrediTuretici.KrediKanal, "YOK"]).ToArray();
+        var etiketler = adlar.Concat([KanalEtiketleri.Ortak, KanalEtiketleri.DagilimBekliyor, "Genel kasa", KrediTuretici.KrediKanal, "YOK"]).ToArray();
         var islemler = Enumerable.Range(0, rnd.Next(0, 120)).Select(_ => new Islem(
             baslangic.AddDays(rnd.Next(-60, 440)), "Cari", Tutar(rnd), etiketler[rnd.Next(etiketler.Length)], (GiderTipi)rnd.Next(0, 3), null,
             DagilimBekliyor: rnd.Next(0, 6) == 0, NakitKartOdemesi: rnd.Next(0, 5) == 0, AylikGider: rnd.Next(0, 7) == 0, YalnizGenelKasa: rnd.Next(0, 8) == 0)).ToList();
@@ -170,7 +171,7 @@ public class AylikKuralSurumuTests
         var ayinDonemleri = donemler.Where(d => d.Yil == yil && d.Ay == ay).ToList();
         var ayinDonemStartlari = ayinDonemleri.Select(d => d.Start).ToHashSet();
         var ayinIslemleri = islemler.Where(i => EtkiAyi(i) == (yil, ay)).ToList();
-        decimal ortakToplam = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == Kanallar.Ortak).Sum(i => i.TutarTl);
+        decimal ortakToplam = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == KanalEtiketleri.Ortak).Sum(i => i.TutarTl);
         int aktifKanalSayisi = kanallar.Count(k => k.Aktif);
         var ortakPaylari = new Dictionary<string, decimal>();
         if (aktifKanalSayisi > 0)

@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.MonthlyExpenseTests;
@@ -55,7 +56,7 @@ public class LockedPeriodTests
     {
         await using var f = Fabrika();
         using var c = await Editor(f);
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         var url = $"/api/rapor/aylik?yil={Old.Year}&ay={Old.Month}";
         var before = await c.GetStringAsync(url);
         await Close(c);

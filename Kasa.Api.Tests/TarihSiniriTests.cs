@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -147,7 +148,7 @@ public class TarihSiniriTests
         foreach (var yeni in new[]
         {
             new IslemYazDto(new DateOnly(2026, 6, 10), "MEZAT faturası", 5000m, "MEZAT", GiderTipi.Cari),
-            new IslemYazDto(new DateOnly(2026, 6, 14), "Kira", 100m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new IslemYazDto(new DateOnly(2026, 6, 14), "Kira", 100m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
             new IslemYazDto(new DateOnly(2026, 5, 20), "Eski kart", 100m, "MEZAT", GiderTipi.KrediKarti),
             new IslemYazDto(new DateOnly(2025, 6, 15), "Yıl hatası", 100m, "MEZAT", GiderTipi.Cari),
         })

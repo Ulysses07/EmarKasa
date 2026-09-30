@@ -1,6 +1,7 @@
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +31,7 @@ public class IslemListeTests
         ortam.Db.Alislar.Add(alis);
         ortam.Db.SaveChanges();
 
-        var bekleyen = Assert.Single(ortam.Servis.Liste(null, null, Kanallar.DagilimBekliyor, null));
+        var bekleyen = Assert.Single(ortam.Servis.Liste(null, null, KanalEtiketleri.DagilimBekliyor, null));
         Assert.Equal(alis.Id, bekleyen.AlisId);
         Assert.True(bekleyen.DagilimBekliyor);
         Assert.Null(bekleyen.KanalId);
@@ -55,12 +56,12 @@ public class IslemListeTests
         Assert.Equal(GiderTipi.Cari, onayli.Tip);
         Assert.Equal(onayli, Assert.Single(ortam.Servis.Liste(null, null, "MEZAT", null)));
         Assert.Equal(onayli, Assert.Single(ortam.Servis.Liste(null, null, "TOPTAN", null)));
-        Assert.Empty(ortam.Servis.Liste(null, null, Kanallar.DagilimBekliyor, null));
+        Assert.Empty(ortam.Servis.Liste(null, null, KanalEtiketleri.DagilimBekliyor, null));
         Assert.Empty(ortam.Servis.Liste(null, null, "Ortak", null));
 
         alis.Durum = AlisDurumlari.Taslak;
         ortam.Db.SaveChanges();
-        Assert.True(Assert.Single(ortam.Servis.Liste(null, null, Kanallar.DagilimBekliyor, null)).DagilimBekliyor);
+        Assert.True(Assert.Single(ortam.Servis.Liste(null, null, KanalEtiketleri.DagilimBekliyor, null)).DagilimBekliyor);
         Assert.Empty(ortam.Servis.Liste(null, null, "MEZAT", null));
         Assert.Equal(kayitliKanal, ortam.Db.Islemler.AsNoTracking().Single().Kanal);
         Assert.Single(ortam.Db.Islemler);
@@ -71,8 +72,8 @@ public class IslemListeTests
     {
         using var ortam = new Ortam();
         var alis = Alis(0.02m, 0.01m, 0.01m);
-        var ilk = new IslemEntity { Tarih = Tarih, Cari = "Tedarikçi A", TutarTl = 0.01m, Kanal = Kanallar.DagilimBekliyor };
-        var ikinci = new IslemEntity { Tarih = Tarih.AddDays(1), Cari = "Tedarikçi B", TutarTl = 0.01m, Kanal = Kanallar.DagilimBekliyor };
+        var ilk = new IslemEntity { Tarih = Tarih, Cari = "Tedarikçi A", TutarTl = 0.01m, Kanal = KanalEtiketleri.DagilimBekliyor };
+        var ikinci = new IslemEntity { Tarih = Tarih.AddDays(1), Cari = "Tedarikçi B", TutarTl = 0.01m, Kanal = KanalEtiketleri.DagilimBekliyor };
         alis.Odemeler.Add(Odeme(ilk));
         ortam.Db.Alislar.Add(alis);
         ortam.Db.SaveChanges();

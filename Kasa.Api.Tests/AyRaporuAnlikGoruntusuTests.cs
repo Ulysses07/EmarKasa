@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -42,7 +43,7 @@ public class AyRaporuAnlikGoruntusuTests
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Haziran, "MEZAT", 1_000m))).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Temmuz, "PERAKENDE", 2_500.50m))).EnsureSuccessStatusCode();
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Temmuz.AddDays(4), "Tedarik", 300m, "MEZAT", GiderTipi.Cari));
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Agustos.AddDays(9), "Kira", 900.01m, Kanallar.Ortak, GiderTipi.SabitGider));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Agustos.AddDays(9), "Kira", 900.01m, KanalEtiketleri.Ortak, GiderTipi.SabitGider));
     }
 
     private static async Task<AyKilidiDto> Kilit(HttpClient c, DateOnly ay, bool ac = false)

@@ -38,7 +38,7 @@ internal static class LegacyFinanceSeed
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-        if (entity is KrediEntity loan && loan.Kanal != Kasa.Core.Kanallar.Ortak)
+        if (entity is KrediEntity loan && loan.Kanal != Kasa.Core.Kodlar.KanalEtiketleri.Ortak)
             loan.KanalId = db.Kanallar.Single(k => k.Ad == loan.Kanal).Id;
         if (entity is IslemEntity expense && expense.KanalId is null)
             expense.KanalId = db.Kanallar.SingleOrDefault(k => k.Ad == expense.Kanal)?.Id;

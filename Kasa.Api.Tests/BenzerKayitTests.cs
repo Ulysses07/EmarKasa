@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
@@ -96,7 +97,7 @@ public class BenzerKayitTests
         foreach (var channel in new[] { "MEZAT", "TOPTAN" })
         {
             var pending = Assert.Single(await Find(c, new("Gider", Date, 100, Kanal: channel)));
-            Assert.Equal((draft.Id, Kanallar.DagilimBekliyor), (pending.AlisId, pending.KanalEtiketi));
+            Assert.Equal((draft.Id, KanalEtiketleri.DagilimBekliyor), (pending.AlisId, pending.KanalEtiketi));
         }
         var sent = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/gonder", new AlisDurumYaz(paid.Surum));
         await Post<AlisDto>(c, $"/api/alis/{draft.Id}/onayla", new AlisDurumYaz(sent.Surum));

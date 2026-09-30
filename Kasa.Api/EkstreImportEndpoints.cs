@@ -3,6 +3,7 @@ using Kasa.Api.Data;
 using Kasa.Api.Denetim;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using static Kasa.Api.FinansTakipServisi;
 
@@ -542,7 +543,7 @@ public static class EkstreImportEndpoints
                     Tarih = row.Tarih,
                     Cari = aciklama,
                     TutarTl = row.Tutar,
-                    Kanal = shares.Count == 1 ? shares[0].Kanal : "Genel kasa",
+                    Kanal = shares.Count == 1 ? shares[0].Kanal : KanalEtiketleri.GenelKasa,
                     KanalId = shares.Count == 1 ? shares[0].KanalId : null,
                     Tip = GiderTipi.Cari,
                     Not = "PDF hesap hareketi · " + doc.Banka + " · " + doc.HesapAdi

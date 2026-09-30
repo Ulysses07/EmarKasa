@@ -1,5 +1,6 @@
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
@@ -55,7 +56,7 @@ public class IslemListeServisi
             {
                 if (bekliyor)
                 {
-                    eslemeler.Add(odeme.IslemId, new Esleme(alis.Id, true, null, [Kanallar.DagilimBekliyor]));
+                    eslemeler.Add(odeme.IslemId, new Esleme(alis.Id, true, null, [KanalEtiketleri.DagilimBekliyor]));
                     continue;
                 }
                 var paylar = dagilimlar[odeme.IslemId].Where(p => p.Tutar > 0).OrderBy(p => p.KanalId).ToArray();
@@ -74,7 +75,7 @@ public class IslemListeServisi
                     .Select(p => new KanalPayYaz(p.KanalId!.Value, p.Tutar)));
                 if (!string.IsNullOrWhiteSpace(kanal) && !shares.Any(s => s.Kanal == kanal))
                     continue;
-                sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
+                sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? KanalEtiketleri.GenelKasa : string.Join(" / ", shares.Select(s => s.Kanal)),
                     shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, EkstreKayitId: imported.Id, Surum: kayit.Surum));
                 continue;
             }
@@ -84,7 +85,7 @@ public class IslemListeServisi
                 var shares = FinansTakipServisi.Adlandir(kanalAdlari, FinansTakipServisi.Read<KanalPayYaz>(revision.DagilimJson));
                 if (!string.IsNullOrWhiteSpace(kanal) && !shares.Any(s => s.Kanal == kanal))
                     continue;
-                sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? "Genel kasa" : string.Join(" / ", shares.Select(s => s.Kanal)),
+                sonuc.Add(new(kayit.Id, kayit.Tarih, kayit.Cari, kayit.TutarTl, shares.Count == 0 ? KanalEtiketleri.GenelKasa : string.Join(" / ", shares.Select(s => s.Kanal)),
                     shares.Count == 1 ? shares[0].KanalId : null, kayit.Tip, kayit.Not, null, AylikGiderOdemeId: monthlyPayment.Id, Surum: kayit.Surum));
                 continue;
             }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -62,7 +63,7 @@ public class HaftalikHesapEsdegerlikTests
         }
         var adlar = new[] { "MEZAT", "PERAKENDE", "TOPTAN", "ESKI" }.Take(rnd.Next(1, 5)).ToArray();
         var kanallar = adlar.Select((a, i) => new Kanal(a, Tutar(rnd), rnd.Next(0, 4) != 0, i)).ToList();
-        var etiketler = adlar.Concat([Kanallar.Ortak, Kanallar.DagilimBekliyor, "Genel kasa", "YOK"]).ToArray();
+        var etiketler = adlar.Concat([KanalEtiketleri.Ortak, KanalEtiketleri.DagilimBekliyor, "Genel kasa", "YOK"]).ToArray();
         var islemler = Enumerable.Range(0, rnd.Next(0, 120)).Select(_ => new Islem(
             baslangic.AddDays(rnd.Next(-40, 440)), "Cari", Tutar(rnd), etiketler[rnd.Next(etiketler.Length)], (GiderTipi)rnd.Next(0, 3), null,
             DagilimBekliyor: rnd.Next(0, 6) == 0, NakitKartOdemesi: rnd.Next(0, 5) == 0, AylikGider: rnd.Next(0, 7) == 0, YalnizGenelKasa: rnd.Next(0, 8) == 0)).ToList();

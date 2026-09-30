@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -34,7 +35,7 @@ public class HaziranSenaryoTests
             new Islem(new DateOnly(2026, 6, 29), "MEZAT-cari",     1_308_800m, "MEZAT",     GiderTipi.Cari),
             new Islem(new DateOnly(2026, 6, 29), "PERAKENDE-cari", 1_221_374m, "PERAKENDE", GiderTipi.Cari),
             new Islem(new DateOnly(2026, 6, 29), "TOPTAN-cari",    360_000m,   "TOPTAN",    GiderTipi.Cari),
-            new Islem(new DateOnly(2026, 6, 30), "SGK/Vergi/vb.",  455_321m,   Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 30), "SGK/Vergi/vb.",  455_321m,   KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var ozetler = HesapMotoru.HaftalikHesapla(2_907_053.21m, Kanallar3, islemler, gelenler, donemler);

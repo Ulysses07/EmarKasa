@@ -72,6 +72,66 @@ public class MimariTests
         Assert.Empty(DerlemeKapanisi(Sunucu).Intersect(IstemciProjeleri));
     }
 
+    // ---- alan kodları (Kasa.Core.Kodlar, Aşama 4) ----
+
+    private const string KodlarAdAlani = "Kasa.Core.Kodlar";
+
+    /// <summary>Kasa.Core.Kodlar yalnız sabit dize taşıyan statik sınıflardır ve adları istemci katmanlarının türleriyle
+    /// çakışmaz: Kasa.App.Core "using Kasa.Core.Kodlar;" ile "using Kasa.ApiClient;"ı birlikte kullanır. Kasa.Core'un kök ad
+    /// alanını almak GiderTipi (Kasa.Core ve Kasa.ApiClient'ta ayrı ayrı var) yüzünden CS0104 verir; App.Core onu yalnız
+    /// tür takma adıyla alır.</summary>
+    [Fact]
+    public void Kodlar_yalniz_sabit_dize_tasir_ve_istemci_turleriyle_cakismaz()
+    {
+        var kodlar = Cekirdek.GetTypes().Where(t => t.Namespace == KodlarAdAlani).ToList();
+        Assert.Contains(kodlar, t => t.Name == "KanalEtiketleri");
+        foreach (var tur in kodlar)
+        {
+            Assert.True(tur is { IsAbstract: true, IsSealed: true, IsNested: false }, $"{tur.Name} iç içe olmayan statik sınıf olmalı.");
+            var uyeler = tur.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+            Assert.All(uyeler, u => Assert.True(u is FieldInfo { IsLiteral: true, IsPublic: true } f && f.FieldType == typeof(string), $"{tur.Name}.{u.Name} genel sabit dize değil."));
+        }
+        var istemciTurleri = Istemci.GetTypes().Concat(UygulamaCekirdegi.GetTypes()).Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+        Assert.DoesNotContain(kodlar, t => istemciTurleri.Contains(t.Name));
+        Assert.Contains(Istemci.GetTypes(), t => t.FullName == "Kasa.ApiClient.GiderTipi");
+        var kokUsing = KaynakDosyalari("Kasa.App.Core").Where(d => File.ReadLines(d).Any(s => s.Trim() == "using Kasa.Core;")).ToList();
+        Assert.True(kokUsing.Count == 0, "Kasa.App.Core'da 'using Kasa.Core;' (GiderTipi CS0104): " + string.Join(", ", kokUsing.Select(Path.GetFileName)));
+    }
+
+    /// <summary>Kod değerleri kaynakta elle yazılmaz: Kasa.Core, Kasa.Api ve istemci projelerinde Kodlar'daki bir sabitin
+    /// değeri dize olarak geçmez (yorum satırları ve bir kodu görünen ada çeviren switch kolunun sağ tarafı hariç).</summary>
+    [Fact]
+    public void Kod_degerleri_kaynakta_elle_yazilmaz()
+    {
+        var degerler = Cekirdek.GetTypes().Where(t => t.Namespace == KodlarAdAlani)
+            .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static).Select(f => (Ad: $"{t.Name}.{f.Name}", Deger: (string)f.GetRawConstantValue()!)))
+            .ToList();
+        Assert.True(degerler.Count >= 6, $"Kodlar sabitleri okunamadı ({degerler.Count}).");
+        var bulunan = new List<string>();
+        foreach (var dosya in new[] { "Kasa.Core", "Kasa.Api", "Kasa.ApiClient", "Kasa.App.Core", "Kasa.App" }.SelectMany(KaynakDosyalari))
+        {
+            if (Path.GetFileName(dosya) == "Kodlar.cs" && dosya.Contains($"{Path.DirectorySeparatorChar}Kasa.Core{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                continue;
+            var no = 0;
+            foreach (var satir in File.ReadLines(dosya))
+            {
+                no++;
+                if (satir.TrimStart().StartsWith("//", StringComparison.Ordinal))
+                    continue;
+                foreach (var (ad, deger) in degerler)
+                    if (satir.Replace($"=> \"{deger}\"", "", StringComparison.Ordinal).Contains($"\"{deger}\"", StringComparison.Ordinal))
+                        bulunan.Add($"{Path.GetRelativePath(DepoKoku(), dosya)}:{no}: \"{deger}\" yerine {ad}");
+            }
+        }
+        Assert.True(bulunan.Count == 0, "Kod değerleri Kasa.Core.Kodlar sabitleriyle yazılmalı:\n" + string.Join("\n", bulunan));
+    }
+
+    /// <summary>Projenin bin/ ve obj/ dışındaki .cs dosyaları.</summary>
+    private static IEnumerable<string> KaynakDosyalari(string proje) =>
+        Directory.EnumerateFiles(Path.Combine(DepoKoku(), proje), "*.cs", SearchOption.AllDirectories)
+            .Where(d => !d.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !d.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+
     // ---- proje dosyası düzeyi ----
 
     private static string DepoKoku()

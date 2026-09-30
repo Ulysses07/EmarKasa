@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core;
 
@@ -167,7 +168,7 @@ public static class HesapMotoru
 
     /// <summary>
     /// Bir takvim ayı için kanal başına AY SONUCU üretir.
-    /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (Kanallar.Ortak) ayın Ortak kümesine (verilmezse aktif
+    /// Aylık gelen = o aya düşen dönemlerin geleni. Ortak giderler (KanalEtiketleri.Ortak) ayın Ortak kümesine (verilmezse aktif
     /// kanallara) kuruş bazında (artık kuruşlar kümenin ilk kanallarına) dağıtılıp düşülür. Satırlar <paramref name="kanallar"/>
     /// sırasıyla, kanal başına birer tanedir.
     /// <paramref name="kuralSurumu"/> (<see cref="AylikKural"/>): <see cref="AylikKural.V1"/> 2.1–2.3 davranışıdır ve birebir
@@ -209,7 +210,7 @@ public static class HesapMotoru
         // kart harcamaları gibi bir sonraki ayın sonucuna girer.
         var ayinIslemleri = islemler.Where(i => EtkiAyi(i) == (yil, ay)).ToList();
 
-        decimal ortakToplam = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == Kanallar.Ortak).Sum(i => i.TutarTl);
+        decimal ortakToplam = ayinIslemleri.Where(i => !i.DagilimBekliyor && !i.YalnizGenelKasa && i.Kanal == KanalEtiketleri.Ortak).Sum(i => i.TutarTl);
         var ortakKumesi = ortakKanallari ?? kanallar.Where(k => k.Aktif).Select(k => k.Ad).ToList();
         int aktifKanalSayisi = ortakKumesi.Count;
 
@@ -319,7 +320,7 @@ public static class HesapMotoru
 /// ilerleyince işler.</param>
 public record KasaHareketi(DateOnly EtkiTarihi, decimal GenelKasaEtkisi, decimal KanalEtkisi, Islem? Islem = null, Gelen? Gelen = null, bool KartAySonu = false)
 {
-    /// <summary>Satırın kanal etiketi (gerçek kanal, <see cref="Kanallar.Ortak"/>, <see cref="Kanallar.DagilimBekliyor"/>, "Genel kasa" ya da
+    /// <summary>Satırın kanal etiketi (gerçek kanal, <see cref="KanalEtiketleri.Ortak"/>, <see cref="KanalEtiketleri.DagilimBekliyor"/>, <see cref="KanalEtiketleri.GenelKasa"/> ya da
     /// <see cref="KrediTuretici.KrediKanal"/>).</summary>
     public string Kanal => Islem?.Kanal ?? Gelen?.Kanal ?? "";
     /// <summary>Kaydın kendi tarihi: giderin tarihi, gelirin günü ya da (tarihsiz dönem gelirinde) dönem başı.</summary>

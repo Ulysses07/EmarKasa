@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -121,7 +122,7 @@ public class KartHesapMaliyetiTests(KartHesapMaliyetiTests.Kurulumlar kurulumlar
                 Durum = AlisDurumlari.Onaylandi,
                 Kalemler = [new() { Aciklama = "Mal", Tutar = 90m, Dagilimlar = [new() { KanalId = 1, Tutar = 50m }, new() { KanalId = 2 + i % 2, Tutar = 40m }] }],
                 Odemeler = [new() { IstekId = Guid.NewGuid(), IstekOzeti = "tohum", Islem = new() { Tarih = tarih, Cari = "Tedarikçi " + i, TutarTl = 60m,
-                    Kanal = Kanallar.DagilimBekliyor, Tip = GiderTipi.KrediKarti, KrediKartiId = kartId } }],
+                    Kanal = KanalEtiketleri.DagilimBekliyor, Tip = GiderTipi.KrediKarti, KrediKartiId = kartId } }],
             });
         }
         db.SaveChanges();

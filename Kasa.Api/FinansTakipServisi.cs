@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -227,7 +228,7 @@ public static class FinansTakipServisi
     {
         if (expense.KanalId is { } channel)
             return [new(channel, Math.Abs(expense.TutarTl))];
-        if (expense.Kanal != Kanallar.Ortak)
+        if (expense.Kanal != KanalEtiketleri.Ortak)
             return [];
         var channelIds = db.Kanallar.Where(k => k.Aktif).Select(k => k.Id).ToList();
         return channelIds.Count > 0 ? EsitPaylar(channelIds, Math.Abs(expense.TutarTl)) : [];
@@ -645,7 +646,7 @@ public static class FinansTakipServisi
         {
             var amount = group.Sum(p => p.Tutar);
             if (group.Key == 0)
-            { cash += amount; shares.Add(new(null, Kanallar.DagilimBekliyor, amount)); continue; }
+            { cash += amount; shares.Add(new(null, KanalEtiketleri.DagilimBekliyor, amount)); continue; }
             var charge = charges[group.Key];
             var previous = previousByCharge.GetValueOrDefault(charge.Id);
             // Devrin kasada önceden sayılan tutarından iadelerinin kasaya geri döndürdüğü kısım düşülür (finance-2).
@@ -655,7 +656,7 @@ public static class FinansTakipServisi
             cash += effect;
             var source = IadeSonrasiPaylar(b, charge);
             if (source.Count == 0)
-                shares.Add(new(null, Kanallar.DagilimBekliyor, effect));
+                shares.Add(new(null, KanalEtiketleri.DagilimBekliyor, effect));
             else
             {
                 var (paylar, tasan) = KirparakOranla(source, effect, Math.Max(0, previous - counted));
@@ -664,7 +665,7 @@ public static class FinansTakipServisi
                 {
                     // Bozuk/eski ödeme payı bütün raporları 500'e düşürmesin: sığmayan kısım
                     // görünür "Dağılım bekliyor" payı olur ve incelenmek üzere loglanır.
-                    shares.Add(new(null, Kanallar.DagilimBekliyor, tasan));
+                    shares.Add(new(null, KanalEtiketleri.DagilimBekliyor, tasan));
                     if (KirpmaIlkKezMi(db, (cardId, beforePaymentId, charge.Id, tasan)))
                         db.GetService<ILoggerFactory>().CreateLogger(typeof(FinansTakipServisi)).LogWarning(
                             "Kart {KartId} ödeme {OdemeId}: {Tasan} TL kaynak harcama {HarcamaId} kalan ağırlığını aşıyor; fazlası 'Dağılım bekliyor' yazıldı. Ödeme paylarını (PaylarJson) inceleyin.",
@@ -727,7 +728,7 @@ public static class FinansTakipServisi
             var satirlar = Adlandir(b.KanalAdlari, paylar).Select(p => p with { Tutar = -p.Tutar }).ToList();
             var bekleyen = paylar.Count == 0 ? hesap.KasadaSayilanDuzeltme : tasan;
             if (bekleyen > 0)
-                satirlar.Add(new(null, Kanallar.DagilimBekliyor, -bekleyen));
+                satirlar.Add(new(null, KanalEtiketleri.DagilimBekliyor, -bekleyen));
             sonuc.Add((iade.Tarih, "Önceden sayılan kart borcu iadesi: " + iade.Aciklama, satirlar, "TakipHarcama:" + iade.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
         return sonuc;
@@ -749,7 +750,7 @@ public static class FinansTakipServisi
         {
             var debt = card.Borc + b.Sorgu(db.Islemler).Where(i => i.KrediKartiId == id).ToList().Sum(i => i.TutarTl) - b.Sorgu(db.KartOdemeler).Where(o => o.KrediKartiId == id).ToList().Sum(o => o.Tutar);
             return new(id, 0, card.Ad, false, true, null, card.KesimTarihi.Day, card.SonOdemeTarihi.Day, card.Limit, debt, debt, [], [], [],
-                debt > 0 ? [new(null, Kanallar.DagilimBekliyor, debt)] : []);
+                debt > 0 ? [new(null, KanalEtiketleri.DagilimBekliyor, debt)] : []);
         }
         var today = b.Bugun;
         var v = b.KartVerisi(id);
@@ -784,7 +785,7 @@ public static class FinansTakipServisi
                 var source = h.KaynakHarcamaId is null ? KaynakPaylari(b, h) : IadeSatiriPayi(b, h);
                 var duzeltme = h.KaynakHarcamaId is not null && v.IadeHesaplari(b).TryGetValue(h.Id, out var hesap) ? hesap.KasadaSayilanDuzeltme : 0;
                 return new KartHarcamaDto(h.Id, h.IslemId, h.Tarih, h.Aciklama, h.Tutar, h.TaksitSayisi, h.Iptal,
-                    source.Count > 0 ? Adlandir(b.KanalAdlari, source) : [new(null, Kanallar.DagilimBekliyor, Math.Abs(h.Tutar))], importedCharges[h.Id].SingleOrDefault()?.Id, duzeltme);
+                    source.Count > 0 ? Adlandir(b.KanalAdlari, source) : [new(null, KanalEtiketleri.DagilimBekliyor, Math.Abs(h.Tutar))], importedCharges[h.Id].SingleOrDefault()?.Id, duzeltme);
             }).ToList(),
             // İptal edilmiş ödemenin kasa/kanal etkisi yoktur. Payları sonradan girilen iadeyle
             // kaynak ağırlığını aşabileceğinden etkisi hiç hesaplanmaz.
@@ -838,7 +839,7 @@ public static class FinansTakipServisi
         var result = Adlandir(b.KanalAdlari, shares.GroupBy(p => p.KanalId).OrderBy(g => g.Key)
             .Select(g => new KanalPayYaz(g.Key, g.Sum(p => p.Tutar))));
         if (unknown > 0)
-            result.Add(new(null, Kanallar.DagilimBekliyor, unknown));
+            result.Add(new(null, KanalEtiketleri.DagilimBekliyor, unknown));
         return result;
     }
     public static KrediTakipDto Kredi(KasaDbContext db, int id) => Kredi(new TakipHesapBaglami(db, default, izle: true), id);

@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -45,7 +46,7 @@ public class HaftalikHesapTests
         {
             new Islem(new DateOnly(2026, 6, 16), "A", 200m, "MEZAT", GiderTipi.Cari),
             new Islem(new DateOnly(2026, 6, 16), "SGK", 50m, "MEZAT", GiderTipi.SabitGider),
-            new Islem(new DateOnly(2026, 6, 23), "Kira", 30m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new Islem(new DateOnly(2026, 6, 23), "Kira", 30m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         };
 
         var ozetler = HesapMotoru.HaftalikHesapla(

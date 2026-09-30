@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

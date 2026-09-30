@@ -1,13 +1,7 @@
 using System.Text.Json.Serialization;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Api.Data;
-
-public static class AlisDurumlari
-{
-    public const string Taslak = "Taslak";
-    public const string Incelemede = "Incelemede";
-    public const string Onaylandi = "Onaylandi";
-}
 
 public class AliciEntity
 {

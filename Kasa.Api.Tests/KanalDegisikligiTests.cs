@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.MonthlyExpenseTests;
@@ -86,12 +87,12 @@ public class KanalDegisikligiTests
     {
         await using var f = Fabrika();
         using var c = await Editor(f);
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kira", 100.01m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kira", 100.01m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         var mezatGideri = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old.AddDays(2), "Mal", 50m, "MEZAT", GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 300m))).EnsureSuccessStatusCode();
         var aylikIslemId = AylikGiderOdemesi(f, Old.AddDays(9), 40m, 1);
         var kredi = LegacyFinanceSeed.Kredi(f, new KrediYazDto("Kredi", 0m, Old.AddDays(4), 1, 0m, 5, "MEZAT"));
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Bu ayın ortak gideri", 90m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Bu ayın ortak gideri", 90m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         var kilitOncesiAylik = await c.GetStringAsync(AylikUrl(Old));
         var kilitOncesiHaftalik = KilitliHaftalar(await c.GetStringAsync("/api/rapor/haftalik"));
         await AyKilidi(c, Old, ac: false);
@@ -178,7 +179,7 @@ public class KanalDegisikligiTests
         var online = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("ONLINE", true, 3));
         var yedek = await Post<KanalEntity>(c, "/api/kanallar", new KanalYazDto("YEDEK", false, 4));
         saat.Ayarla(Today);
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kira", 100.01m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kira", 100.01m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         var kilitOncesi = await c.GetStringAsync(AylikUrl(Old));
         Assert.Equal(25.01m, (decimal)JsonNode.Parse(kilitOncesi)!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!["ortakPay"]!);
         await AyKilidi(c, Old, ac: false);
@@ -384,7 +385,7 @@ public class KanalDegisikligiTests
     {
         await using var f = Fabrika();
         using var c = await Editor(f);
-        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, Kanallar.Ortak, GiderTipi.Cari));
+        await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old, "Ortak kuruş", .01m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         // Bu sürümden önce kapatılmış ay (görüntüsüz kilit): açılıştaki geçiş tohumu dondurana kadar rapor canlı hesaplanır.
         using (var scope = f.Services.CreateScope())
             scope.ServiceProvider.GetRequiredService<KasaDbContext>().Database.ExecuteSql($"UPDATE AyKilidi SET KilitliSonTarih = {OldSonu}, Surum = Surum + 1 WHERE Id = 1");

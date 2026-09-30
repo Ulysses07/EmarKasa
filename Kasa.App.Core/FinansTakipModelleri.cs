@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -19,7 +20,7 @@ public partial class TakipKanalSecimi(KanalDto veri) : ObservableObject
 }
 public static class TakipMetni
 {
-    public static string Paylar(IEnumerable<TakipKanalPayi> paylar) => string.Join(" · ", paylar.Select(p => $"{(p.KanalId is null ? "Dağılım bekliyor" : p.Kanal)}: {Bicim.Tl(p.Tutar)} ₺"));
+    public static string Paylar(IEnumerable<TakipKanalPayi> paylar) => string.Join(" · ", paylar.Select(p => $"{(p.KanalId is null ? KanalEtiketleri.DagilimBekliyor : p.Kanal)}: {Bicim.Tl(p.Tutar)} ₺"));
     public static string Gecis(TakipGecisDto g)
     {
         var satirlar = new List<string> { $"Geçiş: {g.Baslangic:dd.MM.yyyy}", $"Genel kasa farkı: {Bicim.Tl(g.GenelKasaAnlikFarki)} ₺ · kanal farkı: {Bicim.Tl(g.KanalAnlikFarki)} ₺" };

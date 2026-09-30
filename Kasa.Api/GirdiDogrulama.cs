@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Api;
 
@@ -84,7 +85,7 @@ public sealed class GirdiDogrulama
     public KanalEntity? Kanal(KasaDbContext db, string? ad, bool ortakOlabilir = true)
     {
         var temiz = ad?.Trim();
-        if (ortakOlabilir && temiz == Kanallar.Ortak)
+        if (ortakOlabilir && temiz == KanalEtiketleri.Ortak)
             return null;
         // Seçim önce kayıtlı kanallarla eşleşir: metin kuralından önce kaydedilmiş (kontrol karakterli) bir kanal adı
         // gider/gelir girişini düşürmez. Metin kuralı yeni ad oluşturmada ve yeniden adlandırmada uygulanır; eşleşmeyen
@@ -153,7 +154,7 @@ public sealed class GirdiDogrulama
     public IResult? Sonuc() => _hatalar.Count == 0 ? null : Results.ValidationProblem(_hatalar);
 
     public static bool AyrilmisKanalAdi(string ad)
-        => string.Equals(ad, Kanallar.Ortak, StringComparison.OrdinalIgnoreCase)
-           || string.Equals(ad, Kanallar.DagilimBekliyor, StringComparison.OrdinalIgnoreCase)
+        => string.Equals(ad, KanalEtiketleri.Ortak, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(ad, KanalEtiketleri.DagilimBekliyor, StringComparison.OrdinalIgnoreCase)
            || string.Equals(ad, KrediTuretici.KrediKanal, StringComparison.OrdinalIgnoreCase);
 }

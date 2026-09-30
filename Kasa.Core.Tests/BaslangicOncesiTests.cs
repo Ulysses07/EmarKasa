@@ -1,4 +1,5 @@
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
@@ -16,7 +17,7 @@ public class BaslangicOncesiTests
     private static readonly Islem[] Islemler =
     [
         new(new DateOnly(2026, 6, 10), "Mezat öncesi", 5_000m, "MEZAT", GiderTipi.Cari),       // başlangıç öncesi, Haziran
-        new(new DateOnly(2026, 6, 12), "Maaş", 300m, Kanallar.Ortak, GiderTipi.SabitGider),    // başlangıç öncesi, Haziran
+        new(new DateOnly(2026, 6, 12), "Maaş", 300m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),    // başlangıç öncesi, Haziran
         new(new DateOnly(2026, 5, 20), "Eski K.K", 700m, "MEZAT", GiderTipi.KrediKarti),       // etki ayı Haziran: haftalıkta 30 Haziran'da düşer
         new(new DateOnly(2026, 4, 10), "Daha eski K.K", 90m, "TOPTAN", GiderTipi.KrediKarti),  // etki ayı Mayıs: hiçbir dönemde yok
         new(new DateOnly(2026, 6, 20), "Tedarik", 1_000m, "MEZAT", GiderTipi.Cari),            // olağan
@@ -56,8 +57,8 @@ public class BaslangicOncesiTests
             new(new DateOnly(2026, 6, 10), "Bölünen gider", 100m, "TOPTAN", GiderTipi.Cari) { Kaynak = "Islem:7" },
             .. taksitler,
             // Anahtarsız satır tek başına bir kayıttır (eski davranış).
-            new(new DateOnly(2026, 6, 12), "Maaş", 300m, Kanallar.Ortak, GiderTipi.SabitGider),
-            new(new DateOnly(2026, 6, 12), "Maaş", 300m, Kanallar.Ortak, GiderTipi.SabitGider),
+            new(new DateOnly(2026, 6, 12), "Maaş", 300m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
+            new(new DateOnly(2026, 6, 12), "Maaş", 300m, KanalEtiketleri.Ortak, GiderTipi.SabitGider),
         ];
         // Kaynaklar: bölünen gider, eski kredi ve iki anahtarsız satır.
         Assert.Equal((4, 300m + 1_500m + 600m), HesapMotoru.BaslangicOncesi(islemler, Donemler));

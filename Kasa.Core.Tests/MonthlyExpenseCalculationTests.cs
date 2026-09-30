@@ -1,3 +1,5 @@
+using Kasa.Core.Kodlar;
+
 namespace Kasa.Core.Tests;
 
 public class MonthlyExpenseCalculationTests
@@ -18,9 +20,9 @@ public class MonthlyExpenseCalculationTests
     public void Genel_aylik_gider_etiket_kanalla_ayni_olsa_da_kanallara_dagitilmaz()
     {
         var date = new DateOnly(2026, 9, 1);
-        var channels = new[] { new Kanal(Kanallar.Ortak), new Kanal("B") };
+        var channels = new[] { new Kanal(KanalEtiketleri.Ortak), new Kanal("B") };
         var periods = new[] { new Donem(date, date.AddDays(29)) };
-        var expenses = new[] { new Islem(date, "Genel", 100m, Kanallar.Ortak, GiderTipi.SabitGider, AylikGider: true, YalnizGenelKasa: true) };
+        var expenses = new[] { new Islem(date, "Genel", 100m, KanalEtiketleri.Ortak, GiderTipi.SabitGider, AylikGider: true, YalnizGenelKasa: true) };
         var week = Assert.Single(HesapMotoru.HaftalikHesapla(1000m, channels, expenses, [], periods));
         Assert.Equal(900m, week.KasaDevir);
         Assert.All(week.Kanallar, c => Assert.Equal(0m, c.Devir));

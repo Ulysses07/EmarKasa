@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -188,7 +189,7 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         var d = await api.KasaHareketleriAsync(DateOnly.FromDateTime(DokumBaslangic), DateOnly.FromDateTime(DokumBitis), DokumKasa?.KanalId);
         if (!Gecerli(n))
             return;
-        DokumOzeti = $"{d.Kanal ?? "Genel kasa"} · {d.Baslangic:dd.MM.yyyy} – {d.Bitis:dd.MM.yyyy}\nAçılış {Bicim.Tl(d.AcilisBakiyesi)} ₺ · kapanış {Bicim.Tl(d.KapanisBakiyesi)} ₺ · {d.Hareketler.Count} hareket";
+        DokumOzeti = $"{d.Kanal ?? KanalEtiketleri.GenelKasa} · {d.Baslangic:dd.MM.yyyy} – {d.Bitis:dd.MM.yyyy}\nAçılış {Bicim.Tl(d.AcilisBakiyesi)} ₺ · kapanış {Bicim.Tl(d.KapanisBakiyesi)} ₺ · {d.Hareketler.Count} hareket";
         TakipMetni.Doldur(DokumSatirlari, d.Hareketler.Select(h => new KasaHareketiSatiri(h, KanalKasasi: d.KanalId is not null)));
     });
 
@@ -223,7 +224,7 @@ public record KasaKontrolSatiri(KasaKontrolDto Veri)
 /// <summary>Döküm kasası: genel kasa (<see cref="KanalId"/> null) ya da bir kanalın kasası.</summary>
 public record DokumKasasi(int? KanalId, string Ad)
 {
-    public static readonly DokumKasasi Genel = new(null, "Genel kasa");
+    public static readonly DokumKasasi Genel = new(null, KanalEtiketleri.GenelKasa);
 }
 /// <summary>Kontrolden sonraki denetim olayı.</summary>
 public record KasaKontrolDegisiklikSatiri(DenetimOlayDto Olay)

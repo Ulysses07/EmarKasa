@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
@@ -241,7 +242,7 @@ public class BenzerKayitCaprazTests
             case Kaynak.ManuelKanal:
                 return new("Islem", await PostCreated(c, new IslemYazDto(KaynakTarihi, "Manuel", Tutar, "MEZAT", GiderTipi.Cari)), "MEZAT");
             case Kaynak.ManuelOrtak:
-                return new("Islem", await PostCreated(c, new IslemYazDto(KaynakTarihi, "Ortak gider", Tutar, Kanallar.Ortak, GiderTipi.Cari)), Kanallar.Ortak);
+                return new("Islem", await PostCreated(c, new IslemYazDto(KaynakTarihi, "Ortak gider", Tutar, KanalEtiketleri.Ortak, GiderTipi.Cari)), KanalEtiketleri.Ortak);
             case Kaynak.EkstreGenel:
                 {
                     var (_, satir) = await EkstreGideri(f, c, KaynakTarihi, Tutar, "Genel", []);
@@ -258,7 +259,7 @@ public class BenzerKayitCaprazTests
                     alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), KaynakTarihi, Tutar));
                     if (kaynak == Kaynak.OnayliAlisOdemesi)
                         alis = await Onayla(c, alis);
-                    return new("Islem", alis.Odemeler.Single().IslemId, kaynak == Kaynak.OnayliAlisOdemesi ? "MEZAT" : Kanallar.DagilimBekliyor, AlisId: alis.Id);
+                    return new("Islem", alis.Odemeler.Single().IslemId, kaynak == Kaynak.OnayliAlisOdemesi ? "MEZAT" : KanalEtiketleri.DagilimBekliyor, AlisId: alis.Id);
                 }
             case Kaynak.AylikGenel or Kaynak.AylikCokKanalli:
                 {
@@ -277,7 +278,7 @@ public class BenzerKayitCaprazTests
                     // Takipli kredinin eski türetme kuralı da aynı gün ve tutarı üretirdi; takipli kredide yalnız takip taksidi sayılır.
                     Seed(f, db =>
                     {
-                        var kredi = new KrediEntity { Ad = "Takipli kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = cok ? Kanallar.Ortak : "MEZAT", KanalId = cok ? null : Mezat };
+                        var kredi = new KrediEntity { Ad = "Takipli kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = cok ? KanalEtiketleri.Ortak : "MEZAT", KanalId = cok ? null : Mezat };
                         db.Krediler.Add(kredi);
                         db.SaveChanges();
                         db.TakipKrediler.Add(new() { KrediId = kredi.Id, Baslangic = new(2026, 1, 1) });
@@ -294,7 +295,7 @@ public class BenzerKayitCaprazTests
                 {
                     var id = 0;
                     // Kanal kimliği olmayan eski kayıtta hesap motoru kanalı adıyla eşler (Kredi.Kanal); Ortak bütün kanallara dağılır.
-                    var (ad, kanalId) = kaynak switch { Kaynak.EskiKrediTaksidi => ("MEZAT", (int?)Mezat), Kaynak.EskiKrediTaksidiKanalAdiyla => ("MEZAT", null), _ => (Kanallar.Ortak, null) };
+                    var (ad, kanalId) = kaynak switch { Kaynak.EskiKrediTaksidi => ("MEZAT", (int?)Mezat), Kaynak.EskiKrediTaksidiKanalAdiyla => ("MEZAT", null), _ => (KanalEtiketleri.Ortak, null) };
                     Seed(f, db =>
                     {
                         var kredi = new KrediEntity { Ad = "Eski kredi", CekilenTutar = 10_000m, CekimTarihi = new(2026, 8, 10), TaksitSayisi = 12, AylikOdeme = Tutar, OdemeGunu = KaynakTarihi.Day, Kanal = ad, KanalId = kanalId };
