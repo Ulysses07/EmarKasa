@@ -235,10 +235,16 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
 
 - **Açılış veritabanını değiştirmeden durduysa** (göç öncesi yedek, disk ya da özet hatası; logda "veritabanı değiştirilmedi"): nedeni giderip yeniden başlatın ya da [deploy/README.md](../../deploy/README.md) "Geri dönüş" ile önceki imaja dönün. Yeniden başlatma yarıda kalan belge aktarımını sürdürür.
 - **Migration'lar uygulandıysa** ([database-upgrade.md](database-upgrade.md) "Belge deposu geçişi", geri dönüş):
-  1. `docker compose -f docker-compose.nginx.yml stop`.
-  2. Göç öncesi yedeği **yeni** bir veri dizinine açın: `python3 deploy/restore_backup.py <KASA_BACKUP_DIR>/kasa-goc-oncesi-….zip --output <yeni-veri-dizini>/kasa.db` (eski biçim; belgeler `kasa.db` içinde).
-  3. `.env`'de `KASA_DATA_DIR=<yeni-veri-dizini>`; saklanan compose ve imaj kimliğiyle README "Geri dönüş" adımları (`--build` yok, `docker tag`).
-  4. 2.4 veri dizinini ve `belgeler/` klasörünü silmeyin; göç öncesi yedekten sonra girilen kayıtlar geri dönüşte yoktur, kullanıcılara bildirilir.
+  1. `/opt/kasa/deploy` içinde: `docker compose -f docker-compose.nginx.yml stop`.
+  2. Göç öncesi yedeği **yeni** bir veri dizinine açın. Yol mutlak yazılır, çünkü komutlar `/opt/kasa/deploy` içinde çalışır ve göreli `deploy/…` orada yoktur:
+     `python3 /opt/kasa/deploy/restore_backup.py <KASA_BACKUP_DIR>/kasa-goc-oncesi-….zip --output <yeni-veri-dizini>/kasa.db`
+     Bu eski biçimdir; belgeler `kasa.db` içindedir.
+  3. README "Geri dönüş" adımlarını uygulayın: saklanan compose `/opt/kasa/deploy/docker-compose.nginx.yml` üzerine kopyalanır, `docker tag` çalıştırılır, `--build` kullanılmaz.
+     - `up`'tan **önce** kopyalanan dosyadaki `/data` bağlamasının kaynağını `<yeni-veri-dizini>` yapın.
+     - 2.3'ün compose'u kısa sözdizimiyle sabit bir yol bağlar ve `.env`'deki `KASA_DATA_DIR`'i okumaz. Bu yüzden yalnız `.env`'yi değiştirmek yetmez. Kaynak düzeltilmezse eski imaj, zaten göç etmiş 2.4 veritabanına bağlanır.
+     - `up`'tan önce `grep -n ':/data' docker-compose.nginx.yml` yalnız `<yeni-veri-dizini>:/data` göstermelidir.
+     - `up`'tan sonra `docker inspect kasa-app --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}'` çıktısında `/data` kaynağı `<yeni-veri-dizini>` olmalıdır. Değilse hemen durdurun.
+  4. 2.4 veri dizinini ve `belgeler/` klasörünü silmeyin. Göç öncesi yedekten sonra girilen kayıtlar geri dönüşte yoktur; bunu kullanıcılara bildirin.
 - **Editör kilidi etkisi:**
   - `restore_backup.py` dosyayı geri yükleme işaretiyle (`PRAGMA user_version`) açar. 2.3.0 bu işareti okumaz (v2.3.0 kodunda `user_version` yok): eski imajda editör şifresi yedek anındaki, yani yükseltme anındaki şifredir. 2.3.0 imajının bu araçla açılmış dosyayla açılışı yerelde denenmedi — doğrulanmadı.
   - Aynı dosyayla **sonradan yeniden 2.4'e geçilirse** işaret o açılışta işlenir: bütün oturumlar ve izleyici girişi kapanır; yedek anından sonra güvenlik günlüğüne yazılmış editör şifresi değişikliği varsa editör girişi kilitlenir. Yeniden yükseltmeden önce bölüm 6'daki 1–5. adımlar uygulanır.
