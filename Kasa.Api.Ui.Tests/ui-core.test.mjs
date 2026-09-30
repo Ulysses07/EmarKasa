@@ -7371,3 +7371,122 @@ test('alış kalemi etiketleri kapısı: kalem payları etiketlerle, paysız kal
     );
   }
 });
+
+// act() birleştirmesi kapısı (modüller): denetim-ui.js ve finance-ui.js'te düğmesini kendisi kurup işi run(event.currentTarget, …)
+// ile çalıştıran iki işlem düğmesi. BUGÜNKÜ davranış sabitlenir: yapı, iş sürerken kapalı, ikinci basış yok sayılır, hata kalıcı
+// bildirimde, düğme yeniden açılır, başarıda işin sonucu. Düğmeler act() ile kurulunca bu testler değişmeden geçmelidir.
+// ACT_KAPISI_MODUL_DOM: birleştirme öncesi kodla üretildi (domLines), elle düzenlenmez.
+const actRetryLabel = `Önerilen tutarla (${money(1200)}) yeniden önizle`;
+const ACT_KAPISI_MODUL_DOM = {
+  'Daha eski kayıtlar': ['button class="button small" type="button" onclick', '  "Daha eski kayıtlar"'],
+  [actRetryLabel]: ['button class="button small" type="button" onclick', `  ${JSON.stringify(actRetryLabel)}`],
+};
+const actHistoryRows = (from, count) =>
+  Array.from({ length: count }, (_, i) => ({
+    id: from - i,
+    zaman: '2026-09-25T09:00:00Z',
+    aktorRol: 'editor',
+    aktorId: null,
+    istemciIp: null,
+    tur: 'Degistir',
+    varlik: 'Islem',
+    varlikId: String(from - i),
+    oncekiJson: '{"TutarTl":10}',
+    yeniJson: '{"TutarTl":12}',
+    gerekce: null,
+    kilitAcmaOlayiId: null,
+  }));
+// Ortak kapı: düğmeye basılır, iş kapıda bekletilir; kapalılık, ikinci basış, hata bildirimi ve yeniden açılma sınanır.
+async function actGate({ nodes, calls, responses }, control, label, path) {
+  assert.ok(control, label);
+  assert.deepEqual(domLines(control), ACT_KAPISI_MODUL_DOM[label], `${label}: düğme yapısı`);
+  const gate = deferred();
+  responses[path] = () => gate.promise;
+  const count = () => calls.filter(call => call.path === path).length;
+  const before = count();
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(control.disabled, true, `${label}: iş sürerken düğme kapalı`);
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(count(), before + 1, `${label}: ikinci basış yok sayılır`);
+  gate.resolve({ $status: 409, hata: `${label} tamamlanamadı.` });
+  await settle();
+  assert.equal(control.disabled, false, `${label}: iş bitince düğme açık`);
+  assert.equal(nodes.get('#alerts').textContent, `${label} tamamlanamadı.×`, `${label}: hata bildirimi`);
+  return count;
+}
+
+test('act() birleştirmesi kapısı: değişiklik geçmişinin "Daha eski kayıtlar" düğmesi çalışırken kapalıdır, hatayı bildirir, eski sayfayı ekler', async () => {
+  const olderPath = '/api/denetim?oncekiId=151&adet=50';
+  const olderRows = actHistoryRows(150, 2);
+  const state = await openApp(false, { ...actToolsResponses(), '/api/denetim?adet=50': actHistoryRows(200, 50), [olderPath]: olderRows });
+  const { app, nodes } = state;
+  await app.navigate('tools');
+  await settle();
+  const opener = buttonIn(nodes.get('#view'), 'Değişiklik geçmişini aç');
+  await opener.listeners.click({ currentTarget: opener });
+  await settle();
+  modalTitle('Değişiklik geçmişi')({ nodes });
+  await submitDialog(nodes);
+  const content = nodes.get('#modal-content');
+  const rows = () => content.find(n => n.className === 'table-wrap').find(n => n.tag === 'tbody').children;
+  assert.equal(rows().length, 50);
+  const control = buttonIn(content, 'Daha eski kayıtlar');
+  const count = await actGate(state, control, 'Daha eski kayıtlar', olderPath);
+  assert.equal(rows().length, 50, 'hatada satır eklenmez');
+  assert.equal(buttonIn(content, 'Daha eski kayıtlar'), control, 'hatada düğme yerinde kalır');
+  state.responses[olderPath] = olderRows;
+  await control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(count(), 2, 'başarıda eski sayfa okunur');
+  assert.equal(control.disabled, false, 'başarıdan sonra düğme açık');
+  assert.equal(rows().length, 52);
+  assert.equal(buttonIn(content, 'Daha eski kayıtlar'), null, 'son sayfada düğme kalkar');
+  assert.match(content.textContent, /Daha eski kayıt yok\./);
+});
+
+test('act() birleştirmesi kapısı: kart geçişi önizlemesinin önerilen tutarla yeniden önizleme düğmesi çalışırken kapalıdır, hatayı bildirir, yeniden önizler', async () => {
+  const oldCard = { ...sampleCard, yeniTakip: false, surum: 0, borc: 1500, ekstreler: [] };
+  const previewPath = '/api/takip/kartlar/4/gecis-onizleme';
+  const preview = call => ({
+    kaynak: 'Kart',
+    kaynakId: 4,
+    baslangic: call.body.baslangic,
+    genelKasaAnlikFarki: call.body.kasadaOncedenSayilanTutar - 1200,
+    kanalAnlikFarki: 0,
+    eskiKasadaSayilanTutar: call.body.kasadaOncedenSayilanTutar,
+    aciklamalar: ['Eski kural'],
+    kabulEdilebilir: true,
+    sistemKartBorcu: 1500,
+    eskiKuraldaIslenenTutar: 300,
+    bekleyenEskiDusumTutari: 1200,
+    sonBekleyenDusumTarihi: '2026-10-31',
+    onerilenKasadaSayilanTutar: 1200,
+    enAzKasadaSayilanTutar: 1000,
+  });
+  const state = await openApp(false, { '/api/kanallar': [{ id: 1, ad: 'MEZAT', aktif: true }], [previewPath]: preview });
+  const { app, nodes, calls } = state;
+  await app.financeUi.cardTransition(oldCard);
+  const counted = formField(nodes, 'kasadaOncedenSayilanTutar');
+  counted.value = '700';
+  counted.listeners.input();
+  formField(nodes, 'aciklama').value = 'Banka ekstresiyle doğrulandı';
+  await submitDialog(nodes);
+  const control = buttonIn(nodes.get('#modal-content'), actRetryLabel);
+  const count = await actGate(state, control, actRetryLabel, previewPath);
+  assert.equal(nodes.get('#modal-title').textContent, 'Geçiş özeti', 'hatada özet penceresi açık kalır');
+  assert.equal(buttonIn(nodes.get('#modal-content'), actRetryLabel), control, 'hatada düğme yerinde kalır');
+  state.responses[previewPath] = preview;
+  await control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(count(), 3, 'başarıda yeniden önizler');
+  assert.equal(control.disabled, false, 'başarıdan sonra düğme açık');
+  assert.equal(calls.filter(call => call.path === previewPath)[2].body.kasadaOncedenSayilanTutar, 1200);
+  assert.equal(nodes.get('#modal-title').textContent, 'Geçiş özeti');
+  assert.equal(buttonIn(nodes.get('#modal-content'), actRetryLabel), null, 'önerilen tutarla önizlemede düğme kalkar');
+  assert.equal(
+    calls.some(call => call.path.endsWith('/gecis')),
+    false
+  );
+});

@@ -7,7 +7,6 @@ import {
   closeModal,
   page,
   navigate,
-  run,
   act,
   toast,
   requestIdentity,
@@ -950,8 +949,7 @@ export function createFinanceUi() {
         {},
         preview.aciklamalar.map(text => h('li', {}, text))
       ),
-      differs &&
-        button(`Önerilen tutarla (${money(suggested)}) yeniden önizle`, event => run(event.currentTarget, () => retry(suggested)), 'small'),
+      differs && act(`Önerilen tutarla (${money(suggested)}) yeniden önizle`, () => retry(suggested), 'small'),
       help('Tarih öncesindeki kayıtlar korunur. Bu özeti doğrulamadan geçişi onaylamayın.')
     );
     if (!preview.kabulEdilebilir) {
