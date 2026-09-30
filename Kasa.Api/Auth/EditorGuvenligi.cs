@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using Kasa.Api.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Auth;
 

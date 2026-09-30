@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Security.Claims;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Kasa.Api.Denetim;
