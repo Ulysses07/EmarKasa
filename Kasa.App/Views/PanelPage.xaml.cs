@@ -21,9 +21,15 @@ public partial class PanelPage : ContentPage
                 // Takip özeti ve kanal eşikleri panelle aynı ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı
                 // andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
                 if (vm.VeriVar)
-                { await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu); await kontrol.YukleAsync(vm.KasaEsikleri); }
+                {
+                    await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu);
+                    await kontrol.YukleAsync(vm.KasaEsikleri);
+                }
                 else
-                { takip.VeriHazir = false; kontrol.VeriHazir = false; }
+                {
+                    takip.VeriHazir = false;
+                    kontrol.VeriHazir = false;
+                }
             }
         };
         takip.PropertyChanged += (_, e) =>
@@ -36,14 +42,15 @@ public partial class PanelPage : ContentPage
             secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
         var yukle = new ActivityIndicator();
         yukle.SetBinding(ActivityIndicator.IsRunningProperty, nameof(takip.Mesgul));
-        var hata = TakipUi.Bagli(nameof(takip.Hata));
-        hata.TextColor = Colors.DarkRed;
+        var hata = TakipUi.BagliHata(nameof(takip.Hata));
         var icerik = new VerticalStackLayout { Spacing = 12 };
         icerik.Add(TakipUi.Bagli(nameof(takip.Ozet)));
         icerik.Add(TakipUi.Bagli(nameof(takip.BelirsizBorcOzeti)));
         icerik.Add(TakipUi.Liste<TakipOlaySatiri>(nameof(takip.Olaylar)));
         icerik.SetBinding(IsVisibleProperty, nameof(takip.VeriHazir));
-        var kart = TakipUi.Kart("Kart ve kredi takibi", TakipUi.Metin("Kart kesimi ve son ödeme günü hatırlatmadır; kartta kasa yalnız kaydedilen ödeme ile değişir. Kredi taksitleri ise vade tarihinde otomatik olarak kasaya işlenir."), secim, yukle, hata, icerik,
+        var kart = TakipUi.Kart("Kart ve kredi takibi",
+            TakipUi.Metin("Kart kesimi ve son ödeme günü hatırlatmadır; kartta kasa yalnız kaydedilen ödeme ile değişir. Kredi taksitleri ise vade tarihinde otomatik olarak kasaya işlenir."),
+            secim, yukle, hata, icerik,
             TakipUi.Tikla("Kartlar", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Krediler", () => Shell.Current.GoToAsync("//krediler")));
         kart.BindingContext = takip;
         PanelAlani.Add(kart);

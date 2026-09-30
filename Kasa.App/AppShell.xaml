@@ -29,7 +29,7 @@
         </Grid>
     </Shell.FlyoutHeader>
 
-    <!-- Menü öğesi şablonu: aktif sekme #33453A zemin + açık nokta -->
+    <!-- Menü öğesi şablonu: aktif sekme SidebarActive zemin + açık nokta -->
     <Shell.ItemTemplate>
         <DataTemplate>
             <Grid Margin="10,2" Padding="12,0" HeightRequest="38" ColumnDefinitions="Auto,*" ColumnSpacing="10">

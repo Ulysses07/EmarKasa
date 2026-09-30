@@ -4,7 +4,7 @@
     x:Class="Kasa.App.Views.AylikPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:v="clr-namespace:Kasa.App.Views"
+    xmlns:ctl="clr-namespace:Kasa.App.Controls"
     xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
     xmlns:api="clr-namespace:Kasa.ApiClient;assembly=Kasa.ApiClient"
     x:DataType="core:AylikViewModel"
@@ -33,22 +33,23 @@
                         WidthRequest="44" Padding="0" FontSize="20" VerticalOptions="Center" />
             </Grid>
 
-            <v:RaporDurumu />
+            <ctl:DurumSeridi Mesgul="{Binding Mesgul}" Hata="{Binding Hata}"
+                             SonGuncellemeMetni="{Binding SonGuncellemeMetni}" YenileCommand="{Binding YenileCommand}" />
 
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
                     <!-- K4: kapatılmış ay, kapatıldığı andaki raporla gösterilir. -->
-                    <Border BackgroundColor="#E3EDDF" StrokeThickness="0" Padding="18,12" IsVisible="{Binding Dondurulmus}">
-                        <Label Text="{Binding DondurulmusMetni}" TextColor="#366341" />
+                    <Border BackgroundColor="{StaticResource KilitZemin}" StrokeThickness="0" Padding="18,12" IsVisible="{Binding Dondurulmus}">
+                        <Label Text="{Binding DondurulmusMetni}" TextColor="{StaticResource KilitMetin}" />
                     </Border>
                     <!-- K1: tutarları değiştirmeyen veri sağlığı uyarısı (takip başlangıcından önce tarihli giderler). -->
-                    <Border BackgroundColor="#FFF2D9" StrokeThickness="0" Padding="18,12" IsVisible="{Binding VeriSagligiUyarisiVar}">
-                        <Label Text="{Binding VeriSagligiUyarisi}" TextColor="#765100" />
+                    <Border BackgroundColor="{StaticResource UyariZemin}" StrokeThickness="0" Padding="18,12" IsVisible="{Binding VeriSagligiUyarisiVar}">
+                        <Label Text="{Binding VeriSagligiUyarisi}" TextColor="{StaticResource UyariMetin}" />
                     </Border>
-                    <Border BackgroundColor="#FFF2D9" StrokeThickness="0" Padding="18,12" IsVisible="{Binding DagilimBekliyor}">
+                    <Border BackgroundColor="{StaticResource UyariZemin}" StrokeThickness="0" Padding="18,12" IsVisible="{Binding DagilimBekliyor}">
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Dağılım bekliyor — kanal sonuçlarına henüz eklenmedi" TextColor="#765100" FontAttributes="Bold" />
-                            <Label Text="{Binding Rapor.DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="#765100" />
+                            <Label Text="Dağılım bekliyor — kanal sonuçlarına henüz eklenmedi" TextColor="{StaticResource UyariMetin}" FontAttributes="Bold" />
+                            <Label Text="{Binding Rapor.DagilimBekleyenTutar, Converter={StaticResource ParaBicim}}" TextColor="{StaticResource UyariMetin}" />
                         </VerticalStackLayout>
                     </Border>
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
@@ -78,15 +79,8 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                         <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="20,36,20,40" Spacing="6">
-                                <Border Style="{StaticResource AvatarChip}" WidthRequest="40" HeightRequest="40"
-                                        StrokeShape="RoundRectangle 12" HorizontalOptions="Center">
-                                    <Label Text="₺" Style="{StaticResource LblAvatar}" FontSize="17" />
-                                </Border>
-                                <Label Text="Bu ay için kayıt yok" Style="{StaticResource LblEmptyTitle}" Margin="0,4,0,0" />
-                                <Label Text="İşlem girdikçe ay sonucu burada oluşur."
-                                       Style="{StaticResource LblEmptySub}" />
-                            </VerticalStackLayout>
+                            <ctl:BosDurum Baslik="Bu ay için kayıt yok"
+                                          Aciklama="İşlem girdikçe ay sonucu burada oluşur." />
                         </CollectionView.EmptyView>
                     </CollectionView>
                     <Grid Padding="18,12" ColumnDefinitions="*,Auto" IsVisible="{Binding GenelGiderVar}">

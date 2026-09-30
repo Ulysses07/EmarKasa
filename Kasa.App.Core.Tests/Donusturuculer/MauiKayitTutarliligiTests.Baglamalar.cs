@@ -17,8 +17,9 @@ namespace Kasa.App.Core.Tests;
 /// <item>Sayfa kökü: kod-arkasında <c>BindingContext = ... vm</c> ile atanan kurucu parametresinin ViewModel türü.</item>
 /// <item>ItemsSource / BindableLayout.ItemsSource yolunun öğe türü, o öğenin DataTemplate'ine ve ItemDisplayBinding'e geçer.</item>
 /// <item><c>Source={x:Reference Sayfa}</c> ile <c>BindingContext.X</c>: sayfanın ViewModel'i.</item>
-/// <item>Kendi bağlamı olmayan görünüm (RaporDurumu) kullanıldığı her yerde oradaki bağlamla; Styles.xaml'deki
-/// DataTrigger bağlamaları stili kullanan her öğenin bağlamıyla; kabuk şablonları MAUI'nin öğe türleriyle denetlenir.</item>
+/// <item>Styles.xaml'deki DataTrigger bağlamaları stili kullanan her öğenin bağlamıyla (kodla kurulan CipGrubu'nun her
+/// çipe uyguladığı Chip/ChipText stilleri ve "Ad" yolu grubun öğe türüyle); kabuk şablonları MAUI'nin öğe türleriyle
+/// denetlenir.</item>
 /// </list>
 /// Her XAML dosyasındaki her bağlama en az bir kez değerlendirilmelidir: çözücünün sessizce atladığı bağlama kalmaz.
 /// </summary>
@@ -46,7 +47,7 @@ public partial class MauiKayitTutarliligiTests
     }
 
     /// <summary>Derlenmiş bağlamalar (Aşama 4): Views altındaki her görünümün kökü, her DataTemplate ve her Picker
-    /// ItemDisplayBinding'i x:DataType taşır ve bu tür bağlamanın gerçek türüyle aynıdır (kendi bağlamı olmayan RaporDurumu
+    /// ItemDisplayBinding'i x:DataType taşır ve bu tür bağlamanın gerçek türüyle aynıdır (kendi bağlamı olmayan XAML görünümü
     /// kullanıldığı her bağlamın atanabileceği türdür). x:DataType'sız DataTemplate dış kapsamın türünü devralır; yanlış tür
     /// derlenmiş bağlamayı çalışma anında sessizce boşa düşürür.</summary>
     [Fact]
@@ -55,8 +56,8 @@ public partial class MauiKayitTutarliligiTests
         var denetim = new XamlBaglamaDenetimi(Uygulama);
         denetim.HepsiniDenetle();
         Assert.True(denetim.VeriTuruHatalari.Count == 0, "x:DataType sorunları:\n" + string.Join("\n", denetim.VeriTuruHatalari));
-        // 7 sayfa kökü + RaporDurumu'nun 3 kullanımı + 19 DataTemplate + 9 ItemDisplayBinding.
-        Assert.True(denetim.DenetlenenVeriTuru >= 38, $"x:DataType denetimi eksik ({denetim.DenetlenenVeriTuru}).");
+        // 7 sayfa kökü + 13 DataTemplate + 9 ItemDisplayBinding (durum şeridi ve çip grupları kodla kurulan bileşendir).
+        Assert.True(denetim.DenetlenenVeriTuru >= 29, $"x:DataType denetimi eksik ({denetim.DenetlenenVeriTuru}).");
     }
 
     /// <summary>x:DataType denetiminin kendisi: eksik ve yanlış x:DataType bildirilir; doğrusu bildirilmez.</summary>
@@ -137,7 +138,7 @@ public partial class MauiKayitTutarliligiTests
     public void Kodla_kurulan_liste_sablonlarinin_oge_turleri_baslik_ve_ozet_tasir()
     {
         Assert.Contains("Bagli(\"Baslik\")", Oku(Path.Combine("Views", "TakipUi.cs")));
-        Assert.Contains("Bagli(\"Ozet\"", Oku(Path.Combine("Views", "TakipUi.cs")));
+        Assert.Contains("BagliMetin(\"Ozet\")", Oku(Path.Combine("Views", "TakipUi.cs")));
         var derleme = typeof(AuthViewModel).Assembly;
         var kullanimlar = Directory.GetFiles(Uygulama, "*.cs", SearchOption.AllDirectories)
             .SelectMany(d => ListeSablonu().Matches(File.ReadAllText(d)).Select(m => (Dosya: Path.GetFileName(d), Tur: m.Groups[1].Value))).ToList();
@@ -239,6 +240,8 @@ public partial class MauiKayitTutarliligiTests
             }
             if (el.Attribute(Xaml + "Name")?.Value is { } isim)
                 adlar.TryAdd(isim, baglam);
+            if (ad == nameof(Kasa.App.Controls.CipGrubu))
+                CipGrubunuDenetle(el, dosya, oge);
             if (el.Attribute("Style")?.Value is { } stil && StaticResource().Match(stil) is { Success: true } s && _stilBaglamalari.TryGetValue(s.Groups[1].Value, out var stilBaglamalari))
                 foreach (var (yol, anahtar) in stilBaglamalari)
                 {
@@ -255,6 +258,20 @@ public partial class MauiKayitTutarliligiTests
             }
             foreach (var c in el.Elements())
                 Yuru(c, dosya, baglam, oge ?? sablon, adlar);
+        }
+
+        /// <summary>CipGrubu her öğeye Chip ve ChipText stillerini uygular ve metni "Ad" yoluna bağlar (Kasa.App/Controls/CipGrubu.cs):
+        /// bunlar grubun öğe türünde çözülür.</summary>
+        private void CipGrubunuDenetle(XElement el, string dosya, Type? oge)
+        {
+            var yer = $"{dosya}:{Satir(el)} CipGrubu";
+            Coz("Ad", oge, $"{yer} çip metni");
+            foreach (var stil in new[] { "Chip", "ChipText" })
+                foreach (var (yol, anahtar) in _stilBaglamalari.GetValueOrDefault(stil) ?? [])
+                {
+                    Degerlendirilen.Add(anahtar);
+                    Coz(yol, oge, $"{yer} Style={stil} → {anahtar}");
+                }
         }
 
         /// <summary>Öğenin x:DataType'ı (ya da bağlamanın kendi <paramref name="deger"/>'i) bağlamın gerçek türüdür;

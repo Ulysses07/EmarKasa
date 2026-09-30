@@ -369,4 +369,49 @@
         <Setter Property="FontSize" Value="11.5" />
     </Style>
 
+    <!-- ===== TAKİP SAYFALARI (kodla yazılmış sayfalar; Views/TakipUi.cs) =====
+         Değerler, stil anahtarlarına geçmeden önce kodda yazılı sabitlerdir (sayfa başlığı 28, kart başlığı 18, özet 18,
+         açıklama 13, alan etiketi ve son güncelleme 12, gövde 14). -->
+    <Style x:Key="LblTakipSayfaBaslik" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="LblTakipKartBaslik" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="LblTakipBuyuk" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="LblTakipMetin" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="LblTakipKucuk" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="LblTakipHata" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{StaticResource KoyuKirmizi}" />
+    </Style>
+    <Style x:Key="LblTakipMesaj" TargetType="Label">
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextColor" Value="{StaticResource KoyuYesil}" />
+    </Style>
+    <Style x:Key="TakipAyirici" TargetType="BoxView">
+        <Setter Property="HeightRequest" Value="1" />
+        <Setter Property="Color" Value="{StaticResource Border}" />
+    </Style>
+
 </ResourceDictionary>

@@ -25,7 +25,9 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
         base.OnAppearing();
     }
     private readonly ContentView _satirFormu = new();
-    public EkstreAktarmaPage(EkstreAktarmaViewModel vm) : base(vm, "Ekstre İçe Aktar", "PDF'deki bütün hareketleri inceleyin; yalnız seçip onayladığınız satırlar kaydedilir. PDF yüklemek tek başına kasayı değiştirmez. Yalnız TL; metin içeren, şifresiz PDF (en fazla 10 MB / 50 sayfa).", vm.YukleAsync)
+    public EkstreAktarmaPage(EkstreAktarmaViewModel vm) : base(vm, "Ekstre İçe Aktar",
+        "PDF'deki bütün hareketleri inceleyin; yalnız seçip onayladığınız satırlar kaydedilir. PDF yüklemek tek başına kasayı değiştirmez. Yalnız TL; metin içeren, şifresiz PDF (en fazla 10 MB / 50 sayfa).",
+        vm.YukleAsync)
     {
         Govde.Add(Editor(Kart("1. PDF belgesi",
             Alan("Belge türü", Secim(nameof(vm.Kaynaklar), nameof(vm.Kaynak))),
@@ -54,20 +56,25 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
         Govde.Add(Editor(Goster(Kart("2. Hareket satırları",
             Bagli(nameof(vm.BelgeOzeti)),
             Tikla("Kaynak PDF'yi indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.DosyaAsync)),
-            Metin("Kutuları tek tek işaretleyin. Bir satırı inceleyerek tarih, tutar, işlem türü ve kanal dağılımını düzeltebilirsiniz. İptal edilmiş satırlar yeniden seçilebilir."), liste, _satirFormu,
+            Metin("Kutuları tek tek işaretleyin. Bir satırı inceleyerek tarih, tutar, işlem türü ve kanal dağılımını düzeltebilirsiniz. İptal edilmiş satırlar yeniden seçilebilir."),
+            liste, _satirFormu,
             Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand))), nameof(vm.BelgeVar))));
         Govde.Add(Editor(Goster(Kart("3. Kontrol ve kayıt", Bagli(nameof(vm.OnizlemeMetni)),
             Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(vm.TekrarOnay)), nameof(vm.TekrarOnayGerekli)),
             Onay("Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim.", nameof(vm.Onay)),
             Dugme("Onayladığım satırları kaydet", nameof(vm.KaydetCommand))), nameof(vm.OnizlemeVar))));
         Govde.Add(Editor(Goster(Kart("Bu belgeden kaydedilenler", Liste<EkstreKayitSatiri>(nameof(vm.Kayitlar), KaydiIptalAsync, "Gerekçeyle iptal et", s => !s.Veri.Iptal)), nameof(vm.BelgeVar))));
-        Govde.Add(Editor(Kart("İçe aktarma geçmişi", Liste<EkstreGecmisSatiri>(nameof(vm.Gecmis), s => vm.BelgeAcAsync(s.Veri.Id), "Belgeyi incele"), Goster(Dugme("Daha eski belgeleri yükle", nameof(vm.EskiBelgeleriYukleCommand)), nameof(vm.EskiBelgeVar)))));
+        Govde.Add(Editor(Kart("İçe aktarma geçmişi", Liste<EkstreGecmisSatiri>(nameof(vm.Gecmis), s => vm.BelgeAcAsync(s.Veri.Id), "Belgeyi incele"),
+            Goster(Dugme("Daha eski belgeleri yükle", nameof(vm.EskiBelgeleriYukleCommand)), nameof(vm.EskiBelgeVar)))));
         vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.SeciliSatir)) SatirFormunuKur(); };
     }
     private void SatirFormunuKur()
     {
         if (Vm.SeciliSatir is not { } s)
-        { _satirFormu.Content = null; return; }
+        {
+            _satirFormu.Content = null;
+            return;
+        }
         var form = Kart($"Satır {s.Kaynak.No}", Bagli(nameof(s.KaynakMetni)), Bagli(nameof(s.Uyarilar)),
             Alan("Tarih (yıl-ay-gün)", Girdi(nameof(s.TarihMetni))),
             Alan("Açıklama", Girdi(nameof(s.Aciklama))),
@@ -89,7 +96,8 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
                 Spacing = 8,
                 Children = {
                 Alan("Kanal dağılımı", Secim(nameof(s.DagilimTurleri), nameof(s.DagilimTuru))),
-                Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."), Paylar(s.Paylar, s.PayEkle) }
+                Metin("Eşit dağılımda kanalları seçin; tutarlar kullanılmaz. Özel dağılımda toplam hareket tutarına eşit olmalı. Kart ödemesi ve iadede paylar karttan otomatik alınır."),
+                Paylar(s.Paylar, s.PayEkle) }
             }, nameof(s.DagilimGorunur)));
         form.BindingContext = s;
         _satirFormu.Content = form;
@@ -103,7 +111,11 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
             return;
         await Vm.PdfSecVeYukleAsync(secim, async () =>
         {
-            var dosya = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Banka veya kart PDF ekstresini seçin", FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf" } }) });
+            var dosya = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Banka veya kart PDF ekstresini seçin",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf" } })
+            });
             return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
         });
     }

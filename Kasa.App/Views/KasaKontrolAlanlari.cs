@@ -8,17 +8,7 @@ internal static class KasaKontrolAlanlari
     private static View Durum(OturumluViewModel vm, Func<Task> yukle, View govde)
     {
         var panel = new VerticalStackLayout { Spacing = 12, BindingContext = vm };
-        var busy = new ActivityIndicator();
-        busy.SetBinding(ActivityIndicator.IsRunningProperty, nameof(vm.Mesgul));
-        var hata = Bagli(nameof(vm.Hata));
-        hata.TextColor = Colors.DarkRed;
-        panel.Add(Tikla("Yenile / tekrar dene", yukle));
-        panel.Add(busy);
-        panel.Add(hata);
-        panel.Add(Bagli(nameof(vm.Mesaj)));
-        var tarih = new Label { FontSize = 12 };
-        tarih.SetBinding(Label.TextProperty, new Binding(nameof(vm.SonGuncelleme), stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
-        panel.Add(tarih);
+        DurumSatirlari(panel, Tikla("Yenile / tekrar dene", yukle), Bagli(nameof(vm.Mesaj)), gostergeSolda: false);
         govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
         govde.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         panel.Add(govde);
@@ -26,17 +16,19 @@ internal static class KasaKontrolAlanlari
     }
     public static View Kontrol(KasaKontrolViewModel vm)
     {
-        var sifirOnayi = Bagli(nameof(vm.KayitUyarisi));
-        sifirOnayi.TextColor = Colors.DarkRed;   // 0 bakiye: ikinci basışta kaydedilir
-        var esikHatasi = Bagli(nameof(vm.EsikHatasi));
-        esikHatasi.TextColor = Colors.DarkRed;     // eşikler yüklenemedi; geçmiş yine görünür
+        var sifirOnayi = BagliHata(nameof(vm.KayitUyarisi));   // 0 bakiye: ikinci basışta kaydedilir
+        var esikHatasi = BagliHata(nameof(vm.EsikHatasi));     // eşikler yüklenemedi; geçmiş yine görünür
         var body = new VerticalStackLayout
         {
             Spacing = 16,
             Children = {
-            Kart("Kanal alt limit uyarıları", Bagli(nameof(vm.EsikUyarilari)), Goster(esikHatasi, nameof(vm.EsikHatasi), true), Metin("Alt limitler Ayarlar bölümünden açılır. Uyarılar kanal bakiyesini değiştirmez.")),
-            Editor(Kart("Gerçek genel bakiye ile karşılaştır", Metin("Gerçekte saydığınız toplam bakiyeyi girin. Karşılaştırma kaydı tutulur; fark kasaya veya kanallara otomatik işlenmez. Fark varsa açıklama zorunludur; farkı gördükten sonra yazabilirsiniz."),
-                Alan("Gerçek toplam bakiye", Girdi(nameof(vm.GercekBakiye), true)), Alan("Açıklama (fark varsa zorunlu)", Girdi(nameof(vm.Not))), Dugme("Farkı göster", nameof(vm.OnizleCommand)), Bagli(nameof(vm.Karsilastirma)), Dugme("Karşılaştırmayı kaydet", nameof(vm.KaydetCommand)),
+            Kart("Kanal alt limit uyarıları", Bagli(nameof(vm.EsikUyarilari)), Goster(esikHatasi, nameof(vm.EsikHatasi), true),
+                Metin("Alt limitler Ayarlar bölümünden açılır. Uyarılar kanal bakiyesini değiştirmez.")),
+            Editor(Kart("Gerçek genel bakiye ile karşılaştır",
+            Metin("Gerçekte saydığınız toplam bakiyeyi girin. Karşılaştırma kaydı tutulur; fark kasaya veya kanallara otomatik işlenmez. Fark varsa açıklama zorunludur; farkı gördükten sonra yazabilirsiniz."),
+                Alan("Gerçek toplam bakiye", Girdi(nameof(vm.GercekBakiye), true)), Alan("Açıklama (fark varsa zorunlu)", Girdi(nameof(vm.Not))),
+                Dugme("Farkı göster", nameof(vm.OnizleCommand)), Bagli(nameof(vm.Karsilastirma)),
+                Dugme("Karşılaştırmayı kaydet", nameof(vm.KaydetCommand)),
                 Goster(sifirOnayi, nameof(vm.KayitUyarisi), true))),
             // Geçmiş: kayıtlı değerler değişmez; kayıt gününe ya da öncesine sonradan dokunan değişiklik "sonradan değişti" diye işaretlenir.
             Kart("Bakiye karşılaştırma geçmişi", Metin("Kayıt gününe ya da öncesine sonradan girilen, silinen veya düzeltilen kayıtlar güncel durumu değiştirir; kayıtlı değerler değişmez."),
@@ -45,7 +37,8 @@ internal static class KasaKontrolAlanlari
                 Metin("Kontrolden sonra yapılan değişiklikler"), Liste<KasaKontrolDegisiklikSatiri>(nameof(vm.Degisiklikler)),
                 Metin("Kontrol gününe sonradan girilen giderler ve kontrol gününden bugüne kasaya işleyen hareketler"), Liste<KasaHareketiSatiri>(nameof(vm.SonrasiHareketler)),
                 Editor(Alan("Fark açıklaması", Girdi(nameof(vm.FarkAciklamasi)))), Editor(Dugme("Açıklamayı kaydet", nameof(vm.AciklaCommand)))), nameof(vm.Secili), true),
-            Kart("Kasa hareket dökümü", Metin("Genel kasayı ya da seçilen kanalın kasasını oluşturan bütün hareketler kaynağıyla. Kredi taksitleri ve eski kartın ay sonu düşümü tarihinde kendiliğinden işler."),
+            Kart("Kasa hareket dökümü",
+            Metin("Genel kasayı ya da seçilen kanalın kasasını oluşturan bütün hareketler kaynağıyla. Kredi taksitleri ve eski kartın ay sonu düşümü tarihinde kendiliğinden işler."),
                 Alan("Başlangıç", Tarih(nameof(vm.DokumBaslangic))), Alan("Bitiş", Tarih(nameof(vm.DokumBitis))), Alan("Kasa", Secim(nameof(vm.DokumKasalari), nameof(vm.DokumKasa))),
                 Dugme("Dökümü göster", nameof(vm.DokumGetirCommand)), Bagli(nameof(vm.DokumOzeti)), Liste<KasaHareketiSatiri>(nameof(vm.DokumSatirlari)))
         }
@@ -55,7 +48,9 @@ internal static class KasaKontrolAlanlari
     public static View Esikler(KasaEsikViewModel vm)
     {
         var body = Kart("Kanal alt limitleri", Metin("Uyarılar başlangıçta kapalıdır. Bir kanal seçip alt limitini ve uyarıyı açın. Kasalar ekranında limit altına düşen kanallar gösterilir."),
-            Liste<KasaEsikSatiri>(nameof(vm.Kanallar)), Alan("Kanal", Secim(nameof(vm.Kanallar), nameof(vm.Secili))), Alan("Alt limit", Girdi(nameof(vm.Tutar), true)), Onay("Bu kanal için alt limit uyarısı açık", nameof(vm.Etkin)), Dugme("Alt limiti kaydet", nameof(vm.KaydetCommand)));
+            Liste<KasaEsikSatiri>(nameof(vm.Kanallar)), Alan("Kanal", Secim(nameof(vm.Kanallar), nameof(vm.Secili))),
+            Alan("Alt limit", Girdi(nameof(vm.Tutar), true)), Onay("Bu kanal için alt limit uyarısı açık", nameof(vm.Etkin)),
+            Dugme("Alt limiti kaydet", nameof(vm.KaydetCommand)));
         return Durum(vm, vm.YukleAsync, body);
     }
     public static View Kilit(AyKilidiViewModel vm, AylikViewModel rapor, Page page)
