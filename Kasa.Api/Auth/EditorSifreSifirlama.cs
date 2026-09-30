@@ -111,7 +111,8 @@ public static class EditorSifreSifirlama
             }), Aktor: DenetimAktoru.Sistem, BaslikGerekcesi: false));
             tx.Commit();
         }
-        gunluk?.Yaz(GuvenlikGunlugu.EditorSifresiSifirlandi, kullanici: GirisSiniri.Normalize(kullanici),
+        // Günlükte editörün diğer olayları gibi yapılandırmadaki adla (EditorGuvenligi: şifre değişikliği, kurtarma).
+        gunluk?.Yaz(GuvenlikGunlugu.EditorSifresiSifirlandi, kullanici: kullanici,
             ayrinti: new { oturumlarKapatildi = true, kurtarmaKoduIptal = kurtarmaKoduVardi, girisKilidiKaldirildi = kilitliydi });
         log.LogWarning("Editör şifresi ortamdaki Kasa:EditorSifre değerine sıfırlandı (Kasa:EditorSifreSifirla); eski editör oturumları ve kurtarma kodu "
             + "iptal edildi{Kilit}. Editör bu şifreyle girip şifresini hemen değiştirmeli; ardından bayrağı kaldırıp uygulamayı yeniden başlatın.",
