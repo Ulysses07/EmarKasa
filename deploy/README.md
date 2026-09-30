@@ -125,6 +125,22 @@ Eski veri dizinlerini (`deploy/kasa-data` ve önceki damgalı dizinler) ek önle
 
 Alan adı geçişi yalnız Nginx/DNS/TLS ve istemci adresini değiştirir; yeni uygulama kodunun canlıya dağıtıldığını göstermez.
 
+## Editör şifresini sıfırlama
+
+Editör şifresini uygulamada bir kez değiştirdiyse şifre veritabanındadır ve `deploy/.env`'deki `KASA_EDITOR_SIFRE` yok sayılır: bu değeri değiştirmek girişi **değiştirmez**. Ortam şifresi yalnız ilk kurulumda (şifre hiç değiştirilmediyse) ve aşağıdaki sıfırlamayla geçerlidir. Sıfırlama şu durumlarda gerekir: editör şifresini ve kurtarma kodunu birlikte unuttu, şifrenin ele geçtiğinden şüpheleniliyor, ya da bir geri yükleme editör girişini kilitledi (logda ve geri yükleme raporunda "editör girişi kilitlendi"; yedekten sonra değiştirilmiş şifre yedekle geri gelmez, ortam şifresi de kendiliğinden geçerli olmaz).
+
+Komutlar `/opt/kasa/deploy` içinde çalıştırılır:
+
+1. `deploy/.env`'de `KASA_EDITOR_SIFRE`'yi yeni, en az 12 (en çok 1024) karakterlik ve daha önce kullanılmamış bir değere çevirin; `KASA_EDITOR_SIFRE_SIFIRLA=true` yapın.
+2. Konteyneri yeni ortamla yeniden oluşturun: `docker compose -f docker-compose.nginx.yml up -d`. (`docker compose restart` ortam değişikliğini almaz; `up -d` yapılandırması değişen konteyneri yeniden oluşturur, bağlamalar korunur.)
+3. Logu denetleyin: `docker compose -f docker-compose.nginx.yml logs kasa | grep -E "Editör şifresi|EditorSifreSifirla"`. "Editör şifresi ortamdaki Kasa:EditorSifre değerine sıfırlandı" satırı görünmelidir.
+   - "…için Kasa:EditorSifre 12–1024 karakter olmalıdır" ile uygulama açılmadıysa ortam şifresini düzeltip 2. adımı yineleyin; veritabanı değişmemiştir.
+   - "…bu ortam şifresi için sıfırlama daha önce uygulandı" ya da "…aynı ortam şifresi yeniden geçerli kılınmaz" görünüyorsa bu değer daha önce bir sıfırlamada kullanılmıştır: yeni bir değer seçip 1. adımdan yineleyin.
+4. Editör bu şifreyle girer ve Güvenlik'ten **hemen** kendi şifresini belirler, yeni kurtarma kodu üretir (eski kod iptal edildi). Bütün editör oturumları ve tanıdık cihazlar düştü; diğer cihazlarda yeniden giriş gerekir. İzleyici ve alıcı hesapları etkilenmez.
+5. `KASA_EDITOR_SIFRE_SIFIRLA=false` yapıp `docker compose -f docker-compose.nginx.yml up -d` ile yeniden oluşturun.
+
+Bayrak açık unutulursa aynı ortam şifresiyle sıfırlama tekrarlanmaz (editörün 4. adımda belirlediği şifre ezilmez) ve her açılışta "bayrağı kaldırın" uyarısı loglanır; ancak `KASA_EDITOR_SIFRE` ya da `KASA_JWT_KEY` değişirse sıfırlama yeniden uygulanır. Sıfırlama değişiklik geçmişinin "Oturum ve güvenlik" bölümüne (`EditorSifresiSifirlandi`) ve güvenlik günlüğüne yazılır; şifre yazılmaz. Sonradan bu andan önceki bir yedek geri yüklenirse sıfırlama bir şifre kararı sayılır ve yedekteki şifre yeniden geçerli olmaz (editör girişi kilitlenir, yeniden sıfırlama gerekir).
+
 ## Güvenilen vekiller (`Kasa__GuvenilirVekiller`)
 
 Uygulama `X-Forwarded-For` başlığını yalnız bu listedeki adreslerden gelen bağlantılarda kabul eder ve vekilin eklediği en sağdaki değeri istemci IP'si sayar. Giriş ve güvenlik uçlarındaki IP başına hız sınırları bu adrese göre işler. Ayar boşsa varsayılan `127.0.0.0/8;::1/128;172.16.0.0/12;192.168.0.0/16` kullanılır (loopback ve Docker'ın varsayılan adres havuzları).
