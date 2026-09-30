@@ -29,15 +29,15 @@ public class DosyaSecimKurallariTests
         var sinir = DosyaSecimKurallari.EnFazlaBayt;
         Assert.Equal(10 * 1024 * 1024, sinir);
 
-        var tam = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[sinir]), sinir);
+        var tam = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[sinir]), sinir, ct: TestContext.Current.CancellationToken);
         Assert.Equal(DosyaOkumaDurumu.Tamam, tam.Durum);
         Assert.Equal(sinir, tam.Icerik!.LongLength);
 
-        var fazla = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[sinir + 1]), sinir);
+        var fazla = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[sinir + 1]), sinir, ct: TestContext.Current.CancellationToken);
         Assert.Equal(DosyaOkumaDurumu.SinirAsildi, fazla.Durum);
         Assert.Null(fazla.Icerik);
 
-        var bos = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(), sinir);
+        var bos = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(), sinir, ct: TestContext.Current.CancellationToken);
         Assert.Equal(DosyaOkumaDurumu.Tamam, bos.Durum);
         Assert.Empty(bos.Icerik!);
     }
@@ -46,11 +46,11 @@ public class DosyaSecimKurallariTests
     public async Task Okuma_surerken_devam_kosulu_bozulursa_vazgecilir()
     {
         var parca = 0;
-        var okuma = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[300_000]), DosyaSecimKurallari.EnFazlaBayt, () => ++parca < 2);
+        var okuma = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream(new byte[300_000]), DosyaSecimKurallari.EnFazlaBayt, () => ++parca < 2, TestContext.Current.CancellationToken);
         Assert.Equal(DosyaOkumaDurumu.Vazgecildi, okuma.Durum);
         Assert.Null(okuma.Icerik);
 
-        var kosulsuz = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream([1, 2, 3]), 3, () => true);
+        var kosulsuz = await DosyaSecimKurallari.SinirliOkuAsync(new MemoryStream([1, 2, 3]), 3, () => true, TestContext.Current.CancellationToken);
         Assert.Equal(new byte[] { 1, 2, 3 }, kosulsuz.Icerik);
     }
 }
