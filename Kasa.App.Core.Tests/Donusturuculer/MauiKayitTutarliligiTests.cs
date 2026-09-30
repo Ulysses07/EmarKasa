@@ -114,6 +114,19 @@ public partial class MauiKayitTutarliligiTests
         Assert.Contains("MenuyuGoster([]);", kod);
     }
 
+    /// <summary>Menü olayları (GitIstendi, CikisIstendi) async void işleyicidir: gezinme ya da çıkış istisnası yakalanmazsa WinUI
+    /// süreci çöker (küresel işleyici yok). AppShell Windows'a bağlıdır ve test projesinde derlenmez; kaynak düzeyinde denetlenir:
+    /// olaylar istisnayı yakalayan yardımcılara gider, Çıkış'a çift tıklama çıkışı ikinci kez başlatmaz.</summary>
+    [Fact]
+    public void Kabuk_menu_olaylari_istisnayi_yakalar_ve_cikis_yeniden_girmez()
+    {
+        var kod = Oku("AppShell.xaml.cs");
+        Assert.Contains("_menuModeli.GitIstendi += async (_, rota) => await GitAsync(rota);", kod);
+        Assert.Contains("_menuModeli.CikisIstendi += async (_, _) => await CikisAsync();", kod);
+        Assert.Matches(@"private async Task GitAsync\(string rota\)\s*\{\s*try\s*\{\s*await GoToAsync\(""//"" \+ rota\);\s*\}\s*catch \(Exception ", kod);
+        Assert.Matches(@"private async Task CikisAsync\(\)\s*\{\s*if \(_cikiliyor\)\s*return;\s*_cikiliyor = true;\s*try\s*\{[\s\S]*?\}\s*catch \(Exception [\s\S]*?\}\s*finally\s*\{\s*_cikiliyor = false;\s*\}", kod);
+    }
+
     /// <summary>Menü (MenuModeli) her bölümü, kabuktaki aynı adlı FlyoutItem'ın rotasına gönderir: menü ile rota kaynağı ayrışmaz.</summary>
     [Fact]
     public void Menu_modeli_rotalari_kabuktaki_sayfa_rotalariyla_ayni()

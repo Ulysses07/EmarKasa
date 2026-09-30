@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Kasa.App.Core;
 
 namespace Kasa.App;
@@ -11,6 +12,7 @@ public partial class AppShell : Shell
     /// yetkisi olmayan bölümün öğesi gizli kalır, doğrudan rotayla erişim kuralı önceki menüdekiyle aynıdır.</summary>
     private readonly IReadOnlyDictionary<Bolum, FlyoutItem> _menu;
     private bool _giriseDonuluyor;
+    private bool _cikiliyor;
 
     public AppShell(AuthViewModel auth)
     {
@@ -32,7 +34,9 @@ public partial class AppShell : Shell
             [Bolum.EkstreAktar] = EkstreAktarItem,
         };
         MenuAlani.BindingContext = _menuModeli;
-        _menuModeli.GitIstendi += async (_, rota) => await GoToAsync("//" + rota);
+        // Olay işleyicileri async void'dir: yardımcılar istisnayı yakalar (küresel işleyici yok, yakalanmayan istisna WinUI
+        // sürecini çökertir).
+        _menuModeli.GitIstendi += async (_, rota) => await GitAsync(rota);
         _menuModeli.CikisIstendi += async (_, _) => await CikisAsync();
         _auth.OturumSonlandi += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await GiriseDonAsync());
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
@@ -68,10 +72,27 @@ public partial class AppShell : Shell
         _menuModeli.Goster(bolumler);
     }
 
+    /// <summary>Menüden gezinme; başarısız gezinme günlüğe yazılır, kullanıcı bulunduğu sayfada kalır.</summary>
+    private async Task GitAsync(string rota)
+    {
+        try
+        { await GoToAsync("//" + rota); }
+        catch (Exception ex) { Debug.WriteLine($"Gezinme başarısız ({rota}): {ex}"); }
+    }
+
+    /// <summary>Çıkış; çift tıklamada ikinci çıkış başlamaz.</summary>
     private async Task CikisAsync()
     {
-        await _auth.CikisAsync();
-        await GiriseDonAsync();
+        if (_cikiliyor)
+            return;
+        _cikiliyor = true;
+        try
+        {
+            await _auth.CikisAsync();
+            await GiriseDonAsync();
+        }
+        catch (Exception ex) { Debug.WriteLine($"Çıkış başarısız: {ex}"); }
+        finally { _cikiliyor = false; }
     }
 
     private async Task GiriseDonAsync()
