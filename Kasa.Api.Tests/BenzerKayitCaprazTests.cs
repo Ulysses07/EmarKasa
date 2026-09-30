@@ -186,19 +186,19 @@ public class BenzerKayitCaprazTests
         using var c = await Editor(f);
         await PostCreated(c, new IslemYazDto(KaynakTarihi, "Önceki", Tutar, "MEZAT", GiderTipi.Cari));
         kapi.Kur("Islemler");
-        var okuma = c.PostAsJsonAsync("/api/islemler/benzerlik", new BenzerKayitSorgu("Gider", Bugun, Tutar, Kanal: "MEZAT"));
+        var okuma = c.PostAsJsonAsync("/api/islemler/benzerlik", new BenzerKayitSorgu("Gider", Bugun, Tutar, Kanal: "MEZAT"), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(await kapi.Girildi(), "Benzerlik sorgusu gider tablosuna ulaşmadı.");
         HttpResponseMessage yazma;
         var sure = Stopwatch.StartNew();
         try
-        { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Okuma sırasında", Tutar, "MEZAT", GiderTipi.Cari)); }
+        { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Okuma sırasında", Tutar, "MEZAT", GiderTipi.Cari), cancellationToken: TestContext.Current.CancellationToken); }
         finally { sure.Stop(); kapi.Birak(); }
         var yanit = await okuma;
         Assert.Equal(HttpStatusCode.Created, yazma.StatusCode);
         Assert.True(sure.Elapsed < TimeSpan.FromSeconds(3), $"Yazma benzerlik sorgusunu {sure.ElapsedMilliseconds} ms bekledi.");
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         // Sorgu başladığı andaki anlık görüntüyü görür; paralel yazma sonraki sorguda görünür.
-        Assert.Single((await yanit.Content.ReadFromJsonAsync<List<BenzerKayitDto>>())!);
+        Assert.Single((await yanit.Content.ReadFromJsonAsync<List<BenzerKayitDto>>(cancellationToken: TestContext.Current.CancellationToken))!);
         Assert.Equal(2, (await Bul(c, new("Gider", Bugun, Tutar, Kanal: "MEZAT"))).Count);
     }
 

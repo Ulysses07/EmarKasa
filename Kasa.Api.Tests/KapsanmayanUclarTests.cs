@@ -199,7 +199,7 @@ public class KapsanmayanUclarTests
         var kasa = await Kasa(c);
         var taksitAyi = Baslangic.AddMonths(1);
         var raporYolu = $"/api/rapor/aylik?yil={taksitAyi.Year}&ay={taksitAyi.Month}";
-        var rapor = await c.GetStringAsync(raporYolu);
+        var rapor = await c.GetStringAsync(raporYolu, TestContext.Current.CancellationToken);
         var istek = new TakipDurumYaz(Guid.NewGuid(), kredi.Surum, false, "Kapandı, arşive");
         var arsiv = await Gonder<KrediTakipDto>(c, HttpMethod.Post, $"/api/takip/krediler/{kredi.Id}/durum", istek);
         Assert.False(arsiv.Aktif);
@@ -207,7 +207,7 @@ public class KapsanmayanUclarTests
         Assert.Equal(kredi.Taksitler.Select(t => (t.No, t.Tarih, t.Tutar, t.Durum)), arsiv.Taksitler.Select(t => (t.No, t.Tarih, t.Tutar, t.Durum)));
         Assert.Equal(kredi.KalanPlanliOdeme, arsiv.KalanPlanliOdeme);
         Assert.Equal(kasa, await Kasa(c));
-        Assert.Equal(rapor, await c.GetStringAsync(raporYolu));
+        Assert.Equal(rapor, await c.GetStringAsync(raporYolu, TestContext.Current.CancellationToken));
 
         Assert.Equal(arsiv.Surum, (await Gonder<KrediTakipDto>(c, HttpMethod.Post, $"/api/takip/krediler/{kredi.Id}/durum", istek)).Surum);
         Assert.Equal(HttpStatusCode.Conflict, (await Dene(c, HttpMethod.Post, $"/api/takip/krediler/{kredi.Id}/durum",
@@ -222,9 +222,10 @@ public class KapsanmayanUclarTests
     [Fact]
     public async Task Push_anahtari_abonelik_test_iletisi_ve_kaldirma_uclari_calisir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new BildirimFabrikasi();
         using var c = await f.EditorClientAsync();
-        var anahtar = await c.GetFromJsonAsync<JsonElement>("/api/bildirimler/push/anahtar");
+        var anahtar = await c.GetFromJsonAsync<JsonElement>("/api/bildirimler/push/anahtar", cancellationToken: ct);
         Assert.True(anahtar.GetProperty("etkin").GetBoolean());
         Assert.Equal(f.AcikAnahtar, anahtar.GetProperty("publicKey").GetString());
 
@@ -244,7 +245,7 @@ public class KapsanmayanUclarTests
         Assert.NotNull((await Cihazlar(c)).Single().GetProperty("sonBasarili").GetString());
 
         // Gövdeli DELETE aboneliği kapatır (kayıt geçmiş için kalır); kapalı cihaza test iletisi gönderilmez.
-        using (var r = await c.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/bildirimler/push/abonelik") { Content = JsonContent.Create(new { endpoint = Uc }) }))
+        using (var r = await c.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/bildirimler/push/abonelik") { Content = JsonContent.Create(new { endpoint = Uc }) }, ct))
             Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
         Assert.False((await Cihazlar(c)).Single().GetProperty("etkin").GetBoolean());
         Assert.Equal(HttpStatusCode.BadRequest, (await Dene(c, HttpMethod.Post, "/api/bildirimler/test", new { endpoint = Uc })).Durum);
@@ -253,9 +254,9 @@ public class KapsanmayanUclarTests
         // Yeniden abone olmak aynı kaydı açar; kimlikle kaldırma kapatır, bilinmeyen kimlik 404.
         Assert.Equal(id, (await Gonder<JsonElement>(c, HttpMethod.Post, "/api/bildirimler/push/abonelik", Abonelik(Uc, "Kasa masası"))).GetProperty("id").GetInt32());
         Assert.True((await Cihazlar(c)).Single().GetProperty("etkin").GetBoolean());
-        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/bildirimler/push/abonelikler/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/bildirimler/push/abonelikler/{id}", ct)).StatusCode);
         Assert.False((await Cihazlar(c)).Single().GetProperty("etkin").GetBoolean());
-        Assert.Equal(HttpStatusCode.NotFound, (await c.DeleteAsync("/api/bildirimler/push/abonelikler/999999")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.DeleteAsync("/api/bildirimler/push/abonelikler/999999", ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Dene(c, HttpMethod.Post, "/api/bildirimler/push/abonelik", Abonelik("https://ornek.test/push", "Yabancı"))).Durum);
     }
 
@@ -264,7 +265,7 @@ public class KapsanmayanUclarTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var anahtar = await c.GetFromJsonAsync<JsonElement>("/api/bildirimler/push/anahtar");
+        var anahtar = await c.GetFromJsonAsync<JsonElement>("/api/bildirimler/push/anahtar", cancellationToken: TestContext.Current.CancellationToken);
         Assert.False(anahtar.GetProperty("etkin").GetBoolean());
         Assert.Equal(JsonValueKind.Null, anahtar.GetProperty("publicKey").ValueKind);
         var (durum, govde) = await Dene(c, HttpMethod.Post, "/api/bildirimler/push/abonelik", Abonelik("https://fcm.googleapis.com/fcm/send/kapali", "Cihaz"));
@@ -286,14 +287,14 @@ public class KapsanmayanUclarTests
             db.SaveChanges();
             id = bildirim.Id;
         }
-        using (var r = await c.PostAsync($"/api/bildirimler/{id}/okundu", null))
+        using (var r = await c.PostAsync($"/api/bildirimler/{id}/okundu", null, TestContext.Current.CancellationToken))
             Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
         using (var scope = f.Services.CreateScope())
             Assert.True(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Set<BildirimEntity>().AsNoTracking().Single(b => b.Id == id).Okundu);
         // Okunan bildirim, kaynağı artık üretmese de listede kalır.
-        var liste = await c.GetFromJsonAsync<JsonElement[]>("/api/bildirimler");
+        var liste = await c.GetFromJsonAsync<JsonElement[]>("/api/bildirimler", cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(Assert.Single(liste!, b => b.GetProperty("id").GetInt32() == id).GetProperty("okundu").GetBoolean());
-        using (var r = await c.PostAsync("/api/bildirimler/999999/okundu", null))
+        using (var r = await c.PostAsync("/api/bildirimler/999999/okundu", null, TestContext.Current.CancellationToken))
             Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
@@ -307,9 +308,9 @@ public class KapsanmayanUclarTests
     {
         await using var f = new SurumFabrikasi(ayar);
         using var c = f.CreateClient();
-        using var r = await c.GetAsync("/api/surum");
+        using var r = await c.GetAsync("/api/surum", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var surum = await r.Content.ReadFromJsonAsync<JsonElement>();
+        var surum = await r.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Matches(@"^\d+\.\d+\.\d+$", surum.GetProperty("surum").GetString());
         Assert.Matches(@"^\d+\.\d+\.\d+$", surum.GetProperty("minimumIstemci").GetString());
         Assert.False(string.IsNullOrWhiteSpace(surum.GetProperty("notlar").GetString()));
@@ -324,24 +325,24 @@ public class KapsanmayanUclarTests
         using var alici = await Alici(f, editor, "belge-sahibi");
         using var baska = await Alici(f, editor, "belge-baskasi");
         var alis = await Gonder<AlisDto>(alici, HttpMethod.Post, "/api/alis", new AlisYaz(0, Bugun, "Tedarikçi", null, [new("Mal", 100m, [new(1, 100m)])]));
-        Assert.Empty((await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
+        Assert.Empty((await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!);
 
         using var form = new MultipartFormDataContent();
         form.Add(new ByteArrayContent("%PDF-1.7 fatura"u8.ToArray()), "dosya", "fatura.pdf");
-        using var yukle = await alici.PostAsync($"/api/alis/{alis.Id}/belgeler", form);
+        using var yukle = await alici.PostAsync($"/api/alis/{alis.Id}/belgeler", form, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, yukle.StatusCode);
-        var belge = (await yukle.Content.ReadFromJsonAsync<BelgeDto>())!;
+        var belge = (await yukle.Content.ReadFromJsonAsync<BelgeDto>(cancellationToken: TestContext.Current.CancellationToken))!;
 
         foreach (var sahip in new[] { alici, editor })
         {
-            var liste = (await sahip.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!;
+            var liste = (await sahip.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!;
             var satir = Assert.Single(liste);
             Assert.Equal((belge.Id, alis.Id, (int?)null, "fatura.pdf", "application/pdf", 15L), (satir.Id, satir.AlisId, satir.OdemeId, satir.DosyaAdi, satir.IcerikTuru, satir.Boyut));
             Assert.Equal(belge.Yuklendi, satir.Yuklendi);
         }
         // Başka alıcıya alışın varlığı da sızmaz: 403 değil 404.
-        Assert.Equal(HttpStatusCode.NotFound, (await baska.GetAsync($"/api/alis/{alis.Id}/belgeler")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await editor.GetAsync("/api/alis/999999/belgeler")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await baska.GetAsync($"/api/alis/{alis.Id}/belgeler", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await editor.GetAsync("/api/alis/999999/belgeler", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
@@ -349,15 +350,15 @@ public class KapsanmayanUclarTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        using var olustur = await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Silinecek kanal", true, 9, 0m));
+        using var olustur = await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Silinecek kanal", true, 9, 0m), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, olustur.StatusCode);
-        var kanal = (await olustur.Content.ReadFromJsonAsync<KanalEntity>())!;
-        Assert.Contains(await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar") ?? [], k => k.Id == kanal.Id);
+        var kanal = (await olustur.Content.ReadFromJsonAsync<KanalEntity>(cancellationToken: TestContext.Current.CancellationToken))!;
+        Assert.Contains(await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar", cancellationToken: TestContext.Current.CancellationToken) ?? [], k => k.Id == kanal.Id);
 
-        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}"))
+        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}", TestContext.Current.CancellationToken))
             Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
-        Assert.DoesNotContain(await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar") ?? [], k => k.Id == kanal.Id);
-        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}"))
+        Assert.DoesNotContain(await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar", cancellationToken: TestContext.Current.CancellationToken) ?? [], k => k.Id == kanal.Id);
+        using (var r = await c.DeleteAsync($"/api/kanallar/{kanal.Id}", TestContext.Current.CancellationToken))
             Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 

@@ -77,7 +77,7 @@ public class AyRaporuAnlikGoruntusuTests
         await Veri(c);
         var once = new Dictionary<DateOnly, string>();
         foreach (var ay in new[] { Haziran, Temmuz, Agustos, Month })
-            once[ay] = await c.GetStringAsync(Url(ay));
+            once[ay] = await c.GetStringAsync(Url(ay), TestContext.Current.CancellationToken);
 
         await Kilit(c, Agustos); // Haziran–Ağustos birlikte kilitlenir
 
@@ -86,9 +86,9 @@ public class AyRaporuAnlikGoruntusuTests
         Assert.All(goruntuler, g => Assert.Equal(HesapServisi.AcikAyKurali, g.KuralSurumu));
         Assert.All(goruntuler, g => Assert.Equal(f.Saat!.GetUtcNow(), g.Zaman));
         foreach (var ay in new[] { Haziran, Temmuz, Agustos })
-            Assert.Equal(Dondurulmus(once[ay], HesapServisi.AcikAyKurali), await c.GetStringAsync(Url(ay)));
+            Assert.Equal(Dondurulmus(once[ay], HesapServisi.AcikAyKurali), await c.GetStringAsync(Url(ay), TestContext.Current.CancellationToken));
         // Açık ay canlıdır, işaret taşımaz.
-        Assert.Equal(once[Month], await c.GetStringAsync(Url(Month)));
+        Assert.Equal(once[Month], await c.GetStringAsync(Url(Month), TestContext.Current.CancellationToken));
         Assert.DoesNotContain("dondurulmus", once[Month]);
     }
 
@@ -105,19 +105,19 @@ public class AyRaporuAnlikGoruntusuTests
 
         // Açılan ayda değişiklik yapılabilir ve rapora canlı yansır.
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Temmuz.AddDays(20), "Nakliye", 50m, "MEZAT", GiderTipi.Cari));
-        var temmuz = await c.GetStringAsync(Url(Temmuz));
+        var temmuz = await c.GetStringAsync(Url(Temmuz), TestContext.Current.CancellationToken);
         Assert.DoesNotContain("dondurulmus", temmuz);
         using (var scope = f.Services.CreateScope())
-            Assert.Equal(JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Temmuz.Year, Temmuz.Month), Web), temmuz);
+            Assert.Equal(JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Temmuz.Year, Temmuz.Month, TestContext.Current.CancellationToken), Web), temmuz);
         Assert.Equal(350m, JsonNode.Parse(temmuz)!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!["cariGiden"]!.GetValue<decimal>());
-        Assert.Contains("\"dondurulmus\":true", await c.GetStringAsync(Url(Haziran)));
+        Assert.Contains("\"dondurulmus\":true", await c.GetStringAsync(Url(Haziran), TestContext.Current.CancellationToken));
 
         // Bütün kilit açılınca hiç görüntü kalmaz; yeniden kapatınca güncel veriyle yeniden yazılır.
         await Kilit(c, Haziran, ac: true);
         Assert.Empty(Goruntuler(f));
-        var yeniTemmuz = await c.GetStringAsync(Url(Temmuz));
+        var yeniTemmuz = await c.GetStringAsync(Url(Temmuz), TestContext.Current.CancellationToken);
         await Kilit(c, Temmuz);
-        Assert.Equal(Dondurulmus(yeniTemmuz, HesapServisi.AcikAyKurali), await c.GetStringAsync(Url(Temmuz)));
+        Assert.Equal(Dondurulmus(yeniTemmuz, HesapServisi.AcikAyKurali), await c.GetStringAsync(Url(Temmuz), TestContext.Current.CancellationToken));
     }
 
     /// <summary>R3 notu: görüntü yalnız ay gerçekten kilitliyken döner. Görüntüyü silmeyen bir önceki sürüme dönülüp ay orada
@@ -126,12 +126,13 @@ public class AyRaporuAnlikGoruntusuTests
     [Fact]
     public async Task Kilidi_acilmis_ayin_artik_goruntusu_sunulmaz_rapor_canli_hesaplanir_ve_bir_kez_loglanir()
     {
+        var ct = TestContext.Current.CancellationToken;
         var loglar = new UyariToplayici();
         await using var f = new LogluFabrika(loglar);
         using var c = await Editor(f);
         await Veri(c);
         await Kilit(c, Agustos);
-        var haziran = await c.GetStringAsync(Url(Haziran));
+        var haziran = await c.GetStringAsync(Url(Haziran), ct);
         using (var scope = f.Services.CreateScope())
         {
             // Eski sürümdeki kilit açma: kilit sonu Haziran'a çekilir, Temmuz ve Ağustos görüntüleri silinmez.
@@ -145,13 +146,13 @@ public class AyRaporuAnlikGoruntusuTests
         foreach (var _ in Enumerable.Range(0, 2))
             foreach (var ay in new[] { Temmuz, Agustos })
             {
-                var rapor = await c.GetStringAsync(Url(ay));
+                var rapor = await c.GetStringAsync(Url(ay), ct);
                 Assert.DoesNotContain("dondurulmus", rapor);
                 using var scope = f.Services.CreateScope();
-                Assert.Equal(JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(ay.Year, ay.Month), Web), rapor);
+                Assert.Equal(JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(ay.Year, ay.Month, ct), Web), rapor);
             }
-        Assert.Equal(350m, JsonNode.Parse(await c.GetStringAsync(Url(Temmuz)))!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!["cariGiden"]!.GetValue<decimal>());
-        Assert.Equal(haziran, await c.GetStringAsync(Url(Haziran)));
+        Assert.Equal(350m, JsonNode.Parse(await c.GetStringAsync(Url(Temmuz), ct))!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!["cariGiden"]!.GetValue<decimal>());
+        Assert.Equal(haziran, await c.GetStringAsync(Url(Haziran), ct));
         Assert.Contains("\"dondurulmus\":true", haziran);
 
         Assert.Single(loglar.Uyarilar, m => m.Contains("2026-07 ayının rapor görüntüsü", StringComparison.Ordinal));
@@ -177,7 +178,7 @@ public class AyRaporuAnlikGoruntusuTests
         using var c = await Editor(f);
         await Veri(c);
         await Kilit(c, Agustos);
-        var haziran = await c.GetStringAsync(Url(Haziran));
+        var haziran = await c.GetStringAsync(Url(Haziran), TestContext.Current.CancellationToken);
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
 
@@ -205,7 +206,7 @@ public class AyRaporuAnlikGoruntusuTests
             var hata = Assert.Throws<SqliteException>(() => Calistir(db, sql));
             Assert.Contains("Kilitli ay", hata.Message);
         }
-        Assert.Equal(haziran, await c.GetStringAsync(Url(Haziran)));
+        Assert.Equal(haziran, await c.GetStringAsync(Url(Haziran), TestContext.Current.CancellationToken));
         Assert.Equal(3, Goruntuler(f).Count);
     }
 
@@ -220,7 +221,7 @@ public class AyRaporuAnlikGoruntusuTests
         {
             var hesap = scope.ServiceProvider.GetRequiredService<HesapServisi>();
             foreach (var ay in new[] { Haziran, Temmuz })
-                kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
+                kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1, ct: TestContext.Current.CancellationToken), Web);
         }
         // Bu sürümden önce Temmuz'a kadar kapatılmış veritabanı: kilit var, görüntü yok.
         using (var scope = f.Services.CreateScope())
@@ -239,7 +240,7 @@ public class AyRaporuAnlikGoruntusuTests
         Assert.Equal(2, goruntuler.Count);
         Assert.All(goruntuler, g => { Assert.Equal(AylikKural.V1, g.KuralSurumu); Assert.Equal(f.Saat!.GetUtcNow(), g.Zaman); });
         foreach (var ay in new[] { Haziran, Temmuz })
-            Assert.Equal(Dondurulmus(kural1[ay], AylikKural.V1), await c.GetStringAsync(Url(ay)));
+            Assert.Equal(Dondurulmus(kural1[ay], AylikKural.V1), await c.GetStringAsync(Url(ay), TestContext.Current.CancellationToken));
     }
 
     /// <summary>Geçiş tohumu bozuk kayıtla hesaplanan raporu dondurmaz: karantina kaydının dokunduğu kilitli ay atlanır ve ayı ve
@@ -271,7 +272,7 @@ public class AyRaporuAnlikGoruntusuTests
         {
             var hesap = scope.ServiceProvider.GetRequiredService<HesapServisi>();
             foreach (var ay in new[] { Haziran, Temmuz })
-                kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1), Web);
+                kural1[ay] = JsonSerializer.Serialize(hesap.Aylik(ay.Year, ay.Month, kuralSurumu: AylikKural.V1, ct: TestContext.Current.CancellationToken), Web);
         }
         Assert.Contains($"Ek gelir #{hareket} (14.07.2026): kanalı yok", (string)JsonNode.Parse(kural1[Temmuz])!["veriSagligiUyarisi"]!);
         Assert.DoesNotContain("veriSagligiUyarisi", kural1[Haziran]);
@@ -286,10 +287,10 @@ public class AyRaporuAnlikGoruntusuTests
             Assert.Equal(new[] { (2026, 7) }, AyRaporAnlikGoruntusu.EksikAylar(db));
         }
         Assert.Equal(new[] { (2026, 6) }, Goruntuler(f).Select(g => (g.Yil, g.Ay)));
-        Assert.Equal(Dondurulmus(kural1[Haziran], AylikKural.V1), await c.GetStringAsync(Url(Haziran)));
+        Assert.Equal(Dondurulmus(kural1[Haziran], AylikKural.V1), await c.GetStringAsync(Url(Haziran), TestContext.Current.CancellationToken));
         // Kilitli ama görüntüsüz Temmuz: kural 1 ile canlı, karantina uyarısıyla (açık ay kuralına geçmez). Uyarı Türkçe harf
         // taşıdığından metin değil JSON ağacı karşılaştırılır (API ASCII dışı harfi kaçışsız yazar).
-        var temmuz = JsonNode.Parse(await c.GetStringAsync(Url(Temmuz)))!;
+        var temmuz = JsonNode.Parse(await c.GetStringAsync(Url(Temmuz), TestContext.Current.CancellationToken))!;
         Assert.True(JsonNode.DeepEquals(JsonNode.Parse(kural1[Temmuz]), temmuz), temmuz.ToJsonString());
         Assert.Null(temmuz["kuralSurumu"]); // kural 1 (eski biçim); açık ay kuralı kuralSurumu yazardı
         Assert.Null(temmuz["dondurulmus"]);
@@ -300,6 +301,7 @@ public class AyRaporuAnlikGoruntusuTests
     [Fact]
     public async Task Kural_degisince_kilitli_ay_ayni_kalir_acik_ay_yeni_kuralla_hesaplanir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Fabrika();
         using var c = await Editor(f);
         // Temmuz ve Eylül'de aynı yapı: satış 80.000, takipli kredi çekimi 120.000, cari gider 100.000 (MEZAT).
@@ -307,12 +309,12 @@ public class AyRaporuAnlikGoruntusuTests
         {
             // Taksitler Kasım'da başlar: Ağustos ve Eylül'de yalnız çekim etkisi görünür.
             await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), $"Kredi {ay:MM}", 120_000m, ay.AddDays(9), new DateOnly(2026, 11, 10), 12, 11_000m, [1]));
-            (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(ay, "MEZAT", 80_000m))).EnsureSuccessStatusCode();
+            (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(ay, "MEZAT", 80_000m), cancellationToken: ct)).EnsureSuccessStatusCode();
             await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(ay.AddDays(14), "Tedarik", 100_000m, "MEZAT", GiderTipi.Cari));
         }
         string kural1Temmuz;
         using (var scope = f.Services.CreateScope())
-            kural1Temmuz = JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Temmuz.Year, Temmuz.Month, kuralSurumu: AylikKural.V1), Web);
+            kural1Temmuz = JsonSerializer.Serialize(scope.ServiceProvider.GetRequiredService<HesapServisi>().Aylik(Temmuz.Year, Temmuz.Month, kuralSurumu: AylikKural.V1, ct: ct), Web);
         // Temmuz bu sürümden (K2'den) önce kapatılmıştı: açılıştaki geçiş tohumu onu kural 1 ile dondurur.
         using (var scope = f.Services.CreateScope())
         {
@@ -323,22 +325,22 @@ public class AyRaporuAnlikGoruntusuTests
         }
 
         // Kilitli Temmuz: kural 1 rakamlarıyla birebir (kredi Gelen'de ve Ay sonucunda).
-        var temmuz = await c.GetStringAsync(Url(Temmuz));
+        var temmuz = await c.GetStringAsync(Url(Temmuz), ct);
         Assert.Equal(Dondurulmus(kural1Temmuz, AylikKural.V1), temmuz);
         var temmuzMezat = JsonNode.Parse(temmuz)!["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!;
         Assert.Equal((200_000m, 100_000m), (temmuzMezat["gelen"]!.GetValue<decimal>(), temmuzMezat["aySonucu"]!.GetValue<decimal>()));
         Assert.Null(JsonNode.Parse(temmuz)!["krediGirisi"]);
 
         // Açık Eylül: güncel kural (K2) — kredi Gelen ve Ay sonucu dışında, ayrı alanda.
-        var eylul = JsonNode.Parse(await c.GetStringAsync(Url(Month)))!;
+        var eylul = JsonNode.Parse(await c.GetStringAsync(Url(Month), ct))!;
         var eylulMezat = eylul["kanallar"]!.AsArray().Single(k => (string)k!["kanal"]! == "MEZAT")!;
         Assert.Equal((80_000m, -20_000m, 120_000m), (eylulMezat["gelen"]!.GetValue<decimal>(), eylulMezat["aySonucu"]!.GetValue<decimal>(), eylul["krediGirisi"]!.GetValue<decimal>()));
         Assert.Equal(AylikKural.Guncel, eylul["kuralSurumu"]!.GetValue<int>());
 
         // Kural değiştikten sonra kapatılan ay, kapatıldığı andaki (güncel kural) raporla donar.
-        var agustosOnce = await c.GetStringAsync(Url(Agustos));
+        var agustosOnce = await c.GetStringAsync(Url(Agustos), ct);
         await Kilit(c, Agustos);
-        Assert.Equal(Dondurulmus(agustosOnce, AylikKural.Guncel), await c.GetStringAsync(Url(Agustos)));
+        Assert.Equal(Dondurulmus(agustosOnce, AylikKural.Guncel), await c.GetStringAsync(Url(Agustos), ct));
         Assert.Equal(new[] { AylikKural.V1, AylikKural.Guncel }, Goruntuler(f).Where(g => g.Ay >= 7).Select(g => g.KuralSurumu));
     }
 
@@ -365,18 +367,18 @@ public class AyRaporuAnlikGoruntusuTests
         var once = new Dictionary<(int, int), string>();
         using (var eski = SurumOncesiBaglam.Ayni(db)) // önceki sürümün şeması: çekirdek sürüm sütunları yok
             foreach (var ay in new[] { 6, 7, 8 })
-                once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(eski).Aylik(2026, ay, kuralSurumu: AylikKural.V1), Web);
+                once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(eski).Aylik(2026, ay, kuralSurumu: AylikKural.V1, ct: TestContext.Current.CancellationToken), Web);
         Assert.Contains("\"gelen\":200000", once[(2026, 7)]); // kural 1: takipli kredi Gelen'de
 
         KasaVeritabaniBaslatici.Baslat(db); // migration + geçiş tohumu (bellek içi: yedek gerekmez)
 
         Assert.Empty(db.Database.GetPendingMigrations());
         foreach (var ay in new[] { 6, 7 })
-            Assert.Equal(Dondurulmus(once[(2026, ay)], AylikKural.V1), JsonSerializer.Serialize(new HesapServisi(db).AylikYanit(2026, ay), Web));
+            Assert.Equal(Dondurulmus(once[(2026, ay)], AylikKural.V1), JsonSerializer.Serialize(new HesapServisi(db).AylikYanit(2026, ay, TestContext.Current.CancellationToken), Web));
         // Açık ay görüntü almaz; tekrar başlatma yeni görüntü üretmez.
         Assert.Equal(new[] { (2026, 6), (2026, 7) }, db.AyRaporAnlikGoruntuleri.AsNoTracking().OrderBy(g => g.Ay).Select(g => new { g.Yil, g.Ay }).AsEnumerable().Select(g => (g.Yil, g.Ay)));
         KasaVeritabaniBaslatici.Baslat(db);
         Assert.Equal(2, db.AyRaporAnlikGoruntuleri.Count());
-        Assert.DoesNotContain("dondurulmus", JsonSerializer.Serialize(new HesapServisi(db).AylikYanit(2026, 8), Web));
+        Assert.DoesNotContain("dondurulmus", JsonSerializer.Serialize(new HesapServisi(db).AylikYanit(2026, 8, TestContext.Current.CancellationToken), Web));
     }
 }

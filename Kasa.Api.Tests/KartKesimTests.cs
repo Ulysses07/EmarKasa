@@ -108,8 +108,8 @@ public class KartKesimTests
         var kart = await Kart(c, 5, 25, Baslangic);
         var r = await HarcamaIstegi(c, kart, new(2026, 9, 20), 600m, 6, new(yil, ay, gun));
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-        Assert.Contains("hesap kesim gününe (5)", (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
-        var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
+        Assert.Contains("hesap kesim gününe (5)", (await r.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("hata").GetString());
+        var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Empty(sonra.Harcamalar);
         Assert.Equal(kart.Surum, sonra.Surum);
         Assert.All(sonra.Ekstreler, s => Assert.Equal(0m, s.Borc));
@@ -149,7 +149,7 @@ public class KartKesimTests
         // Pencerenin dışı: 8 gün kaymış ilk kesim ve harcamadan önceki ilk kesim veri yazmadan reddedilir.
         foreach (var ilk in new[] { new DateOnly(2026, 10, 13), new DateOnly(2026, 10, 8) })
             Assert.Equal(HttpStatusCode.BadRequest, (await HarcamaIstegi(c, kart, new(2026, 10, 9), 90m, 3, ilk)).StatusCode);
-        Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!.Harcamalar);
+        Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}", cancellationToken: TestContext.Current.CancellationToken))!.Harcamalar);
         // Kesimden sonraki harcamanın banka kesimi bir sonraki döngüdeyse o döngüye bağlanır.
         kart = await Harcama(c, kart, new(2026, 10, 9), 60m, 2, new(2026, 11, 5));
         var sonraki = kart.Harcamalar.Single(h => h.Id != kaymis.Id);
@@ -170,11 +170,11 @@ public class KartKesimTests
         {
             var r = await HarcamaIstegi(c, kart, baslangic, 100m, 2, ilk);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-            var hata = (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString()!;
+            var hata = (await r.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("hata").GetString()!;
             Assert.Contains("takip başlangıcından (03.10.2026)", hata);
             Assert.Contains("30.09.2026", hata);
         }
-        var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
+        var sonra = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Empty(sonra.Harcamalar);
         Assert.Equal(kart.Surum, sonra.Surum);
         using (var scope = f.Services.CreateScope())
@@ -201,6 +201,7 @@ public class KartKesimTests
     [Fact]
     public async Task Kesim_gunu_degisince_yeni_taksitler_yeni_gune_duser_eski_ekstre_atamalari_degismez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f, Baslangic);
         var kart = await Kart(c, 5, 25, Baslangic);
@@ -210,9 +211,9 @@ public class KartKesimTests
         Assert.Equal(new DateOnly[] { new(2026, 10, 5), new(2026, 11, 5), new(2026, 12, 5) }, eskiKesimler);
 
         // Banka kesim gününü 20'ye aldı.
-        var duzelt = await c.PutAsJsonAsync($"/api/takip/kartlar/{kart.Id}", new KartTakipYaz(Guid.NewGuid(), kart.Surum, kart.Ad, kart.Limit, 20, 10, Baslangic, 0, []));
-        Assert.True(duzelt.IsSuccessStatusCode, await duzelt.Content.ReadAsStringAsync());
-        kart = (await duzelt.Content.ReadFromJsonAsync<KartTakipDto>())!;
+        var duzelt = await c.PutAsJsonAsync($"/api/takip/kartlar/{kart.Id}", new KartTakipYaz(Guid.NewGuid(), kart.Surum, kart.Ad, kart.Limit, 20, 10, Baslangic, 0, []), cancellationToken: ct);
+        Assert.True(duzelt.IsSuccessStatusCode, await duzelt.Content.ReadAsStringAsync(ct));
+        kart = (await duzelt.Content.ReadFromJsonAsync<KartTakipDto>(cancellationToken: ct))!;
         Assert.Equal(20, kart.KesimGunu);
 
         // Eski kesim gününe (5) yakın ilk kesim artık kartın döngüsünde değil.

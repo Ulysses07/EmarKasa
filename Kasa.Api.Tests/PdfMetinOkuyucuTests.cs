@@ -43,14 +43,14 @@ public class PdfMetinOkuyucuTests
             // İki eşzamanlı okuma slotu var: slot bırakılmasaydı üçüncü çağrı 429 alırdı.
             for (var i = 0; i < 3; i++)
             {
-                var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf));
+                var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf, TestContext.Current.CancellationToken));
                 Assert.Equal(422, hata.StatusCode);
                 Assert.Contains("zaman sınırı", hata.Message);
             }
-        });
+        }, TestContext.Current.CancellationToken);
         // Sahte araç 60 sn uyur: öldürülmeseydi ilk çağrı tek başına 60 sn sürerdi. Eşikler bundan belirgin biçimde kısa,
         // 3 × 1 sn'lik zaman sınırından ise yük altındaki makinede süreç başlatma gecikmesini kaldıracak kadar geniştir.
-        Assert.Same(cagrilar, await Task.WhenAny(cagrilar, Task.Delay(TimeSpan.FromSeconds(45))));
+        Assert.Same(cagrilar, await Task.WhenAny(cagrilar, Task.Delay(TimeSpan.FromSeconds(45), TestContext.Current.CancellationToken)));
         await cagrilar;
         Assert.True(sure.Elapsed < TimeSpan.FromSeconds(30), $"Üç çağrı {sure.Elapsed} sürdü.");
         Assert.Equal(3, girdiler.Count);
@@ -72,7 +72,7 @@ public class PdfMetinOkuyucuTests
         var okuyucu = new PdfMetinOkuyucu(Ayar("1"), null, (_, _) => Kabuk(
             $"powershell -NoProfile -NonInteractive -Command \"Set-Content -LiteralPath '{kimlikDosyasi}' -Value $PID; Start-Sleep -Seconds 60\"",
             $"sleep 60 & echo $! > '{kimlikDosyasi}'; wait"), saat);
-        var okuma = okuyucu.OkuAsync(Pdf);
+        var okuma = okuyucu.OkuAsync(Pdf, TestContext.Current.CancellationToken);
         Process? altSurec = null;
         try
         {
@@ -108,7 +108,7 @@ public class PdfMetinOkuyucuTests
             saat.Tetikle();
             return Kabuk("ping -n 61 127.0.0.1 >nul", "sleep 60; true");
         }, saat);
-        var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf));
+        var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf, TestContext.Current.CancellationToken));
         Assert.Equal(422, hata.StatusCode);
         Assert.Contains("zaman sınırı", hata.Message);
         Assert.Contains(log.Uyarilar, u => u.Contains("pdfinfo") && u.Contains("zaman sınırı veya istek iptali"));
@@ -194,7 +194,7 @@ public class PdfMetinOkuyucuTests
         var okuyucu = new PdfMetinOkuyucu(Ayar(null), log, (_, _) => Kabuk(
             "echo GIZLI-PDF-METNI& echo Syntax Error: xref bozuk 1>&2& exit /b 3",
             "echo GIZLI-PDF-METNI; echo 'Syntax Error: xref bozuk' >&2; exit 3"));
-        var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf));
+        var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf, TestContext.Current.CancellationToken));
         Assert.Equal(422, hata.StatusCode);
         Assert.Contains("PDF okunamadı", hata.Message);
         Assert.DoesNotContain("Syntax", hata.Message);
@@ -217,7 +217,7 @@ public class PdfMetinOkuyucuTests
             : Basarili(arac), saat);
         try
         {
-            var metin = await okuyucu.OkuAsync(Pdf).WaitAsync(TimeSpan.FromSeconds(60));
+            var metin = await okuyucu.OkuAsync(Pdf, TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
             Assert.Contains("01.09.2026 Test 10,00 TL", metin);
         }
         finally { saat.Tetikle(); } // bekleme sınırı dolduysa askıdaki aracı sonlandırır; bitmiş okumada etkisizdir
@@ -249,7 +249,7 @@ public class PdfMetinOkuyucuTests
     public async Task Gecersiz_zaman_siniri_ile_okuma_calisir(string deger)
     {
         var okuyucu = new PdfMetinOkuyucu(Ayar(deger), null, (arac, _) => Basarili(arac));
-        Assert.Contains("01.09.2026 Test 10,00 TL", await okuyucu.OkuAsync(Pdf));
+        Assert.Contains("01.09.2026 Test 10,00 TL", await okuyucu.OkuAsync(Pdf, TestContext.Current.CancellationToken));
     }
 
     private sealed class LogToplayici : ILogger<PdfMetinOkuyucu>

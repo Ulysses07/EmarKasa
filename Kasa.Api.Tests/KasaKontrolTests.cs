@@ -30,7 +30,7 @@ public class KasaKontrolTests
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 60m), new(2, 40m)]);
         card = await Pay(c, card, 20m);
-        var before = await c.GetStringAsync("/api/rapor/panel");
+        var before = await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken);
         var request = Fee(card, 10m);
         var preview = await Post<KartMasrafOnizlemeDto>(c, $"/api/takip/kartlar/{card.Id}/masraf-onizleme", request);
         Assert.Equal(80m, preview.DevredenBorc);
@@ -39,7 +39,7 @@ public class KasaKontrolTests
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/masraflar", request);
         Shares(card.KanalKartBorclari!, (1, 54m), (2, 36m));
         Assert.Equal(90m, card.Borc);
-        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel"));
+        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
         var retry = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/masraflar", request);
         Assert.Equal(card.Surum, retry.Surum);
         Assert.Equal(2, retry.Harcamalar.Count);
@@ -90,8 +90,8 @@ public class KasaKontrolTests
         card = await Pay(c, card, 10m);
         // Even when a client supplies the new version, the old allocation digest is rejected.
         request = request with { Surum = card.Surum, DagilimOzeti = preview.DagilimOzeti };
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraflar", request)).StatusCode);
-        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraflar", request, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Single(after.Harcamalar);
         Assert.Equal(90m, after.Borc);
     }
@@ -104,8 +104,8 @@ public class KasaKontrolTests
         var card = await Card(c);
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Start, "Firma", null, [new("Mal", 100m, [new(1, 100m)])]));
         await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Start, 100m, card.Id));
-        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
-        var response = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraf-onizleme", Fee(card, 5m));
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
+        var response = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraf-onizleme", Fee(card, 5m), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(1000m, await Cash(c));
     }
@@ -113,15 +113,16 @@ public class KasaKontrolTests
     [Fact]
     public async Task Baska_kartin_ekstresi_ve_odenmis_ekstreye_masraf_reddedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         var other = await Charge(c, await Card(c), 100m, [new(2, 100m)]);
         var request = Fee(card, 5m) with { EkstreId = other.Ekstreler.First(e => e.Borc > 0).Id };
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraf-onizleme", request)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraf-onizleme", request, cancellationToken: ct)).StatusCode);
         var statement = Fee(card, 5m).EkstreId;
         card = await Pay(c, card, 100m);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraf-onizleme", new KartMasrafYaz(Guid.NewGuid(), card.Surum, statement, Today, 5m, "Faiz"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/masraf-onizleme", new KartMasrafYaz(Guid.NewGuid(), card.Surum, statement, Today, 5m, "Faiz"), cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
@@ -129,7 +130,7 @@ public class KasaKontrolTests
     {
         await using var f = Factory();
         using var c = await Editor(f);
-        var before = await c.GetStringAsync("/api/rapor/panel");
+        var before = await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken);
         var preview = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(-100m, "Sayım"));
         Assert.Equal(1000m, preview.SistemBakiye);
         Assert.Equal(-1100m, preview.Fark);
@@ -139,20 +140,21 @@ public class KasaKontrolTests
         // Kanal bakiyeleri liste alanıdır (kayıt eşitliği başvuruyu karşılaştırır): ayrıca öğe öğe karşılaştırılır.
         Assert.Equal(saved with { KanalBakiyeleri = null }, retry with { KanalBakiyeleri = null });
         Assert.Equal(saved.KanalBakiyeleri, retry.KanalBakiyeleri);
-        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel"));
-        Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kasa-kontrol", request with { GercekBakiye = 0 })).StatusCode);
+        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
+        Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: TestContext.Current.CancellationToken))!);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kasa-kontrol", request with { GercekBakiye = 0 }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
     public async Task Kasa_onizlemesi_sonrasi_bakiye_degisirse_yeniden_karsilastirma_gerekir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var preview = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(1000m));
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Start, kasaAcilisDevri = 900m })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 1000m, preview.KontrolOzeti))).StatusCode);
-        Assert.Empty((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Start, kasaAcilisDevri = 900m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 1000m, preview.KontrolOzeti), cancellationToken: ct)).StatusCode);
+        Assert.Empty((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: ct))!);
     }
 
     // gap-denetim-izi-gozlemlenebilirlik-3: fark sıfırdan farklıyken açıklama zorunludur. Açıklama önizleme özetine girmez: fark
@@ -166,11 +168,11 @@ public class KasaKontrolTests
         Assert.Equal(-100m, preview.Fark);
         foreach (var not in new string?[] { null, "   " })
         {
-            var r = await c.PostAsJsonAsync("/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 900m, preview.KontrolOzeti, not));
+            var r = await c.PostAsJsonAsync("/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 900m, preview.KontrolOzeti, not), cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-            Assert.Equal("Fark varsa açıklama girin.", (string)JsonNode.Parse(await r.Content.ReadAsStringAsync())!["errors"]!["not"]![0]!);
+            Assert.Equal("Fark varsa açıklama girin.", (string)JsonNode.Parse(await r.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!["errors"]!["not"]![0]!);
         }
-        Assert.Empty((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
+        Assert.Empty((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: TestContext.Current.CancellationToken))!);
         var saved = await Post<KasaKontrolDto>(c, "/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 900m, preview.KontrolOzeti, "Kasada 100 TL eksik"));
         Assert.Equal((-100m, "Kasada 100 TL eksik"), (saved.Fark, saved.Not));
         var esit = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(1000m));
@@ -185,7 +187,7 @@ public class KasaKontrolTests
         using var c = await Editor(f);
         await Gider(c, Today.AddDays(-1), "Nakliye", 40m, "MEZAT");
         await Charge(c, await Card(c), 100m, [new(1, 60m), new(2, 40m)]);
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         var preview = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(panel.GuncelKasa));
         Assert.Equal(Today, preview.HesapTarihi);
         Assert.Equal(panel.Kanallar.Select(k => (k.KanalId, k.Kanal, k.Bakiye)), preview.KanalBakiyeleri!.Select(k => (k.KanalId, k.Kanal, k.Bakiye)));
@@ -204,7 +206,7 @@ public class KasaKontrolTests
             Assert.Equal(db.DenetimOlaylari.Where(o => o.Id < olay.Id).Max(o => o.Id), row.SonDenetimOlayId);
         }
         // Değişiklik yoksa liste aynı günün bakiyesini aynı bulur.
-        var liste = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
+        var liste = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: TestContext.Current.CancellationToken))!);
         Assert.Equal(((decimal?)panel.GuncelKasa, (decimal?)0m, false), (liste.GuncelSistemBakiye, liste.GuncelFark, liste.SonradanDegisti));
         Assert.All(liste.KanalBakiyeleri!, k => Assert.Equal(k.Bakiye, k.GuncelBakiye));
     }
@@ -223,13 +225,13 @@ public class KasaKontrolTests
         var sistem = await Cash(c);
         var kontrol = await Kontrol(c, sistem - 1500m, "Kasada 1.500 eksik");
 
-        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{gider}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{gider}", TestContext.Current.CancellationToken)).StatusCode);
         var iptal = new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Mükerrer ödeme");
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler/{odeme.Id}/iptal", iptal);
         var geriye = await Gider(c, Today, "Unutulan fatura", 70m, "PERAKENDE");
         ((SabitSaat)f.Saat!).Ayarla(Today.AddDays(3));
 
-        var sonra = (await c.GetFromJsonAsync<KasaKontrolSonrasiDto>($"/api/kasa-kontrol/{kontrol.Id}/sonrasi"))!;
+        var sonra = (await c.GetFromJsonAsync<KasaKontrolSonrasiDto>($"/api/kasa-kontrol/{kontrol.Id}/sonrasi", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal((true, Today, false), (sonra.FiligranVar, sonra.EsasTarih, sonra.Kirpildi));
         Assert.Contains(sonra.Degisiklikler, o => (o.Varlik, o.VarlikId, o.Tur) == ("Islem", gider.ToString(), "Sil"));
         Assert.Contains(sonra.Degisiklikler, o => (o.Varlik, o.VarlikId, o.Tur) == ("TakipKartOdeme", odeme.Id.ToString(), "Degistir"));
@@ -247,7 +249,7 @@ public class KasaKontrolTests
         Assert.Equal((sistem, sistem + 1_450m, sistem + 450m), (sonra.SistemBakiye, sonra.GuncelSistemBakiye, sonra.BugunkuSistemBakiye));
         Assert.Equal(await Cash(c), sonra.BugunkuSistemBakiye);
         Assert.Equal(sonra.BugunkuSistemBakiye - sonra.GuncelSistemBakiye, sonra.Hareketler.Where(h => h.EtkiTarihi > Today).Sum(h => h.GenelKasaEtkisi));
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/kasa-kontrol/999/sonrasi")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/kasa-kontrol/999/sonrasi", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     // gap-coklu-giris-cift-sayim-mutabakat-17: kontrol gününe ya da öncesine düşen kayıt sonradan değişince kontrolün kayıtlı
@@ -262,12 +264,12 @@ public class KasaKontrolTests
         var ilk = await Kontrol(c, sistem - 1500m, "Sayımda 1.500 eksik");
         ((SabitSaat)f.Saat!).Ayarla(Today.AddDays(2));
         await Gider(c, Today.AddDays(1), "Sonraki gider", 30m, "MEZAT");
-        var liste = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
+        var liste = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: TestContext.Current.CancellationToken))!);
         Assert.Equal(((decimal?)sistem, (decimal?)(-1500m), false), (liste.GuncelSistemBakiye, liste.GuncelFark, liste.SonradanDegisti));
 
-        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{mukerrer}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{mukerrer}", TestContext.Current.CancellationToken)).StatusCode);
         var ikinci = await Kontrol(c, await Cash(c), null);
-        var kontroller = (await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!;
+        var kontroller = (await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(new[] { ikinci.Id, ilk.Id }, kontroller.Select(k => k.Id));
         var eski = kontroller[1];
         Assert.Equal((sistem, sistem - 1500m, -1500m), (eski.SistemBakiye, eski.GercekBakiye, eski.Fark));
@@ -282,25 +284,28 @@ public class KasaKontrolTests
     [Fact]
     public async Task Fark_aciklamasi_surumle_yazilir_tutarlar_ve_filigran_degismez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var kontrol = await Kontrol(c, 950m, "Sayım");
         var istek = new KasaKontrolAciklamaYaz(Guid.NewGuid(), kontrol.Surum, "  Bankaya yatırılan 50 TL sisteme girilmemiş  ");
-        var r = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", istek);
-        Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
-        var aciklanan = (await r.Content.ReadFromJsonAsync<KasaKontrolDto>())!;
+        var r = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", istek, cancellationToken: ct);
+        Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync(ct));
+        var aciklanan = (await r.Content.ReadFromJsonAsync<KasaKontrolDto>(cancellationToken: ct))!;
         Assert.Equal((2, "Bankaya yatırılan 50 TL sisteme girilmemiş"), (aciklanan.Surum, aciklanan.FarkAciklamasi));
         Assert.NotNull(aciklanan.FarkAciklamaZamani);
         Assert.Equal((kontrol.SistemBakiye, kontrol.GercekBakiye, kontrol.Fark, kontrol.Not, kontrol.HesapTarihi),
             (aciklanan.SistemBakiye, aciklanan.GercekBakiye, aciklanan.Fark, aciklanan.Not, aciklanan.HesapTarihi));
         // Aynı istek kimliği aynı sonucu verir; eski sürümle yeni istek 409; boş açıklama 400; kayıt yoksa 404.
-        Assert.Equal(2, (await (await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", istek)).Content.ReadFromJsonAsync<KasaKontrolDto>())!.Surum);
-        var eski = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", istek with { IstekId = Guid.NewGuid(), Aciklama = "Başka" });
+        Assert.Equal(2, (await (await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama",
+            istek, cancellationToken: ct)).Content.ReadFromJsonAsync<KasaKontrolDto>(cancellationToken: ct))!.Surum);
+        var eski = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", istek with { IstekId = Guid.NewGuid(), Aciklama = "Başka" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, eski.StatusCode);
-        Assert.Contains("Kontrol kaydı değişmiş. Yenileyin.", await eski.Content.ReadAsStringAsync());
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", new KasaKontrolAciklamaYaz(Guid.NewGuid(), 2, " "))).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.PutAsJsonAsync("/api/kasa-kontrol/999/aciklama", new KasaKontrolAciklamaYaz(Guid.NewGuid(), 1, "Yok"))).StatusCode);
-        var liste = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
+        Assert.Contains("Kontrol kaydı değişmiş. Yenileyin.", await eski.Content.ReadAsStringAsync(ct));
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama",
+            new KasaKontrolAciklamaYaz(Guid.NewGuid(), 2, " "), cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PutAsJsonAsync("/api/kasa-kontrol/999/aciklama", new KasaKontrolAciklamaYaz(Guid.NewGuid(), 1, "Yok"), cancellationToken: ct)).StatusCode);
+        var liste = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: ct))!);
         Assert.Equal((2, "Bankaya yatırılan 50 TL sisteme girilmemiş", -50m, false), (liste.Surum, liste.FarkAciklamasi, liste.Fark, liste.SonradanDegisti));
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -325,11 +330,11 @@ public class KasaKontrolTests
             db.SaveChanges();
         }
         ((SabitSaat)f.Saat!).Ayarla(Today.AddDays(1));
-        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{gider}")).StatusCode);
-        var eski = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol"))!);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{gider}", TestContext.Current.CancellationToken)).StatusCode);
+        var eski = Assert.Single((await c.GetFromJsonAsync<KasaKontrolDto[]>("/api/kasa-kontrol", cancellationToken: TestContext.Current.CancellationToken))!);
         Assert.Equal((1, (DateOnly?)null, true), (eski.Surum, eski.HesapTarihi, eski.KanalBakiyeleri is null));
         Assert.Equal(((decimal?)(sistem + 250m), true), (eski.GuncelSistemBakiye, eski.SonradanDegisti));
-        var sonra = (await c.GetFromJsonAsync<KasaKontrolSonrasiDto>($"/api/kasa-kontrol/{eski.Id}/sonrasi"))!;
+        var sonra = (await c.GetFromJsonAsync<KasaKontrolSonrasiDto>($"/api/kasa-kontrol/{eski.Id}/sonrasi", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal((false, Today, sistem + 250m), (sonra.FiligranVar, sonra.EsasTarih, sonra.GuncelSistemBakiye));
         Assert.Empty(sonra.Istekler);
         // Fabrikanın ilk ayar kaydı test saatinden değil sistem saatinden damgalıdır: yalnız giderin olayları sayılır.
@@ -340,36 +345,38 @@ public class KasaKontrolTests
     [Fact]
     public async Task Esik_surumu_ve_para_dogrulanir_izleyici_yazamaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
-        var first = (await c.GetFromJsonAsync<KasaEsikDto[]>("/api/kasa-esikleri"))!.First();
+        var first = (await c.GetFromJsonAsync<KasaEsikDto[]>("/api/kasa-esikleri", cancellationToken: ct))!.First();
         Assert.False(first.Etkin);
         Assert.Equal(0, first.Surum);
-        var result = await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(0, 0m, true));
+        var result = await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(0, 0m, true), cancellationToken: ct);
         result.EnsureSuccessStatusCode();
-        var saved = (await result.Content.ReadFromJsonAsync<KasaEsikDto>())!;
+        var saved = (await result.Content.ReadFromJsonAsync<KasaEsikDto>(cancellationToken: ct))!;
         Assert.Equal(1, saved.Surum);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(0, 5m, true))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(1, -1m, true))).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(0, 5m, true), cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(1, -1m, true), cancellationToken: ct)).StatusCode);
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/kasa-esikleri")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/kasa-kontrol")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(1, 10m, true))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(0m))).StatusCode);
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/kasa-esikleri", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/kasa-kontrol", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PutAsJsonAsync($"/api/kasa-esikleri/{first.KanalId}", new KasaEsikYaz(1, 10m, true), cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(0m), cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
     public async Task Dusuk_bakiye_olayi_gun_degisiminde_tekrarlamaz_toparlanip_yeniden_dusunce_yenidir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         // Bakiye bugünkü giderle eşiğin altına iner (150 − 100 = 50): istek dışındaki eşik okuması paneli
         // bağlamın saatine, yani sunucunun gününe göre kurar; sistem takvimine göre kursa gideri görmezdi.
-        (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", AcilisDevri: 150m))).EnsureSuccessStatusCode();
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Bugünkü gider", 100m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync("/api/kasa-esikleri/1", new KasaEsikYaz(0, 100m, true))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT", AcilisDevri: 150m), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Bugünkü gider", 100m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/kasa-esikleri/1", new KasaEsikYaz(0, 100m, true), cancellationToken: ct)).EnsureSuccessStatusCode();
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         var first = Assert.Single(KasaEsikServisi.Oku(db, Today, true));
@@ -392,7 +399,7 @@ public class KasaKontrolTests
     {
         await using var f = Factory();
         using var c = await Editor(f);
-        (await c.PutAsJsonAsync("/api/kasa-esikleri/1", new KasaEsikYaz(0, 100m, true))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/kasa-esikleri/1", new KasaEsikYaz(0, 100m, true), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Empty(KasaEsikServisi.Oku(db, Today, false));

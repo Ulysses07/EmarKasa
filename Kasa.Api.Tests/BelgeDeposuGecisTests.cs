@@ -288,30 +288,30 @@ public class BelgeDeposuGecisTests
             // HTTP yanıtları: raporlar eski şemadaki hesapla birebir; indirmeler eski sürümün verdiği içerik, tür ve adla.
             using var editor = await f.EditorClientAsync();
             foreach (var (uc, beklenen) in onceRaporlar)
-                Assert.True(beklenen == await editor.GetStringAsync(uc), $"{uc} geçişten sonra farklı.");
+                Assert.True(beklenen == await editor.GetStringAsync(uc, TestContext.Current.CancellationToken), $"{uc} geçişten sonra farklı.");
             foreach (var (id, (ad, tur, icerik)) in onceBelgeler)
             {
-                using var r = await editor.GetAsync($"/api/belgeler/{id}");
+                using var r = await editor.GetAsync($"/api/belgeler/{id}", TestContext.Current.CancellationToken);
                 Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-                Assert.Equal(icerik, await r.Content.ReadAsByteArrayAsync());
+                Assert.Equal(icerik, await r.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
                 Assert.Equal(tur, r.Content.Headers.ContentType!.MediaType);
                 Assert.Equal("attachment", r.Content.Headers.ContentDisposition!.DispositionType);
                 Assert.Equal(BelgeEndpoints.GuvenliBelgeAdi(ad, tur), r.Content.Headers.ContentDisposition.FileNameStar);
                 Assert.Equal(icerik.LongLength, r.Content.Headers.ContentLength);
             }
-            Assert.Equal(HttpStatusCode.NotFound, (await editor.GetAsync("/api/belgeler/4")).StatusCode);
-            using (var r = await editor.GetAsync("/api/ekstre-aktar/1/dosya"))
+            Assert.Equal(HttpStatusCode.NotFound, (await editor.GetAsync("/api/belgeler/4", TestContext.Current.CancellationToken)).StatusCode);
+            using (var r = await editor.GetAsync("/api/ekstre-aktar/1/dosya", TestContext.Current.CancellationToken))
             {
-                Assert.Equal(EkstrePdf, await r.Content.ReadAsByteArrayAsync());
+                Assert.Equal(EkstrePdf, await r.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
                 Assert.Equal("application/pdf", r.Content.Headers.ContentType!.MediaType);
                 Assert.Equal("ağustos.pdf", r.Content.Headers.ContentDisposition!.FileNameStar);
             }
-            var liste = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{onayli}/belgeler"))!;
+            var liste = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{onayli}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!;
             Assert.Equal(new[] { (1, onayli, (int?)1, "fatura.pdf", "application/pdf", (long)Fatura.Length), (2, onayli, null, "dekont.png", "image/png", Dekont.Length) },
                 liste.Select(b => (b.Id, b.AlisId, b.OdemeId, b.DosyaAdi, b.IcerikTuru, b.Boyut)));
             Assert.Equal(new DateTimeOffset(2026, 8, 5, 10, 15, 0, TimeSpan.FromHours(3)), liste[0].Yuklendi);
-            Assert.Equal(new[] { 3 }, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak}/belgeler"))!.Select(b => b.Id));
-            var ekstre = Assert.Single((await editor.GetFromJsonAsync<JsonElement>("/api/ekstre-aktar")).EnumerateArray());
+            Assert.Equal(new[] { 3 }, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!.Select(b => b.Id));
+            var ekstre = Assert.Single((await editor.GetFromJsonAsync<JsonElement>("/api/ekstre-aktar", cancellationToken: TestContext.Current.CancellationToken)).EnumerateArray());
             Assert.Equal(("ağustos.pdf", "Akbank"), (ekstre.GetProperty("dosyaAdi").GetString(), ekstre.GetProperty("banka").GetString()));
 
             // Yeniden açılış: bekleyen iş yok, ikinci göç öncesi yedek ve yeniden aktarım yok.
@@ -402,8 +402,8 @@ public class BelgeDeposuGecisTests
         var depo = new BelgeDeposu(GeciciDizin("belge-depo"), saat: saat);
         try
         {
-            var a = depo.Yaz(Fatura);
-            var b = depo.Yaz(Fatura);
+            var a = depo.Yaz(Fatura, TestContext.Current.CancellationToken);
+            var b = depo.Yaz(Fatura, TestContext.Current.CancellationToken);
             Assert.Equal(a, b);
             Assert.Equal(Ozet(Fatura), a.Ozet);
             Assert.Equal(Fatura.LongLength, a.Boyut);
@@ -417,14 +417,14 @@ public class BelgeDeposuGecisTests
             // Bozulmuş dosya aynı içeriğin yeniden yazımında doğrulanmış içerikle değiştirilir.
             File.WriteAllBytes(depo.Yol(a.Ozet), [1, 2, 3]);
             Assert.False(depo.Dogrula(a.Ozet));
-            depo.Yaz(Fatura);
+            depo.Yaz(Fatura, TestContext.Current.CancellationToken);
             Assert.True(depo.Dogrula(a.Ozet));
 
             // Bakım: yalnız hiçbir kaydın göstermediği ve 24 saatten eski dosya silinir; yeniden yazım yaşı tazeler.
-            var sahipsiz = depo.Yaz(Dekont).Ozet;
+            var sahipsiz = depo.Yaz(Dekont, TestContext.Current.CancellationToken).Ozet;
             saat.Ayarla(new DateOnly(2026, 9, 27));
             Assert.Equal(0, depo.Temizle(new HashSet<string> { a.Ozet, sahipsiz }, TimeSpan.FromHours(24)));
-            depo.Yaz(Dekont); // ~2 gün sonra aynı içerik yeniden yüklendi: yaş tazelenir
+            depo.Yaz(Dekont, TestContext.Current.CancellationToken); // ~2 gün sonra aynı içerik yeniden yüklendi: yaş tazelenir
             File.SetLastWriteTimeUtc(depo.Yol(a.Ozet), new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc));
             Assert.Equal(0, depo.Temizle(new HashSet<string> { a.Ozet }, TimeSpan.FromHours(24)));
             File.SetLastWriteTimeUtc(depo.Yol(sahipsiz), new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc));
@@ -437,9 +437,10 @@ public class BelgeDeposuGecisTests
     [Fact]
     public async Task Yuklenen_belge_ve_ekstre_depoya_yazilir_indirme_bayt_bayt_ayni_dosya_yoksa_acik_404()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
         using var c = await f.EditorClientAsync();
-        var alis = (await (await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, f.Bugun, "Firma", null, []))).Content.ReadFromJsonAsync<AlisDto>())!;
+        var alis = (await (await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, f.Bugun, "Firma", null, []), cancellationToken: ct)).Content.ReadFromJsonAsync<AlisDto>(cancellationToken: ct))!;
         async Task<BelgeDto> Yukle(byte[] icerik, string ad)
         {
             using var form = new MultipartFormDataContent();
@@ -453,23 +454,24 @@ public class BelgeDeposuGecisTests
         var depo = f.Services.GetRequiredService<BelgeDeposu>();
         Assert.Single(depo.Ozetler());
         foreach (var belge in new[] { bir, iki })
-            Assert.Equal(Fatura, await c.GetByteArrayAsync($"/api/belgeler/{belge.Id}"));
+            Assert.Equal(Fatura, await c.GetByteArrayAsync($"/api/belgeler/{belge.Id}", ct));
         using (var scope = f.Services.CreateScope())
             Assert.Equal(new[] { Ozet(Fatura), Ozet(Fatura) }, scope.ServiceProvider.GetRequiredService<KasaDbContext>().Belgeler.OrderBy(b => b.Id).Select(b => b.IcerikOzeti).ToArray());
 
         // Dosya depodan kaybolmuşsa (geri yüklemede unutulan belgeler/ gibi) istemci açık bir 404 alır, sunucu kaydı düşer.
         File.Delete(depo.Yol(Ozet(Fatura)));
-        using var yok = await c.GetAsync($"/api/belgeler/{bir.Id}");
+        using var yok = await c.GetAsync($"/api/belgeler/{bir.Id}", ct);
         Assert.Equal(HttpStatusCode.NotFound, yok.StatusCode);
-        Assert.Equal(BelgeEndpoints.DosyaYok, (await yok.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+        Assert.Equal(BelgeEndpoints.DosyaYok, (await yok.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("hata").GetString());
     }
 
     [Fact]
     public async Task Depoda_olmayan_belge_icerigi_her_acilista_hata_olarak_loglanir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
         using var c = await f.EditorClientAsync();
-        var alis = (await (await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, f.Bugun, "Firma", null, []))).Content.ReadFromJsonAsync<AlisDto>())!;
+        var alis = (await (await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, f.Bugun, "Firma", null, []), cancellationToken: ct)).Content.ReadFromJsonAsync<AlisDto>(cancellationToken: ct))!;
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();

@@ -392,7 +392,7 @@ public class GocOncesiYedekTests
             yazan.Open();
             var adimlar = 0;
             TimeSpan? yazmaSuresi = null;
-            YedekServisi.AdimliKopyala(kaynak, hedef, sayfaGrubu: 16, adimSonrasi: () =>
+            YedekServisi.AdimliKopyala(kaynak, hedef, ct: TestContext.Current.CancellationToken, sayfaGrubu: 16, adimSonrasi: () =>
             {
                 if (++adimlar != 3)
                     return;
@@ -419,13 +419,13 @@ public class GocOncesiYedekTests
             using var tutan = new SqliteConnection(Baglanti(kaynakYol));
             tutan.Open();
             Calistir(tutan, "BEGIN EXCLUSIVE; INSERT INTO Veri (Icerik) VALUES (x'BEEF');");
-            var birak = Task.Run(async () => { await Task.Delay(400); Calistir(tutan, "COMMIT;"); });
+            var birak = Task.Run(async () => { await Task.Delay(400); Calistir(tutan, "COMMIT;"); }, TestContext.Current.CancellationToken);
             using var kaynak = new SqliteConnection(Baglanti(kaynakYol));
             kaynak.Open();
             using var hedef = new SqliteConnection(Baglanti(hedefYol));
             hedef.Open();
             var sure = Stopwatch.StartNew();
-            YedekServisi.AdimliKopyala(kaynak, hedef);
+            YedekServisi.AdimliKopyala(kaynak, hedef, TestContext.Current.CancellationToken);
             await birak;
             Assert.True(sure.Elapsed >= TimeSpan.FromMilliseconds(300), "Kopya meşgul kaynakta beklemeli ve yeniden denemeli.");
             Assert.Equal("ok", Deger(hedef, "PRAGMA integrity_check;"));

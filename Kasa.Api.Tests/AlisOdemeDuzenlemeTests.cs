@@ -14,13 +14,14 @@ public class AlisOdemeDuzenlemeTests
     [Fact]
     public async Task Odeme_duzelt_tasi_iptal_tekrar_guvenlidir_belge_ve_mali_kayit_birlikte_korunur()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
         await AlisIsAkisiTests.Prepare(c);
         var source = await Purchase(c, "Kaynak", 100m);
         var target = await Purchase(c, "Hedef", 200m);
         var create = new AlisOdemeYaz(source.Surum, Guid.NewGuid(), Date, 40m);
-        source = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{source.Id}/odemeler", create));
+        source = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{source.Id}/odemeler", create, cancellationToken: ct));
         var payment = source.Odemeler.Single();
         using (var scope = f.Services.CreateScope())
         {
@@ -29,14 +30,14 @@ public class AlisOdemeDuzenlemeTests
             db.SaveChanges();
         }
         var change = new AlisOdemeDuzelt(source.Surum, Guid.NewGuid(), Date, 70m, "Yanlış alış ve tutar düzeltildi", HedefAlisId: target.Id, HedefSurum: target.Surum);
-        var emptied = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change));
+        var emptied = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change, cancellationToken: ct));
         Assert.Equal(0m, emptied.Odenen);
-        var replay = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change with { Surum = 999, HedefSurum = 999 }));
+        var replay = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change with { Surum = 999, HedefSurum = 999 }, cancellationToken: ct));
         Assert.Equal(emptied.Surum, replay.Surum);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change with { Tutar = 71m })).StatusCode);
-        target = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!.Single(a => a.Id == target.Id);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change with { Tutar = 71m }, cancellationToken: ct)).StatusCode);
+        target = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis", cancellationToken: ct))!.Single(a => a.Id == target.Id);
         Assert.Equal(70m, target.Odenen);
-        Assert.Equal(930m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(930m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -44,13 +45,13 @@ public class AlisOdemeDuzenlemeTests
             Assert.Single(db.Islemler);
         }
         var cancel = new AlisOdemeIptal(target.Surum, Guid.NewGuid(), "Ödeme gerçekleşmedi");
-        var canceled = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{target.Id}/odemeler/{payment.Id}/iptal", cancel));
+        var canceled = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{target.Id}/odemeler/{payment.Id}/iptal", cancel, cancellationToken: ct));
         Assert.Equal(0m, canceled.Odenen);
         Assert.Empty(canceled.Odemeler);
-        var canceledAgain = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{target.Id}/odemeler/{payment.Id}/iptal", cancel));
+        var canceledAgain = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{target.Id}/odemeler/{payment.Id}/iptal", cancel, cancellationToken: ct));
         Assert.Equal(canceled.Surum, canceledAgain.Surum);
-        await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{source.Id}/odemeler", create));
-        Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{source.Id}/odemeler", create, cancellationToken: ct));
+        Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
         using var finalScope = f.Services.CreateScope();
         var finalDb = finalScope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Empty(finalDb.Islemler);
@@ -64,16 +65,17 @@ public class AlisOdemeDuzenlemeTests
     [Fact]
     public async Task Duzeltmede_eski_surum_fazla_odeme_ve_bos_aciklama_mali_kaydi_degistirmez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
         await AlisIsAkisiTests.Prepare(c);
         var a = await Purchase(c, "Firma", 100m);
-        a = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Date, 30m)));
+        a = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Date, 30m), cancellationToken: ct));
         var o = a.Odemeler.Single();
         var change = new AlisOdemeDuzelt(a.Surum, Guid.NewGuid(), Date, 120m, "Düzeltme");
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{a.Id}/odemeler/{o.Id}", change)).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{a.Id}/odemeler/{o.Id}", change with { Surum = 0, Tutar = 50m })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/alis/{a.Id}/odemeler/{o.Id}", change with { Tutar = 50m, Aciklama = " " })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{a.Id}/odemeler/{o.Id}", change, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/alis/{a.Id}/odemeler/{o.Id}", change with { Surum = 0, Tutar = 50m }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/alis/{a.Id}/odemeler/{o.Id}", change with { Tutar = 50m, Aciklama = " " }, cancellationToken: ct)).StatusCode);
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Equal(30m, db.Islemler.Single().TutarTl);
@@ -84,6 +86,7 @@ public class AlisOdemeDuzenlemeTests
     [Fact]
     public async Task Kart_kaydi_olmayan_eski_harcama_duzeltme_ve_tasimada_nakde_donusmez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
         await AlisIsAkisiTests.Prepare(c);
@@ -98,10 +101,11 @@ public class AlisOdemeDuzenlemeTests
         }
         var source = await Purchase(c, "Kaynak", 100m);
         var target = await Purchase(c, "Hedef", 100m);
-        source = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{source.Id}/odemeler", new AlisOdemeYaz(source.Surum, Guid.NewGuid(), Date, 100m, MevcutIslemId: expenseId)));
+        source = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{source.Id}/odemeler",
+            new AlisOdemeYaz(source.Surum, Guid.NewGuid(), Date, 100m, MevcutIslemId: expenseId), cancellationToken: ct));
         var payment = source.Odemeler.Single();
         var change = new AlisOdemeDuzelt(source.Surum, Guid.NewGuid(), Date.AddDays(3), 100m, "Doğru alışa taşındı", HedefAlisId: target.Id, HedefSurum: target.Surum);
-        var moved = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change));
+        var moved = await Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{source.Id}/odemeler/{payment.Id}", change, cancellationToken: ct));
         Assert.Empty(moved.Odemeler);
         using var finalScope = f.Services.CreateScope();
         var finalDb = finalScope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -111,7 +115,7 @@ public class AlisOdemeDuzenlemeTests
         Assert.Equal(Date.AddDays(3), expense.Tarih);
         Assert.Equal(target.Id, finalDb.AlisOdemeler.Single().AlisId);
         Assert.Empty(finalDb.HesapHareketler);
-        var month = (await c.GetFromJsonAsync<AylikRapor>("/api/rapor/aylik?yil=2026&ay=9"))!;
+        var month = (await c.GetFromJsonAsync<AylikRapor>("/api/rapor/aylik?yil=2026&ay=9", cancellationToken: ct))!;
         Assert.Equal(0m, month.DagilimBekleyenTutar);
         Assert.All(month.Kanallar, k => Assert.Equal(0m, k.CariGiden));
     }
@@ -146,8 +150,8 @@ public class AlisOdemeDuzenlemeTests
         await AlisIsAkisiTests.Prepare(c);
         var dto = new AlisYaz(0, Date, "Firma", null, [new("Kalem", 100m, [])]);
         dto = field switch { "tedarikci" => dto with { TedarikciId = 1 }, "vade" => dto with { Vade = Date }, _ => dto with { Kalemler = [new("Kalem", 100m, [], 1m, 100m)] } };
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/alis", dto)).StatusCode);
-        Assert.Empty((await c.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/alis", dto, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Empty((await c.GetFromJsonAsync<List<AlisDto>>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!);
     }
 
     [Fact]
@@ -157,13 +161,13 @@ public class AlisOdemeDuzenlemeTests
         using var c = await f.EditorClientAsync();
         foreach (var path in new[] { "/api/alis/tedarikciler", "/api/tedarikciler/borclar", "/api/tedarikciler/1/alislar", "/api/hesaplar", "/api/hesaplar/1/hareketler", "/api/is-listesi", "/api/nakit-takvimi" })
         {
-            var response = await c.GetAsync(path);
+            var response = await c.GetAsync(path, TestContext.Current.CancellationToken);
             Assert.True(response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed, $"{path}: {response.StatusCode}");
         }
         foreach (var path in new[] { "/api/hesaplar", "/api/hesaplar/transferler", "/api/hesaplar/1/hareketler", "/api/krediler/1/taksitler/1/ode", "/api/krediler/1/gerceklesme-takibi" })
         {
             // Yönlendirici eşleşmeyen yöntem için 405 de verebilir; işlem erişilebilir olmamalı.
-            var response = await c.PostAsJsonAsync(path, new { });
+            var response = await c.PostAsJsonAsync(path, new { }, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed, $"{path}: {response.StatusCode}");
         }
     }

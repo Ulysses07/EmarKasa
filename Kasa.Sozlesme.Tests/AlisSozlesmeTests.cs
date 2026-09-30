@@ -34,7 +34,7 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         Assert.Equal(1200.5m, alis.Toplam);
         Assert.Equal(2, Assert.Single(alis.Kalemler).Dagilimlar.Count);
 
-        var belge = await alici.Yonetim.BelgeYukleAsync(alis.Id, "fatura.pdf", "application/pdf", "%PDF-1.7 fatura"u8.ToArray());
+        var belge = await alici.Yonetim.BelgeYukleAsync(alis.Id, "fatura.pdf", "application/pdf", "%PDF-1.7 fatura"u8.ToArray(), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, alici.SonYanit.Durum);
         Assert.Equal((alis.Id, "fatura.pdf", "application/pdf", 15L), (belge.AlisId, belge.DosyaAdi, belge.IcerikTuru, belge.Boyut));
         Assert.Equal(("alici", "Sözleşme Alıcısı 2", false), (belge.YukleyenRol, belge.Yukleyen, belge.Silindi));
@@ -59,7 +59,7 @@ public class AlisSozlesmeTests : SozlesmeTemeli
         Assert.Equal(alis.Surum, Assert.Single(await editor.Alis.AlislarAsync()).Surum);
 
         using var hedef = new MemoryStream();
-        var indirilen = await editor.Yonetim.BelgeIndirAsync(belge.Id, hedef);
+        var indirilen = await editor.Yonetim.BelgeIndirAsync(belge.Id, hedef, TestContext.Current.CancellationToken);
         Assert.Equal(("fatura.pdf", "application/pdf", 15L), (indirilen.DosyaAdi, indirilen.IcerikTuru, indirilen.Boyut));
         Assert.Equal("%PDF-1.7 fatura"u8.ToArray(), hedef.ToArray());
         // Silme yumuşaktır: editör gerekçeyle kaldırır; varsayılan liste boşalır, silinenler listesinde iziyle görünür.

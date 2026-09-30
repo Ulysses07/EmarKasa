@@ -16,10 +16,10 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
     public async Task Cari_yonetimi_kapsam_disidir_ve_tum_uclari_404_doner()
     {
         var client = await _factory.EditorClientAsync();
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/cariler")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/cariler", new { ad = "Firma" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync("/api/cariler/1", new { ad = "Firma" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync("/api/cariler/1")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/cariler", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/cariler", new { ad = "Firma" }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync("/api/cariler/1", new { ad = "Firma" }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync("/api/cariler/1", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     // Sunucu enum'ları string serileştiriyor (JsonStringEnumConverter); istemci de aynısını çözmeli.
@@ -44,20 +44,20 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
             kanal = "MEZAT",
             tip = "Cari",
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, olustur.StatusCode);
-        var eklenen = await olustur.Content.ReadFromJsonAsync<IslemYanit>(Json);
+        var eklenen = await olustur.Content.ReadFromJsonAsync<IslemYanit>(Json, cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(eklenen);
         Assert.Equal("PORT KARGO", eklenen!.Cari);
         Assert.Equal(GiderTipi.Cari, eklenen.Tip);
 
-        var liste = await client.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", Json);
+        var liste = await client.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", Json, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Contains(liste!, i => i.Id == eklenen.Id);
 
-        var sil = await client.DeleteAsync($"/api/islemler/{eklenen.Id}");
+        var sil = await client.DeleteAsync($"/api/islemler/{eklenen.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
 
-        var listeSonra = await client.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", Json);
+        var listeSonra = await client.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", Json, cancellationToken: TestContext.Current.CancellationToken);
         Assert.DoesNotContain(listeSonra!, i => i.Id == eklenen.Id);
     }
 
@@ -66,15 +66,15 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
     {
         // İzleyici şifresini editör olarak ayarla, sonra izleyici olarak login ol.
         var editor = await _factory.EditorClientAsync();
-        var setSifre = await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
+        var setSifre = await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
         setSifre.EnsureSuccessStatusCode();
 
         var izleyici = _factory.CreateClient();
-        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
+        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
         giris.EnsureSuccessStatusCode();
 
         // Okuma serbest:
-        var okuma = await izleyici.GetAsync("/api/islemler");
+        var okuma = await izleyici.GetAsync("/api/islemler", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, okuma.StatusCode);
 
         // Yazma yasak:
@@ -86,7 +86,7 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
             kanal = "MEZAT",
             tip = "Cari",
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }
 
@@ -102,10 +102,10 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
             db.SaveChanges();
         }
 
-        await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 100m });
-        await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 289_425m });
+        await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 100m }, cancellationToken: TestContext.Current.CancellationToken);
+        await client.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-29", kanal = "MEZAT", tutarTl = 289_425m }, cancellationToken: TestContext.Current.CancellationToken);
 
-        var liste = await client.GetFromJsonAsync<List<GelenYanit>>("/api/gelenler?donemStart=2026-06-29");
+        var liste = await client.GetFromJsonAsync<List<GelenYanit>>("/api/gelenler?donemStart=2026-06-29", cancellationToken: TestContext.Current.CancellationToken);
         var mezat = liste!.Where(g => g.Kanal == "MEZAT").ToList();
         Assert.Single(mezat);                       // upsert: tek satır
         Assert.Equal(289_425m, mezat[0].TutarTl);   // güncellenmiş değer

@@ -14,7 +14,7 @@ public class EkstreEslesmeSozlesmeTests : SozlesmeTemeli
     {
         var o = await Editor();
         await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
-        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 eslesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null);
+        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 eslesme"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana hesap", null, TestContext.Current.CancellationToken);
         var okunan = Assert.Single(belge.Satirlar);
         var tutar = Math.Abs(okunan.Tutar!.Value);
         var gider = await o.Kasa.IslemOlusturAsync(new IslemYaz(okunan.Tarih!.Value.AddDays(-2), "Kargo", tutar, "MEZAT", GiderTipi.Cari, null));

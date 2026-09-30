@@ -39,45 +39,47 @@ public class TarihSiniriTests
     [Fact]
     public async Task Gider_tarihi_bugunden_bir_yil_sonrasini_asamaz_sinir_dahildir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         // host-auth-4 (b): yazım hatalı gelecek tarih (9026) haftalık raporun ufkunu kalıcı olarak uzatırdı.
         foreach (var tarih in new[] { Bugun.AddYears(1).AddDays(1), new DateOnly(9026, 9, 25), new DateOnly(9998, 12, 31) })
         {
-            var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(tarih, "Yazım hatası", 10m, "MEZAT", GiderTipi.Cari));
+            var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(tarih, "Yazım hatası", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
             Assert.Equal("Tarih 01.01.2000 ile 25.09.2027 arasında olmalıdır.", await AlanHatasi(r, "tarih"));
         }
-        var varsayilan = await c.PostAsJsonAsync("/api/islemler", new { tarih = "0001-01-01", cari = "Tarihsiz", tutarTl = 10m, kanal = "MEZAT", tip = "Cari" });
+        var varsayilan = await c.PostAsJsonAsync("/api/islemler", new { tarih = "0001-01-01", cari = "Tarihsiz", tutarTl = 10m, kanal = "MEZAT", tip = "Cari" }, cancellationToken: ct);
         Assert.Equal("Geçerli bir tarih seçin.", await AlanHatasi(varsayilan, "tarih"));
         using (var scope = f.Services.CreateScope())
             Assert.Empty(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Islemler);
 
         // Sınır dahil: planlı ileri tarihli gider bir yıl içinde girilebilir; dönemler de bu tarihte biter.
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun.AddYears(1), "Yıllık sigorta", 10m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
-        var donemler = (await c.GetFromJsonAsync<JsonElement>("/api/donemler")).EnumerateArray().ToList();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun.AddYears(1), "Yıllık sigorta", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
+        var donemler = (await c.GetFromJsonAsync<JsonElement>("/api/donemler", cancellationToken: ct)).EnumerateArray().ToList();
         Assert.Equal(Bugun.AddYears(1), donemler.Max(d => DateOnly.Parse(d.GetProperty("end").GetString()!)));
     }
 
     [Fact]
     public async Task Ayni_pencere_takip_baslangici_gelir_donemi_ve_alis_tarihinde_uygulanir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         // host-auth-4 (c): kurulumda 0026 yazılan takip başlangıcı ilk hareketten sonra düzeltilemezdi.
         foreach (var tarih in new[] { "0026-09-01", "1999-12-31", "2027-09-26" })
         {
-            var r = await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = tarih, kasaAcilisDevri = 0m });
+            var r = await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = tarih, kasaAcilisDevri = 0m }, cancellationToken: ct);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
             Assert.Equal("Tarih 01.01.2000 ile 25.09.2027 arasında olmalıdır.", await AlanHatasi(r, "takipBaslangic"));
         }
-        Assert.Equal(Bugun, DateOnly.Parse((await c.GetFromJsonAsync<JsonElement>("/api/ayarlar")).GetProperty("takipBaslangic").GetString()!));
+        Assert.Equal(Bugun, DateOnly.Parse((await c.GetFromJsonAsync<JsonElement>("/api/ayarlar", cancellationToken: ct)).GetProperty("takipBaslangic").GetString()!));
 
-        var gelir = await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(new DateOnly(2030, 1, 1), "MEZAT", 100m));
+        var gelir = await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(new DateOnly(2030, 1, 1), "MEZAT", 100m), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, gelir.StatusCode);
         Assert.Equal("Tarih 01.01.2000 ile 25.09.2027 arasında olmalıdır.", await AlanHatasi(gelir, "donemStart"));
 
-        var alis = await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, new DateOnly(2062, 9, 25), "Satıcı", null, [new("Mal", 100m, [new(1, 100m)])]));
+        var alis = await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, new DateOnly(2062, 9, 25), "Satıcı", null, [new("Mal", 100m, [new(1, 100m)])]), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, alis.StatusCode);
         Assert.Equal("Tarih 01.01.2000 ile 25.09.2027 arasında olmalıdır.", await AlanHatasi(alis, "tarih"));
     }
@@ -99,36 +101,38 @@ public class TarihSiniriTests
         {
             foreach (var yol in new[] { "/api/rapor/aylik", "/api/aylik-giderler" })
             {
-                var r = await c.GetAsync($"{yol}?yil={yil}&ay={ay}");
+                var r = await c.GetAsync($"{yol}?yil={yil}&ay={ay}", TestContext.Current.CancellationToken);
                 Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
                 Assert.Equal(ileti, await AlanHatasi(r, alan));
             }
         }
         foreach (var (yil, ay) in new[] { (2000, 1), (2027, 12), (Bugun.Year, Bugun.Month) })
         {
-            (await c.GetAsync($"/api/rapor/aylik?yil={yil}&ay={ay}")).EnsureSuccessStatusCode();
-            (await c.GetAsync($"/api/aylik-giderler?yil={yil}&ay={ay}")).EnsureSuccessStatusCode();
+            (await c.GetAsync($"/api/rapor/aylik?yil={yil}&ay={ay}", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            (await c.GetAsync($"/api/aylik-giderler?yil={yil}&ay={ay}", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
     }
 
     [Fact]
     public async Task Aylik_gider_sablonunun_gecerlilik_ayi_ileri_pencereyi_asamaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var ileri = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", Sablon(new DateOnly(2027, 10, 1)));
+        var ileri = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", Sablon(new DateOnly(2027, 10, 1)), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, ileri.StatusCode);
-        Assert.Equal("Geçerlilik cari ay ile 09.2027 arasında bir ayın ilk günü olmalı.", (await ileri.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
-        (await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", Sablon(new DateOnly(2027, 9, 1)))).EnsureSuccessStatusCode();
+        Assert.Equal("Geçerlilik cari ay ile 09.2027 arasında bir ayın ilk günü olmalı.", (await ileri.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("hata").GetString());
+        (await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", Sablon(new DateOnly(2027, 9, 1)), cancellationToken: ct)).EnsureSuccessStatusCode();
     }
 
     [Fact]
     public async Task Takip_baslangicindan_once_yeni_gider_girilemez_mevcut_eski_kayit_ve_raporlari_degismez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var baslangic = new DateOnly(2026, 6, 15);
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
         // Kural öncesinden kalan kayıt (canlı veride olabilir): takip başlangıcından önce tarihli nakit gider.
         int eskiId;
         using (var scope = f.Services.CreateScope())
@@ -140,7 +144,7 @@ public class TarihSiniriTests
             db.SaveChanges();
             eskiId = eski.Id;
         }
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new DateOnly(2026, 7, 1), "Temmuz gideri", 300m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new DateOnly(2026, 7, 1), "Temmuz gideri", 300m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
         var raporlar = new[] { "/api/rapor/aylik?yil=2026&ay=6", "/api/rapor/aylik?yil=2026&ay=7", "/api/rapor/haftalik", "/api/rapor/panel", "/api/donemler" };
         var once = await Oku(c, raporlar);
 
@@ -153,19 +157,20 @@ public class TarihSiniriTests
             new IslemYazDto(new DateOnly(2025, 6, 15), "Yıl hatası", 100m, "MEZAT", GiderTipi.Cari),
         })
         {
-            var r = await c.PostAsJsonAsync("/api/islemler", yeni);
+            var r = await c.PostAsJsonAsync("/api/islemler", yeni, cancellationToken: ct);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
             Assert.Equal(ileti, await AlanHatasi(r, "tarih"));
         }
         // Mevcut eski kayıt tarihi değişmeden düzenlenebilir; tarihi başlangıç öncesinde başka bir güne taşınamaz.
         var eskiYaz = new IslemYazDto(new DateOnly(2026, 6, 10), "Eski fatura", 5000m, "MEZAT", GiderTipi.Cari, Not: "Fatura no 12");
-        (await c.PutAsJsonAsync($"/api/islemler/{eskiId}", eskiYaz)).EnsureSuccessStatusCode();
-        var tasima = await c.PutAsJsonAsync($"/api/islemler/{eskiId}", eskiYaz with { Tarih = new DateOnly(2026, 6, 1) });
+        (await c.PutAsJsonAsync($"/api/islemler/{eskiId}", eskiYaz, cancellationToken: ct)).EnsureSuccessStatusCode();
+        var tasima = await c.PutAsJsonAsync($"/api/islemler/{eskiId}", eskiYaz with { Tarih = new DateOnly(2026, 6, 1) }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, tasima.StatusCode);
         Assert.Equal(ileti, await AlanHatasi(tasima, "tarih"));
         // Takip içindeki kayıt da başlangıç öncesine çekilemez.
-        var temmuz = (await c.GetFromJsonAsync<JsonElement>("/api/islemler")).EnumerateArray().Single(i => i.GetProperty("cari").GetString() == "Temmuz gideri").GetProperty("id").GetInt32();
-        var geriCekme = await c.PutAsJsonAsync($"/api/islemler/{temmuz}", new IslemYazDto(new DateOnly(2026, 6, 14), "Temmuz gideri", 300m, "MEZAT", GiderTipi.Cari));
+        var temmuz = (await c.GetFromJsonAsync<JsonElement>("/api/islemler",
+            cancellationToken: ct)).EnumerateArray().Single(i => i.GetProperty("cari").GetString() == "Temmuz gideri").GetProperty("id").GetInt32();
+        var geriCekme = await c.PutAsJsonAsync($"/api/islemler/{temmuz}", new IslemYazDto(new DateOnly(2026, 6, 14), "Temmuz gideri", 300m, "MEZAT", GiderTipi.Cari), cancellationToken: ct);
         Assert.Equal(ileti, await AlanHatasi(geriCekme, "tarih"));
 
         // Reddedilen girişler ve eski kaydın not düzeltmesi hiçbir raporu değiştirmez; eski kayıt listede kalır.
@@ -178,17 +183,18 @@ public class TarihSiniriTests
             Assert.Equal(2, db.Islemler.Count());
         }
         // Takip başlangıcı günü kabul edilir.
-        Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(baslangic, "İlk gün", 10m, "MEZAT", GiderTipi.Cari))).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(baslangic, "İlk gün", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
     public async Task Ilk_acilis_takip_baslangici_kasa_saatinin_Istanbul_gunudur()
     {
+        var ct = TestContext.Current.CancellationToken;
         // 09.03.2026 22:30 UTC İstanbul'da 10.03.2026 01:30'dur; makinenin yerel günü ve UTC günü değil, kasa günü tohumlanır.
         var an = new DateTimeOffset(2026, 3, 9, 22, 30, 0, TimeSpan.Zero);
         await using var f = new TohumsuzSaatliFabrika(new SabitSaat(an));
         using var c = await f.EditorClientAsync();
-        Assert.Equal(new DateOnly(2026, 3, 10), DateOnly.Parse((await c.GetFromJsonAsync<JsonElement>("/api/ayarlar")).GetProperty("takipBaslangic").GetString()!));
+        Assert.Equal(new DateOnly(2026, 3, 10), DateOnly.Parse((await c.GetFromJsonAsync<JsonElement>("/api/ayarlar", cancellationToken: ct)).GetProperty("takipBaslangic").GetString()!));
     }
 
     /// <summary>

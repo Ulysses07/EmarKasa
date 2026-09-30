@@ -159,7 +159,7 @@ public class UcYetkiTaramasiTests : IClassFixture<SabitSaatliKasaWebFactory>
         using var editor = await _f.EditorClientAsync();
         using var izleyici = await IzleyiciAsync(editor);
         using var istek = new HttpRequestMessage(new HttpMethod(yontem), yol) { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
-        using var yanit = await izleyici.SendAsync(istek);
+        using var yanit = await izleyici.SendAsync(istek, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, yanit.StatusCode);
     }
 

@@ -12,7 +12,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public async Task Kok_istegi_mobil_giris_sayfasini_sunar()
     {
         var client = _factory.CreateClient();
-        var yanit = await client.GetAsync("/");
+        var yanit = await client.GetAsync("/", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         Assert.Equal("text/html", yanit.Content.Headers.ContentType?.MediaType);
     }
@@ -21,11 +21,11 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public async Task Telefon_arayuzu_m_altinda_ayni_guvenlik_basliklariyla_sunulur()
     {
         var client = _factory.CreateClient();
-        var yanit = await client.GetAsync("/m/");
+        var yanit = await client.GetAsync("/m/", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         Assert.Equal("text/html", yanit.Content.Headers.ContentType?.MediaType);
         Assert.Contains("script-src 'self'", yanit.Headers.GetValues("Content-Security-Policy").Single());
-        Assert.Contains("/m/app.js", await yanit.Content.ReadAsStringAsync());
+        Assert.Contains("/m/app.js", await yanit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     // Web arayüzü adreslerinde sürüm sorgusu (?v=) yoktur (Kasa.Api.Ui.Tests yasaklar.test.mjs): tazelik bu başlıklara dayanır.
@@ -44,7 +44,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public async Task Web_arayuzu_dosyalari_her_kullanimda_dogrulanir_no_cache_ve_ETag(string yol)
     {
         var client = _factory.CreateClient();
-        var yanit = await client.GetAsync(yol);
+        var yanit = await client.GetAsync(yol, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         Assert.True(yanit.Headers.CacheControl?.NoCache, $"{yol}: Cache-Control no-cache değil ({yanit.Headers.CacheControl}).");
         var etiket = yanit.Headers.ETag;
@@ -52,7 +52,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
 
         using var kosullu = new HttpRequestMessage(HttpMethod.Get, yol);
         kosullu.Headers.IfNoneMatch.Add(etiket);
-        var ikinci = await client.SendAsync(kosullu);
+        var ikinci = await client.SendAsync(kosullu, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotModified, ikinci.StatusCode);
     }
 
@@ -60,7 +60,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public async Task Istemci_rotasi_404_doner_fallback_yok()
     {
         var client = _factory.CreateClient();
-        var yanit = await client.GetAsync("/haftalik");
+        var yanit = await client.GetAsync("/haftalik", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, yanit.StatusCode);
     }
 
@@ -68,7 +68,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public async Task Api_yolu_kimliksiz_401_doner()
     {
         var client = _factory.CreateClient();
-        var yanit = await client.GetAsync("/api/kanallar");
+        var yanit = await client.GetAsync("/api/kanallar", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, yanit.StatusCode);
     }
 
@@ -76,7 +76,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     public async Task Saglik_ucu_200_doner()
     {
         var client = _factory.CreateClient();
-        var yanit = await client.GetAsync("/health");
+        var yanit = await client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
     }
 }

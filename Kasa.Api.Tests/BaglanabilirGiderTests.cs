@@ -77,7 +77,7 @@ public class BaglanabilirGiderTests
             db.Database.ExecuteSqlInterpolated($"INSERT INTO EkstreKayitlar (BelgeId, SatirNo, Tarih, Aciklama, Tutar, IslemTuru, DagilimTuru, DagilimJson, IslemId, Iptal) VALUES ({belge.Id}, 1, {Today}, 'Ekstreden', '40.0', 'Gider', 'Genel', '[]', {e.Id}, 0)");
             (ekstreli, kredili, hesapli, takipOncesi) = (e.Id, k.Id, h.Id, t.Id);
         }
-        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
+        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", cancellationToken: TestContext.Current.CancellationToken))!;
         await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, old.Year, old.Month, "Ay tamamlandı"));
 
         // Banka ekstresi gideri kaynak satırıyla listelenir (gap-coklu-giris-cift-sayim-mutabakat-1: bağlanınca satır eşleşmeye döner).
@@ -130,7 +130,7 @@ public class BaglanabilirGiderTests
 
         foreach (var hatali in new[] { "?limit=0", "?limit=201", "?imlec=bozuk", "?tutar=abc", "?tutar=-5", $"?baslangic={Today:yyyy-MM-dd}&bitis={Today.AddDays(-1):yyyy-MM-dd}", "?arama=" + new string('a', 201) })
         {
-            using var r = await c.GetAsync(Uc + hatali);
+            using var r = await c.GetAsync(Uc + hatali, TestContext.Current.CancellationToken);
             Assert.True(r.StatusCode == HttpStatusCode.BadRequest, hatali);
         }
     }
@@ -159,7 +159,7 @@ public class BaglanabilirGiderTests
 
         foreach (var hatali in new[] { "?arama=2024&aramaTutari=abc", "?aramaTutari=0", "?aramaTutari=1.234" })
         {
-            using var r = await c.GetAsync(Uc + hatali);
+            using var r = await c.GetAsync(Uc + hatali, TestContext.Current.CancellationToken);
             Assert.True(r.StatusCode == HttpStatusCode.BadRequest, hatali);
         }
     }
@@ -170,12 +170,12 @@ public class BaglanabilirGiderTests
         await using var f = Fabrika();
         using var editor = await Editor(f);
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "baglanabilir");
-        Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(Uc)).StatusCode);
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi-12" })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(Uc, TestContext.Current.CancellationToken)).StatusCode);
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi-12" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var izleyici = f.CreateClient();
-        (await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifresi-12" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync(Uc)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await f.CreateClient().GetAsync(Uc)).StatusCode);
+        (await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifresi-12" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync(Uc, TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await f.CreateClient().GetAsync(Uc, TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class BaglanabilirGiderTests
         f.Sayac.Sifirla();
         f.Sayac.Etkin = true;
         try
-        { (await c.GetAsync("/api/islemler")).EnsureSuccessStatusCode(); }
+        { (await c.GetAsync("/api/islemler", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode(); }
         finally { f.Sayac.Etkin = false; }
         Assert.Equal(1, f.Sayac.Komutlar.Count(k => k.Contains("FROM \"Kanallar\"")));
         // Aylık gider revizyonları yalnız listedeki ödemeler için okunur (bütün tablo değil).
@@ -246,6 +246,7 @@ public class AlisIncelemeOzetiTests
     [Fact]
     public async Task Inceleme_bekleyen_sayisini_ve_en_yeni_alislari_liste_sirasi_ve_bicimiyle_doner()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Fabrika();
         using var editor = await Editor(f);
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "inceleme-ozeti");
@@ -253,10 +254,10 @@ public class AlisIncelemeOzetiTests
         for (var i = 0; i < 6; i++)
             gonderilen.Add(await Incelemede(i % 2 == 0 ? alici : editor, Today.AddDays(-(i % 3)), $"Tedarikçi {i}"));
         await AlisTestYardimcisi.Taslak(alici, "Taslakta kalan");
-        (await editor.PostAsJsonAsync($"/api/alis/{gonderilen[0].Id}/onayla", new AlisDurumYaz(gonderilen[0].Surum))).EnsureSuccessStatusCode();
+        (await editor.PostAsJsonAsync($"/api/alis/{gonderilen[0].Id}/onayla", new AlisDurumYaz(gonderilen[0].Surum), cancellationToken: ct)).EnsureSuccessStatusCode();
 
         // Beklenen: tam listenin incelemedeki alışları, aynı sırayla (tarih ve kimlik azalan) ve aynı DTO biçimiyle.
-        var bekleyen = (await editor.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!.Where(a => a.Durum == AlisDurumlari.Incelemede).ToList();
+        var bekleyen = (await editor.GetFromJsonAsync<List<AlisDto>>("/api/alis", cancellationToken: ct))!.Where(a => a.Durum == AlisDurumlari.Incelemede).ToList();
         Assert.Equal(5, bekleyen.Count);
         var ozet = await Oku(editor);
         Assert.Equal(5, ozet.Sayi);
@@ -267,12 +268,12 @@ public class AlisIncelemeOzetiTests
 
         foreach (var hatali in new[] { "?adet=-1", "?adet=21" })
         {
-            using var r = await editor.GetAsync(Uc + hatali);
+            using var r = await editor.GetAsync(Uc + hatali, ct);
             Assert.True(r.StatusCode == HttpStatusCode.BadRequest, hatali);
         }
         // Alıcı yalnız kendi alışlarını görür: bütün alıcıların inceleme sayısı editöre özeldir.
-        Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(Uc)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await f.CreateClient().GetAsync(Uc)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(Uc, ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await f.CreateClient().GetAsync(Uc, ct)).StatusCode);
     }
 
     [Fact]

@@ -29,11 +29,11 @@ public class AlisGiderYarisiTests
             await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
             await AlisIsAkisiTests.Prepare(editor);
-            var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
+            var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar", cancellationToken: TestContext.Current.CancellationToken))!;
             var purchase = await AlisIsAkisiTests.Read<AlisDto>(
-                await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels)));
+                await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels), cancellationToken: TestContext.Current.CancellationToken));
             var expense = await AlisIsAkisiTests.Read<JsonElement>(await editor.PostAsJsonAsync("/api/islemler",
-                new IslemYazDto(purchase.Tarih, "Tedarikçi", 100m, "Ortak", GiderTipi.Cari)));
+                new IslemYazDto(purchase.Tarih, "Tedarikçi", 100m, "Ortak", GiderTipi.Cari), cancellationToken: TestContext.Current.CancellationToken));
             int expenseId = expense.GetProperty("id").GetInt32();
 
             rendezvous.Enabled = true;
@@ -42,9 +42,9 @@ public class AlisGiderYarisiTests
             {
                 responses = await Task.WhenAll(
                     editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler",
-                        new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 100m, MevcutIslemId: expenseId)),
+                        new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 100m, MevcutIslemId: expenseId), cancellationToken: TestContext.Current.CancellationToken),
                     editor.PutAsJsonAsync($"/api/islemler/{expenseId}",
-                        new IslemYazDto(purchase.Tarih, "Tedarikçi", 150m, "Ortak", GiderTipi.Cari)));
+                        new IslemYazDto(purchase.Tarih, "Tedarikçi", 150m, "Ortak", GiderTipi.Cari), cancellationToken: TestContext.Current.CancellationToken));
             }
             finally { rendezvous.Enabled = false; }
 
@@ -77,7 +77,7 @@ public class AlisGiderYarisiTests
 
             // Aynı fiziksel gider ikinci defa kasaya yazılmamalı; bağlantı hangi
             // sırada kurulduysa kurulsun rapor başarılı ve DB tutarıyla mutabık kalır.
-            var weekly = (await editor.GetFromJsonAsync<List<HaftalikOzet>>("/api/rapor/haftalik"))!;
+            var weekly = (await editor.GetFromJsonAsync<List<HaftalikOzet>>("/api/rapor/haftalik", cancellationToken: TestContext.Current.CancellationToken))!;
             Assert.Equal(saved.TutarTl, weekly.Sum(h => h.ToplamGiden));
             Assert.Equal(1_000m - saved.TutarTl, weekly[^1].KasaDevir);
         }

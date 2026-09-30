@@ -84,7 +84,7 @@ public class TakipBaslangiciDegisikligiTests
         var kart = await Kart(c);
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, new(2026, 9, 17), 5_000m));
         await EkstreGeliri(f, c, new(2026, 9, 16), 20_000m);
-        Assert.Equal(25_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(25_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
         await Reddedilir(c, "takipli kart");
     }
 
@@ -103,7 +103,7 @@ public class TakipBaslangiciDegisikligiTests
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
         await EkstreGeliri(f, c, new(2026, 9, 16), 20_000m);
-        Assert.Equal(30_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(30_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
         await Reddedilir(c, "ekstre kaydı");
     }
 
@@ -135,10 +135,11 @@ public class TakipBaslangiciDegisikligiTests
     [Fact]
     public async Task Bos_veritabaninda_baslangic_ileri_ve_geri_alinabilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
         (await Ayar(c, YeniBaslangic)).EnsureSuccessStatusCode();
         (await Ayar(c, Baslangic)).EnsureSuccessStatusCode();
-        Assert.Equal(Baslangic, (await c.GetFromJsonAsync<JsonElement>("/api/ayarlar")).GetProperty("takipBaslangic").Deserialize<DateOnly>());
+        Assert.Equal(Baslangic, (await c.GetFromJsonAsync<JsonElement>("/api/ayarlar", cancellationToken: ct)).GetProperty("takipBaslangic").Deserialize<DateOnly>());
     }
 }

@@ -43,7 +43,7 @@ public class FinansIyilestirmeTests
         var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"panel":{"guncelKasa":90,"kanallar":[{"kanal":"MEZAT","bakiye":90,"kanalId":2}],"buHaftaSonucu":0,"buAySonucu":0}}""")
             .Kuyrukla(HttpStatusCode.OK, """[{"id":5,"surum":2,"aliciId":3,"alici":"Editör","tarih":"2026-09-24","tedarikci":"Mal","durum":"Onaylandi","toplam":100,"odenen":100,"kalan":0,"kalemler":[],"odemeler":[{"id":7,"islemId":8,"tarih":"2026-09-24","tutar":100,"krediKartiId":3,"krediKartiAdi":"Banka Kartı","dagilimBekliyor":false,"dagilimlar":[]}]}]""");
         var client = Client(h);
-        Assert.Equal(2, (await client.AnaSayfaAsync()).Panel.Kanallar.Single().KanalId);
+        Assert.Equal(2, (await client.AnaSayfaAsync(ct: TestContext.Current.CancellationToken)).Panel.Kanallar.Single().KanalId);
         var alis = (await client.AlislarAsync()).Single();
         Assert.Equal("Banka Kartı", alis.Odemeler.Single().KrediKartiAdi);
         // tests-8: kurgulanan JSON sunucunun alan adını taşır (aliciId); yanlış yazılmış alan sessizce null kalmaz.

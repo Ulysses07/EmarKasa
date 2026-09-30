@@ -20,7 +20,7 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         Assert.False(once.OtomatikEtkin);
         Assert.Null(once.SonYedek);
         using var zip = new MemoryStream();
-        var yedek = await o.Yonetim.YedekIndirAsync(zip);
+        var yedek = await o.Yonetim.YedekIndirAsync(zip, TestContext.Current.CancellationToken);
         Assert.Equal("application/zip", yedek.IcerikTuru);
         Assert.EndsWith(".zip", yedek.DosyaAdi);
         Assert.Equal(zip.Length, yedek.Boyut);

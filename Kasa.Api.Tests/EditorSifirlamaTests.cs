@@ -129,8 +129,8 @@ public class EditorSifirlamaTests
                 await SifreDegistir(once, Ortam1, P2);
                 eskiJwt = await Jwt(once, P2);
                 using var editor = Istemci(once, eskiJwt);
-                var yanit = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = P2 });
-                kod = (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kod").GetString()!;
+                var yanit = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = P2 }, cancellationToken: TestContext.Current.CancellationToken);
+                kod = (await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("kod").GetString()!;
                 // Bayrak yokken ortam şifresi yok sayılır.
                 Assert.Equal(HttpStatusCode.Unauthorized, await Giris(once, Ortam1));
             }
@@ -143,7 +143,7 @@ public class EditorSifirlamaTests
                 Assert.Equal(HttpStatusCode.Unauthorized, await Oturum(sifirla, eskiJwt));
                 using (var anonim = Istemci(sifirla))
                     Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtar",
-                        new { kullanici = "editor", kod, yeniSifre = "kurtarmayla-yeni-sifre" })).StatusCode);
+                        new { kullanici = "editor", kod, yeniSifre = "kurtarmayla-yeni-sifre" }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
                 var (sifreHash, kurtarmaHash, iz) = Durum(sifirla);
                 Assert.True(SifreHasher.Dogrula(Ortam1, sifreHash!));
                 Assert.Null(kurtarmaHash);

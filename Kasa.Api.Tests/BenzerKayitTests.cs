@@ -76,11 +76,11 @@ public class BenzerKayitTests
         await using var f = KasaWebFactory.Sabit(Date);
         using var c = await f.EditorClientAsync();
         var write = new IslemYazDto(Date, "Malzeme", 100, "MEZAT", GiderTipi.Cari);
-        (await c.PostAsJsonAsync("/api/islemler", write)).EnsureSuccessStatusCode();
-        (await c.PostAsJsonAsync("/api/islemler", write with { Kanal = "TOPTAN" })).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", write, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", write with { Kanal = "TOPTAN" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         Assert.Single(await Find(c, new("Gider", Date, 100, Kanal: "MEZAT")));
         Assert.Empty(await Find(c, new("Gider", Date, 100, Kanal: "PERAKENDE")));
-        (await c.PostAsJsonAsync("/api/islemler", write)).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", write, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         Assert.Equal(2, (await Find(c, new("Gider", Date, 100, Kanal: "MEZAT"))).Count);
     }
 
@@ -109,22 +109,23 @@ public class BenzerKayitTests
     [Fact]
     public async Task Benzerlik_sadece_editore_acik_ve_gecersiz_sorgular_reddedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Date);
         using var c = await f.EditorClientAsync();
         using var anonymous = f.CreateClient();
         var valid = new BenzerKayitSorgu("Gider", Date, 100, Kanal: "MEZAT");
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/islemler/benzerlik", valid, cancellationToken: ct)).StatusCode);
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/islemler/benzerlik", valid, cancellationToken: ct)).StatusCode);
         var buyer = await Post<AliciDto>(c, "/api/alicilar", new AliciYaz("benzer-alici", "Alıcı", "alici12345"));
         using var buyerClient = f.CreateClient();
-        (await buyerClient.PostAsJsonAsync("/api/auth/login", new { kullanici = buyer.Kullanici, sifre = "alici12345" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Forbidden, (await buyerClient.PostAsJsonAsync("/api/islemler/benzerlik", valid)).StatusCode);
+        (await buyerClient.PostAsJsonAsync("/api/auth/login", new { kullanici = buyer.Kullanici, sifre = "alici12345" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await buyerClient.PostAsJsonAsync("/api/islemler/benzerlik", valid, cancellationToken: ct)).StatusCode);
         foreach (var invalid in new[] { valid with { Tur = "Hatalı" }, valid with { Tutar = 1.001m }, valid with { Tarih = default }, valid with { Kanal = "" }, valid with { KrediKartiId = -1 }, valid with { Tur = "KartOdeme" }, valid with { Tur = "AlisOdeme" }, valid with { Kanal = "Yok" } })
-            Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/islemler/benzerlik", invalid)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsJsonAsync("/api/islemler/benzerlik", valid with { Tur = "AlisOdeme", AlisId = 99999 })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/islemler/benzerlik", invalid, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsJsonAsync("/api/islemler/benzerlik", valid with { Tur = "AlisOdeme", AlisId = 99999 }, cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
@@ -138,10 +139,10 @@ public class BenzerKayitTests
         var paid = await Post<AlisDto>(c, $"/api/alis/{draft.Id}/odemeler", new AlisOdemeYaz(draft.Surum, Guid.NewGuid(), Date, 100, 1, 1));
         Assert.Equal("Kart 1", Assert.Single(paid.Odemeler).KrediKartiAdi);
         Seed(f, db => { db.KrediKartlari.Find(1)!.Ad = "Yeni kart adı"; db.SaveChanges(); });
-        var list = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis"))!;
+        var list = (await c.GetFromJsonAsync<List<AlisDto>>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal("Yeni kart adı", list.Single().Odemeler.Single().KrediKartiAdi);
-        Assert.DoesNotContain("Kart 2", await (await c.GetAsync("/api/alis")).Content.ReadAsStringAsync());
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        Assert.DoesNotContain("Kart 2", await (await c.GetAsync("/api/alis", TestContext.Current.CancellationToken)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(1, panel.Kanallar.Single(k => k.Kanal == "MEZAT").KanalId);
     }
 

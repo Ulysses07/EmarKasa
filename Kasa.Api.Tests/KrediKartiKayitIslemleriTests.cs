@@ -24,7 +24,7 @@ public class KrediKartiKayitIslemleriTests : IClassFixture<KasaWebFactory>
             sonOdemeTarihi = "2026-07-25",
             limit = 100_000m,
             borc = 30_000m,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
         var eklenen = EskiFinansTohumu.Kart(_factory, new("Bonus", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 100_000m, 30_000m));
@@ -39,13 +39,13 @@ public class KrediKartiKayitIslemleriTests : IClassFixture<KasaWebFactory>
             sonOdemeTarihi = "2026-07-25",
             limit = 100_000m,
             borc = 45_000m,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, guncelle.StatusCode);
 
-        var liste = await client.GetFromJsonAsync<List<KartYanit>>("/api/kredikartlari");
+        var liste = await client.GetFromJsonAsync<List<KartYanit>>("/api/kredikartlari", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(45_000m, liste!.Single(k => k.Id == eklenen.Id).Borc);
 
-        var sil = await client.DeleteAsync($"/api/kredikartlari/{eklenen.Id}");
+        var sil = await client.DeleteAsync($"/api/kredikartlari/{eklenen.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
     }
 
@@ -66,9 +66,9 @@ public class KrediKartiKayitIslemleriTests : IClassFixture<KasaWebFactory>
         ];
         foreach (var govde in govdeler)
         {
-            using var yanit = await client.PostAsync(yol, govde);
+            using var yanit = await client.PostAsync(yol, govde, TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.Conflict, yanit.StatusCode);
-            Assert.Equal(ileti, (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+            Assert.Equal(ileti, (await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("hata").GetString());
         }
     }
 
@@ -76,13 +76,13 @@ public class KrediKartiKayitIslemleriTests : IClassFixture<KasaWebFactory>
     public async Task Izleyici_kart_okur_ama_ekleyemez()
     {
         var editor = await _factory.EditorClientAsync();
-        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
+        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var izleyici = _factory.CreateClient();
-        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
+        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
         giris.EnsureSuccessStatusCode();
 
-        var okuma = await izleyici.GetAsync("/api/kredikartlari");
+        var okuma = await izleyici.GetAsync("/api/kredikartlari", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, okuma.StatusCode);
 
         var yazma = await izleyici.PostAsJsonAsync("/api/kredikartlari", new
@@ -92,7 +92,7 @@ public class KrediKartiKayitIslemleriTests : IClassFixture<KasaWebFactory>
             sonOdemeTarihi = "2026-07-25",
             limit = 1m,
             borc = 0m,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }
 }

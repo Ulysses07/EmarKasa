@@ -100,12 +100,12 @@ public class ZamanAsimiTests
         using MemoryStream yedek = new(), belge = new(), rapor = new(), ekstre = new();
 
         await Task.WhenAll(
-            c.YedekIndirAsync(yedek),
-            c.BelgeIndirAsync(8, belge),
-            c.DisariAktarAsync(new(2016, 1, 1), new(2026, 9, 23), null, "xlsx", rapor),
-            c.EkstreDosyaAsync(8, ekstre),
-            c.BelgeYukleAsync(7, "dekont.pdf", "application/pdf", Encoding.UTF8.GetBytes("%PDF")),
-            c.EkstreYukleAsync(Encoding.UTF8.GetBytes("%PDF"), "hareket.pdf", "Banka", "QNB", "Ana", null));
+            c.YedekIndirAsync(yedek, TestContext.Current.CancellationToken),
+            c.BelgeIndirAsync(8, belge, TestContext.Current.CancellationToken),
+            c.DisariAktarAsync(new(2016, 1, 1), new(2026, 9, 23), null, "xlsx", rapor, TestContext.Current.CancellationToken),
+            c.EkstreDosyaAsync(8, ekstre, TestContext.Current.CancellationToken),
+            c.BelgeYukleAsync(7, "dekont.pdf", "application/pdf", Encoding.UTF8.GetBytes("%PDF"), cancellationToken: TestContext.Current.CancellationToken),
+            c.EkstreYukleAsync(Encoding.UTF8.GetBytes("%PDF"), "hareket.pdf", "Banka", "QNB", "Ana", null, TestContext.Current.CancellationToken));
 
         foreach (var akis in new[] { yedek, belge, rapor, ekstre })
             Assert.Equal(new byte[] { 1, 2, 3 }, akis.ToArray());
@@ -119,13 +119,14 @@ public class ZamanAsimiTests
 
         // Başlıklar hemen gelir, gövde 600 ms duraklar: normal süre (150 ms) gövde okumasını kesmez.
         var hedef = new MemoryStream();
-        var bilgi = await Client(new Handler((_, _) => Task.FromResult(Yavas(TimeSpan.FromMilliseconds(600))))).BelgeIndirAsync(8, hedef);
+        var bilgi = await Client(new Handler((_, _) => Task.FromResult(Yavas(TimeSpan.FromMilliseconds(600))))).BelgeIndirAsync(8, hedef, TestContext.Current.CancellationToken);
         Assert.Equal(veri, hedef.ToArray());
         Assert.Equal(1000, bilgi.Boyut);
 
         // Gövde indirme süresini aşarsa aynı sayaç keser: akış sınırsız asılı kalmaz.
         var kisaIndirme = new KasaZamanAsimlari(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(300), TimeSpan.FromSeconds(10));
-        await Assert.ThrowsAsync<TimeoutException>(() => Client(new Handler((_, _) => Task.FromResult(Yavas(TimeSpan.FromSeconds(30)))), kisaIndirme).BelgeIndirAsync(8, new MemoryStream()));
+        await Assert.ThrowsAsync<TimeoutException>(() => Client(new Handler((_, _) => Task.FromResult(Yavas(TimeSpan.FromSeconds(30)))), kisaIndirme).BelgeIndirAsync(8,
+            new MemoryStream(), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -148,7 +149,7 @@ public class ZamanAsimiTests
             })), "kasa-20260923-120000.zip"));
         }));
 
-        var bilgi = await c.YedekIndirAsync(hedef);
+        var bilgi = await c.YedekIndirAsync(hedef, TestContext.Current.CancellationToken);
 
         Assert.False(tamponlandi);
         Assert.Equal(HttpMethod.Post, istek!.Method);
@@ -197,14 +198,15 @@ public class ZamanAsimiTests
     [Fact]
     public async Task Belge_yukleme_bos_ve_10_mb_ustu_dosyayi_sunucuya_gondermez()
     {
+        var ct = TestContext.Current.CancellationToken;
         var cagri = 0;
         var c = Client(new Handler((_, _) => { cagri++; return Task.FromResult(Json(BelgeJson)); }));
 
-        await Assert.ThrowsAsync<ArgumentException>(() => c.BelgeYukleAsync(7, "bos.pdf", "application/pdf", []));
-        await Assert.ThrowsAsync<ArgumentException>(() => c.BelgeYukleAsync(7, "buyuk.pdf", "application/pdf", new byte[10 * 1024 * 1024 + 1]));
+        await Assert.ThrowsAsync<ArgumentException>(() => c.BelgeYukleAsync(7, "bos.pdf", "application/pdf", [], cancellationToken: ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => c.BelgeYukleAsync(7, "buyuk.pdf", "application/pdf", new byte[10 * 1024 * 1024 + 1], cancellationToken: ct));
         Assert.Equal(0, cagri);
 
-        await c.BelgeYukleAsync(7, "sinir.pdf", "application/pdf", new byte[10 * 1024 * 1024]);
+        await c.BelgeYukleAsync(7, "sinir.pdf", "application/pdf", new byte[10 * 1024 * 1024], cancellationToken: ct);
         Assert.Equal(1, cagri);
     }
 

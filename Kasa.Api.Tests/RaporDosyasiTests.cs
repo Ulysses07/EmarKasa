@@ -108,20 +108,20 @@ public class RaporDosyasiTests
         }
         string url = $"/api/disari-aktar?baslangic={Gun:yyyy-MM-dd}&bitis={Gun:yyyy-MM-dd}&bicim=";
 
-        var xlsx = await c.GetAsync(url + "xlsx");
+        var xlsx = await c.GetAsync(url + "xlsx", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, xlsx.StatusCode);
-        var metinler = XlsxMetinleri(await xlsx.Content.ReadAsByteArrayAsync());
+        var metinler = XlsxMetinleri(await xlsx.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
         Assert.Contains("Firma\uFFFD", metinler);
         Assert.Contains("a\uFFFDb\uFFFDc\uFFFDd\uFFFDe", metinler);
         Assert.Contains("=2+2", metinler);
 
-        var csv = await c.GetAsync(url + "csv");
+        var csv = await c.GetAsync(url + "csv", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
-        var csvMetni = await csv.Content.ReadAsStringAsync();
+        var csvMetni = await csv.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("\"Firma\uFFFD\"", csvMetni);
         Assert.Contains("\"'=2+2\"", csvMetni);
 
-        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync(url + "html")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync(url + "html", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     private static IslemOkuDto Satir(string cari, string? not, string kanal)

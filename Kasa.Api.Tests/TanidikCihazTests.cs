@@ -191,7 +191,7 @@ public class TanidikCihazTests
         using var tarayici = Tarayici(sonra, "198.51.100.51");
         using var istek = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login") { Content = JsonContent.Create(new { kullanici = "editor", sifre = "kasa123" }) };
         istek.Headers.Add("Cookie", cerez);
-        Assert.Equal(HttpStatusCode.OK, (await tarayici.SendAsync(istek)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await tarayici.SendAsync(istek, TestContext.Current.CancellationToken)).StatusCode);
         await Reddedildi(await Giris(Masaustu(sonra, "198.51.100.52"), "editor", "kasa123"));
     }
 
@@ -259,9 +259,9 @@ public class TanidikCihazTests
         // Belirteç saklanmamış açık oturum (ör. belirteç özelliğinden önce açılmış): yalnız JWT var.
         var (jwt, girisBelirteci) = await MasaustuGirisi(f, "198.51.100.150", "editor", "kasa123");
         using var oturum = Oturumlu(f, "198.51.100.150", jwt);
-        var me = await oturum.GetAsync("/api/auth/me");
+        var me = await oturum.GetAsync("/api/auth/me", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
-        var govde = await me.Content.ReadFromJsonAsync<JsonElement>();
+        var govde = await me.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
         var yenilenen = govde.GetProperty("cihaz").GetString();
 
         Assert.Equal("editor", govde.GetProperty("rol").GetString());
@@ -280,7 +280,7 @@ public class TanidikCihazTests
         using var tarayici = Tarayici(f, "198.51.100.151");
         var giris = CihazCerezi(await Giris(tarayici, "editor", "kasa123"))!.Split(';')[0];
 
-        var me = await tarayici.GetAsync("/api/auth/me");
+        var me = await tarayici.GetAsync("/api/auth/me", TestContext.Current.CancellationToken);
         Assert.Null(await GovdedekiBelirtec(me));
         Assert.False(me.Headers.Contains(Baslik));
         var yeni = CihazCerezi(me);
@@ -302,7 +302,7 @@ public class TanidikCihazTests
         // 100. günde uygulama açılışı (/me) belirteci yeniler; girişten 200 gün sonra giriş belirteci düşmüş, yenisi geçerlidir.
         saat.Simdi = Baslangic.AddDays(100);
         using var oturum = Oturumlu(f, "198.51.100.152", jwt);
-        var yenilenen = await GovdedekiBelirtec(await oturum.GetAsync("/api/auth/me"));
+        var yenilenen = await GovdedekiBelirtec(await oturum.GetAsync("/api/auth/me", TestContext.Current.CancellationToken));
 
         saat.Simdi = Baslangic.AddDays(200);
         await HedefiKilitle(f, "editor", 1, "kasa123");
@@ -316,15 +316,15 @@ public class TanidikCihazTests
         await using var f = new VekilFabrikasi(Ayar());
         using (var editor = await f.EditorClientAsync())
         {
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
         var (aliciJwt, _) = await MasaustuGirisi(f, "198.51.100.153", "alici-1", "alici-sifre-1");
         var (izleyiciJwt, _) = await MasaustuGirisi(f, "198.51.100.154", null, "izleyici-sifresi");
         using var aliciOturumu = Oturumlu(f, "198.51.100.153", aliciJwt);
-        var aliciBelirteci = await GovdedekiBelirtec(await aliciOturumu.GetAsync("/api/auth/me"));
+        var aliciBelirteci = await GovdedekiBelirtec(await aliciOturumu.GetAsync("/api/auth/me", TestContext.Current.CancellationToken));
         using var izleyiciOturumu = Oturumlu(f, "198.51.100.154", izleyiciJwt);
-        var izleyiciBelirteci = await GovdedekiBelirtec(await izleyiciOturumu.GetAsync("/api/auth/me"));
+        var izleyiciBelirteci = await GovdedekiBelirtec(await izleyiciOturumu.GetAsync("/api/auth/me", TestContext.Current.CancellationToken));
 
         // Editör dışı ortak bütçe kilitlenir: iki belirteç de kendi hedefinde muaf tutar, diğerinde tutmaz.
         await HedefiKilitle(f, "yok-1", 1, "yanlis-ama-onemsiz");
@@ -339,7 +339,7 @@ public class TanidikCihazTests
     {
         await using var f = new VekilFabrikasi(Ayar());
         using (var editor = await f.EditorClientAsync())
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var tarayici = Tarayici(f, "198.51.100.155");
         Assert.NotNull(CihazCerezi(await Giris(tarayici, "editor", "kasa123"), EditorCerezi));
         // Aynı tarayıcıda sonradan izleyici girer: editörün çerezi yerinde kalır.
@@ -356,7 +356,7 @@ public class TanidikCihazTests
     {
         await using var f = new VekilFabrikasi(Ayar());
         using (var editor = await f.EditorClientAsync())
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         var (_, editorBelirteci) = await MasaustuGirisi(f, "198.51.100.156", "editor", "kasa123");
         var (_, izleyiciBelirteci) = await MasaustuGirisi(f, "198.51.100.156", null, "izleyici-sifresi");
 
@@ -372,13 +372,14 @@ public class TanidikCihazTests
     [Fact]
     public async Task Editor_sifresi_degisince_belirtec_gecersizlesir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi(Ayar());
         using var cihaz = Masaustu(f, "198.51.100.60");
-        var govde = await (await Giris(cihaz, "editor", "kasa123")).Content.ReadFromJsonAsync<JsonElement>();
+        var govde = await (await Giris(cihaz, "editor", "kasa123")).Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var belirtec = govde.GetProperty("cihaz").GetString();
         // Şifreyi başka bir cihaz değiştirir: bu cihazın belirteci eski damgayla kalır.
         using var baska = Oturumlu(f, "198.51.100.61", govde.GetProperty("token").GetString()!);
-        (await baska.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-editor-sifresi" })).EnsureSuccessStatusCode();
+        (await baska.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-editor-sifresi" }, cancellationToken: ct)).EnsureSuccessStatusCode();
 
         await HedefiKilitle(f, "editor", 40, "yepyeni-editor-sifresi");
         await Reddedildi(await Giris(Masaustu(f, "198.51.100.60", belirtec), "editor", "yepyeni-editor-sifresi"));
@@ -387,11 +388,12 @@ public class TanidikCihazTests
     [Fact]
     public async Task Sifresini_degistiren_cihaz_yeni_damgayla_tanidik_kalir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi(Ayar());
         // Masaüstü: gövdesiz 204 yanıtında X-Kasa-Cihaz yanıt başlığı.
         var (jwt, eskiBelirtec) = await MasaustuGirisi(f, "198.51.100.62", "editor", "kasa123");
         using var masaustu = Oturumlu(f, "198.51.100.62", jwt);
-        var degisim = await masaustu.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-editor-sifresi" });
+        var degisim = await masaustu.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-editor-sifresi" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.NoContent, degisim.StatusCode);
         Assert.False(CihazCereziVar(degisim));
         var yeniBelirtec = Assert.Single(degisim.Headers.GetValues(Baslik));
@@ -404,10 +406,11 @@ public class TanidikCihazTests
     [Fact]
     public async Task Tarayicida_sifre_degisikligi_cihaz_cerezini_yeni_damgayla_yeniler()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi(Ayar());
         using var tarayici = Tarayici(f, "198.51.100.63");
         (await Giris(tarayici, "editor", "kasa123")).EnsureSuccessStatusCode();
-        var degisim = await tarayici.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-editor-sifresi" });
+        var degisim = await tarayici.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-editor-sifresi" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.NoContent, degisim.StatusCode);
         Assert.NotNull(CihazCerezi(degisim));
         Assert.False(degisim.Headers.Contains(Baslik));
@@ -419,16 +422,17 @@ public class TanidikCihazTests
     [Fact]
     public async Task Kurtarma_koduyla_sifre_yenileyen_cihaz_tanidik_olur()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi(Ayar());
         var (jwt, _) = await MasaustuGirisi(f, "198.51.100.64", "editor", "kasa123");
         using var oturum = Oturumlu(f, "198.51.100.64", jwt);
-        var kodYaniti = await oturum.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" });
+        var kodYaniti = await oturum.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" }, cancellationToken: ct);
         kodYaniti.EnsureSuccessStatusCode();
-        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kod").GetString();
+        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("kod").GetString();
 
         // Şifresini unutan editör başka bir cihazdan (belirteçsiz, oturumsuz) kurtarır.
         using var yeniCihaz = Masaustu(f, "198.51.100.65");
-        var kurtar = await yeniCihaz.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-editor-sifresi" });
+        var kurtar = await yeniCihaz.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-editor-sifresi" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.NoContent, kurtar.StatusCode);
         var belirtec = Assert.Single(kurtar.Headers.GetValues(Baslik));
 
@@ -441,17 +445,17 @@ public class TanidikCihazTests
     {
         await using var f = new VekilFabrikasi(Ayar());
         using var editor = await f.EditorClientAsync();
-        var olustur = await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"));
+        var olustur = await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken);
         olustur.EnsureSuccessStatusCode();
-        var id = (await olustur.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+        var id = (await olustur.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetInt32();
         var belirtec = await GovdedekiBelirtec(await Giris(Masaustu(f, "198.51.100.70"), "alici-1", "alici-sifre-1"));
 
         await HedefiKilitle(f, "alici-1", 70, "alici-sifre-1");
         Assert.Equal(HttpStatusCode.OK, (await Giris(Masaustu(f, "198.51.100.70", belirtec), "alici-1", "alici-sifre-1")).StatusCode);
 
         // Pasife alıp açmak oturum sürümünü artırır (şifre aynı kalsa da): eski belirteç düşer.
-        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-1", "Alıcı", null, Aktif: false))).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-1", "Alıcı", null, Aktif: true))).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-1", "Alıcı", null, Aktif: false), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-1", "Alıcı", null, Aktif: true), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         await Reddedildi(await Giris(Masaustu(f, "198.51.100.70", belirtec), "alici-1", "alici-sifre-1"));
     }
 
@@ -460,13 +464,13 @@ public class TanidikCihazTests
     {
         await using var f = new VekilFabrikasi(Ayar());
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         var belirtec = await GovdedekiBelirtec(await Giris(Masaustu(f, "198.51.100.80"), null, "izleyici-sifresi"));
 
         await HedefiKilitle(f, null, 80, "izleyici-sifresi");
         Assert.Equal(HttpStatusCode.OK, (await Giris(Masaustu(f, "198.51.100.80", belirtec), null, "izleyici-sifresi")).StatusCode);
 
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifresi" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         await Reddedildi(await Giris(Masaustu(f, "198.51.100.80", belirtec), null, "yeni-izleyici-sifresi"));
     }
 
@@ -475,7 +479,7 @@ public class TanidikCihazTests
     {
         await using var f = new VekilFabrikasi(Ayar());
         using (var editor = await f.EditorClientAsync())
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         var editorBelirteci = await GovdedekiBelirtec(await Giris(Masaustu(f, "198.51.100.90"), "editor", "kasa123"));
 
         await HedefiKilitle(f, null, 90, "izleyici-sifresi");
@@ -512,7 +516,7 @@ public class TanidikCihazTests
         await using var f = new VekilFabrikasi(Ayar());
         using var tarayici = Tarayici(f, "198.51.100.120");
         (await Giris(tarayici, "editor", "kasa123")).EnsureSuccessStatusCode();
-        var cikis = await tarayici.PostAsync("/api/auth/logout", null);
+        var cikis = await tarayici.PostAsync("/api/auth/logout", null, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, cikis.StatusCode);
         Assert.False(CihazCereziVar(cikis));
         await HedefiKilitle(f, "editor", 120, "kasa123");
@@ -529,12 +533,12 @@ public class TanidikCihazTests
         using var tarayici = Tarayici(f, "198.51.100.131");
         var yanit = await Giris(Masaustu(f, "198.51.100.130"), "editor", "kasa123");
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
-        var govde = await yanit.Content.ReadFromJsonAsync<JsonElement>();
+        var govde = await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(!govde.TryGetProperty("cihaz", out var cihaz) || cihaz.ValueKind == JsonValueKind.Null);
         Assert.False(CihazCereziVar(await Giris(tarayici, "editor", "kasa123")));
-        Assert.False(CihazCereziVar(await tarayici.GetAsync("/api/auth/me")));
+        Assert.False(CihazCereziVar(await tarayici.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)));
         using var oturum = Oturumlu(f, "198.51.100.130", govde.GetProperty("token").GetString()!);
-        Assert.Null(await GovdedekiBelirtec(await oturum.GetAsync("/api/auth/me")));
+        Assert.Null(await GovdedekiBelirtec(await oturum.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)));
         await HedefiKilitle(f, "editor", 130, "kasa123");
         await Reddedildi(await Giris(Masaustu(f, "198.51.100.130", belirtec), "editor", "kasa123"));
     }

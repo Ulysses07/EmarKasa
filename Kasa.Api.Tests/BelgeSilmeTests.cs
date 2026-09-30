@@ -53,6 +53,7 @@ public class BelgeSilmeTests
     [Fact]
     public async Task Alicinin_kendi_belgesini_kaldirmasi_yumusak_silmedir_iz_kalir_editor_gorur_ve_indirir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
         using var editor = await f.EditorClientAsync();
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "silen-alici");
@@ -84,12 +85,12 @@ public class BelgeSilmeTests
         Assert.Equal(HttpStatusCode.NotFound, (await Sil(editor, kendi.Id, "tekrar")).StatusCode);
 
         // Varsayılan listede yok; alıcı silineni ne listeler ne indirir; editör ?silinenler=true ile görür ve indirir.
-        Assert.Equal(new[] { editorun.Id }, (await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Select(b => b.Id));
-        Assert.Equal(new[] { editorun.Id }, (await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler?silinenler=true"))!.Select(b => b.Id));
-        Assert.Equal(new[] { editorun.Id }, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Select(b => b.Id));
-        Assert.Equal(HttpStatusCode.NotFound, (await alici.GetAsync($"/api/belgeler/{kendi.Id}")).StatusCode);
-        Assert.Equal(Fatura, await editor.GetByteArrayAsync($"/api/belgeler/{kendi.Id}"));
-        var hepsi = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler?silinenler=true"))!;
+        Assert.Equal(new[] { editorun.Id }, (await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler", cancellationToken: ct))!.Select(b => b.Id));
+        Assert.Equal(new[] { editorun.Id }, (await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler?silinenler=true", cancellationToken: ct))!.Select(b => b.Id));
+        Assert.Equal(new[] { editorun.Id }, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler", cancellationToken: ct))!.Select(b => b.Id));
+        Assert.Equal(HttpStatusCode.NotFound, (await alici.GetAsync($"/api/belgeler/{kendi.Id}", ct)).StatusCode);
+        Assert.Equal(Fatura, await editor.GetByteArrayAsync($"/api/belgeler/{kendi.Id}", ct));
+        var hepsi = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler?silinenler=true", cancellationToken: ct))!;
         var silinen = Assert.Single(hepsi, b => b.Silindi);
         Assert.Equal((kendi.Id, "alici", "Alıcı silen-alici", "Alıcı silen-alici"), (silinen.Id, silinen.SilenRol, silinen.Silen, silinen.Yukleyen));
         Assert.NotNull(silinen.SilinmeZamani);
@@ -128,7 +129,7 @@ public class BelgeSilmeTests
         var ikinci = await Yukle(editor, alis.Id, Duzeltilmis, "ikinci.pdf");
         using var istek = new HttpRequestMessage(HttpMethod.Delete, $"/api/belgeler/{ikinci.Id}");
         istek.Headers.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString("Mükerrer yükleme"));
-        Assert.Equal(HttpStatusCode.NoContent, (await editor.SendAsync(istek)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await editor.SendAsync(istek, TestContext.Current.CancellationToken)).StatusCode);
         Assert.Equal("Mükerrer yükleme", Satir(f, ikinci.Id).SilmeGerekcesi);
     }
 
@@ -151,7 +152,7 @@ public class BelgeSilmeTests
             eski = satir.Id;
         }
         Assert.Equal(HttpStatusCode.Conflict, (await Sil(alici, eski)).StatusCode);
-        Assert.Null((await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Single(b => b.Id == eski).YukleyenRol);
+        Assert.Null((await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!.Single(b => b.Id == eski).YukleyenRol);
 
         await AlisTestYardimcisi.Gonder(alici, taslak);
         using var r = await Sil(alici, belge.Id);
@@ -163,6 +164,7 @@ public class BelgeSilmeTests
     [Fact]
     public async Task Silinen_belgeler_otuz_siniri_ve_taslak_kotalarina_sayilmaz_gunluk_yukleme_hacmine_sayilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:TaslakBelgeSayisi"] = "1", ["Kasa:AliciKota:GunlukYuklemeMb"] = "1" });
         using var editor = await f.EditorClientAsync();
         var alis = await AlisTestYardimcisi.Taslak(editor, "Otuz belge");
@@ -175,7 +177,7 @@ public class BelgeSilmeTests
         }
         using (var r = await AlisTestYardimcisi.YukleYanit(editor, alis.Id, Fatura, "otuzbir.pdf"))
             Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
-        var ilk = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))![0];
+        var ilk = (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler", cancellationToken: ct))![0];
         Assert.Equal(HttpStatusCode.NoContent, (await Sil(editor, ilk.Id, "Yer açmak için")).StatusCode);
         await Yukle(editor, alis.Id, Fatura, "otuzbir.pdf");
 
@@ -187,7 +189,7 @@ public class BelgeSilmeTests
             Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await Sil(alici, birinci.Id)).StatusCode);
         await Yukle(alici, taslak.Id, AlisTestYardimcisi.Pdf(400 * 1024 + 1), "iki.pdf");
-        Assert.Equal(HttpStatusCode.NoContent, (await Sil(alici, (await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Single().Id)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Sil(alici, (await alici.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler", cancellationToken: ct))!.Single().Id)).StatusCode);
         using (var r = await AlisTestYardimcisi.YukleYanit(alici, taslak.Id, AlisTestYardimcisi.Pdf(300 * 1024), "uc.pdf"))
         {
             Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);

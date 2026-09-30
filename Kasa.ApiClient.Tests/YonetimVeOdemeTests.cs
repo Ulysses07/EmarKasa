@@ -73,7 +73,7 @@ public class YonetimVeOdemeTests
             body = await r.Content.ReadAsStringAsync();
             return Json("{\"id\":8,\"alisId\":7,\"odemeId\":3,\"dosyaAdi\":\"dekont.pdf\",\"icerikTuru\":\"application/pdf\",\"boyut\":4,\"yuklendi\":\"2026-09-23T12:00:00Z\"}");
         }));
-        var b = await c.BelgeYukleAsync(7, "C:\\gizli\\dekont.pdf", "application/pdf", Encoding.UTF8.GetBytes("%PDF"), 3);
+        var b = await c.BelgeYukleAsync(7, "C:\\gizli\\dekont.pdf", "application/pdf", Encoding.UTF8.GetBytes("%PDF"), 3, TestContext.Current.CancellationToken);
         Assert.Equal(8, b.Id);
         Assert.Contains("name=dosya", body);
         Assert.Contains("name=odemeId", body);
@@ -149,7 +149,7 @@ public class YonetimVeOdemeTests
             return Task.FromResult(r);
         }));
         var hedef = new MemoryStream();
-        var d = await c.DisariAktarAsync(new(2026, 9, 1), new(2026, 9, 23), "A & B", "xlsx", hedef);
+        var d = await c.DisariAktarAsync(new(2026, 9, 1), new(2026, 9, 23), "A & B", "xlsx", hedef, TestContext.Current.CancellationToken);
         Assert.Equal("rapor.xlsx", d.DosyaAdi);
         Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray());
         Assert.Equal(3, d.Boyut);

@@ -60,7 +60,7 @@ public class RaporTests : IClassFixture<KasaWebFactory>
         Tohumla();
         var client = await _factory.EditorClientAsync();
 
-        var ozetler = await client.GetFromJsonAsync<List<HaftalikOzetYanit>>("/api/rapor/haftalik");
+        var ozetler = await client.GetFromJsonAsync<List<HaftalikOzetYanit>>("/api/rapor/haftalik", cancellationToken: TestContext.Current.CancellationToken);
         var d = ozetler!.Single(o => o.Donem.Start == new DateOnly(2026, 6, 29));
 
         var mezat = d.Kanallar.Single(k => k.Kanal == "MEZAT");
@@ -78,7 +78,7 @@ public class RaporTests : IClassFixture<KasaWebFactory>
         Tohumla();
         var client = await _factory.EditorClientAsync();
 
-        var panel = await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel");
+        var panel = await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(panel);
         // 29-30 Haziran sonrası boş dönemler kasayı değiştirmez.
         Assert.Equal(328_989.21m, panel!.GuncelKasa);
@@ -123,13 +123,14 @@ public class RaporIptalTests
     [InlineData("TakipKartOdemeler")]
     public async Task Iptal_edilen_rapor_hesabi_sonraki_sorguyu_calistirmaz_ve_anlik_goruntuyu_birakir(string tablo)
     {
+        var ct = TestContext.Current.CancellationToken;
         var kesici = new IptalKesicisi();
         await using var f = new KesiciliFabrika(kesici) { Saat = new SabitSaat(KasaWebFactory.VarsayilanBugun) };
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2026, 1, 1), kasaAcilisDevri = 1_000m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2026, 1, 1), kasaAcilisDevri = 1_000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var kart = await AltinTohum.Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Kart", 10_000m, 5, 15, new(2026, 1, 1), 100m, [new(1, 100m)]));
         await AltinTohum.Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, new(2026, 2, 1), 40m));
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 3, 1), "Gider", 10m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 3, 1), "Gider", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
 
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -148,6 +149,6 @@ public class RaporIptalTests
         Assert.Throws<OperationCanceledException>(() => FinansTakipServisi.Kart(new TakipHesapBaglami(db, new CancellationToken(true)), kart.Id));
         // Aynı servis sonraki istekte eksiksiz hesaplar: 1.000 − 40 kart ödemesi − 10 gider.
         kesici.Tablo = null;
-        Assert.Equal(950m, hesap.Panel().GuncelKasa);
+        Assert.Equal(950m, hesap.Panel(ct).GuncelKasa);
     }
 }

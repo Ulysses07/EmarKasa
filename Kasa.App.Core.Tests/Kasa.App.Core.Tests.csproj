@@ -6,9 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <!-- xunit v3 çözümleyicisi xUnit1051, CancellationToken alan her çağrıya TestContext.Current.CancellationToken
-         verilmesini ister; v2'den gelen ~1500 çağrı yeri araç yükseltmesinden ayrı ele alınacak, o zamana dek kapalı. -->
-    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

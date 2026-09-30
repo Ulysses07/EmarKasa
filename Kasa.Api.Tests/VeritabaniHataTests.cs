@@ -31,12 +31,13 @@ public sealed class VeritabaniHataTests
     [Fact]
     public async Task Yazma_kilidi_alinamazsa_Mutate_ucu_503_RetryAfter_ve_uyari_logu_doner()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new HataFabrikasi();
         using var c = await f.EditorClientAsync();
         var sure = Stopwatch.StartNew();
         HttpResponseMessage yanit;
         using (f.YazmaKilidiTut())
-            yanit = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
+            yanit = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true }, cancellationToken: ct);
         sure.Stop();
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, yanit.StatusCode);
@@ -55,7 +56,7 @@ public sealed class VeritabaniHataTests
         Assert.Matches(@"iz \S+", kayit.Mesaj);
 
         // Kilit bırakılınca aynı istek başarılı olur (meşgul yanıtı hiçbir şey yazmamıştır).
-        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true }, cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public sealed class VeritabaniHataTests
         using var c = await f.EditorClientAsync();
         HttpResponseMessage yanit;
         using (f.YazmaKilidiTut())
-            yanit = await c.PostAsJsonAsync("/api/islemler", Islem());
+            yanit = await c.PostAsJsonAsync("/api/islemler", Islem(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, yanit.StatusCode);
         Assert.Equal("2", yanit.Headers.GetValues("Retry-After").Single());
@@ -92,8 +93,8 @@ public sealed class VeritabaniHataTests
             END;
             """);
 
-        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
-        var genel = await c.PostAsJsonAsync("/api/islemler", Islem());
+        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true }, cancellationToken: TestContext.Current.CancellationToken);
+        var genel = await c.PostAsJsonAsync("/api/islemler", Islem(), cancellationToken: TestContext.Current.CancellationToken);
 
         foreach (var yanit in new[] { mutate, genel })
         {
@@ -132,13 +133,13 @@ public sealed class VeritabaniHataTests
             END;
             """);
 
-        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
-        var genel = await c.PostAsJsonAsync("/api/islemler", Islem());
+        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true }, cancellationToken: TestContext.Current.CancellationToken);
+        var genel = await c.PostAsJsonAsync("/api/islemler", Islem(), cancellationToken: TestContext.Current.CancellationToken);
 
         foreach (var yanit in new[] { mutate, genel })
         {
             Assert.Equal(HttpStatusCode.InternalServerError, yanit.StatusCode);
-            var govde = await yanit.Content.ReadFromJsonAsync<JsonElement>();
+            var govde = await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal("Veri bütünlüğü hatası", govde.GetProperty("title").GetString());
             Assert.Contains("iz kimliğini", govde.GetProperty("detail").GetString());
             var iz = govde.GetProperty("traceId").GetString();
@@ -160,14 +161,15 @@ public sealed class VeritabaniHataTests
     [Fact]
     public async Task Kilitli_doneme_yazma_denemesi_409_ve_uyari_olarak_gorunur()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new HataFabrikasi();
         using var c = await f.EditorClientAsync();
         var gecen = new DateOnly(Bugun.Year, Bugun.Month, 1).AddMonths(-1);
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = gecen.AddMonths(-2), kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
-        var durum = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
-        (await c.PostAsJsonAsync("/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), durum.Surum, gecen.Year, gecen.Month, "Ay tamamlandı"))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = gecen.AddMonths(-2), kasaAcilisDevri = 1000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        var durum = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", cancellationToken: ct))!;
+        (await c.PostAsJsonAsync("/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), durum.Surum, gecen.Year, gecen.Month, "Ay tamamlandı"), cancellationToken: ct)).EnsureSuccessStatusCode();
 
-        var yanit = await c.PostAsJsonAsync("/api/islemler", Islem() with { Tarih = gecen });
+        var yanit = await c.PostAsJsonAsync("/api/islemler", Islem() with { Tarih = gecen }, cancellationToken: ct);
 
         Assert.Equal(HttpStatusCode.Conflict, yanit.StatusCode);
         Assert.Contains("kilitli", await Hata(yanit));
@@ -190,8 +192,8 @@ public sealed class VeritabaniHataTests
             CREATE TRIGGER test_islem_kural BEFORE INSERT ON Islemler BEGIN SELECT RAISE(ABORT, 'Kayıt salt okunurdur: test kuralı.'); END;
             """);
 
-        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
-        var genel = await c.PostAsJsonAsync("/api/islemler", Islem());
+        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true }, cancellationToken: TestContext.Current.CancellationToken);
+        var genel = await c.PostAsJsonAsync("/api/islemler", Islem(), cancellationToken: TestContext.Current.CancellationToken);
 
         foreach (var yanit in new[] { mutate, genel })
         {
@@ -227,8 +229,8 @@ public sealed class VeritabaniHataTests
             CREATE TRIGGER test_islem_kilit BEFORE INSERT ON Islemler BEGIN SELECT RAISE(ABORT, 'Kilitli ay: once donemi acin.'); END;
             """);
 
-        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true });
-        var genel = await c.PostAsJsonAsync("/api/islemler", Islem());
+        var mutate = await c.PutAsJsonAsync("/api/kasa-esikleri/1", new { surum = 0, tutar = 100m, etkin = true }, cancellationToken: TestContext.Current.CancellationToken);
+        var genel = await c.PostAsJsonAsync("/api/islemler", Islem(), cancellationToken: TestContext.Current.CancellationToken);
 
         foreach (var yanit in new[] { mutate, genel })
         {
@@ -313,7 +315,7 @@ public sealed class VeritabaniHataTests
         var log = new LogToplayici();
         await using var f = new OrtamliFabrika("Production", log);
         using var c = await f.GirisliIstemci();
-        (await c.GetAsync("/api/rapor/panel")).EnsureSuccessStatusCode();
+        (await c.GetAsync("/api/rapor/panel", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
 
         var fabrika = f.Services.GetRequiredService<ILoggerFactory>();
         var komut = fabrika.CreateLogger("Microsoft.EntityFrameworkCore.Database.Command");
@@ -333,7 +335,7 @@ public sealed class VeritabaniHataTests
         var log = new LogToplayici();
         await using var f = new OrtamliFabrika("Development", log);
         using var c = await f.GirisliIstemci();
-        (await c.GetAsync("/api/rapor/panel")).EnsureSuccessStatusCode();
+        (await c.GetAsync("/api/rapor/panel", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
 
         Assert.True(f.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Microsoft.EntityFrameworkCore.Database.Command").IsEnabled(LogLevel.Information));
         Assert.Contains(log.Kayitlar, x => x.OlayId == 20101);

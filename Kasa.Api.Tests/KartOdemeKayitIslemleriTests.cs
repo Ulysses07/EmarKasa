@@ -35,25 +35,25 @@ public class KartOdemeKayitIslemleriTests : IClassFixture<KasaWebFactory>
             tarih = "2026-07-20",
             tutar = 1_500m,
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, ekle.StatusCode);
-        var eklenen = await ekle.Content.ReadFromJsonAsync<OdemeYanit>();
+        var eklenen = await ekle.Content.ReadFromJsonAsync<OdemeYanit>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(eklenen);
         Assert.Equal(1_500m, eklenen!.Tutar);
 
         // Liste → ödeme görünür
         var liste = await client.GetFromJsonAsync<List<OdemeYanit>>(
-            $"/api/kartodemeler?krediKartiId={kart.Id}");
+            $"/api/kartodemeler?krediKartiId={kart.Id}", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(liste);
         Assert.Contains(liste, o => o.Id == eklenen.Id && o.Tutar == 1_500m);
 
         // Sil → 204
-        var sil = await client.DeleteAsync($"/api/kartodemeler/{eklenen.Id}");
+        var sil = await client.DeleteAsync($"/api/kartodemeler/{eklenen.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
 
         // Liste → ödeme artık yok
         var listeSonra = await client.GetFromJsonAsync<List<OdemeYanit>>(
-            $"/api/kartodemeler?krediKartiId={kart.Id}");
+            $"/api/kartodemeler?krediKartiId={kart.Id}", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(listeSonra);
         Assert.DoesNotContain(listeSonra, o => o.Id == eklenen.Id);
     }
@@ -63,7 +63,7 @@ public class KartOdemeKayitIslemleriTests : IClassFixture<KasaWebFactory>
     {
         // Önce editor ile kart ve ödeme oluştur
         var editor = await _factory.EditorClientAsync();
-        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
+        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var kart = EskiFinansTohumu.Kart(_factory, new("IzleyiciTest", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 20_000m, 1_000m));
@@ -75,16 +75,16 @@ public class KartOdemeKayitIslemleriTests : IClassFixture<KasaWebFactory>
             tarih = "2026-07-15",
             tutar = 500m,
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // İzleyici girişi
         var izleyici = _factory.CreateClient();
         var giris = await izleyici.PostAsJsonAsync("/api/auth/login",
-            new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
+            new { kullanici = (string?)null, sifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
         giris.EnsureSuccessStatusCode();
 
         // GET → 200
-        var okuma = await izleyici.GetAsync($"/api/kartodemeler?krediKartiId={kart.Id}");
+        var okuma = await izleyici.GetAsync($"/api/kartodemeler?krediKartiId={kart.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, okuma.StatusCode);
 
         // POST → 403
@@ -94,7 +94,7 @@ public class KartOdemeKayitIslemleriTests : IClassFixture<KasaWebFactory>
             tarih = "2026-07-16",
             tutar = 200m,
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }
 
@@ -115,26 +115,26 @@ public class KartOdemeKayitIslemleriTests : IClassFixture<KasaWebFactory>
             tarih = "2026-07-10",
             tutar = 800m,
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         odemeEkle.EnsureSuccessStatusCode();
-        var odeme = await odemeEkle.Content.ReadFromJsonAsync<OdemeYanit>();
+        var odeme = await odemeEkle.Content.ReadFromJsonAsync<OdemeYanit>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(odeme);
 
         // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır)
         var islemId = EskiFinansTohumu.KartGideri(_factory, new DateOnly(2026, 7, 11), "Market", 400m, "MEZAT", kart.Id).Id;
 
         // Kartı sil
-        var sil = await client.DeleteAsync($"/api/kredikartlari/{kart.Id}");
+        var sil = await client.DeleteAsync($"/api/kredikartlari/{kart.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
 
         // Ödemeler silindi → liste boş
         var odemeler = await client.GetFromJsonAsync<List<OdemeYanit>>(
-            $"/api/kartodemeler?krediKartiId={kart.Id}");
+            $"/api/kartodemeler?krediKartiId={kart.Id}", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(odemeler);
         Assert.Empty(odemeler);
 
         // İşlem hâlâ var ama krediKartiId null
-        var islemler = await client.GetFromJsonAsync<List<JsonElement>>("/api/islemler");
+        var islemler = await client.GetFromJsonAsync<List<JsonElement>>("/api/islemler", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(islemler);
         var bulunan = islemler!.FirstOrDefault(i => i.GetProperty("id").GetInt32() == islemId);
         Assert.NotEqual(default, bulunan);

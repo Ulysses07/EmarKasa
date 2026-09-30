@@ -175,14 +175,15 @@ public class KartHesapMaliyetiTests(KartHesapMaliyetiTests.Kurulumlar kurulumlar
     [Fact]
     public async Task Ana_sayfa_ozeti_ayri_uclarla_ayni_ve_kart_verisini_bir_kez_okur()
     {
+        var ct = TestContext.Current.CancellationToken;
         var (f, c, _) = await Kur(alisliHarcama: 6, odeme: 4);
         try
         {
-            (await c.PutAsJsonAsync("/api/kasa-esikleri/2", new KasaEsikYaz(0, 1_000_000m, true))).EnsureSuccessStatusCode();
-            var ana = System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa?gun=7"))!;
-            Assert.Equal(System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/rapor/panel"))!.ToJsonString(), ana["panel"]!.ToJsonString());
-            Assert.Equal(System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/kasa-esikleri"))!.ToJsonString(), ana["kasaEsikleri"]!.ToJsonString());
-            Assert.Equal(System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/takip/ozet?gun=7"))!.ToJsonString(), ana["takipOzeti"]!.ToJsonString());
+            (await c.PutAsJsonAsync("/api/kasa-esikleri/2", new KasaEsikYaz(0, 1_000_000m, true), cancellationToken: ct)).EnsureSuccessStatusCode();
+            var ana = System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa?gun=7", ct))!;
+            Assert.Equal(System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/rapor/panel", ct))!.ToJsonString(), ana["panel"]!.ToJsonString());
+            Assert.Equal(System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/kasa-esikleri", ct))!.ToJsonString(), ana["kasaEsikleri"]!.ToJsonString());
+            Assert.Equal(System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/takip/ozet?gun=7", ct))!.ToJsonString(), ana["takipOzeti"]!.ToJsonString());
             Assert.Contains(ana["kasaEsikleri"]!.AsArray(), e => e!["esikAltinda"]!.GetValue<bool>());
 
             var ayri = (await Olc(f, c, "/api/rapor/panel")).Count + (await Olc(f, c, "/api/kasa-esikleri")).Count + (await Olc(f, c, "/api/takip/ozet?gun=7")).Count;
@@ -190,7 +191,7 @@ public class KartHesapMaliyetiTests(KartHesapMaliyetiTests.Kurulumlar kurulumlar
             cikti.WriteLine($"Ayrı uçlar {ayri}, birleşik uç {birlesik.Count} komut");
             Assert.True(birlesik.Count < ayri, $"Birleşik {birlesik.Count}, ayrı {ayri} komut.");
             Assert.Equal(1, birlesik.Count(k => k.Contains("FROM \"TakipKartOdemeler\"", StringComparison.Ordinal)));
-            Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/rapor/ana-sayfa?gun=0")).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/rapor/ana-sayfa?gun=0", ct)).StatusCode);
         }
         finally { c.Dispose(); await f.DisposeAsync(); }
     }
@@ -203,9 +204,10 @@ public class KartHesapMaliyetiTests(KartHesapMaliyetiTests.Kurulumlar kurulumlar
     [Fact]
     public async Task Uc_yillik_sentetik_veride_sure_notu_ve_sabit_komut_sayisi()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new SayacliFabrika();
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2023, 10, 1), kasaAcilisDevri = 500_000m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2023, 10, 1), kasaAcilisDevri = 500_000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var kartlar = new List<KartTakipDto>();
         for (var k = 0; k < 3; k++)
             kartlar.Add(await AltinTohum.Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Kart " + k, 5_000_000m, 5 + k * 7, 15, new(2023, 10, 1), 0m, [])));
@@ -278,7 +280,7 @@ public class KartHesapMaliyetiTests(KartHesapMaliyetiTests.Kurulumlar kurulumlar
             cikti.WriteLine($"{uc}: {sure.ElapsedMilliseconds} ms, {komutlar.Count} komut");
             Assert.True(komutlar.Count < 120, $"{uc} {komutlar.Count} komut çalıştırdı.");
         }
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!;
         Assert.Equal(500_000m - 3 * 36 * 1_000m, panel.GuncelKasa);
     }
 

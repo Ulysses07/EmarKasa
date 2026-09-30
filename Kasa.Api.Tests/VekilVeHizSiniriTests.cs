@@ -143,7 +143,7 @@ public class VekilVeHizSiniriTests
     {
         await using var f = new VekilFabrikasi();
         using (var editor = await f.EditorClientAsync())
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var ofis = Istemci(f, "198.51.100.3");
         for (var i = 0; i < 3; i++)
             Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(ofis, " EDITOR ", "yanlis")).StatusCode);
@@ -222,7 +222,7 @@ public class VekilVeHizSiniriTests
         Assert.Contains("Kasa:GuvenilirVekiller", uyari);
 
         // İşletim uyarısı yalnız editöre gösterilir; izleyici ayarları okuyabilse de görmez.
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var izleyici = Istemci(f, "198.51.100.64");
         (await Giris(izleyici, null, "izleyici-sifresi")).EnsureSuccessStatusCode();
         Assert.Equal(JsonValueKind.Null, (await Ayarlar(izleyici)).GetProperty("vekilUyarisi").ValueKind);
@@ -266,11 +266,11 @@ public class VekilVeHizSiniriTests
         var govde = new { kullanici = "editor", kod = "YANLIS", yeniSifre = "yepyeni-sifre-123" };
         for (var i = 0; i < 3; i++)
         {
-            var yanit = await saldirgan.PostAsJsonAsync("/api/auth/kurtar", govde);
+            var yanit = await saldirgan.PostAsJsonAsync("/api/auth/kurtar", govde, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.Unauthorized, yanit.StatusCode);
-            Assert.Contains("kurtarma kodu", (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+            Assert.Contains("kurtarma kodu", (await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("hata").GetString());
         }
-        await Reddedildi(await saldirgan.PostAsJsonAsync("/api/auth/kurtar", govde));
+        await Reddedildi(await saldirgan.PostAsJsonAsync("/api/auth/kurtar", govde, cancellationToken: TestContext.Current.CancellationToken));
         using var editor = Istemci(f, "198.51.100.41");
         Assert.Equal(HttpStatusCode.OK, (await Giris(editor, "editor", "kasa123")).StatusCode);
     }
@@ -278,19 +278,20 @@ public class VekilVeHizSiniriTests
     [Fact]
     public async Task Guvenlik_politikasi_gercek_istemci_ipsine_gore_bolunur_ve_kimliksiz_istek_kota_tuketmez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi();
         using var editorA = Istemci(f, "198.51.100.50");
         (await Giris(editorA, "editor", "kasa123")).EnsureSuccessStatusCode();
         using var anonim = Istemci(f, "198.51.100.50");
         for (var i = 0; i < 6; i++)
-            Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "x" })).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "x" }, cancellationToken: ct)).StatusCode);
         for (var i = 0; i < 4; i++)
-            Assert.Equal(HttpStatusCode.BadRequest, (await editorA.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" })).StatusCode);
-        await Reddedildi(await editorA.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" }));
+            Assert.Equal(HttpStatusCode.BadRequest, (await editorA.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" }, cancellationToken: ct)).StatusCode);
+        await Reddedildi(await editorA.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" }, cancellationToken: ct));
 
         using var editorB = Istemci(f, "198.51.100.51");
         (await Giris(editorB, "editor", "kasa123")).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.BadRequest, (await editorB.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await editorB.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" }, cancellationToken: ct)).StatusCode);
     }
     [Fact]
     public void Guvenilir_vekiller_varsayilani_loopback_ve_docker_varsayilan_havuzlaridir()
@@ -376,7 +377,7 @@ public class VekilVeHizSiniriTests
     {
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3" });
         using (var editor = await f.EditorClientAsync())
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         // Her IP kendi sınırının çok altında kalır; toplam başarısızlık hedefin bütçesini doldurur.
         for (var i = 0; i < 4; i++)
         {
@@ -395,7 +396,7 @@ public class VekilVeHizSiniriTests
     {
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3" });
         using (var editor = await f.EditorClientAsync())
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         for (var i = 0; i < 4; i++)
         {
             using var c = Istemci(f, $"198.51.100.{90 + i}");
@@ -413,8 +414,8 @@ public class VekilVeHizSiniriTests
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "5", [AgIzni] = "2", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" });
         using (var editor = await f.EditorClientAsync())
         {
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
         using var saldirgan = Istemci(f, "198.51.100.180");
         Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(saldirgan, "editor", "yanlis")).StatusCode);
@@ -441,13 +442,13 @@ public class VekilVeHizSiniriTests
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "3", [AgIzni] = "2" });
         using (var editor = await f.EditorClientAsync())
         {
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
         using var aliciAgi = Istemci(f, "198.51.100.190");
         var ilk = await Giris(aliciAgi, "alici-1", "alici-sifre-1");
         Assert.Equal(HttpStatusCode.OK, ilk.StatusCode);
-        var belirtec = (await ilk.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("cihaz").GetString();
+        var belirtec = (await ilk.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("cihaz").GetString();
         for (var i = 0; i < 3; i++)
         {
             using var c = Istemci(f, $"198.51.100.{191 + i}");
@@ -599,7 +600,7 @@ public class VekilVeHizSiniriTests
             var yanit = await Giris(c, "editor", "yanlis");
             Assert.Equal(HttpStatusCode.TooManyRequests, yanit.StatusCode);
             Assert.True(yanit.Headers.RetryAfter?.Delta > TimeSpan.Zero);
-            Assert.Contains("yoğun", (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+            Assert.Contains("yoğun", (await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("hata").GetString());
             tutulan.Dispose();
             (await bekleyen).Dispose();
         }
@@ -620,8 +621,8 @@ public class VekilVeHizSiniriTests
         await using var f = new VekilFabrikasi(new() { [HedefIzni] = "4", [AgIzni] = "3", ["Kasa:HizSiniri:GirisKullaniciIzni"] = "50", ["Kasa:HizSiniri:GirisIpIzni"] = "50" }, saat: saat);
         using (var editor = await f.EditorClientAsync())
         {
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
         var adlar = basarisizAdlar.Split(',');
         for (var i = 0; i < adlar.Length; i++)

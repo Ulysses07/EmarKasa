@@ -65,6 +65,7 @@ public class CekirdekSurumSozlesmeTests : SozlesmeTemeli
         nameof(IKasaApi.IslemlerAsync), nameof(IKasaApi.GelenKaydetAsync), nameof(IKasaApi.GelenlerAsync))]
     public async Task Eski_istemcinin_surumsuz_govdesi_kabul_edilir_surum_yine_artar()
     {
+        var ct = TestContext.Current.CancellationToken;
         var o = await Editor();
         using var eski = F.CreateClient();
         eski.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await o.Depo.OkuAsync());
@@ -72,23 +73,24 @@ public class CekirdekSurumSozlesmeTests : SozlesmeTemeli
         { using (yanit) Assert.True(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}"); }
 
         var surum = (await o.Kasa.AyarlarAsync()).Surum;
-        await Kabul(await eski.PutAsJsonAsync("api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 250m }));
+        await Kabul(await eski.PutAsJsonAsync("api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 250m }, cancellationToken: ct));
         var ayar = await o.Kasa.AyarlarAsync();
         Assert.Equal((250m, surum + 1), (ayar.KasaAcilisDevri, ayar.Surum));
 
         var kanal = (await o.Kasa.KanallarAsync()).Single(k => k.Ad == "MEZAT");
-        await Kabul(await eski.PutAsJsonAsync($"api/kanallar/{kanal.Id}", new { ad = "MEZAT", aktif = true, sira = 9, acilisDevri = 0m }));
+        await Kabul(await eski.PutAsJsonAsync($"api/kanallar/{kanal.Id}", new { ad = "MEZAT", aktif = true, sira = 9, acilisDevri = 0m }, cancellationToken: ct));
         Assert.Equal((9, kanal.Surum + 1), (await o.Kasa.KanallarAsync()).Where(k => k.Id == kanal.Id).Select(k => (k.Sira, k.Surum)).Single());
 
         // Kayıt yeni istemciyle değişmiş (sürüm 1) olsa da eski istemcinin sürümsüz düzenlemesi geçer: son yazan kazanır.
         var gider = await o.Kasa.IslemOlusturAsync(new IslemYaz(Bugun, "Eski istemci", 100m, "MEZAT", GiderTipi.Cari, null));
         gider = await o.Kasa.IslemGuncelleAsync(gider.Id, new IslemYaz(Bugun, "Eski istemci", 120m, "MEZAT", GiderTipi.Cari, null, Surum: gider.Surum));
-        await Kabul(await eski.PutAsJsonAsync($"api/islemler/{gider.Id}", new { tarih = Bugun, cari = "Eski istemci", tutarTl = 90m, kanal = "MEZAT", tip = "Cari", not = (string?)null }));
+        await Kabul(await eski.PutAsJsonAsync($"api/islemler/{gider.Id}",
+            new { tarih = Bugun, cari = "Eski istemci", tutarTl = 90m, kanal = "MEZAT", tip = "Cari", not = (string?)null }, cancellationToken: ct));
         var satir = (await o.Kasa.IslemlerAsync()).Single(i => i.Id == gider.Id);
         Assert.Equal((90m, 2), (satir.TutarTl, satir.Surum));
 
         var gelen = await o.Kasa.GelenKaydetAsync(new GelenYaz(Baslangic, "MEZAT", 500m));
-        await Kabul(await eski.PutAsJsonAsync("api/gelenler", new { donemStart = Baslangic, kanal = "MEZAT", tutarTl = 800m }));
+        await Kabul(await eski.PutAsJsonAsync("api/gelenler", new { donemStart = Baslangic, kanal = "MEZAT", tutarTl = 800m }, cancellationToken: ct));
         var okunan = Assert.Single(await o.Kasa.GelenlerAsync(Baslangic));
         Assert.Equal((800m, gelen.Surum + 1), (okunan.TutarTl, okunan.Surum));
     }

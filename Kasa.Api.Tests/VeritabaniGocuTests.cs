@@ -649,7 +649,7 @@ public class VeritabaniGocuTests
         db.Kanallar.Single(k => k.Id == 4).Aktif = false;
         db.SaveChanges();
         Assert.Equal(onceGecmis, AylikOzeti(db, gecmis));
-        var eylul = new Kasa.Api.Servisler.HesapServisi(db).Aylik(2026, 9);
+        var eylul = new Kasa.Api.Servisler.HesapServisi(db).Aylik(2026, 9, TestContext.Current.CancellationToken);
         Assert.Equal(new[] { ("MEZAT", 2.51m), ("ESKI", 0m), ("TOPTAN", 2.50m), ("PERAKENDE", 0m), ("ONLINE", 2.50m), ("YENI", 2.50m) },
             eylul.Kanallar.Select(k => (k.Kanal, k.OrtakPay)).ToArray());
 

@@ -27,10 +27,12 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K1_baslangic_oncesi_mevcut_giderler_aynen_kalir_aylik_ve_haftalik_raporda_uyariyla_isaretlenir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Fabrika();
         using var c = await Editor(f); // takip başlangıcı 1 Haziran, kasa açılışı 1.000
         // Başlangıç öncesi tarihli yeni gider kabul edilmez; canlıdaki eski kayıtlar doğrudan veritabanında.
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 5, 20), "Geç girilen", 10m, "MEZAT", GiderTipi.Cari))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/islemler",
+            new IslemYazDto(new(2026, 5, 20), "Geç girilen", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).StatusCode);
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -42,16 +44,16 @@ public class RaporKuraliKararlariTests
             db.SaveChanges();
         }
 
-        var mayis = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=5"))!;
+        var mayis = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=5", ct))!;
         var mezat = Kanal(mayis, "MEZAT");
         Assert.Equal((5_000m, 100m, -5_100m), (Sayi(mezat["cariGiden"]), Sayi(mezat["ortakPay"]), Sayi(mezat["aySonucu"])));
         Assert.Equal("Takip başlangıcından önce tarihli 2 kayıt, toplam 5.300,00 ₺ — raporlarda farklı işlenir: bu ayın sonucunda sayılır, "
             + "haftalık kasaya ve kanal devrine girmez. Kayıtlar ve tutarlar olduğu gibi korunur.", (string)mayis["veriSagligiUyarisi"]!);
-        var haziran = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=6"))!;
+        var haziran = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=6", ct))!;
         Assert.Equal(700m, Sayi(Kanal(haziran, "MEZAT")["krediKarti"]));
         Assert.Null(haziran["veriSagligiUyarisi"]);
 
-        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", ct))!.AsArray();
         Assert.StartsWith("Takip başlangıcından önce tarihli 2 kayıt, toplam 5.300,00 ₺ — raporlarda farklı işlenir: haftalık kasaya", (string)haftalik[^1]!["veriSagligiUyarisi"]!);
         Assert.All(haftalik.Take(haftalik.Count - 1), h => Assert.Null(h!["veriSagligiUyarisi"]));
         // Kasa: başlangıç öncesi gider hiç düşmez, Mayıs K.K'sı Haziran sonunda düşer (davranış aynen korunur).
@@ -78,12 +80,12 @@ public class RaporKuraliKararlariTests
             db.SaveChanges();
         }
 
-        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray();
         Assert.StartsWith("Takip başlangıcından önce tarihli 2 kayıt, toplam 1.600,00 ₺ —", (string)haftalik[^1]!["veriSagligiUyarisi"]!);
-        var mayis = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=5"))!;
+        var mayis = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=5", TestContext.Current.CancellationToken))!;
         Assert.StartsWith("Takip başlangıcından önce tarihli 2 kayıt, toplam 600,00 ₺ —", (string)mayis["veriSagligiUyarisi"]!);
         Assert.Equal(-33.34m - 500m, Sayi(Kanal(mayis, "MEZAT")["aySonucu"]));
-        var mart = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=3"))!;
+        var mart = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=3", TestContext.Current.CancellationToken))!;
         Assert.StartsWith("Takip başlangıcından önce tarihli 1 kayıt, toplam 500,00 ₺ —", (string)mart["veriSagligiUyarisi"]!);
     }
 
@@ -93,7 +95,7 @@ public class RaporKuraliKararlariTests
         await using var f = Fabrika();
         using var c = await Editor(f); // kasa açılışı 1.000
         await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "İşletme kredisi", 120_000m, new(2026, 9, 10), new(2026, 10, 10), 12, 11_000m, [1]));
-        (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Month, "MEZAT", 80_000m))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Month, "MEZAT", 80_000m), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(new(2026, 9, 15), "Tedarik", 100_000m, "MEZAT", GiderTipi.Cari));
         // Eski (takipsiz) model: yeni oluşturulamaz, canlıdaki geçmiş kayıtlar gibi doğrudan veritabanında.
         using (var scope = f.Services.CreateScope())
@@ -103,7 +105,7 @@ public class RaporKuraliKararlariTests
             db.SaveChanges();
         }
 
-        var rapor = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=9"))!;
+        var rapor = JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=9", TestContext.Current.CancellationToken))!;
         var mezat = Kanal(rapor, "MEZAT");
         Assert.Equal(80_000m, Sayi(mezat["gelen"]));
         Assert.Equal(120_000m, Sayi(mezat["krediGirisi"]));
@@ -119,7 +121,7 @@ public class RaporKuraliKararlariTests
         Assert.Equal(1_000m + 80_000m + 120_000m + 50_000m - 100_000m, panel.GuncelKasa);
 
         // Haftalık rapor değişmez: kredi dönem geline ve (takipliyse) kanal devrine girer.
-        var hafta = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()
+        var hafta = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray()
             .Single(h => (string)h!["donem"]!["start"]! == "2026-09-07")!;
         Assert.Equal(120_000m, Sayi(Kanal(hafta, "MEZAT")["krediGirisi"]));
         Assert.Equal(120_000m, Sayi(Kanal(hafta, "MEZAT")["gelen"]));
@@ -157,22 +159,23 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K3_yeni_kredi_karti_gideri_ve_kartli_alis_odemesi_takipteki_karta_baglanmak_zorundadir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Fabrika();
         using var c = await Editor(f);
         var (takipli, eski, _) = await Kartlar(f, c);
         var gun = new DateOnly(2026, 9, 20);
 
         // Genel gider: kartsız K.K ve eski (takipsiz) karta bağlı gider reddedilir.
-        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Kartsız", 100m, "MEZAT", GiderTipi.KrediKarti)));
-        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Eski kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: eski)));
-        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Tipsiz eski kart", 100m, KanalEtiketleri.Ortak, GiderTipi.Cari, KrediKartiId: eski)));
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Kartsız", 100m, "MEZAT", GiderTipi.KrediKarti), cancellationToken: ct));
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Eski kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: eski), cancellationToken: ct));
+        await K3Reddi(await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(gun, "Tipsiz eski kart", 100m, KanalEtiketleri.Ortak, GiderTipi.Cari, KrediKartiId: eski), cancellationToken: ct));
         // Takipteki kart ve kartsız diğer giderler kabul edilir.
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(gun, "Takipli kartla", 100m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: takipli));
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(gun, "Nakit", 50m, "MEZAT", GiderTipi.Cari));
 
         // Alış ödemesi: eski kartla yeni ödeme reddedilir, takipteki kartla ve nakit kabul edilir.
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, gun, "Tedarikçi", null, [new("Mal", 300m, [new(1, 300m)])]));
-        await K3Reddi(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m, eski)));
+        await K3Reddi(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m, eski), cancellationToken: ct));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m, takipli));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), gun, 100m));
         Assert.Equal(200m, alis.Odenen);
@@ -186,6 +189,7 @@ public class RaporKuraliKararlariTests
     [Fact]
     public async Task K3_mevcut_kartsiz_ve_eski_kartli_kayitlar_aynen_kalir_tutar_ve_not_guncellenebilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Fabrika();
         using var c = await Editor(f);
         var (_, eski, diger) = await Kartlar(f, c);
@@ -201,18 +205,21 @@ public class RaporKuraliKararlariTests
             (kartsiz, eskiKartli, nakit) = (a.Id, b.Id, n.Id);
         }
         // Tutar, not ve tarih düzeltmesi: kart ve tip aynı kaldıkça kabul edilir.
-        (await c.PutAsJsonAsync($"/api/islemler/{kartsiz}", new IslemYazDto(new(2026, 8, 8), "Kartsız eski", 110m, "MEZAT", GiderTipi.KrediKarti, "Dekont"))).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync($"/api/islemler/{eskiKartli}", new IslemYazDto(new(2026, 8, 6), "Eski kartlı", 250m, "MEZAT", GiderTipi.KrediKarti, "Ekstre", eski))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync($"/api/islemler/{kartsiz}",
+            new IslemYazDto(new(2026, 8, 8), "Kartsız eski", 110m, "MEZAT", GiderTipi.KrediKarti, "Dekont"), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync($"/api/islemler/{eskiKartli}",
+            new IslemYazDto(new(2026, 8, 6), "Eski kartlı", 250m, "MEZAT", GiderTipi.KrediKarti, "Ekstre", eski), cancellationToken: ct)).EnsureSuccessStatusCode();
         // Yeni K.K bağı kurmak (başka eski kart, nakit gideri K.K yapmak) yeni kredi kartı gideri sayılır: reddedilir.
-        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{eskiKartli}", new IslemYazDto(new(2026, 8, 6), "Eski kartlı", 250m, "MEZAT", GiderTipi.KrediKarti, null, diger)));
-        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{nakit}", new IslemYazDto(new(2026, 8, 7), "Nakit", 300m, "MEZAT", GiderTipi.KrediKarti)));
-        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{nakit}", new IslemYazDto(new(2026, 8, 7), "Nakit", 300m, "MEZAT", GiderTipi.Cari, null, eski)));
+        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{eskiKartli}", new IslemYazDto(new(2026, 8, 6), "Eski kartlı", 250m, "MEZAT", GiderTipi.KrediKarti, null, diger), cancellationToken: ct));
+        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{nakit}", new IslemYazDto(new(2026, 8, 7), "Nakit", 300m, "MEZAT", GiderTipi.KrediKarti), cancellationToken: ct));
+        await K3Reddi(await c.PutAsJsonAsync($"/api/islemler/{nakit}", new IslemYazDto(new(2026, 8, 7), "Nakit", 300m, "MEZAT", GiderTipi.Cari, null, eski), cancellationToken: ct));
 
         // Alışa bağlanmış eski kartlı ödeme (mevcut gider bağlanır): tutar düzeltmesi kabul, başka eski karta taşıma reddedilir.
         var alis = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, new(2026, 8, 6), "Tedarikçi", null, [new("Mal", 500m, [new(1, 500m)])]));
         alis = await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 250m, eski, eskiKartli));
         var odeme = alis.Odemeler.Single();
-        await K3Reddi(await c.PutAsJsonAsync($"/api/alis/{alis.Id}/odemeler/{odeme.Id}", new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 250m, "Kart değişti", diger)));
+        await K3Reddi(await c.PutAsJsonAsync($"/api/alis/{alis.Id}/odemeler/{odeme.Id}",
+            new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 250m, "Kart değişti", diger), cancellationToken: ct));
         alis = await Put<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler/{odeme.Id}", new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), new(2026, 8, 6), 240m, "Tutar düzeltildi", eski));
         Assert.Equal(240m, alis.Odenen);
 

@@ -86,9 +86,10 @@ public class EskiGelirTests
     [Fact]
     public async Task Http_eski_grubu_korur_yeni_donem_ve_kanala_yazmayi_acik_tutar_rename_kilidi_kaldirmaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var factory = new EskiGelirFabrikasi();
         using var editor = await factory.EditorClientAsync();
-        var rows = await editor.GetFromJsonAsync<GelenEntity[]>("/api/gelenler?donemStart=2026-09-01");
+        var rows = await editor.GetFromJsonAsync<GelenEntity[]>("/api/gelenler?donemStart=2026-09-01", cancellationToken: ct);
         Assert.NotNull(rows);
         Assert.Equal(new[] { 12, 14 }, rows.Select(g => g.Id).Order().ToArray());
         Assert.All(rows, g => Assert.True(g.EskiYinelenenGrup));
@@ -96,19 +97,19 @@ public class EskiGelirTests
 
         foreach (var channel in new[] { "MEZAT", "mezat" })
         {
-            var blocked = await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-01", kanal = channel, tutarTl = 1m });
+            var blocked = await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-01", kanal = channel, tutarTl = 1m }, cancellationToken: ct);
             Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
-            Assert.Contains("salt okunur", await blocked.Content.ReadAsStringAsync());
+            Assert.Contains("salt okunur", await blocked.Content.ReadAsStringAsync(ct));
         }
-        (await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-01", kanal = "YENİ", tutarTl = 10m })).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-07", kanal = "MEZAT", tutarTl = 40m })).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-14", kanal = "MEZAT", tutarTl = 50m })).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync("/api/kanallar/7", new { ad = "MEZAT YENİ", aktif = true, sira = 0, acilisDevri = 0m })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-01", kanal = "YENİ", tutarTl = 10m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-07", kanal = "MEZAT", tutarTl = 40m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-14", kanal = "MEZAT", tutarTl = 50m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/kanallar/7", new { ad = "MEZAT YENİ", aktif = true, sira = 0, acilisDevri = 0m }, cancellationToken: ct)).EnsureSuccessStatusCode();
 
-        var stillBlocked = await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-01", kanal = "MEZAT YENİ", tutarTl = 500m });
+        var stillBlocked = await editor.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-09-01", kanal = "MEZAT YENİ", tutarTl = 500m }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, stillBlocked.StatusCode);
         using var db = factory.Context();
-        var old = await db.Gelenler.Where(g => g.EskiYinelenenGrup).OrderBy(g => g.Id).ToListAsync();
+        var old = await db.Gelenler.Where(g => g.EskiYinelenenGrup).OrderBy(g => g.Id).ToListAsync(cancellationToken: ct);
         Assert.Equal(new[] { 12, 14 }, old.Select(g => g.Id).ToArray());
         Assert.Equal(new[] { 100.10m, -20.20m }, old.Select(g => g.TutarTl).ToArray());
         Assert.All(old, g => { Assert.Equal(7, g.KanalId); Assert.Equal("MEZAT YENİ", g.Kanal); });

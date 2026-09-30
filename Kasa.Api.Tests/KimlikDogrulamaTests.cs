@@ -13,7 +13,7 @@ public class KimlikDogrulamaTests : IClassFixture<KasaWebFactory>
     {
         var client = _factory.CreateClient();
         var resp = await client.PostAsJsonAsync("/api/auth/login",
-            new { kullanici = "editor", sifre = "kasa123" });
+            new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Contains(resp.Headers.GetValues("Set-Cookie"), v => v.StartsWith("kasa_auth="));
@@ -24,7 +24,7 @@ public class KimlikDogrulamaTests : IClassFixture<KasaWebFactory>
     {
         var client = _factory.CreateClient();
         var resp = await client.PostAsJsonAsync("/api/auth/login",
-            new { kullanici = "editor", sifre = "yanlis" });
+            new { kullanici = "editor", sifre = "yanlis" }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
@@ -33,11 +33,11 @@ public class KimlikDogrulamaTests : IClassFixture<KasaWebFactory>
     public async Task Me_giris_yapmadan_401_giris_yapinca_rol_doner()
     {
         var anonim = _factory.CreateClient();
-        var anonimResp = await anonim.GetAsync("/api/auth/me");
+        var anonimResp = await anonim.GetAsync("/api/auth/me", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, anonimResp.StatusCode);
 
         var editor = await _factory.EditorClientAsync();
-        var me = await editor.GetFromJsonAsync<RolYanit>("/api/auth/me");
+        var me = await editor.GetFromJsonAsync<RolYanit>("/api/auth/me", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("editor", me!.Rol);
     }
 

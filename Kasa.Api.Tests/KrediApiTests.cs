@@ -19,7 +19,7 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
         var client = await _factory.EditorClientAsync();
 
         // Krediler yalnız kayıtlı kanallara bağlanabilir.
-        var kanal = await client.PostAsJsonAsync("/api/kanallar", new { ad = "Instagram" });
+        var kanal = await client.PostAsJsonAsync("/api/kanallar", new { ad = "Instagram" }, cancellationToken: TestContext.Current.CancellationToken);
         kanal.EnsureSuccessStatusCode();
 
         var olustur = await client.PostAsJsonAsync("/api/krediler", new
@@ -31,7 +31,7 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
             aylikOdeme = 4_800.25m,
             odemeGunu = 15,
             kanal = "Instagram",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
         var eklenen = EskiFinansTohumu.Kredi(_factory, new("İhtiyaç Kredisi", 50_000.50m,
             new DateOnly(2026, 8, 3), 12, 4_800.25m, 15, "Instagram"));
@@ -54,7 +54,7 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
             aylikOdeme = 5_000m,
             odemeGunu = 20,
             kanal = "Ortak",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, guncelle.StatusCode);
 
         // Yalnız ad düzeltmesi serbesttir.
@@ -67,10 +67,10 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
             aylikOdeme = 4_800.25m,
             odemeGunu = 15,
             kanal = "Instagram",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, adDuzelt.StatusCode);
 
-        var liste = await client.GetFromJsonAsync<List<KrediYanit>>("/api/krediler");
+        var liste = await client.GetFromJsonAsync<List<KrediYanit>>("/api/krediler", cancellationToken: TestContext.Current.CancellationToken);
         var g = liste!.Single(k => k.Id == eklenen.Id);
         Assert.Equal("Ziraat İhtiyaç Kredisi", g.Ad);
         Assert.Equal(4_800.25m, g.AylikOdeme);
@@ -78,10 +78,10 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
         Assert.Equal("Instagram", g.Kanal);
         Assert.Equal(new DateOnly(2026, 8, 3), g.CekimTarihi);
 
-        var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}");
+        var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, sil.StatusCode);
 
-        var sonListe = await client.GetFromJsonAsync<List<KrediYanit>>("/api/krediler");
+        var sonListe = await client.GetFromJsonAsync<List<KrediYanit>>("/api/krediler", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Contains(sonListe!, k => k.Id == eklenen.Id);
     }
 
@@ -89,13 +89,13 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
     public async Task Izleyici_kredi_okur_ama_ekleyemez()
     {
         var editor = await _factory.EditorClientAsync();
-        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
+        await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var izleyici = _factory.CreateClient();
-        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" });
+        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = (string?)null, sifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
         giris.EnsureSuccessStatusCode();
 
-        var okuma = await izleyici.GetAsync("/api/krediler");
+        var okuma = await izleyici.GetAsync("/api/krediler", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, okuma.StatusCode);
 
         var yazma = await izleyici.PostAsJsonAsync("/api/krediler", new
@@ -107,7 +107,7 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
             aylikOdeme = 1m,
             odemeGunu = 1,
             kanal = "Ortak",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, yazma.StatusCode);
     }
 }

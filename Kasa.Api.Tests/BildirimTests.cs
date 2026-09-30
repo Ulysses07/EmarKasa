@@ -106,8 +106,8 @@ public sealed class BildirimTests
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day), Event("Kredi", "Taksit", Day)];
         fixture.Device("a");
         fixture.Device("b");
-        await fixture.Service().Gonder();
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(4, fixture.Sender.Calls.Count);
         Assert.Equal(2, fixture.Db.Set<BildirimEntity>().Count());
         Assert.Equal(4, fixture.Db.Set<BildirimTeslimEntity>().Count(x => x.Gonderildi != null));
@@ -119,9 +119,9 @@ public sealed class BildirimTests
         using var fixture = new Fikstur();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day)];
         fixture.Device("a");
-        await fixture.Service().Yenile();
+        await fixture.Service().Yenile(TestContext.Current.CancellationToken);
         fixture.Sources.Events = [];
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Empty(fixture.Sender.Calls);
         Assert.True(fixture.Db.Set<BildirimEntity>().Single().Iptal);
     }
@@ -133,14 +133,14 @@ public sealed class BildirimTests
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day, 250)];
         fixture.Device("a");
         fixture.Sender.Result = PushSonuc.GeciciHata;
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day, 100)];
         fixture.Clock.Utc = fixture.Clock.Utc.AddMinutes(2);
         fixture.Sender.Result = PushSonuc.Basarili;
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, fixture.Sender.Calls.Count);
         Assert.Contains("100,00 TL", fixture.Sender.Calls.Last().Mesaj);
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, fixture.Sender.Calls.Count);
     }
 
@@ -151,10 +151,10 @@ public sealed class BildirimTests
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         fixture.Device("a");
         fixture.Sender.Result = PushSonuc.AbonelikBitti;
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.False(fixture.Db.Set<PushAbonelikEntity>().AsNoTracking().Single().Etkin);
         fixture.Device("b", "old-password-stamp");
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Single(fixture.Sender.Calls);
         Assert.All(fixture.Db.Set<PushAbonelikEntity>().AsNoTracking(), x => Assert.False(x.Etkin));
     }
@@ -166,10 +166,10 @@ public sealed class BildirimTests
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day), Event("Kart", "SonOdeme", Day.AddDays(-1))];
         fixture.Clock.Utc = new DateTimeOffset(2026, 9, 23, 5, 59, 0, TimeSpan.Zero);
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Empty(fixture.Sender.Calls);
         fixture.Clock.Utc = fixture.Clock.Utc.AddMinutes(1);
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Single(fixture.Sender.Calls);
     }
 
@@ -179,10 +179,10 @@ public sealed class BildirimTests
         using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day.AddDays(3))];
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day.AddDays(4))];
         fixture.Clock.Utc = fixture.Clock.Utc.AddDays(1);
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, fixture.Sender.Calls.Count);
         var history = fixture.Db.Set<BildirimEntity>().AsNoTracking().OrderBy(x => x.Id).ToArray();
         Assert.Equal(Day, history[0].Tarih);
@@ -197,12 +197,12 @@ public sealed class BildirimTests
         using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
-        await fixture.Service().Yenile();
+        await fixture.Service().Yenile(TestContext.Current.CancellationToken);
         fixture.Db.Set<BildirimAyarEntity>().ExecuteUpdate(x => x.SetProperty(p => p.Saat, 10));
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Empty(fixture.Sender.Calls);
         fixture.Clock.Utc = fixture.Clock.Utc.AddHours(1);
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Single(fixture.Sender.Calls);
     }
 
@@ -224,7 +224,7 @@ public sealed class BildirimTests
                 : new DateTimeOffset(2026, 9, 23, 21, 0, 1, TimeSpan.Zero);
             return Task.CompletedTask;
         };
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, checkedLeases);
         Assert.Equal(2, fixture.Sender.Calls.Count);
     }
@@ -238,9 +238,9 @@ public sealed class BildirimTests
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Sender.OnSend = () => { reached.SetResult(); return finish.Task; };
-        var first = fixture.Service().Gonder();
-        await reached.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await fixture.Service().Gonder();
+        var first = fixture.Service().Gonder(TestContext.Current.CancellationToken);
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Single(fixture.Sender.Calls);
         finish.SetResult();
         await first;
@@ -252,18 +252,18 @@ public sealed class BildirimTests
     {
         using var factory = new KasaWebFactory();
         var guest = factory.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await guest.GetAsync("/api/bildirimler")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await guest.GetAsync("/api/bildirimler", TestContext.Current.CancellationToken)).StatusCode);
         var editor = await factory.EditorClientAsync();
-        var before = await editor.GetFromJsonAsync<BildirimAyarYaz>("/api/bildirimler/ayarlar");
+        var before = await editor.GetFromJsonAsync<BildirimAyarYaz>("/api/bildirimler/ayarlar", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(before);
         Assert.Equal(9, before.Saat);
-        var changed = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(true, 10, 30, before.Surum));
+        var changed = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(true, 10, 30, before.Surum), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
-        var stale = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(false, 10, 30, before.Surum));
+        var stale = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(false, 10, 30, before.Surum), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
-        var invalid = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(true, 24, 0, before.Surum + 1));
+        var invalid = await editor.PutAsJsonAsync("/api/bildirimler/ayarlar", new BildirimAyarYaz(true, 24, 0, before.Surum + 1), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
-        Assert.Empty(await editor.GetFromJsonAsync<object[]>("/api/bildirimler/push/abonelikler") ?? []);
+        Assert.Empty(await editor.GetFromJsonAsync<object[]>("/api/bildirimler/push/abonelikler", cancellationToken: TestContext.Current.CancellationToken) ?? []);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class BildirimTests
             pendingId = pending.Id;
         }
         // Neither paid source is returned by the finance event source during refresh.
-        var rows = await client.GetFromJsonAsync<System.Text.Json.JsonElement[]>("/api/bildirimler");
+        var rows = await client.GetFromJsonAsync<System.Text.Json.JsonElement[]>("/api/bildirimler", cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(rows);
         Assert.Contains(rows, x => x.GetProperty("id").GetInt32() == deliveredId);
         Assert.DoesNotContain(rows, x => x.GetProperty("id").GetInt32() == pendingId);
@@ -305,12 +305,12 @@ public sealed class BildirimTests
         fixture.Db.SaveChanges();
         fixture.Device("a");
         fixture.Device("b");
-        await fixture.Service().Gonder();
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, fixture.Sender.Calls.Count);
         Assert.Single(fixture.Db.Set<BildirimEntity>());
         fixture.Clock.Utc = fixture.Clock.Utc.AddDays(1);
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, fixture.Sender.Calls.Count);
         Assert.Single(fixture.Db.Set<BildirimEntity>());
     }
@@ -326,9 +326,9 @@ public sealed class BildirimTests
         fixture.Db.KasaEsikleri.Add(new() { KanalId = channel.Id, Etkin = true, Tutar = 100m });
         fixture.Db.SaveChanges();
         fixture.Device("a");
-        await fixture.Service().Yenile();
+        await fixture.Service().Yenile(TestContext.Current.CancellationToken);
         fixture.Db.Kanallar.ExecuteUpdate(p => p.SetProperty(k => k.AcilisDevri, 100m));
-        await fixture.Service().Gonder();
+        await fixture.Service().Gonder(TestContext.Current.CancellationToken);
         Assert.Empty(fixture.Sender.Calls);
         Assert.True(fixture.Db.Set<BildirimEntity>().Single().Iptal);
     }

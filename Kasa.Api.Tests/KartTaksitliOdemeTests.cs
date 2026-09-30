@@ -52,6 +52,7 @@ public class KartTaksitliOdemeTests
     [Fact]
     public async Task Kartli_alis_odemesi_taksitle_girilince_ekstre_borcu_ve_son_odeme_taksit_tutarindadir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var kart = await YeniKart(c);
@@ -61,7 +62,7 @@ public class KartTaksitliOdemeTests
         Assert.Equal(0m, alis.Kalan);
         // Aynı istek tekrarında ikinci harcama oluşmaz; aynı kimlikle farklı taksit reddedilir.
         Assert.Equal(alis.Surum, (await Post<AlisDto>(c, $"/api/alis/{alis.Id}/odemeler", istek with { Surum = 0 })).Surum);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", istek with { TaksitSayisi = 2 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", istek with { TaksitSayisi = 2 }, cancellationToken: ct)).StatusCode);
 
         var harcama = Assert.Single(Harcamalar(f, kart.Id));
         Assert.Equal((3, alis.Odemeler.Single().IslemId), (harcama.TaksitSayisi, harcama.IslemId));
@@ -70,7 +71,7 @@ public class KartTaksitliOdemeTests
         var ilkKesim = new DateOnly(Gun.Year, Gun.Month, 5).AddMonths(Gun.Day > 5 ? 1 : 0);
         Assert.Equal([(ilkKesim, 12000m), (ilkKesim.AddMonths(1), 12000m), (ilkKesim.AddMonths(2), 12000m)],
             dto.Ekstreler.Where(e => e.Borc != 0).Select(e => (e.KesimTarihi, e.Borc)));
-        var ozet = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", Json))!;
+        var ozet = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", Json, cancellationToken: ct))!;
         Assert.Equal(12000m, Assert.Single(ozet.Olaylar, o => o.Tur == "SonOdeme" && o.KaynakId == kart.Id).Tutar);
     }
 
@@ -106,18 +107,20 @@ public class KartTaksitliOdemeTests
         await Red(temel with { TaksitSayisi = 2, MevcutKartHarcamaId = 1 }, "taksitSayisi");
         await Red(temel with { TaksitSayisi = 2, MevcutIslemId = 1 }, "taksitSayisi");
         Assert.Empty(Harcamalar(f, kart.Id));
-        Assert.Empty((await c.GetFromJsonAsync<List<AlisDto>>("/api/alis", Json))!.Single().Odemeler);
+        Assert.Empty((await c.GetFromJsonAsync<List<AlisDto>>("/api/alis", Json, cancellationToken: TestContext.Current.CancellationToken))!.Single().Odemeler);
     }
 
     [Fact]
     public async Task Kartli_manuel_gider_taksitle_girilir_eski_istemci_tek_taksitle_devam_eder()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var kart = await YeniKart(c);
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Gun, "Telefon", 3000m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id, IstekId: Guid.NewGuid(), TaksitSayisi: 6))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Gun, "Telefon", 3000m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id, IstekId: Guid.NewGuid(), TaksitSayisi: 6), cancellationToken: ct)).EnsureSuccessStatusCode();
         // Eski istemci yeni alanları hiç göndermez (JSON'da yok).
-        (await c.PostAsJsonAsync("/api/islemler", new { tarih = Gun, cari = "Kargo", tutarTl = 120m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = kart.Id })).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler",
+            new { tarih = Gun, cari = "Kargo", tutarTl = 120m, kanal = "MEZAT", tip = "KrediKarti", krediKartiId = kart.Id }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var harcamalar = Harcamalar(f, kart.Id).OrderBy(h => h.Id).ToList();
         Assert.Equal([6, 1], harcamalar.Select(h => h.TaksitSayisi));
         var dto = await Kart(c, kart.Id);
@@ -125,9 +128,9 @@ public class KartTaksitliOdemeTests
         Assert.Equal(6, dto.Ekstreler.Count(e => e.Borc != 0));
 
         Assert.Contains("Taksit yalnız yeni takipteki kartla", await Hata(await c.PostAsJsonAsync("/api/islemler",
-            new IslemYazDto(Gun, "Nakit", 100m, "MEZAT", GiderTipi.Cari, TaksitSayisi: 2)), HttpStatusCode.BadRequest));
+            new IslemYazDto(Gun, "Nakit", 100m, "MEZAT", GiderTipi.Cari, TaksitSayisi: 2), cancellationToken: ct), HttpStatusCode.BadRequest));
         var gider = harcamalar[1].IslemId!.Value;
         Assert.Contains("Taksit", await Hata(await c.PutAsJsonAsync($"/api/islemler/{gider}",
-            new IslemYazDto(Gun, "Kargo", 120m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id, TaksitSayisi: 3)), HttpStatusCode.BadRequest));
+            new IslemYazDto(Gun, "Kargo", 120m, "MEZAT", GiderTipi.KrediKarti, KrediKartiId: kart.Id, TaksitSayisi: 3), cancellationToken: ct), HttpStatusCode.BadRequest));
     }
 }

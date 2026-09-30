@@ -31,9 +31,9 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
             tarih = "2026-07-20",
             tutar = 200m,
             not = (string?)null,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
-        var liste = await client.GetFromJsonAsync<List<KartYanit>>("/api/kredikartlari");
+        var liste = await client.GetFromJsonAsync<List<KartYanit>>("/api/kredikartlari", cancellationToken: TestContext.Current.CancellationToken);
         var g = liste!.Single(k => k.Id == kart.Id);
         Assert.Equal(1000m, g.AcilisBorc);
         Assert.Equal(500m, g.HarcamaToplam);
@@ -47,9 +47,9 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
         var client = await _factory.EditorClientAsync();
         // K3: yeni kart gideri yalnız yeni takipteki karta bağlanabilir.
         var kartYanit = await client.PostAsJsonAsync("/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "TipZorla", 10_000m, 5, 25,
-            new DateOnly(2026, 7, 1), 0m, []));
+            new DateOnly(2026, 7, 1), 0m, []), cancellationToken: TestContext.Current.CancellationToken);
         kartYanit.EnsureSuccessStatusCode();
-        var kart = await kartYanit.Content.ReadFromJsonAsync<KartTakipDto>();
+        var kart = await kartYanit.Content.ReadFromJsonAsync<KartTakipDto>(cancellationToken: TestContext.Current.CancellationToken);
 
         var olustur = await client.PostAsJsonAsync("/api/islemler", new
         {
@@ -60,8 +60,8 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
             tip = "Cari",
             not = (string?)null,
             krediKartiId = kart!.Id,
-        });
-        var olusan = await olustur.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        }, cancellationToken: TestContext.Current.CancellationToken);
+        var olusan = await olustur.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("KrediKarti", olusan.GetProperty("tip").GetString());
     }
 }

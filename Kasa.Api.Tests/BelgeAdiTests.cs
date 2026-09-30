@@ -73,7 +73,7 @@ public class BelgeAdiTests
         using var r = await AlisTestYardimcisi.YukleYanit(c, alis.Id, AlisTestYardimcisi.Pdf(64), ad, tur);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         Assert.Contains("uyuşmuyor", await AlisTestYardimcisi.Hata(r));
-        Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
+        Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!);
     }
 
     /// <summary>Outlook'un doğrudan engellediği (Level1) ekler: yüklemede reddedilen uzantılar bu listeyi kapsar. Asıl koruma
@@ -104,7 +104,7 @@ public class BelgeAdiTests
                 kabulEdilen.Add($"{uzanti}: {(int)r.StatusCode}");
         }
         Assert.True(kabulEdilen.Count == 0, "Reddedilmeyen uzantılar: " + string.Join(", ", kabulEdilen));
-        Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!);
+        Assert.Empty((await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!);
     }
 
     [Theory]
@@ -133,7 +133,7 @@ public class BelgeAdiTests
         using var __ = c;
         var belge = await Yuklendi(c, alis.Id, AlisTestYardimcisi.Pdf(64), "Fatura Ş.pdf");
         Assert.Equal("Fatura Ş.pdf", belge.DosyaAdi);
-        using var r = await c.GetAsync($"/api/belgeler/{belge.Id}");
+        using var r = await c.GetAsync($"/api/belgeler/{belge.Id}", TestContext.Current.CancellationToken);
         r.EnsureSuccessStatusCode();
         Assert.Equal("attachment", r.Content.Headers.ContentDisposition!.DispositionType);
         Assert.Equal("Fatura Ş.pdf", r.Content.Headers.ContentDisposition.FileNameStar);
@@ -157,16 +157,16 @@ public class BelgeAdiTests
             db.SaveChanges();
             (pdf, bilinmeyen) = (eski.Id, tur.Id);
         }
-        var liste = (await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler"))!;
+        var liste = (await c.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{alis.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(["eskilmth.pdf", "rapor.bin"], liste.OrderBy(b => b.Id).Select(b => b.DosyaAdi));
 
-        using (var r = await c.GetAsync($"/api/belgeler/{pdf}"))
+        using (var r = await c.GetAsync($"/api/belgeler/{pdf}", TestContext.Current.CancellationToken))
         {
             Assert.Equal("eskilmth.pdf", r.Content.Headers.ContentDisposition!.FileNameStar);
             Assert.Equal("application/pdf", r.Content.Headers.ContentType!.MediaType);
         }
         // İzinli türlerin dışındaki (eski ya da elle yazılmış) içerik tarayıcıda yorumlanamaz: ikili dosya olarak iner.
-        using (var r = await c.GetAsync($"/api/belgeler/{bilinmeyen}"))
+        using (var r = await c.GetAsync($"/api/belgeler/{bilinmeyen}", TestContext.Current.CancellationToken))
         {
             Assert.Equal("rapor.bin", r.Content.Headers.ContentDisposition!.FileNameStar);
             Assert.Equal("application/octet-stream", r.Content.Headers.ContentType!.MediaType);
