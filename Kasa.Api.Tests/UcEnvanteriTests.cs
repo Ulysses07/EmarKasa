@@ -16,12 +16,13 @@ namespace Kasa.Api.Tests;
 /// karşılaştırılır. Döküm uçları veri kaynağındaki sırayla yazar; her uç için türü, rota deseni, Order'ı, görünen adı, HTTP
 /// yöntemleri, adı, yetki verileri (politika, rol, şema; anonim izni), hız sınırı politikası ve meta veri öğelerini
 /// (sırasıyla, türü ve içeriğiyle: kabul edilen gövde, yanıt türleri, parametre bağlama, gövde boyu sınırı...) yazar.
-/// Yalnız kaynak dosyadaki yere bağlı iki derleyici ayrıntısı yazılmaz:
+/// Yalnız kaynak dosyadaki yere ya da derleme yapılandırmasına bağlı derleyici ayrıntıları yazılmaz:
 /// - Satır içi işleyicinin <see cref="MethodInfo"/>'sunun derleyicinin ürettiği adı ve bildiren türü (ör. Program+&lt;&gt;c);
 ///   dökümde imzası yer alır: dönüş türü, parametre türleri ve adları, her birinin etkin null durumu.
 /// - İşleyici yöntemindeki NullableContextAttribute: derleyici null ek açıklamalarını sıkıştırırken bağlamı yönteme ya da
 ///   işleyicileri taşıyan, derleyicinin ürettiği sınıfa koyar; hangisine koyacağı aynı sınıftaki komşu işleyicilere bağlıdır.
 ///   Taşıdığı bilgi imzadaki etkin null durumudur (<see cref="NullabilityInfoContext"/>: ? null olabilir, ~ bilinmiyor).
+/// - DebuggerStepThroughAttribute: derleyici async işleyicilere yalnız Debug derlemesinde ekler (CI Release derler).
 /// Uç filtreleri (AddEndpointFilter) meta veri değildir; davranış testleri kapsar.
 /// Uçları dosyalar arasında taşımak dökümü değiştirmez. Uç eklemek, kaldırmak ya da meta verisini değiştirmek bilinçli bir
 /// sözleşme değişikliğidir: KASA_UC_ENVANTERI_YAZ=1 ile dosya yeniden yazılır ve fark incelenir.
@@ -71,7 +72,9 @@ public class UcEnvanteriTests
             var yetkiler = m.GetOrderedMetadata<IAuthorizeData>();
             s.Append(CultureInfo.InvariantCulture, $"  yetki: {(yetkiler.Count == 0 ? "-" : string.Join(" + ", yetkiler.Select(Yetki)))}{(m.GetMetadata<IAllowAnonymous>() is not null ? " (anonim izinli)" : "")}\n");
             s.Append(CultureInfo.InvariantCulture, $"  hız sınırı: {m.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ?? "-"}{(m.GetMetadata<DisableRateLimitingAttribute>() is not null ? " (kapalı)" : "")}\n");
-            var ogeler = m.Where(o => o.GetType().FullName != "System.Runtime.CompilerServices.NullableContextAttribute").ToList();
+            var ogeler = m.Where(o => o.GetType().FullName is not ("System.Runtime.CompilerServices.NullableContextAttribute"
+                // Derleyici async işleyicilere yalnız Debug derlemesinde ekler; CI Release derler.
+                or "System.Diagnostics.DebuggerStepThroughAttribute")).ToList();
             s.Append(CultureInfo.InvariantCulture, $"  meta veri ({ogeler.Count}):\n");
             foreach (var oge in ogeler)
                 s.Append(CultureInfo.InvariantCulture, $"    - {Tur(oge.GetType())}{(Tanim(oge) is { Length: > 0 } t ? ": " + t : "")}\n");

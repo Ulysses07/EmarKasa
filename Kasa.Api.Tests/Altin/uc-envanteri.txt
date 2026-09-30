@@ -17,7 +17,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: -
   hız sınırı: giris
-  meta veri (15):
+  meta veri (14):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.LoginDto dto, Kasa.Api.Data.KasaDbContext db, Microsoft.Extensions.Configuration.IConfiguration cfg, Microsoft.AspNetCore.Http.HttpContext http, Kasa.Api.Auth.GirisSiniri sinir, Kasa.Api.Auth.TanidikCihaz tanidikCihaz, Kasa.Api.Auth.IzleyiciSifreDurumu izleyiciSifresi)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata: istek=Kasa.Api.LoginDto içerik=application/json isteğe bağlı=False
@@ -30,7 +30,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=izleyiciSifresi tür=Kasa.Api.Auth.IzleyiciSifreDurumu TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=giris
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/auth/login
 
@@ -375,14 +374,13 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: yedek
-  meta veri (10):
+  meta veri (9):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.Data.KasaDbContext db, Kasa.Api.Servisler.YedekServisi yedek, Microsoft.AspNetCore.Http.HttpContext http)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=yedek tür=Kasa.Api.Servisler.YedekServisi TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=http tür=Microsoft.AspNetCore.Http.HttpContext TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=yedek
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/yedek
@@ -1189,7 +1187,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: guvenlik
-  meta veri (15):
+  meta veri (14):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult> (Microsoft.AspNetCore.Http.HttpRequest request, Kasa.Api.Data.KasaDbContext db, Kasa.Api.Servisler.IPdfMetinOkuyucu pdf, System.TimeProvider saat, Kasa.Api.Servisler.BelgeDeposu depo, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1200,7 +1198,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=depo tür=Kasa.Api.Servisler.BelgeDeposu TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=guvenlik
     - Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute: azami gövde=10551296
     - Microsoft.AspNetCore.Mvc.RequestFormLimitsAttribute
@@ -1340,7 +1337,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (9):
+  meta veri (8):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.Data.KasaDbContext db, Kasa.Api.Servisler.BildirimServisi service, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=GET cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1348,7 +1345,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=service tür=Kasa.Api.Servisler.BildirimServisi TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/
 
 #80 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/ayarlar order=0
@@ -1371,7 +1367,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (13):
+  meta veri (12):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.BildirimAyarYaz input, Kasa.Api.Data.KasaDbContext db, Kasa.Api.Servisler.BildirimServisi service, Kasa.Api.Servisler.BildirimSagligi saglik, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=PUT cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1383,7 +1379,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/ayarlar
 
 #82 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/{id:int}/okundu order=0
@@ -1392,7 +1387,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (9):
+  meta veri (8):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (System.Int32 id, Kasa.Api.Data.KasaDbContext db, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1400,7 +1395,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/{id:int}/okundu
 
 #83 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/anahtar order=0
@@ -1422,7 +1416,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: guvenlik
-  meta veri (15):
+  meta veri (14):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.PushAbonelikYaz input, Kasa.Api.Data.KasaDbContext db, Microsoft.AspNetCore.Http.HttpContext context, System.TimeProvider clock, Kasa.Api.Servisler.PushKimligi identity, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1435,7 +1429,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=guvenlik
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelik
 
@@ -1445,7 +1438,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (12):
+  meta veri (11):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.PushEndpointYaz input, Kasa.Api.Data.KasaDbContext db, Kasa.Api.Auth.GuvenlikGunlugu gunluk, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=DELETE cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1456,7 +1449,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelik
 
 #86 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelikler order=0
@@ -1465,14 +1457,13 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (8):
+  meta veri (7):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.Data.KasaDbContext db, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=GET cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelikler
 
 #87 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/push/abonelikler/{id:int} order=0
@@ -1481,7 +1472,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (10):
+  meta veri (9):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (System.Int32 id, Kasa.Api.Data.KasaDbContext db, Kasa.Api.Auth.GuvenlikGunlugu gunluk, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=DELETE cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1490,7 +1481,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=gunluk tür=Kasa.Api.Auth.GuvenlikGunlugu TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/push/abonelikler/{id:int}
 
 #88 Microsoft.AspNetCore.Routing.RouteEndpoint /api/bildirimler/test order=0
@@ -1499,7 +1489,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Editor roller=- şemalar=-
   hız sınırı: guvenlik
-  meta veri (16):
+  meta veri (15):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (Kasa.Api.PushEndpointYaz input, Kasa.Api.Data.KasaDbContext db, Kasa.Api.Servisler.IPushGonderici sender, Microsoft.Extensions.Configuration.IConfiguration cfg, System.TimeProvider clock, Kasa.Api.Servisler.BildirimSagligi saglik, System.Threading.CancellationToken ct)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
@@ -1513,7 +1503,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=ct tür=System.Threading.CancellationToken TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=guvenlik
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/bildirimler/test
 
@@ -1591,7 +1580,7 @@ uç sayısı: 124
   ad: - / rota adı: -
   yetki: politika=Alis roller=- şemalar=-
   hız sınırı: alis-yukleme
-  meta veri (15):
+  meta veri (14):
     - System.Reflection.RuntimeMethodInfo: imza System.Threading.Tasks.Task<Microsoft.AspNetCore.Http.IResult~>~ (System.Int32 id, Microsoft.AspNetCore.Http.HttpRequest request, System.Security.Claims.ClaimsPrincipal user, Kasa.Api.Data.KasaDbContext db, System.TimeProvider saat, Microsoft.Extensions.Options.IOptionsMonitor<Kasa.Api.AliciKotaAyarlari> kota, Kasa.Api.Servisler.BelgeDeposu depo)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Alis roller=- şemalar=-
@@ -1603,7 +1592,6 @@ uç sayısı: 124
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=kota tür=Microsoft.Extensions.Options.IOptionsMonitor<Kasa.Api.AliciKotaAyarlari> TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=depo tür=Kasa.Api.Servisler.BelgeDeposu TryParse=False BindAsync=False isteğe bağlı=False
     - System.Runtime.CompilerServices.AsyncStateMachineAttribute
-    - System.Diagnostics.DebuggerStepThroughAttribute
     - Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute: azami gövde=10551296
     - Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute: politika=alis-yukleme
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/alis/{id:int}/belgeler
