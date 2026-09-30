@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -302,7 +303,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         { Hata = "İade edilen pozitif harcamayı seçin; kanal payları bu harcamadan alınır."; return; }
         var g = new KartHarcamaYaz(Guid.Empty, kart.Surum, DateOnly.FromDateTime(HarcamaTarihi), HarcamaAciklama.Trim(), HarcamaTutari, TaksitSayisi, IlkKesimVar ? DateOnly.FromDateTime(IlkKesimTarihi) : null, IadeGirisi ? Array.Empty<KanalPayYaz>() : TakipMetni.Paylar(HarcamaPaylari), IadeGirisi ? IadeKaynagi!.Veri.Id : null);
         g = g with { IstekId = _harcama.Al(kart.Id, new { kart.Id, g }) };
-        if (!await HarcamaBenzerlik.DevamEdilebilirAsync(new("KartHarcama", g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
+        if (!await HarcamaBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.KartHarcama, g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
             return;
         if (Uygula(await api.TakipHarcamaKaydetAsync(kart.Id, g), n))
         { _harcama.Temizle(kart.Id); HarcamaBenzerlik.Temizle(); HarcamaTutari = 0; HarcamaAciklama = ""; HarcamaPaylari.Clear(); Mesaj = "Kart hareketi kaydedildi. Henüz kasa çıkışı oluşmadı."; }
@@ -338,7 +339,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         var g = OdemeGovde();
         if (!_odemeOnizlemesi.Gecerli(g))
         { Hata = "Ödeme bilgileri için önce güncel önizlemeyi alın."; return; }
-        if (!await OdemeBenzerlik.DevamEdilebilirAsync(new("KartOdeme", g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
+        if (!await OdemeBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.KartOdeme, g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
             return;
         if (Uygula(await api.TakipOdemeKaydetAsync(kart.Id, g), n))
         { _odeme.Temizle(kart.Id); OdemeBenzerlik.Temizle(); _odemeOnizlemesi.Temizle(); OdemeOnizleme = null; OdemeTutari = 0; OdemeNotu = ""; Mesaj = "Kart ödemesi kaydedildi; kasa etkisi bir kez işlendi."; }

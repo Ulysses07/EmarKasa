@@ -441,7 +441,7 @@ public partial class AlislarViewModel : OturumluViewModel
         g = g with { IstekId = _odemeAnahtari.Al(new { AlisId = alisId, g }) };
         // Mevcut kayda bağlama yeni para çıkışı değildir: benzer kayıt sorulmaz.
         if (g.MevcutIslemId is null && g.MevcutKartHarcamaId is null
-            && !await OdemeBenzerlik.DevamEdilebilirAsync(new("AlisOdeme", g.Tarih, g.Tutar, g.KrediKartiId, AlisId: alisId), new { alisId, g }, () => Gecerli(nesil) && _secili?.Id == alisId))
+            && !await OdemeBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.AlisOdeme, g.Tarih, g.Tutar, g.KrediKartiId, AlisId: alisId), new { alisId, g }, () => Gecerli(nesil) && _secili?.Id == alisId))
             return;
         try
         {

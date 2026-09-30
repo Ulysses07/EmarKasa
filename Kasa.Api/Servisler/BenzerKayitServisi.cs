@@ -7,8 +7,8 @@ using static Kasa.Api.FinansTakipServisi;
 
 namespace Kasa.Api.Servisler;
 
-/// <summary>Benzer kayıt araması. <paramref name="Tur"/>: "Gider", "AylikGider", "AlisOdeme" (kartlı ya da kartsız),
-/// "KartHarcama" (işaretli tutar: iade eksi) ya da "KartOdeme". <paramref name="Kanallar"/> null ise kanal süzgeci yoktur.
+/// <summary>Benzer kayıt araması. <paramref name="Tur"/>: <see cref="BenzerAramaTurleri"/> (Gider, AylikGider, AlisOdeme kartlı
+/// ya da kartsız, KartHarcama işaretli tutarla: iade eksi, KartOdeme). <paramref name="Kanallar"/> null ise kanal süzgeci yoktur.
 /// <paramref name="AlisId"/> verilirse aynı alışın ödemeleri kanal süzgecinden bağımsız listelenir.</summary>
 public sealed record BenzerAramasi(string Tur, DateOnly Tarih, decimal Tutar, int? KrediKartiId = null, IReadOnlySet<int>? Kanallar = null, int? AlisId = null);
 
@@ -53,7 +53,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         var bas = a.Tarih.AddDays(-GunPenceresi);
         var son = a.Tarih.AddDays(GunPenceresi);
         var adaylar = new List<(BenzerKayitDto Kayit, int Sira)>();
-        if (a.Tur == "KartHarcama" || a.Tur is "Gider" or "AlisOdeme" && a.KrediKartiId is not null)
+        if (a.Tur == BenzerAramaTurleri.KartHarcama || a.Tur is BenzerAramaTurleri.Gider or BenzerAramaTurleri.AlisOdeme && a.KrediKartiId is not null)
         {
             var kart = a.KrediKartiId!.Value;
             adaylar.AddRange(Giderler(a, bas, son, kart).Select(k => (k, 0)));
@@ -61,7 +61,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         }
         else
         {
-            var kartOdemesi = a.Tur == "KartOdeme";
+            var kartOdemesi = a.Tur == BenzerAramaTurleri.KartOdeme;
             adaylar.AddRange(Giderler(a, bas, son, null).Select(k => (k, 0)));
             adaylar.AddRange(KartOdemeleri(a, bas, son, kartOdemesi ? a.KrediKartiId : null));
             if (!kartOdemesi)
@@ -90,15 +90,15 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
     /// <summary>Uyarı metninde kaynağın adı ve numarası ("Gider #12", "Kredi #3 taksidi").</summary>
     public static string KaynakEtiketi(BenzerKayitDto k) => k.Kaynak switch
     {
-        "Islem" when k.EkstreKayitId is not null => $"Banka gideri #{k.Id}",
-        "Islem" when k.AylikGiderOdemeId is not null => $"Aylık gider ödemesi #{k.Id}",
-        "Islem" when k.AlisId is not null => $"Alış #{k.AlisId} ödemesi #{k.Id}",
-        "Islem" => $"Gider #{k.Id}",
-        "KartHarcama" => $"Kart harcaması #{k.Id}",
-        "KartOdeme" => $"Kart ödemesi #{k.Id}",
-        "EskiKartOdeme" => $"Eski kart ödemesi #{k.Id}",
-        "KrediTaksidi" => $"Kredi taksidi #{k.Id}",
-        "EskiKrediTaksidi" => $"Kredi #{k.Id} taksidi",
+        BenzerKayitKaynaklari.Islem when k.EkstreKayitId is not null => $"Banka gideri #{k.Id}",
+        BenzerKayitKaynaklari.Islem when k.AylikGiderOdemeId is not null => $"Aylık gider ödemesi #{k.Id}",
+        BenzerKayitKaynaklari.Islem when k.AlisId is not null => $"Alış #{k.AlisId} ödemesi #{k.Id}",
+        BenzerKayitKaynaklari.Islem => $"Gider #{k.Id}",
+        BenzerKayitKaynaklari.KartHarcama => $"Kart harcaması #{k.Id}",
+        BenzerKayitKaynaklari.KartOdeme => $"Kart ödemesi #{k.Id}",
+        BenzerKayitKaynaklari.EskiKartOdeme => $"Eski kart ödemesi #{k.Id}",
+        BenzerKayitKaynaklari.KrediTaksidi => $"Kredi taksidi #{k.Id}",
+        BenzerKayitKaynaklari.EskiKrediTaksidi => $"Kredi #{k.Id} taksidi",
         _ => $"Kayıt #{k.Id}"
     };
 
@@ -146,7 +146,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
             var (kume, etiket) = Kanal(i);
             var alis = bagliAlis.GetValueOrDefault(i.Id);
             if (Gorunur(a, kume) || a.AlisId is { } alisId && alis?.Id == alisId)
-                sonuc.Add(new("Islem", i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId, alis?.Id, etiket, ekstre.GetValueOrDefault(i.Id)?.Id, aylik.GetValueOrDefault(i.Id)?.Id));
+                sonuc.Add(new(BenzerKayitKaynaklari.Islem, i.Id, i.Tarih, i.TutarTl, i.Cari, i.KrediKartiId, alis?.Id, etiket, ekstre.GetValueOrDefault(i.Id)?.Id, aylik.GetValueOrDefault(i.Id)?.Id));
         }
         return sonuc;
     }
@@ -161,7 +161,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         var ids = harcamalar.Select(h => h.Id).ToArray();
         var ekstre = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.KartHarcamaId != null && ids.Contains(k.KartHarcamaId.Value))
             .Select(k => new { k.Id, Harcama = k.KartHarcamaId!.Value }).ToList().GroupBy(k => k.Harcama).ToDictionary(g => g.Key, g => g.First().Id);
-        return harcamalar.Select(h => new BenzerKayitDto("KartHarcama", h.Id, h.Tarih, h.Tutar, h.Aciklama, h.KrediKartiId,
+        return harcamalar.Select(h => new BenzerKayitDto(BenzerKayitKaynaklari.KartHarcama, h.Id, h.Tarih, h.Tutar, h.Aciklama, h.KrediKartiId,
             KanalEtiketi: Kume(Read<KanalPayYaz>(h.DagilimJson).Select(p => p.KanalId)).Etiket, EkstreKayitId: ekstre.TryGetValue(h.Id, out var kayit) ? kayit : null)).ToList();
     }
 
@@ -181,9 +181,9 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         var ekstre = db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal && k.KartOdemeId != null && odemeIds.Contains(k.KartOdemeId.Value))
             .Select(k => new { k.Id, Odeme = k.KartOdemeId!.Value }).ToList().GroupBy(k => k.Odeme).ToDictionary(g => g.Key, g => g.First().Id);
         string Aciklama(string? not, string varsayilan, int kartId) => $"{not ?? varsayilan} · {kartAdlari.GetValueOrDefault(kartId, $"Kart #{kartId}")}";
-        return odemeler.Select(p => (new BenzerKayitDto("KartOdeme", p.Id, p.Tarih, p.Tutar, Aciklama(p.Not, "Kart ödemesi", p.KrediKartiId), p.KrediKartiId,
+        return odemeler.Select(p => (new BenzerKayitDto(BenzerKayitKaynaklari.KartOdeme, p.Id, p.Tarih, p.Tutar, Aciklama(p.Not, "Kart ödemesi", p.KrediKartiId), p.KrediKartiId,
                 EkstreKayitId: ekstre.TryGetValue(p.Id, out var kayit) ? kayit : null), 2))
-            .Concat(eskiOdemeler.Select(p => (new BenzerKayitDto("EskiKartOdeme", p.Id, p.Tarih, p.Tutar, Aciklama(p.Not, "Eski kart ödemesi", p.KrediKartiId), p.KrediKartiId), 3)))
+            .Concat(eskiOdemeler.Select(p => (new BenzerKayitDto(BenzerKayitKaynaklari.EskiKartOdeme, p.Id, p.Tarih, p.Tutar, Aciklama(p.Not, "Eski kart ödemesi", p.KrediKartiId), p.KrediKartiId), 3)))
             .ToList();
     }
 
@@ -201,10 +201,10 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         {
             var (kume, etiket) = Kume(Read<KanalPayYaz>(t.DagilimJson).Select(p => p.KanalId));
             if (Gorunur(a, kume))
-                sonuc.Add((new BenzerKayitDto("KrediTaksidi", t.Id, t.Tarih, t.Tutar, $"Kredi taksidi · {krediAdlari.GetValueOrDefault(t.KrediId, "Kredi")} · {t.No}. taksit", null, KanalEtiketi: etiket), 4));
+                sonuc.Add((new BenzerKayitDto(BenzerKayitKaynaklari.KrediTaksidi, t.Id, t.Tarih, t.Tutar, $"Kredi taksidi · {krediAdlari.GetValueOrDefault(t.KrediId, "Kredi")} · {t.No}. taksit", null, KanalEtiketi: etiket), 4));
         }
         sonuc.AddRange(EskiTaksitler().Where(t => t.Tutar == a.Tutar && t.Tarih >= bas && t.Tarih <= son && Gorunur(a, t.KanalId is { } kanal ? new HashSet<int> { kanal } : null))
-            .Select(t => (new BenzerKayitDto("EskiKrediTaksidi", t.KrediId, t.Tarih, t.Tutar, $"Otomatik kredi taksidi (kredi #{t.KrediId}) · {t.Ad} · {t.No}. taksit", null, KanalEtiketi: t.Kanal), 5)));
+            .Select(t => (new BenzerKayitDto(BenzerKayitKaynaklari.EskiKrediTaksidi, t.KrediId, t.Tarih, t.Tutar, $"Otomatik kredi taksidi (kredi #{t.KrediId}) · {t.Ad} · {t.No}. taksit", null, KanalEtiketi: t.Kanal), 5)));
         return sonuc;
     }
 

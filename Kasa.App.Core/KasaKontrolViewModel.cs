@@ -246,17 +246,17 @@ public static class KasaKontrolMetni
 {
     private static readonly Dictionary<string, string> Hareketler = new()
     {
-        ["Gelir"] = "Dönem geliri",
-        ["EkstreGeliri"] = "Ekstre geliri",
-        ["EkGelir"] = "Ek gelir",
-        ["KrediCekimi"] = "Kredi çekimi",
-        ["Gider"] = "Gider",
-        ["SabitGider"] = "Sabit gider",
-        ["AylikGider"] = "Aylık gider",
-        ["KartOdemesi"] = "Kart ödemesi",
-        ["KartIadesi"] = "Kart borcu iadesi",
-        ["KrediTaksidi"] = "Kredi taksidi",
-        ["KartAySonu"] = "Eski kart ay sonu düşümü",
+        [KasaHareketTurleri.Gelir] = "Dönem geliri",
+        [KasaHareketTurleri.EkstreGeliri] = "Ekstre geliri",
+        [KasaHareketTurleri.EkGelir] = "Ek gelir",
+        [KasaHareketTurleri.KrediCekimi] = "Kredi çekimi",
+        [KasaHareketTurleri.Gider] = "Gider",
+        [KasaHareketTurleri.SabitGider] = "Sabit gider",
+        [KasaHareketTurleri.AylikGider] = "Aylık gider",
+        [KasaHareketTurleri.KartOdemesi] = "Kart ödemesi",
+        [KasaHareketTurleri.KartIadesi] = "Kart borcu iadesi",
+        [KasaHareketTurleri.KrediTaksidi] = "Kredi taksidi",
+        [KasaHareketTurleri.KartAySonu] = "Eski kart ay sonu düşümü",
     };
     private static readonly Dictionary<string, string> Varliklar = new()
     {
