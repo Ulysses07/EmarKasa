@@ -28,6 +28,61 @@
     --danger: #a13232;
     --radius: 12px;
     --shadow: 0 16px 44px #1c3c2820;
+    /* Yüzeyler: form alanı, kenar çubuğu, tablo başlığı, satır ve kart üzerine gelme, düzenleyici ve boş durum zeminleri */
+    --white: #ffffff;
+    --field: #fffefa;
+    --field-disabled: #eeeee5;
+    --sidebar: #eeefe4;
+    --nav-hover: #e1e6d9;
+    --table-head: #f0f0e4;
+    --row-hover: #f0eee2;
+    --card-hover: #f8f8ee;
+    --editor-surface: #f8f7ee;
+    --source-surface: #efeee5;
+    --empty: #faf8ef;
+    --monogram: #e9ecdf;
+    --tag: #efeee3;
+    --document-type: #eeeee3;
+    /* Yazı ve süs çizgileri: menü, ok, boş durum işareti, not ve belge türü yazısı; kesik ve ince kenarlıklar */
+    --nav-text: #526356;
+    --chevron: #778470;
+    --empty-mark: #9fae93;
+    --note-text: #546354;
+    --document-type-text: #7c826f;
+    --control-line-hover: #788d77;
+    --empty-line: #cbd0c1;
+    --loader-track: #d6ddcf;
+    --dialog-line: #d1d4c4;
+    --recovery-line: #809777;
+    /* Koyu yeşil zemin: birincil düğme üzerine gelme ve giriş/genel kasa kutusundaki açık yazılar ve çizgiler */
+    --green-dark: #103d2e;
+    --on-green-text: #d8e0d1;
+    --on-green-label: #c3d4bd;
+    --on-green-muted: #cbd9c5;
+    --on-green-faint: #b4c6af;
+    --ledger-line: #7c9b83;
+    --ledger-rule: #446e56;
+    /* Uyarı ve hata: tehlike düğmesi, form hatası, bilgi ve tehlike notu, hata bildirimi */
+    --danger-surface: #fff8f2;
+    --error-surface: #fcf0ea;
+    --notice: #f7ead8;
+    --notice-danger: #faeae5;
+    --toast-error: #83362d;
+    --toast-close-hover: #ffffff26;
+    /* Durum rozetleri (zemin / yazı): varsayılan, incelemede, onaylandı, bekliyor, iptal */
+    --badge: #e9e9df;
+    --badge-text: #646b61;
+    --badge-review: #f4e5ce;
+    --badge-review-text: #885628;
+    --badge-approved: #e3eddf;
+    --badge-approved-text: #366341;
+    --badge-pending: #faeae1;
+    --badge-pending-text: #9b4c2e;
+    --badge-cancelled: #f3e4dd;
+    --badge-cancelled-text: #8d5149;
+    /* Saydam katmanlar: pencere arka perdesi ve ekstre araç çubuğu gölgesi */
+    --backdrop: #15291fc0;
+    --toolbar-shadow: #243d3310;
     color-scheme: light;
     font-family: KasaSystem, "Segoe UI", system-ui, sans-serif;
     color: var(--ink);
@@ -121,7 +176,7 @@
     padding: 11px 12px;
     border: 1px solid var(--control-line);
     border-radius: 7px;
-    background: #fffefa;
+    background: var(--field);
     color: var(--ink);
   }
   input::placeholder,
@@ -136,7 +191,7 @@
   input:disabled,
   select:disabled,
   textarea:disabled {
-    background: #eeeee5;
+    background: var(--field-disabled);
     color: var(--muted);
   }
   label {
@@ -212,7 +267,7 @@
     top: -60px;
     z-index: 1000;
     padding: 12px;
-    background: white;
+    background: var(--white);
   }
   .skip-link:focus {
     top: 12px;
@@ -256,20 +311,20 @@
   }
   .button:hover {
     background: var(--green-light);
-    border-color: #788d77;
+    border-color: var(--control-line-hover);
   }
   .button.primary {
     background: var(--green);
     border-color: var(--green);
-    color: #fffdf7;
+    color: var(--paper);
   }
   .button.primary:hover {
-    background: #103d2e;
+    background: var(--green-dark);
   }
   .button.danger {
     color: var(--danger);
     border-color: var(--danger-line);
-    background: #fff8f2;
+    background: var(--danger-surface);
   }
   .button.small {
     min-height: 36px;
@@ -322,7 +377,7 @@
   }
   .form-error {
     color: var(--danger);
-    background: #fcf0ea;
+    background: var(--error-surface);
     border-left: 3px solid var(--danger);
     padding: 10px 12px;
     font-size: 0.88rem;
@@ -331,7 +386,7 @@
   .notice {
     padding: 14px 16px;
     border-left: 3px solid var(--copper);
-    background: #f7ead8;
+    background: var(--notice);
     font-size: 0.88rem;
     line-height: 1.55;
     margin-bottom: 20px;
@@ -345,7 +400,7 @@
   }
   .notice.danger {
     border-color: var(--danger);
-    background: #faeae5;
+    background: var(--notice-danger);
   }
   .notifications {
     position: fixed;
@@ -357,7 +412,7 @@
   }
   .toast {
     background: var(--green);
-    color: white;
+    color: var(--white);
     border-radius: 9px;
     box-shadow: var(--shadow);
     padding: 15px 20px;
@@ -366,7 +421,7 @@
     line-height: 1.45;
   }
   .toast.error {
-    background: #83362d;
+    background: var(--toast-error);
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -391,10 +446,10 @@
     line-height: 1;
   }
   .toast-close:hover {
-    background: #ffffff26;
+    background: var(--toast-close-hover);
   }
   .toast-close:focus-visible {
-    outline-color: #fffdf7;
+    outline-color: var(--paper);
     outline-offset: -3px;
   }
   .login-screen {
@@ -416,7 +471,7 @@
   }
   .intro-label {
     font-size: 0.8rem;
-    color: #c3d4bd;
+    color: var(--on-green-label);
     margin-bottom: 20px;
   }
   .login-intro h1 {
@@ -429,7 +484,7 @@
   }
   .login-intro > p:last-child {
     font-size: 0.98rem;
-    color: #d8e0d1;
+    color: var(--on-green-text);
     line-height: 1.7;
   }
   .ledger-art {
@@ -437,19 +492,19 @@
     padding: 0 6px 0 0;
     transform: rotate(-3deg);
     max-width: 400px;
-    color: #d8e0d1;
+    color: var(--on-green-text);
   }
   .ledger-art > div:first-child {
     display: flex;
     justify-content: space-between;
     font-family: Georgia, serif;
     padding-bottom: 12px;
-    border-bottom: 1px solid #7c9b83;
+    border-bottom: 1px solid var(--ledger-line);
   }
   .ledger-art i {
     display: block;
     height: 27px;
-    border-bottom: 1px solid #446e56;
+    border-bottom: 1px solid var(--ledger-rule);
   }
   .ledger-total {
     text-align: right;
@@ -459,7 +514,7 @@
   }
   .login-foot {
     margin: auto 0 0;
-    color: #b4c6af;
+    color: var(--on-green-faint);
     font-size: 0.76rem;
   }
   .login-main {
@@ -510,7 +565,7 @@
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
-    background: #eeefe4;
+    background: var(--sidebar);
   }
   .sidebar .brand {
     padding: 0 14px 37px;
@@ -527,14 +582,14 @@
     background: none;
     border-radius: 7px;
     padding: 13px 14px;
-    color: #526356;
+    color: var(--nav-text);
     text-align: left;
     font-size: 0.9rem;
     font-weight: 550;
     white-space: nowrap;
   }
   .nav-button:hover {
-    background: #e1e6d9;
+    background: var(--nav-hover);
   }
   .nav-button.active {
     background: var(--green);
@@ -678,14 +733,14 @@
     text-align: left;
   }
   .purchase-row:hover {
-    background: #f0eee2;
+    background: var(--row-hover);
   }
   .purchase-monogram {
     width: 43px;
     height: 46px;
     display: grid;
     place-items: center;
-    background: #e9ecdf;
+    background: var(--monogram);
     border-radius: 9px;
     color: var(--green);
     font-family: Georgia, serif;
@@ -715,7 +770,7 @@
   }
   .chevron {
     text-align: right;
-    color: #778470;
+    color: var(--chevron);
   }
   .badge {
     display: inline-flex;
@@ -725,8 +780,8 @@
     font-weight: 600;
     padding: 5px 9px;
     border-radius: 4px;
-    background: #e9e9df;
-    color: #646b61;
+    background: var(--badge);
+    color: var(--badge-text);
     white-space: nowrap;
     width: fit-content;
   }
@@ -739,20 +794,20 @@
     background: currentColor;
   }
   .badge.review {
-    background: #f4e5ce;
-    color: #885628;
+    background: var(--badge-review);
+    color: var(--badge-review-text);
   }
   .badge.approved {
-    background: #e3eddf;
-    color: #366341;
+    background: var(--badge-approved);
+    color: var(--badge-approved-text);
   }
   .badge.pending {
-    background: #faeae1;
-    color: #9b4c2e;
+    background: var(--badge-pending);
+    color: var(--badge-pending-text);
   }
   .badge.cancelled {
-    color: #8d5149;
-    background: #f3e4dd;
+    color: var(--badge-cancelled-text);
+    background: var(--badge-cancelled);
   }
   .empty {
     display: flex;
@@ -761,13 +816,13 @@
     justify-content: center;
     text-align: center;
     padding: 70px 28px;
-    border: 1px dashed #cbd0c1;
+    border: 1px dashed var(--empty-line);
     border-radius: 10px;
-    background: #faf8ef;
+    background: var(--empty);
   }
   .empty .empty-mark {
     font-size: 2.5rem;
-    color: #9fae93;
+    color: var(--empty-mark);
     font-family: Georgia, serif;
     line-height: 1;
     margin-bottom: 20px;
@@ -785,7 +840,7 @@
   .loader {
     width: 28px;
     height: 28px;
-    border: 2px solid #d6ddcf;
+    border: 2px solid var(--loader-track);
     border-top-color: var(--green);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -873,14 +928,14 @@
   .allocation-tag {
     font-size: 0.73rem;
     padding: 5px 8px;
-    background: #efeee3;
+    background: var(--tag);
     border-radius: 4px;
   }
   .purchase-note {
     font-size: 0.86rem;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    color: #546354;
+    color: var(--note-text);
     margin: 22px 0 0;
   }
   .total-line {
@@ -965,9 +1020,9 @@
     place-items: center;
     width: 35px;
     height: 40px;
-    background: #eeeee3;
+    background: var(--document-type);
     border-radius: 4px;
-    color: #7c826f;
+    color: var(--document-type-text);
     font-size: 0.63rem;
     font-weight: 650;
     flex: none;
@@ -977,7 +1032,7 @@
     color: var(--muted);
   }
   dialog {
-    border: 1px solid #d1d4c4;
+    border: 1px solid var(--dialog-line);
     border-radius: 14px;
     padding: 0;
     box-shadow: var(--shadow);
@@ -987,7 +1042,7 @@
     color: var(--ink);
   }
   dialog::backdrop {
-    background: #15291fc0;
+    background: var(--backdrop);
     backdrop-filter: blur(3px);
   }
   dialog.wide {
@@ -1025,7 +1080,7 @@
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 18px;
-    background: #f8f7ee;
+    background: var(--editor-surface);
   }
   .line-editor + .line-editor {
     margin-top: 14px;
@@ -1108,7 +1163,7 @@
     font-weight: 550;
     font-size: 0.74rem;
     color: var(--muted);
-    background: #f0f0e4;
+    background: var(--table-head);
     padding: 14px 18px;
     border-bottom: 1px solid var(--line);
     white-space: nowrap;
@@ -1160,7 +1215,7 @@
     white-space: pre-wrap;
     padding: 20px;
     background: var(--green-light);
-    border: 1px dashed #809777;
+    border: 1px dashed var(--recovery-line);
     font-family: ui-monospace, monospace;
     line-height: 1.6;
     font-size: 1.15rem;
@@ -1325,7 +1380,7 @@
       border-bottom: 1px solid var(--line);
       display: grid;
       grid-template-columns: 1fr auto;
-      background: #eeefe4;
+      background: var(--sidebar);
     }
     .sidebar .brand {
       font-size: 1.3rem;
@@ -1671,7 +1726,7 @@
       box-shadow: none;
     }
     body {
-      background: white;
+      background: var(--white);
     }
     .detail-grid {
       display: block;
@@ -1687,7 +1742,7 @@
     margin-bottom: 22px;
   }
   .cash-hero .summary-label {
-    color: #cbd9c5;
+    color: var(--on-green-muted);
     font-size: 0.82rem;
     margin-bottom: 14px;
   }
@@ -1808,7 +1863,7 @@
   }
   .finance-card:hover {
     border-color: var(--green);
-    background: #f8f8ee;
+    background: var(--card-hover);
   }
   .finance-card-head {
     display: flex;
@@ -2033,7 +2088,7 @@
     font-size: 0.79rem;
     line-height: 1.6;
     padding: 11px 13px;
-    background: #efeee5;
+    background: var(--source-surface);
     border-radius: 6px;
     margin: 8px 0;
   }
@@ -2056,7 +2111,7 @@
     border-radius: 8px;
     padding: 15px 18px;
     z-index: 2;
-    box-shadow: 0 -3px 14px #243d3310;
+    box-shadow: 0 -3px 14px var(--toolbar-shadow);
   }
   .import-preview {
     border-top: 1px solid var(--line);

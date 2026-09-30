@@ -204,3 +204,25 @@ test('telefon form alanı kenarlığı MAUI FieldStroke ile aynı tondur', async
   assert.ok(maui, 'Colors.xaml FieldStroke okunamadı');
   assert.equal(mobile.root['--alan-cizgi'].toUpperCase(), maui.toUpperCase());
 });
+
+// Renk kodları yalnız :root belirteçlerinde tanımlanır; kurallar renge var(--…) ile başvurur. Bir tonu değiştirmek tek
+// belirteci değiştirir ve yukarıdaki oran sınamaları belirteçten çözülür. transparent ve currentColor renk kodu sayılmaz.
+const RENK_KODU = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|(?<![\w-])(?:white|black)(?![\w-])/gi;
+const kokDisiRenkler = css =>
+  [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, secici]) => secici.trim() !== ':root')
+    .flatMap(([, secici, govde]) => [...govde.matchAll(RENK_KODU)].map(e => `${secici.trim()} → ${e[0]}`));
+
+test('renk kodu deseni rengi yakalar, belirteci ve beyaz boşluk özelliğini yakalamaz', () => {
+  assert.deepEqual(kokDisiRenkler(':root{--a:#fff}.x{color:#fff;background:rgba(0,0,0,.1);border-color:white}'), [
+    '.x → #fff',
+    '.x → rgba(',
+    '.x → white',
+  ]);
+  assert.deepEqual(kokDisiRenkler('.x{color:var(--white);white-space:nowrap;background:transparent;fill:currentColor}'), []);
+});
+
+test('masaüstü: renk kodları yalnız :root belirteçlerinde', async () => {
+  const css = sikistir(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8'));
+  assert.deepEqual(kokDisiRenkler(css), [], 'styles.css: :root dışında renk kodu; belirteç tanımlayıp var(--…) kullanın');
+});
