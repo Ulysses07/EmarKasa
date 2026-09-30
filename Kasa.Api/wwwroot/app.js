@@ -75,6 +75,8 @@ let monthlyRequest = 0;
 // Ekranın rapor okumaları (screenBoundRead) bu denetleyicinin sinyaliyle gider: ekran değişince ya da oturum kapanınca istek
 // tarayıcıda iptal edilir, sunucu da hesabı keser; geç yanıt ekrana yansımaz.
 let screenAbort = null;
+// Ekran çizimleri görünüm adıyla kaydedilir (registerScreens): gezinme ekranların kendisini bilmez.
+const screens = new Map();
 const isOpen = form => modal.open && $('#modal-content').querySelector('form') === form;
 const push = createPushClient({ api, session: () => (canEditCash() ? state.epoch : null) });
 const financeUi = createFinanceUi({
@@ -229,6 +231,30 @@ const notificationUi = createNotificationUi({
   push,
   notificationRoute,
   role: () => state.role,
+});
+// Gezinmenin çizdiği ekranlar (navigate): görünüm → çizim. Alış ekranları çizimden önce alış listesini yükler; bu arada başka
+// ekrana geçildiyse çizmez.
+registerScreens({
+  purchases: async generation => {
+    await loadPurchases();
+    if (generation !== renderId) return;
+    renderPurchases();
+  },
+  purchase: async (generation, id) => {
+    await loadPurchases();
+    if (generation !== renderId) return;
+    renderPurchase(id);
+  },
+  home: generation => renderHome(generation),
+  weekly: generation => renderWeekly(generation),
+  monthly: generation => renderMonthly(generation),
+  'monthly-expenses': generation => monthlyUi.render(generation),
+  imports: (generation, id) => statementImportUi.render(generation, id),
+  transactions: generation => renderTransactions(generation),
+  tools: generation => renderTools(generation),
+  cards: (generation, id) => financeUi.renderCards(generation, id),
+  loans: (generation, id) => financeUi.renderLoans(generation, id),
+  notifications: generation => notificationUi.render(generation),
 });
 
 function h(tag, props = {}, ...children) {
@@ -558,6 +584,10 @@ function closeModal(explicit) {
   modalCleanup = null;
   $('#modal-content').replaceChildren();
 }
+// Pencere kapanınca çalışacak temizlik (ör. kurtarma kodunu ekrandan silmek): pencereyi açan akış verir.
+function setModalCleanup(cleanup) {
+  modalCleanup = cleanup;
+}
 function openModal(title, content, wide = false) {
   closeModal(true);
   $('#modal-title').textContent = title;
@@ -828,6 +858,9 @@ async function loadPurchases() {
 async function loadPaymentLookups() {
   state.cards = await api('/api/kredikartlari');
 }
+function registerScreens(entries) {
+  for (const [view, render] of Object.entries(entries)) screens.set(view, render);
+}
 async function navigate(view, id = null) {
   if (!navigationFor(state.role, runtime).some(([key]) => key === (view === 'purchase' ? 'purchases' : view)))
     throw new Error('Bu ekran için erişiminiz yok.');
@@ -843,21 +876,7 @@ async function navigate(view, id = null) {
     h('div', { class: 'empty' }, h('span', { class: 'loader', 'aria-hidden': 'true' }), h('p', {}, 'Kayıtlar yükleniyor…'))
   );
   try {
-    if (view === 'purchases' || view === 'purchase') {
-      await loadPurchases();
-      if (generation !== renderId) return;
-      if (view === 'purchase') renderPurchase(id);
-      else renderPurchases();
-    } else if (view === 'home') await renderHome(generation);
-    else if (view === 'weekly') await renderWeekly(generation);
-    else if (view === 'monthly') await renderMonthly(generation);
-    else if (view === 'monthly-expenses') await monthlyUi.render(generation);
-    else if (view === 'imports') await statementImportUi.render(generation, id);
-    else if (view === 'transactions') await renderTransactions(generation);
-    else if (view === 'tools') await renderTools(generation);
-    else if (view === 'cards') await financeUi.renderCards(generation, id);
-    else if (view === 'loans') await financeUi.renderLoans(generation, id);
-    else if (view === 'notifications') await notificationUi.render(generation);
+    await screens.get(view)?.(generation, id);
   } catch (error) {
     if (generation === renderId && state.role)
       content.replaceChildren(
@@ -3138,10 +3157,10 @@ function recoveryCodeDialog() {
           button('Kodu sakladım, kapat', closeModal, 'primary')
         )
       );
-      modalCleanup = () => {
+      setModalCleanup(() => {
         code.textContent = '';
         result.kod = '';
-      };
+      });
     }
   );
 }
