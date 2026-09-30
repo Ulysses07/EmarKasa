@@ -31,6 +31,9 @@ services:
       Kasa__JwtKey: "${KASA_JWT_KEY}"
       Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
+      # Editör şifresini ortamdaki KASA_EDITOR_SIFRE'ye zorla sıfırlama (varsayılan kapalı). Yalnız sıfırlama sırasında true;
+      # işi bitince kaldırın. Adımlar: deploy/README.md "Editör şifresini sıfırlama".
+      Kasa__EditorSifreSifirla: "${KASA_EDITOR_SIFRE_SIFIRLA:-false}"
       Yedek__Etkin: "true"
       Yedek__Dizin: "/yedekler"
     # Uzun sözdizimi + create_host_path: false: kaynak yol yoksa Docker boş dizin AÇMAZ, 'up' hata verir.

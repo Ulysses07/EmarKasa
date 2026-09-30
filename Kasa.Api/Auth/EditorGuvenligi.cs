@@ -7,12 +7,24 @@ namespace Kasa.Api.Auth;
 
 public static class EditorGuvenligi
 {
+    /// <summary>
+    /// Editör girişi kilitli (<see cref="EditorGuvenlikEntity.SifreHash"/> bu değerdeyken): geri yükleme güvenlik günlüğünde yedekten
+    /// sonraki bir şifre değişikliği, kurtarma ya da sıfırlama bulunca yedekteki şifreyi bununla geçersiz kılar
+    /// (<see cref="GeriYuklemeIsleyici"/>). Hiçbir şifre doğrulanmaz: ne yedekteki ya da sonradan kaybolan şifre ne de ortamdaki
+    /// Kasa:EditorSifre (ilk kurulumdaki ya da unutulmuş eski bir değer olabilir). Kurtarma kodu geri yüklemede iptal edildiği için
+    /// kilidi yalnız operatörün bilinçli sıfırlaması açar (<see cref="EditorSifreSifirlama"/>, yeni ortam şifresiyle). Değer
+    /// <see cref="SifreHasher"/> biçiminde ("tuz.özet") değildir: bu sürümü tanımayan kod da onu doğrulayamaz (kilit her sürümde kapalı kalır).
+    /// </summary>
+    public const string GirisKilidi = "kilitli:geri-yukleme";
+
+    public static bool Kilitli(EditorGuvenlikEntity? kayit) => kayit?.SifreHash == GirisKilidi;
+
     public static bool Dogrula(string? sifre, IConfiguration cfg, EditorGuvenlikEntity? kayit)
     {
         if (string.IsNullOrEmpty(sifre) || sifre.Length > 1024)
             return false;
         if (kayit?.SifreHash is { } hash)
-            return SifreHasher.Dogrula(sifre, hash);
+            return hash != GirisKilidi && SifreHasher.Dogrula(sifre, hash);
         var eski = cfg["Kasa:EditorSifre"];
         return !string.IsNullOrEmpty(eski) && CryptographicOperations.FixedTimeEquals(
             SHA256.HashData(Encoding.UTF8.GetBytes(sifre)), SHA256.HashData(Encoding.UTF8.GetBytes(eski)));
@@ -21,7 +33,8 @@ public static class EditorGuvenligi
     /// <summary>Editör oturum damgasının kaynağı. Ortam şifresiyle çalışan editörün kaydı yalnız kurtarma kodu üretiminde (sürüm 0)
     /// ya da geri yüklemede (<see cref="GeriYuklemeIsleyici"/>, sürüm artar) oluşur; sürüm 0'dan büyükse damgaya girer. Böylece
     /// geri yükleme ortam şifresindeki editörün eski oturumlarını da kapatır; bugünkü oturumlar bu değişiklikle düşmez. Geri yükleme
-    /// güvenlik günlüğünde yedekten sonraki bir şifre değişikliği bulursa şifre özetini siler: giriş yeniden ortam şifresiyledir.</summary>
+    /// güvenlik günlüğünde yedekten sonraki bir şifre değişikliği bulursa girişi kilitler (<see cref="GirisKilidi"/>); operatörün
+    /// sıfırlaması (<see cref="EditorSifreSifirlama"/>) şifre özetini ortam şifresinin özetiyle değiştirir ve sürümü artırır.</summary>
     public static string Kaynak(IConfiguration cfg, EditorGuvenlikEntity? kayit) =>
         kayit?.SifreHash is { } hash
             ? $"editor\n{cfg["Kasa:EditorKullanici"]}\n{hash}\n{kayit.Surum}"

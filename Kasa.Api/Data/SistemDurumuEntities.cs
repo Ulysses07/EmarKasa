@@ -15,6 +15,11 @@ namespace Kasa.Api.Data;
 /// Geri yüklemede güvenlik günlüğünün hangi olaylarının yedekte olmadığını (yeniden uygulanacağını) belirler; işlenince silinir.</item>
 /// <item><see cref="SonGeriYukleme"/>, <see cref="GeriYuklemeRaporu"/>: son geri yüklemenin anı ve operatör/editör için Türkçe
 /// madde listesi (JSON dizi); /api/yedek/durum ile web Araçlar ve masaüstü Güvenlik ekranında görünür.</item>
+/// <item><see cref="EditorSifirlamaIzi"/>: operatörün editör şifresi sıfırlamasının (<see cref="Auth.EditorSifreSifirlama"/>,
+/// Kasa:EditorSifreSifirla) hangi ortam şifresi için uygulandığının izi: HMAC-SHA256(Kasa:JwtKey, ortam şifresi), onaltılık. Bayrak
+/// açık unutulsa da aynı ortam şifresiyle sıfırlama ikinci kez uygulanmaz (editörün arayüzden sonradan değiştirdiği şifre her
+/// açılışta ezilmez). Anahtar veritabanında ve yedekte olmadığından iz şifreyi ele vermez; güvenlik günlüğüne ve loga yazılmaz.
+/// Migration 20261007000100_EditorSifirlamaIzi ekler; sıfırlama hiç yapılmadıysa NULL.</item>
 /// </list>
 /// Satır denetim olayı üretmez (geri yükleme kendi olayını yazar).
 /// </summary>
@@ -25,6 +30,7 @@ public class SistemDurumuEntity
     public DateTimeOffset? YedekZamani { get; set; }
     public DateTimeOffset? SonGeriYukleme { get; set; }
     public string? GeriYuklemeRaporu { get; set; }
+    public string? EditorSifirlamaIzi { get; set; }
 }
 
 public partial class KasaDbContext

@@ -50,6 +50,7 @@ public class GeriYuklemeTests
     private const string EditorP1 = "birinci-editor-sifresi";  // yedek anındaki editör şifresi (çalınan cihazda oturumu olan)
     private const string EditorP2 = "ikinci-editor-sifresi";   // yedekten sonra, cihaz çalınınca belirlenen
     private const string YeniOrtamSifresi = "operatorun-yeni-ortam-sifresi"; // runbook: KASA_EDITOR_SIFRE geri yüklemeden önce yenilenir
+    private const string IkinciOrtamSifresi = "operatorun-ikinci-ortam-sifresi";
 
     private static DateOnly Ay => new(KasaWebFactory.VarsayilanBugun.Year, KasaWebFactory.VarsayilanBugun.Month, 1);
     private static DateOnly Haziran => Ay.AddMonths(-3);
@@ -58,21 +59,24 @@ public class GeriYuklemeTests
 
     /// <summary>Verilen dosyayla çalışan uygulama: canlıdaki gibi dosya veritabanı, yedek dizini geçici. <paramref name="gunluk"/>:
     /// güvenlik günlüğü açık (varsayılan yer: yedek dizini/guvenlik-gunlugu.jsonl); <paramref name="editorSifresi"/>: ortamdaki
-    /// editör şifresi (KASA_EDITOR_SIFRE; verilmezse test fabrikasının 'kasa123'ü).</summary>
+    /// editör şifresi (KASA_EDITOR_SIFRE; verilmezse test fabrikasının 'kasa123'ü); <paramref name="sifirla"/>: editör şifresi
+    /// sıfırlama bayrağı (KASA_EDITOR_SIFRE_SIFIRLA, <see cref="EditorSifreSifirlama"/>).</summary>
     private sealed class Fabrika : KasaWebFactory
     {
         private readonly string _baglanti;
         private readonly string _dizin;
         private readonly bool _gunluk;
         private readonly string? _editorSifresi;
+        private readonly bool _sifirla;
 
-        public Fabrika(string yol, string dizin, SabitSaat? saat = null, bool gunluk = false, string? editorSifresi = null)
+        public Fabrika(string yol, string dizin, SabitSaat? saat = null, bool gunluk = false, string? editorSifresi = null, bool sifirla = false)
         {
             Saat = saat ?? new SabitSaat(VarsayilanBugun);
             _baglanti = Baglanti(yol);
             _dizin = dizin;
             _gunluk = gunluk;
             _editorSifresi = editorSifresi;
+            _sifirla = sifirla;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -92,6 +96,8 @@ public class GeriYuklemeTests
                 };
                 if (_editorSifresi is not null)
                     ayarlar["Kasa:EditorSifre"] = _editorSifresi;
+                if (_sifirla)
+                    ayarlar[EditorSifreSifirlama.Ayar] = "true";
                 cfg.AddInMemoryCollection(ayarlar);
             });
             builder.ConfigureServices(services =>
@@ -297,6 +303,15 @@ public class GeriYuklemeTests
         Assert.All(onceki, t => Assert.True(sonraki[t.Key] - t.Value < 100, $"{t.Key}: {t.Value} → {sonraki[t.Key]}"));
     }
 
+    /// <summary>Operatörün editör şifresi sıfırlamalarının denetim olayları (YeniJson), eskiden yeniye.</summary>
+    private static List<JsonElement> SifirlamaOlaylari(KasaWebFactory f)
+    {
+        using var scope = f.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<KasaDbContext>().DenetimOlaylari.AsNoTracking()
+            .Where(o => o.Tur == GuvenlikOlaylari.EditorSifresiSifirlandi).OrderBy(o => o.Id).AsEnumerable()
+            .Select(o => JsonDocument.Parse(o.YeniJson!).RootElement.Clone()).ToList();
+    }
+
     private static JsonElement GeriYuklemeOlayi(KasaWebFactory f)
     {
         using var scope = f.Services.CreateScope();
@@ -459,8 +474,9 @@ public class GeriYuklemeTests
     /// cihazdaki oturum ve K1 düşer), yeni kurtarma kodu K2 üretir, izleyici şifresini değiştirir, bir alıcıyı pasife alır,
     /// ötekinin şifresini değiştirir, yeni alıcı açar, çalınan cihazın bildirim kaydını kaldırır ve Temmuz'u kapatır. Bu kararlar
     /// veritabanı dışındaki güvenlik günlüğündedir (gizli bilgi içermeden). Yedek geri yüklenince: hiçbir eski belirteç ve kurtarma
-    /// kodu geçmez, P1 yeniden geçerli olmaz (P2 de kaybolmuştur); giriş, operatörün geri yüklemeden önce yenilediği ortam
-    /// şifresiyledir; alıcılar pasif, cihaz kayıtları kapalı; rapor bunları söyler. Panel, haftalık ve aylık raporlar yedek
+    /// kodu geçmez, P1 yeniden geçerli olmaz (P2 de kaybolmuştur) ve editör girişi kilitlenir; operatör runbook'a göre geri
+    /// yüklemeden önce ortam şifresini yenileyip sıfırlama bayrağını açtığı için kilit aynı açılışta kalkar ve giriş yeni ortam
+    /// şifresiyledir (ilk kurulumun şifresi geçmez); alıcılar pasif, cihaz kayıtları kapalı; rapor bunları söyler. Panel, haftalık ve aylık raporlar yedek
     /// anındakiyle birebir aynıdır. Yeniden başlatma işlemi tekrarlamaz; aynı yedeğin ikinci kez geri yüklenmesi ilk geri
     /// yüklemeden sonra alınmış oturumu da düşürür (yeni oturum dönemi).
     /// </summary>
@@ -540,10 +556,10 @@ public class GeriYuklemeTests
             Assert.Equal(yedekAni, DateTimeOffset.Parse((string)Oku(geri, "SELECT \"YedekZamani\" FROM \"SistemDurumu\" WHERE \"Id\" = 1;")!, System.Globalization.CultureInfo.InvariantCulture));
             Assert.Null(Oku(canli, "SELECT \"YedekZamani\" FROM \"SistemDurumu\" WHERE \"Id\" = 1;"));
 
-            // Geri yükleme: operatör runbook'a göre KASA_EDITOR_SIFRE'yi yeni bir değere çevirip başlatır.
+            // Geri yükleme: operatör runbook'a göre KASA_EDITOR_SIFRE'yi yeni bir değere çevirip sıfırlama bayrağıyla başlatır.
             saat.Ilerlet(TimeSpan.FromMinutes(1));
             string e3;
-            var fB = new Fabrika(geri, dizin, saat, gunluk: true, editorSifresi: YeniOrtamSifresi);
+            var fB = new Fabrika(geri, dizin, saat, gunluk: true, editorSifresi: YeniOrtamSifresi, sifirla: true);
             try
             {
                 (e3, _) = await GirisYap(fB, "editor", YeniOrtamSifresi);
@@ -577,7 +593,9 @@ public class GeriYuklemeTests
                 Assert.Equal(saat.GetUtcNow(), son);
                 Assert.Equal($"Veritabanı {Yerel(yedekAni)} tarihli yedekten geri yüklendi. Bu andan sonra girilen kayıtlar yedekte yok; yeniden girilmeli.", rapor[0]);
                 Assert.Contains("Bütün oturumlar kapatıldı; herkes yeniden giriş yapmalı.", rapor);
-                Assert.Contains(GeriYuklemeIsleyici.EditorSifresiSifirlandi, rapor);
+                Assert.Contains(GeriYuklemeIsleyici.EditorGirisiKilitlendi, rapor);
+                Assert.Equal($"Editör girişi {Yerel(saat.GetUtcNow())} tarihinde açıldı: şifre sunucudaki KASA_EDITOR_SIFRE'ye sıfırlandı "
+                    + "(Kasa:EditorSifreSifirla). Editör şifresini değiştirmediyse hemen değiştirmeli.", rapor[^1]);
                 Assert.Contains(rapor, m => m.StartsWith("Kurtarma kodu iptal edildi", StringComparison.Ordinal));
                 Assert.Contains(rapor, m => m.StartsWith("İzleyici girişi kapatıldı", StringComparison.Ordinal));
                 Assert.Contains(rapor, m => m.StartsWith("'alici1' alıcısı yedekten sonra pasife alınmıştı", StringComparison.Ordinal));
@@ -586,7 +604,8 @@ public class GeriYuklemeTests
                 Assert.Contains("2 cihazın bildirim kaydı kapatıldı: bildirim kullanan cihazlarda bildirimleri yeniden açın.", rapor);
                 Assert.DoesNotContain(rapor, m => m.Contains("Güvenlik günlüğü", StringComparison.Ordinal));
                 var olay = GeriYuklemeOlayi(fB);
-                Assert.True(olay.GetProperty("editorSifresiSifirlandi").GetBoolean());
+                Assert.True(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
+                Assert.True(Assert.Single(SifirlamaOlaylari(fB)).GetProperty("girisKilidiKaldirildi").GetBoolean());
                 Assert.True(olay.GetProperty("kurtarmaKoduIptal").GetBoolean());
                 Assert.Equal("tam", olay.GetProperty("guvenlikGunlugu").GetString());
                 Assert.Equal("yedek", olay.GetProperty("yedekAniKaynagi").GetString());
@@ -601,26 +620,39 @@ public class GeriYuklemeTests
             finally { fB.Dispose(); }
             Assert.Contains(File.ReadAllLines(gunlukYolu), s => s.Contains("\"tur\":\"GeriYuklemeIslendi\"", StringComparison.Ordinal));
 
-            // (h) Yeniden başlatma işlemi tekrarlamaz: geri yüklemeden sonra açılan oturum geçerli, tek olay.
-            var fC = new Fabrika(geri, dizin, saat, gunluk: true, editorSifresi: YeniOrtamSifresi);
+            // (h) Yeniden başlatma işlemi tekrarlamaz: geri yüklemeden sonra açılan oturum geçerli, tek olay. Bayrak açık unutulsa da
+            // aynı ortam şifresiyle sıfırlama yeniden uygulanmaz (oturum düşmez).
+            var fC = new Fabrika(geri, dizin, saat, gunluk: true, editorSifresi: YeniOrtamSifresi, sifirla: true);
             try
             {
                 Assert.Equal(HttpStatusCode.OK, await OturumDurumu(fC, e3));
                 GeriYuklemeOlayi(fC);
+                Assert.Single(SifirlamaOlaylari(fC));
             }
             finally { fC.Dispose(); }
 
-            // Aynı yedeğin ikinci kez geri yüklenmesi: veritabanındaki şifre ve sürümler ilk geri yüklemedekiyle aynıdır; yeni oturum
-            // dönemi ilk geri yüklemeden sonra açılan oturumu da düşürür.
+            // Aynı yedeğin ikinci kez geri yüklenmesi (bu kez bayraksız): veritabanındaki şifre ve sürümler ilk geri yüklemedekiyle
+            // aynıdır; yeni oturum dönemi ilk geri yüklemeden sonra açılan oturumu da düşürür. Günlük yedekten sonraki şifre
+            // değişikliğini ve sıfırlamayı gösterdiği için editör girişi yeniden kilitlenir: ortam şifresi dahil hiçbir şifre geçmez.
             KasaDbCikar(zip, ikinci);
             saat.Ilerlet(TimeSpan.FromMinutes(1));
             var fD = new Fabrika(ikinci, dizin, saat, gunluk: true, editorSifresi: YeniOrtamSifresi);
             try
             {
                 Assert.Equal(HttpStatusCode.Unauthorized, await OturumDurumu(fD, e3));
-                Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fD, "editor", YeniOrtamSifresi));
+                foreach (var sifre in new[] { YeniOrtamSifresi, EditorP1, EditorP2, "kasa123" })
+                    Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fD, "editor", sifre));
+                Assert.True(GeriYuklemeOlayi(fD).GetProperty("editorGirisiKilitlendi").GetBoolean());
             }
             finally { fD.Dispose(); }
+            // Operatör yeni ortam şifresiyle sıfırlar: kilit kalkar, önceki ortam şifresi geçmez.
+            var fE = new Fabrika(ikinci, dizin, saat, gunluk: true, editorSifresi: IkinciOrtamSifresi, sifirla: true);
+            try
+            {
+                Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fE, "editor", IkinciOrtamSifresi));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fE, "editor", YeniOrtamSifresi));
+            }
+            finally { fE.Dispose(); }
         }
         finally { Temizle([canli, geri, ikinci], dizin); }
     }
@@ -661,10 +693,10 @@ public class GeriYuklemeTests
                 using var editor = Oturumlu(fB, (await GirisYap(fB, "editor", EditorP1)).Jwt);
                 var (_, rapor) = await YedekDurumu(editor);
                 Assert.Contains(rapor, m => m.StartsWith("Güvenlik günlüğü bulunamadı", StringComparison.Ordinal) && m.Contains("Editör şifresini hemen değiştirin", StringComparison.Ordinal));
-                Assert.DoesNotContain(GeriYuklemeIsleyici.EditorSifresiSifirlandi, rapor);
+                Assert.DoesNotContain(GeriYuklemeIsleyici.EditorGirisiKilitlendi, rapor);
                 var olay = GeriYuklemeOlayi(fB);
                 Assert.Equal("bulunamadi", olay.GetProperty("guvenlikGunlugu").GetString());
-                Assert.False(olay.GetProperty("editorSifresiSifirlandi").GetBoolean());
+                Assert.False(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
             }
             finally { fB.Dispose(); }
             // Günlük açılışta oluşturulur ve geri yüklemeyi kaydeder.
@@ -710,8 +742,9 @@ public class GeriYuklemeTests
             }
             finally { fA.Dispose(); }
 
-            // Güncellemeden önceki veritabanı: SistemDurumu yok, migration uygulanmamış.
-            Calistir(yol, $"DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = '{Kasa.Api.Migrations.GeriYuklemeGuvenligi.Kimlik}';");
+            // Güncellemeden önceki veritabanı: SistemDurumu yok, migration'ları uygulanmamış.
+            Calistir(yol, "DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" IN "
+                + $"('{Kasa.Api.Migrations.GeriYuklemeGuvenligi.Kimlik}', '{Kasa.Api.Migrations.EditorSifirlamaIzi.Kimlik}');");
             var fB = new Fabrika(yol, dizin);
             try
             {
@@ -724,6 +757,7 @@ public class GeriYuklemeTests
                 Assert.Equal("", durum.OturumDonemi);
                 Assert.Null(durum.SonGeriYukleme);
                 Assert.Null(durum.GeriYuklemeRaporu);
+                Assert.Null(durum.EditorSifirlamaIzi);
                 var istek = new DefaultHttpContext().Request;
                 istek.Headers[TanidikCihaz.BaslikAdi] = cihaz;
                 Assert.NotNull(fB.Services.GetRequiredService<TanidikCihaz>().Dogrula(istek, GirisSiniri.EditorHedefi, OturumDamgasi.Uret("editor", cfg, db)));
@@ -821,7 +855,8 @@ public class GeriYuklemeTests
 
             // Eski biçim: işaretsiz, SistemDurumu'suz kasa.db ve ona göre manifest özeti (2.3 öncesi uygulamanın yazdığı gibi).
             KasaDbCikar(zip, eskiDb);
-            Calistir(eskiDb, $"PRAGMA user_version = 0; DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = '{Kasa.Api.Migrations.GeriYuklemeGuvenligi.Kimlik}';");
+            Calistir(eskiDb, "PRAGMA user_version = 0; DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" IN "
+                + $"('{Kasa.Api.Migrations.GeriYuklemeGuvenligi.Kimlik}', '{Kasa.Api.Migrations.EditorSifirlamaIzi.Kimlik}');");
             var eskiZip = Path.Combine(dizin, "kasa-elle-20260920-030000-0a1b2c3d.zip");
             JsonNode manifest;
             using (var arsiv = ZipFile.OpenRead(zip))
@@ -861,7 +896,7 @@ public class GeriYuklemeTests
                 var (_, rapor) = await YedekDurumu(editor);
                 Assert.StartsWith($"Veritabanı {Yerel(yedekAni)} tarihli yedekten geri yüklendi.", rapor[0], StringComparison.Ordinal);
                 Assert.Contains(rapor, m => m.StartsWith("'alici1' alıcısı yedekten sonra pasife alınmıştı", StringComparison.Ordinal));
-                Assert.DoesNotContain(GeriYuklemeIsleyici.EditorSifresiSifirlandi, rapor);
+                Assert.DoesNotContain(GeriYuklemeIsleyici.EditorGirisiKilitlendi, rapor);
                 Assert.Equal("restore_backup.py", GeriYuklemeOlayi(fB).GetProperty("yedekAniKaynagi").GetString());
             }
             finally { fB.Dispose(); }
@@ -869,6 +904,73 @@ public class GeriYuklemeTests
             Assert.False(TabloVar(geri, IsaretTablosu));
         }
         finally { Temizle([canli, geri, eskiDb], dizin); }
+    }
+
+    /// <summary>
+    /// gap-geri-yukleme-durum-geri-sarma-10: yedek anında editör şifresi P1 ve kurtarma kodu K1. Yedekten sonra operatör şifreyi
+    /// sıfırlar (ör. P1 ele geçti; güvenlik günlüğünde EditorSifresiSifirlandi). Yedek, bayrak kaldırılmış ve ortam şifresi ilk
+    /// kurulumdaki değerde ('kasa123') bırakılmışken geri yüklenir: yedekteki P1 yeniden geçerli olmaz, ilk kurulumun ortam şifresi
+    /// de sıfırlamada kullanılan şifre de geçmez, K1 kurtarmaya yaramaz: editör girişi kilitlidir. Operatör yeni ortam şifresiyle
+    /// sıfırlayınca kilit kalkar; geri yükleme raporu kilidi ve açılışını söyler.
+    /// </summary>
+    [Fact]
+    public async Task Yedekten_sonraki_sifirlama_geri_yuklemede_girisi_kilitler_ilk_kurulum_sifresi_gecmez()
+    {
+        var dizin = GeciciYol("");
+        var canli = GeciciYol(".db");
+        var geri = GeciciYol(".db");
+        var saat = new SabitSaat(KasaWebFactory.VarsayilanBugun);
+        try
+        {
+            string zip, k1;
+            var fA = new Fabrika(canli, dizin, saat, gunluk: true);
+            try
+            {
+                using (var ilk = Oturumlu(fA, (await GirisYap(fA, "editor", "kasa123")).Jwt))
+                    (await ilk.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = EditorP1 })).EnsureSuccessStatusCode();
+                using var editor = Oturumlu(fA, (await GirisYap(fA, "editor", EditorP1)).Jwt);
+                k1 = await KurtarmaKodu(editor, EditorP1);
+                saat.Ilerlet(TimeSpan.FromMinutes(1));
+                zip = await YedekAl(fA);
+                saat.Ilerlet(TimeSpan.FromMinutes(1));
+            }
+            finally { fA.Dispose(); }
+            var fS = new Fabrika(canli, dizin, saat, gunluk: true, editorSifresi: YeniOrtamSifresi, sifirla: true);
+            try
+            {
+                Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fS, "editor", YeniOrtamSifresi));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fS, "editor", EditorP1));
+            }
+            finally { fS.Dispose(); }
+            Assert.Contains(File.ReadAllLines(Path.Combine(dizin, GuvenlikGunlugu.DosyaAdi)),
+                s => s.Contains($"\"tur\":\"{GuvenlikGunlugu.EditorSifresiSifirlandi}\"", StringComparison.Ordinal));
+
+            KasaDbCikar(zip, geri);
+            saat.Ilerlet(TimeSpan.FromMinutes(1));
+            var fB = new Fabrika(geri, dizin, saat, gunluk: true);
+            try
+            {
+                foreach (var sifre in new[] { EditorP1, "kasa123", YeniOrtamSifresi })
+                    Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", sifre));
+                Assert.Equal(HttpStatusCode.Unauthorized, await Kurtar(fB, k1));
+                Assert.True(GeriYuklemeOlayi(fB).GetProperty("editorGirisiKilitlendi").GetBoolean());
+            }
+            finally { fB.Dispose(); }
+
+            saat.Ilerlet(TimeSpan.FromMinutes(1));
+            var fC = new Fabrika(geri, dizin, saat, gunluk: true, editorSifresi: IkinciOrtamSifresi, sifirla: true);
+            try
+            {
+                using var editor = Oturumlu(fC, (await GirisYap(fC, "editor", IkinciOrtamSifresi)).Jwt);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fC, "editor", EditorP1));
+                var (_, rapor) = await YedekDurumu(editor);
+                Assert.Contains(GeriYuklemeIsleyici.EditorGirisiKilitlendi, rapor);
+                Assert.StartsWith($"Editör girişi {Yerel(saat.GetUtcNow())} tarihinde açıldı", rapor[^1], StringComparison.Ordinal);
+                Assert.True(Assert.Single(SifirlamaOlaylari(fC)).GetProperty("girisKilidiKaldirildi").GetBoolean());
+            }
+            finally { fC.Dispose(); }
+        }
+        finally { Temizle([canli, geri], dizin); }
     }
 
     [Fact]

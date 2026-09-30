@@ -21,6 +21,9 @@ services:
       Kasa__JwtKey: "${KASA_JWT_KEY}"
       Kasa__EditorKullanici: "${KASA_EDITOR_KULLANICI}"
       Kasa__EditorSifre: "${KASA_EDITOR_SIFRE}"
+      # Editör şifresini ortamdaki KASA_EDITOR_SIFRE'ye zorla sıfırlama (varsayılan kapalı). Yalnız sıfırlama sırasında true;
+      # işi bitince kaldırın. Adımlar: deploy/README.md "Editör şifresini sıfırlama".
+      Kasa__EditorSifreSifirla: "${KASA_EDITOR_SIFRE_SIFIRLA:-false}"
       # Ortak orderdeck_web ağında uygulamanın varsayılan güvenilen vekil listesi (127.0.0.0/8, ::1,
       # 172.16.0.0/12, 192.168.0.0/16) o ağdaki BÜTÜN konteynerlerin X-Forwarded-For başlığına güvenir;
       # herhangi biri sahte istemci IP'siyle IP başına hız sınırlarını aşabilir. Liste yalnız ters vekil

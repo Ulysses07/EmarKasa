@@ -18,8 +18,9 @@ namespace Kasa.Api.Auth;
 /// KurtarmaBasarisiz, SifreDegisti, SifreDegistirmeBasarisiz, KurtarmaKoduUretildi, KurtarmaKoduUretimiBasarisiz.
 /// İzleyici şifresi değişimi ve alıcı şifre/oturum iptalleri ilgili kaydın değişikliğiyle aynı tabloya yazılır
 /// (IzleyiciSifresiDegisti, AliciSifresiDegisti, AliciOturumlariKapatildi; bkz. DenetimYakalayici). Geri yüklenmiş veritabanının
-/// ilk açılışta işlenmesi <see cref="GeriYuklemeIslendi"/> olarak (aktör sistem, VarlikId veri soyu kimliği) yazılır
-/// (<see cref="GeriYuklemeIsleyici"/>). Geçersiz oturum belirteci ve yetki reddi (403) yalnız seyrek loglanır
+/// ilk açılışta işlenmesi <see cref="GeriYuklemeIslendi"/> olarak (aktör sistem, VarlikId veri soyu kimliği), operatörün editör
+/// şifresi sıfırlaması <see cref="EditorSifresiSifirlandi"/> olarak (aktör sistem, VarlikId 1) yazılır (<see cref="GeriYuklemeIsleyici"/>,
+/// <see cref="EditorSifreSifirlama"/>). Geçersiz oturum belirteci ve yetki reddi (403) yalnız seyrek loglanır
 /// (<see cref="AddKasaGuvenlikLoglari"/>).
 /// </summary>
 public static class GuvenlikOlaylari
@@ -37,6 +38,8 @@ public static class GuvenlikOlaylari
     public const string KurtarmaKoduUretimiBasarisiz = "KurtarmaKoduUretimiBasarisiz";
     /// <summary>Geri yüklenmiş veritabanı açılışta tanındı: oturumlar ve izleyici girişi kapatıldı, kimlikler ileri alındı.</summary>
     public const string GeriYuklemeIslendi = "GeriYuklemeIslendi";
+    /// <summary>Editör şifresi açılışta ortamdaki Kasa:EditorSifre'ye sıfırlandı (Kasa:EditorSifreSifirla): oturumlar ve kurtarma kodu düştü.</summary>
+    public const string EditorSifresiSifirlandi = "EditorSifresiSifirlandi";
     /// <summary>Yalnız loglanan (olay tablosuna yazılmayan) kimlik doğrulama retleri.</summary>
     public const string GecersizBelirtec = "GecersizBelirtec";
     public const string YetkiReddi = "YetkiReddi";
