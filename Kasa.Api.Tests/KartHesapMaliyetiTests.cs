@@ -18,10 +18,35 @@ namespace Kasa.Api.Tests;
 /// harcama ve alış bağı sayısıyla büyümez; taksit tablosu hiçbir zaman süzgeçsiz okunmaz; bir istek içinde
 /// aynı kartın ödemeleri bir kez okunur.
 /// </summary>
-public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
+public class KartHesapMaliyetiTests(KartHesapMaliyetiTests.Kurulumlar kurulumlar, ITestOutputHelper cikti) : IClassFixture<KartHesapMaliyetiTests.Kurulumlar>
 {
     private static readonly DateOnly Bugun = KasaWebFactory.VarsayilanBugun;
     private static readonly DateOnly Baslangic = new(2026, 1, 1);
+
+    /// <summary>Okuma ölçümlerinin verileri sınıfta bir kez, ilk kullanımda kurulur (büyük kurulum 40 alış ve 20 ödeme isteğidir;
+    /// her teori durumunda yeniden kurmak sınıfı koşunun en uzun kuyruğu yapıyordu). Ölçülen uçlar yalnız okur ve SQL komut
+    /// sayısını etkileyen bir önbellek yoktur; küçük ve büyük veri aynı istek sırasını görür, karşılaştırma aynı uçta yapılır.</summary>
+    public sealed class Kurulumlar : IAsyncDisposable
+    {
+        private readonly Lazy<Task<Kurulum>> _kucuk = new(() => Kur(alisliHarcama: 5, odeme: 3));
+        private readonly Lazy<Task<Kurulum>> _buyuk = new(() => Kur(alisliHarcama: 40, odeme: 20));
+        private readonly Lazy<Task<Kurulum>> _taksitli = new(() => Kur(alisliHarcama: 4, odeme: 4, ikinciKartTaksiti: 300));
+        internal Task<Kurulum> Kucuk => _kucuk.Value;
+        internal Task<Kurulum> Buyuk => _buyuk.Value;
+        internal Task<Kurulum> Taksitli => _taksitli.Value;
+
+        public async ValueTask DisposeAsync()
+        {
+            foreach (var kurulum in new[] { _kucuk, _buyuk, _taksitli }.Where(k => k.IsValueCreated && k.Value.IsCompletedSuccessfully))
+            {
+                var (f, c, _) = await kurulum.Value;
+                c.Dispose();
+                await f.DisposeAsync();
+            }
+        }
+    }
+
+    internal sealed record Kurulum(SayacliFabrika F, HttpClient C, int Kart);
 
     /// <summary>EF Core komut kesicisi: yalnız etkinken çalışan komutların SQL metnini sayar.</summary>
     internal sealed class SorguSayaci : DbCommandInterceptor
@@ -52,7 +77,7 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
         }
     }
 
-    private static async Task<(SayacliFabrika F, HttpClient C, int Kart)> Kur(int alisliHarcama, int odeme, int ikinciKartTaksiti = 0)
+    private static async Task<Kurulum> Kur(int alisliHarcama, int odeme, int ikinciKartTaksiti = 0)
     {
         var f = new SayacliFabrika();
         var c = await f.EditorClientAsync();
@@ -80,7 +105,7 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
         for (var i = 0; i < odeme; i++)
             kart = await AltinTohum.Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler",
                 new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Baslangic.AddDays(20 + i * 3), 25m, null, "Ödeme " + i));
-        return (f, c, kart.Id);
+        return new(f, c, kart.Id);
     }
 
     /// <summary>Onaylı alışlara kartla yapılmış ödemeler: her biri Sync ile alışa bağlı bir kart harcaması olur.</summary>
@@ -120,16 +145,12 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
     [InlineData("/api/takip/ozet")]
     public async Task Okuma_komut_sayisi_odeme_ve_alisli_harcama_sayisiyla_buyumez(string sablon)
     {
-        var (kucukF, kucukC, kucukKart) = await Kur(alisliHarcama: 5, odeme: 3);
-        var (buyukF, buyukC, buyukKart) = await Kur(alisliHarcama: 40, odeme: 20);
-        try
-        {
-            var kucuk = await Olc(kucukF, kucukC, sablon.Replace("{kart}", kucukKart.ToString()));
-            var buyuk = await Olc(buyukF, buyukC, sablon.Replace("{kart}", buyukKart.ToString()));
-            cikti.WriteLine($"{sablon}: küçük {kucuk.Count}, büyük {buyuk.Count} komut");
-            Assert.Equal(kucuk.Count, buyuk.Count);
-        }
-        finally { kucukC.Dispose(); buyukC.Dispose(); await kucukF.DisposeAsync(); await buyukF.DisposeAsync(); }
+        var (kucukF, kucukC, kucukKart) = await kurulumlar.Kucuk;
+        var (buyukF, buyukC, buyukKart) = await kurulumlar.Buyuk;
+        var kucuk = await Olc(kucukF, kucukC, sablon.Replace("{kart}", kucukKart.ToString()));
+        var buyuk = await Olc(buyukF, buyukC, sablon.Replace("{kart}", buyukKart.ToString()));
+        cikti.WriteLine($"{sablon}: küçük {kucuk.Count}, büyük {buyuk.Count} komut");
+        Assert.Equal(kucuk.Count, buyuk.Count);
     }
 
     [Theory]
@@ -138,17 +159,13 @@ public class KartHesapMaliyetiTests(ITestOutputHelper cikti)
     [InlineData("/api/takip/ozet")]
     public async Task Taksit_tablosu_suzgecsiz_okunmaz_ve_istek_icinde_odemeler_kart_basina_bir_kez_okunur(string sablon)
     {
-        var (f, c, kart) = await Kur(alisliHarcama: 4, odeme: 4, ikinciKartTaksiti: 300);
-        try
-        {
-            var komutlar = await Olc(f, c, sablon.Replace("{kart}", kart.ToString()));
-            var taksit = komutlar.Where(k => k.Contains("FROM \"TakipKartTaksitler\"", StringComparison.Ordinal)).ToList();
-            Assert.NotEmpty(taksit);
-            Assert.All(taksit, k => Assert.Contains("WHERE", k, StringComparison.Ordinal));
-            var takipliKart = sablon.Contains("{kart}") ? 1 : 2;
-            Assert.Equal(takipliKart, komutlar.Count(k => k.Contains("FROM \"TakipKartOdemeler\"", StringComparison.Ordinal)));
-        }
-        finally { c.Dispose(); await f.DisposeAsync(); }
+        var (f, c, kart) = await kurulumlar.Taksitli;
+        var komutlar = await Olc(f, c, sablon.Replace("{kart}", kart.ToString()));
+        var taksit = komutlar.Where(k => k.Contains("FROM \"TakipKartTaksitler\"", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(taksit);
+        Assert.All(taksit, k => Assert.Contains("WHERE", k, StringComparison.Ordinal));
+        var takipliKart = sablon.Contains("{kart}") ? 1 : 2;
+        Assert.Equal(takipliKart, komutlar.Count(k => k.Contains("FROM \"TakipKartOdemeler\"", StringComparison.Ordinal)));
     }
 
     /// <summary>Ana sayfa tekrarı (gap-okuma-yolu-maliyet-kilit-cekismesi-4): birleşik uç, panel + kasa eşikleri + takip
