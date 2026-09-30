@@ -9,11 +9,11 @@ public class EkstreAktarmaTests
     private static EkstreOkunanSatir Satir(int no, string para = "TRY") => new(no, 1, $"27.09.2026 Hareket {no} 100,00", Tarih, $"Hareket {no}", 100m, "Cikis", "Gider", "Hareket", para, []);
     private static void Sec(EkstreSatirEditor s) { s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel"); s.Secili = true; }
     private static EkstreBelgeDto Belge() => new(1, 2, "Banka", "Akbank", "Ana hesap", null, "hesap.pdf", DateTimeOffset.UtcNow, [], [Satir(1), Satir(2)], []);
-    private static async Task<(EkstreAktarmaViewModel Vm, Fake Api, AuthViewModel Auth)> Hazir(Fake? api = null, Rol rol = Rol.Editor, FinansTakipTests.Fake? takip = null)
+    private static async Task<(EkstreAktarmaViewModel Vm, Sahte Api, AuthViewModel Auth)> Hazir(Sahte? api = null, Rol rol = Rol.Editor, FinansTakipTests.Sahte? takip = null)
     {
         api ??= new();
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = rol };
-        var vm = new EkstreAktarmaViewModel(api, new SahteApi { KanallarListe = [new(1, "MEZAT", true, 0, 0), new(2, "PERAKENDE", true, 1, 0)] }, takip ?? new FinansTakipTests.Fake(), auth);
+        var vm = new EkstreAktarmaViewModel(api, new SahteApi { KanallarListe = [new(1, "MEZAT", true, 0, 0), new(2, "PERAKENDE", true, 1, 0)] }, takip ?? new FinansTakipTests.Sahte(), auth);
         await vm.YukleAsync();
         await vm.BelgeAcAsync(1);
         return (vm, api, auth);
@@ -30,8 +30,8 @@ public class EkstreAktarmaTests
         await vm.YukleAsync();
         Assert.Equal(("Isbank", "İş Bankası"), (vm.Banka!.Kod, vm.Banka.Ad));
 
-        static EkstreAktarmaViewModel Yeni(Fake api) => new(api, new SahteApi(), new FinansTakipTests.Fake(), new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
-        var vm2 = Yeni(new Fake { BankaHatasi = new KasaApiException(HttpStatusCode.NotFound), Liste = [new(3, 0, "Banka", "QNB", "Ana", null, "3.pdf", DateTimeOffset.UtcNow, 1, 0)] });
+        static EkstreAktarmaViewModel Yeni(Sahte api) => new(api, new SahteApi(), new FinansTakipTests.Sahte(), new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
+        var vm2 = Yeni(new Sahte { BankaHatasi = new KasaApiException(HttpStatusCode.NotFound), Liste = [new(3, 0, "Banka", "QNB", "Ana", null, "3.pdf", DateTimeOffset.UtcNow, 1, 0)] });
         await vm2.YukleAsync();
         Assert.Empty(vm2.Bankalar);
         Assert.StartsWith("Banka listesi alınamadı: sunucu banka listesini vermiyor", vm2.Hata);
@@ -43,13 +43,13 @@ public class EkstreAktarmaTests
         Assert.Null(vm2.YuklemeSecimi());
         Assert.StartsWith("Banka listesi sunucudan alınamadı", vm2.Hata);
 
-        var vm3 = Yeni(new Fake { BankaHatasi = new KasaApiException(HttpStatusCode.InternalServerError, izKimligi: "0HN7ABCDEF") });
+        var vm3 = Yeni(new Sahte { BankaHatasi = new KasaApiException(HttpStatusCode.InternalServerError, izKimligi: "0HN7ABCDEF") });
         await vm3.YukleAsync();
         Assert.Empty(vm3.Bankalar);
         Assert.StartsWith("Banka listesi alınamadı; PDF yüklenemez. Sunucu işlemi tamamlayamadı.", vm3.Hata);
 
         // Oturum sonu bütün yüklemeyi durdurur (liste boş, iletisi oturum iletisidir).
-        var vm4 = Yeni(new Fake { BankaHatasi = new KasaApiException(HttpStatusCode.Unauthorized) });
+        var vm4 = Yeni(new Sahte { BankaHatasi = new KasaApiException(HttpStatusCode.Unauthorized) });
         await vm4.YukleAsync();
         Assert.False(vm4.VeriHazir);
         Assert.Equal("Oturumunuz sona erdi. Yeniden giriş yapın.", vm4.Hata);
@@ -348,7 +348,7 @@ public class EkstreAktarmaTests
     [Fact]
     public void Kart_harcamasi_kanal_ister_iade_kaynak_paylarini_otomatik_alir()
     {
-        var kart = FinansTakipTests.Fake.OrnekKart() with { Harcamalar = [new(7, null, Tarih, "Kaynak", 100, 1, false, [new(2, "PERAKENDE", 100)])] };
+        var kart = FinansTakipTests.Sahte.OrnekKart() with { Harcamalar = [new(7, null, Tarih, "Kaynak", 100, 1, false, [new(2, "PERAKENDE", 100)])] };
         var b = Belge() with { Kaynak = "Kart", KartId = kart.Id, Satirlar = [Satir(1) with { OnerilenIslem = "KartHarcama" }] };
         var row = new EkstreSatirEditor(b.Satirlar[0], b, [new(1, "MEZAT", true, 0, 0)], [kart], () => { });
         Assert.Throws<DogrulamaHatasi>(() => row.Yaz());
@@ -396,7 +396,7 @@ public class EkstreAktarmaTests
     [Fact]
     public async Task Pasif_yeni_karta_odeme_girilebilir_ve_belge_karti_formdan_bagimsiz_gosterilir()
     {
-        var kart = FinansTakipTests.Fake.OrnekKart() with { Aktif = false, Ad = "Pasif kart" };
+        var kart = FinansTakipTests.Sahte.OrnekKart() with { Aktif = false, Ad = "Pasif kart" };
         var (vm, api, _) = await Hazir(new() { Veri = Belge() with { Kaynak = "Kart", KartId = 1, Satirlar = [Satir(1) with { OnerilenIslem = "KartOdemesi" }] } }, takip: new() { Kart = kart });
         Assert.Single(vm.Kartlar);
         Assert.Contains("Pasif kart (#1)", vm.BelgeOzeti);
@@ -409,7 +409,7 @@ public class EkstreAktarmaTests
     public async Task Eski_belge_sayfalamasi_kaynak_lookup_ile_bozulmaz()
     {
         EkstreBelgeOzetDto Ozet(int id) => new(id, 0, "Banka", "QNB", "Ana", null, $"{id}.pdf", DateTimeOffset.UtcNow, 1, 0);
-        var api = new Fake { Liste = Enumerable.Range(51, 50).Reverse().Select(Ozet).ToArray(), EskiListe = Enumerable.Range(1, 50).Reverse().Select(Ozet).ToArray() };
+        var api = new Sahte { Liste = Enumerable.Range(51, 50).Reverse().Select(Ozet).ToArray(), EskiListe = Enumerable.Range(1, 50).Reverse().Select(Ozet).ToArray() };
         var (vm, _, _) = await Hazir(api);
         Assert.True(vm.EskiBelgeVar);
         await vm.KaynakAcAsync(444);
@@ -434,7 +434,7 @@ public class EkstreAktarmaTests
         Assert.Null(vm.Belge);
         Assert.Empty(vm.Kayitlar);
     }
-    private sealed class Fake : IEkstreAktarmaApi
+    private sealed class Sahte : IEkstreAktarmaApi
     {
         public IReadOnlyList<EkstreBankaDto> BankaListesi = [new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("Isbank", "İş Bankası")];
         public Exception? BankaHatasi; public int BankaSayisi;

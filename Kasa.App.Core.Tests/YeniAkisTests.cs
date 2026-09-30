@@ -9,7 +9,7 @@ public class YeniAkisTests
     private static AlisDto Alis(int id = 7) => new(id, 3, null, "Editör", Bugun, "Firma", null, "Taslak", null, 100, 10, 90,
         new[] { new AlisKalemDto(1, "Mal", 100, new[] { new AlisDagilimDto(1, "MEZAT", 100) }) },
         new[] { new AlisOdemeDto(4, 20, Bugun, 10, null, true, Array.Empty<AlisDagilimDto>()) }, 2, Bugun.AddDays(10));
-    private static async Task<AlislarViewModel> AlisVm(Fake api, SahteApi? finans = null, IBenzerKayitApi? benzerlik = null, AuthViewModel? auth = null)
+    private static async Task<AlislarViewModel> AlisVm(Sahte api, SahteApi? finans = null, IBenzerKayitApi? benzerlik = null, AuthViewModel? auth = null)
     {
         var vm = new AlislarViewModel(api, finans ?? new SahteApi(), auth ?? TestOturumu.Ac(), api, api, benzerlik);
         await vm.YukleAsync();
@@ -19,7 +19,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Odeme_tasima_hedef_surumu_kullanir_ve_yanit_kaynak_alisi_korur()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await AlisVm(api);
         vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         vm.HedefAlis = vm.DuzeltmeHedefleri[0];
@@ -33,7 +33,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Odeme_duzeltme_tutari_gecersizken_gonderilmez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await AlisVm(api);
         vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         vm.DuzeltmeAciklamasi = "Tutar düzeltildi";
@@ -45,7 +45,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Odeme_duzeltme_ag_hatasinda_ayni_anahtarla_tekrarlanir()
     {
-        var api = new Fake { DuzeltHata = true };
+        var api = new Sahte { DuzeltHata = true };
         var vm = await AlisVm(api);
         vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         vm.DuzeltmeAciklamasi = "Tarih düzeltildi";
@@ -58,7 +58,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Iptal_gerekce_olmadan_gonderilmez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await AlisVm(api);
         vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         await vm.OdemeIptalAsync();
@@ -73,7 +73,7 @@ public class YeniAkisTests
     {
         // Bağlı gider bağlanabilir listede yoktur: eski kart harcaması bilgisi ödemenin kendisinden (sunucu) gelir.
         var ilk = Alis();
-        var api = new Fake { IlkAlis = ilk with { Odemeler = new[] { ilk.Odemeler[0] with { EskiKartHarcamasi = true } } } };
+        var api = new Sahte { IlkAlis = ilk with { Odemeler = new[] { ilk.Odemeler[0] with { EskiKartHarcamasi = true } } } };
         var vm = await AlisVm(api);
         vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         Assert.True(vm.EskiKartHarcamasi);
@@ -86,7 +86,7 @@ public class YeniAkisTests
     public async Task Oturum_degistiginde_eski_belge_listesi_yansitilmaz()
     {
         var bekleyen = new TaskCompletionSource<IReadOnlyList<BelgeDto>>();
-        var api = new Fake { BelgeYaniti = bekleyen.Task };
+        var api = new Sahte { BelgeYaniti = bekleyen.Task };
         var auth = TestOturumu.Ac();
         var vm = await AlisVm(api, auth: auth);
         var islem = vm.BelgeleriYukleAsync();
@@ -99,7 +99,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Kisa_editor_sifresi_ve_ters_rapor_tarihi_apiye_gitmez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = new GuvenlikViewModel(api, Auth()) { MevcutSifre = "eski", YeniSifre = "12345678" };
         await vm.SifreDegistirCommand.ExecuteAsync(null);
         Assert.False(api.SifreDegisti);
@@ -111,7 +111,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Yedek_bellege_alinmadan_hedef_akisa_yazilir_ve_boyutuyla_bildirilir()
     {
-        var vm = new GuvenlikViewModel(new Fake(), Auth());
+        var vm = new GuvenlikViewModel(new Sahte(), Auth());
         var hedef = new MemoryStream();
         var bilgi = await vm.YedekIndirAsync(hedef);
         Assert.Equal(new byte[] { 1, 2, 3 }, hedef.ToArray());
@@ -126,7 +126,7 @@ public class YeniAkisTests
     {
         var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken gorulen = default;
-        var api = new Fake { YedekYaniti = async (_, ct) => { gorulen = ct; basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); } };
+        var api = new Sahte { YedekYaniti = async (_, ct) => { gorulen = ct; basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); } };
         var vm = new GuvenlikViewModel(api, Auth());
         var islem = vm.YedekIndirAsync(new MemoryStream());
         await basladi.Task;
@@ -145,7 +145,7 @@ public class YeniAkisTests
     {
         var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken gorulen = default;
-        var api = new Fake { YedekYaniti = async (_, ct) => { gorulen = ct; basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); } };
+        var api = new Sahte { YedekYaniti = async (_, ct) => { gorulen = ct; basladi.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); } };
         var vm = new GuvenlikViewModel(api, Auth());
         var islem = vm.YedekIndirAsync(new MemoryStream());
         await basladi.Task;
@@ -161,7 +161,7 @@ public class YeniAkisTests
     public async Task Ekrandan_ayrilma_iptali_devam_hemen_calissa_da_ileti_birakmaz()
     {
         var basladi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var api = new Fake
+        var api = new Sahte
         {
             YedekYaniti = async (_, ct) =>
         {
@@ -182,7 +182,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Yedek_zaman_asimi_baglanti_hatasindan_ayri_anlatilir()
     {
-        var api = new Fake { YedekYaniti = (_, _) => Task.FromException<IndirmeBilgisi>(new TimeoutException(KasaZamanAsimlari.Ileti)) };
+        var api = new Sahte { YedekYaniti = (_, _) => Task.FromException<IndirmeBilgisi>(new TimeoutException(KasaZamanAsimlari.Ileti)) };
         var vm = new GuvenlikViewModel(api, Auth());
         Assert.Null(await vm.YedekIndirAsync(new MemoryStream()));
         Assert.Contains("zamanında yanıt vermedi", vm.Hata);
@@ -193,7 +193,7 @@ public class YeniAkisTests
     public async Task Yedek_durumu_sunucunun_rotasyon_uyarisini_gosterir()
     {
         const string uyari = "Otomatik rotasyonu tamamlanamadı: saklama süresi dolan 1 yedek silinemedi (kasa-otomatik-20260801-000000.zip).";
-        var api = new Fake { Durum = new(true, new(2026, 9, 23, 3, 0, 0, TimeSpan.Zero), new(2026, 9, 23, 3, 0, 0, TimeSpan.Zero), null, uyari) };
+        var api = new Sahte { Durum = new(true, new(2026, 9, 23, 3, 0, 0, TimeSpan.Zero), new(2026, 9, 23, 3, 0, 0, TimeSpan.Zero), null, uyari) };
         var vm = new GuvenlikViewModel(api, Auth());
         await vm.YukleAsync();
         Assert.Equal(uyari, vm.YedekUyarisi);
@@ -211,7 +211,7 @@ public class YeniAkisTests
     public async Task Editor_belgeyi_gerekcesiz_kaldiramaz_gerekce_gider_silinenler_istenirse_liste_yenilenir()
     {
         var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
-        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var api = new Sahte { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
         var vm = await AlisVm(api);
         await vm.BelgeleriYukleCommand.ExecuteAsync(null);
         Assert.False(api.SonSilinenlerIstegi);
@@ -242,7 +242,7 @@ public class YeniAkisTests
     public async Task Belge_kaldirma_penceresi_acikken_oturum_degisirse_istek_gitmez()
     {
         var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
-        var eskiApi = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var eskiApi = new Sahte { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
         var eskiAuth = TestOturumu.Ac();
         var eskiVm = await AlisVm(eskiApi, auth: eskiAuth);
         var eskiPencere = new TaskCompletionSource<string?>();
@@ -252,7 +252,7 @@ public class YeniAkisTests
         await eskiAkis;
         Assert.Equal((9, (string?)"Yanlış belge"), eskiApi.SonSilme);
 
-        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var api = new Sahte { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
         var auth = TestOturumu.Ac();
         var vm = await AlisVm(api, auth: auth);
         var pencere = new TaskCompletionSource<string?>();
@@ -275,7 +275,7 @@ public class YeniAkisTests
     public async Task Alici_belgeyi_gerekcesiz_kaldirabilir_silinenleri_isteyemez()
     {
         var belge = new BelgeDto(9, 7, null, "fis.pdf", "application/pdf", 4, DateTimeOffset.UtcNow, "alici", "Ayşe");
-        var api = new Fake { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
+        var api = new Sahte { BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { belge }) };
         var auth = TestOturumu.Ac();
         var vm = await AlisVm(api, auth: auth);
         auth.AktifRol = Rol.Alici;
@@ -301,7 +301,7 @@ public class YeniAkisTests
     public async Task Yedek_durumu_disk_alanlarini_gb_olarak_ve_disk_uyarisini_gosterir()
     {
         const long Gb = 1024L * 1024 * 1024;
-        var api = new Fake
+        var api = new Sahte
         {
             Durum = new(true, null, null, null, null, 100L * 1024 * 1024, 5 * Gb, 3 * Gb + Gb / 2, 2 * Gb,
             "Yedek diskinde 0,1 GB boş alan kaldı (asgari 2,0 GB).", "Son yedekte 1 belge dosyası bulunamadı.")
@@ -321,7 +321,7 @@ public class YeniAkisTests
     public async Task Yedek_durumu_son_geri_yuklemeyi_ve_rapor_maddelerini_gosterir_eski_sunucuda_gostermez()
     {
         var son = new DateTimeOffset(2026, 9, 28, 10, 15, 0, TimeSpan.Zero);
-        var api = new Fake
+        var api = new Sahte
         {
             Durum = new YedekDurumuDto(true, null, null, null) with
             {
@@ -340,7 +340,7 @@ public class YeniAkisTests
     public async Task Belge_yukleme_zaman_asiminda_liste_yenilenir_ki_tekrar_yuklemeden_once_gorulsun()
     {
         var sunucudaki = new BelgeDto(9, 7, null, "dekont.pdf", "application/pdf", 4, DateTimeOffset.UtcNow);
-        var api = new Fake { BelgeYuklemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
+        var api = new Sahte { BelgeYuklemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
         var vm = await AlisVm(api);
         api.BelgeYaniti = Task.FromResult<IReadOnlyList<BelgeDto>>(new[] { sunucudaki });
         await vm.BelgeYukleAsync("dekont.pdf", "application/pdf", new byte[] { 1, 2, 3, 4 }, null);
@@ -355,7 +355,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Belge_ekleme_uzantidan_icerik_turuyle_yukler_desteklenmeyen_ve_buyuk_dosyayi_uyariyla_reddeder()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await AlisVm(api);
         Assert.Null(await vm.BelgeEkleAsync(Secici("Dekont.JPG", [1, 2, 3]), 4));
         Assert.Equal(("Dekont.JPG", "image/jpeg", 3, (int?)4), (api.SonBelge!.Value.Ad, api.SonBelge.Value.Tur, api.SonBelge.Value.Icerik.Length, api.SonBelge.Value.OdemeId));
@@ -372,7 +372,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Belge_secilirken_alis_ya_da_oturum_degisirse_yuklenmez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var auth = TestOturumu.Ac();
         var vm = await AlisVm(api, auth: auth);
         Assert.Null(await vm.BelgeEkleAsync(Secici("a.pdf", [1], () => vm.SecCommand.Execute(vm.Alislar.Single(a => a.Veri.Id == 8))), null));
@@ -393,7 +393,7 @@ public class YeniAkisTests
     public async Task Gecikmis_kurtarma_kodu_ekrandan_ayrildiktan_sonra_gosterilmez()
     {
         var bekleyen = new TaskCompletionSource<KurtarmaKoduDto>();
-        var api = new Fake { KurtarmaYaniti = bekleyen.Task };
+        var api = new Sahte { KurtarmaYaniti = bekleyen.Task };
         var vm = new GuvenlikViewModel(api, Auth()) { MevcutSifre = "eski-sifre" };
         var islem = vm.KurtarmaKoduOlusturCommand.ExecuteAsync(null);
         vm.EkrandanAyril();
@@ -406,7 +406,7 @@ public class YeniAkisTests
     [Fact]
     public async Task Alis_serbest_aciklama_tutar_ve_dagilimla_kaydedilir_erp_alanlari_gonderilmez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await AlisVm(api);
         vm.Tedarikci = "  Açık artırmadan alındı  ";
         vm.Kalemler[0].Tutar = 80;
@@ -423,7 +423,7 @@ public class YeniAkisTests
     public async Task Odeme_duzeltmede_eski_hesap_alani_tekrar_yazilmaz()
     {
         var ilk = Alis();
-        var api = new Fake { IlkAlis = ilk with { Odemeler = new[] { ilk.Odemeler[0] with { HesapId = 1 } } } };
+        var api = new Sahte { IlkAlis = ilk with { Odemeler = new[] { ilk.Odemeler[0] with { HesapId = 1 } } } };
         var vm = await AlisVm(api);
         vm.OdemeDuzeltCommand.Execute(vm.Odemeler[0]);
         vm.DuzeltmeAciklamasi = "Tarih düzeltildi";
@@ -434,8 +434,8 @@ public class YeniAkisTests
     public async Task Yeni_alis_odemesi_benzer_kaydi_onayla_kaydeder_mevcut_gider_baglama_sormaz()
     {
         var giderler = new[] { new IslemDto(30, Bugun, "Yeni gider", 10, "MEZAT", GiderTipi.Cari, null) };
-        var api = new Fake { Giderler = giderler };
-        var lookup = new BenzerKayitTests.Fake();
+        var api = new Sahte { Giderler = giderler };
+        var lookup = new BenzerKayitTests.Sahte();
         var vm = await AlisVm(api, benzerlik: lookup);
         vm.OdemeTutari = 10;
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
@@ -444,8 +444,8 @@ public class YeniAkisTests
         Assert.Equal(7, lookup.SonArama.AlisId);
         await vm.OdemeyiAyriKaydetCommand.ExecuteAsync(null);
         Assert.Equal(10, api.SonOdeme!.Tutar);
-        var ikinciApi = new Fake { Giderler = giderler };
-        var ikinciLookup = new BenzerKayitTests.Fake { Hata = true };
+        var ikinciApi = new Sahte { Giderler = giderler };
+        var ikinciLookup = new BenzerKayitTests.Sahte { Hata = true };
         var ikinci = await AlisVm(ikinciApi, benzerlik: ikinciLookup);
         ikinci.MevcutGiderKullan = true;
         ikinci.SeciliGider = ikinci.BaglanabilirGiderler.Single();
@@ -456,15 +456,15 @@ public class YeniAkisTests
     [Fact]
     public async Task Alis_benzerlik_hatasi_odeme_eklemez()
     {
-        var api = new Fake();
-        var vm = await AlisVm(api, benzerlik: new BenzerKayitTests.Fake { Hata = true });
+        var api = new Sahte();
+        var vm = await AlisVm(api, benzerlik: new BenzerKayitTests.Sahte { Hata = true });
         vm.OdemeTutari = 10;
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonOdeme);
         Assert.Contains("ulaşılamadı", vm.Hata);
     }
 
-    private sealed class Fake : IAlisOdemeApi, IYonetimApi, IAlisApi
+    private sealed class Sahte : IAlisOdemeApi, IYonetimApi, IAlisApi
     {
         public AlisYaz? SonAlis;
         public AlisDto? IlkAlis;

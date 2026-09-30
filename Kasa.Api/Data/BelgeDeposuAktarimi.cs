@@ -6,7 +6,7 @@ namespace Kasa.Api.Data;
 
 /// <summary>
 /// Belge deposu geçişinin veri adımı (data-3, gap-okuma-yolu-maliyet-kilit-cekismesi-8). Başlatıcı
-/// (<see cref="KasaDatabaseInitializer"/>) belge deposu migration'ı bekliyorsa, göç öncesi yedekten SONRA ve BLOB sütunlarını düşüren
+/// (<see cref="KasaVeritabaniBaslatici"/>) belge deposu migration'ı bekliyorsa, göç öncesi yedekten SONRA ve BLOB sütunlarını düşüren
 /// migration'dan (<see cref="Migrations.BelgeDeposuGocu"/>) ÖNCE çalıştırır:
 /// <list type="number">
 /// <item><see cref="EkstreleriAktar"/> (hazırlık migration'ından önce, veritabanına yazmaz): her ekstre PDF'i depoya yazılır ve

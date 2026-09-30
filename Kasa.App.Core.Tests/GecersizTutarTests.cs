@@ -81,7 +81,7 @@ public class GecersizTutarTests
         Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
     }
 
-    private static async Task<KartTakipViewModel> KartVm(FinansTakipTests.Fake api, IKasaKontrolApi? kontrol = null)
+    private static async Task<KartTakipViewModel> KartVm(FinansTakipTests.Sahte api, IKasaKontrolApi? kontrol = null)
     {
         var vm = new KartTakipViewModel(api, Finans(), Editor(), null, kontrol);
         await vm.YukleAsync();
@@ -92,7 +92,7 @@ public class GecersizTutarTests
     [Fact]
     public async Task Kart_limit_ve_acilis_borcu_gecersizken_kart_kaydedilmez()
     {
-        var api = new FinansTakipTests.Fake();
+        var api = new FinansTakipTests.Sahte();
         var vm = await KartVm(api);
         vm.YeniCommand.Execute(null);
         vm.Ad = "Yeni kart";
@@ -110,7 +110,7 @@ public class GecersizTutarTests
     [Fact]
     public async Task Kart_harcama_tutari_gecersizken_iade_arayuzu_acilmaz_ve_kaydedilmez()
     {
-        var api = new FinansTakipTests.Fake();
+        var api = new FinansTakipTests.Sahte();
         var vm = await KartVm(api);
         vm.HarcamaAciklama = "Market";
         vm.HarcamaTutari = G;
@@ -126,8 +126,8 @@ public class GecersizTutarTests
     [Fact]
     public async Task Kart_odeme_ekstre_gecis_ve_masraf_tutari_gecersizken_api_cagrilmaz()
     {
-        var api = new FinansTakipTests.Fake();
-        var kontrol = new KasaKontrolVeAylikGiderTests.Fake();
+        var api = new FinansTakipTests.Sahte();
+        var kontrol = new KasaKontrolVeAylikGiderTests.Sahte();
         var vm = await KartVm(api, kontrol);
         vm.OdemeTutari = G;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -149,7 +149,7 @@ public class GecersizTutarTests
         Assert.Equal(0, kontrol.MasrafOnizlemeSayisi);
         Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
 
-        var eski = new FinansTakipTests.Fake { Kart = FinansTakipTests.Fake.OrnekKart() with { YeniTakip = false } };
+        var eski = new FinansTakipTests.Sahte { Kart = FinansTakipTests.Sahte.OrnekKart() with { YeniTakip = false } };
         var gecis = await KartVm(eski);
         gecis.GecisAciklama = "Geçiş";
         gecis.GecisKalanBorc = G;
@@ -168,7 +168,7 @@ public class GecersizTutarTests
     [Fact]
     public async Task Kredi_tutarlari_gecersizken_kaydedilmez_kapama_ozeti_sayi_gostermez()
     {
-        var api = new FinansTakipTests.Fake();
+        var api = new FinansTakipTests.Sahte();
         var vm = new KrediTakipViewModel(api, Finans(), Editor());
         await vm.YukleAsync();
         vm.Ad = "Kredi";
@@ -199,7 +199,7 @@ public class GecersizTutarTests
     [Fact]
     public async Task Kasa_kontrolu_ve_alt_limit_gecersizken_api_cagrilmaz()
     {
-        var f = new KasaKontrolVeAylikGiderTests.Fake();
+        var f = new KasaKontrolVeAylikGiderTests.Sahte();
         var kontrol = new KasaKontrolViewModel(f, Editor());
         await kontrol.YukleAsync();
         kontrol.GercekBakiye = G;
@@ -219,7 +219,7 @@ public class GecersizTutarTests
     [Fact]
     public async Task Aylik_gider_tutari_ve_paylari_gecersizken_sablon_kaydedilmez()
     {
-        var f = new KasaKontrolVeAylikGiderTests.Fake();
+        var f = new KasaKontrolVeAylikGiderTests.Sahte();
         var vm = new AylikGiderViewModel(f, Finans(), Editor());
         await vm.YukleAsync();
         vm.Ad = "Kira";

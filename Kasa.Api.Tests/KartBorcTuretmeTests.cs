@@ -19,11 +19,11 @@ public class KartBorcTuretmeTests : IClassFixture<KasaWebFactory>
     {
         var client = await _factory.EditorClientAsync();
 
-        var kart = LegacyFinanceSeed.Kart(_factory, new("Türetme", new DateOnly(2026, 7, 5),
+        var kart = EskiFinansTohumu.Kart(_factory, new("Türetme", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 100_000m, 1000m));
 
         // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır).
-        LegacyFinanceSeed.KartGideri(_factory, new DateOnly(2026, 7, 10), "Market", 500m, "MEZAT", kart!.Id);
+        EskiFinansTohumu.KartGideri(_factory, new DateOnly(2026, 7, 10), "Market", 500m, "MEZAT", kart!.Id);
 
         await client.PostAsJsonAsync("/api/kartodemeler", new
         {

@@ -4,7 +4,7 @@ Bu kılavuz, 19 Eylül 2026 sağlamlaştırma sürümü ve sonrasındaki başlan
 
 ## Başlangıç davranışı
 
-API `KasaDatabaseInitializer.Initialize(db)` çağırır:
+API `KasaVeritabaniBaslatici.Baslat(db)` çağırır:
 
 - Boş veritabanına EF migrations ile güncel tablolar kurulur.
 - Migration geçmişi olmayan desteklenen `EnsureCreated` tabloları tek transaction içinde güncellenir. Eksik kart/kredi tabloları eklenir; kayıt kimlikleri, tutarlar ve mevcut ilişkiler korunur.
@@ -63,4 +63,4 @@ Geçiş hatası varsa hata mesajındaki verileri yedek üzerinde inceleyin. Canl
 
 ## Testler
 
-`Kasa.Api.Tests/DatabaseMigrationTests.cs`, eski ve boş veritabanı, kimlik/tutar koruma, özel etiketler, benzersizlik, FK davranışı, tekrarlı/eşzamanlı başlangıç ve hatada geri alma senaryolarını kapsar. Üretim yedeğinin kopyasıyla yapılacak kontrol, bu testlerin tamamlayıcısıdır.
+`Kasa.Api.Tests/VeritabaniGocuTests.cs`, eski ve boş veritabanı, kimlik/tutar koruma, özel etiketler, benzersizlik, FK davranışı, tekrarlı/eşzamanlı başlangıç ve hatada geri alma senaryolarını kapsar. Üretim yedeğinin kopyasıyla yapılacak kontrol, bu testlerin tamamlayıcısıdır.

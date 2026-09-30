@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 
@@ -368,14 +368,14 @@ public class AyRaporuAnlikGoruntusuTests
                 once[(2026, ay)] = JsonSerializer.Serialize(new HesapServisi(eski).Aylik(2026, ay, kuralSurumu: AylikKural.V1), Web);
         Assert.Contains("\"gelen\":200000", once[(2026, 7)]); // kural 1: takipli kredi Gelen'de
 
-        KasaDatabaseInitializer.Initialize(db); // migration + geçiş tohumu (bellek içi: yedek gerekmez)
+        KasaVeritabaniBaslatici.Baslat(db); // migration + geçiş tohumu (bellek içi: yedek gerekmez)
 
         Assert.Empty(db.Database.GetPendingMigrations());
         foreach (var ay in new[] { 6, 7 })
             Assert.Equal(Dondurulmus(once[(2026, ay)], AylikKural.V1), JsonSerializer.Serialize(new HesapServisi(db).AylikYanit(2026, ay), Web));
         // Açık ay görüntü almaz; tekrar başlatma yeni görüntü üretmez.
         Assert.Equal(new[] { (2026, 6), (2026, 7) }, db.AyRaporAnlikGoruntuleri.AsNoTracking().OrderBy(g => g.Ay).Select(g => new { g.Yil, g.Ay }).AsEnumerable().Select(g => (g.Yil, g.Ay)));
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Equal(2, db.AyRaporAnlikGoruntuleri.Count());
         Assert.DoesNotContain("dondurulmus", JsonSerializer.Serialize(new HesapServisi(db).AylikYanit(2026, 8), Web));
     }

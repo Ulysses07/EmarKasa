@@ -122,7 +122,7 @@ public class OkumaYoluTests
         // Uygulama açılmadan önce: takipli aktif kart var, kesim ekstresi hiç yazılmamış (okumalar yazmaz).
         using (var db = f.Baglam())
         {
-            KasaDatabaseInitializer.Initialize(db);
+            KasaVeritabaniBaslatici.Baslat(db);
             db.Ayarlar.Add(new() { TakipBaslangic = new DateOnly(2026, 1, 1) });
             var kart = new KrediKartiEntity { Ad = "Bakım kartı", KesimTarihi = new(2026, 1, 10), SonOdemeTarihi = new(2026, 1, 20), Limit = 1m };
             db.KrediKartlari.Add(kart);
@@ -172,7 +172,7 @@ public class OkumaYoluTests
         {
             using (var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(baglanti).Options))
             {
-                KasaDatabaseInitializer.Initialize(db);
+                KasaVeritabaniBaslatici.Baslat(db);
                 using (db.OkumaBaslat())
                 {
                     Assert.Equal(0, db.Kanallar.Count());

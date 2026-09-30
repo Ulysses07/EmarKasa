@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 

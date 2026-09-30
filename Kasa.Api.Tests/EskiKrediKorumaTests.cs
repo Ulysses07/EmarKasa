@@ -36,7 +36,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
+        var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
         // Çekim genel kasaya girdi, 15 Temmuz/Ağustos/Eylül taksitleri düştü.
         Assert.Equal(100_000m + 120_000m - 3 * 11_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
         var once = await Raporlar(c);
@@ -53,7 +53,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gecmis with { CekimTarihi = Bugun });
+        var kredi = EskiFinansTohumu.Kredi(f, Gecmis with { CekimTarihi = Bugun });
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/krediler/{kredi.Id}")).StatusCode);
         Assert.Single(await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler") ?? []);
     }
@@ -69,7 +69,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
+        var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
         var once = await Raporlar(c);
         var degisik = alan switch
         {
@@ -96,7 +96,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
+        var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
         var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
 
         (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { Ad = "Ziraat ihtiyaç" })).EnsureSuccessStatusCode();
@@ -112,7 +112,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gecmis);
+        var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { OdemeGunu = 0 })).StatusCode);
     }
 
@@ -121,7 +121,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gelecek);
+        var kredi = EskiFinansTohumu.Kredi(f, Gelecek);
         var once = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa;
         Assert.Equal(100_000m, once);
 
@@ -139,7 +139,7 @@ public class EskiKrediKorumaTests
     {
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
-        var kredi = LegacyFinanceSeed.Kredi(f, Gelecek);
+        var kredi = EskiFinansTohumu.Kredi(f, Gelecek);
         var once = await Raporlar(c);
 
         var r = await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gelecek with { CekimTarihi = new(2026, 9, 1) });

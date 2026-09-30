@@ -73,7 +73,7 @@ public class StatikServisTests : IClassFixture<KasaWebFactory>
     }
 
     [Fact]
-    public async Task Health_200_doner()
+    public async Task Saglik_ucu_200_doner()
     {
         var client = _factory.CreateClient();
         var yanit = await client.GetAsync("/health");

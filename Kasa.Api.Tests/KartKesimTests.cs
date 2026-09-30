@@ -237,7 +237,7 @@ public class KartKesimTests
         baglanti.Open();
         KartTakipDto eski, temiz;
         string once;
-        await using (var f = new HazirFactory(baglanti) { Saat = new SabitSaat(Bugun) })
+        await using (var f = new HazirFabrika(baglanti) { Saat = new SabitSaat(Bugun) })
         {
             using var c = await Editor(f, Baslangic);
             eski = await Kart(c, 5, 25, Baslangic);
@@ -277,7 +277,7 @@ public class KartKesimTests
         }
 
         var loglar = new UyariToplayici();
-        await using var f2 = new HazirFactory(baglanti, loglar) { Saat = new SabitSaat(Bugun) };
+        await using var f2 = new HazirFabrika(baglanti, loglar) { Saat = new SabitSaat(Bugun) };
         using var c2 = await f2.EditorClientAsync();
         Assert.Equal(once, await Raporlar(c2, eski.Id));
         Assert.Contains(loglar.Uyarilar, m => m.StartsWith($"Kart {eski.Id} (Kesim kartı)") && m.Contains("kesim günü (5) dışında kesilmiş 3 ekstre")
@@ -291,7 +291,7 @@ public class KartKesimTests
         await c.GetStringAsync("/api/rapor/panel") + await c.GetStringAsync($"/api/takip/kartlar/{kartId}") + await c.GetStringAsync("/api/rapor/aylik?yil=2026&ay=9");
 
     // Uygulamayı önceden hazırlanmış bağlantı üzerinde başlatır: ikinci açılış ilkinin yazdığı veriyi görür.
-    private sealed class HazirFactory(SqliteConnection hazir, UyariToplayici? loglar = null) : KasaWebFactory
+    private sealed class HazirFabrika(SqliteConnection hazir, UyariToplayici? loglar = null) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

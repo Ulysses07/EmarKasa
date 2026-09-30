@@ -7,14 +7,14 @@ public class FinansTakipTests
     private static readonly DateOnly Tarih = new(2026, 9, 23);
     private static SahteApi Finans() => new() { KanallarListe = new[] { new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0) } };
     private static AuthViewModel Auth() => new(new SahteApi()) { AktifRol = Rol.Editor };
-    private static async Task<KartTakipViewModel> KartVm(Fake api, AuthViewModel? auth = null, IBenzerKayitApi? benzerlik = null)
+    private static async Task<KartTakipViewModel> KartVm(Sahte api, AuthViewModel? auth = null, IBenzerKayitApi? benzerlik = null)
     {
         var vm = new KartTakipViewModel(api, Finans(), auth ?? Auth(), benzerlik);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Kartlar[0]);
         return vm;
     }
-    private static async Task<KrediTakipViewModel> KrediVm(Fake api, AuthViewModel? auth = null)
+    private static async Task<KrediTakipViewModel> KrediVm(Sahte api, AuthViewModel? auth = null)
     {
         var vm = new KrediTakipViewModel(api, Finans(), auth ?? Auth());
         await vm.YukleAsync();
@@ -24,7 +24,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_odeme_onizlemesi_degisen_tutarla_kaydedilemez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
@@ -40,7 +40,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_odeme_ag_hatasinda_onizlemedeki_ayni_anahtarla_tekrarlanir()
     {
-        var api = new Fake { OdemeHata = true };
+        var api = new Sahte { OdemeHata = true };
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -56,7 +56,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_odeme_zaman_asiminda_ayni_istek_anahtariyla_yeniden_denenir_cift_kayit_olmaz()
     {
-        var api = new Fake { OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
+        var api = new Sahte { OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -73,7 +73,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_gecis_paylari_degistiginde_eski_onay_gonderilmez()
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false } };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { YeniTakip = false } };
         var vm = await KartVm(api);
         vm.GecisAciklama = "Eski borç kontrol edildi";
         vm.PayEkle(vm.GecisPaylari);
@@ -95,7 +95,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_gecisinde_onerilen_tutar_kendiliginden_yazilmaz_acik_eylemle_yeniden_onizlenir()
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(80) };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Sahte.SunucuGibi(80) };
         var vm = await KartVm(api);
         vm.GecisAciklama = "Banka ekstresiyle kontrol edildi";
         Assert.Equal(100, vm.OncedenSayilan);                        // web gibi: kalan borç ile kart borcunun küçüğü
@@ -133,7 +133,7 @@ public class FinansTakipTests
     [InlineData("pay-kaldir")]
     public async Task Kart_gecis_girdisi_onizlemeden_sonra_degisince_onizleme_ve_onay_gecersizlesir(string alan)
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(100) };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Sahte.SunucuGibi(100) };
         var vm = await KartVm(api);
         vm.GecisAciklama = "Banka ekstresiyle kontrol edildi";
         vm.PayEkle(vm.GecisPaylari);
@@ -180,7 +180,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_gecis_engeli_ve_onerisi_girdi_degisince_kalkar()
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(80) };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Sahte.SunucuGibi(80) };
         var vm = await KartVm(api);
         vm.GecisAciklama = "Kontrol edildi";
         await vm.GecisOnizleCommand.ExecuteAsync(null);
@@ -197,7 +197,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_gecisinde_elle_degismemis_tutar_kalan_borcu_izler_elle_girilen_korunur()
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false } };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { YeniTakip = false } };
         var vm = await KartVm(api);
         vm.GecisKalanBorc = 60;
         Assert.Equal(60, vm.OncedenSayilan);
@@ -216,7 +216,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kabul_edilemez_kart_gecisi_nedenini_gosterir_onay_gonderilmez_elle_tutar_ezilmez()
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Fake.SunucuGibi(80) };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { YeniTakip = false }, KartGecisYaniti = Sahte.SunucuGibi(80) };
         var vm = await KartVm(api);
         vm.GecisAciklama = "Kontrol edildi";
         vm.OncedenSayilan = 50;
@@ -271,7 +271,7 @@ public class FinansTakipTests
     {
         const string uyari = "İlk sürüm kuralıyla geçiş (01.09.2026): 500,00 TL kasadan hiçbir zaman düşmüyor. Tutarları banka/kasa kayıtlarıyla doğrulayın.";
         var ilk = new KartGecisDto("EtkiTarihi", "Banka ile kontrol", null, 1400, new(2026, 9, 30), new(2026, 10, 31), 500, uyari);
-        var api = new Fake { Kart = Fake.OrnekKart() with { Gecis = ilk } };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { Gecis = ilk } };
         var vm = await KartVm(api);
         Assert.Equal(uyari, vm.GecisUyarisi);
         Assert.True(vm.GecisUyarisiTehlikeli);
@@ -281,21 +281,21 @@ public class FinansTakipTests
         Assert.Contains("geçiş farkını doğrulayın", vm.Kartlar[0].Baslik);
 
         // Yalnız düşüş tarihi farklı: uyarı bilgi düzeyinde kalır, rozet çıkmaz.
-        api.Kart = Fake.OrnekKart() with { Gecis = ilk with { TahminiKasaFarki = 0, Uyari = "İlk sürüm kuralıyla geçiş: toplam kasa etkisi tutarlı." } };
+        api.Kart = Sahte.OrnekKart() with { Gecis = ilk with { TahminiKasaFarki = 0, Uyari = "İlk sürüm kuralıyla geçiş: toplam kasa etkisi tutarlı." } };
         await vm.YukleAsync();
         Assert.NotNull(vm.GecisUyarisi);
         Assert.False(vm.GecisUyarisiTehlikeli);
         Assert.DoesNotContain("doğrulayın", vm.Kartlar[0].Baslik);
 
         // Uyarı metni gelmese de (eski sunucu) rapor dışı tutar görünür kalır.
-        api.Kart = Fake.OrnekKart() with { Gecis = ilk with { Uyari = null } };
+        api.Kart = Sahte.OrnekKart() with { Gecis = ilk with { Uyari = null } };
         await vm.YukleAsync();
         Assert.Contains("1.400,00 ₺", vm.GecisUyarisi);
         Assert.Contains("500,00 ₺", vm.GecisUyarisi);
         Assert.True(vm.GecisUyarisiTehlikeli);
 
         var kayit = new KartGecisKaydi(new(2026, 9, 27), 1000, 800, 800, 300, 200, new(2026, 10, 31), 800);
-        api.Kart = Fake.OrnekKart() with { Gecis = new KartGecisDto("IslemTarihi", "Ekstre kontrol edildi", kayit) };
+        api.Kart = Sahte.OrnekKart() with { Gecis = new KartGecisDto("IslemTarihi", "Ekstre kontrol edildi", kayit) };
         await vm.YukleAsync();
         Assert.Null(vm.GecisUyarisi);
         Assert.False(vm.GecisUyarisiTehlikeli);
@@ -304,7 +304,7 @@ public class FinansTakipTests
             Assert.Contains(parca, vm.GecisKaydi);
         Assert.DoesNotContain("saklanmadı", vm.GecisKaydi);
 
-        api.Kart = Fake.OrnekKart();
+        api.Kart = Sahte.OrnekKart();
         await vm.YukleAsync();
         Assert.Null(vm.GecisKaydi);
         Assert.Null(vm.GecisUyarisi);
@@ -313,14 +313,14 @@ public class FinansTakipTests
     public async Task Geciken_odeme_yaniti_oturum_degistiginde_eski_karti_geri_getirmez()
     {
         var bekleyen = new TaskCompletionSource<KartTakipDto>();
-        var api = new Fake { OdemeYaniti = bekleyen.Task };
+        var api = new Sahte { OdemeYaniti = bekleyen.Task };
         var auth = Auth();
         var vm = await KartVm(api, auth);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
         var islem = vm.OdemeKaydetCommand.ExecuteAsync(null);
         auth.OturumSurumu++;
-        bekleyen.SetResult(Fake.OrnekKart());
+        bekleyen.SetResult(Sahte.OrnekKart());
         await islem;
         Assert.Empty(vm.Kartlar);
         Assert.Null(vm.Secili);
@@ -331,12 +331,12 @@ public class FinansTakipTests
     public async Task Geciken_liste_oturum_degistiginde_yansitilmaz()
     {
         var bekleyen = new TaskCompletionSource<IReadOnlyList<KartTakipDto>>();
-        var api = new Fake { KartlarYaniti = bekleyen.Task };
+        var api = new Sahte { KartlarYaniti = bekleyen.Task };
         var auth = Auth();
         var vm = new KartTakipViewModel(api, Finans(), auth);
         var islem = vm.YukleAsync();
         auth.OturumSurumu++;
-        bekleyen.SetResult(new[] { Fake.OrnekKart() });
+        bekleyen.SetResult(new[] { Sahte.OrnekKart() });
         await islem;
         Assert.Empty(vm.Kartlar);
         Assert.False(vm.VeriHazir);
@@ -344,7 +344,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Izleyici_mutasyon_gonderemez_alici_menuye_erismez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KartVm(api, new(new SahteApi()) { AktifRol = Rol.Izleyici });
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -357,7 +357,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Mevcut_kredi_yeni_giris_olmadan_sabit_kanallarla_gonderilir()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KrediVm(api);
         vm.YeniCommand.Execute(null);
         vm.Ad = "Banka";
@@ -375,7 +375,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kasaya_islenmis_taksitte_tutar_degisemez_not_eklenebilir()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KrediVm(api);
         vm.TaksitSecCommand.Execute(vm.Taksitler[0]);
         vm.Gerekce = "Dekont eklendi";
@@ -392,7 +392,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kredi_gecisinde_kanal_degistirmek_yeniden_onizleme_gerektirir()
     {
-        var api = new Fake { Kredi = Fake.OrnekKredi() with { YeniTakip = false } };
+        var api = new Sahte { Kredi = Sahte.OrnekKredi() with { YeniTakip = false } };
         var vm = await KrediVm(api);
         vm.GecisAciklama = "Kontrol edildi";
         await vm.GecisOnizleCommand.ExecuteAsync(null);
@@ -409,7 +409,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Erken_kapama_tutar_tarih_degisince_onay_iptal_edilir()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KrediVm(api);
         vm.KapatmaTutari = 100;
         vm.Gerekce = "Banka kapama";
@@ -437,9 +437,9 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_iadesi_kaynak_harcama_gerektirir_kanal_dagilimi_kaynakta_kalir()
     {
-        var api = new Fake
+        var api = new Sahte
         {
-            Kart = Fake.OrnekKart() with
+            Kart = Sahte.OrnekKart() with
             {
                 Harcamalar = new[]
         {
@@ -476,8 +476,8 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_odeme_benzerligi_onaydan_sonra_ayni_anahtarla_tekrarlanabilir()
     {
-        var api = new Fake { OdemeHata = true };
-        var lookup = new BenzerKayitTests.Fake();
+        var api = new Sahte { OdemeHata = true };
+        var lookup = new BenzerKayitTests.Sahte();
         var vm = await KartVm(api, benzerlik: lookup);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -496,8 +496,8 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_harcama_uyarisi_degisik_tutar_icin_yeni_onay_ister()
     {
-        var api = new Fake();
-        var lookup = new BenzerKayitTests.Fake();
+        var api = new Sahte();
+        var lookup = new BenzerKayitTests.Sahte();
         var vm = await KartVm(api, benzerlik: lookup);
         vm.HarcamaTutari = 10;
         vm.HarcamaAciklama = "Mal";
@@ -515,7 +515,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Kart_detayi_kanal_borcunu_ve_belirsiz_payi_gosterir_alici_karta_gecemez()
     {
-        var api = new Fake { Kart = Fake.OrnekKart() with { KanalKartBorclari = new[] { new TakipKanalPayi(1, "MEZAT", 70), new TakipKanalPayi(null, "", 30) } } };
+        var api = new Sahte { Kart = Sahte.OrnekKart() with { KanalKartBorclari = new[] { new TakipKanalPayi(1, "MEZAT", 70), new TakipKanalPayi(null, "", 30) } } };
         var auth = Auth();
         var vm = await KartVm(api, auth);
         Assert.Contains("70,00", vm.KanalBorcOzeti);
@@ -529,7 +529,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Yeni_kart_formundaki_bos_acilis_payi_mevcut_kart_guncellemesini_engellemez()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = new KartTakipViewModel(api, Finans(), Auth());
         await vm.YukleAsync();
         vm.YeniCommand.Execute(null);
@@ -551,7 +551,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Guncellemede_acilis_satiri_listeye_sonradan_eklense_de_okunmaz()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KartVm(api);
         vm.PayEkle(vm.AcilisPaylari);
         vm.Limit = 1200;             // görünmeyen bölüme kod yoluyla eklenmiş geçersiz satır
@@ -562,7 +562,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Baska_kart_secilince_karta_ozel_form_alanlari_sifirlanir()
     {
-        var api = new Fake { KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Fake.OrnekKart(), Fake.OrnekKart() with { Id = 2, Ad = "Kart B" } }) };
+        var api = new Sahte { KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Sahte.OrnekKart(), Sahte.OrnekKart() with { Id = 2, Ad = "Kart B" } }) };
         var vm = await KartVm(api);
         vm.HarcamaTutari = 45;
         vm.HarcamaAciklama = "A kartının harcaması";
@@ -595,7 +595,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Belirsiz_odeme_baska_karta_gecip_donunce_ayni_tekrar_anahtariyla_gider()
     {
-        var api = new Fake { KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Fake.OrnekKart(), Fake.OrnekKart() with { Id = 2, Ad = "Kart B" } }), OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
+        var api = new Sahte { KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>(new[] { Sahte.OrnekKart(), Sahte.OrnekKart() with { Id = 2, Ad = "Kart B" } }), OdemeHatasi = new TimeoutException(KasaZamanAsimlari.Ileti) };
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -620,7 +620,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Ayni_kartin_yenilenmesi_yazilmis_harcama_formunu_korur()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = await KartVm(api);
         vm.HarcamaTutari = 45;
         vm.HarcamaAciklama = "Yazılmakta olan harcama";
@@ -636,7 +636,7 @@ public class FinansTakipTests
     [Fact]
     public async Task Ozet_farkli_kart_alacagini_borctan_dusmez_belirsiz_payi_ayirir()
     {
-        var api = new Fake { Ozet = new(Tarih, 100, 20, Array.Empty<TakipOlayDto>(), new[] { new TakipKanalPayi(1, "MEZAT", 70), new TakipKanalPayi(null, "", 30) }, 40) };
+        var api = new Sahte { Ozet = new(Tarih, 100, 20, Array.Empty<TakipOlayDto>(), new[] { new TakipKanalPayi(1, "MEZAT", 70), new TakipKanalPayi(null, "", 30) }, 40) };
         var vm = new TakipOzetViewModel(api, Auth());
         await vm.YukleAsync();
         Assert.Contains("Toplam kart borcu 100,00", vm.Ozet);
@@ -645,7 +645,7 @@ public class FinansTakipTests
         Assert.Equal(100, vm.KanalKartBorclari!.Sum(k => k.Tutar));
     }
 
-    internal sealed class Fake : IFinansTakipApi
+    internal sealed class Sahte : IFinansTakipApi
     {
         public static KartTakipDto OrnekKart() => new(1, 3, "Kart", true, true, Tarih, 1, 10, 1000, 100, 100, new[] { new KartEkstreDto(7, Tarih, Tarih.AddDays(10), 100, 0, 100, null) }, Array.Empty<KartHarcamaDto>(), Array.Empty<KartTakipOdemeDto>());
         public static KrediTakipDto OrnekKredi() => new(2, 3, "Kredi", true, true, Tarih, 100, Tarih, 20, new[] { new TakipKanalPayi(1, "MEZAT", 100) }, new[] { new KrediPlanTaksitDto(3, 1, Tarih, 10, "KasayaIslendi", null, new[] { new TakipKanalPayi(1, "MEZAT", 10) }) });

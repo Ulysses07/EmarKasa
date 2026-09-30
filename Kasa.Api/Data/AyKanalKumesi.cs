@@ -33,7 +33,7 @@ public partial class KasaDbContext
     public DbSet<AyKanalKumesiEntity> AyKanalKumeleri => Set<AyKanalKumesiEntity>();
     public DbSet<AyKanalKumesiKanalEntity> AyKanalKumesiKanallari => Set<AyKanalKumesiKanalEntity>();
 
-    partial void ConfigureMonthlyChannelSets(ModelBuilder b)
+    partial void ConfigureAyKanalKumesi(ModelBuilder b)
     {
         b.Entity<AyKanalKumesiEntity>().ToTable("AyKanalKumeleri");
         b.Entity<AyKanalKumesiEntity>().HasIndex(k => new { k.Yil, k.Ay }).IsUnique();
@@ -50,7 +50,7 @@ public partial class KasaDbContext
 /// kümesi — rapordaki kanallar, sıraları ve Ortak gideri bölüşen (o an aktif) kanallar — bir kez dondurulur ve o ayın raporu
 /// bundan sonra onunla hesaplanır (<see cref="Servisler.HesapServisi"/>, <see cref="Core.HesapMotoru.AylikHesapla"/>):
 /// - Ne zaman: Ortak kümesini değiştiren her kanal değişikliğinden (aktif kanal ekleme, aktiflik ya da sıra değişikliği, aktif
-///   kanal silme) ÖNCE, aynı SaveChanges transaction'ında (<see cref="KanalDegisikligindenOnce"/>, LockedPeriodDbContext kancası);
+///   kanal silme) ÖNCE, aynı SaveChanges transaction'ında (<see cref="KanalDegisikligindenOnce"/>, KasaDbContext.Kaydetme kancası);
 ///   ay kapatılırken (<see cref="AyKapanirken"/>); bu migration'ın uygulandığı açılışta bir kez (<see cref="GecisDondurmasi"/>).
 ///   Dondurulan her ay takip başlangıcının ayından bugünün (İstanbul) ayından önceki aya kadar kümesi olmayan aydır. Küme, değişiklik
 ///   kaydedilmeden önceki veritabanı durumundan, raporun kullandığı sırayla (<see cref="Kanallar"/>) yazılır. Değişiklikten önce

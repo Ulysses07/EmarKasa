@@ -6,7 +6,7 @@ using Kasa.Core;
 using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 

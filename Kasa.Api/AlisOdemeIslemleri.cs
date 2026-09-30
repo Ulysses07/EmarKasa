@@ -175,7 +175,7 @@ internal static class AlisOdemeIslemleri
     internal static EkstreKayitEntity? DevredilenEkstreSatiri(KasaDbContext db, int islemId)
     {
         var harcama = db.TakipHarcamalar.Where(h => h.IslemId == islemId).Select(h => (int?)h.Id).FirstOrDefault();
-        return db.EkstreKayitlar.FirstOrDefault(k => !k.Iptal && k.IslemTuru != EkstreImportEndpoints.Eslestir
+        return db.EkstreKayitlar.FirstOrDefault(k => !k.Iptal && k.IslemTuru != EkstreAktarmaEndpoints.Eslestir
             && (k.IslemTuru == "Gider" && k.EslesmeTuru == "Gider" && k.EslesmeId == islemId
                 || harcama != null && k.IslemTuru == "KartHarcama" && k.EslesmeTuru == "KartHarcama" && k.EslesmeId == harcama));
     }

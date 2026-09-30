@@ -7,7 +7,7 @@ namespace Kasa.Sozlesme.Tests;
 /// Eski (takip öncesi) kart listesi: masaüstü gider ve alış formları kart seçimini GET api/kredikartlari'den alır.
 /// Eski kayıtlar API'den oluşturulamadığından veritabanına doğrudan yazılır. Eski kart, kredi ve kart ödemesi yazma
 /// uçlarının masaüstünde çağıranı yoktur (istemci sarmalayıcıları kaldırıldı); sunucudaki davranışları (yeni kayıtta 409,
-/// eski kredide yalnız ad düzeltmesi, geçmiş etkili kredinin silinememesi) Kasa.Api.Tests'te (CardLoanTrackingTests,
+/// eski kredide yalnız ad düzeltmesi, geçmiş etkili kredinin silinememesi) Kasa.Api.Tests'te (KartKrediTakipTests,
 /// EskiKrediKorumaTests) sınanır.
 /// </summary>
 public class EskiKartKrediSozlesmeTests : SozlesmeTemeli

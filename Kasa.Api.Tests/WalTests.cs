@@ -31,14 +31,14 @@ public class WalTests
         try
         {
             using (var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(Baglanti(yol)).Options))
-                KasaDatabaseInitializer.Initialize(db);
+                KasaVeritabaniBaslatici.Baslat(db);
             // Kip dosya başlığında kalıcıdır: yeni bir bağlantı da WAL görür.
             using var yeni = new SqliteConnection(Baglanti(yol));
             yeni.Open();
             Assert.Equal("wal", Kip(yeni));
             // İkinci başlatma (uygulamanın her açılışı) sorunsuz ve kip değişmez.
             using (var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(Baglanti(yol)).Options))
-                KasaDatabaseInitializer.Initialize(db);
+                KasaVeritabaniBaslatici.Baslat(db);
             Assert.Equal("wal", Kip(yeni));
         }
         finally { SqliteConnection.ClearAllPools(); Sil(yol); }
@@ -50,7 +50,7 @@ public class WalTests
         using var baglanti = new SqliteConnection("Data Source=:memory:");
         baglanti.Open();
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(baglanti).Options);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         Assert.Equal("memory", Kip(baglanti));
     }
 

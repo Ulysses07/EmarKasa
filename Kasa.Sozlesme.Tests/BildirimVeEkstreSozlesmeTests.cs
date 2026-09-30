@@ -59,7 +59,7 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
         Assert.False(Assert.Single(await o.Bildirim.BildirimCihazlariAsync()).Etkin);
     }
 
-    /// <summary>Banka seçenekleri tek kaynaktan (EkstreImportEndpoints.Bankalar) gelir: listedeki her kod yüklemede kabul edilir,
+    /// <summary>Banka seçenekleri tek kaynaktan (EkstreAktarmaEndpoints.Bankalar) gelir: listedeki her kod yüklemede kabul edilir,
     /// liste dışı kod iletili 400 alır. Web ve masaüstü kendi kopyalarını tutmaz.</summary>
     [Fact]
     [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreBankalarAsync), nameof(IEkstreAktarmaApi.EkstreYukleAsync))]
@@ -67,7 +67,7 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
     {
         var o = await Editor();
         var bankalar = await o.Ekstre.EkstreBankalarAsync();
-        Assert.Equal(Kasa.Api.EkstreImportEndpoints.Bankalar.Select(b => (b.Kod, b.Ad)), bankalar.Select(b => (b.Kod, b.Ad)));
+        Assert.Equal(Kasa.Api.EkstreAktarmaEndpoints.Bankalar.Select(b => (b.Kod, b.Ad)), bankalar.Select(b => (b.Kod, b.Ad)));
         Assert.Contains(bankalar, b => b is { Kod: "Isbank", Ad: "İş Bankası" });
         // Aynı PDF (özet) başka kaynak bilgisiyle ikinci kez yüklenemez: her banka kendi dosyasıyla.
         static byte[] Pdf(string ek) => System.Text.Encoding.UTF8.GetBytes("%PDF-1.7 sozlesme " + ek);

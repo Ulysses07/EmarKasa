@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kasa.Api.Servisler;
 using Microsoft.Extensions.DependencyInjection;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 
@@ -19,7 +19,7 @@ public class AlisOdemeTasimaKilidiTests
 {
     private static DateOnly Old => Month.AddMonths(-1);
 
-    /// <summary>LockedPeriodTests'teki kuruş örneği: onaylı alış 0,03 TL (kanal1 0,01, kanal2 0,02); önce bugün tarihli P1 (düşük
+    /// <summary>KilitliDonemTests'teki kuruş örneği: onaylı alış 0,03 TL (kanal1 0,01, kanal2 0,02); önce bugün tarihli P1 (düşük
     /// Id), sonra geçen ay tarihli P2 girilir. P2'nin payı kanal1'dedir; P1 alıştan çıkarsa kanal2'ye geçerdi.</summary>
     private static async Task<(AlisDto Alis, AlisOdemeDto P1)> KurusAlisi(HttpClient c, bool onayla = true)
     {

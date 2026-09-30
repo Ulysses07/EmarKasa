@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 

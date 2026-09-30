@@ -208,7 +208,7 @@ public class GocOncesiYedekTests
 
             // Veri adımı bittikten sonraki açılışlarda bekleyen iş yoktur: yeni yedek alınmaz.
             using (var db = f.Baglam())
-                KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
+                KasaVeritabaniBaslatici.Baslat(db, f.Services.GetRequiredService<YedekServisi>());
             Assert.Single(GocOncesiYedekleri(dizin));
         }
         finally { f.Dispose(); Temizle(null, dizin); Temizle(null, dizin + "-anahtar"); }
@@ -295,7 +295,7 @@ public class GocOncesiYedekTests
             { db.Kanallar.Add(new() { Ad = "YENİ", Sira = 9 }); db.SaveChanges(); }
             // Olağan yeniden açılış: bütün migration'lar uygulanmış, veri adımı yok.
             using (var db = f.Baglam())
-                KasaDatabaseInitializer.Initialize(db, f.Services.GetRequiredService<YedekServisi>());
+                KasaVeritabaniBaslatici.Baslat(db, f.Services.GetRequiredService<YedekServisi>());
             Assert.Empty(GocOncesiYedekleri(dizin));
         }
         finally { f.Dispose(); Temizle(null, dizin); Temizle(null, dizin + "-anahtar"); }
@@ -328,13 +328,13 @@ public class GocOncesiYedekTests
             for (var i = 0; i < 2; i++)
             {
                 using var db = Baglam(yol);
-                var hata = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db, yedek));
+                var hata = Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db, yedek));
                 Assert.Contains("birden fazla kanal", hata.Message);
             }
             Assert.Single(GocOncesiYedekleri(dizin));
             // Aynı servisin yeni örneği de (yeniden başlayan süreç) dizindeki yedeği tanır.
             using (var db = Baglam(yol))
-                Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db, TestYedegi(dizin)));
+                Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db, TestYedegi(dizin)));
             Assert.Single(GocOncesiYedekleri(dizin));
         }
         finally { Temizle(yol, dizin); }
@@ -349,7 +349,7 @@ public class GocOncesiYedekTests
             OncekiSurumVeritabani(yol);
             using (var db = Baglam(yol))
             {
-                var hata = Assert.Throws<InvalidOperationException>(() => KasaDatabaseInitializer.Initialize(db));
+                var hata = Assert.Throws<InvalidOperationException>(() => KasaVeritabaniBaslatici.Baslat(db));
                 Assert.Contains("yedeksiz güncelleme yapılmaz", hata.Message);
             }
             using (var db = Baglam(yol))

@@ -129,7 +129,7 @@ public class OturumVeRolTests
     public async Task Takip_ekrani_yeni_oturumda_rolu_bildirir_onceki_veriyi_birakir()
     {
         var auth = Oturum(Rol.Editor);
-        var vm = new KartTakipViewModel(new FinansTakipTests.Fake(), Finans(), auth);
+        var vm = new KartTakipViewModel(new FinansTakipTests.Sahte(), Finans(), auth);
         await vm.YukleAsync();
         Assert.True(vm.EditorMu);
         Assert.True(vm.VeriHazir);
@@ -150,7 +150,7 @@ public class OturumVeRolTests
     public async Task Rol_degisince_EditorMu_ve_bagli_degerler_bildirilir()
     {
         var auth = Oturum(Rol.Editor);
-        var takip = new KartTakipViewModel(new FinansTakipTests.Fake(), Finans(), auth);
+        var takip = new KartTakipViewModel(new FinansTakipTests.Sahte(), Finans(), auth);
         await takip.YukleAsync();
         var islemler = Islemler(Finans(), auth);
         var alislar = new AlislarViewModel(new AlislarViewModelTests.SahteAlisApi(), new SahteApi(), auth: auth);

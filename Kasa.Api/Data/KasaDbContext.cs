@@ -49,7 +49,7 @@ public partial class KasaDbContext : DbContext
 
         b.Entity<KanalEntity>().Property(k => k.Ad).UseCollation("NOCASE");
         b.Entity<KanalEntity>().HasIndex(k => k.Ad).IsUnique();
-        // contract-6: çekirdek kasa kayıtlarının sürümü; kaydetme kancası değişen kayıtta artırır (LockedPeriodDbContext).
+        // contract-6: çekirdek kasa kayıtlarının sürümü; kaydetme kancası değişen kayıtta artırır (KasaDbContext.Kaydetme).
         b.Entity<KanalEntity>().Property(k => k.Surum).IsConcurrencyToken();
         b.Entity<IslemEntity>().Property(i => i.Surum).IsConcurrencyToken();
         b.Entity<GelenEntity>().Property(g => g.Surum).IsConcurrencyToken();
@@ -106,25 +106,25 @@ public partial class KasaDbContext : DbContext
         b.Entity<KrediTaksitOdemeEntity>().HasOne(o => o.Islem).WithMany().HasForeignKey(o => o.IslemId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<KrediTaksitOdemeEntity>().HasIndex(o => new { o.KrediId, o.TaksitNo }).IsUnique();
         b.Entity<KrediTaksitOdemeEntity>().HasIndex(o => o.IslemId).IsUnique();
-        ConfigureOperations(b);
-        ConfigureCardLoanTracking(b);
-        ConfigureNotifications(b);
-        ConfigureMonthlyExpensesAndLocks(b);
-        ConfigureCashControls(b);
-        ConfigureStatementImports(b);
-        ConfigureMonthlyReportSnapshots(b);
+        ConfigureEditorGuvenlikVeBelge(b);
+        ConfigureKartKrediTakibi(b);
+        ConfigureBildirim(b);
+        ConfigureAylikGiderVeAyKilidi(b);
+        ConfigureKasaKontrol(b);
+        ConfigureEkstreAktarma(b);
+        ConfigureAyRaporAnlikGoruntusu(b);
         ConfigureDenetim(b);
-        ConfigureMonthlyChannelSets(b);
+        ConfigureAyKanalKumesi(b);
         ConfigureSistemDurumu(b);
     }
 
-    partial void ConfigureOperations(ModelBuilder b);
-    partial void ConfigureNotifications(ModelBuilder b);
-    partial void ConfigureMonthlyExpensesAndLocks(ModelBuilder b);
-    partial void ConfigureCashControls(ModelBuilder b);
-    partial void ConfigureStatementImports(ModelBuilder b);
-    partial void ConfigureMonthlyReportSnapshots(ModelBuilder b);
+    partial void ConfigureEditorGuvenlikVeBelge(ModelBuilder b);
+    partial void ConfigureBildirim(ModelBuilder b);
+    partial void ConfigureAylikGiderVeAyKilidi(ModelBuilder b);
+    partial void ConfigureKasaKontrol(ModelBuilder b);
+    partial void ConfigureEkstreAktarma(ModelBuilder b);
+    partial void ConfigureAyRaporAnlikGoruntusu(ModelBuilder b);
     partial void ConfigureDenetim(ModelBuilder b);
-    partial void ConfigureMonthlyChannelSets(ModelBuilder b);
+    partial void ConfigureAyKanalKumesi(ModelBuilder b);
     partial void ConfigureSistemDurumu(ModelBuilder b);
 }

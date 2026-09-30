@@ -206,9 +206,9 @@ public class CekirdekSurumTests
         await Cakisma(await c.PutAsJsonAsync($"/api/islemler/{giderId}", Gider(150m, surum: 0, kanal: "MEZAT SALONU")), GiderIletisi);
 
         // Alış ödemesi düzeltmesi bağlı gideri (tutar) değiştirir: sürümü artar.
-        await AlisWorkflowTests.Prepare(c);
-        var alis = await AlisWorkflowTests.Read<AlisDto>(await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, Baslangic, "Firma", null, [new("Ürün", 100m, [])])));
-        alis = await AlisWorkflowTests.Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Baslangic, 40m)));
+        await AlisIsAkisiTests.Prepare(c);
+        var alis = await AlisIsAkisiTests.Read<AlisDto>(await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, Baslangic, "Firma", null, [new("Ürün", 100m, [])])));
+        alis = await AlisIsAkisiTests.Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Baslangic, 40m)));
         var odeme = alis.Odemeler.Single();
         int OdemeGideriSurumu()
         {
@@ -216,7 +216,7 @@ public class CekirdekSurumTests
             return scope.ServiceProvider.GetRequiredService<KasaDbContext>().Islemler.AsNoTracking().Single(i => i.Id == odeme.IslemId).Surum;
         }
         Assert.Equal(0, OdemeGideriSurumu());
-        await AlisWorkflowTests.Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{alis.Id}/odemeler/{odeme.Id}",
+        await AlisIsAkisiTests.Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{alis.Id}/odemeler/{odeme.Id}",
             new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), Baslangic, 70m, "Tutar yanlış girildi")));
         Assert.Equal(1, OdemeGideriSurumu());
     }

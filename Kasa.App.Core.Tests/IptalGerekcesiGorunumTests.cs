@@ -14,7 +14,7 @@ public class IptalGerekcesiGorunumTests
 
     private static async Task<AylikGiderViewModel> Aylik(AylikGiderAyDto ay)
     {
-        var f = new KasaKontrolVeAylikGiderTests.Fake { BekleyenAy = Task.FromResult(ay) };
+        var f = new KasaKontrolVeAylikGiderTests.Sahte { BekleyenAy = Task.FromResult(ay) };
         var v = new AylikGiderViewModel(f, new SahteApi(), new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor }) { AyTarihi = new DateTime(2026, 9, 1) };
         await v.YukleAsync();
         return v;

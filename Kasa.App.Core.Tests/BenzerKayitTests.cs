@@ -8,7 +8,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Onay_yalniz_gosterilen_govdeye_aittir_form_degisince_yenilenir()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var kontrol = new BenzerKayitKontrolu(api);
         var arama = new BenzerlikYaz("Gider", Tarih, 100, Kanal: "MEZAT");
         Assert.False(await kontrol.DevamEdilebilirAsync(arama, new { Not = "ilk" }, () => true));
@@ -25,7 +25,7 @@ public class BenzerKayitTests
     [Fact]
     public async Task Uyari_sunucunun_uc_gun_ve_kanal_kuralini_anlatir_kaynaklari_dogru_adlandirir()
     {
-        var api = new Fake { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(new BenzerKayitDto[] { new("KrediTaksidi", 5, Tarih.AddDays(2), 100, "Taksit 3", null, null), new("EskiKrediTaksidi", 6, Tarih.AddDays(-3), 100, "Kredi", null, null), new("KartOdeme", 8, Tarih, 100, "Ödeme", 2, null) }) };
+        var api = new Sahte { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(new BenzerKayitDto[] { new("KrediTaksidi", 5, Tarih.AddDays(2), 100, "Taksit 3", null, null), new("EskiKrediTaksidi", 6, Tarih.AddDays(-3), 100, "Kredi", null, null), new("KartOdeme", 8, Tarih, 100, "Ödeme", 2, null) }) };
         var kontrol = new BenzerKayitKontrolu(api);
         Assert.False(await kontrol.DevamEdilebilirAsync(new("Gider", Tarih, 100, Kanal: "MEZAT"), new { Tutar = 100 }, () => true));
         Assert.Contains("±3 gün", kontrol.Uyari);
@@ -42,13 +42,13 @@ public class BenzerKayitTests
     public async Task Oturum_degistiginde_bekleyen_benzerlik_yaniti_gosterilmez()
     {
         var tcs = new TaskCompletionSource<IReadOnlyList<BenzerKayitDto>>();
-        var api = new Fake { Bekleyen = tcs.Task };
+        var api = new Sahte { Bekleyen = tcs.Task };
         var kontrol = new BenzerKayitKontrolu(api);
         var gecerli = true;
         var islem = kontrol.DevamEdilebilirAsync(new("Gider", Tarih, 100), new { Tutar = 100 }, () => gecerli);
         gecerli = false;
         kontrol.Temizle();
-        tcs.SetResult(Fake.Eslesmeler);
+        tcs.SetResult(Sahte.Eslesmeler);
         Assert.False(await islem);
         Assert.False(kontrol.UyariVar);
         Assert.False(kontrol.Onayla());
@@ -57,7 +57,7 @@ public class BenzerKayitTests
     public async Task Gider_uyariyi_onaylamadan_kaydedilmez_ve_hata_kayda_izin_vermez()
     {
         var finans = new SahteApi();
-        var lookup = new Fake();
+        var lookup = new Sahte();
         var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), lookup) { DuzenTarih = Tarih.ToDateTime(TimeOnly.MinValue), DuzenCari = "Mal", DuzenTutar = 100, DuzenKanal = "MEZAT" };
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(finans.SonIslemOlustur);
@@ -65,7 +65,7 @@ public class BenzerKayitTests
         await vm.GideriAyriKaydetCommand.ExecuteAsync(null);
         Assert.Equal(100, finans.SonIslemOlustur!.TutarTl);
         Assert.Equal(1, lookup.Cagri);
-        var hatali = new IslemlerViewModel(new SahteApi(), TestOturumu.Ac(), new Fake { Hata = true }) { DuzenTutar = 100 };
+        var hatali = new IslemlerViewModel(new SahteApi(), TestOturumu.Ac(), new Sahte { Hata = true }) { DuzenTutar = 100 };
         await hatali.KaydetCommand.ExecuteAsync(null);
         Assert.Contains("ulaşılamadı", hatali.Hata);
         Assert.False(hatali.GiderBenzerlik.Onayla());
@@ -74,7 +74,7 @@ public class BenzerKayitTests
     public async Task Mevcut_gider_duzeltmesinde_yeni_kayit_uyarisi_sorulmaz()
     {
         var finans = new SahteApi();
-        var lookup = new Fake();
+        var lookup = new Sahte();
         var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), lookup);
         vm.Duzenle(new(3, Tarih, "Mal", 100, "MEZAT", GiderTipi.Cari, null));
         await vm.KaydetCommand.ExecuteAsync(null);
@@ -86,7 +86,7 @@ public class BenzerKayitTests
     {
         var bekleyen = new TaskCompletionSource<IslemDto>();
         var finans = new SahteApi { IslemKayitYaniti = bekleyen.Task };
-        var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), new Fake()) { DuzenTutar = 100, DuzenCari = "Mal", DuzenKanal = "MEZAT" };
+        var vm = new IslemlerViewModel(finans, TestOturumu.Ac(), new Sahte()) { DuzenTutar = 100, DuzenCari = "Mal", DuzenKanal = "MEZAT" };
         await vm.KaydetCommand.ExecuteAsync(null);
         var devam = vm.GideriAyriKaydetCommand.ExecuteAsync(null);
         Assert.True(vm.Mesgul);
@@ -115,7 +115,7 @@ public class BenzerKayitTests
         Assert.True(new AlisOdemeSatiri(odeme).KartVar);
         Assert.Contains("Kart #4", new AlisOdemeSatiri(odeme with { KrediKartiAdi = null }).Baslik);
     }
-    public sealed class Fake : IBenzerKayitApi
+    public sealed class Sahte : IBenzerKayitApi
     {
         public int Cagri; public bool Hata; public Task<IReadOnlyList<BenzerKayitDto>>? Bekleyen;
         public BenzerlikYaz? SonArama;

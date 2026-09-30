@@ -93,7 +93,7 @@ using (var scope = app.Services.CreateScope())
     // Yedek aynasının temizliği (hiçbir yedeğin göstermediği dosyalar) belge deposunun kendisinde çalışırsa canlı belgeleri silerdi.
     if (string.Equals(Path.TrimEndingDirectorySeparator(yedekServisi.AynaDizini), Path.TrimEndingDirectorySeparator(belgeDeposu.Kok), StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException($"Yedek aynası ({yedekServisi.AynaDizini}) belge deposuyla (Belge:Dizin) aynı dizin olamaz. Yedek:Dizin'i veri dizininden ayırın.");
-    KasaDatabaseInitializer.Initialize(db, yedekServisi, belgeDeposu, scope.ServiceProvider.GetRequiredService<IDiskAlani>());
+    KasaVeritabaniBaslatici.Baslat(db, yedekServisi, belgeDeposu, scope.ServiceProvider.GetRequiredService<IDiskAlani>());
     // Yedekten geri yüklenmiş dosya: oturumlar, kurtarma kodu, izleyici girişi ve bildirim kayıtları kapanır, yedekten sonraki
     // güvenlik kararları güvenlik günlüğünden yeniden uygulanır, kimlikler ileri alınır (HTTP açılmadan).
     var guvenlikGunlugu = scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>();
@@ -185,7 +185,7 @@ app.MapAylikGiderEndpoints();
 app.MapAyKilidiEndpoints();
 app.MapDenetimEndpoints();
 app.MapKasaKontrolEndpoints();
-app.MapEkstreImportEndpoints();
+app.MapEkstreAktarmaEndpoints();
 app.MapBildirimEndpoints();
 app.MapAliciEndpoints();
 app.MapGuvenlikEndpoints();

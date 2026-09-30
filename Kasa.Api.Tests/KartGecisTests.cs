@@ -117,7 +117,7 @@ public class KartGecisTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();
         using var db = Context(connection);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         db.Kanallar.Add(new KanalEntity { Id = 1, Ad = "MEZAT" });
         db.KrediKartlari.Add(new KrediKartiEntity { Id = 1, Ad = "Eski", KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 15), Borc = 200m });
         db.Islemler.AddRange(Gider(1, new(2025, 7, 10), 300m, 1), Gider(2, new(2025, 8, 20), 500m, 1), Gider(3, new(2025, 9, 2), -50m, 1),
@@ -283,7 +283,7 @@ public class KartGecisTests
             EskiGecisVerisi(eski);
         }
         var logs = new UyariToplayici();
-        await using var f = new HazirFactory(connection, logs) { Saat = new SabitSaat(Today) };
+        await using var f = new HazirFabrika(connection, logs) { Saat = new SabitSaat(Today) };
         using var c = await f.EditorClientAsync();
         // Tespit veri dönüştürmez: raporlar 2.3.0 çıktısıyla birebir aynı kalır.
         Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
@@ -322,7 +322,7 @@ public class KartGecisTests
         using var connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();
         using var db = Context(connection);
-        KasaDatabaseInitializer.Initialize(db);
+        KasaVeritabaniBaslatici.Baslat(db);
         db.Kanallar.Add(new KanalEntity { Id = 1, Ad = "MEZAT" });
         KrediKartiEntity Kart(int id, string ad, decimal borc = 0) => new() { Id = id, Ad = ad, KesimTarihi = new(2000, 1, 5), SonOdemeTarihi = new(2000, 1, 15), Borc = borc };
         db.KrediKartlari.AddRange(Kart(1, "Devirsiz"), Kart(2, "Yeni kural"), Kart(3, "Ters yön", 100m), Kart(4, "Tutarlı ödeme"), Kart(5, "Kalıntısız"));
@@ -371,7 +371,7 @@ public class KartGecisTests
             using var eski = SurumOncesiBaglam.Ayni(db);
             EskiGecisVerisi(eski);
         }
-        await using var f = new HazirFactory(connection) { Saat = new SabitSaat(Today) };
+        await using var f = new HazirFabrika(connection) { Saat = new SabitSaat(Today) };
         using var c = await f.EditorClientAsync();
         using (var check = connection.CreateCommand())
         {
@@ -474,7 +474,7 @@ public class KartGecisTests
     private static KasaDbContext Context(SqliteConnection connection) => new(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
 
     // Uygulamayı önceden hazırlanmış (eski şemalı) bağlantı üzerinde başlatır; açılışta migration çalışır.
-    private sealed class HazirFactory(SqliteConnection hazir, UyariToplayici? logs = null) : KasaWebFactory
+    private sealed class HazirFabrika(SqliteConnection hazir, UyariToplayici? logs = null) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

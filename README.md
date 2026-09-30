@@ -106,7 +106,7 @@ Bu sürümde oturum damgası doğrulaması eklendiği için önceki sürümün a
 
 ## Veritabanı başlangıcı ve geçiş
 
-API açılışında `KasaDatabaseInitializer.Initialize(db)` çalışır. Yeni veritabanını hazırlar; mevcut desteklenen şemayı kayıtları koruyarak günceller ve kanal bağlantılarını taşır. Eski hareketlerde adı bulunan, kanal listesinde bulunmayan kanalları pasif kayıt olarak korur. Aynı dönem ve kanala ait eski yinelenen gelirlerin bütün satırları korunur; bu gruplar salt okunurdur ve düzenleme isteği açıklayıcı 409 yanıtı alır. Satırlar birleştirilmez veya silinmez. Yinelenen kanal adları, tanınmayan özel şema veya geçersiz ilişki gibi desteklenmeyen belirsizliklerde geçiş geri alınır ve başlangıç durdurulur.
+API açılışında `KasaVeritabaniBaslatici.Baslat(db)` çalışır. Yeni veritabanını hazırlar; mevcut desteklenen şemayı kayıtları koruyarak günceller ve kanal bağlantılarını taşır. Eski hareketlerde adı bulunan, kanal listesinde bulunmayan kanalları pasif kayıt olarak korur. Aynı dönem ve kanala ait eski yinelenen gelirlerin bütün satırları korunur; bu gruplar salt okunurdur ve düzenleme isteği açıklayıcı 409 yanıtı alır. Satırlar birleştirilmez veya silinmez. Yinelenen kanal adları, tanınmayan özel şema veya geçersiz ilişki gibi desteklenmeyen belirsizliklerde geçiş geri alınır ve başlangıç durdurulur.
 
 Canlı veritabanını güncellemeden önce tutarlı bir yedek alın ve geri yüklemeyi doğrulayın. Çalışan SQLite veritabanında yalnız ana `.db` dosyasını kopyalamak yerine SQLite yedekleme yöntemini kullanın veya uygulamayı durdurarak kopyalayın. `docs/deploy` belgelerindeki ve arşivlenmiş eski planlardaki (`docs/plans`) veritabanını silip yeniden oluşturma talimatları mevcut veriye uygulanmamalıdır; güncel giriş noktası başlatıcıdır.
 

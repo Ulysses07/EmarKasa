@@ -21,14 +21,14 @@ public class EkstreBorcTests
         var c = await f.EditorClientAsync();
         var kesim = bugun.AddDays(-5);      // en son kesim 5 gün önce
         TarihSiniriTests.TakipBaslangiciAyarla(f, kesim.AddDays(-1)); // kesim öncesi harcama takip içinde
-        var kart = LegacyFinanceSeed.Kart(f, new("Test", kesim, bugun.AddDays(5), 100000m, 1000m));
+        var kart = EskiFinansTohumu.Kart(f, new("Test", kesim, bugun.AddDays(5), 100000m, 1000m));
         int id = kart.Id;
 
         // Eski (takipsiz) kart harcamaları mevcut kayıttır (K3: yeni gider takipteki karta bağlanır).
         // kesimden ÖNCE harcama (ekstreye girer)
-        LegacyFinanceSeed.KartGideri(f, kesim.AddDays(-1), "A", 500m, "MEZAT", id);
+        EskiFinansTohumu.KartGideri(f, kesim.AddDays(-1), "A", 500m, "MEZAT", id);
         // kesimden SONRA harcama (ekstreye GİRMEZ)
-        LegacyFinanceSeed.KartGideri(f, bugun, "B", 300m, "MEZAT", id);
+        EskiFinansTohumu.KartGideri(f, bugun, "B", 300m, "MEZAT", id);
 
         var liste = await c.GetFromJsonAsync<List<JsonElement>>("/api/kredikartlari", Json);
         var k = liste!.Single(x => x.GetProperty("id").GetInt32() == id);

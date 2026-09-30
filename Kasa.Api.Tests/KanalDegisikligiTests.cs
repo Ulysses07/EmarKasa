@@ -8,7 +8,7 @@ using Kasa.Core;
 using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 
@@ -91,7 +91,7 @@ public class KanalDegisikligiTests
         var mezatGideri = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Old.AddDays(2), "Mal", 50m, "MEZAT", GiderTipi.Cari));
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 300m))).EnsureSuccessStatusCode();
         var aylikIslemId = AylikGiderOdemesi(f, Old.AddDays(9), 40m, 1);
-        var kredi = LegacyFinanceSeed.Kredi(f, new KrediYazDto("Kredi", 0m, Old.AddDays(4), 1, 0m, 5, "MEZAT"));
+        var kredi = EskiFinansTohumu.Kredi(f, new KrediYazDto("Kredi", 0m, Old.AddDays(4), 1, 0m, 5, "MEZAT"));
         await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Bu ayın ortak gideri", 90m, KanalEtiketleri.Ortak, GiderTipi.Cari));
         var kilitOncesiAylik = await c.GetStringAsync(AylikUrl(Old));
         var kilitOncesiHaftalik = KilitliHaftalar(await c.GetStringAsync("/api/rapor/haftalik"));

@@ -47,7 +47,7 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
 
     /// <summary>En yakın tarihli en çok <paramref name="enFazla"/> (varsayılan <see cref="EnFazla"/>) benzer kayıt. <paramref name="dahil"/>
     /// verilirse süzgeç sınırdan önce uygulanır (elenen kayıt yakındaki başka kaydın yerini tutmaz). Ekstre eşleşme adayları da
-    /// bu aramayla bulunur (<see cref="EkstreImportEndpoints"/>).</summary>
+    /// bu aramayla bulunur (<see cref="EkstreAktarmaEndpoints"/>).</summary>
     public IReadOnlyList<BenzerKayitDto> Bul(BenzerAramasi a, Func<BenzerKayitDto, bool>? dahil = null, int enFazla = EnFazla)
     {
         var bas = a.Tarih.AddDays(-GunPenceresi);

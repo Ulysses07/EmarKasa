@@ -7,12 +7,12 @@ public class KasaKontrolVeAylikGiderTests
 {
     private static AuthViewModel Auth(Rol rol = Rol.Editor) => new(new SahteApi()) { AktifRol = rol };
     private static SahteApi Finans() => new() { KanallarListe = new[] { new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0) } };
-    private static async Task<AylikGiderViewModel> Aylik(Fake f, AuthViewModel? auth = null) { var v = new AylikGiderViewModel(f, Finans(), auth ?? Auth()); await v.YukleAsync(); return v; }
+    private static async Task<AylikGiderViewModel> Aylik(Sahte f, AuthViewModel? auth = null) { var v = new AylikGiderViewModel(f, Finans(), auth ?? Auth()); await v.YukleAsync(); return v; }
     private static void SablonFormu(AylikGiderViewModel v) { v.Ad = "Kira"; v.Tur = v.Turler[0]; v.Tutar = 100; }
     [Fact]
     public async Task Sablon_okumasi_ve_kaydi_odeme_yaratmaz_dagilim_acikca_secilir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = await Aylik(f);
         Assert.Empty(f.Odemeler);
         SablonFormu(v);
@@ -29,7 +29,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Esit_dagilim_secilen_kanallari_sifir_tutarla_sunucuya_gonderir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = await Aylik(f);
         SablonFormu(v);
         v.DagilimTuru = v.DagilimTurleri[1];
@@ -40,7 +40,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Ozel_dagilim_toplami_uyusmazsa_kaydetmez()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = await Aylik(f);
         SablonFormu(v);
         v.DagilimTuru = v.DagilimTurleri[2];
@@ -54,7 +54,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Aylik_odeme_onay_ister_ve_ag_hatasinda_ayni_istegi_tekrarlar()
     {
-        var f = new Fake { OdemeHata = true };
+        var f = new Sahte { OdemeHata = true };
         var v = await Aylik(f);
         v.OdemeSec(v.Kayitlar[0]);
         await v.OdeCommand.ExecuteAsync(null);
@@ -71,7 +71,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Ay_secimi_degistiginde_eski_plan_odenemez()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = await Aylik(f);
         var satir = v.Kayitlar[0];
         v.AyTarihi = v.AyTarihi.AddMonths(1);
@@ -86,7 +86,7 @@ public class KasaKontrolVeAylikGiderTests
     public async Task Gec_donen_baska_ayin_yaniti_yeni_baslik_altinda_gosterilmez()
     {
         var t = new TaskCompletionSource<AylikGiderAyDto>();
-        var f = new Fake { BekleyenAy = t.Task };
+        var f = new Sahte { BekleyenAy = t.Task };
         var v = new AylikGiderViewModel(f, Finans(), Auth());
         var eski = v.AyTarihi;
         var yukle = v.YukleAsync();
@@ -100,7 +100,7 @@ public class KasaKontrolVeAylikGiderTests
     public async Task Oturum_degisiminde_bekleyen_ay_ve_bakiye_yaniti_yok_sayilir()
     {
         var ay = new TaskCompletionSource<AylikGiderAyDto>();
-        var f = new Fake { BekleyenAy = ay.Task };
+        var f = new Sahte { BekleyenAy = ay.Task };
         var auth = Auth();
         var v = new AylikGiderViewModel(f, Finans(), auth);
         var islem = v.YukleAsync();
@@ -121,7 +121,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Gercek_bakiye_degistiginde_onizleme_tekrar_alinmalidir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = -20, Not = "Sayım" };
         await v.OnizleCommand.ExecuteAsync(null);
         v.GercekBakiye = -21;
@@ -138,7 +138,7 @@ public class KasaKontrolVeAylikGiderTests
     public async Task Bakiye_409_onizlemeyi_gecersizlestirir_ag_hatasi_anahtari_korur()
     {
         // Sıfırdan farklı bakiye: 0 ile kayıt ayrıca ikinci basışta onaylanır (aşağıdaki test).
-        var f = new Fake { KontrolHata = new HttpRequestException() };
+        var f = new Sahte { KontrolHata = new HttpRequestException() };
         var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = 50, Not = "Sayım" };
         await v.OnizleCommand.ExecuteAsync(null);
         await v.KaydetCommand.ExecuteAsync(null);
@@ -153,7 +153,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Gercek_bakiye_sifirla_kayit_ikinci_basista_onaylanir_deger_degisince_sifirlanir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = new KasaKontrolViewModel(f, Auth());   // alan boş: 0
         await v.OnizleCommand.ExecuteAsync(null);
         await v.KaydetCommand.ExecuteAsync(null);
@@ -182,7 +182,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Esik_sifir_degeri_ve_kapali_durum_acikca_kaydedilir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = new KasaEsikViewModel(f, Auth());
         await v.YukleAsync();
         v.Secili = v.Kanallar[0];
@@ -198,7 +198,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Negatif_esik_kaydedilmez()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = new KasaEsikViewModel(f, Auth());
         await v.YukleAsync();
         v.Secili = v.Kanallar[0];
@@ -210,7 +210,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Basarili_odeme_sonrasi_yenileme_hatasi_eski_plani_guncel_gostermez()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = await Aylik(f);
         v.OdemeSec(v.Kayitlar[0]);
         v.OdemeOnay = true;
@@ -224,7 +224,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Izleyici_okuyabilir_ama_yeni_mali_akislara_yazamaz()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var auth = Auth(Rol.Izleyici);
         var aylik = await Aylik(f, auth);
         SablonFormu(aylik);
@@ -252,13 +252,13 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Ay_kilidi_tamamlanmamis_ayi_kapatmaz_ve_acma_yonunu_korur()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = new AyKilidiViewModel(f, Auth(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 30)));
         await v.YukleAsync();
         await v.DegistirAsync(true, 2026, 9, "Kontrol", v.OturumNesli, 3);
         Assert.Null(f.KilitGirdi);
         Assert.Equal("Yalnız tamamlanmış aylar kapatılabilir.", v.Hata);
-        var f2 = new Fake();
+        var f2 = new Sahte();
         var ertesiGun = new AyKilidiViewModel(f2, Auth(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 10, 1)));
         await ertesiGun.YukleAsync();
         await ertesiGun.DegistirAsync(true, 2026, 9, "Eylül kapandı", ertesiGun.OturumNesli, 3);
@@ -274,7 +274,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Eski_oturumun_acik_iptal_penceresi_yeni_editor_adina_islem_yapmaz()
     {
-        var f = new Fake { Odendi = true };
+        var f = new Sahte { Odendi = true };
         var auth = Auth();
         var v = await Aylik(f, auth);
         var eskiSatir = v.Kayitlar[0];
@@ -292,11 +292,11 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Odenmis_aylik_gider_odendi_yazilir_odeme_formu_acilmaz_bekleyen_acilir()
     {
-        var odenmis = await Aylik(new Fake { Odendi = true });
+        var odenmis = await Aylik(new Sahte { Odendi = true });
         Assert.EndsWith("· Ödendi", odenmis.Kayitlar[0].Baslik);
         odenmis.OdemeSec(odenmis.Kayitlar[0]);
         Assert.Null(odenmis.SeciliOdeme);
-        var bekleyen = await Aylik(new Fake());
+        var bekleyen = await Aylik(new Sahte());
         Assert.EndsWith("· Ödeme bekliyor", bekleyen.Kayitlar[0].Baslik);
         bekleyen.OdemeSec(bekleyen.Kayitlar[0]);
         Assert.Same(bekleyen.Kayitlar[0], bekleyen.SeciliOdeme);
@@ -308,14 +308,14 @@ public class KasaKontrolVeAylikGiderTests
     [InlineData("Iptal", false)]
     public void Aylik_gider_satiri_odendi_bilgisini_tipli_ozellikle_verir(string durum, bool odendi)
     {
-        var satir = new AylikGiderSatiri(new Fake().Ay(2026, 9).Kayitlar[0] with { Durum = durum });
+        var satir = new AylikGiderSatiri(new Sahte().Ay(2026, 9).Kayitlar[0] with { Durum = durum });
         Assert.Equal(odendi, satir.OdendiMi);
         Assert.EndsWith(odendi ? "· Ödendi" : "· Ödeme bekliyor", satir.Baslik);
     }
     [Fact]
     public async Task Yenilenen_listede_artik_olmayan_odeme_iptal_edilemez()
     {
-        var f = new Fake { Odendi = true };
+        var f = new Sahte { Odendi = true };
         var v = await Aylik(f);
         var eski = v.Kayitlar[0];
         f.Odendi = false;
@@ -327,7 +327,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Ay_kilidi_onayi_oturuma_ve_gosterilen_surume_baglidir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var auth = Auth();
         var v = new AyKilidiViewModel(f, auth);
         await v.YukleAsync();
@@ -347,7 +347,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public void Ay_kilidi_onay_metni_ay_ve_yonu_soyler_kural_1_ile_dondurulmus_ay_acilirken_uyarir()
     {
-        var v = new AyKilidiViewModel(new Fake(), Auth());
+        var v = new AyKilidiViewModel(new Sahte(), Auth());
         var kapat = v.OnayMetni(true, 2026, 3);
         Assert.Contains("03.2026", kapat);
         Assert.Contains("kilitlenecek", kapat);
@@ -371,7 +371,7 @@ public class KasaKontrolVeAylikGiderTests
     public async Task Ay_kilidi_istegi_rapor_ayi_ya_da_oturum_degisince_gecersizdir()
     {
         var auth = Auth();
-        var v = new AyKilidiViewModel(new Fake(), auth);
+        var v = new AyKilidiViewModel(new Sahte(), auth);
         await v.YukleAsync();
         var oturum = v.OturumNesli;
         Assert.True(v.IstekHalaGecerli(oturum, 2026, 8, 2026, 8));
@@ -398,8 +398,8 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Kart_masrafi_hash_ile_onizlenir_degisen_form_kaydedilmez_ve_retry_id_sabittir()
     {
-        var f = new Fake();
-        var kart = new FinansTakipTests.Fake();
+        var f = new Sahte();
+        var kart = new FinansTakipTests.Sahte();
         var v = new KartTakipViewModel(kart, Finans(), Auth(), kontrolApi: f);
         await v.YukleAsync();
         v.SecCommand.Execute(v.Kartlar[0]);
@@ -425,7 +425,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Fark_varken_aciklama_zorunlu_farki_gorduktan_sonra_yazilabilir()
     {
-        var f = new Fake();
+        var f = new Sahte();
         var v = new KasaKontrolViewModel(f, Auth()) { GercekBakiye = 90 };
         await v.OnizleCommand.ExecuteAsync(null);
         Assert.Contains("Kanal kasaları: MEZAT 60,00 ₺ · PERAKENDE 40,00 ₺", v.Karsilastirma);
@@ -451,7 +451,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Gecmis_sonradan_degisen_ve_filigransiz_eski_kayitlari_isaretler()
     {
-        var f = new Fake { Gecmis = new[] { Degisen, Eski } };
+        var f = new Sahte { Gecmis = new[] { Degisen, Eski } };
         var v = new KasaKontrolViewModel(f, Auth());
         await v.YukleAsync();
         Assert.EndsWith("fark -100,00 ₺ · sonradan değişti", v.Gecmis[0].Baslik);
@@ -464,7 +464,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Inceleme_kontrolden_beri_degisenleri_verir_fark_aciklamasi_surumle_ve_sabit_anahtarla_kaydedilir()
     {
-        var f = new Fake { Gecmis = new[] { Degisen, Eski } };
+        var f = new Sahte { Gecmis = new[] { Degisen, Eski } };
         f.Sonrasi = new(2, Degisen.Kaydedildi, new DateOnly(2026, 9, 20), true, 1000, 1500, 500,
             [new DenetimOlayDto(9, new DateTimeOffset(2026, 9, 21, 10, 0, 0, TimeSpan.FromHours(3)), "editor", null, null, "Sil", "Islem", "812", """{"Tarih":"2026-09-18","TutarTl":500,"Iptal":false}""", null, null, null, null, null)],
             [new KasaKontrolIstekDto(Guid.NewGuid(), "KartOdemeIptal", 4)],
@@ -512,7 +512,7 @@ public class KasaKontrolVeAylikGiderTests
     [Fact]
     public async Task Dokum_secilen_aralik_ve_kasayla_istenir_acilis_kapanis_ve_satirlar_gosterilir()
     {
-        var f = new Fake
+        var f = new Sahte
         {
             Dokum = new(new(2026, 9, 1), new(2026, 9, 26), 1, "MEZAT", 1200, 780.25m,
             [new KasaHareketiDto(new(2026, 9, 30), new(2026, 8, 20), "KartAySonu", "Eski kart", "MEZAT", 1, -400, 0, "Islem:5", true),
@@ -535,7 +535,7 @@ public class KasaKontrolVeAylikGiderTests
         Assert.Contains("kayıt 20.08.2026", v.DokumSatirlari[0].Ozet);
         Assert.Equal("02.09.2026 · Gider · -419,75 ₺", v.DokumSatirlari[1].Baslik);
     }
-    internal sealed class Fake : IKasaKontrolApi, IAylikGiderApi
+    internal sealed class Sahte : IKasaKontrolApi, IAylikGiderApi
     {
         public AylikGiderSablonYaz? Sablon; public List<AylikGiderOdemeYaz> Odemeler = new(); public bool OdemeHata; public Task<AylikGiderAyDto>? BekleyenAy; public bool Odendi; public int IptalSayisi; public int KilitSurumu = 3;
         public Task<KasaKontrolOnizlemeDto>? BekleyenKontrol; public List<KasaKontrolYaz> Kontroller = new(); public Exception? KontrolHata; public KasaEsikYaz? Esik; public AyKilidiYaz? KilitGirdi; public bool Kapat;
@@ -577,6 +577,6 @@ public class KasaKontrolVeAylikGiderTests
         /// <summary>Ayarlanırsa masraf önizlemesi yanıt vermeden önce bunu bekler; <see cref="MasrafIstisnasi"/> kaydı o hatayla bitirir (ör. 409).</summary>
         public Task? MasrafOnizlemeKapisi; public Exception? MasrafIstisnasi;
         public async Task<KartMasrafOnizlemeDto> KartMasrafOnizleAsync(int id, KartMasrafYaz g) { MasrafOnizlemeSayisi++; if (MasrafOnizlemeKapisi is { } kapi) await kapi; return new KartMasrafOnizlemeDto(id, g.EkstreId, g.Tarih, g.Tutar, 100, new[] { new TakipKanalPayi(1, "MEZAT", g.Tutar) }, "pay-hash"); }
-        public Task<KartTakipDto> KartMasrafKaydetAsync(int id, KartMasrafYaz g) { Masraflar.Add(g); return MasrafIstisnasi is { } istisna ? Task.FromException<KartTakipDto>(istisna) : MasrafHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : Task.FromResult(FinansTakipTests.Fake.OrnekKart() with { Surum = 4 }); }
+        public Task<KartTakipDto> KartMasrafKaydetAsync(int id, KartMasrafYaz g) { Masraflar.Add(g); return MasrafIstisnasi is { } istisna ? Task.FromException<KartTakipDto>(istisna) : MasrafHata ? Task.FromException<KartTakipDto>(new HttpRequestException()) : Task.FromResult(FinansTakipTests.Sahte.OrnekKart() with { Surum = 4 }); }
     }
 }
