@@ -114,3 +114,22 @@ public static class AylikGiderDurumlari
     /// <summary>Ödeme iptal edildi; satır plan satırlarından ayrı listelenir, toplamlara girmez.</summary>
     public const string Iptal = "Iptal";
 }
+
+/// <summary>Kart ve kredi takibinin kaydı: hangi takip kaydından geldiği (TakipOlayDto.Kaynak, TakipsizKayitDto.Kaynak,
+/// TakipGecisDto.Kaynak, bildirim kaynak hatası ve bildirim anahtarı).</summary>
+public static class TakipKaynaklari
+{
+    public const string Kart = "Kart";
+    public const string Kredi = "Kredi";
+}
+
+/// <summary>Kart ve kredi takibi olayının türü (TakipOlayDto.Tur; bildirimin türü ve anahtarı).</summary>
+public static class TakipOlayTurleri
+{
+    /// <summary>Kartın hesap kesim günü.</summary>
+    public const string Kesim = "Kesim";
+    /// <summary>Kart ekstresinin son ödeme günü.</summary>
+    public const string SonOdeme = "SonOdeme";
+    /// <summary>Kredi taksidinin günü (tarihinde kasadan kendiliğinden düşer).</summary>
+    public const string Taksit = "Taksit";
+}

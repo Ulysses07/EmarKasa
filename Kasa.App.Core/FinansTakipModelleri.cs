@@ -160,6 +160,6 @@ public record TakipOlaySatiri(TakipOlayDto Veri, DateOnly? RaporTarihi = null)
 {
     public string Baslik => $"{Veri.Tarih:dd.MM.yyyy} · {Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺";
     public string Ozet => Veri.OtomatikKasa ? "Kredi taksidi: tarihinde otomatik kasaya işlenir." :
-        Veri.Tur == "Kesim" ? "Kart hesap kesimi; banka ekstresi doğrulaması değildir." :
+        Veri.Tur == TakipOlayTurleri.Kesim ? "Kart hesap kesimi; banka ekstresi doğrulaması değildir." :
         Veri.Tarih < (RaporTarihi ?? DateOnly.FromDateTime(DateTime.Today)) ? "Son ödeme tarihi geçti; kayıtlı kalan borç var. Yalnız ödeme kaydıyla kasadan düşer." : "Kart: yalnız ödeme kaydıyla kasadan düşer.";
 }

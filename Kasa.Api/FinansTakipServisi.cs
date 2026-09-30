@@ -904,14 +904,14 @@ public static class FinansTakipServisi
         foreach (var s in dto.Ekstreler)
         {
             if (aktif)
-                yield return new("Kart", dto.Id, s.Id, dto.Ad, s.KesimTarihi, s.Borc, "Kesim", false);
+                yield return new(TakipKaynaklari.Kart, dto.Id, s.Id, dto.Ad, s.KesimTarihi, s.Borc, TakipOlayTurleri.Kesim, false);
             if (s.Kalan > 0)
-                yield return new("Kart", dto.Id, s.Id, dto.Ad, s.SonOdemeTarihi, s.Kalan, "SonOdeme", false);
+                yield return new(TakipKaynaklari.Kart, dto.Id, s.Id, dto.Ad, s.SonOdemeTarihi, s.Kalan, TakipOlayTurleri.SonOdeme, false);
         }
     }
     /// <summary>Bir takipli kredinin olayları (tek kural): iptal edilmemiş her taksit, kasaya otomatik işlenir.</summary>
     internal static IEnumerable<TakipOlayDto> KrediOlaylari(KrediTakipDto dto) => dto.Taksitler.Where(t => t.Durum != TaksitDurumlari.Iptal)
-        .Select(t => new TakipOlayDto("Kredi", dto.Id, t.Id, dto.Ad + " / " + t.No + ". taksit", t.Tarih, t.Tutar, "Taksit", true));
+        .Select(t => new TakipOlayDto(TakipKaynaklari.Kredi, dto.Id, t.Id, dto.Ad + " / " + t.No + ". taksit", t.Tarih, t.Tutar, TakipOlayTurleri.Taksit, true));
     public static bool KanalKullaniliyor(KasaDbContext db, int id) => db.TakipKrediler.AsNoTracking().AsEnumerable().Any(k => Read<int>(k.KanalIdleriJson).Contains(id))
         || db.TakipHarcamalar.AsNoTracking().AsEnumerable().Any(h => Read<KanalPayYaz>(h.DagilimJson).Any(p => p.KanalId == id));
     internal static bool IslemYonetiliyor(KasaDbContext db, IslemEntity expense) => db.TakipHarcamalar.Any(h => h.IslemId == expense.Id)
