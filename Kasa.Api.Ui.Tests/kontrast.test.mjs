@@ -180,8 +180,8 @@ test('yer tutucu metin masaüstünde ve telefonda alan zemininde en az 4,5:1', (
   const phone = mobile.rule('input::placeholder,textarea::placeholder');
   assert.equal(phone.color, 'var(--soluk)');
   assert.equal(phone.opacity, '1');
-  // .girdi beyaz; tutar alanı alt sayfa zemininde (şeffaf); arama alanı kendi zemininde.
-  assert.equal(mobile.rule('.girdi').background, '#fff');
+  // .girdi beyaz (kart yüzeyi belirteci); tutar alanı alt sayfa zemininde (şeffaf); arama alanı kendi zemininde.
+  assert.equal(mobile.color(mobile.rule('.girdi').background), '#ffffff');
   assert.equal(mobile.rule('.hz-tutar input').background, 'transparent');
   assert.equal(mobile.rule('.sayfa').background, 'var(--zemin)');
   for (const background of ['#ffffff', 'var(--zemin)', 'var(--arama)'])
@@ -222,7 +222,9 @@ test('renk kodu deseni rengi yakalar, belirteci ve beyaz boşluk özelliğini ya
   assert.deepEqual(kokDisiRenkler('.x{color:var(--white);white-space:nowrap;background:transparent;fill:currentColor}'), []);
 });
 
-test('masaüstü: renk kodları yalnız :root belirteçlerinde', async () => {
-  const css = sikistir(await readFile(new URL('../Kasa.Api/wwwroot/styles.css', import.meta.url), 'utf8'));
-  assert.deepEqual(kokDisiRenkler(css), [], 'styles.css: :root dışında renk kodu; belirteç tanımlayıp var(--…) kullanın');
+test('masaüstü ve telefon: renk kodları yalnız :root belirteçlerinde', async () => {
+  for (const dosya of ['styles.css', 'm/app.css']) {
+    const css = sikistir(await readFile(new URL(`../Kasa.Api/wwwroot/${dosya}`, import.meta.url), 'utf8'));
+    assert.deepEqual(kokDisiRenkler(css), [], `${dosya}: :root dışında renk kodu; belirteç tanımlayıp var(--…) kullanın`);
+  }
 });
