@@ -79,7 +79,7 @@ function monthPicker(name, value, { label, min = '' } = {}) {
 //   sortById     paylar kanal numarasına göre sıralanır (false: kanal listesi sırası)
 //   onChange     seçim, tutar ya da dağılım değişince çağrılır
 //   legend, label, note (yardım metni; null: yok) ve messages (mode / channel / sum hata iletileri)
-// Ayrı kalanlar: alış satır editörü (editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
+// Ayrı kalanlar: alış satır editörü (purchases-ui editPurchase) kısmi dağılıma izin verir, kalem başına serbest satırlarla çalışır ve alıcı
 // rolü de (telefonda) kullanır; kart dağılımı (finance-ui allocationEditor) serbest satırlıdır, boş bırakılabilir (Dağılım
 // bekliyor) ve eksi tutarı (iade) mutlak değerle karşılaştırır.
 function distribution(
@@ -170,20 +170,23 @@ function distribution(
 function moneyNode(value, className = '') {
   return h('span', { class: `money ${className}` }, money(value));
 }
-// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre ve alış ödemesi): div.allocation-tags içinde her pay için
+// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre, alış kalemi ve alış ödemesi): div.allocation-tags içinde her pay için
 // span.allocation-tag "Kanal: tutar". empty: kanal adı yoksa yazılan ad (verilmezse ad olduğu gibi yazılır); pending: kanalı
-// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir.
-function allocationTags(rows, { empty, pending = false } = {}) {
+// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir; pendingBadge: hiç pay yoksa aynı kutuya konan bekleme rozetinin
+// metni (span.badge.pending; verilmezse kutu boş kalır).
+function allocationTags(rows, { empty, pending = false, pendingBadge = null } = {}) {
+  const list = rows || [];
   return h(
     'div',
     { class: 'allocation-tags' },
-    (rows || []).map(row =>
+    list.map(row =>
       h(
         'span',
         { class: `allocation-tag${pending && row.kanalId == null ? ' pending' : ''}` },
         `${empty === undefined ? row.kanal : row.kanal || empty}: ${money(row.tutar)}`
       )
-    )
+    ),
+    pendingBadge != null && list.length === 0 && h('span', { class: 'badge pending' }, pendingBadge)
   );
 }
 function values(form) {
