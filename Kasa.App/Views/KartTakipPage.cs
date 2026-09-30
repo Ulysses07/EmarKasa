@@ -42,6 +42,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     private int _kaydirmaIstegi, _kaydirilanIstek;
     private readonly View _ayrinti;
     private readonly View _formAlani;
+    /// <summary>Formun tepesindeki hata satırı (FormHatasi): uzun formun altındaki düğmeden gelen hata görünür yere kaydırılır.</summary>
+    private readonly Label _formHataSatiri;
 
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
@@ -62,6 +64,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
 
     public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kredi Kartları", SayfaAciklamasi, vm.YukleAsync, nameof(vm.SayfaHatasi))
     {
+        _formHataSatiri = BagliHata(nameof(vm.FormHatasi));
         _formAlani = FormAlani(vm);
         _ayrinti = new Border
         {
@@ -91,9 +94,10 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         bos.SetBinding(IsVisibleProperty, $"{nameof(vm.Kartlar)}.{nameof(vm.Kartlar.Count)}", converter: new SifirIse());
         Govde.Add(bos);
         Govde.Add(izgara);
-        // Başka bir kart açılınca (kutu ya da sayfa belirirken IdIleSec) ayrıntısı, form açılınca form, sayfa hatası yazılınca
-        // sayfa başındaki hata satırı görünür yere kaydırılır (yalnız görünmüyorsa). Aynı kartın kayıttan sonra güncellenmesi
-        // (AcikKartId yine bildirilir) ve kartın kapanması kaydırmaz; yeni kart formu AcikForm üzerinden kaydırılır.
+        // Başka bir kart açılınca (kutu ya da sayfa belirirken IdIleSec) ayrıntısı, form açılınca form; form hatası yazılınca
+        // formun tepesindeki hata satırı, sayfa hatası ya da ileti (başarılı kayıt) yazılınca sayfa başındaki satırı görünür yere
+        // kaydırılır (yalnız görünmüyorsa). Aynı kartın kayıttan sonra güncellenmesi (AcikKartId yine bildirilir) ve kartın
+        // kapanması kaydırmaz; yeni kart formu AcikForm üzerinden kaydırılır. Yalnız son istek kaydırır.
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(vm.AcikKartId) && vm.AcikKartId != _gosterilenKartId)
@@ -106,9 +110,17 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             {
                 GorunurYap(_formAlani, KaydirmaHesabi.FormKaydirmasi);
             }
+            else if (e.PropertyName == nameof(vm.FormHatasi) && !string.IsNullOrWhiteSpace(vm.FormHatasi))
+            {
+                GorunurYap(_formHataSatiri, KaydirmaHesabi.FormKaydirmasi);
+            }
             else if (e.PropertyName == nameof(vm.SayfaHatasi) && !string.IsNullOrWhiteSpace(vm.SayfaHatasi))
             {
                 GorunurYap(HataSatiri, KaydirmaHesabi.FormKaydirmasi);
+            }
+            else if (e.PropertyName == nameof(vm.Mesaj) && !string.IsNullOrWhiteSpace(vm.Mesaj))
+            {
+                GorunurYap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
         };
     }
@@ -254,7 +266,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Children =
             {
                 new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] },
-                Goster(BagliHata(nameof(vm.FormHatasi)), nameof(vm.FormHatasi), true),
+                Goster(_formHataSatiri, nameof(vm.FormHatasi), true),
                 Durumda(KartBilgileri(vm), nameof(vm.AcikForm), KartFormu.KartBilgisi),
                 Durumda(Odeme(vm), nameof(vm.AcikForm), KartFormu.Odeme),
                 Durumda(Harcama(vm), nameof(vm.AcikForm), KartFormu.Harcama),
@@ -460,14 +472,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     /// <summary>Görünüm yalnız bağlı durum <paramref name="deger"/> iken görünür (açık form, seçili sekme).</summary>
     private static View Durumda<TDurum>(View gorunum, string yol, TDurum deger) where TDurum : struct, Enum
     {
-        gorunum.SetBinding(IsVisibleProperty, yol, converter: new DurumdaIse<TDurum>(deger));
+        gorunum.SetBinding(IsVisibleProperty, yol, converter: new AcikIseConverter(deger, true, false));
         return gorunum;
-    }
-
-    private sealed class DurumdaIse<TDurum>(TDurum deger) : IValueConverter where TDurum : struct, Enum
-    {
-        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is TDurum durum && durum.Equals(deger);
-        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 
     /// <summary>Sayı 0 ise true (boş liste iletisi).</summary>

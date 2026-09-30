@@ -13,8 +13,8 @@ namespace Kasa.App.Core.Tests;
 /// ile uygulanır, kalan her şey birebir karşılaştırılır. (1) Durum satırlarında gösterge yalnız meşgulken, hata ve ileti yalnız
 /// doluyken görünür (boşken Yenile ile son güncelleme arasında ~130 px boşluk kalıyordu). (2) Onay kutusunun en küçük genişliği 0
 /// (WinUI CheckBox'ın MinWidth=120'si etiketi ~110 px uzağa itiyordu). (3) Gösterge ayrı satırda değil, Yenile düğmesinin sağında
-/// "Veriler yükleniyor…" metniyle aynı yatay satırdadır (gösterge görününce içerik 48 px aşağı kayıyordu); Kasa kontrolündeki
-/// "gösterge satır boyunca" seçeneği bu yüzden kalktı.</para></summary>
+/// "İşleniyor…" metniyle aynı yatay satırdadır (gösterge görününce içerik 48 px aşağı kayıyordu); Kasa kontrolünün göstergesi de
+/// artık bu satırdadır.</para></summary>
 public partial class GorunumEsdegerligiTests
 {
     public sealed record ListeSatiri(string Baslik, string Ozet, bool Acik);
@@ -137,7 +137,7 @@ public partial class GorunumEsdegerligiTests
         Assert.Same(panel, satir.Parent);
         Assert.Equal(0, satir.IndexOf(yenile));
         var yukleniyor = satir.Children.OfType<Label>().Single();
-        Assert.Equal("Veriler yükleniyor…", yukleniyor.Text);
+        Assert.Equal("İşleniyor…", yukleniyor.Text);
         Assert.Equal(LayoutOptions.Center, gosterge.VerticalOptions);
         Assert.True(gosterge.HeightRequest is > 0 and <= 44, "Gösterge Yenile düğmesinden (44 px) yüksek olursa satır büyür.");
 
@@ -206,7 +206,7 @@ public partial class GorunumEsdegerligiTests
 
     private static Color Renk(string anahtar) => (Color)Application.Current!.Resources[anahtar];
 
-    /// <summary>Kasa kontrolü (KasaKontrolAlanlari.Durum) başlığı: gösterge satır boyunca, ileti örtük stilde.</summary>
+    /// <summary>Kasa kontrolü (KasaKontrolAlanlari.Durum) başlığı: gösterge Yenile satırında, ileti örtük stilde.</summary>
     [Theory]
     [MemberData(nameof(TakipDurumlari))]
     public void Kasa_kontrolu_durum_satirlari_eskisiyle_ayni(bool mesgul, bool hata, bool mesaj)
@@ -243,7 +243,7 @@ public partial class GorunumEsdegerligiTests
         /// <summary>Eski koda sonradan bilerek uygulanan görünüm değişiklikleri (sınıf belgesindeki liste).</summary>
         public static class Bilincli
         {
-            /// <summary>(1) ve (3): eski gösterge yalnız meşgulken görünür, 24 px'e iner ve Yenile'nin sağına, "Veriler yükleniyor…"
+            /// <summary>(1) ve (3): eski gösterge yalnız meşgulken görünür, 24 px'e iner ve Yenile'nin sağına, "İşleniyor…"
             /// metniyle aynı yatay satıra taşınır (satırın yüksekliği Yenile düğmesidir).</summary>
             public static HorizontalStackLayout YenileSatiri(View yenile, ActivityIndicator gosterge)
             {
@@ -251,7 +251,7 @@ public partial class GorunumEsdegerligiTests
                 gosterge.VerticalOptions = LayoutOptions.Center;
                 gosterge.WidthRequest = gosterge.HeightRequest = 24;
                 gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-                var metin = new Label { Text = "Veriler yükleniyor…", FontSize = 13, VerticalOptions = LayoutOptions.Center };
+                var metin = new Label { Text = "İşleniyor…", FontSize = 13, VerticalOptions = LayoutOptions.Center };
                 metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
                 return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
             }

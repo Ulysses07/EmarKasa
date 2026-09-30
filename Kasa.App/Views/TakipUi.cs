@@ -175,14 +175,14 @@ internal static class TakipUi
         return hata;
     }
 
-    /// <summary>Yenile düğmesi ve sağında, yalnız meşgulken, gösterge ile "Veriler yükleniyor…": gösterge ayrı satırdayken
+    /// <summary>Yenile düğmesi ve sağında, yalnız meşgulken, gösterge ile "İşleniyor…" (yükleme de kayıt/dışa aktarma da): gösterge ayrı satırdayken
     /// görününce bütün içerik 48 px aşağı kayıyordu. Gösterge 24 px'tir, satırın yüksekliğini Yenile düğmesi belirler.</summary>
     private static HorizontalStackLayout YenileSatiri(View yenile)
     {
         var gosterge = new ActivityIndicator { WidthRequest = 24, HeightRequest = 24, VerticalOptions = LayoutOptions.Center };
         gosterge.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
         gosterge.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-        var metin = Metin("Veriler yükleniyor…");
+        var metin = Metin("İşleniyor…");
         metin.VerticalOptions = LayoutOptions.Center;
         metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
         return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
@@ -289,7 +289,7 @@ internal static class TakipUi
     }
 
     /// <summary>Bağlı değer <paramref name="deger"/> ise <paramref name="acik"/>, değilse <paramref name="kapali"/>.</summary>
-    private sealed class AcikIseConverter(object deger, object acik, object kapali) : IValueConverter
+    public sealed class AcikIseConverter(object deger, object acik, object kapali) : IValueConverter
     {
         public object Convert(object? value, Type type, object? parameter, System.Globalization.CultureInfo culture) => Equals(value, deger) ? acik : kapali;
         public object ConvertBack(object? value, Type type, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
@@ -309,6 +309,8 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
     protected readonly ScrollView Kaydirici;
     /// <summary>Sayfa başındaki hata satırı (DurumSatirlari).</summary>
     protected readonly Label HataSatiri;
+    /// <summary>Sayfa başındaki ileti satırı (Mesaj; başarılı kayıt).</summary>
+    protected readonly Label MesajSatiri;
     private readonly Func<Task> _yukle;
     protected TakipSayfasi(T vm, string title, string aciklama, Func<Task> yukle, string hataYolu = nameof(TemelViewModel.Hata))
     {
@@ -322,6 +324,7 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         root.Add(TakipUi.Metin(aciklama));
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
+        MesajSatiri = mesaj;
         HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
         Govde.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());

@@ -121,14 +121,14 @@ Başka bir ekrandan belirli bir karta gidildiğinde (`//kartlar?KartId=…`, ör
 - `KartTakipPage` yeniden düzenlenir. Kodla kurulan bugünkü tek uzun sayfa yerine şu yapı kurulur:
   - kutular için yeniden kullanılabilir bir `KartKutusu` bileşeni;
   - kutuları dizen ve seçili kutunun satırından sonra ayrıntı alanını yerleştiren bir yerleşim bileşeni.
-  
+
   Mevcut ortak yapı taşları (`TakipUi`, `DurumSeridi`, stil anahtarları) kullanılır.
 - `KartTakipViewModel`'in hesap, doğrulama ve sunucu mantığı değişmez. Eklenecekler:
   - açık form (`KartFormu`: Yok, Odeme, Harcama, Masraf, Ekstre, KartBilgisi, Gecis);
   - seçili sekme;
   - "Vazgeç" komutu;
   - kayıt başarılı olunca formu kapatma.
-  
+
   Bugünkü `Secili` ve `YeniKart` durumu açık kartı ve yeni kart formunu belirlemeye devam eder.
 - Kutu içeriği (etiketler, çubuk oranı, son ödeme metni, renk) `KartTakipSatiri`'na eklenen hesaplanmış özelliklerden gelir. Böylece testle sabitlenebilir.
 
@@ -155,7 +155,7 @@ Başka bir ekrandan belirli bir karta gidildiğinde (`//kartlar?KartId=…`, ör
   - açık kart;
   - açık ödeme formu;
   - izleyici görünümü.
-  
+
   Ekran görüntüleri görünmeyen ayrı bir Windows masaüstünde, "TEST" başlıklı ve odak almayan pencereyle, yerel test sunucusuna karşı alınır. Kullanıcının oturum dosyası yedeklenip geri yüklenir.
 
 ## Kapsam dışı

@@ -34,8 +34,8 @@ public partial class AppShell : Shell
             [Bolum.EkstreAktar] = EkstreAktarItem,
         };
         MenuAlani.BindingContext = _menuModeli;
-        // Olay işleyicileri async void'dir: yardımcılar istisnayı yakalar (küresel işleyici yok, yakalanmayan istisna WinUI
-        // sürecini çökertir).
+        // Olay işleyicileri async void'dir: çağırdıkları yardımcılar (GitAsync, CikisAsync, GiriseDonAsync; AcilistaDogrulaAsync
+        // kendisi) istisnayı yakalar (küresel işleyici yok, yakalanmayan istisna WinUI sürecini çökertir).
         _menuModeli.GitIstendi += async (_, rota) => await GitAsync(rota);
         _menuModeli.CikisIstendi += async (_, _) => await CikisAsync();
         _auth.OturumSonlandi += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await GiriseDonAsync());
@@ -104,6 +104,10 @@ public partial class AppShell : Shell
         {
             MenuyuGoster([]);
             await GoToAsync("//login");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Girişe dönüş başarısız: {ex}");
         }
         finally { _giriseDonuluyor = false; }
     }
