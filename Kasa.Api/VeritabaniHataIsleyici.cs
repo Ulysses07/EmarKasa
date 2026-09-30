@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 
 namespace Kasa.Api;
 
-/// <summary>Uç sarmalayıcısı dışındaki (Program.cs uçları, servisler) veritabanı hatalarını
+/// <summary>Uç sarmalayıcısı dışındaki (sarmalayıcı kullanmayan uçlar, servisler) veritabanı hatalarını
 /// <see cref="VeritabaniHataSiniflandirici"/>'nın kuralıyla yanıtlar ve loglar. Sınıflandırılamayan istisna genel 500'e kalır;
 /// onu ara katman Error olarak loglar (işleyicinin true döndürdüğü istisnayı ise loglamaz, bu yüzden log burada yazılır).</summary>
 public sealed class VeritabaniHataIsleyici : IExceptionHandler
