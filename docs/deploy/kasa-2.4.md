@@ -111,6 +111,13 @@ Komutlar sunucuda `/opt/kasa/deploy` içinde; yer tutucular (`<...>`) gerçek de
 6. **Dockerfile:** `COPY Directory.Build.props ./` (yoksa `/api/surum` 1.0.0 bildirirdi; artık derleme durur), temel imajlar özetle sabit (`sdk:10.0.401@sha256:35d4…`, `aspnet:10.0.12@sha256:2d58…`). Derleme yalnız `build --pull kasa`, sonra ayrı `up -d`; `up -d --build` kullanılmaz. `.dockerignore`: `Kasa.Api/belgeler` ve `Kasa.Api/yedekler` imaja girmez.
 7. **nginx** (`deploy/nginx/kasa.emarglobal.com.conf`): vekil başlıkları `server` düzeyine taşındı; uzun uçlara ayrı süreler — `/api/yedek` 16 dk (`proxy_buffering off`), `/api/disari-aktar` ve belge/PDF indirme 6 dk, ekstre/alış belgesi yükleme 3 dk. `client_max_body_size 11m` aynı. Sunucudaki site dosyası elle güncellenir; sonra `sudo nginx -t` ve `sudo systemctl reload nginx`. Sunucudaki dosyanın bugün depodaki 2.3.0 hâliyle aynı olduğu doğrulanmadı; önce `diff` alın.
 8. **Yedek araçları:** kaynak aktarımıyla `/opt/kasa/deploy/restore_backup.py` ve `uzak_yedek.py` güncellenir. Eski `restore_backup.py` 2.4 yedeklerini açamaz (belgeler ZIP'te değil, manifest 2.2.0; yeni araç `--belge-aynasi <KASA_BACKUP_DIR>/belgeler` ister). Uzak yedek kuruluysa `systemd/` birimleri de yeniden kurulur ([operasyon-runbook.md](operasyon-runbook.md) "Sunucu dışı yedek" 5).
+   - **Ne zaman:** Yayın sırasında güncellenir, önceden değil. 30 Eylül'de yerelde denendi: yeni betik 2.3.0 yedeğini açar ve 2.3.0 bu dosyayla sorunsuz çalışır (veri, rapor, giriş ve yazma aynı). Ancak betik dosyaya geri yükleme işareti koyar: `user_version` ve `__KasaGeriYukleme`. 2.3.0 bu işareti silmez. Sonradan 2.4'e geçilince dosya bir kez daha "geri yüklenmiş" sayılır:
+     - bütün oturumlar kapanır;
+     - izleyici girişi kapanır;
+     - kayıt numaraları 1.000.000 ileri alınır;
+     - raporda "Bu andan sonra girilen kayıtlar yedekte yok" satırı çıkar. Bu satır yanıltıcıdır: o kayıtlar dosyada durur.
+   - **2.3.0 döneminde acil geri yükleme:** Eski betik (`restore_backup.py.2.3.0` olarak saklanır) kullanılır. Yeni betik kullanıldıysa 2.3.0'ı başlatmadan önce işaret temizlenir: `sqlite3 <dosya> 'PRAGMA user_version=0; DROP TABLE "__KasaGeriYukleme";'`. Betiğin yazdığı "ZORUNLU" adımlar yalnız 2.4 içindir; 2.3.0 bunları uygulamaz.
+   - **Python sürümü:** Yeni betik Python 3.8 veya üstünü ister. Sunucudaki sürüm doğrulanmadı.
 9. **Güvenlik günlüğü:** ilk açılışta `KASA_BACKUP_DIR/guvenlik-gunlugu.jsonl` oluşur. Silinmez, elle düzenlenmez, yedek dizini temizliklerinde hariç tutulur.
 10. **Son yedek:** yayından hemen önce uygulamada elle yedek; uzak yedek kuruluysa `sudo systemctl start kasa-uzak-yedek.service`. README "Güncelleme" 4 (compose ve çalışan imaj kimliği) atlanmaz.
 
@@ -257,7 +264,6 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
 - VACUUM geçici kopyasının konteyner içinde yazıldığı disk.
 - Sunucudaki nginx site dosyasının güncel içeriği; sunucuda uzak yedeğin kurulu olup olmadığı.
 - Yayın sırasında oturumların düşmediği (kod ve migration açıklaması öyle der, canlıda denenmedi).
-- 2.3.0 imajının yeni `restore_backup.py` ile açılmış göç öncesi yedekle açılışı.
 - Düzeltilmiş masaüstünün kullanıcının normal penceresinde elle denenmesi (otomasyon ayrı masaüstünde koştu; fareyle üzerine gelme zemini yalnız testle sınandı).
 - Readonly nginx şablonunda `/m/`.
 
