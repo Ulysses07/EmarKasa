@@ -1,3 +1,22 @@
+import { cents, dateText, money, sumCents } from './ui-core.js';
+import { $, h, button, input, field, select, help, section, table, moneyNode, allocationTags, summary, distribution } from './ui-dom.js';
+import {
+  state,
+  api,
+  formDialog,
+  closeModal,
+  page,
+  navigate,
+  run,
+  act,
+  toast,
+  requestIdentity,
+  isOpen,
+  isCurrent,
+  canEditCash as canEdit,
+  requireEditor,
+} from './ui-shell.js';
+
 export const statementBanks = [
   ['Vakifbank', 'VakıfBank'],
   ['Akbank', 'Akbank'],
@@ -7,38 +26,8 @@ export const statementBanks = [
   ['Denizbank', 'DenizBank'],
 ];
 
-export function createStatementImportUi(c) {
-  const {
-    api,
-    h,
-    button,
-    input,
-    field,
-    select,
-    help,
-    section,
-    table,
-    money,
-    moneyNode,
-    allocationTags,
-    dateText,
-    cents,
-    sumCents,
-    formDialog,
-    closeModal,
-    page,
-    navigate,
-    run,
-    act,
-    toast,
-    summary,
-    requestIdentity,
-    isOpen,
-    canEdit,
-    distribution,
-    isCurrent,
-    view,
-  } = c;
+export function createStatementImportUi() {
+  const view = () => $('#view');
   const base = '/api/ekstre-aktar';
   const kinds = {
     Gelir: 'Banka girişi',
@@ -82,7 +71,7 @@ export function createStatementImportUi(c) {
     Hareket: 'Hareket',
     Belirsiz: 'Kontrol edilmeli',
   };
-  const editor = () => c.editor('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
+  const editor = () => requireEditor('Ekstre yüklemek ve işlemek için editör hesabı gerekir.');
   // İptal edilen kaydın gerekçesi ve anı (sunucu anı denetim izinden okur; sürüm öncesi iptalin anı bilinmez).
   const cancelNote = row =>
     [row.iptalAciklamasi, row.iptalZamani ? new Date(row.iptalZamani).toLocaleString('tr-TR') : 'zamanı bilinmiyor']
@@ -101,7 +90,7 @@ export function createStatementImportUi(c) {
         )
       : null;
   const supportedCurrency = row => !row.paraBirimi || ['TRY', 'TL', 'Belirsiz'].includes(row.paraBirimi);
-  const session = () => c.session?.();
+  const session = () => state.epoch;
   const stillHere = (generation, epoch) => canEdit() && isCurrent(generation) && session() === epoch;
 
   async function render(generation, id = null) {
@@ -251,7 +240,7 @@ export function createStatementImportUi(c) {
         if (!statementBanks.some(([key]) => key === bank.value)) throw new Error('Bankayı seçin.');
         if (source.value === 'Kart' && !Number(card.value)) throw new Error('Ekstrenin ait olduğu kartı seçin.');
         if (source.value === 'Banka' && !account.value.trim()) throw new Error('Hesaba kısa bir ad verin.');
-        const payload = c.createFormData ? c.createFormData() : new FormData();
+        const payload = new FormData();
         payload.append('dosya', selected);
         payload.append('kaynak', source.value);
         payload.append('banka', bank.value);
