@@ -8,11 +8,11 @@ using Kasa.Core;
 using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 
-public class LockedPeriodTests
+public class KilitliDonemTests
 {
     private static DateOnly Old => Month.AddMonths(-1);
 

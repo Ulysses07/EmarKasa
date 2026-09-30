@@ -23,16 +23,16 @@ public class AlisGiderYarisiTests
         var path = Path.Combine(Path.GetTempPath(), "kasa-expense-link-race-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder
         { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
-        using var rendezvous = new TransactionRendezvous();
+        using var rendezvous = new IslemBulusmasi();
         try
         {
-            await using var factory = new FileFactory(connectionString, rendezvous);
+            await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
-            await AlisWorkflowTests.Prepare(editor);
+            await AlisIsAkisiTests.Prepare(editor);
             var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
-            var purchase = await AlisWorkflowTests.Read<AlisDto>(
-                await editor.PostAsJsonAsync("/api/alis", AlisWorkflowTests.Draft(channels)));
-            var expense = await AlisWorkflowTests.Read<JsonElement>(await editor.PostAsJsonAsync("/api/islemler",
+            var purchase = await AlisIsAkisiTests.Read<AlisDto>(
+                await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels)));
+            var expense = await AlisIsAkisiTests.Read<JsonElement>(await editor.PostAsJsonAsync("/api/islemler",
                 new IslemYazDto(purchase.Tarih, "Tedarikçi", 100m, "Ortak", GiderTipi.Cari)));
             int expenseId = expense.GetProperty("id").GetInt32();
 
@@ -88,7 +88,7 @@ public class AlisGiderYarisiTests
         }
     }
 
-    private sealed class FileFactory(string connectionString, TransactionRendezvous rendezvous) : KasaWebFactory
+    private sealed class DosyaliFabrika(string connectionString, IslemBulusmasi rendezvous) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -102,7 +102,7 @@ public class AlisGiderYarisiTests
         }
     }
 
-    private sealed class TransactionRendezvous : DbTransactionInterceptor, IDisposable
+    private sealed class IslemBulusmasi : DbTransactionInterceptor, IDisposable
     {
         private readonly Barrier _barrier = new(2);
         public volatile bool Enabled;

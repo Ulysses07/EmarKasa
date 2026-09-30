@@ -2,7 +2,7 @@ using System.Net;
 
 namespace Kasa.ApiClient.Tests;
 
-public class AuthTests
+public class KimlikDogrulamaTests
 {
     private static (KasaApiClient client, SahteHandler handler, BellekTokenStore store) Kur()
     {

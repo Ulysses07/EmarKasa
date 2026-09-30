@@ -9,16 +9,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
-public class CardLoanTrackingTests
+public class KartKrediTakipTests
 {
     // Takvim sınırları (tests-1/2/4): aynı testler yıl başında, artık yılın Şubat sonunda ve önceki ayı
     // kısa olan ay sonunda da koşar.
-    public sealed class YilBasi() : CardLoanTrackingTests(new(2027, 1, 1));
-    public sealed class ArtikYilSubatSonu() : CardLoanTrackingTests(new(2028, 2, 29));
-    public sealed class KirpilanAySonu() : CardLoanTrackingTests(new(2027, 3, 31));
+    public sealed class YilBasi() : KartKrediTakipTests(new(2027, 1, 1));
+    public sealed class ArtikYilSubatSonu() : KartKrediTakipTests(new(2028, 2, 29));
+    public sealed class KirpilanAySonu() : KartKrediTakipTests(new(2027, 3, 31));
 
-    public CardLoanTrackingTests() : this(KasaWebFactory.VarsayilanBugun) { }
-    private CardLoanTrackingTests(DateOnly bugun) => Today = bugun;
+    public KartKrediTakipTests() : this(KasaWebFactory.VarsayilanBugun) { }
+    private KartKrediTakipTests(DateOnly bugun) => Today = bugun;
     private DateOnly Today { get; }
     // Takip başlangıcı bugünün ayından 8 ay önce: varsayılan günde 1 Ocak 2026, her günde geçmişte kalır.
     private DateOnly Start => new DateOnly(Today.Year, Today.Month, 1).AddMonths(-8);
@@ -272,7 +272,7 @@ public class CardLoanTrackingTests
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/krediler", new KrediYazDto("X", 1m, Start, 1, 1m, 1, "MEZAT"))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kredikartlari/{card.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kartodemeler", new KartOdemeYazDto(card.Id, Today, 1m))).StatusCode);
-        using var buyer = await AlisWorkflowTests.Buyer(f, c, "finans-alici");
+        using var buyer = await AlisIsAkisiTests.Buyer(f, c, "finans-alici");
         Assert.Equal(HttpStatusCode.Forbidden, (await buyer.GetAsync("/api/takip/kartlar")).StatusCode);
     }
 

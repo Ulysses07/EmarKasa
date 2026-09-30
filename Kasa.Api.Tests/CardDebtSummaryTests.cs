@@ -9,15 +9,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Kasa.Api.Tests;
 
-public class CardDebtSummaryTests
+public class KartBorcOzetiTests
 {
     // Takvim sınırları (tests-1): aynı testler yıl başında, artık yılın Şubat sonunda ve kırpılan ay sonunda da koşar.
-    public sealed class YilBasi() : CardDebtSummaryTests(new(2027, 1, 1));
-    public sealed class ArtikYilSubatSonu() : CardDebtSummaryTests(new(2028, 2, 29));
-    public sealed class KirpilanAySonu() : CardDebtSummaryTests(new(2027, 3, 31));
+    public sealed class YilBasi() : KartBorcOzetiTests(new(2027, 1, 1));
+    public sealed class ArtikYilSubatSonu() : KartBorcOzetiTests(new(2028, 2, 29));
+    public sealed class KirpilanAySonu() : KartBorcOzetiTests(new(2027, 3, 31));
 
-    public CardDebtSummaryTests() : this(KasaWebFactory.VarsayilanBugun) { }
-    private CardDebtSummaryTests(DateOnly bugun) => Today = bugun;
+    public KartBorcOzetiTests() : this(KasaWebFactory.VarsayilanBugun) { }
+    private KartBorcOzetiTests(DateOnly bugun) => Today = bugun;
     private DateOnly Today { get; }
     // Takip başlangıcı bugünün ayından 8 ay önce: varsayılan günde 1 Ocak 2026, her günde geçmişte kalır.
     private DateOnly Start => new DateOnly(Today.Year, Today.Month, 1).AddMonths(-8);
@@ -263,7 +263,7 @@ public class CardDebtSummaryTests
     public async Task Bozuk_odeme_payi_kaynak_agirligini_asarsa_fazlasi_dagilim_bekliyor_olur_ve_uyari_loglanir()
     {
         var logs = new UyariToplayici();
-        await using var f = new LogluFactory(logs) { Saat = new SabitSaat(Today) };
+        await using var f = new LogluFabrika(logs) { Saat = new SabitSaat(Today) };
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         card = await Pay(c, card, 50m);
@@ -293,7 +293,7 @@ public class CardDebtSummaryTests
     public async Task Ayni_bozuk_odeme_payi_tekrar_tekrar_hesaplansa_da_uyari_bir_kez_loglanir()
     {
         var logs = new UyariToplayici();
-        await using var f = new LogluFactory(logs) { Saat = new SabitSaat(Today) };
+        await using var f = new LogluFabrika(logs) { Saat = new SabitSaat(Today) };
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, [new(1, 100m)]);
         card = await Pay(c, card, 50m);
@@ -342,7 +342,7 @@ public class CardDebtSummaryTests
         Assert.Equal(20m, tamami);
     }
 
-    private sealed class LogluFactory(UyariToplayici logs) : KasaWebFactory
+    private sealed class LogluFabrika(UyariToplayici logs) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

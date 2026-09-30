@@ -22,7 +22,7 @@ public class SaglamlikTests
     {
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        var seed = LegacyFinanceSeed.Kredi(f, Kredi(15));
+        var seed = EskiFinansTohumu.Kredi(f, Kredi(15));
         var r = await c.PutAsJsonAsync($"/api/krediler/{seed.Id}", new
         {
             ad = "Hatalı kredi",
@@ -49,7 +49,7 @@ public class SaglamlikTests
     {
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        var id = LegacyFinanceSeed.Kredi(f, Kredi(15)).Id;
+        var id = EskiFinansTohumu.Kredi(f, Kredi(15)).Id;
         var r = await c.PutAsJsonAsync($"/api/krediler/{id}", Kredi(0));
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var liste = await c.GetFromJsonAsync<JsonElement[]>("/api/krediler");
@@ -64,7 +64,7 @@ public class SaglamlikTests
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 1000m })).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-02", cari = "Mal", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" })).EnsureSuccessStatusCode();
-        LegacyFinanceSeed.Kredi(f, Kredi(15));
+        EskiFinansTohumu.Kredi(f, Kredi(15));
         var kanallar = await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar");
         var mezat = kanallar!.Single(k => k.Ad == "MEZAT");
         var once = await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel");
@@ -141,7 +141,7 @@ public class SaglamlikTests
         var bugun = f.Bugun;
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = bugun, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
         (await c.PostAsJsonAsync("/api/islemler", new { tarih = bugun.AddMonths(2), cari = "Gelecek", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" })).EnsureSuccessStatusCode();
-        LegacyFinanceSeed.Kredi(f, new("Plan", 0m, bugun, 1, 200m, bugun.Day, "MEZAT"));
+        EskiFinansTohumu.Kredi(f, new("Plan", 0m, bugun, 1, 200m, bugun.Day, "MEZAT"));
         Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
     }
 

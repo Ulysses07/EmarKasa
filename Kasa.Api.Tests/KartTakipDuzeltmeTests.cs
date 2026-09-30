@@ -12,14 +12,14 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using static Kasa.Api.Tests.MonthlyExpenseTests;
+using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 
 /// <summary>
 /// Kart takibi düzeltmeleri: eski borç devrinin kasada önceden sayılan tutarı (finance-2), kilitli döneme düşen kart
 /// avansı (finance-8) ve kart iadesinin kanal payının kaynak alışı izlemesi (gap-coklu-giris-cift-sayim-mutabakat-3).
-/// Sunucu saati sabittir (<see cref="MonthlyExpenseTests.Today"/>); takip başlangıcı bugünün ayından üç ay öncedir, kasa
+/// Sunucu saati sabittir (<see cref="AylikGiderTests.Today"/>); takip başlangıcı bugünün ayından üç ay öncedir, kasa
 /// açılışı 1.000 TL'dir. Göç senaryosu önceki kodun (5802ccb) aynı eski şemalı veride ürettiği yanıtlarla karşılaştırılır.
 /// </summary>
 public class KartTakipDuzeltmeTests
@@ -366,7 +366,7 @@ public class KartTakipDuzeltmeTests
             db.GetService<IMigrator>().Migrate("20260930000200_DenetimGecmisAktarimi");
         using (var komut = connection.CreateCommand())
         { komut.CommandText = EskiIadeVerisi; komut.ExecuteNonQuery(); }
-        await using var f = new HazirFactory(connection) { Saat = new SabitSaat(EskiBugun) };
+        await using var f = new HazirFabrika(connection) { Saat = new SabitSaat(EskiBugun) };
         using var c = await f.EditorClientAsync();
 
         foreach (var (uc, beklenen) in OncekiYanitlar)
@@ -463,7 +463,7 @@ public class KartTakipDuzeltmeTests
         .Where(d => d!["donem"]!["yil"]!.GetValue<int>() == ay.Year && d["donem"]!["ay"]!.GetValue<int>() == ay.Month).Select(d => d!.ToJsonString()));
 
     // Uygulamayı önceden hazırlanmış (eski şemalı) bağlantı üzerinde başlatır; açılışta göç ve veri adımı çalışır.
-    private sealed class HazirFactory(SqliteConnection hazir) : KasaWebFactory
+    private sealed class HazirFabrika(SqliteConnection hazir) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

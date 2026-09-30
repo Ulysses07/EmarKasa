@@ -14,9 +14,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kasa.Api.Tests;
 
-public class MonthlyExpenseTests
+public class AylikGiderTests
 {
-    // Sunucu saati sabittir (LockedPeriodTests de bu günü ve Fabrika'yı kullanır); test sonucu takvime bağlı değildir.
+    // Sunucu saati sabittir (KilitliDonemTests de bu günü ve Fabrika'yı kullanır); test sonucu takvime bağlı değildir.
     internal static DateOnly Today => KasaWebFactory.VarsayilanBugun;
     internal static DateOnly Month => new(Today.Year, Today.Month, 1);
     internal static KasaWebFactory Fabrika() => KasaWebFactory.Sabit(Today);
@@ -149,7 +149,7 @@ public class MonthlyExpenseTests
         var path = Path.Combine(Path.GetTempPath(), "kasa-monthly-" + Guid.NewGuid().ToString("N") + ".db");
         try
         {
-            await using var f = new MonthlyFileFactory(path) { Saat = new SabitSaat(Today) };
+            await using var f = new AylikDosyaFabrikasi(path) { Saat = new SabitSaat(Today) };
             using var c = await Editor(f);
             var t = await Create(c, "Genel", []);
             var request = Payment(t);
@@ -384,7 +384,7 @@ public class MonthlyExpenseTests
         Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync($"/api/aylik-giderler?yil={Month.Year}&ay=13")).StatusCode);
     }
 
-    internal sealed class MonthlyFileFactory(string path) : KasaWebFactory
+    internal sealed class AylikDosyaFabrikasi(string path) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

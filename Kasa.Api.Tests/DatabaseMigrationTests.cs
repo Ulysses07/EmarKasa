@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
-public class DatabaseMigrationTests
+public class VeritabaniGocuTests
 {
     [Fact]
     public void Kayitli_ilk_migration_alis_semasina_gecerken_finansal_veriyi_korur()
@@ -402,7 +402,7 @@ public class DatabaseMigrationTests
     }
 
     [Fact]
-    public async Task Eszamanli_iki_baslangic_legacy_verisini_ve_migration_gecmisini_cogaltmaz()
+    public async Task Eszamanli_iki_baslangic_eski_sema_verisini_ve_migration_gecmisini_cogaltmaz()
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-migration-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();

@@ -4,10 +4,10 @@ using System.Text.Json;
 
 namespace Kasa.Api.Tests;
 
-public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
+public class KartOdemeKayitIslemleriTests : IClassFixture<KasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KartOdemeCrudTests(KasaWebFactory factory)
+    public KartOdemeKayitIslemleriTests(KasaWebFactory factory)
     {
         _factory = factory;
         TarihSiniriTests.TakipBaslangiciAyarla(factory, new DateOnly(2026, 7, 1)); // Temmuz giderleri takip içinde
@@ -24,7 +24,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var client = await _factory.EditorClientAsync();
 
         // Kart oluştur
-        var kart = LegacyFinanceSeed.Kart(_factory, new("OdemeTest", new DateOnly(2026, 7, 5),
+        var kart = EskiFinansTohumu.Kart(_factory, new("OdemeTest", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 50_000m, 5_000m));
         Assert.NotNull(kart);
 
@@ -65,7 +65,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var editor = await _factory.EditorClientAsync();
         await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" });
 
-        var kart = LegacyFinanceSeed.Kart(_factory, new("IzleyiciTest", new DateOnly(2026, 7, 5),
+        var kart = EskiFinansTohumu.Kart(_factory, new("IzleyiciTest", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 20_000m, 1_000m));
         Assert.NotNull(kart);
 
@@ -104,7 +104,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         var client = await _factory.EditorClientAsync();
 
         // Kart oluştur
-        var kart = LegacyFinanceSeed.Kart(_factory, new("SilmeTest", new DateOnly(2026, 7, 5),
+        var kart = EskiFinansTohumu.Kart(_factory, new("SilmeTest", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 30_000m, 2_000m));
         Assert.NotNull(kart);
 
@@ -121,7 +121,7 @@ public class KartOdemeCrudTests : IClassFixture<KasaWebFactory>
         Assert.NotNull(odeme);
 
         // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır)
-        var islemId = LegacyFinanceSeed.KartGideri(_factory, new DateOnly(2026, 7, 11), "Market", 400m, "MEZAT", kart.Id).Id;
+        var islemId = EskiFinansTohumu.KartGideri(_factory, new DateOnly(2026, 7, 11), "Market", 400m, "MEZAT", kart.Id).Id;
 
         // Kartı sil
         var sil = await client.DeleteAsync($"/api/kredikartlari/{kart.Id}");

@@ -12,14 +12,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Kasa.Api.Tests;
 
-public sealed class NotificationTests
+public sealed class BildirimTests
 {
     private static readonly DateOnly Day = new(2026, 9, 23);
     private static TakipOlayDto Event(string source, string type, DateOnly date, decimal amount = 125m, int id = 1)
         => new(source, 1, id, "Deneme", date, amount, type, source == "Kredi");
 
     [Fact]
-    public void OnlyRequestedFiveTimingsAreGenerated()
+    public void YalnizIstenenBesZamanlamaUretilir()
     {
         var events = new[] { Event("Kart", "Kesim", Day, 0), Event("Kart", "SonOdeme", Day),
             Event("Kart", "SonOdeme", Day.AddDays(3), id: 2), Event("Kredi", "Taksit", Day),
@@ -32,7 +32,7 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public void PaidCardIsSuppressedButCutoffAndLoanDueRemain()
+    public void OdenenKartSusturulurAmaKesimVeKrediTaksidiKalir()
     {
         var result = BildirimTakvimi.Olustur([Event("Kart", "SonOdeme", Day, 0), Event("Kart", "Kesim", Day, 0),
             Event("Kredi", "Taksit", Day)], Day);
@@ -66,7 +66,7 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public void IstanbulCalendarAndYearRolloverDoNotUseUtcDate()
+    public void IstanbulTakvimiVeYilDonumuUtcTarihiKullanmaz()
     {
         var local = BildirimTakvimi.Yerel(new DateTimeOffset(2026, 12, 31, 22, 30, 0, TimeSpan.Zero));
         Assert.Equal(new DateTime(2027, 1, 1, 1, 30, 0), local);
@@ -84,11 +84,11 @@ public sealed class NotificationTests
     [InlineData("https://fcm.googleapis.com:444/x", false)]
     [InlineData("https://attacker@fcm.googleapis.com/x", false)]
     [InlineData("https://example.com/push", false)]
-    public void PushEndpointsCannotBeUsedAsArbitraryServerRequests(string endpoint, bool expected)
+    public void PushAbonelikAdresleriKeyfiSunucuIstegiIcinKullanilamaz(string endpoint, bool expected)
         => Assert.Equal(expected, PushDogrulama.Endpoint(endpoint));
 
     [Fact]
-    public void SubscriptionKeysMustBeValidCurvePoints()
+    public void AbonelikAnahtarlariGecerliEgriNoktalariOlmali()
     {
         using var key = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
         var q = key.ExportParameters(false).Q;
@@ -100,9 +100,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task PersistentDedupeSurvivesServiceRestartAndKeepsSeparateDevices()
+    public async Task KaliciTekillestirmeServisYenidenBaslayincaKorunurVeCihazlariAyriTutar()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day), Event("Kredi", "Taksit", Day)];
         fixture.Device("a");
         fixture.Device("b");
@@ -114,9 +114,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task PaidBetweenQueueingAndDeliveryCancelsPendingReminder()
+    public async Task KuyrukVeTeslimArasindaOdenenBekleyenHatirlatmayiIptalEder()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day)];
         fixture.Device("a");
         await fixture.Service().Yenile();
@@ -127,9 +127,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task PartialPaymentUpdatesMessageBeforeRetry()
+    public async Task KismiOdemeYenidenDenemedenOnceIletiyiGunceller()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day, 250)];
         fixture.Device("a");
         fixture.Sender.Result = PushSonuc.GeciciHata;
@@ -145,9 +145,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task ExpiredSubscriptionAndPasswordChangeStopPush()
+    public async Task SuresiDolanAbonelikVeSifreDegisimiPushuDurdurur()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         fixture.Device("a");
         fixture.Sender.Result = PushSonuc.AbonelikBitti;
@@ -160,9 +160,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task BeforeSendHourCreatesNothingAndMissedYesterdayIsNotSent()
+    public async Task GonderimSaatindenOnceKayitOlusmazVeKacanDunkuGonderilmez()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day), Event("Kart", "SonOdeme", Day.AddDays(-1))];
         fixture.Clock.Utc = new DateTimeOffset(2026, 9, 23, 5, 59, 0, TimeSpan.Zero);
@@ -174,9 +174,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task ChangingDueDatePreservesSentHistoryAndCreatesTheNewReminder()
+    public async Task SonOdemeTarihiDegisinceGonderimGecmisiKorunurVeYeniHatirlatmaOlusur()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kart", "SonOdeme", Day.AddDays(3))];
         await fixture.Service().Gonder();
@@ -192,9 +192,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task ChangingHourDefersAlreadyQueuedReminder()
+    public async Task SaatDegisinceKuyruktakiHatirlatmaErtelenir()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         await fixture.Service().Yenile();
@@ -207,9 +207,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task EachLeaseStartsAtFreshTimeAndBatchStopsAtMidnight()
+    public async Task HerKiralamaTazeZamandaBaslarVeTurGeceYarisindaDurur()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Device("b");
         fixture.Device("c");
@@ -230,9 +230,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task SecondWorkerCannotSendAnAlreadyLeasedDelivery()
+    public async Task IkinciIsciKiralanmisTeslimiGonderemez()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Device("a");
         fixture.Sources.Events = [Event("Kredi", "Taksit", Day)];
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -248,7 +248,7 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task ApiRequiresEditorAndSettingsUseVersionCheck()
+    public async Task ApiEditorIsterVeAyarlarSurumDenetimiKullanir()
     {
         using var factory = new KasaWebFactory();
         var guest = factory.CreateClient();
@@ -267,7 +267,7 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task PaidSameDayHidesPendingReminderButKeepsDeliveredHistory()
+    public async Task AyniGunOdemeBekleyenHatirlatmayiGizlerTeslimGecmisiniKorur()
     {
         using var factory = KasaWebFactory.Sabit(KasaWebFactory.VarsayilanBugun);
         var client = await factory.EditorClientAsync();
@@ -294,9 +294,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task CashThresholdUsesExistingDeliveryDedupeAndDoesNotAlertEveryDay()
+    public async Task KasaEsigiMevcutTeslimTekillestirmesiniKullanirVeHerGunUyarmaz()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Db.Ayarlar.Add(new() { TakipBaslangic = Day.AddDays(-10) });
         var channel = new KanalEntity { Ad = "Kanal" };
         fixture.Db.Kanallar.Add(channel);
@@ -316,9 +316,9 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task RecoveredCashCancelsQueuedThresholdNotificationBeforeSending()
+    public async Task DuzelenKasaKuyruktakiEsikBildiriminiGondermedenIptalEder()
     {
-        using var fixture = new Fixture();
+        using var fixture = new Fikstur();
         fixture.Db.Ayarlar.Add(new() { TakipBaslangic = Day.AddDays(-10) });
         var channel = new KanalEntity { Ad = "Kanal" };
         fixture.Db.Kanallar.Add(channel);
@@ -333,17 +333,17 @@ public sealed class NotificationTests
         Assert.True(fixture.Db.Set<BildirimEntity>().Single().Iptal);
     }
 
-    private sealed class TestClock : TimeProvider
+    private sealed class TestSaati : TimeProvider
     {
         public DateTimeOffset Utc = new(2026, 9, 23, 6, 0, 0, TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow() => Utc;
     }
-    private sealed class Source : IBildirimKaynaklari
+    private sealed class SahteKaynak : IBildirimKaynaklari
     {
         public IReadOnlyList<TakipOlayDto> Events = [];
         public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar) => Events;
     }
-    private sealed class Sender : IPushGonderici
+    private sealed class SahteGonderici : IPushGonderici
     {
         public readonly List<PushIleti> Calls = [];
         public PushSonuc Result = PushSonuc.Basarili;
@@ -351,14 +351,14 @@ public sealed class NotificationTests
         public async Task<PushSonuc> Gonder(PushAbonelikEntity s, PushIleti m, int ttl, CancellationToken ct)
         { Calls.Add(m); if (OnSend is not null) await OnSend(); return Result; }
     }
-    private sealed class Fixture : IDisposable
+    private sealed class Fikstur : IDisposable
     {
         private readonly SqliteConnection connection = new("Data Source=:memory:");
         public readonly KasaDbContext Db;
-        public readonly Source Sources = new(); public readonly Sender Sender = new(); public readonly TestClock Clock = new();
+        public readonly SahteKaynak Sources = new(); public readonly SahteGonderici Sender = new(); public readonly TestSaati Clock = new();
         public readonly IConfiguration Config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         { ["Kasa:EditorKullanici"] = "editor", ["Kasa:EditorSifre"] = "test", ["Kasa:JwtKey"] = "notification-tests-only-long-enough-key" }).Build();
-        public Fixture()
+        public Fikstur()
         {
             connection.Open();
             Db = new(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);

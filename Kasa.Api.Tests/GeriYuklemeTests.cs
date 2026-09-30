@@ -179,16 +179,16 @@ public class GeriYuklemeTests
     }
 
     private static async Task<string> KurtarmaKodu(HttpClient editor, string sifre) =>
-        (await AlisWorkflowTests.Read<JsonElement>(await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = sifre }))).GetProperty("kod").GetString()!;
+        (await AlisIsAkisiTests.Read<JsonElement>(await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = sifre }))).GetProperty("kod").GetString()!;
 
     private static async Task<int> AlisAc(HttpClient editor)
     {
         var kanallar = await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar");
-        return (await AlisWorkflowTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisWorkflowTests.Draft(kanallar!)))).Id;
+        return (await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(kanallar!)))).Id;
     }
 
     private static async Task<int> AliciAc(HttpClient editor, string kullanici) =>
-        (await AlisWorkflowTests.Read<AliciDto>(await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz(kullanici, kullanici, AliciSifresi)))).Id;
+        (await AlisIsAkisiTests.Read<AliciDto>(await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz(kullanici, kullanici, AliciSifresi)))).Id;
 
     /// <summary>Raporlara giren veri: takip başlangıcı Haziran, iki gelir ve iki gider.</summary>
     private static async Task RaporVerisi(HttpClient c)
@@ -196,8 +196,8 @@ public class GeriYuklemeTests
         (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Haziran, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Haziran, "MEZAT", 1_000m))).EnsureSuccessStatusCode();
         (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Temmuz, "PERAKENDE", 2_500.50m))).EnsureSuccessStatusCode();
-        await MonthlyExpenseTests.Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Temmuz.AddDays(4), "Tedarik", 300m, "MEZAT", GiderTipi.Cari));
-        await MonthlyExpenseTests.Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Agustos.AddDays(9), "Kira", 900.01m, KanalEtiketleri.Ortak, GiderTipi.SabitGider));
+        await AylikGiderTests.Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Temmuz.AddDays(4), "Tedarik", 300m, "MEZAT", GiderTipi.Cari));
+        await AylikGiderTests.Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Agustos.AddDays(9), "Kira", 900.01m, KanalEtiketleri.Ortak, GiderTipi.SabitGider));
     }
 
     /// <summary>Panel, haftalık ve takip başlangıcından bu aya kadar her ayın aylık raporu (yanıt metni).</summary>
@@ -348,7 +348,7 @@ public class GeriYuklemeTests
                 (editorJwt, var cihaz) = await GirisYap(fA, "editor", "kasa123");
                 editorCihazi = cihaz!;
                 using var editor = Oturumlu(fA, editorJwt);
-                await AlisWorkflowTests.Prepare(editor);
+                await AlisIsAkisiTests.Prepare(editor);
                 (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = EskiIzleyiciSifresi })).EnsureSuccessStatusCode();
                 (izleyiciJwt, _) = await GirisYap(fA, null, EskiIzleyiciSifresi);
                 await AliciAc(editor, "alici1");
@@ -398,7 +398,7 @@ public class GeriYuklemeTests
                 {
                     Assert.Equal(HttpStatusCode.Unauthorized, (await eskiEditor.GetAsync("/api/auth/me")).StatusCode);
                     // gR6: eski soydaki ekranın (Id, Surum) çiftiyle yazma oturum sonu alır.
-                    Assert.Equal(HttpStatusCode.Unauthorized, (await eskiEditor.PutAsJsonAsync($"/api/alis/{alisSonra}", AlisWorkflowTests.Draft(kanallar) with { Surum = 1 })).StatusCode);
+                    Assert.Equal(HttpStatusCode.Unauthorized, (await eskiEditor.PutAsJsonAsync($"/api/alis/{alisSonra}", AlisIsAkisiTests.Draft(kanallar) with { Surum = 1 })).StatusCode);
                 }
                 using (var alici = Oturumlu(fB, aliciJwt))
                     Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis")).StatusCode);
@@ -425,10 +425,10 @@ public class GeriYuklemeTests
                 // Atılan soydaki kimlikler yeni kayda verilmez: eski ekranın (Id, Surum) çifti başka kayda ulaşamaz.
                 var yeniAlis = await AlisAc(editor);
                 Assert.Equal(yedektekiTabanlar["Alislar"] + KimlikAraligi + 1, yeniAlis);
-                Assert.Equal(HttpStatusCode.NotFound, (await editor.PutAsJsonAsync($"/api/alis/{alisSonra}", AlisWorkflowTests.Draft(kanallar) with { Surum = 1 })).StatusCode);
+                Assert.Equal(HttpStatusCode.NotFound, (await editor.PutAsJsonAsync($"/api/alis/{alisSonra}", AlisIsAkisiTests.Draft(kanallar) with { Surum = 1 })).StatusCode);
                 Assert.Equal(HttpStatusCode.NotFound, (await editor.PutAsJsonAsync($"/api/alicilar/{aliciSonra}", new AliciYaz("alici2", "alici2", null))).StatusCode);
                 // Yedek anında var olan kayıt aynı kayıttır ve güncel sürümüyle yazılır.
-                Assert.Equal(HttpStatusCode.OK, (await editor.PutAsJsonAsync($"/api/alis/{alisOnce}", AlisWorkflowTests.Draft(kanallar) with { Surum = 1, Tedarikci = "Yedekteki alış" })).StatusCode);
+                Assert.Equal(HttpStatusCode.OK, (await editor.PutAsJsonAsync($"/api/alis/{alisOnce}", AlisIsAkisiTests.Draft(kanallar) with { Surum = 1, Tedarikci = "Yedekteki alış" })).StatusCode);
 
                 // İşlem denetim izinde (aktör sistem) görünür; işaret silinir.
                 using (var scope = fB.Services.CreateScope())
@@ -530,7 +530,7 @@ public class GeriYuklemeTests
                 await AliciAc(editor2, "alici3");
                 (await editor2.DeleteAsync($"/api/bildirimler/push/abonelikler/{cihazlar[0].Id}")).EnsureSuccessStatusCode();
                 var kilit = (await editor2.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
-                await MonthlyExpenseTests.Post<AyKilidiDto>(editor2, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Temmuz.Year, Temmuz.Month, "Temmuz kapandı"));
+                await AylikGiderTests.Post<AyKilidiDto>(editor2, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Temmuz.Year, Temmuz.Month, "Temmuz kapandı"));
             }
             finally { fA.Dispose(); }
 

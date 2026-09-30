@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Kasa.Api.Tests;
 
-public class FinanceMigrationTests
+public class FinansGocuTests
 {
     [Fact]
     public void Gecis_yeni_cari_uretmez_alis_adi_ve_odeme_istek_gecmisini_korur()

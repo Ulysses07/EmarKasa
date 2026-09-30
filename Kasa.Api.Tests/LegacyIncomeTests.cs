@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kasa.Api.Tests;
 
-public class LegacyIncomeTests
+public class EskiGelirTests
 {
     [Theory]
     [InlineData("UPDATE Gelenler SET TutarTl = '1.0' WHERE Id = 12;")]
@@ -86,7 +86,7 @@ public class LegacyIncomeTests
     [Fact]
     public async Task Http_eski_grubu_korur_yeni_donem_ve_kanala_yazmayi_acik_tutar_rename_kilidi_kaldirmaz()
     {
-        await using var factory = new LegacyIncomeFactory();
+        await using var factory = new EskiGelirFabrikasi();
         using var editor = await factory.EditorClientAsync();
         var rows = await editor.GetFromJsonAsync<GelenEntity[]>("/api/gelenler?donemStart=2026-09-01");
         Assert.NotNull(rows);
@@ -119,7 +119,7 @@ public class LegacyIncomeTests
     [Fact]
     public async Task Eszamanli_eski_grup_yazmalari_hicbir_satiri_degistirmez()
     {
-        await using var factory = new LegacyIncomeFactory();
+        await using var factory = new EskiGelirFabrikasi();
         using var editor = await factory.EditorClientAsync();
         var responses = await Task.WhenAll(Enumerable.Range(1, 4).Select(i => editor.PutAsJsonAsync("/api/gelenler",
             new { donemStart = "2026-09-01", kanal = "MEZAT", tutarTl = i * 100m })));
@@ -170,11 +170,11 @@ public class LegacyIncomeTests
         command.ExecuteNonQuery();
     }
 
-    private sealed class LegacyIncomeFactory : KasaWebFactory
+    private sealed class EskiGelirFabrikasi : KasaWebFactory
     {
         private readonly string _path = Path.Combine(Path.GetTempPath(), "kasa-legacy-income-" + Guid.NewGuid().ToString("N") + ".db");
         private string ConnectionString => new SqliteConnectionStringBuilder { DataSource = _path, Pooling = false, ForeignKeys = true }.ToString();
-        public LegacyIncomeFactory()
+        public EskiGelirFabrikasi()
         {
             using var connection = new SqliteConnection(ConnectionString);
             connection.Open();

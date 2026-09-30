@@ -33,7 +33,7 @@ public class KrediApiTests : IClassFixture<SabitSaatliKasaWebFactory>
             kanal = "Instagram",
         });
         Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
-        var eklenen = LegacyFinanceSeed.Kredi(_factory, new("İhtiyaç Kredisi", 50_000.50m,
+        var eklenen = EskiFinansTohumu.Kredi(_factory, new("İhtiyaç Kredisi", 50_000.50m,
             new DateOnly(2026, 8, 3), 12, 4_800.25m, 15, "Instagram"));
         Assert.NotNull(eklenen);
         Assert.Equal("İhtiyaç Kredisi", eklenen!.Ad);

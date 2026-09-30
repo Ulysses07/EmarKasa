@@ -177,17 +177,17 @@ public class GirdiDogrulamaTests
         var ad = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira\u0007", "Kira", 100m, 1, "Genel", [], ay));
         Assert.Equal(HttpStatusCode.BadRequest, ad.StatusCode);
         Assert.Equal($"Gider adı: 5. {ileti}", await Hata(ad));
-        var sablon = await MonthlyExpenseTests.Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira", "Kira", 100m, 1, "Genel", [], ay));
+        var sablon = await AylikGiderTests.Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira", "Kira", 100m, 1, "Genel", [], ay));
 
         var not = await c.PostAsJsonAsync($"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\u0001"));
         Assert.Equal(HttpStatusCode.BadRequest, not.StatusCode);
         Assert.Equal($"Not: 7. {ileti}", await Hata(not));
-        var odeme = await MonthlyExpenseTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\tno 5"));
+        var odeme = await AylikGiderTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\tno 5"));
 
         var iptal = await c.PostAsJsonAsync($"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı\u001F ödeme"));
         Assert.Equal(HttpStatusCode.BadRequest, iptal.StatusCode);
         Assert.Equal($"İptal gerekçesi: 7. {ileti}", await Hata(iptal));
-        await MonthlyExpenseTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı ödeme"));
+        await AylikGiderTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı ödeme"));
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Equal(["Kira"], db.AylikGiderRevizyonlar.Select(r => r.Ad).ToList());

@@ -7,10 +7,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
-public class CrudTests : IClassFixture<KasaWebFactory>
+public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public CrudTests(KasaWebFactory factory) => _factory = factory;
+    public KayitIslemleriTests(KasaWebFactory factory) => _factory = factory;
 
     [Fact]
     public async Task Cari_yonetimi_kapsam_disidir_ve_tum_uclari_404_doner()

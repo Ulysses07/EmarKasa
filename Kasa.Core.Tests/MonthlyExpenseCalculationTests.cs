@@ -2,7 +2,7 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
-public class MonthlyExpenseCalculationTests
+public class AylikGiderHesabiTests
 {
     [Fact]
     public void Yeni_aylik_gider_kanal_kasasindan_duser_eski_sabit_gider_davranisi_degismez()

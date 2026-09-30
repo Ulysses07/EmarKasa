@@ -12,15 +12,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kasa.Api.Tests;
 
-public class StatementImportTests
+public class EkstreAktarmaTests
 {
     // Takvim sınırları (tests-1): aynı testler yıl başında, artık yılın Şubat sonunda ve kırpılan ay sonunda da koşar.
-    public sealed class YilBasi() : StatementImportTests(new(2027, 1, 1));
-    public sealed class ArtikYilSubatSonu() : StatementImportTests(new(2028, 2, 29));
-    public sealed class KirpilanAySonu() : StatementImportTests(new(2027, 3, 31));
+    public sealed class YilBasi() : EkstreAktarmaTests(new(2027, 1, 1));
+    public sealed class ArtikYilSubatSonu() : EkstreAktarmaTests(new(2028, 2, 29));
+    public sealed class KirpilanAySonu() : EkstreAktarmaTests(new(2027, 3, 31));
 
-    public StatementImportTests() : this(KasaWebFactory.VarsayilanBugun) { }
-    private StatementImportTests(DateOnly bugun) => Today = bugun;
+    public EkstreAktarmaTests() : this(KasaWebFactory.VarsayilanBugun) { }
+    private EkstreAktarmaTests(DateOnly bugun) => Today = bugun;
     private DateOnly Today { get; }
     // Takip başlangıcı bugünün ayından 8 ay önce: varsayılan günde 1 Ocak 2026; önceki ay her günde takip içinde kalır.
     private DateOnly Start => new DateOnly(Today.Year, Today.Month, 1).AddMonths(-8);
@@ -350,7 +350,7 @@ public class StatementImportTests
     [Fact]
     public async Task Yukleme_hash_ile_tekrarlanmaz_dosya_ozeldir_ve_sadece_editor_erisebilir()
     {
-        await using var f = new PdfFactory { Saat = new SabitSaat(Today) };
+        await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today) };
         using var c = await Editor(f);
         async Task<HttpResponseMessage> Upload(string account = "Ana banka", byte[]? bytes = null)
         {
@@ -437,7 +437,7 @@ public class StatementImportTests
     public async Task Adresinde_cadde_gecen_tl_satiri_onizlenir_ve_kaydedilir()
     {
         // statement-3: "CAD" (Cadde) Kanada doları sayılıp satır "Yalnız TL" hatasıyla kilitlenmez.
-        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MIGROS BAGDAT CAD ISTANBUL -412,35 TL\nBüyükdere Cad. No:1 Şişli\n" };
+        await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MIGROS BAGDAT CAD ISTANBUL -412,35 TL\nBüyükdere Cad. No:1 Şişli\n" };
         using var c = await Editor(f);
         var doc = await Upload(c, "Banka");
         var row = Assert.Single(doc.Satirlar);
@@ -454,7 +454,7 @@ public class StatementImportTests
     public async Task Para_birimi_etiketinde_sube_adresi_olan_tl_belgesi_kaydedilir()
     {
         // statement-3: "Para Birimi: Türk Lirası … Bağdat Cad." başlıklı belge CAD sayılıp kalıcı olarak kilitlenmez.
-        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"Para Birimi: Türk Lirası        Şube Adresi: Bağdat Cad. No:5\n{Today:dd.MM.yyyy} MIGROS -412,35\n" };
+        await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"Para Birimi: Türk Lirası        Şube Adresi: Bağdat Cad. No:5\n{Today:dd.MM.yyyy} MIGROS -412,35\n" };
         using var c = await Editor(f);
         var doc = await Upload(c, "Banka");
         var row = Assert.Single(doc.Satirlar);
@@ -471,7 +471,7 @@ public class StatementImportTests
     public async Task Tutara_bitisik_olmayan_doviz_kodlu_satir_ek_onayla_kaydedilir()
     {
         // Ayrı döviz kolonundaki "USD" satırı sessizce TL sayılmaz: Belirsiz para birimi ek onay ister, kilitlemez.
-        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"Para Birimi: TL\n{Today:dd.MM.yyyy}  AMAZON EU        USD         -12,00\n" };
+        await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"Para Birimi: TL\n{Today:dd.MM.yyyy}  AMAZON EU        USD         -12,00\n" };
         using var c = await Editor(f);
         var doc = await Upload(c, "Banka");
         var row = Assert.Single(doc.Satirlar);
@@ -488,7 +488,7 @@ public class StatementImportTests
     public async Task Kart_alacak_satiri_harcama_onerilmez_harcama_secilirse_ek_onay_ister()
     {
         // statement-1: eksi işaretli kart alacağı uyarısız "Kart harcaması" olarak önerilmez.
-        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} ANINDA İNDİRİM -15,00 TL\n" };
+        await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} ANINDA İNDİRİM -15,00 TL\n" };
         using var c = await Editor(f);
         var card = await Card(c);
         var doc = await Upload(c, "Kart", card.Id);
@@ -506,7 +506,7 @@ public class StatementImportTests
     public async Task Kart_taksit_satiri_onizlemede_taksit_uyarisi_ve_ek_onay_ister()
     {
         // statement-9: kartta 6 taksitle girilmiş alışın ekstredeki aylık taksidi uyarısız yeni harcama olmaz.
-        await using var f = new PdfFactory { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MEDIAMARKT 2/6 TAKSİT 150,00 TL\n" };
+        await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MEDIAMARKT 2/6 TAKSİT 150,00 TL\n" };
         using var c = await Editor(f);
         var card = await Card(c);
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "MEDIAMARKT", 900m, 6, null, [new(1, 900m)]));
@@ -522,17 +522,17 @@ public class StatementImportTests
         Assert.Equal(debt, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
     }
 
-    private sealed class PdfFactory : KasaWebFactory
+    private sealed class PdfFabrikasi : KasaWebFactory
     {
         /// <summary>Sahte okuyucunun döndüreceği PDF metni; boşsa tek komisyon satırlı banka hareketi.</summary>
         public string? Metin { get; init; }
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu>(new FakePdf(Bugun, Metin)); });
+            builder.ConfigureServices(services => { services.RemoveAll<IPdfMetinOkuyucu>(); services.AddSingleton<IPdfMetinOkuyucu>(new SahtePdf(Bugun, Metin)); });
         }
     }
-    private sealed class FakePdf(DateOnly bugun, string? metin) : IPdfMetinOkuyucu
+    private sealed class SahtePdf(DateOnly bugun, string? metin) : IPdfMetinOkuyucu
     {
         public Task<string> OkuAsync(byte[] pdf, CancellationToken ct) => Task.FromResult(metin ?? $"İşlem Tarihi    Açıklama                Tutar        Bakiye\n{bugun:dd.MM.yyyy}    KOMİSYON                  -10,00 TL    990,00 TL\n");
     }

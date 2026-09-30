@@ -5,7 +5,7 @@ namespace Kasa.Api.Tests;
 
 // Legacy cards and loans can no longer be created through the public API. These
 // fixtures represent records already present before the new tracking contract.
-internal static class LegacyFinanceSeed
+internal static class EskiFinansTohumu
 {
     internal static KrediKartiEntity Kart(KasaWebFactory factory, KrediKartiYazDto dto) => Kaydet(factory,
         new KrediKartiEntity

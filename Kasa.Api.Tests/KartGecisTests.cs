@@ -283,7 +283,7 @@ public class KartGecisTests
             EskiGecisVerisi(eski);
         }
         var logs = new UyariToplayici();
-        await using var f = new HazirFactory(connection, logs) { Saat = new SabitSaat(Today) };
+        await using var f = new HazirFabrika(connection, logs) { Saat = new SabitSaat(Today) };
         using var c = await f.EditorClientAsync();
         // Tespit veri dönüştürmez: raporlar 2.3.0 çıktısıyla birebir aynı kalır.
         Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
@@ -371,7 +371,7 @@ public class KartGecisTests
             using var eski = SurumOncesiBaglam.Ayni(db);
             EskiGecisVerisi(eski);
         }
-        await using var f = new HazirFactory(connection) { Saat = new SabitSaat(Today) };
+        await using var f = new HazirFabrika(connection) { Saat = new SabitSaat(Today) };
         using var c = await f.EditorClientAsync();
         using (var check = connection.CreateCommand())
         {
@@ -474,7 +474,7 @@ public class KartGecisTests
     private static KasaDbContext Context(SqliteConnection connection) => new(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connection).Options);
 
     // Uygulamayı önceden hazırlanmış (eski şemalı) bağlantı üzerinde başlatır; açılışta migration çalışır.
-    private sealed class HazirFactory(SqliteConnection hazir, UyariToplayici? logs = null) : KasaWebFactory
+    private sealed class HazirFabrika(SqliteConnection hazir, UyariToplayici? logs = null) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
-public class OperationsTests
+public class IsletimTests
 {
     private static readonly DateOnly Bugun = KasaWebFactory.VarsayilanBugun;
 
@@ -158,7 +158,7 @@ public class OperationsTests
     [Fact]
     public async Task Yedek_ayri_veritabanina_geri_acilir_belgeler_ve_kayitlar_korunur()
     {
-        await using var f = new BackupFactory { Saat = new SabitSaat(Bugun) };
+        await using var f = new YedekliFabrika { Saat = new SabitSaat(Bugun) };
         using var c = await f.EditorClientAsync();
         using (var scope = f.Services.CreateScope())
         {
@@ -192,7 +192,7 @@ public class OperationsTests
         Assert.Null(state.Hata);
     }
 
-    private sealed class BackupFactory : KasaWebFactory
+    private sealed class YedekliFabrika : KasaWebFactory
     {
         public string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "kasa-backup-test-" + Guid.NewGuid().ToString("N"));
         protected override void ConfigureWebHost(IWebHostBuilder builder)

@@ -14,10 +14,10 @@ public class KartDevirVmTests
     private static KartDevirDto Devir(bool duzeltilebilir = true, string? engel = null) =>
         new(11, Tarih, 100m, 80m, 0m, [new TakipKanalPayi(1, "MEZAT", 100m)], "IslemTarihi", 80m, 0m, 0m, 80m, 80m, duzeltilebilir, engel);
 
-    private static async Task<(KartTakipViewModel Vm, FinansTakipTests.Fake Api)> Vm(KartDevirDto? devir = null)
+    private static async Task<(KartTakipViewModel Vm, FinansTakipTests.Sahte Api)> Vm(KartDevirDto? devir = null)
     {
-        var api = new FinansTakipTests.Fake { Devir = devir ?? Devir() };
-        api.Kart = FinansTakipTests.Fake.OrnekKart() with { Gecis = new KartGecisDto("IslemTarihi", "Banka", null), Harcamalar = [DevirSatiri, IadeSatiri], Odemeler = [Dagitim] };
+        var api = new FinansTakipTests.Sahte { Devir = devir ?? Devir() };
+        api.Kart = FinansTakipTests.Sahte.OrnekKart() with { Gecis = new KartGecisDto("IslemTarihi", "Banka", null), Harcamalar = [DevirSatiri, IadeSatiri], Odemeler = [Dagitim] };
         var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0)] };
         var vm = new KartTakipViewModel(api, finans, new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
         await vm.YukleAsync();

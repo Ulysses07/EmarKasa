@@ -3,7 +3,7 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
-public class DomainTests
+public class TemelTiplerTests
 {
     [Fact]
     public void Islem_alanlari_dogru_kurulur()

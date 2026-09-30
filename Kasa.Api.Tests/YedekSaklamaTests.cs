@@ -110,7 +110,7 @@ public class YedekSaklamaTests
     [Fact]
     public async Task Otomatik_rotasyon_diskte_yas_kuralina_uymayanlari_siler_uyanlari_ve_diger_turleri_tutar()
     {
-        await using var f = new YedekFactory();
+        await using var f = new YedekFabrikasi();
         Directory.CreateDirectory(f.Dizin);
         var otomatik = Enumerable.Range(0, 45).Select(g => Yaz(f.Dizin, Ad(g < 10 ? "oto-" : "", Simdi.AddDays(-g), g), Simdi.AddDays(-g))).ToList();
         var elle = Enumerable.Range(0, 12).Select(i => Yaz(f.Dizin, Ad("elle-", Simdi.AddDays(-200 - i), 100 + i), Simdi.AddDays(-200 - i))).ToList();
@@ -127,7 +127,7 @@ public class YedekSaklamaTests
     [Fact]
     public async Task Kirk_elle_yedek_otomatik_gecmisi_ve_yabanci_dosyayi_silmez()
     {
-        await using var f = new YedekFactory();
+        await using var f = new YedekFabrikasi();
         Directory.CreateDirectory(f.Dizin);
         var otomatik = Enumerable.Range(0, 45).Select(g => Yaz(f.Dizin, Ad(g < 10 ? "oto-" : "", Simdi.AddDays(-g), g), Simdi.AddDays(-g))).ToList();
         var eskiElle = Enumerable.Range(0, 3).Select(i => Yaz(f.Dizin, Ad("elle-", Simdi.AddDays(-1 - i), 100 + i), Simdi.AddDays(-1 - i))).ToList();
@@ -163,7 +163,7 @@ public class YedekSaklamaTests
         var kilitli = true;
         string? silinemeyen = null;
         // Silme işlevi enjekte edilir: hata yolu işletim sisteminin dosya kilidine bağlı değildir.
-        await using var f = new YedekFactory(silici: yol =>
+        await using var f = new YedekFabrikasi(silici: yol =>
         {
             if (kilitli && yol == silinemeyen)
                 throw new IOException("Dosya başka bir işlem tarafından kullanılıyor.");
@@ -198,7 +198,7 @@ public class YedekSaklamaTests
     public async Task Rotasyon_uyarisi_turune_aittir_diger_turun_basarili_rotasyonu_onu_silmez()
     {
         var bozuk = true;
-        await using var f = new YedekFactory(silici: yol => { if (bozuk) throw new UnauthorizedAccessException("Erişim reddedildi."); File.Delete(yol); });
+        await using var f = new YedekFabrikasi(silici: yol => { if (bozuk) throw new UnauthorizedAccessException("Erişim reddedildi."); File.Delete(yol); });
         Directory.CreateDirectory(f.Dizin);
         var eskiOtomatik = Yaz(f.Dizin, Ad("oto-", Simdi.AddDays(-400), 1), Simdi.AddDays(-400));
         foreach (var g in Enumerable.Range(0, 7))
@@ -224,7 +224,7 @@ public class YedekSaklamaTests
     [Fact]
     public async Task Elle_yedek_gunluk_otomatik_yedegi_ertelemez()
     {
-        await using var f = new YedekFactory(otomatik: true) { Saat = new SabitSaat(Simdi) };
+        await using var f = new YedekFabrikasi(otomatik: true) { Saat = new SabitSaat(Simdi) };
         Directory.CreateDirectory(f.Dizin);
         var elle = Yaz(f.Dizin, Ad("elle-", Simdi.AddMinutes(-5), 1), Simdi.AddMinutes(-5));
 
@@ -254,7 +254,7 @@ public class YedekSaklamaTests
         return yol;
     }
 
-    private sealed class YedekFactory(bool otomatik = false, YedekDosyaSilici? silici = null) : KasaWebFactory
+    private sealed class YedekFabrikasi(bool otomatik = false, YedekDosyaSilici? silici = null) : KasaWebFactory
     {
         public string Dizin { get; } = Path.Combine(Path.GetTempPath(), "kasa-yedek-saklama-" + Guid.NewGuid().ToString("N"));
         protected override void ConfigureWebHost(IWebHostBuilder builder)

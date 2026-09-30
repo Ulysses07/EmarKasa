@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kasa.Api.Tests;
 
-public class CardPaymentConcurrencyTests
+public class KartOdemeEsZamanlilikTests
 {
     [Theory]
     [InlineData(false)]
@@ -22,10 +22,10 @@ public class CardPaymentConcurrencyTests
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-card-race-" + Guid.NewGuid().ToString("N") + ".db");
         var cs = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
-        using var rendezvous = new TransactionRendezvous();
+        using var rendezvous = new IslemBulusmasi();
         try
         {
-            await using var factory = new FileFactory(cs, rendezvous) { Saat = new SabitSaat(KasaWebFactory.VarsayilanBugun) };
+            await using var factory = new DosyaliFabrika(cs, rendezvous) { Saat = new SabitSaat(KasaWebFactory.VarsayilanBugun) };
             using var c = await factory.EditorClientAsync();
             var today = factory.Bugun;
             (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = today, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
@@ -52,7 +52,7 @@ public class CardPaymentConcurrencyTests
         }
         finally { foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix); }
     }
-    private sealed class FileFactory(string cs, TransactionRendezvous rendezvous) : KasaWebFactory
+    private sealed class DosyaliFabrika(string cs, IslemBulusmasi rendezvous) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -65,7 +65,7 @@ public class CardPaymentConcurrencyTests
             });
         }
     }
-    private sealed class TransactionRendezvous : DbTransactionInterceptor, IDisposable
+    private sealed class IslemBulusmasi : DbTransactionInterceptor, IDisposable
     {
         private readonly Barrier _barrier = new(2);
         public volatile bool Enabled;

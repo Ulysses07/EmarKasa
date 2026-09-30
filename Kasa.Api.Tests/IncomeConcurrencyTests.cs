@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kasa.Api.Tests;
 
-public class IncomeConcurrencyTests
+public class GelirEsZamanlilikTests
 {
     [Fact]
     public async Task Eszamanli_ilk_gelir_girisleri_ayri_baglantilarda_tek_kaydi_gunceller()
@@ -21,10 +21,10 @@ public class IncomeConcurrencyTests
         const int requestCount = 4;
         var path = Path.Combine(Path.GetTempPath(), "kasa-income-race-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
-        using var rendezvous = new IncomeInsertRendezvous(requestCount);
+        using var rendezvous = new GelirEklemeBulusmasi(requestCount);
         try
         {
-            await using var factory = new FileDatabaseFactory(connectionString, rendezvous);
+            await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
             var amounts = new[] { 100.01m, 200.02m, 300.03m, 400.04m };
             var period = new DateOnly(2026, 9, 1);
@@ -60,7 +60,7 @@ public class IncomeConcurrencyTests
         }
     }
 
-    private sealed class FileDatabaseFactory(string connectionString, IncomeInsertRendezvous rendezvous) : KasaWebFactory
+    private sealed class DosyaliFabrika(string connectionString, GelirEklemeBulusmasi rendezvous) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -76,7 +76,7 @@ public class IncomeConcurrencyTests
         }
     }
 
-    private sealed class IncomeInsertRendezvous(int participants) : DbCommandInterceptor, IDisposable
+    private sealed class GelirEklemeBulusmasi(int participants) : DbCommandInterceptor, IDisposable
     {
         private readonly Barrier _barrier = new(participants);
         private readonly ConcurrentDictionary<Guid, byte> _contexts = new();

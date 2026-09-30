@@ -16,7 +16,7 @@ public class AlisOdemeDuzenlemeTests
     {
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
-        await AlisWorkflowTests.Prepare(c);
+        await AlisIsAkisiTests.Prepare(c);
         var source = await Purchase(c, "Kaynak", 100m);
         var target = await Purchase(c, "Hedef", 200m);
         var create = new AlisOdemeYaz(source.Surum, Guid.NewGuid(), Date, 40m);
@@ -66,7 +66,7 @@ public class AlisOdemeDuzenlemeTests
     {
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
-        await AlisWorkflowTests.Prepare(c);
+        await AlisIsAkisiTests.Prepare(c);
         var a = await Purchase(c, "Firma", 100m);
         a = await Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Date, 30m)));
         var o = a.Odemeler.Single();
@@ -86,7 +86,7 @@ public class AlisOdemeDuzenlemeTests
     {
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
-        await AlisWorkflowTests.Prepare(c);
+        await AlisIsAkisiTests.Prepare(c);
         int expenseId;
         using (var scope = f.Services.CreateScope())
         {
@@ -121,7 +121,7 @@ public class AlisOdemeDuzenlemeTests
     {
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
-        await AlisWorkflowTests.Prepare(c);
+        await AlisIsAkisiTests.Prepare(c);
         int count;
         using (var scope = f.Services.CreateScope())
         { var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>(); db.Cariler.Add(new CariEntity { Ad = "Eski firma" }); db.SaveChanges(); count = db.Cariler.Count(); }
@@ -143,7 +143,7 @@ public class AlisOdemeDuzenlemeTests
     {
         await using var f = new KasaWebFactory();
         using var c = await f.EditorClientAsync();
-        await AlisWorkflowTests.Prepare(c);
+        await AlisIsAkisiTests.Prepare(c);
         var dto = new AlisYaz(0, Date, "Firma", null, [new("Kalem", 100m, [])]);
         dto = field switch { "tedarikci" => dto with { TedarikciId = 1 }, "vade" => dto with { Vade = Date }, _ => dto with { Kalemler = [new("Kalem", 100m, [], 1m, 100m)] } };
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/alis", dto)).StatusCode);
@@ -169,5 +169,5 @@ public class AlisOdemeDuzenlemeTests
     }
 
     private static async Task<AlisDto> Purchase(HttpClient c, string name, decimal amount) => await Read<AlisDto>(await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, Date, name, null, [new("Ürün", amount, [])])));
-    private static Task<T> Read<T>(HttpResponseMessage response) => AlisWorkflowTests.Read<T>(response);
+    private static Task<T> Read<T>(HttpResponseMessage response) => AlisIsAkisiTests.Read<T>(response);
 }

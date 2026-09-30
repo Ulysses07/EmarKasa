@@ -63,4 +63,4 @@ Geçiş hatası varsa hata mesajındaki verileri yedek üzerinde inceleyin. Canl
 
 ## Testler
 
-`Kasa.Api.Tests/DatabaseMigrationTests.cs`, eski ve boş veritabanı, kimlik/tutar koruma, özel etiketler, benzersizlik, FK davranışı, tekrarlı/eşzamanlı başlangıç ve hatada geri alma senaryolarını kapsar. Üretim yedeğinin kopyasıyla yapılacak kontrol, bu testlerin tamamlayıcısıdır.
+`Kasa.Api.Tests/VeritabaniGocuTests.cs`, eski ve boş veritabanı, kimlik/tutar koruma, özel etiketler, benzersizlik, FK davranışı, tekrarlı/eşzamanlı başlangıç ve hatada geri alma senaryolarını kapsar. Üretim yedeğinin kopyasıyla yapılacak kontrol, bu testlerin tamamlayıcısıdır.

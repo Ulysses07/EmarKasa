@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Kasa.Api.Tests;
 
-public class StatementParserTests
+public class EkstreMetinOkuyucuTests
 {
     [Theory]
     [InlineData("Vakifbank")]

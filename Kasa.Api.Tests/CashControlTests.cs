@@ -9,15 +9,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
-public class CashControlTests
+public class KasaKontrolTests
 {
     // Takvim sınırları (tests-1): aynı testler yıl başında, artık yılın Şubat sonunda ve kırpılan ay sonunda da koşar.
-    public sealed class YilBasi() : CashControlTests(new(2027, 1, 1));
-    public sealed class ArtikYilSubatSonu() : CashControlTests(new(2028, 2, 29));
-    public sealed class KirpilanAySonu() : CashControlTests(new(2027, 3, 31));
+    public sealed class YilBasi() : KasaKontrolTests(new(2027, 1, 1));
+    public sealed class ArtikYilSubatSonu() : KasaKontrolTests(new(2028, 2, 29));
+    public sealed class KirpilanAySonu() : KasaKontrolTests(new(2027, 3, 31));
 
-    public CashControlTests() : this(KasaWebFactory.VarsayilanBugun) { }
-    private CashControlTests(DateOnly bugun) => Today = bugun;
+    public KasaKontrolTests() : this(KasaWebFactory.VarsayilanBugun) { }
+    private KasaKontrolTests(DateOnly bugun) => Today = bugun;
     private DateOnly Today { get; }
     // Takip başlangıcı bugünün ayından 8 ay önce: varsayılan günde 1 Ocak 2026; masraf yazılan ekstre her günde kesilmiş olur.
     private DateOnly Start => new DateOnly(Today.Year, Today.Month, 1).AddMonths(-8);

@@ -5,10 +5,10 @@ using System.Text.Json;
 
 namespace Kasa.Api.Tests;
 
-public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
+public class KrediKartiKayitIslemleriTests : IClassFixture<KasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public KrediKartiCrudTests(KasaWebFactory factory) => _factory = factory;
+    public KrediKartiKayitIslemleriTests(KasaWebFactory factory) => _factory = factory;
 
     private record KartYanit(int Id, string Ad, DateOnly KesimTarihi, DateOnly SonOdemeTarihi, decimal Limit, decimal Borc);
 
@@ -26,7 +26,7 @@ public class KrediKartiCrudTests : IClassFixture<KasaWebFactory>
             borc = 30_000m,
         });
         Assert.Equal(HttpStatusCode.Conflict, olustur.StatusCode);
-        var eklenen = LegacyFinanceSeed.Kart(_factory, new("Bonus", new DateOnly(2026, 7, 5),
+        var eklenen = EskiFinansTohumu.Kart(_factory, new("Bonus", new DateOnly(2026, 7, 5),
             new DateOnly(2026, 7, 25), 100_000m, 30_000m));
         Assert.NotNull(eklenen);
         Assert.Equal("Bonus", eklenen!.Ad);

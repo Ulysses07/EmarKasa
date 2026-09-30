@@ -164,7 +164,7 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
             OdemeGunu = 15,
             Kanal = "MEZAT"
         };
-        var eklenen = LegacyFinanceSeed.Kaydet(_factory, yeni);
+        var eklenen = EskiFinansTohumu.Kaydet(_factory, yeni);
 
         var panelEkli = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
         Assert.Equal(105_000m, panelEkli.GuncelKasa);

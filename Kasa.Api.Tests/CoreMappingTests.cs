@@ -3,7 +3,7 @@ using Kasa.Core;
 
 namespace Kasa.Api.Tests;
 
-public class CoreMappingTests
+public class CekirdekEslemesiTests
 {
     [Fact]
     public void IslemEntity_core_islem_e_donusur()

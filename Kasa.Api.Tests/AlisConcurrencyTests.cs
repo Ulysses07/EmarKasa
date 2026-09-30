@@ -13,22 +13,22 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kasa.Api.Tests;
 
-public class AlisConcurrencyTests
+public class AlisEsZamanlilikTests
 {
     [Fact]
     public async Task Eszamanli_duzeltme_ve_iptalde_yalniz_bir_islem_kazanir()
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-correction-race-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
-        using var rendezvous = new TransactionRendezvous();
+        using var rendezvous = new IslemBulusmasi();
         try
         {
-            await using var factory = new FileFactory(connectionString, rendezvous);
+            await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
-            await AlisWorkflowTests.Prepare(editor);
+            await AlisIsAkisiTests.Prepare(editor);
             var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
-            var purchase = await AlisWorkflowTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisWorkflowTests.Draft(channels)));
-            purchase = await AlisWorkflowTests.Read<AlisDto>(await editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 40m)));
+            var purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels)));
+            purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 40m)));
             var payment = purchase.Odemeler.Single();
             rendezvous.Enabled = true;
             var results = await Task.WhenAll(
@@ -57,14 +57,14 @@ public class AlisConcurrencyTests
     {
         var path = Path.Combine(Path.GetTempPath(), "kasa-purchase-race-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
-        using var rendezvous = new TransactionRendezvous();
+        using var rendezvous = new IslemBulusmasi();
         try
         {
-            await using var factory = new FileFactory(connectionString, rendezvous);
+            await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
-            await AlisWorkflowTests.Prepare(editor);
+            await AlisIsAkisiTests.Prepare(editor);
             var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
-            var purchase = await AlisWorkflowTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisWorkflowTests.Draft(channels)));
+            var purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels)));
             var first = new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 70m);
             var second = sameRequest ? first : first with { IstekId = Guid.NewGuid() };
             rendezvous.Enabled = true;
@@ -92,7 +92,7 @@ public class AlisConcurrencyTests
         }
     }
 
-    private sealed class FileFactory(string connectionString, TransactionRendezvous rendezvous) : KasaWebFactory
+    private sealed class DosyaliFabrika(string connectionString, IslemBulusmasi rendezvous) : KasaWebFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -106,7 +106,7 @@ public class AlisConcurrencyTests
         }
     }
 
-    private sealed class TransactionRendezvous : DbTransactionInterceptor, IDisposable
+    private sealed class IslemBulusmasi : DbTransactionInterceptor, IDisposable
     {
         private readonly Barrier _barrier = new(2);
         public volatile bool Enabled;

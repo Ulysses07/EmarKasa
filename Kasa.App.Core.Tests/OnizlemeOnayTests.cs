@@ -15,7 +15,7 @@ public class OnizlemeOnayTests
     private static SahteApi Finans() => new() { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0)] };
     private static string Json(object deger) => System.Text.Json.JsonSerializer.Serialize(deger);
 
-    private static async Task<KartTakipViewModel> KartVm(FinansTakipTests.Fake api, AuthViewModel? auth = null, KasaKontrolVeAylikGiderTests.Fake? kontrol = null)
+    private static async Task<KartTakipViewModel> KartVm(FinansTakipTests.Sahte api, AuthViewModel? auth = null, KasaKontrolVeAylikGiderTests.Sahte? kontrol = null)
     {
         var vm = new KartTakipViewModel(api, Finans(), auth ?? Auth(), kontrolApi: kontrol);
         await vm.YukleAsync();
@@ -23,7 +23,7 @@ public class OnizlemeOnayTests
         return vm;
     }
 
-    private static async Task<KrediTakipViewModel> KrediVm(FinansTakipTests.Fake api, AuthViewModel? auth = null)
+    private static async Task<KrediTakipViewModel> KrediVm(FinansTakipTests.Sahte api, AuthViewModel? auth = null)
     {
         var vm = new KrediTakipViewModel(api, Finans(), auth ?? Auth());
         await vm.YukleAsync();
@@ -71,7 +71,7 @@ public class OnizlemeOnayTests
     [Fact]
     public async Task Kart_odemesi_onaylanan_govde_onizlenen_govdedir()
     {
-        var api = new FinansTakipTests.Fake();
+        var api = new FinansTakipTests.Sahte();
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
@@ -85,7 +85,7 @@ public class OnizlemeOnayTests
     [Fact]
     public async Task Kart_odemesi_onizleme_yaniti_gelmeden_tutar_degisirse_gosterilmez_onay_yeni_onizleme_ister()
     {
-        var api = new FinansTakipTests.Fake();
+        var api = new FinansTakipTests.Sahte();
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         var kapi = new TaskCompletionSource();
@@ -105,8 +105,8 @@ public class OnizlemeOnayTests
     [Fact]
     public async Task Kart_odemesi_onizleme_yaniti_gelmeden_kart_degisirse_uygulanmaz()
     {
-        var api = new FinansTakipTests.Fake();
-        api.KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>([FinansTakipTests.Fake.OrnekKart(), FinansTakipTests.Fake.OrnekKart() with { Id = 2, Ad = "İkinci kart" }]);
+        var api = new FinansTakipTests.Sahte();
+        api.KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>([FinansTakipTests.Sahte.OrnekKart(), FinansTakipTests.Sahte.OrnekKart() with { Id = 2, Ad = "İkinci kart" }]);
         var vm = await KartVm(api);
         vm.OdemeTutari = 10;
         var kapi = new TaskCompletionSource();
@@ -126,7 +126,7 @@ public class OnizlemeOnayTests
     [Fact]
     public async Task Kart_odemesi_onizleme_yaniti_gelmeden_oturum_degisirse_uygulanmaz()
     {
-        var api = new FinansTakipTests.Fake();
+        var api = new FinansTakipTests.Sahte();
         var auth = Auth();
         var vm = await KartVm(api, auth);
         vm.OdemeTutari = 10;
@@ -144,10 +144,10 @@ public class OnizlemeOnayTests
 
     // ---- Kart faiz / masrafı ----
 
-    private static async Task<(KartTakipViewModel Vm, KasaKontrolVeAylikGiderTests.Fake Kontrol)> MasrafVm()
+    private static async Task<(KartTakipViewModel Vm, KasaKontrolVeAylikGiderTests.Sahte Kontrol)> MasrafVm()
     {
-        var kontrol = new KasaKontrolVeAylikGiderTests.Fake();
-        var vm = await KartVm(new FinansTakipTests.Fake(), kontrol: kontrol);
+        var kontrol = new KasaKontrolVeAylikGiderTests.Sahte();
+        var vm = await KartVm(new FinansTakipTests.Sahte(), kontrol: kontrol);
         vm.MasrafEkstresi = vm.MasrafEkstreleri[0];
         vm.MasrafTarihi = Tarih.ToDateTime(TimeOnly.MinValue);
         vm.MasrafTutari = 10;
@@ -198,9 +198,9 @@ public class OnizlemeOnayTests
 
     // ---- Kart geçişi ----
 
-    private static async Task<(KartTakipViewModel Vm, FinansTakipTests.Fake Api)> KartGecisVm(AuthViewModel? auth = null)
+    private static async Task<(KartTakipViewModel Vm, FinansTakipTests.Sahte Api)> KartGecisVm(AuthViewModel? auth = null)
     {
-        var api = new FinansTakipTests.Fake { Kart = FinansTakipTests.Fake.OrnekKart() with { YeniTakip = false } };
+        var api = new FinansTakipTests.Sahte { Kart = FinansTakipTests.Sahte.OrnekKart() with { YeniTakip = false } };
         var vm = await KartVm(api, auth);
         vm.GecisAciklama = "Banka ekstresiyle kontrol edildi";
         return (vm, api);
@@ -256,9 +256,9 @@ public class OnizlemeOnayTests
 
     // ---- Kredi geçişi ----
 
-    private static async Task<(KrediTakipViewModel Vm, FinansTakipTests.Fake Api)> KrediGecisVm()
+    private static async Task<(KrediTakipViewModel Vm, FinansTakipTests.Sahte Api)> KrediGecisVm()
     {
-        var api = new FinansTakipTests.Fake { Kredi = FinansTakipTests.Fake.OrnekKredi() with { YeniTakip = false } };
+        var api = new FinansTakipTests.Sahte { Kredi = FinansTakipTests.Sahte.OrnekKredi() with { YeniTakip = false } };
         var vm = await KrediVm(api);
         vm.GecisAciklama = "Kontrol edildi";
         return (vm, api);

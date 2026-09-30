@@ -184,7 +184,7 @@ public class AlislarViewModelTests
         var harcama = new BaglanabilirKartHarcamasiDto(31, 2, new(2026, 9, 19), "MEZAT", 60m, EkstreKayitId: 7);
         var banka = new IslemDto(95, new(2026, 9, 18), "PDF gider", 40m, "Genel kasa", GiderTipi.Cari, null, EkstreKayitId: 4);
         var api = new SahteAlisApi { Liste = new[] { Alis() }, KartHarcamalari = new[] { harcama, harcama with { Id = 32, Tutar = 10m } }, Giderler = new[] { banka } };
-        var benzerlik = new BenzerKayitTests.Fake();
+        var benzerlik = new BenzerKayitTests.Sahte();
         var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac(), benzerlikApi: benzerlik);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);
@@ -276,7 +276,7 @@ public class AlislarViewModelTests
     public async Task Takipli_kartla_yeni_odeme_taksit_sayisini_ve_ilk_kesimi_gonderir()
     {
         var api = new SahteAlisApi { Liste = new[] { Alis() } };
-        var benzerlik = new BenzerKayitTests.Fake { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(Array.Empty<BenzerKayitDto>()) };
+        var benzerlik = new BenzerKayitTests.Sahte { Bekleyen = Task.FromResult<IReadOnlyList<BenzerKayitDto>>(Array.Empty<BenzerKayitDto>()) };
         var vm = new AlislarViewModel(api, new SahteApi { KrediKartlariListe = Kartlar() }, TestOturumu.Ac(), benzerlikApi: benzerlik);
         await vm.YukleAsync();
         vm.SecCommand.Execute(vm.Alislar[0]);

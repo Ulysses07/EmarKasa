@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
 
-public class AlisWorkflowTests
+public class AlisIsAkisiTests
 {
     private static readonly DateOnly Date = new(2026, 9, 1);
 

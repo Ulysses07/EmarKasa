@@ -39,7 +39,7 @@ public class AnaSayfaVeRaporIptalTests
     [Fact]
     public async Task Takip_ozeti_panel_yanitindan_istek_atmadan_yansir_eski_sunucuda_ve_farkli_gunde_ayrica_istenir()
     {
-        var takip = new FinansTakipTests.Fake { Ozet = Ozet(80) };
+        var takip = new FinansTakipTests.Sahte { Ozet = Ozet(80) };
         var vm = new TakipOzetViewModel(takip, Editor());
 
         await vm.PaneldenYukleAsync(Ozet(120), 30);
@@ -218,7 +218,7 @@ public class AnaSayfaVeRaporIptalTests
     {
         // Birleşik uç özetsiz döndü (ya da 5xx sonrası panel ucundan geldi): özet kendi ucundan istenir ve başarısız olur.
         var panel = new PanelViewModel(new SahteApi { AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), null, null)) });
-        var takip = new TakipOzetViewModel(new FinansTakipTests.Fake { OzetHatasi = new KasaApiException(System.Net.HttpStatusCode.InternalServerError) }, Editor());
+        var takip = new TakipOzetViewModel(new FinansTakipTests.Sahte { OzetHatasi = new KasaApiException(System.Net.HttpStatusCode.InternalServerError) }, Editor());
 
         await panel.YukleAsync();
         await takip.PaneldenYukleAsync(panel.TakipOzeti, panel.TakipOzetiGunu);

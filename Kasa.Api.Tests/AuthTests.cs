@@ -3,10 +3,10 @@ using System.Net.Http.Json;
 
 namespace Kasa.Api.Tests;
 
-public class AuthTests : IClassFixture<KasaWebFactory>
+public class KimlikDogrulamaTests : IClassFixture<KasaWebFactory>
 {
     private readonly KasaWebFactory _factory;
-    public AuthTests(KasaWebFactory factory) => _factory = factory;
+    public KimlikDogrulamaTests(KasaWebFactory factory) => _factory = factory;
 
     [Fact]
     public async Task Dogru_editor_giris_200_ve_cookie_doner()

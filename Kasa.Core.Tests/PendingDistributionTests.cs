@@ -3,7 +3,7 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.Core.Tests;
 
-public class PendingDistributionTests
+public class BekleyenDagitimTests
 {
     // Eski veride aynı isimde gerçek kanal bulunabilse de bekleme durumu adla değil,
     // işlem üzerindeki işaretle belirlenmelidir.

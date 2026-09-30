@@ -44,7 +44,7 @@ public class KasaWebFactory : SizdirmayanFabrika<Program>
     // başına bir kez çalışır; her fabrikanın bağlantısına SQLite yedekleme API'siyle sayfa sayfa birebir kopyalanır (≈1 ms; boş
     // veritabanında migration her fabrikada ≈200 ms sürüyordu). Uygulamanın açılışı (Program.cs) her fabrikada yine
     // KasaVeritabaniBaslatici'ı çalıştırır; güncel veritabanında bekleyen adım yoktur. Boş veritabanından ilk açılış yolu şablonda,
-    // eski şemalardan göçler kendi testlerinde (DatabaseMigrationTests, FinanceMigrationTests...) sınanır; kopyanın boş
+    // eski şemalardan göçler kendi testlerinde (VeritabaniGocuTests, FinansGocuTests...) sınanır; kopyanın boş
     // veritabanındaki ilk açılışla aynı olduğunu SablonVeritabaniTests denetler.
     private static readonly Lazy<SqliteConnection> Sablon = new(() =>
     {

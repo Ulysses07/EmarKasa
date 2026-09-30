@@ -8,7 +8,7 @@ public class BildirimTests
     [Fact]
     public async Task Bildirim_ayari_saat_ve_guncel_surumu_korur()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = new BildirimViewModel(api, Auth());
         await vm.YukleAsync();
         vm.Saat = 25;
@@ -24,12 +24,12 @@ public class BildirimTests
     public async Task Oturum_degistiginde_geciken_bildirim_ve_cihazlar_gosterilmez()
     {
         var bekleyen = new TaskCompletionSource<IReadOnlyList<BildirimDto>>();
-        var api = new Fake { Bekleyen = bekleyen.Task };
+        var api = new Sahte { Bekleyen = bekleyen.Task };
         var auth = Auth();
         var vm = new BildirimViewModel(api, auth);
         var yukle = vm.YukleAsync();
         auth.OturumSurumu++;
-        bekleyen.SetResult(new[] { Fake.Bildirim() });
+        bekleyen.SetResult(new[] { Sahte.Bildirim() });
         await yukle;
         Assert.Empty(vm.Bildirimler);
         Assert.Empty(vm.Cihazlar);
@@ -38,7 +38,7 @@ public class BildirimTests
     [Fact]
     public async Task Okundu_isareti_ve_cihaz_kapatma_basarili_cevaptan_sonra_yansir()
     {
-        var api = new Fake();
+        var api = new Sahte();
         var vm = new BildirimViewModel(api, Auth());
         await vm.YukleAsync();
         await vm.OkunduAsync(vm.Bildirimler[0]);
@@ -53,7 +53,7 @@ public class BildirimTests
     [InlineData("http://localhost:5137/", "http://localhost:5137/#notifications")]
     public void Tarayici_kurulumu_yalniz_yapilandirilmis_api_kokenini_acar(string? adres, string beklenen)
         => Assert.Equal(beklenen, BildirimViewModel.KurulumAdresi(adres).AbsoluteUri);
-    private sealed class Fake : IBildirimApi
+    private sealed class Sahte : IBildirimApi
     {
         public Task<IReadOnlyList<BildirimDto>>? Bekleyen; public BildirimAyarYaz? Yazilan; public int Okundu, Kaldirilan;
         public static BildirimDto Bildirim() => new(3, "Kart", "Son ödeme", new(2026, 9, 23), false, "/#cards/1", "SonOdeme", 1);
