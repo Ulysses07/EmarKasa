@@ -13,7 +13,7 @@
 | `/api/surum` `notlar` metni | 2.3'ün PDF ekstre metni | Yeni sürümün kısa notu yazılmalı (Güvenlik ekranında görünür). |
 | Etiket | yok | [dal-durumu.md](dal-durumu.md) A9: yalnız etiketli commit dağıtılır (`v2.4.0` önerisi). Etiket #30 ve "Kodlar" birleştikten, sürüm değişikliği girdikten sonra atılır. |
 | Yayın zamanı ve kesinti | — | İlk açılışta belge taşıması bitene kadar HTTP kapalı (nginx 502). Süre canlı veritabanı boyutuna bağlı; kopya provasında ölçülmeli (doğrulanmadı). Kullanıcılara bakım aralığı bildirilir. |
-| Masaüstü paketinin dağıtımı | — | Önce normal (etkin, ekranda) pencerede giriş sonrası denenmeli ("Bilinen konular"). Sunucu yeni masaüstü olmadan da yayınlanabilir. |
+| Masaüstü paketinin dağıtımı | — | Girişten sonraki askıda kalma `duzeltme/maui-menu-donmasi` dalında giderildi (dotnet/maui#38813 geçici çözümü, "Bilinen konular"); paket bu dal birleşmeden dağıtılmaz. Dağıtmadan önce yine normal (etkin, ekranda) pencerede giriş sonrası bütün menüler elle denenmeli. Sunucu yeni masaüstü olmadan da yayınlanabilir. |
 | Sunucu dışı yedek | runbook tablosu "Henüz yapılmadı" | `uzak_yedek.py` + systemd bu sürümle gelir; kurulum isteğe bağlı ama belge deposundan sonra önerilir. Sunucuda kurulu olup olmadığı doğrulanmadı. |
 
 ## 1. Kullanıcıya görünen değişiklikler
@@ -221,7 +221,7 @@ Otomatik testlerin ve e2e ekran görüntülerinin kapsamadığı yerler; ekran e
 
 ## 10. Bilinen konular
 
-- **MAUI Release askıda kalma (PR #29):** Release derlemesinde, ekran dışında açılan etkin olmayan pencerede girişten ~4 sn sonra UI iş parçacığı askıda kaldı. Yığın `ShellFlyoutItemView.UpdateVisualState` ile başlayıp iç içe `Element.OnResourcesChanged` çağrılarından oluşuyor. `1efdcb4`'te de var (PR #29'dan gelmiyor). Normal, etkin pencerede doğrulanmadı. **Masaüstü paketini dağıtmadan önce** normal pencerede giriş ve bütün menülerde birkaç dakika denenmeli; askıda kalırsa paket dağıtılmaz, sunucu yayını bundan bağımsızdır.
+- **MAUI Release askıda kalma (PR #29'da görüldü, `duzeltme/maui-menu-donmasi` ile giderildi):** Release derlemesinde girişten birkaç saniye sonra UI iş parçacığı bir çekirdeği %100 kullanarak askıda kalıyordu. Kök neden MAUI gerilemesi [dotnet/maui#38813](https://github.com/dotnet/maui/issues/38813) (10.0.100–10.0.110): `Shell.ItemTemplate` görsel durum setter'ı `Background` (fırça) yazınca `ShellFlyoutItemView.UpdateVisualState → Setter → NotifyBackgroundChanges → OnResourcesChanged → ShellFlyoutItemView.OnResourcesChanged → GoToState` döngüsü kurulur; alınan yığın bununla eşleşir. Bizde PR #14'teki MAUI 10.0.20 → 10.0.110 yükseltmesiyle geldi (canlı 2.3.0 10.0.20 ile derlendi; `1efdcb4`'te de vardı, PR #29'dan gelmiyor). Düzeltme dalında `AppShell.xaml` menü öğesi setter'ları `BackgroundColor` yazar (görünüm aynı: `GorunumEsdegerligiTests` her görsel durumda aynı düz rengi doğrular, ekran görüntüsünde seçili öğe `#33453A`); `MauiKayitTutarliligiTests` kabuk menü şablonlarında `Background` yazımını yasaklar. Otomasyonla (yerel test sunucusu, görünmeyen ayrı masaüstü): düzeltme öncesi girişten 1–3 sn sonra pencere yanıtsız, CPU ~%100 (tek çekirdek), ekran dışı ve ekran içi (etkinleşen) pencerede aynı; düzeltme sonrası 62 sn boyunca yanıt veriyor, CPU boşta, menüde Haftalık, Aylık, İşlemler, Kasalar geçişleri çalışıyor. MAUI düzeltmesi ([dotnet/maui#38887](https://github.com/dotnet/maui/pull/38887)) .NET 10 SR12'de (10.0.120) gelir; 30 Eylül 2026'da NuGet'teki son sürüm 10.0.110. 10.0.120 yayımlanınca yükseltme ayrıca değerlendirilebilir; geçici çözüm o sürümde gereksizleşir ama zararsızdır. **Masaüstü paketini dağıtmadan önce** yine normal pencerede giriş ve bütün menülerde (fareyle üzerine gelme zemini dahil; otomasyon fare kullanmadı) birkaç dakika denenmeli; sunucu yayını bundan bağımsızdır.
 - Altı bankanın gerçek örnek ekstreleri hâlâ yok (2.3'ten beri); ilk belgelerde okunan satırlar kaynak PDF'le karşılaştırılır.
 - `/api/surum` `notlar` metni 2.3'e ait (karar noktası).
 - 2.0–2.3'ün depo dışı `publish_*.py` betikleri yeni compose şablonunda ilk denetimde durur; yayın README akışıyla elle ya da betik güncellenerek yapılır.
@@ -259,7 +259,7 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
 - Sunucudaki nginx site dosyasının güncel içeriği; sunucuda uzak yedeğin kurulu olup olmadığı.
 - Yayın sırasında oturumların düşmediği (kod ve migration açıklaması öyle der, canlıda denenmedi).
 - 2.3.0 imajının yeni `restore_backup.py` ile açılmış göç öncesi yedekle açılışı.
-- MAUI Release askıda kalmasının normal pencerede tekrarlanıp tekrarlanmadığı.
+- Düzeltilmiş masaüstünün kullanıcının normal penceresinde elle denenmesi (otomasyon ayrı masaüstünde koştu; fareyle üzerine gelme zemini yalnız testle sınandı).
 - Readonly nginx şablonunda `/m/`.
 
 ## Kaynak PR'lar
@@ -282,4 +282,5 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
 - #27 Editör şifresi zorla sıfırlama, geri yükleme prosedürü, banka listesi ucu, migration `EditorSifirlamaIzi`
 - #28 Web işlem düğmeleri ve alış ekranları
 - #29 MAUI görsel bileşenler; bilinen askıda kalma notu
+- (açık) `duzeltme/maui-menu-donmasi`: MAUI menü askıda kalması geçici çözümü (dotnet/maui#38813)
 - #30 (açık) Türkçe adlar; ardından "Kodlar kalan aileleri" — davranış etkisi yok
