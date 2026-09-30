@@ -3,21 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { runInNewContext } from 'node:vm';
+import { Element, TestFormData, TARAYICI_DISI, sessizOrtam, webModulu } from './tarayici.mjs';
 
-// Import the exact browser module without a package dependency or Node-specific production code.
-const code = await readFile(new URL('../Kasa.Api/wwwroot/ui-core.js', import.meta.url), 'utf8');
-const ui = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
-const loadBrowserModule = async file =>
-  import(
-    'data:text/javascript;base64,' +
-      Buffer.from(await readFile(new URL(`../Kasa.Api/wwwroot/${file}`, import.meta.url), 'utf8')).toString('base64')
-  );
-const finance = await loadBrowserModule('finance-ui.js');
-const notification = await loadBrowserModule('notification-ui.js');
-const monthly = await loadBrowserModule('monthly-ui.js');
-const cashControls = await loadBrowserModule('cash-controls-ui.js');
-const statementImport = await loadBrowserModule('statement-import-ui.js');
-const pushModule = await loadBrowserModule('push-client.js');
+// Tarayıcı modülleri paket bağımlılığı olmadan, Node'un ES modül yükleyicisiyle olduğu gibi yüklenir (tarayici.mjs).
+const ui = await import(new URL('../Kasa.Api/wwwroot/ui-core.js', import.meta.url));
+const cashControls = await webModulu('cash-controls-ui.js', sessizOrtam());
+const pushModule = await import(new URL('../Kasa.Api/wwwroot/push-client.js', import.meta.url));
 const {
   cents,
   amount,
@@ -47,134 +38,6 @@ const {
 // Exercise the real startup and render functions with an inert DOM and deterministic API data.
 // timers: verilirse app.js'in kurduğu zamanlayıcılar ({ fn, ms }) buraya yazılır; testte elle çalıştırılır.
 async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, timers = null) {
-  class Element {
-    constructor(tag = 'div') {
-      this.tag = tag;
-      this.children = [];
-      this.attributes = {};
-      this.listeners = {};
-      this.classList = { toggle() {} };
-      this.open = false;
-      this.checked = false;
-    }
-    // Gerçek DOM gibi: yalnız belge köküne (document.querySelector düğümleri) zincirle bağlı düğüm bağlıdır; içerikten çıkarılan düğüm kopar.
-    get isConnected() {
-      let node = this;
-      while (node.parentNode) node = node.parentNode;
-      return node.root === true;
-    }
-    closest(selector) {
-      const matches = node =>
-        selector.startsWith('.') ? (node.className || '').split(' ').includes(selector.slice(1)) : node.tag === selector;
-      for (let node = this; node; node = node.parentNode) if (matches(node)) return node;
-      return null;
-    }
-    detachChildren(kept = []) {
-      for (const child of this.children)
-        if (child instanceof Element && child.parentNode === this && !kept.includes(child)) child.parentNode = null;
-    }
-    set value(value) {
-      this.currentValue = String(value);
-    }
-    get value() {
-      return this.currentValue || '';
-    }
-    setAttribute(name, value) {
-      this.attributes[name] = value;
-      if (['disabled', 'hidden', 'readonly'].includes(name)) this[name === 'readonly' ? 'readOnly' : name] = true;
-    }
-    addEventListener(name, handler) {
-      this.listeners[name] = handler;
-    }
-    append(...children) {
-      for (const child of children) if (child instanceof Element) child.parentNode = this;
-      this.children.push(...children);
-    }
-    replaceChildren(...children) {
-      this.detachChildren(children);
-      for (const child of children) if (child instanceof Element) child.parentNode = this;
-      this.children = children;
-    }
-    remove() {
-      if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this);
-      this.parentNode = null;
-    }
-    removeAttribute(name) {
-      delete this.attributes[name];
-    }
-    set textContent(value) {
-      this.detachChildren();
-      this.children = [String(value)];
-    }
-    get textContent() {
-      return this.children.map(child => (typeof child === 'string' ? child : child.textContent)).join('');
-    }
-    querySelector(selector) {
-      const named = /^\[name="([^"]+)"\]$/.exec(selector);
-      return this.find(node =>
-        named
-          ? node.attributes.name === named[1]
-          : selector === 'button[type="submit"]'
-            ? node.tag === 'button' && node.attributes.type === 'submit'
-            : selector.startsWith('.')
-              ? (node.className || '').split(' ').includes(selector.slice(1))
-              : node.tag === selector
-      );
-    }
-    find(predicate) {
-      for (const node of this.children) {
-        if (typeof node === 'string') continue;
-        if (predicate(node)) return node;
-        const child = node.find(predicate);
-        if (child) return child;
-      }
-      return null;
-    }
-    focus() {}
-    close() {
-      this.open = false;
-    }
-    showModal() {
-      this.open = true;
-    }
-    reportValidity() {
-      return true;
-    }
-    requestSubmit() {
-      this.listeners.submit?.({ preventDefault() {} });
-    }
-    reset() {
-      this.children.forEach(child => {
-        if (child instanceof Element) {
-          child.currentValue = '';
-          child.reset();
-        }
-      });
-    }
-    scrollIntoView() {}
-  }
-  class TestFormData {
-    constructor(form) {
-      this.items = [];
-      const visit = node => {
-        if (typeof node === 'string' || node.disabled) return;
-        if (
-          ['input', 'select', 'textarea'].includes(node.tag) &&
-          node.attributes.name &&
-          (node.attributes.type !== 'checkbox' || node.checked)
-        )
-          this.items.push([node.attributes.name, node.value]);
-        node.children.forEach(visit);
-      };
-      if (form) visit(form);
-    }
-    append(name, value) {
-      this.items.push([name, value]);
-    }
-    [Symbol.iterator]() {
-      return this.items[Symbol.iterator]();
-    }
-  }
   const nodes = new Map();
   const requests = [];
   // index.html'deki gibi #modal-content, <dialog id="modal"> içindedir; hata görünürlüğü diyaloğun açık olmasına bakar.
@@ -243,20 +106,13 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, ti
     removeItem() {},
   };
   let nextId = 0;
-  const context = {
-    ...ui,
-    ...finance,
-    ...notification,
-    ...monthly,
-    ...cashControls,
-    ...statementImport,
-    ...pushModule,
+  // Uygulamanın bu örneğinin tarayıcı globalleri: modüller bu adları yalnız bu sahtelerde bulur (tarayici.mjs).
+  const browser = {
+    ...TARAYICI_DISI,
+    // push-client.js ortamı (createPushClient environment = globalThis): verilirse bu testin sahte push tarayıcısıdır.
+    globalThis: pushEnvironment ?? globalThis,
     crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` },
-    Headers,
     FormData: TestFormData,
-    URLSearchParams,
-    URL,
-    AbortController,
     Node: Element,
     setTimeout: (fn, ms) => {
       timers?.push({ fn, ms });
@@ -291,17 +147,10 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, ti
       return { ok: !value?.$status, status: value?.$status || 200, json: async () => value, text: async () => JSON.stringify(value) };
     },
   };
-  if (pushEnvironment) context.createPushClient = options => pushModule.createPushClient({ ...options, environment: pushEnvironment });
-  const source = await readFile(new URL('../Kasa.Api/wwwroot/app.js', import.meta.url), 'utf8');
-  // İçe aktarılan adlar bağlamdan gelir; import bildirimi (biçimden bağımsız: tek satır ya da satırlara bölünmüş liste)
-  // ilk noktalı virgülüne kadar çıkarılır.
-  runInNewContext(
-    source.replace(/^import\s[^;]*;[^\n]*\n/gm, '') +
-      '\nglobalThis.appTest = { navigate, toast, incomeDialog, expenseDialog, paymentDialog, paymentRow, cancelPayment, financeUi, notificationUi, monthlyUi, cashControlsUi, statementImportUi, renderMonthly, clearSession, passwordDialog, recoveryCodeDialog, viewerPasswordDialog, channelDialog, openingDialog, documentDialog };',
-    context
-  );
+  // app.js başlangıcı gerçek içe aktarmalarıyla çalışır; testlerin eriştiği iç işlevler app.js'in dışa açtığı adlardır.
+  const app = await webModulu('app.js', browser);
   for (let index = 0; index < 10; index++) await new Promise(resolve => setImmediate(resolve));
-  return { nodes, requests, calls, responses, stored, app: context.appTest };
+  return { nodes, requests, calls, responses, stored, app };
 }
 
 test('full editor startup renders transaction actions and settings navigation', async () => {
@@ -6210,7 +6059,7 @@ test('Aşama 3 kapısı: editör koruması ekrana göre aynı iletiyle işlemi b
   const MONTHLY = 'Bu işlem için editör hesabı gerekir.';
   const IMPORT = 'Ekstre yüklemek ve işlemek için editör hesabı gerekir.';
   const { app, calls } = await openApp(false, { ...monthlyResponses(), '/api/auth/me': { rol: 'viewer' } });
-  // Hata türü adla denetlenir: testte app.js ayrı bir vm bağlamında (başka Error kurucusuyla) çalışır; tarayıcıda tek bağlam vardır.
+  // Hata türü adla denetlenir (kurucu kimliğine değil): ileti ve tür birlikte sınanır.
   const exact = message => error => error?.name === 'Error' && error.message === message;
   await assert.rejects(app.monthlyUi.templateDialog(), exact(MONTHLY));
   assert.throws(() => app.monthlyUi.paymentDialog(monthlyRow, yearNow, monthNumberNow), exact(MONTHLY));

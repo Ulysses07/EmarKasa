@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 
-// Değişiklik geçmişi görünümü (denetim-ui.js): tarayıcı modülü paket bağımlılığı olmadan olduğu gibi yüklenir.
+// Değişiklik geçmişi görünümü (denetim-ui.js): tarayıcı modülü paket bağımlılığı olmadan, Node'un ES modül yükleyicisiyle
+// olduğu gibi yüklenir.
 const source = await readFile(new URL('../Kasa.Api/wwwroot/denetim-ui.js', import.meta.url), 'utf8');
-const ui = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const ui = await import(new URL('../Kasa.Api/wwwroot/denetim-ui.js', import.meta.url));
 
 test('denetim-ui.js parses as an explicit ES module', () => {
   const result = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: source, encoding: 'utf8' });

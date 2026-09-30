@@ -3268,3 +3268,28 @@ runtimeReady
     $('#recover-open').hidden = true;
     $('#login-description').textContent = error.message || 'Kasa ayarı yüklenemedi. Sayfayı yenileyin.';
   });
+
+// Testlerin (Kasa.Api.Ui.Tests) doğrudan çalıştırdığı iç işlevler ve ekran modülleri. Tarayıcıda giriş modülünün dışa açtığı
+// adları içe aktaran yoktur; davranışı değiştirmez.
+export {
+  navigate,
+  toast,
+  incomeDialog,
+  expenseDialog,
+  paymentDialog,
+  paymentRow,
+  cancelPayment,
+  financeUi,
+  notificationUi,
+  monthlyUi,
+  cashControlsUi,
+  statementImportUi,
+  renderMonthly,
+  clearSession,
+  passwordDialog,
+  recoveryCodeDialog,
+  viewerPasswordDialog,
+  channelDialog,
+  openingDialog,
+  documentDialog,
+};
