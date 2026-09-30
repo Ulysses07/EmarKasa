@@ -38,8 +38,8 @@ public class RaporUfkuTests
         var (f, c) = await Kur(new DateOnly(2206, 6, 22));
         await using var _ = f;
         using var __ = c;
-        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
-        var donemler = JsonNode.Parse(await c.GetStringAsync("/api/donemler"))!.AsArray();
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray();
+        var donemler = JsonNode.Parse(await c.GetStringAsync("/api/donemler", TestContext.Current.CancellationToken))!.AsArray();
         Assert.Equal(UfukSonu, DateOnly.Parse(haftalik[^1]!["donem"]!["end"]!.GetValue<string>()));
         Assert.Equal(UfukSonu, DateOnly.Parse(donemler[^1]!["end"]!.GetValue<string>()));
         Assert.Equal(haftalik.Count, donemler.Count);
@@ -52,7 +52,7 @@ public class RaporUfkuTests
         // Uyarı yalnız son dönemdedir; ufuk dışı kayıt ufuk içindeki dönemlerin tutarlarını değiştirmez.
         Assert.All(haftalik.Take(haftalik.Count - 1), d => Assert.Null(d!["veriSagligiUyarisi"]));
         Assert.Equal(1_000m - 100m, haftalik[^1]!["kasaDevir"]!.GetValue<decimal>());
-        Assert.Equal(900m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(900m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
     }
 
     [Fact]
@@ -61,12 +61,12 @@ public class RaporUfkuTests
         var (f, c) = await Kur(new DateOnly(2206, 6, 22), new DateOnly(9998, 12, 31));
         await using var _ = f;
         using var __ = c;
-        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray();
         Assert.Equal(UfukSonu, DateOnly.Parse(haftalik[^1]!["donem"]!["end"]!.GetValue<string>()));
         var uyari = haftalik[^1]!["veriSagligiUyarisi"]!.GetValue<string>();
         Assert.Contains("2 kayıt", uyari);
         Assert.Contains("31.12.9998", uyari);
-        Assert.Equal(UfukSonu, DateOnly.Parse(JsonNode.Parse(await c.GetStringAsync("/api/donemler"))!.AsArray()[^1]!["end"]!.GetValue<string>()));
+        Assert.Equal(UfukSonu, DateOnly.Parse(JsonNode.Parse(await c.GetStringAsync("/api/donemler", TestContext.Current.CancellationToken))!.AsArray()[^1]!["end"]!.GetValue<string>()));
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class RaporUfkuTests
         var (f, c) = await Kur(ileri);
         await using var _ = f;
         using var __ = c;
-        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray();
         Assert.Equal(ileri, DateOnly.Parse(haftalik[^1]!["donem"]!["end"]!.GetValue<string>()));
         Assert.All(haftalik, d => Assert.False(d!.AsObject().ContainsKey("veriSagligiUyarisi")));
         Assert.Equal(1_000m - 150m, haftalik[^1]!["kasaDevir"]!.GetValue<decimal>());

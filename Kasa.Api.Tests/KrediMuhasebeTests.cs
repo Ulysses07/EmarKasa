@@ -120,7 +120,7 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         });
 
         var client = await _factory.EditorClientAsync();
-        var rapor = (await client.GetFromJsonAsync<AylikYanit>("/api/rapor/aylik?yil=2026&ay=7"))!;
+        var rapor = (await client.GetFromJsonAsync<AylikYanit>("/api/rapor/aylik?yil=2026&ay=7", cancellationToken: TestContext.Current.CancellationToken))!;
 
         Assert.Equal(150m, rapor.Kanallar.Single(k => k.Kanal == "MEZAT").OrtakPay);
         Assert.Equal(150m, rapor.Kanallar.Single(k => k.Kanal == "PERAKENDE").OrtakPay);
@@ -166,13 +166,13 @@ public class KrediMuhasebeTests : IClassFixture<SabitSaatliKasaWebFactory>
         };
         var eklenen = EskiFinansTohumu.Kaydet(_factory, yeni);
 
-        var panelEkli = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panelEkli = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(105_000m, panelEkli.GuncelKasa);
 
-        var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}");
+        var sil = await client.DeleteAsync($"/api/krediler/{eklenen.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.Conflict, sil.StatusCode);
 
-        var panelSonra = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panelSonra = (await client.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(105_000m, panelSonra.GuncelKasa); // geçmiş etki korundu
     }
 }

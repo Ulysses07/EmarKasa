@@ -13,56 +13,58 @@ public class AliciOturumTests
         using var editor = await f.EditorClientAsync();
         var hesap = await Ekle(editor);
         using var alici = f.CreateClient();
-        var login = await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "ALICI-1", sifre = "alici-sifre-1" });
+        var login = await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "ALICI-1", sifre = "alici-sifre-1" }, cancellationToken: TestContext.Current.CancellationToken);
         login.EnsureSuccessStatusCode();
-        Assert.Equal("alici", (await login.Content.ReadFromJsonAsync<Login>())!.Rol);
+        Assert.Equal("alici", (await login.Content.ReadFromJsonAsync<Login>(cancellationToken: TestContext.Current.CancellationToken))!.Rol);
         foreach (var yol in new[] { "/api/kanallar", "/api/islemler", "/api/krediler", "/api/kredikartlari",
             "/api/gelenler", "/api/kartodemeler", "/api/ayarlar", "/api/donemler", "/api/rapor/panel", "/api/rapor/haftalik", "/api/rapor/aylik?yil=2026&ay=9", "/api/alicilar" })
-            Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(yol)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await alici.GetAsync("/api/alis")).StatusCode);
-        var kanallar = await alici.GetStringAsync("/api/alis/kanallar");
+            Assert.Equal(HttpStatusCode.Forbidden, (await alici.GetAsync(yol, TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await alici.GetAsync("/api/alis", TestContext.Current.CancellationToken)).StatusCode);
+        var kanallar = await alici.GetStringAsync("/api/alis/kanallar", TestContext.Current.CancellationToken);
         Assert.DoesNotContain("acilisDevri", kanallar, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Forbidden, (await alici.PutAsJsonAsync($"/api/alicilar/{hesap.Id}",
-            new AliciYaz("alici-1", "Kendi hesabım", "baska-sifre"))).StatusCode);
+            new AliciYaz("alici-1", "Kendi hesabım", "baska-sifre"), cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await alici.PostAsJsonAsync("/api/alis/1/odemeler", new
-        { surum = 1, istekId = Guid.NewGuid(), tarih = KasaWebFactory.VarsayilanBugun, tutar = 1m })).StatusCode);
+        { surum = 1, istekId = Guid.NewGuid(), tarih = KasaWebFactory.VarsayilanBugun, tutar = 1m }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
     public async Task Sifre_degisimi_ve_pasife_alma_eski_oturumu_kalici_iptal_eder()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
         var hesap = await Ekle(editor);
         using var alici = f.CreateClient();
-        (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" })).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", null, false))).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis")).StatusCode);
-        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", null, true))).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis")).StatusCode);
-        (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" })).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", "yeni-alici-sifre"))).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" })).StatusCode);
-        (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "yeni-alici-sifre" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.OK, (await alici.GetAsync("/api/alis")).StatusCode);
-        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("yeni-kullanici", "Alıcı", null))).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", null))).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis")).StatusCode);
+        (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", null, false), cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis", ct)).StatusCode);
+        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", null, true), cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis", ct)).StatusCode);
+        (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", "yeni-alici-sifre"), cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" }, cancellationToken: ct)).StatusCode);
+        (await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "yeni-alici-sifre" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, (await alici.GetAsync("/api/alis", ct)).StatusCode);
+        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("yeni-kullanici", "Alıcı", null), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync($"/api/alicilar/{hesap.Id}", new AliciYaz("alici-1", "Alıcı", null), cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await alici.GetAsync("/api/alis", ct)).StatusCode);
     }
 
     [Fact]
     public async Task Hesaplar_sifre_sizdirmaz_cakisan_ad_ve_zayif_girdi_reddedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
         await Ekle(editor);
-        var list = await editor.GetStringAsync("/api/alicilar");
+        var list = await editor.GetStringAsync("/api/alicilar", ct);
         Assert.DoesNotContain("sifre", list, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(HttpStatusCode.Conflict, (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("ALICI-1", "Başka", "gecerli-sifre"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("ALICI-1", "Başka", "gecerli-sifre"), cancellationToken: ct)).StatusCode);
         foreach (var dto in new[] { new AliciYaz("editor", "Alıcı", "gecerli-sifre"), new AliciYaz("yeni-alici", "Alıcı", "kisa"),
             new AliciYaz(null!, "Alıcı", "gecerli-sifre"), new AliciYaz("yeni-alici", null!, "gecerli-sifre") })
-            Assert.Equal(HttpStatusCode.BadRequest, (await editor.PostAsJsonAsync("/api/alicilar", dto)).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await editor.PostAsJsonAsync("/api/alicilar", dto, cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
@@ -70,12 +72,12 @@ public class AliciOturumTests
     {
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleme-sifre" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleme-sifre" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "izleme-sifre" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/alis")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/alicilar")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/rapor/panel")).StatusCode);
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "izleme-sifre" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/alis", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/alicilar", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/rapor/panel", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     private static async Task<AliciDto> Ekle(HttpClient editor)

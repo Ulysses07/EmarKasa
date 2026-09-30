@@ -97,7 +97,7 @@ public class YedekBelgeTests
         var depo = f.Services.GetRequiredService<BelgeDeposu>();
         var yedek = f.Services.GetRequiredService<YedekServisi>();
         // Satırı kaydedilememiş eski yükleme (sahipsiz) ve hiçbir yedeğin göstermediği ayna dosyası bakımda silinir.
-        var sahipsiz = depo.Yaz("%PDF-kaydedilemeyen yukleme"u8.ToArray()).Ozet;
+        var sahipsiz = depo.Yaz("%PDF-kaydedilemeyen yukleme"u8.ToArray(), TestContext.Current.CancellationToken).Ozet;
         File.SetLastWriteTimeUtc(depo.Yol(sahipsiz), new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc));
         var yabanci = Ozet("%PDF-eski yedekten kalma"u8.ToArray());
         Directory.CreateDirectory(Path.Combine(f.Ayna, yabanci[..2]));
@@ -136,7 +136,7 @@ public class YedekBelgeTests
         Assert.Equal(0, yedek.SonYansitilanBelge);
         Assert.Equal(zaman, File.GetLastWriteTimeUtc(BelgeDeposu.DosyaYolu(f.Ayna, Ozet(Fatura))));
         Assert.Equal(new[] { Ozet(Dekont), Ozet(Fatura) }.Order(StringComparer.Ordinal), BelgeDeposu.Ozetler(f.Ayna).Order(StringComparer.Ordinal));
-        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
+        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Null(durum.Hata);
         Assert.Null(durum.BelgeUyarisi);
         Assert.Equal(new FileInfo(yol).Length + new FileInfo(ikinci).Length + Fatura.Length + Dekont.Length, durum.ToplamYedekBayt);
@@ -149,11 +149,11 @@ public class YedekBelgeTests
         using var c = await f.EditorClientAsync();
         var alisId = await BelgeliAlis(f, c);
 
-        using var yanit = await c.PostAsync("/api/yedek", null);
+        using var yanit = await c.PostAsync("/api/yedek", null, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         Assert.StartsWith("kasa-elle-", yanit.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         var indirilen = Path.Combine(f.Dizin, "indirilen.zip");
-        await File.WriteAllBytesAsync(indirilen, await yanit.Content.ReadAsByteArrayAsync());
+        await File.WriteAllBytesAsync(indirilen, await yanit.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
         using (var zip = ZipFile.OpenRead(indirilen))
         {
             Assert.Equal(new[] { "belgeler.json", "belgeler/" + Ozet(Dekont), "belgeler/" + Ozet(Fatura), "kasa.db", "manifest.json" }.Order(StringComparer.Ordinal), Girdiler(zip));
@@ -210,15 +210,15 @@ public class YedekBelgeTests
         using var c = await f.EditorClientAsync();
         await BelgeliAlis(f, c);
 
-        using var yanit = await c.PostAsync("/api/yedek", null);
+        using var yanit = await c.PostAsync("/api/yedek", null, TestContext.Current.CancellationToken);
         Assert.Equal((HttpStatusCode)507, yanit.StatusCode);
-        var hata = (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString();
+        var hata = (await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("hata").GetString();
         Assert.Contains("yeterli boş alan yok", hata);
         Assert.Empty(Directory.Exists(f.Dizin) ? Directory.GetFiles(f.Dizin, "*", SearchOption.AllDirectories) : []);
         await Assert.ThrowsAsync<YedekDiskAlaniYetersizException>(() => OtomatikYedek(f));
         Assert.Empty(Directory.Exists(f.Dizin) ? Directory.GetFiles(f.Dizin, "*", SearchOption.AllDirectories) : []);
 
-        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
+        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Contains("yeterli boş alan yok", durum.Hata);
         Assert.Equal((100 * Mb, 1024 * Mb, 2048 * Mb, 0L), (durum.YedekDiskiBosAlanBayt, durum.VeriDiskiBosAlanBayt, durum.AsgariBosAlanBayt, durum.ToplamYedekBayt));
         Assert.Contains("Yedek diskinde 0,1 GB boş alan kaldı (asgari 2,0 GB)", durum.DiskUyarisi);
@@ -226,8 +226,8 @@ public class YedekBelgeTests
 
         // Yer açılınca yedek alınır, hata ve uyarı kalkar.
         disk.Yedek = disk.Veri = 50L * 1024 * Mb;
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/yedek", null)).StatusCode);
-        durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/yedek", null, TestContext.Current.CancellationToken)).StatusCode);
+        durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Null(durum.Hata);
         Assert.Null(durum.DiskUyarisi);
     }
@@ -256,7 +256,7 @@ public class YedekBelgeTests
         // En yeni 7 otomatik (az önce alınan + 6 sahte) kalır; 4 en eski silindi; elle ve göç öncesi dokunulmadı.
         Assert.All(otomatik.Take(6).Append(yeni).Append(elle).Append(goc), y => Assert.True(File.Exists(y), Path.GetFileName(y)));
         Assert.All(otomatik.Skip(6), y => Assert.False(File.Exists(y), Path.GetFileName(y)));
-        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
+        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(7, durum.OtomatikYedekSayisi);
         Assert.Contains("Yedek:AzamiToplamMb", durum.DiskUyarisi); // korunanlar yine sınırın üstünde
     }

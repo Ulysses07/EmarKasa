@@ -18,6 +18,7 @@ public class AlisEsZamanlilikTests
     [Fact]
     public async Task Eszamanli_duzeltme_ve_iptalde_yalniz_bir_islem_kazanir()
     {
+        var ct = TestContext.Current.CancellationToken;
         var path = Path.Combine(Path.GetTempPath(), "kasa-correction-race-" + Guid.NewGuid().ToString("N") + ".db");
         var connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
         using var rendezvous = new IslemBulusmasi();
@@ -26,14 +27,16 @@ public class AlisEsZamanlilikTests
             await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
             await AlisIsAkisiTests.Prepare(editor);
-            var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
-            var purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels)));
-            purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 40m)));
+            var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar", cancellationToken: ct))!;
+            var purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels), cancellationToken: ct));
+            purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler",
+                new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 40m), cancellationToken: ct));
             var payment = purchase.Odemeler.Single();
             rendezvous.Enabled = true;
             var results = await Task.WhenAll(
-                editor.PutAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{payment.Id}", new AlisOdemeDuzelt(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 60m, "Düzeltilen tutar")),
-                editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{payment.Id}/iptal", new AlisOdemeIptal(purchase.Surum, Guid.NewGuid(), "Ödenmedi")));
+                editor.PutAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{payment.Id}",
+                new AlisOdemeDuzelt(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 60m, "Düzeltilen tutar"), cancellationToken: ct),
+                editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler/{payment.Id}/iptal", new AlisOdemeIptal(purchase.Surum, Guid.NewGuid(), "Ödenmedi"), cancellationToken: ct));
             rendezvous.Enabled = false;
             try
             { Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK); Assert.Single(results, r => r.StatusCode == HttpStatusCode.Conflict); }
@@ -63,15 +66,15 @@ public class AlisEsZamanlilikTests
             await using var factory = new DosyaliFabrika(connectionString, rendezvous);
             using var editor = await factory.EditorClientAsync();
             await AlisIsAkisiTests.Prepare(editor);
-            var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar"))!;
-            var purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels)));
+            var channels = (await editor.GetFromJsonAsync<List<AlisKanalDto>>("/api/alis/kanallar", cancellationToken: TestContext.Current.CancellationToken))!;
+            var purchase = await AlisIsAkisiTests.Read<AlisDto>(await editor.PostAsJsonAsync("/api/alis", AlisIsAkisiTests.Draft(channels), cancellationToken: TestContext.Current.CancellationToken));
             var first = new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), purchase.Tarih, 70m);
             var second = sameRequest ? first : first with { IstekId = Guid.NewGuid() };
             rendezvous.Enabled = true;
 
             var responses = await Task.WhenAll(
-                editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", first),
-                editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", second));
+                editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", first, cancellationToken: TestContext.Current.CancellationToken),
+                editor.PostAsJsonAsync($"/api/alis/{purchase.Id}/odemeler", second, cancellationToken: TestContext.Current.CancellationToken));
             rendezvous.Enabled = false;
             try
             {

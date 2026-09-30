@@ -76,6 +76,7 @@ public class EkstreAktarmaTests
     [Fact]
     public async Task Onizleme_kaydi_kasa_ve_kart_borcu_uretmez_tum_secili_banka_satirlari_bir_kez_islenir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var doc = await Document(f, c);
@@ -98,13 +99,15 @@ public class EkstreAktarmaTests
         var replay = await Save(c, doc, request);
         Assert.Equal(2, replay.Kayitlar.Count);
         Assert.Equal(1150m, (await Panel(c))!.GuncelKasa);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request with { IstekId = Guid.NewGuid(), Surum = saved.Surum })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme",
+            request with { IstekId = Guid.NewGuid(), Surum = saved.Surum }, cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
     public async Task Yalniz_genel_gelir_gider_kanallara_dagilmaz_rapor_ve_iptal_gecmisi_dogru_kalir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var doc = await Document(f, c);
@@ -114,13 +117,14 @@ public class EkstreAktarmaTests
         Assert.Equal(1070m, panel.GuncelKasa);
         Assert.Equal(70m, panel.BuAySonucu);
         Assert.All(panel.Kanallar, k => Assert.Equal(0m, k.Bakiye));
-        var report = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={Today.Year}&ay={Today.Month}"))!;
+        var report = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={Today.Year}&ay={Today.Month}", cancellationToken: ct))!;
         Assert.Equal(100m, report.GenelGelir);
         Assert.Equal(30m, report.GenelGider);
         Assert.Equal(0m, report.DagilimBekleyenTutar);
         var expense = doc.Kayitlar.Single(k => k.IslemTuru == "Gider");
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.IslemId}")).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{expense.IslemId}", new IslemYazDto(Today, "Değiştir", 1m, "MEZAT", GiderTipi.Cari))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.IslemId}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{expense.IslemId}",
+            new IslemYazDto(Today, "Değiştir", 1m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).StatusCode);
         var cancel = new EkstreIptalYaz(Guid.NewGuid(), "Yanlış gider");
         doc = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{doc.Id}/kayitlar/{expense.Id}/iptal", cancel);
         Assert.Equal(1100m, (await Panel(c))!.GuncelKasa);
@@ -135,6 +139,7 @@ public class EkstreAktarmaTests
     [Fact]
     public async Task Kart_harcama_ve_kismi_odeme_ayni_pakette_kaynak_kanallara_dogru_yansir_iptal_kaynak_bagindan_yapilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Card(c);
@@ -142,21 +147,22 @@ public class EkstreAktarmaTests
         var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama", 100m, "Ozel", new(1, 60m), new(2, 40m)), Row(2, "KartOdemesi", 20m, "Otomatik"));
         Assert.Equal(-20m, preview.KasaEtkisi);
         Assert.Equal(new[] { 12m, 8m }, preview.Satirlar[1].Dagilimlar.Select(p => p.Tutar));
-        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Borc);
         doc = await Save(c, doc, request);
-        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!;
         Assert.Equal(80m, card.Borc);
         Assert.Equal(980m, (await Panel(c))!.GuncelKasa);
         Assert.NotNull(Assert.Single(card.Harcamalar).EkstreKayitId);
         Assert.NotNull(Assert.Single(card.Odemeler).EkstreKayitId);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler[0].Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Yanlış"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler/{card.Odemeler[0].Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Yanlış"), cancellationToken: ct)).StatusCode);
         var charge = doc.Kayitlar.Single(k => k.IslemTuru == "KartHarcama");
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kayitlar/{charge.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Ödemeli"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kayitlar/{charge.Id}/iptal",
+            new EkstreIptalYaz(Guid.NewGuid(), "Ödemeli"), cancellationToken: ct)).StatusCode);
         doc = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{doc.Id}/kayitlar/{doc.Kayitlar.Single(k => k.IslemTuru == "KartOdemesi").Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Yanlış ödeme"));
         Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
         doc = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{doc.Id}/kayitlar/{charge.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Yanlış harcama"));
         Assert.All(doc.Kayitlar, k => Assert.True(k.Iptal));
-        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Borc);
     }
 
     [Fact]
@@ -174,7 +180,7 @@ public class EkstreAktarmaTests
         var (refund, preview) = await Preview(c, doc, Row(1, "KartIade", 10m, "Otomatik") with { KaynakHarcamaId = card.Harcamalar[0].Id });
         Assert.Equal(0m, preview.KasaEtkisi);
         await Save(c, doc, refund);
-        Assert.Equal(70m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+        Assert.Equal(70m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!.Borc);
         Assert.Equal(980m, (await Panel(c))!.GuncelKasa);
     }
 
@@ -194,10 +200,10 @@ public class EkstreAktarmaTests
         await Save(c, doc, refund);
         foreach (var path in new[] { "/api/rapor/panel", "/api/rapor/haftalik", "/api/takip/kartlar", $"/api/takip/kartlar/{card.Id}", "/api/takip/ozet" })
         {
-            var response = await c.GetAsync(path);
+            var response = await c.GetAsync(path, TestContext.Current.CancellationToken);
             Assert.True(response.IsSuccessStatusCode, $"{path}: {response.StatusCode}");
         }
-        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(40m, card.Borc);
         Assert.Empty(Assert.Single(card.Odemeler).Dagilimlar);
         Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
@@ -217,7 +223,7 @@ public class EkstreAktarmaTests
         doc = await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{doc.Id}/kayitlar/{cancelled.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Yanlış ödeme"));
         // Belgede aktif ödeme satırı kaldığı için güncel dağılım okunur; iptal edilen ödemenin güncel
         // etkisi yoktur, geçmiş görünümde kaydedildiği andaki payları kalır.
-        foreach (var current in new[] { doc, (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{doc.Id}"))! })
+        foreach (var current in new[] { doc, (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{doc.Id}", cancellationToken: TestContext.Current.CancellationToken))! })
         {
             var row = current.Kayitlar.Single(k => k.SatirNo == 2);
             Assert.True(row.Iptal);
@@ -270,7 +276,7 @@ public class EkstreAktarmaTests
         using var c = await Editor(f);
         var doc = await Document(f, c);
         var request = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [Row(1, "Gider"), Row(99, "Gelir")]);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
         Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -281,16 +287,17 @@ public class EkstreAktarmaTests
     [Fact]
     public async Task Manuel_benzer_kayit_uyarisi_onay_gerektirir_ve_sonradan_eklenirse_eski_onizleme_reddedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var doc = await Document(f, c);
         var (request, preview) = await Preview(c, doc, Row(1, "Gider"));
         Assert.False(preview.TekrarOnayGerekli);
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Manuel banka gideri", 100m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request)).StatusCode);
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Manuel banka gideri", 100m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request, cancellationToken: ct)).StatusCode);
         (request, preview) = await Preview(c, doc, Row(1, "Gider"));
         Assert.True(preview.TekrarOnayGerekli);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false }, cancellationToken: ct)).StatusCode);
         await Save(c, doc, request);
         Assert.Equal(800m, (await Panel(c))!.GuncelKasa);
     }
@@ -300,35 +307,39 @@ public class EkstreAktarmaTests
     [InlineData("Belirsiz", "Belirsiz", true)]
     public async Task Doviz_reddedilir_belirsiz_yon_ve_para_birimi_acik_onay_ister(string currency, string direction, bool allowed)
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var doc = await Document(f, c, currency: currency, direction: direction);
         var request = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [Row(1, "Gider")]);
-        var response = await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request);
+        var response = await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", request, cancellationToken: ct);
         if (!allowed)
         { Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); return; }
         response.EnsureSuccessStatusCode();
-        var preview = (await response.Content.ReadFromJsonAsync<EkstreOnizlemeDto>())!;
+        var preview = (await response.Content.ReadFromJsonAsync<EkstreOnizlemeDto>(cancellationToken: ct))!;
         Assert.True(preview.TekrarOnayGerekli);
         Assert.Contains(preview.Satirlar[0].Uyarilar, s => s.Contains("TL olarak"));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { OnizlemeOzeti = preview.OnizlemeOzeti })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet",
+            request with { OnizlemeOzeti = preview.OnizlemeOzeti }, cancellationToken: ct)).StatusCode);
         Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
     }
 
     [Fact]
     public async Task Kilitli_aya_gelir_gider_ve_kart_kaydi_yazilamaz_iptali_de_yapilamaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var doc = await Document(f, c);
         var previous = new DateOnly(Today.Year, Today.Month, 1).AddDays(-1);
         var (request, _) = await Preview(c, doc, Row(1, "Gelir", 100m, "Genel") with { Tarih = previous });
         doc = await Save(c, doc, request);
-        var state = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
+        var state = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", cancellationToken: ct))!;
         await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), state.Surum, previous.Year, previous.Month, "Kontrol tamam"));
         var invalid = new EkstreKaydetYaz(Guid.NewGuid(), doc.Surum, [Row(2, "Gider") with { Tarih = previous }]);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", invalid)).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kayitlar/{doc.Kayitlar[0].Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Düzelt"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/onizleme", invalid, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kayitlar/{doc.Kayitlar[0].Id}/iptal",
+            new EkstreIptalYaz(Guid.NewGuid(), "Düzelt"), cancellationToken: ct)).StatusCode);
         Assert.Equal(1100m, (await Panel(c))!.GuncelKasa);
     }
 
@@ -341,10 +352,10 @@ public class EkstreAktarmaTests
         var doc = await Document(f, c, "Kart", card.Id);
         var (request, _) = await Preview(c, doc, Row(1, "KartHarcama"));
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Başka harcama", 20m, 1, null, [new(1, 20m)]));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
         var other = await Document(f, c, "Kart", card.Id);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{other.Id}/kaydet", request)).StatusCode);
-        Assert.Equal(20m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{other.Id}/kaydet", request, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(20m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!.Borc);
     }
 
     [Fact]
@@ -362,25 +373,25 @@ public class EkstreAktarmaTests
             return await c.PostAsync("/api/ekstre-aktar/yukle", form);
         }
         var uploaded = await Upload();
-        Assert.True(uploaded.IsSuccessStatusCode, await uploaded.Content.ReadAsStringAsync());
-        var document = (await uploaded.Content.ReadFromJsonAsync<EkstreBelgeDto>())!;
+        Assert.True(uploaded.IsSuccessStatusCode, await uploaded.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var document = (await uploaded.Content.ReadFromJsonAsync<EkstreBelgeDto>(cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Empty(document.Kayitlar);
         Assert.NotEmpty(document.Satirlar);
         var again = await Upload();
-        Assert.Equal(document.Id, (await again.Content.ReadFromJsonAsync<EkstreBelgeDto>())!.Id);
+        Assert.Equal(document.Id, (await again.Content.ReadFromJsonAsync<EkstreBelgeDto>(cancellationToken: TestContext.Current.CancellationToken))!.Id);
         Assert.Equal(HttpStatusCode.Conflict, (await Upload("Başka hesap")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Upload(bytes: "not pdf"u8.ToArray())).StatusCode);
-        var file = await c.GetAsync($"/api/ekstre-aktar/{document.Id}/dosya");
+        var file = await c.GetAsync($"/api/ekstre-aktar/{document.Id}/dosya", TestContext.Current.CancellationToken);
         Assert.Equal("attachment", file.Content.Headers.ContentDisposition!.DispositionType);
         Assert.Equal("application/pdf", file.Content.Headers.ContentType!.MediaType);
         Assert.Equal("nosniff", file.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal(1000m, (await Panel(c))!.GuncelKasa);
         using var anonymous = f.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/ekstre-aktar/{document.Id}/dosya")).StatusCode);
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/ekstre-aktar/{document.Id}/dosya", TestContext.Current.CancellationToken)).StatusCode);
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/ekstre-aktar")).StatusCode);
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/ekstre-aktar", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
@@ -399,22 +410,22 @@ public class EkstreAktarmaTests
                 db.EkstreBelgeler.Add(new() { Kaynak = "Banka", Banka = "QNB", HesapAdi = "Sonraki hesap", DosyaAdi = "sonraki.pdf", DosyaOzeti = Guid.NewGuid().ToString(), Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds() });
             db.SaveChanges();
         }
-        var first = (await c.GetFromJsonAsync<List<EkstreBelgeOzetDto>>("/api/ekstre-aktar"))!;
+        var first = (await c.GetFromJsonAsync<List<EkstreBelgeOzetDto>>("/api/ekstre-aktar", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(50, first.Count);
         Assert.DoesNotContain(first, d => d.Id == original.Id);
-        var next = (await c.GetFromJsonAsync<List<EkstreBelgeOzetDto>>($"/api/ekstre-aktar?beforeId={first[^1].Id}"))!;
+        var next = (await c.GetFromJsonAsync<List<EkstreBelgeOzetDto>>($"/api/ekstre-aktar?beforeId={first[^1].Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(2, next.Count);
         Assert.Contains(next, d => d.Id == original.Id);
         Assert.Empty(next.Select(d => d.Id).Intersect(first.Select(d => d.Id)));
-        var direct = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/kayitlar/{source.Id}"))!;
+        var direct = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/kayitlar/{source.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(original.Id, direct.Id);
         await Post<EkstreBelgeDto>(c, $"/api/ekstre-aktar/{original.Id}/kayitlar/{source.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Eski belge düzeltmesi"));
-        direct = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/kayitlar/{source.Id}"))!;
+        direct = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/kayitlar/{source.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.True(Assert.Single(direct.Kayitlar).Iptal);
-        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/ekstre-aktar/kayitlar/999999")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/ekstre-aktar?beforeId=0")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/ekstre-aktar/kayitlar/999999", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/ekstre-aktar?beforeId=0", TestContext.Current.CancellationToken)).StatusCode);
         using var anonymous = f.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/ekstre-aktar/kayitlar/{source.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/api/ekstre-aktar/kayitlar/{source.Id}", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     // Ayrıştırıcıdan geçen belge: önizleme satırları yüklemede saklanan okuma sonucundan alır.
@@ -470,6 +481,7 @@ public class EkstreAktarmaTests
     [Fact]
     public async Task Tutara_bitisik_olmayan_doviz_kodlu_satir_ek_onayla_kaydedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         // Ayrı döviz kolonundaki "USD" satırı sessizce TL sayılmaz: Belirsiz para birimi ek onay ister, kilitlemez.
         await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"Para Birimi: TL\n{Today:dd.MM.yyyy}  AMAZON EU        USD         -12,00\n" };
         using var c = await Editor(f);
@@ -479,7 +491,7 @@ public class EkstreAktarmaTests
         var (request, preview) = await Preview(c, doc, Row(1, "Gider", 12m, "Genel"));
         Assert.True(preview.TekrarOnayGerekli);
         Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("USD"));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false }, cancellationToken: ct)).StatusCode);
         await Save(c, doc, request);
         Assert.Equal(988m, (await Panel(c))!.GuncelKasa);
     }
@@ -487,6 +499,7 @@ public class EkstreAktarmaTests
     [Fact]
     public async Task Kart_alacak_satiri_harcama_onerilmez_harcama_secilirse_ek_onay_ister()
     {
+        var ct = TestContext.Current.CancellationToken;
         // statement-1: eksi işaretli kart alacağı uyarısız "Kart harcaması" olarak önerilmez.
         await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} ANINDA İNDİRİM -15,00 TL\n" };
         using var c = await Editor(f);
@@ -498,13 +511,14 @@ public class EkstreAktarmaTests
         var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama", 15m));
         Assert.True(preview.TekrarOnayGerekli);
         Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("Kart alacağı"));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
-        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(0m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Borc);
     }
 
     [Fact]
     public async Task Kart_taksit_satiri_onizlemede_taksit_uyarisi_ve_ek_onay_ister()
     {
+        var ct = TestContext.Current.CancellationToken;
         // statement-9: kartta 6 taksitle girilmiş alışın ekstredeki aylık taksidi uyarısız yeni harcama olmaz.
         await using var f = new PdfFabrikasi { Saat = new SabitSaat(Today), Metin = $"{Today:dd.MM.yyyy} MEDIAMARKT 2/6 TAKSİT 150,00 TL\n" };
         using var c = await Editor(f);
@@ -518,8 +532,8 @@ public class EkstreAktarmaTests
         var (request, preview) = await Preview(c, doc, Row(1, "KartHarcama", 150m));
         Assert.True(preview.TekrarOnayGerekli);
         Assert.Contains(preview.Satirlar[0].Uyarilar, w => w.Contains("2/6. taksidi"));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false })).StatusCode);
-        Assert.Equal(debt, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Borc);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/ekstre-aktar/{doc.Id}/kaydet", request with { TekrarOnay = false }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(debt, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Borc);
     }
 
     private sealed class PdfFabrikasi : KasaWebFactory

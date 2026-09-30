@@ -54,34 +54,35 @@ public class OkumaYoluTests
     [InlineData("/api/ay-kilidi", "AyKilidiOlaylar")]
     public async Task Uzun_okuma_surerken_paralel_yazma_beklemeden_tamamlanir(string uc, string tablo)
     {
+        var ct = TestContext.Current.CancellationToken;
         var kapi = new OkumaKapisi();
         await using var f = new DosyaFabrikasi { Kesiciler = [kapi] };
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2026, 1, 1), kasaAcilisDevri = 1_000m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2026, 1, 1), kasaAcilisDevri = 1_000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var kart = await AltinTohum.Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Kart", 10_000m, 5, 15, new(2026, 1, 1), 100m, [new(1, 100m)]));
         await AltinTohum.Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, new(2026, 2, 1), 40m));
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 3, 1), "Önceki", 10m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 3, 1), "Önceki", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
         await AltinTohum.Post<AlisDto>(c, "/api/alis", new AlisYaz(0, new(2026, 3, 1), "Satıcı", null, [new("Mal", 50m, [new(1, 50m)])]));
-        var once = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa;
+        var once = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa;
 
         kapi.Kur(tablo);
-        var okuma = c.GetAsync(uc);
+        var okuma = c.GetAsync(uc, ct);
         Assert.True(await kapi.Girildi(), "Okuma beklenen tabloya ulaşmadı.");
         HttpResponseMessage yazma;
         var sure = Stopwatch.StartNew();
         try
-        { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 9, 1), "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari)); }
+        { yazma = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(new(2026, 9, 1), "Okuma sırasında", 25m, "MEZAT", GiderTipi.Cari), cancellationToken: ct); }
         finally { sure.Stop(); kapi.Birak(); }
         var okumaYaniti = await okuma;
         Assert.Equal(HttpStatusCode.Created, yazma.StatusCode);
         Assert.True(sure.Elapsed < TimeSpan.FromSeconds(3), $"Yazma okumayı {sure.ElapsedMilliseconds} ms bekledi.");
         Assert.Equal(HttpStatusCode.OK, okumaYaniti.StatusCode);
-        var govde = await okumaYaniti.Content.ReadAsStringAsync();
+        var govde = await okumaYaniti.Content.ReadAsStringAsync(ct);
         // Okuma, başladığı andaki anlık görüntüyü görür; paralel yazma sonraki okumada görünür.
         Assert.DoesNotContain("Okuma sırasında", govde);
         if (uc == "/api/rapor/panel")
             Assert.Equal(once, JsonNode.Parse(govde)!["guncelKasa"]!.GetValue<decimal>());
-        Assert.Equal(once - 25m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(once - 25m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
     }
 
     [Fact]
@@ -135,7 +136,7 @@ public class OkumaYoluTests
         List<DateOnly> kesimler;
         do
         {
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
             using var db = f.Baglam();
             kesimler = db.TakipEkstreler.AsNoTracking().Select(e => e.KesimTarihi).OrderBy(d => d).ToList();
         } while (kesimler.Count < 2 && bekle.Elapsed < TimeSpan.FromSeconds(15));

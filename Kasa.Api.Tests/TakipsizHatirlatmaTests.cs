@@ -78,7 +78,7 @@ public class TakipsizHatirlatmaTests
         var id = EskiKart(f, "Bonus", 1000m, [(new(2026, 9, 10), 500m), (new(2026, 9, 20), 200m)], []);
 
         // Eski modelin mevcut hesabı yeniden kullanılır: olay tutarı kart listesinin EkstreBorc'u ile aynıdır.
-        var liste = await c.GetFromJsonAsync<JsonElement>("/api/kredikartlari");
+        var liste = await c.GetFromJsonAsync<JsonElement>("/api/kredikartlari", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(1500m, liste.EnumerateArray().Single(k => k.GetProperty("id").GetInt32() == id).GetProperty("ekstreBorc").GetDecimal());
 
         var olaylar = Olaylar(f).Where(e => e.KaynakId == id && e.Kaynak == "Kart").ToList();
@@ -104,7 +104,7 @@ public class TakipsizHatirlatmaTests
         using (var scope = f.Services.CreateScope())
         {
             var servis = ActivatorUtilities.CreateInstance<BildirimServisi>(scope.ServiceProvider, NullLogger<BildirimServisi>.Instance);
-            await servis.Yenile();
+            await servis.Yenile(TestContext.Current.CancellationToken);
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
             var satir = Assert.Single(db.Set<BildirimEntity>().AsNoTracking().Where(b => b.KaynakId == id && b.Tur == "SonOdeme" && !b.Iptal).ToList());
             Assert.Equal(("Ödemeye 3 gün kaldı", $"/#cards/{id}"), (satir.Baslik, satir.Hedef));
@@ -156,7 +156,7 @@ public class TakipsizHatirlatmaTests
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kart.Surum, new(2026, 9, 10), "Malzeme", 250m, 1, null, [new(1, 250m)]));
         var kredi = await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "Takipli kredi", 300m, Bugun.AddDays(-10), Bugun.AddDays(3), 3, 100m, [1]));
         var once = Olaylar(f);
-        var ozetOnce = await c.GetStringAsync("/api/takip/ozet?gun=366");
+        var ozetOnce = await c.GetStringAsync("/api/takip/ozet?gun=366", TestContext.Current.CancellationToken);
         Assert.Contains(once, e => e.KaynakId == kart.Id && e.Tur == "SonOdeme");
         Assert.Contains(once, e => e.KaynakId == kredi.Id && e.Tur == "Taksit");
 
@@ -171,7 +171,7 @@ public class TakipsizHatirlatmaTests
         Assert.Contains(sonra, e => e.Kaynak == "Kart" && e.KaynakId == eskiKart);
         Assert.Contains(sonra, e => e.Kaynak == "Kredi" && e.KaynakId == eskiKredi);
         // Takip özeti (ana sayfa "yaklaşan ödemeler") olayları değişmez; eski model olayları yalnız bildirim hattına girer.
-        var ozetSonra = await c.GetStringAsync("/api/takip/ozet?gun=366");
+        var ozetSonra = await c.GetStringAsync("/api/takip/ozet?gun=366", TestContext.Current.CancellationToken);
         Assert.Equal(JsonDocument.Parse(ozetOnce).RootElement.GetProperty("olaylar").GetRawText(), JsonDocument.Parse(ozetSonra).RootElement.GetProperty("olaylar").GetRawText());
         Assert.DoesNotContain("eskiModel", ozetSonra, StringComparison.OrdinalIgnoreCase);
     }
@@ -220,7 +220,7 @@ public class TakipsizHatirlatmaTests
         using var c = await Editor(f);
         await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Takipli", 10_000m, 18, 28, Baslangic, 0, []));
         // Takipsiz kayıt yokken alan yazılmaz (yanıt biçimi aynen korunur).
-        Assert.False((await c.GetFromJsonAsync<JsonElement>("/api/rapor/ana-sayfa?gun=30")).TryGetProperty("takipsizKayitlar", out _));
+        Assert.False((await c.GetFromJsonAsync<JsonElement>("/api/rapor/ana-sayfa?gun=30", cancellationToken: TestContext.Current.CancellationToken)).TryGetProperty("takipsizKayitlar", out _));
 
         var borcsuz = EskiKart(f, "Borçsuz eski kart", 0m, [], []);
         var bonus = EskiKart(f, "Bonus", 1000m, [], []);
@@ -228,7 +228,7 @@ public class TakipsizHatirlatmaTests
         EskiKredi(f, "Biten kredi", new(2025, 1, 1), 3, 10);
         var bozuk = EskiKredi(f, "Bozuk plan", new(2026, 8, 1), 6, 0);
 
-        var json = await c.GetFromJsonAsync<JsonElement>("/api/rapor/ana-sayfa?gun=30");
+        var json = await c.GetFromJsonAsync<JsonElement>("/api/rapor/ana-sayfa?gun=30", cancellationToken: TestContext.Current.CancellationToken);
         var liste = json.GetProperty("takipsizKayitlar").EnumerateArray()
             .Select(k => (k.GetProperty("kaynak").GetString(), k.GetProperty("id").GetInt32(), k.GetProperty("ad").GetString())).ToList();
         // Kartlar geçiş yapılana kadar listede kalır; kredi yalnız kalan taksidi varsa (geçersiz planın kalanı bilinmez: listede).

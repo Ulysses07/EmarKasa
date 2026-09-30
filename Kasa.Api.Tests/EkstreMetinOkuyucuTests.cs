@@ -327,7 +327,7 @@ public class EkstreMetinOkuyucuTests
     public async Task Pdf_imzasi_gecersizse_harici_islem_baslatilmaz()
     {
         var reader = new PdfMetinOkuyucu(new ConfigurationBuilder().Build());
-        var error = await Assert.ThrowsAsync<PdfOkumaException>(() => reader.OkuAsync("not a PDF"u8.ToArray()));
+        var error = await Assert.ThrowsAsync<PdfOkumaException>(() => reader.OkuAsync("not a PDF"u8.ToArray(), TestContext.Current.CancellationToken));
         Assert.Equal(400, error.StatusCode);
     }
 }

@@ -46,14 +46,14 @@ public class AlisOdemeTasimaKilidiTests
         using var c = await Editor(f);
         var (alis, p1) = await KurusAlisi(c);
         var hedef = await Hedef(c);
-        var once = await c.GetStringAsync(Rapor);
+        var once = await c.GetStringAsync(Rapor, TestContext.Current.CancellationToken);
         await Kapat(c);
 
         using var r = await Tasi(c, alis, p1, hedef);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Contains("kilitli", await AlisTestYardimcisi.Hata(r));
         await RaporDegismedi(f, c, once);
-        var sonra = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!;
+        var sonra = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(2, sonra.Single(a => a.Id == alis.Id).Odemeler.Count);
         Assert.Empty(sonra.Single(a => a.Id == hedef.Id).Odemeler);
     }
@@ -74,14 +74,14 @@ public class AlisOdemeTasimaKilidiTests
         var odemeler = kaynak.Odemeler.OrderBy(o => o.Id).ToArray();
         Assert.Equal([Today, Old, Today], odemeler.Select(o => o.Tarih));
         var hedef = await Hedef(c);
-        var once = await c.GetStringAsync(Rapor);
+        var once = await c.GetStringAsync(Rapor, TestContext.Current.CancellationToken);
         await Kapat(c);
 
         using (var serbest = await Tasi(c, kaynak, odemeler[2], hedef))
-            Assert.True(serbest.IsSuccessStatusCode, await serbest.Content.ReadAsStringAsync());
+            Assert.True(serbest.IsSuccessStatusCode, await serbest.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         await RaporDegismedi(f, c, once);
 
-        var guncel = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!;
+        var guncel = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!;
         kaynak = guncel.Single(a => a.Id == kaynak.Id);
         hedef = guncel.Single(a => a.Id == hedef.Id);
         Assert.Equal(odemeler[2].Id, Assert.Single(hedef.Odemeler).Id);
@@ -91,7 +91,7 @@ public class AlisOdemeTasimaKilidiTests
             Assert.Contains("kilitli", await AlisTestYardimcisi.Hata(kilitli));
         }
         await RaporDegismedi(f, c, once);
-        Assert.Equal(2, (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == kaynak.Id).Odemeler.Count);
+        Assert.Equal(2, (await c.GetFromJsonAsync<AlisDto[]>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!.Single(a => a.Id == kaynak.Id).Odemeler.Count);
     }
 
     [Fact]
@@ -109,18 +109,18 @@ public class AlisOdemeTasimaKilidiTests
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .01m, KrediKartiId: kart.Id));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/gonder", new AlisDurumYaz(kaynak.Surum));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/onayla", new AlisDurumYaz(kaynak.Surum));
-        kart = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}"))!;
+        kart = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{kart.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(Today, Assert.Single(kart.Harcamalar).Tarih);
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kart.Surum, Old, .01m));
         var hedef = await Hedef(c);
-        var once = await c.GetStringAsync(Rapor);
+        var once = await c.GetStringAsync(Rapor, TestContext.Current.CancellationToken);
         await Kapat(c);
 
         using var r = await Tasi(c, kaynak, p1, hedef);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Contains("kilitli", await AlisTestYardimcisi.Hata(r));
         await RaporDegismedi(f, c, once);
-        Assert.Empty((await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == hedef.Id).Odemeler);
+        Assert.Empty((await c.GetFromJsonAsync<AlisDto[]>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!.Single(a => a.Id == hedef.Id).Odemeler);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class AlisOdemeTasimaKilidiTests
         hedef = await Post<AlisDto>(c, $"/api/alis/{hedef.Id}/odemeler", new AlisOdemeYaz(hedef.Surum, Guid.NewGuid(), Old, .01m));
         hedef = await Post<AlisDto>(c, $"/api/alis/{hedef.Id}/gonder", new AlisDurumYaz(hedef.Surum));
         hedef = await Post<AlisDto>(c, $"/api/alis/{hedef.Id}/onayla", new AlisDurumYaz(hedef.Surum));
-        var once = await c.GetStringAsync(Rapor);
+        var once = await c.GetStringAsync(Rapor, TestContext.Current.CancellationToken);
         await Kapat(c);
 
         using var r = await Tasi(c, kaynak, tasinan, hedef);
@@ -154,13 +154,13 @@ public class AlisOdemeTasimaKilidiTests
         // Onaysız kaynakta pay türetilmez (dağılım bekliyor): P1'in çıkması kilitli P2'nin kasaya etkisini değiştirmez.
         var (alis, p1) = await KurusAlisi(c, onayla: false);
         var hedef = await Hedef(c);
-        var once = await c.GetStringAsync(Rapor);
+        var once = await c.GetStringAsync(Rapor, TestContext.Current.CancellationToken);
         await Kapat(c);
 
         using var r = await Tasi(c, alis, p1, hedef);
-        Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
+        Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         await RaporDegismedi(f, c, once);
-        Assert.Single((await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == hedef.Id).Odemeler);
+        Assert.Single((await c.GetFromJsonAsync<AlisDto[]>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!.Single(a => a.Id == hedef.Id).Odemeler);
 
         // Kilitli dönem ödemesi hiç olmayan onaylı alışlar arasında taşıma da serbesttir.
         var kaynak = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Onaylı", null, [new("Mal", 1m, [new(1, .4m), new(2, .6m)])]));
@@ -168,9 +168,9 @@ public class AlisOdemeTasimaKilidiTests
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/odemeler", new AlisOdemeYaz(kaynak.Surum, Guid.NewGuid(), Today, .3m));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/gonder", new AlisDurumYaz(kaynak.Surum));
         kaynak = await Post<AlisDto>(c, $"/api/alis/{kaynak.Id}/onayla", new AlisDurumYaz(kaynak.Surum));
-        hedef = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis"))!.Single(a => a.Id == hedef.Id);
+        hedef = (await c.GetFromJsonAsync<AlisDto[]>("/api/alis", cancellationToken: TestContext.Current.CancellationToken))!.Single(a => a.Id == hedef.Id);
         using var serbest = await Tasi(c, kaynak, kaynak.Odemeler.OrderBy(o => o.Id).First(), hedef);
-        Assert.True(serbest.IsSuccessStatusCode, await serbest.Content.ReadAsStringAsync());
+        Assert.True(serbest.IsSuccessStatusCode, await serbest.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         await RaporDegismedi(f, c, once);
     }
 

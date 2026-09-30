@@ -15,20 +15,20 @@ public class GuvenliOturumTests
     {
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "onceki-sifre" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "onceki-sifre" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        var giris = await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "onceki-sifre" });
+        var giris = await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "onceki-sifre" }, cancellationToken: TestContext.Current.CancellationToken);
         giris.EnsureSuccessStatusCode();
-        var oturum = await giris.Content.ReadFromJsonAsync<Giris>();
+        var oturum = await giris.Content.ReadFromJsonAsync<Giris>(cancellationToken: TestContext.Current.CancellationToken);
         using var bearer = f.CreateClient();
         bearer.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oturum!.Token);
-        Assert.Equal(HttpStatusCode.OK, (await bearer.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await bearer.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)).StatusCode);
 
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifre" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await bearer.GetAsync("/api/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await viewer.GetAsync("/api/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await editor.GetAsync("/api/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-izleyici-sifre" })).StatusCode);
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifre" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await bearer.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await viewer.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await editor.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-izleyici-sifre" }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
@@ -36,13 +36,13 @@ public class GuvenliOturumTests
     {
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var viewer = f.CreateClient();
-        (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
-        var login = await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" });
-        var oturum = await login.Content.ReadFromJsonAsync<Giris>();
+        (await viewer.PostAsJsonAsync("/api/auth/login", new { sifre = "izleyici-sifresi" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var login = await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: TestContext.Current.CancellationToken);
+        var oturum = await login.Content.ReadFromJsonAsync<Giris>(cancellationToken: TestContext.Current.CancellationToken);
         viewer.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", oturum!.Token);
-        var me = await viewer.GetFromJsonAsync<RolYanit>("/api/auth/me");
+        var me = await viewer.GetFromJsonAsync<RolYanit>("/api/auth/me", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("editor", me!.Rol);
     }
 
@@ -53,7 +53,7 @@ public class GuvenliOturumTests
         using var c = f.CreateClient();
         c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
             JwtYardimci.Uret("editor", "test-jwt-anahtari-en-az-32-bayt-olmali!!", "eski-damga"));
-        Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class GuvenliOturumTests
         await using var f = new KasaWebFactory();
         using var c = f.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await c.PostAsJsonAsync("/api/auth/login", new { sifre = (string?)null })).StatusCode);
+            (await c.PostAsJsonAsync("/api/auth/login", new { sifre = (string?)null }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Theory]

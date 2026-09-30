@@ -28,7 +28,7 @@ public class GelirEsZamanlilikTests
             using var editor = await factory.EditorClientAsync();
             var amounts = new[] { 100.01m, 200.02m, 300.03m, 400.04m };
             var period = new DateOnly(2026, 9, 1);
-            using (var settings = await editor.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = period, kasaAcilisDevri = 0m }))
+            using (var settings = await editor.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = period, kasaAcilisDevri = 0m }, cancellationToken: TestContext.Current.CancellationToken))
                 settings.EnsureSuccessStatusCode();
 
             // Interceptor, her isteği INSERT çalışmadan hemen önce bekletir. Dördü
@@ -48,7 +48,7 @@ public class GelirEsZamanlilikTests
             Assert.Equal(requestCount, rendezvous.ContextCount);
             Assert.Equal(requestCount, rendezvous.ConnectionCount);
             using var verification = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(connectionString).Options);
-            var saved = Assert.Single(await verification.Gelenler.Where(g => g.DonemStart == period).ToListAsync());
+            var saved = Assert.Single(await verification.Gelenler.Where(g => g.DonemStart == period).ToListAsync(cancellationToken: TestContext.Current.CancellationToken));
             Assert.NotNull(saved.KanalId);
             Assert.Equal("MEZAT", saved.Kanal);
             Assert.Contains(saved.TutarTl, amounts); // Son yazan kazanır; dört tutar toplanmaz.

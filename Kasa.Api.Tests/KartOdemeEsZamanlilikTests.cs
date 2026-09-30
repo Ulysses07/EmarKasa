@@ -20,6 +20,7 @@ public class KartOdemeEsZamanlilikTests
     [InlineData(true)]
     public async Task Fiziksel_SQLite_farkli_baglantili_kart_odemeleri_surumu_ve_istek_tekrarini_korur(bool sameRequest)
     {
+        var ct = TestContext.Current.CancellationToken;
         var path = Path.Combine(Path.GetTempPath(), "kasa-card-race-" + Guid.NewGuid().ToString("N") + ".db");
         var cs = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false, ForeignKeys = true }.ToString();
         using var rendezvous = new IslemBulusmasi();
@@ -28,14 +29,14 @@ public class KartOdemeEsZamanlilikTests
             await using var factory = new DosyaliFabrika(cs, rendezvous) { Saat = new SabitSaat(KasaWebFactory.VarsayilanBugun) };
             using var c = await factory.EditorClientAsync();
             var today = factory.Bugun;
-            (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = today, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
-            var create = await c.PostAsJsonAsync("/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Yarış", 1000m, 5, 25, today, 100m, [new(1, 100m)]));
+            (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = today, kasaAcilisDevri = 1000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+            var create = await c.PostAsJsonAsync("/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Yarış", 1000m, 5, 25, today, 100m, [new(1, 100m)]), cancellationToken: ct);
             create.EnsureSuccessStatusCode();
-            var card = (await create.Content.ReadFromJsonAsync<KartTakipDto>())!;
+            var card = (await create.Content.ReadFromJsonAsync<KartTakipDto>(cancellationToken: ct))!;
             var request = new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, today, 60m);
             rendezvous.Enabled = true;
-            var responses = await Task.WhenAll(c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", request),
-                c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", sameRequest ? request : request with { IstekId = Guid.NewGuid() }));
+            var responses = await Task.WhenAll(c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", request, cancellationToken: ct),
+                c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", sameRequest ? request : request with { IstekId = Guid.NewGuid() }, cancellationToken: ct));
             rendezvous.Enabled = false;
             try
             {
@@ -48,7 +49,7 @@ public class KartOdemeEsZamanlilikTests
             Assert.Single(db.TakipKartOdemeler);
             Assert.Equal(60m, db.TakipKartOdemeler.Single().Tutar);
             Assert.Equal(1, db.FinansIstekler.Count(r => r.Tur == "KartOdeme"));
-            Assert.Equal(940m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+            Assert.Equal(940m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
         }
         finally { foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(path + suffix); }
     }

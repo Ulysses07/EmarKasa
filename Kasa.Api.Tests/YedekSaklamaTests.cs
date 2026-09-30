@@ -136,7 +136,7 @@ public class YedekSaklamaTests
 
         for (var i = 0; i < 40; i++)
         {
-            using var r = await c.PostAsync("/api/yedek", null);
+            using var r = await c.PostAsync("/api/yedek", null, TestContext.Current.CancellationToken);
             r.EnsureSuccessStatusCode();
             Assert.StartsWith("kasa-elle-", r.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         }
@@ -146,7 +146,7 @@ public class YedekSaklamaTests
         Assert.All(eskiElle, yol => Assert.False(File.Exists(yol), "Elle yedekler kendi aralarında dönmeli."));
         Assert.Equal(10, Directory.GetFiles(f.Dizin, "kasa-elle-*.zip").Length);
 
-        var durum = await c.GetFromJsonAsync<JsonElement>("/api/yedek/durum");
+        var durum = await c.GetFromJsonAsync<JsonElement>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken);
         foreach (var alan in new[] { "otomatikEtkin", "sonYedek", "sonDogrulama", "hata" })
             Assert.True(durum.TryGetProperty(alan, out _), alan);
         Assert.Equal(45, durum.GetProperty("otomatikYedekSayisi").GetInt32());
@@ -175,9 +175,9 @@ public class YedekSaklamaTests
         silinemeyen = elle[^1];
         using var c = await f.EditorClientAsync();
 
-        using (var r = await c.PostAsync("/api/yedek", null))
+        using (var r = await c.PostAsync("/api/yedek", null, TestContext.Current.CancellationToken))
             r.EnsureSuccessStatusCode();
-        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
+        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Null(durum.Hata);
         Assert.Equal(Simdi, durum.SonDogrulama);
         Assert.NotNull(durum.RotasyonUyarisi);
@@ -186,9 +186,9 @@ public class YedekSaklamaTests
         Assert.Equal(11, Directory.GetFiles(f.Dizin, "kasa-elle-*.zip").Length);
 
         kilitli = false;
-        using (var r = await c.PostAsync("/api/yedek", null))
+        using (var r = await c.PostAsync("/api/yedek", null, TestContext.Current.CancellationToken))
             r.EnsureSuccessStatusCode();
-        var json = await c.GetFromJsonAsync<JsonElement>("/api/yedek/durum");
+        var json = await c.GetFromJsonAsync<JsonElement>("/api/yedek/durum", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(JsonValueKind.Null, json.GetProperty("rotasyonUyarisi").ValueKind);
         Assert.Equal(10, Directory.GetFiles(f.Dizin, "kasa-elle-*.zip").Length);
         Assert.False(File.Exists(silinemeyen));
@@ -231,7 +231,7 @@ public class YedekSaklamaTests
         _ = f.Services; // sunucuyu ve OtomatikYedek arka plan servisini başlatır
         var sure = System.Diagnostics.Stopwatch.StartNew();
         while (Directory.GetFiles(f.Dizin, "kasa-oto-*.zip").Length == 0 && sure.Elapsed < TimeSpan.FromSeconds(30))
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
 
         // Otomatik yedek sunucunun saatiyle adlandırılır: elle yedekten 5 dakika sonra, aynı günde.
         var oto = Assert.Single(Directory.GetFiles(f.Dizin, "kasa-oto-*.zip"));

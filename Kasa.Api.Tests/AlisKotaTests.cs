@@ -30,13 +30,13 @@ public class AlisKotaTests
         await AlisTestYardimcisi.Taslak(alici, "Birinci");
         var ikinci = await AlisTestYardimcisi.Taslak(alici, "İkinci");
 
-        using var ucuncu = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Üçüncü"));
+        using var ucuncu = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Üçüncü"), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, ucuncu.StatusCode);
         Assert.Contains("En fazla 2 açık taslak", await AlisTestYardimcisi.Hata(ucuncu));
 
         // Taslak incelemeye gönderilince açık taslak kotasında yer açılır (onay bekleyen kotası ayrıca sınırlar, aşağıda);
         // editörün kendi taslakları hiç sayılmaz.
-        (await alici.PostAsJsonAsync($"/api/alis/{ikinci.Id}/gonder", new AlisDurumYaz(ikinci.Surum))).EnsureSuccessStatusCode();
+        (await alici.PostAsJsonAsync($"/api/alis/{ikinci.Id}/gonder", new AlisDurumYaz(ikinci.Surum), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         await AlisTestYardimcisi.Taslak(alici, "Üçüncü");
         for (var i = 0; i < 3; i++)
             await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
@@ -45,6 +45,7 @@ public class AlisKotaTests
     [Fact]
     public async Task Onay_bekleyen_alis_sayisi_gonder_donguyle_asilamaz_yalniz_editor_onayi_yer_acar()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:AcikTaslak"] = "2", ["Kasa:AliciKota:OnayBekleyen"] = "3" });
         using var editor = await f.EditorClientAsync();
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-bekleyen");
@@ -53,7 +54,7 @@ public class AlisKotaTests
         var gonderilenler = new List<AlisDto>();
         for (var i = 0; i < 3; i++)
             gonderilenler.Add(await AlisTestYardimcisi.Gonder(alici, await AlisTestYardimcisi.Taslak(alici, $"Döngü {i}")));
-        using (var dorduncu = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Dördüncü")))
+        using (var dorduncu = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Dördüncü"), cancellationToken: ct))
         {
             Assert.Equal(HttpStatusCode.Conflict, dorduncu.StatusCode);
             Assert.Contains("Onay bekleyen (taslak ya da incelemedeki) en fazla 3 alışınız", await AlisTestYardimcisi.Hata(dorduncu));
@@ -61,18 +62,18 @@ public class AlisKotaTests
 
         // Editörün iadesi yer açmaz (alış yeniden taslaktır ve hâlâ onay bekler); onay açar.
         var iade = gonderilenler[0];
-        (await editor.PostAsJsonAsync($"/api/alis/{iade.Id}/iade", new AlisDurumYaz(iade.Surum, "Belgeyi ekleyin"))).EnsureSuccessStatusCode();
-        using (var iadeSonrasi = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("İade sonrası")))
+        (await editor.PostAsJsonAsync($"/api/alis/{iade.Id}/iade", new AlisDurumYaz(iade.Surum, "Belgeyi ekleyin"), cancellationToken: ct)).EnsureSuccessStatusCode();
+        using (var iadeSonrasi = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("İade sonrası"), cancellationToken: ct))
             Assert.Equal(HttpStatusCode.Conflict, iadeSonrasi.StatusCode);
-        (await editor.PostAsJsonAsync($"/api/alis/{gonderilenler[1].Id}/onayla", new AlisDurumYaz(gonderilenler[1].Surum))).EnsureSuccessStatusCode();
+        (await editor.PostAsJsonAsync($"/api/alis/{gonderilenler[1].Id}/onayla", new AlisDurumYaz(gonderilenler[1].Surum), cancellationToken: ct)).EnsureSuccessStatusCode();
         await AlisTestYardimcisi.Taslak(alici, "Onay sonrası");
-        using (var yine = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Yine")))
+        using (var yine = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Yine"), cancellationToken: ct))
             Assert.Equal(HttpStatusCode.Conflict, yine.StatusCode);
 
         // Kota alıcı başınadır ve IP'den bağımsızdır: aynı alıcının başka bir oturumu da aşamaz; editör etkilenmez.
         using var ikinciOturum = f.CreateClient();
-        (await ikinciOturum.PostAsJsonAsync("/api/auth/login", new { kullanici = "kota-bekleyen", sifre = "alici-sifre-1" })).EnsureSuccessStatusCode();
-        using (var baskaOturum = await ikinciOturum.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Başka oturum")))
+        (await ikinciOturum.PostAsJsonAsync("/api/auth/login", new { kullanici = "kota-bekleyen", sifre = "alici-sifre-1" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        using (var baskaOturum = await ikinciOturum.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Başka oturum"), cancellationToken: ct))
             Assert.Equal(HttpStatusCode.Conflict, baskaOturum.StatusCode);
         for (var i = 0; i < 4; i++)
             await AlisTestYardimcisi.Taslak(editor, $"Editör {i}");
@@ -100,7 +101,7 @@ public class AlisKotaTests
         }
 
         // Editör onaylayınca onaylı alışın belgeleri bekleyen hacimden çıkar; editörün kendi yüklemesi kotaya takılmaz.
-        (await editor.PostAsJsonAsync($"/api/alis/{ilk.Id}/onayla", new AlisDurumYaz(ilk.Surum))).EnsureSuccessStatusCode();
+        (await editor.PostAsJsonAsync($"/api/alis/{ilk.Id}/onayla", new AlisDurumYaz(ilk.Surum), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(alici, ucuncu.Id, 300 * 1024));
         Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(editor, ucuncu.Id, 900 * 1024));
     }
@@ -127,7 +128,7 @@ public class AlisKotaTests
         }
         // Editör aynı taslağa alıcı kotasından bağımsız ekler (genel sınır: alış başına 30 belge).
         Assert.Equal(HttpStatusCode.Created, await AlisTestYardimcisi.Yukle(editor, taslak.Id, 900 * 1024));
-        Assert.Equal(3, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler"))!.Length);
+        Assert.Equal(3, (await editor.GetFromJsonAsync<BelgeDto[]>($"/api/alis/{taslak.Id}/belgeler", cancellationToken: TestContext.Current.CancellationToken))!.Length);
     }
 
     [Fact]
@@ -196,27 +197,29 @@ public class AlisKotaTests
     [Fact]
     public async Task Idempotent_tekrar_kota_doluyken_de_ilk_sonucu_doner()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = AlisTestYardimcisi.KotaFabrikasi(new() { ["Kasa:AliciKota:AcikTaslak"] = "1" });
         using var editor = await f.EditorClientAsync();
         using var alici = await AlisTestYardimcisi.Alici(f, editor, "kota-tekrar");
         var istek = new { surum = 0, tarih = Bugun, tedarikci = "Tekrar", not = (string?)null, kalemler = Array.Empty<object>(), istekId = Guid.NewGuid() };
-        using var ilk = await alici.PostAsJsonAsync("/api/alis", istek);
+        using var ilk = await alici.PostAsJsonAsync("/api/alis", istek, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Created, ilk.StatusCode);
-        using var tekrar = await alici.PostAsJsonAsync("/api/alis", istek);
+        using var tekrar = await alici.PostAsJsonAsync("/api/alis", istek, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.OK, tekrar.StatusCode);
-        Assert.Equal((await ilk.Content.ReadFromJsonAsync<AlisDto>())!.Id, (await tekrar.Content.ReadFromJsonAsync<AlisDto>())!.Id);
-        using var yeni = await alici.PostAsJsonAsync("/api/alis", istek with { istekId = Guid.NewGuid() });
+        Assert.Equal((await ilk.Content.ReadFromJsonAsync<AlisDto>(cancellationToken: ct))!.Id, (await tekrar.Content.ReadFromJsonAsync<AlisDto>(cancellationToken: ct))!.Id);
+        using var yeni = await alici.PostAsJsonAsync("/api/alis", istek with { istekId = Guid.NewGuid() }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, yeni.StatusCode);
     }
 
     [Fact]
     public async Task Belge_yukleme_ve_alis_olusturma_kullanici_ve_ip_basina_hiz_sinirinda_turkce_429_doner()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi(new() { ["Kasa:HizSiniri:AlisYuklemeIzni"] = "3", ["Kasa:HizSiniri:EditorAlisYuklemeIzni"] = "6" });
         using var kurulum = Istemci(f, "198.51.100.1");
         (await Giris(kurulum, "editor", "kasa123")).EnsureSuccessStatusCode();
-        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("hiz-alici", "Hız Alıcısı", "alici-sifre-1"))).EnsureSuccessStatusCode();
-        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("hiz-komsu", "Aynı ağdaki alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("hiz-alici", "Hız Alıcısı", "alici-sifre-1"), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("hiz-komsu", "Aynı ağdaki alıcı", "alici-sifre-1"), cancellationToken: ct)).EnsureSuccessStatusCode();
         using var alici = Istemci(f, "203.0.113.5");
         (await Giris(alici, "hiz-alici", "alici-sifre-1")).EnsureSuccessStatusCode();
 
@@ -229,10 +232,10 @@ public class AlisKotaTests
             Assert.True(red.Headers.RetryAfter?.Delta > TimeSpan.Zero, "Retry-After başlığı saniye olarak gelmeli.");
             Assert.StartsWith("Belge yükleme ve alış kaydı sınırına ulaşıldı: 10 dakikada en çok 3", await AlisTestYardimcisi.Hata(red));
         }
-        using (var red = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Sınır sonrası")))
+        using (var red = await alici.PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Sınır sonrası"), cancellationToken: ct))
             Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
         // Okuma ve düzenleme bu kovayı tüketmez.
-        (await alici.GetAsync($"/api/alis/{taslak.Id}/belgeler")).EnsureSuccessStatusCode();
+        (await alici.GetAsync($"/api/alis/{taslak.Id}/belgeler", ct)).EnsureSuccessStatusCode();
 
         // Aynı ağdaki başka alıcı ve aynı alıcının başka ağdaki oturumu ayrı kovadadır.
         using var komsu = Istemci(f, "203.0.113.5");
@@ -254,11 +257,12 @@ public class AlisKotaTests
     [Fact]
     public async Task Alicinin_saatlik_ust_kovasi_ipden_bagimsizdir_farkli_aglar_cogaltamaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new VekilFabrikasi(new() { ["Kasa:HizSiniri:AlisYuklemeIzni"] = "100", ["Kasa:HizSiniri:AliciSaatlikAlisYuklemeIzni"] = "4" });
         using var kurulum = Istemci(f, "198.51.100.1");
         (await Giris(kurulum, "editor", "kasa123")).EnsureSuccessStatusCode();
-        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("saatlik-alici", "Saatlik alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
-        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("saatlik-komsu", "Aynı ağdaki alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("saatlik-alici", "Saatlik alıcı", "alici-sifre-1"), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await kurulum.PostAsJsonAsync("/api/alicilar", new AliciYaz("saatlik-komsu", "Aynı ağdaki alıcı", "alici-sifre-1"), cancellationToken: ct)).EnsureSuccessStatusCode();
         var aglar = new List<HttpClient>();
         foreach (var ip in new[] { "203.0.113.5", "192.0.2.77", "198.51.100.200" })
         {
@@ -278,7 +282,7 @@ public class AlisKotaTests
                 Assert.True(red.Headers.RetryAfter?.Delta > TimeSpan.Zero, "Retry-After başlığı saniye olarak gelmeli.");
                 Assert.StartsWith("Alıcı hesabı için belge yükleme ve alış kaydı sınırına ulaşıldı: 1 saatte en çok 4", await AlisTestYardimcisi.Hata(red));
             }
-            using (var red = await aglar[2].PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Sınır sonrası")))
+            using (var red = await aglar[2].PostAsJsonAsync("/api/alis", AlisTestYardimcisi.Govde("Sınır sonrası"), cancellationToken: ct))
                 Assert.Equal(HttpStatusCode.TooManyRequests, red.StatusCode);
 
             // Aynı ağdaki başka alıcı ve editör bu kovadan etkilenmez.

@@ -105,18 +105,19 @@ public class GirdiDogrulamaTests
     [Fact]
     public async Task Api_denetim_karakterli_metni_kaydetmeden_alan_hatasiyla_reddeder()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var cari = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira\u000B", 10m, "MEZAT", GiderTipi.Cari));
+        var cari = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira\u000B", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, cari.StatusCode);
-        Assert.Contains("kontrol karakteri", AlanHatasi(await cari.Content.ReadFromJsonAsync<JsonElement>(), "cari"));
-        var not = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, "MEZAT", GiderTipi.Cari, Not: "Açıklama\u0001"));
+        Assert.Contains("kontrol karakteri", AlanHatasi(await cari.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct), "cari"));
+        var not = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, "MEZAT", GiderTipi.Cari, Not: "Açıklama\u0001"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, not.StatusCode);
-        Assert.Contains("kontrol karakteri", AlanHatasi(await not.Content.ReadFromJsonAsync<JsonElement>(), "not"));
-        var kanal = await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Yeni\u0007kanal"));
+        Assert.Contains("kontrol karakteri", AlanHatasi(await not.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct), "not"));
+        var kanal = await c.PostAsJsonAsync("/api/kanallar", new KanalYazDto("Yeni\u0007kanal"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, kanal.StatusCode);
-        Assert.Contains("kontrol karakteri", AlanHatasi(await kanal.Content.ReadFromJsonAsync<JsonElement>(), "ad"));
-        var kontrol = await c.PostAsJsonAsync("/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(0m, "Sayım\u001F"));
+        Assert.Contains("kontrol karakteri", AlanHatasi(await kanal.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct), "ad"));
+        var kontrol = await c.PostAsJsonAsync("/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(0m, "Sayım\u001F"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, kontrol.StatusCode);
         using (var scope = f.Services.CreateScope())
         {
@@ -125,12 +126,13 @@ public class GirdiDogrulamaTests
             Assert.DoesNotContain(db.Kanallar, k => k.Ad.StartsWith("Yeni"));
         }
         // Sekme ve satır sonu geçerli metindir.
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira\tEylül", 10m, "MEZAT", GiderTipi.Cari, Not: "Satır 1\r\nSatır 2"))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira\tEylül", 10m, "MEZAT", GiderTipi.Cari, Not: "Satır 1\r\nSatır 2"), cancellationToken: ct)).EnsureSuccessStatusCode();
     }
 
     [Fact]
     public async Task Mevcut_kontrol_karakterli_kanal_adina_gider_ve_gelir_girilebilir_yeni_ad_reddedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         // Metin kuralından önce kaydedilmiş, canlı veride bulunabilecek kanal adı: seçim kayıtlı kanalla eşleşir,
@@ -145,19 +147,19 @@ public class GirdiDogrulamaTests
             db.SaveChanges();
             kanalId = kanal.Id;
         }
-        var gider = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, eskiAd, GiderTipi.Cari));
+        var gider = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, eskiAd, GiderTipi.Cari), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Created, gider.StatusCode);
-        var kayit = await gider.Content.ReadFromJsonAsync<JsonElement>();
+        var kayit = await gider.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         Assert.Equal((kanalId, eskiAd), (kayit.GetProperty("kanalId").GetInt32(), kayit.GetProperty("kanal").GetString()));
-        (await c.PutAsJsonAsync($"/api/islemler/{kayit.GetProperty("id").GetInt32()}", new IslemYazDto(Bugun, "Kira", 20m, eskiAd, GiderTipi.Cari))).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Bugun, eskiAd, 50m))).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync($"/api/islemler/{kayit.GetProperty("id").GetInt32()}", new IslemYazDto(Bugun, "Kira", 20m, eskiAd, GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Bugun, eskiAd, 50m), cancellationToken: ct)).EnsureSuccessStatusCode();
 
-        var yok = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, "YOK\u0001KANAL", GiderTipi.Cari));
+        var yok = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Bugun, "Kira", 10m, "YOK\u0001KANAL", GiderTipi.Cari), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, yok.StatusCode);
-        Assert.Equal("Kayıtlı bir kanal seçin.", AlanHatasi(await yok.Content.ReadFromJsonAsync<JsonElement>(), "kanal"));
-        var yeniAd = await c.PutAsJsonAsync($"/api/kanallar/{kanalId}", new KanalYazDto("YENİ\u0002KANAL", Sira: 9));
+        Assert.Equal("Kayıtlı bir kanal seçin.", AlanHatasi(await yok.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct), "kanal"));
+        var yeniAd = await c.PutAsJsonAsync($"/api/kanallar/{kanalId}", new KanalYazDto("YENİ\u0002KANAL", Sira: 9), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, yeniAd.StatusCode);
-        Assert.Contains("kontrol karakteri", AlanHatasi(await yeniAd.Content.ReadFromJsonAsync<JsonElement>(), "ad"));
+        Assert.Contains("kontrol karakteri", AlanHatasi(await yeniAd.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct), "ad"));
         using (var scope = f.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -170,21 +172,23 @@ public class GirdiDogrulamaTests
     [Fact]
     public async Task Aylik_gider_serbest_metinleri_ayni_kontrol_karakteri_kuralina_baglidir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var ay = new DateOnly(Bugun.Year, Bugun.Month, 1);
         const string ileti = "karakterde görünmeyen bir kontrol karakteri ya da geçersiz bir karakter var. Metni yeniden yazın.";
-        var ad = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira\u0007", "Kira", 100m, 1, "Genel", [], ay));
+        var ad = await c.PostAsJsonAsync("/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira\u0007", "Kira", 100m, 1, "Genel", [], ay), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, ad.StatusCode);
         Assert.Equal($"Gider adı: 5. {ileti}", await Hata(ad));
         var sablon = await AylikGiderTests.Post<AylikGiderSablonDto>(c, "/api/aylik-giderler/sablonlar", new AylikGiderSablonYaz(Guid.NewGuid(), 0, "Kira", "Kira", 100m, 1, "Genel", [], ay));
 
-        var not = await c.PostAsJsonAsync($"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\u0001"));
+        var not = await c.PostAsJsonAsync($"/api/aylik-giderler/{sablon.Id}/ode",
+            new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\u0001"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, not.StatusCode);
         Assert.Equal($"Not: 7. {ileti}", await Hata(not));
         var odeme = await AylikGiderTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/{sablon.Id}/ode", new AylikGiderOdemeYaz(Guid.NewGuid(), sablon.Surum, ay.Year, ay.Month, Bugun, "Dekont\tno 5"));
 
-        var iptal = await c.PostAsJsonAsync($"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı\u001F ödeme"));
+        var iptal = await c.PostAsJsonAsync($"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı\u001F ödeme"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, iptal.StatusCode);
         Assert.Equal($"İptal gerekçesi: 7. {ileti}", await Hata(iptal));
         await AylikGiderTests.Post<AylikGiderSatirDto>(c, $"/api/aylik-giderler/odemeler/{odeme.OdemeId}/iptal", new AylikGiderIptalYaz(Guid.NewGuid(), "Hatalı ödeme"));
@@ -220,6 +224,7 @@ public class GirdiDogrulamaTests
     [Fact]
     public async Task Ekstre_yolunda_kontrol_karakterli_satir_temizlenerek_kaydedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new PdfFabrikasi(PdfMetni("MARKET\u0001ALIŞVERİŞİ\u0007")) { Saat = new SabitSaat(Bugun) };
         using var c = await f.EditorClientAsync();
         EkstreBelgeDto belge;
@@ -229,9 +234,9 @@ public class GirdiDogrulamaTests
             form.Add(new StringContent("Akbank"), "banka");
             form.Add(new StringContent("Ana hesap"), "hesapAdi");
             form.Add(new ByteArrayContent("%PDF-1.7 ekstre"u8.ToArray()), "dosya", "ekstre.pdf");
-            using var r = await c.PostAsync("/api/ekstre-aktar/yukle", form);
-            Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
-            belge = (await r.Content.ReadFromJsonAsync<EkstreBelgeDto>())!;
+            using var r = await c.PostAsync("/api/ekstre-aktar/yukle", form, ct);
+            Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync(ct));
+            belge = (await r.Content.ReadFromJsonAsync<EkstreBelgeDto>(cancellationToken: ct))!;
         }
         var okunan = Assert.Single(belge.Satirlar);
         Assert.StartsWith("MARKET ALIŞVERİŞİ", okunan.Aciklama);
@@ -257,7 +262,7 @@ public class GirdiDogrulamaTests
             db.SaveChanges();
             eskiId = eski.Id;
         }
-        var eskiBelge = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{eskiId}"))!;
+        var eskiBelge = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{eskiId}", cancellationToken: ct))!;
         eskiBelge = await Kaydet(c, eskiBelge, new EkstreSatirYaz(1, Bugun, "ESKİ\u0001BELGE\u0007", 20m, "Gider", "Genel", []));
 
         using (var scope = f.Services.CreateScope())
@@ -269,10 +274,10 @@ public class GirdiDogrulamaTests
             Assert.Equal("ESKİ BELGE", db.EkstreKayitlar.Single(k => k.BelgeId == eskiId).Aciklama);
         }
         // Dışa aktarım (XLSX) kaydedilen metni sorunsuz yazar.
-        (await c.GetAsync($"/api/disari-aktar?baslangic={Bugun:yyyy-MM-dd}&bitis={Bugun:yyyy-MM-dd}&bicim=xlsx")).EnsureSuccessStatusCode();
+        (await c.GetAsync($"/api/disari-aktar?baslangic={Bugun:yyyy-MM-dd}&bitis={Bugun:yyyy-MM-dd}&bicim=xlsx", ct)).EnsureSuccessStatusCode();
         // İptal gerekçesi kullanıcı metnidir: kontrol karakteri reddedilir.
         var kayit = Assert.Single(eskiBelge.Kayitlar);
-        var iptal = await c.PostAsJsonAsync($"/api/ekstre-aktar/{eskiId}/kayitlar/{kayit.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Hatalı\u0001 satır"));
+        var iptal = await c.PostAsJsonAsync($"/api/ekstre-aktar/{eskiId}/kayitlar/{kayit.Id}/iptal", new EkstreIptalYaz(Guid.NewGuid(), "Hatalı\u0001 satır"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, iptal.StatusCode);
         Assert.Equal("İptal gerekçesi: 7. karakterde görünmeyen bir kontrol karakteri ya da geçersiz bir karakter var. Metni yeniden yazın.", await Hata(iptal));
     }

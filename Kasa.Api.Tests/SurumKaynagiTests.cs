@@ -17,7 +17,7 @@ public class SurumKaynagiTests
     {
         await using var f = new KasaWebFactory();
         using var c = f.CreateClient();
-        var yanit = await c.GetFromJsonAsync<JsonElement>("/api/surum");
+        var yanit = await c.GetFromJsonAsync<JsonElement>("/api/surum", cancellationToken: TestContext.Current.CancellationToken);
         // Aşama 4 öncesindeki yanıtla aynı alanlar, aynı sırada ve aynı değerlerle; yalnız "surum"un kaynağı değişti.
         Assert.Equal(["surum", "minimumIstemci", "indirmeAdresi", "notlar"], yanit.EnumerateObject().Select(p => p.Name));
         Assert.Equal(KasaSurumu(), yanit.GetProperty("surum").GetString());

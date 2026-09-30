@@ -33,13 +33,13 @@ public class KartBorcOzetiTests
         await Charge(c, await Card(c), 20m, [new(1, 20m)]);
         var credit = await Card(c, -30m);
         Assert.Empty(credit.KanalKartBorclari!);
-        var before = await c.GetStringAsync("/api/rapor/panel");
-        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!;
+        var before = await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken);
+        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(110m, summary.KartBorcu);
         Assert.Equal(30m, summary.KartAlacakBakiyesi);
         AssertShares(summary.KanalKartBorclari, (1, 74m), (2, 36m));
         AssertShares(a.KanalKartBorclari, (1, 54m), (2, 36m));
-        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel"));
+        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
         Assert.Equal(990m, await Cash(c));
     }
 
@@ -105,7 +105,7 @@ public class KartBorcOzetiTests
         Assert.Empty(card.KanalKartBorclari!);
         card = await Charge(c, card, 20m, [new(1, 20m)]);
         Assert.Empty(card.KanalKartBorclari!);
-        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!;
+        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(0m, summary.KartBorcu);
         Assert.Equal(30m, summary.KartAlacakBakiyesi);
         card = await Charge(c, card, 40m, [new(2, 40m)]);
@@ -157,10 +157,10 @@ public class KartBorcOzetiTests
             db.SaveChanges();
             id = card.Id;
         }
-        var old = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!;
+        var old = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", cancellationToken: TestContext.Current.CancellationToken))!;
         AssertShares(old.KanalKartBorclari, (null, 100m));
         Assert.Equal(KanalEtiketleri.DagilimBekliyor, old.KanalKartBorclari!.Single().Kanal);
-        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!;
+        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(100m, summary.KartBorcu);
         Assert.Equal(20m, summary.KartAlacakBakiyesi);
         var moved = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis",
@@ -180,12 +180,12 @@ public class KartBorcOzetiTests
         var purchase = await Post<AlisDto>(c, "/api/alis", new AlisYaz(0, Today, "Mağaza", null,
             [new("Malzeme", 100m, [new(1, 60m), new(2, 40m)])]));
         purchase = await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/odemeler", new AlisOdemeYaz(purchase.Surum, Guid.NewGuid(), Today, 100m, card.Id));
-        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         card = await Pay(c, card, 25m);
         AssertShares(card.KanalKartBorclari, (null, 75m));
         purchase = await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/gonder", new AlisDurumYaz(purchase.Surum));
         await Post<AlisDto>(c, $"/api/alis/{purchase.Id}/onayla", new AlisDurumYaz(purchase.Surum));
-        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         AssertShares(card.KanalKartBorclari, (1, 45m), (2, 30m));
         Assert.Equal(975m, await Cash(c));
     }
@@ -253,7 +253,7 @@ public class KartBorcOzetiTests
         Assert.Empty(cancelled.Dagilimlar);
         foreach (var path in new[] { "/api/rapor/panel", "/api/rapor/haftalik", "/api/takip/kartlar", $"/api/takip/kartlar/{card.Id}", "/api/takip/ozet" })
         {
-            var response = await c.GetAsync(path);
+            var response = await c.GetAsync(path, TestContext.Current.CancellationToken);
             Assert.True(response.IsSuccessStatusCode, $"{path}: {response.StatusCode}");
         }
         Assert.Equal(1000m, await Cash(c));
@@ -278,15 +278,15 @@ public class KartBorcOzetiTests
             db.Database.ExecuteSqlRaw("UPDATE TakipKartOdemeler SET PaylarJson = {0} WHERE Id = {1}",
                 $"[{{\"TaksitId\":{taxId},\"Tutar\":150,\"OncedenOdenen\":0}}]", payment.Id);
         }
-        var response = await c.GetAsync($"/api/takip/kartlar/{card.Id}");
-        Assert.True(response.IsSuccessStatusCode, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-        var broken = (await response.Content.ReadFromJsonAsync<KartTakipDto>())!;
+        var response = await c.GetAsync($"/api/takip/kartlar/{card.Id}", TestContext.Current.CancellationToken);
+        Assert.True(response.IsSuccessStatusCode, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)}");
+        var broken = (await response.Content.ReadFromJsonAsync<KartTakipDto>(cancellationToken: TestContext.Current.CancellationToken))!;
         var shares = broken.Odemeler.Single().Dagilimlar;
         AssertShares(shares, (1, 100m), (null, 50m));
         Assert.Equal(KanalEtiketleri.DagilimBekliyor, shares.Single(p => p.KanalId is null).Kanal);
         Assert.Contains(logs.Uyarilar, m => m.Contains($"ödeme {payment.Id}") && m.Contains("50"));
         foreach (var path in new[] { "/api/rapor/panel", "/api/takip/kartlar", "/api/takip/ozet" })
-            Assert.True((await c.GetAsync(path)).IsSuccessStatusCode, path);
+            Assert.True((await c.GetAsync(path, TestContext.Current.CancellationToken)).IsSuccessStatusCode, path);
     }
 
     [Fact]
@@ -307,8 +307,8 @@ public class KartBorcOzetiTests
         }
         // Rapor istekleri ve dakikalık bildirim işçisi aynı ödemeyi her seferinde yeniden hesaplar.
         foreach (var path in new[] { $"/api/takip/kartlar/{card.Id}", $"/api/takip/kartlar/{card.Id}", "/api/takip/kartlar", "/api/rapor/panel" })
-            Assert.True((await c.GetAsync(path)).IsSuccessStatusCode, path);
-        var broken = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+            Assert.True((await c.GetAsync(path, TestContext.Current.CancellationToken)).IsSuccessStatusCode, path);
+        var broken = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: TestContext.Current.CancellationToken))!;
         AssertShares(broken.Odemeler.Single().Dagilimlar, (1, 100m), (null, 70m));
         Assert.Single(logs.Uyarilar, m => m.Contains($"ödeme {payment.Id}:"));
     }

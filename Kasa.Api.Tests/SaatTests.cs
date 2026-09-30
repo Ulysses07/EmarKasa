@@ -54,7 +54,7 @@ public class SaatTests
         await using var f = new UretimKablolamasi();
         using var c = await f.EditorClientAsync();
         Assert.Same(TimeProvider.System, f.Services.GetRequiredService<TimeProvider>());
-        var sunucu = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih;
+        var sunucu = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", cancellationToken: TestContext.Current.CancellationToken))!.Tarih;
         DateOnly servis;
         using (var scope = f.Services.CreateScope())
             servis = scope.ServiceProvider.GetRequiredService<KasaDbContext>().Bugunu();
@@ -78,7 +78,7 @@ public class SaatTests
         var bugun = new DateOnly(2091, 1, 15);
         await using var f = new UretimKablolamasi(new SabitSaat(bugun));
         using var c = await f.EditorClientAsync();
-        Assert.Equal(bugun, (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih);
+        Assert.Equal(bugun, (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", cancellationToken: TestContext.Current.CancellationToken))!.Tarih);
         // Eski kredi kartları ucu son kesimi kasa saatinden hesaplar: kesimi bugün olan kartta bugünkü harcama ekstrededir.
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -89,7 +89,7 @@ public class SaatTests
         // Eski karta bağlı mevcut harcama (K3: yeni gider takipteki karta bağlanır).
         db.Islemler.Add(new IslemEntity { Tarih = bugun, Cari = "Bugünkü kart harcaması", TutarTl = 40m, Kanal = "MEZAT", KanalId = 1, Tip = GiderTipi.KrediKarti, KrediKartiId = kart.Id });
         db.SaveChanges();
-        var kartlar = (await c.GetFromJsonAsync<List<KrediKartiTuretilmisDto>>("/api/kredikartlari"))!;
+        var kartlar = (await c.GetFromJsonAsync<List<KrediKartiTuretilmisDto>>("/api/kredikartlari", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(40m, kartlar.Single(k => k.Id == kart.Id).EkstreBorc);
         Assert.Same(TimeProvider.System, KasaSaati.Gecerli);
     }
@@ -99,27 +99,28 @@ public class SaatTests
     [InlineData(2091, 1, 15)] // sistem takviminden ileride
     public async Task Sabit_saatli_sunucu_tohumu_dogrulamayi_raporu_ve_istek_disi_cagrilari_ayni_gune_baglar(int yil, int ay, int gun)
     {
+        var ct = TestContext.Current.CancellationToken;
         var bugun = new DateOnly(yil, ay, gun);
         await using var f = KasaWebFactory.Sabit(bugun);
         using var c = await f.EditorClientAsync();
         Assert.Equal(bugun, f.Bugun);
-        Assert.Equal(bugun, (await c.GetFromJsonAsync<Ayar>("/api/ayarlar"))!.TakipBaslangic);
-        Assert.Equal(bugun, (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet"))!.Tarih);
+        Assert.Equal(bugun, (await c.GetFromJsonAsync<Ayar>("/api/ayarlar", cancellationToken: ct))!.TakipBaslangic);
+        Assert.Equal(bugun, (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet", cancellationToken: ct))!.Tarih);
         // Panel dönemi sunucunun gününde biter: bugünkü gider bu ayın sonucuna girer.
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(bugun, "Bugünkü gider", 5m, "MEZAT", GiderTipi.Cari))).EnsureSuccessStatusCode();
-        Assert.Equal(-5m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.BuAySonucu);
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(bugun, "Bugünkü gider", 5m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(-5m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.BuAySonucu);
         // Ödeme doğrulaması sunucunun gününe bakar: yarın reddedilir, bugün kabul edilir.
         var card = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Saat kartı", 1000m, 5, 25, bugun, 0, []));
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, bugun.AddDays(1), 10m))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, bugun.AddDays(1), 10m), cancellationToken: ct)).StatusCode);
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, bugun, 10m));
         // İstek dışında (arka plan işi, doğrudan servis çağrısı) bağlam fabrikanın saatini taşır; hesap servisi
         // paneli de aynı güne göre kurar (tek hesapta iki farklı "bugün" yok): istekteki panelle birebir aynıdır.
-        var istek = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var istek = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!;
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Same(f.Saat, db.Saati());
         Assert.Equal(bugun, db.Bugunu());
-        var servis = new HesapServisi(db).Panel();
+        var servis = new HesapServisi(db).Panel(ct);
         Assert.Equal((istek.GuncelKasa, istek.BuHaftaSonucu, istek.BuAySonucu), (servis.GuncelKasa, servis.BuHaftaSonucu, servis.BuAySonucu));
         Assert.NotEqual(0m, servis.BuAySonucu);
         // İstek saati test akışına sızmaz.
@@ -129,20 +130,21 @@ public class SaatTests
     [Fact]
     public async Task Kayit_damgalari_sunucunun_saatinden_yazilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         var bugun = new DateOnly(2021, 3, 10);
         await using var f = new DamgaFabrikasi { Saat = new SabitSaat(bugun) };
         using var c = await f.EditorClientAsync();
         var an = f.Saat!.GetUtcNow();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2021, 1, 1), kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = new DateOnly(2021, 1, 1), kasaAcilisDevri = 0m }, cancellationToken: ct)).EnsureSuccessStatusCode();
 
         // Fark sıfırdan farklı: açıklama zorunlu (gap-denetim-izi-gozlemlenebilirlik-3). Fark açıklamasının anı da sunucu saatidir.
         var onizleme = await Post<KasaKontrolOnizlemeDto>(c, "/api/kasa-kontrol/onizleme", new KasaKontrolOnizle(10m, "Sayım"));
         var kontrol = await Post<KasaKontrolDto>(c, "/api/kasa-kontrol", new KasaKontrolYaz(Guid.NewGuid(), 10m, onizleme.KontrolOzeti, "Sayım"));
         Assert.Equal((an, (DateOnly?)bugun), (kontrol.Kaydedildi, kontrol.HesapTarihi));
-        using (var r = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", new KasaKontrolAciklamaYaz(Guid.NewGuid(), kontrol.Surum, "Kasadaki fazla açıklandı")))
-            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<KasaKontrolDto>())!.FarkAciklamaZamani);
+        using (var r = await c.PutAsJsonAsync($"/api/kasa-kontrol/{kontrol.Id}/aciklama", new KasaKontrolAciklamaYaz(Guid.NewGuid(), kontrol.Surum, "Kasadaki fazla açıklandı"), cancellationToken: ct))
+            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<KasaKontrolDto>(cancellationToken: ct))!.FarkAciklamaZamani);
 
-        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
+        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", cancellationToken: ct))!;
         kilit = await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, 2021, 2, "Şubat tamamlandı"));
         Assert.Equal(an, Assert.Single(kilit.Gecmis).Zaman);
 
@@ -150,9 +152,9 @@ public class SaatTests
         using (var form = new MultipartFormDataContent())
         {
             form.Add(new ByteArrayContent("%PDF-1.7 fatura"u8.ToArray()), "dosya", "fatura.pdf");
-            using var r = await c.PostAsync($"/api/alis/{alis.Id}/belgeler", form);
-            Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
-            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<BelgeDto>())!.Yuklendi);
+            using var r = await c.PostAsync($"/api/alis/{alis.Id}/belgeler", form, ct);
+            Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync(ct));
+            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<BelgeDto>(cancellationToken: ct))!.Yuklendi);
         }
 
         using (var form = new MultipartFormDataContent())
@@ -161,17 +163,17 @@ public class SaatTests
             form.Add(new StringContent("Akbank"), "banka");
             form.Add(new StringContent("Ana hesap"), "hesapAdi");
             form.Add(new ByteArrayContent("%PDF-1.7 ekstre"u8.ToArray()), "dosya", "ekstre.pdf");
-            using var r = await c.PostAsync("/api/ekstre-aktar/yukle", form);
-            Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
-            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<EkstreBelgeDto>())!.Yuklendi);
+            using var r = await c.PostAsync("/api/ekstre-aktar/yukle", form, ct);
+            Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync(ct));
+            Assert.Equal(an, (await r.Content.ReadFromJsonAsync<EkstreBelgeDto>(cancellationToken: ct))!.Yuklendi);
         }
 
-        using (var r = await c.PostAsync("/api/yedek", null))
+        using (var r = await c.PostAsync("/api/yedek", null, ct))
         {
             r.EnsureSuccessStatusCode();
             Assert.Equal(an, YedekSaklama.Tani(r.Content.Headers.ContentDisposition!.FileName!.Trim('"'))!.Value.Zaman);
         }
-        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum"))!;
+        var durum = (await c.GetFromJsonAsync<YedekDurumu>("/api/yedek/durum", cancellationToken: ct))!;
         Assert.Equal(an, durum.SonYedek);
         Assert.Equal(an, durum.SonDogrulama);
         Assert.Equal(an, durum.SonElleYedek);

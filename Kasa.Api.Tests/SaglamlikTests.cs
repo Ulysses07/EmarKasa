@@ -32,16 +32,16 @@ public class SaglamlikTests
             aylikOdeme = odeme,
             odemeGunu = gun,
             kanal = "MEZAT"
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-        var hata = await r.Content.ReadFromJsonAsync<JsonElement>();
+        var hata = await r.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(hata.GetProperty("errors").EnumerateObject().Any());
-        var unchanged = Assert.Single((await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler"))!);
+        var unchanged = Assert.Single((await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler", cancellationToken: TestContext.Current.CancellationToken))!);
         Assert.Equal(seed.CekilenTutar, unchanged.CekilenTutar);
         Assert.Equal(seed.AylikOdeme, unchanged.AylikOdeme);
         Assert.Equal(seed.OdemeGunu, unchanged.OdemeGunu);
         Assert.Equal(seed.TaksitSayisi, unchanged.TaksitSayisi);
-        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/api/rapor/panel")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/api/rapor/panel", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
@@ -50,37 +50,38 @@ public class SaglamlikTests
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
         var id = EskiFinansTohumu.Kredi(f, Kredi(15)).Id;
-        var r = await c.PutAsJsonAsync($"/api/krediler/{id}", Kredi(0));
+        var r = await c.PutAsJsonAsync($"/api/krediler/{id}", Kredi(0), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-        var liste = await c.GetFromJsonAsync<JsonElement[]>("/api/krediler");
+        var liste = await c.GetFromJsonAsync<JsonElement[]>("/api/krediler", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(15, Assert.Single(liste!).GetProperty("odemeGunu").GetInt32());
     }
 
     [Fact]
     public async Task Kanal_adi_degisince_gelir_gider_ve_kredi_ayni_kanala_bagli_kalir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 1000m })).EnsureSuccessStatusCode();
-        (await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-02", cari = "Mal", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 1000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-02", cari = "Mal", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         EskiFinansTohumu.Kredi(f, Kredi(15));
-        var kanallar = await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar");
+        var kanallar = await c.GetFromJsonAsync<KanalEntity[]>("/api/kanallar", cancellationToken: ct);
         var mezat = kanallar!.Single(k => k.Ad == "MEZAT");
-        var once = await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel");
+        var once = await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct);
 
-        var r = await c.PutAsJsonAsync($"/api/kanallar/{mezat.Id}", new { ad = "MEZAT YENİ", aktif = true });
+        var r = await c.PutAsJsonAsync($"/api/kanallar/{mezat.Id}", new { ad = "MEZAT YENİ", aktif = true }, cancellationToken: ct);
         r.EnsureSuccessStatusCode();
-        var sonra = await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel");
+        var sonra = await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct);
         Assert.Equal(once!.GuncelKasa, sonra!.GuncelKasa);
         Assert.Equal(once.Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye,
             sonra.Kanallar.Single(k => k.Kanal == "MEZAT YENİ").Bakiye);
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-        Assert.All(await db.Islemler.ToListAsync(), i => { Assert.Equal(mezat.Id, i.KanalId); Assert.Equal("MEZAT YENİ", i.Kanal); });
-        Assert.All(await db.Gelenler.ToListAsync(), g => { Assert.Equal(mezat.Id, g.KanalId); Assert.Equal("MEZAT YENİ", g.Kanal); });
-        Assert.All(await db.Krediler.ToListAsync(), k => { Assert.Equal(mezat.Id, k.KanalId); Assert.Equal("MEZAT YENİ", k.Kanal); });
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kanallar/{mezat.Id}")).StatusCode);
+        Assert.All(await db.Islemler.ToListAsync(cancellationToken: ct), i => { Assert.Equal(mezat.Id, i.KanalId); Assert.Equal("MEZAT YENİ", i.Kanal); });
+        Assert.All(await db.Gelenler.ToListAsync(cancellationToken: ct), g => { Assert.Equal(mezat.Id, g.KanalId); Assert.Equal("MEZAT YENİ", g.Kanal); });
+        Assert.All(await db.Krediler.ToListAsync(cancellationToken: ct), k => { Assert.Equal(mezat.Id, k.KanalId); Assert.Equal("MEZAT YENİ", k.Kanal); });
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kanallar/{mezat.Id}", ct)).StatusCode);
     }
 
     [Theory]
@@ -93,24 +94,25 @@ public class SaglamlikTests
     {
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        Assert.Equal(durum, (await c.PostAsJsonAsync("/api/kanallar", new { ad })).StatusCode);
+        Assert.Equal(durum, (await c.PostAsJsonAsync("/api/kanallar", new { ad }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
     public async Task Gelen_upsert_ayni_kimligi_korur_ve_yalniz_son_tutari_sayar()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
-        var ilk = await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 100m });
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        var ilk = await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = 100m }, cancellationToken: ct);
         ilk.EnsureSuccessStatusCode();
-        var ilkId = (await ilk.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+        var ilkId = (await ilk.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("id").GetInt32();
         for (var i = 1; i <= 5; i++)
-            (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = i * 100m })).EnsureSuccessStatusCode();
-        var gelir = Assert.Single((await c.GetFromJsonAsync<JsonElement[]>("/api/gelenler"))!);
+            (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-01", kanal = "MEZAT", tutarTl = i * 100m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        var gelir = Assert.Single((await c.GetFromJsonAsync<JsonElement[]>("/api/gelenler", cancellationToken: ct))!);
         Assert.Equal(ilkId, gelir.GetProperty("id").GetInt32());
         Assert.Equal(500m, gelir.GetProperty("tutarTl").GetDecimal());
-        Assert.Equal(500m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(500m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
     }
 
     [Theory]
@@ -120,7 +122,7 @@ public class SaglamlikTests
     {
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        var r = await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-01", cari = "Test", kanal, tutarTl = tutar, tip = "Cari" });
+        var r = await c.PostAsJsonAsync("/api/islemler", new { tarih = "2026-06-01", cari = "Test", kanal, tutarTl = tutar, tip = "Cari" }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
     }
 
@@ -129,20 +131,22 @@ public class SaglamlikTests
     {
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        var r = await c.PostAsJsonAsync("/api/kartodemeler", new { krediKartiId = 999, tarih = "2026-06-01", tutar = 100m });
+        var r = await c.PostAsJsonAsync("/api/kartodemeler", new { krediKartiId = 999, tarih = "2026-06-01", tutar = 100m }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
     }
 
     [Fact]
     public async Task Gelecek_islem_panelin_guncel_kasasini_ve_taksit_ufkunu_ilerletmez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
         var bugun = f.Bugun;
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = bugun, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
-        (await c.PostAsJsonAsync("/api/islemler", new { tarih = bugun.AddMonths(2), cari = "Gelecek", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = bugun, kasaAcilisDevri = 1000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler",
+            new { tarih = bugun.AddMonths(2), cari = "Gelecek", kanal = "MEZAT", tutarTl = 100m, tip = "Cari" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         EskiFinansTohumu.Kredi(f, new("Plan", 0m, bugun, 1, 200m, bugun.Day, "MEZAT"));
-        Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
     }
 
     [Fact]
@@ -150,22 +154,23 @@ public class SaglamlikTests
     {
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
-        var r = await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-02", kanal = "MEZAT", tutarTl = 1000m });
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var r = await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-02", kanal = "MEZAT", tutarTl = 1000m }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-        Assert.Empty((await c.GetFromJsonAsync<JsonElement[]>("/api/gelenler"))!);
+        Assert.Empty((await c.GetFromJsonAsync<JsonElement[]>("/api/gelenler", cancellationToken: TestContext.Current.CancellationToken))!);
     }
 
     [Fact]
     public async Task Takip_baslangici_degistirilerek_gelirler_rapordan_cikarilamaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-02", kasaAcilisDevri = 0m })).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-02", kanal = "MEZAT", tutarTl = 1000m })).EnsureSuccessStatusCode();
-        var r = await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m });
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-02", kasaAcilisDevri = 0m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/gelenler", new { donemStart = "2026-06-02", kanal = "MEZAT", tutarTl = 1000m }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        var r = await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = "2026-06-01", kasaAcilisDevri = 0m }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
-        Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(1000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
     }
 
     private static KrediYazDto Kredi(int gun) => new("Kredi", 0m, new DateOnly(2026, 6, 1), 1, 0m, gun, "MEZAT");

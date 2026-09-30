@@ -62,7 +62,7 @@ public sealed class BildirimIscisiTests
         f.Cihaz("b");
         f.Kaynak.Olaylar = [Olay(1), Olay(2)];
         f.Gonderici.SonucSec = s => s.Endpoint.EndsWith("/a", StringComparison.Ordinal) ? PushSonuc.AbonelikBitti : PushSonuc.Basarili;
-        await f.Servis().Gonder();
+        await f.Servis().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(1, f.Gonderici.Hedefler.Count(x => x.EndsWith("/a", StringComparison.Ordinal)));
         Assert.Equal(2, f.Gonderici.Hedefler.Count(x => x.EndsWith("/b", StringComparison.Ordinal)));
         var okuma = f.Kaynak.Okuma;
@@ -73,7 +73,7 @@ public sealed class BildirimIscisiTests
         Assert.True(bekleyen.Iptal);
         Assert.Null(bekleyen.Kilit);
         for (var i = 0; i < 3; i++)
-        { f.Saat.Utc = f.Saat.Utc.AddMinutes(2); await f.Servis().Gonder(); }
+        { f.Saat.Utc = f.Saat.Utc.AddMinutes(2); await f.Servis().Gonder(TestContext.Current.CancellationToken); }
         Assert.Equal(okuma + 3, f.Kaynak.Okuma);
         Assert.Equal(1, f.Gonderici.Hedefler.Count(x => x.EndsWith("/a", StringComparison.Ordinal)));
         Assert.Equal(bekleyen.Deneme, f.Db.Set<BildirimTeslimEntity>().AsNoTracking().Single(x => x.Id == bekleyen.Id).Deneme);
@@ -87,14 +87,14 @@ public sealed class BildirimIscisiTests
         f.Cihaz("b");
         f.Kaynak.Olaylar = [Olay(1)];
         f.Gonderici.Sonuc = PushSonuc.GeciciHata;
-        await f.Servis().Gonder(); // iki teslim de geçici hatayla bekliyor (Deneme 1)
+        await f.Servis().Gonder(TestContext.Current.CancellationToken); // iki teslim de geçici hatayla bekliyor (Deneme 1)
         // a'nın oturumu parola değişikliğiyle eskidi.
         f.Db.Set<PushAbonelikEntity>().Where(x => x.CihazAdi == "a").ExecuteUpdate(p => p.SetProperty(x => x.OturumDamgasi, "eski-oturum"));
         f.Gonderici.Sonuc = PushSonuc.Basarili;
         f.Gonderici.Hedefler.Clear();
         var okuma = f.Kaynak.Okuma;
         for (var i = 0; i < 3; i++)
-        { f.Saat.Utc = f.Saat.Utc.AddMinutes(3); await f.Servis().Gonder(); }
+        { f.Saat.Utc = f.Saat.Utc.AddMinutes(3); await f.Servis().Gonder(TestContext.Current.CancellationToken); }
         Assert.Equal(okuma + 3, f.Kaynak.Okuma);
         Assert.Equal(["https://fcm.googleapis.com/fcm/send/b"], f.Gonderici.Hedefler);
         var aId = f.Db.Set<PushAbonelikEntity>().AsNoTracking().Single(x => x.CihazAdi == "a").Id;
@@ -112,13 +112,13 @@ public sealed class BildirimIscisiTests
         f.Cihaz("a");
         f.Kaynak.Olaylar = Enumerable.Range(1, 120).Select(Olay).ToList();
         f.Gonderici.Sonuc = PushSonuc.GeciciHata;
-        await f.Servis().Gonder(); // a'nın 120 teslimi oluşur; 100'ü geçici hatayla ertelenir.
+        await f.Servis().Gonder(TestContext.Current.CancellationToken); // a'nın 120 teslimi oluşur; 100'ü geçici hatayla ertelenir.
         f.Db.Set<PushAbonelikEntity>().ExecuteUpdate(p => p.SetProperty(x => x.Etkin, false)); // cihaz kaldırıldı
         f.Cihaz("b");
         f.Gonderici.Sonuc = PushSonuc.Basarili;
         f.Gonderici.Hedefler.Clear();
         f.Saat.Utc = f.Saat.Utc.AddMinutes(2);
-        await f.Servis().Gonder();
+        await f.Servis().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(100, f.Gonderici.Hedefler.Count(x => x.EndsWith("/b", StringComparison.Ordinal)));
         Assert.DoesNotContain(f.Gonderici.Hedefler, x => x.EndsWith("/a", StringComparison.Ordinal));
     }
@@ -131,7 +131,7 @@ public sealed class BildirimIscisiTests
         f.Cihaz("b");
         f.Kaynak.Olaylar = [Olay(1)];
         f.Gonderici.Istisna = s => s.Endpoint.EndsWith("/a", StringComparison.Ordinal) ? new InvalidOperationException("beklenmeyen") : null;
-        await f.Servis().Gonder();
+        await f.Servis().Gonder(TestContext.Current.CancellationToken);
         Assert.Contains(f.Gonderici.Hedefler, x => x.EndsWith("/b", StringComparison.Ordinal));
         var aId = f.Db.Set<PushAbonelikEntity>().AsNoTracking().Single(x => x.CihazAdi == "a").Id;
         var teslim = f.Db.Set<BildirimTeslimEntity>().AsNoTracking().Single(x => x.AbonelikId == aId);
@@ -186,7 +186,7 @@ public sealed class BildirimIscisiTests
         var isci = ActivatorUtilities.CreateInstance<BildirimWorker>(sp);
         using var dur = new CancellationTokenSource();
         await isci.StartAsync(dur.Token);
-        var kayit = await f.Log.IlkHata.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var kayit = await f.Log.IlkHata.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         await isci.StopAsync(CancellationToken.None);
         Assert.Equal(LogLevel.Error, kayit.Seviye);
         Assert.Same(f.Kaynak.Hata, kayit.Istisna);
@@ -211,7 +211,7 @@ public sealed class BildirimIscisiTests
     public async Task GondericiBozukAnahtarDosyasindaYapilandirmaHatasiDoner()
     {
         var dosya = Path.Combine(Path.GetTempPath(), $"kasa-push-{Guid.NewGuid():N}.json");
-        await File.WriteAllTextAsync(dosya, "{bozuk");
+        await File.WriteAllTextAsync(dosya, "{bozuk", TestContext.Current.CancellationToken);
         try
         {
             var log = new LogToplayici();
@@ -232,19 +232,19 @@ public sealed class BildirimIscisiTests
         f.Cihaz("b");
         f.Kaynak.Olaylar = [Olay(1)];
         f.Gonderici.Sonuc = PushSonuc.YapilandirmaHatasi;
-        await f.Servis().Gonder();
+        await f.Servis().Gonder(TestContext.Current.CancellationToken);
         // İlk cihazda anahtar hatası: ikinci cihaz denenmez, teslimler iptal edilmez ve deneme hakkı harcanmaz.
         Assert.Single(f.Gonderici.Hedefler);
         Assert.All(f.Db.Set<BildirimTeslimEntity>().AsNoTracking().ToList(), t => { Assert.False(t.Iptal); Assert.Equal(0, t.Deneme); Assert.Null(t.Kilit); });
         Assert.Contains("anahtar", f.Saglik.Son?.Mesaj);
         for (var i = 0; i < 6; i++)
-        { f.Saat.Utc = f.Saat.Utc.AddMinutes(1); await f.Servis().Gonder(); }
+        { f.Saat.Utc = f.Saat.Utc.AddMinutes(1); await f.Servis().Gonder(TestContext.Current.CancellationToken); }
         Assert.All(f.Db.Set<BildirimTeslimEntity>().AsNoTracking().ToList(), t => Assert.Equal(0, t.Deneme));
         // Anahtar düzelince bugünkü hatırlatmalar kaybolmadan gider ve görünür hata temizlenir.
         f.Gonderici.Sonuc = PushSonuc.Basarili;
         f.Gonderici.Hedefler.Clear();
         f.Saat.Utc = f.Saat.Utc.AddMinutes(1);
-        await f.Servis().Gonder();
+        await f.Servis().Gonder(TestContext.Current.CancellationToken);
         Assert.Equal(2, f.Gonderici.Hedefler.Count);
         Assert.Null(f.Saglik.Son);
     }
@@ -289,12 +289,12 @@ public sealed class BildirimIscisiTests
             });
             db.SaveChanges();
         }
-        var yanit = await c.PostAsJsonAsync("/api/bildirimler/test", new PushEndpointYaz(endpoint));
+        var yanit = await c.PostAsJsonAsync("/api/bildirimler/test", new PushEndpointYaz(endpoint), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(System.Net.HttpStatusCode.OK, yanit.StatusCode);
-        var govde = await yanit.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var govde = await yanit.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.False(govde.GetProperty("basarili").GetBoolean());
         Assert.Contains("bildirim anahtarı", govde.GetProperty("mesaj").GetString());
-        var ayar = await c.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/bildirimler/ayarlar");
+        var ayar = await c.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/bildirimler/ayarlar", cancellationToken: TestContext.Current.CancellationToken);
         Assert.Contains("anahtar", ayar.GetProperty("sonHata").GetString());
         Assert.Equal(System.Text.Json.JsonValueKind.String, ayar.GetProperty("sonHataZamani").ValueKind);
     }
@@ -306,7 +306,7 @@ public sealed class BildirimIscisiTests
         var baslangic = new DateOnly(bugun.Year, bugun.Month, 1).AddMonths(-2);
         await using var f = KasaWebFactory.Sabit(bugun);
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         // İki kartın da kesim günü bugün: sağlam kartın "kesim günü" hatırlatması üretilir.
         var bozuk = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Bozuk kart", 10000m, bugun.Day, 5, baslangic, 0, []));
         var saglam = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Sağlam kart", 10000m, bugun.Day, 5, baslangic, 0, []));
@@ -333,7 +333,7 @@ public sealed class BildirimIscisiTests
 
         var log = new LogToplayici();
         var servis = ActivatorUtilities.CreateInstance<BildirimServisi>(scope.ServiceProvider, new LoggerFactory([log]).CreateLogger<BildirimServisi>());
-        await servis.Yenile();
+        await servis.Yenile(TestContext.Current.CancellationToken);
 
         var satirlar = db.Set<BildirimEntity>().AsNoTracking().Where(x => !x.Iptal).ToList();
         Assert.Contains(satirlar, x => x.Tur == "Kesim" && x.KaynakId == saglam.Id);
@@ -468,7 +468,7 @@ public sealed class BildirimIscisiTests
         var baslangic = new DateOnly(bugun.Year, bugun.Month, 1).AddMonths(-2);
         await using var f = KasaWebFactory.Sabit(bugun);
         using var c = await f.EditorClientAsync();
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = baslangic, kasaAcilisDevri = 1000m }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         var aktif = await Post<KartTakipDto>(c, "/api/takip/kartlar", new KartTakipYaz(Guid.NewGuid(), 0, "Aktif kart", 10000m, bugun.Day, 5, baslangic, 0, []));
         aktif = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{aktif.Id}/harcamalar",
             new KartHarcamaYaz(Guid.NewGuid(), aktif.Surum, baslangic, "Malzeme", 100m, 1, null, [new(1, 100m)]));

@@ -75,7 +75,7 @@ public class RaporDayaniklilikTests
         using var c = await Editor(f);
         var senaryo = await Kur(bozulma, f, c);
         var once = await Panel(c);
-        var saglamAnaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa"))!;
+        var saglamAnaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa", TestContext.Current.CancellationToken))!;
         Assert.Null(saglamAnaSayfa["veriSagligiUyarisi"]);
         Assert.NotNull(saglamAnaSayfa["takipOzeti"]);
 
@@ -92,12 +92,12 @@ public class RaporDayaniklilikTests
         for (var tur = 0; tur < 2; tur++)
             foreach (var uc in uclar)
             {
-                var yanit = await c.GetAsync(uc);
-                Assert.True(yanit.StatusCode == HttpStatusCode.OK, $"{bozulma} {uc}: {yanit.StatusCode} {await yanit.Content.ReadAsStringAsync()}");
+                var yanit = await c.GetAsync(uc, TestContext.Current.CancellationToken);
+                Assert.True(yanit.StatusCode == HttpStatusCode.OK, $"{bozulma} {uc}: {yanit.StatusCode} {await yanit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)}");
             }
 
         // Uyarı: ana sayfa, haftalık raporun son dönemi ve kaydın ayı; ilgisiz ay uyarı taşımaz.
-        var anaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa"))!;
+        var anaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa", TestContext.Current.CancellationToken))!;
         Assert.Contains(parca, (string)anaSayfa["veriSagligiUyarisi"]!);
         Assert.StartsWith("Okunamayan ", (string)anaSayfa["veriSagligiUyarisi"]!);
         Assert.Equal(senaryo.OzetDuser, anaSayfa["takipOzeti"] is null);
@@ -105,10 +105,10 @@ public class RaporDayaniklilikTests
             Assert.Contains("Kart ve kredi takip özeti hesaplanamadı", (string)anaSayfa["veriSagligiUyarisi"]!);
         Assert.NotNull(anaSayfa["panel"]);
         Assert.NotNull(anaSayfa["kasaEsikleri"]);
-        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray();
+        var haftalik = JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray();
         Assert.Contains(parca, (string)haftalik[^1]!["veriSagligiUyarisi"]!);
-        Assert.Contains(parca, (string)JsonNode.Parse(await c.GetStringAsync(Aylik(senaryo.Ay)))!["veriSagligiUyarisi"]!);
-        Assert.Null(JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2025&ay=1"))!["veriSagligiUyarisi"]);
+        Assert.Contains(parca, (string)JsonNode.Parse(await c.GetStringAsync(Aylik(senaryo.Ay), TestContext.Current.CancellationToken))!["veriSagligiUyarisi"]!);
+        Assert.Null(JsonNode.Parse(await c.GetStringAsync("/api/rapor/aylik?yil=2025&ay=1", TestContext.Current.CancellationToken))!["veriSagligiUyarisi"]);
 
         // Log: kayıt kimliğiyle tam bir kez (iki tur ve ek okumalara rağmen).
         var kayitLoglari = loglar.Uyarilar.Where(m => m.Contains(parca, StringComparison.Ordinal)).ToList();
@@ -124,10 +124,10 @@ public class RaporDayaniklilikTests
         // Kasa hareket dökümü (gap-denetim-izi-gozlemlenebilirlik-3) karantinalı kayıtla da panelin genel kasasını ve kanal kasasını
         // verir: karantinaya alınan tutar dökümde "Dağılım bekliyor" ya da genel kasa satırıdır.
         var takipBaslangici = Month.AddMonths(-3).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        var dokum = (await c.GetFromJsonAsync<KasaHareketleriDto>($"/api/kasa-hareketleri?baslangic={takipBaslangici}"))!;
+        var dokum = (await c.GetFromJsonAsync<KasaHareketleriDto>($"/api/kasa-hareketleri?baslangic={takipBaslangici}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal((1_000m, sonra.GuncelKasa), (dokum.AcilisBakiyesi, dokum.KapanisBakiyesi));
         Assert.Equal(dokum.KapanisBakiyesi - dokum.AcilisBakiyesi, dokum.Hareketler.Sum(h => h.GenelKasaEtkisi));
-        var mezat = (await c.GetFromJsonAsync<KasaHareketleriDto>($"/api/kasa-hareketleri?baslangic={takipBaslangici}&kanalId=1"))!;
+        var mezat = (await c.GetFromJsonAsync<KasaHareketleriDto>($"/api/kasa-hareketleri?baslangic={takipBaslangici}&kanalId=1", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(Mezat(sonra), mezat.KapanisBakiyesi);
     }
 
@@ -141,14 +141,14 @@ public class RaporDayaniklilikTests
         using var c = await f.EditorClientAsync();
         var tohum = await AltinTohum.Kur(f, c);
         var yanitlar = await AltinTohum.Yanitlar(c, tohum);
-        var anaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa?gun=366"))!;
+        var anaSayfa = JsonNode.Parse(await c.GetStringAsync("/api/rapor/ana-sayfa?gun=366", TestContext.Current.CancellationToken))!;
 
         Assert.NotNull(anaSayfa["takipOzeti"]);
         Assert.Null(anaSayfa["veriSagligiUyarisi"]);
         Assert.DoesNotContain("karantina", yanitlar.ToJsonString(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(loglar.Uyarilar, m => m.Contains("Veri karantinası", StringComparison.Ordinal));
         // Geçersiz gün eskisi gibi 400 döner (takip özetinin doğrulaması karantinaya alınmaz).
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/rapor/ana-sayfa?gun=0")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/rapor/ana-sayfa?gun=0", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     /// <summary>Birden çok bozuk kayıtta uyarı ilk beş kaydı adıyla, kalanını sayıyla söyler; her kayıt ayrı ve bir kez loglanır.</summary>
@@ -162,11 +162,11 @@ public class RaporDayaniklilikTests
         using (var scope = f.Services.CreateScope())
             Bozuk(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), "UPDATE EkstreKayitlar SET DagilimJson = '[{bozuk';");
 
-        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
         Assert.StartsWith("Okunamayan 7 kayıt karantinaya alındı: ", uyari);
         Assert.Contains("; … ve 2 kayıt daha.", uyari);
         Assert.Equal(5, doc.Kayitlar.Count(k => uyari.Contains($"Ekstre kaydı #{k.Id} (", StringComparison.Ordinal)));
-        await c.GetStringAsync("/api/rapor/panel");
+        await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken);
         Assert.All(doc.Kayitlar, k => Assert.Single(loglar.Uyarilar, m => m.Contains($"Ekstre kaydı #{k.Id} (", StringComparison.Ordinal)));
         Assert.Equal(1_000m - 7 * 10m - 21m, (await Panel(c)).GuncelKasa);
         Assert.Equal(7 * 10m + 21m, (await Panel(c)).DagilimBekleyenTutar);
@@ -206,7 +206,7 @@ public class RaporDayaniklilikTests
         Assert.Equal(once.GuncelKasa, sonra.GuncelKasa);
         Assert.Equal(once.DagilimBekleyenTutar + 60m, sonra.DagilimBekleyenTutar);
         Assert.Equal(Mezat(once) + 60m, Mezat(sonra));
-        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
         Assert.Contains($"Kredi kartı #{id} ('Geçiş kartı'): ödemelerin kanal dağılımı hesaplanamadı (dağılımı okunamayan harcama: #", uyari);
         Assert.Contains("1 ödemenin nakit etkisi (60,00 TL) 'Dağılım bekliyor' sayıldı", uyari);
         Assert.DoesNotContain("önceden sayılan", uyari);
@@ -217,7 +217,7 @@ public class RaporDayaniklilikTests
         var son = await Panel(c);
         Assert.Equal(once.GuncelKasa - 100m, son.GuncelKasa);
         Assert.Equal(once.DagilimBekleyenTutar + 160m, son.DagilimBekleyenTutar);
-        uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
         Assert.Contains("payları okunamayan ödeme: #", uyari);
         Assert.Contains("payları okunamayan ödemenin kasada önceden sayılan kısmı ayrılamadı; kasa en çok 100,00 TL düşük görünebilir", uyari);
     }
@@ -259,7 +259,7 @@ public class RaporDayaniklilikTests
         Assert.Equal(once.GuncelKasa, sonra.GuncelKasa);
         Assert.Equal(once.DagilimBekleyenTutar - 30m, sonra.DagilimBekleyenTutar);
         Assert.Equal(Mezat(once) - 30m, Mezat(sonra));
-        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        var uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
         Assert.Contains($"Kredi kartı #{id} ('Geçiş kartı'): ödemelerin kanal dağılımı hesaplanamadı", uyari);
         Assert.Contains("1 ödemenin nakit etkisi (0,00 TL) 'Dağılım bekliyor' sayıldı", uyari);
         Assert.Contains("1 devir iadesinin kasaya döndürdüğü önceden sayılan tutar (30,00 TL) kasaya geri eklendi, kanalı 'Dağılım bekliyor'", uyari);
@@ -269,7 +269,7 @@ public class RaporDayaniklilikTests
             Bozuk(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), $"UPDATE TakipKartOdemeler SET PaylarJson = 'bozuk' WHERE KrediKartiId = {id};");
         var son = await Panel(c);
         Assert.Equal(once.GuncelKasa - 70m, son.GuncelKasa);
-        uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik"))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
+        uyari = (string)JsonNode.Parse(await c.GetStringAsync("/api/rapor/haftalik", TestContext.Current.CancellationToken))!.AsArray()[^1]!["veriSagligiUyarisi"]!;
         Assert.Contains("payları okunamayan ödemenin kasada önceden sayılan kısmı ayrılamadı; kasa en çok 70,00 TL düşük görünebilir", uyari);
     }
 
@@ -290,26 +290,26 @@ public class RaporDayaniklilikTests
             parca = senaryo.Parca(db);
         }
 
-        var yanit = await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Agustos));
+        var yanit = await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Agustos), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, yanit.StatusCode);
-        var hata = (string)JsonNode.Parse(await yanit.Content.ReadAsStringAsync())!["hata"]!;
+        var hata = (string)JsonNode.Parse(await yanit.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!["hata"]!;
         Assert.StartsWith("2026-08 ayı kapatılamaz: raporuna giren 1 kayıt karantinada (", hata);
         Assert.Contains(parca, hata);
         Assert.EndsWith("Bozuk kayıtla hesaplanan rapor dondurulmaz; önce kaydı düzeltin, sonra ayı kapatın.", hata);
-        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi"))!;
+        var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Null(kilit.KilitliSonTarih);
         Assert.Empty(kilit.Gecmis);
         Assert.Equal(0, Goruntu(f));
 
         // Kayda dokunmayan Temmuz (Haziran'la birlikte) kapanır.
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Temmuz))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Temmuz), cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
         Assert.Equal(2, Goruntu(f));
 
         // Kayıt düzeltilince Ağustos kapanır; dondurulmuş raporu uyarı taşımaz.
         using (var scope = f.Services.CreateScope())
             Bozuk(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), "UPDATE HesapHareketler SET KanalId = 1 WHERE KanalId IS NULL;");
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Agustos))).StatusCode);
-        var agustos = JsonNode.Parse(await c.GetStringAsync(Aylik(Agustos)))!;
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/ay-kilidi/kapat", await KilitIstegi(c, Agustos), cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        var agustos = JsonNode.Parse(await c.GetStringAsync(Aylik(Agustos), TestContext.Current.CancellationToken))!;
         Assert.True((bool)agustos["dondurulmus"]!);
         Assert.Null(agustos["veriSagligiUyarisi"]);
     }
@@ -329,13 +329,13 @@ public class RaporDayaniklilikTests
         await using var f = new LogluFabrika(loglar, kesici: kesici);
         using var c = await Editor(f);
         await Kur(Bozulma.KartOdemesiBozukPaylar, f, c); // temiz takipli kart: harcama ve ödeme (bozan SQL çalıştırılmaz)
-        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync(uc)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync(uc, TestContext.Current.CancellationToken)).StatusCode);
 
         kesici.Kur(tablo, bosBasvuru ? new NullReferenceException("Benzetilmiş kod hatası") : new InvalidOperationException("Benzetilmiş kod hatası"));
-        Assert.Equal(HttpStatusCode.InternalServerError, (await c.GetAsync(uc)).StatusCode);
+        Assert.Equal(HttpStatusCode.InternalServerError, (await c.GetAsync(uc, TestContext.Current.CancellationToken)).StatusCode);
         Assert.False(kesici.Kurulu);
         Assert.DoesNotContain(loglar.Uyarilar, m => m.Contains("Veri karantinası", StringComparison.Ordinal));
-        Assert.Null(JsonNode.Parse(await c.GetStringAsync(uc))!["veriSagligiUyarisi"]);
+        Assert.Null(JsonNode.Parse(await c.GetStringAsync(uc, TestContext.Current.CancellationToken))!["veriSagligiUyarisi"]);
     }
 
     private static async Task<Senaryo> Kur(Bozulma bozulma, KasaWebFactory f, HttpClient c)

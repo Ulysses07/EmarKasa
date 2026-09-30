@@ -56,10 +56,10 @@ public class KartGecisTests
         }
 
         Assert.Equal(before, await Raporlar(c, 2025, 8, 9, 10));
-        var gecis = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!.Gecis!;
+        var gecis = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", cancellationToken: TestContext.Current.CancellationToken))!.Gecis!;
         Assert.Equal(("IslemTarihi", "Banka borcu sıfır", 0m, (DateOnly?)null, (string?)null), (gecis.Kural, gecis.Aciklama, gecis.RaporDisiEskiDusumTutari, gecis.RaporDisiSonDusumTarihi, gecis.Uyari));
         Assert.Equal(new KartGecisKaydi(Today, 0m, 0m, 0m, 0m, 1000m, new(2025, 9, 30), 0m), gecis.Onizleme);
-        var eylul = (await c.GetFromJsonAsync<AylikRapor>("/api/rapor/aylik?yil=2025&ay=9"))!;
+        var eylul = (await c.GetFromJsonAsync<AylikRapor>("/api/rapor/aylik?yil=2025&ay=9", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(1000m, eylul.Kanallar.Single(k => k.Kanal == "MEZAT").KrediKarti);
         Assert.Equal(0m, await Cash(c));
     }
@@ -80,7 +80,7 @@ public class KartGecisTests
             Assert.Equal(new KartGecisOzeti(1000m, 0m, 1000m, new(2025, 10, 31), 1000m), ozet);
             FinansTakipServisi.KartGecisiYaz(db, id, new(2025, 9, 25), 1000m, ozet.OnerilenKasadaSayilanTutar, [new(1, 1000m)], "Bulgu senaryosu");
         }
-        var card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!;
+        var card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", cancellationToken: TestContext.Current.CancellationToken))!;
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, new(2025, 10, 5), 1000m));
         Assert.Equal(0m, Assert.Single(card.Odemeler).KasaEtkisi);
         Assert.Equal(0m, card.Borc);
@@ -104,7 +104,7 @@ public class KartGecisTests
             Assert.Equal(new KartGecisOzeti(1000m, 1000m, 0m, null, 1000m), ozet);
             FinansTakipServisi.KartGecisiYaz(db, id, new(2025, 10, 1), 1000m, ozet.OnerilenKasadaSayilanTutar, [new(1, 1000m)], "Ters yön");
         }
-        var card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!;
+        var card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", cancellationToken: TestContext.Current.CancellationToken))!;
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, new(2025, 10, 10), 1000m));
         Assert.Equal(0m, Assert.Single(card.Odemeler).KasaEtkisi);
         Assert.Equal(before, await Raporlar(c, 2025, 9, 10));
@@ -165,12 +165,12 @@ public class KartGecisTests
         var gecis = card.Gecis!;
         Assert.Equal(("IslemTarihi", "Bekleyen düşüm doğrulandı", 0m, (string?)null), (gecis.Kural, gecis.Aciklama, gecis.RaporDisiEskiDusumTutari, gecis.Uyari));
         Assert.Equal(new KartGecisKaydi(bugun, 1000m, 1000m, 1000m, 0m, 1000m, AySonu(bugun), 1000m), gecis.Onizleme);
-        Assert.Equal(gecis, (await c.GetFromJsonAsync<List<KartTakipDto>>("/api/takip/kartlar"))!.Single(k => k.Id == id).Gecis);
+        Assert.Equal(gecis, (await c.GetFromJsonAsync<List<KartTakipDto>>("/api/takip/kartlar", cancellationToken: TestContext.Current.CancellationToken))!.Single(k => k.Id == id).Gecis);
         Assert.Equal(before, await Raporlar(c, bugun.Year, bugun.Month));
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, bugun, 1000m));
         Assert.Equal(0m, Assert.Single(card.Odemeler).KasaEtkisi);
         Assert.Equal(before, await Raporlar(c, bugun.Year, bugun.Month));
-        var buAy = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={bugun.Year}&ay={bugun.Month}"))!;
+        var buAy = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={bugun.Year}&ay={bugun.Month}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(1000m, buAy.Kanallar.Single(k => k.Kanal == "MEZAT").KrediKarti);
     }
 
@@ -202,7 +202,7 @@ public class KartGecisTests
         Assert.Equal(0m, await Cash(c));
         saat.Ayarla(etki.AddDays(1));
         Assert.Equal(0m, await Cash(c));
-        var etkiAyi = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={etki.Year}&ay={etki.Month}"))!;
+        var etkiAyi = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={etki.Year}&ay={etki.Month}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(1000m, etkiAyi.Kanallar.Single(k => k.Kanal == "MEZAT").KrediKarti);
     }
 
@@ -220,10 +220,10 @@ public class KartGecisTests
         Assert.Equal((100m, 100m, 100m, false), (fazla.OnerilenKasadaSayilanTutar!.Value, fazla.GenelKasaAnlikFarki, fazla.KanalAnlikFarki, fazla.KabulEdilebilir));
         Assert.Contains(fazla.Aciklamalar, a => a.Contains("hiçbir zaman"));
         Assert.Contains(fazla.Aciklamalar, a => a.Contains("açılış borcu (100,00 TL) eski modelde kasadan hiç düşmedi"));
-        var rejected = await c.PostAsJsonAsync($"/api/takip/kartlar/{id}/gecis", request with { Onay = true });
+        var rejected = await c.PostAsJsonAsync($"/api/takip/kartlar/{id}/gecis", request with { Onay = true }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
-        Assert.Contains("aşamaz", await rejected.Content.ReadAsStringAsync());
-        Assert.False((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!.YeniTakip);
+        Assert.Contains("aşamaz", await rejected.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.False((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", cancellationToken: TestContext.Current.CancellationToken))!.YeniTakip);
 
         var eksik = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request with { IstekId = Guid.NewGuid(), KasadaOncedenSayilanTutar = 50m });
         Assert.Equal((-50m, -50m, true), (eksik.GenelKasaAnlikFarki, eksik.KanalAnlikFarki, eksik.KabulEdilebilir));
@@ -256,10 +256,10 @@ public class KartGecisTests
         var sifir = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request);
         Assert.Equal((1100m, -1100m, false), (sifir.OnerilenKasadaSayilanTutar!.Value, sifir.GenelKasaAnlikFarki, sifir.KabulEdilebilir));
         Assert.Contains(sifir.Aciklamalar, a => a.Contains("ikinci kez") && a.Contains("en az 1.000,00 TL"));
-        var rejected = await c.PostAsJsonAsync($"/api/takip/kartlar/{id}/gecis", request with { Onay = true });
+        var rejected = await c.PostAsJsonAsync($"/api/takip/kartlar/{id}/gecis", request with { Onay = true }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
-        Assert.Contains("en az 1.000,00 TL", await rejected.Content.ReadAsStringAsync());
-        Assert.False((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}"))!.YeniTakip);
+        Assert.Contains("en az 1.000,00 TL", await rejected.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.False((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{id}", cancellationToken: TestContext.Current.CancellationToken))!.YeniTakip);
 
         var sinir = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request with { IstekId = Guid.NewGuid(), KasadaOncedenSayilanTutar = 999.99m });
         Assert.False(sinir.KabulEdilebilir);
@@ -286,11 +286,11 @@ public class KartGecisTests
         await using var f = new HazirFabrika(connection, logs) { Saat = new SabitSaat(Today) };
         using var c = await f.EditorClientAsync();
         // Tespit veri dönüştürmez: raporlar 2.3.0 çıktısıyla birebir aynı kalır.
-        Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
+        Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
         for (var ay = 7; ay <= 11; ay++)
-            Assert.Equal(KuralIkiAlanlari(OncekiAylik[ay - 7]), await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
+            Assert.Equal(KuralIkiAlanlari(OncekiAylik[ay - 7]), await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}", TestContext.Current.CancellationToken));
 
-        var gecis = (await c.GetFromJsonAsync<KartTakipDto>("/api/takip/kartlar/1"))!.Gecis!;
+        var gecis = (await c.GetFromJsonAsync<KartTakipDto>("/api/takip/kartlar/1", cancellationToken: TestContext.Current.CancellationToken))!.Gecis!;
         Assert.Equal(("EtkiTarihi", (string?)null, (KartGecisKaydi?)null), (gecis.Kural, gecis.Aciklama, gecis.Onizleme));
         // 3 Ağustos (1.000, eski etki 30 Eylül) ve 10 Eylül (400, eski etki 31 Ekim) giderleri 20 Eylül
         // başlangıcında atlandı; 10 Temmuz gideri (etki 31 Ağustos) raporda, 25 Eylül gideri takipte.
@@ -303,7 +303,7 @@ public class KartGecisTests
         // 500 TL ne ay sonunda ne ödemede düşüyor (1.500 TL ödemenin kasa etkisi yalnız 500 TL).
         Assert.Equal(500m, gecis.TahminiKasaFarki);
         Assert.Contains("500,00 TL kasadan hiçbir zaman düşmüyor", gecis.Uyari);
-        Assert.Equal(gecis, (await c.GetFromJsonAsync<List<KartTakipDto>>("/api/takip/kartlar"))!.Single().Gecis);
+        Assert.Equal(gecis, (await c.GetFromJsonAsync<List<KartTakipDto>>("/api/takip/kartlar", cancellationToken: TestContext.Current.CancellationToken))!.Single().Gecis);
         Assert.Contains(logs.Uyarilar, m => m.Contains("Kart 1 (Eski kart)") && m.Contains("1.400,00 TL") && m.Contains("31.10.2025"));
 
         using var check = connection.CreateCommand();
@@ -313,7 +313,7 @@ public class KartGecisTests
             Assert.True(reader.Read());
             Assert.Equal((0L, 1L, 1L), (reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2)));
         }
-        Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
+        Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -379,9 +379,9 @@ public class KartGecisTests
             Assert.Equal(0L, check.ExecuteScalar());
         }
         // Beklenen JSON'lar bu paketten önceki kodun (2.3.0, fce8578) aynı eski şemalı veride ürettiği çıktıdır.
-        Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel"));
+        Assert.Equal(OncekiPanel, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
         for (var ay = 7; ay <= 11; ay++)
-            Assert.Equal(KuralIkiAlanlari(OncekiAylik[ay - 7]), await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}"));
+            Assert.Equal(KuralIkiAlanlari(OncekiAylik[ay - 7]), await c.GetStringAsync($"/api/rapor/aylik?yil=2025&ay={ay}", TestContext.Current.CancellationToken));
     }
 
     // K2 (aylık rapor kural 2): açık ay yanıtı tutarları değiştirmeden ayın kredi girişi toplamını ve kural sürümünü ekler.

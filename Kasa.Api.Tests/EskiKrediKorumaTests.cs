@@ -38,10 +38,10 @@ public class EskiKrediKorumaTests
         using var c = await Editor(f);
         var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
         // Çekim genel kasaya girdi, 15 Temmuz/Ağustos/Eylül taksitleri düştü.
-        Assert.Equal(100_000m + 120_000m - 3 * 11_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(100_000m + 120_000m - 3 * 11_000m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
         var once = await Raporlar(c);
 
-        var r = await c.DeleteAsync($"/api/krediler/{kredi.Id}");
+        var r = await c.DeleteAsync($"/api/krediler/{kredi.Id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Contains("Geçmiş kasa etkisi olan eski kredi silinemez", await Hata(r));
         Assert.Equal(Gecmis.CekilenTutar, (await Kayit(c, kredi.Id)).CekilenTutar);
@@ -54,8 +54,8 @@ public class EskiKrediKorumaTests
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
         var kredi = EskiFinansTohumu.Kredi(f, Gecmis with { CekimTarihi = Bugun });
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/krediler/{kredi.Id}")).StatusCode);
-        Assert.Single(await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler") ?? []);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/krediler/{kredi.Id}", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Single(await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler", cancellationToken: TestContext.Current.CancellationToken) ?? []);
     }
 
     [Theory]
@@ -82,7 +82,7 @@ public class EskiKrediKorumaTests
             _ => throw new ArgumentOutOfRangeException(nameof(alan)),
         };
 
-        var r = await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", degisik);
+        var r = await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", degisik, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Contains("yalnız ad düzeltilebilir", await Hata(r));
         var sonra = await Kayit(c, kredi.Id);
@@ -97,12 +97,12 @@ public class EskiKrediKorumaTests
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
         var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
 
-        (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { Ad = "Ziraat ihtiyaç" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { Ad = "Ziraat ihtiyaç" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
 
         Assert.Equal("Ziraat ihtiyaç", (await Kayit(c, kredi.Id)).Ad);
-        var sonra = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var sonra = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(panel.GuncelKasa, sonra.GuncelKasa);
         Assert.Equal(panel.Kanallar.Select(k => (k.Kanal, k.Bakiye)), sonra.Kanallar.Select(k => (k.Kanal, k.Bakiye)));
     }
@@ -110,28 +110,31 @@ public class EskiKrediKorumaTests
     [Fact]
     public async Task Gecersiz_duzeltme_once_alan_hatasi_verir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
         var kredi = EskiFinansTohumu.Kredi(f, Gecmis);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { OdemeGunu = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gecmis with { OdemeGunu = 0 }, cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
     public async Task Gecmisi_olmayan_eski_kredi_duzeltilir_ve_silinir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await Editor(f);
         var kredi = EskiFinansTohumu.Kredi(f, Gelecek);
-        var once = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa;
+        var once = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa;
         Assert.Equal(100_000m, once);
 
-        (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gelecek with { AylikOdeme = 11_000m, OdemeGunu = 20, CekimTarihi = new(2026, 10, 12), Kanal = "PERAKENDE" })).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}",
+            Gelecek with { AylikOdeme = 11_000m, OdemeGunu = 20, CekimTarihi = new(2026, 10, 12), Kanal = "PERAKENDE" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var duzelen = await Kayit(c, kredi.Id);
         Assert.Equal((11_000m, 20, "PERAKENDE"), (duzelen.AylikOdeme, duzelen.OdemeGunu, duzelen.Kanal));
 
-        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/krediler/{kredi.Id}")).StatusCode);
-        Assert.Empty((await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler"))!);
-        Assert.Equal(once, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/krediler/{kredi.Id}", ct)).StatusCode);
+        Assert.Empty((await c.GetFromJsonAsync<KrediEntity[]>("/api/krediler", cancellationToken: ct))!);
+        Assert.Equal(once, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
     }
 
     [Fact]
@@ -142,7 +145,7 @@ public class EskiKrediKorumaTests
         var kredi = EskiFinansTohumu.Kredi(f, Gelecek);
         var once = await Raporlar(c);
 
-        var r = await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gelecek with { CekimTarihi = new(2026, 9, 1) });
+        var r = await c.PutAsJsonAsync($"/api/krediler/{kredi.Id}", Gelecek with { CekimTarihi = new(2026, 9, 1) }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Contains("geçmiş tarihe taşınamaz", await Hata(r));
         Assert.Equal(Gelecek.CekimTarihi, (await Kayit(c, kredi.Id)).CekimTarihi);

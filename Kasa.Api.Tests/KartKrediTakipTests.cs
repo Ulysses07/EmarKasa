@@ -43,6 +43,7 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Kart_harcamasi_ve_vade_kasayi_dusurmez_yalniz_kismi_odeme_kaynak_kanallari_dusurur()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m, 3);
@@ -59,13 +60,13 @@ public class KartKrediTakipTests
         var payment = Assert.Single(card.Odemeler);
         Assert.Equal(15m, payment.Dagilimlar.Single(p => p.KanalId == 1).Tutar);
         Assert.Equal(10m, payment.Dagilimlar.Single(p => p.KanalId == 2).Tutar);
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!;
         Assert.Equal(-15m, panel.Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye);
         Assert.Equal(-10m, panel.Kanallar.Single(k => k.Kanal == "PERAKENDE").Bakiye);
         var replay = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", request);
         Assert.Single(replay.Odemeler);
         Assert.Equal(975m, await Cash(c));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", request with { Tutar = 26m })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/odemeler", request with { Tutar = 26m }, cancellationToken: ct)).StatusCode);
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler/{payment.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Yanlış ödeme"));
         Assert.Equal(100m, card.Borc);
         Assert.Equal(1000m, await Cash(c));
@@ -76,6 +77,7 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Ortak_kredi_cekimi_ve_taksitleri_her_kanala_esit_genel_kasaya_bir_kez_yansir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         // İlk taksit, gün numarası bugüne eşit en yakın geçmiş ayda: sunucu sonraki taksitleri ilk taksidin
@@ -97,7 +99,7 @@ public class KartKrediTakipTests
         Assert.Equal(loan.Id, replay.Id);
         Assert.Equal(cash, await Cash(c));
         var sameDay = loan.Taksitler.Single(t => t.Tarih == Today);
-        var note = await c.PutAsJsonAsync($"/api/takip/krediler/{loan.Id}/taksitler/{sameDay.Id}", new KrediTaksitYaz(Guid.NewGuid(), loan.Surum, sameDay.Tarih, sameDay.Tutar, "Dekont bankada", false, "Dekont açıklaması"));
+        var note = await c.PutAsJsonAsync($"/api/takip/krediler/{loan.Id}/taksitler/{sameDay.Id}", new KrediTaksitYaz(Guid.NewGuid(), loan.Surum, sameDay.Tarih, sameDay.Tutar, "Dekont bankada", false, "Dekont açıklaması"), cancellationToken: ct);
         note.EnsureSuccessStatusCode();
         Assert.Equal(cash, await Cash(c));
         using var scope = f.Services.CreateScope();
@@ -159,13 +161,13 @@ public class KartKrediTakipTests
         // Takipsiz eski kart gideri sonraki ay sonunda (etki ayı) kasadan düşmüş olmalı.
         var etki = Start.AddMonths(1);
         var report = $"/api/rapor/aylik?yil={etki.Year}&ay={etki.Month}";
-        var oldReport = await c.GetStringAsync(report);
+        var oldReport = await c.GetStringAsync(report, TestContext.Current.CancellationToken);
         Assert.Equal(900m, await Cash(c));
         var request = new KartGecisYaz(Guid.NewGuid(), 0, Today, 100m, 100m, [new(1, 100m)], "Borç kasada önceden sayılmış", false);
         var preview = await Post<TakipGecisDto>(c, $"/api/takip/kartlar/{id}/gecis-onizleme", request);
         Assert.Equal(0m, preview.GenelKasaAnlikFarki);
         var cardDto = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/gecis", request with { Onay = true });
-        Assert.Equal(oldReport, await c.GetStringAsync(report));
+        Assert.Equal(oldReport, await c.GetStringAsync(report, TestContext.Current.CancellationToken));
         cardDto = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), cardDto.Surum, Today, 40m));
         Assert.Equal(900m, await Cash(c));
         Assert.Equal(60m, cardDto.Borc);
@@ -175,11 +177,13 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Giderden_gelen_kart_harcamasi_bir_kez_izlenir_ve_ortak_paylari_sabit_kalir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Card(c);
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Start, "Ortak gider", 30m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti, KrediKartiId: card.Id))).EnsureSuccessStatusCode();
-        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        (await c.PostAsJsonAsync("/api/islemler",
+            new IslemYazDto(Start, "Ortak gider", 30m, KanalEtiketleri.Ortak, GiderTipi.KrediKarti, KrediKartiId: card.Id), cancellationToken: ct)).EnsureSuccessStatusCode();
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!;
         Assert.Single(card.Harcamalar);
         Assert.Equal(1000m, await Cash(c));
         using (var scope = f.Services.CreateScope())
@@ -192,14 +196,15 @@ public class KartKrediTakipTests
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 30m));
         Assert.Equal(new[] { 10m, 10m, 10m }, card.Odemeler.Single().Dagilimlar.Select(p => p.Tutar));
         Assert.Equal(970m, await Cash(c));
-        Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Harcamalar);
+        Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Harcamalar);
         var expenseId = card.Harcamalar.Single().IslemId;
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expenseId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expenseId}", ct)).StatusCode);
     }
 
     [Fact]
     public async Task Genel_gider_ekranindan_takipli_karta_eksi_veya_sifir_tutar_girilemez_iade_kart_ekranina_yonlendirilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         // finance-9: PERAKENDE'nin 30 TL iadesi gider ekranından eksi tutarla girilseydi kaynaksız alacak olur,
         // MEZAT'ın harcamasını kapatırdı; sonraki ödeme 70 TL MEZAT'tan düşerdi.
         await using var f = Factory();
@@ -208,12 +213,12 @@ public class KartKrediTakipTests
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Start, "MEZAT harcaması", 100m, 1, null, [new(1, 100m)]));
         foreach (var tutar in new[] { -30m, 0m })
         {
-            var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE iadesi", tutar, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id));
+            var r = await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE iadesi", tutar, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id), cancellationToken: ct);
             Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-            var hata = (await r.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("errors").GetProperty("tutarTl")[0].GetString();
+            var hata = (await r.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: ct)).GetProperty("errors").GetProperty("tutarTl")[0].GetString();
             Assert.Equal(FinansHesaplari.TakipliKartIadeYolu, hata);
         }
-        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!;
         Assert.Equal(100m, after.Borc);
         Assert.Single(after.Harcamalar);
         using (var scope = f.Services.CreateScope())
@@ -228,13 +233,14 @@ public class KartKrediTakipTests
         Assert.Equal(0m, after.Borc);
         Assert.Equal(900m, await Cash(c));
         // Kartsız eksi gider (düzeltme) davranışı değişmez.
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kasa düzeltmesi", -30m, "PERAKENDE", GiderTipi.Cari))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "Kasa düzeltmesi", -30m, "PERAKENDE", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
         Assert.Equal(930m, await Cash(c));
     }
 
     [Fact]
     public async Task Eski_kuralla_gider_ekranindan_girilmis_eksi_kart_gideri_kalinti_olarak_bulunur_iade_akisi_ve_pozitif_gider_bulunmaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         // finance-9 öncesi kuralla yazılmış kayıt dönüştürülmez; bütünlük denetimi (açılış uyarısı) onu bulur.
         await using var f = Factory();
         using var c = await Editor(f);
@@ -243,7 +249,8 @@ public class KartKrediTakipTests
         var kaynak = Assert.Single(card.Harcamalar).Id;
         // Doğru yollar: kaynak seçilen iade ve gider ekranından pozitif kart gideri.
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "MEZAT iadesi", -20m, 1, null, [], kaynak));
-        (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Today, "PERAKENDE alışı", 50m, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id))).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/islemler",
+            new IslemYazDto(Today, "PERAKENDE alışı", 50m, "PERAKENDE", GiderTipi.KrediKarti, KrediKartiId: card.Id), cancellationToken: ct)).EnsureSuccessStatusCode();
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
         Assert.Empty(FinansTakipServisi.EskiKuralKalintilari(db));
@@ -265,15 +272,16 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Eski_uc_yeni_takip_kuralini_atlayamaz_ve_alici_finansa_erismez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Card(c);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kredikartlari", new KrediKartiYazDto("X", Start, Start, 1m, 0m))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/krediler", new KrediYazDto("X", 1m, Start, 1, 1m, 1, "MEZAT"))).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kredikartlari/{card.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kartodemeler", new KartOdemeYazDto(card.Id, Today, 1m))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kredikartlari", new KrediKartiYazDto("X", Start, Start, 1m, 0m), cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/krediler", new KrediYazDto("X", 1m, Start, 1, 1m, 1, "MEZAT"), cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kredikartlari/{card.Id}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/kartodemeler", new KartOdemeYazDto(card.Id, Today, 1m), cancellationToken: ct)).StatusCode);
         using var buyer = await AlisIsAkisiTests.Buyer(f, c, "finans-alici");
-        Assert.Equal(HttpStatusCode.Forbidden, (await buyer.GetAsync("/api/takip/kartlar")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await buyer.GetAsync("/api/takip/kartlar", ct)).StatusCode);
     }
 
     [Fact]
@@ -326,16 +334,16 @@ public class KartKrediTakipTests
         // Geçişten önceki (geçmiş) bir taksit ayının raporu korunmalı.
         var gecmis = Start.AddMonths(1);
         var report = $"/api/rapor/aylik?yil={gecmis.Year}&ay={gecmis.Month}";
-        var before = await c.GetStringAsync(report);
+        var before = await c.GetStringAsync(report, TestContext.Current.CancellationToken);
         var cash = await Cash(c);
         var request = new KrediGecisYaz(Guid.NewGuid(), 0, Today.AddDays(1), [1, 2], "İleri ortak paylaşım", false);
         var preview = await Post<TakipGecisDto>(c, $"/api/takip/krediler/{id}/gecis-onizleme", request);
         Assert.Equal(0m, preview.GenelKasaAnlikFarki);
         var loanDto = await Post<KrediTakipDto>(c, $"/api/takip/krediler/{id}/gecis", request with { Onay = true });
         Assert.Equal(cash, await Cash(c));
-        Assert.Equal(before, await c.GetStringAsync(report));
+        Assert.Equal(before, await c.GetStringAsync(report, TestContext.Current.CancellationToken));
         Assert.All(loanDto.Taksitler, t => { Assert.True(t.Tarih >= request.Baslangic); Assert.Equal(new[] { 50m, 50m }, t.Dagilimlar.Select(p => p.Tutar)); });
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/krediler/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/krediler/{id}", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Theory]
@@ -343,12 +351,13 @@ public class KartKrediTakipTests
     [InlineData(61)]
     public async Task Gecersiz_taksit_sayisi_veri_yazmadan_reddedilir(int count)
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Card(c);
-        var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Hata", 10m, count, null, []));
+        var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Hata", 10m, count, null, []), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
-        Assert.Empty((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!.Harcamalar);
+        Assert.Empty((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Harcamalar);
     }
 
     [Fact]
@@ -374,17 +383,19 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Odenmis_harcama_iadesi_ve_odemeye_bagli_kaynak_iptali_para_degistirmeden_reddedilir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m);
         var source = card.Harcamalar.Single();
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 80m));
-        var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Ödenmiş tutar iadesi", -30m, 1, null, [], source.Id));
+        var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar",
+            new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Ödenmiş tutar iadesi", -30m, 1, null, [], source.Id), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
-        Assert.Contains("mevcut ödeme kayıtları değişmedi", await r.Content.ReadAsStringAsync());
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar/{source.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Silme"))).StatusCode);
+        Assert.Contains("mevcut ödeme kayıtları değişmedi", await r.Content.ReadAsStringAsync(ct));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar/{source.Id}/iptal", new TakipIptalYaz(Guid.NewGuid(), card.Surum, "Silme"), cancellationToken: ct)).StatusCode);
         Assert.Equal(920m, await Cash(c));
-        var final = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        var final = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!;
         Assert.Single(final.Harcamalar);
         Assert.Single(final.Odemeler);
         Assert.Equal(20m, final.Borc);
@@ -404,11 +415,11 @@ public class KartKrediTakipTests
             db.SaveChanges();
             id = old.Id;
         }
-        var before = await c.GetStringAsync("/api/rapor/panel");
+        var before = await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken);
         var d = new KrediGecisYaz(Guid.NewGuid(), 0, Today, [1, 2], "Aynı gün geçiş", true);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/krediler/{id}/gecis-onizleme", d)).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/krediler/{id}/gecis", d)).StatusCode);
-        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel"));
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/krediler/{id}/gecis-onizleme", d, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync($"/api/takip/krediler/{id}/gecis", d, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(before, await c.GetStringAsync("/api/rapor/panel", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -418,10 +429,10 @@ public class KartKrediTakipTests
         using var c = await Editor(f);
         var card = await Charge(c, await Card(c), 100m);
         var statement = card.Ekstreler.Single(s => s.Borc > 0);
-        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet?gun=7"))!;
+        var summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet?gun=7", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Contains(summary.Olaylar, e => e.KaynakId == card.Id && e.KalemId == statement.Id && e.Tur == "SonOdeme");
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, 100m));
-        summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet?gun=30"))!;
+        summary = (await c.GetFromJsonAsync<TakipOzetDto>("/api/takip/ozet?gun=30", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.DoesNotContain(summary.Olaylar, e => e.KaynakId == card.Id && e.KalemId == statement.Id && e.Tur == "SonOdeme");
         using var scope = f.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
@@ -452,14 +463,15 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Bugunku_islenmis_taksit_erken_kapama_yoluyla_iptal_edilemez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var loan = await Post<KrediTakipDto>(c, "/api/takip/krediler", new KrediTakipYaz(Guid.NewGuid(), "Bugün otomatik", 1000m, Today.AddDays(-1), Today, 3, 100m, [1]));
         Assert.Equal(1900m, await Cash(c));
-        var r = await c.PostAsJsonAsync($"/api/takip/krediler/{loan.Id}/erken-kapat", new KrediKapatYaz(Guid.NewGuid(), loan.Surum, Today, 150m, "Aynı gün kapama"));
+        var r = await c.PostAsJsonAsync($"/api/takip/krediler/{loan.Id}/erken-kapat", new KrediKapatYaz(Guid.NewGuid(), loan.Surum, Today, 150m, "Aynı gün kapama"), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
         Assert.Equal(1900m, await Cash(c));
-        var after = (await c.GetFromJsonAsync<KrediTakipDto>($"/api/takip/krediler/{loan.Id}"))!;
+        var after = (await c.GetFromJsonAsync<KrediTakipDto>($"/api/takip/krediler/{loan.Id}", cancellationToken: ct))!;
         Assert.Equal(3, after.Taksitler.Count);
         Assert.DoesNotContain(after.Taksitler, t => t.Durum == "Iptal");
     }
@@ -467,6 +479,7 @@ public class KartKrediTakipTests
     [Fact]
     public async Task Iade_onceki_odemenin_bir_kurusunu_baska_kanala_tasiyamaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = Factory();
         using var c = await Editor(f);
         var card = await Card(c);
@@ -474,9 +487,9 @@ public class KartKrediTakipTests
         var source = card.Harcamalar.Single();
         card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), card.Surum, Today, .02m));
         Assert.Equal(3, Assert.Single(card.Odemeler.Single().Dagilimlar).KanalId);
-        var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Geçmiş kuruşu oynatacak iade", -.01m, 1, null, [], source.Id));
+        var r = await c.PostAsJsonAsync($"/api/takip/kartlar/{card.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "Geçmiş kuruşu oynatacak iade", -.01m, 1, null, [], source.Id), cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
-        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}"))!;
+        var after = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!;
         Assert.Single(after.Harcamalar);
         Assert.Equal(.06m, after.Borc);
         Assert.Equal(3, Assert.Single(after.Odemeler.Single().Dagilimlar).KanalId);

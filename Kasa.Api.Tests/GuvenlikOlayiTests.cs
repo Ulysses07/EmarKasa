@@ -21,20 +21,21 @@ public class GuvenlikOlayiTests
     [Fact]
     public async Task Basarisiz_ve_basarili_giris_olay_olur_parola_ve_belirtecler_hicbir_alana_yazilmaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var c = f.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/auth/login", new { kullanici = " Editor ", sifre = "yanlis-parola-XYZ" })).StatusCode);
-        var giris = await c.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" });
+        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/auth/login", new { kullanici = " Editor ", sifre = "yanlis-parola-XYZ" }, cancellationToken: ct)).StatusCode);
+        var giris = await c.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.OK, giris.StatusCode);
-        var govde = await giris.Content.ReadFromJsonAsync<JsonElement>();
+        var govde = await giris.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var cerezler = string.Join(";", giris.Headers.GetValues("Set-Cookie"));
-        (await c.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"))).EnsureSuccessStatusCode();
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        (await c.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-1", "Alıcı", "alici-sifre-1"), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         using var alici = f.CreateClient();
-        var aliciGiris = await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" });
+        var aliciGiris = await alici.PostAsJsonAsync("/api/auth/login", new { kullanici = "alici-1", sifre = "alici-sifre-1" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.OK, aliciGiris.StatusCode);
         using var izleyici = f.CreateClient();
-        (await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+        (await izleyici.PostAsJsonAsync("/api/auth/login", new { kullanici = "", sifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
 
         var olaylar = Olaylar(f, GuvenlikOlaylari.Varlik);
         var basarisiz = Assert.Single(olaylar, o => o.Tur == GuvenlikOlaylari.GirisBasarisiz);
@@ -51,7 +52,7 @@ public class GuvenlikOlayiTests
             var tumu = TumMetin(db);
             string[] gizliler = ["yanlis-parola-XYZ", "kasa123", "alici-sifre-1", "izleyici-sifre-123", govde.GetProperty("token").GetString()!,
                 govde.GetProperty("cihaz").GetString()!, aliciKaydi.SifreHash, db.Ayarlar.AsNoTracking().Single().IzleyiciSifreHash!,
-                (await aliciGiris.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!];
+                (await aliciGiris.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("token").GetString()!];
             Assert.All(gizliler, g => Assert.DoesNotContain(g, tumu, StringComparison.Ordinal));
             Assert.All(cerezler.Split(';', ',').Select(p => p.Trim()).Where(p => p.StartsWith("kasa_", StringComparison.Ordinal)),
                 cerez => Assert.DoesNotContain(cerez.Split('=', 2)[1], tumu, StringComparison.Ordinal));
@@ -131,7 +132,7 @@ public class GuvenlikOlayiTests
         using (var editor = Istemci(f, "198.51.100.50"))
         {
             Assert.Equal(HttpStatusCode.OK, (await Giris(editor, "editor", "kasa123")).StatusCode);
-            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-7", "Alıcı", "alici-sifre-7"))).EnsureSuccessStatusCode();
+            (await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-7", "Alıcı", "alici-sifre-7"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
         using var c = Istemci(f, "198.51.100.51");
         Assert.Equal(HttpStatusCode.Unauthorized, (await Giris(c, "Parolam-Gizli-42", "yanlis")).StatusCode);
@@ -157,16 +158,16 @@ public class GuvenlikOlayiTests
         using var sahte = Istemci(f, "198.51.100.60");
         sahte.DefaultRequestHeaders.Authorization = new("Bearer", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiZWRpdG9yIn0.c2FodGUtaW16YQ");
         for (var i = 0; i < 3; i++)
-            Assert.Equal(HttpStatusCode.Unauthorized, (await sahte.GetAsync("/api/islemler")).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await sahte.GetAsync("/api/islemler", TestContext.Current.CancellationToken)).StatusCode);
         using (var editor = Istemci(f, "198.51.100.61"))
         {
             Assert.Equal(HttpStatusCode.OK, (await Giris(editor, "editor", "kasa123")).StatusCode);
-            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
+            (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         }
         using var izleyici = Istemci(f, "198.51.100.62");
         Assert.Equal(HttpStatusCode.OK, (await Giris(izleyici, "", "izleyici-sifre-123")).StatusCode);
         for (var i = 0; i < 3; i++)
-            Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync("/api/denetim")).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await izleyici.GetAsync("/api/denetim", TestContext.Current.CancellationToken)).StatusCode);
 
         Assert.Single(loglar.Uyarilar, u => u.Contains("Güvenlik olayı GecersizBelirtec", StringComparison.Ordinal)
             && u.Contains("198.51.100.60", StringComparison.Ordinal) && u.Contains("GET /api/islemler", StringComparison.Ordinal));
@@ -178,19 +179,23 @@ public class GuvenlikOlayiTests
     [Fact]
     public async Task Sifre_kurtarma_kodu_ve_kurtarma_olay_olur_kod_ve_sifreler_yazilmaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        Assert.Equal(HttpStatusCode.BadRequest, (await editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "yanlis", yeniSifre = "yepyeni-sifre-123" })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" })).StatusCode);
-        var kodYaniti = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" });
+        Assert.Equal(HttpStatusCode.BadRequest, (await editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "yanlis", yeniSifre = "yepyeni-sifre-123" }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "yanlis" }, cancellationToken: ct)).StatusCode);
+        var kodYaniti = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" }, cancellationToken: ct);
         kodYaniti.EnsureSuccessStatusCode();
-        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kod").GetString()!;
+        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("kod").GetString()!;
         using var anonim = f.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod = "YANLISKOD", yeniSifre = "kurtarilan-sifre-123" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtar",
+            new { kullanici = "editor", kod = "YANLISKOD", yeniSifre = "kurtarilan-sifre-123" }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/kurtar",
+            new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" }, cancellationToken: ct)).StatusCode);
         using var yeni = f.CreateClient();
-        (await yeni.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kurtarilan-sifre-123" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.NoContent, (await yeni.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kurtarilan-sifre-123", yeniSifre = "son-editor-sifre-123" })).StatusCode);
+        (await yeni.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kurtarilan-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NoContent, (await yeni.PostAsJsonAsync("/api/auth/sifre",
+            new { mevcutSifre = "kurtarilan-sifre-123", yeniSifre = "son-editor-sifre-123" }, cancellationToken: ct)).StatusCode);
 
         var turler = Olaylar(f, GuvenlikOlaylari.Varlik).Select(o => o.Tur).Where(t => !t.StartsWith("Giris", StringComparison.Ordinal)).ToList();
         Assert.Equal([GuvenlikOlaylari.SifreDegistirmeBasarisiz, GuvenlikOlaylari.KurtarmaKoduUretimiBasarisiz, GuvenlikOlaylari.KurtarmaKoduUretildi,
@@ -209,15 +214,16 @@ public class GuvenlikOlayiTests
     [Fact]
     public async Task Izleyici_sifresi_degisimi_ve_alici_sifre_ve_oturum_iptali_gizli_degerle_olay_olur()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" })).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-456" })).EnsureSuccessStatusCode();
-        var olustur = await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-2", "Alıcı", "alici-sifre-2"));
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifre-456" }, cancellationToken: ct)).EnsureSuccessStatusCode();
+        var olustur = await editor.PostAsJsonAsync("/api/alicilar", new AliciYaz("alici-2", "Alıcı", "alici-sifre-2"), cancellationToken: ct);
         olustur.EnsureSuccessStatusCode();
-        var id = (await olustur.Content.ReadFromJsonAsync<AliciDto>())!.Id;
-        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-2", "Alıcı", null, Aktif: false))).EnsureSuccessStatusCode();
-        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-2", "Alıcı", "alici-sifre-3", Aktif: true))).EnsureSuccessStatusCode();
+        var id = (await olustur.Content.ReadFromJsonAsync<AliciDto>(cancellationToken: ct))!.Id;
+        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-2", "Alıcı", null, Aktif: false), cancellationToken: ct)).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync($"/api/alicilar/{id}", new AliciYaz("alici-2", "Alıcı", "alici-sifre-3", Aktif: true), cancellationToken: ct)).EnsureSuccessStatusCode();
 
         var izleyici = Olaylar(f, "Ayar").Where(o => o.Tur == "IzleyiciSifresiDegisti").ToList();
         Assert.Equal(["""{"IzleyiciSifreHash":null}""", """{"IzleyiciSifreHash":"***"}"""], izleyici.Select(o => o.OncekiJson));
@@ -241,25 +247,27 @@ public class GuvenlikOlayiTests
     [Fact]
     public async Task Gerekce_basligi_guvenlik_olaylarina_ve_kimliksiz_isteklere_yazilmaz()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = AylikGiderTests.Fabrika();
         const string sahte = "Editör testi, yok sayın";
         using var anonim = f.CreateClient();
         anonim.DefaultRequestHeaders.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString(sahte));
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yanlis" })).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod = "YANLISKOD", yeniSifre = "kurtarilan-sifre-123" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await anonim.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-sifre-123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yanlis" }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonim.PostAsJsonAsync("/api/auth/kurtar",
+            new { kullanici = "editor", kod = "YANLISKOD", yeniSifre = "kurtarilan-sifre-123" }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await anonim.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-sifre-123" }, cancellationToken: ct)).StatusCode);
 
         var olaylar = Olaylar(f, GuvenlikOlaylari.Varlik);
         Assert.Equal([GuvenlikOlaylari.GirisBasarisiz, GuvenlikOlaylari.KurtarmaBasarisiz, GuvenlikOlaylari.GirisBasarili, GuvenlikOlaylari.SifreDegisti], olaylar.Select(o => o.Tur));
         Assert.All(olaylar, o => Assert.Null(o.Gerekce));
 
         using var editor = f.CreateClient();
-        (await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yepyeni-sifre-123" })).EnsureSuccessStatusCode();
+        (await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yepyeni-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var gider = await AylikGiderTests.Post<IslemEntity>(editor, "/api/islemler", new IslemYazDto(AylikGiderTests.Today, "Toptancı", 10m, "MEZAT", Kasa.Core.GiderTipi.Cari));
         using var silme = new HttpRequestMessage(HttpMethod.Delete, $"/api/islemler/{gider.Id}");
         silme.Headers.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString("Mükerrer giriş"));
-        Assert.Equal(HttpStatusCode.NoContent, (await editor.SendAsync(silme)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await editor.SendAsync(silme, ct)).StatusCode);
         Assert.Equal("Mükerrer giriş", Assert.Single(Olaylar(f, "Islem", gider.Id), o => o.Tur == "Sil").Gerekce);
     }
 
@@ -269,11 +277,12 @@ public class GuvenlikOlayiTests
     [Fact]
     public async Task Sifre_ve_kurtarma_olayi_yazilamazsa_degisiklik_geri_alinir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        var kodYaniti = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" });
+        var kodYaniti = await editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" }, cancellationToken: ct);
         kodYaniti.EnsureSuccessStatusCode();
-        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kod").GetString()!;
+        var kod = (await kodYaniti.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("kod").GetString()!;
         (string? Sifre, string? Kurtarma, int Surum) Durum()
         {
             using var scope = f.Services.CreateScope();
@@ -293,16 +302,17 @@ public class GuvenlikOlayiTests
             using var yanit = await istek;
             Assert.False(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}");
         }
-        await Reddedildi(editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-sifre-123" }));
-        await Reddedildi(editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" }));
+        await Reddedildi(editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = "yepyeni-sifre-123" }, cancellationToken: ct));
+        await Reddedildi(editor.PostAsJsonAsync("/api/auth/kurtarma-kodu", new { mevcutSifre = "kasa123" }, cancellationToken: ct));
         using var anonim = f.CreateClient();
-        await Reddedildi(anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" }));
+        await Reddedildi(anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" }, cancellationToken: ct));
         Assert.Equal(once, Durum());
         Assert.DoesNotContain(Olaylar(f, GuvenlikOlaylari.Varlik), o => o.Tur is GuvenlikOlaylari.SifreDegisti or GuvenlikOlaylari.KurtarmaKullanildi);
 
         Sql("DROP TRIGGER TR_Test_Guvenlik_Reddi;");
-        Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/kurtar", new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await f.CreateClient().PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await anonim.PostAsJsonAsync("/api/auth/kurtar",
+            new { kullanici = "editor", kod, yeniSifre = "kurtarilan-sifre-123" }, cancellationToken: ct)).StatusCode);
         Assert.Single(Olaylar(f, GuvenlikOlaylari.Varlik), o => o.Tur == GuvenlikOlaylari.KurtarmaKullanildi);
     }
 

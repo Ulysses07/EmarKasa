@@ -28,7 +28,7 @@ public class KasaHareketDokumuTests
         await using var f = KasaWebFactory.Sabit(AltinTohum.Bugun);
         using var c = await f.EditorClientAsync();
         await AltinTohum.Kur(f, c);
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
 
         var tum = await Dokum(c, "baslangic=2026-01-01&bitis=2026-09-25");
         Assert.Equal((50_000m, panel.GuncelKasa), (tum.AcilisBakiyesi, tum.KapanisBakiyesi));
@@ -62,20 +62,20 @@ public class KasaHareketDokumuTests
         var varsayilan = await Dokum(c, "");
         Assert.Equal((new DateOnly(2026, 9, 1), AltinTohum.Bugun), (varsayilan.Baslangic, varsayilan.Bitis));
         foreach (var hatali in new[] { "baslangic=2026-09-26", "baslangic=2025-09-24&bitis=2026-09-25", "kanalId=999" })
-            Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/kasa-hareketleri?" + hatali)).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/kasa-hareketleri?" + hatali, TestContext.Current.CancellationToken)).StatusCode);
 
         // Bir gün itibarıyla döküm bakiyesi, o gün hesaplanan panelin bugünkü veriyle aynısıdır (kasa kontrolünün "sonradan
         // değişti" ölçüsü). Panel her gün için sunucu saati o güne alınarak hesaplanır.
         KasaDokumu bugunku;
         using (var scope = f.Services.CreateScope())
-            bugunku = scope.ServiceProvider.GetRequiredService<HesapServisi>().Dokum();
+            bugunku = scope.ServiceProvider.GetRequiredService<HesapServisi>().Dokum(TestContext.Current.CancellationToken);
         Assert.Equal(tum.Hareketler.Count, bugunku.Hareketler.Count(h => h.EtkiTarihi >= new DateOnly(2026, 1, 1)));
         var saat = (SabitSaat)f.Saat!;
         foreach (var gun in new DateOnly[] { new(2026, 1, 31), new(2026, 3, 15), new(2026, 5, 31), new(2026, 6, 30), new(2026, 8, 18), new(2026, 9, 24) })
         {
             saat.Ayarla(gun);
             using var scope = f.Services.CreateScope();
-            var o = scope.ServiceProvider.GetRequiredService<HesapServisi>().Panel();
+            var o = scope.ServiceProvider.GetRequiredService<HesapServisi>().Panel(TestContext.Current.CancellationToken);
             Assert.True(o.GuncelKasa == bugunku.GenelKasa(gun), $"{gun}: panel {o.GuncelKasa}, döküm {bugunku.GenelKasa(gun)}");
             foreach (var k in o.Kanallar)
                 Assert.True(k.Bakiye == bugunku.KanalBakiyesi(k.KanalId!.Value, gun), $"{gun} {k.Kanal}: panel {k.Bakiye}, döküm {bugunku.KanalBakiyesi(k.KanalId!.Value, gun)}");

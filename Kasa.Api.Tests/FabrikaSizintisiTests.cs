@@ -39,7 +39,7 @@ public class FabrikaSizintisiTests
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
-            await Task.Delay(50);
+            await Task.Delay(50, TestContext.Current.CancellationToken);
         }
         Assert.False(izler[0].IsAlive, "Kapatılan fabrika bellekte kaldı.");
         Assert.False(izler[1].IsAlive, "Kapatılan uygulamanın servis sağlayıcısı bellekte kaldı (hız sınırı ara katmanı sızıntısı).");

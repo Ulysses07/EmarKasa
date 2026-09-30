@@ -17,16 +17,16 @@ public class AlisRaporTests
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
         var a = await Taslak(c);
-        Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
         a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 40m));
-        var bekleyen = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var bekleyen = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(-40m, bekleyen.GuncelKasa);
         Assert.Equal(-40m, bekleyen.BuAySonucu);
         Assert.Equal(40m, bekleyen.DagilimBekleyenTutar);
         Assert.All(bekleyen.Kanallar, k => Assert.Equal(0m, k.Bakiye));
         Assert.True(Assert.Single(a.Odemeler).DagilimBekliyor);
         a = await Onayla(c, a);
-        var onayli = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var onayli = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(-40m, onayli.GuncelKasa);
         Assert.Equal(bekleyen.BuAySonucu, onayli.BuAySonucu);
         Assert.Equal(0m, onayli.DagilimBekleyenTutar);
@@ -34,16 +34,16 @@ public class AlisRaporTests
         Assert.Equal(-16m, onayli.Kanallar.Single(k => k.Kanal == "PERAKENDE").Bakiye);
 
         a = await Post(c, $"/api/alis/{a.Id}/iade", new AlisDurumYaz(a.Surum, "Kanal dağılımı düzeltilecek"));
-        Assert.Equal(40m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.DagilimBekleyenTutar);
-        var duzeltme = await c.PutAsJsonAsync($"/api/alis/{a.Id}", Yaz(a.Surum, 20m, 80m));
+        Assert.Equal(40m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.DagilimBekleyenTutar);
+        var duzeltme = await c.PutAsJsonAsync($"/api/alis/{a.Id}", Yaz(a.Surum, 20m, 80m), cancellationToken: TestContext.Current.CancellationToken);
         duzeltme.EnsureSuccessStatusCode();
-        a = (await duzeltme.Content.ReadFromJsonAsync<AlisDto>())!;
+        a = (await duzeltme.Content.ReadFromJsonAsync<AlisDto>(cancellationToken: TestContext.Current.CancellationToken))!;
         a = await Onayla(c, a);
-        var son = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        var son = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(-40m, son.GuncelKasa);
         Assert.Equal(-8m, son.Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye);
         Assert.Equal(-32m, son.Kanallar.Single(k => k.Kanal == "PERAKENDE").Bakiye);
-        Assert.Single((await c.GetFromJsonAsync<JsonElement>("/api/islemler")).EnumerateArray());
+        Assert.Single((await c.GetFromJsonAsync<JsonElement>("/api/islemler", cancellationToken: TestContext.Current.CancellationToken)).EnumerateArray());
         Assert.Single(a.Odemeler);
     }
 
@@ -58,30 +58,31 @@ public class AlisRaporTests
         Assert.Equal(0m, a.Kalan);
         Assert.Equal(60m, a.Odemeler.SelectMany(o => o.Dagilimlar).Where(d => d.KanalId == 1).Sum(d => d.Tutar));
         Assert.Equal(40m, a.Odemeler.SelectMany(o => o.Dagilimlar).Where(d => d.KanalId == 2).Sum(d => d.Tutar));
-        (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT YENİ"))).EnsureSuccessStatusCode();
-        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!;
+        (await c.PutAsJsonAsync("/api/kanallar/1", new KanalYazDto("MEZAT YENİ"), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var panel = (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(-100m, panel.GuncelKasa);
         Assert.Equal(-60m, panel.Kanallar.Single(k => k.Kanal == "MEZAT YENİ").Bakiye);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync("/api/kanallar/1")).StatusCode);
-        var ay = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={Bugun.Year}&ay={Bugun.Month}"))!;
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync("/api/kanallar/1", TestContext.Current.CancellationToken)).StatusCode);
+        var ay = (await c.GetFromJsonAsync<AylikRapor>($"/api/rapor/aylik?yil={Bugun.Year}&ay={Bugun.Month}", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(-100m, ay.Kanallar.Sum(k => k.AySonucu));
     }
 
     [Fact]
     public async Task Mevcut_gideri_baglamak_ikinci_gider_uretmez_ve_gider_dogrudan_degistirilemez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = KasaWebFactory.Sabit(Bugun);
         using var c = await f.EditorClientAsync();
-        var r = await c.PostAsJsonAsync("/api/islemler", new { tarih = Bugun, cari = "Tedarikçi", tutarTl = 100m, kanal = "Ortak", tip = "Cari" });
+        var r = await c.PostAsJsonAsync("/api/islemler", new { tarih = Bugun, cari = "Tedarikçi", tutarTl = 100m, kanal = "Ortak", tip = "Cari" }, cancellationToken: ct);
         r.EnsureSuccessStatusCode();
-        var id = (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+        var id = (await r.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("id").GetInt32();
         var a = await Onayla(c, await Taslak(c));
         a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, MevcutIslemId: id));
-        Assert.Equal(-100m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
-        Assert.Single((await c.GetFromJsonAsync<JsonElement>("/api/islemler")).EnumerateArray());
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{id}")).StatusCode);
+        Assert.Equal(-100m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
+        Assert.Single((await c.GetFromJsonAsync<JsonElement>("/api/islemler", cancellationToken: ct)).EnumerateArray());
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{id}", ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{id}",
-            new { tarih = Bugun, cari = "Tedarikçi", tutarTl = 200m, kanal = "MEZAT", tip = "Cari" })).StatusCode);
+            new { tarih = Bugun, cari = "Tedarikçi", tutarTl = 200m, kanal = "MEZAT", tip = "Cari" }, cancellationToken: ct)).StatusCode);
     }
 
     [Fact]
@@ -94,15 +95,15 @@ public class AlisRaporTests
         // Eski kartla ödenmiş mevcut gider alışa bağlanır (K3: yeni kartlı ödeme takipteki karta bağlanır).
         var gider = EskiFinansTohumu.KartGideri(f, Bugun, "Tedarikçi", 100m, KanalEtiketleri.DagilimBekliyor, kartId);
         a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, kartId, gider.Id));
-        Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(0m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
         var gelecek = Bugun.AddMonths(1);
         var yol = $"/api/rapor/aylik?yil={gelecek.Year}&ay={gelecek.Month}";
-        var once = (await c.GetFromJsonAsync<AylikRapor>(yol))!;
+        var once = (await c.GetFromJsonAsync<AylikRapor>(yol, cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(100m, once.Kanallar.Sum(k => k.KrediKarti));
-        (await c.PostAsJsonAsync("/api/kartodemeler", new KartOdemeYazDto(kartId, Bugun, 100m))).EnsureSuccessStatusCode();
-        var sonra = (await c.GetFromJsonAsync<AylikRapor>(yol))!;
+        (await c.PostAsJsonAsync("/api/kartodemeler", new KartOdemeYazDto(kartId, Bugun, 100m), cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var sonra = (await c.GetFromJsonAsync<AylikRapor>(yol, cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal(once.Kanallar.Sum(k => k.AySonucu), sonra.Kanallar.Sum(k => k.AySonucu));
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kredikartlari/{kartId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/kredikartlari/{kartId}", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     private static AlisYaz Yaz(int surum = 0, decimal mezat = 60m, decimal perakende = 40m) => new(surum,

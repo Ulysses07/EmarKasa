@@ -20,11 +20,11 @@ public class SifreAkisiTests
     {
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        var yanit = await editor.PostAsJsonAsync(yol, new { mevcutSifre = "yanlis", yeniSifre = "yepyeni-sifre-123" });
+        var yanit = await editor.PostAsJsonAsync(yol, new { mevcutSifre = "yanlis", yeniSifre = "yepyeni-sifre-123" }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, yanit.StatusCode);
-        Assert.Equal(["Mevcut şifre hatalı."], AlanHatalari(await yanit.Content.ReadFromJsonAsync<JsonElement>(), "mevcutSifre"));
-        Assert.Equal(HttpStatusCode.OK, (await editor.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(["Mevcut şifre hatalı."], AlanHatalari(await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken), "mevcutSifre"));
+        Assert.Equal(HttpStatusCode.OK, (await editor.GetAsync("/api/auth/me", TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Theory]
@@ -33,12 +33,13 @@ public class SifreAkisiTests
     [InlineData("            ")]         // 12 boşluk
     public async Task Izleyici_sifresi_12_karakterden_kisa_veya_bos_ise_reddedilir(string sifre)
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        var yanit = await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = sifre });
+        var yanit = await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = sifre }, cancellationToken: ct);
 
         Assert.Equal(HttpStatusCode.BadRequest, yanit.StatusCode);
-        Assert.Equal(["İzleyici şifresi 12–1024 karakter olmalıdır."], AlanHatalari(await yanit.Content.ReadFromJsonAsync<JsonElement>(), "yeniSifre"));
+        Assert.Equal(["İzleyici şifresi 12–1024 karakter olmalıdır."], AlanHatalari(await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct), "yeniSifre"));
         using var scope = f.Services.CreateScope();
         Assert.Null(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Ayarlar.Single().IzleyiciSifreHash);
     }
@@ -48,11 +49,11 @@ public class SifreAkisiTests
     {
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "on-iki-harf!" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "on-iki-harf!" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var izleyici = f.CreateClient();
-        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "on-iki-harf!" });
+        var giris = await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "on-iki-harf!" }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, giris.StatusCode);
-        Assert.Equal("viewer", (await giris.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("rol").GetString());
+        Assert.Equal("viewer", (await giris.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("rol").GetString());
     }
 
     [Fact]
@@ -66,12 +67,13 @@ public class SifreAkisiTests
             db.SaveChanges();
         }
         using var izleyici = f.CreateClient();
-        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski1234" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski1234" }, cancellationToken: TestContext.Current.CancellationToken)).StatusCode);
     }
 
     [Fact]
     public async Task Kurali_karsilamayan_mevcut_izleyici_sifresi_giriste_fark_edilir_ve_ayarlarda_isaretlenir()
     {
+        var ct = TestContext.Current.CancellationToken;
         var loglar = new UyariToplayici();
         await using var f = new VekilVeHizSiniriTests.VekilFabrikasi(loglar: loglar);
         using var editor = await f.EditorClientAsync();
@@ -81,26 +83,27 @@ public class SifreAkisiTests
 
         using var izleyici = f.CreateClient();
         for (var i = 0; i < 2; i++)
-            Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski1234" })).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski1234" }, cancellationToken: ct)).StatusCode);
         Assert.True(await IzleyiciSifreKisa(editor));
         Assert.False(await IzleyiciSifreKisa(izleyici));          // işaret yalnız editöre
         Assert.Single(loglar.Uyarilar, u => u.Contains("İzleyici şifresi") && u.Contains("12"));
 
         // Kurala uygun yeni şifre işareti kaldırır (hash değişir).
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifresi" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "yeni-izleyici-sifresi" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         Assert.False(await IzleyiciSifreKisa(editor));
-        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-izleyici-sifresi" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "yeni-izleyici-sifresi" }, cancellationToken: ct)).StatusCode);
         Assert.False(await IzleyiciSifreKisa(editor));
     }
 
     [Fact]
     public async Task Kurala_uyan_eski_izleyici_sifresi_isaretlenmez()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
         IzleyiciHashiniYaz(f, "eski-ama-uzun-sifre");
         using var izleyici = f.CreateClient();
-        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski-ama-uzun-sifre" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await izleyici.PostAsJsonAsync("/api/auth/login", new { sifre = "eski-ama-uzun-sifre" }, cancellationToken: ct)).StatusCode);
         Assert.False(await IzleyiciSifreKisa(editor));
     }
 
@@ -118,12 +121,13 @@ public class SifreAkisiTests
     [Fact]
     public async Task Editor_kullanici_adiyla_yalniz_editor_sifresi_denenir()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var f = new KasaWebFactory();
         using var editor = await f.EditorClientAsync();
-        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" })).EnsureSuccessStatusCode();
+        (await editor.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         using var c = f.CreateClient();
-        var yanit = await c.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "izleyici-sifresi" });
+        var yanit = await c.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "izleyici-sifresi" }, cancellationToken: ct);
         Assert.Equal(HttpStatusCode.Unauthorized, yanit.StatusCode);
-        Assert.Equal("Kullanıcı adı veya şifre hatalı.", (await yanit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hata").GetString());
+        Assert.Equal("Kullanıcı adı veya şifre hatalı.", (await yanit.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct)).GetProperty("hata").GetString());
     }
 }

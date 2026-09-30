@@ -30,7 +30,7 @@ public class EkstreBorcTests
         // kesimden SONRA harcama (ekstreye GİRMEZ)
         EskiFinansTohumu.KartGideri(f, bugun, "B", 300m, "MEZAT", id);
 
-        var liste = await c.GetFromJsonAsync<List<JsonElement>>("/api/kredikartlari", Json);
+        var liste = await c.GetFromJsonAsync<List<JsonElement>>("/api/kredikartlari", Json, cancellationToken: TestContext.Current.CancellationToken);
         var k = liste!.Single(x => x.GetProperty("id").GetInt32() == id);
 
         Assert.Equal(1800m, k.GetProperty("guncelBorc").GetDecimal());   // 1000+500+300

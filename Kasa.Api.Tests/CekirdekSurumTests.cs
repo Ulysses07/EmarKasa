@@ -83,26 +83,26 @@ public class CekirdekSurumTests
         var (f, c) = await Kur();
         await using var _ = f;
         using var __ = c;
-        var olusan = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(1000m)));
+        var olusan = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(1000m), cancellationToken: TestContext.Current.CancellationToken));
         var id = olusan["id"]!.GetValue<int>();
         Assert.Equal(0, Surum(olusan));
 
-        var web = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, surum: 0)));
+        var web = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, surum: 0), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((1200m, 1), (web["tutarTl"]!.GetValue<decimal>(), Surum(web)));
 
-        await Cakisma(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1000m, "yalnız not", surum: 0)), GiderIletisi);
-        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/islemler?baslangic=2026-09-01&bitis=2026-09-30"))!)!;
+        await Cakisma(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1000m, "yalnız not", surum: 0), cancellationToken: TestContext.Current.CancellationToken), GiderIletisi);
+        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/islemler?baslangic=2026-09-01&bitis=2026-09-30", cancellationToken: TestContext.Current.CancellationToken))!)!;
         Assert.Equal((1200m, 1), (satir["tutarTl"]!.GetValue<decimal>(), Surum(satir)));
         Assert.Null(satir["not"]);
-        Assert.Equal(-1200m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel"))!.GuncelKasa);
+        Assert.Equal(-1200m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: TestContext.Current.CancellationToken))!.GuncelKasa);
 
         // Güncel sürümle kayıt geçer; içeriği değişmeyen kayıt sürümü artırmaz.
-        var guncel = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, "yalnız not", surum: 1)));
+        var guncel = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, "yalnız not", surum: 1), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal(("yalnız not", 2), (guncel["not"]!.GetValue<string>(), Surum(guncel)));
-        Assert.Equal(2, Surum(await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, "yalnız not", surum: 2)))));
+        Assert.Equal(2, Surum(await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, "yalnız not", surum: 2), cancellationToken: TestContext.Current.CancellationToken))));
 
         // Eski istemci (sürüm göndermez) kırılmaz: son yazan kazanır, sürüm yine artar.
-        var eski = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(900m, "eski masaüstü")));
+        var eski = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(900m, "eski masaüstü"), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((900m, 3), (eski["tutarTl"]!.GetValue<decimal>(), Surum(eski)));
 
         // 409 alan istek denetim olayı yazmaz; olaylarda sürüm alanı yoktur.
@@ -116,21 +116,22 @@ public class CekirdekSurumTests
     [Fact]
     public async Task Kanal_eski_surumle_kaydedilemez_surumsuz_eski_istemci_kaydeder()
     {
+        var ct = TestContext.Current.CancellationToken;
         var (f, c) = await Kur();
         await using var _ = f;
         using var __ = c;
-        var kanal = await Json(await c.PostAsJsonAsync("/api/kanallar", new { ad = "ONLINE", aktif = true, sira = 5, acilisDevri = 0m }));
+        var kanal = await Json(await c.PostAsJsonAsync("/api/kanallar", new { ad = "ONLINE", aktif = true, sira = 5, acilisDevri = 0m }, cancellationToken: ct));
         var id = kanal["id"]!.GetValue<int>();
         Assert.Equal(0, Surum(kanal));
-        Assert.All((await c.GetFromJsonAsync<JsonArray>("/api/kanallar"))!, k => Assert.Equal(0, Surum(k)));
+        Assert.All((await c.GetFromJsonAsync<JsonArray>("/api/kanallar", cancellationToken: ct))!, k => Assert.Equal(0, Surum(k)));
 
-        var ilk = await Json(await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "ONLINE", aktif = true, sira = 6, acilisDevri = 0m, surum = 0 }));
+        var ilk = await Json(await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "ONLINE", aktif = true, sira = 6, acilisDevri = 0m, surum = 0 }, cancellationToken: ct));
         Assert.Equal((6, 1), (ilk["sira"]!.GetValue<int>(), Surum(ilk)));
-        await Cakisma(await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "ONLINE", aktif = false, sira = 5, acilisDevri = 0m, surum = 0 }), KanalIletisi);
-        var okunan = (await c.GetFromJsonAsync<JsonArray>("/api/kanallar"))!.Single(k => k!["id"]!.GetValue<int>() == id)!;
+        await Cakisma(await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "ONLINE", aktif = false, sira = 5, acilisDevri = 0m, surum = 0 }, cancellationToken: ct), KanalIletisi);
+        var okunan = (await c.GetFromJsonAsync<JsonArray>("/api/kanallar", cancellationToken: ct))!.Single(k => k!["id"]!.GetValue<int>() == id)!;
         Assert.Equal((true, 6, 1), (okunan["aktif"]!.GetValue<bool>(), okunan["sira"]!.GetValue<int>(), Surum(okunan)));
 
-        var eski = await Json(await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "ONLINE", aktif = false, sira = 5, acilisDevri = 0m }));
+        var eski = await Json(await c.PutAsJsonAsync($"/api/kanallar/{id}", new { ad = "ONLINE", aktif = false, sira = 5, acilisDevri = 0m }, cancellationToken: ct));
         Assert.Equal((false, 2), (eski["aktif"]!.GetValue<bool>(), Surum(eski)));
     }
 
@@ -140,21 +141,21 @@ public class CekirdekSurumTests
         var (f, c) = await Kur();
         await using var _ = f;
         using var __ = c;
-        var surum = Surum(await c.GetFromJsonAsync<JsonNode>("/api/ayarlar"));
+        var surum = Surum(await c.GetFromJsonAsync<JsonNode>("/api/ayarlar", cancellationToken: TestContext.Current.CancellationToken));
 
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 500m, surum })).EnsureSuccessStatusCode();
-        var okunan = (await c.GetFromJsonAsync<JsonNode>("/api/ayarlar"))!;
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 500m, surum }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var okunan = (await c.GetFromJsonAsync<JsonNode>("/api/ayarlar", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal((500m, surum + 1), (okunan["kasaAcilisDevri"]!.GetValue<decimal>(), Surum(okunan)));
 
-        await Cakisma(await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 0m, surum }), AyarIletisi);
-        Assert.Equal(500m, (await c.GetFromJsonAsync<JsonNode>("/api/ayarlar"))!["kasaAcilisDevri"]!.GetValue<decimal>());
+        await Cakisma(await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 0m, surum }, cancellationToken: TestContext.Current.CancellationToken), AyarIletisi);
+        Assert.Equal(500m, (await c.GetFromJsonAsync<JsonNode>("/api/ayarlar", cancellationToken: TestContext.Current.CancellationToken))!["kasaAcilisDevri"]!.GetValue<decimal>());
 
         // İzleyici şifresi ayrı formdur: açık başlangıç formunun sürümünü eskitmez.
-        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi-1" })).EnsureSuccessStatusCode();
-        Assert.Equal(surum + 1, Surum(await c.GetFromJsonAsync<JsonNode>("/api/ayarlar")));
+        (await c.PutAsJsonAsync("/api/ayarlar/izleyici-sifre", new { yeniSifre = "izleyici-sifresi-1" }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        Assert.Equal(surum + 1, Surum(await c.GetFromJsonAsync<JsonNode>("/api/ayarlar", cancellationToken: TestContext.Current.CancellationToken)));
 
-        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 250m })).EnsureSuccessStatusCode();
-        okunan = (await c.GetFromJsonAsync<JsonNode>("/api/ayarlar"))!;
+        (await c.PutAsJsonAsync("/api/ayarlar", new { takipBaslangic = Baslangic, kasaAcilisDevri = 250m }, cancellationToken: TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        okunan = (await c.GetFromJsonAsync<JsonNode>("/api/ayarlar", cancellationToken: TestContext.Current.CancellationToken))!;
         Assert.Equal((250m, surum + 2), (okunan["kasaAcilisDevri"]!.GetValue<decimal>(), Surum(okunan)));
     }
 
@@ -166,18 +167,18 @@ public class CekirdekSurumTests
         var (f, c) = await Kur();
         await using var _ = f;
         using var __ = c;
-        var ilk = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 0)));
+        var ilk = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 0), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((1000m, 1), (ilk["tutarTl"]!.GetValue<decimal>(), Surum(ilk)));
         // Aynı dönem ve kanal için satırı görmeden (0) giren ikinci oturum.
-        await Cakisma(await c.PutAsJsonAsync("/api/gelenler", Gelen(700m, surum: 0)), GelenIletisi);
+        await Cakisma(await c.PutAsJsonAsync("/api/gelenler", Gelen(700m, surum: 0), cancellationToken: TestContext.Current.CancellationToken), GelenIletisi);
 
-        var ikinci = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1200m, surum: 1)));
+        var ikinci = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1200m, surum: 1), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((1200m, 2), (ikinci["tutarTl"]!.GetValue<decimal>(), Surum(ikinci)));
-        await Cakisma(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 1)), GelenIletisi);
-        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/gelenler?donemStart=2026-09-01"))!)!;
+        await Cakisma(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 1), cancellationToken: TestContext.Current.CancellationToken), GelenIletisi);
+        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/gelenler?donemStart=2026-09-01", cancellationToken: TestContext.Current.CancellationToken))!)!;
         Assert.Equal((1200m, 2), (satir["tutarTl"]!.GetValue<decimal>(), Surum(satir)));
 
-        var eski = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1500m)));
+        var eski = await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1500m), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((1500m, 3), (eski["tutarTl"]!.GetValue<decimal>(), Surum(eski)));
 
         using var scope = f.Services.CreateScope();
@@ -190,25 +191,26 @@ public class CekirdekSurumTests
     [Fact]
     public async Task Dolayli_yazimlar_surumu_artirir_onceden_okunan_kayit_409_alir()
     {
+        var ct = TestContext.Current.CancellationToken;
         var (f, c) = await Kur();
         await using var _ = f;
         using var __ = c;
-        var gider = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(100m)));
+        var gider = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(100m), cancellationToken: ct));
         var giderId = gider["id"]!.GetValue<int>();
-        await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 0)));
-        var mezat = (await c.GetFromJsonAsync<JsonArray>("/api/kanallar"))!.Single(k => k!["ad"]!.GetValue<string>() == "MEZAT")!;
+        await Json(await c.PutAsJsonAsync("/api/gelenler", Gelen(1000m, surum: 0), cancellationToken: ct));
+        var mezat = (await c.GetFromJsonAsync<JsonArray>("/api/kanallar", cancellationToken: ct))!.Single(k => k!["ad"]!.GetValue<string>() == "MEZAT")!;
 
-        await Json(await c.PutAsJsonAsync($"/api/kanallar/{mezat["id"]}", new { ad = "MEZAT SALONU", aktif = true, sira = 0, acilisDevri = 0m, surum = Surum(mezat) }));
-        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/islemler?baslangic=2026-09-01&bitis=2026-09-30"))!)!;
+        await Json(await c.PutAsJsonAsync($"/api/kanallar/{mezat["id"]}", new { ad = "MEZAT SALONU", aktif = true, sira = 0, acilisDevri = 0m, surum = Surum(mezat) }, cancellationToken: ct));
+        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/islemler?baslangic=2026-09-01&bitis=2026-09-30", cancellationToken: ct))!)!;
         Assert.Equal(("MEZAT SALONU", 1), (satir["kanal"]!.GetValue<string>(), Surum(satir)));
-        var gelen = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/gelenler?donemStart=2026-09-01"))!)!;
+        var gelen = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/gelenler?donemStart=2026-09-01", cancellationToken: ct))!)!;
         Assert.Equal(("MEZAT SALONU", 2), (gelen["kanal"]!.GetValue<string>(), Surum(gelen)));
-        await Cakisma(await c.PutAsJsonAsync($"/api/islemler/{giderId}", Gider(150m, surum: 0, kanal: "MEZAT SALONU")), GiderIletisi);
+        await Cakisma(await c.PutAsJsonAsync($"/api/islemler/{giderId}", Gider(150m, surum: 0, kanal: "MEZAT SALONU"), cancellationToken: ct), GiderIletisi);
 
         // Alış ödemesi düzeltmesi bağlı gideri (tutar) değiştirir: sürümü artar.
         await AlisIsAkisiTests.Prepare(c);
-        var alis = await AlisIsAkisiTests.Read<AlisDto>(await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, Baslangic, "Firma", null, [new("Ürün", 100m, [])])));
-        alis = await AlisIsAkisiTests.Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Baslangic, 40m)));
+        var alis = await AlisIsAkisiTests.Read<AlisDto>(await c.PostAsJsonAsync("/api/alis", new AlisYaz(0, Baslangic, "Firma", null, [new("Ürün", 100m, [])]), cancellationToken: ct));
+        alis = await AlisIsAkisiTests.Read<AlisDto>(await c.PostAsJsonAsync($"/api/alis/{alis.Id}/odemeler", new AlisOdemeYaz(alis.Surum, Guid.NewGuid(), Baslangic, 40m), cancellationToken: ct));
         var odeme = alis.Odemeler.Single();
         int OdemeGideriSurumu()
         {
@@ -217,7 +219,7 @@ public class CekirdekSurumTests
         }
         Assert.Equal(0, OdemeGideriSurumu());
         await AlisIsAkisiTests.Read<AlisDto>(await c.PutAsJsonAsync($"/api/alis/{alis.Id}/odemeler/{odeme.Id}",
-            new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), Baslangic, 70m, "Tutar yanlış girildi")));
+            new AlisOdemeDuzelt(alis.Surum, Guid.NewGuid(), Baslangic, 70m, "Tutar yanlış girildi"), cancellationToken: ct));
         Assert.Equal(1, OdemeGideriSurumu());
     }
 
@@ -229,7 +231,7 @@ public class CekirdekSurumTests
         var (f, c) = await Kur();
         await using var _ = f;
         using var __ = c;
-        var id = (await Json(await c.PostAsJsonAsync("/api/islemler", Gider(100m))))["id"]!.GetValue<int>();
+        var id = (await Json(await c.PostAsJsonAsync("/api/islemler", Gider(100m), cancellationToken: TestContext.Current.CancellationToken)))["id"]!.GetValue<int>();
         using var s1 = f.Services.CreateScope();
         using var s2 = f.Services.CreateScope();
         var a = s1.ServiceProvider.GetRequiredService<KasaDbContext>();

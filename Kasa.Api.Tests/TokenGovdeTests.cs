@@ -16,10 +16,10 @@ public class TokenGovdeTests : IClassFixture<KasaWebFactory>
     {
         var client = _factory.CreateClient();
         var resp = await client.PostAsJsonAsync("/api/auth/login",
-            new { kullanici = "editor", sifre = "kasa123" });
+            new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: TestContext.Current.CancellationToken);
         resp.EnsureSuccessStatusCode();
 
-        var yanit = await resp.Content.ReadFromJsonAsync<GirisYanit>();
+        var yanit = await resp.Content.ReadFromJsonAsync<GirisYanit>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(yanit);
         Assert.Equal("editor", yanit!.Rol);
         Assert.False(string.IsNullOrWhiteSpace(yanit.Token));
@@ -31,15 +31,15 @@ public class TokenGovdeTests : IClassFixture<KasaWebFactory>
         // 1) login ol, token'ı gövdeden al
         var loginClient = _factory.CreateClient();
         var resp = await loginClient.PostAsJsonAsync("/api/auth/login",
-            new { kullanici = "editor", sifre = "kasa123" });
-        var yanit = await resp.Content.ReadFromJsonAsync<GirisYanit>();
+            new { kullanici = "editor", sifre = "kasa123" }, cancellationToken: TestContext.Current.CancellationToken);
+        var yanit = await resp.Content.ReadFromJsonAsync<GirisYanit>(cancellationToken: TestContext.Current.CancellationToken);
 
         // 2) HİÇ login olmamış (cookie'siz) ayrı istemci: yalnız Bearer header ile
         var bearerClient = _factory.CreateClient();
         bearerClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", yanit!.Token);
 
-        var me = await bearerClient.GetAsync("/api/auth/me");
+        var me = await bearerClient.GetAsync("/api/auth/me", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
     }
 }

@@ -9,7 +9,7 @@ public class SaglikTests(KasaWebFactory factory) : IClassFixture<KasaWebFactory>
     public async Task Saglik_ucu_ok_doner()
     {
         using var client = factory.CreateClient();
-        var resp = await client.GetAsync("/health");
+        var resp = await client.GetAsync("/health", TestContext.Current.CancellationToken);
         Assert.True(resp.IsSuccessStatusCode);
     }
 }
