@@ -122,9 +122,10 @@ internal static class TakipUi
 
     /// <summary>Kodla yazılmış sayfaların durum satırları (Yenile, yükleniyor göstergesi, hata, isteğe bağlı ileti, son
     /// güncelleme): TakipSayfasi, Kasa kontrolü ve Dışa aktar aynı sırayı ve stilleri kullanır. Bağlam modelinde Mesgul,
-    /// Hata ve SonGuncelleme beklenir. <paramref name="gostergeSolda"/> false iken gösterge satır boyunca yerleşir (Kasa
-    /// kontrolünün önceki görünümü).</summary>
-    public static void DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, bool gostergeSolda = true)
+    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncelleme beklenir. <paramref name="gostergeSolda"/> false iken gösterge
+    /// satır boyunca yerleşir (Kasa kontrolünün önceki görünümü). Kartlar ekranı hatayı form açıkken formun içinde gösterdiği
+    /// için buraya SayfaHatasi'nı bağlar.</summary>
+    public static void DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, bool gostergeSolda = true, string hataYolu = "Hata")
     {
         hedef.Add(yenile);
         var busy = new ActivityIndicator();
@@ -132,7 +133,7 @@ internal static class TakipUi
             busy.HorizontalOptions = LayoutOptions.Start;
         busy.SetBinding(ActivityIndicator.IsRunningProperty, "Mesgul");
         hedef.Add(busy);
-        hedef.Add(BagliHata("Hata"));
+        hedef.Add(BagliHata(hataYolu));
         if (mesaj is not null)
             hedef.Add(mesaj);
         var zaman = new Label { Style = (Style)Application.Current!.Resources["LblTakipKucuk"] };
@@ -246,7 +247,7 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
     protected readonly VerticalStackLayout Govde = new() { Spacing = 18 };
     protected readonly ScrollView Kaydirici;
     private readonly Func<Task> _yukle;
-    protected TakipSayfasi(T vm, string title, string aciklama, Func<Task> yukle)
+    protected TakipSayfasi(T vm, string title, string aciklama, Func<Task> yukle, string hataYolu = nameof(TemelViewModel.Hata))
     {
         Vm = vm;
         BindingContext = vm;
@@ -258,7 +259,7 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         root.Add(TakipUi.Metin(aciklama));
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
-        TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj);
+        TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
         Govde.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         root.Add(Govde);
