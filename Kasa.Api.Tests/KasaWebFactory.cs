@@ -16,7 +16,7 @@ namespace Kasa.Api.Tests;
 /// Testler için uygulamayı açık tutulan bir SQLite in-memory bağlantısıyla
 /// (kalıcı şema) ve sabit editör/JWT config'iyle ayağa kaldırır.
 /// </summary>
-public class KasaWebFactory : WebApplicationFactory<Program>
+public class KasaWebFactory : SizdirmayanFabrika<Program>
 {
     /// <summary>Takvime bağlı testlerin varsayılan "bugün"ü (paket bu gün yeşil doğrulandı). Yıl başı,
     /// artık yılın Şubat sonu ve kırpılan ay sonu, ilgili test sınıflarının iç sınıflarında ayrıca koşar.</summary>
@@ -40,9 +40,38 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     /// <summary>Sunucunun "bugün"ünü verilen İstanbul gününe sabitleyen fabrika.</summary>
     public static KasaWebFactory Sabit(DateOnly bugun) => new() { Saat = new SabitSaat(bugun) };
 
+    // Şablon veritabanı: boş bellek içi veritabanında migration'lar ve ilk açılış veri adımları (KasaDatabaseInitializer) süreç
+    // başına bir kez çalışır; her fabrikanın bağlantısına SQLite yedekleme API'siyle sayfa sayfa birebir kopyalanır (≈1 ms; boş
+    // veritabanında migration her fabrikada ≈200 ms sürüyordu). Uygulamanın açılışı (Program.cs) her fabrikada yine
+    // KasaDatabaseInitializer'ı çalıştırır; güncel veritabanında bekleyen adım yoktur. Boş veritabanından ilk açılış yolu şablonda,
+    // eski şemalardan göçler kendi testlerinde (DatabaseMigrationTests, FinanceMigrationTests...) sınanır; kopyanın boş
+    // veritabanındaki ilk açılışla aynı olduğunu SablonVeritabaniTests denetler.
+    private static readonly Lazy<SqliteConnection> Sablon = new(() =>
+    {
+        var baglanti = new SqliteConnection("Data Source=:memory:");
+        baglanti.Open();
+        using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(baglanti).Options);
+        KasaDatabaseInitializer.Initialize(db);
+        return baglanti;
+    });
+    private static readonly Lock SablonKilidi = new();
+
+    /// <summary>Şablon veritabanını açık, boş bir bağlantıya kopyalar (SqliteConnection iş parçacığı güvenli değildir; kopyalar sıralıdır).</summary>
+    internal static void SablonuKopyala(SqliteConnection hedef)
+    {
+        lock (SablonKilidi)
+            Sablon.Value.BackupDatabase(hedef);
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        _conn.Open(); // bağlantı açık kaldıkça in-memory DB yaşar
+        // Bağlantı açık kaldıkça in-memory DB yaşar. Şablon yalnız ilk açılışta kopyalanır: WithWebHostBuilder'la türetilen
+        // fabrika bu yöntemi yeniden çağırır ve aynı veritabanıyla açılmalıdır.
+        if (_conn.State != System.Data.ConnectionState.Open)
+        {
+            _conn.Open();
+            SablonuKopyala(_conn);
+        }
         if (Saat is not null)
             IlkAcilisAyari(Bugun);
         // Testlerin Windows Event Log yazma iznine bağımlı olmasını engelle.
@@ -85,11 +114,10 @@ public class KasaWebFactory : WebApplicationFactory<Program>
     }
 
     // Program.cs ilk açılışta takip başlangıcını makine tarihiyle (DateTime.Today) tohumlar; ayar satırı
-    // varsa tohumlamaz. Sabit saatli sunucuda aynı tohum sabit güne göre önceden yazılır.
+    // varsa tohumlamaz. Sabit saatli sunucuda aynı tohum sabit güne göre önceden yazılır (şema şablondan gelir).
     private void IlkAcilisAyari(DateOnly bugun)
     {
         using var db = new KasaDbContext(new DbContextOptionsBuilder<KasaDbContext>().UseSqlite(_conn).Options);
-        KasaDatabaseInitializer.Initialize(db);
         db.Ayarlar.Add(new AyarEntity { TakipBaslangic = bugun, KasaAcilisDevri = 0m });
         db.SaveChanges();
     }

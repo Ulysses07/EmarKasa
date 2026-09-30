@@ -58,22 +58,133 @@ public class PdfMetinOkuyucuTests
         Assert.Equal(3, log.Uyarilar.Count(u => u.Contains("pdfinfo") && u.Contains("sonlandırıldı")));
     }
 
+    // Zaman sınırı elle tetiklenir, gerçek saatle değil: eski sürümde alt süreç 2 sn sonra işaret dosyası yazıyor, sınır 1 sn'lik
+    // gerçek zamanlayıcıyla doluyordu. Test ana makinesi uzun GC duraklamasındayken (bütün yönetilen iş parçacıkları durur, dış
+    // süreçler çalışır) zamanlayıcı ve öldürme 2,6–8,7 sn gecikiyor, alt süreç işini öldürülmeden bitirip test "alt süreç çalışmaya
+    // devam etti" diye düşüyordu; süreç kaçmıyordu. Şimdi sınır, alt süreç çalıştığı kesinleştikten sonra dolar ve alt sürecin
+    // kendisinin öldüğü (kimliğiyle) denetlenir.
     [Fact]
     public async Task Zaman_asiminda_aracin_alt_surecleri_de_olur()
     {
-        var isaret = Path.Combine(Path.GetTempPath(), "kasa-pdf-test-" + Guid.NewGuid().ToString("N") + ".txt");
-        // Alt süreç 2 sn sonra işaret dosyası yazar; yalnız üst süreç öldürülseydi dosya oluşurdu.
+        var kimlikDosyasi = Path.Combine(Path.GetTempPath(), "kasa-pdf-test-" + Guid.NewGuid().ToString("N") + ".pid");
+        var saat = new ElleZamanSiniri();
+        // Araç (kabuk) bir alt süreç başlatır; alt süreç kimliğini yazar ve 60 sn uyur. Yalnız araç öldürülseydi alt süreç yaşardı.
         var okuyucu = new PdfMetinOkuyucu(Ayar("1"), null, (_, _) => Kabuk(
-            $"powershell -NoProfile -NonInteractive -Command \"Start-Sleep -Seconds 2; Set-Content -LiteralPath '{isaret}' -Value x\"",
-            $"(sleep 2; touch '{isaret}') & wait"));
+            $"powershell -NoProfile -NonInteractive -Command \"Set-Content -LiteralPath '{kimlikDosyasi}' -Value $PID; Start-Sleep -Seconds 60\"",
+            $"sleep 60 & echo $! > '{kimlikDosyasi}'; wait"), saat);
+        var okuma = okuyucu.OkuAsync(Pdf);
+        Process? altSurec = null;
         try
         {
-            var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf));
+            altSurec = await AltSureciBekle(kimlikDosyasi, okuma);
+            Assert.Equal(1, saat.KurulanSayisi);
+            saat.Tetikle();
+            var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuma);
+            Assert.Equal(422, hata.StatusCode);
             Assert.Contains("zaman sınırı", hata.Message);
-            await Task.Delay(TimeSpan.FromSeconds(5));
-            Assert.False(File.Exists(isaret), "Zaman aşımından sonra alt süreç çalışmaya devam etti.");
+            // Öldürme eşzamansız tamamlanır (TerminateProcess/SIGKILL); süre yalnız askıda kalmayı önleyen üst sınırdır.
+            Assert.True(altSurec.WaitForExit(TimeSpan.FromSeconds(10)), "Zaman aşımından sonra aracın alt süreci çalışmaya devam etti.");
         }
-        finally { File.Delete(isaret); }
+        finally
+        {
+            saat.Tetikle();
+            if (altSurec is { HasExited: false })
+                altSurec.Kill();
+            altSurec?.Dispose();
+            File.Delete(kimlikDosyasi);
+        }
+    }
+
+    // İptal kaydı, belirteç araç başlarken dolmuşsa aracı hemen öldürür. WaitForExitAsync çıkmış süreçte iptali denetlemediği için
+    // öldürülen araç eskiden "çıkış kodu sıfır değil" yolundan "PDF okunamadı (şifreli/bozuk)" diye bildiriliyordu; istek iptali de
+    // iptal yerine 422 dönüyordu. Yük altında (test ana makinesinin uzun duraklamalarında) 1 sn'lik gerçek sınırla da oluyordu.
+    [Fact]
+    public async Task Zaman_siniri_arac_baslarken_dolsa_da_zaman_asimi_olarak_bildirilir()
+    {
+        var saat = new ElleZamanSiniri();
+        var log = new LogToplayici();
+        var okuyucu = new PdfMetinOkuyucu(Ayar("1"), log, (_, _) =>
+        {
+            saat.Tetikle();
+            return Kabuk("ping -n 61 127.0.0.1 >nul", "sleep 60; true");
+        }, saat);
+        var hata = await Assert.ThrowsAsync<PdfOkumaException>(() => okuyucu.OkuAsync(Pdf));
+        Assert.Equal(422, hata.StatusCode);
+        Assert.Contains("zaman sınırı", hata.Message);
+        Assert.Contains(log.Uyarilar, u => u.Contains("pdfinfo") && u.Contains("zaman sınırı veya istek iptali"));
+    }
+
+    [Fact]
+    public async Task Istek_arac_baslarken_iptal_edilirse_iptal_olarak_doner()
+    {
+        using var iptal = new CancellationTokenSource();
+        var okuyucu = new PdfMetinOkuyucu(Ayar("20"), null, (_, _) =>
+        {
+            iptal.Cancel();
+            return Kabuk("ping -n 61 127.0.0.1 >nul", "sleep 60; true");
+        });
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => okuyucu.OkuAsync(Pdf, iptal.Token));
+    }
+
+    /// <summary>Alt sürecin yazdığı kimlikten süreç nesnesi; alt süreç o an çalışıyordur. Araç bu arada biterse test hemen düşer.</summary>
+    private static async Task<Process> AltSureciBekle(string kimlikDosyasi, Task okuma)
+    {
+        // Üst sınır yalnız askıda kalmayı önler: zaman sınırı bu bekleme bitmeden dolmaz, yük altında yavaş açılan powershell yarışmaz.
+        var sure = Stopwatch.StartNew();
+        while (sure.Elapsed < TimeSpan.FromSeconds(60))
+        {
+            Assert.False(okuma.IsCompleted, "Araç, zaman sınırı dolmadan bitti.");
+            try
+            {
+                if (int.TryParse(File.ReadAllText(kimlikDosyasi).Trim(), out var kimlik))
+                {
+                    var surec = Process.GetProcessById(kimlik);
+                    if (OperatingSystem.IsWindows())
+                        _ = surec.SafeHandle; // tanıtıcı süreç canlıyken açılır: bekleme kimliği yeniden kullanılan başka sürece kaymaz
+                    return surec;
+                }
+            }
+            catch (IOException) { } // dosya henüz yok ya da yazılıyor
+            await Task.Delay(50);
+        }
+        throw new TimeoutException("Aracın alt süreci 60 sn içinde başlamadı.");
+    }
+
+    /// <summary>Elle dolan zaman sınırı: okuyucunun kurduğu zamanlayıcılar yalnız <see cref="Tetikle"/> ile çalışır.</summary>
+    private sealed class ElleZamanSiniri : TimeProvider
+    {
+        private readonly ConcurrentQueue<Zamanlayici> _kurulan = new();
+        public int KurulanSayisi => _kurulan.Count;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var zamanlayici = new Zamanlayici(callback, state);
+            _kurulan.Enqueue(zamanlayici);
+            return zamanlayici;
+        }
+
+        public void Tetikle()
+        {
+            foreach (var zamanlayici in _kurulan)
+                zamanlayici.Calistir();
+        }
+
+        private sealed class Zamanlayici(TimerCallback geriCagri, object? durum) : ITimer
+        {
+            private int _bitti;
+            public void Calistir()
+            {
+                if (Interlocked.Exchange(ref _bitti, 1) == 0)
+                    geriCagri(durum);
+            }
+            public bool Change(TimeSpan dueTime, TimeSpan period) => Volatile.Read(ref _bitti) == 0;
+            public void Dispose() => Interlocked.Exchange(ref _bitti, 1);
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     [Fact]
@@ -97,13 +208,19 @@ public class PdfMetinOkuyucuTests
     [Fact]
     public async Task Cok_stderr_yazan_arac_kilitlenmez_ve_okunan_metin_doner()
     {
-        // stderr sınırı aşılınca boru boşaltılmaya devam eder; dolan boru aracı bekletip zaman aşımına düşürmez.
+        // stderr sınırı aşılınca boru boşaltılmaya devam eder; dolan boru aracı bekletmez. Zaman sınırı hiç dolmaz (elle): yük
+        // altında yavaşlayan araç sınıra takılıp yanlış düşmez; kilitlenme varsa 60 sn'lik bekleme sınırı testi düşürür.
         var satir = new string('x', 60);
+        var saat = new ElleZamanSiniri();
         var okuyucu = new PdfMetinOkuyucu(Ayar("20"), null, (arac, _) => arac == "pdfinfo"
             ? Kabuk($"echo Pages: 1& for /l %i in (1,1,1500) do @echo {satir} 1>&2", $"echo 'Pages: 1'; yes {satir} | head -n 3000 >&2")
-            : Basarili(arac));
-        var metin = await okuyucu.OkuAsync(Pdf);
-        Assert.Contains("01.09.2026 Test 10,00 TL", metin);
+            : Basarili(arac), saat);
+        try
+        {
+            var metin = await okuyucu.OkuAsync(Pdf).WaitAsync(TimeSpan.FromSeconds(60));
+            Assert.Contains("01.09.2026 Test 10,00 TL", metin);
+        }
+        finally { saat.Tetikle(); } // bekleme sınırı dolduysa askıdaki aracı sonlandırır; bitmiş okumada etkisizdir
     }
 
     [Theory]

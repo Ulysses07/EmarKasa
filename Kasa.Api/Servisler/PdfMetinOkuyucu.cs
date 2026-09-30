@@ -17,9 +17,10 @@ public sealed class PdfOkumaException(string message, int statusCode = 422) : Ex
 /// <summary>Untrusted PDFs stay on the server and run in a bounded, separate Poppler process.</summary>
 /// <remarks><paramref name="baslatici"/> yalnız testler içindir: araç adı ve argümanlarından çalıştırılacak süreci verir.
 /// Boşsa <c>Pdf:AracDizini</c>'ndeki (yoksa PATH'teki) Poppler araçları kullanılır. Yönlendirme, kodlama ve ortam
-/// ayarları her iki yolda da burada uygulanır.</remarks>
+/// ayarları her iki yolda da burada uygulanır. Zaman sınırının zamanlayıcısı <paramref name="saat"/>'ten kurulur (DI'da
+/// uygulamanın saati, üretimde <see cref="TimeProvider.System"/>); testler sınırı araç ağacı ayağa kalktıktan sonra tetikleyebilir.</remarks>
 public sealed class PdfMetinOkuyucu(IConfiguration configuration, ILogger<PdfMetinOkuyucu>? logger = null,
-    Func<string, IReadOnlyList<string>, ProcessStartInfo>? baslatici = null) : IPdfMetinOkuyucu
+    Func<string, IReadOnlyList<string>, ProcessStartInfo>? baslatici = null, TimeProvider? saat = null) : IPdfMetinOkuyucu
 {
     private readonly SemaphoreSlim slots = new(2, 2);
     public async Task<string> OkuAsync(byte[] pdf, CancellationToken ct = default)
@@ -38,8 +39,8 @@ public sealed class PdfMetinOkuyucu(IConfiguration configuration, ILogger<PdfMet
             await File.WriteAllBytesAsync(input, pdf, ct);
             if (!OperatingSystem.IsWindows())
                 File.SetUnixFileMode(input, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(ZamanSiniri(configuration));
+            using var sinir = new CancellationTokenSource(ZamanSiniri(configuration), saat ?? TimeProvider.System);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct, sinir.Token);
             var info = await Execute("pdfinfo", ["-enc", "UTF-8", input], 32_768, timeout.Token);
             var pages = Regex.Match(info, @"(?m)^Pages:\s*(\d+)\s*$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
             if (!pages.Success || !int.TryParse(pages.Groups[1].Value, out var count) || count is < 1 or > 50)
@@ -100,6 +101,10 @@ public sealed class PdfMetinOkuyucu(IConfiguration configuration, ILogger<PdfMet
             await process.WaitForExitAsync(ct);
             // Çıkan aracın boruyu devralmış bir alt süreci kalsa bile bekleme zaman sınırını aşmaz.
             await Task.WhenAll(output, errors).WaitAsync(ct);
+            // Belirteç araç başlarken ya da bekleme başlamadan dolduysa iptal kaydı aracı hemen öldürür; WaitForExitAsync çıkmış
+            // süreçte iptali denetlemez. Başarısız çıkış bu durumda aracın hatası (bozuk PDF) değil zaman sınırı/istek iptalidir.
+            if (process.ExitCode != 0)
+                ct.ThrowIfCancellationRequested();
         }
         catch (Exception e) when (e is OperationCanceledException or PdfOkumaException)
         {

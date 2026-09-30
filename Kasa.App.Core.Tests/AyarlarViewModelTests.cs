@@ -199,12 +199,14 @@ public class AyarlarViewModelTests
     {
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
         var api = new SahteApi { YuklemeHatasi = new HttpRequestException("Sunucuya ulaşılamadı.") };
+        // Varsayılan "bugün" modelin kurulduğu gündür; aralık, koşu gece yarısını geçerse de doğru günü kabul eder.
+        var once = DateTime.Today;
         var vm = new AyarlarViewModel(api, auth: auth);
         Assert.False(vm.AyarKaydetCommand.CanExecute(null));
 
         await vm.YukleAsync();
         Assert.NotNull(vm.Hata);
-        Assert.Equal(DateTime.Today, vm.TakipBaslangic);
+        Assert.InRange(vm.TakipBaslangic, once, DateTime.Today);
         Assert.Equal(0m, vm.KasaAcilisDevri);
         Assert.False(vm.AyarKaydetCommand.CanExecute(null));
         await vm.AyarKaydetCommand.ExecuteAsync(null);

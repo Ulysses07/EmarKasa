@@ -1,16 +1,14 @@
-using Microsoft.AspNetCore.Mvc.Testing;
-
 namespace Kasa.Api.Tests;
 
-public class HealthTests : IClassFixture<WebApplicationFactory<Program>>
+// Düz WebApplicationFactory<Program> değil: o, JWT anahtarını ve editör kimliğini başka fabrikaların süreç ortamına yazdığı
+// değişkenlerden alıyordu (tek başına koşunca "Kasa:JwtKey en az 32 bayt" ile düşüyordu) ve appsettings'teki
+// 'Data Source=kasa.db' ile test çıktı dizininde kalıcı bir veritabanı dosyası açıyordu.
+public class HealthTests(KasaWebFactory factory) : IClassFixture<KasaWebFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    public HealthTests(WebApplicationFactory<Program> factory) => _factory = factory;
-
     [Fact]
     public async Task Health_ok_doner()
     {
-        var client = _factory.CreateClient();
+        using var client = factory.CreateClient();
         var resp = await client.GetAsync("/health");
         Assert.True(resp.IsSuccessStatusCode);
     }
