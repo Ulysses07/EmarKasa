@@ -61,7 +61,6 @@ import {
   clearSession,
   api,
   run,
-  act,
   closeModal,
   setModalCleanup,
   openModal,
@@ -90,27 +89,7 @@ const financeUi = createFinanceUi();
 const monthlyUi = createMonthlyUi();
 const cashControlsUi = createCashControlsUi();
 const statementImportUi = createStatementImportUi();
-const notificationUi = createNotificationUi({
-  api,
-  h,
-  button,
-  input,
-  field,
-  help,
-  section,
-  page,
-  dateText,
-  formDialog,
-  closeModal,
-  act,
-  toast,
-  navigate,
-  view: () => $('#view'),
-  isCurrent: generation => generation === renderId,
-  push,
-  notificationRoute,
-  role: () => state.role,
-});
+const notificationUi = createNotificationUi();
 // Gezinmenin çizdiği ekranlar (navigate): görünüm → çizim. Alış ekranları çizimden önce alış listesini yükler; bu arada başka
 // ekrana geçildiyse çizmez.
 registerScreens({
