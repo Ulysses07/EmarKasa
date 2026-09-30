@@ -6,8 +6,12 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
-public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, AuthViewModel auth, IBenzerKayitApi? benzerlikApi = null, IKasaKontrolApi? kontrolApi = null) : OturumluViewModel(auth)
+/// <param name="zaman">Kart kutularındaki "Son ödeme geçti" kuralının saati (yerel gün); verilmezse sistem saati. DI'da kayıtlı
+/// değildir (isteğe bağlı parametre varsayılana düşer); testler sabit saat verir.</param>
+public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, AuthViewModel auth, IBenzerKayitApi? benzerlikApi = null,
+    IKasaKontrolApi? kontrolApi = null, TimeProvider? zaman = null) : OturumluViewModel(auth)
 {
+    private readonly TimeProvider _zaman = zaman ?? TimeProvider.System;
     public BenzerKayitKontrolu HarcamaBenzerlik { get; } = new(benzerlikApi ?? finans as IBenzerKayitApi);
     public BenzerKayitKontrolu OdemeBenzerlik { get; } = new(benzerlikApi ?? finans as IBenzerKayitApi);
     private readonly TekrarAnahtari _kayit = new();
@@ -152,9 +156,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         if (!Gecerli(n))
             return;
         TakipMetni.Doldur(Kanallar, kanallar);
-        TakipMetni.Doldur(Kartlar, kartlar.Select(k => new KartTakipSatiri(k)));
+        TakipMetni.Doldur(Kartlar, kartlar.Select(k => new KartTakipSatiri(k, _zaman)));
         if (Secili is { } eski)
-        { var mevcut = kartlar.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut)); else Yeni(); }
+        { var mevcut = kartlar.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut, _zaman)); else Yeni(); }
         Tamamlandi();
     });
     [RelayCommand]
@@ -250,9 +254,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
             return false;
         var eski = Kartlar.FirstOrDefault(k => k.Veri.Id == sonuc.Id);
         if (eski is not null)
-            Kartlar[Kartlar.IndexOf(eski)] = new(sonuc);
+            Kartlar[Kartlar.IndexOf(eski)] = new(sonuc, _zaman);
         else
-            Kartlar.Add(new(sonuc));
+            Kartlar.Add(new(sonuc, _zaman));
         Secili = sonuc;
         DetaylariYansit();
         Tamamlandi();

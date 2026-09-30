@@ -117,13 +117,55 @@ public static class TakipMetni
         return satirlar.Select(p => new KanalPayYaz(p.Kanal!.Id, p.Tutar)).ToList();
     }
 }
-public record KartTakipSatiri(KartTakipDto Veri)
+/// <summary>Kart satırı: kart ayrıntısının özeti ve kart kutusunun içeriği (KartKutusu, tasarım 2026-09-30 §2).</summary>
+/// <param name="Zaman">"Son ödeme geçti" kuralının saati (yerel gün); verilmezse sistem saati. Model kendi saatini verir,
+/// testler sabit saat verir.</param>
+public record KartTakipSatiri(KartTakipDto Veri, TimeProvider? Zaman = null)
 {
     // Web kart listesindeki "Geçiş farkını doğrulayın" rozetinin karşılığı.
     public string Baslik => Veri.Ad + (!Veri.Aktif ? " · pasif" : "") + (!Veri.YeniTakip ? " · eski takip" : "") + (Veri.Gecis is { TahminiKasaFarki: not 0 } ? " · geçiş farkını doğrulayın" : "");
     public string Ozet => $"Kart borcu {Bicim.Tl(Veri.Borc)} ₺ · açık ekstre {Bicim.Tl(Veri.EkstreBorc)} ₺ · limit {Bicim.Tl(Veri.Limit)} ₺" +
-        (Veri.Ekstreler.Where(e => e.Kalan > 0).OrderBy(e => e.SonOdemeTarihi).FirstOrDefault() is { } e ? $"\nİlk açık ekstrenin son ödemesi: {e.SonOdemeTarihi:dd.MM.yyyy}" : "");
+        (IlkAcikEkstre is { } e ? $"\nİlk açık ekstrenin son ödemesi: {e.SonOdemeTarihi:dd.MM.yyyy}" : "");
+
+    private DateOnly Bugun => DateOnly.FromDateTime((Zaman ?? TimeProvider.System).GetLocalNow().DateTime);
+
+    /// <summary>Kalan borcu olan, son ödemesi en yakın ekstre; yoksa null.</summary>
+    public KartEkstreDto? IlkAcikEkstre => Veri.Ekstreler.Where(e => e.Kalan > 0).OrderBy(e => e.SonOdemeTarihi).FirstOrDefault();
+    public string BorcMetni => $"{Bicim.Tl(Veri.Borc)} ₺";
+    public string LimitMetni => $"Limit {Bicim.Tl(Veri.Limit)} ₺";
+    /// <summary>İlk açık ekstrenin son ödemesi; açık ekstre yoksa null (kutuda yazılmaz).</summary>
+    public string? SonOdemeMetni => IlkAcikEkstre is { } e ? $"Son ödeme {e.SonOdemeTarihi:dd.MM.yyyy}" : null;
+    /// <summary>Limit doluluğu: borç ÷ limit, 0 ile 1 arasına sıkıştırılır; limit 0 (ya da eksi) ise null ve çubuk gösterilmez.</summary>
+    public double? Doluluk => Veri.Limit > 0 ? (double)Math.Clamp(Veri.Borc / Veri.Limit, 0m, 1m) : null;
+    public bool DolulukVar => Doluluk is not null;
+    /// <summary>Kalan borcu olan bir ekstrenin son ödeme tarihi bugünden önce.</summary>
+    public bool SonOdemeGecti => Veri.Ekstreler.Any(e => e.Kalan > 0 && e.SonOdemeTarihi < Bugun);
+
+    /// <summary>Kutudaki durum etiketleri: önem sırasıyla en çok iki tane.</summary>
+    public IReadOnlyList<KartEtiketi> Etiketler
+    {
+        get
+        {
+            var etiketler = new List<KartEtiketi>();
+            if (SonOdemeGecti)
+                etiketler.Add(new("Son ödeme geçti", KartEtiketTuru.Tehlike));
+            if (Veri.Gecis is { TahminiKasaFarki: not 0 })
+                etiketler.Add(new("Geçiş farkını doğrulayın", KartEtiketTuru.Uyari));
+            if (!Veri.YeniTakip)
+                etiketler.Add(new("Eski takip", KartEtiketTuru.Notr));
+            if (!Veri.Aktif)
+                etiketler.Add(new("Pasif", KartEtiketTuru.Notr));
+            return etiketler.Take(2).ToList();
+        }
+    }
+
+    public KartRenkAilesi Renk => KartRengi.Sec(Veri.Ad, Veri.Id);
 }
+
+/// <summary>Kart kutusu durum etiketinin türü: rengini belirler (Tehlike NegSoft/Neg, Uyari UyariZemin/UyariMetin, Notr ChipBg/Ink).</summary>
+public enum KartEtiketTuru { Tehlike, Uyari, Notr }
+
+public sealed record KartEtiketi(string Metin, KartEtiketTuru Tur);
 public record EkstreSatiri(KartEkstreDto Veri)
 {
     public string Baslik => $"Kesim {Veri.KesimTarihi:dd.MM.yyyy} · son ödeme {Veri.SonOdemeTarihi:dd.MM.yyyy}";
