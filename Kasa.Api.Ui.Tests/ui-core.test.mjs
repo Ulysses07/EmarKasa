@@ -1360,6 +1360,7 @@ test('browser entry and helper parse as explicit ES modules before the login scr
     'app.js',
     'ui-core.js',
     'ui-dom.js',
+    'ui-shell.js',
     'finance-ui.js',
     'monthly-ui.js',
     'cash-controls-ui.js',
@@ -5272,6 +5273,7 @@ test('ay seçici type="month" kullanmaz; önceki/sonraki düğmeleri YYYY-AA de�
   for (const file of [
     'app.js',
     'ui-dom.js',
+    'ui-shell.js',
     'monthly-ui.js',
     'finance-ui.js',
     'cash-controls-ui.js',
