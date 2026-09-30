@@ -1734,14 +1734,10 @@ uç sayısı: 125
   ad: - / rota adı: -
   yetki: politika=Finans roller=- şemalar=- + politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (9):
-    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (Kasa.Api.KrediKartiYazDto dto, Kasa.Api.Data.KasaDbContext db)
+  meta veri (5):
+    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ ()
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Finans roller=- şemalar=-
-    - Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata: istek=Kasa.Api.KrediKartiYazDto içerik=application/json isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=dto tür=Kasa.Api.KrediKartiYazDto TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/kredikartlari
 
@@ -1799,14 +1795,10 @@ uç sayısı: 125
   ad: - / rota adı: -
   yetki: politika=Finans roller=- şemalar=- + politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (9):
-    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (Kasa.Api.KrediYazDto dto, Kasa.Api.Data.KasaDbContext db)
+  meta veri (5):
+    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ ()
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=POST cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Finans roller=- şemalar=-
-    - Microsoft.AspNetCore.Http.Metadata.AcceptsMetadata: istek=Kasa.Api.KrediYazDto içerik=application/json isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=dto tür=Kasa.Api.KrediYazDto TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
-    - Microsoft.AspNetCore.Http.Metadata.DisableCookieRedirectMetadata
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/krediler
 
