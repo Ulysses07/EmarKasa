@@ -213,7 +213,7 @@ public static class AlisEndpoints
             if (existing.HesapHareketi is { } h && dto.HesapId != h.HesapId)
                 return Conflict("Giderin bağlı olduğu hesap ödeme hesabıyla eşleşmiyor.");
             ekstreSatiri = db.EkstreKayitlar.SingleOrDefault(k => k.IslemId == islemId && !k.Iptal);
-            if (ekstreSatiri is { IslemTuru: not "Gider" })
+            if (ekstreSatiri is { IslemTuru: not EkstreIslemTurleri.Gider })
                 return Conflict("Ekstreden alınan bu kayıt alışa bağlanamaz. PDF İçe Aktarma bölümünden düzeltin.");
             islem = existing;
             // Bağlanan gider önce kendi kanalına (ekstre giderinde satırın dağılımına) yazılıydı; bağlama onu alışın paylarına
@@ -272,9 +272,9 @@ public static class AlisEndpoints
             try
             {
                 if (kartHarcamasi is null)
-                { ekstreSatiri.IslemId = null; ekstreSatiri.EslesmeTuru = "Gider"; ekstreSatiri.EslesmeId = islem.Id; }
+                { ekstreSatiri.IslemId = null; ekstreSatiri.EslesmeTuru = EslesmeTurleri.Gider; ekstreSatiri.EslesmeId = islem.Id; }
                 else
-                { ekstreSatiri.KartHarcamaId = null; ekstreSatiri.EslesmeTuru = "KartHarcama"; ekstreSatiri.EslesmeId = kartHarcamasi.Id; }
+                { ekstreSatiri.KartHarcamaId = null; ekstreSatiri.EslesmeTuru = EslesmeTurleri.KartHarcama; ekstreSatiri.EslesmeId = kartHarcamasi.Id; }
                 db.SaveChanges();
             }
             finally { db.EkstreDegisikligi = false; }

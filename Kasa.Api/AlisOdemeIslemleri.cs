@@ -139,7 +139,7 @@ internal static class AlisOdemeIslemleri
     internal static IQueryable<IslemEntity> BaglanabilirSorgu(KasaDbContext db, DateOnly takipBaslangic) => db.Islemler.AsNoTracking().Where(i =>
         (i.Tip == GiderTipi.Cari || i.Tip == GiderTipi.KrediKarti) && i.TutarTl > 0 && i.Tarih >= takipBaslangic
         && !db.AlisOdemeler.Any(o => o.IslemId == i.Id) && !db.KrediTaksitOdemeler.Any(o => o.IslemId == i.Id)
-        && !db.AylikGiderOdemeler.Any(p => p.IslemId == i.Id) && !db.EkstreKayitlar.Any(k => k.IslemId == i.Id && (k.Iptal || k.IslemTuru != "Gider"))
+        && !db.AylikGiderOdemeler.Any(p => p.IslemId == i.Id) && !db.EkstreKayitlar.Any(k => k.IslemId == i.Id && (k.Iptal || k.IslemTuru != EkstreIslemTurleri.Gider))
         && !db.HesapHareketler.Any(h => h.IslemId == i.Id)
         && (i.KrediKartiId == null || db.KrediKartlari.Any(k => k.Id == i.KrediKartiId)
             && !db.TakipKartlar.Any(t => t.KrediKartiId == i.KrediKartiId && (!t.Aktif || i.Tarih < t.Baslangic))));
@@ -175,9 +175,9 @@ internal static class AlisOdemeIslemleri
     internal static EkstreKayitEntity? DevredilenEkstreSatiri(KasaDbContext db, int islemId)
     {
         var harcama = db.TakipHarcamalar.Where(h => h.IslemId == islemId).Select(h => (int?)h.Id).FirstOrDefault();
-        return db.EkstreKayitlar.FirstOrDefault(k => !k.Iptal && k.IslemTuru != EkstreAktarmaEndpoints.Eslestir
-            && (k.IslemTuru == "Gider" && k.EslesmeTuru == "Gider" && k.EslesmeId == islemId
-                || harcama != null && k.IslemTuru == "KartHarcama" && k.EslesmeTuru == "KartHarcama" && k.EslesmeId == harcama));
+        return db.EkstreKayitlar.FirstOrDefault(k => !k.Iptal && k.IslemTuru != EkstreIslemTurleri.Eslestir
+            && (k.IslemTuru == EkstreIslemTurleri.Gider && k.EslesmeTuru == EslesmeTurleri.Gider && k.EslesmeId == islemId
+                || harcama != null && k.IslemTuru == EkstreIslemTurleri.KartHarcama && k.EslesmeTuru == EslesmeTurleri.KartHarcama && k.EslesmeId == harcama));
     }
 
     internal static IResult Duzelt(KasaDbContext db, int id, int odemeId, AlisOdemeDuzelt dto)
@@ -330,7 +330,7 @@ internal static class AlisOdemeIslemleri
             // Harcamanın kanal payı ekstre satırındaki dağılımdır: girilen kanal payları kullanılmaz.
             alis.Odemeler.Remove(payment);
             db.AlisOdemeler.Remove(payment);
-            var harcama = ekstreSatiri.EslesmeTuru == "KartHarcama" ? db.TakipHarcamalar.Single(h => h.Id == ekstreSatiri.EslesmeId) : null;
+            var harcama = ekstreSatiri.EslesmeTuru == EslesmeTurleri.KartHarcama ? db.TakipHarcamalar.Single(h => h.Id == ekstreSatiri.EslesmeId) : null;
             if (harcama is not null)
             { harcama.IslemId = null; db.TakipKartlar.Single(t => t.KrediKartiId == harcama.KrediKartiId).Surum++; }
             alis.Surum++;

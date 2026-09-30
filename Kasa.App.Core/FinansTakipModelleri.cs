@@ -148,18 +148,18 @@ public record KartOdemeSatiri(KartTakipOdemeDto Veri)
 public record KrediTakipSatiri(KrediTakipDto Veri)
 {
     public string Baslik => Veri.Ad + (!Veri.Aktif ? " · arşiv" : "") + (!Veri.YeniTakip ? " · eski takip" : "");
-    public string Ozet => $"Çekim {Veri.CekimTarihi:dd.MM.yyyy} · çekilen {Bicim.Tl(Veri.CekilenTutar)} ₺ · kalan planlı ödeme {Bicim.Tl(Veri.KalanPlanliOdeme)} ₺ · {Veri.Taksitler.Count(t => t.Durum == "Bekliyor")} taksit" +
-        (Veri.Taksitler.Where(t => t.Durum == "Bekliyor").OrderBy(t => t.Tarih).FirstOrDefault() is { } t ? $"\nSıradaki taksit: {t.Tarih:dd.MM.yyyy} · {Bicim.Tl(t.Tutar)} ₺" : "");
+    public string Ozet => $"Çekim {Veri.CekimTarihi:dd.MM.yyyy} · çekilen {Bicim.Tl(Veri.CekilenTutar)} ₺ · kalan planlı ödeme {Bicim.Tl(Veri.KalanPlanliOdeme)} ₺ · {Veri.Taksitler.Count(t => t.Durum == TaksitDurumlari.Bekliyor)} taksit" +
+        (Veri.Taksitler.Where(t => t.Durum == TaksitDurumlari.Bekliyor).OrderBy(t => t.Tarih).FirstOrDefault() is { } t ? $"\nSıradaki taksit: {t.Tarih:dd.MM.yyyy} · {Bicim.Tl(t.Tutar)} ₺" : "");
 }
 public record TaksitSatiri(KrediPlanTaksitDto Veri)
 {
     public string Baslik => $"{Veri.No}. taksit · {Veri.Tarih:dd.MM.yyyy} · {Bicim.Tl(Veri.Tutar)} ₺";
-    public string Ozet => (Veri.Durum switch { "KasayaIslendi" => "Kasaya işlendi; banka ödeme doğrulaması değildir", "Iptal" => "Plan değişikliğiyle iptal", _ => "Bekliyor; tarihinde otomatik düşer" }) + "\n" + TakipMetni.Paylar(Veri.Dagilimlar) + "\n" + Veri.Not;
+    public string Ozet => (Veri.Durum switch { TaksitDurumlari.KasayaIslendi => "Kasaya işlendi; banka ödeme doğrulaması değildir", TaksitDurumlari.Iptal => "Plan değişikliğiyle iptal", _ => "Bekliyor; tarihinde otomatik düşer" }) + "\n" + TakipMetni.Paylar(Veri.Dagilimlar) + "\n" + Veri.Not;
 }
 public record TakipOlaySatiri(TakipOlayDto Veri, DateOnly? RaporTarihi = null)
 {
     public string Baslik => $"{Veri.Tarih:dd.MM.yyyy} · {Veri.Ad} · {Bicim.Tl(Veri.Tutar)} ₺";
     public string Ozet => Veri.OtomatikKasa ? "Kredi taksidi: tarihinde otomatik kasaya işlenir." :
-        Veri.Tur == "Kesim" ? "Kart hesap kesimi; banka ekstresi doğrulaması değildir." :
+        Veri.Tur == TakipOlayTurleri.Kesim ? "Kart hesap kesimi; banka ekstresi doğrulaması değildir." :
         Veri.Tarih < (RaporTarihi ?? DateOnly.FromDateTime(DateTime.Today)) ? "Son ödeme tarihi geçti; kayıtlı kalan borç var. Yalnız ödeme kaydıyla kasadan düşer." : "Kart: yalnız ödeme kaydıyla kasadan düşer.";
 }

@@ -48,7 +48,7 @@ public static class AylikGiderEndpoints
             // İptal edilen ödemeler plan satırından ayrı listelenir (gerekçe ve iptal anıyla); toplamlara girmez.
             var cancelled = db.AylikGiderOdemeler.AsNoTracking().Where(p => p.Ay == month && p.Iptal).OrderBy(p => p.Tarih).ThenBy(p => p.Id).ToList();
             var cancelTimes = DenetimOkuma.IptalAnlari<AylikGiderOdemeEntity>(db, cancelled.Select(p => p.Id).ToList());
-            return Results.Ok(new AylikGiderAyDto(yil, ay, rows.Sum(r => r.Tutar), rows.Where(r => r.Durum == "Odendi").Sum(r => r.Tutar), rows,
+            return Results.Ok(new AylikGiderAyDto(yil, ay, rows.Sum(r => r.Tutar), rows.Where(r => r.Durum == AylikGiderDurumlari.Odendi).Sum(r => r.Tutar), rows,
                 cancelled.Select(p => Paid(db, p, cancelTimes)).ToList()));
         }));
         // Uygulama başına tek defter: benzer kayıt uyarısı verilmiş, onayı beklenen istekler (BenzerOnay alanını göndermeyen istemci).
@@ -132,16 +132,16 @@ public static class AylikGiderEndpoints
         var current = new DateOnly(today.Year, today.Month, 1);
         var last = GirdiDogrulama.EnGecTarih(today);
         Need(d.GecerliAy.Day == 1 && d.GecerliAy >= current && d.GecerliAy <= last, $"Geçerlilik cari ay ile {last:MM.yyyy} arasında bir ayın ilk günü olmalı.");
-        Need(d.DagilimTuru is "Genel" or "Esit" or "Ozel", "Geçerli dağılım türü seçin.");
+        Need(d.DagilimTuru is DagilimBicimleri.Genel or DagilimBicimleri.Esit or DagilimBicimleri.Ozel, "Geçerli dağılım türü seçin.");
         Need(d.Dagilimlar is not null && d.Dagilimlar.Count <= 100 && d.Dagilimlar.All(p => p is not null), "En fazla 100 kanal seçin.");
         var parts = d.Dagilimlar!;
         var ids = parts.Select(p => p.KanalId).ToList();
         Need(ids.Distinct().Count() == ids.Count && db.Kanallar.Count(k => ids.Contains(k.Id)) == ids.Count, "Kayıtlı ve tekil kanallar seçin.");
-        Need(d.DagilimTuru == "Genel" ? parts.Count == 0 : parts.Count > 0, "Genel giderde kanal seçmeyin; diğer türlerde kanal seçin.");
+        Need(d.DagilimTuru == DagilimBicimleri.Genel ? parts.Count == 0 : parts.Count > 0, "Genel giderde kanal seçmeyin; diğer türlerde kanal seçin.");
         List<KanalPayYaz> shares = [];
-        if (d.DagilimTuru == "Esit")
+        if (d.DagilimTuru == DagilimBicimleri.Esit)
             shares = FinansTakipServisi.EsitPaylar(ids, d.Tutar);
-        if (d.DagilimTuru == "Ozel")
+        if (d.DagilimTuru == DagilimBicimleri.Ozel)
         {
             Need(parts.All(p => p.Tutar > 0 && p.Tutar <= d.Tutar && decimal.Round(p.Tutar, 2) == p.Tutar) && parts.Sum(p => p.Tutar) == d.Tutar, "Kanal tutarları pozitif ve toplamı gider tutarına eşit olmalı.");
             shares = parts.OrderBy(p => p.KanalId).ToList();
@@ -238,11 +238,11 @@ public static class AylikGiderEndpoints
     private static AylikGiderSablonDto Template(KasaDbContext db, AylikGiderRevizyonEntity r) => new(r.SablonId, r.Surum, r.Ad, r.Tur, r.Tutar, r.OdemeGunu, r.DagilimTuru,
         FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), r.GecerliAy, r.Aktif);
     private static AylikGiderSatirDto Row(KasaDbContext db, AylikGiderRevizyonEntity r, DateOnly month) => new(r.SablonId, r.Surum, r.Ad, r.Tur, r.Tutar,
-        FinansTakipServisi.Gun(month, r.OdemeGunu), r.DagilimTuru, FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), "Planlandi");
+        FinansTakipServisi.Gun(month, r.OdemeGunu), r.DagilimTuru, FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), AylikGiderDurumlari.Planlandi);
     private static AylikGiderSatirDto Paid(KasaDbContext db, AylikGiderOdemeEntity p, IReadOnlyDictionary<int, DateTimeOffset>? cancelTimes = null) =>
         Row(db, db.AylikGiderRevizyonlar.AsNoTracking().Single(r => r.Id == p.RevizyonId), p.Ay) with
         {
-            Durum = p.Iptal ? "Iptal" : "Odendi",
+            Durum = p.Iptal ? AylikGiderDurumlari.Iptal : AylikGiderDurumlari.Odendi,
             OdemeId = p.Id,
             OdemeTarihi = p.Tarih,
             IslemId = p.IslemId,

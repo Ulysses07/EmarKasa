@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
+using Kasa.Core.Kodlar;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,7 +29,7 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
     public IReadOnlyList<TakipOlayDto> Oku(KasaDbContext db, DateOnly today, ICollection<BildirimKaynakHatasi> hatalar)
     {
         // Eşitlenemeyen hareketler kayıtlı veriyle okumayı durdurmaz; hata ayrıca bildirilir.
-        Dene(db, hatalar, "Kart", 0, "Kart hareketleri eşitlemesi", () =>
+        Dene(db, hatalar, TakipKaynaklari.Kart, 0, "Kart hareketleri eşitlemesi", () =>
         {
             using var yazma = db.Database.CurrentTransaction is null ? db.Database.BeginTransaction() : null;
             FinansTakipServisi.Sync(db);
@@ -40,22 +41,22 @@ public sealed class FinansBildirimKaynaklari : IBildirimKaynaklari
         var result = new List<TakipOlayDto>();
         var kartAdlari = db.KrediKartlari.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
         foreach (var card in db.TakipKartlar.AsNoTracking().ToList())
-            Dene(db, hatalar, "Kart", card.KrediKartiId, kartAdlari.GetValueOrDefault(card.KrediKartiId, $"Kart #{card.KrediKartiId}"), () =>
+            Dene(db, hatalar, TakipKaynaklari.Kart, card.KrediKartiId, kartAdlari.GetValueOrDefault(card.KrediKartiId, $"Kart #{card.KrediKartiId}"), () =>
             {
                 // Olaylar önce tamamlanır: hesap yarıda kalırsa karttan yarım olay listesi eklenmez.
                 result.AddRange(FinansTakipServisi.KartOlaylari(FinansTakipServisi.Kart(baglam, card.KrediKartiId), card.Aktif).ToList());
             });
         var krediAdlari = db.Krediler.AsNoTracking().ToDictionary(k => k.Id, k => k.Ad);
         foreach (var loan in db.TakipKrediler.AsNoTracking().ToList())
-            Dene(db, hatalar, "Kredi", loan.KrediId, krediAdlari.GetValueOrDefault(loan.KrediId, $"Kredi #{loan.KrediId}"), () =>
+            Dene(db, hatalar, TakipKaynaklari.Kredi, loan.KrediId, krediAdlari.GetValueOrDefault(loan.KrediId, $"Kredi #{loan.KrediId}"), () =>
             {
                 result.AddRange(FinansTakipServisi.KrediOlaylari(FinansTakipServisi.Kredi(baglam, loan.KrediId)).ToList());
             });
         // Takipsiz (geçişi yapılmamış) kart ve krediler eski modelin hesabıyla, aynı yalıtımla (gap-tarihsel-spec-ve-emekli-web-7).
         foreach (var id in EskiModelOlaylari.TakipsizKartlar(db))
-            Dene(db, hatalar, "Kart", id, kartAdlari.GetValueOrDefault(id, $"Kart #{id}"), () => result.AddRange(EskiModelOlaylari.Kart(baglam, id)));
+            Dene(db, hatalar, TakipKaynaklari.Kart, id, kartAdlari.GetValueOrDefault(id, $"Kart #{id}"), () => result.AddRange(EskiModelOlaylari.Kart(baglam, id)));
         foreach (var id in EskiModelOlaylari.TakipsizKrediler(db))
-            Dene(db, hatalar, "Kredi", id, krediAdlari.GetValueOrDefault(id, $"Kredi #{id}"), () => result.AddRange(EskiModelOlaylari.Kredi(baglam, id)));
+            Dene(db, hatalar, TakipKaynaklari.Kredi, id, krediAdlari.GetValueOrDefault(id, $"Kredi #{id}"), () => result.AddRange(EskiModelOlaylari.Kredi(baglam, id)));
         return result;
     }
 
@@ -102,23 +103,23 @@ public static class BildirimTakvimi
         var result = new List<BildirimTaslagi>();
         foreach (var e in events)
         {
-            var isCard = e.Kaynak == "Kart";
-            if (e.Tur == "Kesim" && e.Tarih != today)
+            var isCard = e.Kaynak == TakipKaynaklari.Kart;
+            if (e.Tur == TakipOlayTurleri.Kesim && e.Tarih != today)
                 continue;
-            if (e.Tur != "Kesim" && e.Tarih != today && e.Tarih != today.AddDays(3))
+            if (e.Tur != TakipOlayTurleri.Kesim && e.Tarih != today && e.Tarih != today.AddDays(3))
                 continue;
-            if (e.Tur != "Kesim" && e.Tutar <= 0)
+            if (e.Tur != TakipOlayTurleri.Kesim && e.Tutar <= 0)
                 continue;
             var offset = e.Tarih.DayNumber - today.DayNumber;
             var key = $"{e.Kaynak}:{e.KaynakId}:{e.KalemId}:{e.Tur}:{e.Tarih:yyyy-MM-dd}:{offset}";
             var amount = e.Tutar.ToString("N2", CultureInfo.GetCultureInfo("tr-TR")) + " TL";
-            var title = e.Tur == "Kesim" ? "Bugün hesap kesim günü" : offset == 3 ? "Ödemeye 3 gün kaldı" : "Bugün ödeme günü";
+            var title = e.Tur == TakipOlayTurleri.Kesim ? "Bugün hesap kesim günü" : offset == 3 ? "Ödemeye 3 gün kaldı" : "Bugün ödeme günü";
             // Takipsiz eski kart (EskiModel): tutar eski kayıtlardan hesaplanır, kasa ödeme kaydıyla değişmez; geçiş istenir.
             // Taksidi kasaya otomatik işlenmeyen kredi yalnız gerçekleşme takipli eski kredidir.
             var message = (e.Tur, isCard, e.EskiModel) switch
             {
-                ("Kesim", _, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. {EskiKartNotu}",
-                ("Kesim", _, false) => $"{e.Ad}: kayıtlı ekstre borcu {amount}. Kasadan ancak ödeme kaydettiğinde düşer.",
+                (TakipOlayTurleri.Kesim, _, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. {EskiKartNotu}",
+                (TakipOlayTurleri.Kesim, _, false) => $"{e.Ad}: kayıtlı ekstre borcu {amount}. Kasadan ancak ödeme kaydettiğinde düşer.",
                 (_, true, true) => $"{e.Ad}: eski kayıtlardan hesaplanan ekstre borcu {amount}. Son gün {e.Tarih:dd.MM.yyyy}. {EskiKartNotu}",
                 (_, true, false) => $"{e.Ad}: kalan ödeme {amount}. Son gün {e.Tarih:dd.MM.yyyy}.",
                 _ => $"{e.Ad}: taksit {amount}, {e.Tarih:dd.MM.yyyy}. " + (!e.OtomatikKasa
@@ -137,8 +138,8 @@ public static class BildirimTakvimi
     {
         var hedef = h.Kaynak switch
         {
-            "Kart" => h.KaynakId > 0 ? $"/#cards/{h.KaynakId}" : "/#cards",
-            "Kredi" => $"/#loans/{h.KaynakId}",
+            TakipKaynaklari.Kart => h.KaynakId > 0 ? $"/#cards/{h.KaynakId}" : "/#cards",
+            TakipKaynaklari.Kredi => $"/#loans/{h.KaynakId}",
             _ => "/#home"
         };
         return new($"Hata:{h.Kaynak}:{h.KaynakId}:{today:yyyy-MM-dd}", "Kayıt hesaplanamadı",

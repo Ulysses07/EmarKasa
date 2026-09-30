@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -44,7 +45,7 @@ public partial class PanelViewModel : RaporViewModel
     public bool TakipsizVar => TakipsizUyari.Length > 0;
 
     public static string TakipsizMetni(IReadOnlyList<TakipsizKayitDto>? kayitlar) => kayitlar is not { Count: > 0 } ? ""
-        : $"Kart ve kredi takibinde olmayan kayıtlar var: {string.Join(", ", kayitlar.Select(k => $"{k.Ad} ({(k.Kaynak == "Kart" ? "kart" : "kredi")})"))}. "
+        : $"Kart ve kredi takibinde olmayan kayıtlar var: {string.Join(", ", kayitlar.Select(k => $"{k.Ad} ({(k.Kaynak == TakipKaynaklari.Kart ? "kart" : "kredi")})"))}. "
           + "Bu kayıtların hatırlatmaları eski kayıtlardan hesaplanır ve sınırlıdır; yeni ödeme ve güncel ekstre görünmez. Kartlar ve Krediler ekranından geçiş yapın.";
 
     /// <summary>Panel, kanal eşikleri ve takip özeti tek istekte (GET /api/rapor/ana-sayfa): bakiye, eşik uyarısı ve kart

@@ -443,7 +443,7 @@ public static partial class FinansTakipEndpoints
         if (fark > 0)
             notes.Add($"Girilen tutar önerilenin {Tl(fark)} üstünde: bu kısım kasadan hiçbir zaman düşmez; geçiş bu tutarla onaylanamaz.");
         notes.Add("Açılış dağılımını ve tutarları banka/kasa kayıtlarıyla doğrulayın.");
-        return new("Kart", id, d.Baslangic, fark, d.Dagilimlar.Count > 0 ? fark : 0, d.KasadaOncedenSayilanTutar, notes, fark <= 0 && d.KasadaOncedenSayilanTutar >= minimum,
+        return new(TakipKaynaklari.Kart, id, d.Baslangic, fark, d.Dagilimlar.Count > 0 ? fark : 0, d.KasadaOncedenSayilanTutar, notes, fark <= 0 && d.KasadaOncedenSayilanTutar >= minimum,
             s.SistemKartBorcu, s.EskiKuraldaIslenenTutar, s.BekleyenEskiDusumTutari, s.SonBekleyenDusumTarihi, s.OnerilenKasadaSayilanTutar, minimum);
     }
     private static string Tl(decimal value) => value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("tr-TR")) + " TL";
@@ -458,7 +458,7 @@ public static partial class FinansTakipEndpoints
         Require(!db.KrediTaksitOdemeler.Any(p => p.KrediId == id), "Eski gerçek ödeme bağlantıları ayrıca mutabakat gerektiriyor; otomatik geçiş yapılamaz.", 409);
         if (d.Baslangic == Bugun)
             Require(!KrediTuretici.TaksitGiderleri(db.Krediler.Single(k => k.Id == id).ToCore()).Any(t => t.Tarih == Bugun), "Bugünkü kredi taksidi kasaya işlendi; geçiş için yarın veya sonrası seçin.", 409);
-        return new("Kredi", id, d.Baslangic, 0, 0, 0, ["Geçmiş çekim yeniden kasaya girmez; geçmiş kanal bakiyesi değiştirilmez.", "Başlangıçtan itibaren kalan taksitler seçili sabit kanallara eşit bölünür. Önceki taksitler eski kuralla korunur."], true);
+        return new(TakipKaynaklari.Kredi, id, d.Baslangic, 0, 0, 0, ["Geçmiş çekim yeniden kasaya girmez; geçmiş kanal bakiyesi değiştirilmez.", "Başlangıçtan itibaren kalan taksitler seçili sabit kanallara eşit bölünür. Önceki taksitler eski kuralla korunur."], true);
     }
     internal static void ValidateShares(KasaDbContext db, IReadOnlyList<KanalPayYaz>? shares, decimal amount)
     {
@@ -514,7 +514,7 @@ public static partial class FinansTakipEndpoints
         var events = TakipOlaylari(b, cards.ToDictionary(c => c.Id), loans.ToDictionary(l => l.Id));
         return new TakipOzetDto(today, cards.Sum(c => Math.Max(0, c.Borc)), loans.Sum(l => l.KalanPlanliOdeme),
             events.Where(e => (e.Tarih >= today && e.Tarih <= today.AddDays(days))
-                || (e.Kaynak == "Kart" && e.Tur == "SonOdeme" && e.Tutar > 0 && e.Tarih < today)).OrderBy(e => e.Tarih).ToList(),
+                || (e.Kaynak == TakipKaynaklari.Kart && e.Tur == TakipOlayTurleri.SonOdeme && e.Tutar > 0 && e.Tarih < today)).OrderBy(e => e.Tarih).ToList(),
             debts, cards.Sum(c => Math.Max(0, -c.Borc)));
     }
     /// <summary>Salt okunur uç (GET ve önizlemeler): tutarlı okuma anlık görüntüsü, yazma kilidi ve Sync yok. Takip

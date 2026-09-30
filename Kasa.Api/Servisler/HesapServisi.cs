@@ -238,7 +238,7 @@ public class HesapServisi
             if (importedExpenses.TryGetValue(kayit.Id, out var importedExpense))
             {
                 var source = kayit.ToCore() with { Kaynak = kaynak, KaynakAnahtari = kaynak };
-                if (importedExpense.DagilimTuru == "Genel")
+                if (importedExpense.DagilimTuru == DagilimBicimleri.Genel)
                     dbIslemler.Add(source with { YalnizGenelKasa = true });
                 else
                     PaySatirlari(source, VeriKarantinasi.Oku<TakipKanalPayi>(importedExpense.DagilimJson)?.Select(p => (p.KanalId, p.Tutar)), "dağılımı okunamadı",
@@ -252,7 +252,7 @@ public class HesapServisi
                 string Aciklama(string sorun) => $"Aylık gider ödemesi #{aylikOdeme.Id} ({Gun(kayit.Tarih)}): {sorun}; tutar 'Dağılım bekliyor' sayıldı";
                 if (!aylikRevizyonlar.TryGetValue(aylikOdeme.RevizyonId, out var revision))
                     Bekliyor(source, source.TutarTl, anahtar, () => Aciklama($"gider tanımı (revizyon #{aylikOdeme.RevizyonId}) bulunamadı"));
-                else if (revision.DagilimTuru == "Genel")
+                else if (revision.DagilimTuru == DagilimBicimleri.Genel)
                     dbIslemler.Add(source with { YalnizGenelKasa = true });
                 else
                     PaySatirlari(source, Paylar(VeriKarantinasi.Oku<KanalPayYaz>(revision.DagilimJson)), $"dağılımı (revizyon #{revision.Id}) okunamadı", anahtar, Aciklama);
@@ -308,7 +308,7 @@ public class HesapServisi
         // erken düşerdi (spec: gelecek taksit güncel kasayı etkilemez; ileri aylar o ayın
         // raporu sorulunca yansır). İleri tarihli kayıt ufku en çok IleriUfuk'a kadar uzatır.
         var ekGelirTarihleri = ekGelirHareketleri.Select(h => h.Tarih).ToList();
-        var ufukTarihleri = kayitTarihleri.Concat(ekGelirTarihleri).Concat(imported.Where(k => k.IslemTuru == "Gelir").Select(k => k.Tarih)).ToList();
+        var ufukTarihleri = kayitTarihleri.Concat(ekGelirTarihleri).Concat(imported.Where(k => k.IslemTuru == EkstreIslemTurleri.Gelir).Select(k => k.Tarih)).ToList();
         var enGecIslem = ufukTarihleri.DefaultIfEmpty(bugun).Max();
         string? ufukUyarisi = null;
         var ufuk = IleriUfuk(bugun);
@@ -361,11 +361,11 @@ public class HesapServisi
                 }
             }
         var gelenler = dbGelenler.Concat(cekimGelenleri).Concat(ekGelirler).ToList();
-        foreach (var income in imported.Where(k => k.IslemTuru == "Gelir"))
+        foreach (var income in imported.Where(k => k.IslemTuru == EkstreIslemTurleri.Gelir))
             if (donemler.FirstOrDefault(d => d.Icerir(income.Tarih)) is { } period)
             {
                 Gelen Iz(Gelen g) => g with { Tarih = income.Tarih, KaynakAnahtari = "EkstreKayit:" + income.Id, Aciklama = income.Aciklama };
-                if (income.DagilimTuru == "Genel")
+                if (income.DagilimTuru == DagilimBicimleri.Genel)
                 { gelenler.Add(Iz(new(period.Start, KanalEtiketleri.GenelKasa, income.Tutar, GenelGelir: true))); continue; }
                 foreach (var (ad, tutar, sorun) in Coz(VeriKarantinasi.Oku<TakipKanalPayi>(income.DagilimJson)?.Select(p => (p.KanalId, p.Tutar)), income.Tutar, "dağılımı okunamadı"))
                     if (ad is not null)

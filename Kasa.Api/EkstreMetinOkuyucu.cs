@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Kasa.Api.Servisler;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.Api;
 
@@ -40,7 +41,7 @@ public static class EkstreMetinOkuyucu
 
     public static EkstreOkumaSonucu Oku(string text, string kaynak, string banka)
     {
-        if (kaynak is not ("Kart" or "Banka"))
+        if (kaynak is not (EkstreKaynaklari.Kart or EkstreKaynaklari.Banka))
             throw new PdfOkumaException("Belge türü geçersiz.", 400);
         if (text.Length > 1_000_000)
             throw new PdfOkumaException("PDF metni çok uzun. Daha kısa bir tarih aralığı seçin.");
@@ -101,7 +102,7 @@ public static class EkstreMetinOkuyucu
             }
         }
         // Kart ekstresinde eksi/artı işaretinin anlamı bankaya göre değişir; satırlar yorumlanmadan önce belgeden çıkarılır.
-        var creditSign = kaynak == "Kart" ? CreditSign(segments) : 0;
+        var creditSign = kaynak == EkstreKaynaklari.Kart ? CreditSign(segments) : 0;
         var rows = segments.Select((s, i) => Parse(s, kaynak, globalCurrency, i + 1, creditSign)).ToList();
         if (summaryCount > 0)
             warnings.Add($"{summaryCount} toplam, devir, limit veya ekstre bilgi satırı mali hareket olarak alınmadı.");
@@ -138,7 +139,7 @@ public static class EkstreMetinOkuyucu
         else if (currency != "TRY")
             warnings.Add("Bu satır farklı para biriminde; TL içe aktarmaya uygun değil.");
         string proposal;
-        if (source == "Kart")
+        if (source == EkstreKaynaklari.Kart)
         {
             var key = CardKey(normalized, classification);
             // ReadAmount yönü yalnız Borç/Alacak kolonundan ya da B/A sonekinden verir; bu yön açıklamadaki kelimeyle ezilmez.
@@ -157,11 +158,11 @@ public static class EkstreMetinOkuyucu
                 };
             proposal = key switch
             {
-                "Iade" => "KartIade",
-                "Odeme" => "KartOdemesi",
+                "Iade" => EkstreIslemTurleri.KartIade,
+                "Odeme" => EkstreIslemTurleri.KartOdemesi,
                 // Adında "indirim/bonus/puan" geçen işyerinin borç satırı alacak sayılmaz.
-                "Alacak" => certain && direction == "Cikis" ? "KartHarcama" : "Atla",
-                _ => direction == "Cikis" ? "KartHarcama" : key == "BelirsizOdeme" && direction == "Giris" ? "KartOdemesi" : "Atla"
+                "Alacak" => certain && direction == "Cikis" ? EkstreIslemTurleri.KartHarcama : EkstreIslemTurleri.Atla,
+                _ => direction == "Cikis" ? EkstreIslemTurleri.KartHarcama : key == "BelirsizOdeme" && direction == "Giris" ? EkstreIslemTurleri.KartOdemesi : EkstreIslemTurleri.Atla
             };
             if (key == "BelirsizOdeme")
                 warnings.Add("Açıklamada ödeme geçiyor: kart borcu ödemesi mi, karttan ödenen fatura mı PDF'den kontrol edip türü seçin.");
@@ -187,16 +188,16 @@ public static class EkstreMetinOkuyucu
                 if (normalized.Contains("GIDEN EFT") || normalized.Contains("GIDEN HAVALE") || normalized.Contains("GIDEN FAST"))
                     direction = "Cikis";
             }
-            proposal = classification == "Transfer" ? "Atla" : normalized.Contains("KART") && normalized.Contains("ODEME") ? "KartOdemesi" : direction == "Giris" ? "Gelir" : direction == "Cikis" ? "Gider" : "Atla";
+            proposal = classification == "Transfer" ? EkstreIslemTurleri.Atla : normalized.Contains("KART") && normalized.Contains("ODEME") ? EkstreIslemTurleri.KartOdemesi : direction == "Giris" ? EkstreIslemTurleri.Gelir : direction == "Cikis" ? EkstreIslemTurleri.Gider : EkstreIslemTurleri.Atla;
         }
         if (classification == "Transfer")
             warnings.Add("Kendi hesaplarınız arası transfer yeni gelir/gider oluşturmayabilir. Seçmeden önce kontrol edin.");
         if (normalized.Contains("KREDI") && (normalized.Contains("TAKSIT") || normalized.Contains("KULLANDIR") || normalized.Contains("ODEME")))
             warnings.Add("Kredi takibinde zaten işlenmiş olabilir; ikinci kez kaydetmeyin.");
         // Ekstredeki "2/6 TAKSIT" satırı taksitli bir alışın aylık payıdır; tek taksitli yeni harcama olarak önerilmez.
-        if (source == "Kart" && Installment(normalized, dates.Count > 0, installmentColumn, columns) is (var no, var count))
+        if (source == EkstreKaynaklari.Kart && Installment(normalized, dates.Count > 0, installmentColumn, columns) is (var no, var count))
         {
-            proposal = "Atla";
+            proposal = EkstreIslemTurleri.Atla;
             warnings.Add($"Taksitli işlemin {no}/{count}. taksidi. Harcama kartta taksitli girildiyse kaydetmeyin; ilk kez giriyorsanız Kartlar bölümünden toplam tutar ve {count} taksitle girin.");
         }
         if (direction == "Belirsiz")

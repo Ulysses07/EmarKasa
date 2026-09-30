@@ -124,9 +124,9 @@ public sealed class BenzerKayitServisi(KasaDbContext db)
         (IReadOnlySet<int>? Kume, string Etiket) Kanal(IslemEntity i)
         {
             if (ekstre.TryGetValue(i.Id, out var satir))
-                return satir.DagilimTuru == "Genel" ? (null, KanalEtiketleri.GenelKasa) : Belirli(Read<TakipKanalPayi>(satir.DagilimJson).Where(p => p.KanalId is not null).Select(p => p.KanalId!.Value));
+                return satir.DagilimTuru == DagilimBicimleri.Genel ? (null, KanalEtiketleri.GenelKasa) : Belirli(Read<TakipKanalPayi>(satir.DagilimJson).Where(p => p.KanalId is not null).Select(p => p.KanalId!.Value));
             if (aylik.TryGetValue(i.Id, out var odeme) && revizyonlar.TryGetValue(odeme.RevizyonId, out var revizyon))
-                return revizyon.DagilimTuru == "Genel" ? (null, KanalEtiketleri.GenelKasa) : Belirli(Read<KanalPayYaz>(revizyon.DagilimJson).Select(p => p.KanalId));
+                return revizyon.DagilimTuru == DagilimBicimleri.Genel ? (null, KanalEtiketleri.GenelKasa) : Belirli(Read<KanalPayYaz>(revizyon.DagilimJson).Select(p => p.KanalId));
             if (bagliAlis.TryGetValue(i.Id, out var alis))
                 return alis.Durum != AlisDurumlari.Onaylandi ? (null, KanalEtiketleri.DagilimBekliyor)
                     : Belirli(alisPaylari[alis.Id].TryGetValue(i.Id, out var paylar) ? paylar.Where(p => p.Tutar > 0).Select(p => p.KanalId) : []);

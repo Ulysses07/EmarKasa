@@ -1,5 +1,6 @@
 using Kasa.Api.Data;
 using Kasa.Core;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api;
@@ -62,8 +63,8 @@ public static class EskiModelOlaylari
             var borc = EkstreBorc(guncel, harcamalar, k);
             if (borc <= 0 || odemeler.Any(o => o.Tarih > k))
                 continue;
-            sonuc.Add(new("Kart", kart.Id, 0, kart.Ad + Ek, k, borc, "Kesim", false) { EskiModel = true });
-            sonuc.Add(new("Kart", kart.Id, 0, kart.Ad + Ek, FinansTakipServisi.Vade(k, odemeGunu), borc, "SonOdeme", false) { EskiModel = true });
+            sonuc.Add(new(TakipKaynaklari.Kart, kart.Id, 0, kart.Ad + Ek, k, borc, TakipOlayTurleri.Kesim, false) { EskiModel = true });
+            sonuc.Add(new(TakipKaynaklari.Kart, kart.Id, 0, kart.Ad + Ek, FinansTakipServisi.Vade(k, odemeGunu), borc, TakipOlayTurleri.SonOdeme, false) { EskiModel = true });
         }
         return sonuc;
     }
@@ -84,10 +85,10 @@ public static class EskiModelOlaylari
         var db = b.Db;
         var bugun = b.Bugun;
         var liste = db.KrediKartlari.AsNoTracking().Where(k => !db.TakipKartlar.Any(t => t.KrediKartiId == k.Id)).OrderBy(k => k.Id)
-            .Select(k => new { k.Id, k.Ad }).ToList().Select(k => new TakipsizKayitDto("Kart", k.Id, k.Ad)).ToList();
+            .Select(k => new { k.Id, k.Ad }).ToList().Select(k => new TakipsizKayitDto(TakipKaynaklari.Kart, k.Id, k.Ad)).ToList();
         foreach (var k in db.Krediler.AsNoTracking().Where(k => !db.TakipKrediler.Any(t => t.KrediId == k.Id)).OrderBy(k => k.Id).ToList())
             if (KrediSuruyor(k, bugun))
-                liste.Add(new("Kredi", k.Id, k.Ad));
+                liste.Add(new(TakipKaynaklari.Kredi, k.Id, k.Ad));
         return liste.Count == 0 ? null : liste;
     }
 
