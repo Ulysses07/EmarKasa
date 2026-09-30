@@ -30,10 +30,10 @@ public class FinansIyilestirmeTests
         Assert.Equal(100.01m, sonuc.KanalKartBorclari.Sum(k => k.Tutar));
     }
     [Fact]
-    public async Task Kart_detayinda_asgari_kalan_ve_kanal_borcu_okunur()
+    public async Task Kart_listesinde_asgari_kalan_ve_kanal_borcu_okunur()
     {
-        var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """{"id":1,"surum":2,"ad":"Kart","yeniTakip":true,"aktif":true,"kesimGunu":1,"sonOdemeGunu":10,"limit":1000,"borc":80,"ekstreBorc":80,"harcamalar":[],"odemeler":[],"ekstreler":[{"id":9,"kesimTarihi":"2026-09-01","sonOdemeTarihi":"2026-09-10","borc":100,"odenen":20,"kalan":80,"asgariOdeme":20,"asgariKalan":0}],"kanalKartBorclari":[{"kanalId":2,"kanal":"MEZAT","tutar":80}]}""");
-        var kart = await Client(h).TakipKartAsync(1);
+        var h = new SahteHandler().Kuyrukla(HttpStatusCode.OK, """[{"id":1,"surum":2,"ad":"Kart","yeniTakip":true,"aktif":true,"kesimGunu":1,"sonOdemeGunu":10,"limit":1000,"borc":80,"ekstreBorc":80,"harcamalar":[],"odemeler":[],"ekstreler":[{"id":9,"kesimTarihi":"2026-09-01","sonOdemeTarihi":"2026-09-10","borc":100,"odenen":20,"kalan":80,"asgariOdeme":20,"asgariKalan":0}],"kanalKartBorclari":[{"kanalId":2,"kanal":"MEZAT","tutar":80}]}]""");
+        var kart = Assert.Single(await Client(h).TakipKartlarAsync());
         Assert.Equal(0, kart.Ekstreler.Single().AsgariKalan);
         Assert.Equal(80, kart.KanalKartBorclari!.Single().Tutar);
     }

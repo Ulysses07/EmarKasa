@@ -37,10 +37,10 @@ public class KartTakipDuzeltmeApiTests
     public async Task Eski_sunucu_yanitinda_yeni_alanlar_varsayilan_okunur_devirsiz_kart_kesilmis_devir_null()
     {
         var h = new SahteHandler()
-            .Kuyrukla(HttpStatusCode.OK, """{"id":8,"surum":1,"ad":"2.3.0","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[{"id":1,"islemId":null,"tarih":"2026-09-25","aciklama":"İade","tutar":-5,"taksitSayisi":1,"iptal":false,"dagilimlar":[]}],"odemeler":[{"id":2,"tarih":"2026-09-25","tutar":5,"kasaEtkisi":5,"not":null,"iptal":false,"dagilimlar":[]}]}""")
+            .Kuyrukla(HttpStatusCode.OK, """[{"id":8,"surum":1,"ad":"2.3.0","yeniTakip":true,"aktif":true,"takipBaslangic":"2026-09-25","kesimGunu":5,"sonOdemeGunu":15,"limit":1000,"borc":0,"ekstreBorc":0,"ekstreler":[],"harcamalar":[{"id":1,"islemId":null,"tarih":"2026-09-25","aciklama":"İade","tutar":-5,"taksitSayisi":1,"iptal":false,"dagilimlar":[]}],"odemeler":[{"id":2,"tarih":"2026-09-25","tutar":5,"kasaEtkisi":5,"not":null,"iptal":false,"dagilimlar":[]}]}]""")
             .Kuyrukla(HttpStatusCode.OK, """{"harcamaId":null,"tarih":"2026-09-25","kalanBorc":0,"kasadaOncedenSayilanTutar":0,"iadeDuzeltmesi":0,"dagilimlar":[],"kural":"EtkiTarihi","sistemKartBorcu":50,"raporDisiTutar":20,"acilisBorcu":10,"onerilenKasadaSayilanTutar":0,"enAzKasadaSayilanTutar":0,"duzeltilebilir":true,"engel":null}""");
         var client = Client(h);
-        var kart = await client.TakipKartAsync(8);
+        var kart = Assert.Single(await client.TakipKartlarAsync());
         Assert.Equal(0m, kart.Harcamalar.Single().KasadaSayilanDuzeltme);
         Assert.Null(kart.Odemeler.Single().AvansKaynakOdemeId);
         var devir = await client.TakipKartDevirAsync(8);
