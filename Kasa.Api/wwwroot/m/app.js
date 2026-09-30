@@ -1,13 +1,6 @@
 // Emar Kasa telefon arayüzü (tasarım "Emar Kasa Mobil", Yön A · Defter).
 // Masaüstü web arayüzüyle aynı API'yi ve aynı oturum çerezini kullanır; para kurallarını değiştirmez.
-import {
-  errorMessage,
-  loadRuntime,
-  runtimeRequestAllowed,
-  cashEditingAllowed,
-  monthlyTotals,
-  currentPeriod,
-} from '../ui-core.js?v=2.3.0-m1';
+import { errorMessage, loadRuntime, runtimeRequestAllowed, cashEditingAllowed, monthlyTotals, currentPeriod } from '../ui-core.js';
 import {
   AYLAR,
   AYK,
@@ -36,9 +29,9 @@ import {
   rotaCoz,
   gunlereAyir,
   islemEslesir,
-} from './mobil-cekirdek.js?v=2.3.0-m1';
+} from './mobil-cekirdek.js';
 
-const IKON = '/m/icons.svg?v=2.3.0-m1';
+const IKON = '/m/icons.svg';
 const MASAUSTU_ANAHTAR = 'kasa.gorunum';
 const SEKMELER = [
   ['panel', 'space_dashboard', 'Panel'],

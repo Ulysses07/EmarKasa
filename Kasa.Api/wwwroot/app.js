@@ -23,13 +23,13 @@ import {
   trackedCardPayment,
   installmentFields,
   detachAllocations,
-} from './ui-core.js?v=2.3.0';
-import { createFinanceUi } from './finance-ui.js?v=2.3.0';
-import { createNotificationUi } from './notification-ui.js?v=2.3.0';
-import { createMonthlyUi } from './monthly-ui.js?v=2.3.0';
-import { createCashControlsUi } from './cash-controls-ui.js?v=2.3.0';
-import { createStatementImportUi } from './statement-import-ui.js?v=2.3.0';
-import { notificationRoute } from './push-client.js?v=2.3.0';
+} from './ui-core.js';
+import { createFinanceUi } from './finance-ui.js';
+import { createNotificationUi } from './notification-ui.js';
+import { createMonthlyUi } from './monthly-ui.js';
+import { createCashControlsUi } from './cash-controls-ui.js';
+import { createStatementImportUi } from './statement-import-ui.js';
+import { notificationRoute } from './push-client.js';
 import {
   $,
   h,
@@ -82,7 +82,7 @@ import {
   documentDeletePayload,
   backupDiskLines,
   restoreReport,
-} from './ui-core.js?v=2.3.0';
+} from './ui-core.js';
 
 let monthlyRequest = 0;
 const financeUi = createFinanceUi();
@@ -1421,7 +1421,7 @@ async function renderTools(generation) {
 
 // Değişiklik geçmişi modülü yalnız açılınca yüklenir (denetim-ui.js).
 async function openHistory() {
-  const { createDenetimUi } = await import('./denetim-ui.js?v=2.3.0');
+  const { createDenetimUi } = await import('./denetim-ui.js');
   createDenetimUi().open();
 }
 function pendingNotice(value) {
