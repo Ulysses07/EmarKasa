@@ -36,6 +36,14 @@ public class KodlarTests
     [Fact]
     public void Eslesme_durumlari() => Esit(("Eslesti", EslesmeDurumlari.Eslesti), ("KayitYok", EslesmeDurumlari.KayitYok));
 
+    [Fact]
+    public void Taksit_durumlari() => Esit(
+        ("Bekliyor", TaksitDurumlari.Bekliyor), ("KasayaIslendi", TaksitDurumlari.KasayaIslendi), ("Iptal", TaksitDurumlari.Iptal));
+
+    [Fact]
+    public void Aylik_gider_durumlari() => Esit(
+        ("Planlandi", AylikGiderDurumlari.Planlandi), ("Odendi", AylikGiderDurumlari.Odendi), ("Iptal", AylikGiderDurumlari.Iptal));
+
     private static void Esit(params (string Beklenen, string Gercek)[] ciftler) =>
         Assert.All(ciftler, c => Assert.Equal(c.Beklenen, c.Gercek));
 }

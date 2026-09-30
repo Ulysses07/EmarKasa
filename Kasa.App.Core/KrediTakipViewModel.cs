@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
+using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
@@ -37,7 +38,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     public bool KrediSecili => Secili is not null;
     public bool YeniTakip => Secili?.YeniTakip == true;
     public bool EskiTakip => Secili is { YeniTakip: false };
-    public bool TaksitDuzenlenebilir => DuzenlenenTaksit?.Veri.Durum == "Bekliyor";
+    public bool TaksitDuzenlenebilir => DuzenlenenTaksit?.Veri.Durum == TaksitDurumlari.Bekliyor;
     public string KrediOzeti => Secili is { } k ? new KrediTakipSatiri(k).Ozet + "\n" + TakipMetni.Paylar(k.KanalPaylari) : "Yeni kredi bilgilerini girin.";
     public string KapatmaOzeti => !ParaAyristirici.GecerliMi(KapatmaTutari) ? $"{ParaAyristirici.GecersizGosterim}: {ParaAyristirici.BicimHatasi}" : $"{KapatmaTarihi:dd.MM.yyyy} tarihinde {Bicim.Tl(KapatmaTutari)} ₺ kasa çıkışı kaydedilir; yerine geçen ileri taksitler iptal edilir. Bankanın bildirdiği kapama tutarını kullanın.";
     partial void OnSeciliChanged(KrediTakipDto? value) { foreach (var p in new[] { nameof(YeniKredi), nameof(KrediSecili), nameof(YeniTakip), nameof(EskiTakip), nameof(KrediOzeti) }) OnPropertyChanged(p); }
@@ -125,7 +126,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         TaksitTarihi = satir.Veri.Tarih.ToDateTime(TimeOnly.MinValue);
         TaksitTutari = satir.Veri.Tutar;
         TaksitNotu = satir.Veri.Not ?? "";
-        TaksitIptal = satir.Veri.Durum == "Iptal";
+        TaksitIptal = satir.Veri.Durum == TaksitDurumlari.Iptal;
         Gerekce = "";
     }
     private bool GerekceVar() { if (!string.IsNullOrWhiteSpace(Gerekce)) return true; Hata = "İşlem gerekçesini yazın."; return false; }
@@ -136,7 +137,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
             return;
         if (!ParaAyristirici.GecerliMi(TaksitTutari))
         { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (taksit.Veri.Durum != "Bekliyor" && (TaksitTarihi != taksit.Veri.Tarih.ToDateTime(TimeOnly.MinValue) || TaksitTutari != taksit.Veri.Tutar || TaksitIptal != (taksit.Veri.Durum == "Iptal")))
+        if (taksit.Veri.Durum != TaksitDurumlari.Bekliyor && (TaksitTarihi != taksit.Veri.Tarih.ToDateTime(TimeOnly.MinValue) || TaksitTutari != taksit.Veri.Tutar || TaksitIptal != (taksit.Veri.Durum == TaksitDurumlari.Iptal)))
         { Hata = "İşlenmiş taksidin tarih ve tutarı değişmez; yalnız not ekleyebilirsiniz."; return; }
         var g = new KrediTaksitYaz(Guid.Empty, kredi.Surum, DateOnly.FromDateTime(TaksitTarihi), TaksitTutari, TaksitNotu, TaksitIptal, Gerekce.Trim());
         g = g with { IstekId = _taksit.Al(new { kredi.Id, TaksitId = taksit.Veri.Id, g }) };

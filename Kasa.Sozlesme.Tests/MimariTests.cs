@@ -101,10 +101,11 @@ public class MimariTests
     /// <summary>Başka bir sözlükte ya da görünen metinde de aynen geçen kod değerleri; tarama bunlarda yanlış alarm verir, bu
     /// değerlerin sabite bağlanması incelemeyle yapılır. "Gider", "KartHarcama", "KartOdeme": benzer kayıt aramasının türü ve
     /// kaynağı (BenzerAramasi.Tur, BenzerKayitDto.Kaynak), istek kaydının işlem adı; "Gelir", "Gider", "KartOdemesi": kasa dökümü
-    /// satır türü; "Kart", "Banka", "Gelir", "Gider": görünen metin (seçenek adı, ad yedeği, alan etiketi).</summary>
+    /// satır türü; "Kart", "Banka", "Gelir", "Gider": görünen metin (seçenek adı, ad yedeği, alan etiketi); "Iptal": varlık alan
+    /// adı (kilit kuralı, denetim alanları).</summary>
     private static readonly HashSet<string> CokAnlamliDegerler = new(StringComparer.Ordinal)
     {
-        "Gelir", "Gider", "KartHarcama", "KartOdeme", "KartOdemesi", "Kart", "Banka",
+        "Gelir", "Gider", "KartHarcama", "KartOdeme", "KartOdemesi", "Kart", "Banka", "Iptal",
     };
 
     /// <summary>Kod değerleri kaynakta elle yazılmaz: Kasa.Core, Kasa.Api ve istemci projelerinde Kodlar'daki bir sabitin

@@ -48,7 +48,7 @@ public static class AylikGiderEndpoints
             // İptal edilen ödemeler plan satırından ayrı listelenir (gerekçe ve iptal anıyla); toplamlara girmez.
             var cancelled = db.AylikGiderOdemeler.AsNoTracking().Where(p => p.Ay == month && p.Iptal).OrderBy(p => p.Tarih).ThenBy(p => p.Id).ToList();
             var cancelTimes = DenetimOkuma.IptalAnlari<AylikGiderOdemeEntity>(db, cancelled.Select(p => p.Id).ToList());
-            return Results.Ok(new AylikGiderAyDto(yil, ay, rows.Sum(r => r.Tutar), rows.Where(r => r.Durum == "Odendi").Sum(r => r.Tutar), rows,
+            return Results.Ok(new AylikGiderAyDto(yil, ay, rows.Sum(r => r.Tutar), rows.Where(r => r.Durum == AylikGiderDurumlari.Odendi).Sum(r => r.Tutar), rows,
                 cancelled.Select(p => Paid(db, p, cancelTimes)).ToList()));
         }));
         // Uygulama başına tek defter: benzer kayıt uyarısı verilmiş, onayı beklenen istekler (BenzerOnay alanını göndermeyen istemci).
@@ -238,11 +238,11 @@ public static class AylikGiderEndpoints
     private static AylikGiderSablonDto Template(KasaDbContext db, AylikGiderRevizyonEntity r) => new(r.SablonId, r.Surum, r.Ad, r.Tur, r.Tutar, r.OdemeGunu, r.DagilimTuru,
         FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), r.GecerliAy, r.Aktif);
     private static AylikGiderSatirDto Row(KasaDbContext db, AylikGiderRevizyonEntity r, DateOnly month) => new(r.SablonId, r.Surum, r.Ad, r.Tur, r.Tutar,
-        FinansTakipServisi.Gun(month, r.OdemeGunu), r.DagilimTuru, FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), "Planlandi");
+        FinansTakipServisi.Gun(month, r.OdemeGunu), r.DagilimTuru, FinansTakipServisi.Adlandir(db, FinansTakipServisi.Read<KanalPayYaz>(r.DagilimJson)), AylikGiderDurumlari.Planlandi);
     private static AylikGiderSatirDto Paid(KasaDbContext db, AylikGiderOdemeEntity p, IReadOnlyDictionary<int, DateTimeOffset>? cancelTimes = null) =>
         Row(db, db.AylikGiderRevizyonlar.AsNoTracking().Single(r => r.Id == p.RevizyonId), p.Ay) with
         {
-            Durum = p.Iptal ? "Iptal" : "Odendi",
+            Durum = p.Iptal ? AylikGiderDurumlari.Iptal : AylikGiderDurumlari.Odendi,
             OdemeId = p.Id,
             OdemeTarihi = p.Tarih,
             IslemId = p.IslemId,

@@ -93,3 +93,24 @@ public static class EslesmeDurumlari
     /// <summary>Eşleşen kayıt silinmiş ya da iptal edilmiş.</summary>
     public const string KayitYok = "KayitYok";
 }
+
+/// <summary>Kredi planı taksidinin durumu (KrediPlanTaksitDto.Durum; saklanmaz, taksidin iptali ve tarihinden hesaplanır).</summary>
+public static class TaksitDurumlari
+{
+    /// <summary>Tarihi gelmemiş taksit: tarihinde kasadan kendiliğinden düşer.</summary>
+    public const string Bekliyor = "Bekliyor";
+    /// <summary>Tarihi gelmiş taksit kasaya işlendi (banka ödemesi doğrulaması değildir).</summary>
+    public const string KasayaIslendi = "KasayaIslendi";
+    /// <summary>Plan değişikliğiyle iptal edilen taksit.</summary>
+    public const string Iptal = "Iptal";
+}
+
+/// <summary>Aylık gider satırının o aydaki ödeme durumu (AylikGiderSatirDto.Durum; saklanmaz, ayın ödeme kaydından hesaplanır).</summary>
+public static class AylikGiderDurumlari
+{
+    /// <summary>Ayın ödemesi kaydedilmedi.</summary>
+    public const string Planlandi = "Planlandi";
+    public const string Odendi = "Odendi";
+    /// <summary>Ödeme iptal edildi; satır plan satırlarından ayrı listelenir, toplamlara girmez.</summary>
+    public const string Iptal = "Iptal";
+}

@@ -864,13 +864,13 @@ public static class FinansTakipServisi
         var tracking = db.TakipKrediler.AsNoTracking().SingleOrDefault(k => k.KrediId == id);
         if (tracking is null)
         {
-            var old = KrediTuretici.TaksitGiderleri(loan.ToCore()).Select((t, i) => new KrediPlanTaksitDto(0, i + 1, t.Tarih, t.TutarTl, t.Tarih <= today ? "KasayaIslendi" : "Bekliyor", null, [])).ToList();
+            var old = KrediTuretici.TaksitGiderleri(loan.ToCore()).Select((t, i) => new KrediPlanTaksitDto(0, i + 1, t.Tarih, t.TutarTl, t.Tarih <= today ? TaksitDurumlari.KasayaIslendi : TaksitDurumlari.Bekliyor, null, [])).ToList();
             return new(id, 0, loan.Ad, false, true, null, loan.CekilenTutar, loan.CekimTarihi, old.Where(t => t.Tarih > today).Sum(t => t.Tutar), [], old);
         }
         var installments = db.TakipKrediTaksitler.AsNoTracking().Where(t => t.KrediId == id).OrderBy(t => t.No).ToList();
         return new(id, tracking.Surum, loan.Ad, true, tracking.Aktif, tracking.Baslangic, loan.CekilenTutar, loan.CekimTarihi,
             installments.Where(t => !t.Iptal && t.Tarih > today).Sum(t => t.Tutar), Adlandir(b.KanalAdlari, Read<KanalPayYaz>(tracking.CekimPaylariJson)),
-            installments.Select(t => new KrediPlanTaksitDto(t.Id, t.No, t.Tarih, t.Tutar, t.Iptal ? "Iptal" : t.Tarih <= today ? "KasayaIslendi" : "Bekliyor", t.Not, Adlandir(b.KanalAdlari, Read<KanalPayYaz>(t.DagilimJson)))).ToList());
+            installments.Select(t => new KrediPlanTaksitDto(t.Id, t.No, t.Tarih, t.Tutar, t.Iptal ? TaksitDurumlari.Iptal : t.Tarih <= today ? TaksitDurumlari.KasayaIslendi : TaksitDurumlari.Bekliyor, t.Not, Adlandir(b.KanalAdlari, Read<KanalPayYaz>(t.DagilimJson)))).ToList());
     }
     /// <summary>Bildirim işinin olayları: yazma yolu olarak önce Sync yapar (kendi transaction'ında), sonra olayları
     /// <see cref="TakipOlaylari"/> ile türetir; ardından takipsiz (geçişi yapılmamış) kart ve kredilerin eski model olayları
@@ -910,7 +910,7 @@ public static class FinansTakipServisi
         }
     }
     /// <summary>Bir takipli kredinin olayları (tek kural): iptal edilmemiş her taksit, kasaya otomatik işlenir.</summary>
-    internal static IEnumerable<TakipOlayDto> KrediOlaylari(KrediTakipDto dto) => dto.Taksitler.Where(t => t.Durum != "Iptal")
+    internal static IEnumerable<TakipOlayDto> KrediOlaylari(KrediTakipDto dto) => dto.Taksitler.Where(t => t.Durum != TaksitDurumlari.Iptal)
         .Select(t => new TakipOlayDto("Kredi", dto.Id, t.Id, dto.Ad + " / " + t.No + ". taksit", t.Tarih, t.Tutar, "Taksit", true));
     public static bool KanalKullaniliyor(KasaDbContext db, int id) => db.TakipKrediler.AsNoTracking().AsEnumerable().Any(k => Read<int>(k.KanalIdleriJson).Contains(id))
         || db.TakipHarcamalar.AsNoTracking().AsEnumerable().Any(h => Read<KanalPayYaz>(h.DagilimJson).Any(p => p.KanalId == id));
