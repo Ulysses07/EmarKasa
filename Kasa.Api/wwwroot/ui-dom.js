@@ -170,20 +170,23 @@ function distribution(
 function moneyNode(value, className = '') {
   return h('span', { class: `money ${className}` }, money(value));
 }
-// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre ve alış ödemesi): div.allocation-tags içinde her pay için
+// Kanal payı etiketleri (kart, kredi, aylık gider, ekstre, alış kalemi ve alış ödemesi): div.allocation-tags içinde her pay için
 // span.allocation-tag "Kanal: tutar". empty: kanal adı yoksa yazılan ad (verilmezse ad olduğu gibi yazılır); pending: kanalı
-// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir.
-function allocationTags(rows, { empty, pending = false } = {}) {
+// olmayan pay (kanalId yok) 'pending' sınıfıyla işaretlenir; pendingBadge: hiç pay yoksa aynı kutuya konan bekleme rozetinin
+// metni (span.badge.pending; verilmezse kutu boş kalır).
+function allocationTags(rows, { empty, pending = false, pendingBadge = null } = {}) {
+  const list = rows || [];
   return h(
     'div',
     { class: 'allocation-tags' },
-    (rows || []).map(row =>
+    list.map(row =>
       h(
         'span',
         { class: `allocation-tag${pending && row.kanalId == null ? ' pending' : ''}` },
         `${empty === undefined ? row.kanal : row.kanal || empty}: ${money(row.tutar)}`
       )
-    )
+    ),
+    pendingBadge != null && list.length === 0 && h('span', { class: 'badge pending' }, pendingBadge)
   );
 }
 function values(form) {

@@ -329,12 +329,7 @@ function renderPurchase(id) {
         'div',
         { class: 'item-detail' },
         h('div', { class: 'item-heading' }, h('span', {}, line.aciklama), moneyNode(line.tutar)),
-        h(
-          'div',
-          { class: 'allocation-tags' },
-          line.dagilimlar.map(d => h('span', { class: 'allocation-tag' }, `${d.kanal}: ${money(d.tutar)}`)),
-          !line.dagilimlar.length && h('span', { class: 'badge pending' }, 'Kanal dağılımı bekliyor')
-        )
+        allocationTags(line.dagilimlar, { pendingBadge: 'Kanal dağılımı bekliyor' })
       )
     )
   );
