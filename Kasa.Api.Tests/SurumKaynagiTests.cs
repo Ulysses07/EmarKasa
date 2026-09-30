@@ -21,9 +21,9 @@ public class SurumKaynagiTests
         // Aşama 4 öncesindeki yanıtla aynı alanlar, aynı sırada ve aynı değerlerle; yalnız "surum"un kaynağı değişti.
         Assert.Equal(["surum", "minimumIstemci", "indirmeAdresi", "notlar"], yanit.EnumerateObject().Select(p => p.Name));
         Assert.Equal(KasaSurumu(), yanit.GetProperty("surum").GetString());
-        Assert.Equal("2.3.0", yanit.GetProperty("minimumIstemci").GetString());
+        Assert.Equal("2.4.0", yanit.GetProperty("minimumIstemci").GetString());
         Assert.Equal(JsonValueKind.Null, yanit.GetProperty("indirmeAdresi").ValueKind);
-        Assert.Equal("Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü.",
+        Assert.Equal("Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi.",
             yanit.GetProperty("notlar").GetString());
     }
 

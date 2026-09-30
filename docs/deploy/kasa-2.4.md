@@ -1,6 +1,6 @@
 # Emar Kasa 2.4 — denetim düzeltmeleri, telefon arayüzü ve belge deposu (yayın taslağı)
 
-> **Durum: TASLAK, yayın yapılmadı.** Kapsam: canlıdaki `v2.3.0` (`fce8578`, yayın `kasa:2.3.0-imports-20260923`) → `origin/release/2.x` `ec2178b` (PR #12–#29, 379 commit). "2.4" çalışma adıdır: `Directory.Build.props` içindeki `KasaSurumu` hâlâ `2.3.0`'dır ve bu belge onu değiştirmez (aşağıda "Karar noktaları"). Her iddia koddan ya da PR gövdesinden alındı; alınamayan ya da yalnız sunucuda ölçülebilen bilgiler **doğrulanmadı** diye işaretlidir. Sunucuya bağlanılmadı, canlı veri okunmadı.
+> **Durum: TASLAK, yayın yapılmadı.** Kapsam: canlıdaki `v2.3.0` (`fce8578`, yayın `kasa:2.3.0-imports-20260923`) → `origin/release/2.x` `ec2178b` (PR #12–#29, 379 commit). Sürüm `KasaSurumu` = **2.4.0**, minimum istemci 2.4.0 (aşağıda "Karar noktaları"). Her iddia koddan ya da PR gövdesinden alındı; alınamayan ya da yalnız sunucuda ölçülebilen bilgiler **doğrulanmadı** diye işaretlidir. Sunucuya bağlanılmadı, canlı veri okunmadı.
 >
 > Bu belgeyle birlikte birleşmesi beklenenler: PR #30 (kalan İngilizce dosya/tip/test adlarının Türkçeleşmesi) ve ardından "Kodlar kalan aileleri" (yalnız `Kasa.Core.Kodlar` sabitleri). İkisi de yalnız ad/sabit değişikliğidir; şema, rota, DTO alanı, davranış ve log kategorisi (`Kasa.Api.EkstreImportEndpoints`) aynı kalır. Log satırlarındaki sınıf adı PR #30'dan sonra `KasaVeritabaniBaslatici` olur (bugün `KasaDatabaseInitializer`).
 
@@ -8,10 +8,10 @@
 
 | Karar | Bugünkü değer | Not |
 | --- | --- | --- |
-| Sürüm numarası | `KasaSurumu` 2.3.0 | Yükseltilmezse `/api/surum` ve yeni masaüstü paketi "2.3.0" bildirir; canlıdaki sürümden ayırt edilemez. Üç parçalı olmalı (MAUI sınırı). |
-| Minimum istemci | `YonetimEndpoints.MinimumIstemci` = 2.3.0 | Yükseltmek eski masaüstünü engellemez; yalnız Güvenlik ekranında "Devam etmek için uygulamayı güncelleyin." yazar (`GuvenlikViewModel`, 2.3.0'da da aynı). `KasaSurumu`'ndan büyük olamaz, yoksa yeni istemci de uyarı gösterir. Aşağıda "Eski istemci uyumu". |
-| `/api/surum` `notlar` metni | 2.3'ün PDF ekstre metni | Yeni sürümün kısa notu yazılmalı (Güvenlik ekranında görünür). |
-| Etiket | yok | [dal-durumu.md](dal-durumu.md) A9: yalnız etiketli commit dağıtılır (`v2.4.0` önerisi). Etiket #30 ve "Kodlar" birleştikten, sürüm değişikliği girdikten sonra atılır. |
+| Sürüm numarası | **Karar verildi: 2.4.0** (`KasaSurumu`; masaüstü `ApplicationVersion` 6 → 7) | `/api/surum` ve yeni masaüstü "2.4.0" bildirir. |
+| Minimum istemci | **Karar verildi: 2.4.0** (`YonetimEndpoints.MinimumIstemci`) | Eski 2.3.0 masaüstü engellenmez; Güvenlik ekranında "Devam etmek için uygulamayı güncelleyin." yazar (`GuvenlikViewModel`). Gerekçe: 2.3.0 masaüstünde K2 sonrası "Gelen" açıklamasız düşük görünür, editör belge silemez (bölüm 7). Yeni masaüstü paketi yayınla birlikte dağıtılmalıdır; dağıtılmazsa 2.3.0 kullanıcıları uyarıyı görür ama çalışmaya devam eder. |
+| `/api/surum` `notlar` metni | **Yazıldı** | "Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi." |
+| Etiket | yok | [dal-durumu.md](dal-durumu.md) A9: yalnız etiketli commit dağıtılır. `v2.4.0`, yayına karar verilince yayımlanacak commit'e atılır (kullanıcı kararı). |
 | Yayın zamanı ve kesinti | — | İlk açılışta belge taşıması bitene kadar HTTP kapalı (nginx 502). Süre canlı veritabanı boyutuna bağlı; kopya provasında ölçülmeli (doğrulanmadı). Kullanıcılara bakım aralığı bildirilir. |
 | Masaüstü paketinin dağıtımı | — | Girişten sonraki askıda kalma `duzeltme/maui-menu-donmasi` dalında giderildi (dotnet/maui#38813 geçici çözümü, "Bilinen konular"); paket bu dal birleşmeden dağıtılmaz. Dağıtmadan önce yine normal (etkin, ekranda) pencerede giriş sonrası bütün menüler elle denenmeli. Sunucu yeni masaüstü olmadan da yayınlanabilir. |
 | Sunucu dışı yedek | runbook tablosu "Henüz yapılmadı" | `uzak_yedek.py` + systemd bu sürümle gelir; kurulum isteğe bağlı ama belge deposundan sonra önerilir. Sunucuda kurulu olup olmadığı doğrulanmadı. |
@@ -111,6 +111,13 @@ Komutlar sunucuda `/opt/kasa/deploy` içinde; yer tutucular (`<...>`) gerçek de
 6. **Dockerfile:** `COPY Directory.Build.props ./` (yoksa `/api/surum` 1.0.0 bildirirdi; artık derleme durur), temel imajlar özetle sabit (`sdk:10.0.401@sha256:35d4…`, `aspnet:10.0.12@sha256:2d58…`). Derleme yalnız `build --pull kasa`, sonra ayrı `up -d`; `up -d --build` kullanılmaz. `.dockerignore`: `Kasa.Api/belgeler` ve `Kasa.Api/yedekler` imaja girmez.
 7. **nginx** (`deploy/nginx/kasa.emarglobal.com.conf`): vekil başlıkları `server` düzeyine taşındı; uzun uçlara ayrı süreler — `/api/yedek` 16 dk (`proxy_buffering off`), `/api/disari-aktar` ve belge/PDF indirme 6 dk, ekstre/alış belgesi yükleme 3 dk. `client_max_body_size 11m` aynı. Sunucudaki site dosyası elle güncellenir; sonra `sudo nginx -t` ve `sudo systemctl reload nginx`. Sunucudaki dosyanın bugün depodaki 2.3.0 hâliyle aynı olduğu doğrulanmadı; önce `diff` alın.
 8. **Yedek araçları:** kaynak aktarımıyla `/opt/kasa/deploy/restore_backup.py` ve `uzak_yedek.py` güncellenir. Eski `restore_backup.py` 2.4 yedeklerini açamaz (belgeler ZIP'te değil, manifest 2.2.0; yeni araç `--belge-aynasi <KASA_BACKUP_DIR>/belgeler` ister). Uzak yedek kuruluysa `systemd/` birimleri de yeniden kurulur ([operasyon-runbook.md](operasyon-runbook.md) "Sunucu dışı yedek" 5).
+   - **Ne zaman:** Yayın sırasında güncellenir, önceden değil. 30 Eylül'de yerelde denendi: yeni betik 2.3.0 yedeğini açar ve 2.3.0 bu dosyayla sorunsuz çalışır (veri, rapor, giriş ve yazma aynı). Ancak betik dosyaya geri yükleme işareti koyar: `user_version` ve `__KasaGeriYukleme`. 2.3.0 bu işareti silmez. Sonradan 2.4'e geçilince dosya bir kez daha "geri yüklenmiş" sayılır:
+     - bütün oturumlar kapanır;
+     - izleyici girişi kapanır;
+     - kayıt numaraları 1.000.000 ileri alınır;
+     - raporda "Bu andan sonra girilen kayıtlar yedekte yok" satırı çıkar. Bu satır yanıltıcıdır: o kayıtlar dosyada durur.
+   - **2.3.0 döneminde acil geri yükleme:** Eski betik (`restore_backup.py.2.3.0` olarak saklanır) kullanılır. Yeni betik kullanıldıysa 2.3.0'ı başlatmadan önce işaret temizlenir: `sqlite3 <dosya> 'PRAGMA user_version=0; DROP TABLE "__KasaGeriYukleme";'`. Betiğin yazdığı "ZORUNLU" adımlar yalnız 2.4 içindir; 2.3.0 bunları uygulamaz.
+   - **Python sürümü:** Yeni betik Python 3.8 veya üstünü ister. Sunucudaki sürüm doğrulanmadı.
 9. **Güvenlik günlüğü:** ilk açılışta `KASA_BACKUP_DIR/guvenlik-gunlugu.jsonl` oluşur. Silinmez, elle düzenlenmez, yedek dizini temizliklerinde hariç tutulur.
 10. **Son yedek:** yayından hemen önce uygulamada elle yedek; uzak yedek kuruluysa `sudo systemctl start kasa-uzak-yedek.service`. README "Güncelleme" 4 (compose ve çalışan imaj kimliği) atlanmaz.
 
@@ -167,7 +174,7 @@ Yedek her zaman `restore_backup.py` ile açılır (ZIP'ten elle çıkarılmaz); 
 
 ## 7. Eski istemci uyumu (canlıdaki 2.3.0 masaüstü)
 
-Sunucu 2.3.0 istemcisini desteklemeye devam eder (`minimumIstemci` 2.3.0). Bilinen farklar:
+Sunucu 2.3.0 istemcisini çalıştırmaya devam eder, ancak `minimumIstemci` 2.4.0 olduğundan Güvenlik ekranında güncelleme uyarısı görünür. Bilinen farklar:
 
 | Durum | 2.3.0 masaüstünde ne olur | Kaynak |
 | --- | --- | --- |
@@ -223,7 +230,6 @@ Otomatik testlerin ve e2e ekran görüntülerinin kapsamadığı yerler; ekran e
 
 - **MAUI Release askıda kalma (PR #29'da görüldü, `duzeltme/maui-menu-donmasi` ile giderildi):** Release derlemesinde girişten birkaç saniye sonra UI iş parçacığı bir çekirdeği %100 kullanarak askıda kalıyordu. Kök neden MAUI gerilemesi [dotnet/maui#38813](https://github.com/dotnet/maui/issues/38813) (10.0.100–10.0.110): `Shell.ItemTemplate` görsel durum setter'ı `Background` (fırça) yazınca `ShellFlyoutItemView.UpdateVisualState → Setter → NotifyBackgroundChanges → OnResourcesChanged → ShellFlyoutItemView.OnResourcesChanged → GoToState` döngüsü kurulur; alınan yığın bununla eşleşir. Bizde PR #14'teki MAUI 10.0.20 → 10.0.110 yükseltmesiyle geldi (canlı 2.3.0 10.0.20 ile derlendi; `1efdcb4`'te de vardı, PR #29'dan gelmiyor). Düzeltme dalında `AppShell.xaml` menü öğesi setter'ları `BackgroundColor` yazar (görünüm aynı: `GorunumEsdegerligiTests` her görsel durumda aynı düz rengi doğrular, ekran görüntüsünde seçili öğe `#33453A`); `MauiKayitTutarliligiTests` kabuk menü şablonlarında `Background` yazımını yasaklar. Otomasyonla (yerel test sunucusu, görünmeyen ayrı masaüstü): düzeltme öncesi girişten 1–3 sn sonra pencere yanıtsız, CPU ~%100 (tek çekirdek), ekran dışı ve ekran içi (etkinleşen) pencerede aynı; düzeltme sonrası 62 sn boyunca yanıt veriyor, CPU boşta, menüde Haftalık, Aylık, İşlemler, Kasalar geçişleri çalışıyor. MAUI düzeltmesi ([dotnet/maui#38887](https://github.com/dotnet/maui/pull/38887)) .NET 10 SR12'de (10.0.120) gelir; 30 Eylül 2026'da NuGet'teki son sürüm 10.0.110. 10.0.120 yayımlanınca yükseltme ayrıca değerlendirilebilir; geçici çözüm o sürümde gereksizleşir ama zararsızdır. **Masaüstü paketini dağıtmadan önce** yine normal pencerede giriş ve bütün menülerde (fareyle üzerine gelme zemini dahil; otomasyon fare kullanmadı) birkaç dakika denenmeli; sunucu yayını bundan bağımsızdır.
 - Altı bankanın gerçek örnek ekstreleri hâlâ yok (2.3'ten beri); ilk belgelerde okunan satırlar kaynak PDF'le karşılaştırılır.
-- `/api/surum` `notlar` metni 2.3'e ait (karar noktası).
 - 2.0–2.3'ün depo dışı `publish_*.py` betikleri yeni compose şablonunda ilk denetimde durur; yayın README akışıyla elle ya da betik güncellenerek yapılır.
 - Readonly nginx şablonu (`kasa.emarglobal.com.readonly.conf`) statik dosyaları nginx'ten sunar; `/m/`'nin orada yayımlanıp yayımlanmadığı doğrulanmadı (canlı tam şablon her şeyi uygulamaya iletir).
 - Göç öncesi yedekler rotasyonla silinmez; yer gerekirse uzak kopyası doğrulandıktan sonra elle kaldırılır.
@@ -258,7 +264,6 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
 - VACUUM geçici kopyasının konteyner içinde yazıldığı disk.
 - Sunucudaki nginx site dosyasının güncel içeriği; sunucuda uzak yedeğin kurulu olup olmadığı.
 - Yayın sırasında oturumların düşmediği (kod ve migration açıklaması öyle der, canlıda denenmedi).
-- 2.3.0 imajının yeni `restore_backup.py` ile açılmış göç öncesi yedekle açılışı.
 - Düzeltilmiş masaüstünün kullanıcının normal penceresinde elle denenmesi (otomasyon ayrı masaüstünde koştu; fareyle üzerine gelme zemini yalnız testle sınandı).
 - Readonly nginx şablonunda `/m/`.
 

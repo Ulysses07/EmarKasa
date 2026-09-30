@@ -10,7 +10,7 @@ public static class YonetimEndpoints
     /// <summary>Desteklenen en eski masaüstü istemci sürümü (/api/surum "minimumIstemci"): daha eski istemci güncelleme ister
     /// (GuvenlikViewModel). Sunucu sürümünden (<see cref="SunucuSurumu"/>, KasaSurumu) bağımsızdır; yalnız eski istemcinin
     /// artık desteklenmediğine karar verilince elle yükseltilir.</summary>
-    public const string MinimumIstemci = "2.3.0";
+    public const string MinimumIstemci = "2.4.0";
 
     public static WebApplication MapYonetimEndpoints(this WebApplication app)
     {
@@ -19,7 +19,7 @@ public static class YonetimEndpoints
             surum = SunucuSurumu.Deger,
             minimumIstemci = MinimumIstemci,
             indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
-            notlar = "Kart ekstresi ve banka hesap hareketi PDF yükleme, seçilen hareketleri önizleyerek işleme ve tekrar kayıt kontrolü."
+            notlar = "Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi."
         }));
         // Son geri yüklemenin anı ve raporu (SistemDurumu) sonda, opsiyonel: eski istemci yok sayar.
         app.MapGet("/api/yedek/durum", (YedekServisi yedek, KasaDbContext db) =>
