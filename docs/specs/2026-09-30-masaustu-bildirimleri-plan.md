@@ -1337,6 +1337,7 @@ public sealed class BildirimGoreviTests : IDisposable
     [Fact]
     public void Komutlar_pencere_acmadan_schtasks_ile_calisir()
     {
+        // (sonradan: XmlDosyaOneki + guid; geçici XML adı bildirim-gorevi-<guid>.xml)
         var k = BildirimGorevi.KurmaKomutu(@"C:\x\bildirim-gorevi.xml");
         Assert.Equal("schtasks", k.FileName);
         Assert.Equal(["/Create", "/TN", "EmarKasaBildirim", "/XML", @"C:\x\bildirim-gorevi.xml", "/F"], k.ArgumentList);
@@ -1370,6 +1371,7 @@ public sealed class BildirimGoreviTests : IDisposable
     {
         var c = new Calistirici(0, 0);
         Assert.True(await Kur(c).GuncelleAsync(9, 0));
+        // (sonradan: XmlDosyaOneki + guid; XmlDosyaAdi yerine bildirim-gorevi-<guid>.xml ve kalıntı denetimi bildirim-gorevi-*.xml)
         Assert.Equal(["schtasks /Create /TN EmarKasaBildirim /XML bildirim-gorevi.xml /F"], c.Ozet);
         Assert.Equal(new byte[] { 0xFF, 0xFE }, c.Xml![..2]);
         var metin = Encoding.Unicode.GetString(c.Xml, 2, c.Xml.Length - 2);
@@ -1486,7 +1488,7 @@ public sealed class BildirimGorevi : IBildirimGorevi
     public const string GorevAdi = "EmarKasaBildirim";
     /// <summary>Görevin exe'ye verdiği argüman: pencere açılmaz, bakılır, çıkılır (Platforms/Windows/App.xaml.cs).</summary>
     public const string KontrolArgumani = "--bildirim-kontrol";
-    public const string XmlDosyaAdi = "bildirim-gorevi.xml";
+    public const string XmlDosyaAdi = "bildirim-gorevi.xml"; // (sonradan: XmlDosyaOneki = "bildirim-gorevi-" + guid + ".xml")
     public const string IsaretDosyaAdi = "bildirim-gorevi.txt";
     private static readonly XNamespace Ad = "http://schemas.microsoft.com/windows/2004/02/mit/task";
 
@@ -3737,7 +3739,9 @@ $url = Get-Content (Join-Path $D 'kasa-api-url-onceki.txt') -ErrorAction Silentl
 $yedek = Join-Path $D 'securestorage.yedek'
 if (Test-Path $yedek) { Copy-Item $yedek $Depo -Force; "oturum geri yüklendi: $((Get-FileHash $Depo).Hash.Substring(0,12))" } elseif (Test-Path $Depo) { Remove-Item $Depo -Force }
 $onceki = @(Get-Content (Join-Path $D 'emarkasa-onceki.txt') -ErrorAction SilentlyContinue)
-foreach ($ad in 'gosterilen-bildirimler.json', 'bildirim-ayari.json', 'bildirim-gorevi.txt', 'bildirim-gorevi.xml') {
+$adlar = @('gosterilen-bildirimler.json', 'bildirim-ayari.json', 'bildirim-ayari.json.yeni', 'bildirim-gorevi.txt')
+$adlar += @(Get-ChildItem $Yerel -Filter 'bildirim-gorevi-*.xml' -ErrorAction SilentlyContinue | ForEach-Object Name)
+foreach ($ad in $adlar) {
     if ($onceki -notcontains $ad -and (Test-Path (Join-Path $Yerel $ad))) { Remove-Item (Join-Path $Yerel $ad) -Force; "silindi: $ad" }
 }
 schtasks /Query /TN EmarKasaBildirim 2>$null; "görev sorgusu çıkış kodu: $LASTEXITCODE"
