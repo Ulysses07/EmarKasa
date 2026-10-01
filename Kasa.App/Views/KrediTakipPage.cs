@@ -4,37 +4,43 @@ using static Kasa.App.Views.TakipUi;
 
 namespace Kasa.App.Views;
 
-/// <summary>Krediler. Kredi bildirimine tıklanınca //krediler?KrediId={id} ile açılır: sayfa belirirken liste yüklenir, kredi seçilir
-/// ve ayrıntısı görünür yere kaydırılır (KartTakipPage ile aynı desen).</summary>
+/// <summary>Krediler. Kredi bildirimine tıklanınca //krediler?KrediId={id} ile açılır: liste yüklenir, kredi seçilir ve ayrıntısı
+/// görünür yere kaydırılır. Sayfa zaten açıkken gelen istek hemen, değilse sayfa belirirken uygulanır (SorguSecimi; KartTakipPage
+/// ile aynı desen).</summary>
 public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAttributable
 {
     private readonly View _ozet;
-    private int? _istenenKrediId;
+    private readonly SorguSecimi _secim = new("KrediId");
 
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
-        if (query.TryGetValue("KrediId", out var value) && int.TryParse(value.ToString(), out var id) && id > 0)
-            _istenenKrediId = id;
+        if (_secim.Iste(query))
+            _ = SecimiUygulaAsync();
     }
 
-    /// <summary>async void işleyici: yükleme ya da kaydırma hatası günlüğe yazılır, sayfa yine açılır (yakalanmayan istisna
-    /// WinUI sürecini çökertir).</summary>
     protected override async void OnAppearing()
+    {
+        _secim.Gorunuyor = true;
+        await SecimiUygulaAsync();
+        base.OnAppearing();
+    }
+
+    protected override void OnDisappearing()
+    {
+        _secim.Gorunuyor = false;
+        base.OnDisappearing();
+    }
+
+    /// <summary>Bekleyen kredi seçimi; yükleme ya da kaydırma hatası günlüğe yazılır, sayfa yine açılır (OnAppearing async void'dir,
+    /// yakalanmayan istisna WinUI sürecini çökertir).</summary>
+    private async Task SecimiUygulaAsync()
     {
         try
         {
-            if (_istenenKrediId is { } id)
-            {
-                await Vm.YukleAsync();
-                if (Vm.VeriHazir && Vm.Hata is null && Vm.IdIleSec(id))
-                {
-                    _istenenKrediId = null;
-                    await Kaydirici.ScrollToAsync(_ozet, ScrollToPosition.Start, true);
-                }
-            }
+            if (await _secim.UygulaAsync(Vm.YukleAsync, () => Vm.VeriHazir && Vm.Hata is null, Vm.IdIleSec))
+                await Kaydirici.ScrollToAsync(_ozet, ScrollToPosition.Start, true);
         }
         catch (Exception ex) { Debug.WriteLine($"Kredi bildirimi seçimi başarısız: {ex}"); }
-        base.OnAppearing();
     }
 
     public KrediTakipPage(KrediTakipViewModel vm) : base(vm, "Krediler",
