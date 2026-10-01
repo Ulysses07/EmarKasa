@@ -1,4 +1,5 @@
 using Kasa.Api.Data;
+using Kasa.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -71,6 +72,9 @@ public static class AyKilidiKurallari
             var link = db.AlisOdemeler.AsNoTracking().SingleOrDefault(p => p.IslemId == expense.Id);
             return link is not null && db.AlisOdemeler.Any(p => p.AlisId == link.AlisId && p.Id > link.Id && p.Islem.Tarih <= end);
         }
+        // Çekin kasayı etkileyen (türetilmiş satır üreten) hareketi kilitli dönemde mi (docs/specs/2026-10-01-cekler.md "Ay kilidi").
+        bool CekKilitli(int cekId) => db.CekHareketler.AsNoTracking().Where(h => h.CekId == cekId && h.Tarih <= end).Select(h => h.Tur)
+            .AsEnumerable().Any(CekKurallari.KasaEtkili);
 
         // Kanal: tamamlanmış ayların kanal kümesi değişiklikten önce dondurulduğundan (AyKanalKumesi) kilitli dönemi yalnız açılış
         // devri etkiler; ekleme, ad, aktiflik ve sıra serbesttir (KanalKurallari).
@@ -103,6 +107,10 @@ public static class AyKilidiKurallari
                 TakipKrediEntity t => Changed(e, "Baslangic", "MevcutKredi", "EskiKayit", "KanalIdleriJson", "CekimPaylariJson") && DateLocked(e, nameof(t.Baslangic)),
                 TakipKrediTaksitEntity t => DateLocked(e, nameof(t.Tarih)) && Changed(e, "Tarih", "Tutar", "Iptal", "DagilimJson", "KrediId"),
                 KrediTaksitOdemeEntity p => db.Islemler.Any(i => i.Id == p.IslemId && i.Tarih <= end),
+                // Çek hareketi kilitli dönemde eklenemez ve silinemez (geri alma dahil). Kasayı etkileyen hareketi kilitli dönemde olan
+                // çekin tutarı, kasası, yönü ve türü değişmez, çek silinmez; vade, konum, not, kişi, banka ve no her zaman değişir.
+                CekHareketEntity h => DateLocked(e, nameof(h.Tarih)),
+                CekEntity c => Changed(e, "Tutar", "KanalId", "Yon", "Tur") && CekKilitli(c.Id),
                 HesapEntity => true,
                 HesapHareketEntity h => DateLocked(e, nameof(h.Tarih)),
                 HesapTransferEntity h => DateLocked(e, nameof(h.Tarih)),
