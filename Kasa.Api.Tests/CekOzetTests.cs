@@ -15,6 +15,9 @@ public class CekOzetTests
     private static CekYaz Alinan(string no, decimal tutar, DateOnly vade, bool teminat = false) =>
         new(Guid.NewGuid(), 0, CekTurleri.Cek, CekYonleri.Alinan, no, "Ziraat", "Ahmet Yılmaz", tutar, vade, null, teminat, null, null);
 
+    private static CekYaz Verilen(string no, decimal tutar, DateOnly vade, string kanal = KanalEtiketleri.Ortak) =>
+        new(Guid.NewGuid(), 0, CekTurleri.Cek, CekYonleri.Verilen, no, "Halk", "Mehmet Ticaret", tutar, vade, kanal, false, null, null);
+
     [Fact]
     public async Task Ozet_kalan_tutarlari_teminatsiz_ve_acik_ceklerden_toplar()
     {
@@ -38,6 +41,71 @@ public class CekOzetTests
         Assert.Equal(new CekOzetKalemi(1, 10_000m), ozet.Alinan30);
         Assert.Equal(new CekOzetKalemi(1, 7_000m), ozet.Verilen30);
         Assert.Equal(new CekOzetKalemi(1, 3_000m), ozet.VadesiGecmis);
+    }
+
+    [Fact]
+    public async Task Vade_bugun_olan_alinan_cek_alinan30a_girer_vadesi_gecmise_girmez()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        await Post<CekDto>(c, Yol, Alinan("A-1", 10_000m, Today));
+
+        var ozet = (await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken))!;
+        Assert.Equal(new CekOzetKalemi(1, 10_000m), ozet.Alinan30);
+        Assert.Equal(new CekOzetKalemi(0, 0m), ozet.VadesiGecmis);
+    }
+
+    [Fact]
+    public async Task Vade_dun_olan_alinan_cek_vadesi_gecmise_girer()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        await Post<CekDto>(c, Yol, Alinan("A-1", 10_000m, Today.AddDays(-1)));
+
+        var ozet = (await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken))!;
+        Assert.Equal(new CekOzetKalemi(1, 10_000m), ozet.VadesiGecmis);
+        Assert.Equal(new CekOzetKalemi(0, 0m), ozet.Alinan30);
+    }
+
+    [Fact]
+    public async Task Vade_otuz_gun_sonra_olan_alinan_cek_alinan30a_girer()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        await Post<CekDto>(c, Yol, Alinan("A-1", 10_000m, Today.AddDays(30)));
+
+        var ozet = (await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken))!;
+        Assert.Equal(new CekOzetKalemi(1, 10_000m), ozet.Alinan30);
+    }
+
+    [Fact]
+    public async Task Karsiliksiz_alinan_cek_vadesi_gecmisten_ve_portfoyden_duser()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var gecmis = await Post<CekDto>(c, Yol, Alinan("A-1", 10_000m, Today.AddDays(-1)));
+
+        var onceki = (await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken))!;
+        Assert.Equal(new CekOzetKalemi(1, 10_000m), onceki.PortfoydekiAlinan);
+        Assert.Equal(new CekOzetKalemi(1, 10_000m), onceki.VadesiGecmis);
+
+        await Post<CekDto>(c, $"{Yol}/{gecmis.Id}/hareketler", new CekHareketYaz(Guid.NewGuid(), gecmis.Surum, CekHareketTurleri.Karsiliksiz, Today, 0m, null, null, null));
+
+        var sonraki = (await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken))!;
+        Assert.Equal(new CekOzetKalemi(0, 0m), sonraki.PortfoydekiAlinan);
+        Assert.Equal(new CekOzetKalemi(0, 0m), sonraki.VadesiGecmis);
+    }
+
+    [Fact]
+    public async Task Kismen_odenmis_verilen_cek_verilen30da_kalan_tutarla_sayilir()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var verilen = await Post<CekDto>(c, Yol, Verilen("777", 10_000m, Today.AddDays(10)));
+        await Post<CekDto>(c, $"{Yol}/{verilen.Id}/hareketler", new CekHareketYaz(Guid.NewGuid(), verilen.Surum, CekHareketTurleri.Odeme, Today, 4_000m, null, null, null));
+
+        var ozet = (await c.GetFromJsonAsync<CekOzetDto>(Yol + "/ozet", TestContext.Current.CancellationToken))!;
+        Assert.Equal(new CekOzetKalemi(1, 6_000m), ozet.Verilen30);
     }
 
     [Fact]
