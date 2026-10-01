@@ -68,6 +68,7 @@ internal sealed class SahteGosterici : IBildirimGosterici
     /// <summary>Bu kimlikteki bildirim gösterilirken hata fırlatılır.</summary>
     public int? HataliKimlik { get; set; }
     public bool DenemeBasarili { get; set; } = true;
+    public bool GostermeyeHazir { get; set; } = true;
     /// <summary>Ayarlanırsa Windows ayarı okunurken ve deneme bildiriminde bu istisna fırlatılır.</summary>
     public Exception? Hata { get; set; }
 

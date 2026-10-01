@@ -87,8 +87,8 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
                 Debug.WriteLine($"Windows bildirim kaydı başarısız: {ex}");
             }
         }
-        // Kayıt başarısız olsa da kısayol yazılır (uygulamayı açmak için de kullanılır); açılışı bekletmez. İlk gösterim bu işi
-        // bekler (Yayinla): kısayol yokken gösterilen bildirim Windows'ta görünmeden düşer, kimliği ise gösterilmiş sayılırdı.
+        // Kayıt başarısız olsa da kısayol yazılır (uygulamayı açmak için de kullanılır); açılışı bekletmez. Gösterim bu işi
+        // bekler (GostermeyeHazir): kısayol yokken gösterilen bildirim Windows'ta görünmeden düşer, kimliği ise gösterilmiş sayılırdı.
         _kayitDuzeni = Task.Run(KayitlariDuzenle);
     }
 
@@ -181,6 +181,25 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
         .AddText(bildirim.Baslik)
         .AddText(bildirim.Mesaj));
 
+    /// <summary>Pencereli açılıştaki kayıt düzenlemesini (kısayol) en çok <see cref="KisayolBeklemesi"/> bekler; genelde çoktan
+    /// bitmiştir. Düzenleme UI iş parçacığına dönmez: UI'dan çağrılan Wait kilitlenmeye yol açmaz. Süre dolarsa false (yoklayıcı
+    /// bildirimi ayırmaz, sonraki bakmada gösterir); düzenleme hata verdiyse bitmiş sayılır (true). Pencere açmadan çalışan görevde
+    /// düzenleme yoktur: kısayolu daha önceki pencereli açılış yazmıştır.</summary>
+    public bool GostermeyeHazir
+    {
+        get
+        {
+            try
+            {
+                return _kayitDuzeni?.Wait(KisayolBeklemesi) ?? true;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+    }
+
     public bool DenemeGoster()
     {
         try
@@ -223,13 +242,8 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
                 _kayitli = true;
             }
         }
-        // İlk açılışta kısayol henüz yazılmadıysa beklenir (genelde çoktan bitmiştir; en çok KisayolBeklemesi). Düzenleme UI iş
-        // parçacığına dönmez: UI'dan çağrılan Wait kilitlenmeye yol açmaz. Süre dolarsa ya da düzenleme hata verdiyse yine gösterilir.
-        try
-        {
-            _kayitDuzeni?.Wait(KisayolBeklemesi);
-        }
-        catch (Exception) { }
+        // Deneme bildirimi de ilk açılışta kısayolu bekler; sunucu bildirimlerini yoklayıcı GostermeyeHazir ile önceden denetler.
+        _ = GostermeyeHazir;
         AppNotificationManager.Default.Show(icerik.BuildNotification());
         return true;
     }
