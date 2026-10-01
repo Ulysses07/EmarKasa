@@ -16,6 +16,11 @@ public interface IBildirimGosterici
 
     /// <summary>Windows ayarlarında bu uygulamanın bildirimleri kapalı (ya da desteklenmiyor).</summary>
     bool WindowsAyarindaKapali { get; }
+
+    /// <summary>Windows tarafı gösterime hazır mı: ilk açılışta Başlat menüsü kısayolu henüz yazılıyorsa false (kısayol yokken
+    /// gösterilen bildirim Windows'ta görünmeden düşer). Hazır değilse bildirimler "gösterildi" diye ayrılmaz, sonraki bakmada
+    /// gösterilir. Kısa süre bekleyebilir.</summary>
+    bool GostermeyeHazir { get; }
 }
 
 /// <summary>Bildirime tıklama: sunucu bildiriminin kimliği (deneme bildiriminde yok) ve hedefi (BildirimDto.Hedef).</summary>
