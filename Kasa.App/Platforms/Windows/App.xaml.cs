@@ -29,6 +29,9 @@ public partial class App : MauiWinUIApplication
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Sabit AppUserModelID (bildirimler ve Başlat menüsü kısayolu aynı kimliği kullanır): pencereden ve bildirim kaydından önce,
+        // bütün kiplerde.
+        WindowsBildirimGosterici.KimlikAyarla();
         // 07-15 hatırlatıcısının eski zamanlanmış görevi (EmarKasaHatirlatici) bir kez silinir: pencere açmadan, arka planda,
         // hataları yutarak; başarıdan sonra yerel işaretle bir daha denenmez (bkz. EskiHatirlatmaGorevi).
         var gorev = EskiHatirlatmaGorevi.Varsayilan();
