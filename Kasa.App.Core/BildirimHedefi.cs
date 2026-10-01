@@ -6,7 +6,8 @@ namespace Kasa.App.Core;
 /// çevirir (tasarım 2026-09-30 masaüstü bildirimleri §1 Tıklama; 2026-10-01 çekler "Bildirimler"). Kart → Kartlar sayfasında o kart
 /// (KartId), kredi → Krediler sayfasında o kredi (KrediId), çek → Çekler sayfasında o çek (CekId); kimliksiz hedef yalnız sayfayı
 /// açar; tanınmayan ya da boş hedef Bildirimler sayfasını açar.
-/// Sunucunun ürettiği diğer hedefler (kasa alt sınırı ve kaynak hatası: "/#home") tanınmayan sayılır.</summary>
+/// Kasa alt sınırı ve çek dışı kaynak hatası "/#home" üretir, tanınmayan sayılır; çek kaynak hatası ise kimliksiz çek hedefi
+/// gibi "/#cheques" üretir ve Çekler sayfasını açar.</summary>
 public static partial class BildirimHedefi
 {
     /// <summary>Tanınmayan hedefte açılan rota.</summary>
@@ -25,7 +26,8 @@ public static partial class BildirimHedefi
             ("loans", true) => "//krediler?KrediId=" + kimlik.Value,
             ("loans", false) => "//krediler",
             ("cheques", true) => "//cekler?CekId=" + kimlik.Value,
-            _ => "//cekler",
+            ("cheques", false) => "//cekler",
+            _ => Varsayilan,
         };
     }
 

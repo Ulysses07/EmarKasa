@@ -1,6 +1,7 @@
 using System.Globalization;
 using Kasa.Api.Data;
 using Kasa.Core.Kodlar;
+using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
 
@@ -10,7 +11,8 @@ namespace Kasa.Api.Servisler;
 /// edilmiş / ödenmiş olmayan (kapanmış, ciro edilmiş, kırdırılmış, karşılıksız) çekler hariçtir. Kurallar:
 /// <list type="bullet">
 /// <item>Alınan, portföyde ya da kısmen: vadeye 3 gün kala ve vade günü "Çek vadesi" (kısmide kalan tutar).</item>
-/// <item>Alınan, portföyde: vadenin 7. günü "İbraz süresi doluyor".</item>
+/// <item>Alınan çek (senet değil), portföyde: vadenin 7. günü "İbraz süresi doluyor" (kambiyo mevzuatındaki 7 günlük ibraz süresi
+/// yalnız çeke özgüdür; senedin ibraz/zamanaşımı süresi farklıdır, bu yüzden senette bu uyarı çıkmaz).</item>
 /// <item>Verilen, portföyde ya da kısmen: vadeye 3 gün kala ve vade günü "Ödenecek çek".</item>
 /// </list>
 /// Hedef "/#cheques/{id}": masaüstü bunu Çekler sayfasında o çeke çevirir (Kasa.App.Core BildirimHedefi). Anahtar çek, kural,
@@ -29,7 +31,15 @@ public static class CekBildirimleri
     public static IReadOnlyList<BildirimTaslagi> Oku(KasaDbContext db, DateOnly today)
     {
         var sonuc = new List<BildirimTaslagi>();
-        foreach (var k in CekServisi.Oku(db).Where(k => !k.Cek.Teminat && k.Durum.Acik))
+        // Üç kuralın hepsi vadesi {bugün, bugün+3, bugün-7} olan teminatsız çeklerle sınırlıdır: önce bu adaylar SQL'de seçilir,
+        // yalnız onların hareketleri okunur (tüm çek tablosunu taramaktan kaçınılır). Aday seçimiyle hareketler aynı anlık
+        // görüntüden okunur (kart/kredi kaynağındaki desen, bkz. FinansBildirimKaynaklari).
+        using var okuma = db.OkumaBaslat();
+        var vadeler = new[] { today, today.AddDays(3), today.AddDays(-7) };
+        var adaylar = db.Cekler.AsNoTracking().Where(c => !c.Teminat && vadeler.Contains(c.VadeTarihi)).Select(c => c.Id).ToList();
+        if (adaylar.Count == 0)
+            return sonuc;
+        foreach (var k in CekServisi.Oku(db, adaylar: adaylar).Where(k => k.Durum.Acik))
         {
             var c = k.Cek;
             var ad = c.Tur switch { CekTurleri.Senet => "Senet", _ => "Çek" };
@@ -45,7 +55,7 @@ public static class CekBildirimleri
             }
             if (fark is 3 or 0)
                 Ekle("Vade", VadeTuru, $"{ad} vadesi", $"{c.Kisi} · {Tl(k.Durum.Kalan)} · {vade}");
-            if (fark == -7 && k.Durum.Durum == CekDurumlari.Portfoyde)
+            if (fark == -7 && c.Tur == CekTurleri.Cek && k.Durum.Durum == CekDurumlari.Portfoyde)
                 Ekle("Ibraz", IbrazTuru, "İbraz süresi doluyor", $"{c.Kisi} · {Tl(k.Durum.Kalan)} · vade {vade}");
         }
         return sonuc;

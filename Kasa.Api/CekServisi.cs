@@ -45,12 +45,17 @@ internal static class CekServisi
 
     internal static CekHareketi Cekirdek(CekHareketEntity h) => new(h.Id, h.Sira, h.Tur, h.Tarih, h.Tutar, h.NetTutar, null, h.Karsi);
 
-    internal static List<Kayit> Oku(KasaDbContext db, int? id = null)
+    /// <summary><paramref name="id"/> verilmişse (tek çek) yalnız o çekin, <paramref name="adaylar"/> verilmişse yalnız o
+    /// id'lerin (ör. CekBildirimleri'ndeki aday seçimi) kaydı ve hareketleri okunur; ikisi de yoksa (liste) hepsi okunur.</summary>
+    internal static List<Kayit> Oku(KasaDbContext db, int? id = null, IReadOnlyCollection<int>? adaylar = null)
     {
-        var cekler = (id is { } i ? db.Cekler.AsNoTracking().Where(c => c.Id == i) : db.Cekler.AsNoTracking()).OrderBy(c => c.Id).ToList();
-        // id verilmişse (tek çek) yalnız o çekin hareketleri okunur; id yoksa (liste) hepsi okunur — büyük bir Id listesiyle
-        // SQL IN'e gerek kalmaz.
-        var hareketSorgusu = id is { } i2 ? db.CekHareketler.AsNoTracking().Where(h => h.CekId == i2) : db.CekHareketler.AsNoTracking();
+        var cekSorgusu = id is { } i ? db.Cekler.AsNoTracking().Where(c => c.Id == i)
+            : adaylar is not null ? db.Cekler.AsNoTracking().Where(c => adaylar.Contains(c.Id))
+            : db.Cekler.AsNoTracking();
+        var cekler = cekSorgusu.OrderBy(c => c.Id).ToList();
+        var hareketSorgusu = id is { } i2 ? db.CekHareketler.AsNoTracking().Where(h => h.CekId == i2)
+            : adaylar is not null ? db.CekHareketler.AsNoTracking().Where(h => adaylar.Contains(h.CekId))
+            : db.CekHareketler.AsNoTracking();
         var hareketler = hareketSorgusu.ToList().ToLookup(h => h.CekId);
         return cekler.Select(c =>
         {

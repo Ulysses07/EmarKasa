@@ -48,4 +48,57 @@ public class CekBildirimTests
     [Fact]
     public void Hesaplanamayan_cek_kaynaginin_uyarisi_cekler_sayfasini_hedefler()
         => Assert.Equal("/#cheques", BildirimTakvimi.Hata(new(CekBildirimleri.Kaynak, 0, "Çek hatırlatmaları", new InvalidOperationException()), Today).Hedef);
+
+    /// <summary>Senedin ibraz süresi farklı hukuki rejime tabidir (kambiyo mevzuatı çeke özgü 7 günlük ibraz süresi tanır); bu
+    /// yüzden "İbraz süresi doluyor" yalnız çekte çıkar, aynı durumdaki (portföyde, vade+7) senette çıkmaz.</summary>
+    [Fact]
+    public async Task Senette_ibraz_hatirlatmasi_yok_cekte_var()
+    {
+        await using var f = Fabrika();
+        await Editor(f);
+        var senet = CekVeriModeliTests.Cek(no: "SN-1", vade: Today.AddDays(-7));
+        senet.Tur = CekTurleri.Senet;
+        senet = await CekRaporTests.CekEkle(f, senet);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(no: "CK-1", vade: Today.AddDays(-7)));
+
+        using var scope = f.Services.CreateScope();
+        var taslaklar = CekBildirimleri.Oku(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), Today);
+        Assert.DoesNotContain(taslaklar, t => t.KaynakId == senet.Id);
+        Assert.Equal(CekBildirimleri.IbrazTuru, Assert.Single(taslaklar, t => t.KaynakId == cek.Id).Tur);
+    }
+
+    /// <summary>"Ödenecek çek": vade günü (fark 0) ve kısmen ödenmiş (kalan tutarla) aynı kuralı tetikler.</summary>
+    [Fact]
+    public async Task Odenecek_cek_vade_gununde_ve_kismen_odenmiste_bildirim_cikar()
+    {
+        await using var f = Fabrika();
+        await Editor(f);
+        var vadeGunu = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, 10_000m, kisi: "Zeynep A.Ş.", no: "VG-1", vade: Today));
+        var kismenOdenen = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, 10_000m, kisi: "Kerem Ltd.", no: "KO-1", vade: Today.AddDays(3)),
+            new CekHareketEntity { Tur = CekHareketTurleri.Odeme, Tarih = Today.AddDays(-1), Tutar = 4_000m, KanalId = 1 });
+
+        using var scope = f.Services.CreateScope();
+        var taslaklar = CekBildirimleri.Oku(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), Today);
+        Assert.Equal(("Ödenecek çek", "Zeynep A.Ş. · 10.000,00 TL · hesapta bulunmalı"),
+            taslaklar.Where(t => t.KaynakId == vadeGunu.Id).Select(t => (t.Baslik, t.Mesaj)).Single());
+        Assert.Equal(("Ödenecek çek", "Kerem Ltd. · 6.000,00 TL · hesapta bulunmalı"),
+            taslaklar.Where(t => t.KaynakId == kismenOdenen.Id).Select(t => (t.Baslik, t.Mesaj)).Single());
+    }
+
+    /// <summary>Yıl sonu sınırı: vade farkı DayNumber'dan hesaplandığı ve aday seçimi SQLite'ta DateOnly eşitliğiyle süzüldüğü için
+    /// yıl dönümünde de doğru çalışır (bugün 30 Aralık 2026, vade 2 Ocak 2027, fark 3).</summary>
+    [Fact]
+    public async Task Yil_sonu_sinirinda_vade_farki_dogru_hesaplanir()
+    {
+        await using var f = Fabrika();
+        await Editor(f);
+        var yilSonu = new DateOnly(2026, 12, 30);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(no: "YS-1", vade: new DateOnly(2027, 1, 2)));
+
+        using var scope = f.Services.CreateScope();
+        var taslaklar = CekBildirimleri.Oku(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), yilSonu);
+        var taslak = Assert.Single(taslaklar);
+        Assert.Equal(("Çek vadesi", "Ahmet Yılmaz · 50.000,00 TL · 2 Ocak", $"/#cheques/{cek.Id}", CekBildirimleri.VadeTuru),
+            (taslak.Baslik, taslak.Mesaj, taslak.Hedef, taslak.Tur));
+    }
 }
