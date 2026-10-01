@@ -119,8 +119,8 @@ public sealed class BildirimNobetcisi
         }
     }
 
-    /// <summary>Bildirim tıklaması: okundu işaretlenir, açılacak rota döner; editör oturumu yoksa null.</summary>
-    public Task<string?> TiklamayiIsleAsync(BildirimTiklamasi tiklama) => Yoklayici.TiklandiAsync(tiklama, EditorOturumu);
+    /// <summary>Bildirim tıklaması: açılacak rota hemen döner, okundu işareti arkada gönderilir; editör oturumu yoksa null.</summary>
+    public string? TiklamayiIsle(BildirimTiklamasi tiklama) => Yoklayici.Tiklandi(tiklama, EditorOturumu);
 
     private async Task GoreviSunucuSaatineGoreGuncelleAsync()
     {

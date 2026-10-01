@@ -35,6 +35,9 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
     /// <summary>Son bakmanın sonucu (durum satırı); henüz bakılmadıysa null.</summary>
     [ObservableProperty] private YoklamaSonucu? _sonSonuc;
 
+    /// <summary>Son tıklamanın arkada süren okundu işareti (<see cref="Tiklandi"/>); hata içeride yutulur, beklemek güvenlidir.</summary>
+    public Task OkunduIsareti { get; private set; } = Task.CompletedTask;
+
     /// <summary>Editör oturumunda ve ayar açıkken bir kez bakar; aksi halde hiçbir şey yapmaz ve null döner. Sürmekte olan bakma
     /// varsa yenisi başlatılmaz, aynı görev döner. Sürerken <see cref="Sifirla"/> çağrılan bakma null döner ve durumu değiştirmez.</summary>
     public Task<YoklamaSonucu?> YoklaAsync(bool editorOturumu)
@@ -102,27 +105,33 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
         return Sonuc(nesil, YoklamaDurumu.Basarili, yeniler.Count);
     }
 
-    /// <summary>Tıklanan bildirimi sunucuda okundu işaretler (hata yutulur; sonraki bakmada sayı düzelir) ve açılacak Shell rotasını
-    /// döner. Rozet yalnız son listede okunmamış olan bildirimin ilk tıklamasında düşer: aynı tıklama iki yoldan gelebilir, telefonda
-    /// okunmuş bildirim zaten sayılmamıştır. Editör oturumu yoksa hiçbir şey yapmaz ve null döner.</summary>
-    public async Task<string?> TiklandiAsync(BildirimTiklamasi tiklama, bool editorOturumu)
+    /// <summary>Tıklanan bildirimin açılacak Shell rotasını hemen döner (sayfa sunucuyu beklemeden açılır); okundu işareti arkada
+    /// gönderilir (<see cref="OkunduIsareti"/>; hata yutulur, sonraki bakmada sayı düzelir). Rozet yalnız okundu işareti başarılı
+    /// olunca ve son listede okunmamış olan bildirimin ilk tıklamasında düşer: aynı tıklama iki yoldan gelebilir, telefonda okunmuş
+    /// bildirim zaten sayılmamıştır. Editör oturumu yoksa hiçbir şey yapmaz ve null döner.</summary>
+    public string? Tiklandi(BildirimTiklamasi tiklama, bool editorOturumu)
     {
         if (!editorOturumu)
             return null;
         if (tiklama.BildirimId is { } kimlik)
-        {
-            try
-            {
-                await api.BildirimOkunduAsync(kimlik);
-                if (_okunmamisKimlikler.Remove(kimlik))
-                    Okunmamis = Math.Max(0, Okunmamis - 1);
-            }
-            catch (Exception)
-            {
-                // Okundu işareti bir sonraki tıklamada ya da Bildirimler ekranında verilebilir; sayfa yine açılır.
-            }
-        }
+            OkunduIsareti = OkunduIsaretleAsync(kimlik);
         return BildirimHedefi.Rota(tiklama.Hedef);
+    }
+
+    // ConfigureAwait(false) kullanılmaz: rozet (Okunmamis) bağlı görünüm için çağıranın (UI) bağlamında güncellenir. Yanıt gelmeden
+    // Sifirla çağrılırsa kimlik kümesi boşalmıştır, rozet düşmez.
+    private async Task OkunduIsaretleAsync(int kimlik)
+    {
+        try
+        {
+            await api.BildirimOkunduAsync(kimlik);
+            if (_okunmamisKimlikler.Remove(kimlik))
+                Okunmamis = Math.Max(0, Okunmamis - 1);
+        }
+        catch (Exception)
+        {
+            // Okundu işareti bir sonraki tıklamada ya da Bildirimler ekranında verilebilir; sayfa yine açılmıştır.
+        }
     }
 
     /// <summary>Bildirimler ekranı listeyi yükleyince ya da okundu işaretleyince okunmamış sayısını bildirir. Bu bilgisayarda Windows

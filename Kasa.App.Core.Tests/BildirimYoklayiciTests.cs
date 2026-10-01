@@ -115,13 +115,14 @@ public class BildirimYoklayiciTests
         o.Api.Liste = [B(5, hedef: "/#loans/7"), B(6)];
         await o.Yoklayici.YoklaAsync(true);
         Assert.Equal(2, o.Yoklayici.Okunmamis);
-        Assert.Equal("//krediler?KrediId=7", await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(5, "/#loans/7"), true));
+        Assert.Equal("//krediler?KrediId=7", o.Yoklayici.Tiklandi(new BildirimTiklamasi(5, "/#loans/7"), true));
+        await o.Yoklayici.OkunduIsareti;
         Assert.Equal([5], o.Api.Okunanlar);
         Assert.Equal(1, o.Yoklayici.Okunmamis);
         // Deneme bildiriminin kimliği yok: okundu işaretlenmez, Bildirimler açılır.
-        Assert.Equal("//bildirimler", await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(null, BildirimTiklamasi.DenemeHedefi), true));
+        Assert.Equal("//bildirimler", o.Yoklayici.Tiklandi(new BildirimTiklamasi(null, BildirimTiklamasi.DenemeHedefi), true));
         // Editör oturumu yok: hiçbir şey yapılmaz.
-        Assert.Null(await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(6, "/#cards/1"), false));
+        Assert.Null(o.Yoklayici.Tiklandi(new BildirimTiklamasi(6, "/#cards/1"), false));
         Assert.Equal([5], o.Api.Okunanlar);
     }
 
@@ -133,12 +134,16 @@ public class BildirimYoklayiciTests
         await o.Yoklayici.YoklaAsync(true);
         Assert.Equal(2, o.Yoklayici.Okunmamis);
         // Aynı tıklama iki yoldan gelebilir (olay ve etkinleştirme argümanı): rozet bir kez düşer.
-        await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(1, "/#cards/1"), true);
-        await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(1, "/#cards/1"), true);
+        o.Yoklayici.Tiklandi(new BildirimTiklamasi(1, "/#cards/1"), true);
+        await o.Yoklayici.OkunduIsareti;
+        o.Yoklayici.Tiklandi(new BildirimTiklamasi(1, "/#cards/1"), true);
+        await o.Yoklayici.OkunduIsareti;
         Assert.Equal(1, o.Yoklayici.Okunmamis);
         // Telefonda zaten okunmuş ya da listede olmayan bildirim rozeti düşürmez; okundu işareti yine gönderilir.
-        await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(3, "/#cards/1"), true);
-        await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(99, "/#cards/1"), true);
+        o.Yoklayici.Tiklandi(new BildirimTiklamasi(3, "/#cards/1"), true);
+        await o.Yoklayici.OkunduIsareti;
+        o.Yoklayici.Tiklandi(new BildirimTiklamasi(99, "/#cards/1"), true);
+        await o.Yoklayici.OkunduIsareti;
         Assert.Equal(1, o.Yoklayici.Okunmamis);
         Assert.Equal([1, 1, 3, 99], o.Api.Okunanlar);
     }
@@ -149,8 +154,28 @@ public class BildirimYoklayiciTests
         var o = new BildirimOrtami();
         o.Yoklayici.OkunmamisBildir(3);
         o.Api.OkunduHatasi = new HttpRequestException("bağlantı yok");
-        Assert.Equal("//kartlar?KartId=4", await o.Yoklayici.TiklandiAsync(new BildirimTiklamasi(9, "/#cards/4"), true));
+        Assert.Equal("//kartlar?KartId=4", o.Yoklayici.Tiklandi(new BildirimTiklamasi(9, "/#cards/4"), true));
+        await o.Yoklayici.OkunduIsareti;
         Assert.Equal(3, o.Yoklayici.Okunmamis);
+    }
+
+    /// <summary>Tıklayınca sayfa hemen açılır: rota sunucunun okundu yanıtını beklemez; rozet yalnız okundu işareti başarılı olunca
+    /// düşer.</summary>
+    [Fact]
+    public async Task Sunucu_yavasken_rota_okundu_isaretini_beklemez()
+    {
+        var o = new BildirimOrtami();
+        o.Api.Liste = [B(5)];
+        await o.Yoklayici.YoklaAsync(true);
+        var yanit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        o.Api.OkunduBekleyen = yanit.Task;
+        Assert.Equal("//kartlar?KartId=1", o.Yoklayici.Tiklandi(new BildirimTiklamasi(5, "/#cards/1"), true));
+        Assert.False(o.Yoklayici.OkunduIsareti.IsCompleted);
+        Assert.Equal(1, o.Yoklayici.Okunmamis);
+        yanit.SetResult();
+        await o.Yoklayici.OkunduIsareti;
+        Assert.Equal([5], o.Api.Okunanlar);
+        Assert.Equal(0, o.Yoklayici.Okunmamis);
     }
 
     /// <summary>Kullanıcı kararı: bu bilgisayarda Windows bildirimleri kapalıyken menü rozeti gizli kalır; Bildirimler ekranının

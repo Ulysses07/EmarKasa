@@ -161,10 +161,11 @@ public class BildirimNobetcisiTests
         Assert.Equal(0, o.Api.ListeCagri);
         o.Gosterici.WindowsAyarindaKapali = true;
         Assert.True(o.Nobetci.WindowsAyarindaKapali);
-        Assert.Equal("//kartlar?KartId=4", await o.Nobetci.TiklamayiIsleAsync(new BildirimTiklamasi(9, "/#cards/4")));
+        Assert.Equal("//kartlar?KartId=4", o.Nobetci.TiklamayiIsle(new BildirimTiklamasi(9, "/#cards/4")));
+        await o.Yoklayici.OkunduIsareti;
         Assert.Equal([9], o.Api.Okunanlar);
         o.Auth.GirisYapildi = false;
-        Assert.Null(await o.Nobetci.TiklamayiIsleAsync(new BildirimTiklamasi(10, "/#cards/4")));
+        Assert.Null(o.Nobetci.TiklamayiIsle(new BildirimTiklamasi(10, "/#cards/4")));
         Assert.Equal([9], o.Api.Okunanlar);
     }
 }

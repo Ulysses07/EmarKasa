@@ -13,6 +13,8 @@ internal sealed class SahteBildirimApi : IBildirimApi
     public BildirimAyarDto Ayar { get; set; } = new(true, 9, 0, "Europe/Istanbul", 3);
     public Exception? AyarHatasi { get; set; }
     public Exception? OkunduHatasi { get; set; }
+    /// <summary>Ayarlanırsa okundu yanıtı bu görevi bekler (yavaş sunucu testleri); kimlik yanıt gelince kaydedilir.</summary>
+    public Task? OkunduBekleyen { get; set; }
     public List<int> Okunanlar { get; } = [];
 
     public static BildirimDto Bildirim(int id, DateOnly tarih, bool okundu = false, string hedef = "/#cards/1")
@@ -41,8 +43,16 @@ internal sealed class SahteBildirimApi : IBildirimApi
     {
         if (OkunduHatasi is not null)
             return Task.FromException(OkunduHatasi);
+        if (OkunduBekleyen is { } bekleyen)
+            return BekleyipKaydetAsync(bekleyen, id);
         Okunanlar.Add(id);
         return Task.CompletedTask;
+    }
+
+    private async Task BekleyipKaydetAsync(Task bekleyen, int id)
+    {
+        await bekleyen;
+        Okunanlar.Add(id);
     }
 
     public Task<PushAnahtarDto> BildirimAnahtariAsync() => Task.FromResult(new PushAnahtarDto(true, "public"));

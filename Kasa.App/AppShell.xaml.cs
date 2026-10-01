@@ -112,14 +112,14 @@ public partial class AppShell : Shell
     }
 
     /// <summary>Bekleyen bildirim tıklaması: oturum açık değilse beklemede kalır ve girişten sonra uygulanır; editör oturumunda
-    /// bildirim okundu işaretlenir ve hedef sayfa açılır. Al() bekleyeni alıp temizlediği için aynı tıklama iki kez uygulanmaz.</summary>
+    /// hedef sayfa hemen açılır, okundu işareti arkada gönderilir. Al() bekleyeni alıp temizlediği için aynı tıklama iki kez uygulanmaz.</summary>
     private async Task TiklamayiUygulaAsync()
     {
         try
         {
             if (!_auth.GirisYapildi || _bildirimTiklamalari.Al() is not { } tiklama)
                 return;
-            if (await _bildirimNobetcisi.TiklamayiIsleAsync(tiklama) is { } rota)
+            if (_bildirimNobetcisi.TiklamayiIsle(tiklama) is { } rota)
                 await GoToAsync(rota);
         }
         catch (Exception ex) { Debug.WriteLine($"Bildirim tıklaması uygulanamadı: {ex}"); }
