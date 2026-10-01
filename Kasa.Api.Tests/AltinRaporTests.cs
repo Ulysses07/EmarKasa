@@ -55,6 +55,26 @@ public class AltinRaporTests
     /// Altın dosyaya (kural kararlarından önceki kodun çıktısı) göre onaylı farklar. Başka her fark testi düşürür.
     /// Tohumda Haziran bu sürümden önce kapatılmıştır: kilit takip başlangıcından itibaren Ocak–Haziran 2026'yı kapsar.
     /// </summary>
+    [Fact]
+    public async Task Kasayi_etkilemeyen_cek_kayitlari_rapor_ve_okuma_uclarini_degistirmez()
+    {
+        await using var f = KasaWebFactory.Sabit(AltinTohum.Bugun);
+        using var c = await f.EditorClientAsync();
+        var tohum = await AltinTohum.Kur(f, c);
+        var once = await AltinTohum.Yanitlar(c, tohum);
+
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek());
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(teminat: true, no: "T-1"));
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(no: "K-1"),
+            new CekHareketEntity { Tur = CekHareketTurleri.Karsiliksiz, Tarih = AltinTohum.Bugun });
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, kanalId: 1, no: "V-1"),
+            new CekHareketEntity { Tur = CekHareketTurleri.Iade, Tarih = AltinTohum.Bugun });
+
+        var sonra = await AltinTohum.Yanitlar(c, tohum);
+        foreach (var (uc, deger) in once)
+            Assert.True(deger!.ToJsonString() == sonra[uc]!.ToJsonString(), $"{uc} kasayı etkilemeyen çek kaydıyla değişti.");
+    }
+
     private static IEnumerable<OnayliFark> OnayliFarklar()
     {
         // K4: geçişte kilitli olan Ocak–Haziran 2026 raporları kural 1 ile dondurulur. Bütün tutarlar birebir aynı kalır

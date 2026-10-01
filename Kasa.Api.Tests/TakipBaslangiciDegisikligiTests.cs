@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Kasa.Api.Data;
+using Kasa.Core.Kodlar;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Kasa.Api.Tests;
@@ -119,6 +120,18 @@ public class TakipBaslangiciDegisikligiTests
             db.SaveChanges();
         }
         await Reddedilir(c, "kasa sayımı");
+    }
+
+    [Fact]
+    public async Task Hareketsiz_cek_baslangici_sabitlemez_cek_hareketi_sabitler()
+    {
+        await using var f = KasaWebFactory.Sabit(Bugun);
+        using var c = await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek());
+        (await Ayar(c, YeniBaslangic)).EnsureSuccessStatusCode();
+        (await Ayar(c, Baslangic)).EnsureSuccessStatusCode();
+        await CekRaporTests.HareketEkle(f, cek.Id, new CekHareketEntity { Tur = CekHareketTurleri.Tahsilat, Tarih = new(2026, 9, 16), Tutar = 5_000m, KanalId = 1 });
+        await Reddedilir(c, "çek hareketi");
     }
 
     [Fact]

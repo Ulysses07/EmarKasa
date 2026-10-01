@@ -25,7 +25,7 @@ public static class FinansHesaplari
     /// Takip başlangıcına bağlı ilk mali kaydın türü; hiç yoksa null (gap-veri-degismezleri-patlama-yaricapi-5). Başlangıç
     /// dönemleri belirler: kayıt varken değişirse başlangıçtan önceye düşen kayıt raporlardan sessizce çıkar, sonrakiler
     /// başka döneme kayar. Gider (Islem) üretmeyen yollar da sayılır: takipli kart açılışı/harcaması/ödemesi, takipli kredi,
-    /// iptal edilmemiş ekstre kaydı (banka geliri dahil), aylık gider ödemesi, kasa sayımı ve alış ödemesi.
+    /// iptal edilmemiş ekstre kaydı (banka geliri dahil), aylık gider ödemesi, kasa sayımı, alış ödemesi ve çek hareketi.
     /// </summary>
     public static string? IlkMaliKayitTuru(KasaDbContext db) =>
         db.Islemler.Any() ? "gider"
@@ -38,6 +38,7 @@ public static class FinansHesaplari
         : db.AylikGiderOdemeler.Any(p => !p.Iptal) ? "aylık gider ödemesi"
         : db.KasaKontrolleri.Any() ? "kasa sayımı"
         : db.AlisOdemeler.Any() ? "alış ödemesi"
+        : db.CekHareketler.Any() ? "çek hareketi"
         : null;
 
     /// <summary>finance-9 iletisi: takipteki karta genel gider ekranından sıfır/eksi tutar (iade, alacak) girilemez.</summary>

@@ -46,10 +46,13 @@ public sealed class KasaDokumu(DateOnly bugun, decimal kasaAcilis, IReadOnlyList
     }
 
     /// <summary>Satır türü: Gelir (dönem geliri), EkstreGeliri, EkGelir, KrediCekimi; Gider, SabitGider, AylikGider, KartOdemesi,
-    /// KartIadesi (önceden sayılan kart borcunun kasaya dönüşü), KrediTaksidi, KartAySonu (eski kartın ay sonu düşümü).</summary>
+    /// KartIadesi (önceden sayılan kart borcunun kasaya dönüşü), KrediTaksidi, KartAySonu (eski kartın ay sonu düşümü); Cek (çek ya da
+    /// senet hareketinin gelir ya da gider ayağı, anahtarı "Cek:").</summary>
     public static string Tur(KasaHareketi h)
     {
         var anahtar = h.KaynakAnahtari ?? "";
+        if (anahtar.StartsWith("Cek:", StringComparison.Ordinal))
+            return KasaHareketTurleri.Cek;
         if (h.Gelen is not null)
             return anahtar.StartsWith("Kredi:", StringComparison.Ordinal) ? KasaHareketTurleri.KrediCekimi
                 : anahtar.StartsWith("EkstreKayit:", StringComparison.Ordinal) ? KasaHareketTurleri.EkstreGeliri
