@@ -43,6 +43,9 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
     /// <summary>Aynı tıklamanın kısa arayla ikinci kez gelişini ayırt etme süresi.</summary>
     private const long CiftTiklamaMs = 5000;
 
+    /// <summary>Gösterimden önce kısayol düzenlemesini en çok bu kadar bekleme.</summary>
+    private static readonly TimeSpan KisayolBeklemesi = TimeSpan.FromSeconds(3);
+
     /// <summary>Sürecin tek örneği: App.xaml.cs DI kurulmadan önce başlatır, MauiProgram aynı örneği kaydeder.</summary>
     public static WindowsBildirimGosterici Ortak { get; } = new();
 
@@ -52,6 +55,9 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
     private bool _basladi;
     private bool _kayitli;
     private bool _kapandi;
+    /// <summary>Pencereli açılıştaki COM kaydı ve Başlat menüsü kısayolu düzenlemesi (<see cref="KayitlariDuzenle"/>); pencere açmadan
+    /// çalışan görevde null (kısayolu daha önceki pencereli açılış yazmıştır).</summary>
+    private Task? _kayitDuzeni;
     private BildirimTiklamasi? _sonTiklama;
     private long _sonTiklamaZamani;
 
@@ -81,8 +87,9 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
                 Debug.WriteLine($"Windows bildirim kaydı başarısız: {ex}");
             }
         }
-        // Kayıt başarısız olsa da kısayol yazılır (uygulamayı açmak için de kullanılır); açılışı bekletmez.
-        _ = Task.Run(KayitlariDuzenle);
+        // Kayıt başarısız olsa da kısayol yazılır (uygulamayı açmak için de kullanılır); açılışı bekletmez. İlk gösterim bu işi
+        // bekler (Yayinla): kısayol yokken gösterilen bildirim Windows'ta görünmeden düşer, kimliği ise gösterilmiş sayılırdı.
+        _kayitDuzeni = Task.Run(KayitlariDuzenle);
     }
 
     /// <summary>Sürecin AppUserModelID'sini sabitler. AppNotificationManager.Default ilk kez oluşturulmadan ve pencere açılmadan önce
@@ -216,6 +223,13 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
                 _kayitli = true;
             }
         }
+        // İlk açılışta kısayol henüz yazılmadıysa beklenir (genelde çoktan bitmiştir; en çok KisayolBeklemesi). Düzenleme UI iş
+        // parçacığına dönmez: UI'dan çağrılan Wait kilitlenmeye yol açmaz. Süre dolarsa ya da düzenleme hata verdiyse yine gösterilir.
+        try
+        {
+            _kayitDuzeni?.Wait(KisayolBeklemesi);
+        }
+        catch (Exception) { }
         AppNotificationManager.Default.Show(icerik.BuildNotification());
         return true;
     }
