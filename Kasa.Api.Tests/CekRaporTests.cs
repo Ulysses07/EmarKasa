@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core.Kodlar;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.AylikGiderTests;
 
@@ -131,16 +132,25 @@ public class CekRaporTests
         var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", TestContext.Current.CancellationToken))!;
         await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Agustos.Year, Agustos.Month, "Ay tamamlandı"));
 
-        // Görev 4 (AyKilidiKurallari.CekKilitli) kapatılmış aya Çek hareketi eklenmesini artık veritabanı düzeyinde engeller; bu
-        // yüzden kilitten sonra Ağustos tarihli bir hareket eklemeyi deneyip kilidi aşması beklenemez (6ce3e99'un varsaydığının
-        // aksine). Dondurulmuş görüntünün açık aydaki yeni hareketten etkilenmediğini Today tarihli ekleme tek başına kanıtlar.
+        // SaveChanges kancası (AyKilidiKurallari.CekKilitli) EF üzerinden kapatılmış aya çek hareketi eklenmesini engeller.
         await Assert.ThrowsAsync<KilitliDonemException>(() => HareketEkle(f, cek.Id, new CekHareketEntity { Tur = CekHareketTurleri.Tahsilat, Tarih = Agustos.AddDays(25), Tutar = 2_000m, KanalId = 1 }));
+
+        // Kancayı aşan ham SQL yazımı (ChangeTracker'dan, dolayısıyla SaveChanges'ten geçmez) da Ağustos'a tarihli bir çek
+        // hareketi ekler; kilidi aşan doğrudan yazım bile dondurulmuş görüntüyü değiştirmez, çünkü donmuş Ağustos raporu
+        // kapanış anında alınan görüntüden okunur, canlı çek hareketlerini yeniden toplamaz.
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            db.Database.ExecuteSqlRaw(
+                "INSERT INTO CekHareketler (CekId, Sira, Tur, Tarih, Tutar, KanalId) VALUES ({0}, 2, 'Tahsilat', {1}, {2}, 1);",
+                cek.Id, Agustos.AddDays(25), 2_000m);
+        }
         await HareketEkle(f, cek.Id, new CekHareketEntity { Tur = CekHareketTurleri.Tahsilat, Tarih = Today, Tutar = 1_000m, KanalId = 1 });
         var agustosSonra = await c.GetStringAsync(Aylik(Agustos), TestContext.Current.CancellationToken);
         Assert.Equal(AyRaporuAnlikGoruntusuTests.Dondurulmus(canli, HesapServisi.AcikAyKurali), agustosSonra);
         Assert.Equal(5_000m, (decimal)Kanal(JsonNode.Parse(agustosSonra)!, "MEZAT")["gelen"]!);
         Assert.Equal(1_000m, (decimal)Kanal(await Json(c, Aylik(Month)), "MEZAT")["gelen"]!);
-        Assert.Equal(1_000m + 5_000m + 1_000m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(1_000m + 5_000m + 2_000m + 1_000m, (await Panel(c)).GuncelKasa);
     }
 
     [Fact]

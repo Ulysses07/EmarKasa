@@ -110,7 +110,7 @@ public static class AyKilidiKurallari
                 // Çek hareketi kilitli dönemde eklenemez ve silinemez (geri alma dahil). Kasayı etkileyen hareketi kilitli dönemde olan
                 // çekin tutarı, kasası, yönü ve türü değişmez, çek silinmez; vade, konum, not, kişi, banka ve no her zaman değişir.
                 CekHareketEntity h => DateLocked(e, nameof(h.Tarih)),
-                CekEntity c => Changed(e, "Tutar", "KanalId", "Yon", "Tur") && CekKilitli(c.Id),
+                CekEntity c => e.State != EntityState.Added && Changed(e, "Tutar", "KanalId", "Yon", "Tur") && CekKilitli(c.Id),
                 HesapEntity => true,
                 HesapHareketEntity h => DateLocked(e, nameof(h.Tarih)),
                 HesapTransferEntity h => DateLocked(e, nameof(h.Tarih)),

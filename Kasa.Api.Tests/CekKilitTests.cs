@@ -88,4 +88,76 @@ public class CekKilitTests
         (await db.Cekler.SingleAsync(x => x.Id == cek.Id, TestContext.Current.CancellationToken)).Tutar = 45_000m;
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public async Task Kilitli_hareketin_tutari_ve_kanali_degismez()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(), Tahsilat(Agustos.AddDays(10)));
+        await Kapat(c);
+        foreach (var degistir in new Action<CekHareketEntity>[] { x => x.Tutar = 2_000m, x => x.KanalId = 2 })
+        {
+            using var scope = f.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            degistir(await db.CekHareketler.SingleAsync(TestContext.Current.CancellationToken));
+            Assert.Throws<KilitliDonemException>(() => db.SaveChanges());
+        }
+    }
+
+    [Fact]
+    public async Task Kilitli_hareketin_tarihi_acik_aya_tasinamaz()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(), Tahsilat(Agustos.AddDays(10)));
+        await Kapat(c);
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        (await db.CekHareketler.SingleAsync(TestContext.Current.CancellationToken)).Tarih = Today;
+        Assert.Throws<KilitliDonemException>(() => db.SaveChanges());
+    }
+
+    [Fact]
+    public async Task Acik_aydaki_hareketin_tarihi_kilitli_aya_tasinamaz()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(), Tahsilat(Today));
+        await Kapat(c);
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        (await db.CekHareketler.SingleAsync(TestContext.Current.CancellationToken)).Tarih = Agustos.AddDays(10);
+        Assert.Throws<KilitliDonemException>(() => db.SaveChanges());
+    }
+
+    [Fact]
+    public async Task Sinir_gunu_31_Agustos_kilitli_1_Eylul_acik()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek());
+        await Kapat(c);
+        var agustosSonGunu = new DateOnly(Agustos.Year, Agustos.Month, DateTime.DaysInMonth(Agustos.Year, Agustos.Month));
+        await Assert.ThrowsAsync<KilitliDonemException>(() => CekRaporTests.HareketEkle(f, cek.Id, Tahsilat(agustosSonGunu)));
+        await CekRaporTests.HareketEkle(f, cek.Id, Tahsilat(agustosSonGunu.AddDays(1)));
+    }
+
+    [Fact]
+    public async Task Kilitli_Karsiliksiz_hareketi_olan_cek_hareket_silme_engeliyle_silinemez()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(),
+            new CekHareketEntity { Tur = CekHareketTurleri.Karsiliksiz, Tarih = Agustos.AddDays(10) });
+        await Kapat(c);
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        // Karşılıksız kasayı etkilemediği için CekKilitli(cek.Id) false döner, CekEntity kuralı tek başına tetiklenmez; ama
+        // çeki silmek (DELETE uç, Görev 5) önce hareketini siler ve o hareket kilitli tarihli olduğu için CekHareketEntity
+        // kuralıyla engellenir — çek dolaylı olarak silinemez kalır.
+        db.CekHareketler.RemoveRange(db.CekHareketler.Where(h => h.CekId == cek.Id));
+        db.Cekler.Remove(await db.Cekler.SingleAsync(x => x.Id == cek.Id, TestContext.Current.CancellationToken));
+        Assert.Throws<KilitliDonemException>(() => db.SaveChanges());
+    }
 }

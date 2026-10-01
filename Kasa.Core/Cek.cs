@@ -37,9 +37,13 @@ public static class CekKurallari
 
     private static string Tl(decimal tutar) => tutar.ToString("#,0.00", TlBicimi) + " TL";
 
+    /// <summary>Kasayı etkileyen hareket türleri (<see cref="KasaEtkili"/> ile aynı küme): yalnız bunlar türetilmiş satır üretir
+    /// ve ay kilidine takılır.</summary>
+    public static readonly string[] KasaEtkiliTurler =
+        [CekHareketTurleri.Tahsilat, CekHareketTurleri.Odeme, CekHareketTurleri.Ciro, CekHareketTurleri.Kirdirma, CekHareketTurleri.Donus];
+
     /// <summary>Kasayı etkileyen hareket: türetilmiş satır üretir ve ay kilidine takılır.</summary>
-    public static bool KasaEtkili(string tur) => tur is CekHareketTurleri.Tahsilat or CekHareketTurleri.Odeme or CekHareketTurleri.Ciro
-        or CekHareketTurleri.Kirdirma or CekHareketTurleri.Donus;
+    public static bool KasaEtkili(string tur) => KasaEtkiliTurler.Contains(tur);
 
     public static CekDurumu Durum(string yon, decimal tutar, IReadOnlyList<CekHareketi> hareketler)
     {

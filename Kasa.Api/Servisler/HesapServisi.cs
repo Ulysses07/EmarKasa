@@ -538,11 +538,10 @@ public class HesapServisi
     /// <summary>Kanal kimliğini adına çözer (Yukle'deki KanalAdi).</summary>
     private delegate bool KanalCozucu(int? kanalId, [NotNullWhen(true)] out string? ad);
 
-    /// <summary>Kasayı etkileyen hareket türleri (<see cref="CekKurallari.KasaEtkili"/> ile aynı küme): yalnız bunlar türetilmiş
-    /// satır üretir; Karşılıksız ve İade <see cref="CekTuretici.Satirlar"/>'da işlenmez (devir izini de değiştirmez), bu yüzden
-    /// sorguya hiç alınmaz.</summary>
-    private static readonly string[] CekKasaEtkiliTurler =
-        [CekHareketTurleri.Tahsilat, CekHareketTurleri.Odeme, CekHareketTurleri.Ciro, CekHareketTurleri.Kirdirma, CekHareketTurleri.Donus];
+    /// <summary>Kasayı etkileyen hareket türleri (<see cref="CekKurallari.KasaEtkiliTurler"/>, Core'dan türetilir): yalnız bunlar
+    /// türetilmiş satır üretir; Karşılıksız ve İade <see cref="CekTuretici.Satirlar"/>'da işlenmez (devir izini de değiştirmez),
+    /// bu yüzden sorguya hiç alınmaz.</summary>
+    private static readonly string[] CekKasaEtkiliTurler = CekKurallari.KasaEtkiliTurler;
 
     /// <summary>
     /// Çek ve senet hareketlerinin türetilmiş satırları (docs/specs/2026-10-01-cekler.md "Rapora etkisi"): kredi taksitlerindeki gibi
