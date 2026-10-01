@@ -123,6 +123,7 @@ internal static class KanalKurallari
             || db.Gelenler.Any(g => g.KanalId == id || g.KanalId == null && g.Kanal == ad)
             || db.Krediler.Any(k => k.KanalId == id || k.KanalId == null && k.Kanal == ad)
             || db.HesapHareketler.Any(h => h.KanalId == id)
+            || db.Cekler.Any(c => c.KanalId == id) || db.CekHareketler.Any(h => h.KanalId == id)
             || FinansTakipServisi.KanalKullaniliyor(db, id)
             || db.AlisDagilimlar.Any(d => d.KanalId == id)
             || db.AylikGiderRevizyonlar.AsNoTracking().Select(r => r.DagilimJson).AsEnumerable()
