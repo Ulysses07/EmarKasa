@@ -57,6 +57,22 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         { var mevcut = krediler.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut)); else Yeni(); }
         Tamamlandi();
     });
+    /// <summary>Kimliği verilen krediyi seçer (bildirim tıklaması: //krediler?KrediId=…); kredi listede yoksa sayfa hatası yazılır.
+    /// Alıcı rolü krediye geçemez (KartTakipViewModel.IdIleSec ile aynı kural).</summary>
+    public bool IdIleSec(int id)
+    {
+        if (Auth.AktifRol == Rol.Alici)
+            return false;
+        var satir = Krediler.FirstOrDefault(k => k.Veri.Id == id);
+        if (satir is null)
+        {
+            Hata = "Kredi bulunamadı. Listeyi yenileyip tekrar deneyin.";
+            return false;
+        }
+        Sec(satir);
+        return true;
+    }
+
     [RelayCommand]
     private void Sec(KrediTakipSatiri satir)
     {
