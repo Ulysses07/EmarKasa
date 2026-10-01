@@ -75,6 +75,20 @@ public class BildirimNobetcisiTests
         Assert.Equal(2, o.Gorev.Cagrilar.Count);
     }
 
+    /// <summary>Ayar kapalıyken Bildirimler ekranı sayı bildirse de rozet gizli kalır; ayar açılınca yapılan bakma rozete sunucudaki
+    /// okunmamış sayısını yazar.</summary>
+    [Fact]
+    public async Task Ayar_kapaliyken_rozet_gizli_acilinca_bakmayla_geri_gelir()
+    {
+        var o = new BildirimOrtami();
+        o.Api.Liste = [B(1), B(2), B(3)];
+        await o.Nobetci.AcikAyarlaAsync(false);
+        o.Yoklayici.OkunmamisBildir(3);
+        Assert.Equal(0, o.Yoklayici.Okunmamis);
+        await o.Nobetci.AcikAyarlaAsync(true);
+        Assert.Equal(3, o.Yoklayici.Okunmamis);
+    }
+
     [Theory]
     [InlineData(Rol.Editor)]
     [InlineData(Rol.Izleyici)]

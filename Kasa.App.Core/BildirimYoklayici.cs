@@ -125,8 +125,9 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
         return BildirimHedefi.Rota(tiklama.Hedef);
     }
 
-    /// <summary>Bildirimler ekranı listeyi yükleyince ya da okundu işaretleyince okunmamış sayısını bildirir.</summary>
-    public void OkunmamisBildir(int sayi) => Okunmamis = Math.Max(0, sayi);
+    /// <summary>Bildirimler ekranı listeyi yükleyince ya da okundu işaretleyince okunmamış sayısını bildirir. Bu bilgisayarda Windows
+    /// bildirimleri kapalıyken rozet gizli kalır (0; kullanıcı kararı); ayar açılınca yapılan bakma sayıyı yeniden yazar.</summary>
+    public void OkunmamisBildir(int sayi) => Okunmamis = ayar.Acik ? Math.Max(0, sayi) : 0;
 
     /// <summary>Oturum kapandı, rol editör değil ya da ayar kapandı: rozet gizlenir, durum satırı boşalır; sürmekte olan bakmanın
     /// sonucu yok sayılır ve sonraki çağrı yeniden sorar.</summary>

@@ -153,6 +153,20 @@ public class BildirimYoklayiciTests
         Assert.Equal(3, o.Yoklayici.Okunmamis);
     }
 
+    /// <summary>Kullanıcı kararı: bu bilgisayarda Windows bildirimleri kapalıyken menü rozeti gizli kalır; Bildirimler ekranının
+    /// bildirdiği sayı rozete yazılmaz.</summary>
+    [Fact]
+    public void Ayar_kapaliyken_ekranin_bildirdigi_sayi_rozete_yazilmaz()
+    {
+        var o = new BildirimOrtami();
+        o.Ayar.Acik = false;
+        o.Yoklayici.OkunmamisBildir(3);
+        Assert.Equal(0, o.Yoklayici.Okunmamis);
+        o.Ayar.Acik = true;
+        o.Yoklayici.OkunmamisBildir(3);
+        Assert.Equal(3, o.Yoklayici.Okunmamis);
+    }
+
     [Fact]
     public async Task Sifirlama_rozeti_ve_durumu_temizler()
     {
