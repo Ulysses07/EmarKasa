@@ -78,17 +78,21 @@ public partial class AppShell : Shell
     }
 
     /// <summary>Oturum açılınca: ilk sayfa, sonra bekleyen bildirim tıklaması (uygulama tıklamayla başladıysa), sonra bildirim bakması
-    /// (editörse görev saati de güncellenir) ve 5 dakikalık zamanlayıcı.</summary>
+    /// (editörse görev saati de güncellenir) ve 5 dakikalık zamanlayıcı. İlk sayfaya gidilemese de bakma başlar.</summary>
     private async Task AcilisaGitAsync(string rota)
     {
         try
         {
             await GoToAsync(rota);
-            await TiklamayiUygulaAsync();
+        }
+        catch (Exception ex) { Debug.WriteLine($"Açılış gezinmesi başarısız: {ex}"); }
+        await TiklamayiUygulaAsync();
+        try
+        {
             _bildirimZamanlayicisi.Start();
             await _bildirimNobetcisi.OturumAcildiAsync();
         }
-        catch (Exception ex) { Debug.WriteLine($"Açılış gezinmesi başarısız: {ex}"); }
+        catch (Exception ex) { Debug.WriteLine($"Açılış bildirim bakması başarısız: {ex}"); }
     }
 
     /// <summary>5 dakikalık bildirim bakması; hata günlüğe yazılır (async void işleyiciden istisna çıkmaz).</summary>

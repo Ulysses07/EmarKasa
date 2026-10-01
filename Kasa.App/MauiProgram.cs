@@ -2,6 +2,9 @@ using Kasa.ApiClient;
 using Kasa.App.Core;
 using Kasa.App.Services;
 using Microsoft.Extensions.Logging;
+#if WINDOWS
+using Microsoft.Maui.LifecycleEvents;
+#endif
 
 namespace Kasa.App;
 
@@ -46,6 +49,8 @@ public static class MauiProgram
 #if WINDOWS
         builder.Services.AddSingleton<IBildirimGosterici>(WinUI.WindowsBildirimGosterici.Ortak);
         builder.Services.AddSingleton<BildirimTiklamalari>(WinUI.WindowsBildirimGosterici.Ortak.Tiklamalar);
+        // Pencere kapanınca bildirim kaydı kaldırılır (ProcessExit her kapanışta tetiklenmez; Bitir birden çok çağrılabilir).
+        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddWindows(windows => windows.OnClosed((_, _) => WinUI.WindowsBildirimGosterici.Ortak.Bitir())));
 #endif
         builder.Services.AddSingleton<BildirimYoklayici>();
         builder.Services.AddSingleton<BildirimNobetcisi>();
