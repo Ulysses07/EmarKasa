@@ -103,4 +103,26 @@ public class SorguSecimiTests
         // Başarısız yüklemede eski kimlik geri yazılmaz: bu arada gelen yeni istek geçerlidir.
         Assert.Equal(4, secim.Istenen);
     }
+
+    [Fact]
+    public async Task Sonradan_biten_eski_istek_son_tiklamanin_secimini_ezmez()
+    {
+        // Sayfa açıkken iki bildirime art arda tıklanır; ilk yükleme ikinciden sonra biter. Seçilen son tıklamanın kaydıdır.
+        var secim = new SorguSecimi("KrediId") { Gorunuyor = true };
+        var ilkKapi = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secilen = new List<int>();
+        bool Sec(int id)
+        {
+            secilen.Add(id);
+            return true;
+        }
+        secim.Iste(Sorgu("2"));
+        var ilk = secim.UygulaAsync(() => ilkKapi.Task, () => true, Sec);
+        secim.Iste(Sorgu("5"));
+        Assert.True(await secim.UygulaAsync(() => Task.CompletedTask, () => true, Sec));
+        ilkKapi.SetResult();
+        Assert.False(await ilk);
+        Assert.Equal([5], secilen);
+        Assert.Null(secim.Istenen);
+    }
 }

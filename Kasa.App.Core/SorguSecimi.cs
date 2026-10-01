@@ -38,7 +38,12 @@ public sealed class SorguSecimi(string anahtar)
         if (Istenen is not { } id)
             return false;
         Istenen = null;
+        // Sıra numarası: yükleme sürerken yeni bir uygulama başladıysa (sayfa açıkken art arda iki bildirim tıklaması) sonradan biten
+        // eski uygulama seçim yapmaz; son tıklamanın seçimi ezilmez.
+        var sira = ++_sira;
         await yukle();
+        if (sira != _sira)
+            return false;
         if (!hazir())
         {
             // Bu arada yeni istek geldiyse o geçerlidir; gelmediyse kimlik sonraki görünüşte yeniden denenir.
@@ -47,4 +52,6 @@ public sealed class SorguSecimi(string anahtar)
         }
         return sec(id);
     }
+
+    private int _sira;
 }
