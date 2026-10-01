@@ -131,11 +131,21 @@ public partial class BildirimViewModel : OturumluViewModel
             _ = AnahtarUygulaAsync(value);
     }
 
+    /// <summary>Sonucu beklenmez (<see cref="OnWindowsBildirimleriChanged"/>): hata burada yakalanır ve hata satırına yazılır,
+    /// gözlenmeden kaybolmaz. Ayar değeri yazılmış olabilir; anahtar ve durum satırı ayardan yeniden okunur.</summary>
     private async Task AnahtarUygulaAsync(bool acik)
     {
-        await _nobetci.AcikAyarlaAsync(acik);
-        WindowsDurumunuYenile();
-        Mesaj = acik ? "Bu bilgisayarda Windows bildirimleri açıldı." : "Bu bilgisayarda Windows bildirimleri kapatıldı.";
+        try
+        {
+            await _nobetci.AcikAyarlaAsync(acik);
+            WindowsDurumunuYenile();
+            Mesaj = acik ? "Bu bilgisayarda Windows bildirimleri açıldı." : "Bu bilgisayarda Windows bildirimleri kapatıldı.";
+        }
+        catch (Exception)
+        {
+            WindowsDurumunuYenile();
+            Hata = "Bu bilgisayardaki bildirim görevi güncellenemedi. Lütfen yeniden deneyin.";
+        }
     }
 
     [RelayCommand]

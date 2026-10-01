@@ -114,6 +114,8 @@ internal sealed class SahteGorev : IBildirimGorevi
     public List<string> Cagrilar { get; } = [];
     public bool Kurulu { get; set; }
     public bool SilmeBasarili { get; set; } = true;
+    /// <summary>Ayarlanırsa silme bu hatayı atar (çağrı kaydedildikten sonra).</summary>
+    public Exception? SilmeHatasi { get; set; }
     /// <summary>Ayarlanırsa kurma (çağrı kaydedildikten sonra) bu görev tamamlanana dek sürer (sıra testleri).</summary>
     public TaskCompletionSource? Kapi { get; set; }
 
@@ -129,6 +131,8 @@ internal sealed class SahteGorev : IBildirimGorevi
     public Task<bool> SilAsync()
     {
         Cagrilar.Add("sil");
+        if (SilmeHatasi is not null)
+            return Task.FromException<bool>(SilmeHatasi);
         if (SilmeBasarili)
             Kurulu = false;
         return Task.FromResult(SilmeBasarili);

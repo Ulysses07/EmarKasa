@@ -30,6 +30,21 @@ public class BildirimEkraniWindowsTests
         Assert.Equal("Bu bilgisayarda Windows bildirimleri açıldı.", vm.Mesaj);
     }
 
+    /// <summary>Anahtar işleyicisi sonucu beklenmeyen bir görevdir: görev işlemi hata verirse istisna gözlenmeden kaybolmaz,
+    /// ekranın hata satırına yazılır; anahtar bu bilgisayarın ayarını göstermeye devam eder.</summary>
+    [Fact]
+    public void Anahtar_uygulanamazsa_hata_satirina_yazilir()
+    {
+        var (o, vm) = Kur();
+        o.Gorev.SilmeHatasi = new IOException("schtasks başlatılamadı");
+        vm.WindowsBildirimleri = false;
+        Assert.Equal(["sil"], o.Gorev.Cagrilar);
+        Assert.Equal("Bu bilgisayardaki bildirim görevi güncellenemedi. Lütfen yeniden deneyin.", vm.Hata);
+        Assert.Null(vm.Mesaj);
+        Assert.False(vm.WindowsBildirimleri);
+        Assert.Equal("Bu bilgisayarda Windows bildirimleri kapalı.", vm.WindowsDurumu);
+    }
+
     [Fact]
     public void Deneme_bildirimi_sunucuya_gitmeden_gosterilir_windows_ayari_kapaliysa_uyari_cikar()
     {
