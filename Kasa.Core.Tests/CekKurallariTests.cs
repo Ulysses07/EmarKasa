@@ -103,4 +103,53 @@ public class CekKurallariTests
         Assert.False(CekKurallari.AyniCek(A, "Ziraat", "12", V, "Ziraat", "12"));
         Assert.False(CekKurallari.AyniCek(A, "Ziraat", "12", A, "Halk", "12"));
     }
+
+    [Fact]
+    public void AyniCek_turkce_I_harflerini_katlar_ve_boslugu_kirpar()
+    {
+        Assert.True(CekKurallari.AyniCek(A, "ZIRAAT", "1", A, "ziraat", "1"));
+        Assert.True(CekKurallari.AyniCek(A, "ZİRAAT", "1", A, "ziraat", "1"));
+        Assert.True(CekKurallari.AyniCek(A, "Ziraat ", "1", A, "ZIRAAT", "1"));
+        Assert.False(CekKurallari.AyniCek(A, "Garanti", "1", A, "Ziraat", "1"));
+    }
+
+    [Fact]
+    public void Hareket_karsi_taraf_yalniz_ciro_ve_kirdirmada_girilir()
+    {
+        Assert.Equal("Karşı taraf yalnız ciro ve kırdırmada girilir.",
+            CekKurallari.HareketHatasi(A, 100m, [], H(1, CekHareketTurleri.Tahsilat, 40m, karsi: "Ali")));
+        Assert.Equal("Karşı taraf yalnız ciro ve kırdırmada girilir.",
+            CekKurallari.HareketHatasi(V, 100m, [], H(1, CekHareketTurleri.Odeme, 40m, karsi: "Ali")));
+        Assert.Equal("Karşı taraf yalnız ciro ve kırdırmada girilir.",
+            CekKurallari.HareketHatasi(A, 100m, [], H(1, CekHareketTurleri.Karsiliksiz, 0m, karsi: "Ali")));
+        Assert.Equal("Karşı taraf yalnız ciro ve kırdırmada girilir.",
+            CekKurallari.HareketHatasi(A, 100m, [], H(1, CekHareketTurleri.Iade, 0m, karsi: "Ali")));
+        Assert.Null(CekKurallari.HareketHatasi(A, 100m, [], H(1, CekHareketTurleri.Ciro, 100m, karsi: "Ali")));
+        Assert.Null(CekKurallari.HareketHatasi(A, 100m, [], H(1, CekHareketTurleri.Kirdirma, 100m, 90m, "Ali")));
+    }
+
+    [Fact]
+    public void Hareket_hatasi_tarih_tutar_ve_gecis_ek_senaryolari()
+    {
+        string? Hata(string yon, IReadOnlyList<CekHareketi> once, CekHareketi yeni) => CekKurallari.HareketHatasi(yon, 100m, once, yeni);
+        // Önceki hareketle aynı günlü hareket kabul edilir.
+        Assert.Null(Hata(A, [H(1, CekHareketTurleri.Tahsilat, 10m, gun: 0)], H(2, CekHareketTurleri.Tahsilat, 10m, gun: 0)));
+        // Kalandan farklı tutarlı kırdırma reddedilir.
+        Assert.Equal("Kırdırmada tutar çek tutarının tamamı (100,00 TL) olmalı.",
+            Hata(A, [], H(1, CekHareketTurleri.Kirdirma, 60m, 50m, "Banka")));
+        // Eksi tutarlı tahsilat reddedilir.
+        Assert.Equal("Tutar sıfırdan büyük olmalı ve kalan tutarı (100,00 TL) aşamaz.", Hata(A, [], H(1, CekHareketTurleri.Tahsilat, -10m)));
+        // Tahsilattan sonra kırdırma reddedilir.
+        Assert.Equal("Bu kayıt kısmen tahsil edildi; şu an yalnız şu hareketler girilebilir: Tahsilat, Karşılıksız, İade.",
+            Hata(A, [H(1, CekHareketTurleri.Tahsilat, 40m)], H(2, CekHareketTurleri.Kirdirma, 60m, 55m, "Banka")));
+        // Karşılıksızda dolu NetTutar reddedilir.
+        Assert.Equal("Hesaba geçen tutar yalnız kırdırmada girilir.", Hata(A, [], H(1, CekHareketTurleri.Karsiliksiz, 0m, 10m)));
+    }
+
+    [Fact]
+    public void Kismi_tahsilden_sonra_karsiliksiz_durumu_ve_kalani_dogru_hesaplar()
+    {
+        var d = CekKurallari.Durum(A, 100m, [H(1, CekHareketTurleri.Tahsilat, 40m), H(2, CekHareketTurleri.Karsiliksiz)]);
+        Assert.Equal((CekDurumlari.Karsiliksiz, 60m), (d.Durum, d.Kalan));
+    }
 }

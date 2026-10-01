@@ -109,4 +109,14 @@ public class CekTureticiTests
         // Dönem dışı (takip başlangıcından önce) gelir üretilmez.
         Assert.Empty(Turet(Alinan, new CekHareketi(94, 1, CekHareketTurleri.Tahsilat, new(2026, 8, 31), 5m, Kanal: "MEZAT")).G);
     }
+
+    [Fact]
+    public void Kasasi_cozulemeyen_donus_genel_kasaya_ve_dagilim_bekliyora_yazilir()
+    {
+        var ciro = new CekHareketi(100, 1, CekHareketTurleri.Ciro, new(2026, 9, 21), 50_000m, Kanal: "MEZAT", Karsi: "Veli Toptan");
+        var donus = new CekHareketi(101, 2, CekHareketTurleri.Donus, new(2026, 10, 5), 50_000m, Kanal: null);
+        var (g, i) = Turet(Alinan, ciro, donus);
+        Assert.Equal((KanalEtiketleri.GenelKasa, true, -50_000m), (g[1].Kanal, g[1].GenelGelir, g[1].TutarTl));
+        Assert.Equal((KanalEtiketleri.DagilimBekliyor, true, -50_000m), (i[1].Kanal, i[1].DagilimBekliyor, i[1].TutarTl));
+    }
 }

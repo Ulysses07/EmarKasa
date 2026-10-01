@@ -114,6 +114,8 @@ public static class CekKurallari
             return "Tutar en fazla iki ondalık basamak içerebilir.";
         if (yeni.Tur != CekHareketTurleri.Kirdirma && yeni.NetTutar is not null)
             return "Hesaba geçen tutar yalnız kırdırmada girilir.";
+        if (yeni.Tur is not (CekHareketTurleri.Ciro or CekHareketTurleri.Kirdirma) && !string.IsNullOrWhiteSpace(yeni.Karsi))
+            return "Karşı taraf yalnız ciro ve kırdırmada girilir.";
         return yeni.Tur switch
         {
             CekHareketTurleri.Ciro or CekHareketTurleri.Kirdirma when string.IsNullOrWhiteSpace(yeni.Karsi)
@@ -139,7 +141,12 @@ public static class CekKurallari
     public static bool AyniCek(string yon1, string? banka1, string no1, string yon2, string? banka2, string no2)
         => yon1 == yon2 && Esit(banka1, banka2) && Esit(no1, no2);
 
-    private static bool Esit(string? a, string? b) => string.Compare((a ?? "").Trim(), (b ?? "").Trim(), Tr, CompareOptions.IgnoreCase) == 0;
+    private static bool Esit(string? a, string? b) => Katla(a) == Katla(b);
+
+    /// <summary>Karşılaştırma öncesi küçük harfe çevirir (tr-TR) ve I/ı/İ/i'yi tek harfe katlar: tr-TR'de "I".ToLower() "ı"
+    /// (noktasız) verir, "ziraat" içindeki "i" (noktalı) ile harf olarak eşit sayılmaz; bu yüzden IgnoreCase tek başına
+    /// "ZIRAAT" ile "ziraat"i eşitlemez.</summary>
+    private static string Katla(string? s) => (s ?? "").Trim().ToLower(Tr).Replace('ı', 'i');
 
     /// <summary>Durumun görünen adı (küçük harfle; cümle içinde ve listede kullanılır).</summary>
     public static string DurumAdi(string durum) => durum switch
