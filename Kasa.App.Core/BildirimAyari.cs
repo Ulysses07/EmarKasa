@@ -10,8 +10,8 @@ public interface IBildirimAyari
 }
 
 /// <summary>
-/// %LOCALAPPDATA%\EmarKasa\bildirim-ayari.json (<c>{"Acik":true}</c>). Dosya yoksa ya da bozuksa açık sayılır (editör için varsayılan
-/// açık). Yazma önce geçici dosyaya yapılır, sonra yerine taşınır: okuyan süreç yarım dosya görmez. Başka süreç dosyayı o an tutuyorsa
+/// %LOCALAPPDATA%\EmarKasa\bildirim-ayari.json (<c>{"Acik":true}</c>). Dosya yoksa açık sayılır (editör için varsayılan açık); bozuk
+/// dosya (geçersiz JSON, boş, null) okunamayan dosya gibi kapalı sayılır (kullanıcı kararı). Yazma önce geçici dosyaya yapılır, sonra yerine taşınır: okuyan süreç yarım dosya görmez. Başka süreç dosyayı o an tutuyorsa
 /// (okuma ya da taşıma sırasında) kısa aralıklarla yeniden denenir (varsayılan 3 deneme, aralarda 50 ms). Denemelere rağmen okunamayan
 /// mevcut dosyada bu süreçte son bilinen değer, o da yoksa kapalı sayılır: dosya ancak kullanıcı anahtarı değiştirince oluşur,
 /// bilinmeyen değer "açık" varsayılıp kapatılmış bildirim gösterilmez. Yazılamazsa değer bu süreçte bellekte kalır, hata dışarı
@@ -58,13 +58,14 @@ public sealed class DosyaBildirimAyari : IBildirimAyari
         {
             var metin = "";
             Dene(() => metin = File.ReadAllText(_yol));
-            var acik = JsonSerializer.Deserialize<Kayit>(metin)?.Acik ?? true;
-            _sonBilinen = acik;
-            return acik;
+            if (JsonSerializer.Deserialize<Kayit>(metin) is not { } kayit)
+                return _sonBilinen ?? false;
+            _sonBilinen = kayit.Acik;
+            return kayit.Acik;
         }
         catch (JsonException)
         {
-            return true;
+            return _sonBilinen ?? false;
         }
         catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
         {

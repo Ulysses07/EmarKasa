@@ -1,7 +1,7 @@
 namespace Kasa.App.Core.Tests;
 
-/// <summary>"Bu bilgisayarda Windows bildirimleri" ayarı (%LOCALAPPDATA%\EmarKasa\bildirim-ayari.json): dosya yoksa ya da bozuksa
-/// açıktır (editör için varsayılan), yazılan değeri başka nesne (başka süreç) okur, yazılamazsa değer bellekte kalır; başka süreç
+/// <summary>"Bu bilgisayarda Windows bildirimleri" ayarı (%LOCALAPPDATA%\EmarKasa\bildirim-ayari.json): dosya yoksa açıktır (editör
+/// için varsayılan), bozuksa kapalıdır (kullanıcı kararı: bilinmeyen değer "açık" varsayılmaz), yazılan değeri başka nesne (başka süreç) okur, yazılamazsa değer bellekte kalır; başka süreç
 /// dosyayı kısa süre tutuyorsa okuma ve taşıma yeniden denenir, okunamayan dosya "açık" sayılmaz.</summary>
 public sealed class BildirimAyariTests : IDisposable
 {
@@ -41,11 +41,21 @@ public sealed class BildirimAyariTests : IDisposable
     [InlineData("bozuk")]
     [InlineData("")]
     [InlineData("null")]
-    public void Bozuk_dosyada_acik_sayilir(string icerik)
+    public void Bozuk_dosyada_kapali_sayilir(string icerik)
     {
         Directory.CreateDirectory(_klasor);
         File.WriteAllText(Yol, icerik);
-        Assert.True(new DosyaBildirimAyari(_klasor).Acik);
+        Assert.False(new DosyaBildirimAyari(_klasor).Acik);
+    }
+
+    [Fact]
+    public void Bozuk_dosyada_bu_surecte_son_bilinen_deger_gecerlidir()
+    {
+        var ayar = new DosyaBildirimAyari(_klasor);
+        ayar.Acik = true;
+        File.WriteAllText(Yol, "bozuk");
+        Assert.True(ayar.Acik);
+        Assert.False(new DosyaBildirimAyari(_klasor).Acik);
     }
 
     [Fact]
