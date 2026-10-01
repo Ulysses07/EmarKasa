@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Kasa.Api.Auth;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Kasa.Core.Kodlar;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -351,6 +352,20 @@ public sealed class BildirimTests
         public async Task<PushSonuc> Gonder(PushAbonelikEntity s, PushIleti m, int ttl, CancellationToken ct)
         { Calls.Add(m); if (OnSend is not null) await OnSend(); return Result; }
     }
+    /// <summary>Çek vade hatırlatması (CekBildirimleri) bildirim kuyruğuna çek hedefiyle girer; teminat çeki girmez.</summary>
+    [Fact]
+    public async Task Cek_vadesi_bildirimi_cek_hedefiyle_kuyruga_girer_teminat_cekine_girmez()
+    {
+        using var fixture = new Fikstur();
+        var cek = new CekEntity { Tur = CekTurleri.Cek, Yon = CekYonleri.Alinan, No = "12345", Banka = "Ziraat", Kisi = "Ahmet Yılmaz", Tutar = 50_000m, VadeTarihi = Day.AddDays(3), Surum = 1 };
+        fixture.Db.Cekler.AddRange(cek, new CekEntity { Tur = CekTurleri.Cek, Yon = CekYonleri.Alinan, No = "T-1", Banka = "Ziraat", Kisi = "Ali", Tutar = 1m, VadeTarihi = Day, Teminat = true, Surum = 1 });
+        fixture.Db.SaveChanges();
+        await fixture.Service().Yenile(TestContext.Current.CancellationToken);
+        var bildirim = Assert.Single(fixture.Db.Set<BildirimEntity>().AsNoTracking());
+        Assert.Equal(("Çek vadesi", "Ahmet Yılmaz · 50.000,00 TL · 26 Eylül", $"/#cheques/{cek.Id}", CekBildirimleri.VadeTuru, cek.Id),
+            (bildirim.Baslik, bildirim.Mesaj, bildirim.Hedef, bildirim.Tur, bildirim.KaynakId));
+    }
+
     private sealed class Fikstur : IDisposable
     {
         private readonly SqliteConnection connection = new("Data Source=:memory:");

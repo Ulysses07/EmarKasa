@@ -2,9 +2,10 @@ using System.Text.RegularExpressions;
 
 namespace Kasa.App.Core;
 
-/// <summary>Sunucu bildiriminin <c>Hedef</c> alanını (web rotası: "/#cards/3", "/#loans/7") masaüstü Shell rotasına çevirir
-/// (tasarım 2026-09-30 masaüstü bildirimleri §1 Tıklama). Kart → Kartlar sayfasında o kart (KartId), kredi → Krediler sayfasında
-/// o kredi (KrediId); kimliksiz kart/kredi hedefi yalnız sayfayı açar; tanınmayan ya da boş hedef Bildirimler sayfasını açar.
+/// <summary>Sunucu bildiriminin <c>Hedef</c> alanını (web rotası: "/#cards/3", "/#loans/7", "/#cheques/5") masaüstü Shell rotasına
+/// çevirir (tasarım 2026-09-30 masaüstü bildirimleri §1 Tıklama; 2026-10-01 çekler "Bildirimler"). Kart → Kartlar sayfasında o kart
+/// (KartId), kredi → Krediler sayfasında o kredi (KrediId), çek → Çekler sayfasında o çek (CekId); kimliksiz hedef yalnız sayfayı
+/// açar; tanınmayan ya da boş hedef Bildirimler sayfasını açar.
 /// Sunucunun ürettiği diğer hedefler (kasa alt sınırı ve kaynak hatası: "/#home") tanınmayan sayılır.</summary>
 public static partial class BildirimHedefi
 {
@@ -22,10 +23,12 @@ public static partial class BildirimHedefi
             ("cards", true) => "//kartlar?KartId=" + kimlik.Value,
             ("cards", false) => "//kartlar",
             ("loans", true) => "//krediler?KrediId=" + kimlik.Value,
-            _ => "//krediler",
+            ("loans", false) => "//krediler",
+            ("cheques", true) => "//cekler?CekId=" + kimlik.Value,
+            _ => "//cekler",
         };
     }
 
-    [GeneratedRegex(@"^/#(?<tur>cards|loans)(?:/(?<id>[1-9][0-9]{0,8}))?\z")]
+    [GeneratedRegex(@"^/#(?<tur>cards|loans|cheques)(?:/(?<id>[1-9][0-9]{0,8}))?\z")]
     private static partial Regex HedefDeseni();
 }
