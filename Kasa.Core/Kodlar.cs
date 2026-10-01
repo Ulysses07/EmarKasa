@@ -180,6 +180,8 @@ public static class KasaHareketTurleri
     public const string KrediTaksidi = "KrediTaksidi";
     /// <summary>Eski (ertelemeli) kartın etki ayı sonundaki kasa düşümü.</summary>
     public const string KartAySonu = "KartAySonu";
+    /// <summary>Çek ya da senet hareketinin türetilmiş satırı (tahsil, ödeme, ciro, kırdırma, dönüş).</summary>
+    public const string Cek = "Cek";
 }
 
 /// <summary>Kart ve kredi takibi olayının türü (TakipOlayDto.Tur; bildirimin türü ve anahtarı).</summary>
@@ -191,4 +193,72 @@ public static class TakipOlayTurleri
     public const string SonOdeme = "SonOdeme";
     /// <summary>Kredi taksidinin günü (tarihinde kasadan kendiliğinden düşer).</summary>
     public const string Taksit = "Taksit";
+}
+
+/// <summary>Çek kaydının türü (CekEntity.Tur, CekYaz.Tur, CekDto.Tur). Senet çekle aynı kurallara tabidir.</summary>
+public static class CekTurleri
+{
+    public const string Cek = "Cek";
+    public const string Senet = "Senet";
+}
+
+/// <summary>Çekin yönü (CekEntity.Yon, CekYaz.Yon, CekDto.Yon; liste süzgecinin 'yon' parametresi).</summary>
+public static class CekYonleri
+{
+    /// <summary>Müşteriden alınan: tahsil edilir, ciro edilir ya da kırdırılır.</summary>
+    public const string Alinan = "Alinan";
+    /// <summary>Tedarikçiye verilen: çekin kasasından ödenir.</summary>
+    public const string Verilen = "Verilen";
+}
+
+/// <summary>Portföydeki alınan çekin yeri (CekEntity.Konum). Kasayı etkilemez; değişikliği hareket değildir.</summary>
+public static class CekKonumlari
+{
+    public const string Elde = "Elde";
+    public const string BankadaTahsilde = "BankadaTahsilde";
+    public const string Teminatta = "Teminatta";
+    public const string Icrada = "Icrada";
+}
+
+/// <summary>Çek hareketinin türü (CekHareketEntity.Tur, CekHareketYaz.Tur, CekHareketDto.Tur, CekDto.IzinliHareketler).</summary>
+public static class CekHareketTurleri
+{
+    /// <summary>Alınan çekin tahsili (kısmi olabilir).</summary>
+    public const string Tahsilat = "Tahsilat";
+    /// <summary>Verilen çekin ödenmesi (kısmi olabilir).</summary>
+    public const string Odeme = "Odeme";
+    /// <summary>Alınan çekin başkasına ciro edilmesi (kalanın tamamı).</summary>
+    public const string Ciro = "Ciro";
+    /// <summary>Alınan çekin bankaya ya da faktoringe kırdırılması (iskonto).</summary>
+    public const string Kirdirma = "Kirdirma";
+    /// <summary>Ciro edilen ya da kırdırılan çekin karşılıksız dönmesi.</summary>
+    public const string Donus = "Donus";
+    public const string Karsiliksiz = "Karsiliksiz";
+    /// <summary>Çekin sahibine geri verilmesi.</summary>
+    public const string Iade = "Iade";
+}
+
+/// <summary>Çekin durumu (CekDto.Durum; saklanmaz, hareketlerden hesaplanır: Kasa.Core.CekKurallari.Durum).</summary>
+public static class CekDurumlari
+{
+    public const string Portfoyde = "Portfoyde";
+    public const string KismenTahsilEdildi = "KismenTahsilEdildi";
+    public const string TahsilEdildi = "TahsilEdildi";
+    public const string KismenOdendi = "KismenOdendi";
+    public const string Odendi = "Odendi";
+    public const string CiroEdildi = "CiroEdildi";
+    public const string Kirdirildi = "Kirdirildi";
+    public const string Karsiliksiz = "Karsiliksiz";
+    public const string IadeEdildi = "IadeEdildi";
+}
+
+/// <summary>Çek listesinin durum süzgeci (GET /api/takip/cekler 'durum' parametresi, masaüstü durum çipleri).</summary>
+public static class CekSuzgecleri
+{
+    /// <summary>Portföyde ve kısmen tahsil edilmiş ya da ödenmiş.</summary>
+    public const string Portfoyde = "Portfoyde";
+    public const string Karsiliksiz = "Karsiliksiz";
+    /// <summary>Tahsil edildi, ödendi, ciro edildi, kırdırıldı ya da iade edildi.</summary>
+    public const string Kapanan = "Kapanan";
+    public const string Hepsi = "Hepsi";
 }

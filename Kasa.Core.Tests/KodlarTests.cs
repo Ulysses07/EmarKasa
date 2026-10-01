@@ -67,7 +67,28 @@ public class KodlarTests
         ("Gelir", KasaHareketTurleri.Gelir), ("EkstreGeliri", KasaHareketTurleri.EkstreGeliri), ("EkGelir", KasaHareketTurleri.EkGelir),
         ("KrediCekimi", KasaHareketTurleri.KrediCekimi), ("Gider", KasaHareketTurleri.Gider), ("SabitGider", KasaHareketTurleri.SabitGider),
         ("AylikGider", KasaHareketTurleri.AylikGider), ("KartOdemesi", KasaHareketTurleri.KartOdemesi), ("KartIadesi", KasaHareketTurleri.KartIadesi),
-        ("KrediTaksidi", KasaHareketTurleri.KrediTaksidi), ("KartAySonu", KasaHareketTurleri.KartAySonu));
+        ("KrediTaksidi", KasaHareketTurleri.KrediTaksidi), ("KartAySonu", KasaHareketTurleri.KartAySonu),
+        ("Cek", KasaHareketTurleri.Cek));
+
+    [Fact]
+    public void Cek_kodlari() => Esit(
+        ("Cek", CekTurleri.Cek), ("Senet", CekTurleri.Senet), ("Alinan", CekYonleri.Alinan), ("Verilen", CekYonleri.Verilen),
+        ("Elde", CekKonumlari.Elde), ("BankadaTahsilde", CekKonumlari.BankadaTahsilde), ("Teminatta", CekKonumlari.Teminatta),
+        ("Icrada", CekKonumlari.Icrada));
+
+    [Fact]
+    public void Cek_hareket_turleri() => Esit(
+        ("Tahsilat", CekHareketTurleri.Tahsilat), ("Odeme", CekHareketTurleri.Odeme), ("Ciro", CekHareketTurleri.Ciro),
+        ("Kirdirma", CekHareketTurleri.Kirdirma), ("Donus", CekHareketTurleri.Donus), ("Karsiliksiz", CekHareketTurleri.Karsiliksiz),
+        ("Iade", CekHareketTurleri.Iade));
+
+    [Fact]
+    public void Cek_durumlari_ve_suzgecleri() => Esit(
+        ("Portfoyde", CekDurumlari.Portfoyde), ("KismenTahsilEdildi", CekDurumlari.KismenTahsilEdildi), ("TahsilEdildi", CekDurumlari.TahsilEdildi),
+        ("KismenOdendi", CekDurumlari.KismenOdendi), ("Odendi", CekDurumlari.Odendi), ("CiroEdildi", CekDurumlari.CiroEdildi),
+        ("Kirdirildi", CekDurumlari.Kirdirildi), ("Karsiliksiz", CekDurumlari.Karsiliksiz), ("IadeEdildi", CekDurumlari.IadeEdildi),
+        ("Portfoyde", CekSuzgecleri.Portfoyde), ("Karsiliksiz", CekSuzgecleri.Karsiliksiz), ("Kapanan", CekSuzgecleri.Kapanan),
+        ("Hepsi", CekSuzgecleri.Hepsi));
 
     private static void Esit(params (string Beklenen, string Gercek)[] ciftler) =>
         Assert.All(ciftler, c => Assert.Equal(c.Beklenen, c.Gercek));
