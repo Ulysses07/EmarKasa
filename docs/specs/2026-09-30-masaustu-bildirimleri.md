@@ -17,7 +17,7 @@ Bu tasarım o kararı korur. Masaüstü, sunucunun ürettiği bildirim listesini
 ### Kaynak
 
 - **Liste:** Masaüstü, sunucunun bugünkü bildirim listesini (`GET /api/bildirimler`, `IKasaApi.BildirimlerAsync`) okur.
-- **Gösterilecekler:** Yalnız okunmamış ve iptal edilmemiş bildirimler gösterilir. Liste zaten gönderilmiş, okunmuş ya da iptal edilmiş olanları döndürmez, ama istemci bunu ayrıca denetler.
+- **Gösterilecekler:** Yalnız okunmamış bildirimler gösterilir; istemci okunmuşları atlar. İptal bilgisi istemciye gelmez (`BildirimDto`'da iptal alanı yok); sunucu iptal edilmiş bildirimi yalnız okunmuşsa ya da bir tarayıcıya gönderilmişse listeler, bu yüzden istemci iptali ayrıca denetleyemez (bkz. "Uygulamada verilen kararlar").
 - **Rol:** Uç yalnız editöre açık. Bu yüzden masaüstü bildirimleri yalnız editör oturumunda çalışır.
 - **Türler:** Sunucunun ürettiği her tür gösterilir: kart kesimi, son ödeme, kredi taksiti, kanal kasası alt sınırı ve sistem hata uyarısı.
 
@@ -75,7 +75,7 @@ Bugünkü "Masaüstü ve telefon bildirimleri" kartındaki ana düğme web sites
   - Ayar bu bilgisayara özeldir ve editör için varsayılan olarak açıktır.
   - Açınca zamanlanmış görev kurulur ve uygulama açıkken bakma başlar.
   - Kapatınca görev silinir ve bakma durur.
-  - Ayar `Preferences` içinde (MAUI) tutulur. Pencere açmadan çalışan görev de aynı ayarı okur.
+  - Ayar `%LOCALAPPDATA%\EmarKasa\bildirim-ayari.json` dosyasında tutulur (MAUI `Preferences` değil; bkz. "Uygulamada verilen kararlar"). Pencere açmadan çalışan görev de aynı ayarı okur.
 - **"Deneme bildirimi göster" düğmesi:** Sunucuya gitmeden hemen örnek bir Windows bildirimi gösterir.
 - **Durum satırı:**
   - Son bakmanın zamanını ve sonucunu gösterir, örneğin "Son kontrol 14:05 · 2 yeni bildirim" ya da "Son kontrol 14:05 · sunucuya ulaşılamadı".
@@ -144,3 +144,17 @@ Bugünkü "Masaüstü ve telefon bildirimleri" kartındaki ana düğme web sites
 - Tepside sürekli çalışan uygulama.
 - Web ve mobil.
 - Bildirim türlerini seçmeli yapmak; hepsi gelir.
+
+## Uygulamada verilen kararlar
+
+Uygulama sırasında tasarımdan ayrılan ya da tasarımın açık bıraktığı noktalar (plan: `docs/specs/2026-09-30-masaustu-bildirimleri-plan.md`, "Verilmiş teknik kararlar"; kullanıcı kararları ayrıca belirtildi):
+
+- **Ayar dosyası:** "Bu bilgisayarda Windows bildirimleri" ayarı `%LOCALAPPDATA%\EmarKasa\bildirim-ayari.json` dosyasındadır, MAUI `Preferences` kullanılmaz. Paketsiz uygulamada `Preferences` dosyayı süreç başında bir kez okuyup bellekte tutar ve her yazışta kilitsiz baştan yazar; uygulama ile pencere açmadan çalışan görev aynı ayarı iki ayrı süreçte kullandığı için ayar küçük bir JSON dosyasına geçici dosyaya yazıp yerine taşıyarak kaydedilir.
+- **Okunamayan ya da bozuk ayar dosyası kapalı sayılır** (kullanıcı kararı). Varsayılan "açık" yalnız dosya hiç yoksa geçerlidir; dosya ancak kullanıcı anahtarı değiştirince oluşur, bu yüzden bilinmeyen değer "açık" varsayılıp kapatılmış bildirim gösterilmez.
+- **İptal bilgisi yok:** `BildirimDto`'da iptal alanı olmadığı için iptal edilmiş ama bir tarayıcıya gönderilmiş bildirim masaüstünde nadiren bir kez görünebilir. Sunucu değişikliği kapsam dışı olduğu için kabul edildi.
+- **Yalnız bugünün okunmamışları Windows bildirimi olur:** tarih bilgisayarın yerel günüdür. Önceki günlerin okunmamışları Windows bildirimi olarak gelmez, listede ve rozette görünür (ilk kurulumda eski bildirimler bir kerede gösterilmez).
+- **Ayar kapalıyken rozet gizlidir** (kullanıcı kararı). Bildirimler ekranı ayar kapalıyken açılsa da rozet görünmez; ayar açılınca yapılan bakma rozete sunucudaki okunmamış sayısını yazar.
+- **Windows ayarı kapalıyken bildirim "gösterildi" sayılmaz:** Windows ayarlarında uygulamanın bildirimleri kapalıyken gösterim yapılamaz; bildirimler yerel kayda yazılmaz, ayar açılınca gösterilir.
+- **Zamanlanmış görev XML ile tek görevdir:** `schtasks /Create /XML` ile kurulur; iki tetikleyici (günlük bildirim saati + 5 dakika ve oturum açılışı) tek görevdedir, görev bu kullanıcının hesabıyla `InteractiveToken` ve `LeastPrivilege` ile çalışır (yönetici hakkı istemez). XML dosyası UTF-16'dır ve geçici adla (`bildirim-gorevi-<guid>.xml`) yazılıp kurulumdan sonra silinir.
+- **Kart ya da kredi sayfası açıkken tıklama seçimi hemen uygular:** Shell zaten görünen sayfaya gezinmede `OnAppearing` çağırmayabilir; sayfa görünürken gelen `KartId`/`KrediId` hemen uygulanır, görünmezken sayfa belirirken uygulanır. Başarılı yüklemeden sonra istenen kimlik, kayıt bulunamasa da temizlenir.
+- **Tıklama sayfayı hemen açar:** okundu işareti arkada gönderilir; rozet yalnız işaret başarılı olunca düşer.
