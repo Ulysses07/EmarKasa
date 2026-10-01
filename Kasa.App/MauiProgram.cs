@@ -2,6 +2,9 @@ using Kasa.ApiClient;
 using Kasa.App.Core;
 using Kasa.App.Services;
 using Microsoft.Extensions.Logging;
+#if WINDOWS
+using Microsoft.Maui.LifecycleEvents;
+#endif
 
 namespace Kasa.App;
 
@@ -37,6 +40,21 @@ public static class MauiProgram
         builder.Services.AddSingleton<IKasaKontrolApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IAylikGiderApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IEkstreAktarmaApi>(sp => sp.GetRequiredService<KasaApiClient>());
+
+        // Masaüstü Windows bildirimleri (tasarım 2026-09-30): yerel dosyalar %LOCALAPPDATA%\EmarKasa altında; gösterici ve tıklama
+        // kuyruğu Windows katmanının tek örneğidir (Platforms/Windows/App.xaml.cs onu DI kurulmadan önce başlatır).
+        builder.Services.AddSingleton<IBildirimAyari>(_ => DosyaBildirimAyari.Varsayilan());
+        builder.Services.AddSingleton<IGosterilenBildirimDeposu>(_ => DosyaGosterilenBildirimDeposu.Varsayilan());
+        builder.Services.AddSingleton<IBildirimGorevi>(_ => BildirimGorevi.Varsayilan());
+#if WINDOWS
+        builder.Services.AddSingleton<IBildirimGosterici>(WinUI.WindowsBildirimGosterici.Ortak);
+        builder.Services.AddSingleton<BildirimTiklamalari>(WinUI.WindowsBildirimGosterici.Ortak.Tiklamalar);
+        // Pencere kapanınca bildirim kaydı kaldırılır (ProcessExit her kapanışta tetiklenmez; Bitir birden çok çağrılabilir).
+        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddWindows(windows => windows.OnClosed((_, _) => WinUI.WindowsBildirimGosterici.Ortak.Bitir())));
+#endif
+        builder.Services.AddSingleton<BildirimYoklayici>();
+        builder.Services.AddSingleton<BildirimNobetcisi>();
+        builder.Services.AddSingleton<BildirimKontrolu>();
 
         builder.Services.AddSingleton<AuthViewModel>();
         builder.Services.AddTransient<PanelViewModel>();

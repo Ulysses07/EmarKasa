@@ -36,7 +36,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     private const string DevirNotu = "Devrin ödemesi kasada önceden sayılan kısım kadar kasadan ikinci kez düşmez; devre yapılan iadenin önceden sayılmış kısmı "
         + "iade tarihinde kasaya döner. Hatalı devir iptal edilmez: düzeltme etkin devri iptal edip aynı tarihle yeni tutarı yazar, gerekçe denetim izine kaydedilir.";
 
-    private int? _istenenKartId;
+    private readonly SorguSecimi _secim = new("KartId");
     private int? _gosterilenKartId;
     /// <summary>Son kaydırma isteğinin sırası ve kaydırması yapılmış istek: yalnız en son istek, bir kez kaydırır.</summary>
     private int _kaydirmaIstegi, _kaydirilanIstek;
@@ -45,21 +45,36 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     /// <summary>Formun tepesindeki hata satırı (FormHatasi): uzun formun altındaki düğmeden gelen hata görünür yere kaydırılır.</summary>
     private readonly Label _formHataSatiri;
 
+    /// <summary>Kart bildirimine tıklanınca //kartlar?KartId={id}: sayfa zaten açıkken istek hemen, değilse sayfa belirirken uygulanır
+    /// (SorguSecimi).</summary>
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
-        if (query.TryGetValue("KartId", out var value) && int.TryParse(value.ToString(), out var id) && id > 0)
-            _istenenKartId = id;
+        if (_secim.Iste(query))
+            _ = SecimiUygulaAsync();
     }
 
     protected override async void OnAppearing()
     {
-        if (_istenenKartId is { } id)
-        {
-            await Vm.YukleAsync();
-            if (Vm.VeriHazir && Vm.Hata is null && Vm.IdIleSec(id))
-                _istenenKartId = null;
-        }
+        _secim.Gorunuyor = true;
+        await SecimiUygulaAsync();
         base.OnAppearing();
+    }
+
+    protected override void OnDisappearing()
+    {
+        _secim.Gorunuyor = false;
+        base.OnDisappearing();
+    }
+
+    /// <summary>Bekleyen kart seçimi; yükleme hatası günlüğe yazılır, sayfa yine açılır (OnAppearing async void'dir, yakalanmayan
+    /// istisna WinUI sürecini çökertir).</summary>
+    private async Task SecimiUygulaAsync()
+    {
+        try
+        {
+            await _secim.UygulaAsync(Vm.YukleAsync, () => Vm.VeriHazir && Vm.Hata is null, Vm.IdIleSec);
+        }
+        catch (Exception ex) { Debug.WriteLine($"Kart bildirimi seçimi başarısız: {ex}"); }
     }
 
     public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kredi Kartları", SayfaAciklamasi, vm.YukleAsync, nameof(vm.SayfaHatasi))

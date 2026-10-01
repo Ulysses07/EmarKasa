@@ -1,15 +1,54 @@
+using System.Diagnostics;
 using Kasa.App.Core;
 using static Kasa.App.Views.TakipUi;
 
 namespace Kasa.App.Views;
 
-public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>
+/// <summary>Krediler. Kredi bildirimine tıklanınca //krediler?KrediId={id} ile açılır: liste yüklenir, kredi seçilir ve ayrıntısı
+/// görünür yere kaydırılır. Sayfa zaten açıkken gelen istek hemen, değilse sayfa belirirken uygulanır (SorguSecimi; KartTakipPage
+/// ile aynı desen).</summary>
+public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAttributable
 {
+    private readonly View _ozet;
+    private readonly SorguSecimi _secim = new("KrediId");
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        if (_secim.Iste(query))
+            _ = SecimiUygulaAsync();
+    }
+
+    protected override async void OnAppearing()
+    {
+        _secim.Gorunuyor = true;
+        await SecimiUygulaAsync();
+        base.OnAppearing();
+    }
+
+    protected override void OnDisappearing()
+    {
+        _secim.Gorunuyor = false;
+        base.OnDisappearing();
+    }
+
+    /// <summary>Bekleyen kredi seçimi; yükleme ya da kaydırma hatası günlüğe yazılır, sayfa yine açılır (OnAppearing async void'dir,
+    /// yakalanmayan istisna WinUI sürecini çökertir).</summary>
+    private async Task SecimiUygulaAsync()
+    {
+        try
+        {
+            if (await _secim.UygulaAsync(Vm.YukleAsync, () => Vm.VeriHazir && Vm.Hata is null, Vm.IdIleSec))
+                await Kaydirici.ScrollToAsync(_ozet, ScrollToPosition.Start, true);
+        }
+        catch (Exception ex) { Debug.WriteLine($"Kredi bildirimi seçimi başarısız: {ex}"); }
+    }
+
     public KrediTakipPage(KrediTakipViewModel vm) : base(vm, "Krediler",
         "Taksitler tarihlerinde genel kasa ve sabit kanal paylarından otomatik düşer. Bu, bankaya ödemenin doğrulandığı anlamına gelmez.",
         vm.YukleAsync)
     {
         var ozet = Kart("Kredi ayrıntısı", BagliBuyuk(nameof(vm.KrediOzeti)));
+        _ozet = ozet;
         Govde.Add(Kart("Krediler",
             Liste<KrediTakipSatiri>(nameof(vm.Krediler), async s => { vm.SecCommand.Execute(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }),
             Editor(Dugme("Yeni kredi / mevcut krediyi ekle", nameof(vm.YeniCommand)))));

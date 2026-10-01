@@ -13,11 +13,20 @@ public partial class AppShell : Shell
     private readonly IReadOnlyDictionary<Bolum, FlyoutItem> _menu;
     private bool _giriseDonuluyor;
     private bool _cikiliyor;
+    private readonly BildirimNobetcisi _bildirimNobetcisi;
+    private readonly BildirimTiklamalari _bildirimTiklamalari;
+    /// <summary>Uygulama açıkken 5 dakikada bir bildirim bakması (BildirimNobetcisi.Aralik); oturum açılınca başlar, girişe dönüşte durur.</summary>
+    private readonly IDispatcherTimer _bildirimZamanlayicisi;
 
-    public AppShell(AuthViewModel auth)
+    public AppShell(AuthViewModel auth, BildirimNobetcisi bildirimNobetcisi, BildirimTiklamalari bildirimTiklamalari)
     {
         InitializeComponent();
         _auth = auth;
+        _bildirimNobetcisi = bildirimNobetcisi;
+        _bildirimTiklamalari = bildirimTiklamalari;
+        _bildirimZamanlayicisi = Dispatcher.CreateTimer();
+        _bildirimZamanlayicisi.Interval = BildirimNobetcisi.Aralik;
+        _bildirimZamanlayicisi.IsRepeating = true;
         _menu = new Dictionary<Bolum, FlyoutItem>
         {
             [Bolum.Panel] = PanelItem,
@@ -39,6 +48,16 @@ public partial class AppShell : Shell
         _menuModeli.GitIstendi += async (_, rota) => await GitAsync(rota);
         _menuModeli.CikisIstendi += async (_, _) => await CikisAsync();
         _auth.OturumSonlandi += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await GiriseDonAsync());
+        // Bildirim bakması ve tıklaması da istisnayı yakalayan yardımcılara gider. Tıklama olayı Ekle'yi çağıran iş parçacığında
+        // gelir (Windows göstericisi UI iş parçacığına aktarır); gezinme yine de ana iş parçacığında yapılır.
+        _bildirimZamanlayicisi.Tick += async (_, _) => await BildirimYoklaAsync();
+        _bildirimTiklamalari.Istendi += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await TiklamayiUygulaAsync());
+        // Menü rozeti: okunmamış bildirim sayısı (5 dakikalık bakma, Bildirimler ekranı, tıklama); çıkışta 0 olur ve gizlenir.
+        _bildirimNobetcisi.Yoklayici.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BildirimYoklayici.Okunmamis))
+                MainThread.BeginInvokeOnMainThread(() => _menuModeli.RozetAyarla(Bolum.Bildirimler, _bildirimNobetcisi.Yoklayici.Okunmamis));
+        };
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
     }
 
@@ -61,7 +80,49 @@ public partial class AppShell : Shell
     public void MenuyuAc()
     {
         MenuyuGoster(SekmeModeli.Bolumler(_auth.AktifRol));
-        _ = GoToAsync(_auth.AktifRol == Rol.Alici ? "//alislar" : "//panel");
+        _ = AcilisaGitAsync(_auth.AktifRol == Rol.Alici ? "//alislar" : "//panel");
+    }
+
+    /// <summary>Oturum açılınca: ilk sayfa, sonra bekleyen bildirim tıklaması (uygulama tıklamayla başladıysa), sonra bildirim bakması
+    /// (editörse görev saati de güncellenir) ve 5 dakikalık zamanlayıcı. İlk sayfaya gidilemese de bakma başlar.</summary>
+    private async Task AcilisaGitAsync(string rota)
+    {
+        try
+        {
+            await GoToAsync(rota);
+        }
+        catch (Exception ex) { Debug.WriteLine($"Açılış gezinmesi başarısız: {ex}"); }
+        await TiklamayiUygulaAsync();
+        try
+        {
+            _bildirimZamanlayicisi.Start();
+            await _bildirimNobetcisi.OturumAcildiAsync();
+        }
+        catch (Exception ex) { Debug.WriteLine($"Açılış bildirim bakması başarısız: {ex}"); }
+    }
+
+    /// <summary>5 dakikalık bildirim bakması; hata günlüğe yazılır (async void işleyiciden istisna çıkmaz).</summary>
+    private async Task BildirimYoklaAsync()
+    {
+        try
+        {
+            await _bildirimNobetcisi.TikAsync();
+        }
+        catch (Exception ex) { Debug.WriteLine($"Bildirim bakması başarısız: {ex}"); }
+    }
+
+    /// <summary>Bekleyen bildirim tıklaması: oturum açık değilse beklemede kalır ve girişten sonra uygulanır; editör oturumunda
+    /// hedef sayfa hemen açılır, okundu işareti arkada gönderilir. Al() bekleyeni alıp temizlediği için aynı tıklama iki kez uygulanmaz.</summary>
+    private async Task TiklamayiUygulaAsync()
+    {
+        try
+        {
+            if (!_auth.GirisYapildi || _bildirimTiklamalari.Al() is not { } tiklama)
+                return;
+            if (_bildirimNobetcisi.TiklamayiIsle(tiklama) is { } rota)
+                await GoToAsync(rota);
+        }
+        catch (Exception ex) { Debug.WriteLine($"Bildirim tıklaması uygulanamadı: {ex}"); }
     }
 
     /// <summary>Yalnız verilen bölümlerin sayfa öğeleri erişilebilir ve menüde görünür (girişe dönüşte hiçbiri).</summary>
@@ -102,6 +163,7 @@ public partial class AppShell : Shell
         _giriseDonuluyor = true;
         try
         {
+            _bildirimZamanlayicisi.Stop();
             MenuyuGoster([]);
             await GoToAsync("//login");
         }

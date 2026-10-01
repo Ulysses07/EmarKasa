@@ -5,11 +5,13 @@ namespace Kasa.App.Core.Tests;
 public class BildirimTests
 {
     private static AuthViewModel Auth() => new(new SahteApi()) { AktifRol = Rol.Editor };
+    /// <summary>Ekran modeli; Windows bildirim bağımlılıkları sahtedir (BildirimOrtami), API bu testin sahtesidir.</summary>
+    private static BildirimViewModel Vm(IBildirimApi api, AuthViewModel auth) => new(api, auth, new BildirimOrtami(api, auth).Nobetci);
     [Fact]
     public async Task Bildirim_ayari_saat_ve_guncel_surumu_korur()
     {
         var api = new Sahte();
-        var vm = new BildirimViewModel(api, Auth());
+        var vm = Vm(api, Auth());
         await vm.YukleAsync();
         vm.Saat = 25;
         await vm.KaydetCommand.ExecuteAsync(null);
@@ -26,7 +28,7 @@ public class BildirimTests
         var bekleyen = new TaskCompletionSource<IReadOnlyList<BildirimDto>>();
         var api = new Sahte { Bekleyen = bekleyen.Task };
         var auth = Auth();
-        var vm = new BildirimViewModel(api, auth);
+        var vm = Vm(api, auth);
         var yukle = vm.YukleAsync();
         auth.OturumSurumu++;
         bekleyen.SetResult(new[] { Sahte.Bildirim() });
@@ -39,7 +41,7 @@ public class BildirimTests
     public async Task Okundu_isareti_ve_cihaz_kapatma_basarili_cevaptan_sonra_yansir()
     {
         var api = new Sahte();
-        var vm = new BildirimViewModel(api, Auth());
+        var vm = Vm(api, Auth());
         await vm.YukleAsync();
         await vm.OkunduAsync(vm.Bildirimler[0]);
         Assert.True(vm.Bildirimler[0].Veri.Okundu);

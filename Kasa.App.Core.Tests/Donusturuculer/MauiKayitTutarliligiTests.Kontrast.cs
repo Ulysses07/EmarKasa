@@ -18,6 +18,7 @@ public partial class MauiKayitTutarliligiTests
     [InlineData("HeroSub", "Green")]
     [InlineData("HeroLabel", "Green")]
     [InlineData("SidebarMuted", "Sidebar")]
+    [InlineData("Sidebar", "SidebarAccent")]   // menü rozeti: koyu yazı, açık yeşil zemin
     [InlineData("Neg", "Card")]             // geçersiz tutarda yer tutucu (ParaGirisi) hata rengine döner
     [InlineData("Neg", "NegSoft")]          // kart kutusu "Son ödeme geçti" etiketi
     [InlineData("UyariMetin", "UyariZemin")] // kart kutusu "Geçiş farkını doğrulayın" etiketi

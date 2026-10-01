@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -50,6 +51,21 @@ public sealed partial class MenuOgesi : ObservableObject
     public string Baslik { get; }
     public string Simge { get; }
     public string Rota { get; }
+
+    /// <summary>Sayı rozeti (Bildirimler: okunmamış bildirim sayısı; AppShell yazar); 0 iken görünmez.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RozetVar))]
+    [NotifyPropertyChangedFor(nameof(RozetMetni))]
+    [NotifyPropertyChangedFor(nameof(ErisimAdi))]
+    private int _rozet;
+
+    public bool RozetVar => Rozet > 0;
+
+    /// <summary>Rozette yazan sayı; 99'dan büyükse "99+".</summary>
+    public string RozetMetni => Rozet > 99 ? "99+" : Rozet.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Ekran okuyucunun okuduğu ad (öğe düğmesinin açıklaması): başlık; rozet varsa "Bildirimler, 3 okunmamış".</summary>
+    public string ErisimAdi => Rozet > 0 ? $"{Baslik}, {RozetMetni} okunmamış" : Baslik;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UzerindeVurgu))]
@@ -119,6 +135,9 @@ public sealed partial class MenuModeli : ObservableObject
 
     private string? _seciliRota;
 
+    /// <summary>Bölüm rozetleri: menü yeniden kurulunca (Goster) korunur, girişe dönüşte (boş bölüm listesi) silinir.</summary>
+    private readonly Dictionary<Bolum, int> _rozetler = [];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Ogeler))]
     private IReadOnlyList<MenuGrubu> _gruplar = [];
@@ -134,11 +153,13 @@ public sealed partial class MenuModeli : ObservableObject
     /// <summary>Menüyü verilen bölümlerle kurar (AppShell.MenuyuGoster: role göre ya da girişe dönüşte boş).</summary>
     public void Goster(IReadOnlyCollection<Bolum> bolumler)
     {
+        if (bolumler.Count == 0)
+            _rozetler.Clear();
         var gruplar = new List<MenuGrubu>();
         foreach (var grup in Duzen)
         {
             var ogeler = grup.Ogeler.Where(o => bolumler.Contains(o.Bolum))
-                .Select(o => new MenuOgesi(o.Bolum, o.Baslik, o.Simge, o.Rota, Sec)).ToList();
+                .Select(o => new MenuOgesi(o.Bolum, o.Baslik, o.Simge, o.Rota, Sec) { Rozet = _rozetler.GetValueOrDefault(o.Bolum) }).ToList();
             if (ogeler.Count > 0)
                 gruplar.Add(new MenuGrubu(grup.Baslik, ogeler));
         }
@@ -146,6 +167,15 @@ public sealed partial class MenuModeli : ObservableObject
             gruplar.Add(new MenuGrubu(null, [new MenuOgesi(null, CikisBasligi, MenuSimgeleri.Cikis, "", _ => CikisIstendi?.Invoke(this, EventArgs.Empty))]));
         Gruplar = gruplar;
         SeciliyiYansit();
+    }
+
+    /// <summary>Bölümün rozet sayısı (AppShell: Bildirimler için okunmamış bildirim sayısı); negatif sayı 0'dır. Bölüm menüde yoksa
+    /// yalnız saklanır.</summary>
+    public void RozetAyarla(Bolum bolum, int sayi)
+    {
+        _rozetler[bolum] = Math.Max(0, sayi);
+        foreach (var oge in Ogeler.Where(o => o.Bolum == bolum))
+            oge.Rozet = _rozetler[bolum];
     }
 
     /// <summary>Shell'in yeni konumu (ShellNavigatedEventArgs.Current.Location): o rotanın öğesi seçili olur.</summary>
