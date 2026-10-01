@@ -205,12 +205,27 @@ public sealed class BildirimGoreviTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("Kasa.App.exe")]
+    [InlineData(@"C:Kasa.App.exe")]
+    [InlineData(@"\Emar Kasa\Kasa.App.exe")]
+    [InlineData("/opt/emar/Kasa.App.exe")]
     public async Task Exe_yolu_tam_degilse_gorev_kurulmaz(string exe)
     {
         var c = new Calistirici();
         Assert.False(await new BildirimGorevi(_klasor, exe, Kullanici, c.Calistir).GuncelleAsync(9, 0));
         Assert.Empty(c.Ozet);
         Assert.False(File.Exists(Isaret));
+    }
+
+    /// <summary>Görev yalnız Windows'ta çalışır: yolun tam olup olmadığına testin koştuğu işletim sistemi değil, Windows kuralı karar
+    /// verir (CI Linux'ta koşar).</summary>
+    [Theory]
+    [InlineData(@"C:\Program Files\Emar Kasa\Kasa.App.exe")]
+    [InlineData(@"d:\Kasa.App.exe")]
+    [InlineData(@"\\sunucu\paylasim\Kasa.App.exe")]
+    public async Task Windows_tam_yolu_her_isletim_sisteminde_kabul_edilir(string exe)
+    {
+        var c = new Calistirici(0);
+        Assert.True(await new BildirimGorevi(_klasor, exe, Kullanici, c.Calistir).GuncelleAsync(9, 0));
     }
 
     [Fact]

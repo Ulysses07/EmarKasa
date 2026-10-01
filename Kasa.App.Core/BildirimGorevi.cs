@@ -65,6 +65,13 @@ public sealed class BildirimGorevi : IBildirimGorevi
     public static ProcessStartInfo SilmeKomutu() => Komut("/Delete", "/TN", GorevAdi, "/F");
     public static ProcessStartInfo SorguKomutu() => Komut("/Query", "/TN", GorevAdi);
 
+    /// <summary>Windows'ta tam (göreli olmayan) yol mu: sürücü harfli ("C:\…") ya da ağ yolu ("\\sunucu\…"). Görev yalnız Windows'ta
+    /// çalıştığı için karar, kodun koştuğu işletim sisteminin <see cref="Path.IsPathFullyQualified(string)"/> kuralına bırakılmaz
+    /// (Linux'ta "C:\…" göreli sayılır).</summary>
+    public static bool WindowsTamYolu(string yol) =>
+        yol.Length >= 3 && char.IsAsciiLetter(yol[0]) && yol[1] == ':' && yol[2] is '\\' or '/'
+        || yol.Length >= 3 && yol[0] is '\\' or '/' && yol[1] is '\\' or '/' && yol[2] is not ('\\' or '/');
+
     private static ProcessStartInfo Komut(params string[] argumanlar)
     {
         var komut = new ProcessStartInfo("schtasks") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
@@ -122,7 +129,7 @@ public sealed class BildirimGorevi : IBildirimGorevi
         try
         {
             // Göreli ya da boş exe yolu görevi Windows'un çalışma klasörüne göre çözülen yanlış bir programa bağlar: kurulmaz.
-            if (!Path.IsPathFullyQualified(_exeYolu))
+            if (!WindowsTamYolu(_exeYolu))
                 return false;
             var zaman = BildirimGorevZamani.Hesapla(saat, dakika);
             var imza = Imza(zaman, _exeYolu, _kullanici);
