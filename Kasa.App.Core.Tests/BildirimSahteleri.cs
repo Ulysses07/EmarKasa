@@ -88,6 +88,24 @@ internal sealed class SahteDepo : IGosterilenBildirimDeposu
     }
 }
 
+/// <summary>Zamanlanmış görevin sahtesi: çağrıları "kur HH:mm" ve "sil" olarak kaydeder.</summary>
+internal sealed class SahteGorev : IBildirimGorevi
+{
+    public List<string> Cagrilar { get; } = [];
+
+    public Task<bool> GuncelleAsync(int saat, int dakika)
+    {
+        Cagrilar.Add($"kur {saat:00}:{dakika:00}");
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> SilAsync()
+    {
+        Cagrilar.Add("sil");
+        return Task.FromResult(true);
+    }
+}
+
 internal sealed class SahteAyar : IBildirimAyari
 {
     public bool Acik { get; set; } = true;
@@ -111,6 +129,7 @@ internal sealed class BildirimOrtami
         Auth = auth ?? new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor, GirisYapildi = true };
         Saat = saat ?? new SabitBildirimSaati(new DateTimeOffset(2026, 9, 30, 14, 5, 0, TimeSpan.Zero));
         Yoklayici = new BildirimYoklayici(Sunucu, Gosterici, Depo, Ayar, Saat);
+        Nobetci = new BildirimNobetcisi(Yoklayici, Sunucu, Gorev, Ayar, Gosterici, Auth);
     }
 
     /// <summary>Varsayılan sunucu sahtesi; kurucuya başka API verilirse kullanılmaz.</summary>
@@ -123,4 +142,6 @@ internal sealed class BildirimOrtami
     public SahteAyar Ayar { get; } = new();
     public TimeProvider Saat { get; }
     public BildirimYoklayici Yoklayici { get; }
+    public SahteGorev Gorev { get; } = new();
+    public BildirimNobetcisi Nobetci { get; }
 }
