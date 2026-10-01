@@ -527,7 +527,7 @@ public class HesapServisi
                 tarihler.Count > 0 ? tarihler.Min() : bugun, tarihler.Count > 0 ? tarihler.Max() : bugun, hata);
         }
 
-        CekSatirlari(_db, donemler, gelenler, islemler, KanalAdi, (anahtar, aciklama, tarih) => Karantinaya(anahtar, aciklama, tarih, tarih));
+        CekSatirlari(_db, ct, donemler, gelenler, islemler, KanalAdi, (anahtar, aciklama, tarih) => Karantinaya(anahtar, aciklama, tarih, tarih));
 
         foreach (var k in karantina)
             VeriKarantinasi.Logla(_db, k.Anahtar, k.Aciklama, k.Hata);
@@ -538,22 +538,32 @@ public class HesapServisi
     /// <summary>Kanal kimliğini adına çözer (Yukle'deki KanalAdi).</summary>
     private delegate bool KanalCozucu(int? kanalId, [NotNullWhen(true)] out string? ad);
 
+    /// <summary>Kasayı etkileyen hareket türleri (<see cref="CekKurallari.KasaEtkili"/> ile aynı küme): yalnız bunlar türetilmiş
+    /// satır üretir; Karşılıksız ve İade <see cref="CekTuretici.Satirlar"/>'da işlenmez (devir izini de değiştirmez), bu yüzden
+    /// sorguya hiç alınmaz.</summary>
+    private static readonly string[] CekKasaEtkiliTurler =
+        [CekHareketTurleri.Tahsilat, CekHareketTurleri.Odeme, CekHareketTurleri.Ciro, CekHareketTurleri.Kirdirma, CekHareketTurleri.Donus];
+
     /// <summary>
     /// Çek ve senet hareketlerinin türetilmiş satırları (docs/specs/2026-10-01-cekler.md "Rapora etkisi"): kredi taksitlerindeki gibi
     /// bellekte türetilir (<see cref="CekTuretici"/>), veritabanına Islem/Gelen yazılmaz. Satırlar listelerin sonuna eklenir: çek
     /// yokken satırlar, sıraları ve tutarlar aynıdır (altın rapor testi). Verilen çekin ödemesinde kasası boş hareket Ortak'tır;
     /// kanalı çözülemeyen kasa etkili hareket karantinaya alınır, geliri genel kasaya, gideri "Dağılım bekliyor"a yazılır.
     /// </summary>
-    private static void CekSatirlari(KasaDbContext db, IReadOnlyList<Donem> donemler, List<Gelen> gelenler, List<Islem> islemler, KanalCozucu kanalAdi,
-        Action<string, Func<string>, DateOnly> karantinaya)
+    private static void CekSatirlari(KasaDbContext db, CancellationToken ct, IReadOnlyList<Donem> donemler, List<Gelen> gelenler, List<Islem> islemler,
+        KanalCozucu kanalAdi, Action<string, Func<string>, DateOnly> karantinaya)
     {
         // Çek tabloları migration 20261008000100_Cekler ile gelir: göç öncesi şemadaki rapor (göç testleri) tablolar olmadan hesaplanır.
         if (db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='Cekler'").Single() == 0)
             return;
-        var cekler = db.Cekler.AsNoTracking().OrderBy(c => c.Id).ToList();
+        // Yalnız türetmenin kullandığı kolonlar (Banka, VadeTarihi, Teminat, Konum, Not, Surum gerekmez).
+        var cekler = db.Cekler.AsNoTracking().OrderBy(c => c.Id)
+            .Select(c => new CekBilgisi(c.Id, c.Tur, c.Yon, c.No, c.Kisi, c.Tutar)).ToList();
+        ct.ThrowIfCancellationRequested();
         if (cekler.Count == 0)
             return;
-        var hareketler = db.CekHareketler.AsNoTracking().ToList().ToLookup(h => h.CekId);
+        var hareketler = db.CekHareketler.AsNoTracking().Where(h => CekKasaEtkiliTurler.Contains(h.Tur)).ToList().ToLookup(h => h.CekId);
+        ct.ThrowIfCancellationRequested();
         foreach (var cek in cekler)
         {
             var satirlar = new List<CekHareketi>();
@@ -564,12 +574,18 @@ public class HesapServisi
                     kanal = ad;
                 else if (h.KanalId is null && h.Tur == CekHareketTurleri.Odeme)
                     kanal = KanalEtiketleri.Ortak;
-                else if (CekKurallari.KasaEtkili(h.Tur))
+                else
+                {
+                    // Sorgu yalnız kasa etkili türleri getirdi: buraya düşen her hareket karantinaya alınır.
+                    var etki = h.Tur == CekHareketTurleri.Odeme ? "gideri 'Dağılım bekliyor'a yazıldı"
+                        : h.Tur == CekHareketTurleri.Tahsilat ? "geliri genel kasaya yazıldı"
+                        : "geliri genel kasaya, gideri 'Dağılım bekliyor'a yazıldı";
                     karantinaya("CekHareketi:" + h.Id, () => $"Çek hareketi #{h.Id} (çek #{cek.Id}, {h.Tarih.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)}): "
-                        + (h.KanalId is { } id ? $"kasası olan kanal (#{id}) bulunamadı" : "kasası boş") + "; geliri genel kasaya, gideri 'Dağılım bekliyor'a yazıldı", h.Tarih);
+                        + (h.KanalId is { } id ? $"olmayan kanala (#{id}) bağlı" : "kasası boş") + $"; {etki}", h.Tarih);
+                }
                 satirlar.Add(new CekHareketi(h.Id, h.Sira, h.Tur, h.Tarih, h.Tutar, h.NetTutar, kanal, h.Karsi));
             }
-            var (cekGelenleri, cekIslemleri) = CekTuretici.Satirlar(new CekBilgisi(cek.Id, cek.Tur, cek.Yon, cek.No, cek.Kisi, cek.Tutar), satirlar, donemler);
+            var (cekGelenleri, cekIslemleri) = CekTuretici.Satirlar(cek, satirlar, donemler);
             gelenler.AddRange(cekGelenleri);
             islemler.AddRange(cekIslemleri);
         }

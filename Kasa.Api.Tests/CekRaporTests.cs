@@ -131,10 +131,15 @@ public class CekRaporTests
         var kilit = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", TestContext.Current.CancellationToken))!;
         await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), kilit.Surum, Agustos.Year, Agustos.Month, "Ay tamamlandı"));
 
+        // Kilitten sonra eklenen Ağustos tarihli hareket (veritabanına doğrudan yazılır, kilidi aşar) canlı hesapta MEZAT
+        // gelenini 7.000'e çıkarırdı; dondurulmuş görüntü onu görmez ve Ağustos raporu aynı kalır.
+        await HareketEkle(f, cek.Id, new CekHareketEntity { Tur = CekHareketTurleri.Tahsilat, Tarih = Agustos.AddDays(25), Tutar = 2_000m, KanalId = 1 });
         await HareketEkle(f, cek.Id, new CekHareketEntity { Tur = CekHareketTurleri.Tahsilat, Tarih = Today, Tutar = 1_000m, KanalId = 1 });
-        Assert.Equal(AyRaporuAnlikGoruntusuTests.Dondurulmus(canli, HesapServisi.AcikAyKurali), await c.GetStringAsync(Aylik(Agustos), TestContext.Current.CancellationToken));
+        var agustosSonra = await c.GetStringAsync(Aylik(Agustos), TestContext.Current.CancellationToken);
+        Assert.Equal(AyRaporuAnlikGoruntusuTests.Dondurulmus(canli, HesapServisi.AcikAyKurali), agustosSonra);
+        Assert.Equal(5_000m, (decimal)Kanal(JsonNode.Parse(agustosSonra)!, "MEZAT")["gelen"]!);
         Assert.Equal(1_000m, (decimal)Kanal(await Json(c, Aylik(Month)), "MEZAT")["gelen"]!);
-        Assert.Equal(7_000m, (await Panel(c)).GuncelKasa);
+        Assert.Equal(1_000m + 5_000m + 2_000m + 1_000m, (await Panel(c)).GuncelKasa);
     }
 
     [Fact]
