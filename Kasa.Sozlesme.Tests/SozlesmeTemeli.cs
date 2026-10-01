@@ -119,6 +119,7 @@ public sealed class Oturum
     public IKasaKontrolApi Kontrol { get; }
     public IBildirimApi Bildirim { get; }
     public IBenzerKayitApi Benzer { get; }
+    public ICekApi Cek { get; }
 
     internal Oturum(SozlesmeFabrikasi f, HashSet<string> cagrilan, ITokenStore? depo)
     {
@@ -140,6 +141,7 @@ public sealed class Oturum
         Kontrol = Vekil<IKasaKontrolApi>();
         Bildirim = Vekil<IBildirimApi>();
         Benzer = Vekil<IBenzerKayitApi>();
+        Cek = Vekil<ICekApi>();
     }
 
     /// <summary>Son istemci yanıtı (durum kodu denetimleri için).</summary>
