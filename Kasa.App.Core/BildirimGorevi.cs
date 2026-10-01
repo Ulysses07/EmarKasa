@@ -13,8 +13,12 @@ public interface IBildirimGorevi
     /// kurulduysa true; değişiklik gerekmediyse ya da kurulamadıysa false. Hata dışarı çıkmaz.</summary>
     Task<bool> GuncelleAsync(int saat, int dakika);
 
-    /// <summary>Görevi siler. Silindiyse ya da zaten yoksa true. Hata dışarı çıkmaz.</summary>
+    /// <summary>Görevi siler. Silindiyse ya da zaten yoksa true; ancak o zaman <see cref="Kurulu"/> false olur (silinemeyen görev
+    /// kurulu görünmeye devam eder ve yeniden silinebilir). Hata dışarı çıkmaz.</summary>
     Task<bool> SilAsync();
+
+    /// <summary>Görev bu bilgisayarda kurulu görünüyor (ucuz denetim: yerel işaret dosyası; schtasks çalıştırılmaz).</summary>
+    bool Kurulu { get; }
 }
 
 /// <summary>
@@ -32,7 +36,9 @@ public sealed class BildirimGorevi : IBildirimGorevi
     public const string GorevAdi = "EmarKasaBildirim";
     /// <summary>Görevin exe'ye verdiği argüman: pencere açılmaz, bakılır, çıkılır (Platforms/Windows/App.xaml.cs).</summary>
     public const string KontrolArgumani = "--bildirim-kontrol";
-    public const string XmlDosyaAdi = "bildirim-gorevi.xml";
+    /// <summary>Geçici görev XML'inin adı: önek + çağrıya özel Guid + ".xml"; eşzamanlı iki kurma birbirinin dosyasını ezmez ya da
+    /// silmez.</summary>
+    public const string XmlDosyaOneki = "bildirim-gorevi-";
     public const string IsaretDosyaAdi = "bildirim-gorevi.txt";
     private static readonly XNamespace Ad = "http://schemas.microsoft.com/windows/2004/02/mit/task";
 
@@ -50,8 +56,9 @@ public sealed class BildirimGorevi : IBildirimGorevi
         _calistir = calistir;
     }
 
-    /// <summary>Gerçek ortam: %LOCALAPPDATA%\EmarKasa, çalışan exe, ETKİALANI\kullanıcı, gerçek schtasks (5 sn sınırı).</summary>
-    public static BildirimGorevi Varsayilan() => new(YerelKlasor.Yol, Environment.ProcessPath ?? "Kasa.App.exe",
+    /// <summary>Gerçek ortam: %LOCALAPPDATA%\EmarKasa, çalışan exe, ETKİALANI\kullanıcı, gerçek schtasks (5 sn sınırı). Çalışan exe'nin
+    /// yolu bilinmiyorsa (Environment.ProcessPath null) yol boş kalır ve görev kurulmaz (<see cref="GuncelleAsync"/> false).</summary>
+    public static BildirimGorevi Varsayilan() => new(YerelKlasor.Yol, Environment.ProcessPath ?? "",
         $@"{Environment.UserDomainName}\{Environment.UserName}", k => EskiHatirlatmaGorevi.CalistirAsync(k, EskiHatirlatmaGorevi.ZamanAsimi));
 
     public static ProcessStartInfo KurmaKomutu(string xmlYolu) => Komut("/Create", "/TN", GorevAdi, "/XML", xmlYolu, "/F");
@@ -71,7 +78,9 @@ public sealed class BildirimGorevi : IBildirimGorevi
         => string.Join("|", zaman.ToString("HH:mm", CultureInfo.InvariantCulture), exeYolu, kullanici);
 
     /// <summary>Task Scheduler 1.2 görev tanımı. StartBoundary'nin tarihi geçmiştedir (tetikleyici o günden beri her gün çalışır);
-    /// saat dilimi yazılmaz: yerel saattir.</summary>
+    /// saat dilimi yazılmaz: görev saati bu bilgisayarın yerel saat dilimine göredir. Sunucu bildirim saatini kendi diliminde
+    /// (Europe/Istanbul) uygular; bilgisayarın saat dilimi farklıysa görev o farkla kayık çalışır (oturum açılışı tetikleyicisi ve açık
+    /// uygulamanın 5 dakikalık bakması etkilenmez). Kullanıcı adındaki özel karakterler (&amp;, &lt;) XML'de kaçışlanır.</summary>
     public static XDocument GorevBelgesi(TimeOnly zaman, string exeYolu, string kullanici) => new(
         new XElement(Ad + "Task", new XAttribute("version", "1.2"),
             new XElement(Ad + "RegistrationInfo",
@@ -112,13 +121,16 @@ public sealed class BildirimGorevi : IBildirimGorevi
     {
         try
         {
+            // Göreli ya da boş exe yolu görevi Windows'un çalışma klasörüne göre çözülen yanlış bir programa bağlar: kurulmaz.
+            if (!Path.IsPathFullyQualified(_exeYolu))
+                return false;
             var zaman = BildirimGorevZamani.Hesapla(saat, dakika);
             var imza = Imza(zaman, _exeYolu, _kullanici);
             var isaret = Path.Combine(_klasor, IsaretDosyaAdi);
             if (File.Exists(isaret) && File.ReadAllText(isaret) == imza && await _calistir(SorguKomutu()) == 0)
                 return false;
             Directory.CreateDirectory(_klasor);
-            var xml = Path.Combine(_klasor, XmlDosyaAdi);
+            var xml = Path.Combine(_klasor, XmlDosyaOneki + Guid.NewGuid().ToString("N") + ".xml");
             XmlYaz(GorevBelgesi(zaman, _exeYolu, _kullanici), xml);
             try
             {
@@ -127,7 +139,7 @@ public sealed class BildirimGorevi : IBildirimGorevi
             }
             finally
             {
-                File.Delete(xml);
+                XmlSil(xml);
             }
             File.WriteAllText(isaret, imza);
             return true;
@@ -138,22 +150,33 @@ public sealed class BildirimGorevi : IBildirimGorevi
         }
     }
 
+    public bool Kurulu => File.Exists(Path.Combine(_klasor, IsaretDosyaAdi));
+
     public async Task<bool> SilAsync()
     {
         try
         {
-            var isaret = Path.Combine(_klasor, IsaretDosyaAdi);
-            if (File.Exists(isaret))
-                File.Delete(isaret);
             var sonuc = await _calistir(SilmeKomutu());
-            if (sonuc == 0)
-                return true;
-            // Silinemedi: görev yoksa (sorgu başarısız) iş bitmiştir; görev duruyor ya da sorgulanamadıysa başarısız.
-            return sonuc is not null && await _calistir(SorguKomutu()) is not (null or 0);
+            // Silinemedi: görev yoksa (sorgu başarısız) iş bitmiştir; görev duruyor ya da sonuç bilinmiyorsa başarısız.
+            var silindi = sonuc == 0 || (sonuc is not null && await _calistir(SorguKomutu()) is not (null or 0));
+            // İşaret yalnız görevin artık olmadığı biliniyorsa kalkar: kalırsa nöbetçi sonraki açılışta yeniden siler.
+            if (silindi)
+                File.Delete(Path.Combine(_klasor, IsaretDosyaAdi));
+            return silindi;
         }
         catch (Exception)
         {
             return false;
         }
+    }
+
+    /// <summary>Geçici XML'i siler; silinemezse (dosya o an başka süreçte açık) kurulum sonucu değişmez, dosya klasörde kalır.</summary>
+    private static void XmlSil(string yol)
+    {
+        try
+        {
+            File.Delete(yol);
+        }
+        catch (Exception) { }
     }
 }

@@ -58,7 +58,14 @@ internal sealed class SahteGosterici : IBildirimGosterici
     /// <summary>Bu kimlikteki bildirim gösterilirken hata fırlatılır.</summary>
     public int? HataliKimlik { get; set; }
     public bool DenemeBasarili { get; set; } = true;
-    public bool WindowsAyarindaKapali { get; set; }
+    /// <summary>Ayarlanırsa Windows ayarı okunurken ve deneme bildiriminde bu istisna fırlatılır.</summary>
+    public Exception? Hata { get; set; }
+
+    public bool WindowsAyarindaKapali
+    {
+        get => Hata is null ? field : throw Hata;
+        set;
+    }
 
     public void Goster(BildirimDto bildirim)
     {
@@ -69,6 +76,8 @@ internal sealed class SahteGosterici : IBildirimGosterici
 
     public bool DenemeGoster()
     {
+        if (Hata is not null)
+            throw Hata;
         DenemeSayisi++;
         return DenemeBasarili;
     }
@@ -88,21 +97,31 @@ internal sealed class SahteDepo : IGosterilenBildirimDeposu
     }
 }
 
-/// <summary>Zamanlanmış görevin sahtesi: çağrıları "kur HH:mm" ve "sil" olarak kaydeder.</summary>
+/// <summary>Zamanlanmış görevin sahtesi: çağrıları "kur HH:mm" ve "sil" olarak kaydeder; kurulunca <see cref="Kurulu"/> olur,
+/// başarılı silmede kurulu olmaktan çıkar.</summary>
 internal sealed class SahteGorev : IBildirimGorevi
 {
     public List<string> Cagrilar { get; } = [];
+    public bool Kurulu { get; set; }
+    public bool SilmeBasarili { get; set; } = true;
+    /// <summary>Ayarlanırsa kurma (çağrı kaydedildikten sonra) bu görev tamamlanana dek sürer (sıra testleri).</summary>
+    public TaskCompletionSource? Kapi { get; set; }
 
-    public Task<bool> GuncelleAsync(int saat, int dakika)
+    public async Task<bool> GuncelleAsync(int saat, int dakika)
     {
         Cagrilar.Add($"kur {saat:00}:{dakika:00}");
-        return Task.FromResult(true);
+        if (Kapi is { } kapi)
+            await kapi.Task;
+        Kurulu = true;
+        return true;
     }
 
     public Task<bool> SilAsync()
     {
         Cagrilar.Add("sil");
-        return Task.FromResult(true);
+        if (SilmeBasarili)
+            Kurulu = false;
+        return Task.FromResult(SilmeBasarili);
     }
 }
 

@@ -5,12 +5,16 @@ namespace Kasa.App.Core;
 /// <summary>
 /// Pencere açmadan çalışma (zamanlanmış görev; argüman <see cref="BildirimGorevi.KontrolArgumani"/>): ayar açıksa kayıtlı oturum
 /// belirteciyle rolü sorar (/me), editörse bir kez bakar ve biter; en çok <see cref="EnUzunSure"/> çalışır. Belirteç yok, süresi
-/// dolmuş, rol editör değil, ayar kapalı ya da sunucuya ulaşılamıyorsa sessizce null döner; uygulama bir sonraki açılışta zaten
-/// bakar. Çağıran platform kodu Kasa.App/Platforms/Windows/App.xaml.cs'tedir (pencere kilidi, Windows bildirim kaydı, süreç çıkışı).
+/// dolmuş, rol editör değil, ayar kapalı, /me sırasında sunucuya ulaşılamıyorsa ya da süre dolarsa sessizce null döner; uygulama bir
+/// sonraki açılışta zaten bakar. /me başarılı olup liste (/bildirimler) alınamazsa null değil, yoklayıcının hata sonucu döner
+/// (<see cref="YoklamaDurumu.SunucuyaUlasilamadi"/>, <see cref="YoklamaDurumu.SunucuHatasi"/> ya da
+/// <see cref="YoklamaDurumu.OturumGecersiz"/>); bu durumda da bildirim gösterilmez. Çağıran platform kodu Kasa.App/Platforms/Windows/App.xaml.cs'tedir (pencere kilidi, Windows bildirim kaydı, süreç çıkışı).
 /// <para>Süresi dolmuş belirteç: KasaApiClient 401 yanıtında belirteç deposunu temizler (OturumuGecersizKilAsync). Görev süresi dolmuş
 /// belirteçle çalışırsa kayıtlı oturum silinir ve uygulama bir sonraki açılışta giriş ister; bu, uygulamanın kendi açılış
 /// doğrulamasıyla (AuthViewModel.AcilistaDogrulaAsync) aynı davranıştır ve bilinçli olarak değiştirilmez.</para>
-/// <para>Süre dolunca beklenen çağrı iptal edilmez, yalnız beklenmez: çağıran süreç hemen sonra kapanır.</para>
+/// <para>Süre dolunca beklenen çağrı iptal edilmez, yalnız beklenmez: çağıran süreç hemen sonra kapanır. Bilinen risk: arkada kalan
+/// yoklama süreç kapanırken depoda bildirimleri "gösterildi" diye ayırmış (YenileriAyir) ama henüz göstermemiş olabilir; o bildirimler
+/// bu bilgisayarda Windows bildirimi olarak gösterilmez, listede ve telefonda görünmeye devam eder (karar 10 ile aynı sonuç).</para>
 /// </summary>
 public sealed class BildirimKontrolu(IKasaApi api, BildirimYoklayici yoklayici, IBildirimAyari ayar)
 {

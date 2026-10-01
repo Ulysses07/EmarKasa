@@ -75,6 +75,56 @@ public class BildirimNobetcisiTests
         Assert.Equal(2, o.Gorev.Cagrilar.Count);
     }
 
+    [Theory]
+    [InlineData(Rol.Editor)]
+    [InlineData(Rol.Izleyici)]
+    public async Task Ayar_kapaliyken_gorev_kurulu_gorunuyorsa_acilista_silinir(Rol rol)
+    {
+        var o = new BildirimOrtami();
+        o.Auth.AktifRol = rol;
+        o.Ayar.Acik = false;
+        o.Gorev.Kurulu = true;
+        o.Gorev.SilmeBasarili = false;
+        // Önceki silme başarısız oldu: görev hâlâ kurulu görünür, her açılışta yeniden silinmeye çalışılır.
+        await o.Nobetci.OturumAcildiAsync();
+        Assert.True(o.Gorev.Kurulu);
+        o.Gorev.SilmeBasarili = true;
+        await o.Nobetci.OturumAcildiAsync();
+        Assert.False(o.Gorev.Kurulu);
+        await o.Nobetci.OturumAcildiAsync();
+        Assert.Equal(["sil", "sil"], o.Gorev.Cagrilar);
+    }
+
+    [Fact]
+    public async Task Surmekte_olan_kurma_sirasinda_kapatilirsa_sonunda_gorev_kurulu_degildir()
+    {
+        var o = new BildirimOrtami();
+        var kapi = new TaskCompletionSource();
+        o.Gorev.Kapi = kapi;
+        var kurma = o.Nobetci.SaatDegistiAsync(8, 15);
+        var ikinciKurma = o.Nobetci.SaatDegistiAsync(9, 0);
+        var kapatma = o.Nobetci.AcikAyarlaAsync(false);
+        // Görev işlemleri sıradadır: süren kurma bitmeden başka kurma ya da silme başlamaz.
+        Assert.Equal(["kur 08:15"], o.Gorev.Cagrilar);
+        kapi.SetResult();
+        await Task.WhenAll(kurma, ikinciKurma, kapatma);
+        // Sıradaki kurma ayarı yeniden okur: kapalıysa kurmaz, kurulu görevi siler.
+        // Sıradakilerin birbirine göre sırası güvenceli değildir; ikinci kurma hiçbir sırada görevi kurmaz.
+        Assert.Equal("kur 08:15", o.Gorev.Cagrilar[0]);
+        Assert.DoesNotContain("kur 09:00", o.Gorev.Cagrilar);
+        Assert.Contains("sil", o.Gorev.Cagrilar);
+        Assert.False(o.Gorev.Kurulu);
+    }
+
+    [Fact]
+    public void Gosterici_hatasi_disari_cikmaz()
+    {
+        var o = new BildirimOrtami();
+        o.Gosterici.Hata = new InvalidOperationException("Windows bildirimi yok");
+        Assert.False(o.Nobetci.WindowsAyarindaKapali);
+        Assert.False(o.Nobetci.DenemeGoster());
+    }
+
     [Fact]
     public async Task Saat_kaydedilince_gorev_guncellenir_sunucu_saati_alinamazsa_bakma_surer()
     {

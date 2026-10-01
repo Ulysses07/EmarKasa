@@ -14,4 +14,12 @@ public class PencereKilidiTests
         Assert.False(PencereKilidi.AcikMi(ad));
         Assert.Equal(@"Local\EmarKasa.Pencere", PencereKilidi.VarsayilanAd);
     }
+
+    [Fact]
+    public void Kilit_denetlenemezse_acik_sayilir()
+    {
+        // Boş ad Mutex.TryOpenExisting'te ArgumentException fırlatır; erişim reddi (UnauthorizedAccessException) gibi her hata
+        // güvenli tarafta "açık" sayılır: pencere açmadan çalışan görev hiçbir şey yapmadan çıkar.
+        Assert.True(PencereKilidi.AcikMi(""));
+    }
 }

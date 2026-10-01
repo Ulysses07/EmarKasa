@@ -61,6 +61,16 @@ public class BildirimKontroluTests
     }
 
     [Fact]
+    public async Task Rol_sorulurken_sunucuya_ulasilamazsa_sessizce_cikilir()
+    {
+        var (o, oturum, kontrol) = Kur();
+        oturum.MeHatasi = new HttpRequestException("bağlantı yok");
+        Assert.Null(await kontrol.CalistirAsync());
+        Assert.Equal(0, o.Api.ListeCagri);
+        Assert.Empty(o.Gosterici.Gosterilenler);
+    }
+
+    [Fact]
     public async Task Sure_dolunca_beklemeden_cikilir()
     {
         var (o, _, kontrol) = Kur();
