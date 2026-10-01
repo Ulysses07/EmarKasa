@@ -75,7 +75,7 @@ denenir. Test sayıları bu denemeden alınmıştır.
 - Göç testleri raporu çek tabloları olmayan eski şemada da hesaplar (`VeritabaniGocuTests`, `BelgeDeposuGecisTests`): türetme tablo
   yoksa atlanır (Görev 3; bu koruma olmadan 6 göç testi düştü).
 
-## Ürün sahibine sorulacaklar
+## Ürün sahibinin onayladığı yorumlar (2026-10-01)
 
 Engelleyici soru yok: negatif `Gelen` ve negatif Cari gider desteklendiği için tasarımın "dönüşü karşı yönlü gider olarak türet"
 yedeği uygulanmaz; dönüş görevleri bir karara bağlı değildir. Uygulamayı durdurmayan, onay istenen yorumlar (plan bunları seçti;
@@ -85,8 +85,8 @@ farklı karar çıkarsa yalnız ilgili test ve satır değişir):
    önce, teminat değil* diye okur; karşılıksız çekler bu kutuya girmez (kendi çipleri var). Örnek: 22 Eylül vadeli 5.000 TL çekin
    2.000 TL'si tahsil edildiyse kutuda "3.000,00 ₺ (1 çek)" görünür; aynı çek karşılıksız işaretlenirse kutudan çıkar.
 2. **Senet metinleri**: tasarım yalnız çek örneği verir; plan senette "Senet tahsili: …", "Senet vadesi", "Ödenecek senet" yazar.
-3. **Bildirim tutar biçimi**: tasarımdaki gibi kuruşsuz tutar "50.000 TL", kuruşlu "29.999,50 TL" (mevcut kart/kredi bildirimleri
-   her zaman "50.000,00 TL" yazar).
+3. **Bildirim tutar biçimi**: kart ve kredi bildirimleriyle aynı, her zaman kuruşlu: "50.000,00 TL", "29.999,50 TL" (ürün sahibi
+   bu biçimi seçti; tasarımdaki "50.000 TL" örneği buna göre okunur).
 4. **Sürüm notu**: çekler `release/2.x`'e girerse `docs/deploy/kasa-2.4.md`'ye yazılır (Görev 12). `/api/surum` `notlar` metnine
    eklenmesi yayın kararıdır; plan onu değiştirmez.
 
@@ -2454,11 +2454,11 @@ public class CekBildirimTests
         var taslaklar = CekBildirimleri.Oku(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), Today).OrderBy(t => t.KaynakId).ToList();
         Assert.Equal(
         [
-            ($"Cekler:{vade3.Id}:Vade:2026-09-28:3", "Çek vadesi", "Ahmet Yılmaz · 50.000 TL · 28 Eylül", $"/#cheques/{vade3.Id}", CekBildirimleri.VadeTuru),
+            ($"Cekler:{vade3.Id}:Vade:2026-09-28:3", "Çek vadesi", "Ahmet Yılmaz · 50.000,00 TL · 28 Eylül", $"/#cheques/{vade3.Id}", CekBildirimleri.VadeTuru),
             ($"Cekler:{kismen.Id}:Vade:2026-09-25:0", "Çek vadesi", "Ahmet Yılmaz · 29.999,50 TL · 25 Eylül", $"/#cheques/{kismen.Id}", CekBildirimleri.VadeTuru),
-            ($"Cekler:{ibraz.Id}:Ibraz:2026-09-18:-7", "İbraz süresi doluyor", "Ahmet Yılmaz · 50.000 TL · vade 18 Eylül", $"/#cheques/{ibraz.Id}", CekBildirimleri.IbrazTuru),
-            ($"Cekler:{verilen.Id}:Odenecek:2026-09-28:3", "Ödenecek çek", "Mehmet Ticaret · 30.000 TL · hesapta bulunmalı", $"/#cheques/{verilen.Id}", CekBildirimleri.OdemeTuru),
-            ($"Cekler:{senet.Id}:Vade:2026-09-25:0", "Senet vadesi", "Ahmet Yılmaz · 50.000 TL · 25 Eylül", $"/#cheques/{senet.Id}", CekBildirimleri.VadeTuru),
+            ($"Cekler:{ibraz.Id}:Ibraz:2026-09-18:-7", "İbraz süresi doluyor", "Ahmet Yılmaz · 50.000,00 TL · vade 18 Eylül", $"/#cheques/{ibraz.Id}", CekBildirimleri.IbrazTuru),
+            ($"Cekler:{verilen.Id}:Odenecek:2026-09-28:3", "Ödenecek çek", "Mehmet Ticaret · 30.000,00 TL · hesapta bulunmalı", $"/#cheques/{verilen.Id}", CekBildirimleri.OdemeTuru),
+            ($"Cekler:{senet.Id}:Vade:2026-09-25:0", "Senet vadesi", "Ahmet Yılmaz · 50.000,00 TL · 25 Eylül", $"/#cheques/{senet.Id}", CekBildirimleri.VadeTuru),
         ], taslaklar.Select(t => (t.Anahtar, t.Baslik, t.Mesaj, t.Hedef, t.Tur)));
         Assert.All(taslaklar, t => Assert.Equal(Today, t.Tarih));
     }
@@ -2483,7 +2483,7 @@ public class CekBildirimTests
         fixture.Db.SaveChanges();
         await fixture.Service().Yenile(TestContext.Current.CancellationToken);
         var bildirim = Assert.Single(fixture.Db.Set<BildirimEntity>().AsNoTracking());
-        Assert.Equal(("Çek vadesi", "Ahmet Yılmaz · 50.000 TL · 26 Eylül", $"/#cheques/{cek.Id}", CekBildirimleri.VadeTuru, cek.Id),
+        Assert.Equal(("Çek vadesi", "Ahmet Yılmaz · 50.000,00 TL · 26 Eylül", $"/#cheques/{cek.Id}", CekBildirimleri.VadeTuru, cek.Id),
             (bildirim.Baslik, bildirim.Mesaj, bildirim.Hedef, bildirim.Tur, bildirim.KaynakId));
     }
 ```
@@ -2561,8 +2561,8 @@ public static class CekBildirimleri
         return sonuc;
     }
 
-    /// <summary>Tasarımdaki biçim: kuruşsuz tutar "50.000 TL", kuruşlu "50.000,50 TL".</summary>
-    private static string Tl(decimal tutar) => tutar.ToString(tutar == decimal.Truncate(tutar) ? "N0" : "N2", Tr) + " TL";
+    /// <summary>Kart ve kredi bildirimleriyle aynı biçim: her zaman kuruşlu, "50.000,00 TL" (ürün sahibi 2026-10-01).</summary>
+    private static string Tl(decimal tutar) => tutar.ToString("N2", Tr) + " TL";
 }
 ```
 
