@@ -113,6 +113,19 @@ public class CekKurallariTests
         Assert.False(CekKurallari.AyniCek(A, "Garanti", "1", A, "Ziraat", "1"));
     }
 
+    /// <summary>Arama anahtarı (CekServisi.Liste'nin arama süzgecinin kullandığı normalleştirme; AyniCek'teki katlamanın tek kaynağı):
+    /// küçük harfe çevirir, baştaki/sondaki boşluğu kırpar, Türkçe I/ı/İ/i'yi tek harfe katlar.</summary>
+    [Fact]
+    public void AramaAnahtari_turkce_I_harflerini_katlar_bosluk_kirpar_kucuk_harfe_cevirir()
+    {
+        Assert.Equal("ziraat", CekKurallari.AramaAnahtari("ZIRAAT"));
+        Assert.Equal("ziraat", CekKurallari.AramaAnahtari("ZİRAAT"));
+        Assert.Equal("ziraat", CekKurallari.AramaAnahtari(" Ziraat "));
+        Assert.Equal("ti-12", CekKurallari.AramaAnahtari("TI-12"));
+        Assert.Equal("", CekKurallari.AramaAnahtari(null));
+        Assert.Equal("", CekKurallari.AramaAnahtari("   "));
+    }
+
     [Fact]
     public void Hareket_karsi_taraf_yalniz_ciro_ve_kirdirmada_girilir()
     {

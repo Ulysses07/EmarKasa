@@ -97,6 +97,135 @@ public class CekUcTests
         Assert.Null((await Post<CekDto>(c, Yol, Verilen())).Uyari);
     }
 
+    /// <summary>Listede üç ya da daha çok kayıt varken aynı çek uyarısı her ikisinde karşılıklı görünür (CekServisi.Dto'nun
+    /// benzer grubu O(n) hesapladığını, yalnız ilk eşleşmeyi değil bütün eşleşmeleri bulduğunu sabitler); farklı çekte uyarı yok.</summary>
+    [Fact]
+    public async Task Listede_birden_fazla_benzer_cek_hepsinde_karsilikli_uyari_verir_farkli_cekte_uyari_yok()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var a = await Post<CekDto>(c, Yol, Alinan());
+        var b = await Post<CekDto>(c, Yol, Alinan());
+        var farkli = await Post<CekDto>(c, Yol, Alinan("99999"));
+
+        var liste = (await c.GetFromJsonAsync<List<CekDto>>(Yol, TestContext.Current.CancellationToken))!.ToDictionary(x => x.Id);
+        Assert.Equal($"Aynı yön, banka ve numarayla kayıtlı başka çek var: #{b.Id}.", liste[a.Id].Uyari);
+        Assert.Equal($"Aynı yön, banka ve numarayla kayıtlı başka çek var: #{a.Id}.", liste[b.Id].Uyari);
+        Assert.Null(liste[farkli.Id].Uyari);
+    }
+
+    /// <summary>Arama Türkçe I/ı/İ/i'yi katlar (CekKurallari.AramaAnahtari): "ZIRAAT" bankalı çek "ziraat" aramasıyla,
+    /// "TI-12" numaralı çek "ti-12" aramasıyla bulunur (tr-TR IgnoreCase bunu tek başına eşitlemez).</summary>
+    [Fact]
+    public async Task Arama_turkce_I_harflerini_katlar()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        await Post<CekDto>(c, Yol, Alinan("TI-12") with { Banka = "ZIRAAT" });
+        await Post<CekDto>(c, Yol, Alinan("99999") with { Banka = "Garanti" });
+
+        async Task<List<string>> Nolar(string sorgu) =>
+            (await c.GetFromJsonAsync<List<CekDto>>(Yol + sorgu, TestContext.Current.CancellationToken))!.Select(x => x.No).ToList();
+        Assert.Equal(["TI-12"], await Nolar("?ara=ziraat"));
+        Assert.Equal(["TI-12"], await Nolar("?ara=ti-12"));
+    }
+
+    /// <summary>Plan kararı 4: ödeme hareketi çekin kasasını kopyalar; çekin kasası sonradan değişse de geçmiş ödeme satırı
+    /// değişmez. Ortak kasalı verilen çekin ödemesi de ayrıca sınanır.</summary>
+    [Fact]
+    public async Task Verilen_cek_kasasi_sonradan_degisirse_eski_odeme_hareketinin_kasasi_degismez()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await Post<CekDto>(c, Yol, Verilen(kanal: "MEZAT", tutar: 30_000m));
+        cek = await Post<CekDto>(c, $"{Yol}/{cek.Id}/hareketler", Hareket(cek, CekHareketTurleri.Odeme, 10_000m));
+        var ilkHareket = Assert.Single(cek.Hareketler);
+        Assert.Equal("MEZAT", ilkHareket.Kanal);
+        var mezatOnce = (await Panel(c)).Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye;
+        Assert.Equal(1_000m - 10_000m, (await Panel(c)).GuncelKasa);
+
+        // Kasa Ortak'a değiştirilir; eski hareket MEZAT kalır, MEZAT'ın kanal sonucu da değişmez.
+        var duzelt = Verilen(tutar: 30_000m) with { Surum = cek.Surum };
+        var yanit = await c.PutAsJsonAsync($"{Yol}/{cek.Id}", duzelt, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
+        cek = (await yanit.Content.ReadFromJsonAsync<CekDto>(TestContext.Current.CancellationToken))!;
+        Assert.Equal(KanalEtiketleri.Ortak, cek.Kanal);
+        var eskiHareket = Assert.Single(cek.Hareketler);
+        Assert.Equal("MEZAT", eskiHareket.Kanal);
+        Assert.Equal(mezatOnce, (await Panel(c)).Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye);
+        Assert.Equal(1_000m - 10_000m, (await Panel(c)).GuncelKasa);
+
+        // Ortak kasalı verilen çekin ödemesi: yeni hareket Ortak'tandır, MEZAT'ı etkilemez.
+        cek = await Post<CekDto>(c, $"{Yol}/{cek.Id}/hareketler", Hareket(cek, CekHareketTurleri.Odeme, 20_000m));
+        var yeniHareket = cek.Hareketler[1];
+        Assert.Null(yeniHareket.KanalId);
+        Assert.Equal(KanalEtiketleri.Ortak, yeniHareket.Kanal);
+        Assert.Equal(mezatOnce, (await Panel(c)).Kanallar.Single(k => k.Kanal == "MEZAT").Bakiye);
+        Assert.Equal(1_000m - 10_000m - 20_000m, (await Panel(c)).GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Hareketli_cekte_tutar_odenenin_altina_inemez_yon_degistirilemez()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await Post<CekDto>(c, Yol, Alinan(tutar: 50_000m));
+        cek = await Post<CekDto>(c, $"{Yol}/{cek.Id}/hareketler", Hareket(cek, CekHareketTurleri.Tahsilat, 20_000m, kanal: "MEZAT"));
+
+        var (durum, govde) = await Gonder(c, HttpMethod.Put, $"{Yol}/{cek.Id}", Alinan(tutar: 10_000m) with { Surum = cek.Surum });
+        Assert.Equal(HttpStatusCode.Conflict, durum);
+        Assert.Equal("Tutar tahsil edilen ya da ödenen tutardan (20.000,00 TL) az olamaz.", Hata(govde));
+
+        (durum, govde) = await Gonder(c, HttpMethod.Put, $"{Yol}/{cek.Id}", Verilen() with { Surum = cek.Surum });
+        Assert.Equal(HttpStatusCode.Conflict, durum);
+        Assert.Equal("Hareketi olan çekin yönü ve türü değiştirilemez; önce hareketleri geri alın.", Hata(govde));
+    }
+
+    [Fact]
+    public async Task Hareket_ucunda_eski_surum_409_dondurur()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var cek = await Post<CekDto>(c, Yol, Alinan());
+        var eskiSurum = cek.Surum;
+        cek = await Post<CekDto>(c, $"{Yol}/{cek.Id}/hareketler", Hareket(cek, CekHareketTurleri.Tahsilat, 10_000m, kanal: "MEZAT"));
+
+        var (durum, govde) = await Gonder(c, HttpMethod.Post, $"{Yol}/{cek.Id}/hareketler",
+            new CekHareketYaz(Guid.NewGuid(), eskiSurum, CekHareketTurleri.Tahsilat, Today, 10_000m, null, "MEZAT", null));
+        Assert.Equal(HttpStatusCode.Conflict, durum);
+        Assert.Equal("Çek başka bir işlemle değişti. Listeyi yenileyip tekrar deneyin.", Hata(govde));
+    }
+
+    [Fact]
+    public async Task Ayni_istekId_farkli_icerikle_409_dondurur()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var istek = Alinan();
+        await Post<CekDto>(c, Yol, istek);
+
+        var (durum, govde) = await Gonder(c, HttpMethod.Post, Yol, istek with { Tutar = 20_000m });
+        Assert.Equal(HttpStatusCode.Conflict, durum);
+        Assert.Equal("İstek kimliği başka bir işlem veya farklı içerik için kullanılmış.", Hata(govde));
+    }
+
+    /// <summary>Tekrar isteği (FinansHesaplari.Tekrar) silinmiş bir çeke ait sonucu yanıtlamaya çalışırsa boş 200 yerine
+    /// 404 "Çek bulunamadı." döner.</summary>
+    [Fact]
+    public async Task Silinen_cekin_ekleme_tekrari_404_dondurur()
+    {
+        await using var f = Fabrika();
+        using var c = await Editor(f);
+        var istek = Alinan();
+        var cek = await Post<CekDto>(c, Yol, istek);
+        var (silDurum, _) = await Gonder(c, HttpMethod.Delete, $"{Yol}/{cek.Id}", new CekSilYaz(Guid.NewGuid(), cek.Surum));
+        Assert.Equal(HttpStatusCode.NoContent, silDurum);
+
+        var (durum, govde) = await Gonder(c, HttpMethod.Post, Yol, istek);
+        Assert.Equal(HttpStatusCode.NotFound, durum);
+        Assert.Equal("Çek bulunamadı.", Hata(govde));
+    }
+
     [Fact]
     public async Task Gecis_ve_tutar_kurallari_turkce_iletiyle_reddedilir()
     {

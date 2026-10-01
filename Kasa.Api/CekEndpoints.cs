@@ -97,7 +97,9 @@ public static partial class FinansTakipEndpoints
             var dugum = JsonSerializer.SerializeToNode(govde)!.AsObject();
             dugum.Remove("Surum");
             var ozet = FinansHesaplari.Ozet(new { id, govde = dugum.ToJsonString() });
-            IResult Yanit(int kimlik) => silme ? Results.NoContent() : Results.Ok(CekServisi.Tek(new TakipHesapBaglami(db), kimlik));
+            IResult Yanit(int kimlik) => silme ? Results.NoContent()
+                : CekServisi.Tek(new TakipHesapBaglami(db), kimlik) is { } dto ? Results.Ok(dto)
+                : Results.Json(new { hata = "Çek bulunamadı." }, statusCode: 404);
             if (FinansHesaplari.Tekrar(db, istekId, tur, ozet, Yanit) is { } tekrar)
                 return tekrar;
             if (id != 0)
@@ -169,7 +171,8 @@ public static partial class FinansTakipEndpoints
         var karsi = CekMetni(d.Karsi, "Karşı taraf", 200, zorunlu: false);
         var mevcut = db.CekHareketler.Where(h => h.CekId == cek.Id).OrderBy(h => h.Sira).ToList();
         var cekirdek = mevcut.Select(CekServisi.Cekirdek).ToList();
-        var yeni = new CekHareketi(0, mevcut.Count + 1, d.Tur, d.Tarih, d.Tutar, d.NetTutar, null, karsi);
+        var sira = mevcut.Count == 0 ? 1 : mevcut.Max(h => h.Sira) + 1;
+        var yeni = new CekHareketi(0, sira, d.Tur, d.Tarih, d.Tutar, d.NetTutar, null, karsi);
         if (CekKurallari.HareketHatasi(cek.Yon, cek.Tutar, cekirdek, yeni) is { } hata)
             Require(false, hata, CekKurallari.IzinliHareketler(cek.Yon, cek.Tutar, cekirdek).Contains(d.Tur) ? 400 : 409);
         int? kanalId = null;
@@ -192,7 +195,7 @@ public static partial class FinansTakipEndpoints
         db.CekHareketler.Add(new CekHareketEntity
         {
             CekId = cek.Id,
-            Sira = mevcut.Count == 0 ? 1 : mevcut.Max(h => h.Sira) + 1,
+            Sira = sira,
             Tur = d.Tur,
             Tarih = d.Tarih,
             Tutar = d.Tutar,
