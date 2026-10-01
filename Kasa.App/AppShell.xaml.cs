@@ -12,6 +12,8 @@ public partial class AppShell : Shell
     /// yetkisi olmayan bölümün öğesi gizli kalır, doğrudan rotayla erişim kuralı önceki menüdekiyle aynıdır.</summary>
     private readonly IReadOnlyDictionary<Bolum, FlyoutItem> _menu;
     private bool _giriseDonuluyor;
+    /// <summary>Menünün açıldığı oturum (AuthViewModel.OturumSurumu); bkz. <see cref="MenuyuAc"/>.</summary>
+    private int? _menuOturumu;
     private bool _cikiliyor;
     private readonly BildirimNobetcisi _bildirimNobetcisi;
     private readonly BildirimTiklamalari _bildirimTiklamalari;
@@ -77,8 +79,15 @@ public partial class AppShell : Shell
             await GiriseDonAsync();
     }
 
+    /// <summary>Oturum açıldığında menü bir kez açılır. Açılışta saklı oturum doğrulanınca iki çağrı gelir: LoginPage (GirisYapildi
+    /// değişimi, ilk Shell öğesi olduğu için sayfa açılışta oluşur) ve <see cref="AcilistaYonlendirAsync"/>. Aynı oturumdaki
+    /// (<see cref="AuthViewModel.OturumSurumu"/>) ikinci çağrı yok sayılır: yoksa ikinci açılış gezinmesi, uygulama bildirim
+    /// tıklamasıyla başladığında birincinin açtığı hedef sayfanın üstüne ilk sayfayı açıyordu.</summary>
     public void MenuyuAc()
     {
+        if (_menuOturumu == _auth.OturumSurumu)
+            return;
+        _menuOturumu = _auth.OturumSurumu;
         MenuyuGoster(SekmeModeli.Bolumler(_auth.AktifRol));
         _ = AcilisaGitAsync(_auth.AktifRol == Rol.Alici ? "//alislar" : "//panel");
     }

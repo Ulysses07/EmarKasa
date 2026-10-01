@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Kasa.ApiClient;
 using Kasa.App.Core;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
+using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
@@ -21,8 +23,13 @@ namespace Kasa.App.WinUI;
 /// gösterimde): o bildirime tıklanırsa Windows yeni (pencereli) süreç başlatır. Süreç bitmeden <see cref="Bitir"/> (Unregister)
 /// çağrılır: sonraki tıklamalar uygulamayı yeniden başlatabilsin; Bitir'den sonra gösterim yapılmaz. Tıklama UI iş parçacığına
 /// Baslat'ta yakalanan DispatcherQueue ile aktarılır (MAUI MainThread pencere yokken InvalidOperationException atar).
+/// <para>Kimlik: süreç her kipte önce <see cref="KimlikAyarla"/> ile sabit AppUserModelID alır (<see cref="BildirimKimligi.Aumid"/>);
+/// Windows App SDK paketsiz kayıtta bu kimliği kullanır, etkinleştirici CLSID'sini kimliğin kaydına (HKCU\Software\Classes\
+/// AppUserModelId\EmarKasa.Masaustu, CustomActivator) yazar. Pencereli açılışta kayıttan sonra arka planda COM sunucusu kaydı bu
+/// exe'ye göre düzeltilir ve Başlat menüsü kısayolu (<see cref="BaslatKisayolu"/>) aynı kimlik ve CLSID ile güncellenir.</para>
 /// Kaynaklar: learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.windows.appnotifications.appnotificationmanager.register,
-/// learn.microsoft.com/windows/apps/develop/notifications/app-notifications/app-notifications-quickstart.
+/// learn.microsoft.com/windows/apps/develop/notifications/app-notifications/app-notifications-quickstart,
+/// github.com/microsoft/WindowsAppSDK dev/AppNotifications/AppNotificationManager.cpp ve AppNotificationUtility.cpp (v1.8.9).
 /// </summary>
 public sealed class WindowsBildirimGosterici : IBildirimGosterici
 {
@@ -74,7 +81,59 @@ public sealed class WindowsBildirimGosterici : IBildirimGosterici
                 Debug.WriteLine($"Windows bildirim kaydı başarısız: {ex}");
             }
         }
+        // Kayıt başarısız olsa da kısayol yazılır (uygulamayı açmak için de kullanılır); açılışı bekletmez.
+        _ = Task.Run(KayitlariDuzenle);
     }
+
+    /// <summary>Sürecin AppUserModelID'sini sabitler. AppNotificationManager.Default ilk kez oluşturulmadan ve pencere açılmadan önce
+    /// çağrılmalıdır (OnLaunched'ın başı, bütün kipler): Windows App SDK kimliği yöneticinin kurucusunda okur. Hata yutulur; o
+    /// durumda Windows App SDK exe yolundan kimlik üretir.</summary>
+    public static void KimlikAyarla()
+    {
+        var sonuc = SetCurrentProcessExplicitAppUserModelID(BildirimKimligi.Aumid);
+        if (sonuc < 0)
+            Debug.WriteLine($"AppUserModelID atanamadı: 0x{sonuc:X8}");
+    }
+
+    /// <summary>Pencereli açılışta, kayıttan sonra (arka planda): Windows App SDK'nın etkinleştirici CLSID'si okunur; COM sunucusu kaydı
+    /// başka exe'yi gösteriyorsa (uygulama başka klasörden açıldı) bu exe'ye çevrilir: sabit kimlikte Windows App SDK var olan kaydı
+    /// yeniden kullanır, yolunu güncellemez (AppNotificationUtility.cpp, GetOrCreateComActivatorGuid). Sonra Başlat menüsü kısayolu
+    /// güncellenir; CLSID okunamazsa kısayol etkinleştiricisiz yazılır. Hatalar yutulur.</summary>
+    private static void KayitlariDuzenle()
+    {
+        if (Environment.ProcessPath is not { } exe)
+            return;
+        Guid? clsid = null;
+        try
+        {
+            using var kimlik = Registry.CurrentUser.OpenSubKey(KimlikKaydi);
+            if (kimlik?.GetValue("CustomActivator") is string deger && Guid.TryParse(deger, out var okunan))
+            {
+                clsid = okunan;
+                using var sunucu = Registry.CurrentUser.CreateSubKey($@"Software\Classes\CLSID\{okunan:B}\LocalServer32");
+                if (!BildirimKimligi.ComSunucusuGuncelMi(sunucu.GetValue(null) as string, exe))
+                    sunucu.SetValue(null, BildirimKimligi.ComSunucusuKomutu(exe), RegistryValueKind.String);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Bildirim COM kaydı düzeltilemedi: {ex}");
+        }
+        try
+        {
+            BaslatKisayolu.Guncelle(new KisayolBilgisi(exe, Path.GetDirectoryName(exe) ?? "", exe, 0, BildirimKimligi.Aumid, clsid));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Başlat menüsü kısayolu yazılamadı: {ex}");
+        }
+    }
+
+    /// <summary>Windows App SDK'nın paketsiz kimlik kaydı (AppNotificationUtility.cpp, c_appIdentifierPath + kimlik).</summary>
+    private const string KimlikKaydi = @"Software\Classes\AppUserModelId\" + BildirimKimligi.Aumid;
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string kimlik);
 
     /// <summary>Süreç bitmeden (pencere kapanınca, süreç çıkışında, pencere açmadan çalışan görevin sonunda): Windows bildirim kaydı
     /// kaldırılır (kayıtlı değilse bir şey yapmaz). Birden çok kez çağrılabilir; bundan sonra gösterim yapılmaz.</summary>
