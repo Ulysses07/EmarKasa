@@ -60,13 +60,21 @@ public sealed class GosterilenBildirimDeposuTests : IDisposable
     {
         Directory.CreateDirectory(_klasor);
         var kilit = new FileStream(Yol, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        Assert.Throws<IOException>(() => new DosyaGosterilenBildirimDeposu(_klasor, deneme: 3, bekleme: TimeSpan.FromMilliseconds(10)).YenileriAyir([1]));
-        var birak = Task.Run(async () =>
+        try
         {
-            await Task.Delay(200, TestContext.Current.CancellationToken);
+            Assert.Throws<IOException>(() => new DosyaGosterilenBildirimDeposu(_klasor, deneme: 3, bekleme: TimeSpan.FromMilliseconds(10)).YenileriAyir([1]));
+            var birak = Task.Run(async () =>
+            {
+                await Task.Delay(200, TestContext.Current.CancellationToken);
+                await kilit.DisposeAsync();
+            }, TestContext.Current.CancellationToken);
+            Assert.Equal([1], new DosyaGosterilenBildirimDeposu(_klasor, deneme: 100, bekleme: TimeSpan.FromMilliseconds(50)).YenileriAyir([1]));
+            await birak;
+        }
+        finally
+        {
+            // Bir doğrulama erken düşerse kilit açık kalmaz (klasör silinebilir); ikinci kapatma zararsızdır.
             await kilit.DisposeAsync();
-        }, TestContext.Current.CancellationToken);
-        Assert.Equal([1], new DosyaGosterilenBildirimDeposu(_klasor, deneme: 100, bekleme: TimeSpan.FromMilliseconds(50)).YenileriAyir([1]));
-        await birak;
+        }
     }
 }

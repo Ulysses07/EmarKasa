@@ -1,8 +1,9 @@
+using System.Diagnostics;
 using System.Globalization;
 
 namespace Kasa.App.Core;
 
-public enum YoklamaDurumu { Basarili, SunucuyaUlasilamadi, SunucuHatasi, OturumGecersiz, YerelKayitHatasi }
+public enum YoklamaDurumu { Basarili, SunucuyaUlasilamadi, SunucuHatasi, OturumGecersiz, YerelKayitHatasi, WindowsAyarindaKapali }
 
 /// <summary>Bir bakmanın sonucu; <see cref="Metin"/> Bildirimler ekranındaki durum satırıdır ("Son kontrol 14:05 · 2 yeni bildirim").
 /// Zaman yerel saattir.</summary>
@@ -15,6 +16,8 @@ public sealed record YoklamaSonucu(DateTimeOffset Zaman, YoklamaDurumu Durum, in
         YoklamaDurumu.SunucuyaUlasilamadi => "sunucuya ulaşılamadı",
         YoklamaDurumu.SunucuHatasi => "sunucu yanıt veremedi",
         YoklamaDurumu.OturumGecersiz => "oturum geçersiz, yeniden giriş yapın",
-        _ => "bu bilgisayardaki kayıt dosyası açılamadı",
+        YoklamaDurumu.YerelKayitHatasi => "bu bilgisayardaki kayıt dosyası açılamadı",
+        YoklamaDurumu.WindowsAyarindaKapali => "Windows ayarlarında bildirimler kapalı",
+        _ => throw new UnreachableException("Bilinmeyen yoklama durumu: " + Durum),
     };
 }

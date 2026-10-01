@@ -93,22 +93,23 @@ internal sealed class SahteAyar : IBildirimAyari
     public bool Acik { get; set; } = true;
 }
 
-/// <summary>Sabit an; yerel saat dilimi UTC (yerel saat = UTC saati).</summary>
-internal sealed class SabitBildirimSaati(DateTimeOffset an) : TimeProvider
+/// <summary>Sabit an; yerel saat dilimi verilmezse UTC (yerel saat = UTC saati).</summary>
+internal sealed class SabitBildirimSaati(DateTimeOffset an, TimeZoneInfo? dilim = null) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => an;
-    public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    public override TimeZoneInfo LocalTimeZone => dilim ?? TimeZoneInfo.Utc;
 }
 
-/// <summary>Bir testin bildirim ortamı: bugün 30.09.2026, saat 14:05; oturum editör ve açık.</summary>
+/// <summary>Bir testin bildirim ortamı: bugün 30.09.2026, saat 14:05 (başka saat verilmezse); oturum editör ve açık.</summary>
 internal sealed class BildirimOrtami
 {
     public static readonly DateOnly Bugun = new(2026, 9, 30);
 
-    public BildirimOrtami(IBildirimApi? api = null, AuthViewModel? auth = null)
+    public BildirimOrtami(IBildirimApi? api = null, AuthViewModel? auth = null, TimeProvider? saat = null)
     {
         Sunucu = api ?? Api;
         Auth = auth ?? new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor, GirisYapildi = true };
+        Saat = saat ?? new SabitBildirimSaati(new DateTimeOffset(2026, 9, 30, 14, 5, 0, TimeSpan.Zero));
         Yoklayici = new BildirimYoklayici(Sunucu, Gosterici, Depo, Ayar, Saat);
     }
 
@@ -120,6 +121,6 @@ internal sealed class BildirimOrtami
     public SahteGosterici Gosterici { get; } = new();
     public SahteDepo Depo { get; } = new();
     public SahteAyar Ayar { get; } = new();
-    public TimeProvider Saat { get; } = new SabitBildirimSaati(new DateTimeOffset(2026, 9, 30, 14, 5, 0, TimeSpan.Zero));
+    public TimeProvider Saat { get; }
     public BildirimYoklayici Yoklayici { get; }
 }

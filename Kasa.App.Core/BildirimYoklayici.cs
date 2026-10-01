@@ -12,11 +12,22 @@ namespace Kasa.App.Core;
 /// kurulumda bir kerede gösterilmez. İptal bilgisi listede yoktur (BildirimDto'da alan yok): sunucu iptal edilmiş bildirimi yalnız
 /// okunmuş ya da bir tarayıcıya gönderilmişse döndürür. Uygulama içinde (BildirimNobetcisi, 5 dakikada bir) ve pencere açmadan çalışan
 /// görevde (BildirimKontrolu) aynı sınıf kullanılır. Hiçbir hata dışarı çıkmaz.
+/// <para>İş parçacığı: uygulamada UI iş parçacığından çağrılır (nöbetçi, kabuk); bekleme sonrası devamlar da orada çalışır (aşağıda
+/// ConfigureAwait yok), bu yüzden durum alanları kilitsizdir. Pencere açmadan çalışan görev tek çağrı yapar.</para>
 /// </summary>
 public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosterici gosterici, IGosterilenBildirimDeposu depo,
     IBildirimAyari ayar, TimeProvider? saat = null) : ObservableObject
 {
     private readonly TimeProvider _saat = saat ?? TimeProvider.System;
+
+    /// <summary>Sürmekte olan bakma: yeni çağrı ona katılır (aynı Task), sunucu iki kez sorulmaz.</summary>
+    private Task<YoklamaSonucu?>? _surenBakma;
+
+    /// <summary><see cref="Sifirla"/> her çağrıldığında artar; sürerken sıfırlanan eski bakma rozeti ve durumu yazmaz.</summary>
+    private int _nesil;
+
+    /// <summary>Son listedeki okunmamış bildirimlerin kimlikleri: rozet yalnız bunlardan biri ilk kez tıklanınca düşer.</summary>
+    private HashSet<int> _okunmamisKimlikler = [];
 
     /// <summary>Son listedeki okunmamış bildirim sayısı (menü rozeti); oturum kapanınca ya da ayar kapanınca 0.</summary>
     [ObservableProperty] private int _okunmamis;
@@ -24,11 +35,24 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
     /// <summary>Son bakmanın sonucu (durum satırı); henüz bakılmadıysa null.</summary>
     [ObservableProperty] private YoklamaSonucu? _sonSonuc;
 
-    /// <summary>Editör oturumunda ve ayar açıkken bir kez bakar; aksi halde hiçbir şey yapmaz ve null döner.</summary>
-    public async Task<YoklamaSonucu?> YoklaAsync(bool editorOturumu)
+    /// <summary>Editör oturumunda ve ayar açıkken bir kez bakar; aksi halde hiçbir şey yapmaz ve null döner. Sürmekte olan bakma
+    /// varsa yenisi başlatılmaz, aynı görev döner. Sürerken <see cref="Sifirla"/> çağrılan bakma null döner ve durumu değiştirmez.</summary>
+    public Task<YoklamaSonucu?> YoklaAsync(bool editorOturumu)
     {
         if (!editorOturumu || !ayar.Acik)
-            return null;
+            return Task.FromResult<YoklamaSonucu?>(null);
+        if (_surenBakma is { IsCompleted: false } suren)
+            return suren;
+        var bakma = BakAsync(_nesil);
+        _surenBakma = bakma.IsCompleted ? null : bakma;
+        return bakma;
+    }
+
+    // ConfigureAwait(false) bilinçli olarak kullanılmaz: Okunmamis ve SonSonuc ObservableProperty'dir, PropertyChanged bildirimleri
+    // bağlı görünümler için UI iş parçacığında kalmalıdır. Depo çağrısı (YenileriAyir) eşzamanlıdır ve dosya kilitliyse UI
+    // iş parçacığını en çok ~0,9 sn (10 deneme, aralarda 100 ms) bekletebilir; pratikte kilit milisaniyeler içinde bırakılır.
+    private async Task<YoklamaSonucu?> BakAsync(int nesil)
+    {
         IReadOnlyList<BildirimDto> liste;
         try
         {
@@ -36,19 +60,25 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
         }
         catch (KasaApiException e) when (e.DurumKodu is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            return Sonuc(YoklamaDurumu.OturumGecersiz, 0);
+            return Sonuc(nesil, YoklamaDurumu.OturumGecersiz, 0);
         }
         catch (KasaApiException)
         {
-            return Sonuc(YoklamaDurumu.SunucuHatasi, 0);
+            return Sonuc(nesil, YoklamaDurumu.SunucuHatasi, 0);
         }
         catch (Exception)
         {
-            return Sonuc(YoklamaDurumu.SunucuyaUlasilamadi, 0);
+            return Sonuc(nesil, YoklamaDurumu.SunucuyaUlasilamadi, 0);
         }
-        Okunmamis = liste.Count(b => !b.Okundu);
+        if (nesil != _nesil)
+            return null;
+        _okunmamisKimlikler = liste.Where(b => !b.Okundu).Select(b => b.Id).ToHashSet();
+        Okunmamis = _okunmamisKimlikler.Count;
         var bugun = DateOnly.FromDateTime(_saat.GetLocalNow().DateTime);
         var adaylar = liste.Where(b => !b.Okundu && b.Tarih == bugun).OrderBy(b => b.Id).ToList();
+        // Windows ayarında kapalıyken gösterim yapılamaz: bildirimler "gösterildi" diye ayrılmaz, ayar açılınca gösterilir.
+        if (WindowsAyarindaKapali())
+            return Sonuc(nesil, YoklamaDurumu.WindowsAyarindaKapali, 0);
         IReadOnlyList<int> yeniler;
         try
         {
@@ -56,7 +86,7 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
         }
         catch (Exception)
         {
-            return Sonuc(YoklamaDurumu.YerelKayitHatasi, 0);
+            return Sonuc(nesil, YoklamaDurumu.YerelKayitHatasi, 0);
         }
         foreach (var bildirim in adaylar.Where(b => yeniler.Contains(b.Id)))
         {
@@ -69,11 +99,12 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
                 // Tek bildirimin gösterilememesi ötekileri durdurmaz; bildirim listede ve telefonda görünmeye devam eder.
             }
         }
-        return Sonuc(YoklamaDurumu.Basarili, yeniler.Count);
+        return Sonuc(nesil, YoklamaDurumu.Basarili, yeniler.Count);
     }
 
     /// <summary>Tıklanan bildirimi sunucuda okundu işaretler (hata yutulur; sonraki bakmada sayı düzelir) ve açılacak Shell rotasını
-    /// döner. Editör oturumu yoksa hiçbir şey yapmaz ve null döner.</summary>
+    /// döner. Rozet yalnız son listede okunmamış olan bildirimin ilk tıklamasında düşer: aynı tıklama iki yoldan gelebilir, telefonda
+    /// okunmuş bildirim zaten sayılmamıştır. Editör oturumu yoksa hiçbir şey yapmaz ve null döner.</summary>
     public async Task<string?> TiklandiAsync(BildirimTiklamasi tiklama, bool editorOturumu)
     {
         if (!editorOturumu)
@@ -83,7 +114,8 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
             try
             {
                 await api.BildirimOkunduAsync(kimlik);
-                Okunmamis = Math.Max(0, Okunmamis - 1);
+                if (_okunmamisKimlikler.Remove(kimlik))
+                    Okunmamis = Math.Max(0, Okunmamis - 1);
             }
             catch (Exception)
             {
@@ -96,15 +128,34 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
     /// <summary>Bildirimler ekranı listeyi yükleyince ya da okundu işaretleyince okunmamış sayısını bildirir.</summary>
     public void OkunmamisBildir(int sayi) => Okunmamis = Math.Max(0, sayi);
 
-    /// <summary>Oturum kapandı, rol editör değil ya da ayar kapandı: rozet gizlenir, durum satırı boşalır.</summary>
+    /// <summary>Oturum kapandı, rol editör değil ya da ayar kapandı: rozet gizlenir, durum satırı boşalır; sürmekte olan bakmanın
+    /// sonucu yok sayılır ve sonraki çağrı yeniden sorar.</summary>
     public void Sifirla()
     {
+        _nesil++;
+        _surenBakma = null;
+        _okunmamisKimlikler = [];
         Okunmamis = 0;
         SonSonuc = null;
     }
 
-    private YoklamaSonucu Sonuc(YoklamaDurumu durum, int yeni)
+    private bool WindowsAyarindaKapali()
     {
+        try
+        {
+            return gosterici.WindowsAyarindaKapali;
+        }
+        catch (Exception)
+        {
+            // Ayar okunamazsa gösterim denenir; gösterim hatası zaten tek tek yutulur.
+            return false;
+        }
+    }
+
+    private YoklamaSonucu? Sonuc(int nesil, YoklamaDurumu durum, int yeni)
+    {
+        if (nesil != _nesil)
+            return null;
         var sonuc = new YoklamaSonucu(_saat.GetLocalNow(), durum, yeni);
         SonSonuc = sonuc;
         return sonuc;
