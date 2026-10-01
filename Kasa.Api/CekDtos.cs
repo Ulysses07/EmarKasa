@@ -23,3 +23,9 @@ public record CekHareketDto(int Id, int Sira, string Tur, DateOnly Tarih, decima
 public record CekDto(int Id, int Surum, string Tur, string Yon, string No, string? Banka, string Kisi, decimal Tutar, DateOnly VadeTarihi,
     int? KanalId, string? Kanal, bool Teminat, string? Konum, string? Not, string Durum, decimal Kalan, IReadOnlyList<string> IzinliHareketler,
     IReadOnlyList<CekHareketDto> Hareketler, string? Uyari);
+
+public record CekOzetKalemi(int Adet, decimal Toplam);
+
+/// <summary>Çek panel özeti (GET /api/takip/cekler/ozet). Teminat çekleri ve kapanmış çekler dışarıdadır; tutarlar kalandır. Otuz gün
+/// bugünden bugün+30'a kadardır (ikisi dahil). Vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen tahsil edilmiş alınan çek.</summary>
+public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis);

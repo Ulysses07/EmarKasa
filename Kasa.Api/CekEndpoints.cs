@@ -35,6 +35,7 @@ public static partial class FinansTakipEndpoints
                 Require(vadeBas is null || vadeSon is null || vadeBas <= vadeSon, "Vade başlangıcı bitişten sonra olamaz.");
                 return CekServisi.Liste(b, yon, durum, ara, vadeBas, vadeSon);
             }, ct));
+        api.MapGet("/cekler/ozet", (KasaDbContext db, CancellationToken ct) => View(db, b => CekServisi.Ozet(b), ct));
         api.MapGet("/cekler/{id:int}", (int id, KasaDbContext db, CancellationToken ct) => View(db, b =>
         {
             var cek = CekServisi.Tek(b, id);

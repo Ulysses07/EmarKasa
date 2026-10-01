@@ -67,6 +67,23 @@ internal static class CekServisi
     /// <summary>Tek çek; yoksa null.</summary>
     internal static CekDto? Tek(TakipHesapBaglami b, int id) => Oku(b.Db, id) is [var k] ? Dto(b, k, BenzerGruplari(b.Db)) : null;
 
+    internal static CekOzetDto Ozet(TakipHesapBaglami b)
+    {
+        var bugun = b.Bugun;
+        var sinir = bugun.AddDays(30);
+        var acik = Oku(b.Db).Where(k => !k.Cek.Teminat && k.Durum.Acik).ToList();
+        var alinan = acik.Where(k => k.Cek.Yon == CekYonleri.Alinan).ToList();
+        return new(bugun, Kalem(alinan), Kalem(alinan.Where(k => k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
+            Kalem(acik.Where(k => k.Cek.Yon == CekYonleri.Verilen && k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
+            Kalem(alinan.Where(k => k.Cek.VadeTarihi < bugun)));
+    }
+
+    private static CekOzetKalemi Kalem(IEnumerable<Kayit> kayitlar)
+    {
+        var liste = kayitlar.ToList();
+        return new(liste.Count, liste.Sum(k => k.Durum.Kalan));
+    }
+
     internal static List<CekDto> Liste(TakipHesapBaglami b, string? yon, string? durum, string? ara, DateOnly? vadeBas, DateOnly? vadeSon)
     {
         var aranan = string.IsNullOrWhiteSpace(ara) ? null : CekKurallari.AramaAnahtari(ara);
