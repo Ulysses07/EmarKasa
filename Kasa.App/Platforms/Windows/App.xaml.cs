@@ -48,7 +48,16 @@ public partial class App : MauiWinUIApplication
             Exit();
             return;
         }
-        Kilit = PencereKilidi.Al();
+        try
+        {
+            Kilit = PencereKilidi.Al();
+        }
+        catch (Exception ex)
+        {
+            // Kilit alınamazsa (erişim reddi, aynı adlı başka nesne) uygulama kilitsiz açılır: görev bu sürede de bakabilir, gösterilen
+            // kimlikler deposu aynı bildirimin iki kez gösterilmesini önler.
+            System.Diagnostics.Debug.WriteLine($"Pencere kilidi alınamadı: {ex}");
+        }
         // Bildirim tıklaması: işleyici kayıttan önce bağlanır (uygulama açıkken tıklama bu süreçte işlenir); uygulama bildirim
         // tıklamasıyla başladıysa tıklama bekletilir, kabuk oturum açılınca uygular. Kayıt süreç biterken kaldırılır.
         WindowsBildirimGosterici.Ortak.Baslat();
