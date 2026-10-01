@@ -110,7 +110,7 @@ internal static class KanalKurallari
     }
 
     /// <summary>Kanal silinebilir mi: geçmişi (kimliğiyle ya da kimliksiz eski etiketle bağlı hareket, takip, alış payı, aylık gider
-    /// şablonu ya da ekstre dağılımı) veya açılış devri varsa ileti; geçmişsizse ve tamamlanmış bir ayın kanal kümesinde yer alıyorsa
+    /// şablonu, ekstre dağılımı, çek ya da çek hareketi) veya açılış devri varsa ileti; geçmişsizse ve tamamlanmış bir ayın kanal kümesinde yer alıyorsa
     /// (<see cref="AyKanalKumesi.SilmeEngeli"/>) o ileti; yoksa null. İleti pasife almayı önerir (kilit varken de serbesttir). Çok
     /// kanallı aylık gider ve ekstre giderinin kaydı kanal kimliği taşımaz, payları şablon revizyonunda ve ekstre kaydının
     /// dağılımındadır: bunlar da burada denetlenir; kaydetme kurallarındaki aynı denetim (AyKilidiKurallari, EkstreKaynakKurallari,

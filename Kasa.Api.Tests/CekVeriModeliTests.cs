@@ -1,8 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
 using Kasa.Api.Data;
 using Kasa.Core.Kodlar;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Kasa.Api.Tests.AylikGiderTests;
