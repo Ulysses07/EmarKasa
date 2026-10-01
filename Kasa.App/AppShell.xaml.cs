@@ -52,6 +52,12 @@ public partial class AppShell : Shell
         // gelir (Windows göstericisi UI iş parçacığına aktarır); gezinme yine de ana iş parçacığında yapılır.
         _bildirimZamanlayicisi.Tick += async (_, _) => await BildirimYoklaAsync();
         _bildirimTiklamalari.Istendi += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await TiklamayiUygulaAsync());
+        // Menü rozeti: okunmamış bildirim sayısı (5 dakikalık bakma, Bildirimler ekranı, tıklama); çıkışta 0 olur ve gizlenir.
+        _bildirimNobetcisi.Yoklayici.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BildirimYoklayici.Okunmamis))
+                MainThread.BeginInvokeOnMainThread(() => _menuModeli.RozetAyarla(Bolum.Bildirimler, _bildirimNobetcisi.Yoklayici.Okunmamis));
+        };
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
     }
 

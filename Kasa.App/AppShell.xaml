@@ -38,7 +38,8 @@
          (MenuOgesi.Secili / UzerindeVurgu; ikisi aynı anda doğru olmaz). Tıklama ve klavye yüzeyi alttaki şeffaf düğmedir
          (SeffafDugme): Tab ile odaklanır, UI Otomasyonu'nda öğe başlığıyla adlanır, seçili öğe "Seçili sayfa" ipucuyla bildirilir;
          yazılar ve nokta girdiyi geçirir ve erişilebilirlik ağacında ayrı öğe olarak görünmez. Grup başlığı ekran okuyucuda
-         düzey 2 başlıktır. -->
+         düzey 2 başlıktır. Bildirimler öğesinin rozeti (okunmamış sayısı) başlık sütununun sağındadır; ekran okuyucu sayıyı
+         düğme açıklamasından (ErisimAdi) okur. -->
     <Shell.FlyoutContent>
         <ScrollView x:Name="MenuAlani" x:DataType="core:MenuModeli">
             <VerticalStackLayout Padding="0,4,0,16" BindableLayout.ItemsSource="{Binding Gruplar}">
@@ -69,7 +70,7 @@
                                             </Grid.GestureRecognizers>
                                             <Button Grid.ColumnSpan="3" Style="{StaticResource SeffafDugme}"
                                                     Command="{Binding SecCommand}"
-                                                    SemanticProperties.Description="{Binding Baslik}">
+                                                    SemanticProperties.Description="{Binding ErisimAdi}">
                                                 <Button.Triggers>
                                                     <DataTrigger TargetType="Button" Binding="{Binding Secili}" Value="True">
                                                         <Setter Property="SemanticProperties.Hint" Value="Seçili sayfa" />
@@ -82,6 +83,14 @@
                                             <Label Grid.Column="1" Text="{Binding Baslik}" FontSize="13.5"
                                                    TextColor="{StaticResource SidebarText}" VerticalOptions="Center"
                                                    InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
+                                            <Border Grid.Column="1" IsVisible="{Binding RozetVar}" HorizontalOptions="End"
+                                                    VerticalOptions="Center" Padding="7,1" StrokeThickness="0"
+                                                    StrokeShape="RoundRectangle 9" BackgroundColor="{StaticResource SidebarAccent}"
+                                                    InputTransparent="True" AutomationProperties.IsInAccessibleTree="False">
+                                                <Label Text="{Binding RozetMetni}" FontSize="11" FontAttributes="Bold"
+                                                       TextColor="{StaticResource Sidebar}"
+                                                       AutomationProperties.IsInAccessibleTree="False" />
+                                            </Border>
                                             <Ellipse Grid.Column="2" IsVisible="{Binding Secili}" Margin="0,0,12,0" WidthRequest="6"
                                                      HeightRequest="6" Fill="{StaticResource SidebarAccent}" VerticalOptions="Center"
                                                      InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
