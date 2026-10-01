@@ -4,7 +4,6 @@ hex	Kasa.App/Converters/ParaRenkConverter.cs	2
 satir	Kasa.App/Platforms/Android/MainActivity.cs	1
 satir	Kasa.App/Views/AlislarPage.xaml	2
 satir	Kasa.App/Views/AyarlarPage.xaml	1
-satir	Kasa.App/Views/BildirimPage.cs	2
 satir	Kasa.App/Views/EkstreAktarmaPage.cs	1
 satir	Kasa.App/Views/GuvenlikAlani.cs	1
 satir	Kasa.App/Views/KasaKontrolAlanlari.cs	1
