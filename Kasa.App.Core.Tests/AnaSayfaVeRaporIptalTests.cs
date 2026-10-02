@@ -152,12 +152,13 @@ public class AnaSayfaVeRaporIptalTests
 
             await vm.YukleAsync();
 
+            // HF-01: istemci en yeniden eskiye sıralar; sunucunun döndürdüğü sıra (6, 13, 20) ekranda ters (20, 13, 6).
             Assert.Equal(3, vm.Donemler.Count);
-            Assert.False(vm.Donemler[0].DagilimBekliyor);
+            Assert.True(vm.Donemler[0].DagilimBekliyor);
+            Assert.Equal("Dağılım bekleyen: -40,00 ₺", vm.Donemler[0].DagilimBekleyenMetni);
             Assert.True(vm.Donemler[1].DagilimBekliyor);
             Assert.Equal("Dağılım bekleyen: 1.234,50 ₺", vm.Donemler[1].DagilimBekleyenMetni);
-            Assert.True(vm.Donemler[2].DagilimBekliyor);
-            Assert.Equal("Dağılım bekleyen: -40,00 ₺", vm.Donemler[2].DagilimBekleyenMetni);
+            Assert.False(vm.Donemler[2].DagilimBekliyor);
             Assert.Equal(new DateOnly(2027, 9, 13), vm.Donemler[1].Donem.Start);
             Assert.Equal(75m, vm.Donemler[1].KasaSonucu);
         }

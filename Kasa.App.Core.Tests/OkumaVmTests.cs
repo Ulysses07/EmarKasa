@@ -21,6 +21,27 @@ public class OkumaVmTests
         Assert.Equal(100m, vm.Donemler[0].KasaSonucu);
     }
 
+    /// <summary>HF-01: sunucu eskiden yeniye döner; içinde bulunulan hafta her seferinde sona kaydırmadan görünsün diye
+    /// istemci yeniden eskiye sıralar.</summary>
+    [Fact]
+    public async Task Haftalik_donemler_en_yeniden_eskiye_siralanir()
+    {
+        var api = new SahteApi
+        {
+            HaftalikListe = new List<HaftalikOzetDto>
+            {
+                new(new DonemDto(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), 2026, 8), new List<KanalHaftalikDto>(), 0, 0, 10m, 0m),
+                new(new DonemDto(new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 4), 2026, 9), new List<KanalHaftalikDto>(), 0, 0, 30m, 0m),
+                new(new DonemDto(new DateOnly(2026, 8, 24), new DateOnly(2026, 8, 30), 2026, 8), new List<KanalHaftalikDto>(), 0, 0, 20m, 0m),
+            },
+        };
+        var vm = new HaftalikViewModel(api);
+
+        await vm.YukleAsync();
+
+        Assert.Equal(new[] { 30m, 20m, 10m }, vm.Donemler.Select(d => d.KasaSonucu));
+    }
+
     [Fact]
     public async Task Aylik_secilen_yil_ayi_ister()
     {

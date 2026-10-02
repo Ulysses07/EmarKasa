@@ -19,8 +19,11 @@ public partial class HaftalikViewModel : RaporViewModel
         VeriSagligiUyarisi = null;
         return RaporYukleAsync(ct => _api.HaftalikAsync(ct), liste =>
         {
+            // HF-01: sunucu eskiden yeniye döner; içinde bulunulan hafta her seferinde sona kaydırmadan görünsün diye
+            // istemci yeniden eskiye sıralar. Veri sağlığı uyarısı sunucunun döndürdüğü (eskiden yeniye) sırayla, yalnız
+            // son dönemde aranır.
             Donemler.Clear();
-            foreach (var d in liste)
+            foreach (var d in liste.OrderByDescending(d => d.Donem.Start))
                 Donemler.Add(new HaftalikSatir(d));
             VeriSagligiUyarisi = liste.LastOrDefault(d => !string.IsNullOrWhiteSpace(d.VeriSagligiUyarisi))?.VeriSagligiUyarisi;
         });
