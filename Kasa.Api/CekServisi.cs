@@ -86,8 +86,6 @@ internal static class CekServisi
 
     internal static List<CekDto> Liste(TakipHesapBaglami b, string? yon, string? durum, string? ara, DateOnly? vadeBas, DateOnly? vadeSon)
     {
-        var aranan = string.IsNullOrWhiteSpace(ara) ? null : CekKurallari.AramaAnahtari(ara);
-        bool Icerir(string? alan) => CekKurallari.AramaAnahtari(alan).Contains(aranan!, StringComparison.Ordinal);
         var kayitlar = Oku(b.Db);
         // Benzer grupları aynı okumadan türetilir; ikinci bir Cekler sorgusu atılmaz.
         var gruplar = BenzerGruplari(kayitlar.Select(k => new BenzerBilgi(k.Cek.Id, k.Cek.Yon, k.Cek.Banka, k.Cek.No)));
@@ -100,7 +98,7 @@ internal static class CekServisi
                 CekSuzgecleri.Kapanan => k.Durum.Kapali,
                 _ => true,
             })
-            .Where(k => aranan is null || Icerir(k.Cek.Kisi) || Icerir(k.Cek.Banka) || Icerir(k.Cek.No))
+            .Where(k => CekKurallari.AramayaUyar(k.Cek.Kisi, k.Cek.Banka, k.Cek.No, ara))
             .Where(k => (vadeBas is null || k.Cek.VadeTarihi >= vadeBas) && (vadeSon is null || k.Cek.VadeTarihi <= vadeSon))
             .OrderBy(k => k.Cek.VadeTarihi).ThenBy(k => k.Cek.Id)
             .Select(k => Dto(b, k, gruplar)).ToList();

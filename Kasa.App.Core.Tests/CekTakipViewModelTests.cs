@@ -48,7 +48,7 @@ public class CekTakipViewModelTests
                 KayitHatasi = null;
                 return Task.FromException<CekDto>(hata);
             }
-            return Task.FromResult(Cek(id ?? 99, g.Yon, g.Tutar, no: g.No) with { Surum = g.Surum + 1 });
+            return Task.FromResult(Cek(id ?? 99, g.Yon, g.Tutar, no: g.No, vade: g.VadeTarihi) with { Surum = g.Surum + 1 });
         }
         public Task CekSilAsync(int id, CekSilYaz g)
         {
@@ -399,6 +399,68 @@ public class CekTakipViewModelTests
         await vm.SilAsync();
         Assert.Equal(sayi + 3, api.OzetSayisi);
         Assert.Equal(new[] { 2 }, vm.Cekler.Select(s => s.Veri.Id));
+    }
+
+    [Fact]
+    public async Task Arama_etkinken_uymayan_yeni_cek_listeye_girmez_mesaj_soylenir()
+    {
+        var (vm, _) = await Vm(Rol.Editor, Cek(1, no: "12345"));
+        vm.Ara = "12345";
+        await vm.AraCommand.ExecuteAsync(null);
+        Assert.Equal(new[] { 1 }, vm.Cekler.Select(s => s.Veri.Id));
+
+        vm.YeniCekCommand.Execute(null);
+        vm.No = "99999"; // arama metnine ("12345") uymaz
+        vm.Kisi = "Deneme";
+        vm.Tutar = 1_000m;
+        await vm.KaydetCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { 1 }, vm.Cekler.Select(s => s.Veri.Id));
+        Assert.Equal("Çek kaydedildi; seçili süzgeç (Alınan · Portföyde) dışında kaldığı için listede görünmüyor.", vm.Mesaj);
+    }
+
+    [Fact]
+    public async Task Arama_etkinken_uyan_cek_duzeltilip_uymaz_olunca_duser()
+    {
+        var (vm, _) = await Vm(Rol.Editor, Cek(1, no: "12345"));
+        vm.Ara = "12345";
+        await vm.AraCommand.ExecuteAsync(null);
+        Assert.Equal(new[] { 1 }, vm.Cekler.Select(s => s.Veri.Id));
+
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.DuzeltCommand.Execute(null);
+        vm.No = "00000"; // artık arama metnine uymaz
+        await vm.KaydetCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.Cekler);
+        Assert.Null(vm.Acik);
+        Assert.Equal("Çek güncellendi; seçili süzgeç (Alınan · Portföyde) dışında kaldığı için listede görünmüyor.", vm.Mesaj);
+    }
+
+    [Fact]
+    public async Task Vadesi_daha_gec_olan_yeni_cek_listenin_dogru_yerine_girer()
+    {
+        var (vm, _) = await Vm(Rol.Editor, Cek(1, vade: Bugun.AddDays(5)), Cek(2, vade: Bugun.AddDays(10)));
+        vm.YeniCekCommand.Execute(null);
+        vm.No = "999";
+        vm.Kisi = "Deneme";
+        vm.Tutar = 1_000m;
+        vm.Vade = Bugun.AddDays(20).ToDateTime(TimeOnly.MinValue);
+        await vm.KaydetCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { 1, 2, 99 }, vm.Cekler.Select(s => s.Veri.Id));
+    }
+
+    [Fact]
+    public async Task Vadesi_degistirilen_cek_yeni_yerine_tasinir()
+    {
+        var (vm, _) = await Vm(Rol.Editor, Cek(1, vade: Bugun.AddDays(5)), Cek(2, vade: Bugun.AddDays(10)), Cek(3, vade: Bugun.AddDays(15)));
+        vm.SecCommand.Execute(vm.Cekler[0]); // Id 1
+        vm.DuzeltCommand.Execute(null);
+        vm.Vade = Bugun.AddDays(20).ToDateTime(TimeOnly.MinValue);
+        await vm.KaydetCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { 2, 3, 1 }, vm.Cekler.Select(s => s.Veri.Id));
     }
 
     [Fact]

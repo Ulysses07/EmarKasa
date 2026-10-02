@@ -147,11 +147,23 @@ public static class CekKurallari
 
     private static bool Esit(string? a, string? b) => AramaAnahtari(a) == AramaAnahtari(b);
 
-    /// <summary>Arama ve eşitlik karşılaştırmalarının tek kaynağı (<see cref="AyniCek"/>, CekServisi.Liste'nin arama süzgeci):
+    /// <summary>Arama ve eşitlik karşılaştırmalarının tek kaynağı (<see cref="AyniCek"/>, <see cref="AramayaUyar"/>):
     /// küçük harfe çevirir (tr-TR), baştaki ve sondaki boşluğu kırpar, I/ı/İ/i'yi tek harfe katlar. tr-TR'de "I".ToLower()
     /// "ı" (noktasız) verir, "ziraat" içindeki "i" (noktalı) ile harf olarak eşit sayılmaz; bu yüzden tr-TR IgnoreCase
     /// karşılaştırması tek başına "ZIRAAT" ile "ziraat"i eşitlemez. Null girdi boş dizeye katlanır.</summary>
     public static string AramaAnahtari(string? s) => (s ?? "").Trim().ToLower(Tr).Replace('ı', 'i');
+
+    /// <summary>Çek arama süzgecine uyuyor mu: kişi, banka ya da numarada arama metni geçer (CekServisi.Liste ile aynı kural,
+    /// masaüstü istemcisinin yerel süzgecinde de kullanılır — CekTakipViewModel.SuzgecteGorunur). Arama metni boş ya da
+    /// yalnız boşluksa her çek uyar.</summary>
+    public static bool AramayaUyar(string kisi, string? banka, string no, string? ara)
+    {
+        if (string.IsNullOrWhiteSpace(ara))
+            return true;
+        var aranan = AramaAnahtari(ara);
+        bool Icerir(string? alan) => AramaAnahtari(alan).Contains(aranan, StringComparison.Ordinal);
+        return Icerir(kisi) || Icerir(banka) || Icerir(no);
+    }
 
     /// <summary>Durumun görünen adı (küçük harfle; cümle içinde ve listede kullanılır).</summary>
     public static string DurumAdi(string durum) => durum switch
