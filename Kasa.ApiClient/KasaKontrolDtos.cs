@@ -28,7 +28,9 @@ public record KasaKontrolSonrasiDto(int KontrolId, DateTimeOffset Kaydedildi, Da
     decimal GuncelSistemBakiye, decimal BugunkuSistemBakiye, IReadOnlyList<DenetimOlayDto> Degisiklikler, IReadOnlyList<KasaKontrolIstekDto> Istekler,
     IReadOnlyList<KasaHareketiDto> Hareketler, bool Kirpildi);
 /// <summary>Kasa hareket dökümünün satırı. <paramref name="Tur"/>: Gelir, EkstreGeliri, EkGelir, KrediCekimi, Gider, SabitGider,
-/// AylikGider, KartOdemesi, KartIadesi, KrediTaksidi, KartAySonu. <paramref name="Otomatik"/>: tarihinde kendiliğinden işleyen etki.</summary>
+/// AylikGider, KartOdemesi, KartIadesi, KrediTaksidi, KartAySonu, Cek. <paramref name="KaynakAnahtari"/>: çek satırında hareketin
+/// kimliği ("Cek:31", gider ayağı "Cek:31:gider") — anahtarın türü "Cek" olsa da kimlik çekin değil hareketin kimliğidir; denetim
+/// izindeki varlık buna göre "CekHareket"tir, "Cek" değil. <paramref name="Otomatik"/>: tarihinde kendiliğinden işleyen etki.</summary>
 public record KasaHareketiDto(DateOnly EtkiTarihi, DateOnly KayitTarihi, string Tur, string Aciklama, string Kanal, int? KanalId,
     decimal GenelKasaEtkisi, decimal KanalEtkisi, string? KaynakAnahtari, bool Otomatik);
 public record KasaHareketleriDto(DateOnly Baslangic, DateOnly Bitis, int? KanalId, string? Kanal, decimal AcilisBakiyesi, decimal KapanisBakiyesi,

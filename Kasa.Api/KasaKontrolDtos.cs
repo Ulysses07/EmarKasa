@@ -44,11 +44,13 @@ public record KasaKontrolSonrasiDto(int KontrolId, DateTimeOffset Kaydedildi, Da
     IReadOnlyList<KasaHareketiDto> Hareketler, bool Kirpildi);
 /// <summary>
 /// Kasa hareket dökümünün satırı (bkz. <see cref="Servisler.KasaDokumu"/>). <paramref name="Tur"/>: Gelir, EkstreGeliri, EkGelir,
-/// KrediCekimi, Gider, SabitGider, AylikGider, KartOdemesi, KartIadesi, KrediTaksidi, KartAySonu. <paramref name="KaynakAnahtari"/>:
+/// KrediCekimi, Gider, SabitGider, AylikGider, KartOdemesi, KartIadesi, KrediTaksidi, KartAySonu, Cek. <paramref name="KaynakAnahtari"/>:
 /// denetim izindeki varlık ve kimlik ("Islem:812", "TakipKartOdeme:44", "TakipKrediTaksit:9", "Kredi:5", "EkstreKayit:9",
-/// "HesapHareket:3", "Gelen:17", "TakipHarcama:12"). <paramref name="Otomatik"/>: yazma olmadan tarihinde işleyen etki (kredi
-/// taksidi, eski kartın ay sonu düşümü). <paramref name="KanalId"/> gerçek kanal olmayan etikette (Ortak, Dağılım bekliyor, Genel
-/// kasa) null.
+/// "HesapHareket:3", "Gelen:17", "TakipHarcama:12"); çek satırında hareketin kimliği ("Cek:31", gider ayağı "Cek:31:gider") — bu
+/// istisnada anahtarın türü "Cek" olsa da kimlik çekin değil hareketin kimliğidir, çünkü satırı üreten (gelir/gider doğuran) kayıt
+/// CekHareketEntity'dir; denetim izindeki varlık da buna göre "CekHareket"tir, "Cek" değil.
+/// <paramref name="Otomatik"/>: yazma olmadan tarihinde işleyen etki (kredi taksidi, eski kartın ay sonu düşümü). <paramref name="KanalId"/>
+/// gerçek kanal olmayan etikette (Ortak, Dağılım bekliyor, Genel kasa) null.
 /// </summary>
 public record KasaHareketiDto(DateOnly EtkiTarihi, DateOnly KayitTarihi, string Tur, string Aciklama, string Kanal, int? KanalId,
     decimal GenelKasaEtkisi, decimal KanalEtkisi, string? KaynakAnahtari, bool Otomatik);

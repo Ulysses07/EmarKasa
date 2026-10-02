@@ -116,6 +116,7 @@ public partial class KasaDbContext : DbContext
         ConfigureDenetim(b);
         ConfigureAyKanalKumesi(b);
         ConfigureSistemDurumu(b);
+        ConfigureCekler(b);
     }
 
     partial void ConfigureEditorGuvenlikVeBelge(ModelBuilder b);
@@ -127,4 +128,5 @@ public partial class KasaDbContext : DbContext
     partial void ConfigureDenetim(ModelBuilder b);
     partial void ConfigureAyKanalKumesi(ModelBuilder b);
     partial void ConfigureSistemDurumu(ModelBuilder b);
+    partial void ConfigureCekler(ModelBuilder b);
 }

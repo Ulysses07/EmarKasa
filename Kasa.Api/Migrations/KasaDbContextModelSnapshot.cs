@@ -7,5 +7,5 @@ namespace Kasa.Api.Migrations;
 [DbContext(typeof(KasaDbContext))]
 public sealed class KasaDbContextModelSnapshot : ModelSnapshot
 {
-    protected override void BuildModel(ModelBuilder modelBuilder) => EditorSifirlamaIziSchemaModel.Build(modelBuilder);
+    protected override void BuildModel(ModelBuilder modelBuilder) => CeklerSchemaModel.Build(modelBuilder);
 }

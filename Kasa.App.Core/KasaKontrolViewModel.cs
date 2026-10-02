@@ -257,6 +257,7 @@ public static class KasaKontrolMetni
         [KasaHareketTurleri.KartIadesi] = "Kart borcu iadesi",
         [KasaHareketTurleri.KrediTaksidi] = "Kredi taksidi",
         [KasaHareketTurleri.KartAySonu] = "Eski kart ay sonu düşümü",
+        [KasaHareketTurleri.Cek] = "Çek",
     };
     private static readonly Dictionary<string, string> Varliklar = new()
     {
@@ -280,6 +281,8 @@ public static class KasaKontrolMetni
         ["AylikGiderOdeme"] = "Aylık gider ödemesi",
         ["EkstreKayit"] = "Ekstre satırı",
         ["HesapHareket"] = "Hesap hareketi",
+        ["Cek"] = "Çek",
+        ["CekHareket"] = "Çek hareketi",
     };
     private static readonly Dictionary<string, string> OlayTurleri = new()
     {

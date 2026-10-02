@@ -28,6 +28,8 @@ Alıcı malı alan kişidir; editör dağılımı ve ödeme kaydını kesinleşt
 
 Cari/tedarikçi kartı yönetimi, toplu tedarikçi borcu ve vade takibi, miktar-birim fiyat hesabı, ayrı kasa/banka hesabı, hesaplar arası transfer, 30 günlük nakit planı ve kredi taksidinin ayrı gerçekleşme ekranı bu uygulamanın aktif kapsamından çıkarılmıştır. Bunlara ait API uçları ve kullanıcı ekranları yayınlanmaz.
 
+1 Ekim 2026 kullanıcı kararı: alınan ve verilen çek ile senet takibi (tahsil, ödeme, ciro, kırdırma, vade hatırlatması) bu uygulamaya alınmıştır; kurallar `docs/specs/2026-10-01-cekler.md`'dedir. Tedarikçi borcu ve genel vade takibi ERP12'de kalır.
+
 Alış içindeki ödenen/kalan tutar, o alışın gider bağlantısını kontrol etmek içindir; ayrı bir cari hesap veya borç modülü değildir. Stok, e-fatura, banka entegrasyonu, çift taraflı muhasebe ve çok şirketli kullanım da kapsamda değildir.
 
 ## Hesaplama ve kullanım sınırları

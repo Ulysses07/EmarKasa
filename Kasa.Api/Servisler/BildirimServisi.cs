@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kasa.Api.Servisler;
 
-/// <summary>Hesaplanamayan bildirim kaynağı (kart, kredi, kasa alt sınırı). Diğer kaynakların hatırlatmalarını durdurmaz.</summary>
+/// <summary>Hesaplanamayan bildirim kaynağı (kart, kredi, kasa alt sınırı, çek). Diğer kaynakların hatırlatmalarını durdurmaz.</summary>
 public record BildirimKaynakHatasi(string Kaynak, int KaynakId, string Ad, Exception Hata);
 
 public interface IBildirimKaynaklari
@@ -140,6 +140,7 @@ public static class BildirimTakvimi
         {
             TakipKaynaklari.Kart => h.KaynakId > 0 ? $"/#cards/{h.KaynakId}" : "/#cards",
             TakipKaynaklari.Kredi => $"/#loans/{h.KaynakId}",
+            CekBildirimleri.Kaynak => "/#cheques",
             _ => "/#home"
         };
         return new($"Hata:{h.Kaynak}:{h.KaynakId}:{today:yyyy-MM-dd}", "Kayıt hesaplanamadı",
@@ -195,7 +196,7 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
     /// Editöre giden günlük uyarı bildirimi bu sıklıktan etkilenmez.</summary>
     public static readonly TimeSpan KaynakHatasiLogAraligi = TimeSpan.FromHours(1);
 
-    // Her kaynak (kart, kredi, kasa alt sınırı) ayrı yalıtılır; hesaplanamayan kaynak loglanır ve editöre uyarı olur.
+    // Her kaynak (kart, kredi, kasa alt sınırı, çek) ayrı yalıtılır; hesaplanamayan kaynak loglanır ve editöre uyarı olur.
     private IReadOnlyList<BildirimTaslagi> Taslaklar(DateOnly today, bool yeniUyariEtkin)
     {
         var hatalar = new List<BildirimKaynakHatasi>();
@@ -209,6 +210,15 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
             db.ChangeTracker.Clear();
             hatalar.Add(new("KasaEsik", 0, "Kasa alt sınırı denetimi", e));
         }
+        // Çek vade hatırlatmaları ayrı kaynaktır: hesaplanamazsa kart, kredi ve kasa hatırlatmaları sürer, editöre uyarı gider.
+        IReadOnlyList<BildirimTaslagi> cekler = [];
+        try
+        { cekler = CekBildirimleri.Oku(db, today); }
+        catch (Exception e) when (!BildirimHatalari.Gecici(e))
+        {
+            db.ChangeTracker.Clear();
+            hatalar.Add(new(CekBildirimleri.Kaynak, 0, "Çek hatırlatmaları", e));
+        }
         var yazilsin = saglik.KaynakHatalariYazilsin(hatalar, clock.GetUtcNow(), KaynakHatasiLogAraligi);
         for (var i = 0; i < hatalar.Count; i++)
         {
@@ -220,7 +230,7 @@ public sealed class BildirimServisi(KasaDbContext db, IBildirimKaynaklari source
                 logger.LogDebug("Bildirim kaynağı hâlâ hesaplanamıyor: {Kaynak} #{KaynakId} ({Ad}), {HataTuru}, iz {Iz}. Aynı hata en çok {Aralik} dakikada bir Error olarak yazılır.",
                     h.Kaynak, h.KaynakId, h.Ad, h.Hata.GetType().Name, Iz, KaynakHatasiLogAraligi.TotalMinutes);
         }
-        return [.. BildirimTakvimi.Olustur(olaylar, today), .. esik, .. hatalar.Select(h => BildirimTakvimi.Hata(h, today))];
+        return [.. BildirimTakvimi.Olustur(olaylar, today), .. esik, .. cekler, .. hatalar.Select(h => BildirimTakvimi.Hata(h, today))];
     }
 
     private static Dictionary<string, BildirimTaslagi> Sozluk(IEnumerable<BildirimTaslagi> taslaklar)

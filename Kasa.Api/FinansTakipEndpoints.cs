@@ -117,6 +117,7 @@ public static partial class FinansTakipEndpoints
         }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
 
         MapLoans(api);
+        MapCekEndpoints(api);
         return app;
     }
     internal static void ApplyCardCharge(KasaDbContext db, int id, KartHarcamaYaz dto)

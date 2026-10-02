@@ -39,6 +39,8 @@ export const ENTITY_LABELS = {
   HesapTransfer: 'Hesap transferi',
   KrediTaksitOdeme: 'Kredi taksit ödemesi',
   Oturum: 'Oturum ve güvenlik',
+  Cek: 'Çek',
+  CekHareket: 'Çek hareketi',
 };
 export const TYPE_LABELS = {
   Ekle: 'Eklendi',

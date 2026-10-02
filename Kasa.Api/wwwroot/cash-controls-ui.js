@@ -27,6 +27,7 @@ export const MOVEMENT_LABELS = {
   KartIadesi: 'Kart borcu iadesi',
   KrediTaksidi: 'Kredi taksidi',
   KartAySonu: 'Eski kart ay sonu düşümü',
+  Cek: 'Çek',
 };
 // "Kontrolden beri değişenler"deki denetim olayları: kasayı etkileyen kayıtların adları (değişiklik geçmişi ekranının tam listesi denetim-ui.js'tedir).
 const CHANGE_ENTITIES = {
@@ -50,6 +51,7 @@ const CHANGE_ENTITIES = {
   AylikGiderOdeme: 'Aylık gider ödemesi',
   EkstreKayit: 'Ekstre satırı',
   HesapHareket: 'Hesap hareketi',
+  CekHareket: 'Çek hareketi',
 };
 const CHANGE_TYPES = {
   Ekle: 'Eklendi',
