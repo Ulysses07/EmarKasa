@@ -40,4 +40,17 @@ public class CekSozlesmeTests : SozlesmeTemeli
         await o.Cek.CekSilAsync(verilen.Id, new CekSilYaz(Guid.NewGuid(), verilen.Surum));
         Assert.Equal(cek.Id, Assert.Single(await o.Cek.CeklerAsync()).Id);
     }
+
+    [Fact]
+    [SozlesmeKapsami(nameof(ICekApi.CekKaydetAsync), nameof(ICekApi.CeklerAsync))]
+    public async Task Cek_aramasi_turkce_karakterleri_katlayarak_bulur()
+    {
+        var o = await Editor();
+        await o.Kasa.AyarGuncelleAsync(new AyarYaz(Baslangic, 1000m));
+        var cek = await o.Cek.CekKaydetAsync(null,
+            new CekYaz(Guid.NewGuid(), 0, CekTurleri.Cek, CekYonleri.Alinan, "9981", "ZIRAAT", "YILMAZ", 10_000m, Bugun.AddDays(10), null, false, null, null));
+
+        Assert.Equal(cek.Id, Assert.Single(await o.Cek.CeklerAsync(ara: "ziraat")).Id);
+        Assert.Equal(cek.Id, Assert.Single(await o.Cek.CeklerAsync(ara: "yılmaz")).Id);
+    }
 }
