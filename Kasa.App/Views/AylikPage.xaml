@@ -53,7 +53,7 @@
                         </VerticalStackLayout>
                     </Border>
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
-                        <Label Text="Kanal" Style="{StaticResource LblSection}" />
+                        <Label Text="KANAL" Style="{StaticResource LblSection}" />
                         <Label Grid.Column="1" Text="{Binding AySonucuBasligi}" Style="{StaticResource LblSection}" />
                     </Grid>
                     <CollectionView ItemsSource="{Binding Rapor.Kanallar}" SelectionMode="None">

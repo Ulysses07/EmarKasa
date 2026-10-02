@@ -26,14 +26,14 @@
             <!-- Takipte olmayan kart ve krediler: hatırlatmaları eski kayıtlarla sınırlı; geçiş yapılana kadar kalıcı uyarı. -->
             <Border Style="{StaticResource CardForm}" IsVisible="{Binding TakipsizVar}">
                 <VerticalStackLayout Spacing="6">
-                    <Label Text="Geçiş bekleyen kart ve krediler" Style="{StaticResource LblSection}" />
+                    <Label Text="GEÇİŞ BEKLEYEN KART VE KREDİLER" Style="{StaticResource LblSection}" />
                     <Label Text="{Binding TakipsizUyari}" Style="{StaticResource LblError}" />
                 </VerticalStackLayout>
             </Border>
 
             <Border Style="{StaticResource CardHero}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
-                    <Label Text="Genel kasa" Style="{StaticResource LblHeroLabel}" />
+                    <Label Text="GENEL KASA" Style="{StaticResource LblHeroLabel}" />
                     <Label Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}"
                            Style="{StaticResource LblHeroAmount}" Margin="0,8,0,0" />
                     <Label Text="Takip başlangıcı ve açılış devri dahil"
@@ -48,7 +48,7 @@
 
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
-                    <Label Text="Kanal Bakiyeleri" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
+                    <Label Text="KANAL BAKİYELERİ" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
                     <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="core:KanalKasaSatiri">

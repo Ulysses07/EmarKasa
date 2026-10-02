@@ -29,7 +29,7 @@
                     <!-- Bölüm 1 · İşlem -->
                     <Border Style="{StaticResource CardForm}">
                         <VerticalStackLayout Spacing="12">
-                            <Label Text="İşlem" Style="{StaticResource LblSection}" />
+                            <Label Text="İŞLEM" Style="{StaticResource LblSection}" />
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Tarih" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
@@ -102,7 +102,7 @@
                         <VerticalStackLayout Spacing="0">
                             <BoxView HeightRequest="3" Color="{StaticResource Green}" />
                             <VerticalStackLayout Padding="18" Spacing="12">
-                                <Label Text="Gelen · Kanal Geliri" Style="{StaticResource LblSection}"
+                                <Label Text="GELEN · KANAL GELİRİ" Style="{StaticResource LblSection}"
                                        TextColor="{StaticResource Green}" />
                                 <!-- Gelir dönem toplamıdır: kayıt varsa yeni tutar öncekinin yerine geçer (web ile aynı). -->
                                 <VerticalStackLayout Spacing="0">
@@ -138,7 +138,7 @@
             <Border Grid.Column="1" Style="{StaticResource Card}">
                 <Grid RowDefinitions="Auto,*">
                     <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
-                        <Label Text="Son İşlemler" Style="{StaticResource LblSection}" />
+                        <Label Text="SON İŞLEMLER" Style="{StaticResource LblSection}" />
 
                         <!-- Durum şeridi (tüm roller): yükleniyor · liste hatası · kayıt/silme bilgisi · son güncelleme + yenile.
                              Form hataları sol sütundaki kutuda kalır; liste hatası izleyicide de görünür. -->

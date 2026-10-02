@@ -37,12 +37,13 @@
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
+    <!-- TextTransform=Uppercase Türkçe büyük harf kuralını (i → İ, ı → I) uygulamaz; WinUI'de "KANAL BAKIYELERI" gibi
+         yanlış sonuç verir (T-04). Dönüşüm kaldırıldı: bu stili kullanan başlıklar kaynakta zaten büyük harfle yazılır. -->
     <Style x:Key="LblSection" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontAttributes" Value="Bold" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="CharacterSpacing" Value="1.1" />
-        <Setter Property="TextTransform" Value="Uppercase" />
         <Setter Property="TextColor" Value="{StaticResource Sub}" />
     </Style>
     <Style x:Key="LblField" TargetType="Label">
@@ -75,12 +76,12 @@
     <Style x:Key="LblMoneyNeg" TargetType="Label" BasedOn="{StaticResource LblMoney}">
         <Setter Property="TextColor" Value="{StaticResource Neg}" />
     </Style>
+    <!-- Bkz. LblSection üstündeki not: aynı nedenle TextTransform kaldırıldı (T-04). -->
     <Style x:Key="LblHeroLabel" TargetType="Label">
         <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
         <Setter Property="FontAttributes" Value="Bold" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="CharacterSpacing" Value="1.6" />
-        <Setter Property="TextTransform" Value="Uppercase" />
         <Setter Property="TextColor" Value="{StaticResource HeroLabel}" />
     </Style>
     <Style x:Key="LblHeroAmount" TargetType="Label">

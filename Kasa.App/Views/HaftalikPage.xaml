@@ -30,8 +30,8 @@
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
                 <VerticalStackLayout Spacing="0">
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
-                        <Label Text="Dönem" Style="{StaticResource LblSection}" />
-                        <Label Grid.Column="1" Text="Kasa Sonucu" Style="{StaticResource LblSection}" />
+                        <Label Text="DÖNEM" Style="{StaticResource LblSection}" />
+                        <Label Grid.Column="1" Text="KASA SONUCU" Style="{StaticResource LblSection}" />
                     </Grid>
                     <CollectionView ItemsSource="{Binding Donemler}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
