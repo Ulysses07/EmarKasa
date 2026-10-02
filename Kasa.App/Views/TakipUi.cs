@@ -195,12 +195,17 @@ internal static class TakipUi
         return etiket;
     }
 
+    /// <param name="bosMetin">Liste boşken "Gösterilecek kayıt yok." yazılır; bir listenin devamı olan ikinci parça (Çekler ekranında
+    /// açık çekin altındaki satırlar) false verir, ileti iki kez görünmez.</param>
+    /// <param name="aciklama">Satır düğmesinin ekran okuyucu adı (SemanticProperties.Description): her satırda aynı olan düğme
+    /// metnini satırdan ayırt eder.</param>
     public static View Liste<T>(string yol, Func<T, Task>? ac = null, string action = "Aç", Func<T, bool>? gorunur = null,
-        Func<T, string>? actionText = null)
+        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null)
     {
         var l = new VerticalStackLayout { Spacing = 10 };
         l.SetBinding(BindableLayout.ItemsSourceProperty, yol);
-        BindableLayout.SetEmptyView(l, Metin("Gösterilecek kayıt yok."));
+        if (bosMetin)
+            BindableLayout.SetEmptyView(l, Metin("Gösterilecek kayıt yok."));
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
             var row = new VerticalStackLayout { Spacing = 6, Padding = new Thickness(0, 10) };
@@ -209,14 +214,15 @@ internal static class TakipUi
             row.Add(baslik);
             row.Add(BagliMetin("Ozet"));
             if (ac is not null)
-                row.Add(ListeDugmesi(ac, action, gorunur, actionText));
+                row.Add(ListeDugmesi(ac, action, gorunur, actionText, aciklama));
             row.Add(new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] });
             return row;
         }));
         return l;
     }
 
-    private static Button ListeDugmesi<T>(Func<T, Task> ac, string action, Func<T, bool>? gorunur, Func<T, string>? actionText)
+    private static Button ListeDugmesi<T>(Func<T, Task> ac, string action, Func<T, bool>? gorunur, Func<T, string>? actionText,
+        Func<T, string>? aciklama)
     {
         var b = new Button { Text = action, HorizontalOptions = LayoutOptions.Start, Style = (Style)Application.Current!.Resources["BtnSecondary"] };
         b.BindingContextChanged += (_, _) =>
@@ -224,6 +230,10 @@ internal static class TakipUi
             b.IsVisible = b.BindingContext is T item && (gorunur?.Invoke(item) ?? true);
             if (b.BindingContext is T t)
                 b.Text = actionText?.Invoke(t) ?? action;
+            if (aciklama is not null && b.BindingContext is T s)
+                SemanticProperties.SetDescription(b, aciklama(s));
+            else
+                b.ClearValue(SemanticProperties.DescriptionProperty);
         };
         b.Clicked += async (_, _) =>
         {

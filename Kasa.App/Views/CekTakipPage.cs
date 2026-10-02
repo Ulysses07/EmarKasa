@@ -16,15 +16,20 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
 {
     private readonly SorguSecimi _secim = new("CekId");
     private CekHazirSuzgec? _bekleyenSuzgec;
-    private bool _gorunuyor;
     private readonly View _ayrinti;
+
+    /// <summary>Sorgudaki süzgeç adı ("Alinan30" gibi). Yalnız tanımlı ad kabul edilir: Enum.TryParse "1" ya da "7" gibi sayıları da
+    /// çözer, bunlar yok sayılır.</summary>
+    private static CekHazirSuzgec? SuzgecCoz(IDictionary<string, object> query)
+        => query.TryGetValue("Suzgec", out var deger) && Convert.ToString(deger, CultureInfo.InvariantCulture) is { } ad
+            && Enum.IsDefined(typeof(CekHazirSuzgec), ad) ? Enum.Parse<CekHazirSuzgec>(ad) : null;
 
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
-        if (query.TryGetValue("Suzgec", out var deger) && Enum.TryParse<CekHazirSuzgec>(Convert.ToString(deger, CultureInfo.InvariantCulture), out var suzgec))
+        if (SuzgecCoz(query) is { } suzgec)
         {
             _bekleyenSuzgec = suzgec;
-            if (_gorunuyor)
+            if (_secim.Gorunuyor)
                 _ = SuzgeciUygulaAsync();
         }
         if (_secim.Iste(query))
@@ -33,7 +38,6 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
 
     protected override async void OnAppearing()
     {
-        _gorunuyor = true;
         _secim.Gorunuyor = true;
         await SuzgeciUygulaAsync();
         await SecimiUygulaAsync();
@@ -42,7 +46,6 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
 
     protected override void OnDisappearing()
     {
-        _gorunuyor = false;
         _secim.Gorunuyor = false;
         base.OnDisappearing();
     }
@@ -84,7 +87,8 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
                 nameof(vm.VadeSuzgeciVar))));
         Govde.Add(Editor(Dugme("Yeni çek / senet", nameof(vm.YeniCekCommand))));
         Govde.Add(Editor(Goster(Form(vm), nameof(vm.FormAcik))));
-        Govde.Add(Kart("Liste", SatirListesi(vm, nameof(vm.OncekiSatirlar)), _ayrinti, SatirListesi(vm, nameof(vm.SonrakiSatirlar))));
+        Govde.Add(Kart("Liste", SatirListesi(vm, nameof(vm.OncekiSatirlar), true), _ayrinti,
+            SatirListesi(vm, nameof(vm.SonrakiSatirlar), false)));
     }
 
     private static View Serit(CekTakipViewModel vm)
@@ -112,11 +116,14 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
         return grup;
     }
 
-    private static View SatirListesi(CekTakipViewModel vm, string yol) => Liste<CekSatiri>(yol, s =>
+    /// <summary>Çek satırları. Liste açık çekin ayrıntısıyla iki parçaya bölünür; "Gösterilecek kayıt yok." yalnız ilk parçada
+    /// (<paramref name="bosMetin"/>) yazılır. Düğmenin ekran okuyucu adı çekin başlığı ve açık/kapalı durumudur: açık çek değişince
+    /// iki parça yeniden doldurulur (SatirlariBol), ad da yenilenir.</summary>
+    private static View SatirListesi(CekTakipViewModel vm, string yol, bool bosMetin) => Liste<CekSatiri>(yol, s =>
     {
         vm.SecCommand.Execute(s);
         return Task.CompletedTask;
-    }, "Aç / kapat");
+    }, "Aç / kapat", bosMetin: bosMetin, aciklama: s => $"{s.Baslik}, {(vm.Acik?.Id == s.Veri.Id ? "açık" : "kapalı")}");
 
     private View Ayrinti(CekTakipViewModel vm)
     {
