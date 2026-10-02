@@ -11,8 +11,9 @@ namespace Kasa.Api.Servisler;
 /// edilmiş / ödenmiş olmayan (kapanmış, ciro edilmiş, kırdırılmış, karşılıksız) çekler hariçtir. Kurallar:
 /// <list type="bullet">
 /// <item>Alınan, portföyde ya da kısmen: vadeye 3 gün kala ve vade günü "Çek vadesi" (kısmide kalan tutar).</item>
-/// <item>Alınan çek (senet değil), portföyde: vadenin 7. günü "İbraz süresi doluyor" (kambiyo mevzuatındaki 7 günlük ibraz süresi
-/// yalnız çeke özgüdür; senedin ibraz/zamanaşımı süresi farklıdır, bu yüzden senette bu uyarı çıkmaz).</item>
+/// <item>Alınan çek (senet değil), portföyde: vadenin 7. günü "İbraz süresi doluyor" (vade + 7. gün uyarısı, aynı yerde ödenecek
+/// çekin 10 günlük ibraz süresinin dolmasına 3 gün kala çıkan bir hatırlatmadır, TTK m.796; farklı yerde ödenecek çekte süre
+/// 1 aydır; senedin ibraz/zamanaşımı süresi farklıdır, bu yüzden senette bu uyarı çıkmaz).</item>
 /// <item>Verilen, portföyde ya da kısmen: vadeye 3 gün kala ve vade günü "Ödenecek çek".</item>
 /// </list>
 /// Hedef "/#cheques/{id}": masaüstü bunu Çekler sayfasında o çeke çevirir (Kasa.App.Core BildirimHedefi). Anahtar çek, kural,

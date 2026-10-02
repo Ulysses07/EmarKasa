@@ -112,6 +112,14 @@ public class CekTakipViewModelTests
     }
 
     [Fact]
+    public void Karsiliksiz_durumda_icradaki_konum_da_gosterilir()
+    {
+        var cek = Cek(1, no: "1") with { Durum = CekDurumlari.Karsiliksiz, Konum = CekKonumlari.Icrada };
+        var satir = new CekSatiri(cek, Bugun);
+        Assert.Equal("Çek Ziraat · 1 · 50.000,00 ₺ · karşılıksız · İcrada", satir.Ozet);
+    }
+
+    [Fact]
     public async Task Yon_durum_arama_ve_hazir_suzgecler_sunucuya_gider()
     {
         var (vm, api) = await Vm();
@@ -323,6 +331,22 @@ public class CekTakipViewModelTests
         await vm.YukleAsync();
         Assert.False(vm.FormAcik);
         Assert.Equal("Çek başka bir işlemle değişti; formu yeniden açın.", vm.Mesaj);
+    }
+
+    [Fact]
+    public async Task Pasif_kasali_verilen_cekte_duzelt_secenekleri_kasayi_korur_yeni_cekte_yalniz_aktifler_kalir()
+    {
+        var cek = Cek(1, CekYonleri.Verilen) with { Kanal = "ESKI" };
+        var (vm, _) = await Vm(Rol.Editor, cek);
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]);
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.DuzeltCommand.Execute(null);
+        Assert.Contains("ESKI", vm.CekKasaSecenekleri);
+        Assert.Equal("ESKI", vm.CekKasasi);
+
+        vm.YeniCekCommand.Execute(null);
+        Assert.DoesNotContain("ESKI", vm.CekKasaSecenekleri);
+        Assert.Null(vm.CekKasasi);
     }
 
     [Fact]

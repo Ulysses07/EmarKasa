@@ -78,7 +78,7 @@ public sealed class CekSatiri(CekDto veri, DateOnly bugun)
             if (Veri.Kalan > 0 && Veri.Kalan != Veri.Tutar)
                 parcalar.Add($"Kalan: {Bicim.Tl(Veri.Kalan)} ₺");
             parcalar.Add(CekMetni.Durum(Veri.Durum));
-            if (CekMetni.Konum(Veri.Konum) is { Length: > 0 } konum && Veri.Durum is CekDurumlari.Portfoyde or CekDurumlari.KismenTahsilEdildi)
+            if (CekMetni.Konum(Veri.Konum) is { Length: > 0 } konum && Veri.Durum is CekDurumlari.Portfoyde or CekDurumlari.KismenTahsilEdildi or CekDurumlari.Karsiliksiz)
                 parcalar.Add(konum);
             if (Veri.Teminat)
                 parcalar.Add("Teminat");

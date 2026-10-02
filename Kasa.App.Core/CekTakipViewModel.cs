@@ -26,6 +26,9 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     private SonIstekHatti? _listeHatti;
     private string? _sonKanal;
     private bool _ayniCekOnaylandi;
+    // CekKasaSecenekleri'nin tabanı: aktif kanallar ve "Ortak" (en son liste yüklemesinden). Düzeltme formu, düzenlenen çekin
+    // kasası pasif bir kanalsa onu da bu tabana ekler (CekKasaSecenekleriniDoldur); yeni çek formu yalnız bu tabanı kullanır.
+    private List<string> _aktifCekKasalari = [];
     // Düzeltme formu açılırken çekin sürümü: kaydetme bunu gönderir (listeden okunmaz); liste yenilenince sürüm değiştiyse form kapanır.
     private int _duzenlenenSurum;
 
@@ -186,7 +189,9 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<CekDto> cekler, CekOzetDto ozet)
     {
         TakipMetni.Doldur(KasaSecenekleri, kanallar.Where(k => k.Aktif).Select(k => k.Ad));
-        TakipMetni.Doldur(CekKasaSecenekleri, kanallar.Where(k => k.Aktif).Select(k => k.Ad).Prepend(KanalEtiketleri.Ortak));
+        _aktifCekKasalari = [.. kanallar.Where(k => k.Aktif).Select(k => k.Ad).Prepend(KanalEtiketleri.Ortak)];
+        // Düzenleme formu açıkken liste yeniden yüklenirse (ör. yazmadan sonra) düzenlenen çekin pasif kasası seçeneklerden düşmesin.
+        CekKasaSecenekleriniDoldur(Duzenlenen is { } dn ? cekler.FirstOrDefault(c => c.Id == dn)?.Kanal : null);
         TakipMetni.Doldur(Cekler, cekler.Select(c => new CekSatiri(c, Bugun)));
         Ozet = ozet;
         Acik = Acik is { } eski ? cekler.FirstOrDefault(c => c.Id == eski.Id) : null;
@@ -205,6 +210,16 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         var i = Acik is null ? -1 : Cekler.ToList().FindIndex(s => s.Veri.Id == Acik.Id);
         TakipMetni.Doldur(OncekiSatirlar, i < 0 ? Cekler : Cekler.Take(i + 1));
         TakipMetni.Doldur(SonrakiSatirlar, i < 0 ? [] : Cekler.Skip(i + 1));
+    }
+
+    /// <summary>CekKasaSecenekleri'ni aktif kanallar tabanıyla doldurur; <paramref name="ekKasa"/> verilip tabanda yoksa (düzenlenen
+    /// verilen çekin kasası pasife alınmışsa) sona eklenir ki form o kasayı kaybetmesin.</summary>
+    private void CekKasaSecenekleriniDoldur(string? ekKasa)
+    {
+        var liste = _aktifCekKasalari;
+        if (ekKasa is { Length: > 0 } k && !liste.Contains(k))
+            liste = [.. liste, k];
+        TakipMetni.Doldur(CekKasaSecenekleri, liste);
     }
 
     private void SuzgecleriYaz(string yon, string durum, DateOnly? bas, DateOnly? son)
@@ -410,6 +425,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         No = Banka = Kisi = Not = "";
         Tutar = 0;
         Vade = Bugun.ToDateTime(TimeOnly.MinValue);
+        CekKasaSecenekleriniDoldur(null);
         CekKasasi = null;
         Teminat = false;
         Konum = KonumSecenekleri[0];
@@ -434,6 +450,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         Not = c.Not ?? "";
         Tutar = c.Tutar;
         Vade = c.VadeTarihi.ToDateTime(TimeOnly.MinValue);
+        // Verilen çekin kasası pasife alınmış olabilir: seçeneklerde yine de görünsün ki form kasayı kaybetmesin.
+        CekKasaSecenekleriniDoldur(c.Kanal);
         CekKasasi = c.Kanal;
         Teminat = c.Teminat;
         Konum = KonumSecenekleri.FirstOrDefault(k => k.Kod == c.Konum) ?? KonumSecenekleri[0];

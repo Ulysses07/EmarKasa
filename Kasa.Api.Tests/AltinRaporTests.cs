@@ -51,10 +51,6 @@ public class AltinRaporTests
             Assert.True(deger!.ToJsonString() == ikinci[uc]!.ToJsonString(), $"{uc} ikinci okumada değişti.");
     }
 
-    /// <summary>
-    /// Altın dosyaya (kural kararlarından önceki kodun çıktısı) göre onaylı farklar. Başka her fark testi düşürür.
-    /// Tohumda Haziran bu sürümden önce kapatılmıştır: kilit takip başlangıcından itibaren Ocak–Haziran 2026'yı kapsar.
-    /// </summary>
     [Fact]
     public async Task Kasayi_etkilemeyen_cek_kayitlari_rapor_ve_okuma_uclarini_degistirmez()
     {
@@ -75,6 +71,10 @@ public class AltinRaporTests
             Assert.True(deger!.ToJsonString() == sonra[uc]!.ToJsonString(), $"{uc} kasayı etkilemeyen çek kaydıyla değişti.");
     }
 
+    /// <summary>
+    /// Altın dosyaya (kural kararlarından önceki kodun çıktısı) göre onaylı farklar. Başka her fark testi düşürür.
+    /// Tohumda Haziran bu sürümden önce kapatılmıştır: kilit takip başlangıcından itibaren Ocak–Haziran 2026'yı kapsar.
+    /// </summary>
     private static IEnumerable<OnayliFark> OnayliFarklar()
     {
         // K4: geçişte kilitli olan Ocak–Haziran 2026 raporları kural 1 ile dondurulur. Bütün tutarlar birebir aynı kalır
