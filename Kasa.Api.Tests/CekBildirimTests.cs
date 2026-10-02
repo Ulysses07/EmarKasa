@@ -6,7 +6,7 @@ using static Kasa.Api.Tests.AylikGiderTests;
 
 namespace Kasa.Api.Tests;
 
-/// <summary>Çek vade hatırlatmaları (docs/specs/2026-10-01-cekler.md "Bildirimler"): üç kural, günleri, metinleri ve hedef; teminat,
+/// <summary>Çek vade hatırlatmaları (docs/specs/2026-10-01-cekler.md "Bildirimler"): dört kural, günleri, metinleri ve hedef; teminat,
 /// kapanmış ve karşılıksız çek hariç. Bugün 25 Eylül 2026.</summary>
 public class CekBildirimTests
 {
@@ -83,6 +83,46 @@ public class CekBildirimTests
             taslaklar.Where(t => t.KaynakId == vadeGunu.Id).Select(t => (t.Baslik, t.Mesaj)).Single());
         Assert.Equal(("Ödenecek çek", "Kerem Ltd. · 6.000,00 TL · hesapta bulunmalı"),
             taslaklar.Where(t => t.KaynakId == kismenOdenen.Id).Select(t => (t.Baslik, t.Mesaj)).Single());
+    }
+
+    /// <summary>"Ödenmemiş çek" (2026-10-02 ürün sahibi kararı): verilen, teminatsız, açık çekin vadesinin üzerinden tam bir gün
+    /// geçtiyse (fark -1) tek bildirim; kısmen ödenmişte kalan tutar yazılır, senette başlık "Ödenmemiş senet".</summary>
+    [Fact]
+    public async Task Vadesi_dun_gecmis_odenmemis_verilen_cek_icin_tek_bildirim_cikar()
+    {
+        await using var f = Fabrika();
+        await Editor(f);
+        var cek = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, 30_000m, kisi: "Mehmet Ticaret", no: "VG-1", vade: Today.AddDays(-1)));
+        var kismen = await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, 10_000m, kisi: "Kerem Ltd.", no: "VG-2", vade: Today.AddDays(-1)),
+            new CekHareketEntity { Tur = CekHareketTurleri.Odeme, Tarih = Today.AddDays(-2), Tutar = 4_000.5m, KanalId = 1 });
+        var senet = CekVeriModeliTests.Cek(CekYonleri.Verilen, 7_000m, kisi: "Veli", no: "VS-1", vade: Today.AddDays(-1));
+        senet.Tur = CekTurleri.Senet;
+        senet = await CekRaporTests.CekEkle(f, senet);
+
+        using var scope = f.Services.CreateScope();
+        var taslaklar = CekBildirimleri.Oku(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), Today).OrderBy(t => t.KaynakId).ToList();
+        Assert.Equal(
+        [
+            ($"Cekler:{cek.Id}:Gecmis:2026-09-24:-1", "Ödenmemiş çek", "Mehmet Ticaret · 30.000,00 TL · vade 24 Eylül geçti", $"/#cheques/{cek.Id}", CekBildirimleri.GecmisOdemeTuru),
+            ($"Cekler:{kismen.Id}:Gecmis:2026-09-24:-1", "Ödenmemiş çek", "Kerem Ltd. · 5.999,50 TL · vade 24 Eylül geçti", $"/#cheques/{kismen.Id}", CekBildirimleri.GecmisOdemeTuru),
+            ($"Cekler:{senet.Id}:Gecmis:2026-09-24:-1", "Ödenmemiş senet", "Veli · 7.000,00 TL · vade 24 Eylül geçti", $"/#cheques/{senet.Id}", CekBildirimleri.GecmisOdemeTuru),
+        ], taslaklar.Select(t => (t.Anahtar, t.Baslik, t.Mesaj, t.Hedef, t.Tur)));
+        Assert.All(taslaklar, t => Assert.Equal(Today, t.Tarih));
+    }
+
+    /// <summary>Ödenmemiş çek uyarısı yalnız fark -1'de, yalnız verilen ve teminatsız çekte çıkar: fark -2, alınan çek (vadesi dün)
+    /// ve teminatlı verilen çek için bildirim yoktur.</summary>
+    [Fact]
+    public async Task Odenmemis_cek_uyarisi_fark_iki_alinan_ve_teminatli_cekte_cikmaz()
+    {
+        await using var f = Fabrika();
+        await Editor(f);
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, no: "V-2", vade: Today.AddDays(-2)));
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(no: "A-1", vade: Today.AddDays(-1)));
+        await CekRaporTests.CekEkle(f, CekVeriModeliTests.Cek(CekYonleri.Verilen, no: "T-1", teminat: true, vade: Today.AddDays(-1)));
+
+        using var scope = f.Services.CreateScope();
+        Assert.Empty(CekBildirimleri.Oku(scope.ServiceProvider.GetRequiredService<KasaDbContext>(), Today));
     }
 
     /// <summary>Yıl sonu sınırı: vade farkı DayNumber'dan hesaplandığı ve aday seçimi SQLite'ta DateOnly eşitliğiyle süzüldüğü için

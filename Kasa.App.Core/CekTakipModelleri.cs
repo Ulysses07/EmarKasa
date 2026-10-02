@@ -15,8 +15,8 @@ public partial class KodCipi(string kod, string ad) : ObservableObject
 }
 
 /// <summary>Çekler ekranının üst şeridindeki ve panel kutusundaki hazır süzgeçler (tasarım "Masaüstü ekranı", "Panel"). Panel
-/// kutusu sayfayı //cekler?Suzgec={ad} ile açar.</summary>
-public enum CekHazirSuzgec { Portfoy, Alinan30, Verilen30, VadesiGecmis }
+/// kutusu sayfayı //cekler?Suzgec={ad} ile açar. VadesiGecmis alınan, VerilenVadesiGecmis verilen (ödenmemiş) çektir.</summary>
+public enum CekHazirSuzgec { Portfoy, Alinan30, Verilen30, VadesiGecmis, VerilenVadesiGecmis }
 
 /// <summary>Çek metinleri: durum, konum, vade rozeti ve tutar biçimi (görünen ad kuralları Kasa.Core.CekKurallari'ndadır).</summary>
 public static class CekMetni
@@ -47,12 +47,13 @@ public static class CekMetni
     /// <summary>Özet satırı (üst şerit ve panel kutusu): "Ad: 10.000,00 ₺ (2 çek)".</summary>
     public static string OzetSatiri(string ad, CekOzetKalemi kalem) => $"{ad}: {Bicim.Tl(kalem.Toplam)} ₺ ({kalem.Adet} çek)";
 
-    // Panel kutusu (CekOzetViewModel) ve Çekler ekranının üst şeridi (CekTakipViewModel) aynı üç/dört satırı gösterir; metin
+    // Panel kutusu (CekOzetViewModel) ve Çekler ekranının üst şeridi (CekTakipViewModel) aynı dört/beş satırı gösterir; metin
     // tek yerden üretilir ki ikisi arasında söz dizimi kaymasın.
     public static string PortfoyMetni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("Portföydeki alınan", o.PortfoydekiAlinan) : "";
     public static string Alinan30Metni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("30 gün içinde tahsil edilecek", o.Alinan30) : "";
     public static string Verilen30Metni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("30 gün içinde ödenecek", o.Verilen30) : "";
     public static string GecmisMetni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("Vadesi geçmiş, tahsil edilmemiş", o.VadesiGecmis) : "";
+    public static string VerilenGecmisMetni(CekOzetDto? ozet) => ozet is { } o ? OzetSatiri("Vadesi geçmiş, ödenmemiş", o.VerilenVadesiGecmis) : "";
 
     /// <summary>Vade rozeti: "5 gün kaldı", "Bugün", "3 gün geçti".</summary>
     public static string Rozet(DateOnly vade, DateOnly bugun) => (vade.DayNumber - bugun.DayNumber) switch

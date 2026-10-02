@@ -14,8 +14,10 @@ public record CekDto(int Id, int Surum, string Tur, string Yon, string No, strin
     int? KanalId, string? Kanal, bool Teminat, string? Konum, string? Not, string Durum, decimal Kalan, IReadOnlyList<string> IzinliHareketler,
     IReadOnlyList<CekHareketDto> Hareketler, string? Uyari);
 public record CekOzetKalemi(int Adet, decimal Toplam);
-/// <summary>Çek panel özeti: teminatsız ve açık çeklerin kalan tutarları.</summary>
-public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis);
+/// <summary>Çek panel özeti: teminatsız ve açık çeklerin kalan tutarları. VadesiGecmis alınan, VerilenVadesiGecmis verilen (ödenmemiş)
+/// çeklerdir.</summary>
+public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis,
+    CekOzetKalemi VerilenVadesiGecmis);
 
 /// <summary>Çek ve senet uçları (/api/takip/cekler).</summary>
 public interface ICekApi

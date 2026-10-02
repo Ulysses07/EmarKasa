@@ -13,7 +13,7 @@ public class CekTakipViewModelTests
     internal sealed class Sahte : ICekApi
     {
         public List<CekDto> Liste = [];
-        public CekOzetDto Ozet = new(Bugun, new(2, 60_000m), new(1, 50_000m), new(1, 7_000m), new(0, 0m));
+        public CekOzetDto Ozet = new(Bugun, new(2, 60_000m), new(1, 50_000m), new(1, 7_000m), new(0, 0m), new(2, 12_500.5m));
         public List<(string? Yon, string? Durum, string? Ara, DateOnly? Bas, DateOnly? Son)> Sorgular = [];
         public List<(int? Id, CekYaz Govde)> Kayitlar = [];
         public List<(int Id, CekHareketYaz Govde)> Hareketler = [];
@@ -107,6 +107,7 @@ public class CekTakipViewModelTests
         Assert.Equal(new[] { KanalEtiketleri.Ortak, "MEZAT", "PERAKENDE" }, vm.CekKasaSecenekleri);
         Assert.Equal("Portföydeki alınan: 60.000,00 ₺ (2 çek)", vm.PortfoyMetni);
         Assert.Equal("30 gün içinde ödenecek: 7.000,00 ₺ (1 çek)", vm.Verilen30Metni);
+        Assert.Equal("Vadesi geçmiş, ödenmemiş: 12.500,50 ₺ (2 çek)", vm.VerilenGecmisMetni);
         Assert.True(vm.YonCipleri[0].Secili);
         Assert.True(vm.DurumCipleri[0].Secili);
     }
@@ -141,6 +142,11 @@ public class CekTakipViewModelTests
         await vm.HazirSuzgecAsync(CekHazirSuzgec.VadesiGecmis);
         Assert.Equal((CekYonleri.Alinan, CekSuzgecleri.Portfoyde, (string?)null, (DateOnly?)null, (DateOnly?)Bugun.AddDays(-1)), api.Sorgular[^1]);
         Assert.Equal("Vade 24.09.2026 ve öncesi", vm.VadeSuzgeci);
+        vm.Ara = "mehmet";
+        await vm.HazirSuzgecAsync(CekHazirSuzgec.VerilenVadesiGecmis);
+        Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Portfoyde, (string?)null, (DateOnly?)null, (DateOnly?)Bugun.AddDays(-1)), api.Sorgular[^1]);
+        Assert.Equal("Vade 24.09.2026 ve öncesi", vm.VadeSuzgeci);
+        Assert.True(vm.YonCipleri[1].Secili);
         await vm.VadeSuzgeciniKaldirCommand.ExecuteAsync(null);
         Assert.False(vm.VadeSuzgeciVar);
         Assert.Null(api.Sorgular[^1].Son);
@@ -364,8 +370,10 @@ public class CekTakipViewModelTests
     {
         var kapanan = Cek(1, kalan: 10_000m) with { Durum = CekDurumlari.TahsilEdildi };
         var (vm, api) = await Vm(Rol.Editor, kapanan);
-        var yeniOzet = new CekOzetDto(Bugun, new(5, 500_000m), new(2, 20_000m), new(1, 7_000m), new(0, 0m));
+        var yeniOzet = new CekOzetDto(Bugun, new(5, 500_000m), new(2, 20_000m), new(1, 7_000m), new(0, 0m), new(1, 3_000m));
         api.Ozet = yeniOzet;
+        var degisenler = new List<string?>();
+        vm.PropertyChanged += (_, e) => degisenler.Add(e.PropertyName);
         vm.SecCommand.Execute(vm.Cekler[0]);
         vm.SecHareketCommand.Execute(vm.HareketCipleri[0]); // Tahsilat
         vm.HareketTutari = 10_000m;
@@ -375,6 +383,8 @@ public class CekTakipViewModelTests
         Assert.Equal("Tahsilat kaydedildi; seçili süzgeç (Alınan · Portföyde) dışında kaldığı için listede görünmüyor.", vm.Mesaj);
         Assert.Equal(yeniOzet, vm.Ozet);
         Assert.Equal("Portföydeki alınan: 500.000,00 ₺ (5 çek)", vm.PortfoyMetni);
+        Assert.Contains(nameof(vm.VerilenGecmisMetni), degisenler);
+        Assert.Equal("Vadesi geçmiş, ödenmemiş: 3.000,00 ₺ (1 çek)", vm.VerilenGecmisMetni);
     }
 
     [Fact]
@@ -516,13 +526,17 @@ public class CekTakipViewModelTests
     }
 
     [Fact]
-    public async Task Panel_ozeti_uc_satiri_bicimler()
+    public async Task Panel_ozeti_dort_satiri_bicimler()
     {
         var api = new Sahte();
         var vm = new CekOzetViewModel(api, Auth());
+        var degisenler = new List<string?>();
+        vm.PropertyChanged += (_, e) => degisenler.Add(e.PropertyName);
         await vm.YukleAsync();
-        Assert.Equal(("30 gün içinde tahsil edilecek: 50.000,00 ₺ (1 çek)", "30 gün içinde ödenecek: 7.000,00 ₺ (1 çek)", "Vadesi geçmiş, tahsil edilmemiş: 0,00 ₺ (0 çek)"),
-            (vm.Alinan30Metni, vm.Verilen30Metni, vm.GecmisMetni));
+        Assert.Equal(("30 gün içinde tahsil edilecek: 50.000,00 ₺ (1 çek)", "30 gün içinde ödenecek: 7.000,00 ₺ (1 çek)", "Vadesi geçmiş, tahsil edilmemiş: 0,00 ₺ (0 çek)",
+                "Vadesi geçmiş, ödenmemiş: 12.500,50 ₺ (2 çek)"),
+            (vm.Alinan30Metni, vm.Verilen30Metni, vm.GecmisMetni, vm.VerilenGecmisMetni));
+        Assert.Contains(nameof(vm.VerilenGecmisMetni), degisenler);
         Assert.True(vm.VeriHazir);
     }
 }

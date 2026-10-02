@@ -73,9 +73,10 @@ internal static class CekServisi
         var sinir = bugun.AddDays(30);
         var acik = Oku(b.Db).Where(k => !k.Cek.Teminat && k.Durum.Acik).ToList();
         var alinan = acik.Where(k => k.Cek.Yon == CekYonleri.Alinan).ToList();
+        var verilen = acik.Where(k => k.Cek.Yon == CekYonleri.Verilen).ToList();
         return new(bugun, Kalem(alinan), Kalem(alinan.Where(k => k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
-            Kalem(acik.Where(k => k.Cek.Yon == CekYonleri.Verilen && k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
-            Kalem(alinan.Where(k => k.Cek.VadeTarihi < bugun)));
+            Kalem(verilen.Where(k => k.Cek.VadeTarihi >= bugun && k.Cek.VadeTarihi <= sinir)),
+            Kalem(alinan.Where(k => k.Cek.VadeTarihi < bugun)), Kalem(verilen.Where(k => k.Cek.VadeTarihi < bugun)));
     }
 
     private static CekOzetKalemi Kalem(IEnumerable<Kayit> kayitlar)

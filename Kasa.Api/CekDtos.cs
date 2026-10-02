@@ -27,5 +27,8 @@ public record CekDto(int Id, int Surum, string Tur, string Yon, string No, strin
 public record CekOzetKalemi(int Adet, decimal Toplam);
 
 /// <summary>Çek panel özeti (GET /api/takip/cekler/ozet). Teminat çekleri ve kapanmış çekler dışarıdadır; tutarlar kalandır. Otuz gün
-/// bugünden bugün+30'a kadardır (ikisi dahil). Vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen tahsil edilmiş alınan çek.</summary>
-public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis);
+/// bugünden bugün+30'a kadardır (ikisi dahil). Vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen tahsil edilmiş alınan çek.
+/// Verilen vadesi geçmiş: vadesi bugünden önce, portföyde ya da kısmen ödenmiş verilen çek (2026-10-02 ürün sahibi kararı; sözleşmeyi
+/// bozmamak için kaydın sonunda).</summary>
+public record CekOzetDto(DateOnly Tarih, CekOzetKalemi PortfoydekiAlinan, CekOzetKalemi Alinan30, CekOzetKalemi Verilen30, CekOzetKalemi VadesiGecmis,
+    CekOzetKalemi VerilenVadesiGecmis);

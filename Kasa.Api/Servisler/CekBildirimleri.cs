@@ -15,6 +15,8 @@ namespace Kasa.Api.Servisler;
 /// çekin 10 günlük ibraz süresinin dolmasına 3 gün kala çıkan bir hatırlatmadır, TTK m.796; farklı yerde ödenecek çekte süre
 /// 1 aydır; senedin ibraz/zamanaşımı süresi farklıdır, bu yüzden senette bu uyarı çıkmaz).</item>
 /// <item>Verilen, portföyde ya da kısmen: vadeye 3 gün kala ve vade günü "Ödenecek çek".</item>
+/// <item>Verilen, portföyde ya da kısmen: vadenin ertesi günü (fark -1) "Ödenmemiş çek" / "Ödenmemiş senet", kalan tutarla
+/// (2026-10-02 ürün sahibi kararı).</item>
 /// </list>
 /// Hedef "/#cheques/{id}": masaüstü bunu Çekler sayfasında o çeke çevirir (Kasa.App.Core BildirimHedefi). Anahtar çek, kural,
 /// vade ve gün farkını taşır: vade değişirse eski hatırlatma iptal olur, yenisi oluşur.
@@ -26,17 +28,18 @@ public static class CekBildirimleri
     public const string VadeTuru = "CekVade";
     public const string IbrazTuru = "CekIbraz";
     public const string OdemeTuru = "CekOdeme";
+    public const string GecmisOdemeTuru = "CekGecmisOdeme";
 
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
     public static IReadOnlyList<BildirimTaslagi> Oku(KasaDbContext db, DateOnly today)
     {
         var sonuc = new List<BildirimTaslagi>();
-        // Üç kuralın hepsi vadesi {bugün, bugün+3, bugün-7} olan teminatsız çeklerle sınırlıdır: önce bu adaylar SQL'de seçilir,
+        // Dört kuralın hepsi vadesi {bugün, bugün+3, bugün-1, bugün-7} olan teminatsız çeklerle sınırlıdır: önce bu adaylar SQL'de seçilir,
         // yalnız onların hareketleri okunur (tüm çek tablosunu taramaktan kaçınılır). Aday seçimiyle hareketler aynı anlık
         // görüntüden okunur (kart/kredi kaynağındaki desen, bkz. FinansBildirimKaynaklari).
         using var okuma = db.OkumaBaslat();
-        var vadeler = new[] { today, today.AddDays(3), today.AddDays(-7) };
+        var vadeler = new[] { today, today.AddDays(3), today.AddDays(-1), today.AddDays(-7) };
         var adaylar = db.Cekler.AsNoTracking().Where(c => !c.Teminat && vadeler.Contains(c.VadeTarihi)).Select(c => c.Id).ToList();
         if (adaylar.Count == 0)
             return sonuc;
@@ -52,6 +55,8 @@ public static class CekBildirimleri
             {
                 if (fark is 3 or 0)
                     Ekle("Odenecek", OdemeTuru, $"Ödenecek {ad.ToLower(Tr)}", $"{c.Kisi} · {Tl(k.Durum.Kalan)} · hesapta bulunmalı");
+                if (fark == -1)
+                    Ekle("Gecmis", GecmisOdemeTuru, $"Ödenmemiş {ad.ToLower(Tr)}", $"{c.Kisi} · {Tl(k.Durum.Kalan)} · vade {vade} geçti");
                 continue;
             }
             if (fark is 3 or 0)
