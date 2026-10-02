@@ -82,6 +82,8 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
         // Windows ayarında kapalıyken gösterim yapılamaz: bildirimler "gösterildi" diye ayrılmaz, ayar açılınca gösterilir.
         if (WindowsAyarindaKapali())
             return Sonuc(nesil, YoklamaDurumu.WindowsAyarindaKapali, 0);
+        if (!GostermeyeHazir())
+            return Sonuc(nesil, YoklamaDurumu.Hazirlaniyor, 0);
         IReadOnlyList<int> yeniler;
         try
         {
@@ -159,6 +161,19 @@ public sealed partial class BildirimYoklayici(IBildirimApi api, IBildirimGosteri
         {
             // Ayar okunamazsa gösterim denenir; gösterim hatası zaten tek tek yutulur.
             return false;
+        }
+    }
+
+    private bool GostermeyeHazir()
+    {
+        try
+        {
+            return gosterici.GostermeyeHazir;
+        }
+        catch (Exception)
+        {
+            // Hazırlık okunamazsa gösterim denenir (WindowsAyarindaKapali ile aynı).
+            return true;
         }
     }
 

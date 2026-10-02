@@ -275,6 +275,23 @@ public class BildirimYoklayiciTests
     }
 
     [Fact]
+    public async Task Windows_tarafi_hazir_degilse_bildirim_ayrilmaz_sonraki_bakmada_gosterilir()
+    {
+        // İlk açılışta Başlat menüsü kısayolu yazılmadan gösterilen bildirim Windows'ta düşer; kimliği gösterilmiş sayılmamalıdır.
+        var o = new BildirimOrtami();
+        o.Api.Liste = [B(1)];
+        o.Gosterici.GostermeyeHazir = false;
+        var sonuc = await o.Yoklayici.YoklaAsync(true);
+        Assert.Equal(YoklamaDurumu.Hazirlaniyor, sonuc!.Durum);
+        Assert.Equal("Son kontrol 14:05 · Windows bildirimleri hazırlanıyor", sonuc.Metin);
+        Assert.Empty(o.Gosterici.Gosterilenler);
+        Assert.Empty(o.Depo.Kayitli);
+        o.Gosterici.GostermeyeHazir = true;
+        await o.Yoklayici.YoklaAsync(true);
+        Assert.Equal([1], o.Gosterici.Gosterilenler.Select(b => b.Id));
+    }
+
+    [Fact]
     public void Tiklama_argumanlari_kimlik_ve_hedefe_cozulur()
     {
         Assert.Equal(new BildirimTiklamasi(12, "/#cards/3"),
