@@ -154,6 +154,21 @@ internal static class TakipUi
 
     public static View Editor(View v) => Goster(new ContentView { Content = v }, "EditorMu");
 
+    /// <summary>Yalnız editörde VE <paramref name="gorunurYol"/> doğruyken görünen alan. Sarmalayıcının kendi görünürlüğü
+    /// de koşula bağlanır: "editörde ama içi gizli" durumunda (ör. henüz belge yok) sarmalayıcı erken kapanır, dikey
+    /// yığında (Spacing) boşluk bırakmaz. Tek koşula (yalnız "EditorMu") bağlı <see cref="Goster{T}"/> ile sarılmış içerik
+    /// bu sorunu yaşar: içi gizliyken kendisi görünür kalır (EK-01).</summary>
+    public static View Editor(View v, string gorunurYol)
+    {
+        var cv = new ContentView { Content = v };
+        cv.SetBinding(VisualElement.IsVisibleProperty, new MultiBinding
+        {
+            Bindings = { new Binding("EditorMu"), new Binding(gorunurYol) },
+            Converter = new HepsiDoguConverter(),
+        });
+        return cv;
+    }
+
     public static View Benzerlik(string yol, string command)
         => Goster(Kart("Benzer kayıt kontrolü", Bagli(yol + ".Uyari"), Dugme("Ayrı bir işlem, devam et", command)), yol + ".UyariVar");
 
@@ -173,6 +188,18 @@ internal static class TakipUi
         zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
         hedef.Add(zaman);
         return hata;
+    }
+
+    /// <summary>Kendi başına duran yükleme göstergesi (Yenile satırının dışında, ör. Kasalar'daki "Kart ve kredi takibi"
+    /// kutusu) ve altındaki hata metni: gösterge yalnız <paramref name="mesgulYolu"/> doğruyken çalışır VE görünür, hata
+    /// yalnız doluyken görünür. İkisi de boşken yer ve dikey yığında aralık (Spacing) kaplamaz (KS-03: aksi halde ~87 px
+    /// boşluk kalır).</summary>
+    public static (ActivityIndicator Gosterge, Label Hata) MesgulVeHata(string mesgulYolu, string hataYolu)
+    {
+        var gosterge = new ActivityIndicator();
+        gosterge.SetBinding(ActivityIndicator.IsRunningProperty, mesgulYolu);
+        gosterge.SetBinding(VisualElement.IsVisibleProperty, mesgulYolu);
+        return (gosterge, DoluysaGoster(BagliHata(hataYolu)));
     }
 
     /// <summary>Yenile düğmesi ve sağında, yalnız meşgulken, gösterge ile "İşleniyor…" (yükleme de kayıt/dışa aktarma da): gösterge ayrı satırdayken
@@ -309,6 +336,13 @@ internal static class TakipUi
     {
         public object Convert(object? value, Type type, object? parameter, System.Globalization.CultureInfo culture) => value is not null;
         public object ConvertBack(object? value, Type type, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
+    }
+
+    /// <summary>Bütün bağlı değerler doğruysa doğru (EK-01'deki birleşik görünürlük için).</summary>
+    private sealed class HepsiDoguConverter : IMultiValueConverter
+    {
+        public object Convert(object?[] values, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => values.All(v => v is true);
+        public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
     }
 }
 
