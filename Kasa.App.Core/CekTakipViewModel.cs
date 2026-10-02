@@ -269,9 +269,11 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             case CekHazirSuzgec.VerilenVadesiGecmis:
                 SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, null, bugun.AddDays(-1));
                 break;
-            default:
+            case CekHazirSuzgec.VadesiGecmis:
                 SuzgecleriYaz(CekYonleri.Alinan, CekSuzgecleri.Portfoyde, null, bugun.AddDays(-1));
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(suzgec), suzgec, null);
         }
         Ara = "";
         return YukleAsync();
