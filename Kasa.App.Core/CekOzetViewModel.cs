@@ -11,9 +11,9 @@ public partial class CekOzetViewModel(ICekApi api, AuthViewModel auth) : Oturuml
     [NotifyPropertyChangedFor(nameof(Alinan30Metni), nameof(Verilen30Metni), nameof(GecmisMetni))]
     private CekOzetDto? _ozet;
 
-    public string Alinan30Metni => Ozet is { } o ? CekMetni.OzetSatiri("30 gün içinde tahsil edilecek", o.Alinan30) : "";
-    public string Verilen30Metni => Ozet is { } o ? CekMetni.OzetSatiri("30 gün içinde ödenecek", o.Verilen30) : "";
-    public string GecmisMetni => Ozet is { } o ? CekMetni.OzetSatiri("Vadesi geçmiş, tahsil edilmemiş", o.VadesiGecmis) : "";
+    public string Alinan30Metni => CekMetni.Alinan30Metni(Ozet);
+    public string Verilen30Metni => CekMetni.Verilen30Metni(Ozet);
+    public string GecmisMetni => CekMetni.GecmisMetni(Ozet);
 
     public Task YukleAsync() => YurutAsync(async n =>
     {

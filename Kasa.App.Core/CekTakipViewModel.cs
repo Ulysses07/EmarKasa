@@ -9,7 +9,9 @@ namespace Kasa.App.Core;
 
 /// <summary>
 /// Çekler ekranı (docs/specs/2026-10-01-cekler.md "Masaüstü ekranı"). Süzgeçler (yön, durum, arama, vade aralığı) sunucuda uygulanır:
-/// her değişiklik listeyi yeniden yükler. Açılan çekin ayrıntısı satırının hemen altında görünür (<see cref="OncekiSatirlar"/>, açık
+/// her değişiklik listeyi yeniden yükler. Liste ve özet okuması son istek kazanır hattıdır (<see cref="SonIstekHatti"/>): süzgeç
+/// istek anında yakalanır, süren yükleme yeni süzgeci engellemez, eski süzgecin geç yanıtı yeni seçimi ezmez. Yazmadan sonra özet
+/// yenilenir; kaydedilen çek seçili süzgece artık uymuyorsa listeden düşer ve bu söylenir. Açılan çekin ayrıntısı satırının hemen altında görünür (<see cref="OncekiSatirlar"/>, açık
 /// çek, <see cref="SonrakiSatirlar"/>). Hareket düğmeleri sunucunun izin verdiği türlerdir (<see cref="CekDto.IzinliHareketler"/>);
 /// geçiş kuralı istemcide yinelenmez. Hareket formu tarih bugün, tutar kalan ve son seçilen kasayla açılır. Yeni çekte aynı yön,
 /// banka ve numaralı kayıt kaydetmeden önce uyarılır; kullanıcı onaylarsa kaydedilir.
@@ -18,9 +20,17 @@ namespace Kasa.App.Core;
 public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewModel auth, TimeProvider? zaman = null) : OturumluViewModel(auth)
 {
     private readonly TimeProvider _zaman = zaman ?? TimeProvider.System;
-    private readonly TekrarAnahtari _kayit = new(), _hareket = new(), _geriAl = new(), _sil = new();
+    private readonly TekrarAnahtari _kayit = new();
+    // Çek başına: bir çekin yanıtı belirsiz kalan isteğinin anahtarı başka çekte yapılan işlemle ezilmez (KartTakipViewModel gibi).
+    private readonly KayitBasinaTekrarAnahtari _hareket = new(), _geriAl = new(), _sil = new();
+    private SonIstekHatti? _listeHatti;
     private string? _sonKanal;
     private bool _ayniCekOnaylandi;
+    // Düzeltme formu açılırken çekin sürümü: kaydetme bunu gönderir (listeden okunmaz); liste yenilenince sürüm değiştiyse form kapanır.
+    private int _duzenlenenSurum;
+
+    /// <summary>Liste ve özet okumasının son istek kazanır hattı (yükleme göstergesi ve hatası ekranın Mesgul ve Hata'sıdır).</summary>
+    private SonIstekHatti ListeHatti => _listeHatti ??= new(Yurutucu);
 
     public ObservableCollection<CekSatiri> Cekler { get; } = new();
     public ObservableCollection<CekSatiri> OncekiSatirlar { get; } = new();
@@ -94,8 +104,9 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         ({ } bas, null) => $"Vade {bas:dd.MM.yyyy} ve sonrası",
         _ => "",
     };
-    public string MasrafMetni => NetGerekli && ParaAyristirici.HepsiGecerli(HareketTutari, NetTutar)
-        ? $"Masraf: {Bicim.Tl(HareketTutari - NetTutar)} ₺ (karşı tarafa Cari gider). Kasaya {Bicim.Tl(NetTutar)} ₺ girer." : "";
+    public string MasrafMetni => !NetGerekli || !ParaAyristirici.HepsiGecerli(HareketTutari, NetTutar) ? ""
+        : NetTutar > HareketTutari ? "Hesaba geçen tutar çek tutarını aşamaz."
+        : $"Masraf: {Bicim.Tl(HareketTutari - NetTutar)} ₺ (karşı tarafa Cari gider). Kasaya {Bicim.Tl(NetTutar)} ₺ girer.";
     public string AcikOzet => Acik is not { } c ? "" : string.Join("\n", new[]
     {
         $"{CekMetni.Yon(c.Yon)} {CekMetni.Tur(c.Tur).ToLowerInvariant()} · {c.Kisi} · {c.Banka ?? "—"} · {c.No}",
@@ -106,10 +117,10 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         c.Not,
         c.Uyari,
     }.OfType<string>());
-    public string PortfoyMetni => Ozet is { } o ? CekMetni.OzetSatiri("Portföydeki alınan", o.PortfoydekiAlinan) : "";
-    public string Alinan30Metni => Ozet is { } o ? CekMetni.OzetSatiri("30 gün içinde tahsil edilecek", o.Alinan30) : "";
-    public string Verilen30Metni => Ozet is { } o ? CekMetni.OzetSatiri("30 gün içinde ödenecek", o.Verilen30) : "";
-    public string GecmisMetni => Ozet is { } o ? CekMetni.OzetSatiri("Vadesi geçmiş, tahsil edilmemiş", o.VadesiGecmis) : "";
+    public string PortfoyMetni => CekMetni.PortfoyMetni(Ozet);
+    public string Alinan30Metni => CekMetni.Alinan30Metni(Ozet);
+    public string Verilen30Metni => CekMetni.Verilen30Metni(Ozet);
+    public string GecmisMetni => CekMetni.GecmisMetni(Ozet);
 
     partial void OnOzetChanged(CekOzetDto? value)
     {
@@ -135,33 +146,42 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         AyniCekUyarisi = null;
     }
 
-    /// <summary>Liste, özet ve kasa seçenekleri.</summary>
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Liste, özet ve kasa seçenekleri; süzgeç istek anında yakalanır. Son istek kazanır: süren yükleme yeni süzgeci
+    /// engellemez, yalnız en son isteğin sonucu uygulanır.</summary>
+    public Task YukleAsync()
     {
-        var kanallar = await finans.KanallarAsync();
-        var cekler = await api.CeklerAsync(Yon, Durum, string.IsNullOrWhiteSpace(Ara) ? null : Ara.Trim(), VadeBas, VadeSon);
-        var ozet = await api.CekOzetAsync();
-        if (!Gecerli(n))
-            return;
-        Yansit(kanallar, cekler, ozet);
-    });
+        var (yon, durum, ara, bas, son) = (Yon, Durum, string.IsNullOrWhiteSpace(Ara) ? null : Ara.Trim(), VadeBas, VadeSon);
+        return ListeHatti.YukleAsync(async _ =>
+        {
+            var kanallar = await finans.KanallarAsync();
+            var cekler = await api.CeklerAsync(yon, durum, ara, bas, son);
+            var ozet = await api.CekOzetAsync();
+            return (kanallar, cekler, ozet);
+        }, v => Yansit(v.kanallar, v.cekler, v.ozet));
+    }
 
     /// <summary>Bildirimden gelen çek (//cekler?CekId=…): çek okunur, yönüne ve "Hepsi" durumuna geçilir (süzgeç onu gizlemesin),
-    /// liste yüklenir. Seçim <see cref="IdIleSec"/> ile yapılır.</summary>
-    public Task CekIcinYukleAsync(int id) => YurutAsync(async n =>
+    /// liste yüklenir. Seçim <see cref="IdIleSec"/> ile yapılır. Liste yüklemesiyle aynı hattadır: süren yükleme bunu engellemez,
+    /// sonradan seçilen süzgeç bunu ezer. Önceki süzgecin listesi bu çeke ait değildir: <see cref="OturumluViewModel.VeriHazir"/>
+    /// başta iner, yalnız bu ya da sonraki güncel yükleme uygulanınca kalkar; böylece biten çağrıdan sonra VeriHazir ekrandaki
+    /// listenin seçili süzgece ait olduğunu söyler.</summary>
+    public Task CekIcinYukleAsync(int id)
     {
-        var cek = await api.CekAsync(id);
-        if (!Gecerli(n))
-            return;
-        SuzgecleriYaz(cek.Yon, CekSuzgecleri.Hepsi, null, null);
-        Ara = "";
-        var kanallar = await finans.KanallarAsync();
-        var cekler = await api.CeklerAsync(Yon, Durum, null, null, null);
-        var ozet = await api.CekOzetAsync();
-        if (!Gecerli(n))
-            return;
-        Yansit(kanallar, cekler, ozet);
-    });
+        VeriHazir = false;
+        return ListeHatti.YukleAsync(async _ =>
+        {
+            var cek = await api.CekAsync(id);
+            var kanallar = await finans.KanallarAsync();
+            var cekler = await api.CeklerAsync(cek.Yon, CekSuzgecleri.Hepsi, null, null, null);
+            var ozet = await api.CekOzetAsync();
+            return (cek.Yon, kanallar, cekler, ozet);
+        }, v =>
+        {
+            SuzgecleriYaz(v.Yon, CekSuzgecleri.Hepsi, null, null);
+            Ara = "";
+            Yansit(v.kanallar, v.cekler, v.ozet);
+        });
+    }
 
     private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<CekDto> cekler, CekOzetDto ozet)
     {
@@ -171,6 +191,12 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         Ozet = ozet;
         Acik = Acik is { } eski ? cekler.FirstOrDefault(c => c.Id == eski.Id) : null;
         SatirlariBol();
+        // Düzeltilen çek arada başka bir işlemle değiştiyse form eski veriyle yeni sürümü ezmesin: kapanır, yeniden açılması istenir.
+        if (FormAcik && Duzenlenen is { } d && cekler.FirstOrDefault(c => c.Id == d) is { } guncel && guncel.Surum != _duzenlenenSurum)
+        {
+            FormAcik = false;
+            Mesaj = "Çek başka bir işlemle değişti; formu yeniden açın.";
+        }
         Tamamlandi();
     }
 
@@ -204,7 +230,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             Hata = "Çek bulunamadı. Listeyi yenileyip tekrar deneyin.";
             return false;
         }
-        Sec(satir);
+        // Satır tıklaması gibi aç-kapa değil: çek zaten açıksa açık kalır.
+        Acik = satir.Veri;
         return true;
     }
 
@@ -292,15 +319,15 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         }
         var g = new CekHareketYaz(Guid.Empty, c.Surum, tur, DateOnly.FromDateTime(HareketTarihi), HareketTutari, NetGerekli ? NetTutar : null,
             KasaGerekli ? HareketKasasi : null, KarsiGerekli ? Karsi.Trim() : null);
-        g = g with { IstekId = _hareket.Al(new { c.Id, g }) };
+        g = g with { IstekId = _hareket.Al(c.Id, new { c.Id, g }) };
         var sonuc = await api.CekHareketEkleAsync(c.Id, g);
         if (!Gecerli(n))
             return;
-        _hareket.Temizle();
+        _hareket.Temizle(c.Id);
         if (KasaGerekli)
             _sonKanal = HareketKasasi;
-        Guncelle(sonuc);
-        Mesaj = $"{CekMetni.Hareket(tur)} kaydedildi.";
+        Mesaj = $"{CekMetni.Hareket(tur)} kaydedildi" + GorunurlukEki(Guncelle(sonuc));
+        await OzetiYenileAsync(n);
     });
 
     /// <summary>Son hareketi geri alır (sayfa önce onay ister).</summary>
@@ -309,23 +336,69 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         if (!EditorMu || Acik is not { Hareketler.Count: > 0 } c)
             return;
         var g = new CekSilYaz(Guid.Empty, c.Surum);
-        g = g with { IstekId = _geriAl.Al(new { c.Id, g }) };
+        g = g with { IstekId = _geriAl.Al(c.Id, new { c.Id, g }) };
         var sonuc = await api.CekHareketGeriAlAsync(c.Id, g);
         if (!Gecerli(n))
             return;
-        _geriAl.Temizle();
-        Guncelle(sonuc);
-        Mesaj = "Son hareket geri alındı.";
+        _geriAl.Temizle(c.Id);
+        Mesaj = "Son hareket geri alındı" + GorunurlukEki(Guncelle(sonuc));
+        await OzetiYenileAsync(n);
     }, mesgulkenBildir: true);
 
-    private void Guncelle(CekDto sonuc)
+    /// <summary>Sunucunun döndüğü çeki listeye yazar. Seçili süzgece (yön, durum, vade) artık uymuyorsa listeden düşer ve ayrıntısı
+    /// kapanır; döner: listede görünüyor mu.</summary>
+    private bool Guncelle(CekDto sonuc)
     {
         var i = Cekler.ToList().FindIndex(s => s.Veri.Id == sonuc.Id);
+        if (!SuzgecteGorunur(sonuc))
+        {
+            if (i >= 0)
+                Cekler.RemoveAt(i);
+            if (Acik?.Id == sonuc.Id)
+                Acik = null;
+            else
+                SatirlariBol();
+            return false;
+        }
         if (i >= 0)
             Cekler[i] = new CekSatiri(sonuc, Bugun);
         else
             Cekler.Insert(0, new CekSatiri(sonuc, Bugun));
         Acik = sonuc;
+        return true;
+    }
+
+    /// <summary>Çek seçili süzgece uyuyor mu (sunucudaki liste süzgeciyle aynı: CekServisi.Liste). Arama metni yerelde yinelenmez.</summary>
+    private bool SuzgecteGorunur(CekDto c) => c.Yon == Yon
+        && Durum switch
+        {
+            CekSuzgecleri.Portfoyde => c.Durum is CekDurumlari.Portfoyde or CekDurumlari.KismenTahsilEdildi or CekDurumlari.KismenOdendi,
+            CekSuzgecleri.Karsiliksiz => c.Durum == CekDurumlari.Karsiliksiz,
+            CekSuzgecleri.Kapanan => c.Durum is CekDurumlari.TahsilEdildi or CekDurumlari.Odendi or CekDurumlari.CiroEdildi
+                or CekDurumlari.Kirdirildi or CekDurumlari.IadeEdildi,
+            _ => true,
+        }
+        && (VadeBas is null || c.VadeTarihi >= VadeBas) && (VadeSon is null || c.VadeTarihi <= VadeSon);
+
+    /// <summary>Başarı iletisinin sonu: görünüyorsa nokta, değilse neden listede olmadığı (İşlemler ekranıyla aynı üslup).</summary>
+    private string GorunurlukEki(bool gorunur) => gorunur ? "." : $"; seçili süzgeç ({SuzgecMetni()}) dışında kaldığı için listede görünmüyor.";
+
+    private string SuzgecMetni() => string.Join(" · ", new[] { CekMetni.Yon(Yon), CekMetni.Suzgec(Durum), VadeSuzgeci }.Where(p => p.Length > 0));
+
+    /// <summary>Yazmadan sonra üst şeridin özeti yenilenir. Kayıt alınmıştır: özet okunamazsa başarı iletisi kalır, okuma hatası
+    /// ayrıca yazılır.</summary>
+    private async Task OzetiYenileAsync(int n)
+    {
+        try
+        {
+            var ozet = await api.CekOzetAsync();
+            if (Gecerli(n))
+                Ozet = ozet;
+        }
+        catch (Exception hata) when (Gecerli(n))
+        {
+            Hata = "Özet yenilenemedi. " + OkumaHataMesaji(hata);
+        }
     }
 
     [RelayCommand]
@@ -340,6 +413,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         CekKasasi = null;
         Teminat = false;
         Konum = KonumSecenekleri[0];
+        _duzenlenenSurum = 0;
         _kayit.Temizle();
         AyniCekSifirla();
         FormAcik = true;
@@ -351,6 +425,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         if (Acik is not { } c)
             return;
         Duzenlenen = c.Id;
+        _duzenlenenSurum = c.Surum;
         FormYon = YonSecenekleri.First(y => y.Kod == c.Yon);
         FormTur = TurSecenekleri.First(t => t.Kod == c.Tur);
         No = c.No;
@@ -386,11 +461,11 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             Hata = ParaAyristirici.GecersizMesaji;
             return;
         }
-        var surum = Duzenlenen is { } id ? Cekler.FirstOrDefault(s => s.Veri.Id == id)?.Veri.Surum ?? Acik?.Surum ?? 0 : 0;
-        var g = new CekYaz(Guid.Empty, surum, tur.Kod, yon.Kod, No.Trim(), string.IsNullOrWhiteSpace(Banka) ? null : Banka.Trim(), Kisi.Trim(), Tutar,
+        var g = new CekYaz(Guid.Empty, Duzenlenen is null ? 0 : _duzenlenenSurum, tur.Kod, yon.Kod, No.Trim(), string.IsNullOrWhiteSpace(Banka) ? null : Banka.Trim(), Kisi.Trim(), Tutar,
             DateOnly.FromDateTime(Vade), yon.Kod == CekYonleri.Verilen ? CekKasasi : null, Teminat, yon.Kod == CekYonleri.Alinan ? Konum?.Kod : null,
             string.IsNullOrWhiteSpace(Not) ? null : Not.Trim());
-        if (Duzenlenen is null && !_ayniCekOnaylandi)
+        // Numarasız çekte aynı çek denetimi yapılmaz: boş numara her numarasız kaydı "aynı" sayardı.
+        if (Duzenlenen is null && !_ayniCekOnaylandi && g.No.Length > 0)
         {
             var ayni = (await api.CeklerAsync(yon.Kod, CekSuzgecleri.Hepsi, g.No, null, null))
                 .Where(c => CekKurallari.AyniCek(c.Yon, c.Banka, c.No, g.Yon, g.Banka, g.No)).ToList();
@@ -410,8 +485,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         _kayit.Temizle();
         AyniCekSifirla();
         FormAcik = false;
-        Guncelle(sonuc);
-        Mesaj = Duzenlenen is null ? "Çek kaydedildi." : "Çek güncellendi.";
+        Mesaj = (Duzenlenen is null ? "Çek kaydedildi" : "Çek güncellendi") + GorunurlukEki(Guncelle(sonuc));
+        await OzetiYenileAsync(n);
     });
 
     /// <summary>Açık çeki siler (sayfa önce onay ister). Kapatılmış aydaki kasa hareketi olan çeki sunucu reddeder.</summary>
@@ -420,15 +495,16 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         if (!EditorMu || Acik is not { } c)
             return;
         var g = new CekSilYaz(Guid.Empty, c.Surum);
-        g = g with { IstekId = _sil.Al(new { c.Id, g }) };
+        g = g with { IstekId = _sil.Al(c.Id, new { c.Id, g }) };
         await api.CekSilAsync(c.Id, g);
         if (!Gecerli(n))
             return;
-        _sil.Temizle();
+        _sil.Temizle(c.Id);
         if (Cekler.FirstOrDefault(s => s.Veri.Id == c.Id) is { } satir)
             Cekler.Remove(satir);
         Acik = null;
         Mesaj = "Çek silindi.";
+        await OzetiYenileAsync(n);
     }, mesgulkenBildir: true);
 
     protected override void OturumTemizle()
@@ -444,7 +520,9 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         _sonKanal = null;
         SuzgecleriYaz(CekYonleri.Alinan, CekSuzgecleri.Portfoyde, null, null);
         Ara = "";
-        foreach (var anahtar in new[] { _kayit, _hareket, _geriAl, _sil })
+        _listeHatti?.Birak();
+        _kayit.Temizle();
+        foreach (var anahtar in new[] { _hareket, _geriAl, _sil })
             anahtar.Temizle();
     }
 }

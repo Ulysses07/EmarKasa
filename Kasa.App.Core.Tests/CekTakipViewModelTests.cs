@@ -19,17 +19,35 @@ public class CekTakipViewModelTests
         public List<(int Id, CekHareketYaz Govde)> Hareketler = [];
         public List<(int Id, CekSilYaz Govde)> GeriAlmalar = [];
         public List<(int Id, CekSilYaz Govde)> Silmeler = [];
+        /// <summary>Son istek kazanır testleri: ilk CeklerAsync çağrısının yanıtı bu kapı tamamlanana kadar bekler (ikinci ve
+        /// sonraki çağrılar hemen sonuçlanır), yavaş/eski bir isteğin geç yanıtının sonraki seçimi ezmediğini doğrulamak için.</summary>
+        public TaskCompletionSource? BeklemeKapisi;
+        private bool _ilkCeklerCagrisiBeklendi;
+        /// <summary>Verilirse sonraki CekKaydetAsync istek kaydedildikten sonra bu hatayla düşer (yanıtı kaybolan istek); bir kez.</summary>
+        public Exception? KayitHatasi;
+        public int OzetSayisi;
 
-        public Task<IReadOnlyList<CekDto>> CeklerAsync(string? yon = null, string? durum = null, string? ara = null, DateOnly? vadeBas = null, DateOnly? vadeSon = null)
+        public async Task<IReadOnlyList<CekDto>> CeklerAsync(string? yon = null, string? durum = null, string? ara = null, DateOnly? vadeBas = null, DateOnly? vadeSon = null)
         {
             Sorgular.Add((yon, durum, ara, vadeBas, vadeSon));
-            return Task.FromResult<IReadOnlyList<CekDto>>(Liste.Where(c => yon is null || c.Yon == yon).ToList());
+            if (BeklemeKapisi is { } kapi && !_ilkCeklerCagrisiBeklendi)
+            { _ilkCeklerCagrisiBeklendi = true; await kapi.Task; }
+            return Liste.Where(c => yon is null || c.Yon == yon).ToList();
         }
         public Task<CekDto> CekAsync(int id) => Task.FromResult(Liste.Single(c => c.Id == id));
-        public Task<CekOzetDto> CekOzetAsync() => Task.FromResult(Ozet);
+        public Task<CekOzetDto> CekOzetAsync()
+        {
+            OzetSayisi++;
+            return Task.FromResult(Ozet);
+        }
         public Task<CekDto> CekKaydetAsync(int? id, CekYaz g)
         {
             Kayitlar.Add((id, g));
+            if (KayitHatasi is { } hata)
+            {
+                KayitHatasi = null;
+                return Task.FromException<CekDto>(hata);
+            }
             return Task.FromResult(Cek(id ?? 99, g.Yon, g.Tutar, no: g.No) with { Surum = g.Surum + 1 });
         }
         public Task CekSilAsync(int id, CekSilYaz g)
@@ -195,12 +213,168 @@ public class CekTakipViewModelTests
         Assert.Empty(api.Kayitlar);
         Assert.Equal((CekYonleri.Alinan, CekSuzgecleri.Hepsi, "12345"), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum, api.Sorgular[^1].Ara));
         Assert.StartsWith("Aynı yön, banka ve numarayla kayıtlı çek var: Ahmet Yılmaz · 50.000,00 ₺ · vade 30.09.2026.", vm.AyniCekUyarisi);
+
+        // "Yine de kaydet"in yanıtı kaybolur (ağ hatası): form açık kalır, yeniden gönderim aynı istek kimliğini taşır.
+        api.KayitHatasi = new HttpRequestException("bağlantı koptu");
         await vm.YineDeKaydetCommand.ExecuteAsync(null);
-        var (id, g) = Assert.Single(api.Kayitlar);
+        var ilk = Assert.Single(api.Kayitlar).Govde;
+        Assert.NotEqual(Guid.Empty, ilk.IstekId);
+        Assert.True(vm.FormAcik);
+        Assert.NotNull(vm.Hata);
+        await vm.YineDeKaydetCommand.ExecuteAsync(null);
+        Assert.Equal(2, api.Kayitlar.Count);
+        var (id, g) = api.Kayitlar[1];
+        Assert.Equal(ilk.IstekId, g.IstekId);
         Assert.Equal(((int?)null, "ziraat", "Ayşe", (string?)null, CekKonumlari.Elde), (id, g.Banka, g.Kisi, g.Kanal, g.Konum));
         Assert.False(vm.FormAcik);
         Assert.Null(vm.AyniCekUyarisi);
         Assert.Equal("Çek kaydedildi.", vm.Mesaj);
+    }
+
+    [Fact]
+    public async Task Numara_bossa_ayni_cek_denetimi_yapilmaz()
+    {
+        var (vm, api) = await Vm(Rol.Editor, Cek(1));
+        var sorguSayisi = api.Sorgular.Count;
+        vm.YeniCekCommand.Execute(null);
+        vm.No = "   ";
+        vm.Kisi = "Deneme";
+        vm.Tutar = 1_000m;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(sorguSayisi, api.Sorgular.Count);
+        Assert.Single(api.Kayitlar);
+        Assert.Null(vm.AyniCekUyarisi);
+    }
+
+    [Fact]
+    public async Task Kirdirmada_net_tutar_cek_tutarini_asarsa_uyari_gosterilir()
+    {
+        var (vm, _) = await Vm(Rol.Editor, Cek(1, kalan: 30_000m));
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.SecHareketCommand.Execute(vm.HareketCipleri.Single(c => c.Kod == CekHareketTurleri.Kirdirma));
+        vm.NetTutar = vm.HareketTutari + 1;
+        Assert.Equal("Hesaba geçen tutar çek tutarını aşamaz.", vm.MasrafMetni);
+    }
+
+    [Fact]
+    public async Task Suzgec_tiklamasi_suren_eski_istegi_ezer_son_secim_kazanir()
+    {
+        var api = new Sahte { Liste = [Cek(1), Cek(2, CekYonleri.Verilen)] };
+        var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0)] };
+        var vm = new CekTakipViewModel(api, finans, Auth(), new IslemEditorTests.SabitZaman(Bugun));
+        var kapi = new TaskCompletionSource();
+        api.BeklemeKapisi = kapi;
+        var ilkYukleme = vm.YukleAsync(); // Alinan/Portfoyde; CeklerAsync yanıtı bekliyor, henüz bitmedi.
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri[1]); // Verilen'e geçiş sırada atlanmaz, hemen sonuçlanır.
+        Assert.Equal(CekYonleri.Verilen, vm.Yon);
+        Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Portfoyde), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
+        Assert.Equal(new[] { 2 }, vm.Cekler.Select(s => s.Veri.Id));
+        kapi.SetResult();
+        await ilkYukleme;
+        // Eski (Alinan) isteğin geç yanıtı yeni seçimi (Verilen) ezmez.
+        Assert.Equal(CekYonleri.Verilen, vm.Yon);
+        Assert.Equal(new[] { 2 }, vm.Cekler.Select(s => s.Veri.Id));
+        Assert.True(vm.YonCipleri[1].Secili);
+        Assert.True(vm.VeriHazir);
+        Assert.False(vm.Mesgul);
+    }
+
+    [Fact]
+    public async Task Bildirimden_acilis_suren_liste_yuklemesini_ezer_atlanmaz()
+    {
+        var verilen = Cek(5, CekYonleri.Verilen);
+        var api = new Sahte { Liste = [Cek(1), verilen] };
+        var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0)] };
+        var vm = new CekTakipViewModel(api, finans, Auth(), new IslemEditorTests.SabitZaman(Bugun));
+        var kapi = new TaskCompletionSource();
+        api.BeklemeKapisi = kapi;
+        var ilkYukleme = vm.YukleAsync(); // Sayfa açılışı (Alinan/Portfoyde); CeklerAsync yanıtı bekliyor.
+        await vm.CekIcinYukleAsync(5); // Aynı anda bildirimden gelen açılış; sürerken atlanmaz, hemen sonuçlanır.
+        Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Hepsi), (vm.Yon, vm.Durum));
+        Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Hepsi), (api.Sorgular[^1].Yon, api.Sorgular[^1].Durum));
+        Assert.True(vm.VeriHazir);
+        Assert.Null(vm.Hata);
+        Assert.True(vm.IdIleSec(5));
+        Assert.Equal(5, vm.Acik!.Id);
+        kapi.SetResult();
+        await ilkYukleme; // Eskiyen ilk istek tamamlanır ama bildirimin süzgecini ve seçimini geri almaz.
+        Assert.Equal((CekYonleri.Verilen, CekSuzgecleri.Hepsi), (vm.Yon, vm.Durum));
+        Assert.Equal(5, vm.Acik!.Id);
+    }
+
+    [Fact]
+    public async Task Duzeltme_formu_surum_degisince_kapanir_kaydetme_yakalanan_surumu_kullanir()
+    {
+        var (vm, api) = await Vm(Rol.Editor, Cek(1));
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.DuzeltCommand.Execute(null);
+        Assert.True(vm.FormAcik);
+
+        // Kaydetme listeden değil, Düzelt'te yakalanan sürümle gider (liste ayrı bir yoldan değişse de).
+        vm.Cekler[0] = new CekSatiri(vm.Cekler[0].Veri with { Surum = 99 }, Bugun);
+        vm.Tutar = 60_000m;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(1, Assert.Single(api.Kayitlar).Govde.Surum);
+
+        // Form yeniden açılır (Acik, kaydın karşılığıdır); sunucu sürümü başka bir işlemle değişir, yenilenince form kapanır.
+        vm.DuzeltCommand.Execute(null);
+        Assert.True(vm.FormAcik);
+        api.Liste[0] = api.Liste[0] with { Surum = 99 };
+        await vm.YukleAsync();
+        Assert.False(vm.FormAcik);
+        Assert.Equal("Çek başka bir işlemle değişti; formu yeniden açın.", vm.Mesaj);
+    }
+
+    [Fact]
+    public async Task Acik_cege_IdIleSec_cagrilinca_detay_acik_kalir()
+    {
+        var (vm, _) = await Vm(Rol.Editor, Cek(1), Cek(2));
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        Assert.Equal(1, vm.Acik!.Id);
+        Assert.True(vm.IdIleSec(1));
+        Assert.Equal(1, vm.Acik!.Id);
+    }
+
+    [Fact]
+    public async Task Tam_tahsil_sonrasi_cek_suzgecten_duser_ozet_yenilenir()
+    {
+        var kapanan = Cek(1, kalan: 10_000m) with { Durum = CekDurumlari.TahsilEdildi };
+        var (vm, api) = await Vm(Rol.Editor, kapanan);
+        var yeniOzet = new CekOzetDto(Bugun, new(5, 500_000m), new(2, 20_000m), new(1, 7_000m), new(0, 0m));
+        api.Ozet = yeniOzet;
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.SecHareketCommand.Execute(vm.HareketCipleri[0]); // Tahsilat
+        vm.HareketTutari = 10_000m;
+        await vm.HareketKaydetCommand.ExecuteAsync(null);
+        Assert.Empty(vm.Cekler);
+        Assert.Null(vm.Acik);
+        Assert.Equal("Tahsilat kaydedildi; seçili süzgeç (Alınan · Portföyde) dışında kaldığı için listede görünmüyor.", vm.Mesaj);
+        Assert.Equal(yeniOzet, vm.Ozet);
+        Assert.Equal("Portföydeki alınan: 500.000,00 ₺ (5 çek)", vm.PortfoyMetni);
+    }
+
+    [Fact]
+    public async Task Kayit_geri_alma_ve_silmeden_sonra_ozet_yenilenir_suzgece_uyan_satir_kalir()
+    {
+        var hareket = new CekHareketDto(7, 1, CekHareketTurleri.Tahsilat, Bugun.AddDays(-1), 1_000m, null, 1, "MEZAT", null);
+        var (vm, api) = await Vm(Rol.Editor, Cek(1, kalan: 49_000m, hareketler: [hareket]), Cek(2));
+        var sayi = api.OzetSayisi;
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        await vm.GeriAlAsync();
+        Assert.Equal(sayi + 1, api.OzetSayisi);
+        Assert.Equal("Son hareket geri alındı.", vm.Mesaj);
+        Assert.Equal(1, vm.Acik!.Id);
+
+        vm.DuzeltCommand.Execute(null);
+        vm.Kisi = "Ali";
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal(sayi + 2, api.OzetSayisi);
+        Assert.Equal("Çek güncellendi.", vm.Mesaj);
+        Assert.Contains(vm.Cekler, s => s.Veri.Id == 1);
+
+        await vm.SilAsync();
+        Assert.Equal(sayi + 3, api.OzetSayisi);
+        Assert.Equal(new[] { 2 }, vm.Cekler.Select(s => s.Veri.Id));
     }
 
     [Fact]
@@ -216,6 +390,9 @@ public class CekTakipViewModelTests
         await vm.KaydetCommand.ExecuteAsync(null);
         var g = Assert.Single(api.Kayitlar).Govde;
         Assert.Equal((CekYonleri.Verilen, KanalEtiketleri.Ortak, (string?)null, (string?)null), (g.Yon, g.Kanal, g.Konum, g.Banka));
+        // Liste "Alınan" süzgecinde: yeni verilen çek listeye eklenmez, neden görünmediği söylenir.
+        Assert.Equal(new[] { 1 }, vm.Cekler.Select(s => s.Veri.Id));
+        Assert.Equal("Çek kaydedildi; seçili süzgeç (Alınan · Portföyde) dışında kaldığı için listede görünmüyor.", vm.Mesaj);
     }
 
     [Fact]
