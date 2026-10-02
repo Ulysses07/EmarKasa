@@ -19,7 +19,7 @@ public class GerekceTests
         var auth = TestOturumu.Ac();
         var vm = new KartTakipViewModel(vekil, Finans(), auth);
         await vm.YukleAsync();
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         return (vm, api, auth);
     }
 
@@ -102,7 +102,7 @@ public class GerekceTests
         {
             auth.OturumSurumu++;
             await vm.YukleAsync();
-            vm.SecCommand.Execute(vm.Kartlar[0]);
+            vm.Sec(vm.Kartlar[0]);
         }
     }
 

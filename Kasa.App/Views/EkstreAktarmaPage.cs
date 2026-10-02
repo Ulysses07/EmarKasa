@@ -53,17 +53,17 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
             grid.Add(duzenle, 2);
             return grid;
         });
-        Govde.Add(Editor(Goster(Kart("2. Hareket satırları",
+        Govde.Add(Editor(Kart("2. Hareket satırları",
             Bagli(nameof(vm.BelgeOzeti)),
             Tikla("Kaynak PDF'yi indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.DosyaAsync)),
             Metin("Kutuları tek tek işaretleyin. Bir satırı inceleyerek tarih, tutar, işlem türü ve kanal dağılımını düzeltebilirsiniz. İptal edilmiş satırlar yeniden seçilebilir."),
             liste, _satirFormu,
-            Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand))), nameof(vm.BelgeVar))));
-        Govde.Add(Editor(Goster(Kart("3. Kontrol ve kayıt", Bagli(nameof(vm.OnizlemeMetni)),
+            Dugme("Seçilen satırların etkisini göster", nameof(vm.OnizleCommand))), nameof(vm.BelgeVar)));
+        Govde.Add(Editor(Kart("3. Kontrol ve kayıt", Bagli(nameof(vm.OnizlemeMetni)),
             Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(vm.TekrarOnay)), nameof(vm.TekrarOnayGerekli)),
             Onay("Seçilen satırları, kanal paylarını ve kasa etkisini kontrol ettim.", nameof(vm.Onay)),
-            Dugme("Onayladığım satırları kaydet", nameof(vm.KaydetCommand))), nameof(vm.OnizlemeVar))));
-        Govde.Add(Editor(Goster(Kart("Bu belgeden kaydedilenler", Liste<EkstreKayitSatiri>(nameof(vm.Kayitlar), KaydiIptalAsync, "Gerekçeyle iptal et", s => !s.Veri.Iptal)), nameof(vm.BelgeVar))));
+            Dugme("Onayladığım satırları kaydet", nameof(vm.KaydetCommand))), nameof(vm.OnizlemeVar)));
+        Govde.Add(Editor(Kart("Bu belgeden kaydedilenler", Liste<EkstreKayitSatiri>(nameof(vm.Kayitlar), KaydiIptalAsync, "Gerekçeyle iptal et", s => !s.Veri.Iptal)), nameof(vm.BelgeVar)));
         Govde.Add(Editor(Kart("İçe aktarma geçmişi", Liste<EkstreGecmisSatiri>(nameof(vm.Gecmis), s => vm.BelgeAcAsync(s.Veri.Id), "Belgeyi incele"),
             Goster(Dugme("Daha eski belgeleri yükle", nameof(vm.EskiBelgeleriYukleCommand)), nameof(vm.EskiBelgeVar)))));
         vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.SeciliSatir)) SatirFormunuKur(); };

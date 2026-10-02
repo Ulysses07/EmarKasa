@@ -30,7 +30,7 @@
                 <!-- Genel ayar -->
                 <Border Style="{StaticResource CardForm}">
                     <VerticalStackLayout Spacing="12">
-                        <Label Text="Genel Ayar" Style="{StaticResource LblSection}" />
+                        <Label Text="GENEL AYAR" Style="{StaticResource LblSection}" />
                         <VerticalStackLayout Spacing="0">
                             <Label Text="Takip başlangıcı" Style="{StaticResource LblField}" />
                             <Border Style="{StaticResource FieldBorder}">
@@ -56,7 +56,7 @@
                         Grid.Column="{OnIdiom Desktop=1, Default=0}"
                         Grid.Row="{OnIdiom Desktop=0, Default=1}">
                     <VerticalStackLayout Spacing="12">
-                        <Label Text="İzleyici Şifresi" Style="{StaticResource LblSection}" />
+                        <Label Text="İZLEYİCİ ŞİFRESİ" Style="{StaticResource LblSection}" />
                         <Label Text="İzleyici bu şifreyle salt-okunur girer; formlar ve Ayarlar gizlenir."
                                Style="{StaticResource LblPageSub}" />
                         <!-- Kayıtlı şifrenin kurala uymadığı bir izleyici girişinde görüldüyse sunucu bildirir. -->
@@ -84,7 +84,7 @@
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="0">
                     <VerticalStackLayout Padding="18,18,18,0" Spacing="12">
-                        <Label Text="Kanallar" Style="{StaticResource LblSection}" />
+                        <Label Text="KANALLAR" Style="{StaticResource LblSection}" />
                         <!-- Kanal ve dönem kilidi (web kanal diyaloğu ile aynı kural): tamamlanmış ayların kanal kümesi dondurulur. -->
                         <Label Text="Ortak giderler aylık raporda o ayın aktif kanallarına sıralarına göre bölünür. Tamamlanmış ayların kanal kümesi dondurulur: kanal eklemek, pasife almak ya da sırasını değiştirmek yalnız içinde bulunulan ve sonraki ayların Ortak dağılımını etkiler, tamamlanmış ayların raporu değişmez; bu değişiklikler ay kilidi varken de yapılabilir. Açılış devri takip başlangıcından itibaren kanal bakiyesini değiştirir; ay kilidi varken değiştirilemez. Geçmiş kaydı olan ya da tamamlanmış bir ayın kanal kümesinde yer alan kanal silinemez; silmek yerine pasife alın."
                                Style="{StaticResource LblPageSub}" />

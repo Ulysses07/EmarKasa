@@ -371,6 +371,42 @@ public class IslemListesiTests
         Assert.False(vm.ListeYukleniyor);
     }
 
+    // ---- İŞ-01: en yeni kayıt ilk sırada ----
+
+    [Fact]
+    public async Task Son_islemler_en_yeniden_eskiye_siralanir()
+    {
+        var api = Api();
+        api.IslemlerListe = new[]
+        {
+            Islem(1, 10m, new DateOnly(2026, 7, 1)),
+            Islem(2, 20m, new DateOnly(2026, 7, 10)),
+            Islem(3, 30m, new DateOnly(2026, 7, 5)),
+        };
+        var vm = Vm(api);
+
+        await vm.YukleAsync();
+
+        Assert.Equal(new[] { 2, 3, 1 }, vm.Islemler.Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task Ayni_tarihli_islemler_kimlige_gore_azalan_siralanir()
+    {
+        var api = Api();
+        api.IslemlerListe = new[]
+        {
+            Islem(1, 10m, new DateOnly(2026, 7, 5)),
+            Islem(5, 20m, new DateOnly(2026, 7, 5)),
+            Islem(3, 30m, new DateOnly(2026, 7, 5)),
+        };
+        var vm = Vm(api);
+
+        await vm.YukleAsync();
+
+        Assert.Equal(new[] { 5, 3, 1 }, vm.Islemler.Select(i => i.Id));
+    }
+
     [Fact]
     public async Task Liste_okumasinin_zaman_asimi_islem_tamamlanmis_olabilir_demez()
     {

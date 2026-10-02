@@ -19,7 +19,7 @@ public class OnizlemeOnayTests
     {
         var vm = new KartTakipViewModel(api, Finans(), auth ?? Auth(), kontrolApi: kontrol);
         await vm.YukleAsync();
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         return vm;
     }
 
@@ -112,7 +112,7 @@ public class OnizlemeOnayTests
         var kapi = new TaskCompletionSource();
         api.OnizlemeKapisi = kapi.Task;
         var onizleme = vm.OdemeOnizleCommand.ExecuteAsync(null);
-        vm.SecCommand.Execute(vm.Kartlar[1]);
+        vm.Sec(vm.Kartlar[1]);
         kapi.SetResult();
         await onizleme;
         Assert.Equal(2, vm.Secili!.Id);

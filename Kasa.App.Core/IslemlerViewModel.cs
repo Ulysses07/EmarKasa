@@ -236,9 +236,11 @@ public partial class IslemlerViewModel : OturumluViewModel
         return kaynaklar;
     }
 
+    /// <summary>İŞ-01: sunucu artandan (eskiden yeniye) döner; sahip her seferinde listenin dibine kaymasın diye istemci
+    /// en yeniyi üste sıralar (eşit tarihte en yeni eklenen kayıt son kimliği taşır).</summary>
     private void ListeyiUygula(IReadOnlyList<IslemDto> liste, string suzgec, bool suzgecli)
     {
-        TakipMetni.Doldur(Islemler, liste);
+        TakipMetni.Doldur(Islemler, liste.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id));
         FiltreSayi = liste.Count;
         FiltreToplam = liste.Sum(i => i.TutarTl);
         FiltreOzet = $"{suzgec} · {FiltreSayi} işlem · toplam {Bicim.Tl(FiltreToplam)} ₺";

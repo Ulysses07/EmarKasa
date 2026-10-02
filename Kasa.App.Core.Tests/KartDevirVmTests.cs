@@ -21,7 +21,7 @@ public class KartDevirVmTests
         var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0), new KanalDto(2, "PERAKENDE", true, 1, 0)] };
         var vm = new KartTakipViewModel(api, finans, new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor });
         await vm.YukleAsync();
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         return (vm, api);
     }
 

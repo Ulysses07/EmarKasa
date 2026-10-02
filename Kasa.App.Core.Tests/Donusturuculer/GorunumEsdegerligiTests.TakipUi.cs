@@ -206,6 +206,49 @@ public partial class GorunumEsdegerligiTests
 
     private static Color Renk(string anahtar) => (Color)Application.Current!.Resources[anahtar];
 
+    /// <summary>EK-01: "editörde ama içi gizli" durumunda sarmalayıcının kendisi de görünmez olmalı, yoksa dikey
+    /// yığında (Spacing) boş bir satır kalır.</summary>
+    [Fact]
+    public void Editor_ikinci_parametreyle_hem_EditorMu_hem_kosula_bagliyken_gorunur()
+    {
+        GorunumOrtami.Kur();
+        var v = TakipUi.Editor(new Label { Text = "İçerik" }, nameof(TakipBaglami.Secili));
+
+        v.BindingContext = new TakipBaglami { EditorMu = true, Secili = true };
+        Assert.True(v.IsVisible);
+
+        v.BindingContext = new TakipBaglami { EditorMu = true, Secili = false };
+        Assert.False(v.IsVisible);
+
+        v.BindingContext = new TakipBaglami { EditorMu = false, Secili = true };
+        Assert.False(v.IsVisible);
+    }
+
+    /// <summary>KS-03: Yenile satırının dışında duran, bağımsız bir yükleme göstergesi ve altındaki hata metni ikisi de
+    /// boşken yer kaplamamalı (Kasalar'daki "Kart ve kredi takibi" kutusundaki ~87 px boşluk).</summary>
+    [Fact]
+    public void MesgulVeHata_bosken_gosterge_ve_hata_gorunmez_doluyken_gorunur()
+    {
+        GorunumOrtami.Kur();
+        var (gosterge, hata) = TakipUi.MesgulVeHata("Mesgul", "Hata");
+        var panel = new VerticalStackLayout { Children = { gosterge, hata } };
+
+        panel.BindingContext = TakipBaglam(mesgul: false, hata: false, mesaj: false);
+        Assert.False(gosterge.IsVisible);
+        Assert.False(gosterge.IsRunning);
+        Assert.False(hata.IsVisible);
+
+        panel.BindingContext = TakipBaglam(mesgul: true, hata: false, mesaj: false);
+        Assert.True(gosterge.IsVisible);
+        Assert.True(gosterge.IsRunning);
+        Assert.False(hata.IsVisible);
+
+        panel.BindingContext = TakipBaglam(mesgul: false, hata: true, mesaj: false);
+        Assert.False(gosterge.IsVisible);
+        Assert.True(hata.IsVisible);
+        Assert.Equal(HataMetni, hata.Text);
+    }
+
     /// <summary>Kasa kontrolü (KasaKontrolAlanlari.Durum) başlığı: gösterge Yenile satırında, ileti örtük stilde.</summary>
     [Theory]
     [MemberData(nameof(TakipDurumlari))]

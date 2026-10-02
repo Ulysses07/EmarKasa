@@ -85,7 +85,7 @@ public class GecersizTutarTests
     {
         var vm = new KartTakipViewModel(api, Finans(), Editor(), null, kontrol);
         await vm.YukleAsync();
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         return vm;
     }
 
@@ -94,7 +94,7 @@ public class GecersizTutarTests
     {
         var api = new FinansTakipTests.Sahte();
         var vm = await KartVm(api);
-        vm.YeniCommand.Execute(null);
+        vm.Yeni();
         vm.Ad = "Yeni kart";
         vm.Limit = G;
         await vm.KaydetCommand.ExecuteAsync(null);

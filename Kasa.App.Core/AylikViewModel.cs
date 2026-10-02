@@ -41,8 +41,9 @@ public partial class AylikViewModel : RaporViewModel
     /// ayda sunucu bu toplamı vermez (kredi Gelen'in içindedir).</summary>
     public decimal KrediGirisiToplam => Rapor?.KrediGirisi ?? 0;
     public bool KrediGirisiVar => Rapor?.KrediGirisi is { } k && k != 0;
-    /// <summary>Kanal satırı başlığı: kural 2'de ay sonucu kredi hariçtir.</summary>
-    public string AySonucuBasligi => Rapor?.KuralSurumu is >= 2 ? "Ay Sonucu (kredi hariç)" : "Ay Sonucu";
+    /// <summary>Kanal satırı başlığı: kural 2'de ay sonucu kredi hariçtir. LblSection stili TextTransform uygulamaz (Türkçe
+    /// büyük harf kuralını bozar; T-04); metin burada zaten büyük harfle yazılır.</summary>
+    public string AySonucuBasligi => Rapor?.KuralSurumu is >= 2 ? "AY SONUCU (KREDİ HARİÇ)" : "AY SONUCU";
     /// <summary>K4: kapatılmış ayın raporu kapatıldığı andaki haliyle gelir; sonraki kural değişiklikleri onu etkilemez.</summary>
     public bool Dondurulmus => Rapor?.Dondurulmus == true;
     public string? DondurulmusMetni => Rapor is { Dondurulmus: true } r
