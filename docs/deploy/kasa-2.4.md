@@ -55,6 +55,13 @@
 - Yeni uygulama ikonu (yeşil zeminde krem "K").
 - Gerekçe pencereleri açıkken oturum düşerse eski gerekçe yeni oturuma taşınmaz (PR #22 hata düzeltmesi).
 
+**Çek ve senet takibi** ([tasarım](../specs/2026-10-01-cekler.md), [plan](../specs/2026-10-01-cekler-plan.md)): masaüstünde
+"Kart, kredi ve çek" menüsünde yeni **Çekler** sayfası (izleyici ve editör görür, alıcı görmez). Alınan ve verilen çek ve senet
+eklenir; tahsil, ödeme, ciro, kırdırma, dönüş, karşılıksız ve iade girilir, son hareket geri alınır. Kayıt ve vade günü kasayı
+değiştirmez; kasa yalnız hareket gününde değişir. Vadeye 3 gün kala ve vade günü hatırlatma (alınan çekte vadenin 7. günü ibraz
+uyarısı), panelde Çekler kutusu. Önerilen sürüm notu: "Çek ve senet takibi: tahsil, ödeme, ciro, kırdırma, vade hatırlatması."
+`/api/surum` `notlar` metnine eklenmesi yayın kararıdır.
+
 **Kullanıcıya görünmeyenler:** PR #13, #14 (bağımlılık güvenlik sürümleri: .NET paketleri 10.0.12, MAUI 10.0.110), #17, #19, #20 (biçim), #23 (PDF araç başlarken dolan zaman sınırı artık "bozuk PDF" değil zaman aşımı olarak bildirilir), #24–#26, #28, #29 (yapı; görünüm eşdeğerliği testle sabit).
 
 ## 2. Rapor ve muhasebe etkisi
@@ -65,10 +72,14 @@
 - Tamamlanmış ayların kanal kümesi (Ortak gider dağılımı ve rapor satırları) ilk açılışta "bugünkü" kanallarla dondurulur (`AyKanalKumesi.GecisDondurmasi`, İstanbul günü). Geçişten önce bütün aylar bugünkü kanallarla hesaplandığı için rakamlar değişmez; sonradan eklenen/pasifleşen kanal geçmiş ayları etkilemez.
 - Eski kart iadelerinin hesap kaydı yazılır (`FinansTakipServisi.IadeHesabiTohumu`); kod ve log "Raporlar değişmedi" der.
 - Sınama: `AltinRaporTests` bütün rapor/okuma uçlarını K1–K4 öncesi koddan üretilmiş altın çıktıyla karşılaştırır; izinli farklar yalnız yukarıdaki alanlar (`dondurulmus`, `kuralSurumu`, `krediGirisi`), kart listesinde `yeniTakip`/`aktif`, alış ödemesinde `eskiKartHarcamasi` ve gider listesinde `surum`'dur. Tohum sentetiktir; **canlı verideki farklar doğrulanmadı** — kopya provasında eski/yeni karşılaştırma zorunludur (bölüm 4, 6. adım).
+- **Çek hareketleri türetilmiş satırdır** (veritabanına gider ya da gelir yazılmaz): tahsilat o günün Gelen'i, verilen çekin ödemesi
+  Cari gider (Ortak kasada ayın Ortak payına bölünür), ciro aynı kasada +Gelen ve aynı tutarda Cari gider (kasa ve ay sonucu
+  değişmez), kırdırma +Gelen ve masraf kadar Cari gider, dönüş ters satırlar (eksi Gelen; ciroda eksi Cari gider de). Çek girilmediği
+  sürece raporlar aynıdır (`AltinRaporTests`); kapatılmış aylar dondurulmuş görüntüden döner. Kasa hareket dökümünde yeni tür "Çek".
 
 ## 3. Migration'lar
 
-v2.3.0'a göre 14 yeni migration (`git diff --name-status v2.3.0 origin/release/2.x -- Kasa.Api/Migrations`). `InitialStableSchema.cs`'teki fark yalnız satır bölmedir. Hiçbirinin `Down`'ı yoktur (`NotSupportedException`): **geri dönüş yalnız yedekle.**
+v2.3.0'a göre 15 yeni migration (`git diff --name-status v2.3.0 origin/release/2.x -- Kasa.Api/Migrations`). `InitialStableSchema.cs`'teki fark yalnız satır bölmedir. Hiçbirinin `Down`'ı yoktur (`NotSupportedException`): **geri dönüş yalnız yedekle.**
 
 | Migration | Ne yapar | Tür |
 | --- | --- | --- |
@@ -86,6 +97,7 @@ v2.3.0'a göre 14 yeni migration (`git diff --name-status v2.3.0 origin/release/
 | `20261005000100_CekirdekSurumleri` | `Islemler`, `Gelenler`, `Kanallar`, `Ayarlar`'a `Surum` (0) | Sütun ekleme |
 | `20261006000100_GeriYuklemeGuvenligi` | Tek satırlık `SistemDurumu`, boş oturum dönemiyle | Tablo; oturumlar düşmez |
 | `20261007000100_EditorSifirlamaIzi` | `SistemDurumu.EditorSifirlamaIzi` (NULL) | Sütun ekleme |
+| `20261008000100_Cekler` | `Cekler` ve `CekHareketler` (boş; kanal ve çek bağları ON DELETE RESTRICT) | Tablo |
 
 Ayrıca başlatıcı veritabanını kalıcı **WAL** kipine alır (2.3.0'da yoktu). Bundan sonra `kasa.db-wal` ve `kasa.db-shm` veritabanının parçasıdır: dosya kopyasıyla yedek yalnız uygulama durmuşken ve üç dosya birlikte alınır.
 
