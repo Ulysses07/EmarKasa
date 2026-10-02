@@ -375,15 +375,30 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
                 SatirlariBol();
             return false;
         }
+        // Satır çıkarılıp sunucunun sıralamasına (vade, sonra Id) göre doğru yere yeniden eklenir: hem yeni kayıt hem de
+        // vadesi değişen düzeltme doğru konuma düşer, eski konumunda kalmaz.
         if (i >= 0)
-            Cekler[i] = new CekSatiri(sonuc, Bugun);
-        else
-            Cekler.Insert(0, new CekSatiri(sonuc, Bugun));
+            Cekler.RemoveAt(i);
+        Cekler.Insert(SiraDizini(sonuc), new CekSatiri(sonuc, Bugun));
         Acik = sonuc;
         return true;
     }
 
-    /// <summary>Çek seçili süzgece uyuyor mu (sunucudaki liste süzgeciyle aynı: CekServisi.Liste). Arama metni yerelde yinelenmez.</summary>
+    /// <summary>Sunucunun Liste sıralamasıyla (vade, sonra Id — CekServisi.Liste) <paramref name="sonuc"/>'un girmesi gereken
+    /// dizin: ilk vadesi büyük (eşitse Id'si büyük) satırın önü.</summary>
+    private int SiraDizini(CekDto sonuc)
+    {
+        for (var j = 0; j < Cekler.Count; j++)
+        {
+            var o = Cekler[j].Veri;
+            if (o.VadeTarihi > sonuc.VadeTarihi || (o.VadeTarihi == sonuc.VadeTarihi && o.Id > sonuc.Id))
+                return j;
+        }
+        return Cekler.Count;
+    }
+
+    /// <summary>Çek seçili süzgece uyuyor mu (sunucudaki liste süzgeciyle aynı: CekServisi.Liste). Arama kuralı tek kaynaktır:
+    /// <see cref="CekKurallari.AramayaUyar"/> hem sunucuda (CekServisi.Liste) hem burada kullanılır.</summary>
     private bool SuzgecteGorunur(CekDto c) => c.Yon == Yon
         && Durum switch
         {
@@ -393,7 +408,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
                 or CekDurumlari.Kirdirildi or CekDurumlari.IadeEdildi,
             _ => true,
         }
-        && (VadeBas is null || c.VadeTarihi >= VadeBas) && (VadeSon is null || c.VadeTarihi <= VadeSon);
+        && (VadeBas is null || c.VadeTarihi >= VadeBas) && (VadeSon is null || c.VadeTarihi <= VadeSon)
+        && CekKurallari.AramayaUyar(c.Kisi, c.Banka, c.No, Ara);
 
     /// <summary>Başarı iletisinin sonu: görünüyorsa nokta, değilse neden listede olmadığı (İşlemler ekranıyla aynı üslup).</summary>
     private string GorunurlukEki(bool gorunur) => gorunur ? "." : $"; seçili süzgeç ({SuzgecMetni()}) dışında kaldığı için listede görünmüyor.";
