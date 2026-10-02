@@ -31,7 +31,7 @@ public class TakipKomutlariTests
         var (vekil, api) = KaydedenTakipApi.Olustur();
         var vm = new KartTakipViewModel(vekil, Finans(), Auth(rol));
         await vm.YukleAsync();
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         api.Cagrilar.Clear();
         return (vm, api);
     }
@@ -52,7 +52,7 @@ public class TakipKomutlariTests
     public async Task Yeni_kart_kimliksiz_surum_sifirla_kirpilmis_ad_acilis_alanlari_ve_paylarla_kaydedilir()
     {
         var (vm, api) = await KartVm();
-        vm.YeniCommand.Execute(null);
+        vm.Yeni();
         vm.Ad = "  Yeni kart  ";
         vm.Limit = 5000;
         vm.KesimGunu = 5;
@@ -125,7 +125,7 @@ public class TakipKomutlariTests
         // Yeni kart: ilk istek sunucuya ulaşıp yanıtı kaybolduysa yeni anahtarla yineleme ikinci bir kart açardı.
         // Yineleme yine kimliksiz, aynı anahtar ve aynı gövdeyle gider (sunucu tekrarı tanır).
         api.Cagrilar.Clear();
-        vm.YeniCommand.Execute(null);
+        vm.Yeni();
         vm.Ad = "Yeni kart";
         vm.Limit = 800;
         vm.AcilisTarihi = new DateTime(2026, 9, 1);

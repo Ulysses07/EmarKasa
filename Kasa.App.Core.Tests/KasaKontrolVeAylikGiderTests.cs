@@ -402,7 +402,7 @@ public class KasaKontrolVeAylikGiderTests
         var kart = new FinansTakipTests.Sahte();
         var v = new KartTakipViewModel(kart, Finans(), Auth(), kontrolApi: f);
         await v.YukleAsync();
-        v.SecCommand.Execute(v.Kartlar[0]);
+        v.Sec(v.Kartlar[0]);
         v.MasrafEkstresi = v.MasrafEkstreleri[0];
         v.MasrafTutari = 10;
         v.MasrafAciklama = "Banka faizi";

@@ -11,7 +11,7 @@ public class FinansTakipTests
     {
         var vm = new KartTakipViewModel(api, Finans(), auth ?? Auth(), benzerlik);
         await vm.YukleAsync();
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         return vm;
     }
     private static async Task<KrediTakipViewModel> KrediVm(Sahte api, AuthViewModel? auth = null)
@@ -208,7 +208,7 @@ public class FinansTakipTests
         vm.OncedenSayilan = 40;
         vm.GecisKalanBorc = 70;
         Assert.Equal(40, vm.OncedenSayilan);
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         Assert.Equal(100, vm.OncedenSayilan);   // yeniden seçim: öneri yeniden işler
         vm.GecisKalanBorc = 90;
         Assert.Equal(90, vm.OncedenSayilan);
@@ -278,14 +278,14 @@ public class FinansTakipTests
         Assert.Contains("ilk sürüm", vm.GecisKaydi);
         Assert.Contains("önizleme özeti saklanmadı", vm.GecisKaydi);
         Assert.Contains("Geçiş açıklaması: Banka ile kontrol", vm.GecisKaydi);
-        Assert.Contains("geçiş farkını doğrulayın", vm.Kartlar[0].Baslik);
+        Assert.Contains(vm.Kartlar[0].Etiketler, e => e.Metin == "Geçiş farkını doğrulayın");
 
         // Yalnız düşüş tarihi farklı: uyarı bilgi düzeyinde kalır, rozet çıkmaz.
         api.Kart = Sahte.OrnekKart() with { Gecis = ilk with { TahminiKasaFarki = 0, Uyari = "İlk sürüm kuralıyla geçiş: toplam kasa etkisi tutarlı." } };
         await vm.YukleAsync();
         Assert.NotNull(vm.GecisUyarisi);
         Assert.False(vm.GecisUyarisiTehlikeli);
-        Assert.DoesNotContain("doğrulayın", vm.Kartlar[0].Baslik);
+        Assert.DoesNotContain(vm.Kartlar[0].Etiketler, e => e.Metin == "Geçiş farkını doğrulayın");
 
         // Uyarı metni gelmese de (eski sunucu) rapor dışı tutar görünür kalır.
         api.Kart = Sahte.OrnekKart() with { Gecis = ilk with { Uyari = null } };
@@ -532,10 +532,10 @@ public class FinansTakipTests
         var api = new Sahte();
         var vm = new KartTakipViewModel(api, Finans(), Auth());
         await vm.YukleAsync();
-        vm.YeniCommand.Execute(null);
+        vm.Yeni();
         vm.PayEkle(vm.AcilisPaylari);
         vm.AcilisBorc = 250;
-        vm.SecCommand.Execute(vm.Kartlar[0]);
+        vm.Sec(vm.Kartlar[0]);
         Assert.Empty(vm.AcilisPaylari);
         Assert.Equal(0, vm.AcilisBorc);
         vm.Limit = 1500;
@@ -575,7 +575,7 @@ public class FinansTakipTests
         vm.Gerekce = "A için gerekçe";
         vm.GecisAciklama = "A geçişi";
 
-        vm.SecCommand.Execute(vm.Kartlar[1]);
+        vm.Sec(vm.Kartlar[1]);
 
         Assert.Equal(2, vm.Secili!.Id);
         Assert.Equal(0, vm.HarcamaTutari);
@@ -602,12 +602,12 @@ public class FinansTakipTests
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Contains("zamanında yanıt vermedi", vm.Hata);
 
-        vm.SecCommand.Execute(vm.Kartlar[1]);                       // başka karta bakılır: form temizlenir
+        vm.Sec(vm.Kartlar[1]);                       // başka karta bakılır: form temizlenir
         Assert.Equal(0, vm.OdemeTutari);
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);   // B kartında aynı tutar: B'nin kendi anahtarı
         var bAnahtari = api.OnizlenenOdeme!.IstekId;
-        vm.SecCommand.Execute(vm.Kartlar[0]);                       // A kartına dönülür, aynı ödeme yeniden girilir
+        vm.Sec(vm.Kartlar[0]);                       // A kartına dönülür, aynı ödeme yeniden girilir
         api.OdemeHatasi = null;
         vm.OdemeTutari = 10;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);

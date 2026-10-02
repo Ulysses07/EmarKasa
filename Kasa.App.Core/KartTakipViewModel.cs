@@ -1,8 +1,14 @@
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Kasa.ApiClient;
 using Kasa.Core.Kodlar;
+
+// Sec ve Yeni artık [RelayCommand] değil (arayüz KutuSecCommand/YeniKartAcCommand kullanır, bkz. KartTakipViewModel.Gorunum.cs);
+// testler bu iki metodu doğrudan çağırır (TakipKomutlariTests ve diğerleri), KutuSec'in "açıksa kapat" devrik mantığından
+// etkilenmeden.
+[assembly: InternalsVisibleTo("Kasa.App.Core.Tests")]
 
 namespace Kasa.App.Core;
 
@@ -161,8 +167,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         { var mevcut = kartlar.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut, _zaman)); else Yeni(); }
         Tamamlandi();
     });
-    [RelayCommand]
-    private void Sec(KartTakipSatiri satir)
+    // [RelayCommand] kasıtlı olarak yok: arayüz KutuSecCommand'ı kullanır (KartTakipViewModel.Gorunum.cs), bu metodu çağırır.
+    // internal: testler doğrudan çağırır (KutuSec'in "açıksa kapat" devrik mantığı test niyetini bozar).
+    internal void Sec(KartTakipSatiri satir)
     {
         MasrafTemizle();
         HarcamaBenzerlik.Temizle();
@@ -190,8 +197,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         IadeKaynagi = null;
         DetaylariYansit();
     }
-    [RelayCommand]
-    private void Yeni()
+    // [RelayCommand] kasıtlı olarak yok: arayüz YeniKartAcCommand'ı kullanır (KartTakipViewModel.Gorunum.cs), bu metodu
+    // çağırır. internal: testler doğrudan çağırır (YeniKartAc formu da açar; testler yalnız alan sıfırlamasıyla ilgilenir).
+    internal void Yeni()
     {
         MasrafTemizle();
         HarcamaBenzerlik.Temizle();

@@ -122,8 +122,6 @@ public static class TakipMetni
 /// testler sabit saat verir.</param>
 public record KartTakipSatiri(KartTakipDto Veri, TimeProvider? Zaman = null)
 {
-    // Web kart listesindeki "Geçiş farkını doğrulayın" rozetinin karşılığı.
-    public string Baslik => Veri.Ad + (!Veri.Aktif ? " · pasif" : "") + (!Veri.YeniTakip ? " · eski takip" : "") + (Veri.Gecis is { TahminiKasaFarki: not 0 } ? " · geçiş farkını doğrulayın" : "");
     public string Ozet => $"Kart borcu {Bicim.Tl(Veri.Borc)} ₺ · açık ekstre {Bicim.Tl(Veri.EkstreBorc)} ₺ · limit {Bicim.Tl(Veri.Limit)} ₺" +
         (IlkAcikEkstre is { } e ? $"\nİlk açık ekstrenin son ödemesi: {e.SonOdemeTarihi:dd.MM.yyyy}" : "");
 
