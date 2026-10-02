@@ -59,7 +59,8 @@
 "Kart, kredi ve çek" menüsünde yeni **Çekler** sayfası (izleyici ve editör görür, alıcı görmez). Alınan ve verilen çek ve senet
 eklenir; tahsil, ödeme, ciro, kırdırma, dönüş, karşılıksız ve iade girilir, son hareket geri alınır. Kayıt ve vade günü kasayı
 değiştirmez; kasa yalnız hareket gününde değişir. Vadeye 3 gün kala ve vade günü hatırlatma (alınan çekte vadenin 7. günü ibraz
-uyarısı), panelde Çekler kutusu. Önerilen sürüm notu: "Çek ve senet takibi: tahsil, ödeme, ciro, kırdırma, vade hatırlatması."
+uyarısı), panelde Çekler kutusu. Vadesi geçmiş ama ödenmemiş verilen çek ve senet panelde, Çekler şeridinde ve vadenin ertesi
+günü bildirimle uyarılır. Önerilen sürüm notu: "Çek ve senet takibi: tahsil, ödeme, ciro, kırdırma, vade hatırlatması."
 `/api/surum` `notlar` metnine eklenmesi yayın kararıdır.
 
 **Kullanıcıya görünmeyenler:** PR #13, #14 (bağımlılık güvenlik sürümleri: .NET paketleri 10.0.12, MAUI 10.0.110), #17, #19, #20 (biçim), #23 (PDF araç başlarken dolan zaman sınırı artık "bozuk PDF" değil zaman aşımı olarak bildirilir), #24–#26, #28, #29 (yapı; görünüm eşdeğerliği testle sabit).

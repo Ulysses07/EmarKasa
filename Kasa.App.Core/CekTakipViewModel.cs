@@ -124,10 +124,11 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     public string Alinan30Metni => CekMetni.Alinan30Metni(Ozet);
     public string Verilen30Metni => CekMetni.Verilen30Metni(Ozet);
     public string GecmisMetni => CekMetni.GecmisMetni(Ozet);
+    public string VerilenGecmisMetni => CekMetni.VerilenGecmisMetni(Ozet);
 
     partial void OnOzetChanged(CekOzetDto? value)
     {
-        foreach (var p in new[] { nameof(PortfoyMetni), nameof(Alinan30Metni), nameof(Verilen30Metni), nameof(GecmisMetni) })
+        foreach (var p in new[] { nameof(PortfoyMetni), nameof(Alinan30Metni), nameof(Verilen30Metni), nameof(GecmisMetni), nameof(VerilenGecmisMetni) })
             OnPropertyChanged(p);
     }
 
@@ -264,6 +265,9 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
                 break;
             case CekHazirSuzgec.Verilen30:
                 SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, bugun, bugun.AddDays(30));
+                break;
+            case CekHazirSuzgec.VerilenVadesiGecmis:
+                SuzgecleriYaz(CekYonleri.Verilen, CekSuzgecleri.Portfoyde, null, bugun.AddDays(-1));
                 break;
             default:
                 SuzgecleriYaz(CekYonleri.Alinan, CekSuzgecleri.Portfoyde, null, bugun.AddDays(-1));

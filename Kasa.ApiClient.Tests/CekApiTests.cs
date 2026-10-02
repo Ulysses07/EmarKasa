@@ -51,11 +51,12 @@ public class CekApiTests
     public async Task Ozet_ve_tek_kayit_okunur()
     {
         var h = new SahteHandler()
-            .Kuyrukla(HttpStatusCode.OK, """{"tarih":"2026-09-25","portfoydekiAlinan":{"adet":3,"toplam":33000.00},"alinan30":{"adet":1,"toplam":10000},"verilen30":{"adet":0,"toplam":0},"vadesiGecmis":{"adet":1,"toplam":3000.5}}""")
+            .Kuyrukla(HttpStatusCode.OK, """{"tarih":"2026-09-25","portfoydekiAlinan":{"adet":3,"toplam":33000.00},"alinan30":{"adet":1,"toplam":10000},"verilen30":{"adet":0,"toplam":0},"vadesiGecmis":{"adet":1,"toplam":3000.5},"verilenVadesiGecmis":{"adet":2,"toplam":12500.25}}""")
             .Kuyrukla(HttpStatusCode.OK, Cek);
         var ozet = await Client(h).CekOzetAsync();
         Assert.Equal("/api/takip/cekler/ozet", h.SonIstek!.RequestUri!.AbsolutePath);
-        Assert.Equal((new CekOzetKalemi(3, 33_000m), new CekOzetKalemi(1, 3_000.5m)), (ozet.PortfoydekiAlinan, ozet.VadesiGecmis));
+        Assert.Equal((new CekOzetKalemi(3, 33_000m), new CekOzetKalemi(1, 3_000.5m), new CekOzetKalemi(2, 12_500.25m)),
+            (ozet.PortfoydekiAlinan, ozet.VadesiGecmis, ozet.VerilenVadesiGecmis));
         Assert.Equal(7, (await Client(h).CekAsync(7)).Id);
         Assert.Equal("/api/takip/cekler/7", h.SonIstek!.RequestUri!.AbsolutePath);
     }

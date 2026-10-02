@@ -98,6 +98,7 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
         {
             (nameof(vm.PortfoyMetni), CekHazirSuzgec.Portfoy), (nameof(vm.Alinan30Metni), CekHazirSuzgec.Alinan30),
             (nameof(vm.Verilen30Metni), CekHazirSuzgec.Verilen30), (nameof(vm.GecmisMetni), CekHazirSuzgec.VadesiGecmis),
+            (nameof(vm.VerilenGecmisMetni), CekHazirSuzgec.VerilenVadesiGecmis),
         })
         {
             var kutu = new Button { Style = (Style)Application.Current!.Resources["BtnSecondary"], Margin = new Thickness(0, 0, 8, 8) };

@@ -30,7 +30,7 @@ public class CekSozlesmeTests : SozlesmeTemeli
         Assert.Equal(cek.Id, Assert.Single(await o.Cek.CeklerAsync(CekYonleri.Alinan, CekSuzgecleri.Kapanan, "ahmet", Bugun, Bugun.AddDays(30))).Id);
         Assert.Empty(await o.Cek.CeklerAsync(durum: CekSuzgecleri.Portfoyde));
         var ozet = await o.Cek.CekOzetAsync();
-        Assert.Equal((Bugun, 0), (ozet.Tarih, ozet.PortfoydekiAlinan.Adet));
+        Assert.Equal((Bugun, 0, 0), (ozet.Tarih, ozet.PortfoydekiAlinan.Adet, ozet.VerilenVadesiGecmis.Adet));
 
         cek = await o.Cek.CekHareketGeriAlAsync(cek.Id, new CekSilYaz(Guid.NewGuid(), cek.Surum));
         Assert.Equal(CekDurumlari.Portfoyde, (await o.Cek.CekAsync(cek.Id)).Durum);
