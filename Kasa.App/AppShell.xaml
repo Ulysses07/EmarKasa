@@ -129,5 +129,6 @@
     <FlyoutItem x:Name="DisariAktarItem" Title="Rapor Dışa Aktar" Route="disariaktar" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:DisariAktarPage}" /></FlyoutItem>
     <FlyoutItem x:Name="KartlarItem" Title="Kartlar" Route="kartlar" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:KartTakipPage}" /></FlyoutItem>
     <FlyoutItem x:Name="KredilerItem" Title="Krediler" Route="krediler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:KrediTakipPage}" /></FlyoutItem>
+    <FlyoutItem x:Name="CeklerItem" Title="Çekler" Route="cekler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:CekTakipPage}" /></FlyoutItem>
     <FlyoutItem x:Name="BildirimlerItem" Title="Bildirimler" Route="bildirimler" IsVisible="False"><ShellContent ContentTemplate="{DataTemplate v:BildirimPage}" /></FlyoutItem>
 </Shell>

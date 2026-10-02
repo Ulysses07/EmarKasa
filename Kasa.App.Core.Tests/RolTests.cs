@@ -20,13 +20,21 @@ public class RolTests
         var bolumler = SekmeModeli.Bolumler(Rol.Izleyici);
         Assert.DoesNotContain(Bolum.Ayarlar, bolumler);
         Assert.Contains(Bolum.Panel, bolumler);
-        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.DisariAktar }, bolumler);
+        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.DisariAktar }, bolumler);
     }
 
     [Fact]
     public void Editor_ayarlari_gorur()
     {
-        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.DisariAktar, Bolum.Alislar, Bolum.Bildirimler, Bolum.EkstreAktar, Bolum.Ayarlar }, SekmeModeli.Bolumler(Rol.Editor));
+        Assert.Equal(new[] { Bolum.Panel, Bolum.Haftalik, Bolum.Aylik, Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.DisariAktar, Bolum.Alislar, Bolum.Bildirimler, Bolum.EkstreAktar, Bolum.Ayarlar }, SekmeModeli.Bolumler(Rol.Editor));
+    }
+
+    [Fact]
+    public void Cekleri_izleyici_ve_editor_gorur_alici_gormez()
+    {
+        Assert.Contains(Bolum.Cekler, SekmeModeli.Bolumler(Rol.Izleyici));
+        Assert.Contains(Bolum.Cekler, SekmeModeli.Bolumler(Rol.Editor));
+        Assert.DoesNotContain(Bolum.Cekler, SekmeModeli.Bolumler(Rol.Alici));
     }
 
     [Fact]

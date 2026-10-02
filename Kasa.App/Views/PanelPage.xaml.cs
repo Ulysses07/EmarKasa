@@ -8,7 +8,7 @@ public partial class PanelPage : ContentPage
     private readonly TakipOzetViewModel _takip;
     private readonly KasaKontrolViewModel _kontrol;
 
-    public PanelPage(PanelViewModel vm, TakipOzetViewModel takip, KasaKontrolViewModel kontrol)
+    public PanelPage(PanelViewModel vm, TakipOzetViewModel takip, KasaKontrolViewModel kontrol, CekOzetViewModel cekler)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
@@ -24,11 +24,13 @@ public partial class PanelPage : ContentPage
                 {
                     await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu);
                     await kontrol.YukleAsync(vm.KasaEsikleri);
+                    await cekler.YukleAsync();
                 }
                 else
                 {
                     takip.VeriHazir = false;
                     kontrol.VeriHazir = false;
+                    cekler.VeriHazir = false;
                 }
             }
         };
@@ -54,7 +56,30 @@ public partial class PanelPage : ContentPage
             TakipUi.Tikla("Kartlar", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Krediler", () => Shell.Current.GoToAsync("//krediler")));
         kart.BindingContext = takip;
         PanelAlani.Add(kart);
+        PanelAlani.Add(CekKutusu(cekler));
         PanelAlani.Add(KasaKontrolAlanlari.Kontrol(kontrol));
+    }
+
+    /// <summary>Çekler kutusu (docs/specs/2026-10-01-cekler.md "Panel"): üç satır; satıra tıklayınca Çekler sayfası o süzgeçle açılır.</summary>
+    private static View CekKutusu(CekOzetViewModel cekler)
+    {
+        var satirlar = new VerticalStackLayout { Spacing = 8 };
+        foreach (var (yol, suzgec) in new[]
+        {
+            (nameof(cekler.Alinan30Metni), CekHazirSuzgec.Alinan30), (nameof(cekler.Verilen30Metni), CekHazirSuzgec.Verilen30),
+            (nameof(cekler.GecmisMetni), CekHazirSuzgec.VadesiGecmis),
+        })
+        {
+            var satir = new Button { HorizontalOptions = LayoutOptions.Start, Style = (Style)Application.Current!.Resources["BtnSecondary"] };
+            satir.SetBinding(Button.TextProperty, yol);
+            satir.Clicked += async (_, _) => await Shell.Current.GoToAsync($"//cekler?Suzgec={suzgec}");
+            satirlar.Add(satir);
+        }
+        satirlar.SetBinding(IsVisibleProperty, nameof(cekler.VeriHazir));
+        var kutu = TakipUi.Kart("Çekler", TakipUi.Metin("Teminat çekleri bu toplamlara girmez."), TakipUi.BagliHata(nameof(cekler.Hata)), satirlar,
+            TakipUi.Tikla("Çekler", () => Shell.Current.GoToAsync("//cekler")));
+        kutu.BindingContext = cekler;
+        return kutu;
     }
 
     protected override async void OnAppearing()

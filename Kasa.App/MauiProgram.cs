@@ -40,6 +40,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IKasaKontrolApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IAylikGiderApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IEkstreAktarmaApi>(sp => sp.GetRequiredService<KasaApiClient>());
+        builder.Services.AddSingleton<ICekApi>(sp => sp.GetRequiredService<KasaApiClient>());
 
         // Masaüstü Windows bildirimleri (tasarım 2026-09-30): yerel dosyalar %LOCALAPPDATA%\EmarKasa altında; gösterici ve tıklama
         // kuyruğu Windows katmanının tek örneğidir (Platforms/Windows/App.xaml.cs onu DI kurulmadan önce başlatır).
@@ -74,6 +75,8 @@ public static class MauiProgram
         builder.Services.AddTransient<KasaEsikViewModel>();
         builder.Services.AddTransient<AyKilidiViewModel>();
         builder.Services.AddTransient<EkstreAktarmaViewModel>();
+        builder.Services.AddTransient<CekTakipViewModel>();
+        builder.Services.AddTransient<CekOzetViewModel>();
 
         builder.Services.AddSingleton<App>();
         builder.Services.AddSingleton<AppShell>();
@@ -90,6 +93,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.BildirimPage>();
         builder.Services.AddTransient<Views.AylikGiderPage>();
         builder.Services.AddTransient<Views.EkstreAktarmaPage>();
+        builder.Services.AddTransient<Views.CekTakipPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

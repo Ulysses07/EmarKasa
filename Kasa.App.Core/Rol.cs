@@ -2,7 +2,7 @@ namespace Kasa.App.Core;
 
 public enum Rol { Izleyici, Editor, Alici }
 
-public enum Bolum { Panel, Haftalik, Aylik, Islemler, Ayarlar, Alislar, DisariAktar, Kartlar, Krediler, Bildirimler, AylikGiderler, EkstreAktar }
+public enum Bolum { Panel, Haftalik, Aylik, Islemler, Ayarlar, Alislar, DisariAktar, Kartlar, Krediler, Bildirimler, AylikGiderler, EkstreAktar, Cekler }
 
 /// <summary>Rol → görünür bölümler (spec §6). Ayarlar yalnız editörde.</summary>
 public static class SekmeModeli
@@ -17,7 +17,7 @@ public static class SekmeModeli
         var liste = new List<Bolum>
         {
             Bolum.Panel, Bolum.Haftalik, Bolum.Aylik,
-            Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.DisariAktar,
+            Bolum.Islemler, Bolum.AylikGiderler, Bolum.Kartlar, Bolum.Krediler, Bolum.Cekler, Bolum.DisariAktar,
         };
         if (rol == Rol.Editor)
         { liste.Add(Bolum.Alislar); liste.Add(Bolum.Bildirimler); liste.Add(Bolum.EkstreAktar); liste.Add(Bolum.Ayarlar); }

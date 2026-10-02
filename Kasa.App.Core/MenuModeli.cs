@@ -18,6 +18,7 @@ public static class MenuSimgeleri
     public const string EkstreAktar = "\uE8B5";    // Import
     public const string Kartlar = "\uE8C7";        // PaymentCard
     public const string Krediler = "\uE825";       // Bank
+    public const string Cekler = "\uE8A5";         // Document
     public const string Bildirimler = "\uEA8F";    // Ringer
     public const string DisariAktar = "\uEDE1";    // Export
     public const string Ayarlar = "\uE713";        // Settings
@@ -120,10 +121,11 @@ public sealed partial class MenuModeli : ObservableObject
             new(Bolum.AylikGiderler, "Aylık giderler", MenuSimgeleri.AylikGiderler, "aylikgiderler"),
             new(Bolum.EkstreAktar, "Ekstre içe aktar", MenuSimgeleri.EkstreAktar, "ekstreaktar"),
         ]),
-        new("Kart ve kredi",
+        new("Kart, kredi ve çek",
         [
             new(Bolum.Kartlar, "Kartlar", MenuSimgeleri.Kartlar, "kartlar"),
             new(Bolum.Krediler, "Krediler", MenuSimgeleri.Krediler, "krediler"),
+            new(Bolum.Cekler, "Çekler", MenuSimgeleri.Cekler, "cekler"),
         ]),
         new("Diğer",
         [

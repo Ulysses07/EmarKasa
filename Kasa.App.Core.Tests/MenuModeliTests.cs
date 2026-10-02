@@ -24,7 +24,7 @@ public class MenuModeliTests
         {
             "Özet: Kasalar, Haftalık, Aylık",
             "Kayıtlar: İşlemler, Alışlar, Aylık giderler, Ekstre içe aktar",
-            "Kart ve kredi: Kartlar, Krediler",
+            "Kart, kredi ve çek: Kartlar, Krediler, Çekler",
             "Diğer: Bildirimler, Rapor dışa aktar, Ayarlar",
             "—: Çıkış",
         }, Ozet(Menu(Rol.Editor)));
@@ -35,7 +35,7 @@ public class MenuModeliTests
         {
             "Özet: Kasalar, Haftalık, Aylık",
             "Kayıtlar: İşlemler, Aylık giderler",
-            "Kart ve kredi: Kartlar, Krediler",
+            "Kart, kredi ve çek: Kartlar, Krediler, Çekler",
             "Diğer: Rapor dışa aktar",
             "—: Çıkış",
         }, Ozet(Menu(Rol.Izleyici)));
@@ -49,7 +49,7 @@ public class MenuModeliTests
     {
         var menu = new MenuModeli();
         menu.Goster(new[] { Bolum.Kartlar });
-        Assert.Equal(new[] { "Kart ve kredi: Kartlar", "—: Çıkış" }, Ozet(menu));
+        Assert.Equal(new[] { "Kart, kredi ve çek: Kartlar", "—: Çıkış" }, Ozet(menu));
         Assert.All(menu.Gruplar, g => Assert.NotEmpty(g.Ogeler));
         Assert.True(menu.Gruplar[0].BaslikVar);
         Assert.False(menu.Gruplar[0].Ayri);
@@ -78,6 +78,7 @@ public class MenuModeliTests
             Assert.InRange(simge[0], '\uE000', '\uF8FF');
         });
         Assert.Equal("kartlar", MenuModeli.Rota(Bolum.Kartlar));
+        Assert.Equal("cekler", MenuModeli.Rota(Bolum.Cekler));
     }
 
     [Fact]

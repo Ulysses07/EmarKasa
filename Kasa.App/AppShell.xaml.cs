@@ -41,6 +41,7 @@ public partial class AppShell : Shell
             [Bolum.DisariAktar] = DisariAktarItem,
             [Bolum.Kartlar] = KartlarItem,
             [Bolum.Krediler] = KredilerItem,
+            [Bolum.Cekler] = CeklerItem,
             [Bolum.Bildirimler] = BildirimlerItem,
             [Bolum.EkstreAktar] = EkstreAktarItem,
         };
