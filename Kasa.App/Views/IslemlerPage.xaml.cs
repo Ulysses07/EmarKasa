@@ -15,6 +15,9 @@ public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+        var gorunur = new Controls.GorunurYapici(FormKaydirici);
+        vm.Hatalar.GosterIstendi += (_, _) => gorunur.HatayaGit(IslemFormu, vm.Hatalar, FormHataKutusu);
+        vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
 
     protected override async void OnAppearing()

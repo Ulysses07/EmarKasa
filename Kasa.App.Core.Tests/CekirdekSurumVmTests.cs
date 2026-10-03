@@ -41,7 +41,7 @@ public class CekirdekSurumVmTests
 
         await vm.KaydetCommand.ExecuteAsync(null);
 
-        Assert.Equal(GiderIletisi, vm.Hata);
+        Assert.Equal(GiderIletisi, vm.Hatalar.Genel);
         Assert.True(api.IslemlerCagri > okuma, "Liste güncel kayıtlarla yenilendi.");
         Assert.Equal((5, 80m), (vm.DuzenId, vm.DuzenTutar));
         Assert.False(vm.Mesgul);

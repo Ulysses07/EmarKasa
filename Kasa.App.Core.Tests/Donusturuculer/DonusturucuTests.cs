@@ -43,6 +43,17 @@ public class DonusturucuTests
         Assert.Equal(bilinen.Select(t => t.Name).Order(), derlenen.Select(t => t.Name).Order());
     }
 
+    /// <summary>Düzenlenen satırın vurgusu: satırın Id'si formun DuzenId'sine eşitse (yeni formda DuzenId 0, hiçbir satır eşleşmez).</summary>
+    [Fact]
+    public void EsitIse_iki_dolu_ve_esit_degerde_true()
+    {
+        var d = new EsitIseConverter();
+        Assert.Equal(true, d.Convert([5, 5], typeof(bool), null, CultureInfo.InvariantCulture));
+        Assert.Equal(false, d.Convert([5, 0], typeof(bool), null, CultureInfo.InvariantCulture));
+        Assert.Equal(false, d.Convert([null, null], typeof(bool), null, CultureInfo.InvariantCulture));
+        Assert.Equal(false, d.Convert([5], typeof(bool), null, CultureInfo.InvariantCulture));
+    }
+
     [Theory]
     [InlineData(1, "Ocak")]
     [InlineData(2, "Şubat")]

@@ -330,10 +330,16 @@ public partial class MauiKayitTutarliligiTests
             { Hatalar.Add($"{yer}: bağlam türü bilinmiyor."); return null; }
             if (yol == ".")
                 return tur;
+            var kok = tur;
             foreach (var parca in yol.Split('.'))
             {
                 if (parca.Contains('['))
-                { Hatalar.Add($"{yer}: dizinli yol desteklenmiyor ({yol})."); return null; }
+                {
+                    tur = DizinliCoz(parca, tur!, kok, yol, yer);
+                    if (tur is null)
+                        return null;
+                    continue;
+                }
                 var t = Nullable.GetUnderlyingType(tur!) ?? tur!;
                 var ozellik = Ozellik(t, parca);
                 if (ozellik is null)
@@ -341,6 +347,24 @@ public partial class MauiKayitTutarliligiTests
                 tur = ozellik.PropertyType;
             }
             return tur;
+        }
+
+        /// <summary>Dizinli parça ("Hatalar[DuzenCari]"): özellik string dizinleyicisi olan bir türdür; AlanHatalari'nın anahtarı
+        /// bağlamın (formun görünüm modeli) gerçek bir özelliğidir (alan hatası yanlış adla bağlanıp hiç görünmez kalmasın).</summary>
+        private Type? DizinliCoz(string parca, Type tur, Type kok, string yol, string yer)
+        {
+            var ac = parca.IndexOf('[');
+            var (ad, anahtar) = (parca[..ac], parca[(ac + 1)..^1]);
+            var t = Nullable.GetUnderlyingType(tur) ?? tur;
+            if (Ozellik(t, ad) is not { } ozellik)
+            { Hatalar.Add($"{yer}: {t.Name} türünde '{ad}' özelliği yok ({yol})."); return null; }
+            var dizin = ozellik.PropertyType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(p => p.GetIndexParameters() is [{ ParameterType: var pt }] && pt == typeof(string));
+            if (dizin is null)
+            { Hatalar.Add($"{yer}: dizinli yol yalnız string dizinleyicide desteklenir ({yol})."); return null; }
+            if (ozellik.PropertyType == typeof(AlanHatalari) && Ozellik(kok, anahtar) is null)
+            { Hatalar.Add($"{yer}: AlanHatalari anahtarı '{anahtar}' {kok.Name} türünde özellik değil ({yol})."); return null; }
+            return dizin.PropertyType;
         }
 
         private static PropertyInfo? Ozellik(Type t, string ad)

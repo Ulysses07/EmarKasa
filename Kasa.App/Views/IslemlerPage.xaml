@@ -23,65 +23,62 @@
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="20">
 
             <!-- SOL: editör form sütunu -->
-            <ScrollView IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
+            <ScrollView x:Name="FormKaydirici" IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
                 <VerticalStackLayout WidthRequest="360" Spacing="16">
 
-                    <!-- Bölüm 1 · İşlem -->
-                    <Border Style="{StaticResource CardForm}">
+                    <!-- Bölüm 1 · İşlem. Başlık ve düğmeler düzenleme modunu söyler; genel hata formun en üstünde, alan hataları
+                         alanın altında (tasarım 2026-10-02 §1-2). -->
+                    <Border Style="{StaticResource CardForm}" x:Name="IslemFormu">
                         <VerticalStackLayout Spacing="12">
-                            <Label Text="İŞLEM" Style="{StaticResource LblSection}" />
-                            <VerticalStackLayout Spacing="0">
-                                <Label Text="Tarih" Style="{StaticResource LblField}" />
-                                <Border Style="{StaticResource FieldBorder}">
-                                    <DatePicker Date="{Binding DuzenTarih}" />
-                                </Border>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="0">
-                                <Label Text="Açıklama / ödeme yapılan yer" Style="{StaticResource LblField}" />
-                                <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
-                                </Border>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="0">
-                                <Label Text="Tutar" Style="{StaticResource LblField}" />
-                                <Border Style="{StaticResource FieldBorder}">
-                                    <ctl:ParaGirisi Tutar="{Binding DuzenTutar}" Placeholder="0,00 ₺" />
-                                </Border>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="0">
-                                <Label Text="Kanal" Style="{StaticResource LblField}" />
+                            <Label Text="{Binding FormBasligi}" Style="{StaticResource LblRowPrimary}" FontAttributes="Bold"
+                                   SemanticProperties.HeadingLevel="Level2" />
+                            <Border x:Name="FormHataKutusu" Style="{StaticResource ErrorBox}"
+                                    IsVisible="{Binding Hatalar.Genel, Converter={StaticResource DoluIse}}">
+                                <Label Text="{Binding Hatalar.Genel}" Style="{StaticResource LblError}" />
+                            </Border>
+                            <ctl:FormAlani Baslik="Tarih" Alan="DuzenTarih" Hata="{Binding Hatalar[DuzenTarih]}">
+                                <DatePicker Date="{Binding DuzenTarih}" />
+                            </ctl:FormAlani>
+                            <ctl:FormAlani Baslik="Açıklama / ödeme yapılan yer" Alan="DuzenCari" Hata="{Binding Hatalar[DuzenCari]}">
+                                <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
+                            </ctl:FormAlani>
+                            <ctl:FormAlani Baslik="Tutar" Alan="DuzenTutar" Hata="{Binding Hatalar[DuzenTutar]}">
+                                <ctl:ParaGirisi Tutar="{Binding DuzenTutar}" Placeholder="0,00 ₺" />
+                            </ctl:FormAlani>
+                            <ctl:FormAlani Baslik="Kanal" Alan="DuzenKanal" Hata="{Binding Hatalar[DuzenKanal]}" Cerceveli="False">
                                 <ctl:CipGrubu BindableLayout.ItemsSource="{Binding GiderKanallari}" SecCommand="{Binding SecGiderKanalCommand}" />
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="0">
-                                <Label Text="Tip" Style="{StaticResource LblField}" />
+                            </ctl:FormAlani>
+                            <ctl:FormAlani Baslik="Tip" Alan="DuzenTip" Hata="{Binding Hatalar[DuzenTip]}" Cerceveli="False">
                                 <ctl:CipGrubu BindableLayout.ItemsSource="{Binding TipCipleri}" SecCommand="{Binding SecTipCommand}" />
-                            </VerticalStackLayout>
+                            </ctl:FormAlani>
                             <VerticalStackLayout Spacing="0" IsVisible="{Binding KartSeciciGorunur}">
-                                <Label Text="Kart (yeni takipteki kartlar)" Style="{StaticResource LblField}" />
                                 <Label Text="{Binding KartUyarisi}" TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KartUyarisi, Converter={StaticResource DoluIse}}" />
-                                <ctl:CipGrubu BindableLayout.ItemsSource="{Binding KartCipleri}" SecCommand="{Binding SecKartCommand}" />
+                                <ctl:FormAlani Baslik="Kart (yeni takipteki kartlar)" Alan="DuzenKrediKartiId" Hata="{Binding Hatalar[DuzenKrediKartiId]}" Cerceveli="False">
+                                    <ctl:CipGrubu BindableLayout.ItemsSource="{Binding KartCipleri}" SecCommand="{Binding SecKartCommand}" />
+                                </ctl:FormAlani>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="6" IsVisible="{Binding TaksitGirilebilir}">
-                                <Label Text="Taksit sayısı" Style="{StaticResource LblField}" />
-                                <Border Style="{StaticResource FieldBorder}" WidthRequest="120" HorizontalOptions="Start">
+                                <ctl:FormAlani Baslik="Taksit sayısı" Alan="DuzenTaksitSayisi" Hata="{Binding Hatalar[DuzenTaksitSayisi]}"
+                                               WidthRequest="120" HorizontalOptions="Start">
                                     <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" />
-                                </Border>
+                                </ctl:FormAlani>
                                 <HorizontalStackLayout Spacing="10">
                                     <Switch IsToggled="{Binding DuzenIlkKesimVar}" />
                                     <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
-                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}"><DatePicker Date="{Binding DuzenIlkKesimTarihi}" /></Border>
+                                <ctl:FormAlani Alan="DuzenIlkKesimTarihi" Hata="{Binding Hatalar[DuzenIlkKesimTarihi]}" IsVisible="{Binding DuzenIlkKesimVar}">
+                                    <DatePicker Date="{Binding DuzenIlkKesimTarihi}" />
+                                </ctl:FormAlani>
                                 <Label Text="Bankada taksitle çekildiyse her ekstreye yalnız taksit tutarı yazılır." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="0">
-                                <Label Text="Not" Style="{StaticResource LblField}" />
-                                <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
-                                </Border>
-                            </VerticalStackLayout>
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,2,0,0">
-                                <Button Text="Kaydet" Command="{Binding KaydetCommand}" />
-                                <Button Grid.Column="1" Text="Yeni" Command="{Binding YeniCommand}"
+                            <ctl:FormAlani Baslik="Not" Alan="DuzenNot" Hata="{Binding Hatalar[DuzenNot]}">
+                                <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
+                            </ctl:FormAlani>
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,2,0,0">
+                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" />
+                                <Button Grid.Column="1" Text="Vazgeç" Command="{Binding VazgecCommand}" IsVisible="{Binding DuzenlemeModu}"
+                                        Style="{StaticResource BtnSecondary}" />
+                                <Button Grid.Column="2" Text="Yeni" Command="{Binding YeniCommand}"
                                         Style="{StaticResource BtnSecondary}" />
                             </Grid>
                             <Border Style="{StaticResource CardForm}" IsVisible="{Binding GiderBenzerlik.UyariVar}">
@@ -90,6 +87,7 @@
                                     <Button Text="Ayrı bir işlem, devam et" Command="{Binding GideriAyriKaydetCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
                                 </VerticalStackLayout>
                             </Border>
+                            <!-- Formdan bağımsız işlem hataları (silme, gelir formu) -->
                             <Border Style="{StaticResource ErrorBox}"
                                     IsVisible="{Binding Hata, Converter={StaticResource DoluIse}}">
                                 <Label Text="{Binding Hata}" Style="{StaticResource LblError}" />
@@ -172,6 +170,18 @@
                                     <BoxView Style="{StaticResource RowSeparator}" />
                                     <Grid Padding="18,6" MinimumHeightRequest="58"
                                           ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                        <!-- Düzenlenen satır vurgulanır (İŞ-03). -->
+                                        <Grid.Triggers>
+                                            <DataTrigger TargetType="Grid" Value="True">
+                                                <DataTrigger.Binding>
+                                                    <MultiBinding Converter="{StaticResource EsitIse}">
+                                                        <Binding Path="Id" />
+                                                        <Binding Path="BindingContext.DuzenId" Source="{x:Reference Sayfa}" />
+                                                    </MultiBinding>
+                                                </DataTrigger.Binding>
+                                                <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
+                                            </DataTrigger>
+                                        </Grid.Triggers>
                                         <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
                                             <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
                                                    Style="{StaticResource LblDateChip}" />
@@ -188,7 +198,7 @@
                                         <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center"
                                                                IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
-                                                    Command="{Binding BindingContext.DuzenleCommand, Source={x:Reference Sayfa}}"
+                                                    Command="{Binding BindingContext.DuzenlemeyeGecCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
                                             <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
                                                     Clicked="SilTiklandi"

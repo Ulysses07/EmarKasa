@@ -18,7 +18,7 @@ public class GecersizTutarTests
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.IslemOlusturCagri);
         Assert.Null(api.SonIslemOlustur);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar[nameof(IslemlerViewModel.DuzenTutar)]);
     }
 
     [Fact]

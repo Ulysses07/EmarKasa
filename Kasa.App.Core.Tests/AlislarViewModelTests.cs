@@ -351,7 +351,7 @@ public class AlislarViewModelTests
         var gider = new IslemDto(9, new(2026, 9, 20), "Firma", 10m, "Dağılım bekliyor", GiderTipi.Cari, null, AlisId: 7);
         vm.Duzenle(gider);
         Assert.Equal(0, vm.DuzenId);
-        Assert.Contains("Alışlar", vm.Hata);
+        Assert.Contains("Alışlar", vm.Hatalar.Genel);
         await vm.SilCommand.ExecuteAsync(gider);
         Assert.Null(api.SonIslemSil);
         Assert.Contains("Alışlar", vm.Hata);

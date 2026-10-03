@@ -543,10 +543,10 @@ public class YurutucuTests
         var auth = new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor };
         var vm = new IslemlerViewModel(new SahteApi(), auth: auth) { DuzenTutar = ParaAyristirici.Gecersiz };
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar[nameof(IslemlerViewModel.DuzenTutar)]);
 
         auth.OturumSurumu++;
 
-        Assert.Null(vm.Hata);
+        Assert.False(vm.Hatalar.Var);
     }
 }
