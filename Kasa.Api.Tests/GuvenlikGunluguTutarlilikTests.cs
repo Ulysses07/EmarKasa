@@ -242,7 +242,9 @@ public class GuvenlikGunluguTutarlilikTests
             {
                 using var scope = host.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
-                var hata = Record.Exception(() => GeriYuklemeIsleyici.Isle(db, scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>()));
+                var okunabilirGunluk = scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>();
+                Assert.NotNull(okunabilirGunluk.Oku());
+                var hata = Record.Exception(() => GeriYuklemeIsleyici.Isle(db, okunabilirGunluk));
                 Assert.True(hata is IOException or UnauthorizedAccessException, $"Beklenmeyen hata: {hata}");
                 Assert.Equal(once, DurumIzleyiciVeIsaret(host));
                 Assert.Empty(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == GuvenlikOlaylari.GeriYuklemeIslendi).ToList());
