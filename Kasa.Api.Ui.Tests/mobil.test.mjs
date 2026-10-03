@@ -251,3 +251,154 @@ test('hızlı giderde yalnız yeni takipteki açık kartlar seçilir (takipsiz y
   );
   assert.deepEqual(m.giderKartlari(undefined), []);
 });
+
+async function hizliGiderKimligi(storage, ids) {
+  const app = await kaynak('m/app.js');
+  const bas = app.indexOf('// ---------- hızlı gider istek kimliği ----------');
+  const son = app.indexOf('// ---------- hızlı gider istek kimliği sonu ----------');
+  assert.ok(bas >= 0 && son > bas);
+  const baglam = {
+    sessionStorage: storage,
+    crypto: { randomUUID: () => ids.shift() },
+  };
+  runInNewContext(app.slice(bas, son) + '\nthis.kimlik = { al: giderIstekId, temizle: giderIstekTemizle };', baglam);
+  return baglam.kimlik;
+}
+
+test('hızlı gider yanıtı belirsiz kalınca aynı sekmede ve yeniden yüklemede istek kimliği korunur', async () => {
+  const depo = new Map();
+  const storage = {
+    getItem: key => depo.get(key) ?? null,
+    setItem: (key, value) => depo.set(key, value),
+    removeItem: key => depo.delete(key),
+  };
+  const ilkId = '11111111-1111-4111-8111-111111111111';
+  const yeniId = '22222222-2222-4222-8222-222222222222';
+  const ilk = await hizliGiderKimligi(storage, [ilkId]);
+  assert.equal(ilk.al(), ilkId);
+  assert.equal(ilk.al(), ilkId, 'Aynı formda değişen gider de ilk istek kimliğini taşır.');
+  const yeniden = await hizliGiderKimligi(storage, [yeniId]);
+  assert.equal(yeniden.al(), ilkId, 'Aynı sekmede sayfa yeniden yüklense de yanıtı belirsiz istek yinelenir.');
+  yeniden.temizle(ilkId);
+  assert.equal(depo.size, 0, 'Başarı kesinleşince bekleyen kimlik silinir.');
+  assert.equal(yeniden.al(), yeniId, 'Sonraki gider yeni bir kimlik alır.');
+});
+
+test('hızlı giderde başka isteğin temizlenmesi bekleyen kimliği kaldırmaz ve depolama kapalıysa bellek kullanılır', async () => {
+  const ilkId = '33333333-3333-4333-8333-333333333333';
+  const yeniId = '44444444-4444-4444-8444-444444444444';
+  const storage = {
+    getItem: () => {
+      throw new Error('disabled');
+    },
+    setItem: () => {
+      throw new Error('disabled');
+    },
+    removeItem: () => {
+      throw new Error('disabled');
+    },
+  };
+  const kimlik = await hizliGiderKimligi(storage, [ilkId, yeniId]);
+  assert.equal(kimlik.al(), ilkId);
+  kimlik.temizle(yeniId);
+  assert.equal(kimlik.al(), ilkId);
+  kimlik.temizle(ilkId);
+  assert.equal(kimlik.al(), yeniId);
+});
+
+test('mobil benzer kayıt sorgusu sürerken gider değişirse eski tutar kaydedilmez', async () => {
+  const kaynakKod = await kaynak('m/app.js');
+  const bas = kaynakKod.indexOf('async function hizliIslemAc()');
+  const son = kaynakKod.indexOf('function kurtarmaAc()', bas);
+  assert.ok(bas >= 0 && son > bas);
+  const h = (tag, props = {}, ...items) => {
+    const node = {
+      tag,
+      props,
+      children: items.flat(Infinity).filter(x => x != null),
+      listeners: {},
+      value: props.value ?? '',
+      hidden: props.hidden ?? false,
+      disabled: false,
+      textContent: items
+        .flat(Infinity)
+        .filter(x => typeof x === 'string')
+        .join(''),
+      addEventListener(name, fn) {
+        this.listeners[name] = fn;
+      },
+      replaceChildren(...children) {
+        this.children = children.flat(Infinity);
+      },
+      focus() {},
+      find(predicate) {
+        return predicate(this)
+          ? this
+          : this.children
+              .filter(x => x && typeof x === 'object')
+              .map(x => x.find(predicate))
+              .find(Boolean);
+      },
+      querySelector(selector) {
+        return this.find(x => x.tag === selector);
+      },
+    };
+    for (const [key, fn] of Object.entries(props))
+      if (key.startsWith('on') && typeof fn === 'function') node.listeners[key.slice(2).toLowerCase()] = fn;
+    return node;
+  };
+  let root,
+    finishLookup,
+    writes = 0;
+  const context = {
+    h,
+    acikSayfa: null,
+    editorMu: () => true,
+    ORTAK: 'Ortak',
+    durum: { islemOnbellek: [{ cari: 'Eski', tarih: '2026-09-23' }] },
+    api: (path, options) => {
+      if (path === '/api/kanallar') return [{ ad: 'MEZAT', aktif: true }];
+      if (path === '/api/kredikartlari') return [];
+      if (path === '/api/islemler/benzerlik')
+        return new Promise(resolve => {
+          finishLookup = resolve;
+        });
+      if (path === '/api/islemler' && options.method === 'POST') writes++;
+      return {};
+    },
+    isoGun: () => '2026-09-23',
+    gunEkle: date => date,
+    kisaTarih: date => date,
+    kanalRengi: () => ({ z: '#fff', r: '#000' }),
+    giderKartlari: () => [],
+    tipAdi: type => type,
+    tutarCoz: value => Number(value) * 100,
+    tl: value => String(value),
+    giderIstekId: () => '11111111-1111-4111-8111-111111111111',
+    giderIstekTemizle: () => {},
+  };
+  context.sayfaAc = factory => {
+    const kapat = () => {
+      context.acikSayfa = null;
+    };
+    context.acikSayfa = { kapat };
+    root = factory(kapat);
+  };
+  runInNewContext(kaynakKod.slice(bas, son) + '\nthis.hizliIslemAcTest = hizliIslemAc;', context);
+  await context.hizliIslemAcTest();
+  const amount = root.find(n => n.tag === 'input' && n.props['aria-label'] === 'Tutar');
+  amount.value = '75';
+  amount.listeners.input();
+  const cari = root.find(n => n.tag === 'input' && n.props.placeholder === 'Firma, kişi ya da ödeme yeri');
+  cari.value = 'Kargo';
+  cari.listeners.input();
+  root.find(n => n.tag === 'button' && n.textContent === 'MEZAT').listeners.click();
+  const saving = root.find(n => n.tag === 'button' && n.textContent === 'Kaydet' && n.props.class === 'dugme ana').listeners.click();
+  assert.equal(typeof finishLookup, 'function');
+  amount.value = '80';
+  amount.listeners.input();
+  finishLookup([]);
+  await saving;
+  assert.equal(writes, 0);
+  assert.match(root.find(n => n.props.role === 'alert').textContent, /Alanlar benzer kayıt kontrolü sırasında değişti/);
+});

@@ -650,6 +650,100 @@ test('new expense and new purchase reuse the request id after a lost response, w
   assert.ok(purchaseWrites[0].body.istekId);
   assert.deepEqual(purchaseWrites[0].body, purchaseWrites[1].body);
 });
+test('new expense keeps its request id across a closed dialog and clears it only after confirmed success', async () => {
+  const saved = new Map();
+  const sessionStorage = {
+    getItem: key => saved.get(key) ?? null,
+    setItem: (key, value) => saved.set(key, value),
+    removeItem: key => saved.delete(key),
+  };
+  let attempts = 0;
+  const { app, nodes, calls } = await openApp(
+    false,
+    {
+      '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+      '/api/kredikartlari': [],
+      '/api/islemler/benzerlik': [],
+      '/api/islemler': call => {
+        if (call.method === 'POST' && ++attempts === 1) throw new Error('Network response lost');
+        return { id: 21 };
+      },
+    },
+    null,
+    null,
+    { sessionStorage }
+  );
+  const fill = async cari => {
+    await app.expenseDialog();
+    for (const [name, value] of Object.entries({ cari, tutarTl: '75', kanal: 'A', tarih: '2026-09-23' }))
+      formField(nodes, name).value = value;
+  };
+  await fill('Kargo');
+  await submitDialog(nodes);
+  const pendingId = calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.istekId;
+  assert.equal([...saved.values()][0], pendingId);
+  await clickDialog(nodes, 'Vazgeç');
+  await fill('Kargo');
+  await submitDialog(nodes);
+  const writes = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(writes[1].body.istekId, pendingId);
+  assert.equal(saved.size, 0, 'Sunucu başarısı kesinleşince bekleyen anahtar silinir.');
+  await fill('Başka gider');
+  await submitDialog(nodes);
+  const later = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST')[2];
+  assert.notEqual(later.body.istekId, pendingId, 'Yeni gider ayrı bir istek kimliği alır.');
+});
+test('editing a pending expense after an uncertain response keeps the key so the server can reject a changed retry', async () => {
+  const saved = new Map();
+  const sessionStorage = {
+    getItem: key => saved.get(key) ?? null,
+    setItem: (key, value) => saved.set(key, value),
+    removeItem: key => saved.delete(key),
+  };
+  let attempts = 0;
+  const { app, nodes, calls, responses } = await openApp(
+    false,
+    {
+      '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+      '/api/kredikartlari': [],
+      '/api/islemler/benzerlik': [],
+      '/api/islemler': call => {
+        if (call.method === 'POST' && ++attempts === 1) throw new Error('Network response lost');
+        return { $status: 409, kod: 'ISTEK_KIMLIGI_CAKISMASI', hata: 'Bu istek kimliği farklı içerikle kullanılmış.' };
+      },
+    },
+    null,
+    null,
+    { sessionStorage }
+  );
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' }))
+    formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  formField(nodes, 'tutarTl').value = '80';
+  await submitDialog(nodes);
+  const writes = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].body.istekId, writes[0].body.istekId);
+  assert.equal(writes[1].body.tutarTl, 80);
+  assert.match(nodes.get('#modal-content').textContent, /farklı içerikle kullanılmış/);
+  assert.equal([...saved.values()][0], writes[0].body.istekId, 'Çakışmada bekleyen anahtar kendiliğinden silinmez.');
+  const fresh = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Kontrol ettim, yeni gider başlat');
+  assert.equal(fresh.parentNode.hidden, false);
+  responses['/api/islemler'] = { id: 22 };
+  await clickDialog(nodes, 'Kontrol ettim, yeni gider başlat');
+  assert.equal(saved.size, 0);
+  assert.equal(
+    calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length,
+    2,
+    'Yeni form kendi başına kayıt yapmaz.'
+  );
+  for (const [name, value] of Object.entries({ cari: 'Yeni gider', tutarTl: '80', kanal: 'A', tarih: '2026-09-23' }))
+    formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const later = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST')[2];
+  assert.notEqual(later.body.istekId, writes[0].body.istekId);
+});
 test('purchase document download names come from the stored type, never from the uploaded extension or direction marks', () => {
   assert.equal(ui.documentFileName('fatura.pdf.hta', 'application/pdf'), 'fatura.pdf');
   assert.equal(ui.documentFileName('fatura‮fdp.hta', 'application/pdf'), 'faturafdp.pdf');
@@ -698,6 +792,28 @@ test('changing a field invalidates duplicate approval and cancelling during look
     calls.some(call => call.path === '/api/islemler' && call.method === 'POST'),
     false
   );
+});
+test('changing an expense while the duplicate lookup is pending cannot submit the old checked amount', async () => {
+  let finishLookup;
+  const { app, nodes, calls, responses } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    '/api/kredikartlari': [],
+    '/api/islemler/benzerlik': () => new Promise(resolve => (finishLookup = resolve)),
+    '/api/islemler': { id: 21 },
+  });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' }))
+    formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.equal(typeof finishLookup, 'function');
+  formField(nodes, 'tutarTl').value = '80';
+  finishLookup([]);
+  await settle();
+  assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 0);
+  responses['/api/islemler/benzerlik'] = [];
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/islemler/benzerlik').length, 2);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.tutarTl, 80);
 });
 test('editing an existing expense skips new-record duplicate lookup', async () => {
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null };
@@ -5223,6 +5339,25 @@ test('gider düzenlemesi okunan sürümü gönderir; 409 iletisi formda görün�
     formField(nodes, name).value = value;
   await submitDialog(nodes);
   assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.surum, 0);
+});
+test('gider silme isteği okunan sürümü taşır ve eski sürümde listeyi yenileyip silmez', async () => {
+  const listPath = `/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`;
+  const expense = { id: 20, tarih: ui.today(), tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', surum: 3 };
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    [listPath]: [expense],
+    '/api/islemler/20?surum=3': { $status: 409, hata: 'Gider başka bir oturumda değişti.' },
+  });
+  await app.navigate('transactions');
+  const before = calls.filter(call => call.path === listPath).length;
+  const erase = nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Sil');
+  assert.ok(erase);
+  erase.listeners.click();
+  await submitDialog(nodes);
+  const deletion = calls.find(call => call.path === '/api/islemler/20?surum=3');
+  assert.equal(deletion.method, 'DELETE');
+  assert.equal(calls.filter(call => call.path === listPath).length, before + 1);
+  assert.match(nodes.get('#modal-content').textContent, /başka bir oturumda değişti/);
 });
 test('kanal ve kasa başlangıcı düzenlemesi okunan sürümü gönderir; 409’da Ayarlar yenilenir', async () => {
   const { app, nodes, calls } = await openApp(false, {

@@ -26,7 +26,7 @@ public interface IKasaApi
     Task KanalSilAsync(int id);
     Task<IslemDto> IslemOlusturAsync(IslemYaz g);
     Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g);
-    Task IslemSilAsync(int id);
+    Task IslemSilAsync(int id, int surum);
     Task<GelenDto> GelenKaydetAsync(GelenYaz g);
     Task AyarGuncelleAsync(AyarYaz g);
     Task IzleyiciSifreAsync(string yeniSifre);

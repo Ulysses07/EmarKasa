@@ -2032,11 +2032,12 @@ uç sayısı: 133
   ad: - / rota adı: -
   yetki: politika=Finans roller=- şemalar=- + politika=Editor roller=- şemalar=-
   hız sınırı: -
-  meta veri (7):
-    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (System.Int32 id, Kasa.Api.Data.KasaDbContext db)
+  meta veri (8):
+    - System.Reflection.RuntimeMethodInfo: imza Microsoft.AspNetCore.Http.IResult~ (System.Int32 id, System.Nullable<System.Int32> surum, Kasa.Api.Data.KasaDbContext db)
     - Microsoft.AspNetCore.Routing.HttpMethodMetadata: yöntemler=DELETE cors=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Finans roller=- şemalar=-
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=id tür=System.Int32 TryParse=True BindAsync=False isteğe bağlı=False
+    - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=surum tür=System.Nullable<System.Int32> TryParse=True BindAsync=False isteğe bağlı=True
     - Microsoft.AspNetCore.Http.Metadata.ParameterBindingMetadata: ad=db tür=Kasa.Api.Data.KasaDbContext TryParse=False BindAsync=False isteğe bağlı=False
     - Microsoft.AspNetCore.Authorization.AuthorizeAttribute: politika=Editor roller=- şemalar=-
     - Microsoft.AspNetCore.Routing.RouteEndpointBuilder+RouteDiagnosticsMetadata: Route: /api/islemler/{id:int}

@@ -112,6 +112,7 @@ async function api(path, options = {}) {
     }
     const error = new Error(errorMessage(result, response.status));
     error.status = response.status;
+    error.code = result?.kod;
     error.fields = fieldErrors(result);
     if (sessionExpired(response.status, path)) clearSession();
     throw error;
@@ -295,10 +296,17 @@ async function refreshOnConflict(work, refresh) {
 }
 const similarApprovals = new WeakMap();
 const similarPanels = new WeakMap();
+const formSnapshot = form =>
+  JSON.stringify(
+    [...new FormData(form)].map(([name, value]) =>
+      typeof value === 'string' ? [name, value] : [name, value.name, value.size, value.lastModified]
+    )
+  );
 async function confirmSimilar(form, query, payload) {
   const signature = JSON.stringify({ query, payload });
   if (!form.isConnected || !modal.open) return false;
   if (similarApprovals.get(form) === signature) return true;
+  const before = formSnapshot(form);
   const oldPanel = similarPanels.get(form);
   if (oldPanel) oldPanel.hidden = true;
   let records;
@@ -308,7 +316,7 @@ async function confirmSimilar(form, query, payload) {
     throw new Error(`Benzer kayıt kontrolü tamamlanamadı. Kayıt yapılmadı; yeniden deneyin. ${error.message}`);
   }
   if (!Array.isArray(records)) throw new Error('Benzer kayıt kontrolünden geçerli yanıt alınamadı. Kayıt yapılmadı; yeniden deneyin.');
-  if (!form.isConnected || !modal.open) return false;
+  if (!form.isConnected || !modal.open || formSnapshot(form) !== before) return false;
   if (!records.length) return true;
   const panel = oldPanel || h('div', { class: 'notice similar-warning', role: 'status', tabindex: '-1' });
   const sourceNames = {
@@ -358,18 +366,49 @@ async function confirmSimilar(form, query, payload) {
   panel.focus();
   return false;
 }
-// Reuse the same key after an uncertain response; changed fields get a fresh key.
-function requestIdentity() {
-  let previous, id;
-  return payload => {
+// Most forms use a new key when their contents change. A form with a pending, uncertain write can
+// instead keep its key in the tab until the server confirms success. This lets the server reject a
+// changed retry and replay an identical retry, even after the dialog is closed and reopened.
+function requestIdentity({ storageKey = null, retainOnChange = false } = {}) {
+  let previous;
+  let id;
+  if (storageKey) {
+    try {
+      const stored = sessionStorage?.getItem(storageKey);
+      if (stored && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(stored)) id = stored;
+    } catch {
+      // Storage can be disabled; in-memory retries still use the same key while this form is open.
+    }
+  }
+  const identity = payload => {
     const { surum, hedefSurum, ...stable } = payload;
     const serialized = JSON.stringify(stable);
-    if (serialized !== previous) {
-      previous = serialized;
+    if (!id || (!retainOnChange && serialized !== previous)) {
       id = crypto.randomUUID();
+      if (storageKey) {
+        try {
+          sessionStorage?.setItem(storageKey, id);
+        } catch {
+          // Browser storage is optional.
+        }
+      }
     }
+    previous = serialized;
     return { ...payload, istekId: id };
   };
+  identity.clear = () => {
+    const finished = id;
+    id = undefined;
+    previous = undefined;
+    if (storageKey && finished) {
+      try {
+        if (sessionStorage?.getItem(storageKey) === finished) sessionStorage.removeItem(storageKey);
+      } catch {
+        // Browser storage is optional.
+      }
+    }
+  };
+  return identity;
 }
 function page(title, context, actions = []) {
   $('#page-title').textContent = title;

@@ -45,6 +45,8 @@ public class OlusturmaTekrarTests
 
         using var farkli = await c.PostAsJsonAsync("/api/islemler", Gider(istekId, 80m), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, farkli.StatusCode);
+        var farkliGovde = await farkli.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal("ISTEK_KIMLIGI_CAKISMASI", farkliGovde.GetProperty("kod").GetString());
         Assert.Equal(1, Say(f, db => db.Islemler.Where(i => i.Cari == "Kargo")));
 
         using var bos = await c.PostAsJsonAsync("/api/islemler", Gider(Guid.Empty), cancellationToken: TestContext.Current.CancellationToken);
@@ -70,7 +72,7 @@ public class OlusturmaTekrarTests
         var istekId = Guid.NewGuid();
         using var ilk = await c.PostAsJsonAsync("/api/islemler", Gider(istekId, cari: "Silinecek"), cancellationToken: TestContext.Current.CancellationToken);
         var id = (await ilk.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(cancellationToken: TestContext.Current.CancellationToken)).GetProperty("id").GetInt32();
-        (await c.DeleteAsync($"/api/islemler/{id}", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        (await c.SilIslemAsync(id, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var tekrar = await c.PostAsJsonAsync("/api/islemler", Gider(istekId, cari: "Silinecek"), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, tekrar.StatusCode);
         Assert.Contains("sonradan silinmiş", await AlisTestYardimcisi.Hata(tekrar));

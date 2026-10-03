@@ -28,7 +28,7 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
         Converters = { new JsonStringEnumConverter() },
     };
 
-    private record IslemYanit(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not);
+    private record IslemYanit(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int Surum);
 
     [Fact]
     public async Task Editor_islem_ekleyip_listeleyip_silebilir()
@@ -54,7 +54,7 @@ public class KayitIslemleriTests : IClassFixture<KasaWebFactory>
         var liste = await client.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", Json, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Contains(liste!, i => i.Id == eklenen.Id);
 
-        var sil = await client.DeleteAsync($"/api/islemler/{eklenen.Id}", TestContext.Current.CancellationToken);
+        var sil = await client.DeleteAsync($"/api/islemler/{eklenen.Id}?surum={eklenen.Surum}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, sil.StatusCode);
 
         var listeSonra = await client.GetFromJsonAsync<List<IslemYanit>>("/api/islemler", Json, cancellationToken: TestContext.Current.CancellationToken);

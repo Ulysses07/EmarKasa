@@ -47,10 +47,16 @@ public static class EkstreMetinOkuyucu
             throw new PdfOkumaException("PDF metni çok uzun. Daha kısa bir tarih aralığı seçin.");
         var segments = new List<Segment>();
         var warnings = new List<string> { "Okunan satırları PDF ile karşılaştırın. Tutar, yön ve kanal bilgilerini onaylamadan kayıt yapılmaz.", "Yalnız TL hareketlerini kaydedin. Hesaplar arası transfer aynı parayı ikinci kez gelir/gider yapmamalı." };
-        var globalCurrency = DocumentCurrency(text);
         var pages = text.Replace("\r", "").Split('\f');
         if (pages.Length > 51 || pages.Length == 51 && !string.IsNullOrWhiteSpace(pages[^1]))
             throw new PdfOkumaException("PDF en fazla 50 sayfa olmalı.");
+        // Bir sayfanın döviz başlığı başka sayfadaki kodsuz hareketlere taşınmamalı.
+        // Başlığı olmayan sayfalar yalnız tüm belgede tek bir para birimi varsa onu devralır.
+        var pageCurrencies = pages.Select(PageCurrency).ToArray();
+        var knownCurrencies = pageCurrencies.Where(c => c is not null).Distinct().ToArray();
+        var documentFallback = knownCurrencies.Length == 1 && knownCurrencies[0] != "Belirsiz"
+            ? knownCurrencies[0]!
+            : "Belirsiz";
         var summaryCount = 0;
         for (var pageIndex = 0; pageIndex < pages.Length; pageIndex++)
         {
@@ -103,7 +109,7 @@ public static class EkstreMetinOkuyucu
         }
         // Kart ekstresinde eksi/artı işaretinin anlamı bankaya göre değişir; satırlar yorumlanmadan önce belgeden çıkarılır.
         var creditSign = kaynak == EkstreKaynaklari.Kart ? CreditSign(segments) : 0;
-        var rows = segments.Select((s, i) => Parse(s, kaynak, globalCurrency, i + 1, creditSign)).ToList();
+        var rows = segments.Select((s, i) => Parse(s, kaynak, pageCurrencies[s.Page - 1] ?? documentFallback, i + 1, creditSign)).ToList();
         if (summaryCount > 0)
             warnings.Add($"{summaryCount} toplam, devir, limit veya ekstre bilgi satırı mali hareket olarak alınmadı.");
         if (rows.Count == 0)
@@ -330,22 +336,24 @@ public static class EkstreMetinOkuyucu
                 return (no, count);
         return null;
     }
-    private static string DocumentCurrency(string text)
+    private static string? PageCurrency(string text)
     {
-        var lines = Normalize(text).Split('\n', '\f');
-        foreach (var line in lines)
-            if (LabelCurrency(line) is { } labelled)
-                return labelled;
-        // Etiket yoksa belgedeki tüm kodlar sayılır ("USD İşlemleri" bölüm başlığı dahil); tek kod yoksa kodsuz satır tahmin
-        // edilmez. Bağlamsız "CAD" Türkçe metinde Cadde kısaltmasıdır: yalnız tutara bitişikse ya da başlıktaysa sayılır.
+        var lines = Normalize(text).Split('\n');
+        var declared = lines.Select(LabelCurrency).Where(c => c is not null).Cast<string>()
+            .Concat(lines.SelectMany(HeaderCurrencies)).Distinct().ToList();
+        if (declared.Count > 0)
+            return declared.Count == 1 ? declared[0] : "Belirsiz";
+        // Başlık yoksa bu sayfadaki tüm kodlar sayılır ("USD İşlemleri" bölüm başlığı dahil).
+        // Bağlamsız "CAD" Türkçe metinde Cadde kısaltmasıdır: yalnız tutara bitişikse ya da başlıktaysa sayılır.
         var currencies = lines.SelectMany(l => AmountCurrencies(l).Concat(HeaderCurrencies(l)).Concat(LooseCurrencies(l))).Distinct().ToList();
-        return currencies.Count == 1 ? currencies[0] : "Belirsiz";
+        return currencies.Count == 0 ? null : currencies.Count == 1 ? currencies[0] : "Belirsiz";
     }
     // "Para Birimi: Türk Lirası   Şube Adresi: Bağdat Cad." — değer yalnız etiketin kendi alanından okunur: alan kolon
     // boşluğunda ya da sonraki "Etiket:" başlangıcında biter; "CAD" yalnız alanın ilk kelimesiyse koddur ("CAD." değil).
     // Alanda para birimi yoksa ("Hesap Cinsi: VADESIZ") ya da birden fazlaysa etiket karar vermez.
     private static string? LabelCurrency(string line)
     {
+        var labelledCurrencies = new HashSet<string>();
         foreach (Match label in CurrencyLabelRx.Matches(line))
         {
             var value = line[(label.Index + label.Length)..].TrimStart(' ', '\t', ':', '-', '.');
@@ -354,10 +362,12 @@ public static class EkstreMetinOkuyucu
             var codes = CurrencyNameRx.Matches(field).Select(m => CurrencyName(m.Value))
                 .Concat(CurrencyRx.Matches(field).Where(m => m.Value != "CAD" || m.Index == 0 && !field.StartsWith("CAD.", StringComparison.Ordinal)).Select(m => Currency(m.Value)))
                 .Distinct().ToList();
+            if (codes.Count > 1)
+                return "Belirsiz";
             if (codes.Count == 1)
-                return codes[0];
+                labelledCurrencies.Add(codes[0]);
         }
-        return null;
+        return labelledCurrencies.Count == 0 ? null : labelledCurrencies.Count == 1 ? labelledCurrencies.Single() : "Belirsiz";
     }
     private static string CurrencyName(string name) => name switch
     { "TURK LIRASI" => "TRY", "KANADA DOLARI" => "CAD", "AVUSTRALYA DOLARI" => "AUD", "EURO" or "AVRO" => "EUR", "STERLIN" or "STERLINI" => "GBP", _ => "USD" };

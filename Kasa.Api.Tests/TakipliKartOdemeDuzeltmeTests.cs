@@ -232,7 +232,7 @@ public class TakipliKartOdemeDuzeltmeTests
         var duzenlenecek = await Gider(200m);
         Assert.Equal(500m, (await Kart(c, kart.Id)).Borc);
 
-        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{silinecek}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.SilIslemAsync(silinecek, ct)).StatusCode);
         Assert.Equal(200m, (await Kart(c, kart.Id)).Borc);
         Assert.Equal(1, AktifHarcama(f, kart.Id));
 
@@ -246,7 +246,7 @@ public class TakipliKartOdemeDuzeltmeTests
         // Ödeme payı alan harcamanın gideri silinmez ve kanalı değişmez (önceki ödemenin kanal payı değişirdi).
         var kartDto = await Kart(c, kart.Id);
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/odemeler", new KartTakipOdemeYaz(Guid.NewGuid(), kartDto.Surum, Today, 50m));
-        Assert.Contains("ödendi", await Hata(await c.DeleteAsync($"/api/islemler/{duzenlenecek}", ct), HttpStatusCode.Conflict));
+        Assert.Contains("ödendi", await Hata(await c.SilIslemAsync(duzenlenecek, ct), HttpStatusCode.Conflict));
         Assert.Contains("ödendi", await Hata(await c.PutAsJsonAsync($"/api/islemler/{duzenlenecek}", yeni with { Kanal = "MEZAT" }, cancellationToken: ct), HttpStatusCode.Conflict));
         // Kart ekranından iptal yol gösterir.
         kartDto = await Kart(c, kart.Id);
@@ -270,7 +270,7 @@ public class TakipliKartOdemeDuzeltmeTests
         await Post<KartTakipDto>(c, $"/api/takip/kartlar/{kart.Id}/harcamalar", new KartHarcamaYaz(Guid.NewGuid(), kartDto.Surum, Gun, "Kargo iadesi", -50m, 1, null, [], harcama.Id));
         static string Ileti(string json) => JsonDocument.Parse(json).RootElement.GetProperty("hata").GetString()!;
         Assert.Equal("Bu kart harcamasının iadesi var; gideri silinemez. Önce iadeyi Kredi Kartları ekranında gerekçeyle iptal edin.",
-            Ileti(await Hata(await c.DeleteAsync($"/api/islemler/{gider}", ct), HttpStatusCode.Conflict)));
+            Ileti(await Hata(await c.SilIslemAsync(gider, ct), HttpStatusCode.Conflict)));
         var yeni = new IslemYazDto(Gun, "Kargo", 200m, "PERAKENDE", GiderTipi.KrediKarti, null, kart.Id);
         Assert.Equal("Bu kart harcamasının iadesi var; gideri değiştirilemez. Önce iadeyi Kredi Kartları ekranında gerekçeyle iptal edin.",
             Ileti(await Hata(await c.PutAsJsonAsync($"/api/islemler/{gider}", yeni, cancellationToken: ct), HttpStatusCode.Conflict)));

@@ -10,8 +10,8 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// contract-6: çekirdek kasa kayıtlarının (gider, gelir, kanal, ayarlar) iyimser eşzamanlılığı. Kayıt her değiştiğinde sürümü artar
 /// (uç yazımı da dolaylı yazım da); yazma isteği okuduğu sürümü gönderirse uyuşmazlıkta 409 alır ve kayıt değişmez. Sürüm
-/// göndermeyen eski istemci (canlıdaki 2.3.0 masaüstü, önbellekteki eski web) kırılmaz: denetlenmez, son yazan kazanır, sürüm yine
-/// artar. Bu dosya dışındaki API testleri gövdede sürüm göndermez; onlar bu eski istemci yolunu sınar.
+/// göndermeyen eski istemcinin düzenleme isteği denetlenmez, son yazan kazanır, sürüm yine artar. Gider silme sürümü zorunlu
+/// tutar. Bu dosya dışındaki API testleri yazma gövdesinde sürüm göndermez; onlar eski istemci düzenleme yolunu sınar.
 /// </summary>
 public class CekirdekSurumTests
 {
@@ -74,6 +74,28 @@ public class CekirdekSurumTests
     }
 
     private static int Surum(JsonNode? n) => n!["surum"]!.GetValue<int>();
+
+    [Fact]
+    public async Task Gider_silme_guncel_surumu_ister_eskimis_istek_kaydi_korur()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (f, c) = await Kur();
+        await using var _ = f;
+        using var __ = c;
+        var olusan = await Json(await c.PostAsJsonAsync("/api/islemler", Gider(1000m), cancellationToken: ct));
+        var id = olusan["id"]!.GetValue<int>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync($"/api/islemler/{id}", ct)).StatusCode);
+        var guncel = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, surum: 0), cancellationToken: ct));
+        await Cakisma(await c.DeleteAsync($"/api/islemler/{id}?surum=0", ct), GiderIletisi);
+
+        var satir = Assert.Single((await c.GetFromJsonAsync<JsonArray>("/api/islemler", cancellationToken: ct))!);
+        Assert.Equal((id, 1200m, Surum(guncel)),
+            (satir!["id"]!.GetValue<int>(), satir["tutarTl"]!.GetValue<decimal>(), Surum(satir)));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await c.DeleteAsync($"/api/islemler/{id}?surum={Surum(guncel)}", ct)).StatusCode);
+        Assert.Empty((await c.GetFromJsonAsync<JsonArray>("/api/islemler", cancellationToken: ct))!);
+    }
 
     /// <summary>Bulgunun senaryosu: web gideri 1.000'den 1.200'e düzeltir; masaüstünde eski listeden açılmış aynı gider yalnız notla
     /// kaydedilince tutar 1.000'e geri yazılmaz, 409 döner.</summary>

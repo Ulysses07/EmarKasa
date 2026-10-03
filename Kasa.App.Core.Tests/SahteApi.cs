@@ -80,6 +80,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public int IslemOlusturCagri;
     public (int Id, IslemYaz G)? SonIslemGuncelle;
     public int? SonIslemSil;
+    public int? SonIslemSilSurum;
     public GelenYaz? SonGelen;
     public int GelenKaydetCagri;
     public Exception? GelenKaydetHatasi;
@@ -112,7 +113,7 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
         SonIslemGuncelle = (id, g);
         return IslemGuncelleHatasi is { } hata ? Task.FromException<IslemDto>(hata) : Task.FromResult(new IslemDto(id, g.Tarih, g.Cari, g.TutarTl, g.Kanal, g.Tip, g.Not, Surum: g.Surum + 1));
     }
-    public Task IslemSilAsync(int id) { SonIslemSil = id; return Task.CompletedTask; }
+    public Task IslemSilAsync(int id, int surum) { SonIslemSil = id; SonIslemSilSurum = surum; return Task.CompletedTask; }
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) { SonGelen = g; GelenKaydetCagri++; return GelenKaydetHatasi is { } hata ? Task.FromException<GelenDto>(hata) : Task.FromResult(new GelenDto(0, g.DonemStart, g.Kanal, g.TutarTl)); }
     /// <summary>Ayarlanırsa ayar kaydı ve izleyici şifre kaydı bu görevlerle biter (bekleyen kayıt testleri için).</summary>
     public Task? AyarGuncelleYaniti, IzleyiciSifreYaniti;

@@ -80,7 +80,7 @@ public class AlisRaporTests
         a = await Post(c, $"/api/alis/{a.Id}/odemeler", new AlisOdemeYaz(a.Surum, Guid.NewGuid(), Bugun, 100m, MevcutIslemId: id));
         Assert.Equal(-100m, (await c.GetFromJsonAsync<PanelDto>("/api/rapor/panel", cancellationToken: ct))!.GuncelKasa);
         Assert.Single((await c.GetFromJsonAsync<JsonElement>("/api/islemler", cancellationToken: ct)).EnumerateArray());
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{id}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.SilIslemAsync(id, ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{id}",
             new { tarih = Bugun, cari = "Tedarikçi", tutarTl = 200m, kanal = "MEZAT", tip = "Cari" }, cancellationToken: ct)).StatusCode);
     }
