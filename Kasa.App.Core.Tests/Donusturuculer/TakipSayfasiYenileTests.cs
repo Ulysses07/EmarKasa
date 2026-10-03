@@ -8,7 +8,7 @@ namespace Kasa.App.Core.Tests;
 public class TakipSayfasiYenileTests
 {
     /// <summary>IKaydedilmemisForm'u sahte kirlilikle taşıyan en küçük model: TakipSayfasi'nin "Yenile" düğmesinin
-    /// onay akışını (YenilemedenOnceBirakilabilirAsync, BirakmaOnayi) tetikleyip tetiklemediğini ölçer.</summary>
+    /// onay akışını (BirakmaOnayi) tetikleyip tetiklemediğini ölçer.</summary>
     private sealed class DirtyVm(AuthViewModel auth) : OturumluViewModel(auth), IKaydedilmemisForm
     {
         public bool KaydedilmemisDegisiklikVar { get; set; }

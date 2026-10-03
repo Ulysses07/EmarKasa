@@ -56,4 +56,20 @@ public class TakipSayfasiSonVeriTests
         vm.VeriEski = false;
         Assert.Equal(1, govde.Opacity);
     }
+
+    /// <summary>Yeniden inceleme B2: boş liste metni, verilen yol doğruyken (Çekler: gösterilen sorgu yüklenmedi) gizlenir.</summary>
+    [Fact]
+    public void Bos_liste_metni_sorgu_yuklenmediyse_gizlenir()
+    {
+        GorunumOrtami.Kur();
+        var api = new SahteApi();
+        var vm = new CekTakipViewModel(new CekTakipViewModelTests.Sahte(), api, new AuthViewModel(api));
+        var liste = (VerticalStackLayout)TakipUi.Liste<CekSatiri>(nameof(vm.Cekler), bosMetinGizleYolu: nameof(vm.SorguYuklenmedi));
+        liste.BindingContext = vm;
+        var bos = Assert.IsAssignableFrom<View>(BindableLayout.GetEmptyView(liste));
+
+        Assert.True(bos.IsVisible);
+        vm.SorguYuklenmedi = true;
+        Assert.False(bos.IsVisible);
+    }
 }

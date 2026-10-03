@@ -270,13 +270,21 @@ internal static class TakipUi
     /// metnini satırdan ayırt eder.</param>
     /// <param name="vurgu">Verilirse satırın <c>Veri.Id</c>'si bu kaynağın yolundaki değere eşitken satır vurgulanır (düzenlenen kayıt,
     /// tasarım 2026-10-02 §2; İşlemler ve Alışlar'daki EsitIse deseni).</param>
+    /// <param name="bosMetinGizleYolu">Verilirse bu yoldaki değer doğruyken boş liste metni gizlenir (Çekler: gösterilen sorgu
+    /// yüklenmedi, liste "boş" değil bilinmiyor).</param>
     public static View Liste<T>(string yol, Func<T, Task>? ac = null, string action = "Aç", Func<T, bool>? gorunur = null,
-        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null, (object Kaynak, string Yol)? vurgu = null)
+        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null, (object Kaynak, string Yol)? vurgu = null,
+        string? bosMetinGizleYolu = null)
     {
         var l = new VerticalStackLayout { Spacing = 10 };
         l.SetBinding(BindableLayout.ItemsSourceProperty, yol);
         if (bosMetin)
-            BindableLayout.SetEmptyView(l, Metin("Gösterilecek kayıt yok."));
+        {
+            var bos = Metin("Gösterilecek kayıt yok.");
+            if (bosMetinGizleYolu is not null)
+                bos.SetBinding(VisualElement.IsVisibleProperty, bosMetinGizleYolu, converter: new Converters.TersIseConverter());
+            BindableLayout.SetEmptyView(l, bos);
+        }
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
             var row = new VerticalStackLayout { Spacing = 6, Padding = new Thickness(0, 10) };

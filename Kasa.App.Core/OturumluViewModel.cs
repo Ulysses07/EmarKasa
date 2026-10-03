@@ -23,6 +23,7 @@ public abstract partial class OturumluViewModel : TemelViewModel
         Hata = null;
         Mesaj = null;
         SonGuncelleme = null;
+        SorguYuklenmedi = false;
         OturumTemizle();
         RolBildir();
     }
@@ -78,8 +79,16 @@ public abstract partial class OturumluViewModel : TemelViewModel
     [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
     private bool _veriEski;
 
-    /// <summary>"Son güncelleme: 02.10.2026 14:05" (veri eskiyse " · güncel olmayabilir" ekiyle); hiç yükleme yoksa "Henüz yüklenmedi.".</summary>
-    public string SonGuncellemeMetni => SonGuncelleme is { } zaman
+    /// <summary>Ekranın gösterdiği sorgu (süzgeç) hiç yüklenmedi: başka sorgunun yüklemesi hata verdi (Çekler). Son güncelleme anı
+    /// gövde (çipler ve form) görünsün diye saklanır ama satır "Henüz yüklenmedi." der ve boş liste metni gizlenir; başarılı
+    /// yükleme (<see cref="Tamamlandi"/>) kaldırır.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
+    private bool _sorguYuklenmedi;
+
+    /// <summary>"Son güncelleme: 02.10.2026 14:05" (veri eskiyse " · güncel olmayabilir" ekiyle); hiç yükleme yoksa ya da gösterilen
+    /// sorgu yüklenmediyse "Henüz yüklenmedi.".</summary>
+    public string SonGuncellemeMetni => SonGuncelleme is { } zaman && !SorguYuklenmedi
         ? $"Son güncelleme: {zaman:dd.MM.yyyy HH:mm}" + (VeriEski ? Bicim.EskiVeriEki : "")
         : Bicim.HenuzYuklenmedi;
 
@@ -115,23 +124,11 @@ public abstract partial class OturumluViewModel : TemelViewModel
     protected async Task<bool> BirakilabilirAsync(bool kirli)
         => !kirli || (BirakmaOnayi is { } sor && await sor(KaydedilmemisDegisiklik.Ileti));
 
-    /// <summary>Sayfanın "Yenile / tekrar dene" düğmesi: ekran kaydedilmemiş değişikliği olan bir formsa (<see cref="IKaydedilmemisForm"/>)
-    /// önce onay sorulur; "Bırak" denirse değişiklikler bırakılır ve true döner (yenileme yapılır), "Forma dön" denirse false.</summary>
-    public async Task<bool> YenilemedenOnceBirakilabilirAsync()
-    {
-        if (this is not IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true } form)
-            return true;
-        if (!await BirakilabilirAsync(true))
-            return false;
-        form.DegisiklikleriBirak();
-        return true;
-    }
-
     protected override void IletiyiTemizle() => Mesaj = null;
     protected override bool BaglantiKopuk => Auth.Baglanti.Kopuk;
     protected void BekleyenleriIptalEt() { Yurutucu.GecersizKil(); Mesgul = false; }
     protected abstract void OturumTemizle();
-    protected void Tamamlandi() { VeriHazir = true; VeriEski = false; SonGuncelleme = DateTimeOffset.Now; }
+    protected void Tamamlandi() { VeriHazir = true; VeriEski = false; SorguYuklenmedi = false; SonGuncelleme = DateTimeOffset.Now; }
 
     /// <summary>Ekran yüklemesi (tekil işlem): hata okuma iletisiyle yazılır, bağlantı kopukken bağlantı hatası yazılmaz (kabuk
     /// şeridi söyler); son başarılı veri silinmez, varsa eski işaretlenir. Başarılı yükleme <see cref="Tamamlandi"/>'yı çağırır.</summary>

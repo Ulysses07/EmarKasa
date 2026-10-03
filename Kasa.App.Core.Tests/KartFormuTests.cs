@@ -101,8 +101,8 @@ public class KartFormuTests
         Assert.Equal(3, sorulan);
     }
 
-    /// <summary>Görev 14-19 incelemesi: "Vazgeç" yalnız açık formun kirliliğini bırakır; aynı kartta önceki formdan taşınan
-    /// kirlilik (<c>_oncekiFormKirli</c>) Vazgeç'le düşmez, kart değişimine kadar kalır.</summary>
+    /// <summary>Görev 14-19 incelemesi: "Vazgeç" yalnız açık formun kirliliğini bırakır; aynı kartta önceki formun izi Vazgeç'le
+    /// düşmez, kart değişimine kadar kalır.</summary>
     [Fact]
     public async Task Vazgec_tasinan_kirliligi_dusurmez_baska_karta_gecis_onay_ister()
     {
@@ -214,23 +214,43 @@ public class KartFormuTests
         Assert.Equal((1, 250m), (vm.AcikKartId, vm.OdemeTutari));
     }
 
-    /// <summary>Sayfanın "Yenile / tekrar dene" düğmesi kirli formda önce onay sorar: "Forma dön" yenilemez, "Bırak" bırakır.</summary>
+    /// <summary>Yeniden inceleme B1: her formun izi ayrıdır. Kart bilgileri yazılıp ödemeye geçilir (iz korunur), sonra kart
+    /// bilgilerine dönülüp kaydedilir: kaydedilen formun izi düşer, başka form kirli olmadığı için kaydedilmemiş değişiklik kalmaz.</summary>
     [Fact]
-    public async Task Yenile_dugmesi_kirli_formda_onay_sorar()
+    public async Task Tasinan_kirlilikten_sonra_kaydedilen_form_kaydedilmemis_degisikligi_kaldirir()
     {
-        var (vm, _) = await Kur();
-        Assert.True(await vm.YenilemedenOnceBirakilabilirAsync());
+        var (vm, api) = await Kur();
         await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
         vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
-        vm.Ad = "Yazılan";
-        var cevap = false;
-        vm.BirakmaOnayi = _ => Task.FromResult(cevap);
+        vm.Ad = "Yeni ad";
+        vm.FormAcCommand.Execute(KartFormu.Odeme);   // aynı kart: sorulmaz, kart bilgilerinin izi korunur
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        Assert.Equal("Yeni ad", vm.Ad);
 
-        Assert.False(await vm.YenilemedenOnceBirakilabilirAsync());
-        Assert.Equal("Yazılan", vm.Ad);
+        await vm.KaydetCommand.ExecuteAsync(null);
 
-        cevap = true;
-        Assert.True(await vm.YenilemedenOnceBirakilabilirAsync());
-        Assert.Equal((KartFormu.Yok, "Kart"), (vm.AcikForm, vm.Ad));
+        Assert.Equal(1, api.KartKayitSayisi);
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+    }
+
+    /// <summary>Başka formun gerçek kirliliği, bir formun kaydından sonra da kalır: ödeme yazılır, kart bilgileri kaydedilir.</summary>
+    [Fact]
+    public async Task Kaydedilen_formdan_sonra_baska_formun_kirliligi_kalir()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 250m;
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        vm.Ad = "Yeni ad";
+
+        await vm.KaydetCommand.ExecuteAsync(null);
+
+        Assert.True(vm.KaydedilmemisDegisiklikVar);   // ödeme formunda yazılan 250 kaydedilmedi
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 0m;   // ilk değerine döndü
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
     }
 }

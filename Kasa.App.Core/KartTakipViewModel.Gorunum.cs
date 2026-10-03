@@ -66,41 +66,52 @@ public partial class KartTakipViewModel
     public string KartFormuBasligi => Secili is { } kart ? $"Düzenleniyor: {kart.Ad}" : "Yeni kart";
     public string KartKaydetMetni => Secili is null ? "Kartı kaydet" : "Değişikliği kaydet";
 
-    /// <summary>Açık formun açıldığı andaki değerleri (kart bilgileri, ödeme, harcama): kaydedilmemiş değişiklik ölçütü (tasarım §2).
-    /// Diğer formlar (masraf, ekstre, geçiş) izlenmez.</summary>
-    private KaydedilmemisDegisiklik? _formIzi;
-    private KaydedilmemisDegisiklik FormIzi => _formIzi ??= new(() => AcikForm switch
+    /// <summary>İzlenen formların (kart bilgileri, ödeme, harcama) her biri açıldığı andaki değerlerini ayrı tutar: kaydedilmemiş
+    /// değişiklik ölçütü (tasarım §2). Diğer formlar (masraf, ekstre, geçiş) izlenmez. Bir formun izi o form ilk açılınca kurulur ve
+    /// aynı kartın formları arasında geçişte korunur (geçiş sorulmaz, yazılanlar alanlarda kalır); yalnız o form kapatılınca (Vazgeç,
+    /// başarılı kayıt) ya da kart değişimi / Bırak ile bütün izler kapanınca düşer. Alanlar ilk değerine dönerse iz kirli sayılmaz.</summary>
+    private KaydedilmemisDegisiklik? _kartIzi, _odemeIzi, _harcamaIzi;
+    private KaydedilmemisDegisiklik KartIzi => _kartIzi ??= new(() => new
     {
-        KartFormu.KartBilgisi => new
-        {
-            Ad,
-            Limit,
-            KesimGunu,
-            SonOdemeGunu,
-            AcilisTarihi,
-            AcilisBorc,
-            Paylar = AcilisPaylari.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
-        },
-        KartFormu.Odeme => new { OdemeTarihi, OdemeTutari, Ekstre = OdemeEkstresi?.Veri.Id, OdemeNotu },
-        KartFormu.Harcama => (object)new
-        {
-            HarcamaTarihi,
-            HarcamaAciklama,
-            HarcamaTutari,
-            TaksitSayisi,
-            IlkKesimVar,
-            IlkKesimTarihi,
-            Iade = IadeKaynagi?.Veri.Id,
-            Paylar = HarcamaPaylari.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
-        },
-        _ => null,
+        Ad,
+        Limit,
+        KesimGunu,
+        SonOdemeGunu,
+        AcilisTarihi,
+        AcilisBorc,
+        Paylar = AcilisPaylari.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
+    });
+    private KaydedilmemisDegisiklik OdemeIzi => _odemeIzi ??= new(() => new { OdemeTarihi, OdemeTutari, Ekstre = OdemeEkstresi?.Veri.Id, OdemeNotu });
+    private KaydedilmemisDegisiklik HarcamaIzi => _harcamaIzi ??= new(() => new
+    {
+        HarcamaTarihi,
+        HarcamaAciklama,
+        HarcamaTutari,
+        TaksitSayisi,
+        IlkKesimVar,
+        IlkKesimTarihi,
+        Iade = IadeKaynagi?.Veri.Id,
+        Paylar = HarcamaPaylari.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
     });
 
-    /// <summary>Aynı kartın formları arasında geçerken önceki formda kaydedilmemiş değişiklik vardı: geçiş sorulmaz (aynı kayıt) ama
-    /// kirlilik taşınır, başka karta geçişte onay sorulur. Form kapanınca (Vazgeç, kayıt, kart değişimi, Bırak) kalkar.</summary>
-    private bool _oncekiFormKirli;
+    /// <summary>Formun izi; izlenmeyen formda null.</summary>
+    private KaydedilmemisDegisiklik? Iz(KartFormu form) => form switch
+    {
+        KartFormu.KartBilgisi => KartIzi,
+        KartFormu.Odeme => OdemeIzi,
+        KartFormu.Harcama => HarcamaIzi,
+        _ => null,
+    };
 
-    public bool KaydedilmemisDegisiklikVar => FormIzi.Var || _oncekiFormKirli;
+    /// <summary>Kart değişimi, yeni kart ve Bırak: bütün formların izi düşer (yazılanlar bu karta ait değildir ya da bırakıldı).</summary>
+    private void IzleriKapat()
+    {
+        KartIzi.Kapat();
+        OdemeIzi.Kapat();
+        HarcamaIzi.Kapat();
+    }
+
+    public bool KaydedilmemisDegisiklikVar => KartIzi.Var || OdemeIzi.Var || HarcamaIzi.Var;
 
     /// <summary>Yazılmış değişiklikleri bırakır: form kapanır, kartın form alanları kartın kayıtlı değerlerine (yeni kartta boşa) döner.</summary>
     public void DegisiklikleriBirak()
@@ -139,11 +150,13 @@ public partial class KartTakipViewModel
         Hata = ileti;
     }
 
-    /// <summary>Başarılı kayıttan sonra yalnız işlemi başlatan form hâlâ açıksa kapanır (kayıt sürerken açılan başka form kalır).</summary>
+    /// <summary>Başarılı kayıttan sonra yalnız işlemi başlatan form hâlâ açıksa kapanır (kayıt sürerken açılan başka form kalır);
+    /// kaydedilen formun izi her durumda düşer (yazılanlar kaydedildi).</summary>
     private void FormuKapat(KartFormu form)
     {
         if (AcikForm == form)
             AcikForm = KartFormu.Yok;
+        Iz(form)?.Kapat();
     }
 
     [RelayCommand]
@@ -216,24 +229,16 @@ public partial class KartTakipViewModel
     /// <summary>Formdan çıkılınca (kapanma ya da başka form) o formun hatası kalkar ve hata kaynağı sayfaya döner; ekstre
     /// formundan çıkılınca düzenlenen ekstre bırakılır (ekstre formu yalnız ekstreye tıklanarak açılır); ödeme ve harcama
     /// formundan çıkılınca benzer kayıt uyarısı ve onayı kalkar.</summary>
-    /// <summary>Aynı kartta formdan forma geçişte önceki formun kirliliği taşınır (<see cref="_oncekiFormKirli"/>); değer henüz
-    /// değişmediği için iz hâlâ önceki formu ölçer. Forma Yok'a kapanması (Vazgeç dahil) bu bayrağı düşürmez: Vazgeç yalnız açık
-    /// formun kirliliğini bırakır (<see cref="Vazgec"/>); taşınan bayrak kart değişimine kadar kalır (<see cref="KartTakipViewModel.Sec(KartTakipSatiri, bool)"/>,
-    /// <see cref="KartTakipViewModel.Yeni"/>).</summary>
-    partial void OnAcikFormChanging(KartFormu oldValue, KartFormu newValue)
-    {
-        if (oldValue != KartFormu.Yok && newValue != KartFormu.Yok)
-            _oncekiFormKirli |= FormIzi.Var;
-    }
-
     partial void OnAcikFormChanged(KartFormu oldValue, KartFormu newValue)
     {
         KartHatalari.Temizle();
         OdemeHatalari.Temizle();
+        // Kapanan formun izi düşer (Vazgeç bilerek bırakmaktır); başka forma geçişte önceki formun izi korunur. Açılan formun izi
+        // yalnız henüz yoksa kurulur: aynı kartta geri dönülen formun açılış değerleri değişmez.
         if (newValue == KartFormu.Yok)
-            FormIzi.Kapat();
-        else
-            FormIzi.Ac();
+            Iz(oldValue)?.Kapat();
+        else if (Iz(newValue) is { Acik: false } iz)
+            iz.Ac();
         if (HataKaynagi == oldValue && oldValue != KartFormu.Yok)
         {
             HataKaynagi = KartFormu.Yok;
@@ -286,6 +291,9 @@ public partial class KartTakipViewModel
     protected override void RolDegisti()
     {
         if (!EditorMu)
+        {
             AcikForm = KartFormu.Yok;
+            IzleriKapat();
+        }
     }
 }

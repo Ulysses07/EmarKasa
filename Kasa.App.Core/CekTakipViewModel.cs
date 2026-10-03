@@ -224,7 +224,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     /// yenilemesi hata verirse liste kalır ve eski işaretlenir; başka sorgunun hatasında önceki sorgunun listesi ve özeti kalkar.</summary>
     public Task YukleAsync()
     {
-        var sorgu = new CekSorgusu(Yon, Durum, string.IsNullOrWhiteSpace(Ara) ? null : Ara.Trim(), VadeBas, VadeSon);
+        var sorgu = CiplerinSorgusu();
         return ListeHatti.YukleAsync(async _ =>
         {
             var kanallar = await finans.KanallarAsync();
@@ -234,8 +234,12 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         }, v => { Yansit(v.kanallar, v.cekler, v.ozet); _gosterilenSorgu = sorgu; }, hata => SorguHatasi(sorgu, hata));
     }
 
+    /// <summary>Ekrandaki çiplerin ve aramanın sorgusu.</summary>
+    private CekSorgusu CiplerinSorgusu() => new(Yon, Durum, string.IsNullOrWhiteSpace(Ara) ? null : Ara.Trim(), VadeBas, VadeSon);
+
     /// <summary>Liste yüklemesinin hatası: gösterilen sorgununsa son veri eski işaretlenir; başka sorgununsa önceki sorgunun listesi
-    /// ve özeti yeni süzgecin altında gösterilmez (VeriEski de değildir). Açık çek ve formlar kalır.</summary>
+    /// ve özeti yeni süzgecin altında gösterilmez (VeriEski de değildir), son güncelleme satırı "Henüz yüklenmedi." der ve boş
+    /// liste metni gizlenir (<see cref="OturumluViewModel.SorguYuklenmedi"/>). Gövde (çipler, açık çek ve formlar) görünür kalır.</summary>
     private void SorguHatasi(CekSorgusu sorgu, Exception hata)
     {
         if (sorgu == _gosterilenSorgu)
@@ -250,6 +254,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         SatirlariBol();
         VeriHazir = false;
         VeriEski = false;
+        SorguYuklenmedi = true;
     }
 
     /// <summary>Bildirimden gelen çek (//cekler?CekId=…): çek okunur, yönüne ve "Hepsi" durumuna geçilir (süzgeç onu gizlemesin),
@@ -259,6 +264,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     /// listenin seçili süzgece ait olduğunu söyler.</summary>
     public Task CekIcinYukleAsync(int id)
     {
+        // Süzgeçler yalnız başarıda değişir: hata ekrandaki çiplerin sorgusuna göre işlenir (gösterilen listeninse eski işaretlenir).
+        var ekrandaki = CiplerinSorgusu();
         VeriHazir = false;
         return ListeHatti.YukleAsync(async _ =>
         {
@@ -273,7 +280,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             Ara = "";
             Yansit(v.kanallar, v.cekler, v.ozet);
             _gosterilenSorgu = new(v.Yon, CekSuzgecleri.Hepsi, null, null, null);
-        }, YuklemeHatasi);   // süzgeçler yalnız başarıda değişir: hata ekrandaki (çiplerin) listesini eski işaretler
+        }, hata => SorguHatasi(ekrandaki, hata));
     }
 
     private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<CekDto> cekler, CekOzetDto ozet)
