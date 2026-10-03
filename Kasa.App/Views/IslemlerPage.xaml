@@ -63,7 +63,8 @@
                                     <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" WidthRequest="120" />
                                 </ctl:FormAlani>
                                 <HorizontalStackLayout Spacing="10">
-                                    <Switch IsToggled="{Binding DuzenIlkKesimVar}" />
+                                    <Switch IsToggled="{Binding DuzenIlkKesimVar}"
+                                            SemanticProperties.Description="İlk kesim tarihini belirt (isteğe bağlı)" />
                                     <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
                                 <ctl:FormAlani Alan="DuzenIlkKesimTarihi" Hata="{Binding Hatalar[DuzenIlkKesimTarihi]}" IsVisible="{Binding DuzenIlkKesimVar}">
@@ -109,7 +110,7 @@
                                         <Picker ItemsSource="{Binding GelenDonemler}"
                                                 SelectedItem="{Binding GelenDonem}"
                                                 ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, ConverterParameter=yil, x:DataType=api:DonemDto}"
-                                                Title="Dönem seçin" />
+                                                Title="Dönem seçin" SemanticProperties.Description="Kasa dönemi" />
                                     </Border>
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
@@ -120,6 +121,7 @@
                                     <Label Text="Bu dönem için toplam gelir (₺)" Style="{StaticResource LblField}" />
                                     <Border Style="{StaticResource FieldBorder}">
                                         <ctl:ParaGirisi Tutar="{Binding GelenTutar}" Placeholder="0,00 ₺"
+                                                        SemanticProperties.Description="Bu dönem için toplam gelir (₺)"
                                                         IsEnabled="{Binding GelenKaydedilebilir}" />
                                     </Border>
                                 </VerticalStackLayout>
@@ -155,7 +157,7 @@
                                 <Picker ItemsSource="{Binding FiltreDonemler}"
                                         SelectedItem="{Binding SeciliDonem}"
                                         ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, x:DataType=api:DonemDto}"
-                                        Title="Hafta seç" />
+                                        Title="Hafta seç" SemanticProperties.Description="Filtre dönemi" />
                             </Border>
                         </Grid>
 

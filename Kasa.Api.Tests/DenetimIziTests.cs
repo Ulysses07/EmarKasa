@@ -35,7 +35,7 @@ public class DenetimIziTests
         using var c = await Editor(f);
         var gider = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Toptancı", 12500m, "MEZAT", GiderTipi.Cari, "Fatura 12"));
         (await c.PutAsJsonAsync($"/api/islemler/{gider.Id}", new IslemYazDto(Today, "Toptancı", 13000m, "MEZAT", GiderTipi.Cari, "Fatura 12"), cancellationToken: ct)).EnsureSuccessStatusCode();
-        (await c.DeleteAsync($"/api/islemler/{gider.Id}", ct)).EnsureSuccessStatusCode();
+        (await c.SilIslemAsync(gider.Id, ct)).EnsureSuccessStatusCode();
 
         var olaylar = Olaylar(f, "Islem", gider.Id);
         Assert.Equal(["Ekle", "Degistir", "Sil"], olaylar.Select(o => o.Tur));
@@ -198,7 +198,9 @@ public class DenetimIziTests
             Assert.True(yanit.IsSuccessStatusCode, $"{yanit.StatusCode}: {await yanit.Content.ReadAsStringAsync()}");
         }
         await Gerekceyle(HttpMethod.Put, $"/api/islemler/{gider.Id}", new IslemYazDto(Today, "Toptancı", 13000m, "MEZAT", GiderTipi.Cari), "Fatura tutarı düzeltildi");
-        await Gerekceyle(HttpMethod.Delete, $"/api/islemler/{gider.Id}", null, "Mükerrer fatura girişi");
+        var guncelGider = (await c.GetFromJsonAsync<JsonArray>("/api/islemler", cancellationToken: TestContext.Current.CancellationToken))!
+            .Single(i => i!["id"]!.GetValue<int>() == gider.Id)!;
+        await Gerekceyle(HttpMethod.Delete, $"/api/islemler/{gider.Id}?surum={guncelGider["surum"]!.GetValue<int>()}", null, "Mükerrer fatura girişi");
         await Gerekceyle(HttpMethod.Put, "/api/gelenler", new GelenUpsertDto(Month, "PERAKENDE", 48000m), "Z raporuna göre");
         await Gerekceyle(HttpMethod.Put, "/api/ayarlar", new { takipBaslangic = Month.AddMonths(-3), kasaAcilisDevri = 1500m }, "Açılış devri banka ekstresine göre");
         var sablon = await Create(c, "Ozel", [new(1, 100m)]);
@@ -289,11 +291,11 @@ public class DenetimIziTests
         // Pencerede: fatura düzeltilir, nakit gider silinir; pencere dışı (hiç kilitlenmemiş) bugünkü gider.
         (await c.PutAsJsonAsync($"/api/islemler/{fatura.Id}",
             new IslemYazDto(GecenAy.AddDays(4), "Ağustos faturası", 1200m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
-        (await c.DeleteAsync($"/api/islemler/{nakit.Id}", ct)).EnsureSuccessStatusCode();
+        (await c.SilIslemAsync(nakit.Id, ct)).EnsureSuccessStatusCode();
         var bugunku = await Post<IslemEntity>(c, "/api/islemler", new IslemYazDto(Today, "Eylül gideri", 50m, "MEZAT", GiderTipi.Cari));
         kilit = await Kilit(c, "kapat", "Ağustos yeniden kapatıldı");
         (await c.PutAsJsonAsync($"/api/islemler/{bugunku.Id}", new IslemYazDto(Today, "Eylül gideri", 60m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{fatura.Id}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.SilIslemAsync(fatura.Id, ct)).StatusCode);
 
         var faturaOlaylari = Olaylar(f, "Islem", fatura.Id);
         Assert.Equal([null, acilis.Id], faturaOlaylari.Select(o => o.KilitAcmaOlayiId));

@@ -122,7 +122,7 @@ public static class EkstreAktarmaEndpoints
                 if (row.KartHarcamaId is { } charge)
                     FinansTakipEndpoints.CancelCardCharge(db, row.KrediKartiId!.Value, charge, dto.Aciklama);
                 if (row.KartOdemeId is { } payment)
-                    db.TakipKartOdemeler.Single(p => p.Id == payment).Iptal = true;
+                    FinansTakipEndpoints.CancelCardPayment(db, row.KrediKartiId!.Value, payment, dto.Aciklama);
                 if (row.EslesmeTuru is null && row.KrediKartiId is { } card)
                     db.TakipKartlar.Single(t => t.KrediKartiId == card).Surum++;
                 row.Iptal = true;

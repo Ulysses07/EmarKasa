@@ -96,7 +96,7 @@ public class KasaVeRaporSozlesmeTests : SozlesmeTemeli
         Assert.Equal(csv.Length, dosya.Boyut);
         Assert.True(dosya.Boyut > 0);
 
-        await o.Kasa.IslemSilAsync(ikinci.Id);
+        await o.Kasa.IslemSilAsync(ikinci.Id, ikinci.Surum);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);
         await o.Kasa.KanalSilAsync(kanal.Id);
         Assert.Equal(HttpStatusCode.NoContent, o.SonYanit.Durum);

@@ -706,7 +706,7 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
         { Hata = "Aylık gider ödemesi buradan silinemez. Aylık Giderler bölümünden gerekçeyle iptal edin."; return; }
         if (i.AlisId is not null)
         { Hata = "Bu gider bir alış ödemesine bağlı; bu ekrandan silinemez. Alışlar ekranından kaydı inceleyin."; return; }
-        await _api.IslemSilAsync(i.Id);
+        await _api.IslemSilAsync(i.Id, i.Surum);
         if (!Gecerli(n))
             return;
         Mesaj = "Kayıt silindi.";

@@ -3,8 +3,9 @@ namespace Kasa.Api;
 /// <summary>
 /// Çekirdek kasa kayıtlarının (gider, gelir, kanal, ayarlar) iyimser eşzamanlılığı (contract-6). Kayıt her değiştiğinde sürümü
 /// artar (KasaDbContext kaydetme kancası; gelir upsert'ünde SQL). Yazma isteği okuduğu sürümü gönderir: kayıttakiyle uyuşmazsa 409
-/// ve kayıt değişmez. Sürüm göndermeyen eski istemci (canlıdaki 2.3.0 masaüstü, önbellekteki eski web) denetlenmez: eski davranış
-/// (son yazan kazanır) sürer, sürüm yine artar. Yeni istemciler (web, masaüstü) her düzenlemede sürümü gönderir.
+/// ve kayıt değişmez. Gider silme dışında sürüm göndermeyen eski istemci (canlıdaki 2.3.0 masaüstü, önbellekteki eski web)
+/// denetlenmez: eski davranış (son yazan kazanır) sürer, sürüm yine artar. Gider silme uç noktası sürümü zorunlu tutar.
+/// Yeni istemciler (web, masaüstü) her düzenlemede sürümü gönderir.
 /// </summary>
 internal static class CekirdekSurum
 {

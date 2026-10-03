@@ -5,10 +5,84 @@ Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerind
 ## Veri ve yedek dizini kuralı
 
 - **Etkin veri dizini = son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR`.** Çalışan konteynerin `/data` bağlama kaynağı da bu değerdir; üçü aynı olmalıdır. Depodaki Compose şablonları yalnız bu `.env` ile kullanılır.
-- Compose şablonları `/data` ve `/yedekler` için host dizinini **yalnız** `deploy/.env` içindeki `KASA_DATA_DIR` ve `KASA_BACKUP_DIR` değişkenlerinden alır. Varsayılan dizin bilerek yoktur; değişken tanımsız veya boşsa `docker compose` (`config` ve `up` dahil) hata verip durur.
+- Nginx şablonu `/data` ve `/yedekler` için host dizinini **yalnız** `deploy/.env` içindeki `KASA_DATA_DIR` ve `KASA_BACKUP_DIR` değişkenlerinden alır. Caddy temel şablonu yalnız `/data` bağlar; kalıcı `/yedekler` için `docker-compose.caddy-backup.yml` ek dosyası gerekir. Bağlanan dizinlerin varsayılan yolu bilerek yoktur; ilgili değişken tanımsız veya boşsa `docker compose` (`config` ve `up` dahil) hata verip durur.
 - Bağlamalar uzun sözdizimiyle ve `bind: { create_host_path: false }` ile yazılıdır: `.env`'deki yol yazım hatası nedeniyle yoksa Docker o yolda boş dizin **açmaz**, `up` `bind source path does not exist` hatasıyla durur. Var olan ama yanlış bir dizin (ör. eski `kasa-data`) ise bu korumayla yakalanmaz; aşağıdaki doğrulama adımları bu yüzden zorunludur.
 - `/opt/kasa/deploy/kasa-data` (eski şablondaki göreli `./kasa-data`) 2.0 öncesinden korunmuş **eski** veritabanı kopyasıdır; etkin veri değildir ve hiçbir komutta `/data`'ya bağlanmamalıdır. Bu veritabanında migration geçmişi olmadığından başlatıcı onu hata vermeden yerinde güncel şemaya dönüştürür: kullanıcılar 2.0 sonrası kayıtları göremez, yeni kayıtlar yanlış veritabanına yazılır ve geri dönüş kopyası kalıcı olarak değişir.
 - Her yayın veriyi yeni bir mutlak dizine taşıdı (2.3.0: `/opt/kasa/deploy/kasa-data-imports-<damga>`). Eski belgelerdeki `kasa-data-editor-<damga>` gibi yollar o yayınlara aittir; tarihsel kayıttır.
+
+## Ayrıcalıksız konteynere geçiş (isteğe bağlı)
+
+`KASA_CONTAINER_USER` boşken her iki dağıtım da önceki gibi `0:0` (root) ile çalışır. Dockerfile da varsayılan olarak `0:0` kullanır. Caddy temel şablonu, ek dosya olmadan `KASA_CONTAINER_USER` dolu olsa bile root kalır; ayrıcalıksız çalışma ancak kalıcı yedek bağlamasıyla birlikte açılır. Sayısal `UID:GID` yalnız **etkin veri ve yedek dizinlerinin sahipliği hazırlanıp doğrulandıktan sonra** `deploy/.env` içine yazılır. İmajın `/app` içeriği ve Poppler araçları okunabilir/çalıştırılabilir; uygulamanın kalıcı yazıları `/data` ve `/yedekler` bağlamalarındadır, PDF geçici dosyaları `/tmp` altındadır. Nginx şablonu iki bağlamayı da içerir.
+
+1. ["Güncelleme" bölümündeki](#güncelleme-yeni-sürüm) 1–4. adımları tamamlayın: doğrulanmış yedeği ve önceki imaj/Compose bilgisini saklayın. `docker inspect kasa-app` içindeki `/data` kaynağı, son yayın manifestinin `dataDirectory` alanı ve `deploy/.env` içindeki `KASA_DATA_DIR` **aynı** olmalıdır. Nginx'te `/yedekler` kaynağı `KASA_BACKUP_DIR` olmalıdır; Caddy'de bu bağlama 3. adımda eklenir. Eski `/opt/kasa/deploy/kasa-data` dizinini veya başka bir yayın dizinini sahiplik değişikliğine dahil etmeyin. Dizinleri tahmin etmeyin; `docker compose config` çıktısında sırlar bulunduğundan yalnız `source:` satırlarını gösterin.
+2. Yeni imajı olağan güncelleme akışıyla hazırlayın. İmajda kullanılacak `app` hesabının sayısal kimliğini okuyun; aşağıdaki `CALISAN_KIMLIK` değerini bu `UID:GID` ile doldurun. `id` çıktısını görmeden 1654 gibi bir değeri varsaymayın:
+   ```sh
+   docker run --rm --entrypoint /bin/sh kasa:latest -c 'id -u app; id -g app'
+   ```
+3. Caddy/OrderDeck şablonunda yalnız `/data` bağlanır; eski yedekler ve `guvenlik-gunlugu.jsonl` konteyner içindeki `/app/yedekler` altında olabilir. Bu kurulumda önce konteyneri durdurup **yeni, boş, doğrulanmış** `KASA_BACKUP_DIR` dizinine `/app/yedekler` içeriğini (gizli dosyalar dahil) `sudo docker cp kasa-app:/app/yedekler/. <yedek-dizini>/` ile kopyalayın; dosya listesini ve güvenlik günlüğünü doğrulayın. [Docker'ın `cp` belgeleri](https://docs.docker.com/reference/cli/docker/container/cp/) durdurulmuş konteynerden kopyalamayı açıkça destekler. Eski konteyneri ve içeriğini bu doğrulama bitmeden silmeyin. Sonraki tüm Caddy komutlarında `-f docker-compose.yml -f docker-compose.caddy-backup.yml` ikilisini birlikte kullanın. Ek dosya `/yedekler` bağlamasını `create_host_path: false` ile kurar; `KASA_BACKUP_DIR` yoksa başlatma durur. Nginx kurulumunda bu ek dosyayı kullanmayın.
+4. Uygulamayı durdurun. Aşağıdaki dört değişkeni **1. adımda doğruladığınız gerçek mutlak yollar**, son yayın manifesti ve 2. adımdaki sayısal kimlikle elle doldurun. Nginx için `COMPOSE_FILE=docker-compose.nginx.yml`; Caddy'de 3. adımdan sonra `COMPOSE_FILE=docker-compose.yml:docker-compose.caddy-backup.yml` kullanın. Komutlar önce yolları `realpath -e` ile kanonikleştirir, `..` veya sembolik bağlantıyla başka yere çözülen girişleri reddeder, sonra etkin `/data` bağlamasını `docker inspect`, manifest ve `.env`'den çözülen Compose kaynağıyla **komutla karşılaştırır**. Nginx'te etkin `/yedekler` de `docker inspect` ve Compose kaynağına eşit olmalıdır; eski Caddy'de `docker inspect` `/yedekler` göstermiyorsa 3. adımda kopyalanan yeni dizin Compose kaynağına eşit olmalıdır. Kontrollerden biri başarısızsa `chown` çalışmaz. İzinler gevşetilmez, 0600/0700 dosyalar ve güvenlik günlüğü korunur:
+   ```sh
+   cd /opt/kasa/deploy
+   docker stop kasa-app
+   VERI_DIZINI='<doğrulanmış-etkin-veri-dizini>'
+   YEDEK_DIZINI='<doğrulanmış-etkin-yedek-dizini>'
+   MANIFEST_YOLU='<son-yayın-manifesti.json>'
+   CALISAN_KIMLIK='<sayısal-UID:GID>'
+   COMPOSE_FILE=docker-compose.nginx.yml  # Caddy: docker-compose.yml:docker-compose.caddy-backup.yml
+   export COMPOSE_FILE
+   case "$VERI_DIZINI:$YEDEK_DIZINI:$MANIFEST_YOLU:$CALISAN_KIMLIK" in *'<'*|*'>'*) echo 'Yer tutucuları doldurun' >&2; exit 1;; esac
+   case "$VERI_DIZINI" in /*) ;; *) echo 'Veri yolu mutlak değil' >&2; exit 1;; esac
+   case "$YEDEK_DIZINI" in /*) ;; *) echo 'Yedek yolu mutlak değil' >&2; exit 1;; esac
+   test "$VERI_DIZINI" != / && test "$YEDEK_DIZINI" != / && test -f "$MANIFEST_YOLU" || exit 1
+   VERI_KANONIK="$(realpath -e -- "$VERI_DIZINI")" || exit 1
+   YEDEK_KANONIK="$(realpath -e -- "$YEDEK_DIZINI")" || exit 1
+   test "$VERI_DIZINI" = "$VERI_KANONIK" && test "$YEDEK_DIZINI" = "$YEDEK_KANONIK" || exit 1
+   test "$VERI_KANONIK" != "$YEDEK_KANONIK" && test -f "$VERI_KANONIK/kasa.db" || exit 1
+   case "$VERI_KANONIK/" in "$YEDEK_KANONIK/"*) exit 1;; esac
+   case "$YEDEK_KANONIK/" in "$VERI_KANONIK/"*) exit 1;; esac
+   test ! -L "$VERI_KANONIK/kasa.db" || exit 1
+   SEMBOLIK="$(sudo find "$VERI_KANONIK" "$YEDEK_KANONIK" -type l -print -quit)" || exit 1
+   test -z "$SEMBOLIK" || exit 1
+   printf '%s\n' "$CALISAN_KIMLIK" | grep -Eq '^[1-9][0-9]*:[1-9][0-9]*$' || exit 1
+   CANLI_VERI="$(docker inspect kasa-app --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}')" || exit 1
+   CANLI_YEDEK="$(docker inspect kasa-app --format '{{range .Mounts}}{{if eq .Destination "/yedekler"}}{{.Source}}{{end}}{{end}}')" || exit 1
+   MANIFEST_VERI="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["dataDirectory"])' "$MANIFEST_YOLU")" || exit 1
+   unset KASA_DATA_DIR KASA_BACKUP_DIR  # Compose değerleri yalnız deploy/.env dosyasından alsın.
+   compose_kaynagi() {
+     docker compose --env-file .env config --format json |
+       python3 -c 'import json,sys; v=[x["source"] for x in json.load(sys.stdin)["services"]["kasa"]["volumes"] if x["target"]==sys.argv[1]]; assert len(v)==1; print(v[0])' "$1"
+   }
+   COMPOSE_VERI="$(compose_kaynagi /data)" || exit 1
+   COMPOSE_YEDEK="$(compose_kaynagi /yedekler)" || exit 1
+   test "$VERI_KANONIK" = "$(realpath -e -- "$CANLI_VERI")" || exit 1
+   test "$VERI_KANONIK" = "$(realpath -e -- "$MANIFEST_VERI")" || exit 1
+   test "$VERI_KANONIK" = "$(realpath -e -- "$COMPOSE_VERI")" || exit 1
+   test "$YEDEK_KANONIK" = "$(realpath -e -- "$COMPOSE_YEDEK")" || exit 1
+   if test -n "$CANLI_YEDEK"; then
+     test "$YEDEK_KANONIK" = "$(realpath -e -- "$CANLI_YEDEK")" || exit 1
+   else
+     test "$COMPOSE_FILE" = docker-compose.yml:docker-compose.caddy-backup.yml || exit 1
+   fi
+   printf 'Sahiplik aktarılacak: %s ve %s -> %s\n' "$VERI_KANONIK" "$YEDEK_KANONIK" "$CALISAN_KIMLIK"
+   ```
+   Yazdırılan iki kanonik yolun doğru olduğunu gözle denetledikten sonra **aynı kabuk oturumunda** yalnız şu komutu çalıştırın:
+   ```sh
+   sudo chown -R -P -- "$CALISAN_KIMLIK" "$VERI_KANONIK" "$YEDEK_KANONIK"
+   ```
+   Sembolik bağlantı varsa akış durur; hedefini inceleyip ayrı plan yapın. Sunucu dışı yedek systemd servisleri root olarak çalışır ve yeni sahipliğe rağmen dosyaları okuyabilir. Geri yükleme veya sonraki yayında yeni veri dizini oluşturulursa onu da **başlatmadan önce** aynı kimliğe verin; `restore_backup.py` root ile oluşturduğu `kasa.db` dosyasını kendiliğinden bu kimliğe dönüştürmez.
+5. Seçilen kimlikle bağlamaları, kalıcı dosyaları ve yazma/yeniden adlandırmayı uygulamayı başlatmadan sınayın. Caddy için de aynı iki host dizinini bağlayan bu tek seferlik denetim kullanılabilir:
+   ```sh
+   docker run --rm --user "$CALISAN_KIMLIK" --mount "type=bind,src=$VERI_DIZINI,dst=/data" --mount "type=bind,src=$YEDEK_DIZINI,dst=/yedekler" --entrypoint /bin/sh kasa:latest -ec '
+     test -r /data/kasa.db && test -w /data/kasa.db && test -w /data && test -w /yedekler
+     if test -e /data/.kasa-push-keys.json; then test -r /data/.kasa-push-keys.json && test -w /data/.kasa-push-keys.json; fi
+     if test -e /yedekler/guvenlik-gunlugu.jsonl; then test -r /yedekler/guvenlik-gunlugu.jsonl && test -w /yedekler/guvenlik-gunlugu.jsonl; fi
+     touch /data/.kasa-yetki-denetimi && mv /data/.kasa-yetki-denetimi /data/.kasa-yetki-denetimi-ok && rm /data/.kasa-yetki-denetimi-ok
+     touch /yedekler/.kasa-yetki-denetimi && mv /yedekler/.kasa-yetki-denetimi /yedekler/.kasa-yetki-denetimi-ok && rm /yedekler/.kasa-yetki-denetimi-ok
+   '
+   ```
+6. `deploy/.env` içine `KASA_CONTAINER_USER=<sayısal-UID:GID>` yazın. Nginx için `docker compose -f docker-compose.nginx.yml config | grep -E '^    user:|source:|target:'`, Caddy için `docker compose -f docker-compose.yml -f docker-compose.caddy-backup.yml config | grep -E '^    user:|source:|target:'` çalıştırıp kullanıcı ve bağlamaların doğru olduğunu görün; `docker compose ... up -d` ile uygulamayı başlatın. `docker inspect kasa-app --format '{{.Config.User}}'` seçilen kimliği göstermelidir. `/health`, giriş, belge yükleme/indirme, PDF okuma, elle yedek alma, `KASA_BACKUP_DIR/guvenlik-gunlugu.jsonl` ve ertesi otomatik/sunucu dışı yedek akışını doğrulayın. Geri yükleme sırasında bu günlük okunamazsa yedek sonrası güvenlik kararları yeniden uygulanamaz.
+
+**Geri dönüş:** Bir izin sorunu varsa `KASA_CONTAINER_USER=0:0` yapıp aynı Compose dosyalarıyla `up -d` çalıştırın; root yeni sahibin 0600/0700 dosyalarını okuyabilir, sahipliği eski haline çevirmeyin. Uygulama sürümünün de geri alınması gerekiyorsa aşağıdaki "Geri dönüş" bölümündeki saklanmış imaj/Compose adımlarını izleyin. Caddy'de `/yedekler` ek dosyasını geri dönüşte de kullanın; aksi halde yeni yedekler ve güvenlik günlüğü farklı yerde kalır.
 
 ## İlk kurulum
 

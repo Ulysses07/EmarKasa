@@ -23,4 +23,8 @@ WORKDIR /app
 COPY --from=build /app/publish ./
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+# Mevcut bağlama dizinleri root'a ait olabilir. Ayrıcalıksız kimlik ancak veri/yedek sahipliği
+# doğrulandıktan sonra seçilir (deploy/README.md); varsayılan çalışma kimliği değişmez.
+ARG KASA_RUNTIME_USER=0:0
+USER ${KASA_RUNTIME_USER}
 ENTRYPOINT ["dotnet", "Kasa.Api.dll"]

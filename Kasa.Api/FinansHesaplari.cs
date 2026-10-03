@@ -18,7 +18,8 @@ public static class FinansHesaplari
         if (id == Guid.Empty)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["istekId"] = ["Geçerli bir istek kimliği gerekir."] });
         var old = db.FinansIstekler.AsNoTracking().SingleOrDefault(x => x.IstekId == id);
-        return old is null ? null : old.Tur == tur && old.Ozet == ozet ? result(old.SonucId) : AlisEndpoints.Conflict("İstek kimliği başka bir işlem veya farklı içerik için kullanılmış.");
+        return old is null ? null : old.Tur == tur && old.Ozet == ozet ? result(old.SonucId)
+            : Results.Conflict(new { hata = "İstek kimliği başka bir işlem veya farklı içerik için kullanılmış.", kod = "ISTEK_KIMLIGI_CAKISMASI" });
     }
 
     /// <summary>

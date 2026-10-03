@@ -20,6 +20,8 @@ services:
     image: kasa:latest
     container_name: kasa-app
     restart: unless-stopped
+    # Mevcut root sahipliğindeki veri/yedekleri korur. Geçişten sonra .env'de sayısal UID:GID verin.
+    user: "${KASA_CONTAINER_USER:-0:0}"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"

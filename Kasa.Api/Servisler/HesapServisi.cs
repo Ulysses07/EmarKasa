@@ -114,7 +114,7 @@ public class HesapServisi
         ct.ThrowIfCancellationRequested();
         var alislar = _db.Alislar.AsNoTracking()
             .Include(a => a.Kalemler).ThenInclude(k => k.Dagilimlar).ThenInclude(d => d.KanalKaydi)
-            .Include(a => a.Odemeler).ThenInclude(o => o.Islem).ToList();
+            .Include(a => a.Odemeler).ThenInclude(o => o.Islem).AsSplitQuery().ToList();
         ct.ThrowIfCancellationRequested();
         // Aynı gidere bağlı ikinci kayıt (benzersizlik dizini olmayan eski/geri yüklenmiş veritabanı) raporu düşürmez: gider bir kez,
         // ilk bağın (Id sırası) dağılımıyla sayılır; ikinci bağ rapora alınmaz ve karantinada görünür. Sağlam veride bağlar tekildir.

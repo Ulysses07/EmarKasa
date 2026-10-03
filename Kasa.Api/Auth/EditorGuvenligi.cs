@@ -47,6 +47,7 @@ public static class EditorGuvenligi
         {
             if (YeniSifreHatasi(dto.YeniSifre) is { } hata)
                 return hata;
+            using var seriKilit = gunluk.IslemKilidiAl();
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
             if (!Dogrula(dto.MevcutSifre, cfg, kayit))
@@ -64,9 +65,9 @@ public static class EditorGuvenligi
             // Değişiklikle aynı transaction'da: olay yazılamazsa hata fırlar, commit edilmez ve şifre değişmez (zorunlu). Böylece
             // şifre değişti ise olay da vardır. Eski oturumlar ve kurtarma kodu düşer.
             GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.SifreDegisti, cfg["Kasa:EditorKullanici"], new { oturumlarKapatildi = true, kurtarmaKoduGecersiz = true }, varlikId: "1", zorunlu: true);
+            // Yedekten geri yüklemede eski şifre yeniden geçerli olmasın: dış günlük de commit öncesi kalıcı olmalıdır.
+            gunluk.Yaz(GuvenlikGunlugu.EditorSifresiDegisti, kullanici: cfg["Kasa:EditorKullanici"], zorunlu: true);
             tx.Commit();
-            // Veritabanı dışındaki iz: yedekten geri yüklenirse yedekteki eski şifre geçersiz kılınır (GeriYuklemeIsleyici).
-            gunluk.Yaz(GuvenlikGunlugu.EditorSifresiDegisti, kullanici: cfg["Kasa:EditorKullanici"]);
             http.Response.Cookies.Delete("kasa_auth");
             // Eski tanıdık cihaz belirteçleri damgayla düşer; işlemi yapan cihaz yenisini alır (saldırı sürerken
             // şifresini değiştiren editör kendi cihazından yeniden girebilir).
@@ -76,6 +77,7 @@ public static class EditorGuvenligi
 
         app.MapPost("/api/auth/kurtarma-kodu", (KurtarmaOlustur dto, KasaDbContext db, IConfiguration cfg, HttpContext http, GuvenlikGunlugu gunluk) =>
         {
+            using var seriKilit = gunluk.IslemKilidiAl();
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
             if (!Dogrula(dto.MevcutSifre, cfg, kayit))
@@ -90,8 +92,8 @@ public static class EditorGuvenligi
             db.SaveChanges();
             // Kod yalnız yanıtta bir kez döner; olaya kod da özeti de yazılmaz. Olay yazılamazsa yeni kod kaydedilmez (zorunlu).
             GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKoduUretildi, cfg["Kasa:EditorKullanici"], new { oncekiKodGecersiz = true }, varlikId: "1", zorunlu: true);
+            gunluk.Yaz(GuvenlikGunlugu.KurtarmaKoduUretildi, kullanici: cfg["Kasa:EditorKullanici"], zorunlu: true);
             tx.Commit();
-            gunluk.Yaz(GuvenlikGunlugu.KurtarmaKoduUretildi, kullanici: cfg["Kasa:EditorKullanici"]);
             return Results.Ok(new { kod });
         }).RequireAuthorization("Editor").RequireRateLimiting(HizSinirlari.Guvenlik);
 
@@ -101,6 +103,7 @@ public static class EditorGuvenligi
                 return hata;
             if (dto.Kod is null || dto.Kod.Length > 200)
                 return KurtarmaHatali();
+            using var seriKilit = gunluk.IslemKilidiAl();
             using var tx = db.Database.BeginTransaction();
             var kayit = db.EditorGuvenlik.SingleOrDefault(e => e.Id == 1);
             var beklenen = kayit?.KurtarmaHash;
@@ -114,8 +117,8 @@ public static class EditorGuvenligi
             // Başarılı kurtarma değişiklikle aynı transaction'da yazılır (yazılamazsa şifre değişmez, kod geçerli kalır: zorunlu);
             // başarısız deneme ve 429 giriş filtresinde.
             GuvenlikOlaylari.Yaz(http, db, GuvenlikOlaylari.KurtarmaKullanildi, dto.Kullanici, new { oturumlarKapatildi = true }, varlikId: "1", zorunlu: true);
+            gunluk.Yaz(GuvenlikGunlugu.KurtarmaKullanildi, kullanici: dto.Kullanici, zorunlu: true);
             tx.Commit();
-            gunluk.Yaz(GuvenlikGunlugu.KurtarmaKullanildi, kullanici: dto.Kullanici);
             http.Response.Cookies.Delete("kasa_auth");
             // Kurtarma kodu editör şifresi kadar güçlü bir kanıttır: kurtaran cihaz tanıdık cihaz olur.
             tanidikCihaz.GovdesizVer(http, GirisSiniri.EditorHedefi, OturumDamgasi.EditorIcin(kayit, cfg, db));

@@ -128,9 +128,10 @@ public class IslemEditorTests
         var api = new SahteApi();
         var vm = new IslemlerViewModel(api, TestOturumu.Ac());
 
-        await vm.SilCommand.ExecuteAsync(new IslemDto(5, new DateOnly(2026, 3, 5), "x", 1m, "MEZAT", GiderTipi.Cari, null));
+        await vm.SilCommand.ExecuteAsync(new IslemDto(5, new DateOnly(2026, 3, 5), "x", 1m, "MEZAT", GiderTipi.Cari, null, Surum: 3));
 
         Assert.Equal(5, api.SonIslemSil);
+        Assert.Equal(3, api.SonIslemSilSurum);
     }
 
     // ---- Gelen · dönem toplamı formu (web incomeDialog ile aynı davranış) ----

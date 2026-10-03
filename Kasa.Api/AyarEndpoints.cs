@@ -54,10 +54,13 @@ namespace Kasa.Api
                 // Kural yalnız belirlerken/değiştirirken uygulanır; mevcut kısa hash ile giriş sürer.
                 if (SifreKurallari.YeniSifreHatasi(dto.YeniSifre, "yeniSifre", "İzleyici şifresi") is { } hata)
                     return hata;
+                using var seriKilit = gunluk.IslemKilidiAl();
+                using var tx = db.Database.BeginTransaction();
                 var a = db.Ayarlar.First();
                 a.IzleyiciSifreHash = SifreHasher.Hashle(dto.YeniSifre);
                 db.SaveChanges();
-                gunluk.Yaz(GuvenlikGunlugu.IzleyiciSifresiDegisti);
+                gunluk.Yaz(GuvenlikGunlugu.IzleyiciSifresiDegisti, zorunlu: true);
+                tx.Commit();
                 return Results.Ok();
             }).RequireAuthorization("Editor");
             return app;

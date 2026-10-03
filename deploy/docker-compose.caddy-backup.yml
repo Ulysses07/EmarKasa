@@ -1,0 +1,17 @@
+# Eski OrderDeck/Caddy dağıtımında kalıcı yedek ve güvenlik günlüğü için isteğe bağlı ek dosya.
+# docker-compose.yml ile birlikte kullanılmalıdır; tek başına çalıştırmayın.
+# Ayrıcalıksız KASA_CONTAINER_USER açılmadan önce /app/yedekler içeriğinin (özellikle
+# guvenlik-gunlugu.jsonl) doğrulanmış host dizinine taşınması gerekir: deploy/README.md.
+services:
+  kasa:
+    # Mevcut kurulum root kalır; hazırlanan sayısal UID:GID yalnız açık seçimle kullanılır.
+    user: "${KASA_CONTAINER_USER:-0:0}"
+    environment:
+      Yedek__Etkin: "true"
+      Yedek__Dizin: "/yedekler"
+    volumes:
+      - type: bind
+        source: "${KASA_BACKUP_DIR:?KASA_BACKUP_DIR deploy/.env içinde etkin yedek dizinine ayarlanmalı; bkz. deploy/README.md}"
+        target: /yedekler
+        bind:
+          create_host_path: false

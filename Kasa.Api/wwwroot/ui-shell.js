@@ -112,6 +112,7 @@ async function api(path, options = {}) {
     }
     const error = new Error(errorMessage(result, response.status));
     error.status = response.status;
+    error.code = result?.kod;
     error.fields = fieldErrors(result);
     if (sessionExpired(response.status, path)) clearSession();
     throw error;
@@ -181,6 +182,8 @@ function strayClose() {
 }
 function closeModal(explicit) {
   if (explicit === undefined && strayClose()) return;
+  if (explicit && explicit !== true && busyForm && isOpen(busyForm))
+    toast('Kayıt isteği sürüyor; işlem tamamlanabilir. Sonucu bildirimde göreceksiniz.');
   busyForm = null;
   if (modal.open) modal.close();
   if (modalCleanup) modalCleanup();
@@ -207,7 +210,7 @@ $('#modal-close').addEventListener('click', closeModal);
 // Vazgeç (ya da ×) kaydı durdurmaz; kapatılan pencerenin hatası bildirim olarak çıkar, başarılı kayıt ekrana yansır ve o sırada
 // açılmış başka pencereyi kapatmaz.
 const BUSY_CLOSE_MESSAGE =
-  'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden kapatmak için Vazgeç’e basın: kayıt durmaz, tamamlanabilir; hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır.';
+  'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden çıkmak için Kapat (kayıt sürüyor) düğmesine basın: kayıt durmaz, tamamlanabilir; sonuç bildirimde gösterilir.';
 modal.addEventListener('cancel', event => {
   if (event.target !== modal) return;
   if (busyForm && isOpen(busyForm) && event.cancelable) {
@@ -220,10 +223,12 @@ modal.addEventListener('cancel', event => {
 function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
-  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
+  const close = button('Vazgeç', closeModal);
+  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, close, submit));
   // Meşgul işareti yalnız bu form açıkken konur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
   const markBusy = busy => {
     if (busy ? isOpen(form) : busyForm === form) busyForm = busy ? form : null;
+    close.textContent = busy ? 'Kapat (kayıt sürüyor)' : 'Vazgeç';
   };
   // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
   let marked = [];
@@ -295,10 +300,17 @@ async function refreshOnConflict(work, refresh) {
 }
 const similarApprovals = new WeakMap();
 const similarPanels = new WeakMap();
+const formSnapshot = form =>
+  JSON.stringify(
+    [...new FormData(form)].map(([name, value]) =>
+      typeof value === 'string' ? [name, value] : [name, value.name, value.size, value.lastModified]
+    )
+  );
 async function confirmSimilar(form, query, payload) {
   const signature = JSON.stringify({ query, payload });
   if (!form.isConnected || !modal.open) return false;
   if (similarApprovals.get(form) === signature) return true;
+  const before = formSnapshot(form);
   const oldPanel = similarPanels.get(form);
   if (oldPanel) oldPanel.hidden = true;
   let records;
@@ -308,7 +320,7 @@ async function confirmSimilar(form, query, payload) {
     throw new Error(`Benzer kayıt kontrolü tamamlanamadı. Kayıt yapılmadı; yeniden deneyin. ${error.message}`);
   }
   if (!Array.isArray(records)) throw new Error('Benzer kayıt kontrolünden geçerli yanıt alınamadı. Kayıt yapılmadı; yeniden deneyin.');
-  if (!form.isConnected || !modal.open) return false;
+  if (!form.isConnected || !modal.open || formSnapshot(form) !== before) return false;
   if (!records.length) return true;
   const panel = oldPanel || h('div', { class: 'notice similar-warning', role: 'status', tabindex: '-1' });
   const sourceNames = {
@@ -358,18 +370,49 @@ async function confirmSimilar(form, query, payload) {
   panel.focus();
   return false;
 }
-// Reuse the same key after an uncertain response; changed fields get a fresh key.
-function requestIdentity() {
-  let previous, id;
-  return payload => {
+// Most forms use a new key when their contents change. A form with a pending, uncertain write can
+// instead keep its key in the tab until the server confirms success. This lets the server reject a
+// changed retry and replay an identical retry, even after the dialog is closed and reopened.
+function requestIdentity({ storageKey = null, retainOnChange = false } = {}) {
+  let previous;
+  let id;
+  if (storageKey) {
+    try {
+      const stored = sessionStorage?.getItem(storageKey);
+      if (stored && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(stored)) id = stored;
+    } catch {
+      // Storage can be disabled; in-memory retries still use the same key while this form is open.
+    }
+  }
+  const identity = payload => {
     const { surum, hedefSurum, ...stable } = payload;
     const serialized = JSON.stringify(stable);
-    if (serialized !== previous) {
-      previous = serialized;
+    if (!id || (!retainOnChange && serialized !== previous)) {
       id = crypto.randomUUID();
+      if (storageKey) {
+        try {
+          sessionStorage?.setItem(storageKey, id);
+        } catch {
+          // Browser storage is optional.
+        }
+      }
     }
+    previous = serialized;
     return { ...payload, istekId: id };
   };
+  identity.clear = () => {
+    const finished = id;
+    id = undefined;
+    previous = undefined;
+    if (storageKey && finished) {
+      try {
+        if (sessionStorage?.getItem(storageKey) === finished) sessionStorage.removeItem(storageKey);
+      } catch {
+        // Browser storage is optional.
+      }
+    }
+  };
+  return identity;
 }
 function page(title, context, actions = []) {
   $('#page-title').textContent = title;

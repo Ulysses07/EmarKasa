@@ -31,11 +31,16 @@ internal static class TakipUi
         return etiket;
     }
 
-    public static View Alan(string ad, View v) => new VerticalStackLayout
+    public static View Alan(string ad, View v)
     {
-        Spacing = 5,
-        Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, v },
-    };
+        // Görsel etiket ile giriş denetimi ayrı öğeler olsa da erişilebilir ad girişte duyulur.
+        SemanticProperties.SetDescription(v, ad);
+        return new VerticalStackLayout
+        {
+            Spacing = 5,
+            Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, v },
+        };
+    }
 
     /// <summary>Hatası gösterilen alan (docs/specs/2026-10-02-masaustu-form-hatalari-ve-baglanti.md §1; Controls.FormAlani): başlık,
     /// girdi ve hata varken altında ileti; çerçeve yalnız hata varken (kırmızı) görünür. <paramref name="hatalar"/> modelin

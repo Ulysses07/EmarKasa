@@ -650,6 +650,100 @@ test('new expense and new purchase reuse the request id after a lost response, w
   assert.ok(purchaseWrites[0].body.istekId);
   assert.deepEqual(purchaseWrites[0].body, purchaseWrites[1].body);
 });
+test('new expense keeps its request id across a closed dialog and clears it only after confirmed success', async () => {
+  const saved = new Map();
+  const sessionStorage = {
+    getItem: key => saved.get(key) ?? null,
+    setItem: (key, value) => saved.set(key, value),
+    removeItem: key => saved.delete(key),
+  };
+  let attempts = 0;
+  const { app, nodes, calls } = await openApp(
+    false,
+    {
+      '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+      '/api/kredikartlari': [],
+      '/api/islemler/benzerlik': [],
+      '/api/islemler': call => {
+        if (call.method === 'POST' && ++attempts === 1) throw new Error('Network response lost');
+        return { id: 21 };
+      },
+    },
+    null,
+    null,
+    { sessionStorage }
+  );
+  const fill = async cari => {
+    await app.expenseDialog();
+    for (const [name, value] of Object.entries({ cari, tutarTl: '75', kanal: 'A', tarih: '2026-09-23' }))
+      formField(nodes, name).value = value;
+  };
+  await fill('Kargo');
+  await submitDialog(nodes);
+  const pendingId = calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.istekId;
+  assert.equal([...saved.values()][0], pendingId);
+  await clickDialog(nodes, 'Vazgeç');
+  await fill('Kargo');
+  await submitDialog(nodes);
+  const writes = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(writes[1].body.istekId, pendingId);
+  assert.equal(saved.size, 0, 'Sunucu başarısı kesinleşince bekleyen anahtar silinir.');
+  await fill('Başka gider');
+  await submitDialog(nodes);
+  const later = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST')[2];
+  assert.notEqual(later.body.istekId, pendingId, 'Yeni gider ayrı bir istek kimliği alır.');
+});
+test('editing a pending expense after an uncertain response keeps the key so the server can reject a changed retry', async () => {
+  const saved = new Map();
+  const sessionStorage = {
+    getItem: key => saved.get(key) ?? null,
+    setItem: (key, value) => saved.set(key, value),
+    removeItem: key => saved.delete(key),
+  };
+  let attempts = 0;
+  const { app, nodes, calls, responses } = await openApp(
+    false,
+    {
+      '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+      '/api/kredikartlari': [],
+      '/api/islemler/benzerlik': [],
+      '/api/islemler': call => {
+        if (call.method === 'POST' && ++attempts === 1) throw new Error('Network response lost');
+        return { $status: 409, kod: 'ISTEK_KIMLIGI_CAKISMASI', hata: 'Bu istek kimliği farklı içerikle kullanılmış.' };
+      },
+    },
+    null,
+    null,
+    { sessionStorage }
+  );
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' }))
+    formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  formField(nodes, 'tutarTl').value = '80';
+  await submitDialog(nodes);
+  const writes = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST');
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].body.istekId, writes[0].body.istekId);
+  assert.equal(writes[1].body.tutarTl, 80);
+  assert.match(nodes.get('#modal-content').textContent, /farklı içerikle kullanılmış/);
+  assert.equal([...saved.values()][0], writes[0].body.istekId, 'Çakışmada bekleyen anahtar kendiliğinden silinmez.');
+  const fresh = nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Kontrol ettim, yeni gider başlat');
+  assert.equal(fresh.parentNode.hidden, false);
+  responses['/api/islemler'] = { id: 22 };
+  await clickDialog(nodes, 'Kontrol ettim, yeni gider başlat');
+  assert.equal(saved.size, 0);
+  assert.equal(
+    calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length,
+    2,
+    'Yeni form kendi başına kayıt yapmaz.'
+  );
+  for (const [name, value] of Object.entries({ cari: 'Yeni gider', tutarTl: '80', kanal: 'A', tarih: '2026-09-23' }))
+    formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  const later = calls.filter(call => call.path === '/api/islemler' && call.method === 'POST')[2];
+  assert.notEqual(later.body.istekId, writes[0].body.istekId);
+});
 test('purchase document download names come from the stored type, never from the uploaded extension or direction marks', () => {
   assert.equal(ui.documentFileName('fatura.pdf.hta', 'application/pdf'), 'fatura.pdf');
   assert.equal(ui.documentFileName('fatura‮fdp.hta', 'application/pdf'), 'faturafdp.pdf');
@@ -698,6 +792,28 @@ test('changing a field invalidates duplicate approval and cancelling during look
     calls.some(call => call.path === '/api/islemler' && call.method === 'POST'),
     false
   );
+});
+test('changing an expense while the duplicate lookup is pending cannot submit the old checked amount', async () => {
+  let finishLookup;
+  const { app, nodes, calls, responses } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    '/api/kredikartlari': [],
+    '/api/islemler/benzerlik': () => new Promise(resolve => (finishLookup = resolve)),
+    '/api/islemler': { id: 21 },
+  });
+  await app.expenseDialog();
+  for (const [name, value] of Object.entries({ cari: 'Kargo', tutarTl: '75', kanal: 'A', tarih: '2026-09-23' }))
+    formField(nodes, name).value = value;
+  await submitDialog(nodes);
+  assert.equal(typeof finishLookup, 'function');
+  formField(nodes, 'tutarTl').value = '80';
+  finishLookup([]);
+  await settle();
+  assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 0);
+  responses['/api/islemler/benzerlik'] = [];
+  await submitDialog(nodes);
+  assert.equal(calls.filter(call => call.path === '/api/islemler/benzerlik').length, 2);
+  assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.tutarTl, 80);
 });
 test('editing an existing expense skips new-record duplicate lookup', async () => {
   const expense = { id: 20, tarih: '2026-09-23', tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null };
@@ -2432,7 +2548,7 @@ test('unknown fee allocation and cancelled asynchronous preview cannot create a 
       resolve = done;
     });
   await submitDialog(nodes);
-  await clickDialog(nodes, 'Vazgeç');
+  await clickDialog(nodes, 'Kapat (kayıt sürüyor)');
   resolve({ tutar: 10, devredenBorc: 100, dagilimlar: [], dagilimOzeti: 'late' });
   await settle();
   assert.equal(nodes.get('#modal').open, false);
@@ -3563,7 +3679,8 @@ const pendingExpense = async () => {
     },
   };
 };
-const cancelButton = nodes => nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Vazgeç');
+const cancelButton = nodes =>
+  nodes.get('#modal-content').find(node => node.tag === 'button' && /^(Vazgeç|Kapat \(kayıt sürüyor\))$/.test(node.textContent));
 test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatası kapalı pencerede kalmaz, bildirim olarak görünür', async () => {
   const { nodes, calls, cancel, finish } = await pendingExpense();
   const errorBox = nodes.get('#modal-content').find(node => node.attributes.role === 'alert');
@@ -3578,16 +3695,18 @@ test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatas�
   assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
   assert.ok(!nodes.get('#modal-close').disabled, 'Sonraki pencere kilitsiz açılır.');
 });
-test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × açık kalır; yanıt gelince hata açık pencerede görünür', async () => {
+test('kayıt sürerken ESC veya geri hareketi engellenir, kapatma düğmesi süren kaydı açıkça belirtir', async () => {
   const { nodes, cancel, finish } = await pendingExpense();
-  // iOS'ta (ana ekran PWA dahil) ESC / geri hareketi yok ve isteğin zaman aşımı yok: pencereden çıkış yolu Vazgeç ve × açık kalır.
-  assert.ok(!cancelButton(nodes).disabled, 'Vazgeç kayıt sürerken de kullanılabilir.');
+  // iOS'ta (ana ekran PWA dahil) ESC / geri hareketi yok ve isteğin zaman aşımı yok: kapatma düğmesi ve × açık kalır.
+  assert.equal(cancelButton(nodes).textContent, 'Kapat (kayıt sürüyor)');
+  assert.ok(!cancelButton(nodes).disabled, 'Kapatma düğmesi kayıt sürerken de kullanılabilir.');
   assert.ok(!nodes.get('#modal-close').disabled, '× kayıt sürerken de kullanılabilir.');
   assert.equal(cancel(true), true, 'İptal edilebilir cancel olayı engellenir.');
   assert.equal(nodes.get('#modal').open, true);
   assert.ok(formField(nodes, 'cari'), 'Form korunur.');
-  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Vazgeç/);
+  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Kapat \(kayıt sürüyor\)/);
   await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+  assert.equal(cancelButton(nodes).textContent, 'Vazgeç');
   assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
   assert.doesNotMatch(nodes.get('#alerts')?.textContent ?? '', /Bu ay kilitli/);
   assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
@@ -3601,9 +3720,9 @@ test('diyalog cancel olayı olmadan kapansa bile geç gelen kayıt hatası bildi
   assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Kayıt değişti\./);
   assert.ok(!nodes.get('#modal-close').disabled);
 });
-test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hatası bildirim olarak görünür', async () => {
+test('kayıt sürerken kapatılan pencerede istek durumuyla geç gelen hata bildirilir', async () => {
   for (const [name, closer] of [
-    ['Vazgeç', nodes => cancelButton(nodes)],
+    ['Kapat', nodes => cancelButton(nodes)],
     ['×', nodes => nodes.get('#modal-close')],
   ]) {
     const { nodes, calls, finish } = await pendingExpense();
@@ -3612,6 +3731,7 @@ test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hat
     close.listeners.click({ currentTarget: close });
     assert.equal(nodes.get('#modal').open, false, `${name} pencereyi kapatır.`);
     assert.equal(nodes.get('#modal-content').children.length, 0);
+    assert.match(nodes.get('#notifications').textContent, /Kayıt isteği sürüyor.*Sonucu bildirimde göreceksiniz/);
     await finish({ $status: 409, hata: 'Bu ay kilitli.' });
     assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Bu ay kilitli\./, `${name} sonrası hata bildirimle görünür.`);
     assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
@@ -4462,9 +4582,8 @@ test('kayıt sürerken engellenen ESC bildirimi gerçek davranışı anlatır', 
   const text = nodes.get('#notifications').textContent;
   assert.match(text, /yanıt gelene kadar pencere açık kalır/);
   assert.match(text, /hata olursa burada görünür/);
-  assert.match(text, /Vazgeç’e basın: kayıt durmaz/);
-  assert.match(text, /hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır/);
-  assert.doesNotMatch(text, /sonucu bildirim olarak görürsünüz/);
+  assert.match(text, /Kapat \(kayıt sürüyor\) düğmesine basın: kayıt durmaz/);
+  assert.match(text, /sonuç bildirimde gösterilir/);
 });
 test('işaretli tutar etiketi işaret seçicisine değil tutar alanına bağlıdır; kimlikler tekildir', async () => {
   const { app, nodes } = await openApp(false);
@@ -5223,6 +5342,25 @@ test('gider düzenlemesi okunan sürümü gönderir; 409 iletisi formda görün�
     formField(nodes, name).value = value;
   await submitDialog(nodes);
   assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.surum, 0);
+});
+test('gider silme isteği okunan sürümü taşır ve eski sürümde listeyi yenileyip silmez', async () => {
+  const listPath = `/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`;
+  const expense = { id: 20, tarih: ui.today(), tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', surum: 3 };
+  const { app, nodes, calls } = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    [listPath]: [expense],
+    '/api/islemler/20?surum=3': { $status: 409, hata: 'Gider başka bir oturumda değişti.' },
+  });
+  await app.navigate('transactions');
+  const before = calls.filter(call => call.path === listPath).length;
+  const erase = nodes.get('#view').find(node => node.tag === 'button' && node.textContent === 'Sil');
+  assert.ok(erase);
+  erase.listeners.click();
+  await submitDialog(nodes);
+  const deletion = calls.find(call => call.path === '/api/islemler/20?surum=3');
+  assert.equal(deletion.method, 'DELETE');
+  assert.equal(calls.filter(call => call.path === listPath).length, before + 1);
+  assert.match(nodes.get('#modal-content').textContent, /başka bir oturumda değişti/);
 });
 test('kanal ve kasa başlangıcı düzenlemesi okunan sürümü gönderir; 409’da Ayarlar yenilenir', async () => {
   const { app, nodes, calls } = await openApp(false, {
