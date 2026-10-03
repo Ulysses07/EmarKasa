@@ -13,6 +13,7 @@ public static class EkstreMetinOkuyucu
     private static Regex Rx(string pattern) => new(pattern, RegexOptions.CultureInvariant, RegexLimit);
     private static readonly Regex DateRx = Rx(@"(?<!\d)(?:\d{4}-\d{2}-\d{2}|\d{1,2}[./-]\d{1,2}[./-](?:\d{4}|\d{2}))(?!\d)");
     private static readonly Regex ShortDateRx = Rx(@"^\s*\d{1,2}[./]\d{1,2}(?![\d./])");
+    private static readonly Regex ShortDateRangeRx = Rx(@"(?<![\d./])\d{1,2}[./]\d{1,2}\s*[-–—]\s*\d{1,2}[./]\d{1,2}(?![\d./])");
     private static readonly Regex MoneyRx = Rx(@"(?<![\p{L}\d.,])(?<sign>[+-]?)(?<n>(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}|(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})(?<tail>[+-]?)(?:\s*(?<direction>B|A))?(?![\p{L}\d.,])");
     private static readonly Regex ColumnsRx = Rx(@"ISLEM TUTARI|BORC TUTARI|ALACAK TUTARI|BAKIYE|BORC|ALACAK|TUTAR");
     private static readonly Regex CurrencyRx = Rx(@"\b(USD|EUR|GBP|CHF|JPY|AUD|CAD|TRY|TL)\b|[€$£₺]");
@@ -22,6 +23,7 @@ public static class EkstreMetinOkuyucu
     private static readonly Regex CurrencyNameRx = Rx(@"\b(?:TURK LIRASI|KANADA DOLARI|AVUSTRALYA DOLARI|DOLAR|DOLARI|EURO|AVRO|STERLIN|STERLINI)\b");
     // Adres kısaltması parantez içinde yazılmaz; "(TL)" gibi kod belge para birimidir.
     private static readonly Regex CurrencyHeaderRx = Rx(@"\(\s*(USD|EUR|GBP|CHF|JPY|AUD|CAD|TRY|TL|[€$£₺])\s*\)");
+    private static readonly Regex CurrencySectionRx = Rx(@"\b(?:ISLEMLERI|HAREKETLERI)\b");
     private static readonly string[] CurrencyCodes = ["TRY", "TL", "USD", "EUR", "GBP", "CHF", "JPY", "AUD", "CAD", "₺", "€", "$", "£"];
     private static readonly Regex FeeRx = Rx(@"KOMISYON|FAIZ|BSMV|KKDF|UCRET|MASRAF|AIDAT|VERGI");
     private static readonly Regex SummaryRx = Rx(@"(?:^|\s)(?:TOPLAM|DEVIR|DEVREDEN|ACILIS BAKIYESI|KAPANIS BAKIYESI|DONEM BORCU|EKSTRE BORCU|ASGARI|KULLANILABILIR LIMIT|KART LIMITI|HESAP KESIM|SON ODEME TARIHI|ONCEKI DONEM|DONEM OZETI|FAIZ ORANI|FAIZ ORANLARI)(?:\s|:|$)");
@@ -35,7 +37,7 @@ public static class EkstreMetinOkuyucu
     private sealed record Column(string Kind, int Start);
     private sealed record Token(decimal Value, int Start, int End, string Direction, bool ExplicitSign);
     // InstallmentColumn: tablo başlığındaki "Taksit" kolonunun başlangıcı (yoksa null).
-    private sealed record Segment(string Raw, List<Column> Columns, int Page, int? InstallmentColumn);
+    private sealed record Segment(string Raw, List<Column> Columns, int Page, int? InstallmentColumn, string? SectionCurrency);
     // Direction yalnız Borç/Alacak kolonu veya B/A sonekiyle kesinleşir; işaretten okunan yön Sign'da (+1/-1) kalır.
     private sealed record Amount(decimal? Value, string Direction, int Sign, int TokenCount);
 
@@ -53,7 +55,9 @@ public static class EkstreMetinOkuyucu
         // Bir sayfanın döviz başlığı başka sayfadaki kodsuz hareketlere taşınmamalı.
         // Başlığı olmayan sayfalar yalnız tüm belgede tek bir para birimi varsa onu devralır.
         var pageCurrencies = pages.Select(PageCurrency).ToArray();
-        var knownCurrencies = pageCurrencies.Where(c => c is not null).Distinct().ToArray();
+        // Karma para birimi bölümü olan bir sayfanın TL etiketi başlıksız sonraki sayfaya aktarılmaz.
+        var sectionCurrencies = pages.SelectMany(p => p.Split('\n').Select(SectionCurrency)).Where(c => c is not null);
+        var knownCurrencies = pageCurrencies.Where(c => c is not null).Concat(sectionCurrencies).Distinct().ToArray();
         var documentFallback = knownCurrencies.Length == 1 && knownCurrencies[0] != "Belirsiz"
             ? knownCurrencies[0]!
             : "Belirsiz";
@@ -63,12 +67,21 @@ public static class EkstreMetinOkuyucu
             var lines = pages[pageIndex].Split('\n').Select(l => l.Replace("\t", "    ")).ToArray();
             List<Column> columns = [];
             int? installmentColumn = null;
+            // Sayfanın ilerleyen bölümündeki döviz başlığı, önceki kodsuz satırları geriye dönük etiketlemez.
+            var sectionCurrency = lines.Any(l => SectionCurrency(l) is not null)
+                && !lines.Select(Normalize).Any(l => LabelCurrency(l) is not null || HeaderCurrencies(l).Any())
+                ? "Belirsiz" : null;
             for (var index = 0; index < lines.Length; index++)
             {
                 var line = lines[index];
                 var normalized = Normalize(line);
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
+                if (SectionCurrency(line) is { } section)
+                {
+                    sectionCurrency = section == pageCurrencies[pageIndex] ? section : "Belirsiz";
+                    continue;
+                }
                 if (normalized.Contains("TARIH") && (normalized.Contains("ACIKLAMA") || normalized.Contains("ISLEM")) && ColumnsRx.IsMatch(normalized))
                 {
                     columns = ColumnsRx.Matches(normalized).Select(m => new Column(m.Value.Contains("BAKIYE") ? "Balance" : m.Value.Contains("ALACAK") ? "Credit" : m.Value.Contains("BORC") ? "Debit" : "Amount", m.Index)).ToList();
@@ -91,6 +104,7 @@ public static class EkstreMetinOkuyucu
                     var next = lines[index + 1];
                     var nextNorm = Normalize(next);
                     if (string.IsNullOrWhiteSpace(next) || DateRx.IsMatch(next) || ShortDateRx.IsMatch(next)
+                        || SectionCurrency(next) is not null
                         || SummaryRx.IsMatch(nextNorm) || nextNorm.Contains("TARIH") || nextNorm.Contains("SAYFA")
                         || nextNorm.Contains("IBAN") || nextNorm.Contains("HESAP NO") || nextNorm.Contains("KART NO"))
                         break;
@@ -102,14 +116,14 @@ public static class EkstreMetinOkuyucu
                     if (MoneyRx.IsMatch(next))
                         break;
                 }
-                segments.Add(new(raw, columns, pageIndex + 1, installmentColumn));
+                segments.Add(new(raw, columns, pageIndex + 1, installmentColumn, sectionCurrency));
                 if (segments.Count > 1500)
                     throw new PdfOkumaException("Bir dosyada en fazla 1500 hareket okunabilir. Daha kısa tarih aralığı seçin.");
             }
         }
         // Kart ekstresinde eksi/artı işaretinin anlamı bankaya göre değişir; satırlar yorumlanmadan önce belgeden çıkarılır.
         var creditSign = kaynak == EkstreKaynaklari.Kart ? CreditSign(segments) : 0;
-        var rows = segments.Select((s, i) => Parse(s, kaynak, pageCurrencies[s.Page - 1] ?? documentFallback, i + 1, creditSign)).ToList();
+        var rows = segments.Select((s, i) => Parse(s, kaynak, s.SectionCurrency ?? pageCurrencies[s.Page - 1] ?? documentFallback, i + 1, creditSign)).ToList();
         if (summaryCount > 0)
             warnings.Add($"{summaryCount} toplam, devir, limit veya ekstre bilgi satırı mali hareket olarak alınmadı.");
         if (rows.Count == 0)
@@ -121,7 +135,7 @@ public static class EkstreMetinOkuyucu
 
     private static EkstreOkunanSatir Parse(Segment segment, string source, string documentCurrency, int number, int creditSign)
     {
-        var (raw, columns, page, installmentColumn) = segment;
+        var (raw, columns, page, installmentColumn, _) = segment;
         var warnings = new List<string>();
         var dates = DateRx.Matches(raw);
         DateOnly? date = null;
@@ -347,6 +361,30 @@ public static class EkstreMetinOkuyucu
         // Bağlamsız "CAD" Türkçe metinde Cadde kısaltmasıdır: yalnız tutara bitişikse ya da başlıktaysa sayılır.
         var currencies = lines.SelectMany(l => AmountCurrencies(l).Concat(HeaderCurrencies(l)).Concat(LooseCurrencies(l))).Distinct().ToList();
         return currencies.Count == 0 ? null : currencies.Count == 1 ? currencies[0] : "Belirsiz";
+    }
+    // Bölüm başlığı, sayfa başındaki para biriminden farklıysa kodsuz satırların birimi tahmin edilmez.
+    // "USD İşlemleri" veya "Döviz Hareketleri: USD" gibi tarihsiz başlıklar burada ele alınır.
+    private static string? SectionCurrency(string line)
+    {
+        var normalized = Normalize(line);
+        if (!CurrencySectionRx.IsMatch(normalized))
+            return null;
+        var dates = DateRx.Matches(normalized);
+        var fullDateRange = dates.Count >= 2 && normalized[(dates[0].Index + dates[0].Length)..dates[1].Index].Trim() is "-" or "–" or "—";
+        var dateRange = fullDateRange || ShortDateRangeRx.IsMatch(normalized);
+        // Satırın başındaki işlem tarihi, tutar sonraki satıra kaymış olsa da bölüm başlığına dönüşmez.
+        if ((dates.Count > 0 && dates[0].Index < 18 && !fullDateRange) || (ShortDateRx.IsMatch(normalized) && !dateRange))
+            return null;
+        // Dönem başlığının "Toplam" tutarı hareket değildir; diğer tutarlı satırlar hareket olarak kalır.
+        var amountText = ShortDateRangeRx.Replace(normalized, m => new string(' ', m.Length));
+        if (MoneyRx.IsMatch(MaskDates(amountText)) && !(dateRange && SummaryRx.IsMatch(normalized)))
+            return null;
+        var codes = CurrencyRx.Matches(normalized)
+            .Where(m => m.Value != "CAD" || m.Index + m.Length >= normalized.Length || normalized[m.Index + m.Length] != '.')
+            .Select(m => Currency(m.Value)).Distinct().ToList();
+        if (codes.Count > 1 || normalized.Contains("DOVIZ") || normalized.Contains("YABANCI PARA"))
+            return "Belirsiz";
+        return codes.Count == 1 ? codes[0] : null;
     }
     // "Para Birimi: Türk Lirası   Şube Adresi: Bağdat Cad." — değer yalnız etiketin kendi alanından okunur: alan kolon
     // boşluğunda ya da sonraki "Etiket:" başlangıcında biter; "CAD" yalnız alanın ilk kelimesiyse koddur ("CAD." değil).

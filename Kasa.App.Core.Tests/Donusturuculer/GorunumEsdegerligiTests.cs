@@ -2,7 +2,9 @@ using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Maui;
 using Microsoft.Maui.Graphics.Converters;
+using Microsoft.Maui.Layouts;
 
 namespace Kasa.App.Core.Tests;
 
@@ -14,7 +16,7 @@ namespace Kasa.App.Core.Tests;
 /// <list type="bullet">
 /// <item>DurumSeridi: Kasalar, Haftalık, Aylık (eski RaporDurumu), İşlemler ve Alışlar durum başlıkları; yükleniyor, hata,
 /// ileti ve dağılım uyarısının bütün birleşimleri.</item>
-/// <item>CipGrubu: İşlemler'deki altı çip listesi, seçili ve seçili olmayan çiplerle.</item>
+/// <item>CipGrubu: İşlemler'deki altı çip listesi; eski görünüme yakın düğme ölçüleri, komut ve erişilebilir seçim bilgisi.</item>
 /// <item>BosDurum: dört boş liste görünümü.</item>
 /// <item>Renk anahtarları: sayfalardaki doğrudan onaltılık renklerin yerine geçen anahtarlar aynı rengi verir.</item>
 /// </list>
@@ -197,51 +199,76 @@ public partial class GorunumEsdegerligiTests
 
     // ---------------------------------------------------------------- CipGrubu
 
-    /// <summary>Eski İşlemler çip listesi (altı kopya; yalnız kaynak, komut, öğe türü ve çip kenar boşluğu farklıydı).</summary>
-    private static string EskiCipListesi(string kaynak, string komut, string tur, string kenar) => """
-        <FlexLayout Wrap="Wrap" AlignItems="Center"
-                    BindableLayout.ItemsSource="{Binding KAYNAK}">
-            <BindableLayout.ItemTemplate>
-                <DataTemplate x:DataType="core:TUR">
-                    <Border Style="{StaticResource Chip}" Margin="KENAR">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer
-                                Command="{Binding BindingContext.KOMUT, Source={x:Reference Sayfa}}"
-                                CommandParameter="{Binding .}" />
-                        </Border.GestureRecognizers>
-                        <Label Text="{Binding Ad}" Style="{StaticResource ChipText}" />
-                    </Border>
-                </DataTemplate>
-            </BindableLayout.ItemTemplate>
-        </FlexLayout>
-        """.Replace("KAYNAK", kaynak).Replace("KOMUT", komut).Replace("TUR", tur).Replace("KENAR", kenar);
-
     [Theory]
-    [InlineData("GiderKanallari", "SecGiderKanalCommand", "SecimCipi", "0,0,8,8")]
-    [InlineData("TipCipleri", "SecTipCommand", "SecimCipi", "0,0,8,8")]
-    [InlineData("KartCipleri", "SecKartCommand", "KartCipi", "0,0,8,8")]
-    [InlineData("GelenKanallari", "SecGelenKanalCommand", "SecimCipi", "0,0,8,8")]
-    [InlineData("FiltreKanallari", "SecFiltreKanalCommand", "SecimCipi", "0,0,8,8")]
-    [InlineData("FiltreZamanlar", "SecFiltreZamanCommand", "SecimCipi", "0,0,8,0")]
-    public void Islemler_cip_gruplari_eski_cip_listeleriyle_ayni(string kaynak, string komut, string tur, string kenar)
+    [InlineData("GiderKanallari", "SecGiderKanalCommand", 8)]
+    [InlineData("TipCipleri", "SecTipCommand", 8)]
+    [InlineData("KartCipleri", "SecKartCommand", 8)]
+    [InlineData("GelenKanallari", "SecGelenKanalCommand", 8)]
+    [InlineData("FiltreKanallari", "SecFiltreKanalCommand", 8)]
+    [InlineData("FiltreZamanlar", "SecFiltreZamanCommand", 0)]
+    public void Islemler_cipleri_klavye_ve_secim_semantigi_olan_dugmelerdir(string kaynak, string komut, int altKenar)
     {
         var yeni = SayfaParcasi("IslemlerPage.xaml", $@"<ctl:CipGrubu BindableLayout\.ItemsSource=""\{{Binding {kaynak}\}}""[^>]*/>");
         Assert.Contains($"SecCommand=\"{{Binding {komut}}}\"", yeni);
-        Esit(EskiCipListesi(kaynak, komut, tur, kenar), yeni, new SahteSayfa());
+        var grup = Assert.IsType<Kasa.App.Controls.CipGrubu>(GorunumOrtami.Yukle(yeni, new SahteSayfa()).Content);
+        Assert.Equal(FlexWrap.Wrap, grup.Wrap);
+        Assert.Equal(FlexAlignItems.Center, grup.AlignItems);
+        Assert.NotEmpty(grup.Children);
+        foreach (var (og, sira) in grup.Children.Select((og, sira) => (og, sira)))
+        {
+            var dugme = Assert.IsType<Button>(og);
+            Assert.NotNull(dugme.Command);
+            Assert.Same(dugme.BindingContext, dugme.CommandParameter);
+            Assert.Equal(new Thickness(0, 0, 8, altKenar), dugme.Margin);
+            Assert.Equal(38, dugme.MinimumHeightRequest);
+            Assert.Equal(-1, dugme.HeightRequest);
+            Assert.Equal(new Thickness(14, 8), dugme.Padding);
+            Assert.Equal(999, dugme.CornerRadius);
+            Assert.Equal(13, dugme.FontSize);
+            Assert.Equal(FontAttributes.None, dugme.FontAttributes);
+            Assert.Equal(1, dugme.BorderWidth);
+            Assert.Equal(dugme.Text, SemanticProperties.GetDescription(dugme));
+            Assert.Equal(sira == 1 ? "Seçili" : "Seçili değil", SemanticProperties.GetHint(dugme));
+            Assert.Equal(sira == 1 ? (Color)Application.Current!.Resources["Green"] : Colors.White, dugme.BackgroundColor);
+            Assert.Equal((Color)Application.Current!.Resources[sira == 1 ? "Green" : "Border"], dugme.BorderColor);
+            Assert.Equal(sira == 1 ? Colors.White : (Color)Application.Current!.Resources["Ink"], dugme.TextColor);
+        }
     }
 
-    /// <summary>Çipe dokunmak eskisi gibi grubun komutunu dokunulan öğeyle çalıştırır.</summary>
+    /// <summary>Çip düğmesi grubun komutunu seçilen öğeyle çalıştırır; modeldeki seçili değişimi ipucuna yansır.</summary>
     [Fact]
-    public void Cipe_dokunmak_komutu_ogeyle_calistirir()
+    public void Cip_dugmesi_komutu_ogeyle_calistirir_ve_secimi_duyurur()
     {
         GorunumOrtami.Kur();
         object? secilen = null;
         var cipler = new ObservableCollection<SecimCipi> { new("MEZAT"), new("TOPTAN") };
         var grup = new Kasa.App.Controls.CipGrubu { SecCommand = new RelayCommand<object>(o => secilen = o) };
         BindableLayout.SetItemsSource(grup, cipler);
-        var dokunma = (TapGestureRecognizer)((Border)grup.Children[1]).GestureRecognizers[0];
-        dokunma.Command!.Execute(dokunma.CommandParameter);
+        var dugme = Assert.IsType<Button>(grup.Children[1]);
+        Assert.Empty(dugme.GestureRecognizers);
+        dugme.Command!.Execute(dugme.CommandParameter);
         Assert.Same(cipler[1], secilen);
+        Assert.Equal("Seçili değil", SemanticProperties.GetHint(dugme));
+        cipler[1].Secili = true;
+        Assert.Equal("Seçili", SemanticProperties.GetHint(dugme));
+        VisualStateManager.GoToState(dugme, "Focused");
+        Assert.Equal(2, dugme.BorderWidth);
+        Assert.Equal((Color)Application.Current!.Resources["Ink"], dugme.BorderColor);
+    }
+
+    [Fact]
+    public void Takip_alaninin_gorsel_etiketi_girisin_erisilebilir_adidir()
+    {
+        GorunumOrtami.Kur();
+        foreach (View giris in new View[] { new Entry(), new Kasa.App.Controls.ParaGirisi(), new DatePicker(), new Picker() })
+        {
+            var alan = Assert.IsType<VerticalStackLayout>(Kasa.App.Views.TakipUi.Alan("Tutar", giris));
+            Assert.Equal("Tutar", Assert.IsType<Label>(alan.Children[0]).Text);
+            Assert.Same(giris, alan.Children[1]);
+            Assert.Equal("Tutar", SemanticProperties.GetDescription(giris));
+        }
+        var onay = Assert.IsType<Grid>(Kasa.App.Views.TakipUi.Onay("Şablon aktif", "Aktif"));
+        Assert.Equal("Şablon aktif", SemanticProperties.GetDescription(Assert.IsType<CheckBox>(onay.Children[0])));
     }
 
     // ---------------------------------------------------------------- BosDurum

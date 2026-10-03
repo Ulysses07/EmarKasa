@@ -269,6 +269,95 @@ public class EkstreMetinOkuyucuTests
         Assert.Equal("USD", foreign.ParaBirimi);
     }
     [Fact]
+    public void Ayni_sayfada_tl_basligi_ve_usd_bolumu_kodsuz_usd_satirini_tl_saymaz()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 MARKET -10,00\nUSD İşlemleri\n02.09.2026 AMAZON -20,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "TRY", "Belirsiz" }, rows.Select(r => r.ParaBirimi));
+        Assert.Contains(rows[1].Uyarilar, w => w.Contains("Para birimi okunamadı"));
+    }
+    [Fact]
+    public void Sayfa_ortasindaki_usd_bolumu_onceki_kodsuz_satiri_usd_saymaz()
+    {
+        var text = "01.09.2026 MARKET -10,00\nUSD İşlemleri\n02.09.2026 AMAZON -20,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "Belirsiz", "USD" }, rows.Select(r => r.ParaBirimi));
+    }
+    [Fact]
+    public void Tarih_aralikli_usd_bolum_basligi_satir_sayilmaz_ve_sonraki_hareketi_tl_yapmaz()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 MARKET -10,00\nUSD İşlemleri 01.09.2026 - 30.09.2026\n02.09.2026 AMAZON -20,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(new[] { "TRY", "Belirsiz" }, rows.Select(r => r.ParaBirimi));
+    }
+    [Fact]
+    public void Hareket_aciklamasindaki_usd_islemleri_bolum_basligi_sayilmaz()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 USD İşlemleri -20,00\n02.09.2026 KIRA -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "Belirsiz", "TRY" }, rows.Select(r => r.ParaBirimi));
+    }
+    [Fact]
+    public void Tarihli_usd_islemi_tutari_sonraki_satirdaysa_kaybolmaz()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 USD İşlemleri\n    -20,00\n02.09.2026 KIRA -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(new DateOnly(2026, 9, 1), rows[0].Tarih);
+        Assert.Equal(20m, rows[0].Tutar);
+        Assert.Equal("Belirsiz", rows[0].ParaBirimi);
+    }
+    [Fact]
+    public void Tarih_aralikli_usd_bolum_toplami_hareket_sayilmaz()
+    {
+        var text = "Para Birimi: TL\nUSD İşlemleri 01.09.2026 - 30.09.2026 Toplam 1.000,00\n02.09.2026 AMAZON -20,00";
+        var row = Assert.Single(EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar);
+        Assert.Equal(new DateOnly(2026, 9, 2), row.Tarih);
+        Assert.Equal("Belirsiz", row.ParaBirimi);
+    }
+    [Fact]
+    public void Kisa_tarihli_hareket_korunur_kisa_tarih_araligi_hareket_sayilmaz()
+    {
+        var text = "Para Birimi: TL\n01.09 USD İşlemleri\n    -20,00\n01.09 - 30.09 USD İşlemleri\n02.09.2026 KIRA -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(20m, rows[0].Tutar);
+        Assert.Equal("Belirsiz", rows[0].ParaBirimi);
+        Assert.Equal(new DateOnly(2026, 9, 2), rows[1].Tarih);
+    }
+    [Fact]
+    public void Kisa_tarih_araligi_doviz_bolumunden_sonraki_hareketi_tl_saymaz()
+    {
+        var sectionFirst = Assert.Single(EkstreMetinOkuyucu.Oku(
+            "Para Birimi: TL\nUSD İşlemleri 01.09 - 30.09\n02.09.2026 AMAZON -20,00", "Banka", "Akbank").Satirlar);
+        Assert.Equal("Belirsiz", sectionFirst.ParaBirimi);
+    }
+    [Fact]
+    public void Doviz_bolumunden_sonraki_tl_bolumu_tl_hareketine_geri_doner()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 MARKET -10,00\nUSD Hareketleri\n02.09.2026 AMAZON -20,00\nTL İşlemleri\n03.09.2026 KIRA -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "TRY", "Belirsiz", "TRY" }, rows.Select(r => r.ParaBirimi));
+    }
+    [Fact]
+    public void Karisik_bolumlu_sayfa_basliksiz_sonraki_sayfaya_tl_varsayimi_tasimaz()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 MARKET -10,00\nUSD İşlemleri\n02.09.2026 AMAZON -20,00"
+            + "\f03.09.2026 HIZMET -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "TRY", "Belirsiz", "Belirsiz" }, rows.Select(r => r.ParaBirimi));
+    }
+    [Fact]
+    public void Eksik_tutarli_onceki_satir_doviz_bolum_basligini_yutmaz()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 MARKET\nUSD İşlemleri\n02.09.2026 AMAZON -20,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(2, rows.Count);
+        Assert.Null(rows[0].Tutar);
+        Assert.Equal("Belirsiz", rows[1].ParaBirimi);
+    }
+    [Fact]
     public void Ayri_kolondaki_tl_kodu_gereksiz_belirsizlik_uretmez()
     {
         var rows = EkstreMetinOkuyucu.Oku("01.09.2026  MARKET          412,35        TL\n02.09.2026  KIRA          1.000,00        TL", "Kart", "QNB").Satirlar;

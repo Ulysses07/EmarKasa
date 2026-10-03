@@ -109,7 +109,8 @@ public sealed record YedekBelgesi(string Ozet, long Boyut);
 public sealed record YedekBelgeListesi(IReadOnlyList<YedekBelgesi> Belgeler, IReadOnlyList<string> Eksik);
 
 public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, PushKimligi push, ILogger<YedekServisi> logger,
-    TimeProvider saat, YedekDosyaSilici? silici = null, BelgeDeposu? depo = null, IDiskAlani? disk = null)
+    TimeProvider saat, YedekDosyaSilici? silici = null, BelgeDeposu? depo = null, IDiskAlani? disk = null,
+    GuvenlikYedekSeriKilidi? seriKilit = null)
 {
     /// <summary>Belge deposu biçimli yedeklerin manifest sürümü: kasa.db belge içeriği taşımaz; belgeler.json içerik özetlerini listeler,
     /// içerikler yedek aynasında (<see cref="AynaDizini"/>) ya da elle indirilen yedekte belgeler/&lt;özet&gt; girdilerindedir.</summary>
@@ -121,6 +122,7 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     private const long Mb = 1024L * 1024;
 
     private readonly SemaphoreSlim kilit = new(1, 1);
+    private readonly GuvenlikYedekSeriKilidi guvenlikSeriKilidi = seriKilit ?? new();
     private readonly YedekDosyaSilici sil = silici ?? File.Delete;
     // Tür başına son rotasyonun uyarısı: bir türün başarılı rotasyonu diğer türün sorununu gizlemez.
     private readonly ConcurrentDictionary<YedekTuru, string> rotasyonUyarilari = new();
@@ -269,24 +271,31 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
             Directory.CreateDirectory(Dizin);
             if (!OperatingSystem.IsWindows())
                 File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            var now = saat.GetUtcNow();
-            var suffix = Guid.NewGuid().ToString("N");
-            temporary = Path.Combine(Dizin, $".{suffix}.db");
-            var path = Path.Combine(Dizin, YedekSaklama.DosyaAdi(tur, now, suffix[..8]));
-            zipTemporary = path + ".part";
-            var source = (SqliteConnection)db.Database.GetDbConnection();
-            bool close = source.State != System.Data.ConnectionState.Open;
-            if (close)
-                await source.OpenAsync(ct);
-            try
+            DateTimeOffset now;
+            string path;
+            // Günlük append + kimlik DB commit'iyle aynı seri kilit: kesim zamanı alınırken ve anlık görüntü
+            // kopyalanırken araya yarım kalmış bir güvenlik kararı giremez.
+            using (var guvenlikKilidi = await guvenlikSeriKilidi.AlAsync(ct))
             {
-                DiskDenetimi(source);
-                // Kopya, kopyalamanın başladığı anı (manifest 'olusturuldu' ile aynı) yedek anı olarak taşır: geri yüklemede güvenlik
-                // günlüğünün bu andan sonraki olayları yeniden uygulanır. Başlangıç anı güvenli yöndedir: kopya sürerken kaydedilen bir
-                // değişiklik yedekte olsa da yeniden uygulanır (fazladan sıkılaştırma), yedekte olmayan hiçbir değişiklik atlanmaz.
-                TekDosyaKopyala(source, temporary, ct, now);
+                now = saat.GetUtcNow();
+                var suffix = Guid.NewGuid().ToString("N");
+                temporary = Path.Combine(Dizin, $".{suffix}.db");
+                path = Path.Combine(Dizin, YedekSaklama.DosyaAdi(tur, now, suffix[..8]));
+                zipTemporary = path + ".part";
+                var source = (SqliteConnection)db.Database.GetDbConnection();
+                bool close = source.State != System.Data.ConnectionState.Open;
+                if (close)
+                    await source.OpenAsync(ct);
+                try
+                {
+                    DiskDenetimi(source);
+                    // Kopya, kopyalamanın başladığı anı (manifest 'olusturuldu' ile aynı) yedek anı olarak taşır: geri yüklemede güvenlik
+                    // günlüğünün bu andan sonraki olayları yeniden uygulanır. Başlangıç anı güvenli yöndedir: kopya sürerken kaydedilen bir
+                    // değişiklik yedekte olsa da yeniden uygulanır (fazladan sıkılaştırma), yedekte olmayan hiçbir değişiklik atlanmaz.
+                    TekDosyaKopyala(source, temporary, ct, now);
+                }
+                finally { if (close) source.Close(); }
             }
-            finally { if (close) source.Close(); }
             // Yedek, özgün bağlantıdan bağımsız açılıp bütünlük ve ilişkiler sınanır.
             Dogrula(temporary);
             var belgeler = BelgeListesiOku(temporary) is { } ozetler ? Yansit(ozetler, ct) : null;

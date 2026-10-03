@@ -383,7 +383,7 @@ function sekmeCiz() {
   return h('nav', { class: ios ? 'sekme-ios' : 'sekme-and', 'aria-label': 'Ana menü' }, dugmeler);
 }
 
-async function ciz() {
+async function ciz(korunacakKaydirma = 0) {
   const no = ++durum.ekranNo;
   const ust = suAnkiEkran();
   const kokMu = durum.yigin.length <= 1;
@@ -414,6 +414,7 @@ async function ciz() {
     icerik.replaceChildren(...[dugumler].flat(Infinity).filter(Boolean));
     // Ekran yenilenince eski odak silinir; ekran okuyucu ve klavye yeni içerikten başlasın.
     if (!$('sayfa').childElementCount) icerik.focus({ preventScroll: true });
+    if (korunacakKaydirma > 0) window.scrollTo(0, korunacakKaydirma);
   } catch (hata) {
     if (!guncelMi() || !durum.rol) return;
     icerik.replaceChildren(
@@ -1269,8 +1270,9 @@ EKRANLAR.islemler = async ekran => {
         type: 'button',
         class: 'dugme kucuk daha',
         onclick: () => {
+          const kaydirma = window.scrollY;
           durum.islemBaslangic = ayKaydir(aralik.bas.slice(0, 7), -1) + '-01';
-          ciz();
+          ciz(kaydirma);
         },
       },
       'Daha eski işlemleri yükle'
@@ -1685,6 +1687,7 @@ function sayfaAc(icerik, etiketMetni) {
   history.pushState({ ...(history.state || {}), sayfa: true }, '');
   const kapat = (geriAl = true) => {
     if (acikSayfa?.kapat !== kapat) return;
+    acikSayfa.kapanirken?.();
     acikSayfa = null;
     alan.replaceChildren();
     kok.inert = false;
@@ -1725,6 +1728,15 @@ async function hizliIslemAc() {
   const hz = { tutar: '', cari: '', kanal: null, tip: 'Cari', gun: 'bugun', not: '', kart: '' };
   let benzerOnay = null;
   let kaydediliyor = false;
+  let gonderimBasladi = false;
+  const kapanirken = () => {
+    if (!kaydediliyor) return;
+    tost(
+      gonderimBasladi
+        ? 'Gider kaydı sürüyor. Sonucu bekleyin; aynı ödemeyi yeniden girmeyin.'
+        : 'Form kapatıldı; kayıt kontrolü bitse de gider gönderilmeyecek.'
+    );
+  };
   sayfaAc(kapat => {
     const hata = h('div', { class: 'hata-yazi', role: 'alert', style: { textAlign: 'center' }, hidden: true });
     const kurtarma = h(
@@ -2008,16 +2020,22 @@ async function hizliIslemAc() {
           }
         }
         const istekId = giderIstekId();
+        gonderimBasladi = true;
         await api('/api/islemler', { method: 'POST', body: { ...govde, istekId } });
         giderIstekTemizle(istekId);
+        kaydediliyor = false;
         kapat();
         tost(`İşlem eklendi · ${tl(govde.tutarTl)}`);
         durum.islemOnbellek = [];
         ciz();
       } catch (e) {
-        if (e.status === 409 && e.code === 'ISTEK_KIMLIGI_CAKISMASI') kurtarma.hidden = false;
-        hata.textContent = e.message;
-        hata.hidden = false;
+        if (acikSayfa?.kapat === kapat) {
+          if (e.status === 409 && e.code === 'ISTEK_KIMLIGI_CAKISMASI') kurtarma.hidden = false;
+          hata.textContent = e.message;
+          hata.hidden = false;
+        } else if (gonderimBasladi) {
+          tost(`Gider kaydının sonucu doğrulanamadı. İşlemlerden kontrol edin. ${e.message}`, true);
+        }
       } finally {
         kaydediliyor = false;
         kaydetDugme.disabled = false;
@@ -2056,6 +2074,7 @@ async function hizliIslemAc() {
       )
     );
   }, 'Hızlı işlem');
+  acikSayfa.kapanirken = kapanirken;
 }
 
 function kurtarmaAc() {

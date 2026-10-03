@@ -182,6 +182,8 @@ function strayClose() {
 }
 function closeModal(explicit) {
   if (explicit === undefined && strayClose()) return;
+  if (explicit && explicit !== true && busyForm && isOpen(busyForm))
+    toast('Kayıt isteği sürüyor; işlem tamamlanabilir. Sonucu bildirimde göreceksiniz.');
   busyForm = null;
   if (modal.open) modal.close();
   if (modalCleanup) modalCleanup();
@@ -208,7 +210,7 @@ $('#modal-close').addEventListener('click', closeModal);
 // Vazgeç (ya da ×) kaydı durdurmaz; kapatılan pencerenin hatası bildirim olarak çıkar, başarılı kayıt ekrana yansır ve o sırada
 // açılmış başka pencereyi kapatmaz.
 const BUSY_CLOSE_MESSAGE =
-  'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden kapatmak için Vazgeç’e basın: kayıt durmaz, tamamlanabilir; hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır.';
+  'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden çıkmak için Kapat (kayıt sürüyor) düğmesine basın: kayıt durmaz, tamamlanabilir; sonuç bildirimde gösterilir.';
 modal.addEventListener('cancel', event => {
   if (event.target !== modal) return;
   if (busyForm && isOpen(busyForm) && event.cancelable) {
@@ -221,10 +223,12 @@ modal.addEventListener('cancel', event => {
 function formDialog(title, content, submitLabel, save, { wide = false, danger = false } = {}) {
   const errors = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: `button ${danger ? 'danger' : 'primary'}` }, submitLabel);
-  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, button('Vazgeç', closeModal), submit));
+  const close = button('Vazgeç', closeModal);
+  const form = h('form', { class: 'stack' }, content, errors, h('div', { class: 'modal-actions' }, close, submit));
   // Meşgul işareti yalnız bu form açıkken konur; kayıt başka pencere açtıysa (önizleme → onay) closeModal onu zaten kaldırmıştır.
   const markBusy = busy => {
     if (busy ? isOpen(form) : busyForm === form) busyForm = busy ? form : null;
+    close.textContent = busy ? 'Kapat (kayıt sürüyor)' : 'Vazgeç';
   };
   // Sunucunun alan hataları (ValidationProblem) ilgili denetimin altında da gösterilir; sonraki denemede silinir.
   let marked = [];

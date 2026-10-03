@@ -2548,7 +2548,7 @@ test('unknown fee allocation and cancelled asynchronous preview cannot create a 
       resolve = done;
     });
   await submitDialog(nodes);
-  await clickDialog(nodes, 'Vazgeç');
+  await clickDialog(nodes, 'Kapat (kayıt sürüyor)');
   resolve({ tutar: 10, devredenBorc: 100, dagilimlar: [], dagilimOzeti: 'late' });
   await settle();
   assert.equal(nodes.get('#modal').open, false);
@@ -3679,7 +3679,8 @@ const pendingExpense = async () => {
     },
   };
 };
-const cancelButton = nodes => nodes.get('#modal-content').find(node => node.tag === 'button' && node.textContent === 'Vazgeç');
+const cancelButton = nodes =>
+  nodes.get('#modal-content').find(node => node.tag === 'button' && /^(Vazgeç|Kapat \(kayıt sürüyor\))$/.test(node.textContent));
 test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatası kapalı pencerede kalmaz, bildirim olarak görünür', async () => {
   const { nodes, calls, cancel, finish } = await pendingExpense();
   const errorBox = nodes.get('#modal-content').find(node => node.attributes.role === 'alert');
@@ -3694,16 +3695,18 @@ test('iptal edilemez ESC veya geri hareketiyle kapanan diyalogdaki kayıt hatas�
   assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
   assert.ok(!nodes.get('#modal-close').disabled, 'Sonraki pencere kilitsiz açılır.');
 });
-test('kayıt sürerken ESC veya geri hareketi engellenir, Vazgeç ve × açık kalır; yanıt gelince hata açık pencerede görünür', async () => {
+test('kayıt sürerken ESC veya geri hareketi engellenir, kapatma düğmesi süren kaydı açıkça belirtir', async () => {
   const { nodes, cancel, finish } = await pendingExpense();
-  // iOS'ta (ana ekran PWA dahil) ESC / geri hareketi yok ve isteğin zaman aşımı yok: pencereden çıkış yolu Vazgeç ve × açık kalır.
-  assert.ok(!cancelButton(nodes).disabled, 'Vazgeç kayıt sürerken de kullanılabilir.');
+  // iOS'ta (ana ekran PWA dahil) ESC / geri hareketi yok ve isteğin zaman aşımı yok: kapatma düğmesi ve × açık kalır.
+  assert.equal(cancelButton(nodes).textContent, 'Kapat (kayıt sürüyor)');
+  assert.ok(!cancelButton(nodes).disabled, 'Kapatma düğmesi kayıt sürerken de kullanılabilir.');
   assert.ok(!nodes.get('#modal-close').disabled, '× kayıt sürerken de kullanılabilir.');
   assert.equal(cancel(true), true, 'İptal edilebilir cancel olayı engellenir.');
   assert.equal(nodes.get('#modal').open, true);
   assert.ok(formField(nodes, 'cari'), 'Form korunur.');
-  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Vazgeç/);
+  assert.match(nodes.get('#notifications').textContent, /Kayıt sürüyor.*Kapat \(kayıt sürüyor\)/);
   await finish({ $status: 409, hata: 'Bu ay kilitli.' });
+  assert.equal(cancelButton(nodes).textContent, 'Vazgeç');
   assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
   assert.doesNotMatch(nodes.get('#alerts')?.textContent ?? '', /Bu ay kilitli/);
   assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
@@ -3717,9 +3720,9 @@ test('diyalog cancel olayı olmadan kapansa bile geç gelen kayıt hatası bildi
   assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Kayıt değişti\./);
   assert.ok(!nodes.get('#modal-close').disabled);
 });
-test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hatası bildirim olarak görünür', async () => {
+test('kayıt sürerken kapatılan pencerede istek durumuyla geç gelen hata bildirilir', async () => {
   for (const [name, closer] of [
-    ['Vazgeç', nodes => cancelButton(nodes)],
+    ['Kapat', nodes => cancelButton(nodes)],
     ['×', nodes => nodes.get('#modal-close')],
   ]) {
     const { nodes, calls, finish } = await pendingExpense();
@@ -3728,6 +3731,7 @@ test('kayıt sürerken Vazgeç ya da × ile kapatılan pencerenin geç gelen hat
     close.listeners.click({ currentTarget: close });
     assert.equal(nodes.get('#modal').open, false, `${name} pencereyi kapatır.`);
     assert.equal(nodes.get('#modal-content').children.length, 0);
+    assert.match(nodes.get('#notifications').textContent, /Kayıt isteği sürüyor.*Sonucu bildirimde göreceksiniz/);
     await finish({ $status: 409, hata: 'Bu ay kilitli.' });
     assert.match(nodes.get('#alerts').textContent, /Gider kaydet: Bu ay kilitli\./, `${name} sonrası hata bildirimle görünür.`);
     assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 1);
@@ -4578,9 +4582,8 @@ test('kayıt sürerken engellenen ESC bildirimi gerçek davranışı anlatır', 
   const text = nodes.get('#notifications').textContent;
   assert.match(text, /yanıt gelene kadar pencere açık kalır/);
   assert.match(text, /hata olursa burada görünür/);
-  assert.match(text, /Vazgeç’e basın: kayıt durmaz/);
-  assert.match(text, /hata olursa bildirim olarak gösterilir, başarılı kayıt ekrana yansır/);
-  assert.doesNotMatch(text, /sonucu bildirim olarak görürsünüz/);
+  assert.match(text, /Kapat \(kayıt sürüyor\) düğmesine basın: kayıt durmaz/);
+  assert.match(text, /sonuç bildirimde gösterilir/);
 });
 test('işaretli tutar etiketi işaret seçicisine değil tutar alanına bağlıdır; kimlikler tekildir', async () => {
   const { app, nodes } = await openApp(false);

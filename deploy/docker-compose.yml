@@ -11,6 +11,8 @@ services:
     image: kasa:latest
     container_name: kasa-app
     restart: unless-stopped
+    # Bu eski şablonda kalıcı /yedekler yoktur; ayrıcalıksız kullanıcı yalnız backup ek dosyasıyla açılır.
+    user: "0:0"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"

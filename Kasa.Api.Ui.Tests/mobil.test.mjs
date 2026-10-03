@@ -402,3 +402,166 @@ test('mobil benzer kayıt sorgusu sürerken gider değişirse eski tutar kaydedi
   assert.equal(writes, 0);
   assert.match(root.find(n => n.props.role === 'alert').textContent, /Alanlar benzer kayıt kontrolü sırasında değişti/);
 });
+
+test('mobil hızlı gider kapatılmışken POST sonucu görünür kalır ve istek kimliği yalnız başarıda temizlenir', async () => {
+  const kaynakKod = await kaynak('m/app.js');
+  const bas = kaynakKod.indexOf('async function hizliIslemAc()');
+  const son = kaynakKod.indexOf('function kurtarmaAc()', bas);
+  assert.ok(bas >= 0 && son > bas);
+  const h = (tag, props = {}, ...items) => {
+    const node = {
+      tag,
+      props,
+      children: items.flat(Infinity).filter(x => x != null),
+      listeners: {},
+      value: props.value ?? '',
+      hidden: props.hidden ?? false,
+      disabled: false,
+      textContent: items
+        .flat(Infinity)
+        .filter(x => typeof x === 'string')
+        .join(''),
+      addEventListener(name, fn) {
+        this.listeners[name] = fn;
+      },
+      replaceChildren(...children) {
+        this.children = children.flat(Infinity);
+      },
+      focus() {},
+      find(predicate) {
+        return predicate(this)
+          ? this
+          : this.children
+              .filter(x => x && typeof x === 'object')
+              .map(x => x.find(predicate))
+              .find(Boolean);
+      },
+      querySelector(selector) {
+        return this.find(x => x.tag === selector);
+      },
+    };
+    for (const [key, fn] of Object.entries(props))
+      if (key.startsWith('on') && typeof fn === 'function') node.listeners[key.slice(2).toLowerCase()] = fn;
+    return node;
+  };
+  let root, post;
+  let temizleme = 0,
+    yenileme = 0;
+  const bildirimler = [];
+  const istekler = [];
+  const context = {
+    h,
+    acikSayfa: null,
+    editorMu: () => true,
+    ORTAK: 'Ortak',
+    durum: { islemOnbellek: [{ cari: 'Eski', tarih: '2026-09-23' }] },
+    api: (path, options) => {
+      if (path === '/api/kanallar') return [{ ad: 'MEZAT', aktif: true }];
+      if (path === '/api/kredikartlari' || path === '/api/islemler/benzerlik') return [];
+      if (path === '/api/islemler' && options.method === 'POST') {
+        istekler.push(options.body);
+        return new Promise((resolve, reject) => {
+          post = { resolve, reject };
+        });
+      }
+      throw new Error(`Beklenmeyen istek: ${path}`);
+    },
+    isoGun: () => '2026-09-23',
+    gunEkle: date => date,
+    kisaTarih: date => date,
+    kanalRengi: () => ({ z: '#fff', r: '#000' }),
+    giderKartlari: () => [],
+    tipAdi: type => type,
+    tutarCoz: value => Number(value) * 100,
+    tl: value => String(value),
+    giderIstekId: () => '11111111-1111-4111-8111-111111111111',
+    giderIstekTemizle: () => {
+      temizleme++;
+    },
+    tost: (mesaj, hata) => bildirimler.push({ mesaj, hata: Boolean(hata) }),
+    ciz: () => {
+      yenileme++;
+    },
+  };
+  context.sayfaAc = (factory, _title) => {
+    const kapat = () => {
+      if (context.acikSayfa?.kapat !== kapat) return;
+      context.acikSayfa.kapanirken?.();
+      context.acikSayfa = null;
+    };
+    context.acikSayfa = { kapat };
+    root = factory(kapat);
+  };
+  runInNewContext(kaynakKod.slice(bas, son) + '\nthis.hizliIslemAcTest = hizliIslemAc;', context);
+
+  const gonder = async () => {
+    await context.hizliIslemAcTest();
+    const tutar = root.find(n => n.tag === 'input' && n.props['aria-label'] === 'Tutar');
+    tutar.value = '75';
+    tutar.listeners.input();
+    const cari = root.find(n => n.tag === 'input' && n.props.placeholder === 'Firma, kişi ya da ödeme yeri');
+    cari.value = 'Kargo';
+    cari.listeners.input();
+    root.find(n => n.tag === 'button' && n.textContent === 'MEZAT').listeners.click();
+    const sonuc = root.find(n => n.tag === 'button' && n.textContent === 'Kaydet' && n.props.class === 'dugme ana').listeners.click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(post, 'POST isteği başladı');
+    context.acikSayfa.kapat();
+    assert.match(bildirimler.at(-1).mesaj, /Gider kaydı sürüyor/);
+    return { sonuc };
+  };
+
+  const { sonuc: ilk } = await gonder();
+  post.reject(new Error('Bağlantı kesildi'));
+  await ilk;
+  assert.match(bildirimler.at(-1).mesaj, /sonucu doğrulanamadı.*İşlemlerden kontrol edin/);
+  assert.equal(bildirimler.at(-1).hata, true);
+  assert.equal(temizleme, 0, 'Yanıtı alınamayan isteğin kimliği korunur');
+  assert.equal(yenileme, 0);
+
+  post = null;
+  const { sonuc: ikinci } = await gonder();
+  assert.equal(istekler[1].istekId, istekler[0].istekId, 'Tekrar aynı istek kimliğini kullanır');
+  post.resolve({});
+  await ikinci;
+  assert.match(bildirimler.at(-1).mesaj, /İşlem eklendi/);
+  assert.equal(temizleme, 1, 'Kimlik yalnız kesin başarıda temizlenir');
+  assert.equal(yenileme, 1);
+});
+
+test('mobil alt sayfa kapanışı formun kayıt durumu bildirimini tek kez çalıştırır', async () => {
+  const kaynakKod = await kaynak('m/app.js');
+  const bas = kaynakKod.indexOf('function sayfaAc(');
+  const son = kaynakKod.indexOf('async function hizliIslemAc()', bas);
+  assert.ok(bas >= 0 && son > bas);
+  let kapanislar = 0;
+  const context = {
+    acikSayfa: null,
+    sayfaKapatAnlik: () => {},
+    $: () => ({ replaceChildren() {} }),
+    document: { activeElement: null, addEventListener() {}, removeEventListener() {} },
+    history: {
+      state: null,
+      pushState(state) {
+        this.state = state;
+      },
+      back() {
+        this.state = null;
+      },
+    },
+    kok: { inert: false },
+    h: () => ({ querySelector: () => null }),
+    setTimeout: () => 0,
+  };
+  runInNewContext(kaynakKod.slice(bas, son) + '\nthis.sayfaAcTest = sayfaAc;', context);
+  context.sayfaAcTest(() => null, 'Hızlı işlem');
+  const acilan = context.acikSayfa;
+  acilan.kapanirken = () => {
+    kapanislar++;
+  };
+  acilan.kapat();
+  acilan.kapat();
+  assert.equal(kapanislar, 1);
+  assert.equal(context.acikSayfa, null);
+  assert.equal(context.kok.inert, false);
+});
