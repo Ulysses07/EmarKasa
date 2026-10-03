@@ -53,4 +53,24 @@ public partial class KaydedilmemisDegisiklikTests
         Assert.Equal([KaydedilmemisDegisiklik.Ileti, KaydedilmemisDegisiklik.Ileti], sorulan);
         Assert.Equal("Kaydedilmemiş değişiklik var. Bırakılsın mı?", KaydedilmemisDegisiklik.Ileti);
     }
+
+    /// <summary>K-7: ondalık kuyruk sıfırları (farklı ölçek, aynı değer) fark sayılmaz; 150.00m ile 150m aynıdır. Karşılaştırma
+    /// doğrudan değişken üzerinden yapılır (CommunityToolkit'in [ObservableProperty] eşitlik koruması bu senaryoyu gizler: aynı
+    /// değerde atama alanı değiştirmez; gerçek form alanları DTO'dan veya metin girişinden doğrudan farklı ölçekle gelebilir).</summary>
+    [Fact]
+    public void Ondalik_kuyruk_sifirlari_fark_sayilmaz()
+    {
+        var tutar = 150m;
+        var degisiklik = new KaydedilmemisDegisiklik(() => new { Tutar = tutar });
+        degisiklik.Ac();
+
+        tutar = 150.00m;
+        Assert.False(degisiklik.Var);
+
+        tutar = 150.0000000m;
+        Assert.False(degisiklik.Var);
+
+        tutar = 150.01m;
+        Assert.True(degisiklik.Var);
+    }
 }

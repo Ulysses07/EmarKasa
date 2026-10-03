@@ -7,7 +7,16 @@ namespace Kasa.App.Core;
 public partial class HaftalikViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
-    public HaftalikViewModel(IKasaApi api, BaglantiDurumu? baglanti = null) : base(baglanti) => _api = api;
+    public HaftalikViewModel(IKasaApi api, BaglantiDurumu? baglanti = null, AuthViewModel? auth = null) : base(baglanti, auth) => _api = api;
+
+    /// <summary>K-4: oturum değişince dönem listesi ve veri sağlığı uyarısı da temizlenir (başka kullanıcının haftalık verisi
+    /// görünmesin).</summary>
+    protected override void SonVeriyiSifirla()
+    {
+        base.SonVeriyiSifirla();
+        Donemler.Clear();
+        VeriSagligiUyarisi = null;
+    }
 
     public ObservableCollection<HaftalikSatir> Donemler { get; } = new();
     /// <summary>Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt). Yalnız son dönemde gelir ama

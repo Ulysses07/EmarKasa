@@ -21,6 +21,7 @@ public class BaglantiDurumuTests
         var bildirimler = new List<string>();
         durum.PropertyChanged += (_, e) => bildirimler.Add(e.PropertyName!);
         durum.BaglantiGeldi += (_, _) => bildirimler.Add("geldi");
+        durum.BaglantiKoptu += (_, _) => bildirimler.Add("koptu");
         return (durum, istemci, bildirimler);
     }
 
@@ -34,7 +35,7 @@ public class BaglantiDurumuTests
         istemci.Kop();
 
         Assert.True(durum.Kopuk);
-        Assert.Equal(["Kopuk"], bildirimler);
+        Assert.Equal(["Kopuk", "koptu"], bildirimler);
         Assert.Equal("Sunucuya ulaşılamıyor", durum.SeritMetni);
     }
 
@@ -50,7 +51,7 @@ public class BaglantiDurumuTests
         istemci.Ulas();
 
         Assert.False(durum.Kopuk);
-        Assert.Equal(["Kopuk", "SonBaglanti", "SeritMetni", "Kopuk", "geldi"], bildirimler);
+        Assert.Equal(["Kopuk", "koptu", "SonBaglanti", "SeritMetni", "Kopuk", "geldi"], bildirimler);
         Assert.Equal(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero), durum.SonBaglanti);
 
         istemci.Kop();
@@ -81,5 +82,35 @@ public class BaglantiDurumuTests
         durum.Ulasildi();
         await vm.YukleAsync();
         Assert.Contains("Sunucuya ulaşılamadı", vm.Hata);
+    }
+
+    /// <summary>K-1: geçiş atomiktir (Interlocked.Exchange); çok sayıda eşzamanlı Ulasilamadi çağrısı "koptu" olayını tam bir
+    /// kez tetikler.</summary>
+    [Fact]
+    public void Esanli_cok_sayida_Ulasilamadi_cagrisi_koptu_olayini_bir_kez_tetikler()
+    {
+        var durum = new BaglantiDurumu();
+        var koptuSayisi = 0;
+        durum.BaglantiKoptu += (_, _) => Interlocked.Increment(ref koptuSayisi);
+
+        Parallel.For(0, 100, _ => durum.Ulasilamadi());
+
+        Assert.Equal(1, koptuSayisi);
+        Assert.True(durum.Kopuk);
+    }
+
+    /// <summary>K-1: çok sayıda eşzamanlı Ulasildi çağrısı (kopuktan dönüş) "geldi" olayını tam bir kez tetikler.</summary>
+    [Fact]
+    public void Esanli_cok_sayida_Ulasildi_cagrisi_geldi_olayini_bir_kez_tetikler()
+    {
+        var durum = new BaglantiDurumu();
+        durum.Ulasilamadi();
+        var geldiSayisi = 0;
+        durum.BaglantiGeldi += (_, _) => Interlocked.Increment(ref geldiSayisi);
+
+        Parallel.For(0, 100, _ => durum.Ulasildi());
+
+        Assert.Equal(1, geldiSayisi);
+        Assert.False(durum.Kopuk);
     }
 }

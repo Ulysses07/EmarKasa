@@ -5,15 +5,19 @@ namespace Kasa.App.Core;
 
 /// <summary>
 /// Uygulamanın tek bağlantı durumu (docs/specs/2026-10-02-masaustu-form-hatalari-ve-baglanti.md §3). API istemcisinin ağ hatası ve
-/// süre sınırı durumu kopuk, alınan her yanıt bağlı yapar (<see cref="IBaglantiBildirimleri"/>). <see cref="Kopuk"/> bildirim
-/// geldiği an değişir (okuma hatası sayfaya yazılırken doğru okunur); değişiklik bildirimleri ve <see cref="BaglantiGeldi"/>
-/// modelin kurulduğu UI bağlamında gelir. Kabuk şeridi (BaglantiSeridi) buna bağlanır.
+/// süre sınırı durumu kopuk, alınan her yanıt bağlı yapar (<see cref="IBaglantiBildirimleri"/>). Kopuk/bağlı geçişi
+/// <see cref="Interlocked.Exchange(ref int, int)"/> ile atomiktir: eşzamanlı çağrılarda <see cref="BaglantiGeldi"/> ve
+/// <see cref="BaglantiKoptu"/> geçiş başına tam bir kez tetiklenir (K-1). <see cref="Kopuk"/> bildirim geldiği an değişir (okuma
+/// hatası sayfaya yazılırken doğru okunur); geçiş olayları (<see cref="BaglantiGeldi"/>, <see cref="BaglantiKoptu"/>) her zaman
+/// yakalanan UI bağlamına <c>Post</c> ile gönderilir, isteğin kendi çağrı yığınından satır içi tetiklenmez (K-3); değişiklik
+/// bildirimleri (<see cref="PropertyChanged"/>) modelin kurulduğu UI bağlamında (gerekirse Post ile) gelir. Kabuk şeridi
+/// (BaglantiSeridi) buna bağlanır.
 /// </summary>
 public sealed class BaglantiDurumu : INotifyPropertyChanged
 {
     private readonly TimeProvider _zaman;
     private readonly SynchronizationContext? _ui;
-    private volatile bool _kopuk;
+    private int _kopukMu;   // 0 = bağlı, 1 = kopuk; Interlocked.Exchange ile atomik okunur/yazılır (K-1).
     private DateTimeOffset? _sonBaglanti;
 
     /// <param name="bildirimler">API istemcisi; verilmezse durum yalnız <see cref="Ulasildi"/> / <see cref="Ulasilamadi"/> ile değişir.</param>
@@ -30,11 +34,14 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Bağlantı kopuktan bağlıya döndü: açık sayfa bir kez yenilenir (kabuk dinler).</summary>
+    /// <summary>Bağlantı kopuktan bağlıya döndü: açık sayfa bir kez yenilenir (kabuk dinler). Her zaman Post ile gelir (K-3).</summary>
     public event EventHandler? BaglantiGeldi;
 
+    /// <summary>Bağlantı bağlıdan kopuğa döndü (kabuk şeridi çıkar). Her zaman Post ile gelir (K-3).</summary>
+    public event EventHandler? BaglantiKoptu;
+
     /// <summary>Son istek sunucuya ulaşamadı (ağ hatası ya da süre sınırı).</summary>
-    public bool Kopuk => _kopuk;
+    public bool Kopuk => Volatile.Read(ref _kopukMu) != 0;
 
     /// <summary>Sunucudan son yanıtın alındığı an (yerel saat); hiç yanıt yoksa null.</summary>
     public DateTimeOffset? SonBaglanti => _sonBaglanti;
@@ -44,26 +51,26 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged
 
     public void Ulasildi()
     {
-        var oncedenKopuk = _kopuk;
         _sonBaglanti = _zaman.GetLocalNow();
-        _kopuk = false;
+        var oncedenKopuk = Interlocked.Exchange(ref _kopukMu, 0) != 0;
         UiBaglaminda(() =>
         {
             Bildir(nameof(SonBaglanti));
             Bildir(nameof(SeritMetni));
-            if (!oncedenKopuk)
-                return;
-            Bildir(nameof(Kopuk));
-            BaglantiGeldi?.Invoke(this, EventArgs.Empty);
+            if (oncedenKopuk)
+                Bildir(nameof(Kopuk));
         });
+        if (oncedenKopuk)
+            GecisiBildir(() => BaglantiGeldi?.Invoke(this, EventArgs.Empty));
     }
 
     public void Ulasilamadi()
     {
-        if (_kopuk)
+        var oncedenBagliydi = Interlocked.Exchange(ref _kopukMu, 1) == 0;
+        if (!oncedenBagliydi)
             return;
-        _kopuk = true;
         UiBaglaminda(() => Bildir(nameof(Kopuk)));
+        GecisiBildir(() => BaglantiKoptu?.Invoke(this, EventArgs.Empty));
     }
 
     private void UiBaglaminda(Action eylem)
@@ -72,6 +79,24 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged
             _ui.Post(_ => eylem(), null);
         else
             eylem();
+    }
+
+    /// <summary>Geçiş olaylarını (BaglantiGeldi, BaglantiKoptu) her zaman yakalanan UI bağlamına Post ile gönderir: başarılı/
+    /// başarısız isteğin kendi çağrı yığınından satır içi tetiklenmez (K-3). Yakalanan bağlam yoksa (test, arka plan hizmeti)
+    /// doğrudan çağrılır. Dinleyicinin istisnası isteği düşürmesin diye yalıtılır.</summary>
+    private void GecisiBildir(Action eylem)
+    {
+        if (_ui is not null)
+            _ui.Post(_ => Guvenli(eylem), null);
+        else
+            Guvenli(eylem);
+    }
+
+    private static void Guvenli(Action eylem)
+    {
+        try
+        { eylem(); }
+        catch { /* dinleyicinin hatası isteği düşürmesin */ }
     }
 
     private void Bildir(string ad) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(ad));

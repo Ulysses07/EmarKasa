@@ -95,11 +95,13 @@ public class AnaSayfaVeIptalTests
     }
 
     [Fact]
-    public async Task Ana_sayfa_ve_panel_ikisi_de_hata_verirse_panelin_hatasi_tasinir()
+    public async Task Ana_sayfa_ve_panel_ikisi_de_hata_verirse_panelin_baglanti_hatasi_tasinir()
     {
+        // Panelin 502'si (gövdesiz) artık bağlantı hatası sayılır (ürün sahibi kararı 2026-10-03): KasaApiException değil,
+        // HttpRequestException; ikinci (panel) isteğin asıl hatası dışarı aynen taşınır.
         var h = new Kayitci((istek, _) => Durum(istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? HttpStatusCode.BadGateway : HttpStatusCode.InternalServerError));
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken));
-        Assert.Equal(HttpStatusCode.BadGateway, hata.DurumKodu);
+        var hata = await Assert.ThrowsAsync<HttpRequestException>(() => Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken));
+        Assert.Equal(HttpStatusCode.BadGateway, hata.StatusCode);
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
     }
 

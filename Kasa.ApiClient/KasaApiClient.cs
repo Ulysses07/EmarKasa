@@ -121,7 +121,10 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
             catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound) { _anaSayfaUcuYok = true; }
             // Birleşik ucun sunucu hatası (5xx; ör. takip özeti hesaplanamadı) kasa bakiyelerini gizlemez: panel ayrı uçtan
             // alınır, eşikler ve özet çağıranca kendi uçlarından (kendi hatalarıyla) yüklenir. Uç sonraki yüklemede yeniden denenir.
+            // Birleşik ucun proxy/ağ geçidi hatası (502, iletisiz 503; HttpRequestException) aynı şekilde panele düşürür: panel
+            // ayrı istektir, kendi başına ulaşılabilir olabilir.
             catch (KasaApiException e) when ((int)e.DurumKodu >= 500) { }
+            catch (HttpRequestException) { }
         }
         // Eski sunucu ya da birleşik uç hatası: panel tek başına; eşikler ve takip özeti çağıranca eski uçlardan yüklenir.
         return new(await GetAsync<PanelDto>("api/rapor/panel", ct), null, null);
@@ -198,14 +201,26 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
         }
     }
 
-    /// <summary>Durum kodu sunucuya ulaşıldığı hâlde "ulaşılamadı" sayılan proxy/ağ geçidi hataları: 502 Bad Gateway, 503 Service
-    /// Unavailable, 504 Gateway Timeout (ürün sahibi kararı 2026-10-03). Başka 4xx ve 5xx yanıtları "bağlı" sayılır.</summary>
-    private static bool BaglantiKopukSayilanProxyHatasi(HttpStatusCode kod)
-        => kod is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+    /// <summary>502 her zaman, iletisiz 503 (API'nin kendi anlamlı iletisi yok; <see cref="HataAyrintisiAsync"/>'ten dönen
+    /// <paramref name="mesaj"/> null) "ulaşılamadı" (proxy/ağ geçidi hatası) sayılır. API'nin kendi iletili 503'ü (ör.
+    /// "Veritabanı meşgul.") sunucunun anlamlı yanıtıdır, bağlantı kopması sayılmaz (ürün sahibi kararı 2026-10-03). 504 ayrı ele
+    /// alınır (<see cref="YanitAlAsync"/>): süre sınırı sayılır, istek sunucuya ulaşmış ve kayıt yapılmış olabilir.</summary>
+    private static bool ProxyBaglantiHatasi(HttpStatusCode kod, string? mesaj)
+        => kod == HttpStatusCode.BadGateway || (kod == HttpStatusCode.ServiceUnavailable && mesaj is null);
+
+    /// <summary>Dinleyicinin istisnası isteği düşürmesin: olay çağrıları burada yalıtılır.</summary>
+    private static void GuvenliTetikle(Action eylem)
+    {
+        try
+        { eylem(); }
+        catch { /* dinleyicinin hatası isteği düşürmesin */ }
+    }
 
     /// <summary>Bearer ekleyip gönderir; başarısız yanıtı KasaApiException'a çevirir (401 oturumu kapatır). Uygulamanın bütün
-    /// istekleri buradan geçer: ağ hatası sunucuya ulaşılamadı, alınan her yanıt (502, 503, 504 hariç; bkz.
-    /// <see cref="BaglantiKopukSayilanProxyHatasi"/>) ulaşıldı bildirir.</summary>
+    /// istekleri buradan geçer: ağ hatası sunucuya ulaşılamadı; 502 ve iletisiz 503 ulaşılamadı sayılır ve
+    /// <see cref="HttpRequestException"/> fırlatılır (bkz. <see cref="ProxyBaglantiHatasi"/>); 504 ulaşılamadı sayılır ve
+    /// <see cref="TimeoutException"/> fırlatılır (istek sunucuya ulaşmış ve kayıt yapılmış olabilir); başka her yanıt (iletili
+    /// 503 dahil) ulaşıldı bildirir.</summary>
     private async Task<HttpResponseMessage> YanitAlAsync(HttpRequestMessage istek, bool tokenEkle, HttpCompletionOption tamamlama, CancellationToken ct)
     {
         string? token = null;
@@ -220,13 +235,9 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
         { yanit = await _http.SendAsync(istek, tamamlama, ct); }
         catch (HttpRequestException e)
         {
-            SunucuyaUlasilamadi?.Invoke(this, e);
+            GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, e));
             throw;
         }
-        if (BaglantiKopukSayilanProxyHatasi(yanit.StatusCode))
-            SunucuyaUlasilamadi?.Invoke(this, new HttpRequestException($"Sunucuya ulaşılamıyor: {(int)yanit.StatusCode} {yanit.StatusCode}", null, yanit.StatusCode));
-        else
-            SunucuyaUlasildi?.Invoke(this, EventArgs.Empty);
         if (!yanit.IsSuccessStatusCode)
         {
             using (yanit)
@@ -234,9 +245,23 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
                 if (yanit.StatusCode == HttpStatusCode.Unauthorized && tokenEkle)
                     await OturumuGecersizKilAsync(token);
                 var (mesaj, iz, alanlar) = await HataAyrintisiAsync(yanit, ct);
+                if (yanit.StatusCode == HttpStatusCode.GatewayTimeout)
+                {
+                    var zamanAsimi = new TimeoutException(KasaZamanAsimlari.Ileti);
+                    GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, zamanAsimi));
+                    throw zamanAsimi;
+                }
+                if (ProxyBaglantiHatasi(yanit.StatusCode, mesaj))
+                {
+                    var baglantiHatasi = new HttpRequestException($"Sunucuya ulaşılamıyor: {(int)yanit.StatusCode} {yanit.StatusCode}", null, yanit.StatusCode);
+                    GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, baglantiHatasi));
+                    throw baglantiHatasi;
+                }
+                GuvenliTetikle(() => SunucuyaUlasildi?.Invoke(this, EventArgs.Empty));
                 throw new KasaApiException(yanit.StatusCode, mesaj, iz, alanlar);
             }
         }
+        GuvenliTetikle(() => SunucuyaUlasildi?.Invoke(this, EventArgs.Empty));
         return yanit;
     }
 

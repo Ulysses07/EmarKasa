@@ -127,4 +127,44 @@ public partial class FormIsleTests
         await vm.OkuAsync(new HttpRequestException());
         Assert.Equal("Sunucuya ulaşılamadı. Bağlantıyı kontrol edip yeniden deneyin.", vm.Hata);
     }
+
+    /// <summary>502 (ve iletisiz 503) istemcide HttpRequestException'a çevrilir (ürün sahibi kararı 2026-10-03, Ö-1): kopukken
+    /// okumanın bağlantı hatası sayfada ikinci kez görünmez (kabuk şeridi zaten söyler).</summary>
+    [Fact]
+    public async Task Kopukken_502nin_okuma_hatasi_sayfada_ikinci_kez_gorunmez()
+    {
+        var vm = new DenemeVm { Kopuk = true };
+
+        await vm.OkuAsync(new HttpRequestException("Sunucuya ulaşılamıyor: 502 BadGateway", null, HttpStatusCode.BadGateway));
+
+        Assert.Null(vm.Hata);
+    }
+
+    /// <summary>502 ile kayıt denendiğinde "Kayıt yapılmadı; bağlantı gelince yeniden kaydedin." iletisi (Ö-1).</summary>
+    [Fact]
+    public async Task Kayitta_502_baglanti_iletisiyle_genel_hataya_yazilir_form_korunur()
+    {
+        var (vm, _) = Kur();
+        vm.Ad = "Ege Gıda";
+        vm.Tutar = 150m;
+
+        await vm.KaydetAsync(() => throw new HttpRequestException("Sunucuya ulaşılamıyor: 502 BadGateway", null, HttpStatusCode.BadGateway));
+
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.Hatalar.Genel);
+        Assert.Equal(("Ege Gıda", 150m), (vm.Ad, vm.Tutar));
+    }
+
+    /// <summary>504 (süre sınırı) ile kayıt denendiğinde "tamamlanmış olabilir" iletisi: istek sunucuya ulaşmış ve kayıt yapılmış
+    /// olabilir (Ö-1).</summary>
+    [Fact]
+    public async Task Kayitta_504_zaman_asimi_iletisiyle_genel_hataya_yazilir()
+    {
+        var (vm, _) = Kur();
+        vm.Ad = "Ege Gıda";
+        vm.Tutar = 150m;
+
+        await vm.KaydetAsync(() => throw new TimeoutException(KasaZamanAsimlari.Ileti));
+
+        Assert.Contains("tamamlanmış olabilir", vm.Hatalar.Genel);
+    }
 }

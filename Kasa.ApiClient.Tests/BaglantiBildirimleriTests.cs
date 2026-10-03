@@ -4,8 +4,10 @@ using System.Text;
 namespace Kasa.ApiClient.Tests;
 
 /// <summary>İstemcinin tek gönderim noktası sunucuya ulaşılabilirliği bildirir (<see cref="IBaglantiBildirimleri"/>): yanıt alınan
-/// her istek (4xx ve 5xx dahil) ulaşıldı, ağ hatası ve süre sınırı ulaşılamadı sayılır; çağıranın iptali bildirilmez. 502, 503 ve
-/// 504 (proxy/ağ geçidi hataları) de ulaşılamadı sayılır (ürün sahibi kararı 2026-10-03).</summary>
+/// her istek (4xx ve 5xx dahil) ulaşıldı, ağ hatası ve süre sınırı ulaşılamadı sayılır; çağıranın iptali bildirilmez. 502, 504 ve
+/// iletisiz 503 (proxy/ağ geçidi hataları) ulaşılamadı sayılır ve sırasıyla HttpRequestException/TimeoutException fırlatılır;
+/// sunucunun kendi iletili 503'ü (ör. "Veritabanı meşgul.") ulaşıldı sayılır ve KasaApiException olarak kalır (ürün sahibi kararı
+/// 2026-10-03: anlamlı sunucu yanıtı bağlantı kopması değildir).</summary>
 public class BaglantiBildirimleriTests
 {
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> fn) : HttpMessageHandler
@@ -62,19 +64,49 @@ public class BaglantiBildirimleriTests
         Assert.Equal(["ulaşıldı"], olaylar);
     }
 
-    [Theory]
-    [InlineData(HttpStatusCode.BadGateway)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    [InlineData(HttpStatusCode.GatewayTimeout)]
-    public async Task Proxy_502_503_504_ulasilamadi_bildirir(HttpStatusCode kod)
+    [Fact]
+    public async Task Proxy_502_ulasilamadi_bildirir_baglanti_hatasi_firlatir()
     {
-        var (c, olaylar) = Kur((_, _) => Task.FromResult(Yanit(kod, "{}")));
+        var (c, olaylar) = Kur((_, _) => Task.FromResult(Yanit(HttpStatusCode.BadGateway, "{}")));
 
-        try
-        { await c.KanallarAsync(); }
-        catch (KasaApiException) { }
+        var hata = await Assert.ThrowsAsync<HttpRequestException>(c.KanallarAsync);
 
+        Assert.Equal(HttpStatusCode.BadGateway, hata.StatusCode);
         Assert.Equal(["ulaşılamadı:HttpRequestException"], olaylar);
+    }
+
+    [Fact]
+    public async Task Govdesiz_503_ulasilamadi_bildirir_baglanti_hatasi_firlatir()
+    {
+        // "{}" gövdesi API'nin anlamlı iletisi değildir (errors/detail/hata/message/title yok): proxy/ağ geçidi hatası sayılır.
+        var (c, olaylar) = Kur((_, _) => Task.FromResult(Yanit(HttpStatusCode.ServiceUnavailable, "{}")));
+
+        var hata = await Assert.ThrowsAsync<HttpRequestException>(c.KanallarAsync);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, hata.StatusCode);
+        Assert.Equal(["ulaşılamadı:HttpRequestException"], olaylar);
+    }
+
+    [Fact]
+    public async Task Iletili_503_ulasildi_bildirir_sunucunun_iletisiyle_kasaapiexception_firlatir()
+    {
+        var (c, olaylar) = Kur((_, _) => Task.FromResult(Yanit(HttpStatusCode.ServiceUnavailable, "{\"hata\":\"Veritabanı meşgul.\"}")));
+
+        var hata = await Assert.ThrowsAsync<KasaApiException>(c.KanallarAsync);
+
+        Assert.Equal("Veritabanı meşgul.", hata.Message);
+        Assert.Equal(["ulaşıldı"], olaylar);
+    }
+
+    [Fact]
+    public async Task Proxy_504_ulasilamadi_bildirir_zaman_asimi_firlatir()
+    {
+        var (c, olaylar) = Kur((_, _) => Task.FromResult(Yanit(HttpStatusCode.GatewayTimeout, "{}")));
+
+        var hata = await Assert.ThrowsAsync<TimeoutException>(c.KanallarAsync);
+
+        Assert.Equal(KasaZamanAsimlari.Ileti, hata.Message);
+        Assert.Equal(["ulaşılamadı:TimeoutException"], olaylar);
     }
 
     [Fact]

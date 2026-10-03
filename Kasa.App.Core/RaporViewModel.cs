@@ -24,10 +24,42 @@ public abstract partial class RaporViewModel : TemelViewModel
     private readonly BaglantiDurumu? _baglanti;
 
     /// <param name="baglanti">Uygulamanın bağlantı durumu; kopukken okumanın bağlantı hatası sayfaya yazılmaz.</param>
-    protected RaporViewModel(BaglantiDurumu? baglanti = null)
+    /// <param name="auth">Verilirse oturum değişince (çıkış, yeni giriş; <see cref="AuthViewModel.OturumSurumu"/>) son başarılı
+    /// veri sıfırlanır (K-4): başka kullanıcının bakiyeleri görünmez.</param>
+    protected RaporViewModel(BaglantiDurumu? baglanti = null, AuthViewModel? auth = null)
     {
         _baglanti = baglanti;
         _hat = new SonIstekHatti(Yurutucu);
+        if (auth is not null)
+            OturumDeginceSifirla(auth);
+    }
+
+    /// <summary>Oturum değişince (K-4) son başarılı veriyi sıfırlar; bildirim modelin kurulduğu UI bağlamına (gerekirse Post ile)
+    /// gelir (OturumluViewModel.OturumDegisiminiDinle ile aynı desen).</summary>
+    private void OturumDeginceSifirla(AuthViewModel auth)
+    {
+        var ui = SynchronizationContext.Current;
+        void UiBaglaminda(Action eylem)
+        {
+            if (ui is not null && SynchronizationContext.Current != ui)
+                ui.Post(_ => eylem(), null);
+            else
+                eylem();
+        }
+        auth.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AuthViewModel.OturumSurumu))
+                UiBaglaminda(SonVeriyiSifirla);
+        };
+    }
+
+    /// <summary>Oturum değişince son başarılı veriyi sıfırlar (K-4). Alt sınıf kendi verisini (Rapor, Donemler, …) de temizlemek
+    /// için geçersiz kılabilir; temel uygulama görünürlüğü ve zaman damgasını sıfırlar.</summary>
+    protected virtual void SonVeriyiSifirla()
+    {
+        VeriVar = false;
+        VeriEski = false;
+        SonGuncelleme = null;
     }
 
     protected override bool BaglantiKopuk => _baglanti?.Kopuk == true;

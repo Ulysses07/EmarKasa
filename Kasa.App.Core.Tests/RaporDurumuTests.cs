@@ -13,7 +13,6 @@ public class RaporDurumuTests
         var api = new SahteApi { AylikRapor = Ay(8) };
         var vm = new AylikViewModel(api) { Yil = 2026, Ay = 8 };
         await vm.YukleAsync();
-        var son = vm.SonGuncelleme;
         api.YuklemeHatasi = new HttpRequestException();
 
         await vm.SonrakiAyCommand.ExecuteAsync(null);
@@ -23,7 +22,8 @@ public class RaporDurumuTests
         Assert.False(vm.VeriVar);
         Assert.False(vm.Mesgul);
         Assert.NotNull(vm.Hata);
-        Assert.Equal(son, vm.SonGuncelleme);
+        // K-5: ay değişince önceki ayın "Son güncelleme: …" zaman damgası da temizlenir (yeni ay henüz hiç yüklenmedi).
+        Assert.Null(vm.SonGuncelleme);
 
         api.YuklemeHatasi = null;
         api.AylikRapor = Ay(9);
@@ -114,6 +114,24 @@ public class RaporDurumuTests
         Assert.Equal(2, yuklendi);
     }
 
+    /// <summary>K-4: oturum değişince (çıkış, yeni giriş) son başarılı veri sıfırlanır; başka kullanıcıyla girişte eski bakiyeler
+    /// görünmez.</summary>
+    [Fact]
+    public async Task Oturum_degisince_panelin_son_verisi_sifirlanir()
+    {
+        var auth = TestOturumu.Ac();
+        var vm = new PanelViewModel(new SahteApi { Panel = new PanelDto(123m, new List<KanalBakiyeDto>(), 0, 0) }, auth: auth);
+        await vm.YukleAsync();
+        Assert.True(vm.VeriVar);
+        Assert.NotNull(vm.SonGuncelleme);
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+
+        Assert.False(vm.VeriVar);
+        Assert.Null(vm.SonGuncelleme);
+        Assert.False(vm.VeriEski);
+    }
+
     [Fact]
     public void Hic_yukleme_yokken_iki_sayfa_ailesi_ayni_metni_yazar()
     {
@@ -138,6 +156,8 @@ public class RaporDurumuTests
         Assert.Null(vm.Rapor);
         Assert.False(vm.VeriVar);
         Assert.False(vm.VeriEski);
+        // K-5: ay değişince son güncelleme zaman damgası da temizlenir (önceki ayın "Son güncelleme: …" satırı kalmaz).
+        Assert.Null(vm.SonGuncelleme);
     }
 
     [Theory]

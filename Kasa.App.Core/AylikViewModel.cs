@@ -7,12 +7,19 @@ namespace Kasa.App.Core;
 public partial class AylikViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
-    public AylikViewModel(IKasaApi api, BaglantiDurumu? baglanti = null) : base(baglanti)
+    public AylikViewModel(IKasaApi api, BaglantiDurumu? baglanti = null, AuthViewModel? auth = null) : base(baglanti, auth)
     {
         _api = api;
         var bugun = DateTime.Today;
         _yil = bugun.Year;
         _ay = bugun.Month;
+    }
+
+    /// <summary>K-4: oturum değişince ayın raporu da temizlenir (başka kullanıcının ayı görünmesin).</summary>
+    protected override void SonVeriyiSifirla()
+    {
+        base.SonVeriyiSifirla();
+        Rapor = null;
     }
 
     [ObservableProperty] private int _yil;
@@ -72,6 +79,7 @@ public partial class AylikViewModel : RaporViewModel
         Rapor = null;
         VeriVar = false;
         VeriEski = false;
+        SonGuncelleme = null;
     }
 
     [RelayCommand]

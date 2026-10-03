@@ -8,7 +8,7 @@ namespace Kasa.App.Core;
 public partial class PanelViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
-    public PanelViewModel(IKasaApi api, BaglantiDurumu? baglanti = null) : base(baglanti) => _api = api;
+    public PanelViewModel(IKasaApi api, BaglantiDurumu? baglanti = null, AuthViewModel? auth = null) : base(baglanti, auth) => _api = api;
 
     [ObservableProperty] private decimal _guncelKasa;
     [ObservableProperty] private decimal _buHaftaSonucu;

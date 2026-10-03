@@ -106,7 +106,8 @@ public abstract partial class OturumluViewModel : TemelViewModel
     /// (DisplayAlertAsync); bağlı değilse yazılmış form bırakılmaz.</summary>
     public Func<string, Task<bool>>? BirakmaOnayi { get; set; }
 
-    /// <summary>Başka kayda geçiş, Yeni ve Vazgeç'ten önce (tasarım §2): form değişmediyse ya da kullanıcı "Bırak" derse true.</summary>
+    /// <summary>Başka kayda geçiş, Yeni ve sayfadan çıkıştan önce (tasarım §2): form değişmediyse ya da kullanıcı "Bırak" derse
+    /// true. "Vazgeç" bunu sormaz (bilerek bırakmaktır, tasarım §2).</summary>
     protected async Task<bool> BirakilabilirAsync(KaydedilmemisDegisiklik form)
         => !form.Var || (BirakmaOnayi is { } sor && await sor(KaydedilmemisDegisiklik.Ileti));
 
