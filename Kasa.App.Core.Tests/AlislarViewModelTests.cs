@@ -77,7 +77,7 @@ public class AlislarViewModelTests
         vm.SecCommand.Execute(vm.Alislar[0]);
         vm.Kalemler[0].Dagilimlar.RemoveAt(1);
         await vm.OnaylaCommand.ExecuteAsync(null);
-        Assert.Contains("tamamını", vm.Hata);
+        Assert.Contains("tamamını", vm.Hatalar.Genel);
         Assert.Null(api.SonDurum);
         vm.DegisiklikleriBirakCommand.Execute(null);
         await vm.IadeCommand.ExecuteAsync(null);
@@ -500,7 +500,7 @@ public class AlislarViewModelTests
         { vm.Tedarikci = "Firma"; vm.Kalemler[0].Aciklama = "Mal"; vm.Kalemler[0].Tutar = 100m; }
         Doldur();
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.NotNull(vm.Hata);
+        Assert.NotNull(vm.Hatalar.Genel);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(2, api.Olusturmalar.Count);
         Assert.NotNull(api.Olusturmalar[0].IstekId);

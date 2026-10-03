@@ -52,7 +52,7 @@ public class GecersizTutarTests
         Assert.Equal(ParaAyristirici.GecersizGosterim, vm.Kalemler[0].DagilimOzeti);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonYaz);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar.Genel);
 
         vm.Kalemler[0].Tutar = 100m;
         vm.Kalemler[0].Dagilimlar.Add(new(vm.Kanallar.ToList()) { Kanal = vm.Kanallar[0], Tutar = G });
@@ -60,7 +60,7 @@ public class GecersizTutarTests
         Assert.Equal(ParaAyristirici.GecersizGosterim, vm.DagilimOzeti);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonYaz);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar.Genel);
     }
 
     [Fact]

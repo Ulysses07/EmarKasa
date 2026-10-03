@@ -27,6 +27,9 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+        var gorunur = new Controls.GorunurYapici(DetayKaydirici);
+        vm.Hatalar.GosterIstendi += (_, _) => gorunur.HatayaGit(AlisFormu, vm.Hatalar, FormHataKutusu);
+        vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
     protected override async void OnAppearing()
     {

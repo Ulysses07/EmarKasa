@@ -39,6 +39,18 @@
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Alislar}" SelectionMode="None">
                         <CollectionView.ItemTemplate><DataTemplate x:DataType="core:AlisSatiri">
                             <VerticalStackLayout Spacing="6" Padding="0,12">
+                                <!-- Açık (düzenlenen) kayıt listede vurgulanır (tasarım 2026-10-02 §2). -->
+                                <VerticalStackLayout.Triggers>
+                                    <DataTrigger TargetType="VerticalStackLayout" Value="True">
+                                        <DataTrigger.Binding>
+                                            <MultiBinding Converter="{StaticResource EsitIse}">
+                                                <Binding Path="Veri.Id" />
+                                                <Binding Path="BindingContext.Secili.Id" Source="{x:Reference Sayfa}" />
+                                            </MultiBinding>
+                                        </DataTrigger.Binding>
+                                        <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
+                                    </DataTrigger>
+                                </VerticalStackLayout.Triggers>
                                 <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
                                 <Label Text="{Binding Alt}" Style="{StaticResource LblRowSecondary}" />
                                 <Label Text="{Binding Tutar}" FontSize="12" FontAttributes="Bold" />
@@ -74,25 +86,28 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <Border Style="{StaticResource CardForm}">
+                    <Border Style="{StaticResource CardForm}" x:Name="AlisFormu">
                         <VerticalStackLayout Spacing="14">
                             <Label Text="1 · ALIŞ BİLGİLERİ VE KALEMLER" Style="{StaticResource LblSection}" />
+                            <!-- Düzenleme modu ve formun genel hatası formun en üstünde (tasarım 2026-10-02 §1-2; AL-01). -->
+                            <Label Text="{Binding FormBasligi}" Style="{StaticResource LblRowPrimary}" FontAttributes="Bold"
+                                   IsVisible="{Binding Duzenlenebilir}" SemanticProperties.HeadingLevel="Level2" />
+                            <Border x:Name="FormHataKutusu" Style="{StaticResource ErrorBox}"
+                                    IsVisible="{Binding Hatalar.Genel, Converter={StaticResource DoluIse}}">
+                                <Label Text="{Binding Hatalar.Genel}" Style="{StaticResource LblError}" />
+                            </Border>
                             <VerticalStackLayout Spacing="12" IsEnabled="{Binding Duzenlenebilir}">
                                 <Grid ColumnDefinitions="160,*" ColumnSpacing="12">
-                                    <VerticalStackLayout>
-                                        <Label Text="Tarih" Style="{StaticResource LblField}" />
-                                        <Border Style="{StaticResource FieldBorder}">
-                                            <DatePicker Date="{Binding Tarih}" />
-                                        </Border>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1">
-                                        <Label Text="Tedarikçi / açıklama" Style="{StaticResource LblField}" />
-                                        <Border Style="{StaticResource FieldBorder}">
-                                            <Entry Text="{Binding Tedarikci}" Placeholder="Firma veya kişi adı" />
-                                        </Border>
-                                    </VerticalStackLayout>
+                                    <ctl:FormAlani Baslik="Tarih" Alan="Tarih" Hata="{Binding Hatalar[Tarih]}">
+                                        <DatePicker Date="{Binding Tarih}" />
+                                    </ctl:FormAlani>
+                                    <ctl:FormAlani Grid.Column="1" Baslik="Tedarikçi / açıklama" Alan="Tedarikci" Hata="{Binding Hatalar[Tedarikci]}">
+                                        <Entry Text="{Binding Tedarikci}" Placeholder="Firma veya kişi adı" />
+                                    </ctl:FormAlani>
                                 </Grid>
-                                <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding AlisNotu}" Placeholder="Alış notu (isteğe bağlı)" /></Border>
+                                <ctl:FormAlani Alan="AlisNotu" Hata="{Binding Hatalar[AlisNotu]}">
+                                    <Entry Text="{Binding AlisNotu}" Placeholder="Alış notu (isteğe bağlı)" />
+                                </ctl:FormAlani>
                                 <VerticalStackLayout Spacing="12" BindableLayout.ItemsSource="{Binding Kalemler}">
                                     <BindableLayout.ItemTemplate><DataTemplate x:DataType="core:AlisKalemEditor">
                                         <Border BackgroundColor="{StaticResource KalemZemin}" Stroke="{StaticResource BrushBorder}" StrokeShape="RoundRectangle 10" Padding="14">
@@ -145,7 +160,7 @@
                             <Label Text="{Binding DagilimOzeti}" FontAttributes="Bold" />
                             <Label Text="Kaydedilmemiş değişiklikler var." TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
                             <FlexLayout Wrap="Wrap" AlignItems="Center">
-                                <Button Text="Değişiklikleri kaydet" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
+                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
                                 <Button Text="İncelemeye gönder" Command="{Binding GonderCommand}" IsVisible="{Binding Gonderilebilir}" Style="{StaticResource BtnSecondary}" Margin="0,0,10,6" />
                                 <Button Text="Kaydet ve onayla" Command="{Binding OnaylaCommand}" IsVisible="{Binding Onaylanabilir}" Margin="0,0,10,6" />
                                 <Button Text="Değişiklikleri bırak" Clicked="DegisiklikleriBirakTiklandi"
