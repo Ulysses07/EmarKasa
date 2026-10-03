@@ -273,14 +273,16 @@ public partial class KartTakipViewModel
             AcikForm = KartFormu.Yok;
     }
 
-    /// <summary>Başka karta geçiş (kutu, yeni kart, yeni kartın kaydı, liste yenilemesinde kaybolan kart) açık formu kapatır ve
-    /// Ekstreler sekmesine döner; aynı kartın güncellenmesi (kayıt sonucu) formu ve sekmeyi korur.</summary>
+    /// <summary>Başka karta geçiş (kutu, yeni kart, yeni kartın kaydı, liste yenilemesinde kaybolan kart) açık formu kapatır,
+    /// Ekstreler sekmesine döner ve önceki kartın başarı iletisini kaldırır (Y-4); aynı kartın güncellenmesi (kayıt sonucu) formu,
+    /// sekmeyi ve iletiyi korur.</summary>
     partial void OnSeciliChanged(KartTakipDto? oldValue, KartTakipDto? newValue)
     {
         if (oldValue?.Id != newValue?.Id)
         {
             AcikForm = KartFormu.Yok;
             SeciliSekme = KartSekmesi.Ekstreler;
+            Mesaj = null;
         }
         OnPropertyChanged(nameof(AcikKartId));
         // Açık kart oturum içinde hatırlanır: sayfa yeniden kurulunca (menüden dönüş, H-1) aynı kart açık gelir.

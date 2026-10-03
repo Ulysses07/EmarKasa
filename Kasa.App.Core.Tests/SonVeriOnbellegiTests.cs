@@ -189,6 +189,31 @@ public class SonVeriOnbellegiTests
         Assert.Empty(yeni.GiderKanallari);
     }
 
+    /// <summary>Y-2: kopukken yeniden kurulan İşlemler'de gelir formunun kasa dönemleri ve son seçilen dönem geri gelir; dönemin
+    /// kayıtlı toplamı bilinmediği için kayıt kapalıdır.</summary>
+    [Fact]
+    public async Task Islemler_yeniden_kurulunca_gelir_formunun_kasa_donemi_secili_gelir()
+    {
+        var auth = TestOturumu.Ac();
+        DonemDto h38 = new(new DateOnly(2026, 9, 14), new DateOnly(2026, 9, 20), 2026, 9), h39 = new(new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 27), 2026, 9);
+        var api = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0)], DonemlerListe = [h38, h39] };
+        var zaman = new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 23));
+        var ilk = new IslemlerViewModel(api, auth, zaman: zaman);
+        await ilk.YukleAsync();
+        Assert.Equal(h39, ilk.GelenDonem);
+        ilk.GelenDonem = h38;   // kullanıcı başka dönem seçti
+        await ilk.GelenYuklemesi;
+        api.YuklemeHatasi = new HttpRequestException();
+        auth.Baglanti.Ulasilamadi();
+
+        var vm = new IslemlerViewModel(api, auth, zaman: zaman);
+        await vm.YukleAsync();
+
+        Assert.Equal([h39, h38], vm.GelenDonemler);
+        Assert.Equal(h38, vm.GelenDonem);
+        Assert.False(vm.GelenKaydedilebilir);
+    }
+
     [Fact]
     public async Task Haftalik_ve_aylik_yeniden_kurulunca_son_raporu_gosterir_oturum_degisince_gostermez()
     {

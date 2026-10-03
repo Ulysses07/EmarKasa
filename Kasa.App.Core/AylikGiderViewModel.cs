@@ -44,6 +44,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     /// değişmediği için PropertyChanged tetiklenmez; sayfa formu görünür yere kaydırmak için buna bağlanır.</summary>
     public event EventHandler? OdemeSecIstendi;
 
+    /// <summary>Ödeme kaydedildi ya da iptal edildi (Y-1): form kapanıp sayfa kısalınca başarı iletisi ve güncellenen satır görünür
+    /// alanın dışında kalıyordu; sayfa bununla sonucu görünür yere kaydırır.</summary>
+    public event EventHandler? OdemeSonucuGosterIstendi;
+
     /// <summary>Son yükleme tamamlanmamışken (soluk, eski liste ya da yükleme sürerken) "Öde" ve "Ödemeyi iptal et" aynı ölçütle
     /// (<see cref="OturumluViewModel.VeriHazir"/>) durur ve bu iletiyi verir.</summary>
     public const string ListeGuncelDegil = "Liste güncel değil; yenileyin.";
@@ -303,6 +307,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         _odemeKey.Temizle();
         SeciliOdeme = null;
         Mesaj = "Nakit / havale ödemesi kaydedildi. Kasa etkisi bir kez işlendi.";
+        OdemeSonucuGosterIstendi?.Invoke(this, EventArgs.Empty);
         VeriHazir = false;
         await KayittanSonraAyiYenileAsync(n, ay.Yil, ay.Ay, () => ay.Yil == AyTarihi.Year && ay.Ay == AyTarihi.Month);
     });
@@ -324,6 +329,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         _iptalKey.Temizle();
         SeciliOdeme = null;
         Mesaj = "Ödeme iptal edildi; gerekçesiyle iptal edilen ödemeler listesinde görünür.";
+        OdemeSonucuGosterIstendi?.Invoke(this, EventArgs.Empty);
         VeriHazir = false;
         var ay = AyTarihi;
         var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);

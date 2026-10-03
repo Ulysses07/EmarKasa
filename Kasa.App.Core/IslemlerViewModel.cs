@@ -310,7 +310,10 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
         if (SonGuncelleme is not null)
             return false;
         if (OnbellektenOku<(IReadOnlyList<KanalDto>, IReadOnlyList<DonemDto>, IReadOnlyList<KrediKartiDto>)>(KaynakAnahtari, out var k))
+        {
             KaynaklariUygula(k.Item1, k.Item2, k.Item3);
+            GelenFormunuOnbellektenGoster();
+        }
         var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
         return OnbellektenUygula<IslemListesi>(ListeAnahtari(bas, bit, kanal), v =>
         {

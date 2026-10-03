@@ -23,6 +23,8 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         var secim = new HorizontalStackLayout { Spacing = 10 };
         foreach (var gun in new[] { 7, 30 })
             secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
+        // Y-3: gün düğmeleri de bölümün eski verisiyle birlikte soluk (bağlam kart üzerinden takip özeti).
+        secim.Triggers.Add(TakipUi.EskiVeriSolugu(secim.GetType()));
         // KS-03: gösterge yalnız meşgulken, hata yalnız doluyken görünür; ikisi de boşken yer kaplamaz (87 px boşluk).
         var (yukle, hata) = TakipUi.MesgulVeHata(nameof(takip.Mesgul), nameof(takip.Hata));
         var icerik = new VerticalStackLayout { Spacing = 12 };

@@ -27,4 +27,21 @@ public class TakipSayfalariKaynakDenetimiTests
         Assert.DoesNotContain("Alan(\"\", Onay(", kod);
         Assert.Contains("Alan(\"Ödeme onayı\", Onay(\"Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.\", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay))", kod);
     }
+
+    /// <summary>Y-1: ödeme kaydı ya da iptalinden sonra başarı iletisi (sayfa başında; ayın güncellenen satırı hemen altında)
+    /// görünür yere kaydırılır (davranış AylikGiderFormuTests.Odeme_kaydi_ve_iptali_sonucu_gosterme_istegi_yayar).</summary>
+    [Fact]
+    public void AylikGiderler_odeme_sonucu_gorunur_yere_kaydirilir()
+    {
+        var kod = GorunumOrtami.Oku("Views/AylikGiderPage.cs");
+        Assert.Contains("vm.OdemeSonucuGosterIstendi += (_, _) => Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);", kod);
+    }
+
+    /// <summary>Y-3: Kasalar'daki "Kart ve kredi takibi" bölümünün gün düğmeleri de eski veride bölümün gövdesiyle birlikte soluk.</summary>
+    [Fact]
+    public void Kasalar_takip_bolumunun_gun_secimi_eski_veride_soluk()
+    {
+        var kod = GorunumOrtami.Oku("Views/PanelPage.xaml.cs");
+        Assert.Contains("secim.Triggers.Add(TakipUi.EskiVeriSolugu(secim.GetType()));", kod);
+    }
 }

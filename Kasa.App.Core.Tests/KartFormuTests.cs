@@ -253,4 +253,22 @@ public class KartFormuTests
         vm.OdemeTutari = 0m;   // ilk değerine döndü
         Assert.False(vm.KaydedilmemisDegisiklikVar);
     }
+
+    /// <summary>Y-4: kart kaydedildikten sonra başka karta geçince eski kartın başarı iletisi kalmaz; aynı kartın yenilemesi iletiyi
+    /// silmez.</summary>
+    [Fact]
+    public async Task Baska_karta_gecince_basari_iletisi_kalkar()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        vm.Limit = 4500m;
+        await vm.KaydetCommand.ExecuteAsync(null);
+        Assert.Equal("Kart kaydedildi.", vm.Mesaj);
+
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[1]);
+
+        Assert.Equal(2, vm.AcikKartId);
+        Assert.Null(vm.Mesaj);
+    }
 }

@@ -59,5 +59,8 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
         // Aynı satıra yeniden "Öde" basılınca SeciliOdeme değişmez; bu yüzden PropertyChanged'e güvenmeyip
         // OdemeSec'in kendi olayına bağlanır (görev 14-19 incelemesi).
         vm.OdemeSecIstendi += (_, _) => Gorunur.Yap(odemeFormu, KaydirmaHesabi.FormKaydirmasi);
+        // Y-1: kayıt ya da iptalden sonra form kapanır ve sayfa kısalır; başarı iletisi (sayfa başında, ayın güncellenen satırı
+        // hemen altında) görünür yere kaydırılır.
+        vm.OdemeSonucuGosterIstendi += (_, _) => Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
     }
 }

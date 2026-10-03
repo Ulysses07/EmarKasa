@@ -93,6 +93,30 @@ public class AylikGiderFormuTests
         Assert.False(vm.OdemeHatalari.Var);
     }
 
+    /// <summary>Y-1: ödeme kaydı ve iptalinden sonra form kapanır, sayfa kısalır; sayfa sonucu (başarı iletisi, güncellenen satır)
+    /// görünür yere kaydırabilsin diye model olayı yayar. Kaydedilmeyen ödemede yaymaz.</summary>
+    [Fact]
+    public async Task Odeme_kaydi_ve_iptali_sonucu_gosterme_istegi_yayar()
+    {
+        var (vm, api) = await Kur();
+        var istek = 0;
+        vm.OdemeSonucuGosterIstendi += (_, _) => istek++;
+        vm.OdemeSec(vm.Kayitlar[0]);
+        await vm.OdeCommand.ExecuteAsync(null);   // onaysız: kaydedilmez
+        Assert.Equal(0, istek);
+
+        vm.OdemeOnay = true;
+        await vm.OdeCommand.ExecuteAsync(null);
+        Assert.Equal(1, istek);
+        Assert.Equal("Nakit / havale ödemesi kaydedildi. Kasa etkisi bir kez işlendi.", vm.Mesaj);
+
+        api.Odendi = true;
+        await vm.YukleAsync();
+        await vm.IptalAsync(vm.Kayitlar[0], "Yanlış kayıt", vm.OturumNesli);
+        Assert.Equal(1, api.IptalSayisi);
+        Assert.Equal(2, istek);
+    }
+
     [Fact]
     public async Task Kayittan_sonraki_yenileme_hatasi_formun_hatasi_degil_sayfanin_okuma_hatasidir()
     {
