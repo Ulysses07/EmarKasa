@@ -32,6 +32,12 @@
             </Border>
 
             <Border Style="{StaticResource CardHero}" IsVisible="{Binding VeriVar}">
+                <!-- Son yükleme hata verdiyse son başarılı veri soluk gösterilir (tasarım 2026-10-02 §3; HD-01). -->
+                <Border.Triggers>
+                    <DataTrigger TargetType="Border" Binding="{Binding VeriEski}" Value="True">
+                        <Setter Property="Opacity" Value="0.55" />
+                    </DataTrigger>
+                </Border.Triggers>
                 <VerticalStackLayout Spacing="0">
                     <Label Text="GENEL KASA" Style="{StaticResource LblHeroLabel}" />
                     <Label Text="{Binding GuncelKasa, Converter={StaticResource ParaBicim}}"
@@ -47,6 +53,12 @@
             </Border>
 
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
+                <!-- Son yükleme hata verdiyse son başarılı veri soluk gösterilir (tasarım 2026-10-02 §3; HD-01). -->
+                <Border.Triggers>
+                    <DataTrigger TargetType="Border" Binding="{Binding VeriEski}" Value="True">
+                        <Setter Property="Opacity" Value="0.55" />
+                    </DataTrigger>
+                </Border.Triggers>
                 <VerticalStackLayout Spacing="0">
                     <Label Text="KANAL BAKİYELERİ" Style="{StaticResource LblSection}" Margin="18,16,18,12" />
                     <CollectionView ItemsSource="{Binding Kanallar}" SelectionMode="None">
