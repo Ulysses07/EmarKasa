@@ -259,8 +259,10 @@ internal static class TakipUi
     /// açık çekin altındaki satırlar) false verir, ileti iki kez görünmez.</param>
     /// <param name="aciklama">Satır düğmesinin ekran okuyucu adı (SemanticProperties.Description): her satırda aynı olan düğme
     /// metnini satırdan ayırt eder.</param>
+    /// <param name="vurgu">Verilirse satırın <c>Veri.Id</c>'si bu kaynağın yolundaki değere eşitken satır vurgulanır (düzenlenen kayıt,
+    /// tasarım 2026-10-02 §2; İşlemler ve Alışlar'daki EsitIse deseni).</param>
     public static View Liste<T>(string yol, Func<T, Task>? ac = null, string action = "Aç", Func<T, bool>? gorunur = null,
-        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null)
+        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null, (object Kaynak, string Yol)? vurgu = null)
     {
         var l = new VerticalStackLayout { Spacing = 10 };
         l.SetBinding(BindableLayout.ItemsSourceProperty, yol);
@@ -269,6 +271,17 @@ internal static class TakipUi
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
             var row = new VerticalStackLayout { Spacing = 6, Padding = new Thickness(0, 10) };
+            if (vurgu is { } v)
+                row.Triggers.Add(new DataTrigger(typeof(VerticalStackLayout))
+                {
+                    Binding = new MultiBinding
+                    {
+                        Converter = new Converters.EsitIseConverter(),
+                        Bindings = { new Binding("Veri.Id"), new Binding(v.Yol, source: v.Kaynak) },
+                    },
+                    Value = true,
+                    Setters = { new Setter { Property = VisualElement.BackgroundColorProperty, Value = Application.Current!.Resources["GreenSoft"] } },
+                });
             var baslik = Bagli("Baslik");
             baslik.FontAttributes = FontAttributes.Bold;
             row.Add(baslik);
@@ -404,7 +417,12 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
         MesajSatiri = mesaj;
-        HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
+        HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", async () =>
+        {
+            // Yazılmış form varsa önce onay (tasarım 2026-10-02 §2): "Bırak" derse değişiklikler bırakılıp yenilenir.
+            if (await vm.YenilemedenOnceBirakilabilirAsync())
+                await yukle();
+        }), mesaj, hataYolu: hataYolu);
         // Yükleme hata verse de son başarılı veri görünür kalır ve soluk gösterilir (tasarım 2026-10-02 §3).
         Govde.SetBinding(IsVisibleProperty, nameof(vm.GovdeGorunur));
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());

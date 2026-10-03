@@ -108,8 +108,24 @@ public abstract partial class OturumluViewModel : TemelViewModel
 
     /// <summary>Başka kayda geçiş, Yeni ve sayfadan çıkıştan önce (tasarım §2): form değişmediyse ya da kullanıcı "Bırak" derse
     /// true. "Vazgeç" bunu sormaz (bilerek bırakmaktır, tasarım §2).</summary>
-    protected async Task<bool> BirakilabilirAsync(KaydedilmemisDegisiklik form)
-        => !form.Var || (BirakmaOnayi is { } sor && await sor(KaydedilmemisDegisiklik.Ileti));
+    protected Task<bool> BirakilabilirAsync(KaydedilmemisDegisiklik form) => BirakilabilirAsync(form.Var);
+
+    /// <summary><see cref="BirakilabilirAsync(KaydedilmemisDegisiklik)"/>'in birden çok formu (ya da taşınan kirliliği) birlikte
+    /// soran biçimi: <paramref name="kirli"/> değilse sorulmaz.</summary>
+    protected async Task<bool> BirakilabilirAsync(bool kirli)
+        => !kirli || (BirakmaOnayi is { } sor && await sor(KaydedilmemisDegisiklik.Ileti));
+
+    /// <summary>Sayfanın "Yenile / tekrar dene" düğmesi: ekran kaydedilmemiş değişikliği olan bir formsa (<see cref="IKaydedilmemisForm"/>)
+    /// önce onay sorulur; "Bırak" denirse değişiklikler bırakılır ve true döner (yenileme yapılır), "Forma dön" denirse false.</summary>
+    public async Task<bool> YenilemedenOnceBirakilabilirAsync()
+    {
+        if (this is not IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true } form)
+            return true;
+        if (!await BirakilabilirAsync(true))
+            return false;
+        form.DegisiklikleriBirak();
+        return true;
+    }
 
     protected override void IletiyiTemizle() => Mesaj = null;
     protected override bool BaglantiKopuk => Auth.Baglanti.Kopuk;

@@ -55,10 +55,27 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         Konum = Konum?.Kod,
         Not,
     });
-    public bool KaydedilmemisDegisiklikVar => FormIzi.Var;
+    /// <summary>Açık çekin hareket formunun açıldığı andaki değerleri (tarih, tutar, net, kasa, karşı taraf).</summary>
+    private KaydedilmemisDegisiklik? _hareketIzi;
+    private KaydedilmemisDegisiklik HareketIzi => _hareketIzi ??= new(() => new
+    {
+        HareketTarihi,
+        HareketTutari,
+        NetTutar,
+        HareketKasasi,
+        Karsi,
+    });
+    public bool KaydedilmemisDegisiklikVar => FormIzi.Var || HareketIzi.Var;
 
-    /// <summary>Kabuktan çıkışta "Bırak": çek formu kapanır.</summary>
-    public void DegisiklikleriBirak() => FormuKapatOnaysiz();
+    /// <summary>Kabuktan çıkışta "Bırak": çek formu ve hareket formu kapanır.</summary>
+    public void DegisiklikleriBirak()
+    {
+        FormuKapatOnaysiz();
+        HareketFormunuKapat();
+    }
+
+    /// <summary>Düzeltme formu açıkken düzenlenen çekin kimliği (listede satırın vurgusu); yoksa null.</summary>
+    public int? DuzenlenenCekId => FormAcik ? Duzenlenen : null;
 
     /// <summary>Kaydet düğmesi: yeni çekte "Kaydet", düzeltmede "Değişikliği kaydet".</summary>
     public string KaydetMetni => Duzenlenen is null ? "Kaydet" : "Değişikliği kaydet";
@@ -105,8 +122,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     [ObservableProperty] private string? _hareketKasasi;
     [ObservableProperty] private string _karsi = "";
 
-    [ObservableProperty][NotifyPropertyChangedFor(nameof(FormBasligi))] private bool _formAcik;
-    [ObservableProperty][NotifyPropertyChangedFor(nameof(FormBasligi), nameof(KaydetMetni))] private int? _duzenlenen;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(FormBasligi), nameof(DuzenlenenCekId))] private bool _formAcik;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(FormBasligi), nameof(KaydetMetni), nameof(DuzenlenenCekId))] private int? _duzenlenen;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(FormVerilen))] private KodCipi? _formYon;
     [ObservableProperty] private KodCipi? _formTur;
     [ObservableProperty] private string _no = "";
@@ -165,13 +182,27 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             OnPropertyChanged(p);
     }
 
-    partial void OnAcikChanged(CekDto? value)
+    /// <summary>Başka çek açılınca (ya da açık çek başka bir işlemle değişince: sürüm) hareket formu kapanır; aynı çekin aynı
+    /// sürümünün yenilenmesi (liste yenilemesi) açık hareket formunu ve yazılanları korur.</summary>
+    partial void OnAcikChanged(CekDto? oldValue, CekDto? newValue)
+    {
+        var ayniSurum = oldValue is not null && newValue is not null && oldValue.Id == newValue.Id && oldValue.Surum == newValue.Surum
+            && HareketTuru is { } tur && newValue.IzinliHareketler.Contains(tur);
+        TakipMetni.Doldur(Hareketler, newValue?.Hareketler.Select(h => new CekHareketSatiri(h)) ?? []);
+        TakipMetni.Doldur(HareketCipleri, newValue?.IzinliHareketler.Select(t => new KodCipi(t, CekMetni.Hareket(t)) { Secili = ayniSurum && t == HareketTuru }) ?? []);
+        if (!ayniSurum)
+            HareketFormunuKapat();
+        SatirlariBol();
+    }
+
+    /// <summary>Hareket formu kapanır: tür, hataları ve kaydedilmemiş değişiklik tabanı kalkar.</summary>
+    private void HareketFormunuKapat()
     {
         HareketHatalari.Temizle();
-        TakipMetni.Doldur(Hareketler, value?.Hareketler.Select(h => new CekHareketSatiri(h)) ?? []);
-        TakipMetni.Doldur(HareketCipleri, value?.IzinliHareketler.Select(t => new KodCipi(t, CekMetni.Hareket(t))) ?? []);
         HareketTuru = null;
-        SatirlariBol();
+        HareketIzi.Kapat();
+        foreach (var h in HareketCipleri)
+            h.Secili = false;
     }
 
     partial void OnNoChanged(string value) => AyniCekSifirla();
@@ -229,7 +260,10 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         CekKasaSecenekleriniDoldur(Duzenlenen is { } dn ? cekler.FirstOrDefault(c => c.Id == dn)?.Kanal : null);
         TakipMetni.Doldur(Cekler, cekler.Select(c => new CekSatiri(c, Bugun)));
         Ozet = ozet;
-        Acik = Acik is { } eski ? cekler.FirstOrDefault(c => c.Id == eski.Id) : null;
+        var acik = Acik is { } eski ? cekler.FirstOrDefault(c => c.Id == eski.Id) : null;
+        if (HareketFormuAcik && acik is not null && acik.Surum != Acik!.Surum)
+            Mesaj = "Çek başka bir işlemle değişti; hareketi yeniden girin.";
+        Acik = acik;
         SatirlariBol();
         // Düzeltilen çek arada başka bir işlemle değiştiyse form eski veriyle yeni sürümü ezmesin: kapanır, yeniden açılması istenir.
         if (FormAcik && Duzenlenen is { } d && cekler.FirstOrDefault(c => c.Id == d) is { } guncel && guncel.Surum != _duzenlenenSurum)
@@ -336,9 +370,15 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         return YukleAsync();
     }
 
-    /// <summary>Satıra tıklama: kapalıysa açar, açıksa kapatır.</summary>
+    /// <summary>Satıra tıklama: kapalıysa açar, açıksa kapatır. Hareket formunda yazılmış değişiklik varsa önce onay sorulur
+    /// (tasarım 2026-10-02 §2); çek formu satırdan bağımsızdır, açık kalır.</summary>
     [RelayCommand]
-    private void Sec(CekSatiri satir) => Acik = Acik?.Id == satir.Veri.Id ? null : satir.Veri;
+    private async Task SecAsync(CekSatiri satir)
+    {
+        if (!await BirakilabilirAsync(HareketIzi))
+            return;
+        Acik = Acik?.Id == satir.Veri.Id ? null : satir.Veri;
+    }
 
     /// <summary>Hareket türü düğmesi: formu tarih bugün, tutar kalan (dönüşte ciro/kırdırma tutarı; karşılıksız ve iadede 0) ve son
     /// seçilen kasayla açar.</summary>
@@ -361,6 +401,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         NetTutar = cip.Kod == CekHareketTurleri.Kirdirma ? c.Kalan : 0m;
         HareketKasasi = _sonKanal is { } kanal && KasaSecenekleri.Contains(kanal) ? kanal : KasaSecenekleri.FirstOrDefault();
         Karsi = "";
+        HareketIzi.Ac();
     }
 
     [RelayCommand]
@@ -372,6 +413,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         h.Denetle(ParaAyristirici.GecerliMi(HareketTutari), nameof(HareketTutari), ParaAyristirici.GecersizMesaji);
         h.Denetle(!NetGerekli || ParaAyristirici.GecerliMi(NetTutar), nameof(NetTutar), ParaAyristirici.GecersizMesaji);
         h.Denetle(!KasaGerekli || !string.IsNullOrWhiteSpace(HareketKasasi), nameof(HareketKasasi), "Kasa (kanal) seçin.");
+        h.Denetle(!KarsiGerekli || !string.IsNullOrWhiteSpace(Karsi), nameof(Karsi), "Karşı taraf boş olamaz.");
         if (h.Var)
             return;
         var g = new CekHareketYaz(Guid.Empty, c.Surum, tur, DateOnly.FromDateTime(HareketTarihi), HareketTutari, NetGerekli ? NetTutar : null,

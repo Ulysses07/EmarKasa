@@ -168,13 +168,20 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         TakipMetni.Doldur(Kanallar, kanallar);
         TakipMetni.Doldur(Kartlar, kartlar.Select(k => new KartTakipSatiri(k, _zaman)));
         if (Secili is { } eski)
-        { var mevcut = kartlar.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut, _zaman)); else Yeni(); }
+        { var mevcut = kartlar.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut, _zaman), yenileme: true); else Yeni(); }
         Tamamlandi();
     });
     // [RelayCommand] kasıtlı olarak yok: arayüz KutuSecCommand'ı kullanır (KartTakipViewModel.Gorunum.cs), bu metodu çağırır.
     // internal: testler doğrudan çağırır (KutuSec'in "açıksa kapat" devrik mantığı test niyetini bozar).
-    internal void Sec(KartTakipSatiri satir)
+    internal void Sec(KartTakipSatiri satir) => Sec(satir, yenileme: false);
+
+    /// <param name="yenileme">Liste yenilemesinde aynı kartın yeniden seçilmesi: açık formda yazılanlar ezilmez (kart bilgileri
+    /// formu açıksa kart alanları yazılmaz; ödemenin ekstre seçimi, harcama payları ve iade kaynağı yenilenen listede hâlâ varsa
+    /// korunur). Ödeme önizlemesi yine bayatlar.</param>
+    private void Sec(KartTakipSatiri satir, bool yenileme)
     {
+        var ayniKart = yenileme && Secili?.Id == satir.Veri.Id;
+        var (odemeEkstresi, iadeKaynagi) = (OdemeEkstresi?.Veri.Id, IadeKaynagi?.Veri.Id);
         MasrafTemizle();
         HarcamaBenzerlik.Temizle();
         OdemeBenzerlik.Temizle();
@@ -183,10 +190,13 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         if (Secili?.Id != satir.Veri.Id)
             KartFormlariniTemizle();
         Secili = satir.Veri;
-        Ad = Secili.Ad;
-        Limit = Secili.Limit;
-        KesimGunu = Secili.KesimGunu;
-        SonOdemeGunu = Secili.SonOdemeGunu;
+        if (!ayniKart || AcikForm != KartFormu.KartBilgisi)
+        {
+            Ad = Secili.Ad;
+            Limit = Secili.Limit;
+            KesimGunu = Secili.KesimGunu;
+            SonOdemeGunu = Secili.SonOdemeGunu;
+        }
         AcilisBorc = 0; // açılış borcu yalnız yeni kartta girilir
         _oncedenSayilanElle = false;
         GecisKalanBorc = Secili.Borc;
@@ -195,10 +205,16 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         OdemeOnizlemesiniKaldir();
         OdemeEkstresi = null;
         DuzenlenenEkstre = null;
-        HarcamaPaylari.Clear();
+        if (!ayniKart)
+            HarcamaPaylari.Clear();
         GecisPaylari.Clear();
         IadeKaynagi = null;
         DetaylariYansit();
+        if (ayniKart)
+        {
+            OdemeEkstresi = Ekstreler.FirstOrDefault(e => e.Veri.Id == odemeEkstresi);
+            IadeKaynagi = IadeKaynaklari.FirstOrDefault(h => h.Veri.Id == iadeKaynagi);
+        }
     }
     // [RelayCommand] kasıtlı olarak yok: arayüz YeniKartAcCommand'ı kullanır (KartTakipViewModel.Gorunum.cs), bu metodu
     // çağırır. internal: testler doğrudan çağırır (YeniKartAc formu da açar; testler yalnız alan sıfırlamasıyla ilgilenir).

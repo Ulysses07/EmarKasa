@@ -127,12 +127,11 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
 
     /// <summary>Çek satırları. Liste açık çekin ayrıntısıyla iki parçaya bölünür; "Gösterilecek kayıt yok." yalnız ilk parçada
     /// (<paramref name="bosMetin"/>) yazılır. Düğmenin ekran okuyucu adı çekin başlığı ve açık/kapalı durumudur: açık çek değişince
-    /// iki parça yeniden doldurulur (SatirlariBol), ad da yenilenir.</summary>
-    private static View SatirListesi(CekTakipViewModel vm, string yol, bool bosMetin) => Liste<CekSatiri>(yol, s =>
-    {
-        vm.SecCommand.Execute(s);
-        return Task.CompletedTask;
-    }, "Aç / kapat", bosMetin: bosMetin, aciklama: s => $"{s.Baslik}, {(vm.Acik?.Id == s.Veri.Id ? "açık" : "kapalı")}");
+    /// iki parça yeniden doldurulur (SatirlariBol), ad da yenilenir.
+    /// Düzeltme formunda düzenlenen çekin satırı vurgulanır (DuzenlenenCekId).</summary>
+    private static View SatirListesi(CekTakipViewModel vm, string yol, bool bosMetin) => Liste<CekSatiri>(yol, s => vm.SecCommand.ExecuteAsync(s),
+        "Aç / kapat", bosMetin: bosMetin, aciklama: s => $"{s.Baslik}, {(vm.Acik?.Id == s.Veri.Id ? "açık" : "kapalı")}",
+        vurgu: (vm, nameof(vm.DuzenlenenCekId)));
 
     /// <summary>Hareket formu: genel hata formun en üstünde, alan hataları alanın altında (tasarım 2026-10-02 §1).</summary>
     private static View HareketFormu(CekTakipViewModel vm, View hataKutusu)

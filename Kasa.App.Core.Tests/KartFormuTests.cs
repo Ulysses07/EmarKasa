@@ -115,4 +115,98 @@ public class KartFormuTests
         Assert.Equal((KartFormu.Yok, "Kart", 1000m), (vm.AcikForm, vm.Ad, vm.Limit));
         Assert.False(vm.KaydedilmemisDegisiklikVar);
     }
+
+    /// <summary>Liste yenilemesi (YukleAsync → aynı kartın yeniden seçilmesi) açık kart bilgileri formunun alanlarını ezmez.</summary>
+    [Fact]
+    public async Task Kart_bilgisi_formu_acikken_yenileme_alanlari_ezmez()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        vm.Ad = "Yazılan";
+        vm.Limit = 5m;
+        vm.KesimGunu = 3;
+        vm.SonOdemeGunu = 20;
+
+        await vm.YukleAsync();
+
+        Assert.Equal((KartFormu.KartBilgisi, "Yazılan", 5m, 3, 20), (vm.AcikForm, vm.Ad, vm.Limit, vm.KesimGunu, vm.SonOdemeGunu));
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+    }
+
+    /// <summary>Ödeme formunda seçilen ekstre yenilemeden sonra da seçili kalır (yenilenen listedeki aynı ekstre); harcama payları korunur.</summary>
+    [Fact]
+    public async Task Odeme_formunda_ekstre_secimi_ve_harcama_paylari_yenilemede_korunur()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.PayEkle(vm.HarcamaPaylari);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeEkstresi = vm.Ekstreler[0];
+        vm.OdemeTutari = 50m;
+
+        await vm.YukleAsync();
+
+        Assert.Equal(7, vm.OdemeEkstresi?.Veri.Id);
+        Assert.Contains(vm.OdemeEkstresi, vm.Ekstreler);
+        Assert.Single(vm.HarcamaPaylari);
+        Assert.Equal((KartFormu.Odeme, 50m), (vm.AcikForm, vm.OdemeTutari));
+    }
+
+    /// <summary>"Yeni kart ekle" kutusu yazılmış yeni kart formu açıkken tıklanıp "Bırak" denirse form kapanır (boş açılmaz).</summary>
+    [Fact]
+    public async Task Yeni_kart_kutusu_birakildiginda_formu_kapatir()
+    {
+        var (vm, _) = await Kur();
+        await vm.YeniKartAcCommand.ExecuteAsync(null);
+        vm.Ad = "Yazılan";
+        vm.BirakmaOnayi = _ => Task.FromResult(true);
+
+        await vm.YeniKartAcCommand.ExecuteAsync(null);
+
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.False(vm.YeniKartFormuAcik);
+        Assert.Equal("", vm.Ad);
+    }
+
+    /// <summary>Aynı kartın formları arasında geçiş sorulmaz ama önceki formda yazılanlar kirli sayılmaya devam eder: başka karta
+    /// geçişte onay sorulur.</summary>
+    [Fact]
+    public async Task Ayni_kartta_form_gecisi_kirliligi_tasir_baska_kartta_onay_sorulur()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 250m;
+        var sorulan = 0;
+        vm.BirakmaOnayi = _ => { sorulan++; return Task.FromResult(false); };
+
+        vm.FormAcCommand.Execute(KartFormu.Harcama);
+        Assert.Equal(0, sorulan);
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[1]);
+        Assert.Equal(1, sorulan);
+        Assert.Equal((1, 250m), (vm.AcikKartId, vm.OdemeTutari));
+    }
+
+    /// <summary>Sayfanın "Yenile / tekrar dene" düğmesi kirli formda önce onay sorar: "Forma dön" yenilemez, "Bırak" bırakır.</summary>
+    [Fact]
+    public async Task Yenile_dugmesi_kirli_formda_onay_sorar()
+    {
+        var (vm, _) = await Kur();
+        Assert.True(await vm.YenilemedenOnceBirakilabilirAsync());
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        vm.Ad = "Yazılan";
+        var cevap = false;
+        vm.BirakmaOnayi = _ => Task.FromResult(cevap);
+
+        Assert.False(await vm.YenilemedenOnceBirakilabilirAsync());
+        Assert.Equal("Yazılan", vm.Ad);
+
+        cevap = true;
+        Assert.True(await vm.YenilemedenOnceBirakilabilirAsync());
+        Assert.Equal((KartFormu.Yok, "Kart"), (vm.AcikForm, vm.Ad));
+    }
 }

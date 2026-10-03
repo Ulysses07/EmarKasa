@@ -96,7 +96,11 @@ public partial class KartTakipViewModel
         _ => null,
     });
 
-    public bool KaydedilmemisDegisiklikVar => FormIzi.Var;
+    /// <summary>Aynı kartın formları arasında geçerken önceki formda kaydedilmemiş değişiklik vardı: geçiş sorulmaz (aynı kayıt) ama
+    /// kirlilik taşınır, başka karta geçişte onay sorulur. Form kapanınca (Vazgeç, kayıt, kart değişimi, Bırak) kalkar.</summary>
+    private bool _oncekiFormKirli;
+
+    public bool KaydedilmemisDegisiklikVar => FormIzi.Var || _oncekiFormKirli;
 
     /// <summary>Yazılmış değişiklikleri bırakır: form kapanır, kartın form alanları kartın kayıtlı değerlerine (yeni kartta boşa) döner.</summary>
     public void DegisiklikleriBirak()
@@ -113,9 +117,9 @@ public partial class KartTakipViewModel
     /// değişiklikler bırakılır. Aynı kartın formları arasında geçiş sorulmaz (aynı kayıt).</summary>
     private async Task<bool> FormdanCikilabilirAsync()
     {
-        if (!FormIzi.Var)
+        if (!KaydedilmemisDegisiklikVar)
             return true;
-        if (!await BirakilabilirAsync(FormIzi))
+        if (!await BirakilabilirAsync(true))
             return false;
         DegisiklikleriBirak();
         return true;
@@ -182,9 +186,11 @@ public partial class KartTakipViewModel
     [RelayCommand]
     private async Task YeniKartAcAsync()
     {
+        // Onaydan önce okunur: "Bırak" formu kapatıp yeni kart alanlarını boşaltır, kutu yine de kapatma tıklamasıdır.
+        var kapat = YeniKartFormuAcik;
         if (!EditorMu || !await FormdanCikilabilirAsync())
             return;
-        if (YeniKartFormuAcik)
+        if (kapat)
         {
             AcikForm = KartFormu.Yok;
             return;
@@ -210,6 +216,16 @@ public partial class KartTakipViewModel
     /// <summary>Formdan çıkılınca (kapanma ya da başka form) o formun hatası kalkar ve hata kaynağı sayfaya döner; ekstre
     /// formundan çıkılınca düzenlenen ekstre bırakılır (ekstre formu yalnız ekstreye tıklanarak açılır); ödeme ve harcama
     /// formundan çıkılınca benzer kayıt uyarısı ve onayı kalkar.</summary>
+    /// <summary>Aynı kartta formdan forma geçişte önceki formun kirliliği taşınır (<see cref="_oncekiFormKirli"/>); değer henüz
+    /// değişmediği için iz hâlâ önceki formu ölçer.</summary>
+    partial void OnAcikFormChanging(KartFormu oldValue, KartFormu newValue)
+    {
+        if (oldValue != KartFormu.Yok && newValue != KartFormu.Yok)
+            _oncekiFormKirli |= FormIzi.Var;
+        else
+            _oncekiFormKirli = false;
+    }
+
     partial void OnAcikFormChanged(KartFormu oldValue, KartFormu newValue)
     {
         KartHatalari.Temizle();
