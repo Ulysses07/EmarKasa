@@ -96,4 +96,27 @@ public class AlisFormuTests
         Assert.Equal(100m, vm.Kalemler[0].Tutar);
         Assert.False(vm.KaydedilmemisDegisiklikVar);
     }
+
+    /// <summary>AlislarPage.xaml, KaydedilmemisDegisiklikVar'a dört yerde bağlıdır (uyarı metni, "Değişiklikleri bırak" düğmesi,
+    /// ödeme formu uyarısı ve kilidi). Ortak yapıya taşınırken (<see cref="KaydedilmemisDegisiklik"/>) bu değer hâlâ
+    /// [ObservableProperty] olmalı ve her değişiminde PropertyChanged duyurmalı; aksi halde bu bağlamalar donar.</summary>
+    [Fact]
+    public async Task KaydedilmemisDegisiklikVar_her_degisiminde_property_changed_duyurur()
+    {
+        var (vm, _) = await Kur();
+        await vm.SecCommand.ExecuteAsync(vm.Alislar.Single(a => a.Veri.Id == 7));
+
+        var duyurulanlar = new List<bool>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.KaydedilmemisDegisiklikVar))
+                duyurulanlar.Add(vm.KaydedilmemisDegisiklikVar);
+        };
+
+        vm.Tedarikci = "Başka";
+        vm.Tedarikci = "Ege Gıda";
+        await vm.YeniCommand.ExecuteAsync(null);
+
+        Assert.Equal([true, false], duyurulanlar);
+    }
 }
