@@ -111,7 +111,7 @@ public class TakipKomutlariTests
         vm.AcilisTarihi = new DateTime(2026, 9, 1);
         api.SonrakiHata = new HttpRequestException();
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Contains("ulaşılamadı", vm.Hata);
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.KartHatalari.Genel);
         Assert.Equal(3, vm.Secili!.Surum);
         await vm.KaydetCommand.ExecuteAsync(null);
         var duzenleme = api.Hepsi<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
@@ -135,7 +135,7 @@ public class TakipKomutlariTests
         vm.AcilisPaylari[0].Tutar = 50;
         api.SonrakiHata = new HttpRequestException();
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Contains("ulaşılamadı", vm.Hata);
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.KartHatalari.Genel);
         Assert.Null(vm.Secili);
         await vm.KaydetCommand.ExecuteAsync(null);
         var yeni = api.Hepsi<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
@@ -155,12 +155,12 @@ public class TakipKomutlariTests
         vm.Ad = "   ";
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Empty(api.Cagrilar);
-        Assert.Contains("Kart adını", vm.Hata);
+        Assert.Equal("Kart / banka adı boş olamaz.", vm.KartHatalari[nameof(vm.Ad)]);
         vm.Ad = "Kart";
         vm.KesimGunu = 32;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Empty(api.Cagrilar);
-        Assert.Contains("1–31", vm.Hata);
+        Assert.Equal("Kesim günü 1 ile 31 arasında olmalı.", vm.KartHatalari[nameof(vm.KesimGunu)]);
 
         var (izleyici, izleyiciApi) = await KartVm(Rol.Izleyici);
         izleyici.Ad = "Kart 2";

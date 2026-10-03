@@ -99,12 +99,12 @@ public class GecersizTutarTests
         vm.Limit = G;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.KartKayitSayisi);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.KartHatalari[nameof(vm.Limit)]);
         vm.Limit = 1000;
         vm.AcilisBorc = G;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.KartKayitSayisi);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.KartHatalari[nameof(vm.AcilisBorc)]);
     }
 
     [Fact]

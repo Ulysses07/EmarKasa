@@ -15,7 +15,7 @@ namespace Kasa.App.Core;
 /// <param name="zaman">Kart kutularındaki "Son ödeme geçti" kuralının saati (yerel gün); verilmezse sistem saati. DI'da kayıtlı
 /// değildir (isteğe bağlı parametre varsayılana düşer); testler sabit saat verir.</param>
 public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, AuthViewModel auth, IBenzerKayitApi? benzerlikApi = null,
-    IKasaKontrolApi? kontrolApi = null, TimeProvider? zaman = null) : OturumluViewModel(auth)
+    IKasaKontrolApi? kontrolApi = null, TimeProvider? zaman = null) : OturumluViewModel(auth), IKaydedilmemisForm
 {
     private readonly TimeProvider _zaman = zaman ?? TimeProvider.System;
     public BenzerKayitKontrolu HarcamaBenzerlik { get; } = new(benzerlikApi ?? finans as IBenzerKayitApi);
@@ -284,18 +284,27 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         }
         liste.Add(pay);
     }
-    [RelayCommand]
-    private Task KaydetAsync() => YurutAsync(KartFormu.KartBilgisi, async n =>
+    /// <summary>Kart bilgileri formunun ön doğrulaması (tasarım 2026-10-02 §1; KR-04): her kural kendi alanının altında.</summary>
+    private bool KartFormuGecerli(bool yeni)
     {
-        if (!EditorMu)
-            return;
+        var h = KartHatalari;
+        h.Denetle(!string.IsNullOrWhiteSpace(Ad), nameof(Ad), "Kart / banka adı boş olamaz.");
+        h.Denetle(ParaAyristirici.GecerliMi(Limit), nameof(Limit), ParaAyristirici.GecersizMesaji);
+        h.Denetle(Limit >= 0, nameof(Limit), "Limit negatif olamaz.");
+        h.Denetle(KesimGunu is >= 1 and <= 31, nameof(KesimGunu), "Kesim günü 1 ile 31 arasında olmalı.");
+        h.Denetle(SonOdemeGunu is >= 1 and <= 31, nameof(SonOdemeGunu), "Son ödeme günü 1 ile 31 arasında olmalı.");
+        h.Denetle(!yeni || ParaAyristirici.GecerliMi(AcilisBorc), nameof(AcilisBorc), ParaAyristirici.GecersizMesaji);
+        return !h.Var;
+    }
+
+    [RelayCommand]
+    private Task KaydetAsync() => FormIsleAsync(KartHatalari, async n =>
+    {
         // Açılış borcu, tarihi ve dağılımı yalnız yeni kartta girilir ve okunur (bölüm yalnız YeniKart iken görünür); sunucu
         // güncellemede bu alanları yok sayar. Mevcut kartta görünmeyen bir açılış satırı kaydı reddettirmez.
         var yeni = Secili is null;
-        if (!ParaAyristirici.HepsiGecerli(Limit, yeni ? AcilisBorc : 0))
-        { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (string.IsNullOrWhiteSpace(Ad) || Limit < 0 || KesimGunu is < 1 or > 31 || SonOdemeGunu is < 1 or > 31)
-        { Hata = "Kart adını, limiti ve 1–31 arası günleri kontrol edin."; return; }
+        if (!EditorMu || !KartFormuGecerli(yeni))
+            return;
         var g = yeni
             ? new KartTakipYaz(Guid.Empty, 0, Ad.Trim(), Limit, KesimGunu, SonOdemeGunu, DateOnly.FromDateTime(AcilisTarihi), AcilisBorc, TakipMetni.Paylar(AcilisPaylari))
             : new KartTakipYaz(Guid.Empty, Secili!.Surum, Ad.Trim(), Limit, KesimGunu, SonOdemeGunu, Secili.TakipBaslangic ?? DateOnly.FromDateTime(AcilisTarihi), 0, Array.Empty<KanalPayYaz>());

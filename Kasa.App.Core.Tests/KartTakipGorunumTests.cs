@@ -75,9 +75,10 @@ public class KartTakipGorunumTests
         vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
         vm.Ad = "";
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.NotNull(vm.Hata);
+        Assert.NotNull(vm.KartHatalari[nameof(vm.Ad)]);
         vm.VazgecCommand.Execute(null);
         Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.False(vm.KartHatalari.Var);
         Assert.Null(vm.Hata);
     }
 
@@ -127,7 +128,7 @@ public class KartTakipGorunumTests
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.KartKayitSayisi);
         Assert.Equal(KartFormu.KartBilgisi, vm.AcikForm);
-        Assert.Equal("Kart adını, limiti ve 1–31 arası günleri kontrol edin.", vm.FormHatasi);
+        Assert.Equal("Kart / banka adı boş olamaz.", vm.KartHatalari[nameof(vm.Ad)]);
         Assert.Null(vm.SayfaHatasi);
         vm.VazgecCommand.Execute(null);
         vm.Hata = "Sunucuya ulaşılamadı.";
@@ -523,10 +524,9 @@ public class KartTakipGorunumTests
         Assert.Contains(nameof(vm.AcikKartId), bildirilen);
 
         bildirilen.Clear();
-        await vm.KaydetCommand.ExecuteAsync(null);   // boş ad: formun hatası
-        Assert.NotNull(vm.FormHatasi);
-        Assert.Contains(nameof(vm.FormHatasi), bildirilen);
-        Assert.Contains(nameof(vm.SayfaHatasi), bildirilen);
+        await vm.KaydetCommand.ExecuteAsync(null);   // boş ad: formun alanında
+        Assert.Equal("Kart / banka adı boş olamaz.", vm.KartHatalari[nameof(vm.Ad)]);
+        Assert.Null(vm.SayfaHatasi);
 
         bildirilen.Clear();
         vm.VazgecCommand.Execute(null);

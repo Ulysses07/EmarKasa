@@ -42,6 +42,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     private readonly View _formAlani;
     /// <summary>Formun tepesindeki hata satırı (FormHatasi): uzun formun altındaki düğmeden gelen hata görünür yere kaydırılır.</summary>
     private readonly Label _formHataSatiri;
+    /// <summary>Kart bilgileri formunun genel hata kutusu (KartHatalari.Genel; tasarım 2026-10-02 §1).</summary>
+    private readonly View _kartHataKutusu;
 
     /// <summary>Kart bildirimine tıklanınca //kartlar?KartId={id}: sayfa zaten açıkken istek hemen, değilse sayfa belirirken uygulanır
     /// (SorguSecimi).</summary>
@@ -78,6 +80,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kredi Kartları", SayfaAciklamasi, vm.YukleAsync, nameof(vm.SayfaHatasi))
     {
         _formHataSatiri = BagliHata(nameof(vm.FormHatasi));
+        _kartHataKutusu = FormHatasi(nameof(vm.KartHatalari) + ".Genel");
         _formAlani = FormAlani(vm);
         _ayrinti = new Border
         {
@@ -136,6 +139,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
         };
+        // Kaydetme başarısız olunca ilk hatalı alana (yoksa formun genel hata kutusuna) kaydırılır ve odaklanılır (tasarım §1).
+        vm.KartHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_formAlani, vm.KartHatalari, _kartHataKutusu);
     }
 
     /// <summary>Ayrıntı: üstü görünür alandaysa kaydırılmaz (kutular görünür kalır), değilse üstü görünür alanın başına gelir.</summary>
@@ -221,14 +226,17 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         };
     }
 
+    /// <summary>Kart bilgileri formu (yeni kart ve "Kartı düzenle"): başlık modu söyler ("Yeni kart" / "Düzenleniyor: Bonus"); genel
+    /// hata formun en üstünde, alan hataları alanın altında (tasarım 2026-10-02 §1-2; KR-04).</summary>
     private View KartBilgileri(KartTakipViewModel vm)
     {
+        const string h = nameof(vm.KartHatalari);
         var acilis = new VerticalStackLayout
         {
             Spacing = 12,
             Children =
             {
-                Alan("Açılış tarihi", Tarih(nameof(vm.AcilisTarihi))), Alan("Açılış borcu", Girdi(nameof(vm.AcilisBorc), true)),
+                Alan("Açılış tarihi", Tarih(nameof(vm.AcilisTarihi))), Alan("Açılış borcu", Girdi(nameof(vm.AcilisBorc), true), h, nameof(vm.AcilisBorc)),
                 Metin(AcilisNotu), Paylar(vm.AcilisPaylari, () => vm.PayEkle(vm.AcilisPaylari)),
             },
         };
@@ -238,11 +246,23 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 vm.Gerekce = gerekce;
                 return vm.DurumDegistirAsync();
             })));
-        return Form("Kart bilgileri",
-            Alan("Kart / banka adı", Girdi(nameof(vm.Ad))), Alan("Limit", Girdi(nameof(vm.Limit), true)),
-            Alan("Hesap kesim günü (1–31)", Girdi(nameof(vm.KesimGunu), sayi: true)), Alan("Son ödeme günü (1–31)", Girdi(nameof(vm.SonOdemeGunu), sayi: true)),
-            Goster(acilis, nameof(vm.YeniKart)), Dugme("Kartı kaydet", nameof(vm.KaydetCommand)),
-            Goster(durum, nameof(vm.KartSecili)), Goster(Devir(vm), nameof(vm.GecisKaydi), true));
+        var baslik = Bagli(nameof(vm.KartFormuBasligi));
+        baslik.Style = (Style)Application.Current!.Resources["LblTakipKartBaslik"];
+        var kaydet = Dugme("Kartı kaydet", nameof(vm.KaydetCommand));
+        kaydet.SetBinding(Button.TextProperty, nameof(vm.KartKaydetMetni));
+        return new VerticalStackLayout
+        {
+            Spacing = 12,
+            Children =
+            {
+                baslik, _kartHataKutusu,
+                Alan("Kart / banka adı", Girdi(nameof(vm.Ad)), h, nameof(vm.Ad)), Alan("Limit", Girdi(nameof(vm.Limit), true), h, nameof(vm.Limit)),
+                Alan("Hesap kesim günü (1–31)", Girdi(nameof(vm.KesimGunu), sayi: true), h, nameof(vm.KesimGunu)),
+                Alan("Son ödeme günü (1–31)", Girdi(nameof(vm.SonOdemeGunu), sayi: true), h, nameof(vm.SonOdemeGunu)),
+                Goster(acilis, nameof(vm.YeniKart)), kaydet,
+                Goster(durum, nameof(vm.KartSecili)), Goster(Devir(vm), nameof(vm.GecisKaydi), true),
+            },
+        };
     }
 
     private static View Devir(KartTakipViewModel vm)

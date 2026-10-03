@@ -55,6 +55,70 @@ public partial class KartTakipViewModel
     /// <summary>Formdan bağımsız hata (yükleme, iptal …) ve kaynağı artık açık olmayan formun hatası sayfa başında gösterilir.</summary>
     public string? SayfaHatasi => FormHatasi is null ? Hata : null;
 
+    /// <summary>Kart bilgileri formunun (yeni kart ve "Kartı düzenle") hataları (tasarım 2026-10-02 §1; KR-04). Sunucu kart hatalarını
+    /// alan adı olmadan ({ hata }) döndürür: sunucu iletisi genel hataya gider.</summary>
+    public AlanHatalari KartHatalari { get; } = new();
+    protected override IEnumerable<AlanHatalari> Formlar => [KartHatalari];
+
+    /// <summary>Kart bilgileri formunun başlığı: yeni kartta "Yeni kart", düzenlemede "Düzenleniyor: Bonus".</summary>
+    public string KartFormuBasligi => Secili is { } kart ? $"Düzenleniyor: {kart.Ad}" : "Yeni kart";
+    public string KartKaydetMetni => Secili is null ? "Kartı kaydet" : "Değişikliği kaydet";
+
+    /// <summary>Açık formun açıldığı andaki değerleri (kart bilgileri, ödeme, harcama): kaydedilmemiş değişiklik ölçütü (tasarım §2).
+    /// Diğer formlar (masraf, ekstre, geçiş) izlenmez.</summary>
+    private KaydedilmemisDegisiklik? _formIzi;
+    private KaydedilmemisDegisiklik FormIzi => _formIzi ??= new(() => AcikForm switch
+    {
+        KartFormu.KartBilgisi => new
+        {
+            Ad,
+            Limit,
+            KesimGunu,
+            SonOdemeGunu,
+            AcilisTarihi,
+            AcilisBorc,
+            Paylar = AcilisPaylari.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
+        },
+        KartFormu.Odeme => new { OdemeTarihi, OdemeTutari, Ekstre = OdemeEkstresi?.Veri.Id, OdemeNotu },
+        KartFormu.Harcama => (object)new
+        {
+            HarcamaTarihi,
+            HarcamaAciklama,
+            HarcamaTutari,
+            TaksitSayisi,
+            IlkKesimVar,
+            IlkKesimTarihi,
+            Iade = IadeKaynagi?.Veri.Id,
+            Paylar = HarcamaPaylari.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
+        },
+        _ => null,
+    });
+
+    public bool KaydedilmemisDegisiklikVar => FormIzi.Var;
+
+    /// <summary>Yazılmış değişiklikleri bırakır: form kapanır, kartın form alanları kartın kayıtlı değerlerine (yeni kartta boşa) döner.</summary>
+    public void DegisiklikleriBirak()
+    {
+        AcikForm = KartFormu.Yok;
+        KartFormlariniTemizle();
+        if (Secili is { } kart)
+            Sec(new KartTakipSatiri(kart, _zaman));
+        else
+            Yeni();
+    }
+
+    /// <summary>Başka karta geçiş, kartı kapatma ve yeni kart öncesi: yazılmış değişiklik varsa onay sorulur; "Bırak" seçilirse
+    /// değişiklikler bırakılır. Aynı kartın formları arasında geçiş sorulmaz (aynı kayıt).</summary>
+    private async Task<bool> FormdanCikilabilirAsync()
+    {
+        if (!FormIzi.Var)
+            return true;
+        if (!await BirakilabilirAsync(FormIzi))
+            return false;
+        DegisiklikleriBirak();
+        return true;
+    }
+
     /// <summary>Hatası <paramref name="kaynak"/> formuna ait tekil işlem (<see cref="KartFormu.Yok"/>: sayfaya ait).</summary>
     private Task YurutAsync(KartFormu kaynak, Func<int, Task> islem) => YurutAsync(n =>
     {
@@ -94,15 +158,16 @@ public partial class KartTakipViewModel
         _ => false,
     };
 
-    /// <summary>Formu kapatır; formun hatası ve benzer kayıt uyarısı da kalkar (<see cref="OnAcikFormChanged"/>).</summary>
+    /// <summary>Formu kapatır; formun hatası ve benzer kayıt uyarısı da kalkar (<see cref="OnAcikFormChanged"/>). "Vazgeç" bilerek
+    /// bırakmaktır: onay sorulmaz (tasarım §2 onayı başka kayda geçiş, Yeni ve sayfadan çıkışta ister).</summary>
     [RelayCommand]
     private void Vazgec() => AcikForm = KartFormu.Yok;
 
-    /// <summary>Kutuya tıklandı: kart açık değilse açılır (<see cref="Sec"/>), açıksa kapanır.</summary>
+    /// <summary>Kutuya tıklandı: kart açık değilse açılır (<see cref="Sec"/>), açıksa kapanır. Yazılmış form varsa önce onay sorulur.</summary>
     [RelayCommand]
-    private void KutuSec(KartTakipSatiri? satir)
+    private async Task KutuSecAsync(KartTakipSatiri? satir)
     {
-        if (satir is null)
+        if (satir is null || !await FormdanCikilabilirAsync())
             return;
         if (Secili?.Id == satir.Veri.Id)
             Yeni();
@@ -110,11 +175,12 @@ public partial class KartTakipViewModel
             Sec(satir);
     }
 
-    /// <summary>"Yeni kart ekle" kutusu: boş kart bilgileri formunu açar; form açıkken tekrar tıklamak kapatır.</summary>
+    /// <summary>"Yeni kart ekle" kutusu: boş kart bilgileri formunu açar; form açıkken tekrar tıklamak kapatır. Yazılmış form varsa
+    /// önce onay sorulur.</summary>
     [RelayCommand]
-    private void YeniKartAc()
+    private async Task YeniKartAcAsync()
     {
-        if (!EditorMu)
+        if (!EditorMu || !await FormdanCikilabilirAsync())
             return;
         if (YeniKartFormuAcik)
         {
@@ -144,6 +210,11 @@ public partial class KartTakipViewModel
     /// formundan çıkılınca benzer kayıt uyarısı ve onayı kalkar.</summary>
     partial void OnAcikFormChanged(KartFormu oldValue, KartFormu newValue)
     {
+        KartHatalari.Temizle();
+        if (newValue == KartFormu.Yok)
+            FormIzi.Kapat();
+        else
+            FormIzi.Ac();
         if (HataKaynagi == oldValue && oldValue != KartFormu.Yok)
         {
             HataKaynagi = KartFormu.Yok;
@@ -175,6 +246,8 @@ public partial class KartTakipViewModel
         }
         OnPropertyChanged(nameof(AcikKartId));
         OnPropertyChanged(nameof(YeniKartFormuAcik));
+        OnPropertyChanged(nameof(KartFormuBasligi));
+        OnPropertyChanged(nameof(KartKaydetMetni));
     }
 
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
