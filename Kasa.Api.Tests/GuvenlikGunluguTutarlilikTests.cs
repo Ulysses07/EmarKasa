@@ -238,13 +238,32 @@ public class GuvenlikGunluguTutarlilikTests
             finally { Onar(yol, gunluk); }
 
             // Okuma başarılı olduğu hâlde append engellenirse de DB işareti ve kimlikler değişmez.
-            using (var kilit = new FileStream(yol, FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (var scope = host.Services.CreateScope())
+            void YazilamazkenDene()
             {
+                using var scope = host.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
                 var hata = Record.Exception(() => GeriYuklemeIsleyici.Isle(db, scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>()));
                 Assert.True(hata is IOException or UnauthorizedAccessException, $"Beklenmeyen hata: {hata}");
                 Assert.Equal(once, DurumIzleyiciVeIsaret(host));
+                Assert.Empty(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == GuvenlikOlaylari.GeriYuklemeIslendi).ToList());
+            }
+            if (OperatingSystem.IsWindows())
+            {
+                using var kilit = new FileStream(yol, FileMode.Open, FileAccess.Read, FileShare.Read);
+                YazilamazkenDene();
+            }
+            else
+            {
+                var oncekiIzin = File.GetUnixFileMode(yol);
+                File.SetUnixFileMode(yol, UnixFileMode.UserRead);
+                try
+                {
+                    YazilamazkenDene();
+                }
+                finally
+                {
+                    File.SetUnixFileMode(yol, oncekiIzin);
+                }
             }
 
             using (var scope = host.Services.CreateScope())
