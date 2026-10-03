@@ -229,7 +229,7 @@ public class GecersizTutarTests
         vm.Tutar = G;
         await vm.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Null(f.Sablon);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.SablonHatalari[nameof(vm.Tutar)]);
 
         vm.Tutar = 100;
         vm.DagilimTuru = vm.DagilimTurleri[2];
@@ -238,7 +238,7 @@ public class GecersizTutarTests
         vm.Paylar[0].Tutar = G;
         await vm.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Null(f.Sablon);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.SablonHatalari.Genel);
     }
 
     [Fact]
