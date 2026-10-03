@@ -31,11 +31,16 @@ internal static class TakipUi
         return etiket;
     }
 
-    public static View Alan(string ad, View v) => new VerticalStackLayout
+    public static View Alan(string ad, View v)
     {
-        Spacing = 5,
-        Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, v },
-    };
+        // Görsel etiket ile giriş denetimi ayrı öğeler olsa da erişilebilir ad girişte duyulur.
+        SemanticProperties.SetDescription(v, ad);
+        return new VerticalStackLayout
+        {
+            Spacing = 5,
+            Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, v },
+        };
+    }
 
     public static Entry Girdi(string yol, bool para = false, bool sayi = false)
     {
@@ -69,6 +74,7 @@ internal static class TakipUi
     {
         var c = OnayKutusu();
         c.SetBinding(CheckBox.IsCheckedProperty, yol);
+        SemanticProperties.SetDescription(c, text);
         var grid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8 };
         grid.Add(c);
         grid.Add(new Label { Text = text, VerticalOptions = LayoutOptions.Center }, 1);

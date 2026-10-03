@@ -33,19 +33,21 @@
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Tarih" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <DatePicker Date="{Binding DuzenTarih}" />
+                                    <DatePicker Date="{Binding DuzenTarih}" SemanticProperties.Description="Tarih" />
                                 </Border>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Açıklama / ödeme yapılan yer" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı" />
+                                    <Entry Text="{Binding DuzenCari}" Placeholder="Örn. Yılmaz Gıda — mal alımı"
+                                           SemanticProperties.Description="Açıklama / ödeme yapılan yer" />
                                 </Border>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Tutar" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <ctl:ParaGirisi Tutar="{Binding DuzenTutar}" Placeholder="0,00 ₺" />
+                                    <ctl:ParaGirisi Tutar="{Binding DuzenTutar}" Placeholder="0,00 ₺"
+                                                     SemanticProperties.Description="Tutar" />
                                 </Border>
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
@@ -64,19 +66,24 @@
                             <VerticalStackLayout Spacing="6" IsVisible="{Binding TaksitGirilebilir}">
                                 <Label Text="Taksit sayısı" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}" WidthRequest="120" HorizontalOptions="Start">
-                                    <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" />
+                                    <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric"
+                                           SemanticProperties.Description="Taksit sayısı" />
                                 </Border>
                                 <HorizontalStackLayout Spacing="10">
-                                    <Switch IsToggled="{Binding DuzenIlkKesimVar}" />
+                                    <Switch IsToggled="{Binding DuzenIlkKesimVar}"
+                                            SemanticProperties.Description="İlk kesim tarihini belirt (isteğe bağlı)" />
                                     <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
-                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}"><DatePicker Date="{Binding DuzenIlkKesimTarihi}" /></Border>
+                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}">
+                                    <DatePicker Date="{Binding DuzenIlkKesimTarihi}" SemanticProperties.Description="İlk kesim tarihi" />
+                                </Border>
                                 <Label Text="Bankada taksitle çekildiyse her ekstreye yalnız taksit tutarı yazılır." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
                                 <Label Text="Not" Style="{StaticResource LblField}" />
                                 <Border Style="{StaticResource FieldBorder}">
-                                    <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
+                                    <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı"
+                                           SemanticProperties.Description="Not" />
                                 </Border>
                             </VerticalStackLayout>
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,2,0,0">
@@ -111,7 +118,7 @@
                                         <Picker ItemsSource="{Binding GelenDonemler}"
                                                 SelectedItem="{Binding GelenDonem}"
                                                 ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, ConverterParameter=yil, x:DataType=api:DonemDto}"
-                                                Title="Dönem seçin" />
+                                                Title="Dönem seçin" SemanticProperties.Description="Kasa dönemi" />
                                     </Border>
                                 </VerticalStackLayout>
                                 <VerticalStackLayout Spacing="0">
@@ -122,6 +129,7 @@
                                     <Label Text="Bu dönem için toplam gelir (₺)" Style="{StaticResource LblField}" />
                                     <Border Style="{StaticResource FieldBorder}">
                                         <ctl:ParaGirisi Tutar="{Binding GelenTutar}" Placeholder="0,00 ₺"
+                                                        SemanticProperties.Description="Bu dönem için toplam gelir (₺)"
                                                         IsEnabled="{Binding GelenKaydedilebilir}" />
                                     </Border>
                                 </VerticalStackLayout>
@@ -157,7 +165,7 @@
                                 <Picker ItemsSource="{Binding FiltreDonemler}"
                                         SelectedItem="{Binding SeciliDonem}"
                                         ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, x:DataType=api:DonemDto}"
-                                        Title="Hafta seç" />
+                                        Title="Hafta seç" SemanticProperties.Description="Filtre dönemi" />
                             </Border>
                         </Grid>
 

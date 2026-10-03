@@ -168,6 +168,35 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+    <!-- CipGrubu çipleri gerçek düğmedir: görünüm eski Border + Label çipiyle aynı; Tab/Enter/Space ve ekran okuyucu
+         için seçili durum ipucu eklenir. Odak kenarı düğme odaklandığında görünür. -->
+    <Style x:Key="ChipButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="White" />
+        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+        <Setter Property="BorderColor" Value="{StaticResource Border}" />
+        <Setter Property="BorderWidth" Value="1" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="HeightRequest" Value="-1" />
+        <Setter Property="MinimumHeightRequest" Value="38" />
+        <Setter Property="FontFamily" Value="{StaticResource YaziAilesi}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontAttributes" Value="None" />
+        <Setter Property="SemanticProperties.Hint" Value="Seçili değil" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Focused">
+                        <VisualState.Setters>
+                            <Setter Property="BorderColor" Value="{StaticResource Ink}" />
+                            <Setter Property="BorderWidth" Value="2" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
     <Style x:Key="FieldBorder" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource BrushCard}" />
         <Setter Property="Stroke" Value="{StaticResource BrushFieldStroke}" />

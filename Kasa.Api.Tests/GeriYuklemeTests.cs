@@ -343,7 +343,8 @@ public class GeriYuklemeTests
             string zip, editorJwt, izleyiciJwt, aliciJwt, editorCihazi;
             int alisOnce, alisSonra, aliciSonra;
             List<AlisKanalDto> kanallar;
-            var fA = new Fabrika(canli, dizin);
+            var saat = new SabitSaat(KasaWebFactory.VarsayilanBugun);
+            var fA = new Fabrika(canli, dizin, saat, gunluk: true);
             try
             {
                 (editorJwt, var cihaz) = await GirisYap(fA, "editor", "kasa123");
@@ -366,6 +367,7 @@ public class GeriYuklemeTests
                         OturumDamgasi.Uret("editor", scope.ServiceProvider.GetRequiredService<IConfiguration>(), db)));
                 }
 
+                saat.Ilerlet(TimeSpan.FromMinutes(1)); // Günlüğün ilk satırı yedek kesiminden önce olsun.
                 zip = await YedekAl(fA);
 
                 // Yedekten sonra: ayrılan kişi yüzünden izleyici şifresi değişir, yeni alış ve alıcı açılır.
@@ -383,7 +385,7 @@ public class GeriYuklemeTests
             KasaDbCikar(zip, geri);
             var yedektekiTabanlar = KimlikTabanlari(geri);
             var yedekIsareti = UserVersion(geri);
-            var fB = new Fabrika(geri, dizin);
+            var fB = new Fabrika(geri, dizin, saat, gunluk: true);
             try
             {
                 // gR2: ne yedek anındaki (ayrılan kişinin bildiği) ne sonradan belirlenen izleyici şifresiyle giriş yapılır.
@@ -444,6 +446,7 @@ public class GeriYuklemeTests
                     Assert.Equal(soy.ToString("N"), db.SistemDurumu.AsNoTracking().Single().OturumDonemi);
                     var ayrinti = JsonDocument.Parse(olay.YeniJson!).RootElement;
                     Assert.Equal(KimlikAraligi, ayrinti.GetProperty("kimlikAraligi").GetInt32());
+                    Assert.Equal("tam", ayrinti.GetProperty("guvenlikGunlugu").GetString());
                     Assert.True(ayrinti.GetProperty("izleyiciErisimiKapatildi").GetBoolean());
                     Assert.Contains(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == "IzleyiciSifresiDegisti").ToList(), o => o.AktorRol == "sistem");
                 }
@@ -458,7 +461,7 @@ public class GeriYuklemeTests
 
             // Yeniden başlatma geri yüklemeyi yeniden işlemez: izleyici açık kalır, sayaçlar yeniden ileri alınmaz.
             var islenmis = KimlikTabanlari(geri);
-            var fC = new Fabrika(geri, dizin);
+            var fC = new Fabrika(geri, dizin, saat, gunluk: true);
             try
             {
                 Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fC, null, "ucuncu-izleyici-sifresi"));
@@ -589,6 +592,16 @@ public class GeriYuklemeTests
                 var alicilar = (await editor.GetFromJsonAsync<List<AliciDto>>("/api/alicilar", cancellationToken: ct))!;
                 Assert.Equal(new[] { "alici1", "alici2" }, alicilar.Select(a => a.Kullanici).Order());
                 Assert.All(alicilar, a => Assert.False(a.Aktif));
+                using (var scope = fB.Services.CreateScope())
+                    Assert.All(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Alicilar.AsNoTracking().ToList(),
+                        a => Assert.Equal(GeriYuklemeIsleyici.AliciSifreKilidi, a.SifreHash));
+                foreach (var alici in alicilar)
+                {
+                    using var sifresizAc = await editor.PutAsJsonAsync($"/api/alicilar/{alici.Id}",
+                        new AliciYaz(alici.Kullanici, alici.Ad, null, Aktif: true), cancellationToken: ct);
+                    Assert.Equal(HttpStatusCode.BadRequest, sifresizAc.StatusCode);
+                    Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, alici.Kullanici, AliciSifresi));
+                }
                 // (f) Bütün cihaz kayıtları (kaldırılmış kayıp cihaz dahil) kapalı.
                 using (var scope = fB.Services.CreateScope())
                     Assert.All(scope.ServiceProvider.GetRequiredService<KasaDbContext>().Set<PushAbonelikEntity>().AsNoTracking().ToList(), p => Assert.False(p.Etkin));
@@ -662,12 +675,11 @@ public class GeriYuklemeTests
     }
 
     /// <summary>
-    /// Güvenlik günlüğü yoksa (ör. sunucu kaybında yedek dizini de gitti) yedekten sonraki kararlar bilinemez: koşulsuz adımlar
-    /// (oturumlar, kurtarma kodu, izleyici, cihazlar) yine uygulanır; yedek anındaki editör şifresi geçerli kalır ve rapor şifrenin
-    /// hemen değiştirilmesini ister (runbook'taki operatör adımı).
+    /// Güvenlik günlüğü yoksa (ör. sunucu kaybında yedek dizini de gitti) yedekten sonraki kararlar bilinemez: eski editör
+    /// şifresi kilitlenir ve bütün alıcılar pasifleştirilir; operatör yeni ortam şifresiyle bilinçli sıfırlama yapar.
     /// </summary>
     [Fact]
-    public async Task Guvenlik_gunlugu_yoksa_kosulsuz_adimlar_uygulanir_ve_rapor_sifre_degisikligini_ister()
+    public async Task Guvenlik_gunlugu_yoksa_eski_editor_ve_alici_kimlikleri_kilitlenir()
     {
         var ct = TestContext.Current.CancellationToken;
         var dizin = GeciciYol("");
@@ -676,6 +688,7 @@ public class GeriYuklemeTests
         try
         {
             string zip, k1;
+            int aliciId;
             var fA = new Fabrika(canli, dizin);
             try
             {
@@ -683,7 +696,9 @@ public class GeriYuklemeTests
                     (await ilk.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = EditorP1 }, cancellationToken: ct)).EnsureSuccessStatusCode();
                 using var editor = Oturumlu(fA, (await GirisYap(fA, "editor", EditorP1)).Jwt);
                 k1 = await KurtarmaKodu(editor, EditorP1);
+                aliciId = await AliciAc(editor, "alici1");
                 zip = await YedekAl(fA);
+                (await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}", new AliciYaz("alici1", "alici1", "yeni-alici-sifresi", Aktif: false), cancellationToken: ct)).EnsureSuccessStatusCode();
                 (await editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = EditorP1, yeniSifre = EditorP2 }, cancellationToken: ct)).EnsureSuccessStatusCode();
             }
             finally { fA.Dispose(); }
@@ -695,17 +710,137 @@ public class GeriYuklemeTests
             {
                 Assert.Equal(HttpStatusCode.Unauthorized, await Kurtar(fB, k1));
                 Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP2));
-                using var editor = Oturumlu(fB, (await GirisYap(fB, "editor", EditorP1)).Jwt);
-                var (_, rapor) = await YedekDurumu(editor);
-                Assert.Contains(rapor, m => m.StartsWith("Güvenlik günlüğü bulunamadı", StringComparison.Ordinal) && m.Contains("Editör şifresini hemen değiştirin", StringComparison.Ordinal));
-                Assert.DoesNotContain(GeriYuklemeIsleyici.EditorGirisiKilitlendi, rapor);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP1));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "alici1", AliciSifresi));
+                using var scope = fB.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+                var rapor = GeriYuklemeIsleyici.RaporuOku(db.SistemDurumu.AsNoTracking().Single().GeriYuklemeRaporu)!;
+                Assert.Contains(GeriYuklemeIsleyici.EditorGirisiKilidiEksikGunluk, rapor);
+                Assert.Contains(rapor, m => m.StartsWith("Güvenlik günlüğü bulunamadı", StringComparison.Ordinal) && m.Contains("yeni şifre belirleyerek", StringComparison.Ordinal));
+                Assert.False(db.Alicilar.AsNoTracking().Single().Aktif);
+                Assert.Equal(GeriYuklemeIsleyici.AliciSifreKilidi, db.Alicilar.AsNoTracking().Single().SifreHash);
                 var olay = GeriYuklemeOlayi(fB);
                 Assert.Equal("bulunamadi", olay.GetProperty("guvenlikGunlugu").GetString());
-                Assert.False(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
+                Assert.True(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
+                Assert.Equal(1, olay.GetProperty("pasifAlicilar").GetArrayLength());
             }
             finally { fB.Dispose(); }
             // Günlük açılışta oluşturulur ve geri yüklemeyi kaydeder.
             Assert.Contains(File.ReadAllLines(Path.Combine(dizin, GuvenlikGunlugu.DosyaAdi)), s => s.Contains("\"tur\":\"GeriYuklemeIslendi\"", StringComparison.Ordinal));
+            var fC = new Fabrika(geri, dizin, gunluk: true, editorSifresi: YeniOrtamSifresi, sifirla: true);
+            try
+            {
+                Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fC, "editor", YeniOrtamSifresi));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fC, "editor", EditorP1));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fC, "alici1", AliciSifresi));
+                using var editor = Oturumlu(fC, (await GirisYap(fC, "editor", YeniOrtamSifresi)).Jwt);
+                using var sifresizAc = await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}",
+                    new AliciYaz("alici1", "alici1", null, Aktif: true), cancellationToken: ct);
+                Assert.Equal(HttpStatusCode.BadRequest, sifresizAc.StatusCode);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fC, "alici1", AliciSifresi));
+                using var yeniSifreyleAc = await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}",
+                    new AliciYaz("alici1", "alici1", "geri-yukleme-yeni-sifresi", Aktif: true), cancellationToken: ct);
+                Assert.Equal(HttpStatusCode.OK, yeniSifreyleAc.StatusCode);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fC, "alici1", AliciSifresi));
+                Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fC, "alici1", "geri-yukleme-yeni-sifresi"));
+            }
+            finally { fC.Dispose(); }
+        }
+        finally { Temizle([canli, geri], dizin); }
+    }
+
+    [Fact]
+    public async Task Yedekte_zaten_pasif_alicinin_sonraki_sifre_karari_eski_parolayi_gecersiz_kilar()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var dizin = GeciciYol("");
+        var canli = GeciciYol(".db");
+        var geri = GeciciYol(".db");
+        var saat = new SabitSaat(KasaWebFactory.VarsayilanBugun);
+        try
+        {
+            string zip;
+            int aliciId;
+            var fA = new Fabrika(canli, dizin, saat, gunluk: true);
+            try
+            {
+                using var editor = Oturumlu(fA, (await GirisYap(fA, "editor", "kasa123")).Jwt);
+                aliciId = await AliciAc(editor, "alici1");
+                (await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}",
+                    new AliciYaz("alici1", "alici1", null, Aktif: false), cancellationToken: ct)).EnsureSuccessStatusCode();
+                saat.Ilerlet(TimeSpan.FromMinutes(1));
+                zip = await YedekAl(fA);
+                saat.Ilerlet(TimeSpan.FromMinutes(1));
+                (await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}",
+                    new AliciYaz("alici1", "alici1", "yedek-sonrasi-sifre", Aktif: false), cancellationToken: ct)).EnsureSuccessStatusCode();
+            }
+            finally { fA.Dispose(); }
+
+            KasaDbCikar(zip, geri);
+            var fB = new Fabrika(geri, dizin, saat, gunluk: true);
+            try
+            {
+                using var editor = Oturumlu(fB, (await GirisYap(fB, "editor", "kasa123")).Jwt);
+                using (var scope = fB.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+                    var alici = db.Alicilar.AsNoTracking().Single();
+                    Assert.False(alici.Aktif);
+                    Assert.Equal(GeriYuklemeIsleyici.AliciSifreKilidi, alici.SifreHash);
+                    var rapor = GeriYuklemeIsleyici.RaporuOku(db.SistemDurumu.AsNoTracking().Single().GeriYuklemeRaporu)!;
+                    Assert.Contains(rapor, m => m.Contains("yedekte zaten pasifti", StringComparison.Ordinal));
+                }
+                using var sifresizAc = await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}",
+                    new AliciYaz("alici1", "alici1", null, Aktif: true), cancellationToken: ct);
+                Assert.Equal(HttpStatusCode.BadRequest, sifresizAc.StatusCode);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "alici1", AliciSifresi));
+                using var yeniSifreyleAc = await editor.PutAsJsonAsync($"/api/alicilar/{aliciId}",
+                    new AliciYaz("alici1", "alici1", "geri-yukleme-yeni-sifresi", Aktif: true), cancellationToken: ct);
+                Assert.Equal(HttpStatusCode.OK, yeniSifreyleAc.StatusCode);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "alici1", AliciSifresi));
+                Assert.Equal(HttpStatusCode.OK, await GirisDurumu(fB, "alici1", "geri-yukleme-yeni-sifresi"));
+            }
+            finally { fB.Dispose(); }
+        }
+        finally { Temizle([canli, geri], dizin); }
+    }
+
+    /// <summary>Yedek kesimiyle aynı saat damgasındaki karar yedekten sonra verilmiş olabilir; güvenli yönde yeniden uygulanır.</summary>
+    [Fact]
+    public async Task Yedek_aniyla_ayni_damgali_editor_sifresi_karari_eski_sifreyi_kilitler()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var dizin = GeciciYol("");
+        var canli = GeciciYol(".db");
+        var geri = GeciciYol(".db");
+        var saat = new SabitSaat(KasaWebFactory.VarsayilanBugun);
+        try
+        {
+            string zip;
+            var fA = new Fabrika(canli, dizin, saat, gunluk: true);
+            try
+            {
+                using (var ilk = Oturumlu(fA, (await GirisYap(fA, "editor", "kasa123")).Jwt))
+                    (await ilk.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = EditorP1 }, cancellationToken: ct)).EnsureSuccessStatusCode();
+                saat.Ilerlet(TimeSpan.FromMinutes(1)); // Günlüğün ilk satırı yedek anından kesinlikle önce.
+                using var editor = Oturumlu(fA, (await GirisYap(fA, "editor", EditorP1)).Jwt);
+                zip = await YedekAl(fA);
+                // Saat ilerlemez: olay damgası yedek kesimine tam eşittir, fakat olay kopyadan sonra yazılır.
+                (await editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = EditorP1, yeniSifre = EditorP2 }, cancellationToken: ct)).EnsureSuccessStatusCode();
+            }
+            finally { fA.Dispose(); }
+
+            KasaDbCikar(zip, geri);
+            var fB = new Fabrika(geri, dizin, saat, gunluk: true);
+            try
+            {
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP1));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP2));
+                var olay = GeriYuklemeOlayi(fB);
+                Assert.Equal("tam", olay.GetProperty("guvenlikGunlugu").GetString());
+                Assert.True(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
+            }
+            finally { fB.Dispose(); }
         }
         finally { Temizle([canli, geri], dizin); }
     }

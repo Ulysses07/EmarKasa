@@ -40,7 +40,8 @@ public class EkstreAktarmaTests
     private static Task<PanelDto?> Panel(HttpClient c) => c.GetFromJsonAsync<PanelDto>("/api/rapor/panel");
     private EkstreSatirYaz Row(int no, string type, decimal amount = 100m, string distribution = "Ozel", params KanalPayYaz[] shares) =>
         new(no, Today, "Banka hareketi " + no, amount, type, distribution, shares.Length == 0 && distribution == "Ozel" ? [new(1, amount)] : shares);
-    private async Task<EkstreBelgeDto> Document(KasaWebFactory f, HttpClient c, string source = "Banka", int? card = null, int count = 3, string currency = "TRY", string direction = "Cikis")
+    private async Task<EkstreBelgeDto> Document(KasaWebFactory f, HttpClient c, string source = "Banka", int? card = null, int count = 3, string currency = "TRY", string direction = "Cikis",
+        DateOnly? originalDate = null, decimal originalAmount = 100m)
     {
         int id;
         using (var scope = f.Services.CreateScope())
@@ -55,7 +56,7 @@ public class EkstreAktarmaTests
                 DosyaAdi = "test.pdf",
                 DosyaOzeti = Guid.NewGuid().ToString(),
                 Yuklendi = f.Saat!.GetUtcNow().ToUnixTimeMilliseconds(),
-                SatirlarJson = JsonSerializer.Serialize(Enumerable.Range(1, count).Select(no => new EkstreOkunanSatir(no, 1, "Kaynak " + no, Today, "Banka hareketi " + no, 100m, direction,
+                SatirlarJson = JsonSerializer.Serialize(Enumerable.Range(1, count).Select(no => new EkstreOkunanSatir(no, 1, "Kaynak " + no, originalDate ?? Today, "Banka hareketi " + no, originalAmount, direction,
                     source == "Banka" ? "Gider" : "KartHarcama", "Hareket", currency, [])))
             };
             db.EkstreBelgeler.Add(d);
@@ -231,6 +232,62 @@ public class EkstreAktarmaTests
             Assert.Equal(new[] { 18m, 12m }, current.Kayitlar.Single(k => k.SatirNo == 3).Dagilimlar.Select(p => p.Tutar));
         }
         Assert.Equal(970m, (await Panel(c))!.GuncelKasa);
+    }
+
+    [Fact]
+    public async Task Pdf_kaynakli_kilitli_avans_iptalinde_bagli_tahsisler_ve_kanal_etkisi_kalkar()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var f = Factory();
+        using var c = await Editor(f);
+        var eskiAy = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-1);
+        var card = await Card(c);
+        var doc = await Document(f, c, "Kart", card.Id, count: 1, originalDate: eskiAy, originalAmount: 50m);
+        var (request, _) = await Preview(c, doc, Row(1, "KartOdemesi", 50m, "Otomatik") with { Tarih = eskiAy });
+        doc = await Save(c, doc, request);
+        var sourceRow = Assert.Single(doc.Kayitlar);
+        var sourceId = sourceRow.KartOdemeId!.Value;
+
+        var lockState = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", ct))!;
+        await Post<AyKilidiDto>(c, "/api/ay-kilidi/kapat", new AyKilidiYaz(Guid.NewGuid(), lockState.Surum, eskiAy.Year, eskiAy.Month, "Geçen ay kapatıldı"));
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", ct))!;
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar",
+            new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "İlk harcama", 30m, 1, null, [new(1, 30m)]));
+        card = await Post<KartTakipDto>(c, $"/api/takip/kartlar/{card.Id}/harcamalar",
+            new KartHarcamaYaz(Guid.NewGuid(), card.Surum, Today, "İkinci harcama", 40m, 1, null, [new(2, 40m)]));
+        var allocations = card.Odemeler.Where(o => o.AvansKaynakOdemeId == sourceId).ToList();
+        Assert.Equal(2, allocations.Count);
+        Assert.Equal(20m, card.Borc);
+        var before = (await Panel(c))!;
+        Assert.Equal(950m, before.GuncelKasa);
+        Assert.Equal(-30m, before.Kanallar.Single(k => k.KanalId == 1).Bakiye);
+        Assert.Equal(-20m, before.Kanallar.Single(k => k.KanalId == 2).Bakiye);
+
+        var cancel = new EkstreIptalYaz(Guid.NewGuid(), "Banka avans ödemesini iptal etti");
+        var path = $"/api/ekstre-aktar/{doc.Id}/kayitlar/{sourceRow.Id}/iptal";
+        Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync(path, cancel, ct)).StatusCode);
+        Assert.False((await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{doc.Id}", ct))!.Kayitlar.Single().Iptal);
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", ct))!;
+        Assert.Equal(20m, card.Borc);
+        Assert.Equal(2, card.Odemeler.Count(o => allocations.Any(a => a.Id == o.Id) && !o.Iptal));
+
+        lockState = (await c.GetFromJsonAsync<AyKilidiDto>("/api/ay-kilidi", ct))!;
+        await Post<AyKilidiDto>(c, "/api/ay-kilidi/ac", new AyKilidiYaz(Guid.NewGuid(), lockState.Surum, eskiAy.Year, eskiAy.Month, "Avans kaydı düzeltilecek"));
+        doc = await Post<EkstreBelgeDto>(c, path, cancel);
+        Assert.True(doc.Kayitlar.Single(k => k.Id == sourceRow.Id).Iptal);
+        card = (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", ct))!;
+        Assert.True(card.Odemeler.Single(o => o.Id == sourceId).Iptal);
+        Assert.Equal(2, card.Odemeler.Count(o => allocations.Any(a => a.Id == o.Id) && o.Iptal));
+        Assert.Equal(70m, card.Borc);
+        var after = (await Panel(c))!;
+        Assert.Equal(1000m, after.GuncelKasa);
+        Assert.Equal(0m, after.Kanallar.Single(k => k.KanalId == 1).Bakiye);
+        Assert.Equal(0m, after.Kanallar.Single(k => k.KanalId == 2).Bakiye);
+
+        var version = doc.Surum;
+        doc = await Post<EkstreBelgeDto>(c, path, cancel);
+        Assert.Equal(version, doc.Surum);
+        Assert.Equal(70m, (await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", ct))!.Borc);
     }
 
     [Fact]

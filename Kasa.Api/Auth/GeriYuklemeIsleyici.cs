@@ -39,8 +39,8 @@ namespace Kasa.Api.Auth;
 /// kaybolan şifre ne de ortamdaki Kasa:EditorSifre geçer (ilk kurulumun ya da unutulmuş eski bir ortam şifresinin kendiliğinden
 /// geçerli olmaması için). Kilidi yalnız operatörün bilinçli sıfırlaması açar: yeni Kasa:EditorSifre ve Kasa:EditorSifreSifirla
 /// (<see cref="EditorSifreSifirlama"/>, bu işlemden hemen sonra aynı açılışta çalışır). Şifresi ya da kullanıcı adı değiştirilen veya son olayı pasife alma olan alıcı
-/// (kimliği ve adı eşleşirse) pasif bırakılır; yedekten sonra açılıp kaybolan alıcılar rapora yazılır. Günlük yoksa ya da yedek
-/// anından sonra başladıysa yalnız koşulsuz adımlar uygulanır ve rapor editör şifresinin değiştirilmesini ister.</item>
+/// (kimliği ve adı eşleşirse) pasif bırakılır ve eski şifresi geçersiz kılınır; yedekten sonra açılıp kaybolan alıcılar rapora yazılır. Günlük yoksa ya da yedek
+/// anından sonra başladıysa bilinmeyen kararlar nedeniyle editör girişi kilitlenir, yedekteki bütün alıcılar pasifleştirilir ve şifreleri geçersiz kılınır.</item>
 /// <item>Kimlikler ileri alınır: AUTOINCREMENT'li her tablonun sayacı MAX(sayaç, en yüksek kimlik) + <see cref="KimlikAraligi"/>
 /// olur (sayaç satırı olmayan tabloya satır eklenir). Atılan soyda açılmış kayıtların kimlikleri yeni kayda verilmez; eski
 /// ekranın ya da tekrarın taşıdığı kimlik başka kayda ulaşamaz (404). Yedek anında var olan kayıtların sürümü de geri sarıldığı
@@ -63,12 +63,17 @@ public static class GeriYuklemeIsleyici
     /// <summary>Geri yüklemede sayaçların ileri alındığı pay (restore_backup.py'deki KIMLIK_ARALIGI ile aynı).</summary>
     public const int KimlikAraligi = 1_000_000;
     public const string OlayTuru = GuvenlikOlaylari.GeriYuklemeIslendi;
+    /// <summary>Geri yüklemede geçersiz kılınan alıcı parolası; yeni parola verilmeden hesap etkinleştirilemez.</summary>
+    public const string AliciSifreKilidi = "kilitli:geri-yukleme-alici";
 
     /// <summary>Editör girişinin kilitlendiğini bildiren rapor maddesi (web ve masaüstü aynen gösterir; açılışta loglanır).</summary>
     public const string EditorGirisiKilitlendi = "Editör şifresi yedekten sonra değiştirilmişti: yedekteki eski şifre geçersiz kılındı ve editör girişi "
         + "kilitlendi (sunucudaki KASA_EDITOR_SIFRE de geçmez). Sunucu operatörü sıfırlamalı: deploy/.env'de KASA_EDITOR_SIFRE'yi yeni, en az 12 "
         + "karakterlik bir değere çevirip KASA_EDITOR_SIFRE_SIFIRLA=true ile uygulamayı yeniden başlatır (Kasa:EditorSifreSifirla). Editör bu "
         + "şifreyle girip şifresini hemen değiştirmeli; ardından bayrak kaldırılıp uygulama yeniden başlatılmalı.";
+    public const string EditorGirisiKilidiEksikGunluk = "Güvenlik günlüğü yedek anından beri tam olmadığı için yedekteki editör şifresinin güvenliği doğrulanamadı: "
+        + "editör girişi kilitlendi (sunucudaki KASA_EDITOR_SIFRE de geçmez). Sunucu operatörü yeni, en az 12 karakterlik KASA_EDITOR_SIFRE "
+        + "ve KASA_EDITOR_SIFRE_SIFIRLA=true ile uygulamayı yeniden başlatmalı; editör bu şifreyle girip hemen kendi şifresini değiştirmeli.";
 
     /// <param name="Soy">Geri yüklemeyle başlayan veri soyunun kimliği (olayın VarlikId'si; oturum dönemi onun 32 haneli biçimi).</param>
     /// <param name="Sayaclar">Tablo → ileri alınmış sayaç.</param>
@@ -90,6 +95,7 @@ public static class GeriYuklemeIsleyici
             if (!Isaretli(baglanti, null))
                 return null;
             // Günlük veritabanından bağımsız bir dosyadır: transaction'dan önce okunur.
+            using var seriKilit = gunluk?.IslemKilidiAl();
             var icerik = gunluk?.Oku();
             using var tx = db.Database.BeginTransaction();
             var sqliteTx = (SqliteTransaction)tx.GetDbTransaction();
@@ -125,34 +131,38 @@ public static class GeriYuklemeIsleyici
             var kurtarmaKoduVardi = editor.KurtarmaHash is not null;
             editor.KurtarmaHash = null;
 
-            // Yedekten sonraki kararlar (yalnız sıkılaştırma). Yedek anı bilinmiyorsa günlüğün tamamı yedekten sonraki sayılır.
+            // Yedek anıyla aynı zaman damgasındaki olaylar da uygulanır: zaman çözünürlüğü veya sabit saat nedeniyle
+            // karar yedeğin hemen sonrasında aynı damgayı taşıyabilir. Fazladan sıkılaştırma güvenli yöndedir.
             var kesim = yedekAni ?? DateTimeOffset.MinValue;
-            var sonrakiler = icerik?.Olaylar.Where(o => o.Zaman > kesim).ToList() ?? [];
+            var sonrakiler = icerik?.Olaylar.Where(o => o.Zaman >= kesim).ToList() ?? [];
+            var gunlukDurumu = icerik is null ? "bulunamadi" : icerik.Baslangic is { } bas && bas < kesim ? "tam" : "eksik";
+            var kararlarEksik = gunlukDurumu != "tam";
             // Operatörün yedekten sonraki sıfırlaması da bir şifre kararıdır: yedekteki şifre (belki sıfırlamanın nedeni) geri gelmez.
-            var editorKilitlendi = sonrakiler.Any(o => o.Tur is GuvenlikGunlugu.EditorSifresiDegisti or GuvenlikGunlugu.KurtarmaKullanildi
+            var editorKilitlendi = kararlarEksik || sonrakiler.Any(o => o.Tur is GuvenlikGunlugu.EditorSifresiDegisti or GuvenlikGunlugu.KurtarmaKullanildi
                 or GuvenlikGunlugu.EditorSifresiSifirlandi);
             if (editorKilitlendi)
-            { editor.SifreHash = EditorGuvenligi.GirisKilidi; rapor.Add(EditorGirisiKilitlendi); }
+            { editor.SifreHash = EditorGuvenligi.GirisKilidi; rapor.Add(kararlarEksik ? EditorGirisiKilidiEksikGunluk : EditorGirisiKilitlendi); }
             if (izleyiciKapatildi)
                 rapor.Add("İzleyici girişi kapatıldı: Ayarlar'dan yeni bir izleyici şifresi belirleyin; yedekteki eski şifreyi yeniden kullanmayın.");
             rapor.Add(kurtarmaKoduVardi
                 ? "Kurtarma kodu iptal edildi (yedekteki kod geçersiz): Güvenlik bölümünden yeni kurtarma kodu üretin."
                 : "Kurtarma kodu yok: Güvenlik bölümünden yeni kurtarma kodu üretin.");
-            var pasif = AlicilariSikilastir(alicilar, sonrakiler, rapor);
+            var pasif = kararlarEksik ? AlicilariToptanPasiflestir(alicilar, rapor) : AlicilariSikilastir(alicilar, sonrakiler, rapor);
             db.SaveChanges();
 
             var bildirim = Calistir(baglanti, sqliteTx, "UPDATE \"PushAbonelikler\" SET \"Etkin\" = 0 WHERE \"Etkin\" = 1;");
             if (bildirim > 0)
                 rapor.Add($"{bildirim} cihazın bildirim kaydı kapatıldı: bildirim kullanan cihazlarda bildirimleri yeniden açın.");
-            var gunlukDurumu = icerik is null ? "bulunamadi" : icerik.Baslangic is { } bas && bas <= kesim ? "tam" : "eksik";
             if (gunlukDurumu == "bulunamadi")
-                rapor.Add("Güvenlik günlüğü bulunamadı: yedekten sonra değişen editör şifresi ve alıcı hesapları bilinemiyor. "
-                    + "Editör şifresini hemen değiştirin, alıcı hesaplarını gözden geçirin.");
+                rapor.Add("Güvenlik günlüğü bulunamadı: yedekten sonraki kimlik kararları bilinmiyor. Bu nedenle editör girişi kilitlendi "
+                    + "ve yedekteki bütün alıcı hesapları pasifleştirildi. Sunucu operatörü editör şifresini yeni KASA_EDITOR_SIFRE ile "
+                    + "sıfırlamalı; editör alıcıları ancak yeni şifre belirleyerek tekrar etkinleştirmeli.");
             else if (gunlukDurumu == "eksik")
                 rapor.Add((yedekAni is null
                         ? "Yedek anı bilinmediği için güvenlik günlüğündeki bütün sıkılaştırmalar yeniden uygulandı; günlükten önceki değişiklikler bilinemiyor. "
                         : $"Güvenlik günlüğü {(icerik!.Baslangic is { } b ? Yerel(b) : "bilinmeyen bir")} tarihinden beri tutuluyor; yedek daha önce alındığı için aradaki değişiklikler bilinemiyor. ")
-                    + "Editör şifresini hemen değiştirin, alıcı hesaplarını gözden geçirin.");
+                    + "Bu nedenle editör girişi kilitlendi ve yedekteki bütün alıcı hesapları pasifleştirildi. Sunucu operatörü "
+                    + "editör şifresini sıfırlamalı; editör alıcıları ancak yeni şifre belirleyerek tekrar etkinleştirmeli.");
 
             var soy = Guid.NewGuid();
             durum.OturumDonemi = soy.ToString("N");
@@ -180,8 +190,8 @@ public static class GeriYuklemeIsleyici
                 guvenlikGunlugu = gunlukDurumu,
             }), Aktor: DenetimAktoru.Sistem, BaslikGerekcesi: false));
             Calistir(baglanti, sqliteTx, "PRAGMA user_version = 0;");
-            tx.Commit();
-
+            // Günlük yazılamazsa geri yükleme işareti, oturum iptalleri ve bütün sıkılaştırmalar birlikte geri alınır.
+            // Bir sonraki açılış işlemi yeniden deneyebilir; işaret ancak günlük kalıcı olduktan sonra temizlenir.
             gunluk?.Yaz(GuvenlikGunlugu.GeriYuklemeIslendi, ayrinti: new
             {
                 yedekAni,
@@ -191,7 +201,8 @@ public static class GeriYuklemeIsleyici
                 kurtarmaKoduIptal = kurtarmaKoduVardi,
                 pasifAlicilar = pasif.Count,
                 bildirimKayitlariKapatildi = bildirim,
-            });
+            }, zorunlu: true);
+            tx.Commit();
             var log = db.GetService<ILoggerFactory>().CreateLogger("Kasa.Guvenlik");
             log.LogWarning(
                 "Geri yüklenmiş veritabanı tanındı ve işlendi (veri soyu {Soy}): bütün oturumlar kapatıldı, kurtarma kodu iptal edildi, izleyici girişi {Izleyici}, "
@@ -218,6 +229,23 @@ public static class GeriYuklemeIsleyici
         catch (JsonException) { return null; }
     }
 
+    /// <summary>Günlük yedek anından beri tam değilse hangi alıcının kimliği değiştiği bilinmez; bütün parolalar geçersiz kılınır.</summary>
+    private static List<int> AlicilariToptanPasiflestir(List<AliciEntity> alicilar, List<string> rapor)
+    {
+        var pasif = new List<int>();
+        foreach (var alici in alicilar)
+        {
+            alici.SifreHash = AliciSifreKilidi;
+            if (!alici.Aktif)
+                continue;
+            alici.Aktif = false;
+            pasif.Add(alici.Id);
+        }
+        if (alicilar.Count > 0)
+            rapor.Add($"{pasif.Count} etkin alıcı hesabı güvenlik günlüğü tam olmadığı için pasifleştirildi; {alicilar.Count} alıcının eski şifresi geçersiz kılındı. Her hesabı yeni şifre belirleyerek yeniden etkinleştirin.");
+        return pasif;
+    }
+
     /// <summary>
     /// Yedekten sonra şifresi ya da kullanıcı adı değiştirilen veya son olayı pasife alma olan alıcı, veritabanında kimliği ve (önceki
     /// ya da yeni) adı eşleşirse pasif bırakılır: yedekteki şifre ve etkinlik geçersiz kalır, editör gerekirse yeni şifreyle etkinleştirir.
@@ -235,8 +263,15 @@ public static class GeriYuklemeIsleyici
             if (!(sifre || ad || pasifeAlindi))
                 continue;
             var adlar = olaylar.SelectMany(o => new[] { o.Kullanici, o.Metin("oncekiKullanici") }).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (alicilar.FirstOrDefault(a => a.Id == grup.Key && adlar.Contains(a.Kullanici)) is not { Aktif: true } alici)
+            if (alicilar.FirstOrDefault(a => a.Id == grup.Key && adlar.Contains(a.Kullanici)) is not { } alici)
                 continue;
+            // Yedekte zaten pasif olsa bile eski hash sonradan yapılan şifre/ad kararından önceye aittir.
+            alici.SifreHash = AliciSifreKilidi;
+            if (!alici.Aktif)
+            {
+                rapor.Add($"'{alici.Kullanici}' alıcısı yedekte zaten pasifti; yedekten sonraki kimlik kararı nedeniyle eski şifresi geçersiz kılındı. Yeniden etkinleştirmeden önce yeni şifre belirleyin.");
+                continue;
+            }
             alici.Aktif = false;
             pasif.Add(alici.Id);
             var nedenler = new List<string>();

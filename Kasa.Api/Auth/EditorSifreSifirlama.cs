@@ -20,7 +20,7 @@ namespace Kasa.Api.Auth;
 /// <item>Tek transaction'da: editör şifre özeti ortam şifresinin özeti olur, kurtarma kodu iptal edilir, sürüm artar (bütün editör
 /// oturumları ve tanıdık cihaz belirteçleri düşer; giriş kilidi kalkar), sıfırlama izi (<see cref="SistemDurumuEntity.EditorSifirlamaIzi"/>)
 /// yazılır ve 'Oturum ve güvenlik' izine <see cref="GuvenlikOlaylari.EditorSifresiSifirlandi"/> olayı (aktör sistem) düşer. Commit'ten
-/// sonra aynı olay veritabanı dışındaki güvenlik günlüğüne yazılır (yedekten geri yüklemede yedekteki şifre yeniden geçerli olmaz) ve
+/// önce aynı olay veritabanı dışındaki güvenlik günlüğüne zorunlu olarak yazılır (yedekten geri yüklemede yedekteki şifre yeniden geçerli olmaz) ve
 /// Kasa.Guvenlik loguna uyarı düşer. Şifre ve iz hiçbir loga ya da olaya yazılmaz.</item>
 /// <item>İz ortam şifresine bağlıdır (HMAC-SHA256, anahtar Kasa:JwtKey): bayrak açık unutulsa da aynı ortam şifresiyle sıfırlama
 /// yeniden uygulanmaz, editörün arayüzden sonradan değiştirdiği şifre her açılışta ezilmez (her açılışta "bayrağı kaldırın" uyarısı
@@ -69,6 +69,7 @@ public static class EditorSifreSifirlama
         var iz = Iz(cfg, sifre!);
 
         bool kilitliydi, kurtarmaKoduVardi;
+        using var seriKilit = gunluk?.IslemKilidiAl();
         using (var tx = db.Database.BeginTransaction())
         {
             var durum = db.SistemDurumu.SingleOrDefault(s => s.Id == 1);
@@ -95,7 +96,8 @@ public static class EditorSifreSifirlama
             kayit.Surum++;
             durum.EditorSifirlamaIzi = iz;
             // Geri yüklemenin kilidi kalktıysa son geri yükleme raporu (Araçlar/Güvenlik) bunu da söyler.
-            if (kilitliydi && GeriYuklemeIsleyici.RaporuOku(durum.GeriYuklemeRaporu) is { } rapor && rapor.Contains(GeriYuklemeIsleyici.EditorGirisiKilitlendi))
+            if (kilitliydi && GeriYuklemeIsleyici.RaporuOku(durum.GeriYuklemeRaporu) is { } rapor
+                && (rapor.Contains(GeriYuklemeIsleyici.EditorGirisiKilitlendi) || rapor.Contains(GeriYuklemeIsleyici.EditorGirisiKilidiEksikGunluk)))
                 durum.GeriYuklemeRaporu = JsonSerializer.Serialize(rapor.Append(
                     $"Editör girişi {GeriYuklemeIsleyici.Yerel(db.Saati().GetUtcNow())} tarihinde açıldı: şifre sunucudaki KASA_EDITOR_SIFRE'ye sıfırlandı "
                     + "(Kasa:EditorSifreSifirla). Editör şifresini değiştirmediyse hemen değiştirmeli.").ToList(), DenetimYazici.JsonAyarlari);
@@ -109,11 +111,11 @@ public static class EditorSifreSifirlama
                 kurtarmaKoduIptal = kurtarmaKoduVardi,
                 girisKilidiKaldirildi = kilitliydi,
             }), Aktor: DenetimAktoru.Sistem, BaslikGerekcesi: false));
+            // Günlükte editörün diğer olayları gibi yapılandırmadaki adla (EditorGuvenligi: şifre değişikliği, kurtarma).
+            gunluk?.Yaz(GuvenlikGunlugu.EditorSifresiSifirlandi, kullanici: kullanici,
+                ayrinti: new { oturumlarKapatildi = true, kurtarmaKoduIptal = kurtarmaKoduVardi, girisKilidiKaldirildi = kilitliydi }, zorunlu: true);
             tx.Commit();
         }
-        // Günlükte editörün diğer olayları gibi yapılandırmadaki adla (EditorGuvenligi: şifre değişikliği, kurtarma).
-        gunluk?.Yaz(GuvenlikGunlugu.EditorSifresiSifirlandi, kullanici: kullanici,
-            ayrinti: new { oturumlarKapatildi = true, kurtarmaKoduIptal = kurtarmaKoduVardi, girisKilidiKaldirildi = kilitliydi });
         log.LogWarning("Editör şifresi ortamdaki Kasa:EditorSifre değerine sıfırlandı (Kasa:EditorSifreSifirla); eski editör oturumları ve kurtarma kodu "
             + "iptal edildi{Kilit}. Editör bu şifreyle girip şifresini hemen değiştirmeli; ardından bayrağı kaldırıp uygulamayı yeniden başlatın.",
             kilitliydi ? ", geri yüklemenin giriş kilidi kaldırıldı" : "");

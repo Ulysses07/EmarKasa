@@ -36,12 +36,14 @@
                 <VerticalStackLayout Spacing="0">
                     <Label Text="Kullanıcı" Style="{StaticResource LblField}" />
                     <Border Style="{StaticResource FieldBorder}">
-                        <Entry Text="{Binding Kullanici}" Placeholder="Editör veya alıcı kullanıcı adı" />
+                        <Entry Text="{Binding Kullanici}" Placeholder="Editör veya alıcı kullanıcı adı"
+                               SemanticProperties.Description="Kullanıcı" />
                     </Border>
 
                     <Label Text="Şifre" Style="{StaticResource LblField}" Margin="0,14,0,6" />
                     <Border Style="{StaticResource FieldBorder}">
-                        <Entry Text="{Binding Sifre}" IsPassword="True" Placeholder="••••••••" />
+                        <Entry Text="{Binding Sifre}" IsPassword="True" Placeholder="••••••••"
+                               SemanticProperties.Description="Şifre" />
                     </Border>
 
                     <!-- Hata -->
@@ -67,18 +69,25 @@
                     <Button Text="Şifremi unuttum" Command="{Binding KurtarmayiAcKapatCommand}" Style="{StaticResource BtnSecondary}" Margin="0,10,0,0" />
                     <VerticalStackLayout IsVisible="{Binding KurtarmaAcik}" Spacing="10" Margin="0,14,0,0">
                         <Label Text="Editör hesabınızın daha önce oluşturduğunuz tek kullanımlık kurtarma kodunu girin. Alıcı hesabı için editörünüzle görüşün." Style="{StaticResource LblPageSub}" />
-                        <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding KurtarmaKodu}" Placeholder="Kurtarma kodu" IsPassword="True" /></Border>
+                        <Border Style="{StaticResource FieldBorder}">
+                            <Entry Text="{Binding KurtarmaKodu}" Placeholder="Kurtarma kodu" IsPassword="True"
+                                   SemanticProperties.Description="Kurtarma kodu" />
+                        </Border>
                         <!-- "Yeni şifreyi göster" yalnız yeni şifre alanlarını açar (kurtarma kodu maskeli kalır); durum görünüm
                              modelindedir, form kapanınca, başarıda ve oturum değişiminde kapanır. -->
                         <Border Style="{StaticResource FieldBorder}">
-                            <Entry Text="{Binding KurtarmaYeniSifre}" Placeholder="Yeni şifre (en az 12 karakter)" IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}" />
+                            <Entry Text="{Binding KurtarmaYeniSifre}" Placeholder="Yeni şifre (en az 12 karakter)"
+                                   IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}"
+                                   SemanticProperties.Description="Yeni şifre (en az 12 karakter)" />
                         </Border>
                         <!-- Kurtarma kodu tek kullanımlık: tekrar uyuşmazsa istek gönderilmez, kod harcanmaz. -->
                         <Border Style="{StaticResource FieldBorder}">
-                            <Entry Text="{Binding KurtarmaYeniSifreTekrar}" Placeholder="Yeni şifre (tekrar)" IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}" />
+                            <Entry Text="{Binding KurtarmaYeniSifreTekrar}" Placeholder="Yeni şifre (tekrar)"
+                                   IsPassword="{Binding KurtarmaSifresiniGoster, Converter={StaticResource TersIse}}"
+                                   SemanticProperties.Description="Yeni şifre (tekrar)" />
                         </Border>
                         <HorizontalStackLayout Spacing="6">
-                            <CheckBox IsChecked="{Binding KurtarmaSifresiniGoster}" />
+                            <CheckBox IsChecked="{Binding KurtarmaSifresiniGoster}" SemanticProperties.Description="Yeni şifreyi göster" />
                             <Label Text="Yeni şifreyi göster" Style="{StaticResource LblPageSub}" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                         <Button Text="Şifreyi yenile" Command="{Binding SifreKurtarCommand}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />

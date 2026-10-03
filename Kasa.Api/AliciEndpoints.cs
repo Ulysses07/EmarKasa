@@ -28,17 +28,22 @@ public static partial class AliciEndpoints
                 SifreHash = SifreHasher.Hashle(dto.Sifre!),
                 Aktif = dto.Aktif
             };
+            using var seriKilit = gunluk.IslemKilidiAl();
+            using var tx = db.Database.BeginTransaction();
             db.Alicilar.Add(e);
             db.SaveChanges();
-            gunluk.Yaz(GuvenlikGunlugu.AliciOlusturuldu, e.Id, e.Kullanici, new { aktif = e.Aktif });
+            gunluk.Yaz(GuvenlikGunlugu.AliciOlusturuldu, e.Id, e.Kullanici, new { aktif = e.Aktif }, zorunlu: true);
+            tx.Commit();
             return Results.Created($"/api/alicilar/{e.Id}", Oku(e));
         });
         api.MapPut("/{id:int}", (int id, AliciYaz dto, KasaDbContext db, IConfiguration cfg, GuvenlikGunlugu gunluk) =>
         {
+            using var seriKilit = gunluk.IslemKilidiAl();
+            using var tx = db.Database.BeginTransaction();
             var e = db.Alicilar.Find(id);
             if (e is null)
                 return Results.NotFound();
-            if (Dogrula(dto, db, cfg, id) is { } hata)
+            if (Dogrula(dto, db, cfg, id, dto.Aktif && e.SifreHash == GeriYuklemeIsleyici.AliciSifreKilidi) is { } hata)
                 return hata;
             var oturumlariKapat = e.Aktif != dto.Aktif || e.Kullanici != dto.Kullanici.Trim().ToLowerInvariant();
             var (oncekiKullanici, oncekiAktif) = (e.Kullanici, e.Aktif);
@@ -52,7 +57,8 @@ public static partial class AliciEndpoints
             e.Aktif = dto.Aktif;
             db.SaveChanges();
             gunluk.Yaz(GuvenlikGunlugu.AliciGuncellendi, e.Id, e.Kullanici,
-                new { oncekiKullanici, oncekiAktif, aktif = e.Aktif, sifreDegisti = !string.IsNullOrEmpty(dto.Sifre) });
+                new { oncekiKullanici, oncekiAktif, aktif = e.Aktif, sifreDegisti = !string.IsNullOrEmpty(dto.Sifre) }, zorunlu: true);
+            tx.Commit();
             return Results.Ok(Oku(e));
         });
         return app;
@@ -60,7 +66,7 @@ public static partial class AliciEndpoints
 
     private static AliciDto Oku(AliciEntity e) => new(e.Id, e.Kullanici, e.Ad, e.Aktif);
 
-    private static IResult? Dogrula(AliciYaz dto, KasaDbContext db, IConfiguration cfg, int? id)
+    private static IResult? Dogrula(AliciYaz dto, KasaDbContext db, IConfiguration cfg, int? id, bool yeniSifreZorunlu = false)
     {
         var v = new GirdiDogrulama();
         v.Metin(dto.Kullanici, "kullanici", 64);
@@ -69,9 +75,10 @@ public static partial class AliciEndpoints
         v.Kontrol(KullaniciDeseni().IsMatch(kullanici), "kullanici", "Kullanıcı adı 3–64 karakter olmalı; a–z, 0–9, nokta, tire ve alt çizgi kullanılabilir.");
         v.Kontrol(!string.Equals(kullanici, cfg["Kasa:EditorKullanici"], StringComparison.OrdinalIgnoreCase),
             "kullanici", "Editörün kullanıcı adı kullanılamaz.");
-        if (id is null || !string.IsNullOrEmpty(dto.Sifre))
+        if (id is null || yeniSifreZorunlu || !string.IsNullOrEmpty(dto.Sifre))
             v.Kontrol(!string.IsNullOrWhiteSpace(dto.Sifre) && dto.Sifre.Length is >= 8 and <= 1024,
-                "sifre", "Şifre 8–1024 karakter olmalı.");
+                "sifre", yeniSifreZorunlu ? "Geri yükleme sonrası hesabı açmak için yeni, 8–1024 karakterlik bir şifre belirleyin."
+                    : "Şifre 8–1024 karakter olmalı.");
         if (v.Sonuc() is { } hata)
             return hata;
         return db.Alicilar.Any(a => a.Id != id && a.Kullanici == kullanici)

@@ -26,6 +26,7 @@ builder.Services.AddExceptionHandler<VeritabaniHataIsleyici>();
 // Belge içerikleri veritabanında değil içerik adresli belge deposunda (Belge:Dizin; varsayılan veritabanı klasörü/belgeler).
 builder.Services.AddSingleton<BelgeDeposu>();
 builder.Services.AddSingleton<IDiskAlani, DiskAlani>();
+builder.Services.AddSingleton<GuvenlikYedekSeriKilidi>();
 builder.Services.AddSingleton<YedekServisi>();
 // Veritabanı dışındaki güvenlik günlüğü (yedek dizininde): geri yüklemede yedekten sonraki kararlar buradan yeniden uygulanır.
 builder.Services.AddSingleton<GuvenlikGunlugu>();

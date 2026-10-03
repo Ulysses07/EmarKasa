@@ -87,16 +87,7 @@ public static partial class FinansTakipEndpoints
         })).RequireAuthorization("Editor");
         api.MapPost("/kartlar/{id:int}/odemeler/{odemeId:int}/iptal", (int id, int odemeId, TakipIptalYaz dto, KasaDbContext db) => Change(db, true, id, dto.Surum, dto.IstekId, "KartOdemeIptal", new { odemeId, dto }, () =>
         {
-            ManagedCard(db, id);
-            Text(dto.Aciklama);
-            var payment = db.TakipKartOdemeler.SingleOrDefault(p => p.Id == odemeId && p.KrediKartiId == id);
-            Require(payment is not null, "Ödeme bulunamadı.", 404);
-            Require(!db.TakipAvansTahsisleri.Any(t => t.OdemeId == odemeId), "Kilitli avans dağıtımı ayrıca iptal edilemez; gerekirse avansı yatıran ödemeyi (dönemi açıksa) iptal edin.", 409);
-            payment!.Iptal = true;
-            // Avans ödemesi iptal edilince avansının dağıtımları da iptal olur: dağıtılacak avans kalmaz (finance-8).
-            var dagitimlar = db.TakipAvansTahsisleri.Where(t => t.KaynakOdemeId == odemeId).Select(t => t.OdemeId).ToList();
-            foreach (var dagitim in db.TakipKartOdemeler.Where(p => dagitimlar.Contains(p.Id) && !p.Iptal).ToList())
-                dagitim.Iptal = true;
+            CancelCardPayment(db, id, odemeId, dto.Aciklama);
             return id;
         }, gerekce: dto.Aciklama)).RequireAuthorization("Editor");
         api.MapGet("/kartlar/{id:int}/devir", (int id, KasaDbContext db) => View(db, () => Devir(db, id)));
@@ -120,6 +111,22 @@ public static partial class FinansTakipEndpoints
         MapCekEndpoints(api);
         return app;
     }
+
+    /// <summary>Kart ve PDF kaynaklı ödeme iptalinde aynı avans tahsislerini birlikte kapatır.</summary>
+    internal static void CancelCardPayment(KasaDbContext db, int cardId, int paymentId, string? reason)
+    {
+        ManagedCard(db, cardId);
+        Text(reason);
+        var payment = db.TakipKartOdemeler.SingleOrDefault(p => p.Id == paymentId && p.KrediKartiId == cardId);
+        Require(payment is not null, "Ödeme bulunamadı.", 404);
+        Require(!db.TakipAvansTahsisleri.Any(t => t.OdemeId == paymentId), "Kilitli avans dağıtımı ayrıca iptal edilemez; gerekirse avansı yatıran ödemeyi (dönemi açıksa) iptal edin.", 409);
+        payment!.Iptal = true;
+        // Kaynak avans iptal edilince dağıtımları da iptal olur; yoksa kanal payları sahipsiz kalır.
+        var allocations = db.TakipAvansTahsisleri.Where(t => t.KaynakOdemeId == paymentId).Select(t => t.OdemeId).ToList();
+        foreach (var allocation in db.TakipKartOdemeler.Where(p => allocations.Contains(p.Id) && !p.Iptal).ToList())
+            allocation.Iptal = true;
+    }
+
     internal static void ApplyCardCharge(KasaDbContext db, int id, KartHarcamaYaz dto)
     {
         var track = ManagedCard(db, id);
