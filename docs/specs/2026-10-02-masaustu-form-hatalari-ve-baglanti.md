@@ -82,7 +82,8 @@ kapsam dışıdır.
 
 - **Tek kaynak:** `BaglantiDurumu` tekil hizmeti `Kasa.App.Core`'da durur.
   - **Kopuk:** API istemcisinin ağ hatası (`HttpRequestException`, zaman aşımı) durumu "kopuk" yapar.
-  - **Bağlı:** Herhangi bir başarılı yanıt durumu "bağlı" yapar. 4xx ve 5xx yanıtları bağlantı hatası sayılmaz.
+  - **Bağlı:** Herhangi bir başarılı yanıt durumu "bağlı" yapar. 4xx ve 5xx yanıtları bağlantı hatası sayılmaz; 502, 503 ve 504
+    hariç (ürün sahibi kararı 2026-10-03).
   - İstemcide bunu `DelegatingHandler` ya da mevcut gönderim noktası yapar.
 - **Kabuk şeridi:** Kopukken uygulamanın en üstünde tek bir şerit görünür: "Sunucuya ulaşılamıyor · Son bağlantı 14:05 · Yeniden
   dene".

@@ -6,13 +6,15 @@ using System.Text.Json.Serialization;
 namespace Kasa.ApiClient;
 
 /// <summary>Kasa REST API'sinin tiplı istemcisi. Her isteğe Bearer token ekler; başarısız durumda KasaApiException.</summary>
-public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
+public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBaglantiBildirimleri
 {
     private readonly HttpClient _http;
     private readonly ITokenStore _store;
     private readonly KasaZamanAsimlari _zaman;
     private readonly SemaphoreSlim _oturumKilidi = new(1, 1);
     public event EventHandler? OturumSonlandi;
+    public event EventHandler? SunucuyaUlasildi;
+    public event EventHandler<Exception>? SunucuyaUlasilamadi;
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -180,8 +182,9 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
 
     /// <summary>İşlemi istek başına süre sınırıyla çalıştırır; sınır, işlemin gövde okuması dahil tamamını kapsar.
     /// Süre (ya da HttpClient.Timeout) dolarsa <see cref="TimeoutException"/>; çağıranın iptali OperationCanceledException
-    /// olarak kalır. Kullanıcıya "sunucu yanıt vermedi" ile "vazgeçildi" farklı anlatılır.</summary>
-    private static async Task<T> SureliAsync<T>(TimeSpan sure, CancellationToken iptal, Func<CancellationToken, Task<T>> islem)
+    /// olarak kalır. Kullanıcıya "sunucu yanıt vermedi" ile "vazgeçildi" farklı anlatılır. Süre sınırı sunucuya ulaşılamadı
+    /// sayılır (<see cref="IBaglantiBildirimleri.SunucuyaUlasilamadi"/>).</summary>
+    private async Task<T> SureliAsync<T>(TimeSpan sure, CancellationToken iptal, Func<CancellationToken, Task<T>> islem)
     {
         using var kaynak = CancellationTokenSource.CreateLinkedTokenSource(iptal);
         kaynak.CancelAfter(sure);
@@ -189,11 +192,20 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         { return await islem(kaynak.Token); }
         catch (OperationCanceledException e) when (!iptal.IsCancellationRequested && (kaynak.IsCancellationRequested || e.InnerException is TimeoutException))
         {
-            throw new TimeoutException(KasaZamanAsimlari.Ileti, e);
+            var zamanAsimi = new TimeoutException(KasaZamanAsimlari.Ileti, e);
+            SunucuyaUlasilamadi?.Invoke(this, zamanAsimi);
+            throw zamanAsimi;
         }
     }
 
-    /// <summary>Bearer ekleyip gönderir; başarısız yanıtı KasaApiException'a çevirir (401 oturumu kapatır).</summary>
+    /// <summary>Durum kodu sunucuya ulaşıldığı hâlde "ulaşılamadı" sayılan proxy/ağ geçidi hataları: 502 Bad Gateway, 503 Service
+    /// Unavailable, 504 Gateway Timeout (ürün sahibi kararı 2026-10-03). Başka 4xx ve 5xx yanıtları "bağlı" sayılır.</summary>
+    private static bool BaglantiKopukSayilanProxyHatasi(HttpStatusCode kod)
+        => kod is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
+    /// <summary>Bearer ekleyip gönderir; başarısız yanıtı KasaApiException'a çevirir (401 oturumu kapatır). Uygulamanın bütün
+    /// istekleri buradan geçer: ağ hatası sunucuya ulaşılamadı, alınan her yanıt (502, 503, 504 hariç; bkz.
+    /// <see cref="BaglantiKopukSayilanProxyHatasi"/>) ulaşıldı bildirir.</summary>
     private async Task<HttpResponseMessage> YanitAlAsync(HttpRequestMessage istek, bool tokenEkle, HttpCompletionOption tamamlama, CancellationToken ct)
     {
         string? token = null;
@@ -203,7 +215,18 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             if (!string.IsNullOrEmpty(token))
                 istek.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
-        var yanit = await _http.SendAsync(istek, tamamlama, ct);
+        HttpResponseMessage yanit;
+        try
+        { yanit = await _http.SendAsync(istek, tamamlama, ct); }
+        catch (HttpRequestException e)
+        {
+            SunucuyaUlasilamadi?.Invoke(this, e);
+            throw;
+        }
+        if (BaglantiKopukSayilanProxyHatasi(yanit.StatusCode))
+            SunucuyaUlasilamadi?.Invoke(this, new HttpRequestException($"Sunucuya ulaşılamıyor: {(int)yanit.StatusCode} {yanit.StatusCode}", null, yanit.StatusCode));
+        else
+            SunucuyaUlasildi?.Invoke(this, EventArgs.Empty);
         if (!yanit.IsSuccessStatusCode)
         {
             using (yanit)
