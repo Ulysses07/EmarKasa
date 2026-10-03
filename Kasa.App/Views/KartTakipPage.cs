@@ -38,8 +38,6 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
 
     private readonly SorguSecimi _secim = new("KartId");
     private int? _gosterilenKartId;
-    /// <summary>Son kaydırma isteğinin sırası ve kaydırması yapılmış istek: yalnız en son istek, bir kez kaydırır.</summary>
-    private int _kaydirmaIstegi, _kaydirilanIstek;
     private readonly View _ayrinti;
     private readonly View _formAlani;
     /// <summary>Formun tepesindeki hata satırı (FormHatasi): uzun formun altındaki düğmeden gelen hata görünür yere kaydırılır.</summary>
@@ -119,100 +117,30 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             {
                 _gosterilenKartId = vm.AcikKartId;
                 if (vm.AcikKartId is not null)
-                    GorunurYap(_ayrinti, AyrintiKaydirmasi);
+                    Gorunur.Yap(_ayrinti, AyrintiKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.AcikForm) && vm.FormAcik)
             {
-                GorunurYap(_formAlani, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(_formAlani, KaydirmaHesabi.FormKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.FormHatasi) && !string.IsNullOrWhiteSpace(vm.FormHatasi))
             {
-                GorunurYap(_formHataSatiri, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(_formHataSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.SayfaHatasi) && !string.IsNullOrWhiteSpace(vm.SayfaHatasi))
             {
-                GorunurYap(HataSatiri, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(HataSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.Mesaj) && !string.IsNullOrWhiteSpace(vm.Mesaj))
             {
-                GorunurYap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
         };
     }
 
-    /// <summary>Hedefin (üst, yükseklik) ve kaydırıcının (kaydırma konumu, görünür yükseklik) değerlerinden yeni kaydırma konumu;
-    /// null: kaydırılmaz (KaydirmaHesabi).</summary>
-    private delegate double? KaydirmaKarari(double ust, double yukseklik, double kaydirmaY, double gorunurYukseklik);
-
     /// <summary>Ayrıntı: üstü görünür alandaysa kaydırılmaz (kutular görünür kalır), değilse üstü görünür alanın başına gelir.</summary>
     private static double? AyrintiKaydirmasi(double ust, double yukseklik, double kaydirmaY, double gorunurYukseklik)
         => KaydirmaHesabi.BasaKaydirilmali(ust, kaydirmaY, gorunurYukseklik) ? ust : null;
-
-    /// <summary>
-    /// Hedef yerleştikten sonra (konumu okunabilir olunca) <paramref name="karar"/>'ın verdiği konuma kaydırır (KaydirmaHesabi;
-    /// hedef görünüyorsa kaydırılmaz). Zamanlama: hedefin bir sonraki SizeChanged'i (yerleşim turunda üst öğeleri de yerleşmiş olur) ya da,
-    /// boyutu değişmeden yalnız yeri değişirse (başka satırdaki kart, aynı boyda form), 100 ms aralıklı yoklama; yoklama hedef
-    /// yerleşmiş (genişliği olan) bulunca ya da 1 sn sonra biter. Kaydırma her iki yolda da yerleşim turunun bitimine
-    /// (Dispatch) bırakılır. Yeni istek eskisini geçersiz kılar; istek bir kez kaydırır.
-    /// </summary>
-    private void GorunurYap(View hedef, KaydirmaKarari karar)
-    {
-        var istek = ++_kaydirmaIstegi;
-        var deneme = 0;
-        void Boyutlandi(object? sender, EventArgs e) => Yerlesti();
-        void Yerlesti()
-        {
-            hedef.SizeChanged -= Boyutlandi;
-            Dispatcher.Dispatch(() => Kaydir(hedef, karar, istek));
-        }
-        void Yokla()
-        {
-            if (istek != _kaydirmaIstegi || istek == _kaydirilanIstek)
-            {
-                hedef.SizeChanged -= Boyutlandi;
-                return;
-            }
-            if (hedef.Width > 0)
-                Yerlesti();
-            else if (++deneme < 10)
-                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
-            else
-                hedef.SizeChanged -= Boyutlandi;
-        }
-        hedef.SizeChanged += Boyutlandi;
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
-    }
-
-    private async void Kaydir(View hedef, KaydirmaKarari karar, int istek)
-    {
-        if (istek != _kaydirmaIstegi || istek == _kaydirilanIstek || !hedef.IsVisible)
-            return;
-        _kaydirilanIstek = istek;
-        try
-        {
-            if (karar(KaydiriciyaGoreY(hedef), hedef.Height, Kaydirici.ScrollY, Kaydirici.Height) is { } y)
-                await Kaydirici.ScrollToAsync(Kaydirici.ScrollX, y, true);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Kartlar ekranı kaydırılamadı: {ex}");
-        }
-    }
-
-    /// <summary>Hedefin kaydırılan içeriğe göre üstü: ata zinciri boyunca her öğenin üst öğesine göre yeri (Frame.Y) toplanır;
-    /// hedef kaydırıcının içinde değilse NaN (kaydırılmaz).</summary>
-    private double KaydiriciyaGoreY(VisualElement hedef)
-    {
-        var y = 0d;
-        for (Element? e = hedef; e is not null; e = e.Parent)
-        {
-            if (ReferenceEquals(e, Kaydirici))
-                return y;
-            if (e is VisualElement v)
-                y += v.Frame.Y;
-        }
-        return double.NaN;
-    }
 
     // ---- Özet ----
 

@@ -372,6 +372,8 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
     protected readonly T Vm;
     protected readonly VerticalStackLayout Govde = new() { Spacing = 18 };
     protected readonly ScrollView Kaydirici;
+    /// <summary>Sayfanın kaydırma yardımcısı (açılan ayrıntı, form ve ilk hatalı alan görünür yere kaydırılır).</summary>
+    protected readonly Controls.GorunurYapici Gorunur;
     /// <summary>Sayfa başındaki hata satırı (DurumSatirlari).</summary>
     protected readonly Label HataSatiri;
     /// <summary>Sayfa başındaki ileti satırı (Mesaj; başarılı kayıt).</summary>
@@ -395,6 +397,7 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         root.Add(Govde);
         Kaydirici = new ScrollView { Content = root };
+        Gorunur = new Controls.GorunurYapici(Kaydirici);
         Content = Kaydirici;
     }
 
