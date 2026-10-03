@@ -79,7 +79,7 @@ public static class IslemEndpoints
             transaction.Commit();
             return Results.Ok(e);
         }).RequireAuthorization("Editor");
-        api.MapDelete("/islemler/{id:int}", (int id, KasaDbContext db) =>
+        api.MapDelete("/islemler/{id:int}", (int id, int? surum, KasaDbContext db) =>
         {
             using var transaction = db.Database.BeginTransaction();
             if (db.HesapHareketler.Any(h => h.IslemId == id) || db.KrediTaksitOdemeler.Any(o => o.IslemId == id))
@@ -89,6 +89,10 @@ public static class IslemEndpoints
             var e = db.Islemler.Find(id);
             if (e is null)
                 return Results.NotFound();
+            if (surum is null)
+                return Results.BadRequest(new { hata = "Gideri silmek için güncel sürüm gerekli. Listeyi yenileyip tekrar deneyin." });
+            if (CekirdekSurum.Denetle(surum, e.Surum, CekirdekSurum.GiderIletisi) is { } eskiSurum)
+                return eskiSurum;
             // gap-coklu-giris-cift-sayim-mutabakat-5: ödenmemiş, iadesiz ve ekstreye bağsız kart harcamasının gideri harcamayla birlikte kalkar
             // (harcama iptal edilir, taksitleri borçtan çıkar); diğer takipli kart giderleri için açıklamalı iade yolu kalır.
             var harcama = FinansTakipServisi.KaynakHarcama(db, id);

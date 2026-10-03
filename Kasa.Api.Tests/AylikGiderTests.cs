@@ -58,7 +58,7 @@ public class AylikGiderTests
         Assert.Equal(100m, paidMonth.PlanlananToplam);
         Assert.Equal(100m, paidMonth.OdenenToplam);
         Assert.Equal(paid.OdemeId, expense.AylikGiderOdemeId);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.Id}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.SilIslemAsync(expense.Id, ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{expense.Id}",
             new IslemYazDto(Today, "Değişiklik", 200, "MEZAT", GiderTipi.SabitGider), cancellationToken: ct)).StatusCode);
         Assert.Equal(900m, (await Panel(c)).GuncelKasa);

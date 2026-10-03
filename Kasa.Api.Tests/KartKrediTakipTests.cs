@@ -198,7 +198,7 @@ public class KartKrediTakipTests
         Assert.Equal(970m, await Cash(c));
         Assert.Single((await c.GetFromJsonAsync<KartTakipDto>($"/api/takip/kartlar/{card.Id}", cancellationToken: ct))!.Harcamalar);
         var expenseId = card.Harcamalar.Single().IslemId;
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expenseId}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.SilIslemAsync(expenseId!.Value, ct)).StatusCode);
     }
 
     [Fact]

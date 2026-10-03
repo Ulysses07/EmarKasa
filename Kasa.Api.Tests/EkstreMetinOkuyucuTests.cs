@@ -83,6 +83,41 @@ public class EkstreMetinOkuyucuTests
         Assert.Equal("Belirsiz", unknown.ParaBirimi);
     }
     [Fact]
+    public void Farkli_sayfa_basliklari_kodsuz_hareketlere_kendi_para_birimini_verir()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 Market -10,00"
+            + "\fPara Birimi: USD\n02.09.2026 Hizmet -20,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "TRY", "USD" }, rows.Select(r => r.ParaBirimi));
+        Assert.Contains(rows[1].Uyarilar, w => w.Contains("farklı para"));
+    }
+    [Fact]
+    public void Basliksiz_sayfa_celisen_doviz_basliklarindan_tl_tahmin_etmez()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 Market -10,00"
+            + "\f02.09.2026 Kira -20,00"
+            + "\fPara Birimi: USD\n03.09.2026 Hizmet -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.Equal(new[] { "TRY", "Belirsiz", "USD" }, rows.Select(r => r.ParaBirimi));
+        Assert.Contains(rows[1].Uyarilar, w => w.Contains("Para birimi okunamadı"));
+    }
+    [Fact]
+    public void Basliksiz_sayfa_tutarlı_belge_para_birimini_devralir()
+    {
+        var text = "Para Birimi: TL\n01.09.2026 Market -10,00"
+            + "\f02.09.2026 Kira -20,00"
+            + "\fPara Birimi: TL\n03.09.2026 Hizmet -30,00";
+        var rows = EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar;
+        Assert.All(rows, r => Assert.Equal("TRY", r.ParaBirimi));
+    }
+    [Fact]
+    public void Ayni_sayfadaki_celisen_para_birimi_etiketleri_belirsiz_kalir()
+    {
+        var text = "Para Birimi: TL\nDöviz Cinsi: USD\n01.09.2026 Hizmet -10,00";
+        var row = Assert.Single(EkstreMetinOkuyucu.Oku(text, "Banka", "Akbank").Satirlar);
+        Assert.Equal("Belirsiz", row.ParaBirimi);
+    }
+    [Fact]
     public void Eksik_yil_ve_satir_devami_duzeltme_icin_korunur()
     {
         var rows = EkstreMetinOkuyucu.Oku("01.09 Alış\n   Uzun mağaza açıklaması 12,34 TL\f02.09.2026 EFT  -40,00 TL", "Banka", "QNB").Satirlar;

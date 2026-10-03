@@ -49,6 +49,18 @@ public class MutasyonTests
     }
 
     [Fact]
+    public async Task Islem_silme_okunan_surumu_sorguda_gonderir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.NoContent);
+
+        await c.IslemSilAsync(17, 4);
+
+        Assert.Equal(HttpMethod.Delete, h.SonIstek!.Method);
+        Assert.Equal("/api/islemler/17?surum=4", h.SonIstek.RequestUri!.PathAndQuery);
+    }
+
+    [Fact]
     public async Task Kanal_guncelle_put_dogru_yol_gonderir()
     {
         var (c, h) = Kur();

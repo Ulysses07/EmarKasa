@@ -162,7 +162,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     // İşlem
     public Task<IslemDto> IslemOlusturAsync(IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Post, "api/islemler", g);
     public Task<IslemDto> IslemGuncelleAsync(int id, IslemYaz g) => GonderJsonAsync<IslemDto>(HttpMethod.Put, $"api/islemler/{id}", g);
-    public Task IslemSilAsync(int id) => SilAsync($"api/islemler/{id}");
+    public Task IslemSilAsync(int id, int surum) => SilAsync($"api/islemler/{id}?surum={surum}");
 
     // Gelen upsert
     public Task<GelenDto> GelenKaydetAsync(GelenYaz g) => GonderJsonAsync<GelenDto>(HttpMethod.Put, "api/gelenler", g);

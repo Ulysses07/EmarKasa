@@ -79,7 +79,7 @@ public class KilitliDonemTests
         Assert.Equal(HttpStatusCode.Conflict, (await c.PostAsJsonAsync("/api/islemler", new IslemYazDto(Old, "Geçmiş", 10m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{expense.Id}",
             new IslemYazDto(Today, "İleri taşı", 50m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.Id}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.SilIslemAsync(expense.Id, ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "MEZAT", 200m), cancellationToken: ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync("/api/gelenler", new GelenUpsertDto(Old, "PERAKENDE", 200m), cancellationToken: ct)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/kanallar/1",

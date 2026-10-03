@@ -77,7 +77,7 @@ public class YonetimVeDurumKoduSozlesmeTests : SozlesmeTemeli
         var gun = await Assert.ThrowsAsync<KasaApiException>(() => o.Takip.TakipKartKaydetAsync(null, new KartTakipYaz(Guid.NewGuid(), 0, "Kart", 1000m, 32, 25, Bugun, 0m, [])));
         Assert.Equal((HttpStatusCode.BadRequest, "Gün 1–31 olmalı."), (gun.DurumKodu, gun.Message));
         // 404: gövdesiz ya da iletisiz; istemci genel iletiyi verir.
-        var silinemez = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.IslemSilAsync(999_999));
+        var silinemez = await Assert.ThrowsAsync<KasaApiException>(() => o.Kasa.IslemSilAsync(999_999, 0));
         Assert.Equal(HttpStatusCode.NotFound, silinemez.DurumKodu);
     }
 

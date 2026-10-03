@@ -122,7 +122,7 @@ public class EkstreAktarmaTests
         Assert.Equal(30m, report.GenelGider);
         Assert.Equal(0m, report.DagilimBekleyenTutar);
         var expense = doc.Kayitlar.Single(k => k.IslemTuru == "Gider");
-        Assert.Equal(HttpStatusCode.Conflict, (await c.DeleteAsync($"/api/islemler/{expense.IslemId}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await c.SilIslemAsync(expense.IslemId!.Value, ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await c.PutAsJsonAsync($"/api/islemler/{expense.IslemId}",
             new IslemYazDto(Today, "Değiştir", 1m, "MEZAT", GiderTipi.Cari), cancellationToken: ct)).StatusCode);
         var cancel = new EkstreIptalYaz(Guid.NewGuid(), "Yanlış gider");

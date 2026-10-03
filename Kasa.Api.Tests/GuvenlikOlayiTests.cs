@@ -265,7 +265,7 @@ public class GuvenlikOlayiTests
         using var editor = f.CreateClient();
         (await editor.PostAsJsonAsync("/api/auth/login", new { kullanici = "editor", sifre = "yepyeni-sifre-123" }, cancellationToken: ct)).EnsureSuccessStatusCode();
         var gider = await AylikGiderTests.Post<IslemEntity>(editor, "/api/islemler", new IslemYazDto(AylikGiderTests.Today, "Toptancı", 10m, "MEZAT", Kasa.Core.GiderTipi.Cari));
-        using var silme = new HttpRequestMessage(HttpMethod.Delete, $"/api/islemler/{gider.Id}");
+        using var silme = new HttpRequestMessage(HttpMethod.Delete, $"/api/islemler/{gider.Id}?surum={gider.Surum}");
         silme.Headers.Add(DenetimBaglami.GerekceBasligi, Uri.EscapeDataString("Mükerrer giriş"));
         Assert.Equal(HttpStatusCode.NoContent, (await editor.SendAsync(silme, ct)).StatusCode);
         Assert.Equal("Mükerrer giriş", Assert.Single(Olaylar(f, "Islem", gider.Id), o => o.Tur == "Sil").Gerekce);

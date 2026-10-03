@@ -291,7 +291,7 @@ public class EkstreEslesmeTests
                 [Eslestir(kartBelgesi, 2, "Gider", gider)]), cancellationToken: ct)).StatusCode);
 
         // Hedef sonradan silinirse satır 'KayitYok' görünür; kasa yine yalnız silmeyle değişir.
-        (await c.DeleteAsync($"/api/islemler/{gider}", ct)).EnsureSuccessStatusCode();
+        (await c.SilIslemAsync(gider, ct)).EnsureSuccessStatusCode();
         sonuc = (await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{banka.Id}", cancellationToken: ct))!;
         Assert.Equal("KayitYok", sonuc.Kayitlar.Single(k => k.EslesmeTuru == "Gider").EslesmeDurumu);
         Assert.Equal(kasa + 300m, await Kasa(c));

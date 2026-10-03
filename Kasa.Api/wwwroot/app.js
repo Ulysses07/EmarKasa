@@ -947,8 +947,20 @@ async function incomeDialog(periodStart = null) {
   fill();
 }
 async function expenseDialog(expense = null) {
-  // Yeni gider istek kimliği taşır (appcore-5): yanıtı kaybolan kayıt aynı gövdeyle yeniden gönderilince ikinci gider oluşmaz.
-  const identity = requestIdentity();
+  // Yanıtı belirsiz kalan yeni gider, pencere kapatılıp açılsa da aynı istek kimliğiyle yinelenir.
+  // İçerik değiştirilirse sunucu kaydedilmiş ilk isteğe karşı 409 verir; başarı kesinleşince anahtar temizlenir.
+  const identity = requestIdentity({ storageKey: 'kasa:gider-olustur:v1', retainOnChange: true });
+  const recovery = h(
+    'div',
+    { class: 'notice', hidden: true },
+    help('Önce İşlemler listesinden önceki kaydın oluşup oluşmadığını kontrol edin. Kayıt varsa yeni gider açmak ikinci kez yazabilir.'),
+    button('Kontrol ettim, yeni gider başlat', () =>
+      run(null, async () => {
+        identity.clear();
+        await expenseDialog();
+      })
+    )
+  );
   const [channels, cards] = await Promise.all([api('/api/kanallar'), api('/api/kredikartlari')]);
   const type = select(
     'tip',
@@ -1029,7 +1041,8 @@ async function expenseDialog(expense = null) {
       field('Not', h('textarea', { name: 'not', maxlength: 2000 }, expense?.not || '')),
       help(
         'Alış olarak kaydettiğiniz ödemenin ikinci bir giderini oluşturmayın. O alışın içinden ödeme ekleyin veya mevcut gideri bağlayın.'
-      )
+      ),
+      recovery
     ),
     'Gideri kaydet',
     async form => {
@@ -1056,14 +1069,21 @@ async function expenseDialog(expense = null) {
         ))
       )
         return;
-      await refreshOnConflict(
-        () =>
-          api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', {
-            method: expense ? 'PUT' : 'POST',
-            body: expense ? body : identity(body),
-          }),
-        () => navigate(state.view)
-      );
+      try {
+        await refreshOnConflict(
+          () =>
+            api(expense ? `/api/islemler/${expense.id}` : '/api/islemler', {
+              method: expense ? 'PUT' : 'POST',
+              body: expense ? body : identity(body),
+            }),
+          () => navigate(state.view)
+        );
+      } catch (error) {
+        if (!expense && error?.status === 409 && error.code === 'ISTEK_KIMLIGI_CAKISMASI' && form.isConnected)
+          recovery.hidden = false;
+        throw error;
+      }
+      if (!expense) identity.clear();
       closeModal();
       toast('Gider kaydedildi.');
       await navigate(state.view);
@@ -1080,7 +1100,10 @@ function deleteExpense(expense) {
     ),
     'Gideri sil',
     async () => {
-      await api(`/api/islemler/${expense.id}`, { method: 'DELETE' });
+      await refreshOnConflict(
+        () => api(`/api/islemler/${expense.id}?surum=${expense.surum}`, { method: 'DELETE' }),
+        () => navigate('transactions')
+      );
       closeModal();
       toast('Gider silindi.');
       await navigate('transactions');
