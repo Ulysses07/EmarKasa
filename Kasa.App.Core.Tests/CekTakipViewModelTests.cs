@@ -234,7 +234,7 @@ public class CekTakipViewModelTests
         var ilk = Assert.Single(api.Kayitlar).Govde;
         Assert.NotEqual(Guid.Empty, ilk.IstekId);
         Assert.True(vm.FormAcik);
-        Assert.NotNull(vm.Hata);
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.Hatalar.Genel);
         await vm.YineDeKaydetCommand.ExecuteAsync(null);
         Assert.Equal(2, api.Kayitlar.Count);
         var (id, g) = api.Kayitlar[1];
@@ -246,18 +246,20 @@ public class CekTakipViewModelTests
     }
 
     [Fact]
-    public async Task Numara_bossa_ayni_cek_denetimi_yapilmaz()
+    public async Task Numara_bossa_ayni_cek_denetimi_ve_kayit_yapilmaz_alan_hatasi_yazilir()
     {
         var (vm, api) = await Vm(Rol.Editor, Cek(1));
         var sorguSayisi = api.Sorgular.Count;
         vm.YeniCekCommand.Execute(null);
         vm.No = "   ";
+        vm.Banka = "Ziraat";
         vm.Kisi = "Deneme";
         vm.Tutar = 1_000m;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(sorguSayisi, api.Sorgular.Count);
-        Assert.Single(api.Kayitlar);
+        Assert.Empty(api.Kayitlar);
         Assert.Null(vm.AyniCekUyarisi);
+        Assert.Equal("Çek / senet numarası boş olamaz.", vm.Hatalar[nameof(vm.No)]);
     }
 
     [Fact]
@@ -421,6 +423,7 @@ public class CekTakipViewModelTests
 
         vm.YeniCekCommand.Execute(null);
         vm.No = "99999"; // arama metnine ("12345") uymaz
+        vm.Banka = "Ziraat";
         vm.Kisi = "Deneme";
         vm.Tutar = 1_000m;
         await vm.KaydetCommand.ExecuteAsync(null);
@@ -453,6 +456,7 @@ public class CekTakipViewModelTests
         var (vm, _) = await Vm(Rol.Editor, Cek(1, vade: Bugun.AddDays(5)), Cek(2, vade: Bugun.AddDays(10)));
         vm.YeniCekCommand.Execute(null);
         vm.No = "999";
+        vm.Banka = "Ziraat";
         vm.Kisi = "Deneme";
         vm.Tutar = 1_000m;
         vm.Vade = Bugun.AddDays(20).ToDateTime(TimeOnly.MinValue);
@@ -479,6 +483,7 @@ public class CekTakipViewModelTests
         var (vm, api) = await Vm(Rol.Editor, Cek(1));
         vm.YeniCekCommand.Execute(null);
         vm.FormYon = vm.YonSecenekleri[1];
+        vm.FormTur = vm.TurSecenekleri[1];   // senette banka boş olabilir (sunucu çekte bankayı ister)
         vm.No = "999";
         vm.Kisi = "Mehmet";
         vm.Tutar = 5_000m;
