@@ -195,7 +195,8 @@ internal static class TakipUi
 
     /// <summary>Kodla yazılmış sayfaların durum satırları (Yenile ve sağında yükleniyor göstergesi, hata, isteğe bağlı ileti, son
     /// güncelleme): TakipSayfasi, Kasa kontrolü ve Dışa aktar aynı sırayı ve stilleri kullanır. Bağlam modelinde Mesgul,
-    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncelleme beklenir. Kartlar ekranı hatayı form açıkken formun içinde
+    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncellemeMetni beklenir (hiç yükleme yokken "Henüz yüklenmedi.", veri
+    /// eskiyse " · güncel olmayabilir" ekiyle; OturumluViewModel). Kartlar ekranı hatayı form açıkken formun içinde
     /// gösterdiği için buraya SayfaHatasi'nı bağlar. Hata ve ileti yalnız doluyken yer kaplar (boşken Yenile ile son güncelleme
     /// arasında ~130 px boşluk kalıyordu). Dönen değer hata satırıdır (sayfa onu görünür yere kaydırabilir).</summary>
     public static Label DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, string hataYolu = "Hata")
@@ -206,7 +207,7 @@ internal static class TakipUi
         if (mesaj is not null)
             hedef.Add(DoluysaGoster(mesaj));
         var zaman = new Label { Style = (Style)Application.Current!.Resources["LblTakipKucuk"] };
-        zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
+        zaman.SetBinding(Label.TextProperty, nameof(OturumluViewModel.SonGuncellemeMetni));
         hedef.Add(zaman);
         return hata;
     }
@@ -235,6 +236,17 @@ internal static class TakipUi
         metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
         return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
     }
+
+    /// <summary>Eski veri soluk (opaklık <see cref="EskiVeriOpakligi"/>): bağlamın VeriEski'si doğruyken (tasarım 2026-10-02 §3).</summary>
+    public static DataTrigger EskiVeriSolugu(Type hedef)
+    {
+        var tetik = new DataTrigger(hedef) { Binding = new Binding("VeriEski"), Value = true };
+        tetik.Setters.Add(new Setter { Property = VisualElement.OpacityProperty, Value = EskiVeriOpakligi });
+        return tetik;
+    }
+
+    /// <summary>Eski verinin opaklığı (XAML sayfaları da aynı değeri yazar).</summary>
+    public const double EskiVeriOpakligi = 0.55;
 
     /// <summary>Etiket yalnız metni doluyken görünür (boş hata/ileti satırı yığında yer ve aralık kaplamaz).</summary>
     private static Label DoluysaGoster(Label etiket)
@@ -393,8 +405,10 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
         MesajSatiri = mesaj;
         HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
-        Govde.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
+        // Yükleme hata verse de son başarılı veri görünür kalır ve soluk gösterilir (tasarım 2026-10-02 §3).
+        Govde.SetBinding(IsVisibleProperty, nameof(vm.GovdeGorunur));
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
+        Govde.Triggers.Add(TakipUi.EskiVeriSolugu(typeof(VerticalStackLayout)));
         root.Add(Govde);
         Kaydirici = new ScrollView { Content = root };
         Gorunur = new Controls.GorunurYapici(Kaydirici);
