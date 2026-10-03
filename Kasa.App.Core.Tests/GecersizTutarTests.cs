@@ -177,8 +177,9 @@ public class GecersizTutarTests
         vm.TumKanallariSecCommand.Execute(null);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.KrediKayit);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar[nameof(vm.AylikOdeme)]);
 
+        vm.BirakmaOnayi = _ => Task.FromResult(true);   // yazılmış yeni kredi formu bırakılır
         vm.SecCommand.Execute(vm.Krediler[0]);
         vm.Gerekce = "Banka yazısı";
         vm.KapatmaTutari = G;

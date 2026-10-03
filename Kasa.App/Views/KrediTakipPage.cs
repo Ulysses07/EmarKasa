@@ -10,6 +10,8 @@ namespace Kasa.App.Views;
 public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAttributable
 {
     private readonly View _ozet;
+    /// <summary>Yeni kredi formu ve genel hata kutusu: kaydetme başarısız olunca ilk hatalı alana kaydırılır (tasarım 2026-10-02 §1).</summary>
+    private readonly View _yeniKredi, _hataKutusu;
     private readonly SorguSecimi _secim = new("KrediId");
 
     public void ApplyQueryAttributes(IDictionary<string, object> query)
@@ -50,15 +52,22 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
         var ozet = Kart("Kredi ayrıntısı", BagliBuyuk(nameof(vm.KrediOzeti)));
         _ozet = ozet;
         Govde.Add(Kart("Krediler",
-            Liste<KrediTakipSatiri>(nameof(vm.Krediler), async s => { vm.SecCommand.Execute(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }),
+            Liste<KrediTakipSatiri>(nameof(vm.Krediler), async s => { await vm.SecCommand.ExecuteAsync(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }),
             Editor(Dugme("Yeni kredi / mevcut krediyi ekle", nameof(vm.YeniCommand)))));
         Govde.Add(ozet);
-        Govde.Add(Editor(Goster(Kart("Kredi ekle", Alan("Banka / kredi adı", Girdi(nameof(vm.Ad))), Onay("Önceden çekilmiş mevcut kredi: yeni kasa girişi oluşturma", nameof(vm.MevcutKredi)),
-            Alan("Çekilen tutar", Girdi(nameof(vm.CekilenTutar), true)), Alan("Çekim tarihi", Tarih(nameof(vm.CekimTarihi))), Alan("İlk / kalan ilk taksit tarihi", Tarih(nameof(vm.IlkTaksitTarihi))),
-            Alan("Taksit sayısı", Girdi(nameof(vm.TaksitSayisi), sayi: true)), Alan("Aylık taksit tutarı", Girdi(nameof(vm.AylikOdeme), true)),
+        const string h = nameof(vm.Hatalar);
+        _hataKutusu = FormHatasi(h + ".Genel");
+        _yeniKredi = Kart("Yeni kredi", _hataKutusu,
+            Alan("Banka / kredi adı", Girdi(nameof(vm.Ad)), h, nameof(vm.Ad)), Onay("Önceden çekilmiş mevcut kredi: yeni kasa girişi oluşturma", nameof(vm.MevcutKredi)),
+            Alan("Çekilen tutar", Girdi(nameof(vm.CekilenTutar), true), h, nameof(vm.CekilenTutar)), Alan("Çekim tarihi", Tarih(nameof(vm.CekimTarihi))),
+            Alan("İlk / kalan ilk taksit tarihi", Tarih(nameof(vm.IlkTaksitTarihi))),
+            Alan("Taksit sayısı", Girdi(nameof(vm.TaksitSayisi), sayi: true), h, nameof(vm.TaksitSayisi)),
+            Alan("Aylık taksit tutarı", Girdi(nameof(vm.AylikOdeme), true), h, nameof(vm.AylikOdeme)),
             Metin("Tek kanal seçerseniz tutarın tamamı o kanala gider. Birden fazla kanalda kredi girişi ve her taksit eşit, kuruşları korunarak bölünür. Seçili kanallar sonradan kendiliğinden değişmez."),
-            KanalSecimleri(nameof(vm.Kanallar)), Dugme("Tüm aktif kanalları seç", nameof(vm.TumKanallariSecCommand)),
-            Metin("Yeni kredi genel kasaya bir kez girer; kanal payları aynı girişin dağılımıdır."), Dugme("Krediyi kaydet", nameof(vm.KaydetCommand))), nameof(vm.YeniKredi))));
+            Alan("Kanallar", KanalSecimleri(nameof(vm.Kanallar)), h, nameof(vm.Kanallar)), Dugme("Tüm aktif kanalları seç", nameof(vm.TumKanallariSecCommand)),
+            Metin("Yeni kredi genel kasaya bir kez girer; kanal payları aynı girişin dağılımıdır."), Dugme("Krediyi kaydet", nameof(vm.KaydetCommand)));
+        vm.Hatalar.GosterIstendi += (_, _) => Gorunur.HatayaGit(_yeniKredi, vm.Hatalar, _hataKutusu);
+        Govde.Add(Editor(Goster(_yeniKredi, nameof(vm.YeniKredi))));
         Govde.Add(Editor(Goster(Kart("Eski krediyi yeni takibe al",
             Metin("Eski kredi çekimi ikinci kez genel kasaya girmez. Geçmiş kanal bakiyeleri sessizce değiştirilmez; ileri taksitler seçtiğiniz kanallara bölünür."),
             Alan("Geçiş tarihi", Tarih(nameof(vm.GecisTarihi))), KanalSecimleri(nameof(vm.Kanallar)),
