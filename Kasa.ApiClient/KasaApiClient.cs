@@ -210,8 +210,8 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             {
                 if (yanit.StatusCode == HttpStatusCode.Unauthorized && tokenEkle)
                     await OturumuGecersizKilAsync(token);
-                var (mesaj, iz) = await HataAyrintisiAsync(yanit, ct);
-                throw new KasaApiException(yanit.StatusCode, mesaj, iz);
+                var (mesaj, iz, alanlar) = await HataAyrintisiAsync(yanit, ct);
+                throw new KasaApiException(yanit.StatusCode, mesaj, iz, alanlar);
             }
         }
         return yanit;
@@ -235,24 +235,44 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     }
 
-    /// <summary>Hata yanıtından kullanıcıya taşınan ileti (yalnız sunucunun anlamlı Türkçe ileti verdiği durumlarda) ve sunucu
-    /// hatasının (5xx) ProblemDetails iz kimliği (traceId; kullanıcıya kısa "Hata kodu" olarak gösterilir).</summary>
-    private static async Task<(string? Mesaj, string? Iz)> HataAyrintisiAsync(HttpResponseMessage yanit, CancellationToken ct)
+    /// <summary>Hata yanıtından kullanıcıya taşınan ileti (yalnız sunucunun anlamlı Türkçe ileti verdiği durumlarda), sunucu
+    /// hatasının (5xx) ProblemDetails iz kimliği (traceId; kullanıcıya kısa "Hata kodu" olarak gösterilir) ve iletili yanıttaki
+    /// alan hataları (<see cref="AlanHatalari"/>).</summary>
+    private static async Task<(string? Mesaj, string? Iz, IReadOnlyDictionary<string, string>? Alanlar)> HataAyrintisiAsync(HttpResponseMessage yanit, CancellationToken ct)
     {
         var iletiVar = yanit.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
         var sunucuHatasi = (int)yanit.StatusCode >= 500;
         if (!iletiVar && !sunucuHatasi)
-            return (null, null);
+            return (null, null, null);
         try
         {
             using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync(ct));
             var kok = belge.RootElement;
             var iz = sunucuHatasi && kok.ValueKind == JsonValueKind.Object && kok.TryGetProperty("traceId", out var izDegeri) && izDegeri.ValueKind == JsonValueKind.String
                 ? izDegeri.GetString() : null;
-            return (iletiVar ? Ileti(kok) : null, iz);
+            return iletiVar ? (Ileti(kok), iz, AlanHatalari(kok)) : (null, iz, null);
         }
         catch (JsonException) { /* JSON dışındaki hata gövdesini kullanıcıya taşıma. */ }
-        return (null, null);
+        return (null, null, null);
+    }
+
+    /// <summary>Doğrulama yanıtının "errors" sözlüğü: alan adı küçük harfe iner (sunucu camelCase yazar: "krediKartiId" →
+    /// "kredikartiid"), her alandan ilk dolu ileti alınır. Sözlük yoksa ya da boşsa null.</summary>
+    private static Dictionary<string, string>? AlanHatalari(JsonElement kok)
+    {
+        if (kok.ValueKind != JsonValueKind.Object || !kok.TryGetProperty("errors", out var hatalar) || hatalar.ValueKind != JsonValueKind.Object)
+            return null;
+        var alanlar = new Dictionary<string, string>();
+        foreach (var alan in hatalar.EnumerateObject())
+        {
+            if (alan.Value.ValueKind != JsonValueKind.Array)
+                continue;
+            var ilk = alan.Value.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString())
+                .FirstOrDefault(m => !string.IsNullOrWhiteSpace(m));
+            if (ilk is not null)
+                alanlar.TryAdd(alan.Name.ToLowerInvariant(), ilk);
+        }
+        return alanlar.Count > 0 ? alanlar : null;
     }
 
     private static string? Ileti(JsonElement kok)
