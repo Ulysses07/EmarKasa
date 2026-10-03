@@ -16,7 +16,8 @@ public partial class CekOzetViewModel(ICekApi api, AuthViewModel auth) : Oturuml
     public string GecmisMetni => CekMetni.GecmisMetni(Ozet);
     public string VerilenGecmisMetni => CekMetni.VerilenGecmisMetni(Ozet);
 
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Özet; hata son başarılı özeti silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync() => VeriYukleAsync(async n =>
     {
         var ozet = await api.CekOzetAsync();
         if (!Gecerli(n))

@@ -196,10 +196,11 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
     }
 
     /// <summary>Alışlar, kanallar ve (editörde) kartlar, giderler, alıcılar. Hata son başarılı listeyi silmez, eski işaretler (tasarım
-    /// 2026-10-02 §3); liste yalnız yeni veri gelince değişir.</summary>
+    /// 2026-10-02 §3). Bütün yanıtlar gelmeden ekran değişmez: kart, gider ya da alıcı isteği hata verirse kanallar ve alışlar da
+    /// eski kalır (kısmi hata yarım ekran bırakmaz). Yazılmış form, son yükleme hata vermiş (soluk) olsa da sorulmadan silinmez.</summary>
     public Task YukleAsync() => VeriYukleAsync(async nesil =>
     {
-        if (KaydedilmemisDegisiklikVar && VeriHazir)
+        if (KaydedilmemisDegisiklikVar && GovdeGorunur)
         { KaydetmeUyarisi(); return; }
         VeriHazir = false;
         var oncekiId = _secili?.Id;
@@ -208,6 +209,21 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
         await Task.WhenAll(kanalIsi, alisIsi);
         if (!Gecerli(nesil))
             return;
+        IReadOnlyList<KrediKartiDto>? kartlar = null;
+        BaglanabilirGiderSayfasi? giderSayfasi = null;
+        IReadOnlyList<AliciDto>? alicilar = null;
+        var giderArama = GiderArama.Trim();
+        if (EditorMu)
+        {
+            var kartIsi = _finans.KrediKartlariAsync();
+            var giderIsi = GiderSayfasiAsync(giderArama, null);
+            var hesapIsi = _api.AlicilarAsync();
+            await Task.WhenAll(kartIsi, giderIsi, hesapIsi);
+            if (!Gecerli(nesil))
+                return;
+            (kartlar, giderSayfasi, alicilar) = (await kartIsi, await giderIsi, await hesapIsi);
+        }
+        // Bütün yanıtlar geldi: ekran tek seferde güncellenir.
         Degistir(Kanallar, await kanalIsi);
         Degistir(Alislar, (await alisIsi).OrderByDescending(a => a.Tarih).ThenByDescending(a => a.Id).Select(a => new AlisSatiri(a)));
         OdemeKartlari.Clear();
@@ -216,23 +232,15 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
         _giderler = Array.Empty<IslemDto>();
         _giderImleci = null;
         DahaFazlaGiderVar = false;
-        if (EditorMu)
+        if (kartlar is not null && giderSayfasi is not null && alicilar is not null)
         {
-            var kartIsi = _finans.KrediKartlariAsync();
-            var giderArama = GiderArama.Trim();
-            var giderIsi = GiderSayfasiAsync(giderArama, null);
-            var hesapIsi = _api.AlicilarAsync();
-            await Task.WhenAll(kartIsi, giderIsi, hesapIsi);
-            if (!Gecerli(nesil))
-                return;
             // K3: yeni ödemede yalnız yeni takipteki, yeni kullanıma açık kartlar seçilir (web paymentCardChoices ile aynı).
-            var kartlar = await kartIsi;
             _kartAdlari = kartlar.ToDictionary(k => k.Id, k => k.Ad);
             _takipliKartlar = kartlar.Where(k => k.YeniTakip).Select(k => k.Id).ToHashSet();
             foreach (var kart in kartlar.Where(k => k.YeniTakip && k.Aktif))
                 OdemeKartlari.Add(new(kart.Id, kart.Ad));
-            GiderSayfasiniUygula(await giderIsi, giderArama, ekle: false);
-            Degistir(Alicilar, await hesapIsi);
+            GiderSayfasiniUygula(giderSayfasi, giderArama, ekle: false);
+            Degistir(Alicilar, alicilar);
         }
         var secili = Alislar.Select(a => a.Veri).FirstOrDefault(a => a.Id == oncekiId);
         if (secili is null)

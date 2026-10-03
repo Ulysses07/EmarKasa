@@ -292,11 +292,12 @@ public partial class TakipOzetViewModel(IFinansTakipApi api, AuthViewModel auth)
     [ObservableProperty] private string _ozet = "";
     [ObservableProperty] private IReadOnlyList<TakipKanalPayi>? _kanalKartBorclari;
     [ObservableProperty] private string _belirsizBorcOzeti = "";
+    /// <summary>Takip özeti; hata son başarılı özeti ve kanal kart borçlarını silmez, eski işaretler (tasarım 2026-10-02 §3).
+    /// <see cref="KanalKartBorclari"/> yalnız başarılı yüklemede değişir.</summary>
     [RelayCommand]
-    public Task YukleAsync() => YurutAsync(async n =>
+    public Task YukleAsync() => VeriYukleAsync(async n =>
     {
         VeriHazir = false;
-        KanalKartBorclari = null;
         var v = await api.TakipOzetAsync(Gun);
         if (!Gecerli(n))
             return;

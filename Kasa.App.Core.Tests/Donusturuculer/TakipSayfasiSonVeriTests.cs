@@ -34,4 +34,26 @@ public class TakipSayfasiSonVeriTests
         Assert.Equal(1, sayfa.GovdeAlani.Opacity);
         Assert.Equal("Son güncelleme: 02.10.2026 14:05", zaman.Text);
     }
+
+    /// <summary>Kasalar alt bölümlerinin gövdesi: hiç yükleme yokken gizli, son veri varken (yükleme hata verse de) görünür ve
+    /// eski veride soluk.</summary>
+    [Fact]
+    public void Son_veri_govdesi_govde_gorunurken_gorunur_eski_veride_soluktur()
+    {
+        GorunumOrtami.Kur();
+        var api = new SahteApi();
+        var vm = new KasaKontrolViewModel(new KasaKontrolVeAylikGiderTests.Sahte(), new AuthViewModel(api));
+        var govde = TakipUi.SonVeriGovdesi(new VerticalStackLayout());
+        govde.BindingContext = vm;
+
+        Assert.False(govde.IsVisible);
+
+        vm.SonGuncelleme = new DateTimeOffset(2026, 10, 2, 14, 5, 0, TimeSpan.FromHours(3));
+        vm.VeriEski = true;
+        Assert.True(govde.IsVisible);
+        Assert.Equal(TakipUi.EskiVeriOpakligi, govde.Opacity);
+
+        vm.VeriEski = false;
+        Assert.Equal(1, govde.Opacity);
+    }
 }

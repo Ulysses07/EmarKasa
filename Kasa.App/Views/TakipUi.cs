@@ -245,6 +245,15 @@ internal static class TakipUi
         return tetik;
     }
 
+    /// <summary>Son veri gövdesi (tasarım 2026-10-02 §3): bağlamın GovdeGorunur'u doğruyken görünür (yükleme hata verse de son
+    /// başarılı veri kalır), VeriEski'de <see cref="EskiVeriSolugu"/> ile soluk. Takip sayfalarının gövdesi ve Kasalar alt bölümleri.</summary>
+    public static T SonVeriGovdesi<T>(T govde) where T : View
+    {
+        govde.SetBinding(VisualElement.IsVisibleProperty, nameof(OturumluViewModel.GovdeGorunur));
+        govde.Triggers.Add(EskiVeriSolugu(govde.GetType()));
+        return govde;
+    }
+
     /// <summary>Eski verinin opaklığı (XAML sayfaları da aynı değeri yazar).</summary>
     public const double EskiVeriOpakligi = 0.55;
 
@@ -420,9 +429,8 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         // Yenileme artık izlenen formu koruduğu için (son veri koruma, 2026-10-03) onay sormaz.
         HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
         // Yükleme hata verse de son başarılı veri görünür kalır ve soluk gösterilir (tasarım 2026-10-02 §3).
-        Govde.SetBinding(IsVisibleProperty, nameof(vm.GovdeGorunur));
+        TakipUi.SonVeriGovdesi(Govde);
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
-        Govde.Triggers.Add(TakipUi.EskiVeriSolugu(typeof(VerticalStackLayout)));
         root.Add(Govde);
         Kaydirici = new ScrollView { Content = root };
         Gorunur = new Controls.GorunurYapici(Kaydirici);

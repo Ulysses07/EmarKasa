@@ -43,10 +43,12 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     public ObservableCollection<KasaHareketiSatiri> DokumSatirlari { get; } = new();
 
     public Task YukleAsync() => YukleAsync(null);
+    /// <summary>Bakiye karşılaştırma geçmişi ve kanal eşikleri. Geçmiş yüklenemezse son başarılı veri silinmez, eski işaretlenir
+    /// (tasarım 2026-10-02 §3).</summary>
     /// <param name="panelEsikleri">Panelle aynı anlık görüntüden gelen kanal eşikleri (ana sayfa yanıtı): uyarı ile bakiye
     /// çelişmez. Null ise (eski sunucu, birleşik ucun sunucu hatası ya da eşiksiz yanıtı, yeniden deneme) ayrıca istenir; o
     /// istek de başarısızsa hata <see cref="EsikHatasi"/>'nda kalır, geçmiş yine gösterilir.</param>
-    public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri) => YurutAsync(async n =>
+    public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri) => VeriYukleAsync(async n =>
     {
         VeriHazir = false;
         var gecmis = await api.KasaKontrolleriAsync();

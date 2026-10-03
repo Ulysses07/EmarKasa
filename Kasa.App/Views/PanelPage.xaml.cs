@@ -17,20 +17,9 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         BindingContext = _vm = vm;
         _takip = takip;
         _kontrol = kontrol;
-        // Takip özeti ve kanal eşikleri panelle aynı ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı andan); eski
-        // sunucuda null'dır ve eski uçlardan ayrıca yüklenir. Her başarılı panel yüklemesinden sonra yenilenir; panelin hatası alt
-        // bölümlerin son verisini silmez (tasarım 2026-10-02 §3).
-        _vm.Yuklendi += async (_, _) =>
-        {
-            await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu);
-            await kontrol.YukleAsync(vm.KasaEsikleri);
-            await cekler.YukleAsync();
-        };
-        takip.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(takip.KanalKartBorclari) or nameof(takip.VeriHazir))
-                _vm.KartBorclariniYansit(takip.VeriHazir ? takip.KanalKartBorclari : null);
-        };
+        // Alt bölümler her başarılı panel yüklemesinden sonra yenilenir; panelin ve kendi yüklemelerinin hatası son verilerini
+        // silmez, kanal satırlarındaki kart borçları da kalır (PanelViewModel.AltBolumleriBagla; tasarım 2026-10-02 §3).
+        _vm.AltBolumleriBagla(takip, kontrol, cekler);
         var secim = new HorizontalStackLayout { Spacing = 10 };
         foreach (var gun in new[] { 7, 30 })
             secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
@@ -40,7 +29,7 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         icerik.Add(TakipUi.Bagli(nameof(takip.Ozet)));
         icerik.Add(TakipUi.Bagli(nameof(takip.BelirsizBorcOzeti)));
         icerik.Add(TakipUi.Liste<TakipOlaySatiri>(nameof(takip.Olaylar)));
-        icerik.SetBinding(IsVisibleProperty, nameof(takip.VeriHazir));
+        TakipUi.SonVeriGovdesi(icerik);   // son veri görünür, eski veride panel kartları gibi soluk
         var kart = TakipUi.Kart("Kart ve kredi takibi",
             TakipUi.Metin("Kart kesimi ve son ödeme günü hatırlatmadır; kartta kasa yalnız kaydedilen ödeme ile değişir. Kredi taksitleri ise vade tarihinde otomatik olarak kasaya işlenir."),
             secim, yukle, hata, icerik,
@@ -66,7 +55,7 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
             satir.Clicked += async (_, _) => await Shell.Current.GoToAsync($"//cekler?Suzgec={suzgec}");
             satirlar.Add(satir);
         }
-        satirlar.SetBinding(IsVisibleProperty, nameof(cekler.VeriHazir));
+        TakipUi.SonVeriGovdesi(satirlar);
         var kutu = TakipUi.Kart("Çekler", TakipUi.Metin("Teminat çekleri bu toplamlara girmez."), TakipUi.BagliHata(nameof(cekler.Hata)), satirlar,
             TakipUi.Tikla("Çekler", () => Shell.Current.GoToAsync("//cekler")));
         kutu.BindingContext = cekler;

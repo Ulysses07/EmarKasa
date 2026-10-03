@@ -215,18 +215,41 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         AyniCekUyarisi = null;
     }
 
+    /// <summary>Ekranda gösterilen listenin sorgusu (süzgeçler ve arama); hiç liste yokken ya da başka sorgunun hatasından sonra null.</summary>
+    private readonly record struct CekSorgusu(string? Yon, string? Durum, string? Ara, DateOnly? Bas, DateOnly? Son);
+    private CekSorgusu? _gosterilenSorgu;
+
     /// <summary>Liste, özet ve kasa seçenekleri; süzgeç istek anında yakalanır. Son istek kazanır: süren yükleme yeni süzgeci
-    /// engellemez, yalnız en son isteğin sonucu uygulanır.</summary>
+    /// engellemez, yalnız en son isteğin sonucu uygulanır. Son veri yalnız aynı sorgu içindir (tasarım 2026-10-02 §3): aynı sorgunun
+    /// yenilemesi hata verirse liste kalır ve eski işaretlenir; başka sorgunun hatasında önceki sorgunun listesi ve özeti kalkar.</summary>
     public Task YukleAsync()
     {
-        var (yon, durum, ara, bas, son) = (Yon, Durum, string.IsNullOrWhiteSpace(Ara) ? null : Ara.Trim(), VadeBas, VadeSon);
+        var sorgu = new CekSorgusu(Yon, Durum, string.IsNullOrWhiteSpace(Ara) ? null : Ara.Trim(), VadeBas, VadeSon);
         return ListeHatti.YukleAsync(async _ =>
         {
             var kanallar = await finans.KanallarAsync();
-            var cekler = await api.CeklerAsync(yon, durum, ara, bas, son);
+            var cekler = await api.CeklerAsync(sorgu.Yon, sorgu.Durum, sorgu.Ara, sorgu.Bas, sorgu.Son);
             var ozet = await api.CekOzetAsync();
             return (kanallar, cekler, ozet);
-        }, v => Yansit(v.kanallar, v.cekler, v.ozet), YuklemeHatasi);
+        }, v => { Yansit(v.kanallar, v.cekler, v.ozet); _gosterilenSorgu = sorgu; }, hata => SorguHatasi(sorgu, hata));
+    }
+
+    /// <summary>Liste yüklemesinin hatası: gösterilen sorgununsa son veri eski işaretlenir; başka sorgununsa önceki sorgunun listesi
+    /// ve özeti yeni süzgecin altında gösterilmez (VeriEski de değildir). Açık çek ve formlar kalır.</summary>
+    private void SorguHatasi(CekSorgusu sorgu, Exception hata)
+    {
+        if (sorgu == _gosterilenSorgu)
+        {
+            YuklemeHatasi(hata);
+            return;
+        }
+        Yurutucu.OkumaHatasiniYaz(hata);
+        _gosterilenSorgu = null;
+        Cekler.Clear();
+        Ozet = null;
+        SatirlariBol();
+        VeriHazir = false;
+        VeriEski = false;
     }
 
     /// <summary>Bildirimden gelen çek (//cekler?CekId=…): çek okunur, yönüne ve "Hepsi" durumuna geçilir (süzgeç onu gizlemesin),
@@ -249,7 +272,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             SuzgecleriYaz(v.Yon, CekSuzgecleri.Hepsi, null, null);
             Ara = "";
             Yansit(v.kanallar, v.cekler, v.ozet);
-        }, YuklemeHatasi);
+            _gosterilenSorgu = new(v.Yon, CekSuzgecleri.Hepsi, null, null, null);
+        }, YuklemeHatasi);   // süzgeçler yalnız başarıda değişir: hata ekrandaki (çiplerin) listesini eski işaretler
     }
 
     private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<CekDto> cekler, CekOzetDto ozet)
@@ -668,6 +692,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
 
     protected override void OturumTemizle()
     {
+        _gosterilenSorgu = null;
         Cekler.Clear();
         OncekiSatirlar.Clear();
         SonrakiSatirlar.Clear();

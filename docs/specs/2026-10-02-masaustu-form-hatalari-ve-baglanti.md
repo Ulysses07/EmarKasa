@@ -129,8 +129,9 @@ Plan sırasında netleşen ve tasarımın sözünü değiştirmeyen okumalar:
 - **Bağlı / kopuk:** yanıt alınan her istek bağlı sayılır, 502/504 ve iletisiz 503 hariç (§3; ürün sahibi kararı 2026-10-03). Bu üç
   durum kodu dışındaki 4xx/5xx yanıtları (sunucunun kendi iletili 503'ü dahil) bağlantı hatası sayılmaz, sayfa sunucu hatasını kendi
   yerinde gösterir.
-- **Son veri yalnız aynı sorgunun verisidir:** Aylık'ta başka aya, İşlemler'de başka süzgece geçince önceki sorgunun verisi
-  gösterilmez (eski davranış); aynı ay ya da süzgecin yenilemesinde son veri soluk kalır.
+- **Son veri yalnız aynı sorgunun verisidir:** Aylık'ta başka aya, İşlemler'de ve Çekler'de başka süzgece (ya da aramaya) geçince
+  önceki sorgunun verisi gösterilmez (eski davranış; "güncel olmayabilir" işareti de kalmaz); aynı ay ya da süzgecin yenilemesinde son
+  veri soluk kalır.
 - **Kopukken kaydetme:** iletisi yalnız istek sunucuya ulaşamadığında (`HttpRequestException`) yazılır. Zaman aşımında kayıt sunucuda
   tamamlanmış olabileceği için eski "önce listeyi yenileyip kontrol edin" iletisi kalır.
 - **İşlemler tutarı:** sunucu eksi gideri (iade) kabul ettiği için ön doğrulama "Tutar sıfır olamaz." der, "sıfırdan büyük" demez.

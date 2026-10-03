@@ -264,7 +264,8 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
         {
             // Aynı süzgecin listesi hatada kalır ve eski işaretlenir; başka süzgecin listesi ve toplamı gösterilmez, "Henüz işlem yok"
             // da görünmez (VeriVar false). Liste ve kaynaklar salt okumadır: zaman aşımında "sunucuda tamamlanmış olabilir" denmez.
-            // Bağlantı kopukken bağlantı hatası listenin üstüne yazılmaz (kabuk şeridi söyler).
+            // Bağlantı kopukken bağlantı hatası listenin üstüne yazılmaz (kabuk şeridi söyler). Başka süzgecin hatasında "Son
+            // güncelleme … · güncel olmayabilir" de kalmaz: bu süzgeç hiç yüklenmedi ("Henüz yüklenmedi.").
             if (Guncel())
             {
                 if (!(Yurutucu.BaglantiHatasi(hata) && BaglantiKopuk))
@@ -272,7 +273,7 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
                 if (ayniSuzgec && VeriVar)
                     VeriEski = true;
                 else
-                { ListeyiBosalt(); VeriVar = false; }
+                { ListeyiBosalt(); VeriVar = false; VeriEski = false; SonGuncelleme = null; }
             }
         }
         finally { if (Guncel()) ListeYukleniyor = false; }

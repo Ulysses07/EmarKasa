@@ -35,10 +35,12 @@ public class CekTakipViewModelTests
             return Liste.Where(c => yon is null || c.Yon == yon).ToList();
         }
         public Task<CekDto> CekAsync(int id) => Task.FromResult(Liste.Single(c => c.Id == id));
+        /// <summary>Verilirse CekOzetAsync bu hatayla düşer (panelin Çekler kutusunun kendi hatası).</summary>
+        public Exception? OzetHatasi;
         public Task<CekOzetDto> CekOzetAsync()
         {
             OzetSayisi++;
-            return Task.FromResult(Ozet);
+            return OzetHatasi is { } e ? Task.FromException<CekOzetDto>(e) : Task.FromResult(Ozet);
         }
         public Task<CekDto> CekKaydetAsync(int? id, CekYaz g)
         {

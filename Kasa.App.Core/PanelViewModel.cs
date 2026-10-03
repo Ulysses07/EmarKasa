@@ -28,6 +28,41 @@ public partial class PanelViewModel : RaporViewModel
         }
     }
 
+    /// <summary>Son başarılı panel yüklemesinin başlattığı alt bölüm yüklemesi (<see cref="AltBolumleriBagla"/>).</summary>
+    public Task AltBolumYuklemesi { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Kasalar alt bölümlerini (takip özeti, kasa kontrolü, çekler) panele bağlar. Takip özeti ve kanal eşikleri panelle aynı
+    /// ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
+    /// Her başarılı panel yüklemesinden sonra yenilenirler; panelin hatası onların son verisini silmez, kendi hataları da (tasarım
+    /// 2026-10-02 §3). Kanal satırlarındaki kart borcu takip özetinin son başarılı kanal kart borçlarıdır: panel kanal satırlarını
+    /// yeniledikten sonra (takip yüklemesi hata verse de) yeniden yazılır. Panelin kendi yüklemesi hata verince (panel kartları soluk)
+    /// son verisi olan alt bölümler de eski işaretlenir; sonraki başarılı yükleme onları yeniler.</summary>
+    public void AltBolumleriBagla(TakipOzetViewModel takip, KasaKontrolViewModel kontrol, CekOzetViewModel cekler)
+    {
+        Yuklendi += (_, _) => AltBolumYuklemesi = YukleAsync();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(VeriEski) || !VeriEski)
+                return;
+            foreach (OturumluViewModel bolum in new OturumluViewModel[] { takip, kontrol, cekler })
+                if (bolum.SonGuncelleme is not null)
+                    bolum.VeriEski = true;
+        };
+        takip.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(takip.KanalKartBorclari))
+                KartBorclariniYansit(takip.KanalKartBorclari);
+        };
+
+        async Task YukleAsync()
+        {
+            await takip.PaneldenYukleAsync(TakipOzeti, TakipOzetiGunu);
+            KartBorclariniYansit(takip.KanalKartBorclari);
+            await kontrol.YukleAsync(KasaEsikleri);
+            await cekler.YukleAsync();
+        }
+    }
+
     /// <summary>Ana sayfa isteğinin takip özeti ufku (gün); sayfa gün seçimini buraya da yazar.</summary>
     public int TakipGunu { get; set; } = 30;
     /// <summary>Son başarılı yüklemede panelle aynı anlık görüntüden gelen kanal eşikleri; eski sunucuda null (ayrıca yüklenir).</summary>

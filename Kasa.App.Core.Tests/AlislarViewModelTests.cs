@@ -7,7 +7,7 @@ public class AlislarViewModelTests
     private static readonly AlisKanalDto Kanal1 = new(1, "MEZAT", true);
     private static readonly AlisKanalDto Kanal2 = new(2, "PERAKENDE", true);
 
-    private static AlisDto Alis(string durum = "Taslak", decimal odenen = 0) => new(
+    internal static AlisDto Alis(string durum = "Taslak", decimal odenen = 0) => new(
         7, 2, 3, "Ayşe", new(2026, 9, 21), "Tedarikçi", null, durum, null, 100m, odenen, 100m - odenen,
         new[] { new AlisKalemDto(1, "Mal alımı", 100m, new[] { new AlisDagilimDto(1, "MEZAT", 60m), new AlisDagilimDto(2, "PERAKENDE", 40m) }) },
         Array.Empty<AlisOdemeDto>());
@@ -593,7 +593,8 @@ public class AlislarViewModelTests
             KartHarcamaSorgulari.Add((krediKartiId, tutar));
             return Task.FromResult<IReadOnlyList<BaglanabilirKartHarcamasiDto>>(KartHarcamalari.Where(h => h.KrediKartiId == krediKartiId && (tutar is null || h.Tutar == tutar)).ToList());
         }
-        public Task<IReadOnlyList<AliciDto>> AlicilarAsync() { HesapOkuma++; return Task.FromResult<IReadOnlyList<AliciDto>>(Array.Empty<AliciDto>()); }
+        public IReadOnlyList<AliciDto> AliciListe = Array.Empty<AliciDto>();
+        public Task<IReadOnlyList<AliciDto>> AlicilarAsync() { HesapOkuma++; return Task.FromResult(AliciListe); }
         public Task<AliciDto> AliciOlusturAsync(AliciYaz g) { SonAlici = g; return Task.FromResult(new AliciDto(4, g.Kullanici, g.Ad, g.Aktif)); }
         public Task<AliciDto> AliciGuncelleAsync(int id, AliciYaz g) { SonAlici = g; return Task.FromResult(new AliciDto(id, g.Kullanici, g.Ad, g.Aktif)); }
     }

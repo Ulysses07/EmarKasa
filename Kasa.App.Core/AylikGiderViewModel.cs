@@ -42,6 +42,19 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     /// değişmediği için PropertyChanged tetiklenmez; sayfa formu görünür yere kaydırmak için buna bağlanır.</summary>
     public event EventHandler? OdemeSecIstendi;
 
+    /// <summary>Son yükleme tamamlanmamışken (soluk, eski liste ya da yükleme sürerken) "Öde" ve "Ödemeyi iptal et" aynı ölçütle
+    /// (<see cref="OturumluViewModel.VeriHazir"/>) durur ve bu iletiyi verir.</summary>
+    public const string ListeGuncelDegil = "Liste güncel değil; yenileyin.";
+
+    /// <summary>Satır düğmesinin ("Öde" / "Ödemeyi iptal et") ortak ölçütü: liste güncel değilse <see cref="ListeGuncelDegil"/>
+    /// yazılır ve false döner. Sayfa iptal gerekçesini sormadan önce de bunu denetler.</summary>
+    public bool ListeGuncelMi()
+    {
+        if (VeriHazir)
+            return true;
+        Hata = ListeGuncelDegil;
+        return false;
+    }
     private readonly TekrarAnahtari _sablonKey = new(), _odemeKey = new(), _iptalKey = new();
     private AylikGiderAyDto? _ayVerisi;
     private AylikGiderSablonDto? _duzenlenen;
@@ -231,6 +244,8 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     {
         if (Mesgul || !EditorMu || AySecimiDegisti || satir.OdendiMi)
             return;
+        if (!ListeGuncelMi())
+            return;
         OdemeHatalari.Temizle();
         SeciliOdeme = satir;
         OdemeTarihi = DateTime.Today;
@@ -245,6 +260,8 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
             return;
         if (AySecimiDegisti)
         { OdemeHatalari.Genel = "Ay seçimi değişti. Seçilen ayı gösterip ödemeyi yeniden seçin."; return; }
+        if (!VeriHazir)
+        { OdemeHatalari.Genel = ListeGuncelDegil; return; }
         if (!OdemeHatalari.Denetle(OdemeOnay, nameof(OdemeOnay), "Gösterilen ödeme tutarını ve kanal etkisini onaylayın."))
             return;
         var secili = SeciliOdeme.Veri;
@@ -264,7 +281,9 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     {
         if (!EditorMu || !Gecerli(onayOturumu) || satir.Veri.OdemeId is not { } id)
             return;
-        if (!VeriHazir || AySecimiDegisti || !Kayitlar.Any(x => TakipMetni.Ayni(x.Veri, satir.Veri)))
+        if (!ListeGuncelMi())
+            return;
+        if (AySecimiDegisti || !Kayitlar.Any(x => TakipMetni.Ayni(x.Veri, satir.Veri)))
         { Hata = "Gösterilen aylık gider değişti. Listeyi yenileyip ödemeyi yeniden seçin."; return; }
         if (string.IsNullOrWhiteSpace(aciklama))
         { Hata = "İptal gerekçesi yazın."; return; }
