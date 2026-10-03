@@ -50,6 +50,26 @@ public class KartFormuTests
         Assert.Equal(("Düzenleniyor: Kart", "Değişikliği kaydet"), (vm.KartFormuBasligi, vm.KartKaydetMetni));
     }
 
+    /// <summary>AppShell'in otomatik/elle yenileme koruması (K-1) <see cref="KartTakipViewModel.KaydedilmemisDegisiklikVar"/>'ı
+    /// okuyarak "Kartı düzenle" formu açıkken arka plan yenilemesini (YukleAsync → Sec(mevcut)) erteler; bu yenileme olmasa da
+    /// forma yazılan "Ad" alanı sunucu değeriyle ezilirdi (ürün sahibinin işaret ettiği kusur). Bayrağın doğru çalıştığını, yani
+    /// korumanın devreye gireceğini burada sınıyoruz: form açılınca kapalı, alan değişince açık, sunucu değeriyle aynıya dönünce
+    /// yine kapalı.</summary>
+    [Fact]
+    public async Task Kart_bilgisi_formu_acikken_ad_degisince_kaydedilmemis_degisiklik_var_olur()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+
+        vm.Ad = "Değişti";
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+
+        vm.Ad = "Kart";   // sunucudaki (açılıştaki) değere geri döndü: değişiklik yok sayılır
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+    }
+
     [Fact]
     public async Task Yazilmis_form_baska_karta_ve_yeni_karta_gecmeden_once_onay_ister_ayni_kartin_formlari_arasinda_sormaz()
     {
