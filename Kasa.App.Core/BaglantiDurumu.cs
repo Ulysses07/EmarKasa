@@ -55,6 +55,11 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged, IDisposable
     /// <summary>Son istek sunucuya ulaşamadı (ağ hatası ya da süre sınırı).</summary>
     public bool Kopuk => Volatile.Read(ref _kopukMu) != 0;
 
+    private int _kopmaSayisi;
+
+    /// <summary>Bağlıdan kopuğa geçiş sayısı (Ö-2): kabuk otomatik yenilemenin bağlantıyı yeniden koparıp koparmadığını bununla anlar.</summary>
+    public int KopmaSayisi => Volatile.Read(ref _kopmaSayisi);
+
     /// <summary>Sunucudan son yanıtın alındığı an (yerel saat); hiç yanıt yoksa null.</summary>
     public DateTimeOffset? SonBaglanti => _sonBaglanti;
 
@@ -74,7 +79,7 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged, IDisposable
         });
         if (oncedenKopuk)
         {
-            YoklamayiDurdur();
+            YoklamayiDurdur(yalnizBagliyken: true);
             GecisiBildir(() => BaglantiGeldi?.Invoke(this, EventArgs.Empty));
         }
     }
@@ -82,9 +87,11 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged, IDisposable
     public void Ulasilamadi()
     {
         var oncedenBagliydi = Interlocked.Exchange(ref _kopukMu, 1) == 0;
+        // Her bildirimde (idempotent): eşzamanlı bir geliş yoklamayı durdurmuş olsa da kopukken yoklama yeniden kurulur (Küçük-1).
+        YoklamayiBaslat();
         if (!oncedenBagliydi)
             return;
-        YoklamayiBaslat();
+        Interlocked.Increment(ref _kopmaSayisi);
         UiBaglaminda(() => Bildir(nameof(Kopuk)));
         GecisiBildir(() => BaglantiKoptu?.Invoke(this, EventArgs.Empty));
     }
@@ -92,22 +99,30 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged, IDisposable
     /// <summary>Son başlatılan yoklama (testler bekler).</summary>
     internal Task SonYoklama { get; private set; } = Task.CompletedTask;
 
+    /// <summary>Hemen bir yoklama (aralığı beklemeden; Küçük-3): kabuğun "Yeniden dene"si yenilenemeyen sayfada bunu çağırır. Yalnız
+    /// kopukken ve önceki yoklama bitmişse yoklar; hata dışarı çıkmaz.</summary>
+    public Task HemenYoklaAsync() => SonYoklama = YoklaAsync();
+
     private void YoklamayiBaslat()
     {
         if (_yoklama is null)
             return;
         lock (_yoklamaKilidi)
         {
-            if (_kapandi || _yoklamaZamanlayicisi is not null)
+            if (_kapandi || _yoklamaZamanlayicisi is not null || !Kopuk)
                 return;
             _yoklamaZamanlayicisi = _zaman.CreateTimer(_ => SonYoklama = YoklaAsync(), null, YoklamaAraligi, YoklamaAraligi);
         }
     }
 
-    private void YoklamayiDurdur()
+    /// <summary>Yoklamayı durdurur; <paramref name="yalnizBagliyken"/> ise kilit içinde yalnız durum hâlâ bağlıysa (Küçük-1: geliş
+    /// bağlı yazdıktan sonra araya giren kopuş yoklamasız kalmasın; başlatma da kilit içinde kopukluğu denetler).</summary>
+    private void YoklamayiDurdur(bool yalnizBagliyken = false)
     {
         lock (_yoklamaKilidi)
         {
+            if (yalnizBagliyken && Kopuk)
+                return;
             _yoklamaZamanlayicisi?.Dispose();
             _yoklamaZamanlayicisi = null;
         }

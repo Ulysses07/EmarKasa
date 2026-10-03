@@ -22,6 +22,7 @@ public partial class AppShell : Shell
     private readonly IDispatcherTimer _bildirimZamanlayicisi;
     /// <summary>Gezinme çubuğundaki bağlantı şeridi (Shell.TitleView; yalnız kopukken görünür).</summary>
     private readonly BaglantiSeridi _baglantiSeridi;
+    private readonly BaglantiDurumu _baglanti;
     private bool _yenileniyor, _birakmaSoruluyor;
     /// <summary>Onay penceresi açıkken (erteleme beklerken) oturum düşerse <see cref="GiriseDonAsync"/> beklemeye alınır (Ö-3):
     /// GoToAsync erteleme beklerken InvalidOperationException verir. Pencere kapanınca (<see cref="OnNavigating"/>'in finally'si)
@@ -76,6 +77,7 @@ public partial class AppShell : Shell
         // Bağlantı şeridi (tasarım 2026-10-02 §3): kabukta tek şerit, bütün sayfaların gezinme çubuğunda (TitleView kabuktan
         // devralınır). "Yeniden dene" ve bağlantının geri gelmesi açık sayfayı yeniler; bağlantının geri gelmesi
         // OtomatikYenileAsync'in alt sınırına ve kaydedilmemiş değişiklik denetimine bağlıdır (K-1, Ö-1).
+        _baglanti = baglanti;
         _baglantiSeridi = new BaglantiSeridi { BindingContext = baglanti };
         _baglantiSeridi.YenidenDeneIstendi += async (_, _) => await ElleYenileAsync();
         baglanti.BaglantiGeldi += async (_, _) => await OtomatikYenileAsync();
@@ -83,22 +85,34 @@ public partial class AppShell : Shell
     }
 
     /// <summary>Bağlantı geldiğinde otomatik yenileme (K-1: alt sınır, sondaki kenarda tek tetik, TimeProvider ile; Ö-1:
-    /// kaydedilmemiş değişiklikte hiç yenilenmez, form kullanıcı isteği olmadan ezilmez — şerit kalkar, veri soluk kalır).
+    /// kaydedilmemiş değişiklikte hiç yenilenmez, form kullanıcı isteği olmadan ezilmez — şerit kalkar, veri soluk kalır; Ö-2: bir
+    /// önceki otomatik yenileme bağlantıyı yeniden kopardıysa bu geçişte yenilenmez).
     /// Sınır içinde kalınırsa <see cref="Dispatcher"/> ile sınırın sonunda yeniden denenir.</summary>
     private async Task OtomatikYenileAsync()
     {
         var kirli = CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true };
         if (_otomatikYenileme.Sor(kirli, out var bekle))
+        {
+            // Ö-2: yenileme bağlantıyı yeniden kopardıysa (ağır istek zaman aşımı) sonraki geçişte yenilenmez, yalnız şerit kalkar.
+            var kopma = _baglanti.KopmaSayisi;
             await AcikSayfayiYenileAsync();
+            _otomatikYenileme.YenilemeBitti(kopusla: _baglanti.KopmaSayisi != kopma);
+        }
         else if (bekle > TimeSpan.Zero)
             Dispatcher.DispatchDelayed(bekle, () => _ = OtomatikYenileAsync());
     }
 
-    /// <summary>"Yeniden dene": kaydedilmemiş değişiklikte <see cref="KaydedilmemisDegisiklik"/> onayı sorulur ("Bırak" derse
-    /// değişiklikler bırakılıp yenilenir, "Forma dön" derse yenileme yapılmaz); otomatik yenileme sınırına (K-1) bağlı değildir,
+    /// <summary>"Yeniden dene": yenilenemeyen sayfada bağlantı hemen yoklanır; kaydedilmemiş değişiklikte
+    /// <see cref="KaydedilmemisDegisiklik"/> onayı sorulur ("Bırak" derse değişiklikler bırakılıp yenilenir, "Forma dön" derse yenileme yapılmaz); otomatik yenileme sınırına (K-1) bağlı değildir,
     /// her zaman hemen çalışır.</summary>
     private async Task ElleYenileAsync()
     {
+        // Küçük-3: yenilenemeyen sayfada (giriş, ayrıntı sayfaları) yoklama hemen yapılır; şerit aralığı beklemeden kalkar.
+        if (CurrentPage is not IYenilenebilir)
+        {
+            await _baglanti.HemenYoklaAsync();
+            return;
+        }
         if (CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true } form)
         {
             if (!await DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, KaydedilmemisDegisiklik.Ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon))

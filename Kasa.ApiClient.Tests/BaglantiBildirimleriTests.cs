@@ -49,6 +49,16 @@ public class BaglantiBildirimleriTests
         Assert.Equal(["ulaşılamadı:TimeoutException"], olaylar);
     }
 
+    /// <summary>Küçük-2: süre sınırının bildiriminde de dinleyicinin istisnası isteğin hatasını değiştirmez.</summary>
+    [Fact]
+    public async Task Sure_sinirinda_dinleyici_hatasi_zaman_asimini_degistirmez()
+    {
+        var (c, _) = Kur(async (_, ct) => { await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); });
+        ((IBaglantiBildirimleri)c).SunucuyaUlasilamadi += (_, _) => throw new InvalidOperationException("dinleyici");
+
+        await Assert.ThrowsAsync<TimeoutException>(c.KanallarAsync);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.OK, "[]")]
     [InlineData(HttpStatusCode.BadRequest, "{\"hata\":\"x\"}")]

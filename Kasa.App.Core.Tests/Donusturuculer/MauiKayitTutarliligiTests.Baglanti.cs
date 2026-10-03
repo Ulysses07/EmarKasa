@@ -25,7 +25,8 @@ public partial class MauiKayitTutarliligiTests
         var kod = Oku("AppShell.xaml.cs");
         Assert.Contains("new OtomatikYenilemeKarari(TimeProvider.System, TimeSpan.FromSeconds(3))", kod);
         Assert.Matches(@"private async Task OtomatikYenileAsync\(\)\s*\{[\s\S]*?var kirli = CurrentPage\?\.BindingContext is IKaydedilmemisForm \{ KaydedilmemisDegisiklikVar: true \};[\s\S]*?if \(_otomatikYenileme\.Sor\(kirli, out var bekle\)\)[\s\S]*?await AcikSayfayiYenileAsync\(\);[\s\S]*?else if \(bekle > TimeSpan\.Zero\)[\s\S]*?Dispatcher\.DispatchDelayed\(bekle, \(\) => _ = OtomatikYenileAsync\(\)\);", kod);
-        Assert.Matches(@"private async Task ElleYenileAsync\(\)\s*\{\s*if \(CurrentPage\?\.BindingContext is IKaydedilmemisForm \{ KaydedilmemisDegisiklikVar: true \} form\)\s*\{\s*if \(!await DisplayAlertAsync\(KaydedilmemisDegisiklik\.Baslik, KaydedilmemisDegisiklik\.Ileti, KaydedilmemisDegisiklik\.Birak, KaydedilmemisDegisiklik\.FormaDon\)\)\s*return;\s*form\.DegisiklikleriBirak\(\);", kod);
+        Assert.Matches(@"if \(_otomatikYenileme\.Sor\(kirli, out var bekle\)\)\s*\{\s*//.*\s*var kopma = _baglanti\.KopmaSayisi;\s*await AcikSayfayiYenileAsync\(\);\s*_otomatikYenileme\.YenilemeBitti\(kopusla: _baglanti\.KopmaSayisi != kopma\);", kod);
+        Assert.Matches(@"private async Task ElleYenileAsync\(\)\s*\{\s*//.*\s*if \(CurrentPage is not IYenilenebilir\)\s*\{\s*await _baglanti\.HemenYoklaAsync\(\);\s*return;\s*\}\s*if \(CurrentPage\?\.BindingContext is IKaydedilmemisForm \{ KaydedilmemisDegisiklikVar: true \} form\)\s*\{\s*if \(!await DisplayAlertAsync\(KaydedilmemisDegisiklik\.Baslik, KaydedilmemisDegisiklik\.Ileti, KaydedilmemisDegisiklik\.Birak, KaydedilmemisDegisiklik\.FormaDon\)\)\s*return;\s*form\.DegisiklikleriBirak\(\);", kod);
     }
 
     /// <summary>Kaydedilmemiş değişiklikte sayfadan çıkış: MAUI Shell gezinme ertelemesi (GetDeferral → Cancel/Complete). Erteleme

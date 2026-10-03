@@ -136,4 +136,60 @@ public class BaglantiYoklamasiTests
         Assert.True(durum.Kopuk);
         Assert.Empty(zaman.Zamanlayicilar);
     }
+
+    /// <summary>Küçük-1: geliş bildirimi bağlı yazdıktan sonra, yoklamayı durdurmadan önce başka istek ulaşılamadı bildirirse
+    /// (eşzamanlı istekler) durum kopuk kalır ve yoklama durmaz; yoksa şerit yoklamasız kalırdı.</summary>
+    [Fact]
+    public void Gelis_ile_kopus_ust_uste_binerse_kopukken_yoklama_durmaz()
+    {
+        var (durum, istemci, zaman, _) = Kur();
+        istemci.Kop();
+        var araya = true;
+        durum.PropertyChanged += (_, e) =>
+        {
+            if (araya && e.PropertyName == nameof(BaglantiDurumu.SonBaglanti))
+            {
+                araya = false;
+                istemci.Kop();   // Ulasildi bağlı yazdı, yoklamayı henüz durdurmadı
+            }
+        };
+
+        istemci.Ulas();
+
+        Assert.True(durum.Kopuk);
+        Assert.NotNull(zaman.Calisan);
+    }
+
+    /// <summary>Küçük-3: kabuğun "Yeniden dene"si yenilenemeyen sayfada hemen yoklar; şerit 15 sn beklemeden kalkar.</summary>
+    [Fact]
+    public async Task Hemen_yoklama_araligi_beklemeden_baglantiyi_dener()
+    {
+        var (durum, istemci, zaman, olaylar) = Kur();
+        istemci.Kop();
+        istemci.SunucuVar = true;
+
+        await durum.HemenYoklaAsync();
+
+        Assert.Equal(1, istemci.Yoklama);
+        Assert.False(durum.Kopuk);
+        Assert.Equal(["geldi"], olaylar);
+        Assert.Null(zaman.Calisan);
+
+        await durum.HemenYoklaAsync();   // bağlıyken yoklamaz
+        Assert.Equal(1, istemci.Yoklama);
+    }
+
+    /// <summary>Ö-2: kabuk otomatik yenilemenin kopuşla bitip bitmediğini kopma sayısıyla anlar; yalnız bağlıdan kopuğa geçiş sayılır.</summary>
+    [Fact]
+    public void Kopma_sayisi_yalniz_gecislerde_artar()
+    {
+        var (durum, istemci, _, _) = Kur();
+        Assert.Equal(0, durum.KopmaSayisi);
+        istemci.Kop();
+        istemci.Kop();
+        Assert.Equal(1, durum.KopmaSayisi);
+        istemci.Ulas();
+        istemci.Kop();
+        Assert.Equal(2, durum.KopmaSayisi);
+    }
 }

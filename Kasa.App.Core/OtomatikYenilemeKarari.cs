@@ -10,10 +10,16 @@ public sealed class OtomatikYenilemeKarari(TimeProvider zaman, TimeSpan aralik)
 {
     private DateTimeOffset? _sonTetik;
     private bool _bekliyor;
+    private bool _sonYenilemeKopuslaBitti;
+
+    /// <summary>Tetiklenen otomatik yenileme bitti; <paramref name="kopusla"/> yenileme sırasında bağlantı yeniden koptuysa true
+    /// (ağır istek zaman aşımı, kalıcı proxy hatası; Ö-2). Öyleyse sonraki geçişte yenilenmez (bkz. <see cref="Sor"/>).</summary>
+    public void YenilemeBitti(bool kopusla) => _sonYenilemeKopuslaBitti = kopusla;
 
     /// <summary>Şimdi tetiklensin mi (true döner, <paramref name="beklemeSuresi"/> Zero'dur); değilse (false) ya kaydedilmemiş
     /// değişiklik var (otomatik yenileme hiç tetiklenmez, form kullanıcı isteği olmadan ezilmez; <paramref name="beklemeSuresi"/>
-    /// Zero, bekleyen istek varsa düşürülür) ya da sınır içindedir (<paramref name="beklemeSuresi"/> sonra çağıran yeniden
+    /// Zero, bekleyen istek varsa düşürülür), ya son otomatik yenileme kopuşla bitti (<see cref="YenilemeBitti"/>; bu geçiş
+    /// yenilenmez, <paramref name="beklemeSuresi"/> Zero) ya da sınır içindedir (<paramref name="beklemeSuresi"/> sonra çağıran yeniden
     /// <see cref="Sor"/> çağırmalı; sınır içinde art arda gelen istekler için yalnız bir bekleme zamanlanır, istek düşürülmez).
     /// </summary>
     public bool Sor(bool kaydedilmemisDegisiklikVar, out TimeSpan beklemeSuresi)
@@ -21,6 +27,14 @@ public sealed class OtomatikYenilemeKarari(TimeProvider zaman, TimeSpan aralik)
         beklemeSuresi = TimeSpan.Zero;
         if (kaydedilmemisDegisiklikVar)
         {
+            _bekliyor = false;
+            return false;
+        }
+        // Ö-2: son otomatik yenileme bağlantıyı yeniden kopardı; bu geçişte yenilenmez (yalnız şerit kalkar), yoksa kopuş → yoklama
+        // → geliş → yenileme → kopuş döngüsü oluşur. Kural bir kez uygulanır; sonraki geçiş yine yeniler.
+        if (_sonYenilemeKopuslaBitti)
+        {
+            _sonYenilemeKopuslaBitti = false;
             _bekliyor = false;
             return false;
         }

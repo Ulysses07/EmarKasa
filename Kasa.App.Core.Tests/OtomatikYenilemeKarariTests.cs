@@ -60,4 +60,27 @@ public class OtomatikYenilemeKarariTests
         Assert.True(karar.Sor(false, out var bekleme3));
         Assert.Equal(TimeSpan.Zero, bekleme3);
     }
+
+    /// <summary>Ö-2: otomatik yenileme bağlantıyı yeniden kopardıysa (ağır istek zaman aşımı, kalıcı proxy hatası) sonraki geçişte
+    /// yenilenmez, yalnız şerit kalkar; böylece kopuş → yoklama → geliş → yenileme → kopuş döngüsü oluşmaz. Ondan sonraki geçiş
+    /// yine yeniler.</summary>
+    [Fact]
+    public void Son_otomatik_yenileme_kopusla_bittiyse_sonraki_geciste_yenilemez()
+    {
+        var saat = new AyarlanabilirZaman(new DateTimeOffset(2026, 10, 3, 10, 0, 0, TimeSpan.Zero));
+        var karar = new OtomatikYenilemeKarari(saat, TimeSpan.FromSeconds(3));
+        Assert.True(karar.Sor(false, out _));
+        karar.YenilemeBitti(kopusla: true);
+
+        saat.Ilerlet(TimeSpan.FromSeconds(20));
+        Assert.False(karar.Sor(false, out var bekleme));
+        Assert.Equal(TimeSpan.Zero, bekleme);
+
+        saat.Ilerlet(TimeSpan.FromSeconds(20));
+        Assert.True(karar.Sor(false, out _));
+        karar.YenilemeBitti(kopusla: false);
+
+        saat.Ilerlet(TimeSpan.FromSeconds(20));
+        Assert.True(karar.Sor(false, out _));
+    }
 }

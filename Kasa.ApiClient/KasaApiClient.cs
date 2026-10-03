@@ -51,6 +51,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
         try
         { await _store.YazAsync(login.Token); }
         finally { _oturumKilidi.Release(); }
+        _anaSayfaVekilHatasi = false;   // yeni oturumda birleşik uç yeniden denenir
         // Her başarılı giriş kendi rolünün belirtecini yeniler; belirteçsiz yanıt (eski sunucu) saklananı silmez.
         await CihazSaklaAsync(login.Rol, login.Cihaz);
         return login;
@@ -112,18 +113,25 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
     /// başlatılınca yeniden denenir.</summary>
     private volatile bool _anaSayfaUcuYok;
 
+    /// <summary>Birleşik uç proxy/ağ geçidi hatası verdi (502, iletisiz 503; Ö-2): bu oturum boyunca doğrudan panele gidilir.
+    /// Kalıcı proxy hatasında her yükleme önce kopuk (uç) sonra bağlı (panel) bildirip otomatik yenilemeyi döngüye sokuyordu.
+    /// Yeni girişte (<see cref="LoginAsync"/>) uç yeniden denenir.</summary>
+    private volatile bool _anaSayfaVekilHatasi;
+
     public async Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default)
     {
-        if (!_anaSayfaUcuYok)
+        if (!_anaSayfaUcuYok && !_anaSayfaVekilHatasi)
         {
             try
             { return await GetAsync<AnaSayfaDto>($"api/rapor/ana-sayfa?gun={gun}", ct); }
             catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound) { _anaSayfaUcuYok = true; }
             // Birleşik ucun sunucu hatası (5xx; ör. takip özeti hesaplanamadı) kasa bakiyelerini gizlemez: panel ayrı uçtan
             // alınır, eşikler ve özet çağıranca kendi uçlarından (kendi hatalarıyla) yüklenir. Uç sonraki yüklemede yeniden denenir.
-            // Birleşik ucun proxy/ağ geçidi hatası (502, iletisiz 503; HttpRequestException) aynı şekilde panele düşürür: panel
-            // ayrı istektir, kendi başına ulaşılabilir olabilir.
+            // Birleşik ucun proxy/ağ geçidi hatası (502, iletisiz 503; durum kodlu HttpRequestException) aynı şekilde panele
+            // düşürür (panel ayrı istektir, kendi başına ulaşılabilir olabilir) ve oturum boyunca uç denenmez (Ö-2). Ağ hatası
+            // (durum kodsuz) uç hatası değildir; sonraki yüklemede uç yeniden denenir.
             catch (KasaApiException e) when ((int)e.DurumKodu >= 500) { }
+            catch (HttpRequestException e) when (e.StatusCode is not null) { _anaSayfaVekilHatasi = true; }
             catch (HttpRequestException) { }
         }
         // Eski sunucu ya da birleşik uç hatası: panel tek başına; eşikler ve takip özeti çağıranca eski uçlardan yüklenir.
@@ -206,7 +214,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
         catch (OperationCanceledException e) when (!iptal.IsCancellationRequested && (kaynak.IsCancellationRequested || e.InnerException is TimeoutException))
         {
             var zamanAsimi = new TimeoutException(KasaZamanAsimlari.Ileti, e);
-            SunucuyaUlasilamadi?.Invoke(this, zamanAsimi);
+            GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, zamanAsimi));
             throw zamanAsimi;
         }
     }
