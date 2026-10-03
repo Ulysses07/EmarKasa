@@ -94,16 +94,31 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     partial void OnAyTarihiChanged(DateTime value) { SeciliOdeme = null; OnPropertyChanged(nameof(AySecimiDegisti)); }
     public bool AySecimiDegisti => _ayVerisi is null || _ayVerisi.Yil != AyTarihi.Year || _ayVerisi.Ay != AyTarihi.Month;
     /// <summary>Ayın giderleri, şablonlar ve kanallar; hata son başarılı veriyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
-    public Task YukleAsync() => VeriYukleAsync(async n =>
+    public Task YukleAsync()
     {
-        VeriHazir = false;
-        SeciliOdeme = null;
-        var ay = AyTarihi;
-        var s = await api.AylikGiderSablonlariAsync();
-        var k = await finans.KanallarAsync();
-        var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);
-        if (!Gecerli(n) || ay.Year != AyTarihi.Year || ay.Month != AyTarihi.Month)
-            return;
+        SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
+        {
+            VeriHazir = false;
+            SeciliOdeme = null;
+            var ay = AyTarihi;
+            var s = await api.AylikGiderSablonlariAsync();
+            var k = await finans.KanallarAsync();
+            var a = await api.AylikGiderlerAsync(ay.Year, ay.Month);
+            if (!Gecerli(n) || ay.Year != AyTarihi.Year || ay.Month != AyTarihi.Month)
+                return;
+            Yansit(s, k, a);
+            Tamamlandi($"{ay:yyyy-MM}", (s, k, a));
+        });
+    }
+
+    /// <summary>Son veri önbelleğinden (yeniden kurulan sayfa, H-1) seçili ayın son başarılı verisi gösterilir.</summary>
+    public override bool SonVeriyiGoster()
+        => OnbellektenUygula<(IReadOnlyList<AylikGiderSablonDto>, IReadOnlyList<KanalDto>, AylikGiderAyDto)>($"{AyTarihi:yyyy-MM}",
+            v => Yansit(v.Item1, v.Item2, v.Item3));
+
+    private void Yansit(IReadOnlyList<AylikGiderSablonDto> s, IReadOnlyList<KanalDto> k, AylikGiderAyDto a)
+    {
         TakipMetni.Doldur(Sablonlar, s.Select(x => new AylikSablonSatiri(x)));
         TakipMetni.Doldur(Kanallar, k);
         var secili = KanalSecimleri.Where(x => x.Secili).Select(x => x.Veri.Id).ToHashSet();
@@ -111,8 +126,7 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         AyiYansit(a);
         if (!FormIzi.Acik)
             FormIzi.Ac();   // ilk yükleme: boş şablon formu kanal seçenekleriyle açıldı
-        Tamamlandi();
-    });
+    }
     private void AyiYansit(AylikGiderAyDto a)
     {
         _ayVerisi = a;

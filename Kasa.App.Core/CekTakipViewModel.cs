@@ -224,6 +224,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     /// yenilemesi hata verirse liste kalır ve eski işaretlenir; başka sorgunun hatasında önceki sorgunun listesi ve özeti kalkar.</summary>
     public Task YukleAsync()
     {
+        SonVeriyiGoster();
         var sorgu = CiplerinSorgusu();
         return ListeHatti.YukleAsync(async _ =>
         {
@@ -231,7 +232,26 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             var cekler = await api.CeklerAsync(sorgu.Yon, sorgu.Durum, sorgu.Ara, sorgu.Bas, sorgu.Son);
             var ozet = await api.CekOzetAsync();
             return (kanallar, cekler, ozet);
-        }, v => { Yansit(v.kanallar, v.cekler, v.ozet); _gosterilenSorgu = sorgu; }, hata => SorguHatasi(sorgu, hata));
+        }, v => Uygula(sorgu, v.kanallar, v.cekler, v.ozet), hata => SorguHatasi(sorgu, hata));
+    }
+
+    /// <summary>Başarılı liste yüklemesi: gösterilen sorgu olur, yanıt son veri önbelleğine yazılır (H-1).</summary>
+    private void Uygula(CekSorgusu sorgu, IReadOnlyList<KanalDto> kanallar, IReadOnlyList<CekDto> cekler, CekOzetDto ozet)
+    {
+        Yansit(kanallar, cekler, ozet);
+        _gosterilenSorgu = sorgu;
+        Tamamlandi(sorgu.ToString(), (kanallar, cekler, ozet));
+    }
+
+    /// <summary>Son veri önbelleğinden (yeniden kurulan sayfa, H-1) ekrandaki çiplerin sorgusunun listesi gösterilir.</summary>
+    public override bool SonVeriyiGoster()
+    {
+        var sorgu = CiplerinSorgusu();
+        return OnbellektenUygula<(IReadOnlyList<KanalDto>, IReadOnlyList<CekDto>, CekOzetDto)>(sorgu.ToString(), v =>
+        {
+            Yansit(v.Item1, v.Item2, v.Item3);
+            _gosterilenSorgu = sorgu;
+        });
     }
 
     /// <summary>Ekrandaki çiplerin ve aramanın sorgusu.</summary>
@@ -264,6 +284,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
     /// listenin seçili süzgece ait olduğunu söyler.</summary>
     public Task CekIcinYukleAsync(int id)
     {
+        SonVeriyiGoster();
         // Süzgeçler yalnız başarıda değişir: hata ekrandaki çiplerin sorgusuna göre işlenir (gösterilen listeninse eski işaretlenir).
         var ekrandaki = CiplerinSorgusu();
         VeriHazir = false;
@@ -278,8 +299,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         {
             SuzgecleriYaz(v.Yon, CekSuzgecleri.Hepsi, null, null);
             Ara = "";
-            Yansit(v.kanallar, v.cekler, v.ozet);
-            _gosterilenSorgu = new(v.Yon, CekSuzgecleri.Hepsi, null, null, null);
+            Uygula(new(v.Yon, CekSuzgecleri.Hepsi, null, null, null), v.kanallar, v.cekler, v.ozet);
         }, hata => SorguHatasi(ekrandaki, hata));
     }
 
@@ -307,7 +327,6 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             FormuKapatOnaysiz();
             Mesaj = "Çek başka bir işlemle değişti; formu yeniden açın.";
         }
-        Tamamlandi();
     }
 
     private void SatirlariBol()

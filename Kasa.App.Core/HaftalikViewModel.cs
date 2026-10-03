@@ -25,7 +25,7 @@ public partial class HaftalikViewModel : RaporViewModel
 
     public override Task YukleAsync()
     {
-        return RaporYukleAsync(ct => _api.HaftalikAsync(ct), liste =>
+        return RaporYukleAsync("haftalik", ct => _api.HaftalikAsync(ct), liste =>
         {
             // HF-01: sunucu eskiden yeniye döner; içinde bulunulan hafta her seferinde sona kaydırmadan görünsün diye
             // istemci yeniden eskiye sıralar. Veri sağlığı uyarısı sunucunun döndürdüğü (eskiden yeniye) sırayla, yalnız

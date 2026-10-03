@@ -160,19 +160,40 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     }
 
     /// <summary>Kartlar ve kanallar; hata son başarılı listeyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
-    public Task YukleAsync() => VeriYukleAsync(async n =>
+    public Task YukleAsync()
     {
-        HataKaynagi = KartFormu.Yok;
-        var kanallar = await finans.KanallarAsync();
-        var kartlar = await api.TakipKartlarAsync();
-        if (!Gecerli(n))
-            return;
+        SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
+        {
+            HataKaynagi = KartFormu.Yok;
+            var kanallar = await finans.KanallarAsync();
+            var kartlar = await api.TakipKartlarAsync();
+            if (!Gecerli(n))
+                return;
+            Yansit(kanallar, kartlar);
+            Tamamlandi("", (kanallar, kartlar));
+        });
+    }
+
+    /// <summary>Son veri önbelleğinden (yeniden kurulan sayfa, H-1) kartlar ve en son açık olan kart gösterilir.</summary>
+    public override bool SonVeriyiGoster()
+    {
+        if (!OnbellektenUygula<(IReadOnlyList<KanalDto>, IReadOnlyList<KartTakipDto>)>("", v => Yansit(v.Item1, v.Item2)))
+            return false;
+        if (Secili is null && OnbellektenOku<int>(AcikKartAnahtari, out var id) && Kartlar.FirstOrDefault(k => k.Veri.Id == id) is { } satir)
+            Sec(satir);
+        return true;
+    }
+
+    private const string AcikKartAnahtari = "acik";
+
+    private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<KartTakipDto> kartlar)
+    {
         TakipMetni.Doldur(Kanallar, kanallar);
         TakipMetni.Doldur(Kartlar, kartlar.Select(k => new KartTakipSatiri(k, _zaman)));
         if (Secili is { } eski)
         { var mevcut = kartlar.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) Sec(new(mevcut, _zaman), yenileme: true); else Yeni(); }
-        Tamamlandi();
-    });
+    }
     // [RelayCommand] kasıtlı olarak yok: arayüz KutuSecCommand'ı kullanır (KartTakipViewModel.Gorunum.cs), bu metodu çağırır.
     // internal: testler doğrudan çağırır (KutuSec'in "açıksa kapat" devrik mantığı test niyetini bozar).
     internal void Sec(KartTakipSatiri satir) => Sec(satir, yenileme: false);

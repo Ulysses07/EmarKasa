@@ -198,7 +198,20 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
     /// <summary>Alışlar, kanallar ve (editörde) kartlar, giderler, alıcılar. Hata son başarılı listeyi silmez, eski işaretler (tasarım
     /// 2026-10-02 §3). Bütün yanıtlar gelmeden ekran değişmez: kart, gider ya da alıcı isteği hata verirse kanallar ve alışlar da
     /// eski kalır (kısmi hata yarım ekran bırakmaz). Yazılmış form, son yükleme hata vermiş (soluk) olsa da sorulmadan silinmez.</summary>
-    public Task YukleAsync() => VeriYukleAsync(async nesil =>
+    public Task YukleAsync()
+    {
+        SonVeriyiGoster();
+        return VeriYukleAsync(YukleIcAsync);
+    }
+
+    /// <summary>Son başarılı yüklemenin bütün yanıtları (son veri önbelleği, H-1); editör olmayan rolde kart, gider ve alıcı yoktur.</summary>
+    private sealed record AlisVerisi(IReadOnlyList<AlisKanalDto> Kanallar, IReadOnlyList<AlisDto> Alislar, IReadOnlyList<KrediKartiDto>? Kartlar,
+        BaglanabilirGiderSayfasi? GiderSayfasi, IReadOnlyList<AliciDto>? Alicilar, string GiderArama);
+
+    /// <summary>Son veri önbelleğinden (yeniden kurulan sayfa, H-1) alışlar ve seçenekler gösterilir; form boş açılır.</summary>
+    public override bool SonVeriyiGoster() => OnbellektenUygula<AlisVerisi>(GiderArama.Trim(), v => Yansit(v, null));
+
+    private async Task YukleIcAsync(int nesil)
     {
         if (KaydedilmemisDegisiklikVar && GovdeGorunur)
         { KaydetmeUyarisi(); return; }
@@ -224,8 +237,16 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
             (kartlar, giderSayfasi, alicilar) = (await kartIsi, await giderIsi, await hesapIsi);
         }
         // Bütün yanıtlar geldi: ekran tek seferde güncellenir.
-        Degistir(Kanallar, await kanalIsi);
-        Degistir(Alislar, (await alisIsi).OrderByDescending(a => a.Tarih).ThenByDescending(a => a.Id).Select(a => new AlisSatiri(a)));
+        var veri = new AlisVerisi(await kanalIsi, await alisIsi, kartlar, giderSayfasi, alicilar, giderArama);
+        Yansit(veri, oncekiId);
+        Tamamlandi(giderArama, veri);
+    }
+
+    private void Yansit(AlisVerisi veri, int? oncekiId)
+    {
+        var (kanallar, alislar, kartlar, giderSayfasi, alicilar, giderArama) = veri;
+        Degistir(Kanallar, kanallar);
+        Degistir(Alislar, alislar.OrderByDescending(a => a.Tarih).ThenByDescending(a => a.Id).Select(a => new AlisSatiri(a)));
         OdemeKartlari.Clear();
         OdemeKartlari.Add(new(null, "Nakit / banka"));
         Alicilar.Clear();
@@ -250,8 +271,7 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
         GiderSecenekleriniYenile();
         OnPropertyChanged(nameof(DagilimBekleyenTutar));
         OnPropertyChanged(nameof(DagilimBekliyor));
-        Tamamlandi();
-    });
+    }
 
     [RelayCommand] private Task YenileAsync() => YukleAsync();
 

@@ -40,6 +40,15 @@ public partial class PanelViewModel : RaporViewModel
     public void AltBolumleriBagla(TakipOzetViewModel takip, KasaKontrolViewModel kontrol, CekOzetViewModel cekler)
     {
         Yuklendi += (_, _) => AltBolumYuklemesi = YukleAsync();
+        // Panel son veri önbelleğinden gösterildi (yeniden kurulan sayfa, H-1): alt bölümler de kendi son verilerini gösterir;
+        // istek atmazlar, panelin başarılı yüklemesi onları yeniler.
+        OnbellektenGosterildi += (_, _) =>
+        {
+            takip.SonVeriyiGoster();
+            kontrol.SonVeriyiGoster();
+            cekler.SonVeriyiGoster();
+            KartBorclariniYansit(takip.KanalKartBorclari);
+        };
         PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(VeriEski) || !VeriEski)
@@ -89,7 +98,7 @@ public partial class PanelViewModel : RaporViewModel
     {
         var gun = TakipGunu;
         // Uyarı öbür panel alanları gibi son başarılı yüklemeden kalır (yenileme ve hata silmez).
-        return RaporYukleAsync(ct => _api.AnaSayfaAsync(gun, ct), a =>
+        return RaporYukleAsync($"gun={gun}", ct => _api.AnaSayfaAsync(gun, ct), a =>
         {
             var p = a.Panel;
             GuncelKasa = p.GuncelKasa;

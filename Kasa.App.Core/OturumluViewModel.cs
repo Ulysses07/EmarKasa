@@ -130,6 +130,47 @@ public abstract partial class OturumluViewModel : TemelViewModel
     protected abstract void OturumTemizle();
     protected void Tamamlandi() { VeriHazir = true; VeriEski = false; SorguYuklenmedi = false; SonGuncelleme = DateTimeOffset.Now; }
 
+    /// <summary>Başarılı yükleme (<see cref="Tamamlandi()"/>) ve yanıtın son veri önbelleğine yazılması (ekran denemesi H-1): aynı
+    /// oturumda yeniden kurulan ekran bu sorgunun verisini <see cref="SonVeriyiGoster"/> ile hemen gösterir.</summary>
+    /// <param name="sorgu">Ekranın içinde sorgunun anahtarı (süzgeç, ay …); ekran adı önüne kendiliğinden eklenir.</param>
+    protected void Tamamlandi<TVeri>(string sorgu, TVeri veri) where TVeri : notnull
+    {
+        Tamamlandi();
+        Auth.SonVeri.Yaz(OnbellekAnahtari(sorgu), veri, SonGuncelleme!.Value);
+    }
+
+    private string OnbellekAnahtari(string sorgu) => GetType().Name + "|" + sorgu;
+
+    /// <summary>Ekranda henüz veri yokken (yeni kurulan model; <see cref="SonGuncelleme"/> boş) aynı oturumun aynı sorgusunun son
+    /// başarılı verisi varsa hemen uygulanır: eski işaretlenir (soluk) ve son güncelleme anı o verinin anıdır; yükleme ardından
+    /// denenir (tasarım 2026-10-02 §3, ekran denemesi H-1). <paramref name="uygula"/> başarılı yüklemenin yansıtma yoludur;
+    /// <see cref="Tamamlandi()"/> çağırsa da sonuç eski kalır.</summary>
+    protected bool OnbellektenUygula<TVeri>(string sorgu, Action<TVeri> uygula) where TVeri : notnull
+    {
+        if (SonGuncelleme is not null || !Auth.SonVeri.Oku<TVeri>(OnbellekAnahtari(sorgu), out var veri, out var zaman))
+            return false;
+        uygula(veri);
+        VeriHazir = false;
+        SorguYuklenmedi = false;
+        VeriEski = true;
+        SonGuncelleme = zaman;
+        return true;
+    }
+
+    /// <summary>Ekranın son veri önbelleğine doğrudan yazar (<see cref="Tamamlandi{TVeri}"/> ile aynı ad alanı): kendi yükleme hattıyla
+    /// çalışan ekranlar (İşlemler) ve açık kayıt gibi ekran durumu için.</summary>
+    protected void OnbellegeYaz<TVeri>(string sorgu, TVeri veri, DateTimeOffset? zaman = null) where TVeri : notnull
+        => Auth.SonVeri.Yaz(OnbellekAnahtari(sorgu), veri, zaman ?? DateTimeOffset.Now);
+
+    protected void OnbellektenSil(string sorgu) => Auth.SonVeri.Sil(OnbellekAnahtari(sorgu));
+
+    protected bool OnbellektenOku<TVeri>(string sorgu, out TVeri veri) where TVeri : notnull
+        => Auth.SonVeri.Oku(OnbellekAnahtari(sorgu), out veri, out _);
+
+    /// <summary>Son veri önbelleğindeki bu ekranın (geçerli sorgusunun) verisini gösterir (bkz. <see cref="OnbellektenUygula"/>);
+    /// ekranın yüklemesi bunu ilk iş çağırır. Kasalar alt bölümleri panel önbellekten gösterilince de çağrılır. Gösterildiyse true.</summary>
+    public virtual bool SonVeriyiGoster() => false;
+
     /// <summary>Ekran yüklemesi (tekil işlem): hata okuma iletisiyle yazılır, bağlantı kopukken bağlantı hatası yazılmaz (kabuk
     /// şeridi söyler); son başarılı veri silinmez, varsa eski işaretlenir. Başarılı yükleme <see cref="Tamamlandi"/>'yı çağırır.</summary>
     protected Task VeriYukleAsync(Func<int, Task> islem) => YurutAsync(islem, hataIsle: YuklemeHatasi);

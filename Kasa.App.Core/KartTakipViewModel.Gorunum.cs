@@ -269,6 +269,11 @@ public partial class KartTakipViewModel
             SeciliSekme = KartSekmesi.Ekstreler;
         }
         OnPropertyChanged(nameof(AcikKartId));
+        // Açık kart oturum içinde hatırlanır: sayfa yeniden kurulunca (menüden dönüş, H-1) aynı kart açık gelir.
+        if (newValue is null)
+            OnbellektenSil(AcikKartAnahtari);
+        else
+            OnbellegeYaz(AcikKartAnahtari, newValue.Id);
         OnPropertyChanged(nameof(YeniKartFormuAcik));
         OnPropertyChanged(nameof(KartFormuBasligi));
         OnPropertyChanged(nameof(KartKaydetMetni));

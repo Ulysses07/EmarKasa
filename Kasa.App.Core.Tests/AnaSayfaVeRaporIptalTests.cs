@@ -299,6 +299,48 @@ public class AnaSayfaVeRaporIptalTests
         Assert.Single(kontrol.Gecmis);
     }
 
+    /// <summary>Ekran denemesi H-1: Kasalar sayfası yeniden kurulunca (menüden dönüş) panel ve alt bölümleri (takip özeti, kasa
+    /// kontrolü, çekler) aynı oturumun son verisini eski (soluk) gösterir; panel ve alt bölümlerin yüklemesi hata verse de.</summary>
+    [Fact]
+    public async Task Kasalar_yeniden_kurulunca_panel_ve_alt_bolumler_son_veriyi_gosterir()
+    {
+        var auth = Editor();
+        var api = new SahteApi { AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(Panel(), new[] { Esik }, Ozet())) };
+        var kontrolApi = new KontrolSahtesi { Gecmis = [new KasaKontrolDto(1, DateTimeOffset.Now, 100, 100, 0, null)] };
+        var cekApi = new CekTakipViewModelTests.Sahte();
+        (PanelViewModel Panel, TakipOzetViewModel Takip, KasaKontrolViewModel Kontrol, CekOzetViewModel Cekler) Kur()
+        {
+            var p = new PanelViewModel(api, auth: auth);
+            var t = new TakipOzetViewModel(new FinansTakipTests.Sahte { OzetHatasi = new HttpRequestException() }, auth);
+            var k = new KasaKontrolViewModel(kontrolApi, auth);
+            var c = new CekOzetViewModel(cekApi, auth);
+            p.AltBolumleriBagla(t, k, c);
+            return (p, t, k, c);
+        }
+        var ilk = Kur();
+        await ilk.Panel.YukleAsync();
+        await ilk.Panel.AltBolumYuklemesi;
+        api.AnaSayfaGetir = (_, _) => Task.FromException<AnaSayfaDto>(new HttpRequestException());
+        kontrolApi.GecmisHatasi = new HttpRequestException();
+        cekApi.OzetHatasi = new HttpRequestException();
+
+        var (panel, takip, kontrol, cekler) = Kur();
+        await panel.YukleAsync();
+
+        Assert.True(panel.VeriVar);
+        Assert.True(panel.VeriEski);
+        Assert.Equal(900, panel.GuncelKasa);
+        Assert.Equal(120m, panel.Kanallar[0].KartBorcu);
+        Assert.Contains("120,00", takip.Ozet);
+        Assert.Single(kontrol.Gecmis);
+        Assert.NotNull(cekler.Ozet);
+        Assert.All(new OturumluViewModel[] { takip, kontrol, cekler }, vm =>
+        {
+            Assert.True(vm.VeriEski);
+            Assert.True(vm.GovdeGorunur);
+        });
+    }
+
     private sealed class KontrolSahtesi : IKasaKontrolApi
     {
         public int GecmisCagri, EsikCagri;

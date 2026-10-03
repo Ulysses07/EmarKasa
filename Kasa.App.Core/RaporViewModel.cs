@@ -22,6 +22,11 @@ public abstract partial class RaporViewModel : TemelViewModel
     public event EventHandler? Yuklendi;
 
     private readonly BaglantiDurumu? _baglanti;
+    private readonly AuthViewModel? _auth;
+
+    /// <summary>Ekranda veri yokken son veri önbelleğinden (aynı oturum, aynı sorgu) eski veri gösterildi (ekran denemesi H-1);
+    /// Kasalar alt bölümleri kendi son verilerini bununla gösterir. Başarılı yüklemede <see cref="Yuklendi"/> gelir.</summary>
+    public event EventHandler? OnbellektenGosterildi;
 
     /// <param name="baglanti">Uygulamanın bağlantı durumu; kopukken okumanın bağlantı hatası sayfaya yazılmaz.</param>
     /// <param name="auth">Verilirse oturum değişince (çıkış, yeni giriş; <see cref="AuthViewModel.OturumSurumu"/>) son başarılı
@@ -29,6 +34,7 @@ public abstract partial class RaporViewModel : TemelViewModel
     protected RaporViewModel(BaglantiDurumu? baglanti = null, AuthViewModel? auth = null)
     {
         _baglanti = baglanti;
+        _auth = auth;
         _hat = new SonIstekHatti(Yurutucu);
         if (auth is not null)
             OturumDeginceSifirla(auth);
@@ -79,19 +85,39 @@ public abstract partial class RaporViewModel : TemelViewModel
     }
 
     /// <summary>İptal belirteci almayan çağrılar için: yalnız son isteğin sonucu uygulanır.</summary>
-    protected Task RaporYukleAsync<T>(Func<Task<T>> getir, Action<T> uygula) => RaporYukleAsync(_ => getir(), uygula);
+    protected Task RaporYukleAsync<T>(Func<Task<T>> getir, Action<T> uygula) where T : notnull => RaporYukleAsync(_ => getir(), uygula);
+    protected Task RaporYukleAsync<T>(string? sorgu, Func<Task<T>> getir, Action<T> uygula) where T : notnull
+        => RaporYukleAsync(sorgu, _ => getir(), uygula);
 
-    protected Task RaporYukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula)
-        => _hat.YukleAsync(getir, veri =>
+    protected Task RaporYukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula) where T : notnull
+        => RaporYukleAsync(null, getir, uygula);
+
+    /// <param name="sorgu">Verilirse (ve model oturumla kurulduysa) başarılı yanıt son veri önbelleğine bu sorgu anahtarıyla yazılır;
+    /// ekranda veri yokken aynı sorgunun önbellekteki verisi istekten önce eski (soluk) gösterilir (ekran denemesi H-1).</param>
+    protected Task RaporYukleAsync<T>(string? sorgu, Func<CancellationToken, Task<T>> getir, Action<T> uygula) where T : notnull
+    {
+        var anahtar = sorgu is null ? null : GetType().Name + "|" + sorgu;
+        if (anahtar is not null && SonGuncelleme is null && _auth?.SonVeri.Oku<T>(anahtar, out var onceki, out var zaman) == true)
+        {
+            uygula(onceki);
+            SonGuncelleme = zaman;
+            VeriEski = true;
+            VeriVar = true;
+            OnbellektenGosterildi?.Invoke(this, EventArgs.Empty);
+        }
+        return _hat.YukleAsync(getir, veri =>
         {
             uygula(veri);
             SonGuncelleme = DateTimeOffset.Now;
             VeriEski = false;
             VeriVar = true;
+            if (anahtar is not null)
+                _auth?.SonVeri.Yaz(anahtar, veri, SonGuncelleme.Value);
             Yuklendi?.Invoke(this, EventArgs.Empty);
         }, hata =>
         {
             Yurutucu.OkumaHatasiniYaz(hata);
             VeriEski = VeriVar;
         });
+    }
 }

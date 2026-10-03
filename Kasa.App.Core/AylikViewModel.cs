@@ -65,7 +65,7 @@ public partial class AylikViewModel : RaporViewModel
     {
         var yil = Yil;
         var ay = Ay;
-        return RaporYukleAsync(() => _api.AylikAsync(yil, ay), rapor => Rapor = rapor);
+        return RaporYukleAsync($"{yil}-{ay}", () => _api.AylikAsync(yil, ay), rapor => Rapor = rapor);
     }
 
     partial void OnYilChanged(int value) => AyDegisti();

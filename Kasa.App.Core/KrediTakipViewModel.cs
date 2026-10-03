@@ -73,12 +73,25 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     partial void OnKapatmaTutariChanged(decimal value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
     partial void OnKapatmaTarihiChanged(DateTime value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
     /// <summary>Krediler ve kanallar; hata son başarılı listeyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
-    public Task YukleAsync() => VeriYukleAsync(async n =>
+    public Task YukleAsync()
     {
-        var kanallar = await finans.KanallarAsync();
-        var krediler = await api.TakipKredilerAsync();
-        if (!Gecerli(n))
-            return;
+        SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
+        {
+            var kanallar = await finans.KanallarAsync();
+            var krediler = await api.TakipKredilerAsync();
+            if (!Gecerli(n))
+                return;
+            Yansit(kanallar, krediler);
+            Tamamlandi("", (kanallar, krediler));
+        });
+    }
+
+    public override bool SonVeriyiGoster()
+        => OnbellektenUygula<(IReadOnlyList<KanalDto>, IReadOnlyList<KrediTakipDto>)>("", v => Yansit(v.Item1, v.Item2));
+
+    private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<KrediTakipDto> krediler)
+    {
         // Yenileme açık yeni kredi formunu ezmez: seçili kanallar korunur, form zaten açıksa taban yeniden alınmaz (yazılan kalır).
         var seciliKanallar = Secili is null ? SecilenKanallar() : [];
         TakipMetni.Doldur(Kanallar, kanallar.Select(k => new TakipKanalSecimi(k) { Secili = seciliKanallar.Contains(k.Id) }));
@@ -87,8 +100,7 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         { var mevcut = krediler.FirstOrDefault(k => k.Id == eski.Id); if (mevcut is not null) KrediyiAc(new(mevcut)); else YeniForm(); }
         else if (!FormIzi.Acik)
             FormIzi.Ac();   // yeni kredi formu yüklenen kanal seçimleriyle açıldı
-        Tamamlandi();
-    });
+    }
     /// <summary>Kimliği verilen krediyi seçer (bildirim tıklaması: //krediler?KrediId=…); kredi listede yoksa sayfa hatası yazılır.
     /// Alıcı rolü krediye geçemez (KartTakipViewModel.IdIleSec ile aynı kural).</summary>
     public bool IdIleSec(int id)
@@ -295,14 +307,22 @@ public partial class TakipOzetViewModel(IFinansTakipApi api, AuthViewModel auth)
     /// <summary>Takip özeti; hata son başarılı özeti ve kanal kart borçlarını silmez, eski işaretler (tasarım 2026-10-02 §3).
     /// <see cref="KanalKartBorclari"/> yalnız başarılı yüklemede değişir.</summary>
     [RelayCommand]
-    public Task YukleAsync() => VeriYukleAsync(async n =>
+    public Task YukleAsync()
     {
-        VeriHazir = false;
-        var v = await api.TakipOzetAsync(Gun);
-        if (!Gecerli(n))
-            return;
-        Yansit(v);
-    });
+        SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
+        {
+            VeriHazir = false;
+            var gun = Gun;
+            var v = await api.TakipOzetAsync(gun);
+            if (!Gecerli(n))
+                return;
+            Yansit(v);
+            Tamamlandi($"gun={gun}", v);
+        });
+    }
+
+    public override bool SonVeriyiGoster() => OnbellektenUygula<TakipOzetDto>($"gun={Gun}", Yansit);
     /// <summary>Panelin ana sayfa yanıtındaki takip özetini (bakiyelerle aynı anlık görüntü) istek atmadan yansıtır. Özet
     /// yoksa (eski sunucu) ya da başka gün ufku için alındıysa (panel yüklenirken gün değişti) özet uçtan yüklenir.</summary>
     public Task PaneldenYukleAsync(TakipOzetDto? ozet, int gun)
@@ -313,6 +333,7 @@ public partial class TakipOzetViewModel(IFinansTakipApi api, AuthViewModel auth)
         Hata = null;
         Mesaj = null;
         Yansit(ozet);
+        Tamamlandi($"gun={gun}", ozet);
         return Task.CompletedTask;
     }
     private void Yansit(TakipOzetDto v)
@@ -321,7 +342,6 @@ public partial class TakipOzetViewModel(IFinansTakipApi api, AuthViewModel auth)
         KanalKartBorclari = v.KanalKartBorclari;
         BelirsizBorcOzeti = v.KanalKartBorclari is null ? "Kanallara göre kart borcu bilgisi alınamadı." : $"Dağılım bekleyen kart borcu: {Bicim.Tl(v.KanalKartBorclari.Where(p => p.KanalId is null).Sum(p => Math.Max(0, p.Tutar)))} ₺";
         TakipMetni.Doldur(Olaylar, v.Olaylar.Select(o => new TakipOlaySatiri(o, v.Tarih)));
-        Tamamlandi();
     }
     protected override void OturumTemizle() { Olaylar.Clear(); Ozet = ""; KanalKartBorclari = null; BelirsizBorcOzeti = ""; }
 }

@@ -245,6 +245,7 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
                 if (!_kaynakHatti.Guncel(k))
                     return false;
                 KaynaklariUygula(kanallar, donemler, kartlar);
+                OnbellegeYaz(KaynakAnahtari, (kanallar, donemler, kartlar));
                 kaynaklar = true;
                 if (!Guncel())
                     return kaynaklar;
@@ -258,7 +259,9 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
             _gosterilenSuzgec = suzgec;
             VeriVar = true;
             VeriEski = false;
+            SorguYuklenmedi = false;
             SonGuncelleme = _zaman.GetLocalNow();
+            OnbellegeYaz(ListeAnahtari(bas, bit, kanal), new IslemListesi(liste, suzgec), SonGuncelleme.Value);
         }
         catch (Exception hata)
         {
@@ -291,6 +294,28 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
         (BosListeBasligi, BosListeAciklamasi) = suzgecli
             ? ("Bu süzgeçte işlem yok", "Süzgeci değiştirin ya da kanal ve tarihte \"Tümü\"nü seçin.")
             : ("Henüz işlem yok", "İlk kayıtla liste burada oluşur.");
+    }
+
+    /// <summary>Son veri önbelleği (H-1): kaynaklar (kanal, dönem, kart; gider ve gelir formunun kanal çipleri) ve süzgecin listesi.</summary>
+    private const string KaynakAnahtari = "kaynak";
+    private static string ListeAnahtari(DateOnly? bas, DateOnly? bit, string? kanal) => $"liste|{bas:yyyy-MM-dd}|{bit:yyyy-MM-dd}|{kanal}";
+    private sealed record IslemListesi(IReadOnlyList<IslemDto> Liste, string Suzgec);
+
+    /// <summary>Yeniden kurulan sayfa (H-1): son kaynaklar (kanal çipleri kopukken de seçilebilir) ve geçerli süzgecin son listesi
+    /// eski (soluk) gösterilir; yükleme ardından denenir.</summary>
+    public override bool SonVeriyiGoster()
+    {
+        if (SonGuncelleme is not null)
+            return false;
+        if (OnbellektenOku<(IReadOnlyList<KanalDto>, IReadOnlyList<DonemDto>, IReadOnlyList<KrediKartiDto>)>(KaynakAnahtari, out var k))
+            KaynaklariUygula(k.Item1, k.Item2, k.Item3);
+        var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
+        return OnbellektenUygula<IslemListesi>(ListeAnahtari(bas, bit, kanal), v =>
+        {
+            ListeyiUygula(v.Liste, v.Suzgec, bas is not null || bit is not null || kanal is not null);
+            _gosterilenSuzgec = v.Suzgec;
+            VeriVar = true;
+        });
     }
 
     private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; _gosterilenSuzgec = null; }
@@ -410,6 +435,7 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     {
         Hata = null;
         Mesaj = null;
+        SonVeriyiGoster();
         if (!await ListeyiYenile(tam: true))
             return;
         if (EditorMu)

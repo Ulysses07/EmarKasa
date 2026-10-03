@@ -35,6 +35,12 @@ public partial class AuthViewModel : ObservableObject
     /// <summary>Uygulamanın bağlantı durumu; oturumlu ekranlar (OturumluViewModel) buradan okur.</summary>
     public BaglantiDurumu Baglanti { get; }
 
+    /// <summary>Oturumun son veri önbelleği (ekran denemesi H-1): yeniden kurulan ekran aynı sorgunun son başarılı verisini
+    /// gösterir. Oturum ya da rol değişince temizlenir (değişim bildirilmeden önce).</summary>
+    public SonVeriOnbellegi SonVeri { get; } = new();
+    partial void OnOturumSurumuChanged(int value) => SonVeri.Temizle();
+    partial void OnAktifRolChanged(Rol value) => SonVeri.Temizle();
+
     [ObservableProperty] private string? _kullanici;
     [ObservableProperty] private string _sifre = "";
     [ObservableProperty] private string? _hata;
