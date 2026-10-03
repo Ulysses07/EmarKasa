@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Kasa.App.Controls;
 using Kasa.App.Core;
 
 namespace Kasa.App;
@@ -19,8 +20,16 @@ public partial class AppShell : Shell
     private readonly BildirimTiklamalari _bildirimTiklamalari;
     /// <summary>Uygulama açıkken 5 dakikada bir bildirim bakması (BildirimNobetcisi.Aralik); oturum açılınca başlar, girişe dönüşte durur.</summary>
     private readonly IDispatcherTimer _bildirimZamanlayicisi;
+    /// <summary>Gezinme çubuğundaki bağlantı şeridi (Shell.TitleView; yalnız kopukken görünür).</summary>
+    private readonly BaglantiSeridi _baglantiSeridi;
+    private bool _yenileniyor, _birakmaSoruluyor;
+    /// <summary>Son otomatik (bağlantı geldiğinde) yenilemenin anı: <see cref="OtomatikYenilemeAraligi"/>'ndan sık tetiklenmez
+    /// (bağlantı şeridi gidip gelirken yenileme fırtınası olmasın, ürün sahibi kararı 2026-10-03). "Yeniden dene" bu sınıra
+    /// bağlı değildir.</summary>
+    private DateTimeOffset? _sonOtomatikYenileme;
+    private static readonly TimeSpan OtomatikYenilemeAraligi = TimeSpan.FromSeconds(3);
 
-    public AppShell(AuthViewModel auth, BildirimNobetcisi bildirimNobetcisi, BildirimTiklamalari bildirimTiklamalari)
+    public AppShell(AuthViewModel auth, BildirimNobetcisi bildirimNobetcisi, BildirimTiklamalari bildirimTiklamalari, BaglantiDurumu baglanti)
     {
         InitializeComponent();
         _auth = auth;
@@ -62,6 +71,63 @@ public partial class AppShell : Shell
                 MainThread.BeginInvokeOnMainThread(() => _menuModeli.RozetAyarla(Bolum.Bildirimler, _bildirimNobetcisi.Yoklayici.Okunmamis));
         };
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
+        // Bağlantı şeridi (tasarım 2026-10-02 §3): kabukta tek şerit, bütün sayfaların gezinme çubuğunda (TitleView kabuktan
+        // devralınır). "Yeniden dene" ve bağlantının geri gelmesi açık sayfayı bir kez yeniler; bağlantının geri gelmesi
+        // OtomatikYenilemeAraligi ile sınırlıdır (K-10: yenileme fırtınası).
+        _baglantiSeridi = new BaglantiSeridi { BindingContext = baglanti };
+        _baglantiSeridi.YenidenDeneIstendi += async (_, _) => await AcikSayfayiYenileAsync();
+        baglanti.BaglantiGeldi += async (_, _) => await AcikSayfayiYenileAsync(otomatik: true);
+        SetTitleView(this, _baglantiSeridi);
+    }
+
+    /// <summary>Açık sayfayı yeniler (IYenilenebilir). <paramref name="otomatik"/> true ise (bağlantı geldi) art arda gelen
+    /// yenilemeler arasında en az <see cref="OtomatikYenilemeAraligi"/> beklenir (şerit gidip gelirken yenileme fırtınası
+    /// olmaz); "Yeniden dene" (otomatik=false) her zaman çalışır. Yenileme sürerken gelen ikinci istek (ör. yenilemenin ilk
+    /// yanıtı bağlantıyı geri getirdi) yok sayılır; hata günlüğe yazılır (async void işleyiciden istisna çıkmaz).</summary>
+    private async Task AcikSayfayiYenileAsync(bool otomatik = false)
+    {
+        if (_yenileniyor || CurrentPage is not IYenilenebilir sayfa)
+            return;
+        if (otomatik && _sonOtomatikYenileme is { } once && DateTimeOffset.UtcNow - once < OtomatikYenilemeAraligi)
+            return;
+        if (otomatik)
+            _sonOtomatikYenileme = DateTimeOffset.UtcNow;
+        _yenileniyor = true;
+        _baglantiSeridi.Yenileniyor = true;
+        try
+        { await sayfa.YenileAsync(); }
+        catch (Exception ex) { Debug.WriteLine($"Sayfa yenilenemedi: {ex}"); }
+        finally
+        {
+            _yenileniyor = false;
+            _baglantiSeridi.Yenileniyor = false;
+        }
+    }
+
+    /// <summary>Sayfadan çıkış onayı (tasarım §2; MAUI Shell gezinme ertelemesi): açık sayfanın formunda kaydedilmemiş değişiklik
+    /// varsa "Kaydedilmemiş değişiklik var. Bırakılsın mı?" sorulur. "Forma dön" gezinmeyi iptal eder; "Bırak" değişiklikleri bırakıp
+    /// devam eder. Girişe dönüş (çıkış, oturumun sona ermesi) sorulmaz.</summary>
+    protected override async void OnNavigating(ShellNavigatingEventArgs args)
+    {
+        base.OnNavigating(args);
+        if (_birakmaSoruluyor || !args.CanCancel || args.Target?.Location?.OriginalString.Contains("login", StringComparison.Ordinal) == true
+            || CurrentPage?.BindingContext is not IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true } form)
+            return;
+        var erteleme = args.GetDeferral();
+        _birakmaSoruluyor = true;
+        try
+        {
+            if (await DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, KaydedilmemisDegisiklik.Ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon))
+                form.DegisiklikleriBirak();
+            else
+                args.Cancel();
+        }
+        catch (Exception ex) { Debug.WriteLine($"Sayfadan çıkış onayı gösterilemedi: {ex}"); }
+        finally
+        {
+            _birakmaSoruluyor = false;
+            erteleme.Complete();
+        }
     }
 
     /// <summary>Her gezinmede (menü, sayfalar arası bağlantı, girişe dönüş) seçili menü öğesi yeni konumdan belirlenir.</summary>

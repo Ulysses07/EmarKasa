@@ -2,8 +2,11 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Views;
 
-public partial class PanelPage : ContentPage
+public partial class PanelPage : ContentPage, Controls.IYenilenebilir
 {
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
+    public Task YenileAsync() => _vm.YukleAsync();
+
     private readonly PanelViewModel _vm;
     private readonly TakipOzetViewModel _takip;
     private readonly KasaKontrolViewModel _kontrol;

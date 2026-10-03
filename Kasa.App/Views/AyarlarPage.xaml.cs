@@ -3,7 +3,7 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Views;
 
-public partial class AyarlarPage : ContentPage
+public partial class AyarlarPage : ContentPage, Controls.IYenilenebilir
 {
     private readonly AyarlarViewModel _vm;
     private readonly GuvenlikViewModel _guvenlik;
@@ -22,6 +22,12 @@ public partial class AyarlarPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        await YenileAsync();
+    }
+
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3): ayarlar, güvenlik ve eşikler.</summary>
+    public async Task YenileAsync()
+    {
         await _vm.YukleAsync();
         await _guvenlik.YukleAsync();
         await _esik.YukleAsync();

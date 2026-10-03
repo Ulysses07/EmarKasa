@@ -3,8 +3,11 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Views;
 
-public partial class AlislarPage : ContentPage, IQueryAttributable
+public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryAttributable
 {
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
+    public Task YenileAsync() => _vm.YukleAsync();
+
     private readonly AlislarViewModel _vm;
     private int? _istenenAlisId;
     public void ApplyQueryAttributes(IDictionary<string, object> query)

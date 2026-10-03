@@ -367,7 +367,7 @@ internal static class TakipUi
     }
 }
 
-public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
+public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir where T : OturumluViewModel
 {
     protected readonly T Vm;
     protected readonly VerticalStackLayout Govde = new() { Spacing = 18 };
@@ -399,7 +399,12 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         Kaydirici = new ScrollView { Content = root };
         Gorunur = new Controls.GorunurYapici(Kaydirici);
         Content = Kaydirici;
+        // Başka kayda geçiş, Yeni ve Vazgeç'te kaydedilmemiş değişiklik onayı (tasarım 2026-10-02 §2).
+        vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
+
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi: sayfanın yüklemesi.</summary>
+    public Task YenileAsync() => _yukle();
 
     protected override async void OnAppearing()
     {

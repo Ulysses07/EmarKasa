@@ -3,8 +3,11 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Views;
 
-public partial class IslemlerPage : ContentPage
+public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir
 {
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
+    public Task YenileAsync() => _vm.YukleAsync();
+
     private readonly IslemlerViewModel _vm;
 
     // Rol ve oturum modelden gelir (OturumluViewModel): sayfa rolü ekrana atamaz.
