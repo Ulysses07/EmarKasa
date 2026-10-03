@@ -94,6 +94,7 @@ public abstract partial class OturumluViewModel : TemelViewModel
         => !form.Var || (BirakmaOnayi is { } sor && await sor(KaydedilmemisDegisiklik.Ileti));
 
     protected override void IletiyiTemizle() => Mesaj = null;
+    protected override bool BaglantiKopuk => Auth.Baglanti.Kopuk;
     protected void BekleyenleriIptalEt() { Yurutucu.GecersizKil(); Mesgul = false; }
     protected abstract void OturumTemizle();
     protected void Tamamlandi() { VeriHazir = true; SonGuncelleme = DateTimeOffset.Now; }

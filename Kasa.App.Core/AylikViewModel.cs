@@ -7,7 +7,7 @@ namespace Kasa.App.Core;
 public partial class AylikViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
-    public AylikViewModel(IKasaApi api)
+    public AylikViewModel(IKasaApi api, BaglantiDurumu? baglanti = null) : base(baglanti)
     {
         _api = api;
         var bugun = DateTime.Today;

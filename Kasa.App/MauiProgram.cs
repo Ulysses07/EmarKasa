@@ -41,6 +41,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAylikGiderApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IEkstreAktarmaApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<ICekApi>(sp => sp.GetRequiredService<KasaApiClient>());
+        // Tek bağlantı durumu (tasarım 2026-10-02 §3): istemcinin ağ hatası kopuk, her yanıt bağlı yapar; kabuk şeridi ve
+        // ekranlar (AuthViewModel, rapor modelleri) aynı örneği okur.
+        builder.Services.AddSingleton<IBaglantiBildirimleri>(sp => sp.GetRequiredService<KasaApiClient>());
+        builder.Services.AddSingleton<BaglantiDurumu>();
 
         // Masaüstü Windows bildirimleri (tasarım 2026-09-30): yerel dosyalar %LOCALAPPDATA%\EmarKasa altında; gösterici ve tıklama
         // kuyruğu Windows katmanının tek örneğidir (Platforms/Windows/App.xaml.cs onu DI kurulmadan önce başlatır).

@@ -10,9 +10,11 @@ public partial class AuthViewModel : ObservableObject
 {
     private readonly IKasaApi _api;
 
-    public AuthViewModel(IKasaApi api)
+    /// <param name="baglanti">Uygulamanın tek bağlantı durumu (DI'da tekil); verilmezse istemcinin bildirimleriyle yenisi kurulur.</param>
+    public AuthViewModel(IKasaApi api, BaglantiDurumu? baglanti = null)
     {
         _api = api;
+        Baglanti = baglanti ?? new BaglantiDurumu(api as IBaglantiBildirimleri);
         if (api is IOturumBildirimleri bildirimler)
             bildirimler.OturumSonlandi += (_, e) =>
             {
@@ -29,6 +31,9 @@ public partial class AuthViewModel : ObservableObject
     }
 
     public event EventHandler? OturumSonlandi;
+
+    /// <summary>Uygulamanın bağlantı durumu; oturumlu ekranlar (OturumluViewModel) buradan okur.</summary>
+    public BaglantiDurumu Baglanti { get; }
 
     [ObservableProperty] private string? _kullanici;
     [ObservableProperty] private string _sifre = "";

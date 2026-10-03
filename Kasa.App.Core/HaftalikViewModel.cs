@@ -7,7 +7,7 @@ namespace Kasa.App.Core;
 public partial class HaftalikViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
-    public HaftalikViewModel(IKasaApi api) => _api = api;
+    public HaftalikViewModel(IKasaApi api, BaglantiDurumu? baglanti = null) : base(baglanti) => _api = api;
 
     public ObservableCollection<HaftalikSatir> Donemler { get; } = new();
     /// <summary>Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt). Yalnız son dönemde gelir ama

@@ -14,7 +14,16 @@ public abstract partial class RaporViewModel : TemelViewModel
     [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
     private DateTimeOffset? _sonGuncelleme;
 
-    protected RaporViewModel() => _hat = new SonIstekHatti(Yurutucu);
+    private readonly BaglantiDurumu? _baglanti;
+
+    /// <param name="baglanti">Uygulamanın bağlantı durumu; kopukken okumanın bağlantı hatası sayfaya yazılmaz.</param>
+    protected RaporViewModel(BaglantiDurumu? baglanti = null)
+    {
+        _baglanti = baglanti;
+        _hat = new SonIstekHatti(Yurutucu);
+    }
+
+    protected override bool BaglantiKopuk => _baglanti?.Kopuk == true;
 
     public string SonGuncellemeMetni => SonGuncelleme is { } zaman
         ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm:ss}"
