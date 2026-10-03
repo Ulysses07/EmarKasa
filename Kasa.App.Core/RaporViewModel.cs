@@ -3,9 +3,10 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Kasa.App.Core;
 
-/// <summary>Raporlarda yalnız son isteğin sonucunu gösterir; yüklenirken/eski veride finansal rakamları gizler. Yeni yükleme
-/// ve ekrandan ayrılma süren isteği iptal eder (istek ağda da bırakılır, sunucu hesabı keser); iptal hata sayılmaz.
-/// Yürütme yürütücünün son istek hattıdır (<see cref="SonIstekHatti"/>).</summary>
+/// <summary>Raporlarda yalnız son isteğin sonucunu gösterir. Yenileme ve hata son başarılı veriyi silmez (tasarım 2026-10-02 §3):
+/// hata verirse veri eski işaretlenir (<see cref="VeriEski"/>, soluk gösterilir); başka sorguya geçen alt sınıf (Aylık'ta ay)
+/// eski sorgunun verisini kendisi kaldırır. Yeni yükleme ve ekrandan ayrılma süren isteği iptal eder (istek ağda da bırakılır,
+/// sunucu hesabı keser); iptal hata sayılmaz. Yürütme yürütücünün son istek hattıdır (<see cref="SonIstekHatti"/>).</summary>
 public abstract partial class RaporViewModel : TemelViewModel
 {
     private readonly SonIstekHatti _hat;
@@ -13,6 +14,12 @@ public abstract partial class RaporViewModel : TemelViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
     private DateTimeOffset? _sonGuncelleme;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
+    private bool _veriEski;
+
+    /// <summary>Her başarılı yüklemeden sonra (değerler yazıldıktan sonra); Kasalar alt bölümleri bunu dinler.</summary>
+    public event EventHandler? Yuklendi;
 
     private readonly BaglantiDurumu? _baglanti;
 
@@ -26,8 +33,8 @@ public abstract partial class RaporViewModel : TemelViewModel
     protected override bool BaglantiKopuk => _baglanti?.Kopuk == true;
 
     public string SonGuncellemeMetni => SonGuncelleme is { } zaman
-        ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm:ss}"
-        : "Veriler henüz yüklenmedi.";
+        ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm:ss}" + (VeriEski ? Bicim.EskiVeriEki : "")
+        : Bicim.HenuzYuklenmedi;
 
     public abstract Task YukleAsync();
     [RelayCommand] private Task YenileAsync() => YukleAsync();
@@ -43,13 +50,16 @@ public abstract partial class RaporViewModel : TemelViewModel
     protected Task RaporYukleAsync<T>(Func<Task<T>> getir, Action<T> uygula) => RaporYukleAsync(_ => getir(), uygula);
 
     protected Task RaporYukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula)
-    {
-        VeriVar = false;
-        return _hat.YukleAsync(getir, veri =>
+        => _hat.YukleAsync(getir, veri =>
         {
             uygula(veri);
             SonGuncelleme = DateTimeOffset.Now;
+            VeriEski = false;
             VeriVar = true;
+            Yuklendi?.Invoke(this, EventArgs.Empty);
+        }, hata =>
+        {
+            Yurutucu.OkumaHatasiniYaz(hata);
+            VeriEski = VeriVar;
         });
-    }
 }

@@ -9,6 +9,12 @@ public static class Bicim
 
     public static string Tl(decimal n) => n.ToString("#,##0.00", Tr);
 
+    /// <summary>Hiç başarılı yükleme yokken son güncelleme satırı (iki sayfa ailesinde aynı; tasarım 2026-10-02 §3).</summary>
+    public const string HenuzYuklenmedi = "Henüz yüklenmedi.";
+
+    /// <summary>Son yükleme hata verdi, gösterilen veri son başarılı yüklemeden: son güncelleme satırının eki.</summary>
+    public const string EskiVeriEki = " · güncel olmayabilir";
+
     public static string ImzaliTl(decimal n) => (n < 0 ? "-" : "+") + Tl(Math.Abs(n));
 
     /// <summary>Dönem seçici etiketi: "13 Tem – 19 Tem"; yıllı "13 Tem 2026 – 19 Tem 2026" (gelir formu dönem

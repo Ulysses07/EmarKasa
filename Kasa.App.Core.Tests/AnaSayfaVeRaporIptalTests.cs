@@ -132,10 +132,13 @@ public class AnaSayfaVeRaporIptalTests
         await vm.YukleAsync();
         Assert.Null(vm.VeriSagligiUyarisi);
 
+        // Hata son başarılı raporu silmez (tasarım 2026-10-02 §3): veri eski işaretlenir.
         api.HaftalikGetir = _ => Task.FromException<IReadOnlyList<HaftalikOzetDto>>(new HttpRequestException());
         await vm.YukleAsync();
         Assert.Null(vm.VeriSagligiUyarisi);
-        Assert.False(vm.VeriVar);
+        Assert.True(vm.VeriVar);
+        Assert.True(vm.VeriEski);
+        Assert.Equal(2, vm.Donemler.Count);
     }
 
     /// <summary>"Dağılım bekleyen" yalnız tutar sıfırdan farklı dönemde görünür (her satırda "0,00 ₺" yazmaz); tutar

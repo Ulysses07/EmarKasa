@@ -11,12 +11,11 @@ public partial class HaftalikViewModel : RaporViewModel
 
     public ObservableCollection<HaftalikSatir> Donemler { get; } = new();
     /// <summary>Sunucunun veri sağlığı uyarısı (ör. rapor ufkunun ötesinde tarihli kayıt). Yalnız son dönemde gelir ama
-    /// raporun tamamı için geçerlidir; yüklenirken ve hatada null.</summary>
+    /// raporun tamamı için geçerlidir; son başarılı yüklemeden kalır.</summary>
     [ObservableProperty] private string? _veriSagligiUyarisi;
 
     public override Task YukleAsync()
     {
-        VeriSagligiUyarisi = null;
         return RaporYukleAsync(ct => _api.HaftalikAsync(ct), liste =>
         {
             // HF-01: sunucu eskiden yeniye döner; içinde bulunulan hafta her seferinde sona kaydırmadan görünsün diye

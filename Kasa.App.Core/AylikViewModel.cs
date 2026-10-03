@@ -58,8 +58,20 @@ public partial class AylikViewModel : RaporViewModel
     {
         var yil = Yil;
         var ay = Ay;
-        Rapor = null;
         return RaporYukleAsync(() => _api.AylikAsync(yil, ay), rapor => Rapor = rapor);
+    }
+
+    partial void OnYilChanged(int value) => AyDegisti();
+    partial void OnAyChanged(int value) => AyDegisti();
+
+    /// <summary>Başka aya geçilince önceki ayın raporu bu ayınki gibi gösterilmez (son veri yalnız aynı ayın yenilemesinde korunur).</summary>
+    private void AyDegisti()
+    {
+        if (Rapor is not { } r || (r.Yil == Yil && r.Ay == Ay))
+            return;
+        Rapor = null;
+        VeriVar = false;
+        VeriEski = false;
     }
 
     [RelayCommand]

@@ -14,25 +14,14 @@ public partial class PanelPage : ContentPage
         BindingContext = _vm = vm;
         _takip = takip;
         _kontrol = kontrol;
-        _vm.PropertyChanged += async (_, e) =>
+        // Takip özeti ve kanal eşikleri panelle aynı ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı andan); eski
+        // sunucuda null'dır ve eski uçlardan ayrıca yüklenir. Her başarılı panel yüklemesinden sonra yenilenir; panelin hatası alt
+        // bölümlerin son verisini silmez (tasarım 2026-10-02 §3).
+        _vm.Yuklendi += async (_, _) =>
         {
-            if (e.PropertyName == nameof(vm.VeriVar))
-            {
-                // Takip özeti ve kanal eşikleri panelle aynı ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı
-                // andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
-                if (vm.VeriVar)
-                {
-                    await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu);
-                    await kontrol.YukleAsync(vm.KasaEsikleri);
-                    await cekler.YukleAsync();
-                }
-                else
-                {
-                    takip.VeriHazir = false;
-                    kontrol.VeriHazir = false;
-                    cekler.VeriHazir = false;
-                }
-            }
+            await takip.PaneldenYukleAsync(vm.TakipOzeti, vm.TakipOzetiGunu);
+            await kontrol.YukleAsync(vm.KasaEsikleri);
+            await cekler.YukleAsync();
         };
         takip.PropertyChanged += (_, e) =>
         {

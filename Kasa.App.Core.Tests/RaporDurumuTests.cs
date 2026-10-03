@@ -81,23 +81,63 @@ public class RaporDurumuTests
         Assert.NotNull(vm.Hata);
     }
 
+    /// <summary>HD-01: yenileme ve hata son başarılı bakiyeyi silmez; hata sonrası veri eski işaretlenir, başarı işareti kaldırır.</summary>
     [Fact]
-    public async Task Panel_yenilenirken_ve_hatada_onceki_bakiye_gizlenir()
+    public async Task Panel_yenilenirken_ve_hatada_onceki_bakiye_korunur_ve_eski_isaretlenir()
     {
         var api = new SahteApi { Panel = new PanelDto(123m, new List<KanalBakiyeDto>(), 0, 0) };
         var vm = new PanelViewModel(api);
+        var yuklendi = 0;
+        vm.Yuklendi += (_, _) => yuklendi++;
         await vm.YukleAsync();
         Assert.True(vm.VeriVar);
+        Assert.Equal(1, yuklendi);
         var bekleyen = new TaskCompletionSource<PanelDto>();
         api.PanelGetir = () => bekleyen.Task;
         var yenile = vm.YukleAsync();
-        Assert.False(vm.VeriVar);
+        Assert.True(vm.VeriVar);
         Assert.True(vm.Mesgul);
         bekleyen.SetException(new HttpRequestException());
         await yenile;
-        Assert.False(vm.VeriVar);
+        Assert.True(vm.VeriVar);
+        Assert.True(vm.VeriEski);
+        Assert.Equal(123m, vm.GuncelKasa);
         Assert.False(vm.Mesgul);
-        Assert.NotNull(vm.SonGuncelleme);
+        Assert.NotNull(vm.Hata);
+        Assert.EndsWith(" · güncel olmayabilir", vm.SonGuncellemeMetni);
+        Assert.Equal(1, yuklendi);
+
+        api.PanelGetir = null;
+        await vm.YukleAsync();
+        Assert.False(vm.VeriEski);
+        Assert.DoesNotContain("güncel olmayabilir", vm.SonGuncellemeMetni);
+        Assert.Equal(2, yuklendi);
+    }
+
+    [Fact]
+    public void Hic_yukleme_yokken_iki_sayfa_ailesi_ayni_metni_yazar()
+    {
+        Assert.Equal("Henüz yüklenmedi.", new HaftalikViewModel(new SahteApi()).SonGuncellemeMetni);
+        Assert.Equal("Henüz yüklenmedi.", new KrediTakipViewModel(new FinansTakipTests.Sahte(), new SahteApi(), TestOturumu.Ac()).SonGuncellemeMetni);
+    }
+
+    [Fact]
+    public async Task Ayni_ayin_yenilemesinde_rapor_korunur_ay_degisince_kalkar()
+    {
+        var api = new SahteApi { AylikRapor = Ay(8) };
+        var vm = new AylikViewModel(api) { Yil = 2026, Ay = 8 };
+        await vm.YukleAsync();
+        api.YuklemeHatasi = new HttpRequestException();
+
+        await vm.YenileCommand.ExecuteAsync(null);
+        Assert.Equal(8, vm.Rapor!.Ay);
+        Assert.True(vm.VeriVar);
+        Assert.True(vm.VeriEski);
+
+        vm.Ay = 9;
+        Assert.Null(vm.Rapor);
+        Assert.False(vm.VeriVar);
+        Assert.False(vm.VeriEski);
     }
 
     [Theory]

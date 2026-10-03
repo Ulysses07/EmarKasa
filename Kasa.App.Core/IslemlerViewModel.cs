@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -34,14 +33,6 @@ public partial class IslemlerViewModel : OturumluViewModel
         Yeni();
         GelenTemizle();
         ListeTemizle();
-    }
-
-    /// <summary><see cref="SonGuncellemeMetni"/> tabandaki <see cref="OturumluViewModel.SonGuncelleme"/>'ye bağlıdır.</summary>
-    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
-    {
-        base.OnPropertyChanged(e);
-        if (e.PropertyName == nameof(SonGuncelleme))
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(SonGuncellemeMetni)));
     }
 
     /// <summary>Kanal filtresi "tüm kanallar" çip/etiket metni (gerçek kanal olamaz).</summary>
@@ -109,7 +100,6 @@ public partial class IslemlerViewModel : OturumluViewModel
     [ObservableProperty] private bool _veriVar;
     [ObservableProperty] private string _bosListeBasligi = "Henüz işlem yok";
     [ObservableProperty] private string _bosListeAciklamasi = "İlk kayıtla liste burada oluşur.";
-    public string SonGuncellemeMetni => SonGuncelleme is { } zaman ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm}" : "Liste henüz yüklenmedi.";
 
     /// <summary>Son başlatılan liste yüklemesi (dönem seçimi gibi beklenmeden başlayan yüklemeler için).</summary>
     public Task ListeYuklemesi { get; private set; } = Task.CompletedTask;

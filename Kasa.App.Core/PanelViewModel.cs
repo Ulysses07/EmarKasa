@@ -53,8 +53,7 @@ public partial class PanelViewModel : RaporViewModel
     public override Task YukleAsync()
     {
         var gun = TakipGunu;
-        // Uyarı öbür panel alanları gibi yükleme sürerken ve yükleme başarısızsa görünmez.
-        TakipsizUyari = "";
+        // Uyarı öbür panel alanları gibi son başarılı yüklemeden kalır (yenileme ve hata silmez).
         return RaporYukleAsync(ct => _api.AnaSayfaAsync(gun, ct), a =>
         {
             var p = a.Panel;

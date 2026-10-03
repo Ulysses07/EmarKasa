@@ -18,6 +18,7 @@ public abstract partial class OturumluViewModel : TemelViewModel
     private void OturumuSifirla()
     {
         VeriHazir = false;
+        VeriEski = false;
         Mesgul = false;
         Hata = null;
         Mesaj = null;
@@ -64,10 +65,26 @@ public abstract partial class OturumluViewModel : TemelViewModel
 
     public bool EditorMu => Auth.AktifRol == Rol.Editor;
     public int OturumNesli => Yurutucu.Nesil;
-    [ObservableProperty] private bool _veriHazir;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GovdeGorunur))]
+    private bool _veriHazir;
     [ObservableProperty] private string? _mesaj;
     /// <summary>Son başarılı yükleme anı (yerel saat ve farkı); rapor ve işlem listesiyle aynı tür.</summary>
-    [ObservableProperty] private DateTimeOffset? _sonGuncelleme;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni), nameof(GovdeGorunur))]
+    private DateTimeOffset? _sonGuncelleme;
+    /// <summary>Son yükleme hata verdi; gösterilen veri son başarılı yüklemeden (soluk gösterilir, tasarım §3).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SonGuncellemeMetni))]
+    private bool _veriEski;
+
+    /// <summary>"Son güncelleme: 02.10.2026 14:05" (veri eskiyse " · güncel olmayabilir" ekiyle); hiç yükleme yoksa "Henüz yüklenmedi.".</summary>
+    public string SonGuncellemeMetni => SonGuncelleme is { } zaman
+        ? $"Son güncelleme: {zaman:dd.MM.yyyy HH:mm}" + (VeriEski ? Bicim.EskiVeriEki : "")
+        : Bicim.HenuzYuklenmedi;
+
+    /// <summary>Ekranın gövdesi görünür mü: veri hazır ya da (yükleme hata verse de) son başarılı veri var (tasarım §3).</summary>
+    public bool GovdeGorunur => VeriHazir || SonGuncelleme is not null;
 
     /// <summary>Gerekçe isteyen işlemin tek yolu (iptal, durum değişimi, belge kaldırma, ay kilidi): oturum gerekçe penceresi
     /// açılmadan ÖNCE yakalanır. Pencere açıkken oturum değişirse (çıkış, oturumun sona ermesi, yeni giriş) gerekçe yeni oturumun
@@ -97,5 +114,13 @@ public abstract partial class OturumluViewModel : TemelViewModel
     protected override bool BaglantiKopuk => Auth.Baglanti.Kopuk;
     protected void BekleyenleriIptalEt() { Yurutucu.GecersizKil(); Mesgul = false; }
     protected abstract void OturumTemizle();
-    protected void Tamamlandi() { VeriHazir = true; SonGuncelleme = DateTimeOffset.Now; }
+    protected void Tamamlandi() { VeriHazir = true; VeriEski = false; SonGuncelleme = DateTimeOffset.Now; }
+
+    /// <summary>Ekran yüklemesi (tekil işlem): hata okuma iletisiyle yazılır, bağlantı kopukken bağlantı hatası yazılmaz (kabuk
+    /// şeridi söyler); son başarılı veri silinmez, varsa eski işaretlenir. Başarılı yükleme <see cref="Tamamlandi"/>'yı çağırır.</summary>
+    protected Task VeriYukleAsync(Func<int, Task> islem) => YurutAsync(islem, hataIsle: hata =>
+    {
+        Yurutucu.OkumaHatasiniYaz(hata);
+        VeriEski = SonGuncelleme is not null;
+    });
 }
