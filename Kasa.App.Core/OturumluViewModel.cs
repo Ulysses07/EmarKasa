@@ -135,9 +135,13 @@ public abstract partial class OturumluViewModel : TemelViewModel
 
     /// <summary>Ekran yüklemesi (tekil işlem): hata okuma iletisiyle yazılır, bağlantı kopukken bağlantı hatası yazılmaz (kabuk
     /// şeridi söyler); son başarılı veri silinmez, varsa eski işaretlenir. Başarılı yükleme <see cref="Tamamlandi"/>'yı çağırır.</summary>
-    protected Task VeriYukleAsync(Func<int, Task> islem) => YurutAsync(islem, hataIsle: hata =>
+    protected Task VeriYukleAsync(Func<int, Task> islem) => YurutAsync(islem, hataIsle: YuklemeHatasi);
+
+    /// <summary>Ekran yüklemesinin hatası: okuma iletisiyle yazılır (kopukken bağlantı hatası yazılmaz), son başarılı veri varsa eski
+    /// işaretlenir. Son istek hattıyla yükleyen ekranlar (Çekler) bunu hattın hata işleyicisi olarak verir.</summary>
+    protected void YuklemeHatasi(Exception hata)
     {
         Yurutucu.OkumaHatasiniYaz(hata);
         VeriEski = SonGuncelleme is not null;
-    });
+    }
 }

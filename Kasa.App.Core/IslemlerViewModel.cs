@@ -227,9 +227,13 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     private async Task<bool> ListeYukleAsync(IstekBileti istek, IstekBileti? kaynakIstek)
     {
         bool Guncel() => _listeHatti.Guncel(istek);
+        // Aynı süzgecin yenilemesinde gösterilen liste yükleme sürerken ve hatada kalır (tasarım 2026-10-02 §3); başka süzgeçte eski
+        // süzgecin listesi gösterilmez.
+        var ayniSuzgec = _gosterilenSuzgec is not null && _gosterilenSuzgec == SuzgecMetni();
         ListeYukleniyor = true;
         YuklemeHatasi = null;
-        VeriVar = false;
+        if (!ayniSuzgec)
+            VeriVar = false;
         var kaynaklar = kaynakIstek is null;
         try
         {
@@ -251,15 +255,25 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
             if (!Guncel())
                 return kaynaklar;
             ListeyiUygula(liste, suzgec, bas is not null || bit is not null || kanal is not null);
+            _gosterilenSuzgec = suzgec;
             VeriVar = true;
+            VeriEski = false;
             SonGuncelleme = _zaman.GetLocalNow();
         }
         catch (Exception hata)
         {
-            // Hatada eski süzgecin listesi ve toplamı gösterilmez; "Henüz işlem yok" da görünmez (VeriVar false). Liste ve
-            // kaynaklar salt okumadır: zaman aşımında "sunucuda tamamlanmış olabilir" denmez.
+            // Aynı süzgecin listesi hatada kalır ve eski işaretlenir; başka süzgecin listesi ve toplamı gösterilmez, "Henüz işlem yok"
+            // da görünmez (VeriVar false). Liste ve kaynaklar salt okumadır: zaman aşımında "sunucuda tamamlanmış olabilir" denmez.
+            // Bağlantı kopukken bağlantı hatası listenin üstüne yazılmaz (kabuk şeridi söyler).
             if (Guncel())
-            { YuklemeHatasi = OkumaHataMesaji(hata); ListeyiBosalt(); }
+            {
+                if (!(Yurutucu.BaglantiHatasi(hata) && BaglantiKopuk))
+                    YuklemeHatasi = OkumaHataMesaji(hata);
+                if (ayniSuzgec && VeriVar)
+                    VeriEski = true;
+                else
+                { ListeyiBosalt(); VeriVar = false; }
+            }
         }
         finally { if (Guncel()) ListeYukleniyor = false; }
         return kaynaklar;
@@ -278,7 +292,10 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
             : ("Henüz işlem yok", "İlk kayıtla liste burada oluşur.");
     }
 
-    private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; }
+    private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; _gosterilenSuzgec = null; }
+
+    /// <summary>Gösterilen listenin süzgeci (başarılı yüklemenin); liste yoksa null.</summary>
+    private string? _gosterilenSuzgec;
 
     /// <summary>Oturum değişince bekleyen liste yanıtları uygulanmaz, önceki oturumun listesi ve iletileri kalkar.</summary>
     private void ListeTemizle()

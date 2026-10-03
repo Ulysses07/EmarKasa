@@ -164,6 +164,12 @@
                                IsVisible="{Binding VeriVar}" />
                     </VerticalStackLayout>
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Islemler}" SelectionMode="None">
+                        <!-- Son yükleme hata verdiyse aynı süzgecin son listesi soluk gösterilir (tasarım 2026-10-02 §3; HD-01). -->
+                        <CollectionView.Triggers>
+                            <DataTrigger TargetType="CollectionView" Binding="{Binding VeriEski}" Value="True">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </DataTrigger>
+                        </CollectionView.Triggers>
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="api:IslemDto">
                                 <VerticalStackLayout>

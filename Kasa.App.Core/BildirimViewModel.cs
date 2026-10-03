@@ -51,7 +51,8 @@ public partial class BildirimViewModel : OturumluViewModel
     /// <summary>Windows ayarlarında bu uygulamanın bildirimleri kapalı: uyarı ve ayar bağlantısı görünür.</summary>
     [ObservableProperty] private bool _windowsAyarindaKapali;
 
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Bildirimler, ayar ve cihazlar; hata son başarılı veriyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync() => VeriYukleAsync(async n =>
     {
         if (!EditorMu)
             return;

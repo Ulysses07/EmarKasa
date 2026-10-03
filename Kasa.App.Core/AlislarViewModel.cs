@@ -195,15 +195,14 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
         OnPropertyChanged(nameof(DagilimBekliyor));
     }
 
-    public Task YukleAsync() => YurutAsync(async nesil =>
+    /// <summary>Alışlar, kanallar ve (editörde) kartlar, giderler, alıcılar. Hata son başarılı listeyi silmez, eski işaretler (tasarım
+    /// 2026-10-02 §3); liste yalnız yeni veri gelince değişir.</summary>
+    public Task YukleAsync() => VeriYukleAsync(async nesil =>
     {
         if (KaydedilmemisDegisiklikVar && VeriHazir)
         { KaydetmeUyarisi(); return; }
         VeriHazir = false;
         var oncekiId = _secili?.Id;
-        Alislar.Clear();
-        OnPropertyChanged(nameof(DagilimBekleyenTutar));
-        OnPropertyChanged(nameof(DagilimBekliyor));
         var kanalIsi = _api.AlisKanallariAsync();
         var alisIsi = _api.AlislarAsync();
         await Task.WhenAll(kanalIsi, alisIsi);
@@ -243,7 +242,7 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
         GiderSecenekleriniYenile();
         OnPropertyChanged(nameof(DagilimBekleyenTutar));
         OnPropertyChanged(nameof(DagilimBekliyor));
-        VeriHazir = true;
+        Tamamlandi();
     });
 
     [RelayCommand] private Task YenileAsync() => YukleAsync();

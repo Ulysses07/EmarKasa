@@ -76,7 +76,8 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     partial void OnOdemeNotuChanged(string value) => OdemeOnay = false;
     partial void OnAyTarihiChanged(DateTime value) { SeciliOdeme = null; OnPropertyChanged(nameof(AySecimiDegisti)); }
     public bool AySecimiDegisti => _ayVerisi is null || _ayVerisi.Yil != AyTarihi.Year || _ayVerisi.Ay != AyTarihi.Month;
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Ayın giderleri, şablonlar ve kanallar; hata son başarılı veriyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync() => VeriYukleAsync(async n =>
     {
         VeriHazir = false;
         SeciliOdeme = null;

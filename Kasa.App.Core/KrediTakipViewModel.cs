@@ -72,7 +72,8 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
     partial void OnDuzenlenenTaksitChanged(TaksitSatiri? value) => OnPropertyChanged(nameof(TaksitDuzenlenebilir));
     partial void OnKapatmaTutariChanged(decimal value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
     partial void OnKapatmaTarihiChanged(DateTime value) { KapatmaOnay = false; OnPropertyChanged(nameof(KapatmaOzeti)); }
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Krediler ve kanallar; hata son başarılı listeyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync() => VeriYukleAsync(async n =>
     {
         var kanallar = await finans.KanallarAsync();
         var krediler = await api.TakipKredilerAsync();

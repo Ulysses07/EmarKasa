@@ -159,8 +159,10 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         return true;
     }
 
-    public Task YukleAsync() => YurutAsync(KartFormu.Yok, async n =>
+    /// <summary>Kartlar ve kanallar; hata son başarılı listeyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync() => VeriYukleAsync(async n =>
     {
+        HataKaynagi = KartFormu.Yok;
         var kanallar = await finans.KanallarAsync();
         var kartlar = await api.TakipKartlarAsync();
         if (!Gecerli(n))

@@ -226,7 +226,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             var cekler = await api.CeklerAsync(yon, durum, ara, bas, son);
             var ozet = await api.CekOzetAsync();
             return (kanallar, cekler, ozet);
-        }, v => Yansit(v.kanallar, v.cekler, v.ozet));
+        }, v => Yansit(v.kanallar, v.cekler, v.ozet), YuklemeHatasi);
     }
 
     /// <summary>Bildirimden gelen çek (//cekler?CekId=…): çek okunur, yönüne ve "Hepsi" durumuna geçilir (süzgeç onu gizlemesin),
@@ -249,7 +249,7 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
             SuzgecleriYaz(v.Yon, CekSuzgecleri.Hepsi, null, null);
             Ara = "";
             Yansit(v.kanallar, v.cekler, v.ozet);
-        });
+        }, YuklemeHatasi);
     }
 
     private void Yansit(IReadOnlyList<KanalDto> kanallar, IReadOnlyList<CekDto> cekler, CekOzetDto ozet)
