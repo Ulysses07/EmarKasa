@@ -82,9 +82,8 @@ public class FormAlani : ContentView
         _hata.IsVisible = hataVar;
         if (Icerik is null)
             return;
-        if (hataVar)
-            SemanticProperties.SetDescription(Icerik, string.IsNullOrEmpty(Baslik) ? Hata : $"{Baslik}. {Hata}");
-        else
-            Icerik.ClearValue(SemanticProperties.DescriptionProperty);
+        // K-2: girdinin ekran okuyucu açıklaması her zaman başlıktır; hata varken "Başlık. İleti" olur. Hata kalkınca
+        // ClearValue ile silinmez, başlığa döner (hata yokken de başlık okunsun).
+        SemanticProperties.SetDescription(Icerik, hataVar ? (string.IsNullOrEmpty(Baslik) ? Hata : $"{Baslik}. {Hata}") : Baslik);
     }
 }

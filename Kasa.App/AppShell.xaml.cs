@@ -23,11 +23,13 @@ public partial class AppShell : Shell
     /// <summary>Gezinme çubuğundaki bağlantı şeridi (Shell.TitleView; yalnız kopukken görünür).</summary>
     private readonly BaglantiSeridi _baglantiSeridi;
     private bool _yenileniyor, _birakmaSoruluyor;
-    /// <summary>Son otomatik (bağlantı geldiğinde) yenilemenin anı: <see cref="OtomatikYenilemeAraligi"/>'ndan sık tetiklenmez
-    /// (bağlantı şeridi gidip gelirken yenileme fırtınası olmasın, ürün sahibi kararı 2026-10-03). "Yeniden dene" bu sınıra
-    /// bağlı değildir.</summary>
-    private DateTimeOffset? _sonOtomatikYenileme;
-    private static readonly TimeSpan OtomatikYenilemeAraligi = TimeSpan.FromSeconds(3);
+    /// <summary>Onay penceresi açıkken (erteleme beklerken) oturum düşerse <see cref="GiriseDonAsync"/> beklemeye alınır (Ö-3):
+    /// GoToAsync erteleme beklerken InvalidOperationException verir. Pencere kapanınca (<see cref="OnNavigating"/>'in finally'si)
+    /// bu bayrak işlenip girişe dönüş tekrar denenir.</summary>
+    private bool _girisDonusuBekliyor;
+    /// <summary>Bağlantı geldiğinde otomatik yenileme kararı (K-1 alt sınır, sondaki kenarda tek tetik; Ö-1 kaydedilmemiş
+    /// değişiklikte hiç tetiklenmez, form kullanıcı isteği olmadan ezilmez). "Yeniden dene" bunu kullanmaz.</summary>
+    private readonly OtomatikYenilemeKarari _otomatikYenileme = new OtomatikYenilemeKarari(TimeProvider.System, TimeSpan.FromSeconds(3));
 
     public AppShell(AuthViewModel auth, BildirimNobetcisi bildirimNobetcisi, BildirimTiklamalari bildirimTiklamalari, BaglantiDurumu baglanti)
     {
@@ -72,26 +74,46 @@ public partial class AppShell : Shell
         };
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
         // Bağlantı şeridi (tasarım 2026-10-02 §3): kabukta tek şerit, bütün sayfaların gezinme çubuğunda (TitleView kabuktan
-        // devralınır). "Yeniden dene" ve bağlantının geri gelmesi açık sayfayı bir kez yeniler; bağlantının geri gelmesi
-        // OtomatikYenilemeAraligi ile sınırlıdır (K-10: yenileme fırtınası).
+        // devralınır). "Yeniden dene" ve bağlantının geri gelmesi açık sayfayı yeniler; bağlantının geri gelmesi
+        // OtomatikYenileAsync'in alt sınırına ve kaydedilmemiş değişiklik denetimine bağlıdır (K-1, Ö-1).
         _baglantiSeridi = new BaglantiSeridi { BindingContext = baglanti };
-        _baglantiSeridi.YenidenDeneIstendi += async (_, _) => await AcikSayfayiYenileAsync();
-        baglanti.BaglantiGeldi += async (_, _) => await AcikSayfayiYenileAsync(otomatik: true);
+        _baglantiSeridi.YenidenDeneIstendi += async (_, _) => await ElleYenileAsync();
+        baglanti.BaglantiGeldi += async (_, _) => await OtomatikYenileAsync();
         SetTitleView(this, _baglantiSeridi);
     }
 
-    /// <summary>Açık sayfayı yeniler (IYenilenebilir). <paramref name="otomatik"/> true ise (bağlantı geldi) art arda gelen
-    /// yenilemeler arasında en az <see cref="OtomatikYenilemeAraligi"/> beklenir (şerit gidip gelirken yenileme fırtınası
-    /// olmaz); "Yeniden dene" (otomatik=false) her zaman çalışır. Yenileme sürerken gelen ikinci istek (ör. yenilemenin ilk
-    /// yanıtı bağlantıyı geri getirdi) yok sayılır; hata günlüğe yazılır (async void işleyiciden istisna çıkmaz).</summary>
-    private async Task AcikSayfayiYenileAsync(bool otomatik = false)
+    /// <summary>Bağlantı geldiğinde otomatik yenileme (K-1: alt sınır, sondaki kenarda tek tetik, TimeProvider ile; Ö-1:
+    /// kaydedilmemiş değişiklikte hiç yenilenmez, form kullanıcı isteği olmadan ezilmez — şerit kalkar, veri soluk kalır).
+    /// Sınır içinde kalınırsa <see cref="Dispatcher"/> ile sınırın sonunda yeniden denenir.</summary>
+    private async Task OtomatikYenileAsync()
+    {
+        var kirli = CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true };
+        if (_otomatikYenileme.Sor(kirli, out var bekle))
+            await AcikSayfayiYenileAsync();
+        else if (bekle > TimeSpan.Zero)
+            Dispatcher.DispatchDelayed(bekle, () => _ = OtomatikYenileAsync());
+    }
+
+    /// <summary>"Yeniden dene": kaydedilmemiş değişiklikte <see cref="KaydedilmemisDegisiklik"/> onayı sorulur ("Bırak" derse
+    /// değişiklikler bırakılıp yenilenir, "Forma dön" derse yenileme yapılmaz); otomatik yenileme sınırına (K-1) bağlı değildir,
+    /// her zaman hemen çalışır.</summary>
+    private async Task ElleYenileAsync()
+    {
+        if (CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true } form)
+        {
+            if (!await DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, KaydedilmemisDegisiklik.Ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon))
+                return;
+            form.DegisiklikleriBirak();
+        }
+        await AcikSayfayiYenileAsync();
+    }
+
+    /// <summary>Açık sayfayı yeniler (IYenilenebilir). Yenileme sürerken gelen ikinci istek (ör. yenilemenin ilk yanıtı
+    /// bağlantıyı geri getirdi) yok sayılır; hata günlüğe yazılır (async void işleyiciden istisna çıkmaz).</summary>
+    private async Task AcikSayfayiYenileAsync()
     {
         if (_yenileniyor || CurrentPage is not IYenilenebilir sayfa)
             return;
-        if (otomatik && _sonOtomatikYenileme is { } once && DateTimeOffset.UtcNow - once < OtomatikYenilemeAraligi)
-            return;
-        if (otomatik)
-            _sonOtomatikYenileme = DateTimeOffset.UtcNow;
         _yenileniyor = true;
         _baglantiSeridi.Yenileniyor = true;
         try
@@ -127,6 +149,12 @@ public partial class AppShell : Shell
         {
             _birakmaSoruluyor = false;
             erteleme.Complete();
+            // Onay penceresi açıkken oturum düştüyse (Ö-3) girişe dönüş burada tekrar denenir (erteleme artık tamamlandı).
+            if (_girisDonusuBekliyor)
+            {
+                _girisDonusuBekliyor = false;
+                _ = GiriseDonAsync();
+            }
         }
     }
 
@@ -232,10 +260,18 @@ public partial class AppShell : Shell
         finally { _cikiliyor = false; }
     }
 
+    /// <summary>Girişe dönüş; onay penceresi açıkken (erteleme beklerken, Ö-3) çağrılırsa GoToAsync InvalidOperationException
+    /// vereceği için hemen denenmez, beklemeye alınır (<see cref="_girisDonusuBekliyor"/>); <see cref="OnNavigating"/>'in
+    /// finally'si pencere kapanınca bunu tekrar dener.</summary>
     private async Task GiriseDonAsync()
     {
         if (_giriseDonuluyor)
             return;
+        if (_birakmaSoruluyor)
+        {
+            _girisDonusuBekliyor = true;
+            return;
+        }
         _giriseDonuluyor = true;
         try
         {

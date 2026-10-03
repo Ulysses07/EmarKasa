@@ -31,7 +31,8 @@ public class FormAlaniTests
         Assert.Same(girdi, cerceve.Content);
         Assert.Same((Style)Application.Current!.Resources["FieldBorder"], cerceve.Style);
         Assert.False(ileti.IsVisible);
-        Assert.Null(SemanticProperties.GetDescription(girdi));
+        // K-2: girdinin Description'ı her zaman başlıktır (hata yokken de); ClearValue ile silinmez.
+        Assert.Equal("Açıklama", SemanticProperties.GetDescription(girdi));
 
         baglam.Hatalar.Ayarla("Ad", "Açıklama boş olamaz.");
         Assert.Equal("Açıklama boş olamaz.", alan.Hata);
@@ -44,7 +45,7 @@ public class FormAlaniTests
         Assert.Null(alan.Hata);
         Assert.False(ileti.IsVisible);
         Assert.Same(Firca("BrushFieldStroke"), cerceve.Stroke);
-        Assert.Null(SemanticProperties.GetDescription(girdi));
+        Assert.Equal("Açıklama", SemanticProperties.GetDescription(girdi));
 
         baglam.Hatalar.Ayarla("Ad", "x");
         baglam.Hatalar.Temizle();

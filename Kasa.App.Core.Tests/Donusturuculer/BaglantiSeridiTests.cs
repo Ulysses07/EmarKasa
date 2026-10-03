@@ -11,7 +11,7 @@ public class BaglantiSeridiTests
     {
         GorunumOrtami.Kur();
         var durum = new BaglantiDurumu(zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 10, 2)));
-        var serit = new BaglantiSeridi { BindingContext = durum };
+        var serit = new BaglantiSeridi { BindingContext = durum, Duyur = _ => { } };
         var istek = 0;
         serit.YenidenDeneIstendi += (_, _) => istek++;
         var metin = serit.GetVisualTreeDescendants().OfType<Label>().Single();
@@ -32,5 +32,29 @@ public class BaglantiSeridiTests
         serit.Yenileniyor = false;
         durum.Ulasildi();
         Assert.False(serit.IsVisible);
+    }
+
+    /// <summary>K-3: şerit çıktığında (bağlantı koptuğunda) ekran okuyucuya duyurulur; durum metninde artık HeadingLevel yok
+    /// (duyuru zaten yeterli).</summary>
+    [Fact]
+    public void Serit_ciktiginda_ekran_okuyucuya_duyurulur_headinglevel_yok()
+    {
+        GorunumOrtami.Kur();
+        var durum = new BaglantiDurumu(zaman: new IslemEditorTests.SabitZaman(new DateOnly(2026, 10, 2)));
+        var serit = new BaglantiSeridi { BindingContext = durum };
+        var metin = serit.GetVisualTreeDescendants().OfType<Label>().Single();
+        var duyurular = new List<string>();
+        serit.Duyur = duyurular.Add;
+
+        Assert.Equal(SemanticHeadingLevel.None, SemanticProperties.GetHeadingLevel(metin));
+
+        durum.Ulasildi();
+        durum.Ulasilamadi();
+        Assert.Equal([metin.Text], duyurular);
+
+        // Yeniden gelip gidince (her çıkışta) tekrar duyurulur; görünürken duyurulmaz (IsVisible zaten true'dan true'ya geçmez).
+        durum.Ulasildi();
+        durum.Ulasilamadi();
+        Assert.Equal(2, duyurular.Count);
     }
 }

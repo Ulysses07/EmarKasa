@@ -26,4 +26,35 @@ public class GorunurYapiciTests
         hatalar.Temizle("Tutar");
         Assert.Same(ad, GorunurYapici.IlkHataliAlan(form, hatalar));
     }
+
+    /// <summary>Ö-2: odaklanamayan alanın (ör. çip grubu; test ortamında gerçek platform işleyicisi olmadığından her alan
+    /// odaklanamaz) hatası ekran okuyucuya duyurulur.</summary>
+    [Fact]
+    public void Odaklanamayan_alanin_hatasi_ekran_okuyucuya_duyurulur()
+    {
+        GorunumOrtami.Kur();
+        var alan = new FormAlani { Alan = "Kanal", Icerik = new HorizontalStackLayout(), Hata = "Kanal seçin." };
+        var duyurular = new List<string>();
+
+        GorunurYapici.OdaklanVeyaDuyur(alan, duyurular.Add);
+
+        Assert.Equal(["Kanal seçin."], duyurular);
+    }
+
+    /// <summary>Ö-2: form hiçbir alan hatası taşımıyor ama genel hatası varsa (ör. bağlantı hatası) bu da ekran okuyucuya
+    /// duyurulur; duyuru kaydırmanın (Yap) sonucunu beklemeden hemen yapılır.</summary>
+    [Fact]
+    public void Genel_hata_varken_hatayagit_duyuruyu_hemen_yapar()
+    {
+        GorunumOrtami.Kur();
+        var yapici = new GorunurYapici(new ScrollView { Content = new VerticalStackLayout() });
+        var form = new VerticalStackLayout();
+        var genelKutu = new Border();
+        var hatalar = new AlanHatalari { Genel = "Sunucuya ulaşılamadı. Kayıt yapılmadı; bağlantı gelince yeniden kaydedin." };
+        var duyurular = new List<string>();
+
+        yapici.HatayaGit(form, hatalar, genelKutu, duyurular.Add);
+
+        Assert.Equal([hatalar.Genel], duyurular);
+    }
 }

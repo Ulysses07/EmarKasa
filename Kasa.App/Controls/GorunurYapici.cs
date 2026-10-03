@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Kasa.App.Core;
 using Microsoft.Maui;            // Kasa.App.Core.Tests bu dosyayı MAUI örtük using'leri olmadan derler
+using Microsoft.Maui.Accessibility;
 using Microsoft.Maui.Controls;
 
 namespace Kasa.App.Controls;
@@ -51,15 +52,29 @@ public sealed class GorunurYapici(ScrollView kaydirici)
         kaydirici.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
     }
 
-    /// <summary>Formun ilk hatalı alanına (yoksa genel hata kutusuna) kaydırır ve alana odaklanır.</summary>
+    /// <summary>Formun ilk hatalı alanına (yoksa genel hata kutusuna) kaydırır ve alana odaklanır; odaklanamayan alanda (ör.
+    /// çip grubu) ya da genel hatada ileti ekran okuyucuya duyurulur (Ö-2). Duyuru genel hatada hemen yapılır (kaydırmanın
+    /// sonucunu beklemez); alan hatasında odaklanma denendikten sonra (yalnız odaklanamazsa) yapılır.</summary>
     /// <param name="form">Formun alanlarını içeren görünüm (FormAlani'ler bunun altındadır).</param>
     /// <param name="genelKutu">Formun en üstündeki genel hata kutusu.</param>
-    public void HatayaGit(View form, AlanHatalari hatalar, View genelKutu)
+    /// <param name="duyur">Testler içindir; üretimde <see cref="SemanticScreenReader"/> kullanılır.</param>
+    public void HatayaGit(View form, AlanHatalari hatalar, View genelKutu, Action<string>? duyur = null)
     {
+        duyur ??= s => SemanticScreenReader.Default.Announce(s);
         if (IlkHataliAlan(form, hatalar) is { } alan)
-            Yap(alan, KaydirmaHesabi.FormKaydirmasi, () => alan.Odaklan());
-        else if (hatalar.Genel is not null)
+            Yap(alan, KaydirmaHesabi.FormKaydirmasi, () => OdaklanVeyaDuyur(alan, duyur));
+        else if (hatalar.Genel is { } genel)
+        {
+            duyur(genel);
             Yap(genelKutu, KaydirmaHesabi.FormKaydirmasi);
+        }
+    }
+
+    /// <summary>Alana odaklanılamazsa (girdi olmayan içerik, ör. çip grubu) hatası ekran okuyucuya duyurulur (Ö-2).</summary>
+    internal static void OdaklanVeyaDuyur(FormAlani alan, Action<string> duyur)
+    {
+        if (!alan.Odaklan())
+            duyur(alan.Hata ?? "");
     }
 
     /// <summary>Hataların konulduğu sırayla ilk hatası olan, görünür (kendisi ve bütün ataları) form alanı; yoksa null.</summary>
