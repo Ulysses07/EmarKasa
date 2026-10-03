@@ -120,6 +120,7 @@ public sealed class Oturum
     public IBildirimApi Bildirim { get; }
     public IBenzerKayitApi Benzer { get; }
     public ICekApi Cek { get; }
+    public IBaglantiYoklamasi Yoklama { get; }
 
     internal Oturum(SozlesmeFabrikasi f, HashSet<string> cagrilan, ITokenStore? depo)
     {
@@ -132,6 +133,7 @@ public sealed class Oturum
             return v;
         }
         Kasa = Vekil<IKasaApi>();
+        Yoklama = Vekil<IBaglantiYoklamasi>();
         Takip = Vekil<IFinansTakipApi>();
         Alis = Vekil<IAlisApi>();
         AlisOdeme = Vekil<IAlisOdemeApi>();

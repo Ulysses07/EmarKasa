@@ -38,12 +38,14 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
 
     private readonly SorguSecimi _secim = new("KartId");
     private int? _gosterilenKartId;
-    /// <summary>Son kaydırma isteğinin sırası ve kaydırması yapılmış istek: yalnız en son istek, bir kez kaydırır.</summary>
-    private int _kaydirmaIstegi, _kaydirilanIstek;
     private readonly View _ayrinti;
     private readonly View _formAlani;
     /// <summary>Formun tepesindeki hata satırı (FormHatasi): uzun formun altındaki düğmeden gelen hata görünür yere kaydırılır.</summary>
     private readonly Label _formHataSatiri;
+    /// <summary>Kart bilgileri ve ödeme formlarının genel hata kutuları (KartHatalari.Genel, OdemeHatalari.Genel; tasarım 2026-10-02 §1).</summary>
+    private readonly View _kartHataKutusu, _odemeHataKutusu;
+    /// <summary>Ödeme önizlemesi ve "Onayla ve kaydet" düğmesi: önizleme belirince bu blok bütün olarak görünür yere kaydırılır (G-2).</summary>
+    private readonly View _odemeOnayBlogu;
 
     /// <summary>Kart bildirimine tıklanınca //kartlar?KartId={id}: sayfa zaten açıkken istek hemen, değilse sayfa belirirken uygulanır
     /// (SorguSecimi).</summary>
@@ -80,6 +82,17 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     public KartTakipPage(KartTakipViewModel vm) : base(vm, "Kredi Kartları", SayfaAciklamasi, vm.YukleAsync, nameof(vm.SayfaHatasi))
     {
         _formHataSatiri = BagliHata(nameof(vm.FormHatasi));
+        _kartHataKutusu = FormHatasi(nameof(vm.KartHatalari) + ".Genel");
+        _odemeHataKutusu = FormHatasi(nameof(vm.OdemeHatalari) + ".Genel");
+        _odemeOnayBlogu = new VerticalStackLayout
+        {
+            Spacing = 12,
+            Children =
+            {
+                Bagli(nameof(vm.OdemeOnizleme)),
+                Goster(Dugme("Onayla ve kaydet", nameof(vm.OdemeKaydetCommand)), nameof(vm.OdemeOnizlemeGuncel)),
+            },
+        };
         _formAlani = FormAlani(vm);
         _ayrinti = new Border
         {
@@ -119,100 +132,37 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             {
                 _gosterilenKartId = vm.AcikKartId;
                 if (vm.AcikKartId is not null)
-                    GorunurYap(_ayrinti, AyrintiKaydirmasi);
+                    Gorunur.Yap(_ayrinti, AyrintiKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.AcikForm) && vm.FormAcik)
             {
-                GorunurYap(_formAlani, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(_formAlani, KaydirmaHesabi.FormKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.FormHatasi) && !string.IsNullOrWhiteSpace(vm.FormHatasi))
             {
-                GorunurYap(_formHataSatiri, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(_formHataSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.SayfaHatasi) && !string.IsNullOrWhiteSpace(vm.SayfaHatasi))
             {
-                GorunurYap(HataSatiri, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(HataSatiri, KaydirmaHesabi.FormKaydirmasi);
             }
             else if (e.PropertyName == nameof(vm.Mesaj) && !string.IsNullOrWhiteSpace(vm.Mesaj))
             {
-                GorunurYap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
+                Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
+            }
+            else if (e.PropertyName == nameof(vm.OdemeOnizlemeGuncel) && vm.OdemeOnizlemeGuncel)
+            {
+                Gorunur.Yap(_odemeOnayBlogu, KaydirmaHesabi.FormKaydirmasi);
             }
         };
+        // Kaydetme başarısız olunca ilk hatalı alana (yoksa formun genel hata kutusuna) kaydırılır ve odaklanılır (tasarım §1).
+        vm.KartHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_formAlani, vm.KartHatalari, _kartHataKutusu);
+        vm.OdemeHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_formAlani, vm.OdemeHatalari, _odemeHataKutusu);
     }
-
-    /// <summary>Hedefin (üst, yükseklik) ve kaydırıcının (kaydırma konumu, görünür yükseklik) değerlerinden yeni kaydırma konumu;
-    /// null: kaydırılmaz (KaydirmaHesabi).</summary>
-    private delegate double? KaydirmaKarari(double ust, double yukseklik, double kaydirmaY, double gorunurYukseklik);
 
     /// <summary>Ayrıntı: üstü görünür alandaysa kaydırılmaz (kutular görünür kalır), değilse üstü görünür alanın başına gelir.</summary>
     private static double? AyrintiKaydirmasi(double ust, double yukseklik, double kaydirmaY, double gorunurYukseklik)
         => KaydirmaHesabi.BasaKaydirilmali(ust, kaydirmaY, gorunurYukseklik) ? ust : null;
-
-    /// <summary>
-    /// Hedef yerleştikten sonra (konumu okunabilir olunca) <paramref name="karar"/>'ın verdiği konuma kaydırır (KaydirmaHesabi;
-    /// hedef görünüyorsa kaydırılmaz). Zamanlama: hedefin bir sonraki SizeChanged'i (yerleşim turunda üst öğeleri de yerleşmiş olur) ya da,
-    /// boyutu değişmeden yalnız yeri değişirse (başka satırdaki kart, aynı boyda form), 100 ms aralıklı yoklama; yoklama hedef
-    /// yerleşmiş (genişliği olan) bulunca ya da 1 sn sonra biter. Kaydırma her iki yolda da yerleşim turunun bitimine
-    /// (Dispatch) bırakılır. Yeni istek eskisini geçersiz kılar; istek bir kez kaydırır.
-    /// </summary>
-    private void GorunurYap(View hedef, KaydirmaKarari karar)
-    {
-        var istek = ++_kaydirmaIstegi;
-        var deneme = 0;
-        void Boyutlandi(object? sender, EventArgs e) => Yerlesti();
-        void Yerlesti()
-        {
-            hedef.SizeChanged -= Boyutlandi;
-            Dispatcher.Dispatch(() => Kaydir(hedef, karar, istek));
-        }
-        void Yokla()
-        {
-            if (istek != _kaydirmaIstegi || istek == _kaydirilanIstek)
-            {
-                hedef.SizeChanged -= Boyutlandi;
-                return;
-            }
-            if (hedef.Width > 0)
-                Yerlesti();
-            else if (++deneme < 10)
-                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
-            else
-                hedef.SizeChanged -= Boyutlandi;
-        }
-        hedef.SizeChanged += Boyutlandi;
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), Yokla);
-    }
-
-    private async void Kaydir(View hedef, KaydirmaKarari karar, int istek)
-    {
-        if (istek != _kaydirmaIstegi || istek == _kaydirilanIstek || !hedef.IsVisible)
-            return;
-        _kaydirilanIstek = istek;
-        try
-        {
-            if (karar(KaydiriciyaGoreY(hedef), hedef.Height, Kaydirici.ScrollY, Kaydirici.Height) is { } y)
-                await Kaydirici.ScrollToAsync(Kaydirici.ScrollX, y, true);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Kartlar ekranı kaydırılamadı: {ex}");
-        }
-    }
-
-    /// <summary>Hedefin kaydırılan içeriğe göre üstü: ata zinciri boyunca her öğenin üst öğesine göre yeri (Frame.Y) toplanır;
-    /// hedef kaydırıcının içinde değilse NaN (kaydırılmaz).</summary>
-    private double KaydiriciyaGoreY(VisualElement hedef)
-    {
-        var y = 0d;
-        for (Element? e = hedef; e is not null; e = e.Parent)
-        {
-            if (ReferenceEquals(e, Kaydirici))
-                return y;
-            if (e is VisualElement v)
-                y += v.Frame.Y;
-        }
-        return double.NaN;
-    }
 
     // ---- Özet ----
 
@@ -283,7 +233,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] },
                 Goster(_formHataSatiri, nameof(vm.FormHatasi), true),
                 Durumda(KartBilgileri(vm), nameof(vm.AcikForm), KartFormu.KartBilgisi),
-                Durumda(Odeme(vm), nameof(vm.AcikForm), KartFormu.Odeme),
+                Durumda(Odeme(vm, _odemeHataKutusu, _odemeOnayBlogu), nameof(vm.AcikForm), KartFormu.Odeme),
                 Durumda(Harcama(vm), nameof(vm.AcikForm), KartFormu.Harcama),
                 Durumda(Masraf(vm), nameof(vm.AcikForm), KartFormu.Masraf),
                 Durumda(Ekstre(vm), nameof(vm.AcikForm), KartFormu.Ekstre),
@@ -293,14 +243,17 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         };
     }
 
+    /// <summary>Kart bilgileri formu (yeni kart ve "Kartı düzenle"): başlık modu söyler ("Yeni kart" / "Düzenleniyor: Bonus"); genel
+    /// hata formun en üstünde, alan hataları alanın altında (tasarım 2026-10-02 §1-2; KR-04).</summary>
     private View KartBilgileri(KartTakipViewModel vm)
     {
+        const string h = nameof(vm.KartHatalari);
         var acilis = new VerticalStackLayout
         {
             Spacing = 12,
             Children =
             {
-                Alan("Açılış tarihi", Tarih(nameof(vm.AcilisTarihi))), Alan("Açılış borcu", Girdi(nameof(vm.AcilisBorc), true)),
+                Alan("Açılış tarihi", Tarih(nameof(vm.AcilisTarihi))), Alan("Açılış borcu", Girdi(nameof(vm.AcilisBorc), true), h, nameof(vm.AcilisBorc)),
                 Metin(AcilisNotu), Paylar(vm.AcilisPaylari, () => vm.PayEkle(vm.AcilisPaylari)),
             },
         };
@@ -310,11 +263,23 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 vm.Gerekce = gerekce;
                 return vm.DurumDegistirAsync();
             })));
-        return Form("Kart bilgileri",
-            Alan("Kart / banka adı", Girdi(nameof(vm.Ad))), Alan("Limit", Girdi(nameof(vm.Limit), true)),
-            Alan("Hesap kesim günü (1–31)", Girdi(nameof(vm.KesimGunu), sayi: true)), Alan("Son ödeme günü (1–31)", Girdi(nameof(vm.SonOdemeGunu), sayi: true)),
-            Goster(acilis, nameof(vm.YeniKart)), Dugme("Kartı kaydet", nameof(vm.KaydetCommand)),
-            Goster(durum, nameof(vm.KartSecili)), Goster(Devir(vm), nameof(vm.GecisKaydi), true));
+        var baslik = Bagli(nameof(vm.KartFormuBasligi));
+        baslik.Style = (Style)Application.Current!.Resources["LblTakipKartBaslik"];
+        var kaydet = Dugme("Kartı kaydet", nameof(vm.KaydetCommand));
+        kaydet.SetBinding(Button.TextProperty, nameof(vm.KartKaydetMetni));
+        return new VerticalStackLayout
+        {
+            Spacing = 12,
+            Children =
+            {
+                baslik, _kartHataKutusu,
+                Alan("Kart / banka adı", Girdi(nameof(vm.Ad)), h, nameof(vm.Ad)), Alan("Limit", Girdi(nameof(vm.Limit), true), h, nameof(vm.Limit)),
+                Alan("Hesap kesim günü (1–31)", Girdi(nameof(vm.KesimGunu), sayi: true), h, nameof(vm.KesimGunu)),
+                Alan("Son ödeme günü (1–31)", Girdi(nameof(vm.SonOdemeGunu), sayi: true), h, nameof(vm.SonOdemeGunu)),
+                Goster(acilis, nameof(vm.YeniKart)), kaydet,
+                Goster(durum, nameof(vm.KartSecili)), Goster(Devir(vm), nameof(vm.GecisKaydi), true),
+            },
+        };
     }
 
     private static View Devir(KartTakipViewModel vm)
@@ -335,17 +300,25 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Bagli(nameof(vm.DevirOzeti)), Goster(devirFormu, nameof(vm.DevirDuzeltilebilir)));
     }
 
-    private static View Odeme(KartTakipViewModel vm) => Form("Kart ödemesi kaydet",
-        Alan("Tarih", Tarih(nameof(vm.OdemeTarihi))), Alan("Tutar", Girdi(nameof(vm.OdemeTutari), true)),
-        Alan("Ekstre (boş: en eski açık ekstreler)", Secim(nameof(vm.Ekstreler), nameof(vm.OdemeEkstresi))),
-        Tikla("En eski açık ekstrelere dağıt", () =>
-        {
-            vm.OdemeEkstresi = null;
-            return Task.CompletedTask;
-        }),
-        Alan("Ödeme notu / dekont referansı", Girdi(nameof(vm.OdemeNotu))),
-        Dugme("Ödeme ve kanal paylarını göster", nameof(vm.OdemeOnizleCommand)), Bagli(nameof(vm.OdemeOnizleme)),
-        Dugme("Ödemeyi kaydet", nameof(vm.OdemeKaydetCommand)), Benzerlik(nameof(vm.OdemeBenzerlik), nameof(vm.OdemeyiAyriKaydetCommand)));
+    /// <summary>Kart ödemesi (KR-01): tek "Ödemeyi kontrol et" düğmesi önce eksik alanı söyler, alanlar tamsa kanal paylarını gösterir
+    /// ve "Onayla ve kaydet" belirir; önizlemeden sonra tutar, tarih, ekstre ya da not değişirse "Onayla ve kaydet" kalkar.
+    /// <paramref name="onayBlogu"/> önizleme metni ve "Onayla ve kaydet" düğmesidir.</summary>
+    private static View Odeme(KartTakipViewModel vm, View hataKutusu, View onayBlogu)
+    {
+        const string h = nameof(vm.OdemeHatalari);
+        return Form("Kart ödemesi kaydet", hataKutusu,
+            Alan("Tarih", Tarih(nameof(vm.OdemeTarihi)), h, nameof(vm.OdemeTarihi)),
+            Alan("Tutar", Girdi(nameof(vm.OdemeTutari), true), h, nameof(vm.OdemeTutari)),
+            Alan("Ekstre (boş: en eski açık ekstreler)", Secim(nameof(vm.Ekstreler), nameof(vm.OdemeEkstresi))),
+            Tikla("En eski açık ekstrelere dağıt", () =>
+            {
+                vm.OdemeEkstresi = null;
+                return Task.CompletedTask;
+            }),
+            Alan("Ödeme notu / dekont referansı", Girdi(nameof(vm.OdemeNotu)), h, nameof(vm.OdemeNotu)),
+            Dugme("Ödemeyi kontrol et", nameof(vm.OdemeOnizleCommand)), onayBlogu,
+            Benzerlik(nameof(vm.OdemeBenzerlik), nameof(vm.OdemeyiAyriKaydetCommand)));
+    }
 
     private static View Harcama(KartTakipViewModel vm) => Form("Bağımsız kart hareketi",
         Metin(HarcamaNotu),

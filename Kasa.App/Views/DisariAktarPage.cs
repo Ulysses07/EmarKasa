@@ -2,9 +2,12 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Views;
 
-public sealed class DisariAktarPage : ContentPage
+public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
 {
     private readonly DisariAktarViewModel _vm;
+
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
+    public Task YenileAsync() => _vm.YukleAsync();
 
     public DisariAktarPage(DisariAktarViewModel vm)
     {

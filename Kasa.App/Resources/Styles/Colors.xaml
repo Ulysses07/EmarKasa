@@ -102,6 +102,8 @@
     <SolidColorBrush x:Key="BrushGreen" Color="{StaticResource Green}" />
     <SolidColorBrush x:Key="BrushGreenSoft" Color="{StaticResource GreenSoft}" />
     <SolidColorBrush x:Key="BrushNegBorder" Color="{StaticResource NegBorder}" />
+    <!-- Hatalı form alanının çerçevesi (FormAlani; tasarım 2026-10-02 §1) -->
+    <SolidColorBrush x:Key="BrushNeg" Color="{StaticResource Neg}" />
     <SolidColorBrush x:Key="BrushSidebar" Color="{StaticResource Sidebar}" />
     <SolidColorBrush x:Key="BrushDateChipBorder" Color="{StaticResource DateChipBorder}" />
     <SolidColorBrush x:Key="BrushUyariKenar" Color="{StaticResource UyariKenar}" />

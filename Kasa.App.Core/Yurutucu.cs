@@ -10,6 +10,9 @@ public interface IYurutmeYuzeyi
     string? Hata { get; set; }
     /// <summary>Yeni işlem başlarken önceki işlemin başarı iletisini (Mesaj) kaldırır; iletisi olmayan modelde boştur.</summary>
     void IletiyiTemizle();
+    /// <summary>Uygulamanın bağlantı durumu kopuk mu (BaglantiDurumu). Kopukken okumanın bağlantı hatası sayfaya yazılmaz:
+    /// kabuktaki şerit tek yerde söyler.</summary>
+    bool BaglantiKopuk { get; }
 }
 
 /// <summary>Görünüm modellerinin tek async yürütme deseni (appcore-10). Her ekran aynı garantileri buradan alır:
@@ -59,8 +62,9 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
     /// <summary>Tekil işlem: Mesgul iken çalışmaz. Varsayılan sessizce dönmektir (çift tıklamanın ikinci basışı iletiyle
     /// karışmasın); <paramref name="mesgulkenBildir"/> onaydan sonra gelen işlemde (silme) yapılmadığını Hata'ya yazar. Göstergeyi
     /// yalnız yüzeydeki okuma tutuyorsa işlem engellenmez: okuma eskitilip iptal edilir (bkz. <see cref="Yurutucu"/>).
-    /// <paramref name="islem"/> başladığı nesli alır; sonucu yazmadan önce <see cref="Gecerli"/> ile denetler.</summary>
-    public async Task YurutAsync(Func<int, Task> islem, bool mesgulkenBildir = false)
+    /// <paramref name="islem"/> başladığı nesli alır; sonucu yazmadan önce <see cref="Gecerli"/> ile denetler.
+    /// <paramref name="hataIsle"/> verilirse geçerli işlemin hatası Hata'ya değil ona gider (form hataları, okuma hatası).</summary>
+    public async Task YurutAsync(Func<int, Task> islem, bool mesgulkenBildir = false, Action<Exception>? hataIsle = null)
     {
         if (yuzey.Mesgul)
         {
@@ -79,12 +83,34 @@ public sealed class Yurutucu(IYurutmeYuzeyi yuzey)
         yuzey.IletiyiTemizle();
         try
         { await islem(nesil); }
-        catch (Exception hata) { if (Gecerli(nesil)) yuzey.Hata = HataMesaji(hata); }
+        catch (Exception hata) when (Gecerli(nesil))
+        {
+            if (hataIsle is null)
+                yuzey.Hata = HataMesaji(hata);
+            else
+                hataIsle(hata);
+        }
+        catch (Exception) { /* eskiyen işin hatası yansımaz */ }
         finally
         {
             if (Gecerli(nesil))
             { _tekilNesli = null; yuzey.Mesgul = OkumaSuruyor; }
         }
+    }
+
+    /// <summary>Sunucuya ulaşılamadı ya da süre sınırında yanıt gelmedi: istemci bu hatalarda bağlantıyı kopuk bildirir
+    /// (Kasa.ApiClient.IBaglantiBildirimleri).</summary>
+    public static bool BaglantiHatasi(Exception hata) => hata is HttpRequestException or TimeoutException;
+
+    /// <summary>Kopukken kaydetme denendi ve istek sunucuya ulaşamadı: form ve girilen değerler korunur (tasarım §3).</summary>
+    public const string KayitBaglantiIletisi = "Sunucuya ulaşılamadı. Kayıt yapılmadı; bağlantı gelince yeniden kaydedin.";
+
+    /// <summary>Okuma hatasını sayfanın hatasına yazar; bağlantı kopukken bağlantı hatası yazılmaz (kabuk şeridi söyler).</summary>
+    public void OkumaHatasiniYaz(Exception hata)
+    {
+        if (BaglantiHatasi(hata) && yuzey.BaglantiKopuk)
+            return;
+        yuzey.Hata = OkumaHataMesaji(hata);
     }
 
     /// <summary>Yüzeyde yükleyen okuma başladı: göstergeyi (tekil işlemle birlikte) tutar.</summary>
@@ -168,8 +194,9 @@ public sealed class SonIstekHatti(Yurutucu yurutucu)
     /// <summary>Yürütücünün yüzeyinde (Mesgul, Hata) okuma: başlarken Hata ve ileti temizlenir; yalnız son isteğin sonucu
     /// uygulanır, hatası yazılır ve bitişi Mesgul'u indirir. Bu hattın iptali hata sayılmaz. Tekil işlemle birlikte: sürerken
     /// başlayan tekil işlem bu okumayı eskitir; tekil işlem sürerken başlayan okuma yazmanın hatasını ve iletisini temizlemez,
-    /// göstergeyi yazma bitene dek indirmez (bkz. <see cref="Yurutucu"/>).</summary>
-    public async Task YukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula)
+    /// göstergeyi yazma bitene dek indirmez (bkz. <see cref="Yurutucu"/>). Hata <see cref="Yurutucu.OkumaHatasiniYaz"/> ile yazılır;
+    /// <paramref name="hataIsle"/> verilirse güncel isteğin hatası (iptal dışında) ona gider (son veriyi eski işaretlemek için).</summary>
+    public async Task YukleAsync<T>(Func<CancellationToken, Task<T>> getir, Action<T> uygula, Action<Exception>? hataIsle = null)
     {
         var yuzey = yurutucu.Yuzey;
         var bilet = Baslat();
@@ -185,7 +212,8 @@ public sealed class SonIstekHatti(Yurutucu yurutucu)
             uygula(veri);
         }
         catch (OperationCanceledException) when (bilet.Iptal.IsCancellationRequested) { /* vazgeçildi: hata değil */ }
-        catch (Exception hata) { if (Guncel(bilet)) yuzey.Hata = Yurutucu.OkumaHataMesaji(hata); }
+        catch (Exception hata) when (Guncel(bilet)) { (hataIsle ?? yurutucu.OkumaHatasiniYaz)(hata); }
+        catch (Exception) { /* eskiyen isteğin hatası yansımaz */ }
         finally
         {
             if (Guncel(bilet))

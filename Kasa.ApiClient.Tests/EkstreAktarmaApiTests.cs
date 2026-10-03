@@ -117,7 +117,15 @@ public class EkstreAktarmaApiTests
         var json = new SahteHandler().Kuyrukla((HttpStatusCode)code, "{\"detail\":\"Şifresiz PDF seçin.\"}");
         Assert.Equal("Şifresiz PDF seçin.", (await Assert.ThrowsAsync<KasaApiException>(() => Client(json).EkstreBelgeAsync(1))).Message);
         var html = new SahteHandler().Kuyrukla((HttpStatusCode)code, "<html>gizli-sunucu</html>");
-        Assert.DoesNotContain("gizli-sunucu", (await Assert.ThrowsAsync<KasaApiException>(() => Client(html).EkstreBelgeAsync(1))).Message);
+        if ((HttpStatusCode)code == HttpStatusCode.ServiceUnavailable)
+        {
+            // JSON dışı (API iletisi olmayan) 503 artık bağlantı hatası sayılır (ürün sahibi kararı 2026-10-03): KasaApiException
+            // değil, HttpRequestException; ham HTML gövde burada da sızmaz.
+            var baglantiHatasi = await Assert.ThrowsAsync<HttpRequestException>(() => Client(html).EkstreBelgeAsync(1));
+            Assert.DoesNotContain("gizli-sunucu", baglantiHatasi.Message);
+        }
+        else
+            Assert.DoesNotContain("gizli-sunucu", (await Assert.ThrowsAsync<KasaApiException>(() => Client(html).EkstreBelgeAsync(1))).Message);
     }
     [Fact]
     public async Task Kaynak_pdf_indirme_dosya_adini_temizler()

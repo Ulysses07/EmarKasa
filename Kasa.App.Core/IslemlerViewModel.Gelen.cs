@@ -43,8 +43,21 @@ public partial class IslemlerViewModel
     /// <summary>Dönem listesini eşitler, seçili dönemi korur (yoksa bugünün dönemi) ve gelirlerini yükler.</summary>
     private Task GelenFormunuHazirlaAsync()
     {
+        GelenDonemleriniEsitle();
+        return GelenleriYukle();
+    }
+
+    /// <summary>Gelir formunun son seçili kasa dönemi (son veri önbelleği; yeniden kurulan sayfa, Y-2).</summary>
+    private const string GelenDonemAnahtari = "gelen-donem";
+
+    /// <summary>Dönem listesini eşitler ve seçili dönemi korur; seçili yoksa oturumun son seçtiği dönem, o da yoksa bugünün dönemi
+    /// seçilir. Gelirleri yüklemez.</summary>
+    private void GelenDonemleriniEsitle()
+    {
         var donemler = _donemler.OrderByDescending(d => d.Start).ToList();
-        var hedef = GelenDonem is { } secili && donemler.Contains(secili) ? secili : GelirSecimi.VarsayilanDonem(donemler, Bugun);
+        var hedef = GelenDonem is { } secili && donemler.Contains(secili) ? secili
+            : OnbellektenOku<DateOnly>(GelenDonemAnahtari, out var bas) && donemler.FirstOrDefault(d => d.Start == bas) is { } son ? son
+            : GelirSecimi.VarsayilanDonem(donemler, Bugun);
         _gelenDonemAtaniyor = true;
         try
         {
@@ -53,7 +66,19 @@ public partial class IslemlerViewModel
             GelenDonem = hedef;
         }
         finally { _gelenDonemAtaniyor = false; }
-        return GelenleriYukle();
+    }
+
+    /// <summary>Yeniden kurulan sayfa önbellekten gösterildi (kopukken, Y-2): gelir formunun kasa dönemleri ve seçili dönem geri
+    /// gelir. Dönemin kayıtlı toplamı bilinmediği için kayıt kapalı kalır (yükleme hatası); başarılı yükleme gelirleri yükler.</summary>
+    private void GelenFormunuOnbellektenGoster()
+    {
+        if (!EditorMu)
+            return;
+        GelenDonemleriniEsitle();
+        _gelenler = Array.Empty<GelenDto>();
+        GelenYukleniyor = false;
+        GelenYuklemeHatasi = GelenDonem is not null;
+        GelenFormunuDoldur();
     }
 
     private Task GelenleriYukle() => GelenYuklemesi = GelenleriYukleAsync(_gelenHatti.Baslat(), GelenDonem);
@@ -100,6 +125,8 @@ public partial class IslemlerViewModel
     partial void OnGelenDonemChanged(DonemDto? value)
     {
         _gelenSifirOnayi = false;
+        if (value is not null)
+            OnbellegeYaz(GelenDonemAnahtari, value.Start);
         if (!_gelenDonemAtaniyor)
             GelenleriYukle();
     }

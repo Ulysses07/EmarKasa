@@ -5,11 +5,16 @@ namespace Kasa.App.Views;
 
 internal static class KasaKontrolAlanlari
 {
-    private static View Durum(OturumluViewModel vm, Func<Task> yukle, View govde)
+    /// <param name="sonVeri">Yükleme hata verse de son veri görünür ve soluk (Kasalar'daki kasa kontrolü, panelle tutarlı; tasarım
+    /// 2026-10-02 §3); değilse gövde yalnız veri hazırken görünür.</param>
+    private static View Durum(OturumluViewModel vm, Func<Task> yukle, View govde, bool sonVeri = false)
     {
         var panel = new VerticalStackLayout { Spacing = 12, BindingContext = vm };
         DurumSatirlari(panel, Tikla("Yenile / tekrar dene", yukle), Bagli(nameof(vm.Mesaj)));
-        govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
+        if (sonVeri)
+            SonVeriGovdesi(govde);
+        else
+            govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
         govde.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         panel.Add(govde);
         return panel;
@@ -43,7 +48,7 @@ internal static class KasaKontrolAlanlari
                 Dugme("Dökümü göster", nameof(vm.DokumGetirCommand)), Bagli(nameof(vm.DokumOzeti)), Liste<KasaHareketiSatiri>(nameof(vm.DokumSatirlari)))
         }
         };
-        return Durum(vm, vm.YukleAsync, body);
+        return Durum(vm, vm.YukleAsync, body, sonVeri: true);
     }
     public static View Esikler(KasaEsikViewModel vm)
     {

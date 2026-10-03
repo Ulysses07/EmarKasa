@@ -42,6 +42,27 @@ internal static class TakipUi
         };
     }
 
+    /// <summary>Hatası gösterilen alan (docs/specs/2026-10-02-masaustu-form-hatalari-ve-baglanti.md §1; Controls.FormAlani): başlık,
+    /// girdi ve hata varken altında ileti; çerçeve yalnız hata varken (kırmızı) görünür. <paramref name="hatalar"/> modelin
+    /// AlanHatalari özelliğinin yolu ("Hatalar"), <paramref name="alan"/> alanın adı ("Tutar"): hata "Hatalar[Tutar]" yolundan gelir.</summary>
+    public static Controls.FormAlani Alan(string ad, View v, string hatalar, string alan)
+    {
+        var f = new Controls.FormAlani { Baslik = ad, Icerik = v, Alan = alan, Cerceveli = false, TakipStili = true };
+        f.SetBinding(Controls.FormAlani.HataProperty, $"{hatalar}[{alan}]");
+        return f;
+    }
+
+    /// <summary>Formun genel hatası (tasarım §1): formun en üstünde, formun içinde kırmızı kutu (ErrorBox); yalnız doluyken görünür.
+    /// Sayfanın başındaki hata satırı yalnız yükleme hataları için kalır.</summary>
+    public static Border FormHatasi(string yol)
+    {
+        var metin = new Label { Style = (Style)Application.Current!.Resources["LblError"] };
+        metin.SetBinding(Label.TextProperty, yol);
+        var kutu = new Border { Style = (Style)Application.Current!.Resources["ErrorBox"], Content = metin };
+        kutu.SetBinding(VisualElement.IsVisibleProperty, new Binding(nameof(Label.Text), source: metin, converter: new Converters.DoluIseConverter()));
+        return kutu;
+    }
+
     public static Entry Girdi(string yol, bool para = false, bool sayi = false)
     {
         if (para)
@@ -74,6 +95,7 @@ internal static class TakipUi
     {
         var c = OnayKutusu();
         c.SetBinding(CheckBox.IsCheckedProperty, yol);
+        // Etiket ayrı bir metin öğesidir; kutu ekran okuyucuda etiketin metniyle adlanır (G-1; UIA'da adsız "CheckBox ''" kalıyordu).
         SemanticProperties.SetDescription(c, text);
         var grid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8 };
         grid.Add(c);
@@ -180,7 +202,8 @@ internal static class TakipUi
 
     /// <summary>Kodla yazılmış sayfaların durum satırları (Yenile ve sağında yükleniyor göstergesi, hata, isteğe bağlı ileti, son
     /// güncelleme): TakipSayfasi, Kasa kontrolü ve Dışa aktar aynı sırayı ve stilleri kullanır. Bağlam modelinde Mesgul,
-    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncelleme beklenir. Kartlar ekranı hatayı form açıkken formun içinde
+    /// Hata (ya da <paramref name="hataYolu"/>) ve SonGuncellemeMetni beklenir (hiç yükleme yokken "Henüz yüklenmedi.", veri
+    /// eskiyse " · güncel olmayabilir" ekiyle; OturumluViewModel). Kartlar ekranı hatayı form açıkken formun içinde
     /// gösterdiği için buraya SayfaHatasi'nı bağlar. Hata ve ileti yalnız doluyken yer kaplar (boşken Yenile ile son güncelleme
     /// arasında ~130 px boşluk kalıyordu). Dönen değer hata satırıdır (sayfa onu görünür yere kaydırabilir).</summary>
     public static Label DurumSatirlari(Layout hedef, View yenile, Label? mesaj = null, string hataYolu = "Hata")
@@ -191,7 +214,7 @@ internal static class TakipUi
         if (mesaj is not null)
             hedef.Add(DoluysaGoster(mesaj));
         var zaman = new Label { Style = (Style)Application.Current!.Resources["LblTakipKucuk"] };
-        zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
+        zaman.SetBinding(Label.TextProperty, nameof(OturumluViewModel.SonGuncellemeMetni));
         hedef.Add(zaman);
         return hata;
     }
@@ -221,6 +244,26 @@ internal static class TakipUi
         return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
     }
 
+    /// <summary>Eski veri soluk (opaklık <see cref="EskiVeriOpakligi"/>): bağlamın VeriEski'si doğruyken (tasarım 2026-10-02 §3).</summary>
+    public static DataTrigger EskiVeriSolugu(Type hedef)
+    {
+        var tetik = new DataTrigger(hedef) { Binding = new Binding("VeriEski"), Value = true };
+        tetik.Setters.Add(new Setter { Property = VisualElement.OpacityProperty, Value = EskiVeriOpakligi });
+        return tetik;
+    }
+
+    /// <summary>Son veri gövdesi (tasarım 2026-10-02 §3): bağlamın GovdeGorunur'u doğruyken görünür (yükleme hata verse de son
+    /// başarılı veri kalır), VeriEski'de <see cref="EskiVeriSolugu"/> ile soluk. Takip sayfalarının gövdesi ve Kasalar alt bölümleri.</summary>
+    public static T SonVeriGovdesi<T>(T govde) where T : View
+    {
+        govde.SetBinding(VisualElement.IsVisibleProperty, nameof(OturumluViewModel.GovdeGorunur));
+        govde.Triggers.Add(EskiVeriSolugu(govde.GetType()));
+        return govde;
+    }
+
+    /// <summary>Eski verinin opaklığı (XAML sayfaları da aynı değeri yazar).</summary>
+    public const double EskiVeriOpakligi = 0.55;
+
     /// <summary>Etiket yalnız metni doluyken görünür (boş hata/ileti satırı yığında yer ve aralık kaplamaz).</summary>
     private static Label DoluysaGoster(Label etiket)
     {
@@ -232,16 +275,37 @@ internal static class TakipUi
     /// açık çekin altındaki satırlar) false verir, ileti iki kez görünmez.</param>
     /// <param name="aciklama">Satır düğmesinin ekran okuyucu adı (SemanticProperties.Description): her satırda aynı olan düğme
     /// metnini satırdan ayırt eder.</param>
+    /// <param name="vurgu">Verilirse satırın <c>Veri.Id</c>'si bu kaynağın yolundaki değere eşitken satır vurgulanır (düzenlenen kayıt,
+    /// tasarım 2026-10-02 §2; İşlemler ve Alışlar'daki EsitIse deseni).</param>
+    /// <param name="bosMetinGizleYolu">Verilirse bu yoldaki değer doğruyken boş liste metni gizlenir (Çekler: gösterilen sorgu
+    /// yüklenmedi, liste "boş" değil bilinmiyor).</param>
     public static View Liste<T>(string yol, Func<T, Task>? ac = null, string action = "Aç", Func<T, bool>? gorunur = null,
-        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null)
+        Func<T, string>? actionText = null, bool bosMetin = true, Func<T, string>? aciklama = null, (object Kaynak, string Yol)? vurgu = null,
+        string? bosMetinGizleYolu = null)
     {
         var l = new VerticalStackLayout { Spacing = 10 };
         l.SetBinding(BindableLayout.ItemsSourceProperty, yol);
         if (bosMetin)
-            BindableLayout.SetEmptyView(l, Metin("Gösterilecek kayıt yok."));
+        {
+            var bos = Metin("Gösterilecek kayıt yok.");
+            if (bosMetinGizleYolu is not null)
+                bos.SetBinding(VisualElement.IsVisibleProperty, bosMetinGizleYolu, converter: new Converters.TersIseConverter());
+            BindableLayout.SetEmptyView(l, bos);
+        }
         BindableLayout.SetItemTemplate(l, new DataTemplate(() =>
         {
             var row = new VerticalStackLayout { Spacing = 6, Padding = new Thickness(0, 10) };
+            if (vurgu is { } v)
+                row.Triggers.Add(new DataTrigger(typeof(VerticalStackLayout))
+                {
+                    Binding = new MultiBinding
+                    {
+                        Converter = new Converters.EsitIseConverter(),
+                        Bindings = { new Binding("Veri.Id"), new Binding(v.Yol, source: v.Kaynak) },
+                    },
+                    Value = true,
+                    Setters = { new Setter { Property = VisualElement.BackgroundColorProperty, Value = Application.Current!.Resources["GreenSoft"] } },
+                });
             var baslik = Bagli("Baslik");
             baslik.FontAttributes = FontAttributes.Bold;
             row.Add(baslik);
@@ -321,6 +385,7 @@ internal static class TakipUi
         {
             var c = OnayKutusu();
             c.SetBinding(CheckBox.IsCheckedProperty, "Secili");
+            c.SetBinding(SemanticProperties.DescriptionProperty, "Ad");
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
             g.Add(c);
             var l = Bagli("Ad");
@@ -352,11 +417,13 @@ internal static class TakipUi
     }
 }
 
-public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
+public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir where T : OturumluViewModel
 {
     protected readonly T Vm;
     protected readonly VerticalStackLayout Govde = new() { Spacing = 18 };
     protected readonly ScrollView Kaydirici;
+    /// <summary>Sayfanın kaydırma yardımcısı (açılan ayrıntı, form ve ilk hatalı alan görünür yere kaydırılır).</summary>
+    protected readonly Controls.GorunurYapici Gorunur;
     /// <summary>Sayfa başındaki hata satırı (DurumSatirlari).</summary>
     protected readonly Label HataSatiri;
     /// <summary>Sayfa başındaki ileti satırı (Mesaj; başarılı kayıt).</summary>
@@ -375,13 +442,21 @@ public abstract class TakipSayfasi<T> : ContentPage where T : OturumluViewModel
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
         MesajSatiri = mesaj;
+        // Yenileme artık izlenen formu koruduğu için (son veri koruma, 2026-10-03) onay sormaz.
         HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
-        Govde.SetBinding(IsVisibleProperty, nameof(vm.VeriHazir));
+        // Yükleme hata verse de son başarılı veri görünür kalır ve soluk gösterilir (tasarım 2026-10-02 §3).
+        TakipUi.SonVeriGovdesi(Govde);
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());
         root.Add(Govde);
         Kaydirici = new ScrollView { Content = root };
+        Gorunur = new Controls.GorunurYapici(Kaydirici);
         Content = Kaydirici;
+        // Başka kayda geçiş ve Yeni'de kaydedilmemiş değişiklik onayı (tasarım 2026-10-02 §2). Vazgeç sormaz: bilerek bırakmaktır.
+        vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
+
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi: sayfanın yüklemesi.</summary>
+    public Task YenileAsync() => _yukle();
 
     protected override async void OnAppearing()
     {

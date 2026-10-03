@@ -30,13 +30,13 @@ public class KaydirmaHesabiTests
     public void Olculmemis_ya_da_gecersiz_degerde_kaydirilmaz(double hedefUst, double kaydirmaY, double gorunurYukseklik)
         => Assert.False(KaydirmaHesabi.BasaKaydirilmali(hedefUst, kaydirmaY, gorunurYukseklik));
 
-    // Form (ve sayfa hata satırı): görünür alana sığıyorsa tamamı görünecek kadar, sığmıyorsa başı görünür alanın başına kaydırılır.
+    // Form, hata ve önizleme (G-2): tamamı görünmüyorsa başı 24 px boşlukla görünür alanın başına kaydırılır.
 
     [Theory]
     [InlineData(500, 300, 400, 600)]    // tamamı görünüyor
     [InlineData(400, 600, 400, 600)]    // tam sığıyor, tam yerinde
     [InlineData(399.5, 300, 400, 600)]  // yuvarlama payı içinde
-    [InlineData(400, 900, 400, 600)]    // sığmıyor ama başı zaten görünür alanın başında
+    [InlineData(424, 900, 400, 600)]    // sığmıyor ama başı zaten boşlukla görünür alanın başında
     [InlineData(500, 300, 400, double.NaN)]
     [InlineData(500, 300, 400, 0)]
     [InlineData(double.NaN, 300, 400, 600)]
@@ -45,13 +45,14 @@ public class KaydirmaHesabiTests
         => Assert.Null(KaydirmaHesabi.FormKaydirmasi(ust, yukseklik, kaydirmaY, gorunurYukseklik));
 
     [Theory]
-    [InlineData(900, 300, 400, 600, 600)]    // başlığı altta görünen form: altı görünür alanın altına gelir
-    [InlineData(1200, 300, 400, 600, 900)]   // tamamen aşağıda, sığıyor: altı görünür alanın altına
-    [InlineData(100, 300, 400, 600, 100)]    // yukarıda kaldı: başı görünür alanın başına
-    [InlineData(300, 300, 400, 600, 300)]    // yarısı yukarıda: başı görünür alanın başına
-    [InlineData(900, 800, 400, 600, 900)]    // sığmıyor: başı görünür alanın başına
-    [InlineData(100, 800, 400, 600, 100)]    // sığmıyor, başı yukarıda: başı görünür alanın başına
-    public void Form_sigiyorsa_tamami_sigmiyorsa_basi_gorunecek_kadar_kaydirilir(double ust, double yukseklik, double kaydirmaY, double gorunurYukseklik,
+    [InlineData(900, 300, 400, 600, 876)]    // başlığı altta görünen form: alt kenara değil, başı boşlukla üste gelir
+    [InlineData(1200, 300, 400, 600, 1176)]  // tamamen aşağıda
+    [InlineData(100, 300, 400, 600, 76)]     // yukarıda kaldı
+    [InlineData(300, 300, 400, 600, 276)]    // yarısı yukarıda
+    [InlineData(900, 800, 400, 600, 876)]    // sığmıyor
+    [InlineData(400, 900, 400, 600, 376)]    // sığmıyor, başı tam kenarda: boşluk bırakılır
+    [InlineData(10, 300, 400, 600, 0)]       // içeriğin başından yukarı taşmaz
+    public void Gorunmeyen_hedefin_basi_bosluklu_olarak_gorunur_alanin_basina_kaydirilir(double ust, double yukseklik, double kaydirmaY, double gorunurYukseklik,
         double beklenen)
         => Assert.Equal(beklenen, KaydirmaHesabi.FormKaydirmasi(ust, yukseklik, kaydirmaY, gorunurYukseklik));
 }

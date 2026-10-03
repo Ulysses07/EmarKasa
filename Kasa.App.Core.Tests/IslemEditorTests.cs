@@ -32,7 +32,7 @@ public class IslemEditorTests
         var vm = new IslemlerViewModel(api, TestOturumu.Ac()) { DuzenTarih = new DateTime(2026, 3, 5), DuzenCari = "Kargo", DuzenTutar = 75m, DuzenKanal = "MEZAT", DuzenTip = GiderTipi.Cari };
 
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.NotNull(vm.Hata);
+        Assert.NotNull(vm.Hatalar.Genel);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(2, api.IslemOlusturmalari.Count);
         Assert.NotNull(api.IslemOlusturmalari[0].IstekId);

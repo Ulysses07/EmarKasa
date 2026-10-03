@@ -37,7 +37,15 @@ public partial class AlislarViewModel
     partial void OnDuzeltilecekOdemeChanged(AlisOdemeSatiri? value) => OnPropertyChanged(nameof(DuzeltmeAcik));
     partial void OnDuzeltmeTakipliChanged(bool value) { OnPropertyChanged(nameof(DuzeltmeAlanlariAcik)); OnPropertyChanged(nameof(AyirmaPaylariGorunur)); }
     partial void OnHarcamayiKoruChanged(bool value) => OnPropertyChanged(nameof(AyirmaPaylariGorunur));
-    public void IdIleSec(int id) { var satir = Alislar.FirstOrDefault(a => a.Veri.Id == id); if (satir is not null) Sec(satir); }
+    /// <summary>Bildirimden gelen alış: yazılmış değişiklik varsa açılmaz, uyarı yazılır (onay penceresi sayfa açılırken gösterilmez).</summary>
+    public void IdIleSec(int id)
+    {
+        if (Mesgul || Alislar.FirstOrDefault(a => a.Veri.Id == id) is not { } satir)
+            return;
+        if (KaydedilmemisDegisiklikVar)
+        { KaydetmeUyarisi(); return; }
+        SeciliyiGoster(satir.Veri);
+    }
     [RelayCommand]
     private void OdemeDuzelt(AlisOdemeSatiri odeme)
     {

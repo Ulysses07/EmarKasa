@@ -43,23 +43,42 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
     public ObservableCollection<KasaHareketiSatiri> DokumSatirlari { get; } = new();
 
     public Task YukleAsync() => YukleAsync(null);
+    /// <summary>Bakiye karşılaştırma geçmişi ve kanal eşikleri. Geçmiş yüklenemezse son başarılı veri silinmez, eski işaretlenir
+    /// (tasarım 2026-10-02 §3).</summary>
     /// <param name="panelEsikleri">Panelle aynı anlık görüntüden gelen kanal eşikleri (ana sayfa yanıtı): uyarı ile bakiye
     /// çelişmez. Null ise (eski sunucu, birleşik ucun sunucu hatası ya da eşiksiz yanıtı, yeniden deneme) ayrıca istenir; o
     /// istek de başarısızsa hata <see cref="EsikHatasi"/>'nda kalır, geçmiş yine gösterilir.</param>
-    public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri) => YurutAsync(async n =>
+    public Task YukleAsync(IReadOnlyList<KasaEsikDto>? panelEsikleri)
     {
-        VeriHazir = false;
-        var gecmis = await api.KasaKontrolleriAsync();
-        IReadOnlyList<KasaEsikDto>? esikler = panelEsikleri;
-        string? esikHatasi = null;
-        if (esikler is null)
+        SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
         {
-            try
-            { esikler = await api.KasaEsikleriAsync(); }
-            catch (Exception e) when (e is not OperationCanceledException) { esikHatasi = "Kanal uyarıları yüklenemedi: " + OkumaHataMesaji(e); }
-        }
-        if (!Gecerli(n))
-            return;
+            VeriHazir = false;
+            var gecmis = await api.KasaKontrolleriAsync();
+            IReadOnlyList<KasaEsikDto>? esikler = panelEsikleri;
+            string? esikHatasi = null;
+            if (esikler is null)
+            {
+                try
+                { esikler = await api.KasaEsikleriAsync(); }
+                catch (Exception e) when (e is not OperationCanceledException) { esikHatasi = "Kanal uyarıları yüklenemedi: " + OkumaHataMesaji(e); }
+            }
+            if (!Gecerli(n))
+                return;
+            var veri = new KontrolVerisi(gecmis, esikler, esikHatasi);
+            Yansit(veri);
+            Tamamlandi("", veri);
+        });
+    }
+
+    /// <summary>Son başarılı yüklemenin yanıtı (son veri önbelleği, H-1).</summary>
+    private sealed record KontrolVerisi(IReadOnlyList<KasaKontrolDto> Gecmis, IReadOnlyList<KasaEsikDto>? Esikler, string? EsikHatasi);
+
+    public override bool SonVeriyiGoster() => OnbellektenUygula<KontrolVerisi>("", Yansit);
+
+    private void Yansit(KontrolVerisi v)
+    {
+        var (gecmis, esikler, esikHatasi) = v;
         TakipMetni.Doldur(Gecmis, gecmis.Select(x => new KasaKontrolSatiri(x)));
         EsikHatasi = esikHatasi;
         EsikUyarilari = esikler is null ? null : string.Join("\n", esikler.Where(x => x.Etkin && x.EsikAltinda).Select(x => $"{x.Kanal}: bakiye {Bicim.Tl(x.Bakiye)} ₺ — alt limit {Bicim.Tl(x.Tutar)} ₺"));
@@ -75,8 +94,7 @@ public partial class KasaKontrolViewModel(IKasaKontrolApi api, AuthViewModel aut
         _onizleme = null;
         Karsilastirma = null;
         SeciliyiBirak();
-        Tamamlandi();
-    });
+    }
     private KasaKontrolOnizle Girdi() => new(GercekBakiye, Not.Trim());
     [RelayCommand]
     private Task OnizleAsync() => YurutAsync(async n =>

@@ -18,7 +18,7 @@ public class GecersizTutarTests
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.IslemOlusturCagri);
         Assert.Null(api.SonIslemOlustur);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar[nameof(IslemlerViewModel.DuzenTutar)]);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class GecersizTutarTests
         vm.DuzenKanalAcilisDevri = G;
         await vm.KanalKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonKanalOlustur);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.KanalHatalari[nameof(vm.DuzenKanalAcilisDevri)]);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class GecersizTutarTests
         Assert.Equal(ParaAyristirici.GecersizGosterim, vm.Kalemler[0].DagilimOzeti);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonYaz);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar.Genel);
 
         vm.Kalemler[0].Tutar = 100m;
         vm.Kalemler[0].Dagilimlar.Add(new(vm.Kanallar.ToList()) { Kanal = vm.Kanallar[0], Tutar = G });
@@ -60,7 +60,7 @@ public class GecersizTutarTests
         Assert.Equal(ParaAyristirici.GecersizGosterim, vm.DagilimOzeti);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonYaz);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar.Genel);
     }
 
     [Fact]
@@ -99,12 +99,12 @@ public class GecersizTutarTests
         vm.Limit = G;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.KartKayitSayisi);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.KartHatalari[nameof(vm.Limit)]);
         vm.Limit = 1000;
         vm.AcilisBorc = G;
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.KartKayitSayisi);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.KartHatalari[nameof(vm.AcilisBorc)]);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class GecersizTutarTests
         vm.OdemeTutari = G;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
         Assert.Null(api.OnizlenenOdeme);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.OdemeHatalari[nameof(vm.OdemeTutari)]);
 
         vm.EkstreSecCommand.Execute(vm.Ekstreler[0]);
         vm.AsgariVar = true;
@@ -177,8 +177,9 @@ public class GecersizTutarTests
         vm.TumKanallariSecCommand.Execute(null);
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Null(api.KrediKayit);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hatalar[nameof(vm.AylikOdeme)]);
 
+        vm.BirakmaOnayi = _ => Task.FromResult(true);   // yazılmış yeni kredi formu bırakılır
         vm.SecCommand.Execute(vm.Krediler[0]);
         vm.Gerekce = "Banka yazısı";
         vm.KapatmaTutari = G;
@@ -228,7 +229,7 @@ public class GecersizTutarTests
         vm.Tutar = G;
         await vm.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Null(f.Sablon);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.SablonHatalari[nameof(vm.Tutar)]);
 
         vm.Tutar = 100;
         vm.DagilimTuru = vm.DagilimTurleri[2];
@@ -237,7 +238,7 @@ public class GecersizTutarTests
         vm.Paylar[0].Tutar = G;
         await vm.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Null(f.Sablon);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.SablonHatalari.Genel);
     }
 
     [Fact]

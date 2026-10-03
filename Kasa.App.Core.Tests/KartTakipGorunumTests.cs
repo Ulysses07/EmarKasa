@@ -75,9 +75,10 @@ public class KartTakipGorunumTests
         vm.FormAcCommand.Execute(KartFormu.KartBilgisi);
         vm.Ad = "";
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.NotNull(vm.Hata);
+        Assert.NotNull(vm.KartHatalari[nameof(vm.Ad)]);
         vm.VazgecCommand.Execute(null);
         Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.False(vm.KartHatalari.Var);
         Assert.Null(vm.Hata);
     }
 
@@ -127,7 +128,7 @@ public class KartTakipGorunumTests
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal(0, api.KartKayitSayisi);
         Assert.Equal(KartFormu.KartBilgisi, vm.AcikForm);
-        Assert.Equal("Kart adını, limiti ve 1–31 arası günleri kontrol edin.", vm.FormHatasi);
+        Assert.Equal("Kart / banka adı boş olamaz.", vm.KartHatalari[nameof(vm.Ad)]);
         Assert.Null(vm.SayfaHatasi);
         vm.VazgecCommand.Execute(null);
         vm.Hata = "Sunucuya ulaşılamadı.";
@@ -206,13 +207,16 @@ public class KartTakipGorunumTests
         Assert.Equal(KartFormu.Odeme, vm.AcikForm);
     }
 
+    /// <summary>Ö-3: yenilemede düzenlenen ekstre kimlikle yeniden eşlenir (YenilemeFormKorumaTests); listede artık yoksa
+    /// bırakılır ve ekstre formu kapanır.</summary>
     [Fact]
-    public async Task Liste_yenilenince_birakilan_ekstrenin_formu_kapanir()
+    public async Task Liste_yenilenince_listede_kalmayan_ekstrenin_formu_kapanir()
     {
-        var (vm, _) = await Vm();
+        var (vm, api) = await Vm();
         vm.KutuSecCommand.Execute(vm.Kartlar[0]);
         vm.EkstreSecCommand.Execute(vm.Ekstreler[0]);
-        await vm.YukleAsync();   // aynı kart yeniden seçilir (Sec), düzenlenen ekstre bırakılır
+        api.KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>([FinansTakipTests.Sahte.OrnekKart() with { Ekstreler = [] }]);
+        await vm.YukleAsync();   // aynı kart yeniden seçilir (Sec), ekstre listede yok: bırakılır
         Assert.Equal(1, vm.AcikKartId);
         Assert.Null(vm.DuzenlenenEkstre);
         Assert.Equal(KartFormu.Yok, vm.AcikForm);
@@ -319,7 +323,7 @@ public class KartTakipGorunumTests
         api.OdemeHata = true;
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Equal(KartFormu.Odeme, vm.AcikForm);
-        Assert.NotNull(vm.FormHatasi);
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.OdemeHatalari.Genel);
         Assert.Null(vm.SayfaHatasi);
     }
 
@@ -523,10 +527,9 @@ public class KartTakipGorunumTests
         Assert.Contains(nameof(vm.AcikKartId), bildirilen);
 
         bildirilen.Clear();
-        await vm.KaydetCommand.ExecuteAsync(null);   // boş ad: formun hatası
-        Assert.NotNull(vm.FormHatasi);
-        Assert.Contains(nameof(vm.FormHatasi), bildirilen);
-        Assert.Contains(nameof(vm.SayfaHatasi), bildirilen);
+        await vm.KaydetCommand.ExecuteAsync(null);   // boş ad: formun alanında
+        Assert.Equal("Kart / banka adı boş olamaz.", vm.KartHatalari[nameof(vm.Ad)]);
+        Assert.Null(vm.SayfaHatasi);
 
         bildirilen.Clear();
         vm.VazgecCommand.Execute(null);

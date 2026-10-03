@@ -33,9 +33,11 @@ public class FinansTakipTests
         Assert.Contains("MEZAT", vm.OdemeOnizleme);
         Assert.NotEqual(Guid.Empty, api.OnizlenenOdeme!.IstekId);
         vm.OdemeTutari = 11;
+        Assert.False(vm.OdemeOnizlemeGuncel);
+        Assert.False(vm.OdemeKaydetCommand.CanExecute(null));
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Empty(api.OdemeIstekleri);
-        Assert.Contains("önizlemeyi", vm.Hata);
+        Assert.Contains("önizlemeyi", vm.OdemeHatalari.Genel);
     }
     [Fact]
     public async Task Kart_odeme_ag_hatasinda_onizlemedeki_ayni_anahtarla_tekrarlanir()

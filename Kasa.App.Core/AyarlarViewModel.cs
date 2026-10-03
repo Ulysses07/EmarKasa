@@ -34,6 +34,18 @@ public partial class AyarlarViewModel : OturumluViewModel
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(AyarKaydetCommand))] private bool _ayarlarYuklendi;
     public const string AyarlarYuklenmediMesaji = "Ayarlar sunucudan yüklenemedi; kayıtlı değerlerin üzerine varsayılanlar yazılmasın diye kaydedilmedi. Ekranı yenileyip yeniden deneyin.";
 
+    /// <summary>Kanal formunun hataları (tasarım 2026-10-02 §1): ad ve açılış devri alanın altında, eşlenemeyen sunucu iletisi
+    /// (ör. "Bu kanal adı zaten kullanılıyor.") formun genel hatasında.</summary>
+    public AlanHatalari KanalHatalari { get; } = new();
+    protected override IEnumerable<AlanHatalari> Formlar => [KanalHatalari];
+
+    /// <summary>Sunucunun kanal doğrulama alanları (KanalEndpoints; küçük harf) → formun alanları.</summary>
+    private static readonly Dictionary<string, string> KanalSunucuAlanlari = new()
+    {
+        ["ad"] = nameof(DuzenKanalAd),
+        ["acilisdevri"] = nameof(DuzenKanalAcilisDevri),
+    };
+
     // Kanal düzenleme
     [ObservableProperty] private int _duzenKanalId;      // 0 = yeni
     [ObservableProperty] private string _duzenKanalAd = "";
@@ -154,6 +166,7 @@ public partial class AyarlarViewModel : OturumluViewModel
         DuzenKanalSira = 0;
         DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = 0;
         _duzenKanalSurum = 0;
+        KanalHatalari.Temizle();
     }
 
     [RelayCommand]
@@ -165,13 +178,16 @@ public partial class AyarlarViewModel : OturumluViewModel
         DuzenKanalSira = k.Sira;
         DuzenKanalAcilisDevri = _kayitliKanalAcilisDevri = k.AcilisDevri;
         _duzenKanalSurum = k.Surum;
+        KanalHatalari.Temizle();
     }
 
     [RelayCommand]
-    private Task KanalKaydetAsync() => YurutAsync(async n =>
+    private Task KanalKaydetAsync() => FormIsleAsync(KanalHatalari, async n =>
     {
-        if (!ParaAyristirici.GecerliMi(DuzenKanalAcilisDevri))
-        { Hata = ParaAyristirici.GecersizMesaji; return; }
+        KanalHatalari.Denetle(!string.IsNullOrWhiteSpace(DuzenKanalAd), nameof(DuzenKanalAd), "Kanal adı boş olamaz.");
+        KanalHatalari.Denetle(ParaAyristirici.GecerliMi(DuzenKanalAcilisDevri), nameof(DuzenKanalAcilisDevri), ParaAyristirici.GecersizMesaji);
+        if (KanalHatalari.Var)
+            return;
         if (SifirOnayMetni($"{DuzenKanalAd} açılış devri", _kayitliKanalAcilisDevri, DuzenKanalAcilisDevri, _kanalSifirOnayi) is { } onay)
         {
             _kanalSifirOnayi = true;
@@ -199,8 +215,12 @@ public partial class AyarlarViewModel : OturumluViewModel
             return;
         YeniKanal();
         KanalOnayiniSifirla();
-        await DoldurAsync(n);
-    });
+        // Kanal kaydedildi: listenin yeniden okunamaması kaydı geri almaz, formun hatası değildir (sayfanın okuma hatasıdır).
+        try
+        { await DoldurAsync(n); }
+        catch (Exception hata) when (Gecerli(n))
+        { Yurutucu.OkumaHatasiniYaz(hata); }
+    }, KanalSunucuAlanlari);
 
     /// <summary>Onay diyaloğundan sonra gelir: başka işlem (yükleme, kayıt) sürerken silme yapılmaz ve bu söylenir (sessizce yok
     /// sayılmaz).</summary>

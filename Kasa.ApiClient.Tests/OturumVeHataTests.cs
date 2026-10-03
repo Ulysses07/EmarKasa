@@ -28,8 +28,20 @@ public class OturumVeHataTests
     {
         var store = new BellekTokenStore();
         await store.YazAsync("token");
-        var client = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.ServiceUnavailable), store);
+        var client = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.InternalServerError), store);
         await Assert.ThrowsAsync<KasaApiException>(client.CikisAsync);
+        Assert.Null(await store.OkuAsync());
+    }
+
+    [Fact]
+    public async Task Cikis_govdesiz_503_baglanti_hatasinda_da_tokeni_temizler()
+    {
+        // Gövdesiz 503 artık bağlantı hatası sayılır (ürün sahibi kararı 2026-10-03): KasaApiException değil, HttpRequestException;
+        // token temizleme (finally) istisna türünden bağımsız çalışır.
+        var store = new BellekTokenStore();
+        await store.YazAsync("token");
+        var client = Kur(new SahteHandler().Kuyrukla(HttpStatusCode.ServiceUnavailable), store);
+        await Assert.ThrowsAsync<HttpRequestException>(client.CikisAsync);
         Assert.Null(await store.OkuAsync());
     }
 

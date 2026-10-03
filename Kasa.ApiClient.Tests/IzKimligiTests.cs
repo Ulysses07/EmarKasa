@@ -28,23 +28,33 @@ public class IzKimligiTests
     }
 
     [Fact]
-    public async Task Iz_kimligi_yalniz_sunucu_hatasinda_okunur_govdesiz_ya_da_json_disi_yanit_bozulmaz()
+    public async Task Iz_kimligi_yalniz_sunucu_hatasinda_okunur_json_disi_yanit_bozulmaz()
     {
         var (c, h) = Kur();
         h.Kuyrukla(HttpStatusCode.Conflict, $$"""{"hata":"Kayıt değişti.","traceId":"{{W3cIz}}"}""")
-         .Kuyrukla(HttpStatusCode.BadGateway)
          .Kuyrukla(new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("<html>hata</html>") });
 
         var cakisma = await Assert.ThrowsAsync<KasaApiException>(() => c.KanalSilAsync(1));
-        var govdesiz = await Assert.ThrowsAsync<KasaApiException>(() => c.KanalSilAsync(2));
-        var html = await Assert.ThrowsAsync<KasaApiException>(() => c.KanalSilAsync(3));
+        var html = await Assert.ThrowsAsync<KasaApiException>(() => c.KanalSilAsync(2));
 
         Assert.Equal("Kayıt değişti.", cakisma.Message);
         Assert.Null(cakisma.HataKodu);
-        Assert.Null(govdesiz.IzKimligi);
         Assert.Null(html.IzKimligi);
         Assert.Null(html.HataKodu);
-        Assert.Equal(3, h.Istekler.Count);
+        Assert.Equal(2, h.Istekler.Count);
+    }
+
+    [Fact]
+    public async Task Govdesiz_502_artik_baglanti_hatasidir_iz_kimligi_tasimaz()
+    {
+        // Gövdesiz 502 artık bağlantı hatası sayılır (ürün sahibi kararı 2026-10-03): KasaApiException değil, HttpRequestException;
+        // bu yüzden iz kimliği (ProblemDetails traceId; yalnız KasaApiException'da taşınır) kavramı burada geçerli değildir.
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.BadGateway);
+
+        var hata = await Assert.ThrowsAsync<HttpRequestException>(() => c.KanalSilAsync(1));
+
+        Assert.Equal(HttpStatusCode.BadGateway, hata.StatusCode);
     }
 
     [Theory]

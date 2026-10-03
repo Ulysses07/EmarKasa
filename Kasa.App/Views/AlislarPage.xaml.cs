@@ -3,8 +3,11 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Views;
 
-public partial class AlislarPage : ContentPage, IQueryAttributable
+public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryAttributable
 {
+    /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3).</summary>
+    public Task YenileAsync() => _vm.YukleAsync();
+
     private readonly AlislarViewModel _vm;
     private int? _istenenAlisId;
     public void ApplyQueryAttributes(IDictionary<string, object> query)
@@ -24,6 +27,9 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+        var gorunur = new Controls.GorunurYapici(DetayKaydirici);
+        vm.Hatalar.GosterIstendi += (_, _) => gorunur.HatayaGit(AlisFormu, vm.Hatalar, FormHataKutusu);
+        vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
     protected override async void OnAppearing()
     {
@@ -47,7 +53,8 @@ public partial class AlislarPage : ContentPage, IQueryAttributable
     }
     private async void DegisiklikleriBirakTiklandi(object? sender, EventArgs e)
     {
-        if (await DisplayAlertAsync("Değişiklikleri bırak", "Kaydedilmemiş alış değişiklikleri silinecek. Devam edilsin mi?", "Bırak", "Vazgeç"))
+        if (await DisplayAlertAsync("Değişiklikleri bırak", "Kaydedilmemiş alış değişiklikleri silinecek. Devam edilsin mi?",
+            KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon))
             _vm.DegisiklikleriBirakCommand.Execute(null);
     }
     private async void OdemeIptalTiklandi(object? sender, EventArgs e)
