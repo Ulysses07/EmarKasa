@@ -10,6 +10,14 @@ public partial class PanelViewModel : RaporViewModel
     private readonly IKasaApi _api;
     public PanelViewModel(IKasaApi api, BaglantiDurumu? baglanti = null, AuthViewModel? auth = null) : base(baglanti, auth) => _api = api;
 
+    /// <summary>K-4: oturum değişince takipte olmayan kayıtların uyarısı da temizlenir (başka kullanıcının kart ve kredi adları
+    /// görünmesin).</summary>
+    protected override void SonVeriyiSifirla()
+    {
+        base.SonVeriyiSifirla();
+        TakipsizUyari = "";
+    }
+
     [ObservableProperty] private decimal _guncelKasa;
     [ObservableProperty] private decimal _buHaftaSonucu;
     [ObservableProperty] private decimal _buAySonucu;

@@ -201,4 +201,83 @@ public class RaporDurumuTests
         Assert.True(bildirildi);
         Assert.Contains("Oturumunuz sona erdi", vm.Hata);
     }
+
+    private static PanelDto BosPanel(decimal kasa) => new(kasa, new List<KanalBakiyeDto>(), 0, 0);
+
+    /// <summary>Ö-1: çıkış sırasında gelen eski oturumun yanıtı temizlenen son veri önbelleğine ve ekrana yazılmaz.</summary>
+    [Fact]
+    public async Task Yukleme_surerken_oturum_degisirse_eski_yanit_onbellege_ve_ekrana_yazilmaz()
+    {
+        var auth = TestOturumu.Ac();
+        var bekleyen = new TaskCompletionSource<AnaSayfaDto>();
+        var api = new SahteApi { AnaSayfaGetir = (_, _) => bekleyen.Task };   // sahte iptali dinlemez
+        var vm = new PanelViewModel(api, auth: auth);
+        var yukle = vm.YukleAsync();
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        bekleyen.SetResult(new AnaSayfaDto(BosPanel(900m), null, null));
+        await yukle;
+
+        Assert.False(auth.SonVeri.Oku<AnaSayfaDto>("PanelViewModel|gun=30", out _, out _));
+        Assert.False(vm.VeriVar);
+        Assert.Equal(0m, vm.GuncelKasa);
+        Assert.Null(vm.SonGuncelleme);
+        Assert.False(vm.Mesgul);
+    }
+
+    /// <summary>Küçük-5: ekrandan ayrılan rapor modeli tekil oturuma abone kalmaz; sonraki yükleme yeniden abone olur ve arada
+    /// değişen oturumun eski verisini o an kaldırır.</summary>
+    [Theory]
+    [InlineData("panel")]
+    [InlineData("haftalik")]
+    [InlineData("aylik")]
+    public async Task Ekrandan_ayrilan_rapor_oturum_olayini_dinlemez_donuste_yeniden_dinler(string ekran)
+    {
+        var auth = TestOturumu.Ac();
+        var api = new SahteApi
+        {
+            Panel = BosPanel(123m),
+            HaftalikListe = [],
+            AylikRapor = new AylikRaporDto(DateTime.Today.Year, DateTime.Today.Month, new List<KanalAylikDto>()),
+        };
+        RaporViewModel vm = ekran switch
+        {
+            "panel" => new PanelViewModel(api, auth: auth),
+            "haftalik" => new HaftalikViewModel(api, auth: auth),
+            _ => new AylikViewModel(api, auth: auth),
+        };
+        await vm.YukleAsync();
+        vm.EkrandanAyril();
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        Assert.True(vm.VeriVar);   // olay artık bu modele gelmiyor
+
+        api.YuklemeHatasi = new HttpRequestException();
+        await vm.YukleAsync();
+        Assert.False(vm.VeriVar);   // dönüşte arada değişen oturumun verisi gösterilmez
+        Assert.Null(vm.SonGuncelleme);
+
+        api.YuklemeHatasi = null;
+        await vm.YukleAsync();
+        Assert.True(vm.VeriVar);
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        Assert.False(vm.VeriVar);   // yeniden abone
+    }
+
+    /// <summary>Küçük-6: oturum değişince takipte olmayan kayıtların uyarısı da kalkar.</summary>
+    [Fact]
+    public async Task Oturum_degisince_takipsiz_uyarisi_da_kalkar()
+    {
+        var auth = TestOturumu.Ac();
+        var api = new SahteApi { Panel = BosPanel(900m) };
+        api.AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(api.Panel!, null, null, [new TakipsizKayitDto("Kart", 4, "Bonus")]));
+        var vm = new PanelViewModel(api, auth: auth);
+        await vm.YukleAsync();
+        Assert.True(vm.TakipsizVar);
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+
+        Assert.False(vm.TakipsizVar);
+        Assert.Equal("", vm.TakipsizUyari);
+    }
 }

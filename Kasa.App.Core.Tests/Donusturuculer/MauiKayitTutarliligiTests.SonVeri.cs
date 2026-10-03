@@ -21,6 +21,17 @@ public partial class MauiKayitTutarliligiTests
         Assert.All(kartlar, k => Assert.Equal(TakipUi.EskiVeriOpakligi, double.Parse(k.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture)));
     }
 
+    /// <summary>Kasalar'daki takipte olmayan kayıt uyarısı da son yüklemeden kalır; eski veride panel kartlarıyla aynı soluklukta.</summary>
+    [Fact]
+    public void Kasalar_takipsiz_uyarisi_eski_veride_soluktur()
+    {
+        var xaml = Oku(Path.Combine("Views", "PanelPage.xaml"));
+        var uyari = Regex.Match(xaml, @"<Border Style=""\{StaticResource CardForm\}"" IsVisible=""\{Binding TakipsizVar\}"">\s*<!--[^>]*-->\s*<Border\.Triggers>\s*"
+            + @"<DataTrigger TargetType=""Border"" Binding=""\{Binding VeriEski\}"" Value=""True"">\s*<Setter Property=""Opacity"" Value=""([0-9.]+)"" />");
+        Assert.True(uyari.Success);
+        Assert.Equal(TakipUi.EskiVeriOpakligi, double.Parse(uyari.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     /// <summary>XAML ile yazılmış takip/liste sayfalarının eski veri tetikleri de (Alışlar gövdesi, İşlemler listesi) kodla yazılan
     /// sayfalarla aynı opaklığı kullanır.</summary>
     [Theory]

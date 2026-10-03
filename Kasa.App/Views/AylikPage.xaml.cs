@@ -21,6 +21,13 @@ public partial class AylikPage : ContentPage, Controls.IYenilenebilir
         await YenileAsync();
     }
 
+    /// <summary>Başka ekrana geçince süren rapor isteği iptal edilir ve oturum aboneliği bırakılır.</summary>
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _vm.EkrandanAyril();
+    }
+
     /// <summary>Kabuğun "Yeniden dene"si ve bağlantının geri gelmesi (tasarım 2026-10-02 §3): rapor ve ay kilidi.</summary>
     public async Task YenileAsync()
     {

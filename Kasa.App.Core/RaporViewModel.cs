@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -36,27 +37,51 @@ public abstract partial class RaporViewModel : TemelViewModel
         _baglanti = baglanti;
         _auth = auth;
         _hat = new SonIstekHatti(Yurutucu);
-        if (auth is not null)
-            OturumDeginceSifirla(auth);
+        _ui = SynchronizationContext.Current;
+        _abonelikSurumu = auth?.OturumSurumu ?? 0;
+        OturumaAboneOl();
     }
 
-    /// <summary>Oturum değişince (K-4) son başarılı veriyi sıfırlar; bildirim modelin kurulduğu UI bağlamına (gerekirse Post ile)
-    /// gelir (OturumluViewModel.OturumDegisiminiDinle ile aynı desen).</summary>
-    private void OturumDeginceSifirla(AuthViewModel auth)
+    private readonly SynchronizationContext? _ui;
+    private PropertyChangedEventHandler? _oturumIsleyici;
+    private int _abonelikSurumu;
+
+    /// <summary>Oturum değişince (K-4) süren rapor isteği hemen (Post etmeden) eskitilip iptal edilir: çıkış sırasında gelen eski
+    /// oturumun yanıtı temizlenen son veri önbelleğine ve ekrana yazılmaz (OturumluViewModel.OturumDegisiminiDinle ile aynı desen).
+    /// Son başarılı verinin sıfırlanması modelin kurulduğu UI bağlamına (gerekirse Post ile) gelir. Tekil
+    /// <see cref="AuthViewModel"/>'e abonelik ekrandan ayrılınca bırakılır (<see cref="EkrandanAyril"/>), sonraki yüklemede yeniden
+    /// kurulur; arada oturum değiştiyse son veri o an sıfırlanır.</summary>
+    private void OturumaAboneOl()
     {
-        var ui = SynchronizationContext.Current;
-        void UiBaglaminda(Action eylem)
+        if (_auth is not { } auth || _oturumIsleyici is not null)
+            return;
+        if (auth.OturumSurumu != _abonelikSurumu)
         {
-            if (ui is not null && SynchronizationContext.Current != ui)
-                ui.Post(_ => eylem(), null);
-            else
-                eylem();
+            _hat.Birak();
+            Yurutucu.GecersizKil();
+            SonVeriyiSifirla();
         }
-        auth.PropertyChanged += (_, e) =>
+        _abonelikSurumu = auth.OturumSurumu;
+        _oturumIsleyici = (_, e) =>
         {
-            if (e.PropertyName == nameof(AuthViewModel.OturumSurumu))
-                UiBaglaminda(SonVeriyiSifirla);
+            if (e.PropertyName != nameof(AuthViewModel.OturumSurumu))
+                return;
+            _abonelikSurumu = auth.OturumSurumu;
+            _hat.Birak();
+            Yurutucu.GecersizKil();
+            if (_ui is not null && SynchronizationContext.Current != _ui)
+                _ui.Post(_ => SonVeriyiSifirla(), null);
+            else
+                SonVeriyiSifirla();
         };
+        auth.PropertyChanged += _oturumIsleyici;
+    }
+
+    private void OturumAboneliginiBirak()
+    {
+        if (_auth is not null && _oturumIsleyici is not null)
+            _auth.PropertyChanged -= _oturumIsleyici;
+        _oturumIsleyici = null;
     }
 
     /// <summary>Oturum değişince son başarılı veriyi sıfırlar (K-4). Alt sınıf kendi verisini (Rapor, Donemler, …) de temizlemek
@@ -66,6 +91,7 @@ public abstract partial class RaporViewModel : TemelViewModel
         VeriVar = false;
         VeriEski = false;
         SonGuncelleme = null;
+        Mesgul = false;   // eskiyen istek göstergeyi indirmez
     }
 
     protected override bool BaglantiKopuk => _baglanti?.Kopuk == true;
@@ -76,11 +102,13 @@ public abstract partial class RaporViewModel : TemelViewModel
     public abstract Task YukleAsync();
     [RelayCommand] private Task YenileAsync() => YukleAsync();
 
-    /// <summary>Ekrandan ayrılınca süren rapor isteği iptal edilir; sonucu ve hatası ekrana yansımaz.</summary>
+    /// <summary>Ekrandan ayrılınca süren rapor isteği iptal edilir; sonucu ve hatası ekrana yansımaz. Oturum aboneliği de bırakılır
+    /// (sayfa bırakılınca model tekil AuthViewModel'de asılı kalmasın); sonraki yükleme yeniden abone olur.</summary>
     public void EkrandanAyril()
     {
         _hat.Birak();
         Mesgul = false;
+        OturumAboneliginiBirak();
     }
 
     /// <summary>İptal belirteci almayan çağrılar için: yalnız son isteğin sonucu uygulanır.</summary>
@@ -95,6 +123,7 @@ public abstract partial class RaporViewModel : TemelViewModel
     /// ekranda veri yokken aynı sorgunun önbellekteki verisi istekten önce eski (soluk) gösterilir (ekran denemesi H-1).</param>
     protected Task RaporYukleAsync<T>(string? sorgu, Func<CancellationToken, Task<T>> getir, Action<T> uygula) where T : notnull
     {
+        OturumaAboneOl();
         var anahtar = sorgu is null ? null : GetType().Name + "|" + sorgu;
         if (anahtar is not null && SonGuncelleme is null && _auth?.SonVeri.Oku<T>(anahtar, out var onceki, out var zaman) == true)
         {

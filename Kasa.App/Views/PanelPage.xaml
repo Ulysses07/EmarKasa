@@ -25,6 +25,12 @@
 
             <!-- Takipte olmayan kart ve krediler: hatırlatmaları eski kayıtlarla sınırlı; geçiş yapılana kadar kalıcı uyarı. -->
             <Border Style="{StaticResource CardForm}" IsVisible="{Binding TakipsizVar}">
+                <!-- Uyarı da son başarılı yüklemeden kalır; eski veride panel kartları gibi soluk. -->
+                <Border.Triggers>
+                    <DataTrigger TargetType="Border" Binding="{Binding VeriEski}" Value="True">
+                        <Setter Property="Opacity" Value="0.55" />
+                    </DataTrigger>
+                </Border.Triggers>
                 <VerticalStackLayout Spacing="6">
                     <Label Text="GEÇİŞ BEKLEYEN KART VE KREDİLER" Style="{StaticResource LblSection}" />
                     <Label Text="{Binding TakipsizUyari}" Style="{StaticResource LblError}" />
