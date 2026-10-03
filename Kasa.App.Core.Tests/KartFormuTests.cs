@@ -101,6 +101,30 @@ public class KartFormuTests
         Assert.Equal(3, sorulan);
     }
 
+    /// <summary>Görev 14-19 incelemesi: "Vazgeç" yalnız açık formun kirliliğini bırakır; aynı kartta önceki formdan taşınan
+    /// kirlilik (<c>_oncekiFormKirli</c>) Vazgeç'le düşmez, kart değişimine kadar kalır.</summary>
+    [Fact]
+    public async Task Vazgec_tasinan_kirliligi_dusurmez_baska_karta_gecis_onay_ister()
+    {
+        var (vm, _) = await Kur();
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[0]);
+        vm.FormAcCommand.Execute(KartFormu.Odeme);
+        vm.OdemeTutari = 250m;   // ödeme formu yazılır
+
+        vm.FormAcCommand.Execute(KartFormu.Harcama);   // aynı kart: ödeme formunun kirliliği taşınır
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+
+        vm.VazgecCommand.Execute(null);   // yalnız açık (Harcama) formun kirliliğini bırakır, onay sormaz
+        Assert.Equal(KartFormu.Yok, vm.AcikForm);
+        Assert.True(vm.KaydedilmemisDegisiklikVar);   // taşınan kirlilik hâlâ var
+
+        var sorulan = 0;
+        vm.BirakmaOnayi = _ => { sorulan++; return Task.FromResult(true); };   // "Bırak"
+        await vm.KutuSecCommand.ExecuteAsync(vm.Kartlar[1]);   // başka karta geçiş: onay sorulur
+        Assert.Equal(1, sorulan);
+        Assert.Equal(2, vm.AcikKartId);
+    }
+
     [Fact]
     public async Task Degisiklikleri_birakmak_formu_kapatir_ve_kartin_kayitli_degerlerine_doner()
     {

@@ -417,12 +417,8 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };
         mesaj.SetBinding(Label.TextProperty, nameof(vm.Mesaj));
         MesajSatiri = mesaj;
-        HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", async () =>
-        {
-            // Yazılmış form varsa önce onay (tasarım 2026-10-02 §2): "Bırak" derse değişiklikler bırakılıp yenilenir.
-            if (await vm.YenilemedenOnceBirakilabilirAsync())
-                await yukle();
-        }), mesaj, hataYolu: hataYolu);
+        // Yenileme artık izlenen formu koruduğu için (son veri koruma, 2026-10-03) onay sormaz.
+        HataSatiri = TakipUi.DurumSatirlari(root, TakipUi.Tikla("Yenile / tekrar dene", yukle), mesaj, hataYolu: hataYolu);
         // Yükleme hata verse de son başarılı veri görünür kalır ve soluk gösterilir (tasarım 2026-10-02 §3).
         Govde.SetBinding(IsVisibleProperty, nameof(vm.GovdeGorunur));
         Govde.SetBinding(IsEnabledProperty, nameof(vm.Mesgul), converter: new Converters.TersIseConverter());

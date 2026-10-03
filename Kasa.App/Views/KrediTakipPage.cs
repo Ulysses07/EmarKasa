@@ -52,7 +52,13 @@ public sealed class KrediTakipPage : TakipSayfasi<KrediTakipViewModel>, IQueryAt
         var ozet = Kart("Kredi ayrıntısı", BagliBuyuk(nameof(vm.KrediOzeti)));
         _ozet = ozet;
         Govde.Add(Kart("Krediler",
-            Liste<KrediTakipSatiri>(nameof(vm.Krediler), async s => { await vm.SecCommand.ExecuteAsync(s); await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true); }),
+            Liste<KrediTakipSatiri>(nameof(vm.Krediler), async s =>
+            {
+                await vm.SecCommand.ExecuteAsync(s);
+                // "Forma dön" ile seçim değişmediyse kaydırma yapılmaz (görev 14-19 incelemesi).
+                if (vm.Secili?.Id == s.Veri.Id)
+                    await Kaydirici.ScrollToAsync(ozet, ScrollToPosition.Start, true);
+            }),
             Editor(Dugme("Yeni kredi / mevcut krediyi ekle", nameof(vm.YeniCommand)))));
         Govde.Add(ozet);
         const string h = nameof(vm.Hatalar);

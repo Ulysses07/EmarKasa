@@ -261,8 +261,13 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         TakipMetni.Doldur(Cekler, cekler.Select(c => new CekSatiri(c, Bugun)));
         Ozet = ozet;
         var acik = Acik is { } eski ? cekler.FirstOrDefault(c => c.Id == eski.Id) : null;
-        if (HareketFormuAcik && acik is not null && acik.Surum != Acik!.Surum)
-            Mesaj = "Çek başka bir işlemle değişti; hareketi yeniden girin.";
+        if (HareketFormuAcik && Acik is not null)
+        {
+            if (acik is null)
+                Mesaj = "Çek listede artık yok; hareket kaydedilmedi.";
+            else if (acik.Surum != Acik.Surum)
+                Mesaj = "Çek başka bir işlemle değişti; hareketi yeniden girin.";
+        }
         Acik = acik;
         SatirlariBol();
         // Düzeltilen çek arada başka bir işlemle değiştiyse form eski veriyle yeni sürümü ezmesin: kapanır, yeniden açılması istenir.

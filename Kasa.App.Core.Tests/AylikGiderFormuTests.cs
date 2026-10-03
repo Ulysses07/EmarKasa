@@ -25,6 +25,23 @@ public class AylikGiderFormuTests
         Assert.Equal("Ödemeyi iptal et", AylikGiderViewModel.SatirDugmesi(vm.Kayitlar[0]));
     }
 
+    /// <summary>Görev 14-19 incelemesi: aynı satıra yeniden "Öde" basılınca (SeciliOdeme değişmediği için PropertyChanged
+    /// tetiklenmez) sayfa formu yine görünür yere kaydırabilsin diye OdemeSec kendi olayını (OdemeSecIstendi) her çağrıda yayar.</summary>
+    [Fact]
+    public async Task OdemeSec_ayni_satirda_bile_her_cagrida_OdemeSecIstendi_yayar()
+    {
+        var (vm, _) = await Kur();
+        var sayim = 0;
+        vm.OdemeSecIstendi += (_, _) => sayim++;
+
+        vm.OdemeSec(vm.Kayitlar[0]);
+        Assert.Equal(1, sayim);
+        Assert.Same(vm.Kayitlar[0], vm.SeciliOdeme);
+
+        vm.OdemeSec(vm.Kayitlar[0]);   // aynı satır: SeciliOdeme değişmez ama olay yine yayılır.
+        Assert.Equal(2, sayim);
+    }
+
     [Fact]
     public async Task Bos_sablon_formu_alanlari_ayri_ayri_soyler()
     {

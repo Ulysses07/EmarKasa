@@ -28,7 +28,7 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
         var odemeHataKutusu = FormHatasi(o + ".Genel");
         var odemeFormu = Kart("Bu ayın ödemesini kaydet", odemeHataKutusu, Bagli(nameof(vm.OdemeEtkisi)),
             Alan("Gerçek ödeme tarihi", Tarih(nameof(vm.OdemeTarihi))), Alan("Not / dekont açıklaması", Girdi(nameof(vm.OdemeNotu))),
-            Alan("", Onay("Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay)),
+            Alan("Ödeme onayı", Onay("Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.", nameof(vm.OdemeOnay)), o, nameof(vm.OdemeOnay)),
             Dugme("Nakit / havale ödemesini kaydet", nameof(vm.OdeCommand)));
         Govde.Add(Editor(Goster(odemeFormu, nameof(vm.OdemeSecili))));
 
@@ -54,10 +54,8 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
 
         vm.OdemeHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(odemeFormu, vm.OdemeHatalari, odemeHataKutusu);
         vm.SablonHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(sablonFormu, vm.SablonHatalari, sablonHataKutusu);
-        vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(vm.OdemeSecili) && vm.OdemeSecili)
-                Gorunur.Yap(odemeFormu, KaydirmaHesabi.FormKaydirmasi);
-        };
+        // Aynı satıra yeniden "Öde" basılınca SeciliOdeme değişmez; bu yüzden PropertyChanged'e güvenmeyip
+        // OdemeSec'in kendi olayına bağlanır (görev 14-19 incelemesi).
+        vm.OdemeSecIstendi += (_, _) => Gorunur.Yap(odemeFormu, KaydirmaHesabi.FormKaydirmasi);
     }
 }

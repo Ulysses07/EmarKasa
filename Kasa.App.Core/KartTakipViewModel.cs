@@ -191,6 +191,8 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         // seçilmesi (liste yenilemesi) yazılmakta olan formu korur.
         if (Secili?.Id != satir.Veri.Id)
             KartFormlariniTemizle();
+        if (!ayniKart)
+            _oncekiFormKirli = false; // Kart değişimi: taşınan kirlilik bu karta ait değildi (görev 14-19 incelemesi).
         Secili = satir.Veri;
         if (!ayniKart || AcikForm != KartFormu.KartBilgisi)
         {
@@ -226,6 +228,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         HarcamaBenzerlik.Temizle();
         OdemeBenzerlik.Temizle();
         Secili = null;
+        _oncekiFormKirli = false; // Kart değişimi: taşınan kirlilik bu karta ait değildi (görev 14-19 incelemesi).
         Ad = "";
         Limit = AcilisBorc = 0;
         AcilisTarihi = DateTime.Today;

@@ -341,6 +341,41 @@ public class CekTakipViewModelTests
         Assert.Equal("Çek başka bir işlemle değişti; formu yeniden açın.", vm.Mesaj);
     }
 
+    /// <summary>Hareket formu açıkken açık çek başka bir işlemle değişirse (sürüm farkı) form iletiyle kapanır (görev 14-19
+    /// incelemesi; Yansit'teki sürüm denetimi, düzeltme formununkinden ayrı).</summary>
+    [Fact]
+    public async Task Hareket_formu_acikken_cek_baska_islemle_degisince_iletiyle_kapanir()
+    {
+        var (vm, api) = await Vm(Rol.Editor, Cek(1, kalan: 30_000m));
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.SecHareketCommand.Execute(vm.HareketCipleri[0]);
+        Assert.True(vm.HareketFormuAcik);
+
+        api.Liste[0] = api.Liste[0] with { Surum = 99 };
+        await vm.YukleAsync();
+
+        Assert.False(vm.HareketFormuAcik);
+        Assert.Equal("Çek başka bir işlemle değişti; hareketi yeniden girin.", vm.Mesaj);
+    }
+
+    /// <summary>Hareket formu açıkken açık çek yenilenen listeden tamamen düşerse (ör. süzgeç artık onu göstermiyor) form
+    /// iletisiz kapanmaz (görev 14-19 incelemesi): "Çek listede artık yok; hareket kaydedilmedi." söylenir.</summary>
+    [Fact]
+    public async Task Hareket_formu_acikken_cek_listeden_duserse_iletiyle_kapanir()
+    {
+        var (vm, api) = await Vm(Rol.Editor, Cek(1, kalan: 30_000m));
+        vm.SecCommand.Execute(vm.Cekler[0]);
+        vm.SecHareketCommand.Execute(vm.HareketCipleri[0]);
+        Assert.True(vm.HareketFormuAcik);
+
+        api.Liste.Clear();
+        await vm.YukleAsync();
+
+        Assert.False(vm.HareketFormuAcik);
+        Assert.Null(vm.Acik);
+        Assert.Equal("Çek listede artık yok; hareket kaydedilmedi.", vm.Mesaj);
+    }
+
     [Fact]
     public async Task Pasif_kasali_verilen_cekte_duzelt_secenekleri_kasayi_korur_yeni_cekte_yalniz_aktifler_kalir()
     {

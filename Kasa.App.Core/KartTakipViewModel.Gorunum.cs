@@ -217,13 +217,13 @@ public partial class KartTakipViewModel
     /// formundan çıkılınca düzenlenen ekstre bırakılır (ekstre formu yalnız ekstreye tıklanarak açılır); ödeme ve harcama
     /// formundan çıkılınca benzer kayıt uyarısı ve onayı kalkar.</summary>
     /// <summary>Aynı kartta formdan forma geçişte önceki formun kirliliği taşınır (<see cref="_oncekiFormKirli"/>); değer henüz
-    /// değişmediği için iz hâlâ önceki formu ölçer.</summary>
+    /// değişmediği için iz hâlâ önceki formu ölçer. Forma Yok'a kapanması (Vazgeç dahil) bu bayrağı düşürmez: Vazgeç yalnız açık
+    /// formun kirliliğini bırakır (<see cref="Vazgec"/>); taşınan bayrak kart değişimine kadar kalır (<see cref="KartTakipViewModel.Sec(KartTakipSatiri, bool)"/>,
+    /// <see cref="KartTakipViewModel.Yeni"/>).</summary>
     partial void OnAcikFormChanging(KartFormu oldValue, KartFormu newValue)
     {
         if (oldValue != KartFormu.Yok && newValue != KartFormu.Yok)
             _oncekiFormKirli |= FormIzi.Var;
-        else
-            _oncekiFormKirli = false;
     }
 
     partial void OnAcikFormChanged(KartFormu oldValue, KartFormu newValue)

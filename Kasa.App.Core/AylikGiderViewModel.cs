@@ -38,6 +38,10 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
     /// <summary>Listedeki satırın düğmesi (AG-02): ödenmemiş satırda "Öde", ödenmiş satırda "Ödemeyi iptal et".</summary>
     public static string SatirDugmesi(AylikGiderSatiri satir) => satir.OdendiMi ? "Ödemeyi iptal et" : "Öde";
 
+    /// <summary>"Öde" tıklamasının kendisi (görev 14-19 incelemesi): aynı satıra yeniden basılınca <see cref="SeciliOdeme"/>
+    /// değişmediği için PropertyChanged tetiklenmez; sayfa formu görünür yere kaydırmak için buna bağlanır.</summary>
+    public event EventHandler? OdemeSecIstendi;
+
     private readonly TekrarAnahtari _sablonKey = new(), _odemeKey = new(), _iptalKey = new();
     private AylikGiderAyDto? _ayVerisi;
     private AylikGiderSablonDto? _duzenlenen;
@@ -223,7 +227,17 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
             VeriEski = SonGuncelleme is not null;
         }
     }
-    public void OdemeSec(AylikGiderSatiri satir) { if (Mesgul || !EditorMu || AySecimiDegisti || satir.OdendiMi) return; OdemeHatalari.Temizle(); SeciliOdeme = satir; OdemeTarihi = DateTime.Today; OdemeNotu = ""; OdemeOnay = false; }
+    public void OdemeSec(AylikGiderSatiri satir)
+    {
+        if (Mesgul || !EditorMu || AySecimiDegisti || satir.OdendiMi)
+            return;
+        OdemeHatalari.Temizle();
+        SeciliOdeme = satir;
+        OdemeTarihi = DateTime.Today;
+        OdemeNotu = "";
+        OdemeOnay = false;
+        OdemeSecIstendi?.Invoke(this, EventArgs.Empty);
+    }
     [RelayCommand]
     private Task OdeAsync() => FormIsleAsync(OdemeHatalari, async n =>
     {
