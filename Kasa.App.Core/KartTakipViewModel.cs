@@ -59,6 +59,10 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     [ObservableProperty] private EkstreSatiri? _odemeEkstresi;
     [ObservableProperty] private string _odemeNotu = "";
     [ObservableProperty] private string? _odemeOnizleme;
+    /// <summary>Gösterilen ödeme önizlemesi güncel girdiye ait: "Onayla ve kaydet" yalnız bu doğruyken görünür ve çalışır.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(OdemeKaydetCommand))]
+    private bool _odemeOnizlemeGuncel;
     [ObservableProperty] private EkstreSatiri? _duzenlenenEkstre;
     [ObservableProperty] private DateTime _ekstreSonOdeme = DateTime.Today;
     [ObservableProperty] private bool _asgariVar;
@@ -188,8 +192,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         GecisKalanBorc = Secili.Borc;
         OncedenSayilanOner(Math.Max(0, Secili.Borc));
         GecisDurumu(null, null);
-        _odemeOnizlemesi.Temizle();
-        OdemeOnizleme = null;
+        OdemeOnizlemesiniKaldir();
         OdemeEkstresi = null;
         DuzenlenenEkstre = null;
         HarcamaPaylari.Clear();
@@ -219,8 +222,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         IadeKaynaklari.Clear();
         IadeKaynagi = null;
         Odemeler.Clear();
-        OdemeOnizleme = null;
-        _odemeOnizlemesi.Temizle();
+        OdemeOnizlemesiniKaldir();
         DuzenlenenEkstre = null;
         GecisDurumu(null, null);
         DevirTemizle();
@@ -298,7 +300,7 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
     }
 
     [RelayCommand]
-    private Task KaydetAsync() => FormIsleAsync(KartHatalari, async n =>
+    private Task KaydetAsync() => KartFormIsleAsync(KartFormu.KartBilgisi, KartHatalari, async n =>
     {
         // Açılış borcu, tarihi ve dağılımı yalnız yeni kartta girilir ve okunur (bölüm yalnız YeniKart iken görünür); sunucu
         // güncellemede bu alanları yok sayar. Mevcut kartta görünmeyen bir açılış satırı kaydı reddettirmez.
@@ -312,6 +314,50 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         if (Uygula(await api.TakipKartKaydetAsync(Secili?.Id, g), n))
         { _kayit.Temizle(); FormuKapat(KartFormu.KartBilgisi); Mesaj = "Kart kaydedildi."; }
     });
+
+    /// <summary>Kart formunun kaydı (tasarım 2026-10-02 §1): tekil işlem, başlarken formun hataları kalkar, bitince hata varsa ilk
+    /// hatalı alana kaydırılır. Hata işlem sürerken form hâlâ açıksa formun içine, form kapandıysa ya da başka form açıldıysa sayfa
+    /// başına yazılır (önceki form hata kaynağı kuralı).</summary>
+    private Task KartFormIsleAsync(KartFormu kaynak, AlanHatalari form, Func<int, Task> islem) => YurutAsync(async n =>
+    {
+        HataKaynagi = kaynak;
+        form.Temizle();
+        await islem(n);
+        if (Gecerli(n))
+            form.GosterIste();
+    }, hataIsle: hata =>
+    {
+        if (AcikForm != kaynak)
+        {
+            SayfaHatasiYaz(HataMesaji(hata));
+            return;
+        }
+        FormHatasiniYaz(form, hata);
+        form.GosterIste();
+    });
+
+    /// <summary>Gösterilen ödeme önizlemesi ve "Onayla ve kaydet" kalkar: önizlemeden sonra tutar, tarih, ekstre ya da not değişti
+    /// (KR-01; önizleme yeniden istenir).</summary>
+    private void OdemeOnizlemesiniKaldir()
+    {
+        _odemeOnizlemesi.Temizle();
+        OdemeOnizleme = null;
+        OdemeOnizlemeGuncel = false;
+    }
+
+    partial void OnOdemeTutariChanged(decimal value) => OdemeOnizlemesiniKaldir();
+    partial void OnOdemeTarihiChanged(DateTime value) => OdemeOnizlemesiniKaldir();
+    partial void OnOdemeEkstresiChanged(EkstreSatiri? value) => OdemeOnizlemesiniKaldir();
+    partial void OnOdemeNotuChanged(string value) => OdemeOnizlemesiniKaldir();
+
+    /// <summary>Ödeme formunun ön doğrulaması: kontrol ve kayıt aynı kuralı uygular.</summary>
+    private bool OdemeFormuGecerli()
+    {
+        var h = OdemeHatalari;
+        h.Denetle(ParaAyristirici.GecerliMi(OdemeTutari), nameof(OdemeTutari), ParaAyristirici.GecersizMesaji);
+        h.Denetle(OdemeTutari > 0, nameof(OdemeTutari), "Tutar sıfırdan büyük olmalı.");
+        return !h.Var;
+    }
     [RelayCommand]
     private Task HarcamaKaydetAsync() => YurutAsync(KartFormu.Harcama, async n =>
     {
@@ -337,34 +383,36 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         var g = new KartTakipOdemeYaz(Guid.Empty, Secili!.Surum, DateOnly.FromDateTime(OdemeTarihi), OdemeTutari, OdemeEkstresi?.Veri.Id, OdemeNotu);
         return g with { IstekId = _odeme.Al(Secili.Id, new { Secili.Id, g }) };
     }
+    /// <summary>"Ödemeyi kontrol et" (KR-01): eksik alan önce alanın altında söylenir; alanlar tamsa kanal payları önizlenir ve
+    /// "Onayla ve kaydet" belirir (<see cref="OdemeOnizlemeGuncel"/>).</summary>
     [RelayCommand]
-    private Task OdemeOnizleAsync() => YurutAsync(KartFormu.Odeme, async n =>
+    private Task OdemeOnizleAsync() => KartFormIsleAsync(KartFormu.Odeme, OdemeHatalari, async n =>
     {
         if (!EditorMu || Secili is not { YeniTakip: true } kart)
             return;
-        _odemeOnizlemesi.Temizle();
-        OdemeOnizleme = null;
-        if (!ParaAyristirici.GecerliMi(OdemeTutari))
-        { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (OdemeTutari <= 0)
-        { Hata = "Pozitif ödeme tutarı girin."; return; }
+        OdemeOnizlemesiniKaldir();
+        if (!OdemeFormuGecerli())
+            return;
         if (!await _odemeOnizlemesi.IsteAsync(OdemeGovde, g => api.TakipOdemeOnizlemeAsync(kart.Id, g), () => Gecerli(n) && Secili?.Id == kart.Id))
             return;
         var sonuc = _odemeOnizlemesi.Onizleme!;
         OdemeOnizleme = $"Kasa çıkışı: {Bicim.Tl(sonuc.KasaEtkisi)} ₺\n{TakipMetni.Paylar(sonuc.Dagilimlar)}\n" + string.Join(" · ", sonuc.Ekstreler.Select(e => $"Ekstre #{e.EkstreId}: {Bicim.Tl(e.Tutar)} ₺"));
+        OdemeOnizlemeGuncel = true;
     });
-    [RelayCommand]
-    private Task OdemeKaydetAsync() => YurutAsync(KartFormu.Odeme, async n =>
+
+    /// <summary>"Onayla ve kaydet": yalnız güncel önizleme varken çalışır (önizleme bayatsa düğme kapalıdır; sunucu kuralı aynıdır).</summary>
+    [RelayCommand(CanExecute = nameof(OdemeOnizlemeGuncel))]
+    private Task OdemeKaydetAsync() => KartFormIsleAsync(KartFormu.Odeme, OdemeHatalari, async n =>
     {
-        if (!EditorMu || Secili is not { YeniTakip: true } kart)
+        if (!EditorMu || Secili is not { YeniTakip: true } kart || !OdemeFormuGecerli())
             return;
         var g = OdemeGovde();
         if (!_odemeOnizlemesi.Gecerli(g))
-        { Hata = "Ödeme bilgileri için önce güncel önizlemeyi alın."; return; }
+        { OdemeHatalari.Genel = "Önce “Ödemeyi kontrol et” ile güncel önizlemeyi alın."; return; }
         if (!await OdemeBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.KartOdeme, g.Tarih, g.Tutar, kart.Id), new { kart.Id, g }, () => Gecerli(n) && Secili?.Id == kart.Id))
             return;
         if (Uygula(await api.TakipOdemeKaydetAsync(kart.Id, g), n))
-        { _odeme.Temizle(kart.Id); OdemeBenzerlik.Temizle(); _odemeOnizlemesi.Temizle(); OdemeOnizleme = null; OdemeTutari = 0; OdemeNotu = ""; FormuKapat(KartFormu.Odeme); Mesaj = "Kart ödemesi kaydedildi; kasa etkisi bir kez işlendi."; }
+        { _odeme.Temizle(kart.Id); OdemeBenzerlik.Temizle(); OdemeOnizlemesiniKaldir(); OdemeTutari = 0; OdemeNotu = ""; FormuKapat(KartFormu.Odeme); Mesaj = "Kart ödemesi kaydedildi; kasa etkisi bir kez işlendi."; }
     });
     [RelayCommand] private async Task OdemeyiAyriKaydetAsync() { if (OdemeBenzerlik.Onayla()) await OdemeKaydetAsync(); }
     [RelayCommand]

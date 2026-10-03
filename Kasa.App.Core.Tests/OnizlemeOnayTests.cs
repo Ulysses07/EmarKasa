@@ -99,7 +99,7 @@ public class OnizlemeOnayTests
 
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Empty(api.OdemeIstekleri);
-        Assert.Equal("Ödeme bilgileri için önce güncel önizlemeyi alın.", vm.Hata);
+        Assert.Equal("Önce “Ödemeyi kontrol et” ile güncel önizlemeyi alın.", vm.OdemeHatalari.Genel);
     }
 
     [Fact]

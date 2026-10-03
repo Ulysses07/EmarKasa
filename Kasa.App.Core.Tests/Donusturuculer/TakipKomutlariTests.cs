@@ -111,7 +111,7 @@ public class TakipKomutlariTests
         vm.AcilisTarihi = new DateTime(2026, 9, 1);
         api.SonrakiHata = new HttpRequestException();
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.KartHatalari.Genel);
+        Assert.Contains("ulaşılamadı", vm.SayfaHatasi);   // form açık değilken kayıt hatası sayfa başında
         Assert.Equal(3, vm.Secili!.Surum);
         await vm.KaydetCommand.ExecuteAsync(null);
         var duzenleme = api.Hepsi<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));
@@ -135,7 +135,7 @@ public class TakipKomutlariTests
         vm.AcilisPaylari[0].Tutar = 50;
         api.SonrakiHata = new HttpRequestException();
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.KartHatalari.Genel);
+        Assert.Contains("ulaşılamadı", vm.SayfaHatasi);   // form açık değilken kayıt hatası sayfa başında
         Assert.Null(vm.Secili);
         await vm.KaydetCommand.ExecuteAsync(null);
         var yeni = api.Hepsi<KartTakipYaz>(nameof(IFinansTakipApi.TakipKartKaydetAsync));

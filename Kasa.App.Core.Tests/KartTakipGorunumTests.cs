@@ -320,7 +320,7 @@ public class KartTakipGorunumTests
         api.OdemeHata = true;
         await vm.OdemeKaydetCommand.ExecuteAsync(null);
         Assert.Equal(KartFormu.Odeme, vm.AcikForm);
-        Assert.NotNull(vm.FormHatasi);
+        Assert.Equal(Yurutucu.KayitBaglantiIletisi, vm.OdemeHatalari.Genel);
         Assert.Null(vm.SayfaHatasi);
     }
 

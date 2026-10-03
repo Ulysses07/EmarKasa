@@ -58,7 +58,9 @@ public partial class KartTakipViewModel
     /// <summary>Kart bilgileri formunun (yeni kart ve "Kartı düzenle") hataları (tasarım 2026-10-02 §1; KR-04). Sunucu kart hatalarını
     /// alan adı olmadan ({ hata }) döndürür: sunucu iletisi genel hataya gider.</summary>
     public AlanHatalari KartHatalari { get; } = new();
-    protected override IEnumerable<AlanHatalari> Formlar => [KartHatalari];
+    /// <summary>Kart ödemesi formunun hataları (KR-01): eksik alan önce alanın altında, sunucu iletisi genel hatada.</summary>
+    public AlanHatalari OdemeHatalari { get; } = new();
+    protected override IEnumerable<AlanHatalari> Formlar => [KartHatalari, OdemeHatalari];
 
     /// <summary>Kart bilgileri formunun başlığı: yeni kartta "Yeni kart", düzenlemede "Düzenleniyor: Bonus".</summary>
     public string KartFormuBasligi => Secili is { } kart ? $"Düzenleniyor: {kart.Ad}" : "Yeni kart";
@@ -211,6 +213,7 @@ public partial class KartTakipViewModel
     partial void OnAcikFormChanged(KartFormu oldValue, KartFormu newValue)
     {
         KartHatalari.Temizle();
+        OdemeHatalari.Temizle();
         if (newValue == KartFormu.Yok)
             FormIzi.Kapat();
         else

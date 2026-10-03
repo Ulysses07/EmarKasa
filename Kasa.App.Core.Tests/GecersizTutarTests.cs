@@ -132,7 +132,7 @@ public class GecersizTutarTests
         vm.OdemeTutari = G;
         await vm.OdemeOnizleCommand.ExecuteAsync(null);
         Assert.Null(api.OnizlenenOdeme);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.OdemeHatalari[nameof(vm.OdemeTutari)]);
 
         vm.EkstreSecCommand.Execute(vm.Ekstreler[0]);
         vm.AsgariVar = true;

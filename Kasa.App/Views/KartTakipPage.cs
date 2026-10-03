@@ -42,8 +42,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     private readonly View _formAlani;
     /// <summary>Formun tepesindeki hata satırı (FormHatasi): uzun formun altındaki düğmeden gelen hata görünür yere kaydırılır.</summary>
     private readonly Label _formHataSatiri;
-    /// <summary>Kart bilgileri formunun genel hata kutusu (KartHatalari.Genel; tasarım 2026-10-02 §1).</summary>
-    private readonly View _kartHataKutusu;
+    /// <summary>Kart bilgileri ve ödeme formlarının genel hata kutuları (KartHatalari.Genel, OdemeHatalari.Genel; tasarım 2026-10-02 §1).</summary>
+    private readonly View _kartHataKutusu, _odemeHataKutusu;
 
     /// <summary>Kart bildirimine tıklanınca //kartlar?KartId={id}: sayfa zaten açıkken istek hemen, değilse sayfa belirirken uygulanır
     /// (SorguSecimi).</summary>
@@ -81,6 +81,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     {
         _formHataSatiri = BagliHata(nameof(vm.FormHatasi));
         _kartHataKutusu = FormHatasi(nameof(vm.KartHatalari) + ".Genel");
+        _odemeHataKutusu = FormHatasi(nameof(vm.OdemeHatalari) + ".Genel");
         _formAlani = FormAlani(vm);
         _ayrinti = new Border
         {
@@ -141,6 +142,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         };
         // Kaydetme başarısız olunca ilk hatalı alana (yoksa formun genel hata kutusuna) kaydırılır ve odaklanılır (tasarım §1).
         vm.KartHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_formAlani, vm.KartHatalari, _kartHataKutusu);
+        vm.OdemeHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_formAlani, vm.OdemeHatalari, _odemeHataKutusu);
     }
 
     /// <summary>Ayrıntı: üstü görünür alandaysa kaydırılmaz (kutular görünür kalır), değilse üstü görünür alanın başına gelir.</summary>
@@ -216,7 +218,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] },
                 Goster(_formHataSatiri, nameof(vm.FormHatasi), true),
                 Durumda(KartBilgileri(vm), nameof(vm.AcikForm), KartFormu.KartBilgisi),
-                Durumda(Odeme(vm), nameof(vm.AcikForm), KartFormu.Odeme),
+                Durumda(Odeme(vm, _odemeHataKutusu), nameof(vm.AcikForm), KartFormu.Odeme),
                 Durumda(Harcama(vm), nameof(vm.AcikForm), KartFormu.Harcama),
                 Durumda(Masraf(vm), nameof(vm.AcikForm), KartFormu.Masraf),
                 Durumda(Ekstre(vm), nameof(vm.AcikForm), KartFormu.Ekstre),
@@ -283,17 +285,25 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             Bagli(nameof(vm.DevirOzeti)), Goster(devirFormu, nameof(vm.DevirDuzeltilebilir)));
     }
 
-    private static View Odeme(KartTakipViewModel vm) => Form("Kart ödemesi kaydet",
-        Alan("Tarih", Tarih(nameof(vm.OdemeTarihi))), Alan("Tutar", Girdi(nameof(vm.OdemeTutari), true)),
-        Alan("Ekstre (boş: en eski açık ekstreler)", Secim(nameof(vm.Ekstreler), nameof(vm.OdemeEkstresi))),
-        Tikla("En eski açık ekstrelere dağıt", () =>
-        {
-            vm.OdemeEkstresi = null;
-            return Task.CompletedTask;
-        }),
-        Alan("Ödeme notu / dekont referansı", Girdi(nameof(vm.OdemeNotu))),
-        Dugme("Ödeme ve kanal paylarını göster", nameof(vm.OdemeOnizleCommand)), Bagli(nameof(vm.OdemeOnizleme)),
-        Dugme("Ödemeyi kaydet", nameof(vm.OdemeKaydetCommand)), Benzerlik(nameof(vm.OdemeBenzerlik), nameof(vm.OdemeyiAyriKaydetCommand)));
+    /// <summary>Kart ödemesi (KR-01): tek "Ödemeyi kontrol et" düğmesi önce eksik alanı söyler, alanlar tamsa kanal paylarını gösterir
+    /// ve "Onayla ve kaydet" belirir; önizlemeden sonra tutar, tarih, ekstre ya da not değişirse "Onayla ve kaydet" kalkar.</summary>
+    private static View Odeme(KartTakipViewModel vm, View hataKutusu)
+    {
+        const string h = nameof(vm.OdemeHatalari);
+        return Form("Kart ödemesi kaydet", hataKutusu,
+            Alan("Tarih", Tarih(nameof(vm.OdemeTarihi)), h, nameof(vm.OdemeTarihi)),
+            Alan("Tutar", Girdi(nameof(vm.OdemeTutari), true), h, nameof(vm.OdemeTutari)),
+            Alan("Ekstre (boş: en eski açık ekstreler)", Secim(nameof(vm.Ekstreler), nameof(vm.OdemeEkstresi))),
+            Tikla("En eski açık ekstrelere dağıt", () =>
+            {
+                vm.OdemeEkstresi = null;
+                return Task.CompletedTask;
+            }),
+            Alan("Ödeme notu / dekont referansı", Girdi(nameof(vm.OdemeNotu)), h, nameof(vm.OdemeNotu)),
+            Dugme("Ödemeyi kontrol et", nameof(vm.OdemeOnizleCommand)), Bagli(nameof(vm.OdemeOnizleme)),
+            Goster(Dugme("Onayla ve kaydet", nameof(vm.OdemeKaydetCommand)), nameof(vm.OdemeOnizlemeGuncel)),
+            Benzerlik(nameof(vm.OdemeBenzerlik), nameof(vm.OdemeyiAyriKaydetCommand)));
+    }
 
     private static View Harcama(KartTakipViewModel vm) => Form("Bağımsız kart hareketi",
         Metin(HarcamaNotu),
