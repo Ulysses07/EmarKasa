@@ -74,7 +74,9 @@
                                             SemanticProperties.Description="İlk kesim tarihini belirt (isteğe bağlı)" />
                                     <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
-                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}"><DatePicker Date="{Binding DuzenIlkKesimTarihi}" SemanticProperties.Description="İlk kesim tarihi" /></Border>
+                                <Border Style="{StaticResource FieldBorder}" IsVisible="{Binding DuzenIlkKesimVar}">
+                                    <DatePicker Date="{Binding DuzenIlkKesimTarihi}" SemanticProperties.Description="İlk kesim tarihi" />
+                                </Border>
                                 <Label Text="Bankada taksitle çekildiyse her ekstreye yalnız taksit tutarı yazılır." Style="{StaticResource LblPageSub}" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="0">
