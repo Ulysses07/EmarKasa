@@ -37,6 +37,27 @@ internal static class TakipUi
         Children = { new Label { Text = ad, Style = (Style)Application.Current!.Resources["LblTakipKucuk"] }, v },
     };
 
+    /// <summary>Hatası gösterilen alan (docs/specs/2026-10-02-masaustu-form-hatalari-ve-baglanti.md §1; Controls.FormAlani): başlık,
+    /// girdi ve hata varken altında ileti; çerçeve yalnız hata varken (kırmızı) görünür. <paramref name="hatalar"/> modelin
+    /// AlanHatalari özelliğinin yolu ("Hatalar"), <paramref name="alan"/> alanın adı ("Tutar"): hata "Hatalar[Tutar]" yolundan gelir.</summary>
+    public static Controls.FormAlani Alan(string ad, View v, string hatalar, string alan)
+    {
+        var f = new Controls.FormAlani { Baslik = ad, Icerik = v, Alan = alan, Cerceveli = false, TakipStili = true };
+        f.SetBinding(Controls.FormAlani.HataProperty, $"{hatalar}[{alan}]");
+        return f;
+    }
+
+    /// <summary>Formun genel hatası (tasarım §1): formun en üstünde, formun içinde kırmızı kutu (ErrorBox); yalnız doluyken görünür.
+    /// Sayfanın başındaki hata satırı yalnız yükleme hataları için kalır.</summary>
+    public static Border FormHatasi(string yol)
+    {
+        var metin = new Label { Style = (Style)Application.Current!.Resources["LblError"] };
+        metin.SetBinding(Label.TextProperty, yol);
+        var kutu = new Border { Style = (Style)Application.Current!.Resources["ErrorBox"], Content = metin };
+        kutu.SetBinding(VisualElement.IsVisibleProperty, new Binding(nameof(Label.Text), source: metin, converter: new Converters.DoluIseConverter()));
+        return kutu;
+    }
+
     public static Entry Girdi(string yol, bool para = false, bool sayi = false)
     {
         if (para)
