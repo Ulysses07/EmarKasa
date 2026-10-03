@@ -59,8 +59,8 @@
                             </VerticalStackLayout>
                             <VerticalStackLayout Spacing="6" IsVisible="{Binding TaksitGirilebilir}">
                                 <ctl:FormAlani Baslik="Taksit sayısı" Alan="DuzenTaksitSayisi" Hata="{Binding Hatalar[DuzenTaksitSayisi]}"
-                                               WidthRequest="120" HorizontalOptions="Start">
-                                    <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" />
+                                               HorizontalOptions="Start">
+                                    <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" WidthRequest="120" />
                                 </ctl:FormAlani>
                                 <HorizontalStackLayout Spacing="10">
                                     <Switch IsToggled="{Binding DuzenIlkKesimVar}" />
@@ -168,11 +168,10 @@
                             <DataTemplate x:DataType="api:IslemDto">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
-                                    <Grid Padding="18,6" MinimumHeightRequest="58"
-                                          ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
-                                        <!-- Düzenlenen satır vurgulanır (İŞ-03). -->
-                                        <Grid.Triggers>
-                                            <DataTrigger TargetType="Grid" Value="True">
+                                    <!-- Düzenlenen satır vurgulanır (İŞ-03): GreenSoft zemine ek olarak çerçeve. -->
+                                    <Border Padding="0" StrokeThickness="0" StrokeShape="Rectangle">
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border" Value="True">
                                                 <DataTrigger.Binding>
                                                     <MultiBinding Converter="{StaticResource EsitIse}">
                                                         <Binding Path="Id" />
@@ -180,34 +179,39 @@
                                                     </MultiBinding>
                                                 </DataTrigger.Binding>
                                                 <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
+                                                <Setter Property="StrokeThickness" Value="1" />
+                                                <Setter Property="Stroke" Value="{StaticResource BrushGreen}" />
                                             </DataTrigger>
-                                        </Grid.Triggers>
-                                        <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
-                                            <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
-                                                   Style="{StaticResource LblDateChip}" />
-                                        </Border>
-                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                                            <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" />
-                                            <Label Text="{Binding Kanal}" Style="{StaticResource LblRowSecondary}" />
-                                        </VerticalStackLayout>
-                                        <Label Grid.Column="2"
-                                               Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}"
-                                               Style="{StaticResource LblMoney}"
-                                               TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}}"
-                                               VerticalOptions="Center" />
-                                        <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center"
-                                                               IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
-                                            <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
-                                                    Command="{Binding BindingContext.DuzenlemeyeGecCommand, Source={x:Reference Sayfa}}"
-                                                    CommandParameter="{Binding .}" />
-                                            <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
-                                                    Clicked="SilTiklandi"
-                                                    CommandParameter="{Binding .}" />
-                                            <Button Text="Kaynak PDF" Style="{StaticResource BtnRowEdit}"
-                                                    BindingContextChanged="KaynakBaglamiDegisti" Clicked="KaynakTiklandi"
-                                                    CommandParameter="{Binding .}" IsVisible="False" />
-                                        </HorizontalStackLayout>
-                                    </Grid>
+                                        </Border.Triggers>
+                                        <Grid Padding="18,6" MinimumHeightRequest="58"
+                                              ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                            <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
+                                                <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
+                                                       Style="{StaticResource LblDateChip}" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                                <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" />
+                                                <Label Text="{Binding Kanal}" Style="{StaticResource LblRowSecondary}" />
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="2"
+                                                   Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}"
+                                                   Style="{StaticResource LblMoney}"
+                                                   TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}}"
+                                                   VerticalOptions="Center" />
+                                            <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center"
+                                                                   IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
+                                                <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
+                                                        Command="{Binding BindingContext.DuzenlemeyeGecCommand, Source={x:Reference Sayfa}}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                        Clicked="SilTiklandi"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Text="Kaynak PDF" Style="{StaticResource BtnRowEdit}"
+                                                        BindingContextChanged="KaynakBaglamiDegisti" Clicked="KaynakTiklandi"
+                                                        CommandParameter="{Binding .}" IsVisible="False" />
+                                            </HorizontalStackLayout>
+                                        </Grid>
+                                    </Border>
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>

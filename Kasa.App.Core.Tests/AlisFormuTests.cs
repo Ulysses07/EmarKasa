@@ -55,7 +55,7 @@ public class AlisFormuTests
     {
         var (vm, _) = await Kur();
         await vm.SecCommand.ExecuteAsync(vm.Alislar.Single(a => a.Veri.Id == 7));
-        Assert.Equal(("Düzenleniyor: 21.09.2026 · Ege Gıda", "Değişiklikleri kaydet"), (vm.FormBasligi, vm.KaydetMetni));
+        Assert.Equal(("Düzenleniyor: 21.09.2026 · Ege Gıda", "Değişikliği kaydet"), (vm.FormBasligi, vm.KaydetMetni));
         vm.Tedarikci = "";
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.True(vm.Hatalar.Var);
@@ -94,6 +94,20 @@ public class AlisFormuTests
         Assert.True(vm.KaydedilmemisDegisiklikVar);
         vm.DegisiklikleriBirak();
         Assert.Equal(100m, vm.Kalemler[0].Tutar);
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+    }
+
+    /// <summary>Not alanına yazıp silmek formu kirli bırakmaz (boş metin null'dan farklı sayılmaz): aksi halde "Kaydedilmemiş
+    /// değişiklikler var" etiketi ekranda kalır ve ödeme düğmesi kapalı kalır.</summary>
+    [Fact]
+    public async Task Not_alanina_yazip_silmek_formu_kirletmez()
+    {
+        var (vm, _) = await Kur();
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+
+        vm.AlisNotu = "x";
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+        vm.AlisNotu = "";
         Assert.False(vm.KaydedilmemisDegisiklikVar);
     }
 

@@ -137,7 +137,7 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     // değişimi yalnız listeyi yeniler, kaynakları eskitmez; oturum değişimi eskitir.
     private readonly SonIstekHatti _kaynakHatti;
     [ObservableProperty] private bool _listeYukleniyor;
-    /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="TemelViewModel.Hata"/>'da kalır.</summary>
+    /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="Hatalar"/>'da kalır.</summary>
     [ObservableProperty] private string? _yuklemeHatasi;
     /// <summary>Gösterilen liste güncel süzgecin başarılı yanıtıdır; yüklenirken ve hatada false (boş liste başlığı gizlenir).</summary>
     [ObservableProperty] private bool _veriVar;
@@ -506,10 +506,12 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
             k.Secili = k.Id == DuzenKrediKartiId;
     }
 
-    /// <summary>"Yeni": yazılmış değişiklik varsa önce onay sorulur (tasarım §2).</summary>
+    /// <summary>"Yeni": sürerken başka kayıt açılmasın, yazılmış değişiklik varsa önce onay sorulur (tasarım §2).</summary>
     [RelayCommand]
     private async Task YeniAsync()
     {
+        if (Mesgul)
+            return;
         if (await BirakilabilirAsync(_form))
             FormuSifirla();
     }
@@ -518,13 +520,32 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     [RelayCommand]
     private void Vazgec() => FormuSifirla();
 
-    /// <summary>Listedeki "Düzenle": yazılmış değişiklik varsa önce onay sorulur; sonra kayıt forma açılır.</summary>
+    /// <summary>Listedeki "Düzenle": sürerken başka kayıt açılmasın. Bağlı kayıt (ekstre, aylık gider, alış) onaydan önce
+    /// denetlenir: gereksiz onay sorulmadan genel hataya yazılıp gösterilir. Sonra yazılmış değişiklik varsa onay sorulur.</summary>
     [RelayCommand]
     private async Task DuzenlemeyeGecAsync(IslemDto i)
     {
+        if (Mesgul)
+            return;
+        if (BagliKayitNedeni(i) is { } neden)
+        {
+            Hatalar.Temizle();
+            Hatalar.Genel = neden;
+            Hatalar.GosterIste();
+            return;
+        }
         if (await BirakilabilirAsync(_form))
             Duzenle(i);
     }
+
+    /// <summary>Başka bölüme bağlı kaydın açılmama nedeni (ekstre, aylık gider ya da alış); bağlı değilse null.</summary>
+    private static string? BagliKayitNedeni(IslemDto i) => i switch
+    {
+        { EkstreKayitId: not null } => "Bu kayıt PDF ekstresinden aktarıldı. Ekstre İçe Aktar bölümünden iptal edip doğru bilgilerle yeniden kaydedin.",
+        { AylikGiderOdemeId: not null } => "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin.",
+        { AlisId: not null } => "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin.",
+        _ => null,
+    };
 
     /// <summary>Formu boş yeni kayda döndürür; formun hataları kalkar.</summary>
     private void FormuSifirla()
@@ -555,12 +576,8 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     public void Duzenle(IslemDto i)
     {
         Hatalar.Temizle();
-        if (i.EkstreKayitId is not null)
-        { Hatalar.Genel = "Bu kayıt PDF ekstresinden aktarıldı. Ekstre İçe Aktar bölümünden iptal edip doğru bilgilerle yeniden kaydedin."; return; }
-        if (i.AylikGiderOdemeId is not null)
-        { Hatalar.Genel = "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin."; return; }
-        if (i.AlisId is not null)
-        { Hatalar.Genel = "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin."; return; }
+        if (BagliKayitNedeni(i) is { } neden)
+        { Hatalar.Genel = neden; Hatalar.GosterIste(); return; }
         GiderBenzerlik.Temizle();
         _giderAnahtari.Temizle();
         _duzenlenen = i;

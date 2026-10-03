@@ -38,10 +38,11 @@
                     <Label Text="ALIŞ KAYITLARI" Style="{StaticResource LblSection}" />
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Alislar}" SelectionMode="None">
                         <CollectionView.ItemTemplate><DataTemplate x:DataType="core:AlisSatiri">
-                            <VerticalStackLayout Spacing="6" Padding="0,12">
-                                <!-- Açık (düzenlenen) kayıt listede vurgulanır (tasarım 2026-10-02 §2). -->
-                                <VerticalStackLayout.Triggers>
-                                    <DataTrigger TargetType="VerticalStackLayout" Value="True">
+                            <!-- Açık (düzenlenen) kayıt listede vurgulanır (tasarım 2026-10-02 §2): GreenSoft zemine ek
+                                 olarak çerçeve; yatay iç boşluk satırı kenardan ayırır. -->
+                            <Border Padding="12,12" StrokeThickness="0" StrokeShape="Rectangle">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Value="True">
                                         <DataTrigger.Binding>
                                             <MultiBinding Converter="{StaticResource EsitIse}">
                                                 <Binding Path="Veri.Id" />
@@ -49,15 +50,19 @@
                                             </MultiBinding>
                                         </DataTrigger.Binding>
                                         <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
+                                        <Setter Property="StrokeThickness" Value="1" />
+                                        <Setter Property="Stroke" Value="{StaticResource BrushGreen}" />
                                     </DataTrigger>
-                                </VerticalStackLayout.Triggers>
-                                <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
-                                <Label Text="{Binding Alt}" Style="{StaticResource LblRowSecondary}" />
-                                <Label Text="{Binding Tutar}" FontSize="12" FontAttributes="Bold" />
-                                <Button Text="Kaydı aç" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start"
-                                        Command="{Binding BindingContext.SecCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
-                                <BoxView Style="{StaticResource RowSeparator}" Margin="0,6,0,0" />
-                            </VerticalStackLayout>
+                                </Border.Triggers>
+                                <VerticalStackLayout Spacing="6">
+                                    <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
+                                    <Label Text="{Binding Alt}" Style="{StaticResource LblRowSecondary}" />
+                                    <Label Text="{Binding Tutar}" FontSize="12" FontAttributes="Bold" />
+                                    <Button Text="Kaydı aç" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start"
+                                            Command="{Binding BindingContext.SecCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                    <BoxView Style="{StaticResource RowSeparator}" Margin="0,6,0,0" />
+                                </VerticalStackLayout>
+                            </Border>
                         </DataTemplate></CollectionView.ItemTemplate>
                         <CollectionView.EmptyView><Label Text="Henüz alış yok. Sağdaki formdan ilk kaydı oluşturun." Style="{StaticResource LblPageSub}" Margin="0,20" /></CollectionView.EmptyView>
                     </CollectionView>

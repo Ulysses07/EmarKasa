@@ -127,7 +127,7 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
     public string Baslik => _secili is null ? "Yeni alış" : $"Alış #{_secili.Id}";
     /// <summary>Formun başlığı (tasarım §2): yeni kayıtta "Yeni alış", düzenlenebilir kayıtta "Düzenleniyor: 02.08.2026 · Ege Gıda".</summary>
     public string FormBasligi => _secili is null ? "Yeni alış" : $"Düzenleniyor: {_secili.Tarih:dd.MM.yyyy} · {_secili.Tedarikci}";
-    public string KaydetMetni => _secili is null ? "Kaydet" : "Değişiklikleri kaydet";
+    public string KaydetMetni => _secili is null ? "Kaydet" : "Değişikliği kaydet";
     public string Durum => AlisSatiri.DurumAdi(_secili?.Durum ?? AlisDurumlari.Taslak);
     public string KaydiAcan => _secili?.Alici ?? (EditorMu ? "Editör" : "Sizin alışınız");
     public string? EditorNotu => _secili?.EditorNotu;

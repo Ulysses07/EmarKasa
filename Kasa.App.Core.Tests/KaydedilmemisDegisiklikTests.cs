@@ -54,6 +54,26 @@ public partial class KaydedilmemisDegisiklikTests
         Assert.Equal("Kaydedilmemiş değişiklik var. Bırakılsın mı?", KaydedilmemisDegisiklik.Ileti);
     }
 
+    /// <summary>Alana yazılıp silinen metin ("") formu kirli bırakmaz: açılıştaki değer <c>null</c> ya da boşsa "" ve
+    /// yalnız boşluktan oluşan metin de aynı sayılır (JSON'da ikisi de null yazılır).</summary>
+    [Fact]
+    public void Bos_metin_null_ile_ayni_sayilir()
+    {
+        string? not = null;
+        var degisiklik = new KaydedilmemisDegisiklik(() => new { Not = not });
+        degisiklik.Ac();
+
+        not = "";
+        Assert.False(degisiklik.Var);
+        not = "   ";
+        Assert.False(degisiklik.Var);
+
+        not = "x";
+        Assert.True(degisiklik.Var);
+        not = "";
+        Assert.False(degisiklik.Var);   // yazılıp silinen metin formu kirli bırakmaz
+    }
+
     /// <summary>K-7: ondalık kuyruk sıfırları (farklı ölçek, aynı değer) fark sayılmaz; 150.00m ile 150m aynıdır. Karşılaştırma
     /// doğrudan değişken üzerinden yapılır (CommunityToolkit'in [ObservableProperty] eşitlik koruması bu senaryoyu gizler: aynı
     /// değerde atama alanı değiştirmez; gerçek form alanları DTO'dan veya metin girişinden doğrudan farklı ölçekle gelebilir).</summary>

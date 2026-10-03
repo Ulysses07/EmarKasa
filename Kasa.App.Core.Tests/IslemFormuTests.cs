@@ -143,6 +143,20 @@ public class IslemFormuTests
         Assert.True(vm.KaydedilmemisDegisiklikVar);
     }
 
+    /// <summary>Not alanına yazıp silmek formu kirli bırakmaz (boş metin null'dan farklı sayılmaz): aksi halde "Yeni",
+    /// "Düzenle" ve menüden çıkış gereksiz onay sorar.</summary>
+    [Fact]
+    public void Not_alanina_yazip_silmek_formu_kirletmez()
+    {
+        var vm = Vm();
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+
+        vm.DuzenNot = "x";
+        Assert.True(vm.KaydedilmemisDegisiklikVar);
+        vm.DuzenNot = "";
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+    }
+
     [Fact]
     public async Task Tip_secenekleri_sabit_kanal_secenekleri_son_basarili_yuklemeden_gelir()
     {

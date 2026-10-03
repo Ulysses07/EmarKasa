@@ -53,7 +53,8 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
     }
     private async void DegisiklikleriBirakTiklandi(object? sender, EventArgs e)
     {
-        if (await DisplayAlertAsync("Değişiklikleri bırak", "Kaydedilmemiş alış değişiklikleri silinecek. Devam edilsin mi?", "Bırak", "Vazgeç"))
+        if (await DisplayAlertAsync("Değişiklikleri bırak", "Kaydedilmemiş alış değişiklikleri silinecek. Devam edilsin mi?",
+            KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon))
             _vm.DegisiklikleriBirakCommand.Execute(null);
     }
     private async void OdemeIptalTiklandi(object? sender, EventArgs e)

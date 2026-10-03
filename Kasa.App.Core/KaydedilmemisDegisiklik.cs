@@ -27,7 +27,22 @@ public sealed class KaydedilmemisDegisiklik(Func<object?> durum)
             => writer.WriteNumberValue(value / 1.000000000000000000000000000m);
     }
 
-    private static readonly JsonSerializerOptions Secenekler = new() { Converters = { new OndalikOlcekBagimsizConverter() } };
+    /// <summary>Boş ya da yalnız boşluktan oluşan metni <c>null</c> gibi yazar: alana yazılıp silinen metin ("") formu kirli
+    /// bırakmaz, çünkü açılıştaki değer de genelde <c>null</c>'dur ve ikisi aynı JSON metnini üretir.</summary>
+    private sealed class BosMetinNullConverter : JsonConverter<string?>
+    {
+        public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => reader.TokenType == JsonTokenType.Null ? null : reader.GetString();
+        public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                writer.WriteNullValue();
+            else
+                writer.WriteStringValue(value);
+        }
+    }
+
+    private static readonly JsonSerializerOptions Secenekler = new() { Converters = { new OndalikOlcekBagimsizConverter(), new BosMetinNullConverter() } };
 
     private string? _acilis;
 
