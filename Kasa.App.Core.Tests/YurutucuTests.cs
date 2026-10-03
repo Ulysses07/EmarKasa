@@ -15,6 +15,7 @@ public class YurutucuTests
         public string? Hata { get; set; }
         public string? Mesaj { get; set; }
         public void IletiyiTemizle() => Mesaj = null;
+        public bool BaglantiKopuk => false;
     }
 
     // ---- Tekil işlem (yazma, ekran yüklemesi) ----
