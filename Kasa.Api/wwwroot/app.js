@@ -1079,8 +1079,7 @@ async function expenseDialog(expense = null) {
           () => navigate(state.view)
         );
       } catch (error) {
-        if (!expense && error?.status === 409 && error.code === 'ISTEK_KIMLIGI_CAKISMASI' && form.isConnected)
-          recovery.hidden = false;
+        if (!expense && error?.status === 409 && error.code === 'ISTEK_KIMLIGI_CAKISMASI' && form.isConnected) recovery.hidden = false;
         throw error;
       }
       if (!expense) identity.clear();

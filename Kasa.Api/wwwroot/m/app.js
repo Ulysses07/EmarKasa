@@ -1731,14 +1731,26 @@ async function hizliIslemAc() {
       'div',
       { class: 'benzer', hidden: true },
       h('b', {}, 'Önceki gider isteğinin durumu belirsiz'),
-      h('span', {}, 'Önce İşlemler listesinden önceki giderin oluşup oluşmadığını kontrol edin. Kayıt varsa yeni gider açmak aynı ödemeyi ikinci kez yazabilir.'),
-      h('button', { type: 'button', class: 'dugme', onclick: () => {
-        giderIstekTemizle(bekleyenGiderIstekId);
-        benzerOnay = null;
-        kurtarma.hidden = true;
-        hata.hidden = true;
-        tost('Yeni gider için Kaydet’e yeniden dokunun.');
-      } }, 'Kontrol ettim, yeni gider başlat')
+      h(
+        'span',
+        {},
+        'Önce İşlemler listesinden önceki giderin oluşup oluşmadığını kontrol edin. Kayıt varsa yeni gider açmak aynı ödemeyi ikinci kez yazabilir.'
+      ),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'dugme',
+          onclick: () => {
+            giderIstekTemizle(bekleyenGiderIstekId);
+            benzerOnay = null;
+            kurtarma.hidden = true;
+            hata.hidden = true;
+            tost('Yeni gider için Kaydet’e yeniden dokunun.');
+          },
+        },
+        'Kontrol ettim, yeni gider başlat'
+      )
     );
     const onizleme = h('div', { class: 'hz-not' }, 'Giden tutar · kuruş virgülle');
     const tutar = h('input', {

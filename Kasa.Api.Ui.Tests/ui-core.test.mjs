@@ -733,7 +733,11 @@ test('editing a pending expense after an uncertain response keeps the key so the
   responses['/api/islemler'] = { id: 22 };
   await clickDialog(nodes, 'Kontrol ettim, yeni gider başlat');
   assert.equal(saved.size, 0);
-  assert.equal(calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length, 2, 'Yeni form kendi başına kayıt yapmaz.');
+  assert.equal(
+    calls.filter(call => call.path === '/api/islemler' && call.method === 'POST').length,
+    2,
+    'Yeni form kendi başına kayıt yapmaz.'
+  );
   for (const [name, value] of Object.entries({ cari: 'Yeni gider', tutarTl: '80', kanal: 'A', tarih: '2026-09-23' }))
     formField(nodes, name).value = value;
   await submitDialog(nodes);
