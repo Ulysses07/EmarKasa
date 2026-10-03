@@ -52,6 +52,8 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     /// <summary>Gider formunun açıldığı andaki değerleri (yeni ya da düzenlenen kayıt): kaydedilmemiş değişiklik ölçütü.</summary>
     private readonly KaydedilmemisDegisiklik _form;
     public bool KaydedilmemisDegisiklikVar => _form.Var;
+    /// <summary>Yenileme formu korumaz (Ö-4): kabuk kirli formda sorar, otomatik yenilemez.</summary>
+    public bool YenilemeFormuKorur => false;
 
     /// <summary>Yazılmış değişiklikleri bırakır: düzenlenen kayıt açıldığı değerlerine, yeni form boşa döner.</summary>
     public void DegisiklikleriBirak()

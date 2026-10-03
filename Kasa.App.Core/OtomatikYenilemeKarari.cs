@@ -19,13 +19,15 @@ public sealed class OtomatikYenilemeKarari(TimeProvider zaman, TimeSpan aralik)
     /// <summary>Şimdi tetiklensin mi (true döner, <paramref name="beklemeSuresi"/> Zero'dur); değilse (false) ya kaydedilmemiş
     /// değişiklik var (otomatik yenileme hiç tetiklenmez, form kullanıcı isteği olmadan ezilmez; <paramref name="beklemeSuresi"/>
     /// Zero, bekleyen istek varsa düşürülür), ya son otomatik yenileme kopuşla bitti (<see cref="YenilemeBitti"/>; bu geçiş
-    /// yenilenmez, <paramref name="beklemeSuresi"/> Zero) ya da sınır içindedir (<paramref name="beklemeSuresi"/> sonra çağıran yeniden
+    /// yenilenmez, <paramref name="beklemeSuresi"/> Zero) ya da sınır içindedir. <paramref name="yenilemeFormuKorur"/> sayfanın
+    /// yenilemesi açık formu koruyorsa (Ö-4; <see cref="IKaydedilmemisForm.YenilemeFormuKorur"/>) kaydedilmemiş değişiklik
+    /// yenilemeyi durdurmaz (<paramref name="beklemeSuresi"/> sonra çağıran yeniden
     /// <see cref="Sor"/> çağırmalı; sınır içinde art arda gelen istekler için yalnız bir bekleme zamanlanır, istek düşürülmez).
     /// </summary>
-    public bool Sor(bool kaydedilmemisDegisiklikVar, out TimeSpan beklemeSuresi)
+    public bool Sor(bool kaydedilmemisDegisiklikVar, out TimeSpan beklemeSuresi, bool yenilemeFormuKorur = false)
     {
         beklemeSuresi = TimeSpan.Zero;
-        if (kaydedilmemisDegisiklikVar)
+        if (kaydedilmemisDegisiklikVar && !yenilemeFormuKorur)
         {
             _bekliyor = false;
             return false;

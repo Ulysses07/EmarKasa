@@ -83,4 +83,16 @@ public class OtomatikYenilemeKarariTests
         saat.Ilerlet(TimeSpan.FromSeconds(20));
         Assert.True(karar.Sor(false, out _));
     }
+
+    /// <summary>Ö-4: yenilemenin formu koruduğu sayfalarda (Kartlar, Krediler, Çekler, Aylık giderler) otomatik yenileme kirli formda
+    /// da yapılır; korumayan sayfalarda (İşlemler, Alışlar) bugünkü gibi yapılmaz.</summary>
+    [Fact]
+    public void Formu_koruyan_sayfada_kirli_formda_da_tetiklenir()
+    {
+        var saat = new AyarlanabilirZaman(new DateTimeOffset(2026, 10, 3, 10, 0, 0, TimeSpan.Zero));
+        var karar = new OtomatikYenilemeKarari(saat, TimeSpan.FromSeconds(3));
+
+        Assert.False(karar.Sor(true, out _, yenilemeFormuKorur: false));
+        Assert.True(karar.Sor(true, out _, yenilemeFormuKorur: true));
+    }
 }

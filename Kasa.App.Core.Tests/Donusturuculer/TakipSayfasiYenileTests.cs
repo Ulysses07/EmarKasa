@@ -12,6 +12,7 @@ public class TakipSayfasiYenileTests
     private sealed class DirtyVm(AuthViewModel auth) : OturumluViewModel(auth), IKaydedilmemisForm
     {
         public bool KaydedilmemisDegisiklikVar { get; set; }
+        public bool YenilemeFormuKorur => true;
         public void DegisiklikleriBirak() => KaydedilmemisDegisiklikVar = false;
         protected override void OturumTemizle() { }
     }

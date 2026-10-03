@@ -17,16 +17,17 @@ public partial class MauiKayitTutarliligiTests
         Assert.Matches(@"private async Task AcikSayfayiYenileAsync\(\)\s*\{\s*if \(_yenileniyor \|\| CurrentPage is not IYenilenebilir sayfa\)\s*return;", kod);
     }
 
-    /// <summary>Ö-1: otomatik yenileme (bağlantı geldiğinde) kaydedilmemiş formu ezmez; K-1: alt sınır OtomatikYenilemeKarari'nda
+    /// <summary>Ö-1: otomatik yenileme (bağlantı geldiğinde) kaydedilmemiş formu ezmez (Ö-4: yenilemesi formu koruyan sayfada kirli
+    /// formda da yenilenir, "Yeniden dene" orada sormaz); K-1: alt sınır OtomatikYenilemeKarari'nda
     /// (TimeProvider, sondaki kenarda tek tetik) test edilir, burada yalnız kabuğun onu doğru sürdüğü denetlenir.</summary>
     [Fact]
     public void Otomatik_yenileme_kaydedilmemis_formu_ezmez_elle_yenileme_birakma_onayi_sorar()
     {
         var kod = Oku("AppShell.xaml.cs");
         Assert.Contains("new OtomatikYenilemeKarari(TimeProvider.System, TimeSpan.FromSeconds(3))", kod);
-        Assert.Matches(@"private async Task OtomatikYenileAsync\(\)\s*\{[\s\S]*?var kirli = CurrentPage\?\.BindingContext is IKaydedilmemisForm \{ KaydedilmemisDegisiklikVar: true \};[\s\S]*?if \(_otomatikYenileme\.Sor\(kirli, out var bekle\)\)[\s\S]*?await AcikSayfayiYenileAsync\(\);[\s\S]*?else if \(bekle > TimeSpan\.Zero\)[\s\S]*?Dispatcher\.DispatchDelayed\(bekle, \(\) => _ = OtomatikYenileAsync\(\)\);", kod);
-        Assert.Matches(@"if \(_otomatikYenileme\.Sor\(kirli, out var bekle\)\)\s*\{\s*//.*\s*var kopma = _baglanti\.KopmaSayisi;\s*await AcikSayfayiYenileAsync\(\);\s*_otomatikYenileme\.YenilemeBitti\(kopusla: _baglanti\.KopmaSayisi != kopma\);", kod);
-        Assert.Matches(@"private async Task ElleYenileAsync\(\)\s*\{\s*//.*\s*if \(CurrentPage is not IYenilenebilir\)\s*\{\s*await _baglanti\.HemenYoklaAsync\(\);\s*return;\s*\}\s*if \(CurrentPage\?\.BindingContext is IKaydedilmemisForm \{ KaydedilmemisDegisiklikVar: true \} form\)\s*\{\s*if \(!await DisplayAlertAsync\(KaydedilmemisDegisiklik\.Baslik, KaydedilmemisDegisiklik\.Ileti, KaydedilmemisDegisiklik\.Birak, KaydedilmemisDegisiklik\.FormaDon\)\)\s*return;\s*form\.DegisiklikleriBirak\(\);", kod);
+        Assert.Matches(@"private async Task OtomatikYenileAsync\(\)\s*\{\s*var form = CurrentPage\?\.BindingContext as IKaydedilmemisForm;\s*if \(_otomatikYenileme\.Sor\(form\?\.KaydedilmemisDegisiklikVar == true, out var bekle, yenilemeFormuKorur: form\?\.YenilemeFormuKorur == true\)\)[\s\S]*?await AcikSayfayiYenileAsync\(\);[\s\S]*?else if \(bekle > TimeSpan\.Zero\)[\s\S]*?Dispatcher\.DispatchDelayed\(bekle, \(\) => _ = OtomatikYenileAsync\(\)\);", kod);
+        Assert.Matches(@"out var bekle, yenilemeFormuKorur: form\?\.YenilemeFormuKorur == true\)\)\s*\{\s*//.*\s*var kopma = _baglanti\.KopmaSayisi;\s*await AcikSayfayiYenileAsync\(\);\s*_otomatikYenileme\.YenilemeBitti\(kopusla: _baglanti\.KopmaSayisi != kopma\);", kod);
+        Assert.Matches(@"private async Task ElleYenileAsync\(\)\s*\{\s*//.*\s*if \(CurrentPage is not IYenilenebilir\)\s*\{\s*await _baglanti\.HemenYoklaAsync\(\);\s*return;\s*\}\s*//.*\s*if \(CurrentPage\?\.BindingContext is IKaydedilmemisForm \{ KaydedilmemisDegisiklikVar: true, YenilemeFormuKorur: false \} form\)\s*\{\s*if \(!await DisplayAlertAsync\(KaydedilmemisDegisiklik\.Baslik, KaydedilmemisDegisiklik\.Ileti, KaydedilmemisDegisiklik\.Birak, KaydedilmemisDegisiklik\.FormaDon\)\)\s*return;\s*form\.DegisiklikleriBirak\(\);", kod);
     }
 
     /// <summary>Kaydedilmemiş değişiklikte sayfadan çıkış: MAUI Shell gezinme ertelemesi (GetDeferral → Cancel/Complete). Erteleme

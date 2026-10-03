@@ -66,6 +66,8 @@ public partial class CekTakipViewModel(ICekApi api, IKasaApi finans, AuthViewMod
         Karsi,
     });
     public bool KaydedilmemisDegisiklikVar => FormIzi.Var || HareketIzi.Var;
+    /// <summary>Yenileme açık formu korur (Ö-4): kabuk sormadan yeniler.</summary>
+    public bool YenilemeFormuKorur => true;
 
     /// <summary>Kabuktan çıkışta "Bırak": çek formu ve hareket formu kapanır.</summary>
     public void DegisiklikleriBirak()

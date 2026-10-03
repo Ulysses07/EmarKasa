@@ -112,6 +112,8 @@ public partial class KartTakipViewModel
     }
 
     public bool KaydedilmemisDegisiklikVar => KartIzi.Var || OdemeIzi.Var || HarcamaIzi.Var;
+    /// <summary>Yenileme açık formu korur (Ö-4): kabuk sormadan yeniler.</summary>
+    public bool YenilemeFormuKorur => true;
 
     /// <summary>Yazılmış değişiklikleri bırakır: form kapanır, kartın form alanları kartın kayıtlı değerlerine (yeni kartta boşa) döner.</summary>
     public void DegisiklikleriBirak()
@@ -178,9 +180,21 @@ public partial class KartTakipViewModel
     };
 
     /// <summary>Formu kapatır; formun hatası ve benzer kayıt uyarısı da kalkar (<see cref="OnAcikFormChanged"/>). "Vazgeç" bilerek
-    /// bırakmaktır: onay sorulmaz (tasarım §2 onayı başka kayda geçiş, Yeni ve sayfadan çıkışta ister).</summary>
+    /// bırakmaktır: onay sorulmaz (tasarım §2 onayı başka kayda geçiş, Yeni ve sayfadan çıkışta ister). Kart bilgileri formunda
+    /// alanlar kartın kayıtlı değerlerine döner (Küçük-4): bırakılan değerler form yeniden açılınca görünmez.</summary>
     [RelayCommand]
-    private void Vazgec() => AcikForm = KartFormu.Yok;
+    private void Vazgec()
+    {
+        var kartBilgisi = AcikForm == KartFormu.KartBilgisi;
+        AcikForm = KartFormu.Yok;
+        if (kartBilgisi && Secili is { } kart)
+        {
+            Ad = kart.Ad;
+            Limit = kart.Limit;
+            KesimGunu = kart.KesimGunu;
+            SonOdemeGunu = kart.SonOdemeGunu;
+        }
+    }
 
     /// <summary>Kutuya tıklandı: kart açık değilse açılır (<see cref="Sec"/>), açıksa kapanır. Yazılmış form varsa önce onay sorulur.</summary>
     [RelayCommand]

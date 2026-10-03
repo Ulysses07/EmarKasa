@@ -71,6 +71,9 @@ public partial class AlislarViewModel : OturumluViewModel, IKaydedilmemisForm
     public AlanHatalari Hatalar { get; } = new();
     protected override IEnumerable<AlanHatalari> Formlar => [Hatalar];
 
+    /// <summary>Yenileme formu korumaz (Ö-4): kabuk kirli formda sorar, otomatik yenilemez.</summary>
+    public bool YenilemeFormuKorur => false;
+
     /// <summary>Sunucunun alış doğrulama alanları (AlisEndpoints.Validate; küçük harf) → formun alanları. Kalem alanları
     /// ("kalemler[0].aciklama") eşlenmez: genel hataya gider.</summary>
     private static readonly Dictionary<string, string> SunucuAlanlari = new()

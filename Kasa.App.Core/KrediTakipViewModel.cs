@@ -27,6 +27,8 @@ public partial class KrediTakipViewModel(IFinansTakipApi api, IKasaApi finans, A
         Kanallar = Kanallar.Where(k => k.Secili).Select(k => k.Veri.Id).ToList(),
     });
     public bool KaydedilmemisDegisiklikVar => Secili is null && FormIzi.Var;
+    /// <summary>Yenileme açık formu korur (Ö-4): kabuk sormadan yeniler.</summary>
+    public bool YenilemeFormuKorur => true;
 
     /// <summary>Kabuktan çıkışta "Bırak": yeni kredi formu boşalır.</summary>
     public void DegisiklikleriBirak()

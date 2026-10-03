@@ -207,13 +207,16 @@ public class KartTakipGorunumTests
         Assert.Equal(KartFormu.Odeme, vm.AcikForm);
     }
 
+    /// <summary>Ö-3: yenilemede düzenlenen ekstre kimlikle yeniden eşlenir (YenilemeFormKorumaTests); listede artık yoksa
+    /// bırakılır ve ekstre formu kapanır.</summary>
     [Fact]
-    public async Task Liste_yenilenince_birakilan_ekstrenin_formu_kapanir()
+    public async Task Liste_yenilenince_listede_kalmayan_ekstrenin_formu_kapanir()
     {
-        var (vm, _) = await Vm();
+        var (vm, api) = await Vm();
         vm.KutuSecCommand.Execute(vm.Kartlar[0]);
         vm.EkstreSecCommand.Execute(vm.Ekstreler[0]);
-        await vm.YukleAsync();   // aynı kart yeniden seçilir (Sec), düzenlenen ekstre bırakılır
+        api.KartlarYaniti = Task.FromResult<IReadOnlyList<KartTakipDto>>([FinansTakipTests.Sahte.OrnekKart() with { Ekstreler = [] }]);
+        await vm.YukleAsync();   // aynı kart yeniden seçilir (Sec), ekstre listede yok: bırakılır
         Assert.Equal(1, vm.AcikKartId);
         Assert.Null(vm.DuzenlenenEkstre);
         Assert.Equal(KartFormu.Yok, vm.AcikForm);

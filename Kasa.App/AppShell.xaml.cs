@@ -85,13 +85,14 @@ public partial class AppShell : Shell
     }
 
     /// <summary>Bağlantı geldiğinde otomatik yenileme (K-1: alt sınır, sondaki kenarda tek tetik, TimeProvider ile; Ö-1:
-    /// kaydedilmemiş değişiklikte hiç yenilenmez, form kullanıcı isteği olmadan ezilmez — şerit kalkar, veri soluk kalır; Ö-2: bir
+    /// yenilemesi formu korumayan sayfada (Ö-4) kaydedilmemiş değişiklikte hiç yenilenmez, form kullanıcı isteği olmadan ezilmez —
+    /// şerit kalkar, veri soluk kalır; formu koruyan sayfa kirli formda da yenilenir; Ö-2: bir
     /// önceki otomatik yenileme bağlantıyı yeniden kopardıysa bu geçişte yenilenmez).
     /// Sınır içinde kalınırsa <see cref="Dispatcher"/> ile sınırın sonunda yeniden denenir.</summary>
     private async Task OtomatikYenileAsync()
     {
-        var kirli = CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true };
-        if (_otomatikYenileme.Sor(kirli, out var bekle))
+        var form = CurrentPage?.BindingContext as IKaydedilmemisForm;
+        if (_otomatikYenileme.Sor(form?.KaydedilmemisDegisiklikVar == true, out var bekle, yenilemeFormuKorur: form?.YenilemeFormuKorur == true))
         {
             // Ö-2: yenileme bağlantıyı yeniden kopardıysa (ağır istek zaman aşımı) sonraki geçişte yenilenmez, yalnız şerit kalkar.
             var kopma = _baglanti.KopmaSayisi;
@@ -102,9 +103,10 @@ public partial class AppShell : Shell
             Dispatcher.DispatchDelayed(bekle, () => _ = OtomatikYenileAsync());
     }
 
-    /// <summary>"Yeniden dene": yenilenemeyen sayfada bağlantı hemen yoklanır; kaydedilmemiş değişiklikte
-    /// <see cref="KaydedilmemisDegisiklik"/> onayı sorulur ("Bırak" derse değişiklikler bırakılıp yenilenir, "Forma dön" derse yenileme yapılmaz); otomatik yenileme sınırına (K-1) bağlı değildir,
-    /// her zaman hemen çalışır.</summary>
+    /// <summary>"Yeniden dene": yenilenemeyen sayfada bağlantı hemen yoklanır; yenilemesi formu korumayan sayfada (İşlemler,
+    /// Alışlar; Ö-4) kaydedilmemiş değişiklikte <see cref="KaydedilmemisDegisiklik"/> onayı sorulur ("Bırak" derse değişiklikler
+    /// bırakılıp yenilenir, "Forma dön" derse yenileme yapılmaz); otomatik yenileme sınırına (K-1) bağlı değildir, her zaman hemen
+    /// çalışır.</summary>
     private async Task ElleYenileAsync()
     {
         // Küçük-3: yenilenemeyen sayfada (giriş, ayrıntı sayfaları) yoklama hemen yapılır; şerit aralığı beklemeden kalkar.
@@ -113,7 +115,8 @@ public partial class AppShell : Shell
             await _baglanti.HemenYoklaAsync();
             return;
         }
-        if (CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true } form)
+        // Ö-4: yenilemesi formu koruyan sayfa (Kartlar, Krediler, Çekler, Aylık giderler) sayfanın kendi Yenile'si gibi sormadan yenilenir.
+        if (CurrentPage?.BindingContext is IKaydedilmemisForm { KaydedilmemisDegisiklikVar: true, YenilemeFormuKorur: false } form)
         {
             if (!await DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, KaydedilmemisDegisiklik.Ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon))
                 return;

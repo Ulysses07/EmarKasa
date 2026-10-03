@@ -200,12 +200,17 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
 
     /// <param name="yenileme">Liste yenilemesinde aynı kartın yeniden seçilmesi: açık formda yazılanlar ezilmez (kart bilgileri
     /// formu açıksa kart alanları yazılmaz; ödemenin ekstre seçimi, harcama payları ve iade kaynağı yenilenen listede hâlâ varsa
-    /// korunur). Ödeme önizlemesi yine bayatlar.</param>
+    /// korunur; masraf formunun alanları korunur, ekstresi ve düzenlenen ekstre yenilenen listede hâlâ varsa kimlikle yeniden
+    /// eşlenir, Ö-3). Ödeme ve masraf önizlemesi yine bayatlar.</param>
     private void Sec(KartTakipSatiri satir, bool yenileme)
     {
         var ayniKart = yenileme && Secili?.Id == satir.Veri.Id;
         var (odemeEkstresi, iadeKaynagi) = (OdemeEkstresi?.Veri.Id, IadeKaynagi?.Veri.Id);
-        MasrafTemizle();
+        var (masrafEkstresi, duzenlenenEkstre) = (MasrafEkstresi?.Veri.Id, DuzenlenenEkstre?.Veri.Id);
+        if (ayniKart)
+            MasrafOnizlemesiniKaldir();
+        else
+            MasrafTemizle();
         HarcamaBenzerlik.Temizle();
         OdemeBenzerlik.Temizle();
         // Başka karta geçişte önceki kartın (ya da yeni kart formunun) yazılmış alanları taşınmaz; aynı kartın yeniden
@@ -229,9 +234,11 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         GecisDurumu(null, null);
         OdemeOnizlemesiniKaldir();
         OdemeEkstresi = null;
-        DuzenlenenEkstre = null;
         if (!ayniKart)
+        {
+            DuzenlenenEkstre = null;
             HarcamaPaylari.Clear();
+        }
         GecisPaylari.Clear();
         IadeKaynagi = null;
         DetaylariYansit();
@@ -239,6 +246,9 @@ public partial class KartTakipViewModel(IFinansTakipApi api, IKasaApi finans, Au
         {
             OdemeEkstresi = Ekstreler.FirstOrDefault(e => e.Veri.Id == odemeEkstresi);
             IadeKaynagi = IadeKaynaklari.FirstOrDefault(h => h.Veri.Id == iadeKaynagi);
+            MasrafEkstresi = MasrafEkstreleri.FirstOrDefault(e => e.Veri.Id == masrafEkstresi);
+            // Ekstre listede yoksa null olur ve ekstre formu kapanır (OnDuzenlenenEkstreChanged).
+            DuzenlenenEkstre = Ekstreler.FirstOrDefault(e => e.Veri.Id == duzenlenenEkstre);
         }
     }
     // [RelayCommand] kasıtlı olarak yok: arayüz YeniKartAcCommand'ı kullanır (KartTakipViewModel.Gorunum.cs), bu metodu

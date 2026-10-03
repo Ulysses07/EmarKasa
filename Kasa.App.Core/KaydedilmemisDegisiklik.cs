@@ -66,6 +66,11 @@ public interface IKaydedilmemisForm
 {
     bool KaydedilmemisDegisiklikVar { get; }
 
+    /// <summary>Sayfanın yenilemesi (Yenile, kabuğun "Yeniden dene"si ve otomatik yenileme) açık formu koruyor mu (Ö-4): Kartlar,
+    /// Krediler, Çekler ve Aylık giderler korur, kabuk sormadan yeniler; İşlemler ve Alışlar korumaz, kabuk kirli formda sorar ve
+    /// otomatik yenileme yapmaz.</summary>
+    bool YenilemeFormuKorur { get; }
+
     /// <summary>Yazılmış değişiklikleri bırakır: form açıldığı hale döner ya da kapanır.</summary>
     void DegisiklikleriBirak();
 }

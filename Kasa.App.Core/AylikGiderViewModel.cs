@@ -31,6 +31,8 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         Paylar = Paylar.Select(p => new { Kanal = p.Kanal?.Id, p.Tutar }).ToList(),
     });
     public bool KaydedilmemisDegisiklikVar => FormIzi.Var;
+    /// <summary>Yenileme açık formu korur (Ö-4): kabuk sormadan yeniler.</summary>
+    public bool YenilemeFormuKorur => true;
 
     /// <summary>Kabuktan çıkışta "Bırak": şablon formu boş yeni şablona döner.</summary>
     public void DegisiklikleriBirak() => YeniForm();
@@ -100,7 +102,6 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         return VeriYukleAsync(async n =>
         {
             VeriHazir = false;
-            SeciliOdeme = null;
             var ay = AyTarihi;
             var s = await api.AylikGiderSablonlariAsync();
             var k = await finans.KanallarAsync();
@@ -135,6 +136,20 @@ public partial class AylikGiderViewModel(IAylikGiderApi api, IKasaApi finans, Au
         OnPropertyChanged(nameof(IptalVar));
         AyOzeti = $"{a.Ay:00}.{a.Yil} · Planlanan {Bicim.Tl(a.PlanlananToplam)} ₺ · Ödenen {Bicim.Tl(a.OdenenToplam)} ₺";
         OnPropertyChanged(nameof(AySecimiDegisti));
+        OdemeyiYenidenEsle();
+    }
+
+    /// <summary>Yenilemede açık ödeme formu korunur (Ö-3): seçili satır yenilenen listede hâlâ ödenmemişse ona yeniden eşlenir.
+    /// Satır değişmediyse onay da kalır; değiştiyse (tutar, dağılım, sürüm) onay yeniden istenir; satır kalmadıysa ya da ödendiyse
+    /// form kapanır.</summary>
+    private void OdemeyiYenidenEsle()
+    {
+        if (SeciliOdeme is not { } secili)
+            return;
+        var yeni = Kayitlar.FirstOrDefault(x => x.Veri.SablonId == secili.Veri.SablonId && !x.OdendiMi);
+        var onay = OdemeOnay && yeni is not null && TakipMetni.Ayni(yeni.Veri, secili.Veri);
+        SeciliOdeme = yeni;
+        OdemeOnay = onay;
     }
     public Task AyDegistirAsync(int fark) { if (Mesgul) return Task.CompletedTask; AyTarihi = AyTarihi.AddMonths(fark); return YukleAsync(); }
     /// <summary>"Yeni şablon": yazılmış şablon formu varsa önce onay sorulur (tasarım §2).</summary>
