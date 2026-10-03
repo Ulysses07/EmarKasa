@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Kasa.ApiClient;
 
 /// <summary>Kasa REST API'sinin tiplı istemcisi. Her isteğe Bearer token ekler; başarısız durumda KasaApiException.</summary>
-public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBaglantiBildirimleri
+public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBaglantiBildirimleri, IBaglantiYoklamasi
 {
     private readonly HttpClient _http;
     private readonly ITokenStore _store;
@@ -175,6 +175,16 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
     // Ayarlar
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
+
+    /// <summary>Bağlantı yoklamasının süre sınırı: kopukken arka planda çalışır, normal çağrı sınırını beklemez.</summary>
+    public static readonly TimeSpan YoklamaSuresi = TimeSpan.FromSeconds(5);
+
+    /// <summary>Bağlantı yoklaması (H-2): token göndermeden GET /health; tek gönderim noktasından geçer, ulaşılabilirliği bildirir.</summary>
+    public async Task YoklaAsync(CancellationToken ct = default)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Get, "health");
+        using var _ = await GonderAsync(istek, tokenEkle: false, zamanAsimi: YoklamaSuresi, cancellationToken: ct);
+    }
 
     // ---- altyapı ----
 

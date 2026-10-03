@@ -44,6 +44,8 @@ public static class MauiProgram
         // Tek bağlantı durumu (tasarım 2026-10-02 §3): istemcinin ağ hatası kopuk, her yanıt bağlı yapar; kabuk şeridi ve
         // ekranlar (AuthViewModel, rapor modelleri) aynı örneği okur.
         builder.Services.AddSingleton<IBaglantiBildirimleri>(sp => sp.GetRequiredService<KasaApiClient>());
+        // Kopukken 15 sn'de bir GET /health (H-2): sunucu geri gelince şerit kendiliğinden kalkar; pencere kapanınca durur.
+        builder.Services.AddSingleton<IBaglantiYoklamasi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<BaglantiDurumu>();
 
         // Masaüstü Windows bildirimleri (tasarım 2026-09-30): yerel dosyalar %LOCALAPPDATA%\EmarKasa altında; gösterici ve tıklama
@@ -55,7 +57,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<IBildirimGosterici>(WinUI.WindowsBildirimGosterici.Ortak);
         builder.Services.AddSingleton<BildirimTiklamalari>(WinUI.WindowsBildirimGosterici.Ortak.Tiklamalar);
         // Pencere kapanınca bildirim kaydı kaldırılır (ProcessExit her kapanışta tetiklenmez; Bitir birden çok çağrılabilir).
-        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddWindows(windows => windows.OnClosed((_, _) => WinUI.WindowsBildirimGosterici.Ortak.Bitir())));
+        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddWindows(windows => windows.OnClosed((_, _) =>
+        {
+            WinUI.WindowsBildirimGosterici.Ortak.Bitir();
+            IPlatformApplication.Current?.Services.GetService<BaglantiDurumu>()?.Dispose();
+        })));
 #endif
         builder.Services.AddSingleton<BildirimYoklayici>();
         builder.Services.AddSingleton<BildirimNobetcisi>();

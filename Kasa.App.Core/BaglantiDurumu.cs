@@ -11,21 +11,33 @@ namespace Kasa.App.Core;
 /// hatası sayfaya yazılırken doğru okunur); geçiş olayları (<see cref="BaglantiGeldi"/>, <see cref="BaglantiKoptu"/>) her zaman
 /// yakalanan UI bağlamına <c>Post</c> ile gönderilir, isteğin kendi çağrı yığınından satır içi tetiklenmez (K-3); değişiklik
 /// bildirimleri (<see cref="PropertyChanged"/>) modelin kurulduğu UI bağlamında (gerekirse Post ile) gelir. Kabuk şeridi
-/// (BaglantiSeridi) buna bağlanır.
+/// (BaglantiSeridi) buna bağlanır. Kopukken arka planda <see cref="YoklamaAraligi"/>'nda bir hafif yoklama yapılır (ekran denemesi
+/// H-2): sunucu geri gelince istek beklenmeden durum bağlı olur, şerit kalkar ve <see cref="BaglantiGeldi"/> açık sayfayı yeniler.
+/// Yoklama bağlıyken ve <see cref="Dispose"/>'dan (uygulama kapanışı) sonra çalışmaz.
 /// </summary>
-public sealed class BaglantiDurumu : INotifyPropertyChanged
+public sealed class BaglantiDurumu : INotifyPropertyChanged, IDisposable
 {
+    /// <summary>Kopukken bağlantı yoklamasının aralığı.</summary>
+    public static readonly TimeSpan YoklamaAraligi = TimeSpan.FromSeconds(15);
+
     private readonly TimeProvider _zaman;
     private readonly SynchronizationContext? _ui;
+    private readonly IBaglantiYoklamasi? _yoklama;
+    private readonly Lock _yoklamaKilidi = new();
+    private ITimer? _yoklamaZamanlayicisi;
+    private int _yoklaniyor;
+    private bool _kapandi;
     private int _kopukMu;   // 0 = bağlı, 1 = kopuk; Interlocked.Exchange ile atomik okunur/yazılır (K-1).
     private DateTimeOffset? _sonBaglanti;
 
     /// <param name="bildirimler">API istemcisi; verilmezse durum yalnız <see cref="Ulasildi"/> / <see cref="Ulasilamadi"/> ile değişir.</param>
-    /// <param name="zaman">Son bağlantı saati; verilmezse sistem saati.</param>
-    public BaglantiDurumu(IBaglantiBildirimleri? bildirimler = null, TimeProvider? zaman = null)
+    /// <param name="zaman">Son bağlantı saati ve yoklama zamanlayıcısı; verilmezse sistem saati.</param>
+    /// <param name="yoklama">Kopukken arka plan yoklaması (GET /health); verilmezse yoklama yapılmaz (durum yalnız isteklerle değişir).</param>
+    public BaglantiDurumu(IBaglantiBildirimleri? bildirimler = null, TimeProvider? zaman = null, IBaglantiYoklamasi? yoklama = null)
     {
         _zaman = zaman ?? TimeProvider.System;
         _ui = SynchronizationContext.Current;
+        _yoklama = yoklama;
         if (bildirimler is null)
             return;
         bildirimler.SunucuyaUlasildi += (_, _) => Ulasildi();
@@ -61,7 +73,10 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged
                 Bildir(nameof(Kopuk));
         });
         if (oncedenKopuk)
+        {
+            YoklamayiDurdur();
             GecisiBildir(() => BaglantiGeldi?.Invoke(this, EventArgs.Empty));
+        }
     }
 
     public void Ulasilamadi()
@@ -69,8 +84,56 @@ public sealed class BaglantiDurumu : INotifyPropertyChanged
         var oncedenBagliydi = Interlocked.Exchange(ref _kopukMu, 1) == 0;
         if (!oncedenBagliydi)
             return;
+        YoklamayiBaslat();
         UiBaglaminda(() => Bildir(nameof(Kopuk)));
         GecisiBildir(() => BaglantiKoptu?.Invoke(this, EventArgs.Empty));
+    }
+
+    /// <summary>Son başlatılan yoklama (testler bekler).</summary>
+    internal Task SonYoklama { get; private set; } = Task.CompletedTask;
+
+    private void YoklamayiBaslat()
+    {
+        if (_yoklama is null)
+            return;
+        lock (_yoklamaKilidi)
+        {
+            if (_kapandi || _yoklamaZamanlayicisi is not null)
+                return;
+            _yoklamaZamanlayicisi = _zaman.CreateTimer(_ => SonYoklama = YoklaAsync(), null, YoklamaAraligi, YoklamaAraligi);
+        }
+    }
+
+    private void YoklamayiDurdur()
+    {
+        lock (_yoklamaKilidi)
+        {
+            _yoklamaZamanlayicisi?.Dispose();
+            _yoklamaZamanlayicisi = null;
+        }
+    }
+
+    /// <summary>Tek yoklama: yalnız kopukken ve önceki yoklama bitmişse. Başarılıysa durum bağlı olur (istemci de bildirir);
+    /// başarısızsa kopuk kalır, sonraki aralıkta yeniden denenir. Hata dışarı çıkmaz (zamanlayıcı geri çağrısı).</summary>
+    private async Task YoklaAsync()
+    {
+        if (_yoklama is null || !Kopuk || Interlocked.Exchange(ref _yoklaniyor, 1) == 1)
+            return;
+        try
+        {
+            await _yoklama.YoklaAsync().ConfigureAwait(false);
+            Ulasildi();
+        }
+        catch { /* ulaşılamadı: istemci bildirdi; durum kopuk kalır */ }
+        finally { Volatile.Write(ref _yoklaniyor, 0); }
+    }
+
+    /// <summary>Uygulama kapanıyor: yoklama durur ve yeniden başlamaz.</summary>
+    public void Dispose()
+    {
+        lock (_yoklamaKilidi)
+            _kapandi = true;
+        YoklamayiDurdur();
     }
 
     private void UiBaglaminda(Action eylem)

@@ -64,6 +64,28 @@ public class BaglantiBildirimleriTests
         Assert.Equal(["ulaşıldı"], olaylar);
     }
 
+    /// <summary>Ekran denemesi H-2: bağlantı yoklaması token göndermeden GET /health ister; yanıt ulaşıldı, ağ hatası ulaşılamadı
+    /// bildirir (istemcinin tek gönderim noktasından).</summary>
+    [Fact]
+    public async Task Yoklama_tokensiz_health_ister_ve_ulasilabilirligi_bildirir()
+    {
+        HttpRequestMessage? giden = null;
+        var (c, olaylar) = Kur((r, _) => { giden = r; return Task.FromResult(Yanit(HttpStatusCode.OK, "{\"durum\":\"ok\"}")); });
+        IBaglantiYoklamasi yoklama = c;
+
+        await yoklama.YoklaAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpMethod.Get, giden!.Method);
+        Assert.Equal("https://ornek.test/health", giden.RequestUri!.ToString());
+        Assert.Null(giden.Headers.Authorization);
+        Assert.Equal(["ulaşıldı"], olaylar);
+
+        var (kopuk, kopukOlaylar) = Kur((_, _) => throw new HttpRequestException());
+        IBaglantiYoklamasi kopukYoklama = kopuk;
+        await Assert.ThrowsAsync<HttpRequestException>(() => kopukYoklama.YoklaAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(["ulaşılamadı:HttpRequestException"], kopukOlaylar);
+    }
+
     [Fact]
     public async Task Proxy_502_ulasilamadi_bildirir_baglanti_hatasi_firlatir()
     {
