@@ -1,6 +1,7 @@
 # Masaüstü: form hataları ve bağlantı kopması
 
-Tarih: 2026-10-02 · Durum: tasarım onaylandı, uygulama planı bekliyor · Dal: `ozellik/ux-form-baglanti` (taban `release/2.x`)
+Tarih: 2026-10-02 · Durum: tasarım onaylandı, uygulandı ([plan](2026-10-02-masaustu-form-hatalari-ve-baglanti-plan.md)) · Dal:
+`ozellik/ux-form-baglanti` (taban `release/2.x`)
 
 ## Amaç
 
@@ -115,6 +116,24 @@ kapsam dışıdır.
 
 - **Düğme:** Ödenmemiş satırda "Öde", ödenmiş satırda "Ödemeyi iptal et" yazar. İptal onay ister.
 - **Form yeri:** Ödeme formu satırın hemen altında açılır, ya da ortak yardımcıyla görünür yere kaydırılır.
+
+## Uygulama notları
+
+Plan sırasında netleşen ve tasarımın sözünü değiştirmeyen okumalar:
+
+- **Sunucu alan adları:** Alan adlı doğrulama yanıtı (`errors`) yalnız `GirdiDogrulama` kullanan uçlardadır: gider (İşlemler), alış
+  ve kanal. Kart, kredi, çek ve aylık gider uçları `{ hata }` döndürür; bu formlarda sunucu iletisi formun genel hatasına gider, alan
+  hataları istemcinin ön doğrulamasından gelir.
+- **"Vazgeç" onay sormaz:** onay başka kayda geçişte, "Yeni"de ve sayfadan çıkışta sorulur; "Vazgeç" bilerek bırakmaktır. Kartlar'da
+  aynı kartın formları arasında geçiş de sorulmaz (aynı kayıt).
+- **Bağlı / kopuk:** yanıt alınan her istek bağlı sayılır, 502/504 ve iletisiz 503 hariç (§3; ürün sahibi kararı 2026-10-03). Bu üç
+  durum kodu dışındaki 4xx/5xx yanıtları (sunucunun kendi iletili 503'ü dahil) bağlantı hatası sayılmaz, sayfa sunucu hatasını kendi
+  yerinde gösterir.
+- **Son veri yalnız aynı sorgunun verisidir:** Aylık'ta başka aya, İşlemler'de başka süzgece geçince önceki sorgunun verisi
+  gösterilmez (eski davranış); aynı ay ya da süzgecin yenilemesinde son veri soluk kalır.
+- **Kopukken kaydetme:** iletisi yalnız istek sunucuya ulaşamadığında (`HttpRequestException`) yazılır. Zaman aşımında kayıt sunucuda
+  tamamlanmış olabileceği için eski "önce listeyi yenileyip kontrol edin" iletisi kalır.
+- **İşlemler tutarı:** sunucu eksi gideri (iade) kabul ettiği için ön doğrulama "Tutar sıfır olamaz." der, "sıfırdan büyük" demez.
 
 ## Dışarıda kalanlar
 
