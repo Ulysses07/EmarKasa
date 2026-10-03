@@ -17,6 +17,8 @@ public partial class AyarlarPage : ContentPage, Controls.IYenilenebilir
         _esik = esik;
         AyarlarAlani.Children.Add(KasaKontrolAlanlari.Esikler(esik));
         AyarlarAlani.Children.Add(new GuvenlikAlani(guvenlik, this));
+        var gorunur = new Controls.GorunurYapici(AyarlarKaydirici);
+        vm.KanalHatalari.GosterIstendi += (_, _) => gorunur.HatayaGit(KanalFormu, vm.KanalHatalari, KanalHataKutusu);
     }
 
     protected override async void OnAppearing()

@@ -34,7 +34,7 @@ public class GecersizTutarTests
         vm.DuzenKanalAcilisDevri = G;
         await vm.KanalKaydetCommand.ExecuteAsync(null);
         Assert.Null(api.SonKanalOlustur);
-        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.Hata);
+        Assert.Equal(ParaAyristirici.GecersizMesaji, vm.KanalHatalari[nameof(vm.DuzenKanalAcilisDevri)]);
     }
 
     [Fact]

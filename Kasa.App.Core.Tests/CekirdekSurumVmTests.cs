@@ -124,7 +124,7 @@ public class CekirdekSurumVmTests
         vm.DuzenKanalSira = 5;
         api.KanallarListe = [new(1, "MEZAT", false, 0, 0m, Surum: 3)];
         await vm.KanalKaydetCommand.ExecuteAsync(null);
-        Assert.Equal(kanalIletisi, vm.Hata);
+        Assert.Equal(kanalIletisi, vm.KanalHatalari.Genel);
         Assert.False(vm.Kanallar.Single().Aktif); // liste güncel kayıtlarla yenilendi
         Assert.Equal((1, 5), (vm.DuzenKanalId, vm.DuzenKanalSira)); // form korunur
     }
