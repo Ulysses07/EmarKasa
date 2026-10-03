@@ -249,4 +249,32 @@ public class SonVeriOnbellegiTests
 
         Assert.False(auth.SonVeri.Oku<int>("a", out _, out _));
     }
+
+    /// <summary>Küçük-7: önbellek sınırsız büyümez; ekran başına (anahtarın "|" öncesi) en son kullanılan 10 sorgu tutulur, eskiler
+    /// silinir. Okuma da kullanım sayılır; başka ekranın kayıtları etkilenmez.</summary>
+    [Fact]
+    public void Ekran_basina_son_on_sorgu_tutulur_en_eski_kullanilan_silinir()
+    {
+        var onbellek = new SonVeriOnbellegi();
+        var an = DateTimeOffset.Now;
+        onbellek.Yaz("Diger|x", 0, an);
+        for (var i = 1; i <= 10; i++)
+            onbellek.Yaz($"Aylik|{i}", i, an);
+        Assert.True(onbellek.Oku<int>("Aylik|1", out _, out _));   // 1 yeniden kullanıldı: en eski artık 2
+
+        onbellek.Yaz("Aylik|11", 11, an);
+        onbellek.Yaz("Aylik|12", 12, an);
+
+        Assert.Equal(10, SonVeriOnbellegi.EkranBasinaSinir);
+        Assert.True(onbellek.Oku<int>("Aylik|1", out _, out _));
+        Assert.False(onbellek.Oku<int>("Aylik|2", out _, out _));
+        Assert.False(onbellek.Oku<int>("Aylik|3", out _, out _));
+        for (var i = 4; i <= 12; i++)
+            Assert.True(onbellek.Oku<int>($"Aylik|{i}", out _, out _));
+        Assert.True(onbellek.Oku<int>("Diger|x", out _, out _));
+
+        onbellek.Sil("Aylik|12");
+        onbellek.Yaz("Aylik|13", 13, an);   // silinen yer açtı: başka kayıt düşmez
+        Assert.True(onbellek.Oku<int>("Aylik|4", out _, out _));
+    }
 }

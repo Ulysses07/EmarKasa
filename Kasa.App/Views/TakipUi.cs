@@ -446,7 +446,7 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         Kaydirici = new ScrollView { Content = root };
         Gorunur = new Controls.GorunurYapici(Kaydirici);
         Content = Kaydirici;
-        // Başka kayda geçiş, Yeni ve Vazgeç'te kaydedilmemiş değişiklik onayı (tasarım 2026-10-02 §2).
+        // Başka kayda geçiş ve Yeni'de kaydedilmemiş değişiklik onayı (tasarım 2026-10-02 §2). Vazgeç sormaz: bilerek bırakmaktır.
         vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
 
