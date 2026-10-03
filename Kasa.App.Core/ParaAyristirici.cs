@@ -55,9 +55,10 @@ public static partial class ParaAyristirici
         return s.EndsWith("TL", StringComparison.OrdinalIgnoreCase) ? s[..^2] : s;
     }
 
-    /// <summary>Girişe yazılacak metin: gruplamasız tr-TR ('1500,5'), 0 için boş. İkiden fazla ondalık
-    /// yuvarlanmaz; öyle bir değer geri ayrıştırılırken hataya düşer, sessizce başka tutara dönmez.</summary>
-    public static string Bicimle(decimal tutar) => tutar == 0m ? "" : tutar.ToString("0.############################", Tr);
+    /// <summary>Girişe yazılacak metin: gruplamasız tr-TR, listedeki gibi en az iki ondalık ('1500,50'; ekran denemesi G-5), 0 için
+    /// boş. Binlik ayırıcı yazılmaz: ayrıştırıcı gruplanmış yazımı tahmin etmez. İkiden fazla ondalık yuvarlanmaz; öyle bir değer
+    /// geri ayrıştırılırken hataya düşer, sessizce başka tutara dönmez.</summary>
+    public static string Bicimle(decimal tutar) => tutar == 0m ? "" : tutar.ToString("0.00##########################", Tr);
 
     public static bool GecerliMi(decimal tutar) => tutar != Gecersiz;
     public static bool HepsiGecerli(params decimal[] tutarlar) => tutarlar.All(GecerliMi);

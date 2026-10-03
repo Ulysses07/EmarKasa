@@ -70,9 +70,8 @@ public abstract partial class RaporViewModel : TemelViewModel
 
     protected override bool BaglantiKopuk => _baglanti?.Kopuk == true;
 
-    public string SonGuncellemeMetni => SonGuncelleme is { } zaman
-        ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm:ss}" + (VeriEski ? Bicim.EskiVeriEki : "")
-        : Bicim.HenuzYuklenmedi;
+    /// <summary>Takip sayfalarıyla aynı biçim (<see cref="Bicim.SonGuncelleme"/>).</summary>
+    public string SonGuncellemeMetni => Bicim.SonGuncelleme(SonGuncelleme, VeriEski);
 
     public abstract Task YukleAsync();
     [RelayCommand] private Task YenileAsync() => YukleAsync();

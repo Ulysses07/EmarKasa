@@ -33,6 +33,23 @@ public class RaporDurumuTests
         Assert.Null(vm.Hata);
     }
 
+    /// <summary>Ekran denemesi G-3: Kasalar, Haftalık ve Aylık da öbür sayfalarla aynı biçimi yazar: "Son güncelleme: dd.MM.yyyy
+    /// HH:mm" (saniyesiz); eski veride " · güncel olmayabilir" eki kalır.</summary>
+    [Fact]
+    public void Rapor_son_guncelleme_metni_takip_sayfalariyla_ayni_bicimdedir()
+    {
+        var an = new DateTimeOffset(2026, 10, 3, 18, 12, 23, TimeSpan.FromHours(3));
+        var rapor = new HaftalikViewModel(new SahteApi()) { SonGuncelleme = an };
+        var takip = new CekOzetViewModel(new CekTakipViewModelTests.Sahte(), TestOturumu.Ac()) { SonGuncelleme = an };
+
+        Assert.Equal("Son güncelleme: 03.10.2026 18:12", rapor.SonGuncellemeMetni);
+        Assert.Equal(takip.SonGuncellemeMetni, rapor.SonGuncellemeMetni);
+
+        rapor.VeriEski = takip.VeriEski = true;
+        Assert.Equal("Son güncelleme: 03.10.2026 18:12 · güncel olmayabilir", rapor.SonGuncellemeMetni);
+        Assert.Equal(takip.SonGuncellemeMetni, rapor.SonGuncellemeMetni);
+    }
+
     [Fact]
     public async Task Gec_donen_eski_ay_yeni_ayin_raporunu_ezmez()
     {

@@ -44,6 +44,8 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     private readonly Label _formHataSatiri;
     /// <summary>Kart bilgileri ve ödeme formlarının genel hata kutuları (KartHatalari.Genel, OdemeHatalari.Genel; tasarım 2026-10-02 §1).</summary>
     private readonly View _kartHataKutusu, _odemeHataKutusu;
+    /// <summary>Ödeme önizlemesi ve "Onayla ve kaydet" düğmesi: önizleme belirince bu blok bütün olarak görünür yere kaydırılır (G-2).</summary>
+    private readonly View _odemeOnayBlogu;
 
     /// <summary>Kart bildirimine tıklanınca //kartlar?KartId={id}: sayfa zaten açıkken istek hemen, değilse sayfa belirirken uygulanır
     /// (SorguSecimi).</summary>
@@ -82,6 +84,15 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
         _formHataSatiri = BagliHata(nameof(vm.FormHatasi));
         _kartHataKutusu = FormHatasi(nameof(vm.KartHatalari) + ".Genel");
         _odemeHataKutusu = FormHatasi(nameof(vm.OdemeHatalari) + ".Genel");
+        _odemeOnayBlogu = new VerticalStackLayout
+        {
+            Spacing = 12,
+            Children =
+            {
+                Bagli(nameof(vm.OdemeOnizleme)),
+                Goster(Dugme("Onayla ve kaydet", nameof(vm.OdemeKaydetCommand)), nameof(vm.OdemeOnizlemeGuncel)),
+            },
+        };
         _formAlani = FormAlani(vm);
         _ayrinti = new Border
         {
@@ -138,6 +149,10 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
             else if (e.PropertyName == nameof(vm.Mesaj) && !string.IsNullOrWhiteSpace(vm.Mesaj))
             {
                 Gorunur.Yap(MesajSatiri, KaydirmaHesabi.FormKaydirmasi);
+            }
+            else if (e.PropertyName == nameof(vm.OdemeOnizlemeGuncel) && vm.OdemeOnizlemeGuncel)
+            {
+                Gorunur.Yap(_odemeOnayBlogu, KaydirmaHesabi.FormKaydirmasi);
             }
         };
         // Kaydetme başarısız olunca ilk hatalı alana (yoksa formun genel hata kutusuna) kaydırılır ve odaklanılır (tasarım §1).
@@ -218,7 +233,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 new BoxView { Style = (Style)Application.Current!.Resources["TakipAyirici"] },
                 Goster(_formHataSatiri, nameof(vm.FormHatasi), true),
                 Durumda(KartBilgileri(vm), nameof(vm.AcikForm), KartFormu.KartBilgisi),
-                Durumda(Odeme(vm, _odemeHataKutusu), nameof(vm.AcikForm), KartFormu.Odeme),
+                Durumda(Odeme(vm, _odemeHataKutusu, _odemeOnayBlogu), nameof(vm.AcikForm), KartFormu.Odeme),
                 Durumda(Harcama(vm), nameof(vm.AcikForm), KartFormu.Harcama),
                 Durumda(Masraf(vm), nameof(vm.AcikForm), KartFormu.Masraf),
                 Durumda(Ekstre(vm), nameof(vm.AcikForm), KartFormu.Ekstre),
@@ -286,8 +301,9 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
     }
 
     /// <summary>Kart ödemesi (KR-01): tek "Ödemeyi kontrol et" düğmesi önce eksik alanı söyler, alanlar tamsa kanal paylarını gösterir
-    /// ve "Onayla ve kaydet" belirir; önizlemeden sonra tutar, tarih, ekstre ya da not değişirse "Onayla ve kaydet" kalkar.</summary>
-    private static View Odeme(KartTakipViewModel vm, View hataKutusu)
+    /// ve "Onayla ve kaydet" belirir; önizlemeden sonra tutar, tarih, ekstre ya da not değişirse "Onayla ve kaydet" kalkar.
+    /// <paramref name="onayBlogu"/> önizleme metni ve "Onayla ve kaydet" düğmesidir.</summary>
+    private static View Odeme(KartTakipViewModel vm, View hataKutusu, View onayBlogu)
     {
         const string h = nameof(vm.OdemeHatalari);
         return Form("Kart ödemesi kaydet", hataKutusu,
@@ -300,8 +316,7 @@ public sealed class KartTakipPage : TakipSayfasi<KartTakipViewModel>, IQueryAttr
                 return Task.CompletedTask;
             }),
             Alan("Ödeme notu / dekont referansı", Girdi(nameof(vm.OdemeNotu)), h, nameof(vm.OdemeNotu)),
-            Dugme("Ödemeyi kontrol et", nameof(vm.OdemeOnizleCommand)), Bagli(nameof(vm.OdemeOnizleme)),
-            Goster(Dugme("Onayla ve kaydet", nameof(vm.OdemeKaydetCommand)), nameof(vm.OdemeOnizlemeGuncel)),
+            Dugme("Ödemeyi kontrol et", nameof(vm.OdemeOnizleCommand)), onayBlogu,
             Benzerlik(nameof(vm.OdemeBenzerlik), nameof(vm.OdemeyiAyriKaydetCommand)));
     }
 

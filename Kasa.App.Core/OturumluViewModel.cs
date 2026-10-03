@@ -88,9 +88,7 @@ public abstract partial class OturumluViewModel : TemelViewModel
 
     /// <summary>"Son güncelleme: 02.10.2026 14:05" (veri eskiyse " · güncel olmayabilir" ekiyle); hiç yükleme yoksa ya da gösterilen
     /// sorgu yüklenmediyse "Henüz yüklenmedi.".</summary>
-    public string SonGuncellemeMetni => SonGuncelleme is { } zaman && !SorguYuklenmedi
-        ? $"Son güncelleme: {zaman:dd.MM.yyyy HH:mm}" + (VeriEski ? Bicim.EskiVeriEki : "")
-        : Bicim.HenuzYuklenmedi;
+    public string SonGuncellemeMetni => Bicim.SonGuncelleme(SorguYuklenmedi ? null : SonGuncelleme, VeriEski);
 
     /// <summary>Ekranın gövdesi görünür mü: veri hazır ya da (yükleme hata verse de) son başarılı veri var (tasarım §3).</summary>
     public bool GovdeGorunur => VeriHazir || SonGuncelleme is not null;

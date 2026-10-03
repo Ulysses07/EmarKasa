@@ -72,4 +72,15 @@ public class TakipSayfasiSonVeriTests
         vm.SorguYuklenmedi = true;
         Assert.False(bos.IsVisible);
     }
+
+    /// <summary>Ekran denemesi G-1: etiketli onay kutusu (Aylık giderler ödeme onayı) ekran okuyucuda etiketin metniyle adlanır.</summary>
+    [Fact]
+    public void Onay_kutusu_etiketinin_metniyle_adlanir()
+    {
+        GorunumOrtami.Kur();
+        const string metin = "Ödeme gerçekleşti; gösterilen tutar ve kanal paylarını onaylıyorum.";
+        var kutu = TakipUi.Onay(metin, "Secili").GetVisualTreeDescendants().OfType<CheckBox>().Single();
+
+        Assert.Equal(metin, SemanticProperties.GetDescription(kutu));
+    }
 }

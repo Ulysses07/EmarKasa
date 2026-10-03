@@ -15,6 +15,12 @@ public static class Bicim
     /// <summary>Son yükleme hata verdi, gösterilen veri son başarılı yüklemeden: son güncelleme satırının eki.</summary>
     public const string EskiVeriEki = " · güncel olmayabilir";
 
+    /// <summary>Son güncelleme satırı (bütün sayfalarda tek biçim, ekran denemesi G-3): "Son güncelleme: 03.10.2026 18:12", veri
+    /// eskiyse <see cref="EskiVeriEki"/> ekiyle; zaman yoksa <see cref="HenuzYuklenmedi"/>.</summary>
+    public static string SonGuncelleme(DateTimeOffset? zaman, bool eski) => zaman is { } z
+        ? $"Son güncelleme: {z:dd.MM.yyyy HH:mm}" + (eski ? EskiVeriEki : "")
+        : HenuzYuklenmedi;
+
     public static string ImzaliTl(decimal n) => (n < 0 ? "-" : "+") + Tl(Math.Abs(n));
 
     /// <summary>Dönem seçici etiketi: "13 Tem – 19 Tem"; yıllı "13 Tem 2026 – 19 Tem 2026" (gelir formu dönem

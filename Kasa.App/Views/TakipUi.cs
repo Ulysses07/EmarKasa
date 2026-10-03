@@ -90,6 +90,8 @@ internal static class TakipUi
     {
         var c = OnayKutusu();
         c.SetBinding(CheckBox.IsCheckedProperty, yol);
+        // Etiket ayrı bir metin öğesidir; kutu ekran okuyucuda etiketin metniyle adlanır (G-1; UIA'da adsız "CheckBox ''" kalıyordu).
+        SemanticProperties.SetDescription(c, text);
         var grid = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, ColumnSpacing = 8 };
         grid.Add(c);
         grid.Add(new Label { Text = text, VerticalOptions = LayoutOptions.Center }, 1);
@@ -378,6 +380,7 @@ internal static class TakipUi
         {
             var c = OnayKutusu();
             c.SetBinding(CheckBox.IsCheckedProperty, "Secili");
+            c.SetBinding(SemanticProperties.DescriptionProperty, "Ad");
             var g = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
             g.Add(c);
             var l = Bagli("Ad");
