@@ -1,5 +1,7 @@
 # Emar Kasa 2.3 — PDF ekstre ve hesap hareketleri
 
+> **Tarihsel sürüm notu:** Bu belge 2.3 yayınını anlatır; güncel canlı yayın [2.4.0](kasa-2.4.md)'dır.
+
 ## Kullanım
 
 Editör menüsündeki **Ekstre / Hareket Yükle** bölümünde PDF, belge türü ve banka seçilir. Kart ekstresinde uygulamadaki kart; banka hareketinde hesabı ayırt etmek için kısa bir ad girilir. Bu ad bir banka hesabı veya cari modülü oluşturmaz.

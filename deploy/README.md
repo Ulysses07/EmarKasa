@@ -1,6 +1,6 @@
 # Kasa Defteri — VPS dağıtımı
 
-Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerindedir. Canlı kurulum sistem Nginx'i ve `docker-compose.nginx.yml` dosyasını kullanır; `kasa-app` konteyneri yalnız `127.0.0.1:8080` üzerinden erişilir. Güncel yayın 2.3.0: [PDF ekstre ve hesap hareketleri](../docs/deploy/kasa-2.3.md). Yayın manifesti `/opt/kasa/releases/20260923-imports/imports-published.json` içindedir.
+Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerindedir. Canlı kurulum sistem Nginx'i ve `docker-compose.nginx.yml` dosyasını kullanır; `kasa-app` konteyneri yalnız `127.0.0.1:8080` üzerinden erişilir. Güncel yayın 2.4.0: [yayın kaydı ve geçiş notları](../docs/deploy/kasa-2.4.md), etiket `v2.4.0` (`bf688239638a27ce2bab2e22e2a133da21424fdc`). Yayın manifesti `/opt/kasa/releases/20261004-2.4.0/kasa-2.4.0-published.json` içindedir.
 
 ## Veri ve yedek dizini kuralı
 

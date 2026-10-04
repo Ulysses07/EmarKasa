@@ -1,6 +1,6 @@
 # Emar Kasa 2.2 — aylık giderler ve kasa kontrolleri
 
-> Tarihsel sürüm notu (2.2). "Canlıda" ifadesi o yayın anına aittir; güncel sürüm [2.3.0](kasa-2.3.md). Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
+> Tarihsel sürüm notu (2.2). "Canlıda" ifadesi o yayın anına aittir; güncel sürüm [2.4.0](kasa-2.4.md). Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
 
 ## Kullanım
 
