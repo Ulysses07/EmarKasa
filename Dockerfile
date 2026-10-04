@@ -3,7 +3,7 @@
 # "Temel imajlar" (CI 'base-images' işi daha yeni özet çıkınca uyarır). Özeti elle uydurmayın/kısaltmayın; biçimi
 # Kasa.Api.Tests/DepoHijyeniTests denetler. Etiket okunabilirlik içindir; Docker özet varken etiketi yok sayar.
 # ---- 1) .NET publish ----
-FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:e70cdb7f80b0348f5cb85f19a8f670fca061f033d57eed12fa003d58b0e06317 AS build
 WORKDIR /src
 # Depo kökündeki ortak MSBuild özellikleri (KasaSurumu: /api/surum'un bildirdiği sürüm); yoksa Kasa.Api derlemesi durur.
 COPY Directory.Build.props ./
@@ -15,7 +15,7 @@ COPY Kasa.Api/ Kasa.Api/
 RUN dotnet publish Kasa.Api/Kasa.Api.csproj -c Release -o /app/publish
 
 # ---- 2) Runtime ----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:222759b391a1aaf241166672c8f99b2d4ada452e7b5319f3c6e8f265a37b5ad4 AS runtime
 # poppler-utils (PDF ekstre okuma) işletim sistemi deposunun o günkü sürümüyle kurulur. Bu katman temel imaj özeti
 # değişene kadar önbellekten gelir; paket yamaları için runbook'taki aylık 'build --pull --no-cache' adımı uygulanır.
 RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils && rm -rf /var/lib/apt/lists/*
