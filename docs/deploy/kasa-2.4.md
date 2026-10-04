@@ -1,17 +1,17 @@
-# Emar Kasa 2.4 — denetim düzeltmeleri, telefon arayüzü ve belge deposu (yayın taslağı)
+# Emar Kasa 2.4 — yayın kaydı ve geçiş notları
 
-> **Durum: TASLAK, yayın yapılmadı.** Kapsam: canlıdaki `v2.3.0` (`fce8578`, yayın `kasa:2.3.0-imports-20260923`) → `origin/release/2.x` `ec2178b` (PR #12–#29, 379 commit). Sürüm `KasaSurumu` = **2.4.0**, minimum istemci 2.4.0 (aşağıda "Karar noktaları"). Her iddia koddan ya da PR gövdesinden alındı; alınamayan ya da yalnız sunucuda ölçülebilen bilgiler **doğrulanmadı** diye işaretlidir. Sunucuya bağlanılmadı, canlı veri okunmadı.
+> **Durum (4 Ekim 2026): `v2.4.0` yayımlandı.** Etiket `bf688239638a27ce2bab2e22e2a133da21424fdc` commit'ini gösteriyor; canlı `/api/surum` yanıtı `surum: 2.4.0` ve `minimumIstemci: 2.4.0`. Çalışan `kasa-app` imajı `sha256:bf3d25e4c4224e06d73dc4067d2de5998b63f2a20d86ef2ce388511f41c78913`. Bu üç bilgi etiket, herkese açık API ve sunucuda salt okunur `docker inspect` ile doğrulandı. `/opt/kasa/releases/20261004-2.4.0/kasa-2.4.0-published.json` manifestindeki yükseltme öncesi, göç öncesi ve yükseltme sonrası yedek dosyalarının varlığı da doğrulandı.
 >
-> Bu belgeyle birlikte birleşmesi beklenenler: PR #30 (kalan İngilizce dosya/tip/test adlarının Türkçeleşmesi) ve ardından "Kodlar kalan aileleri" (yalnız `Kasa.Core.Kodlar` sabitleri). İkisi de yalnız ad/sabit değişikliğidir; şema, rota, DTO alanı, davranış ve log kategorisi (`Kasa.Api.EkstreImportEndpoints`) aynı kalır. Log satırlarındaki sınıf adı PR #30'dan sonra `KasaVeritabaniBaslatici` olur (bugün `KasaDatabaseInitializer`).
+> **Tarihsel kapsam:** Aşağıdaki ayrıntılar, canlı `v2.3.0` → `ec2178b` için yazılmış yayın öncesi taslaktan korunmuştur. "Yapılacak", "doğrulanmadı", açık PR ve işaretsiz kontrol maddeleri taslak anındaki durumu anlatır; güncel yayın sonucu değildir. Güncel işletim adımları için [dağıtım rehberini](../../deploy/README.md) ve [operasyon runbook'unu](operasyon-runbook.md) kullanın.
 
-## Karar noktaları (yayından önce, kullanıcı)
+## Tarihsel karar noktaları (yayın öncesi taslak)
 
-| Karar | Bugünkü değer | Not |
+| Karar | Durum | Not |
 | --- | --- | --- |
 | Sürüm numarası | **Karar verildi: 2.4.0** (`KasaSurumu`; masaüstü `ApplicationVersion` 6 → 7) | `/api/surum` ve yeni masaüstü "2.4.0" bildirir. |
 | Minimum istemci | **Karar verildi: 2.4.0** (`YonetimEndpoints.MinimumIstemci`) | Eski 2.3.0 masaüstü engellenmez; Güvenlik ekranında "Devam etmek için uygulamayı güncelleyin." yazar (`GuvenlikViewModel`). Gerekçe: 2.3.0 masaüstünde K2 sonrası "Gelen" açıklamasız düşük görünür, editör belge silemez (bölüm 7). Yeni masaüstü paketi yayınla birlikte dağıtılmalıdır; dağıtılmazsa 2.3.0 kullanıcıları uyarıyı görür ama çalışmaya devam eder. |
 | `/api/surum` `notlar` metni | **Yazıldı** | "Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi." |
-| Etiket | yok | [dal-durumu.md](dal-durumu.md) A9: yalnız etiketli commit dağıtılır. `v2.4.0`, yayına karar verilince yayımlanacak commit'e atılır (kullanıcı kararı). |
+| Etiket | `v2.4.0` yayımlandı | [dal-durumu.md](dal-durumu.md) A9 uyarınca etiket `bf688239638a27ce2bab2e22e2a133da21424fdc` commit'ini gösterir. |
 | Yayın zamanı ve kesinti | — | İlk açılışta belge taşıması bitene kadar HTTP kapalı (nginx 502). Süre canlı veritabanı boyutuna bağlı; kopya provasında ölçülmeli (doğrulanmadı). Kullanıcılara bakım aralığı bildirilir. |
 | Masaüstü paketinin dağıtımı | — | Girişten sonraki askıda kalma `duzeltme/maui-menu-donmasi` dalında giderildi (dotnet/maui#38813 geçici çözümü, "Bilinen konular"); paket bu dal birleşmeden dağıtılmaz. Dağıtmadan önce yine normal (etkin, ekranda) pencerede giriş sonrası bütün menüler elle denenmeli. Sunucu yeni masaüstü olmadan da yayınlanabilir. |
 | Sunucu dışı yedek | runbook tablosu "Henüz yapılmadı" | `uzak_yedek.py` + systemd bu sürümle gelir; kurulum isteğe bağlı ama belge deposundan sonra önerilir. Sunucuda kurulu olup olmadığı doğrulanmadı. |
@@ -102,7 +102,7 @@ v2.3.0'a göre 15 yeni migration (`git diff --name-status v2.3.0 origin/release/
 
 Ayrıca başlatıcı veritabanını kalıcı **WAL** kipine alır (2.3.0'da yoktu). Bundan sonra `kasa.db-wal` ve `kasa.db-shm` veritabanının parçasıdır: dosya kopyasıyla yedek yalnız uygulama durmuşken ve üç dosya birlikte alınır.
 
-## 4. Yayın öncesi
+## 4. Yayın öncesi plan (tarihsel)
 
 Komutlar sunucuda `/opt/kasa/deploy` içinde; yer tutucular (`<...>`) gerçek değerlerle değiştirilir. Genel akış [deploy/README.md](../../deploy/README.md) "Güncelleme"dir; burada bu sürüme özgü adımlar var.
 
@@ -185,7 +185,7 @@ Geri yükleme artık `.env`'deki editör şifresini kendiliğinden geçerli kıl
 
 Yedek her zaman `restore_backup.py` ile açılır (ZIP'ten elle çıkarılmaz); sunucu yedeğinde `--belge-aynasi <KASA_BACKUP_DIR>/belgeler`, uzak kopyada önce hedefin `belgeler/` klasörü indirilir.
 
-## 7. Eski istemci uyumu (canlıdaki 2.3.0 masaüstü)
+## 7. Eski istemci uyumu (2.3.0 masaüstü)
 
 Sunucu 2.3.0 istemcisini çalıştırmaya devam eder, ancak `minimumIstemci` 2.4.0 olduğundan Güvenlik ekranında güncelleme uyarısı görünür. Bilinen farklar:
 
@@ -201,7 +201,9 @@ Sunucu 2.3.0 istemcisini çalıştırmaya devam eder, ancak `minimumIstemci` 2.4
 
 Yeni masaüstü paketi dağıtılmadıkça editör belge silme ve kredi girişi görünümü için web arayüzü kullanılır. Minimum istemciyi 2.4'e çekmek yalnız uyarı gösterir, engellemez (karar noktası).
 
-## 8. Yayın sonrası doğrulama
+## 8. Yayın sonrası doğrulama için tarihsel kontrol listesi
+
+Bu kutular tamamlanma kaydı değildir; bu belge güncellemesinde yeniden doğrulanan sonuçlar yalnız girişte kayıtlıdır.
 
 - [ ] `curl --fail https://kasa.emarglobal.com/health` → `{"durum":"ok"}`.
 - [ ] `curl -s https://kasa.emarglobal.com/api/surum` → `surum` karar verilen değer (1.0.0 değil), `minimumIstemci`, `notlar`.
@@ -219,7 +221,7 @@ Yeni masaüstü paketi dağıtılmadıkça editör belge silme ve kredi girişi 
 - [ ] Hata/yeniden başlama sayısı 0 (`docker inspect kasa-app --format '{{.RestartCount}}'`); yayın manifestine etiket, SHA, `dataDirectory`, göç öncesi yedek adı yazıldı.
 - [ ] Belgeler: [deploy/README.md](../../deploy/README.md) ve [README](../../README.md)'deki "Güncel yayın 2.3.0" satırları ve bu belgenin "yayın sonucu" bölümü güncellenir.
 
-## 9. Elle bakılacaklar (PR gövdelerinden, birleşik)
+## 9. Elle bakılacaklar (tarihsel taslak)
 
 Otomatik testlerin ve e2e ekran görüntülerinin kapsamadığı yerler; ekran ekran:
 
@@ -239,7 +241,7 @@ Otomatik testlerin ve e2e ekran görüntülerinin kapsamadığı yerler; ekran e
 - **Tarayıcılar:** Firefox ve Safari'de ay seçicinin görünümü ve ekran okuyucu duyurusu; `role="alert"` bölgesinde kapatılmamış eski hataların yeni hatayla yeniden okunması; ekran okuyucuyla (NVDA/VoiceOver) bölge adları ve ek sekme durakları.
 - **Geri yükleme tatbikatı** (canlıdan ayrı kopyada): bayrakla açılış, bayraksız açılışta kilit, bayrağı kaldırma.
 
-## 10. Bilinen konular
+## 10. Taslakta bilinen konular (tarihsel)
 
 - **MAUI Release askıda kalma (PR #29'da görüldü, `duzeltme/maui-menu-donmasi` ile giderildi):** Release derlemesinde girişten birkaç saniye sonra UI iş parçacığı bir çekirdeği %100 kullanarak askıda kalıyordu. Kök neden MAUI gerilemesi [dotnet/maui#38813](https://github.com/dotnet/maui/issues/38813) (10.0.100–10.0.110): `Shell.ItemTemplate` görsel durum setter'ı `Background` (fırça) yazınca `ShellFlyoutItemView.UpdateVisualState → Setter → NotifyBackgroundChanges → OnResourcesChanged → ShellFlyoutItemView.OnResourcesChanged → GoToState` döngüsü kurulur; alınan yığın bununla eşleşir. Bizde PR #14'teki MAUI 10.0.20 → 10.0.110 yükseltmesiyle geldi (canlı 2.3.0 10.0.20 ile derlendi; `1efdcb4`'te de vardı, PR #29'dan gelmiyor). Düzeltme dalında `AppShell.xaml` menü öğesi setter'ları `BackgroundColor` yazar (görünüm aynı: `GorunumEsdegerligiTests` her görsel durumda aynı düz rengi doğrular, ekran görüntüsünde seçili öğe `#33453A`); `MauiKayitTutarliligiTests` kabuk menü şablonlarında `Background` yazımını yasaklar. Otomasyonla (yerel test sunucusu, görünmeyen ayrı masaüstü): düzeltme öncesi girişten 1–3 sn sonra pencere yanıtsız, CPU ~%100 (tek çekirdek), ekran dışı ve ekran içi (etkinleşen) pencerede aynı; düzeltme sonrası 62 sn boyunca yanıt veriyor, CPU boşta, menüde Haftalık, Aylık, İşlemler, Kasalar geçişleri çalışıyor. MAUI düzeltmesi ([dotnet/maui#38887](https://github.com/dotnet/maui/pull/38887)) .NET 10 SR12'de (10.0.120) gelir; 30 Eylül 2026'da NuGet'teki son sürüm 10.0.110. 10.0.120 yayımlanınca yükseltme ayrıca değerlendirilebilir; geçici çözüm o sürümde gereksizleşir ama zararsızdır. **Masaüstü paketini dağıtmadan önce** yine normal pencerede giriş ve bütün menülerde (fareyle üzerine gelme zemini dahil; otomasyon fare kullanmadı) birkaç dakika denenmeli; sunucu yayını bundan bağımsızdır.
 - Altı bankanın gerçek örnek ekstreleri hâlâ yok (2.3'ten beri); ilk belgelerde okunan satırlar kaynak PDF'le karşılaştırılır.
@@ -248,7 +250,7 @@ Otomatik testlerin ve e2e ekran görüntülerinin kapsamadığı yerler; ekran e
 - Göç öncesi yedekler rotasyonla silinmez; yer gerekirse uzak kopyası doğrulandıktan sonra elle kaldırılır.
 - Her `build --pull` eski imajı etiketsiz bırakır; geri dönüş gereği kalmayana kadar `docker image prune` çalıştırılmaz (geri dönüş imajını da siler).
 
-## 11. Geri dönüş planı
+## 11. Taslak geri dönüş planı (tarihsel)
 
 Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştırılmaz.**
 
@@ -270,7 +272,7 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
   - 2.4 çalışırken yapılmış bir geri yüklemenin koyduğu editör kilidi eski imajda da açılmaz; o durumda eski imaja dönmeden önce 2.4'te sıfırlama yapılır.
 - Güvenlik günlüğü (`guvenlik-gunlugu.jsonl`) geri dönüşte de silinmez.
 
-## Doğrulanmayanlar (özet)
+## Taslakta doğrulanmayanlar (tarihsel özet)
 
 - Canlı `kasa.db` boyutu, belge içeriklerinin toplamı ve buna bağlı HTTP kapalı süre ile disk ihtiyacı.
 - Canlı verideki rapor farkları (yalnız sentetik altın tohumda sınandı).
@@ -300,5 +302,5 @@ Yeni migration'lar geri alınamaz; **eski imaj yeni şema üzerinde çalıştır
 - #27 Editör şifresi zorla sıfırlama, geri yükleme prosedürü, banka listesi ucu, migration `EditorSifirlamaIzi`
 - #28 Web işlem düğmeleri ve alış ekranları
 - #29 MAUI görsel bileşenler; bilinen askıda kalma notu
-- (açık) `duzeltme/maui-menu-donmasi`: MAUI menü askıda kalması geçici çözümü (dotnet/maui#38813)
-- #30 (açık) Türkçe adlar; ardından "Kodlar kalan aileleri" — davranış etkisi yok
+- (taslakta açık) `duzeltme/maui-menu-donmasi`: MAUI menü askıda kalması geçici çözümü (dotnet/maui#38813)
+- #30 (taslakta açık) Türkçe adlar; ardından "Kodlar kalan aileleri" — davranış etkisi yok

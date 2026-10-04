@@ -1,5 +1,7 @@
 # Dal ve sürüm durumu — Seçenek A uygulandı
 
+> **Tarihsel kayıt:** Aşağıdaki dal ve canlı sürüm tespitleri 28 Eylül 2026'ya aittir; güncel canlı yayın [2.4.0](kasa-2.4.md)'dır.
+
 > Tespit: 28 Eylül 2026 (devops-1). Değerler o günkü yerel depodan (`git` salt okunur komutları) ve `git ls-remote origin`
 > çıktısından alındı; yerelde olmayan PR #11 commit'leri (`8951c1b` ve ataları) `git fetch origin <sha>` ile yalnız nesne
 > olarak indirildi, hiçbir dal ya da izlenen uzak ref değiştirilmedi. Bu belge için **hiçbir push, etiket ya da uzak değişiklik yapılmadı.** Karar öncesinde

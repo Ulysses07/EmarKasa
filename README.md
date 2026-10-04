@@ -1,6 +1,6 @@
 # Emar Kasa
 
-Kanal kasalarını ve genel kasayı izlemek için sade kasa takip uygulaması. Cari, stok ve tedarikçi borç takibi ERP12'de kalır. .NET MAUI Windows uygulaması ve telefona uyumlu web arayüzü aynı ASP.NET Core API ve SQLite veritabanını kullanır. Üretim adresi [kasa.emarglobal.com](https://kasa.emarglobal.com/). 2.3.0, 23 Eylül 2026'da yayımlandı; bu kaynak ağacının sürümü [Directory.Build.props](Directory.Build.props) içindedir. Canlıda çalışan sürümü `/api/surum` ve yayın manifestinden ayrıca doğrulayın. Güncel kaynak kapsamı: [2.4 veri ve güvenlik değişiklikleri](docs/deploy/kasa-2.4.md), [2.3 PDF ekstre ve hesap hareketleri](docs/deploy/kasa-2.3.md), [2.2 aylık giderler ve kasa kontrolleri](docs/deploy/kasa-2.2.md).
+Kanal kasalarını ve genel kasayı izlemek için sade kasa takip uygulaması. Cari, stok ve tedarikçi borç takibi ERP12'de kalır. .NET MAUI Windows uygulaması ve telefona uyumlu web arayüzü aynı ASP.NET Core API ve SQLite veritabanını kullanır. Üretim adresi [kasa.emarglobal.com](https://kasa.emarglobal.com/). 2.3.0, 23 Eylül 2026'da yayımlandı; güncel canlı sürüm 4 Ekim 2026'da yayımlanan [2.4.0](docs/deploy/kasa-2.4.md)'dır. Bu kaynak ağacının sürümü [Directory.Build.props](Directory.Build.props) içindedir. Canlıda çalışan sürümü `/api/surum` ve yayın manifestinden ayrıca doğrulayın. Güncel kaynak kapsamı: [2.4 veri ve güvenlik değişiklikleri](docs/deploy/kasa-2.4.md), [2.3 PDF ekstre ve hesap hareketleri](docs/deploy/kasa-2.3.md), [2.2 aylık giderler ve kasa kontrolleri](docs/deploy/kasa-2.2.md).
 
 ## Temel özellikler
 
