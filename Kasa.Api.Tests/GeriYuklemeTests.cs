@@ -138,7 +138,10 @@ public class GeriYuklemeTests
     {
         var c = f.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         if (jwt is not null)
+        {
             c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            c.DefaultRequestHeaders.Add("X-Kasa-Istemci-Surumu", Kasa.Api.YonetimEndpoints.MinimumIstemci);
+        }
         return c;
     }
 
@@ -845,6 +848,90 @@ public class GeriYuklemeTests
         finally { Temizle([canli, geri], dizin); }
     }
 
+    /// <summary>Yedekten sonra saat geriye alınsa da şifre ve alıcı kararları günlükteki bayt sırasından bulunur.</summary>
+    [Fact]
+    public async Task Saat_geri_alindiginda_yedekten_sonraki_kimlik_kararlari_atlanmaz()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var dizin = GeciciYol("");
+        var canli = GeciciYol(".db");
+        var geri = GeciciYol(".db");
+        var saat = new SabitSaat(KasaWebFactory.VarsayilanBugun);
+        try
+        {
+            string zip;
+            var fA = new Fabrika(canli, dizin, saat, gunluk: true);
+            try
+            {
+                using (var ilk = Oturumlu(fA, (await GirisYap(fA, "editor", "kasa123")).Jwt))
+                    (await ilk.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = "kasa123", yeniSifre = EditorP1 }, cancellationToken: ct)).EnsureSuccessStatusCode();
+                saat.Ilerlet(TimeSpan.FromMinutes(1));
+                using var editor = Oturumlu(fA, (await GirisYap(fA, "editor", EditorP1)).Jwt);
+                var alici = await AliciAc(editor, "alici1");
+                saat.Ilerlet(TimeSpan.FromMinutes(1));
+                zip = await YedekAl(fA);
+                saat.Ilerlet(TimeSpan.FromSeconds(-30));
+                (await editor.PutAsJsonAsync($"/api/alicilar/{alici}", new AliciYaz("alici1", "alici1", null, Aktif: false), cancellationToken: ct)).EnsureSuccessStatusCode();
+                (await editor.PostAsJsonAsync("/api/auth/sifre", new { mevcutSifre = EditorP1, yeniSifre = EditorP2 }, cancellationToken: ct)).EnsureSuccessStatusCode();
+            }
+            finally { fA.Dispose(); }
+
+            KasaDbCikar(zip, geri);
+            Assert.True(TabloVar(geri, GeriYuklemeIsleyici.GuvenlikKesimiTablosu));
+            var fB = new Fabrika(geri, dizin, saat, gunluk: true);
+            try
+            {
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP1));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP2));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "alici1", AliciSifresi));
+                var olay = GeriYuklemeOlayi(fB);
+                Assert.Equal("tam", olay.GetProperty("guvenlikGunlugu").GetString());
+                Assert.True(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
+                Assert.Single(olay.GetProperty("pasifAlicilar").EnumerateArray());
+            }
+            finally { fB.Dispose(); }
+            Assert.False(TabloVar(geri, GeriYuklemeIsleyici.GuvenlikKesimiTablosu));
+        }
+        finally { Temizle([canli, geri], dizin); }
+    }
+
+    /// <summary>Yedekteki kesin günlük kesimi doğrulanamazsa kimlikler güvenli yönde kilitlenir.</summary>
+    [Fact]
+    public async Task Yedek_gunluk_kesimi_uyusmazsa_editor_ve_alicilar_kilitlenir()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var dizin = GeciciYol("");
+        var canli = GeciciYol(".db");
+        var geri = GeciciYol(".db");
+        try
+        {
+            string zip;
+            var fA = new Fabrika(canli, dizin, gunluk: true);
+            try
+            {
+                using var editor = Oturumlu(fA, (await GirisYap(fA, "editor", "kasa123")).Jwt);
+                await AliciAc(editor, "alici1");
+                zip = await YedekAl(fA);
+            }
+            finally { fA.Dispose(); }
+
+            KasaDbCikar(zip, geri);
+            Calistir(geri, $"UPDATE \"{GeriYuklemeIsleyici.GuvenlikKesimiTablosu}\" SET \"Sha256\" = '0000000000000000000000000000000000000000000000000000000000000000';");
+            var fB = new Fabrika(geri, dizin, gunluk: true);
+            try
+            {
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", "kasa123"));
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "alici1", AliciSifresi));
+                var olay = GeriYuklemeOlayi(fB);
+                Assert.Equal("eksik", olay.GetProperty("guvenlikGunlugu").GetString());
+                Assert.True(olay.GetProperty("editorGirisiKilitlendi").GetBoolean());
+                Assert.Single(olay.GetProperty("pasifAlicilar").EnumerateArray());
+            }
+            finally { fB.Dispose(); }
+        }
+        finally { Temizle([canli, geri], dizin); }
+    }
+
     /// <summary>
     /// Yayın kimseyi düşürmez: SistemDurumu'nu ekleyen migration oturum dönemini boş tohumlar ve boş dönemde damga bu sürümden
     /// öncekiyle birebir aynıdır. Önceki sürümün açtığı editör, izleyici ve alıcı oturumları, tanıdık cihaz belirteci ve bildirim
@@ -963,12 +1050,11 @@ public class GeriYuklemeTests
 
     /// <summary>
     /// Bu sürümden önce alınmış (işaretsiz, SistemDurumu'suz) yedek: restore_backup.py geri açarken işaretler ve manifestteki yedek
-    /// anını işaret tablosuna yazar; uygulama ilk açılışta migration'dan sonra işler ve güvenlik günlüğünü o andan keser: yedekten
-    /// önceki şifre değişikliği yeniden uygulanmaz (editör yedekteki şifreyle girer), yedekten sonra pasife alınan alıcı pasif
-    /// kalır. Ortamda Python yoksa sınama atlanır (araç deploy/tests altında ayrıca sınanır).
+    /// anını işaret tablosuna yazar. Kesin günlük kesimi bulunmadığından uygulama kimlik erişimini güvenli yönde kilitler;
+    /// yedekten sonraki saat geri alınmış olabilir. Ortamda Python yoksa sınama atlanır (araç deploy/tests altında ayrıca sınanır).
     /// </summary>
     [Fact]
-    public async Task Isaretsiz_eski_yedek_restore_araciyla_isaretlenir_ve_ilk_acilista_yedek_anindan_islenir()
+    public async Task Isaretsiz_eski_yedek_restore_araciyla_isaretlenir_ve_kimlik_erisimini_kilitler()
     {
         var ct = TestContext.Current.CancellationToken;
         var dizin = GeciciYol("");
@@ -998,7 +1084,7 @@ public class GeriYuklemeTests
 
             // Eski biçim: işaretsiz, SistemDurumu'suz kasa.db ve ona göre manifest özeti (2.3 öncesi uygulamanın yazdığı gibi).
             KasaDbCikar(zip, eskiDb);
-            Calistir(eskiDb, "PRAGMA user_version = 0; DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" IN "
+            Calistir(eskiDb, $"PRAGMA user_version = 0; DROP TABLE \"{GeriYuklemeIsleyici.GuvenlikKesimiTablosu}\"; DROP TABLE \"SistemDurumu\"; DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" IN "
                 + $"('{Kasa.Api.Migrations.GeriYuklemeGuvenligi.Kimlik}', '{Kasa.Api.Migrations.EditorSifirlamaIzi.Kimlik}');");
             var eskiZip = Path.Combine(dizin, "kasa-elle-20260920-030000-0a1b2c3d.zip");
             JsonNode manifest;
@@ -1033,13 +1119,20 @@ public class GeriYuklemeTests
             {
                 Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, null, EskiIzleyiciSifresi));
                 Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "alici1", AliciSifresi));
-                // Yedekten önceki şifre değişikliği (günlükte) yeniden uygulanmaz: yedek anı işaret tablosundan okundu.
                 Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", "kasa123"));
-                using var editor = Oturumlu(fB, (await GirisYap(fB, "editor", EditorP1)).Jwt);
-                var (_, rapor) = await YedekDurumu(editor);
+                Assert.Equal(HttpStatusCode.Unauthorized, await GirisDurumu(fB, "editor", EditorP1));
+                using var scope = fB.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+                var rapor = GeriYuklemeIsleyici.RaporuOku(db.SistemDurumu.AsNoTracking().Single().GeriYuklemeRaporu)!;
                 Assert.StartsWith($"Veritabanı {Yerel(yedekAni)} tarihli yedekten geri yüklendi.", rapor[0], StringComparison.Ordinal);
-                Assert.Contains(rapor, m => m.StartsWith("'alici1' alıcısı yedekten sonra pasife alınmıştı", StringComparison.Ordinal));
-                Assert.DoesNotContain(GeriYuklemeIsleyici.EditorGirisiKilitlendi, rapor);
+                Assert.Contains(rapor, m => m.Contains("kesin sıra bilgisi yok", StringComparison.Ordinal));
+                Assert.Contains(GeriYuklemeIsleyici.EditorGirisiKilidiEksikGunluk, rapor);
+                Assert.All(db.Alicilar.AsNoTracking().ToList(), a =>
+                {
+                    Assert.False(a.Aktif);
+                    Assert.Equal(GeriYuklemeIsleyici.AliciSifreKilidi, a.SifreHash);
+                });
+                Assert.Equal("eksik", GeriYuklemeOlayi(fB).GetProperty("guvenlikGunlugu").GetString());
                 Assert.Equal("restore_backup.py", GeriYuklemeOlayi(fB).GetProperty("yedekAniKaynagi").GetString());
             }
             finally { fB.Dispose(); }

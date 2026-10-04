@@ -10,8 +10,9 @@ namespace Kasa.Api.Tests;
 /// <summary>
 /// contract-6: çekirdek kasa kayıtlarının (gider, gelir, kanal, ayarlar) iyimser eşzamanlılığı. Kayıt her değiştiğinde sürümü artar
 /// (uç yazımı da dolaylı yazım da); yazma isteği okuduğu sürümü gönderirse uyuşmazlıkta 409 alır ve kayıt değişmez. Sürüm
-/// göndermeyen eski istemcinin düzenleme isteği denetlenmez, son yazan kazanır, sürüm yine artar. Gider silme sürümü zorunlu
-/// tutar. Bu dosya dışındaki API testleri yazma gövdesinde sürüm göndermez; onlar eski istemci düzenleme yolunu sınar.
+/// göndermeyen çerezli API isteğinin düzenlemesi bu uçta denetlenmez, son yazan kazanır, sürüm yine artar. Eski masaüstünün
+/// Bearer yazımı ayrı IstemciSurumKapisi tarafından reddedilir. Gider silme sürümü zorunlu tutar. Bu dosya dışındaki API
+/// testleri yazma gövdesinde sürüm göndermez; onlar çerezli sürümsüz gövde yolunu sınar.
 /// </summary>
 public class CekirdekSurumTests
 {
@@ -29,7 +30,7 @@ public class CekirdekSurumTests
         return (f, c);
     }
 
-    /// <summary>Gider gövdesi; sürüm yalnız verilince yazılır (verilmezse alan hiç yoktur: eski istemci).</summary>
+    /// <summary>Gider gövdesi; sürüm yalnız verilince yazılır (verilmezse alan hiç yoktur: çerezli sürümsüz istek).</summary>
     private static Dictionary<string, object?> Gider(decimal tutar, string? not = null, int? surum = null, string kanal = "MEZAT")
     {
         var govde = new Dictionary<string, object?>
@@ -123,8 +124,8 @@ public class CekirdekSurumTests
         Assert.Equal(("yalnız not", 2), (guncel["not"]!.GetValue<string>(), Surum(guncel)));
         Assert.Equal(2, Surum(await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(1200m, "yalnız not", surum: 2), cancellationToken: TestContext.Current.CancellationToken))));
 
-        // Eski istemci (sürüm göndermez) kırılmaz: son yazan kazanır, sürüm yine artar.
-        var eski = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(900m, "eski masaüstü"), cancellationToken: TestContext.Current.CancellationToken));
+        // Çerezli sürümsüz gövde yolu: son yazan kazanır, sürüm yine artar.
+        var eski = await Json(await c.PutAsJsonAsync($"/api/islemler/{id}", Gider(900m, "sürümsüz istek"), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal((900m, 3), (eski["tutarTl"]!.GetValue<decimal>(), Surum(eski)));
 
         // 409 alan istek denetim olayı yazmaz; olaylarda sürüm alanı yoktur.

@@ -78,6 +78,7 @@ public class TanidikCihazTests
     {
         var c = Masaustu(f, xff);
         c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+        c.DefaultRequestHeaders.Add("X-Kasa-Istemci-Surumu", YonetimEndpoints.MinimumIstemci);
         return c;
     }
 

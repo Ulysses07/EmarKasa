@@ -173,6 +173,16 @@ app.UseStaticFiles(new StaticFileOptions
 });
 app.UseAuthentication();
 app.UseAuthorization();
+app.Use(async (http, next) =>
+{
+    if (IstemciSurumKapisi.YazmaEngellenmeli(http))
+    {
+        http.Response.StatusCode = StatusCodes.Status409Conflict;
+        await http.Response.WriteAsJsonAsync(new { hata = IstemciSurumKapisi.Ileti });
+        return;
+    }
+    await next();
+});
 // Yetkilendirmeden sonra: kimliksiz istekler editöre özel uçlarda 401 alır, 'guvenlik' kovasını tüketmez.
 app.UseRateLimiter();
 

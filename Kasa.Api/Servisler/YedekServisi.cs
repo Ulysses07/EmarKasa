@@ -110,7 +110,7 @@ public sealed record YedekBelgeListesi(IReadOnlyList<YedekBelgesi> Belgeler, IRe
 
 public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, PushKimligi push, ILogger<YedekServisi> logger,
     TimeProvider saat, YedekDosyaSilici? silici = null, BelgeDeposu? depo = null, IDiskAlani? disk = null,
-    GuvenlikYedekSeriKilidi? seriKilit = null)
+    GuvenlikYedekSeriKilidi? seriKilit = null, GuvenlikGunlugu? gunluk = null)
 {
     /// <summary>Belge deposu biçimli yedeklerin manifest sürümü: kasa.db belge içeriği taşımaz; belgeler.json içerik özetlerini listeler,
     /// içerikler yedek aynasında (<see cref="AynaDizini"/>) ya da elle indirilen yedekte belgeler/&lt;özet&gt; girdilerindedir.</summary>
@@ -123,6 +123,7 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
 
     private readonly SemaphoreSlim kilit = new(1, 1);
     private readonly GuvenlikYedekSeriKilidi guvenlikSeriKilidi = seriKilit ?? new();
+    private readonly GuvenlikGunlugu? guvenlikGunlugu = gunluk;
     private readonly YedekDosyaSilici sil = silici ?? File.Delete;
     // Tür başına son rotasyonun uyarısı: bir türün başarılı rotasyonu diğer türün sorununu gizlemez.
     private readonly ConcurrentDictionary<YedekTuru, string> rotasyonUyarilari = new();
@@ -273,11 +274,12 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
                 File.SetUnixFileMode(Dizin, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             DateTimeOffset now;
             string path;
-            // Günlük append + kimlik DB commit'iyle aynı seri kilit: kesim zamanı alınırken ve anlık görüntü
+            // Günlük append + kimlik DB commit'iyle aynı seri kilit: kesim noktası alınırken ve anlık görüntü
             // kopyalanırken araya yarım kalmış bir güvenlik kararı giremez.
             using (var guvenlikKilidi = await guvenlikSeriKilidi.AlAsync(ct))
             {
                 now = saat.GetUtcNow();
+                var gunlukKesimi = guvenlikGunlugu?.Etkin == true ? guvenlikGunlugu.KesimNoktasiAl() : null;
                 var suffix = Guid.NewGuid().ToString("N");
                 temporary = Path.Combine(Dizin, $".{suffix}.db");
                 path = Path.Combine(Dizin, YedekSaklama.DosyaAdi(tur, now, suffix[..8]));
@@ -289,10 +291,9 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
                 try
                 {
                     DiskDenetimi(source);
-                    // Kopya, kopyalamanın başladığı anı (manifest 'olusturuldu' ile aynı) yedek anı olarak taşır: geri yüklemede güvenlik
-                    // günlüğünün bu andan sonraki olayları yeniden uygulanır. Başlangıç anı güvenli yöndedir: kopya sürerken kaydedilen bir
-                    // değişiklik yedekte olsa da yeniden uygulanır (fazladan sıkılaştırma), yedekte olmayan hiçbir değişiklik atlanmaz.
-                    TekDosyaKopyala(source, temporary, ct, now);
+                    // Kopya, günlüğün kesin bayt/özet kesimini taşır. Saat geri alınsa da geri yükleme
+                    // kesimden sonraki kimlik kararlarını bulur; kaynak DB'nin kendisine işaret yazılmaz.
+                    TekDosyaKopyala(source, temporary, ct, now, gunlukKesimi);
                 }
                 finally { if (close) source.Close(); }
             }
@@ -770,7 +771,8 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
     /// sabittir, aynı kaynağın kopyaları yine aynı özeti verir (göç öncesi yedeğin tekrar denetimi); özet işaretten sonra alınır.
     /// <paramref name="yedekZamani"/> verilirse kopyanın SistemDurumu satırına yedek anı yazılır (canlı dosyaya değil); göç öncesi
     /// yedek vermez (aynı kaynağın kopyası aynı özeti vermeli), onun anını restore_backup.py manifestten yazar.</summary>
-    private static void TekDosyaKopyala(SqliteConnection kaynak, string hedefYol, CancellationToken ct, DateTimeOffset? yedekZamani = null)
+    private static void TekDosyaKopyala(SqliteConnection kaynak, string hedefYol, CancellationToken ct, DateTimeOffset? yedekZamani = null,
+        GuvenlikGunlugu.KesimNoktasi? gunlukKesimi = null)
     {
         using var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = hedefYol, Pooling = false }.ToString());
         target.Open();
@@ -780,6 +782,16 @@ public sealed class YedekServisi(IConfiguration cfg, IWebHostEnvironment env, Pu
         mode.ExecuteNonQuery();
         mode.CommandText = $"PRAGMA user_version = {GeriYuklemeIsleyici.Isaret.ToString(CultureInfo.InvariantCulture)};";
         mode.ExecuteNonQuery();
+        if (gunlukKesimi is not null)
+        {
+            mode.CommandText = $"CREATE TABLE \"{GeriYuklemeIsleyici.GuvenlikKesimiTablosu}\" (\"Bayt\" INTEGER NOT NULL, \"Sha256\" TEXT NOT NULL);";
+            mode.ExecuteNonQuery();
+            mode.CommandText = $"INSERT INTO \"{GeriYuklemeIsleyici.GuvenlikKesimiTablosu}\" (\"Bayt\", \"Sha256\") VALUES ($bayt, $ozet);";
+            mode.Parameters.AddWithValue("$bayt", gunlukKesimi.Bayt);
+            mode.Parameters.AddWithValue("$ozet", gunlukKesimi.Sha256);
+            mode.ExecuteNonQuery();
+            mode.Parameters.Clear();
+        }
         if (yedekZamani is not { } an)
             return;
         mode.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'SistemDurumu';";

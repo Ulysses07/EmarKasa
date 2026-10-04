@@ -125,7 +125,7 @@ public class GuvenlikGunluguTutarlilikTests
                     [EditorSifreSifirlama.Ayar] = "true",
                 }).Build();
                 var hata = Record.Exception(() => EditorSifreSifirlama.Uygula(db, cfg, scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>()));
-                Assert.True(hata is IOException or UnauthorizedAccessException, $"Beklenmeyen hata: {hata}");
+                Assert.True(hata is IOException or UnauthorizedAccessException or InvalidDataException, $"Beklenmeyen hata: {hata}");
                 Assert.Equal(once, Durum(host));
                 Assert.Null(DurumSifirlamaIzi(host));
             }
@@ -187,6 +187,14 @@ public class GuvenlikGunluguTutarlilikTests
             Assert.Contains("Güvenlik günlüğünde bozuk satır", hata.ToString(), StringComparison.Ordinal);
 
             File.WriteAllText(yol, string.Empty);
+            using var kesilmisTemel = new KasaWebFactory();
+            using var kesilmisHost = Ac(kesilmisTemel, yol);
+            var kesilmisHata = Record.Exception(() => kesilmisHost.CreateClient());
+            Assert.NotNull(kesilmisHata);
+            Assert.Contains("Güvenlik günlüğünün bütünlüğü doğrulanamadı", kesilmisHata.ToString(), StringComparison.Ordinal);
+
+            // 2.4'ten kalan, kontrol dosyası olmayan boş günlük yeni bir başlangıç olarak açılabilir.
+            File.Delete(yol + GuvenlikGunlugu.KontrolDosyasiEki);
             using var ucuncuTemel = new KasaWebFactory();
             using var ucuncuHost = Ac(ucuncuTemel, yol);
             using var yeniIstemci = ucuncuHost.CreateClient();
@@ -231,7 +239,7 @@ public class GuvenlikGunluguTutarlilikTests
                 using var scope = host.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
                 var hata = Record.Exception(() => GeriYuklemeIsleyici.Isle(db, scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>()));
-                Assert.True(hata is IOException or UnauthorizedAccessException, $"Beklenmeyen hata: {hata}");
+                Assert.True(hata is IOException or UnauthorizedAccessException or InvalidDataException, $"Beklenmeyen hata: {hata}");
                 Assert.Equal(once, DurumIzleyiciVeIsaret(host));
                 Assert.Empty(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == GuvenlikOlaylari.GeriYuklemeIslendi).ToList());
             }
@@ -245,7 +253,7 @@ public class GuvenlikGunluguTutarlilikTests
                 var okunabilirGunluk = scope.ServiceProvider.GetRequiredService<GuvenlikGunlugu>();
                 Assert.NotNull(okunabilirGunluk.Oku());
                 var hata = Record.Exception(() => GeriYuklemeIsleyici.Isle(db, okunabilirGunluk));
-                Assert.True(hata is IOException or UnauthorizedAccessException, $"Beklenmeyen hata: {hata}");
+                Assert.True(hata is IOException or UnauthorizedAccessException or InvalidDataException, $"Beklenmeyen hata: {hata}");
                 Assert.Equal(once, DurumIzleyiciVeIsaret(host));
                 Assert.Empty(db.DenetimOlaylari.AsNoTracking().Where(o => o.Tur == GuvenlikOlaylari.GeriYuklemeIslendi).ToList());
             }
