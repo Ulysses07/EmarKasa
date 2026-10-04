@@ -16,14 +16,21 @@ public partial class CekOzetViewModel(ICekApi api, AuthViewModel auth) : Oturuml
     public string GecmisMetni => CekMetni.GecmisMetni(Ozet);
     public string VerilenGecmisMetni => CekMetni.VerilenGecmisMetni(Ozet);
 
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Özet; hata son başarılı özeti silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync()
     {
-        var ozet = await api.CekOzetAsync();
-        if (!Gecerli(n))
-            return;
-        Ozet = ozet;
-        Tamamlandi();
-    });
+        SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
+        {
+            var ozet = await api.CekOzetAsync();
+            if (!Gecerli(n))
+                return;
+            Ozet = ozet;
+            Tamamlandi("", ozet);
+        });
+    }
+
+    public override bool SonVeriyiGoster() => OnbellektenUygula<CekOzetDto>("", o => Ozet = o);
 
     protected override void OturumTemizle() => Ozet = null;
 }

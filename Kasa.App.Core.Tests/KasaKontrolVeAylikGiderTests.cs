@@ -18,7 +18,7 @@ public class KasaKontrolVeAylikGiderTests
         SablonFormu(v);
         await v.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Null(f.Sablon);
-        Assert.Contains("dağılım", v.Hata);
+        Assert.Equal("Dağılım biçimini seçin.", v.SablonHatalari[nameof(v.DagilimTuru)]);
         v.DagilimTuru = v.DagilimTurleri[0];
         await v.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Equal("Genel", f.Sablon!.DagilimTuru);
@@ -49,7 +49,7 @@ public class KasaKontrolVeAylikGiderTests
         v.Paylar[0].Tutar = 99;
         await v.SablonKaydetCommand.ExecuteAsync(null);
         Assert.Null(f.Sablon);
-        Assert.Contains("toplamı", v.Hata);
+        Assert.Contains("toplamı", v.SablonHatalari.Genel);
     }
     [Fact]
     public async Task Aylik_odeme_onay_ister_ve_ag_hatasinda_ayni_istegi_tekrarlar()

@@ -79,14 +79,33 @@ public partial class ParaGirisiTests
     public void Vm_degeri_bicimlenir_esit_deger_metne_dokunmaz()
     {
         var (g, vm) = Kur(5000m);
-        Assert.Equal("5000", g.Text);
+        Assert.Equal("5000,00", g.Text);   // G-5: listedeki gibi iki ondalık
         TusTusYaz(g, "1500.50");
         vm.Tutar = 1500.5m;
         Assert.Equal("1500.50", g.Text);
         vm.Tutar = 1234.5m;
-        Assert.Equal("1234,5", g.Text);
+        Assert.Equal("1234,50", g.Text);
         vm.Tutar = 0m;
         Assert.Equal("", g.Text);
+    }
+
+    /// <summary>Ekran denemesi G-5: düzenlemeye açılan giderin tutarı formda listedeki gibi "75,00" yazılır; kontrolün geri yazdığı
+    /// 75,00 (ölçeği farklı aynı tutar) formu kirli yapmaz.</summary>
+    [Fact]
+    public void Duzenlenen_tutar_listedeki_gibi_iki_ondalikla_yazilir_form_kirli_olmaz()
+    {
+        var vm = new IslemlerViewModel(new SahteApi(), TestOturumu.Ac());
+        var g = new ParaGirisi { BindingContext = vm };
+        g.SetBinding(ParaGirisi.TutarProperty, nameof(IslemlerViewModel.DuzenTutar));
+
+        vm.Duzenle(new Kasa.ApiClient.IslemDto(5, new DateOnly(2026, 3, 5), "Kargo", 75m, "MEZAT", Kasa.ApiClient.GiderTipi.Cari, null));
+
+        Assert.Equal("75,00", g.Text);
+        Assert.Equal(75m, vm.DuzenTutar);
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
+        g.OdakKaybedildi();
+        Assert.Equal("75,00", g.Text);
+        Assert.False(vm.KaydedilmemisDegisiklikVar);
     }
 
     [Fact]

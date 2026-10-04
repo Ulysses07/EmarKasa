@@ -8,7 +8,15 @@ namespace Kasa.App.Core;
 public partial class PanelViewModel : RaporViewModel
 {
     private readonly IKasaApi _api;
-    public PanelViewModel(IKasaApi api) => _api = api;
+    public PanelViewModel(IKasaApi api, BaglantiDurumu? baglanti = null, AuthViewModel? auth = null) : base(baglanti, auth) => _api = api;
+
+    /// <summary>K-4: oturum değişince takipte olmayan kayıtların uyarısı da temizlenir (başka kullanıcının kart ve kredi adları
+    /// görünmesin).</summary>
+    protected override void SonVeriyiSifirla()
+    {
+        base.SonVeriyiSifirla();
+        TakipsizUyari = "";
+    }
 
     [ObservableProperty] private decimal _guncelKasa;
     [ObservableProperty] private decimal _buHaftaSonucu;
@@ -25,6 +33,50 @@ public partial class PanelViewModel : RaporViewModel
         {
             var satir = Kanallar[i];
             Kanallar[i] = satir with { KartBorcu = borclar is null || satir.KanalId is null ? null : borclar.Where(p => p.KanalId == satir.KanalId).Sum(p => Math.Max(0, p.Tutar)) };
+        }
+    }
+
+    /// <summary>Son başarılı panel yüklemesinin başlattığı alt bölüm yüklemesi (<see cref="AltBolumleriBagla"/>).</summary>
+    public Task AltBolumYuklemesi { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Kasalar alt bölümlerini (takip özeti, kasa kontrolü, çekler) panele bağlar. Takip özeti ve kanal eşikleri panelle aynı
+    /// ana sayfa yanıtından gelir (bakiye, uyarı ve kart borcu aynı andan); eski sunucuda null'dır ve eski uçlardan ayrıca yüklenir.
+    /// Her başarılı panel yüklemesinden sonra yenilenirler; panelin hatası onların son verisini silmez, kendi hataları da (tasarım
+    /// 2026-10-02 §3). Kanal satırlarındaki kart borcu takip özetinin son başarılı kanal kart borçlarıdır: panel kanal satırlarını
+    /// yeniledikten sonra (takip yüklemesi hata verse de) yeniden yazılır. Panelin kendi yüklemesi hata verince (panel kartları soluk)
+    /// son verisi olan alt bölümler de eski işaretlenir; sonraki başarılı yükleme onları yeniler.</summary>
+    public void AltBolumleriBagla(TakipOzetViewModel takip, KasaKontrolViewModel kontrol, CekOzetViewModel cekler)
+    {
+        Yuklendi += (_, _) => AltBolumYuklemesi = YukleAsync();
+        // Panel son veri önbelleğinden gösterildi (yeniden kurulan sayfa, H-1): alt bölümler de kendi son verilerini gösterir;
+        // istek atmazlar, panelin başarılı yüklemesi onları yeniler.
+        OnbellektenGosterildi += (_, _) =>
+        {
+            takip.SonVeriyiGoster();
+            kontrol.SonVeriyiGoster();
+            cekler.SonVeriyiGoster();
+            KartBorclariniYansit(takip.KanalKartBorclari);
+        };
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(VeriEski) || !VeriEski)
+                return;
+            foreach (OturumluViewModel bolum in new OturumluViewModel[] { takip, kontrol, cekler })
+                if (bolum.SonGuncelleme is not null)
+                    bolum.VeriEski = true;
+        };
+        takip.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(takip.KanalKartBorclari))
+                KartBorclariniYansit(takip.KanalKartBorclari);
+        };
+
+        async Task YukleAsync()
+        {
+            await takip.PaneldenYukleAsync(TakipOzeti, TakipOzetiGunu);
+            KartBorclariniYansit(takip.KanalKartBorclari);
+            await kontrol.YukleAsync(KasaEsikleri);
+            await cekler.YukleAsync();
         }
     }
 
@@ -53,9 +105,8 @@ public partial class PanelViewModel : RaporViewModel
     public override Task YukleAsync()
     {
         var gun = TakipGunu;
-        // Uyarı öbür panel alanları gibi yükleme sürerken ve yükleme başarısızsa görünmez.
-        TakipsizUyari = "";
-        return RaporYukleAsync(ct => _api.AnaSayfaAsync(gun, ct), a =>
+        // Uyarı öbür panel alanları gibi son başarılı yüklemeden kalır (yenileme ve hata silmez).
+        return RaporYukleAsync($"gun={gun}", ct => _api.AnaSayfaAsync(gun, ct), a =>
         {
             var p = a.Panel;
             GuncelKasa = p.GuncelKasa;

@@ -14,7 +14,9 @@ namespace Kasa.App.Core.Tests;
 /// doluyken görünür (boşken Yenile ile son güncelleme arasında ~130 px boşluk kalıyordu). (2) Onay kutusunun en küçük genişliği 0
 /// (WinUI CheckBox'ın MinWidth=120'si etiketi ~110 px uzağa itiyordu). (3) Gösterge ayrı satırda değil, Yenile düğmesinin sağında
 /// "İşleniyor…" metniyle aynı yatay satırdadır (gösterge görününce içerik 48 px aşağı kayıyordu); Kasa kontrolünün göstergesi de
-/// artık bu satırdadır.</para></summary>
+/// artık bu satırdadır. (4) Son güncelleme satırı modelin SonGuncellemeMetni'ne bağlıdır: hiç yükleme yokken "Henüz yüklenmedi.",
+/// eski veride " · güncel olmayabilir" eki (tasarım 2026-10-02 §3). (5) TakipSayfasi gövdesi GovdeGorunur'a bağlıdır (son veri
+/// varken hata da olsa görünür) ve eski veride soluktur.</para></summary>
 public partial class GorunumEsdegerligiTests
 {
     public sealed record ListeSatiri(string Baslik, string Ozet, bool Acik);
@@ -25,6 +27,7 @@ public partial class GorunumEsdegerligiTests
         public string? Hata { get; set; }
         public string? Mesaj { get; set; }
         public DateTimeOffset? SonGuncelleme { get; set; } = new DateTimeOffset(2026, 9, 30, 10, 0, 0, TimeSpan.FromHours(3));
+        public string SonGuncellemeMetni => SonGuncelleme is { } z ? $"Son güncelleme: {z:dd.MM.yyyy HH:mm}" : "Henüz yüklenmedi.";
         public string Ozet { get; set; } = "Kart borcu 12.500,00 ₺";
         public string Metin { get; set; } = "Açıklama metni";
         public decimal Tutar { get; set; } = 250m;
@@ -307,6 +310,23 @@ public partial class GorunumEsdegerligiTests
             }
 
             public static CheckBox OnayKutusu() => new() { MinimumWidthRequest = 0 };
+
+            /// <summary>(4): son güncelleme satırı SonGuncellemeMetni'ne bağlı.</summary>
+            public static Label Zaman()
+            {
+                var zaman = new Label { FontSize = 12 };
+                zaman.SetBinding(Label.TextProperty, "SonGuncellemeMetni");
+                return zaman;
+            }
+
+            /// <summary>(5): gövde GovdeGorunur'a bağlı, eski veride soluk.</summary>
+            public static void Govde(VerticalStackLayout govde)
+            {
+                govde.SetBinding(VisualElement.IsVisibleProperty, "GovdeGorunur");
+                var tetik = new DataTrigger(typeof(VerticalStackLayout)) { Binding = new Binding("VeriEski"), Value = true };
+                tetik.Setters.Add(new Setter { Property = VisualElement.OpacityProperty, Value = 0.55 });
+                govde.Triggers.Add(tetik);
+            }
         }
 
         public static Label Metin(string text) => new() { Text = text, FontSize = 13 };
@@ -421,10 +441,8 @@ public partial class GorunumEsdegerligiTests
             var mesaj = Bagli(nameof(vm.Mesaj));
             mesaj.TextColor = Colors.DarkGreen;
             root.Add(Bilincli.Doluysa(mesaj));
-            var zaman = new Label { FontSize = 12 };
-            zaman.SetBinding(Label.TextProperty, new Binding(nameof(vm.SonGuncelleme), stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
-            root.Add(zaman);
-            govde.SetBinding(VisualElement.IsVisibleProperty, nameof(vm.VeriHazir));
+            root.Add(Bilincli.Zaman());
+            Bilincli.Govde(govde);
             govde.SetBinding(VisualElement.IsEnabledProperty, nameof(vm.Mesgul), converter: new Kasa.App.Converters.TersIseConverter());
             root.Add(govde);
             sayfa.Content = new ScrollView { Content = root };
@@ -442,9 +460,7 @@ public partial class GorunumEsdegerligiTests
             panel.Add(Bilincli.YenileSatiri(Tikla("Yenile / tekrar dene", () => Task.CompletedTask), busy));
             panel.Add(Bilincli.Doluysa(hata));
             panel.Add(Bilincli.Doluysa(Bagli("Mesaj")));
-            var tarih = new Label { FontSize = 12 };
-            tarih.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
-            panel.Add(tarih);
+            panel.Add(Bilincli.Zaman());
             return panel;
         }
 
@@ -460,9 +476,7 @@ public partial class GorunumEsdegerligiTests
             var hata = new Label { TextColor = Colors.DarkRed };
             hata.SetBinding(Label.TextProperty, "Hata");
             root.Add(Bilincli.Doluysa(hata));
-            var zaman = new Label { FontSize = 12 };
-            zaman.SetBinding(Label.TextProperty, new Binding("SonGuncelleme", stringFormat: "Son güncelleme: {0:dd.MM.yyyy HH:mm}"));
-            root.Add(zaman);
+            root.Add(Bilincli.Zaman());
             root.Add(new Label { Text = "PDF için rapor tarayıcıda açılır. Ctrl+P menüsünden PDF yazıcısını seçin.", FontSize = 13 });
             root.Add(new VerticalStackLayout { Spacing = 4, Children = { new Label { Text = "Başlangıç tarihi", FontSize = 12 }, new DatePicker() } });
             return root;

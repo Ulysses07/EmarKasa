@@ -6,13 +6,15 @@ using System.Text.Json.Serialization;
 namespace Kasa.ApiClient;
 
 /// <summary>Kasa REST API'sinin tiplı istemcisi. Her isteğe Bearer token ekler; başarısız durumda KasaApiException.</summary>
-public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
+public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBaglantiBildirimleri, IBaglantiYoklamasi
 {
     private readonly HttpClient _http;
     private readonly ITokenStore _store;
     private readonly KasaZamanAsimlari _zaman;
     private readonly SemaphoreSlim _oturumKilidi = new(1, 1);
     public event EventHandler? OturumSonlandi;
+    public event EventHandler? SunucuyaUlasildi;
+    public event EventHandler<Exception>? SunucuyaUlasilamadi;
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -49,6 +51,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         try
         { await _store.YazAsync(login.Token); }
         finally { _oturumKilidi.Release(); }
+        _anaSayfaVekilHatasi = false;   // yeni oturumda birleşik uç yeniden denenir
         // Her başarılı giriş kendi rolünün belirtecini yeniler; belirteçsiz yanıt (eski sunucu) saklananı silmez.
         await CihazSaklaAsync(login.Rol, login.Cihaz);
         return login;
@@ -110,16 +113,26 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     /// başlatılınca yeniden denenir.</summary>
     private volatile bool _anaSayfaUcuYok;
 
+    /// <summary>Birleşik uç proxy/ağ geçidi hatası verdi (502, iletisiz 503; Ö-2): bu oturum boyunca doğrudan panele gidilir.
+    /// Kalıcı proxy hatasında her yükleme önce kopuk (uç) sonra bağlı (panel) bildirip otomatik yenilemeyi döngüye sokuyordu.
+    /// Yeni girişte (<see cref="LoginAsync"/>) uç yeniden denenir.</summary>
+    private volatile bool _anaSayfaVekilHatasi;
+
     public async Task<AnaSayfaDto> AnaSayfaAsync(int gun = 30, CancellationToken ct = default)
     {
-        if (!_anaSayfaUcuYok)
+        if (!_anaSayfaUcuYok && !_anaSayfaVekilHatasi)
         {
             try
             { return await GetAsync<AnaSayfaDto>($"api/rapor/ana-sayfa?gun={gun}", ct); }
             catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.NotFound) { _anaSayfaUcuYok = true; }
             // Birleşik ucun sunucu hatası (5xx; ör. takip özeti hesaplanamadı) kasa bakiyelerini gizlemez: panel ayrı uçtan
             // alınır, eşikler ve özet çağıranca kendi uçlarından (kendi hatalarıyla) yüklenir. Uç sonraki yüklemede yeniden denenir.
+            // Birleşik ucun proxy/ağ geçidi hatası (502, iletisiz 503; durum kodlu HttpRequestException) aynı şekilde panele
+            // düşürür (panel ayrı istektir, kendi başına ulaşılabilir olabilir) ve oturum boyunca uç denenmez (Ö-2). Ağ hatası
+            // (durum kodsuz) uç hatası değildir; sonraki yüklemede uç yeniden denenir.
             catch (KasaApiException e) when ((int)e.DurumKodu >= 500) { }
+            catch (HttpRequestException e) when (e.StatusCode is not null) { _anaSayfaVekilHatasi = true; }
+            catch (HttpRequestException) { }
         }
         // Eski sunucu ya da birleşik uç hatası: panel tek başına; eşikler ve takip özeti çağıranca eski uçlardan yüklenir.
         return new(await GetAsync<PanelDto>("api/rapor/panel", ct), null, null);
@@ -171,6 +184,16 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
     public Task AyarGuncelleAsync(AyarYaz g) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar", g);
     public Task IzleyiciSifreAsync(string yeniSifre) => GonderJsonAsync(HttpMethod.Put, "api/ayarlar/izleyici-sifre", new { yeniSifre });
 
+    /// <summary>Bağlantı yoklamasının süre sınırı: kopukken arka planda çalışır, normal çağrı sınırını beklemez.</summary>
+    public static readonly TimeSpan YoklamaSuresi = TimeSpan.FromSeconds(5);
+
+    /// <summary>Bağlantı yoklaması (H-2): token göndermeden GET /health; tek gönderim noktasından geçer, ulaşılabilirliği bildirir.</summary>
+    public async Task YoklaAsync(CancellationToken ct = default)
+    {
+        using var istek = new HttpRequestMessage(HttpMethod.Get, "health");
+        using var _ = await GonderAsync(istek, tokenEkle: false, zamanAsimi: YoklamaSuresi, cancellationToken: ct);
+    }
+
     // ---- altyapı ----
 
     /// <summary>İsteği gönderir; yanıt gövdesi süre sınırı içinde belleğe alınmış olarak döner (JSON ve kısa yanıtlar).
@@ -180,8 +203,9 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
 
     /// <summary>İşlemi istek başına süre sınırıyla çalıştırır; sınır, işlemin gövde okuması dahil tamamını kapsar.
     /// Süre (ya da HttpClient.Timeout) dolarsa <see cref="TimeoutException"/>; çağıranın iptali OperationCanceledException
-    /// olarak kalır. Kullanıcıya "sunucu yanıt vermedi" ile "vazgeçildi" farklı anlatılır.</summary>
-    private static async Task<T> SureliAsync<T>(TimeSpan sure, CancellationToken iptal, Func<CancellationToken, Task<T>> islem)
+    /// olarak kalır. Kullanıcıya "sunucu yanıt vermedi" ile "vazgeçildi" farklı anlatılır. Süre sınırı sunucuya ulaşılamadı
+    /// sayılır (<see cref="IBaglantiBildirimleri.SunucuyaUlasilamadi"/>).</summary>
+    private async Task<T> SureliAsync<T>(TimeSpan sure, CancellationToken iptal, Func<CancellationToken, Task<T>> islem)
     {
         using var kaynak = CancellationTokenSource.CreateLinkedTokenSource(iptal);
         kaynak.CancelAfter(sure);
@@ -189,11 +213,32 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
         { return await islem(kaynak.Token); }
         catch (OperationCanceledException e) when (!iptal.IsCancellationRequested && (kaynak.IsCancellationRequested || e.InnerException is TimeoutException))
         {
-            throw new TimeoutException(KasaZamanAsimlari.Ileti, e);
+            var zamanAsimi = new TimeoutException(KasaZamanAsimlari.Ileti, e);
+            GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, zamanAsimi));
+            throw zamanAsimi;
         }
     }
 
-    /// <summary>Bearer ekleyip gönderir; başarısız yanıtı KasaApiException'a çevirir (401 oturumu kapatır).</summary>
+    /// <summary>502 her zaman, iletisiz 503 (API'nin kendi anlamlı iletisi yok; <see cref="HataAyrintisiAsync"/>'ten dönen
+    /// <paramref name="mesaj"/> null) "ulaşılamadı" (proxy/ağ geçidi hatası) sayılır. API'nin kendi iletili 503'ü (ör.
+    /// "Veritabanı meşgul.") sunucunun anlamlı yanıtıdır, bağlantı kopması sayılmaz (ürün sahibi kararı 2026-10-03). 504 ayrı ele
+    /// alınır (<see cref="YanitAlAsync"/>): süre sınırı sayılır, istek sunucuya ulaşmış ve kayıt yapılmış olabilir.</summary>
+    private static bool ProxyBaglantiHatasi(HttpStatusCode kod, string? mesaj)
+        => kod == HttpStatusCode.BadGateway || (kod == HttpStatusCode.ServiceUnavailable && mesaj is null);
+
+    /// <summary>Dinleyicinin istisnası isteği düşürmesin: olay çağrıları burada yalıtılır.</summary>
+    private static void GuvenliTetikle(Action eylem)
+    {
+        try
+        { eylem(); }
+        catch { /* dinleyicinin hatası isteği düşürmesin */ }
+    }
+
+    /// <summary>Bearer ekleyip gönderir; başarısız yanıtı KasaApiException'a çevirir (401 oturumu kapatır). Uygulamanın bütün
+    /// istekleri buradan geçer: ağ hatası sunucuya ulaşılamadı; 502 ve iletisiz 503 ulaşılamadı sayılır ve
+    /// <see cref="HttpRequestException"/> fırlatılır (bkz. <see cref="ProxyBaglantiHatasi"/>); 504 ulaşılamadı sayılır ve
+    /// <see cref="TimeoutException"/> fırlatılır (istek sunucuya ulaşmış ve kayıt yapılmış olabilir); başka her yanıt (iletili
+    /// 503 dahil) ulaşıldı bildirir.</summary>
     private async Task<HttpResponseMessage> YanitAlAsync(HttpRequestMessage istek, bool tokenEkle, HttpCompletionOption tamamlama, CancellationToken ct)
     {
         string? token = null;
@@ -203,17 +248,38 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             if (!string.IsNullOrEmpty(token))
                 istek.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
-        var yanit = await _http.SendAsync(istek, tamamlama, ct);
+        HttpResponseMessage yanit;
+        try
+        { yanit = await _http.SendAsync(istek, tamamlama, ct); }
+        catch (HttpRequestException e)
+        {
+            GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, e));
+            throw;
+        }
         if (!yanit.IsSuccessStatusCode)
         {
             using (yanit)
             {
                 if (yanit.StatusCode == HttpStatusCode.Unauthorized && tokenEkle)
                     await OturumuGecersizKilAsync(token);
-                var (mesaj, iz) = await HataAyrintisiAsync(yanit, ct);
-                throw new KasaApiException(yanit.StatusCode, mesaj, iz);
+                var (mesaj, iz, alanlar) = await HataAyrintisiAsync(yanit, ct);
+                if (yanit.StatusCode == HttpStatusCode.GatewayTimeout)
+                {
+                    var zamanAsimi = new TimeoutException(KasaZamanAsimlari.Ileti);
+                    GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, zamanAsimi));
+                    throw zamanAsimi;
+                }
+                if (ProxyBaglantiHatasi(yanit.StatusCode, mesaj))
+                {
+                    var baglantiHatasi = new HttpRequestException($"Sunucuya ulaşılamıyor: {(int)yanit.StatusCode} {yanit.StatusCode}", null, yanit.StatusCode);
+                    GuvenliTetikle(() => SunucuyaUlasilamadi?.Invoke(this, baglantiHatasi));
+                    throw baglantiHatasi;
+                }
+                GuvenliTetikle(() => SunucuyaUlasildi?.Invoke(this, EventArgs.Empty));
+                throw new KasaApiException(yanit.StatusCode, mesaj, iz, alanlar);
             }
         }
+        GuvenliTetikle(() => SunucuyaUlasildi?.Invoke(this, EventArgs.Empty));
         return yanit;
     }
 
@@ -235,24 +301,44 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri
             OturumSonlandi?.Invoke(this, new OturumSonlandiEventArgs(neden));
     }
 
-    /// <summary>Hata yanıtından kullanıcıya taşınan ileti (yalnız sunucunun anlamlı Türkçe ileti verdiği durumlarda) ve sunucu
-    /// hatasının (5xx) ProblemDetails iz kimliği (traceId; kullanıcıya kısa "Hata kodu" olarak gösterilir).</summary>
-    private static async Task<(string? Mesaj, string? Iz)> HataAyrintisiAsync(HttpResponseMessage yanit, CancellationToken ct)
+    /// <summary>Hata yanıtından kullanıcıya taşınan ileti (yalnız sunucunun anlamlı Türkçe ileti verdiği durumlarda), sunucu
+    /// hatasının (5xx) ProblemDetails iz kimliği (traceId; kullanıcıya kısa "Hata kodu" olarak gösterilir) ve iletili yanıttaki
+    /// alan hataları (<see cref="AlanHatalari"/>).</summary>
+    private static async Task<(string? Mesaj, string? Iz, IReadOnlyDictionary<string, string>? Alanlar)> HataAyrintisiAsync(HttpResponseMessage yanit, CancellationToken ct)
     {
         var iletiVar = yanit.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.UnprocessableEntity or HttpStatusCode.RequestEntityTooLarge or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
         var sunucuHatasi = (int)yanit.StatusCode >= 500;
         if (!iletiVar && !sunucuHatasi)
-            return (null, null);
+            return (null, null, null);
         try
         {
             using var belge = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync(ct));
             var kok = belge.RootElement;
             var iz = sunucuHatasi && kok.ValueKind == JsonValueKind.Object && kok.TryGetProperty("traceId", out var izDegeri) && izDegeri.ValueKind == JsonValueKind.String
                 ? izDegeri.GetString() : null;
-            return (iletiVar ? Ileti(kok) : null, iz);
+            return iletiVar ? (Ileti(kok), iz, AlanHatalari(kok)) : (null, iz, null);
         }
         catch (JsonException) { /* JSON dışındaki hata gövdesini kullanıcıya taşıma. */ }
-        return (null, null);
+        return (null, null, null);
+    }
+
+    /// <summary>Doğrulama yanıtının "errors" sözlüğü: alan adı küçük harfe iner (sunucu camelCase yazar: "krediKartiId" →
+    /// "kredikartiid"), her alandan ilk dolu ileti alınır. Sözlük yoksa ya da boşsa null.</summary>
+    private static Dictionary<string, string>? AlanHatalari(JsonElement kok)
+    {
+        if (kok.ValueKind != JsonValueKind.Object || !kok.TryGetProperty("errors", out var hatalar) || hatalar.ValueKind != JsonValueKind.Object)
+            return null;
+        var alanlar = new Dictionary<string, string>();
+        foreach (var alan in hatalar.EnumerateObject())
+        {
+            if (alan.Value.ValueKind != JsonValueKind.Array)
+                continue;
+            var ilk = alan.Value.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString())
+                .FirstOrDefault(m => !string.IsNullOrWhiteSpace(m));
+            if (ilk is not null)
+                alanlar.TryAdd(alan.Name.ToLowerInvariant(), ilk);
+        }
+        return alanlar.Count > 0 ? alanlar : null;
     }
 
     private static string? Ileti(JsonElement kok)

@@ -12,6 +12,8 @@
             <VerticalStackLayout Spacing="3">
                 <Label Text="Alışlar" Style="{StaticResource LblPageTitle}" />
                 <Label Text="Kalemleri kaydedin, kanallara dağıtın, inceleme ve ödemeleri takip edin." Style="{StaticResource LblPageSub}" />
+                <!-- Son güncelleme: hiç yükleme yokken "Henüz yüklenmedi.", eski veride "güncel olmayabilir" (tasarım 2026-10-02 §3). -->
+                <Label Text="{Binding SonGuncellemeMetni}" Style="{StaticResource LblPageSub}" />
             </VerticalStackLayout>
             <Button Grid.Column="1" Text="Yenile" Command="{Binding YenileCommand}" Style="{StaticResource BtnSecondary}" VerticalOptions="Center" />
             <Button Grid.Column="2" Text="+ Yeni alış" Command="{Binding YeniCommand}" VerticalOptions="Center" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}" />
@@ -32,20 +34,43 @@
             </Border>
         </VerticalStackLayout>
 
-        <Grid Grid.Row="2" ColumnDefinitions="300,*" ColumnSpacing="18" IsVisible="{Binding VeriHazir}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}">
+        <Grid Grid.Row="2" ColumnDefinitions="300,*" ColumnSpacing="18" IsVisible="{Binding GovdeGorunur}" IsEnabled="{Binding Mesgul, Converter={StaticResource TersIse}}">
+            <!-- Yükleme hata verse de son başarılı liste görünür kalır ve soluk gösterilir (HD-01). -->
+            <Grid.Triggers>
+                <DataTrigger TargetType="Grid" Binding="{Binding VeriEski}" Value="True">
+                    <Setter Property="Opacity" Value="0.55" />
+                </DataTrigger>
+            </Grid.Triggers>
             <Border Style="{StaticResource Card}">
                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Padding="14">
                     <Label Text="ALIŞ KAYITLARI" Style="{StaticResource LblSection}" />
                     <CollectionView Grid.Row="1" ItemsSource="{Binding Alislar}" SelectionMode="None">
                         <CollectionView.ItemTemplate><DataTemplate x:DataType="core:AlisSatiri">
-                            <VerticalStackLayout Spacing="6" Padding="0,12">
-                                <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
-                                <Label Text="{Binding Alt}" Style="{StaticResource LblRowSecondary}" />
-                                <Label Text="{Binding Tutar}" FontSize="12" FontAttributes="Bold" />
-                                <Button Text="Kaydı aç" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start"
-                                        Command="{Binding BindingContext.SecCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
-                                <BoxView Style="{StaticResource RowSeparator}" Margin="0,6,0,0" />
-                            </VerticalStackLayout>
+                            <!-- Açık (düzenlenen) kayıt listede vurgulanır (tasarım 2026-10-02 §2): GreenSoft zemine ek
+                                 olarak çerçeve; yatay iç boşluk satırı kenardan ayırır. -->
+                            <Border Padding="12,12" StrokeThickness="0" StrokeShape="Rectangle">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Value="True">
+                                        <DataTrigger.Binding>
+                                            <MultiBinding Converter="{StaticResource EsitIse}">
+                                                <Binding Path="Veri.Id" />
+                                                <Binding Path="BindingContext.Secili.Id" Source="{x:Reference Sayfa}" />
+                                            </MultiBinding>
+                                        </DataTrigger.Binding>
+                                        <Setter Property="BackgroundColor" Value="{StaticResource GreenSoft}" />
+                                        <Setter Property="StrokeThickness" Value="1" />
+                                        <Setter Property="Stroke" Value="{StaticResource BrushGreen}" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <VerticalStackLayout Spacing="6">
+                                    <Label Text="{Binding Baslik}" Style="{StaticResource LblRowPrimary}" />
+                                    <Label Text="{Binding Alt}" Style="{StaticResource LblRowSecondary}" />
+                                    <Label Text="{Binding Tutar}" FontSize="12" FontAttributes="Bold" />
+                                    <Button Text="Kaydı aç" Style="{StaticResource BtnSecondary}" HorizontalOptions="Start"
+                                            Command="{Binding BindingContext.SecCommand, Source={x:Reference Sayfa}}" CommandParameter="{Binding .}" />
+                                    <BoxView Style="{StaticResource RowSeparator}" Margin="0,6,0,0" />
+                                </VerticalStackLayout>
+                            </Border>
                         </DataTemplate></CollectionView.ItemTemplate>
                         <CollectionView.EmptyView><Label Text="Henüz alış yok. Sağdaki formdan ilk kaydı oluşturun." Style="{StaticResource LblPageSub}" Margin="0,20" /></CollectionView.EmptyView>
                     </CollectionView>
@@ -74,25 +99,28 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <Border Style="{StaticResource CardForm}">
+                    <Border Style="{StaticResource CardForm}" x:Name="AlisFormu">
                         <VerticalStackLayout Spacing="14">
                             <Label Text="1 · ALIŞ BİLGİLERİ VE KALEMLER" Style="{StaticResource LblSection}" />
+                            <!-- Düzenleme modu ve formun genel hatası formun en üstünde (tasarım 2026-10-02 §1-2; AL-01). -->
+                            <Label Text="{Binding FormBasligi}" Style="{StaticResource LblRowPrimary}" FontAttributes="Bold"
+                                   IsVisible="{Binding Duzenlenebilir}" SemanticProperties.HeadingLevel="Level2" />
+                            <Border x:Name="FormHataKutusu" Style="{StaticResource ErrorBox}"
+                                    IsVisible="{Binding Hatalar.Genel, Converter={StaticResource DoluIse}}">
+                                <Label Text="{Binding Hatalar.Genel}" Style="{StaticResource LblError}" />
+                            </Border>
                             <VerticalStackLayout Spacing="12" IsEnabled="{Binding Duzenlenebilir}">
                                 <Grid ColumnDefinitions="160,*" ColumnSpacing="12">
-                                    <VerticalStackLayout>
-                                        <Label Text="Tarih" Style="{StaticResource LblField}" />
-                                        <Border Style="{StaticResource FieldBorder}">
-                                            <DatePicker Date="{Binding Tarih}" />
-                                        </Border>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1">
-                                        <Label Text="Tedarikçi / açıklama" Style="{StaticResource LblField}" />
-                                        <Border Style="{StaticResource FieldBorder}">
-                                            <Entry Text="{Binding Tedarikci}" Placeholder="Firma veya kişi adı" />
-                                        </Border>
-                                    </VerticalStackLayout>
+                                    <ctl:FormAlani Baslik="Tarih" Alan="Tarih" Hata="{Binding Hatalar[Tarih]}">
+                                        <DatePicker Date="{Binding Tarih}" />
+                                    </ctl:FormAlani>
+                                    <ctl:FormAlani Grid.Column="1" Baslik="Tedarikçi / açıklama" Alan="Tedarikci" Hata="{Binding Hatalar[Tedarikci]}">
+                                        <Entry Text="{Binding Tedarikci}" Placeholder="Firma veya kişi adı" />
+                                    </ctl:FormAlani>
                                 </Grid>
-                                <Border Style="{StaticResource FieldBorder}"><Entry Text="{Binding AlisNotu}" Placeholder="Alış notu (isteğe bağlı)" /></Border>
+                                <ctl:FormAlani Alan="AlisNotu" Hata="{Binding Hatalar[AlisNotu]}">
+                                    <Entry Text="{Binding AlisNotu}" Placeholder="Alış notu (isteğe bağlı)" />
+                                </ctl:FormAlani>
                                 <VerticalStackLayout Spacing="12" BindableLayout.ItemsSource="{Binding Kalemler}">
                                     <BindableLayout.ItemTemplate><DataTemplate x:DataType="core:AlisKalemEditor">
                                         <Border BackgroundColor="{StaticResource KalemZemin}" Stroke="{StaticResource BrushBorder}" StrokeShape="RoundRectangle 10" Padding="14">
@@ -145,7 +173,7 @@
                             <Label Text="{Binding DagilimOzeti}" FontAttributes="Bold" />
                             <Label Text="Kaydedilmemiş değişiklikler var." TextColor="{StaticResource UyariMetin}" IsVisible="{Binding KaydedilmemisDegisiklikVar}" />
                             <FlexLayout Wrap="Wrap" AlignItems="Center">
-                                <Button Text="Değişiklikleri kaydet" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
+                                <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" IsVisible="{Binding Duzenlenebilir}" Margin="0,0,10,6" />
                                 <Button Text="İncelemeye gönder" Command="{Binding GonderCommand}" IsVisible="{Binding Gonderilebilir}" Style="{StaticResource BtnSecondary}" Margin="0,0,10,6" />
                                 <Button Text="Kaydet ve onayla" Command="{Binding OnaylaCommand}" IsVisible="{Binding Onaylanabilir}" Margin="0,0,10,6" />
                                 <Button Text="Değişiklikleri bırak" Clicked="DegisiklikleriBirakTiklandi"

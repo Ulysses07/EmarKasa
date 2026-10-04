@@ -28,6 +28,12 @@
             </Border>
 
             <Border Style="{StaticResource Card}" IsVisible="{Binding VeriVar}">
+                <!-- Son yükleme hata verdiyse son başarılı veri soluk gösterilir (tasarım 2026-10-02 §3; HD-01). -->
+                <Border.Triggers>
+                    <DataTrigger TargetType="Border" Binding="{Binding VeriEski}" Value="True">
+                        <Setter Property="Opacity" Value="0.55" />
+                    </DataTrigger>
+                </Border.Triggers>
                 <VerticalStackLayout Spacing="0">
                     <Grid Padding="18,16,18,12" ColumnDefinitions="*,Auto">
                         <Label Text="DÖNEM" Style="{StaticResource LblSection}" />

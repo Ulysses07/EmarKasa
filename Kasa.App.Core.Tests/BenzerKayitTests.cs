@@ -65,9 +65,9 @@ public class BenzerKayitTests
         await vm.GideriAyriKaydetCommand.ExecuteAsync(null);
         Assert.Equal(100, finans.SonIslemOlustur!.TutarTl);
         Assert.Equal(1, lookup.Cagri);
-        var hatali = new IslemlerViewModel(new SahteApi(), TestOturumu.Ac(), new Sahte { Hata = true }) { DuzenTutar = 100 };
+        var hatali = new IslemlerViewModel(new SahteApi(), TestOturumu.Ac(), new Sahte { Hata = true }) { DuzenCari = "Mal", DuzenTutar = 100, DuzenKanal = "MEZAT" };
         await hatali.KaydetCommand.ExecuteAsync(null);
-        Assert.Contains("ulaşılamadı", hatali.Hata);
+        Assert.Contains("ulaşılamadı", hatali.Hatalar.Genel);
         Assert.False(hatali.GiderBenzerlik.Onayla());
     }
     [Fact]

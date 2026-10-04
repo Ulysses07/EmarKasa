@@ -128,12 +128,13 @@ public class ParaAyristiriciTests
 
     [Theory]
     [InlineData("0", "")]
-    [InlineData("1500", "1500")]
-    [InlineData("1500.5", "1500,5")]
-    [InlineData("1500.50", "1500,5")]
+    [InlineData("1500", "1500,00")]            // G-5: listedeki gibi iki ondalık ("75" değil "75,00")
+    [InlineData("75", "75,00")]
+    [InlineData("1500.5", "1500,50")]
+    [InlineData("1500.50", "1500,50")]
     [InlineData("1234567.89", "1234567,89")]   // gruplama yok: metin yeniden ayrıştırılabilir
-    [InlineData("-12.3", "-12,3")]
-    public void Bicimle_gruplamasiz_tr_metin_uretir(string tutar, string beklenen)
+    [InlineData("-12.3", "-12,30")]
+    public void Bicimle_gruplamasiz_iki_ondalikli_tr_metin_uretir(string tutar, string beklenen)
         => Assert.Equal(beklenen, ParaAyristirici.Bicimle(decimal.Parse(tutar, System.Globalization.CultureInfo.InvariantCulture)));
 
     [Theory]

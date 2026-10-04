@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,7 +8,7 @@ using Kasa.Core.Kodlar;
 
 namespace Kasa.App.Core;
 
-public partial class IslemlerViewModel : OturumluViewModel
+public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
 {
     private readonly IKasaApi _api;
     /// <summary>Yeni gider için tekrar anahtarı (appcore-5): istek zaman aşımına uğrayıp sunucuda yine de kaydedildiyse aynı
@@ -24,24 +23,61 @@ public partial class IslemlerViewModel : OturumluViewModel
         _listeHatti = new(Yurutucu);
         _kaynakHatti = new(Yurutucu);
         _gelenHatti = new(Yurutucu);
+        // HD-02: tip seçenekleri sabittir; kaynak yüklemesi başarısız olsa da görünür.
+        foreach (var t in new[] { GiderTipi.Cari, GiderTipi.SabitGider, GiderTipi.KrediKarti })
+            TipCipleri.Add(new SecimCipi(TipAdi(t)));
+        TipVurgu();
+        _form = new(() => FormGovdesi());
+        _form.Ac();
     }
+
+    /// <summary>Gider formunun hataları (tasarım 2026-10-02 §1): alan → ileti ve formun genel hatası.</summary>
+    public AlanHatalari Hatalar { get; } = new();
+    protected override IEnumerable<AlanHatalari> Formlar => [Hatalar];
+
+    /// <summary>Sunucunun gider doğrulama alanları (KayitGirdileri.Islem; küçük harf) → formun alanları.</summary>
+    private static readonly Dictionary<string, string> SunucuAlanlari = new()
+    {
+        ["tarih"] = nameof(DuzenTarih),
+        ["cari"] = nameof(DuzenCari),
+        ["tutartl"] = nameof(DuzenTutar),
+        ["kanal"] = nameof(DuzenKanal),
+        ["tip"] = nameof(DuzenTip),
+        ["not"] = nameof(DuzenNot),
+        ["kredikartiid"] = nameof(DuzenKrediKartiId),
+        ["taksitsayisi"] = nameof(DuzenTaksitSayisi),
+        ["ilkkesimtarihi"] = nameof(DuzenIlkKesimTarihi),
+    };
+
+    /// <summary>Gider formunun açıldığı andaki değerleri (yeni ya da düzenlenen kayıt): kaydedilmemiş değişiklik ölçütü.</summary>
+    private readonly KaydedilmemisDegisiklik _form;
+    public bool KaydedilmemisDegisiklikVar => _form.Var;
+    /// <summary>Yenileme formu korumaz (Ö-4): kabuk kirli formda sorar, otomatik yenilemez.</summary>
+    public bool YenilemeFormuKorur => false;
+
+    /// <summary>Yazılmış değişiklikleri bırakır: düzenlenen kayıt açıldığı değerlerine, yeni form boşa döner.</summary>
+    public void DegisiklikleriBirak()
+    {
+        if (_duzenlenen is { } kayit)
+            Duzenle(kayit);
+        else
+            FormuSifirla();
+    }
+
+    /// <summary>Form başlığı (İŞ-03): yeni kayıtta "Yeni işlem", düzenlemede "Düzenleniyor: 02.08.2026 · Ege Gıda".</summary>
+    public string FormBasligi => DuzenId == 0 || _duzenlenen is null ? "Yeni işlem" : $"Düzenleniyor: {_duzenlenen.Tarih:dd.MM.yyyy} · {_duzenlenen.Cari}";
+    public string KaydetMetni => DuzenId == 0 ? "Kaydet" : "Değişikliği kaydet";
+    /// <summary>Düzenleme modunda "Vazgeç" görünür ve düzenlenen satır listede vurgulanır.</summary>
+    public bool DuzenlemeModu => DuzenId != 0;
 
     /// <summary>Oturum değişince bekleyen kayıt, liste ve gelir yanıtları eskir (sonuçları, hataları ve bitişleri yansımaz; gösterge,
     /// hata ve ileti tabanda kalkar); önceki oturumun formu, listesi ve gelir formu UI bağlamında kalkar.</summary>
     protected override void OturumTemizle()
     {
         GiderBenzerlik.Temizle();
-        Yeni();
+        FormuSifirla();
         GelenTemizle();
         ListeTemizle();
-    }
-
-    /// <summary><see cref="SonGuncellemeMetni"/> tabandaki <see cref="OturumluViewModel.SonGuncelleme"/>'ye bağlıdır.</summary>
-    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
-    {
-        base.OnPropertyChanged(e);
-        if (e.PropertyName == nameof(SonGuncelleme))
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(SonGuncellemeMetni)));
     }
 
     /// <summary>Kanal filtresi "tüm kanallar" çip/etiket metni (gerçek kanal olamaz).</summary>
@@ -103,13 +139,12 @@ public partial class IslemlerViewModel : OturumluViewModel
     // değişimi yalnız listeyi yeniler, kaynakları eskitmez; oturum değişimi eskitir.
     private readonly SonIstekHatti _kaynakHatti;
     [ObservableProperty] private bool _listeYukleniyor;
-    /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="TemelViewModel.Hata"/>'da kalır.</summary>
+    /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="Hatalar"/>'da kalır.</summary>
     [ObservableProperty] private string? _yuklemeHatasi;
     /// <summary>Gösterilen liste güncel süzgecin başarılı yanıtıdır; yüklenirken ve hatada false (boş liste başlığı gizlenir).</summary>
     [ObservableProperty] private bool _veriVar;
     [ObservableProperty] private string _bosListeBasligi = "Henüz işlem yok";
     [ObservableProperty] private string _bosListeAciklamasi = "İlk kayıtla liste burada oluşur.";
-    public string SonGuncellemeMetni => SonGuncelleme is { } zaman ? $"Son başarılı güncelleme: {zaman:dd.MM.yyyy HH:mm}" : "Liste henüz yüklenmedi.";
 
     /// <summary>Son başlatılan liste yüklemesi (dönem seçimi gibi beklenmeden başlayan yüklemeler için).</summary>
     public Task ListeYuklemesi { get; private set; } = Task.CompletedTask;
@@ -130,10 +165,6 @@ public partial class IslemlerViewModel : OturumluViewModel
         { GelenKanallari.Add(new SecimCipi(ad)); GiderKanallari.Add(new SecimCipi(ad)); }
         GiderKanallari.Add(new SecimCipi(KanalEtiketleri.Ortak));
         SenkronSecim();
-
-        if (TipCipleri.Count == 0)
-            foreach (var t in new[] { GiderTipi.Cari, GiderTipi.SabitGider, GiderTipi.KrediKarti })
-                TipCipleri.Add(new SecimCipi(TipAdi(t)));
 
         _kartlar = kartlar;
         KartCipleriniKur();
@@ -198,9 +229,13 @@ public partial class IslemlerViewModel : OturumluViewModel
     private async Task<bool> ListeYukleAsync(IstekBileti istek, IstekBileti? kaynakIstek)
     {
         bool Guncel() => _listeHatti.Guncel(istek);
+        // Aynı süzgecin yenilemesinde gösterilen liste yükleme sürerken ve hatada kalır (tasarım 2026-10-02 §3); başka süzgeçte eski
+        // süzgecin listesi gösterilmez.
+        var ayniSuzgec = _gosterilenSuzgec is not null && _gosterilenSuzgec == SuzgecMetni();
         ListeYukleniyor = true;
         YuklemeHatasi = null;
-        VeriVar = false;
+        if (!ayniSuzgec)
+            VeriVar = false;
         var kaynaklar = kaynakIstek is null;
         try
         {
@@ -212,6 +247,7 @@ public partial class IslemlerViewModel : OturumluViewModel
                 if (!_kaynakHatti.Guncel(k))
                     return false;
                 KaynaklariUygula(kanallar, donemler, kartlar);
+                OnbellegeYaz(KaynakAnahtari, (kanallar, donemler, kartlar));
                 kaynaklar = true;
                 if (!Guncel())
                     return kaynaklar;
@@ -222,15 +258,28 @@ public partial class IslemlerViewModel : OturumluViewModel
             if (!Guncel())
                 return kaynaklar;
             ListeyiUygula(liste, suzgec, bas is not null || bit is not null || kanal is not null);
+            _gosterilenSuzgec = suzgec;
             VeriVar = true;
+            VeriEski = false;
+            SorguYuklenmedi = false;
             SonGuncelleme = _zaman.GetLocalNow();
+            OnbellegeYaz(ListeAnahtari(bas, bit, kanal), new IslemListesi(liste, suzgec), SonGuncelleme.Value);
         }
         catch (Exception hata)
         {
-            // Hatada eski süzgecin listesi ve toplamı gösterilmez; "Henüz işlem yok" da görünmez (VeriVar false). Liste ve
-            // kaynaklar salt okumadır: zaman aşımında "sunucuda tamamlanmış olabilir" denmez.
+            // Aynı süzgecin listesi hatada kalır ve eski işaretlenir; başka süzgecin listesi ve toplamı gösterilmez, "Henüz işlem yok"
+            // da görünmez (VeriVar false). Liste ve kaynaklar salt okumadır: zaman aşımında "sunucuda tamamlanmış olabilir" denmez.
+            // Bağlantı kopukken bağlantı hatası listenin üstüne yazılmaz (kabuk şeridi söyler). Başka süzgecin hatasında "Son
+            // güncelleme … · güncel olmayabilir" de kalmaz: bu süzgeç hiç yüklenmedi ("Henüz yüklenmedi.").
             if (Guncel())
-            { YuklemeHatasi = OkumaHataMesaji(hata); ListeyiBosalt(); }
+            {
+                if (!(Yurutucu.BaglantiHatasi(hata) && BaglantiKopuk))
+                    YuklemeHatasi = OkumaHataMesaji(hata);
+                if (ayniSuzgec && VeriVar)
+                    VeriEski = true;
+                else
+                { ListeyiBosalt(); VeriVar = false; VeriEski = false; SonGuncelleme = null; }
+            }
         }
         finally { if (Guncel()) ListeYukleniyor = false; }
         return kaynaklar;
@@ -249,7 +298,35 @@ public partial class IslemlerViewModel : OturumluViewModel
             : ("Henüz işlem yok", "İlk kayıtla liste burada oluşur.");
     }
 
-    private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; }
+    /// <summary>Son veri önbelleği (H-1): kaynaklar (kanal, dönem, kart; gider ve gelir formunun kanal çipleri) ve süzgecin listesi.</summary>
+    private const string KaynakAnahtari = "kaynak";
+    private static string ListeAnahtari(DateOnly? bas, DateOnly? bit, string? kanal) => $"liste|{bas:yyyy-MM-dd}|{bit:yyyy-MM-dd}|{kanal}";
+    private sealed record IslemListesi(IReadOnlyList<IslemDto> Liste, string Suzgec);
+
+    /// <summary>Yeniden kurulan sayfa (H-1): son kaynaklar (kanal çipleri kopukken de seçilebilir) ve geçerli süzgecin son listesi
+    /// eski (soluk) gösterilir; yükleme ardından denenir.</summary>
+    public override bool SonVeriyiGoster()
+    {
+        if (SonGuncelleme is not null)
+            return false;
+        if (OnbellektenOku<(IReadOnlyList<KanalDto>, IReadOnlyList<DonemDto>, IReadOnlyList<KrediKartiDto>)>(KaynakAnahtari, out var k))
+        {
+            KaynaklariUygula(k.Item1, k.Item2, k.Item3);
+            GelenFormunuOnbellektenGoster();
+        }
+        var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
+        return OnbellektenUygula<IslemListesi>(ListeAnahtari(bas, bit, kanal), v =>
+        {
+            ListeyiUygula(v.Liste, v.Suzgec, bas is not null || bit is not null || kanal is not null);
+            _gosterilenSuzgec = v.Suzgec;
+            VeriVar = true;
+        });
+    }
+
+    private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; _gosterilenSuzgec = null; }
+
+    /// <summary>Gösterilen listenin süzgeci (başarılı yüklemenin); liste yoksa null.</summary>
+    private string? _gosterilenSuzgec;
 
     /// <summary>Oturum değişince bekleyen liste yanıtları uygulanmaz, önceki oturumun listesi ve iletileri kalkar.</summary>
     private void ListeTemizle()
@@ -363,6 +440,7 @@ public partial class IslemlerViewModel : OturumluViewModel
     {
         Hata = null;
         Mesaj = null;
+        SonVeriyiGoster();
         if (!await ListeyiYenile(tam: true))
             return;
         if (EditorMu)
@@ -389,7 +467,11 @@ public partial class IslemlerViewModel : OturumluViewModel
     public bool KartSeciciGorunur => DuzenTip == GiderTipi.KrediKarti;
     /// <summary>Taksit yalnız yeni takipli kart giderinde girilir; düzenlemede plan değişmez (ödenmemişse gider silinip yeniden girilir).</summary>
     public bool TaksitGirilebilir => DuzenId == 0 && DuzenTip == GiderTipi.KrediKarti && DuzenKrediKartiId is not null;
-    partial void OnDuzenIdChanged(int value) => OnPropertyChanged(nameof(TaksitGirilebilir));
+    partial void OnDuzenIdChanged(int value)
+    {
+        foreach (var ad in new[] { nameof(TaksitGirilebilir), nameof(FormBasligi), nameof(KaydetMetni), nameof(DuzenlemeModu) })
+            OnPropertyChanged(ad);
+    }
 
     /// <summary>Formun gönderilecek gövdesi; taksit alanları yalnız taksit girilebilirken ve tek taksitten farklıysa doludur.</summary>
     private IslemYaz FormGovdesi()
@@ -473,8 +555,49 @@ public partial class IslemlerViewModel : OturumluViewModel
             k.Secili = k.Id == DuzenKrediKartiId;
     }
 
+    /// <summary>"Yeni": sürerken başka kayıt açılmasın, yazılmış değişiklik varsa önce onay sorulur (tasarım §2).</summary>
     [RelayCommand]
-    private void Yeni()
+    private async Task YeniAsync()
+    {
+        if (Mesgul)
+            return;
+        if (await BirakilabilirAsync(_form))
+            FormuSifirla();
+    }
+
+    /// <summary>"Vazgeç" (düzenleme modu): bilerek bırakmaktır, onay sorulmaz; form boş yeni kayda döner.</summary>
+    [RelayCommand]
+    private void Vazgec() => FormuSifirla();
+
+    /// <summary>Listedeki "Düzenle": sürerken başka kayıt açılmasın. Bağlı kayıt (ekstre, aylık gider, alış) onaydan önce
+    /// denetlenir: gereksiz onay sorulmadan genel hataya yazılıp gösterilir. Sonra yazılmış değişiklik varsa onay sorulur.</summary>
+    [RelayCommand]
+    private async Task DuzenlemeyeGecAsync(IslemDto i)
+    {
+        if (Mesgul)
+            return;
+        if (BagliKayitNedeni(i) is { } neden)
+        {
+            Hatalar.Temizle();
+            Hatalar.Genel = neden;
+            Hatalar.GosterIste();
+            return;
+        }
+        if (await BirakilabilirAsync(_form))
+            Duzenle(i);
+    }
+
+    /// <summary>Başka bölüme bağlı kaydın açılmama nedeni (ekstre, aylık gider ya da alış); bağlı değilse null.</summary>
+    private static string? BagliKayitNedeni(IslemDto i) => i switch
+    {
+        { EkstreKayitId: not null } => "Bu kayıt PDF ekstresinden aktarıldı. Ekstre İçe Aktar bölümünden iptal edip doğru bilgilerle yeniden kaydedin.",
+        { AylikGiderOdemeId: not null } => "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin.",
+        { AlisId: not null } => "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin.",
+        _ => null,
+    };
+
+    /// <summary>Formu boş yeni kayda döndürür; formun hataları kalkar.</summary>
+    private void FormuSifirla()
     {
         GiderBenzerlik.Temizle();
         _giderAnahtari.Temizle();
@@ -492,17 +615,18 @@ public partial class IslemlerViewModel : OturumluViewModel
         _duzenlenen = null;
         _duzenSurum = 0;
         KartCipleriniKur();
+        OnPropertyChanged(nameof(FormBasligi));
+        Hatalar.Temizle();
+        _form.Ac();
     }
 
-    [RelayCommand]
+    /// <summary>Kaydı forma açar (onay sormaz; listedeki düğme <see cref="DuzenlemeyeGecCommand"/> ile önce sorar). Başka bölüme bağlı
+    /// kayıt açılmaz, nedeni formun genel hatasına yazılır.</summary>
     public void Duzenle(IslemDto i)
     {
-        if (i.EkstreKayitId is not null)
-        { Hata = "Bu kayıt PDF ekstresinden aktarıldı. Ekstre İçe Aktar bölümünden iptal edip doğru bilgilerle yeniden kaydedin."; return; }
-        if (i.AylikGiderOdemeId is not null)
-        { Hata = "Bu ödeme Aylık Giderler bölümüne bağlı. Düzeltmek için o bölümde iptal edip yeniden ödeme kaydedin."; return; }
-        if (i.AlisId is not null)
-        { Hata = "Bu gider bir alışa bağlı. Dağılımı Alışlar ekranında iade / düzenle / onayla adımlarıyla değiştirin."; return; }
+        Hatalar.Temizle();
+        if (BagliKayitNedeni(i) is { } neden)
+        { Hatalar.Genel = neden; Hatalar.GosterIste(); return; }
         GiderBenzerlik.Temizle();
         _giderAnahtari.Temizle();
         _duzenlenen = i;
@@ -516,21 +640,31 @@ public partial class IslemlerViewModel : OturumluViewModel
         DuzenNot = i.Not;
         DuzenKrediKartiId = i.KrediKartiId;
         KartCipleriniKur();
+        OnPropertyChanged(nameof(FormBasligi));
+        Hatalar.Temizle();
+        _form.Ac();
+    }
+
+    /// <summary>Ön doğrulama (tasarım §1): en sık hatalar istek gönderilmeden alanın altında söylenir; sunucu kuralı yine denetler.</summary>
+    private bool FormGecerli()
+    {
+        var h = Hatalar;
+        h.Denetle(!string.IsNullOrWhiteSpace(DuzenCari), nameof(DuzenCari), "Açıklama boş olamaz.");
+        h.Denetle(ParaAyristirici.GecerliMi(DuzenTutar), nameof(DuzenTutar), ParaAyristirici.GecersizMesaji);
+        h.Denetle(DuzenTutar != 0, nameof(DuzenTutar), "Tutar sıfır olamaz.");
+        h.Denetle(!string.IsNullOrWhiteSpace(DuzenKanal), nameof(DuzenKanal), "Kanal seçin.");
+        h.Denetle(DuzenTip != GiderTipi.KrediKarti || DuzenKrediKartiId is not null || KartsizEskiKayit, nameof(DuzenKrediKartiId), TakipliKartIletisi);
+        h.Denetle(!TaksitGirilebilir || DuzenTaksitSayisi is >= 1 and <= 60, nameof(DuzenTaksitSayisi), "Taksit sayısı 1 ile 60 arasında olmalı.");
+        h.Denetle(!TaksitGirilebilir || !DuzenIlkKesimVar || DuzenIlkKesimTarihi.Date >= DuzenTarih.Date, nameof(DuzenIlkKesimTarihi),
+            "İlk kesim tarihi harcamadan önce olamaz.");
+        return !h.Var;
     }
 
     [RelayCommand]
-    private Task KaydetAsync() => YurutAsync(async n =>
+    private Task KaydetAsync() => FormIsleAsync(Hatalar, async n =>
     {
-        if (!EditorMu)
+        if (!EditorMu || !FormGecerli())
             return;
-        if (!ParaAyristirici.GecerliMi(DuzenTutar))
-        { Hata = ParaAyristirici.GecersizMesaji; return; }
-        if (DuzenTip == GiderTipi.KrediKarti && DuzenKrediKartiId is null && !KartsizEskiKayit)
-        { Hata = TakipliKartIletisi; return; }
-        if (TaksitGirilebilir && DuzenTaksitSayisi is < 1 or > 60)
-        { Hata = "Taksit sayısı 1 ile 60 arasında olmalı."; return; }
-        if (TaksitGirilebilir && DuzenIlkKesimVar && DuzenIlkKesimTarihi.Date < DuzenTarih.Date)
-        { Hata = "İlk kesim tarihi harcamadan önce olamaz."; return; }
         var g = FormGovdesi();
         var id = DuzenId;
         if (id == 0 && !await GiderBenzerlik.DevamEdilebilirAsync(new(BenzerAramaTurleri.Gider, g.Tarih, g.TutarTl, g.KrediKartiId, g.Kanal), g,
@@ -556,9 +690,9 @@ public partial class IslemlerViewModel : OturumluViewModel
         // Liste yenilenemese de kayıt alınmıştır: başarı ayrı söylenir (liste hatası durum şeridinde), form temizlenir.
         Mesaj = (id == 0 ? "Gider kaydedildi" : "Gider güncellendi")
             + (SuzgecteGorunur(g.Tarih, g.Kanal) ? "." : $"; seçili süzgeç ({SuzgecMetni()}) dışında kaldığı için listede görünmüyor.");
-        Yeni();
+        FormuSifirla();
         await ListeyiYenile(tam: true);
-    });
+    }, SunucuAlanlari);
 
     [RelayCommand] private async Task GideriAyriKaydetAsync() { if (GiderBenzerlik.Onayla()) await KaydetAsync(); }
 

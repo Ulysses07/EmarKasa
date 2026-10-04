@@ -54,5 +54,7 @@ public partial class KartTakipViewModel
         }
         catch (KasaApiException e) when ((int)e.DurumKodu == 409) { if (Gecerli(n)) { _masrafOnizlemesi.Temizle(); MasrafOnizleme = null; } throw; }
     });
-    private void MasrafTemizle() { _masrafKey.Temizle(); _masrafOnizlemesi.Temizle(); MasrafOnizleme = null; MasrafEkstresi = null; MasrafTutari = 0; MasrafAciklama = ""; MasrafTarihi = DateTime.Today; }
+    private void MasrafTemizle() { _masrafKey.Temizle(); MasrafOnizlemesiniKaldir(); MasrafEkstresi = null; MasrafTutari = 0; MasrafAciklama = ""; MasrafTarihi = DateTime.Today; }
+    /// <summary>Liste yenilemesinde masraf formu korunur ama önizlemesi bayatlar (Ö-3).</summary>
+    private void MasrafOnizlemesiniKaldir() { _masrafOnizlemesi.Temizle(); MasrafOnizleme = null; }
 }

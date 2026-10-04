@@ -41,7 +41,7 @@ public class CekirdekSurumVmTests
 
         await vm.KaydetCommand.ExecuteAsync(null);
 
-        Assert.Equal(GiderIletisi, vm.Hata);
+        Assert.Equal(GiderIletisi, vm.Hatalar.Genel);
         Assert.True(api.IslemlerCagri > okuma, "Liste güncel kayıtlarla yenilendi.");
         Assert.Equal((5, 80m), (vm.DuzenId, vm.DuzenTutar));
         Assert.False(vm.Mesgul);
@@ -124,7 +124,7 @@ public class CekirdekSurumVmTests
         vm.DuzenKanalSira = 5;
         api.KanallarListe = [new(1, "MEZAT", false, 0, 0m, Surum: 3)];
         await vm.KanalKaydetCommand.ExecuteAsync(null);
-        Assert.Equal(kanalIletisi, vm.Hata);
+        Assert.Equal(kanalIletisi, vm.KanalHatalari.Genel);
         Assert.False(vm.Kanallar.Single().Aktif); // liste güncel kayıtlarla yenilendi
         Assert.Equal((1, 5), (vm.DuzenKanalId, vm.DuzenKanalSira)); // form korunur
     }

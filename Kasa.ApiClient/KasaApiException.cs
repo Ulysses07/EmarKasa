@@ -11,7 +11,10 @@ public sealed partial class KasaApiException : Exception
     public string? IzKimligi { get; }
     /// <summary>Kullanıcıya gösterilen kısa iz ("Hata kodu: …"); bkz. <see cref="KisaIz"/>.</summary>
     public string? HataKodu => KisaIz(IzKimligi);
-    public KasaApiException(HttpStatusCode kod, string? mesaj = null, string? izKimligi = null)
+    /// <summary>Sunucunun doğrulama yanıtındaki (ValidationProblem "errors") alan hataları: alan adı (küçük harf; "kalemler[0].aciklama"
+    /// gibi önekler korunur) → ilk ileti. Alan sözlüğü olmayan yanıtta boştur; birleşik ileti (Message) ayrıca durur.</summary>
+    public IReadOnlyDictionary<string, string> AlanHatalari { get; }
+    public KasaApiException(HttpStatusCode kod, string? mesaj = null, string? izKimligi = null, IReadOnlyDictionary<string, string>? alanHatalari = null)
         : base(mesaj ?? (kod switch
         {
             HttpStatusCode.BadRequest => "Girilen bilgileri kontrol edin.",
@@ -25,7 +28,10 @@ public sealed partial class KasaApiException : Exception
     {
         DurumKodu = kod;
         IzKimligi = izKimligi;
+        AlanHatalari = alanHatalari ?? BosAlanHatalari;
     }
+
+    private static readonly IReadOnlyDictionary<string, string> BosAlanHatalari = new Dictionary<string, string>();
 
     /// <summary>İz kimliğinin kullanıcıya gösterilen kısa biçimi (web traceCode ile aynı kural): W3C biçiminde
     /// ("00-&lt;32 hex&gt;-&lt;16 hex&gt;-&lt;2 hex&gt;") iz numarasının ilk 8 hanesi, diğer kimlikte (TraceIdentifier) en çok

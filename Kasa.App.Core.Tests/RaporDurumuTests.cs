@@ -13,7 +13,6 @@ public class RaporDurumuTests
         var api = new SahteApi { AylikRapor = Ay(8) };
         var vm = new AylikViewModel(api) { Yil = 2026, Ay = 8 };
         await vm.YukleAsync();
-        var son = vm.SonGuncelleme;
         api.YuklemeHatasi = new HttpRequestException();
 
         await vm.SonrakiAyCommand.ExecuteAsync(null);
@@ -23,7 +22,8 @@ public class RaporDurumuTests
         Assert.False(vm.VeriVar);
         Assert.False(vm.Mesgul);
         Assert.NotNull(vm.Hata);
-        Assert.Equal(son, vm.SonGuncelleme);
+        // K-5: ay değişince önceki ayın "Son güncelleme: …" zaman damgası da temizlenir (yeni ay henüz hiç yüklenmedi).
+        Assert.Null(vm.SonGuncelleme);
 
         api.YuklemeHatasi = null;
         api.AylikRapor = Ay(9);
@@ -31,6 +31,23 @@ public class RaporDurumuTests
         Assert.True(vm.VeriVar);
         Assert.Equal(vm.Ay, vm.Rapor!.Ay);
         Assert.Null(vm.Hata);
+    }
+
+    /// <summary>Ekran denemesi G-3: Kasalar, Haftalık ve Aylık da öbür sayfalarla aynı biçimi yazar: "Son güncelleme: dd.MM.yyyy
+    /// HH:mm" (saniyesiz); eski veride " · güncel olmayabilir" eki kalır.</summary>
+    [Fact]
+    public void Rapor_son_guncelleme_metni_takip_sayfalariyla_ayni_bicimdedir()
+    {
+        var an = new DateTimeOffset(2026, 10, 3, 18, 12, 23, TimeSpan.FromHours(3));
+        var rapor = new HaftalikViewModel(new SahteApi()) { SonGuncelleme = an };
+        var takip = new CekOzetViewModel(new CekTakipViewModelTests.Sahte(), TestOturumu.Ac()) { SonGuncelleme = an };
+
+        Assert.Equal("Son güncelleme: 03.10.2026 18:12", rapor.SonGuncellemeMetni);
+        Assert.Equal(takip.SonGuncellemeMetni, rapor.SonGuncellemeMetni);
+
+        rapor.VeriEski = takip.VeriEski = true;
+        Assert.Equal("Son güncelleme: 03.10.2026 18:12 · güncel olmayabilir", rapor.SonGuncellemeMetni);
+        Assert.Equal(takip.SonGuncellemeMetni, rapor.SonGuncellemeMetni);
     }
 
     [Fact]
@@ -81,23 +98,83 @@ public class RaporDurumuTests
         Assert.NotNull(vm.Hata);
     }
 
+    /// <summary>HD-01: yenileme ve hata son başarılı bakiyeyi silmez; hata sonrası veri eski işaretlenir, başarı işareti kaldırır.</summary>
     [Fact]
-    public async Task Panel_yenilenirken_ve_hatada_onceki_bakiye_gizlenir()
+    public async Task Panel_yenilenirken_ve_hatada_onceki_bakiye_korunur_ve_eski_isaretlenir()
     {
         var api = new SahteApi { Panel = new PanelDto(123m, new List<KanalBakiyeDto>(), 0, 0) };
         var vm = new PanelViewModel(api);
+        var yuklendi = 0;
+        vm.Yuklendi += (_, _) => yuklendi++;
         await vm.YukleAsync();
         Assert.True(vm.VeriVar);
+        Assert.Equal(1, yuklendi);
         var bekleyen = new TaskCompletionSource<PanelDto>();
         api.PanelGetir = () => bekleyen.Task;
         var yenile = vm.YukleAsync();
-        Assert.False(vm.VeriVar);
+        Assert.True(vm.VeriVar);
         Assert.True(vm.Mesgul);
         bekleyen.SetException(new HttpRequestException());
         await yenile;
-        Assert.False(vm.VeriVar);
+        Assert.True(vm.VeriVar);
+        Assert.True(vm.VeriEski);
+        Assert.Equal(123m, vm.GuncelKasa);
         Assert.False(vm.Mesgul);
+        Assert.NotNull(vm.Hata);
+        Assert.EndsWith(" · güncel olmayabilir", vm.SonGuncellemeMetni);
+        Assert.Equal(1, yuklendi);
+
+        api.PanelGetir = null;
+        await vm.YukleAsync();
+        Assert.False(vm.VeriEski);
+        Assert.DoesNotContain("güncel olmayabilir", vm.SonGuncellemeMetni);
+        Assert.Equal(2, yuklendi);
+    }
+
+    /// <summary>K-4: oturum değişince (çıkış, yeni giriş) son başarılı veri sıfırlanır; başka kullanıcıyla girişte eski bakiyeler
+    /// görünmez.</summary>
+    [Fact]
+    public async Task Oturum_degisince_panelin_son_verisi_sifirlanir()
+    {
+        var auth = TestOturumu.Ac();
+        var vm = new PanelViewModel(new SahteApi { Panel = new PanelDto(123m, new List<KanalBakiyeDto>(), 0, 0) }, auth: auth);
+        await vm.YukleAsync();
+        Assert.True(vm.VeriVar);
         Assert.NotNull(vm.SonGuncelleme);
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+
+        Assert.False(vm.VeriVar);
+        Assert.Null(vm.SonGuncelleme);
+        Assert.False(vm.VeriEski);
+    }
+
+    [Fact]
+    public void Hic_yukleme_yokken_iki_sayfa_ailesi_ayni_metni_yazar()
+    {
+        Assert.Equal("Henüz yüklenmedi.", new HaftalikViewModel(new SahteApi()).SonGuncellemeMetni);
+        Assert.Equal("Henüz yüklenmedi.", new KrediTakipViewModel(new FinansTakipTests.Sahte(), new SahteApi(), TestOturumu.Ac()).SonGuncellemeMetni);
+    }
+
+    [Fact]
+    public async Task Ayni_ayin_yenilemesinde_rapor_korunur_ay_degisince_kalkar()
+    {
+        var api = new SahteApi { AylikRapor = Ay(8) };
+        var vm = new AylikViewModel(api) { Yil = 2026, Ay = 8 };
+        await vm.YukleAsync();
+        api.YuklemeHatasi = new HttpRequestException();
+
+        await vm.YenileCommand.ExecuteAsync(null);
+        Assert.Equal(8, vm.Rapor!.Ay);
+        Assert.True(vm.VeriVar);
+        Assert.True(vm.VeriEski);
+
+        vm.Ay = 9;
+        Assert.Null(vm.Rapor);
+        Assert.False(vm.VeriVar);
+        Assert.False(vm.VeriEski);
+        // K-5: ay değişince son güncelleme zaman damgası da temizlenir (önceki ayın "Son güncelleme: …" satırı kalmaz).
+        Assert.Null(vm.SonGuncelleme);
     }
 
     [Theory]
@@ -123,5 +200,84 @@ public class RaporDurumuTests
         Assert.False(vm.GirisYapildi);
         Assert.True(bildirildi);
         Assert.Contains("Oturumunuz sona erdi", vm.Hata);
+    }
+
+    private static PanelDto BosPanel(decimal kasa) => new(kasa, new List<KanalBakiyeDto>(), 0, 0);
+
+    /// <summary>Ö-1: çıkış sırasında gelen eski oturumun yanıtı temizlenen son veri önbelleğine ve ekrana yazılmaz.</summary>
+    [Fact]
+    public async Task Yukleme_surerken_oturum_degisirse_eski_yanit_onbellege_ve_ekrana_yazilmaz()
+    {
+        var auth = TestOturumu.Ac();
+        var bekleyen = new TaskCompletionSource<AnaSayfaDto>();
+        var api = new SahteApi { AnaSayfaGetir = (_, _) => bekleyen.Task };   // sahte iptali dinlemez
+        var vm = new PanelViewModel(api, auth: auth);
+        var yukle = vm.YukleAsync();
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        bekleyen.SetResult(new AnaSayfaDto(BosPanel(900m), null, null));
+        await yukle;
+
+        Assert.False(auth.SonVeri.Oku<AnaSayfaDto>("PanelViewModel|gun=30", out _, out _));
+        Assert.False(vm.VeriVar);
+        Assert.Equal(0m, vm.GuncelKasa);
+        Assert.Null(vm.SonGuncelleme);
+        Assert.False(vm.Mesgul);
+    }
+
+    /// <summary>Küçük-5: ekrandan ayrılan rapor modeli tekil oturuma abone kalmaz; sonraki yükleme yeniden abone olur ve arada
+    /// değişen oturumun eski verisini o an kaldırır.</summary>
+    [Theory]
+    [InlineData("panel")]
+    [InlineData("haftalik")]
+    [InlineData("aylik")]
+    public async Task Ekrandan_ayrilan_rapor_oturum_olayini_dinlemez_donuste_yeniden_dinler(string ekran)
+    {
+        var auth = TestOturumu.Ac();
+        var api = new SahteApi
+        {
+            Panel = BosPanel(123m),
+            HaftalikListe = [],
+            AylikRapor = new AylikRaporDto(DateTime.Today.Year, DateTime.Today.Month, new List<KanalAylikDto>()),
+        };
+        RaporViewModel vm = ekran switch
+        {
+            "panel" => new PanelViewModel(api, auth: auth),
+            "haftalik" => new HaftalikViewModel(api, auth: auth),
+            _ => new AylikViewModel(api, auth: auth),
+        };
+        await vm.YukleAsync();
+        vm.EkrandanAyril();
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        Assert.True(vm.VeriVar);   // olay artık bu modele gelmiyor
+
+        api.YuklemeHatasi = new HttpRequestException();
+        await vm.YukleAsync();
+        Assert.False(vm.VeriVar);   // dönüşte arada değişen oturumun verisi gösterilmez
+        Assert.Null(vm.SonGuncelleme);
+
+        api.YuklemeHatasi = null;
+        await vm.YukleAsync();
+        Assert.True(vm.VeriVar);
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+        Assert.False(vm.VeriVar);   // yeniden abone
+    }
+
+    /// <summary>Küçük-6: oturum değişince takipte olmayan kayıtların uyarısı da kalkar.</summary>
+    [Fact]
+    public async Task Oturum_degisince_takipsiz_uyarisi_da_kalkar()
+    {
+        var auth = TestOturumu.Ac();
+        var api = new SahteApi { Panel = BosPanel(900m) };
+        api.AnaSayfaGetir = (_, _) => Task.FromResult(new AnaSayfaDto(api.Panel!, null, null, [new TakipsizKayitDto("Kart", 4, "Bonus")]));
+        var vm = new PanelViewModel(api, auth: auth);
+        await vm.YukleAsync();
+        Assert.True(vm.TakipsizVar);
+
+        TestOturumu.YeniOturum(auth, Rol.Editor);
+
+        Assert.False(vm.TakipsizVar);
+        Assert.Equal("", vm.TakipsizUyari);
     }
 }

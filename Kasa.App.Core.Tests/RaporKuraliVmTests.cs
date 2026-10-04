@@ -73,7 +73,7 @@ public class RaporKuraliVmTests
         vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
         Assert.Null(vm.KartUyarisi);
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(KartIletisi, vm.Hata);
+        Assert.Equal(KartIletisi, vm.Hatalar[nameof(IslemlerViewModel.DuzenKrediKartiId)]);
         Assert.Null(api.SonIslemOlustur);
 
         vm.SecKartCommand.Execute(vm.KartCipleri.Single());
@@ -112,7 +112,7 @@ public class RaporKuraliVmTests
         Assert.Equal(new[] { (2, "Takipli") }, vm.KartCipleri.Select(k => (k.Id, k.Ad))); // önceki kaydın eski kartı listeden kalkar
         vm.DuzenNot = "Dekont";
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Null(vm.Hata);
+        Assert.False(vm.Hatalar.Var);
         Assert.Equal((21, (int?)null, "Dekont"), (api.SonIslemGuncelle!.Value.Id, api.SonIslemGuncelle.Value.G.KrediKartiId, api.SonIslemGuncelle.Value.G.Not));
 
         // Yeni kayda dönünce kartsız kredi kartı gideri yine reddedilir.
@@ -123,7 +123,7 @@ public class RaporKuraliVmTests
         vm.SecTipCommand.Execute(new SecimCipi("Kredi kartı"));
         api.SonIslemOlustur = null;
         await vm.KaydetCommand.ExecuteAsync(null);
-        Assert.Equal(KartIletisi, vm.Hata);
+        Assert.Equal(KartIletisi, vm.Hatalar[nameof(IslemlerViewModel.DuzenKrediKartiId)]);
         Assert.Null(api.SonIslemOlustur);
     }
 }

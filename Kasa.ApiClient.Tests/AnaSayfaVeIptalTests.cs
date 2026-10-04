@@ -78,7 +78,6 @@ public class AnaSayfaVeIptalTests
     // özeti null döner ve çağıranca kendi uçlarından yüklenir (kendi hatalarıyla). 404'ten farklı olarak uç sonra yeniden denenir.
     [Theory]
     [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
     public async Task Ana_sayfa_sunucu_hatasinda_panele_duser_ve_sonraki_yuklemede_ucu_yeniden_dener(HttpStatusCode kod)
     {
         var h = new Kayitci((istek, _) => istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? Json(PanelJson) : Durum(kod));
@@ -94,12 +93,61 @@ public class AnaSayfaVeIptalTests
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
     }
 
-    [Fact]
-    public async Task Ana_sayfa_ve_panel_ikisi_de_hata_verirse_panelin_hatasi_tasinir()
+    /// <summary>Ö-2: birleşik ucun proxy hatası (502, iletisiz 503) kalıcıysa her yükleme önce kopuk (uç) sonra bağlı (panel)
+    /// bildirip otomatik yenilemeyi döngüye sokuyordu. Proxy hatasından sonra oturum boyunca doğrudan panele gidilir: bağlantı bir
+    /// kez kopuk bildirilir; yeni girişte uç yeniden denenir.</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task Ana_sayfa_proxy_hatasinda_oturum_boyunca_dogrudan_panele_gider(HttpStatusCode kod)
     {
+        var h = new Kayitci((istek, _) => istek.RequestUri!.AbsolutePath switch
+        {
+            "/api/rapor/panel" => Json(PanelJson),
+            "/api/auth/login" => Json("""{"rol":"editor","token":"t"}"""),
+            _ => Durum(kod),
+        });
+        var c = Client(h);
+        var kopma = 0;
+        ((IBaglantiBildirimleri)c).SunucuyaUlasilamadi += (_, _) => kopma++;
+
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(900, (await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken)).Panel.GuncelKasa);
+
+        Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/panel", "/api/rapor/panel" }, h.Istekler);
+        Assert.Equal(1, kopma);
+
+        h.Istekler.Clear();
+        await c.LoginAsync("editor", "x");
+        await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
+        Assert.Equal(new[] { "/api/auth/login", "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
+    }
+
+    /// <summary>Ağ hatası (sunucu yok) proxy hatası değildir: uç sonraki yüklemede yeniden denenir.</summary>
+    [Fact]
+    public async Task Ana_sayfa_ag_hatasinda_ucu_sonra_yeniden_dener()
+    {
+        var ag = true;
+        var h = new Kayitci((istek, _) => istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? Json(PanelJson)
+            : ag ? throw new HttpRequestException("Bağlantı reddedildi.") : Json(AnaSayfaJson));
+        var c = Client(h);
+
+        await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
+        ag = false;
+        var ikinci = await c.AnaSayfaAsync(ct: TestContext.Current.CancellationToken);
+
+        Assert.NotNull(ikinci.TakipOzeti);
+        Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel", "/api/rapor/ana-sayfa?gun=30" }, h.Istekler);
+    }
+
+    [Fact]
+    public async Task Ana_sayfa_ve_panel_ikisi_de_hata_verirse_panelin_baglanti_hatasi_tasinir()
+    {
+        // Panelin 502'si (gövdesiz) artık bağlantı hatası sayılır (ürün sahibi kararı 2026-10-03): KasaApiException değil,
+        // HttpRequestException; ikinci (panel) isteğin asıl hatası dışarı aynen taşınır.
         var h = new Kayitci((istek, _) => Durum(istek.RequestUri!.AbsolutePath == "/api/rapor/panel" ? HttpStatusCode.BadGateway : HttpStatusCode.InternalServerError));
-        var hata = await Assert.ThrowsAsync<KasaApiException>(() => Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken));
-        Assert.Equal(HttpStatusCode.BadGateway, hata.DurumKodu);
+        var hata = await Assert.ThrowsAsync<HttpRequestException>(() => Client(h).AnaSayfaAsync(ct: TestContext.Current.CancellationToken));
+        Assert.Equal(HttpStatusCode.BadGateway, hata.StatusCode);
         Assert.Equal(new[] { "/api/rapor/ana-sayfa?gun=30", "/api/rapor/panel" }, h.Istekler);
     }
 

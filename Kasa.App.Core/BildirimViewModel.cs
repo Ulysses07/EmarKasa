@@ -51,28 +51,44 @@ public partial class BildirimViewModel : OturumluViewModel
     /// <summary>Windows ayarlarında bu uygulamanın bildirimleri kapalı: uyarı ve ayar bağlantısı görünür.</summary>
     [ObservableProperty] private bool _windowsAyarindaKapali;
 
-    public Task YukleAsync() => YurutAsync(async n =>
+    /// <summary>Bildirimler, ayar ve cihazlar; hata son başarılı veriyi silmez, eski işaretler (tasarım 2026-10-02 §3).</summary>
+    public Task YukleAsync()
     {
-        if (!EditorMu)
-            return;
-        VeriHazir = false;
-        var ayar = await _api.BildirimAyarlariAsync();
-        var bildirimler = await _api.BildirimlerAsync();
-        var cihazlar = await _api.BildirimCihazlariAsync();
-        var anahtar = await _api.BildirimAnahtariAsync();
-        if (!Gecerli(n))
-            return;
+        if (EditorMu)
+            SonVeriyiGoster();
+        return VeriYukleAsync(async n =>
+        {
+            if (!EditorMu)
+                return;
+            VeriHazir = false;
+            var ayar = await _api.BildirimAyarlariAsync();
+            var bildirimler = await _api.BildirimlerAsync();
+            var cihazlar = await _api.BildirimCihazlariAsync();
+            var anahtar = await _api.BildirimAnahtariAsync();
+            if (!Gecerli(n))
+                return;
+            Yansit(ayar, bildirimler, cihazlar, anahtar);
+            _nobetci.Yoklayici.OkunmamisBildir(bildirimler.Count(x => !x.Okundu));
+            Tamamlandi("", (ayar, bildirimler, cihazlar, anahtar));
+        });
+    }
+
+    /// <summary>Son veri önbelleğinden (yeniden kurulan sayfa, H-1); okunmamış sayısı bildirilmez (yalnız güncel yanıt bildirir).</summary>
+    public override bool SonVeriyiGoster()
+        => OnbellektenUygula<(BildirimAyarDto, IReadOnlyList<BildirimDto>, IReadOnlyList<BildirimCihaziDto>, PushAnahtarDto)>("",
+            v => Yansit(v.Item1, v.Item2, v.Item3, v.Item4));
+
+    private void Yansit(BildirimAyarDto ayar, IReadOnlyList<BildirimDto> bildirimler, IReadOnlyList<BildirimCihaziDto> cihazlar, PushAnahtarDto anahtar)
+    {
         AyariYansit(ayar);
         TakipMetni.Doldur(Bildirimler, bildirimler.Select(x => new BildirimSatiri(x)));
         TakipMetni.Doldur(Cihazlar, cihazlar.Select(x => new BildirimCihaziSatiri(x)));
-        _nobetci.Yoklayici.OkunmamisBildir(bildirimler.Count(x => !x.Okundu));
         CihazBildirimiEtkin = anahtar.Etkin;
         CihazDurumu = anahtar.Etkin
             ? "Telefon bildirimleri sunucuda açık. Telefonunuzda izin vermek için aşağıdaki web kurulumunu kullanın."
             : "Telefon bildirimleri sunucuda henüz açılmamış. Hatırlatmalar bu ekranda ve Windows bildirimlerinde görünür.";
         WindowsDurumunuYenile();
-        Tamamlandi();
-    });
+    }
     private void AyariYansit(BildirimAyarDto a)
     {
         Etkin = a.Etkin;

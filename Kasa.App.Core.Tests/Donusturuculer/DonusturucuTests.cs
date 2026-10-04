@@ -32,15 +32,29 @@ public class DonusturucuTests
     private static object? Cevir(IValueConverter d, object? deger, object? parametre = null, CultureInfo? kultur = null)
         => d.Convert(deger, typeof(object), parametre, kultur ?? CultureInfo.InvariantCulture);
 
+    /// <summary>Hem tek değerli (<see cref="IValueConverter"/>) hem çok değerli (<see cref="IMultiValueConverter"/>, ör.
+    /// <see cref="EsitIseConverter"/>) dönüştürücüler kapsanır: ikisi de XAML bağlamalarında kullanılır.</summary>
     [Fact]
     public void Kapsam_her_donusturucu_bu_sinifta_sinanir()
     {
         // Yeni dönüştürücü eklendiğinde (csproj onu kendiliğinden derler) buraya ve aşağıya testi eklenmeli.
         var bilinen = new[] { typeof(AyAdiConverter), typeof(BasHarfConverter), typeof(BelgeAciklamasiConverter), typeof(DoluIseConverter), typeof(DonemBicimConverter),
-            typeof(ParaBicimConverter), typeof(ParaRenkConverter), typeof(TersIseConverter) };
+            typeof(EsitIseConverter), typeof(ParaBicimConverter), typeof(ParaRenkConverter), typeof(TersIseConverter) };
         var derlenen = typeof(AyAdiConverter).Assembly.GetTypes()
-            .Where(t => t.Namespace == "Kasa.App.Converters" && typeof(IValueConverter).IsAssignableFrom(t)).ToArray();
+            .Where(t => t.Namespace == "Kasa.App.Converters" && (typeof(IValueConverter).IsAssignableFrom(t) || typeof(IMultiValueConverter).IsAssignableFrom(t)))
+            .ToArray();
         Assert.Equal(bilinen.Select(t => t.Name).Order(), derlenen.Select(t => t.Name).Order());
+    }
+
+    /// <summary>Düzenlenen satırın vurgusu: satırın Id'si formun DuzenId'sine eşitse (yeni formda DuzenId 0, hiçbir satır eşleşmez).</summary>
+    [Fact]
+    public void EsitIse_iki_dolu_ve_esit_degerde_true()
+    {
+        var d = new EsitIseConverter();
+        Assert.Equal(true, d.Convert([5, 5], typeof(bool), null, CultureInfo.InvariantCulture));
+        Assert.Equal(false, d.Convert([5, 0], typeof(bool), null, CultureInfo.InvariantCulture));
+        Assert.Equal(false, d.Convert([null, null], typeof(bool), null, CultureInfo.InvariantCulture));
+        Assert.Equal(false, d.Convert([5], typeof(bool), null, CultureInfo.InvariantCulture));
     }
 
     [Theory]

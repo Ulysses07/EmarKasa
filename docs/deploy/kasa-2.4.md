@@ -63,6 +63,16 @@ uyarısı), panelde Çekler kutusu. Vadesi geçmiş ama ödenmemiş verilen çek
 günü bildirimle uyarılır. Önerilen sürüm notu: "Çek ve senet takibi: tahsil, ödeme, ciro, kırdırma, vade hatırlatması."
 `/api/surum` `notlar` metnine eklenmesi yayın kararıdır.
 
+**Masaüstü form hataları ve bağlantı kopması** ([tasarım](../specs/2026-10-02-masaustu-form-hatalari-ve-baglanti.md),
+[plan](../specs/2026-10-02-masaustu-form-hatalari-ve-baglanti-plan.md)): form hataları alanın altında ve formun içinde gösterilir,
+kaydetme başarısız olunca ilk hatalı alana kaydırılır; düzenlenen kayıt başlıkta ve listede belli olur; yazılmış form başka kayda
+geçmeden, "Yeni"den ve sayfadan çıkmadan önce "Kaydedilmemiş değişiklik var. Bırakılsın mı?" diye sorar. Kart ödemesi tek "Ödemeyi
+kontrol et" düğmesiyle önizlenir, "Onayla ve kaydet" yalnız güncel önizlemede çalışır. Aylık giderlerde satır düğmesi "Öde" /
+"Ödemeyi iptal et". Sunucuya ulaşılamayınca gezinme çubuğunda tek şerit ("Sunucuya ulaşılamıyor · Son bağlantı 14:05 · Yeniden
+dene") çıkar, son başarılı veri silinmez ve soluk gösterilir; bağlantı gelince açık sayfa bir kez yenilenir. Sunucu değişmez. Ürün
+sahibi kararı (2026-10-03): nginx'in 502/504'ü ve iletisiz 503'ü de "ulaşılamıyor" sayılır, bu üçü hariç 4xx/5xx yanıtları bağlantı
+hatası sayılmaz.
+
 **Kullanıcıya görünmeyenler:** PR #13, #14 (bağımlılık güvenlik sürümleri: .NET paketleri 10.0.12, MAUI 10.0.110), #17, #19, #20 (biçim), #23 (PDF araç başlarken dolan zaman sınırı artık "bozuk PDF" değil zaman aşımı olarak bildirilir), #24–#26, #28, #29 (yapı; görünüm eşdeğerliği testle sabit).
 
 ## 2. Rapor ve muhasebe etkisi
@@ -230,6 +240,9 @@ Otomatik testlerin ve e2e ekran görüntülerinin kapsamadığı yerler; ekran e
 - **İşlemler:** gider/gelir formu yalnız editörde; ekstre "Kaynak" düğmesi; 6 çip grubu (seçili/seçili değil, tıklama), zaman çiplerinin alt boşluğu, dönem Picker'ları, benzer kayıt uyarısı, boş liste, hata kutusu, yeşil ileti.
 - **Alışlar (web ve masaüstü):** ayrıntıda etiketler ve "Kanal dağılımı bekliyor" rozeti, ödeme satırları; yeni/düzenle penceresi; ödeme kaydet (Ara, Daha eski giderler, kart harcaması, taksit); düzelt/taşı ve iptal; belge ekle/kaldır; durum geçişleri, onay/iade; alıcı hesabıyla akış; "Kartı aç" yalnız editörde; şerit boşken dağılım kutusunun en üstte başlaması; sarı kutular, yeşil kart üzerindeki açık metinler, kalem/pay zeminleri; ana sayfa inceleme kutusu; gider penceresindeki taksit alanları; alış ödemesi ayırma ve devir düzeltme önerisi.
 - **Kartlar, Krediler, Aylık Giderler, Ekstre, Bildirimler, Dışa aktar (masaüstü):** başlık boyutları, koyu kırmızı hata/koyu yeşil ileti, liste ayırıcı, geçiş uyarısının kırmızıya dönmesi.
+- **Form hataları ve bağlantı (masaüstü):** gezinme çubuğundaki bağlantı şeridi (sunucu durdurulunca, "Yeniden dene", bağlantı gelince
+  kalkması); sayfadan çıkış onayı (menüden başka sayfaya geçiş, "Forma dön" ile kalma); alan altındaki iletiyi ekran okuyucunun
+  alan adıyla okuması; hataya kaydırma ve odak.
 - **Gerekçe pencereleri:** kart hareket/ödeme/kullanım, kredi arşiv, aylık gider iptali, ekstre iptali, ay kilidi, belge kaldırma — metinler, Vazgeç, boş gerekçe.
 - **Önizleme-onay:** kart ödemesi, faiz/masraf, kart ve kredi geçişi; önizlemeden sonra girdi değişince kaydın reddedilmesi.
 - **Aylık Giderler (web):** şablon penceresi (Eşit/Özel, kip değişimi); ödenmiş satır iptal penceresini, bekleyen satır ödeme formunu açar.
