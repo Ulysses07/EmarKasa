@@ -1,5 +1,7 @@
 # Emar Kasa 2.4 — yayın kaydı ve geçiş notları
 
+> **Tarihsel sürüm notu:** Bu belge 2.4.0 yayınındaki durumu kaydeder; güncel canlı sürüm [2.4.1](kasa-2.4.1.md)'dir.
+>
 > **Durum (4 Ekim 2026): `v2.4.0` yayımlandı.** Etiket `bf688239638a27ce2bab2e22e2a133da21424fdc` commit'ini gösteriyor; canlı `/api/surum` yanıtı `surum: 2.4.0` ve `minimumIstemci: 2.4.0`. Çalışan `kasa-app` imajı `sha256:bf3d25e4c4224e06d73dc4067d2de5998b63f2a20d86ef2ce388511f41c78913`. Bu üç bilgi etiket, herkese açık API ve sunucuda salt okunur `docker inspect` ile doğrulandı. `/opt/kasa/releases/20261004-2.4.0/kasa-2.4.0-published.json` manifestindeki yükseltme öncesi, göç öncesi ve yükseltme sonrası yedek dosyalarının varlığı da doğrulandı.
 >
 > **Tarihsel kapsam:** Aşağıdaki ayrıntılar, canlı `v2.3.0` → `ec2178b` için yazılmış yayın öncesi taslaktan korunmuştur. "Yapılacak", "doğrulanmadı", açık PR ve işaretsiz kontrol maddeleri taslak anındaki durumu anlatır; güncel yayın sonucu değildir. Güncel işletim adımları için [dağıtım rehberini](../../deploy/README.md) ve [operasyon runbook'unu](operasyon-runbook.md) kullanın.

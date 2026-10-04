@@ -1,6 +1,6 @@
 # Emar Kasa 2.3 — PDF ekstre ve hesap hareketleri
 
-> **Tarihsel sürüm notu:** Bu belge 2.3 yayınını anlatır; güncel canlı yayın [2.4.0](kasa-2.4.md)'dır.
+> **Tarihsel sürüm notu:** Bu belge 2.3 yayınını anlatır; güncel canlı yayın [2.4.1](kasa-2.4.1.md)'dir.
 
 ## Kullanım
 
