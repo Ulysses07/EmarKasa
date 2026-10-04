@@ -38,6 +38,9 @@ public class KimlikDogrulamaTests
 
         Assert.Equal("Bearer", handler.SonIstek!.Headers.Authorization!.Scheme);
         Assert.Equal("jwt-xyz", handler.SonIstek.Headers.Authorization.Parameter);
+        Assert.Matches(@"^\d+\.\d+\.\d+$", KasaApiClient.IstemciSurumu);
+        Assert.Equal(KasaApiClient.IstemciSurumu,
+            Assert.Single(handler.SonIstek.Headers.GetValues(KasaApiClient.IstemciSurumuBasligi)));
     }
 
     [Fact]

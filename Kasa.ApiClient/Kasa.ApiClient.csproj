@@ -4,6 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>$(KasaSurumu)</Version>
   </PropertyGroup>
+
+  <Target Name="KasaSurumuDenetle" BeforeTargets="PrepareForBuild">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(KasaSurumu)', '^\d+\.\d+\.\d+$'))"
+           Text="KasaSurumu tanımsız ya da üç parçalı değil ('$(KasaSurumu)'): depo kökündeki Directory.Build.props derlemeye girmeli." />
+  </Target>
 
 </Project>

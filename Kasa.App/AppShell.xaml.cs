@@ -161,7 +161,12 @@ public partial class AppShell : Shell
             else
                 args.Cancel();
         }
-        catch (Exception ex) { Debug.WriteLine($"Sayfadan çıkış onayı gösterilemedi: {ex}"); }
+        catch (Exception ex)
+        {
+            // Onay gösterilemediyse kaydedilmemiş formu koru.
+            args.Cancel();
+            Debug.WriteLine($"Sayfadan çıkış onayı gösterilemedi: {ex}");
+        }
         finally
         {
             _birakmaSoruluyor = false;
@@ -212,7 +217,11 @@ public partial class AppShell : Shell
         {
             await GoToAsync(rota);
         }
-        catch (Exception ex) { Debug.WriteLine($"Açılış gezinmesi başarısız: {ex}"); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Açılış gezinmesi başarısız: {ex}");
+            await IslemHatasiGosterAsync("Başlangıç sayfası açılamadı. Menüden yeniden deneyin.");
+        }
         await TiklamayiUygulaAsync();
         try
         {
@@ -243,7 +252,11 @@ public partial class AppShell : Shell
             if (_bildirimNobetcisi.TiklamayiIsle(tiklama) is { } rota)
                 await GoToAsync(rota);
         }
-        catch (Exception ex) { Debug.WriteLine($"Bildirim tıklaması uygulanamadı: {ex}"); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Bildirim tıklaması uygulanamadı: {ex}");
+            await IslemHatasiGosterAsync("Bildirimdeki sayfa açılamadı. Menüden yeniden deneyin.");
+        }
     }
 
     /// <summary>Yalnız verilen bölümlerin sayfa öğeleri erişilebilir ve menüde görünür (girişe dönüşte hiçbiri).</summary>
@@ -254,12 +267,24 @@ public partial class AppShell : Shell
         _menuModeli.Goster(bolumler);
     }
 
-    /// <summary>Menüden gezinme; başarısız gezinme günlüğe yazılır, kullanıcı bulunduğu sayfada kalır.</summary>
+    /// <summary>Menüden gezinme; başarısızlık kullanıcıya bildirilir, açık sayfa korunur.</summary>
     private async Task GitAsync(string rota)
     {
         try
         { await GoToAsync("//" + rota); }
-        catch (Exception ex) { Debug.WriteLine($"Gezinme başarısız ({rota}): {ex}"); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Gezinme başarısız ({rota}): {ex}");
+            await IslemHatasiGosterAsync("Sayfa açılamadı. Yeniden deneyin.");
+        }
+    }
+
+    /// <summary>İşlem hatasında kullanıcıya kısa bir açıklama gösterir; uyarı da açılamazsa olay işleyicisinden istisna kaçmaz.</summary>
+    private async Task IslemHatasiGosterAsync(string ileti)
+    {
+        try
+        { await DisplayAlertAsync("İşlem tamamlanamadı", ileti, "Tamam"); }
+        catch (Exception ex) { Debug.WriteLine($"İşlem hatası uyarısı gösterilemedi: {ex}"); }
     }
 
     /// <summary>Çıkış; çift tıklamada ikinci çıkış başlamaz.</summary>
@@ -273,7 +298,11 @@ public partial class AppShell : Shell
             await _auth.CikisAsync();
             await GiriseDonAsync();
         }
-        catch (Exception ex) { Debug.WriteLine($"Çıkış başarısız: {ex}"); }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Çıkış başarısız: {ex}");
+            await IslemHatasiGosterAsync("Çıkış tamamlanamadı. Yeniden deneyin.");
+        }
         finally { _cikiliyor = false; }
     }
 
@@ -299,6 +328,7 @@ public partial class AppShell : Shell
         catch (Exception ex)
         {
             Debug.WriteLine($"Girişe dönüş başarısız: {ex}");
+            await IslemHatasiGosterAsync("Giriş ekranı açılamadı. Uygulamayı yeniden başlatın.");
         }
         finally { _giriseDonuluyor = false; }
     }

@@ -19,8 +19,9 @@ namespace Kasa.Api.Auth;
 /// günlüğünden (<see cref="GuvenlikGunlugu"/>) okuyup yalnız sıkılaştırıcı olanları yeniden uygular.</para>
 /// <para>Tanıma: uygulamanın aldığı her yedek kopyası (<see cref="Servisler.YedekServisi"/>) ve restore_backup.py'nin geri
 /// açtığı her dosya SQLite başlığında <see cref="Isaret"/> taşır (<c>PRAGMA user_version</c>; canlı dosyada 0). Yedek anı
-/// (günlüğün kesim noktası) uygulamanın kopyasında <see cref="SistemDurumuEntity.YedekZamani"/>'dadır; restore_backup.py her
-/// yedekte (bu sürümden önceki biçimler dahil) manifestteki anı <see cref="IsaretTablosu"/> tablosuna yazar. Program.cs
+/// rapor için uygulamanın kopyasında <see cref="SistemDurumuEntity.YedekZamani"/>'dadır; günlüğün kesin kesim noktası
+/// <see cref="GuvenlikKesimiTablosu"/> tablosundadır. restore_backup.py eski yedeklerde manifestteki anı
+/// <see cref="IsaretTablosu"/> tablosuna yazar. Kesim noktası olmayan eski yedeklerde kimlik erişimi güvenli yönde kilitlenir. Program.cs
 /// başlatıcıdan (migration) sonra, HTTP sunucusu açılmadan çağırır; işaretli dosyada tek transaction'da:</para>
 /// <list type="bullet">
 /// <item>Bütün oturumlar kapanır, Kasa:JwtKey'e dokunulmaz: yeni rastgele oturum dönemi açılır
@@ -33,14 +34,14 @@ namespace Kasa.Api.Auth;
 /// kapatılır (kaldırılmış kayıp cihaz dirilmez; cihazlar bildirimleri yeniden açar).</item>
 /// <item>İzleyici girişi kapanır: editör yeni izleyici şifresi belirleyene kadar izleyici giremez; yedekteki eski şifre de
 /// yedekten sonra belirlenen de geçersizdir (izleyici bütün finans verisini okur).</item>
-/// <item>Güvenlik günlüğünden, yedek anından SONRAKİ olaylar yeniden uygulanır (yalnız sıkılaştırma; yeniden etkinleştirme gibi
+/// <item>Güvenlik günlüğünden, yedek kesiminden SONRAKİ olaylar yeniden uygulanır (yalnız sıkılaştırma; yeniden etkinleştirme gibi
 /// gevşetici olay uygulanmaz): editör şifresi değiştirildiyse, kurtarma kullanıldıysa ya da operatör şifreyi sıfırladıysa yedekteki
 /// şifre geçersiz kılınır ve editör girişi kilitlenir (<see cref="EditorGuvenligi.GirisKilidi"/>): ne yedekteki ya da sonradan
 /// kaybolan şifre ne de ortamdaki Kasa:EditorSifre geçer (ilk kurulumun ya da unutulmuş eski bir ortam şifresinin kendiliğinden
 /// geçerli olmaması için). Kilidi yalnız operatörün bilinçli sıfırlaması açar: yeni Kasa:EditorSifre ve Kasa:EditorSifreSifirla
 /// (<see cref="EditorSifreSifirlama"/>, bu işlemden hemen sonra aynı açılışta çalışır). Şifresi ya da kullanıcı adı değiştirilen veya son olayı pasife alma olan alıcı
-/// (kimliği ve adı eşleşirse) pasif bırakılır ve eski şifresi geçersiz kılınır; yedekten sonra açılıp kaybolan alıcılar rapora yazılır. Günlük yoksa ya da yedek
-/// anından sonra başladıysa bilinmeyen kararlar nedeniyle editör girişi kilitlenir, yedekteki bütün alıcılar pasifleştirilir ve şifreleri geçersiz kılınır.</item>
+/// (kimliği ve adı eşleşirse) pasif bırakılır ve eski şifresi geçersiz kılınır; yedekten sonra açılıp kaybolan alıcılar rapora yazılır. Günlük yoksa veya kesin
+/// kesim doğrulanamıyorsa editör girişi kilitlenir, yedekteki bütün alıcılar pasifleştirilir ve şifreleri geçersiz kılınır.</item>
 /// <item>Kimlikler ileri alınır: AUTOINCREMENT'li her tablonun sayacı MAX(sayaç, en yüksek kimlik) + <see cref="KimlikAraligi"/>
 /// olur (sayaç satırı olmayan tabloya satır eklenir). Atılan soyda açılmış kayıtların kimlikleri yeni kayda verilmez; eski
 /// ekranın ya da tekrarın taşıdığı kimlik başka kayda ulaşamaz (404). Yedek anında var olan kayıtların sürümü de geri sarıldığı
@@ -60,6 +61,8 @@ public static class GeriYuklemeIsleyici
     public const int Isaret = 0x4B534759;
     /// <summary>Geri yükleme aracının yedek anını yazdığı tablo (restore_backup.py'deki GERI_YUKLEME_TABLOSU ile aynı); işlenince düşürülür.</summary>
     public const string IsaretTablosu = "__KasaGeriYukleme";
+    /// <summary>Yalnız yedek kopyasında bulunan güvenlik günlüğü bayt/özet kesimi; işlemden sonra kaldırılır.</summary>
+    public const string GuvenlikKesimiTablosu = "__KasaYedekGuvenlikKesimi";
     /// <summary>Geri yüklemede sayaçların ileri alındığı pay (restore_backup.py'deki KIMLIK_ARALIGI ile aynı).</summary>
     public const int KimlikAraligi = 1_000_000;
     public const string OlayTuru = GuvenlikOlaylari.GeriYuklemeIslendi;
@@ -71,7 +74,7 @@ public static class GeriYuklemeIsleyici
         + "kilitlendi (sunucudaki KASA_EDITOR_SIFRE de geçmez). Sunucu operatörü sıfırlamalı: deploy/.env'de KASA_EDITOR_SIFRE'yi yeni, en az 12 "
         + "karakterlik bir değere çevirip KASA_EDITOR_SIFRE_SIFIRLA=true ile uygulamayı yeniden başlatır (Kasa:EditorSifreSifirla). Editör bu "
         + "şifreyle girip şifresini hemen değiştirmeli; ardından bayrak kaldırılıp uygulama yeniden başlatılmalı.";
-    public const string EditorGirisiKilidiEksikGunluk = "Güvenlik günlüğü yedek anından beri tam olmadığı için yedekteki editör şifresinin güvenliği doğrulanamadı: "
+    public const string EditorGirisiKilidiEksikGunluk = "Güvenlik günlüğünün yedek anından beri tam olduğu doğrulanamadığı için yedekteki editör şifresinin güvenliği doğrulanamadı: "
         + "editör girişi kilitlendi (sunucudaki KASA_EDITOR_SIFRE de geçmez). Sunucu operatörü yeni, en az 12 karakterlik KASA_EDITOR_SIFRE "
         + "ve KASA_EDITOR_SIFRE_SIFIRLA=true ile uygulamayı yeniden başlatmalı; editör bu şifreyle girip hemen kendi şifresini değiştirmeli.";
 
@@ -94,9 +97,8 @@ public static class GeriYuklemeIsleyici
             // Olağan açılışta yazma kilidi alınmaz; aynı dosyayla aynı anda açılan iki süreçte işareti transaction içinde yeniden okur.
             if (!Isaretli(baglanti, null))
                 return null;
-            // Günlük veritabanından bağımsız bir dosyadır: transaction'dan önce okunur.
+            // Günlük veritabanından bağımsız bir dosyadır; seri kilit, kesim okuma ve işlemi birlikte korur.
             using var seriKilit = gunluk?.IslemKilidiAl();
-            var icerik = gunluk?.Oku();
             using var tx = db.Database.BeginTransaction();
             var sqliteTx = (SqliteTransaction)tx.GetDbTransaction();
             if (!Isaretli(baglanti, sqliteTx))
@@ -108,6 +110,9 @@ public static class GeriYuklemeIsleyici
             if (durum is null)
                 db.SistemDurumu.Add(durum = new SistemDurumuEntity());
             var (yedekAni, anKaynagi) = YedekAni(baglanti, sqliteTx, durum);
+            var gunlukKesimi = GuvenlikKesimiOku(baglanti, sqliteTx);
+            // Bozuk canlı günlükte açılış durur. Kesim uyuşmazlığı ise geri yüklemeyi güvenli yönde kilitleyerek tamamlar.
+            var icerik = gunluk?.Oku();
             var sayaclar = KimlikleriIlerlet(baglanti, sqliteTx);
             var rapor = new List<string>
             {
@@ -131,11 +136,36 @@ public static class GeriYuklemeIsleyici
             var kurtarmaKoduVardi = editor.KurtarmaHash is not null;
             editor.KurtarmaHash = null;
 
-            // Yedek anıyla aynı zaman damgasındaki olaylar da uygulanır: zaman çözünürlüğü veya sabit saat nedeniyle
-            // karar yedeğin hemen sonrasında aynı damgayı taşıyabilir. Fazladan sıkılaştırma güvenli yöndedir.
-            var kesim = yedekAni ?? DateTimeOffset.MinValue;
-            var sonrakiler = icerik?.Olaylar.Where(o => o.Zaman >= kesim).ToList() ?? [];
-            var gunlukDurumu = icerik is null ? "bulunamadi" : icerik.Baslangic is { } bas && bas < kesim ? "tam" : "eksik";
+            // Duvar saati geriye alınabilir; olay sırasını yalnız yedek kopyasındaki bayt/özet kesimi belirler.
+            // Eski yedeklerde bu bilgi yoktur: tarih süzmesi şifre veya pasife alma kararını atlayabilir.
+            var sonrakiler = new List<GuvenlikGunlugu.Olay>();
+            string gunlukDurumu;
+            string? eksikNedeni = null;
+            if (icerik is null)
+                gunlukDurumu = "bulunamadi";
+            else if (gunlukKesimi is null)
+            {
+                gunlukDurumu = "eksik";
+                eksikNedeni = "Bu yedekte güvenlik günlüğünün kesin sıra bilgisi yok. Saat geri alınmış olabileceğinden yedekten sonraki kimlik kararları doğrulanamadı.";
+            }
+            else if (gunlukKesimi.Bayt < icerik.DogrulamaBaslangiciBayt)
+            {
+                gunlukDurumu = "eksik";
+                eksikNedeni = "Yedek, güvenlik günlüğünün doğrulanabilen bölümünden önce alınmış. Aradaki kimlik kararları doğrulanamadı.";
+            }
+            else
+            {
+                try
+                {
+                    sonrakiler = gunluk!.KesimdenSonraOku(gunlukKesimi).Olaylar.ToList();
+                    gunlukDurumu = "tam";
+                }
+                catch (InvalidDataException)
+                {
+                    gunlukDurumu = "eksik";
+                    eksikNedeni = "Yedekteki güvenlik günlüğü kesimi mevcut günlükte doğrulanamadı. Aradaki kimlik kararları doğrulanamadı.";
+                }
+            }
             var kararlarEksik = gunlukDurumu != "tam";
             // Operatörün yedekten sonraki sıfırlaması da bir şifre kararıdır: yedekteki şifre (belki sıfırlamanın nedeni) geri gelmez.
             var editorKilitlendi = kararlarEksik || sonrakiler.Any(o => o.Tur is GuvenlikGunlugu.EditorSifresiDegisti or GuvenlikGunlugu.KurtarmaKullanildi
@@ -158,9 +188,7 @@ public static class GeriYuklemeIsleyici
                     + "ve yedekteki bütün alıcı hesapları pasifleştirildi. Sunucu operatörü editör şifresini yeni KASA_EDITOR_SIFRE ile "
                     + "sıfırlamalı; editör alıcıları ancak yeni şifre belirleyerek tekrar etkinleştirmeli.");
             else if (gunlukDurumu == "eksik")
-                rapor.Add((yedekAni is null
-                        ? "Yedek anı bilinmediği için güvenlik günlüğündeki bütün sıkılaştırmalar yeniden uygulandı; günlükten önceki değişiklikler bilinemiyor. "
-                        : $"Güvenlik günlüğü {(icerik!.Baslangic is { } b ? Yerel(b) : "bilinmeyen bir")} tarihinden beri tutuluyor; yedek daha önce alındığı için aradaki değişiklikler bilinemiyor. ")
+                rapor.Add((eksikNedeni ?? "Güvenlik günlüğünün yedekten beri tam olduğu doğrulanamadı.") + " "
                     + "Bu nedenle editör girişi kilitlendi ve yedekteki bütün alıcı hesapları pasifleştirildi. Sunucu operatörü "
                     + "editör şifresini sıfırlamalı; editör alıcıları ancak yeni şifre belirleyerek tekrar etkinleştirmeli.");
 
@@ -171,6 +199,7 @@ public static class GeriYuklemeIsleyici
             durum.GeriYuklemeRaporu = JsonSerializer.Serialize(rapor, DenetimYazici.JsonAyarlari);
             db.SaveChanges();
             Calistir(baglanti, sqliteTx, $"DROP TABLE IF EXISTS \"{IsaretTablosu}\";");
+            Calistir(baglanti, sqliteTx, $"DROP TABLE IF EXISTS \"{GuvenlikKesimiTablosu}\";");
 
             DenetimYazici.Yaz(db, new DenetimOlayi(OlayTuru, GuvenlikOlaylari.Varlik, soy.ToString("D"), null, DenetimYazici.Json(new
             {
@@ -288,6 +317,26 @@ public static class GeriYuklemeIsleyici
                      .Distinct(StringComparer.OrdinalIgnoreCase).Where(k => !mevcut.Contains(k)))
             rapor.Add($"'{kullanici}' alıcı hesabı yedekten sonra açılmıştı; geri yüklemede kayboldu. Gerekirse yeniden açın.");
         return pasif;
+    }
+
+    /// <summary>Yedek kopyasındaki kesin günlük kesimi; tablo yoksa eski yedektir, bozuksa geçersiz kesim döner.</summary>
+    private static GuvenlikGunlugu.KesimNoktasi? GuvenlikKesimiOku(SqliteConnection baglanti, SqliteTransaction tx)
+    {
+        if (Deger(baglanti, tx, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $ad;", ("$ad", GuvenlikKesimiTablosu)) is null)
+            return null;
+        try
+        {
+            using var komut = Komut(baglanti, tx, $"SELECT \"Bayt\", \"Sha256\" FROM \"{GuvenlikKesimiTablosu}\" LIMIT 2;");
+            using var okuyucu = komut.ExecuteReader();
+            if (!okuyucu.Read() || okuyucu.IsDBNull(0) || okuyucu.IsDBNull(1))
+                return new(-1, "");
+            var kesim = new GuvenlikGunlugu.KesimNoktasi(okuyucu.GetInt64(0), okuyucu.GetString(1));
+            return okuyucu.Read() ? new(-1, "") : kesim;
+        }
+        catch (Exception ex) when (ex is SqliteException or InvalidCastException)
+        {
+            return new(-1, "");
+        }
     }
 
     /// <summary>Yedek anı: uygulamanın kopyasındaki <see cref="SistemDurumuEntity.YedekZamani"/>, yoksa restore_backup.py'nin

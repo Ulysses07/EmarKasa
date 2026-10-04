@@ -51,7 +51,10 @@ public class EditorSifirlamaTests
     {
         var c = f.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         if (jwt is not null)
+        {
             c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            c.DefaultRequestHeaders.Add("X-Kasa-Istemci-Surumu", YonetimEndpoints.MinimumIstemci);
+        }
         return c;
     }
 

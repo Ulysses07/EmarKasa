@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -31,6 +32,12 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
 
     /// <summary>Tanıdık cihaz belirtecinin gönderildiği başlık (sunucuda TanidikCihaz.BaslikAdi).</summary>
     public const string TanidikCihazBasligi = "X-Kasa-Cihaz";
+
+    /// <summary>Sunucunun eski masaüstü sürümlerinin yazmasını engellemek için kullandığı başlık.</summary>
+    public const string IstemciSurumuBasligi = "X-Kasa-Istemci-Surumu";
+    public static readonly string IstemciSurumu =
+        (typeof(KasaApiClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+         ?? throw new InvalidOperationException("Kasa.ApiClient derlemesinde KasaSurumu yok.")).Split('+')[0];
 
     /// <summary>Tanıdık cihaz belirteçlerinin rol başına saklandığı roller (sunucunun giriş ve /me yanıtındaki 'rol').</summary>
     public static readonly IReadOnlyList<string> CihazRolleri = ["editor", "viewer", "alici"];
@@ -241,6 +248,7 @@ public sealed partial class KasaApiClient : IKasaApi, IOturumBildirimleri, IBagl
     /// 503 dahil) ulaşıldı bildirir.</summary>
     private async Task<HttpResponseMessage> YanitAlAsync(HttpRequestMessage istek, bool tokenEkle, HttpCompletionOption tamamlama, CancellationToken ct)
     {
+        istek.Headers.TryAddWithoutValidation(IstemciSurumuBasligi, IstemciSurumu);
         string? token = null;
         if (tokenEkle)
         {

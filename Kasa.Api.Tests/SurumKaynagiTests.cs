@@ -5,7 +5,7 @@ using System.Xml.Linq;
 namespace Kasa.Api.Tests;
 
 /// <summary>
-/// Ürün sürümünün tek kaynağı (Aşama 4): depo kökündeki Directory.Build.props'taki KasaSurumu. Kasa.Api ve Kasa.App.Core onu
+/// Ürün sürümünün tek kaynağı (Aşama 4): depo kökündeki Directory.Build.props'taki KasaSurumu. Kasa.Api, Kasa.ApiClient ve Kasa.App.Core onu
 /// Version, Kasa.App ApplicationDisplayVersion olarak derlemeye yazar; kod sürümü derleme meta verisinden okur, elle yazılmış
 /// kopya kalmaz. Dockerfile dosyayı imaja kopyalar (yoksa Kasa.Api derlemesi durur). minimumIstemci ayrı bir kavramdır
 /// (desteklenen en eski istemci) ve KasaSurumu'na bağlı değildir.
@@ -18,12 +18,12 @@ public class SurumKaynagiTests
         await using var f = new KasaWebFactory();
         using var c = f.CreateClient();
         var yanit = await c.GetFromJsonAsync<JsonElement>("/api/surum", cancellationToken: TestContext.Current.CancellationToken);
-        // Aşama 4 öncesindeki yanıtla aynı alanlar, aynı sırada ve aynı değerlerle; yalnız "surum"un kaynağı değişti.
+        // Sürüm yanıtının alanları ve sırası istemci sözleşmesidir.
         Assert.Equal(["surum", "minimumIstemci", "indirmeAdresi", "notlar"], yanit.EnumerateObject().Select(p => p.Name));
         Assert.Equal(KasaSurumu(), yanit.GetProperty("surum").GetString());
-        Assert.Equal("2.4.0", yanit.GetProperty("minimumIstemci").GetString());
+        Assert.Equal("2.4.1", yanit.GetProperty("minimumIstemci").GetString());
         Assert.Equal(JsonValueKind.Null, yanit.GetProperty("indirmeAdresi").ValueKind);
-        Assert.Equal("Telefon arayüzü, kapatılan ayların raporunun dondurulması, kredi girişinin ayrı satırda gösterilmesi, belge deposu, kasa kontrolü ve değişiklik geçmişi.",
+        Assert.Equal("Geri yükleme ve güvenlik günlüğü bütünlüğü iyileştirildi; güncel Windows uygulaması kayıt değişiklikleri için gerekli.",
             yanit.GetProperty("notlar").GetString());
     }
 
@@ -40,6 +40,7 @@ public class SurumKaynagiTests
 
     [Theory]
     [InlineData("Kasa.Api", "Version")]
+    [InlineData("Kasa.ApiClient", "Version")]
     [InlineData("Kasa.App.Core", "Version")]
     [InlineData("Kasa.App", "ApplicationDisplayVersion")]
     public void Projeler_surumu_KasaSurumu_ndan_alir(string proje, string ozellik)
@@ -58,7 +59,7 @@ public class SurumKaynagiTests
     }
 
     /// <summary>Kaynak kodda KasaSurumu'nun elle yazılmış kopyası yok; yalnız ayrı kavram olan minimumIstemci aynı değeri
-    /// taşıyabilir (bugün 2.3.0) ve kendi satırında açıkça adlandırılmıştır.</summary>
+    /// taşıyabilir (bugün 2.4.1) ve kendi satırında açıkça adlandırılmıştır.</summary>
     [Fact]
     public void Kaynak_kodda_elle_yazilmis_surum_dizesi_yok()
     {
