@@ -1,6 +1,6 @@
 # Kasa 2.1 — kart, kredi ve bildirim takibi
 
-> Tarihsel sürüm notu (2.1). Sürüm ve veri klasörü bilgileri o yayın anına aittir; güncel sürüm [2.4.0](kasa-2.4.md). Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
+> Tarihsel sürüm notu (2.1). Sürüm ve veri klasörü bilgileri o yayın anına aittir; güncel sürüm [2.4.1](kasa-2.4.1.md). Güncel kural: etkin veri dizini son yayın manifestindeki `dataDirectory` = sunucudaki `deploy/.env` içindeki `KASA_DATA_DIR` değeridir; depo Compose şablonu yalnız bu `.env` ile kullanılır ([deploy/README.md](../../deploy/README.md)).
 
 23 Eylül 2026 önceki güncellemesi: **2.1.1**. Ardından [2.2.0](kasa-2.2.md) yayımlandı; bu belge önceki yayını anlatır. Kanal kart borcu, alışta kart adı, asgari ödeme durumu ve benzer kayıt uyarısı eklendi. [Kapsam ve doğrulama](https://github.com/Ulysses07/EmarKasa/blob/621b370f0968829a2fbef9495155876e0661e9db/docs/plans/2026-09-23-kasa-gorunurlugu.md) (arşivlenmiş plan belgesi). 2.1.1 yayın kaydı `/opt/kasa/releases/20260923-usability/usability-published.json`; aşağıdaki 2.1.0 yayın kaydı geçmiş sürüme aittir.
 

@@ -289,7 +289,7 @@ docker system df
 - Uygulama her yedekten önce yedek diskinde geçici kopya + arşiv + yeni belgeler + `Yedek__AsgariBosAlanMb` (varsayılan 2048 MB) arar; yetmezse yedek alınmaz, Ayarlar'da "Yedek alınmadı: yedek diskinde yeterli boş alan yok…" görünür ve "Şimdi yedek indir" 507 döner. Ayarlar > Yedekleme yedek ve veri diskinin boş alanını ve yedeklerin toplam boyutunu gösterir, boş alan asgarinin altına inince uyarır.
 - İsteğe bağlı üst sınır: `Yedek__AzamiToplamMb` verilirse toplam (yedekler + ayna) aşılınca en eski otomatik yedekler silinir; en yeni 7 otomatik, elle ve göç öncesi yedekler korunur, yine aşılıyorsa uyarı görünür.
 - Göç öncesi yedekleri (`kasa-goc-oncesi-*`) rotasyon silmez. Yer gerekirse önce `uzak_yedek.py listele` ile uzakta kopyası olduğunu doğrulayın, sonra artık gerekmeyenleri elle kaldırın.
-- Her `build --pull` yeni imaj üretir; eski imajlar etiketsiz kalır. Yeni sürüm doğrulandıktan ve geri dönüş gereği kalmadıktan sonra `docker image prune` ile temizlenir. Bu komut [deploy/README.md](../../deploy/README.md) "Güncelleme" 4. adımında saklanan geri dönüş imajını da siler.
+- Her `build --pull` yeni imaj üretir; önceki `kasa:latest` etiketi yeni imaja geçer. [Dağıtım kılavuzunun](../../deploy/README.md) 4. adımında eski imajı **derlemeden önce** sürüme özgü `kasa:geri-donus-...` etiketiyle koruyun; yalnız kimliği dosyaya yazmak yeterli değildir. `docker image prune` etiketsiz imajları siler, bu geri dönüş etiketini silmez. Geri dönüş gereği kalmadığında hangi etiketin kaldırılacağına yayın manifestine bakarak karar verin.
 
 ## Dal ve sürüm durumu
 

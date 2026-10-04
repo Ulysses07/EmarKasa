@@ -1,6 +1,6 @@
 # Kasa Defteri — VPS dağıtımı
 
-Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerindedir. Canlı kurulum sistem Nginx'i ve `docker-compose.nginx.yml` dosyasını kullanır; `kasa-app` konteyneri yalnız `127.0.0.1:8080` üzerinden erişilir. Güncel yayın 2.4.0: [yayın kaydı ve geçiş notları](../docs/deploy/kasa-2.4.md), etiket `v2.4.0` (`bf688239638a27ce2bab2e22e2a133da21424fdc`). Yayın manifesti `/opt/kasa/releases/20261004-2.4.0/kasa-2.4.0-published.json` içindedir.
+Güncel hedef adres `https://kasa.emarglobal.com/`, VPS `72.61.187.202` üzerindedir. Canlı kurulum sistem Nginx'i ve `docker-compose.nginx.yml` dosyasını kullanır; `kasa-app` konteyneri yalnız `127.0.0.1:8080` üzerinden erişilir. Güncel yayın 2.4.1: [yayın kaydı ve geçiş notları](../docs/deploy/kasa-2.4.1.md), etiket `v2.4.1` (`d26c909b292cbb815b1889b5cc6f880f56f26621`). Yayın manifesti `/opt/kasa/releases/20261004-2.4.1/kasa-2.4.1-published.json` içindedir. Bu yayında özgün 2.4.0 imaj kimliği Docker'da korunmadı; aynı `v2.4.0` kaynağından yeniden derlenen geri dönüş imajının kimliği manifestteki `rollbackImageId` alanındadır. Geri dönüşte eski `imaj-onceki.txt` kimliğini kullanmayın.
 
 ## Veri ve yedek dizini kuralı
 
@@ -134,14 +134,17 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
    ls -l <etkin-veri-dizini>/kasa.db
    ```
    Yol yoksa `up` hata verip durur (şablon boş dizin açmaz). Var olan ama yanlış bir dizin ise yakalanmaz; `kasa.db` görünmüyorsa devam etmeyin.
-4. Geri dönüş için sunucudaki compose dosyasını ve çalışan imajın kimliğini saklayın:
+4. Geri dönüş için sunucudaki compose dosyasını ve çalışan imajı ayrı bir etiketle saklayın:
    ```sh
    mkdir -p <geri-dönüş-dizini>
    cp /opt/kasa/deploy/docker-compose.nginx.yml <geri-dönüş-dizini>/compose-onceki.yml
    docker inspect kasa-app --format '{{.Image}}' > <geri-dönüş-dizini>/imaj-onceki.txt
+   docker tag "$(cat <geri-dönüş-dizini>/imaj-onceki.txt)" "kasa:geri-donus-<yeni-sürüm>"
+   printf '%s\n' "kasa:geri-donus-<yeni-sürüm>" > <geri-dönüş-dizini>/imaj-geri-donus-etiketi.txt
+   test "$(docker image inspect "$(cat <geri-dönüş-dizini>/imaj-geri-donus-etiketi.txt)" --format '{{.Id}}')" = "$(cat <geri-dönüş-dizini>/imaj-onceki.txt)"
    grep -n 'image:' <geri-dönüş-dizini>/compose-onceki.yml
    ```
-   7. adımdaki derleme, şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Saklanan dosya aynı etiketi kullanıyorsa eski koda yalnız bu imaj kimliğiyle dönülebilir.
+   `yeni-sürüm` yer tutucusunu yayımlanacak sürümle değiştirin (ör. `2.4.2`); her yayının geri dönüş etiketi ayrı kalmalıdır. 7. adımdaki derleme şablondaki `image:` etiketini (`kasa:latest`) yeni imaja taşır. Yalnız imaj kimliğini dosyaya yazmak eski imajı korumaz: konteyner yeniden oluşturulunca etiketsiz imaj Docker'dan kaybolabilir. Ayrı etiketin kimliğini derlemeden **önce** doğrulayın.
 5. Güncellenmiş kaynakları `/opt/kasa/` dizinine aktarın. Kaynak, yayımlanacak commit'tir; GitHub'ın varsayılan dalı (`master`) canlı kod hattı değildir ([dal durumu](../docs/deploy/dal-durumu.md)). `deploy/.env`, veri ve yedek dizinleri ile `deploy/kasa-data` üzerine yazmayın; rsync kullanıyorsanız bunları `--exclude` ile hariç tutun. Depodaki compose şablonu sunucudakinin yerine geçebilir; bağlamalar artık yalnız `.env` değişkenlerinden gelir.
 6. Kuru çalıştırmayla doğrulayın:
    ```sh
@@ -169,17 +172,43 @@ Komutlar `/opt/kasa/deploy` içinde çalıştırılır. Yer tutucuları (`<...>`
 
 Saklanan compose dosyası `/opt/kasa/deploy/docker-compose.nginx.yml` üzerine kopyalanır ve **aynı dizinde, `--build` olmadan** başlatılır:
 
+**2.4.1 yayınına özgü:** Bu koruma adımı henüz yokken yayımlandığı için `imaj-geri-donus-etiketi.txt` bulunmaz. Özgün 2.4.0 imaj kimliği Docker'da kaybolmuştur. Aşağıdaki komutlar 2.4.1 dizinini tanıyıp bunun yerine `/opt/kasa/releases/20261004-2.4.1/imaj-geri-donus.txt` içindeki, aynı `v2.4.0` kaynağından yeniden derlenip ayrı kopyada çalıştırılan `rollbackImageId` değerini kullanır. Gerekli imaj yoksa canlıyı durdurmadan hata verir. 2.4.1'den 2.4.0'a geçiş sırasında güvenlik günlüğüne yazı olursa 2.4.1'e dönüşte [günlük kontrol prosedürü](../docs/deploy/operasyon-runbook.md#geri-yüklemeden-sonra) ayrıca gerekir.
+
 ```sh
+set -eu
 cd /opt/kasa/deploy
-docker compose -f docker-compose.nginx.yml stop
-cp <geri-dönüş-dizini>/compose-onceki.yml /opt/kasa/deploy/docker-compose.nginx.yml
-grep -n ':/data' /opt/kasa/deploy/docker-compose.nginx.yml
-docker tag "$(cat <geri-dönüş-dizini>/imaj-onceki.txt)" <compose-onceki.yml içindeki image: değeri>
-docker compose -f docker-compose.nginx.yml up -d
+geri_donus_dizini="<geri-dönüş-dizini>"
+test -f "$geri_donus_dizini/compose-onceki.yml"
+grep -Eq '^[[:space:]]+image:[[:space:]]+kasa:latest[[:space:]]*$' "$geri_donus_dizini/compose-onceki.yml"
+if test -f "$geri_donus_dizini/imaj-geri-donus-etiketi.txt"; then
+  geri_imaj="$(cat "$geri_donus_dizini/imaj-geri-donus-etiketi.txt")"
+  test "$(docker image inspect "$geri_imaj" --format '{{.Id}}')" = "$(cat "$geri_donus_dizini/imaj-onceki.txt")"
+elif test "$geri_donus_dizini" = /opt/kasa/releases/20261004-2.4.1; then
+  geri_imaj="$(cat "$geri_donus_dizini/imaj-geri-donus.txt")"
+  test "$(docker image inspect "$geri_imaj" --format '{{.Id}}')" = "$geri_imaj"
+else
+  echo 'Geri dönüş imajı kaydı bulunamadı.' >&2
+  exit 1
+fi
+docker compose --project-directory /opt/kasa/deploy --env-file /opt/kasa/deploy/.env \
+  -f "$geri_donus_dizini/compose-onceki.yml" config --format json |
+  python3 -c '
+import json, subprocess, sys
+config = json.load(sys.stdin)
+beklenen = {v["target"]: v["source"] for v in config["services"]["kasa"]["volumes"]}
+calisan = {v["Destination"]: v["Source"] for v in json.loads(subprocess.check_output(
+    ["docker", "inspect", "kasa-app", "--format", "{{json .Mounts}}"], text=True))}
+assert all(beklenen.get(t) and beklenen[t] == calisan.get(t) for t in ("/data", "/yedekler")), "Geri dönüş bağlamaları canlı veri/yedek dizinleriyle eşleşmiyor."
+print("Geri dönüş veri ve yedek bağlamaları doğrulandı.")
+'
+docker compose -f docker-compose.nginx.yml stop kasa
+cp "$geri_donus_dizini/compose-onceki.yml" /opt/kasa/deploy/docker-compose.nginx.yml
+docker tag "$geri_imaj" kasa:latest
+docker compose -f docker-compose.nginx.yml up -d --no-build kasa
 docker inspect kasa-app --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}'
 ```
 
-- `grep` satırındaki `/data` kaynağı ve son `docker inspect` çıktısı, 2. adımda okunan etkin veri dizini olmalıdır.
+- Komutlar `/data` ve `/yedekler` kaynaklarını çalışan konteynerle **durdurmadan önce** karşılaştırır; fark varsa çıkıp canlıyı çalışır bırakır. Son `docker inspect` çıktısı da 2. adımda okunan etkin dizinler olmalıdır. `geri_donus_dizini` yer tutucusunu 4. adımda kullandığınız mutlak yayın diziniyle değiştirin.
 - `--build` kullanmayın: `/opt/kasa` altındaki kaynaklar artık yeni sürümdür; derleme yeni kodu yeniden üretir ve `image:` etiketini yeniden yeni imaja taşır. `docker tag` satırı etiketi 4. adımda saklanan imaja geri çevirir.
 - Saklanan dosyayı bulunduğu yerden (`-f <geri-dönüş-dizini>/compose-onceki.yml`) veya başka bir dizinden çalıştırmayın. Compose göreli yolları (`build.context: ..`, varsa göreli bağlamalar) ve `.env` dosyasını compose dosyasının dizinine göre çözer; proje adını da (`.env`'de `COMPOSE_PROJECT_NAME` yoksa) bu dizinin adından türetir (`deploy`). Başka dizinde yeni bir proje açılır: sabit `container_name: kasa-app` mevcut konteynerle çakışır (`Conflict. The container name "/kasa-app" is already in use`), `.env` bulunamadığı için sırlar boş kalır ve göreli bir bağlama yanlış dizine gider (eski kısa sözdiziminde orada boş dizin açılır).
 - Bu geri dönüş yalnız yeni sürüm etkin veritabanına hiç bağlanmadıysa (ör. yanlış dizin bağlandıysa) doğrudan uygulanır. Yeni sürüm etkin veritabanında yeni migration uyguladıysa eski imajı yeni şema üzerinde çalıştırmayın; [veritabanı yükseltme kılavuzundaki](../docs/deploy/database-upgrade.md) gibi eşleşen yedeği eski sürümle birlikte geri yükleyin.
