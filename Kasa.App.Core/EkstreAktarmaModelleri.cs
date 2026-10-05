@@ -63,10 +63,11 @@ public partial class EkstreSatirEditor : ObservableObject
         TutarMetni = kaynak.Tutar?.ToString("0.00", CultureInfo.GetCultureInfo("tr-TR")) ?? "";
         IslemTuru = IslemTurleri.FirstOrDefault(t => t.Kod == kaynak.OnerilenIslem);
         Kart = kartlar.FirstOrDefault(k => k.Id == belge.KartId);
-        Paylar.CollectionChanged += (_, e) => { if (e.NewItems is not null) foreach (TakipPayEditor p in e.NewItems) p.PropertyChanged += PayDegisti; if (e.OldItems is not null) foreach (TakipPayEditor p in e.OldItems) p.PropertyChanged -= PayDegisti; _degisti(); };
+        Paylar.CollectionChanged += (_, e) => { if (e.NewItems is not null) foreach (TakipPayEditor p in e.NewItems) p.PropertyChanged += PayDegisti; if (e.OldItems is not null) foreach (TakipPayEditor p in e.OldItems) p.PropertyChanged -= PayDegisti; ElleDegisiklik(); _degisti(); };
         _degisti = degisti;
+        _degisiklikIzle = true;
     }
-    private void PayDegisti(object? sender, PropertyChangedEventArgs e) => _degisti();
+    private void PayDegisti(object? sender, PropertyChangedEventArgs e) { ElleDegisiklik(); _degisti(); }
     public void PayEkle() => Paylar.Add(new(Kanallar));
     partial void OnIslemTuruChanged(EkstreSecenek? value)
     {
@@ -106,6 +107,8 @@ public partial class EkstreSatirEditor : ObservableObject
     }
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni) or nameof(IslemTuru) or nameof(DagilimTuru) or nameof(Kart) or nameof(KaynakHarcama) or nameof(SeciliAday))
+            ElleDegisiklik();
         base.OnPropertyChanged(e);
         if (e.PropertyName is nameof(TarihMetni) or nameof(Aciklama) or nameof(TutarMetni))
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(Ozet)));

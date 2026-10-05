@@ -25,7 +25,7 @@ const derlemeYok = process.env.KASA_E2E_DERLENDI === '1' ? ' --no-build' : '';
 
 const telefon = (ad, genislik, yukseklik, cihaz) => ({
   name: ad,
-  testMatch: /telefon\.spec\.mjs/,
+  testMatch: /(?:telefon|ekstre-kurallari)\.spec\.mjs/,
   dependencies: ['kurulum'],
   use: {
     browserName: 'chromium',
@@ -70,7 +70,7 @@ export default defineConfig({
     { name: 'kurulum', testMatch: /kurulum\.setup\.mjs/ },
     {
       name: 'masaustu-1280',
-      testMatch: /masaustu\.spec\.mjs/,
+      testMatch: /(?:masaustu|ekstre-kurallari)\.spec\.mjs/,
       dependencies: ['kurulum'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
     },

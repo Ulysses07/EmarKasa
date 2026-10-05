@@ -69,6 +69,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         Kartlar.Clear();
         Kanallar.Clear();
         Bankalar.Clear();
+        Kurallar.Clear();
+        KuralDurumu = "";
+        KurallarDestekleniyor = false;
         _kayitKey.Temizle();
         _iptalKey.Temizle();
         _gecmisImleci = null;
@@ -97,6 +100,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         Banka = Bankalar.FirstOrDefault(b => b.Kod == seciliBanka);
         if (belge is not null)
             BelgeyiYansit(belge);
+        await KurallariAlAsync(n);
+        if (!Gecerli(n))
+            return;
         Tamamlandi();
         if (bankaHatasi is not null)
             Hata = bankaHatasi;
@@ -158,6 +164,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         BelgeyiYansit(b);
         Tamamlandi();
+        await KurallariAlAsync(n);
+        if (!Gecerli(n))
+            return;
         Mesaj = "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     });
     public Task BelgeAcAsync(int id) => YurutAsync(async n =>
@@ -169,6 +178,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (!Gecerli(n))
             return;
         BelgeyiYansit(b);
+        await KurallariAlAsync(n);
     });
     public Task KaynakAcAsync(int kayitId) => YurutAsync(async n =>
     {
@@ -179,6 +189,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (!Gecerli(n))
             return;
         BelgeyiYansit(b);
+        await KurallariAlAsync(n);
     });
     [RelayCommand]
     private Task EskiBelgeleriYukleAsync() => YurutAsync(async n =>
@@ -245,7 +256,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         var id = Belge.Id;
         var g = _onizlemeGirdi with { OnizlemeOzeti = _onizleme.OnizlemeOzeti, TekrarOnay = TekrarOnay };
         try
-        { var b = await api.EkstreKaydetAsync(id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _kayitKey.Temizle(); Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi."; }
+        { var b = await api.EkstreKaydetAsync(id, g); if (!Gecerli(n)) return; BelgeyiYansit(b); _kayitKey.Temizle(); await KurallariAlAsync(n); if (Gecerli(n)) Mesaj = "Seçilen satırlar kaydedildi. Diğer satırlar değişmedi."; }
         catch (KasaApiException e) when (e.DurumKodu == HttpStatusCode.Conflict) { if (Gecerli(n)) GirdiDegisti(); throw; }
     });
     /// <summary>Seçili satırın (tarih ve tutarıyla) eşleşebileceği mevcut kayıtları getirir; 'Mevcut kayıtla eşleştir' türünde
@@ -274,7 +285,9 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         BelgeyiYansit(b);
         _iptalKey.Temizle();
-        Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
+        await KurallariAlAsync(n);
+        if (Gecerli(n))
+            Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
     });
     /// <summary>Kaynak PDF'i <paramref name="hedef"/>'e yazar; hata, başka belge ya da eski oturumda null.</summary>
     public async Task<IndirmeBilgisi?> DosyaAsync(Stream hedef)

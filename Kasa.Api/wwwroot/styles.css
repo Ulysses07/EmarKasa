@@ -13,6 +13,11 @@
     src: local("Segoe UI");
     font-display: swap;
   }
+  .statement-rule-form input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+  }
+
   :root {
     --green: #194d3c;
     --green-light: #e7eee5;
@@ -2168,6 +2173,7 @@
     .import-toolbar {
       padding: 13px;
       gap: 10px;
+      position: static;
     }
     .import-toolbar .button {
       flex: 1;

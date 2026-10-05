@@ -436,6 +436,11 @@ public class EkstreAktarmaTests
     }
     private sealed class Sahte : IEkstreAktarmaApi
     {
+        public IReadOnlyList<EkstreKuralOnerisi> Oneriler = [];
+        public Task<IReadOnlyList<EkstreKuralOnerisi>>? OneriYaniti;
+        public Exception? KuralHatasi;
+        public Task<IReadOnlyList<EkstreKuralDto>> EkstreKurallarAsync() => KuralHatasi is { } error ? Task.FromException<IReadOnlyList<EkstreKuralDto>>(error) : Task.FromResult<IReadOnlyList<EkstreKuralDto>>([]);
+        public Task<IReadOnlyList<EkstreKuralOnerisi>> EkstreOnerilerAsync(int id) => OneriYaniti ?? Task.FromResult(Oneriler);
         public IReadOnlyList<EkstreBankaDto> BankaListesi = [new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("Isbank", "İş Bankası")];
         public Exception? BankaHatasi; public int BankaSayisi;
         public Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync() { BankaSayisi++; return BankaHatasi is { } h ? Task.FromException<IReadOnlyList<EkstreBankaDto>>(h) : Task.FromResult(BankaListesi); }
@@ -491,6 +496,92 @@ public class EkstreAktarmaTests
         s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
         Assert.Null(s.Yaz().EslesenKayitTuru);
     }
+    [Fact]
+    public async Task Kural_onerisi_turu_ve_kanali_doldurur_satir_secmez_elle_degistirileni_ezmez()
+    {
+        var oneriler = new EkstreKuralOnerisi[] { new(1, "Oneri", ["Kargo"], "Gider", "Esit", [1], "Kural"), new(2, "Celiski", ["A", "B"], null, null, [], "Çelişki") };
+        var (vm, api, _) = await Hazir(new() { Oneriler = oneriler });
+        await vm.KurallariYenileAsync();
+        vm.OnerileriUygula();
+        var s = vm.Satirlar[0];
+        Assert.Equal("Esit", s.DagilimTuru?.Kod);
+        Assert.Equal(1, Assert.Single(s.Paylar).Kanal?.Id);
+        Assert.All(vm.Satirlar, x => Assert.False(x.Secili));
+        Assert.Empty(vm.Satirlar[1].Paylar);
+        s.DagilimTuru = s.DagilimTurleri.Single(x => x.Kod == "Genel");
+        vm.OnerileriUygula();
+        Assert.Equal("Genel", s.DagilimTuru?.Kod);
+        Assert.True(s.OneriyiUygula(toplu: false));
+        Assert.Equal("Esit", s.DagilimTuru?.Kod);
+        Assert.Empty(api.KaydetIstekleri);
+    }
+
+    [Fact]
+    public async Task Geciken_kural_onerisi_oturum_degistiginde_yansitilmaz()
+    {
+        var (vm, api, auth) = await Hazir();
+        var tcs = new TaskCompletionSource<IReadOnlyList<EkstreKuralOnerisi>>();
+        api.OneriYaniti = tcs.Task;
+        var pending = vm.KurallariYenileAsync();
+        Assert.False(pending.IsCompleted);
+        auth.OturumSurumu++;
+        tcs.SetResult([new(1, "Oneri", ["Kargo"], "Gider", "Esit", [1], "Kural")]);
+        await pending;
+        Assert.Empty(vm.Satirlar);
+        Assert.Empty(vm.Kurallar);
+    }
+
+    [Fact]
+    public async Task Kural_agi_kesilince_belge_ve_elle_onizleme_kullanilabilir_kalir()
+    {
+        foreach (var error in new Exception[] { new KasaApiException(HttpStatusCode.NotFound), new HttpRequestException("Kural bağlantısı yok"), new TaskCanceledException("Zaman aşımı") })
+        {
+            var (vm, api, _) = await Hazir(new() { KuralHatasi = error });
+            Assert.True(vm.VeriHazir);
+            Assert.NotNull(vm.Belge);
+            Assert.False(vm.KurallarDestekleniyor);
+            Assert.NotEmpty(vm.KuralDurumu);
+            Sec(vm.Satirlar[0]);
+            await vm.OnizleCommand.ExecuteAsync(null);
+            Assert.Equal(1, api.OnizlemeSayisi);
+        }
+    }
+
+    [Fact]
+    public async Task Hatirlanan_kural_sabit_tutar_kopyalamaz_ve_odeme_eslesmesini_reddeder()
+    {
+        var (vm, _, _) = await Hazir();
+        var row = vm.Satirlar[0];
+        row.DagilimTuru = row.DagilimTurleri.Single(t => t.Kod == "Ozel");
+        row.Paylar.Add(new(row.Kanallar) { Kanal = row.Kanallar[0], Tutar = 100m });
+        var rule = row.HatirlanacakKural(vm.Belge!);
+        Assert.Equal(("Banka", "Akbank", "Cikis", "Esit"), (rule.Kaynak, rule.Banka, rule.Yon, rule.DagilimTuru));
+        Assert.Equal(1, Assert.Single(rule.KanalIds));
+        row.Paylar.Add(new(row.Kanallar) { Kanal = row.Kanallar[1], Tutar = 1m });
+        Assert.Throws<DogrulamaHatasi>(() => row.HatirlanacakKural(vm.Belge!));
+        row.IslemTuru = row.IslemTurleri.Single(t => t.Kod == "Eslestir");
+        Assert.Throws<DogrulamaHatasi>(() => row.HatirlanacakKural(vm.Belge!));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Windows_kural_formu_kapatirken_pasif_ve_bilinmeyen_secili_kanali_korur(bool bilinmiyor)
+    {
+        var (vm, _, _) = await Hazir();
+        vm.Kanallar[0] = vm.Kanallar[0] with { Aktif = false };
+        if (bilinmiyor)
+            vm.Kanallar.RemoveAt(0);
+        int[] originalIds = [1];
+        var formChannels = vm.KuralFormKanallari(originalIds);
+        // Windows formu bu seçenekleri işaretler ve kaydederken işaretli kimlikleri gönderir.
+        var retainedIds = formChannels.Where(c => originalIds.Contains(c.Id)).Select(c => c.Id).ToArray();
+        Assert.Equal(originalIds, retainedIds);
+        Assert.False(formChannels.Single(c => c.Id == 1).Aktif);
+        Assert.Contains(formChannels, c => c.Id == 2 && c.Aktif);
+        Assert.DoesNotContain(vm.KuralFormKanallari([]), c => c.Id == 1);
+    }
+
     [Fact]
     public void Eslesen_ve_alisa_devredilen_kayit_gecmiste_kasa_etkisiz_gorunur()
     {

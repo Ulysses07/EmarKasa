@@ -156,6 +156,18 @@ function distribution(
     node: h('fieldset', {}, h('legend', {}, legend), field(label, mode), list, note && help(note)),
     mode,
     redraw: draw,
+    set(value) {
+      selected.clear();
+      totals.clear();
+      for (const row of value.dagilimlar || []) {
+        if (!channels.some(channel => channel.id === row.kanalId && channel.aktif)) continue;
+        selected.add(row.kanalId);
+        totals.set(row.kanalId, row.tutar);
+      }
+      mode.value = value.dagilimTuru;
+      draw();
+      onChange();
+    },
     read(total) {
       if (!['Genel', 'Esit', 'Ozel'].includes(mode.value)) throw new Error(messages.mode);
       if (mode.value === 'Genel') return { dagilimTuru: 'Genel', dagilimlar: [] };

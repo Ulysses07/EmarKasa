@@ -1,4 +1,5 @@
 import { cents, dateText, money, sumCents, isAbortError } from './ui-core.js';
+import { createStatementRulesUi } from './statement-rules-ui.js';
 import { $, h, button, input, field, select, help, section, table, moneyNode, allocationTags, summary, distribution } from './ui-dom.js';
 import {
   state,
@@ -122,8 +123,13 @@ export function createStatementImportUi() {
       renderDocument(document, channels, cards, generation, epoch);
       return;
     }
-    const [documents] = await Promise.all([api(beforeId ? `${base}?beforeId=${beforeId}` : base), loadBanks()]);
+    const [documents, channels] = await Promise.all([
+      api(beforeId ? `${base}?beforeId=${beforeId}` : base),
+      api('/api/kanallar'),
+      loadBanks(),
+    ]);
     if (!stillHere(generation, epoch)) return;
+    const rules = createStatementRulesUi({ channels: channels || [], banks, active: () => stillHere(generation, epoch) });
     view().replaceChildren(
       h(
         'div',
@@ -169,8 +175,10 @@ export function createStatementImportUi() {
               act('Daha eski belgeler', () => navigate('imports', { beforeId: documents[documents.length - 1].id }))
           )
         )
-      )
+      ),
+      rules.node
     );
+    await rules.refresh();
   }
 
   async function uploadDialog(generation) {
@@ -290,6 +298,7 @@ export function createStatementImportUi() {
     const { mode } = allocation;
     return {
       node: allocation.node,
+      set: value => allocation.set(value),
       setKind(kind) {
         const automatic = ['KartOdemesi', 'KartIade'].includes(kind);
         const options = automatic
@@ -327,6 +336,7 @@ export function createStatementImportUi() {
     let previewSequence = 0;
     const rows = [];
     const active = () => stillHere(generation, epoch);
+    let rules;
     const invalidate = () => {
       preview = null;
       previewSignature = null;
@@ -349,6 +359,12 @@ export function createStatementImportUi() {
     for (const source of document.satirlar || []) {
       const blocked = currentRows.has(source.no);
       const foreign = !supportedCurrency(source);
+      let manual = false;
+      let applying = false;
+      const changed = () => {
+        if (!applying) manual = true;
+        invalidate();
+      };
       const checked = input(`sec-${source.no}`, '1', {
         type: 'checkbox',
         disabled: blocked || foreign,
@@ -381,7 +397,7 @@ export function createStatementImportUi() {
       const match = select(`eslesme-${source.no}`, [{ value: '', label: 'Önce eşleşme adaylarını getir' }], '');
       const matchField = field('Eşleşecek mevcut kayıt', match);
       let matchSequence = 0;
-      const allocation = allocationEditor(channels, invalidate);
+      const allocation = allocationEditor(channels, changed);
       const fields = h(
         'div',
         { hidden: true },
@@ -484,11 +500,14 @@ export function createStatementImportUi() {
           }
         }
       };
-      kind.addEventListener('change', updateKind);
-      card.addEventListener('change', invalidate);
-      refund.addEventListener('change', invalidate);
-      match.addEventListener('change', invalidate);
-      for (const control of [date, text, total]) control.addEventListener('input', invalidate);
+      kind.addEventListener('change', () => {
+        changed();
+        return updateKind();
+      });
+      card.addEventListener('change', changed);
+      refund.addEventListener('change', changed);
+      match.addEventListener('change', changed);
+      for (const control of [date, text, total]) control.addEventListener('input', changed);
       // Tarih ya da tutar değişince eski adaylar geçersizdir: eşleştirmede yeniden aranır.
       for (const control of [date, total])
         control.addEventListener('change', () => {
@@ -519,10 +538,70 @@ export function createStatementImportUi() {
         warningList(source.uyarilar),
         fields
       );
+      const proposalText = h('p', { class: 'help', role: 'status' });
+      let proposal = null;
+      const apply = bulk => {
+        if (!active() || blocked || foreign || proposal?.durum !== 'Oneri' || (bulk && manual) || text.value !== source.aciklama)
+          return false;
+        if ((proposal.kanalIds || []).some(id => !channels.some(c => c.id === id && c.aktif))) return false;
+        applying = true;
+        try {
+          if (proposal.islemTuru === 'Atla') {
+            checked.checked = false;
+            kind.value = '';
+            allocation.setKind('');
+            allocation.set({ dagilimTuru: '', dagilimlar: [] });
+            selectionChanged();
+          } else {
+            if (!allowedKinds.includes(proposal.islemTuru) || !['Genel', 'Esit'].includes(proposal.dagilimTuru)) return false;
+            kind.value = proposal.islemTuru;
+            updateKind();
+            allocation.set({ dagilimTuru: proposal.dagilimTuru, dagilimlar: proposal.kanalIds.map(kanalId => ({ kanalId, tutar: 0 })) });
+          }
+          invalidate();
+          return true;
+        } finally {
+          applying = false;
+        }
+      };
+      const applyButton = act(
+        'Öneriyi uygula',
+        () => {
+          if (apply(false)) toast('Öneri uygulandı. Satırı seçip önizleyebilirsin.');
+        },
+        'small',
+        { hidden: true }
+      );
+      const remember = act(
+        'Bu seçimi hatırla',
+        () => {
+          if (!active() || !checked.checked || blocked || foreign) return;
+          if (!['Gelir', 'Gider', 'KartHarcama'].includes(kind.value))
+            throw new Error('Ödeme, iade ve eşleştirme kişisel kural olarak hatırlanamaz.');
+          const allocationValue = allocation.read(cents(total.value, { allowZero: false }) / 100);
+          if (allocationValue.dagilimTuru === 'Ozel' && allocationValue.dagilimlar.length !== 1)
+            throw new Error('Özel tutarlar kurala kaydedilmez. Kural yönetiminden eşit dağılım seçebilirsin.');
+          rules.edit({
+            ad: text.value.slice(0, 100),
+            kaynak: document.kaynak,
+            banka: document.banka,
+            aciklamaIcerir: text.value.slice(0, 200),
+            yon: ['Giris', 'Cikis'].includes(source.yon) ? source.yon : null,
+            islemTuru: kind.value,
+            dagilimTuru: allocationValue.dagilimTuru === 'Ozel' ? 'Esit' : allocationValue.dagilimTuru,
+            kanalIds: allocationValue.dagilimlar.map(s => s.kanalId),
+            aktif: true,
+          });
+        },
+        'small',
+        { hidden: true }
+      );
+      node.append(proposalText, h('div', { class: 'row-actions' }, applyButton, remember));
       const selectionChanged = () => {
         fields.hidden = !checked.checked;
         node.classList.toggle('selected', checked.checked);
         updateStatus();
+        remember.hidden = !checked.checked || blocked || foreign;
         invalidate();
         if (checked.checked) updateKind();
       };
@@ -531,7 +610,26 @@ export function createStatementImportUi() {
       cardField.hidden = true;
       refundField.hidden = true;
       matchField.hidden = true;
-      rows.push({ source, checked, date, text, total, kind, card, refund, match, allocation, node, selectionChanged });
+      rows.push({
+        source,
+        checked,
+        date,
+        text,
+        total,
+        kind,
+        card,
+        refund,
+        match,
+        allocation,
+        node,
+        selectionChanged,
+        apply,
+        proposal(value, supported) {
+          proposal = value;
+          proposalText.textContent = value && value.durum !== 'Yok' ? `${(value.kuralAdlari || []).join(', ')} · ${value.aciklama}` : '';
+          applyButton.hidden = !supported || value?.durum !== 'Oneri' || blocked || foreign;
+        },
+      });
       list.append(node);
     }
     const read = () => {
@@ -702,6 +800,19 @@ export function createStatementImportUi() {
           'Bu belgeden kaydedilenler'
         )
       : help('Bu belgeden henüz mali kayıt oluşturulmadı.');
+    rules = createStatementRulesUi({
+      channels,
+      banks,
+      active,
+      documentId: document.id,
+      proposals: (values, supported) => {
+        for (const row of rows)
+          row.proposal(
+            values.find(v => v.satirNo === row.source.no),
+            supported
+          );
+      },
+    });
     view().replaceChildren(
       button('← Yüklenen belgelere dön', () => navigate('imports'), 'back-link'),
       section(
@@ -737,6 +848,11 @@ export function createStatementImportUi() {
         'div',
         { class: 'import-toolbar' },
         selectedCount,
+        act('Uygun önerileri uygula', () => {
+          if (!active()) return;
+          const count = rows.filter(row => row.apply(true)).length;
+          toast(`${count} öneri uygulandı. Elle değiştirilen satırlar korundu; satırları seçip önizle.`);
+        }),
         button('Seçimleri temizle', () => {
           for (const row of rows) {
             if (row.checked.checked) {
@@ -749,8 +865,10 @@ export function createStatementImportUi() {
         act('Seçilenleri önizle', showPreview, 'primary')
       ),
       previewHost,
-      section('Bu belgeden kaydedilenler', history)
+      section('Bu belgeden kaydedilenler', history),
+      rules.node
     );
+    run(null, rules.refresh);
   }
 
   function cancelDialog(document, row, generation, epoch) {

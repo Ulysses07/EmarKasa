@@ -9,7 +9,7 @@ using static Kasa.Api.FinansTakipServisi;
 
 namespace Kasa.Api;
 
-public static class EkstreAktarmaEndpoints
+public static partial class EkstreAktarmaEndpoints
 {
     private const int FileLimit = 10 * 1024 * 1024;
     /// <summary>Desteklenen bankaların tek kaynağı: yükleme yalnız bu kodları kabul eder; web ve masaüstü seçim listesini ve görünen
@@ -23,6 +23,7 @@ public static class EkstreAktarmaEndpoints
     public static WebApplication MapEkstreAktarmaEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api/ekstre-aktar").RequireAuthorization("Editor");
+        MapKurallar(api);
         api.MapPost("/yukle", Upload).RequireRateLimiting("guvenlik")
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(FileLimit + 65536),
                 new Microsoft.AspNetCore.Mvc.RequestFormLimitsAttribute { MultipartBodyLengthLimit = FileLimit + 65536 });

@@ -6,6 +6,15 @@ namespace Kasa.ApiClient;
 
 public sealed partial class KasaApiClient : IEkstreAktarmaApi
 {
+    public Task<IReadOnlyList<EkstreKuralDto>> EkstreKurallarAsync() => GetAsync<IReadOnlyList<EkstreKuralDto>>("api/ekstre-aktar/kurallar");
+    public Task<EkstreKuralDto> EkstreKuralEkleAsync(EkstreKuralYaz g) => GonderJsonAsync<EkstreKuralDto>(HttpMethod.Post, "api/ekstre-aktar/kurallar", g);
+    public Task<EkstreKuralDto> EkstreKuralDuzenleAsync(int id, EkstreKuralYaz g) => GonderJsonAsync<EkstreKuralDto>(HttpMethod.Put, $"api/ekstre-aktar/kurallar/{id}", g);
+    public Task<IReadOnlyList<EkstreKuralOnerisi>> EkstreOnerilerAsync(int id) => GetAsync<IReadOnlyList<EkstreKuralOnerisi>>($"api/ekstre-aktar/{id}/oneriler");
+    public async Task EkstreKuralSilAsync(int id, int surum)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/ekstre-aktar/kurallar/{id}?surum={surum}");
+        using var response = await GonderAsync(request);
+    }
     public Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync() => GetAsync<IReadOnlyList<EkstreBankaDto>>("api/ekstre-aktar/bankalar");
     public Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null) => GetAsync<IReadOnlyList<EkstreBelgeOzetDto>>("api/ekstre-aktar" + (beforeId is { } id ? $"?beforeId={id}" : ""));
     public Task<EkstreBelgeDto> EkstreBelgeAsync(int id) => GetAsync<EkstreBelgeDto>($"api/ekstre-aktar/{id}");
