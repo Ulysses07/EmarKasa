@@ -10,6 +10,8 @@ Genel kasa ve kanal kasaları, haftalık/aylık hareketler ve alıcı taslağı�
 
 Giderler seçilen dönem/kanalla Excel ve CSV olarak alınabilir; yazdırılabilir rapor tarayıcıdan PDF kaydedilebilir. Editör şifre değiştirebilir ve tek kullanımlık kurtarma kodu oluşturabilir. Sürüm bildirimi, günlük tutarlı yedek, elle yedek indirme ve ayrı dosyaya geri yükleme aracı eklendi. [Kapsam ve kurallar](docs/specs/2026-09-23-gelistirme.md), [2.0 dağıtımı](docs/deploy/kasa-2.0.md).
 
+[Kişisel ekstre kuralları](docs/ekstre-kurallari.md): AI olmadan açıklamaya göre işlem türü ve kanal dağılımı önerisi, seçimi hatırlama, çelişki kontrolü ve kural yönetimi. Öneriler satırları kendiliğinden seçmez veya kaydetmez.
+
 ## Alış ve kanal eşleştirme
 
 **Alışlar** ekranında alıcı alış taslağını girer, mal kalemlerini bir veya birden fazla kanala ayırır ve incelemeye gönderir. Editör dağılımı kontrol edip onaylar. Alıcı hesaplarını editör bu ekrandan oluşturur; alıcı yalnız kendi alışlarını görür, finansal raporlara ve ödeme düzenlemelerine erişemez.

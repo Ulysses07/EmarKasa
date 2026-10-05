@@ -3,7 +3,7 @@ using static Kasa.App.Views.TakipUi;
 
 namespace Kasa.App.Views;
 
-public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQueryAttributable
+public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQueryAttributable
 {
     private int? _kaynakKayitId;
     public void ApplyQueryAttributes(IDictionary<string, object> query)
@@ -67,6 +67,7 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
         Govde.Add(Editor(Kart("İçe aktarma geçmişi", Liste<EkstreGecmisSatiri>(nameof(vm.Gecmis), s => vm.BelgeAcAsync(s.Veri.Id), "Belgeyi incele"),
             Goster(Dugme("Daha eski belgeleri yükle", nameof(vm.EskiBelgeleriYukleCommand)), nameof(vm.EskiBelgeVar)))));
         vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.SeciliSatir)) SatirFormunuKur(); };
+        KurallariKur();
     }
     private void SatirFormunuKur()
     {
@@ -76,6 +77,9 @@ public sealed class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewModel>, IQ
             return;
         }
         var form = Kart($"Satır {s.Kaynak.No}", Bagli(nameof(s.KaynakMetni)), Bagli(nameof(s.Uyarilar)),
+            Bagli(nameof(s.OneriMetni)),
+            Goster(Tikla("Öneriyi uygula", () => { if (Vm.EditorMu && !Vm.Mesgul && Vm.Satirlar.Contains(s)) s.OneriyiUygula(false); return Task.CompletedTask; }), nameof(s.OneriUygulanabilir)),
+            Tikla("Bu seçimi hatırla", () => { KuralHatirla(s); return Task.CompletedTask; }),
             Alan("Tarih (yıl-ay-gün)", Girdi(nameof(s.TarihMetni))),
             Alan("Açıklama", Girdi(nameof(s.Aciklama))),
             Alan("Tutar (pozitif TL; ör. 1234,56)", Girdi(nameof(s.TutarMetni))),
