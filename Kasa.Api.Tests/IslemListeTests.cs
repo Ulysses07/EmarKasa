@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Kasa.Api;
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
 using Kasa.Core;
@@ -30,7 +32,6 @@ public class IslemListeTests
         alis.Odemeler.Add(Odeme(gider));
         ortam.Db.Alislar.Add(alis);
         ortam.Db.SaveChanges();
-
         var bekleyen = Assert.Single(ortam.Servis.Liste(null, null, KanalEtiketleri.DagilimBekliyor, null));
         Assert.Equal(alis.Id, bekleyen.AlisId);
         Assert.True(bekleyen.DagilimBekliyor);
@@ -140,6 +141,65 @@ public class IslemListeTests
         Assert.Empty(ortam.Servis.Liste(Tarih.AddDays(1), null, null, null));
         Assert.Empty(ortam.Servis.Liste(null, Tarih.AddDays(-1), null, null));
         Assert.Empty(ortam.Servis.Liste(null, null, "MEZAT", null));
+    }
+
+    [Fact]
+    public void Sayfalar_yeni_kayittan_eskiye_eksiksiz_gider_ve_kanal_filtresi_grup_sinirini_asar()
+    {
+        using var ortam = new Ortam();
+        for (var n = 0; n < 260; n++)
+            ortam.Db.Islemler.Add(new IslemEntity
+            {
+                Tarih = Tarih.AddDays(n % 3),
+                Cari = "Gider " + n,
+                TutarTl = n + 1,
+                Kanal = n % 5 == 0 ? "MEZAT" : "TOPTAN",
+                KanalId = n % 5 == 0 ? 1 : 2,
+                Tip = GiderTipi.Cari,
+            });
+        ortam.Db.SaveChanges();
+        // Saklı kanal başka olsa da alışın hesaplanan ödeme payı filtrede görünür.
+        var alis = Alis(100m, 100m, 0m);
+        alis.Odemeler.Add(Odeme(new IslemEntity
+        { Tarih = Tarih.AddDays(2), Cari = "Bağlı ödeme", TutarTl = 100m, Kanal = KanalEtiketleri.DagilimBekliyor }));
+        ortam.Db.Alislar.Add(alis);
+        ortam.Db.SaveChanges();
+
+        var ekstreli = new IslemEntity
+        {
+            Tarih = Tarih.AddDays(2),
+            Cari = "Ekstreli ödeme",
+            TutarTl = 77m,
+            Kanal = "TOPTAN",
+            KanalId = 2,
+            Tip = GiderTipi.Cari,
+        };
+        var belge = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Test", HesapAdi = "Hesap", DosyaAdi = "ekstre.pdf", DosyaOzeti = "sayfa-testi" };
+        ortam.Db.AddRange(ekstreli, belge);
+        ortam.Db.SaveChanges();
+        var paylar = JsonSerializer.Serialize(new[] { new TakipKanalPayi(1, "MEZAT", 77m) });
+        ortam.Db.Database.ExecuteSqlInterpolated($"INSERT INTO EkstreKayitlar (BelgeId, SatirNo, Tarih, Aciklama, Tutar, IslemTuru, DagilimTuru, DagilimJson, IslemId, Iptal) VALUES ({belge.Id}, 1, {ekstreli.Tarih}, 'Ekstreli ödeme', '77.0', 'Gider', {DagilimBicimleri.Ozel}, {paylar}, {ekstreli.Id}, 0)");
+
+        var beklenen = ortam.Servis.Liste(null, null, "MEZAT", null).Reverse().ToArray();
+        var bulunan = new List<IslemOkuDto>();
+        (DateOnly Tarih, int Id)? imlec = null;
+        do
+        {
+            var sayfa = ortam.Servis.Sayfala(null, null, "MEZAT", null, imlec, 17, TestContext.Current.CancellationToken);
+            Assert.InRange(sayfa.Kayitlar.Count, 1, 17);
+            bulunan.AddRange(sayfa.Kayitlar);
+            if (!sayfa.DevamVar)
+            {
+                Assert.Null(sayfa.SonrakiImlec);
+                break;
+            }
+            imlec = IslemListeServisi.ImleciOku(sayfa.SonrakiImlec!);
+            Assert.NotNull(imlec);
+        } while (true);
+
+        Assert.Equal(beklenen, bulunan);
+        Assert.Contains(bulunan, i => i.Cari == "Bağlı ödeme" && i.Kanal == "MEZAT");
+        Assert.Contains(bulunan, i => i.Cari == "Ekstreli ödeme" && i.Kanal == "MEZAT" && i.EkstreKayitId is not null);
     }
 
     private static AlisEntity Alis(decimal toplam, decimal mezat, decimal toptan, string durum = AlisDurumlari.Onaylandi) => new()

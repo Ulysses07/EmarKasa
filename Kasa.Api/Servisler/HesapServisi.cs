@@ -89,10 +89,16 @@ public class HesapServisi
     /// veride kod hatası yükselir.
     /// Sağlam veride satırlar, sıraları ve tutarlar karantinasız hesapla birebir aynıdır (altın rapor testi).
     /// </summary>
-    private Yuk Yukle(TakipHesapBaglami takip, DateOnly? raporBitis = null)
+    private Yuk Yukle(TakipHesapBaglami takip, DateOnly? raporBitis = null, DateOnly? yalnizAy = null)
     {
         var bugun = takip.Bugun;
         var ct = takip.Iptal;
+        // Aylık motor yalnız hedef ayı ve bir önceki ayın ertelenmiş K.K giderlerini kullanır.
+        // Alış/kart paylarının eski ödemelere bağımlılığı aşağıda korunur; tarih filtresi sadece
+        // kaynak giderleri ve bağımsız gelirleri sınırlar. Panel, haftalık ve döküm tam geçmişi okur.
+        var ayBasi = yalnizAy is { } ay ? new DateOnly(ay.Year, ay.Month, 1) : (DateOnly?)null;
+        var oncekiAyBasi = ayBasi is { } bas && bas > DateOnly.MinValue ? bas.AddMonths(-1) : DateOnly.MinValue;
+        var aySonu = yalnizAy is { } hedef ? new DateOnly(hedef.Year, hedef.Month, DateTime.DaysInMonth(hedef.Year, hedef.Month)) : (DateOnly?)null;
         // Tutarlı okuma: alış onayı/ödeme eşleştirmesi rapor okunurken yarım görünmez; yazanlar beklemez.
         using var snapshot = _db.OkumaBaslat();
         ct.ThrowIfCancellationRequested();
@@ -110,9 +116,17 @@ public class HesapServisi
         static string PaySorunu(int? kanalId) => kanalId is { } id ? $"bir payı olmayan kanala (#{id}) bağlı" : "bir payının kanalı boş";
         var kartTakip = _db.TakipKartlar.AsNoTracking().ToDictionary(t => t.KrediKartiId);
         var kanallar = _db.Kanallar.AsNoTracking().OrderBy(k => k.Sira).ToList().Select(e => e.ToCore()).ToList();
-        var kayitlar = _db.Islemler.AsNoTracking().Include(i => i.KanalKaydi).ToList();
+        var islemSorgusu = _db.Islemler.AsNoTracking();
+        if (ayBasi is { } giderBasi && aySonu is { } giderSonu)
+            islemSorgusu = islemSorgusu.Where(i => i.Tarih >= giderBasi && i.Tarih <= giderSonu
+                || i.Tip == GiderTipi.KrediKarti && i.Tarih >= oncekiAyBasi && i.Tarih < giderBasi);
+        var secilenIslemIdleri = islemSorgusu.Select(i => i.Id);
+        var kayitlar = islemSorgusu.Include(i => i.KanalKaydi).ToList();
         ct.ThrowIfCancellationRequested();
-        var alislar = _db.Alislar.AsNoTracking()
+        var alisSorgusu = _db.Alislar.AsNoTracking();
+        if (ayBasi is not null)
+            alisSorgusu = alisSorgusu.Where(a => a.Odemeler.Any(o => secilenIslemIdleri.Contains(o.IslemId)));
+        var alislar = alisSorgusu
             .Include(a => a.Kalemler).ThenInclude(k => k.Dagilimlar).ThenInclude(d => d.KanalKaydi)
             .Include(a => a.Odemeler).ThenInclude(o => o.Islem).AsSplitQuery().ToList();
         ct.ThrowIfCancellationRequested();
@@ -145,10 +159,10 @@ public class HesapServisi
         var ayKumeleri = new Dictionary<(int Yil, int Ay), IReadOnlyList<(string Ad, bool Aktif)>>();
         foreach (var (kumeAyi, uyeler) in AyKanalKumesi.Oku(_db))
         {
-            var ayBasi = new DateOnly(kumeAyi.Yil, kumeAyi.Ay, 1);
+            var kumeAyBasi = new DateOnly(kumeAyi.Yil, kumeAyi.Ay, 1);
             foreach (var (kanalId, _) in uyeler.Where(u => !kanalAdlari.ContainsKey(u.KanalId)))
                 Karantinaya($"AyKanalKumesi:{AyKanalKumesi.AyMetni(kumeAyi)}:{kanalId}", () => $"{AyKanalKumesi.AyMetni(kumeAyi)} ayının kanal kümesindeki kanal #{kanalId} bulunamadı; Ortak gider kümedeki öteki kanallara bölündü",
-                    ayBasi, AyRaporAnlikGoruntusu.AySonu(kumeAyi.Yil, kumeAyi.Ay));
+                    kumeAyBasi, AyRaporAnlikGoruntusu.AySonu(kumeAyi.Yil, kumeAyi.Ay));
             ayKumeleri[kumeAyi] = uyeler.Where(u => kanalAdlari.ContainsKey(u.KanalId)).Select(u => (kanalAdlari[u.KanalId], u.Aktif)).ToList();
         }
         // Kaydın payları (okunamayan dağılımda null) ve tutarı: kanalı çözülen pay kanalına yazılır (Kanal dolu). Çözülemeyen tutar
@@ -172,14 +186,27 @@ public class HesapServisi
         }
         static IEnumerable<(int? KanalId, decimal Tutar)>? Paylar(List<KanalPayYaz>? paylar) => paylar?.Select(p => ((int?)p.KanalId, p.Tutar));
         var aylikOdemeler = new Dictionary<int, AylikGiderOdemeEntity>();
-        foreach (var p in _db.AylikGiderOdemeler.AsNoTracking().Where(p => !p.Iptal && p.IslemId != null).OrderBy(p => p.Id).ToList())
+        var aylikOdemeSorgusu = _db.AylikGiderOdemeler.AsNoTracking().Where(p => !p.Iptal && p.IslemId != null);
+        if (ayBasi is not null)
+            aylikOdemeSorgusu = aylikOdemeSorgusu.Where(p => secilenIslemIdleri.Contains(p.IslemId!.Value));
+        foreach (var p in aylikOdemeSorgusu.OrderBy(p => p.Id).ToList())
             if (!aylikOdemeler.TryAdd(p.IslemId!.Value, p))
                 Karantinaya("AylikGiderOdemesi:" + p.Id, () => $"Aylık gider ödemesi #{p.Id} ({Gun(p.Tarih)}): gider #{p.IslemId} aylık gider ödemesi #{aylikOdemeler[p.IslemId!.Value].Id} ile zaten sayıldı; bu ikinci bağ rapora alınmadı",
                     p.Tarih, p.Tarih);
-        var aylikRevizyonlar = _db.AylikGiderRevizyonlar.AsNoTracking().ToDictionary(r => r.Id);
+        var revizyonSorgusu = _db.AylikGiderRevizyonlar.AsNoTracking();
+        if (ayBasi is not null)
+        {
+            var revizyonIdleri = aylikOdemeSorgusu.Select(p => p.RevizyonId);
+            revizyonSorgusu = revizyonSorgusu.Where(r => revizyonIdleri.Contains(r.Id));
+        }
+        var aylikRevizyonlar = revizyonSorgusu.ToDictionary(r => r.Id);
         // Rapor ekstre satırının yalnız sahiplik ve dağılım sütunlarını okur: eşleşme sütunları (EkstreEslesmesi) raporu etkilemez ve
         // göç öncesi şemada da okunabilir kalır.
-        var imported = _db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal).Select(k => new EkstreKayitEntity
+        var ekstreSorgusu = _db.EkstreKayitlar.AsNoTracking().Where(k => !k.Iptal);
+        if (ayBasi is { } ekstreBasi && aySonu is { } ekstreSonu)
+            ekstreSorgusu = ekstreSorgusu.Where(k => k.IslemId != null && secilenIslemIdleri.Contains(k.IslemId.Value)
+                || k.IslemTuru == EkstreIslemTurleri.Gelir && k.Tarih >= ekstreBasi && k.Tarih <= ekstreSonu);
+        var imported = ekstreSorgusu.Select(k => new EkstreKayitEntity
         {
             Id = k.Id,
             BelgeId = k.BelgeId,
@@ -294,13 +321,19 @@ public class HesapServisi
             }
         }
         ct.ThrowIfCancellationRequested();
-        var dbGelenler = _db.Gelenler.AsNoTracking().Include(g => g.KanalKaydi).ToList().Select(e => e.ToCore() with { KaynakAnahtari = "Gelen:" + e.Id }).ToList();
+        var gelenSorgusu = _db.Gelenler.AsNoTracking();
+        if (ayBasi is { } gelenBasi && aySonu is { } gelenSonu)
+            gelenSorgusu = gelenSorgusu.Where(g => g.DonemStart >= gelenBasi && g.DonemStart <= gelenSonu);
+        var dbGelenler = gelenSorgusu.Include(g => g.KanalKaydi).ToList().Select(e => e.ToCore() with { KaynakAnahtari = "Gelen:" + e.Id }).ToList();
         var krediKayitlari = _db.Krediler.AsNoTracking().Include(k => k.KanalKaydi).ToList();
         var krediTakip = _db.TakipKrediler.AsNoTracking().ToDictionary(t => t.KrediId);
         var ayar = _db.Ayarlar.AsNoTracking().First();
         // Eski hesap ek gelirleri: hiçbir kayda bağlı olmayan hesap hareketi (ufuk ve gelir için tek sorgu).
-        var ekGelirHareketleri = _db.HesapHareketler.AsNoTracking().Include(h => h.Kanal)
-            .Where(h => h.IslemId == null && h.GelenId == null && h.KartOdemeId == null && h.KrediId == null).ToList();
+        var ekGelirSorgusu = _db.HesapHareketler.AsNoTracking()
+            .Where(h => h.IslemId == null && h.GelenId == null && h.KartOdemeId == null && h.KrediId == null);
+        if (ayBasi is { } gelirBasi && aySonu is { } gelirSonu)
+            ekGelirSorgusu = ekGelirSorgusu.Where(h => h.Tarih >= gelirBasi && h.Tarih <= gelirSonu);
+        var ekGelirHareketleri = ekGelirSorgusu.Include(h => h.Kanal).ToList();
 
         var baslangic = ayar.TakipBaslangic;
         // Dönem ufku yalnız GERÇEKLEŞEN veriye göre (DB işlemleri + bugün). Gelecek kredi
@@ -379,7 +412,10 @@ public class HesapServisi
             }
         // Takipli kredilerin taksitleri tek sorguda okunur (kredi başına sorgu yok).
         var takipliKrediler = krediKayitlari.Where(k => krediTakip.ContainsKey(k.Id)).Select(k => k.Id).ToArray();
-        var takipliTaksitler = _db.TakipKrediTaksitler.AsNoTracking().Where(t => !t.Iptal && takipliKrediler.Contains(t.KrediId)).ToList().ToLookup(t => t.KrediId);
+        var taksitSorgusu = _db.TakipKrediTaksitler.AsNoTracking().Where(t => !t.Iptal && takipliKrediler.Contains(t.KrediId));
+        if (ayBasi is { } taksitBasi && aySonu is { } taksitSonu)
+            taksitSorgusu = taksitSorgusu.Where(t => t.Tarih >= taksitBasi && t.Tarih <= taksitSonu);
+        var takipliTaksitler = taksitSorgusu.ToList().ToLookup(t => t.KrediId);
         foreach (var loan in krediKayitlari.Where(k => krediTakip.ContainsKey(k.Id)))
         {
             var tracking = krediTakip[loan.Id];
@@ -647,7 +683,8 @@ public class HesapServisi
     /// hesaplanan (yaklaşık) rapor dondurulmaz (<see cref="AyRaporAnlikGoruntusu"/>).</summary>
     internal (AylikRapor Rapor, IReadOnlyList<KarantinaKaydi> Karantina) AylikVeKarantina(int yil, int ay, CancellationToken ct = default, int? kuralSurumu = null)
     {
-        var y = Yukle(new TakipHesapBaglami(_db, ct), new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)));
+        var ayBasi = new DateOnly(yil, ay, 1);
+        var y = Yukle(new TakipHesapBaglami(_db, ct), new DateOnly(yil, ay, DateTime.DaysInMonth(yil, ay)), ayBasi);
         var rapor = AyRaporu(y, yil, ay, kuralSurumu ?? AcikAyKurali);
         var karantina = y.Karantina.Where(k => k.AyaDokunur(yil, ay)).ToList();
         var uyarilar = new[] { HesapMotoru.BaslangicOncesiUyarisi(HesapMotoru.BaslangicOncesi(y.Islemler, y.Donemler, (yil, ay)), aylik: true),

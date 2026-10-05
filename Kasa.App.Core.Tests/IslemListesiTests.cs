@@ -419,4 +419,51 @@ public class IslemListesiTests
         Assert.Contains("zamanında yanıt vermedi", vm.YuklemeHatasi);
         Assert.DoesNotContain("tamamlanmış olabilir", vm.YuklemeHatasi);
     }
+
+    [Fact]
+    public async Task Tum_tarihler_ilk_sayfayi_gosterir_ve_eski_kayitlari_istekle_ekler()
+    {
+        var api = Api();
+        api.IslemSayfasiGetir = imlec => Task.FromResult(imlec is null
+            ? new IslemSayfasiDto([Islem(3, 30m, new DateOnly(2026, 7, 15)), Islem(2, 20m, new DateOnly(2026, 7, 14))], "20260714-2", true)
+            : new IslemSayfasiDto([Islem(1, 10m, new DateOnly(2026, 7, 13))], null, false));
+        var vm = Vm(api);
+
+        await vm.YukleAsync();
+
+        Assert.Equal([3, 2], vm.Islemler.Select(i => i.Id));
+        Assert.True(vm.DevamVar);
+        Assert.Equal(50m, vm.FiltreToplam);
+        Assert.Contains("gösterilen toplam", vm.FiltreOzet);
+
+        await vm.DahaFazlaYukleCommand.ExecuteAsync(null);
+
+        Assert.Equal([3, 2, 1], vm.Islemler.Select(i => i.Id));
+        Assert.Equal([null, "20260714-2"], api.IslemSayfaImlecleri);
+        Assert.False(vm.DevamVar);
+        Assert.Equal(60m, vm.FiltreToplam);
+        Assert.Equal("Tüm tarihler · 3 işlem · toplam 60,00 ₺", vm.FiltreOzet);
+    }
+
+    [Fact]
+    public async Task Eski_sayfa_gec_gelirse_yeni_suzgecin_listesine_karismaz()
+    {
+        var api = Api();
+        var gecSayfa = new TaskCompletionSource<IslemSayfasiDto>();
+        var ilk = 0;
+        api.IslemSayfasiGetir = imlec => imlec is not null ? gecSayfa.Task : Task.FromResult(++ilk == 1
+            ? new IslemSayfasiDto([Islem(3, 30m)], "20260708-3", true)
+            : new IslemSayfasiDto([Islem(9, 90m)], null, false));
+        var vm = Vm(api);
+        await vm.YukleAsync();
+
+        var eski = vm.DahaFazlaYukleCommand.ExecuteAsync(null);
+        await vm.SecFiltreZamanCommand.ExecuteAsync(Zaman(vm, "Bu ay"));
+        gecSayfa.SetResult(new([Islem(1, 10m)], null, false));
+        await eski;
+
+        Assert.Equal(9, Assert.Single(vm.Islemler).Id);
+        Assert.Equal("Bu ay · 1 işlem · toplam 90,00 ₺", vm.FiltreOzet);
+        Assert.False(vm.DahaFazlaYukleniyor);
+    }
 }

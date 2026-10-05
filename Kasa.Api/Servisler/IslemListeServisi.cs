@@ -10,9 +10,14 @@ public record IslemOkuDto(
     GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
     int Surum = 0);
 
+public record IslemSayfasi(IReadOnlyList<IslemOkuDto> Kayitlar, string? SonrakiImlec, bool DevamVar);
+
 /// <summary>Gerçek giderleri tek satır olarak, alışın güncel ödeme dağılımıyla gösterir.</summary>
 public class IslemListeServisi
 {
+    public const int VarsayilanSayfa = 100;
+    public const int EnBuyukSayfa = 200;
+    private const int TaramaGrubu = 200;
     private readonly KasaDbContext _db;
 
     public IslemListeServisi(KasaDbContext db) => _db = db;
@@ -21,7 +26,68 @@ public class IslemListeServisi
     {
         // Başlık, kalem ve ödeme sorguları aynı onay/iadeyi görmeli: salt okunur anlık görüntü, yazma kilidi yok.
         using var snapshot = _db.OkumaBaslat();
+        return ListeIcerik(baslangic, bitis, kanal, cari, null);
+    }
+
+    /// <summary>Derin bağlantıda tek gider; listeyle aynı alış/ekstre/aylık gider gösterimini kullanır.</summary>
+    public IslemOkuDto? Oku(int id)
+    {
+        using var snapshot = _db.OkumaBaslat();
+        return ListeIcerik(null, null, null, null, [id]).SingleOrDefault();
+    }
+
+    /// <summary>Eski tam liste sözleşmesini değiştirmeden, tarih/kimlik anahtarıyla sınırlı okuma.
+    /// Kanal süzgeci alış/ekstre dağılımından sonra uygulanır; bu yüzden önce SQL'den küçük aday grupları alınır,
+    /// her grup çözümlendikten sonra sayfaya eklenir. Yeni kayıtlar önce gelir; eski tam liste sırası değişmez.</summary>
+    public IslemSayfasi Sayfala(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari,
+        (DateOnly Tarih, int Id)? imlec, int limit, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        using var snapshot = _db.OkumaBaslat();
         var query = _db.Islemler.AsNoTracking();
+        if (baslangic is { } ilk)
+            query = query.Where(i => i.Tarih >= ilk);
+        if (bitis is { } son)
+            query = query.Where(i => i.Tarih <= son);
+        if (!string.IsNullOrWhiteSpace(cari))
+            query = query.Where(i => i.Cari.Contains(cari));
+        if (imlec is { } onceki)
+            query = query.Where(i => i.Tarih < onceki.Tarih || i.Tarih == onceki.Tarih && i.Id < onceki.Id);
+
+        var bulunan = new List<IslemOkuDto>(limit + 1);
+        while (bulunan.Count <= limit)
+        {
+            ct.ThrowIfCancellationRequested();
+            var adaylar = query.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id).Take(TaramaGrubu)
+                .Select(i => new { i.Id, i.Tarih }).ToList();
+            if (adaylar.Count == 0)
+                break;
+            bulunan.AddRange(ListeIcerik(null, null, kanal, null, adaylar.Select(i => i.Id).ToArray()).Reverse());
+            ct.ThrowIfCancellationRequested();
+            var sonAday = adaylar[^1];
+            query = query.Where(i => i.Tarih < sonAday.Tarih || i.Tarih == sonAday.Tarih && i.Id < sonAday.Id);
+        }
+        var devamVar = bulunan.Count > limit;
+        if (devamVar)
+            bulunan.RemoveRange(limit, bulunan.Count - limit);
+        return new(bulunan, devamVar ? $"{bulunan[^1].Tarih:yyyyMMdd}-{bulunan[^1].Id}" : null, devamVar);
+    }
+
+    public static (DateOnly Tarih, int Id)? ImleciOku(string imlec)
+    {
+        var parcalar = imlec.Split('-');
+        return parcalar.Length == 2 && DateOnly.TryParseExact(parcalar[0], "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var tarih)
+            && int.TryParse(parcalar[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+            && id > 0 ? (tarih, id) : null;
+    }
+
+    private IReadOnlyList<IslemOkuDto> ListeIcerik(DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari,
+        IReadOnlyCollection<int>? sinirliIdler)
+    {
+        var query = _db.Islemler.AsNoTracking();
+        if (sinirliIdler is not null)
+            query = query.Where(i => sinirliIdler.Contains(i.Id));
         if (baslangic is { } ilk)
             query = query.Where(i => i.Tarih >= ilk);
         if (bitis is { } son)

@@ -58,6 +58,8 @@ public partial class KasaDbContext : DbContext
         b.Entity<IslemEntity>()
             .HasOne(i => i.KanalKaydi).WithMany().HasForeignKey(i => i.KanalId)
             .OnDelete(DeleteBehavior.Restrict);
+        // İmleçli gider listesi ve aylık raporun tarih kapsamı aynı sıralı dizini kullanır.
+        b.Entity<IslemEntity>().HasIndex(i => new { i.Tarih, i.Id });
         b.Entity<GelenEntity>()
             .HasOne(g => g.KanalKaydi).WithMany().HasForeignKey(g => g.KanalId)
             .OnDelete(DeleteBehavior.Restrict);

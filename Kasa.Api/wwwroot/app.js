@@ -76,6 +76,8 @@ import {
 import { backupDiskLines, restoreReport } from './ui-core.js';
 
 let monthlyRequest = 0;
+let transactionsRequest = 0;
+const TRANSACTION_PAGE_SIZE = 100;
 const financeUi = createFinanceUi();
 const monthlyUi = createMonthlyUi();
 const cashControlsUi = createCashControlsUi();
@@ -773,6 +775,8 @@ async function renderMonthly(generation, month = today().slice(0, 7)) {
   }
 }
 async function renderTransactions(generation, filters = {}) {
+  const request = ++transactionsRequest;
+  const current = () => generation === renderId && request === transactionsRequest;
   page(
     'İşlemler',
     'Genel kasa gider kayıtları',
@@ -788,11 +792,21 @@ async function renderTransactions(generation, filters = {}) {
   );
   const start = filters.baslangic || today().slice(0, 8) + '01';
   const end = filters.bitis || today();
-  const query = new URLSearchParams({ baslangic: start, bitis: end });
-  if (filters.kanal) query.set('kanal', filters.kanal);
-  if (filters.cari) query.set('cari', filters.cari);
-  const [expenses, channels] = await Promise.all([api(`/api/islemler?${query}`), api('/api/kanallar')]);
-  if (generation !== renderId) return;
+  const pageUrl = cursor => {
+    const query = new URLSearchParams({ baslangic: start, bitis: end, limit: String(TRANSACTION_PAGE_SIZE) });
+    if (filters.kanal) query.set('kanal', filters.kanal);
+    if (filters.cari) query.set('cari', filters.cari);
+    if (cursor) query.set('imlec', cursor);
+    return `/api/islemler/sayfa?${query}`;
+  };
+  let first, channels;
+  try {
+    [first, channels] = await Promise.all([api(pageUrl()), api('/api/kanallar')]);
+  } catch (error) {
+    if (!current()) return;
+    throw error;
+  }
+  if (!current()) return;
   state.channels = channels;
   const form = h(
     'form',
@@ -823,37 +837,71 @@ async function renderTransactions(generation, filters = {}) {
       await renderTransactions(generation, data);
     });
   });
-  const rows = expenses.map(e => [
-    dateText(e.tarih),
-    h('span', {}, e.cari, e.not && h('small', { class: 'table-sub' }, e.not)),
-    h('span', {}, e.kanal, e.alisId && h('small', { class: 'table-sub' }, `Alış #${e.alisId}`)),
-    { Cari: 'Diğer gider', SabitGider: 'Sabit gider', KrediKarti: 'Kredi kartı' }[e.tip] || e.tip,
-    moneyNode(e.tutarTl),
-    e.ekstreKayitId
-      ? h(
-          'div',
-          {},
-          help('Ekstre / Hareket Yükle bölümünden yönetilir.'),
-          canEditCash() && button('Kaynak belgeyi aç', () => navigate('imports', { kayitId: e.ekstreKayitId }), 'small')
-        )
-      : e.aylikGiderOdemeId
-        ? h(
-            'div',
-            {},
-            help('Aylık Giderler bölümünden yönetilir.'),
-            !runtime.saltOkunur && button('Aylık Giderler’i aç', () => navigate('monthly-expenses'), 'small')
-          )
-        : canEditCash()
-          ? e.alisId
-            ? button('Alışı aç', () => navigate('purchase', e.alisId), 'small')
-            : h(
+  const expenses = [...first.kayitlar];
+  let cursor = first.sonrakiImlec;
+  let hasMore = first.devamVar;
+  const count = h('p', { class: 'plan-note', role: 'status', 'aria-live': 'polite' });
+  const list = h('div');
+  const draw = () => {
+    // Eski web listesinin tarih/kimlik sırası korunur; sunucunun imleci yenileri önce döndürür.
+    const rows = [...expenses]
+      .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.id - b.id)
+      .map(e => [
+        dateText(e.tarih),
+        h('span', {}, e.cari, e.not && h('small', { class: 'table-sub' }, e.not)),
+        h('span', {}, e.kanal, e.alisId && h('small', { class: 'table-sub' }, `Alış #${e.alisId}`)),
+        { Cari: 'Diğer gider', SabitGider: 'Sabit gider', KrediKarti: 'Kredi kartı' }[e.tip] || e.tip,
+        moneyNode(e.tutarTl),
+        e.ekstreKayitId
+          ? h(
+              'div',
+              {},
+              help('Ekstre / Hareket Yükle bölümünden yönetilir.'),
+              canEditCash() && button('Kaynak belgeyi aç', () => navigate('imports', { kayitId: e.ekstreKayitId }), 'small')
+            )
+          : e.aylikGiderOdemeId
+            ? h(
                 'div',
-                { class: 'row-actions' },
-                act('Düzenle', () => expenseDialog(e), 'small'),
-                button('Sil', () => deleteExpense(e), 'small danger')
+                {},
+                help('Aylık Giderler bölümünden yönetilir.'),
+                !runtime.saltOkunur && button('Aylık Giderler’i aç', () => navigate('monthly-expenses'), 'small')
               )
-          : '',
-  ]);
+            : canEditCash()
+              ? e.alisId
+                ? button('Alışı aç', () => navigate('purchase', e.alisId), 'small')
+                : h(
+                    'div',
+                    { class: 'row-actions' },
+                    act('Düzenle', () => expenseDialog(e), 'small'),
+                    button('Sil', () => deleteExpense(e), 'small danger')
+                  )
+              : '',
+      ]);
+    list.replaceChildren(
+      expenses.length
+        ? table(['Tarih', 'Açıklama', 'Kanal', 'Tür', 'Tutar', ''], rows, 'Gider kayıtları')
+        : empty('Bu aralıkta gider yok', 'Tarih, kanal veya açıklama filtresini değiştirerek diğer kayıtları görebilirsiniz.')
+    );
+    count.textContent = `${expenses.length} işlem gösteriliyor · Gösterilen tutar toplamı ${money(sumCents(expenses.map(e => e.tutarTl)) / 100)}${hasMore ? ' · Daha eski kayıtlar var.' : ''}`;
+    count.hidden = !hasMore;
+    more.hidden = !hasMore;
+  };
+  const more = act(
+    'Daha eski işlemleri yükle',
+    async () => {
+      try {
+        const next = await api(pageUrl(cursor));
+        if (!current()) return;
+        expenses.push(...next.kayitlar);
+        cursor = next.sonrakiImlec;
+        hasMore = next.devamVar;
+        draw();
+      } catch (error) {
+        if (current()) throw error;
+      }
+    },
+    'small'
+  );
   $('#view').replaceChildren(
     form,
     h(
@@ -861,10 +909,11 @@ async function renderTransactions(generation, filters = {}) {
       { class: 'plan-note' },
       'Kanal filtresi ilgili giderin tam tutarını gösterir; çok kanallı bir ödemenin kanal payı toplamı değildir. Alışa bağlı ödemeler alış kaydından düzeltilir.'
     ),
-    expenses.length
-      ? table(['Tarih', 'Açıklama', 'Kanal', 'Tür', 'Tutar', ''], rows, 'Gider kayıtları')
-      : empty('Bu aralıkta gider yok', 'Tarih veya kanal filtresini değiştirerek diğer kayıtları görebilirsiniz.')
+    count,
+    list,
+    more
   );
+  draw();
 }
 async function incomeDialog(periodStart = null) {
   // Dönem listesi pencerenin verisidir: ekran sinyaline bağlanmaz, pencere açılırken başka ekrana geçilse de pencere açılır.

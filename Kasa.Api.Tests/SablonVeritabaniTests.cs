@@ -40,6 +40,20 @@ public class SablonVeritabaniTests
         Assert.Equal("ok", Deger(baglanti, "PRAGMA integrity_check;"));
     }
 
+    [Fact]
+    public async Task Gider_sayfalama_dizini_taze_veritabaninda_migration_ile_kurulur()
+    {
+        await using var f = new KasaWebFactory();
+        using var c = await f.EditorClientAsync();
+        using var scope = f.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+        var baglanti = (SqliteConnection)db.Database.GetDbConnection();
+        var sql = Assert.IsType<string>(Deger(baglanti,
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'IX_Islemler_Tarih_Id';"));
+        Assert.Contains("\"Islemler\" (\"Tarih\", \"Id\")", sql, StringComparison.Ordinal);
+        Assert.Empty(db.Database.GetPendingMigrations());
+    }
+
     private static object? Deger(SqliteConnection c, string sql)
     {
         using var k = c.CreateCommand();

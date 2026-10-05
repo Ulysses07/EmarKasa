@@ -110,6 +110,10 @@ async function openApp(readOnly, extraResponses = {}, pushEnvironment = null, ti
   // Uygulamanın bu örneğinin tarayıcı globalleri: modüller bu adları yalnız bu sahtelerde bulur (tarayici.mjs).
   const browser = {
     ...TARAYICI_DISI,
+    window: {
+      addEventListener() {},
+      confirm: () => true,
+    },
     // push-client.js ortamı (createPushClient environment = globalThis): verilirse bu testin sahte push tarayıcısıdır.
     globalThis: pushEnvironment ?? globalThis,
     crypto: { randomUUID: () => `11111111-1111-4111-8111-${String(++nextId).padStart(12, '0')}` },
@@ -213,6 +217,9 @@ const sampleLoan = {
 const settle = async () => {
   for (let index = 0; index < 12; index++) await new Promise(resolve => setImmediate(resolve));
 };
+const transactionPage = (rows, cursor = null) => ({ kayitlar: rows, sonrakiImlec: cursor, devamVar: cursor !== null });
+const transactionPath = (start = ui.today().slice(0, 8) + '01', end = ui.today()) =>
+  `/api/islemler/sayfa?baslangic=${start}&bitis=${end}&limit=100`;
 async function submitDialog(nodes) {
   const form = nodes.get('#modal-content').find(node => node.tag === 'form');
   assert.ok(form, 'Dialog form exists');
@@ -1416,6 +1423,7 @@ test('read-only runtime allows live cash reads and login/logout but blocks all o
     '/api/rapor/haftalik',
     '/api/rapor/aylik?yil=2026&ay=9',
     '/api/islemler?kanal=A',
+    '/api/islemler/sayfa?baslangic=2026-09-01&bitis=2026-09-30&limit=100',
     '/api/kanallar',
   ])
     assert.equal(runtimeRequestAllowed(runtime, path), true, path);
@@ -1433,6 +1441,7 @@ test('read-only runtime allows live cash reads and login/logout but blocks all o
   for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
     for (const path of [
       '/api/islemler',
+      '/api/islemler/sayfa?limit=100',
       '/api/gelenler',
       '/api/kanallar',
       '/api/alis/1/onayla',
@@ -2562,7 +2571,7 @@ test('monthly payment expenses open the monthly section instead of generic edit 
   const expense = { id: 21, tarih: ui.today(), cari: 'Kira', kanal: 'Genel kasa', tip: 'SabitGider', tutarTl: 100, aylikGiderOdemeId: 11 };
   const { app, nodes } = await openApp(false, {
     ...monthlyResponses(),
-    [`/api/islemler?baslangic=${monthNow}-01&bitis=${ui.today()}`]: [expense],
+    [transactionPath(`${monthNow}-01`)]: transactionPage([expense]),
   });
   await app.navigate('transactions');
   assert.match(nodes.get('#view').textContent, /Aylık Giderler bölümünden yönetilir/);
@@ -2572,6 +2581,108 @@ test('monthly payment expenses open the monthly section instead of generic edit 
   );
   await clickView(nodes, 'Aylık Giderler’i aç');
   assert.equal(nodes.get('#page-title').textContent, 'Aylık Giderler');
+});
+
+test('transactions request 100-row pages by cursor, report loaded totals, and retry an older page after failure', async () => {
+  const firstPath = transactionPath();
+  const cursor = `${ui.today().replaceAll('-', '')}-10`;
+  const olderPath = `${firstPath}&imlec=${cursor}`;
+  const row = (id, cari, tutarTl) => ({ id, tarih: ui.today(), cari, kanal: 'A', tip: 'Cari', tutarTl });
+  const state = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    [firstPath]: transactionPage([row(11, 'Yeni gider', 10.01), row(10, 'İkinci gider', 2.02)], cursor),
+  });
+  const { app, nodes, calls, responses } = state;
+  await app.navigate('transactions');
+  const view = nodes.get('#view');
+  assert.equal(calls.filter(call => call.path === firstPath).length, 1);
+  assert.match(view.textContent, /2 işlem gösteriliyor.*Gösterilen tutar toplamı.*12,03.*Daha eski kayıtlar var/);
+  assert.doesNotMatch(view.textContent, /Tüm işlemlerin toplamı/);
+  const control = buttonIn(view, 'Daha eski işlemleri yükle');
+  assert.ok(control);
+  const gate = deferred();
+  responses[olderPath] = () => gate.promise;
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(control.disabled, true);
+  control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(calls.filter(call => call.path === olderPath).length, 1, 'pending page is requested once');
+  gate.resolve({ $status: 503, hata: 'Eski sayfa yüklenemedi.' });
+  await settle();
+  assert.equal(control.disabled, false, 'the button is available for retry');
+  assert.match(nodes.get('#alerts').textContent, /Eski sayfa yüklenemedi/);
+  assert.match(view.textContent, /2 işlem gösteriliyor/);
+  responses[olderPath] = transactionPage([row(9, 'Eski gider', 3.04)]);
+  await control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(calls.filter(call => call.path === olderPath).length, 2, 'retry uses the same cursor');
+  assert.equal(control.disabled, false);
+  assert.equal(control.hidden, true, 'last page hides load more');
+  assert.match(view.textContent, /3 işlem gösteriliyor.*Gösterilen tutar toplamı.*15,07/);
+  assert.doesNotMatch(view.textContent, /Daha eski kayıtlar var/);
+  assert.equal(view.textContent.match(/Eski gider/g)?.length, 1);
+});
+
+test('changing transaction filters ignores a late older page and keeps the new cursor tied to the filters', async () => {
+  const firstPath = transactionPath();
+  const oldCursor = `${ui.today().replaceAll('-', '')}-10`;
+  const filteredCursor = `${ui.today().replaceAll('-', '')}-5`;
+  const oldPath = `${firstPath}&imlec=${oldCursor}`;
+  const filteredPath = `${firstPath}&kanal=A&cari=Kargo`;
+  const filteredOlderPath = `${filteredPath}&imlec=${filteredCursor}`;
+  const row = (id, cari) => ({ id, tarih: ui.today(), cari, kanal: 'A', tip: 'Cari', tutarTl: id });
+  const gate = deferred();
+  const state = await openApp(false, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    [firstPath]: transactionPage([row(10, 'Önceki filtre')], oldCursor),
+    [oldPath]: () => gate.promise,
+    [filteredPath]: transactionPage([row(5, 'Kargo yeni')], filteredCursor),
+    [filteredOlderPath]: transactionPage([row(4, 'Kargo eski')]),
+  });
+  const { app, nodes, calls } = state;
+  await app.navigate('transactions');
+  const oldControl = buttonIn(nodes.get('#view'), 'Daha eski işlemleri yükle');
+  oldControl.listeners.click({ currentTarget: oldControl });
+  await settle();
+  const form = nodes.get('#view').find(node => node.tag === 'form' && node.className === 'filter-period');
+  form.find(node => node.attributes.name === 'kanal').value = 'A';
+  form.find(node => node.attributes.name === 'cari').value = 'Kargo';
+  form.listeners.submit({ preventDefault() {} });
+  await settle();
+  assert.match(nodes.get('#view').textContent, /Kargo yeni/);
+  gate.resolve(transactionPage([row(9, 'Geç kalan eski kayıt')]));
+  await settle();
+  assert.doesNotMatch(nodes.get('#view').textContent, /Geç kalan eski kayıt|Önceki filtre/);
+  const filteredControl = buttonIn(nodes.get('#view'), 'Daha eski işlemleri yükle');
+  await filteredControl.listeners.click({ currentTarget: filteredControl });
+  await settle();
+  assert.equal(calls.filter(call => call.path === filteredOlderPath).length, 1);
+  assert.match(nodes.get('#view').textContent, /Kargo eski.*Kargo yeni/);
+});
+
+test('read-only transactions can page through expenses without edit actions', async () => {
+  const firstPath = transactionPath();
+  const cursor = `${ui.today().replaceAll('-', '')}-1`;
+  const olderPath = `${firstPath}&imlec=${cursor}`;
+  const expense = id => ({ id, tarih: ui.today(), cari: `Gider ${id}`, kanal: 'A', tip: 'Cari', tutarTl: id });
+  const { app, nodes, calls } = await openApp(true, {
+    '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
+    [firstPath]: transactionPage([expense(2)], cursor),
+    [olderPath]: transactionPage([expense(1)]),
+  });
+  await app.navigate('transactions');
+  const view = nodes.get('#view');
+  assert.equal(nodes.get('#page-actions').textContent, '');
+  assert.equal(buttonIn(view, 'Düzenle'), null);
+  assert.equal(buttonIn(view, 'Sil'), null);
+  const control = buttonIn(view, 'Daha eski işlemleri yükle');
+  await control.listeners.click({ currentTarget: control });
+  await settle();
+  assert.equal(calls.filter(call => call.path === olderPath).length, 1);
+  assert.match(view.textContent, /2 işlem gösteriliyor/);
+  assert.equal(buttonIn(view, 'Düzenle'), null);
+  assert.equal(buttonIn(view, 'Sil'), null);
 });
 
 test('a monthly payment cannot be selected as an existing purchase expense', async () => {
@@ -3106,7 +3217,7 @@ test('imported cash expenses have a source link and can be linked to a purchase 
     importResponses(importDocument(), {
       '/api/kredikartlari': [],
       '/api/islemler': expenses,
-      [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses,
+      [transactionPath()]: transactionPage(expenses),
       '/api/alis/6/odemeler': { id: 6 },
     })
   );
@@ -3301,7 +3412,7 @@ test('imported expense opens its exact parent PDF even when absent from recent h
   const { app, nodes, calls } = await openApp(
     false,
     importResponses(importDocument(), {
-      [`/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`]: expenses,
+      [transactionPath()]: transactionPage(expenses),
       '/api/ekstre-aktar/kayitlar/807': importDocument({ dosyaAdi: 'Eski-kira.pdf' }),
     })
   );
@@ -3709,7 +3820,7 @@ test('kayıt sürerken ESC veya geri hareketi engellenir, kapatma düğmesi sür
   assert.equal(cancelButton(nodes).textContent, 'Vazgeç');
   assert.match(nodes.get('#modal-content').textContent, /Bu ay kilitli\./);
   assert.doesNotMatch(nodes.get('#alerts')?.textContent ?? '', /Bu ay kilitli/);
-  assert.equal(cancel(true), false, 'Kayıt bitince pencere yeniden kapanabilir.');
+  assert.equal(cancel(true), true, 'Kayıt bitince kapatma isteği işlenir ve tarayıcının varsayılan kapatması durdurulur.');
   assert.equal(nodes.get('#modal').open, false);
   assert.equal(nodes.get('#modal-content').children.length, 0);
 });
@@ -3775,7 +3886,7 @@ test('dosya seçiciden vazgeçmek (dosya alanından yukarı taşınan cancel) pe
   assert.equal(formField(statement.nodes, 'banka').value, 'Akbank');
   assert.equal(formField(statement.nodes, 'kartId').value, '4');
   // Diyaloğun kendi kapatma isteği (ESC / geri hareketi) pencereyi yine kapatır.
-  assert.equal(fire(statement.nodes, modal, true), false);
+  assert.equal(fire(statement.nodes, modal, true), true);
   assert.equal(modal.open, false);
   assert.equal(statement.nodes.get('#modal-content').children.length, 0);
 });
@@ -3801,7 +3912,7 @@ test('önizlemeden açılan onay penceresi kilitsiz başlar ve ESC ile kapanabil
       prevented = true;
     },
   });
-  assert.equal(prevented, false);
+  assert.equal(prevented, true);
   assert.equal(nodes.get('#modal').open, false);
 });
 
@@ -4506,17 +4617,20 @@ test('oturum kapanınca süren rapor isteği de iptal edilir', async () => {
   await weekly;
   assert.equal(call.signal.aborted, true);
 });
-test('ekrana bağlı okumalar yalnız rapor ve takip özeti GET istekleridir; iptal hatası ayırt edilir', () => {
+test('ekrana bağlı okumalar rapor, takip özeti ve işlem sayfası GET istekleridir; iptal hatası ayırt edilir', () => {
   for (const path of [
     '/api/rapor/ana-sayfa?gun=30',
     '/api/rapor/panel',
     '/api/rapor/haftalik',
     '/api/rapor/aylik?yil=2026&ay=9',
     '/api/takip/ozet?gun=7',
+    '/api/islemler/sayfa?limit=100',
   ])
     assert.equal(ui.screenBoundRead(path, 'GET'), true, path);
   for (const [path, method] of [
     ['/api/rapor/haftalik', 'POST'],
+    ['/api/islemler/sayfa?limit=100', 'POST'],
+    ['/api/islemler', 'GET'],
     ['/api/alis', 'GET'],
     ['/api/takip/kartlar', 'GET'],
     ['/api/kasa-esikleri', 'GET'],
@@ -5316,12 +5430,12 @@ test('yeni kart giderinde ve takipli kartla yeni alış ödemesinde taksit gövd
 // contract-6: düzenleme okunan kaydın sürümünü gönderir. Kayıt arada başka oturumda değiştiyse sunucu 409 verir: ileti formda görünür,
 // arkadaki liste (gelirde formun dönem verisi) güncel kayıtlarla yenilenir; kayıt yeniden açılınca güncel sürümle kaydedilir.
 test('gider düzenlemesi okunan sürümü gönderir; 409 iletisi formda görünür ve gider listesi yenilenir', async () => {
-  const listPath = `/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`;
+  const listPath = transactionPath();
   const expense = { id: 20, tarih: ui.today(), tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', not: '', krediKartiId: null, surum: 3 };
   const { app, nodes, calls } = await openApp(false, {
     '/api/kanallar': [{ id: 1, ad: 'A', aktif: true, surum: 0 }],
     '/api/kredikartlari': [],
-    [listPath]: [expense],
+    [listPath]: transactionPage([expense]),
     '/api/islemler/20': { $status: 409, hata: 'Gider başka bir oturumda değişti. Listeyi yenileyip tekrar deneyin.' },
     '/api/islemler/benzerlik': [],
     '/api/islemler': { id: 21, surum: 0 },
@@ -5344,11 +5458,11 @@ test('gider düzenlemesi okunan sürümü gönderir; 409 iletisi formda görün�
   assert.equal(calls.find(call => call.path === '/api/islemler' && call.method === 'POST').body.surum, 0);
 });
 test('gider silme isteği okunan sürümü taşır ve eski sürümde listeyi yenileyip silmez', async () => {
-  const listPath = `/api/islemler?baslangic=${ui.today().slice(0, 8)}01&bitis=${ui.today()}`;
+  const listPath = transactionPath();
   const expense = { id: 20, tarih: ui.today(), tutarTl: 75, cari: 'Kargo', tip: 'Cari', kanal: 'A', surum: 3 };
   const { app, nodes, calls } = await openApp(false, {
     '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
-    [listPath]: [expense],
+    [listPath]: transactionPage([expense]),
     '/api/islemler/20?surum=3': { $status: 409, hata: 'Gider başka bir oturumda değişti.' },
   });
   await app.navigate('transactions');
@@ -5627,9 +5741,7 @@ test('scrollable table wrappers and the cash total are focusable regions with di
       dagilimBekleyenTutar: 0,
       kanallar: [channel],
     },
-    [`/api/islemler?baslangic=${today.slice(0, 8)}01&bitis=${today}`]: [
-      { id: 3, tarih: today, cari: 'Kargo', kanal: 'Mağaza', tip: 'Cari', tutarTl: 2 },
-    ],
+    [transactionPath()]: transactionPage([{ id: 3, tarih: today, cari: 'Kargo', kanal: 'Mağaza', tip: 'Cari', tutarTl: 2 }]),
     '/api/kanallar': [{ id: 1, ad: 'Mağaza', aktif: true }],
   });
   await settle();
@@ -7244,7 +7356,7 @@ const actExpense = { id: 20, tarih: actToday, tutarTl: 75, cari: 'Kargo', tip: '
 const actTransactionsResponses = () => ({
   '/api/kanallar': [{ id: 1, ad: 'A', aktif: true }],
   '/api/kredikartlari': [],
-  [`/api/islemler?baslangic=${actToday.slice(0, 8)}01&bitis=${actToday}`]: [actExpense],
+  [transactionPath()]: transactionPage([actExpense]),
 });
 const actMonthlyPath = `/api/rapor/aylik?yil=${yearNow}&ay=${monthNumberNow}`;
 const modalTitle =

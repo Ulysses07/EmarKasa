@@ -89,6 +89,199 @@ test('işlem araması Türkçe büyük/küçük harfe duyarsız, kanal ve tip fi
   assert.equal(m.islemEslesir(ortak, { kanal: 'PERAKENDE' }), false);
 });
 
+async function mobilIslemEkranlari(api, { sabit = true } = {}) {
+  const kod = await kaynak('m/app.js');
+  const bas = kod.indexOf('function islemAraligi(');
+  const son = kod.indexOf('EKRANLAR.kartlar =', bas);
+  assert.ok(bas >= 0 && son > bas);
+  const h = (tag, props = {}, ...items) => {
+    const node = {
+      tag,
+      props,
+      children: items.flat(Infinity).filter(x => x != null && x !== false),
+      listeners: {},
+      value: props.value ?? '',
+      hidden: props.hidden ?? false,
+      disabled: false,
+      metin: items
+        .flat(Infinity)
+        .filter(x => typeof x === 'string')
+        .join(''),
+      get textContent() {
+        return (
+          this.metin +
+          this.children
+            .filter(x => typeof x === 'object')
+            .map(x => x.textContent)
+            .join('')
+        );
+      },
+      set textContent(value) {
+        this.metin = String(value);
+        this.children = [];
+      },
+      addEventListener(name, fn) {
+        this.listeners[name] = fn;
+      },
+      setAttribute(name, value) {
+        this.props[name] = value;
+      },
+      replaceChildren(...children) {
+        this.children = children.flat(Infinity).filter(x => x != null && x !== false);
+        this.metin = '';
+      },
+      find(predicate) {
+        return predicate(this)
+          ? this
+          : this.children
+              .filter(x => x && typeof x === 'object')
+              .map(x => x.find(predicate))
+              .find(Boolean);
+      },
+    };
+    for (const [key, fn] of Object.entries(props))
+      if (key.startsWith('on') && typeof fn === 'function') node.listeners[key.slice(2).toLowerCase()] = fn;
+    return node;
+  };
+  const durum = { islemOnbellek: [], islemFiltre: { ara: '', kanal: 'Tümü', tip: 'Tümü' }, islemBaslangic: null };
+  const context = {
+    URLSearchParams,
+    EKRANLAR: {},
+    durum,
+    api: async yol => api(yol),
+    h,
+    ikon: () => h('span'),
+    isoGun: () => '2026-09-26',
+    ayKaydir: (ay, adet) => {
+      const tarih = new Date(`${ay}-01T00:00:00Z`);
+      tarih.setUTCMonth(tarih.getUTCMonth() + adet);
+      return tarih.toISOString().slice(0, 7);
+    },
+    gunEkle: m.gunEkle,
+    kisaTarih: tarih => tarih,
+    uzunTarih: tarih => tarih,
+    tamTarih: tarih => tarih,
+    tl: tutar => `${tutar} ₺`,
+    imzali: tutar => String(tutar),
+    gunlereAyir: m.gunlereAyir,
+    islemEslesir: m.islemEslesir,
+    tipAdi: m.tipAdi,
+    kanalRengi: () => ({ r: '#123456' }),
+    kanalRozet: kanal => h('span', {}, kanal),
+    okIsareti: () => h('span'),
+    ORTAK: m.ORTAK,
+    git: () => {},
+    editorMu: () => false,
+    sekmeyeGit: () => {},
+  };
+  runInNewContext(kod.slice(bas, son), context);
+  const ekran = sabit ? { bas: '2026-09-01', son: '2026-09-26' } : {};
+  return { context, durum, ekran };
+}
+
+const islemSatiri = (id, tarih, cari) => ({ id, tarih, cari, kanal: 'MEZAT', tip: 'Cari', tutarTl: id, not: null });
+
+test('mobil işlemler imleçle 100 kayıtlık sayfalar okur; yerel filtre ve toplamı eksik liste olarak işaretler', async () => {
+  const istekler = [];
+  let deneme = 0;
+  const { context, durum, ekran } = await mobilIslemEkranlari(yol => {
+    if (yol === '/api/kanallar') return [{ ad: 'MEZAT' }];
+    const q = new URL(yol, 'https://kasa.test');
+    assert.equal(q.pathname, '/api/islemler/sayfa');
+    assert.equal(q.searchParams.get('limit'), '100');
+    istekler.push(q);
+    if (q.searchParams.has('imlec')) {
+      deneme++;
+      if (deneme === 1) throw new Error('Bağlantı kesildi');
+      return { kayitlar: [islemSatiri(1, '2026-09-19', 'Kargo')], sonrakiImlec: null, devamVar: false };
+    }
+    return {
+      kayitlar: [islemSatiri(3, '2026-09-21', 'Kargo'), islemSatiri(2, '2026-09-20', 'Kira')],
+      sonrakiImlec: '20260920-2',
+      devamVar: true,
+    };
+  });
+  const kok = await context.EKRANLAR.islemler(ekran, () => true);
+  const ozet = kok.find(n => n.props.class === 'alt-yazi num');
+  const kapsam = kok.find(n => n.props.role === 'status');
+  const arama = kok.find(n => n.props['aria-label'] === 'İşlemlerde ara');
+  const daha = kok.find(n => n.tag === 'button' && n.textContent === 'Daha eski işlemleri yükle');
+  assert.match(ozet.textContent, /Yüklenen 2 işlemden 2 eşleşme · görünen toplam/);
+  assert.equal(kapsam.hidden, false);
+  arama.value = 'kargo';
+  arama.listeners.input();
+  assert.match(ozet.textContent, /Yüklenen 2 işlemden 1 eşleşme · görünen toplam 3 ₺/);
+  await daha.listeners.click();
+  assert.equal(daha.disabled, false, 'hata sonrası düğme yeniden kullanılabilir');
+  assert.match(kok.find(n => n.props.role === 'alert').textContent, /Bağlantı kesildi/);
+  assert.match(ozet.textContent, /Yüklenen 2 işlemden 1 eşleşme/);
+  await daha.listeners.click();
+  assert.equal(istekler.length, 3);
+  assert.equal(istekler[1].searchParams.get('imlec'), '20260920-2');
+  assert.equal(istekler[2].searchParams.get('imlec'), '20260920-2', 'hata sonrası aynı sayfa yeniden denenir');
+  assert.equal(kapsam.hidden, true);
+  assert.equal(daha.hidden, true);
+  assert.match(ozet.textContent, /^2 işlem · toplam 4 ₺/);
+  assert.deepEqual(
+    Array.from(durum.islemOnbellek, i => i.id),
+    [3, 2, 1]
+  );
+});
+
+test('mobil işlemler aralık bittiğinde önceki ayı açar ve o ayın kalan sayfalarında aynı aralığı korur', async () => {
+  const istekler = [];
+  const { context, durum, ekran } = await mobilIslemEkranlari(
+    yol => {
+      if (yol === '/api/kanallar') return [];
+      const q = new URL(yol, 'https://kasa.test');
+      istekler.push(q);
+      if (istekler.length === 1) return { kayitlar: [islemSatiri(3, '2026-09-20', 'Yeni')], sonrakiImlec: null, devamVar: false };
+      if (istekler.length === 2) return { kayitlar: [islemSatiri(2, '2026-07-20', 'Eski')], sonrakiImlec: '20260720-2', devamVar: true };
+      return { kayitlar: [islemSatiri(1, '2026-07-19', 'Daha eski')], sonrakiImlec: null, devamVar: false };
+    },
+    { sabit: false }
+  );
+  const kok = await context.EKRANLAR.islemler(ekran, () => true);
+  const daha = kok.find(n => n.tag === 'button' && n.textContent === 'Daha eski işlemleri yükle');
+  const ozet = kok.find(n => n.props.class === 'alt-yazi num');
+  assert.equal(daha.hidden, false);
+  await daha.listeners.click();
+  assert.equal(durum.islemBaslangic, '2026-07-01');
+  assert.equal(istekler[1].searchParams.get('baslangic'), '2026-07-01');
+  assert.equal(istekler[1].searchParams.get('bitis'), '2026-07-31');
+  assert.match(ozet.textContent, /Yüklenen 2 işlemden 2 eşleşme/);
+  await daha.listeners.click();
+  assert.equal(istekler[2].searchParams.get('baslangic'), '2026-07-01');
+  assert.equal(istekler[2].searchParams.get('bitis'), '2026-07-31');
+  assert.equal(istekler[2].searchParams.get('imlec'), '20260720-2');
+  assert.match(ozet.textContent, /^3 işlem · toplam 6 ₺ · 2026-07-01 – 2026-09-26/);
+  assert.deepEqual(
+    Array.from(durum.islemOnbellek, i => i.id),
+    [3, 2, 1]
+  );
+});
+
+test('mobil işlem derin bağlantısı önbellek dışındaki kaydı tekil uçtan açar; bulunamayanı açıkça söyler', async () => {
+  const istekler = [];
+  const { context, durum } = await mobilIslemEkranlari(yol => {
+    istekler.push(yol);
+    if (yol === '/api/islemler/42') return islemSatiri(42, '2024-01-01', 'Eski gider');
+    throw Object.assign(new Error('Bulunamadı'), { status: 404 });
+  });
+  const ilk = await context.EKRANLAR.islem({ id: 42 }, () => true);
+  assert.match(ilk.textContent, /Eski gider/);
+  assert.deepEqual(istekler, ['/api/islemler/42']);
+  assert.deepEqual(
+    Array.from(durum.islemOnbellek, i => i.id),
+    [42]
+  );
+  await context.EKRANLAR.islem({ id: 42 }, () => true);
+  assert.deepEqual(istekler, ['/api/islemler/42'], 'önbellekteki işlem yeniden istenmez');
+  const kayip = await context.EKRANLAR.islem({ id: 99 }, () => true);
+  assert.match(kayip.textContent, /Bu işlem bulunamadı/);
+  assert.deepEqual(istekler, ['/api/islemler/42', '/api/islemler/99']);
+});
+
 test('gider tipi adları masaüstüyle aynı, bilinmeyen kanal sabit bir renk alır', () => {
   assert.equal(m.tipAdi('Cari'), 'Diğer gider');
   assert.equal(m.tipAdi('SabitGider'), 'Sabit gider');

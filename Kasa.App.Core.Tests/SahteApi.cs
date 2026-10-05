@@ -3,7 +3,7 @@ using Kasa.ApiClient;
 namespace Kasa.App.Core.Tests;
 
 /// <summary>Elle IKasaApi sahtesi — VM testleri için canned yanıt + çağrı kaydı.</summary>
-public sealed class SahteApi : IKasaApi, IOturumBildirimleri
+public sealed class SahteApi : IKasaApi, IIslemSayfalamaApi, IOturumBildirimleri
 {
     public event EventHandler? OturumSonlandi;
     public void OturumuSonlandir() => OturumSonlandi?.Invoke(this, EventArgs.Empty);
@@ -52,6 +52,9 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
     public string? SonFiltreKanal;
     /// <summary>Ayarlanırsa işlem listesi yanıtını verir (baslangic, bitis, kanal): gecikmeli/sırasız yanıt testleri için.</summary>
     public Func<DateOnly?, DateOnly?, string?, Task<IReadOnlyList<IslemDto>>>? IslemlerGetir;
+    /// <summary>Sayfalama testi verilmezse eski liste sahtesini tek tam sayfa olarak kullanır.</summary>
+    public Func<string?, Task<IslemSayfasiDto>>? IslemSayfasiGetir;
+    public List<string?> IslemSayfaImlecleri = new();
     public int IslemlerCagri;
     public Task<IReadOnlyList<IslemDto>> IslemlerAsync(DateOnly? baslangic = null, DateOnly? bitis = null, string? kanal = null, string? cari = null)
     {
@@ -62,6 +65,14 @@ public sealed class SahteApi : IKasaApi, IOturumBildirimleri
         if (IslemlerGetir is not null)
             return IslemlerGetir(baslangic, bitis, kanal);
         return YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<IslemDto>>(YuklemeHatasi) : Task.FromResult(IslemlerListe);
+    }
+    public async Task<IslemSayfasiDto> IslemlerSayfasiAsync(DateOnly? baslangic = null, DateOnly? bitis = null,
+        string? kanal = null, string? cari = null, string? imlec = null, int limit = 100, CancellationToken ct = default)
+    {
+        IslemSayfaImlecleri.Add(imlec);
+        if (IslemSayfasiGetir is not null)
+            return await IslemSayfasiGetir(imlec);
+        return new(await IslemlerAsync(baslangic, bitis, kanal, cari), null, false);
     }
     public Task<IReadOnlyList<KrediKartiDto>> KrediKartlariAsync() => YuklemeHatasi is not null ? Task.FromException<IReadOnlyList<KrediKartiDto>>(YuklemeHatasi) : Task.FromResult(KrediKartlariListe);
     public Task<IReadOnlyList<GelenDto>> GelenlerAsync(DateOnly? donemStart = null)

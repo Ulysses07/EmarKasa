@@ -73,4 +73,69 @@ test.describe('editör', () => {
     const diyalog = await pencere(page, '+ Gider kaydet', 'Gider kaydet');
     await denetle(page, testInfo, 'gider-penceresi', { kok: diyalog });
   });
+
+  test('değişen gider taslağı Vazgeç, çarpı ve Escape ile onaysız kaybolmaz', async ({ page }) => {
+    await anaSayfa(page);
+    const openExpense = () => pencere(page, '+ Gider kaydet', 'Gider kaydet');
+    const askToClose = async (action, accept) => {
+      const promptEvent = page.waitForEvent('dialog');
+      const actionDone = action();
+      const prompt = await promptEvent;
+      expect(prompt.type()).toBe('confirm');
+      expect(prompt.message()).toContain('Kaydedilmemiş değişiklikler');
+      if (accept) await prompt.accept();
+      else await prompt.dismiss();
+      await actionDone;
+    };
+
+    let diyalog = await openExpense();
+    const description = diyalog.locator('[name="cari"]');
+    await description.fill('Kaydedilmemiş gider');
+    await askToClose(() => diyalog.getByRole('button', { name: 'Vazgeç' }).click(), false);
+    await expect(description).toHaveValue('Kaydedilmemiş gider');
+    await askToClose(() => page.getByRole('button', { name: 'Pencereyi kapat' }).click(), false);
+    await expect(description).toHaveValue('Kaydedilmemiş gider');
+    await askToClose(() => page.keyboard.press('Escape'), false);
+    await expect(description).toHaveValue('Kaydedilmemiş gider');
+
+    // Düzenleme geri alınmışsa uyarı yoktur; kullanıcı değiştirmediği formu doğrudan kapatabilir.
+    await description.fill('');
+    await page.keyboard.press('Escape');
+    await expect(diyalog).toBeHidden();
+
+    for (const close of [
+      dialog => dialog.getByRole('button', { name: 'Vazgeç' }).click(),
+      () => page.getByRole('button', { name: 'Pencereyi kapat' }).click(),
+      () => page.keyboard.press('Escape'),
+    ]) {
+      diyalog = await openExpense();
+      await diyalog.locator('[name="cari"]').fill('Vazgeçilen taslak');
+      await askToClose(() => close(diyalog), true);
+      await expect(diyalog).toBeHidden();
+    }
+  });
+
+  test('boş PDF alanı değişiklik sayılmaz, seçilmiş dosya korunur', async ({ page }) => {
+    await ac(page, 'Ekstre / Hareket Yükle');
+    const openUpload = () => pencere(page, 'Kart ekstresi / hesap hareketi seç', 'Ekstre / hareket PDF’si yükle');
+    let diyalog = await openUpload();
+    await page.waitForTimeout(50); // Boş File nesnesinin değişken zaman damgasını da sınar.
+    await diyalog.getByRole('button', { name: 'Vazgeç' }).click();
+    await expect(diyalog).toBeHidden();
+
+    diyalog = await openUpload();
+    await diyalog.locator('[name="dosya"]').setInputFiles({
+      name: 'ornek.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%%EOF'),
+    });
+    const promptEvent = page.waitForEvent('dialog');
+    const actionDone = diyalog.getByRole('button', { name: 'Vazgeç' }).click();
+    const prompt = await promptEvent;
+    expect(prompt.message()).toContain('Kaydedilmemiş değişiklikler');
+    await prompt.dismiss();
+    await actionDone;
+    await expect(diyalog.locator('[name="dosya"]')).toHaveValue(/ornek\.pdf$/);
+    await expect(diyalog).toBeVisible();
+  });
 });

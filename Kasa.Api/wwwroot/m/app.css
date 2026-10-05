@@ -463,6 +463,18 @@ textarea::placeholder {
   border: 1px solid var(--cizgi);
   border-radius: 14px;
 }
+.finans-uyarisi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--soluk);
+  font-size: 13px;
+}
+.finans-uyarisi .dugme {
+  flex: none;
+}
 .liste {
   display: flex;
   flex-direction: column;
