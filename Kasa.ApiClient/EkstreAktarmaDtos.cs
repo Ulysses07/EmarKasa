@@ -30,6 +30,11 @@ public record EkstreEslesmeAdayiDto(string Tur, int Id, DateOnly Tarih, decimal 
 
 public interface IEkstreAktarmaApi
 {
+    Task<IReadOnlyList<EkstreKuralDto>> EkstreKurallarAsync() => Task.FromException<IReadOnlyList<EkstreKuralDto>>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    Task<EkstreKuralDto> EkstreKuralEkleAsync(EkstreKuralYaz g) => Task.FromException<EkstreKuralDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    Task<EkstreKuralDto> EkstreKuralDuzenleAsync(int id, EkstreKuralYaz g) => Task.FromException<EkstreKuralDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    Task EkstreKuralSilAsync(int id, int surum) => Task.FromException(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    Task<IReadOnlyList<EkstreKuralOnerisi>> EkstreOnerilerAsync(int id) => Task.FromException<IReadOnlyList<EkstreKuralOnerisi>>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Yükleme formunun banka seçenekleri (tek kaynak: sunucu).</summary>
     Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync();
     Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null);

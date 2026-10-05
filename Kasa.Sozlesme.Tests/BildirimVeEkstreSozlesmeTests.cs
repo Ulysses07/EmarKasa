@@ -80,6 +80,27 @@ public class BildirimVeEkstreSozlesmeTests : SozlesmeTemeli
     }
 
     [Fact]
+    [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreKurallarAsync), nameof(IEkstreAktarmaApi.EkstreKuralEkleAsync),
+        nameof(IEkstreAktarmaApi.EkstreKuralDuzenleAsync), nameof(IEkstreAktarmaApi.EkstreKuralSilAsync), nameof(IEkstreAktarmaApi.EkstreOnerilerAsync))]
+    public async Task Ekstre_kural_istemcisi_gercek_sunucuda_onerir_mali_kayit_uretmez()
+    {
+        var o = await Editor();
+        var yaz = new EkstreKuralYaz(Guid.NewGuid(), 0, "Masraf", "Banka", "Akbank", "KOMİSYON", "Cikis", "Gider", "Genel", []);
+        var k = await o.Ekstre.EkstreKuralEkleAsync(yaz);
+        Assert.Equal(("Masraf", "Genel", true), (k.Ad, k.DagilimTuru, k.Aktif));
+        Assert.Equal(k.Id, Assert.Single(await o.Ekstre.EkstreKurallarAsync()).Id);
+        var belge = await o.Ekstre.EkstreYukleAsync("%PDF-1.7 kurallar"u8.ToArray(), "ekstre.pdf", "Banka", "Akbank", "Ana", null, TestContext.Current.CancellationToken);
+        var oneri = Assert.Single(await o.Ekstre.EkstreOnerilerAsync(belge.Id));
+        Assert.Equal(("Oneri", "Gider", "Genel"), (oneri.Durum, oneri.IslemTuru, oneri.DagilimTuru));
+        Assert.Empty((await o.Ekstre.EkstreBelgeAsync(belge.Id)).Kayitlar);
+        k = await o.Ekstre.EkstreKuralDuzenleAsync(k.Id, yaz with { IstekId = Guid.NewGuid(), Surum = k.Surum, Aktif = false });
+        Assert.False(k.Aktif);
+        Assert.Equal("Yok", Assert.Single(await o.Ekstre.EkstreOnerilerAsync(belge.Id)).Durum);
+        await o.Ekstre.EkstreKuralSilAsync(k.Id, k.Surum);
+        Assert.Empty(await o.Ekstre.EkstreKurallarAsync());
+    }
+
+    [Fact]
     [SozlesmeKapsami(nameof(IEkstreAktarmaApi.EkstreYukleAsync), nameof(IEkstreAktarmaApi.EkstreOnizlemeAsync), nameof(IEkstreAktarmaApi.EkstreKaydetAsync),
         nameof(IEkstreAktarmaApi.EkstreKaynakBelgeAsync), nameof(IEkstreAktarmaApi.EkstreBelgelerAsync), nameof(IEkstreAktarmaApi.EkstreBelgeAsync),
         nameof(IEkstreAktarmaApi.EkstreDosyaAsync), nameof(IEkstreAktarmaApi.EkstreKayitIptalAsync))]
