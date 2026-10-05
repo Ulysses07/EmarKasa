@@ -2742,6 +2742,8 @@ const importBanks = [
 const importResponses = (document = importDocument(), extra = {}) => ({
   '/api/ekstre-aktar': [],
   '/api/ekstre-aktar/bankalar': importBanks,
+  '/api/ekstre-aktar/kurallar': [],
+  '/api/ekstre-aktar/12/oneriler': [],
   '/api/ekstre-aktar/12': document,
   '/api/kanallar': [
     { id: 1, ad: 'Mezat', aktif: true },
@@ -2774,6 +2776,161 @@ async function chooseImportRow(nodes, no = 1, mode = 'Genel') {
     allocation.listeners.change();
   }
 }
+
+test('statement proposals fill allocations without selecting or saving and preserve manual edits', async () => {
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument({ satirlar: [importRow(), importRow({ no: 2 }), importRow({ no: 3 })] }), {
+      '/api/ekstre-aktar/12/oneriler': [
+        {
+          satirNo: 1,
+          durum: 'Oneri',
+          kuralAdlari: ['Kira'],
+          islemTuru: 'Gider',
+          dagilimTuru: 'Esit',
+          kanalIds: [1],
+          aciklama: 'Kural önerisi',
+        },
+        { satirNo: 2, durum: 'Celiski', kuralAdlari: ['A', 'B'], kanalIds: [], aciklama: 'Çelişen kurallar' },
+        {
+          satirNo: 3,
+          durum: 'Oneri',
+          kuralAdlari: ['Kira'],
+          islemTuru: 'Gider',
+          dagilimTuru: 'Esit',
+          kanalIds: [1],
+          aciklama: 'Kural önerisi',
+        },
+      ],
+    })
+  );
+  await app.navigate('imports', 12);
+  await settle();
+  assert.match(nodes.get('#view').textContent, /Çelişen kurallar/);
+  await chooseImportRow(nodes, 3, 'Genel');
+  await clickView(nodes, 'Uygun önerileri uygula');
+  assert.equal(viewField(nodes, 'sec-1').checked, false);
+  assert.equal(importRowNode(nodes, 1).find(n => n.attributes.name === 'dagilimTuru').value, 'Esit');
+  assert.equal(importRowNode(nodes, 1).find(n => n.attributes.name === 'pay-kanal-1').checked, true);
+  assert.equal(importRowNode(nodes, 2).find(n => n.attributes.name === 'dagilimTuru').value, '');
+  assert.equal(importRowNode(nodes, 3).find(n => n.attributes.name === 'dagilimTuru').value, 'Genel');
+  assert.equal(
+    calls.some(c => c.method === 'POST'),
+    false
+  );
+});
+
+test('remembering a statement choice saves only a reviewed scoped rule', async () => {
+  const { app, nodes, calls } = await openApp(false, importResponses());
+  await app.navigate('imports', 12);
+  await settle();
+  await chooseImportRow(nodes);
+  const row = importRowNode(nodes);
+  const remember = row.find(n => n.tag === 'button' && n.textContent === 'Bu seçimi hatırla');
+  assert.ok(remember);
+  await remember.listeners.click({ currentTarget: remember });
+  await settle();
+  assert.equal(formField(nodes, 'kaynak').value, 'Banka');
+  assert.equal(formField(nodes, 'banka').value, 'Isbank');
+  formField(nodes, 'ad').value = 'Kira';
+  formField(nodes, 'aciklamaIcerir').value = 'KIRA';
+  await submitDialog(nodes);
+  const request = calls.find(c => c.method === 'POST' && c.path === '/api/ekstre-aktar/kurallar');
+  assert.ok(request);
+  assert.equal(request.body.islemTuru, 'Gider');
+  assert.equal(request.body.dagilimTuru, 'Genel');
+  assert.equal(request.body.yon, 'Cikis');
+  assert.equal(
+    calls.some(c => c.path.endsWith('/kaydet')),
+    false
+  );
+});
+
+test('old statement rule server keeps manual import usable and disables creating rules', async () => {
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument(), {
+      '/api/ekstre-aktar/kurallar': { $status: 404, message: 'Yok' },
+    })
+  );
+  await app.navigate('imports', 12);
+  await settle();
+  assert.match(nodes.get('#view').textContent, /Sunucu kişisel kuralları desteklemiyor/);
+  const add = nodes.get('#view').find(n => n.tag === 'button' && n.textContent === '+ Kural ekle');
+  assert.equal(add.disabled, true);
+  await chooseImportRow(nodes);
+  assert.equal(viewField(nodes, 'sec-1').checked, true);
+  assert.equal(
+    calls.some(c => c.method === 'POST'),
+    false
+  );
+});
+
+test('late statement proposals never reappear after leaving the document', async () => {
+  let finish;
+  const response = new Promise(resolve => {
+    finish = resolve;
+  });
+  const { app, nodes } = await openApp(false, importResponses(importDocument(), { '/api/ekstre-aktar/12/oneriler': () => response }));
+  await app.navigate('imports', 12);
+  await settle();
+  await app.navigate('home');
+  finish([
+    {
+      satirNo: 1,
+      durum: 'Oneri',
+      kuralAdlari: ['Geç kural'],
+      islemTuru: 'Gider',
+      dagilimTuru: 'Genel',
+      kanalIds: [],
+      aciklama: 'GEÇ ÖNERİ',
+    },
+  ]);
+  await settle();
+  assert.doesNotMatch(nodes.get('#view').textContent, /GEÇ ÖNERİ/);
+});
+
+test('statement rule manager changes versions and confirms deletion without posting finance', async () => {
+  const rule = {
+    id: 7,
+    surum: 3,
+    ad: 'Kira',
+    kaynak: 'Banka',
+    banka: 'Isbank',
+    aciklamaIcerir: 'KIRA',
+    yon: 'Cikis',
+    islemTuru: 'Gider',
+    dagilimTuru: 'Genel',
+    kanalIds: [],
+    aktif: true,
+  };
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument(), {
+      '/api/ekstre-aktar/kurallar': [rule],
+      '/api/ekstre-aktar/kurallar/7': { ...rule, surum: 4, aktif: false },
+      '/api/ekstre-aktar/kurallar/7?surum=3': null,
+    })
+  );
+  await app.navigate('imports', 12);
+  await settle();
+  await clickView(nodes, 'Kapat');
+  const update = calls.find(c => c.method === 'PUT');
+  assert.equal(update.path, '/api/ekstre-aktar/kurallar/7');
+  assert.equal(update.body.surum, 3);
+  assert.equal(update.body.aktif, false);
+  await clickView(nodes, 'Sil');
+  assert.equal(
+    calls.some(c => c.method === 'DELETE'),
+    false
+  );
+  await submitDialog(nodes);
+  assert.equal(calls.find(c => c.method === 'DELETE').path, '/api/ekstre-aktar/kurallar/7?surum=3');
+  assert.equal(
+    calls.some(c => c.method === 'POST'),
+    false
+  );
+});
 
 test('PDF import is editor-only and never appears in the read-only cash app', async () => {
   for (const role of ['viewer', 'alici']) {
