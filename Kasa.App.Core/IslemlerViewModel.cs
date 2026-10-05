@@ -135,10 +135,14 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
 
     // Liste durumu: yalnız en son başlatılan liste isteğinin sonucu, hatası ve bitişi ekrana yansır.
     private readonly SonIstekHatti _listeHatti;
+    private IstekBileti? _listeBileti;
+    private string? _sonrakiImlec;
     // Kaynak (kanal, dönem, kart) durumu: yalnız en son başlatılan tam yüklemenin kaynakları uygulanır. Aradaki süzgeç
     // değişimi yalnız listeyi yeniler, kaynakları eskitmez; oturum değişimi eskitir.
     private readonly SonIstekHatti _kaynakHatti;
     [ObservableProperty] private bool _listeYukleniyor;
+    [ObservableProperty] private bool _devamVar;
+    [ObservableProperty] private bool _dahaFazlaYukleniyor;
     /// <summary>Liste yükleme hatası (tüm rollere, listenin üstünde); form hataları <see cref="Hatalar"/>'da kalır.</summary>
     [ObservableProperty] private string? _yuklemeHatasi;
     /// <summary>Gösterilen liste güncel süzgecin başarılı yanıtıdır; yüklenirken ve hatada false (boş liste başlığı gizlenir).</summary>
@@ -220,7 +224,11 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     /// <returns>Kaynaklar yüklendi mi (gelir formu ancak o zaman hazırlanır).</returns>
     private Task<bool> ListeyiYenile(bool tam = false)
     {
-        var yukleme = ListeYukleAsync(_listeHatti.Baslat(), tam ? _kaynakHatti.Baslat() : null);
+        var bilet = _listeHatti.Baslat();
+        _listeBileti = bilet;
+        DevamVar = false;
+        DahaFazlaYukleniyor = false;
+        var yukleme = ListeYukleAsync(bilet, tam ? _kaynakHatti.Baslat() : null);
         ListeYuklemesi = yukleme;
         return yukleme;
     }
@@ -254,16 +262,20 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
             }
             // Süzgeç istek anında yakalanır; yanıt geldiğinde yalnız bu istek hâlâ en sonuncuysa uygulanır.
             var (bas, bit, kanal, suzgec) = (FiltreBaslangic, FiltreBitis, FiltreKanal, SuzgecMetni());
-            var liste = await _api.IslemlerAsync(bas, bit, kanal, null);
+            var sayfa = _api is IIslemSayfalamaApi sayfalama
+                ? await sayfalama.IslemlerSayfasiAsync(bas, bit, kanal, null, ct: istek.Iptal)
+                : new IslemSayfasiDto(await _api.IslemlerAsync(bas, bit, kanal, null), null, false);
             if (!Guncel())
                 return kaynaklar;
-            ListeyiUygula(liste, suzgec, bas is not null || bit is not null || kanal is not null);
+            _sonrakiImlec = sayfa.SonrakiImlec;
+            DevamVar = sayfa.DevamVar;
+            ListeyiUygula(sayfa.Kayitlar, suzgec, bas is not null || bit is not null || kanal is not null);
             _gosterilenSuzgec = suzgec;
             VeriVar = true;
             VeriEski = false;
             SorguYuklenmedi = false;
             SonGuncelleme = _zaman.GetLocalNow();
-            OnbellegeYaz(ListeAnahtari(bas, bit, kanal), new IslemListesi(liste, suzgec), SonGuncelleme.Value);
+            OnbellegeYaz(ListeAnahtari(bas, bit, kanal), new IslemListesi(sayfa.Kayitlar, suzgec, _sonrakiImlec, DevamVar), SonGuncelleme.Value);
         }
         catch (Exception hata)
         {
@@ -290,18 +302,64 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     private void ListeyiUygula(IReadOnlyList<IslemDto> liste, string suzgec, bool suzgecli)
     {
         TakipMetni.Doldur(Islemler, liste.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id));
-        FiltreSayi = liste.Count;
-        FiltreToplam = liste.Sum(i => i.TutarTl);
-        FiltreOzet = $"{suzgec} · {FiltreSayi} işlem · toplam {Bicim.Tl(FiltreToplam)} ₺";
+        ListeOzetiniYaz(suzgec);
         (BosListeBasligi, BosListeAciklamasi) = suzgecli
             ? ("Bu süzgeçte işlem yok", "Süzgeci değiştirin ya da kanal ve tarihte \"Tümü\"nü seçin.")
             : ("Henüz işlem yok", "İlk kayıtla liste burada oluşur.");
     }
 
+    private void ListeOzetiniYaz(string suzgec)
+    {
+        FiltreSayi = Islemler.Count;
+        FiltreToplam = Islemler.Sum(i => i.TutarTl);
+        FiltreOzet = DevamVar
+            ? $"{suzgec} · {FiltreSayi} işlem gösteriliyor · gösterilen toplam {Bicim.Tl(FiltreToplam)} ₺"
+            : $"{suzgec} · {FiltreSayi} işlem · toplam {Bicim.Tl(FiltreToplam)} ₺";
+    }
+
+    /// <summary>Sunucunun tarih/kimlik sıralı sonraki sayfasını listenin altına ekler. Filtre veya oturum arada
+    /// değişirse geç yanıtın mevcut listeye karışmasına izin verilmez.</summary>
+    [RelayCommand]
+    private async Task DahaFazlaYukleAsync()
+    {
+        if (!DevamVar || DahaFazlaYukleniyor || !VeriVar || _sonrakiImlec is not { } imlec
+            || _listeBileti is not { } bilet || _api is not IIslemSayfalamaApi sayfalama)
+            return;
+        var (bas, bit, kanal, suzgec) = (FiltreBaslangic, FiltreBitis, FiltreKanal, _gosterilenSuzgec);
+        if (suzgec is null)
+            return;
+        DahaFazlaYukleniyor = true;
+        YuklemeHatasi = null;
+        bool Guncel() => _listeHatti.Guncel(bilet) && _gosterilenSuzgec == suzgec;
+        try
+        {
+            var sayfa = await sayfalama.IslemlerSayfasiAsync(bas, bit, kanal, null, imlec, ct: bilet.Iptal);
+            if (!Guncel())
+                return;
+            if (sayfa.DevamVar && (sayfa.SonrakiImlec is null || sayfa.SonrakiImlec == imlec))
+                throw new InvalidDataException("İşlem listesinin sonraki sayfa imleci ilerlemedi.");
+            var bilinenler = Islemler.Select(i => i.Id).ToHashSet();
+            foreach (var kayit in sayfa.Kayitlar.OrderByDescending(i => i.Tarih).ThenByDescending(i => i.Id))
+                if (bilinenler.Add(kayit.Id))
+                    Islemler.Add(kayit);
+            _sonrakiImlec = sayfa.SonrakiImlec;
+            DevamVar = sayfa.DevamVar;
+            ListeOzetiniYaz(suzgec);
+            SonGuncelleme = _zaman.GetLocalNow();
+            OnbellegeYaz(ListeAnahtari(bas, bit, kanal), new IslemListesi(Islemler.ToArray(), suzgec, _sonrakiImlec, DevamVar), SonGuncelleme.Value);
+        }
+        catch (Exception hata)
+        {
+            if (Guncel() && !(Yurutucu.BaglantiHatasi(hata) && BaglantiKopuk))
+                YuklemeHatasi = OkumaHataMesaji(hata);
+        }
+        finally { if (Guncel()) DahaFazlaYukleniyor = false; }
+    }
+
     /// <summary>Son veri önbelleği (H-1): kaynaklar (kanal, dönem, kart; gider ve gelir formunun kanal çipleri) ve süzgecin listesi.</summary>
     private const string KaynakAnahtari = "kaynak";
     private static string ListeAnahtari(DateOnly? bas, DateOnly? bit, string? kanal) => $"liste|{bas:yyyy-MM-dd}|{bit:yyyy-MM-dd}|{kanal}";
-    private sealed record IslemListesi(IReadOnlyList<IslemDto> Liste, string Suzgec);
+    private sealed record IslemListesi(IReadOnlyList<IslemDto> Liste, string Suzgec, string? SonrakiImlec, bool DevamVar);
 
     /// <summary>Yeniden kurulan sayfa (H-1): son kaynaklar (kanal çipleri kopukken de seçilebilir) ve geçerli süzgecin son listesi
     /// eski (soluk) gösterilir; yükleme ardından denenir.</summary>
@@ -317,13 +375,25 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
         var (bas, bit, kanal) = (FiltreBaslangic, FiltreBitis, FiltreKanal);
         return OnbellektenUygula<IslemListesi>(ListeAnahtari(bas, bit, kanal), v =>
         {
+            _sonrakiImlec = v.SonrakiImlec;
+            DevamVar = v.DevamVar;
             ListeyiUygula(v.Liste, v.Suzgec, bas is not null || bit is not null || kanal is not null);
             _gosterilenSuzgec = v.Suzgec;
             VeriVar = true;
         });
     }
 
-    private void ListeyiBosalt() { Islemler.Clear(); FiltreSayi = 0; FiltreToplam = 0; FiltreOzet = ""; _gosterilenSuzgec = null; }
+    private void ListeyiBosalt()
+    {
+        Islemler.Clear();
+        FiltreSayi = 0;
+        FiltreToplam = 0;
+        FiltreOzet = "";
+        _gosterilenSuzgec = null;
+        _sonrakiImlec = null;
+        DevamVar = false;
+        DahaFazlaYukleniyor = false;
+    }
 
     /// <summary>Gösterilen listenin süzgeci (başarılı yüklemenin); liste yoksa null.</summary>
     private string? _gosterilenSuzgec;
@@ -332,6 +402,7 @@ public partial class IslemlerViewModel : OturumluViewModel, IKaydedilmemisForm
     private void ListeTemizle()
     {
         _listeHatti.Birak();
+        _listeBileti = null;
         _kaynakHatti.Birak();
         ListeyiBosalt();
         ListeYukleniyor = false;

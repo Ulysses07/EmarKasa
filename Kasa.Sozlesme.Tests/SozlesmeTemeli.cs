@@ -110,6 +110,7 @@ public sealed class Oturum
     public YanitKaydedici Kayit { get; } = new();
     public ITokenStore Depo { get; }
     public IKasaApi Kasa { get; }
+    public IIslemSayfalamaApi Sayfalama { get; }
     public IFinansTakipApi Takip { get; }
     public IAlisApi Alis { get; }
     public IAlisOdemeApi AlisOdeme { get; }
@@ -133,6 +134,7 @@ public sealed class Oturum
             return v;
         }
         Kasa = Vekil<IKasaApi>();
+        Sayfalama = Vekil<IIslemSayfalamaApi>();
         Yoklama = Vekil<IBaglantiYoklamasi>();
         Takip = Vekil<IFinansTakipApi>();
         Alis = Vekil<IAlisApi>();

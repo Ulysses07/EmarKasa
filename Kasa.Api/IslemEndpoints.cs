@@ -13,6 +13,21 @@ public static class IslemEndpoints
         // Islemler
         api.MapGet("/islemler", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari, IslemListeServisi svc) =>
             svc.Liste(baslangic, bitis, kanal, cari));
+        api.MapGet("/islemler/{id:int}", (int id, IslemListeServisi svc) =>
+            svc.Oku(id) is { } kayit ? Results.Ok(kayit) : Results.NotFound());
+        api.MapGet("/islemler/sayfa", (DateOnly? baslangic, DateOnly? bitis, string? kanal, string? cari,
+            string? imlec, int? limit, IslemListeServisi svc, CancellationToken ct) =>
+        {
+            if (baslangic > bitis)
+                return Results.BadRequest(new { hata = "Başlangıç tarihi bitiş tarihinden sonra olamaz." });
+            var boyut = limit ?? IslemListeServisi.VarsayilanSayfa;
+            if (boyut is < 1 or > IslemListeServisi.EnBuyukSayfa)
+                return Results.BadRequest(new { hata = $"Sayfa boyutu 1 ile {IslemListeServisi.EnBuyukSayfa} arasında olmalı." });
+            var okunan = string.IsNullOrEmpty(imlec) ? null : IslemListeServisi.ImleciOku(imlec);
+            if (!string.IsNullOrEmpty(imlec) && okunan is null)
+                return Results.BadRequest(new { hata = "Sayfa imleci geçersiz; listeyi yeniden açın." });
+            return Results.Ok(svc.Sayfala(baslangic, bitis, kanal, cari, okunan, boyut, ct));
+        });
         api.MapPost("/islemler", (IslemYazDto dto, KasaDbContext db) =>
         {
             using var transaction = db.Database.BeginTransaction();

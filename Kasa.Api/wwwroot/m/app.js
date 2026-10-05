@@ -482,6 +482,14 @@ function kalanGunCip(tarih, bugun) {
     g <= 3 ? ['var(--eksi-zemin)', 'var(--eksi)'] : g <= 7 ? ['var(--amber-zemin)', 'var(--amber)'] : ['var(--ara)', 'var(--soluk2)'];
   return h('span', { class: 'cipcik', style: { background: zemin, color: renk } }, metin);
 }
+function finansUyarisi(mesaj) {
+  return h(
+    'div',
+    { class: 'kutu finans-uyarisi', role: 'alert' },
+    h('span', {}, mesaj),
+    h('button', { type: 'button', class: 'dugme yesil-yazi kucuk', onclick: () => ciz() }, 'Yeniden dene')
+  );
+}
 
 // ---------- ekranlar ----------
 const EKRANLAR = {};
@@ -489,8 +497,9 @@ const EKRANLAR = {};
 EKRANLAR.panel = async () => {
   const bugun = isoGun();
   const [panel, liste] = await Promise.all([api('/api/rapor/panel'), haftalar()]);
-  const ozetIstek = finansGorur() ? api('/api/takip/ozet?gun=30').catch(() => null) : Promise.resolve(null);
-  const krediIstek = finansGorur() ? api('/api/takip/krediler').catch(() => null) : Promise.resolve(null);
+  const finans = finansGorur();
+  const ozetIstek = finans ? api('/api/takip/ozet?gun=30') : Promise.resolve(null);
+  const krediIstek = finans ? api('/api/takip/krediler') : Promise.resolve(null);
   okunmamisGuncelle().then(() => {
     const r = document.querySelector('.zil-ios, .bas-and .dugme-and[aria-label=Bildirimler]');
     if (!r) return;
@@ -502,7 +511,9 @@ EKRANLAR.panel = async () => {
   const son12 = liste.slice(-12);
   const degisim = son12.length > 1 && son12[0].kasaDevir !== 0 ? (son12[son12.length - 1].kasaDevir / son12[0].kasaDevir - 1) * 100 : null;
   const ay = bugun.slice(0, 7);
-  const [ozet, krediler] = await Promise.all([ozetIstek, krediIstek]);
+  const [ozetSonuc, krediSonuc] = await Promise.allSettled([ozetIstek, krediIstek]);
+  const ozet = ozetSonuc.status === 'fulfilled' ? ozetSonuc.value : null;
+  const krediler = krediSonuc.status === 'fulfilled' && Array.isArray(krediSonuc.value) ? krediSonuc.value : null;
 
   const kahraman = h(
     'section',
@@ -605,12 +616,15 @@ EKRANLAR.panel = async () => {
     ),
   ];
   let evrak = null;
-  if (ozet) {
+  if (finans && !ozet) {
+    evrak = [etiket('Kart ve kredi'), finansUyarisi('Kart ve kredi özeti yüklenemedi.')];
+  } else if (finans) {
     const kartOlay = ozet.olaylar.filter(o => o.kaynak === 'Kart' && o.tur === 'SonOdeme' && o.tutar > 0)[0];
     const krediOlay = ozet.olaylar.filter(o => o.kaynak !== 'Kart')[0];
-    const aktifKredi = (krediler || []).filter(k => k.aktif).length;
+    const aktifKredi = krediler?.filter(k => k.aktif).length;
     evrak = [
       etiket('Kart ve kredi'),
+      !krediler && finansUyarisi('Kredi ayrıntıları yüklenemedi.'),
       h(
         'div',
         { class: 'ikili' },
@@ -1116,20 +1130,28 @@ function islemAraligi(ekran) {
   const bugun = isoGun();
   return { bas: durum.islemBaslangic || ayKaydir(bugun.slice(0, 7), -1) + '-01', son: bugun, sabit: false };
 }
-async function islemleriYukle(aralik) {
-  const q = new URLSearchParams({ baslangic: aralik.bas, bitis: aralik.son });
-  const liste = await api(`/api/islemler?${q}`);
+async function islemleriYukle(aralik, imlec = null, guncelMi = () => true) {
+  const q = new URLSearchParams({ baslangic: aralik.bas, bitis: aralik.son, limit: '100' });
+  if (imlec) q.set('imlec', imlec);
+  const sayfa = await api(`/api/islemler/sayfa?${q}`);
+  if (!Array.isArray(sayfa?.kayitlar) || typeof sayfa.devamVar !== 'boolean' || (sayfa.devamVar && !sayfa.sonrakiImlec))
+    throw new Error('İşlem sayfası geçersiz yanıt verdi. Yeniden deneyin.');
+  if (!guncelMi()) return sayfa;
   const harita = new Map(durum.islemOnbellek.map(i => [i.id, i]));
-  for (const i of liste) harita.set(i.id, i);
+  for (const i of sayfa.kayitlar) harita.set(i.id, i);
   durum.islemOnbellek = [...harita.values()];
-  return liste;
+  return sayfa;
 }
-EKRANLAR.islemler = async ekran => {
+EKRANLAR.islemler = async (ekran, guncelMi) => {
   const aralik = islemAraligi(ekran);
-  const [liste, kanalListe] = await Promise.all([islemleriYukle(aralik), api('/api/kanallar').catch(() => [])]);
+  const [ilkSayfa, kanalListe] = await Promise.all([islemleriYukle(aralik, null, guncelMi), api('/api/kanallar').catch(() => [])]);
+  let liste = ilkSayfa.kayitlar;
+  let sonrakiImlec = ilkSayfa.sonrakiImlec;
+  let devamVar = ilkSayfa.devamVar;
+  let sayfaBitisi = aralik.son;
+  let yukleniyor = false;
   const f = durum.islemFiltre;
-  const kanalAdlari = ['Tümü', ...kanalListe.map(k => k.ad), ORTAK];
-  if (liste.some(i => i.kanal === 'Dağılım bekliyor')) kanalAdlari.push('Dağılım bekliyor');
+  const kanalAdlari = ['Tümü', ...kanalListe.map(k => k.ad), ORTAK, 'Dağılım bekliyor'];
   if (!kanalAdlari.includes(f.kanal)) f.kanal = 'Tümü';
   const liste_ = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } });
   const ozet = h('div', { class: 'alt-yazi num', style: { padding: '0 2px' } });
@@ -1195,12 +1217,21 @@ EKRANLAR.islemler = async ekran => {
     { class: 'aciklama', hidden: true },
     'Birden çok kanala bölünmüş ödemeler tam tutarıyla listelenir; toplam, kanalın payı değildir.'
   );
+  const kapsamNotu = h(
+    'div',
+    { class: 'aciklama', role: 'status', hidden: !devamVar },
+    'Arama ve filtreler yalnız yüklenen işlemleri kapsar. Tüm sonuçları görmek için daha eski işlemleri yükleyin.'
+  );
+  const yuklemeHatasi = h('div', { class: 'hata-yazi', role: 'alert', hidden: true });
   const ciz_ = () => {
     for (const [dugme, anahtar, deger] of cipDugmeleri) dugme.setAttribute('aria-pressed', f[anahtar] === deger ? 'true' : 'false');
     kanalNotu.hidden = f.kanal === 'Tümü' || !liste.some(i => islemEslesir(i, { kanal: f.kanal }) && i.kanal !== f.kanal);
     const secili = liste.filter(i => islemEslesir(i, f));
     const toplam = secili.reduce((t, i) => t + Math.round(i.tutarTl * 100), 0) / 100;
-    ozet.textContent = `${secili.length} işlem · toplam ${tl(toplam)} · ${kisaTarih(aralik.bas)} – ${kisaTarih(aralik.son)}`;
+    ozet.textContent = devamVar
+      ? `Yüklenen ${liste.length} işlemden ${secili.length} eşleşme · görünen toplam ${tl(toplam)} · ${kisaTarih(aralik.bas)} – ${kisaTarih(aralik.son)}`
+      : `${secili.length} işlem · toplam ${tl(toplam)} · ${kisaTarih(aralik.bas)} – ${kisaTarih(aralik.son)}`;
+    kapsamNotu.hidden = !devamVar;
     const gruplar = gunlereAyir(secili);
     liste_.replaceChildren(
       ...(gruplar.length
@@ -1239,7 +1270,15 @@ EKRANLAR.islemler = async ekran => {
             h(
               'div',
               { class: 'bos', style: { padding: '36px 16px' } },
-              h('span', {}, liste.length ? 'Aramaya uyan işlem yok.' : 'Bu aralıkta işlem yok.'),
+              h(
+                'span',
+                {},
+                liste.length
+                  ? devamVar
+                    ? 'Yüklenen işlemlerde aramaya uyan kayıt yok.'
+                    : 'Aramaya uyan işlem yok.'
+                  : 'Bu aralıkta işlem yok.'
+              ),
               liste.length > 0 &&
                 h('button', { type: 'button', class: 'dugme yesil-yazi kucuk', onclick: filtreleriTemizle }, 'Filtreleri temizle')
             ),
@@ -1261,22 +1300,51 @@ EKRANLAR.islemler = async ekran => {
     'tip',
     'Gider tipi'
   );
-  ciz_();
-  const dahaEski =
-    !aralik.sabit &&
-    h(
-      'button',
-      {
-        type: 'button',
-        class: 'dugme kucuk daha',
-        onclick: () => {
-          const kaydirma = window.scrollY;
-          durum.islemBaslangic = ayKaydir(aralik.bas.slice(0, 7), -1) + '-01';
-          ciz(kaydirma);
-        },
+  const dahaEski = h(
+    'button',
+    {
+      type: 'button',
+      class: 'dugme kucuk daha',
+      hidden: aralik.sabit && !devamVar,
+      onclick: async () => {
+        if (yukleniyor || !guncelMi()) return;
+        yukleniyor = true;
+        dahaEski.disabled = true;
+        dahaEski.textContent = 'Yükleniyor…';
+        yuklemeHatasi.hidden = true;
+        const yeniBas = devamVar ? aralik.bas : ayKaydir(aralik.bas.slice(0, 7), -1) + '-01';
+        const yeniSon = devamVar ? sayfaBitisi : gunEkle(aralik.bas, -1);
+        try {
+          const sayfa = await islemleriYukle({ bas: yeniBas, son: yeniSon }, devamVar ? sonrakiImlec : null, guncelMi);
+          if (!guncelMi()) return;
+          const harita = new Map(liste.map(i => [i.id, i]));
+          for (const i of sayfa.kayitlar) harita.set(i.id, i);
+          liste = [...harita.values()];
+          if (!devamVar) {
+            aralik.bas = yeniBas;
+            durum.islemBaslangic = yeniBas;
+          }
+          sayfaBitisi = yeniSon;
+          sonrakiImlec = sayfa.sonrakiImlec;
+          devamVar = sayfa.devamVar;
+          ciz_();
+          dahaEski.hidden = aralik.sabit && !devamVar;
+        } catch (hata) {
+          if (!guncelMi()) return;
+          yuklemeHatasi.textContent = `Daha eski işlemler yüklenemedi. ${hata.message}`;
+          yuklemeHatasi.hidden = false;
+        } finally {
+          if (guncelMi()) {
+            yukleniyor = false;
+            dahaEski.disabled = false;
+            dahaEski.textContent = 'Daha eski işlemleri yükle';
+          }
+        }
       },
-      'Daha eski işlemleri yükle'
-    );
+    },
+    'Daha eski işlemleri yükle'
+  );
+  ciz_();
   return h(
     'div',
     { class: 'ekran s10' },
@@ -1284,17 +1352,23 @@ EKRANLAR.islemler = async ekran => {
     kanalCipleri,
     tipCipleri,
     ozet,
+    kapsamNotu,
     kanalNotu,
     liste_,
+    yuklemeHatasi,
     dahaEski
   );
 };
 
-EKRANLAR.islem = async ekran => {
+EKRANLAR.islem = async (ekran, guncelMi) => {
   let i = durum.islemOnbellek.find(x => x.id === ekran.id);
   if (!i) {
-    await islemleriYukle({ bas: ayKaydir(isoGun().slice(0, 7), -3) + '-01', son: isoGun() });
-    i = durum.islemOnbellek.find(x => x.id === ekran.id);
+    try {
+      i = await api(`/api/islemler/${ekran.id}`);
+      if (i && guncelMi()) durum.islemOnbellek = [...durum.islemOnbellek.filter(x => x.id !== i.id), i];
+    } catch (hata) {
+      if (hata.status !== 404) throw hata;
+    }
   }
   if (!i)
     return h(
@@ -1303,7 +1377,7 @@ EKRANLAR.islem = async ekran => {
       h(
         'div',
         { class: 'bos' },
-        'Bu işlem son üç ayın kayıtlarında bulunamadı.',
+        'Bu işlem bulunamadı.',
         h('button', { type: 'button', class: 'dugme kucuk', onclick: () => sekmeyeGit('islemler') }, 'İşlemlere dön')
       )
     );
@@ -1678,7 +1752,7 @@ function sayfaKapatAnlik() {
   if (acikSayfa) acikSayfa.kapat(false);
 }
 window.addEventListener('popstate', () => {
-  if (acikSayfa && !history.state?.sayfa) acikSayfa.kapat(false);
+  if (acikSayfa && !history.state?.sayfa) acikSayfa.kapatIstegi(false);
 });
 function sayfaAc(icerik, etiketMetni) {
   sayfaKapatAnlik();
@@ -1695,17 +1769,29 @@ function sayfaAc(icerik, etiketMetni) {
     if (geriAl !== false && history.state?.sayfa) history.back();
     if (onceki?.isConnected && onceki.focus) onceki.focus({ preventScroll: true });
   };
+  const kapatIstegi = (geriAl = true) => {
+    if (acikSayfa?.kapat !== kapat) return;
+    if (acikSayfa.kapanabilirMi?.() === false) {
+      // Sistem geri hareketi geçmiş kaydını tüketmiştir; form korunuyorsa aynı kaydı geri koy.
+      if (geriAl === false) history.pushState({ ...(history.state || {}), sayfa: true }, '');
+      return;
+    }
+    kapat(geriAl);
+  };
   const esc = e => {
-    if (e.key === 'Escape') kapat();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      kapatIstegi();
+    }
   };
   const sayfa = h(
     'div',
     { class: 'sayfa', role: 'dialog', 'aria-modal': 'true', 'aria-label': etiketMetni },
     h('div', { class: 'tutamak', 'aria-hidden': 'true' }),
-    icerik(kapat)
+    icerik(kapat, kapatIstegi)
   );
-  alan.replaceChildren(h('div', { class: 'perde', onclick: () => kapat() }), sayfa);
-  acikSayfa = { kapat };
+  alan.replaceChildren(h('div', { class: 'perde', onclick: () => kapatIstegi() }), sayfa);
+  acikSayfa = { kapat, kapatIstegi };
   kok.inert = true;
   document.addEventListener('keydown', esc);
   setTimeout(() => sayfa.querySelector('input,textarea,button')?.focus({ preventScroll: true }), 50);
@@ -1737,7 +1823,7 @@ async function hizliIslemAc() {
         : 'Form kapatıldı; kayıt kontrolü bitse de gider gönderilmeyecek.'
     );
   };
-  sayfaAc(kapat => {
+  sayfaAc((kapat, kapatIstegi) => {
     const hata = h('div', { class: 'hata-yazi', role: 'alert', style: { textAlign: 'center' }, hidden: true });
     const kurtarma = h(
       'div',
@@ -2048,7 +2134,7 @@ async function hizliIslemAc() {
       h(
         'div',
         { class: 'sayfa-bas' },
-        h('button', { type: 'button', onclick: () => kapat() }, 'Vazgeç'),
+        h('button', { type: 'button', onclick: () => kapatIstegi() }, 'Vazgeç'),
         h('b', {}, 'Hızlı işlem'),
         ustKaydet
       ),
@@ -2075,6 +2161,14 @@ async function hizliIslemAc() {
     );
   }, 'Hızlı işlem');
   acikSayfa.kapanirken = kapanirken;
+  acikSayfa.kapanabilirMi = () => {
+    if (kaydediliyor) {
+      tost('Gider kaydı sürüyor. Sonucu bekleyin; aynı ödemeyi yeniden girmeyin.');
+      return false;
+    }
+    const taslakVar = hz.tutar.trim() || hz.cari.trim() || hz.kanal || hz.tip !== 'Cari' || hz.gun !== 'bugun' || hz.not.trim() || hz.kart;
+    return !taslakVar || window.confirm('Bu işlemde kaydedilmemiş bilgiler var. Vazgeçip formu kapatmak istiyor musunuz?');
+  };
 }
 
 function kurtarmaAc() {

@@ -122,6 +122,48 @@ public class OkumaTests
         Assert.Contains("cari=K.K", q);
     }
 
+    [Fact]
+    public async Task Islem_sayfasi_filtreleri_ve_imleci_gonderip_sonraki_sayfayi_esler()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.OK, """
+            {"kayitlar":[{"id":7,"tarih":"2026-03-05","cari":"K.K","tutarTl":100,"kanal":"MEZAT","tip":"KrediKarti","not":null}],
+             "sonrakiImlec":"20260305-7","devamVar":true}
+            """);
+
+        var sayfa = await c.IslemlerSayfasiAsync(new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31), "MEZAT", "K.K", "20260306-8", 50,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(7, Assert.Single(sayfa.Kayitlar).Id);
+        Assert.True(sayfa.DevamVar);
+        Assert.Equal("20260305-7", sayfa.SonrakiImlec);
+        var uri = h.SonIstek!.RequestUri!;
+        Assert.EndsWith("/api/islemler/sayfa", uri.AbsolutePath);
+        Assert.Contains("baslangic=2026-03-01", uri.Query);
+        Assert.Contains("bitis=2026-03-31", uri.Query);
+        Assert.Contains("kanal=MEZAT", uri.Query);
+        Assert.Contains("cari=K.K", uri.Query);
+        Assert.Contains("imlec=20260306-8", uri.Query);
+        Assert.Contains("limit=50", uri.Query);
+    }
+
+    [Fact]
+    public async Task Eski_sunucuda_sayfa_yolu_yoksa_tam_listeyle_ekran_calisir()
+    {
+        var (c, h) = Kur();
+        h.Kuyrukla(HttpStatusCode.NotFound, "{}");
+        h.Kuyrukla(HttpStatusCode.OK, """
+            [{"id":1,"tarih":"2026-03-05","cari":"Eski","tutarTl":10,"kanal":"MEZAT","tip":"Cari","not":null}]
+            """);
+
+        var sayfa = await c.IslemlerSayfasiAsync(ct: TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, Assert.Single(sayfa.Kayitlar).Id);
+        Assert.False(sayfa.DevamVar);
+        Assert.Null(sayfa.SonrakiImlec);
+        Assert.Equal("/api/islemler", h.SonIstek!.RequestUri!.AbsolutePath);
+    }
+
 
 
     [Fact]

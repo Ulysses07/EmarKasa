@@ -33,6 +33,7 @@ function requireEditor(message = 'Bu işlem için editör hesabı gerekir.') {
 }
 const modal = $('#modal');
 let modalCleanup = null;
+let modalDiscardCheck = null;
 let renderId = 0;
 // Ekran modüllerinin geç yanıt denetimi: çizime başlanan ekran hâlâ açıksa (nesil değişmediyse) doğrudur.
 const isCurrent = generation => generation === renderId;
@@ -182,12 +183,16 @@ function strayClose() {
 }
 function closeModal(explicit) {
   if (explicit === undefined && strayClose()) return;
+  if (explicit && explicit !== true && !busyForm && modalDiscardCheck?.()) {
+    if (!window.confirm('Kaydedilmemiş değişiklikler var. Pencereyi kapatırsanız bu değişiklikler silinir. Kapatılsın mı?')) return;
+  }
   if (explicit && explicit !== true && busyForm && isOpen(busyForm))
     toast('Kayıt isteği sürüyor; işlem tamamlanabilir. Sonucu bildirimde göreceksiniz.');
   busyForm = null;
   if (modal.open) modal.close();
   if (modalCleanup) modalCleanup();
   modalCleanup = null;
+  modalDiscardCheck = null;
   $('#modal-content').replaceChildren();
 }
 // Pencere kapanınca çalışacak temizlik (ör. kurtarma kodunu ekrandan silmek): pencereyi açan akış verir.
@@ -204,8 +209,9 @@ function openModal(title, content, wide = false) {
 $('#modal-close').addEventListener('click', closeModal);
 // ESC ve Android geri hareketi. Yalnız diyaloğun kendi kapatma isteği işlenir: dosya alanı da seçici kapatılınca ya da aynı
 // dosya yeniden seçilince yukarı taşınan, iptal edilemez bir cancel olayı gönderir; o olay pencereyi kapatmaz.
-// Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanır ve içerik de temizlenir; kayıt sonradan hata
-// verirse run() onu bildirim olarak gösterir; başarıda kaydın kendi bildirimi ya da sayfa yenilemesi görünür.
+// İptal edilebilir yerel kapatmayı önce durdururuz; düzenlenen taslak için onay reddedilirse tarayıcı pencereyi kapatmaz.
+// Tarayıcı olayı iptal edilemez gönderirse (art arda basış) pencere kapanabilir; kayıt sonradan hata verirse run() onu
+// bildirim olarak gösterir; başarıda kaydın kendi bildirimi ya da sayfa yenilemesi görünür.
 // Engellenen kapatmanın bildirimi gerçek davranışı söyler: yanıt gelene kadar pencere açık kalır, hata pencerede görünür.
 // Vazgeç (ya da ×) kaydı durdurmaz; kapatılan pencerenin hatası bildirim olarak çıkar, başarılı kayıt ekrana yansır ve o sırada
 // açılmış başka pencereyi kapatmaz.
@@ -213,8 +219,8 @@ const BUSY_CLOSE_MESSAGE =
   'Kayıt sürüyor; yanıt gelene kadar pencere açık kalır ve hata olursa burada görünür. Beklemeden çıkmak için Kapat (kayıt sürüyor) düğmesine basın: kayıt durmaz, tamamlanabilir; sonuç bildirimde gösterilir.';
 modal.addEventListener('cancel', event => {
   if (event.target !== modal) return;
+  if (event.cancelable) event.preventDefault();
   if (busyForm && isOpen(busyForm) && event.cancelable) {
-    event.preventDefault();
     toast(BUSY_CLOSE_MESSAGE);
     return;
   }
@@ -279,6 +285,13 @@ function formDialog(title, content, submitLabel, save, { wide = false, danger = 
       );
   });
   openModal(title, form, wide);
+  // İçeriği açan kod formDialog dönüşünden hemen sonra bazı varsayılanları hesaplar (ör. dönem geliri).
+  // İlk kullanıcı etkileşiminden önce bu senkron güncellemeleri başlangıç değerine dahil et.
+  let initialSnapshot = formSnapshot(form);
+  modalDiscardCheck = () => isOpen(form) && formSnapshot(form) !== initialSnapshot;
+  queueMicrotask(() => {
+    if (isOpen(form)) initialSnapshot = formSnapshot(form);
+  });
   return form;
 }
 // contract-6: gider, gelir, kanal ve ayar düzenlemesi okunan kaydın sürümünü gönderir. Kayıt arada başka oturumda değiştiyse sunucu
@@ -303,7 +316,9 @@ const similarPanels = new WeakMap();
 const formSnapshot = form =>
   JSON.stringify(
     [...new FormData(form)].map(([name, value]) =>
-      typeof value === 'string' ? [name, value] : [name, value.name, value.size, value.lastModified]
+      // Seçilmemiş dosya alanının boş File nesnesi her FormData çağrısında yeni lastModified alır.
+      // Bu alanı sabitlemezsek hiç dokunulmamış yükleme formu yanlışlıkla değişmiş görünür.
+      typeof value === 'string' ? [name, value] : [name, value.name, value.size, value.name || value.size ? value.lastModified : 0]
     )
   );
 async function confirmSimilar(form, query, payload) {
