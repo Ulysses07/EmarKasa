@@ -150,8 +150,11 @@ public class IslemListeTests
         for (var n = 0; n < 260; n++)
             ortam.Db.Islemler.Add(new IslemEntity
             {
-                Tarih = Tarih.AddDays(n % 3), Cari = "Gider " + n, TutarTl = n + 1,
-                Kanal = n % 5 == 0 ? "MEZAT" : "TOPTAN", KanalId = n % 5 == 0 ? 1 : 2,
+                Tarih = Tarih.AddDays(n % 3),
+                Cari = "Gider " + n,
+                TutarTl = n + 1,
+                Kanal = n % 5 == 0 ? "MEZAT" : "TOPTAN",
+                KanalId = n % 5 == 0 ? 1 : 2,
                 Tip = GiderTipi.Cari,
             });
         ortam.Db.SaveChanges();
@@ -164,8 +167,12 @@ public class IslemListeTests
 
         var ekstreli = new IslemEntity
         {
-            Tarih = Tarih.AddDays(2), Cari = "Ekstreli ödeme", TutarTl = 77m,
-            Kanal = "TOPTAN", KanalId = 2, Tip = GiderTipi.Cari,
+            Tarih = Tarih.AddDays(2),
+            Cari = "Ekstreli ödeme",
+            TutarTl = 77m,
+            Kanal = "TOPTAN",
+            KanalId = 2,
+            Tip = GiderTipi.Cari,
         };
         var belge = new EkstreBelgeEntity { Kaynak = "Banka", Banka = "Test", HesapAdi = "Hesap", DosyaAdi = "ekstre.pdf", DosyaOzeti = "sayfa-testi" };
         ortam.Db.AddRange(ekstreli, belge);

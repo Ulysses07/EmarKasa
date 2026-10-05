@@ -28,7 +28,9 @@ public class AylikOkumaSiniriTests
                 Gider(new(2026, 7, 12), 1000m, GiderTipi.Cari));
             var alis = new AlisEntity
             {
-                Tarih = new(2026, 5, 1), Tedarikci = "Tedarikçi", Durum = AlisDurumlari.Onaylandi,
+                Tarih = new(2026, 5, 1),
+                Tedarikci = "Tedarikçi",
+                Durum = AlisDurumlari.Onaylandi,
                 Kalemler = [new AlisKalemEntity
                 {
                     Aciklama = "Mal", Tutar = 0.02m,
@@ -90,6 +92,11 @@ public class AylikOkumaSiniriTests
 
     private static IslemEntity Gider(DateOnly tarih, decimal tutar, GiderTipi tip) => new()
     {
-        Tarih = tarih, Cari = "Gider", TutarTl = tutar, Kanal = "MEZAT", KanalId = 1, Tip = tip,
+        Tarih = tarih,
+        Cari = "Gider",
+        TutarTl = tutar,
+        Kanal = "MEZAT",
+        KanalId = 1,
+        Tip = tip,
     };
 }
