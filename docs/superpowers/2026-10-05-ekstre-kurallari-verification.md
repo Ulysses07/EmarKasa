@@ -64,4 +64,4 @@ Sorun önce iki API ve iki Windows form modeli testinde yeniden üretildi: kapat
 - **Windows canlı kullanım:** Bağımsız incelemeci canlı pencere etkileşimi, odak ve yerleşimi değerlendirmedi. Derleme ve ortak form davranışı testlerini kabul ettik; canlı kullanım doğrulaması iddiası yok. Beklenmeyen bir odak, yerleşim veya olay davranışı gerçek Windows kullanımında ek düzeltme gerektirebilir.
 - **Gerçek banka PDF doğruluğu:** Temsili kullanıcı PDF'leri verilmediği için tüm bankalar veya kişisel sınıflandırma doğruluğu hakkında yüzde belirlenmedi. Elle seçim/önizleme korundu. Desteklenmeyen bir PDF düzeni veya fazla geniş kişisel ifade için PDF okuyucu/kural düzeltmesi gerekebilir.
 
-Sürüm değişikliği, birleştirme ve dağıtım bu çalışma kapsamında yapılmadı.
+[PR #54](https://github.com/Ulysses07/EmarKasa/pull/54), `release/2.x` dalına açıldı ve sohbete bağlandı. Bu rapor yerel doğrulamayı kaydeder; GitHub CI sonuçları PR üzerinde ayrıca görülebilir. Sürüm değişikliği, birleştirme ve dağıtım bu çalışma kapsamında yapılmadı.

@@ -101,4 +101,8 @@ assert.equal(control('sec-1').checked, false);
 - [x] Step 2: Implement Windows manager/remember forms, proposal status and individual/bulk buttons with existing UI patterns; explicit confirmation for rule deletion.
 - [x] Step 3: Run all affected .NET suites, web suite and Windows build `dotnet build Kasa.App -f net10.0-windows10.0.19041.0`; Expected: PASS. Document examples and existing PDF limits; no version/deploy assumed.
 - [x] Step 4: Commit `feat: add desktop statement rules and usage documentation`.
-- [ ] Step 5: Fresh independent whole-branch review against feature base/spec/plan; reproduce/fix material findings with failing-first tests; run final verification. Open/attach feature PR under previously established workflow; merging/deployment require explicit request.
+- [x] Step 5: Fresh independent whole-branch review against feature base/spec/plan; reproduce/fix material findings with failing-first tests; run final verification. Open/attach feature PR under previously established workflow; merging/deployment require explicit request.
+
+## Completion
+
+Implemented and verified. [PR #54](https://github.com/Ulysses07/EmarKasa/pull/54) targets `release/2.x` and is attached to this chat. [Verification results and limits](../2026-10-05-ekstre-kurallari-verification.md). Initial missing-route tests returned 405 because the pre-existing document route matched the path; behavior tests failed as intended before rule routes existed. No implementation work remains in this plan. GitHub CI, merge and deployment are separate from the recorded local verification.
