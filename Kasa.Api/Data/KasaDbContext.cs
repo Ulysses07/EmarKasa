@@ -27,6 +27,7 @@ public partial class KasaDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<EkstreKuralEntity>().Property(k => k.Surum).IsConcurrencyToken();
         b.Entity<AliciEntity>().Property(a => a.Kullanici).UseCollation("NOCASE");
         b.Entity<AliciEntity>().HasIndex(a => a.Kullanici).IsUnique();
         b.Entity<AlisEntity>().Property(a => a.Surum).IsConcurrencyToken();

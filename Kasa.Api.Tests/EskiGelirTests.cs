@@ -58,7 +58,7 @@ public class EskiGelirTests
         KasaVeritabaniBaslatici.Baslat(db);
         KasaVeritabaniBaslatici.Baslat(db);
 
-        Assert.Equal(26, db.Database.GetAppliedMigrations().Count());
+        Assert.Equal(27, db.Database.GetAppliedMigrations().Count());
         Assert.Empty(db.Database.GetPendingMigrations());
         Assert.False(db.Database.HasPendingModelChanges());
         AssertOriginalRows(db);

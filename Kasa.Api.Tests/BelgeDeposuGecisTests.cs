@@ -245,7 +245,7 @@ public class BelgeDeposuGecisTests
             Assert.Null(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('EkstreBelgeler') WHERE name = 'Dosya';"));
             using (var db = f.Baglam())
             {
-                Assert.Equal(26, db.Database.GetAppliedMigrations().Count());
+                Assert.Equal(27, db.Database.GetAppliedMigrations().Count());
                 Assert.Empty(db.Database.GetPendingMigrations());
                 Assert.False(db.Database.HasPendingModelChanges());
             }
@@ -341,7 +341,7 @@ public class BelgeDeposuGecisTests
             // Hiçbir migration uygulanmadı, BLOB'lar yerinde, bütün satırlar (içerikler dahil) aynı.
             Assert.Equal(once, Dokum(f.Yol, hepsi));
             using var db = Baglam(f.Yol);
-            Assert.Equal(new[] { BelgeDeposuHazirlik.Kimlik, BelgeDeposuGocu.Kimlik, EkstreEslesmesi.Kimlik, KasaKontrolFiligrani.Kimlik, CekirdekSurumleri.Kimlik, GeriYuklemeGuvenligi.Kimlik, EditorSifirlamaIzi.Kimlik, Kasa.Api.Migrations.Cekler.Kimlik, Kasa.Api.Migrations.IslemTarihIndeksi.Kimlik }, db.Database.GetPendingMigrations());
+            Assert.Equal(new[] { BelgeDeposuHazirlik.Kimlik, BelgeDeposuGocu.Kimlik, EkstreEslesmesi.Kimlik, KasaKontrolFiligrani.Kimlik, CekirdekSurumleri.Kimlik, GeriYuklemeGuvenligi.Kimlik, EditorSifirlamaIzi.Kimlik, Kasa.Api.Migrations.Cekler.Kimlik, Kasa.Api.Migrations.IslemTarihIndeksi.Kimlik, "20261010000100_EkstreKurallari" }, db.Database.GetPendingMigrations());
             Assert.NotNull(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('Belgeler') WHERE name = 'Icerik';"));
             Assert.Null(Deger(f.Yol, "SELECT 1 FROM pragma_table_info('Belgeler') WHERE name = 'IcerikOzeti';"));
         }

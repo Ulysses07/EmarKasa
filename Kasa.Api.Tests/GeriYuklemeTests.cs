@@ -37,6 +37,36 @@ namespace Kasa.Api.Tests;
 /// </summary>
 public class GeriYuklemeTests
 {
+    [Fact]
+    public async Task Ekstre_kurali_tam_yedekten_butun_alanlariyla_geri_gelir()
+    {
+        var dizin = GeciciYol("");
+        var canli = GeciciYol(".db");
+        var geri = GeciciYol(".db");
+        try
+        {
+            string zip;
+            using (var fA = new Fabrika(canli, dizin))
+            {
+                using var scope = fA.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+                db.EkstreKurallar.Add(new EkstreKuralEntity { Ad = "Banka komisyonu", Surum = 3, Kaynak = "Banka", Banka = "Akbank", AciklamaIcerir = "KOMİSYON", Yon = "Cikis", IslemTuru = "Gider", DagilimTuru = "Esit", KanalIdsJson = "[1,2]", Aktif = false });
+                db.SaveChanges();
+                zip = await YedekAl(fA);
+                db.EkstreKurallar.RemoveRange(db.EkstreKurallar);
+                db.SaveChanges();
+            }
+            KasaDbCikar(zip, geri);
+            using var fB = new Fabrika(geri, dizin);
+            using var restoredScope = fB.Services.CreateScope();
+            var restoredDb = restoredScope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var rule = Assert.Single(restoredDb.EkstreKurallar.AsNoTracking());
+            Assert.Equal(("Banka komisyonu", 3, "Banka", "Akbank", "KOMİSYON", "Cikis", "Gider", "Esit", "[1,2]", false),
+                (rule.Ad, rule.Surum, rule.Kaynak, rule.Banka, rule.AciklamaIcerir, rule.Yon, rule.IslemTuru, rule.DagilimTuru, rule.KanalIdsJson, rule.Aktif));
+            Assert.NotNull(restoredDb.SistemDurumu.Single().SonGeriYukleme);
+        }
+        finally { Temizle([canli, geri], dizin); }
+    }
     // Üretimdeki değerlerle aynı olmalı (Sabitler_sunucu_ve_restore_araci_arasinda_aynidir).
     private const int Isaret = 0x4B534759;
     private const int KimlikAraligi = 1_000_000;
