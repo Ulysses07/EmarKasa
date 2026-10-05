@@ -12,9 +12,17 @@ public class EkstreKuralTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
     private static object Kural(string kosul = "YURTİÇİ KARGO", int kanal = 1, string? banka = "Akbank", string? yon = "Cikis", string tur = "Gider", int surum = 0, bool aktif = true, Guid? key = null) => new
     {
-        istekId = key ?? Guid.NewGuid(), surum, ad = "Kargo " + kanal, kaynak = "Banka", banka,
-        aciklamaIcerir = kosul, yon, islemTuru = tur, dagilimTuru = tur == "Atla" ? "Genel" : "Esit",
-        kanalIds = tur == "Atla" ? Array.Empty<int>() : new[] { kanal }, aktif
+        istekId = key ?? Guid.NewGuid(),
+        surum,
+        ad = "Kargo " + kanal,
+        kaynak = "Banka",
+        banka,
+        aciklamaIcerir = kosul,
+        yon,
+        islemTuru = tur,
+        dagilimTuru = tur == "Atla" ? "Genel" : "Esit",
+        kanalIds = tur == "Atla" ? Array.Empty<int>() : new[] { kanal },
+        aktif
     };
 
     private static async Task<JsonNode> Post(HttpClient c, object value)
@@ -106,6 +114,38 @@ public class EkstreKuralTests
         await Post(c, Kural(yon: null));
         var row = Satir(1, para: para, yon: yon, tur: tur, warnings: warning.Length == 0 ? [] : [warning]);
         Assert.Equal("Kontrol", (await Oneriler(c, Belge(f, row)))[0]!["durum"]!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pasif_ve_silinmis_kanalli_kural_kapatilir_ama_yeniden_etkinlestirilemez(bool sil)
+    {
+        await using var f = new KasaWebFactory();
+        using var c = await f.EditorClientAsync();
+        var first = await Post(c, Kural());
+        using (var scope = f.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<KasaDbContext>();
+            var channel = db.Kanallar.Single(k => k.Id == 1);
+            if (sil)
+                db.Kanallar.Remove(channel);
+            else
+                channel.Aktif = false;
+            db.SaveChanges();
+        }
+        var id = Belge(f, Satir(1));
+        Assert.Equal("Kontrol", (await Oneriler(c, id))[0]!["durum"]!.GetValue<string>());
+        var path = $"/api/ekstre-aktar/kurallar/{first["id"]}";
+        var disabled = await c.PutAsJsonAsync(path, Kural(surum: 1, aktif: false), Ct);
+        Assert.Equal(HttpStatusCode.OK, disabled.StatusCode);
+        var result = (await disabled.Content.ReadFromJsonAsync<JsonNode>(Ct))!;
+        Assert.Equal(1, result["kanalIds"]![0]!.GetValue<int>());
+        Assert.False(result["aktif"]!.GetValue<bool>());
+        Assert.Equal("Yok", (await Oneriler(c, id))[0]!["durum"]!.GetValue<string>());
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync(path, Kural(surum: 2), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync(path, Kural(kanal: 999, surum: 2, aktif: false), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/ekstre-aktar/kurallar", Kural(aktif: false), Ct)).StatusCode);
     }
 
     [Fact]

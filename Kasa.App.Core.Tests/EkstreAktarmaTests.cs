@@ -563,6 +563,25 @@ public class EkstreAktarmaTests
         Assert.Throws<DogrulamaHatasi>(() => row.HatirlanacakKural(vm.Belge!));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Windows_kural_formu_kapatirken_pasif_ve_bilinmeyen_secili_kanali_korur(bool bilinmiyor)
+    {
+        var (vm, _, _) = await Hazir();
+        vm.Kanallar[0] = vm.Kanallar[0] with { Aktif = false };
+        if (bilinmiyor)
+            vm.Kanallar.RemoveAt(0);
+        int[] originalIds = [1];
+        var formChannels = vm.KuralFormKanallari(originalIds);
+        // Windows formu bu seçenekleri işaretler ve kaydederken işaretli kimlikleri gönderir.
+        var retainedIds = formChannels.Where(c => originalIds.Contains(c.Id)).Select(c => c.Id).ToArray();
+        Assert.Equal(originalIds, retainedIds);
+        Assert.False(formChannels.Single(c => c.Id == 1).Aktif);
+        Assert.Contains(formChannels, c => c.Id == 2 && c.Aktif);
+        Assert.DoesNotContain(vm.KuralFormKanallari([]), c => c.Id == 1);
+    }
+
     [Fact]
     public void Eslesen_ve_alisa_devredilen_kayit_gecmiste_kasa_etkisiz_gorunur()
     {

@@ -50,9 +50,11 @@ public static partial class EkstreAktarmaEndpoints
         Require(dto.KanalIds is not null && dto.KanalIds.Count <= 20 && dto.KanalIds.Distinct().Count() == dto.KanalIds.Count, "En fazla 20 farklı kanal seçin.");
         Require(dto.DagilimTuru == DagilimBicimleri.Genel && dto.KanalIds.Count == 0 && (dto.IslemTuru == EkstreIslemTurleri.Atla || dto.Kaynak == EkstreKaynaklari.Banka)
             || dto.IslemTuru != EkstreIslemTurleri.Atla && dto.DagilimTuru == DagilimBicimleri.Esit && dto.KanalIds.Count > 0, "Dağılım genel kasa veya seçilen kanallara eşit olmalı.");
-        Require(db.Kanallar.Count(k => k.Aktif && dto.KanalIds.Contains(k.Id)) == dto.KanalIds.Count, "Kural için aktif kanalları seçin.");
         var k = id is { } value ? db.EkstreKurallar.SingleOrDefault(k => k.Id == value) : new EkstreKuralEntity();
         Require(k is not null, "Kural bulunamadı.", 404);
+        // Kullanılamayan hedefi olan mevcut kural da kapatılabilmeli; yeni/değişmiş hedefler ve etkinleştirme aktif kanal ister.
+        var hedefleriKoruyarakKapat = id is not null && !dto.Aktif && dto.KanalIds.Order().SequenceEqual(Read<int>(k.KanalIdsJson).Order());
+        Require(hedefleriKoruyarakKapat || db.Kanallar.Count(c => c.Aktif && dto.KanalIds.Contains(c.Id)) == dto.KanalIds.Count, "Kural için aktif kanalları seçin.");
         if (id is not null)
         {
             Require(dto.Surum == k.Surum, "Kural değişmiş. Listeyi yenileyip yeniden deneyin.", 409);

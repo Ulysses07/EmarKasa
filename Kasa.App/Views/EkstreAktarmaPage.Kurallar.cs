@@ -21,7 +21,8 @@ public sealed partial class EkstreAktarmaPage
             Tikla("Seçili kuralı düzenle / kapat", () => { if (picker.SelectedItem is EkstreKuralDto rule) KuralFormunuKur(rule); return Task.CompletedTask; }),
             Tikla("Seçili kuralı sil", async () =>
             {
-                if (picker.SelectedItem is not EkstreKuralDto rule || !Vm.EditorMu || Vm.Mesgul) return;
+                if (picker.SelectedItem is not EkstreKuralDto rule || !Vm.EditorMu || Vm.Mesgul)
+                    return;
                 var epoch = Vm.OturumNesli;
                 if (await DisplayAlertAsync("Kuralı sil", $"{rule.Ad}\nBu kural silinecek. Önceden kaydedilen hareketler korunur.", "Sil", "Vazgeç"))
                     await Vm.KuralSilAsync(rule, epoch);
@@ -34,13 +35,16 @@ public sealed partial class EkstreAktarmaPage
     }
     private void KuralHatirla(EkstreSatirEditor row)
     {
-        if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor || Vm.Belge is not { } doc || !Vm.Satirlar.Contains(row)) return;
-        try { KuralFormunuKur(null, row.HatirlanacakKural(doc)); }
+        if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor || Vm.Belge is not { } doc || !Vm.Satirlar.Contains(row))
+            return;
+        try
+        { KuralFormunuKur(null, row.HatirlanacakKural(doc)); }
         catch (DogrulamaHatasi error) { Vm.Hata = error.Message; }
     }
     private void KuralFormunuKur(EkstreKuralDto? rule, EkstreKuralYaz? remembered = null)
     {
-        if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor) return;
+        if (!Vm.EditorMu || Vm.Mesgul || !Vm.KurallarDestekleniyor)
+            return;
         var epoch = Vm.OturumNesli;
         var name = new Entry { Text = rule?.Ad ?? remembered?.Ad ?? "", MaxLength = 100 };
         var phrase = new Entry { Text = rule?.AciklamaIcerir ?? remembered?.AciklamaIcerir ?? "", MaxLength = 200 };
@@ -57,7 +61,7 @@ public sealed partial class EkstreAktarmaPage
         var choices = new Dictionary<int, CheckBox>();
         var channelList = new VerticalStackLayout { Spacing = 4 };
         var selectedIds = rule?.KanalIds ?? remembered?.KanalIds ?? [];
-        foreach (var channel in Vm.Kanallar.Where(c => c.Aktif))
+        foreach (var channel in Vm.KuralFormKanallari(selectedIds))
         {
             var check = new CheckBox { IsChecked = selectedIds.Contains(channel.Id) };
             SemanticProperties.SetDescription(check, channel.Ad);
@@ -68,7 +72,11 @@ public sealed partial class EkstreAktarmaPage
         {
             var previous = (allocation.SelectedItem as EkstreSecenek)?.Kod;
             var general = source.SelectedItem as string == "Banka";
-            EkstreSecenek[] options = (kind.SelectedItem as EkstreSecenek)?.Kod == EkstreIslemTurleri.Atla ? [new(DagilimBicimleri.Genel, "Dağılım yok (atla)")] : general ? [new(DagilimBicimleri.Genel, "Yalnız genel kasa"), new(DagilimBicimleri.Esit, "Seçilen kanallara eşit")] : [new(DagilimBicimleri.Esit, "Seçilen kanallara eşit")];
+            EkstreSecenek[] options = (kind.SelectedItem as EkstreSecenek)?.Kod == EkstreIslemTurleri.Atla
+                ? [new(DagilimBicimleri.Genel, "Dağılım yok (atla)")]
+                : general
+                    ? [new(DagilimBicimleri.Genel, "Yalnız genel kasa"), new(DagilimBicimleri.Esit, "Seçilen kanallara eşit")]
+                    : [new(DagilimBicimleri.Esit, "Seçilen kanallara eşit")];
             allocation.ItemsSource = options;
             allocation.SelectedItem = options.FirstOrDefault(o => o.Kod == previous) ?? options[0];
             channelList.IsVisible = (allocation.SelectedItem as EkstreSecenek)?.Kod == DagilimBicimleri.Esit;
@@ -76,7 +84,10 @@ public sealed partial class EkstreAktarmaPage
         void UpdateSource()
         {
             var previous = (kind.SelectedItem as EkstreSecenek)?.Kod ?? rule?.IslemTuru ?? remembered?.IslemTuru;
-            EkstreSecenek[] options = source.SelectedItem as string == EkstreKaynaklari.Kart ? [new(EkstreIslemTurleri.KartHarcama, "Kart harcaması"), new(EkstreIslemTurleri.Atla, "Satırı seçmeden bırak")] : [new(EkstreIslemTurleri.Gelir, "Banka girişi"), new(EkstreIslemTurleri.Gider, "Banka çıkışı"), new(EkstreIslemTurleri.Atla, "Satırı seçmeden bırak")];
+            EkstreSecenek[] options = source.SelectedItem as string == EkstreKaynaklari.Kart
+                ? [new(EkstreIslemTurleri.KartHarcama, "Kart harcaması"), new(EkstreIslemTurleri.Atla, "Satırı seçmeden bırak")]
+                : [new(EkstreIslemTurleri.Gelir, "Banka girişi"), new(EkstreIslemTurleri.Gider, "Banka çıkışı"),
+                    new(EkstreIslemTurleri.Atla, "Satırı seçmeden bırak")];
             kind.ItemsSource = options;
             kind.SelectedItem = options.FirstOrDefault(o => o.Kod == previous) ?? options[0];
             UpdateAllocation();
@@ -93,22 +104,26 @@ public sealed partial class EkstreAktarmaPage
             Metin("En az üç harfli bir sözcük kullanın. Türkçe harf ve noktalama farkları sadeleştirilir; sözcük sınırı korunur. Örneğin MIGROS, MIGROSAN ile eşleşmez."),
             Alan("Belge türü", source), Alan("Banka", bank), Alan("Hareket yönü", direction), Alan("Önerilen işlem", kind),
             Alan("Dağılım", allocation), channelList,
-            Metin("Kuralda sabit tutar saklanmaz. Atla önerisi satırı seçmeden bırakır."),
+            Metin("Kuralda sabit tutar saklanmaz. Atla önerisi satırı seçmeden bırakır. Kullanılamayan kanalı koruyarak kuralı kapatabilir; yeniden etkinleştirmek için aktif kanal seçebilirsiniz."),
             new HorizontalStackLayout { Children = { enabled, Metin("Kural etkin (kapatmak için işareti kaldırın)") } }, error);
         var key = new TekrarAnahtari();
         var actions = new HorizontalStackLayout { Spacing = 8 };
         actions.Add(Tikla("Kuralı kaydet", async () =>
         {
-            if (_kuralFormu.Content != form || Vm.OturumNesli != epoch || !Vm.EditorMu) return;
+            if (_kuralFormu.Content != form || Vm.OturumNesli != epoch || !Vm.EditorMu)
+                return;
             error.Text = "";
-            if (string.IsNullOrWhiteSpace(name.Text) || string.IsNullOrWhiteSpace(phrase.Text)) { error.Text = "Kural adını ve koşulunu girin."; return; }
+            if (string.IsNullOrWhiteSpace(name.Text) || string.IsNullOrWhiteSpace(phrase.Text))
+            { error.Text = "Kural adını ve koşulunu girin."; return; }
             var mode = (allocation.SelectedItem as EkstreSecenek)?.Kod ?? "";
-            var write = new EkstreKuralYaz(Guid.Empty, rule?.Surum ?? 0, name.Text.Trim(), source.SelectedItem as string ?? "", (bank.SelectedItem as EkstreBankaDto)?.Kod is { Length: > 0 } code ? code : null,
+            var write = new EkstreKuralYaz(Guid.Empty, rule?.Surum ?? 0, name.Text.Trim(), source.SelectedItem as string ?? "",
+                (bank.SelectedItem as EkstreBankaDto)?.Kod is { Length: > 0 } code ? code : null,
                 phrase.Text.Trim(), direction.SelectedIndex switch { 1 => "Giris", 2 => "Cikis", _ => null }, (kind.SelectedItem as EkstreSecenek)?.Kod ?? "", mode,
                 mode == DagilimBicimleri.Esit ? choices.Where(c => c.Value.IsChecked).Select(c => c.Key).ToArray() : [], enabled.IsChecked);
             write = write with { IstekId = key.Al(write) };
             await Vm.KuralKaydetAsync(rule?.Id, write, epoch);
-            if (_kuralFormu.Content == form && Vm.OturumNesli == epoch && string.IsNullOrEmpty(Vm.Hata)) _kuralFormu.Content = null;
+            if (_kuralFormu.Content == form && Vm.OturumNesli == epoch && string.IsNullOrEmpty(Vm.Hata))
+                _kuralFormu.Content = null;
         }));
         actions.Add(Tikla("Vazgeç", () => { if (_kuralFormu.Content == form) _kuralFormu.Content = null; return Task.CompletedTask; }));
         ((VerticalStackLayout)form.Content!).Add(actions);

@@ -1,6 +1,6 @@
 # Ekstre sınıflandırma kuralları Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** AI olmadan kişisel kurallarla PDF hareketlerinin türünü ve mevcut kasa/kanal dağılımını önermek.
 
@@ -32,7 +32,7 @@
 
 **Interfaces:** Produces `EkstreKuralYaz(Guid IstekId, int Surum, string Ad, string Kaynak, string? Banka, string AciklamaIcerir, string? Yon, string IslemTuru, string DagilimTuru, IReadOnlyList<int> KanalIds, bool Aktif = true)`, `EkstreKuralDto` (Id/Surum + rule fields), `EkstreKuralOnerisi(int SatirNo, string Durum, IReadOnlyList<string> KuralAdlari, string? IslemTuru, string? DagilimTuru, IReadOnlyList<int> KanalIds, string Aciklama)`. Routes beneath `/api/ekstre-aktar`: GET/POST `/kurallar`, PUT/DELETE `/kurallar/{id}` (DELETE query surum), GET `/{id}/oneriler`.
 
-- [ ] Step 1: Write real HTTP tests. Missing routes return 404 instead of expected 200. Cover CRUD/stale version/idempotency, Turkish normalization/word boundaries, bank/direction scope, equal outcomes vs conflicts, inactive channel, warnings/foreign currency, no change to cash/document version. Test migration and rule backup persistence.
+- [x] Step 1: Write real HTTP tests. Missing routes return 404 instead of expected 200. Cover CRUD/stale version/idempotency, Turkish normalization/word boundaries, bank/direction scope, equal outcomes vs conflicts, inactive channel, warnings/foreign currency, no change to cash/document version. Test migration and rule backup persistence.
 
 ```csharp
 var response = await client.PostAsJsonAsync("/api/ekstre-aktar/kurallar", new {
@@ -42,16 +42,16 @@ var response = await client.PostAsJsonAsync("/api/ekstre-aktar/kurallar", new {
 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 ```
 
-- [ ] Step 2: Run `dotnet test Kasa.Api.Tests --no-restore --filter FullyQualifiedName~EkstreKural`; Expected: FAIL on missing routes.
-- [ ] Step 3: Implement empty table/frozen migration `20261010000100_EkstreKurallari`, concurrency version, JSON channel IDs, CRUD transactions/idempotency and consistent suggestion read. Normalize words without user regex, evaluate all matching rules, compare result signatures, gate by row safety. Limit 200 rules, names 100 characters, phrases 3–200 characters/at least one 3-character word, 20 distinct active channels.
+- [x] Step 2: Run `dotnet test Kasa.Api.Tests --no-restore --filter FullyQualifiedName~EkstreKural`; Expected: FAIL on missing routes.
+- [x] Step 3: Implement empty table/frozen migration `20261010000100_EkstreKurallari`, concurrency version, JSON channel IDs, CRUD transactions/idempotency and consistent suggestion read. Normalize words without user regex, evaluate all matching rules, compare result signatures, gate by row safety. Limit 200 rules, names 100 characters, phrases 3–200 characters/at least one 3-character word, 20 distinct active channels.
 
 ```csharp
 api.MapGet("/{id:int}/oneriler", (int id, KasaDbContext db) => Safe(() =>
     AlisEndpoints.Oku(db, () => Results.Ok(EkstreKuralServisi.Oneriler(db, GetDocument(db, id))))));
 ```
 
-- [ ] Step 4: Update migration counts/inventory; run new tests and migration tests. Expected: PASS, no pending model changes, preserved financial records.
-- [ ] Step 5: Commit `feat: add persistent statement classification rules`.
+- [x] Step 4: Update migration counts/inventory; run new tests and migration tests. Expected: PASS, no pending model changes, preserved financial records.
+- [x] Step 5: Commit `feat: add persistent statement classification rules`.
 
 ## Task 2: Ortak istemci ve öneri uygulama modeli
 
@@ -59,7 +59,7 @@ api.MapGet("/{id:int}/oneriler", (int id, KasaDbContext db) => Safe(() =>
 
 **Interfaces:** Consumes Task 1 DTO/routes; produces `EkstreKurallarAsync`, `EkstreKuralEkleAsync`, `EkstreKuralDuzenleAsync`, `EkstreKuralSilAsync`, `EkstreOnerilerAsync`; editor `Oneri`, `OneriMetni`, `ElleDegisti`, `OneriyiUygula(bool toplu)`; VM rule list/refresh/bulk/remember/CRUD methods for Task 4.
 
-- [ ] Step 1: Add editor/VM behavior and real API contract tests. Single-channel rule fills a pay without selecting; manual edits prevent bulk overwrite; explicit individual application may replace. Preview invalidates, old-server 404 keeps existing flow, late session/document results are discarded. Every interface method has contract coverage.
+- [x] Step 1: Add editor/VM behavior and real API contract tests. Single-channel rule fills a pay without selecting; manual edits prevent bulk overwrite; explicit individual application may replace. Preview invalidates, old-server 404 keeps existing flow, late session/document results are discarded. Every interface method has contract coverage.
 
 ```csharp
 editor.OneriyiUygula(toplu: true);
@@ -67,10 +67,10 @@ Assert.Equal("Esit", editor.DagilimTuru?.Kod);
 Assert.False(editor.Secili);
 ```
 
-- [ ] Step 2: Run focused App.Core/client tests; Expected: FAIL on missing behavior.
-- [ ] Step 3: Mirror DTOs/implement routes and compatibility fallbacks. Fetch suggestions separately; original PDF proposals stay intact. Track manual changes including pays; use existing generation/preview invalidation. Remember only single-channel custom shares as equal; multi-channel custom shares require explicit new rule choices.
-- [ ] Step 4: Run client, App.Core and contract tests; Expected: PASS.
-- [ ] Step 5: Commit `feat: support statement rule suggestions in shared clients`.
+- [x] Step 2: Run focused App.Core/client tests; Expected: FAIL on missing behavior.
+- [x] Step 3: Mirror DTOs/implement routes and compatibility fallbacks. Fetch suggestions separately; original PDF proposals stay intact. Track manual changes including pays; use existing generation/preview invalidation. Remember only single-channel custom shares as equal; multi-channel custom shares require explicit new rule choices.
+- [x] Step 4: Run client, App.Core and contract tests; Expected: PASS.
+- [x] Step 5: Commit `feat: support statement rule suggestions in shared clients`.
 
 ## Task 3: Web ve telefon ekranı
 
@@ -78,7 +78,7 @@ Assert.False(editor.Secili);
 
 **Interfaces:** Consumes Task 1 JSON DTO/routes; uses `distribution.set(initial)` for equal allocation. Rule refresh updates proposals without rebuilding/discarding the document draft.
 
-- [ ] Step 1: Add behavioral tests: manager/remember, proposal display, bulk fill without selection, conflict, manual edit protection, preview invalidation, late session result.
+- [x] Step 1: Add behavioral tests: manager/remember, proposal display, bulk fill without selection, conflict, manual edit protection, preview invalidation, late session result.
 
 ```javascript
 click(buttonNamed('Önerileri uygula'));
@@ -86,10 +86,10 @@ assert.equal(control('tur-1').value, 'Gider');
 assert.equal(control('sec-1').checked, false);
 ```
 
-- [ ] Step 2: Run focused Node tests; Expected: FAIL because feature controls/behavior are absent.
-- [ ] Step 3: Implement safe DOM rule forms add/edit/disable/delete with existing modal guards. Per-row proposal/apply/remember and refresh/bulk toolbar; preserve manual edits and invalidate previews on fill. Missing old-server support is optional feature state.
-- [ ] Step 4: Run Node UI suite, lint/format and desktop/phone browser checks; Expected: PASS, usable dialogs, no automatic writes.
-- [ ] Step 5: Commit `feat: add web statement rule management`.
+- [x] Step 2: Run focused Node tests; Expected: FAIL because feature controls/behavior are absent.
+- [x] Step 3: Implement safe DOM rule forms add/edit/disable/delete with existing modal guards. Per-row proposal/apply/remember and refresh/bulk toolbar; preserve manual edits and invalidate previews on fill. Missing old-server support is optional feature state.
+- [x] Step 4: Run Node UI suite, lint/format and desktop/phone browser checks; Expected: PASS, usable dialogs, no automatic writes.
+- [x] Step 5: Commit `feat: add web statement rule management`.
 
 ## Task 4: Windows ekranı ve son doğrulama
 
@@ -97,8 +97,8 @@ assert.equal(control('sec-1').checked, false);
 
 **Interfaces:** Consumes Task 2 VM/editor. Form exposes phrase/scope/type/equal channel options/concurrency version; callbacks capture session and preserve changed document after awaits.
 
-- [ ] Step 1: Add missing remember/draft/CRUD/late-session behavior tests before UI binding. Run; Expected: FAIL on missing behavior.
-- [ ] Step 2: Implement Windows manager/remember forms, proposal status and individual/bulk buttons with existing UI patterns; explicit confirmation for rule deletion.
-- [ ] Step 3: Run all affected .NET suites, web suite and Windows build `dotnet build Kasa.App -f net10.0-windows10.0.19041.0`; Expected: PASS. Document examples and existing PDF limits; no version/deploy assumed.
-- [ ] Step 4: Commit `feat: add desktop statement rules and usage documentation`.
+- [x] Step 1: Add missing remember/draft/CRUD/late-session behavior tests before UI binding. Run; Expected: FAIL on missing behavior.
+- [x] Step 2: Implement Windows manager/remember forms, proposal status and individual/bulk buttons with existing UI patterns; explicit confirmation for rule deletion.
+- [x] Step 3: Run all affected .NET suites, web suite and Windows build `dotnet build Kasa.App -f net10.0-windows10.0.19041.0`; Expected: PASS. Document examples and existing PDF limits; no version/deploy assumed.
+- [x] Step 4: Commit `feat: add desktop statement rules and usage documentation`.
 - [ ] Step 5: Fresh independent whole-branch review against feature base/spec/plan; reproduce/fix material findings with failing-first tests; run final verification. Open/attach feature PR under previously established workflow; merging/deployment require explicit request.

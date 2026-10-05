@@ -101,7 +101,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         if (belge is not null)
             BelgeyiYansit(belge);
         await KurallariAlAsync(n);
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         Tamamlandi();
         if (bankaHatasi is not null)
             Hata = bankaHatasi;
@@ -164,7 +165,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         BelgeyiYansit(b);
         Tamamlandi();
         await KurallariAlAsync(n);
-        if (!Gecerli(n)) return;
+        if (!Gecerli(n))
+            return;
         Mesaj = "PDF okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     });
     public Task BelgeAcAsync(int id) => YurutAsync(async n =>
@@ -284,7 +286,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
         BelgeyiYansit(b);
         _iptalKey.Temizle();
         await KurallariAlAsync(n);
-        if (Gecerli(n)) Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
+        if (Gecerli(n))
+            Mesaj = "Kaydın iptali işlendi; kaynak ve geçmiş korundu.";
     });
     /// <summary>Kaynak PDF'i <paramref name="hedef"/>'e yazar; hata, başka belge ya da eski oturumda null.</summary>
     public async Task<IndirmeBilgisi?> DosyaAsync(Stream hedef)

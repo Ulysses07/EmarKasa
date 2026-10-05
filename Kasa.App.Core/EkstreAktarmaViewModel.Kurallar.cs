@@ -11,6 +11,15 @@ public partial class EkstreAktarmaViewModel
     [ObservableProperty] private string _kuralDurumu = "";
     [ObservableProperty] private bool _kurallarDestekleniyor;
     public Task KurallariYenileAsync() => YurutAsync(KurallariAlAsync);
+    public IReadOnlyList<KanalDto> KuralFormKanallari(IReadOnlyList<int> secilenler)
+    {
+        var selected = secilenler.ToHashSet();
+        var result = Kanallar.Where(k => k.Aktif || selected.Contains(k.Id))
+            .Select(k => k.Aktif ? k : k with { Ad = k.Ad + " (pasif)" }).ToList();
+        foreach (var id in selected.Except(result.Select(k => k.Id)).Order())
+            result.Add(new(id, $"Kullanılamayan kanal #{id} (pasif veya silinmiş)", false, int.MaxValue, 0));
+        return result;
+    }
     private async Task KurallariAlAsync(int n)
     {
         if (!EditorMu || !Gecerli(n))
