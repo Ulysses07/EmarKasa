@@ -216,7 +216,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             var dosya = await FilePicker.Default.PickAsync(new PickOptions
             {
                 PickerTitle = "Banka veya kart PDF ekstresini seçin",
-                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf" } })
+                FileTypes = DosyaSecimTurleri.Pdf
             });
             return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
         });

@@ -34,7 +34,8 @@ public sealed class GuvenlikAlani : ContentView
         var surum = Yazi("");
         surum.SetBinding(Label.TextProperty, nameof(vm.SurumBilgisi));
         stack.Add(surum);
-        var indir = new Button { Text = "Yeni sürümü indir" };
+        var indir = new Button();
+        indir.SetBinding(Button.TextProperty, nameof(vm.IndirmeMetni));
         indir.SetBinding(IsVisibleProperty, nameof(vm.IndirmeAdresi), converter: new Converters.DoluIseConverter());
         indir.Clicked += async (_, _) => { if (vm.IndirmeAdresi is { } adres) await Launcher.Default.OpenAsync(adres); };
         stack.Add(indir);
@@ -46,7 +47,7 @@ public sealed class GuvenlikAlani : ContentView
         yedekUyarisi.SetBinding(Label.TextProperty, nameof(vm.YedekUyarisi));
         yedekUyarisi.SetBinding(IsVisibleProperty, nameof(vm.YedekUyarisi), converter: new Converters.DoluIseConverter());
         stack.Add(yedekUyarisi);
-        var yedekDugmesi = new Button { Text = "Yedeği bilgisayara kaydet" };
+        var yedekDugmesi = new Button { Text = OperatingSystem.IsIOS() ? "Yedeği Dosyalar'a kaydet" : "Yedeği bilgisayara kaydet" };
         yedekDugmesi.Clicked += async (_, _) => { if (vm.Mesgul) return; await DosyaIslemleri.IndirVeKaydetAsync(sayfa, vm.YedekIndirAsync); };
         yedekDugmesi.SetBinding(IsEnabledProperty, nameof(vm.YedekIndiriliyor), converter: new Converters.TersIseConverter());
         stack.Add(yedekDugmesi);

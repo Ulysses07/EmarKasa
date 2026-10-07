@@ -2,15 +2,14 @@ using Kasa.App.Core;
 
 namespace Kasa.App.Views;
 
-/// <summary>Bildirimler ekranı (tasarım 2026-09-30 masaüstü bildirimleri §2): bu bilgisayarın Windows bildirimleri (anahtar, deneme,
-/// durum satırı, Windows ayarı uyarısı; telefon için web kurulumu ikincil bağlantı), hatırlatma saati, hatırlatma listesi ve izin
-/// verilmiş tarayıcı/telefon cihazları.</summary>
+/// <summary>Platformdaki bildirim olanakları, sunucu hatırlatma saati/listesi ve izin verilmiş web cihazları.</summary>
 public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
 {
     public BildirimPage(BildirimViewModel vm) : base(vm, "Bildirimler", "Kart kesimi, son ödeme ve kredi taksiti hatırlatmaları", vm.YukleAsync)
     {
         var telefon = TakipUi.Tikla("Telefon için web bildirim kurulumunu aç", TelefonKurulumunuAcAsync);
         telefon.Style = (Style)Application.Current!.Resources["BtnSecondary"];
+#if WINDOWS
         Govde.Add(TakipUi.Kart("Bu bilgisayarda Windows bildirimleri",
             TakipUi.Metin("Açıkken sunucudaki hatırlatmalar bu bilgisayarda Windows bildirimi olarak da görünür. Uygulama kapalıyken "
                 + "her gün hatırlatma saatinden 5 dakika sonra ve Windows oturumu açılınca kontrol edilir. Bildirimi görmek onu okundu "
@@ -21,6 +20,13 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             TakipUi.Dugme("Deneme bildirimi göster", nameof(vm.DenemeGosterCommand)),
             TakipUi.Bagli(nameof(vm.CihazDurumu)),
             telefon));
+#else
+        Govde.Add(TakipUi.Kart("Bu uygulamada hatırlatmalar",
+            TakipUi.Metin("Hatırlatmalar uygulama açıkken aşağıdaki listede ve menüdeki okunmamış sayısında görünür. "
+                + "Bu iOS sürümü uygulama kapalıyken sistem bildirimi göndermez. Telefon bildirimi için web kurulumundaki "
+                + "destek ve izin adımlarını izleyin. Web bildirim kaydı bu uygulamadan ayrıdır."),
+            telefon));
+#endif
         Govde.Add(TakipUi.Kart("Hatırlatma saati",
             TakipUi.Onay("Hatırlatmalar açık", nameof(vm.Etkin)),
             TakipUi.Alan("Saat (0–23, Türkiye saati)", TakipUi.Girdi(nameof(vm.Saat), sayi: true)),
@@ -29,7 +35,11 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
         Govde.Add(TakipUi.Kart("Hatırlatmalar", TakipUi.Liste<BildirimSatiri>(nameof(vm.Bildirimler), vm.OkunduAsync, "Okundu işaretle", x => !x.Veri.Okundu),
             TakipUi.Tikla("Kartları aç", () => Shell.Current.GoToAsync("//kartlar")), TakipUi.Tikla("Kredileri aç", () => Shell.Current.GoToAsync("//krediler"))));
         Govde.Add(TakipUi.Kart("İzin verilmiş cihazlar",
+#if WINDOWS
             TakipUi.Metin("Aynı bilgisayarda Edge ya da Chrome da bildirime kayıtlıysa her bildirim iki kez gelir. Tarayıcı kaydını bu listeden kapatabilirsiniz."),
+#else
+            TakipUi.Metin("Tarayıcı ve web uygulaması bildirim kayıtları burada listelenir. Bu yerel iOS uygulaması push kaydı eklemez. Web kaydını bu listeden kapatabilirsiniz."),
+#endif
             TakipUi.Liste<BildirimCihaziSatiri>(nameof(vm.Cihazlar), async c =>
             {
                 if (await DisplayAlertAsync("Cihaz bildirimleri", $"{c.Veri.CihazAdi} için bildirimler kapatılsın mı?", "Kapat", "Vazgeç"))
@@ -37,8 +47,8 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
             }, "Bu cihazı kapat", x => x.Veri.Etkin)));
     }
 
-    /// <summary>Sayfa her göründüğünde anahtar, durum satırı ve Windows ayarı yeniden okunur (kullanıcı Windows ayarını değiştirmiş
-    /// olabilir).</summary>
+#if WINDOWS
+    /// <summary>Sayfa her göründüğünde anahtar, durum satırı ve Windows ayarı yeniden okunur.</summary>
     protected override void OnAppearing()
     {
         base.OnAppearing();
@@ -66,6 +76,7 @@ public sealed class BildirimPage : TakipSayfasi<BildirimViewModel>
         }));
         return uyari;
     }
+#endif
 
     private async Task TelefonKurulumunuAcAsync()
     {

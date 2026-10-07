@@ -11721,7 +11721,7 @@ MESAJ
 
 Kod değişmez. Tasarımın "Ekran denemesi" maddesindeki durumlar gerçek pencerede ekran görüntüsüyle doğrulanır. Uygulama yalnız ayrı
 **KasaTest** masaüstünde açılır (bekçi `CreateDesktop`); kullanıcının ekranına, faresine ve klavyesine dokunulmaz. Kullanıcının oturum
-dosyası (`%LOCALAPPDATA%\User Name\com.royalmezat.kasa\Settings\securestorage.dat`) koşu başında yedeklenir, sonunda geri yüklenir ve
+dosyası (`%LOCALAPPDATA%\User Name\com.emar.kasa\Settings\securestorage.dat`) koşu başında yedeklenir, sonunda geri yüklenir ve
 özgün kopyayla karşılaştırılır. Bir durum beklenenden farklıysa ilgili görevin testine dönülür; düzeltme kendi `fix(...)` commit'iyle
 yapılır ve deneme yinelenir.
 
@@ -11747,7 +11747,7 @@ $D = "$S\ux-form-deneme"
 New-Item -ItemType Directory -Force $D | Out-Null
 Copy-Item "$S\menu-kartlar-gorsel\kosu.ps1", "$S\menu-kartlar-gorsel\bekci.ps1", "$S\menu-kartlar-gorsel\Pencere.cs", "$S\menu-kartlar-gorsel\Masaustu.cs", "$S\menu-kartlar-gorsel\Nobetci.cs" $D
 Copy-Item "$S\cek-deneme\sunucu.ps1", "$S\cek-deneme\tohum.ps1", "$S\cek-deneme\kimlik.json" $D
-$depo = Join-Path $env:LOCALAPPDATA 'User Name\com.royalmezat.kasa\Settings\securestorage.dat'
+$depo = Join-Path $env:LOCALAPPDATA 'User Name\com.emar.kasa\Settings\securestorage.dat'
 if (Test-Path $depo) { Copy-Item $depo "$D\securestorage.dat.ozgun" -Force }
 ```
 

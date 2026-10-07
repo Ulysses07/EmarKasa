@@ -18,6 +18,8 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
         if (_vm.VeriHazir)
         {
             _vm.IdIleSec(id);
+            if (_vm.Secili?.Id == id)
+                AlisBolmeleri.IkinciyiAc();
             _istenenAlisId = null;
         }
     }
@@ -28,7 +30,11 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
         InitializeComponent();
         BindingContext = _vm = vm;
         var gorunur = new Controls.GorunurYapici(DetayKaydirici);
-        vm.Hatalar.GosterIstendi += (_, _) => gorunur.HatayaGit(AlisFormu, vm.Hatalar, FormHataKutusu);
+        vm.Hatalar.GosterIstendi += (_, _) =>
+        {
+            AlisBolmeleri.IkinciyiAc();
+            gorunur.HatayaGit(AlisFormu, vm.Hatalar, FormHataKutusu);
+        };
         vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
     protected override async void OnAppearing()
@@ -39,6 +45,8 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
         if (_istenenAlisId is { } id && _vm.VeriHazir)
         {
             _vm.IdIleSec(id);
+            if (_vm.Secili?.Id == id)
+                AlisBolmeleri.IkinciyiAc();
             _istenenAlisId = null;
         }
     }
@@ -47,9 +55,25 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
         _vm.HesaplariAcKapatCommand.Execute(null);
         if (_vm.HesaplarAcik)
         {
+            AlisBolmeleri.IkinciyiAc();
             await Task.Yield();
             await DetayKaydirici.ScrollToAsync(AliciHesapAlani, ScrollToPosition.Start, true);
         }
+    }
+    private async void YeniAlisTiklandi(object? sender, EventArgs e)
+    {
+        if (!_vm.YeniCommand.CanExecute(null))
+            return;
+        await _vm.YeniCommand.ExecuteAsync(null);
+        AlisBolmeleri.IkinciyiAc();
+    }
+    private async void AlisAcTiklandi(object? sender, EventArgs e)
+    {
+        if (sender is not Button { CommandParameter: AlisSatiri alis } || !_vm.SecCommand.CanExecute(alis))
+            return;
+        await _vm.SecCommand.ExecuteAsync(alis);
+        if (_vm.Secili?.Id == alis.Veri.Id)
+            AlisBolmeleri.IkinciyiAc();
     }
     private async void DegisiklikleriBirakTiklandi(object? sender, EventArgs e)
     {
@@ -82,7 +106,7 @@ public partial class AlislarPage : ContentPage, Controls.IYenilenebilir, IQueryA
         var dosya = await FilePicker.Default.PickAsync(new PickOptions
         {
             PickerTitle = "PDF, PNG veya JPEG belge seçin",
-            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>> { [DevicePlatform.WinUI] = new[] { ".pdf", ".png", ".jpg", ".jpeg" } })
+            FileTypes = DosyaSecimTurleri.Belge
         });
         return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
     }

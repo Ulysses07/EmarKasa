@@ -142,8 +142,8 @@
                             <DataTemplate x:DataType="api:KanalDto">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
-                                    <Grid Padding="18,0" HeightRequest="52"
-                                          ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+                                    <ctl:UyumluIzgara Padding="18,0" MinimumHeightRequest="52"
+                                          ColumnDefinitions="Auto,*,Auto" DarSutunlar="Auto,*" ColumnSpacing="12" RowSpacing="8">
                                         <Border WidthRequest="24" HeightRequest="24" StrokeThickness="1"
                                                 Stroke="{StaticResource BrushDateChipBorder}"
                                                 StrokeShape="RoundRectangle 7" VerticalOptions="Center">
@@ -154,9 +154,9 @@
                                                    TextColor="{StaticResource Sub}"
                                                    HorizontalOptions="Center" VerticalOptions="Center" />
                                         </Border>
-                                        <Label Grid.Column="1" Text="{Binding Ad}"
+                                        <Label Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Text="{Binding Ad}"
                                                Style="{StaticResource LblRowPrimary}" VerticalOptions="Center" />
-                                        <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center">
+                                        <HorizontalStackLayout Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1" Spacing="6" VerticalOptions="Center">
                                             <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
                                                     Command="{Binding BindingContext.KanalDuzenleCommand, Source={x:Reference Sayfa}}"
                                                     CommandParameter="{Binding .}" />
@@ -164,7 +164,7 @@
                                                     Clicked="KanalSilTiklandi"
                                                     CommandParameter="{Binding .}" />
                                         </HorizontalStackLayout>
-                                    </Grid>
+                                    </ctl:UyumluIzgara>
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>

@@ -4,6 +4,12 @@ namespace Kasa.App.Views;
 
 internal static class DosyaIslemleri
 {
+#if IOS
+    public const string YazdirmaAciklamasi = "Rapor iOS yazdırma penceresinde açılır. Önizlemeyi büyütüp paylaşarak PDF olarak Dosyalar'a kaydedebilirsiniz.";
+#else
+    public const string YazdirmaAciklamasi = "PDF için rapor tarayıcıda açılır. Ctrl+P menüsünden PDF yazıcısını seçin.";
+#endif
+
     /// <summary>Dosyayı önce önbellekteki geçici dosyaya akışla indirir (yedek yüzlerce MB olabilir; bellekte tutulmaz),
     /// tamamlanınca kullanıcının seçtiği yere kopyalar. İndirme başarısızsa hata ilgili ekranda gösterilir; seçilen hedefe
     /// yalnız tamamlanmış dosya yazılır, yarım geçici dosya her durumda silinir. Kaydedilen dosyanın adı ve uzantısı sunucunun
@@ -22,11 +28,15 @@ internal static class DosyaIslemleri
                 return;
             if (yazdir)
             {
+#if IOS
+                await Platforms.iOS.IosRaporYazdirma.YazdirAsync(gecici);
+#else
                 // Tarayıcı dosyayı açılıştan sonra okur; rapor önbellekte kalır.
                 var rapor = Path.Combine(FileSystem.CacheDirectory, $"rapor-{Guid.NewGuid():N}.html");
                 File.Move(gecici, rapor);
                 await Launcher.Default.OpenAsync(new OpenFileRequest("Raporu yazdır / PDF kaydet", new ReadOnlyFile(rapor, "text/html")));
                 await sayfa.DisplayAlertAsync("Yazdır / PDF", "Açılan raporda Ctrl+P tuşlarına basın. Yazıcı olarak 'Microsoft Print to PDF' seçerek PDF kaydedebilirsiniz.", "Tamam");
+#endif
                 return;
             }
             var ad = DosyaTurleri.GuvenliAd(bilgi.DosyaAdi, bilgi.IcerikTuru, "dosya");
@@ -42,8 +52,10 @@ internal static class DosyaIslemleri
             if (disKaynak) InternetKaynagiIsaretle(hedef.Path);
             await sayfa.DisplayAlertAsync("Dosya kaydedildi", hedef.Path, "Tamam");
 #else
-            var yol = Path.Combine(FileSystem.CacheDirectory, ad);
-            File.Move(gecici, yol, overwrite: true);
+            var klasor = Path.Combine(FileSystem.CacheDirectory, $"paylasim-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(klasor);
+            var yol = Path.Combine(klasor, ad);
+            File.Move(gecici, yol);
             await Share.Default.RequestAsync(new ShareFileRequest("Dosyayı kaydet", new ShareFile(yol, bilgi.IcerikTuru)));
 #endif
         }

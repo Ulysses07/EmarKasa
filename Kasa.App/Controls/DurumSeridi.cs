@@ -46,14 +46,14 @@ public class DurumSeridi : VerticalStackLayout
         Spacing = 8;
         _gosterge = new ActivityIndicator { WidthRequest = 20, HeightRequest = 20 };
         _yukleniyorMetni = new Label { Style = (Style)Application.Current!.Resources["LblPageSub"], VerticalOptions = LayoutOptions.Center };
-        _yukleniyor = new HorizontalStackLayout { Spacing = 8, Children = { _gosterge, _yukleniyorMetni } };
+        _yukleniyor = new UyumluSatir { Spacing = 8, Children = { _gosterge, _yukleniyorMetni } };
         _hata = new Label { Style = (Style)Application.Current!.Resources["LblError"] };
         _hataKutusuMetni = new Label { Style = (Style)Application.Current!.Resources["LblError"] };
         _hataKutusu = new Border { Style = (Style)Application.Current!.Resources["ErrorBox"], Content = _hataKutusuMetni };
         _mesaj = new Label { Style = (Style)Application.Current!.Resources["LblPageSub"], TextColor = (Color)Application.Current!.Resources["Green"] };
         _sonGuncelleme = new Label { Style = (Style)Application.Current!.Resources["LblPageSub"], VerticalOptions = LayoutOptions.Center };
         _yenile = new Button { Text = "Yenile / tekrar dene", Style = (Style)Application.Current!.Resources["BtnSecondary"] };
-        _yenileSatiri = new Grid
+        _yenileSatiri = new UyumluIzgara
         {
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
             ColumnSpacing = 12,

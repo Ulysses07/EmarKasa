@@ -108,7 +108,7 @@ Adım 1'de bu çalışma ağacında yeniden doğrulanır), CommunityToolkit.Mvvm
 8. **Oturum belirteci pencere açmadan.** `SecureStorage` paketsiz uygulamada `FileSystem.AppDataDirectory/../Settings/securestorage.dat`
    dosyasını DPAPI ile okur; pencere gerekmez
    (<https://github.com/dotnet/maui/blob/release/10.0.1xx-sr1/src/Essentials/src/SecureStorage/SecureStorage.windows.cs>,
-   `FileSystem.windows.cs`). Bu bilgisayarda yol `%LOCALAPPDATA%\User Name\com.royalmezat.kasa\Settings\securestorage.dat`.
+   `FileSystem.windows.cs`). Bu bilgisayarda yol `%LOCALAPPDATA%\User Name\com.emar.kasa\Settings\securestorage.dat`.
    2.0'daki `--hatirlatma-kontrol` yolu da aynı yöntemi kullanıyordu (`git show 6086373`: `OnLaunched` içinde
    `CreateMauiApp()` ile DI kurulur, `base.OnLaunched` çağrılmaz, iş bitince `Exit()`).
 9. **Liste bugünle sınırlanır.** `GET /api/bildirimler` son 200 bildirimi döndürür (okunmuşlar dahil). Masaüstü yalnız
@@ -3501,7 +3501,7 @@ Değişkenler (her PowerShell çağrısında yeniden tanımlayın; kabuk durumu 
 $W = 'C:\Users\burak\source\repos\Kasa-paket\masaustu-bildirim'
 $D = 'C:\Users\burak\AppData\Local\Temp\claude\C--Users-burak-source-repos-Kasa\2cf5258e-ca1b-45f0-9c5a-07f7d4bbbb74\scratchpad\masaustu-bildirim-deneme'
 $Eski = 'C:\Users\burak\AppData\Local\Temp\claude\C--Users-burak-source-repos-Kasa\2cf5258e-ca1b-45f0-9c5a-07f7d4bbbb74\scratchpad\menu-kartlar-gorsel'
-$Depo = Join-Path $env:LOCALAPPDATA 'User Name\com.royalmezat.kasa\Settings\securestorage.dat'
+$Depo = Join-Path $env:LOCALAPPDATA 'User Name\com.emar.kasa\Settings\securestorage.dat'
 $Yerel = Join-Path $env:LOCALAPPDATA 'EmarKasa'
 ```
 

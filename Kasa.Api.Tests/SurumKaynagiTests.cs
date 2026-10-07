@@ -18,11 +18,11 @@ public class SurumKaynagiTests
         await using var f = new KasaWebFactory();
         using var c = f.CreateClient();
         var yanit = await c.GetFromJsonAsync<JsonElement>("/api/surum", cancellationToken: TestContext.Current.CancellationToken);
-        // Sürüm yanıtının alanları ve sırası istemci sözleşmesidir.
-        Assert.Equal(["surum", "minimumIstemci", "indirmeAdresi", "notlar"], yanit.EnumerateObject().Select(p => p.Name));
+        // Eski dört alan ve sırası korunur; yeni platform alanları sona eklenir.
+        Assert.Equal(["surum", "minimumIstemci", "indirmeAdresi", "notlar"], yanit.EnumerateObject().Take(4).Select(p => p.Name));
         Assert.Equal(KasaSurumu(), yanit.GetProperty("surum").GetString());
         Assert.Equal("2.4.1", yanit.GetProperty("minimumIstemci").GetString());
-        Assert.Equal(JsonValueKind.Null, yanit.GetProperty("indirmeAdresi").ValueKind);
+        Assert.Null(yanit.GetProperty("indirmeAdresi").GetString());
         Assert.Equal("Geri yükleme ve güvenlik günlüğü bütünlüğü iyileştirildi; güncel Windows uygulaması kayıt değişiklikleri için gerekli.",
             yanit.GetProperty("notlar").GetString());
     }

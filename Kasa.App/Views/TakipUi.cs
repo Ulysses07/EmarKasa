@@ -241,7 +241,7 @@ internal static class TakipUi
         var metin = Metin("İşleniyor…");
         metin.VerticalOptions = LayoutOptions.Center;
         metin.SetBinding(VisualElement.IsVisibleProperty, "Mesgul");
-        return new HorizontalStackLayout { Spacing = 12, Children = { yenile, gosterge, metin } };
+        return new Controls.UyumluSatir { Spacing = 12, Children = { yenile, gosterge, metin } };
     }
 
     /// <summary>Eski veri soluk (opaklık <see cref="EskiVeriOpakligi"/>): bağlamın VeriEski'si doğruyken (tasarım 2026-10-02 §3).</summary>
@@ -356,7 +356,7 @@ internal static class TakipUi
         BindableLayout.SetItemsSource(rows, paylar);
         BindableLayout.SetItemTemplate(rows, new DataTemplate(() =>
         {
-            var row = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Star), new(new GridLength(145)), new(GridLength.Auto) } };
+            var row = new Controls.UyumluIzgara { ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Star), new(new GridLength(145)), new(GridLength.Auto) } };
             row.Add(Secim("Kanallar", "Kanal"));
             row.Add(Girdi("Tutar", true), 1);
             var sil = new Button { Text = "Kaldır", Style = (Style)Application.Current!.Resources["BtnSecondary"] };
@@ -437,6 +437,7 @@ public abstract class TakipSayfasi<T> : ContentPage, Controls.IYenilenebilir whe
         _yukle = yukle;
         BackgroundColor = (Color)Application.Current!.Resources["AppBg"];
         var root = new VerticalStackLayout { Padding = new Thickness(28, 22), Spacing = 16, MaximumWidthRequest = 1160 };
+        root.SizeChanged += (_, _) => root.Padding = root.Width < 600 ? new Thickness(16, 14) : new Thickness(28, 22);
         root.Add(new Label { Text = title, Style = (Style)Application.Current!.Resources["LblTakipSayfaBaslik"] });
         root.Add(TakipUi.Metin(aciklama));
         var mesaj = new Label { Style = (Style)Application.Current!.Resources["LblTakipMesaj"] };

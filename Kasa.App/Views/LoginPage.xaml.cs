@@ -16,4 +16,9 @@ public partial class LoginPage : ContentPage
                 ((AppShell)Shell.Current).MenuyuAc();
         };
     }
+    private async void GuncellemelerTiklandi(object? sender, EventArgs e)
+    {
+        if (Shell.Current is AppShell shell)
+            await shell.GuncellemeleriAcAsync();
+    }
 }

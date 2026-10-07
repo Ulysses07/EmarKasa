@@ -9,7 +9,7 @@ public sealed class AylikGiderPage : TakipSayfasi<AylikGiderViewModel>
         "Kira, maaş ve düzenli giderleri burada planlayın. Şablonlar kendiliğinden ödeme oluşturmaz; her ay gerçekleşen nakit / havale ödemesini siz kaydedersiniz.",
         vm.YukleAsync)
     {
-        var ay = new HorizontalStackLayout { Spacing = 10, Children = { Tikla("Önceki ay", () => vm.AyDegistirAsync(-1)), Tikla("Sonraki ay", () => vm.AyDegistirAsync(1)) } };
+        var ay = new Controls.UyumluSatir { Spacing = 10, Children = { Tikla("Önceki ay", () => vm.AyDegistirAsync(-1)), Tikla("Sonraki ay", () => vm.AyDegistirAsync(1)) } };
         // AG-02: ödenmemiş satırda "Öde", ödenmiş satırda "Ödemeyi iptal et" (iptal gerekçe penceresiyle onay ister).
         Govde.Add(Kart("Ayın giderleri", ay, Alan("Gösterilecek ay", Tarih(nameof(vm.AyTarihi))), Tikla("Seçilen ayı göster", vm.YukleAsync),
             Goster(Metin("Ay seçimi değişti. Kayıtları ve ödeme tutarlarını yenilemek için seçilen ayı gösterin."), nameof(vm.AySecimiDegisti)), BagliBuyuk(nameof(vm.AyOzeti)),

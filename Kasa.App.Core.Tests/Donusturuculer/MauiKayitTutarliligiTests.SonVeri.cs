@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Kasa.App.Views;
 
 namespace Kasa.App.Core.Tests;
@@ -35,7 +35,7 @@ public partial class MauiKayitTutarliligiTests
     /// <summary>XAML ile yazılmış takip/liste sayfalarının eski veri tetikleri de (Alışlar gövdesi, İşlemler listesi) kodla yazılan
     /// sayfalarla aynı opaklığı kullanır.</summary>
     [Theory]
-    [InlineData("AlislarPage.xaml", "Grid", 1)]
+    [InlineData("AlislarPage.xaml", "ctl:UyumluBolmeler", 1)]
     [InlineData("IslemlerPage.xaml", "CollectionView", 1)]
     public void Liste_sayfalarinin_eski_veri_tetigi_ortak_opakligi_kullanir(string dosya, string hedef, int sayi)
     {

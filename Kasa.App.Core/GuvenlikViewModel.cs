@@ -5,8 +5,11 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core;
 
-public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : OturumluViewModel(auth)
+public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth, string? istemciPlatformu = null) : OturumluViewModel(auth)
 {
+    private readonly string _platform = IstemciPlatformlari.Normalize(istemciPlatformu);
+    public string IndirmeMetni => _platform == IstemciPlatformlari.Ios ? "TestFlight'ı aç" : "Windows sürümlerini aç";
+    [ObservableProperty] private string? _sonYayinSurumu;
     /// <summary>Uygulama sürümü. Tek kaynağı depo kökündeki Directory.Build.props'taki KasaSurumu'dur (Kasa.App'te
     /// ApplicationDisplayVersion, burada Version): derleme meta verisinden okunur, kodda sürüm dizesi yoktur. .NET 8 SDK'sının
     /// bilgi sürümüne eklediği "+&lt;commit&gt;" atılır.</summary>
@@ -37,9 +40,16 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
         var s = await api.SurumAsync();
         if (!Gecerli(n))
             return;
-        GuncellemeGerekli = Version.TryParse(s.MinimumIstemci, out var minimum) && minimum > Version.Parse(IstemciSurumu);
-        IndirmeAdresi = Uri.TryCreate(s.IndirmeAdresi, UriKind.Absolute, out var uri) && uri.Scheme == "https" ? uri.AbsoluteUri : null;
-        SurumBilgisi = $"Uygulama {IstemciSurumu} · sunucu {s.Surum}" + (GuncellemeGerekli ? "\nDevam etmek için uygulamayı güncelleyin." : "") + (string.IsNullOrWhiteSpace(s.Notlar) ? "" : "\n" + s.Notlar);
+        var yayin = s.IstemciYayini(_platform);
+        GuncellemeGerekli = Version.TryParse(yayin.MinimumIstemci, out var minimum) && minimum > Version.Parse(IstemciSurumu);
+        SonYayinSurumu = Version.TryParse(yayin.SonSurum, out var son) ? son.ToString() : null;
+        IndirmeAdresi = Uri.TryCreate(yayin.IndirmeAdresi, UriKind.Absolute, out var uri)
+            && uri.Scheme == "https" && string.IsNullOrEmpty(uri.UserInfo) ? uri.AbsoluteUri : null;
+        var kanal = _platform == IstemciPlatformlari.Ios ? "iOS" : "Windows";
+        var yayinMetni = SonYayinSurumu is null ? $"\n{kanal} için yayımlanmış son sürüm bilgisi henüz sağlanmadı." : $"\nYayımlanmış {kanal} sürümü: {SonYayinSurumu}";
+        SurumBilgisi = $"Uygulama {IstemciSurumu} · sunucu {s.Surum}" + yayinMetni
+            + (GuncellemeGerekli ? "\nKayıtları değiştirmek için uygulamayı güncelleyin." : "")
+            + (string.IsNullOrWhiteSpace(yayin.Notlar) ? "" : "\n" + yayin.Notlar);
         var y = await api.YedekDurumuAsync();
         if (!Gecerli(n))
             return;
@@ -109,7 +119,7 @@ public partial class GuvenlikViewModel(IYonetimApi api, AuthViewModel auth) : Ot
     /// geçersiz kılınır, sonra iptal edilir: iptal devamı Cancel() içinde ya da hemen başka iş parçacığında çalışabilir ve
     /// ekran hâlâ geçerliyse ayrılınmış ekrana 'iptal edildi' iletisi yazardı.</summary>
     public void EkrandanAyril() { BekleyenleriIptalEt(); _yedekIptal?.Cancel(); Temizle(); }
-    protected override void OturumTemizle() { _yedekIptal?.Cancel(); Temizle(); IndirmeAdresi = null; YedekBilgisi = "Yedek durumu henüz alınmadı."; YedekUyarisi = null; SurumBilgisi = $"Uygulama {IstemciSurumu}"; }
+    protected override void OturumTemizle() { _yedekIptal?.Cancel(); Temizle(); IndirmeAdresi = null; SonYayinSurumu = null; GuncellemeGerekli = false; YedekBilgisi = "Yedek durumu henüz alınmadı."; YedekUyarisi = null; SurumBilgisi = $"Uygulama {IstemciSurumu}"; }
     /// <summary>Yedeği sunucudan belleğe almadan <paramref name="hedef"/>'e yazar. Sunucu yedeği isteğin içinde hazırladığı
     /// için büyük veritabanında dakikalar sürebilir; kullanıcı <see cref="YedekIptalCommand"/> ile vazgeçebilir.
     /// Başarıda indirme bilgisi, hata ya da iptalde null döner (hedefteki yarım içerik çağıranca silinir).</summary>

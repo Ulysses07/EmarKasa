@@ -2,9 +2,7 @@ using Kasa.ApiClient;
 using Kasa.App.Core;
 using Kasa.App.Services;
 using Microsoft.Extensions.Logging;
-#if WINDOWS
 using Microsoft.Maui.LifecycleEvents;
-#endif
 
 namespace Kasa.App;
 
@@ -13,7 +11,12 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
-        // Font paketlenmez: yazı ailesi Styles.xaml'daki YaziAilesi anahtarındaki Windows sistem fontudur (₺ içerir).
+#if IOS
+        const string istemciPlatformu = "ios";
+#else
+        const string istemciPlatformu = "windows";
+#endif
+        // Platform sistem fontları Styles.xaml içindeki YaziAilesi kaynağından seçilir.
         builder.UseMauiApp<App>();
 
         builder.Services.AddSingleton<ITokenStore, SecureStorageTokenStore>();
@@ -28,7 +31,7 @@ public static class MauiProgram
                 // indirme 5 dk, yedek 15 dk. Genel HttpClient sınırı uzun dosya işlemlerini kesmesin diye kapalıdır.
                 Timeout = System.Threading.Timeout.InfiniteTimeSpan,
             };
-            return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>(), KasaZamanAsimlari.Varsayilanlar);
+            return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>(), KasaZamanAsimlari.Varsayilanlar, istemciPlatformu);
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IAlisApi>(sp => sp.GetRequiredService<KasaApiClient>());
@@ -45,15 +48,21 @@ public static class MauiProgram
         // ekranlar (AuthViewModel, rapor modelleri) aynı örneği okur.
         builder.Services.AddSingleton<IBaglantiBildirimleri>(sp => sp.GetRequiredService<KasaApiClient>());
         // Kopukken 15 sn'de bir GET /health (H-2): sunucu geri gelince şerit kendiliğinden kalkar; pencere kapanınca durur.
+#if IOS
+        builder.Services.AddSingleton<UygulamaIciBildirimAyari>();
+        builder.Services.AddSingleton<IBaglantiYoklamasi>(sp => new OnPlanBaglantiYoklamasi(
+            sp.GetRequiredService<KasaApiClient>(), sp.GetRequiredService<UygulamaIciBildirimAyari>()));
+#else
         builder.Services.AddSingleton<IBaglantiYoklamasi>(sp => sp.GetRequiredService<KasaApiClient>());
+#endif
         builder.Services.AddSingleton<BaglantiDurumu>();
 
         // Masaüstü Windows bildirimleri (tasarım 2026-09-30): yerel dosyalar %LOCALAPPDATA%\EmarKasa altında; gösterici ve tıklama
         // kuyruğu Windows katmanının tek örneğidir (Platforms/Windows/App.xaml.cs onu DI kurulmadan önce başlatır).
+#if WINDOWS
         builder.Services.AddSingleton<IBildirimAyari>(_ => DosyaBildirimAyari.Varsayilan());
         builder.Services.AddSingleton<IGosterilenBildirimDeposu>(_ => DosyaGosterilenBildirimDeposu.Varsayilan());
         builder.Services.AddSingleton<IBildirimGorevi>(_ => BildirimGorevi.Varsayilan());
-#if WINDOWS
         builder.Services.AddSingleton<IBildirimGosterici>(WinUI.WindowsBildirimGosterici.Ortak);
         builder.Services.AddSingleton<BildirimTiklamalari>(WinUI.WindowsBildirimGosterici.Ortak.Tiklamalar);
         // Pencere kapanınca bildirim kaydı kaldırılır (ProcessExit her kapanışta tetiklenmez; Bitir birden çok çağrılabilir).
@@ -62,10 +71,30 @@ public static class MauiProgram
             WinUI.WindowsBildirimGosterici.Ortak.Bitir();
             IPlatformApplication.Current?.Services.GetService<BaglantiDurumu>()?.Dispose();
         })));
+#elif IOS
+        // Yerel sistem bildirimi/APNs yok: liste ve rozet yalnız uygulama açıkken yenilenir. Windows görevi kurulmaz.
+        builder.Services.AddSingleton<IBildirimAyari>(sp => sp.GetRequiredService<UygulamaIciBildirimAyari>());
+        builder.Services.AddSingleton<IGosterilenBildirimDeposu>(_ => new DosyaGosterilenBildirimDeposu(FileSystem.AppDataDirectory));
+        builder.Services.AddSingleton<IBildirimGorevi, BildirimGoreviYok>();
+        builder.Services.AddSingleton<IBildirimGosterici, UygulamaIciBildirimGosterici>();
+        builder.Services.AddSingleton<BildirimTiklamalari>();
+        builder.ConfigureLifecycleEvents(olaylar => olaylar.AddiOS(ios => ios
+            .OnActivated(_ => IosOnPlanAyarla(true))
+            .OnResignActivation(_ => IosOnPlanAyarla(false))
+            .DidEnterBackground(_ => IosOnPlanAyarla(false))
+            .WillTerminate(_ => IPlatformApplication.Current?.Services.GetService<BaglantiDurumu>()?.Dispose())));
 #endif
         builder.Services.AddSingleton<BildirimYoklayici>();
         builder.Services.AddSingleton<BildirimNobetcisi>();
         builder.Services.AddSingleton<BildirimKontrolu>();
+
+#if WINDOWS
+        builder.Services.AddSingleton<IUygulamaGuncelleyici, WindowsVelopackGuncelleyici>();
+#else
+        builder.Services.AddSingleton<IUygulamaGuncelleyici, TestFlightGuncelleyici>();
+#endif
+        builder.Services.AddSingleton<UygulamaGuncellemeViewModel>();
+        builder.Services.AddTransient<Views.UygulamaGuncellemeAlani>();
 
         builder.Services.AddSingleton<AuthViewModel>();
         builder.Services.AddTransient<PanelViewModel>();
@@ -74,7 +103,8 @@ public static class MauiProgram
         builder.Services.AddTransient<IslemlerViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
         builder.Services.AddTransient<AlislarViewModel>();
-        builder.Services.AddTransient<GuvenlikViewModel>();
+        builder.Services.AddTransient<GuvenlikViewModel>(sp => new GuvenlikViewModel(
+            sp.GetRequiredService<IYonetimApi>(), sp.GetRequiredService<AuthViewModel>(), istemciPlatformu));
         builder.Services.AddTransient<DisariAktarViewModel>();
         builder.Services.AddTransient<KartTakipViewModel>();
         builder.Services.AddTransient<KrediTakipViewModel>();
@@ -110,4 +140,30 @@ public static class MauiProgram
 #endif
         return builder.Build();
     }
+
+#if IOS
+    private static void IosOnPlanAyarla(bool onPlanda)
+    {
+        var hizmetler = IPlatformApplication.Current?.Services;
+        if (hizmetler?.GetService<UygulamaIciBildirimAyari>() is not { } ayar)
+            return;
+        if (ayar.OnPlanAyarla(onPlanda) && onPlanda)
+            _ = IosOnPlandaYenileAsync(hizmetler);
+    }
+
+    private static async Task IosOnPlandaYenileAsync(IServiceProvider hizmetler)
+    {
+        try
+        {
+            if (hizmetler.GetService<BaglantiDurumu>() is { } baglanti)
+                await baglanti.HemenYoklaAsync();
+            if (hizmetler.GetService<BildirimNobetcisi>() is { } nobetci)
+                await nobetci.TikAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ön plan bağlantı/bildirim yenilemesi başarısız: {ex}");
+        }
+    }
+#endif
 }

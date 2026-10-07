@@ -72,22 +72,22 @@
                             <DataTemplate x:DataType="core:KanalKasaSatiri">
                                 <VerticalStackLayout>
                                     <BoxView Style="{StaticResource RowSeparator}" />
-                                    <Grid Padding="18,8" MinimumHeightRequest="66"
-                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                    <ctl:UyumluIzgara Padding="18,8" MinimumHeightRequest="66"
+                                          ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" DarSutunlar="Auto,*" RowSpacing="8">
                                         <Border Style="{StaticResource AvatarChip}" VerticalOptions="Center">
                                             <Label Text="{Binding Kanal, Converter={StaticResource BasHarf}}"
                                                    Style="{StaticResource LblAvatar}" />
                                         </Border>
-                                        <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                                        <VerticalStackLayout Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Spacing="4" VerticalOptions="Center">
                                             <Label Text="{Binding Kanal}" Style="{StaticResource LblRowPrimary}" />
                                             <Label Text="{Binding KartBorcuMetni}" Style="{StaticResource LblPageSub}" />
                                         </VerticalStackLayout>
-                                        <Label Grid.Column="2"
+                                        <Label Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1"
                                                Text="{Binding Bakiye, Converter={StaticResource ParaBicim}}"
                                                Style="{StaticResource LblMoney}"
                                                TextColor="{Binding Bakiye, Converter={StaticResource ParaRenk}}"
                                                VerticalOptions="Center" />
-                                    </Grid>
+                                    </ctl:UyumluIzgara>
                                 </VerticalStackLayout>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>

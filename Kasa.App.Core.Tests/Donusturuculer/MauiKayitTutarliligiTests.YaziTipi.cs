@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Kasa.App.Core.Tests;
 
@@ -19,13 +20,20 @@ public partial class MauiKayitTutarliligiTests
     [Fact]
     public void Yazi_ailesi_tek_anahtardan_gelir_ve_lira_isaretsiz_font_kaydi_kalmaz()
     {
-        var aile = YaziAilesiTanimi().Match(Oku("Resources/Styles/Styles.xaml"));
-        Assert.True(aile.Success, "Styles.xaml'da <x:String x:Key=\"YaziAilesi\"> tanımı yok.");
-        Assert.Equal(new[] { "Segoe UI Variable Text", "Segoe UI" }, aile.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries));
-        // Menü simgeleri: Windows 11'in Segoe Fluent Icons'u, onun olmadığı Windows 10'da Segoe MDL2 Assets (ikisi de sistemle gelir).
-        var simge = SimgeAilesiTanimi().Match(Oku("Resources/Styles/Styles.xaml"));
-        Assert.True(simge.Success, "Styles.xaml'da <x:String x:Key=\"SimgeAilesi\"> tanımı yok.");
-        Assert.Equal(new[] { "Segoe Fluent Icons", "Segoe MDL2 Assets" }, simge.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries));
+        var kaynaklar = XDocument.Parse(Oku("Resources/Styles/Styles.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2009/xaml";
+        foreach (var (anahtar, windows) in new[]
+        {
+            ("YaziAilesi", "Segoe UI Variable Text, Segoe UI"),
+            ("SimgeAilesi", "Segoe Fluent Icons, Segoe MDL2 Assets")
+        })
+        {
+            var kaynak = kaynaklar.Root!.Elements().Single(e => (string?)e.Attribute(xaml + "Key") == anahtar);
+            Assert.Equal("OnPlatform", kaynak.Name.LocalName);
+            Assert.Equal(windows, (string?)kaynak.Attribute("Default"));
+            var ios = kaynak.Elements().Single(e => (string?)e.Attribute("Platform") == "iOS");
+            Assert.Equal("Helvetica Neue", (string?)ios.Attribute("Value"));
+        }
 
         var dogrudan = UygulamaKaynaklari("*.xaml", "*.cs")
             .SelectMany(d => AileKullanimi().Matches(File.ReadAllText(d)).Select(m => (Dosya: Path.GetFileName(d), Deger: m.Groups[1].Value)))
@@ -39,10 +47,6 @@ public partial class MauiKayitTutarliligiTests
         Assert.Empty(UygulamaKaynaklari("*.ttf", "*.otf"));
     }
 
-    [GeneratedRegex(@"<x:String x:Key=""YaziAilesi"">([^<]+)</x:String>")]
-    private static partial Regex YaziAilesiTanimi();
-    [GeneratedRegex(@"<x:String x:Key=""SimgeAilesi"">([^<]+)</x:String>")]
-    private static partial Regex SimgeAilesiTanimi();
     // XAML özniteliği (FontFamily="…"), stil ayarlayıcısı (Property="FontFamily" Value="…") ve C# ataması (FontFamily = "…").
     [GeneratedRegex(@"FontFamily""?\s*(?:Value\s*)?=\s*""([^""]*)""")]
     private static partial Regex AileKullanimi();

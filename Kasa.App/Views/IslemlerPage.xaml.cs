@@ -16,7 +16,11 @@ public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir
         InitializeComponent();
         BindingContext = _vm = vm;
         var gorunur = new Controls.GorunurYapici(FormKaydirici);
-        vm.Hatalar.GosterIstendi += (_, _) => gorunur.HatayaGit(IslemFormu, vm.Hatalar, FormHataKutusu);
+        vm.Hatalar.GosterIstendi += (_, _) =>
+        {
+            IslemBolmeleri.IlkiAc();
+            gorunur.HatayaGit(IslemFormu, vm.Hatalar, FormHataKutusu);
+        };
         vm.BirakmaOnayi = ileti => DisplayAlertAsync(KaydedilmemisDegisiklik.Baslik, ileti, KaydedilmemisDegisiklik.Birak, KaydedilmemisDegisiklik.FormaDon);
     }
 
@@ -31,6 +35,14 @@ public partial class IslemlerPage : ContentPage, Controls.IYenilenebilir
         if (sender is Button { CommandParameter: IslemDto islem } dugme)
             await SilmeOnayi.GosterAsync(this, dugme, $"{islem.Tarih:dd.MM.yyyy} · {islem.Cari} · {Bicim.Tl(islem.TutarTl)} ₺",
                 () => _vm.SilCommand.ExecuteAsync(islem));
+    }
+    private async void DuzenleTiklandi(object? sender, EventArgs e)
+    {
+        if (sender is not Button { CommandParameter: IslemDto islem } || !_vm.EditorMu || !_vm.DuzenlemeyeGecCommand.CanExecute(islem))
+            return;
+        await _vm.DuzenlemeyeGecCommand.ExecuteAsync(islem);
+        if (_vm.EditorMu && _vm.DuzenId == islem.Id)
+            IslemBolmeleri.IlkiAc();
     }
     private void KaynakBaglamiDegisti(object? sender, EventArgs e)
     {

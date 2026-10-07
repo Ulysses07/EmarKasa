@@ -6,8 +6,7 @@ namespace Kasa.Api;
 internal static class IstemciSurumKapisi
 {
     internal const string BaslikAdi = "X-Kasa-Istemci-Surumu";
-    internal const string Ileti = "Bu masaüstü sürümü artık desteklenmiyor. Kayıtları değiştirmek için uygulamayı güncelleyin.";
-    private static readonly Version Minimum = Version.Parse(YonetimEndpoints.MinimumIstemci);
+    internal const string Ileti = "Bu uygulama sürümü artık desteklenmiyor. Kayıtları değiştirmek için uygulamayı güncelleyin.";
 
     internal static bool YazmaEngellenmeli(HttpContext http)
     {
@@ -18,6 +17,8 @@ internal static class IstemciSurumKapisi
             || !istek.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        return !Version.TryParse(istek.Headers[BaslikAdi].ToString(), out var surum) || surum < Minimum;
+        var cfg = http.RequestServices.GetRequiredService<IConfiguration>();
+        var minimum = Version.Parse(IstemciYayinAyarlari.Minimum(cfg, istek.Headers[IstemciYayinAyarlari.PlatformBasligi].ToString()));
+        return !Version.TryParse(istek.Headers[BaslikAdi].ToString(), out var surum) || surum < minimum;
     }
 }

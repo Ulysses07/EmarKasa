@@ -17,7 +17,7 @@ Ek olarak yeni bir **Kredi Kartları** özelliği (ekran + hesap motoru değişi
 Backend (ASP.NET Core API + SQLite) **olduğu gibi kalır**; native uygulamalar aynı REST API'ye
 (`https://kasa.royalmezat.com/api`) bağlanır. Mevcut web SPA **emekliye ayrılır** (sadece API sunulur).
 
-**Uygulama adı:** "Emar Kasa" · **Paket kimliği:** `com.royalmezat.kasa`
+**Uygulama adı:** "Emar Kasa" · **Paket kimliği:** `com.emar.kasa`
 
 ## 2. Çatı kararı — .NET MAUI
 
@@ -146,7 +146,7 @@ Düzen: masaüstü koyu sidebar (flyout), telefon alt sekme.
 - **Android:** MAUI → AAB. **Kullanıcı:** Google Play Console ($25 tek sefer) açar + yükler.
   **Claude:** imza keystore + build config + mağaza metni/görselleri.
 - **iOS:** Mac + Apple Developer ($99/yıl) — **kullanıcı** kaydolur + öder. **Claude:** proje +
-  bundle `com.royalmezat.kasa` + build config; kullanıcının Mac'inde `.ipa` alınıp App Store
+  bundle `com.emar.kasa` + build config; kullanıcının Mac'inde `.ipa` alınıp App Store
   Connect'e gönderilir.
 - **Windows:** MAUI Windows → **paketsiz `.exe`** (çift tık, mağaza yok — iç kullanım). İmzalama
   sertifikası opsiyonel (SmartScreen; iç kullanımda atlanabilir).

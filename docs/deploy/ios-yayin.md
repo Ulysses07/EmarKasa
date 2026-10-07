@@ -1,186 +1,250 @@
-# Emar Kasa — iOS hazırlık ve kişisel dağıtım rehberi
+# Emar Kasa — iOS bulut derlemesi ve kişisel TestFlight dağıtımı
 
-> Durum: 7 Ekim 2026. iOS sürümü henüz derlenip iPhone üzerinde doğrulanmadı.
-> Bu belge hazırlık adımlarını ve yayın kapılarını anlatır; mevcut Windows yapılandırması hazır bir iOS paketi üretmez.
+> Bu akış kaynak kod ve yayın araçlarını hazırlar. Bir iOS derlemesi geçmeden,
+> Apple yüklemeyi işleyip gerçek iPhone'da denenmeden “yayınlandı / kullanıma hazır” denmez.
+> Kaynak denetimi tarihi: 7 Ekim 2026.
 
-## 1. Mevcut durum
+## Ürünler ve araç eşlemesi
 
-[Uygulama projesi](../../Kasa.App/Kasa.App.csproj) yalnız `net10.0-windows10.0.19041.0` hedefini etkinleştirir.
-`Platforms/iOS` altındaki başlangıç, ikon ve gizlilik dosyaları bulunur; bunların bulunması iOS çalışırlığını kanıtlamaz.
-[CI](../../.github/workflows/ci.yml) yerel uygulamayı Windows'ta derler ve açılışını sınar; iOS derleme/cihaz kapısı yoktur.
+Windows masaüstü uygulaması korunur; macOS üzerinde aynı MAUI projesi `net10.0-ios` hedefini derler.
+Ürün sürümü [Directory.Build.props](../../Directory.Build.props) içindeki `KasaSurumu`,
+alt derleme sınırı [Kasa.App.csproj](../../Kasa.App/Kasa.App.csproj) içindeki `ApplicationVersion` değeridir.
+Bu yayın akışı ürün sürümünü değiştirmez. IPA için verilen derleme numarası yalnız o yayının
+`ApplicationVersion` değerini değiştirir.
 
-| Alan | Kaynaktaki değer |
+| Alan | Sabit / kaynak |
 | --- | --- |
-| Uygulama adı | Emar Kasa |
-| Bundle ID | `com.royalmezat.kasa` |
-| Ürün sürümü | `2.4.1` — [Directory.Build.props](../../Directory.Build.props), `KasaSurumu` |
-| Derleme numarası | `8` — `ApplicationVersion` |
-| MAUI paket sürümü | `10.0.110` — `MauiVersion` |
-| Planlanan iOS hedefi | `net10.0-ios` — şu an etkin değil |
-| Yapılandırılan en düşük iOS | `15.0` — cihaz üzerinde doğrulanmadı |
-| Fiziksel cihaz / dağıtım RID | `ios-arm64` |
-| Sunucu | `https://kasa.emarglobal.com/` |
+| Bundle ID | `com.emar.kasa` |
+| MAUI | `10.0.110` |
+| .NET SDK | `10.0.401` |
+| Workload set | `10.0.401.1` |
+| Xcode | Kararlı `27.0`; beta kullanılmaz |
+| GitHub Mac runner | `xcode-27`, arm64 |
+| Fiziksel cihaz RID | `ios-arm64` |
+| API | `https://kasa.emarglobal.com/` |
 
-`ApplicationDisplayVersion`, `$(KasaSurumu)` değerini kullanır. Sürüm değişikliği ayrı yayın kararıdır.
-Yeni App Store Connect yüklemesinde aynı ürün sürümü için daha önce kabul edilmiş derleme numaraları kontrol edilir ve gerekiyorsa
-`ApplicationVersion` artırılır. Bu rehber sürüm değerlerini değiştirmez.
+[Microsoft'un .NET 10 / Xcode 27 sürümü](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode27.0-10722)
+bu SDK/workload eşlemesini verir ve MAUI 10.0.110+ önerir. Paket sürümü yükseltmek gerekmez.
+Xcode 27.0 için macOS 26.6+ gerekir; Sequoia yüklü eski Mac bu yeni yerel araç zincirini
+çalıştıramıyorsa derleme [GitHub'ın xcode-27 runner'ında](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
+yapılır. Bu runner görüntüsü GitHub'da halen public preview olarak etiketlidir; içinde kararlı 27.0 vardır.
+[apple-toolchain.sh](../../.github/scripts/apple-toolchain.sh) tam Xcode yolu ve SDK sürümünü denetler;
+uygun araç kaldırılmışsa başka sürüme sessizce geçmez, durur.
 
-## 2. Kaynak kodda tamamlanacak hazırlıklar
+## 1. Apple hesabı olmadan iOS derlemesini doğrula
 
-| Kapı | Mevcut engel ve gereken iş |
-| --- | --- |
-| iOS hedefi | Mac'te iOS hazırlığı için `net10.0-ios` etkinleştirilmeli. Hedefler işletim sistemine göre ayrılmalı: Windows derlemesi Windows hedefini, Mac'teki bu çalışma iOS hedefini seçmeli. Android ve Windows hedeflerini aynı Mac hazırlığına topluca eklemeyin. |
-| Açılış hizmetleri | [MauiProgram.cs](../../Kasa.App/MauiProgram.cs) içinde `IBildirimGosterici` ve `BildirimTiklamalari` yalnız `#if WINDOWS` altında kayıtlı. [AppShell](../../Kasa.App/AppShell.xaml.cs) bunları dolaylı/doğrudan zorunlu ister; [App](../../Kasa.App/App.xaml.cs) kabuğu açılışta çözer. iOS için uygun hizmetler veya açıkça bildirimsiz çalışma desteği kurulmadan yalnız hedefi açmak yeterli değildir. |
-| Bildirimler | Windows zamanlanmış görevi koşulsuz kayıtlı; bildirim ekranı Windows ayar bağlantısı kullanır. iOS'ta Windows görevi ve ayar bağlantısı çalıştırılmamalı. iOS yerel/uzak bildirim desteği ayrıca tasarlanıp doğrulanmalı; web push desteği yerel uygulamanın bildirim desteği değildir. |
-| PDF ve belge seçimi | [EkstreAktarmaPage.cs](../../Kasa.App/Views/EkstreAktarmaPage.cs) ve [AlislarPage.xaml.cs](../../Kasa.App/Views/AlislarPage.xaml.cs) dosya türlerini yalnız `DevicePlatform.WinUI` için tanımlar. iOS için PDF/görsel UTType değerleri ya da uygun yerleşik türler eklenmeli; Dosyalar/iCloud üzerinden seçim denenmeli. |
-| Yazı ve simgeler | [Styles.xaml](../../Kasa.App/Resources/Styles/Styles.xaml) Windows'un Segoe yazı ve simge ailelerini kullanır. iOS sistem yazısı ve iOS'ta bulunan veya uygulamayla paketlenen simgeler tanımlanmalı. |
-| Telefon yerleşimi | Giriş formu sabit 380 genişlikte; İşlemler ekranı 360 genişlikte formu listeyle yan yana tutar. Dar iPhone ekranında formlar, menü ve listeler uyarlanmalı; klavye, güvenli alan, yatay kullanım ve büyük yazı denenmeli. |
-| Dışarı aktarma | [DosyaIslemleri.cs](../../Kasa.App/Views/DosyaIslemleri.cs) Windows dışı dosya paylaşımına bir yol içerir; ancak yazdırma yönergesi Ctrl+P/Microsoft Print to PDF der. iOS paylaşım/yazdırma akışı ve metni uyarlanıp cihazda denenmeli. |
+[iOS unsigned validation](../../.github/workflows/ios-validation.yml) push ve pull request'te gerçek
+`Release / net10.0-ios / ios-arm64` uygulamasını derler. İmzalama ve provisioning kapalıdır;
+Apple özel anahtarı kullanmaz, IPA yüklemez.
 
-Bunlar kaynak incelemesindeki engellerdir. iOS derlemesi henüz yapılmadığından liste bütün platform hatalarının
-bulunduğu iddiasını taşımaz. [MAUI dosya seçici belgesi](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/file-picker?view=net-maui-10.0)
-platform türleri için iOS UTType kullanımını açıklar.
+Bu kapı C#/XAML, iOS API, native bağlama ve Release derleme hatalarını yakalar.
+Cihazda açılışı, klavyeyi, dosya seçiciyi, SecureStorage'ı, imzalamayı veya sunucu oturumunu doğrulamaz.
+Release yayını varsayılan yönetilen iOS çalışma zamanı/trim ayarlarını kullanır; NativeAOT veya
+`TrimMode=full` zorlanmaz. API istemcisinin reflection kullanan JSON yolları cihaz testinde de denenmeli.
 
-## 3. Mac ve derleme araçlarını ayrı doğrulama
+Manuel iş akışlarını çalıştırmak için dosyalar deponun varsayılan dalında bulunmalı.
+Bu depoda varsayılan dal `release/2.x`; yalnız özellik dalına eklemek Run workflow düğmesini
+hazırlamaya yetmez. [GitHub manuel iş akışı kuralları](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+bu gereksinimi ve dal seçimini açıklar.
 
-Mac modeli, işlemci, tam macOS sürümü ve kurulu Xcode sürümü yayın ortamı seçilmeden kaydedilmeli.
-“16.x” tek başına yeterli değildir: Sequoia'nın sürümü `15.x` olur; ifade Xcode `16.x` sürümüne ait olabilir.
+## 2. Windows'ta dağıtım özel anahtarı ve CSR oluştur
 
-Mac Terminal'de salt okunur kontrol:
+Geçerli Apple Distribution sertifikasının özel anahtarı/P12 dosyası zaten varsa onu kullan.
+Yeni sertifika gereken durumda Git for Windows ile gelen **Git Bash / OpenSSL** yeterlidir.
+İmzalama dosyalarını depo dışında, örneğin Belgeler içindeki `Kasa-signing` klasöründe tut.
+Aşağıdaki işlemler bu klasörde yapılır:
 
 ```bash
-sw_vers -productVersion
-sysctl -n hw.model
-uname -m
-xcodebuild -version
-xcode-select -p
-dotnet --version
-dotnet workload --info
+openssl genpkey -algorithm RSA -aes-256-cbc -pkeyopt rsa_keygen_bits:2048 -out distribution.key
+openssl req -new -key distribution.key -out distribution.certSigningRequest
 ```
 
-`uname -m` sonucuna göre .NET SDK paketi `arm64` (Apple silicon) veya `x64` (Intel) seçilir.
-Sadece “Sequoia kurulu” bilgisiyle donanımın resmî desteği veya derleme kapasitesi doğrulanmış sayılmaz.
+İlk komut özel anahtar için parola ister. İkinci komutta Apple hesabındaki gerçek ad/e-posta
+bilgilerini kullan; Common Name ve Email Address sorularını doldur. Özel anahtarın parolası
+komut satırına yazılmaz. Apple'a **yalnız CSR** yüklenir; `distribution.key` gönderilmez.
 
-### Sequoia 15.6+ için doğrulanmış araç adayı
+[Apple Developer — Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list)
+sayfasında:
 
-[Apple'ın sistem tablosunda](https://developer.apple.com/xcode/system-requirements) Xcode `26.2` ve `26.3`,
-macOS Sequoia `15.6+` üzerinde desteklenir ve iOS `26.2` SDK içerir.
-Xcode `26.4.1` ve `26.5` ise macOS Tahoe `26.2+` ister; bunların gereksinimleri Sequoia adayına uygulanmamalı.
-
-| Parça | Resmî sürüm notunda doğrulanan aday |
-| --- | --- |
-| .NET SDK | `10.0.200` |
-| Workload set | `10.0.200` |
-| .NET iOS SDK | `26.2.10217` |
-| Xcode | `26.2`; `26.3` için aşağıdaki sınırlı istisna |
-| macOS | Sequoia `15.6+` |
-
-[.NET iOS 26.2.10217 sürüm notu](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode26.2-10217)
-bu eşleşmeyi ve workload setini belirtir. Aynı not, Xcode `26.3` ile SDK'lar aynı olduğu için
-`ValidateXcodeVersion=false` kullanılabileceğini açıkça söyler. Bu istisna yalnız bu doğrulanmış eşleşmeye uygulanır;
-başka Xcode/workload uyuşmazlıklarını bastırmak için genel proje ayarı yapılmaz.
-
-Bu, tarihsel olarak doğrulanmış bir araç adayıdır; Emar Kasa'nın bu araçlarla iOS Release/IPA derlemesi henüz sınanmadı.
-SDK'nin bakım/güvenlik güncellemeleri ve kurulacak tam workload sürümü hazırlık sırasında ayrıca değerlendirilip kaydedilmeli.
-Denetimsiz `dotnet workload update` daha yeni Xcode/macOS gerektiren bir iOS SDK'sına geçirebilir.
-[Microsoft Xcode eşleşme rehberi](https://learn.microsoft.com/en-us/dotnet/ios/troubleshooting/xcode-requirement)
-belirli workload sürümlerinin belirli Xcode sürümlerini istediğini açıklar.
-
-`MauiVersion=10.0.110`, uygulamanın MAUI NuGet sürümüdür; iOS workload/Xcode sürümünü tek başına belirlemez.
-[MAUI sürüm açıklaması](https://github.com/dotnet/maui/wiki/Release-Versions) bu ayrımı belirtir.
-Seçilen SDK ve workload seti, Mac'te yeniden üretilebilir derleme yapılandırmasıyla sabitlenmeli.
-
-### App Store Connect SDK eşiği
-
-[Apple'ın 28 Nisan 2026 gereksinimi](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)
-App Store Connect'e yüklenen uygulamalar için Xcode `26+` ve iOS `26+` SDK ister.
-Xcode 26.2/26.3'ün iOS 26.2 SDK'sı bu eşiği sağlar. SDK sürümü uygulamanın en düşük desteklenen iOS sürümü değildir;
-bu projedeki `15.0` cihaz hedefi ayrıca test edilmelidir.
-
-## 4. İmzalama ve kişisel dağıtım seçimi
-
-Etkin Apple Developer üyeliği, Mac/Xcode ortamı ve aynı Bundle ID için geçerli imzalama gerekir.
-Yerel iOS derlemesi Apple araçlarına erişim gerektirir; Windows'tan çalışma da uygun bir Mac derleme sunucusuna bağlanır.
-[Microsoft iOS yayın rehberi](https://learn.microsoft.com/en-us/dotnet/maui/ios/deployment/publish-cli?view=net-maui-10.0)
-
-Kişisel kullanımda dağıtım yöntemi seçilir:
-
-- **Geliştirme kurulumu:** Kayıtlı iPhone ve geliştirme sertifikası/profiliyle ilk cihaz denemesi.
-- **Ad hoc dağıtım:** Kullanılacak cihazlar profile kaydedilir; aynı üyeliğin uygun dağıtım sertifikası/profili kullanılır.
-- **TestFlight:** App Store Connect kaydı, dağıtım imzası ve yüklenen IPA gerekir. Her yapı 90 gün kullanılabilir;
-  süre dolmadan yeni yapı yüklenir. Herkese açık App Store yayını ayrı karardır.
-  [Apple TestFlight rehberi](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
-
-Apple Developer hesabında `com.royalmezat.kasa` App ID'sinin takıma ait olduğu doğrulanmalı.
-Profil, seçilen yönteme ve bu App ID'ye uygun olmalı; sertifikanın özel anahtarı Mac anahtarlığında bulunmalı.
-App Store Connect kaydı TestFlight/yayın seçilirse oluşturulur. Geliştirme/ad hoc kurulumda cihaz UDID'si ilgili profile eklenir.
-
-`.p12`, provisioning profilleri, özel anahtarlar ve parolalar depoya yazılmaz.
-İmzalama bilgileri uygulama koduna gömülmez; seçilen derleme ortamının güvenli deposunda tutulur.
-
-## 5. Derleme ve iPhone doğrulama kapıları
-
-Aşağıdaki kapılar tamamlanmadan dağıtım hazır kabul edilmez:
-
-1. Bölüm 2'deki platform engelleri giderilmiş ve iOS hedefi Mac için etkinleştirilmiş.
-2. Mac modeli/macOS, seçilen Xcode, .NET SDK ve workload sürümleri kaydedilmiş; sürüm eşleşmesi doğrulanmış.
-3. iOS simülatöründe açılış, giriş, menüler ve dar ekran yerleşimi başarılı.
-4. Fiziksel iPhone'da **Release** derlemesi açılıyor; imzalama ve güvenli oturum saklama çalışıyor.
-5. Geçici test verileriyle kayıt, düzenleme, önizleme/onay, çıkış, bağlantı kesilmesi ve yeniden açma denenmiş.
-6. Dosyalar'dan gerçek örnek PDF seçimi, ekstre uyarıları ve kaynak satırlarla önerilerin karşılaştırılması denenmiş;
-   mali kayda geçmeden tarih/tutar/yön kontrolü yapılmış.
-7. Paylaşım/indirme, klavye altında kalan alanlar, güvenli alan, yatay kullanım ve büyük yazı kontrol edilmiş.
-   Yerel bildirim özelliği sunuluyorsa izin ve gerçek cihaz davranışı ayrıca doğrulanmış.
-8. Dağıtım için üretilen IPA'nın Bundle ID'si, ürün sürümü, derleme numarası ve imza/profil eşleşmesi doğrulanmış.
-
-Simülatör RID'si Mac işlemcisine göre `iossimulator-arm64` veya `iossimulator-x64` olur.
-Simülatör çıktısı fiziksel cihaz paketi yerine kullanılamaz.
-
-### Hazırlık tamamlandıktan sonraki IPA komut şablonu
-
-Bu şablon **iOS hedefi etkinleştirildikten ve yukarıdaki doğrulama kapıları tamamlandıktan sonra**,
-seçilen dağıtım sertifikası/profiliyle Mac'te uygulanır. Bugünkü Windows hedefiyle doğrudan çalışmaz.
+1. **Identifiers** altında explicit App ID kaydet: `com.emar.kasa`.
+   Başka uygulamanın Bundle ID'sini değiştirme; mevcut doğru App ID varsa onu kullan.
+   Mevcut uygulama için ek capability seçilmez: APNs/Push Notifications, Keychain Sharing,
+   App Groups, iCloud ve Sign in with Apple kullanılmıyor. Token yalnız uygulamanın kendi
+   Keychain alanındadır; simülatör entitlement'i fiziksel/TestFlight paketine eklenmez.
+   [Apple Keychain access grupları](https://developer.apple.com/documentation/security/sharing-access-to-keychain-items-among-a-collection-of-apps)
+   ve [MAUI SecureStorage](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/secure-storage?view=net-maui-10.0)
+   bu ayrımı açıklar.
+2. **Certificates → + → Apple Distribution** seç. CSR dosyasını yükle ve sertifikayı indir.
+   İndirilen DER `.cer` dosyasını bu klasörde `distribution.cer` olarak tut.
+3. Sertifikayı CSR ile oluşan özel anahtarla, parola korumalı P12'ye dönüştür:
 
 ```bash
-dotnet publish Kasa.App/Kasa.App.csproj \
-  -f net10.0-ios \
-  -c Release \
-  -r ios-arm64 \
-  -p:ArchiveOnBuild=true \
-  -p:CodesignKey="Apple Distribution: <Ad> (<TeamID>)" \
-  -p:CodesignProvision="<Dağıtım Profilinin Adı>"
+openssl x509 -inform DER -in distribution.cer -out distribution.pem
+openssl pkcs12 -export -inkey distribution.key -in distribution.pem -out distribution.p12
 ```
 
-Yalnız bölüm 3'teki `26.2.10217` workload ve Xcode `26.3` birlikte seçildiyse,
-sürüm notundaki `-p:ValidateXcodeVersion=false` parametresi bu derlemeye eklenir.
+Son komut önce özel anahtar parolasını, sonra **P12 export parolasını** ister.
+CI'a `distribution.p12` ve onun export parolası verilir. CSR'yi imzalayan özel anahtar
+olmayan bir `.cer` dosyası tek başına uygulamayı imzalayamaz.
+Apple'ın [CSR açıklaması](https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request)
+sertifika isteği ile özel anahtarın ilişkisini açıklar; burada aynı CSR standardı OpenSSL ile üretilir.
 
-Beklenen dağıtım dizini: `Kasa.App/bin/Release/net10.0-ios/ios-arm64/publish/`.
-Üretilen gerçek `.ipa` dosya adı ve içerik sürümü çıktıdan doğrulanır; dosyanın varlığı tek başına iPhone testini karşılamaz.
-`ArchiveOnBuild=true` arşiv üretimi ve imzalama parametreleri için
-[Microsoft komut satırı yayın rehberi](https://learn.microsoft.com/en-us/dotnet/maui/ios/deployment/publish-cli?view=net-maui-10.0) kullanılır.
+## 3. App Store profili ve uygulama kaydı
 
-## 6. TestFlight / App Store Connect yüklemesi
+Apple Developer portalında **Profiles → + → Distribution → App Store Connect**:
 
-1. Doğru takım altında uygulama kaydı ve Bundle ID eşleşmesi kontrol edilir.
-2. İmzalı IPA, Apple'ın desteklediği **Transporter** veya uygun Xcode yükleme akışıyla App Store Connect'e yüklenir.
-3. İşlenen yapı, sürüm ve derleme numarası doğrulanır; şifreleme soruları gerçek uygulama içeriğine göre yanıtlanır.
-4. TestFlight seçilirse kendi hesabı uygun iç test kullanıcısı olarak eklenir; cihazdan kurulum ve güncelleme denenir.
-5. Haricî test kullanıcıları eklenecekse Apple'ın beta inceleme kuralları uygulanır.
-6. Herkese açık App Store yayını istenirse mağaza bilgileri ve incelemeye gönderme ayrıca tamamlanır.
+1. `com.emar.kasa` App ID'sini seç.
+2. Yukarıdaki Apple Distribution sertifikasını seç.
+3. Profil adını ver, oluştur ve `.mobileprovision` dosyasını indir.
 
-[Apple'ın desteklediği yükleme yöntemleri](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
-izlenir. Önceki rehberdeki `notarytool submit Kasa.App.ipa` örneği iOS App Store Connect yüklemesi için yanlıştı
-ve kaldırıldı.
+Profil Development, Ad Hoc veya Enterprise türünde olmamalı. Betik süreyi, tam Bundle ID'yi,
+takımı ve P12'nin profildeki dağıtım sertifikasıyla eşleşmesini kontrol eder.
+[Apple App Store profil adımları](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile)
+tek dağıtım sertifikalı profili tarif eder.
 
-### Yayın beyanları
+[App Store Connect](https://appstoreconnect.apple.com/) → **My Apps → + → New App** ile
+aynı Bundle ID'ye bağlı iOS uygulama kaydını oluştur. Ad Emar Kasa olabilir;
+SKU hesabında benzersiz olmalı. Oluşturulmuş doğru kayıt varsa yenisini açma.
 
-App Store yayını seçilirse gizlilik ve şifreleme beyanları uygulamanın gerçek veri akışına göre hazırlanır.
-Finansal verinin kendi sunucusunda tutulması “finansal veri toplanmıyor” demek değildir:
-uygulama kayıt ve PDF içeriğini sunucuya gönderip kalıcı olarak saklar.
-[Apple veri toplama tanımı](https://developer.apple.com/app-store/app-privacy-details/) uyarınca
-finansal bilgi, yüklenen içerik ve kimlik/oturum verileri ayrı değerlendirilir; kullanıcı kendi giriyor diye otomatik muafiyet yazılmaz.
+## 4. App Store Connect takım API anahtarı
 
-`Platforms/iOS/Resources/PrivacyInfo.xcprivacy` mevcut MAUI temel bildirimlerini içerir; son uygulamanın API/SDK kullanımıyla
-uyumu iOS paketinde kontrol edilmelidir. `Info.plist` içindeki şifreleme anahtarları da uygulama incelenmeden otomatik eklenmez.
-[Apple şifreleme rehberi](https://developer.apple.com/help/app-store-connect/manage-app-information/determine-and-upload-app-encryption-documentation/)
-izlenir. Yaş derecelendirmesi güncel Apple anketiyle belirlenir; burada hazır bir derece varsayılmaz.
+App Store Connect → **Users and Access → Integrations → App Store Connect API → Team Keys**
+altından takım API anahtarı oluştur. Hesap ilk kullanımda API erişimi talebi gösterebilir.
+Yükleme için yetkili bir rol seç; Developer rolünün bu hesaptaki build yükleme yetkisini
+[rol izinleri](https://developer.apple.com/help/app-store-connect/reference/role-permissions/)
+üzerinden doğrula.
+
+Key ID, Issuer ID ve indirilen `AuthKey_....p8` dosyası gerekir.
+Workflow takım API anahtarı kullanır; individual key için Issuer ID varsayımı yapılmaz.
+Apple özel anahtarı yalnız bir kez indirilebilir; güvenli yedeğini al.
+[Apple API anahtarı rehberi](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api)
+takım anahtarı oluşturma ve indirme adımlarını açıklar.
+
+## 5. GitHub secrets
+
+GitHub deposunda **Settings → Environments → New environment → ios-release** oluştur.
+İmzalama secrets'larını bu ortamda sakla. **Deployment branches and tags** bölümünde
+**Selected branches and tags** seçip yalnız **branch: release/2.x** kuralını ekle.
+Workflow imzalı seçenekleri, secrets'a erişmeyen ilk işte aynı dal için denetler;
+GitHub ortam kuralı da credentials erişimini yayın dalıyla sınırlar.
+Betik özel anahtarları depoya yazmaz.
+
+| Secret adı | İçerik |
+| --- | --- |
+| `IOS_DISTRIBUTION_P12_BASE64` | `distribution.p12` dosyasının Base64'ü |
+| `IOS_DISTRIBUTION_P12_PASSWORD` | P12 export parolası |
+| `IOS_APPSTORE_PROFILE_BASE64` | App Store `.mobileprovision` dosyasının Base64'ü |
+| `APP_STORE_CONNECT_KEY_ID` | Takım API Key ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | Takım API Issuer ID |
+| `APP_STORE_CONNECT_PRIVATE_KEY_BASE64` | İndirilen `.p8` dosyasının Base64'ü |
+
+İlk üç değer `build-ipa` için yeterlidir. Son üç yalnız Apple yüklemesinde gerekir.
+Base64 şifreleme değildir; bunları normal Variables yerine **Secrets** olarak ekle.
+
+GitHub CLI ile dosya içeriğini konsola dökmeden göndermek için PowerShell'de:
+
+```powershell
+function Set-KasaFileSecret([string]$Name, [string]$Path) {
+    $taskBytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Path).Path)
+    [Convert]::ToBase64String($taskBytes) | gh secret set $Name --repo Ulysses07/EmarKasa --env ios-release
+    if ($LASTEXITCODE -ne 0) { throw 'Secret yüklenemedi.' }
+}
+# İmzalama klasöründe çalıştır; dosya adlarını indirdiğin dosyaya göre seç.
+Set-KasaFileSecret IOS_DISTRIBUTION_P12_BASE64 .\distribution.p12
+Set-KasaFileSecret IOS_APPSTORE_PROFILE_BASE64 .\distribution.mobileprovision
+# API .p8 dosyasının gerçek adını kullan.
+# Set-KasaFileSecret APP_STORE_CONNECT_PRIVATE_KEY_BASE64 .\AuthKey_....p8
+
+$taskPassword = Read-Host 'P12 export parolası' -AsSecureString
+[System.Net.NetworkCredential]::new('', $taskPassword).Password | gh secret set IOS_DISTRIBUTION_P12_PASSWORD --repo Ulysses07/EmarKasa --env ios-release
+```
+
+Bu komutlar hedef depoyu açıkça belirtir; imzalama klasörünün bir Git deposunda olması gerekmez.
+Key ID/Issuer ID GitHub'ın secret ekranından eklenebilir. Özel anahtar veya parola sohbet mesajına,
+issue'ya, workflow input'una, commit'e ya da ekran görüntüsüne konmaz.
+
+## 6. Manuel IPA veya TestFlight yüklemesi
+
+GitHub **Actions → iOS TestFlight release → Run workflow**; imzalı seçenekler için `release/2.x` dalını seç:
+
+- **compile-only** (varsayılan): yalnız secrets gerektirmeyen iOS derlemesi.
+- **build-ipa**: imzalı IPA, SHA-256 ve açık build metadata'sı üretir; Apple'a göndermez.
+- **upload-testflight**: aynı IPA'yı `altool --validate-app` ile doğrular ve yükler;
+  ayrıca **confirm_upload** işaretlenmeli.
+
+İmzalı seçeneklerde App Store Connect'te aynı ürün sürümü için daha önce kabul edilmiş numaradan
+büyük `build_number` yaz. Betik proje numarasının altındaki değeri reddeder; Apple'daki geçmişi
+kendiliğinden sorgulamaz. İlk yayında geçerli proje numarası kullanılabilir.
+Yükleme sonrası tekrar denenecek yeni IPA için numarayı artır.
+
+[iOS release workflow](../../.github/workflows/release-ios.yml) geçici keychain oluşturur.
+[Apple release betiği](../../.github/scripts/apple-release.py) secrets'ları yalnız runner'ın geçici
+dizininde açar, API `.p8` dosyasını yalnız yükleme adımında kurar ve `always()` temizliğinde
+keychain/profil/özel anahtarı kaldırır. Artifact yalnız IPA, checksum ve build.json içerir.
+GitHub-hosted runner ayrıca iş bitince silinir.
+[GitHub imzalama rehberi](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)
+geçici keychain ve temizleme yaklaşımını açıklar.
+
+IPA üretiminde `ArchiveOnBuild=true`, `BuildIpa=true`, `ios-arm64` ve geçerli App Store
+imzası kullanılır. [Microsoft publish CLI](https://learn.microsoft.com/en-us/dotnet/maui/ios/deployment/publish-cli?view=net-maui-10.0)
+bu yayın parametrelerini açıklar.
+Yükleme Apple'ın desteklediği **altool** ve takım API anahtarıyla yapılır;
+`notarytool` macOS noterleme aracıdır, iOS TestFlight yükleme aracı değildir.
+[Apple build yükleme rehberi](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)
+App Store Connect ve TestFlight yükleme yolunu açıklar.
+
+## 7. iPhone'a kur ve kullanıma hazır olma kontrolünü tamamla
+
+App Store Connect build işlemesinin tamamlanmasını bekle. İstenirse export compliance sorularını
+uygulamanın gerçek şifreleme kullanımına göre yanıtla. Kendi App Store Connect hesabını
+**TestFlight → Internal Testing** grubuna ekle; iPhone'da TestFlight ile yükle.
+TestFlight build'leri [Apple'a göre 90 gün](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
+kullanılabilir; kişisel kullanımı sürdürmek için yeni build yüklemek gerekir.
+
+Gerçek iPhone kabul kontrolü:
+
+1. Açılış, giriş/çıkış ve uygulama yeniden açıldığında güvenli oturum saklama.
+2. Dar ekran, büyük yazı, ekran klavyesi, güvenli alan ve menü gezintisi.
+3. Dosyalar/iCloud'dan PDF ve alış belgesi seçimi, kaynak PDF indirme/paylaşma.
+4. Ekstre satırını kendi altında açma, taslak düzenleme, mali seçimin bağımsız kalması.
+5. Önizleme, uyarı/onaylar, tek kayıt ve tekrar denemede çift kayıt oluşmaması.
+6. Gerçek API JSON okuma/yazma yolları; finans verisini test ederek gerekçeli iptal akışı.
+7. Uygulama aktifken hatırlatma listesi ve menüdeki okunmamış sayısı.
+   Native iOS sistem bildirimi/APNs uygulanmadı; izin diyaloğu veya arka plan bildirimi beklenmez.
+   Arka planda Windows zamanlanmış görevinin eşdeğeri olduğu varsayılmaz.
+
+Apple yüklemeyi kabul etti mesajı bu kontrollerin tamamlandığı anlamına gelmez.
+Kişisel TestFlight dağıtımı için herkese açık App Store sayfasını yayımlamak gerekmez.
+
+## 8. Güncelleme kanalı ve yayın bilgisini doğru bildirme
+
+Bu kimlik `com.emar.kasa` olarak sabittir; App ID, App Store Connect kaydı ve provisioning
+profile aynı Bundle ID'yi taşımalıdır. İlk Apple build yüklemesinden sonra kayıt kimliği
+değiştirilemez. Henüz Apple sertifikaları/API anahtarı/daveti hazır olmadığı için bu
+belge bir TestFlight yüklemesinin tamamlandığını veya kullanılabilir build olduğunu söylemez.
+
+Yeni build için aynı uygulama kaydını kullan, kabul edilmiş son build numarasından büyük
+`build_number` ile manuel `upload-testflight` akışını çalıştır; işleme ve tester erişimini
+kontrol et. iPhone'da **TestFlight → Emar Kasa → Automatic Updates** açılabilir.
+Her build **90 gün** sonra kullanılamaz; süresi dolmadan yeni build sağla.
+Güncelleme için ek App ID capability gerekmez. [Apple TestFlight kuralları](https://testflight.apple.com/)
+kurulum, otomatik güncelleme ve sürenin ayrıntılarını açıklar.
+
+Uygulamanın iOS güncelleme bağlantısı şimdilik `https://testflight.apple.com/`.
+Bu genel sayfa gerçek tester daveti değildir; Apple App ID veya davet URL'si uydurulmaz.
+Windows istemcileri `https://github.com/Ulysses07/EmarKasa/releases` kanalını kullanır.
+
+`/api/surum` eski `surum`, `minimumIstemci`, `indirmeAdresi`, `notlar` alanlarını korur;
+`windows` ve `ios` nesneleri ayrıca `sonSurum`, `minimumIstemci`, `indirmeAdresi`, `notlar`
+verir. Eski üst düzey `indirmeAdresi`, mevcut `Kasa__IndirmeAdresi` ayarının güvenli HTTPS
+adresini kullanmayı sürdürür; ayar yoksa `null` döner. Yeni `windows.indirmeAdresi` sabit
+GitHub Releases kanalına, `ios.indirmeAdresi` genel TestFlight sayfasına gider.
+Sunucu ürün sürümü istemcinin son yayımlanmış sürümü sayılmaz.
+`sonSurum` varsayılan olarak `null`; yalnız paket ilgili kanalda gerçekten erişilebilir
+olduktan sonra API ortamına `Kasa__IstemciYayinlari__Windows__SonSurum` veya
+`Kasa__IstemciYayinlari__Ios__SonSurum` eklenir. API'nin yeni sürümünü yayımlamak bu
+alanları kendiliğinden yükseltmez. Her platformun minimumu halen **2.4.1**; ileride bilinçli
+uyumluluk değişikliği gerekirse `Kasa__IstemciYayinlari__Windows__MinimumIstemci` ve
+`Kasa__IstemciYayinlari__Ios__MinimumIstemci` ayrı yapılandırılır. Mevcut sınırın altı uygulanmaz.
+`X-Kasa-Istemci-Platformu: ios` doğru minimumu seçer; olmayan/bilinmeyen başlık eski
+Windows davranışını korur. Sürüm kapısı bir güvenlik/kimlik doğrulama mekanizması değildir.

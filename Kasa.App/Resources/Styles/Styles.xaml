@@ -8,16 +8,25 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:ctl="clr-namespace:Kasa.App.Controls">
 
-    <!-- Windows sistem fontu, virgüllü yedek listesiyle (WinUI FontFamily sözdizimi): Windows 11'de Segoe UI Variable Text,
-         onun olmadığı Windows 10'da Segoe UI. İkisinin karakter tablosunda ₺ (U+20BA) var; eskiden paketlenen OpenSans'ta
-         yoktu ve tutarlar sistem yedek fontuyla çiziliyordu. MAUI yalnız normal/kalın ağırlık verir (FontAttributes):
-         tasarımdaki yarı kalın yerleri Bold'dur. -->
-    <x:String x:Key="YaziAilesi">Segoe UI Variable Text, Segoe UI</x:String>
+    <!-- Her iki platform kendi sistem yazı tipini kullanır; Windows fontları iOS paketine dağıtılmaz.
+         iOS menüsü standart Unicode simgeleri kullanır (MenuModeli mobilSimgeler); Windows özel kod noktaları korunur. -->
+    <OnPlatform x:Key="YaziAilesi" x:TypeArguments="x:String" Default="Segoe UI Variable Text, Segoe UI">
+        <On Platform="iOS" Value="Helvetica Neue" />
+    </OnPlatform>
+    <OnPlatform x:Key="SimgeAilesi" x:TypeArguments="x:String" Default="Segoe Fluent Icons, Segoe MDL2 Assets">
+        <On Platform="iOS" Value="Helvetica Neue" />
+    </OnPlatform>
 
-    <!-- Simge yazı tipi (menü simgeleri, Kasa.App.Core MenuSimgeleri): Windows 11'de Segoe Fluent Icons, onun olmadığı Windows
-         10'da Segoe MDL2 Assets. İkisi de Windows'la gelir, paketlenmez (Segoe Fluent Icons başka platforma dağıtılamaz);
-         kullanılan kod noktaları iki yazı tipinde aynı simgedir. -->
-    <x:String x:Key="SimgeAilesi">Segoe Fluent Icons, Segoe MDL2 Assets</x:String>
+    <!-- MAUI 10 sayfaları edge-to-edge açar. iPhone formları çentik, ana ekran çizgisi ve klavyeden uzak kalır. -->
+    <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+        <Setter Property="SafeAreaEdges">
+            <Setter.Value>
+                <OnPlatform x:TypeArguments="SafeAreaEdges" Default="None">
+                    <On Platform="iOS" Value="All" />
+                </OnPlatform>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!-- ===== ETİKETLER ===== -->
     <Style TargetType="Label">
@@ -295,7 +304,13 @@
         <Setter Property="FontAttributes" Value="Bold" />
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="HeightRequest" Value="32" />
+        <Setter Property="HeightRequest">
+            <Setter.Value>
+                <OnPlatform x:TypeArguments="x:Double" Default="32">
+                    <On Platform="iOS" Value="44" />
+                </OnPlatform>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Padding" Value="12,0" />
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
