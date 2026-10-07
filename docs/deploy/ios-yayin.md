@@ -1,248 +1,186 @@
-# Emar Kasa — iOS App Store Yayın Kılavuzu
+# Emar Kasa — iOS hazırlık ve kişisel dağıtım rehberi
 
-## 1. Amaç ve Sorumluluk Sınırı
+> Durum: 7 Ekim 2026. iOS sürümü henüz derlenip iPhone üzerinde doğrulanmadı.
+> Bu belge hazırlık adımlarını ve yayın kapılarını anlatır; mevcut Windows yapılandırması hazır bir iOS paketi üretmez.
 
-Emar Kasa'yı Apple App Store'da yayınlamak.
+## 1. Mevcut durum
 
-| Görev | Sorumlu |
-|---|---|
-| Kod, build yapılandırması, imzalama kurulumu, mağaza metni/görselleri | Claude / mühendis |
-| Apple Developer Program kaydı ($99/yıl) ve ödeme | **Kullanıcı** |
-| Mac + Xcode ortamı ve IPA derleme | **Kullanıcı** |
-| App Store Connect'te son "İncelemeye gönder" tıklaması | **Kullanıcı** |
+[Uygulama projesi](../../Kasa.App/Kasa.App.csproj) yalnız `net10.0-windows10.0.19041.0` hedefini etkinleştirir.
+`Platforms/iOS` altındaki başlangıç, ikon ve gizlilik dosyaları bulunur; bunların bulunması iOS çalışırlığını kanıtlamaz.
+[CI](../../.github/workflows/ci.yml) yerel uygulamayı Windows'ta derler ve açılışını sınar; iOS derleme/cihaz kapısı yoktur.
 
-> iOS build **Mac + Xcode gerektirir.** Bu Windows makinesinde IPA üretmek mümkün değildir
-> ve proje dosyasında iOS TFM şu an yorum satırı olarak bırakılmıştır (bkz. §2).
+| Alan | Kaynaktaki değer |
+| --- | --- |
+| Uygulama adı | Emar Kasa |
+| Bundle ID | `com.royalmezat.kasa` |
+| Ürün sürümü | `2.4.1` — [Directory.Build.props](../../Directory.Build.props), `KasaSurumu` |
+| Derleme numarası | `8` — `ApplicationVersion` |
+| MAUI paket sürümü | `10.0.110` — `MauiVersion` |
+| Planlanan iOS hedefi | `net10.0-ios` — şu an etkin değil |
+| Yapılandırılan en düşük iOS | `15.0` — cihaz üzerinde doğrulanmadı |
+| Fiziksel cihaz / dağıtım RID | `ios-arm64` |
+| Sunucu | `https://kasa.emarglobal.com/` |
 
----
+`ApplicationDisplayVersion`, `$(KasaSurumu)` değerini kullanır. Sürüm değişikliği ayrı yayın kararıdır.
+Yeni App Store Connect yüklemesinde aynı ürün sürümü için daha önce kabul edilmiş derleme numaraları kontrol edilir ve gerekiyorsa
+`ApplicationVersion` artırılır. Bu rehber sürüm değerlerini değiştirmez.
 
-## 2. Ön Koşullar
+## 2. Kaynak kodda tamamlanacak hazırlıklar
 
-### Ortam (Mac'te)
+| Kapı | Mevcut engel ve gereken iş |
+| --- | --- |
+| iOS hedefi | Mac'te iOS hazırlığı için `net10.0-ios` etkinleştirilmeli. Hedefler işletim sistemine göre ayrılmalı: Windows derlemesi Windows hedefini, Mac'teki bu çalışma iOS hedefini seçmeli. Android ve Windows hedeflerini aynı Mac hazırlığına topluca eklemeyin. |
+| Açılış hizmetleri | [MauiProgram.cs](../../Kasa.App/MauiProgram.cs) içinde `IBildirimGosterici` ve `BildirimTiklamalari` yalnız `#if WINDOWS` altında kayıtlı. [AppShell](../../Kasa.App/AppShell.xaml.cs) bunları dolaylı/doğrudan zorunlu ister; [App](../../Kasa.App/App.xaml.cs) kabuğu açılışta çözer. iOS için uygun hizmetler veya açıkça bildirimsiz çalışma desteği kurulmadan yalnız hedefi açmak yeterli değildir. |
+| Bildirimler | Windows zamanlanmış görevi koşulsuz kayıtlı; bildirim ekranı Windows ayar bağlantısı kullanır. iOS'ta Windows görevi ve ayar bağlantısı çalıştırılmamalı. iOS yerel/uzak bildirim desteği ayrıca tasarlanıp doğrulanmalı; web push desteği yerel uygulamanın bildirim desteği değildir. |
+| PDF ve belge seçimi | [EkstreAktarmaPage.cs](../../Kasa.App/Views/EkstreAktarmaPage.cs) ve [AlislarPage.xaml.cs](../../Kasa.App/Views/AlislarPage.xaml.cs) dosya türlerini yalnız `DevicePlatform.WinUI` için tanımlar. iOS için PDF/görsel UTType değerleri ya da uygun yerleşik türler eklenmeli; Dosyalar/iCloud üzerinden seçim denenmeli. |
+| Yazı ve simgeler | [Styles.xaml](../../Kasa.App/Resources/Styles/Styles.xaml) Windows'un Segoe yazı ve simge ailelerini kullanır. iOS sistem yazısı ve iOS'ta bulunan veya uygulamayla paketlenen simgeler tanımlanmalı. |
+| Telefon yerleşimi | Giriş formu sabit 380 genişlikte; İşlemler ekranı 360 genişlikte formu listeyle yan yana tutar. Dar iPhone ekranında formlar, menü ve listeler uyarlanmalı; klavye, güvenli alan, yatay kullanım ve büyük yazı denenmeli. |
+| Dışarı aktarma | [DosyaIslemleri.cs](../../Kasa.App/Views/DosyaIslemleri.cs) Windows dışı dosya paylaşımına bir yol içerir; ancak yazdırma yönergesi Ctrl+P/Microsoft Print to PDF der. iOS paylaşım/yazdırma akışı ve metni uyarlanıp cihazda denenmeli. |
 
-| Gereksinim | Komut |
-|---|---|
-| macOS (Apple silicon veya Intel) | — |
-| Xcode 16+ (App Store'dan) | `xcode-select --version` |
-| .NET 10 SDK | `dotnet --version` → `10.x.x` |
-| MAUI workload | `dotnet workload install maui` |
+Bunlar kaynak incelemesindeki engellerdir. iOS derlemesi henüz yapılmadığından liste bütün platform hatalarının
+bulunduğu iddiasını taşımaz. [MAUI dosya seçici belgesi](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/file-picker?view=net-maui-10.0)
+platform türleri için iOS UTType kullanımını açıklar.
 
-### iOS TFM'ini Geri Aç
+## 3. Mac ve derleme araçlarını ayrı doğrulama
 
-`Kasa.App/Kasa.App.csproj` dosyasında iOS TFM şu an yorum satırı içinde yer almaktadır:
+Mac modeli, işlemci, tam macOS sürümü ve kurulu Xcode sürümü yayın ortamı seçilmeden kaydedilmeli.
+“16.x” tek başına yeterli değildir: Sequoia'nın sürümü `15.x` olur; ifade Xcode `16.x` sürümüne ait olabilir.
 
-```xml
-<!-- Windows-only for now (this machine builds Windows). Re-add mobile TFMs on Mac:
-     net10.0-android;net10.0-ios;net10.0-maccatalyst -->
-<TargetFrameworks>net10.0-windows10.0.19041.0</TargetFrameworks>
+Mac Terminal'de salt okunur kontrol:
+
+```bash
+sw_vers -productVersion
+sysctl -n hw.model
+uname -m
+xcodebuild -version
+xcode-select -p
+dotnet --version
+dotnet workload --info
 ```
 
-Mac'te derlemeden önce bu satırı şu şekilde değiştir:
+`uname -m` sonucuna göre .NET SDK paketi `arm64` (Apple silicon) veya `x64` (Intel) seçilir.
+Sadece “Sequoia kurulu” bilgisiyle donanımın resmî desteği veya derleme kapasitesi doğrulanmış sayılmaz.
 
-```xml
-<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-windows10.0.19041.0</TargetFrameworks>
-```
+### Sequoia 15.6+ için doğrulanmış araç adayı
 
-> Yalnızca iOS build'i istiyorsan `net10.0-ios` tek başına da yeterlidir:
-> `<TargetFrameworks>net10.0-ios</TargetFrameworks>`
+[Apple'ın sistem tablosunda](https://developer.apple.com/xcode/system-requirements) Xcode `26.2` ve `26.3`,
+macOS Sequoia `15.6+` üzerinde desteklenir ve iOS `26.2` SDK içerir.
+Xcode `26.4.1` ve `26.5` ise macOS Tahoe `26.2+` ister; bunların gereksinimleri Sequoia adayına uygulanmamalı.
 
----
+| Parça | Resmî sürüm notunda doğrulanan aday |
+| --- | --- |
+| .NET SDK | `10.0.200` |
+| Workload set | `10.0.200` |
+| .NET iOS SDK | `26.2.10217` |
+| Xcode | `26.2`; `26.3` için aşağıdaki sınırlı istisna |
+| macOS | Sequoia `15.6+` |
 
-## 3. İmzalama
+[.NET iOS 26.2.10217 sürüm notu](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode26.2-10217)
+bu eşleşmeyi ve workload setini belirtir. Aynı not, Xcode `26.3` ile SDK'lar aynı olduğu için
+`ValidateXcodeVersion=false` kullanılabileceğini açıkça söyler. Bu istisna yalnız bu doğrulanmış eşleşmeye uygulanır;
+başka Xcode/workload uyuşmazlıklarını bastırmak için genel proje ayarı yapılmaz.
 
-### Apple Developer Hesabı
+Bu, tarihsel olarak doğrulanmış bir araç adayıdır; Emar Kasa'nın bu araçlarla iOS Release/IPA derlemesi henüz sınanmadı.
+SDK'nin bakım/güvenlik güncellemeleri ve kurulacak tam workload sürümü hazırlık sırasında ayrıca değerlendirilip kaydedilmeli.
+Denetimsiz `dotnet workload update` daha yeni Xcode/macOS gerektiren bir iOS SDK'sına geçirebilir.
+[Microsoft Xcode eşleşme rehberi](https://learn.microsoft.com/en-us/dotnet/ios/troubleshooting/xcode-requirement)
+belirli workload sürümlerinin belirli Xcode sürümlerini istediğini açıklar.
 
-1. [developer.apple.com/programs](https://developer.apple.com/programs/) adresine git.
-2. **Kullanıcı** Apple Developer Program'a kaydolur ve yıllık $99 öder.
-3. Üyelik onaylandıktan sonra aşağıdaki adımlar yapılabilir.
+`MauiVersion=10.0.110`, uygulamanın MAUI NuGet sürümüdür; iOS workload/Xcode sürümünü tek başına belirlemez.
+[MAUI sürüm açıklaması](https://github.com/dotnet/maui/wiki/Release-Versions) bu ayrımı belirtir.
+Seçilen SDK ve workload seti, Mac'te yeniden üretilebilir derleme yapılandırmasıyla sabitlenmeli.
 
-### App ID Kaydı
+### App Store Connect SDK eşiği
 
-- **App Store Connect** → Identifiers → `+` → App IDs
-- Platform: iOS
-- Bundle ID: **`com.royalmezat.kasa`** (Explicit)
-- Capabilities: gerekirse Push Notifications vs. etkinleştir (v1 için ek capability gerekmez)
+[Apple'ın 28 Nisan 2026 gereksinimi](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)
+App Store Connect'e yüklenen uygulamalar için Xcode `26+` ve iOS `26+` SDK ister.
+Xcode 26.2/26.3'ün iOS 26.2 SDK'sı bu eşiği sağlar. SDK sürümü uygulamanın en düşük desteklenen iOS sürümü değildir;
+bu projedeki `15.0` cihaz hedefi ayrıca test edilmelidir.
 
-### Distribution Sertifikası
+## 4. İmzalama ve kişisel dağıtım seçimi
 
-1. Keychain Access → Certificate Assistant → "Request a Certificate from a Certificate Authority" → CSR dosyası oluştur.
-2. Apple Developer Portal → Certificates → `+` → **Apple Distribution** → CSR yükle → `.cer` indir.
-3. `.cer`'i Keychain Access'e çift tıkla ile import et.
+Etkin Apple Developer üyeliği, Mac/Xcode ortamı ve aynı Bundle ID için geçerli imzalama gerekir.
+Yerel iOS derlemesi Apple araçlarına erişim gerektirir; Windows'tan çalışma da uygun bir Mac derleme sunucusuna bağlanır.
+[Microsoft iOS yayın rehberi](https://learn.microsoft.com/en-us/dotnet/maui/ios/deployment/publish-cli?view=net-maui-10.0)
 
-### Provisioning Profile
+Kişisel kullanımda dağıtım yöntemi seçilir:
 
-1. Developer Portal → Profiles → `+` → **App Store Connect** dağıtım profili.
-2. App ID: `com.royalmezat.kasa` seç.
-3. Sertifikayı seç → profili indir (`.mobileprovision`).
+- **Geliştirme kurulumu:** Kayıtlı iPhone ve geliştirme sertifikası/profiliyle ilk cihaz denemesi.
+- **Ad hoc dağıtım:** Kullanılacak cihazlar profile kaydedilir; aynı üyeliğin uygun dağıtım sertifikası/profili kullanılır.
+- **TestFlight:** App Store Connect kaydı, dağıtım imzası ve yüklenen IPA gerekir. Her yapı 90 gün kullanılabilir;
+  süre dolmadan yeni yapı yüklenir. Herkese açık App Store yayını ayrı karardır.
+  [Apple TestFlight rehberi](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
 
-### Xcode Otomatik İmzalama (Önerilen)
+Apple Developer hesabında `com.royalmezat.kasa` App ID'sinin takıma ait olduğu doğrulanmalı.
+Profil, seçilen yönteme ve bu App ID'ye uygun olmalı; sertifikanın özel anahtarı Mac anahtarlığında bulunmalı.
+App Store Connect kaydı TestFlight/yayın seçilirse oluşturulur. Geliştirme/ad hoc kurulumda cihaz UDID'si ilgili profile eklenir.
 
-`Kasa.App.csproj` ya da Xcode içinden `Automatically manage signing` açık bırakılabilir.
-`dotnet publish` ile manuel imzalama yapıyorsan aşağıdaki property'leri kullan:
+`.p12`, provisioning profilleri, özel anahtarlar ve parolalar depoya yazılmaz.
+İmzalama bilgileri uygulama koduna gömülmez; seçilen derleme ortamının güvenli deposunda tutulur.
 
-```
--p:CodesignKey="Apple Distribution: <Ad Soyad veya Şirket Adı> (<Team ID>)"
--p:CodesignProvision="<Provisioning Profile adı>"
-```
+## 5. Derleme ve iPhone doğrulama kapıları
 
-> **Güvenlik:** Sertifika özel anahtarları (`.p12`, `.mobileprovision`) repoya eklenmez.
-> CI ortamı kullanılırsa GitHub Actions Secrets veya Apple Fastlane Match tercih edilir.
+Aşağıdaki kapılar tamamlanmadan dağıtım hazır kabul edilmez:
 
----
+1. Bölüm 2'deki platform engelleri giderilmiş ve iOS hedefi Mac için etkinleştirilmiş.
+2. Mac modeli/macOS, seçilen Xcode, .NET SDK ve workload sürümleri kaydedilmiş; sürüm eşleşmesi doğrulanmış.
+3. iOS simülatöründe açılış, giriş, menüler ve dar ekran yerleşimi başarılı.
+4. Fiziksel iPhone'da **Release** derlemesi açılıyor; imzalama ve güvenli oturum saklama çalışıyor.
+5. Geçici test verileriyle kayıt, düzenleme, önizleme/onay, çıkış, bağlantı kesilmesi ve yeniden açma denenmiş.
+6. Dosyalar'dan gerçek örnek PDF seçimi, ekstre uyarıları ve kaynak satırlarla önerilerin karşılaştırılması denenmiş;
+   mali kayda geçmeden tarih/tutar/yön kontrolü yapılmış.
+7. Paylaşım/indirme, klavye altında kalan alanlar, güvenli alan, yatay kullanım ve büyük yazı kontrol edilmiş.
+   Yerel bildirim özelliği sunuluyorsa izin ve gerçek cihaz davranışı ayrıca doğrulanmış.
+8. Dağıtım için üretilen IPA'nın Bundle ID'si, ürün sürümü, derleme numarası ve imza/profil eşleşmesi doğrulanmış.
 
-## 4. IPA Derleme (Mac'te)
+Simülatör RID'si Mac işlemcisine göre `iossimulator-arm64` veya `iossimulator-x64` olur.
+Simülatör çıktısı fiziksel cihaz paketi yerine kullanılamaz.
 
-### Temel Komut
+### Hazırlık tamamlandıktan sonraki IPA komut şablonu
 
-Repo kökünden çalıştırılır:
+Bu şablon **iOS hedefi etkinleştirildikten ve yukarıdaki doğrulama kapıları tamamlandıktan sonra**,
+seçilen dağıtım sertifikası/profiliyle Mac'te uygulanır. Bugünkü Windows hedefiyle doğrudan çalışmaz.
 
 ```bash
 dotnet publish Kasa.App/Kasa.App.csproj \
   -f net10.0-ios \
   -c Release \
   -r ios-arm64 \
+  -p:ArchiveOnBuild=true \
   -p:CodesignKey="Apple Distribution: <Ad> (<TeamID>)" \
-  -p:CodesignProvision="<Profil Adı>"
+  -p:CodesignProvision="<Dağıtım Profilinin Adı>"
 ```
 
-### Çıktı Konumu
+Yalnız bölüm 3'teki `26.2.10217` workload ve Xcode `26.3` birlikte seçildiyse,
+sürüm notundaki `-p:ValidateXcodeVersion=false` parametresi bu derlemeye eklenir.
 
-```
-Kasa.App/bin/Release/net10.0-ios/ios-arm64/publish/
-```
+Beklenen dağıtım dizini: `Kasa.App/bin/Release/net10.0-ios/ios-arm64/publish/`.
+Üretilen gerçek `.ipa` dosya adı ve içerik sürümü çıktıdan doğrulanır; dosyanın varlığı tek başına iPhone testini karşılamaz.
+`ArchiveOnBuild=true` arşiv üretimi ve imzalama parametreleri için
+[Microsoft komut satırı yayın rehberi](https://learn.microsoft.com/en-us/dotnet/maui/ios/deployment/publish-cli?view=net-maui-10.0) kullanılır.
 
-Ana dosya: `Kasa.App.ipa`
+## 6. TestFlight / App Store Connect yüklemesi
 
-### Notlar
+1. Doğru takım altında uygulama kaydı ve Bundle ID eşleşmesi kontrol edilir.
+2. İmzalı IPA, Apple'ın desteklediği **Transporter** veya uygun Xcode yükleme akışıyla App Store Connect'e yüklenir.
+3. İşlenen yapı, sürüm ve derleme numarası doğrulanır; şifreleme soruları gerçek uygulama içeriğine göre yanıtlanır.
+4. TestFlight seçilirse kendi hesabı uygun iç test kullanıcısı olarak eklenir; cihazdan kurulum ve güncelleme denenir.
+5. Haricî test kullanıcıları eklenecekse Apple'ın beta inceleme kuralları uygulanır.
+6. Herkese açık App Store yayını istenirse mağaza bilgileri ve incelemeye gönderme ayrıca tamamlanır.
 
-- `-r ios-arm64` yalnızca fiziksel cihaz (App Store) içindir; simülatör build'i için `iossimulator-x64` kullanılır ama simülatör IPA App Store'a gönderilemez.
-- Simulator build'i App Store Connect'e **yüklenemez**; dağıtım için mutlaka `ios-arm64` kullan.
-- Xcode 16 ile `xcodebuild archive` yöntemi de kullanılabilir; `.xcarchive` → `.ipa` Xcode Organizer aracılığıyla aktarılır.
+[Apple'ın desteklediği yükleme yöntemleri](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
+izlenir. Önceki rehberdeki `notarytool submit Kasa.App.ipa` örneği iOS App Store Connect yüklemesi için yanlıştı
+ve kaldırıldı.
 
----
+### Yayın beyanları
 
-## 5. Sürüm Numaraları
+App Store yayını seçilirse gizlilik ve şifreleme beyanları uygulamanın gerçek veri akışına göre hazırlanır.
+Finansal verinin kendi sunucusunda tutulması “finansal veri toplanmıyor” demek değildir:
+uygulama kayıt ve PDF içeriğini sunucuya gönderip kalıcı olarak saklar.
+[Apple veri toplama tanımı](https://developer.apple.com/app-store/app-privacy-details/) uyarınca
+finansal bilgi, yüklenen içerik ve kimlik/oturum verileri ayrı değerlendirilir; kullanıcı kendi giriyor diye otomatik muafiyet yazılmaz.
 
-`Kasa.App/Kasa.App.csproj` içindeki değerler:
-
-| csproj Property | iOS Karşılığı | Mevcut Değer |
-|---|---|---|
-| `ApplicationDisplayVersion` | `CFBundleShortVersionString` (kullanıcıya gösterilen) | `1.0` |
-| `ApplicationVersion` | `CFBundleVersion` (derleme numarası) | `1` |
-
-`ApplicationDisplayVersion` csproj'da elle yazılmaz: değeri depo kökündeki `Directory.Build.props`'taki `KasaSurumu`'dur
-(`$(KasaSurumu)`; sunucu ve masaüstü uygulamayla aynı sürüm, en çok üç parça). Kullanıcıya gösterilen sürüm orada yükseltilir.
-
-Yeni sürüm yayınlarken:
-- `ApplicationDisplayVersion`: kullanıcıya gösterilen sürüm (ör. `1.0.1`, `1.1`)
-- `ApplicationVersion`: her App Store yüklemesinde artırılmalıdır (App Store Connect bunu zorunlu tutar; ör. `2`, `3`, ...)
-
----
-
-## 6. App Store Connect Adımları
-
-### Uygulama Kaydı
-
-1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → My Apps → `+` → New App.
-2. Platform: iOS.
-3. Bundle ID: `com.royalmezat.kasa` seç (önceden Developer Portal'da tanımlanmış olmalı).
-4. Ad: **Emar Kasa**.
-5. SKU: `emar-kasa` (herhangi bir dahili tanımlayıcı, değiştirilmez).
-
-### TestFlight (Önerilir)
-
-1. IPA'yı Transporter uygulaması veya `xcrun altool --upload-app` ile App Store Connect'e yükle.
-2. App Store Connect → TestFlight sekmesi → iç test kullanıcıları ekle.
-3. Smoke test'leri geçince App Store'a taşı.
-
-### IPA Yükleme
-
-**Transporter (Mac App Store'dan):**
-```
-Transporter → Add → .ipa dosyasını seç → Deliver
-```
-
-**Komut satırı (`altool`, Xcode 14 öncesi):**
-```bash
-xcrun altool --upload-app -f Kasa.App.ipa \
-  -t ios \
-  -u <apple-id-email> \
-  -p <app-specific-password>
-```
-
-**Komut satırı (`notarytool` / Xcode 14+, önerilen):**
-```bash
-xcrun notarytool submit Kasa.App.ipa \
-  --apple-id <apple-id-email> \
-  --team-id <TeamID> \
-  --password <app-specific-password> \
-  --wait
-```
-
-> App-specific password: [appleid.apple.com](https://appleid.apple.com) → Güvenlik → Uygulamaya özel şifreler.
-
-### Mağaza Sayfası Doldurma (Kullanıcı)
-
-App Store Connect'te şunları doldur:
-- Açıklama, anahtar kelimeler, ekran görüntüleri (bkz. `docs/store/`)
-- Destek URL, gizlilik politikası URL
-- Yaş derecelendirmesi soruları
-- Şifreleme ihracat uyumu bildirimi
-- App Privacy (Nutrition Label)
-
-### İncelemeye Gönder (Kullanıcı)
-
-Tüm bilgiler dolunca **"Submit for Review"** — bu adım **kullanıcı** tarafından yapılır.
-
----
-
-## 7. Apple'a Özgü Gereksinimler
-
-### App Privacy (Nutrition Label)
-
-App Store Connect → App Privacy bölümünde hangi verilerin toplandığı beyan edilmelidir.
-
-Emar Kasa v1 için beklenen beyan:
-
-| Veri Türü | Toplanıyor mu? | Kullanım |
-|---|---|---|
-| Finansal bilgi | Hayır (sunucuda; kullanıcı kendi girer) | — |
-| Kimlik bilgisi | Evet (kullanıcı adı + şifre) | Kimlik doğrulama |
-| Kullanım verileri | Hayır | — |
-| Tanımlayıcı (cihaz ID) | Hayır | — |
-
-> Kesin beyanı uygulama geliştirme tamamlandıktan sonra gözden geçir; veri akışı değişirse güncelle.
-
-### Şifreleme İhracat Uyumu (Export Compliance)
-
-App Store Connect, uygulamanın şifreleme kullandığını sorar. .NET MAUI + HTTPS standart şifreleme kullanır (AES/TLS) — bu **muaf kategoriye** girer (ABD EAR §742.15(b) istisnası).
-
-Beyan: "Evet, şifreleme kullanıyor" → "Standart şifreleme, muafiyetten yararlanıyor" seçeneğini işaretle. `Info.plist`'e `ITSAppUsesNonExemptEncryption = NO` eklemek bu soruyu otomatik atlar:
-
-```xml
-<!-- Kasa.App/Platforms/iOS/Info.plist -->
-<key>ITSAppUsesNonExemptEncryption</key>
-<false/>
-```
-
-### Yaş Derecelendirmesi
-
-App Store Connect → Age Rating → anketi doldur.
-Emar Kasa finansal takip uygulaması; şiddet, alkol, kumar vb. yok → **4+** beklenir.
-
----
-
-## Hızlı Başvuru
-
-| Alan | Değer |
-|---|---|
-| TFM (iOS) | `net10.0-ios` |
-| RID | `ios-arm64` |
-| ApplicationId | `com.royalmezat.kasa` |
-| ApplicationTitle | `Emar Kasa` |
-| ApplicationDisplayVersion | `1.0` |
-| ApplicationVersion | `1` |
-| Min iOS | `15.0` |
-| API sunucusu | `https://kasa.emarglobal.com/` |
-| App Store Connect | [appstoreconnect.apple.com](https://appstoreconnect.apple.com) |
-| Developer Portal | [developer.apple.com](https://developer.apple.com) |
+`Platforms/iOS/Resources/PrivacyInfo.xcprivacy` mevcut MAUI temel bildirimlerini içerir; son uygulamanın API/SDK kullanımıyla
+uyumu iOS paketinde kontrol edilmelidir. `Info.plist` içindeki şifreleme anahtarları da uygulama incelenmeden otomatik eklenmez.
+[Apple şifreleme rehberi](https://developer.apple.com/help/app-store-connect/manage-app-information/determine-and-upload-app-encryption-documentation/)
+izlenir. Yaş derecelendirmesi güncel Apple anketiyle belirlenir; burada hazır bir derece varsayılmaz.

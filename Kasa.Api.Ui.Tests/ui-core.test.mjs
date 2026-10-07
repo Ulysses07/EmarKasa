@@ -2777,6 +2777,185 @@ async function chooseImportRow(nodes, no = 1, mode = 'Genel') {
   }
 }
 
+test('PDF row editor opens below its own summary without selecting or posting and keeps drafts when collapsed', async () => {
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument({ satirlar: [importRow(), importRow({ no: 2, aciklama: 'Fatura' })] }))
+  );
+  await app.navigate('imports', 12);
+  await settle();
+  const first = importRowNode(nodes);
+  const second = importRowNode(nodes, 2);
+  const toggle = first.find(node => node.tag === 'button' && node.attributes['aria-controls']);
+  assert.ok(toggle, 'each row has an accessible editor toggle');
+  const fields = first.find(node => node.attributes.id === toggle.attributes['aria-controls']);
+  assert.ok(fields, 'the editor belongs to the same row as its toggle');
+  assert.equal(fields.hidden, true);
+  assert.equal(toggle.attributes['aria-expanded'], 'false');
+  await toggle.listeners.click({ currentTarget: toggle });
+  assert.equal(fields.hidden, false);
+  assert.equal(toggle.attributes['aria-expanded'], 'true');
+  assert.equal(viewField(nodes, 'sec-1').checked, false);
+  assert.equal(viewField(nodes, 'sec-2').checked, false);
+  assert.equal(second.find(node => node.className === 'import-row-editor').hidden, true);
+  const text = viewField(nodes, 'aciklama-1');
+  text.value = 'Elle düzeltilmiş kira';
+  text.listeners.input();
+  await toggle.listeners.click({ currentTarget: toggle });
+  await toggle.listeners.click({ currentTarget: toggle });
+  assert.equal(text.value, 'Elle düzeltilmiş kira');
+  assert.equal(viewField(nodes, 'sec-1').checked, false);
+  assert.equal(
+    calls.some(call => call.method === 'POST'),
+    false
+  );
+});
+
+test('PDF selection and editor expansion are independent and collapsing leaves a valid preview intact', async () => {
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument(), { '/api/ekstre-aktar/12/onizleme': importPreview() })
+  );
+  await app.navigate('imports', 12);
+  const row = importRowNode(nodes);
+  const toggle = row.find(node => node.tag === 'button' && node.attributes['aria-controls']);
+  assert.ok(toggle);
+  const fields = row.find(node => node.attributes.id === toggle.attributes['aria-controls']);
+  await chooseImportRow(nodes);
+  assert.equal(fields.hidden, true, 'financial selection does not open the editor');
+  await toggle.listeners.click({ currentTarget: toggle });
+  await clickView(nodes, 'Seçilenleri önizle');
+  const preview = nodes.get('#view').find(node => node.className === 'import-preview');
+  assert.equal(preview.hidden, false);
+  const writes = calls.filter(call => call.method === 'POST').length;
+  await toggle.listeners.click({ currentTarget: toggle });
+  assert.equal(fields.hidden, true);
+  assert.equal(preview.hidden, false, 'collapsing is not a financial edit');
+  assert.equal(viewField(nodes, 'sec-1').checked, true);
+  assert.equal(calls.filter(call => call.method === 'POST').length, writes);
+});
+
+test('PDF unselected card payment editor shows the intended card field when opened', async () => {
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument({ satirlar: [importRow({ onerilenIslem: 'KartOdemesi' })] }))
+  );
+  await app.navigate('imports', 12);
+  const toggle = importRowNode(nodes).find(node => node.tag === 'button' && node.attributes['aria-controls']);
+  await toggle.listeners.click({ currentTarget: toggle });
+  assert.equal(viewField(nodes, 'kart-1').closest('label').hidden, false);
+  assert.equal(viewField(nodes, 'sec-1').checked, false);
+  assert.equal(
+    calls.some(call => call.method === 'POST'),
+    false
+  );
+});
+
+test('PDF selecting an edited refund retains its chosen source charge', async () => {
+  const { app, nodes } = await openApp(
+    false,
+    importResponses(importDocument({ kaynak: 'Kart', kartId: 4, satirlar: [importRow({ onerilenIslem: 'KartHarcama' })] }), {
+      '/api/takip/kartlar/4': {
+        ...sampleCard,
+        harcamalar: [{ id: 18, tutar: 100, tarih: '2026-09-23', aciklama: 'Mal', iptal: false }],
+      },
+    })
+  );
+  await app.navigate('imports', 12);
+  const toggle = importRowNode(nodes).find(node => node.tag === 'button' && node.attributes['aria-controls']);
+  await toggle.listeners.click({ currentTarget: toggle });
+  const kind = viewField(nodes, 'tur-1');
+  kind.value = 'KartIade';
+  await kind.listeners.change();
+  const refund = viewField(nodes, 'iade-kaynak-1');
+  refund.value = '18';
+  refund.listeners.change();
+  const checked = viewField(nodes, 'sec-1');
+  checked.checked = true;
+  await checked.listeners.change();
+  await settle();
+  assert.equal(refund.value, '18', 'selecting for save does not discard an already edited refund');
+});
+
+test('PDF initially recommended refund loads its source on opening without selecting or invalidating another row preview', async () => {
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(
+      importDocument({
+        kaynak: 'Kart',
+        kartId: 4,
+        satirlar: [importRow({ onerilenIslem: 'KartHarcama' }), importRow({ no: 2, onerilenIslem: 'KartIade', yon: 'Giris' })],
+      }),
+      {
+        '/api/takip/kartlar/4': {
+          ...sampleCard,
+          harcamalar: [{ id: 18, tutar: 100, tarih: '2026-09-23', aciklama: 'Mal', iptal: false }],
+        },
+        '/api/ekstre-aktar/12/onizleme': importPreview(),
+      }
+    )
+  );
+  await app.navigate('imports', 12);
+  await chooseImportRow(nodes, 1, 'Esit');
+  const channel = importRowNode(nodes).find(node => node.attributes.name === 'pay-kanal-1');
+  channel.checked = true;
+  channel.listeners.change();
+  await clickView(nodes, 'Seçilenleri önizle');
+  const preview = nodes.get('#view').find(node => node.className === 'import-preview');
+  assert.equal(preview.hidden, false);
+  const writes = calls.filter(call => call.method === 'POST').length;
+  const toggle = importRowNode(nodes, 2).find(node => node.tag === 'button' && node.attributes['aria-controls']);
+  await toggle.listeners.click({ currentTarget: toggle });
+  await settle();
+  const refund = viewField(nodes, 'iade-kaynak-2');
+  assert.ok(
+    refund.find(node => node.tag === 'option' && node.value === '18'),
+    'initial refund can be edited without selecting for save'
+  );
+  assert.equal(refund.disabled, false);
+  assert.equal(viewField(nodes, 'sec-2').checked, false);
+  assert.equal(preview.hidden, false);
+  assert.equal(calls.filter(call => call.method === 'POST').length, writes);
+  refund.value = '18';
+  await toggle.listeners.click({ currentTarget: toggle });
+  await toggle.listeners.click({ currentTarget: toggle });
+  await settle();
+  assert.equal(refund.value, '18', 'reopening preserves the chosen refund source');
+  assert.equal(calls.filter(call => call.path === '/api/takip/kartlar/4').length, 1, 'reopening does not reload source choices');
+});
+
+test('PDF initial refund source load retries on reopening after a read failure', async () => {
+  let attempts = 0;
+  const { app, nodes, calls } = await openApp(
+    false,
+    importResponses(importDocument({ kaynak: 'Kart', kartId: 4, satirlar: [importRow({ onerilenIslem: 'KartIade' })] }), {
+      '/api/takip/kartlar/4': () => {
+        if (++attempts === 1) throw new Error('offline');
+        return { ...sampleCard, harcamalar: [{ id: 18, tutar: 100, tarih: '2026-09-23', aciklama: 'Mal', iptal: false }] };
+      },
+    })
+  );
+  await app.navigate('imports', 12);
+  const toggle = importRowNode(nodes).find(node => node.tag === 'button' && node.attributes['aria-controls']);
+  await toggle.listeners.click({ currentTarget: toggle });
+  assert.equal(viewField(nodes, 'iade-kaynak-1').disabled, true);
+  await toggle.listeners.click({ currentTarget: toggle });
+  await toggle.listeners.click({ currentTarget: toggle });
+  const refund = viewField(nodes, 'iade-kaynak-1');
+  assert.ok(
+    refund.find(node => node.tag === 'option' && node.value === '18'),
+    'reopening can recover a failed read'
+  );
+  assert.equal(refund.disabled, false);
+  assert.doesNotMatch(importRowNode(nodes).textContent, /İade kaynağı yüklenemedi/);
+  assert.equal(attempts, 2);
+  assert.equal(viewField(nodes, 'sec-1').checked, false);
+  assert.equal(
+    calls.some(call => call.method === 'POST'),
+    false
+  );
+});
+
 test('statement proposals fill allocations without selecting or saving and preserve manual edits', async () => {
   const { app, nodes, calls } = await openApp(
     false,

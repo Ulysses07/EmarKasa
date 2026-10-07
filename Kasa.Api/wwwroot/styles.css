@@ -2061,7 +2061,7 @@
     gap: 14px;
   }
   .import-row {
-    padding: 18px;
+    padding: 14px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--paper);
@@ -2075,7 +2075,7 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 16px;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
   }
   .import-row-head label {
     display: flex;
@@ -2086,6 +2086,33 @@
   .import-row-head input {
     flex: none;
     margin: 0;
+    width: 24px;
+    height: 24px;
+  }
+  .import-row-toggle {
+    width: 100%;
+    padding: 8px 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+  }
+  .import-row-summary {
+    display: flex;
+    width: 100%;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    overflow-wrap: anywhere;
+  }
+  .import-row-toggle-label {
+    flex: none;
+    color: var(--green);
+    font-size: 0.8rem;
+  }
+  .import-row-editor {
+    border-top: 1px solid var(--line);
+    margin-top: 10px;
+    padding-top: 12px;
   }
   .import-source-text {
     white-space: pre-wrap;
@@ -2097,8 +2124,13 @@
     border-radius: 6px;
     margin: 8px 0;
   }
-  .import-row .form-grid {
-    margin-top: 14px;
+  .import-row .import-editor-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 12px;
+  }
+  .import-row-editor label > input,
+  .import-row-editor label > select {
+    margin-top: 4px;
   }
   .import-row .allocation-row {
     margin-top: 10px;
@@ -2148,7 +2180,11 @@
     flex-wrap: wrap;
   }
   .import-row fieldset {
-    margin-top: 15px;
+    margin-top: 10px;
+  }
+  .import-row fieldset legend {
+    font-size: 0.86rem;
+    margin-bottom: 6px;
   }
   .import-preview table {
     min-width: 600px;
@@ -2167,8 +2203,14 @@
       gap: 10px;
       flex-wrap: wrap;
     }
-    .import-row .form-grid {
+    .import-row .import-editor-grid {
       grid-template-columns: 1fr;
+    }
+    .import-editor-grid > .span-all {
+      grid-column: auto;
+    }
+    .import-row-summary {
+      align-items: flex-start;
     }
     .import-toolbar {
       padding: 13px;
