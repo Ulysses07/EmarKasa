@@ -8,7 +8,9 @@ public sealed class TestFlightGuncelleyici : IUygulamaGuncelleyici
     public const string YayinAdresi = "https://testflight.apple.com/";
     public bool UygulamaIciKurulum => false;
     public string HariciKanalMetni => "TestFlight kanalını aç";
-    public string KanalAciklamasi => "iOS güncellemeleri TestFlight üzerinden yüklenir. Yeni build olup olmadığını TestFlight uygulamasında kontrol edin. TestFlight'te Emar Kasa'nın görünmesi için test davetini kabul etmiş olmalısınız.";
+    public string KanalAciklamasi => "iOS güncellemeleri TestFlight üzerinden yüklenir. "
+        + "Yeni build olup olmadığını TestFlight uygulamasında kontrol edin. "
+        + "TestFlight'te Emar Kasa'nın görünmesi için test davetini kabul etmiş olmalısınız.";
     public Task<UygulamaGuncelleme?> KontrolEtAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
