@@ -1,8 +1,12 @@
 # Emar Kasa — Android (Google Play Store) Yayın Kılavuzu
 
+> Android bu depoda etkin hedef değildir; aşağıdaki adımlar gelecekteki Android portu için
+> taslaktır. Mevcut desteklenen dağıtımlar Windows ve iOS/TestFlight'tır. Kimlik `com.emar.kasa`
+> olarak güncellenmiştir; bu değişiklik Android sürümünün yayımlandığı anlamına gelmez.
+
 ## Amaç & Sorumluluk Sınırı
 
-Emar Kasa Android sürümünü (`com.royalmezat.kasa`) Google Play Store'a yayınlamak.
+Emar Kasa Android sürümünü (`com.emar.kasa`) Google Play Store'a yayınlamak.
 
 | Görev | Sorumlu |
 |---|---|
@@ -54,7 +58,7 @@ Mac'te (veya Android workload'lu makinede) `<TargetFrameworks>` satırını şö
 
 Android uygulamaları Play Store'a yüklenmeden önce imzalanmalıdır. Bu anahtar
 **bir kez oluşturulur ve sonsuza dek korunur** — kaybedilirse aynı paket adıyla
-(`com.royalmezat.kasa`) bir daha güncelleme yayınlanamaz.
+(`com.emar.kasa`) bir daha güncelleme yayınlanamaz.
 
 ### Keystore Dosyası Oluşturma
 
@@ -175,7 +179,7 @@ Güncelleme yaparken her iki değeri de csproj'da düzenle, ardından yeniden de
 3. Varsayılan dil: Türkçe
 4. Uygulama veya oyun: **Uygulama**
 5. Ücretsiz veya ücretli: ücret politikanıza göre seç.
-6. Paket adı otomatik atanır; **`com.royalmezat.kasa`** olduğunu doğrula
+6. Paket adı otomatik atanır; **`com.emar.kasa`** olduğunu doğrula
    (AAB yüklendikten sonra değiştirilemez).
 
 ### 3. İç Test Sürümü Yükleme
@@ -236,7 +240,7 @@ materyaller Play Console'da zorunludur:
 
 | Alan | Değer |
 |---|---|
-| ApplicationId (paket adı) | `com.royalmezat.kasa` |
+| ApplicationId (paket adı) | `com.emar.kasa` |
 | ApplicationTitle | `Emar Kasa` |
 | ApplicationDisplayVersion | `1.0` |
 | ApplicationVersion (versionCode) | `1` |

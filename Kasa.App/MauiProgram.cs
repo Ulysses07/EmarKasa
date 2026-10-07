@@ -11,6 +11,11 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
+#if IOS
+        const string istemciPlatformu = "ios";
+#else
+        const string istemciPlatformu = "windows";
+#endif
         // Platform sistem fontları Styles.xaml içindeki YaziAilesi kaynağından seçilir.
         builder.UseMauiApp<App>();
 
@@ -26,7 +31,7 @@ public static class MauiProgram
                 // indirme 5 dk, yedek 15 dk. Genel HttpClient sınırı uzun dosya işlemlerini kesmesin diye kapalıdır.
                 Timeout = System.Threading.Timeout.InfiniteTimeSpan,
             };
-            return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>(), KasaZamanAsimlari.Varsayilanlar);
+            return new KasaApiClient(http, sp.GetRequiredService<ITokenStore>(), KasaZamanAsimlari.Varsayilanlar, istemciPlatformu);
         });
         builder.Services.AddSingleton<IKasaApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IAlisApi>(sp => sp.GetRequiredService<KasaApiClient>());
@@ -83,6 +88,14 @@ public static class MauiProgram
         builder.Services.AddSingleton<BildirimNobetcisi>();
         builder.Services.AddSingleton<BildirimKontrolu>();
 
+#if WINDOWS
+        builder.Services.AddSingleton<IUygulamaGuncelleyici, WindowsVelopackGuncelleyici>();
+#else
+        builder.Services.AddSingleton<IUygulamaGuncelleyici, TestFlightGuncelleyici>();
+#endif
+        builder.Services.AddSingleton<UygulamaGuncellemeViewModel>();
+        builder.Services.AddTransient<Views.UygulamaGuncellemeAlani>();
+
         builder.Services.AddSingleton<AuthViewModel>();
         builder.Services.AddTransient<PanelViewModel>();
         builder.Services.AddTransient<HaftalikViewModel>();
@@ -90,7 +103,8 @@ public static class MauiProgram
         builder.Services.AddTransient<IslemlerViewModel>();
         builder.Services.AddTransient<AyarlarViewModel>();
         builder.Services.AddTransient<AlislarViewModel>();
-        builder.Services.AddTransient<GuvenlikViewModel>();
+        builder.Services.AddTransient<GuvenlikViewModel>(sp => new GuvenlikViewModel(
+            sp.GetRequiredService<IYonetimApi>(), sp.GetRequiredService<AuthViewModel>(), istemciPlatformu));
         builder.Services.AddTransient<DisariAktarViewModel>();
         builder.Services.AddTransient<KartTakipViewModel>();
         builder.Services.AddTransient<KrediTakipViewModel>();

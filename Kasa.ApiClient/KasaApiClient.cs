@@ -23,12 +23,16 @@ public sealed partial class KasaApiClient : IKasaApi, IIslemSayfalamaApi, IOturu
     };
 
     /// <param name="zamanAsimlari">İstek başına süre sınırları; verilmezse <see cref="KasaZamanAsimlari.Varsayilanlar"/>.</param>
-    public KasaApiClient(HttpClient http, ITokenStore store, KasaZamanAsimlari? zamanAsimlari = null)
+    public KasaApiClient(HttpClient http, ITokenStore store, KasaZamanAsimlari? zamanAsimlari = null, string? istemciPlatformu = null)
     {
         _http = http;
         _store = store;
         _zaman = zamanAsimlari ?? KasaZamanAsimlari.Varsayilanlar;
+        IstemciPlatformu = IstemciPlatformlari.Normalize(istemciPlatformu);
     }
+
+    /// <summary>MAUI bağımlılığı olmadan ana uygulamadan alınır; eski çağıranlar Windows kabul edilir.</summary>
+    public string IstemciPlatformu { get; }
 
     /// <summary>Tanıdık cihaz belirtecinin gönderildiği başlık (sunucuda TanidikCihaz.BaslikAdi).</summary>
     public const string TanidikCihazBasligi = "X-Kasa-Cihaz";
@@ -249,6 +253,7 @@ public sealed partial class KasaApiClient : IKasaApi, IIslemSayfalamaApi, IOturu
     private async Task<HttpResponseMessage> YanitAlAsync(HttpRequestMessage istek, bool tokenEkle, HttpCompletionOption tamamlama, CancellationToken ct)
     {
         istek.Headers.TryAddWithoutValidation(IstemciSurumuBasligi, IstemciSurumu);
+        istek.Headers.TryAddWithoutValidation(IstemciPlatformlari.Baslik, IstemciPlatformu);
         string? token = null;
         if (tokenEkle)
         {

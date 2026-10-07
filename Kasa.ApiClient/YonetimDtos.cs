@@ -3,7 +3,28 @@ namespace Kasa.ApiClient;
 public record SifreDegistirYaz(string MevcutSifre, string YeniSifre);
 public record SifreKurtarYaz(string Kullanici, string Kod, string YeniSifre);
 public record KurtarmaKoduDto(string Kod);
-public record SurumDto(string Surum, string MinimumIstemci, string? IndirmeAdresi, string? Notlar);
+/// <summary>İlk dört alan eski sunucularla uyumludur. Surum sunucu ürün sürümüdür; bir istemci yayını olduğunu göstermez.</summary>
+public record SurumDto(string Surum, string MinimumIstemci, string? IndirmeAdresi, string? Notlar,
+    IstemciYayinDto? Windows = null, IstemciYayinDto? Ios = null)
+{
+    public IstemciYayinDto IstemciYayini(string? platform) => IstemciPlatformlari.Normalize(platform) == IstemciPlatformlari.Ios
+        ? Ios ?? new(null, MinimumIstemci, IstemciPlatformlari.TestFlightAdresi,
+            "Bu sunucu iOS yayın bilgisi sağlamıyor. Build erişimini TestFlight'ta kontrol edin; her build 90 gün geçerlidir.")
+        : Windows ?? new(null, MinimumIstemci, IndirmeAdresi ?? IstemciPlatformlari.WindowsYayinAdresi, Notlar);
+}
+
+/// <summary>SonSurum null ise en son yayımlanmış sürüm bilinmiyor; sunucu Surum alanıyla doldurulmaz.</summary>
+public record IstemciYayinDto(string? SonSurum, string MinimumIstemci, string IndirmeAdresi, string? Notlar = null);
+
+public static class IstemciPlatformlari
+{
+    public const string Windows = "windows";
+    public const string Ios = "ios";
+    public const string Baslik = "X-Kasa-Istemci-Platformu";
+    public const string WindowsYayinAdresi = "https://github.com/Ulysses07/EmarKasa/releases";
+    public const string TestFlightAdresi = "https://testflight.apple.com/";
+    public static string Normalize(string? platform) => string.Equals(platform?.Trim(), Ios, StringComparison.OrdinalIgnoreCase) ? Ios : Windows;
+}
 /// <summary><see cref="RotasyonUyarisi"/>: sunucunun son rotasyonda silemediği eski yedek; yedeğin kendisi başarılıdır.
 /// Disk alanları (bayt; okunamazsa ya da eski sunucuda null): yedek dizininin ve belge deposunun (veri) diskindeki boş alan, yedeklerin
 /// ve yedek aynasının toplam boyutu, yedekten sonra kalması gereken asgari boş alan. <see cref="DiskUyarisi"/>: boş alan asgarinin

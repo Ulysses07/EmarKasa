@@ -1,59 +1,85 @@
-# Emar Kasa — Windows masaüstü ZIP yayını
+# Emar Kasa — Windows kurulum ve güncelleme yayını
 
-Windows MAUI masaüstü uygulaması bağımsız ürün olarak korunur.
-macOS üzerinde iOS hedefinin eklenmesi Windows'un hedefini veya verisini değiştirmez.
+Windows MAUI masaüstü uygulaması Windows 10/11 x64 için yayımlanır. Paket .NET ve Windows App SDK çalışma zamanlarını içerir. ARM64 veya x86 paketi bu akışta üretilmez.
+
+## İlk kurulum
+
+1. GitHub Actions içinde başarılı **Windows desktop release** veya **Kasa CI** koşusunu aç.
+2. **Artifacts** altından `kasa-windows-<ürün sürümü>-win-x64` dosyasını indir ve aç.
+3. İçindeki `*-Setup.exe` kurulum dosyasını çalıştır.
+4. Uygulamayı **Emar Kasa** Başlat menüsü veya masaüstü kısayoluyla aç.
+
+Kurulum kullanıcıya özeldir; varsayılan konum `%LocalAppData%\EmarKasa` olur. Kısayol, güncelleme sonrasında da aynı kurulumdaki güncel uygulamayı açar. Kurulum klasöründeki dosyaları tek tek taşıma.
+
+**Daha önce ZIP kullanıyorsan bir kez Setup ile kur.** Eski ZIP klasöründen çalışan uygulama uygulama içi güncelleme yapamaz. Alternatif dağıtım olarak `EmarKasa-<ürün sürümü>-win-x64.zip` korunur: tüm klasörü çıkarıp `Kasa.App.exe` açılır; yenileme elle yeni ZIP ile yapılır.
+
+Marka geçişinde uygulama kimliği `com.royalmezat.kasa` yerine `com.emar.kasa` oldu. Windows güvenli depolama konumu bu kimliğe bağlı olduğundan **yeniden giriş gerekebilir**. Önceki kimliğin yerel giriş bilgileri otomatik taşınmaz veya silinmez. Finans kayıtları API sunucusunda kaldığı için exe/kurulum değiştirmek sunucudaki kayıtları değiştirmez.
+
+## Uygulama içi güncelleme
+
+Setup ile kurulu Windows uygulaması başlangıçta yalnız kararlı [Emar Kasa GitHub yayınlarındaki](https://github.com/Ulysses07/EmarKasa/releases) yeni sürüm bilgisini kontrol eder; paketi indirmez veya kurmaz. **Uygulama güncellemeleri** görünümü açık ekranın üzerinde açılır ve alttaki formu korur. Her sayfadan kontrol ve indirme yapılabilir. İndirme ve **Kur ve yeniden başlat** kullanıcı tarafından başlatılır; indirilmiş paket sonraki açılışta kendiliğinden uygulanmaz.
+
+Güncelleme kurulumu uygulamayı kapatıp yeniden başlattığı için yalnız **Haftalık rapor** veya **Giriş** ekranından başlatılır. Başka bir ekranda çalışıyorsan önce formunu kaydet, **Haftalık rapor** ekranına dön ve güncelleme görünümünü yeniden açarak kurulumu onayla. Devam eden işlemler tamamlanmadan kurulum başlamaz. Açık form varken kontrol ve indirme yapabilirsin; bu işlemler formu kapatmaz.
+
+Yayın hazırlayan kişi aynı GitHub sürümüne aşağıdaki üretim dosyalarını birlikte eklemeli:
+
+| Dosya | Kullanım |
+| --- | --- |
+| `*-Setup.exe` | İlk kurulum |
+| `EmarKasa-<sürüm>-full.nupkg` | Kurulu uygulamanın indireceği tam güncelleme paketi |
+| `releases.win.json` | Paket sürümü, adı, boyutu ve özetlerini içeren güncelleme feed'i |
+| `EmarKasa-<sürüm>-win-x64.zip` | Elle kullanılan alternatif dağıtım |
+| `build.json`, `SHA256SUMS.txt` | Kaynak commit, doğrulama sonuçları ve dosya özetleri |
+
+CLI paket adında platform/kanal eki kullanabilir; artifact içindeki gerçek `*-full.nupkg` dosya adını koru. Feed dosyasında yazan adla yüklenen paket adı aynı olmalı.
+
+**Taslak GitHub sürümleri ve prerelease sürümleri bu istemcinin güncelleme kanalında görünmez.** Dosyalar kontrol edildikten sonra taslak GitHub arayüzünde ayrıca kararlı sürüm olarak yayımlanmalıdır. Workflow bu yayımı otomatik yapmaz. Yeni sürüm için `KasaSurumu` elle yükseltilir; kurulu sürümden daha yüksek olmalıdır.
+
+Velopack paket kimliği `EmarKasa`, uygulama kimliği `com.emar.kasa` ve bildirim/kısayol AUMID'si `EmarKasa.Masaustu` ilk kurulumdan sonra sabit kalır. Kimlik değişikliği sonraki sürümde ayrı kurulum veya giriş depolaması oluşturabilir.
 
 ## GitHub'dan paket üret
 
 [Windows desktop release](../../.github/workflows/release-windows.yml) yalnız manuel başlatılır:
 
-1. Workflow dosyası deponun varsayılan `release/2.x` dalına alındıktan sonra GitHub **Actions**
-   sayfasında **Windows desktop release → Run workflow** aç.
+1. Workflow varsayılan `release/2.x` dalına alındıktan sonra **Actions → Windows desktop release → Run workflow** aç.
 2. Derlenecek dalı seç. Varsayılan seçenekler yalnız indirilebilir artifact üretir.
-3. İş bitince **Artifacts** altından `kasa-windows-<ürün sürümü>-win-x64` paketini indir.
-4. İçindeki `EmarKasa-<ürün sürümü>-win-x64.zip` dosyasını tamamen bir klasöre aç.
-5. Bu klasördeki **Kasa.App.exe** dosyasını çalıştır. Yanındaki DLL/kaynak dosyalarını taşıma veya silme.
+3. İsteğe bağlı `create_draft_release` seçilirse yeni ve benzersiz `release_tag` gir; örneğin ürün sürümüne uygun `vX.Y.Z-windows`.
+4. Koşu başarılı olduktan sonra artifact'ı indir. Taslak seçildiyse aynı dosyalar yeni GitHub taslağına yüklenir.
 
-Paket .NET ve Windows App SDK çalışma zamanlarını içerir. Hedef Windows 10/11 x64'tür;
-Windows ARM64 veya x86 için ayrı paket üretilmez.
-`KasaSurumu` [Directory.Build.props](../../Directory.Build.props) üzerinden okunur.
-Ürün sürümü otomatik artırılmaz.
+Mevcut etiket reddedilir; mevcut release veya etikete dosya eklenmez. Yalnız taslak oluşturan işte `contents: write` yetkisi bulunur. Üretim sürümü [Directory.Build.props](../../Directory.Build.props) içindeki `KasaSurumu` üzerinden okunur ve workflow tarafından artırılmaz.
 
-Yayın işi .NET SDK `10.0.401` / workload set `10.0.401.1` kullanır;
-ortak istemci testlerini çalıştırır, **dağıtılan aynı publish klasöründeki** uygulamanın açılışını sınar,
-ardından ZIP ve SHA-256 üretir.
-Açılış testi yalnız `127.0.0.1:9` adresine bağlanır; gerçek sunucuya mali istek göndermez.
-Bu duman testi gerçek kullanıcı oturumu ve tüm ekranların kullanım testi değildir.
+[GitHub manuel workflow rehberi](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow) varsayılan dal koşulunu açıklar. Velopack'in [dağıtım rehberi](https://docs.velopack.io/distributing/overview) kurulum, paket ve feed dosyalarını açıklar.
 
-### İsteğe bağlı GitHub taslak sürümü
+## CI neyi doğrular?
 
-`create_draft_release` varsayılan olarak kapalıdır.
-Açılırsa yeni ve benzersiz bir `release_tag` gir: örneğin ürün sürümüne uygun `vX.Y.Z-windows`.
-Workflow yalnız **taslak** oluşturur; herkese açık sürümü otomatik yayımlamaz.
-Mevcut etiket [GitHub referans API](https://docs.github.com/en/rest/git/refs#list-matching-references) ile denetlenir ve reddedilir; mevcut release/etiket güncellenmez. Bu adım için yalnız taslak işine `contents: write` verilir.
+PR/push üzerindeki **Kasa CI / Build and smoke-test Windows MAUI app** ve manuel yayın aynı [windows-validation.yml](../../.github/workflows/windows-validation.yml) işini çağırır. .NET SDK `10.0.401`, workload set `10.0.401.1` ve Velopack CLI `1.2.161` sabitlenmiştir; CLI yalnız runner'ın geçici tool klasörüne kurulur.
 
-[GitHub manuel workflow rehberi](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
-dosyanın varsayılan dalda bulunması gerektiğini açıklar.
+1. Ortak istemci testleri ve yayın dosya sınırı/manifest/feed kontrolleri çalışır.
+2. Tek self-contained publish üretilir; aynı uygulamanın gerçek WinUI penceresi açılışta ve 15 saniye sonra kontrol edilir.
+3. Bu çıktıdan ZIP, gerçek Setup, full paket ve feed üretilir. Velopack giriş kancasının kontrolü atlanmaz.
+4. **Dağıtılacak Setup** sessizce runner'ın geçici klasörüne kurulur; kurulu manifest ve gerçek WinUI açılışı sınanır.
+5. Aynı binary ile yalnız paket metadata sürümü bir sonraki yamaya artırılmış yerel test paketi üretilir. Şu anki ürün için bu `2.4.1 → 2.4.2` olur. Kurulu uygulama gerçekten kontrol eder, indirir, uygular ve yeniden başlar; yeni process sürüm raporu, kurulu manifest ve güncellenmiş WinUI açılışı doğrulanır.
+6. Yalnız üretim Setup/full paket/feed/ZIP ve özet dosyaları artifact'a yüklenir. **Sentetik 2.4.2 paketi yüklenmez; ürün veya assembly sürümü değişmez.**
 
-## Paket bütünlüğü ve güncelleme
+Kurulum/güncelleme testi yalnız `GITHUB_ACTIONS=true` ve `RUNNER_ENVIRONMENT=github-hosted` ortamında çalışabilir. Geçici yollar mutlak kökleri ve reparse/junction içermemeleriyle kontrol edilir; temizlik yalnız bu koşunun kurulum klasörünü ve oradan çalışan süreçleri hedefler. Yerel Windows kullanıcısına kurulum yapmaz.
 
-Artifact içindeki `SHA256SUMS.txt` ZIP özetini içerir. PowerShell'de indirdiğin ZIP için:
+Açılış testleri `KASA_API_URL=http://127.0.0.1:9/` kullanır; gerçek API'ye finans isteği göndermez. Bu kontrol kullanıcı girişini, tüm ekranları veya yayımlanmış GitHub feed'inden gerçek ağ indirmesini kanıtlamaz. Yeni değişikliğin bulut koşusu geçmeden “kurulum/güncelleme çalıştı” sonucu çıkarılmaz.
+
+## Bütünlük ve kabul
+
+`SHA256SUMS.txt` artifact'taki üretim dosyalarının özetlerini içerir. Örneğin indirdiğin gerçek Setup dosyası için:
 
 ```powershell
-Get-FileHash -LiteralPath .\EmarKasa-<ürün-sürümü>-win-x64.zip -Algorithm SHA256
+Get-FileHash -LiteralPath .\EmarKasa-win-Setup.exe -Algorithm SHA256
 ```
 
-Dosya adını gerçek indirilen ZIP'e göre seç ve özetin aynı olduğunu kontrol et.
-ZIP içindeki `build.json` sürüm, kaynak commit ve açılış testinin sonucunu kaydeder.
-Yenilemede uygulamayı kapat, yeni ZIP'i yeni klasöre aç ve yeni `Kasa.App.exe` ile başlat.
-Finans kayıtları API sunucusunda tutulur; yerel exe klasörüne veri taşıma/migration yapılmaz.
+Gerçek dosya adını kullan ve aynı isimli satırdaki SHA-256 ile karşılaştır. Artifact kökündeki `build.json` kaynak commit ve kurulum/güncelleme doğrulama sonuçlarını kaydeder. ZIP içindeki `build.json`, ZIP oluşturulmadan önceki publish açılış sonucunu içerir.
 
-EXE bu kişisel dağıtım akışında Authenticode ile imzalanmaz.
-Windows internetten indirilen imzasız pakette SmartScreen uyarısı gösterebilir;
-paketin kendi GitHub yayının ve doğrulanmış checksum'ıyla eşleştiğini kontrol et.
-Kod imzalama sertifikası edinmek bu akışın şartı değildir.
+EXE ve Setup bu kişisel dağıtımda Authenticode ile imzalanmaz. Windows internetten indirilen imzasız pakette SmartScreen uyarısı gösterebilir. Kendi GitHub artifact/yayının ve checksum eşleşmesini kontrol et. Bu akış ayrıca kod imzalama sertifikası gerektirmez.
 
-## Yerel Windows derlemesi
+İlk kullanım kabulü için temiz Windows üzerinde Setup, açılış, HTTPS bağlantısı, giriş, PDF seçimi ve finans önizleme/kayıt akışını dene. İlk gerçek yüksek sürüm yayımlandığında kurulu uygulamadan yayımlanmış GitHub feed'i üzerinden indirme/yeniden başlatmayı da dene.
+
+## Yerel Windows publish
 
 .NET 10 SDK ve MAUI Windows workload kurulu Windows makinede depo kökünden:
 
@@ -64,27 +90,16 @@ dotnet publish Kasa.App/Kasa.App.csproj -c Release -f net10.0-windows10.0.19041.
     -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false
 ```
 
-Çıktı `Kasa.App/bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/` altındadır.
-Yalnız EXE değil **klasörün tamamı** dağıtılır. GitHub akışı bunu
-[windows-release.ps1](../../.github/scripts/windows-release.ps1) ile paketler.
+Çıktı `Kasa.App/bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/` altındadır. Yalnız EXE değil klasörün tamamı gerekir. Taşınabilir `win-x64` RID kullanılır. [Microsoft paketsiz MAUI yayını](https://learn.microsoft.com/en-us/dotnet/maui/windows/deployment/publish-unpackaged-cli?view=net-maui-10.0) dağıtım özelliklerini açıklar. [windows-release.ps1](../../.github/scripts/windows-release.ps1) kurulum testi içerdiği için yerel makinede çalıştırılmaz.
 
-.NET 10 için taşınabilir `win-x64` RID kullanılır; `win10-x64` kullanılmaz.
-[Microsoft paketsiz MAUI yayını](https://learn.microsoft.com/en-us/dotnet/maui/windows/deployment/publish-unpackaged-cli?view=net-maui-10.0)
-hedef proje, RID ve Windows App SDK dağıtım özelliklerini açıklar.
+Velopack [Windows kurulum rehberi](https://docs.velopack.io/packaging/operating-systems/windows) ve [CLI referansı](https://docs.velopack.io/reference/cli/content/vpk-windows) paketlemeyi açıklar.
 
 ## API adresi
 
-Varsayılan adres [ApiAdresi.cs](../../Kasa.ApiClient/ApiAdresi.cs) içinde
-`https://kasa.emarglobal.com/` olarak tanımlıdır.
-Başka ortam için uygulama açılmadan önce `KASA_API_URL` ayarlanır; çalışan uygulama yeniden başlatılmalıdır.
-HTTPS veya yalnız yerel döngü HTTP kabul edilir:
+Varsayılan API [ApiAdresi.cs](../../Kasa.ApiClient/ApiAdresi.cs) içinde `https://kasa.emarglobal.com/` olarak tanımlıdır. Başka ortam için `KASA_API_URL` uygulama açılmadan önce ayarlanır; çalışan uygulama yeniden başlatılmalıdır. HTTPS veya yalnız yerel döngü HTTP kabul edilir:
 
 ```powershell
 $env:KASA_API_URL = 'http://localhost:5232/'
 ```
 
-Paket kabulünde temiz bir Windows makinede açılış, HTTPS bağlantısı, giriş,
-PDF seçimi ve finans önizleme/kayıt akışını dene.
-iOS'un imzalama/TestFlight adımları [ayrı iOS rehberindedir](ios-yayin.md).
-
-PR ve push üzerinde mevcut **Kasa CI / Build and smoke-test Windows MAUI app** işi aynı `.github/workflows/windows-validation.yml` paketleme akışını çağırır. Başarılı CI koşusunun artifact’ı da tam dağıtım ZIP’idir. Elle yayın akışı bu ortak işi tekrar kullanır; CI taslak sürüm oluşturamaz. Gizli başlatılan pencere, görünürlüğe bağlı `Process.MainWindowHandle` yerine süreç kimliği ve WinUI pencere sınıfıyla bulunur.
+iOS imzalama/TestFlight adımları [iOS rehberindedir](ios-yayin.md).

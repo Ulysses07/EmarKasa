@@ -38,7 +38,7 @@
 		<ApplicationTitle>Emar Kasa</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.royalmezat.kasa</ApplicationId>
+		<ApplicationId>com.emar.kasa</ApplicationId>
 
 		<!-- Sürüm: tek kaynak depo kökündeki Directory.Build.props (KasaSurumu; en çok üç parça). MAUI Windows'ta Version'ı da
 		     buna eşitler; uygulamanın gösterdiği sürüm Kasa.App.Core derlemesinin aynı değerli meta verisinden okunur.
@@ -71,6 +71,15 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
+	</ItemGroup>
+
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+		<StartupObject>Kasa.App.WinUI.Program</StartupObject>
+	</PropertyGroup>
+
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<PackageReference Include="Velopack" Version="1.2.161" />
 	</ItemGroup>
 
 	<ItemGroup>

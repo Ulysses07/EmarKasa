@@ -1,17 +1,35 @@
-# Publishes the complete portable Windows folder, smoke-tests THAT output, then zips it.
+# Real Windows release: one publish, ZIP + Velopack installer/feed, real install and apply/restart gate.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$taskRepo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-if (-not $env:RUNNER_TEMP) { throw 'Bu betik GitHub Windows runner üzerinde çalıştırılmalı.' }
+if (-not $IsWindows -or $env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or -not $env:RUNNER_TEMP) {
+    throw 'Kurulum/güncelleme testi yalnız geçici GitHub-hosted Windows runner üzerinde çalıştırılabilir.'
+}
+. (Join-Path $PSScriptRoot 'windows-release-lib.ps1')
+$taskRepo = [System.IO.Path]::GetFullPath((Split-Path (Split-Path $PSScriptRoot -Parent) -Parent))
+$taskTemp = (Get-Item -LiteralPath $env:RUNNER_TEMP -Force).FullName
+if (-not (Test-Path -LiteralPath (Join-Path $taskRepo 'Kasa.App/Kasa.App.csproj'))) { throw 'Proje kökü doğrulanamadı.' }
+if ($taskRepo.StartsWith($taskTemp + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Checkout ile geçici yayın dizini ayrı olmalı.'
+}
 [xml]$props = Get-Content -LiteralPath (Join-Path $taskRepo 'Directory.Build.props')
 $version = [string]$props.Project.PropertyGroup.KasaSurumu
 if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Geçerli KasaSurumu bulunamadı.' }
-$publish = Join-Path $env:RUNNER_TEMP 'kasa-windows-publish'
-$artifact = Join-Path $env:RUNNER_TEMP 'kasa-windows-artifact'
-if ((Test-Path -LiteralPath $publish) -or (Test-Path -LiteralPath $artifact)) {
-    throw 'Çıktı dizini zaten var; eski paket üzerine yazılmadı.'
+$syntheticVersion = Get-KasaNextPatchVersion $version
+$paths = @{}
+foreach ($name in @('publish', 'artifact', 'velopack-release', 'update-feed', 'installed', 'vpk-tools')) {
+    $paths[$name] = Assert-KasaNoReparseAncestors (Join-Path $taskTemp "kasa-windows-$name") $taskTemp
+    if (Test-Path -LiteralPath $paths[$name]) { throw "Görev dizini zaten var; üzerine yazılmadı: $($paths[$name])" }
 }
-New-Item -ItemType Directory -Path $publish, $artifact | Out-Null
+$publish = $paths['publish']
+$artifact = $paths['artifact']
+$release = $paths['velopack-release']
+$feed = $paths['update-feed']
+$installed = $paths['installed']
+$toolPath = $paths['vpk-tools']
+$reportPath = Assert-KasaNoReparseAncestors (Join-Path $taskTemp 'kasa-windows-update-report.json') $taskTemp
+if (Test-Path -LiteralPath $reportPath) { throw 'Önceki güncelleme raporu var; kullanılmadı.' }
+New-Item -ItemType Directory -Path $publish, $artifact, $release, $feed | Out-Null
+
 dotnet publish (Join-Path $taskRepo 'Kasa.App/Kasa.App.csproj') -c Release -f net10.0-windows10.0.19041.0 `
     -r win-x64 -p:RuntimeIdentifierOverride=win-x64 -p:WindowsPackageType=None `
     -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false --output $publish
@@ -19,90 +37,104 @@ if ($LASTEXITCODE -ne 0) { throw 'Windows publish başarısız.' }
 $exe = Join-Path $publish 'Kasa.App.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw 'Yayınlanan Kasa.App.exe bulunamadı.' }
 
-# Process.MainWindowHandle ignores hidden windows. Enumerate this process's actual unowned WinUI window.
-# The window is intentionally launched hidden by automation; visibility is not an acceptance condition.
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class KasaWindowsWindowProbe
-{
-    private delegate bool WindowCallback(IntPtr window, IntPtr parameter);
-    [DllImport("user32.dll")]
-    private static extern bool EnumWindows(WindowCallback callback, IntPtr parameter);
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetWindow(IntPtr window, uint command);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetClassName(IntPtr window, StringBuilder className, int capacity);
-    [DllImport("user32.dll")]
-    public static extern bool IsHungAppWindow(IntPtr window);
-    public static IntPtr FindMainWindow(int processId)
-    {
-        IntPtr found = IntPtr.Zero;
-        EnumWindows((window, parameter) =>
-        {
-            uint ownerProcess;
-            GetWindowThreadProcessId(window, out ownerProcess);
-            if (ownerProcess != (uint)processId || GetWindow(window, 4) != IntPtr.Zero)
-                return true;
-            var windowClass = new StringBuilder(256);
-            GetClassName(window, windowClass, windowClass.Capacity);
-            if (windowClass.ToString() != "WinUIDesktopWin32WindowClass")
-                return true;
-            found = window;
-            return false;
-        }, IntPtr.Zero);
-        return found;
-    }
-}
-"@
+dotnet tool install vpk --version 1.2.161 --tool-path $toolPath --allow-roll-forward
+if ($LASTEXITCODE -ne 0) { throw 'Sabit Velopack CLI kurulamadı.' }
+$vpk = Join-Path $toolPath 'vpk.exe'
 $previousApi = $env:KASA_API_URL
 $env:KASA_API_URL = 'http://127.0.0.1:9/'
-$process = $null
+$installedByThisRun = $false
 try {
-    $process = Start-Process -FilePath $exe -WorkingDirectory $publish -WindowStyle Hidden -PassThru
-    $windowOpened = $false
-    for ($attempt = 0; $attempt -lt 60 -and -not $windowOpened; $attempt++) {
-        Start-Sleep -Seconds 1
-        if ($process.HasExited) { throw "Yayın paketi açılışta kapandı (kod $($process.ExitCode))." }
-        $process.Refresh()
-        $windowOpened = [KasaWindowsWindowProbe]::FindMainWindow($process.Id) -ne [IntPtr]::Zero
+    Invoke-KasaStartupSmoke $exe 'Dağıtılan ZIP klasörü'
+    $publishMetadata = [ordered]@{
+        version = $version; runtime = 'win-x64'; source_commit = $env:GITHUB_SHA
+        sdk = '10.0.401'; workload_set = '10.0.401.1'; velopack = '1.2.161'
+        startup_smoke = 'passed'; api_requests = 'local-loopback-only-during-smoke'; signed = $false
     }
-    if (-not $windowOpened) { throw 'Yayın paketi 60 saniyede pencere oluşturmadı.' }
-    Start-Sleep -Seconds 15
-    if ($process.HasExited) { throw 'Yayın paketi pencere oluşturduktan sonra kapandı.' }
-    $mainWindow = [KasaWindowsWindowProbe]::FindMainWindow($process.Id)
-    if ($mainWindow -eq [IntPtr]::Zero -or [KasaWindowsWindowProbe]::IsHungAppWindow($mainWindow)) {
-        throw 'Yayın paketi ana WinUI penceresini kaybetti veya pencere yanıt vermiyor.'
+    $publishMetadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $publish 'build.json') -Encoding utf8NoBOM
+    $zip = Join-Path $artifact "EmarKasa-$version-win-x64.zip"
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($publish, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+    $commonPack = @('--packId', 'EmarKasa', '--packDir', $publish, '--mainExe', 'Kasa.App.exe', '--packTitle', 'Emar Kasa',
+        '--packAuthors', 'Emar', '--aumid', 'EmarKasa.Masaustu', '--channel', 'win', '--runtime', 'win-x64', '--noPortable', '--delta', 'None')
+    # No skipVeloAppCheck: the entry executable must really bootstrap Velopack before WinUI.
+    & $vpk --yes --skip-updates --legacyConsole pack @commonPack --packVersion $version --outputDir $release
+    if ($LASTEXITCODE -ne 0) { throw 'Gerçek Velopack yayını paketlenemedi.' }
+    $fullPackage = Assert-KasaReleaseFeed $release $version
+    $setups = @(Get-ChildItem -LiteralPath $release -Filter '*-Setup.exe' -File)
+    if ($setups.Count -ne 1) { throw 'Tek gerçek Setup.exe bulunamadı.' }
+    foreach ($source in @($setups[0].FullName, $fullPackage, (Join-Path $release 'releases.win.json'))) {
+        Copy-Item -LiteralPath $source -Destination $artifact
+    }
+    # The next patch only changes Velopack package metadata. Product/app assembly version is not bumped.
+    # Its output is disjoint from the upload directory; neither synthetic feed nor package is distributed.
+    & $vpk --yes --skip-updates --legacyConsole pack @commonPack --packVersion $syntheticVersion --outputDir $feed --noInst
+    if ($LASTEXITCODE -ne 0) { throw 'Yerel güncelleme testi için sentetik paket oluşturulamadı.' }
+    $null = Assert-KasaReleaseFeed $feed $syntheticVersion
+
+    $installedByThisRun = $true
+    $installer = Start-Process -FilePath $setups[0].FullName -ArgumentList @('--silent', '--installto', ('"' + $installed + '"')) `
+        -WorkingDirectory $release -WindowStyle Hidden -PassThru
+    try {
+        if (-not $installer.WaitForExit(180000)) { throw 'Gerçek Setup kurulum testi zaman aşımına uğradı.' }
+        if ($installer.ExitCode -ne 0) { throw "Gerçek Setup başarısız (kod $($installer.ExitCode))." }
+    } finally {
+        if (-not $installer.HasExited) { Stop-Process -Id $installer.Id -Force }
+    }
+    $installedExe = Assert-KasaNoReparseAncestors (Join-Path $installed 'current/Kasa.App.exe') $taskTemp
+    if (-not (Test-Path -LiteralPath $installedExe)) { throw 'Setup kurulu exe üretmedi.' }
+    Assert-KasaInstalledVersion $installed $version
+    Invoke-KasaStartupSmoke $installedExe "Kurulu $version uygulaması"
+
+    $updateProcess = Start-Process -FilePath $installedExe `
+        -ArgumentList @('--guncelleme-duman-testi', ('"' + $feed + '"'), ('"' + $reportPath + '"'), $syntheticVersion) `
+        -WorkingDirectory (Split-Path $installedExe -Parent) -WindowStyle Hidden -PassThru
+    $updateReport = $null
+    $deadline = [DateTime]::UtcNow.AddSeconds(240)
+    while (-not $updateReport -and [DateTime]::UtcNow -lt $deadline) {
+        Start-Sleep -Seconds 1
+        if (Test-Path -LiteralPath $reportPath) {
+            # The restarted executable writes this small file; wait for a complete JSON write.
+            try { $updateReport = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $updateReport = $null }
+        }
+    }
+    if (-not $updateReport) { throw 'Gerçek download/apply/restart işlemi yeni process raporu üretmedi.' }
+    Assert-KasaUpdateReport $updateReport $syntheticVersion
+    Assert-KasaInstalledVersion $installed $syntheticVersion
+    # Ensure the report-writing test process has finished before opening normal WinUI.
+    if (-not $updateProcess.HasExited) { $null = $updateProcess.WaitForExit(10000) }
+    Start-Sleep -Seconds 2
+    Invoke-KasaStartupSmoke $installedExe "Güncellenen $syntheticVersion uygulaması"
+    $releaseMetadata = $publishMetadata
+    $releaseMetadata['installer_smoke'] = 'passed'
+    $releaseMetadata['update_smoke'] = @{ from = $version; to = $syntheticVersion; installed = $true; updated = $true }
+    $releaseMetadata | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $artifact 'build.json') -Encoding utf8NoBOM
+    $hashes = Get-ChildItem -LiteralPath $artifact -File | Sort-Object Name | ForEach-Object {
+        "$( (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() )  $($_.Name)"
+    }
+    $hashes | Set-Content -LiteralPath (Join-Path $artifact 'SHA256SUMS.txt') -Encoding utf8NoBOM
+    if ($env:GITHUB_OUTPUT) { "version=$version" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8NoBOM }
+    if ($env:GITHUB_STEP_SUMMARY) {
+        @"
+## Windows release validation
+Production ${version}: complete self-contained ZIP, Velopack Setup, full nupkg and releases.win.json.
+Actual Setup installed to this runner's temporary folder; installed WinUI startup passed.
+Real local-feed download/apply/restart $version → $syntheticVersion passed; updated WinUI startup passed.
+Synthetic packages remain outside the artifact. No public GitHub release or live API request was made.
+Source: $env:GITHUB_SHA. Executables are unsigned.
+"@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8NoBOM
     }
 } finally {
     $env:KASA_API_URL = $previousApi
-    if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-}
-$metadata = [ordered]@{
-    version = $version
-    runtime = 'win-x64'
-    source_commit = $env:GITHUB_SHA
-    sdk = '10.0.401'
-    workload_set = '10.0.401.1'
-    startup_smoke = 'passed'
-    api_requests = 'local-loopback-only-during-smoke'
-    signed = $false
-}
-$metadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $publish 'build.json') -Encoding utf8NoBOM
-$zip = Join-Path $artifact "EmarKasa-$version-win-x64.zip"
-[System.IO.Compression.ZipFile]::CreateFromDirectory($publish, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
-$hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-"$hash  $([System.IO.Path]::GetFileName($zip))" | Set-Content -LiteralPath (Join-Path $artifact 'SHA256SUMS.txt') -Encoding utf8NoBOM
-if ($env:GITHUB_OUTPUT) { "version=$version" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8NoBOM }
-if ($env:GITHUB_STEP_SUMMARY) {
-    @"
-## Windows package
-Self-contained Windows x64 ZIP built; startup smoke passed against the same published output.
-SHA-256: $hash
-Source: $env:GITHUB_SHA
-The executable is unsigned. Extract the whole ZIP before starting Kasa.App.exe.
-"@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8NoBOM
+    if ($installedByThisRun) {
+        # Only processes from our verified temporary install are eligible for termination.
+        $safeInstall = Assert-KasaNoReparseAncestors $installed $taskTemp
+        foreach ($ownedProcess in @(Get-Process -Name 'Kasa.App', 'Update' -ErrorAction SilentlyContinue)) {
+            try { $processPath = $ownedProcess.Path } catch { continue }
+            if ($processPath -and $processPath.StartsWith($safeInstall + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Stop-Process -Id $ownedProcess.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+        if (Test-Path -LiteralPath $safeInstall) {
+            Remove-Item -LiteralPath $safeInstall -Recurse -Force
+        }
+    }
 }

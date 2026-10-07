@@ -8,7 +8,7 @@ on:
         description: 'Version read from Directory.Build.props'
         value: ${{ jobs.package.outputs.version }}
       artifact_name:
-        description: 'Complete Windows ZIP artifact from this run'
+        description: 'Verified Windows installer, update feed and complete ZIP from this run'
         value: ${{ jobs.package.outputs.artifact_name }}
 
 permissions:
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   package:
-    name: Publish and smoke-test the shipped Windows ZIP
+    name: Publish, install and update the shipped Windows app
     runs-on: windows-latest
     timeout-minutes: 50
     outputs:
@@ -35,11 +35,14 @@ jobs:
           dotnet workload install maui-windows --version 10.0.401.1
       - name: Run shared client tests
         run: dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --configuration Release
-      - name: Publish, smoke-test and zip the exact distributed app
+      - name: Validate release path, manifest and feed boundaries
+        shell: pwsh
+        run: ./.github/scripts/tests/windows-release-tests.ps1
+      - name: Publish, package, install and update the exact distributed app
         id: package
         shell: pwsh
         run: ./.github/scripts/windows-release.ps1
-      - name: Upload the complete ZIP and SHA-256
+      - name: Upload production Setup, full package, update feed, ZIP and SHA-256
         uses: actions/upload-artifact@v7.0.1
         with:
           name: kasa-windows-${{ steps.package.outputs.version }}-win-x64

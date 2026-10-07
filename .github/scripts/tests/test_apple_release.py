@@ -22,14 +22,14 @@ class AppleReleaseTests(unittest.TestCase):
             "Platform": ["iOS"],
             "DeveloperCertificates": [b"public test certificate"],
             "Entitlements": {
-                "application-identifier": "OLDPREFIX0.com.royalmezat.kasa",
+                "application-identifier": "OLDPREFIX0.com.emar.kasa",
                 "com.apple.developer.team-identifier": "TEAM012345",
                 "get-task-allow": False,
             },
         }
 
     def test_exact_app_store_profile_allows_a_legacy_app_id_prefix(self):
-        result = release.validate_profile(self.profile(), "com.royalmezat.kasa")
+        result = release.validate_profile(self.profile(), "com.emar.kasa")
         self.assertEqual(result["profile_uuid"], self.profile()["UUID"])
 
     def test_other_bundle_or_expired_or_device_profile_is_rejected(self):
@@ -47,7 +47,7 @@ class AppleReleaseTests(unittest.TestCase):
         invalid.append(profile)
         for profile in invalid:
             with self.subTest(profile=profile), self.assertRaises(release.ReleaseError):
-                release.validate_profile(profile, "com.royalmezat.kasa")
+                release.validate_profile(profile, "com.emar.kasa")
 
     def test_build_number_cannot_roll_back_or_be_an_msbuild_expression(self):
         self.assertEqual(release.build_number("8", 8), "8")

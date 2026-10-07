@@ -32,6 +32,7 @@
     <PackageReference Include="Microsoft.Maui.Controls.Xaml" Version="$(MauiVersion)" />
     <Compile Include="..\Kasa.App\Controls\*.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\TakipUi.cs" Link="Kontroller\TakipUi.cs" />
+    <Compile Include="..\Kasa.App\Views\UygulamaGuncellemeAlani.cs" Link="Kontroller\UygulamaGuncellemeAlani.cs" />
     <Compile Include="..\Kasa.App\Views\EkstreAktarmaPage*.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\DosyaIslemleri.cs" Link="Kontroller\DosyaIslemleri.cs" />
     <Compile Include="..\Kasa.App\Views\DosyaSecimTurleri.cs" Link="Kontroller\DosyaSecimTurleri.cs" />

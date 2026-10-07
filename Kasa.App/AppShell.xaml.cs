@@ -7,6 +7,9 @@ namespace Kasa.App;
 public partial class AppShell : Shell
 {
     private readonly AuthViewModel _auth;
+    private readonly UygulamaGuncellemeViewModel _guncellemeler;
+    private bool _guncellemeAciliyor, _ilkGuncellemeKontrolu;
+    private SayfaUstuPencere? _guncellemePenceresi;
     /// <summary>Menünün içeriği (gruplar, öğeler, seçili öğe): Shell.FlyoutContent kökünün (MenuAlani) bağlamı.</summary>
 #if IOS
     private readonly MenuModeli _menuModeli = new(mobilSimgeler: true);
@@ -36,10 +39,15 @@ public partial class AppShell : Shell
     /// değişiklikte hiç tetiklenmez, form kullanıcı isteği olmadan ezilmez). "Yeniden dene" bunu kullanmaz.</summary>
     private readonly OtomatikYenilemeKarari _otomatikYenileme = new OtomatikYenilemeKarari(TimeProvider.System, TimeSpan.FromSeconds(3));
 
-    public AppShell(AuthViewModel auth, BildirimNobetcisi bildirimNobetcisi, BildirimTiklamalari bildirimTiklamalari, BaglantiDurumu baglanti)
+    public AppShell(AuthViewModel auth, BildirimNobetcisi bildirimNobetcisi, BildirimTiklamalari bildirimTiklamalari, BaglantiDurumu baglanti,
+        UygulamaGuncellemeViewModel guncellemeler)
     {
         InitializeComponent();
         _auth = auth;
+        _guncellemeler = guncellemeler;
+        _guncellemeler.KurulumEngeli = () => UygulamaKurulumKarari.Engel(CurrentPage is Views.HaftalikPage or Views.LoginPage, KurulumBaglamlari());
+        _guncellemeler.KurulumOnayi = paket => DisplayAlertAsync("Uygulama güncellemesi",
+            $"Sürüm {paket.Surum} kurulacak. Emar Kasa kapanıp yeniden açılacak. Şimdi kurulsun mu?", "Kur ve yeniden başlat", "Şimdi değil");
         _bildirimNobetcisi = bildirimNobetcisi;
         _bildirimTiklamalari = bildirimTiklamalari;
         _bildirimZamanlayicisi = Dispatcher.CreateTimer();
@@ -78,6 +86,13 @@ public partial class AppShell : Shell
                 MainThread.BeginInvokeOnMainThread(() => _menuModeli.RozetAyarla(Bolum.Bildirimler, _bildirimNobetcisi.Yoklayici.Okunmamis));
         };
         Loaded += async (_, _) => await AcilistaYonlendirAsync();
+        Loaded += async (_, _) =>
+        {
+            if (_ilkGuncellemeKontrolu)
+                return;
+            _ilkGuncellemeKontrolu = true;
+            await _guncellemeler.KontrolEtAsync();
+        };
         // Bağlantı şeridi (tasarım 2026-10-02 §3): kabukta tek şerit, bütün sayfaların gezinme çubuğunda (TitleView kabuktan
         // devralınır). "Yeniden dene" ve bağlantının geri gelmesi açık sayfayı yeniler; bağlantının geri gelmesi
         // OtomatikYenileAsync'in alt sınırına ve kaydedilmemiş değişiklik denetimine bağlıdır (K-1, Ö-1).
@@ -88,6 +103,49 @@ public partial class AppShell : Shell
         SetTitleView(this, _baglantiSeridi);
     }
 
+    private IEnumerable<object?> KurulumBaglamlari()
+    {
+        yield return _auth;
+        if (CurrentPage is not { } sayfa)
+            yield break;
+        // Alt bileşenlerin ayrı modelini de kapsar (ör. Ayarlar'daki güvenlik formu).
+        foreach (var acik in sayfa.Navigation.NavigationStack.Append(sayfa).Distinct())
+        {
+            yield return acik.BindingContext;
+            foreach (var parca in acik.GetVisualTreeDescendants().OfType<BindableObject>())
+                yield return parca.BindingContext;
+        }
+    }
+
+    private async void GuncellemelerTiklandi(object? sender, EventArgs e) => await GuncellemeleriAcAsync();
+    public async Task GuncellemeleriAcAsync()
+    {
+        if (_guncellemeAciliyor || _guncellemePenceresi is not null || CurrentPage is not ContentPage sayfa)
+            return;
+        _guncellemeAciliyor = true;
+        try
+        {
+            // Sayfa gezinmez; Ayarlar'ın EkrandanAyril'ı ve formların OnAppearing yüklemesi çağrılmaz.
+            var alan = new Views.UygulamaGuncellemeAlani(_guncellemeler);
+            var pencere = new SayfaUstuPencere(sayfa, alan);
+            _guncellemePenceresi = pencere;
+            alan.KapatIstendi += (_, _) => pencere.Dispose();
+            pencere.Kapandi += (_, _) =>
+            {
+                _guncellemeler.IptalEt();
+                _guncellemePenceresi = null;
+            };
+#if IOS
+            FlyoutIsPresented = false;
+#endif
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Güncelleme penceresi açılamadı: {ex}");
+            await IslemHatasiGosterAsync("Güncelleme penceresi açılamadı. Yeniden deneyin.");
+        }
+        finally { _guncellemeAciliyor = false; }
+    }
     /// <summary>Bağlantı geldiğinde otomatik yenileme (K-1: alt sınır, sondaki kenarda tek tetik, TimeProvider ile; Ö-1:
     /// yenilemesi formu korumayan sayfada (Ö-4) kaydedilmemiş değişiklikte hiç yenilenmez, form kullanıcı isteği olmadan ezilmez —
     /// şerit kalkar, veri soluk kalır; formu koruyan sayfa kirli formda da yenilenir; Ö-2: bir

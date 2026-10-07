@@ -10,7 +10,7 @@ public partial class MauiKayitTutarliligiTests
     public void Kabuk_baglanti_seridini_tek_yerde_kurar_ve_acik_sayfayi_yeniler()
     {
         var kod = Oku("AppShell.xaml.cs");
-        Assert.Contains("BaglantiDurumu baglanti)", kod);
+        Assert.Matches(@"public AppShell\([^)]*BaglantiDurumu baglanti[,)\s]", kod);
         Assert.Contains("SetTitleView(this, _baglantiSeridi);", kod);
         Assert.Contains("baglanti.BaglantiGeldi += async (_, _) => await OtomatikYenileAsync();", kod);
         Assert.Contains("_baglantiSeridi.YenidenDeneIstendi += async (_, _) => await ElleYenileAsync();", kod);

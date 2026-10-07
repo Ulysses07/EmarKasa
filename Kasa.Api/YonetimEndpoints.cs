@@ -14,13 +14,21 @@ public static class YonetimEndpoints
 
     public static WebApplication MapYonetimEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/surum", (IConfiguration cfg) => Results.Ok(new
+        app.MapGet("/api/surum", (IConfiguration cfg) =>
         {
-            surum = SunucuSurumu.Deger,
-            minimumIstemci = MinimumIstemci,
-            indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
-            notlar = "Geri yükleme ve güvenlik günlüğü bütünlüğü iyileştirildi; güncel Windows uygulaması kayıt değişiklikleri için gerekli."
-        }));
+            var windows = IstemciYayinAyarlari.Oku(cfg, "windows");
+            var ios = IstemciYayinAyarlari.Oku(cfg, "ios");
+            return Results.Ok(new
+            {
+                // Eski istemcilerin ilk dört alanı korunur; platform göndermeyen istemci Windows kabul edilir.
+                surum = SunucuSurumu.Deger,
+                minimumIstemci = windows.MinimumIstemci,
+                indirmeAdresi = GuvenliIndirme(cfg["Kasa:IndirmeAdresi"]),
+                notlar = "Geri yükleme ve güvenlik günlüğü bütünlüğü iyileştirildi; güncel Windows uygulaması kayıt değişiklikleri için gerekli.",
+                windows,
+                ios,
+            });
+        });
         // Son geri yüklemenin anı ve raporu (SistemDurumu) sonda, opsiyonel: eski istemci yok sayar.
         app.MapGet("/api/yedek/durum", (YedekServisi yedek, KasaDbContext db) =>
         {

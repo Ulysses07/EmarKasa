@@ -104,6 +104,10 @@
             </VerticalStackLayout>
         </ScrollView>
     </Shell.FlyoutContent>
+    <Shell.FlyoutFooter>
+        <Button Text="Uygulama güncellemeleri" Clicked="GuncellemelerTiklandi" Margin="12,8,12,16"
+                MinimumHeightRequest="44" Style="{StaticResource BtnSecondary}" />
+    </Shell.FlyoutFooter>
 
     <ShellContent Route="login" ContentTemplate="{DataTemplate v:LoginPage}" FlyoutItemIsVisible="False" />
     <FlyoutItem x:Name="PanelItem" Title="Kasalar" Route="panel" IsVisible="False">

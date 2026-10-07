@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       create_draft_release:
-        description: 'ZIP’e ek olarak GitHub’da taslak sürüm oluştur'
+        description: 'Setup ve ZIP artifactina ek olarak GitHub taslagi olustur'
         type: boolean
         default: false
       release_tag:
@@ -36,7 +36,7 @@ jobs:
           fi
 
   package:
-    name: Build the same ZIP validated in CI
+    name: Build the same installer and ZIP validated in CI
     needs: inputs
     uses: ./.github/workflows/windows-validation.yml
 
@@ -72,4 +72,4 @@ jobs:
           done <<< "$matching_refs"
           gh release create "$RELEASE_TAG" release-artifact/* \
             --target "$SOURCE_SHA" --draft --title "Emar Kasa $VERSION — Windows x64" \
-            --notes "Manually built self-contained Windows package. Source commit: $SOURCE_SHA."
+            --notes "Manually built self-contained Windows Setup, full update package, update feed and ZIP. Installation and local apply/restart were validated; this draft is not visible to the updater. Source commit: $SOURCE_SHA."

@@ -3225,7 +3225,7 @@ $G = Join-Path $K 'menu-kartlar-gorsel'
 New-Item -ItemType Directory -Force $G | Out-Null
 foreach ($d in 'kosu.ps1', 'bekci.ps1', 'sunucu.ps1', 'Pencere.cs', 'Masaustu.cs', 'kimlik.json') { Copy-Item (Join-Path $K "donma\$d") $G -Force }
 # bekci.ps1 sonunda oturum dosyasını bu kopyayla karşılaştırır: kullanıcının GÜNCEL oturum dosyası alınır.
-$depo = Join-Path $env:LOCALAPPDATA 'User Name\com.royalmezat.kasa\Settings\securestorage.dat'
+$depo = Join-Path $env:LOCALAPPDATA 'User Name\com.emar.kasa\Settings\securestorage.dat'
 if (Test-Path $depo) { Copy-Item $depo (Join-Path $G 'securestorage.dat.ozgun') -Force }
 $exe = Get-ChildItem 'C:\Users\burak\source\repos\Kasa-paket\menu-kartlar\Kasa.App\bin\Release\net10.0-windows10.0.19041.0' -Recurse -Filter Kasa.App.exe | Select-Object -First 1
 Copy-Item $exe.DirectoryName (Join-Path $G 'app') -Recurse -Force

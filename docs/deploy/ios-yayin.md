@@ -14,7 +14,7 @@ Bu yayın akışı ürün sürümünü değiştirmez. IPA için verilen derleme 
 
 | Alan | Sabit / kaynak |
 | --- | --- |
-| Bundle ID | `com.royalmezat.kasa` |
+| Bundle ID | `com.emar.kasa` |
 | MAUI | `10.0.110` |
 | .NET SDK | `10.0.401` |
 | Workload set | `10.0.401.1` |
@@ -66,8 +66,14 @@ komut satırına yazılmaz. Apple'a **yalnız CSR** yüklenir; `distribution.key
 [Apple Developer — Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list)
 sayfasında:
 
-1. **Identifiers** altında explicit App ID kaydet: `com.royalmezat.kasa`.
+1. **Identifiers** altında explicit App ID kaydet: `com.emar.kasa`.
    Başka uygulamanın Bundle ID'sini değiştirme; mevcut doğru App ID varsa onu kullan.
+   Mevcut uygulama için ek capability seçilmez: APNs/Push Notifications, Keychain Sharing,
+   App Groups, iCloud ve Sign in with Apple kullanılmıyor. Token yalnız uygulamanın kendi
+   Keychain alanındadır; simülatör entitlement'i fiziksel/TestFlight paketine eklenmez.
+   [Apple Keychain access grupları](https://developer.apple.com/documentation/security/sharing-access-to-keychain-items-among-a-collection-of-apps)
+   ve [MAUI SecureStorage](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/secure-storage?view=net-maui-10.0)
+   bu ayrımı açıklar.
 2. **Certificates → + → Apple Distribution** seç. CSR dosyasını yükle ve sertifikayı indir.
    İndirilen DER `.cer` dosyasını bu klasörde `distribution.cer` olarak tut.
 3. Sertifikayı CSR ile oluşan özel anahtarla, parola korumalı P12'ye dönüştür:
@@ -87,7 +93,7 @@ sertifika isteği ile özel anahtarın ilişkisini açıklar; burada aynı CSR s
 
 Apple Developer portalında **Profiles → + → Distribution → App Store Connect**:
 
-1. `com.royalmezat.kasa` App ID'sini seç.
+1. `com.emar.kasa` App ID'sini seç.
 2. Yukarıdaki Apple Distribution sertifikasını seç.
 3. Profil adını ver, oluştur ve `.mobileprovision` dosyasını indir.
 
@@ -203,8 +209,42 @@ Gerçek iPhone kabul kontrolü:
 4. Ekstre satırını kendi altında açma, taslak düzenleme, mali seçimin bağımsız kalması.
 5. Önizleme, uyarı/onaylar, tek kayıt ve tekrar denemede çift kayıt oluşmaması.
 6. Gerçek API JSON okuma/yazma yolları; finans verisini test ederek gerekçeli iptal akışı.
-7. Uygulama aktifken bildirim kontrolü ve iOS bildirim izinleri.
+7. Uygulama aktifken hatırlatma listesi ve menüdeki okunmamış sayısı.
+   Native iOS sistem bildirimi/APNs uygulanmadı; izin diyaloğu veya arka plan bildirimi beklenmez.
    Arka planda Windows zamanlanmış görevinin eşdeğeri olduğu varsayılmaz.
 
 Apple yüklemeyi kabul etti mesajı bu kontrollerin tamamlandığı anlamına gelmez.
 Kişisel TestFlight dağıtımı için herkese açık App Store sayfasını yayımlamak gerekmez.
+
+## 8. Güncelleme kanalı ve yayın bilgisini doğru bildirme
+
+Bu kimlik `com.emar.kasa` olarak sabittir; App ID, App Store Connect kaydı ve provisioning
+profile aynı Bundle ID'yi taşımalıdır. İlk Apple build yüklemesinden sonra kayıt kimliği
+değiştirilemez. Henüz Apple sertifikaları/API anahtarı/daveti hazır olmadığı için bu
+belge bir TestFlight yüklemesinin tamamlandığını veya kullanılabilir build olduğunu söylemez.
+
+Yeni build için aynı uygulama kaydını kullan, kabul edilmiş son build numarasından büyük
+`build_number` ile manuel `upload-testflight` akışını çalıştır; işleme ve tester erişimini
+kontrol et. iPhone'da **TestFlight → Emar Kasa → Automatic Updates** açılabilir.
+Her build **90 gün** sonra kullanılamaz; süresi dolmadan yeni build sağla.
+Güncelleme için ek App ID capability gerekmez. [Apple TestFlight kuralları](https://testflight.apple.com/)
+kurulum, otomatik güncelleme ve sürenin ayrıntılarını açıklar.
+
+Uygulamanın iOS güncelleme bağlantısı şimdilik `https://testflight.apple.com/`.
+Bu genel sayfa gerçek tester daveti değildir; Apple App ID veya davet URL'si uydurulmaz.
+Windows istemcileri `https://github.com/Ulysses07/EmarKasa/releases` kanalını kullanır.
+
+`/api/surum` eski `surum`, `minimumIstemci`, `indirmeAdresi`, `notlar` alanlarını korur;
+`windows` ve `ios` nesneleri ayrıca `sonSurum`, `minimumIstemci`, `indirmeAdresi`, `notlar`
+verir. Eski üst düzey `indirmeAdresi`, mevcut `Kasa__IndirmeAdresi` ayarının güvenli HTTPS
+adresini kullanmayı sürdürür; ayar yoksa `null` döner. Yeni `windows.indirmeAdresi` sabit
+GitHub Releases kanalına, `ios.indirmeAdresi` genel TestFlight sayfasına gider.
+Sunucu ürün sürümü istemcinin son yayımlanmış sürümü sayılmaz.
+`sonSurum` varsayılan olarak `null`; yalnız paket ilgili kanalda gerçekten erişilebilir
+olduktan sonra API ortamına `Kasa__IstemciYayinlari__Windows__SonSurum` veya
+`Kasa__IstemciYayinlari__Ios__SonSurum` eklenir. API'nin yeni sürümünü yayımlamak bu
+alanları kendiliğinden yükseltmez. Her platformun minimumu halen **2.4.1**; ileride bilinçli
+uyumluluk değişikliği gerekirse `Kasa__IstemciYayinlari__Windows__MinimumIstemci` ve
+`Kasa__IstemciYayinlari__Ios__MinimumIstemci` ayrı yapılandırılır. Mevcut sınırın altı uygulanmaz.
+`X-Kasa-Istemci-Platformu: ios` doğru minimumu seçer; olmayan/bilinmeyen başlık eski
+Windows davranışını korur. Sürüm kapısı bir güvenlik/kimlik doğrulama mekanizması değildir.
