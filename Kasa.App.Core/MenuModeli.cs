@@ -4,45 +4,24 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Kasa.App.Core;
 
-/// <summary>Menü simgeleri: Segoe Fluent Icons (Windows 11) ile Segoe MDL2 Assets'in (Windows 10) ortak kod noktaları. İki yazı
-/// tipi de Windows'la gelir, uygulama paketlemez (Styles.xaml SimgeAilesi). Yorumdaki adlar Microsoft Learn'deki
-/// segoe-fluent-icons-font ve segoe-ui-symbol-font sayfalarındaki simge adlarıdır; her kod noktası iki sayfada aynı simgedir.</summary>
+/// <summary>Windows ve iOS menüsünün ortak ikon kaynakları. SVG çizimleri MauiImage olarak paketlenir;
+/// MAUI bunları yoğunluğa uygun PNG dosyalarına dönüştürdüğü için kaynak adları .png uzantılıdır.</summary>
 public static class MenuSimgeleri
 {
-    public const string Kasalar = "\uE80F";        // Home
-    public const string Haftalik = "\uE8C0";       // CalendarWeek
-    public const string Aylik = "\uE787";          // Calendar
-    public const string Islemler = "\uE8FD";       // BulletedList
-    public const string Alislar = "\uE7BF";        // ShoppingCart
-    public const string AylikGiderler = "\uE8EE";  // RepeatAll
-    public const string EkstreAktar = "\uE8B5";    // Import
-    public const string Kartlar = "\uE8C7";        // PaymentCard
-    public const string Krediler = "\uE825";       // Bank
-    public const string Cekler = "\uE8A5";         // Document
-    public const string Bildirimler = "\uEA8F";    // Ringer
-    public const string DisariAktar = "\uEDE1";    // Export
-    public const string Ayarlar = "\uE713";        // Settings
-    public const string Cikis = "\uF3B1";          // SignOut
-
-    /// <summary>iOS'ta Windows'a ait özel kod noktaları yerine sistemin standart Unicode simgeleri.</summary>
-    public static string Mobil(Bolum? bolum) => bolum switch
-    {
-        Bolum.Panel => "⌂",
-        Bolum.Haftalik => "▦",
-        Bolum.Aylik => "▤",
-        Bolum.Islemler => "☰",
-        Bolum.Alislar => "◇",
-        Bolum.AylikGiderler => "↻",
-        Bolum.EkstreAktar => "↓",
-        Bolum.Kartlar => "▣",
-        Bolum.Krediler => "⇄",
-        Bolum.Cekler => "✓",
-        Bolum.Bildirimler => "●",
-        Bolum.DisariAktar => "↗",
-        Bolum.Ayarlar => "⚙",
-        null => "↪",
-        _ => throw new ArgumentOutOfRangeException(nameof(bolum))
-    };
+    public const string Kasalar = "menu_kasalar.png";
+    public const string Haftalik = "menu_haftalik.png";
+    public const string Aylik = "menu_aylik.png";
+    public const string Islemler = "menu_islemler.png";
+    public const string Alislar = "menu_alislar.png";
+    public const string AylikGiderler = "menu_aylik_giderler.png";
+    public const string EkstreAktar = "menu_ekstre_aktar.png";
+    public const string Kartlar = "menu_kartlar.png";
+    public const string Krediler = "menu_krediler.png";
+    public const string Cekler = "menu_cekler.png";
+    public const string Bildirimler = "menu_bildirimler.png";
+    public const string DisariAktar = "menu_disari_aktar.png";
+    public const string Ayarlar = "menu_ayarlar.png";
+    public const string Cikis = "menu_cikis.png";
 }
 
 /// <summary>Menü öğesinin tanımı: rol bölümü, başlık, simge ve Shell rotası (AppShell.xaml FlyoutItem Route).</summary>
@@ -126,10 +105,6 @@ public sealed partial class MenuModeli : ObservableObject
 {
     public const string CikisBasligi = "Çıkış";
 
-    private readonly bool _mobilSimgeler;
-
-    public MenuModeli(bool mobilSimgeler = false) => _mobilSimgeler = mobilSimgeler;
-
     public static IReadOnlyList<MenuGrupTanimi> Duzen { get; } =
     [
         new("Özet",
@@ -185,12 +160,12 @@ public sealed partial class MenuModeli : ObservableObject
         foreach (var grup in Duzen)
         {
             var ogeler = grup.Ogeler.Where(o => bolumler.Contains(o.Bolum))
-                .Select(o => new MenuOgesi(o.Bolum, o.Baslik, _mobilSimgeler ? MenuSimgeleri.Mobil(o.Bolum) : o.Simge, o.Rota, Sec) { Rozet = _rozetler.GetValueOrDefault(o.Bolum) }).ToList();
+                .Select(o => new MenuOgesi(o.Bolum, o.Baslik, o.Simge, o.Rota, Sec) { Rozet = _rozetler.GetValueOrDefault(o.Bolum) }).ToList();
             if (ogeler.Count > 0)
                 gruplar.Add(new MenuGrubu(grup.Baslik, ogeler));
         }
         if (gruplar.Count > 0)
-            gruplar.Add(new MenuGrubu(null, [new MenuOgesi(null, CikisBasligi, _mobilSimgeler ? MenuSimgeleri.Mobil(null) : MenuSimgeleri.Cikis, "", _ => CikisIstendi?.Invoke(this, EventArgs.Empty))]));
+            gruplar.Add(new MenuGrubu(null, [new MenuOgesi(null, CikisBasligi, MenuSimgeleri.Cikis, "", _ => CikisIstendi?.Invoke(this, EventArgs.Empty))]));
         Gruplar = gruplar;
         SeciliyiYansit();
     }

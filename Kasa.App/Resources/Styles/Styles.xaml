@@ -8,12 +8,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:ctl="clr-namespace:Kasa.App.Controls">
 
-    <!-- Her iki platform kendi sistem yazı tipini kullanır; Windows fontları iOS paketine dağıtılmaz.
-         iOS menüsü standart Unicode simgeleri kullanır (MenuModeli mobilSimgeler); Windows özel kod noktaları korunur. -->
+    <!-- Her iki platform kendi sistem yazı tipini kullanır; menü ikonları ortak MauiImage kaynaklarıdır. -->
     <OnPlatform x:Key="YaziAilesi" x:TypeArguments="x:String" Default="Segoe UI Variable Text, Segoe UI">
-        <On Platform="iOS" Value="Helvetica Neue" />
-    </OnPlatform>
-    <OnPlatform x:Key="SimgeAilesi" x:TypeArguments="x:String" Default="Segoe Fluent Icons, Segoe MDL2 Assets">
         <On Platform="iOS" Value="Helvetica Neue" />
     </OnPlatform>
 

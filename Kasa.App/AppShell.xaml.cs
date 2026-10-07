@@ -11,11 +11,7 @@ public partial class AppShell : Shell
     private bool _guncellemeAciliyor, _ilkGuncellemeKontrolu;
     private SayfaUstuPencere? _guncellemePenceresi;
     /// <summary>Menünün içeriği (gruplar, öğeler, seçili öğe): Shell.FlyoutContent kökünün (MenuAlani) bağlamı.</summary>
-#if IOS
-    private readonly MenuModeli _menuModeli = new(mobilSimgeler: true);
-#else
     private readonly MenuModeli _menuModeli = new();
-#endif
     /// <summary>Rol bölümü → sayfa öğesi (tek kaynak). Öğeler menüde çizilmez (menüyü MenuModeli çizer) ama rota kaynağıdır;
     /// yetkisi olmayan bölümün öğesi gizli kalır, doğrudan rotayla erişim kuralı önceki menüdekiyle aynıdır.</summary>
     private readonly IReadOnlyDictionary<Bolum, FlyoutItem> _menu;
