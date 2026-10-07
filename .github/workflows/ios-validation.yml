@@ -26,7 +26,6 @@ jobs:
       - uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: '10.0.401'
-          dotnet-quality: ga
       - name: Install the pinned Apple toolchain
         run: bash .github/scripts/apple-toolchain.sh
       - name: Compile the actual device app without a signing identity

@@ -29,7 +29,6 @@ jobs:
       - uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: '10.0.401'
-          dotnet-quality: ga
       - name: Pin the SDK and Windows workload set
         run: |
           dotnet new globaljson --sdk-version 10.0.401 --roll-forward disable --force

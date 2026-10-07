@@ -18,7 +18,6 @@ internal static class IosRaporYazdirma
         bilgi.OutputType = UIPrintInfoOutputType.General;
         controller.PrintInfo = bilgi;
         controller.PrintFormatter = formatter;
-        controller.ShowsPageRange = true;
         var bitis = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void Tamamlandi(UIPrintInteractionController? _, bool __, NSError? hata)
         {
