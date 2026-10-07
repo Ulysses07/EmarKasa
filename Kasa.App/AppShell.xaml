@@ -77,8 +77,8 @@
                                                     </DataTrigger>
                                                 </Button.Triggers>
                                             </Button>
-                                            <Label Text="{Binding Simge}" Margin="12,0,0,0" FontFamily="{StaticResource SimgeAilesi}"
-                                                   FontSize="16" TextColor="{StaticResource SidebarText}" VerticalOptions="Center"
+                                            <Image Source="{Binding Simge}" Margin="12,0,0,0" WidthRequest="20" HeightRequest="20"
+                                                   Aspect="AspectFit" VerticalOptions="Center"
                                                    InputTransparent="True" AutomationProperties.IsInAccessibleTree="False" />
                                             <Label Grid.Column="1" Text="{Binding Baslik}" FontSize="13.5"
                                                    TextColor="{StaticResource SidebarText}" VerticalOptions="Center"

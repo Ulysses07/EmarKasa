@@ -74,8 +74,9 @@ public class MenuModeliTests
         Assert.Equal(ogeler.Count + 1, ogeler.Select(o => o.Simge).Append(MenuSimgeleri.Cikis).Distinct().Count());
         Assert.All(ogeler.Select(o => o.Simge).Append(MenuSimgeleri.Cikis), simge =>
         {
-            Assert.Equal(1, simge.Length);
-            Assert.InRange(simge[0], '\uE000', '\uF8FF');
+            Assert.Matches("^menu_[a-z_]+\\.png$", simge);
+            var svg = Path.Combine(GorunumOrtami.DepoKoku(), "Kasa.App", "Resources", "Images", Path.ChangeExtension(simge, ".svg"));
+            Assert.True(File.Exists(svg), $"Menü simgesi için paketlenecek SVG kaynağı bulunamadı: {svg}");
         });
         Assert.Equal("kartlar", MenuModeli.Rota(Bolum.Kartlar));
         Assert.Equal("cekler", MenuModeli.Rota(Bolum.Cekler));

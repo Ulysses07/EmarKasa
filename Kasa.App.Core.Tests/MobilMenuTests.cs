@@ -3,20 +3,18 @@ namespace Kasa.App.Core.Tests;
 public sealed class MobilMenuTests
 {
     [Fact]
-    public void Mobil_menu_rotalari_rolleri_ve_cikis_eylemini_korur()
+    public void Menu_rotalari_rolleri_ve_cikis_eylemini_korur()
     {
         foreach (var rol in Enum.GetValues<Rol>())
         {
-            var masaustu = new MenuModeli();
-            var mobil = new MenuModeli(mobilSimgeler: true);
+            var mobil = new MenuModeli();
             var bolumler = SekmeModeli.Bolumler(rol);
-            masaustu.Goster(bolumler);
             mobil.Goster(bolumler);
-            Assert.Equal(masaustu.Ogeler.Select(o => (o.Bolum, o.Baslik, o.Rota)), mobil.Ogeler.Select(o => (o.Bolum, o.Baslik, o.Rota)));
+            Assert.Equal(bolumler.Order(), mobil.Ogeler.Where(o => o.Bolum is not null).Select(o => o.Bolum!.Value).Order());
             Assert.All(mobil.Ogeler, o => Assert.DoesNotContain(o.Simge, c => c is >= '\uE000' and <= '\uF8FF'));
             Assert.Equal(mobil.Ogeler.Count(), mobil.Ogeler.Select(o => o.Simge).Distinct().Count());
             mobil.RotaSecildi("//kartlar");
-            Assert.Equal(masaustu.Ogeler.Any(o => o.Rota == "kartlar"), mobil.Ogeler.Any(o => o.Secili));
+            Assert.Equal(bolumler.Contains(Bolum.Kartlar), mobil.Ogeler.Any(o => o.Secili));
             if (mobil.Ogeler.Any())
             {
                 var cikis = 0;

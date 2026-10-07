@@ -60,6 +60,9 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Ortak menü ikonları: 20 dp, tek renk ve çizgi stili; SVG her platformun yoğunluğuna göre PNG olur. -->
+		<MauiImage Include="Resources\Images\menu_*.svg" BaseSize="20,20" />
+
 		<!-- Uygulama ikonu: web/PWA ikonuyla (Kasa.Api/wwwroot/icon.svg) aynı marka işareti. Arka plan (Include) marka
 		     yeşili, ön plan (ForegroundFile) krem "K"; Color arka planı aynı yeşille doldurur (iOS/Mac'te saydam ikon kabul edilmez). -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#194D3C" />

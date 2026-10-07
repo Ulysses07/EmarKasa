@@ -22,22 +22,15 @@ public partial class MauiKayitTutarliligiTests
     {
         var kaynaklar = XDocument.Parse(Oku("Resources/Styles/Styles.xaml"));
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2009/xaml";
-        foreach (var (anahtar, windows) in new[]
-        {
-            ("YaziAilesi", "Segoe UI Variable Text, Segoe UI"),
-            ("SimgeAilesi", "Segoe Fluent Icons, Segoe MDL2 Assets")
-        })
-        {
-            var kaynak = kaynaklar.Root!.Elements().Single(e => (string?)e.Attribute(xaml + "Key") == anahtar);
-            Assert.Equal("OnPlatform", kaynak.Name.LocalName);
-            Assert.Equal(windows, (string?)kaynak.Attribute("Default"));
-            var ios = kaynak.Elements().Single(e => (string?)e.Attribute("Platform") == "iOS");
-            Assert.Equal("Helvetica Neue", (string?)ios.Attribute("Value"));
-        }
+        var kaynak = kaynaklar.Root!.Elements().Single(e => (string?)e.Attribute(xaml + "Key") == "YaziAilesi");
+        Assert.Equal("OnPlatform", kaynak.Name.LocalName);
+        Assert.Equal("Segoe UI Variable Text, Segoe UI", (string?)kaynak.Attribute("Default"));
+        var ios = kaynak.Elements().Single(e => (string?)e.Attribute("Platform") == "iOS");
+        Assert.Equal("Helvetica Neue", (string?)ios.Attribute("Value"));
 
         var dogrudan = UygulamaKaynaklari("*.xaml", "*.cs")
             .SelectMany(d => AileKullanimi().Matches(File.ReadAllText(d)).Select(m => (Dosya: Path.GetFileName(d), Deger: m.Groups[1].Value)))
-            .Where(k => k.Deger is not ("{StaticResource YaziAilesi}" or "{StaticResource SimgeAilesi}")).Select(k => $"{k.Dosya}: {k.Deger}").ToList();
+            .Where(k => k.Deger != "{StaticResource YaziAilesi}").Select(k => $"{k.Dosya}: {k.Deger}").ToList();
         Assert.True(dogrudan.Count == 0, "YaziAilesi anahtarı yerine doğrudan yazılmış yazı ailesi: " + string.Join(", ", dogrudan));
 
         var program = Oku("MauiProgram.cs");
