@@ -26,7 +26,7 @@ Kanal düzeltmek için editör açıklama yazarak alışını taslağa iade eder
 
 | Proje | Sorumluluk |
 | --- | --- |
-| `Kasa.App` | Windows MAUI arayüzü ve cihaz servisleri |
+| `Kasa.App` | Windows masaüstü ve iOS MAUI arayüzü, platforma özel cihaz servisleri |
 | `Kasa.App.Core` | Platformdan bağımsız ekran davranışları ve görünüm modelleri |
 | `Kasa.ApiClient` | API sözleşmeleri, HTTP istemcisi ve oturum erişimi |
 | `Kasa.Api` | Yetkilendirme, veri doğrulama, SQLite ve rapor uçları |
@@ -79,6 +79,18 @@ dotnet test Kasa.Sozlesme.Tests/Kasa.Sozlesme.Tests.csproj --configuration Relea
 
 Bu komutlar gereken NuGet paketlerini de geri yükler. API testleri ayrı test yapılandırması ve bellek içi SQLite kullanır. Tüm çözümü Linux'ta derlemek Windows MAUI hedefini de yüklemeye çalışacağından platformdan bağımsız kontroller için yukarıdaki projeleri kullanın.
 
+## Windows ve iOS için ayrı paketler
+
+Aynı uygulama Windows'ta masaüstü ZIP, bulut macOS runner'ında iOS IPA olarak derlenir. Her ikisi aynı API'ye bağlanır;
+iOS bir çevrimdışı veritabanı veya masaüstüyle ayrıca eşitlenen ikinci veri kaynağı oluşturmaz.
+
+- [Windows paketleme rehberi](docs/deploy/windows-exe.md): tam çalışma zamanı içeren ZIP, aynı pakete açılış testi.
+- [iOS / TestFlight rehberi](docs/deploy/ios-yayin.md): kendi Mac'in gerekmez; GitHub macOS runner'ı derler ve imzalar.
+- [İki platformun yayın akışı](docs/deploy/windows-ios-yayin.md): ortak sürüm, ayrı paketler ve doğrulama kapıları.
+
+Windows ve iOS yayınları Actions'tan elle başlatılır. Kod CI'ı canlıya dağıtım veya Apple yüklemesi yapmaz.
+iOS imzalama ve TestFlight için Apple sertifika/profil/API anahtarlarının ayrıca yapılandırılması gerekir.
+
 Windows istemcisinin Release derlemesi:
 
 ```powershell
@@ -86,7 +98,7 @@ dotnet workload restore Kasa.App/Kasa.App.csproj
 dotnet build Kasa.App/Kasa.App.csproj --configuration Release --framework net10.0-windows10.0.19041.0
 ```
 
-[CI iş akışı](.github/workflows/ci.yml), push ve pull request olaylarında beş test projesini Ubuntu üzerinde, Windows uygulaması derlemesini ayrı Windows işi olarak çalıştırır. İşler .NET 10 SDK'yı seçer. CI paket yayımlamaz ve canlıya dağıtım yapmaz.
+[CI iş akışı](.github/workflows/ci.yml), push ve pull request olaylarında beş test projesini Ubuntu üzerinde, Windows uygulaması derlemesini ayrı Windows işi olarak çalıştırır. İşler .NET 10 SDK'yı seçer. CI paket yayımlamaz ve canlıya dağıtım yapmaz. [iOS kontrolü](.github/workflows/ios-validation.yml) ayrıca bulut macOS üzerinde imzasız Release cihaz derlemesini sınar; cihazda çalışma ve TestFlight doğrulaması ayrı adımlardır.
 
 ## Üretim yapılandırması
 

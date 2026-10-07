@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- Windows-only for now (this machine builds Windows). Re-add mobile TFMs on Mac:
-		     net10.0-android;net10.0-ios;net10.0-maccatalyst -->
+		<!-- İki ayrı ürün paketi, aynı uygulama: Windows'ta masaüstü, bulut macOS runner'ında iOS.
+		     Mac derlemesine Windows hedefi eklenmez; Windows'ta iOS iş yükü gerekmez. -->
 		<TargetFrameworks>net10.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-ios</TargetFrameworks>
 
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -46,7 +47,10 @@
 		<ApplicationVersion>8</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
-		<WindowsPackageType>None</WindowsPackageType>
+		<WindowsPackageType Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">None</WindowsPackageType>
+
+		<!-- SecureStorage simülatörde Keychain hakkı ister; cihaz/TestFlight paketi bu dosyayı kullanmaz. -->
+		<CodesignEntitlements Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' and $(RuntimeIdentifier.StartsWith('iossimulator-'))">Platforms/iOS/SimulatorEntitlements.plist</CodesignEntitlements>
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>

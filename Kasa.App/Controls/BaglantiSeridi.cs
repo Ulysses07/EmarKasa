@@ -33,7 +33,7 @@ public class BaglantiSeridi : ContentView
             Padding = new Thickness(12, 4),
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center,
-            Content = new HorizontalStackLayout { Spacing = 12, Children = { _metin, _dugme } },
+            Content = new UyumluSatir { Spacing = 12, Children = { _metin, _dugme } },
         };
         this.SetBinding(IsVisibleProperty, "Kopuk");
         this.PropertyChanged += (_, e) =>

@@ -123,7 +123,9 @@ public partial class MauiKayitTutarliligiTests
         var kod = Oku("AppShell.xaml.cs");
         Assert.Contains("_menuModeli.GitIstendi += async (_, rota) => await GitAsync(rota);", kod);
         Assert.Contains("_menuModeli.CikisIstendi += async (_, _) => await CikisAsync();", kod);
-        Assert.Matches(@"private async Task GitAsync\(string rota\)\s*\{\s*try\s*\{\s*await GoToAsync\(""//"" \+ rota\);\s*\}\s*catch \(Exception ", kod);
+        // iOS menü kapatma satırı Windows derlemesine girmez; masaüstünün aynı istisna sınırı korunur.
+        var masaustu = Regex.Replace(kod, @"#if IOS[\s\S]*?#endif", "");
+        Assert.Matches(@"private async Task GitAsync\(string rota\)\s*\{\s*try\s*\{\s*await GoToAsync\(""//"" \+ rota\);\s*\}\s*catch \(Exception ", masaustu);
         Assert.Matches(@"private async Task CikisAsync\(\)\s*\{\s*if \(_cikiliyor\)\s*return;\s*_cikiliyor = true;\s*try\s*\{[\s\S]*?\}\s*catch \(Exception [\s\S]*?\}\s*finally\s*\{\s*_cikiliyor = false;\s*\}", kod);
     }
 

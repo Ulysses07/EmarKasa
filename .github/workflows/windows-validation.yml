@@ -1,0 +1,49 @@
+name: Windows package validation
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      version:
+        description: 'Version read from Directory.Build.props'
+        value: ${{ jobs.package.outputs.version }}
+      artifact_name:
+        description: 'Complete Windows ZIP artifact from this run'
+        value: ${{ jobs.package.outputs.artifact_name }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Publish and smoke-test the shipped Windows ZIP
+    runs-on: windows-latest
+    timeout-minutes: 50
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      artifact_name: kasa-windows-${{ steps.package.outputs.version }}-win-x64
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: '10.0.401'
+          dotnet-quality: ga
+      - name: Pin the SDK and Windows workload set
+        run: |
+          dotnet new globaljson --sdk-version 10.0.401 --roll-forward disable --force
+          dotnet workload install maui-windows --version 10.0.401.1
+      - name: Run shared client tests
+        run: dotnet test Kasa.App.Core.Tests/Kasa.App.Core.Tests.csproj --configuration Release
+      - name: Publish, smoke-test and zip the exact distributed app
+        id: package
+        shell: pwsh
+        run: ./.github/scripts/windows-release.ps1
+      - name: Upload the complete ZIP and SHA-256
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: kasa-windows-${{ steps.package.outputs.version }}-win-x64
+          path: ${{ runner.temp }}/kasa-windows-artifact/
+          if-no-files-found: error
+          retention-days: 30

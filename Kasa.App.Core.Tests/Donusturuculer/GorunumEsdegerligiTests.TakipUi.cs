@@ -135,7 +135,7 @@ public partial class GorunumEsdegerligiTests
         var mesaj = TakipUi.Bagli("Mesaj");
         var hata = TakipUi.DurumSatirlari(panel, yenile, mesaj);
         var gosterge = panel.GetVisualTreeDescendants().OfType<ActivityIndicator>().Single();
-        var satir = Assert.IsType<HorizontalStackLayout>(yenile.Parent);
+        var satir = Assert.IsAssignableFrom<HorizontalStackLayout>(yenile.Parent);
         Assert.Same(satir, gosterge.Parent);
         Assert.Same(panel, satir.Parent);
         Assert.Equal(0, satir.IndexOf(yenile));

@@ -8,7 +8,11 @@ public partial class AppShell : Shell
 {
     private readonly AuthViewModel _auth;
     /// <summary>Menünün içeriği (gruplar, öğeler, seçili öğe): Shell.FlyoutContent kökünün (MenuAlani) bağlamı.</summary>
+#if IOS
+    private readonly MenuModeli _menuModeli = new(mobilSimgeler: true);
+#else
     private readonly MenuModeli _menuModeli = new();
+#endif
     /// <summary>Rol bölümü → sayfa öğesi (tek kaynak). Öğeler menüde çizilmez (menüyü MenuModeli çizer) ama rota kaynağıdır;
     /// yetkisi olmayan bölümün öğesi gizli kalır, doğrudan rotayla erişim kuralı önceki menüdekiyle aynıdır.</summary>
     private readonly IReadOnlyDictionary<Bolum, FlyoutItem> _menu;
@@ -265,13 +269,23 @@ public partial class AppShell : Shell
         foreach (var (bolum, oge) in _menu)
             oge.IsVisible = bolumler.Contains(bolum);
         _menuModeli.Goster(bolumler);
+#if IOS
+        // Girişte boş menü açılmaz; oturum açılınca telefon menüsü içerikten ayrı açılır.
+        FlyoutBehavior = bolumler.Count == 0 ? FlyoutBehavior.Disabled : FlyoutBehavior.Flyout;
+        FlyoutIsPresented = false;
+#endif
     }
 
     /// <summary>Menüden gezinme; başarısızlık kullanıcıya bildirilir, açık sayfa korunur.</summary>
     private async Task GitAsync(string rota)
     {
         try
-        { await GoToAsync("//" + rota); }
+        {
+            await GoToAsync("//" + rota);
+#if IOS
+            FlyoutIsPresented = false;
+#endif
+        }
         catch (Exception ex)
         {
             Debug.WriteLine($"Gezinme başarısız ({rota}): {ex}");

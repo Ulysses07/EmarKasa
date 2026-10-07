@@ -20,11 +20,14 @@
             <Label Text="Ödeme ve kanal geliri kayıtları" Style="{StaticResource LblPageSub}" />
         </VerticalStackLayout>
 
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="20">
+        <ctl:UyumluBolmeler x:Name="IslemBolmeleri" Grid.Row="1" GenisSutunlar="360,*" ColumnSpacing="20"
+                           IlkBaslik="İşlem / gelir" IkinciBaslik="Kayıtlar" DarSeciliBolme="1"
+                           IlkKullanilabilir="{Binding EditorMu}">
 
             <!-- SOL: editör form sütunu -->
-            <ScrollView x:Name="FormKaydirici" IsVisible="{Binding EditorMu}" VerticalOptions="Fill">
-                <VerticalStackLayout WidthRequest="360" Spacing="16">
+            <ctl:UyumluBolmeler.Ilk>
+            <ScrollView x:Name="FormKaydirici" VerticalOptions="Fill">
+                <VerticalStackLayout Spacing="16">
 
                     <!-- Bölüm 1 · İşlem. Başlık ve düğmeler düzenleme modunu söyler; genel hata formun en üstünde, alan hataları
                          alanın altında (tasarım 2026-10-02 §1-2). -->
@@ -62,11 +65,11 @@
                                                HorizontalOptions="Start">
                                     <Entry Text="{Binding DuzenTaksitSayisi}" Keyboard="Numeric" WidthRequest="120" />
                                 </ctl:FormAlani>
-                                <HorizontalStackLayout Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                     <Switch IsToggled="{Binding DuzenIlkKesimVar}"
                                             SemanticProperties.Description="İlk kesim tarihini belirt (isteğe bağlı)" />
-                                    <Label Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
-                                </HorizontalStackLayout>
+                                    <Label Grid.Column="1" Text="İlk kesim tarihini belirt (isteğe bağlı)" VerticalOptions="Center" />
+                                </Grid>
                                 <ctl:FormAlani Alan="DuzenIlkKesimTarihi" Hata="{Binding Hatalar[DuzenIlkKesimTarihi]}" IsVisible="{Binding DuzenIlkKesimVar}">
                                     <DatePicker Date="{Binding DuzenIlkKesimTarihi}" />
                                 </ctl:FormAlani>
@@ -75,13 +78,13 @@
                             <ctl:FormAlani Baslik="Not" Alan="DuzenNot" Hata="{Binding Hatalar[DuzenNot]}">
                                 <Entry Text="{Binding DuzenNot}" Placeholder="İsteğe bağlı" />
                             </ctl:FormAlani>
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,2,0,0">
+                            <ctl:UyumluIzgara ColumnDefinitions="*,Auto,Auto" DarEsik="280" ColumnSpacing="8" RowSpacing="8" Margin="0,2,0,0">
                                 <Button Text="{Binding KaydetMetni}" Command="{Binding KaydetCommand}" />
                                 <Button Grid.Column="1" Text="Vazgeç" Command="{Binding VazgecCommand}" IsVisible="{Binding DuzenlemeModu}"
                                         Style="{StaticResource BtnSecondary}" />
                                 <Button Grid.Column="2" Text="Yeni" Command="{Binding YeniCommand}"
                                         Style="{StaticResource BtnSecondary}" />
-                            </Grid>
+                            </ctl:UyumluIzgara>
                             <Border Style="{StaticResource CardForm}" IsVisible="{Binding GiderBenzerlik.UyariVar}">
                                 <VerticalStackLayout Spacing="8">
                                     <Label Text="{Binding GiderBenzerlik.Uyari}" />
@@ -133,9 +136,11 @@
                     </Border>
                 </VerticalStackLayout>
             </ScrollView>
+            </ctl:UyumluBolmeler.Ilk>
 
             <!-- SAĞ: işlem listesi -->
-            <Border Grid.Column="1" Style="{StaticResource Card}">
+            <ctl:UyumluBolmeler.Ikinci>
+            <Border Style="{StaticResource Card}">
                 <Grid RowDefinitions="Auto,*">
                     <VerticalStackLayout Padding="18,16,18,12" Spacing="10">
                         <Label Text="SON İŞLEMLER" Style="{StaticResource LblSection}" />
@@ -150,7 +155,7 @@
                         <ctl:CipGrubu BindableLayout.ItemsSource="{Binding FiltreKanallari}" SecCommand="{Binding SecFiltreKanalCommand}" />
 
                         <!-- Filtre: zaman çipleri + dönem seçici -->
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <ctl:UyumluIzgara ColumnDefinitions="*,Auto" ColumnSpacing="10" RowSpacing="10">
                             <ctl:CipGrubu BindableLayout.ItemsSource="{Binding FiltreZamanlar}" SecCommand="{Binding SecFiltreZamanCommand}" CipKenari="0,0,8,0" />
                             <Border Grid.Column="1" Style="{StaticResource FieldBorder}"
                                     MinimumWidthRequest="150" MinimumHeightRequest="38">
@@ -159,7 +164,7 @@
                                         ItemDisplayBinding="{Binding ., Converter={StaticResource DonemBicim}, x:DataType=api:DonemDto}"
                                         Title="Hafta seç" SemanticProperties.Description="Filtre dönemi" />
                             </Border>
-                        </Grid>
+                        </ctl:UyumluIzgara>
 
                         <!-- Özet: etkin süzgeç + sayı + toplam; yalnız güncel süzgecin başarılı yanıtında görünür -->
                         <Label Text="{Binding FiltreOzet}" Style="{StaticResource LblRowSecondary}"
@@ -191,34 +196,35 @@
                                                 <Setter Property="Stroke" Value="{StaticResource BrushGreen}" />
                                             </DataTrigger>
                                         </Border.Triggers>
-                                        <Grid Padding="18,6" MinimumHeightRequest="58"
-                                              ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                        <ctl:UyumluIzgara Padding="18,6" MinimumHeightRequest="58"
+                                              ColumnDefinitions="Auto,*,Auto,Auto" DarSutunlar="Auto,*" ColumnSpacing="14" RowSpacing="6">
                                             <Border Style="{StaticResource DateChip}" VerticalOptions="Center">
                                                 <Label Text="{Binding Tarih, StringFormat='{0:dd MMM}'}"
                                                        Style="{StaticResource LblDateChip}" />
                                             </Border>
-                                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <VerticalStackLayout Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Spacing="2" VerticalOptions="Center">
                                                 <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" />
                                                 <Label Text="{Binding Kanal}" Style="{StaticResource LblRowSecondary}" />
                                             </VerticalStackLayout>
-                                            <Label Grid.Column="2"
+                                            <Label Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1"
                                                    Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}"
                                                    Style="{StaticResource LblMoney}"
                                                    TextColor="{Binding TutarTl, Converter={StaticResource ParaRenk}}"
                                                    VerticalOptions="Center" />
-                                            <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center"
+                                            <FlexLayout Grid.Column="3" Wrap="Wrap" AlignItems="Center" Direction="Row"
+                                                                   ctl:UyumluIzgara.DarSatir="2" ctl:UyumluIzgara.DarSutunAraligi="2"
                                                                    IsVisible="{Binding BindingContext.EditorMu, Source={x:Reference Sayfa}}">
-                                                <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}"
-                                                        Command="{Binding BindingContext.DuzenlemeyeGecCommand, Source={x:Reference Sayfa}}"
+                                                <Button Text="Düzenle" Style="{StaticResource BtnRowEdit}" Margin="0,0,6,4"
+                                                        Clicked="DuzenleTiklandi"
                                                         CommandParameter="{Binding .}" />
-                                                <Button Text="Sil" Style="{StaticResource BtnRowDelete}"
+                                                <Button Text="Sil" Style="{StaticResource BtnRowDelete}" Margin="0,0,6,4"
                                                         Clicked="SilTiklandi"
                                                         CommandParameter="{Binding .}" />
                                                 <Button Text="Kaynak PDF" Style="{StaticResource BtnRowEdit}"
                                                         BindingContextChanged="KaynakBaglamiDegisti" Clicked="KaynakTiklandi"
                                                         CommandParameter="{Binding .}" IsVisible="False" />
-                                            </HorizontalStackLayout>
-                                        </Grid>
+                                            </FlexLayout>
+                                        </ctl:UyumluIzgara>
                                     </Border>
                                 </VerticalStackLayout>
                             </DataTemplate>
@@ -240,6 +246,7 @@
                     </CollectionView>
                 </Grid>
             </Border>
-        </Grid>
+            </ctl:UyumluBolmeler.Ikinci>
+        </ctl:UyumluBolmeler>
     </Grid>
 </ContentPage>

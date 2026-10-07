@@ -16,6 +16,7 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
         Title = "Gider raporu dışa aktar";
         BackgroundColor = (Color)Application.Current!.Resources["AppBg"];
         var root = new VerticalStackLayout { Padding = new Thickness(28, 22), Spacing = 16, MaximumWidthRequest = 1220 };
+        root.SizeChanged += (_, _) => root.Padding = root.Width < 600 ? new Thickness(16, 14) : new Thickness(28, 22);
         root.Add(new Label { Text = Title, Style = (Style)Application.Current.Resources["LblTakipSayfaBaslik"] });
         root.Add(new Label { Text = "Tarih ve kanal süzgeciyle Excel, CSV veya yazdırılabilir gider raporu. Kanal filtresi eşleşen ödemenin tamamını listeler; kanal payı toplamı değildir." });
         var yenile = new Button { Text = "Yenile / tekrar dene", HorizontalOptions = LayoutOptions.Start };
@@ -37,7 +38,7 @@ public sealed class DisariAktarPage : ContentPage, Controls.IYenilenebilir
         form.Add(Indir("Excel (.xlsx) kaydet", "xlsx"));
         form.Add(Indir("CSV kaydet", "csv"));
         form.Add(Indir("Yazdır / PDF kaydet", "html"));
-        form.Add(TakipUi.Metin("PDF için rapor tarayıcıda açılır. Ctrl+P menüsünden PDF yazıcısını seçin."));
+        form.Add(TakipUi.Metin(DosyaIslemleri.YazdirmaAciklamasi));
         root.Add(new Border { Style = (Style)Application.Current.Resources["CardForm"], Content = form });
         Content = new ScrollView { Content = root };
     }

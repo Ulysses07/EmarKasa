@@ -9,7 +9,7 @@
        xmlns:core="clr-namespace:Kasa.App.Core;assembly=Kasa.App.Core"
        x:Class="Kasa.App.AppShell"
        Title="Emar Kasa"
-       FlyoutBehavior="Locked"
+    FlyoutBehavior="{OnIdiom Desktop=Locked, Default=Flyout}"
        FlyoutBackgroundColor="{StaticResource Sidebar}"
        FlyoutWidth="248"
        Shell.BackgroundColor="{StaticResource Card}"

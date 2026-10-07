@@ -500,3 +500,10 @@ Kasa.Api/*.db-wal
 /Kasa.Ui.E2E/playwright-report/
 /Kasa.Ui.E2E/blob-report/
 /Kasa.Ui.E2E/.oturum/
+
+# Apple dağıtım kimlikleri ve derleme çıktıları (anahtarlar GitHub Secrets'a gider).
+*.p12
+*.p8
+*.mobileprovision
+*.ipa
+.apple-signing/

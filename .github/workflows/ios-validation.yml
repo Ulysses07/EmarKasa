@@ -1,0 +1,44 @@
+name: iOS unsigned validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kasa-ios-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Compile iOS Release (unsigned)
+    # Dedicated arm64 image; stable Xcode 27.0 is selected, never its beta/default.
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: '10.0.401'
+          dotnet-quality: ga
+      - name: Install the pinned Apple toolchain
+        run: bash .github/scripts/apple-toolchain.sh
+      - name: Compile the actual device app without a signing identity
+        run: >-
+          dotnet build Kasa.App/Kasa.App.csproj --configuration Release
+          --framework net10.0-ios --runtime ios-arm64
+          -p:EnableCodeSigning=false -p:CodesignRequireProvisioningProfile=false
+          -p:ArchiveOnBuild=false
+      - name: Record what was validated
+        run: |
+          {
+            echo '## iOS unsigned validation'
+            echo 'Release / ios-arm64 native compilation passed. No signing secrets or Apple upload were used.'
+            echo 'This does not prove successful startup, signing, TestFlight processing, or physical iPhone behaviour.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -23,6 +23,26 @@ public static class MenuSimgeleri
     public const string DisariAktar = "\uEDE1";    // Export
     public const string Ayarlar = "\uE713";        // Settings
     public const string Cikis = "\uF3B1";          // SignOut
+
+    /// <summary>iOS'ta Windows'a ait özel kod noktaları yerine sistemin standart Unicode simgeleri.</summary>
+    public static string Mobil(Bolum? bolum) => bolum switch
+    {
+        Bolum.Panel => "⌂",
+        Bolum.Haftalik => "▦",
+        Bolum.Aylik => "▤",
+        Bolum.Islemler => "☰",
+        Bolum.Alislar => "◇",
+        Bolum.AylikGiderler => "↻",
+        Bolum.EkstreAktar => "↓",
+        Bolum.Kartlar => "▣",
+        Bolum.Krediler => "⇄",
+        Bolum.Cekler => "✓",
+        Bolum.Bildirimler => "●",
+        Bolum.DisariAktar => "↗",
+        Bolum.Ayarlar => "⚙",
+        null => "↪",
+        _ => throw new ArgumentOutOfRangeException(nameof(bolum))
+    };
 }
 
 /// <summary>Menü öğesinin tanımı: rol bölümü, başlık, simge ve Shell rotası (AppShell.xaml FlyoutItem Route).</summary>
@@ -106,6 +126,10 @@ public sealed partial class MenuModeli : ObservableObject
 {
     public const string CikisBasligi = "Çıkış";
 
+    private readonly bool _mobilSimgeler;
+
+    public MenuModeli(bool mobilSimgeler = false) => _mobilSimgeler = mobilSimgeler;
+
     public static IReadOnlyList<MenuGrupTanimi> Duzen { get; } =
     [
         new("Özet",
@@ -161,12 +185,12 @@ public sealed partial class MenuModeli : ObservableObject
         foreach (var grup in Duzen)
         {
             var ogeler = grup.Ogeler.Where(o => bolumler.Contains(o.Bolum))
-                .Select(o => new MenuOgesi(o.Bolum, o.Baslik, o.Simge, o.Rota, Sec) { Rozet = _rozetler.GetValueOrDefault(o.Bolum) }).ToList();
+                .Select(o => new MenuOgesi(o.Bolum, o.Baslik, _mobilSimgeler ? MenuSimgeleri.Mobil(o.Bolum) : o.Simge, o.Rota, Sec) { Rozet = _rozetler.GetValueOrDefault(o.Bolum) }).ToList();
             if (ogeler.Count > 0)
                 gruplar.Add(new MenuGrubu(grup.Baslik, ogeler));
         }
         if (gruplar.Count > 0)
-            gruplar.Add(new MenuGrubu(null, [new MenuOgesi(null, CikisBasligi, MenuSimgeleri.Cikis, "", _ => CikisIstendi?.Invoke(this, EventArgs.Empty))]));
+            gruplar.Add(new MenuGrubu(null, [new MenuOgesi(null, CikisBasligi, _mobilSimgeler ? MenuSimgeleri.Mobil(null) : MenuSimgeleri.Cikis, "", _ => CikisIstendi?.Invoke(this, EventArgs.Empty))]));
         Gruplar = gruplar;
         SeciliyiYansit();
     }

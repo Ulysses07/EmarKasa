@@ -34,6 +34,8 @@
     <Compile Include="..\Kasa.App\Views\TakipUi.cs" Link="Kontroller\TakipUi.cs" />
     <Compile Include="..\Kasa.App\Views\EkstreAktarmaPage*.cs" Link="Kontroller\%(Filename)%(Extension)" />
     <Compile Include="..\Kasa.App\Views\DosyaIslemleri.cs" Link="Kontroller\DosyaIslemleri.cs" />
+    <Compile Include="..\Kasa.App\Views\DosyaSecimTurleri.cs" Link="Kontroller\DosyaSecimTurleri.cs" />
+    <Compile Include="..\Kasa.App\Services\UygulamaIciBildirimler.cs" Link="Platformlar\UygulamaIciBildirimler.cs" />
   </ItemGroup>
 
   <!-- Kasa.App dönüştürücüleri aynı kaynak dosyalarıyla derlenip Donusturuculer/ altında sınanır (Kasa.App'e ve Windows

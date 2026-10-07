@@ -20,7 +20,7 @@ public partial class PanelPage : ContentPage, Controls.IYenilenebilir
         // Alt bölümler her başarılı panel yüklemesinden sonra yenilenir; panelin ve kendi yüklemelerinin hatası son verilerini
         // silmez, kanal satırlarındaki kart borçları da kalır (PanelViewModel.AltBolumleriBagla; tasarım 2026-10-02 §3).
         _vm.AltBolumleriBagla(takip, kontrol, cekler);
-        var secim = new HorizontalStackLayout { Spacing = 10 };
+        var secim = new Controls.UyumluSatir { Spacing = 10 };
         foreach (var gun in new[] { 7, 30 })
             secim.Add(TakipUi.Tikla($"Önümüzdeki {gun} gün", async () => { takip.Gun = gun; _vm.TakipGunu = gun; await takip.YukleAsync(); }));
         // Y-3: gün düğmeleri de bölümün eski verisiyle birlikte soluk (bağlam kart üzerinden takip özeti).
