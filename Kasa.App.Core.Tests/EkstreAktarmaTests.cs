@@ -3,7 +3,7 @@ using Kasa.ApiClient;
 
 namespace Kasa.App.Core.Tests;
 
-public class EkstreAktarmaTests
+public partial class EkstreAktarmaTests
 {
     private static readonly DateOnly Tarih = new(2026, 9, 27);
     private static EkstreOkunanSatir Satir(int no, string para = "TRY") => new(no, 1, $"27.09.2026 Hareket {no} 100,00", Tarih, $"Hareket {no}", 100m, "Cikis", "Gider", "Hareket", para, []);

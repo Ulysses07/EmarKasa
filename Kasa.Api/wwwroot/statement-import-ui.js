@@ -398,16 +398,24 @@ export function createStatementImportUi() {
       const matchField = field('Eşleşecek mevcut kayıt', match);
       let matchSequence = 0;
       const allocation = allocationEditor(channels, changed);
+      const descriptionField = field('Açıklama', text);
+      descriptionField.className = 'span-all';
       const fields = h(
         'div',
-        { hidden: true },
+        {
+          class: 'import-row-editor',
+          id: `import-editor-${document.id}-${source.no}`,
+          role: 'group',
+          'aria-label': `${source.no}. hareket düzenleme`,
+          hidden: true,
+        },
         h(
           'div',
-          { class: 'form-grid' },
+          { class: 'form-grid import-editor-grid' },
           field('İşlem tarihi', date),
           field('Tutar (₺)', total),
-          field('Açıklama', text),
           field('Kaydedilecek işlem', kind),
+          descriptionField,
           cardField,
           refundField,
           matchField
@@ -455,7 +463,35 @@ export function createStatementImportUi() {
           }
         }
       };
+      let kindInitialized = false;
+      const loadRefundSources = async sequence => {
+        refund.disabled = true;
+        refund.replaceChildren(h('option', { value: '' }, 'Harcamalar yükleniyor…'));
+        refund.value = '';
+        try {
+          const detail = await api(`/api/takip/kartlar/${document.kartId}`);
+          if (!active() || sequence !== refundSequence || kind.value !== 'KartIade') return;
+          refund.replaceChildren(
+            h('option', { value: '' }, 'İade edilen harcamayı seç'),
+            ...(detail.harcamalar || [])
+              .filter(charge => !charge.iptal && charge.tutar > 0)
+              .map(charge =>
+                h('option', { value: charge.id }, `#${charge.id} · ${dateText(charge.tarih)} · ${money(charge.tutar)} · ${charge.aciklama}`)
+              )
+          );
+          refund.value = '';
+          refund.disabled = false;
+          refundHelp.textContent = 'İade kart borcunu azaltır; nakit girişi oluşturmaz. İade edilen asıl harcamayı seç.';
+        } catch (error) {
+          if (active() && sequence === refundSequence) {
+            kindInitialized = false;
+            refundHelp.textContent = `İade kaynağı yüklenemedi: ${error.message}. Düzenlemeyi kapatıp yeniden açarak veya işlem türünü yeniden seçerek deneyin.`;
+            refund.disabled = true;
+          }
+        }
+      };
       const updateKind = async () => {
+        kindInitialized = true;
         invalidate();
         const sequence = ++refundSequence;
         cardField.hidden = document.kaynak !== 'Banka' || kind.value !== 'KartOdemesi';
@@ -476,29 +512,7 @@ export function createStatementImportUi() {
           return;
         }
         matchSequence++;
-        if (kind.value !== 'KartIade') return;
-        refund.disabled = true;
-        refund.replaceChildren(h('option', { value: '' }, 'Harcamalar yükleniyor…'));
-        refund.value = '';
-        try {
-          const detail = await api(`/api/takip/kartlar/${document.kartId}`);
-          if (!active() || sequence !== refundSequence || kind.value !== 'KartIade') return;
-          refund.replaceChildren(
-            h('option', { value: '' }, 'İade edilen harcamayı seç'),
-            ...(detail.harcamalar || [])
-              .filter(charge => !charge.iptal && charge.tutar > 0)
-              .map(charge =>
-                h('option', { value: charge.id }, `#${charge.id} · ${dateText(charge.tarih)} · ${money(charge.tutar)} · ${charge.aciklama}`)
-              )
-          );
-          refund.value = '';
-          refund.disabled = false;
-        } catch (error) {
-          if (active() && sequence === refundSequence) {
-            refundHelp.textContent = `İade kaynağı yüklenemedi: ${error.message}. İşlem türünü yeniden seçerek deneyin.`;
-            refund.disabled = true;
-          }
-        }
+        if (kind.value === 'KartIade') await loadRefundSources(sequence);
       };
       kind.addEventListener('change', () => {
         changed();
@@ -519,6 +533,27 @@ export function createStatementImportUi() {
         status.textContent = `Sayfa ${source.sayfa} · ${classes[source.sinif] || source.sinif || 'Hareket'}${blocked ? ` · ${saved.islemTuru === 'Eslestir' || saved.eslesmeTuru ? recordState(saved) : 'Zaten kaydedildi'}` : foreign ? ' · Bu para birimi kaydedilemez' : checked.checked ? ' · Seçili' : ' · Henüz seçilmedi'}`;
       };
       updateStatus();
+      const editLabel = h('span', { class: 'import-row-toggle-label' }, 'İncele / düzenle');
+      const editButton = button(
+        h('span', { class: 'import-row-summary' }, h('strong', {}, source.aciklama || 'Açıklama kontrol edilmeli'), editLabel),
+        () => {
+          if (!active()) return;
+          fields.hidden = !fields.hidden;
+          editButton.setAttribute('aria-expanded', String(!fields.hidden));
+          editLabel.textContent = fields.hidden ? 'İncele / düzenle' : 'Düzenlemeyi kapat';
+          if (!fields.hidden && !kindInitialized && kind.value === 'KartIade') {
+            kindInitialized = true;
+            return loadRefundSources(++refundSequence);
+          }
+        },
+        'import-row-toggle',
+        {
+          'aria-label': `${source.no}. hareketi incele / düzenle`,
+          'aria-expanded': 'false',
+          'aria-controls': `import-editor-${document.id}-${source.no}`,
+          disabled: blocked || foreign,
+        }
+      );
       const node = h(
         'article',
         { class: 'import-row' },
@@ -532,7 +567,7 @@ export function createStatementImportUi() {
             source.tutar == null ? 'Tutar kontrol edilmeli' : `${money(source.tutar)}${foreign ? ` (${source.paraBirimi})` : ''}`
           )
         ),
-        h('strong', {}, source.aciklama || 'Açıklama kontrol edilmeli'),
+        editButton,
         status,
         h('details', {}, h('summary', {}, 'PDF’deki kaynak satır'), h('p', { class: 'import-source-text' }, source.kaynakSatir)),
         warningList(source.uyarilar),
@@ -598,18 +633,18 @@ export function createStatementImportUi() {
       );
       node.append(proposalText, h('div', { class: 'row-actions' }, applyButton, remember));
       const selectionChanged = () => {
-        fields.hidden = !checked.checked;
         node.classList.toggle('selected', checked.checked);
         updateStatus();
         remember.hidden = !checked.checked || blocked || foreign;
         invalidate();
-        if (checked.checked) updateKind();
+        if (checked.checked && !kindInitialized) updateKind();
       };
       checked.addEventListener('change', selectionChanged);
       allocation.setKind(kind.value);
-      cardField.hidden = true;
-      refundField.hidden = true;
-      matchField.hidden = true;
+      cardField.hidden = document.kaynak !== 'Banka' || kind.value !== 'KartOdemesi';
+      refundField.hidden = kind.value !== 'KartIade';
+      matchField.hidden = kind.value !== 'Eslestir';
+      allocation.node.hidden = kind.value === 'Eslestir';
       rows.push({
         source,
         checked,
