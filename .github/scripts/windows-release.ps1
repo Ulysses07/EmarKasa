@@ -54,9 +54,9 @@ try {
     $zip = Join-Path $artifact "EmarKasa-$version-win-x64.zip"
     [System.IO.Compression.ZipFile]::CreateFromDirectory($publish, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
     $commonPack = @('--packId', 'EmarKasa', '--packDir', $publish, '--mainExe', 'Kasa.App.exe', '--packTitle', 'Emar Kasa',
-        '--packAuthors', 'Emar', '--aumid', 'EmarKasa.Masaustu', '--channel', 'win', '--runtime', 'win-x64', '--noPortable', '--delta', 'None')
+        '--packAuthors', 'Emar', '--aumid', 'EmarKasa.Masaustu', '--channel', 'win', '--runtime', 'win-x64', '--delta', 'None')
     # No skipVeloAppCheck: the entry executable must really bootstrap Velopack before WinUI.
-    & $vpk --yes --skip-updates --legacyConsole pack @commonPack --packVersion $version --outputDir $release
+    & $vpk --yes --skip-updates --legacyConsole pack @commonPack --packVersion $version --outputDir $release --noPortable
     if ($LASTEXITCODE -ne 0) { throw 'Gerçek Velopack yayını paketlenemedi.' }
     $fullPackage = Assert-KasaReleaseFeed $release $version
     $setups = @(Get-ChildItem -LiteralPath $release -Filter '*-Setup.exe' -File)

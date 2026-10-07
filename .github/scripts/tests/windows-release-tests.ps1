@@ -24,6 +24,35 @@ try {
     Assert-Equal (Get-KasaNextPatchVersion '2.4.1') '2.4.2' 'Synthetic next patch'
     Assert-Rejected { Get-KasaNextPatchVersion '2.4.1-test' } 'Nonproduction version'
     Assert-Rejected { Get-KasaNextPatchVersion '2.4.2147483647' } 'Patch overflow'
+    # Validate the actual shipping argv without executing publish, pack or an installer.
+    # Velopack 1.2.161 PackOptionsValidator forbids noPortable + noInst together.
+    $releaseScriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'windows-release.ps1'
+    $releaseAst = [System.Management.Automation.Language.Parser]::ParseFile($releaseScriptPath, [ref]$null, [ref]$null)
+    $commonAssignments = @($releaseAst.FindAll({ param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+        $node.Left.VariablePath.UserPath -eq 'commonPack'
+    }, $true))
+    Assert-Equal $commonAssignments.Count 1 'Shared pack argv found'
+    $commonFlags = @($commonAssignments[0].Right.FindAll({ param($node)
+        $node -is [System.Management.Automation.Language.StringConstantExpressionAst]
+    }, $true) | ForEach-Object { $_.Value })
+    $packCommands = @($releaseAst.FindAll({ param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+        $node.CommandElements[0].VariablePath.UserPath -eq 'vpk'
+    }, $true))
+    Assert-Equal $packCommands.Count 2 'Production and synthetic pack calls found'
+    foreach ($packCommand in $packCommands) {
+        $variables = @($packCommand.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.VariableExpressionAst] } | ForEach-Object { $_.VariablePath.UserPath })
+        $flags = @($commonFlags) + @($packCommand.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.StringConstantExpressionAst] } | ForEach-Object { $_.Value })
+        Assert-Equal (($flags -contains '--noPortable') -and ($flags -contains '--noInst')) $false 'Velopack mutually exclusive pack flags'
+        if ($variables -contains 'release') {
+            Assert-Equal ($flags -contains '--noPortable') $true 'Production skips portable output'
+        } elseif ($variables -contains 'feed') {
+            Assert-Equal ($flags -contains '--noInst') $true 'Synthetic skips installer output'
+        } else { throw 'Unexpected pack output; production/synthetic boundary cannot be verified.' }
+    }
     $junctionTarget = Join-Path $fixtureRoot 'junction-target'
     $junction = Join-Path $fixtureRoot 'junction'
     New-Item -ItemType Directory -Path $junctionTarget | Out-Null

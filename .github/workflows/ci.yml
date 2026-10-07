@@ -268,9 +268,26 @@ jobs:
       - name: Check C# whitespace formatting
         run: dotnet format whitespace --folder . --exclude '**/bin/' '**/obj/' --verify-no-changes --verbosity minimal
 
-  windows-app:
-    name: Build and smoke-test Windows MAUI app
+  windows-package:
+    name: Windows package validation
     if: github.event_name != 'schedule'
-    # The same self-contained publish folder is started, then uploaded as the complete release ZIP.
-    # The reusable workflow has read-only permissions and cannot create a draft or upload to Apple.
+    # The exact shipped app is published, installed and updated on a temporary runner.
+    # The reusable workflow has read-only permissions and cannot create a release or upload to Apple.
     uses: ./.github/workflows/windows-validation.yml
+
+  windows-app:
+    # Preserve the required check name already configured in release/2.x branch protection.
+    name: Build and smoke-test Windows MAUI app
+    needs: windows-package
+    if: always() && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require successful Windows package validation
+        env:
+          WINDOWS_RESULT: ${{ needs.windows-package.result }}
+        run: |
+          if [ "$WINDOWS_RESULT" != success ]; then
+            echo '::error::Windows publish, installation and update validation did not succeed.'
+            exit 1
+          fi
