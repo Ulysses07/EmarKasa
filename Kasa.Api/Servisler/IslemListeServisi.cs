@@ -8,7 +8,7 @@ namespace Kasa.Api.Servisler;
 public record IslemOkuDto(
     int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, int? KanalId,
     GiderTipi Tip, string? Not, int? KrediKartiId, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
-    int Surum = 0);
+    int Surum = 0, string? ErpCari = null);
 
 public record IslemSayfasi(IReadOnlyList<IslemOkuDto> Kayitlar, string? SonrakiImlec, bool DevamVar);
 
@@ -164,7 +164,9 @@ public class IslemListeServisi
                 kayit.Tip, kayit.Not, kayit.KrediKartiId, esleme?.AlisId, esleme?.Bekliyor ?? false, Surum: kayit.Surum));
         }
 
-        return sonuc;
+        // ERP12'de eşleşen carinin adı (docs/specs/2026-11-25-erp12-aktarimi.md); kaydın kendisi değişmez.
+        var cariler = sonuc.Count == 0 ? [] : ErpEslestirme.Cariler(_db, EslesmeTurleri.Gider);
+        return cariler.Count == 0 ? sonuc : sonuc.Select(r => cariler.TryGetValue(r.Id, out var ad) ? r with { ErpCari = ad } : r).ToList();
     }
 
     private sealed record Esleme(int AlisId, bool Bekliyor, int? KanalId, string[] KanalAdlari);

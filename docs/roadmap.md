@@ -30,7 +30,9 @@ Cari/tedarikçi kartı yönetimi, toplu tedarikçi borcu ve vade takibi, miktar-
 
 1 Ekim 2026 kullanıcı kararı: alınan ve verilen çek ile senet takibi (tahsil, ödeme, ciro, kırdırma, vade hatırlatması) bu uygulamaya alınmıştır; kurallar `docs/specs/2026-10-01-cekler.md`'dedir. Tedarikçi borcu ve genel vade takibi ERP12'de kalır.
 
-Alış içindeki ödenen/kalan tutar, o alışın gider bağlantısını kontrol etmek içindir; ayrı bir cari hesap veya borç modülü değildir. Stok, e-fatura, banka entegrasyonu, çift taraflı muhasebe ve çok şirketli kullanım da kapsamda değildir.
+25 Kasım 2026 kullanıcı kararı: cari hesapların aslı ERP12'de kalır; ERP12'den Excel olarak dışa aktarılan cari hareketleri bu uygulamaya aynen yüklenir ve **Cariler** ekranında salt okunur görünür. Kasayı yine ekstre etkiler: ERP12 hareketi kasadaki kayıtla eşleşip cari adını verir, ekstrede karşılığı olmayan nakit hareket kullanıcıya sorulur. ERP12'ye veri gönderilmez, cari kartı açılmaz. Kurallar `docs/specs/2026-11-25-erp12-aktarimi.md`'dedir.
+
+Alış içindeki ödenen/kalan tutar, o alışın gider bağlantısını kontrol etmek içindir; ayrı bir cari hesap veya borç modülü değildir; Cariler ekranındaki bakiye de yalnız aktarılan hareketlerin toplamıdır. Stok, e-fatura, banka entegrasyonu, çift taraflı muhasebe ve çok şirketli kullanım da kapsamda değildir.
 
 ## Hesaplama ve kullanım sınırları
 

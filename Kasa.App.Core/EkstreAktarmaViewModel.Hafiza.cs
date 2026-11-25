@@ -12,7 +12,7 @@ public sealed class EkstreHafizaSatiri(EkstreHafizaDto veri, string islem)
 {
     public EkstreHafizaDto Veri { get; } = veri;
     public string Baslik => $"{Veri.Anahtar} · {EkstreSatirEditor.YonAdi(Veri.Yon)}";
-    public string Ozet => $"{(Veri.Kaynak == EkstreKaynaklari.Kart ? "Kart ekstresi" : "Banka hareketi")} · {(Veri.Celiskili ? "son iki karar farklı, önerilmez; son: " : "")}{islem} · {Veri.Adet} kez, son {Veri.SonTarih:dd.MM.yyyy}"
+    public string Ozet => $"{Veri.Kaynak switch { EkstreKaynaklari.Kart => "Kart ekstresi", EkstreKaynaklari.Erp => "ERP12", _ => "Banka hareketi" }} · {(Veri.Celiskili ? "son iki karar farklı, önerilmez; son: " : "")}{islem} · {Veri.Adet} kez, son {Veri.SonTarih:dd.MM.yyyy}"
         + (Veri.Aciklama is { } aciklama ? $" · Açıklama: {aciklama}" : "");
 }
 
@@ -31,13 +31,15 @@ public partial class EkstreAktarmaViewModel
     public bool HazirVar => Satirlar.Any(s => s.HazirOneri);
     /// <summary>Hafızadan (ve kesin kişisel kuraldan) hazır satırlar ve toplamları.</summary>
     public string HazirOzeti => Hazirlar is { Count: > 0 } h ? $"{h.Count} satır hazır · {Toplam(h)}" : "";
+    public string HazirAciklamasi => (Belge?.Kaynak == EkstreKaynaklari.Erp ? "Kasadaki karşılığı kesin olan (ya da hafızanın bildiği nakit) satırlar; eşleşme kasayı değiştirmez."
+        : "Bu satırlar daha önce kaydettiğiniz gibi dolduruldu.") + " Düğme onları işaretler ve etkilerini gösterir; kayıt ancak siz onaylayınca olur.";
     public bool YokSayOneriVar => YokSayDestekleniyor && Satirlar.Any(s => s.YokSayOnerisi);
     public int YokSayOneriSayisi => YokSayOnerileri.Count;
     public string YokSayOneriDugmesi => $"Daha önce yok sayılanları yok say ({YokSayOneriSayisi})";
 
     private void HazirlariBildir()
     {
-        foreach (var ad in new[] { nameof(HazirVar), nameof(HazirOzeti), nameof(YokSayOneriVar), nameof(YokSayOneriDugmesi) })
+        foreach (var ad in new[] { nameof(HazirVar), nameof(HazirOzeti), nameof(HazirAciklamasi), nameof(YokSayOneriVar), nameof(YokSayOneriDugmesi) })
             OnPropertyChanged(ad);
     }
 
@@ -47,7 +49,7 @@ public partial class EkstreAktarmaViewModel
         var degisen = 0;
         _topluDegisiklik = true;
         try
-        { degisen = Satirlar.Count(s => s.HafizayiUygula()); }
+        { degisen = Satirlar.Count(s => s.OneriyiKendiligindenUygula()); }
         finally { _topluDegisiklik = false; }
         if (degisen > 0)
             GirdiDegisti();
@@ -67,7 +69,7 @@ public partial class EkstreAktarmaViewModel
         {
             foreach (var s in hazir)
             {
-                if (s.Oneri?.Hafiza is null && !s.OneriyiUygula(toplu: true))
+                if (s.OneriUygulanabilir && !s.OneriyiUygula(toplu: true))
                     continue;
                 s.Secili = s.Hazirla().Yaz is not null;
             }

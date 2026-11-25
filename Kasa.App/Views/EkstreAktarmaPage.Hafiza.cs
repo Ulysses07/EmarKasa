@@ -18,7 +18,7 @@ public sealed partial class EkstreAktarmaPage
             Children =
             {
                 ozet,
-                Metin("Bu satırlar daha önce kaydettiğiniz gibi dolduruldu. Düğme onları işaretler ve etkilerini gösterir; kayıt ancak siz onaylayınca olur."),
+                Bagli(nameof(vm.HazirAciklamasi)),
                 Dugme("Hazırları işaretle ve etkisini göster", nameof(vm.HazirlariIsaretleCommand)),
             }
         };

@@ -1,5 +1,6 @@
 using Kasa.Api.Data;
 using Kasa.Api.Servisler;
+using Kasa.Core.Kodlar;
 using Microsoft.EntityFrameworkCore;
 using static Kasa.Api.FinansTakipServisi;
 
@@ -45,6 +46,8 @@ public static partial class EkstreAktarmaEndpoints
         var d = db.EkstreBelgeler.AsNoTracking().SingleOrDefault(d => d.Id == id);
         if (d is null)
             return Error("Belge bulunamadı.", 404);
+        if (d.Kaynak == EkstreKaynaklari.Erp)
+            return Error("ERP12 belgesi yeniden okunmaz; silip yeniden yükleyebilirsiniz.", 409);
         if (Islenmis(db, id))
             return Error(YenidenOkunamaz, 409);
         byte[] bytes;

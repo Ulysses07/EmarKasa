@@ -44,6 +44,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAylikGiderApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<IEkstreAktarmaApi>(sp => sp.GetRequiredService<KasaApiClient>());
         builder.Services.AddSingleton<ICekApi>(sp => sp.GetRequiredService<KasaApiClient>());
+        builder.Services.AddSingleton<IErpApi>(sp => sp.GetRequiredService<KasaApiClient>());
         // Tek bağlantı durumu (tasarım 2026-10-02 §3): istemcinin ağ hatası kopuk, her yanıt bağlı yapar; kabuk şeridi ve
         // ekranlar (AuthViewModel, rapor modelleri) aynı örneği okur.
         builder.Services.AddSingleton<IBaglantiBildirimleri>(sp => sp.GetRequiredService<KasaApiClient>());
@@ -116,6 +117,7 @@ public static class MauiProgram
         builder.Services.AddTransient<AyKilidiViewModel>();
         builder.Services.AddTransient<EkstreAktarmaViewModel>();
         builder.Services.AddTransient<CekTakipViewModel>();
+        builder.Services.AddTransient<CarilerViewModel>();
         builder.Services.AddTransient<CekOzetViewModel>();
 
         builder.Services.AddSingleton<App>();
@@ -134,6 +136,7 @@ public static class MauiProgram
         builder.Services.AddTransient<Views.AylikGiderPage>();
         builder.Services.AddTransient<Views.EkstreAktarmaPage>();
         builder.Services.AddTransient<Views.CekTakipPage>();
+        builder.Services.AddTransient<Views.CarilerPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

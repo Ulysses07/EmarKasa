@@ -23,7 +23,7 @@ public class MenuModeliTests
         => Assert.Equal(new[]
         {
             "Özet: Kasalar, Haftalık, Aylık",
-            "Kayıtlar: İşlemler, Alışlar, Aylık giderler, Ekstre içe aktar",
+            "Kayıtlar: İşlemler, Alışlar, Aylık giderler, Ekstre içe aktar, Cariler",
             "Kart, kredi ve çek: Kartlar, Krediler, Çekler",
             "Diğer: Bildirimler, Rapor dışa aktar, Ayarlar",
             "—: Çıkış",
@@ -34,7 +34,7 @@ public class MenuModeliTests
         => Assert.Equal(new[]
         {
             "Özet: Kasalar, Haftalık, Aylık",
-            "Kayıtlar: İşlemler, Aylık giderler",
+            "Kayıtlar: İşlemler, Aylık giderler, Cariler",
             "Kart, kredi ve çek: Kartlar, Krediler, Çekler",
             "Diğer: Rapor dışa aktar",
             "—: Çıkış",
@@ -80,6 +80,7 @@ public class MenuModeliTests
         });
         Assert.Equal("kartlar", MenuModeli.Rota(Bolum.Kartlar));
         Assert.Equal("cekler", MenuModeli.Rota(Bolum.Cekler));
+        Assert.Equal("cariler", MenuModeli.Rota(Bolum.Cariler));
     }
 
     [Fact]

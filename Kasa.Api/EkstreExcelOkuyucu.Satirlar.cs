@@ -31,6 +31,22 @@ public static partial class EkstreExcelOkuyucu
         public decimal? Bakiye { get; init; }
     }
 
+    private static string AlanAdi(Alan a) => a switch
+    {
+        Alan.Aciklama => "Açıklama",
+        Alan.Islem => "İşlem türü",
+        Alan.Giris => "Giriş",
+        Alan.Cikis => "Çıkış",
+        Alan.DovizTutar => "Döviz tutarı",
+        Alan.Yon => "Yön",
+        Alan.ParaBirimi => "Para birimi",
+        Alan.Valor => "Valör",
+        Alan.CariKodu => "Cari kodu",
+        Alan.BelgeNo => "Belge no",
+        _ => a.ToString(),
+    };
+    private static string Kisalt(string s, int n) => s.Length <= n ? s : s[..n];
+
     private sealed class Okuma(Sayfa sayfa, Duzen duzen, string kaynak)
     {
         private readonly List<string> _hatalar = [];
@@ -61,27 +77,13 @@ public static partial class EkstreExcelOkuyucu
             return new(satirlar, _uyarilar.Select(GirdiDogrulama.Temizle).ToList(), _atlanan);
         }
 
-        private static string AlanAdi(Alan a) => a switch
-        {
-            Alan.Aciklama => "Açıklama",
-            Alan.Islem => "İşlem türü",
-            Alan.Giris => "Giriş",
-            Alan.Cikis => "Çıkış",
-            Alan.DovizTutar => "Döviz tutarı",
-            Alan.Yon => "Yön",
-            Alan.ParaBirimi => "Para birimi",
-            Alan.Valor => "Valör",
-            _ => a.ToString(),
-        };
-
         private void Hata(Satir satir, string ileti, Alan? alan = null) => _hatalar.Add(GirdiDogrulama.Temizle($"Satır {satir.No}{(alan is { } a && duzen[a] is { } s ? $", {AlanAdi(a)} ({SutunAdi(s)}{satir.No})" : "")}: {ileti}."));
         private void Atla(Satir satir, string neden) => _atlanan.Add(new(1, Kisalt(GirdiDogrulama.Temizle($"Excel satır {satir.No}: {satir.Metin}"), 500), neden));
-        private static string Kisalt(string s, int n) => s.Length <= n ? s : s[..n];
 
         private void SatiriOku(Satir satir)
         {
             // Sayfa içinde yinelenen başlık.
-            if (satir.Hucreler.Select(BaslikAlani).Count(b => b is not null) >= 3)
+            if (satir.Hucreler.Select(h => BaslikAlani(h, erp: false)).Count(b => b is not null) >= 3)
                 return;
             var tutarAlanlari = new[] { Alan.Giris, Alan.Cikis, Alan.Tutar, Alan.DovizTutar }.Where(a => duzen[a] is not null).ToList();
             var tutarVar = tutarAlanlari.Any(a => !satir[duzen[a]].Bos);

@@ -92,6 +92,32 @@ public static class EkstreKaynaklari
     public const string Kart = "Kart";
     /// <summary>Banka hesap hareketleri.</summary>
     public const string Banka = "Banka";
+    /// <summary>ERP12'den dışa aktarılan cari hareketleri (docs/specs/2026-11-25-erp12-aktarimi.md): banka ve kartı yoktur, tek başına kasayı etkilemez.</summary>
+    public const string Erp = "Erp";
+}
+
+/// <summary>ERP12 satırının öneri durumu (EkstreKuralOnerisi.Durum).</summary>
+public static class ErpOneriDurumlari
+{
+    /// <summary>Kasadaki karşılığı kesin: eşleştirme hazır.</summary>
+    public const string Eslesme = "ErpEslesme";
+    /// <summary>Olası karşılıklar var, kullanıcı seçer.</summary>
+    public const string Secim = "ErpSecim";
+    /// <summary>Nakit ve kasada karşılığı yok: kasaya yazılsın mı sorulur.</summary>
+    public const string Nakit = "ErpNakit";
+    /// <summary>Karşılığı yok; ekstresi ya da çeki girilince eşleşir.</summary>
+    public const string Bekle = "ErpBekle";
+}
+
+/// <summary>Cari hareketinin kasadaki durumu (ErpCariHareketDto.Durum; saklanmaz, okurken hesaplanır).</summary>
+public static class ErpHareketDurumlari
+{
+    /// <summary>Fatura, devir ya da düzeltme: kasa hareketi değildir.</summary>
+    public const string KasaDisi = "ErpKasaDisi";
+    public const string Bekliyor = "ErpBekliyor";
+    public const string Eslesti = "ErpEslesti";
+    public const string Kaydedildi = "ErpKaydedildi";
+    public const string YokSayildi = "ErpYokSayildi";
 }
 
 /// <summary>Ekstre satırının bağlandığı mevcut kaydın türü (EkstreKayitEntity.EslesmeTuru, EkstreSatirYaz.EslesenKayitTuru,
@@ -106,6 +132,10 @@ public static class EslesmeTurleri
     public const string KartTaksidi = "KartTaksidi";
     /// <summary>Karta ödeme (TakipKartOdeme).</summary>
     public const string KartOdeme = "KartOdeme";
+    /// <summary>Banka ekstresinden kaydedilmiş gelir (EkstreKayit); yalnız ERP12 satırının hedefidir.</summary>
+    public const string EkstreGelir = "EkstreGelir";
+    /// <summary>Çek ya da senet kaydı (Cek); yalnız ERP12 satırının hedefidir.</summary>
+    public const string CekKaydi = "CekKaydi";
 }
 
 /// <summary>Ekstre satırının eşleşmesinin bugünkü durumu (EkstreKayitDto.EslesmeDurumu; saklanmaz, okurken hesaplanır).</summary>

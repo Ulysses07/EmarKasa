@@ -7,7 +7,7 @@ namespace Kasa.App.Core;
 // Satırın durumu (bekleyen/kapanan), giriş-çıkış gösterimi ve toplu uygulama (docs/specs/2026-11-25-pdf-ekrani.md).
 public partial class EkstreSatirEditor
 {
-    private readonly bool _kartBelgesi;
+    private readonly bool _kartBelgesi, _erpBelgesi;
     /// <summary>Açık düzenleyicideki işlemin (eşleşme adayları, hatırla) sonucu; düğmenin altında görünür.</summary>
     [ObservableProperty] private string? _formMesaji;
     /// <summary>Satır kaydedilmeden kapatıldı (yok sayıldı); geri alınabilir.</summary>

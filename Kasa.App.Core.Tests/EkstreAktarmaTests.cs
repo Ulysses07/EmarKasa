@@ -477,6 +477,8 @@ public partial class EkstreAktarmaTests
         public IReadOnlyList<EkstreHafizaDto> Hafiza = [];
         public Exception? HafizaHatasi;
         public List<EkstreHafizaUnutYaz> Unutulanlar = [];
+        public List<int> ErpSilinenler = [];
+        public Task ErpBelgeSilAsync(int id) { ErpSilinenler.Add(id); return Task.CompletedTask; }
         public Task<IReadOnlyList<EkstreHafizaDto>> EkstreHafizaAsync() => HafizaHatasi is { } h ? Task.FromException<IReadOnlyList<EkstreHafizaDto>>(h) : Task.FromResult(Hafiza);
         public Task EkstreHafizaUnutAsync(EkstreHafizaUnutYaz g) { Unutulanlar.Add(g); return Task.CompletedTask; }
         public IReadOnlyList<EkstreBankaDto> BankaListesi = [new("Vakifbank", "VakıfBank"), new("Akbank", "Akbank"), new("Isbank", "İş Bankası")];

@@ -205,6 +205,8 @@
                                             <VerticalStackLayout Grid.Column="1" ctl:UyumluIzgara.DarSatir="0" ctl:UyumluIzgara.DarSutun="1" Spacing="2" VerticalOptions="Center">
                                                 <Label Text="{Binding Cari}" Style="{StaticResource LblRowPrimary}" />
                                                 <Label Text="{Binding Kanal}" Style="{StaticResource LblRowSecondary}" />
+                                                <Label Text="{Binding ErpCari, StringFormat='ERP12: {0}'}" Style="{StaticResource LblRowSecondary}"
+                                                       IsVisible="{Binding ErpCari, Converter={StaticResource DoluIse}}" />
                                             </VerticalStackLayout>
                                             <Label Grid.Column="2" ctl:UyumluIzgara.DarSatir="1" ctl:UyumluIzgara.DarSutun="1"
                                                    Text="{Binding TutarTl, Converter={StaticResource ParaBicim}}"

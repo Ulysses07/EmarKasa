@@ -30,6 +30,8 @@ public static class EkstreKuralServisi
 
     public static IReadOnlyList<EkstreKuralOnerisi> Oneriler(KasaDbContext db, EkstreBelgeEntity belge)
     {
+        if (belge.Kaynak == EkstreKaynaklari.Erp)
+            return ErpEslestirme.Oneriler(db, belge, EkstreAktarmaEndpoints.EslesmisHedefler(db, EkstreKaynaklari.Erp));
         var kurallar = db.EkstreKurallar.AsNoTracking().Where(k => k.Aktif && k.Kaynak == belge.Kaynak && (k.Banka == null || k.Banka == belge.Banka))
             .OrderBy(k => k.Id).ToList().Select(k => (Kural: Dto(k), Kosul: " " + Normalize(k.AciklamaIcerir) + " ")).ToArray();
         var aktifKanallar = db.Kanallar.AsNoTracking().Where(k => k.Aktif).Select(k => k.Id).ToHashSet();

@@ -62,10 +62,12 @@ public static class SozlesmeIzinleri
         new(Yon.IstemciFazlasi, typeof(IslemDto), "dagilimBekliyor", "POST api/islemler", "Genel gider kanalı yazılırken seçilir."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "aylikGiderOdemeId", "POST api/islemler", "Yeni genel gider aylık gider ödemesi değildir."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "ekstreKayitId", "POST api/islemler", "Yeni genel gider ekstre kaydı değildir."),
+        new(Yon.IstemciFazlasi, typeof(IslemDto), "erpCari", "POST api/islemler", "Yeni genel gidere henüz ERP12 satırı bağlı değildir."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "alisId", "PUT api/islemler/{id}", "Alışa bağlı gider bu uçta 409 alır."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "dagilimBekliyor", "PUT api/islemler/{id}", "Genel gider kanalı yazılırken seçilir."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "aylikGiderOdemeId", "PUT api/islemler/{id}", "Aylık gider ödemesi bu uçta değiştirilemez (409)."),
         new(Yon.IstemciFazlasi, typeof(IslemDto), "ekstreKayitId", "PUT api/islemler/{id}", "Ekstre kaydı bu uçta değiştirilemez (409)."),
+        new(Yon.IstemciFazlasi, typeof(IslemDto), "erpCari", "PUT api/islemler/{id}", "Bağlı cari listeden okunur; düzenleme bağı değiştirmez."),
 
         // İstemci fazlası (bütün uçlar): kilitli ayın raporu anlık görüntüden döner ve sunucu "dondurulmus" alanını yalnız
         // orada JSON'a ekler (AyRaporAnlikGoruntusu.Oku); Kasa.Core.AylikRapor türünde yoktur, koşullu alan kuralına girmez.

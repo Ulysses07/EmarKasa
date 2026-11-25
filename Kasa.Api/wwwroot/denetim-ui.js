@@ -36,6 +36,7 @@ export const ENTITY_LABELS = {
   EkstreKayit: 'Ekstre satırı',
   EkstreYokSayilan: 'Yok sayılan ekstre satırı',
   EkstreHafizaUnutulan: 'Unutulan işlem hafızası',
+  ErpHareket: 'ERP12 cari hareketi',
   Hesap: 'Hesap',
   HesapHareket: 'Hesap hareketi',
   HesapTransfer: 'Hesap transferi',

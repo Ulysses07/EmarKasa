@@ -59,7 +59,9 @@ public partial class EkstreSatirEditor : ObservableObject
         Kanallar = kanallar;
         Kartlar = kartlar;
         KartSecimiGorunur = belge.Kaynak == EkstreKaynaklari.Banka;
-        IslemTurleri = belge.Kaynak == EkstreKaynaklari.Kart
+        _erpBelgesi = belge.Kaynak == EkstreKaynaklari.Erp;
+        IslemTurleri = _erpBelgesi ? [new(EkstreIslemTurleri.Gelir, "Gelir"), new(EkstreIslemTurleri.Gider, "Gider"), new(EkstreIslemTurleri.Eslestir, "Mevcut kayıtla eşleştir")]
+            : belge.Kaynak == EkstreKaynaklari.Kart
             ? [new(EkstreIslemTurleri.KartHarcama, "Kart harcaması"), new(EkstreIslemTurleri.KartIade, "Kart iadesi"), new(EkstreIslemTurleri.KartOdemesi, "Karta ödeme"), new(EkstreIslemTurleri.Eslestir, "Mevcut kayıtla eşleştir")]
             : [new(EkstreIslemTurleri.Gelir, "Gelir"), new(EkstreIslemTurleri.Gider, "Gider"), new(EkstreIslemTurleri.KartOdemesi, "Karta ödeme"), new(EkstreIslemTurleri.Eslestir, "Mevcut kayıtla eşleştir")];
         TarihMetni = kaynak.Tarih?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
@@ -94,7 +96,7 @@ public partial class EkstreSatirEditor : ObservableObject
         { hata = $"Satır {Kaynak.No}: Tarihi yıl-ay-gün biçiminde girin (2026-09-27)."; return false; }
         if (!ParaAyristirici.Coz(TutarMetni, out var tutar, out var paraHatasi) || tutar <= 0 || decimal.Round(tutar, 2) != tutar)
         { hata = $"Satır {Kaynak.No}: {paraHatasi ?? "Tutar pozitif ve kuruş hassasiyetinde olmalı."}"; return false; }
-        sorgu = new(tarih, tutar);
+        sorgu = new(tarih, tutar, _erpBelgesi ? Kaynak.No : null);
         return true;
     }
     /// <summary>Sunucudan gelen adayları yansıtır; önceki seçim yeni listede yoksa kalkar.</summary>
@@ -198,7 +200,9 @@ public record EkstreGecmisSatiri(EkstreBelgeOzetDto Veri)
     public string Baslik => $"{Veri.Yuklendi.LocalDateTime:dd.MM.yyyy HH:mm} · {Veri.DosyaAdi}";
     /// <summary>Kapanan satır: iptal edilmemiş kaydı olan ya da yok sayılan (bir satır ikisi birden olamaz).</summary>
     public int Kapanan => Veri.KayitSayisi + Veri.YokSayilanSayisi;
-    public string Ozet => $"{Veri.Banka} · {Veri.Kaynak} · {Veri.HesapAdi} · {Veri.SatirSayisi} satır · {Math.Max(0, Veri.SatirSayisi - Kapanan)} bekliyor · {Kapanan} kapandı"
+    /// <summary>Belgenin banka, tür ve hesabı; ERP12 belgesi bir bankaya ait değildir.</summary>
+    public static string Kimlik(string banka, string kaynak, string hesap) => kaynak == EkstreKaynaklari.Erp ? "ERP12 cari hareketleri" : $"{banka} · {kaynak} · {hesap}";
+    public string Ozet => $"{Kimlik(Veri.Banka, Veri.Kaynak, Veri.HesapAdi)} · {Veri.SatirSayisi} satır · {Math.Max(0, Veri.SatirSayisi - Kapanan)} bekliyor · {Kapanan} kapandı"
         + (Veri.YokSayilanSayisi > 0 ? $" ({Veri.KayitSayisi} kayıt, {Veri.YokSayilanSayisi} yok sayıldı)" : "");
 }
 public record EkstreKayitSatiri(EkstreKayitDto Veri)
@@ -207,7 +211,7 @@ public record EkstreKayitSatiri(EkstreKayitDto Veri)
     public string Ozet => Veri.IslemTuru == EkstreIslemTurleri.Eslestir
         ? $"Mevcut kayıtla eşleşme · {(Veri.Iptal ? "İptal edildi" : EslesmeMetni)} · Kasa etkisi yok" + IptalMetni
         : $"{Veri.IslemTuru} · {(Veri.Iptal ? "İptal edildi" : Veri.EslesmeTuru is null ? "Kaydedildi" : EslesmeMetni)} · {(Veri.DagilimTuru == DagilimBicimleri.Genel ? "Yalnız genel kasa" : TakipMetni.Paylar(Veri.Dagilimlar))}"
-            + IptalMetni;
+            + (Veri.ErpCari is { } cari ? $" · ERP12: {cari}" : "") + IptalMetni;
     /// <summary>Eşleşen kaydın durumu: 'Eslestir' satırında bağlandığı kayıt; kaydı alış ödemesine bağlanmış satırda alışın kaydı.</summary>
     private string EslesmeMetni => Veri.EslesmeDurumu == EslesmeDurumlari.KayitYok
         ? $"Eşleştiği kayıt (#{Veri.EslesmeId}) silinmiş ya da iptal edilmiş"
@@ -227,6 +231,8 @@ public record EslesmeAdayiSatiri(EkstreEslesmeAdayiDto Veri)
         EslesmeTurleri.KartHarcama => "Kart harcaması",
         EslesmeTurleri.KartTaksidi => "Kart taksidi",
         EslesmeTurleri.KartOdeme => "Kart ödemesi",
+        EslesmeTurleri.EkstreGelir => "Banka girişi",
+        EslesmeTurleri.CekKaydi => "Çek",
         _ => "Kayıt"
     };
 }
