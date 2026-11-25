@@ -305,10 +305,14 @@ public partial class CekTakipViewModel
         return yazilan;
     }
 
-    /// <summary>Kaydedilen çeklerden seçili süzgece uyanları listeye vade sırasıyla yazar; görünenlerin sayısını döndürür.</summary>
+    /// <summary>Kaydedilen çeklerden seçili süzgece uyanları listeye vade sırasıyla yazar; görünenlerin sayısını döndürür. Yanıtı kaybolan
+    /// kayıttan sonra liste yenilendiyse çekler zaten listededir: aynı kimlikli satır yenisiyle değişir, ikinci kez görünmez.</summary>
     private int TopluyuListeyeYaz(IReadOnlyList<CekDto> cekler)
     {
         var gorunen = cekler.Where(SuzgecteGorunur).ToList();
+        var idler = cekler.Select(c => c.Id).ToHashSet();
+        foreach (var eski in Cekler.Where(s => idler.Contains(s.Veri.Id)).ToList())
+            Cekler.Remove(eski);
         foreach (var c in gorunen)
             Cekler.Insert(SiraDizini(c), new CekSatiri(c, Bugun));
         SatirlariBol();
