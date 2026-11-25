@@ -305,19 +305,23 @@ public partial class EkstreAktarmaViewModel
         {
             var kapali = acikKayitlar.ContainsKey(s.No) || yokSayilan.Contains(s.No);
             var eski = !kapali && eskiler.TryGetValue(s.No, out var e) && e.Kaynak.KaynakSatir == s.KaynakSatir ? e : null;
-            if (eski is not null && eski.Kanallar.SequenceEqual(kanallar) && eski.Kartlar.SequenceEqual(kartlar, ReferenceEqualityComparer.Instance))
+            if (eski is not null && AyniOkuma(eski.Kaynak, s) && eski.Kanallar.SequenceEqual(kanallar) && eski.Kartlar.SequenceEqual(kartlar, ReferenceEqualityComparer.Instance))
                 return eski;
             EkstreSatirEditor yeni = null!;
             yeni = new(s, b, kanallar, kartlar, () => SatirDegisti(yeni)) { Kayit = acikKayitlar.GetValueOrDefault(s.No) };
-            if (eski is not null)
-                yeni.TaslagiAl(eski);
-            else if (!kapali && _yokSayilanTaslak.Remove(s.No, out var taslak) && taslak.Kaynak.KaynakSatir == s.KaynakSatir)
+            // Satır bu arada yeniden okunduysa (başka cihaz) eski okumanın değerleri taslak sayılmaz: yalnız elle değiştirilen taşınır,
+            // işareti kalkar.
+            if (eski is not null && (AyniOkuma(eski.Kaynak, s) || eski.ElleDegisti))
+                yeni.TaslagiAl(eski, isaret: AyniOkuma(eski.Kaynak, s));
+            else if (!kapali && _yokSayilanTaslak.Remove(s.No, out var taslak) && AyniOkuma(taslak.Kaynak, s))
                 yeni.TaslagiAl(taslak, isaret: false);
             if (acikKayitlar.ContainsKey(s.No))
                 _yokSayilanTaslak.Remove(s.No);
             return yeni;
         }).ToList();
     }
+
+    private static bool AyniOkuma(EkstreOkunanSatir a, EkstreOkunanSatir b) => a with { Uyarilar = b.Uyarilar } == b && a.Uyarilar.SequenceEqual(b.Uyarilar);
 
     private void SekmeleriDoldur()
     {

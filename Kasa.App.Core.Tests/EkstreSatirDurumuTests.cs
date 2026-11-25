@@ -273,6 +273,24 @@ public partial class EkstreAktarmaTests
     }
 
     [Fact]
+    public async Task Baska_cihazda_yeniden_okunan_satirin_eski_okumasi_taslak_sayilmaz()
+    {
+        var api = new Sahte { Veri = DurumBelgesi(YonSatiri(1, "Giris", 100m, "Gelir"), YonSatiri(2, "Giris", 50m, "Gelir"), Satir(3)) };
+        var (vm, _, _) = await Hazir(api);
+        vm.Satirlar[0].Secili = true;
+        vm.Satirlar[1].Aciklama = "Elle";
+        vm.Satirlar[1].Secili = true;
+        vm.Satirlar[2].Secili = true;
+        api.Veri = api.Veri with { Satirlar = [YonSatiri(1, "Cikis", 100m, "Gider", "Bakiye"), YonSatiri(2, "Cikis", 50m, "Gider", "Bakiye"), Satir(3)] };
+        await vm.YukleAsync();
+        // Dokunulmayan satır yeni okumayla gelir; elle değiştirilenin taslağı kalır; ikisinin de işareti kalkar.
+        Assert.Equal(("Gider", "Çıkış − · bakiyeden", false), (vm.Satirlar[0].IslemTuru!.Kod, vm.Satirlar[0].YonMetni, vm.Satirlar[0].Secili));
+        Assert.Equal(("Elle", false), (vm.Satirlar[1].Aciklama, vm.Satirlar[1].Secili));
+        Assert.Contains("PDF: Çıkış −", vm.Satirlar[1].YonMetni);
+        Assert.True(vm.Satirlar[2].Secili);
+    }
+
+    [Fact]
     public void Toplu_uygula_eksik_kanalda_satira_dokunmaz()
     {
         var s = new EkstreSatirEditor(Satir(1), Belge(), [new(1, "MEZAT", true, 0, 0)], [], () => { });

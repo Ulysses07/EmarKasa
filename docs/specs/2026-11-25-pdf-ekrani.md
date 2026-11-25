@@ -30,7 +30,7 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
   kaydedilemez. Kasaya, kart borcuna ve raporlara etkisi yoktur; ay kilidi aranmaz; denetim izine yazılır.
 - Kaydetme, iptal, yok sayma, geri alma ve **yenilemeden** (bağlantı dönünce kendiliğinden yenileme dahil) sonra aynı belgenin bekleyen
   satırlarında doldurulmuş taslaklar ve işaretler korunur; kanal ve kart listesi yenilendiyse taslak yeni listelere taşınır, artık
-  olmayan kanalın payı kanalsız kalır. Yok sayılan satır geri alınınca taslağı (işaretsiz) gelir. Birden çok satır onayla yok sayılır,
+  olmayan kanalın payı kanalsız kalır. Satır bu arada başka cihazda yeniden okunduysa yalnız elle değiştirilenler taşınır, işaret kalkar. Yok sayılan satır geri alınınca taslağı (işaretsiz) gelir. Birden çok satır onayla yok sayılır,
   hepsi tek düğmeyle geri alınabilir.
 
 ## 3. Giriş / çıkış
@@ -44,12 +44,16 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
   - Bağların en az üçte ikisi tutmalıdır; başlıkta bakiye kolonu yoksa ayrıca en az iki bağ gerekir.
   - Komşusuyla aynı tutarlı satır (aynı gün iki eşit çekim) ters sırada da tutar; yönü ancak sırası kanıtlanmış bir komşuya
     dayanıyorsa okunur.
-  - Bakiyenin yanında okunamayan eksi/parantez varsa bakiye kullanılmaz. Bakiyeden sonraki B/A eki işaret de işlem yönü de olabilir;
-    yalnız birinin açıkça (bağların beşte dördü) tuttuğu belge çözülür, bütün satırları B olan belge çözülmez.
-  - Tutarlı bir satır atlandıysa, hesap numarası/IBAN değiştiyse ya da sayfa ortasında tablo yeniden başladıysa iki yanındaki
-    bakiyeler karşılaştırılmaz.
-  - Bakiyeden okunan yönler diğer kanıtlarla (kolon, ek, işaret, açıklama) en az uyuştuğu kadar çelişiyorsa zincir bütünüyle bırakılır
-    ve belge uyarısı yazılır (işareti yazılmayan borç bakiye, kredi hesabı).
+  - Bakiyenin yanında okunamayan eksi (tire türleri, parantez, "BORÇ"; arada boşluk, para simgesi ya da TL olabilir) varsa bakiye
+    kullanılmaz. Bakiyeden sonraki B/A eki işaret de işlem yönü de olabilir; yalnız birinin açıkça (bağların beşte dördü) tuttuğu belge
+    çözülür, bütün satırları B olan belge çözülmez. Ardından tek boşlukla metin gelen A/B ("B BLOK", "A 101") ek sayılmaz, o bakiye de
+    kullanılmaz.
+  - Tutarlı bir satır atlandıysa (özet satırı dahil), hesap numarası/IBAN ya da para birimi bölümü değiştiyse, sayfada numarası okunamayan
+    bir hesap başlığı varsa ya da sayfa ortasında tablo yeniden başladıysa iki yanındaki bakiyeler karşılaştırılmaz.
+  - Bir günde komşusuyla tutmayan satır varsa o gün karışık basılmış olabilir: o günün satırlarının yönü bakiyeden okunmaz.
+  - Bakiyeden okunan yönler yazılı kanıtla (kolon, ek, işaret) ya da birden çok "gelen/giden EFT-havale-FAST" ile en az uyuştuğu kadar
+    çelişiyorsa zincir bütünüyle bırakılır ve belge uyarısı yazılır (işareti yazılmayan borç bakiye, kredi hesabı). Bırakılan zincirle
+    çelişen açıklama tek başına yön vermez. Tek bir açıklama zinciri düşürmez; o satırda bakiye kazanır ve uyarı yazılır.
   - Yalnız "devir / önceki / açılış / başlangıç bakiyesi" yazan satır ilk satırın komşusudur; açıklamasında bakiye geçen hareket değildir.
   - Tutarı satırda yazmayan hareketin tutarı farktan **uydurulmaz**.
 - Borç/Alacak kolonu, B/A eki ya da işaretten okunan yön bakiyeyle **çelişirse** yön "Belirsiz" olur ve uyarı yazılır.
@@ -57,8 +61,8 @@ sunucu iletisi satır numarası taşımıyor, bazı durumlarda hiçbir şey yaz�
 - **Anahtar kelime (yalnız banka, başka kanıt yoksa):** giriş — gelen EFT/havale/FAST, para yatırma, POS bloke çözümü, POS/üye işyeri
   alacağı ya da hakedişi, mevduat faizi; çıkış — giden EFT/havale/FAST, ATM/nakit para çekme, POS harcaması/alışveriş, kurum faturası
   (elektrik, su, doğal gaz, telefon…), otomatik ödeme, kredi kartı ödemesi, kredi taksidi, çek ödemesi, komisyon/vergi/stopaj/ücret.
-  Giriş gibi görünen açıklamada kesinti, vergi, bedel, kira, kredili mevduat gibi sözcük varsa giriş sayılmaz. Yönü yazmayan
-  havale/EFT'nin açıklaması karşı tarafındır: yalnız işlem masrafı yön verir. "Maaş", "çek tahsilatı", "POS satışı", yalın "faiz",
+  Giriş gibi görünen açıklamada kesinti, vergi, bedel, kira, kredili mevduat gibi sözcük varsa belirsiz kalır. Yönü yazmayan
+  havale/EFT'nin açıklaması karşı tarafındır: yalnız işlemin kendi masrafı ("EFT ücreti", "havale komisyonu") yön verir. "Maaş", "çek tahsilatı", "POS satışı", yalın "faiz",
   müşterinin de yazabileceği "fatura ödemesi" ve iade/iptal geçen satırlar iki anlamlıdır, belirsiz kalır. İki yöne de uyan açıklama
   belirsizdir.
 - **Atlanan satırlar:** tutar içerdiği hâlde harekete alınmayan satırlar nedeniyle saklanır (en çok 300) ve belgede açılıp görülür.

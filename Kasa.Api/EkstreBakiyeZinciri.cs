@@ -8,7 +8,8 @@ internal readonly record struct BakiyeTutari(decimal Tutar, int Yon, bool Ek);
 /// <param name="Bakiye">Satırın bakiye adayı (yazılı işaretiyle); yoksa ya da işareti okunamadıysa null (zincir orada kopar).</param>
 /// <param name="Ek">Bakiyeden sonraki B (-1) / A (+1) eki; yoksa 0. Ek bakiyenin işareti de işlemin yönü de olabilir.</param>
 /// <param name="BakiyeKolonu">Bakiye, tablo başlığındaki "Bakiye" kolonundan okundu.</param>
-internal sealed record BakiyeDugumu(int? Satir, decimal? Bakiye, int Ek, IReadOnlyList<BakiyeTutari> Tutarlar, bool BakiyeKolonu)
+/// <param name="Gun">Satırın tarihi (yazıldığı gibi); aynı günün satırları karışık basılmış olabilir.</param>
+internal sealed record BakiyeDugumu(int? Satir, decimal? Bakiye, int Ek, IReadOnlyList<BakiyeTutari> Tutarlar, bool BakiyeKolonu, string? Gun = null)
 {
     /// <summary>Arada okunamayan bir hareket ya da başka bir hesap var: iki yanındaki bakiyeler karşılaştırılmaz.</summary>
     public static readonly BakiyeDugumu Kopma = new(null, null, 0, [], false);
@@ -61,11 +62,15 @@ internal static class EkstreBakiyeZinciri
         var kolonlu = dugumler.All(d => d.Satir is null || d.Bakiye is null || d.BakiyeKolonu);
         if (baglar.Count < (kolonlu ? 1 : 2) || baglar.Count * 3 < olasi * 2)
             return new(BakiyeCozumu.Bos, baglar.Count, olasi);
+        var kopuk = komsulu.Where(i => !baglar.ContainsKey(i) && (dugumler[i].Bakiye != Komsu(dugumler, i, adim)!.Bakiye || dugumler[i].Tutarlar.Count > 0)).ToList();
+        // Kopuk satır olan günün satırları karışık sırada basılmış olabilir: rastlantıyla tutan bağ yön kanıtı sayılmaz.
+        var karisikGunler = kopuk.Select(i => dugumler[i].Gun).ToHashSet();
         // Komşusuyla aynı tutarlı satır ters sırada da tutar (aynı gün iki eşit çekim): yönü, sırası kanıtlanmış bir komşuya dayanıyorsa
         // bellidir. Komşu önce işlenir.
         var guvenilir = new HashSet<int>();
         foreach (var i in adim < 0 ? baglar.Keys.Order() : baglar.Keys.OrderDescending())
-            if (guvenilir.Contains(i + adim) || !dugumler[i + adim].Tutarlar.Any(t => t.Tutar == baglar[i].Yazilan.Tutar))
+            if (!karisikGunler.Contains(dugumler[i].Gun)
+                && (guvenilir.Contains(i + adim) || !dugumler[i + adim].Tutarlar.Any(t => t.Tutar == baglar[i].Yazilan.Tutar)))
                 guvenilir.Add(i);
         var yalnizTutar = new Dictionary<int, BakiyeTutari>();
         foreach (var i in baglar.Keys.SelectMany(i => new[] { i, i + adim }).Distinct())
@@ -77,9 +82,8 @@ internal static class EkstreBakiyeZinciri
             else if (dugumler[i].Tutarlar.Count == 1)
                 yalnizTutar.Add(satir, dugumler[i].Tutarlar[0]);
         }
-        var kopuk = komsulu.Where(i => !baglar.ContainsKey(i) && (dugumler[i].Bakiye != Komsu(dugumler, i, adim)!.Bakiye || dugumler[i].Tutarlar.Count > 0))
-            .Select(i => dugumler[i].Satir!.Value).ToList();
-        return new(new(guvenilir.ToDictionary(i => dugumler[i].Satir!.Value, i => baglar[i]), yalnizTutar, kopuk), baglar.Count, olasi);
+        return new(new(guvenilir.ToDictionary(i => dugumler[i].Satir!.Value, i => baglar[i]), yalnizTutar, kopuk.Select(i => dugumler[i].Satir!.Value).ToList()),
+            baglar.Count, olasi);
     }
 
     private static Dictionary<int, BakiyeBagi> Baglar(IReadOnlyList<BakiyeDugumu> dugumler, int adim)
