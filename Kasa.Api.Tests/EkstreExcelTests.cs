@@ -212,6 +212,28 @@ public class EkstreExcelTests
         Assert.Equal("Cikis", eksik.Satirlar[2].Yon);
     }
 
+    /// <summary>Codex incelemesi (EmarKasa#63): Tutar sütununun yanında Borç/Alacak varsa yön oradan kesindir, çelişen satır reddedilir.</summary>
+    [Fact]
+    public void Tutar_yanindaki_borc_alacak_sutunu_yonu_verir_celisen_satir_hatadir()
+    {
+        var baslik = S("Tarih", "Açıklama", "Tutar", "Borç", "Alacak");
+        var s = Banka(baslik, S(G(1), "NAKİT YATIRMA", 100, 100, null), S(G(1), "FİRMA", -50, 50, 0), S(G(1), "FİRMA", null, null, 25), S(G(1), "FİRMA", -10, null, null)).Satirlar;
+        Assert.Equal([("Cikis", 100m, YonKaynaklari.Sutun), ("Cikis", 50m, YonKaynaklari.Sutun), ("Giris", 25m, YonKaynaklari.Sutun), ("Cikis", 10m, YonKaynaklari.Isaret)], s.Select(r => (r.Yon, r.Tutar!.Value, r.YonKaynagi!)));
+        Assert.Equal(["Satır 2, Tutar (C2): Tutar sütunu Giriş/Çıkış tutarıyla aynı değil.", "Satır 3, Tutar (C3): tutarın B/A eki Giriş/Çıkış sütunuyla çelişiyor."],
+            Hatalar(baslik, S(G(1), "x", 90, 100, null), S(G(1), "y", "100,00 A", 100, null)));
+        Assert.Equal(["Satır 2, Yön (F2): yön sütunu Giriş/Çıkış sütunuyla çelişiyor."], Hatalar([.. baslik, "Yön"], S(G(1), "x", 100, 100, null, "Giriş")));
+    }
+
+    /// <summary>Codex incelemesi (EmarKasa#63): metin hücresindeki Excel hatası açıklama sayılmaz; para birimi farklı tutar sütunları reddedilir.</summary>
+    [Fact]
+    public void Metin_hucresindeki_excel_hatasi_ve_farkli_para_birimli_sutunlar_reddedilir()
+    {
+        Assert.Equal(["Satır 2, Açıklama (B2): hücrede Excel hatası var.", "Satır 3, Para birimi (D3): hücrede Excel hatası var."],
+            Hatalar(S("Tarih", "Açıklama", "Tutar", "Para Birimi"), S(G(1), new Hata("#REF!"), -1, "TL"), S(G(1), "x", -1, new Hata("#N/A"))));
+        Assert.StartsWith("'Hareketler' sayfası, satır 1: tutar sütunlarının para birimleri farklı (USD ve TRY).", Red(S("Tarih", "Açıklama", "Giriş (USD)", "Çıkış (TL)"), S(G(1), "x", 1, null)));
+        Assert.Equal("TRY", Banka(S("Tarih", "Açıklama", "Giriş (TL)", "Çıkış (TL)"), S(G(1), "x", 1, null)).Satirlar.Single().ParaBirimi);
+    }
+
     [Fact]
     public void Borc_sutunu_eksi_yazilabilir_virman_ve_kart_odemesi_onerisi_pdf_ile_ayni()
     {

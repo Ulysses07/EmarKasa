@@ -123,14 +123,22 @@ public static partial class EkstreExcelOkuyucu
                 Hata(satir, "örnek satır; silip yeniden yükleyin");
             if (aciklama.Length == 0)
                 Hata(satir, "açıklama boş", duzen[Alan.Aciklama] is not null ? Alan.Aciklama : Alan.Islem);
+            foreach (var metinAlani in new[] { Alan.Aciklama, Alan.Islem, Alan.ParaBirimi, Alan.Yon, Alan.Taksit })
+                if (satir[duzen[metinAlani]].Hata)
+                    Hata(satir, "hücrede Excel hatası var", metinAlani);
             var para = ParaBirimi(satir);
             decimal? tutar = null;
             var yon = "Belirsiz";
             var isaret = 0;
-            if (duzen[Alan.Tutar] is not null)
-                (tutar, yon, isaret, para) = TekTutar(satir, para);
-            else
+            // Giriş/Çıkış sütunu doluysa yön oradan kesindir; yanındaki Tutar sütunu yalnız aynı tutarı doğrular.
+            if (duzen[Alan.Tutar] is null || IkiSutunDolu(satir))
+            {
                 (tutar, yon) = IkiSutun(satir);
+                if (tutar is { } okunan)
+                    TutarlaKarsilastir(satir, okunan, yon);
+            }
+            else
+                (tutar, yon, isaret, para) = TekTutar(satir, para);
             decimal? bakiye = null;
             if (duzen[Alan.Bakiye] is { } b)
             {
@@ -184,23 +192,50 @@ public static partial class EkstreExcelOkuyucu
                 return (null, "Belirsiz", 0, paraBirimi);
             }
             var yon = tutar.EkYonu ?? "Belirsiz";
-            if (duzen[Alan.Yon] is { } s)
+            if (YonSutunu(satir) is { } sutunYonu)
             {
-                var yazan = satir[s].Metin;
-                var sutunYonu = yazan is "-" or "−" ? "Cikis" : yazan == "+" ? "Giris" : EkstreKuralServisi.Normalize(yazan) switch
-                {
-                    "B" or "BORC" or "CIKIS" or "GIDEN" or "CEKILEN" => "Cikis",
-                    "A" or "ALACAK" or "GIRIS" or "GELEN" or "YATAN" => "Giris",
-                    _ => null,
-                };
-                if (sutunYonu is null)
-                    Hata(satir, yazan.Length == 0 ? "yön boş" : $"\"{Kisalt(yazan, 30)}\" yön olarak okunamadı (Giriş/Çıkış ya da A/B yazın)", Alan.Yon);
-                else if (yon != "Belirsiz" && yon != sutunYonu)
+                if (yon != "Belirsiz" && yon != sutunYonu)
                     Hata(satir, "tutarın B/A eki ile yön sütunu çelişiyor", Alan.Yon);
                 else
                     yon = sutunYonu;
             }
             return (Math.Abs(tutar.Deger), yon, tutar.Deger < 0 ? -1 : tutar.Isaretli ? 1 : 0, paraBirimi);
+        }
+
+        /// <summary>Yön sütununda yazan yön; sütun yoksa ya da okunamıyorsa (hata yazılır) null.</summary>
+        private string? YonSutunu(Satir satir)
+        {
+            if (duzen[Alan.Yon] is not { } s || satir[s].Hata)
+                return null;
+            var yazan = satir[s].Metin;
+            var yon = yazan is "-" or "−" ? "Cikis" : yazan == "+" ? "Giris" : EkstreKuralServisi.Normalize(yazan) switch
+            {
+                "B" or "BORC" or "CIKIS" or "GIDEN" or "CEKILEN" => "Cikis",
+                "A" or "ALACAK" or "GIRIS" or "GELEN" or "YATAN" => "Giris",
+                _ => null,
+            };
+            if (yon is null)
+                Hata(satir, yazan.Length == 0 ? "yön boş" : $"\"{Kisalt(yazan, 30)}\" yön olarak okunamadı (Giriş/Çıkış ya da A/B yazın)", Alan.Yon);
+            return yon;
+        }
+
+        /// <summary>Tutar sütununun yanındaki Giriş ya da Çıkış hücresi dolu (sıfırdan farklı) mı.</summary>
+        private bool IkiSutunDolu(Satir satir) => new[] { Alan.Giris, Alan.Cikis }.Any(a => duzen[a] is { } s && !satir[s].Bos && (ParaOku(satir[s], out var p) is not null || p is { Deger: not 0 }));
+
+        /// <summary>Giriş/Çıkış ile okunan satırda Tutar ve Yön sütunları da varsa aynı şeyi söylemelidir; çelişen satır hatadır.</summary>
+        private void TutarlaKarsilastir(Satir satir, decimal okunan, string yon)
+        {
+            if (duzen[Alan.Tutar] is { } t && !satir[t].Bos)
+            {
+                if (ParaOku(satir[t], out var p) is { } hata)
+                    Hata(satir, hata, Alan.Tutar);
+                else if (p is { } tutar && Math.Abs(tutar.Deger) != okunan)
+                    Hata(satir, "Tutar sütunu Giriş/Çıkış tutarıyla aynı değil", Alan.Tutar);
+                else if (p?.EkYonu is { } ek && ek != yon)
+                    Hata(satir, "tutarın B/A eki Giriş/Çıkış sütunuyla çelişiyor", Alan.Tutar);
+            }
+            if (YonSutunu(satir) is { } sutunYonu && sutunYonu != yon)
+                Hata(satir, "yön sütunu Giriş/Çıkış sütunuyla çelişiyor", Alan.Yon);
         }
 
         private (decimal? Tutar, string Yon) IkiSutun(Satir satir)

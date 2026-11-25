@@ -269,7 +269,11 @@ public static partial class EkstreExcelOkuyucu
                     throw new ExcelOkumaException($"'{sayfa.Ad}' sayfası, satır {satir.No}: aynı sütun birden çok kez var ({string.Join(", ", secenekler.Select(x => $"{x.Metin} {SutunAdi(x.Sutun)}"))}). Fazla sütunu silip yeniden yükleyin.");
                 duzen.Sutunlar[alan] = secenekler[0].Sutun;
                 if (alan is Alan.Tutar or Alan.Giris or Alan.Cikis && secenekler[0].Baslik!.Value.Para is { } para)
+                {
+                    if (duzen.Para is { } onceki && onceki != para)
+                        throw new ExcelOkumaException($"'{sayfa.Ad}' sayfası, satır {satir.No}: tutar sütunlarının para birimleri farklı ({onceki} ve {para}). Yalnız TL hareketlerini bırakıp yeniden yükleyin.");
                     duzen.Para = para;
+                }
             }
             duzen.Para ??= UstBilgiParasi(sayfa, satir.No);
             return duzen;
