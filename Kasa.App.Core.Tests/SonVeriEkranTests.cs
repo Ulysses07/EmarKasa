@@ -45,7 +45,7 @@ public class SonVeriEkranTests
     [Fact]
     public async Task Cekler_hatada_son_listeyi_korur()
     {
-        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1)] };
+        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1, Kasa.Core.Kodlar.CekYonleri.Verilen)] };
         var finans = Finans();
         var vm = new CekTakipViewModel(api, finans, Editor(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 25)));
         await vm.YukleAsync();
@@ -151,7 +151,7 @@ public class SonVeriEkranTests
     [Fact]
     public async Task Cekler_baska_suzgecte_hata_onceki_listeyi_gostermez()
     {
-        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1)] };
+        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1, Kasa.Core.Kodlar.CekYonleri.Verilen)] };
         var finans = Finans();
         var vm = new CekTakipViewModel(api, finans, Editor(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 25)));
         await vm.YukleAsync();
@@ -181,7 +181,7 @@ public class SonVeriEkranTests
     [Fact]
     public async Task Cekler_baska_suzgecin_hatasinda_son_guncelleme_henuz_yuklenmedi_der_govde_gorunur()
     {
-        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1)] };
+        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1, Kasa.Core.Kodlar.CekYonleri.Verilen)] };
         var finans = Finans();
         var vm = new CekTakipViewModel(api, finans, Editor(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 25)));
         await vm.YukleAsync();
@@ -204,7 +204,7 @@ public class SonVeriEkranTests
     [Fact]
     public async Task Cekler_bildirimden_acilan_cekin_hatasi_ekrandaki_sorguya_gore_islenir()
     {
-        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1)] };
+        var api = new CekTakipViewModelTests.Sahte { Liste = [CekTakipViewModelTests.Cek(1, Kasa.Core.Kodlar.CekYonleri.Verilen)] };
         var finans = Finans();
         var vm = new CekTakipViewModel(api, finans, Editor(), new IslemEditorTests.SabitZaman(new DateOnly(2026, 9, 25)));
         await vm.YukleAsync();

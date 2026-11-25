@@ -51,6 +51,7 @@ public static partial class FinansTakipEndpoints
             db.SaveChanges();
             return cek.Id;
         })).RequireAuthorization("Editor");
+        api.MapPost("/cekler/toplu", (CekTopluYaz dto, KasaDbContext db) => CekTopluEkle(db, dto)).RequireAuthorization("Editor");
         api.MapPut("/cekler/{id:int}", (int id, CekYaz dto, KasaDbContext db) => CekDegisikligi(db, id, dto.Surum, dto.IstekId, "CekDuzelt", dto, () =>
         {
             var cek = db.Cekler.Single(c => c.Id == id);
@@ -116,6 +117,45 @@ public static partial class FinansTakipEndpoints
             db.SaveChanges();
             return Yanit(sonuc);
         }));
+
+    /// <summary>Toplu girişte bir istekteki en çok çek.</summary>
+    private const int EnCokTopluCek = 200;
+
+    /// <summary>Toplu çek girişi (docs/specs/2026-11-25-cekler-verilen-ve-toplu.md): tek yazma transaction'ı, satır başına tek çek
+    /// girişinin kuralları. Hatalı satır varsa hiçbiri kaydedilmez, hataların hepsi "Satır N: …" satırlarıyla döner. Kimlikler aynı
+    /// yazma transaction'ında ardışıktır: tekrar edilen istek ilk kimlikten başlayan satırları döndürür.</summary>
+    private static IResult CekTopluEkle(KasaDbContext db, CekTopluYaz dto) => Safe(() => AlisEndpoints.Mutate(db, () =>
+    {
+        using var denetim = db.Denetle(null, dto.IstekId);
+        var satirlar = dto.Satirlar ?? [];
+        Require(satirlar.Count is > 0 and <= EnCokTopluCek, $"En az 1, en çok {EnCokTopluCek} çek girin.");
+        var ozet = FinansHesaplari.Ozet(satirlar);
+        IResult Yanit(int ilk) => Results.Ok(new CekTopluSonuc(CekServisi.Coklu(new TakipHesapBaglami(db), Enumerable.Range(ilk, satirlar.Count).ToList())));
+        if (FinansHesaplari.Tekrar(db, dto.IstekId, "CekToplu", ozet, Yanit) is { } tekrar)
+            return tekrar;
+        var hatalar = new List<string>();
+        var cekler = new List<CekEntity>();
+        foreach (var (s, i) in satirlar.Select((s, i) => (s, i)))
+        {
+            var cek = new CekEntity { Surum = 1 };
+            try
+            {
+                Require(s is not null, "Satır boş.");
+                CekAlanlari(db, cek, new CekYaz(dto.IstekId, 0, s.Tur, s.Yon, s.No, s.Banka, s.Kisi, s.Tutar, s.VadeTarihi, s.Kanal, s.Teminat, s.Konum, s.Not));
+                cekler.Add(cek);
+            }
+            catch (TakipHatasi e) { hatalar.Add($"Satır {i + 1}: {e.Message}"); }
+        }
+        Require(hatalar.Count == 0, string.Join("\n", hatalar));
+        foreach (var cek in cekler)
+        {
+            db.Cekler.Add(cek);
+            db.SaveChanges();
+        }
+        FinansHesaplari.IstekKaydet(db, dto.IstekId, "CekToplu", ozet, cekler[0].Id);
+        db.SaveChanges();
+        return Yanit(cekler[0].Id);
+    }));
 
     /// <summary>Çekin alanlarını doğrulayıp yazar (ekleme ve düzeltme).</summary>
     private static void CekAlanlari(KasaDbContext db, CekEntity cek, CekYaz d)

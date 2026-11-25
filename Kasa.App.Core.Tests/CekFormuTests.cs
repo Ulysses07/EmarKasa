@@ -15,7 +15,7 @@ public class CekFormuTests
         var api = new CekTakipViewModelTests.Sahte { Liste = [.. cekler] };
         var finans = new SahteApi { KanallarListe = [new KanalDto(1, "MEZAT", true, 0, 0)] };
         var vm = new CekTakipViewModel(api, finans, new AuthViewModel(new SahteApi()) { AktifRol = Rol.Editor }, new IslemEditorTests.SabitZaman(Bugun));
-        await vm.YukleAsync();
+        await vm.SecYonCommand.ExecuteAsync(vm.YonCipleri.Single(c => c.Kod == CekYonleri.Alinan));
         return (vm, api);
     }
 
@@ -38,7 +38,7 @@ public class CekFormuTests
         Assert.True(vm.FormAcik);
         Assert.Equal(1, gosterim);
 
-        vm.FormYon = vm.YonSecenekleri[1];
+        vm.FormYon = vm.YonSecenekleri[0];
         await vm.KaydetCommand.ExecuteAsync(null);
         Assert.Equal("Ödeneceği kasayı (kanal ya da Ortak) seçin.", vm.Hatalar[nameof(vm.CekKasasi)]);
     }

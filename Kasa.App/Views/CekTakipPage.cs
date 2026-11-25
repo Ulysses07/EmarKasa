@@ -7,18 +7,18 @@ using static Kasa.App.Views.TakipUi;
 namespace Kasa.App.Views;
 
 /// <summary>
-/// Çekler ve senetler (docs/specs/2026-10-01-cekler.md "Masaüstü ekranı"). Üst şerit dört hazır süzgeçtir; altında yön ve durum
+/// Çekler ve senetler (docs/specs/2026-10-01-cekler.md "Masaüstü ekranı"). Üst şerit hazır süzgeçlerdir (önce verilen); altında yön ve durum
 /// çipleri ile arama. Liste vadeye göre sıralıdır; açılan çekin ayrıntısı satırının hemen altında görünür (OncekiSatirlar, ayrıntı,
 /// SonrakiSatirlar). Hareket düğmeleri sunucunun izin verdiği türlerdir. Bildirimden //cekler?CekId={id}, panel kutusundan
 /// //cekler?Suzgec={CekHazirSuzgec} ile açılır; sayfa açıkken gelen istek hemen, değilse sayfa belirirken uygulanır (SorguSecimi).
 /// </summary>
-public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttributable
+public sealed partial class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttributable
 {
     private readonly SorguSecimi _secim = new("CekId");
     private CekHazirSuzgec? _bekleyenSuzgec;
     private readonly View _ayrinti;
     /// <summary>Çek formu ve hareket formu ile genel hata kutuları: kaydetme başarısız olunca ilk hatalı alana kaydırılır (ÇK-01).</summary>
-    private readonly View _form, _formHataKutusu, _hareketFormu, _hareketHataKutusu;
+    private readonly View _form, _formHataKutusu, _hareketFormu, _hareketHataKutusu, _topluForm, _topluHataKutusu;
 
     /// <summary>Sorgudaki süzgeç adı ("Alinan30" gibi). Yalnız tanımlı ad kabul edilir: Enum.TryParse "1" ya da "7" gibi sayıları da
     /// çözer, bunlar yok sayılır.</summary>
@@ -86,15 +86,23 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
         _hareketFormu = HareketFormu(vm, _hareketHataKutusu);
         _ayrinti = Ayrinti(vm, _hareketFormu);
         _form = Form(vm, _formHataKutusu);
+        _topluHataKutusu = FormHatasi(nameof(vm.TopluHatalari) + ".Genel");
+        _topluForm = TopluForm(vm, _topluHataKutusu);
         vm.Hatalar.GosterIstendi += (_, _) => Gorunur.HatayaGit(_form, vm.Hatalar, _formHataKutusu);
         vm.HareketHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_hareketFormu, vm.HareketHatalari, _hareketHataKutusu);
+        vm.TopluHatalari.GosterIstendi += (_, _) => Gorunur.HatayaGit(_topluForm, vm.TopluHatalari, _topluHataKutusu);
         Govde.Add(Serit(vm));
         Govde.Add(Kart("Süzgeçler", Cipler(nameof(vm.YonCipleri), nameof(vm.SecYonCommand)), Cipler(nameof(vm.DurumCipleri), nameof(vm.SecDurumCommand)),
             Alan("Kişi, banka ya da numara", Girdi(nameof(vm.Ara))), Dugme("Ara", nameof(vm.AraCommand)),
             Goster(new VerticalStackLayout { Spacing = 6, Children = { Bagli(nameof(vm.VadeSuzgeci)), Dugme("Vade süzgecini kaldır", nameof(vm.VadeSuzgeciniKaldirCommand)) } },
                 nameof(vm.VadeSuzgeciVar))));
-        Govde.Add(Editor(Dugme("Yeni çek / senet", nameof(vm.YeniCekCommand))));
-        Govde.Add(Editor(Goster(_form, nameof(vm.FormAcik))));
+        Govde.Add(Editor(new Controls.UyumluSatir
+        {
+            Spacing = 12,
+            Children = { Dugme("Yeni çek / senet", nameof(vm.YeniCekCommand)), IkincilDugme("Toplu çek gir", nameof(vm.TopluAcCommand)) },
+        }));
+        Govde.Add(Editor(_form, nameof(vm.FormAcik)));
+        Govde.Add(Editor(_topluForm, nameof(vm.TopluAcik)));
         Govde.Add(Kart("Liste", SatirListesi(vm, nameof(vm.OncekiSatirlar), true), _ayrinti,
             SatirListesi(vm, nameof(vm.SonrakiSatirlar), false)));
     }
@@ -104,13 +112,14 @@ public sealed class CekTakipPage : TakipSayfasi<CekTakipViewModel>, IQueryAttrib
         var serit = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap };
         foreach (var (yol, suzgec) in new[]
         {
-            (nameof(vm.PortfoyMetni), CekHazirSuzgec.Portfoy), (nameof(vm.Alinan30Metni), CekHazirSuzgec.Alinan30),
-            (nameof(vm.Verilen30Metni), CekHazirSuzgec.Verilen30), (nameof(vm.GecmisMetni), CekHazirSuzgec.VadesiGecmis),
-            (nameof(vm.VerilenGecmisMetni), CekHazirSuzgec.VerilenVadesiGecmis),
+            (nameof(vm.Verilen30Metni), CekHazirSuzgec.Verilen30), (nameof(vm.VerilenGecmisMetni), CekHazirSuzgec.VerilenVadesiGecmis),
+            (nameof(vm.VerilenPortfoyMetni), CekHazirSuzgec.VerilenPortfoy), (nameof(vm.PortfoyMetni), CekHazirSuzgec.Portfoy),
+            (nameof(vm.Alinan30Metni), CekHazirSuzgec.Alinan30), (nameof(vm.GecmisMetni), CekHazirSuzgec.VadesiGecmis),
         })
         {
             var kutu = new Button { Style = (Style)Application.Current!.Resources["BtnSecondary"], Margin = new Thickness(0, 0, 8, 8) };
             kutu.SetBinding(Button.TextProperty, yol);
+            kutu.SetBinding(IsVisibleProperty, yol, converter: new Converters.DoluIseConverter());
             kutu.Clicked += async (_, _) => await vm.HazirSuzgecAsync(suzgec);
             serit.Add(kutu);
         }
