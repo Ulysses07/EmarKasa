@@ -13,8 +13,9 @@ public record EkstreYokSayYaz(Guid IstekId, int Surum, IReadOnlyList<int> SatirN
 /// <summary>POST /api/ekstre-aktar/{id}/yeniden-oku gövdesi.</summary>
 public record EkstreYenidenOkuYaz(Guid IstekId, int Surum);
 /// <summary><paramref name="YonKaynagi"/>: yönün dayanağı (Kasa.Core.Kodlar.YonKaynaklari); yön belirsizse, kart harcaması varsayımıysa ya da satır bu
-/// alandan önce okunduysa null.</summary>
-public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar, string? YonKaynagi = null);
+/// alandan önce okunduysa null. <paramref name="EkBilgi"/>: açıklamanın altında gösterilen ek metin (ERP12: işlem türü, belge no).</summary>
+public record EkstreOkunanSatir(int No, int Sayfa, string KaynakSatir, DateOnly? Tarih, string Aciklama, decimal? Tutar, string Yon, string OnerilenIslem, string Sinif, string ParaBirimi, IReadOnlyList<string> Uyarilar, string? YonKaynagi = null,
+    string? EkBilgi = null);
 /// <summary>PDF'de tutar içerdiği hâlde harekete alınmayan satır ve nedeni.</summary>
 public record EkstreAtlananSatir(int Sayfa, string Metin, string Neden);
 /// <summary><paramref name="IptalAciklamasi"/> ve <paramref name="IptalZamani"/> yalnız iptal edilmiş satırda doludur; iptal anı denetim izinden
@@ -22,16 +23,16 @@ public record EkstreAtlananSatir(int Sayfa, string Metin, string Neden);
 /// kayıt ('Gider', 'KartHarcama', 'KartTaksidi', 'KartOdeme'). İşlem türü 'Eslestir' olan satır yalnız bağdır; kendi kaydını üretip
 /// sonradan alış ödemesine bağlanan Gider/KartHarcama satırında sahiplik (IslemId/KartHarcamaId) boşalır ve eşleşme dolar.
 /// <paramref name="EslesmeDurumu"/> iptal edilmemiş eşleşmede 'Eslesti', hedef kayıt silinmiş ya da iptal edilmişse 'KayitYok'.
-/// Eski sunucu bu alanları göndermez (null).</summary>
+/// Eski sunucu bu alanları göndermez (null). <paramref name="ErpCari"/>: kayda eşleşen ERP12 satırının carisi.</summary>
 public record EkstreKayitDto(int Id, int SatirNo, DateOnly Tarih, string Aciklama, decimal Tutar, string IslemTuru, string DagilimTuru, IReadOnlyList<TakipKanalPayi> Dagilimlar, int? KrediKartiId, int? IslemId, int? KartHarcamaId, int? KartOdemeId, bool Iptal, string? IptalAciklamasi = null, DateTimeOffset? IptalZamani = null,
-    string? EslesmeTuru = null, int? EslesmeId = null, string? EslesmeDurumu = null);
+    string? EslesmeTuru = null, int? EslesmeId = null, string? EslesmeDurumu = null, string? ErpCari = null);
 /// <summary><paramref name="IslemTuru"/> 'Eslestir' ise satır <paramref name="EslesenKayitTuru"/>/<paramref name="EslesenKayitId"/> ile
 /// gösterilen mevcut kayda bağlanır (DagilimTuru 'Eslesme', dağılım boş): yeni kayıt üretmez, kasa ve kart borcu değişmez.
 /// Eski istemci göndermez (null).</summary>
 public record EkstreSatirYaz(int SatirNo, DateOnly Tarih, string Aciklama, decimal Tutar, string IslemTuru, string DagilimTuru, IReadOnlyList<KanalPayYaz> Dagilimlar, int? KrediKartiId = null, int? KaynakHarcamaId = null,
     string? EslesenKayitTuru = null, int? EslesenKayitId = null);
-/// <summary>POST /api/ekstre-aktar/{id}/eslesme-adaylari gövdesi: satırın tarih ve tutarı.</summary>
-public record EkstreEslesmeAdayiSorgu(DateOnly Tarih, decimal Tutar);
+/// <summary>POST /api/ekstre-aktar/{id}/eslesme-adaylari gövdesi: satırın tarih ve tutarı; ERP12 belgesinde satır numarası da (yön ve nakit oradan).</summary>
+public record EkstreEslesmeAdayiSorgu(DateOnly Tarih, decimal Tutar, int? SatirNo = null);
 /// <summary>Ekstre satırının eşleştirilebileceği mevcut kayıt. <paramref name="Tur"/> EkstreSatirYaz.EslesenKayitTuru değeridir ('Gider',
 /// 'KartHarcama', 'KartTaksidi', 'KartOdeme'); taksitte <paramref name="Id"/> taksidin, <paramref name="HarcamaId"/> harcamanın kimliğidir.
 /// <paramref name="KanalEtiketi"/> kaydın kasadan düştüğü kanal(lar) ya da "Genel kasa"/"Dağılım bekliyor"; <paramref name="EkstreKayitId"/>

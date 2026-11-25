@@ -21,6 +21,10 @@ Kaydettiğin ve yok saydığın her satır kendiliğinden öğrenilir; kural yaz
 - Yanlış öğrenilen hareketi satırdan **Bu hafızayı unut** ya da **İşlem hafızası** listesinden **Unut** ile çıkar. Kaydın kendisi ve raporlar değişmez. Bir kaydı iptal etmek de o kararı hafızadan çıkarır.
 - Ayrıntı: [tasarım](specs/2026-11-25-islem-hafizasi.md).
 
+## ERP12 cari hareketleri
+
+ERP12'den cari hareketlerini Excel olarak dışa aktarıp belge türü **ERP12 cari hareketleri (Excel)** ile yükle (Tarih, Cari, Borç ve Alacak; varsa cari kodu, işlem türü, belge no, açıklama). Fatura, devir gibi satırlar yalnız **Cariler** ekranında görünür. Tahsilat ve ödeme satırları kasadaki karşılığıyla eşleşir: kesin olan hazır gelir, birden çok karşılığı olan sana sorulur, karşılığı olmayan banka hareketi ekstresi yüklenene kadar bekler. **Nakit** satır kasada yoksa "kasaya yazılsın mı" diye sorulur. Eşleşme kasayı değiştirmez. Aynı hareket ikinci kez alınmaz. Yanlış yüklenen, hiçbir satırı işlenmemiş dosya silinebilir. Ayrıntı: [tasarım](specs/2026-11-25-erp12-aktarimi.md).
+
 ## Kural yönetimi
 
 **Kural ekle** ile açıklama ifadesi, banka (istersen tüm bankalar), belge türü ve yön koşullarını belirle. Eşleşme için tüm koşullar birlikte aranır. Türkçe harfler, büyük/küçük harf ve noktalama sadeleştirilir; sözcük sınırı korunur: `MIGROS`, `MIGROSAN` ile eşleşmez. Düzenle, kapat/etkinleştir ve sil seçenekleri vardır. Windows'ta kapatma, düzenleme formundaki **Kural etkin** işaretini kaldırarak yapılır.

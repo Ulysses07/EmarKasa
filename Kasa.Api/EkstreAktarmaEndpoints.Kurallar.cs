@@ -29,7 +29,7 @@ public static partial class EkstreAktarmaEndpoints
     /// <summary>Hafızadaki anahtarı unutur (mali etkisi yoktur; kayıtlar ve raporlar değişmez).</summary>
     private static IResult HafizaUnut(KasaDbContext db, EkstreHafizaUnutYaz dto)
     {
-        Require(dto is { Kaynak: EkstreKaynaklari.Banka or EkstreKaynaklari.Kart, Yon: "Giris" or "Cikis" or "Belirsiz", Anahtar.Length: > 0 and <= 2000 }, "Geçerli hafıza kaydını seçin.");
+        Require(dto is { Kaynak: EkstreKaynaklari.Banka or EkstreKaynaklari.Kart or EkstreKaynaklari.Erp, Yon: "Giris" or "Cikis" or "Belirsiz", Anahtar.Length: > 0 and <= 2000 }, "Geçerli hafıza kaydını seçin.");
         var digest = FinansHesaplari.Ozet(new { dto.Kaynak, dto.Anahtar, dto.Yon });
         if (FinansHesaplari.Tekrar(db, dto.IstekId, "EkstreHafizaUnut", digest, _ => Results.NoContent()) is { } repeat)
             return repeat;

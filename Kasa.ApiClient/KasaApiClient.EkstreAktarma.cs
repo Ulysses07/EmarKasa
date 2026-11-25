@@ -23,6 +23,11 @@ public sealed partial class KasaApiClient : IEkstreAktarmaApi
     public Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId) => GetAsync<EkstreBelgeDto>($"api/ekstre-aktar/kayitlar/{kayitId}");
     public Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, $"api/ekstre-aktar/{id}/dosya", "ekstre.pdf", hedef, _zaman.Indirme, cancellationToken);
+    public async Task ErpBelgeSilAsync(int id)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/ekstre-aktar/{id}/erp");
+        using var response = await GonderAsync(request);
+    }
     public Task<IndirmeBilgisi> EkstreSablonAsync(Stream hedef, CancellationToken cancellationToken = default)
         => DosyaIndirAsync(HttpMethod.Get, "api/ekstre-aktar/sablon", "kasa-hareket-ornegi.xlsx", hedef, _zaman.Indirme, cancellationToken);
     public Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g) => GonderJsonAsync<EkstreOnizlemeDto>(HttpMethod.Post, $"api/ekstre-aktar/{id}/onizleme", g);

@@ -9,7 +9,7 @@ public record LoginYanit(string Rol, string Token, string? Cihaz = null);
 /// geri gönderilir, kayıt arada değiştiyse sunucu 409 verir. Eski sunucu göndermez (0).</summary>
 public record KanalDto(int Id, string Ad, bool Aktif, int Sira, decimal AcilisDevri, int Surum = 0);
 public record IslemDto(int Id, DateOnly Tarih, string Cari, decimal TutarTl, string Kanal, GiderTipi Tip, string? Not, int? KrediKartiId = null, int? AlisId = null, bool DagilimBekliyor = false, int? AylikGiderOdemeId = null, int? EkstreKayitId = null,
-    int Surum = 0);
+    int Surum = 0, string? ErpCari = null);
 public record GelenDto(int Id, DateOnly DonemStart, string Kanal, decimal TutarTl, int? KanalId = null, bool EskiYinelenenGrup = false, int Surum = 0);
 /// <summary>YeniTakip/Aktif: kart yeni takipte ve yeni kullanıma açık; yeni kredi kartı gideri yalnız böyle bir karta bağlanabilir
 /// (K3). Eski sunucu göndermez: varsayılanlar eski kart gibidir (seçilemez).</summary>

@@ -32,11 +32,15 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
     {
         Govde.Add(Editor(Kart("1. Belge (PDF ya da Excel)",
             Alan("Belge türü", Secim(nameof(vm.Kaynaklar), nameof(vm.Kaynak))),
-            Alan("Banka", Secim(nameof(vm.Bankalar), nameof(vm.Banka))),
+            Goster(Alan("Banka", Secim(nameof(vm.Bankalar), nameof(vm.Banka))), nameof(vm.BankaSecilir)),
             Goster(Alan("Kısa hesap adı / son 4 hane", Girdi(nameof(vm.HesapAdi))), nameof(vm.BankaMi)),
             Goster(Alan("Kart (önce Kartlar bölümünde yeni takibi açın)", Secim(nameof(vm.Kartlar), nameof(vm.Kart))), nameof(vm.KartMi)),
-            Metin("Excel'de bankanın indirdiği dosyayı ya da örnek dosyayı doldurup yükleyin. Hatalı Excel düzeltilmeden işleme alınmaz; hatalar satır numarasıyla gösterilir."),
-            Eylemler(Tikla("PDF ya da Excel seç ve oku", PdfSecAsync), Ikincil(Tikla("Örnek Excel'i indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.SablonAsync)))),
+            Goster(Metin("Excel'de bankanın indirdiği dosyayı ya da örnek dosyayı doldurup yükleyin. Hatalı Excel düzeltilmeden işleme alınmaz; hatalar satır numarasıyla gösterilir."),
+                nameof(vm.BankaSecilir)),
+            Goster(Metin("ERP12'den cari hareketlerini Excel olarak dışa aktarıp yükleyin (Tarih, Cari, Borç, Alacak; varsa işlem türü ve belge no). Önceden aktarılan hareketler "
+                + "ikinci kez alınmaz. ERP12 kasayı tek başına değiştirmez: hareketler kasadaki kayıtlarla eşleşir, nakit olanlar size sorulur."), nameof(vm.ErpMi)),
+            Eylemler(Tikla("PDF ya da Excel seç ve oku", PdfSecAsync),
+                Goster(Ikincil(Tikla("Örnek Excel'i indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.SablonAsync))), nameof(vm.BankaSecilir))),
             FormHatasi(nameof(vm.YuklemeHatasi)))));
         Govde.Add(Editor(BelgeKarti(vm), nameof(vm.BelgeVar)));
         _kontrolKarti = Kart("3. Kontrol ve kayıt", Bagli(nameof(vm.OnizlemeMetni)),
@@ -109,6 +113,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             Bagli(nameof(vm.BelgeOzeti)),
             Eylemler(Ikincil(Tikla("Kaynak dosyayı indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.DosyaAsync))),
                 Goster(Ikincil(Tikla("Dosyayı yeniden oku", YenidenOkuAsync)), nameof(vm.YenidenOkunabilir)),
+                Goster(Ikincil(Tikla("Bu ERP12 dosyasını sil", ErpBelgeSilAsync)), nameof(vm.ErpSilinebilir)),
                 Goster(atlananDugmesi, nameof(vm.AtlananVar))),
             Dolu(Etiket("LblTakipKucuk"), nameof(vm.AtlananMetni)),
             yonOzeti, _satirSonucu,
@@ -265,7 +270,11 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         {
             Spacing = 2,
             VerticalOptions = LayoutOptions.Center,
-            Children = { Bagli(nameof(EkstreSatirEditor.Ozet)), YonEtiketi(), Dolu(Etiket("LblTakipKucuk"), nameof(EkstreSatirEditor.HafizaMetni)) }
+            Children =
+            {
+                Bagli(nameof(EkstreSatirEditor.Ozet)), Dolu(Etiket("LblTakipKucuk"), nameof(EkstreSatirEditor.EkBilgi)), YonEtiketi(),
+                Dolu(Etiket("LblTakipKucuk"), nameof(EkstreSatirEditor.HafizaMetni))
+            }
         };
         var tiklama = new TapGestureRecognizer();
         tiklama.Tapped += (_, _) => { if (satir.BindingContext is EkstreSatirEditor s) vm.SeciliSatir = s; };
@@ -325,6 +334,11 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         // Birden çok satır onayla kapanır: düğme "etkisini göster"in yanındadır.
         if (sayi < 2 || await DisplayAlertAsync("Satırları yok say", $"{sayi} işaretli satır kaydedilmeden kapanacak; kasa değişmez. Kapanan sekmesinden geri alabilirsiniz.", "Yok say", "Vazgeç"))
             await Vm.SeciliyiYokSayCommand.ExecuteAsync(null);
+    }
+    private async Task ErpBelgeSilAsync()
+    {
+        if (await DisplayAlertAsync("ERP12 dosyasını sil", "Bu dosyadan aktarılan bütün cari hareketler silinir. Eşleşen ya da kaydedilen satırı yoktur; kasa değişmez.", "Sil", "Vazgeç"))
+            await Vm.ErpBelgeSilAsync();
     }
     private async Task YenidenOkuAsync()
     {

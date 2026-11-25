@@ -18,6 +18,7 @@ public static class MenuSimgeleri
     public const string Kartlar = "menu_kartlar.png";
     public const string Krediler = "menu_krediler.png";
     public const string Cekler = "menu_cekler.png";
+    public const string Cariler = "menu_cariler.png";
     public const string Bildirimler = "menu_bildirimler.png";
     public const string DisariAktar = "menu_disari_aktar.png";
     public const string Ayarlar = "menu_ayarlar.png";
@@ -119,6 +120,7 @@ public sealed partial class MenuModeli : ObservableObject
             new(Bolum.Alislar, "Alışlar", MenuSimgeleri.Alislar, "alislar"),
             new(Bolum.AylikGiderler, "Aylık giderler", MenuSimgeleri.AylikGiderler, "aylikgiderler"),
             new(Bolum.EkstreAktar, "Ekstre içe aktar", MenuSimgeleri.EkstreAktar, "ekstreaktar"),
+            new(Bolum.Cariler, "Cariler", MenuSimgeleri.Cariler, "cariler"),
         ]),
         new("Kart, kredi ve çek",
         [

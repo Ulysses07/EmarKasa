@@ -26,7 +26,7 @@ public static partial class EkstreExcelOkuyucu
 
     static EkstreExcelOkuyucu() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-    private enum Alan { Tarih, Valor, Aciklama, Islem, Giris, Cikis, Tutar, DovizTutar, Yon, Bakiye, ParaBirimi, Taksit }
+    private enum Alan { Tarih, Valor, Aciklama, Islem, Giris, Cikis, Tutar, DovizTutar, Yon, Bakiye, ParaBirimi, Taksit, Cari, CariKodu, BelgeNo }
 
     private static readonly Dictionary<string, Alan> Basliklar = new(StringComparer.Ordinal)
     {
@@ -129,9 +129,12 @@ public static partial class EkstreExcelOkuyucu
     {
         public required int BaslikNo { get; init; }
         public Dictionary<Alan, int> Sutunlar { get; } = [];
+        /// <summary>Aynı alanın ek sütunları (ERP12: "İşlem türü" ve "Ödeme şekli" birlikte okunur).</summary>
+        public Dictionary<Alan, List<int>> Ekler { get; } = [];
         public string? Para { get; set; }
         public string? TutarDovizi { get; set; }
         public int? this[Alan a] => Sutunlar.TryGetValue(a, out var s) ? s : null;
+        public IEnumerable<int> Hepsi(Alan a) => (this[a] is { } s ? [s] : Enumerable.Empty<int>()).Concat(Ekler.GetValueOrDefault(a) ?? []);
     }
 
     /// <summary>Dosya Excel mi (xlsx/xls imzası); HTML ve diğerleri değil.</summary>
@@ -146,7 +149,7 @@ public static partial class EkstreExcelOkuyucu
     public static EkstreOkumaSonucu Oku(byte[] bytes, string kaynak)
     {
         var sayfalar = Sayfalar(bytes);
-        var adaylar = sayfalar.Select(s => (Sayfa: s, Duzen: DuzenBul(s))).Where(x => x.Duzen is not null).ToList();
+        var adaylar = sayfalar.Select(s => (Sayfa: s, Duzen: DuzenBul(s, erp: false))).Where(x => x.Duzen is not null).ToList();
         if (adaylar.Count == 0)
             throw new ExcelOkumaException("Hareket tablosu bulunamadı. Başlık satırında Tarih, Açıklama ve tutar (Giriş ve Çıkış ya da Tutar) sütunları olmalı. "
                 + $"Görülen başlıklar: {GorulenBasliklar(sayfalar)}. Örnek Excel'i indirip ona göre doldurabilirsiniz.");
@@ -225,7 +228,8 @@ public static partial class EkstreExcelOkuyucu
     private static partial Regex SondakiPara();
 
     /// <summary>Başlık hücresi: alan ve (başlıkta yazıyorsa) para birimi. "Tutar (TL)", "TUTAR USD", "Bakiye (isteğe bağlı)".</summary>
-    private static (Alan Alan, string? Para)? BaslikAlani(Hucre h)
+    /// <param name="erp">ERP12 tablosunun ek başlıkları (cari, belge no, evrak tipi) da tanınır.</param>
+    private static (Alan Alan, string? Para)? BaslikAlani(Hucre h, bool erp)
     {
         if (h.Deger is not string)
             return null;
@@ -234,20 +238,22 @@ public static partial class EkstreExcelOkuyucu
         var ad = EkstreKuralServisi.Normalize(Parantez().Replace(ham, " "));
         var para = SondakiPara().Match(tam) is { Success: true } m ? ParaKodu(m.Groups[1].Value) : null;
         foreach (var aday in new[] { ad, SondakiPara().Replace(ad, "") })
-            if (Basliklar.TryGetValue(aday, out var alan))
+            if (erp && ErpBasliklar.TryGetValue(aday, out var erpAlani))
+                return (erpAlani, para);
+            else if (Basliklar.TryGetValue(aday, out var alan))
                 return (alan, para);
         return null;
     }
 
     private static string ParaKodu(string metin) => metin switch { "TL" or "TRY" => "TRY", "DOLAR" => "USD", "EURO" => "EUR", "STERLIN" => "GBP", _ => metin };
 
-    private static Duzen? DuzenBul(Sayfa sayfa)
+    private static Duzen? DuzenBul(Sayfa sayfa, bool erp)
     {
         foreach (var satir in sayfa.Satirlar.TakeWhile(s => s.No <= BaslikSatiri * 5).Take(BaslikSatiri))
         {
-            var alanlar = satir.Hucreler.Select((h, i) => (Sutun: i, Baslik: BaslikAlani(h), h.Metin)).Where(x => x.Baslik is not null).ToList();
+            var alanlar = satir.Hucreler.Select((h, i) => (Sutun: i, Baslik: BaslikAlani(h, erp), h.Metin)).Where(x => x.Baslik is not null).ToList();
             bool Var(params Alan[] a) => alanlar.Any(x => a.Contains(x.Baslik!.Value.Alan));
-            if (!Var(Alan.Tarih, Alan.Valor) || !Var(Alan.Aciklama, Alan.Islem) || !Var(Alan.Tutar, Alan.Giris, Alan.Cikis))
+            if (!Var(Alan.Tarih, Alan.Valor) || !(erp ? Var(Alan.Cari) : Var(Alan.Aciklama, Alan.Islem)) || !Var(Alan.Tutar, Alan.Giris, Alan.Cikis))
                 continue;
             var duzen = new Duzen { BaslikNo = satir.No };
             foreach (var grup in alanlar.GroupBy(x => x.Baslik!.Value.Alan))
@@ -264,6 +270,11 @@ public static partial class EkstreExcelOkuyucu
                         duzen.TutarDovizi = doviz[0].Baslik!.Value.Para;
                         secenekler = secenekler.Except(doviz).ToList();
                     }
+                }
+                if (erp && alan is Alan.Islem or Alan.Aciklama or Alan.BelgeNo && secenekler.Count > 1)
+                {
+                    duzen.Ekler[alan] = secenekler.Skip(1).Select(x => x.Sutun).ToList();
+                    secenekler = secenekler.Take(1).ToList();
                 }
                 if (secenekler.Count > 1)
                     throw new ExcelOkumaException($"'{sayfa.Ad}' sayfası, satır {satir.No}: aynı sütun birden çok kez var ({string.Join(", ", secenekler.Select(x => $"{x.Metin} {SutunAdi(x.Sutun)}"))}). Fazla sütunu silip yeniden yükleyin.");

@@ -15,7 +15,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     private EkstreOnizlemeDto? _onizleme;
     private int _onizlemeForm;
     private int? _gecmisImleci;
-    public IReadOnlyList<EkstreSecenek> Kaynaklar { get; } = [new(EkstreKaynaklari.Kart, "Kredi kartı ekstresi"), new(EkstreKaynaklari.Banka, "Banka hesap hareketleri")];
+    public IReadOnlyList<EkstreSecenek> Kaynaklar { get; } = [new(EkstreKaynaklari.Kart, "Kredi kartı ekstresi"), new(EkstreKaynaklari.Banka, "Banka hesap hareketleri"), new(EkstreKaynaklari.Erp, "ERP12 cari hareketleri (Excel)")];
     /// <summary>Yükleme formunun bankaları: sunucudan (GET api/ekstre-aktar/bankalar, tek kaynak) yüklenir; istemcide yedek liste
     /// yoktur. Alınamazsa boş kalır ve <see cref="TemelViewModel"/> hatası nedenini söyler (PDF yüklenemez).</summary>
     public ObservableCollection<EkstreSecenek> Bankalar { get; } = new();
@@ -38,17 +38,27 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     [ObservableProperty] private bool _eskiBelgeVar;
     public bool BankaMi => Kaynak?.Kod == EkstreKaynaklari.Banka;
     public bool KartMi => Kaynak?.Kod == EkstreKaynaklari.Kart;
+    /// <summary>ERP12 cari hareketleri: banka, hesap ve kart seçilmez.</summary>
+    public bool ErpMi => Kaynak?.Kod == EkstreKaynaklari.Erp;
+    public bool BankaSecilir => !ErpMi;
+    /// <summary>Açık belge hiçbir satırı işlenmemiş ERP12 belgesi: silinebilir.</summary>
+    public bool ErpSilinebilir => Belge is { Kaynak: EkstreKaynaklari.Erp, Kayitlar.Count: 0 };
     public bool BelgeVar => Belge is not null;
     public bool OnizlemeVar => _onizleme is not null;
     public bool TekrarOnayGerekli => _onizleme?.TekrarOnayGerekli ?? false;
-    public string BelgeOzeti => Belge is { } b ? $"{b.DosyaAdi} · {b.Banka} · {b.Kaynak} · {(b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi)}\n{b.Satirlar.Count} satır; {Satirlar.Count(s => s.Secili)} seçildi. Hiçbir satır kendiliğinden kaydedilmez.\n" + string.Join("\n", b.Uyarilar) : "";
-    partial void OnKaynakChanged(EkstreSecenek? value) { OnPropertyChanged(nameof(BankaMi)); OnPropertyChanged(nameof(KartMi)); }
+    public string BelgeOzeti => Belge is { } b ? $"{b.DosyaAdi} · {EkstreGecmisSatiri.Kimlik(b.Banka, b.Kaynak, b.KartId is { } id ? (Kartlar.FirstOrDefault(k => k.Id == id)?.Ad ?? "Kart") + $" (#{id})" : b.HesapAdi)}\n{b.Satirlar.Count} satır; {Satirlar.Count(s => s.Secili)} seçildi. Hiçbir satır kendiliğinden kaydedilmez.\n" + string.Join("\n", b.Uyarilar) : "";
+    partial void OnKaynakChanged(EkstreSecenek? value)
+    {
+        foreach (var ad in new[] { nameof(BankaMi), nameof(KartMi), nameof(ErpMi), nameof(BankaSecilir) })
+            OnPropertyChanged(ad);
+    }
     partial void OnBelgeChanged(EkstreBelgeDto? value)
     {
         OnPropertyChanged(nameof(BelgeVar));
         OnPropertyChanged(nameof(BelgeOzeti));
         OnPropertyChanged(nameof(YokSayDestekleniyor));
         OnPropertyChanged(nameof(YenidenOkunabilir));
+        OnPropertyChanged(nameof(ErpSilinebilir));
         OnPropertyChanged(nameof(Atlananlar));
         OnPropertyChanged(nameof(AtlananVar));
         OnPropertyChanged(nameof(AtlananDugmesi));
@@ -157,6 +167,8 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     {
         if (!EditorMu || !VeriHazir || Mesgul)
             return null;
+        if (ErpMi)
+            return new(OturumNesli, EkstreKaynaklari.Erp, "", "", null);
         if (Bankalar.Count == 0)
         { Hata = "Banka listesi sunucudan alınamadı; belge yüklenemez. Ekranı yenileyip yeniden deneyin."; return null; }
         if (Kaynak is null || Banka is null || (BankaMi && (string.IsNullOrWhiteSpace(HesapAdi) || HesapAdi.Trim().Length > 100)) || (KartMi && Kart is null))
@@ -200,7 +212,7 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
     public Task PdfYukleAsync(byte[] icerik, string ad, EkstreYuklemeSecimi secim) => YurutAsync(async n =>
     {
         YuklemeHatasi = null;
-        if (!EditorMu || !VeriHazir || secim.Oturum != n || secim.Kaynak != Kaynak?.Kod || secim.Banka != Banka?.Kod || secim.HesapAdi != (BankaMi ? HesapAdi.Trim() : "") || secim.KartId != (KartMi ? Kart?.Id : null))
+        if (!EditorMu || !VeriHazir || secim.Oturum != n || secim.Kaynak != Kaynak?.Kod || secim.Banka != (ErpMi ? "" : Banka?.Kod) || secim.HesapAdi != (BankaMi ? HesapAdi.Trim() : "") || secim.KartId != (KartMi ? Kart?.Id : null))
         { Hata = "Dosya seçimi sırasında oturum veya belge kaynağı değişti. Dosyayı yeniden seçin."; return; }
         if (!DosyaSecimKurallari.EkstreMi(ad) || icerik.Length == 0 || icerik.Length > DosyaSecimKurallari.EnFazlaBayt)
         { Hata = "En fazla 10 MB büyüklüğünde bir PDF ya da Excel seçin."; return; }
@@ -214,6 +226,24 @@ public partial class EkstreAktarmaViewModel(IEkstreAktarmaApi api, IKasaApi fina
             return;
         Mesaj = HazirVar ? "Belge okundu. Hafızadan hazır satırlar var; kalanları tek tek kontrol edin." : "Belge okundu. Kaydetmek istediğiniz satırları tek tek seçip kontrol edin.";
     }, hataIsle: e => YuklemeHatasi = e is HttpRequestException ? Yurutucu.KayitBaglantiIletisi : HataMesaji(e));
+    /// <summary>Yanlış yüklenen, işlenmemiş ERP12 belgesini siler (sayfa önce onay ister). Kasa değişmez.</summary>
+    public Task ErpBelgeSilAsync() => YurutAsync(async n =>
+    {
+        if (!EditorMu || !VeriHazir || !ErpSilinebilir || Belge is not { } belge)
+            return;
+        await api.ErpBelgeSilAsync(belge.Id);
+        if (!Gecerli(n))
+            return;
+        if (Gecmis.FirstOrDefault(g => g.Veri.Id == belge.Id) is { } satir)
+            Gecmis.Remove(satir);
+        SeciliSatir = null;
+        Belge = null;
+        Satirlar.Clear();
+        Kayitlar.Clear();
+        SekmeleriDoldur();
+        GirdiDegisti();
+        Mesaj = "ERP12 belgesi ve hareketleri silindi; kasa değişmedi.";
+    }, mesgulkenBildir: true);
     public Task BelgeAcAsync(int id) => YurutAsync(async n =>
     {
         if (!EditorMu || !VeriHazir)
