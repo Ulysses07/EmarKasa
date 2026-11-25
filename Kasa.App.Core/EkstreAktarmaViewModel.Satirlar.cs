@@ -228,7 +228,7 @@ public partial class EkstreAktarmaViewModel
                 return;
             _yenidenOkuKey.Temizle();
             BelgeyiYansit(b);
-            SatirMesaji = $"PDF yeniden okundu: {b.Satirlar.Count} satır.";
+            SatirMesaji = $"Belge yeniden okundu: {b.Satirlar.Count} satır.";
             await KurallariAlAsync(n);
         }, hataIsle: SatirHatasiniYaz);
     }

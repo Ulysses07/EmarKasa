@@ -26,7 +26,7 @@ public static partial class EkstreAktarmaEndpoints
         var document = GetDocument(db, id);
         Require(document.Surum == dto.Surum, "Belge değişmiş. Yenileyip yeniden deneyin.", 409);
         var nolar = dto.SatirNolar.ToHashSet();
-        Require(nolar.IsSubsetOf(Read<EkstreOkunanSatir>(document.SatirlarJson).Select(r => r.No)), "Kaynak satır bu PDF'de bulunamadı.");
+        Require(nolar.IsSubsetOf(Read<EkstreOkunanSatir>(document.SatirlarJson).Select(r => r.No)), "Kaynak satır bu belgede bulunamadı.");
         var kayitli = db.EkstreKayitlar.AsNoTracking().Where(k => k.BelgeId == id && !k.Iptal).Select(k => k.SatirNo).ToHashSet();
         Require(!nolar.Overlaps(kayitli), $"Satır {nolar.Intersect(kayitli).DefaultIfEmpty().Min()}: Bu satır zaten kaydedilmiş; yok sayılmaz. Önce kaydını iptal edin.", 409);
         var mevcut = db.EkstreYokSayilanlar.Where(y => y.BelgeId == id).ToDictionary(y => y.SatirNo);
@@ -60,7 +60,7 @@ public static partial class EkstreAktarmaEndpoints
             loglar.CreateLogger("Kasa.Api.EkstreImportEndpoints").LogError("Ekstre belgesi {Id} dosyası belge deposunda yok ({Ozet}, {Depo}).", id, d.DosyaOzeti, depo.Kok);
             return Results.NotFound(new { hata = BelgeEndpoints.DosyaYok });
         }
-        var (read, hata) = await PdfOku(pdf, bytes, d.Kaynak, d.Banka, ct);
+        var (read, hata) = await BelgeOku(pdf, bytes, d.Kaynak, d.Banka, ct);
         if (read is null)
             return hata!;
         return Safe(() => AlisEndpoints.Mutate(db, () =>

@@ -54,8 +54,11 @@ public interface IEkstreAktarmaApi
     Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null);
     Task<EkstreBelgeDto> EkstreBelgeAsync(int id);
     Task<EkstreBelgeDto> EkstreKaynakBelgeAsync(int kayitId);
+    /// <summary>PDF ya da Excel (.xlsx, .xls) yükler; hatalı Excel bütün hatalarıyla reddedilir (422, ileti satır satır).</summary>
     Task<EkstreBelgeDto> EkstreYukleAsync(byte[] icerik, string dosyaAdi, string kaynak, string banka, string hesapAdi, int? kartId, CancellationToken cancellationToken = default);
-    /// <summary>Kaynak PDF'i akışla <paramref name="hedef"/>'e yazar.</summary>
+    /// <summary>Örnek Excel'i akışla <paramref name="hedef"/>'e yazar.</summary>
+    Task<IndirmeBilgisi> EkstreSablonAsync(Stream hedef, CancellationToken cancellationToken = default) => Task.FromException<IndirmeBilgisi>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Kaynak dosyayı (PDF ya da Excel) akışla <paramref name="hedef"/>'e yazar.</summary>
     Task<IndirmeBilgisi> EkstreDosyaAsync(int id, Stream hedef, CancellationToken cancellationToken = default);
     Task<EkstreOnizlemeDto> EkstreOnizlemeAsync(int id, EkstreKaydetYaz g);
     Task<EkstreBelgeDto> EkstreKaydetAsync(int id, EkstreKaydetYaz g);

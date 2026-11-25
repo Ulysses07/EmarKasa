@@ -335,46 +335,7 @@ public static class EkstreMetinOkuyucu
         string proposal;
         if (source == EkstreKaynaklari.Kart)
         {
-            var key = CardKey(normalized, classification);
-            // ReadAmount yönü yalnız Borç/Alacak kolonundan ya da B/A sonekinden verir; bu yön açıklamadaki kelimeyle ezilmez.
-            var certain = direction != "Belirsiz";
-            // Borç/Alacak kolonu ve B/A soneki kesindir. Yalnız işaretten okunan yön belgenin işaret anlamıyla çözülür;
-            // anlam bilinmiyorsa tahmin edilmez.
-            if (direction == "Belirsiz" && sign != 0 && creditSign != 0)
-            {
-                direction = sign == creditSign ? "Giris" : "Cikis";
-                directionSource = YonKaynaklari.Isaret;
-            }
-            if (direction == "Belirsiz")
-            {
-                direction = key switch
-                {
-                    "Iade" or "Alacak" => "Giris",
-                    // Ordinary card charges remain a proposal; a payment must never be a new charge.
-                    "Odeme" or "BelirsizOdeme" => "Belirsiz",
-                    _ => IsFee(classification) || sign == 0 ? "Cikis" : "Belirsiz"
-                };
-                if (direction != "Belirsiz" && (key is "Iade" or "Alacak" || IsFee(classification)))
-                    directionSource = YonKaynaklari.Sozcuk;
-            }
-            proposal = key switch
-            {
-                "Iade" => EkstreIslemTurleri.KartIade,
-                "Odeme" => EkstreIslemTurleri.KartOdemesi,
-                // Adında "indirim/bonus/puan" geçen işyerinin borç satırı alacak sayılmaz.
-                "Alacak" => certain && direction == "Cikis" ? EkstreIslemTurleri.KartHarcama : EkstreIslemTurleri.Atla,
-                _ => direction == "Cikis" ? EkstreIslemTurleri.KartHarcama : key == "BelirsizOdeme" && direction == "Giris" ? EkstreIslemTurleri.KartOdemesi : EkstreIslemTurleri.Atla
-            };
-            if (key == "BelirsizOdeme")
-                warnings.Add("Açıklamada ödeme geçiyor: kart borcu ödemesi mi, karttan ödenen fatura mı PDF'den kontrol edip türü seçin.");
-            if (key == "Kurulus" && direction == "Cikis")
-                warnings.Add("Açıklamada ödeme geçiyor ama ödeme kuruluşu/fatura harcaması görünüyor; kart borcu ödemesi değilse Kart harcaması seçin.");
-            if (key == "Alacak" && certain && direction == "Cikis")
-                warnings.Add("Açıklamada indirim/puan geçiyor ama PDF satırı borç olarak gösteriyor; Kart harcaması önerildi. İndirim/puan alacağıysa kaydetmeyin.");
-            else if (key == "Alacak" || (key is null or "Kurulus") && direction == "Giris")
-                warnings.Add("Kart alacağı (indirim, puan, iade) olabilir. Borç artışı olarak kaydetmeyin; iadeyse asıl harcamayı seçip Karta iade türünü kullanın.");
-            if ((key is null or "Kurulus") && direction == "Belirsiz" && sign != 0)
-                warnings.Add("Tutar işaretli; bu bankada eksi/artı işaretinin borç mu alacak mı olduğu belgeden anlaşılamadı. Türü PDF ile karşılaştırıp siz seçin.");
+            (direction, directionSource, proposal) = KartKarari(normalized, classification, direction, directionSource, sign, creditSign, warnings);
         }
         else
         {
@@ -415,12 +376,9 @@ public static class EkstreMetinOkuyucu
                 direction = described;
                 directionSource = YonKaynaklari.Sozcuk;
             }
-            proposal = classification == "Transfer" ? EkstreIslemTurleri.Atla : normalized.Contains("KART") && normalized.Contains("ODEME") ? EkstreIslemTurleri.KartOdemesi : direction == "Giris" ? EkstreIslemTurleri.Gelir : direction == "Cikis" ? EkstreIslemTurleri.Gider : EkstreIslemTurleri.Atla;
+            proposal = BankaOnerisi(normalized, classification, direction);
         }
-        if (classification == "Transfer")
-            warnings.Add("Kendi hesaplarınız arası transfer yeni gelir/gider oluşturmayabilir. Seçmeden önce kontrol edin.");
-        if (normalized.Contains("KREDI") && (normalized.Contains("TAKSIT") || normalized.Contains("KULLANDIR") || normalized.Contains("ODEME")))
-            warnings.Add("Kredi takibinde zaten işlenmiş olabilir; ikinci kez kaydetmeyin.");
+        OrtakUyarilar(normalized, classification, warnings);
         // Ekstredeki "2/6 TAKSIT" satırı taksitli bir alışın aylık payıdır; tek taksitli yeni harcama olarak önerilmez.
         if (source == EkstreKaynaklari.Kart && Installment(normalized, dates.Count > 0, installmentColumn, columns) is (var no, var count))
         {
@@ -442,8 +400,69 @@ public static class EkstreMetinOkuyucu
             GirdiDogrulama.Temizle(description[..Math.Min(description.Length, 500)]).TrimEnd(), amount,
             direction, proposal, classification, currency, warnings, directionSource);
     }
+    /// <summary>Kart satırının yönü ve önerilen türü (PDF ve Excel okuyucuları aynı kuralı kullanır). <paramref name="direction"/> kolondan ya da
+    /// B/A ekinden okunan kesin yön, <paramref name="sign"/> yazılı işaret, <paramref name="creditSign"/> belgede alacağın işareti (0: bilinmiyor).</summary>
+    internal static (string Direction, string? Source, string Proposal) KartKarari(string normalized, string classification, string direction, string? directionSource,
+        int sign, int creditSign, List<string> warnings)
+    {
+        string proposal;
+        var key = CardKey(normalized, classification);
+        // ReadAmount yönü yalnız Borç/Alacak kolonundan ya da B/A sonekinden verir; bu yön açıklamadaki kelimeyle ezilmez.
+        var certain = direction != "Belirsiz";
+        // Borç/Alacak kolonu ve B/A soneki kesindir. Yalnız işaretten okunan yön belgenin işaret anlamıyla çözülür;
+        // anlam bilinmiyorsa tahmin edilmez.
+        if (direction == "Belirsiz" && sign != 0 && creditSign != 0)
+        {
+            direction = sign == creditSign ? "Giris" : "Cikis";
+            directionSource = YonKaynaklari.Isaret;
+        }
+        if (direction == "Belirsiz")
+        {
+            direction = key switch
+            {
+                "Iade" or "Alacak" => "Giris",
+                // Ordinary card charges remain a proposal; a payment must never be a new charge.
+                "Odeme" or "BelirsizOdeme" => "Belirsiz",
+                _ => IsFee(classification) || sign == 0 ? "Cikis" : "Belirsiz"
+            };
+            if (direction != "Belirsiz" && (key is "Iade" or "Alacak" || IsFee(classification)))
+                directionSource = YonKaynaklari.Sozcuk;
+        }
+        proposal = key switch
+        {
+            "Iade" => EkstreIslemTurleri.KartIade,
+            "Odeme" => EkstreIslemTurleri.KartOdemesi,
+            // Adında "indirim/bonus/puan" geçen işyerinin borç satırı alacak sayılmaz.
+            "Alacak" => certain && direction == "Cikis" ? EkstreIslemTurleri.KartHarcama : EkstreIslemTurleri.Atla,
+            _ => direction == "Cikis" ? EkstreIslemTurleri.KartHarcama : key == "BelirsizOdeme" && direction == "Giris" ? EkstreIslemTurleri.KartOdemesi : EkstreIslemTurleri.Atla
+        };
+        if (key == "BelirsizOdeme")
+            warnings.Add("Açıklamada ödeme geçiyor: kart borcu ödemesi mi, karttan ödenen fatura mı PDF'den kontrol edip türü seçin.");
+        if (key == "Kurulus" && direction == "Cikis")
+            warnings.Add("Açıklamada ödeme geçiyor ama ödeme kuruluşu/fatura harcaması görünüyor; kart borcu ödemesi değilse Kart harcaması seçin.");
+        if (key == "Alacak" && certain && direction == "Cikis")
+            warnings.Add("Açıklamada indirim/puan geçiyor ama PDF satırı borç olarak gösteriyor; Kart harcaması önerildi. İndirim/puan alacağıysa kaydetmeyin.");
+        else if (key == "Alacak" || (key is null or "Kurulus") && direction == "Giris")
+            warnings.Add("Kart alacağı (indirim, puan, iade) olabilir. Borç artışı olarak kaydetmeyin; iadeyse asıl harcamayı seçip Karta iade türünü kullanın.");
+        if ((key is null or "Kurulus") && direction == "Belirsiz" && sign != 0)
+            warnings.Add("Tutar işaretli; bu bankada eksi/artı işaretinin borç mu alacak mı olduğu belgeden anlaşılamadı. Türü PDF ile karşılaştırıp siz seçin.");
+        return (direction, directionSource, proposal);
+    }
+    internal static void OrtakUyarilar(string normalized, string classification, List<string> warnings)
+    {
+        if (classification == "Transfer")
+            warnings.Add("Kendi hesaplarınız arası transfer yeni gelir/gider oluşturmayabilir. Seçmeden önce kontrol edin.");
+        if (normalized.Contains("KREDI") && (normalized.Contains("TAKSIT") || normalized.Contains("KULLANDIR") || normalized.Contains("ODEME")))
+            warnings.Add("Kredi takibinde zaten işlenmiş olabilir; ikinci kez kaydetmeyin.");
+    }
+    /// <summary>Banka satırının önerilen türü.</summary>
+    internal static string BankaOnerisi(string normalized, string classification, string direction) => classification == "Transfer" ? EkstreIslemTurleri.Atla
+        : normalized.Contains("KART") && normalized.Contains("ODEME") ? EkstreIslemTurleri.KartOdemesi
+        : direction == "Giris" ? EkstreIslemTurleri.Gelir : direction == "Cikis" ? EkstreIslemTurleri.Gider : EkstreIslemTurleri.Atla;
+    /// <summary>Açıklamadaki taksit sırası ("2/6 TAKSIT"); kolonu olmayan kaynak (Excel) için.</summary>
+    internal static (int No, int Count)? TaksitSirasi(string normalized) => Installment(normalized, true, null, []);
     /// <summary>Açıklamanın tek anlamlı yönü; iade/iptal geçiyorsa, iki yöne de uyuyorsa ya da ipucu yoksa null.</summary>
-    private static string? DescribedDirection(string normalized)
+    internal static string? DescribedDirection(string normalized)
     {
         var text = TaxIdentityRx.Replace(Collapse(normalized), " ");
         if (text.Contains("IADE") || text.Contains("IPTAL"))
@@ -527,16 +546,16 @@ public static class EkstreMetinOkuyucu
         var text = rest.TrimStart(' ', ' ');
         return text.Length == 0 || text[0] is '\n' or '\r' || rest.Length - text.Length > 1 || MoneyRx.Match(text) is { Success: true, Index: 0 };
     }
-    private static string Classify(string normalized) => normalized.Contains("KOMISYON") ? "Komisyon" : normalized.Contains("FAIZ") ? "Faiz"
+    internal static string Classify(string normalized) => normalized.Contains("KOMISYON") ? "Komisyon" : normalized.Contains("FAIZ") ? "Faiz"
         : normalized.Contains("BSMV") || normalized.Contains("KKDF") || normalized.Contains("VERGI") ? "Vergi"
         : normalized.Contains("UCRET") || normalized.Contains("MASRAF") || normalized.Contains("AIDAT") ? "Ucret"
         : normalized.Contains("VIRMAN") || normalized.Contains("HESAPLAR ARASI") ? "Transfer"
         : normalized.Contains("ODEME") || normalized.Contains("TAHSILAT") ? "Odeme" : "Hareket";
-    private static bool IsFee(string classification) => classification is "Faiz" or "Komisyon" or "Vergi" or "Ucret";
+    internal static bool IsFee(string classification) => classification is "Faiz" or "Komisyon" or "Vergi" or "Ucret";
     // Öncelik sırası önemlidir: iade/iptal; indirim/puan alacağı ("PUAN ILE ODEME" nakit ödeme değildir); faiz/ücret
     // "ödeme" geçse de borçtur ("GECIKMIS ODEME FAIZI", "TAHSILAT UCRETI"); sonra açık kart borcu ödemesi; kalan
     // "ödeme" satırı ödeme kuruluşu/fatura harcaması ya da belirsiz ödemedir.
-    private static string? CardKey(string normalized, string classification)
+    internal static string? CardKey(string normalized, string classification)
     {
         if (normalized.Contains("IADE") || normalized.Contains("IPTAL"))
             return "Iade";

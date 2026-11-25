@@ -12,8 +12,8 @@ public enum DosyaOkumaDurumu { Tamam, SinirAsildi, Vazgecildi }
 /// <summary>Sınırlı okumanın sonucu; içerik yalnız <see cref="DosyaOkumaDurumu.Tamam"/> iken doludur.</summary>
 public sealed record DosyaOkumasi(DosyaOkumaDurumu Durum, byte[]? Icerik);
 
-/// <summary>maui-8: alış belgesi ve ekstre PDF'i seçimindeki saf kurallar (önceden AlislarPage ve EkstreAktarmaPage
-/// kod-arkasındaydı). Sunucu sınırlarıyla aynı: belge PDF/PNG/JPEG, dosya başına en çok 10 MB.</summary>
+/// <summary>maui-8: alış belgesi ve ekstre (PDF, Excel) seçimindeki saf kurallar (önceden AlislarPage ve EkstreAktarmaPage
+/// kod-arkasındaydı). Sunucu sınırlarıyla aynı: belge PDF/PNG/JPEG, ekstre PDF/XLSX/XLS, dosya başına en çok 10 MB.</summary>
 public static class DosyaSecimKurallari
 {
     public const long EnFazlaBayt = 10 * 1024 * 1024;
@@ -30,7 +30,8 @@ public static class DosyaSecimKurallari
         _ => null,
     };
 
-    public static bool PdfMi(string dosyaAdi) => dosyaAdi.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Ekstre olarak yüklenebilen dosya: PDF ya da Excel.</summary>
+    public static bool EkstreMi(string dosyaAdi) => Path.GetExtension(dosyaAdi).ToLowerInvariant() is ".pdf" or ".xlsx" or ".xls";
 
     /// <summary>Akışı en çok <paramref name="sinir"/> bayt belleğe okur (80 KB tamponla). Sınır aşılırsa
     /// <see cref="DosyaOkumaDurumu.SinirAsildi"/>; her parçadan önce <paramref name="devam"/> false dönerse (oturum ya da seçim

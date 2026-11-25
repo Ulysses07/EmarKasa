@@ -26,15 +26,18 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         base.OnAppearing();
     }
     public EkstreAktarmaPage(EkstreAktarmaViewModel vm) : base(vm, "Ekstre İçe Aktar",
-        "PDF'deki bütün hareketleri inceleyin; yalnız seçip onayladığınız satırlar kaydedilir. PDF yüklemek tek başına kasayı değiştirmez. Yalnız TL; metin içeren, şifresiz PDF (en fazla 10 MB / 50 sayfa).",
+        "Belgedeki bütün hareketleri inceleyin; yalnız seçip onayladığınız satırlar kaydedilir. Yüklemek tek başına kasayı değiştirmez. "
+        + "Yalnız TL; metin içeren şifresiz PDF (en çok 50 sayfa) ya da Excel (.xlsx, .xls); en fazla 10 MB.",
         vm.YukleAsync)
     {
-        Govde.Add(Editor(Kart("1. PDF belgesi",
+        Govde.Add(Editor(Kart("1. Belge (PDF ya da Excel)",
             Alan("Belge türü", Secim(nameof(vm.Kaynaklar), nameof(vm.Kaynak))),
             Alan("Banka", Secim(nameof(vm.Bankalar), nameof(vm.Banka))),
             Goster(Alan("Kısa hesap adı / son 4 hane", Girdi(nameof(vm.HesapAdi))), nameof(vm.BankaMi)),
             Goster(Alan("Kart (önce Kartlar bölümünde yeni takibi açın)", Secim(nameof(vm.Kartlar), nameof(vm.Kart))), nameof(vm.KartMi)),
-            Tikla("PDF seç ve oku", PdfSecAsync))));
+            Metin("Excel'de bankanın indirdiği dosyayı ya da örnek dosyayı doldurup yükleyin. Hatalı Excel düzeltilmeden işleme alınmaz; hatalar satır numarasıyla gösterilir."),
+            Eylemler(Tikla("PDF ya da Excel seç ve oku", PdfSecAsync), Ikincil(Tikla("Örnek Excel'i indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.SablonAsync)))),
+            FormHatasi(nameof(vm.YuklemeHatasi)))));
         Govde.Add(Editor(BelgeKarti(vm), nameof(vm.BelgeVar)));
         _kontrolKarti = Kart("3. Kontrol ve kayıt", Bagli(nameof(vm.OnizlemeMetni)),
             Goster(Onay("Benzer kayıt / belirsizlik uyarılarını kontrol ettim; ayrı hareket olarak kaydedilsin.", nameof(vm.TekrarOnay)), nameof(vm.TekrarOnayGerekli)),
@@ -104,8 +107,8 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         yonOzeti.FontAttributes = FontAttributes.Bold;
         return Kart("2. Hareket satırları",
             Bagli(nameof(vm.BelgeOzeti)),
-            Eylemler(Ikincil(Tikla("Kaynak PDF'yi indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.DosyaAsync))),
-                Goster(Ikincil(Tikla("PDF'yi yeniden oku", YenidenOkuAsync)), nameof(vm.YenidenOkunabilir)),
+            Eylemler(Ikincil(Tikla("Kaynak dosyayı indir", () => DosyaIslemleri.IndirVeKaydetAsync(this, vm.DosyaAsync))),
+                Goster(Ikincil(Tikla("Dosyayı yeniden oku", YenidenOkuAsync)), nameof(vm.YenidenOkunabilir)),
                 Goster(atlananDugmesi, nameof(vm.AtlananVar))),
             Dolu(Etiket("LblTakipKucuk"), nameof(vm.AtlananMetni)),
             yonOzeti, _satirSonucu,
@@ -119,7 +122,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             AutomationId = "BekleyenSatirlar",
             HeightRequest = 520,
             SelectionMode = SelectionMode.None,
-            EmptyView = "Bekleyen satır yok. Belge yeni yüklendiyse PDF'ten hareket okunamamıştır; kaynak PDF'yi ve uyarıları kontrol edin."
+            EmptyView = "Bekleyen satır yok. Belge yeni yüklendiyse hareket okunamamıştır; kaynak dosyayı ve uyarıları kontrol edin."
         };
         _bekleyenListe.SetBinding(ItemsView.ItemsSourceProperty, nameof(vm.Bekleyenler));
         _bekleyenListe.ItemTemplate = new DataTemplate(() => BekleyenSatir(vm));
@@ -325,7 +328,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
     }
     private async Task YenidenOkuAsync()
     {
-        if (await DisplayAlertAsync("PDF'yi yeniden oku", "Saklanan PDF baştan okunur. Bu belgede satırlara yazdıklarınız ve işaretleriniz silinir; kasa değişmez.", "Yeniden oku", "Vazgeç"))
+        if (await DisplayAlertAsync("Dosyayı yeniden oku", "Saklanan dosya baştan okunur. Bu belgede satırlara yazdıklarınız ve işaretleriniz silinir; kasa değişmez.", "Yeniden oku", "Vazgeç"))
             await Vm.YenidenOkuAsync();
     }
     private View SatirFormunuKur(EkstreSatirEditor s)
@@ -413,7 +416,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         };
         return grid;
     }
-    // Yalnız PDF, 10 MB sınırı ve oturum koruması EkstreAktarmaViewModel.PdfSecVeYukleAsync'tedir (maui-8); sayfa yalnız dosya
+    // Dosya türü, 10 MB sınırı ve oturum koruması EkstreAktarmaViewModel.PdfSecVeYukleAsync'tedir (maui-8); sayfa yalnız dosya
     // seçiciyi açar.
     private async Task PdfSecAsync()
     {
@@ -424,8 +427,8 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
         {
             var dosya = await FilePicker.Default.PickAsync(new PickOptions
             {
-                PickerTitle = "Banka veya kart PDF ekstresini seçin",
-                FileTypes = DosyaSecimTurleri.Pdf
+                PickerTitle = "Banka veya kart ekstresini seçin (PDF ya da Excel)",
+                FileTypes = DosyaSecimTurleri.Ekstre
             });
             return dosya is null ? null : new SecilenDosya(dosya.FileName, dosya.OpenReadAsync);
         });
@@ -437,7 +440,7 @@ public sealed partial class EkstreAktarmaPage : TakipSayfasi<EkstreAktarmaViewMo
             return;
         await GerekceyleAsync("Aktarılan kaydı iptal et", async (gerekce, oturum) =>
         {
-            if (await DisplayAlertAsync("İptali onayla", $"{s.Baslik}\nBu kaydın mali etkisi iptal edilecek. Kaynak PDF ve işlem geçmişi korunur.", "İptal et", "Vazgeç"))
+            if (await DisplayAlertAsync("İptali onayla", $"{s.Baslik}\nBu kaydın mali etkisi iptal edilecek. Kaynak dosya ve işlem geçmişi korunur.", "İptal et", "Vazgeç"))
                 await Vm.KayitIptalAsync(s, gerekce, oturum, belgeId.Value);
         });
     }

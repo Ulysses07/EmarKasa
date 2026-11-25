@@ -25,6 +25,11 @@
     <ProjectReference Include="..\Kasa.Api\Kasa.Api.csproj" />
   </ItemGroup>
 
+  <!-- Örnek dosyalar (gerçek Excel'in kaydettiği .xls; kişisel bilgi içermez). -->
+  <ItemGroup>
+    <None Include="Ornek\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Test projelerinin ortak kaynağı (proje başvurusu değil): hız sınırı sızıntısını kapatan SizdirmayanFabrika
        (TestOrtak/HizSiniriSizintisi.cs, aspnetcore#66434). Kasa.Api.Tests ve Kasa.Sozlesme.Tests aynı dosyayı derler. -->
   <ItemGroup>

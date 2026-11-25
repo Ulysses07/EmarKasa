@@ -210,7 +210,7 @@ public class EkstreSatirDurumuTests
             [Satir(1), Satir(2, dagilim: "Esit"), Satir(3) with { Tarih = new(2090, 1, 1) }, Satir(4), Satir(99)]));
         Assert.Equal(HttpStatusCode.BadRequest, durum);
         var iletiler = hata.Split('\n');
-        Assert.Equal(["Satır 2: Dağıtılacak kanalları seçin.", "Satır 3: Hareket tarihi takip başlangıcı ile bugün arasında olmalı.", "Satır 99: Kaynak satır bu PDF'de bulunamadı."], iletiler);
+        Assert.Equal(["Satır 2: Dağıtılacak kanalları seçin.", "Satır 3: Hareket tarihi takip başlangıcı ile bugün arasında olmalı.", "Satır 99: Kaynak satır bu belgede bulunamadı."], iletiler);
         Assert.Empty((await c.GetFromJsonAsync<EkstreBelgeDto>($"/api/ekstre-aktar/{d.Id}", Ct))!.Kayitlar);
         Assert.Equal(once, await Kasa(c));
         // Karta ödeme satırında kart seçilmemesi de satır numarasıyla gelir.

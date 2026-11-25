@@ -34,7 +34,7 @@ public partial class EkstreAktarmaTests
         Assert.Equal(1, api.OnizlemeSayisi);
         Assert.True(vm.OnizlemeVar);
         Assert.Empty(api.KaydetIstekleri);
-        Assert.Contains("PDF okundu. Hafızadan hazır satırlar var", await YuklemeMesaji(vm));
+        Assert.Contains("Belge okundu. Hafızadan hazır satırlar var", await YuklemeMesaji(vm));
     }
 
     private static async Task<string?> YuklemeMesaji(EkstreAktarmaViewModel vm)

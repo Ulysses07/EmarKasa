@@ -286,7 +286,7 @@ public partial class EkstreAktarmaTests
         // Dokunulmayan satır yeni okumayla gelir; elle değiştirilenin taslağı kalır; ikisinin de işareti kalkar.
         Assert.Equal(("Gider", "Çıkış − · bakiyeden", false), (vm.Satirlar[0].IslemTuru!.Kod, vm.Satirlar[0].YonMetni, vm.Satirlar[0].Secili));
         Assert.Equal(("Elle", false), (vm.Satirlar[1].Aciklama, vm.Satirlar[1].Secili));
-        Assert.Contains("PDF: Çıkış −", vm.Satirlar[1].YonMetni);
+        Assert.Contains("belgede: Çıkış −", vm.Satirlar[1].YonMetni);
         Assert.True(vm.Satirlar[2].Secili);
     }
 
@@ -496,7 +496,7 @@ public partial class EkstreAktarmaTests
             Veri = DurumBelgesi(YonSatiri(1, "Giris", 250m, "Gelir", "Bakiye"), YonSatiri(2, "Cikis", 100m, "Gider", "Isaret"), YonSatiri(3, "Belirsiz", 40m, "Atla"),
                 YonSatiri(4, "Cikis", 10m, "Gider", "Sozcuk"), YonSatiri(5, "Giris", 5m, "Gelir", "Sutun"), YonSatiri(6, "Cikis", 7m, "Gider"), Satir(7, "USD"))
         });
-        Assert.Equal(["Giriş + · bakiyeden", "Çıkış − · tutarın işaretinden", "Belirsiz", "Çıkış − · açıklamadan", "Giriş + · PDF kolonundan", "Çıkış −"], vm.Satirlar.Take(6).Select(s => s.YonMetni));
+        Assert.Equal(["Giriş + · bakiyeden", "Çıkış − · tutarın işaretinden", "Belirsiz", "Çıkış − · açıklamadan", "Giriş + · belgenin kolonundan", "Çıkış −"], vm.Satirlar.Take(6).Select(s => s.YonMetni));
         Assert.Equal("Giriş +255,00 ₺ (2 satır) · Çıkış −117,00 ₺ (3 satır) · Belirsiz 1 satır", vm.YonOzeti);
         Assert.Equal("Hiç satır işaretli değil.", vm.SecimOzeti);
 
@@ -512,7 +512,7 @@ public partial class EkstreAktarmaTests
         Assert.Equal("Giriş +315,00 ₺ (3 satır) · Çıkış −117,00 ₺ (3 satır)", vm.YonOzeti);
         // Seçilen tür PDF'in yönüyle çelişirse ikisi de yazar.
         vm.Satirlar[1].IslemTuru = vm.Satirlar[1].IslemTurleri.Single(t => t.Kod == "Gelir");
-        Assert.Equal("Giriş + · PDF: Çıkış −", vm.Satirlar[1].YonMetni);
+        Assert.Equal("Giriş + · belgede: Çıkış −", vm.Satirlar[1].YonMetni);
         // Geçersiz yazılan tutar toplamda PDF'in tutarıdır.
         s.TutarMetni = "abc";
         Assert.Equal(40m, s.EtkinTutar);
