@@ -51,6 +51,14 @@ public interface IEkstreAktarmaApi
     Task<IReadOnlyList<EkstreHafizaDto>> EkstreHafizaAsync() => Task.FromException<IReadOnlyList<EkstreHafizaDto>>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Anahtarın bugüne kadarki kararlarını hafızadan çıkarır; kayıtlar değişmez.</summary>
     Task EkstreHafizaUnutAsync(EkstreHafizaUnutYaz g) => Task.FromException(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Yapay zekânın durumu, harcaması ve doğruluğu.</summary>
+    Task<YapayZekaDurumDto> YapayZekaDurumuAsync() => Task.FromException<YapayZekaDurumDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Belgeden gönderilecek maskeli metin; hiçbir şey gönderilmez.</summary>
+    Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id) => Task.FromException<YapayZekaOnizlemeDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Tanınmayan satırları sorar; öneriler <see cref="EkstreOnerilerAsync"/> ile gelir.</summary>
+    Task<YapayZekaSonucDto> YapayZekaSorAsync(int id, YapayZekaSorYaz g) => Task.FromException<YapayZekaSonucDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
+    /// <summary>Geçmiş kararlarla doğruluk ölçümü.</summary>
+    Task<YapayZekaOlcumDto> YapayZekaOlcAsync(YapayZekaOlcumYaz g) => Task.FromException<YapayZekaOlcumDto>(new KasaApiException(System.Net.HttpStatusCode.NotFound));
     /// <summary>Yükleme formunun banka seçenekleri (tek kaynak: sunucu).</summary>
     Task<IReadOnlyList<EkstreBankaDto>> EkstreBankalarAsync();
     Task<IReadOnlyList<EkstreBelgeOzetDto>> EkstreBelgelerAsync(int? beforeId = null);

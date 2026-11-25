@@ -71,6 +71,40 @@ public static class EkstreHafizaDurumlari
     public const string Kontrol = "HafizaKontrol";
 }
 
+/// <summary>Yapay zekâ önerisinin durumu (EkstreKuralOnerisi.Durum; docs/specs/2026-11-25-yapay-zeka-onerileri.md).</summary>
+public static class YapayZekaDurumlari
+{
+    /// <summary>Kural ve hafızanın tanımadığı satıra gelen öneri: satırı doldurur, toplu işaretlemeye girmez.</summary>
+    public const string Oneri = "YapayZekaOnerisi";
+}
+
+/// <summary>Yapay zekâ önerisinin güveni (YapayZekaOneriEntity.Guven, EkstreYapayZekaOnerisi.Guven).</summary>
+public static class YapayZekaGuvenleri
+{
+    public const string Yuksek = "Yuksek";
+    public const string Orta = "Orta";
+    public const string Dusuk = "Dusuk";
+}
+
+/// <summary>Yapay zekâ çağrısının türü (YapayZekaCagriEntity.Tur).</summary>
+public static class YapayZekaCagriTurleri
+{
+    public const string Satir = "SatirOnerisi";
+    public const string Olcum = "GecmisOlcumu";
+}
+
+/// <summary>Yapay zekâ çağrısının durumu (YapayZekaCagriEntity.Durum).</summary>
+public static class YapayZekaCagriDurumlari
+{
+    /// <summary>Maliyeti ayrıldı, yanıt bekleniyor (sunucu bu sırada kapandıysa ayrılan maliyet harcanmış sayılır).</summary>
+    public const string Basladi = "CagriBasladi";
+    public const string Tamam = "CagriTamam";
+    /// <summary>İstek yapılamadı ya da reddedildi: ücret doğmadı.</summary>
+    public const string Hata = "CagriHata";
+    /// <summary>İstek gitmiş olabilir, yanıt gelmedi: ayrılan maliyet harcanmış sayılır.</summary>
+    public const string Bilinmiyor = "CagriBilinmiyor";
+}
+
 /// <summary>Okunan ekstre satırının giriş/çıkış yönünün dayanağı (EkstreOkunanSatir.YonKaynagi; yön belirsizse, varsayımsa ya da satır bu
 /// alandan önce okunduysa null).</summary>
 public static class YonKaynaklari

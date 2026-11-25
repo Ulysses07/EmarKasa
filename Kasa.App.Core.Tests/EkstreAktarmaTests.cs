@@ -477,6 +477,17 @@ public partial class EkstreAktarmaTests
         public IReadOnlyList<EkstreHafizaDto> Hafiza = [];
         public Exception? HafizaHatasi;
         public List<EkstreHafizaUnutYaz> Unutulanlar = [];
+        public YapayZekaDurumDto? YzDurumu;
+        public int YzOnizlemeSayisi;
+        public YapayZekaOnizlemeDto YzOnizleme = new(1, 0, 2, ["1 | CIKIS | 100-1000 | [1] KARGO"], 0.0091m);
+        public List<YapayZekaSorYaz> YzSorulari = [];
+        public List<YapayZekaOlcumYaz> YzOlcumleri = [];
+        public Func<YapayZekaSorYaz, YapayZekaSonucDto> YzSorYaniti = _ => new(0, 0, 0, 0, null);
+        public Func<YapayZekaOlcumYaz, YapayZekaOlcumDto> YzOlcumYaniti = _ => throw new NotSupportedException();
+        public Task<YapayZekaDurumDto> YapayZekaDurumuAsync() => YzDurumu is { } d ? Task.FromResult(d) : Task.FromException<YapayZekaDurumDto>(new KasaApiException(HttpStatusCode.NotFound));
+        public Task<YapayZekaOnizlemeDto> YapayZekaOnizlemeAsync(int id) { YzOnizlemeSayisi++; return Task.FromResult(YzOnizleme); }
+        public async Task<YapayZekaSonucDto> YapayZekaSorAsync(int id, YapayZekaSorYaz g) { YzSorulari.Add(g); await Task.CompletedTask; return YzSorYaniti(g); }
+        public async Task<YapayZekaOlcumDto> YapayZekaOlcAsync(YapayZekaOlcumYaz g) { YzOlcumleri.Add(g); await Task.CompletedTask; return YzOlcumYaniti(g); }
         public List<int> ErpSilinenler = [];
         public Task ErpBelgeSilAsync(int id) { ErpSilinenler.Add(id); return Task.CompletedTask; }
         public Task<IReadOnlyList<EkstreHafizaDto>> EkstreHafizaAsync() => HafizaHatasi is { } h ? Task.FromException<IReadOnlyList<EkstreHafizaDto>>(h) : Task.FromResult(Hafiza);

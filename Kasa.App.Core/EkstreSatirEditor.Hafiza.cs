@@ -11,8 +11,13 @@ public partial class EkstreSatirEditor
 
     /// <summary>Satırın hafıza önerisi var (hazır ya da kontrol).</summary>
     public bool HafizaVar => !Kapali && Oneri?.Hafiza is not null;
+    /// <summary>Satırın yapay zekâ önerisi var (doldurulur, hazır sayılmaz).</summary>
+    public bool YapayZekaVar => !Kapali && Oneri?.YapayZeka is not null;
     /// <summary>Satır özetinin altındaki hafıza notu (ne yapılacağı ve dayanağı): "Gider · Yalnız genel kasa · Hafızadan: …"; yoksa boş.</summary>
-    public string HafizaMetni => !Kapali && ErpOnerisi ? Oneri!.Aciklama : !HafizaVar || Oneri is not { } o ? ""
+    public string HafizaMetni => !Kapali && ErpOnerisi ? Oneri!.Aciklama
+        // Yapay zekânın "kasa hareketi değil" ve yönü okunamayan satır önerisi yalnız yazıdır.
+        : YapayZekaVar && Oneri!.IslemTuru is null or EkstreIslemTurleri.Atla ? Oneri!.Aciklama
+        : !HafizaVar && !YapayZekaVar || Oneri is not { } o ? ""
         : string.Join(" · ", new[] { o.IslemTuru == EkstreIslemTurleri.Atla ? "Yok sayma önerisi" : IslemTurleri.FirstOrDefault(t => t.Kod == o.IslemTuru)?.Ad, DagilimNotu(o), o.Aciklama }
             .Where(s => !string.IsNullOrEmpty(s)));
 
@@ -48,7 +53,7 @@ public partial class EkstreSatirEditor
     {
         if (Kapali || !Secilebilir || ElleDegisti)
             return false;
-        var o = Oneri is { Hafiza: not null, IslemTuru: not (null or EkstreIslemTurleri.Atla) } oneri ? oneri : null;
+        var o = Oneri is { IslemTuru: not (null or EkstreIslemTurleri.Atla) } oneri && (oneri.Hafiza is not null || oneri.YapayZeka is not null) ? oneri : null;
         if (o is null && !_hafizadan)
             return false;
         var once = Durum();
@@ -71,7 +76,7 @@ public partial class EkstreSatirEditor
                     Paylar.Add(new(Kanallar) { Kanal = kanal });
             if (KartSecimiGorunur)
                 Kart = o?.Hafiza?.KrediKartiId is { } kart ? Kartlar.FirstOrDefault(k => k.Id == kart) : null;
-            Aciklama = o?.Hafiza?.Aciklama ?? Kaynak.Aciklama;
+            Aciklama = o?.Hafiza?.Aciklama ?? o?.YapayZeka?.Aciklama ?? Kaynak.Aciklama;
             _hafizadan = o is not null;
         }
         finally { _oneriUygulaniyor = false; }

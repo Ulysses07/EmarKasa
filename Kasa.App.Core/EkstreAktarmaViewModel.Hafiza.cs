@@ -41,6 +41,7 @@ public partial class EkstreAktarmaViewModel
     {
         foreach (var ad in new[] { nameof(HazirVar), nameof(HazirOzeti), nameof(HazirAciklamasi), nameof(YokSayOneriVar), nameof(YokSayOneriDugmesi) })
             OnPropertyChanged(ad);
+        YapayZekayiBildir();
     }
 
     /// <summary>Gelen öneriler satırlara yazıldıktan sonra hafızadan doldurur; değişen satır varsa önizleme düşer.</summary>

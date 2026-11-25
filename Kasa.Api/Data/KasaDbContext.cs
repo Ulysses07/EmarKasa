@@ -30,6 +30,7 @@ public partial class KasaDbContext : DbContext
         b.Entity<EkstreKuralEntity>().Property(k => k.Surum).IsConcurrencyToken();
         b.Entity<EkstreHafizaUnutulanEntity>().HasIndex(u => new { u.Kaynak, u.Anahtar, u.Yon }).IsUnique();
         ConfigureErp(b);
+        ConfigureYapayZeka(b);
         b.Entity<AliciEntity>().Property(a => a.Kullanici).UseCollation("NOCASE");
         b.Entity<AliciEntity>().HasIndex(a => a.Kullanici).IsUnique();
         b.Entity<AlisEntity>().Property(a => a.Surum).IsConcurrencyToken();
